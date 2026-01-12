@@ -265,6 +265,10 @@ public:
     list_entry children = { &children, &children };
 };
 
+static atomic<unsigned int> num_usbms_devices;
+static spinlock usbms_volumes_lock;
+static list_entry usbms_volumes = { &usbms_volumes, &usbms_volumes };
+
 class usbms_volume : public volume {
 public:
     usbms_volume(usbms_device& dev, uint8_t lun);
@@ -273,6 +277,13 @@ public:
         if (in_parent_list) {
             lock_guard lg(dev.child_lock);
             remove_entry_list(le);
+        }
+
+        {
+            lock_guard lg(usbms_volumes_lock);
+
+            if (in_global_list)
+                remove_entry_list(global_le);
         }
 
         dev.release();
@@ -297,6 +308,8 @@ public:
     string_view model_number;
     bool in_parent_list = false;
     list_entry le;
+    bool in_global_list = false;
+    list_entry global_le;
     bool dead = false;
 
 private:
@@ -309,8 +322,6 @@ private:
     uint8_t lun;
     bool big = false;
 };
-
-static atomic<unsigned int> num_usbms_devices;
 
 static bool found_usb_storage_device(usb_device& d,
                                      const usb_device_config& config,
@@ -721,6 +732,13 @@ void usbms_device::removal() {
             v->in_parent_list = false;
         }
 
+        {
+            lock_guard lg(usbms_volumes_lock);
+
+            if (v->in_global_list)
+                remove_entry_list(v->global_le);
+        }
+
         v->acquire();
         v->removal();
         v->release();
@@ -971,6 +989,13 @@ static void init_lun(usbms_device& dev, uint8_t lun) {
 
     // FIXME - give name
     // FIXME - print found message with name(?), block size, and size
+
+    {
+        lock_guard lock(usbms_volumes_lock);
+
+        insert_tail_list(usbms_volumes, v.global_le);
+        v.in_global_list = true;
+    }
 
     v.dev_num = num_usbms_devices.fetch_add(1);
 
