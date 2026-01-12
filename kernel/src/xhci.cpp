@@ -246,6 +246,8 @@ public:
     enum usb_speed_class speed_class;
     list_entry configs = { &configs, &configs };
     bool dead = false;
+    void* removal_callback_ctx;
+    void (*removal_callback)(void*) = nullptr;
 
 private:
     bool change_ep0_max_packet_size(uint16_t max_packet_size);
@@ -2519,6 +2521,10 @@ void usb_device::device_removed() {
     }
 
     ep0_queue.break_waits();
+
+    // FIXME - do we need a lock for this?
+    if (removal_callback)
+        removal_callback(removal_callback_ctx);
 
     release();
 }
