@@ -25,6 +25,7 @@ import handle;
 import timer;
 import config;
 import rwsem;
+import spinlock;
 
 using namespace std;
 
@@ -260,6 +261,8 @@ public:
     xhci_queue& out_queue;
     rwsem lock;
     uint32_t next_tag = 0;
+    spinlock child_lock;
+    list_entry children = { &children, &children };
 };
 
 class usbms_volume : public volume {
@@ -267,6 +270,11 @@ public:
     usbms_volume(usbms_device& dev, uint8_t lun);
 
     virtual ~usbms_volume() override {
+        if (in_parent_list) {
+            lock_guard lg(dev.child_lock);
+            remove_entry_list(le);
+        }
+
         dev.release();
     }
 
@@ -281,11 +289,14 @@ public:
     nt_status dio_write(uint64_t page_num, uint64_t num_pages,
                         pfn_iterator& it, uint64_t& written_pages,
                         bool fua) override;
+    void removal();
 
     bool initialized = false;
     unsigned int dev_num;
     char model_number_buf[16];
     string_view model_number;
+    bool in_parent_list = false;
+    list_entry le;
 
 private:
     bool test_unit_ready();
@@ -686,10 +697,30 @@ size_t usbms_device::send_scsi_msg_out_dio(uint8_t lun, span<uint8_t> msg,
     }
 }
 
-void usbms_device::removal() {
-    print("FIXME - usbms_device::removal\n");
+void usbms_volume::removal() {
+    print("FIXME - usbms_volume::removal\n");
 
     // FIXME
+}
+
+void usbms_device::removal() {
+    while (true) {
+        usbms_volume* v;
+
+        {
+            lock_guard lg(child_lock);
+
+            if (is_list_empty(children))
+                break;
+
+            v = &containing_record<usbms_volume>(children.next);
+
+            remove_entry_list(v->le);
+            v->in_parent_list = false;
+        }
+
+        v->removal();
+    }
 }
 
 bool usbms_volume::test_unit_ready() {
@@ -827,6 +858,13 @@ usbms_volume::usbms_volume(usbms_device& dev, uint8_t lun) : dev(dev), lun(lun) 
                 byte_size(size));
         }
     }
+
+    {
+        lock_guard lg(dev.child_lock);
+        insert_tail_list(dev.children, le);
+    }
+
+    in_parent_list = true;
 
     initialized = true;
 }
