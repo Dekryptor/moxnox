@@ -226,6 +226,11 @@ public:
     usbms_device(usb_device& d, xhci_queue& in_queue,
                  xhci_queue& out_queue) : d(d), in_queue(in_queue), out_queue(out_queue) {
         d.acquire();
+
+        d.removal_callback_ctx = this;
+        d.removal_callback = [](void* ctx) {
+            ((usbms_device*)ctx)->removal();
+        };
     }
 
     ~usbms_device() {
@@ -241,6 +246,7 @@ public:
             delete this;
     }
 
+    void removal();
     bool send_scsi_msg_no_data(uint8_t lun, span<uint8_t> msg);
     size_t send_scsi_msg_in(uint8_t lun, span<uint8_t> msg, span<uint8_t> buf);
     size_t send_scsi_msg_in_dio(uint8_t lun, span<uint8_t> msg,
@@ -678,6 +684,12 @@ size_t usbms_device::send_scsi_msg_out_dio(uint8_t lun, span<uint8_t> msg,
                   (uint8_t)csw.bCSWStatus);
             return 0;
     }
+}
+
+void usbms_device::removal() {
+    print("FIXME - usbms_device::removal\n");
+
+    // FIXME
 }
 
 bool usbms_volume::test_unit_ready() {
