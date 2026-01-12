@@ -57,6 +57,7 @@ enum class scsi_command : uint8_t {
     READ10 = 0x28,
     WRITE10 = 0x2a,
     READ16 = 0x88,
+    WRITE16 = 0x8a,
     READ_CAPACITY16 = 0x9e,
 };
 
@@ -175,6 +176,23 @@ struct scsi_write10 {
 } __attribute((packed));
 
 static_assert(sizeof(scsi_write10) == 10);
+
+struct scsi_write16 {
+    enum scsi_command cmd;
+    uint8_t dld2 : 1;
+    uint8_t : 2;
+    uint8_t fua : 1;
+    uint8_t dpo : 1;
+    uint8_t wrprotect : 3;
+    uint64_t lba;
+    uint32_t transfer_length;
+    uint8_t group_number : 6;
+    uint8_t dld0 : 1;
+    uint8_t dld1 : 1;
+    uint8_t control;
+} __attribute((packed));
+
+static_assert(sizeof(scsi_write16) == 16);
 
 struct usbms_cbw {
     uint32_t dCBWSignature;
@@ -980,22 +998,38 @@ nt_status usbms_volume::dio_write(uint64_t page_num, uint64_t num_pages,
         return nt_status::SUCCESS;
     }
 
-    // FIXME - WRITE16 (0x8a) if big device
-
     num_pages = min((uint64_t)dev.out_queue.size, num_pages);
 
-    scsi_write10 msg;
+    if (big) {
+        scsi_write16 msg;
 
-    memset(&msg, 0, sizeof(msg));
-    msg.cmd = scsi_command::WRITE10;
-    msg.lba = byteswap((uint32_t)((page_num << PAGE_SHIFT) / sector_size));
-    msg.transfer_length = byteswap((uint16_t)(num_pages * (PAGE_SIZE / sector_size)));
-    msg.fua = fua ? 1 : 0;
+        // FIXME - test this
 
-    if (!dev.send_scsi_msg_out_dio(lun, span((uint8_t*)&msg, sizeof(msg)),
-                                   it, num_pages)) {
-        print("usbms_volume::dio_write: send_scsi_msg_out_dio failed\n");
-        return nt_status::IO_DEVICE_ERROR;
+        memset(&msg, 0, sizeof(msg));
+        msg.cmd = scsi_command::WRITE16;
+        msg.lba = byteswap((uint32_t)((page_num << PAGE_SHIFT) / sector_size));
+        msg.transfer_length = byteswap((uint16_t)(num_pages * (PAGE_SIZE / sector_size)));
+        msg.fua = fua ? 1 : 0;
+
+        if (!dev.send_scsi_msg_out_dio(lun, span((uint8_t*)&msg, sizeof(msg)),
+                                       it, num_pages)) {
+            print("usbms_volume::dio_write: send_scsi_msg_out_dio failed\n");
+            return nt_status::IO_DEVICE_ERROR;
+        }
+    } else {
+        scsi_write10 msg;
+
+        memset(&msg, 0, sizeof(msg));
+        msg.cmd = scsi_command::WRITE10;
+        msg.lba = byteswap((uint32_t)((page_num << PAGE_SHIFT) / sector_size));
+        msg.transfer_length = byteswap((uint16_t)(num_pages * (PAGE_SIZE / sector_size)));
+        msg.fua = fua ? 1 : 0;
+
+        if (!dev.send_scsi_msg_out_dio(lun, span((uint8_t*)&msg, sizeof(msg)),
+                                       it, num_pages)) {
+            print("usbms_volume::dio_write: send_scsi_msg_out_dio failed\n");
+            return nt_status::IO_DEVICE_ERROR;
+        }
     }
 
     written_pages = num_pages;
