@@ -1880,11 +1880,12 @@ size_t xhci_queue::normal_transfer(span<uint8_t> buf) {
             return false;
         }
 
-        if (!dir) {
+        if (!dir)
             memcpy(bounce, buf.data(), buf.size());
-            flush_cache(span(bounce, buf.size()), false);
-        }
-    }
+
+        flush_cache(span(bounce, buf.size()), false);
+    } else
+        flush_cache(span(buf.data(), buf.size()), false);
 
     {
         auto& s = *reinterpret_cast<xhci_trb_normal*>(&req.trb);
