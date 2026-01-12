@@ -265,7 +265,6 @@ public:
     list_entry children = { &children, &children };
 };
 
-static atomic<unsigned int> num_usbms_devices;
 static spinlock usbms_volumes_lock;
 static list_entry usbms_volumes = { &usbms_volumes, &usbms_volumes };
 
@@ -970,6 +969,30 @@ nt_status usbms_volume::dio_write(uint64_t page_num, uint64_t num_pages,
     return nt_status::SUCCESS;
 }
 
+static unsigned int find_free_dev_num() {
+    unsigned int num = 0;
+
+    // FIXME - surely there's a better way to do this
+
+    while (true) {
+        bool collision = false;
+
+        for (auto le = usbms_volumes.next; le != &usbms_volumes; le = le->next) {
+            auto& v = *(usbms_volume*)((uint8_t*)le - offsetof(usbms_volume, global_le));
+
+            if (v.dev_num == num) {
+                collision = true;
+                break;
+            }
+        }
+
+        if (!collision)
+            return num;
+
+        num++;
+    }
+}
+
 static void init_lun(usbms_device& dev, uint8_t lun) {
     auto pv = new usbms_volume(dev, lun);
 
@@ -987,17 +1010,14 @@ static void init_lun(usbms_device& dev, uint8_t lun) {
         return;
     }
 
-    // FIXME - give name
-    // FIXME - print found message with name(?), block size, and size
-
     {
         lock_guard lock(usbms_volumes_lock);
+
+        v.dev_num = find_free_dev_num();
 
         insert_tail_list(usbms_volumes, v.global_le);
         v.in_global_list = true;
     }
-
-    v.dev_num = num_usbms_devices.fetch_add(1);
 
     {
         char s[50];
