@@ -702,7 +702,7 @@ void usbms_volume::removal() {
     dead = true;
 
     remove_object_name(*this);
-    // FIXME - remove partitions
+    remove_partitions(*this);
 }
 
 void usbms_device::removal() {
