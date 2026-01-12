@@ -54,6 +54,7 @@ enum class scsi_command : uint8_t {
     INQUIRY = 0x12,
     READ_CAPACITY10 = 0x25,
     READ10 = 0x28,
+    WRITE10 = 0x2a,
     READ_CAPACITY16 = 0x9e,
 };
 
@@ -139,6 +140,21 @@ struct scsi_read10 {
 } __attribute((packed));
 
 static_assert(sizeof(scsi_read10) == 10);
+
+struct scsi_write10 {
+    enum scsi_command cmd;
+    uint8_t : 3;
+    uint8_t fua : 1;
+    uint8_t dpo : 1;
+    uint8_t wrprotect : 3;
+    uint32_t lba;
+    uint8_t group_number : 5;
+    uint8_t : 3;
+    uint16_t transfer_length;
+    uint8_t control;
+} __attribute((packed));
+
+static_assert(sizeof(scsi_write10) == 10);
 
 struct usbms_cbw {
     uint32_t dCBWSignature;
@@ -229,6 +245,8 @@ public:
     size_t send_scsi_msg_in(uint8_t lun, span<uint8_t> msg, span<uint8_t> buf);
     size_t send_scsi_msg_in_dio(uint8_t lun, span<uint8_t> msg,
                                 pfn_iterator& it, uint64_t num_pages);
+    size_t send_scsi_msg_out_dio(uint8_t lun, span<uint8_t> msg,
+                                 pfn_iterator& it, uint64_t num_pages);
 
     atomic<unsigned int> refcount = 1;
     usb_device& d;
@@ -568,6 +586,100 @@ size_t usbms_device::send_scsi_msg_in_dio(uint8_t lun, span<uint8_t> msg,
     }
 }
 
+size_t usbms_device::send_scsi_msg_out_dio(uint8_t lun, span<uint8_t> msg,
+                                           pfn_iterator& it, uint64_t num_pages) {
+    usbms_cbw cbw;
+    usbms_csw csw;
+
+    lock_guard lg(lock);
+
+    // FIXME - translate into nt_status?
+    // FIXME - handle stalls
+
+    // prepare command
+
+    memset(&cbw, 0, sizeof(cbw));
+
+    cbw.dCBWSignature = USBMS_CBW_SIG;
+    cbw.dCBWTag = next_tag;
+    cbw.dCBWDataTransferLength = (uint32_t)(num_pages << PAGE_SHIFT);
+    cbw.bmCBWFlags = 0; // out
+    cbw.bCBWLUN = lun;
+    cbw.bCBWCBLength = sizeof(cbw.msg);
+
+    next_tag++;
+
+    memcpy(&cbw.msg, msg.data(), msg.size());
+
+    // send command
+
+    auto sent_bytes = out_queue.normal_transfer(span((uint8_t*)&cbw, sizeof(cbw)));
+
+    if (sent_bytes == 0) {
+        print("usbms_device::send_scsi_msg_out_dio: xhci_queue::normal_transfer failed for OUT endpoint\n");
+        return 0;
+    } else if (sent_bytes != sizeof(cbw)) {
+        print("usbms_device::send_scsi_msg_out_dio: xhci_queue::normal_transfer sent {} bytes, expected {}\n",
+              sent_bytes, sizeof(cbw));
+        return 0;
+    }
+
+    // send data
+
+    sent_bytes = out_queue.normal_transfer_dio(it, num_pages);
+    if (sent_bytes == 0) {
+        print("usbms_device::send_scsi_msg_out_dio: xhci_queue::normal_transfer failed for OUT endpoint\n");
+        return 0;
+    } else if (sent_bytes != num_pages << PAGE_SHIFT) {
+        print("usbms_device::send_scsi_msg_out_dio: xhci_queue::normal_transfer sent {} bytes, expected {}\n",
+              sent_bytes, num_pages << PAGE_SHIFT);
+        return 0;
+    }
+
+    // receive status
+
+    auto recv_bytes = in_queue.normal_transfer(span((uint8_t*)&csw, sizeof(csw)));
+
+    if (recv_bytes == 0) {
+        print("usbms_device::send_scsi_msg_out_dio: xhci_queue::normal_transfer failed for IN endpoint\n");
+        return 0;
+    } else if (recv_bytes != sizeof(csw)) {
+        print("usbms_device::send_scsi_msg_out_dio: xhci_queue::normal_transfer received {} bytes, expected {}\n",
+              recv_bytes, sizeof(csw));
+        return 0;
+    }
+
+    if (csw.dCSWSignature != USBMS_CSW_SIG) {
+        print("usbms_device::send_scsi_msg_out_dio: response had invalid signature ({:08x}, expected {:08x})\n",
+              csw.dCSWSignature, USBMS_CSW_SIG);
+        return 0;
+    }
+
+    if (csw.dCSWTag != cbw.dCBWTag) {
+        print("usbms_device::send_scsi_msg_out_dio: response had invalid tag ({:02x}, expected {:02x})\n",
+              csw.dCSWTag, cbw.dCBWTag);
+        return 0;
+    }
+
+    switch (csw.bCSWStatus) {
+        case csw_status::success:
+            return (num_pages << PAGE_SHIFT) - csw.dCSWDataResidue;
+
+        case csw_status::failed:
+            print("usbms_device::send_scsi_msg_out_dio: command failed\n");
+            return 0;
+
+        case csw_status::phase_error:
+            print("usbms_device::send_scsi_msg_out_dio: phase error\n");
+            return 0;
+
+        default:
+            print("usbms_device::send_scsi_msg_out_dio: unrecognized error status {:02x}\n",
+                  (uint8_t)csw.bCSWStatus);
+            return 0;
+    }
+}
+
 bool usbms_volume::test_unit_ready() {
     scsi_test_unit_ready msg;
 
@@ -747,16 +859,34 @@ nt_status usbms_volume::dio_read(uint64_t page_num, uint64_t num_pages,
 }
 
 nt_status usbms_volume::dio_write(uint64_t page_num, uint64_t num_pages,
-                                  pfn_iterator& /*it*/, uint64_t& /*written_pages*/,
+                                  pfn_iterator& it, uint64_t& written_pages,
                                   bool fua) {
-    print("FIXME - usbms_volume::dio_write({:x}, {:x}, {})\n",
-          page_num, num_pages, fua ? "true" : "false");
+    if (num_pages == 0) {
+        written_pages = 0;
+        return nt_status::SUCCESS;
+    }
 
-    // FIXME
+    // FIXME - WRITE16 (0x8a) if big device
 
-    // FIXME - actual I/O (WRITE [0x2a/0x8a])
+    num_pages = min((uint64_t)dev.out_queue.size, num_pages);
 
-    return nt_status::NOT_IMPLEMENTED;
+    scsi_write10 msg;
+
+    memset(&msg, 0, sizeof(msg));
+    msg.cmd = scsi_command::WRITE10;
+    msg.lba = byteswap((uint32_t)((page_num << PAGE_SHIFT) / sector_size));
+    msg.transfer_length = byteswap((uint16_t)(num_pages * (PAGE_SIZE / sector_size)));
+    msg.fua = fua ? 1 : 0;
+
+    if (!dev.send_scsi_msg_out_dio(lun, span((uint8_t*)&msg, sizeof(msg)),
+                                   it, num_pages)) {
+        print("usbms_volume::dio_write: send_scsi_msg_out_dio failed\n");
+        return nt_status::IO_DEVICE_ERROR;
+    }
+
+    written_pages = num_pages;
+
+    return nt_status::SUCCESS;
 }
 
 static void init_lun(usbms_device& dev, uint8_t lun) {
