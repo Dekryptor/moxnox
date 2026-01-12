@@ -2499,6 +2499,9 @@ void usb_device::device_removed() {
 
     // FIXME - if hub, handle child devices
 
+    print("USB device {:04x}:{:04x} removed\n", device_descriptor.idVendor,
+          device_descriptor.idProduct);
+
     {
         lock_guard lock(endpoint_mutex);
 
