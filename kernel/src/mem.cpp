@@ -1497,9 +1497,7 @@ export bool init_memory(const loader_block& lb) {
                 for (uint64_t j = 0; j < map.len >> PAGE_SHIFT; j++) {
                     auto& p = pages[pfn_start + j];
 
-                    if (p.state != page_state::boot)
-                        insert_tail_list(boot_pages, p.boot.le);
-
+                    insert_tail_list(boot_pages, p.boot.le);
                     p.state = page_state::boot;
                     p.order = 0;
                 }
