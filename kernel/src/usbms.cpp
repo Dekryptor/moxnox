@@ -56,6 +56,7 @@ enum class scsi_command : uint8_t {
     READ_CAPACITY10 = 0x25,
     READ10 = 0x28,
     WRITE10 = 0x2a,
+    READ16 = 0x88,
     READ_CAPACITY16 = 0x9e,
 };
 
@@ -141,6 +142,24 @@ struct scsi_read10 {
 } __attribute((packed));
 
 static_assert(sizeof(scsi_read10) == 10);
+
+struct scsi_read16 {
+    enum scsi_command cmd;
+    uint8_t dld2 : 1;
+    uint8_t : 1;
+    uint8_t rarc : 1;
+    uint8_t fua : 1;
+    uint8_t dpo : 1;
+    uint8_t rdprotect : 3;
+    uint64_t lba;
+    uint32_t transfer_length;
+    uint8_t group_number : 6;
+    uint8_t dld0 : 1;
+    uint8_t dld1 : 1;
+    uint8_t control;
+} __attribute((packed));
+
+static_assert(sizeof(scsi_read16) == 16);
 
 struct scsi_write10 {
     enum scsi_command cmd;
@@ -909,20 +928,35 @@ nt_status usbms_volume::dio_read(uint64_t page_num, uint64_t num_pages,
         return nt_status::SUCCESS;
     }
 
-    // FIXME - READ16 (0x88) if big device
-
     num_pages = min((uint64_t)dev.in_queue.size, num_pages);
 
-    scsi_read10 msg;
+    size_t recv_bytes;
 
-    memset(&msg, 0, sizeof(msg));
-    msg.cmd = scsi_command::READ10;
-    msg.lba = byteswap((uint32_t)((page_num << PAGE_SHIFT) / sector_size));
-    msg.transfer_length = byteswap((uint16_t)(num_pages * (PAGE_SIZE / sector_size)));
+    if (big) {
+        scsi_read16 msg;
 
-    auto recv_bytes = dev.send_scsi_msg_in_dio(lun,
-                                               span((uint8_t*)&msg, sizeof(msg)),
-                                               it, num_pages);
+        // FIXME - test this
+
+        memset(&msg, 0, sizeof(msg));
+        msg.cmd = scsi_command::READ16;
+        msg.lba = byteswap((uint64_t)((page_num << PAGE_SHIFT) / sector_size));
+        msg.transfer_length = byteswap((uint32_t)(num_pages * (PAGE_SIZE / sector_size)));
+
+        recv_bytes = dev.send_scsi_msg_in_dio(lun,
+                                              span((uint8_t*)&msg, sizeof(msg)),
+                                              it, num_pages);
+    } else {
+        scsi_read10 msg;
+
+        memset(&msg, 0, sizeof(msg));
+        msg.cmd = scsi_command::READ10;
+        msg.lba = byteswap((uint32_t)((page_num << PAGE_SHIFT) / sector_size));
+        msg.transfer_length = byteswap((uint16_t)(num_pages * (PAGE_SIZE / sector_size)));
+
+        recv_bytes = dev.send_scsi_msg_in_dio(lun,
+                                              span((uint8_t*)&msg, sizeof(msg)),
+                                              it, num_pages);
+    }
 
     if (recv_bytes != num_pages << PAGE_SHIFT) {
         print("usbms_volume::dio_read: received {} bytes, expected {}\n",
