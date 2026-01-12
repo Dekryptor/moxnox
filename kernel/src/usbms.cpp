@@ -297,6 +297,7 @@ public:
     string_view model_number;
     bool in_parent_list = false;
     list_entry le;
+    bool dead = false;
 
 private:
     bool test_unit_ready();
@@ -698,9 +699,10 @@ size_t usbms_device::send_scsi_msg_out_dio(uint8_t lun, span<uint8_t> msg,
 }
 
 void usbms_volume::removal() {
-    print("FIXME - usbms_volume::removal\n");
+    dead = true;
 
-    // FIXME
+    remove_object_name(*this);
+    // FIXME - remove partitions
 }
 
 void usbms_device::removal() {
@@ -719,7 +721,9 @@ void usbms_device::removal() {
             v->in_parent_list = false;
         }
 
+        v->acquire();
         v->removal();
+        v->release();
     }
 }
 
@@ -870,6 +874,9 @@ usbms_volume::usbms_volume(usbms_device& dev, uint8_t lun) : dev(dev), lun(lun) 
 }
 
 nt_status usbms_volume::flush() {
+    if (dead)
+        return nt_status::DEVICE_REMOVED;
+
     // FIXME - SYNCHRONIZE CACHE (0x35/0x91)?
 
     return nt_status::SUCCESS;
@@ -877,6 +884,9 @@ nt_status usbms_volume::flush() {
 
 nt_status usbms_volume::dio_read(uint64_t page_num, uint64_t num_pages,
                                  pfn_iterator& it, uint64_t& read_pages) {
+    if (dead)
+        return nt_status::DEVICE_REMOVED;
+
     if (num_pages == 0) {
         read_pages = 0;
         return nt_status::SUCCESS;
@@ -911,6 +921,9 @@ nt_status usbms_volume::dio_read(uint64_t page_num, uint64_t num_pages,
 nt_status usbms_volume::dio_write(uint64_t page_num, uint64_t num_pages,
                                   pfn_iterator& it, uint64_t& written_pages,
                                   bool fua) {
+    if (dead)
+        return nt_status::DEVICE_REMOVED;
+
     if (num_pages == 0) {
         written_pages = 0;
         return nt_status::SUCCESS;
