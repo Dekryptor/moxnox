@@ -23,6 +23,7 @@ import page_cache;
 import handle;
 import object_ref;
 import crt;
+import dma;
 
 using namespace std;
 
@@ -207,17 +208,20 @@ nt_status virtio_block<T>::flush() {
     if (!(dev.negotiated_features & VIRTIO_BLK_F_FLUSH))
         return nt_status::SUCCESS;
 
-    auto req = (virtio_blk_req*)malloc(sizeof(virtio_blk_req));
-    if (!req)
+    virtio_blk_req req;
+    uint8_t* bounce = nullptr;
+
+    req.type = VIRTIO_BLK_T::FLUSH;
+    req.reserved = 0;
+    req.sector = 0;
+
+    auto pa = dma_setup(span((uint8_t*)&req, sizeof(req)), true, bounce);
+    if (!pa)
         return nt_status::INSUFFICIENT_RESOURCES;
 
     virtq_desc descs[2];
 
-    req->type = VIRTIO_BLK_T::FLUSH;
-    req->reserved = 0;
-    req->sector = 0;
-
-    descs[0].addr = va_to_pa_phys(req);
+    descs[0].addr = pa;
     descs[0].len = offsetof(virtio_blk_req, status);
     descs[0].flags = VIRTQ_DESC_F_NEXT;
     descs[0].next = 1;
@@ -237,19 +241,16 @@ nt_status virtio_block<T>::flush() {
         status = queue->indirect(descs, buf_read_bytes);
     }
 
-    if (!success(status)) {
-        free(req);
-        return status;
-    }
+    dma_finish_read(span((uint8_t*)&req, sizeof(req)), bounce);
 
-    if (req->status != 0) {
-        print("virtio_block::flush: device returned status {:x}\n", req->status);
-        free(req);
+    if (!success(status))
+        return status;
+
+    if (req.status != 0) {
+        print("virtio_block::flush: device returned status {:x}\n", req.status);
         // FIXME - translate status into nt_status properly
         return nt_status::INTERNAL_ERROR;
     }
-
-    free(req);
 
     return nt_status::SUCCESS;
 }
