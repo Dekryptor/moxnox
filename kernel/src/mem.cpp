@@ -1582,7 +1582,7 @@ void* calloc(size_t nmemb, size_t size) {
     return ptr;
 }
 
-export constexpr bool is_phys_memory(void* ptr) {
+export constexpr bool is_phys_memory(const void* ptr) {
     return ((uintptr_t)ptr & PHYS_MEMORY_MASK) == PHYS_MEMORY;
 }
 
