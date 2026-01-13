@@ -30,6 +30,7 @@ import spinlock;
 import handle;
 import object_ref;
 import crt;
+import dma;
 
 #include "sata.h"
 
@@ -187,9 +188,12 @@ void sata_device::release_slot(uint8_t slot) {
 }
 
 bool sata_device::identify() {
-    auto buf = malloc(sizeof(ata_identify_device_block));
-    if (!buf) {
-        print("malloc failed\n");
+    uint8_t* bounce = nullptr;
+    auto sp = span((uint8_t*)&identify_block, sizeof(identify_block));
+
+    auto pa = dma_setup(sp, false, bounce);
+    if (!pa) {
+        print("dma_setup failed\n");
         return false;
     }
 
@@ -208,8 +212,6 @@ bool sata_device::identify() {
 
     memset(&cmdtbl, 0, offsetof(HBA_CMD_TBL, prdt_entry) + (cmd.prdtl * sizeof(HBA_PRDT_ENTRY)));
 
-    auto pa = va_to_pa_phys(buf);
-
     cmdtbl.prdt_entry[0].dba = (uint32_t)pa;
     cmdtbl.prdt_entry[0].dbau = (uint32_t)(pa >> 32);
     cmdtbl.prdt_entry[0].dbc = sizeof(ata_identify_device_block) - 1;
@@ -225,11 +227,13 @@ bool sata_device::identify() {
     port.ci = 1 << slot;
 
     auto status = wait_for_object(events[slot].get(), true);
+
+    dma_finish_read(sp, bounce);
+
     if (!success(status)) {
         print("sata_device::identify: wait_for_object returned {}\n", status);
         pending_slots &= ~((uint32_t)1 << slot);
         release_slot(slot);
-        free(buf);
         return false;
     }
 
@@ -240,15 +244,10 @@ bool sata_device::identify() {
     if (port.is & HBA_PxIS_TFES) {
         print("Error sending IDENTIFY DEVICE command to disk\n");
         release_slot(slot);
-        free(buf);
         return false;
     }
 
-    memcpy(&identify_block, buf, sizeof(ata_identify_device_block));
-
     release_slot(slot);
-
-    free(buf);
 
     return true;
 }
