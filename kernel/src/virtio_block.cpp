@@ -269,21 +269,24 @@ nt_status virtio_block<T>::dio_read(uint64_t page_num, uint64_t num_pages,
     if (num_pages > MAX_PAGES)
         num_pages = MAX_PAGES;
 
-    auto req = (virtio_blk_req*)malloc(sizeof(virtio_blk_req));
-    if (!req)
-        return nt_status::INSUFFICIENT_RESOURCES;
+    virtio_blk_req req;
+    uint8_t* bounce = nullptr;
+
+    req.type = VIRTIO_BLK_T::IN;
+    req.reserved = 0;
+    req.sector = (page_num << PAGE_SHIFT) / SECTOR_SIZE;
 
     auto descs = (virtq_desc*)malloc(sizeof(virtq_desc) * (num_pages + 2));
-    if (!descs) {
-        free(req);
+    if (!descs)
+        return nt_status::INSUFFICIENT_RESOURCES;
+
+    auto pa = dma_setup(span((uint8_t*)&req, sizeof(req)), true, bounce);
+    if (!pa) {
+        free(descs);
         return nt_status::INSUFFICIENT_RESOURCES;
     }
 
-    req->type = VIRTIO_BLK_T::IN;
-    req->reserved = 0;
-    req->sector = (page_num << PAGE_SHIFT) / SECTOR_SIZE;
-
-    descs[0].addr = va_to_pa_phys(req);
+    descs[0].addr = pa;
     descs[0].len = offsetof(virtio_blk_req, status);
     descs[0].flags = VIRTQ_DESC_F_NEXT;
     descs[0].next = 1;
@@ -306,23 +309,20 @@ nt_status virtio_block<T>::dio_read(uint64_t page_num, uint64_t num_pages,
     uint64_t buf_read_bytes;
 
     auto status = queue->indirect(span(descs, num_pages + 2), buf_read_bytes);
-    if (!success(status)) {
-        free(descs);
-        free(req);
-        return status;
-    }
 
-    if (req->status != 0) {
-        print("virtio_block::dio_read: device returned status {:x}\n", req->status);
-        free(descs);
-        free(req);
+    dma_finish_read(span((uint8_t*)&req, sizeof(req)), bounce);
+
+    free(descs);
+
+    if (!success(status))
+        return status;
+
+    if (req.status != 0) {
+        print("virtio_block::dio_read: device returned status {:x}\n", req.status);
         return nt_status::INTERNAL_ERROR; // FIXME - translate into sensible nt_status
     }
 
     read_pages = num_pages;
-
-    free(descs);
-    free(req);
 
     return nt_status::SUCCESS;
 }
