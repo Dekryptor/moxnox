@@ -56,6 +56,7 @@ enum class scsi_command : uint8_t {
     READ_CAPACITY10 = 0x25,
     READ10 = 0x28,
     WRITE10 = 0x2a,
+    SYNCHRONIZE_CACHE = 0x35,
     READ16 = 0x88,
     WRITE16 = 0x8a,
     READ_CAPACITY16 = 0x9e,
@@ -193,6 +194,20 @@ struct scsi_write16 {
 } __attribute((packed));
 
 static_assert(sizeof(scsi_write16) == 16);
+
+struct scsi_synchronize_cache {
+    enum scsi_command cmd;
+    uint8_t : 1;
+    uint8_t immed : 1;
+    uint8_t : 6;
+    uint32_t lba;
+    uint8_t group_number : 5;
+    uint8_t : 3;
+    uint16_t number_of_blocks;
+    uint8_t control;
+} __attribute((packed));
+
+static_assert(sizeof(scsi_synchronize_cache) == 10);
 
 struct usbms_cbw {
     uint32_t dCBWSignature;
@@ -931,7 +946,13 @@ nt_status usbms_volume::flush() {
     if (dead)
         return nt_status::DEVICE_REMOVED;
 
-    // FIXME - SYNCHRONIZE CACHE (0x35/0x91)?
+    scsi_synchronize_cache msg;
+
+    memset(&msg, 0, sizeof(msg));
+    msg.cmd = scsi_command::SYNCHRONIZE_CACHE;
+
+    if (!dev.send_scsi_msg_no_data(lun, span((uint8_t*)&msg, sizeof(msg))))
+        return nt_status::IO_DEVICE_ERROR;
 
     return nt_status::SUCCESS;
 }
