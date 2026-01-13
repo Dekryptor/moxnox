@@ -401,12 +401,12 @@ bool virtio_gpu<T>::get_display_info(virtio_gpu_resp_display_info& disp_info) {
         return false;
     }
 
-    descs[0].addr = (phys_memory_pfn(req) << PAGE_SHIFT) + ((uintptr_t)req & (PAGE_SIZE - 1));
+    descs[0].addr = va_to_pa_phys(req);
     descs[0].len = sizeof(virtio_gpu_ctrl_hdr);
     descs[0].flags = VIRTQ_DESC_F_NEXT;
     descs[0].next = 1;
 
-    descs[1].addr = (phys_memory_pfn(&disp_info) << PAGE_SHIFT) + ((uintptr_t)&disp_info & (PAGE_SIZE - 1));
+    descs[1].addr = va_to_pa_phys(&disp_info);
     descs[1].len = sizeof(virtio_gpu_resp_display_info);
     descs[1].flags = VIRTQ_DESC_F_WRITE;
     descs[1].next = 0;
@@ -460,12 +460,12 @@ bool virtio_gpu<T>::get_edid(uint32_t scanout, span<uint8_t> ret) {
         return false;
     }
 
-    descs[0].addr = (phys_memory_pfn(req) << PAGE_SHIFT) + ((uintptr_t)req & (PAGE_SIZE - 1));
+    descs[0].addr = va_to_pa_phys(req);
     descs[0].len = sizeof(virtio_gpu_get_edid);
     descs[0].flags = VIRTQ_DESC_F_NEXT;
     descs[0].next = 1;
 
-    descs[1].addr = (phys_memory_pfn(resp) << PAGE_SHIFT) + ((uintptr_t)resp & (PAGE_SIZE - 1));
+    descs[1].addr = va_to_pa_phys(resp);
     descs[1].len = sizeof(virtio_gpu_resp_edid);
     descs[1].flags = VIRTQ_DESC_F_WRITE;
     descs[1].next = 0;
@@ -533,12 +533,12 @@ optional<uint32_t> virtio_gpu<T>::create_resource(VIRTIO_GPU_FORMAT format,
         return nullopt;
     }
 
-    descs[0].addr = (phys_memory_pfn(req) << PAGE_SHIFT) + ((uintptr_t)req & (PAGE_SIZE - 1));
+    descs[0].addr = va_to_pa_phys(req);
     descs[0].len = sizeof(virtio_gpu_resource_create_2d);
     descs[0].flags = VIRTQ_DESC_F_NEXT;
     descs[0].next = 1;
 
-    descs[1].addr = (phys_memory_pfn(resp) << PAGE_SHIFT) + ((uintptr_t)resp & (PAGE_SIZE - 1));
+    descs[1].addr = va_to_pa_phys(resp);
     descs[1].len = sizeof(virtio_gpu_ctrl_hdr);
     descs[1].flags = VIRTQ_DESC_F_WRITE;
     descs[1].next = 0;
@@ -668,7 +668,7 @@ bool virtio_gpu<T>::attach_backing(uint32_t resource, span<uint8_t> buf) {
 
     populate_descs(span(descs, num_entries), span((uint8_t*)req, req_size));
 
-    descs[req_entries].addr = (phys_memory_pfn(resp) << PAGE_SHIFT) + ((uintptr_t)resp & (PAGE_SIZE - 1));
+    descs[req_entries].addr = va_to_pa_phys(resp);
     descs[req_entries].len = sizeof(virtio_gpu_ctrl_hdr);
     descs[req_entries].flags = VIRTQ_DESC_F_WRITE;
     descs[req_entries].next = 0;
@@ -729,12 +729,12 @@ bool virtio_gpu<T>::set_scanout(const virtio_gpu_rect& r, uint32_t scanout,
         return false;
     }
 
-    descs[0].addr = (phys_memory_pfn(req) << PAGE_SHIFT) + ((uintptr_t)req & (PAGE_SIZE - 1));
+    descs[0].addr = va_to_pa_phys(req);
     descs[0].len = sizeof(virtio_gpu_set_scanout);
     descs[0].flags = VIRTQ_DESC_F_NEXT;
     descs[0].next = 1;
 
-    descs[1].addr = (phys_memory_pfn(resp) << PAGE_SHIFT) + ((uintptr_t)resp & (PAGE_SIZE - 1));
+    descs[1].addr = va_to_pa_phys(resp);
     descs[1].len = sizeof(virtio_gpu_ctrl_hdr);
     descs[1].flags = VIRTQ_DESC_F_WRITE;
     descs[1].next = 0;
@@ -795,12 +795,12 @@ bool virtio_gpu<T>::transfer_to_host(const virtio_gpu_rect& r, uint64_t offset,
         return false;
     }
 
-    descs[0].addr = (phys_memory_pfn(req) << PAGE_SHIFT) + ((uintptr_t)req & (PAGE_SIZE - 1));
+    descs[0].addr = va_to_pa_phys(req);
     descs[0].len = sizeof(virtio_gpu_transfer_to_host_2d);
     descs[0].flags = VIRTQ_DESC_F_NEXT;
     descs[0].next = 1;
 
-    descs[1].addr = (phys_memory_pfn(resp) << PAGE_SHIFT) + ((uintptr_t)resp & (PAGE_SIZE - 1));
+    descs[1].addr = va_to_pa_phys(resp);
     descs[1].len = sizeof(virtio_gpu_ctrl_hdr);
     descs[1].flags = VIRTQ_DESC_F_WRITE;
     descs[1].next = 0;
@@ -859,12 +859,12 @@ bool virtio_gpu<T>::resource_flush(const virtio_gpu_rect& r, uint32_t resource) 
         return false;
     }
 
-    descs[0].addr = (phys_memory_pfn(req) << PAGE_SHIFT) + ((uintptr_t)req & (PAGE_SIZE - 1));
+    descs[0].addr = va_to_pa_phys(req);
     descs[0].len = sizeof(virtio_gpu_resource_flush);
     descs[0].flags = VIRTQ_DESC_F_NEXT;
     descs[0].next = 1;
 
-    descs[1].addr = (phys_memory_pfn(resp) << PAGE_SHIFT) + ((uintptr_t)resp & (PAGE_SIZE - 1));
+    descs[1].addr = va_to_pa_phys(resp);
     descs[1].len = sizeof(virtio_gpu_ctrl_hdr);
     descs[1].flags = VIRTQ_DESC_F_WRITE;
     descs[1].next = 0;
