@@ -1657,12 +1657,13 @@ bool xhci_queue::control_transfer(span<uint8_t> buf, uint8_t bmRequestType,
                                   uint16_t wIndex) {
     xhci_request req_setup, req_data, req_status;
     uint8_t* bounce = nullptr;
+    uint64_t pa;
 
     if (!buf.empty()) {
-        if (!dma_setup(buf, !(bmRequestType & USB_REQUEST_TYPE_DEVICE_TO_HOST),
-                       bounce)) {
+        pa = dma_setup(buf, !(bmRequestType & USB_REQUEST_TYPE_DEVICE_TO_HOST),
+                       bounce);
+        if (!pa)
             return false;
-        }
     }
 
     req_setup.event = create_event(false);
@@ -1698,7 +1699,7 @@ bool xhci_queue::control_transfer(span<uint8_t> buf, uint8_t bmRequestType,
 
         memset(&s, 0, sizeof(s));
 
-        s.data_buffer = va_to_pa_phys(bounce ? bounce : buf.data());
+        s.data_buffer = pa;
         s.trb_transfer_length = (uint16_t)buf.size();
         s.trb_type = (uint16_t)xhci_trb_type::data_stage;
         s.dir = bmRequestType & USB_REQUEST_TYPE_DEVICE_TO_HOST ? 1 : 0;
@@ -1820,7 +1821,8 @@ size_t xhci_queue::normal_transfer(span<uint8_t> buf) {
 
     // FIXME - can set IDT flag on short OUT transfers
 
-    if (!dma_setup(buf, !dir, bounce))
+    auto pa = dma_setup(buf, !dir, bounce);
+    if (!pa)
         return 0;
 
     {
@@ -1828,7 +1830,7 @@ size_t xhci_queue::normal_transfer(span<uint8_t> buf) {
 
         memset(&s, 0, sizeof(s));
 
-        s.data_buffer = va_to_pa_phys(bounce ? bounce : buf.data());
+        s.data_buffer = pa;
         s.trb_transfer_length = (uint16_t)buf.size();
 
         s.ioc = 1;
@@ -1839,25 +1841,17 @@ size_t xhci_queue::normal_transfer(span<uint8_t> buf) {
 
     wait_for_object(req.event.get(), false);
 
-    if (dev && dev->dead) {
-        if (bounce)
-            free(bounce);
+    dma_finish(buf, !dir, bounce);
 
+    if (dev && dev->dead)
         return 0;
-    }
 
     auto code = (enum TRB_CODE)req.ev.completion_code;
 
     if (code != TRB_CODE::SUCCESS && code != TRB_CODE::SHORT_PACKET) {
         print("xhci_queue::normal_transfer: controller returned error {}\n", code);
-
-        if (bounce)
-            free(bounce);
-
         return 0;
     }
-
-    dma_finish(buf, !dir, bounce);
 
     return buf.size() - req.ev.trb_transfer_length;
 }

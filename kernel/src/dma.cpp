@@ -21,7 +21,7 @@ static bool is_cache_line_aligned(span<uint8_t> buf) {
     return true;
 }
 
-export bool dma_setup(span<uint8_t> buf, bool write, uint8_t*& bounce) {
+export uint64_t dma_setup(span<uint8_t> buf, bool write, uint8_t*& bounce) {
     if (!is_cache_line_aligned(buf)) {
         size_t bounce_size = buf.size();
 
@@ -33,17 +33,23 @@ export bool dma_setup(span<uint8_t> buf, bool write, uint8_t*& bounce) {
         bounce = (uint8_t*)malloc(bounce_size);
         if (!bounce) {
             print("malloc failed\n");
-            return false;
+            return 0;
         }
 
         if (write)
             memcpy(bounce, buf.data(), buf.size());
 
         flush_cache(span(bounce, buf.size()), false);
-    } else
+
+        return va_to_pa_phys(bounce);
+    } else {
         flush_cache(span(buf.data(), buf.size()), false);
 
-    return true;
+        if (is_phys_memory(buf.data()))
+            return va_to_pa_phys(buf.data());
+        else
+            return va_to_pa_lookup((uintptr_t)buf.data());
+    }
 }
 
 export void dma_finish(span<uint8_t> buf, bool write, uint8_t* bounce) {
