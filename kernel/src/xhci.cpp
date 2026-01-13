@@ -35,6 +35,7 @@ import spinlock;
 import acpi;
 import page_cache;
 import bsod;
+import dma;
 
 using namespace std;
 
@@ -1866,26 +1867,8 @@ size_t xhci_queue::normal_transfer(span<uint8_t> buf) {
 
     // FIXME - can set IDT flag on short OUT transfers
 
-    if (!is_cache_line_aligned(buf)) {
-        size_t bounce_size = buf.size();
-
-        if (bounce_size & ((1 << cache_line_shift) - 1)) {
-            bounce_size &= ~(((uint64_t)1 << cache_line_shift) - 1);
-            bounce_size += 1 << cache_line_shift;
-        }
-
-        bounce = (uint8_t*)malloc(bounce_size);
-        if (!bounce) {
-            print("malloc failed\n");
-            return false;
-        }
-
-        if (!dir)
-            memcpy(bounce, buf.data(), buf.size());
-
-        flush_cache(span(bounce, buf.size()), false);
-    } else
-        flush_cache(span(buf.data(), buf.size()), false);
+    if (!dma_setup(buf, !dir, bounce))
+        return 0;
 
     {
         auto& s = *reinterpret_cast<xhci_trb_normal*>(&req.trb);
@@ -1921,17 +1904,7 @@ size_t xhci_queue::normal_transfer(span<uint8_t> buf) {
         return 0;
     }
 
-    if (bounce) {
-        if (dir) {
-            flush_cache(span(bounce, buf.size()), true);
-            memcpy(buf.data(), bounce, buf.size());
-        }
-
-        free(bounce);
-    } else {
-        if (dir)
-            flush_cache(buf, true);
-    }
+    dma_finish(buf, !dir, bounce);
 
     return buf.size() - req.ev.trb_transfer_length;
 }

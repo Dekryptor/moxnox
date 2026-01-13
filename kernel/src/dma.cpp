@@ -1,0 +1,61 @@
+module;
+
+#include <stdint.h>
+#include <span>
+
+export module dma;
+
+import mem;
+import crt;
+import print;
+
+using namespace std;
+
+static bool is_cache_line_aligned(span<uint8_t> buf) {
+    if (buf.size() & ((1 << cache_line_shift) - 1))
+        return false;
+
+    if ((uintptr_t)buf.data() & ((1 << cache_line_shift) - 1))
+        return false;
+
+    return true;
+}
+
+export bool dma_setup(span<uint8_t> buf, bool write, uint8_t*& bounce) {
+    if (!is_cache_line_aligned(buf)) {
+        size_t bounce_size = buf.size();
+
+        if (bounce_size & ((1 << cache_line_shift) - 1)) {
+            bounce_size &= ~(((uint64_t)1 << cache_line_shift) - 1);
+            bounce_size += 1 << cache_line_shift;
+        }
+
+        bounce = (uint8_t*)malloc(bounce_size);
+        if (!bounce) {
+            print("malloc failed\n");
+            return false;
+        }
+
+        if (write)
+            memcpy(bounce, buf.data(), buf.size());
+
+        flush_cache(span(bounce, buf.size()), false);
+    } else
+        flush_cache(span(buf.data(), buf.size()), false);
+
+    return true;
+}
+
+export void dma_finish(span<uint8_t> buf, bool write, uint8_t* bounce) {
+    if (bounce) {
+        if (!write) {
+            flush_cache(span(bounce, buf.size()), true);
+            memcpy(buf.data(), bounce, buf.size());
+        }
+
+        free(bounce);
+    } else {
+        if (!write)
+            flush_cache(buf, true);
+    }
+}
