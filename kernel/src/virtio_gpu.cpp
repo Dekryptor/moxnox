@@ -484,6 +484,7 @@ optional<uint32_t> virtio_gpu<T>::create_resource(VIRTIO_GPU_FORMAT format,
                                                   uint32_t width,
                                                   uint32_t height) {
     uint64_t read_bytes;
+    virtq_desc descs[2];
 
     auto req = (virtio_gpu_resource_create_2d*)malloc(sizeof(virtio_gpu_resource_create_2d));
     if (!req) {
@@ -507,14 +508,6 @@ optional<uint32_t> virtio_gpu<T>::create_resource(VIRTIO_GPU_FORMAT format,
     req->width = width;
     req->height = height;
 
-    auto descs = (virtq_desc*)malloc(sizeof(virtq_desc) * 2);
-    if (!descs) {
-        print("malloc failed\n");
-        free(resp);
-        free(req);
-        return nullopt;
-    }
-
     descs[0].addr = va_to_pa_phys(req);
     descs[0].len = sizeof(virtio_gpu_resource_create_2d);
     descs[0].flags = VIRTQ_DESC_F_NEXT;
@@ -525,15 +518,13 @@ optional<uint32_t> virtio_gpu<T>::create_resource(VIRTIO_GPU_FORMAT format,
     descs[1].flags = VIRTQ_DESC_F_WRITE;
     descs[1].next = 0;
 
-    auto status = control_queue->indirect(span(descs, 2), read_bytes);
+    auto status = control_queue->indirect(descs, read_bytes);
     if (!success(status)) {
-        free(descs);
         free(resp);
         free(req);
         return nullopt;
     }
 
-    free(descs);
     free(req);
 
     auto resp_err = (enum VIRTIO_GPU_RESP)resp->type;
