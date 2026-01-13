@@ -62,7 +62,7 @@ export void dma_finish_read(span<uint8_t> buf, uint8_t* bounce) {
         flush_cache(buf, true);
 }
 
-export void dma_finish_write(span<const uint8_t> buf, uint8_t* bounce) {
+export void dma_finish_write(uint8_t* bounce) {
     if (bounce)
         free(bounce);
 }

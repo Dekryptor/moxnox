@@ -1732,7 +1732,7 @@ bool xhci_queue::control_transfer(span<uint8_t> buf, uint8_t bmRequestType,
         if (bmRequestType & USB_REQUEST_TYPE_DEVICE_TO_HOST)
             dma_finish_read(buf, bounce);
         else
-            dma_finish_write(buf, bounce);
+            dma_finish_write(bounce);
     }
 
     if (dev && dev->dead)
@@ -1846,7 +1846,7 @@ size_t xhci_queue::normal_transfer(span<uint8_t> buf) {
     if (dir)
         dma_finish_read(buf, bounce);
     else
-        dma_finish_write(buf, bounce);
+        dma_finish_write(bounce);
 
     if (dev && dev->dead)
         return 0;

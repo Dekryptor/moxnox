@@ -486,7 +486,7 @@ nt_status virt_queue::indirect(span<virtq_desc> descs, uint64_t& read_bytes) {
 
     release_slot(slot);
 
-    dma_finish_write(span((uint8_t*)descs.data(), descs.size_bytes()), bounce);
+    dma_finish_write(bounce);
 
     return nt_status::SUCCESS;
 }
@@ -524,7 +524,7 @@ nt_status virt_queue::write(span<const uint8_t> msg) {
 
     release_slot(slot);
 
-    dma_finish_write(msg, bounce);
+    dma_finish_write(bounce);
 
     return nt_status::SUCCESS;
 }
