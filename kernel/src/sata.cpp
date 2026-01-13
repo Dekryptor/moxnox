@@ -756,6 +756,8 @@ nt_status sata_device::dio_write(uint64_t page_num, uint64_t num_pages,
             e.dbc = (unsigned int)(PAGE_SIZE - 1); // FIXME - what if device not whole number of pages?
 #pragma GCC diagnostic pop
             e.i = 0; // interrupt
+
+            ::flush_cache(span((uint8_t*)phys_address(*it), PAGE_SIZE), false);
         }
 
         cmdtbl.prdt_entry[num_pages - 1].i = 1;
