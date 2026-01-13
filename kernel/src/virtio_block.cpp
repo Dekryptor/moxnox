@@ -211,11 +211,7 @@ nt_status virtio_block<T>::flush() {
     if (!req)
         return nt_status::INSUFFICIENT_RESOURCES;
 
-    auto descs = (virtq_desc*)malloc(sizeof(virtq_desc) * 2);
-    if (!descs) {
-        free(req);
-        return nt_status::INSUFFICIENT_RESOURCES;
-    }
+    virtq_desc descs[2];
 
     req->type = VIRTIO_BLK_T::FLUSH;
     req->reserved = 0;
@@ -238,24 +234,21 @@ nt_status virtio_block<T>::flush() {
 
         uint64_t buf_read_bytes;
 
-        status = queue->indirect(span(descs, 2), buf_read_bytes);
+        status = queue->indirect(descs, buf_read_bytes);
     }
 
     if (!success(status)) {
-        free(descs);
         free(req);
         return status;
     }
 
     if (req->status != 0) {
         print("virtio_block::flush: device returned status {:x}\n", req->status);
-        free(descs);
         free(req);
         // FIXME - translate status into nt_status properly
         return nt_status::INTERNAL_ERROR;
     }
 
-    free(descs);
     free(req);
 
     return nt_status::SUCCESS;
