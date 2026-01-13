@@ -299,6 +299,9 @@ nt_status virtio_block<T>::dio_read(uint64_t page_num, uint64_t num_pages,
         descs[i + 1].len = PAGE_SIZE;
         descs[i + 1].flags = VIRTQ_DESC_F_WRITE | VIRTQ_DESC_F_NEXT;
         descs[i + 1].next = (uint16_t)(i + 2);
+
+        ::flush_cache(span((uint8_t*)phys_address(descs[i + 1].addr), descs[i + 1].len),
+                      false);
     }
 
     descs[num_pages + 1].addr = descs[0].addr + descs[0].len;
@@ -311,6 +314,11 @@ nt_status virtio_block<T>::dio_read(uint64_t page_num, uint64_t num_pages,
     auto status = queue->indirect(span(descs, num_pages + 2), buf_read_bytes);
 
     dma_finish_read(span((uint8_t*)&req, sizeof(req)), bounce);
+
+    for (unsigned int i = 0; i < num_pages; i++) {
+        ::flush_cache(span((uint8_t*)phys_address(descs[i + 1].addr), descs[i + 1].len),
+                      true);
+    }
 
     free(descs);
 
