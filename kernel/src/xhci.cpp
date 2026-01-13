@@ -1729,8 +1729,10 @@ bool xhci_queue::control_transfer(span<uint8_t> buf, uint8_t bmRequestType,
     auto status = wait_for_object(req_status.event.get(), false, USB_TIMEOUT);
 
     if (!buf.empty()) {
-        dma_finish(buf, !(bmRequestType & USB_REQUEST_TYPE_DEVICE_TO_HOST),
-                   bounce);
+        if (bmRequestType & USB_REQUEST_TYPE_DEVICE_TO_HOST)
+            dma_finish_read(buf, bounce);
+        else
+            dma_finish_write(buf, bounce);
     }
 
     if (dev && dev->dead)
@@ -1841,7 +1843,10 @@ size_t xhci_queue::normal_transfer(span<uint8_t> buf) {
 
     wait_for_object(req.event.get(), false);
 
-    dma_finish(buf, !dir, bounce);
+    if (dir)
+        dma_finish_read(buf, bounce);
+    else
+        dma_finish_write(buf, bounce);
 
     if (dev && dev->dead)
         return 0;

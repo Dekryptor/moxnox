@@ -52,16 +52,17 @@ export uint64_t dma_setup(span<uint8_t> buf, bool write, uint8_t*& bounce) {
     }
 }
 
-export void dma_finish(span<uint8_t> buf, bool write, uint8_t* bounce) {
+export void dma_finish_read(span<uint8_t> buf, uint8_t* bounce) {
     if (bounce) {
-        if (!write) {
-            flush_cache(span(bounce, buf.size()), true);
-            memcpy(buf.data(), bounce, buf.size());
-        }
+        flush_cache(span(bounce, buf.size()), true);
+        memcpy(buf.data(), bounce, buf.size());
 
         free(bounce);
-    } else {
-        if (!write)
-            flush_cache(buf, true);
-    }
+    } else
+        flush_cache(buf, true);
+}
+
+export void dma_finish_write(span<const uint8_t> buf, uint8_t* bounce) {
+    if (bounce)
+        free(bounce);
 }
