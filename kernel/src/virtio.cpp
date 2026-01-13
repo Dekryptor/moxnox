@@ -6,6 +6,7 @@ module;
 #include <span>
 #include "acpica.h"
 #include "virtio.h"
+#include "assert.h"
 #include <variant>
 
 export module virtio;
@@ -27,6 +28,7 @@ import spinlock;
 import disable_interrupts;
 import cpu_block;
 import dma;
+import bsod;
 
 using namespace std;
 
@@ -374,24 +376,23 @@ void virt_queue::release_slot(uint8_t slot) {
 }
 
 nt_status virt_queue::read(span<uint8_t> s, uint64_t& read_bytes) {
-    // FIXME - do without copying
+    uint8_t* bounce = nullptr;
 
     if (s.empty()) {
         read_bytes = 0;
         return nt_status::SUCCESS;
     }
 
-    auto buf_size = min(s.size(), PAGE_SIZE);
-    auto buf = malloc(buf_size);
-    if (!buf) {
-        print("malloc failed\n");
+    assert(s.size() <= PAGE_SIZE);
+
+    auto pa = dma_setup(s, false, bounce);
+    if (!pa)
         return nt_status::INSUFFICIENT_RESOURCES;
-    }
 
     auto slot = get_slot();
 
-    queue->buffers[slot].addr = va_to_pa_phys(buf);
-    queue->buffers[slot].len = (uint32_t)buf_size;
+    queue->buffers[slot].addr = pa;
+    queue->buffers[slot].len = (uint32_t)s.size();
     queue->buffers[slot].flags = VIRTQ_DESC_F_WRITE;
 
     {
@@ -416,9 +417,7 @@ nt_status virt_queue::read(span<uint8_t> s, uint64_t& read_bytes) {
 
     release_slot(slot);
 
-    memcpy(s.data(), buf, read_bytes);
-
-    free(buf);
+    dma_finish_read(s, bounce);
 
     return nt_status::SUCCESS;
 }
