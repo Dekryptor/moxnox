@@ -1586,11 +1586,11 @@ export constexpr bool is_phys_memory(void* ptr) {
     return ((uintptr_t)ptr & PHYS_MEMORY_MASK) == PHYS_MEMORY;
 }
 
-export constexpr uint64_t phys_memory_pfn(void* ptr) {
+export constexpr uint64_t phys_memory_pfn(const void* ptr) {
     return ((uintptr_t)ptr & ~PHYS_MEMORY_MASK) >> PAGE_SHIFT;
 }
 
-export constexpr uint64_t va_to_pa_phys(void* ptr) {
+export constexpr uint64_t va_to_pa_phys(const void* ptr) {
     return (phys_memory_pfn(ptr) << PAGE_SHIFT) | ((uintptr_t)ptr & (PAGE_SIZE - 1));
 }
 
