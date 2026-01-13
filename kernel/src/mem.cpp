@@ -2199,6 +2199,8 @@ export void free_va(uint64_t va, uint32_t num_pages) {
 
 #ifdef __aarch64__
 export uint64_t va_to_pa_lookup(uint64_t va) {
+    // FIXME - huge pages
+
     auto ttbr1 = ttbr1_el1_load();
     auto& level1 = *(ARM64_HARDWARE_PTE*)phys_address(ttbr1 | (((va & 0xff8000000000) >> 39) << 3));
     auto& level2 = *(ARM64_HARDWARE_PTE*)phys_address((level1.pfn << PAGE_SHIFT) | (((va & 0x7fc0000000) >> 30) << 3));
@@ -2209,6 +2211,8 @@ export uint64_t va_to_pa_lookup(uint64_t va) {
 }
 #elifdef __x86_64__
 export uint64_t va_to_pa_lookup(uint64_t va) {
+    // FIXME - huge pages
+
     auto& level1 = *(HARDWARE_PTE*)phys_address((__readcr3() & 0xfffffffffffff000) | (((va & 0xff8000000000) >> 39) << 3));
     auto& level2 = *(HARDWARE_PTE*)phys_address((level1.pfn << PAGE_SHIFT) | (((va & 0x7fc0000000) >> 30) << 3));
     auto& level3 = *(HARDWARE_PTE*)phys_address((level2.pfn << PAGE_SHIFT) | (((va & 0x3fe00000) >> 21) << 3));
