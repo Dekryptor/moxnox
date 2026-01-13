@@ -784,6 +784,7 @@ bool virtio_gpu<T>::transfer_to_host(const virtio_gpu_rect& r, uint64_t offset,
 template<typename T>
 bool virtio_gpu<T>::resource_flush(const virtio_gpu_rect& r, uint32_t resource) {
     uint64_t read_bytes;
+    virtq_desc descs[2];
 
     auto req = (virtio_gpu_resource_flush*)malloc(sizeof(virtio_gpu_resource_flush));
     if (!req) {
@@ -803,14 +804,6 @@ bool virtio_gpu<T>::resource_flush(const virtio_gpu_rect& r, uint32_t resource) 
     req->r = r;
     req->resource_id = resource;
 
-    auto descs = (virtq_desc*)malloc(sizeof(virtq_desc) * 2);
-    if (!descs) {
-        print("malloc failed\n");
-        free(resp);
-        free(req);
-        return false;
-    }
-
     descs[0].addr = va_to_pa_phys(req);
     descs[0].len = sizeof(virtio_gpu_resource_flush);
     descs[0].flags = VIRTQ_DESC_F_NEXT;
@@ -821,15 +814,13 @@ bool virtio_gpu<T>::resource_flush(const virtio_gpu_rect& r, uint32_t resource) 
     descs[1].flags = VIRTQ_DESC_F_WRITE;
     descs[1].next = 0;
 
-    auto status = control_queue->indirect(span(descs, 2), read_bytes);
+    auto status = control_queue->indirect(descs, read_bytes);
     if (!success(status)) {
-        free(descs);
         free(resp);
         free(req);
         return false;
     }
 
-    free(descs);
     free(req);
 
     auto resp_err = (enum VIRTIO_GPU_RESP)resp->type;
