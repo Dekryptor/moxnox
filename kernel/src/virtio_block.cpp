@@ -238,7 +238,7 @@ nt_status virtio_block<T>::flush() {
 
         uint64_t buf_read_bytes;
 
-        status = queue->indirect(span((uint8_t*)descs, sizeof(virtq_desc) * 2), buf_read_bytes);
+        status = queue->indirect(span(descs, 2), buf_read_bytes);
     }
 
     if (!success(status)) {
@@ -311,7 +311,7 @@ nt_status virtio_block<T>::dio_read(uint64_t page_num, uint64_t num_pages,
 
     uint64_t buf_read_bytes;
 
-    auto status = queue->indirect(span((uint8_t*)descs, sizeof(virtq_desc) * (num_pages + 2)), buf_read_bytes);
+    auto status = queue->indirect(span(descs, num_pages + 2), buf_read_bytes);
     if (!success(status)) {
         free(descs);
         free(req);
@@ -392,7 +392,7 @@ nt_status virtio_block<T>::dio_write(uint64_t page_num, uint64_t num_pages,
 
         uint64_t buf_read_bytes;
 
-        status = queue->indirect(span((uint8_t*)descs, sizeof(virtq_desc) * (num_pages + 2)), buf_read_bytes);
+        status = queue->indirect(span(descs, num_pages + 2), buf_read_bytes);
     }
 
     if (!success(status)) {

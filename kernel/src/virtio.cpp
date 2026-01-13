@@ -75,7 +75,7 @@ public:
     ~virt_queue();
     nt_status read(span<uint8_t> msg, uint64_t& read_bytes);
     nt_status write(span<const uint8_t> msg);
-    nt_status indirect(span<uint8_t> s, uint64_t& read_bytes);
+    nt_status indirect(span<virtq_desc> descs, uint64_t& read_bytes);
     bool isr();
 
     virtq<QUEUE_SIZE>* queue;
@@ -422,8 +422,8 @@ nt_status virt_queue::read(span<uint8_t> s, uint64_t& read_bytes) {
     return nt_status::SUCCESS;
 }
 
-nt_status virt_queue::indirect(span<uint8_t> s, uint64_t& read_bytes) {
-    if (s.empty()) {
+nt_status virt_queue::indirect(span<virtq_desc> descs, uint64_t& read_bytes) {
+    if (descs.empty()) {
         read_bytes = 0;
         return nt_status::SUCCESS;
     }
@@ -439,10 +439,10 @@ nt_status virt_queue::indirect(span<uint8_t> s, uint64_t& read_bytes) {
     } else
         slot = get_slot();
 
-    // s needs to be in phys memory range
+    // descs needs to be in phys memory range
 
-    queue->buffers[slot].addr = va_to_pa_phys(s.data());
-    queue->buffers[slot].len = (uint32_t)s.size();
+    queue->buffers[slot].addr = va_to_pa_phys(descs.data());
+    queue->buffers[slot].len = (uint32_t)descs.size_bytes();
     queue->buffers[slot].flags = VIRTQ_DESC_F_INDIRECT;
 
     {

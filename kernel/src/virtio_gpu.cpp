@@ -411,8 +411,7 @@ bool virtio_gpu<T>::get_display_info(virtio_gpu_resp_display_info& disp_info) {
     descs[1].flags = VIRTQ_DESC_F_WRITE;
     descs[1].next = 0;
 
-    auto status = control_queue->indirect(span((uint8_t*)descs, sizeof(virtq_desc) * 2),
-                                          read_bytes);
+    auto status = control_queue->indirect(span(descs, 2), read_bytes);
     if (!success(status)) {
         free(descs);
         free(req);
@@ -470,8 +469,7 @@ bool virtio_gpu<T>::get_edid(uint32_t scanout, span<uint8_t> ret) {
     descs[1].flags = VIRTQ_DESC_F_WRITE;
     descs[1].next = 0;
 
-    auto status = control_queue->indirect(span((uint8_t*)descs, sizeof(virtq_desc) * 2),
-                                          read_bytes);
+    auto status = control_queue->indirect(span(descs, 2), read_bytes);
     if (!success(status)) {
         free(descs);
         free(resp);
@@ -543,8 +541,7 @@ optional<uint32_t> virtio_gpu<T>::create_resource(VIRTIO_GPU_FORMAT format,
     descs[1].flags = VIRTQ_DESC_F_WRITE;
     descs[1].next = 0;
 
-    auto status = control_queue->indirect(span((uint8_t*)descs, sizeof(virtq_desc) * 2),
-                                          read_bytes);
+    auto status = control_queue->indirect(span(descs, 2), read_bytes);
     if (!success(status)) {
         free(descs);
         free(resp);
@@ -673,7 +670,7 @@ bool virtio_gpu<T>::attach_backing(uint32_t resource, span<uint8_t> buf) {
     descs[req_entries].flags = VIRTQ_DESC_F_WRITE;
     descs[req_entries].next = 0;
 
-    auto status = control_queue->indirect(span((uint8_t*)descs, sizeof(virtq_desc) * (req_entries + 1)),
+    auto status = control_queue->indirect(span(descs, req_entries + 1),
                                           read_bytes);
     if (!success(status)) {
         free(descs);
@@ -739,8 +736,7 @@ bool virtio_gpu<T>::set_scanout(const virtio_gpu_rect& r, uint32_t scanout,
     descs[1].flags = VIRTQ_DESC_F_WRITE;
     descs[1].next = 0;
 
-    auto status = control_queue->indirect(span((uint8_t*)descs, sizeof(virtq_desc) * 2),
-                                          read_bytes);
+    auto status = control_queue->indirect(span(descs, 2), read_bytes);
     if (!success(status)) {
         free(descs);
         free(resp);
@@ -805,8 +801,7 @@ bool virtio_gpu<T>::transfer_to_host(const virtio_gpu_rect& r, uint64_t offset,
     descs[1].flags = VIRTQ_DESC_F_WRITE;
     descs[1].next = 0;
 
-    auto status = control_queue->indirect(span((uint8_t*)descs, sizeof(virtq_desc) * 2),
-                                          read_bytes);
+    auto status = control_queue->indirect(span(descs, 2), read_bytes);
     if (!success(status)) {
         free(descs);
         free(resp);
@@ -869,8 +864,7 @@ bool virtio_gpu<T>::resource_flush(const virtio_gpu_rect& r, uint32_t resource) 
     descs[1].flags = VIRTQ_DESC_F_WRITE;
     descs[1].next = 0;
 
-    auto status = control_queue->indirect(span((uint8_t*)descs, sizeof(virtq_desc) * 2),
-                                          read_bytes);
+    auto status = control_queue->indirect(span(descs, 2), read_bytes);
     if (!success(status)) {
         free(descs);
         free(resp);
