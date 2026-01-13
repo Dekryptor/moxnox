@@ -2793,7 +2793,7 @@ export void protect_kernel_pages() {
 }
 
 #ifdef __aarch64__
-export void inline __attribute((always_inline)) flush_cache(span<uint8_t> va,
+export void inline __attribute((always_inline)) flush_cache(span<const uint8_t> va,
                                                             bool invalidate) {
     uint64_t cache_line_size = 1 << cache_line_shift;
 
@@ -2845,7 +2845,7 @@ export void inline __attribute((always_inline)) flush_cache(span<uint8_t> va,
     );
 }
 #elifdef __x86_64__
-export void inline __attribute((always_inline)) flush_cache(span<uint8_t>, bool) {
+export void inline __attribute((always_inline)) flush_cache(span<const uint8_t>, bool) {
     // FIXME?
 
     __asm __volatile (
