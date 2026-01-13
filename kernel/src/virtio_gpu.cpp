@@ -384,6 +384,7 @@ span<char> do_format_arg(span<char> sp, string_view, const virtio_gpu_rect& r) {
 template<typename T>
 bool virtio_gpu<T>::get_display_info(virtio_gpu_resp_display_info& disp_info) {
     uint64_t read_bytes;
+    virtq_desc descs[2];
 
     auto req = (virtio_gpu_ctrl_hdr*)malloc(sizeof(virtio_gpu_ctrl_hdr));
     if (!req) {
@@ -393,13 +394,6 @@ bool virtio_gpu<T>::get_display_info(virtio_gpu_resp_display_info& disp_info) {
 
     memset(req, 0, sizeof(*req));
     req->type = (uint32_t)VIRTIO_GPU_CMD::GET_DISPLAY_INFO;
-
-    auto descs = (virtq_desc*)malloc(sizeof(virtq_desc) * 2);
-    if (!descs) {
-        print("malloc failed\n");
-        free(req);
-        return false;
-    }
 
     descs[0].addr = va_to_pa_phys(req);
     descs[0].len = sizeof(virtio_gpu_ctrl_hdr);
@@ -411,14 +405,12 @@ bool virtio_gpu<T>::get_display_info(virtio_gpu_resp_display_info& disp_info) {
     descs[1].flags = VIRTQ_DESC_F_WRITE;
     descs[1].next = 0;
 
-    auto status = control_queue->indirect(span(descs, 2), read_bytes);
+    auto status = control_queue->indirect(descs, read_bytes);
     if (!success(status)) {
-        free(descs);
         free(req);
         return false;
     }
 
-    free(descs);
     free(req);
 
     auto resp_err = (enum VIRTIO_GPU_RESP)disp_info.hdr.type;
