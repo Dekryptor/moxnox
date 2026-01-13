@@ -221,7 +221,7 @@ nt_status virtio_block<T>::flush() {
     req->reserved = 0;
     req->sector = 0;
 
-    descs[0].addr = (phys_memory_pfn(req) << PAGE_SHIFT) + ((uintptr_t)req & (PAGE_SIZE - 1));
+    descs[0].addr = va_to_pa_phys(req);
     descs[0].len = offsetof(virtio_blk_req, status);
     descs[0].flags = VIRTQ_DESC_F_NEXT;
     descs[0].next = 1;
@@ -289,7 +289,7 @@ nt_status virtio_block<T>::dio_read(uint64_t page_num, uint64_t num_pages,
     req->reserved = 0;
     req->sector = (page_num << PAGE_SHIFT) / SECTOR_SIZE;
 
-    descs[0].addr = (phys_memory_pfn(req) << PAGE_SHIFT) + ((uintptr_t)req & (PAGE_SIZE - 1));
+    descs[0].addr = va_to_pa_phys(req);
     descs[0].len = offsetof(virtio_blk_req, status);
     descs[0].flags = VIRTQ_DESC_F_NEXT;
     descs[0].next = 1;
@@ -365,7 +365,7 @@ nt_status virtio_block<T>::dio_write(uint64_t page_num, uint64_t num_pages,
     req->reserved = 0;
     req->sector = (page_num << PAGE_SHIFT) / SECTOR_SIZE;
 
-    descs[0].addr = (phys_memory_pfn(req) << PAGE_SHIFT) + ((uintptr_t)req & (PAGE_SIZE - 1));
+    descs[0].addr = va_to_pa_phys(req);
     descs[0].len = offsetof(virtio_blk_req, status);
     descs[0].flags = VIRTQ_DESC_F_NEXT;
     descs[0].next = 1;
