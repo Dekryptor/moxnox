@@ -26,6 +26,7 @@ import list;
 import spinlock;
 import disable_interrupts;
 import cpu_block;
+import dma;
 
 using namespace std;
 
@@ -482,19 +483,15 @@ nt_status virt_queue::indirect(span<uint8_t> s, uint64_t& read_bytes) {
 }
 
 nt_status virt_queue::write(span<const uint8_t> msg) {
-    // FIXME - do without copying
+    uint8_t* bounce = nullptr;
 
-    auto buf = malloc(msg.size());
-    if (!buf) {
-        print("malloc failed\n");
+    auto pa = dma_setup(msg, true, bounce);
+    if (!pa)
         return nt_status::INSUFFICIENT_RESOURCES;
-    }
-
-    memcpy(buf, msg.data(), msg.size());
 
     auto slot = get_slot();
 
-    queue->buffers[slot].addr = va_to_pa_phys(buf);
+    queue->buffers[slot].addr = pa;
     queue->buffers[slot].len = (uint32_t)msg.size();
     queue->buffers[slot].flags = 0;
 
@@ -518,7 +515,7 @@ nt_status virt_queue::write(span<const uint8_t> msg) {
 
     release_slot(slot);
 
-    free(buf);
+    dma_finish_write(msg, bounce);
 
     return nt_status::SUCCESS;
 }
