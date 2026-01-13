@@ -1652,34 +1652,15 @@ xhci_queue* usb_device::configure_endpoint(const usb_endpoint_descriptor& ep_des
     return &dep->queue;
 }
 
-static bool is_cache_line_aligned(span<uint8_t> buf) {
-    if (buf.size() & ((1 << cache_line_shift) - 1))
-        return false;
-
-    if ((uintptr_t)buf.data() & ((1 << cache_line_shift) - 1))
-        return false;
-
-    return true;
-}
-
 bool xhci_queue::control_transfer(span<uint8_t> buf, uint8_t bmRequestType,
                                   enum usb_request bRequest, uint16_t wValue,
                                   uint16_t wIndex) {
     xhci_request req_setup, req_data, req_status;
     uint8_t* bounce = nullptr;
 
-    if (!buf.empty() && bmRequestType & USB_REQUEST_TYPE_DEVICE_TO_HOST &&
-        !is_cache_line_aligned(buf)) {
-        size_t bounce_size = buf.size();
-
-        if (bounce_size & ((1 << cache_line_shift) - 1)) {
-            bounce_size &= ~(((uint64_t)1 << cache_line_shift) - 1);
-            bounce_size += 1 << cache_line_shift;
-        }
-
-        bounce = (uint8_t*)malloc(bounce_size);
-        if (!bounce) {
-            print("malloc failed\n");
+    if (!buf.empty()) {
+        if (!dma_setup(buf, !(bmRequestType & USB_REQUEST_TYPE_DEVICE_TO_HOST),
+                       bounce)) {
             return false;
         }
     }
@@ -1733,13 +1714,6 @@ bool xhci_queue::control_transfer(span<uint8_t> buf, uint8_t bmRequestType,
         s.dir = (buf.empty() || !(bmRequestType & USB_REQUEST_TYPE_DEVICE_TO_HOST)) ? 1 : 0;
     }
 
-    if (!buf.empty()) {
-        if (bounce)
-            flush_cache(span(bounce, buf.size()), false);
-        else
-            flush_cache(buf, false);
-    }
-
     {
         lock_guard lock(submit_lock);
 
@@ -1753,43 +1727,22 @@ bool xhci_queue::control_transfer(span<uint8_t> buf, uint8_t bmRequestType,
 
     auto status = wait_for_object(req_status.event.get(), false, USB_TIMEOUT);
 
-    if (!buf.empty() && bmRequestType & USB_REQUEST_TYPE_DEVICE_TO_HOST) {
-        if (bounce)
-            flush_cache(span(bounce, buf.size()), true);
-        else
-            flush_cache(buf, true);
+    if (!buf.empty()) {
+        dma_finish(buf, !(bmRequestType & USB_REQUEST_TYPE_DEVICE_TO_HOST),
+                   bounce);
     }
 
-    if (dev && dev->dead) {
-        if (bounce)
-            free(bounce);
-
+    if (dev && dev->dead)
         return false;
-    }
 
     if (status == nt_status::TIMEOUT) {
         print("xhci_queue::control_transfer: request timed out ({})\n", (enum TRB_CODE)req_setup.ev.completion_code);
-
-        if (bounce)
-            free(bounce);
-
         return false;
     }
 
     if ((enum TRB_CODE)req_status.ev.completion_code != TRB_CODE::SUCCESS) {
         print("xhci_queue::control_transfer: controller returned error {}\n", (enum TRB_CODE)req_status.ev.completion_code);
-
-        if (bounce)
-            free(bounce);
-
         return false;
-    }
-
-    if (bounce) {
-        if (bmRequestType & USB_REQUEST_TYPE_DEVICE_TO_HOST)
-            memcpy(buf.data(), bounce, buf.size());
-
-        free(bounce);
     }
 
     return true;
