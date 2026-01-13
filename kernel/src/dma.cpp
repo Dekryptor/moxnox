@@ -11,7 +11,7 @@ import print;
 
 using namespace std;
 
-static bool is_cache_line_aligned(span<uint8_t> buf) {
+static bool is_cache_line_aligned(span<const uint8_t> buf) {
     if (buf.size() & ((1 << cache_line_shift) - 1))
         return false;
 
@@ -21,7 +21,7 @@ static bool is_cache_line_aligned(span<uint8_t> buf) {
     return true;
 }
 
-export uint64_t dma_setup(span<uint8_t> buf, bool write, uint8_t*& bounce) {
+export uint64_t dma_setup(span<const uint8_t> buf, bool write, uint8_t*& bounce) {
     if (!is_cache_line_aligned(buf)) {
         size_t bounce_size = buf.size();
 
