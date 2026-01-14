@@ -183,21 +183,11 @@ span<char> do_format_arg(span<char> sp, string_view, const port_status& arg) {
 }
 
 bool usb_device_hub::get_hub_status(usb_hub_status& hub_status) {
-    auto buf = (usb_hub_status*)malloc(sizeof(hub_status));
-    if (!buf) {
-        print("malloc failed\n");
-        return false;
-    }
-
     if (!d.get_status(USB_REQUEST_TYPE_DEVICE_TO_HOST | USB_REQUEST_TYPE_CLASS | USB_REQUEST_TYPE_RECIPIENT_DEVICE,
-                      span((uint8_t*)buf, sizeof(usb_hub_status)), 0, 0)) {
+                      span((uint8_t*)&hub_status, sizeof(usb_hub_status)), 0, 0)) {
         print("usb_device::get_status failed\n");
-        free(buf);
         return false;
     }
-
-    hub_status = *(usb_hub_status*)buf;
-    free(buf);
 
     return true;
 }
