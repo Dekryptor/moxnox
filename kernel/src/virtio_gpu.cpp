@@ -387,30 +387,40 @@ bool virtio_gpu<T>::get_display_info(virtio_gpu_resp_display_info& disp_info) {
     virtio_gpu_ctrl_hdr req;
     virtq_desc descs[2];
     uint64_t read_bytes;
-    uint8_t* bounce = nullptr;
+    uint8_t* bounce1 = nullptr;
+    uint8_t* bounce2 = nullptr;
 
     memset(&req, 0, sizeof(req));
     req.type = (uint32_t)VIRTIO_GPU_CMD::GET_DISPLAY_INFO;
 
-    auto pa = dma_setup(span((uint8_t*)&req, sizeof(req)), true, bounce);
-    if (!pa) {
+    auto pa1 = dma_setup(span((uint8_t*)&req, sizeof(req)), true, bounce1);
+    if (!pa1) {
         print("dma_setup failed\n");
         return false;
     }
 
-    descs[0].addr = pa;
+    auto pa2 = dma_setup(span((uint8_t*)&disp_info, sizeof(disp_info)), false,
+                         bounce2);
+    if (!pa2) {
+        print("dma_setup failed\n");
+        dma_finish_write(bounce1);
+        return false;
+    }
+
+    descs[0].addr = pa1;
     descs[0].len = sizeof(virtio_gpu_ctrl_hdr);
     descs[0].flags = VIRTQ_DESC_F_NEXT;
     descs[0].next = 1;
 
-    descs[1].addr = va_to_pa_phys(&disp_info);
+    descs[1].addr = pa2;
     descs[1].len = sizeof(virtio_gpu_resp_display_info);
     descs[1].flags = VIRTQ_DESC_F_WRITE;
     descs[1].next = 0;
 
     auto status = control_queue->indirect(descs, read_bytes);
 
-    dma_finish_write(bounce);
+    dma_finish_read(span((uint8_t*)&disp_info, sizeof(disp_info)), bounce2);
+    dma_finish_write(bounce1);
 
     if (!success(status))
         return false;
@@ -900,27 +910,19 @@ void parse_video_option(string_view s, virtio_gpu_rect& r) {
 
 template<typename T>
 void virtio_gpu<T>::start() {
-    auto disp_info = (virtio_gpu_resp_display_info*)malloc(sizeof(virtio_gpu_resp_display_info));
-    if (!disp_info) {
-        print("malloc failed\n");
-        return;
-    }
+    virtio_gpu_resp_display_info disp_info;
 
-    if (!get_display_info(*disp_info)) {
+    if (!get_display_info(disp_info)) {
         print("virtio_gpu::get_display_info failed\n");
-        free(disp_info);
         return;
     }
 
-    if (!disp_info->pmodes[0].enabled) {
+    if (!disp_info.pmodes[0].enabled) {
         print("virtio_gpu::start: scanout 0 not enabled\n");
-        free(disp_info);
         return;
     }
 
-    auto r = disp_info->pmodes[0].r;
-
-    free(disp_info);
+    auto& r = disp_info.pmodes[0].r;
 
     if (dev.negotiated_features & VIRTIO_GPU_F_EDID) {
         if (!get_edid(0, span(edid)))
