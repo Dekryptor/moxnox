@@ -495,53 +495,54 @@ template<typename T>
 optional<uint32_t> virtio_gpu<T>::create_resource(VIRTIO_GPU_FORMAT format,
                                                   uint32_t width,
                                                   uint32_t height) {
-    uint64_t read_bytes;
+    virtio_gpu_resource_create_2d req;
+    virtio_gpu_ctrl_hdr resp;
     virtq_desc descs[2];
-
-    auto req = (virtio_gpu_resource_create_2d*)malloc(sizeof(virtio_gpu_resource_create_2d));
-    if (!req) {
-        print("malloc failed\n");
-        return nullopt;
-    }
-
-    auto resp = (virtio_gpu_ctrl_hdr*)malloc(sizeof(virtio_gpu_ctrl_hdr));
-    if (!resp) {
-        print("malloc failed\n");
-        free(req);
-        return nullopt;
-    }
+    uint64_t read_bytes;
+    uint8_t* bounce1 = nullptr;
+    uint8_t* bounce2 = nullptr;
 
     uint32_t num = resource_num.fetch_add(1);
 
-    memset(req, 0, sizeof(*req));
-    req->hdr.type = (uint32_t)VIRTIO_GPU_CMD::RESOURCE_CREATE_2D;
-    req->resource_id = num;
-    req->format = format;
-    req->width = width;
-    req->height = height;
+    memset(&req, 0, sizeof(req));
+    req.hdr.type = (uint32_t)VIRTIO_GPU_CMD::RESOURCE_CREATE_2D;
+    req.resource_id = num;
+    req.format = format;
+    req.width = width;
+    req.height = height;
 
-    descs[0].addr = va_to_pa_phys(req);
+    auto pa1 = dma_setup(span((uint8_t*)&req, sizeof(req)), true, bounce1);
+    if (!pa1) {
+        print("dma_setup failed\n");
+        return false;
+    }
+
+    auto pa2 = dma_setup(span((uint8_t*)&resp, sizeof(resp)), false, bounce2);
+    if (!pa2) {
+        print("dma_setup failed\n");
+        dma_finish_write(bounce1);
+        return false;
+    }
+
+    descs[0].addr = pa1;
     descs[0].len = sizeof(virtio_gpu_resource_create_2d);
     descs[0].flags = VIRTQ_DESC_F_NEXT;
     descs[0].next = 1;
 
-    descs[1].addr = va_to_pa_phys(resp);
+    descs[1].addr = pa2;
     descs[1].len = sizeof(virtio_gpu_ctrl_hdr);
     descs[1].flags = VIRTQ_DESC_F_WRITE;
     descs[1].next = 0;
 
     auto status = control_queue->indirect(descs, read_bytes);
-    if (!success(status)) {
-        free(resp);
-        free(req);
+
+    dma_finish_read(span((uint8_t*)&resp, sizeof(resp)), bounce2);
+    dma_finish_write(bounce1);
+
+    if (!success(status))
         return nullopt;
-    }
 
-    free(req);
-
-    auto resp_err = (enum VIRTIO_GPU_RESP)resp->type;
-
-    free(resp);
+    auto resp_err = (enum VIRTIO_GPU_RESP)resp.type;
 
     if (resp_err != VIRTIO_GPU_RESP::OK_NODATA) {
         print("VIRTIO_GPU_CMD_RESOURCE_CREATE_2D returned {}\n", resp_err);
