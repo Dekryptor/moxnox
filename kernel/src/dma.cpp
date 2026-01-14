@@ -8,6 +8,7 @@ export module dma;
 import mem;
 import crt;
 import print;
+import config;
 
 using namespace std;
 
@@ -21,8 +22,24 @@ static bool is_cache_line_aligned(span<const uint8_t> buf) {
     return true;
 }
 
+static bool need_bounce(span<const uint8_t> buf) {
+    if (!is_cache_line_aligned(buf))
+        return true;
+
+    if (is_phys_memory(buf.data()))
+        return false;
+
+    auto page_start = (uintptr_t)buf.data() & ~(PAGE_SIZE - 1);
+    auto page_end = (uintptr_t)(buf.data() + buf.size() - 1) & ~(PAGE_SIZE - 1);
+
+    if (page_start != page_end)
+        return true;
+
+    return false;
+}
+
 export uint64_t dma_setup(span<const uint8_t> buf, bool write, uint8_t*& bounce) {
-    if (!is_cache_line_aligned(buf)) {
+    if (need_bounce(buf)) {
         size_t bounce_size = buf.size();
 
         if (bounce_size & ((1 << cache_line_shift) - 1)) {
