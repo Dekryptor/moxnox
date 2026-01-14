@@ -454,31 +454,22 @@ usb_keyboard::~usb_keyboard() {
 }
 
 void usb_keyboard::set_leds(keyboard_leds leds) {
-    auto buf = (uint8_t*)malloc(1);
-    if (!buf) {
-        print("malloc failed\n");
-        return;
-    }
-
-    buf[0] = 0;
+    uint8_t buf = 0;
 
     if (leds.num_lock)
-        buf[0] |= 1 << 0;
+        buf |= 1 << 0;
 
     if (leds.caps_lock)
-        buf[0] |= 1 << 1;
+        buf |= 1 << 1;
 
     if (leds.scroll_lock)
-        buf[0] |= 1 << 2;
+        buf |= 1 << 2;
 
-    if (!usb_hid_set_report(d, span(buf, 1), usb_hid_report_type::OUTPUT, 0,
+    if (!usb_hid_set_report(d, span(&buf, 1), usb_hid_report_type::OUTPUT, 0,
                             interface.desc.bInterfaceNumber)) {
         print("usb_hid_set_report failed\n");
-        free(buf);
         return;
     }
-
-    free(buf);
 }
 
 static bool should_key_repeat(enum evdev_code code) {
