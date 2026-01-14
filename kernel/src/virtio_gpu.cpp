@@ -614,7 +614,9 @@ void populate_descs(span<virtq_desc> descs, span<const uint8_t> buf) {
 
 template<typename T>
 bool virtio_gpu<T>::attach_backing(uint32_t resource, span<uint8_t> buf) {
+    virtio_gpu_ctrl_hdr resp;
     uint64_t read_bytes;
+    uint8_t* bounce = nullptr;
 
     auto num_entries = calc_num_mem_entries(buf);
 
@@ -624,13 +626,6 @@ bool virtio_gpu<T>::attach_backing(uint32_t resource, span<uint8_t> buf) {
     auto req = (virtio_gpu_resource_attach_backing*)vmalloc(req_size);
     if (!req) {
         print("vmalloc failed\n");
-        return false;
-    }
-
-    auto resp = (virtio_gpu_ctrl_hdr*)malloc(sizeof(virtio_gpu_ctrl_hdr));
-    if (!resp) {
-        print("malloc failed\n");
-        vfree(req, req_size);
         return false;
     }
 
@@ -646,23 +641,32 @@ bool virtio_gpu<T>::attach_backing(uint32_t resource, span<uint8_t> buf) {
     auto descs = (virtq_desc*)malloc(sizeof(virtq_desc) * (req_entries + 1));
     if (!descs) {
         print("malloc failed\n");
-        free(resp);
         vfree(req, req_size);
         return false;
     }
 
     populate_descs(span(descs, num_entries), span((uint8_t*)req, req_size));
 
-    descs[req_entries].addr = va_to_pa_phys(resp);
+    auto pa = dma_setup(span((uint8_t*)&resp, sizeof(resp)), false, bounce);
+    if (!pa) {
+        print("dma_setup failed\n");
+        free(descs);
+        vfree(req, req_size);
+        return false;
+    }
+
+    descs[req_entries].addr = pa;
     descs[req_entries].len = sizeof(virtio_gpu_ctrl_hdr);
     descs[req_entries].flags = VIRTQ_DESC_F_WRITE;
     descs[req_entries].next = 0;
 
     auto status = control_queue->indirect(span(descs, req_entries + 1),
                                           read_bytes);
+
+    dma_finish_read(span((uint8_t*)&resp, sizeof(resp)), bounce);
+
     if (!success(status)) {
         free(descs);
-        free(resp);
         vfree(req, req_size);
         return false;
     }
@@ -670,9 +674,7 @@ bool virtio_gpu<T>::attach_backing(uint32_t resource, span<uint8_t> buf) {
     free(descs);
     vfree(req, req_size);
 
-    auto resp_err = (enum VIRTIO_GPU_RESP)resp->type;
-
-    free(resp);
+    auto resp_err = (enum VIRTIO_GPU_RESP)resp.type;
 
     if (resp_err != VIRTIO_GPU_RESP::OK_NODATA) {
         print("VIRTIO_GPU_CMD_RESOURCE_ATTACH_BACKING returned {}\n", resp_err);
