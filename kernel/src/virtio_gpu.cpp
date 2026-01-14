@@ -437,56 +437,56 @@ bool virtio_gpu<T>::get_display_info(virtio_gpu_resp_display_info& disp_info) {
 
 template<typename T>
 bool virtio_gpu<T>::get_edid(uint32_t scanout, span<uint8_t> ret) {
-    uint64_t read_bytes;
+    virtio_gpu_get_edid req;
+    virtio_gpu_resp_edid resp;
     virtq_desc descs[2];
+    uint64_t read_bytes;
+    uint8_t* bounce1 = nullptr;
+    uint8_t* bounce2 = nullptr;
 
-    auto req = (virtio_gpu_get_edid*)malloc(sizeof(virtio_gpu_get_edid));
-    if (!req) {
-        print("malloc failed\n");
+    memset(&req, 0, sizeof(req));
+    req.hdr.type = (uint32_t)VIRTIO_GPU_CMD::GET_EDID;
+    req.scanout = scanout;
+
+    auto pa1 = dma_setup(span((uint8_t*)&req, sizeof(req)), true, bounce1);
+    if (!pa1) {
+        print("dma_setup failed\n");
         return false;
     }
 
-    auto resp = (virtio_gpu_resp_edid*)malloc(sizeof(virtio_gpu_resp_edid));
-    if (!resp) {
-        print("malloc failed\n");
-        free(req);
+    auto pa2 = dma_setup(span((uint8_t*)&resp, sizeof(resp)), false, bounce2);
+    if (!pa2) {
+        print("dma_setup failed\n");
+        dma_finish_write(bounce1);
         return false;
     }
 
-    memset(req, 0, sizeof(*req));
-    req->hdr.type = (uint32_t)VIRTIO_GPU_CMD::GET_EDID;
-    req->scanout = scanout;
-
-    descs[0].addr = va_to_pa_phys(req);
+    descs[0].addr = pa1;
     descs[0].len = sizeof(virtio_gpu_get_edid);
     descs[0].flags = VIRTQ_DESC_F_NEXT;
     descs[0].next = 1;
 
-    descs[1].addr = va_to_pa_phys(resp);
+    descs[1].addr = pa2;
     descs[1].len = sizeof(virtio_gpu_resp_edid);
     descs[1].flags = VIRTQ_DESC_F_WRITE;
     descs[1].next = 0;
 
     auto status = control_queue->indirect(descs, read_bytes);
-    if (!success(status)) {
-        free(resp);
-        free(req);
+
+    dma_finish_read(span((uint8_t*)&resp, sizeof(resp)), bounce2);
+    dma_finish_write(bounce1);
+
+    if (!success(status))
         return false;
-    }
 
-    free(req);
-
-    auto resp_err = (enum VIRTIO_GPU_RESP)resp->hdr.type;
+    auto resp_err = (enum VIRTIO_GPU_RESP)resp.hdr.type;
 
     if (resp_err != VIRTIO_GPU_RESP::OK_EDID) {
         print("VIRTIO_GPU_CMD_GET_EDID returned {}\n", resp_err);
-        free(resp);
         return false;
     }
 
-    memcpy(ret.data(), resp->edid, min(ret.size(), sizeof(resp->edid)));
-
-    free(resp);
+    memcpy(ret.data(), resp.edid, min(ret.size(), sizeof(resp.edid)));
 
     return true;
 }
