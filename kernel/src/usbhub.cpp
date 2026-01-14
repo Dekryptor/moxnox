@@ -405,15 +405,10 @@ void usb_device_hub::device_removed(uint8_t port) {
 }
 
 void usb_device_hub::port_status_change(uint8_t port) {
-    auto new_status = (port_status*)malloc(sizeof(port_status));
-    if (!new_status) {
-        print("malloc failed\n");
-        return;
-    }
+    port_status new_status;
 
-    if (!get_port_status(port, *new_status)) {
+    if (!get_port_status(port, new_status)) {
         print("usb_device_hub::get_port_status failed\n");
-        free(new_status);
         return;
     }
 
@@ -423,9 +418,9 @@ void usb_device_hub::port_status_change(uint8_t port) {
         if (port <= num_ports) {
             auto old_status = ports[port - 1].status;
 
-            ports[port - 1].status = *new_status;
+            ports[port - 1].status = new_status;
 
-            if (new_status->usb3.reset_changed && ports[port - 1].awaiting_reset) {
+            if (new_status.usb3.reset_changed && ports[port - 1].awaiting_reset) {
                 acquire();
 
                 add_kernel_thread([](void* param1, void* param2) {
@@ -437,9 +432,9 @@ void usb_device_hub::port_status_change(uint8_t port) {
                 }, this, (void*)(uintptr_t)port);
             }
 
-            if (new_status->usb3.connection_changed &&
-                old_status.usb3.connection != new_status->usb3.connection) {
-                if (new_status->usb3.connection) {
+            if (new_status.usb3.connection_changed &&
+                old_status.usb3.connection != new_status.usb3.connection) {
+                if (new_status.usb3.connection) {
                     doing_reset = true;
 
                     acquire();
@@ -465,19 +460,19 @@ void usb_device_hub::port_status_change(uint8_t port) {
             }
         }
 
-        if (new_status->usb3.connection_changed)
+        if (new_status.usb3.connection_changed)
             clear_port_feature(usb3_port_feature_selector::C_PORT_CONNECTION, port);
 
-        if (new_status->usb3.over_current_changed)
+        if (new_status.usb3.over_current_changed)
             clear_port_feature(usb3_port_feature_selector::C_PORT_OVER_CURRENT, port);
 
-        if (new_status->usb3.reset_changed && !doing_reset)
+        if (new_status.usb3.reset_changed && !doing_reset)
             clear_port_feature(usb3_port_feature_selector::C_PORT_RESET, port);
 
-        if (new_status->usb3.bh_reset_changed)
+        if (new_status.usb3.bh_reset_changed)
             clear_port_feature(usb3_port_feature_selector::C_BH_PORT_RESET, port);
 
-        if (new_status->usb3.link_state_changed)
+        if (new_status.usb3.link_state_changed)
             clear_port_feature(usb3_port_feature_selector::C_PORT_LINK_STATE, port);
     } else {
         bool doing_reset = false;
@@ -485,9 +480,9 @@ void usb_device_hub::port_status_change(uint8_t port) {
         if (port <= num_ports) {
             auto old_status = ports[port - 1].status;
 
-            ports[port - 1].status = *new_status;
+            ports[port - 1].status = new_status;
 
-            if (new_status->usb2.reset_changed && ports[port - 1].awaiting_reset) {
+            if (new_status.usb2.reset_changed && ports[port - 1].awaiting_reset) {
                 acquire();
 
                 add_kernel_thread([](void* param1, void* param2) {
@@ -499,9 +494,9 @@ void usb_device_hub::port_status_change(uint8_t port) {
                 }, this, (void*)(uintptr_t)port);
             }
 
-            if (new_status->usb2.connection_changed &&
-                old_status.usb2.connection != new_status->usb2.connection) {
-                if (new_status->usb2.connection) {
+            if (new_status.usb2.connection_changed &&
+                old_status.usb2.connection != new_status.usb2.connection) {
+                if (new_status.usb2.connection) {
                     doing_reset = true;
 
                     acquire();
@@ -527,23 +522,21 @@ void usb_device_hub::port_status_change(uint8_t port) {
             }
         }
 
-        if (new_status->usb2.connection_changed)
+        if (new_status.usb2.connection_changed)
             clear_port_feature(usb2_port_feature_selector::C_PORT_CONNECTION, port);
 
-        if (new_status->usb2.enable_changed)
+        if (new_status.usb2.enable_changed)
             clear_port_feature(usb2_port_feature_selector::C_PORT_ENABLE, port);
 
-        if (new_status->usb2.suspend_changed)
+        if (new_status.usb2.suspend_changed)
             clear_port_feature(usb2_port_feature_selector::C_PORT_SUSPEND, port);
 
-        if (new_status->usb2.over_current_changed)
+        if (new_status.usb2.over_current_changed)
             clear_port_feature(usb2_port_feature_selector::C_PORT_OVER_CURRENT, port);
 
-        if (new_status->usb2.reset_changed && !doing_reset)
+        if (new_status.usb2.reset_changed && !doing_reset)
             clear_port_feature(usb2_port_feature_selector::C_PORT_RESET, port);
     }
-
-    free(new_status);
 }
 
 bool usb_device_hub::clear_hub_feature(enum hub_feature_selector feature) {
