@@ -742,50 +742,51 @@ bool virtio_gpu<T>::set_scanout(const virtio_gpu_rect& r, uint32_t scanout,
 template<typename T>
 bool virtio_gpu<T>::transfer_to_host(const virtio_gpu_rect& r, uint64_t offset,
                                      uint32_t resource) {
-    uint64_t read_bytes;
+    virtio_gpu_transfer_to_host_2d req;
+    virtio_gpu_ctrl_hdr resp;
     virtq_desc descs[2];
+    uint64_t read_bytes;
+    uint8_t* bounce1 = nullptr;
+    uint8_t* bounce2 = nullptr;
 
-    auto req = (virtio_gpu_transfer_to_host_2d*)malloc(sizeof(virtio_gpu_transfer_to_host_2d));
-    if (!req) {
-        print("malloc failed\n");
+    memset(&req, 0, sizeof(req));
+    req.hdr.type = (uint32_t)VIRTIO_GPU_CMD::TRANSFER_TO_HOST_2D;
+    req.r = r;
+    req.offset = offset;
+    req.resource_id = resource;
+
+    auto pa1 = dma_setup(span((uint8_t*)&req, sizeof(req)), true, bounce1);
+    if (!pa1) {
+        print("dma_setup failed\n");
         return false;
     }
 
-    auto resp = (virtio_gpu_ctrl_hdr*)malloc(sizeof(virtio_gpu_ctrl_hdr));
-    if (!resp) {
-        print("malloc failed\n");
-        free(req);
+    auto pa2 = dma_setup(span((uint8_t*)&resp, sizeof(resp)), false, bounce2);
+    if (!pa2) {
+        print("dma_setup failed\n");
+        dma_finish_write(bounce1);
         return false;
     }
 
-    memset(req, 0, sizeof(*req));
-    req->hdr.type = (uint32_t)VIRTIO_GPU_CMD::TRANSFER_TO_HOST_2D;
-    req->r = r;
-    req->offset = offset;
-    req->resource_id = resource;
-
-    descs[0].addr = va_to_pa_phys(req);
+    descs[0].addr = pa1;
     descs[0].len = sizeof(virtio_gpu_transfer_to_host_2d);
     descs[0].flags = VIRTQ_DESC_F_NEXT;
     descs[0].next = 1;
 
-    descs[1].addr = va_to_pa_phys(resp);
+    descs[1].addr = pa2;
     descs[1].len = sizeof(virtio_gpu_ctrl_hdr);
     descs[1].flags = VIRTQ_DESC_F_WRITE;
     descs[1].next = 0;
 
     auto status = control_queue->indirect(descs, read_bytes);
-    if (!success(status)) {
-        free(resp);
-        free(req);
+
+    dma_finish_read(span((uint8_t*)&resp, sizeof(resp)), bounce2);
+    dma_finish_write(bounce1);
+
+    if (!success(status))
         return false;
-    }
 
-    free(req);
-
-    auto resp_err = (enum VIRTIO_GPU_RESP)resp->type;
-
-    free(resp);
+    auto resp_err = (enum VIRTIO_GPU_RESP)resp.type;
 
     if (resp_err != VIRTIO_GPU_RESP::OK_NODATA) {
         print("VIRTIO_GPU_CMD_TRANSFER_TO_HOST_2D returned {}\n", resp_err);
