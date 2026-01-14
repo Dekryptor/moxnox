@@ -660,6 +660,8 @@ bool virtio_gpu<T>::attach_backing(uint32_t resource, span<uint8_t> buf) {
     descs[req_entries].flags = VIRTQ_DESC_F_WRITE;
     descs[req_entries].next = 0;
 
+    flush_cache(span((uint8_t*)req, req_size), false);
+
     auto status = control_queue->indirect(span(descs, req_entries + 1),
                                           read_bytes);
 
