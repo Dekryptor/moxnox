@@ -3,7 +3,6 @@
 #include <string_view>
 #include <optional>
 #include "context_offsets.h"
-#include "process.h"
 #include "timer-asm.h"
 
 #ifdef __aarch64__
@@ -12,6 +11,7 @@ import psci;
 import serial;
 #endif
 
+import nt;
 import config;
 import format;
 import bsod;
@@ -45,6 +45,8 @@ import efi;
 import debug;
 import crt;
 import version;
+import objects;
+import handle;
 
 using namespace std;
 

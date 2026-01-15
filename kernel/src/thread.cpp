@@ -8,9 +8,10 @@ module;
 #include <atomic>
 #include <mutex>
 #include "thread.h"
-#include "process.h"
 
 export module thread;
+
+import handle;
 
 using namespace std;
 

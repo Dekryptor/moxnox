@@ -34,6 +34,7 @@ import cpu_block;
 import spinlock;
 import loaderblock;
 import cmdline;
+import process;
 
 using namespace std;
 

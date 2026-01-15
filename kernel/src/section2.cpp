@@ -7,7 +7,6 @@ module;
 #include <algorithm>
 #include <stdint.h>
 #include "section.h"
-#include "process.h"
 
 module section;
 
@@ -19,6 +18,8 @@ import rangelock;
 import unicode;
 import thread;
 import crt;
+import process;
+import handle;
 
 using namespace std;
 

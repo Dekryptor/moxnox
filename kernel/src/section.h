@@ -66,6 +66,7 @@ extern "C++" class image_section_cache;
 using cache_variant = std::variant<page_cache<image_section_cache>*, page_cache<anon_section_cache>*,
                                    page_cache<custom_section_cache>*, page_cache<inode>*>;
 
+extern "C++"
 class section : public object {
 public:
     section() : object(object_type::section) { }
