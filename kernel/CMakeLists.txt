@@ -90,7 +90,8 @@ set(AARCH64_MODULES ${GLOBAL_MODULES}
 
 set(SRC_FILES src/kernel.cpp
     src/bsod2.cpp
-    src/visit2.cpp)
+    src/visit2.cpp
+    src/thread2.cpp)
 
 if(CMAKE_SYSTEM_PROCESSOR STREQUAL aarch64)
     set(SRC_ASM_FILES src/aarch64/ints.S
