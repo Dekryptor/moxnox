@@ -18,6 +18,12 @@ import spinlock;
 import handle;
 import objects;
 
+#ifdef __aarch64__
+import aarch64;
+#elifdef __x86_64__
+import x86;
+#endif
+
 using namespace std;
 
 extern "C++" class section;
@@ -122,3 +128,10 @@ export object_ref create_process(string_view fn, string_view curdir,
                                  object_ref& stdoutobj, object_ref& stderrobj);
 export void load_ntdll();
 export void create_time_page();
+export void send_page_tlb_ipi(process& proc, uint64_t va, uint64_t num_pages);
+
+#ifdef __aarch64__
+export ARM64_HARDWARE_PTE* find_pte(process& proc, uintptr_t va);
+#elifdef __x86_64__
+export HARDWARE_PTE* find_pte(process& proc, uintptr_t va);
+#endif

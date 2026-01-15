@@ -12,8 +12,7 @@ using namespace std;
 
 extern "C++" class section;
 
-export extern "C++"
-class mapping {
+export class mapping {
 public:
     mapping(process& proc, section& sect);
     ~mapping();
