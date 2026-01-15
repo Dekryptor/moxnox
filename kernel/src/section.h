@@ -11,7 +11,19 @@ import inode;
 import spinlock;
 import pe;
 
-#include "section2.h"
+enum class section_type {
+    anonymous,
+    file,
+    image
+};
+
+class anon_section_cache {
+public:
+    nt_status read_into_cache(uint64_t page_num, uint64_t num_pages,
+                              uint64_t& read_pages);
+
+    page_cache<anon_section_cache> cache{*this};
+};
 
 struct section_info {
     uint64_t offset;
