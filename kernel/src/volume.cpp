@@ -34,7 +34,6 @@ using namespace std;
 export const guid null_guid = { 0x00000000, 0x0000, 0x0000, { 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00 } };
 
 export extern "C++" class filesystem;
-export class volume;
 
 export class volume : public object {
 public:
