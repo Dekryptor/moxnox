@@ -1,3 +1,5 @@
+module;
+
 #include <optional>
 #include <source_location>
 #include <string_view>
@@ -5,6 +7,8 @@
 #include <span>
 #include <atomic>
 #include "ints.h"
+
+module bsod;
 
 #ifdef __aarch64__
 import aarch64;
@@ -71,21 +75,9 @@ static void print_rip(chardev& p, uint64_t rip) {
             written);
 }
 
-optional<uint64_t> read_uint64_t(uint64_t addr) {
+extern "C++" optional<uint64_t> read_uint64_t(uint64_t addr) {
     // FIXME - do this safely
     return *(uint64_t*)addr;
-}
-
-static bool do_unwind_context(CONTEXT& context) {
-#ifdef __aarch64__
-    auto img = get_kernel_image_from_address(context.Pc);
-#elifdef __x86_64__
-    auto img = get_kernel_image_from_address(context.Rip);
-#endif
-    if (!img)
-        return false;
-
-    return unwind_context(context, img->base_address, img->size);
 }
 
 static void print_stacktrace(const CONTEXT& context, chardev& p) {

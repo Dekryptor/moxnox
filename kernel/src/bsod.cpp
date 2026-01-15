@@ -17,8 +17,8 @@ import cpu_block;
 
 using namespace std;
 
-extern "C++" __attribute__((noreturn)) void _bsod(string_view msg, source_location sl,
-                                                  const CONTEXT& captured_context);
+export __attribute__((noreturn)) void _bsod(string_view msg, source_location sl,
+                                            const CONTEXT& captured_context);
 
 export bool in_bsod = false;
 
