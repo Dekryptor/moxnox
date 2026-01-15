@@ -4,12 +4,12 @@ module;
 #include <optional>
 #include <functional>
 #include <atomic>
-#include "thread.h"
 #include "assert.h"
 #include "timer-asm.h"
 
 export module scheduler;
 
+import nt;
 import bsod;
 import print;
 import mem;
@@ -22,6 +22,7 @@ import cpu_block;
 import handle;
 import crt;
 import process;
+import objects;
 
 using namespace std;
 

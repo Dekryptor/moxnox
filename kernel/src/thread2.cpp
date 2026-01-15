@@ -3,7 +3,6 @@ module;
 #include <optional>
 #include <mutex>
 #include <new>
-#include "thread.h"
 #include "scheduler.h"
 #include "timer-asm.h"
 

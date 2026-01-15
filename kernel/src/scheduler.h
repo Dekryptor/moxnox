@@ -1,6 +1,7 @@
 #pragma once
 
 #include <optional>
+#include <stdint.h>
 
 import nt;
 import list;

@@ -9,7 +9,6 @@ module;
 #include <algorithm>
 #include <stdint.h>
 #include "rangelock.h"
-#include "thread.h"
 #include "section.h"
 #include "assert.h"
 

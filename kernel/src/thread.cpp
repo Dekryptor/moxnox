@@ -7,13 +7,45 @@ module;
 #include <functional>
 #include <atomic>
 #include <mutex>
-#include "thread.h"
+#include <stdint.h>
+#include <stddef.h>
+#include "context_offsets.h"
 
 export module thread;
 
+import nt;
 import handle;
+import object_ref;
+import objects;
+import list;
 
 using namespace std;
+
+export struct multiple_wait_block;
+
+export enum class waiter_object_type {
+    thread,
+    multiple
+};
+
+export class waiter_object {
+public:
+    waiter_object(enum waiter_object_type type) : type(type) { }
+
+    list_entry wait_le;
+    enum waiter_object_type type;
+};
+
+export enum class thread_status {
+    runnable,
+    running,
+    waiting,
+    waiting_multiple,
+    dead,
+    dying
+};
+
+extern "C++" class process;
 
 export extern "C++"
 class thread : public sync_object {
@@ -47,7 +79,7 @@ public:
     bool kernel_mode;
     enum nt_status exit_status = nt_status::PENDING;
     list_entry process_le;
-    std::atomic<uint32_t> suspend_count = 0;
+    atomic<uint32_t> suspend_count = 0;
     TEB* teb;
     uint32_t current_cpu = 0xffffffff;
     bool wait_interruptible;
@@ -144,10 +176,17 @@ export object_ref add_kernel_thread(void (*func)()) {
     return add_kernel_thread((void(*)(void*, void*))func, nullptr, nullptr);
 }
 
-export extern "C++"
-struct multiple_wait_block {
+export class waiter_object_multiple : public waiter_object {
+public:
+    waiter_object_multiple() : waiter_object(waiter_object_type::multiple) { }
+
+    multiple_wait_block* block;
+    bool done = false;
+};
+
+export struct multiple_wait_block {
     ::thread* t;
-    std::atomic<unsigned int> left;
+    atomic<unsigned int> left;
     unsigned int index;
     unsigned int num_entries;
     waiter_object_multiple entries[0];

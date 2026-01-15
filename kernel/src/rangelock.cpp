@@ -3,7 +3,7 @@ module;
 #include "timer-asm.h"
 #include <optional>
 #include <span>
-#include "thread.h"
+#include <stdint.h>
 #include "rangelock.h"
 #include "scheduler.h"
 #include "assert.h"

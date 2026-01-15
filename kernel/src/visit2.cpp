@@ -3,7 +3,6 @@
 #include <functional>
 #include <string_view>
 #include <variant>
-#include "thread.h"
 #include "section.h"
 
 import visit;
@@ -15,6 +14,7 @@ import chardev;
 import timer;
 import file;
 import thread;
+import process;
 
 using namespace std;
 

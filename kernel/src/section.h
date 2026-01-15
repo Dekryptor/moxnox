@@ -3,6 +3,7 @@
 #include <variant>
 #include <string_view>
 #include <span>
+#include <stdint.h>
 
 import nt;
 import page_cache;

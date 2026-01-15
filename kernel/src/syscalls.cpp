@@ -6,7 +6,6 @@ module;
 #include <optional>
 #include <functional>
 #include <mutex>
-#include "thread.h"
 #include "timer-asm.h"
 
 export module syscalls;
@@ -22,6 +21,7 @@ import thread;
 import disable_interrupts;
 import cpu_block;
 import process;
+import list;
 
 using namespace std;
 
