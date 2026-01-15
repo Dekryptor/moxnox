@@ -80,3 +80,12 @@ export object_ref add_kernel_thread(void (*func)(void*), void* param) {
 export object_ref add_kernel_thread(void (*func)()) {
     return add_kernel_thread((void(*)(void*, void*))func, nullptr, nullptr);
 }
+
+export extern "C++"
+struct multiple_wait_block {
+    ::thread* t;
+    std::atomic<unsigned int> left;
+    unsigned int index;
+    unsigned int num_entries;
+    waiter_object_multiple entries[0];
+};

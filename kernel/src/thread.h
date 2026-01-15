@@ -105,11 +105,3 @@ static_assert(offsetof(thread, teb) == THREAD_TEB);
 static_assert(sizeof(thread::status) == 4);
 static_assert((unsigned int)thread_status::dead == ENUM_THREAD_STATUS_DEAD);
 #endif
-
-struct multiple_wait_block {
-    thread* t;
-    std::atomic<unsigned int> left;
-    unsigned int index;
-    unsigned int num_entries;
-    waiter_object_multiple entries[0];
-};
