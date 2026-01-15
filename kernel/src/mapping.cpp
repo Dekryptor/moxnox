@@ -6,10 +6,10 @@ export module mapping;
 
 import nt;
 import list;
+import process;
 
 using namespace std;
 
-extern "C++" class process;
 extern "C++" class section;
 
 export extern "C++"

@@ -23,8 +23,7 @@ using namespace std;
 extern "C++" class section;
 extern "C++" class thread;
 
-export extern "C++"
-class process : public sync_object {
+export class process : public sync_object {
 public:
     process();
     ~process();

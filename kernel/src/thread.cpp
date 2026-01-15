@@ -18,6 +18,7 @@ import handle;
 import object_ref;
 import objects;
 import list;
+import process;
 
 using namespace std;
 
@@ -44,8 +45,6 @@ export enum class thread_status {
     dead,
     dying
 };
-
-extern "C++" class process;
 
 export extern "C++"
 class thread : public sync_object {

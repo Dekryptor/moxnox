@@ -606,7 +606,6 @@ object_ref create_process(string_view fn, string_view curdir,
     return p;
 }
 
-extern "C++"
 process::process() : sync_object(object_type::process, false) {
     auto s = new section;
     if (!s) {
@@ -705,7 +704,6 @@ static void free_page_tables(process& proc) {
 }
 #endif
 
-extern "C++"
 process::~process() {
     // FIXME - race condition here with NtOpenProcess etc.
     if (added_to_tree) {
@@ -986,7 +984,6 @@ static bool set_page_protection(process& proc, uint64_t va, uint32_t num_pages,
 }
 #endif
 
-extern "C++"
 uintptr_t process::map_section(section& sect, uintptr_t address,
                                optional<int64_t> section_offset,
                                enum mapping_type protect, bool cow,
@@ -1453,7 +1450,6 @@ static bool handle_page_fault2(process& p, uintptr_t address, pte_type& pte) {
 }
 
 #ifdef __aarch64__
-extern "C++"
 bool process::handle_page_fault(uintptr_t address, uint64_t esr_value) {
     ARM64_ESR esr;
 
@@ -1487,7 +1483,6 @@ bool process::handle_page_fault(uintptr_t address, uint64_t esr_value) {
     return ret;
 }
 #elifdef __x86_64__
-extern "C++"
 bool process::handle_page_fault(uintptr_t address, uint64_t error_code) {
     page_fault_error_code ec;
 
@@ -1523,7 +1518,6 @@ bool process::handle_page_fault(uintptr_t address, uint64_t error_code) {
 #endif
 
 #ifdef __aarch64__
-extern "C++"
 bool process::allocate_ttbr0() {
     ttbr0 = allocate_folio(0);
     if (!ttbr0) {
@@ -1536,7 +1530,6 @@ bool process::allocate_ttbr0() {
     return true;
 }
 #elifdef __x86_64__
-extern "C++"
 bool process::allocate_cr3() {
     auto kernel_cr3 = get_cpu_block()->kernel_cr3;
 
@@ -1559,7 +1552,6 @@ bool process::allocate_cr3() {
 }
 #endif
 
-extern "C++"
 bool process::copy_from(void* ks_addr, const void* us_addr, size_t size) {
     while (true) {
         auto m = find_mapping(*this, (uintptr_t)us_addr);
@@ -1586,7 +1578,6 @@ bool process::copy_from(void* ks_addr, const void* us_addr, size_t size) {
     return false;
 }
 
-extern "C++"
 bool process::copy_to(void* us_addr, const void* ks_addr, size_t size) {
     while (true) {
         auto m = find_mapping(*this, (uintptr_t)us_addr);
@@ -1715,7 +1706,6 @@ static void free_handle(rbtree_node<handle_t>* tree) {
     free(&ho);
 }
 
-extern "C++"
 void process::terminate() {
     // wake up threads waiting for process to terminate
 
@@ -1812,7 +1802,6 @@ NTSTATUS NtTerminateProcess(HANDLE process_handle, NTSTATUS exit_status) {
     return nt_status::SUCCESS;
 }
 
-extern "C++"
 void process::resume() {
     if (--suspend_count != 0)
         return;
@@ -1833,7 +1822,6 @@ void process::resume() {
     }
 }
 
-extern "C++"
 void process::suspend() {
     if (suspend_count++ != 0)
         return;
@@ -1924,7 +1912,6 @@ NTSTATUS NtSuspendProcess(HANDLE proc_handle) {
     return nt_status::SUCCESS;
 }
 
-extern "C++"
 nt_status process::add_handle(object& obj, uint32_t access_mask,
                               bool allow_shared, handle_t& h) {
     // FIXME - reusing handles?
@@ -1955,7 +1942,6 @@ nt_status process::add_handle(object& obj, uint32_t access_mask,
     return nt_status::SUCCESS;
 }
 
-extern "C++"
 NTSTATUS process::allocate_vm(void** base_address, uintptr_t, size_t* region_size,
                               uint32_t allocation_type, enum mapping_type protect) {
     // FIXME - what are we supposed to do with zero_bits?
@@ -2269,7 +2255,6 @@ static void unmap_proc_pages(process& proc, uint64_t va, uint64_t num_pages) {
 }
 #endif
 
-extern "C++"
 NTSTATUS process::free_vm(void** base_address, size_t* region_size, uint32_t free_type) {
     if (!(free_type & (MEM_DECOMMIT | MEM_RELEASE)))
         return nt_status::INVALID_PARAMETER;
@@ -2709,7 +2694,6 @@ bool mapping::copy_to(uint32_t offset, const void* ks_addr, uint32_t size) {
     return true;
 }
 
-extern "C++"
 object_ref process::deref_handle(handle_t h) {
     if (h == NtCurrentProcess()) {
         this->acquire();
@@ -2735,7 +2719,6 @@ object_ref process::deref_handle(handle_t h) {
     }
 }
 
-extern "C++"
 object_ref process::deref_handle(handle_t h, ACCESS_MASK& access_mask) {
     if (h == NtCurrentProcess()) {
         this->acquire();
@@ -3001,7 +2984,6 @@ NTSTATUS NtProtectVirtualMemory(HANDLE proc_handle, void** base_address, size_t*
     return protect_vm(*p, base_address, region_size, prot, cow, *old_prot);
 }
 
-extern "C++"
 NTSTATUS process::close_handle(handle_t h) {
     if (!h)
         return nt_status::INVALID_HANDLE;
@@ -3029,7 +3011,6 @@ NTSTATUS process::close_handle(handle_t h) {
     return nt_status::SUCCESS;
 }
 
-extern "C++"
 NTSTATUS process::map_view_of_section(section& sect, void** base_address, uintptr_t, size_t,
                                       optional<int64_t> section_offset, size_t& view_size,
                                       enum SECTION_INHERIT, uint32_t,
@@ -3055,7 +3036,6 @@ NTSTATUS process::map_view_of_section(section& sect, void** base_address, uintpt
     return nt_status::SUCCESS;
 }
 
-extern "C++"
 NTSTATUS process::unmap_view_of_section(void* base_address) {
     auto m = find_mapping(*this, (uintptr_t)base_address);
     if (!m)
@@ -3277,7 +3257,6 @@ NTSTATUS NtDuplicateObject(HANDLE source_process_handle, HANDLE source_handle, H
     return nt_status::SUCCESS;
 }
 
-extern "C++"
 NTSTATUS process::read_vm(void* base_address, void* buffer, uint32_t buffer_size,
                           uint32_t* number_of_bytes_read) {
     uint32_t copied = 0;
@@ -3349,7 +3328,6 @@ NTSTATUS NtReadVirtualMemory(HANDLE process_handle, void* base_address, void* bu
     return p->read_vm(base_address, buffer, buffer_size, number_of_bytes_read);
 }
 
-extern "C++"
 NTSTATUS process::write_vm(void* base_address, const void* buffer,
                            uint32_t buffer_size, uint32_t* number_of_bytes_written) {
     uint32_t copied = 0;
@@ -3421,7 +3399,6 @@ NTSTATUS NtWriteVirtualMemory(HANDLE process_handle, void* base_address, const v
     return p->write_vm(base_address, buffer, buffer_size, number_of_bytes_written);
 }
 
-extern "C++"
 NTSTATUS process::query_info(enum PROCESSINFOCLASS process_information_class, span<uint8_t> buf,
                              uint32_t* return_length) {
     switch (process_information_class) {
@@ -3528,7 +3505,6 @@ NTSTATUS NtQueryInformationProcess(HANDLE process_handle, enum PROCESSINFOCLASS 
                          return_length);
 }
 
-extern "C++"
 object_ref process::get_stderr() {
     PEB peb;
     RTL_USER_PROCESS_PARAMETERS params;
@@ -3542,7 +3518,6 @@ object_ref process::get_stderr() {
     return this->deref_handle(params.StandardError);
 }
 
-extern "C++"
 NTSTATUS process::create_thread(optional<reference_wrapper<handle_t>> thread_handle, ACCESS_MASK,
                                 const OBJECT_ATTRIBUTES*, CLIENT_ID& client_id,
                                 const CONTEXT& thread_context,
@@ -3779,7 +3754,6 @@ nt_status mapping::flush(uint64_t offset, uint64_t size) {
     return sect.flush((this->offset + offset) >> PAGE_SHIFT, size >> PAGE_SHIFT);
 }
 
-extern "C++"
 nt_status process::flush_vm(void** base_address, size_t* region_size) {
     auto addr = (uint64_t)*base_address;
 
@@ -3928,7 +3902,6 @@ void mapping::clear_write_bit(uint64_t page_num, uint64_t num_pages) {
     send_page_tlb_ipi(proc, va, num_pages);
 }
 
-extern "C++"
 nt_status process::get_next_thread(::thread* threadptr, ACCESS_MASK /*desired_access*/,
                                    uint32_t /*handle_attributes*/, uint32_t /*flags*/,
                                    HANDLE* new_thread_handle) {
