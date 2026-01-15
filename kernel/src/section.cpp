@@ -26,8 +26,7 @@ export enum class section_type {
     image
 };
 
-export extern "C++"
-class anon_section_cache {
+export class anon_section_cache {
 public:
     nt_status read_into_cache(uint64_t page_num, uint64_t num_pages,
                               uint64_t& read_pages);

@@ -1182,7 +1182,6 @@ nt_status image_section_cache::read_into_cache(uint64_t page_num, uint64_t num_p
     return nt_status::SUCCESS;
 }
 
-extern "C++"
 nt_status anon_section_cache::read_into_cache(uint64_t page_num, uint64_t num_pages,
                                               uint64_t& read_pages) {
     // infinite anonymous sections are used for process VM
