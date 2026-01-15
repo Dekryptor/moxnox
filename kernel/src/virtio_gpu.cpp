@@ -857,6 +857,10 @@ bool virtio_gpu<T>::resource_flush(const virtio_gpu_rect& r, uint32_t resource) 
 
 void virtio_gpu_flush_framebuffer(unsigned int x, unsigned int y,
                                   unsigned int width, unsigned int height) {
+    auto sp = span((uint8_t*)(framebuffer.data() + (y * fb_width)),
+                   height * fb_width * sizeof(uint32_t));
+    flush_cache(sp, false);
+
     visit([&](auto&& v) {
         virtio_gpu_rect r;
 
