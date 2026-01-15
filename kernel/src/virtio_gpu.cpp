@@ -961,8 +961,6 @@ void virtio_gpu<T>::start() {
     if (!video_opt.empty())
         parse_video_option(video_opt, r);
 
-    // FIXME - get EDID?
-
     // FIXME - multiple scanouts
 
     // FIXME - unref resource in destructor
@@ -987,7 +985,6 @@ void virtio_gpu<T>::start() {
         // FIXME - unref resource
     }
 
-    // FIXME - set scanout
     if (!set_scanout(r, 0, *res)) {
         print("virtio_gpu::set_scanout failed\n");
         // FIXME - vfree
