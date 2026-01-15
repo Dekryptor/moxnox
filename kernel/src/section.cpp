@@ -70,7 +70,7 @@ static_assert(cacheable<custom_section_cache>);
 static_assert(cacheable_flushable<custom_section_cache>);
 static_assert(has_ioctls<custom_section_cache>);
 
-extern "C++" class image_section_cache;
+class image_section_cache;
 
 using cache_variant = variant<page_cache<image_section_cache>*, page_cache<anon_section_cache>*,
                                    page_cache<custom_section_cache>*, page_cache<inode>*>;
@@ -121,7 +121,6 @@ public:
 
 static_assert(has_ioctls<section>);
 
-extern "C++"
 class image_section_cache {
 public:
     image_section_cache(section& sect) : sect(sect) { }

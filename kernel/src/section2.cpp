@@ -966,7 +966,6 @@ cache_variant section::get_cache() {
     }
 }
 
-extern "C++"
 nt_status image_section_cache::read_into_cache(uint64_t page_num, uint64_t num_pages,
                                                uint64_t& read_pages) {
     auto& f = sect.ino->get();
