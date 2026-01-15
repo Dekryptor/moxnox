@@ -1,3 +1,5 @@
+module;
+
 #include <span>
 #include <optional>
 #include <functional>
@@ -5,8 +7,9 @@
 #include <variant>
 #include <stdint.h>
 
+module visit;
+
 import nt;
-import visit;
 import event;
 import pipe;
 import volume;
