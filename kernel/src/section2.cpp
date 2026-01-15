@@ -5,8 +5,9 @@ module;
 #include <optional>
 #include <mutex>
 #include <algorithm>
+#include <variant>
+#include <string_view>
 #include <stdint.h>
-#include "section.h"
 
 module section;
 

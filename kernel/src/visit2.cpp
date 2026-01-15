@@ -3,8 +3,9 @@
 #include <functional>
 #include <string_view>
 #include <variant>
-#include "section.h"
+#include <stdint.h>
 
+import nt;
 import visit;
 import event;
 import pipe;
@@ -15,6 +16,9 @@ import timer;
 import file;
 import thread;
 import process;
+import section;
+import objects;
+import inode;
 
 using namespace std;
 

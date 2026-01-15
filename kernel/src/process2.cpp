@@ -7,9 +7,9 @@ module;
 #include <mutex>
 #include <new>
 #include <algorithm>
+#include <variant>
 #include <stdint.h>
 #include "rangelock.h"
-#include "section.h"
 #include "assert.h"
 
 module process;
@@ -37,6 +37,9 @@ import kernel_time_page;
 import version;
 import handle;
 import rbtree;
+import inode;
+import pe;
+import page_cache;
 
 #ifdef __aarch64__
 import aarch64;

@@ -7,7 +7,6 @@ module;
 #include <functional>
 #include <string_view>
 #include <mutex>
-#include "section.h"
 
 export module framebuffer;
 
@@ -17,6 +16,8 @@ import mem;
 import config;
 import spinlock;
 import handle;
+import section;
+import page_cache;
 
 #ifdef __x86_64__
 import inout;
