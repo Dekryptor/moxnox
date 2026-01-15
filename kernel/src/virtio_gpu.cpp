@@ -992,6 +992,8 @@ void virtio_gpu<T>::start() {
     }
 
     memset(backing, 0, sizeof(uint32_t) * r.width * r.height);
+    flush_cache(span((uint8_t*)backing, sizeof(uint32_t) * r.width * r.height),
+                false);
 
     flush_framebuffer_device = decltype(flush_framebuffer_device)(this);
     flush_framebuffer_resource = *res;
