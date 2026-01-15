@@ -2,6 +2,7 @@
 
 #include <variant>
 #include <string_view>
+#include <span>
 
 import nt;
 import page_cache;
@@ -48,7 +49,7 @@ static_assert(cacheable<custom_section_cache>);
 static_assert(cacheable_flushable<custom_section_cache>);
 static_assert(has_ioctls<custom_section_cache>);
 
-class image_section_cache;
+extern "C++" class image_section_cache;
 
 using cache_variant = std::variant<page_cache<image_section_cache>*, page_cache<anon_section_cache>*,
                                    page_cache<custom_section_cache>*, page_cache<inode>*>;
@@ -97,3 +98,17 @@ public:
 };
 
 static_assert(has_ioctls<section>);
+
+extern "C++"
+class image_section_cache {
+public:
+    image_section_cache(section& sect) : sect(sect) { }
+
+    nt_status read_into_cache(uint64_t page_num, uint64_t num_pages,
+                              uint64_t& read_pages);
+
+    page_cache<image_section_cache> cache{*this};
+
+private:
+    section& sect;
+};
