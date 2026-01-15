@@ -13,6 +13,7 @@ export module rangelock;
 import bsod;
 import disable_interrupts;
 import cpu_block;
+import thread;
 
 export struct rangelock_req {
     rangelock_req(rangelock& rl, uint64_t start, uint64_t length) : rl(rl) {

@@ -14,6 +14,7 @@ import semaphore;
 import chardev;
 import timer;
 import file;
+import thread;
 
 using namespace std;
 
