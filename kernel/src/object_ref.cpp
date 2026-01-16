@@ -10,6 +10,7 @@ import visit;
 
 using namespace std;
 
+// FIXME - extern "C++" only here because GCC 15 bugs out otherwise
 export extern "C++" class object_ref {
 public:
     object_ref() = default;
