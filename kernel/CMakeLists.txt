@@ -98,7 +98,8 @@ set(SRC_FILES src/kernel.cpp
     src/mapping2.cpp
     src/handle2.cpp
     src/spinlock2.cpp
-    src/rangelock2.cpp)
+    src/rangelock2.cpp
+    src/scheduler2.cpp)
 
 if(CMAKE_SYSTEM_PROCESSOR STREQUAL aarch64)
     set(SRC_ASM_FILES src/aarch64/ints.S
