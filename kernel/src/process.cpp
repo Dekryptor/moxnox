@@ -5,7 +5,6 @@ module;
 #include <atomic>
 #include <optional>
 #include "context_offsets.h"
-#include "rangelock.h"
 
 export module process;
 
@@ -17,6 +16,7 @@ import mapping_type;
 import spinlock;
 import handle;
 import objects;
+import rangelock;
 
 #ifdef __aarch64__
 import aarch64;

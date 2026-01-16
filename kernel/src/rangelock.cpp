@@ -1,9 +1,15 @@
 module;
 
 #include <stdint.h>
-#include "rangelock.h"
 
 export module rangelock;
+
+import list;
+
+export struct rangelock {
+    list_entry active = { &active, &active };
+    list_entry waiting = { &waiting, &waiting };
+};
 
 export struct rangelock_req {
     rangelock_req(rangelock& rl, uint64_t start, uint64_t length) : rl(rl) {

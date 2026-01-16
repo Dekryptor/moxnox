@@ -2,7 +2,6 @@ module;
 
 #include "timer-asm.h"
 #include <stdint.h>
-#include "rangelock.h"
 #include "scheduler.h"
 #include "assert.h"
 
