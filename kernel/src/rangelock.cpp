@@ -5,8 +5,6 @@ module;
 
 export module rangelock;
 
-import thread;
-
 export struct rangelock_req {
     rangelock_req(rangelock& rl, uint64_t start, uint64_t length) : rl(rl) {
         this->start = start;
@@ -26,5 +24,5 @@ export struct rangelock_req {
     rangelock& rl;
     uint64_t start;
     uint64_t length;
-    thread* t;
+    uintptr_t t; // thread*
 };

@@ -11,6 +11,7 @@ module rangelock;
 import bsod;
 import disable_interrupts;
 import cpu_block;
+import thread;
 
 static bool rlr_overlap(const rangelock_req& r1, const rangelock_req& r2) {
     if (r1.start >= r2.start && r1.start < r2.start + r2.length)
@@ -78,7 +79,7 @@ void rangelock_req::lock() {
         return;
     }
 
-    t = get_cpu_block()->current_thread;
+    t = (uintptr_t)get_cpu_block()->current_thread;
 
     insert_tail_list(rl.waiting, le);
 
@@ -130,8 +131,10 @@ void rangelock_req::unlock() {
         remove_entry_list(rlr.le);
         insert_tail_list(rl.active, rlr.le);
 
-        assert(rlr.t->status == thread_status::waiting);
-        rlr.t->status = thread_status::runnable;
+        auto t = (thread*)rlr.t;
+
+        assert(t->status == thread_status::waiting);
+        t->status = thread_status::runnable;
     }
 
     release_sync_lock();
