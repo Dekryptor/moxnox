@@ -73,6 +73,7 @@ set(GLOBAL_MODULES src/cmdline.cpp
     src/kernel_time_page.cpp
     src/usbms.cpp
     src/dma.cpp
+    src/mapping_type.cpp
 )
 
 set(AMD64_MODULES ${GLOBAL_MODULES}

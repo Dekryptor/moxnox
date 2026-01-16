@@ -13,7 +13,7 @@ import object_ref;
 import nt;
 import list;
 import rbtree;
-import mem;
+import mapping_type;
 import spinlock;
 import handle;
 import objects;

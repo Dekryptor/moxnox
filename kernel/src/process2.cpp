@@ -38,6 +38,7 @@ import version;
 import inode;
 import pe;
 import page_cache;
+import mem;
 
 #ifdef __x86_64__
 import apic;
