@@ -4,11 +4,10 @@ module;
 #include <atomic>
 #include <stddef.h>
 
-class thread;
-
 export module cpu_block;
 
 import nt;
+import thread;
 
 using namespace std;
 

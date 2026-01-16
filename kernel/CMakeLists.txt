@@ -131,9 +131,6 @@ target_compile_options(kernel PRIVATE $<$<COMPILE_LANGUAGE:ASM>:-g0>)
 target_compile_options(kernel PRIVATE $<$<CONFIG:DEBUG>:-fno-inline -fno-omit-frame-pointer>)
 target_compile_options(kernel PRIVATE $<$<AND:$<COMPILE_LANGUAGE:CXX>,$<CXX_COMPILER_ID:Clang>>:-fno-auto-import>)
 
-# workaround to avoid ICE hell for modules on GCC 15
-set_source_files_properties(src/cpu_block.cpp PROPERTIES COMPILE_FLAGS $<$<CXX_COMPILER_ID:GNU>:-Wno-global-module>)
-
 target_include_directories(kernel PRIVATE ../acpica/source/include)
 target_link_libraries(kernel acpica)
 target_link_libraries(kernel freetype-static)
