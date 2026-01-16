@@ -5,10 +5,10 @@ module;
 #include <atomic>
 #include <optional>
 #include <mutex>
-#include "scheduler.h"
 
 export module event;
 
+import nt;
 import print;
 import list;
 import bsod;
@@ -18,6 +18,7 @@ import spinlock;
 import handle;
 import objects;
 import process;
+import scheduler;
 
 using namespace std;
 

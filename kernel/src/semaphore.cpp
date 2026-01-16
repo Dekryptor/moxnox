@@ -5,7 +5,6 @@ module;
 #include <atomic>
 #include <optional>
 #include <mutex>
-#include "scheduler.h"
 
 export module semaphore;
 
@@ -19,6 +18,7 @@ import mem;
 import spinlock;
 import disable_interrupts;
 import cpu_block;
+import scheduler;
 
 using namespace std;
 

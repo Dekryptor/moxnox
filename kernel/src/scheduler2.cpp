@@ -197,7 +197,6 @@ void scheduler() {
     } while (true);
 }
 
-extern "C++"
 nt_status wait_for_object(object& obj, bool interruptible,
                           optional<uint64_t> timeout) {
 #ifdef DEBUG
@@ -313,7 +312,7 @@ nt_status wait_for_object(object& obj, bool interruptible,
     return nt_status::SUCCESS;
 }
 
-extern "C++" unsigned int wake_up_waiters(list_entry& waiters) {
+unsigned int wake_up_waiters(list_entry& waiters) {
     unsigned int ret = 0;
 
     while (!is_list_empty(waiters)) {
@@ -755,7 +754,7 @@ extern "C" NTSTATUS NtWaitForMultipleObjects(uint32_t object_count, HANDLE* obje
     return ret;
 }
 
-extern "C++" void set_current_thread_waiting() {
+void set_current_thread_waiting() {
     // must have synclock held
 
     auto& cb = *get_cpu_block();

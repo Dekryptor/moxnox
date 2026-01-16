@@ -7,11 +7,11 @@ module;
 #include <atomic>
 #include <string_view>
 #include <mutex>
-#include "scheduler.h"
 #include "assert.h"
 
 export module volume;
 
+import nt;
 import print;
 import bsod;
 import mem;
@@ -26,6 +26,7 @@ import objects;
 import object_ref;
 import handle;
 import spinlock;
+import scheduler;
 
 #include "volume.h"
 

@@ -3,7 +3,6 @@ module;
 #include <optional>
 #include <mutex>
 #include <new>
-#include "scheduler.h"
 #include "timer-asm.h"
 
 module thread;
@@ -17,6 +16,7 @@ import spinlock;
 import handle;
 import crt;
 import process;
+import scheduler;
 
 using namespace std;
 

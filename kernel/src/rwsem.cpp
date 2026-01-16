@@ -3,7 +3,6 @@ module;
 #include "timer-asm.h"
 #include <span>
 #include <optional>
-#include "scheduler.h"
 #include "assert.h"
 
 export module rwsem;
@@ -13,6 +12,7 @@ import list;
 import disable_interrupts;
 import cpu_block;
 import thread;
+import scheduler;
 
 export class rwsem {
 public:

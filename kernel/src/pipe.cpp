@@ -5,10 +5,10 @@ module;
 #include <atomic>
 #include <string_view>
 #include <mutex>
-#include "scheduler.h"
 
 export module pipe;
 
+import nt;
 import print;
 import mem;
 import config;
@@ -21,6 +21,7 @@ import event;
 import spinlock;
 import handle;
 import object_ref;
+import scheduler;
 
 using namespace std;
 

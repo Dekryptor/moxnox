@@ -12,14 +12,12 @@ import objects;
 
 using namespace std;
 
-export extern "C++" {
-    list_entry thread_list = { &thread_list, &thread_list };
-}
+export list_entry thread_list = { &thread_list, &thread_list };
 
-export extern "C++" nt_status wait_for_object(object& obj, bool interruptible,
-                                              optional<uint64_t> timeout = nullopt);
-export extern "C++" unsigned int wake_up_waiters(list_entry& waiters);
+export nt_status wait_for_object(object& obj, bool interruptible,
+                                 optional<uint64_t> timeout = nullopt);
+export unsigned int wake_up_waiters(list_entry& waiters);
 export uintptr_t init_cpu_block(unsigned int cpu_no);
 export nt_status wait_for_objects(span<object*> objects, bool wait_any,
                                   optional<uint64_t> timeout = nullopt);
-export extern "C++" void set_current_thread_waiting();
+export void set_current_thread_waiting();

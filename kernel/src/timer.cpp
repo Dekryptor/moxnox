@@ -2,14 +2,15 @@ module;
 
 #include <span>
 #include <atomic>
+#include <optional>
 #include <mutex>
 #include "context_offsets.h"
-#include "scheduler.h"
 #include "acpica.h"
 #include "timer-asm.h"
 
 export module timer;
 
+import nt;
 import print;
 import list;
 import interrupts;
@@ -22,6 +23,7 @@ import spinlock;
 import handle;
 import config;
 import kernel_time_page;
+import scheduler;
 
 #ifdef __x86_64__
 import inout;

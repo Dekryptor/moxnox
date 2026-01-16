@@ -2,7 +2,6 @@ module;
 
 #include "timer-asm.h"
 #include <stdint.h>
-#include "scheduler.h"
 #include "assert.h"
 
 module rangelock;
@@ -11,6 +10,7 @@ import bsod;
 import disable_interrupts;
 import cpu_block;
 import thread;
+import scheduler;
 
 static bool rlr_overlap(const rangelock_req& r1, const rangelock_req& r2) {
     if (r1.start >= r2.start && r1.start < r2.start + r2.length)
