@@ -65,7 +65,6 @@ set(GLOBAL_MODULES src/cmdline.cpp
     src/virtio_gpu.cpp
     src/framebuffer.cpp
     src/handle.cpp
-    src/file.cpp
     src/mapping.cpp
     src/debug.cpp
     src/sdhci.cpp

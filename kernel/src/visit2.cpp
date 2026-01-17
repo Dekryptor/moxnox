@@ -16,12 +16,12 @@ import volume;
 import semaphore;
 import chardev;
 import timer;
-import file;
 import thread;
 import process;
 import section;
 import objects;
 import inode;
+import vfs;
 
 using namespace std;
 

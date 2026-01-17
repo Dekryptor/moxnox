@@ -21,7 +21,6 @@ import vfs;
 import unicode;
 import object_ref;
 import page_cache;
-import file;
 import inode;
 import spinlock;
 import kernel_time_page;

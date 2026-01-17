@@ -29,7 +29,6 @@ import smp;
 import disable_interrupts;
 import cpu_block;
 import ntdll;
-import file;
 import mapping;
 import crt;
 import kernel_time_page;

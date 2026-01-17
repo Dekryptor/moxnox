@@ -10,13 +10,13 @@ module;
 export module section;
 
 import nt;
-import file;
 import object_ref;
 import page_cache;
 import objects;
 import inode;
 import spinlock;
 import pe;
+import vfs;
 
 using namespace std;
 
