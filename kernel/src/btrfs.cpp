@@ -136,24 +136,24 @@ public:
     bool load_inode();
     void release() override;
 
-    nt_status open_child(std::string_view name, uint32_t create_disposition,
+    nt_status open_child(string_view name, uint32_t create_disposition,
                          uint32_t create_options, unsigned int& create_result,
-                         std::optional<std::reference_wrapper<btrfs_inode>>& obj);
-    nt_status create_child(std::string_view name,
+                         optional<reference_wrapper<btrfs_inode>>& obj);
+    nt_status create_child(string_view name,
                            uint32_t create_options,
-                           std::optional<std::reference_wrapper<btrfs_inode>>& obj);
-    NTSTATUS query_directory(std::span<uint8_t> buf, FILE_INFORMATION_CLASS file_information_class,
+                           optional<reference_wrapper<btrfs_inode>>& obj);
+    NTSTATUS query_directory(span<uint8_t> buf, FILE_INFORMATION_CLASS file_information_class,
                              uint64_t& index) override;
-    NTSTATUS set_information(std::span<const uint8_t> buffer,
+    NTSTATUS set_information(span<const uint8_t> buffer,
                              FILE_INFORMATION_CLASS file_information_class) override;
-    NTSTATUS query_information(std::span<uint8_t> buffer,
+    NTSTATUS query_information(span<uint8_t> buffer,
                                FILE_INFORMATION_CLASS file_information_class,
                                uint64_t& retlen) override;
     nt_status read_into_cache(uint64_t page_num, uint64_t num_pages,
                               uint64_t& read_pages) override;
     nt_status flush_cache(uint64_t page_num, uint64_t num_pages) override;
-    nt_status set_basic_information(std::span<const uint8_t> buffer);
-    nt_status query_standard_information(std::span<uint8_t> buffer, uint64_t& retlen);
+    nt_status set_basic_information(span<const uint8_t> buffer);
+    nt_status query_standard_information(span<uint8_t> buffer, uint64_t& retlen);
     nt_status flush_inode_item(btrfs_path& p);
 
     root* r;
@@ -194,9 +194,9 @@ public:
             root_inode->release();
     }
 
-    nt_status read_metadata(uint64_t addr, std::span<uint8_t> data);
-    nt_status open_inode(uint64_t subvol, uint64_t inode, std::optional<std::reference_wrapper<btrfs_inode>>& obj);
-    nt_status open(std::string_view fn, const std::optional<std::reference_wrapper<inode>>& dir,
+    nt_status read_metadata(uint64_t addr, span<uint8_t> data);
+    nt_status open_inode(uint64_t subvol, uint64_t inode, optional<reference_wrapper<btrfs_inode>>& obj);
+    nt_status open(string_view fn, const optional<reference_wrapper<inode>>& dir,
                    object_ref& obj_ref, uint32_t create_disposition,
                    uint32_t create_options, unsigned int& create_result) override;
     nt_status remove_item(root& r, const btrfs_key& k);
