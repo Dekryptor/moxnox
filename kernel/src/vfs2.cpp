@@ -48,6 +48,7 @@ struct mount {
 static rwsem fs_lock;
 static list_entry fs_list = { &fs_list, &fs_list };
 static mount root(0);
+static dentry* root_dentry;
 
 void add_fs_to_list(::filesystem& fs) {
     lock_guard lock(fs_lock);
@@ -260,6 +261,18 @@ bool mount_root() {
         return false;
 
     root.fs = root_fs;
+
+    root_dentry = new dentry;
+    if (!root_dentry) {
+        print("new failed\n");
+        return false;
+    }
+
+    root_dentry->inode = root_fs->root_inode;
+    root_dentry->index = 0;
+    root_dentry->name_len = 0;
+
+    root_dentry->inode->acquire();
 
     return true;
 }
