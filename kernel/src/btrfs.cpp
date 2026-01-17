@@ -190,8 +190,8 @@ public:
         if (sb)
             free_folio(phys_memory_pfn(sb) << PAGE_SHIFT);
 
-        if (root_dentry)
-            root_dentry->release();
+        if (root_inode)
+            root_inode->release();
     }
 
     nt_status read_metadata(uint64_t addr, std::span<uint8_t> data);
@@ -591,14 +591,7 @@ btrfs_filesystem::btrfs_filesystem(volume& vol) : filesystem(&vol) {
         return;
     }
 
-    root_dentry = new dentry;
-    if (!root_dentry) {
-        print("new failed\n");
-        btrfs_root_inode->release();
-        return;
-    }
-
-    root_dentry->inode = btrfs_root_inode;
+    root_inode = btrfs_root_inode;
 
     insert_tail_list(inode_list, btrfs_root_inode->le);
 
@@ -3092,15 +3085,15 @@ nt_status btrfs_filesystem::open(string_view fn, const optional<reference_wrappe
         fn.remove_prefix(1);
 
         if (fn.empty()) { // root
-            root_dentry->inode->acquire();
-            obj_ref = *root_dentry->inode;
+            root_inode->acquire();
+            obj_ref = *root_inode;
             return nt_status::SUCCESS;
         }
     }
 
     // FIXME - do we need to make sure root_dir is definitely a btrfs inode?
 
-    reference_wrapper<btrfs_inode> dirrw{!root_dir ? *static_cast<btrfs_inode*>(root_dentry->inode) : static_cast<btrfs_inode&>(root_dir->get())};
+    reference_wrapper<btrfs_inode> dirrw{!root_dir ? *static_cast<btrfs_inode*>(root_inode) : static_cast<btrfs_inode&>(root_dir->get())};
     dirrw.get().acquire();
 
     auto l = [&]() -> nt_status {

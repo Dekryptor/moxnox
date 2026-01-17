@@ -167,7 +167,7 @@ static nt_status extract_initrd_file(::filesystem& fs, string_view path,
     object_ref file;
     unsigned int create_result;
 
-    auto status = fs.open(path, *fs.root_dentry->inode, file, FILE_CREATE,
+    auto status = fs.open(path, *fs.root_inode, file, FILE_CREATE,
                           S_ISDIR(mode) ? FILE_DIRECTORY_FILE : 0,
                           create_result);
 

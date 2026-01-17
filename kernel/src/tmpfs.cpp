@@ -63,8 +63,8 @@ public:
     tmpfs_filesystem();
 
     ~tmpfs_filesystem() override {
-        if (root_dentry)
-            root_dentry->release();
+        if (root_inode)
+            root_inode->release();
     }
 
     nt_status open(string_view fn, const optional<reference_wrapper<inode>>& dir,
@@ -84,15 +84,7 @@ tmpfs_filesystem::tmpfs_filesystem() : filesystem(nullptr) {
         return;
     }
 
-    root_dentry = new dentry;
-    if (!root_dentry) {
-        print("new failed\n");
-        tmpfs_root_inode->release();
-        return;
-    }
-
-    root_dentry->inode = tmpfs_root_inode;
-    root_dentry->name_len = 0;
+    root_inode = tmpfs_root_inode;
 
     auto cur_time = (uint64_t)kernel_time_page.system_time + kernel_time_page.system_time_offset;
 
@@ -244,13 +236,13 @@ nt_status tmpfs_filesystem::open(string_view fn,
         fn.remove_prefix(1);
 
         if (fn.empty()) { // root
-            root_dentry->inode->acquire();
-            obj_ref = *root_dentry->inode;
+            root_inode->acquire();
+            obj_ref = *root_inode;
             return nt_status::SUCCESS;
         }
     }
 
-    reference_wrapper<tmpfs_inode> dirrw{!root_dir ? *static_cast<tmpfs_inode*>(root_dentry->inode) : static_cast<tmpfs_inode&>(root_dir->get())};
+    reference_wrapper<tmpfs_inode> dirrw{!root_dir ? *static_cast<tmpfs_inode*>(root_inode) : static_cast<tmpfs_inode&>(root_dir->get())};
     dirrw.get().acquire();
 
     // FIXME - die if anything in middle not directory

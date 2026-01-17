@@ -112,7 +112,7 @@ public:
     list_entry le;
     volume* vol;
     atomic<unsigned int> refcount = 0;
-    dentry* root_dentry = nullptr;
+    inode* root_inode = nullptr;
     spinlock writeback_lock;
     list_entry writeback_list = { &writeback_list, &writeback_list };
 };
