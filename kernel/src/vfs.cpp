@@ -33,6 +33,8 @@ export enum class inode_type : uint8_t {
 
 extern "C++" class filesystem;
 
+export struct dentry;
+
 export class inode : public object {
 public:
     inode(filesystem& fs) : object(object_type::inode), fs(fs) { }
@@ -68,6 +70,7 @@ public:
     enum inode_type inode_type;
     page_cache<inode> cache{*this};
     list_entry writeback_le;
+    dentry* dentry;
 };
 
 static_assert(is_readable_object_with_offset<inode>);

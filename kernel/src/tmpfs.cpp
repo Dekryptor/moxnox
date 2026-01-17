@@ -309,7 +309,7 @@ tmpfs_inode::~tmpfs_inode() {
     lock_guard lock(dentry_lock);
 
     while (!is_list_empty(children)) {
-        auto& c = containing_record<dentry>(children.next);
+        auto& c = containing_record<::dentry>(children.next);
 
         remove_entry_list(c.le);
 
@@ -374,7 +374,7 @@ NTSTATUS tmpfs_inode::query_directory(span<uint8_t> buf,
 
     // FIXME - children should be RB tree rather than linked list
     for (auto le = children.next; le != &children; le = le->next) {
-        auto& d = containing_record<dentry>(le);
+        auto& d = containing_record<::dentry>(le);
 
         if (d.index < index)
             continue;

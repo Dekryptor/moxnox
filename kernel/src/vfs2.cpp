@@ -273,6 +273,7 @@ bool mount_root() {
     root_dentry->name_len = 0;
 
     root_dentry->inode->acquire();
+    root_dentry->inode->dentry = root_dentry;
 
     return true;
 }
