@@ -2,10 +2,13 @@ module;
 
 #include <stddef.h>
 #include <stdint.h>
+#include <atomic>
 
 import cpu_block;
 
 export module disable_interrupts;
+
+using namespace std;
 
 #ifdef __aarch64__
 
@@ -53,7 +56,7 @@ export inline __attribute__((always_inline)) void disable_preempt() {
 
 export inline __attribute__((always_inline)) void enable_preempt() {
 #ifdef __aarch64__
-    get_cpu_block()->disable_preempt--;
+    get_cpu_block()->disable_preempt.fetch_sub(1, memory_order::acq_rel);
 #elifdef __x86_64__
     __asm __volatile(
         "dec QWORD PTR gs:%0\n"
