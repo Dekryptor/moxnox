@@ -33,7 +33,7 @@ export enum class inode_type : uint8_t {
 
 extern "C++" class filesystem;
 
-export extern "C++" class inode : public object {
+export class inode : public object {
 public:
     inode(filesystem& fs) : object(object_type::inode), fs(fs) { }
 
