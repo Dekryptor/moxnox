@@ -32,7 +32,6 @@ import rwsem;
 import page_cache;
 import scheduler;
 import crc32c;
-import inode;
 import spinlock;
 import objects;
 import crt;

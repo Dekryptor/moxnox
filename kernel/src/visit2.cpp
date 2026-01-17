@@ -20,7 +20,6 @@ import thread;
 import process;
 import section;
 import objects;
-import inode;
 import vfs;
 
 using namespace std;

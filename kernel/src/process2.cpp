@@ -33,7 +33,6 @@ import mapping;
 import crt;
 import kernel_time_page;
 import version;
-import inode;
 import pe;
 import page_cache;
 import mem;

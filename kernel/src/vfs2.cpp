@@ -19,7 +19,6 @@ import guid;
 import cmdline;
 import thread;
 import visit;
-import rwsem;
 import handle;
 import crt;
 

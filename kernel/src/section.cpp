@@ -13,7 +13,6 @@ import nt;
 import object_ref;
 import page_cache;
 import objects;
-import inode;
 import spinlock;
 import pe;
 import vfs;

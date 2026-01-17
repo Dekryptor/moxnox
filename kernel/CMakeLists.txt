@@ -36,7 +36,6 @@ set(GLOBAL_MODULES src/cmdline.cpp
     src/guid.cpp
     src/page_cache.cpp
     src/vfs.cpp
-    src/inode.cpp
     src/cpio.cpp
     src/section.cpp
     src/image.cpp
