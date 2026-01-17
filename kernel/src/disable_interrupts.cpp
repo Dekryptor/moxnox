@@ -15,21 +15,21 @@ using namespace std;
 export uint8_t gic_ver;
 
 export inline __attribute__((always_inline)) void enable_interrupts() {
-    __asm __volatile("msr DAIFClr, #0xf");
+    __asm __volatile("msr DAIFClr, #0xf" ::: "memory");
 }
 
 export inline __attribute__((always_inline)) void disable_interrupts() {
-    __asm __volatile("msr DAIFSet, #0xf");
+    __asm __volatile("msr DAIFSet, #0xf" ::: "memory");
 }
 
 #elifdef __x86_64__
 
 export inline __attribute__((always_inline)) void enable_interrupts() {
-    __asm __volatile("sti");
+    __asm __volatile("sti" ::: "memory");
 }
 
 export inline __attribute__((always_inline)) void disable_interrupts() {
-    __asm __volatile("cli");
+    __asm __volatile("cli" ::: "memory");
 }
 
 #endif
