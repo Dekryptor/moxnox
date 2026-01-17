@@ -196,9 +196,9 @@ public:
 
     nt_status read_metadata(uint64_t addr, span<uint8_t> data);
     nt_status open_inode(uint64_t subvol, uint64_t inode, optional<reference_wrapper<btrfs_inode>>& obj);
-    nt_status open(string_view fn, const optional<reference_wrapper<inode>>& dir,
-                   object_ref& obj_ref, uint32_t create_disposition,
-                   uint32_t create_options, unsigned int& create_result) override;
+    nt_status open(string_view fn, inode& dir, object_ref& obj_ref,
+                   uint32_t create_disposition, uint32_t create_options,
+                   unsigned int& create_result) override;
     nt_status remove_item(root& r, const btrfs_key& k);
     nt_status remove_item2(btrfs_path& p);
     nt_status change_key(btrfs_path& p, const btrfs_key& k);
@@ -3069,31 +3069,16 @@ nt_status btrfs_filesystem::open_inode(uint64_t subvol, uint64_t inode,
     return nt_status::SUCCESS;
 }
 
-nt_status btrfs_filesystem::open(string_view fn, const optional<reference_wrapper<inode>>& root_dir,
+nt_status btrfs_filesystem::open(string_view fn, inode& root_dir,
                                  object_ref& obj_ref, uint32_t create_disposition,
                                  uint32_t create_options, unsigned int& create_result) {
 
     if (readonly && create_disposition != FILE_OPEN)
         return nt_status::MEDIA_WRITE_PROTECTED;
 
-    if (!root_dir) {
-        if (fn.empty() || fn[0] != '/') {
-            print("Not an absolute path.\n");
-            return nt_status::INVALID_PARAMETER;
-        }
-
-        fn.remove_prefix(1);
-
-        if (fn.empty()) { // root
-            root_inode->acquire();
-            obj_ref = *root_inode;
-            return nt_status::SUCCESS;
-        }
-    }
-
     // FIXME - do we need to make sure root_dir is definitely a btrfs inode?
 
-    reference_wrapper<btrfs_inode> dirrw{!root_dir ? *static_cast<btrfs_inode*>(root_inode) : static_cast<btrfs_inode&>(root_dir->get())};
+    reference_wrapper<btrfs_inode> dirrw{static_cast<btrfs_inode&>(root_dir)};
     dirrw.get().acquire();
 
     auto l = [&]() -> nt_status {

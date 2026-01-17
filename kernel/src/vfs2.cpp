@@ -48,7 +48,6 @@ struct mount {
 static rwsem fs_lock;
 static list_entry fs_list = { &fs_list, &fs_list };
 static mount root(0);
-static dentry* root_dentry;
 
 void add_fs_to_list(::filesystem& fs) {
     lock_guard lock(fs_lock);
@@ -278,12 +277,16 @@ bool mount_root() {
     return true;
 }
 
-nt_status open_inode(string_view fn, const optional<reference_wrapper<inode>>& dir,
+nt_status open_inode(string_view fn, inode& dir,
                      object_ref& obj_ref, uint32_t create_disposition,
                      uint32_t create_options, unsigned int& create_result) {
-    if (dir && fn.empty()) {
-        dir->get().acquire();
-        obj_ref = dir->get();
+    while (!fn.empty() && (fn.front() == '/' || fn.front() == '\\')) {
+        fn = string_view(fn.data() + 1, fn.size() - 1);
+    }
+
+    if (fn.empty()) {
+        dir.acquire();
+        obj_ref = dir;
         return nt_status::SUCCESS;
     }
 
@@ -372,22 +375,24 @@ NTSTATUS NtCreateFile(HANDLE* file_handle, ACCESS_MASK access_mask,
         return nt_status::INVALID_PARAMETER;
 
     if (object_attributes->RootDirectory) {
-        bool valid = false;
+        auto root_dir_file = deref_handle(object_attributes->RootDirectory);
 
-        root_dir = deref_handle(object_attributes->RootDirectory);
-
-        if (!root_dir)
+        if (!root_dir_file)
             return nt_status::INVALID_HANDLE;
 
-        if (root_dir.get().type == object_type::file) {
-            auto& f = static_cast<file&>(root_dir.get());
-
-            if (f.ino.type == object_type::inode)
-                valid = true;
-        }
-
-        if (!valid)
+        if (root_dir_file.get().type != object_type::file)
             return nt_status::INVALID_HANDLE;
+
+        auto& f = static_cast<file&>(root_dir_file.get());
+
+        if (f.ino.type != object_type::inode)
+            return nt_status::INVALID_HANDLE;
+
+        root_dir = f.ino;
+        static_cast<inode&>(f.ino).acquire();
+    } else {
+        root_dir = *root_dentry->inode;
+        root_dentry->inode->acquire();
     }
 
     // FIXME - check permissions (whether valid, and against SD)
@@ -436,14 +441,8 @@ NTSTATUS NtCreateFile(HANDLE* file_handle, ACCESS_MASK access_mask,
 
         create_result = FILE_OPENED;
     } else {
-        if (root_dir) {
-            status = open_inode(string_view(name, namelen), static_cast<inode&>(static_cast<file&>(root_dir.get()).ino),
-                                ino_ref, create_disposition, create_options, create_result);
-        } else {
-            status = open_inode(string_view(name, namelen), nullopt, ino_ref,
-                                create_disposition, create_options, create_result);
-        }
-
+        status = open_inode(string_view(name, namelen), static_cast<inode&>(root_dir.get()),
+                            ino_ref, create_disposition, create_options, create_result);
         if (!success(status)) {
             // FIXME - distinguish between OBJECT_NAME_NOT_FOUND and OBJECT_PATH_NOT_FOUND, etc.
             free(name);

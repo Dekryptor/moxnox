@@ -107,9 +107,9 @@ export extern "C++" class filesystem {
 public:
     filesystem(volume* vol) : vol(vol) { }
     virtual ~filesystem() { }
-    virtual nt_status open(string_view fn, const optional<reference_wrapper<inode>>& dir,
-                           object_ref& obj_ref, uint32_t create_disposition,
-                           uint32_t create_options, unsigned int& create_result) = 0;
+    virtual nt_status open(string_view fn, inode& dir, object_ref& obj_ref,
+                           uint32_t create_disposition, uint32_t create_options,
+                           unsigned int& create_result) = 0;
     virtual nt_status flush(bool make_readonly) = 0;
 
     list_entry le;
@@ -170,10 +170,11 @@ static_assert(is_writable_object_without_offset<file>);
 static_assert(is_writable_object_with_offset<file>);
 
 export list_entry filesystem_types = { &filesystem_types, &filesystem_types };
+export dentry* root_dentry;
 
 export void add_fs_to_list(::filesystem& fs);
 export bool mount_root();
-export nt_status open_inode(string_view fn, const optional<reference_wrapper<inode>>& dir,
+export nt_status open_inode(string_view fn, inode& dir,
                             object_ref& obj_ref, uint32_t create_disposition,
                             uint32_t create_options, unsigned int& create_result);
 export nt_status flush_filesystems(bool make_readonly);

@@ -67,9 +67,9 @@ public:
             root_inode->release();
     }
 
-    nt_status open(string_view fn, const optional<reference_wrapper<inode>>& dir,
-                   object_ref& obj_ref, uint32_t create_disposition,
-                   uint32_t create_options, unsigned int& create_result) override;
+    nt_status open(string_view fn, inode& dir, object_ref& obj_ref,
+                   uint32_t create_disposition, uint32_t create_options,
+                   unsigned int& create_result) override;
     nt_status flush(bool make_readonly) override;
 
     spinlock inode_lock;
@@ -220,29 +220,13 @@ static nt_status open_child(tmpfs_inode& ino, string_view name, uint32_t create_
     return nt_status::SUCCESS;
 }
 
-nt_status tmpfs_filesystem::open(string_view fn,
-                                 const optional<reference_wrapper<inode>>& root_dir,
+nt_status tmpfs_filesystem::open(string_view fn, inode& root_dir,
                                  object_ref& obj_ref, uint32_t create_disposition,
                                  uint32_t create_options, unsigned int& create_result) {
     if (readonly && create_disposition != FILE_OPEN)
         return nt_status::MEDIA_WRITE_PROTECTED;
 
-    if (!root_dir) {
-        if (fn.empty() || fn[0] != '/') {
-            print("Not an absolute path.\n");
-            return nt_status::INVALID_PARAMETER;
-        }
-
-        fn.remove_prefix(1);
-
-        if (fn.empty()) { // root
-            root_inode->acquire();
-            obj_ref = *root_inode;
-            return nt_status::SUCCESS;
-        }
-    }
-
-    reference_wrapper<tmpfs_inode> dirrw{!root_dir ? *static_cast<tmpfs_inode*>(root_inode) : static_cast<tmpfs_inode&>(root_dir->get())};
+    reference_wrapper<tmpfs_inode> dirrw{static_cast<tmpfs_inode&>(root_dir)};
     dirrw.get().acquire();
 
     // FIXME - die if anything in middle not directory
