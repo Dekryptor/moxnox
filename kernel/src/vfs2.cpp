@@ -193,6 +193,19 @@ static bool extract_initrd() {
         return false;
     }
 
+    root_dentry = new dentry;
+    if (!root_dentry) {
+        print("new failed\n");
+        return false;
+    }
+
+    root_dentry->inode = fs->root_inode;
+    root_dentry->index = 0;
+    root_dentry->name_len = 0;
+
+    root_dentry->inode->acquire();
+    root_dentry->inode->dentry = root_dentry;
+
     process_cpio(initrd, [&](string_view path, uint64_t mode, span<const uint8_t> contents, uint64_t mtime) {
         auto status = extract_initrd_file(*fs, path, mode, contents, mtime);
 
