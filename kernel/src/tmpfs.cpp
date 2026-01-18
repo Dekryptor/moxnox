@@ -68,9 +68,6 @@ public:
             root_inode->release();
     }
 
-    nt_status open(string_view fn, inode& dir, object_ref& obj_ref,
-                   uint32_t create_disposition, uint32_t create_options,
-                   unsigned int& create_result) override;
     nt_status flush(bool make_readonly) override;
 
     spinlock inode_lock;
@@ -222,51 +219,6 @@ nt_status tmpfs_inode::open_child(string_view name, uint32_t create_disposition,
     create_result = FILE_CREATED;
 
     return nt_status::SUCCESS;
-}
-
-nt_status tmpfs_filesystem::open(string_view fn, inode& root_dir,
-                                 object_ref& obj_ref, uint32_t create_disposition,
-                                 uint32_t create_options, unsigned int& create_result) {
-    if (readonly && create_disposition != FILE_OPEN)
-        return nt_status::MEDIA_WRITE_PROTECTED;
-
-    reference_wrapper<inode> dirrw{root_dir};
-    dirrw.get().acquire();
-
-    // FIXME - die if anything in middle not directory
-
-    while (true) {
-        auto sl = fn.find("/");
-        auto& dir = dirrw.get();
-        bool last_bit = sl == string_view::npos;
-        optional<reference_wrapper<inode>> objrw;
-        unsigned int result;
-
-        auto status = dir.open_child(last_bit ? fn : string_view(fn.data(), sl),
-                                     last_bit ? create_disposition : FILE_OPEN,
-                                     create_options, last_bit ? create_result : result,
-                                     objrw);
-        if (!success(status)) {
-            dir.release();
-
-            if (!last_bit && status == nt_status::OBJECT_NAME_NOT_FOUND)
-                status = nt_status::OBJECT_PATH_NOT_FOUND;
-
-            return status;
-        }
-
-        auto& obj = objrw->get();
-
-        dir.release();
-
-        if (last_bit) {
-            obj_ref = obj;
-            return nt_status::SUCCESS;
-        }
-
-        fn = string_view(fn.data() + sl + 1, fn.size() - sl - 1);
-        dirrw = obj;
-    }
 }
 
 nt_status tmpfs_filesystem::flush(bool make_readonly) {

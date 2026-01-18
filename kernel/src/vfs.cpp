@@ -110,9 +110,6 @@ export extern "C++" class filesystem {
 public:
     filesystem(volume* vol) : vol(vol) { }
     virtual ~filesystem() { }
-    virtual nt_status open(string_view fn, inode& dir, object_ref& obj_ref,
-                           uint32_t create_disposition, uint32_t create_options,
-                           unsigned int& create_result) = 0;
     virtual nt_status flush(bool make_readonly) = 0;
 
     list_entry le;

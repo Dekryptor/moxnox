@@ -197,9 +197,6 @@ public:
     nt_status read_metadata(uint64_t addr, span<uint8_t> data);
     nt_status open_inode(uint64_t subvol, uint64_t inode,
                          optional<reference_wrapper<::inode>>& obj);
-    nt_status open(string_view fn, inode& dir, object_ref& obj_ref,
-                   uint32_t create_disposition, uint32_t create_options,
-                   unsigned int& create_result) override;
     nt_status remove_item(root& r, const btrfs_key& k);
     nt_status remove_item2(btrfs_path& p);
     nt_status change_key(btrfs_path& p, const btrfs_key& k);
@@ -3075,69 +3072,6 @@ nt_status btrfs_filesystem::open_inode(uint64_t subvol, uint64_t inode,
 
     obj = *ino;
     return nt_status::SUCCESS;
-}
-
-nt_status btrfs_filesystem::open(string_view fn, inode& root_dir,
-                                 object_ref& obj_ref, uint32_t create_disposition,
-                                 uint32_t create_options, unsigned int& create_result) {
-
-    if (readonly && create_disposition != FILE_OPEN)
-        return nt_status::MEDIA_WRITE_PROTECTED;
-
-    // FIXME - do we need to make sure root_dir is definitely a btrfs inode?
-
-    reference_wrapper<inode> dirrw{root_dir};
-    dirrw.get().acquire();
-
-    auto l = [&]() -> nt_status {
-        // FIXME - die if anything in middle not directory
-
-        while (true) {
-            auto sl = fn.find("/");
-            auto& dir = dirrw.get();
-            bool last_bit = sl == string_view::npos;
-            optional<reference_wrapper<inode>> objrw;
-            unsigned int result;
-
-            // FIXME - .. and .
-
-            auto status = dir.open_child(last_bit ? fn : string_view(fn.data(), sl),
-                                         last_bit ? create_disposition : FILE_OPEN,
-                                         create_options, last_bit ? create_result : result,
-                                         objrw);
-            if (!success(status)) {
-                dir.release();
-
-                if (!last_bit && status == nt_status::OBJECT_NAME_NOT_FOUND)
-                    status = nt_status::OBJECT_PATH_NOT_FOUND;
-
-                return status;
-            }
-
-            auto& obj = objrw->get();
-
-            dir.release();
-
-            if (last_bit) {
-                obj_ref = obj;
-                return nt_status::SUCCESS;
-            }
-
-            fn = string_view(fn.data() + sl + 1, fn.size() - sl - 1);
-            dirrw = obj;
-        }
-    };
-
-    // get trans_lock RO if FILE_OPEN, RW otherwise
-    if (create_disposition == FILE_OPEN) {
-        shared_lock lock(trans_lock);
-
-        return l();
-    } else {
-        lock_guard lock(trans_lock);
-
-        return l();
-    }
 }
 
 nt_status btrfs_inode::read_zeroes_into_cache(uint64_t page_num, uint64_t num_pages,
