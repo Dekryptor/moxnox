@@ -52,13 +52,16 @@ public:
     nt_status write(span<const uint8_t> s, uint64_t offset,
                     uint64_t& written_bytes);
 
-    virtual NTSTATUS query_directory(span<uint8_t> buf, FILE_INFORMATION_CLASS file_information_class,
-                                     uint64_t& index) = 0;
-    virtual NTSTATUS set_information(span<const uint8_t> buffer,
-                                     FILE_INFORMATION_CLASS file_information_class) = 0;
-    virtual NTSTATUS query_information(span<uint8_t> buffer,
-                                       FILE_INFORMATION_CLASS file_information_class,
-                                       uint64_t& retlen) = 0;
+    virtual nt_status open_child(string_view name, uint32_t create_disposition,
+                                 uint32_t create_options, unsigned int& create_result,
+                                 optional<reference_wrapper<inode>>& obj) = 0;
+    virtual nt_status query_directory(span<uint8_t> buf, FILE_INFORMATION_CLASS file_information_class,
+                                      uint64_t& index) = 0;
+    virtual nt_status set_information(span<const uint8_t> buffer,
+                                      FILE_INFORMATION_CLASS file_information_class) = 0;
+    virtual nt_status query_information(span<uint8_t> buffer,
+                                        FILE_INFORMATION_CLASS file_information_class,
+                                        uint64_t& retlen) = 0;
 
     virtual nt_status read_into_cache(uint64_t page_num, uint64_t num_pages,
                                       uint64_t& read_pages) = 0;

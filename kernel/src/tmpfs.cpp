@@ -38,7 +38,7 @@ public:
 
     nt_status open_child(string_view name, uint32_t create_disposition,
                          uint32_t create_options, unsigned int& create_result,
-                         optional<reference_wrapper<tmpfs_inode>>& obj);
+                         optional<reference_wrapper<inode>>& obj) override;
     NTSTATUS query_directory(span<uint8_t> buf, FILE_INFORMATION_CLASS file_information_class,
                              uint64_t& index) override;
     NTSTATUS set_information(span<const uint8_t> buffer,
@@ -129,7 +129,7 @@ static bool invalid_name(string_view name) {
 
 nt_status tmpfs_inode::open_child(string_view name, uint32_t create_disposition,
                                   uint32_t create_options, unsigned int& create_result,
-                                  optional<reference_wrapper<tmpfs_inode>>& obj) {
+                                  optional<reference_wrapper<inode>>& obj) {
     if (inode_type != inode_type::directory)
         return nt_status::INVALID_PARAMETER;
 
@@ -226,7 +226,7 @@ nt_status tmpfs_filesystem::open(string_view fn, inode& root_dir,
     if (readonly && create_disposition != FILE_OPEN)
         return nt_status::MEDIA_WRITE_PROTECTED;
 
-    reference_wrapper<tmpfs_inode> dirrw{static_cast<tmpfs_inode&>(root_dir)};
+    reference_wrapper<inode> dirrw{root_dir};
     dirrw.get().acquire();
 
     // FIXME - die if anything in middle not directory
@@ -235,7 +235,7 @@ nt_status tmpfs_filesystem::open(string_view fn, inode& root_dir,
         auto sl = fn.find("/");
         auto& dir = dirrw.get();
         bool last_bit = sl == string_view::npos;
-        optional<reference_wrapper<tmpfs_inode>> objrw;
+        optional<reference_wrapper<inode>> objrw;
         unsigned int result;
 
         auto status = dir.open_child(last_bit ? fn : string_view(fn.data(), sl),

@@ -138,10 +138,10 @@ public:
 
     nt_status open_child(string_view name, uint32_t create_disposition,
                          uint32_t create_options, unsigned int& create_result,
-                         optional<reference_wrapper<btrfs_inode>>& obj);
+                         optional<reference_wrapper<inode>>& obj) override;
     nt_status create_child(string_view name,
                            uint32_t create_options,
-                           optional<reference_wrapper<btrfs_inode>>& obj);
+                           optional<reference_wrapper<inode>>& obj);
     NTSTATUS query_directory(span<uint8_t> buf, FILE_INFORMATION_CLASS file_information_class,
                              uint64_t& index) override;
     NTSTATUS set_information(span<const uint8_t> buffer,
@@ -195,7 +195,8 @@ public:
     }
 
     nt_status read_metadata(uint64_t addr, span<uint8_t> data);
-    nt_status open_inode(uint64_t subvol, uint64_t inode, optional<reference_wrapper<btrfs_inode>>& obj);
+    nt_status open_inode(uint64_t subvol, uint64_t inode,
+                         optional<reference_wrapper<::inode>>& obj);
     nt_status open(string_view fn, inode& dir, object_ref& obj_ref,
                    uint32_t create_disposition, uint32_t create_options,
                    unsigned int& create_result) override;
@@ -2750,7 +2751,7 @@ static bool validate_name(string_view name) {
 }
 
 nt_status btrfs_inode::create_child(string_view name, uint32_t create_options,
-                                    optional<reference_wrapper<btrfs_inode>>& obj) {
+                                    optional<reference_wrapper<::inode>>& obj) {
     nt_status status;
     btrfs_inode_item child_ii;
     btrfs_path p(fs.sb->nodesize);
@@ -2919,7 +2920,7 @@ nt_status btrfs_inode::create_child(string_view name, uint32_t create_options,
 
 nt_status btrfs_inode::open_child(string_view name, uint32_t create_disposition,
                                   uint32_t create_options, unsigned int& create_result,
-                                  optional<reference_wrapper<btrfs_inode>>& obj) {
+                                  optional<reference_wrapper<::inode>>& obj) {
     if (inode_type != inode_type::directory)
         return nt_status::INVALID_PARAMETER;
 
@@ -3012,7 +3013,7 @@ nt_status btrfs_inode::open_child(string_view name, uint32_t create_disposition,
 }
 
 nt_status btrfs_filesystem::open_inode(uint64_t subvol, uint64_t inode,
-                                       optional<reference_wrapper<btrfs_inode>>& obj) {
+                                       optional<reference_wrapper<::inode>>& obj) {
     {
         lock_guard lock(inode_lock);
 
@@ -3078,7 +3079,7 @@ nt_status btrfs_filesystem::open(string_view fn, inode& root_dir,
 
     // FIXME - do we need to make sure root_dir is definitely a btrfs inode?
 
-    reference_wrapper<btrfs_inode> dirrw{static_cast<btrfs_inode&>(root_dir)};
+    reference_wrapper<inode> dirrw{root_dir};
     dirrw.get().acquire();
 
     auto l = [&]() -> nt_status {
@@ -3088,7 +3089,7 @@ nt_status btrfs_filesystem::open(string_view fn, inode& root_dir,
             auto sl = fn.find("/");
             auto& dir = dirrw.get();
             bool last_bit = sl == string_view::npos;
-            optional<reference_wrapper<btrfs_inode>> objrw;
+            optional<reference_wrapper<inode>> objrw;
             unsigned int result;
 
             // FIXME - .. and .
