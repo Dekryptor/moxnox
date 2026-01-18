@@ -36,7 +36,7 @@ public:
     ~tmpfs_inode();
     void release() override;
 
-    nt_status open_child(this tmpfs_inode& ino, string_view name, uint32_t create_disposition,
+    nt_status open_child(string_view name, uint32_t create_disposition,
                          uint32_t create_options, unsigned int& create_result,
                          optional<reference_wrapper<tmpfs_inode>>& obj);
     NTSTATUS query_directory(span<uint8_t> buf, FILE_INFORMATION_CLASS file_information_class,
@@ -127,16 +127,16 @@ static bool invalid_name(string_view name) {
     return true;
 }
 
-static nt_status open_child(tmpfs_inode& ino, string_view name, uint32_t create_disposition,
-                            uint32_t create_options, unsigned int& create_result,
-                            optional<reference_wrapper<tmpfs_inode>>& obj) {
-    if (ino.inode_type != inode_type::directory)
+nt_status tmpfs_inode::open_child(string_view name, uint32_t create_disposition,
+                                  uint32_t create_options, unsigned int& create_result,
+                                  optional<reference_wrapper<tmpfs_inode>>& obj) {
+    if (inode_type != inode_type::directory)
         return nt_status::INVALID_PARAMETER;
 
-    lock_guard lock(ino.dentry_lock);
+    lock_guard lock(dentry_lock);
 
-    for (auto le = ino.children.next; le != &ino.children; le = le->next) {
-        auto& c = containing_record<dentry>(le);
+    for (auto le = children.next; le != &children; le = le->next) {
+        auto& c = containing_record<::dentry>(le);
         string_view child_name(c.name, c.name_len);
 
         if (name == child_name) {
@@ -179,12 +179,12 @@ static nt_status open_child(tmpfs_inode& ino, string_view name, uint32_t create_
 
     bool is_dir = create_options & FILE_DIRECTORY_FILE;
 
-    auto new_ino = new tmpfs_inode(static_cast<tmpfs_filesystem&>(ino.fs),
+    auto new_ino = new tmpfs_inode(static_cast<tmpfs_filesystem&>(fs),
                                    is_dir ? inode_type::directory : inode_type::file);
     if (!new_ino)
         return nt_status::INSUFFICIENT_RESOURCES;
 
-    auto c = (dentry*)malloc(offsetof(dentry, name) + name.size());
+    auto c = (::dentry*)malloc(offsetof(::dentry, name) + name.size());
     if (!c) {
         new_ino->release();
         return nt_status::INSUFFICIENT_RESOURCES;
@@ -192,7 +192,7 @@ static nt_status open_child(tmpfs_inode& ino, string_view name, uint32_t create_
 
     auto cur_time = (uint64_t)kernel_time_page.system_time + kernel_time_page.system_time_offset;
 
-    new (c) dentry;
+    new (c) ::dentry;
 
     new_ino->acquire();
 
@@ -206,12 +206,12 @@ static nt_status open_child(tmpfs_inode& ino, string_view name, uint32_t create_
     c->name_len = name.size();
     memcpy(c->name, name.data(), name.size());
 
-    if (is_list_empty(ino.children))
+    if (is_list_empty(children))
         c->index = 0;
     else
-        c->index = containing_record<dentry>(ino.children.prev).index + 1;
+        c->index = containing_record<::dentry>(children.prev).index + 1;
 
-    insert_tail_list(ino.children, c->le);
+    insert_tail_list(children, c->le);
 
     obj = *new_ino;
 
@@ -238,10 +238,10 @@ nt_status tmpfs_filesystem::open(string_view fn, inode& root_dir,
         optional<reference_wrapper<tmpfs_inode>> objrw;
         unsigned int result;
 
-        auto status = open_child(dir, last_bit ? fn : string_view(fn.data(), sl),
-                                 last_bit ? create_disposition : FILE_OPEN,
-                                 create_options, last_bit ? create_result : result,
-                                 objrw);
+        auto status = dir.open_child(last_bit ? fn : string_view(fn.data(), sl),
+                                     last_bit ? create_disposition : FILE_OPEN,
+                                     create_options, last_bit ? create_result : result,
+                                     objrw);
         if (!success(status)) {
             dir.release();
 
