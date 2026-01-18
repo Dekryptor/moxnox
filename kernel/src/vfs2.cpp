@@ -29,25 +29,8 @@ extern "C++" ::filesystem* create_tmpfs();
 
 static const guid moxnox_partition_guid = { 0x5dd71063, 0x95c9, 0x41b2, { 0x82, 0x52, 0x84, 0x13, 0xfe, 0xac, 0x64, 0x90 } };
 
-struct mount {
-    mount(size_t path_len) : path_len(path_len) { }
-
-    ~mount() {
-        if (fs->refcount.fetch_sub(1) == 1)
-            delete fs;
-    }
-
-    list_entry le;
-    ::filesystem* fs = nullptr;
-    spinlock children_lock;
-    list_entry children = { &children, &children };
-    size_t path_len;
-    char path[0];
-};
-
 static rwsem fs_lock;
 static list_entry fs_list = { &fs_list, &fs_list };
-static mount root(0);
 
 void add_fs_to_list(::filesystem& fs) {
     lock_guard lock(fs_lock);
@@ -210,8 +193,6 @@ static bool extract_initrd() {
         return false;
     }
 
-    root.fs = fs;
-
     process_cpio(initrd, [&](string_view path, uint64_t mode, span<const uint8_t> contents, uint64_t mtime) {
         auto status = extract_initrd_file(*fs, path, mode, contents, mtime);
 
@@ -259,8 +240,6 @@ bool mount_root() {
     if (!root_fs)
         return false;
 
-    root.fs = root_fs;
-
     root_dentry = new dentry;
     if (!root_dentry) {
         print("new failed\n");
@@ -290,16 +269,8 @@ nt_status open_inode(string_view fn, inode& dir,
         return nt_status::SUCCESS;
     }
 
-    if (!root.fs) {
-        print("No root filesystem.\n");
-        return nt_status::INTERNAL_ERROR;
-    }
-
-    // FIXME - handle mount points
-    // FIXME - /dev
-
-    return root.fs->open(fn, dir, obj_ref, create_disposition,
-                         create_options, create_result);
+    return dir.fs.open(fn, dir, obj_ref, create_disposition,
+                       create_options, create_result);
 }
 
 extern "C"
