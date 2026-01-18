@@ -157,7 +157,7 @@ public:
     nt_status flush_inode_item(btrfs_path& p);
 
     root* r;
-    btrfs_filesystem& fs;
+    btrfs_filesystem& fs; // FIXME - use reference in ::inode
     list_entry le;
     uint64_t inode;
     btrfs_inode_item ii;
@@ -2758,6 +2758,11 @@ nt_status btrfs_inode::create_child(string_view name, uint32_t create_options,
     bool is_dir = create_options & FILE_DIRECTORY_FILE;
     uint64_t new_inode;
 
+    // FIXME - trans_lock
+
+    if (fs.readonly)
+        return nt_status::MEDIA_WRITE_PROTECTED;
+
     if (!validate_name(name))
         return nt_status::OBJECT_NAME_INVALID;
 
@@ -2921,6 +2926,8 @@ nt_status btrfs_inode::create_child(string_view name, uint32_t create_options,
 nt_status btrfs_inode::open_child(string_view name, uint32_t create_disposition,
                                   uint32_t create_options, unsigned int& create_result,
                                   optional<reference_wrapper<::inode>>& obj) {
+    // FIXME - trans_lock
+
     if (inode_type != inode_type::directory)
         return nt_status::INVALID_PARAMETER;
 

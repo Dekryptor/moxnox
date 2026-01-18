@@ -269,8 +269,47 @@ nt_status open_inode(string_view fn, inode& dir,
         return nt_status::SUCCESS;
     }
 
-    return dir.fs.open(fn, dir, obj_ref, create_disposition,
-                       create_options, create_result);
+    reference_wrapper<inode> dirrw{dir};
+    dirrw.get().acquire();
+
+    // FIXME - die if anything in middle not directory
+
+    while (true) {
+        auto sl = fn.find("/");
+        auto& dir = dirrw.get();
+        bool last_bit = sl == string_view::npos;
+        optional<reference_wrapper<inode>> objrw;
+        unsigned int result;
+
+        // FIXME - .. and .
+        // FIXME - mount points
+        // FIXME - dentry cache
+
+        auto status = dir.open_child(last_bit ? fn : string_view(fn.data(), sl),
+                                     last_bit ? create_disposition : FILE_OPEN,
+                                     create_options, last_bit ? create_result : result,
+                                     objrw);
+        if (!success(status)) {
+            dir.release();
+
+            if (!last_bit && status == nt_status::OBJECT_NAME_NOT_FOUND)
+                status = nt_status::OBJECT_PATH_NOT_FOUND;
+
+            return status;
+        }
+
+        auto& obj = objrw->get();
+
+        dir.release();
+
+        if (last_bit) {
+            obj_ref = obj;
+            return nt_status::SUCCESS;
+        }
+
+        fn = string_view(fn.data() + sl + 1, fn.size() - sl - 1);
+        dirrw = obj;
+    }
 }
 
 extern "C"

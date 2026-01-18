@@ -52,6 +52,7 @@ public:
     nt_status set_basic_information(span<const uint8_t> buffer);
     nt_status query_standard_information(span<uint8_t> buffer, uint64_t& retlen);
 
+    tmpfs_filesystem& fs; // FIXME - use reference in ::inode
     list_entry le;
     spinlock dentry_lock;
     list_entry children = { &children, &children };
@@ -174,6 +175,9 @@ nt_status tmpfs_inode::open_child(string_view name, uint32_t create_disposition,
         return nt_status::OBJECT_NAME_NOT_FOUND;
     }
 
+    if (fs.readonly)
+        return nt_status::MEDIA_WRITE_PROTECTED;
+
     if (!invalid_name(name))
         return nt_status::OBJECT_NAME_INVALID;
 
@@ -285,7 +289,7 @@ void tmpfs_inode::release() {
     delete this;
 }
 
-tmpfs_inode::tmpfs_inode(tmpfs_filesystem& fs, enum inode_type inode_type) : inode(fs) {
+tmpfs_inode::tmpfs_inode(tmpfs_filesystem& fs, enum inode_type inode_type) : inode(fs), fs(fs) {
     this->inode_type = inode_type;
 }
 
