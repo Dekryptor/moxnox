@@ -55,6 +55,8 @@ public:
     virtual nt_status open_child(string_view name, uint32_t create_disposition,
                                  uint32_t create_options, unsigned int& create_result,
                                  optional<reference_wrapper<inode>>& obj) = 0;
+    virtual nt_status create_child(string_view name, uint32_t create_options,
+                                   optional<reference_wrapper<::inode>>& obj) = 0;
     virtual nt_status query_directory(span<uint8_t> buf, FILE_INFORMATION_CLASS file_information_class,
                                       uint64_t& index) = 0;
     virtual nt_status set_information(span<const uint8_t> buffer,
