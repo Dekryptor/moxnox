@@ -201,6 +201,7 @@ static bool extract_initrd() {
     root_dentry->inode = fs->root_inode;
     root_dentry->index = 0;
     root_dentry->name_len = 0;
+    root_dentry->parent = nullptr;
 
     root_dentry->inode->acquire();
     root_dentry->inode->dentry = root_dentry;
@@ -261,6 +262,7 @@ bool mount_root() {
     root_dentry->inode = root_fs->root_inode;
     root_dentry->index = 0;
     root_dentry->name_len = 0;
+    root_dentry->parent = nullptr;
 
     root_dentry->inode->acquire();
     root_dentry->inode->dentry = root_dentry;
@@ -268,7 +270,8 @@ bool mount_root() {
     return true;
 }
 
-static bool add_to_dentry_cache(inode& dir, string_view name, inode& ino) {
+static bool add_to_dentry_cache(dentry& dir, string_view name, inode& ino,
+                                optional<reference_wrapper<dentry>>& drw) {
     auto p = malloc(offsetof(dentry, name) + name.size());
     if (!p)
         return false;
@@ -280,22 +283,28 @@ static bool add_to_dentry_cache(inode& dir, string_view name, inode& ino) {
 
     insert_tail_list(dir.children, d.le);
 
-    // FIXME - d.index?
+    d.parent = &dir;
+    dir.acquire();
+
+    d.index = 0; // FIXME?
+
     d.name_len = name.size();
     memcpy(d.name, name.data(), name.size());
+
+    drw = d;
 
     return true;
 }
 
-static void search_dentry_cache(inode& dir, string_view name,
-                                optional<reference_wrapper<inode>>& objrw) {
+static void search_dentry_cache(dentry& dir, string_view name,
+                                optional<reference_wrapper<dentry>>& drw) {
     for (auto le = dir.children.next; le != &dir.children; le = le->next) {
         auto& d = containing_record<dentry>(le);
         auto sv = string_view(d.name, d.name_len);
 
         if (sv == name) {
-            objrw = *d.inode;
-            d.inode->acquire();
+            drw = d;
+            d.acquire();
             return;
         }
     }
@@ -314,7 +323,7 @@ nt_status open_inode(string_view fn, dentry& root_dir,
         return nt_status::SUCCESS;
     }
 
-    reference_wrapper<inode> dirrw{*root_dir.inode};
+    reference_wrapper<dentry> dirrw{root_dir};
     dirrw.get().acquire();
 
     // FIXME - die if anything in middle not directory
@@ -323,7 +332,7 @@ nt_status open_inode(string_view fn, dentry& root_dir,
         auto sl = fn.find("/");
         auto& dir = dirrw.get();
         bool last_bit = sl == string_view::npos;
-        optional<reference_wrapper<inode>> objrw;
+        optional<reference_wrapper<dentry>> drw;
         auto name = last_bit ? fn : string_view(fn.data(), sl);
         auto dispo = last_bit ? create_disposition : FILE_OPEN;
         nt_status status;
@@ -336,43 +345,43 @@ nt_status open_inode(string_view fn, dentry& root_dir,
         // FIXME - FILE_SUPERSEDE, FILE_OVERWRITE, FILE_OVERWRITE_IF
 
         {
-            shared_lock lg(dir.dentry_lock);
+            shared_lock lg(dir.child_lock);
 
-            search_dentry_cache(dir, name, objrw);
+            search_dentry_cache(dir, name, drw);
         }
 
-        // FIXME - result
-
-        if (objrw.has_value()) {
+        if (drw.has_value()) {
             if (dispo == FILE_CREATE) {
                 dir.release();
-                objrw->get().release();
+                drw->get().release();
                 return nt_status::OBJECT_NAME_COLLISION;
             } else if (last_bit)
                 create_result = FILE_OPENED;
         }
 
-        if (!objrw.has_value()) {
-            lock_guard lg(dir.dentry_lock);
+        if (!drw.has_value()) {
+            lock_guard lg(dir.child_lock);
 
-            search_dentry_cache(dir, name, objrw);
+            search_dentry_cache(dir, name, drw);
 
-            if (objrw.has_value()) {
+            if (drw.has_value()) {
                 if (dispo == FILE_CREATE) {
                     dir.release();
-                    objrw->get().release();
+                    drw->get().release();
                     return nt_status::OBJECT_NAME_COLLISION;
                 } else if (last_bit)
                     create_result = FILE_OPENED;
             }
 
-            if (!objrw.has_value()) {
-                status = dir.open_child(name, objrw);
+            if (!drw.has_value()) {
+                optional<reference_wrapper<inode>> inorw;
+
+                status = dir.inode->open_child(name, inorw);
 
                 if (success(status)) {
                     if (dispo == FILE_CREATE) {
                         dir.release();
-                        objrw->get().release();
+                        inorw->get().release();
                         return nt_status::OBJECT_NAME_COLLISION;
                     } else if (last_bit)
                         create_result = FILE_OPENED;
@@ -380,23 +389,24 @@ nt_status open_inode(string_view fn, dentry& root_dir,
 
                 if (status == nt_status::OBJECT_NAME_NOT_FOUND &&
                     (dispo == FILE_CREATE || dispo == FILE_OPEN_IF)) {
-                    status = dir.create_child(name, create_options, objrw);
+                    status = dir.inode->create_child(name, create_options,
+                                                     inorw);
 
                     if (success(status))
                         create_result = FILE_CREATED;
                 }
 
                 if (success(status)) {
-                    if (!add_to_dentry_cache(dir, name, objrw->get())) {
+                    if (!add_to_dentry_cache(dir, name, inorw->get(), drw)) {
                         dir.release();
-                        objrw->get().release();
+                        inorw->get().release();
                         return nt_status::INSUFFICIENT_RESOURCES;
                     }
                 }
             }
         }
 
-        if (!objrw.has_value()) {
+        if (!drw.has_value()) {
             dir.release();
 
             if (!last_bit && status == nt_status::OBJECT_NAME_NOT_FOUND)
@@ -405,17 +415,20 @@ nt_status open_inode(string_view fn, dentry& root_dir,
             return status;
         }
 
-        auto& obj = objrw->get();
+        auto& d = drw->get();
 
         dir.release();
 
         if (last_bit) {
-            obj_ref = obj;
+            d.inode->acquire();
+            obj_ref = *d.inode;
+            d.release();
+
             return nt_status::SUCCESS;
         }
 
         fn = string_view(fn.data() + sl + 1, fn.size() - sl - 1);
-        dirrw = obj;
+        dirrw = d;
     }
 }
 

@@ -75,9 +75,6 @@ public:
     page_cache<inode> cache{*this};
     list_entry writeback_le;
     dentry* dentry;
-    // FIXME - dentry_lock and children only on directories?
-    rwsem dentry_lock;
-    list_entry children = { &children, &children };
 };
 
 static_assert(is_readable_object_with_offset<inode>);
@@ -89,6 +86,9 @@ export struct dentry {
     ~dentry() {
         if (inode)
             inode->release();
+
+        if (parent)
+            parent->release();
     }
 
     void acquire() {
@@ -96,16 +96,23 @@ export struct dentry {
     }
 
     void release() {
-        if (--refcount != 0)
-            return;
+        // FIXME - clean up dentries with refcounts of 0
 
-        delete this;
+        refcount--;
+
+        // if (--refcount != 0)
+            // return;
+
+        // delete this;
     }
 
     inode* inode = nullptr;
     list_entry le;
     unsigned int index;
     atomic<unsigned int> refcount = 1;
+    dentry* parent = nullptr;
+    rwsem child_lock;
+    list_entry children = { &children, &children };
     size_t name_len;
     char name[0];
 };
