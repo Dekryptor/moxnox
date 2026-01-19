@@ -268,7 +268,7 @@ bool mount_root() {
     return true;
 }
 
-nt_status open_inode(string_view fn, inode& dir,
+nt_status open_inode(string_view fn, inode& root_dir,
                      object_ref& obj_ref, uint32_t create_disposition,
                      uint32_t create_options, unsigned int& create_result) {
     while (!fn.empty() && (fn.front() == '/' || fn.front() == '\\')) {
@@ -276,12 +276,12 @@ nt_status open_inode(string_view fn, inode& dir,
     }
 
     if (fn.empty()) {
-        dir.acquire();
-        obj_ref = dir;
+        root_dir.acquire();
+        obj_ref = root_dir;
         return nt_status::SUCCESS;
     }
 
-    reference_wrapper<inode> dirrw{dir};
+    reference_wrapper<inode> dirrw{root_dir};
     dirrw.get().acquire();
 
     // FIXME - die if anything in middle not directory
