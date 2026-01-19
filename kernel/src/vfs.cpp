@@ -74,6 +74,9 @@ public:
     page_cache<inode> cache{*this};
     list_entry writeback_le;
     dentry* dentry;
+    // FIXME - dentry_lock and children only on directories?
+    rwsem dentry_lock;
+    list_entry children = { &children, &children };
 };
 
 static_assert(is_readable_object_with_offset<inode>);

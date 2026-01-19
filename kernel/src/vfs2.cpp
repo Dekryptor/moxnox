@@ -292,15 +292,48 @@ nt_status open_inode(string_view fn, inode& root_dir,
         bool last_bit = sl == string_view::npos;
         optional<reference_wrapper<inode>> objrw;
         unsigned int result;
+        auto name = last_bit ? fn : string_view(fn.data(), sl);
+        auto dispo = last_bit ? create_disposition : FILE_OPEN;
+        nt_status status;
 
         // FIXME - .. and .
         // FIXME - mount points
-        // FIXME - dentry cache
+        // FIXME - negative dentries?
+        // FIXME - dentry LRU
 
-        auto status = dir.open_child(last_bit ? fn : string_view(fn.data(), sl),
-                                     last_bit ? create_disposition : FILE_OPEN,
-                                     create_options, last_bit ? create_result : result,
-                                     objrw);
+        // FIXME - FILE_SUPERSEDE, FILE_OVERWRITE, FILE_OVERWRITE_IF
+
+        {
+            shared_lock lg(dir.dentry_lock);
+
+            for (auto le = dir.children.next; le != &dir.children; le = le->next) {
+                auto& d = containing_record<dentry>(le);
+                auto sv = string_view(d.name, d.name_len);
+
+                if (sv == name) {
+                    if (dispo == FILE_CREATE) {
+                        status = nt_status::OBJECT_NAME_COLLISION;
+                        break;
+                    }
+
+                    objrw = *d.inode;
+                    d.inode->acquire();
+                    status = nt_status::SUCCESS;
+
+                    if (last_bit)
+                        create_result = FILE_OPENED;
+
+                    break;
+                }
+            }
+        }
+
+        if (!objrw.has_value()) {
+            status = dir.open_child(name, dispo, create_options,
+                                    last_bit ? create_result : result,
+                                    objrw);
+        }
+
         if (!success(status)) {
             dir.release();
 

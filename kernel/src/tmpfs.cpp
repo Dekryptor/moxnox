@@ -54,8 +54,6 @@ public:
 
     tmpfs_filesystem& fs; // FIXME - use reference in ::inode
     list_entry le;
-    spinlock dentry_lock;
-    list_entry children = { &children, &children };
     uint64_t mtime, ctime, otime, atime;
 };
 
