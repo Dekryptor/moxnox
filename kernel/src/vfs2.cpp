@@ -355,9 +355,26 @@ nt_status open_inode(string_view fn, inode& root_dir,
 
             search_cache(dir, name, objrw);
 
+            if (objrw.has_value() && dispo == FILE_CREATE) {
+                dir.release();
+                objrw->get().release();
+                return nt_status::OBJECT_NAME_COLLISION;
+            }
+
             if (!objrw.has_value()) {
-                status = dir.open_child(name, dispo, create_options,
-                                        res, objrw);
+                status = dir.open_child(name, dispo, res, objrw);
+
+                if (success(status) && dispo == FILE_CREATE) {
+                    dir.release();
+                    objrw->get().release();
+                    return nt_status::OBJECT_NAME_COLLISION;
+                }
+
+                if (status == nt_status::OBJECT_NAME_NOT_FOUND &&
+                    (dispo == FILE_CREATE || dispo == FILE_OPEN_IF)) {
+                    status = dir.create_child(name, create_options, objrw);
+                }
+
                 if (success(status)) {
                     if (!add_to_dentry_cache(dir, name, objrw->get())) {
                         dir.release();

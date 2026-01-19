@@ -37,7 +37,7 @@ public:
     void release() override;
 
     nt_status open_child(string_view name, uint32_t create_disposition,
-                         uint32_t create_options, unsigned int& create_result,
+                         unsigned int& create_result,
                          optional<reference_wrapper<inode>>& obj) override;
     nt_status create_child(string_view name, uint32_t create_options,
                            optional<reference_wrapper<inode>>& obj) override;
@@ -174,61 +174,16 @@ nt_status tmpfs_inode::create_child(string_view name, uint32_t create_options,
     return nt_status::SUCCESS;
 }
 
-nt_status tmpfs_inode::open_child(string_view name, uint32_t create_disposition,
-                                  uint32_t create_options, unsigned int& create_result,
-                                  optional<reference_wrapper<inode>>& obj) {
+nt_status tmpfs_inode::open_child(string_view, uint32_t,
+                                  unsigned int& create_result,
+                                  optional<reference_wrapper<inode>>&) {
     if (inode_type != inode_type::directory)
         return nt_status::INVALID_PARAMETER;
 
-    lock_guard lock(dentry_lock);
+    // tmpfs doesn't clear the dentry cache, so if it's not there it doesn't exist
 
-    for (auto le = children.next; le != &children; le = le->next) {
-        auto& c = containing_record<::dentry>(le);
-        string_view child_name(c.name, c.name_len);
-
-        if (name == child_name) {
-            switch (create_disposition) {
-                case FILE_CREATE:
-                    return nt_status::OBJECT_NAME_COLLISION;
-
-                case FILE_SUPERSEDE:
-                    print("FIXME - FILE_SUPERSEDE\n");
-                    return nt_status::NOT_SUPPORTED;
-
-                case FILE_OVERWRITE:
-                    print("FIXME - FILE_OVERWRITE\n");
-                    return nt_status::NOT_SUPPORTED;
-
-                case FILE_OVERWRITE_IF:
-                    print("FIXME - FILE_OVERWRITE_IF\n");
-                    return nt_status::NOT_SUPPORTED;
-
-                case FILE_OPEN:
-                case FILE_OPEN_IF:
-                    create_result = FILE_OPENED;
-                    break;
-            }
-
-            c.inode->acquire();
-            obj = *static_cast<tmpfs_inode*>(c.inode);
-
-            return nt_status::SUCCESS;
-        }
-    }
-
-    if (create_disposition == FILE_OPEN || create_disposition == FILE_OVERWRITE) {
-        create_result = FILE_DOES_NOT_EXIST;
-        return nt_status::OBJECT_NAME_NOT_FOUND;
-    }
-
-    auto status = create_child(name, create_options, obj);
-
-    if (!success(status))
-        return status;
-
-    create_result = FILE_CREATED;
-
-    return nt_status::SUCCESS;
+    create_result = FILE_DOES_NOT_EXIST;
+    return nt_status::OBJECT_NAME_NOT_FOUND;
 }
 
 nt_status tmpfs_filesystem::flush(bool make_readonly) {

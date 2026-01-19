@@ -137,7 +137,7 @@ public:
     void release() override;
 
     nt_status open_child(string_view name, uint32_t create_disposition,
-                         uint32_t create_options, unsigned int& create_result,
+                         unsigned int& create_result,
                          optional<reference_wrapper<inode>>& obj) override;
     nt_status create_child(string_view name, uint32_t create_options,
                            optional<reference_wrapper<inode>>& obj) override;
@@ -2920,7 +2920,7 @@ nt_status btrfs_inode::create_child(string_view name, uint32_t create_options,
 }
 
 nt_status btrfs_inode::open_child(string_view name, uint32_t create_disposition,
-                                  uint32_t create_options, unsigned int& create_result,
+                                  unsigned int& create_result,
                                   optional<reference_wrapper<::inode>>& obj) {
     // FIXME - trans_lock
 
@@ -2969,50 +2969,39 @@ nt_status btrfs_inode::open_child(string_view name, uint32_t create_disposition,
         }
     } while (false);
 
-    if (dir_item_key.has_value()) {
-        switch (create_disposition) {
-            case FILE_CREATE:
-                return nt_status::OBJECT_NAME_COLLISION;
-
-            case FILE_SUPERSEDE:
-                print("FIXME - FILE_SUPERSEDE\n");
-                return nt_status::NOT_SUPPORTED;
-
-            case FILE_OVERWRITE:
-                print("FIXME - FILE_OVERWRITE\n");
-                return nt_status::NOT_SUPPORTED;
-
-            case FILE_OVERWRITE_IF:
-                print("FIXME - FILE_OVERWRITE_IF\n");
-                return nt_status::NOT_SUPPORTED;
-
-            case FILE_OPEN:
-            case FILE_OPEN_IF:
-                create_result = FILE_OPENED;
-                break;
-        }
-
-        auto& v = *dir_item_key;
-
-        if (v.type == key_type::ROOT_ITEM)
-            return fs.open_inode(v.objectid, SUBVOL_ROOT_INODE, obj);
-        else
-            return fs.open_inode(r->id, v.objectid, obj);
-    } else {
-        if (create_disposition == FILE_OPEN || create_disposition == FILE_OVERWRITE) {
-            create_result = FILE_DOES_NOT_EXIST;
-            return nt_status::OBJECT_NAME_NOT_FOUND;
-        }
-
-        auto status = create_child(name, create_options, obj);
-
-        if (!success(status))
-            return status;
-
-        create_result = FILE_CREATED;
-
-        return status;
+    if (!dir_item_key.has_value()) {
+        create_result = FILE_DOES_NOT_EXIST;
+        return nt_status::OBJECT_NAME_NOT_FOUND;
     }
+
+    switch (create_disposition) {
+        case FILE_CREATE:
+            return nt_status::OBJECT_NAME_COLLISION;
+
+        case FILE_SUPERSEDE:
+            print("FIXME - FILE_SUPERSEDE\n");
+            return nt_status::NOT_SUPPORTED;
+
+        case FILE_OVERWRITE:
+            print("FIXME - FILE_OVERWRITE\n");
+            return nt_status::NOT_SUPPORTED;
+
+        case FILE_OVERWRITE_IF:
+            print("FIXME - FILE_OVERWRITE_IF\n");
+            return nt_status::NOT_SUPPORTED;
+
+        case FILE_OPEN:
+        case FILE_OPEN_IF:
+            create_result = FILE_OPENED;
+            break;
+    }
+
+    auto& v = *dir_item_key;
+
+    if (v.type == key_type::ROOT_ITEM)
+        return fs.open_inode(v.objectid, SUBVOL_ROOT_INODE, obj);
+    else
+        return fs.open_inode(r->id, v.objectid, obj);
 }
 
 nt_status btrfs_filesystem::open_inode(uint64_t subvol, uint64_t inode,
