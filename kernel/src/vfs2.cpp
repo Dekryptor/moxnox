@@ -284,6 +284,27 @@ nt_status open_inode(string_view fn, inode& root_dir,
     reference_wrapper<inode> dirrw{root_dir};
     dirrw.get().acquire();
 
+    auto l = [](inode& dir, string_view name, uint32_t dispo,
+                unsigned int& result, optional<reference_wrapper<inode>>& objrw) -> nt_status {
+        for (auto le = dir.children.next; le != &dir.children; le = le->next) {
+            auto& d = containing_record<dentry>(le);
+            auto sv = string_view(d.name, d.name_len);
+
+            if (sv == name) {
+                if (dispo == FILE_CREATE)
+                    return nt_status::OBJECT_NAME_COLLISION;
+
+                objrw = *d.inode;
+                d.inode->acquire();
+                result = FILE_OPENED;
+
+                return nt_status::SUCCESS;
+            }
+        }
+
+        return nt_status::OBJECT_NAME_NOT_FOUND;
+    };
+
     // FIXME - die if anything in middle not directory
 
     while (true) {
@@ -295,6 +316,7 @@ nt_status open_inode(string_view fn, inode& root_dir,
         auto name = last_bit ? fn : string_view(fn.data(), sl);
         auto dispo = last_bit ? create_disposition : FILE_OPEN;
         nt_status status;
+        auto& res = last_bit ? create_result : result;
 
         // FIXME - .. and .
         // FIXME - mount points
@@ -306,32 +328,18 @@ nt_status open_inode(string_view fn, inode& root_dir,
         {
             shared_lock lg(dir.dentry_lock);
 
-            for (auto le = dir.children.next; le != &dir.children; le = le->next) {
-                auto& d = containing_record<dentry>(le);
-                auto sv = string_view(d.name, d.name_len);
-
-                if (sv == name) {
-                    if (dispo == FILE_CREATE) {
-                        status = nt_status::OBJECT_NAME_COLLISION;
-                        break;
-                    }
-
-                    objrw = *d.inode;
-                    d.inode->acquire();
-                    status = nt_status::SUCCESS;
-
-                    if (last_bit)
-                        create_result = FILE_OPENED;
-
-                    break;
-                }
-            }
+            status = l(dir, name, dispo, res, objrw);
         }
 
-        if (!objrw.has_value()) {
-            status = dir.open_child(name, dispo, create_options,
-                                    last_bit ? create_result : result,
-                                    objrw);
+        if (status == nt_status::OBJECT_NAME_NOT_FOUND) {
+            lock_guard lg(dir.dentry_lock);
+
+            status = l(dir, name, dispo, res, objrw);
+
+            if (status == nt_status::OBJECT_NAME_NOT_FOUND) {
+                status = dir.open_child(name, dispo, create_options,
+                                        res, objrw);
+            }
         }
 
         if (!success(status)) {
