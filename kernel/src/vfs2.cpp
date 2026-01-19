@@ -287,6 +287,20 @@ static bool add_to_dentry_cache(inode& dir, string_view name, inode& ino) {
     return true;
 }
 
+static void search_dentry_cache(inode& dir, string_view name,
+                                optional<reference_wrapper<inode>>& objrw) {
+    for (auto le = dir.children.next; le != &dir.children; le = le->next) {
+        auto& d = containing_record<dentry>(le);
+        auto sv = string_view(d.name, d.name_len);
+
+        if (sv == name) {
+            objrw = *d.inode;
+            d.inode->acquire();
+            return;
+        }
+    }
+};
+
 nt_status open_inode(string_view fn, inode& root_dir,
                      object_ref& obj_ref, uint32_t create_disposition,
                      uint32_t create_options, unsigned int& create_result) {
@@ -302,19 +316,6 @@ nt_status open_inode(string_view fn, inode& root_dir,
 
     reference_wrapper<inode> dirrw{root_dir};
     dirrw.get().acquire();
-
-    auto search_cache = [](inode& dir, string_view name, optional<reference_wrapper<inode>>& objrw) {
-        for (auto le = dir.children.next; le != &dir.children; le = le->next) {
-            auto& d = containing_record<dentry>(le);
-            auto sv = string_view(d.name, d.name_len);
-
-            if (sv == name) {
-                objrw = *d.inode;
-                d.inode->acquire();
-                return;
-            }
-        }
-    };
 
     // FIXME - die if anything in middle not directory
 
@@ -337,7 +338,7 @@ nt_status open_inode(string_view fn, inode& root_dir,
         {
             shared_lock lg(dir.dentry_lock);
 
-            search_cache(dir, name, objrw);
+            search_dentry_cache(dir, name, objrw);
         }
 
         // FIXME - result
@@ -354,7 +355,7 @@ nt_status open_inode(string_view fn, inode& root_dir,
         if (!objrw.has_value()) {
             lock_guard lg(dir.dentry_lock);
 
-            search_cache(dir, name, objrw);
+            search_dentry_cache(dir, name, objrw);
 
             if (objrw.has_value()) {
                 if (dispo == FILE_CREATE) {
