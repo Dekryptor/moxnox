@@ -136,8 +136,7 @@ public:
     bool load_inode();
     void release() override;
 
-    nt_status open_child(string_view name, uint32_t create_disposition,
-                         unsigned int& create_result,
+    nt_status open_child(string_view name,
                          optional<reference_wrapper<inode>>& obj) override;
     nt_status create_child(string_view name, uint32_t create_options,
                            optional<reference_wrapper<inode>>& obj) override;
@@ -2919,8 +2918,7 @@ nt_status btrfs_inode::create_child(string_view name, uint32_t create_options,
     return nt_status::SUCCESS;
 }
 
-nt_status btrfs_inode::open_child(string_view name, uint32_t create_disposition,
-                                  unsigned int& create_result,
+nt_status btrfs_inode::open_child(string_view name,
                                   optional<reference_wrapper<::inode>>& obj) {
     // FIXME - trans_lock
 
@@ -2969,32 +2967,8 @@ nt_status btrfs_inode::open_child(string_view name, uint32_t create_disposition,
         }
     } while (false);
 
-    if (!dir_item_key.has_value()) {
-        create_result = FILE_DOES_NOT_EXIST;
+    if (!dir_item_key.has_value())
         return nt_status::OBJECT_NAME_NOT_FOUND;
-    }
-
-    switch (create_disposition) {
-        case FILE_CREATE:
-            return nt_status::OBJECT_NAME_COLLISION;
-
-        case FILE_SUPERSEDE:
-            print("FIXME - FILE_SUPERSEDE\n");
-            return nt_status::NOT_SUPPORTED;
-
-        case FILE_OVERWRITE:
-            print("FIXME - FILE_OVERWRITE\n");
-            return nt_status::NOT_SUPPORTED;
-
-        case FILE_OVERWRITE_IF:
-            print("FIXME - FILE_OVERWRITE_IF\n");
-            return nt_status::NOT_SUPPORTED;
-
-        case FILE_OPEN:
-        case FILE_OPEN_IF:
-            create_result = FILE_OPENED;
-            break;
-    }
 
     auto& v = *dir_item_key;
 

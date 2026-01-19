@@ -52,8 +52,7 @@ public:
     nt_status write(span<const uint8_t> s, uint64_t offset,
                     uint64_t& written_bytes);
 
-    virtual nt_status open_child(string_view name, uint32_t create_disposition,
-                                 unsigned int& create_result,
+    virtual nt_status open_child(string_view name,
                                  optional<reference_wrapper<inode>>& obj) = 0;
     virtual nt_status create_child(string_view name, uint32_t create_options,
                                    optional<reference_wrapper<::inode>>& obj) = 0;

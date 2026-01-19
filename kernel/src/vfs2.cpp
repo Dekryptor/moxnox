@@ -323,11 +323,9 @@ nt_status open_inode(string_view fn, inode& root_dir,
         auto& dir = dirrw.get();
         bool last_bit = sl == string_view::npos;
         optional<reference_wrapper<inode>> objrw;
-        unsigned int result;
         auto name = last_bit ? fn : string_view(fn.data(), sl);
         auto dispo = last_bit ? create_disposition : FILE_OPEN;
         nt_status status;
-        auto& res = last_bit ? create_result : result;
 
         // FIXME - .. and .
         // FIXME - mount points
@@ -344,10 +342,13 @@ nt_status open_inode(string_view fn, inode& root_dir,
 
         // FIXME - result
 
-        if (objrw.has_value() && dispo == FILE_CREATE) {
-            dir.release();
-            objrw->get().release();
-            return nt_status::OBJECT_NAME_COLLISION;
+        if (objrw.has_value()) {
+            if (dispo == FILE_CREATE) {
+                dir.release();
+                objrw->get().release();
+                return nt_status::OBJECT_NAME_COLLISION;
+            } else if (last_bit)
+                create_result = FILE_OPENED;
         }
 
         if (!objrw.has_value()) {
@@ -355,24 +356,33 @@ nt_status open_inode(string_view fn, inode& root_dir,
 
             search_cache(dir, name, objrw);
 
-            if (objrw.has_value() && dispo == FILE_CREATE) {
-                dir.release();
-                objrw->get().release();
-                return nt_status::OBJECT_NAME_COLLISION;
-            }
-
-            if (!objrw.has_value()) {
-                status = dir.open_child(name, dispo, res, objrw);
-
-                if (success(status) && dispo == FILE_CREATE) {
+            if (objrw.has_value()) {
+                if (dispo == FILE_CREATE) {
                     dir.release();
                     objrw->get().release();
                     return nt_status::OBJECT_NAME_COLLISION;
+                } else if (last_bit)
+                    create_result = FILE_OPENED;
+            }
+
+            if (!objrw.has_value()) {
+                status = dir.open_child(name, objrw);
+
+                if (success(status)) {
+                    if (dispo == FILE_CREATE) {
+                        dir.release();
+                        objrw->get().release();
+                        return nt_status::OBJECT_NAME_COLLISION;
+                    } else if (last_bit)
+                        create_result = FILE_OPENED;
                 }
 
                 if (status == nt_status::OBJECT_NAME_NOT_FOUND &&
                     (dispo == FILE_CREATE || dispo == FILE_OPEN_IF)) {
                     status = dir.create_child(name, create_options, objrw);
+
+                    if (success(status))
+                        create_result = FILE_CREATED;
                 }
 
                 if (success(status)) {

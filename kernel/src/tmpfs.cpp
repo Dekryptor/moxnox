@@ -36,8 +36,7 @@ public:
     ~tmpfs_inode();
     void release() override;
 
-    nt_status open_child(string_view name, uint32_t create_disposition,
-                         unsigned int& create_result,
+    nt_status open_child(string_view name,
                          optional<reference_wrapper<inode>>& obj) override;
     nt_status create_child(string_view name, uint32_t create_options,
                            optional<reference_wrapper<inode>>& obj) override;
@@ -174,15 +173,13 @@ nt_status tmpfs_inode::create_child(string_view name, uint32_t create_options,
     return nt_status::SUCCESS;
 }
 
-nt_status tmpfs_inode::open_child(string_view, uint32_t,
-                                  unsigned int& create_result,
+nt_status tmpfs_inode::open_child(string_view,
                                   optional<reference_wrapper<inode>>&) {
     if (inode_type != inode_type::directory)
         return nt_status::INVALID_PARAMETER;
 
     // tmpfs doesn't clear the dentry cache, so if it's not there it doesn't exist
 
-    create_result = FILE_DOES_NOT_EXIST;
     return nt_status::OBJECT_NAME_NOT_FOUND;
 }
 
