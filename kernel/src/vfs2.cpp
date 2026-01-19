@@ -136,8 +136,8 @@ static uint64_t unix_to_system_time(uint64_t t) {
     return (t * 10000000) + 116444736000000000;
 }
 
-static nt_status extract_initrd_file(::filesystem& fs, string_view path,
-                                     uint64_t mode, span<const uint8_t> contents,
+static nt_status extract_initrd_file(string_view path, uint64_t mode,
+                                     span<const uint8_t> contents,
                                      uint64_t mtime) {
     // FIXME - support symlinks as well at least
     if (!S_ISDIR(mode) && !S_ISREG(mode))
@@ -150,7 +150,7 @@ static nt_status extract_initrd_file(::filesystem& fs, string_view path,
     object_ref file;
     unsigned int create_result;
 
-    auto status = open_inode(path, *fs.root_inode, file, FILE_CREATE,
+    auto status = open_inode(path, *root_dentry, file, FILE_CREATE,
                              S_ISDIR(mode) ? FILE_DIRECTORY_FILE : 0,
                              create_result);
     if (!success(status))
@@ -206,7 +206,7 @@ static bool extract_initrd() {
     root_dentry->inode->dentry = root_dentry;
 
     process_cpio(initrd, [&](string_view path, uint64_t mode, span<const uint8_t> contents, uint64_t mtime) {
-        auto status = extract_initrd_file(*fs, path, mode, contents, mtime);
+        auto status = extract_initrd_file(path, mode, contents, mtime);
 
         if (!success(status))
             bsod_format("extract_initrd_file returned {} for {}", status, path);
@@ -301,7 +301,7 @@ static void search_dentry_cache(inode& dir, string_view name,
     }
 };
 
-nt_status open_inode(string_view fn, inode& root_dir,
+nt_status open_inode(string_view fn, dentry& root_dir,
                      object_ref& obj_ref, uint32_t create_disposition,
                      uint32_t create_options, unsigned int& create_result) {
     while (!fn.empty() && (fn.front() == '/' || fn.front() == '\\')) {
@@ -309,12 +309,12 @@ nt_status open_inode(string_view fn, inode& root_dir,
     }
 
     if (fn.empty()) {
-        root_dir.acquire();
-        obj_ref = root_dir;
+        root_dir.inode->acquire();
+        obj_ref = *root_dir.inode;
         return nt_status::SUCCESS;
     }
 
-    reference_wrapper<inode> dirrw{root_dir};
+    reference_wrapper<inode> dirrw{*root_dir.inode};
     dirrw.get().acquire();
 
     // FIXME - die if anything in middle not directory
@@ -558,7 +558,7 @@ NTSTATUS NtCreateFile(HANDLE* file_handle, ACCESS_MASK access_mask,
 
         create_result = FILE_OPENED;
     } else {
-        status = open_inode(string_view(name, namelen), static_cast<inode&>(root_dir.get()),
+        status = open_inode(string_view(name, namelen), *static_cast<inode&>(root_dir.get()).dentry,
                             ino_ref, create_disposition, create_options, create_result);
         if (!success(status)) {
             // FIXME - distinguish between OBJECT_NAME_NOT_FOUND and OBJECT_PATH_NOT_FOUND, etc.
