@@ -303,25 +303,17 @@ nt_status open_inode(string_view fn, inode& root_dir,
     reference_wrapper<inode> dirrw{root_dir};
     dirrw.get().acquire();
 
-    auto l = [](inode& dir, string_view name, uint32_t dispo,
-                unsigned int& result, optional<reference_wrapper<inode>>& objrw) -> nt_status {
+    auto search_cache = [](inode& dir, string_view name, optional<reference_wrapper<inode>>& objrw) {
         for (auto le = dir.children.next; le != &dir.children; le = le->next) {
             auto& d = containing_record<dentry>(le);
             auto sv = string_view(d.name, d.name_len);
 
             if (sv == name) {
-                if (dispo == FILE_CREATE)
-                    return nt_status::OBJECT_NAME_COLLISION;
-
                 objrw = *d.inode;
                 d.inode->acquire();
-                result = FILE_OPENED;
-
-                return nt_status::SUCCESS;
+                return;
             }
         }
-
-        return nt_status::OBJECT_NAME_NOT_FOUND;
     };
 
     // FIXME - die if anything in middle not directory
@@ -347,15 +339,23 @@ nt_status open_inode(string_view fn, inode& root_dir,
         {
             shared_lock lg(dir.dentry_lock);
 
-            status = l(dir, name, dispo, res, objrw);
+            search_cache(dir, name, objrw);
         }
 
-        if (status == nt_status::OBJECT_NAME_NOT_FOUND) {
+        // FIXME - result
+
+        if (objrw.has_value() && dispo == FILE_CREATE) {
+            dir.release();
+            objrw->get().release();
+            return nt_status::OBJECT_NAME_COLLISION;
+        }
+
+        if (!objrw.has_value()) {
             lock_guard lg(dir.dentry_lock);
 
-            status = l(dir, name, dispo, res, objrw);
+            search_cache(dir, name, objrw);
 
-            if (status == nt_status::OBJECT_NAME_NOT_FOUND) {
+            if (!objrw.has_value()) {
                 status = dir.open_child(name, dispo, create_options,
                                         res, objrw);
                 if (success(status)) {
@@ -368,7 +368,7 @@ nt_status open_inode(string_view fn, inode& root_dir,
             }
         }
 
-        if (!success(status)) {
+        if (!objrw.has_value()) {
             dir.release();
 
             if (!last_bit && status == nt_status::OBJECT_NAME_NOT_FOUND)
