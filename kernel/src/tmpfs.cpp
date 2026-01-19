@@ -39,6 +39,8 @@ public:
     nt_status open_child(string_view name, uint32_t create_disposition,
                          uint32_t create_options, unsigned int& create_result,
                          optional<reference_wrapper<inode>>& obj) override;
+    nt_status create_child(string_view name, uint32_t create_options,
+                           optional<reference_wrapper<inode>>& obj);
     NTSTATUS query_directory(span<uint8_t> buf, FILE_INFORMATION_CLASS file_information_class,
                              uint64_t& index) override;
     NTSTATUS set_information(span<const uint8_t> buffer,
@@ -123,6 +125,55 @@ static bool invalid_name(string_view name) {
     return true;
 }
 
+nt_status tmpfs_inode::create_child(string_view name, uint32_t create_options,
+                                    optional<reference_wrapper<inode>>& obj) {
+    if (fs.readonly)
+        return nt_status::MEDIA_WRITE_PROTECTED;
+
+    if (!invalid_name(name))
+        return nt_status::OBJECT_NAME_INVALID;
+
+    bool is_dir = create_options & FILE_DIRECTORY_FILE;
+
+    auto new_ino = new tmpfs_inode(static_cast<tmpfs_filesystem&>(fs),
+                                is_dir ? inode_type::directory : inode_type::file);
+    if (!new_ino)
+        return nt_status::INSUFFICIENT_RESOURCES;
+
+    auto c = (::dentry*)malloc(offsetof(::dentry, name) + name.size());
+    if (!c) {
+        new_ino->release();
+        return nt_status::INSUFFICIENT_RESOURCES;
+    }
+
+    auto cur_time = (uint64_t)kernel_time_page.system_time + kernel_time_page.system_time_offset;
+
+    new (c) ::dentry;
+
+    new_ino->acquire();
+
+    new_ino->file_size = 0;
+    new_ino->atime = cur_time;
+    new_ino->ctime = cur_time;
+    new_ino->mtime = cur_time;
+    new_ino->otime = cur_time;
+
+    c->inode = new_ino;
+    c->name_len = name.size();
+    memcpy(c->name, name.data(), name.size());
+
+    if (is_list_empty(children))
+        c->index = 0;
+    else
+        c->index = containing_record<::dentry>(children.prev).index + 1;
+
+    insert_tail_list(children, c->le);
+
+    obj = *new_ino;
+
+    return nt_status::SUCCESS;
+}
+
 nt_status tmpfs_inode::open_child(string_view name, uint32_t create_disposition,
                                   uint32_t create_options, unsigned int& create_result,
                                   optional<reference_wrapper<inode>>& obj) {
@@ -170,49 +221,10 @@ nt_status tmpfs_inode::open_child(string_view name, uint32_t create_disposition,
         return nt_status::OBJECT_NAME_NOT_FOUND;
     }
 
-    if (fs.readonly)
-        return nt_status::MEDIA_WRITE_PROTECTED;
+    auto status = create_child(name, create_options, obj);
 
-    if (!invalid_name(name))
-        return nt_status::OBJECT_NAME_INVALID;
-
-    bool is_dir = create_options & FILE_DIRECTORY_FILE;
-
-    auto new_ino = new tmpfs_inode(static_cast<tmpfs_filesystem&>(fs),
-                                   is_dir ? inode_type::directory : inode_type::file);
-    if (!new_ino)
-        return nt_status::INSUFFICIENT_RESOURCES;
-
-    auto c = (::dentry*)malloc(offsetof(::dentry, name) + name.size());
-    if (!c) {
-        new_ino->release();
-        return nt_status::INSUFFICIENT_RESOURCES;
-    }
-
-    auto cur_time = (uint64_t)kernel_time_page.system_time + kernel_time_page.system_time_offset;
-
-    new (c) ::dentry;
-
-    new_ino->acquire();
-
-    new_ino->file_size = 0;
-    new_ino->atime = cur_time;
-    new_ino->ctime = cur_time;
-    new_ino->mtime = cur_time;
-    new_ino->otime = cur_time;
-
-    c->inode = new_ino;
-    c->name_len = name.size();
-    memcpy(c->name, name.data(), name.size());
-
-    if (is_list_empty(children))
-        c->index = 0;
-    else
-        c->index = containing_record<::dentry>(children.prev).index + 1;
-
-    insert_tail_list(children, c->le);
-
-    obj = *new_ino;
+    if (!success(status))
+        return status;
 
     create_result = FILE_CREATED;
 
