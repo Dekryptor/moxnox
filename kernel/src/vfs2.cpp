@@ -268,6 +268,25 @@ bool mount_root() {
     return true;
 }
 
+static bool add_to_dentry_cache(inode& dir, string_view name, inode& ino) {
+    auto p = malloc(offsetof(dentry, name) + name.size());
+    if (!p)
+        return false;
+
+    auto& d = *new (p) dentry;
+
+    d.inode = &ino;
+    ino.acquire();
+
+    insert_tail_list(dir.children, d.le);
+
+    // FIXME - d.index?
+    d.name_len = name.size();
+    memcpy(d.name, name.data(), name.size());
+
+    return true;
+}
+
 nt_status open_inode(string_view fn, inode& root_dir,
                      object_ref& obj_ref, uint32_t create_disposition,
                      uint32_t create_options, unsigned int& create_result) {
@@ -339,6 +358,13 @@ nt_status open_inode(string_view fn, inode& root_dir,
             if (status == nt_status::OBJECT_NAME_NOT_FOUND) {
                 status = dir.open_child(name, dispo, create_options,
                                         res, objrw);
+                if (success(status)) {
+                    if (!add_to_dentry_cache(dir, name, objrw->get())) {
+                        dir.release();
+                        objrw->get().release();
+                        return nt_status::INSUFFICIENT_RESOURCES;
+                    }
+                }
             }
         }
 
