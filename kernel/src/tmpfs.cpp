@@ -53,10 +53,16 @@ public:
     nt_status query_standard_information(span<uint8_t> buffer, uint64_t& retlen);
 
     tmpfs_filesystem& fs; // FIXME - use reference in ::inode
-    list_entry le;
     uint64_t mtime, ctime, otime, atime;
     spinlock child_lock;
     list_entry children = { &children, &children };
+};
+
+struct tmpfs_dentry {
+    list_entry le;
+    tmpfs_inode* ino;
+    size_t name_len;
+    char name[0];
 };
 
 class tmpfs_filesystem : public ::filesystem {
@@ -136,6 +142,13 @@ nt_status tmpfs_inode::create_child(string_view name, uint32_t create_options,
     if (!new_ino)
         return nt_status::INSUFFICIENT_RESOURCES;
 
+    auto d = (tmpfs_dentry*)malloc(offsetof(tmpfs_dentry, name) + name.size());
+    if (!d) {
+        print("malloc failed\n");
+        new_ino->release();
+        return nt_status::INSUFFICIENT_RESOURCES;
+    }
+
     auto cur_time = (uint64_t)kernel_time_page.system_time + kernel_time_page.system_time_offset;
 
     new_ino->file_size = 0;
@@ -144,25 +157,49 @@ nt_status tmpfs_inode::create_child(string_view name, uint32_t create_options,
     new_ino->mtime = cur_time;
     new_ino->otime = cur_time;
 
-    {
-        lock_guard lock(child_lock);
-        insert_tail_list(children, new_ino->le);
-    }
+    d->ino = new_ino;
+    d->name_len = name.size();
+    memcpy(d->name, name.data(), name.size());
 
     new_ino->acquire();
+
+    {
+        lock_guard lock(child_lock);
+        insert_tail_list(children, d->le);
+    }
 
     obj = *new_ino;
 
     return nt_status::SUCCESS;
 }
 
-nt_status tmpfs_inode::open_child(string_view, object_ref&) {
+nt_status tmpfs_inode::open_child(string_view name, object_ref& obj_ref) {
     if (inode_type != inode_type::directory)
         return nt_status::INVALID_PARAMETER;
 
-    // tmpfs doesn't clear the dentry cache, so if it's not there it doesn't exist
+    tmpfs_inode* ino = nullptr;
 
-    return nt_status::OBJECT_NAME_NOT_FOUND;
+    {
+        lock_guard lg(child_lock);
+
+        for (auto le = children.next; le != &children; le = le->next) {
+            auto& d = containing_record<tmpfs_dentry>(le);
+            auto sv = string_view(d.name, d.name_len);
+
+            if (sv == name) {
+                d.ino->acquire();
+                ino = d.ino;
+                break;
+            }
+        }
+    }
+
+    if (!ino)
+        return nt_status::OBJECT_NAME_NOT_FOUND;
+
+    obj_ref = *ino;
+
+    return nt_status::SUCCESS;
 }
 
 nt_status tmpfs_filesystem::flush(bool make_readonly) {
@@ -185,7 +222,7 @@ tmpfs_inode::tmpfs_inode(tmpfs_filesystem& fs, enum inode_type inode_type) : ino
 
 tmpfs_inode::~tmpfs_inode() {
     while (true) {
-        tmpfs_inode* c;
+        tmpfs_dentry* d;
 
         {
             lock_guard lock(child_lock);
@@ -193,11 +230,12 @@ tmpfs_inode::~tmpfs_inode() {
             if (is_list_empty(children))
                 break;
 
-            c = &containing_record<tmpfs_inode>(children.next);
-            remove_entry_list(c->le);
+            d = &containing_record<tmpfs_dentry>(children.next);
+            remove_entry_list(d->le);
         }
 
-        c->release();
+        d->ino->release();
+        free(d);
     }
 }
 
