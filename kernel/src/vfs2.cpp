@@ -202,7 +202,6 @@ static bool extract_initrd() {
     }
 
     root_dentry->inode = fs->root_inode;
-    root_dentry->index = 0;
     root_dentry->name_len = 0;
     root_dentry->parent = nullptr;
 
@@ -263,7 +262,6 @@ bool mount_root() {
     }
 
     root_dentry->inode = root_fs->root_inode;
-    root_dentry->index = 0;
     root_dentry->name_len = 0;
     root_dentry->parent = nullptr;
 
@@ -337,8 +335,6 @@ static bool add_to_dentry_cache(dentry& dir, string_view name, inode& ino,
 
     d.parent = &dir;
     dir.acquire();
-
-    d.index = 0; // FIXME?
 
     d.name_len = name.size();
     memcpy(d.name, name.data(), name.size());

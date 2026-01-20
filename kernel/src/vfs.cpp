@@ -140,7 +140,6 @@ export struct dentry {
 
     inode* inode = nullptr;
     list_entry le;
-    unsigned int index;
     atomic<unsigned int> refcount = 1;
     dentry* parent = nullptr;
     rwsem child_lock;
