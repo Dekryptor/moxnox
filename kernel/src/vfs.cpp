@@ -16,6 +16,7 @@ import spinlock;
 import objects;
 import rwsem;
 import page_cache;
+import format;
 
 using namespace std;
 
@@ -30,6 +31,38 @@ export enum class inode_type : uint8_t {
     symlink = 7,
     ea = 8
 };
+
+template<>
+consteval bool format_spec_valid<inode_type>(string_view fmt) {
+    return fmt.empty();
+}
+
+export span<char> do_format_arg(span<char> sp, string_view, inode_type arg) {
+    switch (arg) {
+        using enum inode_type;
+
+        case unknown:
+            return do_format_arg(sp, "", "unknown");
+        case file:
+            return do_format_arg(sp, "", "file");
+        case directory:
+            return do_format_arg(sp, "", "directory");
+        case chardev:
+            return do_format_arg(sp, "", "chardev");
+        case blockdev:
+            return do_format_arg(sp, "", "blockdev");
+        case fifo:
+            return do_format_arg(sp, "", "fifo");
+        case socket:
+            return do_format_arg(sp, "", "socket");
+        case symlink:
+            return do_format_arg(sp, "", "symlink");
+        case ea:
+            return do_format_arg(sp, "", "ea");
+        default:
+            return do_format_arg(sp, "", (unsigned int)arg);
+    }
+}
 
 extern "C++" class filesystem;
 
