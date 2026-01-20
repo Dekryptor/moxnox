@@ -181,6 +181,11 @@ void tmpfs_inode::release() {
 
 tmpfs_inode::tmpfs_inode(tmpfs_filesystem& fs, enum inode_type inode_type) : inode(fs), fs(fs) {
     this->inode_type = inode_type;
+
+    {
+        lock_guard lock(fs.inode_lock);
+        insert_tail_list(fs.inode_list, this->le);
+    }
 }
 
 static nt_status query_directory_dirent(const dentry& d, span<uint8_t> buf,
