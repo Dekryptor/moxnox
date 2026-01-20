@@ -14,6 +14,7 @@ import list;
 import print;
 import kernel_time_page;
 import spinlock;
+import object_ref;
 
 using namespace std;
 
@@ -37,8 +38,7 @@ public:
     devfs_inode(devfs_filesystem& fs, enum inode_type inode_type);
     void release() override;
 
-    nt_status open_child(string_view name,
-                         optional<reference_wrapper<inode>>& obj) override;
+    nt_status open_child(string_view name, object_ref& obj) override;
     nt_status create_child(string_view name, uint32_t create_options,
                            optional<reference_wrapper<inode>>& obj) override;
     nt_status query_directory(span<uint8_t> buf, FILE_INFORMATION_CLASS file_information_class,
@@ -110,8 +110,7 @@ void devfs_inode::release() {
     delete this;
 }
 
-nt_status devfs_inode::open_child(string_view /*name*/,
-                                  optional<reference_wrapper<inode>>& /*obj*/) {
+nt_status devfs_inode::open_child(string_view /*name*/, object_ref& /*obj*/) {
     print("FIXME - devfs_inode::open_child\n");
 
     // FIXME

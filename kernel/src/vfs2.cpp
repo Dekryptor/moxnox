@@ -427,14 +427,13 @@ nt_status open_inode(string_view fn, dentry& root_dir,
             }
 
             if (!drw.has_value()) {
-                optional<reference_wrapper<inode>> inorw;
+                object_ref objref;
 
-                status = dir.inode->open_child(name, inorw);
+                status = dir.inode->open_child(name, objref);
 
                 if (success(status)) {
                     if (dispo == FILE_CREATE) {
                         dir.release();
-                        inorw->get().release();
                         return nt_status::OBJECT_NAME_COLLISION;
                     } else if (last_bit)
                         create_result = FILE_OPENED;
@@ -442,18 +441,27 @@ nt_status open_inode(string_view fn, dentry& root_dir,
 
                 if (status == nt_status::OBJECT_NAME_NOT_FOUND &&
                     (dispo == FILE_CREATE || dispo == FILE_OPEN_IF)) {
+                    optional<reference_wrapper<inode>> inorw;
+
                     status = dir.inode->create_child(name, create_options,
                                                      inorw);
-
-                    if (success(status))
+                    if (success(status)) {
                         create_result = FILE_CREATED;
+
+                        objref = inorw->get();
+                    }
                 }
 
                 if (success(status)) {
-                    if (!add_to_dentry_cache(dir, name, inorw->get(), drw)) {
-                        dir.release();
-                        inorw->get().release();
-                        return nt_status::INSUFFICIENT_RESOURCES;
+                    // FIXME - should non-inodes also go in dentry cache?
+
+                    if (objref.get().type == object_type::inode) {
+                        auto& ino = static_cast<inode&>(objref.get());
+
+                        if (!add_to_dentry_cache(dir, name, ino, drw)) {
+                            dir.release();
+                            return nt_status::INSUFFICIENT_RESOURCES;
+                        }
                     }
                 }
             }

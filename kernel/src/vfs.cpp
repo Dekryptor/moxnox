@@ -85,8 +85,7 @@ public:
     nt_status write(span<const uint8_t> s, uint64_t offset,
                     uint64_t& written_bytes);
 
-    virtual nt_status open_child(string_view name,
-                                 optional<reference_wrapper<inode>>& obj) = 0;
+    virtual nt_status open_child(string_view name, object_ref& obj) = 0;
     virtual nt_status create_child(string_view name, uint32_t create_options,
                                    optional<reference_wrapper<::inode>>& obj) = 0;
     virtual nt_status query_directory(span<uint8_t> buf, FILE_INFORMATION_CLASS file_information_class,

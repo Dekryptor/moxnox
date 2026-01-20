@@ -136,8 +136,7 @@ public:
     bool load_inode();
     void release() override;
 
-    nt_status open_child(string_view name,
-                         optional<reference_wrapper<inode>>& obj) override;
+    nt_status open_child(string_view name, object_ref& obj) override;
     nt_status create_child(string_view name, uint32_t create_options,
                            optional<reference_wrapper<inode>>& obj) override;
     NTSTATUS query_directory(span<uint8_t> buf, FILE_INFORMATION_CLASS file_information_class,
@@ -193,8 +192,7 @@ public:
     }
 
     nt_status read_metadata(uint64_t addr, span<uint8_t> data);
-    nt_status open_inode(uint64_t subvol, uint64_t inode,
-                         optional<reference_wrapper<::inode>>& obj);
+    nt_status open_inode(uint64_t subvol, uint64_t inode, object_ref& obj);
     nt_status remove_item(root& r, const btrfs_key& k);
     nt_status remove_item2(btrfs_path& p);
     nt_status change_key(btrfs_path& p, const btrfs_key& k);
@@ -2918,8 +2916,7 @@ nt_status btrfs_inode::create_child(string_view name, uint32_t create_options,
     return nt_status::SUCCESS;
 }
 
-nt_status btrfs_inode::open_child(string_view name,
-                                  optional<reference_wrapper<::inode>>& obj) {
+nt_status btrfs_inode::open_child(string_view name, object_ref& obj) {
     // FIXME - trans_lock
 
     if (inode_type != inode_type::directory)
@@ -2979,7 +2976,7 @@ nt_status btrfs_inode::open_child(string_view name,
 }
 
 nt_status btrfs_filesystem::open_inode(uint64_t subvol, uint64_t inode,
-                                       optional<reference_wrapper<::inode>>& obj) {
+                                       object_ref& obj) {
     {
         lock_guard lock(inode_lock);
 

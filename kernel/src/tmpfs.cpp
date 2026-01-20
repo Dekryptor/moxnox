@@ -35,8 +35,7 @@ public:
     tmpfs_inode(tmpfs_filesystem& fs, enum inode_type inode_type);
     void release() override;
 
-    nt_status open_child(string_view name,
-                         optional<reference_wrapper<inode>>& obj) override;
+    nt_status open_child(string_view name, object_ref& obj) override;
     nt_status create_child(string_view name, uint32_t create_options,
                            optional<reference_wrapper<inode>>& obj) override;
     NTSTATUS query_directory(span<uint8_t> buf, FILE_INFORMATION_CLASS file_information_class,
@@ -151,8 +150,7 @@ nt_status tmpfs_inode::create_child(string_view name, uint32_t create_options,
     return nt_status::SUCCESS;
 }
 
-nt_status tmpfs_inode::open_child(string_view,
-                                  optional<reference_wrapper<inode>>&) {
+nt_status tmpfs_inode::open_child(string_view, object_ref&) {
     if (inode_type != inode_type::directory)
         return nt_status::INVALID_PARAMETER;
 
