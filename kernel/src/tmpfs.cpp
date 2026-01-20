@@ -33,6 +33,7 @@ class tmpfs_filesystem;
 class tmpfs_inode : public inode {
 public:
     tmpfs_inode(tmpfs_filesystem& fs, enum inode_type inode_type);
+    virtual ~tmpfs_inode() override;
     void release() override;
 
     nt_status open_child(string_view name, object_ref& obj) override;
@@ -54,6 +55,8 @@ public:
     tmpfs_filesystem& fs; // FIXME - use reference in ::inode
     list_entry le;
     uint64_t mtime, ctime, otime, atime;
+    spinlock child_lock;
+    list_entry children = { &children, &children };
 };
 
 class tmpfs_filesystem : public ::filesystem {
@@ -67,8 +70,6 @@ public:
 
     nt_status flush(bool make_readonly) override;
 
-    spinlock inode_lock;
-    list_entry inode_list = { &inode_list, &inode_list };
     bool readonly = false;
 };
 
@@ -87,8 +88,6 @@ tmpfs_filesystem::tmpfs_filesystem() : filesystem(nullptr) {
     tmpfs_root_inode->ctime = cur_time;
     tmpfs_root_inode->mtime = cur_time;
     tmpfs_root_inode->otime = cur_time;
-
-    insert_tail_list(inode_list, tmpfs_root_inode->le);
 }
 
 extern "C++" ::filesystem* create_tmpfs() {
@@ -145,6 +144,13 @@ nt_status tmpfs_inode::create_child(string_view name, uint32_t create_options,
     new_ino->mtime = cur_time;
     new_ino->otime = cur_time;
 
+    {
+        lock_guard lock(child_lock);
+        insert_tail_list(children, new_ino->le);
+    }
+
+    new_ino->acquire();
+
     obj = *new_ino;
 
     return nt_status::SUCCESS;
@@ -167,24 +173,31 @@ nt_status tmpfs_filesystem::flush(bool make_readonly) {
 }
 
 void tmpfs_inode::release() {
-    {
-        lock_guard lock(static_cast<tmpfs_filesystem&>(fs).inode_lock);
-
-        if (--refcount != 0)
-            return;
-
-        remove_entry_list(le);
-    }
+    if (--refcount != 0)
+        return;
 
     delete this;
 }
 
 tmpfs_inode::tmpfs_inode(tmpfs_filesystem& fs, enum inode_type inode_type) : inode(fs), fs(fs) {
     this->inode_type = inode_type;
+}
 
-    {
-        lock_guard lock(fs.inode_lock);
-        insert_tail_list(fs.inode_list, this->le);
+tmpfs_inode::~tmpfs_inode() {
+    while (true) {
+        tmpfs_inode* c;
+
+        {
+            lock_guard lock(child_lock);
+
+            if (is_list_empty(children))
+                break;
+
+            c = &containing_record<tmpfs_inode>(children.next);
+            remove_entry_list(c->le);
+        }
+
+        c->release();
     }
 }
 
