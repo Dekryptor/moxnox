@@ -218,6 +218,7 @@ export dentry* root_dentry;
 
 export void add_fs_to_list(::filesystem& fs);
 export bool mount_root();
+export bool mount_devfs();
 export nt_status open_inode(string_view fn, dentry& dir,
                             object_ref& obj_ref, uint32_t create_disposition,
                             uint32_t create_options, unsigned int& create_result);

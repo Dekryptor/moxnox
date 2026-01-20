@@ -72,6 +72,7 @@ set(GLOBAL_MODULES src/cmdline.cpp
     src/usbms.cpp
     src/dma.cpp
     src/mapping_type.cpp
+    src/devfs.cpp
 )
 
 set(AMD64_MODULES ${GLOBAL_MODULES}

@@ -27,6 +27,9 @@ using namespace std;
 // tmpfs.cpp (FIXME)
 extern "C++" ::filesystem* create_tmpfs();
 
+// devfs.cpp (FIXME)
+extern "C++" ::filesystem* create_devfs();
+
 static const guid moxnox_partition_guid = { 0x5dd71063, 0x95c9, 0x41b2, { 0x82, 0x52, 0x84, 0x13, 0xfe, 0xac, 0x64, 0x90 } };
 
 static rwsem fs_lock;
@@ -270,6 +273,55 @@ bool mount_root() {
     return true;
 }
 
+bool mount_devfs() {
+    object_ref dev;
+    unsigned int result;
+
+    // FIXME - do this in init instead
+
+    auto status = open_inode("/dev", *root_dentry, dev, FILE_OPEN_IF,
+                             FILE_DIRECTORY_FILE, result);
+    if (!success(status)) {
+        print("open_inode returned {}\n", status);
+        return false;
+    }
+
+    if (dev.get().type != object_type::inode) {
+        print("/dev was {}, expected inode\n", dev.get().type);
+        return false;
+    }
+
+    auto& ino = static_cast<inode&>(dev.get());
+
+    if (ino.inode_type != inode_type::directory) {
+        print("/dev was {}, expected inode\n", ino.inode_type);
+        return false;
+    }
+
+    auto fs = create_devfs();
+    if (!fs) {
+        print("create_devfs failed\n");
+        return false;
+    }
+
+    auto& d = *ino.dentry;
+    inode* ino2 = fs->root_inode;
+
+    ino2->acquire();
+
+    {
+        lock_guard lg(d.parent->child_lock);
+
+        swap(d.inode, ino2);
+        d.inode->dentry = &d;
+    }
+
+    ino2->dentry = nullptr;
+    ino2->release();
+
+    return true;
+}
+
 static bool add_to_dentry_cache(dentry& dir, string_view name, inode& ino,
                                 optional<reference_wrapper<dentry>>& drw) {
     auto p = malloc(offsetof(dentry, name) + name.size());
@@ -292,6 +344,7 @@ static bool add_to_dentry_cache(dentry& dir, string_view name, inode& ino,
     memcpy(d.name, name.data(), name.size());
 
     drw = d;
+    ino.dentry = &d;
 
     return true;
 }
