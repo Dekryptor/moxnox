@@ -389,6 +389,7 @@ nt_status open_inode(string_view fn, dentry& root_dir,
         auto name = last_bit ? fn : string_view(fn.data(), sl);
         auto dispo = last_bit ? create_disposition : FILE_OPEN;
         nt_status status;
+        object_ref obj_ref2;
 
         // FIXME - .. and .
         // FIXME - mount points
@@ -427,9 +428,7 @@ nt_status open_inode(string_view fn, dentry& root_dir,
             }
 
             if (!drw.has_value()) {
-                object_ref objref;
-
-                status = dir.inode->open_child(name, objref);
+                status = dir.inode->open_child(name, obj_ref2);
 
                 if (success(status)) {
                     if (dispo == FILE_CREATE) {
@@ -448,15 +447,15 @@ nt_status open_inode(string_view fn, dentry& root_dir,
                     if (success(status)) {
                         create_result = FILE_CREATED;
 
-                        objref = inorw->get();
+                        obj_ref2 = inorw->get();
                     }
                 }
 
                 if (success(status)) {
                     // FIXME - should non-inodes also go in dentry cache?
 
-                    if (objref.get().type == object_type::inode) {
-                        auto& ino = static_cast<inode&>(objref.get());
+                    if (obj_ref2.get().type == object_type::inode) {
+                        auto& ino = static_cast<inode&>(obj_ref2.get());
 
                         if (!add_to_dentry_cache(dir, name, ino, drw)) {
                             dir.release();
@@ -469,6 +468,12 @@ nt_status open_inode(string_view fn, dentry& root_dir,
 
         if (!drw.has_value()) {
             dir.release();
+
+            // non-inodes don't get put in dentry cache
+            if (last_bit && success(status)) {
+                swap(obj_ref, obj_ref2);
+                return status;
+            }
 
             if (!last_bit && status == nt_status::OBJECT_NAME_NOT_FOUND)
                 status = nt_status::OBJECT_PATH_NOT_FOUND;
