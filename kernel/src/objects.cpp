@@ -2,11 +2,13 @@ module;
 
 #include <atomic>
 #include <span>
+#include <string_view>
 
 export module objects;
 
 import nt;
 import list;
+import format;
 
 using namespace std;
 
@@ -22,6 +24,40 @@ export enum class object_type {
     section,
     file
 };
+
+template<>
+consteval bool format_spec_valid<object_type>(string_view fmt) {
+    return fmt.empty();
+}
+
+export span<char> do_format_arg(span<char> sp, string_view, object_type arg) {
+    switch (arg) {
+        using enum object_type;
+
+        case thread:
+            return do_format_arg(sp, "", "thread");
+        case timer:
+            return do_format_arg(sp, "", "timer");
+        case event:
+            return do_format_arg(sp, "", "event");
+        case chardev:
+            return do_format_arg(sp, "", "chardev");
+        case semaphore:
+            return do_format_arg(sp, "", "semaphore");
+        case volume:
+            return do_format_arg(sp, "", "volume");
+        case inode:
+            return do_format_arg(sp, "", "inode");
+        case process:
+            return do_format_arg(sp, "", "process");
+        case section:
+            return do_format_arg(sp, "", "section");
+        case file:
+            return do_format_arg(sp, "", "file");
+        default:
+            return do_format_arg(sp, "", (unsigned int)arg);
+    }
+}
 
 export
 extern "C++"
