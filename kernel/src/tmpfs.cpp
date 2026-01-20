@@ -61,6 +61,7 @@ public:
 struct tmpfs_dentry {
     list_entry le;
     tmpfs_inode* ino;
+    unsigned int index;
     size_t name_len;
     char name[0];
 };
@@ -165,6 +166,12 @@ nt_status tmpfs_inode::create_child(string_view name, uint32_t create_options,
 
     {
         lock_guard lock(child_lock);
+
+        if (is_list_empty(children))
+            d->index = 0;
+        else
+            d->index = containing_record<tmpfs_dentry>(children.prev).index + 1;
+
         insert_tail_list(children, d->le);
     }
 
@@ -239,7 +246,7 @@ tmpfs_inode::~tmpfs_inode() {
     }
 }
 
-static nt_status query_directory_dirent(const dentry& d, span<uint8_t> buf,
+static nt_status query_directory_dirent(const tmpfs_dentry& d, span<uint8_t> buf,
                                         FILE_INFORMATION_CLASS file_information_class) {
     switch (file_information_class) {
         case FILE_INFORMATION_CLASS::DirectoryInformation: {
@@ -255,10 +262,10 @@ static nt_status query_directory_dirent(const dentry& d, span<uint8_t> buf,
 
             auto& fdi = *(FILE_DIRECTORY_INFORMATION*)buf.data();
 
-            auto& ino = *static_cast<tmpfs_inode*>(d.inode);
+            auto& ino = *d.ino;
 
             {
-                shared_lock lock(d.inode->inode_lock);
+                shared_lock lock(ino.inode_lock);
 
                 fdi.NextEntryOffset = 0;
                 fdi.FileIndex = 0;
@@ -292,20 +299,18 @@ NTSTATUS tmpfs_inode::query_directory(span<uint8_t> buf,
     if (inode_type != inode_type::directory)
         return nt_status::NOT_A_DIRECTORY;
 
-    auto& d = *dentry;
-
     {
-        shared_lock lock(d.child_lock);
+        lock_guard lock(child_lock);
 
-        for (auto le = d.children.next; le != &d.children; le = le->next) {
-            auto& c = containing_record<::dentry>(le);
+        for (auto le = children.next; le != &children; le = le->next) {
+            auto& c = containing_record<tmpfs_dentry>(le);
 
             if (c.index < index)
                 continue;
 
             auto ret = query_directory_dirent(c, buf, file_information_class);
 
-            index = d.index + 1;
+            index = c.index + 1;
 
             return ret;
         }
