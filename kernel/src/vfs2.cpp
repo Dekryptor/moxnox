@@ -618,32 +618,16 @@ NTSTATUS NtCreateFile(HANDLE* file_handle, ACCESS_MASK access_mask,
             name[i] = '/';
     }
 
-    // FIXME - proper VFS system
-
-    static const string_view dev_prefix = "/dev/";
     object_ref ino_ref;
     unsigned int create_result;
 
-    if (namelen > dev_prefix.size() && string_view(name, dev_prefix.size()) == dev_prefix) {
-        if (create_disposition != FILE_OPEN)
-            return nt_status::NOT_SUPPORTED;
-
-        status = open_object(string_view(name + dev_prefix.size(), namelen - dev_prefix.size()),
-                             ino_ref);
-        if (!success(status)) {
-            free(name);
-            return status;
-        }
-
-        create_result = FILE_OPENED;
-    } else {
-        status = open_inode(string_view(name, namelen), *static_cast<inode&>(root_dir.get()).dentry,
-                            ino_ref, create_disposition, create_options, create_result);
-        if (!success(status)) {
-            // FIXME - distinguish between OBJECT_NAME_NOT_FOUND and OBJECT_PATH_NOT_FOUND, etc.
-            free(name);
-            return status;
-        }
+    status = open_inode(string_view(name, namelen),
+                        *static_cast<inode&>(root_dir.get()).dentry,
+                        ino_ref, create_disposition, create_options,
+                        create_result);
+    if (!success(status)) {
+        free(name);
+        return status;
     }
 
     shared_okay = !object_is_exclusive(ino_ref.get());
