@@ -15,6 +15,7 @@ import print;
 import kernel_time_page;
 import spinlock;
 import object_ref;
+import handle;
 
 using namespace std;
 
@@ -110,12 +111,12 @@ void devfs_inode::release() {
     delete this;
 }
 
-nt_status devfs_inode::open_child(string_view /*name*/, object_ref& /*obj*/) {
-    print("FIXME - devfs_inode::open_child\n");
+nt_status devfs_inode::open_child(string_view name, object_ref& obj) {
+    // FIXME - allow child directories
+    if (this != fs.root_inode)
+        return nt_status::OBJECT_NAME_NOT_FOUND;
 
-    // FIXME
-
-    return nt_status::NOT_IMPLEMENTED;
+    return open_object(name, obj);
 }
 
 nt_status devfs_inode::create_child(string_view /*name*/, uint32_t /*create_options*/,
