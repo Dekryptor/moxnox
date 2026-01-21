@@ -2,6 +2,7 @@
 #include <span>
 #include <chrono>
 #include <algorithm>
+#include <utility>
 
 using namespace std;
 
@@ -12,6 +13,8 @@ import format;
 import print;
 import list;
 import cmdline;
+
+static bool long_mode = false;
 
 static constexpr chrono::year_month_day system_time_to_ymd(int64_t system_time) noexcept {
     signed long long j, e, f, g, h;
@@ -81,7 +84,7 @@ struct ls_entry {
     FILE_DIRECTORY_INFORMATION fdi;
 };
 
-static void ls(bool long_mode) {
+static void ls() {
     auto peb = NtCurrentTeb()->ProcessEnvironmentBlock;
     IO_STATUS_BLOCK iosb;
     char buf[4096];
@@ -198,6 +201,73 @@ static void ls(bool long_mode) {
     RtlFreeHeap(GetProcessHeap(), 0, arr);
 }
 
+struct option {
+    u16string_view full_form;
+    char16_t short_form;
+    void(*func)();
+};
+
+static bool getopt(span<u16string_view>& argv, span<const option> options) {
+    while (!argv.empty()) {
+        auto arg = argv.front();
+
+        if (arg.empty()) {
+            argv = span(argv.data() + 1, argv.size() - 1);
+            continue;
+        }
+
+        if (arg[0] != '-')
+            break;
+
+        if (arg.size() >= 2 && arg[1] == '-') { // full form
+            auto full = u16string_view(arg.data() + 2, arg.size() - 2);
+
+            if (full.empty()) { // --
+                argv = span(argv.data() + 1, argv.size() - 1);
+                break;
+            }
+
+            bool done = false;
+            for (auto o : options) {
+                if (full == o.full_form) {
+                    o.func();
+                    done = true;
+                    break;
+                }
+            }
+
+            if (!done) {
+                print("unrecognized option '--{}'\n", full); // FIXME - to stderr
+                return false;
+            }
+        } else { // short form
+            arg = u16string_view(arg.data() + 1, arg.size() - 1); // skip -
+
+            while (!arg.empty()) {
+                bool done = false;
+                for (auto o : options) {
+                    if (arg[0] == o.short_form) {
+                        o.func();
+                        done = true;
+                        break;
+                    }
+                }
+
+                if (!done) {
+                    print("invalid option -- '{}'\n", u16string_view(arg.data(), 1)); // FIXME - to stderr
+                    return false;
+                }
+
+                arg = u16string_view(arg.data() + 1, arg.size() - 1);
+            }
+        }
+
+        argv = span(argv.data() + 1, argv.size() - 1);
+    }
+
+    return true;
+}
+
 #ifdef __x86_64__
 #define FORCE_ALIGN_ARG_POINTER __attribute__((force_align_arg_pointer))
 #else
@@ -207,7 +277,10 @@ static void ls(bool long_mode) {
 extern "C" FORCE_ALIGN_ARG_POINTER void startup() {
     auto teb = NtCurrentTeb();
     auto peb = teb->ProcessEnvironmentBlock;
-    bool long_mode = false;
+
+    static const option options[] = {
+        { u"", u'l', []() { long_mode = true; } }
+    };
 
     auto cmdline = u16string_view(peb->ProcessParameters->CommandLine.Buffer,
                                   peb->ProcessParameters->CommandLine.Length / sizeof(char16_t));
@@ -221,30 +294,32 @@ extern "C" FORCE_ALIGN_ARG_POINTER void startup() {
 
     if (argc != 0) {
         buf = (decltype(buf))RtlAllocateHeap(GetProcessHeap(), 0, argc * sizeof(*buf));
-        if (!buf)
+        if (!buf) {
             NtTerminateThread(NtCurrentThread(), nt_status::INSUFFICIENT_RESOURCES);
+            unreachable();
+        }
 
         argv = span(buf, argc);
     }
 
     parse_cmdline(cmdline, argv);
 
-    // FIXME - options, then --, then files or directories
+    if (!argv.empty()) // skip program name
+        argv = span(argv.data() + 1, argv.size() - 1);
 
-    for (auto arg : argv) {
-        if (arg.empty())
-            continue;
+    if (!getopt(argv, options)) {
+        if (buf)
+            RtlFreeHeap(GetProcessHeap(), 0, buf);
 
-        // FIXME - die if unrecognized option
-
-        if (arg == u"-l")
-            long_mode = true;
+        NtTerminateThread(NtCurrentThread(), nt_status::INVALID_PARAMETER);
+        unreachable();
     }
 
-    ls(long_mode);
+    ls();
 
     if (buf)
         RtlFreeHeap(GetProcessHeap(), 0, buf);
 
     NtTerminateThread(NtCurrentThread(), nt_status::SUCCESS);
+    unreachable();
 }
