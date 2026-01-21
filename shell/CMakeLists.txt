@@ -60,7 +60,7 @@ target_compile_options(ls PRIVATE -fno-exceptions ${USERSPACE_CFLAGS})
 target_link_options(ls PUBLIC -nostartfiles -nostdlib -Wl,--entry=startup)
 
 target_link_libraries(ls shelllib)
-target_link_libraries(ls format list cmdline)
+target_link_libraries(ls format list cmdline getopt)
 target_link_libraries(ls moxnox)
 
 install(TARGETS ls DESTINATION ${CMAKE_INSTALL_PREFIX})

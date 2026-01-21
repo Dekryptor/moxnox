@@ -222,6 +222,11 @@ target_sources(timepage PUBLIC FILE_SET CXX_MODULES FILES modules/timepage.cpp)
 target_compile_options(timepage PRIVATE -fno-exceptions ${USERSPACE_CFLAGS})
 target_link_libraries(timepage pagesize)
 
+add_library(getopt STATIC)
+target_sources(getopt PUBLIC FILE_SET CXX_MODULES FILES modules/getopt.cpp)
+target_compile_options(getopt PRIVATE -fno-exceptions ${USERSPACE_CFLAGS})
+target_link_libraries(getopt format)
+
 if(CMAKE_SYSTEM_PROCESSOR STREQUAL "aarch64")
     add_library(aarch64 STATIC)
     target_sources(aarch64 PUBLIC FILE_SET CXX_MODULES FILES modules/aarch64.cpp)

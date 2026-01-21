@@ -13,6 +13,7 @@ import format;
 import print;
 import list;
 import cmdline;
+import getopt;
 
 static bool long_mode = false;
 
@@ -199,73 +200,6 @@ static void ls() {
     }
 
     RtlFreeHeap(GetProcessHeap(), 0, arr);
-}
-
-struct option {
-    u16string_view full_form;
-    char16_t short_form;
-    void(*func)();
-};
-
-static bool getopt(span<u16string_view>& argv, span<const option> options) {
-    while (!argv.empty()) {
-        auto arg = argv.front();
-
-        if (arg.empty()) {
-            argv = span(argv.data() + 1, argv.size() - 1);
-            continue;
-        }
-
-        if (arg[0] != '-')
-            break;
-
-        if (arg.size() >= 2 && arg[1] == '-') { // full form
-            auto full = u16string_view(arg.data() + 2, arg.size() - 2);
-
-            if (full.empty()) { // --
-                argv = span(argv.data() + 1, argv.size() - 1);
-                break;
-            }
-
-            bool done = false;
-            for (auto o : options) {
-                if (full == o.full_form) {
-                    o.func();
-                    done = true;
-                    break;
-                }
-            }
-
-            if (!done) {
-                print("unrecognized option '--{}'\n", full); // FIXME - to stderr
-                return false;
-            }
-        } else { // short form
-            arg = u16string_view(arg.data() + 1, arg.size() - 1); // skip -
-
-            while (!arg.empty()) {
-                bool done = false;
-                for (auto o : options) {
-                    if (arg[0] == o.short_form) {
-                        o.func();
-                        done = true;
-                        break;
-                    }
-                }
-
-                if (!done) {
-                    print("invalid option -- '{}'\n", u16string_view(arg.data(), 1)); // FIXME - to stderr
-                    return false;
-                }
-
-                arg = u16string_view(arg.data() + 1, arg.size() - 1);
-            }
-        }
-
-        argv = span(argv.data() + 1, argv.size() - 1);
-    }
-
-    return true;
 }
 
 #ifdef __x86_64__
