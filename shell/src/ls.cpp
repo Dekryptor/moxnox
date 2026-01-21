@@ -213,7 +213,7 @@ extern "C" FORCE_ALIGN_ARG_POINTER void startup() {
     auto peb = teb->ProcessEnvironmentBlock;
 
     static const option options[] = {
-        { u"", u'l', []() { long_mode = true; } }
+        { u"", u'l', []{ long_mode = true; } }
     };
 
     auto cmdline = u16string_view(peb->ProcessParameters->CommandLine.Buffer,
