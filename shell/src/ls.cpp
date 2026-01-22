@@ -3,6 +3,7 @@
 #include <chrono>
 #include <algorithm>
 #include <utility>
+#include <string.h>
 
 using namespace std;
 
@@ -80,22 +81,20 @@ static void print_date(int64_t tm, int64_t now) {
     }
 }
 
-struct ls_entry {
-    list_entry le;
-    FILE_DIRECTORY_INFORMATION fdi;
-};
 
-static void ls() {
-    auto peb = NtCurrentTeb()->ProcessEnvironmentBlock;
+static void ls_dir(HANDLE h) {
     IO_STATUS_BLOCK iosb;
     char buf[4096];
-
     unsigned int num_entries = 0;
-
     list_entry list = { &list, &list };
 
+    struct ls_entry {
+        list_entry le;
+        FILE_DIRECTORY_INFORMATION fdi;
+    };
+
     while (true) {
-        auto status = NtQueryDirectoryFile(peb->ProcessParameters->CurrentDirectory.Handle, 0, nullptr, nullptr,
+        auto status = NtQueryDirectoryFile(h, 0, nullptr, nullptr,
                                            &iosb, buf, sizeof(buf), FILE_INFORMATION_CLASS::DirectoryInformation,
                                            false, nullptr, num_entries == 0 ? true : false);
 
@@ -104,22 +103,31 @@ static void ls() {
         else if (!success(status)) {
             print("NtQueryDirectoryFile returned {}\n", status); // FIXME - should be to stderr
             NtTerminateThread(NtCurrentThread(), status);
-            return;
+            unreachable();
         }
 
-        auto& fdi = *(FILE_DIRECTORY_INFORMATION*)buf;
+        auto fdi = (FILE_DIRECTORY_INFORMATION*)buf;
 
-        size_t ent_len = offsetof(ls_entry, fdi.FileName) + fdi.FileNameLength;
+        while (true) {
+            size_t ent_len = offsetof(ls_entry, fdi.FileName) + fdi->FileNameLength;
 
-        auto ent = (ls_entry*)RtlAllocateHeap(GetProcessHeap(), 0, ent_len);
-        if (!ent)
-            NtTerminateThread(NtCurrentThread(), nt_status::INSUFFICIENT_RESOURCES);
+            auto ent = (ls_entry*)RtlAllocateHeap(GetProcessHeap(), 0, ent_len);
+            if (!ent) {
+                NtTerminateThread(NtCurrentThread(), nt_status::INSUFFICIENT_RESOURCES);
+                unreachable();
+            }
 
-        memcpy(&ent->fdi, &fdi, offsetof(FILE_DIRECTORY_INFORMATION, FileName) + fdi.FileNameLength);
+            memcpy(&ent->fdi, fdi, offsetof(FILE_DIRECTORY_INFORMATION, FileName) + fdi->FileNameLength);
 
-        insert_tail_list(list, ent->le);
+            insert_tail_list(list, ent->le);
 
-        num_entries++;
+            num_entries++;
+
+            if (fdi->NextEntryOffset == 0)
+                break;
+
+            fdi = (FILE_DIRECTORY_INFORMATION*)((uint8_t*)fdi + fdi->NextEntryOffset);
+        }
     }
 
     if (is_list_empty(list))
@@ -140,8 +148,10 @@ static void ls() {
     }
 
     auto arr = (ls_entry**)RtlAllocateHeap(GetProcessHeap(), 0, sizeof(ls_entry*) * num_entries);
-    if (!arr)
+    if (!arr) {
         NtTerminateThread(NtCurrentThread(), nt_status::INSUFFICIENT_RESOURCES);
+        unreachable();
+    }
 
     {
         auto ptr = arr;
@@ -165,8 +175,10 @@ static void ls() {
 
     LARGE_INTEGER now;
 
-    if (auto status = NtQuerySystemTime(&now); !success(status))
+    if (auto status = NtQuerySystemTime(&now); !success(status)) {
         NtTerminateThread(NtCurrentThread(), status);
+        unreachable();
+    }
 
     for (unsigned int i = 0; i < num_entries; i++) {
         auto& ent = *arr[i];
@@ -200,6 +212,119 @@ static void ls() {
     }
 
     RtlFreeHeap(GetProcessHeap(), 0, arr);
+}
+
+static void ls(span<u16string_view> argv) {
+    auto peb = NtCurrentTeb()->ProcessEnvironmentBlock;
+
+    // FIXME - this handle doesn't have FILE_LIST_DIRECTORY on NT?
+    if (argv.empty()) {
+        ls_dir(peb->ProcessParameters->CurrentDirectory.Handle);
+        return;
+    }
+
+    struct entry {
+        list_entry le;
+        u16string_view fn;
+        HANDLE h;
+    };
+
+    list_entry dir_list = { &dir_list, &dir_list };
+    list_entry file_list = { &file_list, &file_list };
+
+    for (auto arg : argv) {
+        OBJECT_ATTRIBUTES oa;
+        UNICODE_STRING us;
+        NTSTATUS status;
+        HANDLE h;
+        IO_STATUS_BLOCK iosb;
+        FILE_BASIC_INFORMATION fbi;
+
+        // FIXME - unlike Linux, NT kernel doesn't seem to resolve .. etc.
+
+        us.Length = us.MaximumLength = (uint16_t)(arg.size() * sizeof(char16_t));
+        us.Buffer = (char16_t*)arg.data();
+
+        memset(&oa, 0, sizeof(oa));
+        oa.Length = sizeof(OBJECT_ATTRIBUTES);
+        oa.ObjectName = &us;
+        oa.RootDirectory = peb->ProcessParameters->CurrentDirectory.Handle;
+
+        status = NtCreateFile(&h, FILE_LIST_DIRECTORY | FILE_READ_ATTRIBUTES | SYNCHRONIZE,
+                              &oa, &iosb, nullptr, 0,
+                              FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE,
+                              FILE_OPEN, FILE_SYNCHRONOUS_IO_ALERT, nullptr, 0);
+
+        if (status == nt_status::OBJECT_NAME_NOT_FOUND ||
+            status == nt_status::OBJECT_PATH_NOT_FOUND) {
+            print("ls: {}: No such file or directory\n", arg); // FIXME - stderr
+            continue;
+        } else if (!success(status)) {
+            print("ls: {}: NtCreateFile returned {}\n", arg, status); // FIXME - stderr
+            continue;
+        }
+
+        status = NtQueryInformationFile(h, &iosb, &fbi, sizeof(fbi),
+                                        FILE_INFORMATION_CLASS::BasicInformation);
+        if (!success(status)) {
+            print("ls: {}: NtQueryInformationFile returned {}\n", arg, status); // FIXME - stderr
+            NtClose(h);
+            continue;
+        }
+
+        auto e = (entry*)malloc(sizeof(entry));
+        if (!e) {
+            NtTerminateThread(NtCurrentThread(), nt_status::INSUFFICIENT_RESOURCES);
+            unreachable();
+        }
+
+        e->fn = arg;
+        e->h = h;
+
+        if (fbi.FileAttributes & FILE_ATTRIBUTE_DIRECTORY)
+            insert_tail_list(dir_list, e->le);
+        else
+            insert_tail_list(file_list, e->le);
+    }
+
+    // only one entry, which is directory
+    if (is_list_empty(file_list) && !is_list_empty(dir_list) &&
+        dir_list.next->next == &dir_list) {
+        auto& e = containing_record<entry>(dir_list.next);
+
+        ls_dir(e.h);
+        NtClose(e.h);
+
+        free(&e);
+        return;
+    }
+
+    // FIXME - print file_list
+
+    for (auto le = file_list.next; le != &file_list; le = le->next) {
+        auto& e = containing_record<entry>(le);
+
+        NtClose(e.h);
+        remove_entry_list(e.le);
+        free(&e);
+    }
+
+    bool first = true;
+    while (!is_list_empty(dir_list)) {
+        auto& e = containing_record<entry>(dir_list.next);
+
+        if (!first)
+            print("\n");
+
+        print("{}:\n", e.fn);
+        ls_dir(e.h);
+
+        NtClose(e.h);
+        remove_entry_list(e.le);
+        free(&e);
+
+        first = false;
+    }
 }
 
 #ifdef __x86_64__
@@ -249,7 +374,7 @@ extern "C" FORCE_ALIGN_ARG_POINTER void startup() {
         unreachable();
     }
 
-    ls();
+    ls(argv);
 
     if (buf)
         RtlFreeHeap(GetProcessHeap(), 0, buf);
