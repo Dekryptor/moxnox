@@ -55,8 +55,8 @@ nt_status create_section(const optional<reference_wrapper<file>>& file, bool ima
             memcpy(s.name, file->get().name, s.namelen);
         }
 
-        s.ino = static_cast<inode&>(file->get().ino);
-        s.ino->get().acquire();
+        s.file = file;
+        s.file->get().acquire();
 
         if (image) {
             s.type = section_type::image;
@@ -78,9 +78,11 @@ nt_status create_section(const optional<reference_wrapper<file>>& file, bool ima
         } else {
             s.type = section_type::file;
 
+            auto& ino = static_cast<inode&>(file->get().ino);
+
             {
-                shared_lock lock(s.ino->get().inode_lock);
-                s.num_pages = bytes_to_pages(s.ino->get().file_size);
+                shared_lock lock(ino.inode_lock);
+                s.num_pages = bytes_to_pages(ino.file_size);
             }
 
             s.size = s.num_pages << PAGE_SHIFT;
@@ -118,8 +120,8 @@ nt_status create_section(const optional<reference_wrapper<file>>& file, bool ima
 
 extern "C++"
 section::~section() {
-    if (ino)
-        ino->get().release();
+    if (file)
+        file->get().release();
 
     if (pe_sections)
         free(pe_sections);
@@ -192,12 +194,12 @@ static span<char> get_section_name(const IMAGE_SECTION_HEADER& s, const IMAGE_FI
 
 extern "C++"
 nt_status section::load_image() {
-    if (!ino) {
-        print("inode was NULL\n");
+    if (!file) {
+        print("file was NULL\n");
         return nt_status::INVALID_PARAMETER;
     }
 
-    auto& f = ino->get();
+    auto& f = static_cast<inode&>(file->get().ino);
     uint32_t section_alignment;
     page_cache_entry* src_p;
     uint64_t read_pages;
@@ -962,13 +964,13 @@ cache_variant section::get_cache() {
                 return &anon_cache->cache;
 
         default:
-            return &ino->get().cache;
+            return &static_cast<inode&>(file->get().ino).cache;
     }
 }
 
 nt_status image_section_cache::read_into_cache(uint64_t page_num, uint64_t num_pages,
                                                uint64_t& read_pages) {
-    auto& f = sect.ino->get();
+    auto& f = static_cast<inode&>(sect.file->get().ino);
     auto header_pages = bytes_to_pages(sect.size_of_headers);
     page_cache_entry* src_p;
     page_cache_entry* dest_p;

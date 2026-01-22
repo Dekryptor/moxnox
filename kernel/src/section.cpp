@@ -98,7 +98,7 @@ public:
     nt_status ioctl(uint32_t code, span<const uint8_t> inbuf,
                     span<uint8_t> outbuf, uintptr_t& written);
 
-    optional<reference_wrapper<inode>> ino;
+    optional<reference_wrapper<file>> file;
     enum section_type type;
     uint32_t size;
     uint32_t num_pages;
