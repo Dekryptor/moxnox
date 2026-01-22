@@ -106,8 +106,6 @@ public:
     uint16_t characteristics, machine;
     uint64_t stack_size;
     spinlock alloc_lock;
-    char* name = nullptr;
-    size_t namelen = 0;
     dwarf_info dwinfo;
     unsigned int num_pe_sections = 0;
     IMAGE_SECTION_HEADER* pe_sections = nullptr;

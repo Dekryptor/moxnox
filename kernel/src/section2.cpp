@@ -43,18 +43,6 @@ nt_status create_section(const optional<reference_wrapper<file>>& file, bool ima
             return nt_status::INVALID_PARAMETER;
         }
 
-        if (file->get().name) {
-            s.name = (char*)malloc(file->get().namelen);
-            if (!s.name) {
-                print("malloc failed\n");
-                s.release();
-                return nt_status::INSUFFICIENT_RESOURCES;
-            }
-
-            s.namelen = file->get().namelen;
-            memcpy(s.name, file->get().name, s.namelen);
-        }
-
         s.file = file;
         s.file->get().acquire();
 
@@ -134,8 +122,6 @@ section::~section() {
 
     if (custom_cache)
         delete custom_cache;
-
-    free(name);
 }
 
 static span<char> get_section_name(const IMAGE_SECTION_HEADER& s, const IMAGE_FILE_HEADER& file_header,
