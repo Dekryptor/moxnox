@@ -5299,11 +5299,15 @@ nt_status btrfs_inode::query_standard_information(span<uint8_t> buffer, uint64_t
 
     auto& fsi = *(FILE_STANDARD_INFORMATION*)buffer.data();
 
-    fsi.AllocationSize.QuadPart = (int64_t)ii.nbytes;
-    fsi.EndOfFile.QuadPart = (int64_t)ii.size;
-    fsi.NumberOfLinks = ii.nlink;
-    fsi.DeletePending = 0; // FIXME
-    fsi.Directory = inode_type == inode_type::directory ? 1 : 0;
+    {
+        shared_lock lg(inode_lock);
+
+        fsi.AllocationSize.QuadPart = (int64_t)ii.nbytes;
+        fsi.EndOfFile.QuadPart = (int64_t)ii.size;
+        fsi.NumberOfLinks = ii.nlink;
+        fsi.DeletePending = 0; // FIXME
+        fsi.Directory = inode_type == inode_type::directory ? 1 : 0;
+    }
 
     retlen = sizeof(fsi);
 
