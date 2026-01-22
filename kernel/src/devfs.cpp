@@ -5,6 +5,7 @@ module;
 #include <optional>
 #include <span>
 #include <mutex>
+#include <shared_mutex>
 
 export module devfs;
 
@@ -52,6 +53,7 @@ public:
     nt_status read_into_cache(uint64_t page_num, uint64_t num_pages,
                               uint64_t& read_pages) override;
     nt_status flush_cache(uint64_t page_num, uint64_t num_pages) override;
+    nt_status query_basic_information(span<uint8_t> buffer, uint64_t& retlen);
 
     devfs_filesystem& fs; // FIXME - use reference in ::inode
     list_entry le;
@@ -147,10 +149,35 @@ nt_status devfs_inode::set_information(span<const uint8_t> /*buffer*/,
     return nt_status::NOT_IMPLEMENTED;
 }
 
-nt_status devfs_inode::query_information(span<uint8_t> /*buffer*/,
+nt_status devfs_inode::query_basic_information(span<uint8_t> buffer,
+                                               uint64_t& retlen) {
+    if (buffer.size() < sizeof(FILE_BASIC_INFORMATION))
+        return nt_status::BUFFER_TOO_SMALL;
+
+    auto& fbi = *(FILE_BASIC_INFORMATION*)buffer.data();
+
+    {
+        shared_lock lg(inode_lock);
+
+        fbi.CreationTime.QuadPart = otime;
+        fbi.LastAccessTime.QuadPart = atime;
+        fbi.LastWriteTime.QuadPart = mtime;
+        fbi.ChangeTime.QuadPart = ctime;
+        fbi.FileAttributes = inode_type == inode_type::directory ? FILE_ATTRIBUTE_DIRECTORY : 0; // FIXME
+    }
+
+    retlen = sizeof(fbi);
+
+    return nt_status::SUCCESS;
+}
+
+nt_status devfs_inode::query_information(span<uint8_t> buffer,
                                          FILE_INFORMATION_CLASS file_information_class,
-                                         uint64_t& /*retlen*/) {
+                                         uint64_t& retlen) {
     switch (file_information_class) {
+        case FILE_INFORMATION_CLASS::BasicInformation:
+            return query_basic_information(buffer, retlen);
+
         default:
             print("devfs_inode::query_information: unhandled file information class {}\n",
                  (unsigned int)file_information_class);
