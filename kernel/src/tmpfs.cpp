@@ -288,8 +288,8 @@ static nt_status query_directory_dirent(const tmpfs_dentry& d, span<uint8_t> buf
         }
 
         default:
-            print("tmpfs query_directory_dirent: unhandled info class {:x}\n",
-                  (unsigned int)file_information_class);
+            print("tmpfs query_directory_dirent: unhandled info class {}\n",
+                  file_information_class);
             return nt_status::INVALID_INFO_CLASS;
     }
 }
@@ -362,7 +362,7 @@ NTSTATUS tmpfs_inode::set_information(span<const uint8_t> buffer,
 
         default:
             print("tmpfs_inode::set_information: unhandled file information class {}\n",
-                  (unsigned int)file_information_class);
+                  file_information_class);
             return nt_status::NOT_IMPLEMENTED;
     }
 }
@@ -449,7 +449,7 @@ NTSTATUS tmpfs_inode::query_information(span<uint8_t> buffer,
 
         default:
             print("tmpfs_inode::query_information: unhandled file information class {}\n",
-                 (unsigned int)file_information_class);
+                  file_information_class);
             return nt_status::NOT_IMPLEMENTED;
     }
 }

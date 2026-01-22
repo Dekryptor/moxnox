@@ -499,6 +499,170 @@ consteval bool format_spec_valid<nt_status>(string_view fmt) {
     return fmt.empty();
 }
 
+span<char> do_format_arg(span<char> sp, string_view, FILE_INFORMATION_CLASS arg) {
+    switch (arg) {
+        using enum FILE_INFORMATION_CLASS;
+
+        case DirectoryInformation:
+            return sp_strcpy(sp, "DirectoryInformation");
+        case FullDirectoryInformation:
+            return sp_strcpy(sp, "FullDirectoryInformation");
+        case BothDirectoryInformation:
+            return sp_strcpy(sp, "BothDirectoryInformation");
+        case BasicInformation:
+            return sp_strcpy(sp, "BasicInformation");
+        case StandardInformation:
+            return sp_strcpy(sp, "StandardInformation");
+        case InternalInformation:
+            return sp_strcpy(sp, "InternalInformation");
+        case EaInformation:
+            return sp_strcpy(sp, "EaInformation");
+        case AccessInformation:
+            return sp_strcpy(sp, "AccessInformation");
+        case NameInformation:
+            return sp_strcpy(sp, "NameInformation");
+        case RenameInformation:
+            return sp_strcpy(sp, "RenameInformation");
+        case LinkInformation:
+            return sp_strcpy(sp, "LinkInformation");
+        case NamesInformation:
+            return sp_strcpy(sp, "NamesInformation");
+        case DispositionInformation:
+            return sp_strcpy(sp, "DispositionInformation");
+        case PositionInformation:
+            return sp_strcpy(sp, "PositionInformation");
+        case FullEaInformation:
+            return sp_strcpy(sp, "FullEaInformation");
+        case ModeInformation:
+            return sp_strcpy(sp, "ModeInformation");
+        case AlignmentInformation:
+            return sp_strcpy(sp, "AlignmentInformation");
+        case AllInformation:
+            return sp_strcpy(sp, "AllInformation");
+        case AllocationInformation:
+            return sp_strcpy(sp, "AllocationInformation");
+        case EndOfFileInformation:
+            return sp_strcpy(sp, "EndOfFileInformation");
+        case AlternateNameInformation:
+            return sp_strcpy(sp, "AlternateNameInformation");
+        case StreamInformation:
+            return sp_strcpy(sp, "StreamInformation");
+        case PipeInformation:
+            return sp_strcpy(sp, "PipeInformation");
+        case PipeLocalInformation:
+            return sp_strcpy(sp, "PipeLocalInformation");
+        case PipeRemoteInformation:
+            return sp_strcpy(sp, "PipeRemoteInformation");
+        case MailslotQueryInformation:
+            return sp_strcpy(sp, "MailslotQueryInformation");
+        case MailslotSetInformation:
+            return sp_strcpy(sp, "MailslotSetInformation");
+        case CompressionInformation:
+            return sp_strcpy(sp, "CompressionInformation");
+        case ObjectIdInformation:
+            return sp_strcpy(sp, "ObjectIdInformation");
+        case CompletionInformation:
+            return sp_strcpy(sp, "CompletionInformation");
+        case MoveClusterInformation:
+            return sp_strcpy(sp, "MoveClusterInformation");
+        case QuotaInformation:
+            return sp_strcpy(sp, "QuotaInformation");
+        case ReparsePointInformation:
+            return sp_strcpy(sp, "ReparsePointInformation");
+        case NetworkOpenInformation:
+            return sp_strcpy(sp, "NetworkOpenInformation");
+        case AttributeTagInformation:
+            return sp_strcpy(sp, "AttributeTagInformation");
+        case TrackingInformation:
+            return sp_strcpy(sp, "TrackingInformation");
+        case IdBothDirectoryInformation:
+            return sp_strcpy(sp, "IdBothDirectoryInformation");
+        case IdFullDirectoryInformation:
+            return sp_strcpy(sp, "IdFullDirectoryInformation");
+        case ValidDataLengthInformation:
+            return sp_strcpy(sp, "ValidDataLengthInformation");
+        case ShortNameInformation:
+            return sp_strcpy(sp, "ShortNameInformation");
+        case IoCompletionNotificationInformation:
+            return sp_strcpy(sp, "IoCompletionNotificationInformation");
+        case IoStatusBlockRangeInformation:
+            return sp_strcpy(sp, "IoStatusBlockRangeInformation");
+        case IoPriorityHintInformation:
+            return sp_strcpy(sp, "IoPriorityHintInformation");
+        case SfioReserveInformation:
+            return sp_strcpy(sp, "SfioReserveInformation");
+        case SfioVolumeInformation:
+            return sp_strcpy(sp, "SfioVolumeInformation");
+        case HardLinkInformation:
+            return sp_strcpy(sp, "HardLinkInformation");
+        case ProcessIdsUsingFileInformation:
+            return sp_strcpy(sp, "ProcessIdsUsingFileInformation");
+        case NormalizedNameInformation:
+            return sp_strcpy(sp, "NormalizedNameInformation");
+        case NetworkPhysicalNameInformation:
+            return sp_strcpy(sp, "NetworkPhysicalNameInformation");
+        case IdGlobalTxDirectoryInformation:
+            return sp_strcpy(sp, "IdGlobalTxDirectoryInformation");
+        case IsRemoteDeviceInformation:
+            return sp_strcpy(sp, "IsRemoteDeviceInformation");
+        case UnusedInformation:
+            return sp_strcpy(sp, "UnusedInformation");
+        case NumaNodeInformation:
+            return sp_strcpy(sp, "NumaNodeInformation");
+        case StandardLinkInformation:
+            return sp_strcpy(sp, "StandardLinkInformation");
+        case RemoteProtocolInformation:
+            return sp_strcpy(sp, "RemoteProtocolInformation");
+        case RenameInformationBypassAccessCheck:
+            return sp_strcpy(sp, "RenameInformationBypassAccessCheck");
+        case LinkInformationBypassAccessCheck:
+            return sp_strcpy(sp, "LinkInformationBypassAccessCheck");
+        case VolumeNameInformation:
+            return sp_strcpy(sp, "VolumeNameInformation");
+        case IdInformation:
+            return sp_strcpy(sp, "IdInformation");
+        case IdExtdDirectoryInformation:
+            return sp_strcpy(sp, "IdExtdDirectoryInformation");
+        case ReplaceCompletionInformation:
+            return sp_strcpy(sp, "ReplaceCompletionInformation");
+        case HardLinkFullIdInformation:
+            return sp_strcpy(sp, "HardLinkFullIdInformation");
+        case IdExtdBothDirectoryInformation:
+            return sp_strcpy(sp, "IdExtdBothDirectoryInformation");
+        case DispositionInformationEx:
+            return sp_strcpy(sp, "DispositionInformationEx");
+        case RenameInformationEx:
+            return sp_strcpy(sp, "RenameInformationEx");
+        case RenameInformationExBypassAccessCheck:
+            return sp_strcpy(sp, "RenameInformationExBypassAccessCheck");
+        case DesiredStorageClassInformation:
+            return sp_strcpy(sp, "DesiredStorageClassInformation");
+        case StatInformation:
+            return sp_strcpy(sp, "StatInformation");
+        case MemoryPartitionInformation:
+            return sp_strcpy(sp, "MemoryPartitionInformation");
+        case StatLxInformation:
+            return sp_strcpy(sp, "StatLxInformation");
+        case CaseSensitiveInformation:
+            return sp_strcpy(sp, "CaseSensitiveInformation");
+        case LinkInformationEx:
+            return sp_strcpy(sp, "LinkInformationEx");
+        case LinkInformationExBypassAccessCheck:
+            return sp_strcpy(sp, "LinkInformationExBypassAccessCheck");
+        case StorageReserveIdInformation:
+            return sp_strcpy(sp, "StorageReserveIdInformation");
+        case CaseSensitiveInformationForceAccessCheck:
+            return sp_strcpy(sp, "CaseSensitiveInformationForceAccessCheck");
+        default:
+            return do_format_arg(sp, "", (unsigned int)arg);
+    }
+}
+
+template<>
+consteval bool format_spec_valid<FILE_INFORMATION_CLASS>(string_view fmt) {
+    return fmt.empty();
+}
+
 export span<char> do_format_arg(span<char> sp, string_view, string_view arg) {
     return sp_strcpy(sp, arg);
 }
