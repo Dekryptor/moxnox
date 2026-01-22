@@ -144,6 +144,7 @@ export struct dentry {
     dentry* parent = nullptr;
     rwsem child_lock;
     list_entry children = { &children, &children };
+    spinlock name_lock;
     size_t name_len;
     char name[0];
 };
@@ -223,3 +224,4 @@ export nt_status open_inode(string_view fn, dentry& dir,
                             uint32_t create_disposition, uint32_t create_options,
                             unsigned int& create_result);
 export nt_status flush_filesystems(bool make_readonly);
+export nt_status get_dentry_path(dentry& dr, char*& path, size_t& path_len);

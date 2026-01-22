@@ -2671,11 +2671,52 @@ NTSTATUS NtCreateProcess(HANDLE* process_handle, ACCESS_MASK, const OBJECT_ATTRI
         return nt_status::INTERNAL_ERROR;
     }
 
-    if (!allocate_peb(p, 0, 0, 0, 0, "", string_view(img.name, img.namelen), u"")) {
+    char* path = nullptr;
+    size_t path_len;
+
+    if (img.file) {
+        auto& f = img.file->get();
+        dentry* d = nullptr;
+
+        {
+            lock_guard lg(f.lock);
+
+            if (f.dentry) {
+                d = f.dentry;
+                d->acquire();
+            }
+        }
+
+        if (d) {
+            auto status = get_dentry_path(*d, path, path_len);
+            if (!success(status)) {
+                print("get_dentry_path returned {}\n", status);
+                d->release();
+                p.release();
+                return status;
+            }
+
+            d->release();
+        }
+    }
+
+    string_view pathsv;
+
+    if (path)
+        pathsv = string_view(path, path_len);
+
+    if (!allocate_peb(p, 0, 0, 0, 0, "", pathsv, u"")) {
         print("allocate_peb failed\n");
         p.release();
+
+        if (path)
+            free(path);
+
         return nt_status::INTERNAL_ERROR;
     }
+
+    if (path)
+        free(path);
 
     // FIXME - token for process
 

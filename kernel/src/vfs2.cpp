@@ -1041,3 +1041,70 @@ NTSTATUS file::query_information(void* buffer, uint32_t buffer_size,
     return static_cast<inode&>(ino).query_information(span((uint8_t*)buffer, buffer_size),
                                                       file_information_class, retlen);
 }
+
+nt_status get_dentry_path(dentry& dr, char*& path, size_t& path_len) {
+    size_t len;
+    char* s;
+
+    while (true) {
+        size_t left;
+        bool done = false;
+
+        // go to root and count characters
+
+        len = 0;
+
+        auto* d = &dr;
+        while (d->name_len != 0) {
+            {
+                lock_guard lg(d->name_lock);
+                len += d->name_len + 1;
+            }
+
+            d = d->parent;
+        }
+
+        s = (char*)malloc(len);
+        if (!s)
+            return nt_status::INSUFFICIENT_RESOURCES;
+
+        auto p = s + len;
+
+        // go to root again and copy
+
+        left = len;
+        d = &dr;
+        while (d->name_len != 0) {
+            {
+                lock_guard lg(d->name_lock);
+
+                if (d->name_len >= left)
+                    break;
+
+                memcpy(p - d->name_len, d->name, d->name_len);
+                *(p - d->name_len - 1) = '/';
+
+                p -= d->name_len + 1;
+                left -= d->name_len + 1;
+            }
+
+            d = d->parent;
+
+            if (d->name_len == 0) {
+                if (left == 0)
+                    done = true;
+                break;
+            }
+        }
+
+        if (done)
+            break;
+
+        free(s);
+    }
+
+    path = s;
+    path_len = len;
+
+    return nt_status::SUCCESS;
+}
