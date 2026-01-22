@@ -54,6 +54,7 @@ public:
                               uint64_t& read_pages) override;
     nt_status flush_cache(uint64_t page_num, uint64_t num_pages) override;
     nt_status query_basic_information(span<uint8_t> buffer, uint64_t& retlen);
+    nt_status query_standard_information(span<uint8_t> buffer, uint64_t& retlen);
 
     devfs_filesystem& fs; // FIXME - use reference in ::inode
     list_entry le;
@@ -171,12 +172,37 @@ nt_status devfs_inode::query_basic_information(span<uint8_t> buffer,
     return nt_status::SUCCESS;
 }
 
+nt_status devfs_inode::query_standard_information(span<uint8_t> buffer,
+                                                  uint64_t& retlen) {
+    if (buffer.size() < sizeof(FILE_STANDARD_INFORMATION))
+        return nt_status::BUFFER_TOO_SMALL;
+
+    auto& fsi = *(FILE_STANDARD_INFORMATION*)buffer.data();
+
+    {
+        shared_lock lock(inode_lock);
+
+        fsi.AllocationSize.QuadPart = 0; // FIXME
+        fsi.EndOfFile.QuadPart = (int64_t)file_size;
+        fsi.NumberOfLinks = 1;
+        fsi.DeletePending = 0; // FIXME
+        fsi.Directory = inode_type == inode_type::directory ? 1 : 0;
+    }
+
+    retlen = sizeof(fsi);
+
+    return nt_status::SUCCESS;
+}
+
 nt_status devfs_inode::query_information(span<uint8_t> buffer,
                                          FILE_INFORMATION_CLASS file_information_class,
                                          uint64_t& retlen) {
     switch (file_information_class) {
         case FILE_INFORMATION_CLASS::BasicInformation:
             return query_basic_information(buffer, retlen);
+
+        case FILE_INFORMATION_CLASS::StandardInformation:
+            return query_standard_information(buffer, retlen);
 
         default:
             print("devfs_inode::query_information: unhandled file information class {}\n",
