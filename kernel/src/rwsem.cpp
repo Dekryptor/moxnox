@@ -21,7 +21,7 @@ public:
     void lock_shared();
     void unlock_shared();
 
-    unsigned int shared_count = 0;
+    int shared_count = 0;
     bool exclusive = false;
     list_entry wait_list_shared = { &wait_list_shared, &wait_list_shared };
     list_entry wait_list_exclusive = { &wait_list_exclusive, &wait_list_exclusive };
@@ -80,6 +80,8 @@ void rwsem::lock_shared() {
 
     // FIXME - follow ERESOURCE by not allowing if there's exclusive waiters?
 
+    assert(shared_count >= 0);
+
     if (!exclusive) {
         shared_count++;
         release_sync_lock();
@@ -99,6 +101,7 @@ void rwsem::unlock_shared() {
     acquire_sync_lock();
 
     assert(!exclusive);
+    assert(shared_count > 0);
 
     shared_count--;
 
