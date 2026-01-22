@@ -362,14 +362,8 @@ static void search_dentry_cache(dentry& dir, string_view name,
 nt_status open_inode(string_view fn, dentry& root_dir,
                      object_ref& obj_ref, uint32_t create_disposition,
                      uint32_t create_options, unsigned int& create_result) {
-    while (!fn.empty() && (fn.front() == '/' || fn.front() == '\\')) {
+    while (!fn.empty() && fn.front() == '/') {
         fn = string_view(fn.data() + 1, fn.size() - 1);
-    }
-
-    if (fn.empty()) {
-        root_dir.inode->acquire();
-        obj_ref = *root_dir.inode;
-        return nt_status::SUCCESS;
     }
 
     reference_wrapper<dentry> dirrw{root_dir};
@@ -387,14 +381,22 @@ nt_status open_inode(string_view fn, dentry& root_dir,
         nt_status status;
         object_ref obj_ref2;
 
-        // FIXME - .. and .
+        // FIXME - ..
         // FIXME - mount points
         // FIXME - negative dentries?
         // FIXME - dentry LRU
 
         // FIXME - FILE_SUPERSEDE, FILE_OVERWRITE, FILE_OVERWRITE_IF
 
-        {
+        if (name.empty() || name == ".") {
+            if (dir.inode->inode_type != inode_type::directory) {
+                dir.release();
+                return nt_status::OBJECT_PATH_SYNTAX_BAD;
+            }
+
+            drw = dir;
+            dir.acquire();
+        } else {
             shared_lock lg(dir.child_lock);
 
             search_dentry_cache(dir, name, drw);
