@@ -150,6 +150,7 @@ public:
                               uint64_t& read_pages) override;
     nt_status flush_cache(uint64_t page_num, uint64_t num_pages) override;
     nt_status set_basic_information(span<const uint8_t> buffer);
+    nt_status set_disposition_information(span<const uint8_t> buffer);
     nt_status query_basic_information(span<uint8_t> buffer, uint64_t& retlen);
     nt_status query_standard_information(span<uint8_t> buffer, uint64_t& retlen);
     nt_status flush_inode_item(btrfs_path& p);
@@ -5203,6 +5204,9 @@ NTSTATUS btrfs_inode::set_information(span<const uint8_t> buffer,
         case FILE_INFORMATION_CLASS::BasicInformation:
             return set_basic_information(buffer);
 
+        case FILE_INFORMATION_CLASS::DispositionInformation:
+            return set_disposition_information(buffer);
+
         default:
             print("btrfs_inode::set_information: unhandled file information class {}\n",
                   file_information_class);
@@ -5268,6 +5272,37 @@ nt_status btrfs_inode::set_basic_information(span<const uint8_t> buffer) {
     }
 
     // FIXME - FileAttributes
+
+    return nt_status::SUCCESS;
+}
+
+nt_status btrfs_inode::set_disposition_information(span<const uint8_t> buffer) {
+    if (buffer.size() < sizeof(FILE_DISPOSITION_INFORMATION))
+        return nt_status::INVALID_PARAMETER;
+
+    const auto& fdi = *(FILE_DISPOSITION_INFORMATION*)buffer.data();
+
+    // FIXME - this should actually be a non-POSIX deletion
+
+    if (!fdi.DeleteFile) // FIXME
+        return nt_status::NOT_SUPPORTED;
+
+    // FIXME - return early if already unlinked
+
+    {
+        lock_guard lock(fs.trans_lock);
+
+        // FIXME - remove DIR_ITEM
+        // FIXME - remove DIR_INDEX
+        // FIXME - remove INODE_REF / INODE_EXTREF
+        // FIXME - change size in parent
+        // FIXME - reduce nlink
+        // FIXME - if nlink == 0, add orphan item
+    }
+
+    // FIXME - invalidate dentry
+
+    // FIXME - remove inode properly when orphaned inode closed
 
     return nt_status::SUCCESS;
 }
