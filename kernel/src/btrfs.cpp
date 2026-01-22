@@ -5277,6 +5277,8 @@ nt_status btrfs_inode::set_basic_information(span<const uint8_t> buffer) {
 }
 
 nt_status btrfs_inode::set_disposition_information(span<const uint8_t> buffer) {
+    nt_status status;
+
     if (buffer.size() < sizeof(FILE_DISPOSITION_INFORMATION))
         return nt_status::INVALID_PARAMETER;
 
@@ -5296,7 +5298,43 @@ nt_status btrfs_inode::set_disposition_information(span<const uint8_t> buffer) {
         // FIXME - remove DIR_INDEX
         // FIXME - remove INODE_REF / INODE_EXTREF
         // FIXME - change size in parent
-        // FIXME - reduce nlink
+
+        // reduce nlink
+
+        {
+            btrfs_path p(fs.sb->nodesize);
+
+            status = fs.find_item(*r, {inode, key_type::INODE_ITEM, 0}, p, true);
+            if (!success(status))
+                return status;
+
+            auto& th = *(btrfs_header*)p.data[0];
+            auto items = span((btrfs_item*)((uint8_t*)&th + sizeof(btrfs_header)), th.nritems);
+
+            auto& it = items[p.slots[0]];
+            const auto& found_key = it.key;
+
+            if (found_key.objectid != inode || found_key.type != key_type::INODE_ITEM)
+                return nt_status::DISK_CORRUPT_ERROR;
+
+            auto data = span((const uint8_t*)&th + sizeof(btrfs_header) + it.offset, it.size);
+
+            if (it.size < sizeof(btrfs_inode_item))
+                return nt_status::DISK_CORRUPT_ERROR;
+
+            auto& ii = *(btrfs_inode_item*)data.data();
+
+            ii.nlink--;
+
+            // FIXME - update inode sequence and times?
+            // FIXME - generation?
+
+            // copy tree back into page cache and mark dirty
+
+            if (!fs.cache.write(span(p.data[0], fs.sb->nodesize), th.bytenr)) // FIXME - return status
+                return nt_status::INTERNAL_ERROR;
+        }
+
         // FIXME - if nlink == 0, add orphan item
     }
 
