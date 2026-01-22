@@ -17,6 +17,7 @@ import cmdline;
 import getopt;
 
 static bool long_mode = false;
+static bool directory_flag = false;
 
 static constexpr chrono::year_month_day system_time_to_ymd(int64_t system_time) noexcept {
     signed long long j, e, f, g, h;
@@ -225,12 +226,6 @@ static void ls_dir(HANDLE h) {
 static void ls(span<u16string_view> argv) {
     auto peb = NtCurrentTeb()->ProcessEnvironmentBlock;
 
-    // FIXME - this handle doesn't have FILE_LIST_DIRECTORY on NT?
-    if (argv.empty()) {
-        ls_dir(peb->ProcessParameters->CurrentDirectory.Handle);
-        return;
-    }
-
     struct dir_entry {
         list_entry le;
         u16string_view fn;
@@ -241,7 +236,7 @@ static void ls(span<u16string_view> argv) {
     list_entry file_list = { &file_list, &file_list };
     unsigned int num_file_entries = 0;
 
-    for (auto arg : argv) {
+    auto do_arg = [&dir_list, &file_list, &num_file_entries, &peb](u16string_view arg) {
         OBJECT_ATTRIBUTES oa;
         UNICODE_STRING us;
         NTSTATUS status;
@@ -267,10 +262,10 @@ static void ls(span<u16string_view> argv) {
         if (status == nt_status::OBJECT_NAME_NOT_FOUND ||
             status == nt_status::OBJECT_PATH_NOT_FOUND) {
             print("ls: {}: No such file or directory\n", arg); // FIXME - stderr
-            continue;
+            return;
         } else if (!success(status)) {
             print("ls: {}: NtCreateFile returned {}\n", arg, status); // FIXME - stderr
-            continue;
+            return;
         }
 
         status = NtQueryInformationFile(h, &iosb, &fbi, sizeof(fbi),
@@ -278,10 +273,10 @@ static void ls(span<u16string_view> argv) {
         if (!success(status)) {
             print("ls: {}: NtQueryInformationFile returned {}\n", arg, status); // FIXME - stderr
             NtClose(h);
-            continue;
+            return;
         }
 
-        if (fbi.FileAttributes & FILE_ATTRIBUTE_DIRECTORY) {
+        if (fbi.FileAttributes & FILE_ATTRIBUTE_DIRECTORY && !directory_flag) {
             auto e = (dir_entry*)malloc(sizeof(dir_entry));
             if (!e) {
                 NtTerminateThread(NtCurrentThread(), nt_status::INSUFFICIENT_RESOURCES);
@@ -311,7 +306,7 @@ static void ls(span<u16string_view> argv) {
                     print("ls: {}: NtQueryInformationFile returned {}\n", arg, status); // FIXME - stderr
                     NtClose(h);
                     free(e);
-                    continue;
+                    return;
                 }
 
                 fdi.EndOfFile = fsi.EndOfFile;
@@ -330,6 +325,14 @@ static void ls(span<u16string_view> argv) {
             insert_tail_list(file_list, e->le);
 
             NtClose(h);
+        }
+    };
+
+    if (argv.empty())
+        do_arg(u".");
+    else {
+        for (auto arg : argv) {
+            do_arg(arg);
         }
     }
 
@@ -387,7 +390,8 @@ extern "C" FORCE_ALIGN_ARG_POINTER void startup() {
     auto peb = teb->ProcessEnvironmentBlock;
 
     static const option options[] = {
-        { u"", u'l', []{ long_mode = true; } }
+        { u"", u'l', []{ long_mode = true; } },
+        { u"directory", u'd', []{ directory_flag = true; } }
     };
 
     auto cmdline = u16string_view(peb->ProcessParameters->CommandLine.Buffer,
