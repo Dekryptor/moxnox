@@ -429,6 +429,8 @@ span<char> do_format_arg(span<char> sp, string_view, nt_status arg) {
             return sp_strcpy(sp, "OBJECT_NAME_COLLISION");
         case nt_status::OBJECT_PATH_NOT_FOUND:
             return sp_strcpy(sp, "OBJECT_PATH_NOT_FOUND");
+        case nt_status::OBJECT_PATH_SYNTAX_BAD:
+            return sp_strcpy(sp, "OBJECT_PATH_SYNTAX_BAD");
         case nt_status::CRC_ERROR:
             return sp_strcpy(sp, "CRC_ERROR");
         case nt_status::SHARING_VIOLATION:
