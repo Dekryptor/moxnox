@@ -647,7 +647,6 @@ NTSTATUS NtCreateFile(HANDLE* file_handle, ACCESS_MASK access_mask,
 
     handle_t h;
 
-    // FIXME - stick in file object
     if (drw)
         drw->get().release();
 
@@ -668,6 +667,9 @@ NTSTATUS NtCreateFile(HANDLE* file_handle, ACCESS_MASK access_mask,
             return nt_status::INSUFFICIENT_RESOURCES;
         }
 
+        if (drw)
+            f->dentry = &drw->get();
+
         f->name = name;
         f->namelen = namelen;
 
@@ -679,6 +681,9 @@ NTSTATUS NtCreateFile(HANDLE* file_handle, ACCESS_MASK access_mask,
 
         f->release();
     } else {
+        if (drw) // FIXME - shouldn't happen, as only inodes get dentries at the moment
+            drw->get().release();
+
         status = p->add_handle(ino_ref.get(), access_mask, shared_okay, h);
         if (!success(status))
             return status;
@@ -849,6 +854,9 @@ file::file(object& ino, uint32_t create_options) : object(object_type::file), in
 
 file::~file() {
     object_release(ino);
+
+    if (dentry)
+        dentry->release();
 
     free(name);
 }
