@@ -59,7 +59,7 @@ void rwsem::unlock() { // exclusive
 
     assert(exclusive);
 
-    if (!is_list_empty(wait_list_exclusive)) {
+    if (shared_count == 0 && !is_list_empty(wait_list_exclusive)) {
         wake_up_exclusive_thread(*this);
         release_sync_lock();
         enable_interrupts();
