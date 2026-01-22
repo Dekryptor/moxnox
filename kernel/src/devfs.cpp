@@ -148,13 +148,14 @@ nt_status devfs_inode::set_information(span<const uint8_t> /*buffer*/,
 }
 
 nt_status devfs_inode::query_information(span<uint8_t> /*buffer*/,
-                                         FILE_INFORMATION_CLASS /*file_information_class*/,
+                                         FILE_INFORMATION_CLASS file_information_class,
                                          uint64_t& /*retlen*/) {
-    print("FIXME - devfs_inode::query_information\n");
-
-    // FIXME
-
-    return nt_status::NOT_IMPLEMENTED;
+    switch (file_information_class) {
+        default:
+            print("devfs_inode::query_information: unhandled file information class {}\n",
+                 (unsigned int)file_information_class);
+            return nt_status::NOT_IMPLEMENTED;
+    }
 }
 
 nt_status devfs_inode::read_into_cache(uint64_t /*page_num*/, uint64_t /*num_pages*/,
