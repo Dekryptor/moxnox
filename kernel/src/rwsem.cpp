@@ -78,12 +78,11 @@ void rwsem::lock_shared() {
     disable_interrupts();
     acquire_sync_lock();
 
-    // FIXME - follow ERESOURCE by not allowing if there's exclusive waiters?
-
     assert(shared_count >= 0);
 
-    if (!exclusive) {
-        shared_count++;
+    shared_count++;
+
+    if (!exclusive && is_list_empty(wait_list_exclusive)) {
         release_sync_lock();
         enable_interrupts();
         return;
