@@ -81,58 +81,12 @@ static void print_date(int64_t tm, int64_t now) {
     }
 }
 
+struct ls_entry {
+    list_entry le;
+    FILE_DIRECTORY_INFORMATION fdi;
+};
 
-static void ls_dir(HANDLE h) {
-    IO_STATUS_BLOCK iosb;
-    char buf[4096];
-    unsigned int num_entries = 0;
-    list_entry list = { &list, &list };
-
-    struct ls_entry {
-        list_entry le;
-        FILE_DIRECTORY_INFORMATION fdi;
-    };
-
-    while (true) {
-        auto status = NtQueryDirectoryFile(h, 0, nullptr, nullptr,
-                                           &iosb, buf, sizeof(buf), FILE_INFORMATION_CLASS::DirectoryInformation,
-                                           false, nullptr, num_entries == 0 ? true : false);
-
-        if (status == nt_status::NO_MORE_FILES)
-            break;
-        else if (!success(status)) {
-            print("NtQueryDirectoryFile returned {}\n", status); // FIXME - should be to stderr
-            NtTerminateThread(NtCurrentThread(), status);
-            unreachable();
-        }
-
-        auto fdi = (FILE_DIRECTORY_INFORMATION*)buf;
-
-        while (true) {
-            size_t ent_len = offsetof(ls_entry, fdi.FileName) + fdi->FileNameLength;
-
-            auto ent = (ls_entry*)RtlAllocateHeap(GetProcessHeap(), 0, ent_len);
-            if (!ent) {
-                NtTerminateThread(NtCurrentThread(), nt_status::INSUFFICIENT_RESOURCES);
-                unreachable();
-            }
-
-            memcpy(&ent->fdi, fdi, offsetof(FILE_DIRECTORY_INFORMATION, FileName) + fdi->FileNameLength);
-
-            insert_tail_list(list, ent->le);
-
-            num_entries++;
-
-            if (fdi->NextEntryOffset == 0)
-                break;
-
-            fdi = (FILE_DIRECTORY_INFORMATION*)((uint8_t*)fdi + fdi->NextEntryOffset);
-        }
-    }
-
-    if (is_list_empty(list))
-        return;
-
+static void print_file_list(list_entry& list, unsigned int num_entries) {
     uint64_t max_size = 0;
 
     for (auto le = list.next; le != &list; le = le->next) {
@@ -207,11 +161,65 @@ static void ls_dir(HANDLE h) {
             print("\e[0m");
 
         print("\n");
-
-        RtlFreeHeap(GetProcessHeap(), 0, &ent);
     }
 
     RtlFreeHeap(GetProcessHeap(), 0, arr);
+}
+
+static void ls_dir(HANDLE h) {
+    IO_STATUS_BLOCK iosb;
+    char buf[4096];
+    unsigned int num_entries = 0;
+    list_entry list = { &list, &list };
+
+    while (true) {
+        auto status = NtQueryDirectoryFile(h, 0, nullptr, nullptr,
+                                           &iosb, buf, sizeof(buf), FILE_INFORMATION_CLASS::DirectoryInformation,
+                                           false, nullptr, num_entries == 0 ? true : false);
+
+        if (status == nt_status::NO_MORE_FILES)
+            break;
+        else if (!success(status)) {
+            print("NtQueryDirectoryFile returned {}\n", status); // FIXME - should be to stderr
+            NtTerminateThread(NtCurrentThread(), status);
+            unreachable();
+        }
+
+        auto fdi = (FILE_DIRECTORY_INFORMATION*)buf;
+
+        while (true) {
+            size_t ent_len = offsetof(ls_entry, fdi.FileName) + fdi->FileNameLength;
+
+            auto ent = (ls_entry*)RtlAllocateHeap(GetProcessHeap(), 0, ent_len);
+            if (!ent) {
+                NtTerminateThread(NtCurrentThread(), nt_status::INSUFFICIENT_RESOURCES);
+                unreachable();
+            }
+
+            memcpy(&ent->fdi, fdi, offsetof(FILE_DIRECTORY_INFORMATION, FileName) + fdi->FileNameLength);
+
+            insert_tail_list(list, ent->le);
+
+            num_entries++;
+
+            if (fdi->NextEntryOffset == 0)
+                break;
+
+            fdi = (FILE_DIRECTORY_INFORMATION*)((uint8_t*)fdi + fdi->NextEntryOffset);
+        }
+    }
+
+    if (is_list_empty(list))
+        return;
+
+    print_file_list(list, num_entries);
+
+    while (!is_list_empty(list)) {
+        auto& e = containing_record<ls_entry>(list.next);
+
+        remove_entry_list(e.le);
+        free(&e);
+    }
 }
 
 static void ls(span<u16string_view> argv) {
@@ -223,7 +231,7 @@ static void ls(span<u16string_view> argv) {
         return;
     }
 
-    struct entry {
+    struct dir_entry {
         list_entry le;
         u16string_view fn;
         HANDLE h;
@@ -231,6 +239,7 @@ static void ls(span<u16string_view> argv) {
 
     list_entry dir_list = { &dir_list, &dir_list };
     list_entry file_list = { &file_list, &file_list };
+    unsigned int num_file_entries = 0;
 
     for (auto arg : argv) {
         OBJECT_ATTRIBUTES oa;
@@ -272,25 +281,62 @@ static void ls(span<u16string_view> argv) {
             continue;
         }
 
-        auto e = (entry*)malloc(sizeof(entry));
-        if (!e) {
-            NtTerminateThread(NtCurrentThread(), nt_status::INSUFFICIENT_RESOURCES);
-            unreachable();
-        }
+        if (fbi.FileAttributes & FILE_ATTRIBUTE_DIRECTORY) {
+            auto e = (dir_entry*)malloc(sizeof(dir_entry));
+            if (!e) {
+                NtTerminateThread(NtCurrentThread(), nt_status::INSUFFICIENT_RESOURCES);
+                unreachable();
+            }
 
-        e->fn = arg;
-        e->h = h;
+            e->fn = arg;
+            e->h = h;
 
-        if (fbi.FileAttributes & FILE_ATTRIBUTE_DIRECTORY)
             insert_tail_list(dir_list, e->le);
-        else
+        } else {
+            size_t len = offsetof(ls_entry, fdi.FileName) + (arg.size() * sizeof(char16_t));
+            auto e = (ls_entry*)malloc(len);
+            if (!e) {
+                NtTerminateThread(NtCurrentThread(), nt_status::INSUFFICIENT_RESOURCES);
+                unreachable();
+            }
+
+            auto& fdi = e->fdi;
+
+            if (long_mode) {
+                FILE_STANDARD_INFORMATION fsi;
+
+                status = NtQueryInformationFile(h, &iosb, &fsi, sizeof(fsi),
+                                                FILE_INFORMATION_CLASS::StandardInformation);
+                if (!success(status)) {
+                    print("ls: {}: NtQueryInformationFile returned {}\n", arg, status); // FIXME - stderr
+                    NtClose(h);
+                    free(e);
+                    continue;
+                }
+
+                fdi.EndOfFile = fsi.EndOfFile;
+                fdi.AllocationSize = fsi.AllocationSize;
+            }
+
+            fdi.CreationTime = fbi.CreationTime;
+            fdi.LastAccessTime = fbi.LastAccessTime;
+            fdi.LastWriteTime = fbi.LastWriteTime;
+            fdi.ChangeTime = fbi.ChangeTime;
+            fdi.FileAttributes = fbi.FileAttributes;
+            fdi.FileNameLength = (uint32_t)(arg.size() * sizeof(char16_t));
+            memcpy(fdi.FileName, arg.data(), arg.size() * sizeof(char16_t));
+
+            num_file_entries++;
             insert_tail_list(file_list, e->le);
+
+            NtClose(h);
+        }
     }
 
     // only one entry, which is directory
     if (is_list_empty(file_list) && !is_list_empty(dir_list) &&
         dir_list.next->next == &dir_list) {
-        auto& e = containing_record<entry>(dir_list.next);
+        auto& e = containing_record<dir_entry>(dir_list.next);
 
         ls_dir(e.h);
         NtClose(e.h);
@@ -299,19 +345,22 @@ static void ls(span<u16string_view> argv) {
         return;
     }
 
-    // FIXME - print file_list
+    bool first = true;
 
-    for (auto le = file_list.next; le != &file_list; le = le->next) {
-        auto& e = containing_record<entry>(le);
+    if (!is_list_empty(file_list)) {
+        print_file_list(file_list, num_file_entries);
+        first = false;
+    }
 
-        NtClose(e.h);
+    while (!is_list_empty(file_list)) {
+        auto& e = containing_record<ls_entry>(file_list.next);
+
         remove_entry_list(e.le);
         free(&e);
     }
 
-    bool first = true;
     while (!is_list_empty(dir_list)) {
-        auto& e = containing_record<entry>(dir_list.next);
+        auto& e = containing_record<dir_entry>(dir_list.next);
 
         if (!first)
             print("\n");
