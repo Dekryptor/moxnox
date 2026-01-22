@@ -160,10 +160,10 @@ nt_status devfs_inode::query_basic_information(span<uint8_t> buffer,
     {
         shared_lock lg(inode_lock);
 
-        fbi.CreationTime.QuadPart = otime;
-        fbi.LastAccessTime.QuadPart = atime;
-        fbi.LastWriteTime.QuadPart = mtime;
-        fbi.ChangeTime.QuadPart = ctime;
+        fbi.CreationTime.QuadPart = (int64_t)otime;
+        fbi.LastAccessTime.QuadPart = (int64_t)atime;
+        fbi.LastWriteTime.QuadPart = (int64_t)mtime;
+        fbi.ChangeTime.QuadPart = (int64_t)ctime;
         fbi.FileAttributes = inode_type == inode_type::directory ? FILE_ATTRIBUTE_DIRECTORY : 0; // FIXME
     }
 
