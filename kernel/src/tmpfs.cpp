@@ -50,6 +50,7 @@ public:
                               uint64_t& read_pages) override;
     nt_status flush_cache(uint64_t page_num, uint64_t num_pages) override;
     nt_status set_basic_information(span<const uint8_t> buffer);
+    nt_status query_basic_information(span<uint8_t> buffer, uint64_t& retlen);
     nt_status query_standard_information(span<uint8_t> buffer, uint64_t& retlen);
 
     tmpfs_filesystem& fs; // FIXME - use reference in ::inode
@@ -392,6 +393,28 @@ nt_status tmpfs_inode::set_basic_information(span<const uint8_t> buffer) {
     return nt_status::SUCCESS;
 }
 
+nt_status tmpfs_inode::query_basic_information(span<uint8_t> buffer,
+                                               uint64_t& retlen) {
+    if (buffer.size() < sizeof(FILE_BASIC_INFORMATION))
+        return nt_status::BUFFER_TOO_SMALL;
+
+    auto& fbi = *(FILE_BASIC_INFORMATION*)buffer.data();
+
+    {
+        shared_lock llock(inode_lock);
+
+        fbi.CreationTime.QuadPart = (int64_t)otime;
+        fbi.LastAccessTime.QuadPart = (int64_t)atime;
+        fbi.LastWriteTime.QuadPart = (int64_t)mtime;
+        fbi.ChangeTime.QuadPart = (int64_t)ctime;
+        fbi.FileAttributes = inode_type == inode_type::directory ? FILE_ATTRIBUTE_DIRECTORY : 0; // FIXME
+    }
+
+    retlen = sizeof(fbi);
+
+    return nt_status::SUCCESS;
+}
+
 nt_status tmpfs_inode::query_standard_information(span<uint8_t> buffer,
                                                   uint64_t& retlen) {
     if (buffer.size() < sizeof(FILE_STANDARD_INFORMATION))
@@ -418,6 +441,9 @@ NTSTATUS tmpfs_inode::query_information(span<uint8_t> buffer,
                                         FILE_INFORMATION_CLASS file_information_class,
                                         uint64_t& retlen) {
     switch (file_information_class) {
+        case FILE_INFORMATION_CLASS::BasicInformation:
+            return query_basic_information(buffer, retlen);
+
         case FILE_INFORMATION_CLASS::StandardInformation:
             return query_standard_information(buffer, retlen);
 
