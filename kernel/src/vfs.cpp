@@ -187,8 +187,6 @@ public:
     uint64_t file_offset = 0;
     uint64_t query_dir_index = 0;
     dentry* dentry = nullptr;
-    char* name = nullptr;
-    size_t namelen = 0;
     uint32_t create_options;
 
     NTSTATUS read(span<uint8_t> s, uint64_t& read_bytes);

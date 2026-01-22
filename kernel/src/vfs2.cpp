@@ -643,6 +643,8 @@ NTSTATUS NtCreateFile(HANDLE* file_handle, ACCESS_MASK access_mask,
         return status;
     }
 
+    free(name);
+
     shared_okay = !object_is_exclusive(ino_ref.get());
 
     handle_t h;
@@ -662,16 +664,11 @@ NTSTATUS NtCreateFile(HANDLE* file_handle, ACCESS_MASK access_mask,
 
         auto f = new file(ino_ref.get(), create_options);
 
-        if (!f) {
-            free(name);
+        if (!f)
             return nt_status::INSUFFICIENT_RESOURCES;
-        }
 
         if (drw)
             f->dentry = &drw->get();
-
-        f->name = name;
-        f->namelen = namelen;
 
         status = p->add_handle(*f, access_mask, shared_okay, h);
         if (!success(status)) {
@@ -857,8 +854,6 @@ file::~file() {
 
     if (dentry)
         dentry->release();
-
-    free(name);
 }
 
 NTSTATUS file::read(span<uint8_t> s, uint64_t& read_bytes) {
