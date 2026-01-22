@@ -354,16 +354,20 @@ object_ref create_process(string_view fn, string_view curdir,
                           object_ref& stdoutobj, object_ref& stderrobj) {
     nt_status status;
     object_ref img_inode_ref, curdir_ref;
+    optional<reference_wrapper<dentry>> drw;
     unsigned int create_result;
 
     // FIXME - merge with NtCreateProcess?
 
-    status = open_inode(fn, *root_dentry, img_inode_ref, FILE_OPEN,
+    status = open_inode(fn, *root_dentry, img_inode_ref, drw, FILE_OPEN,
                         FILE_NON_DIRECTORY_FILE, create_result);
     if (!success(status)) { // FIXME - return status
         print("open_inode failed for {}: {}\n", fn, status);
         return {};
     }
+
+    if (drw)
+        drw->get().release();
 
     if (img_inode_ref.get().type != object_type::inode) {
         print("open_inode returned something other than inode\n");
@@ -372,12 +376,15 @@ object_ref create_process(string_view fn, string_view curdir,
 
     auto& img_inode = static_cast<inode&>(img_inode_ref.get());
 
-    status = open_inode(curdir, *root_dentry, curdir_ref, FILE_OPEN,
+    status = open_inode(curdir, *root_dentry, curdir_ref, drw, FILE_OPEN,
                         FILE_NON_DIRECTORY_FILE, create_result);
     if (!success(status)) { // FIXME - return status
         print("open_inode failed for {}: {}\n", curdir, status);
         return {};
     }
+
+    if (drw)
+        drw->get().release();
 
     auto& curdir_obj = curdir_ref.get();
     if (curdir_obj.type != object_type::inode) {
@@ -1600,12 +1607,16 @@ bool process::copy_to(void* us_addr, const void* ks_addr, size_t size) {
 void load_ntdll() {
     nt_status status;
     object_ref inode_ref;
+    optional<reference_wrapper<dentry>> drw;
     unsigned int create_result;
 
-    status = open_inode("/ntdll.dll", *root_dentry, inode_ref, FILE_OPEN,
+    status = open_inode("/ntdll.dll", *root_dentry, inode_ref, drw, FILE_OPEN,
                         FILE_NON_DIRECTORY_FILE, create_result);
     if (!success(status))
         bsod_format("open_inode returned {} for ntdll.dll", status);
+
+    if (drw)
+        drw->get().release();
 
     if (inode_ref.get().type != object_type::inode)
         bsod("open_inode returned something other than an inode");

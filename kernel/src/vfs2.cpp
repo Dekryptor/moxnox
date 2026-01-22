@@ -150,16 +150,20 @@ static nt_status extract_initrd_file(string_view path, uint64_t mode,
     if (S_ISDIR(mode) && path == ".")
         return nt_status::SUCCESS;
 
-    object_ref file;
+    object_ref inorw;
+    optional<reference_wrapper<dentry>> drw;
     unsigned int create_result;
 
-    auto status = open_inode(path, *root_dentry, file, FILE_CREATE,
+    auto status = open_inode(path, *root_dentry, inorw, drw, FILE_CREATE,
                              S_ISDIR(mode) ? FILE_DIRECTORY_FILE : 0,
                              create_result);
     if (!success(status))
         return status;
 
-    auto& ino = static_cast<inode&>(file.get());
+    if (drw)
+        drw->get().release();
+
+    auto& ino = static_cast<inode&>(inorw.get());
     FILE_BASIC_INFORMATION fbi;
 
     memset(&fbi, 0, sizeof(fbi));
@@ -273,26 +277,36 @@ bool mount_root() {
 
 bool mount_devfs() {
     object_ref dev;
+    optional<reference_wrapper<dentry>> drw;
     unsigned int result;
 
     // FIXME - do this in init instead
 
-    auto status = open_inode("/dev", *root_dentry, dev, FILE_OPEN_IF,
+    auto status = open_inode("/dev", *root_dentry, dev, drw, FILE_OPEN_IF,
                              FILE_DIRECTORY_FILE, result);
     if (!success(status)) {
         print("open_inode returned {}\n", status);
         return false;
     }
 
+    if (!drw) {
+        print("open_inode did not return a dentry\n");
+        return false;
+    }
+
+    auto& d = drw->get();
+
     if (dev.get().type != object_type::inode) {
         print("/dev was {}, expected inode\n", dev.get().type);
+        d.release();
         return false;
     }
 
     auto& ino = static_cast<inode&>(dev.get());
 
     if (ino.inode_type != inode_type::directory) {
-        print("/dev was {}, expected inode\n", ino.inode_type);
+        print("/dev was {}, expected directory\n", ino.inode_type);
+        d.release();
         return false;
     }
 
@@ -302,7 +316,6 @@ bool mount_devfs() {
         return false;
     }
 
-    auto& d = *ino.dentry;
     inode* ino2 = fs->root_inode;
 
     ino2->acquire();
@@ -360,13 +373,14 @@ static void search_dentry_cache(dentry& dir, string_view name,
 };
 
 nt_status open_inode(string_view fn, dentry& root_dir,
-                     object_ref& obj_ref, uint32_t create_disposition,
-                     uint32_t create_options, unsigned int& create_result) {
+                     object_ref& obj_ref, optional<reference_wrapper<dentry>>& dentry,
+                     uint32_t create_disposition, uint32_t create_options,
+                     unsigned int& create_result) {
     while (!fn.empty() && fn.front() == '/') {
         fn = string_view(fn.data() + 1, fn.size() - 1);
     }
 
-    reference_wrapper<dentry> dirrw{root_dir};
+    reference_wrapper<::dentry> dirrw{root_dir};
     dirrw.get().acquire();
 
     // FIXME - die if anything in middle not directory
@@ -375,7 +389,7 @@ nt_status open_inode(string_view fn, dentry& root_dir,
         auto sl = fn.find("/");
         auto& dir = dirrw.get();
         bool last_bit = sl == string_view::npos;
-        optional<reference_wrapper<dentry>> drw;
+        optional<reference_wrapper<::dentry>> drw;
         auto name = last_bit ? fn : string_view(fn.data(), sl);
         auto dispo = last_bit ? create_disposition : FILE_OPEN;
         nt_status status;
@@ -486,7 +500,7 @@ nt_status open_inode(string_view fn, dentry& root_dir,
         if (last_bit) {
             d.inode->acquire();
             obj_ref = *d.inode;
-            d.release();
+            dentry = d;
 
             return nt_status::SUCCESS;
         }
@@ -617,11 +631,12 @@ NTSTATUS NtCreateFile(HANDLE* file_handle, ACCESS_MASK access_mask,
     }
 
     object_ref ino_ref;
+    optional<reference_wrapper<dentry>> drw;
     unsigned int create_result;
 
     status = open_inode(string_view(name, namelen),
                         *static_cast<inode&>(root_dir.get()).dentry,
-                        ino_ref, create_disposition, create_options,
+                        ino_ref, drw, create_disposition, create_options,
                         create_result);
     if (!success(status)) {
         free(name);
@@ -631,6 +646,10 @@ NTSTATUS NtCreateFile(HANDLE* file_handle, ACCESS_MASK access_mask,
     shared_okay = !object_is_exclusive(ino_ref.get());
 
     handle_t h;
+
+    // FIXME - stick in file object
+    if (drw)
+        drw->get().release();
 
     // FIXME - should non-inodes also be encapsulated in file?
 
