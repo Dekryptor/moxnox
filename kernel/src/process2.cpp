@@ -1645,14 +1645,19 @@ void load_ntdll() {
     if (!success(status))
         bsod_format("open_inode returned {} for ntdll.dll", status);
 
-    if (drw)
-        drw->get().release();
-
     if (inode_ref.get().type != object_type::inode)
         bsod("open_inode returned something other than an inode");
 
-    object_ref f(*new file(inode_ref.get(), 0));
+    auto ntdll_file = new file(inode_ref.get(), 0);
+
+    if (!ntdll_file)
+        bsod("load_ntdll: new failed");
+
+    object_ref f(*ntdll_file);
     object_ref ntdllh;
+
+    if (drw)
+        ntdll_file->dentry = &drw->get();
 
     status = create_section(static_cast<file&>(f.get()), true, 0,
                             PAGE_READWRITE, ntdllh);
