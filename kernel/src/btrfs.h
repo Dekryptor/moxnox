@@ -55,6 +55,7 @@ static constexpr uint64_t BTRFS_FREE_SPACE_TREE_OBJECTID = 0xa;
 static constexpr uint64_t BTRFS_BLOCK_GROUP_TREE_OBJECTID = 0xb;
 static constexpr uint64_t BTRFS_EXTENT_CSUM_OBJECTID = 0xfffffffffffffff6;
 static constexpr uint64_t BTRFS_DATA_RELOC_TREE_OBJECTID = 0xfffffffffffffff7;
+static constexpr uint64_t BTRFS_ORPHAN_OBJECTID = 0xfffffffffffffffb;
 
 static constexpr uint64_t BTRFS_FIRST_FREE_OBJECTID = 0x100;
 static constexpr uint64_t BTRFS_LAST_FREE_OBJECTID = 0xffffffffffffff00;

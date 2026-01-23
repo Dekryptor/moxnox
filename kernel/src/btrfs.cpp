@@ -5508,16 +5508,34 @@ nt_status btrfs_inode::set_disposition_information(span<const uint8_t> buffer,
 
         // change nlink in inode item
 
-        ii.nlink--;
-        // FIXME - update inode sequence and times?
-        // FIXME - generation?
+        bool orphaned;
+
+        {
+            lock_guard lg(inode_lock);
+
+            ii.nlink--;
+            // FIXME - update inode sequence and times?
+            // FIXME - generation?
+
+            orphaned = ii.nlink == 0;
+        }
+
         status = flush_inode_item(p);
         if (!success(status)) {
             free(name_buf);
             return status;
         }
 
-        // FIXME - if nlink == 0, add orphan item
+        // add orphan item if nlink now 0
+        if (orphaned) {
+            status = insert_item(fs, *r,
+                                 {BTRFS_ORPHAN_OBJECTID, key_type::ORPHAN_INODE, inode},
+                                 span<const uint8_t>());
+            if (!success(status)) {
+                free(name_buf);
+                return status;
+            }
+        }
     }
 
     free(name_buf);
