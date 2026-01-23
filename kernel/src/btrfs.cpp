@@ -5385,7 +5385,65 @@ static nt_status remove_dir_item(btrfs_filesystem& fs, root& r, uint64_t inode,
     if (!success(status))
         return status;
 
-    // FIXME - remove DIR_ITEM
+    // remove DIR_ITEM
+
+    {
+        btrfs_path p(fs.sb->nodesize);
+        auto k = btrfs_key{parent, key_type::DIR_ITEM, calc_crc32c(0xfffffffe, name)};
+
+        status = fs.find_item(r, k, p, true);
+        if (!success(status))
+            return status;
+
+        auto& th = *(btrfs_header*)p.data[0];
+        auto items = span((btrfs_item*)((uint8_t*)&th + sizeof(btrfs_header)), th.nritems);
+
+        if (p.slots[0] == th.nritems) {
+            print("remove_dir_item: could not find {}\n", k);
+            return nt_status::DISK_CORRUPT_ERROR;
+        }
+
+        const auto& it = items[p.slots[0]];
+        const auto& found_key = it.key;
+
+        if (found_key != k) {
+            print("remove_dir_item: could not find {}\n", k);
+            return nt_status::DISK_CORRUPT_ERROR;
+        }
+
+        bool done = false;
+        auto data = span((const uint8_t*)&th + sizeof(btrfs_header) + it.offset, it.size);
+
+        while (data.size() >= offsetof(btrfs_dir_item, name)) {
+            const auto& di = *(btrfs_dir_item*)data.data();
+            size_t exp_len = offsetof(btrfs_dir_item, name) + di.data_len + di.name_len;
+
+            if (data.size() < exp_len)
+                break;
+
+            if (string_view(di.name, di.name_len) == name) {
+                if (it.size == exp_len) {
+                    status = fs.remove_item2(p);
+                    if (!success(status))
+                        return status;
+                }
+
+                // FIXME - shortening if multiple entries
+
+                done = true;
+
+                break;
+            }
+
+            data = data.subspan(exp_len, data.size() - exp_len);
+        }
+
+        if (!done) {
+            print("remove_dir_item: failed to find \"{}\" in {}\n",
+                  name, k);
+            return nt_status::DISK_CORRUPT_ERROR;
+        }
+    }
 
     return nt_status::SUCCESS;
 }
