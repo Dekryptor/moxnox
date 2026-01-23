@@ -160,9 +160,6 @@ static nt_status extract_initrd_file(string_view path, uint64_t mode,
     if (!success(status))
         return status;
 
-    if (drw)
-        drw->get().release();
-
     auto& ino = static_cast<inode&>(inorw.get());
     FILE_BASIC_INFORMATION fbi;
 
@@ -170,8 +167,13 @@ static nt_status extract_initrd_file(string_view path, uint64_t mode,
 
     fbi.LastWriteTime.QuadPart = (int64_t)unix_to_system_time(mtime);
 
-    status = ino.set_information(span((const uint8_t*)&fbi, sizeof(fbi)),
+    status = ino.set_information(span((const uint8_t*)&fbi, sizeof(fbi)), drw->get(),
                                  FILE_INFORMATION_CLASS::BasicInformation);
+
+    if (drw)
+        drw->get().release();
+
+
     if (!success(status))
         return status;
 
@@ -1000,7 +1002,7 @@ NTSTATUS file::set_information(void* buffer, uint32_t buffer_size,
         return nt_status::INVALID_PARAMETER;
 
     return static_cast<inode&>(ino).set_information(span((uint8_t*)buffer, buffer_size),
-                                                    file_information_class);
+                                                    *dentry,  file_information_class);
 }
 
 extern "C"

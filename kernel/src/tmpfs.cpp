@@ -41,7 +41,7 @@ public:
                            optional<reference_wrapper<inode>>& obj) override;
     NTSTATUS query_directory(span<uint8_t> buf, FILE_INFORMATION_CLASS file_information_class,
                              uint64_t& index) override;
-    NTSTATUS set_information(span<const uint8_t> buffer,
+    NTSTATUS set_information(span<const uint8_t> buffer, dentry& dentry,
                              FILE_INFORMATION_CLASS file_information_class) override;
     NTSTATUS query_information(span<uint8_t> buffer,
                                FILE_INFORMATION_CLASS file_information_class,
@@ -351,7 +351,7 @@ nt_status tmpfs_inode::flush_cache(uint64_t, uint64_t) {
     return nt_status::SUCCESS;
 }
 
-NTSTATUS tmpfs_inode::set_information(span<const uint8_t> buffer,
+NTSTATUS tmpfs_inode::set_information(span<const uint8_t> buffer, dentry& /*dentry*/,
                                       FILE_INFORMATION_CLASS file_information_class) {
     if (static_cast<tmpfs_filesystem&>(fs).readonly)
         return nt_status::MEDIA_WRITE_PROTECTED;

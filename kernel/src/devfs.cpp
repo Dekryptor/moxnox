@@ -45,7 +45,7 @@ public:
                            optional<reference_wrapper<inode>>& obj) override;
     nt_status query_directory(span<uint8_t> buf, FILE_INFORMATION_CLASS file_information_class,
                              uint64_t& index) override;
-    nt_status set_information(span<const uint8_t> buffer,
+    nt_status set_information(span<const uint8_t> buffer, dentry& dentry,
                               FILE_INFORMATION_CLASS file_information_class) override;
     nt_status query_information(span<uint8_t> buffer,
                                 FILE_INFORMATION_CLASS file_information_class,
@@ -142,6 +142,7 @@ nt_status devfs_inode::query_directory(span<uint8_t> /*buf*/,
 }
 
 nt_status devfs_inode::set_information(span<const uint8_t> /*buffer*/,
+                                       dentry& /*dentry*/,
                                        FILE_INFORMATION_CLASS /*file_information_class*/) {
     print("FIXME - devfs_inode::set_information\n");
 

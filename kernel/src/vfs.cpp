@@ -90,7 +90,7 @@ public:
                                    optional<reference_wrapper<::inode>>& obj) = 0;
     virtual nt_status query_directory(span<uint8_t> buf, FILE_INFORMATION_CLASS file_information_class,
                                       uint64_t& index) = 0;
-    virtual nt_status set_information(span<const uint8_t> buffer,
+    virtual nt_status set_information(span<const uint8_t> buffer, dentry& dentry,
                                       FILE_INFORMATION_CLASS file_information_class) = 0;
     virtual nt_status query_information(span<uint8_t> buffer,
                                         FILE_INFORMATION_CLASS file_information_class,
