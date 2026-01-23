@@ -5414,29 +5414,64 @@ static nt_status remove_dir_item(btrfs_filesystem& fs, root& r, uint64_t inode,
 
         bool done = false;
         auto data = span((const uint8_t*)&th + sizeof(btrfs_header) + it.offset, it.size);
+        auto orig_data = data;
 
         while (data.size() >= offsetof(btrfs_dir_item, name)) {
             const auto& di = *(btrfs_dir_item*)data.data();
-            size_t exp_len = offsetof(btrfs_dir_item, name) + di.data_len + di.name_len;
+            size_t len = offsetof(btrfs_dir_item, name) + di.data_len + di.name_len;
 
-            if (data.size() < exp_len)
+            if (data.size() < len)
                 break;
 
             if (string_view(di.name, di.name_len) == name) {
-                if (it.size == exp_len) {
+                if (orig_data.size() == len) {
                     status = fs.remove_item2(p);
                     if (!success(status))
                         return status;
-                }
+                } else {
+                    if (data.data() + len == orig_data.data() + orig_data.size())
+                        fs.shorten_item(p, (uint32_t)len);
+                    else {
+                        auto buf = (uint8_t*)malloc(orig_data.size() - len);
+                        if (!buf) {
+                            print("malloc failed\n");
+                            return nt_status::INSUFFICIENT_RESOURCES;
+                        }
 
-                // FIXME - shortening if multiple entries
+                        size_t bef = data.data() - orig_data.data();
+
+                        memcpy(buf, orig_data.data(), bef);
+                        memcpy(buf + bef, data.data() + len,
+                               orig_data.size() - bef - len);
+
+                        fs.shorten_item(p, (uint32_t)len);
+
+                        {
+                            auto& th2 = *(btrfs_header*)p.data[0];
+                            auto items2 = span((btrfs_item*)((uint8_t*)&th2 + sizeof(btrfs_header)),
+                                               th2.nritems);
+                            const auto& it2 = items2[p.slots[0]];
+                            auto data2 = span((uint8_t*)&th2 + sizeof(btrfs_header) + it2.offset,
+                                              it2.size);
+
+                            memcpy(data2.data(), buf, data2.size());
+
+                            if (!fs.cache.write(span(p.data[0], fs.sb->nodesize), th2.bytenr)) { // FIXME - return status
+                                free(buf);
+                                return nt_status::INTERNAL_ERROR;
+                            }
+                        }
+
+                        free(buf);
+                    }
+                }
 
                 done = true;
 
                 break;
             }
 
-            data = data.subspan(exp_len, data.size() - exp_len);
+            data = data.subspan(len, data.size() - len);
         }
 
         if (!done) {
