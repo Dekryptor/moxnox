@@ -150,7 +150,8 @@ public:
                               uint64_t& read_pages) override;
     nt_status flush_cache(uint64_t page_num, uint64_t num_pages) override;
     nt_status set_basic_information(span<const uint8_t> buffer);
-    nt_status set_disposition_information(span<const uint8_t> buffer);
+    nt_status set_disposition_information(span<const uint8_t> buffer,
+                                          dentry& dentry);
     nt_status query_basic_information(span<uint8_t> buffer, uint64_t& retlen);
     nt_status query_standard_information(span<uint8_t> buffer, uint64_t& retlen);
     nt_status flush_inode_item(btrfs_path& p);
@@ -5195,7 +5196,7 @@ chunk::~chunk() {
     }
 }
 
-NTSTATUS btrfs_inode::set_information(span<const uint8_t> buffer, dentry& /*dentry*/,
+NTSTATUS btrfs_inode::set_information(span<const uint8_t> buffer, dentry& dentry,
                                       FILE_INFORMATION_CLASS file_information_class) {
     if (fs.readonly)
         return nt_status::MEDIA_WRITE_PROTECTED;
@@ -5205,7 +5206,7 @@ NTSTATUS btrfs_inode::set_information(span<const uint8_t> buffer, dentry& /*dent
             return set_basic_information(buffer);
 
         case FILE_INFORMATION_CLASS::DispositionInformation:
-            return set_disposition_information(buffer);
+            return set_disposition_information(buffer, dentry);
 
         default:
             print("btrfs_inode::set_information: unhandled file information class {}\n",
@@ -5314,11 +5315,86 @@ static nt_status reduce_inode_link_count(btrfs_inode& ino) {
     return nt_status::SUCCESS;
 }
 
-nt_status btrfs_inode::set_disposition_information(span<const uint8_t> buffer) {
+static nt_status remove_dir_item(btrfs_filesystem& fs, root& r, uint64_t inode,
+                                 string_view name, uint64_t parent) {
+    optional<uint64_t> index;
+
+    // lookup INODE_REF to get index
+
+    {
+        btrfs_path p(fs.sb->nodesize);
+        auto k = btrfs_key{inode, key_type::INODE_REF, parent};
+
+        auto status = fs.find_item(r, k, p, true);
+        if (!success(status))
+            return status;
+
+        auto& th = *(btrfs_header*)p.data[0];
+        auto items = span((btrfs_item*)((uint8_t*)&th + sizeof(btrfs_header)), th.nritems);
+
+        if (p.slots[0] == th.nritems) {
+            print("remove_dir_item: could not find {}\n", k);
+            return nt_status::DISK_CORRUPT_ERROR;
+        }
+
+        const auto& it = items[p.slots[0]];
+        const auto& found_key = it.key;
+
+        if (found_key != k) {
+            print("remove_dir_item: could not find {}\n", k);
+            return nt_status::DISK_CORRUPT_ERROR;
+        }
+
+        auto data = span((const uint8_t*)&th + sizeof(btrfs_header) + it.offset, it.size);
+
+        while (data.size() >= offsetof(btrfs_inode_ref, name)) {
+            const auto& ir = *(btrfs_inode_ref*)data.data();
+
+            if (data.size() < offsetof(btrfs_inode_ref, name) + ir.name_len)
+                break;
+
+            if (string_view(ir.name, ir.name_len) == name) {
+                index = ir.index;
+
+                if (it.size == offsetof(btrfs_inode_ref, name) + ir.name_len) {
+                    status = fs.remove_item2(p);
+                    if (!success(status))
+                        return status;
+                }
+
+                // FIXME - shortening if multiple entries
+
+                break;
+            }
+
+            data = data.subspan(offsetof(btrfs_inode_ref, name) + ir.name_len,
+                                data.size() - offsetof(btrfs_inode_ref, name) - ir.name_len);
+        }
+    }
+
+    // FIXME - INODE_EXTREF (getting index, removing) (if incompat flag set)
+
+    if (!index.has_value()) {
+        print("remove_dir_item: could not get index for {} in {:x}\n",
+              name, parent);
+        return nt_status::DISK_CORRUPT_ERROR;
+    }
+
+    // FIXME - remove DIR_ITEM
+    // FIXME - remove DIR_INDEX
+
+    return nt_status::SUCCESS;
+}
+
+nt_status btrfs_inode::set_disposition_information(span<const uint8_t> buffer,
+                                                   dentry& dentry) {
     nt_status status;
 
     if (buffer.size() < sizeof(FILE_DISPOSITION_INFORMATION))
         return nt_status::INVALID_PARAMETER;
+
+    // FIXME - deleting directories (make sure not root)
+    // FIXME - removing subvols
 
     const auto& fdi = *(FILE_DISPOSITION_INFORMATION*)buffer.data();
 
@@ -5329,21 +5405,69 @@ nt_status btrfs_inode::set_disposition_information(span<const uint8_t> buffer) {
 
     // FIXME - return early if already unlinked
 
+    char* name_buf;
+    size_t name_len;
+    uint64_t parent_inode;
+
+    while (true) {
+        {
+            lock_guard lock(dentry.name_lock);
+            name_len = dentry.name_len;
+        }
+
+        assert(name_len != 0);
+
+        name_buf = (char*)malloc(name_len);
+        if (!name_buf)
+            return nt_status::INSUFFICIENT_RESOURCES;
+
+        bool done = false;
+
+        {
+            lock_guard lock(dentry.name_lock);
+
+            if (dentry.name_len == name_len) {
+                memcpy(name_buf, dentry.name, name_len);
+                done = true;
+            }
+
+            assert(dentry.parent);
+
+            auto& p = static_cast<btrfs_inode&>(*dentry.parent->inode);
+
+            parent_inode = p.inode;
+        }
+
+        if (done)
+            break;
+
+        free(name_buf);
+    }
+
+    auto name = string_view(name_buf, name_len);
+
     {
         lock_guard lock(fs.trans_lock);
 
-        // FIXME - remove DIR_ITEM
-        // FIXME - remove DIR_INDEX
-        // FIXME - remove INODE_REF / INODE_EXTREF
+        status = remove_dir_item(fs, *r, inode, name, parent_inode);
+        if (!success(status)) {
+            free(name_buf);
+            return status;
+        }
+
         // FIXME - change size in parent
 
         // reduce nlink
         status = reduce_inode_link_count(*this);
-        if (!success(status))
+        if (!success(status)) {
+            free(name_buf);
             return status;
+        }
 
         // FIXME - if nlink == 0, add orphan item
     }
+
+    free(name_buf);
 
     // FIXME - invalidate dentry
 
