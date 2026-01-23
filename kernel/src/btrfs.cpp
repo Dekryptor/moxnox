@@ -5514,8 +5514,9 @@ nt_status btrfs_inode::set_disposition_information(span<const uint8_t> buffer,
             lock_guard lg(inode_lock);
 
             ii.nlink--;
-            // FIXME - update inode sequence and times?
-            // FIXME - generation?
+            ii.transid = fs.sb->generation;
+            ii.sequence++;
+            ii.ctime = cur_time;
 
             orphaned = ii.nlink == 0;
         }
