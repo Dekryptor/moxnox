@@ -210,7 +210,6 @@ static bool extract_initrd() {
     root_dentry->parent = nullptr;
 
     root_dentry->inode->acquire();
-    root_dentry->inode->dentry = root_dentry;
 
     process_cpio(initrd, [&](string_view path, uint64_t mode, span<const uint8_t> contents, uint64_t mtime) {
         auto status = extract_initrd_file(path, mode, contents, mtime);
@@ -270,7 +269,6 @@ bool mount_root() {
     root_dentry->parent = nullptr;
 
     root_dentry->inode->acquire();
-    root_dentry->inode->dentry = root_dentry;
 
     return true;
 }
@@ -322,12 +320,9 @@ bool mount_devfs() {
 
     {
         lock_guard lg(d.parent->child_lock);
-
         swap(d.inode, ino2);
-        d.inode->dentry = &d;
     }
 
-    ino2->dentry = nullptr;
     ino2->release();
 
     return true;
@@ -353,7 +348,6 @@ static bool add_to_dentry_cache(dentry& dir, string_view name, inode& ino,
     memcpy(d.name, name.data(), name.size());
 
     drw = d;
-    ino.dentry = &d;
 
     return true;
 }

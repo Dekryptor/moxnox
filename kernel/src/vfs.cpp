@@ -106,7 +106,6 @@ public:
     enum inode_type inode_type;
     page_cache<inode> cache{*this};
     list_entry writeback_le;
-    dentry* dentry;
 };
 
 static_assert(is_readable_object_with_offset<inode>);
