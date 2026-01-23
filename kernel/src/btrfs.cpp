@@ -5432,6 +5432,7 @@ nt_status btrfs_inode::set_disposition_information(span<const uint8_t> buffer,
         return nt_status::NOT_SUPPORTED;
 
     // FIXME - return early if already unlinked
+    // FIXME - make sure we can't remove or rename file at the same time
 
     char* name_buf;
     size_t name_len;
@@ -5474,6 +5475,8 @@ nt_status btrfs_inode::set_disposition_information(span<const uint8_t> buffer,
 
     auto name = string_view(name_buf, name_len);
 
+    auto cur_time = get_btrfs_time();
+
     {
         btrfs_path p(fs.sb->nodesize);
         lock_guard lock(fs.trans_lock);
@@ -5484,7 +5487,26 @@ nt_status btrfs_inode::set_disposition_information(span<const uint8_t> buffer,
             return status;
         }
 
-        // FIXME - change size in parent
+        // change size in parent
+
+        auto& parent = static_cast<btrfs_inode&>(*dentry.parent->inode);
+
+        {
+            lock_guard lg(parent.inode_lock);
+
+            parent.ii.size -= name.size() * 2;
+            parent.ii.sequence++;
+            parent.ii.ctime = cur_time;
+            parent.ii.mtime = cur_time;
+        }
+
+        status = parent.flush_inode_item(p);
+        if (!success(status)) {
+            free(name_buf);
+            return status;
+        }
+
+        // change nlink in inode item
 
         ii.nlink--;
         // FIXME - update inode sequence and times?
