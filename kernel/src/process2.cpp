@@ -376,23 +376,43 @@ object_ref create_process(string_view fn, string_view curdir,
 
     auto& img_inode = static_cast<inode&>(img_inode_ref.get());
 
-    status = open_inode(curdir, *root_dentry, curdir_ref, drw, FILE_OPEN,
-                        FILE_NON_DIRECTORY_FILE, create_result);
-    if (!success(status)) { // FIXME - return status
-        print("open_inode failed for {}: {}\n", curdir, status);
-        return {};
+    {
+        object_ref inode_ref;
+
+        status = open_inode(curdir, *root_dentry, inode_ref, drw, FILE_OPEN,
+                            FILE_NON_DIRECTORY_FILE, create_result);
+        if (!success(status)) { // FIXME - return status
+            print("open_inode failed for {}: {}\n", curdir, status);
+            return {};
+        }
+
+        auto& curdir_obj = inode_ref.get();
+        if (curdir_obj.type != object_type::inode) {
+            print("open_inode returned something other than inode\n");
+
+            if (drw)
+                drw->get().release();
+
+            return {};
+        }
+
+        auto& curdir_inode = static_cast<inode&>(curdir_obj);
+
+        auto curdir_file = new file(curdir_inode, 0);
+        if (!curdir_file) {
+            print("new failed\n");
+
+            if (drw)
+                drw->get().release();
+
+            return {};
+        }
+
+        if (drw)
+            curdir_file->dentry = &drw->get();
+
+        curdir_ref = object_ref{*curdir_file};
     }
-
-    if (drw)
-        drw->get().release();
-
-    auto& curdir_obj = curdir_ref.get();
-    if (curdir_obj.type != object_type::inode) {
-        print("open_inode returned something other than inode\n");
-        return {};
-    }
-
-    auto& curdir_inode = static_cast<inode&>(curdir_obj);
 
     auto pptr = new process;
     if (!pptr) {
@@ -523,24 +543,14 @@ object_ref create_process(string_view fn, string_view curdir,
         }
     }
 
-    auto curdir_file = new file(curdir_inode, 0);
-    if (!curdir_file) {
-        print("new failed\n");
-        p.release();
-        return {};
-    }
-
     handle_t curdirh;
 
-    status = p.add_handle(*curdir_file, 0, true, curdirh); // FIXME - access mask
+    status = p.add_handle(curdir_ref.get(), 0, true, curdirh); // FIXME - access mask
     if (!success(status)) {
         print("add_handle failed\n");
-        curdir_file->release();
         p.release();
         return {}; // FIXME - return status
     }
-
-    curdir_file->release();
 
     if (!allocate_peb(p, stdinh, stdouth, stderrh, curdirh, curdir, fn, cmdline)) {
         print("allocate_peb failed\n");
