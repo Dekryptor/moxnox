@@ -2885,10 +2885,14 @@ nt_status btrfs_inode::create_child(string_view name, uint32_t create_options,
 
     // adjust size etc. of parent directory
 
-    ii.size += name.size() * 2;
-    ii.sequence++;
-    ii.ctime = cur_time;
-    ii.mtime = cur_time;
+    {
+        lock_guard lg(inode_lock);
+
+        ii.size += name.size() * 2;
+        ii.sequence++;
+        ii.ctime = cur_time;
+        ii.mtime = cur_time;
+    }
 
     status = flush_inode_item(p);
     if (!success(status)) {
