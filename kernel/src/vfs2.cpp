@@ -557,7 +557,7 @@ NTSTATUS NtCreateFile(HANDLE* file_handle, ACCESS_MASK access_mask,
     NTSTATUS status;
     auto t = get_current_thread();
     auto p = t->proc;
-    object_ref root_dir;
+    optional<reference_wrapper<dentry>> root_dir;
     bool shared_okay = true;
 
     if (!p)
@@ -596,12 +596,16 @@ NTSTATUS NtCreateFile(HANDLE* file_handle, ACCESS_MASK access_mask,
         if (f.ino.type != object_type::inode)
             return nt_status::INVALID_HANDLE;
 
-        root_dir = f.ino;
-        static_cast<inode&>(f.ino).acquire();
-    } else {
-        root_dir = *root_dentry->inode;
-        root_dentry->inode->acquire();
-    }
+        if (!f.dentry) // shouldn't happen
+            return nt_status::INTERNAL_ERROR;
+
+        root_dir = *f.dentry;
+    } else
+        root_dir = *root_dentry;
+
+    auto& rd = root_dir->get();
+
+    rd.acquire();
 
     // FIXME - check permissions (whether valid, and against SD)
     // FIXME - allocation_size
@@ -611,17 +615,23 @@ NTSTATUS NtCreateFile(HANDLE* file_handle, ACCESS_MASK access_mask,
 
     auto u16name = u16string_view(object_attributes->ObjectName->Buffer, object_attributes->ObjectName->Length / sizeof(char16_t));
 
-    if (u16name.empty())
+    if (u16name.empty()) {
+        rd.release();
         return nt_status::INVALID_PARAMETER;
+    }
 
     auto namelen = utf16_to_utf8_len(u16name);
 
-    if (namelen == 0)
+    if (namelen == 0) {
+        rd.release();
         return nt_status::INVALID_PARAMETER;
+    }
 
     auto name = (char*)malloc(namelen);
-    if (!name)
+    if (!name) {
+        rd.release();
         return nt_status::INSUFFICIENT_RESOURCES;
+    }
 
     utf16_to_utf8(span(name, namelen), u16name);
 
@@ -634,16 +644,17 @@ NTSTATUS NtCreateFile(HANDLE* file_handle, ACCESS_MASK access_mask,
     optional<reference_wrapper<dentry>> drw;
     unsigned int create_result;
 
-    status = open_inode(string_view(name, namelen),
-                        *static_cast<inode&>(root_dir.get()).dentry,
+    status = open_inode(string_view(name, namelen), rd,
                         ino_ref, drw, create_disposition, create_options,
                         create_result);
     if (!success(status)) {
         free(name);
+        rd.release();
         return status;
     }
 
     free(name);
+    rd.release();
 
     shared_okay = !object_is_exclusive(ino_ref.get());
 
