@@ -353,31 +353,52 @@ object_ref create_process(string_view fn, string_view curdir,
                           u16string_view cmdline, object_ref& stdinobj,
                           object_ref& stdoutobj, object_ref& stderrobj) {
     nt_status status;
-    object_ref img_inode_ref, curdir_ref;
-    optional<reference_wrapper<dentry>> drw;
+    object_ref img_ref, curdir_ref;
     unsigned int create_result;
 
     // FIXME - merge with NtCreateProcess?
 
-    status = open_inode(fn, *root_dentry, img_inode_ref, drw, FILE_OPEN,
-                        FILE_NON_DIRECTORY_FILE, create_result);
-    if (!success(status)) { // FIXME - return status
-        print("open_inode failed for {}: {}\n", fn, status);
-        return {};
+    {
+        object_ref img_inode_ref;
+        optional<reference_wrapper<dentry>> drw;
+
+        status = open_inode(fn, *root_dentry, img_inode_ref, drw, FILE_OPEN,
+                            FILE_NON_DIRECTORY_FILE, create_result);
+        if (!success(status)) { // FIXME - return status
+            print("open_inode failed for {}: {}\n", fn, status);
+            return {};
+        }
+
+        if (img_inode_ref.get().type != object_type::inode) {
+            print("open_inode returned something other than inode\n");
+
+            if (drw)
+                drw->get().release();
+
+            return {};
+        }
+
+        auto& img_inode = static_cast<inode&>(img_inode_ref.get());
+
+        auto img_file = new file(img_inode, 0);
+        if (!img_file) {
+            print("new failed\n");
+
+            if (drw)
+                drw->get().release();
+
+            return {};
+        }
+
+        if (drw)
+            img_file->dentry = &drw->get();
+
+        img_ref = object_ref{*img_file};
     }
-
-    if (drw)
-        drw->get().release();
-
-    if (img_inode_ref.get().type != object_type::inode) {
-        print("open_inode returned something other than inode\n");
-        return {};
-    }
-
-    auto& img_inode = static_cast<inode&>(img_inode_ref.get());
 
     {
         object_ref inode_ref;
+        optional<reference_wrapper<dentry>> drw;
 
         status = open_inode(curdir, *root_dentry, inode_ref, drw, FILE_OPEN,
                             FILE_NON_DIRECTORY_FILE, create_result);
@@ -432,10 +453,9 @@ object_ref create_process(string_view fn, string_view curdir,
 
     // create section for image
 
-    object_ref f(*new file(img_inode, 0));
     object_ref imgh;
 
-    status = create_section(static_cast<file&>(f.get()), true, 0,
+    status = create_section(static_cast<file&>(img_ref.get()), true, 0,
                             PAGE_READWRITE, imgh);
     if (!success(status)) {
         print("create_section returned {}\n", status);
