@@ -5317,6 +5317,7 @@ static nt_status reduce_inode_link_count(btrfs_inode& ino) {
 
 static nt_status remove_dir_item(btrfs_filesystem& fs, root& r, uint64_t inode,
                                  string_view name, uint64_t parent) {
+    nt_status status;
     optional<uint64_t> index;
 
     // lookup INODE_REF to get index
@@ -5325,7 +5326,7 @@ static nt_status remove_dir_item(btrfs_filesystem& fs, root& r, uint64_t inode,
         btrfs_path p(fs.sb->nodesize);
         auto k = btrfs_key{inode, key_type::INODE_REF, parent};
 
-        auto status = fs.find_item(r, k, p, true);
+        status = fs.find_item(r, k, p, true);
         if (!success(status))
             return status;
 
@@ -5380,8 +5381,11 @@ static nt_status remove_dir_item(btrfs_filesystem& fs, root& r, uint64_t inode,
         return nt_status::DISK_CORRUPT_ERROR;
     }
 
+    status = fs.remove_item(r, {parent, key_type::DIR_INDEX, *index});
+    if (!success(status))
+        return status;
+
     // FIXME - remove DIR_ITEM
-    // FIXME - remove DIR_INDEX
 
     return nt_status::SUCCESS;
 }
