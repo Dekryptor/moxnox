@@ -5277,44 +5277,6 @@ nt_status btrfs_inode::set_basic_information(span<const uint8_t> buffer) {
     return nt_status::SUCCESS;
 }
 
-static nt_status reduce_inode_link_count(btrfs_inode& ino) {
-    auto& fs = ino.fs;
-
-    btrfs_path p(fs.sb->nodesize);
-
-    auto status = fs.find_item(*ino.r, {ino.inode, key_type::INODE_ITEM, 0}, p, true);
-    if (!success(status))
-        return status;
-
-    auto& th = *(btrfs_header*)p.data[0];
-    auto items = span((btrfs_item*)((uint8_t*)&th + sizeof(btrfs_header)), th.nritems);
-
-    auto& it = items[p.slots[0]];
-    const auto& found_key = it.key;
-
-    if (found_key.objectid != ino.inode || found_key.type != key_type::INODE_ITEM)
-        return nt_status::DISK_CORRUPT_ERROR;
-
-    auto data = span((const uint8_t*)&th + sizeof(btrfs_header) + it.offset, it.size);
-
-    if (it.size < sizeof(btrfs_inode_item))
-        return nt_status::DISK_CORRUPT_ERROR;
-
-    auto& ii = *(btrfs_inode_item*)data.data();
-
-    ii.nlink--;
-
-    // FIXME - update inode sequence and times?
-    // FIXME - generation?
-
-    // copy tree back into page cache and mark dirty
-
-    if (!fs.cache.write(span(p.data[0], fs.sb->nodesize), th.bytenr)) // FIXME - return status
-        return nt_status::INTERNAL_ERROR;
-
-    return nt_status::SUCCESS;
-}
-
 static nt_status remove_dir_item(btrfs_filesystem& fs, root& r, uint64_t inode,
                                  string_view name, uint64_t parent) {
     nt_status status;
@@ -5509,6 +5471,7 @@ nt_status btrfs_inode::set_disposition_information(span<const uint8_t> buffer,
     auto name = string_view(name_buf, name_len);
 
     {
+        btrfs_path p(fs.sb->nodesize);
         lock_guard lock(fs.trans_lock);
 
         status = remove_dir_item(fs, *r, inode, name, parent_inode);
@@ -5519,8 +5482,10 @@ nt_status btrfs_inode::set_disposition_information(span<const uint8_t> buffer,
 
         // FIXME - change size in parent
 
-        // reduce nlink
-        status = reduce_inode_link_count(*this);
+        ii.nlink--;
+        // FIXME - update inode sequence and times?
+        // FIXME - generation?
+        status = flush_inode_item(p);
         if (!success(status)) {
             free(name_buf);
             return status;
