@@ -3655,3 +3655,14 @@ NTSTATUS NtOpenProcess(HANDLE* process_handle, ACCESS_MASK desired_access,
 
     return nt_status::SUCCESS;
 }
+
+extern "C"
+NTSTATUS NtClose(HANDLE handle) {
+    auto t = get_current_thread();
+    auto p = t->proc;
+
+    if (!p)
+        return nt_status::INVALID_PARAMETER;
+
+    return p->close_handle(handle);
+}

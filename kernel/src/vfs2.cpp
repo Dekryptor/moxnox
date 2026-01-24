@@ -711,17 +711,6 @@ NTSTATUS NtOpenFile(HANDLE* file_handle, ACCESS_MASK desired_access,
 }
 
 extern "C"
-NTSTATUS NtClose(HANDLE handle) {
-    auto t = get_current_thread();
-    auto p = t->proc;
-
-    if (!p)
-        return nt_status::INVALID_PARAMETER;
-
-    return p->close_handle(handle);
-}
-
-extern "C"
 NTSTATUS NtWriteFile(HANDLE file_handle, HANDLE, PIO_APC_ROUTINE, void*,
                      IO_STATUS_BLOCK* io_status_block, const void* buffer,
                      uint32_t length, const LARGE_INTEGER* byte_offset, const uint32_t*) {
