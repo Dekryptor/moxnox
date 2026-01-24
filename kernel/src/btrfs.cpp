@@ -5540,7 +5540,7 @@ static nt_status remove_dir_item(btrfs_filesystem& fs, root& r, uint64_t inode,
                             return nt_status::INSUFFICIENT_RESOURCES;
                         }
 
-                        size_t bef = data.data() - orig_data.data();
+                        auto bef = (size_t)(data.data() - orig_data.data());
 
                         memcpy(buf, orig_data.data(), bef);
                         memcpy(buf + bef, data.data() + len,
