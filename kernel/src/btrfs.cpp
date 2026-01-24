@@ -5868,10 +5868,11 @@ nt_status btrfs_inode::remove_orphan() {
                 return status;
             }
 
-            p.slots[0]++;
             if (p.slots[0] >= leaf_nritems(p)) {
                 status = next_leaf(fs, p);
-                if (!success(status)) {
+                if (status == nt_status::NOT_FOUND)
+                    break;
+                else if (!success(status)) {
                     print("btrfs_inode::remove_orphan: next_leaf returned {}\n",
                           status);
                     return status;
