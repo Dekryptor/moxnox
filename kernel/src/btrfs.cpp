@@ -2916,6 +2916,7 @@ nt_status btrfs_inode::create_child(string_view name, uint32_t create_options,
         lock_guard lock(fs.trans_lock);
 
         // FIXME - use finer-grained locking rather than trans_lock (would need directory lock)
+        //         (i.e. make sure we can't race with directory removal)
 
         if (r->next_inode_number == 0) {
             status = find_last_inode_number(fs, *r);
@@ -5600,8 +5601,13 @@ nt_status btrfs_inode::set_disposition_information(span<const uint8_t> buffer,
     if (dentry.inode == fs.root_inode)
         return nt_status::INVALID_PARAMETER;
 
-    // FIXME - deleting directories
-    // FIXME - removing subvols
+    auto& bi = static_cast<btrfs_inode&>(*dentry.inode);
+
+    if (bi.inode == SUBVOL_ROOT_INODE) {
+        // FIXME - removing subvols
+        print("btrfs_inode::set_disposition_information: FIXME - removing subvols\n");
+        return nt_status::NOT_SUPPORTED;
+    }
 
     const auto& fdi = *(FILE_DISPOSITION_INFORMATION*)buffer.data();
 
@@ -5609,15 +5615,6 @@ nt_status btrfs_inode::set_disposition_information(span<const uint8_t> buffer,
 
     if (!fdi.DeleteFile) // FIXME
         return nt_status::NOT_SUPPORTED;
-
-    {
-        lock_guard lg(dentry.lock);
-
-        if (dentry.status != dentry_status::valid) // already done
-            return nt_status::SUCCESS;
-
-        dentry.status = dentry_status::going_away;
-    }
 
     // FIXME - make sure we can't move or rename file at the same time
 
@@ -5667,6 +5664,24 @@ nt_status btrfs_inode::set_disposition_information(span<const uint8_t> buffer,
     {
         btrfs_path p(fs.sb->nodesize);
         lock_guard lock(fs.trans_lock);
+
+        if (inode_type == inode_type::directory) {
+            lock_guard lg(inode_lock);
+
+            if (ii.size != 0)
+                return nt_status::DIRECTORY_NOT_EMPTY;
+        }
+
+        {
+            lock_guard lg(dentry.lock);
+
+            if (dentry.status != dentry_status::valid) { // already done
+                free(name_buf);
+                return nt_status::SUCCESS;
+            }
+
+            dentry.status = dentry_status::going_away;
+        }
 
         status = remove_dir_item(fs, *r, inode, name, parent_inode);
         if (!success(status)) {
