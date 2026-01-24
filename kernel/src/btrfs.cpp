@@ -156,6 +156,7 @@ public:
     nt_status query_standard_information(span<uint8_t> buffer, uint64_t& retlen);
     nt_status flush_inode_item(btrfs_path& p);
     nt_status get_last_dir_index(uint64_t& ret);
+    void last_handle_closed() override;
 
     root* r;
     btrfs_filesystem& fs; // FIXME - use reference in ::inode
@@ -5795,4 +5796,8 @@ NTSTATUS btrfs_inode::query_information(span<uint8_t> buffer,
                   file_information_class);
             return nt_status::NOT_IMPLEMENTED;
     }
+}
+
+void btrfs_inode::last_handle_closed() {
+    print("FIXME - btrfs_inode::last_handle_closed\n");
 }

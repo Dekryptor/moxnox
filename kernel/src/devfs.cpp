@@ -55,6 +55,7 @@ public:
     nt_status flush_cache(uint64_t page_num, uint64_t num_pages) override;
     nt_status query_basic_information(span<uint8_t> buffer, uint64_t& retlen);
     nt_status query_standard_information(span<uint8_t> buffer, uint64_t& retlen);
+    void last_handle_closed() override { }
 
     devfs_filesystem& fs; // FIXME - use reference in ::inode
     list_entry le;

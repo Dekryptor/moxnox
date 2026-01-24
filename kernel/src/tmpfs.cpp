@@ -52,6 +52,7 @@ public:
     nt_status set_basic_information(span<const uint8_t> buffer);
     nt_status query_basic_information(span<uint8_t> buffer, uint64_t& retlen);
     nt_status query_standard_information(span<uint8_t> buffer, uint64_t& retlen);
+    void last_handle_closed() override { }
 
     tmpfs_filesystem& fs; // FIXME - use reference in ::inode
     uint64_t mtime, ctime, otime, atime;

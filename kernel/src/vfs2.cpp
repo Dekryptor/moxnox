@@ -1114,5 +1114,5 @@ void file::last_handle_closed() {
             return;
     }
 
-    print("FIXME - file::last_handle_closed\n"); // FIXME
+    dentry->inode->last_handle_closed();
 }
