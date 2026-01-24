@@ -5817,8 +5817,6 @@ nt_status btrfs_inode::remove_orphan() {
     uint64_t len;
     uint32_t sectorsize = fs.sb->sectorsize;
 
-    print("FIXME - btrfs_inode::remove_orphan\n");
-
     {
         shared_lock lg(inode_lock);
         len = ii.size;
@@ -5880,9 +5878,13 @@ nt_status btrfs_inode::remove_orphan() {
                 }
             }
         }
-    }
 
-    // FIXME - remove orphaned item
+        status = fs.remove_item(*r, {BTRFS_ORPHAN_OBJECTID, key_type::ORPHAN_INODE, inode});
+        if (!success(status)) {
+            print("btrfs_inode::remove_orphan: remove_item returned {}\n", status);
+            return status;
+        }
+    }
 
     return nt_status::SUCCESS;
 }
