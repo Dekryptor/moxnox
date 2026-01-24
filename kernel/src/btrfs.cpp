@@ -5861,6 +5861,11 @@ nt_status btrfs_inode::remove_orphan() {
             if (k.objectid > inode)
                 break;
 
+            assert(k.type != key_type::DIR_INDEX);
+            assert(k.type != key_type::DIR_ITEM);
+            assert(k.type != key_type::INODE_REF);
+            assert(k.type != key_type::INODE_EXTREF);
+
             status = fs.remove_item2(p);
             if (!success(status)) {
                 print("btrfs_inode::remove_orphan: remove_item2 returned {}\n",
