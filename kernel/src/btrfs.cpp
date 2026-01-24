@@ -155,6 +155,7 @@ public:
     nt_status query_basic_information(span<uint8_t> buffer, uint64_t& retlen);
     nt_status query_standard_information(span<uint8_t> buffer, uint64_t& retlen);
     nt_status flush_inode_item(btrfs_path& p);
+    nt_status get_last_dir_index(uint64_t& ret);
 
     root* r;
     btrfs_filesystem& fs; // FIXME - use reference in ::inode
@@ -172,7 +173,6 @@ private:
     nt_status read_extent_into_cache(uint64_t page_num, uint64_t num_pages,
                                      const inode_extent& ie,
                                      uint64_t& read_pages);
-    nt_status get_last_dir_index(uint64_t& ret);
     nt_status add_file_extent(uint64_t extent_address, uint64_t extent_length,
                               uint64_t extent_offset, uint64_t file_offset,
                               uint64_t length);
@@ -2746,6 +2746,67 @@ static bool validate_name(string_view name) {
     return true;
 }
 
+nt_status add_dir_item(btrfs_filesystem& fs, root& r, btrfs_inode& parent,
+                       string_view name, uint64_t inode, bool is_dir,
+                       uint64_t& index) {
+    nt_status status;
+
+    auto hash = calc_crc32c(0xfffffffe, name);
+
+    size_t di_size = offsetof(btrfs_dir_item, name) + name.size();
+    auto di = (btrfs_dir_item*)malloc(di_size);
+    if (!di)
+        return nt_status::INSUFFICIENT_RESOURCES;
+
+    di->location.objectid = inode;
+    di->location.type = key_type::INODE_ITEM;
+    di->location.offset = 0;
+    di->transid = fs.sb->generation;
+    di->data_len = 0;
+    di->name_len = (uint16_t)name.size();
+    di->type = is_dir ? btrfs_inode_type::directory : btrfs_inode_type::file;
+    memcpy(di->name, name.data(), name.size());
+
+    status = insert_item(fs, r, {parent.inode, key_type::DIR_ITEM, hash},
+                         span((uint8_t*)di, di_size));
+
+    // FIXME - handle DIR_ITEM hash collisions
+
+    if (!success(status)) {
+        free(di);
+
+        if (status == nt_status::OBJECT_NAME_COLLISION)
+            status = nt_status::INTERNAL_ERROR;
+
+        return status;
+    }
+
+    // create DIR_INDEX in parent
+
+    status = parent.get_last_dir_index(index);
+    if (!success(status)) {
+        free(di);
+        return status;
+    }
+
+    index++;
+
+    status = insert_item(fs, r, {inode, key_type::DIR_INDEX, index},
+                         span((uint8_t*)di, di_size));
+    if (!success(status)) {
+        free(di);
+
+        if (status == nt_status::OBJECT_NAME_COLLISION)
+            status = nt_status::INTERNAL_ERROR;
+
+        return status;
+    }
+
+    free(di);
+
+    return nt_status::SUCCESS;
+}
+
 nt_status btrfs_inode::create_child(string_view name, uint32_t create_options,
                                     optional<reference_wrapper<::inode>>& obj) {
     nt_status status;
@@ -2800,63 +2861,15 @@ nt_status btrfs_inode::create_child(string_view name, uint32_t create_options,
         return status;
     }
 
-    // create DIR_ITEM in parent
-
-    auto hash = calc_crc32c(0xfffffffe, name);
-
-    size_t di_size = offsetof(btrfs_dir_item, name) + name.size();
-    auto di = (btrfs_dir_item*)malloc(di_size);
-    if (!di)
-        return nt_status::INSUFFICIENT_RESOURCES;
-
-    di->location.objectid = new_inode;
-    di->location.type = key_type::INODE_ITEM;
-    di->location.offset = 0;
-    di->transid = fs.sb->generation;
-    di->data_len = 0;
-    di->name_len = (uint16_t)name.size();
-    di->type = is_dir ? btrfs_inode_type::directory : btrfs_inode_type::file;
-    memcpy(di->name, name.data(), name.size());
-
-    status = insert_item(fs, *r, {inode, key_type::DIR_ITEM, hash},
-                         span((uint8_t*)di, di_size));
-
-    // FIXME - handle DIR_ITEM hash collisions
-
-    if (!success(status)) {
-        free(di);
-
-        if (status == nt_status::OBJECT_NAME_COLLISION)
-            status = nt_status::INTERNAL_ERROR;
-
-        return status;
-    }
-
-    // create DIR_INDEX in parent
+    // create DIR_ITEM and DIR_INDEX in parent
 
     uint64_t index;
 
-    status = get_last_dir_index(index);
+    status = add_dir_item(fs, *r, *this, name, new_inode, is_dir, index);
     if (!success(status)) {
-        free(di);
+        print("add_dir_item returned {}\n", status);
         return status;
     }
-
-    index++;
-
-    status = insert_item(fs, *r, {inode, key_type::DIR_INDEX, index},
-                         span((uint8_t*)di, di_size));
-
-    if (!success(status)) {
-        free(di);
-
-        if (status == nt_status::OBJECT_NAME_COLLISION)
-            status = nt_status::INTERNAL_ERROR;
-
-        return status;
-    }
-
-    free(di);
 
     // create INODE_REF
 
