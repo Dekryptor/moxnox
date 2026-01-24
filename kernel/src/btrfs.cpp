@@ -5757,8 +5757,6 @@ nt_status btrfs_inode::set_disposition_information(span<const uint8_t> buffer,
 
     dentry.release();
 
-    // FIXME - remove inode properly when orphaned inode closed
-
     return nt_status::SUCCESS;
 }
 
