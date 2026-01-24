@@ -2904,123 +2904,127 @@ nt_status btrfs_inode::create_child(string_view name, uint32_t create_options,
     bool is_dir = create_options & FILE_DIRECTORY_FILE;
     uint64_t new_inode;
 
-    // FIXME - trans_lock
-
     if (fs.readonly)
         return nt_status::MEDIA_WRITE_PROTECTED;
 
     if (!validate_name(name))
         return nt_status::OBJECT_NAME_INVALID;
 
-    if (r->next_inode_number == 0) {
-        status = find_last_inode_number(fs, *r);
-        if (!success(status))
-            return status;
-    }
-
-    new_inode = r->next_inode_number.fetch_add(1);
-
     auto cur_time = get_btrfs_time();
 
-    // create INODE_ITEM
+    {
+        lock_guard lock(fs.trans_lock);
 
-    memset(&child_ii, 0, sizeof(btrfs_inode_item));
-    child_ii.generation = fs.sb->generation;
-    child_ii.transid = fs.sb->generation;
-    child_ii.nlink = 1;
-    child_ii.uid = 0; // FIXME
-    child_ii.gid = 0; // FIXME
+        // FIXME - use finer-grained locking rather than trans_lock (would need directory lock)
 
-    // FIXME - do we inherit mode from parent?
-    if (is_dir)
-        child_ii.mode = S_IFDIR | 0755;
-    else
-        child_ii.mode = S_IFREG | 0644;
+        if (r->next_inode_number == 0) {
+            status = find_last_inode_number(fs, *r);
+            if (!success(status))
+                return status;
+        }
 
-    child_ii.sequence = 0; // FIXME?
-    child_ii.ctime = cur_time;
-    child_ii.mtime = cur_time;
-    child_ii.otime = cur_time;
+        new_inode = r->next_inode_number.fetch_add(1);
 
-    status = insert_item(fs, *r, {new_inode, key_type::INODE_ITEM, 0},
-                         span((uint8_t*)&child_ii, sizeof(child_ii)));
-    if (!success(status)) {
-        if (status == nt_status::OBJECT_NAME_COLLISION)
-            status = nt_status::INTERNAL_ERROR;
-        return status;
-    }
+        // create INODE_ITEM
 
-    // create DIR_ITEM and DIR_INDEX in parent
+        memset(&child_ii, 0, sizeof(btrfs_inode_item));
+        child_ii.generation = fs.sb->generation;
+        child_ii.transid = fs.sb->generation;
+        child_ii.nlink = 1;
+        child_ii.uid = 0; // FIXME
+        child_ii.gid = 0; // FIXME
 
-    uint64_t index;
+        // FIXME - do we inherit mode from parent?
+        if (is_dir)
+            child_ii.mode = S_IFDIR | 0755;
+        else
+            child_ii.mode = S_IFREG | 0644;
 
-    status = add_dir_item(fs, *r, *this, name, new_inode, is_dir, index);
-    if (!success(status)) {
-        print("add_dir_item returned {}\n", status);
-        return status;
-    }
+        child_ii.sequence = 0; // FIXME?
+        child_ii.ctime = cur_time;
+        child_ii.mtime = cur_time;
+        child_ii.otime = cur_time;
 
-    // create INODE_REF
+        status = insert_item(fs, *r, {new_inode, key_type::INODE_ITEM, 0},
+                             span((uint8_t*)&child_ii, sizeof(child_ii)));
+        if (!success(status)) {
+            if (status == nt_status::OBJECT_NAME_COLLISION)
+                status = nt_status::INTERNAL_ERROR;
+            return status;
+        }
 
-    size_t ir_size = offsetof(btrfs_inode_ref, name) + name.size();
-    auto ir = (btrfs_inode_ref*)malloc(ir_size);
-    if (!ir)
-        return nt_status::INSUFFICIENT_RESOURCES;
+        // create DIR_ITEM and DIR_INDEX in parent
 
-    ir->index = index;
-    ir->name_len = (uint16_t)name.size();
-    memcpy(ir->name, name.data(), name.size());
+        uint64_t index;
 
-    status = insert_item(fs, *r, {new_inode, key_type::INODE_REF, inode},
-                         span((uint8_t*)ir, ir_size));
+        status = add_dir_item(fs, *r, *this, name, new_inode, is_dir, index);
+        if (!success(status)) {
+            print("add_dir_item returned {}\n", status);
+            return status;
+        }
 
-    if (!success(status)) {
+        // create INODE_REF
+
+        size_t ir_size = offsetof(btrfs_inode_ref, name) + name.size();
+        auto ir = (btrfs_inode_ref*)malloc(ir_size);
+        if (!ir)
+            return nt_status::INSUFFICIENT_RESOURCES;
+
+        ir->index = index;
+        ir->name_len = (uint16_t)name.size();
+        memcpy(ir->name, name.data(), name.size());
+
+        status = insert_item(fs, *r, {new_inode, key_type::INODE_REF, inode},
+                             span((uint8_t*)ir, ir_size));
+
+        if (!success(status)) {
+            free(ir);
+
+            if (status == nt_status::OBJECT_NAME_COLLISION)
+                status = nt_status::INTERNAL_ERROR;
+
+            return status;
+        }
+
         free(ir);
 
-        if (status == nt_status::OBJECT_NAME_COLLISION)
-            status = nt_status::INTERNAL_ERROR;
+        // adjust size etc. of parent directory
 
-        return status;
+        {
+            lock_guard lg(inode_lock);
+
+            ii.size += name.size() * 2;
+            ii.sequence++;
+            ii.ctime = cur_time;
+            ii.mtime = cur_time;
+        }
+
+        status = flush_inode_item(p);
+        if (!success(status)) {
+            print("btrfs_inode::flush_inode_item returned {}\n", status);
+            return status;
+        }
+
+        // adjust root_item
+
+        r->ri.ctime = cur_time;
+        r->ri.ctransid = fs.sb->generation;
+
+        // create btrfs_inode object and return
+
+        auto bi = new btrfs_inode(fs, r->id, new_inode,
+                                  is_dir ? btrfs_inode_type::directory : btrfs_inode_type::file);
+
+        memcpy(&bi->ii, &child_ii, sizeof(btrfs_inode_item));
+        bi->file_size = 0;
+
+        {
+            lock_guard lock(fs.inode_lock);
+            insert_tail_list(fs.inode_list, bi->le);
+        }
+
+        obj = *bi;
     }
-
-    free(ir);
-
-    // adjust size etc. of parent directory
-
-    {
-        lock_guard lg(inode_lock);
-
-        ii.size += name.size() * 2;
-        ii.sequence++;
-        ii.ctime = cur_time;
-        ii.mtime = cur_time;
-    }
-
-    status = flush_inode_item(p);
-    if (!success(status)) {
-        print("btrfs_inode::flush_inode_item returned {}\n", status);
-        return status;
-    }
-
-    // adjust root_item
-
-    r->ri.ctime = cur_time;
-    r->ri.ctransid = fs.sb->generation;
-
-    // create btrfs_inode object and return
-
-    auto bi = new btrfs_inode(fs, r->id, new_inode,
-                              is_dir ? btrfs_inode_type::directory : btrfs_inode_type::file);
-
-    memcpy(&bi->ii, &child_ii, sizeof(btrfs_inode_item));
-    bi->file_size = 0;
-
-    {
-        lock_guard lock(fs.inode_lock);
-        insert_tail_list(fs.inode_list, bi->le);
-    }
-
-    obj = *bi;
 
     return nt_status::SUCCESS;
 }
