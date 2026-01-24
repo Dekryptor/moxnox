@@ -3033,9 +3033,10 @@ nt_status btrfs_inode::open_child(string_view name, object_ref& obj) {
 
     auto hash = calc_crc32c(0xfffffffe, name);
 
-    optional<btrfs_key> dir_item_key;
+    btrfs_key dir_item_key;
+    bool found = false;
 
-    do {
+    {
         auto k = btrfs_key{inode, key_type::DIR_ITEM, hash};
         btrfs_path p(fs.sb->nodesize);
 
@@ -3047,41 +3048,40 @@ nt_status btrfs_inode::open_child(string_view name, object_ref& obj) {
         auto items = span((btrfs_item*)((uint8_t*)&th + sizeof(btrfs_header)), th.nritems);
 
         if (p.slots[0] >= th.nritems)
-            break;
+            return nt_status::OBJECT_NAME_NOT_FOUND;
 
         const auto& it = items[p.slots[0]];
         const auto& found_key = it.key;
 
         if (found_key != k)
-            break;
+            return nt_status::OBJECT_NAME_NOT_FOUND;
 
         auto data = span((const uint8_t*)&th + sizeof(btrfs_header) + it.offset, it.size);
 
         while (data.size() >= offsetof(btrfs_dir_item, name)) {
             const auto& di = *(btrfs_dir_item*)data.data();
+            size_t exp_len = offsetof(btrfs_dir_item, name) + di.data_len + di.name_len;
 
-            if (data.size() < offsetof(btrfs_dir_item, name) + di.data_len + di.name_len)
-                break;
+            if (data.size() < exp_len)
+                return nt_status::OBJECT_NAME_NOT_FOUND;
 
             if (string_view(di.name, di.name_len) == name) {
                 dir_item_key = di.location;
+                found = true;
                 break;
             }
 
-            data = data.subspan(offsetof(btrfs_dir_item, name) + di.data_len + di.name_len,
-                                data.size() - offsetof(btrfs_dir_item, name) - di.data_len - di.name_len);
+            data = data.subspan(exp_len, data.size() - exp_len);
         }
-    } while (false);
 
-    if (!dir_item_key.has_value())
-        return nt_status::OBJECT_NAME_NOT_FOUND;
+        if (!found)
+            return nt_status::OBJECT_NAME_NOT_FOUND;
+    }
 
-    auto& v = *dir_item_key;
-
-    if (v.type == key_type::ROOT_ITEM)
-        return fs.open_inode(v.objectid, SUBVOL_ROOT_INODE, obj);
+    if (dir_item_key.type == key_type::ROOT_ITEM)
+        return fs.open_inode(dir_item_key.objectid, SUBVOL_ROOT_INODE, obj);
     else
-        return fs.open_inode(r->id, v.objectid, obj);
+        return fs.open_inode(r->id, dir_item_key.objectid, obj);
 }
 
 nt_status btrfs_filesystem::open_inode(uint64_t subvol, uint64_t inode,
