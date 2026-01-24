@@ -520,6 +520,13 @@ nt_status tmpfs_inode::set_disposition_information(span<const uint8_t> buffer,
         {
             lock_guard lock(p.child_lock);
 
+            if (inode_type == inode_type::directory) {
+                lock_guard lock(child_lock);
+
+                if (!is_list_empty(children))
+                    return nt_status::DIRECTORY_NOT_EMPTY;
+            }
+
             for (auto le = p.children.next; le != &p.children; le = le->next) {
                 auto& d = containing_record<tmpfs_dentry>(le);
 
