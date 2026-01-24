@@ -150,6 +150,7 @@ export struct dentry {
     list_entry children = { &children, &children };
     spinlock lock;
     enum dentry_status status = dentry_status::valid;
+    atomic<unsigned int> open_file_count = 0;
     size_t name_len;
     char name[0];
 };
@@ -209,12 +210,14 @@ public:
     NTSTATUS query_information(void* buffer, uint32_t buffer_size,
                                FILE_INFORMATION_CLASS file_information_class,
                                uint64_t& retlen);
+    void last_handle_closed();
 };
 
 static_assert(is_readable_object_without_offset<file>);
 static_assert(is_readable_object_with_offset<file>);
 static_assert(is_writable_object_without_offset<file>);
 static_assert(is_writable_object_with_offset<file>);
+static_assert(has_last_handle_closed<file>);
 
 export list_entry filesystem_types = { &filesystem_types, &filesystem_types };
 export dentry* root_dentry;

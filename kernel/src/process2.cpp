@@ -572,6 +572,9 @@ object_ref create_process(string_view fn, string_view curdir,
         return {}; // FIXME - return status
     }
 
+    if (static_cast<file&>(curdir_ref.get()).dentry)
+        static_cast<file&>(curdir_ref.get()).dentry->open_file_count++;
+
     if (!allocate_peb(p, stdinh, stdouth, stderrh, curdirh, curdir, fn, cmdline)) {
         print("allocate_peb failed\n");
         p.release();

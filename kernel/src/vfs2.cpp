@@ -683,6 +683,9 @@ NTSTATUS NtCreateFile(HANDLE* file_handle, ACCESS_MASK access_mask,
             return status;
         }
 
+        if (f->dentry)
+            f->dentry->open_file_count++;
+
         f->release();
     } else {
         if (drw) // FIXME - shouldn't happen, as only inodes get dentries at the moment
@@ -1098,4 +1101,18 @@ nt_status get_dentry_path(dentry& dr, char*& path, size_t& path_len) {
     path_len = len;
 
     return nt_status::SUCCESS;
+}
+
+void file::last_handle_closed() {
+    {
+        lock_guard lg(dentry->lock);
+
+        if (--dentry->open_file_count != 0)
+            return;
+
+        if (dentry->status != dentry_status::invalid)
+            return;
+    }
+
+    print("FIXME - file::last_handle_closed\n"); // FIXME
 }
