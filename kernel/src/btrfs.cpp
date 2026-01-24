@@ -200,6 +200,7 @@ public:
     nt_status remove_item2(btrfs_path& p);
     nt_status change_key(btrfs_path& p, const btrfs_key& k);
     void shorten_item(btrfs_path& p, uint32_t delta);
+    nt_status extend_item(btrfs_path& p, uint32_t delta);
     nt_status find_item(root& r, const btrfs_key& k, btrfs_path& p, bool cow);
     bool move_path_back(btrfs_path& p);
     bool move_path_forward(btrfs_path& p);
@@ -2623,6 +2624,55 @@ void btrfs_filesystem::shorten_item(btrfs_path& p, uint32_t delta) {
     cache.write(span(p.data[0], sb->nodesize), th.bytenr); // FIXME - return status
 }
 
+nt_status btrfs_filesystem::extend_item(btrfs_path& p, uint32_t delta) {
+    auto& th = *(btrfs_header*)p.data[0];
+    auto* items = (btrfs_item*)((uint8_t*)&th + sizeof(btrfs_header));
+    auto& it = items[p.slots[0]];
+
+    if (it.size + delta > sb->nodesize - sizeof(btrfs_header) - sizeof(btrfs_item)) {
+        print("btrfs_filesystem::extend_item: key {} would be {} bytes, too big for any tree",
+              it.key, it.size + delta);
+        return nt_status::INTERNAL_ERROR;
+    }
+
+    size_t used = sizeof(btrfs_header) + (sizeof(btrfs_item) * th.nritems);
+
+    for (unsigned int i = 0; i < th.nritems; i++) {
+        used += items[i].size;
+    }
+
+    if (used + delta > sb->nodesize) {
+        // FIXME - if now too large for node, move items left or right (share this logic with insert_item)
+        print("btrfs_filesystem::extend_item: FIXME - move items left or right\n");
+        return nt_status::INTERNAL_ERROR;
+    }
+
+    // adjust item offsets and move data
+
+    {
+        unsigned int to_move = 0;
+
+        // move data around
+
+        uint32_t off = sizeof(btrfs_header) + items[th.nritems - 1].offset;
+
+        for (unsigned int i = p.slots[0]; i < th.nritems; i++) {
+            to_move += items[i].size;
+            items[i].offset -= delta;
+        }
+
+        assert(off >= it.size + delta + sizeof(btrfs_header));
+
+        memmove(p.data[0] + off - delta, p.data[0] + off, to_move);
+    }
+
+    // change item size
+
+    it.size += delta;
+
+    return nt_status::SUCCESS;
+}
+
 bool btrfs_filesystem::move_path_back(btrfs_path& p) {
     if (p.slots[0] != 0) {
         p.slots[0]--;
@@ -2750,8 +2800,17 @@ nt_status add_dir_item(btrfs_filesystem& fs, root& r, btrfs_inode& parent,
                        string_view name, uint64_t inode, bool is_dir,
                        uint64_t& index) {
     nt_status status;
+    btrfs_path p(fs.sb->nodesize);
 
     auto hash = calc_crc32c(0xfffffffe, name);
+
+    btrfs_key key{parent.inode, key_type::DIR_ITEM, hash};
+
+    // look for existing DIR_ITEM
+
+    status = fs.find_item(r, key, p, true);
+    if (!success(status))
+        return status;
 
     size_t di_size = offsetof(btrfs_dir_item, name) + name.size();
     auto di = (btrfs_dir_item*)malloc(di_size);
@@ -2767,18 +2826,46 @@ nt_status add_dir_item(btrfs_filesystem& fs, root& r, btrfs_inode& parent,
     di->type = is_dir ? btrfs_inode_type::directory : btrfs_inode_type::file;
     memcpy(di->name, name.data(), name.size());
 
-    status = insert_item(fs, r, {parent.inode, key_type::DIR_ITEM, hash},
-                         span((uint8_t*)di, di_size));
+    bool found = false;
 
-    // FIXME - handle DIR_ITEM hash collisions
+    {
+        auto& th = *(btrfs_header*)p.data[0];
+        auto items = span((btrfs_item*)((uint8_t*)&th + sizeof(btrfs_header)), th.nritems);
 
-    if (!success(status)) {
-        free(di);
+        if (p.slots[0] < th.nritems && items[p.slots[0]].key == key) {
+            status = fs.extend_item(p, (uint32_t)di_size);
+            if (!success(status)) {
+                free(di);
+                return status;
+            }
 
-        if (status == nt_status::OBJECT_NAME_COLLISION)
-            status = nt_status::INTERNAL_ERROR;
+            found = true;
+        }
+    }
 
-        return status;
+    if (found) {
+        auto& th = *(btrfs_header*)p.data[0];
+        auto items = span((btrfs_item*)((uint8_t*)&th + sizeof(btrfs_header)), th.nritems);
+        const auto& it = items[p.slots[0]];
+        auto data = span((const uint8_t*)&th + sizeof(btrfs_header) + it.offset, it.size);
+
+        memcpy((uint8_t*)data.data() + data.size() - di_size, di, di_size);
+
+        if (!fs.cache.write(span(p.data[0], fs.sb->nodesize), th.bytenr)) { // FIXME - return status
+            free(di);
+            return nt_status::INTERNAL_ERROR;
+        }
+    } else {
+        status = insert_item(fs, r, key, span((uint8_t*)di, di_size));
+
+        if (!success(status)) {
+            free(di);
+
+            if (status == nt_status::OBJECT_NAME_COLLISION)
+                status = nt_status::INTERNAL_ERROR;
+
+            return status;
+        }
     }
 
     // create DIR_INDEX in parent
@@ -2791,7 +2878,7 @@ nt_status add_dir_item(btrfs_filesystem& fs, root& r, btrfs_inode& parent,
 
     index++;
 
-    status = insert_item(fs, r, {inode, key_type::DIR_INDEX, index},
+    status = insert_item(fs, r, {parent.inode, key_type::DIR_INDEX, index},
                          span((uint8_t*)di, di_size));
     if (!success(status)) {
         free(di);
