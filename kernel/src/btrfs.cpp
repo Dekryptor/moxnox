@@ -177,6 +177,7 @@ private:
     nt_status add_file_extent(uint64_t extent_address, uint64_t extent_length,
                               uint64_t extent_offset, uint64_t file_offset,
                               uint64_t length);
+    nt_status remove_orphan();
 };
 
 class btrfs_filesystem : public ::filesystem {
@@ -5799,33 +5800,89 @@ NTSTATUS btrfs_inode::query_information(span<uint8_t> buffer,
 }
 
 void btrfs_inode::last_handle_closed() {
-    uint64_t len;
-    uint32_t sectorsize = fs.sb->sectorsize;
-
     {
         shared_lock lg(inode_lock);
 
         if (ii.nlink != 0)
             return;
-
-        len = ii.size;
     }
 
-    print("FIXME - btrfs_inode::last_handle_closed\n");
-
     // FIXME - we can put this in a worker rather than doing it straightaway
+
+    remove_orphan(); // FIXME - what if it fails?
+}
+
+nt_status btrfs_inode::remove_orphan() {
+    nt_status status;
+    uint64_t len;
+    uint32_t sectorsize = fs.sb->sectorsize;
+
+    print("FIXME - btrfs_inode::remove_orphan\n");
+
+    {
+        shared_lock lg(inode_lock);
+        len = ii.size;
+    }
 
     if (len % sectorsize)
         len += sectorsize - (len % sectorsize);
 
-    lock_guard lg(fs.trans_lock);
+    {
+        lock_guard lg(fs.trans_lock);
 
-    auto status = punch_hole(*this, 0, len);
-    if (!success(status)) {
-        print("punch_hole returned {}\n", status);
-        return; // FIXME - what now?
+        // FIXME - do in multiple transactions if particularly large?
+
+        status = punch_hole(*this, 0, len);
+        if (!success(status)) {
+            print("btrfs_inode::remove_orphan: punch_hole returned {}\n", status);
+            return status;
+        }
     }
 
-    // FIXME - remove everything for this inode
+    {
+        btrfs_path p(fs.sb->nodesize);
+        lock_guard lg(fs.trans_lock);
+
+        status = fs.find_item(*r, {inode, key_type::INODE_ITEM, 0}, p, true);
+        if (!success(status)) {
+            print("btrfs_inode::remove_orphan: find_item returned {}\n", status);
+            return status;
+        }
+
+        while (true) {
+            auto& th = *(btrfs_header*)p.data[0];
+            auto items = span((btrfs_item*)((uint8_t*)&th + sizeof(btrfs_header)),
+                              th.nritems);
+
+            if (p.slots[0] >= th.nritems)
+                break;
+
+            const auto& it = items[p.slots[0]];
+            const auto& k = it.key;
+
+            if (k.objectid > inode)
+                break;
+
+            status = fs.remove_item2(p);
+            if (!success(status)) {
+                print("btrfs_inode::remove_orphan: remove_item2 returned {}\n",
+                      status);
+                return status;
+            }
+
+            p.slots[0]++;
+            if (p.slots[0] >= leaf_nritems(p)) {
+                status = next_leaf(fs, p);
+                if (!success(status)) {
+                    print("btrfs_inode::remove_orphan: next_leaf returned {}\n",
+                          status);
+                    return status;
+                }
+            }
+        }
+    }
+
     // FIXME - remove orphaned item
+
+    return nt_status::SUCCESS;
 }
