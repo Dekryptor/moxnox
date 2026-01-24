@@ -53,6 +53,8 @@ public:
     nt_status query_basic_information(span<uint8_t> buffer, uint64_t& retlen);
     nt_status query_standard_information(span<uint8_t> buffer, uint64_t& retlen);
     void last_handle_closed() override { }
+    nt_status set_disposition_information(span<const uint8_t> buffer,
+                                          dentry& dentry);
 
     tmpfs_filesystem& fs; // FIXME - use reference in ::inode
     uint64_t mtime, ctime, otime, atime;
@@ -352,7 +354,7 @@ nt_status tmpfs_inode::flush_cache(uint64_t, uint64_t) {
     return nt_status::SUCCESS;
 }
 
-NTSTATUS tmpfs_inode::set_information(span<const uint8_t> buffer, dentry& /*dentry*/,
+NTSTATUS tmpfs_inode::set_information(span<const uint8_t> buffer, dentry& dentry,
                                       FILE_INFORMATION_CLASS file_information_class) {
     if (static_cast<tmpfs_filesystem&>(fs).readonly)
         return nt_status::MEDIA_WRITE_PROTECTED;
@@ -360,6 +362,9 @@ NTSTATUS tmpfs_inode::set_information(span<const uint8_t> buffer, dentry& /*dent
     switch (file_information_class) {
         case FILE_INFORMATION_CLASS::BasicInformation:
             return set_basic_information(buffer);
+
+        case FILE_INFORMATION_CLASS::DispositionInformation:
+            return set_disposition_information(buffer, dentry);
 
         default:
             print("tmpfs_inode::set_information: unhandled file information class {}\n",
@@ -453,4 +458,103 @@ NTSTATUS tmpfs_inode::query_information(span<uint8_t> buffer,
                   file_information_class);
             return nt_status::NOT_IMPLEMENTED;
     }
+}
+
+nt_status tmpfs_inode::set_disposition_information(span<const uint8_t> buffer,
+                                                   dentry& dentry) {
+    if (buffer.size() < sizeof(FILE_DISPOSITION_INFORMATION))
+        return nt_status::INVALID_PARAMETER;
+
+    if (dentry.inode == fs.root_inode)
+        return nt_status::INVALID_PARAMETER;
+
+    const auto& fdi = *(FILE_DISPOSITION_INFORMATION*)buffer.data();
+
+    // FIXME - directories
+    // FIXME - this should actually be a non-POSIX deletion
+
+    if (!fdi.DeleteFile) // FIXME
+        return nt_status::NOT_SUPPORTED;
+
+    // FIXME - make sure we can't move or rename file at the same time
+
+    char* name_buf;
+    size_t name_len;
+
+    while (true) {
+        {
+            lock_guard lock(dentry.lock);
+            name_len = dentry.name_len;
+        }
+
+        assert(name_len != 0);
+
+        name_buf = (char*)malloc(name_len);
+        if (!name_buf)
+            return nt_status::INSUFFICIENT_RESOURCES;
+
+        bool done = false;
+
+        {
+            lock_guard lock(dentry.lock);
+
+            if (dentry.name_len == name_len) {
+                memcpy(name_buf, dentry.name, name_len);
+                done = true;
+            }
+        }
+
+        if (done)
+            break;
+
+        free(name_buf);
+    }
+
+    auto name = string_view(name_buf, name_len);
+
+    {
+        auto& p = static_cast<tmpfs_inode&>(*dentry.parent->inode);
+
+        bool done = false;
+
+        {
+            lock_guard lock(p.child_lock);
+
+            for (auto le = p.children.next; le != &p.children; le = le->next) {
+                auto& d = containing_record<tmpfs_dentry>(le);
+
+                if (string_view(d.name, d.name_len) == name) {
+                    remove_entry_list(d.le);
+                    free(&d);
+                    done = true;
+                    break;
+                }
+            }
+        }
+
+        if (!done) {
+            print("tmpfs_inode::set_disposition_information: tmpfs_dentry not found\n");
+            free(name_buf);
+            return nt_status::INTERNAL_ERROR;
+        }
+    }
+
+    free(name_buf);
+
+    // invalidate dentry
+
+    {
+        lock_guard lg(dentry.parent->child_lock);
+        remove_entry_list(dentry.le);
+    }
+
+    {
+        lock_guard lg(dentry.lock);
+        dentry.status = dentry_status::invalid;
+    }
+
+    dentry.release();
+    this->release();
+
+    return nt_status::SUCCESS;
 }
