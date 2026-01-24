@@ -3030,8 +3030,6 @@ nt_status btrfs_inode::create_child(string_view name, uint32_t create_options,
 }
 
 nt_status btrfs_inode::open_child(string_view name, object_ref& obj) {
-    // FIXME - trans_lock
-
     if (inode_type != inode_type::directory)
         return nt_status::INVALID_PARAMETER;
 
@@ -3041,6 +3039,8 @@ nt_status btrfs_inode::open_child(string_view name, object_ref& obj) {
     bool found = false;
 
     {
+        shared_lock lg(fs.trans_lock);
+
         auto k = btrfs_key{inode, key_type::DIR_ITEM, hash};
         btrfs_path p(fs.sb->nodesize);
 
