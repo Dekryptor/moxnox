@@ -5799,5 +5799,33 @@ NTSTATUS btrfs_inode::query_information(span<uint8_t> buffer,
 }
 
 void btrfs_inode::last_handle_closed() {
+    uint64_t len;
+    uint32_t sectorsize = fs.sb->sectorsize;
+
+    {
+        shared_lock lg(inode_lock);
+
+        if (ii.nlink != 0)
+            return;
+
+        len = ii.size;
+    }
+
     print("FIXME - btrfs_inode::last_handle_closed\n");
+
+    // FIXME - we can put this in a worker rather than doing it straightaway
+
+    if (len % sectorsize)
+        len += sectorsize - (len % sectorsize);
+
+    lock_guard lg(fs.trans_lock);
+
+    auto status = punch_hole(*this, 0, len);
+    if (!success(status)) {
+        print("punch_hole returned {}\n", status);
+        return; // FIXME - what now?
+    }
+
+    // FIXME - remove everything for this inode
+    // FIXME - remove orphaned item
 }
