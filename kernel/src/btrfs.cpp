@@ -5601,8 +5601,16 @@ nt_status btrfs_inode::set_disposition_information(span<const uint8_t> buffer,
     if (!fdi.DeleteFile) // FIXME
         return nt_status::NOT_SUPPORTED;
 
-    // FIXME - return early if already unlinked
-    // FIXME - make sure we can't remove or rename file at the same time
+    {
+        lock_guard lg(dentry.lock);
+
+        if (dentry.status != dentry_status::valid) // already done
+            return nt_status::SUCCESS;
+
+        dentry.status = dentry_status::going_away;
+    }
+
+    // FIXME - make sure we can't move or rename file at the same time
 
     char* name_buf;
     size_t name_len;
@@ -5610,7 +5618,7 @@ nt_status btrfs_inode::set_disposition_information(span<const uint8_t> buffer,
 
     while (true) {
         {
-            lock_guard lock(dentry.name_lock);
+            lock_guard lock(dentry.lock);
             name_len = dentry.name_len;
         }
 
@@ -5623,7 +5631,7 @@ nt_status btrfs_inode::set_disposition_information(span<const uint8_t> buffer,
         bool done = false;
 
         {
-            lock_guard lock(dentry.name_lock);
+            lock_guard lock(dentry.lock);
 
             if (dentry.name_len == name_len) {
                 memcpy(name_buf, dentry.name, name_len);
@@ -5715,11 +5723,14 @@ nt_status btrfs_inode::set_disposition_information(span<const uint8_t> buffer,
 
     {
         lock_guard lg(dentry.parent->child_lock);
-
         remove_entry_list(dentry.le);
     }
 
-    dentry.invalidated = true;
+    {
+        lock_guard lg(dentry.lock);
+        dentry.status = dentry_status::invalid;
+    }
+
     dentry.release();
 
     // FIXME - remove inode properly when orphaned inode closed

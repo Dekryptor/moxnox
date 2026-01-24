@@ -113,6 +113,12 @@ static_assert(is_writable_object_with_offset<inode>);
 static_assert(cacheable_flushable<inode>);
 static_assert(cache_supports_writeback<inode>);
 
+export enum class dentry_status {
+    valid,
+    going_away,
+    invalid
+};
+
 export struct dentry {
     ~dentry() {
         if (inode)
@@ -132,7 +138,7 @@ export struct dentry {
         if (--refcount != 0)
             return;
 
-        if (invalidated)
+        if (status == dentry_status::invalid)
             delete this;
     }
 
@@ -142,8 +148,8 @@ export struct dentry {
     dentry* parent = nullptr;
     rwsem child_lock;
     list_entry children = { &children, &children };
-    spinlock name_lock;
-    bool invalidated = false;
+    spinlock lock;
+    enum dentry_status status = dentry_status::valid;
     size_t name_len;
     char name[0];
 };

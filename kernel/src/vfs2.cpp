@@ -1059,7 +1059,7 @@ nt_status get_dentry_path(dentry& dr, char*& path, size_t& path_len) {
         auto* d = &dr;
         while (d->name_len != 0) {
             {
-                lock_guard lg(d->name_lock);
+                lock_guard lg(d->lock);
                 len += d->name_len + 1;
             }
 
@@ -1078,7 +1078,7 @@ nt_status get_dentry_path(dentry& dr, char*& path, size_t& path_len) {
         d = &dr;
         while (d->name_len != 0) {
             {
-                lock_guard lg(d->name_lock);
+                lock_guard lg(d->lock);
 
                 if (d->name_len >= left)
                     break;
