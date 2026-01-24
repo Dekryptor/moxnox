@@ -127,14 +127,13 @@ export struct dentry {
     }
 
     void release() {
-        // FIXME - clean up dentries with refcounts of 0
+        // FIXME - clean up valid dentries with refcounts of 0
 
-        refcount--;
+        if (--refcount != 0)
+            return;
 
-        // if (--refcount != 0)
-            // return;
-
-        // delete this;
+        if (invalidated)
+            delete this;
     }
 
     inode* inode = nullptr;
@@ -144,6 +143,7 @@ export struct dentry {
     rwsem child_lock;
     list_entry children = { &children, &children };
     spinlock name_lock;
+    bool invalidated = false;
     size_t name_len;
     char name[0];
 };

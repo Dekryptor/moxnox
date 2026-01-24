@@ -5711,7 +5711,16 @@ nt_status btrfs_inode::set_disposition_information(span<const uint8_t> buffer,
 
     free(name_buf);
 
-    // FIXME - invalidate dentry
+    // invalidate dentry
+
+    {
+        lock_guard lg(dentry.parent->child_lock);
+
+        remove_entry_list(dentry.le);
+    }
+
+    dentry.invalidated = true;
+    dentry.release();
 
     // FIXME - remove inode properly when orphaned inode closed
 
