@@ -5593,7 +5593,10 @@ nt_status btrfs_inode::set_disposition_information(span<const uint8_t> buffer,
     if (buffer.size() < sizeof(FILE_DISPOSITION_INFORMATION))
         return nt_status::INVALID_PARAMETER;
 
-    // FIXME - deleting directories (make sure not root)
+    if (dentry.inode == fs.root_inode)
+        return nt_status::INVALID_PARAMETER;
+
+    // FIXME - deleting directories
     // FIXME - removing subvols
 
     const auto& fdi = *(FILE_DISPOSITION_INFORMATION*)buffer.data();
