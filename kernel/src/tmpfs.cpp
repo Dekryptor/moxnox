@@ -252,23 +252,21 @@ tmpfs_inode::~tmpfs_inode() {
     }
 }
 
-static nt_status query_directory_dirent(const tmpfs_dentry& d, span<uint8_t> buf,
+static nt_status query_directory_dirent(string_view name, tmpfs_inode& ino,
+                                        span<uint8_t> buf,
                                         FILE_INFORMATION_CLASS file_information_class) {
     switch (file_information_class) {
         case FILE_INFORMATION_CLASS::DirectoryInformation: {
             if (buf.size() < offsetof(FILE_DIRECTORY_INFORMATION, FileName))
                 return nt_status::BUFFER_TOO_SMALL;
 
-            auto sv = string_view(d.name, d.name_len);
-            auto utf16len = utf8_to_utf16_len(sv);
+            auto utf16len = utf8_to_utf16_len(name);
             auto len = offsetof(FILE_DIRECTORY_INFORMATION, FileName) + (utf16len * sizeof(char16_t));
 
             if (buf.size() < len)
                 return nt_status::BUFFER_TOO_SMALL;
 
             auto& fdi = *(FILE_DIRECTORY_INFORMATION*)buf.data();
-
-            auto& ino = *d.ino;
 
             {
                 shared_lock lock(ino.inode_lock);
@@ -285,7 +283,7 @@ static nt_status query_directory_dirent(const tmpfs_dentry& d, span<uint8_t> buf
             }
 
             fdi.FileNameLength = (uint32_t)(utf16len * sizeof(char16_t));
-            utf8_to_utf16(span(fdi.FileName, utf16len), sv);
+            utf8_to_utf16(span(fdi.FileName, utf16len), name);
 
             buf = buf.subspan(0, len);
 
@@ -309,14 +307,18 @@ NTSTATUS tmpfs_inode::query_directory(span<uint8_t> buf,
         lock_guard lock(child_lock);
 
         for (auto le = children.next; le != &children; le = le->next) {
-            auto& c = containing_record<tmpfs_dentry>(le);
+            auto& d = containing_record<tmpfs_dentry>(le);
 
-            if (c.index < index)
+            if (d.index < index)
                 continue;
 
-            auto ret = query_directory_dirent(c, buf, file_information_class);
+            // FIXME - what if name changes while we're doing this?
 
-            index = c.index + 1;
+            auto ret = query_directory_dirent(string_view(d.name, d.name_len),
+                                              *d.ino, buf,
+                                              file_information_class);
+
+            index = d.index + 1;
 
             return ret;
         }
@@ -325,13 +327,9 @@ NTSTATUS tmpfs_inode::query_directory(span<uint8_t> buf,
     return nt_status::NO_MORE_FILES;
 }
 
-nt_status tmpfs_inode::query_directory_inode(string_view /*name*/, span<uint8_t> /*buf*/,
-                                             FILE_INFORMATION_CLASS /*file_information_class*/) {
-    print("FIXME - tmpfs_inode::query_directory_inode\n");
-
-    // FIXME
-
-    return nt_status::NOT_IMPLEMENTED;
+nt_status tmpfs_inode::query_directory_inode(string_view name, span<uint8_t> buf,
+                                             FILE_INFORMATION_CLASS file_information_class) {
+    return query_directory_dirent(name, *this, buf, file_information_class);
 }
 
 nt_status tmpfs_inode::read_into_cache(uint64_t page_num, uint64_t num_pages,
