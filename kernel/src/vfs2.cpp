@@ -12,7 +12,6 @@ module vfs;
 import print;
 import bsod;
 import cpio;
-import mem;
 import config;
 import unicode;
 import guid;
@@ -332,11 +331,24 @@ bool mount_devfs() {
 
 static bool add_to_dentry_cache(dentry& dir, string_view name, inode& ino,
                                 optional<reference_wrapper<dentry>>& drw) {
-    auto p = malloc(offsetof(dentry, name) + name.size());
+    auto p = malloc(sizeof(dentry));
     if (!p)
         return false;
 
     auto& d = *new (p) dentry;
+
+    d.name_len = name.size();
+
+    if (!name.empty()) {
+        d.name = (char*)malloc(name.size());
+        if (!d.name) {
+            d.~dentry();
+            free(p);
+            return false;
+        }
+
+        memcpy(d.name, name.data(), name.size());
+    }
 
     d.inode = &ino;
     ino.acquire();
@@ -345,9 +357,6 @@ static bool add_to_dentry_cache(dentry& dir, string_view name, inode& ino,
 
     d.parent = &dir;
     dir.acquire();
-
-    d.name_len = name.size();
-    memcpy(d.name, name.data(), name.size());
 
     drw = d;
 

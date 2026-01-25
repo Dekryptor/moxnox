@@ -17,6 +17,7 @@ import objects;
 import rwsem;
 import page_cache;
 import format;
+import mem;
 
 using namespace std;
 
@@ -127,6 +128,9 @@ export struct dentry {
 
         if (parent)
             parent->release();
+
+        if (name)
+            free(name);
     }
 
     void acquire() {
@@ -153,7 +157,7 @@ export struct dentry {
     enum dentry_status status = dentry_status::valid;
     atomic<unsigned int> open_file_count = 0;
     size_t name_len;
-    char name[0];
+    char* name = nullptr;
 };
 
 export extern "C++" class filesystem {
