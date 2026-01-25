@@ -391,7 +391,6 @@ nt_status open_inode(string_view fn, dentry& root_dir,
         nt_status status;
         object_ref obj_ref2;
 
-        // FIXME - ..
         // FIXME - mount points
         // FIXME - negative dentries?
         // FIXME - dentry LRU
@@ -406,6 +405,27 @@ nt_status open_inode(string_view fn, dentry& root_dir,
 
             drw = dir;
             dir.acquire();
+        } else if (name == "..") {
+            if (dir.inode->inode_type != inode_type::directory) {
+                dir.release();
+                return nt_status::OBJECT_PATH_SYNTAX_BAD;
+            }
+
+            ::dentry* parent;
+
+            {
+                lock_guard lg(dir.lock);
+
+                if (!dir.parent)
+                    parent = &dir;
+                else
+                    parent = dir.parent;
+            }
+
+            parent->acquire();
+            dir.release();
+
+            drw = *parent;
         } else {
             shared_lock lg(dir.child_lock);
 
