@@ -972,6 +972,8 @@ NTSTATUS file::query_directory(HANDLE, PIO_APC_ROUTINE, void*, IO_STATUS_BLOCK& 
                                void* file_information, uint32_t length,
                                FILE_INFORMATION_CLASS file_information_class, bool,
                                const UNICODE_STRING*, bool restart_scan) {
+    nt_status status;
+
     // FIXME - event
     // FIXME - APC
     // FIXME - filename
@@ -987,15 +989,20 @@ NTSTATUS file::query_directory(HANDLE, PIO_APC_ROUTINE, void*, IO_STATUS_BLOCK& 
     if (ino.type != object_type::inode)
         return nt_status::INVALID_PARAMETER;
 
-    auto ret = static_cast<inode&>(ino).query_directory(sp, file_information_class, index);
-
-    if (!success(ret))
-        return ret;
+    if (index == 0) {
+        status = static_cast<inode&>(ino).query_directory_inode(".", sp,
+                                                                file_information_class);
+        index = 1;
+    } else {
+        status = static_cast<inode&>(ino).query_directory(sp, file_information_class, index);
+        if (!success(status))
+            return status;
+    }
 
     query_dir_index = index;
     io_status_block.Information = sp.size();
 
-    return ret;
+    return status;
 }
 
 extern "C"

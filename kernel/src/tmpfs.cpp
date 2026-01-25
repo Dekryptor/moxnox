@@ -46,6 +46,8 @@ public:
     NTSTATUS query_information(span<uint8_t> buffer,
                                FILE_INFORMATION_CLASS file_information_class,
                                uint64_t& retlen) override;
+    nt_status query_directory_inode(string_view name, span<uint8_t> buf,
+                                    FILE_INFORMATION_CLASS file_information_class) override;
     nt_status read_into_cache(uint64_t page_num, uint64_t num_pages,
                               uint64_t& read_pages) override;
     nt_status flush_cache(uint64_t page_num, uint64_t num_pages) override;
@@ -321,6 +323,15 @@ NTSTATUS tmpfs_inode::query_directory(span<uint8_t> buf,
     }
 
     return nt_status::NO_MORE_FILES;
+}
+
+nt_status tmpfs_inode::query_directory_inode(string_view /*name*/, span<uint8_t> /*buf*/,
+                                             FILE_INFORMATION_CLASS /*file_information_class*/) {
+    print("FIXME - tmpfs_inode::query_directory_inode\n");
+
+    // FIXME
+
+    return nt_status::NOT_IMPLEMENTED;
 }
 
 nt_status tmpfs_inode::read_into_cache(uint64_t page_num, uint64_t num_pages,

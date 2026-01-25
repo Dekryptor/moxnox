@@ -96,6 +96,8 @@ public:
     virtual nt_status query_information(span<uint8_t> buffer,
                                         FILE_INFORMATION_CLASS file_information_class,
                                         uint64_t& retlen) = 0;
+    virtual nt_status query_directory_inode(string_view name, span<uint8_t> buf,
+                                            FILE_INFORMATION_CLASS file_information_class) = 0;
     virtual void last_handle_closed() = 0;
 
     virtual nt_status read_into_cache(uint64_t page_num, uint64_t num_pages,

@@ -141,6 +141,8 @@ public:
                            optional<reference_wrapper<inode>>& obj) override;
     NTSTATUS query_directory(span<uint8_t> buf, FILE_INFORMATION_CLASS file_information_class,
                              uint64_t& index) override;
+    nt_status query_directory_inode(string_view name, span<uint8_t> buf,
+                                    FILE_INFORMATION_CLASS file_information_class) override;
     NTSTATUS set_information(span<const uint8_t> buffer, dentry& dentry,
                              FILE_INFORMATION_CLASS file_information_class) override;
     NTSTATUS query_information(span<uint8_t> buffer,
@@ -4170,6 +4172,13 @@ static NTSTATUS query_directory_dirent(btrfs_filesystem& fs, root& r, const btrf
     }
 }
 
+nt_status btrfs_inode::query_directory_inode(string_view name, span<uint8_t> buf,
+                                             FILE_INFORMATION_CLASS file_information_class) {
+    return query_directory_dirent(fs, *r, {inode, key_type::INODE_ITEM, 0 },
+                                  name, inode_type == inode_type::directory,
+                                  buf, file_information_class);
+}
+
 NTSTATUS btrfs_inode::query_directory(span<uint8_t> buf, FILE_INFORMATION_CLASS file_information_class,
                                       uint64_t& index) {
     if (inode_type != inode_type::directory)
@@ -4179,15 +4188,6 @@ NTSTATUS btrfs_inode::query_directory(span<uint8_t> buf, FILE_INFORMATION_CLASS 
     size_t name_len;
 
     shared_lock lg(fs.trans_lock);
-
-    if (index == 0) {
-        auto ret = query_directory_dirent(fs, *r, {inode, key_type::INODE_ITEM, 0},
-                                          ".", true, buf, file_information_class);
-        index = 1;
-        return ret;
-    }
-
-    // FIXME - ..
 
     auto k = btrfs_key{inode, key_type::DIR_INDEX, index};
     btrfs_path p(fs.sb->nodesize);
