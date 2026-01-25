@@ -97,6 +97,7 @@ tmpfs_filesystem::tmpfs_filesystem() : filesystem(nullptr) {
 
     auto cur_time = (uint64_t)kernel_time_page.system_time + kernel_time_page.system_time_offset;
 
+    tmpfs_root_inode->file_size = 0;
     tmpfs_root_inode->atime = cur_time;
     tmpfs_root_inode->ctime = cur_time;
     tmpfs_root_inode->mtime = cur_time;
