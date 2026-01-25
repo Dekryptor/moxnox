@@ -993,6 +993,28 @@ NTSTATUS file::query_directory(HANDLE, PIO_APC_ROUTINE, void*, IO_STATUS_BLOCK& 
         status = static_cast<inode&>(ino).query_directory_inode(".", sp,
                                                                 file_information_class);
         index = 1;
+    } else if (index == 1) {
+        inode* parent;
+
+        {
+            lock_guard lg(dentry->lock);
+
+            if (!dentry->parent)
+                parent = &static_cast<inode&>(ino);
+            else
+                parent = dentry->parent->inode;
+
+            parent->acquire();
+        }
+
+        status = parent->query_directory_inode("..", sp, file_information_class);
+
+        parent->release();
+
+        if (!success(status))
+            return status;
+
+        index = 2;
     } else {
         status = static_cast<inode&>(ino).query_directory(sp, file_information_class, index);
         if (!success(status))
