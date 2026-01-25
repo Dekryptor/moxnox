@@ -4180,60 +4180,52 @@ NTSTATUS btrfs_inode::query_directory(span<uint8_t> buf, FILE_INFORMATION_CLASS 
     btrfs_key dir_index_key;
     enum btrfs_inode_type inode_type;
     uint64_t found_index;
-    bool found = false;
 
     shared_lock lg(fs.trans_lock);
 
-    do {
-        auto k = btrfs_key{inode, key_type::DIR_INDEX, index};
-        btrfs_path p(fs.sb->nodesize);
+    auto k = btrfs_key{inode, key_type::DIR_INDEX, index};
+    btrfs_path p(fs.sb->nodesize);
 
-        auto status = fs.find_item(*r, k, p, false);
-        if (!success(status))
-            return status;
+    auto status = fs.find_item(*r, k, p, false);
+    if (!success(status))
+        return status;
 
-        auto& th = *(btrfs_header*)p.data[0];
-        auto items = span((btrfs_item*)((uint8_t*)&th + sizeof(btrfs_header)), th.nritems);
+    auto& th = *(btrfs_header*)p.data[0];
+    auto items = span((btrfs_item*)((uint8_t*)&th + sizeof(btrfs_header)), th.nritems);
 
-        if (p.slots[0] >= th.nritems)
-            break;
-
-        const auto& it = items[p.slots[0]];
-        const auto& found_key = it.key;
-
-        if (found_key.objectid != k.objectid || found_key.type != k.type)
-            break;
-
-        if (found_key.offset < index)
-            break;
-
-        auto data = span((const uint8_t*)&th + sizeof(btrfs_header) + it.offset, it.size);
-
-        // FIXME - return actual error if data malformed
-
-        if (data.size() < offsetof(btrfs_dir_item, name))
-            break;
-
-        const auto& di = *(btrfs_dir_item*)data.data();
-
-        if (data.size() < offsetof(btrfs_dir_item, name) + di.data_len + di.name_len)
-            break;
-
-        if (di.name_len > sizeof(name))
-            break;
-
-        memcpy(name, di.name, di.name_len);
-        name_len = di.name_len;
-
-        dir_index_key = di.location;
-        inode_type = di.type;
-        found_index = found_key.offset;
-
-        found = true;
-    } while (false);
-
-    if (!found)
+    if (p.slots[0] >= th.nritems)
         return nt_status::NO_MORE_FILES;
+
+    const auto& it = items[p.slots[0]];
+    const auto& found_key = it.key;
+
+    if (found_key.objectid != k.objectid || found_key.type != k.type)
+        return nt_status::NO_MORE_FILES;
+
+    if (found_key.offset < index)
+        return nt_status::NO_MORE_FILES;
+
+    auto data = span((const uint8_t*)&th + sizeof(btrfs_header) + it.offset, it.size);
+
+    // FIXME - return actual error if data malformed
+
+    if (data.size() < offsetof(btrfs_dir_item, name))
+        return nt_status::NO_MORE_FILES;
+
+    const auto& di = *(btrfs_dir_item*)data.data();
+
+    if (data.size() < offsetof(btrfs_dir_item, name) + di.data_len + di.name_len)
+        return nt_status::NO_MORE_FILES;
+
+    if (di.name_len > sizeof(name))
+        return nt_status::NO_MORE_FILES;
+
+    memcpy(name, di.name, di.name_len);
+    name_len = di.name_len;
+
+    dir_index_key = di.location;
+    inode_type = di.type;
+    found_index = found_key.offset;
 
     auto ret = query_directory_dirent(fs, *r, dir_index_key, string_view(name, name_len),
                                       inode_type, buf,
