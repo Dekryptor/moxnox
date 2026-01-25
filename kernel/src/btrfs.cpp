@@ -4080,7 +4080,7 @@ static btrfs_timespec win_to_unix_time(int64_t t) {
 }
 
 static NTSTATUS query_directory_dirent(btrfs_filesystem& fs, root& r, const btrfs_key& k,
-                                       string_view sv, enum btrfs_inode_type inode_type,
+                                       string_view sv, bool is_dir,
                                        span<uint8_t> buf, FILE_INFORMATION_CLASS file_information_class) {
     switch (file_information_class) {
         case FILE_INFORMATION_CLASS::DirectoryInformation: {
@@ -4154,7 +4154,7 @@ static NTSTATUS query_directory_dirent(btrfs_filesystem& fs, root& r, const btrf
             fdi.ChangeTime.QuadPart = unix_to_win_time(ii.ctime);
             fdi.EndOfFile.QuadPart = (int64_t)ii.size;
             fdi.AllocationSize.QuadPart = 0; // FIXME
-            fdi.FileAttributes = inode_type == btrfs_inode_type::directory ? FILE_ATTRIBUTE_DIRECTORY : 0; // FIXME
+            fdi.FileAttributes = is_dir ? FILE_ATTRIBUTE_DIRECTORY : 0; // FIXME
             fdi.FileNameLength = (uint32_t)(utf16len * sizeof(char16_t));
             utf8_to_utf16(span(fdi.FileName, utf16len), sv);
 
@@ -4182,8 +4182,7 @@ NTSTATUS btrfs_inode::query_directory(span<uint8_t> buf, FILE_INFORMATION_CLASS 
 
     if (index == 0) {
         auto ret = query_directory_dirent(fs, *r, {inode, key_type::INODE_ITEM, 0},
-                                          ".", btrfs_inode_type::directory, buf,
-                                          file_information_class);
+                                          ".", true, buf, file_information_class);
         index = 1;
         return ret;
     }
@@ -4231,8 +4230,9 @@ NTSTATUS btrfs_inode::query_directory(span<uint8_t> buf, FILE_INFORMATION_CLASS 
     name_len = di.name_len;
 
     auto ret = query_directory_dirent(fs, *r, di.location,
-                                      string_view(name, name_len), di.type, buf,
-                                      file_information_class);
+                                      string_view(name, name_len),
+                                      di.type == btrfs_inode_type::directory,
+                                      buf, file_information_class);
 
     index = found_key.offset + 1;
 
