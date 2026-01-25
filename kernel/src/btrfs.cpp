@@ -4177,11 +4177,18 @@ NTSTATUS btrfs_inode::query_directory(span<uint8_t> buf, FILE_INFORMATION_CLASS 
 
     char name[256]; // FIXME - reference page cache directly
     size_t name_len;
-    btrfs_key dir_index_key;
-    enum btrfs_inode_type inode_type;
-    uint64_t found_index;
 
     shared_lock lg(fs.trans_lock);
+
+    if (index == 0) {
+        auto ret = query_directory_dirent(fs, *r, {inode, key_type::INODE_ITEM, 0},
+                                          ".", btrfs_inode_type::directory, buf,
+                                          file_information_class);
+        index = 1;
+        return ret;
+    }
+
+    // FIXME - ..
 
     auto k = btrfs_key{inode, key_type::DIR_INDEX, index};
     btrfs_path p(fs.sb->nodesize);
@@ -4223,15 +4230,11 @@ NTSTATUS btrfs_inode::query_directory(span<uint8_t> buf, FILE_INFORMATION_CLASS 
     memcpy(name, di.name, di.name_len);
     name_len = di.name_len;
 
-    dir_index_key = di.location;
-    inode_type = di.type;
-    found_index = found_key.offset;
-
-    auto ret = query_directory_dirent(fs, *r, dir_index_key, string_view(name, name_len),
-                                      inode_type, buf,
+    auto ret = query_directory_dirent(fs, *r, di.location,
+                                      string_view(name, name_len), di.type, buf,
                                       file_information_class);
 
-    index = found_index + 1;
+    index = found_key.offset + 1;
 
     return ret;
 }
