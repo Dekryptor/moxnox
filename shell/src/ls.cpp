@@ -18,6 +18,7 @@ import getopt;
 
 static bool long_mode = false;
 static bool directory_flag = false;
+static bool show_all = false;
 
 static constexpr chrono::year_month_day system_time_to_ymd(int64_t system_time) noexcept {
     signed long long j, e, f, g, h;
@@ -140,6 +141,10 @@ static void print_file_list(list_entry& list, unsigned int num_entries) {
         auto& fdi = ent.fdi;
 
         auto u16sv = u16string_view(fdi.FileName, fdi.FileNameLength / sizeof(char16_t));
+
+        // FIXME - also skip files when HIDDEN bit set?
+        if (!show_all && !u16sv.empty() && u16sv[0] == '.')
+            continue;
 
         if (long_mode) {
             // FIXME - permissions
@@ -391,14 +396,12 @@ extern "C" FORCE_ALIGN_ARG_POINTER void startup() {
 
     static const option options[] = {
         { u"", u'l', []{ long_mode = true; } },
-        { u"directory", u'd', []{ directory_flag = true; } }
+        { u"directory", u'd', []{ directory_flag = true; } },
+        { u"all", u'a', []{ show_all = true; } },
     };
 
     auto cmdline = u16string_view(peb->ProcessParameters->CommandLine.Buffer,
                                   peb->ProcessParameters->CommandLine.Length / sizeof(char16_t));
-
-    // FIXME - directory as parameter
-    // FIXME - wildcard as parameter
 
     auto argc = count_cmdline_args(cmdline);
     span<u16string_view> argv;
