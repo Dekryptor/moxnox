@@ -8,10 +8,26 @@ export module handle;
 import nt;
 import objects;
 import object_ref;
+import spinlock;
+import list;
 
 using namespace std;
 
 export using handle_t = uint64_t;
+
+export struct name_entry {
+    list_entry le;
+    object* obj;
+    unsigned int index;
+    uint64_t creation_time;
+    size_t name_len;
+    char name[1];
+};
+
+export const size_t MAX_NAME_LEN = 256;
+
+export spinlock name_lock;
+export list_entry name_list = { &name_list, &name_list };
 
 export nt_status name_object(object& obj, string_view name, bool persistent = true);
 export nt_status open_object(string_view name, object_ref& obj);

@@ -7,25 +7,14 @@ module;
 module handle;
 
 import print;
-import spinlock;
-import list;
 import visit;
 import mem;
+import kernel_time_page;
 
 using namespace std;
 
-struct name_entry {
-    list_entry le;
-    object* obj;
-    size_t name_len;
-    char name[1];
-};
-
-static spinlock name_lock;
-static list_entry name_list = { &name_list, &name_list };
-
 nt_status name_object(object& obj, string_view name, bool persistent) {
-    if (name.empty())
+    if (name.empty() || name.size() > MAX_NAME_LEN)
         return nt_status::OBJECT_NAME_INVALID;
 
     auto ne = (name_entry*)malloc(offsetof(name_entry, name) + name.size());
@@ -33,6 +22,8 @@ nt_status name_object(object& obj, string_view name, bool persistent) {
         print("Out of memory\n");
         return nt_status::INSUFFICIENT_RESOURCES;
     }
+
+    auto cur_time = (uint64_t)kernel_time_page.system_time + kernel_time_page.system_time_offset;
 
     optional<lock_guard<spinlock>> lock(name_lock);
 
@@ -60,6 +51,13 @@ nt_status name_object(object& obj, string_view name, bool persistent) {
     obj.named = true;
     obj.persistent = persistent;
     ne->obj = &obj;
+
+    if (is_list_empty(name_list))
+        ne->index = 2;
+    else
+        ne->index = containing_record<name_entry>(name_list.prev).index + 1;
+
+    ne->creation_time = cur_time;
     ne->name_len = name.length();
     memcpy(ne->name, name.data(), name.length());
     insert_tail_list(name_list, ne->le);
