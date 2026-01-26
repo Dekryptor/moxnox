@@ -85,7 +85,7 @@ add_executable(pwd src/pwd.cpp)
 target_compile_options(pwd PRIVATE -fno-exceptions ${USERSPACE_CFLAGS})
 target_link_options(pwd PUBLIC -nostartfiles -nostdlib -Wl,--entry=startup)
 
-target_link_libraries(pwd shelllib unicode)
+target_link_libraries(pwd shelllib unicode format)
 target_link_libraries(pwd moxnox)
 
 install(TARGETS pwd DESTINATION ${CMAKE_INSTALL_PREFIX})

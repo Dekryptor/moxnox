@@ -1276,6 +1276,11 @@ struct FILE_DISPOSITION_INFORMATION {
     BOOLEAN DeleteFile;
 };
 
+struct FILE_NAME_INFORMATION {
+    uint32_t FileNameLength;
+    char16_t FileName[1];
+};
+
 const uint32_t MAXIMUM_WAIT_OBJECTS = 64;
 
 enum class EVENT_TYPE {

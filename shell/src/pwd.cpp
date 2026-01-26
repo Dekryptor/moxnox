@@ -1,12 +1,15 @@
 #include <string_view>
 #include <span>
+#include <utility>
 #include <stdlib.h>
+#include <stdint.h>
 
 using namespace std;
 
 import nt;
 import ntdll;
 import shelllib;
+import print;
 import unicode;
 
 #ifdef __x86_64__
@@ -20,25 +23,43 @@ extern "C" FORCE_ALIGN_ARG_POINTER void startup() {
     const auto& peb = *teb.ProcessEnvironmentBlock;
     const auto& params = *peb.ProcessParameters;
 
-    auto pwd = u16string_view(params.CurrentDirectory.DosPath.Buffer,
-                              params.CurrentDirectory.DosPath.Length / sizeof(char16_t));
-    auto len = utf16_to_utf8_len(pwd);
+    nt_status status;
+    IO_STATUS_BLOCK iosb;
+    FILE_NAME_INFORMATION fni;
 
-    if (len != 0) {
-        auto buf = (char*)malloc(len);
-        if (!buf) {
-            print("malloc failed\n");
-            NtTerminateThread(NtCurrentThread(), nt_status::INSUFFICIENT_RESOURCES);
-            return;
-        }
-
-        utf16_to_utf8(span(buf, len), pwd);
-
-        print(string_view(buf, len));
-        free(buf);
+    status = NtQueryInformationFile(params.CurrentDirectory.Handle, &iosb,
+                                    &fni, sizeof(fni),
+                                    FILE_INFORMATION_CLASS::NameInformation);
+    if (!success(status) && status != nt_status::BUFFER_OVERFLOW) {
+        print("pwd: NtQueryInformationFile returned {}\n", status);
+        NtTerminateThread(NtCurrentThread(), status);
+        unreachable();
     }
 
-    print("\n");
+    size_t len = offsetof(FILE_NAME_INFORMATION, FileName) + fni.FileNameLength;
+
+    auto fni2 = (FILE_NAME_INFORMATION*)malloc(len);
+    if (!fni2) {
+        print("malloc failed\n");
+        NtTerminateThread(NtCurrentThread(), nt_status::INSUFFICIENT_RESOURCES);
+        unreachable();
+    }
+
+    status = NtQueryInformationFile(params.CurrentDirectory.Handle, &iosb,
+                                    fni2, (uint32_t)len,
+                                    FILE_INFORMATION_CLASS::NameInformation);
+    if (!success(status)) {
+        print("pwd: NtQueryInformationFile returned {}\n", status);
+        free(fni2);
+        NtTerminateThread(NtCurrentThread(), status);
+        unreachable();
+    }
+
+    auto sv = u16string_view(fni2->FileName, fni2->FileNameLength / sizeof(char16_t));
+
+    print("{}\n", sv);
+
+    free(fni2);
 
     NtTerminateThread(NtCurrentThread(), nt_status::SUCCESS);
 }
