@@ -1098,6 +1098,17 @@ nt_status get_dentry_path(dentry& dr, char*& path, size_t& path_len) {
     size_t len;
     char* s;
 
+    if (&dr == root_dentry) {
+        path = (char*)malloc(1);
+        if (!path)
+            return nt_status::INSUFFICIENT_RESOURCES;
+
+        path[0] = '/';
+        path_len = 1;
+
+        return nt_status::SUCCESS;
+    }
+
     while (true) {
         size_t left;
         bool done = false;
