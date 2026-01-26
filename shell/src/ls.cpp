@@ -158,12 +158,18 @@ static void print_file_list(list_entry& list, unsigned int num_entries) {
             print(" ");
         }
 
+        bool changed = true;
+
         if (fdi.FileAttributes & FILE_ATTRIBUTE_DIRECTORY)
-            print("\e[01;34m");
+            print("\e[01;34m"); // bold, blue FG
+        else if (fdi.FileAttributes & FILE_ATTRIBUTE_DEVICE)
+            print("\e[40;33;01m"); // black BG, yellow FG, bold
+        else
+            changed = false;
 
         print("{}", u16sv);
 
-        if (fdi.FileAttributes & FILE_ATTRIBUTE_DIRECTORY)
+        if (changed)
             print("\e[0m");
 
         print("\n");
