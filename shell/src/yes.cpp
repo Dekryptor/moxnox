@@ -3,7 +3,6 @@
 
 import nt;
 import ntdll;
-import shelllib;
 import print;
 
 using namespace std;

@@ -7,7 +7,6 @@
 import nt;
 import ntdll;
 import unique_handle;
-import shelllib;
 import print;
 import list;
 

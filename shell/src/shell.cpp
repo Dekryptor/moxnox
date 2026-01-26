@@ -10,7 +10,6 @@ using namespace std;
 
 import nt;
 import ntdll;
-import shelllib;
 import format;
 import print;
 import unicode;

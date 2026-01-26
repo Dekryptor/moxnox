@@ -6,7 +6,6 @@
 
 import nt;
 import ntdll;
-import shelllib;
 import print;
 import format;
 import unicode;

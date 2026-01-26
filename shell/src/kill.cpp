@@ -4,7 +4,6 @@
 
 import nt;
 import ntdll;
-import shelllib;
 import cmdline;
 import print;
 import unique_handle;

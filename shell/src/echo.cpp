@@ -3,27 +3,11 @@
 
 import nt;
 import ntdll;
-import shelllib;
+import print;
 import unicode;
 import cmdline;
 
 using namespace std;
-
-void print(u16string_view sv) {
-    auto len = utf16_to_utf8_len(sv);
-    if (len == 0)
-        return;
-
-    auto s = (char*)RtlAllocateHeap(GetProcessHeap(), 0, len);
-    if (!s)
-        NtTerminateThread(NtCurrentThread(), nt_status::INSUFFICIENT_RESOURCES);
-
-    utf16_to_utf8(span(s, len), sv);
-
-    print(string_view(s, len));
-
-    RtlFreeHeap(GetProcessHeap(), 0, s);
-}
 
 #ifdef __x86_64__
 #define FORCE_ALIGN_ARG_POINTER __attribute__((force_align_arg_pointer))
@@ -56,7 +40,7 @@ extern "C" FORCE_ALIGN_ARG_POINTER void startup() {
         if (i != 1)
             print(" ");
 
-        print(argv[i]);
+        print("{}", argv[i]);
     }
 
     print("\n");
