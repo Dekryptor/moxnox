@@ -14,6 +14,50 @@ import unicode;
 
 using namespace std;
 
+static void get_dos_path(HANDLE h, UNICODE_STRING& us) {
+    nt_status status;
+    IO_STATUS_BLOCK iosb;
+    FILE_NAME_INFORMATION fni;
+
+    status = NtQueryInformationFile(h, &iosb, &fni, sizeof(fni),
+                                    FILE_INFORMATION_CLASS::NameInformation);
+    if (!success(status) && status != nt_status::BUFFER_OVERFLOW) {
+        print("NtQueryInformationFile returned {}\n", status);
+        return;
+    }
+
+    size_t len = offsetof(FILE_NAME_INFORMATION, FileName) + fni.FileNameLength;
+
+    auto fni2 = (FILE_NAME_INFORMATION*)malloc(len);
+    if (!fni2) {
+        print("malloc failed\n");
+        return;
+    }
+
+    status = NtQueryInformationFile(h, &iosb, fni2, (uint32_t)len,
+                                    FILE_INFORMATION_CLASS::NameInformation);
+    if (!success(status)) {
+        print("NtQueryInformationFile returned {}\n", status);
+        free(fni2);
+        return;
+    }
+
+    auto sv = u16string_view(fni2->FileName, fni2->FileNameLength / sizeof(char16_t));
+
+    static const u16string_view prefix = u"C:";
+
+    us.Length = min(us.MaximumLength, (uint16_t)((sv.size() + prefix.size()) * sizeof(char16_t)));
+    memcpy(us.Buffer, prefix.data(), prefix.size() * sizeof(char16_t));
+    memcpy(us.Buffer + prefix.size(), sv.data(), us.Length - prefix.size());
+
+    for (size_t i = prefix.size(); i < us.Length; i++) {
+        if (us.Buffer[i] == u'/')
+            us.Buffer[i] = u'\\';
+    }
+
+    free(fni2);
+}
+
 export void cd(string_view param) {
     OBJECT_ATTRIBUTES oa;
     UNICODE_STRING us;
@@ -70,5 +114,5 @@ export void cd(string_view param) {
 
     peb->ProcessParameters->CurrentDirectory.Handle = h;
 
-    // FIXME - set peb->ProcessParameters->CurrentDirectory.DosPath
+    get_dos_path(h, peb->ProcessParameters->CurrentDirectory.DosPath);
 }
