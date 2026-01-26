@@ -1177,7 +1177,7 @@ NTSTATUS user_NtQueryInformationFile(HANDLE file_handle, IO_STATUS_BLOCK* us_ios
     auto ret = NtQueryInformationFile(file_handle, &iosb, buffer, buffer_size,
                                       file_information_class);
 
-    if (success(ret)) {
+    if (success(ret) || ret == nt_status::BUFFER_OVERFLOW) {
         if (!copy_to_process(us_buffer, buffer, iosb.Information))
             ret = nt_status::ACCESS_VIOLATION;
 

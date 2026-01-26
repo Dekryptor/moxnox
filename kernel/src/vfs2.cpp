@@ -1074,7 +1074,7 @@ NTSTATUS NtQueryInformationFile(HANDLE file_handle, IO_STATUS_BLOCK* iosb, void*
     auto ret = f.query_information(buffer, buffer_size, file_information_class,
                                    retlen);
 
-    if (!success(ret)) {
+    if (!success(ret) && ret != nt_status::BUFFER_OVERFLOW) {
         iosb->Information = 0;
         return ret;
     }
