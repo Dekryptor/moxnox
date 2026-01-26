@@ -385,6 +385,8 @@ span<char> do_format_arg(span<char> sp, string_view, nt_status arg) {
             return sp_strcpy(sp, "BREAKPOINT");
         case nt_status::SINGLE_STEP:
             return sp_strcpy(sp, "SINGLE_STEP");
+        case nt_status::BUFFER_OVERFLOW:
+            return sp_strcpy(sp, "BUFFER_OVERFLOW");
         case nt_status::NO_MORE_FILES:
             return sp_strcpy(sp, "NO_MORE_FILES");
         case nt_status::NO_MORE_ENTRIES:
