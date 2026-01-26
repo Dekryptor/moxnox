@@ -1084,11 +1084,64 @@ NTSTATUS NtQueryInformationFile(HANDLE file_handle, IO_STATUS_BLOCK* iosb, void*
     return ret;
 }
 
+static nt_status query_name(dentry& dentry, span<uint8_t> buf, uint64_t& retlen) {
+    char* path;
+    size_t path_len;
+
+    if (buf.size() < offsetof(FILE_NAME_INFORMATION, FileName))
+        return nt_status::BUFFER_TOO_SMALL;
+
+    auto& fni = *(FILE_NAME_INFORMATION*)buf.data();
+
+    auto status = get_dentry_path(dentry, path, path_len);
+    if (!success(status)) {
+        print("get_dentry_path returned {}\n", status);
+        return status;
+    }
+
+    auto maxlen = (buf.size() - offsetof(FILE_NAME_INFORMATION, FileName)) / sizeof(char16_t);
+
+    auto name = string_view(path, path_len);
+
+    auto u16len = utf8_to_utf16_len(name);
+
+    fni.FileNameLength = (char32_t)(u16len * sizeof(char16_t));
+
+    utf8_to_utf16(span(fni.FileName, maxlen), name);
+
+    free(path);
+
+    if (maxlen < u16len) {
+        retlen = offsetof(FILE_NAME_INFORMATION, FileName) + (maxlen * sizeof(char16_t));
+        return nt_status::BUFFER_OVERFLOW;
+    } else {
+        retlen = offsetof(FILE_NAME_INFORMATION, FileName) + (u16len * sizeof(char16_t));
+        return nt_status::SUCCESS;
+    }
+}
+
 NTSTATUS file::query_information(void* buffer, uint32_t buffer_size,
                                  FILE_INFORMATION_CLASS file_information_class,
                                  uint64_t& retlen) {
     if (ino.type != object_type::inode)
         return nt_status::INVALID_PARAMETER;
+
+    if (file_information_class == FILE_INFORMATION_CLASS::NameInformation) {
+        ::dentry* d;
+
+        {
+            lock_guard lg(lock);
+
+            d = dentry;
+            d->acquire();
+        }
+
+        auto ret = query_name(*d, span((uint8_t*)buffer, buffer_size), retlen);
+
+        d->release();
+
+        return ret;
+    }
 
     return static_cast<inode&>(ino).query_information(span((uint8_t*)buffer, buffer_size),
                                                       file_information_class, retlen);
