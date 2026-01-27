@@ -424,7 +424,8 @@ static void create_thread(void(*func)()) {
 static void prepare_environment() {
     // FIXME - better way of doing this
     static const u16string_view vars[] = {
-        u"PATH=/bin"
+        u"PATH=/bin",
+        u"HOME=/", // FIXME
     };
 
     size_t len = 1;
