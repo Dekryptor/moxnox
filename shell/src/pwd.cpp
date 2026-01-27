@@ -30,7 +30,7 @@ extern "C" FORCE_ALIGN_ARG_POINTER void startup() {
                                     &fni, sizeof(fni),
                                     FILE_INFORMATION_CLASS::NameInformation);
     if (!success(status) && status != nt_status::BUFFER_OVERFLOW) {
-        print("pwd: NtQueryInformationFile returned {}\n", status);
+        print_stderr("pwd: NtQueryInformationFile returned {}\n", status);
         NtTerminateThread(NtCurrentThread(), status);
         unreachable();
     }
@@ -39,7 +39,7 @@ extern "C" FORCE_ALIGN_ARG_POINTER void startup() {
 
     auto fni2 = (FILE_NAME_INFORMATION*)malloc(len);
     if (!fni2) {
-        print("malloc failed\n");
+        print_stderr("malloc failed\n");
         NtTerminateThread(NtCurrentThread(), nt_status::INSUFFICIENT_RESOURCES);
         unreachable();
     }
@@ -48,7 +48,7 @@ extern "C" FORCE_ALIGN_ARG_POINTER void startup() {
                                     fni2, (uint32_t)len,
                                     FILE_INFORMATION_CLASS::NameInformation);
     if (!success(status)) {
-        print("pwd: NtQueryInformationFile returned {}\n", status);
+        print_stderr("pwd: NtQueryInformationFile returned {}\n", status);
         free(fni2);
         NtTerminateThread(NtCurrentThread(), status);
         unreachable();
