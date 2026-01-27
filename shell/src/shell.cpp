@@ -672,14 +672,45 @@ static bool path_open(u16string_view program, u16string_view path,
     return false;
 }
 
+static u16string_view get_env(u16string_view name) {
+    auto peb = NtCurrentTeb()->ProcessEnvironmentBlock;
+    auto env = u16string_view((char16_t*)peb->ProcessParameters->Environment,
+                              peb->ProcessParameters->EnvironmentSize / sizeof(char16_t));
+
+    while (true) {
+        if (env.empty() || env[0] == 0)
+            break;
+
+        auto zero = env.find(u'\0');
+
+        u16string_view bit;
+
+        if (zero == u16string_view::npos)
+            bit = env;
+        else
+            bit = u16string_view(env.data(), zero);
+
+        if (auto eq = bit.find(u'='); eq != u16string_view::npos) {
+            if (u16string_view(bit.data(), eq) == name)
+                return u16string_view(bit.data() + eq + 1, bit.size() - eq - 1);
+        }
+
+        if (zero != u16string_view::npos)
+            env = u16string_view(env.data() + zero + 1, env.size() - zero - 1);
+        else
+            break;
+    }
+
+    return u"";
+}
+
 static void try_run_program(string_view program, string_view cmdline,
                             HANDLE server_handle, HANDLE client_handle) {
     NTSTATUS status;
     HANDLE h;
     unique_handle file, sect;
     SECTION_IMAGE_INFORMATION sii;
-
-    static const u16string_view PATH = u"/:/bin"; // FIXME - get from env
+    u16string_view env_path = get_env(u"PATH");
 
     // open file
 
@@ -722,7 +753,7 @@ static void try_run_program(string_view program, string_view cmdline,
 
         file = unique_handle{h};
     } else {
-        if (!path_open(u16string_view(u16buf, u16len), PATH, file)) {
+        if (!path_open(u16string_view(u16buf, u16len), env_path, file)) {
             free(u16buf);
             return;
         }
