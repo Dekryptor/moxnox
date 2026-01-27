@@ -22,7 +22,7 @@ static void get_dos_path(HANDLE h, UNICODE_STRING& us) {
     status = NtQueryInformationFile(h, &iosb, &fni, sizeof(fni),
                                     FILE_INFORMATION_CLASS::NameInformation);
     if (!success(status) && status != nt_status::BUFFER_OVERFLOW) {
-        print("NtQueryInformationFile returned {}\n", status);
+        print_stderr("NtQueryInformationFile returned {}\n", status);
         return;
     }
 
@@ -30,14 +30,14 @@ static void get_dos_path(HANDLE h, UNICODE_STRING& us) {
 
     auto fni2 = (FILE_NAME_INFORMATION*)malloc(len);
     if (!fni2) {
-        print("malloc failed\n");
+        print_stderr("malloc failed\n");
         return;
     }
 
     status = NtQueryInformationFile(h, &iosb, fni2, (uint32_t)len,
                                     FILE_INFORMATION_CLASS::NameInformation);
     if (!success(status)) {
-        print("NtQueryInformationFile returned {}\n", status);
+        print_stderr("NtQueryInformationFile returned {}\n", status);
         free(fni2);
         return;
     }
@@ -77,7 +77,7 @@ export void cd(string_view param) {
 
         auto buf = (char16_t*)malloc(len * sizeof(char16_t));
         if (!buf) {
-            print("malloc failed\n");
+            print_stderr("malloc failed\n");
             return;
         }
 
@@ -101,13 +101,13 @@ export void cd(string_view param) {
 
     if (status == nt_status::OBJECT_NAME_NOT_FOUND ||
         status == nt_status::OBJECT_PATH_NOT_FOUND) {
-        print("cd: {}: No such file or directory\n", param); // FIXME - stderr
+        print_stderr("cd: {}: No such file or directory\n", param);
         return;
     } else if (status == nt_status::NOT_A_DIRECTORY) {
-        print("cd: {}: Not a directory\n", param); // FIXME - stderr
+        print_stderr("cd: {}: Not a directory\n", param);
         return;
     } else if (!success(status)) {
-        print("cd: {}: NtCreateFile returned {}\n", param, status); // FIXME - stderr
+        print_stderr("cd: {}: NtCreateFile returned {}\n", param, status);
         return;
     }
 
