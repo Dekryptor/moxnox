@@ -531,88 +531,186 @@ static void halt() {
     print_stderr("NtShutdownSystem returned {}\n", status);
 }
 
-static void try_run_program(string_view program, string_view cmdline,
-                            HANDLE server_handle, HANDLE client_handle) {
-    OBJECT_ATTRIBUTES oa;
-    UNICODE_STRING us;
+static bool path_open(u16string_view program, u16string_view path,
+                      unique_handle& file) {
     NTSTATUS status;
-    HANDLE h;
-    unique_handle file, sect;
+    OBJECT_ATTRIBUTES oa;
+    UNICODE_STRING us, us2;
     IO_STATUS_BLOCK iosb;
-    SECTION_IMAGE_INFORMATION sii;
-
-    // FIXME - should be checking PATH instead of root
-
-    auto len = utf8_to_utf16_len(program) + 1;
-
-    // open file
-
-    // FIXME - path may be absolute, or relative to subdir
-    // FIXME - translate slashes to backslashes
-    us.Length = us.MaximumLength = (uint16_t)(len * sizeof(char16_t));
-    us.Buffer = (char16_t*)malloc(us.Length);
-
-    if (!us.Buffer) {
-        print_stderr("malloc failed\n");
-        return;
-    }
-
-    us.Buffer[0] = '\\';
-    utf8_to_utf16(span(us.Buffer + 1, len - 1), program);
+    HANDLE h;
+    char16_t* exebuf = nullptr;
 
     memset(&oa, 0, sizeof(oa));
     oa.Length = sizeof(OBJECT_ATTRIBUTES);
     oa.ObjectName = &us;
 
-    status = NtCreateFile(&h, FILE_READ_DATA, &oa, &iosb, nullptr, 0, 0,
-                          FILE_OPEN, FILE_NON_DIRECTORY_FILE, nullptr, 0);
-    free(us.Buffer);
+    while (true) {
+        HANDLE dirh;
+        u16string_view p;
+        auto col = path.find(u":");
 
-    if (status == nt_status::OBJECT_NAME_NOT_FOUND) {
-        bool add_ext = true;
+        if (col == u16string_view::npos)
+            p = path;
+        else
+            p = u16string_view(path.data(), col);
 
-        for (auto c : program) {
-            if (c == '.' || c == '/' || c == '\\') {
-                add_ext = false;
+        oa.RootDirectory = 0;
+        oa.ObjectName = &us;
+        us.Length = us.MaximumLength = (uint16_t)(p.size() * sizeof(char16_t));
+        us.Buffer = (char16_t*)p.data();
+
+        status = NtCreateFile(&dirh, FILE_TRAVERSE, &oa, &iosb, nullptr, 0, 0,
+                              FILE_OPEN, FILE_DIRECTORY_FILE, nullptr, 0);
+        switch (status) {
+            case nt_status::OBJECT_NAME_NOT_FOUND:
+            case nt_status::OBJECT_PATH_NOT_FOUND:
+            case nt_status::FILE_IS_A_DIRECTORY:
                 break;
+
+            default:
+                if (!success(status)) {
+                    print_stderr("NtCreateFile returned {} for {}\n", status, p);
+
+                    if (exebuf)
+                        free(exebuf);
+
+                    return false;
+                }
+                break;
+        }
+
+        if (success(status)) {
+            unique_handle dir{dirh};
+
+            oa.RootDirectory = dir.get();
+
+            us.Length = us.MaximumLength = (uint16_t)(program.size() * sizeof(char16_t));
+            us.Buffer = (char16_t*)program.data();
+
+            status = NtCreateFile(&h, FILE_READ_DATA, &oa, &iosb, nullptr, 0, 0,
+                                  FILE_OPEN, FILE_NON_DIRECTORY_FILE, nullptr, 0);
+            if (status == nt_status::OBJECT_NAME_NOT_FOUND &&
+                program.find(u'.') == u16string_view::npos) {
+
+                if (!exebuf) {
+                    static const char16_t suffix[] = u".exe";
+
+                    exebuf = (char16_t*)malloc(us.Length + sizeof(suffix) - sizeof(char16_t));
+
+                    memcpy(exebuf, us.Buffer, us.Length);
+                    memcpy(exebuf + (us.Length / sizeof(char16_t)), suffix,
+                           sizeof(suffix) - sizeof(char16_t));
+
+                    us2.Length = us2.MaximumLength = us.Length + sizeof(suffix) - sizeof(char16_t);
+                    us2.Buffer = exebuf;
+                }
+
+                oa.ObjectName = &us2;
+
+                status = NtCreateFile(&h, FILE_READ_DATA, &oa, &iosb, nullptr,
+                                      0, 0, FILE_OPEN, FILE_NON_DIRECTORY_FILE,
+                                      nullptr, 0);
+            }
+
+            switch (status) {
+                case nt_status::OBJECT_NAME_NOT_FOUND:
+                case nt_status::OBJECT_PATH_NOT_FOUND:
+                case nt_status::FILE_IS_A_DIRECTORY:
+                    break;
+
+                default:
+                    if (!success(status)) {
+                        print_stderr("NtCreateFile returned {}\n", status);
+
+                        if (exebuf)
+                            free(exebuf);
+
+                        return false;
+                    }
+                    break;
+            }
+
+            if (success(status)) {
+                file.reset(h);
+
+                if (exebuf)
+                    free(exebuf);
+
+                return true;
             }
         }
 
-        if (add_ext) {
-            static const char16_t suffix[] = u".exe";
+        if (col == u16string_view::npos)
+            break;
 
-            us.Length = us.MaximumLength = (uint16_t)((len * sizeof(char16_t)) + sizeof(suffix) - sizeof(char16_t));
-            us.Buffer = (char16_t*)malloc(us.Length);
+        path = u16string_view(path.data() + col + 1, path.size() - col - 1);
+    }
 
-            if (!us.Buffer) {
-                print_stderr("malloc failed\n");
-                return;
-            }
+    print_stderr("{}: command not found\n", program);
 
-            // FIXME - PATH etc.
-            us.Buffer[0] = '\\';
-            utf8_to_utf16(span(us.Buffer + 1, len - 1), program);
-            memcpy(us.Buffer + len, suffix, sizeof(suffix) - sizeof(char16_t));
+    if (exebuf)
+        free(exebuf);
 
-            oa.ObjectName = &us;
+    return false;
+}
 
-            status = NtCreateFile(&h, FILE_READ_DATA, &oa, &iosb, nullptr,
-                                  0, 0, FILE_OPEN, 0, nullptr, 0);
+static void try_run_program(string_view program, string_view cmdline,
+                            HANDLE server_handle, HANDLE client_handle) {
+    NTSTATUS status;
+    HANDLE h;
+    unique_handle file, sect;
+    SECTION_IMAGE_INFORMATION sii;
+
+    static const u16string_view PATH = u"/:/bin"; // FIXME - get from env
+
+    // open file
+
+    auto u16len = utf8_to_utf16_len(program);
+    auto u16buf = (char16_t*)malloc(u16len * sizeof(char16_t));
+    if (!u16buf) {
+        print_stderr("malloc failed\n");
+        return;
+    }
+
+    utf8_to_utf16(span(u16buf, u16len), program);
+
+    auto u16program = u16string_view(u16buf, u16len);
+
+    if (u16program.find(u'/') != u16string_view::npos) {
+        OBJECT_ATTRIBUTES oa;
+        UNICODE_STRING us;
+        IO_STATUS_BLOCK iosb;
+
+        memset(&oa, 0, sizeof(oa));
+        oa.Length = sizeof(OBJECT_ATTRIBUTES);
+        oa.ObjectName = &us;
+
+        us.Length = us.MaximumLength = (uint16_t)(u16program.size() * sizeof(char16_t));
+        us.Buffer = (char16_t*)u16program.data();
+
+        status = NtCreateFile(&h, FILE_READ_DATA, &oa, &iosb, nullptr, 0, 0,
+                              FILE_OPEN, FILE_NON_DIRECTORY_FILE, nullptr, 0);
+        if (status == nt_status::OBJECT_NAME_NOT_FOUND ||
+            status == nt_status::OBJECT_PATH_NOT_FOUND) {
+            print_stderr("{}: No such file or directory\n", program);
+            return;
+        } else if (status == nt_status::FILE_IS_A_DIRECTORY) {
+            print_stderr("{}: Is a directory\n", program);
+            return;
+        } else if (!success(status)) {
+            print_stderr("NtCreateFile returned {}\n", status);
+            return;
+        }
+
+        file = unique_handle{h};
+    } else {
+        if (!path_open(u16string_view(u16buf, u16len), PATH, file)) {
+            free(u16buf);
+            return;
         }
     }
 
-    if (status == nt_status::OBJECT_NAME_NOT_FOUND || status == nt_status::OBJECT_PATH_NOT_FOUND) {
-        print_stderr("{}: command not found\n", program);
-        return;
-    } else if (status == nt_status::FILE_IS_A_DIRECTORY) {
-        print_stderr("{}: is a directory\n", program);
-        return;
-    } else if (!success(status)) {
-        print_stderr("NtCreateFile returned {}\n", status);
-        return;
-    }
-
-    file.reset(h);
+    free(u16buf);
 
     // create section
 
