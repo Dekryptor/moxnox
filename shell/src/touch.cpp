@@ -31,7 +31,7 @@ static void touch(u16string_view fn) {
                           0, nullptr, 0);
 
     if (!success(status)) {
-        print("touch: {}: NtCreateFile returned {}\n", fn, status); // FIXME - stderr
+        print_stderr("touch: {}: NtCreateFile returned {}\n", fn, status);
         return;
     }
 
@@ -41,7 +41,7 @@ static void touch(u16string_view fn) {
 
         status = NtQuerySystemTime(&now);
         if (!success(status)) {
-            print("touch: {}: NtQuerySystemTime returned {}\n", fn, status); // FIXME - stderr
+            print_stderr("touch: {}: NtQuerySystemTime returned {}\n", fn, status);
             NtClose(file);
             return;
         }
@@ -55,7 +55,7 @@ static void touch(u16string_view fn) {
         status = NtSetInformationFile(file, &iosb, &fbi, sizeof(fbi), FILE_INFORMATION_CLASS::BasicInformation);
 
         if (!success(status)) {
-            print("touch: {}: NtSetInformationFile returned {}\n", fn, status); // FIXME - stderr
+            print_stderr("touch: {}: NtSetInformationFile returned {}\n", fn, status);
             NtClose(file);
             return;
         }
@@ -92,7 +92,7 @@ extern "C" FORCE_ALIGN_ARG_POINTER void startup() {
     parse_cmdline(cmdline, argv);
 
     if (argv.size() < 2) {
-        print("touch: missing operand\n"); // FIXME - stderr
+        print_stderr("touch: missing operand\n");
         NtTerminateThread(NtCurrentThread(), nt_status::SUCCESS);
         return;
     }
