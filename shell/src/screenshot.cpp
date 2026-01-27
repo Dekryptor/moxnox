@@ -21,14 +21,14 @@ static void write_png(png_structp png, png_bytep buf, size_t size) {
     auto status = NtWriteFile(file, 0, nullptr, nullptr, &iosb, buf,
                               (uint32_t)size, nullptr, nullptr);
     if (!success(status))
-        print("NtWriteFile returned {}\n", status);
+        print_stderr("NtWriteFile returned {}\n", status);
 }
 
 static void flush_png(png_structp) {
 }
 
 static void png_error(png_structp, const char* msg) {
-    print("libpng error: {}\n", msg);
+    print_stderr("libpng error: {}\n", msg);
 }
 
 static void write_png_file(HANDLE file, unsigned int width, unsigned int height,
@@ -37,13 +37,13 @@ static void write_png_file(HANDLE file, unsigned int width, unsigned int height,
     png_structp png = png_create_write_struct(PNG_LIBPNG_VER_STRING, nullptr,
                                               nullptr, nullptr);
     if (!png) {
-        print("png_create_write_struct failed\n");
+        print_stderr("png_create_write_struct failed\n");
         return;
     }
 
     png_infop info = png_create_info_struct(png);
     if (!info) {
-        print("png_create_info_struct failed\n");
+        print_stderr("png_create_info_struct failed\n");
         return;
     }
 
@@ -109,7 +109,7 @@ static bool get_screenshot_filename(span<char16_t> buf, UNICODE_STRING& us) {
     char s[50];
 
     if (!success(status)) {
-        print("NtQuerySystemTime returned {}\n", status);
+        print_stderr("NtQuerySystemTime returned {}\n", status);
         return false;
     }
 
@@ -155,7 +155,7 @@ static void take_screenshot() {
 
     status = NtOpenSection(&sect, SECTION_MAP_READ, &oa);
     if (!success(status)) {
-        print("NtOpenSection returned {}\n", status);
+        print_stderr("NtOpenSection returned {}\n", status);
         return;
     }
 
@@ -165,14 +165,14 @@ static void take_screenshot() {
     status = NtMapViewOfSection(sect, NtCurrentProcess(), &addr, 0, 0, nullptr,
                                 &size, SECTION_INHERIT::ViewUnmap, 0, PAGE_READONLY);
     if (!success(status)) {
-        print("NtMapViewOfSection returned {}\n", status);
+        print_stderr("NtMapViewOfSection returned {}\n", status);
         return;
     }
 
     status = NtQuerySection(sect, SECTION_INFORMATION_CLASS::MoxnoxFramebufferInformation,
                             &fb_info, sizeof(fb_info), &return_length);
     if (!success(status)) {
-        print("NtQuerySection returned {}\n", status);
+        print_stderr("NtQuerySection returned {}\n", status);
         return;
     }
 
@@ -193,7 +193,7 @@ static void take_screenshot() {
                           0, nullptr, 0);
 
     if (!success(status)) {
-        print("NtCreateFile returned {}\n", status); // FIXME - stderr
+        print_stderr("NtCreateFile returned {}\n", status);
         NtUnmapViewOfSection(NtCurrentProcess(), addr);
         return;
     }
