@@ -120,7 +120,7 @@ static object_ref create_init_process() {
     utf8_to_utf16(span(init_cmdline + init_cmdline_pref.size(),
                        init_cmdline_len - init_cmdline_pref.size()), cmdline);
 
-    auto ref = create_process("/init.exe", "/", u16string_view(init_cmdline, init_cmdline_len),
+    auto ref = create_process("/bin/init.exe", "/", u16string_view(init_cmdline, init_cmdline_len),
                               initin, initout, initout);
 
     free(init_cmdline);

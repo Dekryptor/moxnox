@@ -347,7 +347,7 @@ static void do_serial() {
     }
 
     while (true) {
-        run_program(u"\\usercon.exe", u"usercon.exe serial", h, h, h);
+        run_program(u"\\bin\\usercon.exe", u"usercon.exe serial", h, h, h);
     }
 
     NtClose(h);
@@ -459,7 +459,7 @@ FORCE_ALIGN_ARG_POINTER void startup() {
             auto teb = NtCurrentTeb();
             auto peb = teb->ProcessEnvironmentBlock;
 
-            run_program(u"\\usercon.exe", u"usercon.exe serial",
+            run_program(u"\\bin\\usercon.exe", u"usercon.exe serial",
                         peb->ProcessParameters->StandardInput,
                         peb->ProcessParameters->StandardOutput,
                         peb->ProcessParameters->StandardError);
@@ -471,7 +471,7 @@ FORCE_ALIGN_ARG_POINTER void startup() {
             auto teb = NtCurrentTeb();
             auto peb = teb->ProcessEnvironmentBlock;
 
-            run_program(u"\\usercon.exe", u"usercon.exe",
+            run_program(u"\\bin\\usercon.exe", u"usercon.exe",
                         peb->ProcessParameters->StandardInput,
                         peb->ProcessParameters->StandardOutput,
                         peb->ProcessParameters->StandardError);

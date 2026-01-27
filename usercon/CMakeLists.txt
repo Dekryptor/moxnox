@@ -22,7 +22,7 @@ target_link_libraries(usercon format rbtree unique_handle list vt100 signal unic
 target_link_libraries(usercon harfbuzz)
 target_link_libraries(usercon freetype)
 
-install(TARGETS usercon DESTINATION ${CMAKE_INSTALL_PREFIX}
+install(TARGETS usercon DESTINATION ${CMAKE_INSTALL_PREFIX}/bin
     CXX_MODULES_BMI EXCLUDE_FROM_ALL)
 
 # FIXME - put this in a better place

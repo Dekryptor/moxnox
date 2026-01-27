@@ -33,7 +33,7 @@ target_link_libraries(shell print unicode unique_handle signal cmdline list page
 target_link_libraries(shell moxnox)
 target_link_libraries(shell format)
 
-install(TARGETS shell DESTINATION ${CMAKE_INSTALL_PREFIX}
+install(TARGETS shell DESTINATION ${CMAKE_INSTALL_PREFIX}/bin
     CXX_MODULES_BMI EXCLUDE_FROM_ALL
 )
 
@@ -47,7 +47,7 @@ target_link_options(echo PUBLIC -nostartfiles -nostdlib -Wl,--entry=startup)
 target_link_libraries(echo print unicode cmdline format)
 target_link_libraries(echo moxnox)
 
-install(TARGETS echo DESTINATION ${CMAKE_INSTALL_PREFIX})
+install(TARGETS echo DESTINATION ${CMAKE_INSTALL_PREFIX}/bin)
 
 ###
 
@@ -60,7 +60,7 @@ target_link_libraries(ls print)
 target_link_libraries(ls format list cmdline getopt)
 target_link_libraries(ls moxnox)
 
-install(TARGETS ls DESTINATION ${CMAKE_INSTALL_PREFIX})
+install(TARGETS ls DESTINATION ${CMAKE_INSTALL_PREFIX}/bin)
 
 ###
 
@@ -73,7 +73,7 @@ target_link_libraries(cat print)
 target_link_libraries(cat format cmdline)
 target_link_libraries(cat moxnox)
 
-install(TARGETS cat DESTINATION ${CMAKE_INSTALL_PREFIX})
+install(TARGETS cat DESTINATION ${CMAKE_INSTALL_PREFIX}/bin)
 
 ###
 
@@ -85,7 +85,7 @@ target_link_options(pwd PUBLIC -nostartfiles -nostdlib -Wl,--entry=startup)
 target_link_libraries(pwd print unicode format)
 target_link_libraries(pwd moxnox)
 
-install(TARGETS pwd DESTINATION ${CMAKE_INSTALL_PREFIX})
+install(TARGETS pwd DESTINATION ${CMAKE_INSTALL_PREFIX}/bin)
 
 ###
 
@@ -97,7 +97,7 @@ target_link_options(yes PUBLIC -nostartfiles -nostdlib -Wl,--entry=startup)
 target_link_libraries(yes print format)
 target_link_libraries(yes moxnox)
 
-install(TARGETS yes DESTINATION ${CMAKE_INSTALL_PREFIX})
+install(TARGETS yes DESTINATION ${CMAKE_INSTALL_PREFIX}/bin)
 
 ###
 
@@ -110,7 +110,7 @@ target_link_libraries(mkdir print)
 target_link_libraries(mkdir format cmdline)
 target_link_libraries(mkdir moxnox)
 
-install(TARGETS mkdir DESTINATION ${CMAKE_INSTALL_PREFIX})
+install(TARGETS mkdir DESTINATION ${CMAKE_INSTALL_PREFIX}/bin)
 
 ###
 
@@ -123,7 +123,7 @@ target_link_libraries(touch print)
 target_link_libraries(touch format cmdline)
 target_link_libraries(touch moxnox)
 
-install(TARGETS touch DESTINATION ${CMAKE_INSTALL_PREFIX})
+install(TARGETS touch DESTINATION ${CMAKE_INSTALL_PREFIX}/bin)
 
 ###
 
@@ -136,7 +136,7 @@ target_link_libraries(rm print)
 target_link_libraries(rm format cmdline)
 target_link_libraries(rm moxnox)
 
-install(TARGETS rm DESTINATION ${CMAKE_INSTALL_PREFIX})
+install(TARGETS rm DESTINATION ${CMAKE_INSTALL_PREFIX}/bin)
 
 ###
 
@@ -149,7 +149,7 @@ target_link_libraries(rmdir print)
 target_link_libraries(rmdir format cmdline)
 target_link_libraries(rmdir moxnox)
 
-install(TARGETS rmdir DESTINATION ${CMAKE_INSTALL_PREFIX})
+install(TARGETS rmdir DESTINATION ${CMAKE_INSTALL_PREFIX}/bin)
 
 ###
 
@@ -163,7 +163,7 @@ target_link_libraries(screenshot format unicode cmdline)
 target_link_libraries(screenshot moxnox)
 target_link_libraries(screenshot libpng zlib)
 
-install(TARGETS screenshot DESTINATION ${CMAKE_INSTALL_PREFIX})
+install(TARGETS screenshot DESTINATION ${CMAKE_INSTALL_PREFIX}/bin)
 
 ###
 
@@ -176,7 +176,7 @@ target_link_libraries(seh-test print)
 target_link_libraries(seh-test format)
 target_link_libraries(seh-test moxnox)
 
-install(TARGETS seh-test DESTINATION ${CMAKE_INSTALL_PREFIX})
+install(TARGETS seh-test DESTINATION ${CMAKE_INSTALL_PREFIX}/bin)
 
 ###
 
@@ -188,7 +188,7 @@ target_link_options(ps PUBLIC -nostartfiles -nostdlib -Wl,--entry=startup)
 target_link_libraries(ps print unique_handle format list)
 target_link_libraries(ps moxnox)
 
-install(TARGETS ps DESTINATION ${CMAKE_INSTALL_PREFIX})
+install(TARGETS ps DESTINATION ${CMAKE_INSTALL_PREFIX}/bin)
 
 ###
 
@@ -200,7 +200,7 @@ target_link_options(kill PUBLIC -nostartfiles -nostdlib -Wl,--entry=startup)
 target_link_libraries(kill print cmdline format unique_handle)
 target_link_libraries(kill moxnox)
 
-install(TARGETS kill DESTINATION ${CMAKE_INSTALL_PREFIX})
+install(TARGETS kill DESTINATION ${CMAKE_INSTALL_PREFIX}/bin)
 
 ###
 
@@ -212,7 +212,7 @@ target_link_options(killall PUBLIC -nostartfiles -nostdlib -Wl,--entry=startup)
 target_link_libraries(killall print cmdline format unique_handle)
 target_link_libraries(killall moxnox)
 
-install(TARGETS killall DESTINATION ${CMAKE_INSTALL_PREFIX})
+install(TARGETS killall DESTINATION ${CMAKE_INSTALL_PREFIX}/bin)
 
 ###
 
@@ -225,4 +225,4 @@ target_link_libraries(reboot print)
 target_link_libraries(reboot format)
 target_link_libraries(reboot moxnox)
 
-install(TARGETS reboot DESTINATION ${CMAKE_INSTALL_PREFIX})
+install(TARGETS reboot DESTINATION ${CMAKE_INSTALL_PREFIX}/bin)

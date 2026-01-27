@@ -1656,7 +1656,7 @@ static int try_text_console() {
         return 1;
     }
 
-    run_shell(u"\\shell.exe", u"shell.exe", recv_data_text, flush_text_console);
+    run_shell(u"\\bin\\shell.exe", u"shell.exe", recv_data_text, flush_text_console);
 
     return 0;
 }
@@ -1733,7 +1733,7 @@ static int do_console() {
     rect(0, 0, fb_info.width, fb_info.height, 0x000000);
     flush_framebuffer();
 
-    run_shell(u"\\shell.exe", u"shell.exe", recv_data_fb, flush_framebuffer);
+    run_shell(u"\\bin\\shell.exe", u"shell.exe", recv_data_fb, flush_framebuffer);
 
     return 0;
 }
@@ -1807,7 +1807,7 @@ static int do_serial_console() {
     auto teb = NtCurrentTeb();
     auto peb = teb->ProcessEnvironmentBlock;
 
-    static const u16string_view exe = u"\\shell.exe";
+    static const u16string_view exe = u"\\bin\\shell.exe";
     static const u16string_view cmdline = u"shell.exe";
 
     // create pipe
