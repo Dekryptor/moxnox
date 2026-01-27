@@ -210,6 +210,8 @@ static bool allocate_proc_params(process& proc, HANDLE stdinh, HANDLE stdouth,
         return false;
     }
 
+    memset(ks_proc_params, 0, sizeof(*ks_proc_params));
+
     ks_proc_params->StandardInput = stdinh;
     ks_proc_params->StandardOutput = stdouth;
     ks_proc_params->StandardError = stderrh;
