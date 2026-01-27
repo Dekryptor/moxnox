@@ -191,7 +191,7 @@ static void ls_dir(HANDLE h) {
         if (status == nt_status::NO_MORE_FILES)
             break;
         else if (!success(status)) {
-            print("NtQueryDirectoryFile returned {}\n", status); // FIXME - should be to stderr
+            print_stderr("NtQueryDirectoryFile returned {}\n", status);
             NtTerminateThread(NtCurrentThread(), status);
             unreachable();
         }
@@ -271,17 +271,17 @@ static void ls(span<u16string_view> argv) {
 
         if (status == nt_status::OBJECT_NAME_NOT_FOUND ||
             status == nt_status::OBJECT_PATH_NOT_FOUND) {
-            print("ls: {}: No such file or directory\n", arg); // FIXME - stderr
+            print_stderr("ls: {}: No such file or directory\n", arg);
             return;
         } else if (!success(status)) {
-            print("ls: {}: NtCreateFile returned {}\n", arg, status); // FIXME - stderr
+            print_stderr("ls: {}: NtCreateFile returned {}\n", arg, status);
             return;
         }
 
         status = NtQueryInformationFile(h, &iosb, &fbi, sizeof(fbi),
                                         FILE_INFORMATION_CLASS::BasicInformation);
         if (!success(status)) {
-            print("ls: {}: NtQueryInformationFile returned {}\n", arg, status); // FIXME - stderr
+            print_stderr("ls: {}: NtQueryInformationFile returned {}\n", arg, status);
             NtClose(h);
             return;
         }
@@ -313,7 +313,7 @@ static void ls(span<u16string_view> argv) {
                 status = NtQueryInformationFile(h, &iosb, &fsi, sizeof(fsi),
                                                 FILE_INFORMATION_CLASS::StandardInformation);
                 if (!success(status)) {
-                    print("ls: {}: NtQueryInformationFile returned {}\n", arg, status); // FIXME - stderr
+                    print_stderr("ls: {}: NtQueryInformationFile returned {}\n", arg, status);
                     NtClose(h);
                     free(e);
                     return;
