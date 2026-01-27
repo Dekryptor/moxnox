@@ -1,5 +1,6 @@
 #include <string_view>
 #include <span>
+#include <utility>
 #include <string.h>
 #include <stdint.h>
 
@@ -84,7 +85,16 @@ extern "C" FORCE_ALIGN_ARG_POINTER void startup() {
 
     parse_cmdline(cmdline, argv);
 
-    for (size_t i = 1; i < argv.size(); i++) {
+    if (!argv.empty()) // skip program name
+        argv = span(argv.data() + 1, argv.size() - 1);
+
+    if (argv.empty()) {
+        print_stderr("rm: missing operand\n");
+        NtTerminateThread(NtCurrentThread(), nt_status::INVALID_PARAMETER);
+        unreachable();
+    }
+
+    for (size_t i = 0; i < argv.size(); i++) {
         rm_file(argv[i]);
     }
 
