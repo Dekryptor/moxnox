@@ -311,14 +311,13 @@ static void start_program(HANDLE sect, const SECTION_IMAGE_INFORMATION& sii,
         return;
     }
 
-    // FIXME - ImagePathName
-    // FIXME - environment variables
-
     // allocate misc block
 
     auto u16_cmdline_len = utf8_to_utf16_len(cmdline);
 
     size_t misc_block_size = (u16_cmdline_len + 1) * sizeof(char16_t);
+
+    misc_block_size += peb->ProcessParameters->EnvironmentSize;
 
     auto misc_block = (uint8_t*)malloc(misc_block_size);
     if (!misc_block) {
@@ -342,11 +341,22 @@ static void start_program(HANDLE sect, const SECTION_IMAGE_INFORMATION& sii,
 
     // copy cmdline
 
+    auto ptr = misc_block;
+
     utf8_to_utf16(span((char16_t*)misc_block, u16_cmdline_len), cmdline);
-    misc_block[u16_cmdline_len * sizeof(char16_t)] = 0;
+    ptr += u16_cmdline_len * sizeof(char16_t);
+
+    *ptr = 0;
+    ptr++;
+
     params.CommandLine.Length = (uint16_t)(u16_cmdline_len * sizeof(char16_t));
     params.CommandLine.MaximumLength = (uint16_t)((u16_cmdline_len + 1) * sizeof(char16_t));
     params.CommandLine.Buffer = (char16_t*)proc_misc_block;
+
+    memcpy(ptr, peb->ProcessParameters->Environment,
+           peb->ProcessParameters->EnvironmentSize);
+    params.Environment = (uint8_t*)proc_misc_block + (ptr - misc_block);
+    params.EnvironmentSize = peb->ProcessParameters->EnvironmentSize;
 
     // copy misc block
 
