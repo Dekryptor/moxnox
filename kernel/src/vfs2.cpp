@@ -381,11 +381,14 @@ nt_status open_inode(string_view fn, dentry& root_dir,
                      object_ref& obj_ref, optional<reference_wrapper<dentry>>& dentry,
                      uint32_t create_disposition, uint32_t create_options,
                      unsigned int& create_result) {
+    bool root = false;
+
     while (!fn.empty() && fn.front() == '/') {
+        root = true;
         fn = string_view(fn.data() + 1, fn.size() - 1);
     }
 
-    reference_wrapper<::dentry> dirrw{root_dir};
+    reference_wrapper<::dentry> dirrw{root ? *root_dentry : root_dir};
     dirrw.get().acquire();
 
     // FIXME - die if anything in middle not directory
