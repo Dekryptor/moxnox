@@ -564,6 +564,14 @@ static bool path_open(u16string_view program, u16string_view path,
         else
             p = u16string_view(path.data(), col);
 
+        if (p.empty()) {
+            if (col == u16string_view::npos)
+                break;
+
+            path = u16string_view(path.data() + col + 1, path.size() - col - 1);
+            continue;
+        }
+
         oa.RootDirectory = 0;
         oa.ObjectName = &us;
         us.Length = us.MaximumLength = (uint16_t)(p.size() * sizeof(char16_t));
