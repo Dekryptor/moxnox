@@ -69,7 +69,7 @@ static bool forward_stdin(HANDLE h, string_view s, HANDLE proc) {
         status = NtWriteFile(h, 0, nullptr, nullptr, &iosb, s.data(),
                              (uint32_t)s.size(), nullptr, nullptr);
         if (!success(status))
-            print("NtWriteFile returned {}\n", status);
+            print_stderr("NtWriteFile returned {}\n", status);
     };
 
     size_t ctrlz;
@@ -84,7 +84,7 @@ static bool forward_stdin(HANDLE h, string_view s, HANDLE proc) {
 
         auto status = NtSuspendProcess(proc);
         if (!success(status))
-            print("NtSuspendProcess returned {}\n", status);
+            print_stderr("NtSuspendProcess returned {}\n", status);
 
         // FIXME - bash also prints command line
         print("[{}]+  Stopped\n", num_suspended_processes + 1);
@@ -119,7 +119,7 @@ static bool run_program(HANDLE server_handle, unique_handle& proc) {
             continue;
 
         if (!success(status)) {
-            print("NtWaitForMultipleObjects returned {}\n", status);
+            print_stderr("NtWaitForMultipleObjects returned {}\n", status);
             return true;
         }
 
@@ -135,7 +135,7 @@ static bool run_program(HANDLE server_handle, unique_handle& proc) {
                 if (status == nt_status::ALERTED)
                     continue;
                 else if (!success(status)) {
-                    print("NtReadFile returned {}\n", status);
+                    print_stderr("NtReadFile returned {}\n", status);
                     continue;
                 }
 
@@ -178,7 +178,7 @@ static bool run_program(HANDLE server_handle, unique_handle& proc) {
                 if (status == nt_status::ALERTED)
                     continue;
                 else if (!success(status)) {
-                    print("NtReadFile returned {}\n", status);
+                    print_stderr("NtReadFile returned {}\n", status);
                     continue;
                 }
 
@@ -186,7 +186,7 @@ static bool run_program(HANDLE server_handle, unique_handle& proc) {
                                      nullptr, nullptr, &iosb, s,
                                      (uint32_t)iosb.Information, nullptr, nullptr);
                 if (!success(status))
-                    print("NtWriteFile returned {}\n", status);
+                    print_stderr("NtWriteFile returned {}\n", status);
 
                 break;
             }
@@ -229,7 +229,7 @@ static void start_program(HANDLE sect, const SECTION_IMAGE_INFORMATION& sii,
                              false, sect, 0, 0);
 
     if (!success(status)) {
-        print("NtCreateProcess returned {}\n", status);
+        print_stderr("NtCreateProcess returned {}\n", status);
         return;
     }
 
@@ -242,7 +242,7 @@ static void start_program(HANDLE sect, const SECTION_IMAGE_INFORMATION& sii,
                                DUPLICATE_SAME_ATTRIBUTES);
 
     if (!success(status)) {
-        print("NtDuplicateObject returned {}\n", status);
+        print_stderr("NtDuplicateObject returned {}\n", status);
         return;
     }
 
@@ -251,7 +251,7 @@ static void start_program(HANDLE sect, const SECTION_IMAGE_INFORMATION& sii,
                                DUPLICATE_SAME_ATTRIBUTES);
 
     if (!success(status)) {
-        print("NtDuplicateObject returned {}\n", status);
+        print_stderr("NtDuplicateObject returned {}\n", status);
         return;
     }
 
@@ -261,7 +261,7 @@ static void start_program(HANDLE sect, const SECTION_IMAGE_INFORMATION& sii,
                                    DUPLICATE_SAME_ATTRIBUTES | DUPLICATE_SAME_ACCESS);
 
         if (!success(status)) {
-            print("NtDuplicateObject returned {}\n", status);
+            print_stderr("NtDuplicateObject returned {}\n", status);
             return;
         }
     }
@@ -271,14 +271,14 @@ static void start_program(HANDLE sect, const SECTION_IMAGE_INFORMATION& sii,
     status = NtQueryInformationProcess(proc.get(), PROCESSINFOCLASS::BasicInformation,
                                        &pbi, sizeof(pbi), nullptr);
     if (!success(status)) {
-        print("NtQueryInformationProcess returned {}\n", status);
+        print_stderr("NtQueryInformationProcess returned {}\n", status);
         return;
     }
 
     status = NtReadVirtualMemory(proc.get(), pbi.PebBaseAddress, &newpeb,
                                  sizeof(PEB), nullptr);
     if (!success(status)) {
-        print("NtReadVirtualMemory returned {}\n", status);
+        print_stderr("NtReadVirtualMemory returned {}\n", status);
         return;
     }
 
@@ -287,7 +287,7 @@ static void start_program(HANDLE sect, const SECTION_IMAGE_INFORMATION& sii,
     status = NtReadVirtualMemory(proc.get(), newpeb.ProcessParameters, &params,
                                  sizeof(params), nullptr);
     if (!success(status)) {
-        print("NtReadVirtualMemory returned {}\n", status);
+        print_stderr("NtReadVirtualMemory returned {}\n", status);
         return;
     }
 
@@ -307,7 +307,7 @@ static void start_program(HANDLE sect, const SECTION_IMAGE_INFORMATION& sii,
                                   peb->ProcessParameters->CurrentDirectory.DosPath.Buffer,
                                   params.CurrentDirectory.DosPath.Length, nullptr);
     if (!success(status)) {
-        print("NtWriteVirtualMemory returned {}\n", status);
+        print_stderr("NtWriteVirtualMemory returned {}\n", status);
         return;
     }
 
@@ -322,7 +322,7 @@ static void start_program(HANDLE sect, const SECTION_IMAGE_INFORMATION& sii,
 
     auto misc_block = (uint8_t*)malloc(misc_block_size);
     if (!misc_block) {
-        print("malloc failed\n");
+        print_stderr("malloc failed\n");
         return;
     }
 
@@ -335,7 +335,7 @@ static void start_program(HANDLE sect, const SECTION_IMAGE_INFORMATION& sii,
                                      &proc_misc_block_size, MEM_COMMIT | MEM_RESERVE,
                                      PAGE_READWRITE);
     if (!success(status)) {
-        print("NtAllocateVirtualMemory returned {}\n", status);
+        print_stderr("NtAllocateVirtualMemory returned {}\n", status);
         free(misc_block);
         return;
     }
@@ -353,7 +353,7 @@ static void start_program(HANDLE sect, const SECTION_IMAGE_INFORMATION& sii,
     status = NtWriteVirtualMemory(proc.get(), proc_misc_block, misc_block,
                                   (uint32_t)misc_block_size, nullptr);
     if (!success(status)) {
-        print("NtWriteVirtualMemory returned {}\n", status);
+        print_stderr("NtWriteVirtualMemory returned {}\n", status);
         free(misc_block);
         return;
     }
@@ -364,7 +364,7 @@ static void start_program(HANDLE sect, const SECTION_IMAGE_INFORMATION& sii,
 
     status = NtWriteVirtualMemory(proc.get(), newpeb.ProcessParameters, &params, sizeof(params), nullptr);
     if (!success(status)) {
-        print("NtWriteVirtualMemory returned {}\n", status);
+        print_stderr("NtWriteVirtualMemory returned {}\n", status);
         return;
     }
 
@@ -378,7 +378,7 @@ static void start_program(HANDLE sect, const SECTION_IMAGE_INFORMATION& sii,
     status = NtAllocateVirtualMemory(proc.get(), &stack, 0, &stack_size,
                                      MEM_COMMIT | MEM_RESERVE, PAGE_READWRITE);
     if (!success(status)) {
-        print("NtAllocateVirtualMemory returned {}\n", status);
+        print_stderr("NtAllocateVirtualMemory returned {}\n", status);
         return;
     }
 
@@ -403,7 +403,7 @@ static void start_program(HANDLE sect, const SECTION_IMAGE_INFORMATION& sii,
                             &client_id, &context, &initial_teb, true);
 
     if (!success(status)) {
-        print("NtCreateThread returned {}\n", status);
+        print_stderr("NtCreateThread returned {}\n", status);
         return;
     }
 
@@ -454,7 +454,7 @@ static void time() {
     auto status = NtQuerySystemTime(&time);
 
     if (!success(status)) {
-        print("NtQuerySystemTime returned {}\n", status);
+        print_stderr("NtQuerySystemTime returned {}\n", status);
         return;
     }
 
@@ -473,7 +473,7 @@ static void timer() {
 
     status = NtCreateTimer(&h, TIMER_ALL_ACCESS, nullptr, TIMER_TYPE::SynchronizationTimer);
     if (!success(status)) {
-        print("NtCreateTimer returned {}\n", status); // FIXME - should be to stderr
+        print_stderr("NtCreateTimer returned {}\n", status);
         return;
     }
 
@@ -482,7 +482,7 @@ static void timer() {
     status = NtSetTimer(h, &due_time, nullptr, nullptr, false,
                         1000, nullptr);
     if (!success(status)) {
-        print("NtSetTimer returned {}\n", status); // FIXME - should be to stderr
+        print_stderr("NtSetTimer returned {}\n", status);
         NtClose(h);
         return;
     }
@@ -490,7 +490,7 @@ static void timer() {
     for (unsigned int i = 0; i < 3; i++) {
         status = NtWaitForSingleObject(h, false, nullptr);
         if (!success(status)) {
-            print("NtWaitForSingleObject returned {}\n", status); // FIXME - should be to stderr
+            print_stderr("NtWaitForSingleObject returned {}\n", status);
             NtClose(h);
             return;
         }
@@ -528,7 +528,7 @@ static void halt() {
 
     // shouldn't return
 
-    print("NtShutdownSystem returned {}\n", status);
+    print_stderr("NtShutdownSystem returned {}\n", status);
 }
 
 static void try_run_program(string_view program, string_view cmdline,
@@ -553,7 +553,7 @@ static void try_run_program(string_view program, string_view cmdline,
     us.Buffer = (char16_t*)malloc(us.Length);
 
     if (!us.Buffer) {
-        print("malloc failed\n");
+        print_stderr("malloc failed\n");
         return;
     }
 
@@ -585,7 +585,7 @@ static void try_run_program(string_view program, string_view cmdline,
             us.Buffer = (char16_t*)malloc(us.Length);
 
             if (!us.Buffer) {
-                print("malloc failed\n");
+                print_stderr("malloc failed\n");
                 return;
             }
 
@@ -602,13 +602,13 @@ static void try_run_program(string_view program, string_view cmdline,
     }
 
     if (status == nt_status::OBJECT_NAME_NOT_FOUND || status == nt_status::OBJECT_PATH_NOT_FOUND) {
-        print("{}: command not found\n", program); // FIXME - stderr
+        print_stderr("{}: command not found\n", program);
         return;
     } else if (status == nt_status::FILE_IS_A_DIRECTORY) {
-        print("{}: is a directory\n", program); // FIXME - stderr
+        print_stderr("{}: is a directory\n", program);
         return;
     } else if (!success(status)) {
-        print("NtCreateFile returned {}\n", status); // FIXME - stderr
+        print_stderr("NtCreateFile returned {}\n", status);
         return;
     }
 
@@ -620,10 +620,10 @@ static void try_run_program(string_view program, string_view cmdline,
                              file.get());
 
     if (status == nt_status::INVALID_IMAGE_FORMAT) {
-        print("{}: not an executable\n", program); // FIXME - stderr
+        print_stderr("{}: not an executable\n", program);
         return;
     } else if (!success(status)) {
-        print("NtCreateSection returned {}\n", status);
+        print_stderr("NtCreateSection returned {}\n", status);
         return;
     }
 
@@ -633,12 +633,12 @@ static void try_run_program(string_view program, string_view cmdline,
                             sizeof(SECTION_IMAGE_INFORMATION), nullptr);
 
     if (!success(status)) {
-        print("NtQuerySection returned {}\n", status); // FIXME - stderr
+        print_stderr("NtQuerySection returned {}\n", status);
         return;
     }
 
     if (sii.ImageCharacteristics & IMAGE_FILE_DLL) {
-        print("{}: not an executable\n", program); // FIXME - stderr
+        print_stderr("{}: not an executable\n", program);
         return;
     }
 
@@ -649,7 +649,7 @@ static void try_run_program(string_view program, string_view cmdline,
 #endif
 
     if (sii.Machine != this_arch) {
-        print("{}: unsupported architecture\n", program); // FIXME - stderr
+        print_stderr("{}: unsupported architecture\n", program);
         return;
     }
 
@@ -714,7 +714,7 @@ static void scroll(string_view param) {
     auto [ptr, ec] = from_chars(param.data(), param.data() + param.size(), val);
 
     if (ptr != param.data() + param.size()) {
-        print("unable to parse \"{}\" as integer\n", param);
+        print_stderr("unable to parse \"{}\" as integer\n", param);
         return;
     }
 
@@ -731,7 +731,7 @@ static void cursor() {
 
     status = NtCreateTimer(&h, TIMER_ALL_ACCESS, nullptr, TIMER_TYPE::SynchronizationTimer);
     if (!success(status)) {
-        print("NtCreateTimer returned {}\n", status); // FIXME - should be to stderr
+        print_stderr("NtCreateTimer returned {}\n", status);
         return;
     }
 
@@ -742,7 +742,7 @@ static void cursor() {
     status = NtSetTimer(h, &due_time, nullptr, nullptr, false,
                         1000, nullptr);
     if (!success(status)) {
-        print("NtSetTimer returned {}\n", status); // FIXME - should be to stderr
+        print_stderr("NtSetTimer returned {}\n", status);
         NtClose(h);
         return;
     }
@@ -750,7 +750,7 @@ static void cursor() {
     for (unsigned int i = 0; i < 4; i++) {
         status = NtWaitForSingleObject(h, false, nullptr);
         if (!success(status)) {
-            print("NtWaitForSingleObject returned {}\n", status); // FIXME - should be to stderr
+            print_stderr("NtWaitForSingleObject returned {}\n", status);
             NtClose(h);
             return;
         }
@@ -772,7 +772,7 @@ static void exit() {
 
         auto status = NtTerminateProcess(sp.proc.get(), nt_status::CONTROL_C_EXIT);
         if (!success(status))
-            print("NtTerminateProcess returned {}\n", status);
+            print_stderr("NtTerminateProcess returned {}\n", status);
 
         delete &sp;
     }
@@ -784,7 +784,7 @@ static void fg(HANDLE server_handle) {
     // FIXME - job_spec
 
     if (is_list_empty(suspended_processes)) {
-        print("fg: current: no such job\n");
+        print_stderr("fg: current: no such job\n");
         return;
     }
 
@@ -820,7 +820,7 @@ static void get_prompt() {
     status = NtQueryInformationFile(cwd, &iosb, &fni, sizeof(fni),
                                     FILE_INFORMATION_CLASS::NameInformation);
     if (!success(status) && status != nt_status::BUFFER_OVERFLOW) {
-        print("NtQueryInformationFile returned {}\n", status);
+        print_stderr("NtQueryInformationFile returned {}\n", status);
         return;
     }
 
@@ -828,14 +828,14 @@ static void get_prompt() {
 
     auto fni2 = (FILE_NAME_INFORMATION*)malloc(fnilen);
     if (!fni2) {
-        print("malloc failed\n");
+        print_stderr("malloc failed\n");
         return;
     }
 
     status = NtQueryInformationFile(cwd, &iosb, fni2, (uint32_t)fnilen,
                                     FILE_INFORMATION_CLASS::NameInformation);
     if (!success(status)) {
-        print("NtQueryInformationFile returned {}\n", status);
+        print_stderr("NtQueryInformationFile returned {}\n", status);
         free(fni2);
         return;
     }
@@ -845,7 +845,7 @@ static void get_prompt() {
 
     auto buf = (char*)malloc(prefix.size() + pwdlen + suffix.size());
     if (!buf) {
-        print("malloc failed\n");
+        print_stderr("malloc failed\n");
         free(fni2);
     }
 
@@ -1409,7 +1409,7 @@ static nt_status create_pipe(unique_handle& server_handle,
                                        PROCESSINFOCLASS::BasicInformation,
                                        &pbi, sizeof(pbi), nullptr);
     if (!success(status)) {
-        print("NtQueryInformationProcess returned {}\n", status);
+        print_stderr("NtQueryInformationProcess returned {}\n", status);
         return status;
     }
 
@@ -1435,7 +1435,7 @@ static nt_status create_pipe(unique_handle& server_handle,
                                    &iosb, 0, FILE_CREATE, 0, 1, 0, 0, 0, 0, 0,
                                    nullptr);
     if (!success(status)) {
-        print("NtCreateNamedPipeFile returned {}\n", status);
+        print_stderr("NtCreateNamedPipeFile returned {}\n", status);
         return status;
     }
 
@@ -1443,7 +1443,7 @@ static nt_status create_pipe(unique_handle& server_handle,
 
     status = NtOpenFile(&h, FILE_READ_DATA | FILE_WRITE_DATA, &oa, &iosb, 0, 0);
     if (!success(status)) {
-        print("NtOpenFile returned {}\n", status);
+        print_stderr("NtOpenFile returned {}\n", status);
         return status;
     }
 
@@ -1458,7 +1458,7 @@ static bool ctrl_handler(uint32_t type) {
 
     auto status = NtSetEvent(ctrl_c_event, nullptr);
     if (!success(status)) {
-        print("NtSetEvent returned {}\n", status);
+        print_stderr("NtSetEvent returned {}\n", status);
         return false;
     }
 
@@ -1480,13 +1480,13 @@ extern "C" FORCE_ALIGN_ARG_POINTER void startup() {
     status = NtCreateEvent(&ctrl_c_event, 0, nullptr,
                            EVENT_TYPE::SynchronizationEvent, false);
     if (!success(status)) {
-        print("NtCreateEvent returned {}\n", status);
+        print_stderr("NtCreateEvent returned {}\n", status);
         NtTerminateThread(NtCurrentThread(), status);
         return;
     }
 
     if (!SetConsoleCtrlHandler(ctrl_handler, true))
-        print("SetConsoleCtrlHandler failed\n");
+        print_stderr("SetConsoleCtrlHandler failed\n");
 
     status = create_pipe(server_handle, client_handle);
     if (!success(status)) {
@@ -1508,7 +1508,7 @@ extern "C" FORCE_ALIGN_ARG_POINTER void startup() {
         status = NtWaitForMultipleObjects(objs.size(), objs.data(), true,
                                           false, nullptr);
         if (!success(status)) {
-            print("NtWaitForMultipleObjects returned {}\n", status);
+            print_stderr("NtWaitForMultipleObjects returned {}\n", status);
             break;
         }
 
@@ -1519,7 +1519,7 @@ extern "C" FORCE_ALIGN_ARG_POINTER void startup() {
                                     nullptr, nullptr);
 
                 if (!success(status)) {
-                    print("NtReadFile returned {}\n", status); // FIXME - should be to stderr
+                    print_stderr("NtReadFile returned {}\n", status);
                     break;
                 }
 
@@ -1528,7 +1528,7 @@ extern "C" FORCE_ALIGN_ARG_POINTER void startup() {
 
                 auto buf2 = (char*)malloc(buflen + iosb.Information);
                 if (!buf2) {
-                    print("out of memory\n");
+                    print_stderr("out of memory\n");
                     NtTerminateThread(NtCurrentThread(),
                                       nt_status::INSUFFICIENT_RESOURCES);
                 }
