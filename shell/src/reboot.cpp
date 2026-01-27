@@ -8,7 +8,7 @@ static void reboot() {
 
     // shouldn't return
 
-    print("NtShutdownSystem returned {}\n", status);
+    print_stderr("NtShutdownSystem returned {}\n", status);
 }
 
 #ifdef __x86_64__
