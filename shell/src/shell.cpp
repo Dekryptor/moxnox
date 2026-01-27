@@ -33,6 +33,9 @@ static unsigned int utf8_chars = 0;
 static HANDLE running_proc = 0;
 static HANDLE ctrl_c_event = 0;
 
+static char* prompt_buf;
+static string_view prompt;
+
 static constexpr uint32_t bytes_to_pages(size_t bytes) {
     return (uint32_t)((bytes + PAGE_SIZE - 1) / PAGE_SIZE);
 }
@@ -801,6 +804,61 @@ static void fg(HANDLE server_handle) {
     run_program(server_handle, proc);
 }
 
+static void get_prompt() {
+    nt_status status;
+    IO_STATUS_BLOCK iosb;
+    FILE_NAME_INFORMATION fni;
+    auto peb = NtCurrentTeb()->ProcessEnvironmentBlock;
+    auto cwd = peb->ProcessParameters->CurrentDirectory.Handle;
+
+    // FIXME - parse PS1 environment variable
+    // FIXME - prompt_buf not freed on exit
+
+    static const string_view suffix = " $ ";
+
+    status = NtQueryInformationFile(cwd, &iosb, &fni, sizeof(fni),
+                                    FILE_INFORMATION_CLASS::NameInformation);
+    if (!success(status) && status != nt_status::BUFFER_OVERFLOW) {
+        print("NtQueryInformationFile returned {}\n", status);
+        return;
+    }
+
+    size_t fnilen = offsetof(FILE_NAME_INFORMATION, FileName) + fni.FileNameLength;
+
+    auto fni2 = (FILE_NAME_INFORMATION*)malloc(fnilen);
+    if (!fni2) {
+        print("malloc failed\n");
+        return;
+    }
+
+    status = NtQueryInformationFile(cwd, &iosb, fni2, (uint32_t)fnilen,
+                                    FILE_INFORMATION_CLASS::NameInformation);
+    if (!success(status)) {
+        print("NtQueryInformationFile returned {}\n", status);
+        free(fni2);
+        return;
+    }
+
+    auto u16sv = u16string_view(fni2->FileName, fni2->FileNameLength / sizeof(char16_t));
+    auto pwdlen = utf16_to_utf8_len(u16sv);
+
+    auto buf = (char*)malloc(pwdlen + suffix.size());
+    if (!buf) {
+        print("malloc failed\n");
+        free(fni2);
+    }
+
+    utf16_to_utf8(span(buf, pwdlen), u16sv);
+
+    memcpy(&buf[pwdlen], suffix.data(), suffix.size());
+
+    if (prompt_buf)
+        free(prompt_buf);
+
+    prompt_buf = buf;
+    prompt = string_view(prompt_buf, pwdlen + suffix.size());
+}
+
 static void process_line(string_view sv, HANDLE server_handle,
                          HANDLE client_handle) {
     if (!sv.empty() && sv.back() == '\r')
@@ -860,9 +918,10 @@ static void process_line(string_view sv, HANDLE server_handle,
         halt();
     else if (cmd == "fg")
         fg(server_handle);
-    else if (cmd == "cd")
+    else if (cmd == "cd") {
         cd(param);
-    else
+        get_prompt();
+    } else
         try_run_program(cmd, sv, server_handle, client_handle);
 }
 
@@ -1236,7 +1295,7 @@ loop:
             handle_backspace();
         else if (c == '\x03') { // Ctrl+C
             print("^C\n");
-            print("> ");
+            print("{}", prompt);
 
             if (buf) {
                 free(buf);
@@ -1252,7 +1311,7 @@ loop:
             }
         } else if (c == '\n') {
             process_lines(server_handle, client_handle);
-            print("> ");
+            print("{}", prompt);
         } else if (c == 0x1b) {
             if (s.size() == 1) {
                 escape_buffer[0] = 0x1b;
@@ -1433,7 +1492,8 @@ extern "C" FORCE_ALIGN_ARG_POINTER void startup() {
         return;
     }
 
-    print("> ");
+    get_prompt();
+    print("{}", prompt);
 
     while (true) {
         array<HANDLE, 2> objs;
