@@ -29,8 +29,7 @@ extern "C" FORCE_ALIGN_ARG_POINTER void startup() {
                                   nullptr, nullptr, &iosb, buf,
                                   (uint32_t)sizeof(buf), nullptr, nullptr);
         if (!success(status)) {
-            // FIXME - GCC ICEs here
-            // print("NtWriteFile returned {}\n", status); // FIXME - to stderr
+            print_stderr("NtWriteFile returned {}\n", status);
             break;
         }
     }
