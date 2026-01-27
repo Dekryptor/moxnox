@@ -1135,8 +1135,6 @@ static bool run_program(u16string_view exe, u16string_view cmdline,
         return false;
     }
 
-    // FIXME - if not found, search PATH, etc.
-
     file.reset(h);
 
     // create section
@@ -1261,12 +1259,11 @@ static bool run_program(u16string_view exe, u16string_view cmdline,
         return false;
     }
 
-    // FIXME - ImagePathName
-    // FIXME - environment variables
-
     // allocate misc block
 
     size_t misc_block_size = (cmdline.size() + 1) * sizeof(char16_t);
+
+    misc_block_size += peb->ProcessParameters->EnvironmentSize;
 
     auto misc_block = (uint8_t*)malloc(misc_block_size);
     if (!misc_block) {
@@ -1290,11 +1287,22 @@ static bool run_program(u16string_view exe, u16string_view cmdline,
 
     // copy cmdline
 
+    auto ptr = misc_block;
+
     memcpy(misc_block, cmdline.data(), cmdline.size() * sizeof(char16_t));
-    misc_block[cmdline.size() * sizeof(char16_t)] = 0;
+    ptr += cmdline.size() * sizeof(char16_t);
+
+    *ptr = 0;
+    ptr++;
+
     params.CommandLine.Length = (uint16_t)(cmdline.size() * sizeof(char16_t));
     params.CommandLine.MaximumLength = (uint16_t)((cmdline.size() + 1) * sizeof(char16_t));
     params.CommandLine.Buffer = (char16_t*)proc_misc_block;
+
+    memcpy(ptr, peb->ProcessParameters->Environment,
+           peb->ProcessParameters->EnvironmentSize);
+    params.Environment = (uint8_t*)proc_misc_block + (ptr - misc_block);
+    params.EnvironmentSize = peb->ProcessParameters->EnvironmentSize;
 
     // copy misc block
 
