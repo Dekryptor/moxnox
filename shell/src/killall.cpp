@@ -23,7 +23,7 @@ static nt_status killall(span<const u16string_view> argv) {
 
     auto done = (bool*)RtlAllocateHeap(GetProcessHeap(), 0, sizeof(bool) * argv.size());
     if (!done) {
-        print("RtlAllocateHeap failed\n");
+        print_stderr("RtlAllocateHeap failed\n");
         return nt_status::INSUFFICIENT_RESOURCES;
     }
 
@@ -37,7 +37,7 @@ static nt_status killall(span<const u16string_view> argv) {
         if (status == nt_status::NO_MORE_ENTRIES)
             break;
         else if (!success(status)) {
-            print("NtGetNextProcess returned {}\n", status);
+            print_stderr("NtGetNextProcess returned {}\n", status);
             RtlFreeHeap(GetProcessHeap(), 0, done);
             return status;
         }
@@ -47,14 +47,14 @@ static nt_status killall(span<const u16string_view> argv) {
         status = NtQueryInformationProcess(proc.get(), PROCESSINFOCLASS::ImageFileName,
                                            &us, sizeof(us), &retlen);
         if (!success(status) && status != nt_status::INFO_LENGTH_MISMATCH) {
-            print("NtQueryInformationProcess returned {}\n", status);
+            print_stderr("NtQueryInformationProcess returned {}\n", status);
             RtlFreeHeap(GetProcessHeap(), 0, done);
             return status;
         }
 
         auto buffer = RtlAllocateHeap(GetProcessHeap(), 0, retlen);
         if (!buffer) {
-            print("RtlAllocateHeap failed\n");
+            print_stderr("RtlAllocateHeap failed\n");
             RtlFreeHeap(GetProcessHeap(), 0, done);
             return nt_status::INSUFFICIENT_RESOURCES;
         }
@@ -63,7 +63,7 @@ static nt_status killall(span<const u16string_view> argv) {
                                            buffer, retlen, &retlen);
         if (!success(status)) {
             RtlFreeHeap(GetProcessHeap(), 0, buffer);
-            print("NtQueryInformationProcess returned {}\n", status);
+            print_stderr("NtQueryInformationProcess returned {}\n", status);
             return status;
         }
 
@@ -82,7 +82,7 @@ static nt_status killall(span<const u16string_view> argv) {
                 auto status = NtTerminateProcess(proc.get(),
                                                  nt_status::CONTROL_C_EXIT);
                 if (!success(status))
-                    print("{}: NtTerminateProcess returned {}\n", name, status);
+                    print_stderr("{}: NtTerminateProcess returned {}\n", name, status);
 
                 done[i] = true;
                 break;
@@ -94,7 +94,7 @@ static nt_status killall(span<const u16string_view> argv) {
 
     for (size_t i = 0; i < argv.size(); i++) {
         if (!done[i])
-            print("{}: no process found\n", argv[i]);
+            print_stderr("{}: no process found\n", argv[i]);
     }
 
     RtlFreeHeap(GetProcessHeap(), 0, done);
