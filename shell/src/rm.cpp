@@ -32,13 +32,13 @@ static void rm_file(u16string_view fn) {
                           FILE_OPEN, FILE_NON_DIRECTORY_FILE, nullptr, 0);
 
     if (status == nt_status::OBJECT_NAME_NOT_FOUND) {
-        print("rm: cannot remove {}: No such file or directory\n", fn); // FIXME - stderr
+        print_stderr("rm: cannot remove {}: No such file or directory\n", fn);
         return;
     } else if (status == nt_status::FILE_IS_A_DIRECTORY) {
-        print("rm: cannot remove {}: Is a directory\n", fn); // FIXME - stderr
+        print_stderr("rm: cannot remove {}: Is a directory\n", fn);
         return;
     } else if (!success(status)) {
-        print("rm: cannot remove {}: NtCreateFile returned {}\n", fn, status); // FIXME - stderr
+        print_stderr("rm: cannot remove {}: NtCreateFile returned {}\n", fn, status);
         return;
     }
 
@@ -49,7 +49,7 @@ static void rm_file(u16string_view fn) {
     status = NtSetInformationFile(file, &iosb, &fdi, sizeof(fdi),
                                   FILE_INFORMATION_CLASS::DispositionInformation);
     if (!success(status)) {
-        print("rm: cannot remove {}: NtSetInformationFile returned {}\n", fn, status); // FIXME - stderr
+        print_stderr("rm: cannot remove {}: NtSetInformationFile returned {}\n", fn, status);
         NtClose(file);
         return;
     }
