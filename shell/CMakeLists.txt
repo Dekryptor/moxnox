@@ -19,7 +19,10 @@ target_link_libraries(print format)
 set(SRC_FILES src/shell.cpp)
 
 add_executable(shell ${SRC_FILES})
-target_sources(shell PUBLIC FILE_SET CXX_MODULES FILES src/cd.cpp)
+target_sources(shell PUBLIC FILE_SET CXX_MODULES FILES
+    src/cd.cpp
+    src/env.cpp
+)
 
 target_compile_options(shell PRIVATE -fno-exceptions ${USERSPACE_CFLAGS})
 

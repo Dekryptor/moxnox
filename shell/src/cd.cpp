@@ -11,6 +11,7 @@ export module cd;
 import nt;
 import print;
 import unicode;
+import env;
 
 using namespace std;
 
@@ -68,10 +69,17 @@ export void cd(string_view param) {
     auto peb = NtCurrentTeb()->ProcessEnvironmentBlock;
 
     if (param.empty()) {
-        static const u16string_view def = u"/"; // FIXME - should actually be HOME
+        auto env_home = get_env(u"HOME");
 
-        us.Length = us.MaximumLength = (uint16_t)(def.size() * sizeof(char16_t));
-        us.Buffer = (char16_t*)def.data();
+        if (env_home.empty()) {
+            static const u16string_view def = u"/";
+
+            us.Length = us.MaximumLength = (uint16_t)(def.size() * sizeof(char16_t));
+            us.Buffer = (char16_t*)def.data();
+        } else {
+            us.Length = us.MaximumLength = (uint16_t)(env_home.size() * sizeof(char16_t));
+            us.Buffer = (char16_t*)env_home.data();
+        }
     } else {
         auto len = utf8_to_utf16_len(param);
 
