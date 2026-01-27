@@ -586,7 +586,7 @@ static void init_ldr_data(mn_image_info& ntdll_info, mn_image_info& img_info) {
     if (auto pos = base_name.find_last_of('/'); pos != u16string_view::npos)
         base_name = u16string_view(base_name.data() + pos + 1, base_name.size() - pos - 1);
 
-    auto& ntdll = add_ldr_entry(ntdll_info.base, u"\\ntdll.dll", u"ntdll.dll", true); // FIXME - name and path
+    auto& ntdll = add_ldr_entry(ntdll_info.base, u"\\lib\\ntdll.dll", u"ntdll.dll", true); // FIXME - name and path
 
     ntdll.offset_debug_info = ntdll_info.offset_debug_info;
     ntdll.size_debug_info = ntdll_info.size_debug_info;

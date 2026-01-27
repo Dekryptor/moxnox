@@ -34,7 +34,7 @@ target_compile_options(ntdll PRIVATE -fno-exceptions ${USERSPACE_CFLAGS})
 target_link_options(ntdll PUBLIC -nostartfiles -nostdlib)
 target_link_libraries(ntdll format dwarf unwind list unicode nt ntdll_mod pe kernelbase_mod crt pagesize timepage)
 
-install(TARGETS ntdll DESTINATION ${CMAKE_INSTALL_PREFIX}
+install(TARGETS ntdll DESTINATION ${CMAKE_INSTALL_PREFIX}/lib
     CXX_MODULES_BMI EXCLUDE_FROM_ALL
     ARCHIVE EXCLUDE_FROM_ALL
 )

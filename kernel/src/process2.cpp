@@ -1645,7 +1645,7 @@ void load_ntdll() {
     optional<reference_wrapper<dentry>> drw;
     unsigned int create_result;
 
-    status = open_inode("/ntdll.dll", *root_dentry, inode_ref, drw, FILE_OPEN,
+    status = open_inode("/lib/ntdll.dll", *root_dentry, inode_ref, drw, FILE_OPEN,
                         FILE_NON_DIRECTORY_FILE, create_result);
     if (!success(status))
         bsod_format("open_inode returned {} for ntdll.dll", status);
