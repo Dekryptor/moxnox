@@ -43,7 +43,7 @@ static nt_status kill(span<const u16string_view> argv) {
         }
 
         if (!valid) {
-            print("kill: {}: arguments must be process IDs\n", orig_arg);
+            print_stderr("kill: {}: arguments must be process IDs\n", orig_arg);
             continue;
         }
 
@@ -55,10 +55,10 @@ static nt_status kill(span<const u16string_view> argv) {
 
         auto status = NtOpenProcess(&h, PROCESS_TERMINATE, &oa, &client_id);
         if (status == nt_status::INVALID_CID) {
-            print("kill: ({}) - no such process\n", pid);
+            print_stderr("kill: ({}) - no such process\n", pid);
             continue;
         } else if (!success(status)) {
-            print("NtOpenProcess returned {}\n", status);
+            print_stderr("NtOpenProcess returned {}\n", status);
             continue;
         }
 
@@ -66,7 +66,7 @@ static nt_status kill(span<const u16string_view> argv) {
 
         status = NtTerminateProcess(proc.get(), nt_status::CONTROL_C_EXIT);
         if (!success(status))
-            print("NtTerminateProcess returned {}\n", status);
+            print_stderr("NtTerminateProcess returned {}\n", status);
     }
 
     // FIXME - different status if we fail?
