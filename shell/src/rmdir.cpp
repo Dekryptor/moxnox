@@ -32,13 +32,13 @@ static void rmdir(u16string_view fn) {
                           FILE_OPEN, FILE_DIRECTORY_FILE, nullptr, 0);
 
     if (status == nt_status::OBJECT_NAME_NOT_FOUND) {
-        print("rmdir: failed to remove {}: No such file or directory\n", fn); // FIXME - stderr
+        print_stderr("rmdir: failed to remove {}: No such file or directory\n", fn);
         return;
     } else if (status == nt_status::NOT_A_DIRECTORY) {
-        print("rmdir: failed to remove {}: Not a directory\n", fn); // FIXME - stderr
+        print_stderr("rmdir: failed to remove {}: Not a directory\n", fn);
         return;
     } else if (!success(status)) {
-        print("rmdir: failed to remove {}: NtCreateFile returned {}\n", fn, status); // FIXME - stderr
+        print_stderr("rmdir: failed to remove {}: NtCreateFile returned {}\n", fn, status);
         return;
     }
 
@@ -49,11 +49,11 @@ static void rmdir(u16string_view fn) {
     status = NtSetInformationFile(file, &iosb, &fdi, sizeof(fdi),
                                   FILE_INFORMATION_CLASS::DispositionInformation);
     if (status == nt_status::DIRECTORY_NOT_EMPTY) {
-        print("rmdir: failed to remove {}: Directory not empty\n", fn); // FIXME - stderr
+        print_stderr("rmdir: failed to remove {}: Directory not empty\n", fn);
         NtClose(file);
         return;
     } else if (!success(status)) {
-        print("rmdir: failed to remove {}: NtSetInformationFile returned {}\n", fn, status); // FIXME - stderr
+        print_stderr("rmdir: failed to remove {}: NtSetInformationFile returned {}\n", fn, status);
         NtClose(file);
         return;
     }
