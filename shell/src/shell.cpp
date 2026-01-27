@@ -814,7 +814,8 @@ static void get_prompt() {
     // FIXME - parse PS1 environment variable
     // FIXME - prompt_buf not freed on exit
 
-    static const string_view suffix = " $ ";
+    static const string_view prefix = "\e[01;34m";
+    static const string_view suffix = " $ \e[0m";
 
     status = NtQueryInformationFile(cwd, &iosb, &fni, sizeof(fni),
                                     FILE_INFORMATION_CLASS::NameInformation);
@@ -842,21 +843,22 @@ static void get_prompt() {
     auto u16sv = u16string_view(fni2->FileName, fni2->FileNameLength / sizeof(char16_t));
     auto pwdlen = utf16_to_utf8_len(u16sv);
 
-    auto buf = (char*)malloc(pwdlen + suffix.size());
+    auto buf = (char*)malloc(prefix.size() + pwdlen + suffix.size());
     if (!buf) {
         print("malloc failed\n");
         free(fni2);
     }
 
-    utf16_to_utf8(span(buf, pwdlen), u16sv);
+    utf16_to_utf8(span(buf + prefix.size(), pwdlen), u16sv);
 
-    memcpy(&buf[pwdlen], suffix.data(), suffix.size());
+    memcpy(buf, prefix.data(), prefix.size());
+    memcpy(&buf[prefix.size() + pwdlen], suffix.data(), suffix.size());
 
     if (prompt_buf)
         free(prompt_buf);
 
     prompt_buf = buf;
-    prompt = string_view(prompt_buf, pwdlen + suffix.size());
+    prompt = string_view(prompt_buf, prefix.size() + pwdlen + suffix.size());
 }
 
 static void process_line(string_view sv, HANDLE server_handle,
