@@ -30,10 +30,10 @@ static void cat_file(u16string_view fn) {
                           FILE_OPEN, FILE_SYNCHRONOUS_IO_ALERT, nullptr, 0);
 
     if (status == nt_status::OBJECT_NAME_NOT_FOUND) {
-        print("cat: {}: No such file or directory\n", fn); // FIXME - stderr
+        print_stderr("cat: {}: No such file or directory\n", fn);
         return;
     } else if (!success(status)) {
-        print("cat: {}: NtCreateFile returned {}\n", fn, status); // FIXME - stderr
+        print_stderr("cat: {}: NtCreateFile returned {}\n", fn, status);
         return;
     }
 
@@ -48,7 +48,7 @@ static void cat_file(u16string_view fn) {
             break;
 
         if (!success(status)) {
-            print("cat: {}: NtReadFile returned {}\n", fn, status); // FIXME - stderr
+            print_stderr("cat: {}: NtReadFile returned {}\n", fn, status);
             break;
         }
 
@@ -64,7 +64,7 @@ static void cat_file(u16string_view fn) {
                                  nullptr, nullptr, &iosb, sp.data(),
                                  (uint32_t)sp.size(), nullptr, nullptr);
             if (!success(status)) {
-                print("cat: {}: NtWriteFile returned {}\n", fn, status); // FIXME - stderr
+                print_stderr("cat: {}: NtWriteFile returned {}\n", fn, status);
                 break;
             }
 
@@ -104,17 +104,17 @@ static void cat_file_mmap(u16string_view fn) {
                           FILE_OPEN, FILE_SYNCHRONOUS_IO_ALERT, nullptr, 0);
 
     if (status == nt_status::OBJECT_NAME_NOT_FOUND) {
-        print("cat: {}: No such file or directory\n", fn); // FIXME - stderr
+        print_stderr("cat: {}: No such file or directory\n", fn);
         return;
     } else if (!success(status)) {
-        print("cat: {}: NtCreateFile returned {}\n", fn, status); // FIXME - stderr
+        print_stderr("cat: {}: NtCreateFile returned {}\n", fn, status);
         return;
     }
 
     status = NtQueryInformationFile(file, &iosb, &fsi, sizeof(fsi),
                                     FILE_INFORMATION_CLASS::StandardInformation);
     if (!success(status)) {
-        print("cat: {}: NtQueryInformationFile returned {}\n", fn, status);
+        print_stderr("cat: {}: NtQueryInformationFile returned {}\n", fn, status);
         NtClose(file);
         return;
     }
@@ -122,7 +122,7 @@ static void cat_file_mmap(u16string_view fn) {
     status = NtCreateSection(&section, SECTION_MAP_READ, nullptr, nullptr,
                              PAGE_READONLY, SEC_COMMIT, file);
     if (!success(status)) {
-        print("cat: {}: NtCreateSection returned {}\n", fn, status);
+        print_stderr("cat: {}: NtCreateSection returned {}\n", fn, status);
         NtClose(file);
         return;
     }
@@ -135,7 +135,7 @@ static void cat_file_mmap(u16string_view fn) {
     status = NtMapViewOfSection(section, NtCurrentProcess(), &addr, 0, 0, nullptr,
                                 &size, SECTION_INHERIT::ViewUnmap, 0, PAGE_READONLY);
     if (!success(status)) {
-        print("cat: {}: NtMapViewOfSection returned {}\n", fn, status);
+        print_stderr("cat: {}: NtMapViewOfSection returned {}\n", fn, status);
         return;
     }
 
@@ -150,7 +150,7 @@ static void cat_file_mmap(u16string_view fn) {
                              min((uint32_t)sp.size(), (uint32_t)4096), nullptr,
                              nullptr);
         if (!success(status)) {
-            print("cat: {}: NtWriteFile returned {}\n", fn, status); // FIXME - stderr
+            print_stderr("cat: {}: NtWriteFile returned {}\n", fn, status);
             break;
         }
 
@@ -159,7 +159,7 @@ static void cat_file_mmap(u16string_view fn) {
 
     status = NtUnmapViewOfSection(NtCurrentProcess(), addr);
     if (!success(status)) {
-        print("cat: {}: NtUnmapViewOfSection returned {}\n", fn, status);
+        print_stderr("cat: {}: NtUnmapViewOfSection returned {}\n", fn, status);
         return;
     }
 }
