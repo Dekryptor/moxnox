@@ -46,10 +46,10 @@ static void get_process_name(ps_entry& e, HANDLE proc, void* peb_address) {
 
     status = NtReadVirtualMemory(proc, peb_address, &peb, sizeof(peb), &read);
     if (!success(status)) {
-        print("NtReadVirtualMemory returned {}\n", status);
+        print_stderr("NtReadVirtualMemory returned {}\n", status);
         return;
     } else if (read < sizeof(peb)) {
-        print("short read while reading PEB ({} bytes, expected {})\n",
+        print_stderr("short read while reading PEB ({} bytes, expected {})\n",
               read, sizeof(peb));
         return;
     }
@@ -57,10 +57,10 @@ static void get_process_name(ps_entry& e, HANDLE proc, void* peb_address) {
     status = NtReadVirtualMemory(proc, peb.ProcessParameters, &params,
                                  sizeof(params), &read);
     if (!success(status)) {
-        print("NtReadVirtualMemory returned {}\n", status);
+        print_stderr("NtReadVirtualMemory returned {}\n", status);
         return;
     } else if (read < sizeof(params)) {
-        print("short read while reading process params ({} bytes, expected {})\n",
+        print_stderr("short read while reading process params ({} bytes, expected {})\n",
               read, sizeof(params));
         return;
     }
@@ -70,17 +70,17 @@ static void get_process_name(ps_entry& e, HANDLE proc, void* peb_address) {
 
     e.image_path = (char16_t*)malloc(params.ImagePathName.Length);
     if (!e.image_path) {
-        print("malloc failed\n");
+        print_stderr("malloc failed\n");
         return;
     }
 
     status = NtReadVirtualMemory(proc, params.ImagePathName.Buffer, e.image_path,
                                  params.ImagePathName.Length, &read);
     if (!success(status)) {
-        print("NtReadVirtualMemory returned {}\n", status);
+        print_stderr("NtReadVirtualMemory returned {}\n", status);
         return;
     } else if (read < params.ImagePathName.Length) {
-        print("short read while reading image path name ({} bytes, expected {})\n",
+        print_stderr("short read while reading image path name ({} bytes, expected {})\n",
               read, params.ImagePathName.Length);
         return;
     }
@@ -102,7 +102,7 @@ static nt_status ps() {
         if (status == nt_status::NO_MORE_ENTRIES)
             break;
         else if (!success(status)) {
-            print("NtGetNextProcess returned {}\n", status);
+            print_stderr("NtGetNextProcess returned {}\n", status);
             return status;
         }
 
@@ -112,14 +112,14 @@ static nt_status ps() {
                                            PROCESSINFOCLASS::BasicInformation,
                                            &pbi, sizeof(pbi), nullptr);
         if (!success(status)) {
-            print("NtQueryInformationProcess returned {}\n", status);
+            print_stderr("NtQueryInformationProcess returned {}\n", status);
             return status;
         }
 
         // auto e = (ps_entry*)malloc(sizeof(ps_entry));
         auto e = new ps_entry;
         if (!e) {
-            print("new failed\n");
+            print_stderr("new failed\n");
             return nt_status::INSUFFICIENT_RESOURCES;
         }
 
