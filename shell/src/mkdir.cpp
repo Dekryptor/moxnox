@@ -30,16 +30,16 @@ static void mkdir(u16string_view fn) {
                           0, FILE_CREATE, FILE_DIRECTORY_FILE, nullptr, 0);
 
     if (status == nt_status::OBJECT_NAME_COLLISION) {
-        print("mkdir: {}: File exists\n", fn); // FIXME - stderr
+        print_stderr("mkdir: {}: File exists\n", fn);
         return;
     } else if (status == nt_status::OBJECT_PATH_NOT_FOUND) {
-        print("mkdir: {}:: Path not found\n", fn); // FIXME - stderr
+        print_stderr("mkdir: {}:: Path not found\n", fn);
         return;
     } else if (status == nt_status::OBJECT_NAME_INVALID) {
-        print("mkdir: {}: Invalid name\n", fn); // FIXME - stderr
+        print_stderr("mkdir: {}: Invalid name\n", fn);
         return;
     } else if (!success(status)) {
-        print("mkdir: {}: NtCreateFile returned {}\n", fn, status); // FIXME - stderr
+        print_stderr("mkdir: {}: NtCreateFile returned {}\n", fn, status);
         return;
     }
 
@@ -74,7 +74,7 @@ extern "C" FORCE_ALIGN_ARG_POINTER void startup() {
     parse_cmdline(cmdline, argv);
 
     if (argv.size() < 2) {
-        print("mkdir: missing operand\n"); // FIXME - stderr
+        print_stderr("mkdir: missing operand\n");
         NtTerminateThread(NtCurrentThread(), nt_status::SUCCESS);
         return;
     }
