@@ -4,6 +4,7 @@
 #include <ioctl.h>
 #include <span>
 #include <string_view>
+#include <utility>
 
 using namespace std;
 
@@ -13,12 +14,15 @@ import print;
 import cmdline;
 import pagesize;
 
+static span<char16_t> environment;
+
 static constexpr uint32_t bytes_to_pages(size_t bytes) {
     return (uint32_t)((bytes + PAGE_SIZE - 1) / PAGE_SIZE);
 }
 
 static void run_program(u16string_view fn, u16string_view cmdline, HANDLE stdinh,
-                        HANDLE stdouth, HANDLE stderrh) {
+                        HANDLE stdouth, HANDLE stderrh,
+                        span<const char16_t> env) {
     OBJECT_ATTRIBUTES oa;
     UNICODE_STRING us;
     NTSTATUS status;
@@ -185,6 +189,8 @@ static void run_program(u16string_view fn, u16string_view cmdline, HANDLE stdinh
 
     size_t misc_block_size = (cmdline.size() + 1) * sizeof(char16_t);
 
+    misc_block_size += env.size_bytes();
+
     auto misc_block = (uint8_t*)malloc(misc_block_size);
     if (!misc_block) {
         print("malloc failed\n");
@@ -209,11 +215,21 @@ static void run_program(u16string_view fn, u16string_view cmdline, HANDLE stdinh
 
     // copy cmdline
 
+    auto ptr = misc_block;
+
     memcpy(misc_block, cmdline.data(), cmdline.size() * sizeof(char16_t));
-    misc_block[cmdline.size() * sizeof(char16_t)] = 0;
+    ptr += cmdline.size() * sizeof(char16_t);
+
+    *ptr = 0;
+    ptr++;
+
     params.CommandLine.Length = (uint16_t)(cmdline.size() * sizeof(char16_t));
     params.CommandLine.MaximumLength = (uint16_t)((cmdline.size() + 1) * sizeof(char16_t));
     params.CommandLine.Buffer = (char16_t*)proc_misc_block;
+
+    memcpy(ptr, env.data(), env.size_bytes());
+    params.Environment = (uint8_t*)proc_misc_block + (ptr - misc_block);
+    params.EnvironmentSize = env.size_bytes();
 
     // copy misc block
 
@@ -347,7 +363,8 @@ static void do_serial() {
     }
 
     while (true) {
-        run_program(u"\\bin\\usercon.exe", u"usercon.exe serial", h, h, h);
+        run_program(u"\\bin\\usercon.exe", u"usercon.exe serial", h, h, h,
+                    environment);
     }
 
     NtClose(h);
@@ -404,6 +421,38 @@ static void create_thread(void(*func)()) {
     NtClose(h);
 }
 
+static void prepare_environment() {
+    // FIXME - better way of doing this
+    static const u16string_view vars[] = {
+        u"PATH=/bin"
+    };
+
+    size_t len = 1;
+
+    for (auto v : vars) {
+        len += v.size() + 1;
+    }
+
+    auto env = (char16_t*)malloc(len * sizeof(char16_t));
+    if (!env) {
+        NtTerminateThread(NtCurrentThread(), nt_status::INSUFFICIENT_RESOURCES);
+        unreachable();
+    }
+
+    auto ptr = env;
+
+    for (auto v : vars) {
+        memcpy(ptr, v.data(), v.size() * sizeof(char16_t));
+        ptr += v.size();
+        *ptr = 0;
+        ptr++;
+    }
+
+    *ptr = 0;
+
+    environment = span(env, len);
+}
+
 #ifdef __x86_64__
 #define FORCE_ALIGN_ARG_POINTER __attribute__((force_align_arg_pointer))
 #else
@@ -454,6 +503,8 @@ FORCE_ALIGN_ARG_POINTER void startup() {
             RtlFreeHeap(GetProcessHeap(), 0, buf);
     }
 
+    prepare_environment();
+
     if (serial_mode) {
         while (true) {
             auto teb = NtCurrentTeb();
@@ -462,7 +513,7 @@ FORCE_ALIGN_ARG_POINTER void startup() {
             run_program(u"\\bin\\usercon.exe", u"usercon.exe serial",
                         peb->ProcessParameters->StandardInput,
                         peb->ProcessParameters->StandardOutput,
-                        peb->ProcessParameters->StandardError);
+                        peb->ProcessParameters->StandardError, environment);
         }
     } else {
         create_thread(do_serial);
@@ -474,7 +525,7 @@ FORCE_ALIGN_ARG_POINTER void startup() {
             run_program(u"\\bin\\usercon.exe", u"usercon.exe",
                         peb->ProcessParameters->StandardInput,
                         peb->ProcessParameters->StandardOutput,
-                        peb->ProcessParameters->StandardError);
+                        peb->ProcessParameters->StandardError, environment);
         }
     }
 }
