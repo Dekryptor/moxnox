@@ -1102,7 +1102,8 @@ static void recv_data_fb(string_view s) {
 }
 
 static bool run_program(u16string_view exe, u16string_view cmdline,
-                        unique_handle& proc, HANDLE client_handle) {
+                        const unique_handle& curdir, unique_handle& proc,
+                        HANDLE client_handle) {
     HANDLE h, stdinh = 0, stdouth, curdirh = 0;
     unique_handle file, sect, thread;
     OBJECT_ATTRIBUTES oa;
@@ -1203,7 +1204,16 @@ static bool run_program(u16string_view exe, u16string_view cmdline,
         return false;
     }
 
-    if (peb->ProcessParameters->CurrentDirectory.Handle) {
+    if (curdir) {
+        status = NtDuplicateObject(NtCurrentProcess(), curdir.get(), proc.get(),
+                                   &curdirh, 0, 0,
+                                   DUPLICATE_SAME_ATTRIBUTES | DUPLICATE_SAME_ACCESS);
+
+        if (!success(status)) {
+            print("NtDuplicateObject returned {}\n", status);
+            return false;
+        }
+    } else if (peb->ProcessParameters->CurrentDirectory.Handle) {
         status = NtDuplicateObject(NtCurrentProcess(), peb->ProcessParameters->CurrentDirectory.Handle,
                                    proc.get(), &curdirh, 0, 0,
                                    DUPLICATE_SAME_ATTRIBUTES | DUPLICATE_SAME_ACCESS);
@@ -1375,7 +1385,7 @@ static bool run_program(u16string_view exe, u16string_view cmdline,
 static void handle_ctrl_alt_delete(HANDLE client_handle) {
     unique_handle proc;
 
-    if (!run_program(u"\\reboot.exe", u"reboot.exe", proc, client_handle))
+    if (!run_program(u"\\reboot.exe", u"reboot.exe", unique_handle{}, proc, client_handle))
         print("failed to run reboot.exe\n");
 }
 
@@ -1388,6 +1398,69 @@ static string_view get_os_version() {
         sv = string_view(sv.data() + sp + 1, sv.size() - sp - 1);
 
     return sv;
+}
+
+static u16string_view get_env(u16string_view name) {
+    auto peb = NtCurrentTeb()->ProcessEnvironmentBlock;
+    auto env = u16string_view((char16_t*)peb->ProcessParameters->Environment,
+                              peb->ProcessParameters->EnvironmentSize / sizeof(char16_t));
+
+    while (true) {
+        if (env.empty() || env[0] == 0)
+            break;
+
+        auto zero = env.find(u'\0');
+
+        u16string_view bit;
+
+        if (zero == u16string_view::npos)
+            bit = env;
+        else
+            bit = u16string_view(env.data(), zero);
+
+        if (auto eq = bit.find(u'='); eq != u16string_view::npos) {
+            if (u16string_view(bit.data(), eq) == name)
+                return u16string_view(bit.data() + eq + 1, bit.size() - eq - 1);
+        }
+
+        if (zero != u16string_view::npos)
+            env = u16string_view(env.data() + zero + 1, env.size() - zero - 1);
+        else
+            break;
+    }
+
+    return u"";
+}
+
+static unique_handle get_home_handle(void (*recv_func)(string_view)) {
+    if (auto env_home = get_env(u"HOME"); !env_home.empty()) {
+        HANDLE h;
+        UNICODE_STRING us;
+        OBJECT_ATTRIBUTES oa;
+        IO_STATUS_BLOCK iosb;
+
+        us.Length = us.MaximumLength = (uint16_t)(env_home.size() * sizeof(char16_t));
+        us.Buffer = (char16_t*)env_home.data();
+
+        memset(&oa, 0, sizeof(oa));
+        oa.Length = sizeof(OBJECT_ATTRIBUTES);
+        oa.ObjectName = &us;
+
+        auto status = NtCreateFile(&h, FILE_TRAVERSE, &oa, &iosb, nullptr,
+                                   FILE_ATTRIBUTE_NORMAL, 0, FILE_OPEN,
+                                   FILE_DIRECTORY_FILE, nullptr, 0);
+        if (!success(status)) {
+            char s[255];
+            span sp(s, sizeof(s));
+
+            sp = format(sp, "NtCreateFile returned {} for {}\n",
+                        status, env_home);
+            recv_func(string_view(s, sp.data() - s));
+        } else
+            return unique_handle{h};
+    }
+
+    return unique_handle{};
 }
 
 static void run_shell(u16string_view exe, u16string_view cmdline,
@@ -1510,8 +1583,12 @@ static void run_shell(u16string_view exe, u16string_view cmdline,
     recv_func(welcome_message2);
     flush_func();
 
-    if (!run_program(exe, cmdline, proc, client_handle.get()))
+    auto home_handle = get_home_handle(recv_func);
+
+    if (!run_program(exe, cmdline, home_handle, proc, client_handle.get()))
         return;
+
+    home_handle.reset();
 
     do {
         array<HANDLE, 4> objs;
@@ -1645,8 +1722,10 @@ static void run_shell(u16string_view exe, u16string_view cmdline,
             case 3: {
                 // process terminated, start again
 
-                if (!run_program(exe, cmdline, proc, client_handle.get()))
+                if (!run_program(exe, cmdline, get_home_handle(recv_func),
+                                 proc, client_handle.get())) {
                     return;
+                }
 
                 break;
             }
@@ -1868,8 +1947,12 @@ static int do_serial_console() {
     serial_print(get_os_version());
     serial_print(welcome_message2);
 
-    if (!run_program(exe, cmdline, proc, client_handle.get()))
+    auto home_handle = get_home_handle(serial_print);
+
+    if (!run_program(exe, cmdline, home_handle, proc, client_handle.get()))
         return 1;
+
+    home_handle.reset();
 
     do {
         array<HANDLE, 3> objs;
@@ -1956,8 +2039,10 @@ static int do_serial_console() {
             case 2: {
                 // process terminated, start again
 
-                if (!run_program(exe, cmdline, proc, client_handle.get()))
+                if (!run_program(exe, cmdline, get_home_handle(serial_print),
+                                 proc, client_handle.get())) {
                     return 1;
+                }
 
                 break;
             }
