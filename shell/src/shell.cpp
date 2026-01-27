@@ -706,6 +706,7 @@ static u16string_view get_env(u16string_view name) {
 
 static void try_run_program(string_view program, string_view cmdline,
                             HANDLE server_handle, HANDLE client_handle) {
+    auto peb = NtCurrentTeb()->ProcessEnvironmentBlock;
     NTSTATUS status;
     HANDLE h;
     unique_handle file, sect;
@@ -732,6 +733,7 @@ static void try_run_program(string_view program, string_view cmdline,
 
         memset(&oa, 0, sizeof(oa));
         oa.Length = sizeof(OBJECT_ATTRIBUTES);
+        oa.RootDirectory = peb->ProcessParameters->CurrentDirectory.Handle;
         oa.ObjectName = &us;
 
         us.Length = us.MaximumLength = (uint16_t)(u16program.size() * sizeof(char16_t));
