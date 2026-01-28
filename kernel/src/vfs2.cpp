@@ -6,6 +6,7 @@ module;
 #include <string_view>
 #include <mutex>
 #include <stdint.h>
+#include "assert.h"
 
 module vfs;
 
@@ -1116,7 +1117,6 @@ NTSTATUS file::rename(span<const uint8_t> buf) {
 
     auto status = open_inode(fn, root_dir_dentry, destdir, drw, FILE_OPEN,
                              FILE_DIRECTORY_FILE, create_result, true);
-
     free(name);
 
     if (status == nt_status::OBJECT_NAME_NOT_FOUND)
@@ -1124,7 +1124,18 @@ NTSTATUS file::rename(span<const uint8_t> buf) {
     else if (!success(status))
         return status;
 
-    // FIXME - return NOT_SAME_DEVICE if different filesystems
+    assert(destdir);
+    assert(destdir.get().type == object_type::inode);
+
+    auto& dest_dir = static_cast<::inode&>(destdir.get());
+
+    if (&dest_dir.fs != &inode.fs) {
+        if (drw)
+            drw->get().release();
+
+        return nt_status::NOT_SAME_DEVICE;
+    }
+
     // FIXME - call inode::rename(dentry, dest_dir, fn)
 
     if (drw)
