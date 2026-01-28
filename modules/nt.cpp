@@ -1281,6 +1281,16 @@ struct FILE_NAME_INFORMATION {
     char16_t FileName[1];
 };
 
+struct FILE_RENAME_INFORMATION {
+    union {
+        bool ReplaceIfExists;
+        uint32_t Flags;
+    };
+    HANDLE RootDirectory;
+    uint32_t FileNameLength;
+    char16_t FileName[1];
+};
+
 const uint32_t MAXIMUM_WAIT_OBJECTS = 64;
 
 enum class EVENT_TYPE {
