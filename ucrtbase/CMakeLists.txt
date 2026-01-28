@@ -14,7 +14,7 @@ target_link_options(ucrtbase PUBLIC -nostartfiles -nostdlib)
 
 target_link_libraries(ucrtbase PRIVATE moxnox)
 
-install(TARGETS ucrtbase DESTINATION ${CMAKE_INSTALL_PREFIX}
+install(TARGETS ucrtbase DESTINATION ${CMAKE_INSTALL_PREFIX}/lib
     CXX_MODULES_BMI EXCLUDE_FROM_ALL
     ARCHIVE EXCLUDE_FROM_ALL
 )

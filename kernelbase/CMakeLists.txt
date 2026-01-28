@@ -23,7 +23,7 @@ target_link_options(kernelbase PUBLIC -nostartfiles -nostdlib)
 target_link_libraries(kernelbase PRIVATE format)
 target_link_libraries(kernelbase PRIVATE moxnox)
 
-install(TARGETS kernelbase DESTINATION ${CMAKE_INSTALL_PREFIX}
+install(TARGETS kernelbase DESTINATION ${CMAKE_INSTALL_PREFIX}/lib
     CXX_MODULES_BMI EXCLUDE_FROM_ALL
     ARCHIVE EXCLUDE_FROM_ALL
 )

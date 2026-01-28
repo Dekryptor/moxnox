@@ -831,7 +831,7 @@ static bool load_dll(string_view name) {
 
     // FIXME - directories to search (same directory as image, then PATH?)
 
-    if (try_load_dll(u"\\", u16string_view(u16sv.data(), u16sv.size()))) {
+    if (try_load_dll(u"\\lib\\", u16string_view(u16sv.data(), u16sv.size()))) {
         free(u16buf);
         return true;
     }

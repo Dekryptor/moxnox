@@ -311,7 +311,7 @@ target_include_directories(freetype PUBLIC freetype/include)
 target_link_options(freetype PUBLIC -nostartfiles -nostdlib)
 target_link_libraries(freetype PRIVATE moxnox)
 
-install(TARGETS freetype DESTINATION ${CMAKE_INSTALL_PREFIX}
+install(TARGETS freetype DESTINATION ${CMAKE_INSTALL_PREFIX}/lib
     ARCHIVE EXCLUDE_FROM_ALL
 )
 
@@ -344,7 +344,7 @@ target_link_libraries(harfbuzz PUBLIC freetype)
 target_link_options(harfbuzz PUBLIC -nostartfiles -nostdlib)
 target_link_libraries(harfbuzz PRIVATE moxnox -lgcc)
 
-install(TARGETS harfbuzz DESTINATION ${CMAKE_INSTALL_PREFIX}
+install(TARGETS harfbuzz DESTINATION ${CMAKE_INSTALL_PREFIX}/lib
     ARCHIVE EXCLUDE_FROM_ALL
 )
 
@@ -535,7 +535,7 @@ target_compile_options(zlib PRIVATE ${GENERAL_CFLAGS} $<$<COMPILE_LANGUAGE:CXX>:
 target_link_options(zlib PUBLIC -nostartfiles -nostdlib)
 target_link_libraries(zlib PRIVATE moxnox)
 
-install(TARGETS zlib DESTINATION ${CMAKE_INSTALL_PREFIX}
+install(TARGETS zlib DESTINATION ${CMAKE_INSTALL_PREFIX}/lib
     ARCHIVE EXCLUDE_FROM_ALL
 )
 
@@ -563,7 +563,7 @@ target_compile_options(libpng PRIVATE ${GENERAL_CFLAGS} $<$<COMPILE_LANGUAGE:CXX
 target_link_libraries(libpng PUBLIC zlib)
 target_link_libraries(libpng PRIVATE moxnox)
 
-install(TARGETS libpng DESTINATION ${CMAKE_INSTALL_PREFIX}
+install(TARGETS libpng DESTINATION ${CMAKE_INSTALL_PREFIX}/lib
     ARCHIVE EXCLUDE_FROM_ALL
 )
 
