@@ -91,6 +91,7 @@ static nt_status mv(u16string_view src, u16string_view dest) {
     fri->FileNameLength = (uint32_t)(fn.size() * sizeof(char16_t));
     memcpy(fri->FileName, fn.data(), fn.size() * sizeof(char16_t));
 
+    // FIXME - emulate if we get nt_status::NOT_SAME_DEVICE
     status = NtSetInformationFile(file.get(), &iosb, fri, (uint32_t)frilen,
                                   FILE_INFORMATION_CLASS::RenameInformation);
     if (!success(status)) {
