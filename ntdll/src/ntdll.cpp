@@ -14,6 +14,7 @@ import unicode;
 import ntdll;
 import ntdll_private;
 import crt;
+import unique_handle;
 
 extern uint8_t __image_base__;
 
@@ -678,51 +679,54 @@ static bool try_load_dll(u16string_view dir, u16string_view name) {
     OBJECT_ATTRIBUTES oa;
     UNICODE_STRING us;
     NTSTATUS status;
-    HANDLE h, sect;
+    HANDLE h;
+    unique_handle dirh, file, sect;
     IO_STATUS_BLOCK iosb;
     void* addr = nullptr;
     size_t size = 0;
-
-    us.Length = us.MaximumLength = (uint16_t)((dir.size() + name.size()) * sizeof(char16_t));
-    us.Buffer = (char16_t*)malloc(us.Length);
-
-    if (!us.Buffer)
-        NtTerminateProcess(NtCurrentProcess(), nt_status::INSUFFICIENT_RESOURCES);
-
-    memcpy(us.Buffer, dir.data(), dir.size() * sizeof(char16_t));
-    memcpy(us.Buffer + dir.size(), name.data(), name.size() * sizeof(char16_t));
 
     memset(&oa, 0, sizeof(oa));
     oa.Length = sizeof(OBJECT_ATTRIBUTES);
     oa.ObjectName = &us;
 
+    us.Length = us.MaximumLength = (uint16_t)(dir.size() * sizeof(char16_t));
+    us.Buffer = (char16_t*)dir.data();
+
+    status = NtCreateFile(&h, FILE_TRAVERSE, &oa, &iosb, nullptr, 0, 0,
+                          FILE_OPEN, FILE_DIRECTORY_FILE, nullptr, 0);
+    if (!success(status))
+        return false;
+
+    dirh.reset(h);
+
+    us.Length = us.MaximumLength = (uint16_t)(name.size() * sizeof(char16_t));
+    us.Buffer = (char16_t*)name.data();
+    oa.RootDirectory = dirh.get();
+
     status = NtCreateFile(&h, FILE_READ_DATA, &oa, &iosb, nullptr, 0, 0,
                           FILE_OPEN, 0, nullptr, 0);
 
-    if (!success(status)) {
-        free(us.Buffer);
+    if (!success(status))
         return false;
-    }
 
-    status = NtCreateSection(&sect, SECTION_MAP_READ, nullptr, nullptr,
-                             PAGE_READONLY, SEC_IMAGE, h);
+    file.reset(h);
 
-    if (!success(status)) {
-        NtClose(h);
-        free(us.Buffer);
+    status = NtCreateSection(&h, SECTION_MAP_READ, nullptr, nullptr,
+                             PAGE_READONLY, SEC_IMAGE, file.get());
+
+    if (!success(status))
         return false;
-    }
 
-    status = NtMapViewOfSection(sect, NtCurrentProcess(), &addr, 0, 0, nullptr, &size,
-                                SECTION_INHERIT::ViewUnmap, 0, PAGE_READONLY);
+    sect.reset(h);
 
-    NtClose(sect);
+    status = NtMapViewOfSection(sect.get(), NtCurrentProcess(), &addr, 0, 0,
+                                nullptr, &size, SECTION_INHERIT::ViewUnmap, 0,
+                                PAGE_READONLY);
 
-    if (!success(status)) {
-        NtClose(h);
-        free(us.Buffer);
+    sect.reset();
+
+    if (!success(status))
         return false;
-    }
 
     auto& dos_header = *(IMAGE_DOS_HEADER*)addr;
     auto& nt_header = *(IMAGE_NT_HEADERS*)((uint8_t*)addr + dos_header.e_lfanew);
@@ -734,16 +738,12 @@ static bool try_load_dll(u16string_view dir, u16string_view name) {
 #endif
 
     if (nt_header.FileHeader.Machine != this_arch) {
-        NtClose(h);
         NtUnmapViewOfSection(NtCurrentProcess(), addr);
-        free(us.Buffer);
         return false;
     }
 
     if (!(nt_header.FileHeader.Characteristics & IMAGE_FILE_DLL)) {
-        NtClose(h);
         NtUnmapViewOfSection(NtCurrentProcess(), addr);
-        free(us.Buffer);
         return false;
     }
 
@@ -761,7 +761,7 @@ static bool try_load_dll(u16string_view dir, u16string_view name) {
         char buf[50];
         span sp(buf, sizeof(buf));
 
-        sp = get_section_name(sect, nt_header.FileHeader, h, sp);
+        sp = get_section_name(sect, nt_header.FileHeader, file.get(), sp);
 
         auto name = string_view(buf, (size_t)(sp.data() - buf));
 
@@ -791,9 +791,6 @@ static bool try_load_dll(u16string_view dir, u16string_view name) {
             ent.size_debug_line_str = sect.VirtualSize;
         }
     }
-
-    NtClose(h);
-    free(us.Buffer);
 
     return true;
 }
@@ -829,9 +826,11 @@ static bool load_dll(string_view name) {
         }
     }
 
+    // FIXME - what if DLL name contains slashes?
+
     // FIXME - directories to search (same directory as image, then PATH?)
 
-    if (try_load_dll(u"\\lib\\", u16string_view(u16sv.data(), u16sv.size()))) {
+    if (try_load_dll(u"\\lib", u16string_view(u16sv.data(), u16sv.size()))) {
         free(u16buf);
         return true;
     }
