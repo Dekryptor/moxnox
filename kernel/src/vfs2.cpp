@@ -1067,8 +1067,6 @@ NTSTATUS file::rename(span<const uint8_t> buf) {
     if (buf.size() < offsetof(FILE_RENAME_INFORMATION, FileName) + fri.FileNameLength)
         return nt_status::BUFFER_TOO_SMALL;
 
-    print("FIXME - file::rename\n");
-
     object_ref rootdir, destdir;
     unsigned int create_result;
     optional<reference_wrapper<::dentry>> drw;
@@ -1099,6 +1097,11 @@ NTSTATUS file::rename(span<const uint8_t> buf) {
 
     auto u16name = u16string_view(fri.FileName, fri.FileNameLength / sizeof(char16_t));
 
+    // remove trailing slashes
+    while (!u16name.empty() && u16name.back() == '/') {
+        u16name = u16string_view(u16name.data(), u16name.size() - 1);
+    }
+
     auto namelen = utf16_to_utf8_len(u16name);
     if (namelen == 0)
         return nt_status::INVALID_PARAMETER;
@@ -1117,31 +1120,41 @@ NTSTATUS file::rename(span<const uint8_t> buf) {
 
     auto status = open_inode(fn, root_dir_dentry, destdir, drw, FILE_OPEN,
                              FILE_DIRECTORY_FILE, create_result, true);
-    free(name);
 
-    if (status == nt_status::OBJECT_NAME_NOT_FOUND)
+    if (status == nt_status::OBJECT_NAME_NOT_FOUND) {
+        free(name);
         return nt_status::OBJECT_PATH_NOT_FOUND;
-    else if (!success(status))
+    } else if (!success(status)) {
+        free(name);
         return status;
+    }
 
     assert(destdir);
     assert(destdir.get().type == object_type::inode);
+    assert(drw);
 
-    auto& dest_dir = static_cast<::inode&>(destdir.get());
+    auto& dest_dir_inode = static_cast<::inode&>(destdir.get());
 
-    if (&dest_dir.fs != &inode.fs) {
-        if (drw)
-            drw->get().release();
-
+    if (&dest_dir_inode.fs != &inode.fs) {
+        drw->get().release();
+        free(name);
         return nt_status::NOT_SAME_DEVICE;
     }
 
-    // FIXME - call inode::rename(dentry, dest_dir, fn)
+    string_view namepart;
 
-    if (drw)
-        drw->get().release();
+    if (auto sl = fn.find_last_of('/'); sl != string_view::npos)
+        namepart = string_view(fn.data() + sl + 1, fn.size() - sl - 1);
+    else
+        namepart = fn;
 
-    return nt_status::NOT_SUPPORTED;
+    status = inode.rename(*dentry, dest_dir_inode, namepart,
+                          fri.ReplaceIfExists);
+
+    drw->get().release();
+    free(name);
+
+    return status;
 }
 
 NTSTATUS file::set_information(void* buffer, uint32_t buffer_size,
