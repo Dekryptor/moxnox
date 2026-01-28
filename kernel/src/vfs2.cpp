@@ -1060,9 +1060,29 @@ NTSTATUS file::rename(span<const uint8_t> buf) {
 
     print("FIXME - file::rename\n");
 
+    object_ref rootdir;
+
+    if (fri.RootDirectory != 0) {
+        rootdir = deref_handle(fri.RootDirectory);
+        if (!rootdir)
+            return nt_status::INVALID_HANDLE;
+
+        if (rootdir.get().type != object_type::file)
+            return nt_status::INVALID_HANDLE;
+
+        auto& f = static_cast<file&>(rootdir.get());
+
+        if (f.ino.type != object_type::inode)
+            return nt_status::INVALID_HANDLE;
+
+        if (static_cast<inode&>(f.ino).inode_type != inode_type::directory)
+            return nt_status::INVALID_HANDLE;
+    }
+
     // FIXME - open parent directory of RootDirectory/FileName
     // FIXME - return OBJECT_PATH_NOT_FOUND if not there
     // FIXME - return NOT_SAME_DEVICE if different filesystems
+    // FIXME - don't allow if source is root of filesystem (i.e. mount)
     // FIXME - call inode::rename(dentry, dest_dir, fn)
 
     return nt_status::NOT_SUPPORTED;
