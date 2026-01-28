@@ -1049,13 +1049,37 @@ NTSTATUS NtSetInformationFile(HANDLE file_handle, IO_STATUS_BLOCK* iosb, void* b
     return f.set_information(buffer, buffer_size, file_information_class);
 }
 
+NTSTATUS file::rename(span<const uint8_t> buf) {
+    if (buf.size() < offsetof(FILE_RENAME_INFORMATION, FileName))
+        return nt_status::BUFFER_TOO_SMALL;
+
+    auto& fri = *(FILE_RENAME_INFORMATION*)buf.data();
+
+    if (buf.size() < offsetof(FILE_RENAME_INFORMATION, FileName) + fri.FileNameLength)
+        return nt_status::BUFFER_TOO_SMALL;
+
+    print("FIXME - file::rename\n");
+
+    // FIXME - open parent directory of RootDirectory/FileName
+    // FIXME - return OBJECT_PATH_NOT_FOUND if not there
+    // FIXME - return NOT_SAME_DEVICE if different filesystems
+    // FIXME - call inode::rename(dentry, dest_dir, fn)
+
+    return nt_status::NOT_SUPPORTED;
+}
+
 NTSTATUS file::set_information(void* buffer, uint32_t buffer_size,
                                FILE_INFORMATION_CLASS file_information_class) {
     if (ino.type != object_type::inode)
         return nt_status::INVALID_PARAMETER;
 
-    return static_cast<inode&>(ino).set_information(span((uint8_t*)buffer, buffer_size),
-                                                    *dentry,  file_information_class);
+    if (file_information_class == FILE_INFORMATION_CLASS::RenameInformation)
+        return rename(span((uint8_t*)buffer, buffer_size));
+    else {
+        return static_cast<inode&>(ino).set_information(span((uint8_t*)buffer, buffer_size),
+                                                        *dentry,
+                                                        file_information_class);
+    }
 }
 
 extern "C"
