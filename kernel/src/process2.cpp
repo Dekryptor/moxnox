@@ -365,7 +365,7 @@ object_ref create_process(string_view fn, string_view curdir,
         optional<reference_wrapper<dentry>> drw;
 
         status = open_inode(fn, *root_dentry, img_inode_ref, drw, FILE_OPEN,
-                            FILE_NON_DIRECTORY_FILE, create_result);
+                            FILE_NON_DIRECTORY_FILE, create_result, false);
         if (!success(status)) { // FIXME - return status
             print("open_inode failed for {}: {}\n", fn, status);
             return {};
@@ -403,7 +403,7 @@ object_ref create_process(string_view fn, string_view curdir,
         optional<reference_wrapper<dentry>> drw;
 
         status = open_inode(curdir, *root_dentry, inode_ref, drw, FILE_OPEN,
-                            FILE_NON_DIRECTORY_FILE, create_result);
+                            FILE_NON_DIRECTORY_FILE, create_result, false);
         if (!success(status)) { // FIXME - return status
             print("open_inode failed for {}: {}\n", curdir, status);
             return {};
@@ -1646,7 +1646,7 @@ void load_ntdll() {
     unsigned int create_result;
 
     status = open_inode("/lib/ntdll.dll", *root_dentry, inode_ref, drw, FILE_OPEN,
-                        FILE_NON_DIRECTORY_FILE, create_result);
+                        FILE_NON_DIRECTORY_FILE, create_result, false);
     if (!success(status))
         bsod_format("open_inode returned {} for ntdll.dll", status);
 

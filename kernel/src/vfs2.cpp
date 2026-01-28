@@ -155,7 +155,7 @@ static nt_status extract_initrd_file(string_view path, uint64_t mode,
 
     auto status = open_inode(path, *root_dentry, inorw, drw, FILE_CREATE,
                              S_ISDIR(mode) ? FILE_DIRECTORY_FILE : 0,
-                             create_result);
+                             create_result, false);
     if (!success(status))
         return status;
 
@@ -282,7 +282,7 @@ bool mount_devfs() {
     // FIXME - do this in init instead
 
     auto status = open_inode("/dev", *root_dentry, dev, drw, FILE_OPEN_IF,
-                             FILE_DIRECTORY_FILE, result);
+                             FILE_DIRECTORY_FILE, result, false);
     if (!success(status)) {
         print("open_inode returned {}\n", status);
         return false;
@@ -380,7 +380,7 @@ static void search_dentry_cache(dentry& dir, string_view name,
 nt_status open_inode(string_view fn, dentry& root_dir,
                      object_ref& obj_ref, optional<reference_wrapper<dentry>>& dentry,
                      uint32_t create_disposition, uint32_t create_options,
-                     unsigned int& create_result) {
+                     unsigned int& create_result, bool parent) {
     bool root = false;
 
     while (!fn.empty() && fn.front() == '/') {
@@ -402,6 +402,14 @@ nt_status open_inode(string_view fn, dentry& root_dir,
         auto dispo = last_bit ? create_disposition : FILE_OPEN;
         nt_status status;
         object_ref obj_ref2;
+
+        if (parent && last_bit) {
+            dir.inode->acquire();
+            obj_ref = *dir.inode;
+            dentry = dir;
+
+            return nt_status::SUCCESS;
+        }
 
         // FIXME - mount points
         // FIXME - negative dentries?
@@ -674,7 +682,7 @@ NTSTATUS NtCreateFile(HANDLE* file_handle, ACCESS_MASK access_mask,
 
     status = open_inode(string_view(name, namelen), rd,
                         ino_ref, drw, create_disposition, create_options,
-                        create_result);
+                        create_result, false);
     if (!success(status)) {
         free(name);
         rd.release();
@@ -1060,7 +1068,9 @@ NTSTATUS file::rename(span<const uint8_t> buf) {
 
     print("FIXME - file::rename\n");
 
-    object_ref rootdir;
+    object_ref rootdir, destdir;
+    unsigned int create_result;
+    optional<reference_wrapper<::dentry>> drw;
 
     if (fri.RootDirectory != 0) {
         rootdir = deref_handle(fri.RootDirectory);
@@ -1079,11 +1089,43 @@ NTSTATUS file::rename(span<const uint8_t> buf) {
             return nt_status::INVALID_HANDLE;
     }
 
-    // FIXME - open parent directory of RootDirectory/FileName
-    // FIXME - return OBJECT_PATH_NOT_FOUND if not there
-    // FIXME - return NOT_SAME_DEVICE if different filesystems
     // FIXME - don't allow if source is root of filesystem (i.e. mount)
+
+    // file name to utf-8
+
+    auto u16name = u16string_view(fri.FileName, fri.FileNameLength / sizeof(char16_t));
+
+    auto namelen = utf16_to_utf8_len(u16name);
+    if (namelen == 0)
+        return nt_status::INVALID_PARAMETER;
+
+    auto name = (char*)malloc(namelen);
+    if (!name)
+        return nt_status::INSUFFICIENT_RESOURCES;
+
+    utf16_to_utf8(span(name, namelen), u16name);
+
+    auto fn = string_view(name, namelen);
+
+    auto& root_dir_dentry = rootdir ? *static_cast<file&>(rootdir.get()).dentry : *root_dentry;
+
+    // open parent of destination
+
+    auto status = open_inode(fn, root_dir_dentry, destdir, drw, FILE_OPEN,
+                             FILE_DIRECTORY_FILE, create_result, true);
+
+    free(name);
+
+    if (status == nt_status::OBJECT_NAME_NOT_FOUND)
+        return nt_status::OBJECT_PATH_NOT_FOUND;
+    else if (!success(status))
+        return status;
+
+    // FIXME - return NOT_SAME_DEVICE if different filesystems
     // FIXME - call inode::rename(dentry, dest_dir, fn)
+
+    if (drw)
+        drw->get().release();
 
     return nt_status::NOT_SUPPORTED;
 }

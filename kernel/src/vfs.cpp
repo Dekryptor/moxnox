@@ -236,6 +236,6 @@ export bool mount_devfs();
 export nt_status open_inode(string_view fn, dentry& dir,
                             object_ref& obj_ref, optional<reference_wrapper<dentry>>& dentry,
                             uint32_t create_disposition, uint32_t create_options,
-                            unsigned int& create_result);
+                            unsigned int& create_result, bool parent);
 export nt_status flush_filesystems(bool make_readonly);
 export nt_status get_dentry_path(dentry& dr, char*& path, size_t& path_len);
