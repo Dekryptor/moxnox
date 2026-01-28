@@ -52,6 +52,7 @@ enum class nt_status : uint32_t {
     IO_TIMEOUT = 0xc00000b5,
     FILE_IS_A_DIRECTORY = 0xc00000ba,
     NOT_SUPPORTED = 0xc00000bb,
+    NOT_SAME_DEVICE = 0xc00000d4,
     CANT_WAIT = 0xc00000d8,
     INTERNAL_ERROR = 0xc00000e5,
     DIRECTORY_NOT_EMPTY = 0xc0000101,
