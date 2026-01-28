@@ -795,6 +795,38 @@ static bool try_load_dll(u16string_view dir, u16string_view name) {
     return true;
 }
 
+static u16string_view get_env(u16string_view name) {
+    auto peb = NtCurrentTeb()->ProcessEnvironmentBlock;
+    auto env = u16string_view((char16_t*)peb->ProcessParameters->Environment,
+                              peb->ProcessParameters->EnvironmentSize / sizeof(char16_t));
+
+    while (true) {
+        if (env.empty() || env[0] == 0)
+            break;
+
+        auto zero = env.find(u'\0');
+
+        u16string_view bit;
+
+        if (zero == u16string_view::npos)
+            bit = env;
+        else
+            bit = u16string_view(env.data(), zero);
+
+        if (auto eq = bit.find(u'='); eq != u16string_view::npos) {
+            if (u16string_view(bit.data(), eq) == name)
+                return u16string_view(bit.data() + eq + 1, bit.size() - eq - 1);
+        }
+
+        if (zero != u16string_view::npos)
+            env = u16string_view(env.data() + zero + 1, env.size() - zero - 1);
+        else
+            break;
+    }
+
+    return u"";
+}
+
 static bool load_dll(string_view name) {
     auto u16len = utf8_to_utf16_len(name);
 
@@ -828,11 +860,33 @@ static bool load_dll(string_view name) {
 
     // FIXME - what if DLL name contains slashes?
 
-    // FIXME - directories to search (same directory as image, then PATH?)
+    auto path = get_env(u"LD_LIBRARY_PATH");
 
-    if (try_load_dll(u"\\lib", u16string_view(u16sv.data(), u16sv.size()))) {
-        free(u16buf);
-        return true;
+    if (path.empty()) { // FIXME - is this right?
+        if (try_load_dll(u"/lib", u16string_view(u16sv.data(), u16sv.size()))) {
+            free(u16buf);
+            return true;
+        }
+    } else {
+        while (true) {
+            u16string_view bit;
+            auto col = path.find(u':');
+
+            if (col != u16string_view::npos)
+                bit = u16string_view(path.data(), col);
+            else
+                bit = path;
+
+            if (try_load_dll(bit, u16string_view(u16sv.data(), u16sv.size()))) {
+                free(u16buf);
+                return true;
+            }
+
+            if (col == u16string_view::npos)
+                break;
+
+            path = u16string_view(path.data() + col + 1, path.size() - col - 1);
+        }
     }
 
     free(u16buf);

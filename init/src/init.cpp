@@ -426,6 +426,7 @@ static void prepare_environment() {
     static const u16string_view vars[] = {
         u"PATH=/bin",
         u"HOME=/", // FIXME
+        u"LD_LIBRARY_PATH=/lib:.",
     };
 
     size_t len = 1;
