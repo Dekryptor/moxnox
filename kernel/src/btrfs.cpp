@@ -5912,9 +5912,22 @@ nt_status btrfs_inode::remove_orphan() {
     return nt_status::SUCCESS;
 }
 
-nt_status btrfs_inode::rename(dentry& /*dentry*/, ::inode& /*dest_dir*/, string_view /*name*/,
-                              bool /*replace_if_exists*/) {
-    print("FIXME - btrfs_inode::rename\n");
+nt_status btrfs_inode::rename(dentry& /*dentry*/, ::inode& /*dest_dir*/,
+                              string_view name, bool replace_if_exists) {
+    print("FIXME - btrfs_inode::rename ({}, {})\n", name, replace_if_exists ? "true" : "false");
+
+    // FIXME - make sure name is valid (e.g. not . or ..)
+    // FIXME - make sure FS not readonly
+    // FIXME - early return if trying to replace file with itself
+
+    // FIXME - moving file within directory
+    // FIXME - moving file to new directory
+    // FIXME - moving file between subvols (return nt_status::NOT_SAME_DEVICE for now?)
+
+    // FIXME - overwriting destination (not if destination is directory?)
+
+    // FIXME - invalidating dentry etc.
+    // FIXME - change dentry in file
 
     return nt_status::NOT_SUPPORTED;
 }
