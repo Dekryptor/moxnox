@@ -1455,7 +1455,7 @@ static unique_handle get_home_handle(void (*recv_func)(string_view)) {
 
             sp = format(sp, "NtCreateFile returned {} for {}\n",
                         status, env_home);
-            recv_func(string_view(s, sp.data() - s));
+            recv_func(string_view(s, (size_t)(sp.data() - s)));
         } else
             return unique_handle{h};
     }
