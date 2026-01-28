@@ -68,8 +68,8 @@ static nt_status mv(u16string_view src, u16string_view dest) {
     u16string_view fn;
 
     if (desth) {
-        if (auto slash = src.find(u'/'); slash != u16string_view::npos)
-            fn = u16string_view(src.data(), slash);
+        if (auto slash = src.find_last_of(u'/'); slash != u16string_view::npos)
+            fn = u16string_view(src.data() + slash + 1, src.size() - slash - 1);
         else
             fn = src;
 
