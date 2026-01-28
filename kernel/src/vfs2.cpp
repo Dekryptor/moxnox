@@ -1089,7 +1089,10 @@ NTSTATUS file::rename(span<const uint8_t> buf) {
             return nt_status::INVALID_HANDLE;
     }
 
-    // FIXME - don't allow if source is root of filesystem (i.e. mount)
+    // don't allow if source is root of a filesystem
+    auto& inode = static_cast<::inode&>(ino);
+    if (inode.fs.root_inode == &inode)
+        return nt_status::INVALID_PARAMETER;
 
     // file name to utf-8
 
