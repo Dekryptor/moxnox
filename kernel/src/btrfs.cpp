@@ -4696,7 +4696,7 @@ static nt_status remove_csums(btrfs_filesystem& fs, uint64_t address,
             uint64_t second_sectors = (k.offset + size - address - length) / fs.sb->sectorsize;
 
             // FIXME - won't need this if we can modify page cache directly
-            auto buf = (uint8_t*)malloc(second_sectors * CSUM_SIZE);
+            auto buf = (uint8_t*)vmalloc(second_sectors * CSUM_SIZE);
             if (!buf) {
                 print("out of memory\n");
                 return nt_status::INSUFFICIENT_RESOURCES;
@@ -4712,11 +4712,11 @@ static nt_status remove_csums(btrfs_filesystem& fs, uint64_t address,
                                  span(buf, second_sectors * CSUM_SIZE));
             if (!success(status)) {
                 print("insert_item returned {}\n", status);
-                free(buf);
+                vfree(buf, second_sectors * CSUM_SIZE);
                 return status;
             }
 
-            free(buf);
+            vfree(buf, second_sectors * CSUM_SIZE);
 
             length = 0;
         } else if (address + length > k.offset && address + length < k.offset + size) {
