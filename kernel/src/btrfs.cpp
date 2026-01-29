@@ -2900,6 +2900,40 @@ nt_status add_dir_item(btrfs_filesystem& fs, root& r, btrfs_inode& parent,
     return nt_status::SUCCESS;
 }
 
+static nt_status add_inode_ref(btrfs_filesystem& fs, root& r, string_view name,
+                               uint64_t index, uint64_t inode,
+                               uint64_t parent) {
+    nt_status status;
+
+    // FIXME - collisions
+    // FIXME - INODE_EXTREF
+
+    size_t ir_size = offsetof(btrfs_inode_ref, name) + name.size();
+    auto ir = (btrfs_inode_ref*)malloc(ir_size);
+    if (!ir)
+        return nt_status::INSUFFICIENT_RESOURCES;
+
+    ir->index = index;
+    ir->name_len = (uint16_t)name.size();
+    memcpy(ir->name, name.data(), name.size());
+
+    status = insert_item(fs, r, {inode, key_type::INODE_REF, parent},
+                        span((uint8_t*)ir, ir_size));
+
+    if (!success(status)) {
+        free(ir);
+
+        if (status == nt_status::OBJECT_NAME_COLLISION)
+            status = nt_status::INTERNAL_ERROR;
+
+        return status;
+    }
+
+    free(ir);
+
+    return nt_status::SUCCESS;
+};
+
 nt_status btrfs_inode::create_child(string_view name, uint32_t create_options,
                                     optional<reference_wrapper<::inode>>& obj) {
     nt_status status;
@@ -2970,28 +3004,11 @@ nt_status btrfs_inode::create_child(string_view name, uint32_t create_options,
 
         // create INODE_REF
 
-        size_t ir_size = offsetof(btrfs_inode_ref, name) + name.size();
-        auto ir = (btrfs_inode_ref*)malloc(ir_size);
-        if (!ir)
-            return nt_status::INSUFFICIENT_RESOURCES;
-
-        ir->index = index;
-        ir->name_len = (uint16_t)name.size();
-        memcpy(ir->name, name.data(), name.size());
-
-        status = insert_item(fs, *r, {new_inode, key_type::INODE_REF, inode},
-                             span((uint8_t*)ir, ir_size));
-
+        status = add_inode_ref(fs, *r, name, index, new_inode, inode);
         if (!success(status)) {
-            free(ir);
-
-            if (status == nt_status::OBJECT_NAME_COLLISION)
-                status = nt_status::INTERNAL_ERROR;
-
+            print("add_inode_ref returned {}\n", status);
             return status;
         }
-
-        free(ir);
 
         // adjust size etc. of parent directory
 
@@ -5912,22 +5929,147 @@ nt_status btrfs_inode::remove_orphan() {
     return nt_status::SUCCESS;
 }
 
-nt_status btrfs_inode::rename(dentry& /*dentry*/, ::inode& /*dest_dir*/,
+static nt_status rename_file_in_directory(dentry& dentry, string_view new_name,
+                                          bool replace_if_exists) {
+    nt_status status;
+    auto& ino = static_cast<btrfs_inode&>(*dentry.inode);
+    auto& parent_ino = static_cast<btrfs_inode&>(*dentry.parent->inode);
+    auto& fs = ino.fs;
+    auto cur_name = string_view(dentry.name, dentry.name_len);
+    btrfs_path p(fs.sb->nodesize);
+
+    // early return if trying to replace file with itself
+    // FIXME - what does NT do here? Does it depend on replace_if_exists?
+    if (new_name == cur_name)
+        return nt_status::SUCCESS;
+
+    auto hash = calc_crc32c(0xfffffffe, new_name);
+    bool is_dir = ino.inode_type == inode_type::directory;
+    // FIXME - other inode types (symlink etc.)
+
+    // FIXME - lock inode to prevent simultaneous renames?
+
+    auto cur_time = get_btrfs_time();
+
+    {
+        uint64_t index;
+        lock_guard lg(fs.trans_lock);
+
+        if (false) {
+            // FIXME - find DIR_ITEM
+            // FIXME - if found, search for name
+            // FIXME - early return if trying to replace file with its own hardlink
+            // FIXME - return nt_status::OBJECT_NAME_COLLISION if !replace_if_exists and already exists
+            // FIXME - return nt_status::ACCESS_DENIED if we are file and existing name is directory, or vice versa
+            // FIXME - return nt_status::DIRECTORY_NOT_EMPTY if directory and destination isn't empty
+            // FIXME - unlinking existing file
+            // FIXME - update transid and location in DIR_ITEM
+            // FIXME - lookup INODE_REF or INODE_EXTREF of destination and remove
+            // FIXME - remove DIR_INDEX
+        } else { // not an overwrite
+            status = add_dir_item(fs, *ino.r, parent_ino, new_name, ino.inode,
+                                  is_dir, index);
+            if (!success(status)) {
+                print("add_dir_item returned {}\n", status);
+                return status;
+            }
+        }
+
+        // remove old DIR_ITEM, DIR_INDEX, and INODE_REF
+
+        status = remove_dir_item(fs, *ino.r, ino.inode, cur_name,
+                                 parent_ino.inode);
+        if (!success(status)) {
+            print("remove_dir_item returned {}\n", status);
+            return status;
+        }
+
+        // create INODE_REF
+
+        status = add_inode_ref(fs, *ino.r, new_name, index, ino.inode,
+                               parent_ino.inode);
+        if (!success(status)) {
+            print("add_inode_ref returned {}\n", status);
+            return status;
+        }
+
+        // update inode item
+
+        {
+            lock_guard lg(ino.inode_lock);
+
+            ino.ii.transid = fs.sb->generation;
+            ino.ii.sequence++;
+            ino.ii.ctime = cur_time;
+        }
+
+        status = ino.flush_inode_item(p);
+        if (!success(status)) {
+            print("btrfs_inode::flush_inode_item returned {}\n", status);
+            return status;
+        }
+
+        // adjust size etc. of parent directory
+
+        {
+            lock_guard lg(parent_ino.inode_lock);
+
+            parent_ino.ii.transid = fs.sb->generation;
+
+            parent_ino.ii.size += new_name.size() * 2;
+            parent_ino.ii.size -= cur_name.size() * 2;
+
+            parent_ino.ii.sequence++;
+            parent_ino.ii.ctime = cur_time;
+            parent_ino.ii.mtime = cur_time;
+        }
+
+        status = parent_ino.flush_inode_item(p);
+        if (!success(status)) {
+            print("btrfs_inode::flush_inode_item returned {}\n", status);
+            return status;
+        }
+
+        // adjust root_item
+
+        ino.r->ri.ctime = cur_time;
+        ino.r->ri.ctransid = fs.sb->generation;
+    }
+
+    return nt_status::SUCCESS;
+}
+
+nt_status btrfs_inode::rename(dentry& dentry, ::inode& dest_dir,
                               string_view name, bool replace_if_exists) {
+    nt_status status;
+
+    assert(dentry.parent);
+    assert(dentry.parent->inode);
+
     print("FIXME - btrfs_inode::rename ({}, {})\n", name, replace_if_exists ? "true" : "false");
 
-    // FIXME - make sure name is valid (e.g. not . or ..)
-    // FIXME - make sure FS not readonly
-    // FIXME - early return if trying to replace file with itself
+    if (!validate_name(name))
+        return nt_status::OBJECT_NAME_INVALID;
 
-    // FIXME - moving file within directory
-    // FIXME - moving file to new directory
-    // FIXME - moving file between subvols (return nt_status::NOT_SAME_DEVICE for now?)
+    if (fs.readonly)
+        return nt_status::MEDIA_WRITE_PROTECTED;
+
+    if (dentry.parent->inode == &dest_dir) { // renaming in same directory
+        status = rename_file_in_directory(dentry, name, replace_if_exists);
+
+        if (!success(status))
+            return status;
+    } else { // moving file to new directory
+        // FIXME - early return if trying to replace file with its own hardlink
+        // FIXME - moving file between subvols (return nt_status::NOT_SAME_DEVICE for now?)
+
+        return nt_status::NOT_IMPLEMENTED;
+    }
 
     // FIXME - overwriting destination (not if destination is directory?)
 
     // FIXME - invalidating dentry etc.
     // FIXME - change dentry in file
 
-    return nt_status::NOT_SUPPORTED;
+    return nt_status::SUCCESS;
 }
