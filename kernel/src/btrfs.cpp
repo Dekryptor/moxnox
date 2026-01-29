@@ -36,6 +36,7 @@ import spinlock;
 import objects;
 import crt;
 import kernel_time_page;
+import handle;
 
 using namespace std;
 
@@ -5940,7 +5941,8 @@ nt_status btrfs_inode::remove_orphan() {
 }
 
 static nt_status rename_file_in_directory(dentry& dentry, string_view new_name,
-                                          bool replace_if_exists) {
+                                          bool replace_if_exists,
+                                          object_ref& victim) {
     nt_status status;
     auto& ino = static_cast<btrfs_inode&>(*dentry.inode);
     auto& parent_ino = static_cast<btrfs_inode&>(*dentry.parent->inode);
@@ -5976,8 +5978,6 @@ static nt_status rename_file_in_directory(dentry& dentry, string_view new_name,
         }
 
         if (success(status)) {
-            object_ref victim;
-
             if (!replace_if_exists)
                 return nt_status::OBJECT_NAME_COLLISION;
 
@@ -6011,6 +6011,9 @@ static nt_status rename_file_in_directory(dentry& dentry, string_view new_name,
                 victim_ino.ii.ctime = cur_time;
 
                 orphaned = victim_ino.ii.nlink == 0;
+
+                // pretend we have an open handle
+                victim_ino.handle_count++;
             }
 
             status = victim_ino.flush_inode_item(p);
@@ -6130,7 +6133,13 @@ nt_status btrfs_inode::rename(dentry& dentry, ::inode& dest_dir,
         return nt_status::MEDIA_WRITE_PROTECTED;
 
     if (dentry.parent->inode == &dest_dir) { // renaming in same directory
-        status = rename_file_in_directory(dentry, name, replace_if_exists);
+        object_ref victim;
+
+        status = rename_file_in_directory(dentry, name, replace_if_exists,
+                                          victim);
+
+        if (victim)
+            handle_closed(victim.get());
 
         if (!success(status))
             return status;
