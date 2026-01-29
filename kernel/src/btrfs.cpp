@@ -6046,8 +6046,6 @@ static nt_status rename_file_in_directory(dentry& dentry, string_view new_name,
                 return status;
             }
 
-            // FIXME - close victim so it gets cleaned up
-
             done_overwrite = true;
         }
 
