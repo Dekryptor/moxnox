@@ -4658,8 +4658,10 @@ static nt_status remove_csums(btrfs_filesystem& fs, uint64_t address,
     while (length > 0) {
         if (p.slots[0] == leaf_nritems(p)) {
             status = next_leaf(fs, p);
-            if (!success(status))
+            if (!success(status)) {
+                print("next_leaf returned {}\n", status);
                 return status;
+            }
         }
 
         const auto& it = items[p.slots[0]];
