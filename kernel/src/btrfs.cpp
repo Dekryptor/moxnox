@@ -3051,6 +3051,53 @@ nt_status btrfs_inode::create_child(string_view name, uint32_t create_options,
     return nt_status::SUCCESS;
 }
 
+static nt_status search_dir_item(btrfs_filesystem& fs, root& r, uint64_t inode,
+                                 uint32_t hash, string_view name,
+                                 btrfs_key& dir_item_key) {
+    bool found = false;
+    auto k = btrfs_key{inode, key_type::DIR_ITEM, hash};
+    btrfs_path p(fs.sb->nodesize);
+
+    auto status = fs.find_item(r, k, p, false);
+    if (!success(status))
+        return status;
+
+    auto& th = *(btrfs_header*)p.data[0];
+    auto items = span((btrfs_item*)((uint8_t*)&th + sizeof(btrfs_header)), th.nritems);
+
+    if (p.slots[0] >= th.nritems)
+        return nt_status::OBJECT_NAME_NOT_FOUND;
+
+    const auto& it = items[p.slots[0]];
+    const auto& found_key = it.key;
+
+    if (found_key != k)
+        return nt_status::OBJECT_NAME_NOT_FOUND;
+
+    auto data = span((const uint8_t*)&th + sizeof(btrfs_header) + it.offset, it.size);
+
+    while (data.size() >= offsetof(btrfs_dir_item, name)) {
+        const auto& di = *(btrfs_dir_item*)data.data();
+        size_t exp_len = offsetof(btrfs_dir_item, name) + di.data_len + di.name_len;
+
+        if (data.size() < exp_len)
+            return nt_status::OBJECT_NAME_NOT_FOUND;
+
+        if (string_view(di.name, di.name_len) == name) {
+            dir_item_key = di.location;
+            found = true;
+            break;
+        }
+
+        data = data.subspan(exp_len, data.size() - exp_len);
+    }
+
+    if (!found)
+        return nt_status::OBJECT_NAME_NOT_FOUND;
+
+    return nt_status::SUCCESS;
+};
+
 nt_status btrfs_inode::open_child(string_view name, object_ref& obj) {
     if (inode_type != inode_type::directory)
         return nt_status::INVALID_PARAMETER;
@@ -3058,50 +3105,13 @@ nt_status btrfs_inode::open_child(string_view name, object_ref& obj) {
     auto hash = calc_crc32c(0xfffffffe, name);
 
     btrfs_key dir_item_key;
-    bool found = false;
 
     {
         shared_lock lg(fs.trans_lock);
 
-        auto k = btrfs_key{inode, key_type::DIR_ITEM, hash};
-        btrfs_path p(fs.sb->nodesize);
-
-        auto status = fs.find_item(*r, k, p, false);
+        auto status = search_dir_item(fs, *r, inode, hash, name, dir_item_key);
         if (!success(status))
             return status;
-
-        auto& th = *(btrfs_header*)p.data[0];
-        auto items = span((btrfs_item*)((uint8_t*)&th + sizeof(btrfs_header)), th.nritems);
-
-        if (p.slots[0] >= th.nritems)
-            return nt_status::OBJECT_NAME_NOT_FOUND;
-
-        const auto& it = items[p.slots[0]];
-        const auto& found_key = it.key;
-
-        if (found_key != k)
-            return nt_status::OBJECT_NAME_NOT_FOUND;
-
-        auto data = span((const uint8_t*)&th + sizeof(btrfs_header) + it.offset, it.size);
-
-        while (data.size() >= offsetof(btrfs_dir_item, name)) {
-            const auto& di = *(btrfs_dir_item*)data.data();
-            size_t exp_len = offsetof(btrfs_dir_item, name) + di.data_len + di.name_len;
-
-            if (data.size() < exp_len)
-                return nt_status::OBJECT_NAME_NOT_FOUND;
-
-            if (string_view(di.name, di.name_len) == name) {
-                dir_item_key = di.location;
-                found = true;
-                break;
-            }
-
-            data = data.subspan(exp_len, data.size() - exp_len);
-        }
-
-        if (!found)
-            return nt_status::OBJECT_NAME_NOT_FOUND;
     }
 
     if (dir_item_key.type == key_type::ROOT_ITEM)
@@ -5953,19 +5963,29 @@ static nt_status rename_file_in_directory(dentry& dentry, string_view new_name,
 
     {
         uint64_t index;
+        btrfs_key dir_item_key;
         lock_guard lg(fs.trans_lock);
 
-        if (false) {
-            // FIXME - find DIR_ITEM
-            // FIXME - if found, search for name
-            // FIXME - early return if trying to replace file with its own hardlink
-            // FIXME - return nt_status::OBJECT_NAME_COLLISION if !replace_if_exists and already exists
+        status = search_dir_item(fs, *ino.r, parent_ino.inode, hash, new_name,
+                                 dir_item_key);
+        if (!success(status) && status != nt_status::OBJECT_NAME_NOT_FOUND) {
+            print("search_dir_item returned {}\n", status);
+            return status;
+        }
+
+        if (success(status)) {
+            if (!replace_if_exists)
+                return nt_status::OBJECT_NAME_COLLISION;
+
             // FIXME - return nt_status::ACCESS_DENIED if we are file and existing name is directory, or vice versa
             // FIXME - return nt_status::DIRECTORY_NOT_EMPTY if directory and destination isn't empty
+            // FIXME - replacing file with its own hardlink
             // FIXME - unlinking existing file
             // FIXME - update transid and location in DIR_ITEM
             // FIXME - lookup INODE_REF or INODE_EXTREF of destination and remove
             // FIXME - remove DIR_INDEX
+
+            return nt_status::INTERNAL_ERROR; // FIXME
         } else { // not an overwrite
             status = add_dir_item(fs, *ino.r, parent_ino, new_name, ino.inode,
                                   is_dir, index);
