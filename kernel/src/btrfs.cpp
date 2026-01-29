@@ -4688,6 +4688,8 @@ static nt_status remove_csums(btrfs_filesystem& fs, uint64_t address,
                 return status;
             }
 
+            address += size;
+            length -= size;
             continue;
         } else if (address > k.offset && address + length < k.offset + size) {
             // remove middle of entry
@@ -4747,6 +4749,9 @@ static nt_status remove_csums(btrfs_filesystem& fs, uint64_t address,
             auto delta_sectors = (k.offset + size - address) / fs.sb->sectorsize;
 
             fs.shorten_item(p, (uint32_t)(delta_sectors * CSUM_SIZE));
+
+            length -= k.offset + size - address;
+            address = k.offset + size;
         }
 
         p.slots[0]++;
