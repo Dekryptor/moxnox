@@ -6000,6 +6000,7 @@ static nt_status rename_file_in_directory(dentry& dentry, string_view new_name,
             assert(victim.get().type == object_type::inode);
 
             auto& victim_ino = static_cast<btrfs_inode&>(victim.get());
+            bool orphaned;
 
             {
                 lock_guard lg2(victim_ino.inode_lock);
@@ -6008,12 +6009,24 @@ static nt_status rename_file_in_directory(dentry& dentry, string_view new_name,
                 victim_ino.ii.nlink--;
                 victim_ino.ii.sequence++;
                 victim_ino.ii.ctime = cur_time;
+
+                orphaned = victim_ino.ii.nlink == 0;
             }
 
             status = victim_ino.flush_inode_item(p);
             if (!success(status)) {
                 print("btrfs_inode::flush_inode_item returned {}\n", status);
                 return status;
+            }
+
+            if (orphaned) {
+                status = insert_item(fs, *ino.r,
+                                    {BTRFS_ORPHAN_OBJECTID, key_type::ORPHAN_INODE, victim_ino.inode},
+                                    span<const uint8_t>());
+                if (!success(status)) {
+                    print("insert_item returned {}\n", status);
+                    return status;
+                }
             }
 
             status = remove_dir_item(fs, *ino.r, dir_item_key.objectid,
@@ -6023,7 +6036,6 @@ static nt_status rename_file_in_directory(dentry& dentry, string_view new_name,
                 return status;
             }
 
-            // FIXME - mark victim as orphan if necessary
             // FIXME - close victim so it gets cleaned up
 
             done_overwrite = true;
