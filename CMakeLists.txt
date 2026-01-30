@@ -124,6 +124,12 @@ if(CMAKE_SYSTEM_PROCESSOR STREQUAL "amd64")
     target_link_libraries(timepage_kernel pagesize_kernel)
 endif()
 
+add_library(freetype_kernel STATIC)
+target_sources(freetype_kernel PUBLIC FILE_SET CXX_MODULES FILES modules/freetype.cpp)
+target_compile_options(freetype_kernel PRIVATE ${KERNEL_CFLAGS})
+target_include_directories(freetype_kernel PRIVATE include)
+target_include_directories(freetype_kernel PRIVATE freetype/include)
+
 add_library(format STATIC)
 target_sources(format PUBLIC FILE_SET CXX_MODULES FILES modules/format.cpp)
 target_compile_options(format PRIVATE -fno-exceptions ${USERSPACE_CFLAGS})
@@ -291,7 +297,7 @@ target_compile_definitions(freetype-static PRIVATE -DFT_CONFIG_MODULES_H=\"${CMA
 target_compile_definitions(freetype-static PRIVATE -DFT_CONFIG_STANDARD_LIBRARY_H=\"${CMAKE_SOURCE_DIR}/include/ftstdlib.h\")
 target_compile_options(freetype-static PRIVATE -mno-stack-arg-probe -gdwarf-5)
 target_include_directories(freetype-static PRIVATE include)
-target_include_directories(freetype-static PUBLIC freetype/include)
+target_include_directories(freetype-static PRIVATE freetype/include)
 
 # undo freetype's dllexport markings
 add_custom_command(

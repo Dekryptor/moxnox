@@ -7,9 +7,6 @@ module;
 #include <bit>
 #include <mutex>
 #include <console.h>
-#include <ft2build.h>
-#include <freetype/freetype.h>
-#include <freetype/ftbitmap.h>
 
 export module console;
 
@@ -41,6 +38,7 @@ import loaderblock;
 import framebuffer;
 import handle;
 import objects;
+import freetype;
 
 using namespace std;
 

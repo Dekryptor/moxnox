@@ -109,7 +109,7 @@ if(CMAKE_SYSTEM_PROCESSOR STREQUAL aarch64)
 
     add_executable(kernel ${SRC_FILES} ${SRC_ASM_FILES})
     target_sources(kernel PUBLIC FILE_SET CXX_MODULES FILES ${AARCH64_MODULES})
-    target_link_libraries(kernel format dwarf list unicode rbtree vt100 cp437 evdev unwind nt ntdll_mod loaderblock aarch64 crt pagesize timepage)
+    target_link_libraries(kernel format dwarf list unicode rbtree vt100 cp437 evdev unwind nt ntdll_mod loaderblock aarch64 crt pagesize timepage freetype_kernel)
 elseif(CMAKE_SYSTEM_PROCESSOR STREQUAL "amd64")
     set(SRC_ASM_FILES src/x86/ints.S
         src/x86/timer.S
@@ -121,7 +121,7 @@ elseif(CMAKE_SYSTEM_PROCESSOR STREQUAL "amd64")
 
     add_executable(kernel ${SRC_FILES} ${SRC_ASM_FILES})
     target_sources(kernel PUBLIC FILE_SET CXX_MODULES FILES ${AMD64_MODULES})
-    target_link_libraries(kernel format_kernel dwarf_kernel list_kernel unicode_kernel rbtree_kernel vt100_kernel cp437_kernel evdev_kernel unwind_kernel nt_kernel ntdll_kernel pe_kernel loaderblock crt_kernel x86 pagesize_kernel timepage_kernel)
+    target_link_libraries(kernel format_kernel dwarf_kernel list_kernel unicode_kernel rbtree_kernel vt100_kernel cp437_kernel evdev_kernel unwind_kernel nt_kernel ntdll_kernel pe_kernel loaderblock crt_kernel x86 pagesize_kernel timepage_kernel freetype_kernel)
 endif()
 
 target_compile_options(kernel PRIVATE ${KERNEL_CFLAGS} -Wno-unused-const-variable)
