@@ -948,7 +948,7 @@ static glyph_info* load_glyph(font_info& font, FT_UInt glyph) {
     if (tree)
         return &rbtree_containing_record<glyph_info>(tree);
 
-    auto error = FT_Load_Glyph(font.face, glyph, FT_LOAD_RENDER | FT_RENDER_MODE_MONO);
+    auto error = FT_Load_Glyph(font.face, glyph, FT_LOAD_RENDER | FT_LOAD_TARGET_NORMAL);
     if (error) // FIXME - report somehow
         return nullptr;
 
