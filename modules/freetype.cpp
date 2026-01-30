@@ -15,6 +15,7 @@ export using ::FT_Library;
 export using ::FT_Memory;
 export using ::FT_MemoryRec_;
 export using ::FT_Error;
+export using ::FT_F26Dot6;
 
 export using ::FT_Get_Char_Index;
 export using ::FT_Load_Glyph;
@@ -24,6 +25,8 @@ export using ::FT_Bitmap_Done;
 export using ::FT_Init_FreeType;
 export using ::FT_New_Memory_Face;
 export using ::FT_Set_Char_Size;
+export using ::FT_Done_Face;
+export using ::FT_Done_FreeType;
 
 static const FT_Int32 _FT_LOAD_DEFAULT = FT_LOAD_DEFAULT;
 static const FT_Int32 _FT_LOAD_NO_SCALE = FT_LOAD_NO_SCALE;

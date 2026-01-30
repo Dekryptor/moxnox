@@ -303,13 +303,19 @@ add_custom_command(
 
 add_library(freetype SHARED ${FREETYPE_FILES} ${CMAKE_SOURCE_DIR}/ftshim.cpp)
 
+add_library(freetype_module STATIC)
+target_sources(freetype_module PUBLIC FILE_SET CXX_MODULES FILES modules/freetype.cpp)
+target_include_directories(freetype_module PRIVATE freetype/include)
+target_compile_options(freetype_module PRIVATE -mno-stack-arg-probe ${GENERAL_CFLAGS} $<$<COMPILE_LANGUAGE:CXX>:-fno-exceptions -fno-rtti>)
+target_link_libraries(freetype_module PUBLIC freetype)
+
 target_compile_definitions(freetype PRIVATE -DFT2_BUILD_LIBRARY -DFT_CONFIG_OPTION_DISABLE_STREAM_SUPPORT)
 target_compile_definitions(freetype PRIVATE -DFT_CONFIG_MODULES_H=\"${CMAKE_SOURCE_DIR}/include/ftmodule.h\")
 target_compile_definitions(freetype PRIVATE -DFT_CONFIG_STANDARD_LIBRARY_H=\"${CMAKE_SOURCE_DIR}/include/ftstdlib.h\")
 target_compile_options(freetype PRIVATE -mno-stack-arg-probe ${GENERAL_CFLAGS} $<$<COMPILE_LANGUAGE:CXX>:-fno-exceptions -fno-rtti>)
 target_include_directories(freetype PRIVATE include)
-target_include_directories(freetype PUBLIC freetype/include)
-target_link_options(freetype PUBLIC -nostartfiles -nostdlib)
+target_include_directories(freetype PRIVATE freetype/include)
+target_link_options(freetype PRIVATE -nostartfiles -nostdlib)
 target_link_libraries(freetype PRIVATE moxnox)
 
 install(TARGETS freetype DESTINATION ${CMAKE_INSTALL_PREFIX}/lib
@@ -342,8 +348,9 @@ target_compile_definitions(harfbuzz PRIVATE -DHAVE_FREETYPE -DHB_LEAN -DHB_NO_AA
 target_compile_options(harfbuzz PRIVATE -mno-stack-arg-probe -Wa,-mbig-obj -fno-exceptions -fno-rtti ${GENERAL_CFLAGS} -w)
 target_compile_options(harfbuzz PRIVATE -include ${CMAKE_SOURCE_DIR}/hbshim.h)
 target_include_directories(harfbuzz PRIVATE harfbuzz/src)
-target_link_libraries(harfbuzz PUBLIC freetype)
-target_link_options(harfbuzz PUBLIC -nostartfiles -nostdlib)
+target_include_directories(harfbuzz PRIVATE freetype/include)
+target_link_libraries(harfbuzz PRIVATE freetype)
+target_link_options(harfbuzz PRIVATE -nostartfiles -nostdlib)
 target_link_libraries(harfbuzz PRIVATE moxnox -lgcc)
 
 install(TARGETS harfbuzz DESTINATION ${CMAKE_INSTALL_PREFIX}/lib

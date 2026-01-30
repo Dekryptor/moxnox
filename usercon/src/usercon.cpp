@@ -4,9 +4,7 @@
 #include <memory>
 #include <array>
 #include <stdlib.h>
-#include <ft2build.h>
-#include <freetype/freetype.h>
-#include <freetype/ftbitmap.h>
+#include <string.h>
 
 import nt;
 import ntdll;
@@ -27,6 +25,7 @@ import pe;
 import pagesize;
 import timepage;
 import harfbuzz;
+import freetype;
 
 using namespace std;
 
