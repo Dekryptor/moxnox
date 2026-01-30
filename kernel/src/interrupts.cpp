@@ -7,7 +7,7 @@ module;
 #include <functional>
 #include <mutex>
 #include <source_location>
-#include "acpica.h"
+#include <string.h>
 #include "assert.h"
 #include <span>
 #include "ints.h"
@@ -35,6 +35,7 @@ import spinlock;
 import loaderblock;
 import cmdline;
 import process;
+import acpica;
 
 using namespace std;
 

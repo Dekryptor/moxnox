@@ -4,7 +4,7 @@ module;
 #include <mutex>
 #include <algorithm>
 #include <span>
-#include "acpica.h"
+#include <string.h>
 #include "virtio.h"
 #include "assert.h"
 #include <variant>
@@ -29,6 +29,7 @@ import disable_interrupts;
 import cpu_block;
 import dma;
 import bsod;
+import acpica;
 
 using namespace std;
 

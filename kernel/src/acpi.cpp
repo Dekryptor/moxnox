@@ -4,7 +4,7 @@ module;
 #include <string_view>
 #include <atomic>
 #include <mutex>
-#include "acpica.h"
+#include <string.h>
 
 export module acpi;
 
@@ -29,6 +29,7 @@ import config;
 import loaderblock;
 import efi;
 import kernel_time_page;
+import acpica;
 
 using namespace std;
 
@@ -1218,7 +1219,7 @@ static ACPI_STATUS found_device(ACPI_HANDLE Object, uint32_t /*NestingLevel*/,
     status = AcpiGetName(Object, ACPI_FULL_PATHNAME, &name);
     if (ACPI_FAILURE(status)) {
         print("AcpiGetName returned {}\n", (acpi_status)status);
-        ACPI_FREE(devinfo);
+        AcpiOsFree(devinfo);
         return AE_OK;
     }
 
@@ -1245,7 +1246,7 @@ static ACPI_STATUS found_device(ACPI_HANDLE Object, uint32_t /*NestingLevel*/,
     auto d = (acpi_device*)malloc(offsetof(acpi_device, buf) + bufsize);
     if (!d) {
         print("malloc failed\n");
-        ACPI_FREE(devinfo);
+        AcpiOsFree(devinfo);
         return AE_OK;
     }
 
@@ -1288,7 +1289,7 @@ static ACPI_STATUS found_device(ACPI_HANDLE Object, uint32_t /*NestingLevel*/,
 
     insert_tail_list(acpi_devices, d->le);
 
-    ACPI_FREE(devinfo);
+    AcpiOsFree(devinfo);
 
     find_device_resources(*d, Object);
 

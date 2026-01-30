@@ -357,7 +357,7 @@ install(TARGETS harfbuzz DESTINATION ${CMAKE_INSTALL_PREFIX}/lib
     ARCHIVE EXCLUDE_FROM_ALL
 )
 
-add_library(acpica
+add_library(acpica STATIC
     acpica/source/components/dispatcher/dsargs.c
     acpica/source/components/dispatcher/dscontrol.c
     acpica/source/components/dispatcher/dsdebug.c
@@ -521,11 +521,14 @@ add_library(acpica
     acpica/source/components/utilities/utxfinit.c
     acpica/source/components/utilities/utxfmutex.c
 )
+target_sources(acpica PUBLIC FILE_SET CXX_MODULES FILES modules/acpica.cpp)
 
 target_include_directories(acpica PRIVATE acpica/source/include)
 target_compile_definitions(acpica PRIVATE -D_LINUX -DACPI_NO_ERROR_MESSAGES -DACPI_USE_LOCAL_CACHE -DACPI_USE_SYSTEM_INTTYPES)
-target_compile_options(acpica PRIVATE -include ${CMAKE_SOURCE_DIR}/acpica-shim.h)
-target_compile_options(acpica PRIVATE -Wno-overflow -Wno-shift-count-overflow -Wno-constant-conversion -gdwarf-5)
+target_compile_options(acpica PRIVATE $<$<COMPILE_LANGUAGE:C>:-include ${CMAKE_SOURCE_DIR}/acpica-shim.h>)
+target_compile_options(acpica PRIVATE ${GENERAL_CFLAGS} -Wno-overflow -Wno-shift-count-overflow -Wno-constant-conversion -Wno-write-strings)
+target_compile_options(acpica PRIVATE $<$<AND:$<COMPILE_LANGUAGE:CXX>,$<CXX_COMPILER_ID:GNU>>:-Wno-global-module>)
+target_compile_options(acpica PRIVATE $<$<COMPILE_LANGUAGE:CXX>:-fno-exceptions -fno-rtti>)
 
 add_library(zlib SHARED
     zlib/adler32.c

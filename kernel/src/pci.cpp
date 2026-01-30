@@ -4,7 +4,6 @@ module;
 #include <atomic>
 #include <optional>
 #include <algorithm>
-#include "acpica.h"
 #include "pci.h"
 
 export module pci;
@@ -20,6 +19,7 @@ import scheduler;
 import acpi;
 import module_init;
 import interrupts;
+import acpica;
 
 using namespace std;
 

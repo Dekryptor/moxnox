@@ -6,7 +6,6 @@ module;
 import evdev;
 #include "../qwerty.h"
 import pipe;
-#include "../acpica.h"
 #include <ioctl.h>
 
 export module ps2keyboard;
@@ -29,6 +28,7 @@ import spinlock;
 import handle;
 import object_ref;
 import config;
+import acpica;
 
 using namespace std;
 

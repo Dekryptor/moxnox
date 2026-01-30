@@ -6,7 +6,6 @@ module;
 #include <charconv>
 #include <atomic>
 #include <mutex>
-#include "../acpica.h"
 #include <ioctl.h>
 
 export module serial;
@@ -27,6 +26,7 @@ import spinlock;
 import console;
 import handle;
 import object_ref;
+import acpica;
 
 using namespace std;
 

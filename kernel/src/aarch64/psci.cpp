@@ -2,13 +2,13 @@ module;
 
 #include <span>
 #include <string_view>
-#include "../acpica.h"
 
 export module psci;
 
 import acpi;
 import print;
 import format;
+import acpica;
 
 using namespace std;
 

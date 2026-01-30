@@ -2,9 +2,9 @@ module;
 
 #include "timer-asm.h"
 #include <string_view>
-#include "acpica.h"
 #include <span>
 #include <atomic>
+#include <string.h>
 
 export module smp;
 
@@ -26,6 +26,7 @@ import scheduler;
 import disable_interrupts;
 import cpu_block;
 import cmdline;
+import acpica;
 
 using namespace std;
 

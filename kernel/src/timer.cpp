@@ -4,8 +4,8 @@ module;
 #include <atomic>
 #include <optional>
 #include <mutex>
+#include <stddef.h>
 #include "context_offsets.h"
-#include "acpica.h"
 #include "timer-asm.h"
 
 export module timer;
@@ -24,6 +24,7 @@ import handle;
 import config;
 import kernel_time_page;
 import scheduler;
+import acpica;
 
 #ifdef __x86_64__
 import inout;

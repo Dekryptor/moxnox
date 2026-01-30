@@ -2,7 +2,6 @@ module;
 
 #include <string_view>
 #include <atomic>
-#include "acpica.h"
 #include "ints.h"
 
 export module power;
@@ -16,6 +15,7 @@ import disable_interrupts;
 import smp;
 import efi;
 import loaderblock;
+import acpica;
 
 #ifdef __aarch64__
 import aarch64;

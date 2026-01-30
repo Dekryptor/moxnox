@@ -6,7 +6,6 @@ module;
 #include <string_view>
 #include <mutex>
 #include <atomic>
-#include "acpica.h"
 
 import pci;
 import module_init;
@@ -27,6 +26,7 @@ import rwsem;
 import volume;
 import page_cache;
 import handle;
+import acpica;
 
 export module sdhci;
 

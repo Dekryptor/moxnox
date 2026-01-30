@@ -9,8 +9,8 @@ module;
 #include <algorithm>
 #include <bit>
 #include <span>
+#include <string.h>
 #include "xhci.h"
-#include "acpica.h"
 #include "assert.h"
 
 export module xhci;
@@ -36,6 +36,7 @@ import acpi;
 import page_cache;
 import bsod;
 import dma;
+import acpica;
 
 using namespace std;
 
