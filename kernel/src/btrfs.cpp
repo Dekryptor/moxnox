@@ -2905,9 +2905,7 @@ static nt_status add_inode_ref(btrfs_filesystem& fs, root& r, string_view name,
                                uint64_t index, uint64_t inode,
                                uint64_t parent) {
     nt_status status;
-
-    // FIXME - collisions
-    // FIXME - INODE_EXTREF
+    btrfs_key key{inode, key_type::INODE_REF, parent};
 
     size_t ir_size = offsetof(btrfs_inode_ref, name) + name.size();
     auto ir = (btrfs_inode_ref*)malloc(ir_size);
@@ -2918,16 +2916,42 @@ static nt_status add_inode_ref(btrfs_filesystem& fs, root& r, string_view name,
     ir->name_len = (uint16_t)name.size();
     memcpy(ir->name, name.data(), name.size());
 
-    status = insert_item(fs, r, {inode, key_type::INODE_REF, parent},
-                        span((uint8_t*)ir, ir_size));
+    status = insert_item(fs, r, key, span((uint8_t*)ir, ir_size));
 
+    if (status != nt_status::OBJECT_NAME_COLLISION) {
+        free(ir);
+        return status;
+    }
+
+    // FIXME - insert INODE_EXTREF instead if INODE_REF would be too large
+
+    btrfs_path p(fs.sb->nodesize);
+
+    status = fs.find_item(r, key, p, true);
     if (!success(status)) {
         free(ir);
-
-        if (status == nt_status::OBJECT_NAME_COLLISION)
-            status = nt_status::INTERNAL_ERROR;
-
         return status;
+    }
+
+    status = fs.extend_item(p, (uint32_t)ir_size);
+    if (!success(status)) {
+        print("btrfs_filesystem::extend_item returned {}\n", status);
+        free(ir);
+        return status;
+    }
+
+    {
+        auto& th = *(btrfs_header*)p.data[0];
+        auto items = span((btrfs_item*)((uint8_t*)&th + sizeof(btrfs_header)), th.nritems);
+        const auto& it = items[p.slots[0]];
+        auto data = span((const uint8_t*)&th + sizeof(btrfs_header) + it.offset, it.size);
+
+        memcpy((uint8_t*)data.data() + data.size() - ir_size, ir, ir_size);
+
+        if (!fs.cache.write(span(p.data[0], fs.sb->nodesize), th.bytenr)) { // FIXME - return status
+            free(ir);
+            return nt_status::INTERNAL_ERROR;
+        }
     }
 
     free(ir);
@@ -5995,8 +6019,6 @@ static nt_status rename_file_in_directory(dentry& dentry, string_view new_name,
                 return nt_status::ACCESS_DENIED;
 
             // FIXME - return nt_status::DIRECTORY_NOT_EMPTY if directory and destination isn't empty
-
-            // FIXME - handle replacing file with its own hardlink
 
             status = fs.open_inode(ino.r->id, dir_item_key.objectid, victim);
             if (!success(status)) {
