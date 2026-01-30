@@ -7,8 +7,6 @@
 #include <ft2build.h>
 #include <freetype/freetype.h>
 #include <freetype/ftbitmap.h>
-#include <hb.h>
-#include <hb-ft.h>
 
 import nt;
 import ntdll;
@@ -28,6 +26,7 @@ import keyboard;
 import pe;
 import pagesize;
 import timepage;
+import harfbuzz;
 
 using namespace std;
 
