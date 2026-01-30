@@ -2975,6 +2975,8 @@ nt_status btrfs_inode::create_child(string_view name, uint32_t create_options,
 
     auto cur_time = get_btrfs_time();
 
+    // FIXME - make sure this can't race with rename's directory empty check
+
     {
         lock_guard lock(fs.trans_lock);
 
@@ -6012,13 +6014,9 @@ static nt_status rename_file_in_directory(dentry& dentry, string_view new_name,
             if (!replace_if_exists)
                 return nt_status::OBJECT_NAME_COLLISION;
 
-            // FIXME - return nt_status::ACCESS_DENIED if we are file and existing name is directory, or vice versa
-
             // don't allow if victim is root of subvol
             if (dir_item_key.type == key_type::ROOT_ITEM)
                 return nt_status::ACCESS_DENIED;
-
-            // FIXME - return nt_status::DIRECTORY_NOT_EMPTY if directory and destination isn't empty
 
             status = fs.open_inode(ino.r->id, dir_item_key.objectid, victim);
             if (!success(status)) {
@@ -6033,6 +6031,17 @@ static nt_status rename_file_in_directory(dentry& dentry, string_view new_name,
 
             {
                 lock_guard lg2(victim_ino.inode_lock);
+
+                if (victim_ino.inode_type == inode_type::directory) {
+                    if (ino.inode_type != inode_type::directory)
+                        return nt_status::ACCESS_DENIED;
+
+                    if (victim_ino.ii.size != 0)
+                        return nt_status::DIRECTORY_NOT_EMPTY;
+                } else {
+                    if (ino.inode_type == inode_type::directory)
+                        return nt_status::ACCESS_DENIED;
+                }
 
                 victim_ino.ii.transid = fs.sb->generation;
                 victim_ino.ii.nlink--;
@@ -6118,6 +6127,8 @@ static nt_status rename_file_in_directory(dentry& dentry, string_view new_name,
             lock_guard lg(parent_ino.inode_lock);
 
             parent_ino.ii.transid = fs.sb->generation;
+
+            // FIXME - size munging needs to be done in same lock as checking victim_ino size?
 
             if (!done_overwrite)
                 parent_ino.ii.size += new_name.size() * 2;
