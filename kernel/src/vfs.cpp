@@ -98,7 +98,7 @@ public:
                                         uint64_t& retlen) = 0;
     virtual nt_status query_directory_inode(string_view name, span<uint8_t> buf,
                                             FILE_INFORMATION_CLASS file_information_class) = 0;
-    virtual nt_status rename(dentry& dentry, inode& dest_dir, string_view name,
+    virtual nt_status rename(::dentry& dentry, ::dentry& dest_dir, string_view name,
                              bool replace_if_exists) = 0;
     virtual void last_handle_closed() = 0;
 

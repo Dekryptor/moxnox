@@ -53,7 +53,7 @@ public:
     nt_status query_information(span<uint8_t> buffer,
                                 FILE_INFORMATION_CLASS file_information_class,
                                 uint64_t& retlen) override;
-    nt_status rename(dentry& dentry, inode& dest_dir, string_view name,
+    nt_status rename(::dentry& dentry, ::dentry& dest_dir, string_view name,
                      bool replace_if_exists) override;
     nt_status read_into_cache(uint64_t page_num, uint64_t num_pages,
                               uint64_t& read_pages) override;
@@ -301,7 +301,7 @@ nt_status devfs_inode::flush_cache(uint64_t /*page_num*/, uint64_t /*num_pages*/
     return nt_status::NOT_SUPPORTED;
 }
 
-nt_status devfs_inode::rename(dentry& /*dentry*/, inode& /*dest_dir*/,
+nt_status devfs_inode::rename(::dentry& /*dentry*/, ::dentry& /*dest_dir*/,
                               string_view /*name*/, bool /*replace_if_exists*/) {
     return nt_status::NOT_SUPPORTED;
 }

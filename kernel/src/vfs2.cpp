@@ -1148,8 +1148,7 @@ NTSTATUS file::rename(span<const uint8_t> buf) {
     else
         namepart = fn;
 
-    status = inode.rename(*dentry, dest_dir_inode, namepart,
-                          fri.ReplaceIfExists);
+    status = inode.rename(*dentry, drw->get(), namepart, fri.ReplaceIfExists);
 
     drw->get().release();
     free(name);

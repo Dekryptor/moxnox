@@ -149,7 +149,7 @@ public:
     NTSTATUS query_information(span<uint8_t> buffer,
                                FILE_INFORMATION_CLASS file_information_class,
                                uint64_t& retlen) override;
-    nt_status rename(dentry& dentry, inode& dest_dir, string_view name,
+    nt_status rename(::dentry& dentry, ::dentry& dest_dir, string_view name,
                      bool replace_if_exists) override;
     nt_status read_into_cache(uint64_t page_num, uint64_t num_pages,
                               uint64_t& read_pages) override;
@@ -6155,7 +6155,7 @@ static nt_status rename_file_in_directory(dentry& dentry, string_view new_name,
     return nt_status::SUCCESS;
 }
 
-nt_status btrfs_inode::rename(dentry& dentry, ::inode& dest_dir,
+nt_status btrfs_inode::rename(dentry& dentry, ::dentry& dest_dir,
                               string_view name, bool replace_if_exists) {
     nt_status status;
 
@@ -6170,7 +6170,7 @@ nt_status btrfs_inode::rename(dentry& dentry, ::inode& dest_dir,
     if (fs.readonly)
         return nt_status::MEDIA_WRITE_PROTECTED;
 
-    if (dentry.parent->inode == &dest_dir) { // renaming in same directory
+    if (dentry.parent == &dest_dir) { // renaming in same directory
         object_ref victim;
 
         status = rename_file_in_directory(dentry, name, replace_if_exists,

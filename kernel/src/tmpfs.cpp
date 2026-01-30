@@ -48,7 +48,7 @@ public:
                                uint64_t& retlen) override;
     nt_status query_directory_inode(string_view name, span<uint8_t> buf,
                                     FILE_INFORMATION_CLASS file_information_class) override;
-    nt_status rename(dentry& dentry, inode& dest_dir, string_view name,
+    nt_status rename(::dentry& dentry, ::dentry& dest_dir, string_view name,
                      bool replace_if_exists) override;
     nt_status read_into_cache(uint64_t page_num, uint64_t num_pages,
                               uint64_t& read_pages) override;
@@ -578,7 +578,7 @@ nt_status tmpfs_inode::set_disposition_information(span<const uint8_t> buffer,
     return nt_status::SUCCESS;
 }
 
-nt_status tmpfs_inode::rename(dentry& /*dentry*/, ::inode& /*dest_dir*/, string_view /*name*/,
+nt_status tmpfs_inode::rename(::dentry& /*dentry*/, ::dentry& /*dest_dir*/, string_view /*name*/,
                               bool /*replace_if_exists*/) {
     print("FIXME - tmpfs_inode::rename\n");
 
