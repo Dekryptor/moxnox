@@ -5841,6 +5841,11 @@ nt_status btrfs_inode::set_disposition_information(span<const uint8_t> buffer,
                 return status;
             }
         }
+
+        // adjust root_item
+
+        r->ri.ctime = cur_time;
+        r->ri.ctransid = fs.sb->generation;
     }
 
     free(name_buf);
