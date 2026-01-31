@@ -6036,10 +6036,8 @@ nt_status btrfs_inode::rename(::dentry& dentry, ::dentry& dest_dir,
     if (fs.readonly)
         return nt_status::MEDIA_WRITE_PROTECTED;
 
-    auto& ino = static_cast<btrfs_inode&>(*dentry.inode);
     auto& src_parent_ino = static_cast<btrfs_inode&>(*dentry.parent->inode);
     auto& dst_parent_ino = static_cast<btrfs_inode&>(*dest_dir.inode);
-    auto& fs = ino.fs;
     auto cur_name = string_view(dentry.name, dentry.name_len);
     btrfs_path p(fs.sb->nodesize);
 
@@ -6049,7 +6047,7 @@ nt_status btrfs_inode::rename(::dentry& dentry, ::dentry& dest_dir,
         return nt_status::SUCCESS;
 
     auto hash = calc_crc32c(0xfffffffe, name);
-    bool is_dir = ino.inode_type == inode_type::directory;
+    bool is_dir = inode_type == inode_type::directory;
     // FIXME - other inode types (symlink etc.)
 
     // FIXME - lock inode to prevent simultaneous renames?
@@ -6066,7 +6064,7 @@ nt_status btrfs_inode::rename(::dentry& dentry, ::dentry& dest_dir,
     {
         lock_guard lg(fs.trans_lock);
 
-        status = search_dir_item(fs, *ino.r, dst_parent_ino.inode, hash,
+        status = search_dir_item(fs, *r, dst_parent_ino.inode, hash,
                                  name, dir_item_key);
         if (!success(status) && status != nt_status::OBJECT_NAME_NOT_FOUND) {
             print("search_dir_item returned {}\n", status);
@@ -6081,7 +6079,7 @@ nt_status btrfs_inode::rename(::dentry& dentry, ::dentry& dest_dir,
             if (dir_item_key.type == key_type::ROOT_ITEM)
                 return nt_status::ACCESS_DENIED;
 
-            status = fs.open_inode(ino.r->id, dir_item_key.objectid, victim);
+            status = fs.open_inode(r->id, dir_item_key.objectid, victim);
             if (!success(status)) {
                 print("open_inode returned {}\n", status);
                 return status;
@@ -6096,13 +6094,13 @@ nt_status btrfs_inode::rename(::dentry& dentry, ::dentry& dest_dir,
                 lock_guard lg2(victim_ino.inode_lock);
 
                 if (victim_ino.inode_type == inode_type::directory) {
-                    if (ino.inode_type != inode_type::directory)
+                    if (inode_type != inode_type::directory)
                         return nt_status::ACCESS_DENIED;
 
                     if (victim_ino.ii.size != 0)
                         return nt_status::DIRECTORY_NOT_EMPTY;
                 } else {
-                    if (ino.inode_type == inode_type::directory)
+                    if (inode_type == inode_type::directory)
                         return nt_status::ACCESS_DENIED;
                 }
 
@@ -6124,7 +6122,7 @@ nt_status btrfs_inode::rename(::dentry& dentry, ::dentry& dest_dir,
             }
 
             if (orphaned) {
-                status = insert_item(fs, *ino.r,
+                status = insert_item(fs, *r,
                                      {BTRFS_ORPHAN_OBJECTID, key_type::ORPHAN_INODE, victim_ino.inode},
                                      span<const uint8_t>());
                 if (!success(status)) {
@@ -6133,7 +6131,7 @@ nt_status btrfs_inode::rename(::dentry& dentry, ::dentry& dest_dir,
                 }
             }
 
-            status = remove_dir_item(fs, *ino.r, dir_item_key.objectid,
+            status = remove_dir_item(fs, *r, dir_item_key.objectid,
                                      name, dst_parent_ino.inode);
             if (!success(status)) {
                 print("remove_dir_item returned {}\n", status);
@@ -6143,7 +6141,7 @@ nt_status btrfs_inode::rename(::dentry& dentry, ::dentry& dest_dir,
             done_overwrite = true;
         }
 
-        status = add_dir_item(fs, *ino.r, dst_parent_ino, name, ino.inode,
+        status = add_dir_item(fs, *r, dst_parent_ino, name, inode,
                               is_dir, index);
         if (!success(status)) {
             print("add_dir_item returned {}\n", status);
@@ -6152,7 +6150,7 @@ nt_status btrfs_inode::rename(::dentry& dentry, ::dentry& dest_dir,
 
         // remove old DIR_ITEM, DIR_INDEX, and INODE_REF
 
-        status = remove_dir_item(fs, *ino.r, ino.inode, cur_name,
+        status = remove_dir_item(fs, *r, inode, cur_name,
                                  src_parent_ino.inode);
         if (!success(status)) {
             print("remove_dir_item returned {}\n", status);
@@ -6161,7 +6159,7 @@ nt_status btrfs_inode::rename(::dentry& dentry, ::dentry& dest_dir,
 
         // create INODE_REF
 
-        status = add_inode_ref(fs, *ino.r, name, index, ino.inode,
+        status = add_inode_ref(fs, *r, name, index, inode,
                                dst_parent_ino.inode);
         if (!success(status)) {
             print("add_inode_ref returned {}\n", status);
@@ -6171,14 +6169,14 @@ nt_status btrfs_inode::rename(::dentry& dentry, ::dentry& dest_dir,
         // update inode item
 
         {
-            lock_guard lg(ino.inode_lock);
+            lock_guard lg(inode_lock);
 
-            ino.ii.transid = fs.sb->generation;
-            ino.ii.sequence++;
-            ino.ii.ctime = cur_time;
+            ii.transid = fs.sb->generation;
+            ii.sequence++;
+            ii.ctime = cur_time;
         }
 
-        status = ino.flush_inode_item(p);
+        status = flush_inode_item(p);
         if (!success(status)) {
             print("btrfs_inode::flush_inode_item returned {}\n", status);
             return status;
@@ -6231,8 +6229,8 @@ nt_status btrfs_inode::rename(::dentry& dentry, ::dentry& dest_dir,
 
         // adjust root_item
 
-        ino.r->ri.ctime = cur_time;
-        ino.r->ri.ctransid = fs.sb->generation;
+        r->ri.ctime = cur_time;
+        r->ri.ctransid = fs.sb->generation;
     }
 
     return nt_status::SUCCESS;
