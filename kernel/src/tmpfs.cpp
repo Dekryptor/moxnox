@@ -117,7 +117,7 @@ extern "C++" ::filesystem* create_tmpfs() {
 }
 
 // FIXME - make this global?
-static bool invalid_name(string_view name) {
+static bool validate_name(string_view name) {
     if (name.empty())
         return false;
 
@@ -142,7 +142,7 @@ nt_status tmpfs_inode::create_child(string_view name, uint32_t create_options,
     if (fs.readonly)
         return nt_status::MEDIA_WRITE_PROTECTED;
 
-    if (!invalid_name(name))
+    if (!validate_name(name))
         return nt_status::OBJECT_NAME_INVALID;
 
     bool is_dir = create_options & FILE_DIRECTORY_FILE;
