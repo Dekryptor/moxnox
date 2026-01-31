@@ -482,7 +482,6 @@ nt_status tmpfs_inode::set_disposition_information(span<const uint8_t> buffer,
 
     const auto& fdi = *(FILE_DISPOSITION_INFORMATION*)buffer.data();
 
-    // FIXME - directories
     // FIXME - this should actually be a non-POSIX deletion
 
     if (!fdi.DeleteFile) // FIXME
