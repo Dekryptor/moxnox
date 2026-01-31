@@ -3085,6 +3085,7 @@ nt_status btrfs_inode::create_child(string_view name, uint32_t create_options,
         {
             lock_guard lg(inode_lock);
 
+            ii.transid = fs.sb->generation;
             ii.size += name.size() * 2;
             ii.sequence++;
             ii.ctime = cur_time;
