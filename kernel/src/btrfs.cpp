@@ -6193,7 +6193,7 @@ nt_status btrfs_inode::rename(::dentry& dentry, ::dentry& dest_dir,
                 auto& victim_dentry = vdrw->get();
 
                 {
-                    lock_guard lg(dentry.lock);
+                    lock_guard lg(victim_dentry.lock);
 
                     if (victim_dentry.status == dentry_status::valid)
                         victim_dentry.status = dentry_status::going_away;
@@ -6232,10 +6232,24 @@ nt_status btrfs_inode::rename(::dentry& dentry, ::dentry& dest_dir,
         return nt_status::NOT_IMPLEMENTED;
     }
 
-    // FIXME - overwriting destination (not if destination is directory?)
+    // change dentry in file
 
-    // FIXME - invalidating dentry etc.
-    // FIXME - change dentry in file
+    auto name_buf = (char*)malloc(name.size());
+    if (!name_buf)
+        return nt_status::INSUFFICIENT_RESOURCES;
+
+    memcpy(name_buf, name.data(), name.size());
+
+    {
+        lock_guard lg(dentry.lock);
+
+        swap(name_buf, dentry.name);
+        dentry.name_len = name.size();
+    }
+
+    // FIXME - change dentry's parent if necessary
+
+    free(name_buf);
 
     return nt_status::SUCCESS;
 }
