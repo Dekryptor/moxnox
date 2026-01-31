@@ -19,6 +19,7 @@ import volume;
 import timer;
 import vfs;
 import unicode;
+import objects;
 import object_ref;
 import page_cache;
 import spinlock;
@@ -62,6 +63,7 @@ public:
 
     tmpfs_filesystem& fs; // FIXME - use reference in ::inode
     uint64_t mtime, ctime, otime, atime;
+    unsigned int nlink = 1;
     spinlock child_lock;
     list_entry children = { &children, &children };
 };
@@ -577,10 +579,202 @@ nt_status tmpfs_inode::set_disposition_information(span<const uint8_t> buffer,
     return nt_status::SUCCESS;
 }
 
-nt_status tmpfs_inode::rename(::dentry& /*dentry*/, ::dentry& /*dest_dir*/,
-                              string_view /*name*/, bool /*replace_if_exists*/,
-                              object_ref& /*victim*/) {
-    print("FIXME - tmpfs_inode::rename\n");
+nt_status tmpfs_inode::rename(::dentry& dentry, ::dentry& dest_dir,
+                              string_view name, bool replace_if_exists,
+                              object_ref& victim) {
+    nt_status status;
 
-    return nt_status::NOT_SUPPORTED;
+    assert(dentry.parent);
+    assert(dentry.parent->inode);
+
+    if (!validate_name(name))
+        return nt_status::OBJECT_NAME_INVALID;
+
+    if (fs.readonly)
+        return nt_status::MEDIA_WRITE_PROTECTED;
+
+    auto& src_parent_ino = static_cast<tmpfs_inode&>(*dentry.parent->inode);
+    auto& dst_parent_ino = static_cast<tmpfs_inode&>(*dest_dir.inode);
+    auto cur_name = string_view(dentry.name, dentry.name_len);
+
+    // early return if trying to replace file with itself
+    // FIXME - what does NT do here? Does it depend on replace_if_exists?
+    if (&src_parent_ino == &dst_parent_ino && name == cur_name)
+        return nt_status::SUCCESS;
+
+    // FIXME - lock inode to prevent simultaneous renames?
+
+    bool done_overwrite = false;
+    auto cur_time = (uint64_t)kernel_time_page.system_time + kernel_time_page.system_time_offset;
+
+    // FIXME - overwrites
+
+    status = dst_parent_ino.open_child(name, victim);
+    if (!success(status) && status != nt_status::OBJECT_NAME_NOT_FOUND) {
+        print("tmpfs_inode::open_child returned {}\n", status);
+        return status;
+    }
+
+    if (success(status)) {
+        if (!replace_if_exists)
+            return nt_status::OBJECT_NAME_COLLISION;
+
+        assert(victim.get().type == object_type::inode);
+
+        auto& victim_ino = static_cast<tmpfs_inode&>(victim.get());
+
+        if (&victim_ino == fs.root_inode)
+            return nt_status::ACCESS_DENIED;
+
+        {
+            lock_guard lg2(victim_ino.inode_lock);
+
+            if (victim_ino.inode_type == inode_type::directory) {
+                if (inode_type != inode_type::directory)
+                    return nt_status::ACCESS_DENIED;
+
+                if (victim_ino.file_size != 0)
+                    return nt_status::DIRECTORY_NOT_EMPTY;
+            } else {
+                if (inode_type == inode_type::directory)
+                    return nt_status::ACCESS_DENIED;
+            }
+
+            victim_ino.nlink--;
+            victim_ino.ctime = cur_time;
+
+            // pretend we have an open handle
+            victim_ino.handle_count++;
+        }
+
+        {
+            bool done = false;
+
+            {
+                lock_guard lock(dst_parent_ino.child_lock);
+
+                if (victim_ino.inode_type == inode_type::directory) {
+                    lock_guard lock(victim_ino.child_lock);
+
+                    if (!is_list_empty(victim_ino.children))
+                        return nt_status::DIRECTORY_NOT_EMPTY;
+                }
+
+                for (auto le = dst_parent_ino.children.next; le != &dst_parent_ino.children; le = le->next) {
+                    auto& d2 = containing_record<tmpfs_dentry>(le);
+
+                    if (string_view(d2.name, d2.name_len) == name) {
+                        remove_entry_list(d2.le);
+                        free(&d2);
+                        done = true;
+                        break;
+                    }
+                }
+            }
+
+            if (!done) {
+                print("tmpfs_inode::rename: victim tmpfs_dentry not found\n");
+                return nt_status::INTERNAL_ERROR;
+            }
+
+            victim_ino.release();
+        }
+
+        done_overwrite = true;
+    }
+
+    // add new tmpfs dentry
+
+    auto d = (tmpfs_dentry*)malloc(offsetof(tmpfs_dentry, name) + name.size());
+    if (!d) {
+        print("malloc failed\n");
+        return nt_status::INSUFFICIENT_RESOURCES;
+    }
+
+    d->ino = this;
+    d->name_len = name.size();
+    memcpy(d->name, name.data(), name.size());
+
+    acquire();
+
+    {
+        lock_guard lock(dst_parent_ino.child_lock);
+
+        if (is_list_empty(dst_parent_ino.children))
+            d->index = 0;
+        else
+            d->index = containing_record<tmpfs_dentry>(dst_parent_ino.children.prev).index + 1;
+
+        insert_tail_list(dst_parent_ino.children, d->le);
+    }
+
+    // remove old tmpfs dentry
+
+    {
+        bool done = false;
+
+        {
+            lock_guard lock(src_parent_ino.child_lock);
+
+            if (inode_type == inode_type::directory) {
+                lock_guard lock(child_lock);
+
+                if (!is_list_empty(children))
+                    return nt_status::DIRECTORY_NOT_EMPTY;
+            }
+
+            for (auto le = src_parent_ino.children.next; le != &src_parent_ino.children; le = le->next) {
+                auto& d2 = containing_record<tmpfs_dentry>(le);
+
+                if (string_view(d2.name, d2.name_len) == cur_name) {
+                    remove_entry_list(d2.le);
+                    free(&d2);
+                    done = true;
+                    break;
+                }
+            }
+        }
+
+        if (!done) {
+            print("tmpfs_inode::rename: existing tmpfs_dentry not found\n");
+            return nt_status::INTERNAL_ERROR;
+        }
+
+        release();
+    }
+
+    // update inode
+
+    {
+        lock_guard lg(inode_lock);
+
+        ctime = cur_time;
+    }
+
+    // adjust size etc. of parent directories
+
+    {
+        lock_guard lg(src_parent_ino.inode_lock);
+
+        // FIXME - size munging needs to be done in same lock as checking victim_ino size?
+
+        if (&src_parent_ino == &dst_parent_ino && !done_overwrite)
+            src_parent_ino.file_size += name.size() * 2;
+
+        src_parent_ino.file_size -= cur_name.size() * 2;
+        src_parent_ino.ctime = cur_time;
+        src_parent_ino.mtime = cur_time;
+    }
+
+    if (&src_parent_ino != &dst_parent_ino) {
+        lock_guard lg(dst_parent_ino.inode_lock);
+
+        if (!done_overwrite)
+            dst_parent_ino.file_size += name.size() * 2;
+
+        dst_parent_ino.ctime = cur_time;
+        dst_parent_ino.mtime = cur_time;
+    }
+
+    return nt_status::SUCCESS;
 }
