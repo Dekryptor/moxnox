@@ -6356,6 +6356,7 @@ nt_status btrfs_inode::rename(::dentry& dentry, ::dentry& dest_dir,
                               string_view name, bool replace_if_exists) {
     nt_status status;
     object_ref victim;
+    bool moving_directories = dentry.parent != &dest_dir;
 
     assert(dentry.parent);
     assert(dentry.parent->inode);
@@ -6368,7 +6369,7 @@ nt_status btrfs_inode::rename(::dentry& dentry, ::dentry& dest_dir,
     if (fs.readonly)
         return nt_status::MEDIA_WRITE_PROTECTED;
 
-    if (dentry.parent == &dest_dir) { // renaming in same directory
+    if (!moving_directories) { // renaming in same directory
         status = rename_file_in_directory(dentry, name, replace_if_exists,
                                           victim);
     } else { // moving file to new directory
@@ -6436,14 +6437,32 @@ nt_status btrfs_inode::rename(::dentry& dentry, ::dentry& dest_dir,
 
     memcpy(name_buf, name.data(), name.size());
 
+    // FIXME - is this racy?
+
+    if (moving_directories) {
+        lock_guard lg(dentry.parent->child_lock);
+
+        remove_entry_list(dentry.le);
+    }
+
     {
         lock_guard lg(dentry.lock);
 
         swap(name_buf, dentry.name);
         dentry.name_len = name.size();
+
+        if (moving_directories) {
+            dentry.parent->release();
+            dest_dir.acquire();
+            dentry.parent = &dest_dir;
+        }
     }
 
-    // FIXME - change dentry's parent if necessary
+    if (moving_directories) {
+        lock_guard lg(dentry.parent->child_lock);
+
+        insert_tail_list(dentry.parent->children, dentry.le);
+    }
 
     free(name_buf);
 
