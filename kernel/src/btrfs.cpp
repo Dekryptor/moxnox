@@ -5994,13 +5994,12 @@ static nt_status rename_file_in_directory(dentry& dentry, string_view new_name,
 
     // FIXME - lock inode to prevent simultaneous renames?
 
+    uint64_t index;
+    btrfs_key dir_item_key;
+    bool done_overwrite = false;
     auto cur_time = get_btrfs_time();
 
     {
-        uint64_t index;
-        btrfs_key dir_item_key;
-        bool done_overwrite = false;
-
         lock_guard lg(fs.trans_lock);
 
         status = search_dir_item(fs, *ino.r, parent_ino.inode, hash, new_name,
@@ -6155,9 +6154,208 @@ static nt_status rename_file_in_directory(dentry& dentry, string_view new_name,
     return nt_status::SUCCESS;
 }
 
+static nt_status move_file_between_directories(::dentry& dentry,
+                                               string_view new_name,
+                                               ::dentry& dest_dir,
+                                               bool replace_if_exists,
+                                               object_ref& victim) {
+    nt_status status;
+    auto& ino = static_cast<btrfs_inode&>(*dentry.inode);
+    auto& src_parent_ino = static_cast<btrfs_inode&>(*dentry.parent->inode);
+    auto& dst_parent_ino = static_cast<btrfs_inode&>(*dest_dir.inode);
+    auto& fs = ino.fs;
+    auto cur_name = string_view(dentry.name, dentry.name_len);
+    btrfs_path p(fs.sb->nodesize);
+
+    auto hash = calc_crc32c(0xfffffffe, new_name);
+    bool is_dir = ino.inode_type == inode_type::directory;
+    // FIXME - other inode types (symlink etc.)
+
+    // FIXME - lock inode to prevent simultaneous renames?
+
+    uint64_t index;
+    btrfs_key dir_item_key;
+    bool done_overwrite = false;
+    auto cur_time = get_btrfs_time();
+
+    // FIXME - moving file between subvols
+    if (src_parent_ino.r != dst_parent_ino.r)
+        return nt_status::NOT_SAME_DEVICE;
+
+    {
+        lock_guard lg(fs.trans_lock);
+
+        status = search_dir_item(fs, *ino.r, dst_parent_ino.inode, hash,
+                                 new_name, dir_item_key);
+        if (!success(status) && status != nt_status::OBJECT_NAME_NOT_FOUND) {
+            print("search_dir_item returned {}\n", status);
+            return status;
+        }
+
+        if (success(status)) {
+            if (!replace_if_exists)
+                return nt_status::OBJECT_NAME_COLLISION;
+
+            // don't allow if victim is root of subvol
+            if (dir_item_key.type == key_type::ROOT_ITEM)
+                return nt_status::ACCESS_DENIED;
+
+            status = fs.open_inode(ino.r->id, dir_item_key.objectid, victim);
+            if (!success(status)) {
+                print("open_inode returned {}\n", status);
+                return status;
+            }
+
+            assert(victim.get().type == object_type::inode);
+
+            auto& victim_ino = static_cast<btrfs_inode&>(victim.get());
+            bool orphaned;
+
+            {
+                lock_guard lg2(victim_ino.inode_lock);
+
+                if (victim_ino.inode_type == inode_type::directory) {
+                    if (ino.inode_type != inode_type::directory)
+                        return nt_status::ACCESS_DENIED;
+
+                    if (victim_ino.ii.size != 0)
+                        return nt_status::DIRECTORY_NOT_EMPTY;
+                } else {
+                    if (ino.inode_type == inode_type::directory)
+                        return nt_status::ACCESS_DENIED;
+                }
+
+                victim_ino.ii.transid = fs.sb->generation;
+                victim_ino.ii.nlink--;
+                victim_ino.ii.sequence++;
+                victim_ino.ii.ctime = cur_time;
+
+                orphaned = victim_ino.ii.nlink == 0;
+
+                // pretend we have an open handle
+                victim_ino.handle_count++;
+            }
+
+            status = victim_ino.flush_inode_item(p);
+            if (!success(status)) {
+                print("btrfs_inode::flush_inode_item returned {}\n", status);
+                return status;
+            }
+
+            if (orphaned) {
+                status = insert_item(fs, *ino.r,
+                                    {BTRFS_ORPHAN_OBJECTID, key_type::ORPHAN_INODE, victim_ino.inode},
+                                    span<const uint8_t>());
+                if (!success(status)) {
+                    print("insert_item returned {}\n", status);
+                    return status;
+                }
+            }
+
+            status = remove_dir_item(fs, *ino.r, dir_item_key.objectid,
+                                     new_name, dst_parent_ino.inode);
+            if (!success(status)) {
+                print("remove_dir_item returned {}\n", status);
+                return status;
+            }
+
+            done_overwrite = true;
+        }
+
+        status = add_dir_item(fs, *ino.r, dst_parent_ino, new_name, ino.inode,
+                              is_dir, index);
+        if (!success(status)) {
+            print("add_dir_item returned {}\n", status);
+            return status;
+        }
+
+        // remove old DIR_ITEM, DIR_INDEX, and INODE_REF
+
+        status = remove_dir_item(fs, *ino.r, ino.inode, cur_name,
+                                 src_parent_ino.inode);
+        if (!success(status)) {
+            print("remove_dir_item returned {}\n", status);
+            return status;
+        }
+
+        // create INODE_REF
+
+        status = add_inode_ref(fs, *ino.r, new_name, index, ino.inode,
+                               dst_parent_ino.inode);
+        if (!success(status)) {
+            print("add_inode_ref returned {}\n", status);
+            return status;
+        }
+
+        // update inode item
+
+        {
+            lock_guard lg(ino.inode_lock);
+
+            ino.ii.transid = fs.sb->generation;
+            ino.ii.sequence++;
+            ino.ii.ctime = cur_time;
+        }
+
+        status = ino.flush_inode_item(p);
+        if (!success(status)) {
+            print("btrfs_inode::flush_inode_item returned {}\n", status);
+            return status;
+        }
+
+        // adjust size etc. of parent directory
+
+        {
+            lock_guard lg(src_parent_ino.inode_lock);
+
+            src_parent_ino.ii.transid = fs.sb->generation;
+
+            // FIXME - size munging needs to be done in same lock as checking victim_ino size?
+
+            src_parent_ino.ii.size -= cur_name.size() * 2;
+            src_parent_ino.ii.sequence++;
+            src_parent_ino.ii.ctime = cur_time;
+            src_parent_ino.ii.mtime = cur_time;
+        }
+
+        {
+            lock_guard lg(dst_parent_ino.inode_lock);
+
+            dst_parent_ino.ii.transid = fs.sb->generation;
+
+            if (!done_overwrite)
+                dst_parent_ino.ii.size += new_name.size() * 2;
+
+            dst_parent_ino.ii.sequence++;
+            dst_parent_ino.ii.ctime = cur_time;
+            dst_parent_ino.ii.mtime = cur_time;
+        }
+
+        status = src_parent_ino.flush_inode_item(p);
+        if (!success(status)) {
+            print("btrfs_inode::flush_inode_item returned {}\n", status);
+            return status;
+        }
+
+        status = dst_parent_ino.flush_inode_item(p);
+        if (!success(status)) {
+            print("btrfs_inode::flush_inode_item returned {}\n", status);
+            return status;
+        }
+
+        // adjust root_item
+
+        ino.r->ri.ctime = cur_time;
+        ino.r->ri.ctransid = fs.sb->generation;
+    }
+
+    return nt_status::SUCCESS;
+}
+
 nt_status btrfs_inode::rename(::dentry& dentry, ::dentry& dest_dir,
                               string_view name, bool replace_if_exists) {
     nt_status status;
+    object_ref victim;
 
     assert(dentry.parent);
     assert(dentry.parent->inode);
@@ -6171,16 +6369,19 @@ nt_status btrfs_inode::rename(::dentry& dentry, ::dentry& dest_dir,
         return nt_status::MEDIA_WRITE_PROTECTED;
 
     if (dentry.parent == &dest_dir) { // renaming in same directory
-        object_ref victim;
-
         status = rename_file_in_directory(dentry, name, replace_if_exists,
                                           victim);
+    } else { // moving file to new directory
+        status = move_file_between_directories(dentry, name, dest_dir,
+                                               replace_if_exists, victim);
+    }
 
-        if (victim) {
-            assert(victim.get().type == object_type::inode);
+    if (victim) {
+        assert(victim.get().type == object_type::inode);
 
-            optional<reference_wrapper<::dentry>> vdrw;
+        optional<reference_wrapper<::dentry>> vdrw;
 
+        if (success(status)) {
             {
                 lock_guard lg(dest_dir.child_lock);
 
@@ -6219,18 +6420,13 @@ nt_status btrfs_inode::rename(::dentry& dentry, ::dentry& dest_dir,
                 // because of search_dentry_cache
                 victim_dentry.release();
             }
-
-            handle_closed(victim.get());
         }
 
-        if (!success(status))
-            return status;
-    } else { // moving file to new directory
-        // FIXME - early return if trying to replace file with its own hardlink
-        // FIXME - moving file between subvols (return nt_status::NOT_SAME_DEVICE for now?)
-
-        return nt_status::NOT_IMPLEMENTED;
+        handle_closed(victim.get());
     }
+
+    if (!success(status))
+        return status;
 
     // change dentry in file
 
