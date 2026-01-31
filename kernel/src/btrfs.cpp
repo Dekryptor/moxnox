@@ -150,7 +150,7 @@ public:
                                FILE_INFORMATION_CLASS file_information_class,
                                uint64_t& retlen) override;
     nt_status rename(::dentry& dentry, ::dentry& dest_dir, string_view name,
-                     bool replace_if_exists) override;
+                     bool replace_if_exists, object_ref& victim) override;
     nt_status read_into_cache(uint64_t page_num, uint64_t num_pages,
                               uint64_t& read_pages) override;
     nt_status flush_cache(uint64_t page_num, uint64_t num_pages) override;
@@ -6353,9 +6353,9 @@ static nt_status move_file_between_directories(::dentry& dentry,
 }
 
 nt_status btrfs_inode::rename(::dentry& dentry, ::dentry& dest_dir,
-                              string_view name, bool replace_if_exists) {
+                              string_view name, bool replace_if_exists,
+                              object_ref& victim) {
     nt_status status;
-    object_ref victim;
 
     assert(dentry.parent);
     assert(dentry.parent->inode);
@@ -6372,55 +6372,6 @@ nt_status btrfs_inode::rename(::dentry& dentry, ::dentry& dest_dir,
     } else { // moving file to new directory
         status = move_file_between_directories(dentry, name, dest_dir,
                                                replace_if_exists, victim);
-    }
-
-    if (victim) {
-        assert(victim.get().type == object_type::inode);
-
-        optional<reference_wrapper<::dentry>> vdrw;
-
-        if (success(status)) {
-            {
-                lock_guard lg(dest_dir.child_lock);
-
-                search_dentry_cache(dest_dir, name, vdrw);
-            }
-
-            if (vdrw.has_value()) {
-                bool already_done = false;
-
-                auto& victim_dentry = vdrw->get();
-
-                {
-                    lock_guard lg(victim_dentry.lock);
-
-                    if (victim_dentry.status == dentry_status::valid)
-                        victim_dentry.status = dentry_status::going_away;
-                    else
-                        already_done = true;
-                }
-
-                if (!already_done) {
-                    {
-                        lock_guard lg(victim_dentry.parent->child_lock);
-                        remove_entry_list(victim_dentry.le);
-                    }
-
-                    {
-                        lock_guard lg(victim_dentry.lock);
-                        victim_dentry.status = dentry_status::invalid;
-                    }
-
-                    // because removed from parent
-                    victim_dentry.release();
-                }
-
-                // because of search_dentry_cache
-                victim_dentry.release();
-            }
-        }
-
-        handle_closed(victim.get());
     }
 
     return status;

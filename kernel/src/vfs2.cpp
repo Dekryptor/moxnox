@@ -1142,13 +1142,64 @@ NTSTATUS file::rename(span<const uint8_t> buf) {
     }
 
     string_view namepart;
+    object_ref victim;
 
     if (auto sl = fn.find_last_of('/'); sl != string_view::npos)
         namepart = string_view(fn.data() + sl + 1, fn.size() - sl - 1);
     else
         namepart = fn;
 
-    status = inode.rename(*dentry, drw->get(), namepart, fri.ReplaceIfExists);
+    status = inode.rename(*dentry, drw->get(), namepart, fri.ReplaceIfExists,
+                          victim);
+
+    if (victim) {
+        assert(victim.get().type == object_type::inode);
+
+        if (success(status)) {
+            optional<reference_wrapper<::dentry>> vdrw;
+
+            {
+                lock_guard lg(drw->get().child_lock);
+
+                search_dentry_cache(drw->get(), namepart, vdrw);
+            }
+
+            if (vdrw.has_value()) {
+                bool already_done = false;
+
+                auto& victim_dentry = vdrw->get();
+
+                {
+                    lock_guard lg(victim_dentry.lock);
+
+                    if (victim_dentry.status == dentry_status::valid)
+                        victim_dentry.status = dentry_status::going_away;
+                    else
+                        already_done = true;
+                }
+
+                if (!already_done) {
+                    {
+                        lock_guard lg(victim_dentry.parent->child_lock);
+                        remove_entry_list(victim_dentry.le);
+                    }
+
+                    {
+                        lock_guard lg(victim_dentry.lock);
+                        victim_dentry.status = dentry_status::invalid;
+                    }
+
+                    // because removed from parent
+                    victim_dentry.release();
+                }
+
+                // because of search_dentry_cache
+                victim_dentry.release();
+            }
+        }
+
+        handle_closed(victim.get());
+    }
 
     if (success(status)) {
         bool moving_directories = dentry->parent != &drw->get();
