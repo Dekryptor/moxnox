@@ -74,9 +74,8 @@ static nt_status mv(u16string_view src, u16string_view dest) {
             fn = src;
 
         oa.RootDirectory = desth.get();
-    } else {
+    } else
         fn = dest;
-    }
 
     size_t frilen = offsetof(FILE_RENAME_INFORMATION, FileName) + (fn.size() * sizeof(char16_t));
 
@@ -98,6 +97,102 @@ static nt_status mv(u16string_view src, u16string_view dest) {
         print("mv: NtSetInformationFile returned {}\n", status);
         return status;
     }
+
+    return nt_status::SUCCESS;
+}
+
+static nt_status mv_multiple(span<u16string_view> srcs, u16string_view dest) {
+    auto peb = NtCurrentTeb()->ProcessEnvironmentBlock;
+    nt_status status;
+    OBJECT_ATTRIBUTES oa;
+    UNICODE_STRING us;
+    IO_STATUS_BLOCK iosb;
+    HANDLE h;
+    unique_handle desth;
+
+    // try to open dest
+
+    us.Length = us.MaximumLength = (uint16_t)(dest.size() * sizeof(char16_t));
+    us.Buffer = (char16_t*)dest.data();
+
+    memset(&oa, 0, sizeof(oa));
+    oa.Length = sizeof(OBJECT_ATTRIBUTES);
+    oa.ObjectName = &us;
+    oa.RootDirectory = peb->ProcessParameters->CurrentDirectory.Handle;
+
+    status = NtCreateFile(&h, FILE_READ_ATTRIBUTES, &oa, &iosb, nullptr, 0, 0,
+                          FILE_OPEN, FILE_DIRECTORY_FILE, nullptr, 0);
+    if (status == nt_status::NOT_A_DIRECTORY) {
+        print_stderr("mv: target '{}': Not a directory\n", dest);
+        return status;
+    } else if (status == nt_status::OBJECT_NAME_NOT_FOUND ||
+               status == nt_status::OBJECT_PATH_NOT_FOUND) {
+        print_stderr("mv: target '{}': No such file or directory\n", dest);
+        return status;
+    } else if (!success(status)) {
+        print_stderr("mv: target '{}': NtCreateFile returned {}\n", dest, status);
+        return status;
+    }
+
+    desth.reset(h);
+
+    for (auto src : srcs)  {
+        unique_handle file;
+
+        // open src
+
+        oa.RootDirectory = peb->ProcessParameters->CurrentDirectory.Handle;
+
+        us.Length = us.MaximumLength = (uint16_t)(src.size() * sizeof(char16_t));
+        us.Buffer = (char16_t*)src.data();
+
+        status = NtCreateFile(&h, DELETE, &oa, &iosb, nullptr, 0, 0, FILE_OPEN,
+                              0, nullptr, 0);
+        if (status == nt_status::OBJECT_NAME_NOT_FOUND ||
+            status == nt_status::OBJECT_PATH_NOT_FOUND) {
+            print_stderr("mv: '{}': No such file or directory\n", src);
+            continue;
+        } else if (!success(status)) {
+            print_stderr("mv: '{}': NtCreateFile returned {}\n", src, status);
+            continue;
+        }
+
+        file.reset(h);
+
+        // rename
+
+        u16string_view fn;
+
+        if (auto slash = src.find_last_of(u'/'); slash != u16string_view::npos)
+            fn = u16string_view(src.data() + slash + 1, src.size() - slash - 1);
+        else
+            fn = src;
+
+        oa.RootDirectory = desth.get();
+
+        size_t frilen = offsetof(FILE_RENAME_INFORMATION, FileName) + (fn.size() * sizeof(char16_t));
+
+        auto fri = (FILE_RENAME_INFORMATION*)malloc(frilen);
+        if (!fri) {
+            print_stderr("malloc failed\n");
+            return nt_status::INSUFFICIENT_RESOURCES;
+        }
+
+        fri->ReplaceIfExists = true; // FIXME? --interactive option
+        fri->RootDirectory = desth.get();
+        fri->FileNameLength = (uint32_t)(fn.size() * sizeof(char16_t));
+        memcpy(fri->FileName, fn.data(), fn.size() * sizeof(char16_t));
+
+        // FIXME - emulate if we get nt_status::NOT_SAME_DEVICE
+        status = NtSetInformationFile(file.get(), &iosb, fri, (uint32_t)frilen,
+                                      FILE_INFORMATION_CLASS::RenameInformation);
+        if (!success(status)) {
+            print("mv: NtSetInformationFile returned {}\n", status);
+            continue;
+        }
+    }
+
+    // FIXME - what error should we return if some moves fail?
 
     return nt_status::SUCCESS;
 }
@@ -144,13 +239,12 @@ extern "C" FORCE_ALIGN_ARG_POINTER void startup() {
         unreachable();
     }
 
-    if (argv.size() > 2) {
-        print_stderr("FIXME - multiple source operands\n"); // FIXME
-        NtTerminateThread(NtCurrentThread(), nt_status::NOT_IMPLEMENTED);
-        unreachable();
-    }
+    nt_status ret;
 
-    auto ret = mv(argv[0], argv[1]);
+    if (argv.size() > 2)
+        ret = mv_multiple(span(argv.data(), argv.size() - 1), argv.back());
+    else
+        ret = mv(argv[0], argv[1]);
 
     if (buf)
         RtlFreeHeap(GetProcessHeap(), 0, buf);
