@@ -5973,10 +5973,20 @@ nt_status btrfs_inode::remove_orphan() {
     return nt_status::SUCCESS;
 }
 
-static nt_status do_rename(dentry& dentry, string_view new_name,
-                           ::dentry& dest_dir, bool replace_if_exists,
-                           object_ref& victim) {
+nt_status btrfs_inode::rename(::dentry& dentry, ::dentry& dest_dir,
+                              string_view name, bool replace_if_exists,
+                              object_ref& victim) {
     nt_status status;
+
+    assert(dentry.parent);
+    assert(dentry.parent->inode);
+
+    if (!validate_name(name))
+        return nt_status::OBJECT_NAME_INVALID;
+
+    if (fs.readonly)
+        return nt_status::MEDIA_WRITE_PROTECTED;
+
     auto& ino = static_cast<btrfs_inode&>(*dentry.inode);
     auto& src_parent_ino = static_cast<btrfs_inode&>(*dentry.parent->inode);
     auto& dst_parent_ino = static_cast<btrfs_inode&>(*dest_dir.inode);
@@ -5986,10 +5996,10 @@ static nt_status do_rename(dentry& dentry, string_view new_name,
 
     // early return if trying to replace file with itself
     // FIXME - what does NT do here? Does it depend on replace_if_exists?
-    if (&src_parent_ino == &dst_parent_ino && new_name == cur_name)
+    if (&src_parent_ino == &dst_parent_ino && name == cur_name)
         return nt_status::SUCCESS;
 
-    auto hash = calc_crc32c(0xfffffffe, new_name);
+    auto hash = calc_crc32c(0xfffffffe, name);
     bool is_dir = ino.inode_type == inode_type::directory;
     // FIXME - other inode types (symlink etc.)
 
@@ -6008,7 +6018,7 @@ static nt_status do_rename(dentry& dentry, string_view new_name,
         lock_guard lg(fs.trans_lock);
 
         status = search_dir_item(fs, *ino.r, dst_parent_ino.inode, hash,
-                                 new_name, dir_item_key);
+                                 name, dir_item_key);
         if (!success(status) && status != nt_status::OBJECT_NAME_NOT_FOUND) {
             print("search_dir_item returned {}\n", status);
             return status;
@@ -6066,8 +6076,8 @@ static nt_status do_rename(dentry& dentry, string_view new_name,
 
             if (orphaned) {
                 status = insert_item(fs, *ino.r,
-                                    {BTRFS_ORPHAN_OBJECTID, key_type::ORPHAN_INODE, victim_ino.inode},
-                                    span<const uint8_t>());
+                                     {BTRFS_ORPHAN_OBJECTID, key_type::ORPHAN_INODE, victim_ino.inode},
+                                     span<const uint8_t>());
                 if (!success(status)) {
                     print("insert_item returned {}\n", status);
                     return status;
@@ -6075,7 +6085,7 @@ static nt_status do_rename(dentry& dentry, string_view new_name,
             }
 
             status = remove_dir_item(fs, *ino.r, dir_item_key.objectid,
-                                     new_name, dst_parent_ino.inode);
+                                     name, dst_parent_ino.inode);
             if (!success(status)) {
                 print("remove_dir_item returned {}\n", status);
                 return status;
@@ -6084,8 +6094,8 @@ static nt_status do_rename(dentry& dentry, string_view new_name,
             done_overwrite = true;
         }
 
-        status = add_dir_item(fs, *ino.r, dst_parent_ino, new_name, ino.inode,
-                                is_dir, index);
+        status = add_dir_item(fs, *ino.r, dst_parent_ino, name, ino.inode,
+                              is_dir, index);
         if (!success(status)) {
             print("add_dir_item returned {}\n", status);
             return status;
@@ -6094,7 +6104,7 @@ static nt_status do_rename(dentry& dentry, string_view new_name,
         // remove old DIR_ITEM, DIR_INDEX, and INODE_REF
 
         status = remove_dir_item(fs, *ino.r, ino.inode, cur_name,
-                                    src_parent_ino.inode);
+                                 src_parent_ino.inode);
         if (!success(status)) {
             print("remove_dir_item returned {}\n", status);
             return status;
@@ -6102,8 +6112,8 @@ static nt_status do_rename(dentry& dentry, string_view new_name,
 
         // create INODE_REF
 
-        status = add_inode_ref(fs, *ino.r, new_name, index, ino.inode,
-                                dst_parent_ino.inode);
+        status = add_inode_ref(fs, *ino.r, name, index, ino.inode,
+                               dst_parent_ino.inode);
         if (!success(status)) {
             print("add_inode_ref returned {}\n", status);
             return status;
@@ -6135,7 +6145,7 @@ static nt_status do_rename(dentry& dentry, string_view new_name,
             // FIXME - size munging needs to be done in same lock as checking victim_ino size?
 
             if (&src_parent_ino == &dst_parent_ino && !done_overwrite)
-                src_parent_ino.ii.size += new_name.size() * 2;
+                src_parent_ino.ii.size += name.size() * 2;
 
             src_parent_ino.ii.size -= cur_name.size() * 2;
             src_parent_ino.ii.sequence++;
@@ -6149,7 +6159,7 @@ static nt_status do_rename(dentry& dentry, string_view new_name,
             dst_parent_ino.ii.transid = fs.sb->generation;
 
             if (!done_overwrite)
-                dst_parent_ino.ii.size += new_name.size() * 2;
+                dst_parent_ino.ii.size += name.size() * 2;
 
             dst_parent_ino.ii.sequence++;
             dst_parent_ino.ii.ctime = cur_time;
@@ -6177,19 +6187,4 @@ static nt_status do_rename(dentry& dentry, string_view new_name,
     }
 
     return nt_status::SUCCESS;
-}
-
-nt_status btrfs_inode::rename(::dentry& dentry, ::dentry& dest_dir,
-                              string_view name, bool replace_if_exists,
-                              object_ref& victim) {
-    assert(dentry.parent);
-    assert(dentry.parent->inode);
-
-    if (!validate_name(name))
-        return nt_status::OBJECT_NAME_INVALID;
-
-    if (fs.readonly)
-        return nt_status::MEDIA_WRITE_PROTECTED;
-
-    return do_rename(dentry, name, dest_dir, replace_if_exists, victim);
 }
