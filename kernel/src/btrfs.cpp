@@ -6361,8 +6361,6 @@ nt_status btrfs_inode::rename(::dentry& dentry, ::dentry& dest_dir,
     assert(dentry.parent);
     assert(dentry.parent->inode);
 
-    print("FIXME - btrfs_inode::rename ({}, {})\n", name, replace_if_exists ? "true" : "false");
-
     if (!validate_name(name))
         return nt_status::OBJECT_NAME_INVALID;
 
