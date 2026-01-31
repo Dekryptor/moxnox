@@ -2502,6 +2502,43 @@ static nt_status insert_item(btrfs_filesystem& fs, root& r, const btrfs_key& k,
     return nt_status::SUCCESS;
 }
 
+static nt_status remove_internal_node(btrfs_filesystem& fs, btrfs_path& p,
+                                      uint8_t level) {
+    assert(p.data[level]);
+
+    auto& th = *(btrfs_header*)p.data[level];
+    auto items = (btrfs_key_ptr*)((uint8_t*)&th + sizeof(btrfs_header));
+    auto slot = p.slots[level];
+
+    assert(!(th.flags & HEADER_FLAG_WRITTEN));
+    assert(th.level == level);
+    assert(slot < th.nritems);
+
+    auto status = add_metadata_change(fs, items[slot].blockptr, level - 1,
+                                      th.owner, true);
+    if (!success(status)) {
+        print("add_metadata_change returned {}\n", status);
+        return status;
+    }
+
+    memmove(&items[slot], &items[slot + 1],
+            sizeof(btrfs_key_ptr) * (th.nritems - slot - 1));
+    th.nritems--;
+
+    // FIXME - do next level as well if necessary
+    // FIXME - setting new top level
+
+    if (p.slots[level] > 0)
+        p.slots[level]--;
+
+    // copy tree back into page cache and mark dirty
+
+    if (!fs.cache.write(span(p.data[level], fs.sb->nodesize), th.bytenr)) // FIXME - return status
+        return nt_status::INTERNAL_ERROR;
+
+    return nt_status::SUCCESS;
+}
+
 nt_status btrfs_filesystem::remove_item2(btrfs_path& p) {
     auto& th = *(btrfs_header*)p.data[0];
     auto* items = (btrfs_item*)((uint8_t*)&th + sizeof(btrfs_header));
@@ -2550,14 +2587,20 @@ nt_status btrfs_filesystem::remove_item2(btrfs_path& p) {
         }
     }
 
-    // FIXME - if nritems is now 0 and not top, remove entry in parent
-    // FIXME - adjust levels if internal tree has only one entry
-    // FIXME - merging trees
+    // FIXME - merging trees?
 
-    // copy tree back into page cache and mark dirty
+    if (th.nritems == 0) {
+        auto status = remove_internal_node(*this, p, 1);
+        if (!success(status)) {
+            print("remove_internal_node returned {}\n", status);
+            return status;
+        }
+    } else {
+        // copy tree back into page cache and mark dirty
 
-    if (!cache.write(span(p.data[0], sb->nodesize), th.bytenr)) // FIXME - return status
-        return nt_status::INTERNAL_ERROR;
+        if (!cache.write(span(p.data[0], sb->nodesize), th.bytenr)) // FIXME - return status
+            return nt_status::INTERNAL_ERROR;
+    }
 
     return nt_status::SUCCESS;
 }
