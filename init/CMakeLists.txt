@@ -18,6 +18,7 @@ add_compile_definitions(_GLIBCXX_NO_ASSERTIONS)
 
 target_compile_options(init PRIVATE -fno-exceptions ${USERSPACE_CFLAGS})
 target_link_options(init PUBLIC -nostartfiles -nostdlib -Wl,--entry=startup)
+target_include_directories(init PRIVATE ../include)
 
 target_link_libraries(init format cmdline pagesize)
 target_link_libraries(init moxnox)

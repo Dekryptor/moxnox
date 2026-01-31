@@ -7,8 +7,6 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_SHARED_LIBRARY_PREFIX "")
 set(CMAKE_CXX_VISIBILITY_PRESET "hidden")
 
-include_directories(include)
-
 add_compile_definitions(_GLIBCXX_NO_ASSERTIONS)
 
 enable_language(ASM)
