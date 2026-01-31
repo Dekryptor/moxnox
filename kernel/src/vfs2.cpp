@@ -1150,6 +1150,50 @@ NTSTATUS file::rename(span<const uint8_t> buf) {
 
     status = inode.rename(*dentry, drw->get(), namepart, fri.ReplaceIfExists);
 
+    if (success(status)) {
+        bool moving_directories = dentry->parent != &drw->get();
+
+        // change dentry in file
+
+        auto name_buf = (char*)malloc(namepart.size());
+        if (!name_buf) {
+            drw->get().release();
+            free(name);
+            return nt_status::INSUFFICIENT_RESOURCES;
+        }
+
+        memcpy(name_buf, namepart.data(), namepart.size());
+
+        // FIXME - is this racy?
+
+        if (moving_directories) {
+            lock_guard lg(dentry->parent->child_lock);
+
+            remove_entry_list(dentry->le);
+        }
+
+        {
+            lock_guard lg(dentry->lock);
+
+            swap(name_buf, dentry->name);
+            dentry->name_len = namepart.size();
+
+            if (moving_directories) {
+                dentry->parent->release();
+                drw->get().acquire();
+                dentry->parent = &drw->get();
+            }
+        }
+
+        if (moving_directories) {
+            lock_guard lg(dentry->parent->child_lock);
+
+            insert_tail_list(dentry->parent->children, dentry->le);
+        }
+
+        free(name_buf);
+    }
+
     drw->get().release();
     free(name);
 
