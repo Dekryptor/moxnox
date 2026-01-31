@@ -133,12 +133,10 @@ target_compile_options(kernel PRIVATE $<$<COMPILE_LANGUAGE:ASM>:-g0>)
 target_compile_options(kernel PRIVATE $<$<CONFIG:DEBUG>:-fno-inline -fno-omit-frame-pointer>)
 target_compile_options(kernel PRIVATE $<$<AND:$<COMPILE_LANGUAGE:CXX>,$<CXX_COMPILER_ID:Clang>>:-fno-auto-import>)
 
-target_include_directories(kernel PRIVATE ../acpica/source/include)
 target_link_libraries(kernel acpica)
 target_link_libraries(kernel freetype_kernel)
 
 target_compile_definitions(kernel PUBLIC "$<$<CONFIG:DEBUG>:DEBUG>")
-target_compile_definitions(kernel PUBLIC -D_CRTIMP=)
 target_compile_definitions(kernel PUBLIC -D_LIBCPP_VERBOSE_ABORT=)
 
 install(TARGETS kernel DESTINATION ${CMAKE_INSTALL_PREFIX}/bin
