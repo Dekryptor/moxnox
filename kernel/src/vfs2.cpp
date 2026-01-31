@@ -364,8 +364,8 @@ static bool add_to_dentry_cache(dentry& dir, string_view name, inode& ino,
     return true;
 }
 
-static void search_dentry_cache(dentry& dir, string_view name,
-                                optional<reference_wrapper<dentry>>& drw) {
+void search_dentry_cache(dentry& dir, string_view name,
+                         optional<reference_wrapper<dentry>>& drw) {
     for (auto le = dir.children.next; le != &dir.children; le = le->next) {
         auto& d = containing_record<dentry>(le);
         auto sv = string_view(d.name, d.name_len);

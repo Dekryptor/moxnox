@@ -6155,7 +6155,7 @@ static nt_status rename_file_in_directory(dentry& dentry, string_view new_name,
     return nt_status::SUCCESS;
 }
 
-nt_status btrfs_inode::rename(dentry& dentry, ::dentry& dest_dir,
+nt_status btrfs_inode::rename(::dentry& dentry, ::dentry& dest_dir,
                               string_view name, bool replace_if_exists) {
     nt_status status;
 
@@ -6176,8 +6176,52 @@ nt_status btrfs_inode::rename(dentry& dentry, ::dentry& dest_dir,
         status = rename_file_in_directory(dentry, name, replace_if_exists,
                                           victim);
 
-        if (victim)
+        if (victim) {
+            assert(victim.get().type == object_type::inode);
+
+            optional<reference_wrapper<::dentry>> vdrw;
+
+            {
+                lock_guard lg(dest_dir.child_lock);
+
+                search_dentry_cache(dest_dir, name, vdrw);
+            }
+
+            if (vdrw.has_value()) {
+                bool already_done = false;
+
+                auto& victim_dentry = vdrw->get();
+
+                {
+                    lock_guard lg(dentry.lock);
+
+                    if (victim_dentry.status == dentry_status::valid)
+                        victim_dentry.status = dentry_status::going_away;
+                    else
+                        already_done = true;
+                }
+
+                if (!already_done) {
+                    {
+                        lock_guard lg(victim_dentry.parent->child_lock);
+                        remove_entry_list(victim_dentry.le);
+                    }
+
+                    {
+                        lock_guard lg(victim_dentry.lock);
+                        victim_dentry.status = dentry_status::invalid;
+                    }
+
+                    // because removed from parent
+                    victim_dentry.release();
+                }
+
+                // because of search_dentry_cache
+                victim_dentry.release();
+            }
+
             handle_closed(victim.get());
+        }
 
         if (!success(status))
             return status;
