@@ -1,6 +1,7 @@
 #include <string_view>
 #include <span>
 #include <utility>
+#include <algorithm>
 #include <string.h>
 #include <stdint.h>
 #include <stdlib.h>
