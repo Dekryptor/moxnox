@@ -22,6 +22,7 @@ import visit;
 import handle;
 import crt;
 import chardev;
+import moxnox_ioctls;
 
 using namespace std;
 
@@ -1521,9 +1522,39 @@ bool init_vfsctl() {
     return true;
 }
 
-nt_status vfsctl::ioctl(uint32_t /*code*/, span<const uint8_t> /*inbuf*/,
-                        span<uint8_t> /*outbuf*/, uintptr_t& /*written*/) {
-    print("FIXME - vfsctl::ioctl\n");
+static nt_status vfsctl_mount(span<const uint8_t> inbuf) {
+    print("FIXME - vfsctl_mount\n");
+
+    if (inbuf.size() < sizeof(MOXNOX_VFSCTL_MOUNT))
+        return nt_status::BUFFER_TOO_SMALL;
+
+    auto& m = *(MOXNOX_VFSCTL_MOUNT*)inbuf.data();
+
+    if (m.mount_type >= inbuf.size())
+        return nt_status::INVALID_PARAMETER;
+
+    string_view mount_type;
+
+    mount_type = string_view((char*)&m + m.mount_type, inbuf.size() - m.mount_type);
+
+    if (auto n = mount_type.find('\0'); n != string_view::npos)
+        mount_type = string_view(mount_type.data(), n);
+
+    // FIXME - dereference source
+    // FIXME - dereference directory
+
+    // FIXME - do mount
 
     return nt_status::NOT_IMPLEMENTED;
+}
+
+nt_status vfsctl::ioctl(uint32_t code, span<const uint8_t> inbuf,
+                        span<uint8_t> /*outbuf*/, uintptr_t& /*written*/) {
+    switch (code) {
+        case IOCTL_MOXNOX_VFSCTL_MOUNT:
+            return vfsctl_mount(inbuf);
+
+        default:
+            return nt_status::NOT_IMPLEMENTED;
+    }
 }
