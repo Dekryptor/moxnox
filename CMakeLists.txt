@@ -308,10 +308,10 @@ add_library(freetype_kernel STATIC ${FREETYPE_FILES})
 target_sources(freetype_kernel PUBLIC FILE_SET CXX_MODULES FILES modules/freetype.cpp)
 
 target_compile_definitions(freetype_kernel PRIVATE -DFT2_BUILD_LIBRARY -DFT_CONFIG_OPTION_DISABLE_STREAM_SUPPORT)
-target_compile_definitions(freetype_kernel PRIVATE -DFT_CONFIG_MODULES_H=\"${CMAKE_SOURCE_DIR}/include/ftmodule.h\")
-target_compile_definitions(freetype_kernel PRIVATE -DFT_CONFIG_STANDARD_LIBRARY_H=\"${CMAKE_SOURCE_DIR}/include/ftstdlib.h\")
+target_compile_definitions(freetype_kernel PRIVATE -DFT_CONFIG_MODULES_H=\"${CMAKE_SOURCE_DIR}/modules/ftmodule.h\")
+target_compile_definitions(freetype_kernel PRIVATE -DFT_CONFIG_STANDARD_LIBRARY_H=\"${CMAKE_SOURCE_DIR}/modules/ftstdlib.h\")
 target_compile_options(freetype_kernel PRIVATE -mno-stack-arg-probe ${GENERAL_CFLAGS} $<$<COMPILE_LANGUAGE:CXX>:-fno-exceptions -fno-rtti>)
-target_include_directories(freetype_kernel PRIVATE include)
+target_include_directories(freetype_kernel PRIVATE modules)
 target_include_directories(freetype_kernel PRIVATE freetype/include)
 
 # undo freetype's dllexport markings
@@ -330,10 +330,10 @@ target_compile_options(freetype_module PRIVATE -mno-stack-arg-probe ${GENERAL_CF
 target_link_libraries(freetype_module PUBLIC freetype)
 
 target_compile_definitions(freetype PRIVATE -DFT2_BUILD_LIBRARY -DFT_CONFIG_OPTION_DISABLE_STREAM_SUPPORT)
-target_compile_definitions(freetype PRIVATE -DFT_CONFIG_MODULES_H=\"${CMAKE_SOURCE_DIR}/include/ftmodule.h\")
-target_compile_definitions(freetype PRIVATE -DFT_CONFIG_STANDARD_LIBRARY_H=\"${CMAKE_SOURCE_DIR}/include/ftstdlib.h\")
+target_compile_definitions(freetype PRIVATE -DFT_CONFIG_MODULES_H=\"${CMAKE_SOURCE_DIR}/modules/ftmodule.h\")
+target_compile_definitions(freetype PRIVATE -DFT_CONFIG_STANDARD_LIBRARY_H=\"${CMAKE_SOURCE_DIR}/modules/ftstdlib.h\")
 target_compile_options(freetype PRIVATE -mno-stack-arg-probe ${GENERAL_CFLAGS} $<$<COMPILE_LANGUAGE:CXX>:-fno-exceptions -fno-rtti>)
-target_include_directories(freetype PRIVATE include)
+target_include_directories(freetype PRIVATE modules)
 target_include_directories(freetype PRIVATE freetype/include)
 target_link_options(freetype PRIVATE -nostartfiles -nostdlib)
 target_link_libraries(freetype PRIVATE moxnox)
