@@ -119,7 +119,7 @@ static nt_status cp(u16string_view src, u16string_view dest) {
         return status;
     } else {
         if (destdir)
-            print_stderr("cp: cannot create regular file '{}/fn': NtCreateFile returned {}\n", dest, fn, status);
+            print_stderr("cp: cannot create regular file '{}/{}': NtCreateFile returned {}\n", dest, fn, status);
         else
             print_stderr("cp: cannot create regular file '{}': NtCreateFile returned {}\n", dest, status);
         return status;
