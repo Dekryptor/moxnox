@@ -129,7 +129,7 @@ static nt_status cp(u16string_view src, u16string_view dest) {
 
     // FIXME - copy by mmap instead?
 
-    uint64_t left = fsi.EndOfFile.QuadPart;
+    auto left = (uint64_t)fsi.EndOfFile.QuadPart;
 
     if (left == 0)
         return nt_status::SUCCESS;
