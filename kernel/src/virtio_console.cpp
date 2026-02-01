@@ -45,7 +45,7 @@ static_assert(sizeof(virtio_console_config) == 12);
 
 static const uint16_t PCI_VENDOR_ID_REDHAT = 0x1af4;
 
-export void found_virtio_pci_console(pci_device& dev);
+void found_virtio_pci_console(pci_device& dev);
 
 static pci_recognizer mod_pci_ids[] = {
     { {}, PCI_VENDOR_ID_REDHAT, 0x1003, true, found_virtio_pci_console },
