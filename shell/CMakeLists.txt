@@ -255,3 +255,16 @@ target_link_libraries(cp format cmdline unique_handle)
 target_link_libraries(cp moxnox)
 
 install(TARGETS cp DESTINATION ${CMAKE_INSTALL_PREFIX}/bin)
+
+###
+
+add_executable(mount src/mount.cpp)
+
+target_compile_options(mount PRIVATE -fno-exceptions ${USERSPACE_CFLAGS})
+target_link_options(mount PUBLIC -nostartfiles -nostdlib -Wl,--entry=startup)
+
+target_link_libraries(mount print)
+target_link_libraries(mount format cmdline getopt crt)
+target_link_libraries(mount moxnox)
+
+install(TARGETS mount DESTINATION ${CMAKE_INSTALL_PREFIX}/bin)
