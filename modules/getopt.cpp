@@ -24,7 +24,7 @@ export struct option {
 };
 
 template<typename... Args>
-void print(type_identity_t<checker<type_identity_t<Args>...>> fmt, Args... args) {
+static void print(type_identity_t<checker<type_identity_t<Args>...>> fmt, Args... args) {
     char buf[4096];
     auto teb = NtCurrentTeb();
     auto peb = teb->ProcessEnvironmentBlock;
