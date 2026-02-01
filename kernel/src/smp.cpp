@@ -21,7 +21,6 @@ import mem;
 import config;
 import interrupts;
 import timer;
-import syscalls;
 import scheduler;
 import disable_interrupts;
 import cpu_block;
@@ -57,6 +56,9 @@ struct gdt_ptr {
 static gdt_ptr bsp_gdt, bsp_idt;
 
 export uint8_t* cpu_ids;
+
+// in x86/syscalls.S
+extern "C" void init_syscalls();
 
 #endif
 

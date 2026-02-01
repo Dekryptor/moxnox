@@ -1,5 +1,3 @@
-module;
-
 #include <span>
 #include <string_view>
 #include <atomic>
@@ -7,8 +5,6 @@ module;
 #include <functional>
 #include <mutex>
 #include "timer-asm.h"
-
-export module syscalls;
 
 import nt;
 import format;
@@ -24,11 +20,6 @@ import process;
 import list;
 
 using namespace std;
-
-// syscalls.S
-export {
-    extern "C" void init_syscalls();
-}
 
 extern "C"
 NTSTATUS NtDisplayString(const UNICODE_STRING* string) {

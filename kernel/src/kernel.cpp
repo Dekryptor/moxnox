@@ -35,7 +35,6 @@ import section;
 import image;
 import keyboard;
 import process;
-import syscalls;
 import smp;
 import object_ref;
 import cpu_block;
@@ -56,6 +55,11 @@ static char cmdline_arr[255];
 static loader_block_framebuffer lb_fb;
 #ifdef __x86_64__
 static loader_block_text_console lb_tc;
+#endif
+
+#ifdef __x86_64__
+// x86/syscalls.S
+extern "C" void init_syscalls();
 #endif
 
 void (*_printk)(string_view s) = very_early_print;

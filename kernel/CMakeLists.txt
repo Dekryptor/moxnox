@@ -42,7 +42,6 @@ set(GLOBAL_MODULES src/cmdline.cpp
     src/keyboard.cpp
     src/tmpfs.cpp
     src/process.cpp
-    src/syscalls.cpp
     src/power.cpp
     src/smp.cpp
     src/kernel_images.cpp
@@ -99,7 +98,8 @@ set(SRC_FILES src/kernel.cpp
     src/spinlock2.cpp
     src/rangelock2.cpp
     src/scheduler2.cpp
-    src/vfs2.cpp)
+    src/vfs2.cpp
+    src/syscalls.cpp)
 
 if(CMAKE_SYSTEM_PROCESSOR STREQUAL aarch64)
     set(SRC_ASM_FILES src/aarch64/ints.S
