@@ -524,6 +524,47 @@ nt_status open_inode(string_view fn, dentry& root_dir,
             return status;
         }
 
+        if (last_bit && create_result == FILE_OPENED && (dispo == FILE_OVERWRITE || dispo == FILE_OVERWRITE_IF || dispo == FILE_SUPERSEDE)) {
+            FILE_DISPOSITION_INFORMATION fdi;
+            optional<reference_wrapper<inode>> inorw;
+
+            // FIXME - SUPERSEDE subtly different (attributes?)
+
+            // FIXME - make sure this is always a POSIX-style delete
+            fdi.DeleteFile = true;
+
+            status = drw->get().inode->set_information(span((uint8_t*)&fdi, sizeof(fdi)),
+                                                       drw->get(),
+                                                       FILE_INFORMATION_CLASS::DispositionInformation);
+            if (!success(status)) {
+                print("inode::set_information returned {} for FileDispositionInformation\n", status);
+                dir.release();
+                return status;
+            }
+
+            if (dispo == FILE_SUPERSEDE)
+                create_result = FILE_SUPERSEDED;
+            else
+                create_result = FILE_OVERWRITTEN;
+
+            status = dir.inode->create_child(name, create_options, inorw);
+            if (!success(status)) {
+                dir.release();
+                return status;
+            }
+
+            object_ref obj_ref2{inorw->get()};
+
+            assert(obj_ref2.get().type == object_type::inode);
+
+            auto& ino = static_cast<inode&>(obj_ref2.get());
+
+            if (!add_to_dentry_cache(dir, name, ino, drw)) {
+                dir.release();
+                return nt_status::INSUFFICIENT_RESOURCES;
+            }
+        }
+
         auto& d = drw->get();
 
         dir.release();
@@ -532,17 +573,6 @@ nt_status open_inode(string_view fn, dentry& root_dir,
             d.inode->acquire();
             obj_ref = *d.inode;
             dentry = d;
-
-            if (create_result == FILE_OPENED && (dispo == FILE_OVERWRITE || dispo == FILE_OVERWRITE_IF || dispo == FILE_SUPERSEDE)) {
-                print("FIXME - truncate\n"); // FIXME
-
-                // FIXME - SUPERSEDE also implies some other stuff (attributes?)
-
-                if (dispo == FILE_SUPERSEDE)
-                    create_result = FILE_SUPERSEDED;
-                else
-                    create_result = FILE_OVERWRITTEN;
-            }
 
             return nt_status::SUCCESS;
         }
