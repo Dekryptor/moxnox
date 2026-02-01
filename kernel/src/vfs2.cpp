@@ -416,8 +416,6 @@ nt_status open_inode(string_view fn, dentry& root_dir,
         // FIXME - negative dentries?
         // FIXME - dentry LRU
 
-        // FIXME - FILE_SUPERSEDE, FILE_OVERWRITE, FILE_OVERWRITE_IF
-
         if (name.empty() || name == ".") {
             if (dir.inode->inode_type != inode_type::directory) {
                 dir.release();
@@ -460,9 +458,7 @@ nt_status open_inode(string_view fn, dentry& root_dir,
                 return nt_status::OBJECT_NAME_COLLISION;
             } else if (last_bit)
                 create_result = FILE_OPENED;
-        }
-
-        if (!drw.has_value()) {
+        } else {
             lock_guard lg(dir.child_lock);
 
             search_dentry_cache(dir, name, drw);
@@ -474,9 +470,7 @@ nt_status open_inode(string_view fn, dentry& root_dir,
                     return nt_status::OBJECT_NAME_COLLISION;
                 } else if (last_bit)
                     create_result = FILE_OPENED;
-            }
-
-            if (!drw.has_value()) {
+            } else {
                 status = dir.inode->open_child(name, obj_ref2);
 
                 if (success(status)) {
@@ -488,7 +482,7 @@ nt_status open_inode(string_view fn, dentry& root_dir,
                 }
 
                 if (status == nt_status::OBJECT_NAME_NOT_FOUND &&
-                    (dispo == FILE_CREATE || dispo == FILE_OPEN_IF)) {
+                    (dispo == FILE_CREATE || dispo == FILE_OPEN_IF || dispo == FILE_OVERWRITE_IF || dispo == FILE_SUPERSEDE)) {
                     optional<reference_wrapper<inode>> inorw;
 
                     status = dir.inode->create_child(name, create_options,
@@ -538,6 +532,17 @@ nt_status open_inode(string_view fn, dentry& root_dir,
             d.inode->acquire();
             obj_ref = *d.inode;
             dentry = d;
+
+            if (create_result == FILE_OPENED && (dispo == FILE_OVERWRITE || dispo == FILE_OVERWRITE_IF || dispo == FILE_SUPERSEDE)) {
+                print("FIXME - truncate\n"); // FIXME
+
+                // FIXME - SUPERSEDE also implies some other stuff (attributes?)
+
+                if (dispo == FILE_SUPERSEDE)
+                    create_result = FILE_SUPERSEDED;
+                else
+                    create_result = FILE_OVERWRITTEN;
+            }
 
             return nt_status::SUCCESS;
         }
