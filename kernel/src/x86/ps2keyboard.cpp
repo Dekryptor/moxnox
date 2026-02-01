@@ -3,9 +3,6 @@ module;
 #include <span>
 #include <optional>
 #include <mutex>
-import evdev;
-#include "../qwerty.h"
-import pipe;
 
 export module ps2keyboard;
 
@@ -29,8 +26,12 @@ import object_ref;
 import config;
 import acpica;
 import moxnox_ioctls;
+import pipe;
+import evdev;
 
 using namespace std;
+
+#include "../qwerty.h"
 
 static const unsigned int keyboard_evdev_buffer_pages = 1;
 
