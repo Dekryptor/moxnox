@@ -117,19 +117,27 @@ NTSTATUS user_NtWriteFile(HANDLE file_handle, HANDLE event, PIO_APC_ROUTINE apc_
     // FIXME - can we map buffer directly rather than copying?
 
     if (us_buf && length > 0) {
-        buf = malloc(length);
+        if (length > PAGE_SIZE)
+            buf = vmalloc(length);
+        else
+            buf = malloc(length);
         if (!buf)
             return nt_status::INSUFFICIENT_RESOURCES;
 
         if (!copy_from_process(buf, us_buf, length)) {
-            free(buf);
+            if (length > PAGE_SIZE)
+                vfree(buf, length);
+            else
+                free(buf);
             return nt_status::ACCESS_VIOLATION;
         }
     }
 
     if (us_byte_offset) {
         if (!copy_from_process(&byte_offset, us_byte_offset, sizeof(LARGE_INTEGER))) {
-            if (buf)
+            if (length > PAGE_SIZE)
+                vfree(buf, length);
+            else if (buf)
                 free(buf);
 
             return nt_status::ACCESS_VIOLATION;
@@ -138,7 +146,9 @@ NTSTATUS user_NtWriteFile(HANDLE file_handle, HANDLE event, PIO_APC_ROUTINE apc_
 
     if (us_key) {
         if (!copy_from_process(&key, us_key, sizeof(uint32_t))) {
-            if (buf)
+            if (length > PAGE_SIZE)
+                vfree(buf, length);
+            else if (buf)
                 free(buf);
 
             return nt_status::ACCESS_VIOLATION;
@@ -148,7 +158,9 @@ NTSTATUS user_NtWriteFile(HANDLE file_handle, HANDLE event, PIO_APC_ROUTINE apc_
     auto ret = NtWriteFile(file_handle, event, apc_routine, apc_context, &iosb, buf, length,
                            us_byte_offset ? &byte_offset : nullptr, us_key ? &key : nullptr);
 
-    if (buf)
+    if (length > PAGE_SIZE)
+        vfree(buf, length);
+    else if (buf)
         free(buf);
 
     if (success(ret)) {
