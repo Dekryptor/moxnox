@@ -21,7 +21,6 @@ target_link_libraries(usercon moxnox -lgcc)
 target_link_libraries(usercon format rbtree unique_handle list vt100 signal unicode cp437 cmdline evdev pagesize timepage)
 target_link_libraries(usercon harfbuzz)
 target_link_libraries(usercon freetype_module)
-target_include_directories(usercon PRIVATE ../include)
 
 install(TARGETS usercon DESTINATION ${CMAKE_INSTALL_PREFIX}/bin
     CXX_MODULES_BMI EXCLUDE_FROM_ALL)
