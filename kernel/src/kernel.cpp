@@ -281,6 +281,9 @@ void main_thread(void* ctx) {
     if (!create_dev_null())
         print("create_dev_null failed\n");
 
+    if (!init_vfsctl())
+        bsod("init_vfsctl failed\n");
+
     if (!mount_root())
         bsod("mount_root failed");
 

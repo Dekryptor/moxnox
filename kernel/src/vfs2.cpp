@@ -21,6 +21,7 @@ import thread;
 import visit;
 import handle;
 import crt;
+import chardev;
 
 using namespace std;
 
@@ -31,6 +32,21 @@ extern "C++" ::filesystem* create_tmpfs();
 extern "C++" ::filesystem* create_devfs();
 
 static const guid moxnox_partition_guid = { 0x5dd71063, 0x95c9, 0x41b2, { 0x82, 0x52, 0x84, 0x13, 0xfe, 0xac, 0x64, 0x90 } };
+
+class vfsctl : public chardev {
+public:
+    vfsctl() { }
+
+    nt_status read(span<uint8_t>, uint64_t&) override {
+        return nt_status::NOT_IMPLEMENTED;
+    }
+
+    nt_status write(span<const uint8_t>, uint64_t&) override {
+        return nt_status::NOT_IMPLEMENTED;
+    }
+};
+
+static object_ref vfsctl_obj;
 
 static rwsem fs_lock;
 static list_entry fs_list = { &fs_list, &fs_list };
@@ -1482,4 +1498,22 @@ void file::last_handle_closed() {
     }
 
     dentry->inode->last_handle_closed();
+}
+
+bool init_vfsctl() {
+    auto pptr = new vfsctl;
+    if (!pptr) {
+        print("new failed\n");
+        return false;
+    }
+
+    vfsctl_obj = object_ref{*pptr};
+
+    auto status = name_object(vfsctl_obj.get(), "vfsctl");
+    if (!success(status)) {
+        print("name_object returned {}\n", status);
+        return false;
+    }
+
+    return true;
 }
