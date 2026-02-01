@@ -251,7 +251,11 @@ NTSTATUS user_NtReadFile(HANDLE file_handle, HANDLE event, PIO_APC_ROUTINE apc_r
 
     // FIXME - can we map buffer directly rather than copying?
 
-    if (length > 0) {
+    if (length > PAGE_SIZE) {
+        buf = vmalloc(length);
+        if (!buf)
+            return nt_status::INSUFFICIENT_RESOURCES;
+    } else if (length > 0) {
         buf = malloc(length);
         if (!buf)
             return nt_status::INSUFFICIENT_RESOURCES;
@@ -259,7 +263,9 @@ NTSTATUS user_NtReadFile(HANDLE file_handle, HANDLE event, PIO_APC_ROUTINE apc_r
 
     if (us_byte_offset) {
         if (!copy_from_process(&byte_offset, us_byte_offset, sizeof(LARGE_INTEGER))) {
-            if (buf)
+            if (length > PAGE_SIZE)
+                vfree(buf, length);
+            else if (buf)
                 free(buf);
 
             return nt_status::ACCESS_VIOLATION;
@@ -268,7 +274,9 @@ NTSTATUS user_NtReadFile(HANDLE file_handle, HANDLE event, PIO_APC_ROUTINE apc_r
 
     if (us_key) {
         if (!copy_from_process(&key, us_key, sizeof(uint32_t))) {
-            if (buf)
+            if (length > PAGE_SIZE)
+                vfree(buf, length);
+            else if (buf)
                 free(buf);
 
             return nt_status::ACCESS_VIOLATION;
@@ -288,7 +296,9 @@ NTSTATUS user_NtReadFile(HANDLE file_handle, HANDLE event, PIO_APC_ROUTINE apc_r
             ret = nt_status::ACCESS_VIOLATION;
     }
 
-    if (buf)
+    if (length > PAGE_SIZE)
+        vfree(buf, length);
+    else if (buf)
         free(buf);
 
     return ret;
