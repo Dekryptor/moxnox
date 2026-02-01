@@ -16,15 +16,15 @@ public:
     chardev() : sync_object(object_type::chardev, true) { }
     virtual ~chardev() { }
 
-    virtual NTSTATUS read(std::span<uint8_t> s, uint64_t& read_bytes) = 0;
+    virtual NTSTATUS read(span<uint8_t> s, uint64_t& read_bytes) = 0;
 
-    virtual NTSTATUS write(std::span<const uint8_t> s, uint64_t& written_bytes) = 0;
+    virtual NTSTATUS write(span<const uint8_t> s, uint64_t& written_bytes) = 0;
 
-    NTSTATUS write(std::string_view sv, uint64_t& written_bytes) {
-        return write(std::span((uint8_t*)sv.data(), sv.length()), written_bytes);
+    NTSTATUS write(string_view sv, uint64_t& written_bytes) {
+        return write(span((uint8_t*)sv.data(), sv.length()), written_bytes);
     }
 
-    virtual nt_status ioctl(uint32_t, std::span<const uint8_t>, std::span<uint8_t>, uintptr_t&) {
+    virtual nt_status ioctl(uint32_t, span<const uint8_t>, span<uint8_t>, uintptr_t&) {
         return nt_status::NOT_SUPPORTED;
     }
 
