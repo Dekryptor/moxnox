@@ -30,6 +30,7 @@ import loaderblock;
 import efi;
 import kernel_time_page;
 import acpica;
+import gnu_efi;
 
 using namespace std;
 
@@ -822,7 +823,7 @@ static void power_button_pressed_thread() {
     // FIXME - should be calling NtShutdownSystem (why does it not work?)
 
     if (ResetSystem)
-        ResetSystem(EFI_RESET_TYPE::Shutdown, (EFI_STATUS)0, 0, nullptr);
+        ResetSystem(EfiResetShutdown, (EFI_STATUS)0, 0, nullptr);
     else {
         AcpiEnterSleepStatePrep(5);
         disable_interrupts();

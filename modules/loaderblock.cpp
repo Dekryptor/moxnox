@@ -8,107 +8,13 @@ export module loaderblock;
 
 import format;
 
+#ifndef _X86_
+import gnu_efi;
+#endif
+
 using namespace std;
 
-using UINTN = uint64_t;
-using EFI_PHYSICAL_ADDRESS = uint64_t;
-using EFI_VIRTUAL_ADDRESS = uint64_t;
-
 export {
-
-using EFI_STATUS = UINTN;
-
-struct _EFI_GUID {
-    uint32_t Data1;
-    uint16_t Data2;
-    uint16_t Data3;
-    uint8_t Data4[8];
-};
-
-struct EFI_TIME {
-    uint16_t Year;
-    uint8_t Month;
-    uint8_t Day;
-    uint8_t Hour;
-    uint8_t Minute;
-    uint8_t Second;
-    uint8_t Pad1;
-    uint32_t Nanosecond;
-    int16_t TimeZone;
-    uint8_t Daylight;
-    uint8_t Pad2;
-};
-
-struct EFI_TIME_CAPABILITIES {
-    uint32_t Resolution;
-    uint32_t Accuracy;
-    bool SetsToZero;
-};
-
-const uint32_t EFI_MEMORY_DESCRIPTOR_VERSION = 1;
-
-enum class _EFI_MEMORY_TYPE : uint32_t {
-    EfiReservedMemoryType,
-    EfiLoaderCode,
-    EfiLoaderData,
-    EfiBootServicesCode,
-    EfiBootServicesData,
-    EfiRuntimeServicesCode,
-    EfiRuntimeServicesData,
-    EfiConventionalMemory,
-    EfiUnusableMemory,
-    EfiACPIReclaimMemory,
-    EfiACPIMemoryNVS,
-    EfiMemoryMappedIO,
-    EfiMemoryMappedIOPortSpace,
-    EfiPalCode,
-    EfiPersistentMemory,
-    EfiUnacceptedMemoryType,
-    EfiMaxMemoryType
-};
-
-struct _EFI_MEMORY_DESCRIPTOR {
-    _EFI_MEMORY_TYPE Type;
-    uint32_t Pad;
-    EFI_PHYSICAL_ADDRESS PhysicalStart;
-    EFI_VIRTUAL_ADDRESS VirtualStart;
-    uint64_t NumberOfPages;
-    uint64_t Attribute;
-};
-
-using EFI_GET_TIME = EFI_STATUS (*)(EFI_TIME* Time, EFI_TIME_CAPABILITIES* Capabilities);
-
-using EFI_SET_VIRTUAL_ADDRESS_MAP = EFI_STATUS (*)(UINTN MemoryMapSize,
-                                                   UINTN DescriptorSize,
-                                                   uint32_t DescriptorVersion,
-                                                   _EFI_MEMORY_DESCRIPTOR* VirtualMap);
-
-enum class EFI_RESET_TYPE {
-    Cold,
-    Warm,
-    Shutdown
-};
-
-// gnu-efi has the return type as EFI_STATUS, but the spec says void
-using EFI_RESET_SYSTEM = EFI_STATUS (*) (EFI_RESET_TYPE ResetType,
-                                         EFI_STATUS ResetStatus,
-                                         UINTN DataSize, char16_t* ResetData);
-
-const _EFI_GUID EFI_GLOBAL_VARIABLE = { 0x8be4df61, 0x93ca, 0x11d2, {0xaa, 0x0d, 0x00, 0xe0, 0x98, 0x03, 0x2b, 0x8c} };
-
-const uint32_t EFI_VARIABLE_NON_VOLATILE = 0x00000001;
-const uint32_t EFI_VARIABLE_BOOTSERVICE_ACCESS = 0x00000002;
-const uint32_t EFI_VARIABLE_RUNTIME_ACCESS = 0x00000004;
-const uint32_t EFI_VARIABLE_HARDWARE_ERROR_RECORD = 0x00000008;
-const uint32_t EFI_VARIABLE_AUTHENTICATED_WRITE_ACCESS = 0x00000010;
-const uint32_t EFI_VARIABLE_TIME_BASED_AUTHENTICATED_WRITE_ACCESS = 0x00000020;
-const uint32_t EFI_VARIABLE_APPEND_WRITE = 0x00000040;
-const uint32_t EFI_VARIABLE_ENHANCED_AUTHENTICATED_ACCESS = 0x00000080;
-
-using EFI_SET_VARIABLE = EFI_STATUS (*) (const char16_t* VariableName,
-                                         const _EFI_GUID* VendorGuid,
-                                         uint32_t Attributes, UINTN DataSize,
-                                         void* Data);
 
 enum class mem_type {
     free,
@@ -159,21 +65,6 @@ span<char> do_format_arg(span<char> sp, string_view, enum mem_type t) {
             return do_format_arg(sp, "", (unsigned int)t);
     }
 }
-
-const uint64_t EFI_MEMORY_UC = 0x0000000000000001;
-const uint64_t EFI_MEMORY_WC = 0x0000000000000002;
-const uint64_t EFI_MEMORY_WT = 0x0000000000000004;
-const uint64_t EFI_MEMORY_WB = 0x0000000000000008;
-const uint64_t EFI_MEMORY_UCE = 0x0000000000000010;
-const uint64_t EFI_MEMORY_WP = 0x0000000000001000;
-const uint64_t EFI_MEMORY_RP = 0x0000000000002000;
-const uint64_t EFI_MEMORY_XP = 0x0000000000004000;
-const uint64_t EFI_MEMORY_NV = 0x0000000000008000;
-const uint64_t EFI_MEMORY_MORE_RELIABLE = 0x0000000000010000;
-const uint64_t EFI_MEMORY_RO = 0x0000000000020000;
-const uint64_t EFI_MEMORY_SP = 0x0000000000040000;
-const uint64_t EFI_MEMORY_CPU_CRYPTO = 0x0000000000080000;
-const uint64_t EFI_MEMORY_RUNTIME = 0x8000000000000000;
 
 struct map_entry {
     uint64_t addr;
@@ -231,11 +122,17 @@ struct loader_block {
     uint64_t debug_line_str_ptr;
     uint64_t debug_line_str_size;
     char version[32];
-    // pointers follow, different on 32- and 64-bit
+#ifdef _X86_ // avoid bringing in gnu-efi
+    uint64_t GetTime;
+    uint64_t SetVirtualAddressMap;
+    uint64_t ResetSystem;
+    uint64_t SetVariable;
+#else
     EFI_GET_TIME GetTime;
     EFI_SET_VIRTUAL_ADDRESS_MAP SetVirtualAddressMap;
     EFI_RESET_SYSTEM ResetSystem;
     EFI_SET_VARIABLE SetVariable;
+#endif
 } __attribute__((packed));
 
 const uint64_t SELFMAP = 0xfffff68000000000;

@@ -207,6 +207,7 @@ target_compile_options(pe PRIVATE -fno-exceptions ${USERSPACE_CFLAGS})
 add_library(loaderblock STATIC)
 target_sources(loaderblock PUBLIC FILE_SET CXX_MODULES FILES modules/loaderblock.cpp)
 target_compile_options(loaderblock PRIVATE ${KERNEL_CFLAGS})
+target_link_libraries(loaderblock gnu-efi)
 
 if(CMAKE_SYSTEM_PROCESSOR STREQUAL "aarch64")
     target_link_libraries(loaderblock format)

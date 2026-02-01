@@ -14,20 +14,15 @@ import print;
 import timer;
 import format;
 import kernel_time_page;
+import gnu_efi;
 
 using namespace std;
 
-// FIXME
-using EFI_MEMORY_DESCRIPTOR = _EFI_MEMORY_DESCRIPTOR;
-using EFI_MEMORY_TYPE = _EFI_MEMORY_TYPE;
-
 static const uint64_t UEFI_VABLOCK = 0xfffffa6000000000;
-static _EFI_MEMORY_DESCRIPTOR uefi_mappings[256];
+static EFI_MEMORY_DESCRIPTOR uefi_mappings[256];
 export EFI_GET_TIME GetTime = nullptr;
 export EFI_RESET_SYSTEM ResetSystem = nullptr;
 export EFI_SET_VARIABLE SetVariable = nullptr;
-
-static const EFI_STATUS EFI_SUCCESS = 0;
 
 extern "C++" void (*_printk)(string_view s);
 
@@ -64,11 +59,11 @@ export bool map_uefi(const loader_block& lb) {
             continue;
 
         if (m.type == mem_type::uefi_code)
-            d->Type = EFI_MEMORY_TYPE::EfiRuntimeServicesCode;
+            d->Type = EfiRuntimeServicesCode;
         else if (m.type == mem_type::uefi_data)
-            d->Type = EFI_MEMORY_TYPE::EfiRuntimeServicesData;
+            d->Type = EfiRuntimeServicesData;
         else if (m.type == mem_type::mmio)
-            d->Type = EFI_MEMORY_TYPE::EfiMemoryMappedIO;
+            d->Type = EfiMemoryMappedIO;
         else
             continue;
 

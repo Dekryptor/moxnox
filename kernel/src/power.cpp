@@ -16,6 +16,7 @@ import smp;
 import efi;
 import loaderblock;
 import acpica;
+import gnu_efi;
 
 #ifdef __aarch64__
 import aarch64;
@@ -30,14 +31,14 @@ export bool shutting_down = false;
 
 static void reboot() {
     if (ResetSystem)
-        ResetSystem(EFI_RESET_TYPE::Cold, (EFI_STATUS)0, 0, nullptr);
+        ResetSystem(EfiResetCold, (EFI_STATUS)0, 0, nullptr);
     else
         AcpiReset();
 }
 
 static void halt() {
     if (ResetSystem)
-        ResetSystem(EFI_RESET_TYPE::Shutdown, (EFI_STATUS)0, 0, nullptr);
+        ResetSystem(EfiResetShutdown, (EFI_STATUS)0, 0, nullptr);
     else {
         AcpiEnterSleepStatePrep(5);
 
