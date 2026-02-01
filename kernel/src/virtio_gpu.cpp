@@ -5,7 +5,6 @@ module;
 #include <string_view>
 #include <variant>
 #include <optional>
-#include <ioctl.h>
 
 export module virtio_gpu;
 

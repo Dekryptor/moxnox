@@ -3,7 +3,6 @@ module;
 #include <span>
 #include <atomic>
 #include <string_view>
-#include <ioctl.h>
 
 export module virtio_console;
 

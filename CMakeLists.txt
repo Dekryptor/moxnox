@@ -120,6 +120,10 @@ if(CMAKE_SYSTEM_PROCESSOR STREQUAL "amd64")
     target_sources(timepage_kernel PUBLIC FILE_SET CXX_MODULES FILES modules/timepage.cpp)
     target_compile_options(timepage_kernel PRIVATE ${KERNEL_CFLAGS})
     target_link_libraries(timepage_kernel pagesize_kernel)
+
+    add_library(moxnox_ioctls_kernel STATIC)
+    target_sources(moxnox_ioctls_kernel PUBLIC FILE_SET CXX_MODULES FILES modules/moxnox_ioctls.cpp)
+    target_compile_options(moxnox_ioctls_kernel PRIVATE ${KERNEL_CFLAGS})
 endif()
 
 add_library(format STATIC)
@@ -224,6 +228,10 @@ add_library(getopt STATIC)
 target_sources(getopt PUBLIC FILE_SET CXX_MODULES FILES modules/getopt.cpp)
 target_compile_options(getopt PRIVATE -fno-exceptions ${USERSPACE_CFLAGS})
 target_link_libraries(getopt format)
+
+add_library(moxnox_ioctls STATIC)
+target_sources(moxnox_ioctls PUBLIC FILE_SET CXX_MODULES FILES modules/moxnox_ioctls.cpp)
+target_compile_options(moxnox_ioctls PRIVATE -fno-exceptions ${USERSPACE_CFLAGS})
 
 if(CMAKE_SYSTEM_PROCESSOR STREQUAL "aarch64")
     add_library(aarch64 STATIC)

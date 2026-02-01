@@ -6,7 +6,6 @@ module;
 import evdev;
 #include "../qwerty.h"
 import pipe;
-#include <ioctl.h>
 
 export module ps2keyboard;
 
@@ -29,6 +28,7 @@ import handle;
 import object_ref;
 import config;
 import acpica;
+import moxnox_ioctls;
 
 using namespace std;
 

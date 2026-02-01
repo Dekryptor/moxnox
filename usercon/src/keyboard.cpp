@@ -3,13 +3,13 @@ module;
 #include <stdint.h>
 #include <string_view>
 #include <span>
-#include <ioctl.h>
 #include <string.h>
 
 import nt;
 import evdev;
 import list;
 import print;
+import moxnox_ioctls;
 
 export module keyboard;
 

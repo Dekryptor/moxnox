@@ -1,6 +1,8 @@
-#pragma once
+module;
 
 #include <stdint.h>
+
+export module moxnox_ioctls;
 
 enum class IOCTL_METHOD : uint8_t {
     BUFFERED = 0,
@@ -23,23 +25,23 @@ static consteval uint32_t CTL_CODE(uint16_t device_type, uint32_t function,
 
 static const uint16_t FILE_DEVICE_MOXNOX = 0x4d4e;
 
-static const auto IOCTL_MOXNOX_CONSOLE_SET_CURSOR = CTL_CODE(FILE_DEVICE_MOXNOX, 1, IOCTL_METHOD::BUFFERED, IOCTL_ACCESS::ANY);
-static const auto IOCTL_MOXNOX_KEYBOARD_SET_LEDS = CTL_CODE(FILE_DEVICE_MOXNOX, 2, IOCTL_METHOD::BUFFERED, IOCTL_ACCESS::ANY);
+export const auto IOCTL_MOXNOX_CONSOLE_SET_CURSOR = CTL_CODE(FILE_DEVICE_MOXNOX, 1, IOCTL_METHOD::BUFFERED, IOCTL_ACCESS::ANY);
+export const auto IOCTL_MOXNOX_KEYBOARD_SET_LEDS = CTL_CODE(FILE_DEVICE_MOXNOX, 2, IOCTL_METHOD::BUFFERED, IOCTL_ACCESS::ANY);
 
-struct MOXNOX_SET_CURSOR {
+export struct MOXNOX_SET_CURSOR {
     uint32_t x;
     uint32_t y;
     bool enabled;
 };
 
-struct keyboard_leds {
+export struct keyboard_leds {
     uint8_t caps_lock : 1;
     uint8_t num_lock : 1;
     uint8_t scroll_lock : 1;
     uint8_t : 5;
 };
 
-struct MOXNOX_SET_LEDS {
+export struct MOXNOX_SET_LEDS {
     keyboard_leds leds;
     uint32_t id;
 };

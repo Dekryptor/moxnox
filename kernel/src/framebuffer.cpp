@@ -1,7 +1,6 @@
 module;
 
 #include <variant>
-#include <ioctl.h>
 #include <span>
 #include <optional>
 #include <functional>
@@ -18,6 +17,7 @@ import spinlock;
 import handle;
 import section;
 import page_cache;
+import moxnox_ioctls;
 
 #ifdef __x86_64__
 import inout;

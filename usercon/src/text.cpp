@@ -1,6 +1,6 @@
 module;
 
-#include <ioctl.h>
+#include <stdint.h>
 #include <span>
 #include <string_view>
 #include <string.h>
@@ -11,6 +11,7 @@ import nt;
 import cp437;
 import vt100;
 import print;
+import moxnox_ioctls;
 
 using namespace std;
 

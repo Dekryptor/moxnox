@@ -6,7 +6,6 @@ module;
 #include <charconv>
 #include <atomic>
 #include <mutex>
-#include <ioctl.h>
 
 export module serial;
 

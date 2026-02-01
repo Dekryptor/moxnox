@@ -4,7 +4,6 @@ module;
 #include <string_view>
 #include <span>
 #include <mutex>
-#include <ioctl.h>
 
 export module usbhid;
 
@@ -26,6 +25,7 @@ import spinlock;
 import handle;
 import object_ref;
 import config;
+import moxnox_ioctls;
 
 using namespace std;
 
