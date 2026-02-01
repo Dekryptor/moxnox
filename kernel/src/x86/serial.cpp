@@ -29,9 +29,6 @@ import acpica;
 
 using namespace std;
 
-#define ENABLE_PROCESSED_INPUT 0x1 // FIXME
-const uint32_t ENABLE_PROCESSED_OUTPUT = 0x1;
-
 static const unsigned int serial_buffer_pages = 1;
 static atomic<unsigned int> serial_port_number = 0;
 

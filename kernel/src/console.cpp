@@ -6,7 +6,6 @@ module;
 #include <cstring>
 #include <bit>
 #include <mutex>
-#include <console.h>
 
 export module console;
 

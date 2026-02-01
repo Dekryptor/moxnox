@@ -133,7 +133,6 @@ target_compile_options(kernel PRIVATE $<$<COMPILE_LANGUAGE:ASM>:-g0>)
 target_compile_options(kernel PRIVATE $<$<CONFIG:DEBUG>:-fno-inline -fno-omit-frame-pointer>)
 target_compile_options(kernel PRIVATE $<$<AND:$<COMPILE_LANGUAGE:CXX>,$<CXX_COMPILER_ID:Clang>>:-fno-auto-import>)
 
-target_include_directories(kernel PRIVATE ../include)
 target_link_libraries(kernel acpica)
 target_link_libraries(kernel freetype_kernel)
 

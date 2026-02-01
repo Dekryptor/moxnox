@@ -19,8 +19,6 @@ import moxnox_ioctls;
 
 using namespace std;
 
-#define ENABLE_PROCESSED_INPUT 0x1 // FIXME
-
 static const unsigned int keyboard_pipe_buffer_pages = 1;
 static object_ref keyboard_pipe_obj;
 

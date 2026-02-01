@@ -1299,6 +1299,23 @@ enum class EVENT_TYPE {
     SynchronizationEvent
 };
 
+const uint32_t ENABLE_PROCESSED_INPUT = 0x1;
+const uint32_t ENABLE_LINE_INPUT = 0x2;
+const uint32_t ENABLE_ECHO_INPUT = 0x4;
+const uint32_t ENABLE_WINDOW_INPUT = 0x8;
+const uint32_t ENABLE_MOUSE_INPUT = 0x10;
+const uint32_t ENABLE_INSERT_MODE = 0x20;
+const uint32_t ENABLE_QUICK_EDIT_MODE = 0x40;
+const uint32_t ENABLE_EXTENDED_FLAGS = 0x80;
+const uint32_t ENABLE_AUTO_POSITION = 0x100;
+const uint32_t ENABLE_VIRTUAL_TERMINAL_INPUT = 0x200;
+
+const uint32_t ENABLE_PROCESSED_OUTPUT = 0x1;
+const uint32_t ENABLE_WRAP_AT_EOL_OUTPUT = 0x2;
+const uint32_t ENABLE_VIRTUAL_TERMINAL_PROCESSING = 0x4;
+const uint32_t DISABLE_NEWLINE_AUTO_RETURN = 0x8;
+const uint32_t ENABLE_LVB_GRID_WORLDWIDE = 0x10;
+
 extern "C" {
 
 NTSTATUS NtDisplayString(const UNICODE_STRING* string);
