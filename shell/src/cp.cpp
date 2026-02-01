@@ -95,6 +95,8 @@ static nt_status cp(u16string_view src, u16string_view dest) {
     us.Length = us.MaximumLength = (uint16_t)(fn.size() * sizeof(char16_t));
     us.Buffer = (char16_t*)fn.data();
 
+    // FIXME - show error if src and dst are same file (open dst first, and compare inode numbers and device?)
+
     // FIXME - --interactive option
     // FIXME - preallocate size
     // FIXME - check src is file
