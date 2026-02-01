@@ -21,10 +21,9 @@ configure_file(${CMAKE_CURRENT_SOURCE_DIR}/payload.S.in ${CMAKE_CURRENT_BINARY_D
 
 add_library(efistub SHARED ../efi.cpp)
 
-target_include_directories(efistub PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/../../gnu-efi/inc ${CMAKE_CURRENT_SOURCE_DIR}/../../gnu-efi/inc/aarch64)
 target_compile_options(efistub PRIVATE -Wall -Wextra -Wno-address-of-packed-member -Wconversion -Wno-unknown-pragmas -Werror=pointer-arith -fno-exceptions -fno-rtti -mno-red-zone -fcheck-new -Wno-invalid-offsetof -mno-stack-arg-probe -fno-threadsafe-statics -fvisibility=hidden -fno-asynchronous-unwind-tables -fno-zero-initialized-in-bss -mno-unaligned-access -stdlib=libc++ -march=armv8.1-a)
 target_link_options(efistub PUBLIC -nostartfiles -nostdlib -Wl,--image-base=0 -Wl,--exclude-all-symbols -e efi_main)
-target_link_libraries(efistub format pe loaderblock aarch64 crt unicode)
+target_link_libraries(efistub format pe loaderblock aarch64 crt unicode gnu-efi)
 
 # FIXME - why does efistub not work with lld?
 set_property(TARGET efistub PROPERTY LINKER_TYPE BFD)

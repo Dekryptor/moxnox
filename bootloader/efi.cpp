@@ -1,4 +1,4 @@
-#include <efi.h>
+#include <stdint.h>
 #include <string_view>
 #include <span>
 #include <tuple>
@@ -11,6 +11,7 @@ import pe;
 import loaderblock;
 import crt;
 import unicode;
+import gnu_efi;
 
 #ifdef __aarch64__
 import aarch64;
@@ -664,7 +665,7 @@ static EFI_STATUS add_map_entry(uint64_t start, uint64_t len, enum mem_type type
     return EFI_SUCCESS;
 }
 
-static enum mem_type map_efi_type(EFI_MEMORY_TYPE Type) {
+static enum mem_type map_efi_type(UINT32 Type) {
     switch (Type) {
         case EfiReservedMemoryType:
         case EfiUnusableMemory:
@@ -746,7 +747,7 @@ static EFI_STATUS get_memory_map() {
 
         me.addr = m.PhysicalStart;
         me.len = m.NumberOfPages << EFI_PAGE_SHIFT;
-        me.type = map_efi_type((EFI_MEMORY_TYPE)m.Type);
+        me.type = map_efi_type(m.Type);
         me.efi_attributes = m.Attribute;
         num_map_entries++;
 
@@ -1966,7 +1967,7 @@ end:
 }
 
 extern "C"
-EFI_STATUS EFIAPI efi_main(EFI_HANDLE image_handle, EFI_SYSTEM_TABLE* system_table) {
+EFI_STATUS efi_main(EFI_HANDLE image_handle, EFI_SYSTEM_TABLE* system_table) {
     EFI_STATUS Status;
     EFI_LOADED_IMAGE_PROTOCOL* image;
     uint64_t entry_point, img_pa, rsdp_pa;
