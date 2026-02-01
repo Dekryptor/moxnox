@@ -4,6 +4,8 @@ module;
 
 export module moxnox_ioctls;
 
+import nt;
+
 enum class IOCTL_METHOD : uint8_t {
     BUFFERED = 0,
     IN_DIRECT = 1,
@@ -27,6 +29,7 @@ static const uint16_t FILE_DEVICE_MOXNOX = 0x4d4e;
 
 export const auto IOCTL_MOXNOX_CONSOLE_SET_CURSOR = CTL_CODE(FILE_DEVICE_MOXNOX, 1, IOCTL_METHOD::BUFFERED, IOCTL_ACCESS::ANY);
 export const auto IOCTL_MOXNOX_KEYBOARD_SET_LEDS = CTL_CODE(FILE_DEVICE_MOXNOX, 2, IOCTL_METHOD::BUFFERED, IOCTL_ACCESS::ANY);
+export const auto IOCTL_MOXNOX_VFSCTL_MOUNT = CTL_CODE(FILE_DEVICE_MOXNOX, 3, IOCTL_METHOD::BUFFERED, IOCTL_ACCESS::ANY);
 
 export struct MOXNOX_SET_CURSOR {
     uint32_t x;
@@ -44,4 +47,11 @@ export struct keyboard_leds {
 export struct MOXNOX_SET_LEDS {
     keyboard_leds leds;
     uint32_t id;
+};
+
+export struct MOXNOX_VFSCTL_MOUNT {
+    uint32_t mount_type;
+    HANDLE source;
+    HANDLE directory;
+    // FIXME - options
 };
