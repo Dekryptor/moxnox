@@ -14,6 +14,90 @@ import unique_handle;
 
 using namespace std;
 
+static nt_status copy_file(HANDLE srch, HANDLE desth, u16string_view src,
+                           u16string_view dest) {
+    nt_status status;
+    IO_STATUS_BLOCK iosb;
+    FILE_STANDARD_INFORMATION fsi;
+
+    static const size_t COPY_SIZE = 1048576;
+
+    // get src file size
+
+    status = NtQueryInformationFile(srch, &iosb, &fsi, sizeof(fsi),
+                                    FILE_INFORMATION_CLASS::StandardInformation);
+    if (!success(status)) {
+        print_stderr("cp: '{}': NtQueryInformationFile returned {}\n", src, status);
+        return status;
+    }
+
+    // FIXME - also copy attributes, xattrs, SD, etc.
+
+    // FIXME - copy by mmap instead?
+
+    auto left = (uint64_t)fsi.EndOfFile.QuadPart;
+
+    if (left == 0)
+        return nt_status::SUCCESS;
+
+    auto bufsize = max(COPY_SIZE, left);
+
+    auto buf = malloc(bufsize);
+    if (!buf) {
+        print_stderr("malloc failed\n");
+        return nt_status::INSUFFICIENT_RESOURCES;
+    }
+
+    while (left > 0) {
+        uint64_t read_bytes;
+
+        status = NtReadFile(srch, 0, nullptr, nullptr, &iosb, buf,
+                            (uint32_t)min(left, bufsize), nullptr, nullptr);
+
+        if (status == nt_status::END_OF_FILE)
+            break;
+
+        if (!success(status)) {
+            print_stderr("cp: '{}': NtReadFile returned {}\n", src, status);
+            break;
+        }
+
+        read_bytes = iosb.Information;
+
+        if (read_bytes == 0)
+            continue;
+
+        span sp((char*)buf, read_bytes);
+
+        do {
+            status = NtWriteFile(desth, 0, nullptr, nullptr, &iosb,
+                                 sp.data(), (uint32_t)sp.size(), nullptr,
+                                 nullptr);
+            if (!success(status)) {
+                print_stderr("cp: '{}': NtWriteFile returned {}\n", dest, status);
+                break;
+            }
+
+            if (iosb.Information == sp.size())
+                break;
+
+            sp = span(sp.data() + iosb.Information, sp.size() - iosb.Information);
+        } while (true);
+
+        if (!success(status))
+            break;
+
+        left -= read_bytes;
+    }
+
+    free(buf);
+
+    if (status == nt_status::END_OF_FILE)
+        status = nt_status::SUCCESS;
+
+    return nt_status::SUCCESS;
+};
+
 static nt_status cp(u16string_view src, u16string_view dest) {
     auto peb = NtCurrentTeb()->ProcessEnvironmentBlock;
     nt_status status;
@@ -21,10 +105,7 @@ static nt_status cp(u16string_view src, u16string_view dest) {
     UNICODE_STRING us;
     IO_STATUS_BLOCK iosb;
     HANDLE h;
-    FILE_STANDARD_INFORMATION fsi;
     unique_handle srch, desth, destdir;
-
-    static const size_t COPY_SIZE = 1048576;
 
     // try to open dest
 
@@ -69,15 +150,6 @@ static nt_status cp(u16string_view src, u16string_view dest) {
     }
 
     srch.reset(h);
-
-    // get src file size
-
-    status = NtQueryInformationFile(srch.get(), &iosb, &fsi, sizeof(fsi),
-                                    FILE_INFORMATION_CLASS::StandardInformation);
-    if (!success(status)) {
-        print_stderr("cp: '{}': NtQueryInformationFile returned {}\n", src, status);
-        return status;
-    }
 
     // open dst
 
@@ -125,72 +197,31 @@ static nt_status cp(u16string_view src, u16string_view dest) {
         return status;
     }
 
-    // FIXME - also copy attributes, xattrs, SD, etc.
+    {
+        u16string_view dest2;
+        char16_t* fnbuf = nullptr;
 
-    // FIXME - copy by mmap instead?
-
-    auto left = (uint64_t)fsi.EndOfFile.QuadPart;
-
-    if (left == 0)
-        return nt_status::SUCCESS;
-
-    auto bufsize = max(COPY_SIZE, left);
-
-    auto buf = malloc(bufsize);
-    if (!buf) {
-        print_stderr("malloc failed\n");
-        return nt_status::INSUFFICIENT_RESOURCES;
-    }
-
-    while (left > 0) {
-        uint64_t read_bytes;
-
-        status = NtReadFile(srch.get(), 0, nullptr, nullptr, &iosb,
-                            buf, (uint32_t)min(left, bufsize), nullptr, nullptr);
-
-        if (status == nt_status::END_OF_FILE)
-            break;
-
-        if (!success(status)) {
-            print_stderr("cp: '{}': NtReadFile returned {}\n", src, status);
-            break;
-        }
-
-        read_bytes = iosb.Information;
-
-        if (read_bytes == 0)
-            continue;
-
-        span sp((char*)buf, read_bytes);
-
-        do {
-            status = NtWriteFile(desth.get(), 0, nullptr, nullptr, &iosb,
-                                 sp.data(), (uint32_t)sp.size(), nullptr,
-                                 nullptr);
-            if (!success(status)) {
-                if (destdir)
-                    print_stderr("cp: '{}/{}': NtWriteFile returned {}\n", dest, fn, status);
-                else
-                    print_stderr("cp: '{}': NtWriteFile returned {}\n", dest, status);
-                break;
+        if (destdir) {
+            fnbuf = (char16_t*)malloc((dest.size() + 1 + fn.size()) * sizeof(char16_t));
+            if (!fnbuf) {
+                print("malloc failed\n");
+                return nt_status::INSUFFICIENT_RESOURCES;
             }
 
-            if (iosb.Information == sp.size())
-                break;
+            memcpy(fnbuf, dest.data(), dest.size() * sizeof(char16_t));
+            fnbuf[dest.size()] = u'/';
+            memcpy(fnbuf + dest.size() + 1, fn.data(),
+                   fn.size() * sizeof(char16_t));
 
-            sp = span(sp.data() + iosb.Information, sp.size() - iosb.Information);
-        } while (true);
+            dest2 = u16string_view(fnbuf, dest.size() + 1 + fn.size());
+        } else
+            dest2 = dest;
 
-        if (!success(status))
-            break;
+        status = copy_file(srch.get(), desth.get(), src, dest2);
 
-        left -= read_bytes;
+        if (fnbuf)
+            free(fnbuf);
     }
-
-    free(buf);
-
-    if (status == nt_status::END_OF_FILE)
-        status = nt_status::SUCCESS;
 
     if (!success(status)) {
         FILE_DISPOSITION_INFORMATION fdi;
