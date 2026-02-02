@@ -94,66 +94,6 @@ void __cxa_pure_virtual() {
     bsod("__cxa_pure_virtual() called");
 }
 
-static object_ref create_init_process() {
-    auto& p = static_cast<chardev&>(console_chardev.get());
-
-    p.acquire();
-
-    object_ref initin;
-    object_ref initout{p};
-
-    if (console_type == console_type::other) {
-        p.acquire();
-        initin = object_ref{p};
-    } else {
-        auto status = open_object("null", initin);
-        if (!success(status))
-            bsod_format("Error {} opening /dev/null", status);
-    }
-
-    static const u16string_view init_cmdline_pref = u"init.exe ";
-
-    auto init_cmdline_len = init_cmdline_pref.size() + utf8_to_utf16_len(cmdline);
-
-    auto init_cmdline = (char16_t*)malloc(init_cmdline_len * sizeof(char16_t));
-    if (!init_cmdline)
-        bsod("malloc failed while creating init process");
-
-    memcpy(init_cmdline, init_cmdline_pref.data(),
-           init_cmdline_pref.size() * sizeof(char16_t));
-
-    utf8_to_utf16(span(init_cmdline + init_cmdline_pref.size(),
-                       init_cmdline_len - init_cmdline_pref.size()), cmdline);
-
-    auto ref = create_process("/bin/init.exe", "/", u16string_view(init_cmdline, init_cmdline_len),
-                              initin, initout, initout);
-
-    free(init_cmdline);
-
-    if (!ref)
-        return object_ref{};
-
-    assert(ref.get().type == object_type::process);
-
-    auto& proc = static_cast<process&>(ref.get());
-
-    object_ref vfsctl;
-
-    auto status = open_object("vfsctl", vfsctl);
-    if (!success(status))
-        bsod_format("open_object returned {} for /dev/vfsctl", status);
-
-    handle_t h;
-
-    status = proc.add_handle(vfsctl.get(), 0, true, h);
-    if (!success(status))
-        bsod_format("process::add_handle returned {}", status);
-
-    // FIXME - put in environment variable
-
-    return ref;
-}
-
 static void keywait() {
     bool do_wait = false;
 

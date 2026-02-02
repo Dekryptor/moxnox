@@ -129,6 +129,7 @@ export object_ref create_process(string_view fn, string_view curdir,
 export void load_ntdll();
 export void create_time_page();
 export void send_page_tlb_ipi(process& proc, uint64_t va, uint64_t num_pages);
+export object_ref create_init_process();
 
 #ifdef __aarch64__
 export ARM64_HARDWARE_PTE* find_pte(process& proc, uintptr_t va);
