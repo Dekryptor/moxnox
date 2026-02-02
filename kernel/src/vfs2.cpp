@@ -1530,8 +1530,6 @@ bool init_vfsctl() {
 }
 
 static nt_status vfsctl_mount(span<const uint8_t> inbuf) {
-    print("FIXME - vfsctl_mount\n");
-
     if (inbuf.size() < sizeof(MOXNOX_VFSCTL_MOUNT))
         return nt_status::BUFFER_TOO_SMALL;
 
@@ -1579,9 +1577,62 @@ static nt_status vfsctl_mount(span<const uint8_t> inbuf) {
     if (static_cast<inode&>(dir.ino).inode_type != inode_type::directory)
         return nt_status::NOT_A_DIRECTORY;
 
-    // FIXME - do mount
+    // do mount
 
-    return nt_status::NOT_IMPLEMENTED;
+    ::filesystem* fs;
+
+    {
+        lock_guard lock(source.mount_lock);
+
+        if (source.filesystem) {
+            print("vfsctl_mount: volume already mounted\n");
+            return nt_status::DEVICE_NOT_READY;
+        }
+
+        bool found_fs_type = false;
+        nt_status status;
+
+        // FIXME - spinlock for this (refcount recognizers once we have module system?)
+        for (auto le = filesystem_types.next; le != &filesystem_types; le = le->next) {
+            auto& r = containing_record<filesystem_recognizer>(le);
+
+            if (r.name != mount_type)
+                continue;
+
+            found_fs_type = true;
+
+            status = r.try_mount(source);
+            if (!success(status))
+                return status;
+        }
+
+        if (!found_fs_type) {
+            print("vfsctl: unrecognized filesystem type \"{}\"\n", mount_type);
+            return nt_status::UNRECOGNIZED_VOLUME;
+        }
+
+        fs = &source.filesystem->get();
+        fs->refcount++;
+    }
+
+    inode* ino2 = fs->root_inode;
+
+    ino2->acquire();
+
+    // FIXME - prevent overmounting
+    // FIXME - prevent rmdir'ing
+
+    {
+        lock_guard lg(dir.dentry->lock);
+
+        // FIXME - check dentry is valid
+
+        swap(dir.dentry->inode, ino2);
+    }
+
+    ino2->release();
+
+    return nt_status::SUCCESS;
 }
 
 nt_status vfsctl::ioctl(uint32_t code, span<const uint8_t> inbuf,
