@@ -24,6 +24,7 @@ import object_ref;
 import page_cache;
 import spinlock;
 import kernel_time_page;
+import module_init;
 
 using namespace std;
 
@@ -107,6 +108,18 @@ tmpfs_filesystem::tmpfs_filesystem() : filesystem(nullptr) {
     tmpfs_root_inode->mtime = cur_time;
     tmpfs_root_inode->otime = cur_time;
 }
+
+extern "C++" ::filesystem* create_tmpfs();
+
+static filesystem_recognizer mod_filesystem_type = {
+    {}, "tmpfs", nullptr, create_tmpfs
+};
+
+static void init_tmpfs() {
+    insert_tail_list(filesystem_types, mod_filesystem_type.le);
+}
+
+static module_init module_init_btrfs(init_tmpfs);
 
 extern "C++" ::filesystem* create_tmpfs() {
     auto fs = new tmpfs_filesystem();

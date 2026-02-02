@@ -191,7 +191,8 @@ public:
 export struct filesystem_recognizer {
     list_entry le;
     string_view name;
-    nt_status (*try_mount)(volume&);
+    nt_status (*try_mount_volume)(volume&);
+    filesystem* (*mount_without_volume)();
 };
 
 export class file : public object {
