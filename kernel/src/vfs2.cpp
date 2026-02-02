@@ -1619,9 +1619,6 @@ static nt_status vfsctl_mount(span<const uint8_t> inbuf) {
 
     ino2->acquire();
 
-    // FIXME - prevent overmounting
-    // FIXME - prevent rmdir'ing
-
     auto& d = *dir.dentry;
     nt_status status;
 
@@ -1630,8 +1627,11 @@ static nt_status vfsctl_mount(span<const uint8_t> inbuf) {
 
         if (d.status != dentry_status::valid)
             status = nt_status::INVALID_PARAMETER;
+        else if (d.mount_point) // FIXME - allow overmounting?
+            status = nt_status::INVALID_PARAMETER;
         else {
             swap(d.inode, ino2);
+            d.mount_point = true;
             status = nt_status::SUCCESS;
         }
     }

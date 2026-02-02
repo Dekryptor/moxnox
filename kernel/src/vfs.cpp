@@ -160,6 +160,7 @@ export struct dentry {
     spinlock lock;
     enum dentry_status status = dentry_status::valid;
     atomic<unsigned int> open_file_count = 0;
+    bool mount_point = false;
     size_t name_len;
     char* name = nullptr;
 };
