@@ -72,8 +72,6 @@ extern "C++" ::filesystem* create_devfs() {
     if (!fs)
         return nullptr;
 
-    fs->acquire();
-
     return fs;
 }
 

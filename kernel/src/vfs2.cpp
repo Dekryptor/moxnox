@@ -112,7 +112,6 @@ static ::filesystem* do_mount_root(string_view cmdline_root) {
             }
 
             ret = &vol.filesystem->get();
-            ret->acquire();
 
             return ret;
         }
@@ -1612,7 +1611,6 @@ static nt_status vfsctl_mount(span<const uint8_t> inbuf) {
         }
 
         fs = &source.filesystem->get();
-        fs->acquire();
     }
 
     inode* ino2 = fs->root_inode;
