@@ -88,11 +88,16 @@ static nt_status mount(u16string_view source, u16string_view directory) {
         return nt_status::INSUFFICIENT_RESOURCES;
     }
 
-    buf->mount_type = sizeof(MOXNOX_VFSCTL_MOUNT);
+    if (!mount_type.empty())
+        buf->mount_type = sizeof(MOXNOX_VFSCTL_MOUNT);
+    else
+        buf->mount_type = 0;
+
     buf->source = src.get();
     buf->directory = dir.get();
 
-    utf16_to_utf8(span((char*)buf + buf->mount_type, u8len), mount_type);
+    if (!mount_type.empty())
+        utf16_to_utf8(span((char*)buf + buf->mount_type, u8len), mount_type);
 
     status = NtDeviceIoControlFile(vfsctl.get(), 0, nullptr, nullptr, &iosb,
                                    IOCTL_MOXNOX_VFSCTL_MOUNT, buf,
