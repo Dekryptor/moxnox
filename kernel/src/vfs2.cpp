@@ -1530,18 +1530,47 @@ static nt_status vfsctl_mount(span<const uint8_t> inbuf) {
 
     auto& m = *(MOXNOX_VFSCTL_MOUNT*)inbuf.data();
 
+    // get mount_type
+
     if (m.mount_type >= inbuf.size())
         return nt_status::INVALID_PARAMETER;
 
-    string_view mount_type;
-
-    mount_type = string_view((char*)&m + m.mount_type, inbuf.size() - m.mount_type);
+    auto mount_type = string_view((char*)&m + m.mount_type, inbuf.size() - m.mount_type);
 
     if (auto n = mount_type.find('\0'); n != string_view::npos)
         mount_type = string_view(mount_type.data(), n);
 
-    // FIXME - dereference source
-    // FIXME - dereference directory
+    // dereference source (FIXME - can be 0 if "none"?)
+
+    auto sourcerw = deref_handle(m.source);
+    if (!sourcerw)
+        return nt_status::INVALID_HANDLE;
+
+    // FIXME - check access mask?
+
+    if (sourcerw.get().type != object_type::volume)
+        return nt_status::OBJECT_TYPE_MISMATCH;
+
+    auto& source = static_cast<volume&>(sourcerw.get());
+
+    // dereference directory
+
+    auto dirrw = deref_handle(m.directory);
+    if (!dirrw)
+        return nt_status::INVALID_HANDLE;
+
+    // FIXME - check access mask?
+
+    if (dirrw.get().type != object_type::file)
+        return nt_status::OBJECT_TYPE_MISMATCH;
+
+    auto& dir = static_cast<file&>(dirrw.get());
+
+    if (dir.ino.type != object_type::inode)
+        return nt_status::OBJECT_TYPE_MISMATCH;
+
+    if (static_cast<inode&>(dir.ino).inode_type != inode_type::directory)
+        return nt_status::NOT_A_DIRECTORY;
 
     // FIXME - do mount
 
