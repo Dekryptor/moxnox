@@ -64,7 +64,7 @@ static const uint64_t supported_compat_ro_flags = BTRFS_FEATURE_COMPAT_RO_FREE_S
 static bool btrfs_probe(volume& v);
 
 static filesystem_recognizer mod_filesystem_type = {
-    {}, btrfs_probe
+    {}, "btrfs", btrfs_probe
 };
 
 static void init_btrfs() {
