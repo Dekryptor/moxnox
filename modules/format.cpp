@@ -453,6 +453,8 @@ span<char> do_format_arg(span<char> sp, string_view, nt_status arg) {
             return sp_strcpy(sp, "INSUFFICIENT_RESOURCES");
         case nt_status::MEDIA_WRITE_PROTECTED:
             return sp_strcpy(sp, "MEDIA_WRITE_PROTECTED");
+        case nt_status::DEVICE_NOT_READY:
+            return sp_strcpy(sp, "DEVICE_NOT_READY");
         case nt_status::PIPE_DISCONNECTED:
             return sp_strcpy(sp, "PIPE_DISCONNECTED");
         case nt_status::IO_TIMEOUT:
