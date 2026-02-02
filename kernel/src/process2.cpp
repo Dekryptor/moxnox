@@ -14,6 +14,7 @@ module;
 module process;
 
 import print;
+import format;
 import bsod;
 import config;
 import vfs;
@@ -3730,7 +3731,54 @@ object_ref create_init_process() {
     if (!success(status))
         bsod_format("process::add_handle returned {}", status);
 
-    // FIXME - put in environment variable
+    // put vfsctl handle in environment variable
+
+    void* us_env = nullptr;
+    size_t size = PAGE_SIZE;
+
+    status = proc.allocate_vm(&us_env, 0, &size, MEM_RESERVE | MEM_COMMIT,
+                              mapping_type::read_write);
+    if (!success(status))
+        bsod_format("process::allocate_vm returned {}", status);
+
+    char buf[50];
+    auto sp = span(buf, sizeof(buf));
+
+    sp = format(sp, "VFSCTL={}", (unsigned int)h);
+    auto sv = string_view(buf, (size_t)(sp.data() - buf));
+
+    auto u16len = utf8_to_utf16_len(sv);
+    uint64_t buf2len = (u16len + 1 + 1) * sizeof(char16_t);
+    auto buf2 = (char16_t*)malloc(buf2len);
+    if (!buf2)
+        bsod_format("create_init_process: malloc failed");
+
+    utf8_to_utf16(span(buf2, u16len), sv);
+    buf2[u16len] = 0;
+    buf2[u16len + 1] = 0;
+
+    status = proc.write_vm(us_env, buf2, (uint32_t)buf2len, nullptr);
+    if (!success(status))
+        bsod_format("process::write_vm returned {}", status);
+
+    free(buf2);
+
+    void* us_proc_params;
+
+    status = proc.read_vm((uint8_t*)proc.peb + offsetof(PEB, ProcessParameters),
+                          &us_proc_params, sizeof(us_proc_params), nullptr);
+    if (!success(status))
+        bsod_format("process:read_vm returned {}", status);
+
+    status = proc.write_vm((uint8_t*)us_proc_params + offsetof(RTL_USER_PROCESS_PARAMETERS, Environment),
+                           &us_env, sizeof(us_env), nullptr);
+    if (!success(status))
+        bsod_format("process:write_vm returned {}", status);
+
+    status = proc.write_vm((uint8_t*)us_proc_params + offsetof(RTL_USER_PROCESS_PARAMETERS, EnvironmentSize),
+                           &buf2len, sizeof(buf2len), nullptr);
+    if (!success(status))
+        bsod_format("process:write_vm returned {}", status);
 
     return ref;
 }
