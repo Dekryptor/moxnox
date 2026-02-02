@@ -38,18 +38,21 @@ static nt_status mount(u16string_view source, u16string_view directory) {
     // FIXME - if mount_type not given, try to guess (use libblkid?)
 
     // open source
-    // FIXME - "none"
 
-    us.Length = us.MaximumLength = (uint16_t)(source.size() * sizeof(char16_t));
-    us.Buffer = (char16_t*)source.data();
+    if (source != u"none") {
+        us.Length = us.MaximumLength = (uint16_t)(source.size() * sizeof(char16_t));
+        us.Buffer = (char16_t*)source.data();
 
-    status = NtCreateFile(&h, FILE_READ_ATTRIBUTES, &oa, &iosb, nullptr, 0, 0,
-                          FILE_OPEN, FILE_NON_DIRECTORY_FILE, nullptr, 0);
-    if (success(status))
-        src.reset(h);
-    else {
-        print_stderr("mount: NtCreateFile returned {} for {}\n", status, source);
-        return status;
+        status = NtCreateFile(&h, FILE_READ_ATTRIBUTES, &oa, &iosb, nullptr,
+                              0, 0, FILE_OPEN, FILE_NON_DIRECTORY_FILE,
+                              nullptr, 0);
+        if (success(status))
+            src.reset(h);
+        else {
+            print_stderr("mount: NtCreateFile returned {} for {}\n", status,
+                         source);
+            return status;
+        }
     }
 
     // open directory
@@ -93,7 +96,7 @@ static nt_status mount(u16string_view source, u16string_view directory) {
     else
         buf->mount_type = 0;
 
-    buf->source = src.get();
+    buf->source = src ? src.get() : 0;
     buf->directory = dir.get();
 
     if (!mount_type.empty())
