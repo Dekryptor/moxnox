@@ -617,15 +617,14 @@ btrfs_filesystem::btrfs_filesystem(volume& vol) : filesystem(&vol) {
     // FIXME - set readonly if underlying disk is RO
 
     if (!readonly) {
-        refcount++;
+        acquire();
 
         flush_thread_obj = add_kernel_thread([](void* ctx) {
             auto& fs = *(btrfs_filesystem*)ctx;
 
             fs.flush_thread();
 
-            if (fs.refcount.fetch_sub(1) == 1)
-                delete &fs;
+            fs.release();
         }, this);
     }
 }

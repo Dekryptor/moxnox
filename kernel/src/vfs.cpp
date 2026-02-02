@@ -170,6 +170,15 @@ public:
     virtual ~filesystem() { }
     virtual nt_status flush(bool make_readonly) = 0;
 
+    void acquire() {
+        refcount++;
+    }
+
+    void release() {
+        if (refcount.fetch_sub(1) == 1)
+            delete this;
+    }
+
     list_entry le;
     volume* vol;
     atomic<unsigned int> refcount = 0;

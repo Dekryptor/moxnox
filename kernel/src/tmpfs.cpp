@@ -113,7 +113,7 @@ extern "C++" ::filesystem* create_tmpfs() {
     if (!fs)
         return nullptr;
 
-    fs->refcount++;
+    fs->acquire();
 
     return fs;
 }

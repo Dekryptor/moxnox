@@ -72,7 +72,7 @@ extern "C++" ::filesystem* create_devfs() {
     if (!fs)
         return nullptr;
 
-    fs->refcount++;
+    fs->acquire();
 
     return fs;
 }
