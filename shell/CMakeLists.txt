@@ -21,7 +21,6 @@ set(SRC_FILES src/shell.cpp)
 add_executable(shell ${SRC_FILES})
 target_sources(shell PUBLIC FILE_SET CXX_MODULES FILES
     src/cd.cpp
-    src/env.cpp
 )
 
 target_compile_options(shell PRIVATE -fno-exceptions ${USERSPACE_CFLAGS})
@@ -32,7 +31,7 @@ endif()
 
 target_link_options(shell PUBLIC -nostartfiles -nostdlib -Wl,--entry=startup)
 
-target_link_libraries(shell print unicode unique_handle signal cmdline list pagesize)
+target_link_libraries(shell print unicode unique_handle signal cmdline list pagesize env)
 target_link_libraries(shell moxnox)
 target_link_libraries(shell format)
 

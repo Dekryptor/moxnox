@@ -247,6 +247,11 @@ target_sources(moxnox_ioctls PUBLIC FILE_SET CXX_MODULES FILES modules/moxnox_io
 target_compile_options(moxnox_ioctls PRIVATE -fno-exceptions ${USERSPACE_CFLAGS})
 target_link_libraries(moxnox_ioctls nt)
 
+add_library(env STATIC)
+target_sources(env PUBLIC FILE_SET CXX_MODULES FILES modules/env.cpp)
+target_compile_options(env PRIVATE -fno-exceptions ${USERSPACE_CFLAGS})
+target_link_libraries(env nt)
+
 if(CMAKE_SYSTEM_PROCESSOR STREQUAL "aarch64")
     add_library(aarch64 STATIC)
     target_sources(aarch64 PUBLIC FILE_SET CXX_MODULES FILES modules/aarch64.cpp)
