@@ -25,7 +25,7 @@ static nt_status mount(u16string_view source, u16string_view directory) {
     OBJECT_ATTRIBUTES oa;
     UNICODE_STRING us;
     IO_STATUS_BLOCK iosb;
-    unique_handle vfsctl;
+    unique_handle dir, vfsctl;
     auto peb = NtCurrentTeb()->ProcessEnvironmentBlock;
 
     static const char16_t vfsctl_path[] = u"/dev/vfsctl";
@@ -41,7 +41,19 @@ static nt_status mount(u16string_view source, u16string_view directory) {
     // FIXME - if mount_type not given, try to guess (use libblkid?)
 
     // FIXME - open source
-    // FIXME - open directory
+    // open directory
+
+    us.Length = us.MaximumLength = (uint16_t)(directory.size() * sizeof(char16_t));
+    us.Buffer = (char16_t*)directory.data();
+
+    status = NtCreateFile(&h, FILE_READ_ATTRIBUTES, &oa, &iosb, nullptr, 0, 0,
+                          FILE_OPEN, FILE_DIRECTORY_FILE, nullptr, 0);
+    if (success(status))
+        dir.reset(h);
+    else {
+        print_stderr("mount: NtCreateFile returned {} for {}\n", status, directory);
+        return status;
+    }
 
     // open /dev/vfsctl
 
@@ -67,7 +79,7 @@ static nt_status mount(u16string_view source, u16string_view directory) {
 
     buf->mount_type = sizeof(MOXNOX_VFSCTL_MOUNT);
     buf->source = 0; // FIXME
-    buf->directory = 0; // FIXME
+    buf->directory = dir.get();
 
     utf16_to_utf8(span((char*)buf + buf->mount_type, u8len), mount_type);
 
