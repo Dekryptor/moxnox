@@ -61,7 +61,7 @@ static const uint64_t supported_compat_ro_flags = BTRFS_FEATURE_COMPAT_RO_FREE_S
                                                   BTRFS_FEATURE_COMPAT_RO_FREE_SPACE_TREE_VALID |
                                                   BTRFS_FEATURE_COMPAT_RO_BLOCK_GROUP_TREE;
 
-static bool btrfs_probe(volume& v);
+static nt_status btrfs_probe(volume& v);
 
 static filesystem_recognizer mod_filesystem_type = {
     {}, "btrfs", btrfs_probe
@@ -630,25 +630,25 @@ btrfs_filesystem::btrfs_filesystem(volume& vol) : filesystem(&vol) {
     }
 }
 
-static bool btrfs_probe(volume& vol) {
+static nt_status btrfs_probe(volume& vol) {
     // FIXME - need quick is_btrfs function before we do allocations?
 
     auto fs = new btrfs_filesystem(vol);
     if (!fs) {
         print("new failed\n");
-        return false;
+        return nt_status::INSUFFICIENT_RESOURCES;
     }
 
     if (!fs->valid) {
         delete fs;
-        return false;
+        return nt_status::UNRECOGNIZED_VOLUME;
     }
 
     add_fs_to_list(*fs);
 
     vol.filesystem = *fs;
 
-    return true;
+    return nt_status::SUCCESS;
 }
 
 nt_status btrfs_filesystem::read_metadata(uint64_t addr, span<uint8_t> data) {

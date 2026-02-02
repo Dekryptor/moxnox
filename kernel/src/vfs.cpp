@@ -181,7 +181,7 @@ public:
 export struct filesystem_recognizer {
     list_entry le;
     string_view name;
-    bool (*func)(volume&);
+    nt_status (*try_mount)(volume&);
 };
 
 export class file : public object {

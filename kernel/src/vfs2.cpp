@@ -94,8 +94,15 @@ static ::filesystem* do_mount_root(string_view cmdline_root) {
                 for (auto le = filesystem_types.next; le != &filesystem_types; le = le->next) {
                     auto& r = containing_record<filesystem_recognizer>(le);
 
-                    if (r.func(vol))
+                    auto status = r.try_mount(vol);
+                    if (success(status))
                         break;
+
+                    if (status == nt_status::UNRECOGNIZED_VOLUME)
+                        continue;
+
+                    bsod_format("probe function for {} returned {} for /dev/{}\n",
+                                r.name, status, cmdline_root);
                 }
             }
 
