@@ -4,6 +4,7 @@
 #include <optional>
 #include "context_offsets.h"
 #include "timer-asm.h"
+#include "assert.h"
 
 #ifdef __aarch64__
 import psci;
@@ -128,6 +129,27 @@ static object_ref create_init_process() {
                               initin, initout, initout);
 
     free(init_cmdline);
+
+    if (!ref)
+        return object_ref{};
+
+    assert(ref.get().type == object_type::process);
+
+    auto& proc = static_cast<process&>(ref.get());
+
+    object_ref vfsctl;
+
+    auto status = open_object("vfsctl", vfsctl);
+    if (!success(status))
+        bsod_format("open_object returned {} for /dev/vfsctl", status);
+
+    handle_t h;
+
+    status = proc.add_handle(vfsctl.get(), 0, true, h);
+    if (!success(status))
+        bsod_format("process::add_handle returned {}", status);
+
+    // FIXME - put in environment variable
 
     return ref;
 }
