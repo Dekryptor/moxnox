@@ -1,6 +1,8 @@
 #include <span>
 #include <string_view>
 #include <string.h>
+#include <stdint.h>
+#include <stdlib.h>
 #include <utility>
 
 import nt;
@@ -9,13 +11,29 @@ import cmdline;
 import print;
 import getopt;
 import crt;
+import unique_handle;
+import unicode;
+import moxnox_ioctls;
 
 using namespace std;
 
 static u16string_view mount_type;
 
 static nt_status mount(u16string_view source, u16string_view directory) {
-    // FIXME
+    NTSTATUS status;
+    HANDLE h;
+    OBJECT_ATTRIBUTES oa;
+    UNICODE_STRING us;
+    IO_STATUS_BLOCK iosb;
+    unique_handle vfsctl;
+    auto peb = NtCurrentTeb()->ProcessEnvironmentBlock;
+
+    static const char16_t vfsctl_path[] = u"/dev/vfsctl";
+
+    memset(&oa, 0, sizeof(oa));
+    oa.Length = sizeof(OBJECT_ATTRIBUTES);
+    oa.ObjectName = &us;
+    oa.RootDirectory = peb->ProcessParameters->CurrentDirectory.Handle;
 
     print("mount_type = \"{}\", source = \"{}\", directory = \"{}\"\n",
           mount_type, source, directory);
@@ -24,10 +42,44 @@ static nt_status mount(u16string_view source, u16string_view directory) {
 
     // FIXME - open source
     // FIXME - open directory
-    // FIXME - open /dev/vfsctl
-    // FIXME - call IOCTL_MOXNOX_VFSCTL_MOUNT
 
-    return nt_status::NOT_IMPLEMENTED;
+    // open /dev/vfsctl
+
+    us.Length = us.MaximumLength = (uint16_t)(sizeof(vfsctl_path) - sizeof(char16_t));
+    us.Buffer = (char16_t*)vfsctl_path;
+
+    status = NtCreateFile(&h, FILE_READ_ATTRIBUTES, &oa, &iosb, nullptr, 0, 0,
+                          FILE_OPEN, FILE_SYNCHRONOUS_IO_ALERT, nullptr, 0);
+    if (success(status))
+        vfsctl.reset(h);
+    else {
+        print_stderr("mount: NtCreateFile returned {} for /dev/vfsctl\n", status);
+        return status;
+    }
+
+    auto u8len = utf16_to_utf8_len(mount_type);
+    size_t buflen = sizeof(MOXNOX_VFSCTL_MOUNT) + u8len;
+    auto buf = (MOXNOX_VFSCTL_MOUNT*)malloc(buflen);
+    if (!buf) {
+        print_stderr("malloc failed\n");
+        return nt_status::INSUFFICIENT_RESOURCES;
+    }
+
+    buf->mount_type = sizeof(MOXNOX_VFSCTL_MOUNT);
+    buf->source = 0; // FIXME
+    buf->directory = 0; // FIXME
+
+    utf16_to_utf8(span((char*)buf + buf->mount_type, u8len), mount_type);
+
+    status = NtDeviceIoControlFile(vfsctl.get(), 0, nullptr, nullptr, &iosb,
+                                   IOCTL_MOXNOX_VFSCTL_MOUNT, buf,
+                                   (uint32_t)buflen, nullptr, 0);
+    if (!success(status))
+        print("IOCTL_MOXNOX_VFSCTL_MOUNT returned {}\n", status);
+
+    free(buf);
+
+    return status;
 }
 
 #ifdef __x86_64__
