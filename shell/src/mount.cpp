@@ -35,9 +35,6 @@ static nt_status mount(u16string_view source, u16string_view directory) {
     oa.ObjectName = &us;
     oa.RootDirectory = peb->ProcessParameters->CurrentDirectory.Handle;
 
-    print("mount_type = \"{}\", source = \"{}\", directory = \"{}\"\n",
-          mount_type, source, directory);
-
     // FIXME - if mount_type not given, try to guess (use libblkid?)
 
     // open source
