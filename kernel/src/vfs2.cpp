@@ -1622,17 +1622,33 @@ static nt_status vfsctl_mount(span<const uint8_t> inbuf) {
     // FIXME - prevent overmounting
     // FIXME - prevent rmdir'ing
 
+    auto& d = *dir.dentry;
+    nt_status status;
+
     {
-        lock_guard lg(dir.dentry->lock);
+        lock_guard lg(d.lock);
 
-        // FIXME - check dentry is valid
-
-        swap(dir.dentry->inode, ino2);
+        if (d.status != dentry_status::valid)
+            status = nt_status::INVALID_PARAMETER;
+        else {
+            swap(d.inode, ino2);
+            status = nt_status::SUCCESS;
+        }
     }
 
     ino2->release();
 
-    return nt_status::SUCCESS;
+    if (!success(status)) {
+        {
+            lock_guard lock(source.mount_lock);
+
+            source.filesystem = nullopt;
+        }
+
+        fs->release();
+    }
+
+    return status;
 }
 
 nt_status vfsctl::ioctl(uint32_t code, span<const uint8_t> inbuf,
