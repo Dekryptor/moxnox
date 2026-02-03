@@ -139,6 +139,9 @@ static void get_mount_info(HANDLE vfsctl, uint64_t num) {
     if (info.type != 0)
         type = string_view((char*)&info + info.type);
 
+    if (source.empty())
+        source = type;
+
     print("{} on {} type {}\n", source, directory, type);
 }
 
