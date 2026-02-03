@@ -68,7 +68,7 @@ public:
     uint64_t mtime, ctime, otime, atime;
 };
 
-extern "C++" ::filesystem* create_devfs();
+static ::filesystem* create_devfs();
 
 static filesystem_recognizer mod_filesystem_type = {
     {}, "devfs", nullptr, create_devfs
@@ -80,7 +80,7 @@ static void init_devfs() {
 
 static module_init module_init_btrfs(init_devfs);
 
-extern "C++" ::filesystem* create_devfs() {
+static ::filesystem* create_devfs() {
     auto fs = new devfs_filesystem;
     if (!fs)
         return nullptr;
