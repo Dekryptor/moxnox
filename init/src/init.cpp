@@ -12,6 +12,9 @@ import ntdll;
 import print;
 import cmdline;
 import pagesize;
+import env;
+import unique_handle;
+import moxnox_ioctls;
 
 static span<char16_t> environment;
 
@@ -454,6 +457,85 @@ static void prepare_environment() {
     environment = span(env, len);
 }
 
+static void mount_dev() {
+    OBJECT_ATTRIBUTES oa;
+    UNICODE_STRING us;
+    IO_STATUS_BLOCK iosb;
+    unique_handle vfsctl, dir;
+    nt_status status;
+
+    static const u16string_view directory = u"/dev";
+    static const string_view mount_type = "devfs";
+
+    auto e = get_env(u"VFSCTL");
+
+    if (e.empty()) {
+        print("Could not read VFSCTL environment variable.\n");
+        NtTerminateThread(NtCurrentThread(), nt_status::INTERNAL_ERROR);
+        unreachable();
+    }
+
+    uintptr_t h = 0;
+
+    auto e2 = e;
+    while (!e2.empty()) {
+        if (e2.front() < u'0' || e2.front() > u'9') {
+            print("Could not parse VFSCTL value \"{}\" as integer.\n", e);
+            NtTerminateThread(NtCurrentThread(), nt_status::INTERNAL_ERROR);
+            unreachable();
+        }
+
+        h *= 10;
+        h += e2.front() - u'0';
+        e2 = u16string_view(e2.data() + 1, e2.size() - 1);
+    }
+
+    vfsctl.reset(h);
+
+    // open directory
+
+    memset(&oa, 0, sizeof(oa));
+    oa.Length = sizeof(OBJECT_ATTRIBUTES);
+    oa.ObjectName = &us;
+
+    us.Length = us.MaximumLength = (uint16_t)(directory.size() * sizeof(char16_t));
+    us.Buffer = (char16_t*)directory.data();
+
+    status = NtCreateFile(&h, FILE_READ_ATTRIBUTES, &oa, &iosb, nullptr, 0, 0,
+                          FILE_OPEN, FILE_DIRECTORY_FILE, nullptr, 0);
+    if (success(status))
+        dir.reset(h);
+    else {
+        print("NtCreateFile returned {} for {}\n", status, directory);
+        NtTerminateThread(NtCurrentThread(), status);
+        unreachable();
+    }
+
+    size_t buflen = sizeof(MOXNOX_VFSCTL_MOUNT) + mount_type.size();
+    auto buf = (MOXNOX_VFSCTL_MOUNT*)malloc(buflen);
+    if (!buf) {
+        print("malloc failed\n");
+        NtTerminateThread(NtCurrentThread(), nt_status::INSUFFICIENT_RESOURCES);
+        unreachable();
+    }
+
+    buf->mount_type = sizeof(MOXNOX_VFSCTL_MOUNT);
+    buf->source = 0;
+    buf->directory = dir.get();
+    memcpy((char*)buf + buf->mount_type, mount_type.data(), mount_type.size());
+
+    status = NtDeviceIoControlFile(vfsctl.get(), 0, nullptr, nullptr, &iosb,
+                                   IOCTL_MOXNOX_VFSCTL_MOUNT, buf,
+                                   (uint32_t)buflen, nullptr, 0);
+    if (!success(status)) {
+        print("IOCTL_MOXNOX_VFSCTL_MOUNT returned {}\n", status);
+        NtTerminateThread(NtCurrentThread(), status);
+        unreachable();
+    }
+
+    free(buf);
+}
+
 #ifdef __x86_64__
 #define FORCE_ALIGN_ARG_POINTER __attribute__((force_align_arg_pointer))
 #else
@@ -503,6 +585,8 @@ FORCE_ALIGN_ARG_POINTER void startup() {
         if (buf)
             RtlFreeHeap(GetProcessHeap(), 0, buf);
     }
+
+    mount_dev();
 
     prepare_environment();
 
