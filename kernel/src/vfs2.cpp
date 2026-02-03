@@ -47,10 +47,19 @@ public:
                     span<uint8_t> outbuf, uintptr_t& written) override;
 };
 
+struct mount_point {
+    mount_point(dentry& d) : d(d) { }
+
+    list_entry le;
+    dentry& d;
+};
+
 static object_ref vfsctl_obj;
 
 static rwsem fs_lock;
 static list_entry fs_list = { &fs_list, &fs_list };
+static spinlock mount_points_lock;
+static list_entry mount_points { &mount_points, &mount_points };
 
 void add_fs_to_list(::filesystem& fs) {
     lock_guard lock(fs_lock);
@@ -1523,6 +1532,14 @@ static nt_status vfsctl_mount(span<const uint8_t> inbuf) {
     if (static_cast<inode&>(dir.ino).inode_type != inode_type::directory)
         return nt_status::NOT_A_DIRECTORY;
 
+    // allocate mount_point
+
+    auto mp = new mount_point(*dir.dentry);
+    if (!mp) {
+        print("new failed\n");
+        return nt_status::INSUFFICIENT_RESOURCES;
+    }
+
     // do mount
 
     ::filesystem* fs;
@@ -1535,6 +1552,7 @@ static nt_status vfsctl_mount(span<const uint8_t> inbuf) {
 
             if (source.filesystem) {
                 print("vfsctl_mount: volume already mounted\n");
+                delete mp;
                 return nt_status::DEVICE_NOT_READY;
             }
 
@@ -1550,16 +1568,21 @@ static nt_status vfsctl_mount(span<const uint8_t> inbuf) {
 
                 found_fs_type = true;
 
-                if (!r.try_mount_volume)
+                if (!r.try_mount_volume) {
+                    delete mp;
                     return nt_status::UNRECOGNIZED_VOLUME;
+                }
 
                 status = r.try_mount_volume(source);
-                if (!success(status))
+                if (!success(status)) {
+                    delete mp;
                     return status;
+                }
             }
 
             if (!found_fs_type) {
                 print("vfsctl: unrecognized filesystem type \"{}\"\n", mount_type);
+                delete mp;
                 return nt_status::UNRECOGNIZED_VOLUME;
             }
 
@@ -1577,18 +1600,23 @@ static nt_status vfsctl_mount(span<const uint8_t> inbuf) {
 
             found_fs_type = true;
 
-            if (!r.mount_without_volume)
+            if (!r.mount_without_volume) {
+                delete mp;
                 return nt_status::UNRECOGNIZED_VOLUME;
+            }
 
             fs = r.mount_without_volume(); // FIXME - get returning error
-            if (!fs)
+            if (!fs) {
+                delete mp;
                 return nt_status::INTERNAL_ERROR;
+            }
 
             break;
         }
 
         if (!found_fs_type) {
             print("vfsctl: unrecognized filesystem type \"{}\"\n", mount_type);
+            delete mp;
             return nt_status::UNRECOGNIZED_VOLUME;
         }
     }
@@ -1628,6 +1656,13 @@ static nt_status vfsctl_mount(span<const uint8_t> inbuf) {
         }
 
         fs->release();
+    }
+
+    mp->d.acquire();
+
+    {
+        lock_guard lg(mount_points_lock);
+        insert_tail_list(mount_points, mp->le);
     }
 
     return status;
