@@ -17,6 +17,7 @@ import kernel_time_page;
 import spinlock;
 import object_ref;
 import handle;
+import objects;
 import unicode;
 import module_init;
 

@@ -27,7 +27,7 @@ nt_status name_object(object& obj, string_view name, bool persistent) {
 
     optional<lock_guard<spinlock>> lock(name_lock);
 
-    if (obj.named) {
+    if (obj.name) {
         lock.reset();
         print("Object already has name\n");
         free(ne);
@@ -48,7 +48,7 @@ nt_status name_object(object& obj, string_view name, bool persistent) {
         }
     }
 
-    obj.named = true;
+    obj.name = ne;
     obj.persistent = persistent;
     ne->obj = &obj;
 
@@ -100,30 +100,22 @@ nt_status open_object(string_view name, object_ref& obj) {
 }
 
 void remove_object_name(object& obj) {
-    name_entry* ne = nullptr;
-
-    if (!obj.named)
-        return;
+    name_entry* ne;
 
     {
         lock_guard lock(name_lock);
 
-        for (auto le = name_list.next; le != &name_list; le = le->next) {
-            auto& ne2 = containing_record<name_entry>(le);
+        if (!obj.name)
+            return;
 
-            if (ne2.obj == &obj) {
-                ne = &ne2;
-                remove_entry_list(ne2.le);
-                break;
-            }
-        }
+        remove_entry_list(obj.name->le);
+
+        ne = obj.name;
+        obj.name = nullptr;
     }
 
-    if (ne) {
-        free(ne);
-        obj.named = false;
-        object_release(obj);
-    }
+    free(ne);
+    object_release(obj);
 }
 
 void handle_closed(object& obj) {
@@ -134,6 +126,6 @@ void handle_closed(object& obj) {
     if (new_handle_count == 0)
         object_last_handle_closed(obj);
 
-    if (obj.named && !obj.persistent && new_handle_count == 0)
+    if (obj.name && !obj.persistent && new_handle_count == 0)
         remove_object_name(obj);
 }

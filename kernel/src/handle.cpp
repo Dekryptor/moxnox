@@ -15,15 +15,6 @@ using namespace std;
 
 export using handle_t = uint64_t;
 
-export struct name_entry {
-    list_entry le;
-    object* obj;
-    unsigned int index;
-    uint64_t creation_time;
-    size_t name_len;
-    char name[1];
-};
-
 export const size_t MAX_NAME_LEN = 256;
 
 export spinlock name_lock;

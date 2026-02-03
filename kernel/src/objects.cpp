@@ -59,6 +59,17 @@ export span<char> do_format_arg(span<char> sp, string_view, object_type arg) {
     }
 }
 
+export extern "C++" class object;
+
+export struct name_entry {
+    list_entry le;
+    object* obj;
+    unsigned int index;
+    uint64_t creation_time;
+    size_t name_len;
+    char name[1];
+};
+
 export
 extern "C++"
 class object {
@@ -68,7 +79,7 @@ public:
     enum object_type type;
     atomic<unsigned int> refcount = 1;
     atomic<unsigned int> handle_count = 0;
-    bool named = false;
+    name_entry* name = nullptr;
     bool persistent = false;
 };
 
