@@ -422,3 +422,53 @@ void* memcpy(void* dest, const void* src, size_t n) {
     return orig_dest;
 }
 #endif
+
+export
+extern "C"
+size_t wcslen(const wchar_t* s) {
+    size_t i = 0;
+
+    while (s[i] != 0) {
+        i++;
+    }
+
+    return i;
+}
+
+export
+extern "C"
+int wcscmp(const wchar_t* s1, const wchar_t* s2) {
+    size_t i = 0;
+
+    while (true) {
+        wchar_t c1 = s1[i];
+        wchar_t c2 = s2[i];
+
+        if (c1 == 0 && c2 == 0)
+            return 0;
+        else if (c1 == 0)
+            return -1;
+        else if (c2 == 0)
+            return 1;
+
+        if (c1 != c2)
+            return c1 > c2 ? 1 : -1;
+
+        i++;
+    }
+}
+
+export
+extern "C"
+char* strrchr(const char* s, int c) {
+    char* last = nullptr;
+
+    while (*s) {
+        if (*s == c)
+            last = (char*)s;
+
+        s++;
+    }
+
+    return last;
+}
