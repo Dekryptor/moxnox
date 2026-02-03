@@ -113,6 +113,35 @@ static nt_status mount(u16string_view source, u16string_view directory) {
     return status;
 }
 
+static void get_mount_info(HANDLE vfsctl, uint64_t num) {
+    IO_STATUS_BLOCK iosb;
+    nt_status status;
+    char buf[512];
+
+    auto& info = *(MOXNOX_VFSCTL_MOUNT_INFO*)buf;
+
+    status = NtDeviceIoControlFile(vfsctl, 0, nullptr, nullptr, &iosb,
+                                   IOCTL_MOXNOX_VFSCTL_GET_MOUNT_INFO,
+                                   &num, sizeof(num), &info, (uint32_t)sizeof(buf));
+    if (!success(status)) {
+        print("IOCTL_MOXNOX_VFSCTL_GET_MOUNT_INFO returned {}\n", status);
+        return;
+    }
+
+    string_view source, directory, type;
+
+    if (info.source != 0)
+        source = string_view((char*)&info + info.source);
+
+    if (info.directory != 0)
+        directory = string_view((char*)&info + info.directory);
+
+    if (info.type != 0)
+        type = string_view((char*)&info + info.type);
+
+    print("{} on {} type {}\n", source, directory, type);
+}
+
 static nt_status list_mounts() {
     OBJECT_ATTRIBUTES oa;
     UNICODE_STRING us;
@@ -167,9 +196,10 @@ static nt_status list_mounts() {
         return status;
     }
 
+    // FIXME - really ought to start from the beginning again if get_mount_info encounters nt_status::NOT_FOUND
+
     for (unsigned int i = 0; i < lm2->num; i++) {
-        // FIXME
-        print("{}\n", lm2->ids[i]);
+        get_mount_info(vfsctl.get(), lm2->ids[i]);
     }
 
     free(lm2);
