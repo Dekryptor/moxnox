@@ -5,6 +5,7 @@ module;
 #include <optional>
 #include <string_view>
 #include <mutex>
+#include <atomic>
 #include <stdint.h>
 #include "assert.h"
 
