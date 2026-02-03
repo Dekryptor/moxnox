@@ -276,6 +276,19 @@ static bool extract_initrd() {
     root_dentry->name_len = 0;
     root_dentry->parent = nullptr;
 
+    auto mp = new mount_point(*root_dentry);
+    if (!mp) {
+        print("new failed\n");
+        return false;
+    }
+
+    mp->type = tmpfs;
+
+    {
+        lock_guard lg(mount_points_lock);
+        insert_tail_list(mount_points, mp->le);
+    }
+
     root_dentry->inode->acquire();
 
     process_cpio(initrd, [&](string_view path, uint64_t mode, span<const uint8_t> contents, uint64_t mtime) {
