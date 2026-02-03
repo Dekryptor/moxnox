@@ -50,8 +50,9 @@ public:
 struct mount_point {
     mount_point(dentry& d) : d(d) { }
 
-    uint64_t num;
     list_entry le;
+    uint64_t num;
+    filesystem_recognizer* type;
     dentry& d;
 };
 
@@ -1545,6 +1546,7 @@ static nt_status vfsctl_mount(span<const uint8_t> inbuf) {
     // do mount
 
     ::filesystem* fs;
+    filesystem_recognizer* type;
 
     if (sourcerw) {
         auto& source = static_cast<volume&>(sourcerw.get());
@@ -1580,6 +1582,8 @@ static nt_status vfsctl_mount(span<const uint8_t> inbuf) {
                     delete mp;
                     return status;
                 }
+
+                type = &r;
             }
 
             if (!found_fs_type) {
@@ -1612,6 +1616,8 @@ static nt_status vfsctl_mount(span<const uint8_t> inbuf) {
                 delete mp;
                 return nt_status::INTERNAL_ERROR;
             }
+
+            type = &r;
 
             break;
         }
@@ -1661,6 +1667,7 @@ static nt_status vfsctl_mount(span<const uint8_t> inbuf) {
     }
 
     mp->num = mount_point_num.fetch_add(1) + 1;
+    mp->type = type;
     mp->d.acquire();
 
     {
