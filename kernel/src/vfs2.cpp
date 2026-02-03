@@ -1794,6 +1794,53 @@ static nt_status vfsctl_list_mounts(span<uint8_t> outbuf, uintptr_t& written) {
     }
 }
 
+static nt_status get_source_path(object& obj, char*& src, size_t& src_len) {
+    // FIXME - do we really want to be hardcoding this path?
+    static const string_view prefix = "/dev/";
+
+    do {
+        size_t len;
+
+        {
+            lock_guard lg(name_lock);
+
+            if (!obj.name) {
+                src = nullptr;
+                src_len = 0;
+                return nt_status::NOT_FOUND;
+            }
+
+            len = obj.name->name_len;
+        }
+
+        src = (char*)malloc(prefix.size() + len);
+        if (!src)
+            return nt_status::INSUFFICIENT_RESOURCES;
+
+        memcpy(src, prefix.data(), prefix.size());
+
+        src_len = prefix.size() + len;
+
+        {
+            lock_guard lg(name_lock);
+
+            if (!obj.name) {
+                src = nullptr;
+                src_len = 0;
+                return nt_status::NOT_FOUND;
+            }
+
+            if (obj.name->name_len == len) {
+                memcpy(src + prefix.size(), obj.name->name,
+                       obj.name->name_len);
+                return nt_status::SUCCESS;
+            }
+        }
+
+        free(src);
+    } while (true);
+}
+
 static nt_status vfsctl_get_mount_info(span<const uint8_t> inbuf,
                                        span<uint8_t> outbuf,
                                        uintptr_t& written) {
@@ -1826,7 +1873,8 @@ static nt_status vfsctl_get_mount_info(span<const uint8_t> inbuf,
 
     auto& mp = *pmp;
     char* path;
-    size_t path_len;
+    char* src = nullptr;
+    size_t path_len, src_len = 0;
 
     auto status = get_dentry_path(mp.d, path, path_len);
     if (!success(status)) {
@@ -1835,7 +1883,28 @@ static nt_status vfsctl_get_mount_info(span<const uint8_t> inbuf,
         return status;
     }
 
-    string_view source = "?source?"; // FIXME
+    if (mp.vol) {
+        status = get_source_path(*mp.vol, src, src_len);
+        if (status == nt_status::NOT_FOUND) {
+            src_len = 1;
+            src = (char*)malloc(src_len);
+            if (!src) {
+                print("malloc failed\n");
+                free(path);
+                mp.release();
+                return nt_status::INSUFFICIENT_RESOURCES;
+            }
+
+            src[0] = '?';
+        } else if (!success(status)) {
+            print("get_source_path returned {}\n", status);
+            free(path);
+            mp.release();
+            return status;
+        }
+    }
+
+    string_view source = string_view(src, src_len);
     string_view directory = string_view(path, path_len);
     string_view type = mp.type->name;
 
@@ -1850,6 +1919,7 @@ static nt_status vfsctl_get_mount_info(span<const uint8_t> inbuf,
         if (left < source.size() + 1) {
             mp.release();
             free(path);
+            free(src);
             return nt_status::BUFFER_OVERFLOW;
         }
 
@@ -1864,6 +1934,7 @@ static nt_status vfsctl_get_mount_info(span<const uint8_t> inbuf,
         if (left < directory.size() + 1) {
             mp.release();
             free(path);
+            free(src);
             return nt_status::BUFFER_OVERFLOW;
         }
 
@@ -1878,6 +1949,7 @@ static nt_status vfsctl_get_mount_info(span<const uint8_t> inbuf,
         if (left < type.size() + 1) {
             mp.release();
             free(path);
+            free(src);
             return nt_status::BUFFER_OVERFLOW;
         }
 
@@ -1890,6 +1962,7 @@ static nt_status vfsctl_get_mount_info(span<const uint8_t> inbuf,
 
     mp.release();
     free(path);
+    free(src);
 
     return nt_status::SUCCESS;
 }
