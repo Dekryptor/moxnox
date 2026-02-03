@@ -50,6 +50,7 @@ public:
 struct mount_point {
     mount_point(dentry& d) : d(d) { }
 
+    uint64_t num;
     list_entry le;
     dentry& d;
 };
@@ -60,6 +61,7 @@ static rwsem fs_lock;
 static list_entry fs_list = { &fs_list, &fs_list };
 static spinlock mount_points_lock;
 static list_entry mount_points { &mount_points, &mount_points };
+static atomic<uint64_t> mount_point_num;
 
 void add_fs_to_list(::filesystem& fs) {
     lock_guard lock(fs_lock);
@@ -1658,6 +1660,7 @@ static nt_status vfsctl_mount(span<const uint8_t> inbuf) {
         fs->release();
     }
 
+    mp->num = mount_point_num.fetch_add(1) + 1;
     mp->d.acquire();
 
     {
@@ -1668,11 +1671,45 @@ static nt_status vfsctl_mount(span<const uint8_t> inbuf) {
     return status;
 }
 
+static nt_status vfsctl_list_mounts(span<uint8_t> outbuf, uintptr_t& written) {
+    if (outbuf.size() < offsetof(MOXNOX_VFSCTL_LIST_MOUNTS, ids))
+        return nt_status::BUFFER_TOO_SMALL;
+
+    auto& m = *(MOXNOX_VFSCTL_LIST_MOUNTS*)outbuf.data();
+    auto max_num = (outbuf.size() - offsetof(MOXNOX_VFSCTL_LIST_MOUNTS, ids)) / sizeof(uint64_t);
+
+    m.num = 0;
+
+    {
+        lock_guard lg(mount_points_lock);
+
+        for (auto le = mount_points.next; le != &mount_points; le = le->next) {
+            auto& mp = containing_record<mount_point>(le);
+
+            if (m.num < max_num)
+                m.ids[m.num] = mp.num;
+
+            m.num++;
+        }
+    }
+
+    if (m.num > max_num) {
+        written = offsetof(MOXNOX_VFSCTL_LIST_MOUNTS, ids) + (max_num * sizeof(uint64_t));
+        return nt_status::BUFFER_OVERFLOW;
+    } else {
+        written = offsetof(MOXNOX_VFSCTL_LIST_MOUNTS, ids) + (m.num * sizeof(uint64_t));
+        return nt_status::SUCCESS;
+    }
+}
+
 nt_status vfsctl::ioctl(uint32_t code, span<const uint8_t> inbuf,
-                        span<uint8_t> /*outbuf*/, uintptr_t& /*written*/) {
+                        span<uint8_t> outbuf, uintptr_t& written) {
     switch (code) {
         case IOCTL_MOXNOX_VFSCTL_MOUNT:
             return vfsctl_mount(inbuf);
+
+        case IOCTL_MOXNOX_VFSCTL_LIST_MOUNTS:
+            return vfsctl_list_mounts(outbuf, written);
 
         default:
             return nt_status::NOT_IMPLEMENTED;
