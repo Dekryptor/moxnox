@@ -109,7 +109,7 @@ tmpfs_filesystem::tmpfs_filesystem() : filesystem(nullptr) {
     tmpfs_root_inode->otime = cur_time;
 }
 
-extern "C++" ::filesystem* create_tmpfs();
+static ::filesystem* create_tmpfs();
 
 static filesystem_recognizer mod_filesystem_type = {
     {}, "tmpfs", nullptr, create_tmpfs
@@ -121,7 +121,7 @@ static void init_tmpfs() {
 
 static module_init module_init_btrfs(init_tmpfs);
 
-extern "C++" ::filesystem* create_tmpfs() {
+static ::filesystem* create_tmpfs() {
     auto fs = new tmpfs_filesystem();
     if (!fs)
         return nullptr;

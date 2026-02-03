@@ -26,9 +26,6 @@ import moxnox_ioctls;
 
 using namespace std;
 
-// tmpfs.cpp (FIXME)
-extern "C++" ::filesystem* create_tmpfs();
-
 static const guid moxnox_partition_guid = { 0x5dd71063, 0x95c9, 0x41b2, { 0x82, 0x52, 0x84, 0x13, 0xfe, 0xac, 0x64, 0x90 } };
 
 class vfsctl : public chardev {
@@ -246,9 +243,26 @@ static nt_status extract_initrd_file(string_view path, uint64_t mode,
 }
 
 static bool extract_initrd() {
-    auto fs = create_tmpfs();
+    filesystem_recognizer* tmpfs = nullptr;
+
+    // FIXME - spinlock for this once we have module system
+    for (auto le = filesystem_types.next; le != &filesystem_types; le = le->next) {
+        auto& r = containing_record<filesystem_recognizer>(le);
+
+        if (r.name == "tmpfs") {
+            tmpfs = &r;
+            break;
+        }
+    }
+
+    if (!tmpfs) {
+        print("could not find tmpfs filesystem recognizer\n");
+        return false;
+    }
+
+    auto fs = tmpfs->mount_without_volume();
     if (!fs) {
-        print("create_tmpfs failed\n");
+        print("tmpfs->mount_without_volume failed\n");
         return false;
     }
 
