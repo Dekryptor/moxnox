@@ -304,61 +304,6 @@ bool mount_root() {
     return true;
 }
 
-bool mount_devfs() {
-    object_ref dev;
-    optional<reference_wrapper<dentry>> drw;
-    unsigned int result;
-
-    // FIXME - do this in init instead
-
-    auto status = open_inode("/dev", *root_dentry, dev, drw, FILE_OPEN_IF,
-                             FILE_DIRECTORY_FILE, result, false);
-    if (!success(status)) {
-        print("open_inode returned {}\n", status);
-        return false;
-    }
-
-    if (!drw) {
-        print("open_inode did not return a dentry\n");
-        return false;
-    }
-
-    auto& d = drw->get();
-
-    if (dev.get().type != object_type::inode) {
-        print("/dev was {}, expected inode\n", dev.get().type);
-        d.release();
-        return false;
-    }
-
-    auto& ino = static_cast<inode&>(dev.get());
-
-    if (ino.inode_type != inode_type::directory) {
-        print("/dev was {}, expected directory\n", ino.inode_type);
-        d.release();
-        return false;
-    }
-
-    auto fs = create_devfs();
-    if (!fs) {
-        print("create_devfs failed\n");
-        return false;
-    }
-
-    inode* ino2 = fs->root_inode;
-
-    ino2->acquire();
-
-    {
-        lock_guard lg(d.parent->child_lock);
-        swap(d.inode, ino2);
-    }
-
-    ino2->release();
-
-    return true;
-}
-
 static bool add_to_dentry_cache(dentry& dir, string_view name, inode& ino,
                                 optional<reference_wrapper<dentry>>& drw) {
     auto p = malloc(sizeof(dentry));

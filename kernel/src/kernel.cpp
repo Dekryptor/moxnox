@@ -249,9 +249,6 @@ void main_thread(void* ctx) {
     if (!mount_root())
         bsod("mount_root failed");
 
-    if (!mount_devfs())
-        bsod("mount_devfs failed");
-
     load_ntdll();
     create_time_page();
 
