@@ -24,5 +24,9 @@ strtol
 strncpy
 strtoul
 strchr
+strcat
+strrchr
+wcscmp
+wcslen
 LdrGetProcedureAddress
 NtQuerySystemTime

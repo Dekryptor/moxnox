@@ -23,6 +23,10 @@ strncpy
 strtoul
 strchr
 memcpy
+strcat
+strrchr
+wcscmp
+wcslen
 NtDisplayString
 NtTerminateThread
 NtTerminateProcess
