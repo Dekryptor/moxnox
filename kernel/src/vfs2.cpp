@@ -47,6 +47,11 @@ public:
 struct mount_point {
     mount_point(dentry& d) : d(d) { }
 
+    ~mount_point() {
+        if (vol)
+            vol->release();
+    }
+
     void acquire() {
         refcount++;
     }
@@ -59,6 +64,7 @@ struct mount_point {
     list_entry le;
     uint64_t num;
     filesystem_recognizer* type;
+    volume* vol = nullptr;
     dentry& d;
     atomic<unsigned int> refcount = 1;
 };
@@ -77,7 +83,8 @@ void add_fs_to_list(::filesystem& fs) {
 }
 
 static ::filesystem* do_mount_root(string_view cmdline_root,
-                                   filesystem_recognizer*& type) {
+                                   filesystem_recognizer*& type,
+                                   volume*& volptr) {
     ::filesystem* ret = nullptr;
 
     if (!cmdline_root.empty()) {
@@ -134,6 +141,9 @@ static ::filesystem* do_mount_root(string_view cmdline_root,
             }
 
             ret = &vol.filesystem->get();
+
+            vol.acquire();
+            volptr = &vol;
 
             return ret;
         }
@@ -335,14 +345,19 @@ bool mount_root() {
     });
 
     filesystem_recognizer* type = nullptr;
+    volume* vol = nullptr;
 
-    auto root_fs = do_mount_root(cmdline_root, type);
+    auto root_fs = do_mount_root(cmdline_root, type, vol);
     if (!root_fs)
         return false;
 
     root_dentry = new dentry;
     if (!root_dentry) {
         print("new failed\n");
+
+        if (vol)
+            vol->release();
+
         return false;
     }
 
@@ -353,10 +368,15 @@ bool mount_root() {
     auto mp = new mount_point(*root_dentry);
     if (!mp) {
         print("new failed\n");
+
+        if (vol)
+            vol->release();
+
         return false;
     }
 
     mp->type = type;
+    mp->vol = vol;
 
     {
         lock_guard lg(mount_points_lock);
@@ -1602,6 +1622,7 @@ static nt_status vfsctl_mount(span<const uint8_t> inbuf) {
 
     ::filesystem* fs;
     filesystem_recognizer* type;
+    volume* vol;
 
     if (sourcerw) {
         auto& source = static_cast<volume&>(sourcerw.get());
@@ -1639,6 +1660,7 @@ static nt_status vfsctl_mount(span<const uint8_t> inbuf) {
                 }
 
                 type = &r;
+                vol = &source;
             }
 
             if (!found_fs_type) {
@@ -1673,6 +1695,7 @@ static nt_status vfsctl_mount(span<const uint8_t> inbuf) {
             }
 
             type = &r;
+            vol = nullptr;
 
             break;
         }
@@ -1723,6 +1746,12 @@ static nt_status vfsctl_mount(span<const uint8_t> inbuf) {
 
     mp->num = mount_point_num.fetch_add(1) + 1;
     mp->type = type;
+
+    if (vol) {
+        mp->vol = vol;
+        vol->acquire();
+    }
+
     mp->d.acquire();
 
     {
