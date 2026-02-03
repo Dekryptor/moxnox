@@ -79,7 +79,8 @@ void add_fs_to_list(::filesystem& fs) {
     insert_tail_list(fs_list, fs.le);
 }
 
-static ::filesystem* do_mount_root(string_view cmdline_root) {
+static ::filesystem* do_mount_root(string_view cmdline_root,
+                                   filesystem_recognizer*& type) {
     ::filesystem* ret = nullptr;
 
     if (!cmdline_root.empty()) {
@@ -117,8 +118,10 @@ static ::filesystem* do_mount_root(string_view cmdline_root) {
                         continue;
 
                     auto status = r.try_mount_volume(vol);
-                    if (success(status))
+                    if (success(status)) {
+                        type = &r;
                         break;
+                    }
 
                     if (status == nt_status::UNRECOGNIZED_VOLUME)
                         continue;
@@ -304,7 +307,9 @@ bool mount_root() {
         return false;
     });
 
-    auto root_fs = do_mount_root(cmdline_root);
+    filesystem_recognizer* type = nullptr;
+
+    auto root_fs = do_mount_root(cmdline_root, type);
     if (!root_fs)
         return false;
 
@@ -317,6 +322,19 @@ bool mount_root() {
     root_dentry->inode = root_fs->root_inode;
     root_dentry->name_len = 0;
     root_dentry->parent = nullptr;
+
+    auto mp = new mount_point(*root_dentry);
+    if (!mp) {
+        print("new failed\n");
+        return false;
+    }
+
+    mp->type = type;
+
+    {
+        lock_guard lg(mount_points_lock);
+        insert_tail_list(mount_points, mp->le);
+    }
 
     root_dentry->inode->acquire();
 
