@@ -1793,6 +1793,106 @@ static nt_status vfsctl_list_mounts(span<uint8_t> outbuf, uintptr_t& written) {
     }
 }
 
+static nt_status vfsctl_get_mount_info(span<const uint8_t> inbuf,
+                                       span<uint8_t> outbuf,
+                                       uintptr_t& written) {
+    if (inbuf.size() < sizeof(uint64_t))
+        return nt_status::BUFFER_TOO_SMALL;
+
+    if (outbuf.size() < sizeof(MOXNOX_VFSCTL_MOUNT_INFO))
+        return nt_status::BUFFER_TOO_SMALL;
+
+    auto num = *(uint64_t*)inbuf.data();
+    auto& out = *(MOXNOX_VFSCTL_MOUNT_INFO*)outbuf.data();
+    mount_point* pmp = nullptr;
+
+    {
+        lock_guard lg(mount_points_lock);
+
+        for (auto le = mount_points.next; le != &mount_points; le = le->next) {
+            auto& mp2 = containing_record<mount_point>(le);
+
+            if (mp2.num == num) {
+                mp2.acquire();
+                pmp = &mp2;
+                break;
+            }
+        }
+    }
+
+    if (!pmp)
+        return nt_status::NOT_FOUND;
+
+    auto& mp = *pmp;
+    char* path;
+    size_t path_len;
+
+    auto status = get_dentry_path(mp.d, path, path_len);
+    if (!success(status)) {
+        print("get_dentry_path returned {}\n", status);
+        mp.release();
+        return status;
+    }
+
+    string_view source = "?source?"; // FIXME
+    string_view directory = string_view(path, path_len);
+    string_view type = mp.type->name;
+
+    auto left = outbuf.size() - sizeof(MOXNOX_VFSCTL_MOUNT_INFO);
+
+    out.source = 0;
+    out.directory = 0;
+    out.type = 0;
+    written = sizeof(MOXNOX_VFSCTL_MOUNT_INFO);
+
+    if (!source.empty()) {
+        if (left < source.size() + 1) {
+            mp.release();
+            free(path);
+            return nt_status::BUFFER_OVERFLOW;
+        }
+
+        out.source = (uint32_t)(outbuf.size() - left);
+        memcpy((char*)&out + out.source, source.data(), source.size());
+        *((char*)&out + out.source + source.size()) = 0;
+        left -= source.size() + 1;
+        written += source.size() + 1;
+    }
+
+    if (!directory.empty()) {
+        if (left < directory.size() + 1) {
+            mp.release();
+            free(path);
+            return nt_status::BUFFER_OVERFLOW;
+        }
+
+        out.directory = (uint32_t)(outbuf.size() - left);
+        memcpy((char*)&out + out.directory, directory.data(), directory.size());
+        *((char*)&out + out.directory + directory.size()) = 0;
+        left -= directory.size() + 1;
+        written += directory.size() + 1;
+    }
+
+    if (!type.empty()) {
+        if (left < type.size() + 1) {
+            mp.release();
+            free(path);
+            return nt_status::BUFFER_OVERFLOW;
+        }
+
+        out.type = (uint32_t)(outbuf.size() - left);
+        memcpy((char*)&out + out.type, type.data(), type.size());
+        *((char*)&out + out.type + type.size()) = 0;
+        left -= type.size() + 1;
+        written += type.size() + 1;
+    }
+
+    mp.release();
+    free(path);
+
+    return nt_status::SUCCESS;
+}
+
 nt_status vfsctl::ioctl(uint32_t code, span<const uint8_t> inbuf,
                         span<uint8_t> outbuf, uintptr_t& written) {
     switch (code) {
@@ -1801,6 +1901,9 @@ nt_status vfsctl::ioctl(uint32_t code, span<const uint8_t> inbuf,
 
         case IOCTL_MOXNOX_VFSCTL_LIST_MOUNTS:
             return vfsctl_list_mounts(outbuf, written);
+
+        case IOCTL_MOXNOX_VFSCTL_GET_MOUNT_INFO:
+            return vfsctl_get_mount_info(inbuf, outbuf, written);
 
         default:
             return nt_status::NOT_IMPLEMENTED;
