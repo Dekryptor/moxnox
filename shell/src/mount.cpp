@@ -17,6 +17,8 @@ import moxnox_ioctls;
 
 using namespace std;
 
+static const char16_t vfsctl_path[] = u"/dev/vfsctl";
+
 static u16string_view mount_type;
 
 static nt_status mount(u16string_view source, u16string_view directory) {
@@ -27,8 +29,6 @@ static nt_status mount(u16string_view source, u16string_view directory) {
     IO_STATUS_BLOCK iosb;
     unique_handle src, dir, vfsctl;
     auto peb = NtCurrentTeb()->ProcessEnvironmentBlock;
-
-    static const char16_t vfsctl_path[] = u"/dev/vfsctl";
 
     memset(&oa, 0, sizeof(oa));
     oa.Length = sizeof(OBJECT_ATTRIBUTES);
@@ -113,6 +113,70 @@ static nt_status mount(u16string_view source, u16string_view directory) {
     return status;
 }
 
+static nt_status list_mounts() {
+    OBJECT_ATTRIBUTES oa;
+    UNICODE_STRING us;
+    IO_STATUS_BLOCK iosb;
+    nt_status status;
+    HANDLE h;
+    unique_handle vfsctl;
+
+    // open /dev/vfsctl
+
+    memset(&oa, 0, sizeof(oa));
+    oa.Length = sizeof(OBJECT_ATTRIBUTES);
+    oa.ObjectName = &us;
+
+    us.Length = us.MaximumLength = (uint16_t)(sizeof(vfsctl_path) - sizeof(char16_t));
+    us.Buffer = (char16_t*)vfsctl_path;
+
+    status = NtCreateFile(&h, FILE_READ_ATTRIBUTES, &oa, &iosb, nullptr, 0, 0,
+                          FILE_OPEN, 0, nullptr, 0);
+    if (!success(status)) {
+        print_stderr("mount: NtCreateFile returned {} for /dev/vfsctl\n", status);
+        return status;
+    }
+
+    vfsctl.reset(h);
+
+    // get mount IDs
+
+    MOXNOX_VFSCTL_LIST_MOUNTS lm1;
+
+    status = NtDeviceIoControlFile(vfsctl.get(), 0, nullptr, nullptr, &iosb,
+                                   IOCTL_MOXNOX_VFSCTL_LIST_MOUNTS, nullptr, 0,
+                                   &lm1, offsetof(MOXNOX_VFSCTL_LIST_MOUNTS, ids));
+    if (!success(status) && status != nt_status::BUFFER_OVERFLOW) {
+        print("IOCTL_MOXNOX_VFSCTL_LIST_MOUNTS returned {}\n", status);
+        return status;
+    }
+
+    size_t lm_size = offsetof(MOXNOX_VFSCTL_LIST_MOUNTS, ids) + (lm1.num * sizeof(uint64_t));
+    auto lm2 = (MOXNOX_VFSCTL_LIST_MOUNTS*)malloc(lm_size);
+    if (!lm2) {
+        print("malloc failed\n");
+        return nt_status::INSUFFICIENT_RESOURCES;
+    }
+
+    status = NtDeviceIoControlFile(vfsctl.get(), 0, nullptr, nullptr, &iosb,
+                                   IOCTL_MOXNOX_VFSCTL_LIST_MOUNTS, nullptr, 0,
+                                   lm2, (uint32_t)lm_size);
+    if (!success(status)) {
+        print("IOCTL_MOXNOX_VFSCTL_LIST_MOUNTS returned {}\n", status);
+        free(lm2);
+        return status;
+    }
+
+    for (unsigned int i = 0; i < lm2->num; i++) {
+        // FIXME
+        print("{}\n", lm2->ids[i]);
+    }
+
+    free(lm2);
+
+    return nt_status::SUCCESS;
+}
+
 #ifdef __x86_64__
 #define FORCE_ALIGN_ARG_POINTER __attribute__((force_align_arg_pointer))
 #else
@@ -156,10 +220,11 @@ extern "C" FORCE_ALIGN_ARG_POINTER void startup() {
         unreachable();
     }
 
-    // FIXME - show list of mounts if no source or directory given
     // FIXME - if only one option, try to mount from /etc/fstab
 
-    if (argv.size() < 2) {
+    if (argv.size() == 0)
+        status = list_mounts();
+    else if (argv.size() < 2) {
         print_stderr("no source or directory given\n");
         status = nt_status::INVALID_PARAMETER;
     } else
