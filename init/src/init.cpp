@@ -492,7 +492,7 @@ static void mount_dev() {
 
     vfsctl.reset(h);
 
-    // open directory
+    // open or create directory
 
     memset(&oa, 0, sizeof(oa));
     oa.Length = sizeof(OBJECT_ATTRIBUTES);
@@ -502,7 +502,7 @@ static void mount_dev() {
     us.Buffer = (char16_t*)directory.data();
 
     status = NtCreateFile(&h, FILE_READ_ATTRIBUTES, &oa, &iosb, nullptr, 0, 0,
-                          FILE_OPEN, FILE_DIRECTORY_FILE, nullptr, 0);
+                          FILE_OPEN_IF, FILE_DIRECTORY_FILE, nullptr, 0);
     if (success(status))
         dir.reset(h);
     else {
