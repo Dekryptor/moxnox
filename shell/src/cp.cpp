@@ -258,147 +258,6 @@ static nt_status cp(u16string_view src, u16string_view dest) {
     return status;
 }
 
-static nt_status cp_multiple(span<u16string_view> srcs, u16string_view dest) {
-    auto peb = NtCurrentTeb()->ProcessEnvironmentBlock;
-    nt_status status;
-    OBJECT_ATTRIBUTES oa;
-    UNICODE_STRING us;
-    IO_STATUS_BLOCK iosb;
-    HANDLE h;
-    unique_handle destdir;
-
-    // try to open dest
-
-    us.Length = us.MaximumLength = (uint16_t)(dest.size() * sizeof(char16_t));
-    us.Buffer = (char16_t*)dest.data();
-
-    memset(&oa, 0, sizeof(oa));
-    oa.Length = sizeof(OBJECT_ATTRIBUTES);
-    oa.ObjectName = &us;
-    oa.RootDirectory = peb->ProcessParameters->CurrentDirectory.Handle;
-
-    status = NtCreateFile(&h, FILE_READ_ATTRIBUTES, &oa, &iosb, nullptr, 0, 0,
-                          FILE_OPEN, FILE_DIRECTORY_FILE, nullptr, 0);
-    if (status == nt_status::NOT_A_DIRECTORY) {
-        print_stderr("cp: target '{}': Not a directory\n", dest);
-        return status;
-    } else if (status == nt_status::OBJECT_NAME_NOT_FOUND ||
-               status == nt_status::OBJECT_PATH_NOT_FOUND) {
-        print_stderr("cp: target '{}': No such file or directory\n", dest);
-        return status;
-    } else if (!success(status)) {
-        print_stderr("cp: target '{}': NtCreateFile returned {}\n", dest, status);
-        return status;
-    }
-
-    destdir.reset(h);
-
-    for (auto src : srcs)  {
-        unique_handle srch, desth;
-
-        // open src
-
-        oa.RootDirectory = peb->ProcessParameters->CurrentDirectory.Handle;
-
-        us.Length = us.MaximumLength = (uint16_t)(src.size() * sizeof(char16_t));
-        us.Buffer = (char16_t*)src.data();
-
-        status = NtCreateFile(&h, FILE_READ_DATA | SYNCHRONIZE, &oa, &iosb,
-                              nullptr, 0, 0, FILE_OPEN,
-                              FILE_NON_DIRECTORY_FILE | FILE_SYNCHRONOUS_IO_ALERT,
-                              nullptr, 0);
-        if (status == nt_status::OBJECT_NAME_NOT_FOUND ||
-            status == nt_status::OBJECT_PATH_NOT_FOUND) {
-            print_stderr("cp: '{}': No such file or directory\n", src);
-            continue;
-        } else if (status == nt_status::FILE_IS_A_DIRECTORY) {
-            print_stderr("cp: -r not specified; omitting directory '{}'\n", src); // FIXME
-            continue;
-        } else if (!success(status)) {
-            print_stderr("cp: '{}': NtCreateFile returned {}\n", src, status);
-            continue;
-        }
-
-        srch.reset(h);
-
-        // open dst
-
-        u16string_view fn;
-
-        if (auto slash = src.find_last_of(u'/'); slash != u16string_view::npos)
-            fn = u16string_view(src.data() + slash + 1, src.size() - slash - 1);
-        else
-            fn = src;
-
-        oa.RootDirectory = destdir.get();
-
-        us.Length = us.MaximumLength = (uint16_t)(fn.size() * sizeof(char16_t));
-        us.Buffer = (char16_t*)fn.data();
-
-        // FIXME - show error if src and dst are same file (open dst first, and compare inode numbers and device?)
-
-        // FIXME - --interactive option
-        // FIXME - preallocate size
-        // FIXME - check src is file
-        // FIXME - copying things other than files (symlinks, Linux block or char devs, etc.)
-
-        status = NtCreateFile(&h, FILE_WRITE_DATA | SYNCHRONIZE | DELETE, &oa,
-                              &iosb, nullptr, 0, 0, FILE_OVERWRITE_IF,
-                              FILE_NON_DIRECTORY_FILE | FILE_SYNCHRONOUS_IO_ALERT,
-                              nullptr, 0);
-
-        if (success(status))
-            desth.reset(h);
-        else if (status == nt_status::OBJECT_PATH_NOT_FOUND ||
-                status == nt_status::OBJECT_NAME_NOT_FOUND) {
-            print_stderr("cp: cannot create regular file '{}/{}': No such file or directory\n",
-                         dest, fn);
-            continue;
-        } else {
-            print_stderr("cp: cannot create regular file '{}/{}': NtCreateFile returned {}\n",
-                         dest, fn, status);
-            continue;
-        }
-
-        // copy
-
-        {
-            auto fnbuf = (char16_t*)malloc((dest.size() + 1 + fn.size()) * sizeof(char16_t));
-
-            if (!fnbuf) {
-                print("malloc failed\n");
-                status = nt_status::INSUFFICIENT_RESOURCES;
-            } else {
-                memcpy(fnbuf, dest.data(), dest.size() * sizeof(char16_t));
-                fnbuf[dest.size()] = u'/';
-                memcpy(fnbuf + dest.size() + 1, fn.data(),
-                    fn.size() * sizeof(char16_t));
-
-                auto dest2 = u16string_view(fnbuf, dest.size() + 1 + fn.size());
-
-                status = copy_file(srch.get(), desth.get(), src, dest2);
-
-                free(fnbuf);
-            }
-        }
-
-        if (!success(status)) {
-            FILE_DISPOSITION_INFORMATION fdi;
-
-            fdi.DeleteFile = true;
-
-            auto status2 = NtSetInformationFile(desth.get(), &iosb, &fdi, sizeof(fdi),
-                                                FILE_INFORMATION_CLASS::DispositionInformation);
-            if (!success(status2))
-                print_stderr("cp: '{}/{}': NtSetInformationFile returned {} when trying to delete\n", dest, fn, status2);
-        }
-    }
-
-    // FIXME - what error should we return if some copies fail?
-
-    return nt_status::SUCCESS;
-}
-
 static nt_status search_directory(HANDLE h, dir& d, list_entry& list) {
     IO_STATUS_BLOCK iosb;
     char buf[4096];
@@ -482,12 +341,23 @@ static nt_status cp_recursive2(u16string_view src, HANDLE srcdir,
     us.Length = us.MaximumLength = (uint16_t)(src.size() * sizeof(char16_t));
     us.Buffer = (char16_t*)src.data();
 
+    create_options = FILE_SYNCHRONOUS_IO_ALERT;
+
+    if (!recursive)
+        create_options |= FILE_NON_DIRECTORY_FILE;
+
     status = NtCreateFile(&srch, FILE_READ_DATA | SYNCHRONIZE, &oa, &iosb,
-                          nullptr, 0, 0, FILE_OPEN, FILE_SYNCHRONOUS_IO_ALERT,
+                          nullptr, 0, 0, FILE_OPEN, create_options,
                           nullptr, 0);
     if (status == nt_status::OBJECT_NAME_NOT_FOUND ||
         status == nt_status::OBJECT_PATH_NOT_FOUND) {
         print_stderr("cp: '{}': No such file or directory\n", src);
+        return status;
+    } else if (status == nt_status::FILE_IS_A_DIRECTORY) {
+        print_stderr("cp: -r not specified; omitting directory '{}'\n", src);
+        return status;
+    } else if (!success(status)) {
+        print_stderr("cp: '{}': NtCreateFile returned {}\n", src, status);
         return status;
     }
 
@@ -736,7 +606,19 @@ static nt_status cp_recursive(span<u16string_view> srcs, u16string_view dest) {
             NtClose(sf.destdir->dest);
         }
 
-        if (!success(status)) {
+        if (!recursive && status == nt_status::FILE_IS_A_DIRECTORY) { // ignore
+            auto le2 = le->next;
+
+            sf.destdir->alloc_refcount--;
+            if (sf.destdir->alloc_refcount == 0)
+                free(sf.destdir);
+
+            remove_entry_list(sf.le);
+            free(&sf);
+
+            le = le2->prev;
+            status = nt_status::SUCCESS;
+        } else if (!success(status)) {
             // free remaining items
             while (le->next != &to_copy) {
                 auto& sf2 = containing_record<src_file>(le->next);
@@ -838,10 +720,8 @@ extern "C" FORCE_ALIGN_ARG_POINTER void startup() {
 
     nt_status ret;
 
-    if (recursive)
+    if (recursive || argv.size() > 2)
         ret = cp_recursive(span(argv.data(), argv.size() - 1), argv.back());
-    else if (argv.size() > 2)
-        ret = cp_multiple(span(argv.data(), argv.size() - 1), argv.back());
     else
         ret = cp(argv[0], argv[1]);
 
