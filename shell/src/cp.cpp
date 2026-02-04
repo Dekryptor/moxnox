@@ -564,9 +564,33 @@ static nt_status cp_recursive2(u16string_view src, HANDLE srcdir,
         return status;
     }
 
-    // FIXME - copy
+    // copy
 
-    return nt_status::SUCCESS;
+    {
+        auto fnbuf = (char16_t*)malloc((destname.size() + 1 + fn.size()) * sizeof(char16_t));
+
+        if (!fnbuf) {
+            print("malloc failed\n");
+            NtTerminateThread(NtCurrentThread(), nt_status::INSUFFICIENT_RESOURCES);
+            unreachable();
+        }
+
+        memcpy(fnbuf, destname.data(), destname.size() * sizeof(char16_t));
+        fnbuf[destname.size()] = u'/';
+        memcpy(fnbuf + destname.size() + 1, fn.data(),
+                fn.size() * sizeof(char16_t));
+
+        auto dest2 = u16string_view(fnbuf, destname.size() + 1 + fn.size());
+
+        status = copy_file(srch, desth, src, dest2);
+
+        free(fnbuf);
+    }
+
+    NtClose(srch);
+    NtClose(desth);
+
+    return status;
 }
 
 static nt_status cp_recursive(span<u16string_view> srcs, u16string_view dest) {
