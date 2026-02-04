@@ -169,6 +169,7 @@ public:
     uint64_t inode;
     btrfs_inode_item ii;
     list_entry extents = { &extents, &extents };
+    bool dead = false;
 
 private:
     nt_status read_zeroes_into_cache(uint64_t page_num, uint64_t num_pages,
@@ -5183,6 +5184,9 @@ static nt_status do_writeback_inode(btrfs_filesystem& fs, btrfs_inode& ino) {
 
     lock_guard lock(ino.inode_lock);
 
+    if (ino.dead)
+        return nt_status::SUCCESS;
+
     status = ino.cache.flush(0, 0xffffffffffffffff, true);
     if (!success(status)) {
         print("page_cache::flush returned {}\n", status);
@@ -6015,6 +6019,11 @@ nt_status btrfs_inode::remove_orphan() {
         if (!success(status)) {
             print("btrfs_inode::remove_orphan: remove_item returned {}\n", status);
             return status;
+        }
+
+        {
+            lock_guard lg2(inode_lock);
+            dead = true;
         }
     }
 
