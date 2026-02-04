@@ -566,6 +566,13 @@ static nt_status cp_recursive2(u16string_view src, HANDLE srcdir,
 
     // copy
 
+    // FIXME - show error if src and dest are same file (open dest first, and compare inode numbers and device?)
+
+    // FIXME - --interactive option
+    // FIXME - preallocate size
+    // FIXME - check src is file
+    // FIXME - copying things other than files (symlinks, Linux block or char devs, etc.)
+
     {
         auto fnbuf = (char16_t*)malloc((destname.size() + 1 + fn.size()) * sizeof(char16_t));
 
@@ -658,19 +665,37 @@ static nt_status cp_recursive(span<u16string_view> srcs, u16string_view dest) {
         insert_tail_list(to_copy, sf->le);
     }
 
-    while (!is_list_empty(to_copy)) {
-        auto& sf = containing_record<src_file>(to_copy.next);
+    for (auto le = to_copy.next; le != &to_copy; le = le->next) {
+        auto& sf = containing_record<src_file>(le);
 
         auto src = u16string_view(sf.name, sf.name_len);
 
         auto destname = u16string_view(sf.destdir->destname, sf.destdir->destname_len);
 
-        cp_recursive2(src, sf.destdir->src, sf.destdir->dest, destname, to_copy);
+        status = cp_recursive2(src, sf.destdir->src, sf.destdir->dest,
+                               destname, to_copy);
 
         sf.destdir->left--;
-
         if (sf.destdir->left == 0)
             free_dir(*sf.destdir);
+
+        if (!success(status)) {
+            // free destdir of remaining items
+            for (auto le2 = le->next; le2 != &to_copy; le2 = le2->next) {
+                auto& sf2 = containing_record<src_file>(le2);
+
+                sf2.destdir->left--;
+                if (sf2.destdir->left == 0)
+                    free_dir(*sf2.destdir);
+            }
+
+            // FIXME - delete items created so far
+            break;
+        }
+    }
+
+    while (!is_list_empty(to_copy)) {
+        auto& sf = containing_record<src_file>(to_copy.next);
 
         remove_entry_list(sf.le);
         free(&sf);
@@ -678,7 +703,7 @@ static nt_status cp_recursive(span<u16string_view> srcs, u16string_view dest) {
 
     free(d);
 
-    return nt_status::SUCCESS;
+    return status;
 }
 
 #ifdef __x86_64__
