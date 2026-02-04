@@ -22,6 +22,8 @@ struct dir {
     HANDLE src;
     HANDLE dest;
     unsigned left;
+    size_t destname_len;
+    char16_t destname[0];
 };
 
 struct src_file {
@@ -456,8 +458,15 @@ static nt_status search_directory(HANDLE h, dir& d, list_entry& list) {
     return nt_status::SUCCESS;
 }
 
+static void free_dir(dir& d) {
+    NtClose(d.src);
+    NtClose(d.dest);
+    free(&d);
+}
+
 static nt_status cp_recursive2(u16string_view src, HANDLE srcdir,
-                               HANDLE destdir, list_entry& to_copy) {
+                               HANDLE destdir, u16string_view destname,
+                               list_entry& to_copy) {
     nt_status status;
     OBJECT_ATTRIBUTES oa;
     UNICODE_STRING us;
@@ -519,18 +528,19 @@ static nt_status cp_recursive2(u16string_view src, HANDLE srcdir,
     if (status == nt_status::OBJECT_PATH_NOT_FOUND ||
              status == nt_status::OBJECT_NAME_NOT_FOUND) {
         print_stderr("cp: cannot create regular file '{}/{}': No such file or directory\n",
-                     /*dest*/"?", fn); // FIXME
+                     destname, fn);
         NtClose(srch);
         return status;
     } else if (!success(status)) {
         print_stderr("cp: cannot create regular file '{}/{}': NtCreateFile returned {}\n",
-                     /*dest*/"?", fn, status); // FIXME
+                     destname, fn, status);
         NtClose(srch);
         return status;
     }
 
     if (fsi.Directory) {
-        auto d = (dir*)malloc(sizeof(dir));
+        size_t namelen = destname.size() + 1 + fn.size();
+        auto d = (dir*)malloc(offsetof(dir, destname) + (namelen * sizeof(char16_t)));
         if (!d) {
             print_stderr("malloc failed\n");
             NtTerminateThread(NtCurrentThread(), nt_status::INSUFFICIENT_RESOURCES);
@@ -539,15 +549,17 @@ static nt_status cp_recursive2(u16string_view src, HANDLE srcdir,
 
         d->src = srch;
         d->dest = desth;
+        d->destname_len = namelen;
+        memcpy(d->destname, destname.data(), destname.size() * sizeof(char16_t));
+        d->destname[destname.size()] = '/';
+        memcpy(d->destname + destname.size() + 1, fn.data(),
+               fn.size() * sizeof(char16_t));
         d->left = 0;
 
         status = search_directory(srch, *d, to_copy);
 
-        if (d->left == 0) {
-            NtClose(srch);
-            NtClose(desth);
-            free(d);
-        }
+        if (d->left == 0)
+            free_dir(*d);
 
         return status;
     }
@@ -565,7 +577,6 @@ static nt_status cp_recursive(span<u16string_view> srcs, u16string_view dest) {
     IO_STATUS_BLOCK iosb;
     HANDLE h;
     unique_handle destdir;
-    ::dir d;
     list_entry to_copy = { &to_copy, &to_copy };
 
     // try to open dest
@@ -594,9 +605,18 @@ static nt_status cp_recursive(span<u16string_view> srcs, u16string_view dest) {
 
     destdir.reset(h);
 
-    d.src = peb->ProcessParameters->CurrentDirectory.Handle;
-    d.dest = destdir.get();
-    d.left = 1;
+    auto d = (dir*)malloc(offsetof(dir, destname) + (dest.size() * sizeof(char16_t)));
+    if (!d) {
+        print_stderr("malloc failed\n");
+        NtTerminateThread(NtCurrentThread(), nt_status::INSUFFICIENT_RESOURCES);
+        unreachable();
+    }
+
+    d->src = peb->ProcessParameters->CurrentDirectory.Handle;
+    d->dest = destdir.get();
+    d->left = 1;
+    d->destname_len = dest.size();
+    memcpy(d->destname, dest.data(), d->destname_len * sizeof(char16_t));
 
     for (auto src : srcs) {
         auto sf = (src_file*)malloc(offsetof(src_file, name) + (src.size() * sizeof(char16_t)));
@@ -606,9 +626,9 @@ static nt_status cp_recursive(span<u16string_view> srcs, u16string_view dest) {
             unreachable();
         }
 
-        d.left++;
+        d->left++;
 
-        sf->destdir = &d;
+        sf->destdir = d;
         sf->name_len = src.size();
         memcpy(sf->name, src.data(), src.size() * sizeof(char16_t));
         insert_tail_list(to_copy, sf->le);
@@ -619,19 +639,20 @@ static nt_status cp_recursive(span<u16string_view> srcs, u16string_view dest) {
 
         auto src = u16string_view(sf.name, sf.name_len);
 
-        cp_recursive2(src, sf.destdir->src, sf.destdir->dest, to_copy);
+        auto destname = u16string_view(sf.destdir->destname, sf.destdir->destname_len);
+
+        cp_recursive2(src, sf.destdir->src, sf.destdir->dest, destname, to_copy);
 
         sf.destdir->left--;
 
-        if (sf.destdir->left == 0) {
-            NtClose(sf.destdir->src);
-            NtClose(sf.destdir->dest);
-            free(sf.destdir);
-        }
+        if (sf.destdir->left == 0)
+            free_dir(*sf.destdir);
 
         remove_entry_list(sf.le);
         free(&sf);
     }
+
+    free(d);
 
     return nt_status::SUCCESS;
 }
