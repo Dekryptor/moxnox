@@ -21,7 +21,8 @@ static bool recursive = false;
 struct dir {
     HANDLE src;
     HANDLE dest;
-    unsigned left;
+    unsigned int handle_refcount;
+    unsigned int alloc_refcount;
     size_t destname_len;
     char16_t destname[0];
 };
@@ -437,7 +438,8 @@ static nt_status search_directory(HANDLE h, dir& d, list_entry& list) {
                     unreachable();
                 }
 
-                d.left++;
+                d.handle_refcount++;
+                d.alloc_refcount++;
 
                 sf->destdir = &d;
                 sf->name_len = fdi->FileNameLength / sizeof(char16_t);
@@ -456,12 +458,6 @@ static nt_status search_directory(HANDLE h, dir& d, list_entry& list) {
     }
 
     return nt_status::SUCCESS;
-}
-
-static void free_dir(dir& d) {
-    NtClose(d.src);
-    NtClose(d.dest);
-    free(&d);
 }
 
 static nt_status cp_recursive2(u16string_view src, HANDLE srcdir,
@@ -554,12 +550,15 @@ static nt_status cp_recursive2(u16string_view src, HANDLE srcdir,
         d->destname[destname.size()] = '/';
         memcpy(d->destname + destname.size() + 1, fn.data(),
                fn.size() * sizeof(char16_t));
-        d->left = 0;
+        d->handle_refcount = 0;
+        d->alloc_refcount = 0;
 
         status = search_directory(srch, *d, to_copy);
 
-        if (d->left == 0)
-            free_dir(*d);
+        if (d->handle_refcount == 0) {
+            NtClose(d->src);
+            NtClose(d->dest);
+        }
 
         return status;
     }
@@ -598,6 +597,60 @@ static nt_status cp_recursive2(u16string_view src, HANDLE srcdir,
     NtClose(desth);
 
     return status;
+}
+
+static void delete_file(u16string_view dir, u16string_view fn) {
+    auto peb = NtCurrentTeb()->ProcessEnvironmentBlock;
+    nt_status status;
+    OBJECT_ATTRIBUTES oa;
+    UNICODE_STRING us;
+    IO_STATUS_BLOCK iosb;
+    HANDLE h;
+    unique_handle destdir, file;
+    FILE_DISPOSITION_INFORMATION fdi;
+
+    // open directory
+
+    us.Length = us.MaximumLength = (uint16_t)(dir.size() * sizeof(char16_t));
+    us.Buffer = (char16_t*)dir.data();
+
+    memset(&oa, 0, sizeof(oa));
+    oa.Length = sizeof(OBJECT_ATTRIBUTES);
+    oa.ObjectName = &us;
+    oa.RootDirectory = peb->ProcessParameters->CurrentDirectory.Handle;
+
+    status = NtCreateFile(&h, FILE_READ_ATTRIBUTES, &oa, &iosb, nullptr, 0, 0,
+                          FILE_OPEN, FILE_DIRECTORY_FILE, nullptr, 0);
+    if (!success(status)) {
+        print_stderr("cp: '{}': NtCreateFile returned {}\n", dir, status);
+        return;
+    }
+
+    destdir.reset(h);
+
+    // open file
+
+    oa.RootDirectory = destdir.get();
+    us.Length = us.MaximumLength = (uint16_t)(fn.size() * sizeof(char16_t));
+    us.Buffer = (char16_t*)fn.data();
+
+    status = NtCreateFile(&h, DELETE, &oa, &iosb, nullptr, 0, 0, FILE_OPEN,
+                          0, nullptr, 0);
+    if (!success(status)) {
+        print_stderr("cp: '{}/{}': NtCreateFile returned {}\n", dir, fn, status);
+        return;
+    }
+
+    file.reset(h);
+
+    // delete
+
+    fdi.DeleteFile = true;
+
+    status = NtSetInformationFile(file.get(), &iosb, &fdi, sizeof(fdi),
+                                  FILE_INFORMATION_CLASS::DispositionInformation);
+    if (!success(status))
+        print_stderr("cp: '{}/{}': NtSetInformationFile returned {} when trying to delete\n", dir, fn, status);
 }
 
 static nt_status cp_recursive(span<u16string_view> srcs, u16string_view dest) {
@@ -645,7 +698,8 @@ static nt_status cp_recursive(span<u16string_view> srcs, u16string_view dest) {
 
     d->src = peb->ProcessParameters->CurrentDirectory.Handle;
     d->dest = destdir.get();
-    d->left = 1;
+    d->handle_refcount = 1;
+    d->alloc_refcount = 1;
     d->destname_len = dest.size();
     memcpy(d->destname, dest.data(), d->destname_len * sizeof(char16_t));
 
@@ -657,7 +711,8 @@ static nt_status cp_recursive(span<u16string_view> srcs, u16string_view dest) {
             unreachable();
         }
 
-        d->left++;
+        d->handle_refcount++;
+        d->alloc_refcount++;
 
         sf->destdir = d;
         sf->name_len = src.size();
@@ -675,27 +730,45 @@ static nt_status cp_recursive(span<u16string_view> srcs, u16string_view dest) {
         status = cp_recursive2(src, sf.destdir->src, sf.destdir->dest,
                                destname, to_copy);
 
-        sf.destdir->left--;
-        if (sf.destdir->left == 0)
-            free_dir(*sf.destdir);
+        sf.destdir->handle_refcount--;
+        if (sf.destdir->handle_refcount == 0) {
+            NtClose(sf.destdir->src);
+            NtClose(sf.destdir->dest);
+        }
 
         if (!success(status)) {
-            // free destdir of remaining items
-            for (auto le2 = le->next; le2 != &to_copy; le2 = le2->next) {
-                auto& sf2 = containing_record<src_file>(le2);
+            // free remaining items
+            while (le->next != &to_copy) {
+                auto& sf2 = containing_record<src_file>(le->next);
 
-                sf2.destdir->left--;
-                if (sf2.destdir->left == 0)
-                    free_dir(*sf2.destdir);
+                sf2.destdir->handle_refcount--;
+                if (sf2.destdir->handle_refcount == 0) {
+                    NtClose(sf2.destdir->src);
+                    NtClose(sf2.destdir->dest);
+                }
+
+                remove_entry_list(sf2.le);
+                free(&sf2);
             }
 
-            // FIXME - delete items created so far
             break;
         }
     }
 
     while (!is_list_empty(to_copy)) {
-        auto& sf = containing_record<src_file>(to_copy.next);
+        auto& sf = containing_record<src_file>(to_copy.prev);
+
+        if (!success(status)) {
+            auto destdir = u16string_view(sf.destdir->destname,
+                                          sf.destdir->destname_len);
+            auto fn = u16string_view(sf.name, sf.name_len);
+
+            delete_file(destdir, fn);
+        }
+
+        sf.destdir->alloc_refcount--;
+        if (sf.destdir->alloc_refcount == 0)
+            free(sf.destdir);
 
         remove_entry_list(sf.le);
         free(&sf);
