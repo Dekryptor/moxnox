@@ -250,7 +250,7 @@ target_compile_options(cp PRIVATE -fno-exceptions ${USERSPACE_CFLAGS})
 target_link_options(cp PUBLIC -nostartfiles -nostdlib -Wl,--entry=startup)
 
 target_link_libraries(cp print)
-target_link_libraries(cp format cmdline unique_handle)
+target_link_libraries(cp format cmdline unique_handle getopt list)
 target_link_libraries(cp moxnox)
 
 install(TARGETS cp DESTINATION ${CMAKE_INSTALL_PREFIX}/bin)

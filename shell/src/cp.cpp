@@ -11,8 +11,25 @@ import ntdll;
 import print;
 import cmdline;
 import unique_handle;
+import getopt;
+import list;
 
 using namespace std;
+
+static bool recursive = false;
+
+struct dir {
+    HANDLE src;
+    HANDLE dest;
+    unsigned left;
+};
+
+struct src_file {
+    list_entry le;
+    dir* destdir;
+    size_t name_len;
+    char16_t name[0];
+};
 
 static nt_status copy_file(HANDLE srch, HANDLE desth, u16string_view src,
                            u16string_view dest) {
@@ -379,6 +396,246 @@ static nt_status cp_multiple(span<u16string_view> srcs, u16string_view dest) {
     return nt_status::SUCCESS;
 }
 
+static nt_status search_directory(HANDLE h, dir& d, list_entry& list) {
+    IO_STATUS_BLOCK iosb;
+    char buf[4096];
+    bool first = true;
+
+    while (true) {
+        auto status = NtQueryDirectoryFile(h, 0, nullptr, nullptr,
+                                           &iosb, buf, sizeof(buf),
+                                           FILE_INFORMATION_CLASS::DirectoryInformation,
+                                           false, nullptr, first);
+
+        if (status == nt_status::NO_MORE_FILES)
+            break;
+        else if (!success(status)) {
+            print_stderr("NtQueryDirectoryFile returned {}\n", status);
+            return status;
+        }
+
+        auto fdi = (FILE_DIRECTORY_INFORMATION*)buf;
+
+        while (true) {
+            size_t sf_len = offsetof(src_file, name) + fdi->FileNameLength;
+            bool ignore = false;
+
+            if (fdi->FileNameLength == sizeof(char16_t) && fdi->FileName[0] == '.')
+                ignore = true;
+            else if (fdi->FileNameLength == 2 * sizeof(char16_t) &&
+                     fdi->FileName[0] == '.' && fdi->FileName[1] == '.') {
+                ignore = true;
+            }
+
+            if (!ignore) {
+                auto sf = (src_file*)malloc(sf_len);
+                if (!sf) {
+                    print_stderr("malloc failed\n");
+                    NtTerminateThread(NtCurrentThread(), nt_status::INSUFFICIENT_RESOURCES);
+                    unreachable();
+                }
+
+                d.left++;
+
+                sf->destdir = &d;
+                sf->name_len = fdi->FileNameLength / sizeof(char16_t);
+                memcpy(&sf->name, fdi->FileName, fdi->FileNameLength);
+
+                insert_tail_list(list, sf->le);
+            }
+
+            if (fdi->NextEntryOffset == 0)
+                break;
+
+            fdi = (FILE_DIRECTORY_INFORMATION*)((uint8_t*)fdi + fdi->NextEntryOffset);
+        }
+
+        first = false;
+    }
+
+    return nt_status::SUCCESS;
+}
+
+static nt_status cp_recursive2(u16string_view src, HANDLE srcdir,
+                               HANDLE destdir, list_entry& to_copy) {
+    nt_status status;
+    OBJECT_ATTRIBUTES oa;
+    UNICODE_STRING us;
+    IO_STATUS_BLOCK iosb;
+    HANDLE srch, desth;
+    FILE_STANDARD_INFORMATION fsi;
+    uint32_t create_options;
+    u16string_view fn;
+
+    // open src
+
+    memset(&oa, 0, sizeof(oa));
+    oa.Length = sizeof(OBJECT_ATTRIBUTES);
+    oa.ObjectName = &us;
+    oa.RootDirectory = srcdir;
+
+    us.Length = us.MaximumLength = (uint16_t)(src.size() * sizeof(char16_t));
+    us.Buffer = (char16_t*)src.data();
+
+    status = NtCreateFile(&srch, FILE_READ_DATA | SYNCHRONIZE, &oa, &iosb,
+                          nullptr, 0, 0, FILE_OPEN, FILE_SYNCHRONOUS_IO_ALERT,
+                          nullptr, 0);
+    if (status == nt_status::OBJECT_NAME_NOT_FOUND ||
+        status == nt_status::OBJECT_PATH_NOT_FOUND) {
+        print_stderr("cp: '{}': No such file or directory\n", src);
+        return status;
+    }
+
+    // check if file or directory
+
+    status = NtQueryInformationFile(srch, &iosb, &fsi, sizeof(fsi),
+                                    FILE_INFORMATION_CLASS::StandardInformation);
+    if (!success(status)) {
+        print_stderr("cp: {}: NtQueryInformationFile returned {}\n", src, status);
+        NtClose(srch);
+        return status;
+    }
+
+    // create destination
+
+    if (fsi.Directory)
+        create_options = FILE_DIRECTORY_FILE;
+    else
+        create_options = FILE_NON_DIRECTORY_FILE | FILE_SYNCHRONOUS_IO_ALERT;
+
+    oa.RootDirectory = destdir;
+
+    if (auto slash = src.find_last_of(u'/'); slash != u16string_view::npos)
+        fn = u16string_view(src.data() + slash + 1, src.size() - slash - 1);
+    else
+        fn = src;
+
+    us.Length = us.MaximumLength = (uint16_t)(fn.size() * sizeof(char16_t));
+    us.Buffer = (char16_t*)fn.data();
+
+    status = NtCreateFile(&desth, FILE_WRITE_DATA | SYNCHRONIZE | DELETE, &oa,
+                          &iosb, nullptr, 0, 0, FILE_OVERWRITE_IF,
+                          create_options, nullptr, 0);
+    if (status == nt_status::OBJECT_PATH_NOT_FOUND ||
+             status == nt_status::OBJECT_NAME_NOT_FOUND) {
+        print_stderr("cp: cannot create regular file '{}/{}': No such file or directory\n",
+                     /*dest*/"?", fn); // FIXME
+        NtClose(srch);
+        return status;
+    } else if (!success(status)) {
+        print_stderr("cp: cannot create regular file '{}/{}': NtCreateFile returned {}\n",
+                     /*dest*/"?", fn, status); // FIXME
+        NtClose(srch);
+        return status;
+    }
+
+    if (fsi.Directory) {
+        auto d = (dir*)malloc(sizeof(dir));
+        if (!d) {
+            print_stderr("malloc failed\n");
+            NtTerminateThread(NtCurrentThread(), nt_status::INSUFFICIENT_RESOURCES);
+            unreachable();
+        }
+
+        d->src = srch;
+        d->dest = desth;
+        d->left = 0;
+
+        status = search_directory(srch, *d, to_copy);
+
+        if (d->left == 0) {
+            NtClose(srch);
+            NtClose(desth);
+            free(d);
+        }
+
+        return status;
+    }
+
+    // FIXME - copy
+
+    return nt_status::SUCCESS;
+}
+
+static nt_status cp_recursive(span<u16string_view> srcs, u16string_view dest) {
+    auto peb = NtCurrentTeb()->ProcessEnvironmentBlock;
+    nt_status status;
+    OBJECT_ATTRIBUTES oa;
+    UNICODE_STRING us;
+    IO_STATUS_BLOCK iosb;
+    HANDLE h;
+    unique_handle destdir;
+    ::dir d;
+    list_entry to_copy = { &to_copy, &to_copy };
+
+    // try to open dest
+
+    us.Length = us.MaximumLength = (uint16_t)(dest.size() * sizeof(char16_t));
+    us.Buffer = (char16_t*)dest.data();
+
+    memset(&oa, 0, sizeof(oa));
+    oa.Length = sizeof(OBJECT_ATTRIBUTES);
+    oa.ObjectName = &us;
+    oa.RootDirectory = peb->ProcessParameters->CurrentDirectory.Handle;
+
+    status = NtCreateFile(&h, FILE_READ_ATTRIBUTES, &oa, &iosb, nullptr, 0, 0,
+                          FILE_OPEN, FILE_DIRECTORY_FILE, nullptr, 0);
+    if (status == nt_status::NOT_A_DIRECTORY) {
+        print_stderr("cp: target '{}': Not a directory\n", dest);
+        return status;
+    } else if (status == nt_status::OBJECT_NAME_NOT_FOUND ||
+               status == nt_status::OBJECT_PATH_NOT_FOUND) {
+        print_stderr("cp: target '{}': No such file or directory\n", dest);
+        return status;
+    } else if (!success(status)) {
+        print_stderr("cp: target '{}': NtCreateFile returned {}\n", dest, status);
+        return status;
+    }
+
+    destdir.reset(h);
+
+    d.src = peb->ProcessParameters->CurrentDirectory.Handle;
+    d.dest = destdir.get();
+    d.left = 1;
+
+    for (auto src : srcs) {
+        auto sf = (src_file*)malloc(offsetof(src_file, name) + (src.size() * sizeof(char16_t)));
+        if (!sf) {
+            print_stderr("malloc failed\n");
+            NtTerminateThread(NtCurrentThread(), nt_status::INSUFFICIENT_RESOURCES);
+            unreachable();
+        }
+
+        d.left++;
+
+        sf->destdir = &d;
+        sf->name_len = src.size();
+        memcpy(sf->name, src.data(), src.size() * sizeof(char16_t));
+        insert_tail_list(to_copy, sf->le);
+    }
+
+    while (!is_list_empty(to_copy)) {
+        auto& sf = containing_record<src_file>(to_copy.next);
+
+        auto src = u16string_view(sf.name, sf.name_len);
+
+        cp_recursive2(src, sf.destdir->src, sf.destdir->dest, to_copy);
+
+        sf.destdir->left--;
+
+        if (sf.destdir->left == 0) {
+            NtClose(sf.destdir->src);
+            NtClose(sf.destdir->dest);
+            free(sf.destdir);
+        }
+
+        remove_entry_list(sf.le);
+        free(&sf);
+    }
+
+    return nt_status::SUCCESS;
+}
+
 #ifdef __x86_64__
 #define FORCE_ALIGN_ARG_POINTER __attribute__((force_align_arg_pointer))
 #else
@@ -389,6 +646,11 @@ extern "C" FORCE_ALIGN_ARG_POINTER void startup() {
     auto teb = NtCurrentTeb();
     auto peb = teb->ProcessEnvironmentBlock;
 
+    static const option options[] = {
+        { u"recursive", u'r', []{ recursive = true; } },
+        { u"", u'R', []{ recursive = true; } },
+    };
+
     auto cmdline = u16string_view(peb->ProcessParameters->CommandLine.Buffer,
                                   peb->ProcessParameters->CommandLine.Length / sizeof(char16_t));
 
@@ -398,8 +660,10 @@ extern "C" FORCE_ALIGN_ARG_POINTER void startup() {
 
     if (argc != 0) {
         buf = (decltype(buf))RtlAllocateHeap(GetProcessHeap(), 0, argc * sizeof(*buf));
-        if (!buf)
+        if (!buf) {
             NtTerminateThread(NtCurrentThread(), nt_status::INSUFFICIENT_RESOURCES);
+            unreachable();
+        }
 
         argv = span(buf, argc);
     }
@@ -408,6 +672,14 @@ extern "C" FORCE_ALIGN_ARG_POINTER void startup() {
 
     if (!argv.empty()) // skip program name
         argv = span(argv.data() + 1, argv.size() - 1);
+
+    if (!getopt(argv, options)) {
+        if (buf)
+            RtlFreeHeap(GetProcessHeap(), 0, buf);
+
+        NtTerminateThread(NtCurrentThread(), nt_status::INVALID_PARAMETER);
+        unreachable();
+    }
 
     if (argv.empty()) {
         print_stderr("cp: missing file operand\n");
@@ -423,7 +695,9 @@ extern "C" FORCE_ALIGN_ARG_POINTER void startup() {
 
     nt_status ret;
 
-    if (argv.size() > 2)
+    if (recursive)
+        ret = cp_recursive(span(argv.data(), argv.size() - 1), argv.back());
+    else if (argv.size() > 2)
         ret = cp_multiple(span(argv.data(), argv.size() - 1), argv.back());
     else
         ret = cp(argv[0], argv[1]);
