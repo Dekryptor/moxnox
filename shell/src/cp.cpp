@@ -36,7 +36,7 @@ struct src_file {
 };
 
 static nt_status copy_file(HANDLE srch, HANDLE desth, u16string_view src,
-                           u16string_view dest) {
+                           u16string_view destname, u16string_view fn) {
     nt_status status;
     IO_STATUS_BLOCK iosb;
     FILE_STANDARD_INFORMATION fsi;
@@ -95,7 +95,8 @@ static nt_status copy_file(HANDLE srch, HANDLE desth, u16string_view src,
                                  sp.data(), (uint32_t)sp.size(), nullptr,
                                  nullptr);
             if (!success(status)) {
-                print_stderr("cp: '{}': NtWriteFile returned {}\n", dest, status);
+                print_stderr("cp: '{}/{}': NtWriteFile returned {}\n",
+                             destname, fn, status);
                 break;
             }
 
@@ -304,26 +305,7 @@ static nt_status cp_recursive(u16string_view src, HANDLE srcdir,
     // FIXME - check src is file
     // FIXME - copying things other than files (symlinks, Linux block or char devs, etc.)
 
-    {
-        auto fnbuf = (char16_t*)malloc((destname.size() + 1 + fn.size()) * sizeof(char16_t));
-
-        if (!fnbuf) {
-            print_stderr("malloc failed\n");
-            NtTerminateThread(NtCurrentThread(), nt_status::INSUFFICIENT_RESOURCES);
-            unreachable();
-        }
-
-        memcpy(fnbuf, destname.data(), destname.size() * sizeof(char16_t));
-        fnbuf[destname.size()] = u'/';
-        memcpy(fnbuf + destname.size() + 1, fn.data(),
-                fn.size() * sizeof(char16_t));
-
-        auto dest2 = u16string_view(fnbuf, destname.size() + 1 + fn.size());
-
-        status = copy_file(srch, desth, src, dest2);
-
-        free(fnbuf);
-    }
+    status = copy_file(srch, desth, src, destname, fn);
 
     NtClose(srch);
     NtClose(desth);
