@@ -280,6 +280,7 @@ static bool extract_initrd() {
     root_dentry = new dentry;
     if (!root_dentry) {
         print("new failed\n");
+        fs->release();
         return false;
     }
 
@@ -290,6 +291,8 @@ static bool extract_initrd() {
     auto mp = new mount_point(*root_dentry);
     if (!mp) {
         print("new failed\n");
+        delete root_dentry;
+        fs->release();
         return false;
     }
 
