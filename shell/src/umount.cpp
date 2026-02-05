@@ -112,6 +112,8 @@ static nt_status umount(u16string_view path) {
 
     free(fni2);
 
+    dir.reset(); // unmount will fail if HANDLE is open
+
     // ioctl
 
     // FIXME - check that this is definitely a mount point first, so we don't get any surprises
