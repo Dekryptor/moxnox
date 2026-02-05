@@ -1979,8 +1979,6 @@ static nt_status vfsctl_unmount(span<const uint8_t> inbuf) {
 
     auto path = string_view(m.path, m.path_len);
 
-    print("FIXME - vfsctl_unmount \"{}\"\n", path);
-
     // open file
 
     status = open_inode(path, *root_dentry, inorw, drw, FILE_OPEN,
