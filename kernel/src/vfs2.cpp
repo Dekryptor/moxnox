@@ -377,6 +377,7 @@ bool mount_root() {
         return false;
     }
 
+    root_dentry->mount_point = true;
     mp->type = type;
     mp->vol = vol;
 
