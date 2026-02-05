@@ -1967,6 +1967,22 @@ static nt_status vfsctl_get_mount_info(span<const uint8_t> inbuf,
     return nt_status::SUCCESS;
 }
 
+static nt_status vfsctl_unmount(span<const uint8_t> inbuf) {
+    if (inbuf.size() < sizeof(MOXNOX_VFSCTL_UNMOUNT))
+        return nt_status::BUFFER_TOO_SMALL;
+
+    auto& m = *(MOXNOX_VFSCTL_UNMOUNT*)inbuf.data();
+
+    if (inbuf.size() < offsetof(MOXNOX_VFSCTL_UNMOUNT, path) + m.path_len)
+        return nt_status::BUFFER_TOO_SMALL;
+
+    auto path = string_view(m.path, m.path_len);
+
+    print("FIXME - vfsctl_unmount \"{}\"\n", path);
+
+    return nt_status::NOT_IMPLEMENTED;
+}
+
 nt_status vfsctl::ioctl(uint32_t code, span<const uint8_t> inbuf,
                         span<uint8_t> outbuf, uintptr_t& written) {
     switch (code) {
@@ -1978,6 +1994,9 @@ nt_status vfsctl::ioctl(uint32_t code, span<const uint8_t> inbuf,
 
         case IOCTL_MOXNOX_VFSCTL_GET_MOUNT_INFO:
             return vfsctl_get_mount_info(inbuf, outbuf, written);
+
+        case IOCTL_MOXNOX_VFSCTL_UNMOUNT:
+            return vfsctl_unmount(inbuf);
 
         default:
             return nt_status::NOT_IMPLEMENTED;
