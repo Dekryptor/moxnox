@@ -2076,7 +2076,13 @@ static nt_status vfsctl_unmount(span<const uint8_t> inbuf) {
 
     mp.release();
 
-    // FIXME - make FS readonly
+    // make FS readonly
+    status = ino.fs.flush(true);
+    if (!success(status)) {
+        print("filesystem::flush returned {}\n", status);
+        ino.release();
+        return status;
+    }
 
     ino.release();
 
