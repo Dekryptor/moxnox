@@ -2029,22 +2029,92 @@ static nt_status vfsctl_unmount(span<const uint8_t> inbuf) {
 
     auto& d = drw->get();
 
+    dentry* parent_dentry;
+
     {
         lock_guard lg(d.lock);
 
-        if (!d.mount_point)
-            return nt_status::INVALID_PARAMETER;
+        parent_dentry = d.parent;
 
-        if (d.open_file_count != 0)
-            return nt_status::ACCESS_DENIED;
-
-        if (!evict_children(d))
-            return nt_status::ACCESS_DENIED;
+        if (parent_dentry)
+            parent_dentry->acquire();
     }
 
-    // FIXME - actually unmount
+    if (!parent_dentry) {
+        d.release();
+        return nt_status::INTERNAL_ERROR;
+    }
 
-    return nt_status::NOT_IMPLEMENTED;
+    status = nt_status::SUCCESS;
+
+    {
+        lock_guard lg(parent_dentry->child_lock);
+        lock_guard lg2(d.lock);
+
+        if (d.parent != parent_dentry)
+            status = nt_status::INTERNAL_ERROR;
+        else if (!d.mount_point)
+            status = nt_status::INVALID_PARAMETER;
+        else if (d.open_file_count != 0)
+            status = nt_status::ACCESS_DENIED;
+        else if (!evict_children(d))
+            status = nt_status::ACCESS_DENIED;
+
+        if (success(status))
+            remove_entry_list(d.le);
+    }
+
+    parent_dentry->release();
+
+    if (!success(status)) {
+        d.release();
+        return status;
+    }
+
+    // remove from mount_points list
+    mount_point* pmp = nullptr;
+
+    {
+        lock_guard lg(mount_points_lock);
+
+        for (auto le = mount_points.next; le != &mount_points; le = le->next) {
+            auto& mp2 = containing_record<mount_point>(le);
+
+            if (&mp2.d == &d) {
+                mp2.acquire();
+                remove_entry_list(mp2.le);
+                pmp = &mp2;
+                break;
+            }
+        }
+    }
+
+    if (!pmp) {
+        d.release();
+        return nt_status::INTERNAL_ERROR;
+    }
+
+    auto& mp = *pmp;
+
+    auto& ino = *d.inode;
+
+    ino.acquire();
+    d.release();
+
+    if (mp.vol) {
+        lock_guard lock(mp.vol->mount_lock);
+
+        mp.vol->filesystem->get().release();
+        mp.vol->filesystem = nullopt;
+    }
+
+    mp.release();
+
+    // FIXME - make FS readonly
+
+    ino.release();
+
+    return nt_status::SUCCESS;
 }
 
 nt_status vfsctl::ioctl(uint32_t code, span<const uint8_t> inbuf,
