@@ -180,7 +180,7 @@ static nt_status cp(span<u16string_view> srcs, u16string_view dest) {
         auto destname = u16string_view(sf.destdir->destname, sf.destdir->destname_len);
 
         status = cp_recursive(src, sf.destdir->src, sf.destdir->dest,
-                              sf.fn, destname, to_copy, recursive);
+                              sf.fn, destname, to_copy, recursive, "cp");
 
         sf.destdir->handle_refcount--;
         if (sf.destdir->handle_refcount == 0) {

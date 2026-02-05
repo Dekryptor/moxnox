@@ -35,7 +35,8 @@ export struct src_file {
 };
 
 static nt_status copy_file(HANDLE srch, HANDLE desth, u16string_view src,
-                           u16string_view destname, u16string_view fn) {
+                           u16string_view destname, u16string_view fn,
+                           string_view prog_name) {
     nt_status status;
     IO_STATUS_BLOCK iosb;
     FILE_STANDARD_INFORMATION fsi;
@@ -47,7 +48,8 @@ static nt_status copy_file(HANDLE srch, HANDLE desth, u16string_view src,
     status = NtQueryInformationFile(srch, &iosb, &fsi, sizeof(fsi),
                                     FILE_INFORMATION_CLASS::StandardInformation);
     if (!success(status)) {
-        print_stderr("cp: '{}': NtQueryInformationFile returned {}\n", src, status);
+        print_stderr("{}: '{}': NtQueryInformationFile returned {}\n",
+                     prog_name, src, status);
         return status;
     }
 
@@ -78,7 +80,8 @@ static nt_status copy_file(HANDLE srch, HANDLE desth, u16string_view src,
             break;
 
         if (!success(status)) {
-            print_stderr("cp: '{}': NtReadFile returned {}\n", src, status);
+            print_stderr("{}: '{}': NtReadFile returned {}\n",
+                         prog_name, src, status);
             break;
         }
 
@@ -94,8 +97,8 @@ static nt_status copy_file(HANDLE srch, HANDLE desth, u16string_view src,
                                  sp.data(), (uint32_t)sp.size(), nullptr,
                                  nullptr);
             if (!success(status)) {
-                print_stderr("cp: '{}/{}': NtWriteFile returned {}\n",
-                             destname, fn, status);
+                print_stderr("{}: '{}/{}': NtWriteFile returned {}\n",
+                             prog_name, destname, fn, status);
                 break;
             }
 
@@ -183,7 +186,7 @@ static nt_status search_directory(HANDLE h, dir& d, list_entry& list) {
 export nt_status cp_recursive(u16string_view src, HANDLE srcdir,
                               HANDLE destdir, u16string_view fn,
                               u16string_view destname, list_entry& to_copy,
-                              bool recursive) {
+                              bool recursive, string_view prog_name) {
     nt_status status;
     OBJECT_ATTRIBUTES oa;
     UNICODE_STRING us;
@@ -212,13 +215,13 @@ export nt_status cp_recursive(u16string_view src, HANDLE srcdir,
                           nullptr, 0);
     if (status == nt_status::OBJECT_NAME_NOT_FOUND ||
         status == nt_status::OBJECT_PATH_NOT_FOUND) {
-        print_stderr("cp: '{}': No such file or directory\n", src);
+        print_stderr("{}: '{}': No such file or directory\n", prog_name, src);
         return status;
     } else if (status == nt_status::FILE_IS_A_DIRECTORY) {
-        print_stderr("cp: -r not specified; omitting directory '{}'\n", src);
+        print_stderr("{}: -r not specified; omitting directory '{}'\n", prog_name, src);
         return status;
     } else if (!success(status)) {
-        print_stderr("cp: '{}': NtCreateFile returned {}\n", src, status);
+        print_stderr("{}: '{}': NtCreateFile returned {}\n", prog_name, src, status);
         return status;
     }
 
@@ -227,7 +230,7 @@ export nt_status cp_recursive(u16string_view src, HANDLE srcdir,
     status = NtQueryInformationFile(srch, &iosb, &fsi, sizeof(fsi),
                                     FILE_INFORMATION_CLASS::StandardInformation);
     if (!success(status)) {
-        print_stderr("cp: {}: NtQueryInformationFile returned {}\n", src, status);
+        print_stderr("{}: {}: NtQueryInformationFile returned {}\n", prog_name, src, status);
         NtClose(srch);
         return status;
     }
@@ -256,13 +259,13 @@ export nt_status cp_recursive(u16string_view src, HANDLE srcdir,
                           create_options, nullptr, 0);
     if (status == nt_status::OBJECT_PATH_NOT_FOUND ||
              status == nt_status::OBJECT_NAME_NOT_FOUND) {
-        print_stderr("cp: cannot create regular file '{}/{}': No such file or directory\n",
-                     destname, fn);
+        print_stderr("{}: cannot create regular file '{}/{}': No such file or directory\n",
+                     prog_name, destname, fn);
         NtClose(srch);
         return status;
     } else if (!success(status)) {
-        print_stderr("cp: cannot create regular file '{}/{}': NtCreateFile returned {}\n",
-                     destname, fn, status);
+        print_stderr("{}: cannot create regular file '{}/{}': NtCreateFile returned {}\n",
+                     prog_name, destname, fn, status);
         NtClose(srch);
         return status;
     }
@@ -305,7 +308,7 @@ export nt_status cp_recursive(u16string_view src, HANDLE srcdir,
     // FIXME - check src is file
     // FIXME - copying things other than files (symlinks, Linux block or char devs, etc.)
 
-    status = copy_file(srch, desth, src, destname, fn);
+    status = copy_file(srch, desth, src, destname, fn, prog_name);
 
     NtClose(srch);
     NtClose(desth);
