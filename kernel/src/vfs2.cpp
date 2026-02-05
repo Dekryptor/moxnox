@@ -1582,7 +1582,7 @@ static nt_status vfsctl_mount(span<const uint8_t> inbuf) {
     if (m.source != 0) {
         // dereference source (FIXME - can be 0 if "none"?)
 
-        auto sourcerw = deref_handle(m.source);
+        sourcerw = deref_handle(m.source);
         if (!sourcerw)
             return nt_status::INVALID_HANDLE;
 
