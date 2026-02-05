@@ -1969,7 +1969,39 @@ static nt_status vfsctl_get_mount_info(span<const uint8_t> inbuf,
     return nt_status::SUCCESS;
 }
 
+static bool evict_children(dentry& d) {
+    lock_guard lg(d.child_lock);
+
+    // FIXME - absolutely should not be doing recursion here
+
+    while (!is_list_empty(d.children)) {
+        auto& c = containing_record<dentry>(d.children.next);
+
+        {
+            lock_guard lg2(c.lock);
+
+            if (c.open_file_count != 0)
+                return false;
+
+            if (!evict_children(c))
+                return false;
+
+            c.parent = nullptr;
+            remove_entry_list(c.le);
+        }
+
+        c.release();
+    }
+
+    return true;
+}
+
 static nt_status vfsctl_unmount(span<const uint8_t> inbuf) {
+    nt_status status;
+    object_ref inorw;
+    optional<reference_wrapper<dentry>> drw;
+    unsigned int create_result;
+
     if (inbuf.size() < sizeof(MOXNOX_VFSCTL_UNMOUNT))
         return nt_status::BUFFER_TOO_SMALL;
 
@@ -1981,6 +2013,35 @@ static nt_status vfsctl_unmount(span<const uint8_t> inbuf) {
     auto path = string_view(m.path, m.path_len);
 
     print("FIXME - vfsctl_unmount \"{}\"\n", path);
+
+    // open file
+
+    status = open_inode(path, *root_dentry, inorw, drw, FILE_OPEN,
+                        FILE_DIRECTORY_FILE, create_result, false);
+    if (!success(status))
+        return status;
+
+    if (!drw.has_value()) // shouldn't happen
+        return nt_status::INTERNAL_ERROR;
+
+    // cleanup and make sure not in use
+
+    auto& d = drw->get();
+
+    {
+        lock_guard lg(d.lock);
+
+        if (!d.mount_point)
+            return nt_status::INVALID_PARAMETER;
+
+        if (d.open_file_count != 0)
+            return nt_status::ACCESS_DENIED;
+
+        if (!evict_children(d))
+            return nt_status::ACCESS_DENIED;
+    }
+
+    // FIXME - actually unmount
 
     return nt_status::NOT_IMPLEMENTED;
 }
