@@ -89,10 +89,8 @@ static nt_status cross_device_move(u16string_view src, u16string_view destdir,
                               sf.fn, destname, to_copy, true, "mv");
 
         sf.destdir->handle_refcount--;
-        if (sf.destdir->handle_refcount == 0) {
-            NtClose(sf.destdir->src);
+        if (sf.destdir->handle_refcount == 0)
             NtClose(sf.destdir->dest);
-        }
 
         if (!success(status)) {
             // free remaining items
@@ -113,12 +111,13 @@ static nt_status cross_device_move(u16string_view src, u16string_view destdir,
         }
     }
 
-    // FIXME - if successful, delete originals
-
     while (!is_list_empty(to_copy)) {
         auto& sf = containing_record<src_file>(to_copy.prev);
 
-        if (!success(status)) {
+        if (success(status)) {
+            delete_file_by_handle(sf.destdir->src,
+                                  u16string_view(sf.name, sf.name_len), "mv");
+        } else {
             auto destdir = u16string_view(sf.destdir->destname,
                                           sf.destdir->destname_len);
             auto fn = u16string_view(sf.name, sf.name_len);
@@ -127,8 +126,10 @@ static nt_status cross_device_move(u16string_view src, u16string_view destdir,
         }
 
         sf.destdir->alloc_refcount--;
-        if (sf.destdir->alloc_refcount == 0)
+        if (sf.destdir->alloc_refcount == 0) {
+            NtClose(sf.destdir->src);
             free(sf.destdir);
+        }
 
         remove_entry_list(sf.le);
         free(&sf);
