@@ -315,3 +315,62 @@ export nt_status cp_recursive(u16string_view src, HANDLE srcdir,
 
     return status;
 }
+
+export void delete_file(u16string_view dir, u16string_view fn,
+                        string_view prog_name) {
+    auto peb = NtCurrentTeb()->ProcessEnvironmentBlock;
+    nt_status status;
+    OBJECT_ATTRIBUTES oa;
+    UNICODE_STRING us;
+    IO_STATUS_BLOCK iosb;
+    HANDLE h;
+    unique_handle destdir, file;
+    FILE_DISPOSITION_INFORMATION fdi;
+
+    // open directory
+
+    us.Length = us.MaximumLength = (uint16_t)(dir.size() * sizeof(char16_t));
+    us.Buffer = (char16_t*)dir.data();
+
+    memset(&oa, 0, sizeof(oa));
+    oa.Length = sizeof(OBJECT_ATTRIBUTES);
+    oa.ObjectName = &us;
+    oa.RootDirectory = peb->ProcessParameters->CurrentDirectory.Handle;
+
+    status = NtCreateFile(&h, FILE_READ_ATTRIBUTES, &oa, &iosb, nullptr, 0, 0,
+                          FILE_OPEN, FILE_DIRECTORY_FILE, nullptr, 0);
+    if (!success(status)) {
+        print_stderr("{}: '{}': NtCreateFile returned {}\n",
+                     prog_name, dir, status);
+        return;
+    }
+
+    destdir.reset(h);
+
+    // open file
+
+    oa.RootDirectory = destdir.get();
+    us.Length = us.MaximumLength = (uint16_t)(fn.size() * sizeof(char16_t));
+    us.Buffer = (char16_t*)fn.data();
+
+    status = NtCreateFile(&h, DELETE, &oa, &iosb, nullptr, 0, 0, FILE_OPEN,
+                          0, nullptr, 0);
+    if (!success(status)) {
+        print_stderr("{}: '{}/{}': NtCreateFile returned {}\n",
+                     prog_name, dir, fn, status);
+        return;
+    }
+
+    file.reset(h);
+
+    // delete
+
+    fdi.DeleteFile = true;
+
+    status = NtSetInformationFile(file.get(), &iosb, &fdi, sizeof(fdi),
+                                  FILE_INFORMATION_CLASS::DispositionInformation);
+    if (!success(status)) {
+        print_stderr("{}: '{}/{}': NtSetInformationFile returned {} when trying to delete\n",
+                     prog_name, dir, fn, status);
+    }
+}
