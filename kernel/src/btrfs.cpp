@@ -646,8 +646,6 @@ static nt_status btrfs_probe(volume& vol) {
         return nt_status::UNRECOGNIZED_VOLUME;
     }
 
-    add_fs_to_list(*fs);
-
     vol.filesystem = *fs;
 
     return nt_status::SUCCESS;

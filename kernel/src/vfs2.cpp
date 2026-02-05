@@ -70,16 +70,9 @@ struct mount_point {
 
 static object_ref vfsctl_obj;
 
-static rwsem fs_lock;
-static list_entry fs_list = { &fs_list, &fs_list };
-static spinlock mount_points_lock;
+static rwsem mount_points_lock;
 static list_entry mount_points { &mount_points, &mount_points };
 static atomic<uint64_t> mount_point_num;
-
-void add_fs_to_list(::filesystem& fs) {
-    lock_guard lock(fs_lock);
-    insert_tail_list(fs_list, fs.le);
-}
 
 static ::filesystem* do_mount_root(string_view cmdline_root,
                                    filesystem_recognizer*& type,
@@ -892,14 +885,17 @@ NTSTATUS NtWriteFile(HANDLE file_handle, HANDLE, PIO_APC_ROUTINE, void*,
 }
 
 nt_status flush_filesystems(bool make_readonly) {
-    lock_guard lock(fs_lock);
+    lock_guard lock(mount_points_lock);
 
     // FIXME - what should we do if there's a failure - carry on?
 
-    for (auto le = fs_list.next; le != &fs_list; le = le->next) {
-        auto& fs = containing_record<::filesystem>(le);
+    for (auto le = mount_points.next; le != &mount_points; le = le->next) {
+        auto& mp = containing_record<::mount_point>(le);
 
-        auto status = fs.flush(make_readonly);
+        if (!mp.vol || !mp.vol->filesystem.has_value())
+            continue;
+
+        auto status = mp.vol->filesystem->get().flush(make_readonly);
         if (!success(status))
             return status;
     }

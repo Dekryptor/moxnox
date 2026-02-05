@@ -84,7 +84,6 @@ public:
             delete this;
     }
 
-    list_entry le;
     volume* vol;
     atomic<unsigned int> refcount = 1;
     inode* root_inode = nullptr;
@@ -247,7 +246,6 @@ static_assert(has_last_handle_closed<file>);
 export list_entry filesystem_types = { &filesystem_types, &filesystem_types };
 export dentry* root_dentry;
 
-export void add_fs_to_list(::filesystem& fs);
 export bool mount_root();
 export nt_status open_inode(string_view fn, dentry& dir,
                             object_ref& obj_ref, optional<reference_wrapper<dentry>>& dentry,
