@@ -293,6 +293,7 @@ static bool extract_initrd() {
         return false;
     }
 
+    root_dentry->mount_point = true;
     mp->type = tmpfs;
 
     {
