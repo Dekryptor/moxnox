@@ -269,3 +269,16 @@ target_link_libraries(mount format cmdline getopt crt unique_handle unicode)
 target_link_libraries(mount moxnox)
 
 install(TARGETS mount DESTINATION ${CMAKE_INSTALL_PREFIX}/bin)
+
+###
+
+add_executable(umount src/umount.cpp)
+
+target_compile_options(umount PRIVATE -fno-exceptions ${USERSPACE_CFLAGS})
+target_link_options(umount PUBLIC -nostartfiles -nostdlib -Wl,--entry=startup)
+
+target_link_libraries(umount print)
+target_link_libraries(umount format cmdline unique_handle unicode)
+target_link_libraries(umount moxnox)
+
+install(TARGETS umount DESTINATION ${CMAKE_INSTALL_PREFIX}/bin)
