@@ -245,6 +245,7 @@ install(TARGETS mv DESTINATION ${CMAKE_INSTALL_PREFIX}/bin)
 ###
 
 add_executable(cp src/cp.cpp)
+target_sources(cp PUBLIC FILE_SET CXX_MODULES FILES src/copy.cpp)
 
 target_compile_options(cp PRIVATE -fno-exceptions ${USERSPACE_CFLAGS})
 target_link_options(cp PUBLIC -nostartfiles -nostdlib -Wl,--entry=startup)
