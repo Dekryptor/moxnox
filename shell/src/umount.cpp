@@ -114,6 +114,8 @@ static nt_status umount(u16string_view path) {
 
     // ioctl
 
+    // FIXME - check that this is definitely a mount point first, so we don't get any surprises
+
     status = NtDeviceIoControlFile(vfsctl.get(), 0, nullptr, nullptr, &iosb,
                                    IOCTL_MOXNOX_VFSCTL_UNMOUNT, params,
                                    (uint32_t)params_len, nullptr, 0);
