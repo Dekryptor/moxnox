@@ -599,6 +599,8 @@ btrfs_filesystem::btrfs_filesystem(volume& vol) : filesystem(&vol) {
 
     root_inode = btrfs_root_inode;
 
+    release(); // root_inode grabs reference
+
     insert_tail_list(inode_list, btrfs_root_inode->le);
 
     sb->generation++;

@@ -65,15 +65,41 @@ export span<char> do_format_arg(span<char> sp, string_view, inode_type arg) {
     }
 }
 
-extern "C++" class filesystem;
-
 export struct dentry;
+
+export class inode;
+
+export extern "C++" class filesystem {
+public:
+    filesystem(volume* vol) : vol(vol) { }
+    virtual ~filesystem() { }
+    virtual nt_status flush(bool make_readonly) = 0;
+
+    void acquire() {
+        refcount++;
+    }
+
+    void release() {
+        if (refcount.fetch_sub(1) == 1)
+            delete this;
+    }
+
+    list_entry le;
+    volume* vol;
+    atomic<unsigned int> refcount = 1;
+    inode* root_inode = nullptr;
+    spinlock writeback_lock;
+    list_entry writeback_list = { &writeback_list, &writeback_list };
+};
 
 export class inode : public object {
 public:
-    inode(filesystem& fs) : object(object_type::inode), fs(fs) { }
+    inode(filesystem& fs) : object(object_type::inode), fs(fs) {
+        fs.acquire();
+    }
 
     virtual ~inode() {
+        fs.release();
     }
 
     void acquire() {
@@ -163,29 +189,6 @@ export struct dentry {
     bool mount_point = false;
     size_t name_len;
     char* name = nullptr;
-};
-
-export extern "C++" class filesystem {
-public:
-    filesystem(volume* vol) : vol(vol) { }
-    virtual ~filesystem() { }
-    virtual nt_status flush(bool make_readonly) = 0;
-
-    void acquire() {
-        refcount++;
-    }
-
-    void release() {
-        if (refcount.fetch_sub(1) == 1)
-            delete this;
-    }
-
-    list_entry le;
-    volume* vol;
-    atomic<unsigned int> refcount = 1;
-    inode* root_inode = nullptr;
-    spinlock writeback_lock;
-    list_entry writeback_list = { &writeback_list, &writeback_list };
 };
 
 export struct filesystem_recognizer {

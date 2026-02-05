@@ -98,6 +98,8 @@ devfs_filesystem::devfs_filesystem() : filesystem(nullptr) {
 
     root_inode = devfs_root_inode;
 
+    release(); // root_inode grabs reference
+
     auto cur_time = (uint64_t)kernel_time_page.system_time + kernel_time_page.system_time_offset;
 
     devfs_root_inode->atime = cur_time;
