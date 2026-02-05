@@ -1746,8 +1746,6 @@ static nt_status vfsctl_mount(span<const uint8_t> inbuf) {
                 source.filesystem = nullopt;
             }
         }
-
-        fs->release();
     }
 
     mp->num = mount_point_num.fetch_add(1) + 1;
