@@ -27,8 +27,6 @@ import moxnox_ioctls;
 
 using namespace std;
 
-static const guid moxnox_partition_guid = { 0x5dd71063, 0x95c9, 0x41b2, { 0x82, 0x52, 0x84, 0x13, 0xfe, 0xac, 0x64, 0x90 } };
-
 class vfsctl : public chardev {
 public:
     vfsctl() { }
@@ -88,98 +86,70 @@ static ::filesystem* do_mount_root(string_view cmdline_root,
                                    volume*& volptr) {
     ::filesystem* ret = nullptr;
 
-    if (!cmdline_root.empty()) {
-        static const char prefix[] = "/dev/";
+    if (cmdline_root.empty())
+        return nullptr;
 
-        if (cmdline_root.size() <= sizeof(prefix) - 1 ||
-            string_view(cmdline_root.data(), sizeof(prefix) - 1) != prefix) {
-            bsod_format("malformed root option {}", cmdline_root);
+    static const char prefix[] = "/dev/";
+
+    if (cmdline_root.size() <= sizeof(prefix) - 1 ||
+        string_view(cmdline_root.data(), sizeof(prefix) - 1) != prefix) {
+        bsod_format("malformed root option {}", cmdline_root);
+    }
+
+    cmdline_root = string_view(cmdline_root.data() + sizeof(prefix) - 1,
+                                cmdline_root.size() - sizeof(prefix) + 1);
+
+    object_ref ref;
+
+    auto status = open_object(cmdline_root, ref);
+    if (!success(status))
+        bsod_format("Error {} while trying to open root volume /dev/{}", status, cmdline_root);
+
+    if (ref.get().type != object_type::volume) {
+        bsod_format("root volume /dev/{} is not a block device",
+                    cmdline_root);
+    }
+
+    auto& vol = static_cast<volume&>(ref.get());
+
+    {
+        lock_guard lock(vol.mount_lock);
+
+        if (!vol.filesystem) {
+            for (auto le = filesystem_types.next; le != &filesystem_types; le = le->next) {
+                auto& r = containing_record<filesystem_recognizer>(le);
+
+                if (!r.try_mount_volume)
+                    continue;
+
+                auto status = r.try_mount_volume(vol);
+                if (success(status)) {
+                    type = &r;
+                    break;
+                }
+
+                if (status == nt_status::UNRECOGNIZED_VOLUME)
+                    continue;
+
+                bsod_format("probe function for {} returned {} for /dev/{}\n",
+                            r.name, status, cmdline_root);
+            }
         }
 
-        cmdline_root = string_view(cmdline_root.data() + sizeof(prefix) - 1,
-                                   cmdline_root.size() - sizeof(prefix) + 1);
-
-        object_ref ref;
-
-        auto status = open_object(cmdline_root, ref);
-        if (!success(status))
-            bsod_format("Error {} while trying to open root volume /dev/{}", status, cmdline_root);
-
-        if (ref.get().type != object_type::volume) {
-            bsod_format("root volume /dev/{} is not a block device",
+        if (!vol.filesystem) {
+            bsod_format("no recognized filesystem found on /dev/{}",
                         cmdline_root);
         }
 
-        auto& vol = static_cast<volume&>(ref.get());
+        ret = &vol.filesystem->get();
 
-        {
-            lock_guard lock(vol.mount_lock);
+        vol.acquire();
+        volptr = &vol;
 
-            if (!vol.filesystem) {
-                for (auto le = filesystem_types.next; le != &filesystem_types; le = le->next) {
-                    auto& r = containing_record<filesystem_recognizer>(le);
-
-                    if (!r.try_mount_volume)
-                        continue;
-
-                    auto status = r.try_mount_volume(vol);
-                    if (success(status)) {
-                        type = &r;
-                        break;
-                    }
-
-                    if (status == nt_status::UNRECOGNIZED_VOLUME)
-                        continue;
-
-                    bsod_format("probe function for {} returned {} for /dev/{}\n",
-                                r.name, status, cmdline_root);
-                }
-            }
-
-            if (!vol.filesystem) {
-                bsod_format("no recognized filesystem found on /dev/{}",
-                            cmdline_root);
-            }
-
-            ret = &vol.filesystem->get();
-
-            vol.acquire();
-            volptr = &vol;
-
-            return ret;
-        }
+        return ret;
     }
 
-    // search for MN partition if no option
-
-    lock_guard lock(fs_lock);
-
-    if (is_list_empty(fs_list)) {
-        print("No filesytems found.\n");
-        return nullptr;
-    }
-
-    // choose MN partition
-
-    for (auto le = fs_list.next; le != &fs_list; le = le->next) {
-        auto& fs = containing_record<::filesystem>(le);
-
-        if (fs.vol && fs.vol->type_guid == moxnox_partition_guid) {
-            if (ret) {
-                print("Multiple Moxnox partitions, not sure which to choose\n");
-                return nullptr;
-            }
-
-            ret = &fs;
-        }
-    }
-
-    if (!ret) {
-        print("No Moxnox partition found\n");
-        return nullptr;
-    }
-
-    return ret;
+    return nullptr;
 }
 
 static const uint64_t __S_IFMT = 0170000;
