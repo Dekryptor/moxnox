@@ -10,8 +10,134 @@ import ntdll;
 import print;
 import cmdline;
 import unique_handle;
+import copy;
+import list;
 
 using namespace std;
+
+static nt_status cross_device_move(u16string_view src, u16string_view destdir,
+                                   u16string_view fn) {
+    auto peb = NtCurrentTeb()->ProcessEnvironmentBlock;
+    nt_status status;
+    unique_handle destdirh;
+    UNICODE_STRING us;
+    OBJECT_ATTRIBUTES oa;
+    IO_STATUS_BLOCK iosb;
+    HANDLE h;
+    list_entry to_copy = { &to_copy, &to_copy };
+
+    us.Length = us.MaximumLength = (uint16_t)(destdir.size() * sizeof(char16_t));
+    us.Buffer = (char16_t*)destdir.data();
+
+    memset(&oa, 0, sizeof(oa));
+    oa.Length = sizeof(OBJECT_ATTRIBUTES);
+    oa.ObjectName = &us;
+    oa.RootDirectory = peb->ProcessParameters->CurrentDirectory.Handle;
+
+    status = NtCreateFile(&h, FILE_READ_ATTRIBUTES, &oa, &iosb, nullptr, 0, 0,
+                          FILE_OPEN, FILE_DIRECTORY_FILE, nullptr, 0);
+    if (status == nt_status::OBJECT_NAME_NOT_FOUND ||
+        status == nt_status::OBJECT_PATH_NOT_FOUND) {
+        print_stderr("mv: target '{}': No such file or directory\n", destdir);
+        return status;
+    } else if (!success(status)) {
+        print_stderr("mv: target '{}': NtCreateFile returned {}\n", destdir,
+                     status);
+        return status;
+    }
+
+    destdirh.reset(h);
+
+    auto d = (dir*)malloc(offsetof(dir, destname) + (destdir.size() * sizeof(char16_t)));
+    if (!d) {
+        print_stderr("malloc failed\n");
+        NtTerminateThread(NtCurrentThread(), nt_status::INSUFFICIENT_RESOURCES);
+        unreachable();
+    }
+
+    d->src = peb->ProcessParameters->CurrentDirectory.Handle;
+    d->dest = destdirh.get();
+    d->handle_refcount = 1;
+    d->alloc_refcount = 1;
+    d->destname_len = destdir.size();
+    memcpy(d->destname, destdir.data(), d->destname_len * sizeof(char16_t));
+
+    auto sf = (src_file*)malloc(offsetof(src_file, name) + (src.size() * sizeof(char16_t)));
+    if (!sf) {
+        print_stderr("malloc failed\n");
+        NtTerminateThread(NtCurrentThread(), nt_status::INSUFFICIENT_RESOURCES);
+        unreachable();
+    }
+
+    d->handle_refcount++;
+    d->alloc_refcount++;
+
+    sf->destdir = d;
+    sf->fn = fn;
+    sf->name_len = src.size();
+    memcpy(sf->name, src.data(), src.size() * sizeof(char16_t));
+    insert_tail_list(to_copy, sf->le);
+
+    for (auto le = to_copy.next; le != &to_copy; le = le->next) {
+        auto& sf = containing_record<src_file>(le);
+
+        auto src = u16string_view(sf.name, sf.name_len);
+
+        auto destname = u16string_view(sf.destdir->destname, sf.destdir->destname_len);
+
+        status = cp_recursive(src, sf.destdir->src, sf.destdir->dest,
+                              sf.fn, destname, to_copy, true, "mv");
+
+        sf.destdir->handle_refcount--;
+        if (sf.destdir->handle_refcount == 0) {
+            NtClose(sf.destdir->src);
+            NtClose(sf.destdir->dest);
+        }
+
+        if (!success(status)) {
+            // free remaining items
+            while (le->next != &to_copy) {
+                auto& sf2 = containing_record<src_file>(le->next);
+
+                sf2.destdir->handle_refcount--;
+                if (sf2.destdir->handle_refcount == 0) {
+                    NtClose(sf2.destdir->src);
+                    NtClose(sf2.destdir->dest);
+                }
+
+                remove_entry_list(sf2.le);
+                free(&sf2);
+            }
+
+            break;
+        }
+    }
+
+    // FIXME - if successful, delete originals
+
+    while (!is_list_empty(to_copy)) {
+        auto& sf = containing_record<src_file>(to_copy.prev);
+
+        if (!success(status)) {
+            auto destdir = u16string_view(sf.destdir->destname,
+                                          sf.destdir->destname_len);
+            auto fn = u16string_view(sf.name, sf.name_len);
+
+            delete_file(destdir, fn, "mv");
+        }
+
+        sf.destdir->alloc_refcount--;
+        if (sf.destdir->alloc_refcount == 0)
+            free(sf.destdir);
+
+        remove_entry_list(sf.le);
+        free(&sf);
+    }
+
+    free(d);
+
+    return nt_status::NOT_IMPLEMENTED;
+}
 
 static nt_status mv(u16string_view src, u16string_view dest) {
     auto peb = NtCurrentTeb()->ProcessEnvironmentBlock;
@@ -63,7 +189,7 @@ static nt_status mv(u16string_view src, u16string_view dest) {
 
     file.reset(h);
 
-    // rename
+    // try rename
 
     u16string_view fn;
 
@@ -90,10 +216,24 @@ static nt_status mv(u16string_view src, u16string_view dest) {
     fri->FileNameLength = (uint32_t)(fn.size() * sizeof(char16_t));
     memcpy(fri->FileName, fn.data(), fn.size() * sizeof(char16_t));
 
-    // FIXME - emulate if we get nt_status::NOT_SAME_DEVICE
     status = NtSetInformationFile(file.get(), &iosb, fri, (uint32_t)frilen,
                                   FILE_INFORMATION_CLASS::RenameInformation);
-    if (!success(status)) {
+    if (status == nt_status::NOT_SAME_DEVICE) {
+        u16string_view destdir;
+
+        if (!desth) {
+            if (auto slash = dest.find_last_of(u'/'); slash != u16string_view::npos) {
+                destdir = u16string_view(dest.data(), slash);
+                fn = u16string_view(dest.data() + slash + 1, dest.size() - slash - 1);
+            } else {
+                destdir = u".";
+                fn = dest;
+            }
+        } else
+            destdir = dest;
+
+        return cross_device_move(src, destdir, fn);
+    } else if (!success(status)) {
         print("mv: NtSetInformationFile returned {}\n", status);
         return status;
     }
