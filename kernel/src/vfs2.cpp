@@ -1965,43 +1965,9 @@ static bool evict_children(dentry& d, bool force) {
     return true;
 }
 
-static nt_status vfsctl_unmount(span<const uint8_t> inbuf) {
-    nt_status status;
-    object_ref inorw;
-    optional<reference_wrapper<dentry>> drw;
-    unsigned int create_result;
-    bool force;
-
-    if (inbuf.size() < sizeof(MOXNOX_VFSCTL_UNMOUNT))
-        return nt_status::BUFFER_TOO_SMALL;
-
-    auto& m = *(MOXNOX_VFSCTL_UNMOUNT*)inbuf.data();
-
-    if (inbuf.size() < offsetof(MOXNOX_VFSCTL_UNMOUNT, path) + m.path_len)
-        return nt_status::BUFFER_TOO_SMALL;
-
-    if (m.flags & ~MOXNOX_VFSCTL_UNMOUNT_FLAGS_FORCE)
-        return nt_status::INVALID_PARAMETER;
-
-    force = m.flags & MOXNOX_VFSCTL_UNMOUNT_FLAGS_FORCE;
-
-    auto path = string_view(m.path, m.path_len);
-
-    // open file
-
-    status = open_inode(path, *root_dentry, inorw, drw, FILE_OPEN,
-                        FILE_DIRECTORY_FILE, create_result, false);
-    if (!success(status))
-        return status;
-
-    if (!drw.has_value()) // shouldn't happen
-        return nt_status::INTERNAL_ERROR;
-
-    // cleanup and make sure not in use
-
-    auto& d = drw->get();
-
+static nt_status do_unmount(dentry& d, bool force) {
     dentry* parent_dentry;
+    nt_status status;
 
     {
         lock_guard lg(d.lock);
@@ -2093,6 +2059,43 @@ static nt_status vfsctl_unmount(span<const uint8_t> inbuf) {
     ino.release();
 
     return nt_status::SUCCESS;
+}
+
+static nt_status vfsctl_unmount(span<const uint8_t> inbuf) {
+    nt_status status;
+    object_ref inorw;
+    optional<reference_wrapper<dentry>> drw;
+    unsigned int create_result;
+    bool force;
+
+    if (inbuf.size() < sizeof(MOXNOX_VFSCTL_UNMOUNT))
+        return nt_status::BUFFER_TOO_SMALL;
+
+    auto& m = *(MOXNOX_VFSCTL_UNMOUNT*)inbuf.data();
+
+    if (inbuf.size() < offsetof(MOXNOX_VFSCTL_UNMOUNT, path) + m.path_len)
+        return nt_status::BUFFER_TOO_SMALL;
+
+    if (m.flags & ~MOXNOX_VFSCTL_UNMOUNT_FLAGS_FORCE)
+        return nt_status::INVALID_PARAMETER;
+
+    force = m.flags & MOXNOX_VFSCTL_UNMOUNT_FLAGS_FORCE;
+
+    auto path = string_view(m.path, m.path_len);
+
+    // open file
+
+    status = open_inode(path, *root_dentry, inorw, drw, FILE_OPEN,
+                        FILE_DIRECTORY_FILE, create_result, false);
+    if (!success(status))
+        return status;
+
+    if (!drw.has_value()) // shouldn't happen
+        return nt_status::INTERNAL_ERROR;
+
+    // cleanup and make sure not in use
+
+    return do_unmount(drw->get(), force);
 }
 
 nt_status vfsctl::ioctl(uint32_t code, span<const uint8_t> inbuf,
