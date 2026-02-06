@@ -1936,7 +1936,7 @@ static nt_status vfsctl_get_mount_info(span<const uint8_t> inbuf,
     return nt_status::SUCCESS;
 }
 
-static bool evict_children(dentry& d) {
+static bool evict_children(dentry& d, bool force) {
     lock_guard lg(d.child_lock);
 
     // FIXME - absolutely should not be doing recursion here
@@ -1947,13 +1947,15 @@ static bool evict_children(dentry& d) {
         {
             lock_guard lg2(c.lock);
 
-            if (c.open_file_count != 0)
+            if (!force && c.open_file_count != 0)
                 return false;
 
-            if (!evict_children(c))
+            if (!evict_children(c, force))
                 return false;
 
-            c.parent = nullptr;
+            if (c.open_file_count == 0)
+                c.parent = nullptr;
+
             remove_entry_list(c.le);
         }
 
@@ -1968,6 +1970,7 @@ static nt_status vfsctl_unmount(span<const uint8_t> inbuf) {
     object_ref inorw;
     optional<reference_wrapper<dentry>> drw;
     unsigned int create_result;
+    bool force;
 
     if (inbuf.size() < sizeof(MOXNOX_VFSCTL_UNMOUNT))
         return nt_status::BUFFER_TOO_SMALL;
@@ -1977,8 +1980,10 @@ static nt_status vfsctl_unmount(span<const uint8_t> inbuf) {
     if (inbuf.size() < offsetof(MOXNOX_VFSCTL_UNMOUNT, path) + m.path_len)
         return nt_status::BUFFER_TOO_SMALL;
 
-    if (m.flags != 0)
+    if (m.flags & ~MOXNOX_VFSCTL_UNMOUNT_FLAGS_FORCE)
         return nt_status::INVALID_PARAMETER;
+
+    force = m.flags & MOXNOX_VFSCTL_UNMOUNT_FLAGS_FORCE;
 
     auto path = string_view(m.path, m.path_len);
 
@@ -2022,9 +2027,9 @@ static nt_status vfsctl_unmount(span<const uint8_t> inbuf) {
             status = nt_status::INTERNAL_ERROR;
         else if (!d.mount_point)
             status = nt_status::INVALID_PARAMETER;
-        else if (d.open_file_count != 0)
+        else if (!force && d.open_file_count != 0)
             status = nt_status::ACCESS_DENIED;
-        else if (!evict_children(d))
+        else if (!evict_children(d, force))
             status = nt_status::ACCESS_DENIED;
 
         if (success(status))
