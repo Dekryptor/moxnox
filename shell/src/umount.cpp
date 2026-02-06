@@ -1,5 +1,6 @@
 #include <span>
 #include <string_view>
+#include <utility>
 #include <string.h>
 #include <stdint.h>
 #include <stdlib.h>
@@ -11,10 +12,13 @@ import print;
 import unique_handle;
 import unicode;
 import moxnox_ioctls;
+import getopt;
 
 using namespace std;
 
 static const char16_t vfsctl_path[] = u"/dev/vfsctl";
+
+static bool force = false;
 
 static nt_status umount(u16string_view path) {
     auto peb = NtCurrentTeb()->ProcessEnvironmentBlock;
@@ -108,6 +112,10 @@ static nt_status umount(u16string_view path) {
     }
 
     params->flags = 0;
+
+    if (force)
+        params->flags |= MOXNOX_VFSCTL_UNMOUNT_FLAGS_FORCE;
+
     params->path_len = u8len;
     utf16_to_utf8(span(params->path, u8len), u16sv);
 
@@ -141,6 +149,10 @@ extern "C" FORCE_ALIGN_ARG_POINTER void startup() {
     auto peb = teb->ProcessEnvironmentBlock;
     nt_status status;
 
+    static const option options[] = {
+        { u"force", u'f', []{ force = true; } },
+    };
+
     auto cmdline = u16string_view(peb->ProcessParameters->CommandLine.Buffer,
                                   peb->ProcessParameters->CommandLine.Length / sizeof(char16_t));
 
@@ -160,6 +172,14 @@ extern "C" FORCE_ALIGN_ARG_POINTER void startup() {
 
     if (!argv.empty()) // skip program name
         argv = span(argv.data() + 1, argv.size() - 1);
+
+    if (!getopt(argv, options)) {
+        if (buf)
+            RtlFreeHeap(GetProcessHeap(), 0, buf);
+
+        NtTerminateThread(NtCurrentThread(), nt_status::INVALID_PARAMETER);
+        unreachable();
+    }
 
     if (argv.size() == 0) {
         print_stderr("umount: bad usage\n");

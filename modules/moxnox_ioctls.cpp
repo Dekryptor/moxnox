@@ -71,6 +71,8 @@ export struct MOXNOX_VFSCTL_MOUNT_INFO {
     // FIXME - options
 };
 
+export const uint32_t MOXNOX_VFSCTL_UNMOUNT_FLAGS_FORCE = 0x00000001;
+
 export struct MOXNOX_VFSCTL_UNMOUNT {
     uint32_t flags;
     size_t path_len;
