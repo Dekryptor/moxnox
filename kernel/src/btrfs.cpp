@@ -4194,62 +4194,90 @@ static NTSTATUS query_directory_dirent(btrfs_filesystem& fs, root& r, const btrf
 
             // FIXME - subvolumes
 
-            btrfs_key search_key;
-            btrfs_path p(fs.sb->nodesize);
+            btrfs_inode* ino = nullptr;
 
-            switch (k.type) {
-                case key_type::INODE_ITEM: {
-                    search_key = k;
+            // FIXME - also look for root of ROOT_ITEM in inode cache
+            if (k.type == key_type::INODE_ITEM) {
+                lock_guard lock(fs.inode_lock);
 
-                    auto status = fs.find_item(r, search_key, p, false);
-                    if (!success(status))
-                        return status;
+                for (auto le = fs.inode_list.next; le != &fs.inode_list; le = le->next) {
+                    auto& ino2 = containing_record<btrfs_inode>(le);
 
-                    break;
+                    if (ino2.r == &r && ino2.inode == k.objectid) {
+                        ino2.acquire();
+                        ino = &ino2;
+                        break;
+                    }
                 }
-
-                case key_type::ROOT_ITEM: {
-                    auto* r2 = fs.find_root(k.objectid);
-                    if (!r2)
-                        return nt_status::DISK_CORRUPT_ERROR;
-
-                    search_key = btrfs_key{r2->ri.root_dirid, key_type::INODE_ITEM, 0};
-
-                    auto status = fs.find_item(*r2, search_key, p, false);
-                    if (!success(status))
-                        return status;
-
-                    break;
-                }
-
-                default:
-                    return nt_status::DISK_CORRUPT_ERROR;
             }
 
-            auto& th = *(btrfs_header*)p.data[0];
-            auto items = span((btrfs_item*)((uint8_t*)&th + sizeof(btrfs_header)), th.nritems);
+            if (ino) {
+                fdi.CreationTime.QuadPart = unix_to_win_time(ino->ii.otime);
+                fdi.LastAccessTime.QuadPart = unix_to_win_time(ino->ii.atime);
+                fdi.LastWriteTime.QuadPart = unix_to_win_time(ino->ii.mtime);
+                fdi.ChangeTime.QuadPart = unix_to_win_time(ino->ii.ctime);
+                fdi.EndOfFile.QuadPart = (int64_t)ino->file_size;
 
-            if (p.slots[0] >= th.nritems)
-                return nt_status::DISK_CORRUPT_ERROR;
+                ino->release();
+            } else {
+                btrfs_key search_key;
+                btrfs_path p(fs.sb->nodesize);
 
-            const auto& it = items[p.slots[0]];
-            const auto& found_key = it.key;
+                switch (k.type) {
+                    case key_type::INODE_ITEM: {
+                        search_key = k;
 
-            if (found_key.objectid != search_key.objectid || found_key.type != search_key.type)
-                return nt_status::DISK_CORRUPT_ERROR;
+                        auto status = fs.find_item(r, search_key, p, false);
+                        if (!success(status))
+                            return status;
 
-            if (it.size < sizeof(btrfs_inode_item))
-                return nt_status::DISK_CORRUPT_ERROR;
+                        break;
+                    }
 
-            auto& ii = *(btrfs_inode_item*)((const uint8_t*)&th + sizeof(btrfs_header) + it.offset);
+                    case key_type::ROOT_ITEM: {
+                        auto* r2 = fs.find_root(k.objectid);
+                        if (!r2)
+                            return nt_status::DISK_CORRUPT_ERROR;
+
+                        search_key = btrfs_key{r2->ri.root_dirid, key_type::INODE_ITEM, 0};
+
+                        auto status = fs.find_item(*r2, search_key, p, false);
+                        if (!success(status))
+                            return status;
+
+                        break;
+                    }
+
+                    default:
+                        return nt_status::DISK_CORRUPT_ERROR;
+                }
+
+                auto& th = *(btrfs_header*)p.data[0];
+                auto items = span((btrfs_item*)((uint8_t*)&th + sizeof(btrfs_header)), th.nritems);
+
+                if (p.slots[0] >= th.nritems)
+                    return nt_status::DISK_CORRUPT_ERROR;
+
+                const auto& it = items[p.slots[0]];
+                const auto& found_key = it.key;
+
+                if (found_key.objectid != search_key.objectid || found_key.type != search_key.type)
+                    return nt_status::DISK_CORRUPT_ERROR;
+
+                if (it.size < sizeof(btrfs_inode_item))
+                    return nt_status::DISK_CORRUPT_ERROR;
+
+                auto& ii = *(btrfs_inode_item*)((const uint8_t*)&th + sizeof(btrfs_header) + it.offset);
+
+                fdi.CreationTime.QuadPart = unix_to_win_time(ii.otime);
+                fdi.LastAccessTime.QuadPart = unix_to_win_time(ii.atime);
+                fdi.LastWriteTime.QuadPart = unix_to_win_time(ii.mtime);
+                fdi.ChangeTime.QuadPart = unix_to_win_time(ii.ctime);
+                fdi.EndOfFile.QuadPart = (int64_t)ii.size;
+            }
 
             fdi.NextEntryOffset = 0;
             fdi.FileIndex = 0;
-            fdi.CreationTime.QuadPart = unix_to_win_time(ii.otime);
-            fdi.LastAccessTime.QuadPart = unix_to_win_time(ii.atime);
-            fdi.LastWriteTime.QuadPart = unix_to_win_time(ii.mtime);
-            fdi.ChangeTime.QuadPart = unix_to_win_time(ii.ctime);
-            fdi.EndOfFile.QuadPart = (int64_t)ii.size;
             fdi.AllocationSize.QuadPart = 0; // FIXME
             fdi.FileAttributes = is_dir ? FILE_ATTRIBUTE_DIRECTORY : 0; // FIXME
             fdi.FileNameLength = (uint32_t)(utf16len * sizeof(char16_t));
