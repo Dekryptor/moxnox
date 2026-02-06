@@ -596,6 +596,14 @@ add_library(libpng SHARED
     ${CMAKE_SOURCE_DIR}/libpngshim.cpp
 )
 
+if(CMAKE_SYSTEM_PROCESSOR STREQUAL "aarch64")
+    target_sources(libpng PUBLIC
+        libpng/arm/arm_init.c
+        libpng/arm/filter_neon_intrinsics.c
+        libpng/arm/palette_neon_intrinsics.c
+    )
+endif()
+
 target_include_directories(libpng PUBLIC ${CMAKE_SOURCE_DIR} libpng)
 target_compile_options(libpng PRIVATE ${GENERAL_CFLAGS} $<$<COMPILE_LANGUAGE:CXX>:-fno-exceptions -fno-rtti>)
 target_link_libraries(libpng PUBLIC zlib)
