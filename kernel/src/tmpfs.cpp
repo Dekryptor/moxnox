@@ -185,7 +185,7 @@ nt_status tmpfs_inode::create_child(string_view name, uint32_t create_options,
         lock_guard lock(child_lock);
 
         if (is_list_empty(children))
-            d->index = 0;
+            d->index = 2;
         else
             d->index = containing_record<tmpfs_dentry>(children.prev).index + 1;
 
