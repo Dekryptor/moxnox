@@ -26,6 +26,7 @@ import timer;
 import config;
 import rwsem;
 import spinlock;
+import vfs;
 
 using namespace std;
 
@@ -762,6 +763,8 @@ size_t usbms_device::send_scsi_msg_out_dio(uint8_t lun, span<uint8_t> msg,
 
 void usbms_volume::removal() {
     dead = true;
+
+    surprise_removal(*this);
 
     remove_object_name(*this);
     remove_partitions(*this);
