@@ -2119,8 +2119,6 @@ nt_status vfsctl::ioctl(uint32_t code, span<const uint8_t> inbuf,
 }
 
 void surprise_removal(volume& v) {
-    // FIXME - also partitions
-
     {
         lock_guard lg(v.mount_lock);
 
@@ -2186,6 +2184,8 @@ void remove_partitions(volume& v) {
 
     while (!is_list_empty(parts)) {
         auto& p = containing_record<part>(parts.next);
+
+        surprise_removal(*p.part);
 
         remove_object_name(*p.part);
         p.part->release();
