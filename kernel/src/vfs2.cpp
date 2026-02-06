@@ -1977,6 +1977,9 @@ static nt_status vfsctl_unmount(span<const uint8_t> inbuf) {
     if (inbuf.size() < offsetof(MOXNOX_VFSCTL_UNMOUNT, path) + m.path_len)
         return nt_status::BUFFER_TOO_SMALL;
 
+    if (m.flags != 0)
+        return nt_status::INVALID_PARAMETER;
+
     auto path = string_view(m.path, m.path_len);
 
     // open file

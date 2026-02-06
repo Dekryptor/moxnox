@@ -107,6 +107,7 @@ static nt_status umount(u16string_view path) {
         return nt_status::INSUFFICIENT_RESOURCES;
     }
 
+    params->flags = 0;
     params->path_len = u8len;
     utf16_to_utf8(span(params->path, u8len), u16sv);
 

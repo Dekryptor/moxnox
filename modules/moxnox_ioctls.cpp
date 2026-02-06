@@ -72,6 +72,7 @@ export struct MOXNOX_VFSCTL_MOUNT_INFO {
 };
 
 export struct MOXNOX_VFSCTL_UNMOUNT {
+    uint32_t flags;
     size_t path_len;
     char path[0];
 };
