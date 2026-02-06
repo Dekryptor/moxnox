@@ -256,3 +256,4 @@ export nt_status get_dentry_path(dentry& dr, char*& path, size_t& path_len);
 export void search_dentry_cache(dentry& dir, string_view name,
                                 optional<reference_wrapper<dentry>>& drw);
 export bool init_vfsctl();
+export void surprise_removal(volume& v);

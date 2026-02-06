@@ -27,6 +27,7 @@ import volume;
 import page_cache;
 import handle;
 import acpica;
+import vfs;
 
 export module sdhci;
 
@@ -871,6 +872,8 @@ void sdhci_slot::card_removal() {
 
         v->dead = true;
     }
+
+    surprise_removal(*v);
 
     remove_object_name(*v);
     remove_partitions(*v);

@@ -2117,3 +2117,41 @@ nt_status vfsctl::ioctl(uint32_t code, span<const uint8_t> inbuf,
             return nt_status::NOT_IMPLEMENTED;
     }
 }
+
+void surprise_removal(volume& v) {
+    // FIXME - also partitions
+
+    {
+        lock_guard lg(v.mount_lock);
+
+        if (!v.filesystem.has_value())
+            return;
+    }
+
+    mount_point* pmp = nullptr;
+
+    {
+        lock_guard lock(mount_points_lock);
+
+        for (auto le = mount_points.next; le != &mount_points; le = le->next) {
+            auto& mp = containing_record<::mount_point>(le);
+
+            if (mp.vol != &v)
+                continue;
+
+            pmp = &mp;
+            pmp->acquire();
+        }
+    }
+
+    if (!pmp)
+        return;
+
+    auto& mp = *pmp;
+
+    auto status = do_unmount(mp.d, true);
+    if (!success(status))
+        print("do_unmount returned {}\n", status);
+
+    mp.release();
+}
