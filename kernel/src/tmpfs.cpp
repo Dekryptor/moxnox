@@ -81,11 +81,6 @@ class tmpfs_filesystem : public ::filesystem {
 public:
     tmpfs_filesystem();
 
-    ~tmpfs_filesystem() override {
-        if (root_inode)
-            root_inode->release();
-    }
-
     nt_status flush(bool make_readonly) override;
 
     bool readonly = false;
@@ -99,8 +94,6 @@ tmpfs_filesystem::tmpfs_filesystem() : filesystem(nullptr) {
     }
 
     root_inode = tmpfs_root_inode;
-
-    release(); // root_inode grabs reference
 
     auto cur_time = (uint64_t)kernel_time_page.system_time + kernel_time_page.system_time_offset;
 

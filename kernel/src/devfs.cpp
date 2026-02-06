@@ -27,11 +27,6 @@ class devfs_filesystem : public ::filesystem {
 public:
     devfs_filesystem();
 
-    ~devfs_filesystem() override {
-        if (root_inode)
-            root_inode->release();
-    }
-
     nt_status flush(bool make_readonly) override;
 
     spinlock inode_lock;
@@ -97,8 +92,6 @@ devfs_filesystem::devfs_filesystem() : filesystem(nullptr) {
     }
 
     root_inode = devfs_root_inode;
-
-    release(); // root_inode grabs reference
 
     auto cur_time = (uint64_t)kernel_time_page.system_time + kernel_time_page.system_time_offset;
 

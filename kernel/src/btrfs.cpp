@@ -197,9 +197,6 @@ public:
 
         if (sb)
             free_folio(phys_memory_pfn(sb) << PAGE_SHIFT);
-
-        if (root_inode)
-            root_inode->release();
     }
 
     nt_status read_metadata(uint64_t addr, span<uint8_t> data);
@@ -598,8 +595,6 @@ btrfs_filesystem::btrfs_filesystem(volume& vol) : filesystem(&vol) {
     }
 
     root_inode = btrfs_root_inode;
-
-    release(); // root_inode grabs reference
 
     insert_tail_list(inode_list, btrfs_root_inode->le);
 
