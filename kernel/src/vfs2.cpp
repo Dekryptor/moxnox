@@ -2155,3 +2155,42 @@ void surprise_removal(volume& v) {
 
     mp.release();
 }
+
+void remove_partitions(volume& v) {
+    struct part {
+        list_entry le;
+        diskpart* part;
+    };
+
+    list_entry parts = { &parts, &parts };
+
+    {
+        lock_guard lg(v.part_lock);
+
+        for (auto le = v.part_list.next; le != &v.part_list; le = le->next) {
+            auto& dp = *(diskpart*)((uint8_t*)le - offsetof(diskpart, part_le));
+
+            auto p = new part;
+            if (!p) {
+                print("new failed\n");
+                // FIXME - probably should cleanup list done so far
+                return;
+            }
+
+            dp.acquire();
+
+            p->part = &dp;
+            insert_tail_list(parts, p->le);
+        }
+    }
+
+    while (!is_list_empty(parts)) {
+        auto& p = containing_record<part>(parts.next);
+
+        remove_object_name(*p.part);
+        p.part->release();
+
+        remove_entry_list(p.le);
+        delete &p;
+    }
+}

@@ -257,3 +257,4 @@ export void search_dentry_cache(dentry& dir, string_view name,
                                 optional<reference_wrapper<dentry>>& drw);
 export bool init_vfsctl();
 export void surprise_removal(volume& v);
+export void remove_partitions(volume& v);
