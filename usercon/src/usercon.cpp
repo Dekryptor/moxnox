@@ -787,8 +787,8 @@ static void print_chars2(console_fb& con, font_info& font,
 
         unique_hb_buffer buf{hb_buffer_create()};
 
-        hb_buffer_add_codepoints(buf.get(), (const hb_codepoint_t*)curline->text,
-                                (int)curline->len, 0, -1);
+        hb_buffer_add_codepoints(buf.get(), (const hb_codepoint_t*)s.data(),
+                                 (int)s.size(), 0, -1);
         hb_buffer_guess_segment_properties(buf.get());
 
         hb_shape(font.hb_font, buf.get(), nullptr, 0);
@@ -797,32 +797,39 @@ static void print_chars2(console_fb& con, font_info& font,
         auto info = hb_buffer_get_glyph_infos(buf.get(), nullptr);
         auto pos = hb_buffer_get_glyph_positions(buf.get(), nullptr);
 
-        curline->num_cells = min(len, console_fb_inst.console_cols);
-        for (unsigned int i = 0; i < curline->num_cells; i++) {
-            curline->cells[i].pos = pos[i];
-            curline->cells[i].glyph = info[i].codepoint;
+        auto curlen = curline->num_cells;
+
+        curline->num_cells = min(curlen + len, console_fb_inst.console_cols);
+        for (unsigned int i = curlen; i < curline->num_cells; i++) {
+            curline->cells[i].pos = pos[i - curlen];
+            curline->cells[i].glyph = info[i - curlen].codepoint;
 
             if (i >= orig_cursor_x) {
                 curline->cells[i].fg_colour = fg_colour;
                 curline->cells[i].bg_colour = bg_colour;
 
-                if (bold && italic)
-                    curline->cells[i].font = &bold_italic_font;
-                else if (bold)
-                    curline->cells[i].font = &bold_font;
-                else if (italic)
-                    curline->cells[i].font = &italic_font;
-                else
-                    curline->cells[i].font = &normal_font;
+                if (&font == &normal_font) {
+                    if (bold && italic)
+                        curline->cells[i].font = &bold_italic_font;
+                    else if (bold)
+                        curline->cells[i].font = &bold_font;
+                    else if (italic)
+                        curline->cells[i].font = &italic_font;
+                    else
+                        curline->cells[i].font = &normal_font;
+                } else
+                    curline->cells[i].font = &font;
             }
         }
 
         curline->changed = true;
 
-        if (len <= console_fb_inst.console_cols)
+        if (curlen + len <= console_fb_inst.console_cols)
             break;
 
-        auto trunc = info[console_fb_inst.console_cols].cluster;
+        auto trunc = curlen + info[console_fb_inst.console_cols - curlen].cluster;
+
+        curlen += len;
 
         auto t = (char32_t*)malloc((curline->len - trunc) * sizeof(char32_t));
         if (!t) {
@@ -847,12 +854,17 @@ static void print_chars2(console_fb& con, font_info& font,
     } while (true);
 }
 
-static span<const char32_t> find_font_run(span<const char32_t> s) {
-    if (s[0] == 'e')
+static span<const char32_t> find_font_run(span<const char32_t> s,
+                                          font_info*& font) {
+    if (s[0] == '!') {
+        font = &bold_font;
         return s.subspan(0, 1);
+    }
+
+    font = &normal_font;
 
     for (size_t i = 0; i < s.size(); i++) {
-        if (s[i] == 'e')
+        if (s[i] == '!')
             return s.subspan(0, i);
     }
 
@@ -887,7 +899,8 @@ void console_fb::print_chars(span<const char32_t> s) {
             // nop
             s = span(s.data() + 1, s.size() - 1);
         } else {
-            auto sp = find_font_run(s);
+            font_info* font;
+            auto sp = find_font_run(s, font);
 
             for (size_t i = 0; i < sp.size(); i++) {
                 if (sp[i] == '\n' || sp[i] == '\b' || sp[i] < ' ') {
@@ -896,13 +909,7 @@ void console_fb::print_chars(span<const char32_t> s) {
                 }
             }
 
-            if (sp[0] == 'e') {
-                char32_t c = '?';
-
-                print_chars2(*this, normal_font, span(&c, 1));
-            } else
-                print_chars2(*this, normal_font, sp);
-
+            print_chars2(*this, *font, sp);
             s = span(s.data() + sp.size(), s.size() - sp.size());
         }
     }
@@ -931,31 +938,25 @@ static void redo_line2(span<const char32_t> s, console_line& line,
     for (unsigned int i = 0; i < len; i++) {
         line.cells[line.num_cells + i].pos = pos[i];
         line.cells[line.num_cells + i].glyph = info[i].codepoint;
+        line.cells[line.num_cells + i].font = &font;
     }
 
     line.num_cells += len;
 }
 
 static void redo_line(console_line& line) {
-    if (line.len == 0)
-        line.num_cells = 0;
-    else {
-        // lay out using harfbuzz
+    line.num_cells = 0;
 
-        line.num_cells = 0;
+    if (line.len > 0) {
+        // lay out using harfbuzz
 
         auto s = span(line.text, line.len);
 
         while (!s.empty()) {
-            auto sp = find_font_run(s);
+            font_info* font;
+            auto sp = find_font_run(s, font);
 
-            if (sp[0] == 'e') {
-                char32_t c = '?';
-
-                redo_line2(span(&c, 1), line, normal_font);
-            } else
-                redo_line2(sp, line, normal_font);
-
+            redo_line2(sp, line, *font);
             s = span(s.data() + sp.size(), s.size() - sp.size());
         }
     }
@@ -993,15 +994,10 @@ void console_fb::erase_in_line(unsigned int param) {
         auto s = span(curline->text, curline->len);
 
         while (!s.empty()) {
-            auto sp = find_font_run(s);
+            font_info* font;
+            auto sp = find_font_run(s, font);
 
-            if (sp[0] == 'e') {
-                char32_t c = '?';
-
-                erase_in_line2(span(&c, 1), cursor_x, text_pos, normal_font);
-            } else
-                erase_in_line2(sp, cursor_x, text_pos, normal_font);
-
+            erase_in_line2(sp, cursor_x, text_pos, *font);
             s = span(s.data() + sp.size(), s.size() - sp.size());
         }
     }
