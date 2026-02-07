@@ -977,10 +977,10 @@ static void erase_in_line2(span<const char32_t> s, unsigned int cursor_x,
     auto len = hb_buffer_get_length(buf.get());
     auto info = hb_buffer_get_glyph_infos(buf.get(), nullptr);
 
-    if (len > cursor_x)
-        text_pos = info[cursor_x].cluster;
+    if (text_pos + len > cursor_x)
+        text_pos += info[cursor_x - text_pos].cluster;
     else
-        text_pos = info[len - 1].cluster + 1; // FIXME?
+        text_pos += info[len - 1].cluster + 1; // FIXME?
 }
 
 void console_fb::erase_in_line(unsigned int param) {
@@ -988,9 +988,9 @@ void console_fb::erase_in_line(unsigned int param) {
 
     // get current position in string
 
-    if (curline->len == 0)
-        text_pos = 0;
-    else {
+    text_pos = 0;
+
+    if (curline->len != 0) {
         auto s = span(curline->text, curline->len);
 
         while (!s.empty()) {
