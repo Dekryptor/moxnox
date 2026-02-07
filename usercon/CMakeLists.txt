@@ -12,7 +12,8 @@ add_executable(usercon src/usercon.cpp)
 target_sources(usercon PUBLIC FILE_SET CXX_MODULES FILES
     src/print.cpp
     src/text.cpp
-    src/keyboard.cpp)
+    src/keyboard.cpp
+    src/emoji.cpp)
 
 target_compile_options(usercon PRIVATE -fno-exceptions ${USERSPACE_CFLAGS})
 target_link_options(usercon PUBLIC -nostartfiles -nostdlib -Wl,--entry=startup)

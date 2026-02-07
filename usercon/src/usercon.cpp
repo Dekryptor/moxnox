@@ -27,6 +27,7 @@ import timepage;
 import harfbuzz;
 import freetype;
 import env;
+import emoji;
 
 using namespace std;
 
@@ -856,15 +857,21 @@ static void print_chars2(console_fb& con, font_info& font,
 
 static span<const char32_t> find_font_run(span<const char32_t> s,
                                           font_info*& font) {
-    if (s[0] == '!') {
+    if (is_emoji(s[0])) {
+        size_t len = 1;
+
+        while (s.size() >= len + 1 && is_emoji(s[len])) {
+            len++;
+        }
+
         font = &bold_font;
-        return s.subspan(0, 1);
+        return s.subspan(0, len);
     }
 
     font = &normal_font;
 
     for (size_t i = 0; i < s.size(); i++) {
-        if (s[i] == '!')
+        if (is_emoji(s[i]))
             return s.subspan(0, i);
     }
 
