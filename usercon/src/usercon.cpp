@@ -57,8 +57,7 @@ struct console_cell {
     FT_UInt glyph;
     uint32_t fg_colour;
     uint32_t bg_colour;
-    unsigned int bold : 1;
-    unsigned int italic : 1;
+    font_info* font;
 };
 
 class hb_buffer_closer {
@@ -87,7 +86,7 @@ struct console_line {
 };
 
 static FT_Library ft;
-static font_info font, bold_font, italic_font, bold_italic_font;
+static font_info normal_font, bold_font, italic_font, bold_italic_font;
 static MN_SECTION_FRAMEBUFFER_INFORMATION fb_info;
 static span<uint32_t> framebuffer;
 static unsigned int font_width, font_height, font_descender;
@@ -609,19 +608,8 @@ static glyph_info* load_glyph(font_info& font, FT_UInt glyph) {
 }
 
 static void draw_ft_char(const console_cell& cell, unsigned int fb_x, unsigned int fb_y,
-                         bool is_cursor) {
-    font_info* curfont;
-
-    if (cell.bold && cell.italic)
-        curfont = &bold_italic_font;
-    else if (cell.bold)
-        curfont = &bold_font;
-    else if (cell.italic)
-        curfont = &italic_font;
-    else
-        curfont = &font;
-
-    auto gi = load_glyph(*curfont, cell.glyph);
+                         bool is_cursor, font_info& font) {
+    auto gi = load_glyph(font, cell.glyph);
     if (!gi)
         return;
 
@@ -710,7 +698,7 @@ static void print_line(console_line& line, unsigned int sy) {
         draw_ft_char(line.cells[i],
                      (i * font_width) + (unsigned int)x_offset,
                      ((sy + 1) * font_height) + (unsigned int)y_offset - font_descender,
-                     is_cursor);
+                     is_cursor, *line.cells[i].font);
     }
 
     for (unsigned int i = line.num_cells; i < console_fb_inst.console_cols; i++) {
@@ -737,7 +725,8 @@ static void flush_framebuffer() {
     }
 }
 
-static void print_chars2(console_fb& con, span<const char32_t> s) {
+static void print_chars2(console_fb& con, font_info& font,
+                         span<const char32_t> s) {
     unsigned int text_pos;
 
     // get current position in string
@@ -816,8 +805,15 @@ static void print_chars2(console_fb& con, span<const char32_t> s) {
             if (i >= orig_cursor_x) {
                 curline->cells[i].fg_colour = fg_colour;
                 curline->cells[i].bg_colour = bg_colour;
-                curline->cells[i].bold = bold ? 1 : 0;
-                curline->cells[i].italic = italic ? 1 : 0;
+
+                if (bold && italic)
+                    curline->cells[i].font = &bold_italic_font;
+                else if (bold)
+                    curline->cells[i].font = &bold_font;
+                else if (italic)
+                    curline->cells[i].font = &italic_font;
+                else
+                    curline->cells[i].font = &normal_font;
             }
         }
 
@@ -903,16 +899,17 @@ void console_fb::print_chars(span<const char32_t> s) {
             if (sp[0] == 'e') {
                 char32_t c = '?';
 
-                print_chars2(*this, span(&c, 1));
+                print_chars2(*this, normal_font, span(&c, 1));
             } else
-                print_chars2(*this, sp);
+                print_chars2(*this, normal_font, sp);
 
             s = span(s.data() + sp.size(), s.size() - sp.size());
         }
     }
 }
 
-static void redo_line2(span<const char32_t> s, console_line& line) {
+static void redo_line2(span<const char32_t> s, console_line& line,
+                       font_info& font) {
     // FIXME - keep HB buffer around?
     // FIXME - cap how much data we send to hb_buffer_add_utf8?
 
@@ -955,9 +952,9 @@ static void redo_line(console_line& line) {
             if (sp[0] == 'e') {
                 char32_t c = '?';
 
-                redo_line2(span(&c, 1), line);
+                redo_line2(span(&c, 1), line, normal_font);
             } else
-                redo_line2(sp, line);
+                redo_line2(sp, line, normal_font);
 
             s = span(s.data() + sp.size(), s.size() - sp.size());
         }
@@ -967,7 +964,7 @@ static void redo_line(console_line& line) {
 }
 
 static void erase_in_line2(span<const char32_t> s, unsigned int cursor_x,
-                           unsigned int& text_pos) {
+                           unsigned int& text_pos, font_info& font) {
     unique_hb_buffer buf{hb_buffer_create()};
 
     hb_buffer_add_codepoints(buf.get(), (const hb_codepoint_t*)s.data(),
@@ -1001,9 +998,9 @@ void console_fb::erase_in_line(unsigned int param) {
             if (sp[0] == 'e') {
                 char32_t c = '?';
 
-                erase_in_line2(span(&c, 1), cursor_x, text_pos);
+                erase_in_line2(span(&c, 1), cursor_x, text_pos, normal_font);
             } else
-                erase_in_line2(sp, cursor_x, text_pos);
+                erase_in_line2(sp, cursor_x, text_pos, normal_font);
 
             s = span(s.data() + sp.size(), s.size() - sp.size());
         }
@@ -1819,7 +1816,7 @@ static int do_console() {
         return 1;
     }
 
-    if (!init_font(fontbuf, font, true)) {
+    if (!init_font(fontbuf, normal_font, true)) {
         print("init_font failed\n");
         return 1;
     }
