@@ -631,13 +631,14 @@ static glyph_info* load_glyph(font_info& font, FT_UInt glyph) {
         return nullptr;
 
     gi->tree.key = glyph;
-    gi->bitmap_left = font.face->glyph->bitmap_left;
-    gi->bitmap_top = font.face->glyph->bitmap_top;
 
     FT_Bitmap_Init(&gi->bitmap);
 
     if (!(font.face->face_flags & FT_FACE_FLAG_SCALABLE)) {
         auto& src = font.face->glyph->bitmap;
+
+        gi->bitmap_left = (FT_Int)((float)font.face->glyph->bitmap_left * font.scale);
+        gi->bitmap_top = (FT_Int)((float)font.face->glyph->bitmap_top * font.scale);
 
         // FIXME - call FT_Bitmap_Convert if not FT_PIXEL_MODE_GRAY
 
@@ -683,6 +684,9 @@ static glyph_info* load_glyph(font_info& font, FT_UInt glyph) {
             }
         }
     } else {
+        gi->bitmap_left = font.face->glyph->bitmap_left;
+        gi->bitmap_top = font.face->glyph->bitmap_top;
+
         error = FT_Bitmap_Copy(ft, &font.face->glyph->bitmap, &gi->bitmap);
         if (error) {
             FT_Bitmap_Done(ft, &gi->bitmap);
