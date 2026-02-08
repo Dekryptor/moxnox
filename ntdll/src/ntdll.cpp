@@ -24,12 +24,6 @@ static_assert(sizeof(LDR_DATA_TABLE_ENTRY) == 0x88);
 
 using DLL_ENTRY_PROC = bool (*)(void*, uint32_t, void*);
 
-#ifdef __x86_64__
-#define FORCE_ALIGN_ARG_POINTER __attribute__((force_align_arg_pointer))
-#else
-#define FORCE_ALIGN_ARG_POINTER
-#endif
-
 static PEB_LDR_DATA ldr_data; // zero-initialized
 static bool initialized = false;
 
@@ -950,7 +944,7 @@ static void call_dll_main() {
     }
 }
 
-extern "C" FORCE_ALIGN_ARG_POINTER
+extern "C"
 void mn_start_thread(mn_image_info* ntdll_info, mn_image_info* img_info, CONTEXT* context) {
     if (!initialized) {
         auto& peb = *NtCurrentTeb()->ProcessEnvironmentBlock;

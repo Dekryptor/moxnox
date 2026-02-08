@@ -213,13 +213,7 @@ static void take_screenshot() {
 
 }
 
-#ifdef __x86_64__
-#define FORCE_ALIGN_ARG_POINTER __attribute__((force_align_arg_pointer))
-#else
-#define FORCE_ALIGN_ARG_POINTER
-#endif
-
-extern "C" FORCE_ALIGN_ARG_POINTER void startup() {
+extern "C" void startup() {
     auto teb = NtCurrentTeb();
     auto peb = teb->ProcessEnvironmentBlock;
 
