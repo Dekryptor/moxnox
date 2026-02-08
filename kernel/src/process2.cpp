@@ -3304,7 +3304,7 @@ NTSTATUS process::create_thread(optional<reference_wrapper<handle_t>> thread_han
     t.context.Rcx = ntdll_info_addr;
     t.context.Rdx = img_info_addr;
     t.context.R8 = ctx_addr;
-    t.context.Rsp = (uintptr_t)img_info_addr - 0x20; // 0x20 for MS ABI
+    t.context.Rsp = (uintptr_t)img_info_addr - 0x28; // 0x20 for MS ABI, 0x8 for return pointer
 #endif
 
     t.kernel_mode = false;
