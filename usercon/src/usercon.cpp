@@ -52,6 +52,7 @@ struct font_info {
     FT_Face face;
     hb_font_t* hb_font;
     rbtree_node<FT_UInt>* glyphs = nullptr; // FIXME - destructor for this
+    float scale;
 };
 
 struct console_cell {
@@ -448,6 +449,8 @@ static bool init_font(span<const uint8_t> buf, font_info& font,
             print("FT_Select_Size failed ({:x})\n", error);
             return false;
         }
+
+        font.scale = (float)px / (float)font.face->available_sizes[*size].height;
     } else {
         error = FT_Set_Char_Size(font.face, (FT_F26Dot6)(font_size * 64), 0,
                                 fb_info.dpi, 0);
@@ -633,10 +636,59 @@ static glyph_info* load_glyph(font_info& font, FT_UInt glyph) {
 
     FT_Bitmap_Init(&gi->bitmap);
 
-    error = FT_Bitmap_Copy(ft, &font.face->glyph->bitmap, &gi->bitmap);
-    if (error) {
-        FT_Bitmap_Done(ft, &gi->bitmap);
-        delete gi;
+    if (!(font.face->face_flags & FT_FACE_FLAG_SCALABLE)) {
+        auto& src = font.face->glyph->bitmap;
+
+        // FIXME - call FT_Bitmap_Convert if not FT_PIXEL_MODE_GRAY
+
+        gi->bitmap.width = (unsigned int)((float)src.width * font.scale);
+        gi->bitmap.rows = (unsigned int)((float)src.rows * font.scale);
+        gi->bitmap.pixel_mode = src.pixel_mode;
+        gi->bitmap.num_grays = src.num_grays;
+
+        gi->bitmap.pitch = (int)gi->bitmap.width;
+
+        gi->bitmap.buffer = (unsigned char*)malloc((unsigned int)gi->bitmap.pitch * gi->bitmap.rows);
+        if (!gi->bitmap.buffer) {
+            print("malloc failed\n");
+            delete gi;
+            return nullptr;
+        }
+
+        auto* buf = gi->bitmap.buffer;
+
+        for (unsigned int y = 0; y < gi->bitmap.rows; y++) {
+            for (unsigned int x = 0; x < gi->bitmap.width; x++) {
+                auto src_x = (float)x / font.scale;
+                auto src_y = (float)y / font.scale;
+                auto src_x_l = (unsigned int)src_x;
+                auto src_y_l = (unsigned int)src_y;
+                auto src_x_h = src_x_l + 1;
+                auto src_y_h = src_y_l + 1;
+
+                auto xw = src_x - (float)src_x_l;
+                auto yw = src_y - (float)src_y_l;
+
+                auto tl = src.buffer[(src_y_l * (unsigned int)src.pitch) + src_x_l];
+                auto tr = (src_x_h < src.width) ? src.buffer[(src_y_l * (unsigned int)src.pitch) + src_x_h] : tl;
+                auto bl = (src_y_h < src.rows) ? src.buffer[(src_y_h * (unsigned int)src.pitch) + src_x_l] : tl;
+                auto br = (src_x_h < src.width && src_y_h < src.rows) ? src.buffer[(src_y_h * (unsigned int)src.pitch) + src_x_h] : tl;
+
+                auto v = (tl * (1.0f - xw) * (1.0f - yw)) +
+                         (tr * xw * (1.0f - yw)) +
+                         (bl * yw * (1.0f - xw)) +
+                         (br * xw * yw);
+
+                buf[(y * (unsigned int)gi->bitmap.pitch) + x] = (uint8_t)v;
+            }
+        }
+    } else {
+        error = FT_Bitmap_Copy(ft, &font.face->glyph->bitmap, &gi->bitmap);
+        if (error) {
+            FT_Bitmap_Done(ft, &gi->bitmap);
+            delete gi;
+            return nullptr;
+        }
     }
 
     insert_into_rbtree(font.glyphs, gi->tree);
