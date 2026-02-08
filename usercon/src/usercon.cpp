@@ -3,6 +3,7 @@
 #include <span>
 #include <memory>
 #include <array>
+#include <optional>
 #include <stdlib.h>
 #include <string.h>
 
@@ -414,11 +415,46 @@ static bool init_font(span<const uint8_t> buf, font_info& font,
         return false;
     }
 
-    error = FT_Set_Char_Size(font.face, (FT_F26Dot6)(font_size * 64), 0,
-                             fb_info.dpi, 0);
-    if (error) {
-        print("FT_Set_Char_Size failed ({:x})\n", error);
-        return false;
+    if (!(font.face->face_flags & FT_FACE_FLAG_SCALABLE)) {
+        optional<FT_Int> size;
+
+        auto px = (font_size * fb_info.dpi) / 72;
+
+        // choose smallest larger than or equal to px
+        for (FT_Int i = 0; i < font.face->num_fixed_sizes; i++) {
+            auto& sz = font.face->available_sizes[i];
+
+            if ((unsigned int)sz.height >= px && (!size.has_value() || font.face->available_sizes[*size].height > sz.height))
+                size = i;
+        }
+
+        // failing that choose largest
+        if (!size.has_value()) {
+            for (FT_Int i = 0; i < font.face->num_fixed_sizes; i++) {
+                auto& sz = font.face->available_sizes[i];
+
+                if (!size.has_value() || font.face->available_sizes[*size].height < sz.height)
+                    size = i;
+            }
+        }
+
+        if (!size.has_value()) {
+            print("could not choose size for bitmap font\n");
+            return false;
+        }
+
+        error = FT_Select_Size(font.face, *size);
+        if (error) {
+            print("FT_Select_Size failed ({:x})\n", error);
+            return false;
+        }
+    } else {
+        error = FT_Set_Char_Size(font.face, (FT_F26Dot6)(font_size * 64), 0,
+                                fb_info.dpi, 0);
+        if (error) {
+            print("FT_Set_Char_Size failed ({:x})\n", error);
+            return false;
+        }
     }
 
     font.hb_font = hb_ft_font_create(font.face, nullptr);
