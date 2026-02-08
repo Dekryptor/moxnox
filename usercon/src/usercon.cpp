@@ -620,7 +620,16 @@ static glyph_info* load_glyph(font_info& font, FT_UInt glyph) {
     if (tree)
         return &rbtree_containing_record<glyph_info>(tree);
 
-    auto error = FT_Load_Glyph(font.face, glyph, FT_LOAD_RENDER | FT_LOAD_TARGET_NORMAL);
+    uint32_t flags = FT_LOAD_TARGET_NORMAL;
+    bool colour = !(font.face->face_flags & FT_FACE_FLAG_SCALABLE) &&
+                  font.face->face_flags & FT_FACE_FLAG_COLOR;
+
+    if (colour)
+        flags |= FT_LOAD_COLOR;
+    else
+        flags |= FT_LOAD_RENDER;
+
+    auto error = FT_Load_Glyph(font.face, glyph, flags);
     if (error) {
         print("FT_Load_Glyph returned {:x}\n", error);
         return nullptr;
@@ -640,22 +649,25 @@ static glyph_info* load_glyph(font_info& font, FT_UInt glyph) {
         gi->bitmap_left = (FT_Int)((float)font.face->glyph->bitmap_left * font.scale);
         gi->bitmap_top = (FT_Int)((float)font.face->glyph->bitmap_top * font.scale);
 
-        // FIXME - call FT_Bitmap_Convert if not FT_PIXEL_MODE_GRAY
+        // FIXME - call FT_Bitmap_Convert if not FT_PIXEL_MODE_GRAY (and not colour)
 
         gi->bitmap.width = (unsigned int)((float)src.width * font.scale);
         gi->bitmap.rows = (unsigned int)((float)src.rows * font.scale);
         gi->bitmap.pixel_mode = src.pixel_mode;
         gi->bitmap.num_grays = src.num_grays;
 
-        gi->bitmap.pitch = (int)gi->bitmap.width;
+        unsigned int bytes = colour ? 4 : 1;
 
-        gi->bitmap.buffer = (unsigned char*)malloc((unsigned int)gi->bitmap.pitch * gi->bitmap.rows);
+        gi->bitmap.pitch = (int)(gi->bitmap.width * bytes);
+
+        gi->bitmap.buffer = (uint8_t*)malloc((unsigned int)gi->bitmap.pitch * gi->bitmap.rows);
         if (!gi->bitmap.buffer) {
             print("malloc failed\n");
             delete gi;
             return nullptr;
         }
 
+        auto src_buf = src.buffer;
         auto* buf = gi->bitmap.buffer;
 
         for (unsigned int y = 0; y < gi->bitmap.rows; y++) {
@@ -670,17 +682,22 @@ static glyph_info* load_glyph(font_info& font, FT_UInt glyph) {
                 auto xw = src_x - (float)src_x_l;
                 auto yw = src_y - (float)src_y_l;
 
-                auto tl = src.buffer[(src_y_l * (unsigned int)src.pitch) + src_x_l];
-                auto tr = (src_x_h < src.width) ? src.buffer[(src_y_l * (unsigned int)src.pitch) + src_x_h] : tl;
-                auto bl = (src_y_h < src.rows) ? src.buffer[(src_y_h * (unsigned int)src.pitch) + src_x_l] : tl;
-                auto br = (src_x_h < src.width && src_y_h < src.rows) ? src.buffer[(src_y_h * (unsigned int)src.pitch) + src_x_h] : tl;
+                auto* src_line = &src_buf[src_y_l * (unsigned int)src.pitch];
+                auto* src_line_down = &src_buf[(src_y_h < src.rows ? src_y_h : src_y_l) * (unsigned int)src.pitch];
 
-                auto v = (tl * (1.0f - xw) * (1.0f - yw)) +
-                         (tr * xw * (1.0f - yw)) +
-                         (bl * yw * (1.0f - xw)) +
-                         (br * xw * yw);
+                for (unsigned int i = 0; i < bytes; i++) {
+                    auto tl = src_line[(src_x_l * bytes) + i];
+                    auto tr = (src_x_h < src.width) ? src_line[(src_x_h * bytes) + i] : tl;
+                    auto bl = src_line_down[(src_x_l * bytes) + i];
+                    auto br = (src_x_h < src.width) ? src_line_down[(src_x_h * bytes) + i] : tl;
 
-                buf[(y * (unsigned int)gi->bitmap.pitch) + x] = (uint8_t)v;
+                    auto v = (tl * (1.0f - xw) * (1.0f - yw)) +
+                             (tr * xw * (1.0f - yw)) +
+                             (bl * yw * (1.0f - xw)) +
+                             (br * xw * yw);
+
+                    buf[(y * (unsigned int)gi->bitmap.pitch) + (x * bytes) + i] = (uint8_t)v;
+                }
             }
         }
     } else {
@@ -717,7 +734,10 @@ static void draw_ft_char(const console_cell& cell, unsigned int fb_x, unsigned i
     int bottom = y + (int)bitmap.rows;
 
     if (y < 0) {
-        buf += bitmap.width * ((unsigned int)gi->bitmap_top - fb_y);
+        if (font.face->face_flags & FT_FACE_FLAG_COLOR)
+            buf += bitmap.width * ((unsigned int)gi->bitmap_top - fb_y) * sizeof(uint32_t);
+        else
+            buf += bitmap.width * ((unsigned int)gi->bitmap_top - fb_y);
         y = 0;
     }
 
@@ -728,36 +748,65 @@ static void draw_ft_char(const console_cell& cell, unsigned int fb_x, unsigned i
         bottom = (int)fb_info.height;
 
     auto bg = is_cursor ? cell.fg_colour : cell.bg_colour;
-    auto fg = is_cursor ? cell.bg_colour : cell.fg_colour;
-
     uint32_t bg_colour_r = bg >> 16;
-    uint32_t fg_colour_r = fg >> 16;
     uint32_t bg_colour_g = (bg & 0xff00) >> 8;
-    uint32_t fg_colour_g = (fg & 0xff00) >> 8;
     uint32_t bg_colour_b = bg & 0xff;
-    uint32_t fg_colour_b = fg & 0xff;
 
     auto base = framebuffer.data() + ((uint32_t)y * fb_info.pixels_per_scan_line) + fb_x + gi->bitmap_left;
 
-    while (y < bottom) {
-        for (unsigned int x = 0; x < width; x++) {
-            if (*buf == 255)
-                base[x] = fg;
-            else if (*buf != 0) {
-                auto r = (uint8_t)(((bg_colour_r * (255 - (uint32_t)*buf)) + (fg_colour_r * (uint32_t)*buf)) / 255);
-                auto g = (uint8_t)(((bg_colour_g * (255 - (uint32_t)*buf)) + (fg_colour_g * (uint32_t)*buf)) / 255);
-                auto b = (uint8_t)(((bg_colour_b * (255 - (uint32_t)*buf)) + (fg_colour_b * (uint32_t)*buf)) / 255);
+    if (font.face->face_flags & FT_FACE_FLAG_COLOR) {
+        while (y < bottom) {
+            for (unsigned int x = 0; x < width; x++) {
+                uint32_t val = (buf[2] << 16) | (buf[1] << 8) | buf[0];
+                uint8_t alpha = buf[3];
 
-                base[x] = (unsigned int)((r << 16) | (g << 8) | b);
+                if (alpha == 0)
+                    base[x] = bg;
+                else if (alpha == 0xff)
+                    base[x] = val;
+                else {
+                    auto r = (uint8_t)(((bg_colour_r * (255 - (uint32_t)alpha)) + ((uint32_t)buf[2] * (uint32_t)alpha)) / 255);
+                    auto g = (uint8_t)(((bg_colour_g * (255 - (uint32_t)alpha)) + ((uint32_t)buf[1] * (uint32_t)alpha)) / 255);
+                    auto b = (uint8_t)(((bg_colour_b * (255 - (uint32_t)alpha)) + ((uint32_t)buf[0] * (uint32_t)alpha)) / 255);
+
+                    base[x] = (unsigned int)((r << 16) | (g << 8) | b);
+                }
+
+                buf += sizeof(uint32_t);
             }
 
-            buf++;
+            buf += (bitmap.width - width) * sizeof(uint32_t);
+
+            base += fb_info.pixels_per_scan_line;
+            y++;
         }
+    } else {
+        auto fg = is_cursor ? cell.bg_colour : cell.fg_colour;
 
-        buf += bitmap.width - width;
+        uint32_t fg_colour_r = fg >> 16;
+        uint32_t fg_colour_g = (fg & 0xff00) >> 8;
+        uint32_t fg_colour_b = fg & 0xff;
 
-        base += fb_info.pixels_per_scan_line;
-        y++;
+        while (y < bottom) {
+            for (unsigned int x = 0; x < width; x++) {
+                if (*buf == 255)
+                    base[x] = fg;
+                else if (*buf != 0) {
+                    auto r = (uint8_t)(((bg_colour_r * (255 - (uint32_t)*buf)) + (fg_colour_r * (uint32_t)*buf)) / 255);
+                    auto g = (uint8_t)(((bg_colour_g * (255 - (uint32_t)*buf)) + (fg_colour_g * (uint32_t)*buf)) / 255);
+                    auto b = (uint8_t)(((bg_colour_b * (255 - (uint32_t)*buf)) + (fg_colour_b * (uint32_t)*buf)) / 255);
+
+                    base[x] = (unsigned int)((r << 16) | (g << 8) | b);
+                }
+
+                buf++;
+            }
+
+            buf += bitmap.width - width;
+
+            base += fb_info.pixels_per_scan_line;
+            y++;
+        }
     }
 }
 
