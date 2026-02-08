@@ -607,7 +607,7 @@ object_ref create_process(string_view fn, string_view curdir,
 #ifdef __aarch64__
     entry_point_ctx_addr -= 0x10; // 0x10 for red zone
 #elifdef __x86_64__
-    entry_point_ctx_addr -= 0x20; // 0x20 for MS ABI
+    entry_point_ctx_addr -= 0x28; // 0x20 for MS ABI, 0x8 for return pointer
 #endif
 
     memset(&entry_point_context, 0, sizeof(entry_point_context));
