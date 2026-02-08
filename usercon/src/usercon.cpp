@@ -620,7 +620,7 @@ static glyph_info* load_glyph(font_info& font, FT_UInt glyph) {
     if (tree)
         return &rbtree_containing_record<glyph_info>(tree);
 
-    uint32_t flags = FT_LOAD_TARGET_NORMAL;
+    int32_t flags = FT_LOAD_TARGET_NORMAL;
     bool colour = !(font.face->face_flags & FT_FACE_FLAG_SCALABLE) &&
                   font.face->face_flags & FT_FACE_FLAG_COLOR;
 
@@ -757,7 +757,7 @@ static void draw_ft_char(const console_cell& cell, unsigned int fb_x, unsigned i
     if (font.face->face_flags & FT_FACE_FLAG_COLOR) {
         while (y < bottom) {
             for (unsigned int x = 0; x < width; x++) {
-                uint32_t val = (buf[2] << 16) | (buf[1] << 8) | buf[0];
+                uint32_t val = ((uint32_t)buf[2] << 16) | ((uint32_t)buf[1] << 8) | (uint32_t)buf[0];
                 uint8_t alpha = buf[3];
 
                 if (alpha == 0)
