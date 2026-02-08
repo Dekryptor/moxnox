@@ -1556,7 +1556,7 @@ static bool run_program(u16string_view exe, u16string_view cmdline,
     context.Sp = (uintptr_t)initial_teb.StackBase - 0x10; // 0x10 bytes for red zone
 #elifdef __x86_64__
     context.Rip = (uintptr_t)sii.TransferAddress;
-    context.Rsp = (uintptr_t)initial_teb.StackBase - 0x20; // 0x20 bytes for MS ABI
+    context.Rsp = (uintptr_t)initial_teb.StackBase - 0x28; // 0x20 bytes for MS ABI, 0x8 for return pointer
     context.EFlags = 0x200;
 #endif
     context.ContextFlags = CONTEXT_CONTROL | CONTEXT_INTEGER | CONTEXT_SEGMENTS;
