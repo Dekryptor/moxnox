@@ -89,7 +89,7 @@ struct console_line {
 };
 
 static FT_Library ft;
-static font_info normal_font, bold_font, italic_font, bold_italic_font;
+static font_info normal_font, bold_font, italic_font, bold_italic_font, emoji_font;
 static MN_SECTION_FRAMEBUFFER_INFORMATION fb_info;
 static span<uint32_t> framebuffer;
 static unsigned int font_width, font_height, font_descender;
@@ -952,7 +952,7 @@ static span<const char32_t> find_font_run(span<const char32_t> s,
             len++;
         }
 
-        font = &bold_font;
+        font = &emoji_font;
         return s.subspan(0, len);
     }
 
@@ -1907,6 +1907,12 @@ static int do_console() {
         return 1;
     }
 
+    auto emojifontbuf = load_font(u"emoji.ttf");
+    if (emojifontbuf.empty()) {
+        print("load_font failed\n");
+        return 1;
+    }
+
     if (!init_font(fontbuf, normal_font, true)) {
         print("init_font failed\n");
         return 1;
@@ -1923,6 +1929,11 @@ static int do_console() {
     }
 
     if (!init_font(bolditalicfontbuf, bold_italic_font, false)) {
+        print("init_font failed\n");
+        return 1;
+    }
+
+    if (!init_font(emojifontbuf, emoji_font, false)) {
         print("init_font failed\n");
         return 1;
     }
