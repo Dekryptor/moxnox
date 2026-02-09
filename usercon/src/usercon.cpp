@@ -61,6 +61,7 @@ struct console_cell {
     uint32_t fg_colour;
     uint32_t bg_colour;
     font_info* font;
+    bool ignore;
 };
 
 class hb_buffer_closer {
@@ -835,7 +836,13 @@ static void print_line(console_line& line, unsigned int sy) {
 
         auto bg = is_cursor ? line.cells[i].fg_colour : line.cells[i].bg_colour;
 
-        rect(i * font_width, sy * font_height, font_width, font_height, bg);
+        if (line.cells[i].ignore)
+            continue;
+
+        if (i < line.num_cells - 1 && line.cells[i + 1].ignore)
+            rect(i * font_width, sy * font_height, font_width * 2, font_height, bg);
+        else
+            rect(i * font_width, sy * font_height, font_width, font_height, bg);
 
         draw_ft_char(line.cells[i],
                      (i * font_width) + (unsigned int)x_offset,
@@ -865,6 +872,17 @@ static void flush_framebuffer() {
         print("NtFlushVirtualMemory returned {}\n", status);
         return;
     }
+}
+
+static bool is_cluster_wide(span<const char32_t> s) {
+    // FIXME - emoji presentation
+
+    for (auto c : s) {
+        if (is_emoji(c))
+            return true;
+    }
+
+    return false;
 }
 
 static void print_chars2(console_fb& con, font_info& font,
@@ -941,37 +959,68 @@ static void print_chars2(console_fb& con, font_info& font,
 
         auto curlen = curline->num_cells;
 
-        curline->num_cells = min(curlen + len, console_fb_inst.console_cols);
-        for (unsigned int i = curlen; i < curline->num_cells; i++) {
-            curline->cells[i].pos = pos[i - curlen];
-            curline->cells[i].glyph = info[i - curlen].codepoint;
+        auto c = &curline->cells[curline->num_cells];
+        unsigned int hb_len_done = 0;
 
-            if (i >= orig_cursor_x) {
-                curline->cells[i].fg_colour = fg_colour;
-                curline->cells[i].bg_colour = bg_colour;
+        for (unsigned int i = 0; i < len; i++) {
+            if (curline->num_cells == console_fb_inst.console_cols - 1)
+                break;
+
+            size_t num_cp;
+
+            if (i == len - 1)
+                num_cp = s.size() - info[i].cluster;
+            else
+                num_cp = info[i + 1].cluster - info[i].cluster;
+
+            auto clus = span(&s[info[i].cluster], num_cp);
+            bool wide = is_cluster_wide(clus);
+
+            if (wide && curline->num_cells + 2 == console_fb_inst.console_cols)
+                break;
+
+            c->pos = pos[i];
+            c->glyph = info[i].codepoint;
+            c->ignore = false;
+
+            if (curline->num_cells >= orig_cursor_x) {
+                c->fg_colour = fg_colour;
+                c->bg_colour = bg_colour;
 
                 if (&font == &normal_font) {
                     if (bold && italic)
-                        curline->cells[i].font = &bold_italic_font;
+                        c->font = &bold_italic_font;
                     else if (bold)
-                        curline->cells[i].font = &bold_font;
+                        c->font = &bold_font;
                     else if (italic)
-                        curline->cells[i].font = &italic_font;
+                        c->font = &italic_font;
                     else
-                        curline->cells[i].font = &normal_font;
+                        c->font = &normal_font;
                 } else
-                    curline->cells[i].font = &font;
+                    c->font = &font;
+            }
+
+            c++;
+            curline->num_cells++;
+            hb_len_done++;
+
+            if (wide) {
+                c->ignore = true;
+                c->fg_colour = fg_colour;
+                c->bg_colour = bg_colour;
+                c->font = &normal_font;
+
+                c++;
+                curline->num_cells++;
             }
         }
 
         curline->changed = true;
 
-        if (curlen + len <= console_fb_inst.console_cols)
+        if (hb_len_done == len)
             break;
 
-        auto trunc = curlen + info[console_fb_inst.console_cols - curlen].cluster;
-
-        curlen += len;
+        auto trunc = curlen + info[hb_len_done].cluster;
 
         auto t = (char32_t*)malloc((curline->len - trunc) * sizeof(char32_t));
         if (!t) {
