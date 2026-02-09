@@ -907,10 +907,30 @@ static void print_chars2(console_fb& con, font_info& font,
         auto len = hb_buffer_get_length(buf.get());
         auto info = hb_buffer_get_glyph_infos(buf.get(), nullptr);
 
-        if (len > con.cursor_x)
-            text_pos = info[con.cursor_x].cluster;
-        else
-            text_pos = info[len - 1].cluster + 1; // FIXME?
+        text_pos = info[len - 1].cluster + 1; // FIXME?
+
+        unsigned int num_cells = 0;
+        for (unsigned int i = 0; i < len; i++) {
+            size_t num_cp;
+
+            if (i == len - 1)
+                num_cp = s.size() - info[i].cluster;
+            else
+                num_cp = info[i + 1].cluster - info[i].cluster;
+
+            auto clus = span(&s[info[i].cluster], num_cp);
+            bool wide = is_cluster_wide(clus);
+
+            if (num_cells == con.cursor_x || (wide && num_cells + 1 == con.cursor_x)) {
+                text_pos = info[i].cluster;
+                break;
+            }
+
+            if (wide)
+                num_cells += 2;
+            else
+                num_cells++;
+        }
     }
 
     // append to existing buffer
