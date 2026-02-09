@@ -2019,31 +2019,31 @@ static int do_console() {
         return 1;
     }
 
-    auto fontbuf = load_font(u"console.ttf");
+    auto fontbuf = load_font(u"/share/fonts/console.ttf");
     if (fontbuf.empty()) {
         print("load_font failed\n");
         return 1;
     }
 
-    auto boldfontbuf = load_font(u"console-bold.ttf");
+    auto boldfontbuf = load_font(u"/share/fonts/console-bold.ttf");
     if (boldfontbuf.empty()) {
         print("load_font failed\n");
         return 1;
     }
 
-    auto italicfontbuf = load_font(u"console-italic.ttf");
+    auto italicfontbuf = load_font(u"/share/fonts/console-italic.ttf");
     if (italicfontbuf.empty()) {
         print("load_font failed\n");
         return 1;
     }
 
-    auto bolditalicfontbuf = load_font(u"console-bold-italic.ttf");
+    auto bolditalicfontbuf = load_font(u"/share/fonts/console-bold-italic.ttf");
     if (italicfontbuf.empty()) {
         print("load_font failed\n");
         return 1;
     }
 
-    auto emojifontbuf = load_font(u"emoji.ttf");
+    auto emojifontbuf = load_font(u"/share/fonts/emoji.ttf");
     if (emojifontbuf.empty()) {
         print("load_font failed\n");
         return 1;
