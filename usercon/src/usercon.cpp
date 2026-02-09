@@ -885,31 +885,48 @@ static bool is_cluster_wide(span<const char32_t> s) {
     return false;
 }
 
-static void print_chars2(console_fb& con, font_info& font,
-                         span<const char32_t> s) {
-    unsigned int text_pos;
+static span<const char32_t> find_font_run(span<const char32_t> s,
+                                          font_info*& font) {
+    if (is_emoji(s[0])) {
+        size_t len = 1;
 
-    // get current position in string
+        while (s.size() >= len + 1 && is_emoji(s[len])) {
+            len++;
+        }
 
-    auto orig_cursor_x = con.cursor_x;
+        font = &emoji_font;
+        return s.subspan(0, len);
+    }
 
-    if (curline->len == 0)
-        text_pos = 0;
-    else {
+    font = &normal_font;
+
+    for (size_t i = 0; i < s.size(); i++) {
+        if (is_emoji(s[i]))
+            return s.subspan(0, i);
+    }
+
+    return s;
+}
+
+static unsigned int find_text_pos(unsigned int cursor_x) {
+    unsigned int ret = 0, num_cells = 0;
+    auto text = span(curline->text, curline->len);
+
+    while (true) {
+        font_info* font;
+        auto s = find_font_run(text, font);
+
         unique_hb_buffer buf{hb_buffer_create()};
 
-        hb_buffer_add_codepoints(buf.get(), (const hb_codepoint_t*)curline->text,
-                                 (int)curline->len, 0, -1);
+        hb_buffer_add_codepoints(buf.get(), (const hb_codepoint_t*)s.data(),
+                                 (int)s.size(), 0, -1);
         hb_buffer_guess_segment_properties(buf.get());
 
-        hb_shape(font.hb_font, buf.get(), nullptr, 0);
+        hb_shape(font->hb_font, buf.get(), nullptr, 0);
 
         auto len = hb_buffer_get_length(buf.get());
         auto info = hb_buffer_get_glyph_infos(buf.get(), nullptr);
 
-        text_pos = info[len - 1].cluster + 1; // FIXME?
-
-        unsigned int num_cells = 0;
         for (unsigned int i = 0; i < len; i++) {
             size_t num_cp;
 
@@ -921,24 +938,44 @@ static void print_chars2(console_fb& con, font_info& font,
             auto clus = span(&s[info[i].cluster], num_cp);
             bool wide = is_cluster_wide(clus);
 
-            if (num_cells == con.cursor_x || (wide && num_cells + 1 == con.cursor_x)) {
-                text_pos = info[i].cluster;
-                break;
-            }
+            if (num_cells == cursor_x || (wide && num_cells + 1 == cursor_x))
+                return ret + info[i].cluster;
 
             if (wide)
                 num_cells += 2;
             else
                 num_cells++;
         }
+
+        ret += (unsigned int)s.size();
+
+        if (text.size() == s.size())
+            break;
+
+        text = span(text.data() + s.size(), text.size() - s.size());
     }
+
+    return ret;
+}
+
+static void print_chars2(console_fb& con, font_info& font,
+                         span<const char32_t> s) {
+    unsigned int text_pos;
+
+    // get current position in string
+
+    auto orig_cursor_x = con.cursor_x;
+
+    if (curline->len == 0)
+        text_pos = 0;
+    else
+        text_pos = find_text_pos(con.cursor_x);
 
     // append to existing buffer
 
-    if (text_pos + s.size() < curline->len) {
+    if (text_pos + s.size() < curline->len)
         memcpy(&curline->text[text_pos], s.data(), s.size() * sizeof(char32_t));
-        con.cursor_x = (unsigned int)(text_pos + s.size());
-    } else {
+    else {
         auto t = (char32_t*)malloc((curline->len + s.size()) * sizeof(char32_t));
         if (!t) {
             print("malloc failed\n");
@@ -955,8 +992,6 @@ static void print_chars2(console_fb& con, font_info& font,
 
         curline->text = t;
         curline->len += s.size();
-
-        con.cursor_x = (unsigned int)curline->len;
     }
 
     // lay out using harfbuzz
@@ -1063,29 +1098,8 @@ static void print_chars2(console_fb& con, font_info& font,
 
         orig_cursor_x = 0;
     } while (true);
-}
 
-static span<const char32_t> find_font_run(span<const char32_t> s,
-                                          font_info*& font) {
-    if (is_emoji(s[0])) {
-        size_t len = 1;
-
-        while (s.size() >= len + 1 && is_emoji(s[len])) {
-            len++;
-        }
-
-        font = &emoji_font;
-        return s.subspan(0, len);
-    }
-
-    font = &normal_font;
-
-    for (size_t i = 0; i < s.size(); i++) {
-        if (is_emoji(s[i]))
-            return s.subspan(0, i);
-    }
-
-    return s;
+    con.cursor_x = curline->num_cells;
 }
 
 void console_fb::print_chars(span<const char32_t> s) {
