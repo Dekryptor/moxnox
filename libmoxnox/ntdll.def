@@ -427,3 +427,4 @@ NtWaitForMultipleObjects32
 NtWaitForWorkViaWorkerFactory
 NtWorkerFactoryWorkerReady
 LdrGetProcedureAddress
+__C_specific_handler
