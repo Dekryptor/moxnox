@@ -1071,6 +1071,11 @@ static void print_chars2(console_fb& con, font_info& font,
             if (wide && curline->num_cells + 2 == console_fb_inst.console_cols)
                 break;
 
+            if (pos[i].x_advance == 0) {
+                hb_len_done++;
+                continue;
+            }
+
             c->pos = pos[i];
             c->glyph = info[i].codepoint;
             c->ignore = false;
