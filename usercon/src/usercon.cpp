@@ -1195,25 +1195,6 @@ static void redo_line(console_line& line) {
     line.changed = true;
 }
 
-static void erase_in_line2(span<const char32_t> s, unsigned int cursor_x,
-                           unsigned int& text_pos, font_info& font) {
-    unique_hb_buffer buf{hb_buffer_create()};
-
-    hb_buffer_add_codepoints(buf.get(), (const hb_codepoint_t*)s.data(),
-                             (int)s.size(), 0, -1);
-    hb_buffer_guess_segment_properties(buf.get());
-
-    hb_shape(font.hb_font, buf.get(), nullptr, 0);
-
-    auto len = hb_buffer_get_length(buf.get());
-    auto info = hb_buffer_get_glyph_infos(buf.get(), nullptr);
-
-    if (text_pos + len > cursor_x)
-        text_pos += info[cursor_x - text_pos].cluster;
-    else
-        text_pos += info[len - 1].cluster + 1; // FIXME?
-}
-
 void console_fb::erase_in_line(unsigned int param) {
     unsigned int text_pos;
 
@@ -1228,7 +1209,22 @@ void console_fb::erase_in_line(unsigned int param) {
             font_info* font;
             auto sp = find_font_run(s, font);
 
-            erase_in_line2(sp, cursor_x, text_pos, *font);
+            unique_hb_buffer buf{hb_buffer_create()};
+
+            hb_buffer_add_codepoints(buf.get(), (const hb_codepoint_t*)sp.data(),
+                                    (int)sp.size(), 0, -1);
+            hb_buffer_guess_segment_properties(buf.get());
+
+            hb_shape(font->hb_font, buf.get(), nullptr, 0);
+
+            auto len = hb_buffer_get_length(buf.get());
+            auto info = hb_buffer_get_glyph_infos(buf.get(), nullptr);
+
+            if (text_pos + len > cursor_x)
+                text_pos += info[cursor_x - text_pos].cluster;
+            else
+                text_pos += info[len - 1].cluster + 1; // FIXME?
+
             s = span(s.data() + sp.size(), s.size() - sp.size());
         }
     }
