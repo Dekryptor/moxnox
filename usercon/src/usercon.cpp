@@ -1181,7 +1181,7 @@ static void redo_line2(span<const char32_t> s, console_line& line,
 
         c->pos = pos[i];
         c->glyph = info[i].codepoint;
-        c->font = &font;
+        // c->font = &font; // FIXME - clears bold etc.
         c->ignore = false;
 
         c++;
