@@ -37,6 +37,7 @@ static const string_view welcome_message2 = ")\n\n";
 
 static const char32_t TEXT_PRESENTATION = 0xfe0e;
 static const char32_t EMOJI_PRESENTATION = 0xfe0f;
+static const char32_t ZWJ = 0x200d;
 
 extern uint64_t __CTOR_LIST__;
 
@@ -916,6 +917,11 @@ static span<const char32_t> find_font_run(span<const char32_t> s,
 
         while (len < s.size()) {
             auto next = len < s.size() - 1 ? s[len + 1] : 0;
+
+            if (s[len] == ZWJ || s[len] == EMOJI_PRESENTATION) {
+                len++;
+                continue;
+            }
 
             if (!is_emoji(s[len]))
                 break;
