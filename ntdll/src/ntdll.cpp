@@ -154,6 +154,13 @@ NTSTATUS LdrGetProcedureAddress(void* dll_handle, const ANSI_STRING* procedure_n
 }
 
 template<typename T>
+static T resolve_dll_forward(string_view fwd) {
+    print("FIXME - resolve_dll_forward \"{}\"\n", fwd);
+
+    return 0; // FIXME
+}
+
+template<typename T>
 static void resolve_imports_dll(void* base, void* dll_base, string_view name, T* lookup_table, T* thunks) {
     IMAGE_DATA_DIRECTORY exp_dir;
     bool found = false;
@@ -212,7 +219,10 @@ static void resolve_imports_dll(void* base, void* dll_base, string_view name, T*
 
             auto addr = funcs[ord - ied.Base];
 
-            *thunks = (T)((uintptr_t)dll_base + addr);
+            if (addr >= exp_dir.VirtualAddress && addr < exp_dir.VirtualAddress + exp_dir.Size)
+                *thunks = resolve_dll_forward<T>(string_view((char*)((uintptr_t)dll_base + addr)));
+            else
+                *thunks = (T)((uintptr_t)dll_base + addr);
 
             lookup_table++;
             thunks++;
@@ -243,7 +253,10 @@ static void resolve_imports_dll(void* base, void* dll_base, string_view name, T*
 
         auto addr = funcs[*ord];
 
-        *thunks = (T)((uintptr_t)dll_base + addr);
+        if (addr >= exp_dir.VirtualAddress && addr < exp_dir.VirtualAddress + exp_dir.Size)
+            *thunks = resolve_dll_forward<T>(string_view((char*)((uintptr_t)dll_base + addr)));
+        else
+            *thunks = (T)((uintptr_t)dll_base + addr);
 
         lookup_table++;
         thunks++;
