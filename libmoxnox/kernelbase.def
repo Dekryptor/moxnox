@@ -16,3 +16,8 @@ AddVectoredExceptionHandler
 HeapAlloc
 HeapFree
 HeapReAlloc
+GetLastError
+SetUnhandledExceptionFilter
+TlsGetValue
+VirtualProtect
+VirtualQuery
