@@ -1,5 +1,7 @@
 #include "../../modules/stubs.S"
 
+stubs_start
+
 do_stub "_set_app_type"
 do_stub "__acrt_iob_func"
 do_stub "__p___argc"
@@ -24,3 +26,5 @@ do_stub "_set_invalid_parameter_handler"
 do_stub "_set_new_mode"
 do_stub "exit"
 do_stub "signal"
+
+stubs_end
