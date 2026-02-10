@@ -661,43 +661,47 @@ static glyph_info* load_glyph(font_info& font, FT_UInt glyph) {
 
         gi->bitmap.pitch = (int)(gi->bitmap.width * bytes);
 
-        gi->bitmap.buffer = (uint8_t*)malloc((unsigned int)gi->bitmap.pitch * gi->bitmap.rows);
-        if (!gi->bitmap.buffer) {
-            print("malloc failed\n");
-            delete gi;
-            return nullptr;
-        }
+        if (!src.buffer)
+            gi->bitmap.buffer = nullptr;
+        else {
+            gi->bitmap.buffer = (uint8_t*)malloc((unsigned int)gi->bitmap.pitch * gi->bitmap.rows);
+            if (!gi->bitmap.buffer) {
+                print("malloc failed\n");
+                delete gi;
+                return nullptr;
+            }
 
-        auto src_buf = src.buffer;
-        auto* buf = gi->bitmap.buffer;
+            auto src_buf = src.buffer;
+            auto* buf = gi->bitmap.buffer;
 
-        for (unsigned int y = 0; y < gi->bitmap.rows; y++) {
-            for (unsigned int x = 0; x < gi->bitmap.width; x++) {
-                auto src_x = (float)x / font.scale;
-                auto src_y = (float)y / font.scale;
-                auto src_x_l = (unsigned int)src_x;
-                auto src_y_l = (unsigned int)src_y;
-                auto src_x_h = src_x_l + 1;
-                auto src_y_h = src_y_l + 1;
+            for (unsigned int y = 0; y < gi->bitmap.rows; y++) {
+                for (unsigned int x = 0; x < gi->bitmap.width; x++) {
+                    auto src_x = (float)x / font.scale;
+                    auto src_y = (float)y / font.scale;
+                    auto src_x_l = (unsigned int)src_x;
+                    auto src_y_l = (unsigned int)src_y;
+                    auto src_x_h = src_x_l + 1;
+                    auto src_y_h = src_y_l + 1;
 
-                auto xw = src_x - (float)src_x_l;
-                auto yw = src_y - (float)src_y_l;
+                    auto xw = src_x - (float)src_x_l;
+                    auto yw = src_y - (float)src_y_l;
 
-                auto* src_line = &src_buf[src_y_l * (unsigned int)src.pitch];
-                auto* src_line_down = &src_buf[(src_y_h < src.rows ? src_y_h : src_y_l) * (unsigned int)src.pitch];
+                    auto* src_line = &src_buf[src_y_l * (unsigned int)src.pitch];
+                    auto* src_line_down = &src_buf[(src_y_h < src.rows ? src_y_h : src_y_l) * (unsigned int)src.pitch];
 
-                for (unsigned int i = 0; i < bytes; i++) {
-                    auto tl = src_line[(src_x_l * bytes) + i];
-                    auto tr = (src_x_h < src.width) ? src_line[(src_x_h * bytes) + i] : tl;
-                    auto bl = src_line_down[(src_x_l * bytes) + i];
-                    auto br = (src_x_h < src.width) ? src_line_down[(src_x_h * bytes) + i] : tl;
+                    for (unsigned int i = 0; i < bytes; i++) {
+                        auto tl = src_line[(src_x_l * bytes) + i];
+                        auto tr = (src_x_h < src.width) ? src_line[(src_x_h * bytes) + i] : tl;
+                        auto bl = src_line_down[(src_x_l * bytes) + i];
+                        auto br = (src_x_h < src.width) ? src_line_down[(src_x_h * bytes) + i] : tl;
 
-                    auto v = (tl * (1.0f - xw) * (1.0f - yw)) +
-                             (tr * xw * (1.0f - yw)) +
-                             (bl * yw * (1.0f - xw)) +
-                             (br * xw * yw);
+                        auto v = (tl * (1.0f - xw) * (1.0f - yw)) +
+                                (tr * xw * (1.0f - yw)) +
+                                (bl * yw * (1.0f - xw)) +
+                                (br * xw * yw);
 
-                    buf[(y * (unsigned int)gi->bitmap.pitch) + (x * bytes) + i] = (uint8_t)v;
+                        buf[(y * (unsigned int)gi->bitmap.pitch) + (x * bytes) + i] = (uint8_t)v;
+                    }
                 }
             }
         }
