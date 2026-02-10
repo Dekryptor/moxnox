@@ -4,6 +4,7 @@
 #include <stdlib.h>
 #include <string_view>
 #include <span>
+#include <utility>
 
 using namespace std;
 
@@ -26,6 +27,8 @@ using DLL_ENTRY_PROC = bool (*)(void*, uint32_t, void*);
 
 static PEB_LDR_DATA ldr_data; // zero-initialized
 static bool initialized = false;
+
+static ldr_entry* load_dll(string_view name);
 
 extern "C"
 bool DllMainCRTStartup(uintptr_t, uint32_t, void*) {
@@ -141,7 +144,14 @@ static NTSTATUS _LdrGetProcedureAddress(void* dll_handle, const ANSI_STRING* pro
         return nt_status::INTERNAL_ERROR;
     }
 
-    *procedure_address = (uint8_t*)dll_handle + funcs[*ord];
+    auto rva = funcs[*ord];
+
+    if (rva >= data_dir.VirtualAddress && rva < data_dir.VirtualAddress + data_dir.Size) {
+        print("FIXME - resolving forwards in LdrGetProcedureAddress\n"); // FIXME
+        return nt_status::INTERNAL_ERROR;
+    }
+
+    *procedure_address = (uint8_t*)dll_handle + rva;
 
     return nt_status::SUCCESS;
 }
@@ -155,9 +165,63 @@ NTSTATUS LdrGetProcedureAddress(void* dll_handle, const ANSI_STRING* procedure_n
 
 template<typename T>
 static T resolve_dll_forward(string_view fwd) {
-    print("FIXME - resolve_dll_forward \"{}\"\n", fwd);
+    string_view dll, name;
 
-    return 0; // FIXME
+    static const string_view suffix = ".dll";
+
+    if (auto dot = fwd.find("."); dot == string_view::npos) {
+        print("could not resolve DLL forward \"{}\"\n", fwd);
+        NtTerminateProcess(NtCurrentProcess(), nt_status::PROCEDURE_NOT_FOUND);
+        unreachable();
+    } else {
+        dll = string_view(fwd.data(), dot);
+        name = string_view(fwd.data() + dot + 1, fwd.size() - dot - 1);
+    }
+
+    if (!name.empty() && name.front() == '#') {
+        print("resolve_dll_forward: FIXME - resolving DLL forwards by ordinal\n"); // FIXME
+        NtTerminateProcess(NtCurrentProcess(), nt_status::INTERNAL_ERROR);
+        unreachable();
+    }
+
+    auto dll2 = (char*)malloc(dll.size() + suffix.size());
+    if (!dll2) {
+        print("resolve_dll_forward: malloc failed\n");
+        NtTerminateProcess(NtCurrentProcess(), nt_status::INSUFFICIENT_RESOURCES);
+        unreachable();
+    }
+
+    memcpy(dll2, dll.data(), dll.size());
+    memcpy(dll2 + dll.size(), suffix.data(), suffix.size());
+
+    auto dllsv = string_view(dll2, dll.size() + suffix.size());
+
+    auto pent = load_dll(dllsv);
+    if (!pent) {
+        free(dll2);
+        print("resolve_dll_forward: could not load DLL {}\n", dll);
+        NtTerminateProcess(NtCurrentProcess(), nt_status::PROCEDURE_NOT_FOUND);
+        unreachable();
+    }
+
+    free(dll2);
+
+    auto& ent = *pent;
+    void* addr;
+    ANSI_STRING procname;
+
+    procname.Length = procname.MaximumLength = (uint16_t)name.size();
+    procname.Buffer = (char*)name.data();
+
+    auto status = LdrGetProcedureAddress(ent.ldr.DllBase, &procname, 0, &addr);
+    if (!success(status)) {
+        print("resolve_dll_forward: LdrGetProcedureAddress returned {} for {}\n",
+              status, name);
+        NtTerminateProcess(NtCurrentProcess(), status);
+        unreachable();
+    }
+
+    return (T)(uintptr_t)addr;
 }
 
 template<typename T>
@@ -683,7 +747,7 @@ static span<char> get_section_name(const IMAGE_SECTION_HEADER& s, const IMAGE_FI
     return buf.subspan(end);
 }
 
-static bool try_load_dll(u16string_view dir, u16string_view name) {
+static ldr_entry* try_load_dll(u16string_view dir, u16string_view name) {
     OBJECT_ATTRIBUTES oa;
     UNICODE_STRING us;
     NTSTATUS status;
@@ -703,7 +767,7 @@ static bool try_load_dll(u16string_view dir, u16string_view name) {
     status = NtCreateFile(&h, FILE_TRAVERSE, &oa, &iosb, nullptr, 0, 0,
                           FILE_OPEN, FILE_DIRECTORY_FILE, nullptr, 0);
     if (!success(status))
-        return false;
+        return nullptr;
 
     dirh.reset(h);
 
@@ -715,7 +779,7 @@ static bool try_load_dll(u16string_view dir, u16string_view name) {
                           FILE_OPEN, 0, nullptr, 0);
 
     if (!success(status))
-        return false;
+        return nullptr;
 
     file.reset(h);
 
@@ -723,7 +787,7 @@ static bool try_load_dll(u16string_view dir, u16string_view name) {
                              PAGE_READONLY, SEC_IMAGE, file.get());
 
     if (!success(status))
-        return false;
+        return nullptr;
 
     sect.reset(h);
 
@@ -734,7 +798,7 @@ static bool try_load_dll(u16string_view dir, u16string_view name) {
     sect.reset();
 
     if (!success(status))
-        return false;
+        return nullptr;
 
     auto& dos_header = *(IMAGE_DOS_HEADER*)addr;
     auto& nt_header = *(IMAGE_NT_HEADERS*)((uint8_t*)addr + dos_header.e_lfanew);
@@ -747,12 +811,12 @@ static bool try_load_dll(u16string_view dir, u16string_view name) {
 
     if (nt_header.FileHeader.Machine != this_arch) {
         NtUnmapViewOfSection(NtCurrentProcess(), addr);
-        return false;
+        return nullptr;
     }
 
     if (!(nt_header.FileHeader.Characteristics & IMAGE_FILE_DLL)) {
         NtUnmapViewOfSection(NtCurrentProcess(), addr);
-        return false;
+        return nullptr;
     }
 
     auto& ent = add_ldr_entry(addr, u16string_view(us.Buffer, us.Length / sizeof(char16_t)),
@@ -800,19 +864,21 @@ static bool try_load_dll(u16string_view dir, u16string_view name) {
         }
     }
 
-    return true;
+    return &ent;
 }
 
-static bool load_dll(string_view name) {
+static ldr_entry* load_dll(string_view name) {
     auto u16len = utf8_to_utf16_len(name);
 
     if (u16len == 0)
-        return false;
+        return nullptr;
 
     auto u16buf = (char16_t*)malloc(u16len * sizeof(char16_t));
 
-    if (!u16buf)
+    if (!u16buf) {
         NtTerminateProcess(NtCurrentProcess(), nt_status::INSUFFICIENT_RESOURCES);
+        unreachable();
+    }
 
     utf8_to_utf16(span(u16buf, u16len), name);
 
@@ -827,7 +893,7 @@ static bool load_dll(string_view name) {
 
             if (base_name == u16sv) {
                 free(u16buf);
-                return true;
+                return CONTAINING_RECORD(&ent, ldr_entry, ldr);
             }
 
             le = le->Flink;
@@ -839,9 +905,9 @@ static bool load_dll(string_view name) {
     auto path = get_env(u"LD_LIBRARY_PATH");
 
     if (path.empty()) { // FIXME - is this right?
-        if (try_load_dll(u"/lib", u16string_view(u16sv.data(), u16sv.size()))) {
+        if (auto ret = try_load_dll(u"/lib", u16string_view(u16sv.data(), u16sv.size())); ret) {
             free(u16buf);
-            return true;
+            return ret;
         }
     } else {
         while (true) {
@@ -853,9 +919,9 @@ static bool load_dll(string_view name) {
             else
                 bit = path;
 
-            if (try_load_dll(bit, u16string_view(u16sv.data(), u16sv.size()))) {
+            if (auto ret = try_load_dll(bit, u16string_view(u16sv.data(), u16sv.size())); ret) {
                 free(u16buf);
-                return true;
+                return ret;
             }
 
             if (col == u16string_view::npos)
@@ -867,7 +933,7 @@ static bool load_dll(string_view name) {
 
     free(u16buf);
 
-    return false;
+    return nullptr;
 }
 
 static void load_dlls_img(LDR_DATA_TABLE_ENTRY& ent) {
