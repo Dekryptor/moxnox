@@ -320,3 +320,13 @@ void mn_ctrl_c() {
 
     NtTerminateThread(NtCurrentThread(), nt_status::CONTROL_C_EXIT);
 }
+
+extern "C"
+EXCEPTION_DISPOSITION __C_specific_handler(EXCEPTION_RECORD* /*exception_record*/,
+                                           void* /*establisher_frame*/,
+                                           CONTEXT* /*context_record*/,
+                                           DISPATCHER_CONTEXT* /*dispatcher_context*/) {
+    print("FIXME - __C_specific_handler\n"); // FIXME
+
+    return EXCEPTION_DISPOSITION::ExceptionContinueSearch;
+}

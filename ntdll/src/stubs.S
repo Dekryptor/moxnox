@@ -2,7 +2,6 @@
 
 stubs_start
 
-do_stub "__C_specific_handler"
 do_stub "RtlDeleteCriticalSection"
 do_stub "RtlEnterCriticalSection"
 do_stub "RtlInitializeCriticalSection"

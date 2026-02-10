@@ -153,6 +153,11 @@ void RtlRaiseException(EXCEPTION_RECORD* exception_record);
 void RtlCaptureContext(CONTEXT* context);
 NTSTATUS LdrGetProcedureAddress(void* dll_handle, const ANSI_STRING* procedure_name,
                                 uint32_t procedure_number, void** procedure_address);
+EXCEPTION_DISPOSITION __C_specific_handler(EXCEPTION_RECORD* exception_record,
+                                           void* establisher_frame,
+                                           CONTEXT* context_record,
+                                           DISPATCHER_CONTEXT* dispatcher_context);
+
 }
 
 __inline void* GetProcessHeap() {
