@@ -429,7 +429,7 @@ export constexpr bool is_emoji(char32_t c) {
     }
 }
 
-export constexpr has_emoji_presentation(char32_t c) {
+export constexpr bool has_emoji_presentation(char32_t c) {
     switch (c) {
         case 0x231a ... 0x231b:
         case 0x23e9 ... 0x23ec:
