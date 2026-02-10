@@ -7,7 +7,8 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 enable_language(ASM)
 
-set(SRC_FILES src/kernelbase.cpp
+set(SRC_FILES src/kernelbase.def
+    src/kernelbase.cpp
     src/sync.cpp
     src/console.cpp
 )

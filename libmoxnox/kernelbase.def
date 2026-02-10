@@ -3,3 +3,16 @@ EXPORTS
 Sleep
 CtrlRoutine
 SetConsoleCtrlHandler
+DeleteCriticalSection
+EnterCriticalSection
+InitializeCriticalSection
+LeaveCriticalSection
+TryEnterCriticalSection
+SetLastError
+InitializeConditionVariable
+WakeAllConditionVariable
+WakeConditionVariable
+AddVectoredExceptionHandler
+HeapAlloc
+HeapFree
+HeapReAlloc
