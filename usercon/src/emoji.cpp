@@ -1,5 +1,7 @@
 export module emoji;
 
+// see https://www.unicode.org/Public/17.0.0/ucd/emoji/emoji-data.txt
+
 export constexpr bool is_emoji(char32_t c) {
     switch (c) {
         case 0x0023:
@@ -329,6 +331,311 @@ export constexpr bool is_emoji(char32_t c) {
         case 0x1f6eb ... 0x1f6ec:
         case 0x1f6f0:
         case 0x1f6f3:
+        case 0x1f6f4 ... 0x1f6f6:
+        case 0x1f6f7 ... 0x1f6f8:
+        case 0x1f6f9:
+        case 0x1f6fa:
+        case 0x1f6fb ... 0x1f6fc:
+        case 0x1f7e0 ... 0x1f7eb:
+        case 0x1f7f0:
+        case 0x1f90c:
+        case 0x1f90d ... 0x1f90f:
+        case 0x1f910 ... 0x1f918:
+        case 0x1f919 ... 0x1f91e:
+        case 0x1f91f:
+        case 0x1f920 ... 0x1f927:
+        case 0x1f928 ... 0x1f92f:
+        case 0x1f930:
+        case 0x1f931 ... 0x1f932:
+        case 0x1f933 ... 0x1f93a:
+        case 0x1f93c ... 0x1f93e:
+        case 0x1f93f:
+        case 0x1f940 ... 0x1f945:
+        case 0x1f947 ... 0x1f94b:
+        case 0x1f94c:
+        case 0x1f94d ... 0x1f94f:
+        case 0x1f950 ... 0x1f95e:
+        case 0x1f95f ... 0x1f96b:
+        case 0x1f96c ... 0x1f970:
+        case 0x1f971:
+        case 0x1f972:
+        case 0x1f973 ... 0x1f976:
+        case 0x1f977 ... 0x1f978:
+        case 0x1f979:
+        case 0x1f97a:
+        case 0x1f97b:
+        case 0x1f97c ... 0x1f97f:
+        case 0x1f980 ... 0x1f984:
+        case 0x1f985 ... 0x1f991:
+        case 0x1f992 ... 0x1f997:
+        case 0x1f998 ... 0x1f9a2:
+        case 0x1f9a3 ... 0x1f9a4:
+        case 0x1f9a5 ... 0x1f9aa:
+        case 0x1f9ab ... 0x1f9ad:
+        case 0x1f9ae ... 0x1f9af:
+        case 0x1f9b0 ... 0x1f9b9:
+        case 0x1f9ba ... 0x1f9bf:
+        case 0x1f9c0:
+        case 0x1f9c1 ... 0x1f9c2:
+        case 0x1f9c3 ... 0x1f9ca:
+        case 0x1f9cb:
+        case 0x1f9cc:
+        case 0x1f9cd ... 0x1f9cf:
+        case 0x1f9d0 ... 0x1f9e6:
+        case 0x1f9e7 ... 0x1f9ff:
+        case 0x1fa70 ... 0x1fa73:
+        case 0x1fa74:
+        case 0x1fa75 ... 0x1fa77:
+        case 0x1fa78 ... 0x1fa7a:
+        case 0x1fa7b ... 0x1fa7c:
+        case 0x1fa80 ... 0x1fa82:
+        case 0x1fa83 ... 0x1fa86:
+        case 0x1fa87 ... 0x1fa88:
+        case 0x1fa89:
+        case 0x1fa8a:
+        case 0x1fa8e:
+        case 0x1fa8f:
+        case 0x1fa90 ... 0x1fa95:
+        case 0x1fa96 ... 0x1faa8:
+        case 0x1faa9 ... 0x1faac:
+        case 0x1faad ... 0x1faaf:
+        case 0x1fab0 ... 0x1fab6:
+        case 0x1fab7 ... 0x1faba:
+        case 0x1fabb ... 0x1fabd:
+        case 0x1fabe:
+        case 0x1fabf:
+        case 0x1fac0 ... 0x1fac2:
+        case 0x1fac3 ... 0x1fac5:
+        case 0x1fac6:
+        case 0x1fac8:
+        case 0x1facd:
+        case 0x1face ... 0x1facf:
+        case 0x1fad0 ... 0x1fad6:
+        case 0x1fad7 ... 0x1fad9:
+        case 0x1fada ... 0x1fadb:
+        case 0x1fadc:
+        case 0x1fadf:
+        case 0x1fae0 ... 0x1fae7:
+        case 0x1fae8:
+        case 0x1fae9:
+        case 0x1faea:
+        case 0x1faef:
+        case 0x1faf0 ... 0x1faf6:
+        case 0x1faf7 ... 0x1faf8:
+            return true;
+
+        default:
+            return false;
+    }
+}
+
+export constexpr has_emoji_presentation(char32_t c) {
+    switch (c) {
+        case 0x231a ... 0x231b:
+        case 0x23e9 ... 0x23ec:
+        case 0x23f0:
+        case 0x23f3:
+        case 0x25fd ... 0x25fe:
+        case 0x2614 ... 0x2615:
+        case 0x2648 ... 0x2653:
+        case 0x267f:
+        case 0x2693:
+        case 0x26a1:
+        case 0x26aa ... 0x26ab:
+        case 0x26bd ... 0x26be:
+        case 0x26c4 ... 0x26c5:
+        case 0x26ce:
+        case 0x26d4:
+        case 0x26ea:
+        case 0x26f2 ... 0x26f3:
+        case 0x26f5:
+        case 0x26fa:
+        case 0x26fd:
+        case 0x2705:
+        case 0x270a ... 0x270b:
+        case 0x2728:
+        case 0x274c:
+        case 0x274e:
+        case 0x2753 ... 0x2755:
+        case 0x2757:
+        case 0x2795 ... 0x2797:
+        case 0x27b0:
+        case 0x27bf:
+        case 0x2b1b ... 0x2b1c:
+        case 0x2b50:
+        case 0x2b55:
+        case 0x1f004:
+        case 0x1f0cf:
+        case 0x1f18e:
+        case 0x1f191 ... 0x1f19a:
+        case 0x1f1e6 ... 0x1f1ff:
+        case 0x1f201:
+        case 0x1f21a:
+        case 0x1f22f:
+        case 0x1f232 ... 0x1f236:
+        case 0x1f238 ... 0x1f23a:
+        case 0x1f250 ... 0x1f251:
+        case 0x1f300 ... 0x1f30c:
+        case 0x1f30d ... 0x1f30e:
+        case 0x1f30f:
+        case 0x1f310:
+        case 0x1f311:
+        case 0x1f312:
+        case 0x1f313 ... 0x1f315:
+        case 0x1f316 ... 0x1f318:
+        case 0x1f319:
+        case 0x1f31a:
+        case 0x1f31b:
+        case 0x1f31c:
+        case 0x1f31d ... 0x1f31e:
+        case 0x1f31f ... 0x1f320:
+        case 0x1f32d ... 0x1f32f:
+        case 0x1f330 ... 0x1f331:
+        case 0x1f332 ... 0x1f333:
+        case 0x1f334 ... 0x1f335:
+        case 0x1f337 ... 0x1f34a:
+        case 0x1f34b:
+        case 0x1f34c ... 0x1f34f:
+        case 0x1f350:
+        case 0x1f351 ... 0x1f37b:
+        case 0x1f37c:
+        case 0x1f37e ... 0x1f37f:
+        case 0x1f380 ... 0x1f393:
+        case 0x1f3a0 ... 0x1f3c4:
+        case 0x1f3c5:
+        case 0x1f3c6:
+        case 0x1f3c7:
+        case 0x1f3c8:
+        case 0x1f3c9:
+        case 0x1f3ca:
+        case 0x1f3cf ... 0x1f3d3:
+        case 0x1f3e0 ... 0x1f3e3:
+        case 0x1f3e4:
+        case 0x1f3e5 ... 0x1f3f0:
+        case 0x1f3f4:
+        case 0x1f3f8 ... 0x1f407:
+        case 0x1f408:
+        case 0x1f409 ... 0x1f40b:
+        case 0x1f40c ... 0x1f40e:
+        case 0x1f40f ... 0x1f410:
+        case 0x1f411 ... 0x1f412:
+        case 0x1f413:
+        case 0x1f414:
+        case 0x1f415:
+        case 0x1f416:
+        case 0x1f417 ... 0x1f429:
+        case 0x1f42a:
+        case 0x1f42b ... 0x1f43e:
+        case 0x1f440:
+        case 0x1f442 ... 0x1f464:
+        case 0x1f465:
+        case 0x1f466 ... 0x1f46b:
+        case 0x1f46c ... 0x1f46d:
+        case 0x1f46e ... 0x1f4ac:
+        case 0x1f4ad:
+        case 0x1f4ae ... 0x1f4b5:
+        case 0x1f4b6 ... 0x1f4b7:
+        case 0x1f4b8 ... 0x1f4eb:
+        case 0x1f4ec ... 0x1f4ed:
+        case 0x1f4ee:
+        case 0x1f4ef:
+        case 0x1f4f0 ... 0x1f4f4:
+        case 0x1f4f5:
+        case 0x1f4f6 ... 0x1f4f7:
+        case 0x1f4f8:
+        case 0x1f4f9 ... 0x1f4fc:
+        case 0x1f4ff ... 0x1f502:
+        case 0x1f503:
+        case 0x1f504 ... 0x1f507:
+        case 0x1f508:
+        case 0x1f509:
+        case 0x1f50a ... 0x1f514:
+        case 0x1f515:
+        case 0x1f516 ... 0x1f52b:
+        case 0x1f52c ... 0x1f52d:
+        case 0x1f52e ... 0x1f53d:
+        case 0x1f54b ... 0x1f54e:
+        case 0x1f550 ... 0x1f55b:
+        case 0x1f55c ... 0x1f567:
+        case 0x1f57a:
+        case 0x1f595 ... 0x1f596:
+        case 0x1f5a4:
+        case 0x1f5fb ... 0x1f5ff:
+        case 0x1f600:
+        case 0x1f601 ... 0x1f606:
+        case 0x1f607 ... 0x1f608:
+        case 0x1f609 ... 0x1f60d:
+        case 0x1f60e:
+        case 0x1f60f:
+        case 0x1f610:
+        case 0x1f611:
+        case 0x1f612 ... 0x1f614:
+        case 0x1f615:
+        case 0x1f616:
+        case 0x1f617:
+        case 0x1f618:
+        case 0x1f619:
+        case 0x1f61a:
+        case 0x1f61b:
+        case 0x1f61c ... 0x1f61e:
+        case 0x1f61f:
+        case 0x1f620 ... 0x1f625:
+        case 0x1f626 ... 0x1f627:
+        case 0x1f628 ... 0x1f62b:
+        case 0x1f62c:
+        case 0x1f62d:
+        case 0x1f62e ... 0x1f62f:
+        case 0x1f630 ... 0x1f633:
+        case 0x1f634:
+        case 0x1f635:
+        case 0x1f636:
+        case 0x1f637 ... 0x1f640:
+        case 0x1f641 ... 0x1f644:
+        case 0x1f645 ... 0x1f64f:
+        case 0x1f680:
+        case 0x1f681 ... 0x1f682:
+        case 0x1f683 ... 0x1f685:
+        case 0x1f686:
+        case 0x1f687:
+        case 0x1f688:
+        case 0x1f689:
+        case 0x1f68a ... 0x1f68b:
+        case 0x1f68c:
+        case 0x1f68d:
+        case 0x1f68e:
+        case 0x1f68f:
+        case 0x1f690:
+        case 0x1f691 ... 0x1f693:
+        case 0x1f694:
+        case 0x1f695:
+        case 0x1f696:
+        case 0x1f697:
+        case 0x1f698:
+        case 0x1f699 ... 0x1f69a:
+        case 0x1f69b ... 0x1f6a1:
+        case 0x1f6a2:
+        case 0x1f6a3:
+        case 0x1f6a4 ... 0x1f6a5:
+        case 0x1f6a6:
+        case 0x1f6a7 ... 0x1f6ad:
+        case 0x1f6ae ... 0x1f6b1:
+        case 0x1f6b2:
+        case 0x1f6b3 ... 0x1f6b5:
+        case 0x1f6b6:
+        case 0x1f6b7 ... 0x1f6b8:
+        case 0x1f6b9 ... 0x1f6be:
+        case 0x1f6bf:
+        case 0x1f6c0:
+        case 0x1f6c1 ... 0x1f6c5:
+        case 0x1f6cc:
+        case 0x1f6d0:
+        case 0x1f6d1 ... 0x1f6d2:
+        case 0x1f6d5:
+        case 0x1f6d6 ... 0x1f6d7:
+        case 0x1f6d8:
+        case 0x1f6dc:
+        case 0x1f6dd ... 0x1f6df:
+        case 0x1f6eb ... 0x1f6ec:
         case 0x1f6f4 ... 0x1f6f6:
         case 0x1f6f7 ... 0x1f6f8:
         case 0x1f6f9:

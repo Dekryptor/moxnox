@@ -35,6 +35,9 @@ using namespace std;
 static const string_view welcome_message1 = "\nWelcome to \e[1mMoxnox\e[m (";
 static const string_view welcome_message2 = ")\n\n";
 
+static const char32_t TEXT_PRESENTATION = 0xfe0e;
+static const char32_t EMOJI_PRESENTATION = 0xfe0f;
+
 extern uint64_t __CTOR_LIST__;
 
 struct glyph_info {
@@ -878,11 +881,25 @@ static void flush_framebuffer() {
     }
 }
 
-static bool is_cluster_wide(span<const char32_t> s) {
-    // FIXME - emoji presentation
+static bool is_emoji_char(char32_t c, char32_t next) {
+    if (!is_emoji(c))
+        return false;
 
-    for (auto c : s) {
-        if (is_emoji(c))
+    if (next == EMOJI_PRESENTATION)
+        return true;
+
+    if (next == TEXT_PRESENTATION)
+        return false;
+
+    return has_emoji_presentation(c);
+}
+
+static bool is_cluster_wide(span<const char32_t> s) {
+
+    for (size_t i = 0; i < s.size(); i++) {
+        auto next = i < s.size() - 1 ? s[i + 1] : 0;
+
+        if (is_emoji_char(s[i], next))
             return true;
     }
 
@@ -891,10 +908,23 @@ static bool is_cluster_wide(span<const char32_t> s) {
 
 static span<const char32_t> find_font_run(span<const char32_t> s,
                                           font_info*& font) {
-    if (is_emoji(s[0])) {
+    if (is_emoji_char(s[0], s.size() > 1 ? s[1] : 0)) {
         size_t len = 1;
 
-        while (s.size() >= len + 1 && is_emoji(s[len])) {
+        if (s.size() > 1 && s[1] == EMOJI_PRESENTATION)
+            len++;
+
+        while (len < s.size()) {
+            auto next = len < s.size() - 1 ? s[len + 1] : 0;
+
+            if (!is_emoji(s[len]))
+                break;
+
+            if (next != EMOJI_PRESENTATION &&
+                (next == TEXT_PRESENTATION || !has_emoji_presentation(s[len]))) {
+                    break;
+            }
+
             len++;
         }
 
@@ -905,7 +935,7 @@ static span<const char32_t> find_font_run(span<const char32_t> s,
     font = &normal_font;
 
     for (size_t i = 0; i < s.size(); i++) {
-        if (is_emoji(s[i]))
+        if (is_emoji_char(s[i], i < s.size() - 1 ? s[i + 1] : 0))
             return s.subspan(0, i);
     }
 
@@ -920,6 +950,11 @@ static span<const char32_t> hb_clus(span<const char32_t> s,
         num_cp = s.size() - info[i].cluster;
     else
         num_cp = info[i + 1].cluster - info[i].cluster;
+
+    if (info[i].cluster + num_cp < s.size() &&
+        (s[info[i].cluster + num_cp] == TEXT_PRESENTATION || s[info[i].cluster + num_cp] == EMOJI_PRESENTATION)) {
+        num_cp++;
+    }
 
     return span(&s[info[i].cluster], num_cp);
 }
