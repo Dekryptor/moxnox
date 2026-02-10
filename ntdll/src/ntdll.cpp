@@ -55,14 +55,14 @@ static NTSTATUS _LdrGetProcedureAddress(void* dll_handle, const ANSI_STRING* pro
     if (nt_header.OptionalHeader32.Magic == IMAGE_NT_OPTIONAL_HDR64_MAGIC) {
         if (nt_header.OptionalHeader64.NumberOfRvaAndSizes <= IMAGE_DIRECTORY_ENTRY_EXPORT) {
             print("image has no export directory\n");
-            return nt_status::INTERNAL_ERROR;
+            return nt_status::PROCEDURE_NOT_FOUND;
         }
 
         dir_addr = dos_header.e_lfanew + offsetof(IMAGE_NT_HEADERS, OptionalHeader64.DataDirectory);
     } else {
         if (nt_header.OptionalHeader32.NumberOfRvaAndSizes <= IMAGE_DIRECTORY_ENTRY_EXPORT) {
             print("image has no export directory\n");
-            return nt_status::INTERNAL_ERROR;
+            return nt_status::PROCEDURE_NOT_FOUND;
         }
 
         dir_addr = dos_header.e_lfanew + offsetof(IMAGE_NT_HEADERS, OptionalHeader32.DataDirectory);
@@ -74,7 +74,7 @@ static NTSTATUS _LdrGetProcedureAddress(void* dll_handle, const ANSI_STRING* pro
 
     if (data_dir.VirtualAddress == 0 || data_dir.Size == 0) {
         print("image has no export directory\n");
-        return nt_status::INTERNAL_ERROR;
+        return nt_status::PROCEDURE_NOT_FOUND;
     }
 
     // search export directory
@@ -83,7 +83,7 @@ static NTSTATUS _LdrGetProcedureAddress(void* dll_handle, const ANSI_STRING* pro
 
     if (ied.NumberOfNames == 0) {
         print("image has no exports\n");
-        return nt_status::INTERNAL_ERROR;
+        return nt_status::PROCEDURE_NOT_FOUND;
     }
 
     auto names = span((uint32_t*)((uint8_t*)&ied + ied.AddressOfNames - data_dir.VirtualAddress),
@@ -136,12 +136,12 @@ static NTSTATUS _LdrGetProcedureAddress(void* dll_handle, const ANSI_STRING* pro
 
     if (!ord) {
         print("could not find export {}\n", name);
-        return nt_status::INTERNAL_ERROR;
+        return nt_status::PROCEDURE_NOT_FOUND;
     }
 
     if (*ord >= ied.NumberOfFunctions) {
         print("function ordinal out of range\n");
-        return nt_status::INTERNAL_ERROR;
+        return nt_status::PROCEDURE_NOT_FOUND;
     }
 
     auto rva = funcs[*ord];
@@ -215,8 +215,8 @@ static T resolve_dll_forward(string_view fwd) {
 
     auto status = LdrGetProcedureAddress(ent.ldr.DllBase, &procname, 0, &addr);
     if (!success(status)) {
-        print("resolve_dll_forward: LdrGetProcedureAddress returned {} for {}\n",
-              status, name);
+        print("resolve_dll_forward: LdrGetProcedureAddress returned {} for {} in {}\n",
+              status, name, dll);
         NtTerminateProcess(NtCurrentProcess(), status);
         unreachable();
     }
