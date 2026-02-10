@@ -1099,7 +1099,7 @@ static void print_chars2(console_fb& con, font_info& font,
         orig_cursor_x = 0;
     } while (true);
 
-    con.cursor_x = curline->num_cells;
+    con.cursor_x = curline->num_cells; // FIXME - what if not at end?
 }
 
 void console_fb::print_chars(span<const char32_t> s) {
