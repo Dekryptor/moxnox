@@ -6,6 +6,7 @@
 #include <optional>
 #include <stdlib.h>
 #include <string.h>
+#include <cmath>
 
 import nt;
 import ntdll;
@@ -758,11 +759,15 @@ static void draw_ft_char(const console_cell& cell, unsigned int fb_x, unsigned i
         bottom = (int)fb_info.height;
 
     auto bg = is_cursor ? cell.fg_colour : cell.bg_colour;
-    uint32_t bg_colour_r = bg >> 16;
-    uint32_t bg_colour_g = (bg & 0xff00) >> 8;
-    uint32_t bg_colour_b = bg & 0xff;
+    uint8_t bg_colour_r = (uint8_t)(bg >> 16);
+    uint8_t bg_colour_g = (bg & 0xff00) >> 8;
+    uint8_t bg_colour_b = bg & 0xff;
 
     auto base = framebuffer.data() + ((uint32_t)y * fb_info.pixels_per_scan_line) + fb_x + gi->bitmap_left;
+
+    auto byte_lerp = [](uint8_t a, uint8_t b, uint8_t t) {
+        return (uint8_t)lerp((float)a, (float)b, (float)t / 255.0f);
+    };
 
     if (font.face->face_flags & FT_FACE_FLAG_COLOR) {
         while (y < bottom) {
@@ -775,9 +780,9 @@ static void draw_ft_char(const console_cell& cell, unsigned int fb_x, unsigned i
                 else if (alpha == 0xff)
                     base[x] = val;
                 else {
-                    auto r = (uint8_t)(((bg_colour_r * (255 - (uint32_t)alpha)) + ((uint32_t)buf[2] * (uint32_t)alpha)) / 255);
-                    auto g = (uint8_t)(((bg_colour_g * (255 - (uint32_t)alpha)) + ((uint32_t)buf[1] * (uint32_t)alpha)) / 255);
-                    auto b = (uint8_t)(((bg_colour_b * (255 - (uint32_t)alpha)) + ((uint32_t)buf[0] * (uint32_t)alpha)) / 255);
+                    auto r = byte_lerp(bg_colour_r, buf[2], alpha);
+                    auto g = byte_lerp(bg_colour_g, buf[1], alpha);
+                    auto b = byte_lerp(bg_colour_b, buf[0], alpha);
 
                     base[x] = (unsigned int)((r << 16) | (g << 8) | b);
                 }
@@ -793,18 +798,18 @@ static void draw_ft_char(const console_cell& cell, unsigned int fb_x, unsigned i
     } else {
         auto fg = is_cursor ? cell.bg_colour : cell.fg_colour;
 
-        uint32_t fg_colour_r = fg >> 16;
-        uint32_t fg_colour_g = (fg & 0xff00) >> 8;
-        uint32_t fg_colour_b = fg & 0xff;
+        uint8_t fg_colour_r = (uint8_t)(fg >> 16);
+        uint8_t fg_colour_g = (fg & 0xff00) >> 8;
+        uint8_t fg_colour_b = fg & 0xff;
 
         while (y < bottom) {
             for (unsigned int x = 0; x < width; x++) {
                 if (*buf == 255)
                     base[x] = fg;
                 else if (*buf != 0) {
-                    auto r = (uint8_t)(((bg_colour_r * (255 - (uint32_t)*buf)) + (fg_colour_r * (uint32_t)*buf)) / 255);
-                    auto g = (uint8_t)(((bg_colour_g * (255 - (uint32_t)*buf)) + (fg_colour_g * (uint32_t)*buf)) / 255);
-                    auto b = (uint8_t)(((bg_colour_b * (255 - (uint32_t)*buf)) + (fg_colour_b * (uint32_t)*buf)) / 255);
+                    auto r = byte_lerp(bg_colour_r, fg_colour_r, *buf);
+                    auto g = byte_lerp(bg_colour_g, fg_colour_g, *buf);
+                    auto b = byte_lerp(bg_colour_b, fg_colour_b, *buf);
 
                     base[x] = (unsigned int)((r << 16) | (g << 8) | b);
                 }
