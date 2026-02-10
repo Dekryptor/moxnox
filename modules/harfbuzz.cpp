@@ -10,6 +10,7 @@ export using ::hb_font_t;
 export using ::hb_glyph_position_t;
 export using ::hb_buffer_t;
 export using ::hb_codepoint_t;
+export using ::hb_glyph_info_t;
 
 export using ::hb_buffer_create;
 export using ::hb_buffer_destroy;

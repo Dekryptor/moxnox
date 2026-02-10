@@ -912,6 +912,18 @@ static span<const char32_t> find_font_run(span<const char32_t> s,
     return s;
 }
 
+static span<const char32_t> hb_clus(span<const char32_t> s,
+                                    span<hb_glyph_info_t> info, size_t i) {
+    size_t num_cp;
+
+    if (i == info.size() - 1)
+        num_cp = s.size() - info[i].cluster;
+    else
+        num_cp = info[i + 1].cluster - info[i].cluster;
+
+    return span(&s[info[i].cluster], num_cp);
+}
+
 static unsigned int find_text_pos(unsigned int cursor_x) {
     unsigned int ret = 0, num_cells = 0;
     auto text = span(curline->text, curline->len);
@@ -932,14 +944,7 @@ static unsigned int find_text_pos(unsigned int cursor_x) {
         auto info = hb_buffer_get_glyph_infos(buf.get(), nullptr);
 
         for (unsigned int i = 0; i < len; i++) {
-            size_t num_cp;
-
-            if (i == len - 1)
-                num_cp = s.size() - info[i].cluster;
-            else
-                num_cp = info[i + 1].cluster - info[i].cluster;
-
-            auto clus = span(&s[info[i].cluster], num_cp);
+            auto clus = hb_clus(s, span(info, len), i);
             bool wide = is_cluster_wide(clus);
 
             if (num_cells == cursor_x || (wide && num_cells + 1 == cursor_x))
@@ -1025,14 +1030,7 @@ static void print_chars2(console_fb& con, font_info& font,
             if (curline->num_cells == console_fb_inst.console_cols - 1)
                 break;
 
-            size_t num_cp;
-
-            if (i == len - 1)
-                num_cp = s.size() - info[i].cluster;
-            else
-                num_cp = info[i + 1].cluster - info[i].cluster;
-
-            auto clus = span(&s[info[i].cluster], num_cp);
+            auto clus = hb_clus(s, span(info, len), i);
             bool wide = is_cluster_wide(clus);
 
             if (wide && curline->num_cells + 2 == console_fb_inst.console_cols)
@@ -1173,14 +1171,7 @@ static void redo_line2(span<const char32_t> s, console_line& line,
     auto c = &line.cells[line.num_cells];
 
     for (unsigned int i = 0; i < len; i++) {
-        size_t num_cp;
-
-        if (i == len - 1)
-            num_cp = s.size() - info[i].cluster;
-        else
-            num_cp = info[i + 1].cluster - info[i].cluster;
-
-        auto clus = span(&s[info[i].cluster], num_cp);
+        auto clus = hb_clus(s, span(info, len), i);
         bool wide = is_cluster_wide(clus);
 
         c->pos = pos[i];
