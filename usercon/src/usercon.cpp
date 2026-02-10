@@ -33,7 +33,7 @@ import emoji;
 
 using namespace std;
 
-static const string_view welcome_message1 = "\nWelcome to \e[1mMoxnox\e[m (";
+static const string_view welcome_message1 = "\nWelcome to \e[1mMoxnox\e[m \U0001f98a (";
 static const string_view welcome_message2 = ")\n\n";
 
 static const char32_t TEXT_PRESENTATION = 0xfe0e;
