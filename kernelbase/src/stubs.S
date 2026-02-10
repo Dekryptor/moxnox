@@ -1,12 +1,4 @@
-.macro do_stub name
-    .text
-    .global "\name"
-    "\name":
-    ud2
-
-    .section .drectve
-    .ascii " -export:\"\name\""
-.endm
+#include "../../modules/stubs.S"
 
 do_stub "GetLastError"
 do_stub "SetUnhandledExceptionFilter"

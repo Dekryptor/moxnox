@@ -1,0 +1,6 @@
+LIBRARY "ucrtbase.dll"
+EXPORTS
+__C_specific_handler = ntdll.__C_specific_handler
+memcpy = ntdll.memcpy
+strlen = ntdll.strlen
+strncmp = ntdll.strncmp

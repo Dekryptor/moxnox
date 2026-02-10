@@ -5,7 +5,10 @@ project(ucrtbase)
 set(CMAKE_CXX_STANDARD 23)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
-set(SRC_FILES src/ucrtbase.cpp)
+set(SRC_FILES src/ucrtbase.cpp
+    src/stubs.S
+    src/ucrtbase.def
+)
 
 add_library(ucrtbase SHARED ${SRC_FILES})
 
