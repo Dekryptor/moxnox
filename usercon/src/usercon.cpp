@@ -1166,13 +1166,37 @@ static void redo_line2(span<const char32_t> s, console_line& line,
 
     // FIXME - overwriting bold, italic, and colours
 
-    for (unsigned int i = 0; i < len; i++) {
-        line.cells[line.num_cells + i].pos = pos[i];
-        line.cells[line.num_cells + i].glyph = info[i].codepoint;
-        line.cells[line.num_cells + i].font = &font;
-    }
+    auto c = &line.cells[line.num_cells];
 
-    line.num_cells += len;
+    for (unsigned int i = 0; i < len; i++) {
+        size_t num_cp;
+
+        if (i == len - 1)
+            num_cp = s.size() - info[i].cluster;
+        else
+            num_cp = info[i + 1].cluster - info[i].cluster;
+
+        auto clus = span(&s[info[i].cluster], num_cp);
+        bool wide = is_cluster_wide(clus);
+
+        c->pos = pos[i];
+        c->glyph = info[i].codepoint;
+        c->font = &font;
+        c->ignore = false;
+
+        c++;
+        line.num_cells++;
+
+        if (wide) {
+            c->ignore = true;
+            c->fg_colour = fg_colour;
+            c->bg_colour = bg_colour;
+            c->font = &normal_font;
+
+            c++;
+            line.num_cells++;
+        }
+    }
 }
 
 static void redo_line(console_line& line) {
