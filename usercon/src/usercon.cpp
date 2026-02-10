@@ -1224,34 +1224,10 @@ void console_fb::erase_in_line(unsigned int param) {
 
     // get current position in string
 
-    text_pos = 0;
-
-    if (curline->len != 0) {
-        auto s = span(curline->text, curline->len);
-
-        while (!s.empty()) {
-            font_info* font;
-            auto sp = find_font_run(s, font);
-
-            unique_hb_buffer buf{hb_buffer_create()};
-
-            hb_buffer_add_codepoints(buf.get(), (const hb_codepoint_t*)sp.data(),
-                                    (int)sp.size(), 0, -1);
-            hb_buffer_guess_segment_properties(buf.get());
-
-            hb_shape(font->hb_font, buf.get(), nullptr, 0);
-
-            auto len = hb_buffer_get_length(buf.get());
-            auto info = hb_buffer_get_glyph_infos(buf.get(), nullptr);
-
-            if (text_pos + len > cursor_x)
-                text_pos += info[cursor_x - text_pos].cluster;
-            else
-                text_pos += info[len - 1].cluster + 1; // FIXME?
-
-            s = span(s.data() + sp.size(), s.size() - sp.size());
-        }
-    }
+    if (curline->len == 0)
+        text_pos = 0;
+    else
+        text_pos = find_text_pos(cursor_x);
 
     switch (param) {
         case 0: { // clear from cursor to end of line
