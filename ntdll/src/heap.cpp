@@ -344,6 +344,9 @@ void* RtlReAllocateHeap(void* heap_handle, uint32_t flags, void* ptr,
 
 extern "C"
 bool RtlFreeHeap(void* heap_handle, uint32_t flags, void* base_address) {
+    if (!base_address)
+        return true;
+
     auto& h = *reinterpret_cast<heap*>(heap_handle);
 
     return h.free(flags, base_address);
