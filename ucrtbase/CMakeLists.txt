@@ -10,6 +10,7 @@ set(SRC_FILES src/ucrtbase.cpp
     src/ucrtbase.def
     src/errno.cpp
     src/data.cpp
+    src/heap.cpp
 )
 
 add_library(ucrtbase SHARED ${SRC_FILES})

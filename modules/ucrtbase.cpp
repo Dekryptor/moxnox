@@ -34,6 +34,7 @@ void _initterm(_PVFV* first, _PVFV* last);
 int _initterm_e(_PIFV* first, _PIFV* last);
 int _initialize_narrow_environment();
 int _configure_narrow_argv(int mode);
+int _set_new_mode(int new_mode);
 
 }
 
