@@ -6,7 +6,7 @@ import kernelbase;
 
 struct ctrl_handler {
     ctrl_handler* next;
-    PHANDLER_ROUTINE func;
+    HANDLER_ROUTINE func;
 };
 
 static ctrl_handler* handlers = nullptr;
@@ -29,7 +29,7 @@ uint32_t CtrlRoutine(void* arg) {
 }
 
 extern "C" __declspec(dllexport)
-bool SetConsoleCtrlHandler(PHANDLER_ROUTINE func, bool add) {
+bool SetConsoleCtrlHandler(HANDLER_ROUTINE func, bool add) {
     // FIXME - critical section
 
     if (!func) {
