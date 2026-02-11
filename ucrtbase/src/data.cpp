@@ -2,6 +2,7 @@ import print;
 import ucrtbase;
 
 static int fmode = _O_TEXT;
+static unsigned int commode = 0;
 
 extern "C" __declspec(dllexport)
 void _set_app_type(_crt_app_type _Type) {
@@ -22,8 +23,7 @@ char*** __p___argv() {
 
 extern "C" __declspec(dllexport)
 unsigned int* __p__commode() {
-    print("FIXME - __p__commode\n");
-    return nullptr;
+    return &commode;
 }
 
 extern "C" __declspec(dllexport)
