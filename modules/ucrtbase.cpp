@@ -43,6 +43,8 @@ int _crt_atexit(_PVFV function);
 void exit(int code);
 int puts(const char* s);
 FILE* __acrt_iob_func(unsigned int idx);
+void _lock_file(FILE* file);
+void _unlock_file(FILE* file);
 
 }
 

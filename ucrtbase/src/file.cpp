@@ -38,3 +38,13 @@ FILE* __acrt_iob_func(unsigned int idx) {
 
     return nullptr;
 }
+
+extern "C" __declspec(dllexport)
+void _lock_file(FILE* file) {
+    print("FIXME - _lock_file\n");
+}
+
+extern "C" __declspec(dllexport)
+void _unlock_file(FILE* file) {
+    print("FIXME - _unlock_file\n");
+}
