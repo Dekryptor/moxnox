@@ -37,6 +37,7 @@ int _configure_narrow_argv(int mode);
 int _set_new_mode(int new_mode);
 int _crt_atexit(_PVFV function);
 void exit(int code);
+int puts(const char* s);
 
 }
 
