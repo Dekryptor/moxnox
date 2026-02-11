@@ -1,6 +1,8 @@
 import print;
 import ucrtbase;
 
+static int fmode = _O_TEXT;
+
 extern "C" __declspec(dllexport)
 void _set_app_type(_crt_app_type _Type) {
     print("FIXME - _set_app_type\n");
@@ -32,6 +34,5 @@ char*** __p__environ() {
 
 extern "C" __declspec(dllexport)
 int* __p__fmode() {
-    print("FIXME - __p__fmode\n");
-    return nullptr;
+    return &fmode;
 }

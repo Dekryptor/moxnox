@@ -15,6 +15,9 @@ enum _crt_app_type {
     _crt_gui_app
 };
 
+const int _O_TEXT = 0x4000;
+const int _O_BINARY = 0x8000;
+
 extern "C" {
 
 _invalid_parameter_handler _set_invalid_parameter_handler(_invalid_parameter_handler handler);
