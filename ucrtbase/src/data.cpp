@@ -3,6 +3,7 @@ import ucrtbase;
 
 static int fmode = _O_TEXT;
 static unsigned int commode = 0;
+static int argc = 0; // FIXME - populate from GetCommandLineW
 
 extern "C" __declspec(dllexport)
 void _set_app_type(_crt_app_type _Type) {
@@ -11,8 +12,7 @@ void _set_app_type(_crt_app_type _Type) {
 
 extern "C" __declspec(dllexport)
 int* __p___argc() {
-    print("FIXME - __p___argc\n");
-    return nullptr;
+    return &argc;
 }
 
 extern "C" __declspec(dllexport)
