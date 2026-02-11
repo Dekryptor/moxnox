@@ -1,6 +1,8 @@
 import print;
 import ucrtbase;
 
+static int errno = 0; // FIXME
+
 extern "C" __declspec(dllexport)
 _invalid_parameter_handler _set_invalid_parameter_handler(_invalid_parameter_handler handler) {
     print("FIXME - _set_invalid_parameter_handler\n");
@@ -10,7 +12,7 @@ _invalid_parameter_handler _set_invalid_parameter_handler(_invalid_parameter_han
 
 extern "C" __declspec(dllexport)
 int* _errno() {
-    print("FIXME - _errno\n");
+    // FIXME - actually should be thread-local
 
-    return nullptr;
+    return &errno;
 }
