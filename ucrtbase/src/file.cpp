@@ -48,3 +48,10 @@ extern "C" __declspec(dllexport)
 void _unlock_file(FILE* file) {
     print("FIXME - _unlock_file\n");
 }
+
+extern "C" __declspec(dllexport)
+int fputc(int c, FILE* stream) {
+    print("FIXME - fputc\n");
+
+    return 0;
+}
