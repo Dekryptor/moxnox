@@ -438,3 +438,4 @@ RtlInitializeConditionVariable
 RtlWakeAllConditionVariable
 RtlWakeConditionVariable
 RtlAddVectoredExceptionHandler
+RtlExitUserProcess

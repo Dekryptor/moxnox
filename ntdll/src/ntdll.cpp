@@ -1079,3 +1079,11 @@ void mn_start_thread(mn_image_info* ntdll_info, mn_image_info* img_info, CONTEXT
 
     NtContinue(context, false);
 }
+
+extern "C"
+void RtlExitUserProcess(uint32_t status) {
+    // FIXME - does some more stuff than just this
+
+    NtTerminateProcess(NtCurrentProcess(), (nt_status)status);
+    unreachable();
+}

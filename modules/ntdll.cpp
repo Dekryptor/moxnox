@@ -157,6 +157,7 @@ EXCEPTION_DISPOSITION __C_specific_handler(EXCEPTION_RECORD* exception_record,
                                            void* establisher_frame,
                                            CONTEXT* context_record,
                                            DISPATCHER_CONTEXT* dispatcher_context);
+void RtlExitUserProcess(uint32_t status);
 
 }
 
