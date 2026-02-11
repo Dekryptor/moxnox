@@ -5,6 +5,7 @@ static int fmode = _O_TEXT;
 static unsigned int commode = 0;
 static int argc = 0; // FIXME - populate from GetCommandLineW
 static char** argv = nullptr; // FIXME - populate from GetCommandLineW
+static char** environ = nullptr; // FIXME - populate
 
 extern "C" __declspec(dllexport)
 void _set_app_type(_crt_app_type _Type) {
@@ -28,8 +29,7 @@ unsigned int* __p__commode() {
 
 extern "C" __declspec(dllexport)
 char*** __p__environ() {
-    print("FIXME - __p__environ\n");
-    return nullptr;
+    return &environ;
 }
 
 extern "C" __declspec(dllexport)
