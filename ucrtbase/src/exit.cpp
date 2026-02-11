@@ -1,5 +1,10 @@
+#include <utility>
+
 import ucrtbase;
 import print;
+import ntdll;
+
+using namespace std;
 
 extern "C" __declspec(dllexport)
 int _crt_atexit(_PVFV function) {
@@ -10,5 +15,6 @@ int _crt_atexit(_PVFV function) {
 
 extern "C" __declspec(dllexport)
 void exit(int code) {
-    print("FIXME - exit\n");
+    RtlExitUserProcess(code);
+    unreachable();
 }
