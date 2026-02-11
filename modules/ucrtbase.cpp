@@ -18,6 +18,9 @@ enum _crt_app_type {
 const int _O_TEXT = 0x4000;
 const int _O_BINARY = 0x8000;
 
+using _PVFV = void (*)();
+using _PIFV = int (*)();
+
 extern "C" {
 
 _invalid_parameter_handler _set_invalid_parameter_handler(_invalid_parameter_handler handler);
@@ -27,6 +30,8 @@ char*** __p___argv();
 unsigned int* __p__commode();
 char*** __p__environ();
 int* __p__fmode();
+void _initterm(_PVFV* first, _PVFV* last);
+int _initterm_e(_PIFV* first, _PIFV* last);
 
 }
 

@@ -36,3 +36,15 @@ extern "C" __declspec(dllexport)
 int* __p__fmode() {
     return &fmode;
 }
+
+extern "C" __declspec(dllexport)
+void _initterm(_PVFV* first, _PVFV* last) {
+    print("FIXME - _initterm\n");
+}
+
+extern "C" __declspec(dllexport)
+int _initterm_e(_PIFV* first, _PIFV* last) {
+    print("FIXME - _initterm_e\n");
+
+    return 0;
+}
