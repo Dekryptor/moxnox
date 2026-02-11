@@ -21,6 +21,10 @@ const int _O_BINARY = 0x8000;
 using _PVFV = void (*)();
 using _PIFV = int (*)();
 
+const int EOF = -1;
+
+struct FILE;
+
 extern "C" {
 
 _invalid_parameter_handler _set_invalid_parameter_handler(_invalid_parameter_handler handler);
@@ -38,6 +42,7 @@ int _set_new_mode(int new_mode);
 int _crt_atexit(_PVFV function);
 void exit(int code);
 int puts(const char* s);
+FILE* __acrt_iob_func(unsigned int idx);
 
 }
 

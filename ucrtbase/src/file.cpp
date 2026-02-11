@@ -1,8 +1,9 @@
+import ucrtbase;
+
+#define _FILE_DEFINED
 #include <string_view>
 #include <stdint.h>
-#include <stdio.h>
 
-import ucrtbase;
 import print;
 import nt;
 
@@ -29,4 +30,11 @@ int puts(const char* s) {
         return EOF;
 
     return 0;
+}
+
+extern "C" __declspec(dllexport)
+FILE* __acrt_iob_func(unsigned int idx) {
+    print("FIXME - __acrt_iob_func\n");
+
+    return nullptr;
 }
