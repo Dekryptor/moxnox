@@ -7,3 +7,10 @@ _invalid_parameter_handler _set_invalid_parameter_handler(_invalid_parameter_han
 
     return nullptr;
 }
+
+extern "C" __declspec(dllexport)
+int* _errno() {
+    print("FIXME - _errno\n");
+
+    return nullptr;
+}
