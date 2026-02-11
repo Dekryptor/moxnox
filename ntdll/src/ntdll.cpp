@@ -35,6 +35,16 @@ bool DllMainCRTStartup(uintptr_t, uint32_t, void*) {
     return true;
 }
 
+extern "C++"
+void do_print(string_view s) {
+    auto teb = NtCurrentTeb();
+    auto peb = teb->ProcessEnvironmentBlock;
+    IO_STATUS_BLOCK iosb;
+
+    NtWriteFile(peb->ProcessParameters->StandardError, 0, nullptr, nullptr, &iosb, s.data(),
+                (uint32_t)s.size(), nullptr, nullptr);
+}
+
 // work round GCC 15 ICE (FIXME)
 static NTSTATUS _LdrGetProcedureAddress(void* dll_handle, const ANSI_STRING* procedure_name,
                                         uint32_t /*procedure_number*/, void** procedure_address) {

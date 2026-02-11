@@ -9,11 +9,6 @@ enable_language(ASM)
 
 add_compile_definitions(_GLIBCXX_NO_ASSERTIONS)
 
-add_library(print STATIC)
-target_sources(print PUBLIC FILE_SET CXX_MODULES FILES src/print.cpp)
-target_compile_options(print PRIVATE -fno-exceptions ${USERSPACE_CFLAGS})
-target_link_libraries(print format)
-
 ###
 
 set(SRC_FILES src/shell.cpp)

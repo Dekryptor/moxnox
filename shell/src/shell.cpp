@@ -1503,15 +1503,6 @@ loop:
     }
 }
 
-void do_print(string_view s) {
-    auto teb = NtCurrentTeb();
-    auto peb = teb->ProcessEnvironmentBlock;
-    IO_STATUS_BLOCK iosb;
-
-    NtWriteFile(peb->ProcessParameters->StandardError, 0, nullptr, nullptr, &iosb, s.data(),
-                (uint32_t)s.size(), nullptr, nullptr);
-}
-
 static nt_status create_pipe(unique_handle& server_handle,
                              unique_handle& client_handle) {
     nt_status status;
