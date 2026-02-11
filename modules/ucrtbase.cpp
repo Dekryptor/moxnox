@@ -32,6 +32,7 @@ char*** __p__environ();
 int* __p__fmode();
 void _initterm(_PVFV* first, _PVFV* last);
 int _initterm_e(_PIFV* first, _PIFV* last);
+int _initialize_narrow_environment();
 
 }
 

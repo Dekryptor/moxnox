@@ -48,3 +48,8 @@ int _initterm_e(_PIFV* first, _PIFV* last) {
 
     return 0;
 }
+
+extern "C" __declspec(dllexport)
+int _initialize_narrow_environment() {
+    return 0;
+}
