@@ -4,7 +4,8 @@
 #include <optional>
 #include <string_view>
 #include <span>
-#include "exception_record_offsets.h"
+#include <utility>
+#include "../../modules/exception_record_offsets.h"
 
 import format;
 import dwarf;
@@ -19,7 +20,12 @@ import crt;
 
 using namespace std;
 
+static_assert(offsetof(EXCEPTION_RECORD, ExceptionCode) == EXCEPTION_RECORD_EXCEPTION_CODE);
+static_assert(offsetof(EXCEPTION_RECORD, ExceptionFlags) == EXCEPTION_RECORD_EXCEPTION_FLAGS);
+static_assert(offsetof(EXCEPTION_RECORD, ExceptionRecord) == EXCEPTION_RECORD_EXCEPTION_RECORD);
 static_assert(offsetof(EXCEPTION_RECORD, ExceptionAddress) == EXCEPTION_RECORD_EXCEPTION_ADDRESS);
+static_assert(offsetof(EXCEPTION_RECORD, NumberParameters) == EXCEPTION_RECORD_NUMBER_PARAMETERS);
+static_assert(offsetof(EXCEPTION_RECORD, ExceptionInformation) == EXCEPTION_RECORD_EXCEPTION_INFORMATION);
 
 static ldr_entry* get_ldr_from_address(uint64_t addr) {
     auto& peb = *NtCurrentTeb()->ProcessEnvironmentBlock;
@@ -200,9 +206,17 @@ void mn_signal(EXCEPTION_RECORD* exception, CONTEXT* context) {
 
     // FIXME - everything here should be printing to stderr
 
-    if ((NTSTATUS)exception->ExceptionCode == nt_status::CONTROL_C_EXIT)
+    if ((NTSTATUS)exception->ExceptionCode == nt_status::CONTROL_C_EXIT) {
         print("\nTerminated\n");
-    else {
+        NtTerminateProcess(NtCurrentProcess(), (NTSTATUS)exception->ExceptionCode);
+        unreachable();
+    }
+
+    if (exception->ExceptionCode == MOXNOX_STUB_FUNCTION) {
+        auto func = string_view((char*)exception->ExceptionInformation[0]);
+
+        print("Call to unimplemented function {}\n", func);
+    } else {
         switch ((NTSTATUS)exception->ExceptionCode) {
             case nt_status::ACCESS_VIOLATION:
                 // FIXME - translate error code to descriptive message
@@ -254,26 +268,24 @@ void mn_signal(EXCEPTION_RECORD* exception, CONTEXT* context) {
                 sp = format(sp, "Unhandled exception {:08x}\n", exception->ExceptionCode);
             break;
         }
-
-        sp = format(sp, "{}", *context);
-        print("{}", string_view(s, (size_t)(sp.data() - s)));
-
-        // FIXME - DWARF information in stack trace?
-
-        print("\n");
-
-        do {
-#ifdef __aarch64__
-            uint64_t rip = context->Pc;
-#elifdef __x86_64__
-            uint64_t rip = context->Rip;
-#endif
-            print_rip(rip);
-
-            if (!do_unwind_context(*context))
-                break;
-        } while (true);
     }
+
+    sp = format(sp, "{}", *context);
+    print("{}", string_view(s, (size_t)(sp.data() - s)));
+
+    print("\n");
+
+    do {
+#ifdef __aarch64__
+        uint64_t rip = context->Pc;
+#elifdef __x86_64__
+        uint64_t rip = context->Rip;
+#endif
+        print_rip(rip);
+
+        if (!do_unwind_context(*context))
+            break;
+    } while (true);
 
     NtTerminateProcess(NtCurrentProcess(), (NTSTATUS)exception->ExceptionCode);
 }

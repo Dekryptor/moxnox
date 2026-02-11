@@ -1,5 +1,5 @@
 #include "../../kernel/src/context_offsets.h"
-#include "exception_record_offsets.h"
+#include "../../modules/exception_record_offsets.h"
 #include "dwarf.S"
 
 .section .debug_abbrev, "dr"

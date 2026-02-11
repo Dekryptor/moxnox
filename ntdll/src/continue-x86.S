@@ -1,7 +1,7 @@
 .intel_syntax noprefix
 
 #include "../../kernel/src/context_offsets.h"
-#include "exception_record_offsets.h"
+#include "../../modules/exception_record_offsets.h"
 #include "../../modules/dwarf.S"
 
 .equ CONTEXT_AMD64, 0x00100000

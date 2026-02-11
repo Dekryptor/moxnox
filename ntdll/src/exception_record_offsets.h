@@ -1,3 +1,0 @@
-#pragma once
-
-#define EXCEPTION_RECORD_EXCEPTION_ADDRESS 0x10
