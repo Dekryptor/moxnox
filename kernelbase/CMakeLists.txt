@@ -17,13 +17,10 @@ set(SRC_FILES src/kernelbase.def
 
 add_library(kernelbase SHARED ${SRC_FILES})
 
-target_sources(kernelbase PUBLIC FILE_SET CXX_MODULES FILES
-    src/print.cpp)
-
 target_compile_options(kernelbase PRIVATE -fno-exceptions ${USERSPACE_CFLAGS})
 target_link_options(kernelbase PUBLIC -nostartfiles -nostdlib)
 
-target_link_libraries(kernelbase PRIVATE format)
+target_link_libraries(kernelbase PRIVATE format print)
 target_link_libraries(kernelbase PRIVATE moxnox)
 
 install(TARGETS kernelbase DESTINATION ${CMAKE_INSTALL_PREFIX}/lib
