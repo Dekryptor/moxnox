@@ -220,6 +220,10 @@ target_sources(kernelbase_mod PUBLIC FILE_SET CXX_MODULES FILES modules/kernelba
 target_compile_options(kernelbase_mod PRIVATE -fno-exceptions ${USERSPACE_CFLAGS})
 target_link_libraries(kernelbase_mod nt)
 
+add_library(ucrtbase_mod STATIC)
+target_sources(ucrtbase_mod PUBLIC FILE_SET CXX_MODULES FILES modules/ucrtbase.cpp)
+target_compile_options(ucrtbase_mod PRIVATE -fno-exceptions ${USERSPACE_CFLAGS})
+
 add_library(crt STATIC)
 target_sources(crt PUBLIC FILE_SET CXX_MODULES FILES modules/crt.cpp)
 target_compile_options(crt PRIVATE -fno-exceptions ${USERSPACE_CFLAGS})
