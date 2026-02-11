@@ -11,7 +11,6 @@ do_stub "_execute_onexit_table"
 do_stub "_exit"
 do_stub "_initialize_onexit_table"
 do_stub "_register_onexit_function"
-do_stub "exit"
 do_stub "signal"
 
 stubs_end

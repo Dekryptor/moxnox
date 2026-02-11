@@ -7,3 +7,8 @@ int _crt_atexit(_PVFV function) {
 
     return 0;
 }
+
+extern "C" __declspec(dllexport)
+void exit(int code) {
+    print("FIXME - exit\n");
+}
