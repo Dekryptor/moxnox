@@ -9,6 +9,7 @@ set(SRC_FILES src/ucrtbase.cpp
     src/stubs.S
     src/ucrtbase.def
     src/errno.cpp
+    src/data.cpp
 )
 
 add_library(ucrtbase SHARED ${SRC_FILES})

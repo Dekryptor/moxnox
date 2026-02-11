@@ -2,7 +2,6 @@
 
 stubs_start
 
-do_stub "_set_app_type"
 do_stub "__acrt_iob_func"
 do_stub "__p___argc"
 do_stub "__p___argv"
