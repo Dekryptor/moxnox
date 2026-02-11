@@ -1491,7 +1491,7 @@ export void dwarf_print_function(span<const uint8_t> debug_info,
                                  malloc_func _malloc = malloc,
                                  free_func _free = free) {
     if (debug_info.empty()) {
-        sp = format(sp, "{:016x} ({}+{:x})\n", rva + base, mod_name, rva);
+        sp = format(sp, "{:016x} ({}+{:x})", rva + base, mod_name, rva);
         return;
     }
 
@@ -1583,7 +1583,7 @@ export void dwarf_print_function(span<const uint8_t> debug_info,
     });
 
     if (found_cu.empty()) {
-        sp = format(sp, "{:016x} ({}+{:x})\n", rva + base, mod_name, rva);
+        sp = format(sp, "{:016x} ({}+{:x})", rva + base, mod_name, rva);
         return;
     }
 
