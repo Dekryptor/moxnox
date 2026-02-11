@@ -53,3 +53,8 @@ extern "C" __declspec(dllexport)
 int _initialize_narrow_environment() {
     return 0;
 }
+
+extern "C" __declspec(dllexport)
+int _configure_narrow_argv(int /*mode*/) {
+    return 0;
+}
