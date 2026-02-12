@@ -33,3 +33,4 @@ NtQuerySystemTime
 __C_specific_handler
 RtlExitUserProcess
 RtlInitializeCriticalSection
+RtlDeleteCriticalSection
