@@ -4,7 +4,6 @@ stubs_start
 
 do_stub "RtlDeleteCriticalSection"
 do_stub "RtlEnterCriticalSection"
-do_stub "RtlInitializeCriticalSection"
 do_stub "RtlLeaveCriticalSection"
 do_stub "RtlTryEnterCriticalSection"
 do_stub "RtlSetLastWin32Error"

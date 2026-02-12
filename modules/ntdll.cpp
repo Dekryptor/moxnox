@@ -158,6 +158,7 @@ EXCEPTION_DISPOSITION __C_specific_handler(EXCEPTION_RECORD* exception_record,
                                            CONTEXT* context_record,
                                            DISPATCHER_CONTEXT* dispatcher_context);
 void RtlExitUserProcess(uint32_t status);
+void RtlInitializeCriticalSection(RTL_CRITICAL_SECTION* critical_section);
 
 }
 

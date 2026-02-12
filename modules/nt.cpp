@@ -190,7 +190,6 @@ struct GUID {
     uint8_t Data4[8];
 };
 
-struct RTL_CRITICAL_SECTION;
 struct ACTIVATION_CONTEXT_DATA;
 struct ASSEMBLY_STORAGE_MAP;
 
@@ -265,6 +264,17 @@ struct PEB_LDR_DATA {
     HANDLE ShutdownThreadId;
 };
 
+struct RTL_CRITICAL_SECTION_DEBUG;
+
+struct RTL_CRITICAL_SECTION {
+    RTL_CRITICAL_SECTION_DEBUG* DebugInfo;
+    int32_t LockCount;
+    int32_t RecursionCount;
+    HANDLE OwningThread;
+    HANDLE LockSemaphore;
+    uintptr_t SpinCount;
+};
+
 struct PEB {
     bool InheritedAddressSpace;
     bool ReadImageFileExecOptions;
@@ -289,7 +299,7 @@ struct PEB {
     RTL_USER_PROCESS_PARAMETERS* ProcessParameters;
     void* SubSystemData;
     HANDLE ProcessHeap;
-    RTL_CRITICAL_SECTION *FastPebLock;
+    RTL_CRITICAL_SECTION* FastPebLock;
     void* AtlThunkSListPtr;
     void* IFEOKey;
     union {
