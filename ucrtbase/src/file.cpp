@@ -322,11 +322,29 @@ size_t fread(void* ptr, size_t size, size_t n, FILE* file) {
 }
 
 extern "C"
-size_t fwrite(const void* ptr, size_t size, size_t n, FILE* file) {
-    print("FIXME - fwrite\n");
+size_t _fwrite_nolock(const void* ptr, size_t size, size_t n, FILE* file) {
+    auto& f = *reinterpret_cast<_FILE*>(file);
+    IO_STATUS_BLOCK iosb;
 
-    *__errno() = EINVAL;
-    return 0;
+    // FIXME - buffering
+
+    auto status = NtWriteFile(f.h, 0, nullptr, nullptr, &iosb, ptr,
+                              (uint32_t)(size * n), nullptr, nullptr);
+    if (!success(status)) {
+        *__errno() = nt_status_to_errno(status);
+        return EOF;
+    }
+
+    return iosb.Information;
+}
+
+extern "C"
+size_t fwrite(const void* ptr, size_t size, size_t n, FILE* file) {
+    _lock_file(file);
+    auto ret = _fwrite_nolock(ptr, size, n, file);
+    _unlock_file(file);
+
+    return ret;
 }
 
 extern "C"

@@ -16,3 +16,4 @@ _errno = __errno
 fread
 fwrite
 fclose
+_fwrite_nolock
