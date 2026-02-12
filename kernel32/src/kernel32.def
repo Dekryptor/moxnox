@@ -1,0 +1,10 @@
+LIBRARY "kernel32.dll"
+EXPORTS
+GetLastError = kernelbase.GetLastError
+TlsGetValue = kernelbase.TlsGetValue
+VirtualProtect = kernelbase.VirtualProtect
+VirtualQuery = kernelbase.VirtualQuery
+DeleteCriticalSection = ntdll.RtlDeleteCriticalSection
+EnterCriticalSection = ntdll.RtlEnterCriticalSection
+InitializeCriticalSection = ntdll.RtlInitializeCriticalSection
+LeaveCriticalSection = ntdll.RtlLeaveCriticalSection
