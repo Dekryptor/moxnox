@@ -17,3 +17,4 @@ fread
 fwrite
 fclose
 _fwrite_nolock
+fputs

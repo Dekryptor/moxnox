@@ -354,3 +354,17 @@ int fclose(FILE* file) {
     *__errno() = EINVAL;
     return EOF;
 }
+
+extern "C"
+int fputs(const char* s, FILE* file) {
+    auto len = strlen(s);
+
+    _lock_file(file);
+    auto ret = _fwrite_nolock(s, 1, len, file);
+    _unlock_file(file);
+
+    if (ret != len)
+        return EOF;
+    else
+        return 0;
+}
