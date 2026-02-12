@@ -121,3 +121,10 @@ export void init_files() {
     new (_stdout) _FILE(peb->ProcessParameters->StandardOutput);
     new (_stderr) _FILE(peb->ProcessParameters->StandardError);
 }
+
+extern "C" __declspec(dllexport)
+FILE* fopen(const char* pathname, const char* mode) {
+    print("FIXME - fopen\n");
+
+    return nullptr;
+}
