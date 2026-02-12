@@ -1,6 +1,7 @@
 module;
 
 import ucrtbase;
+import kernelbase;
 
 #define _FILE_DEFINED
 #include <string_view>
@@ -14,9 +15,11 @@ import nt;
 using namespace std;
 
 struct _FILE {
-    _FILE(HANDLE h) : h(h) { }
+    _FILE(HANDLE h);
+    ~_FILE();
 
     HANDLE h;
+    RTL_CRITICAL_SECTION cs;
 };
 
 static uint8_t _stdin[sizeof(_FILE)], _stdout[sizeof(_FILE)], _stderr[sizeof(_FILE)];
@@ -97,6 +100,14 @@ int fputc(int c, FILE* file) {
     _unlock_file(file);
 
     return ret;
+}
+
+_FILE::_FILE(HANDLE h) : h(h) {
+    InitializeCriticalSection(&cs);
+}
+
+_FILE::~_FILE() {
+    DeleteCriticalSection(&cs);
 }
 
 export void init_files() {
