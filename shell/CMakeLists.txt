@@ -180,7 +180,10 @@ install(TARGETS seh-test DESTINATION ${CMAKE_INSTALL_PREFIX}/bin)
 add_executable(file-test src/file-test.cpp)
 
 target_compile_options(file-test PRIVATE -fno-exceptions ${USERSPACE_CFLAGS})
-target_link_options(file-test PUBLIC -mcrtdll=ucrtbase)
+
+if (CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
+    target_link_options(file-test PUBLIC -mcrtdll=ucrtbase)
+endif()
 
 target_link_libraries(file-test print)
 target_link_libraries(file-test format)
