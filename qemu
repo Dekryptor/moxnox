@@ -6,6 +6,8 @@ qemu-system-x86_64 -M q35 -enable-kvm -cpu host \
 -append "root=/dev/sda keywait" \
 -device ich9-ahci,id=ahci -drive id=disk,file=btrfs,if=none,format=raw \
 -device ide-hd,drive=disk,bus=ahci.0 \
+-device virtio-net-pci,netdev=hn0,id=nic1,mac=52:54:4d:78:4e:78 \
+-netdev tap,helper=/usr/libexec/qemu-bridge-helper,id=hn0 \
 -serial stdio \
 -s
 
