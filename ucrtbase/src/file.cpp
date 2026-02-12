@@ -97,8 +97,8 @@ int _fputc_nolock(int c, FILE* file) {
     return (int)s[0];
 }
 
-extern "C" __declspec(dllexport)
-int fputc(int c, FILE* file) {
+extern "C"
+int _fputc(int c, FILE* file) {
     _lock_file(file);
     auto ret = _fputc_nolock(c, file);
     _unlock_file(file);
@@ -122,8 +122,8 @@ export void init_files() {
     new (_stderr) _FILE(peb->ProcessParameters->StandardError);
 }
 
-extern "C" __declspec(dllexport)
-FILE* fopen(const char* pathname, const char* mode) {
+extern "C"
+FILE* __cdecl _fopen(const char* pathname, const char* mode) {
     print("FIXME - fopen\n");
 
     return nullptr;

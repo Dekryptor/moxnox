@@ -8,4 +8,8 @@ memset = ntdll.memset
 wcslen = ntdll.wcslen
 strtol = ntdll.strtol
 strtoul = ntdll.strtoul
+fopen = _fopen
+fputc = _fputc
+malloc
+free
 _errno = __errno

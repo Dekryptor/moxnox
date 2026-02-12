@@ -6,12 +6,12 @@ import ntdll;
 import print;
 import file;
 
-extern "C" __declspec(dllexport)
+extern "C"
 void* malloc(size_t size) {
     return RtlAllocateHeap(GetProcessHeap(), 0, size);
 }
 
-extern "C" __declspec(dllexport)
+extern "C"
 void free(void* ptr) {
     RtlFreeHeap(GetProcessHeap(), 0, ptr);
 }
