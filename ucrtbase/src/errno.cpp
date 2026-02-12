@@ -10,8 +10,8 @@ _invalid_parameter_handler _set_invalid_parameter_handler(_invalid_parameter_han
     return nullptr;
 }
 
-extern "C" __declspec(dllexport)
-int* _errno() {
+extern "C"
+int* __errno() {
     // FIXME - actually should be thread-local
 
     return &errno;
