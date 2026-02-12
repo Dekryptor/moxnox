@@ -5,7 +5,7 @@ static int errno = 0; // FIXME
 
 extern "C" __declspec(dllexport)
 _invalid_parameter_handler _set_invalid_parameter_handler(_invalid_parameter_handler handler) {
-    print("FIXME - _set_invalid_parameter_handler\n");
+    // FIXME?
 
     return nullptr;
 }
