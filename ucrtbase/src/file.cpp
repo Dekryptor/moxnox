@@ -35,6 +35,16 @@ void* operator new(size_t count) {
     return malloc(count);
 }
 
+extern "C++"
+void operator delete(void* ptr) noexcept {
+    free(ptr);
+}
+
+extern "C++"
+void operator delete(void* ptr, size_t) noexcept {
+    free(ptr);
+}
+
 extern "C" __declspec(dllexport)
 FILE* __acrt_iob_func(unsigned int idx) {
     switch (idx) {
@@ -326,10 +336,14 @@ size_t fwrite(const void* ptr, size_t size, size_t n, FILE* file) {
 
 extern "C"
 int fclose(FILE* file) {
-    print("FIXME - fclose\n");
+    auto& f = *reinterpret_cast<_FILE*>(file);
 
-    *__errno() = EINVAL;
-    return EOF;
+    // FIXME - do we need to make sure this isn't stdin, stdout, or stderr?
+
+    NtClose(f.h);
+    delete &f;
+
+    return 0;
 }
 
 extern "C"
