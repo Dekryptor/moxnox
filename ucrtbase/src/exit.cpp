@@ -14,7 +14,7 @@ int _crt_atexit(_PVFV function) {
 }
 
 extern "C" __declspec(dllexport)
-void exit(int code) {
+void exit(int code) noexcept {
     RtlExitUserProcess(code);
     unreachable();
 }
