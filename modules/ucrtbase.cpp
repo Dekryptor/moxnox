@@ -95,6 +95,8 @@ struct lconv {
     char int_n_sign_posn;
 };
 
+using mbstate_t = int;
+
 _invalid_parameter_handler _set_invalid_parameter_handler(_invalid_parameter_handler handler);
 void _set_app_type(_crt_app_type _Type);
 int* __p___argc();
@@ -116,6 +118,7 @@ void _unlock_file(FILE* file);
 int* _errno();
 int _fputc_nolock(int c, FILE* file);
 struct lconv* localeconv();
+size_t mbrtowc(wchar_t* pwc, const char* s, size_t n, mbstate_t* ps);
 
 }
 

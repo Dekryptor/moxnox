@@ -20,3 +20,4 @@ _fwrite_nolock
 fputs = _fputs
 puts
 localeconv = _localeconv
+mbrtowc = _mbrtowc
