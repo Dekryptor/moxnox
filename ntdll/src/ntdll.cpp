@@ -892,6 +892,12 @@ static ldr_entry* load_dll(string_view name) {
 
     utf8_to_utf16(span(u16buf, u16len), name);
 
+    // FIXME - add case-insensitive mode to NtCreateFile instead?
+    for (auto& c : span(u16buf, u16len)) {
+        if (c >= u'A' && c <= u'Z')
+            c = c - u'A' + u'a';
+    }
+
     auto u16sv = u16string_view_ci(u16buf, u16len);
 
     {
