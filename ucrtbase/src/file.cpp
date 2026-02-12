@@ -5,12 +5,16 @@ import kernelbase;
 
 #define _FILE_DEFINED
 #include <string_view>
+#include <span>
 #include <stdint.h>
+#include <stdlib.h>
+#include <string.h>
 
 export module file;
 
 import print;
 import nt;
+import unicode;
 
 using namespace std;
 
@@ -23,6 +27,13 @@ struct _FILE {
 };
 
 static uint8_t _stdin[sizeof(_FILE)], _stdout[sizeof(_FILE)], _stderr[sizeof(_FILE)];
+
+extern "C" int* __errno();
+
+extern "C++"
+void* operator new(size_t count) {
+    return malloc(count);
+}
 
 extern "C" __declspec(dllexport)
 int puts(const char* s) {
@@ -122,9 +133,182 @@ export void init_files() {
     new (_stderr) _FILE(peb->ProcessParameters->StandardError);
 }
 
+static int nt_status_to_errno(nt_status status) {
+    switch (status) {
+        case nt_status::ACCESS_DENIED:
+        case nt_status::SHARING_VIOLATION:
+            return EACCES;
+
+        case nt_status::NO_MORE_FILES:
+        case nt_status::OBJECT_NAME_NOT_FOUND:
+        case nt_status::OBJECT_PATH_NOT_FOUND:
+            return ENOENT;
+
+        case nt_status::DISK_CORRUPT_ERROR:
+        case nt_status::CRC_ERROR:
+        case nt_status::IO_DEVICE_ERROR:
+            return EIO;
+
+        case nt_status::INVALID_HANDLE:
+            return EBADF;
+
+        case nt_status::INSUFFICIENT_RESOURCES:
+        case nt_status::NO_MEMORY:
+            return ENOMEM;
+
+        case nt_status::DISK_FULL:
+            return ENOSPC;
+
+        default:
+            return EINVAL;
+    }
+}
+
 extern "C"
 FILE* __cdecl _fopen(const char* pathname, const char* mode) {
-    print("FIXME - fopen\n");
+    enum class mode_type {
+        r,
+        rplus,
+        w,
+        wplus,
+        a,
+        aplus,
+    };
 
-    return nullptr;
+    auto peb = NtCurrentTeb()->ProcessEnvironmentBlock;
+    enum mode_type type;
+    ACCESS_MASK perms;
+    unsigned int create_options;
+    HANDLE h;
+    OBJECT_ATTRIBUTES oa;
+    UNICODE_STRING us;
+    IO_STATUS_BLOCK iosb;
+
+    if (!mode || !pathname || pathname[0] == 0) {
+        *__errno() = EINVAL;
+        return nullptr;
+    }
+
+    switch (mode[0]) {
+        case 'r':
+            if (mode[1] == '+') {
+                type = mode_type::rplus;
+                mode += 2;
+            } else {
+                type = mode_type::r;
+                mode++;
+            }
+            break;
+
+        case 'w':
+            if (mode[1] == '+') {
+                type = mode_type::wplus;
+                mode += 2;
+            } else {
+                type = mode_type::w;
+                mode++;
+            }
+            break;
+
+        case 'a':
+            if (mode[1] == '+') {
+                type = mode_type::aplus;
+                mode += 2;
+            } else {
+                type = mode_type::a;
+                mode++;
+            }
+            break;
+
+        default:
+            *__errno() = EINVAL;
+            return nullptr;
+    }
+
+    // FIXME - implement MS' extensions?
+    // FIXME - is "rb+" etc. valid?
+    while (*mode != 0) {
+        if (*mode != 't' && *mode != 'b') {
+            *__errno() = EINVAL;
+            return nullptr;
+        }
+
+        mode++;
+    }
+
+    switch (type) {
+        using enum mode_type;
+
+        case r:
+            perms = FILE_READ_DATA;
+            create_options = FILE_OPEN;
+            break;
+
+        case rplus:
+            perms = FILE_READ_DATA | FILE_WRITE_DATA;
+            create_options = FILE_OPEN;
+            break;
+
+        case w:
+            perms = FILE_WRITE_DATA;
+            create_options = FILE_OVERWRITE_IF;
+            break;
+
+        case wplus:
+            perms = FILE_READ_DATA | FILE_WRITE_DATA;
+            create_options = FILE_OVERWRITE_IF;
+            break;
+
+        case a:
+            perms = FILE_APPEND_DATA;
+            create_options = FILE_OPEN_IF;
+            break;
+
+        case aplus:
+            perms = FILE_READ_DATA | FILE_APPEND_DATA;
+            create_options = FILE_OPEN_IF;
+            break;
+    }
+
+    auto sv = string_view(pathname);
+    auto u16len = utf8_to_utf16_len(sv);
+
+    auto u16pathname = (char16_t*)malloc(u16len * sizeof(char16_t));
+    if (!u16pathname) {
+        *__errno() = ENOMEM;
+        return nullptr;
+    }
+
+    utf8_to_utf16(span(u16pathname, u16len), sv);
+
+    us.Length = us.MaximumLength = (uint16_t)(u16len * sizeof(char16_t));
+    us.Buffer = u16pathname;
+
+    memset(&oa, 0, sizeof(oa));
+    oa.Length = sizeof(OBJECT_ATTRIBUTES);
+    oa.ObjectName = &us;
+    oa.RootDirectory = peb->ProcessParameters->CurrentDirectory.Handle;
+
+    auto status = NtCreateFile(&h, perms, &oa, &iosb, nullptr,
+                               FILE_ATTRIBUTE_NORMAL, 0, create_options,
+                               0, nullptr, 0);
+    if (!success(status)) {
+        free(u16pathname);
+        *__errno() = nt_status_to_errno(status);
+        return nullptr;
+    }
+
+    auto f = new _FILE(h);
+    if (!f) {
+        free(u16pathname);
+        NtClose(h);
+        *__errno() = ENOMEM;
+        return nullptr;
+    }
+
+    f->h = h;
+
+    free(u16pathname);
+
+    return reinterpret_cast<FILE*>(f);
 }
