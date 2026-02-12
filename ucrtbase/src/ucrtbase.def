@@ -13,9 +13,9 @@ fputc = _fputc
 malloc
 free
 _errno = __errno
-fread
-fwrite
-fclose
+fread = _fread
+fwrite = _fwrite
+fclose = _fclose
 _fwrite_nolock
-fputs
+fputs = _fputs
 puts

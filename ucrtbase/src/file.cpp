@@ -301,7 +301,7 @@ FILE* __cdecl _fopen(const char* pathname, const char* mode) {
 }
 
 extern "C"
-size_t fread(void* ptr, size_t size, size_t n, FILE* file) {
+size_t _fread(void* ptr, size_t size, size_t n, FILE* file) {
     print("FIXME - fread\n");
 
     *__errno() = EINVAL;
@@ -326,7 +326,7 @@ size_t _fwrite_nolock(const void* ptr, size_t size, size_t n, FILE* file) {
 }
 
 extern "C"
-size_t fwrite(const void* ptr, size_t size, size_t n, FILE* file) {
+size_t _fwrite(const void* ptr, size_t size, size_t n, FILE* file) {
     _lock_file(file);
     auto ret = _fwrite_nolock(ptr, size, n, file);
     _unlock_file(file);
@@ -335,7 +335,7 @@ size_t fwrite(const void* ptr, size_t size, size_t n, FILE* file) {
 }
 
 extern "C"
-int fclose(FILE* file) {
+int _fclose(FILE* file) {
     auto& f = *reinterpret_cast<_FILE*>(file);
 
     // FIXME - do we need to make sure this isn't stdin, stdout, or stderr?
@@ -347,7 +347,7 @@ int fclose(FILE* file) {
 }
 
 extern "C"
-int fputs(const char* s, FILE* file) {
+int _fputs(const char* s, FILE* file) {
     auto len = strlen(s);
 
     _lock_file(file);
