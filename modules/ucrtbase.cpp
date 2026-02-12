@@ -6,8 +6,10 @@ export module ucrtbase;
 
 export {
 
-using _invalid_parameter_handler = void (*)(const wchar_t*, const wchar_t*, const wchar_t*,
-                                            unsigned int, uintptr_t);
+extern "C++" using _invalid_parameter_handler = void (*)(const wchar_t*,
+                                                         const wchar_t*,
+                                                         const wchar_t*,
+                                                         unsigned int, uintptr_t);
 
 enum _crt_app_type {
     _crt_unknown_app,
