@@ -64,9 +64,36 @@ const int ENOSYS = 40;
 const int ENOTEMPTY = 41;
 const int EILSEQ = 42;
 
+extern "C" {
+
 struct FILE;
 
-extern "C" {
+struct lconv {
+    char* decimal_point;
+    char* thousands_sep;
+    char* grouping;
+    char* mon_decimal_point;
+    char* mon_thousands_sep;
+    char* mon_grouping;
+    char* positive_sign;
+    char* negative_sign;
+    char* currency_symbol;
+    char frac_digits;
+    char p_cs_precedes;
+    char n_cs_precedes;
+    char p_sep_by_space;
+    char n_sep_by_space;
+    char p_sign_posn;
+    char n_sign_posn;
+    char* int_curr_symbol;
+    char int_frac_digits;
+    char int_p_cs_precedes;
+    char int_n_cs_precedes;
+    char int_p_sep_by_space;
+    char int_n_sep_by_space;
+    char int_p_sign_posn;
+    char int_n_sign_posn;
+};
 
 _invalid_parameter_handler _set_invalid_parameter_handler(_invalid_parameter_handler handler);
 void _set_app_type(_crt_app_type _Type);
@@ -88,6 +115,7 @@ void _lock_file(FILE* file);
 void _unlock_file(FILE* file);
 int* _errno();
 int _fputc_nolock(int c, FILE* file);
+struct lconv* localeconv();
 
 }
 

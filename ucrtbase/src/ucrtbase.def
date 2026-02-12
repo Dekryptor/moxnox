@@ -19,3 +19,4 @@ fclose = _fclose
 _fwrite_nolock
 fputs = _fputs
 puts
+localeconv = _localeconv

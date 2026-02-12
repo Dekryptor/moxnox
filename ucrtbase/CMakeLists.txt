@@ -12,6 +12,7 @@ set(SRC_FILES src/ucrtbase.cpp
     src/data.cpp
     src/heap.cpp
     src/exit.cpp
+    src/locale.cpp
 )
 
 add_library(ucrtbase SHARED ${SRC_FILES})
