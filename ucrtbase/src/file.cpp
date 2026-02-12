@@ -328,3 +328,11 @@ size_t fwrite(const void* ptr, size_t size, size_t n, FILE* file) {
     *__errno() = EINVAL;
     return 0;
 }
+
+extern "C"
+int fclose(FILE* file) {
+    print("FIXME - fclose\n");
+
+    *__errno() = EINVAL;
+    return EOF;
+}

@@ -15,3 +15,4 @@ free
 _errno = __errno
 fread
 fwrite
+fclose
