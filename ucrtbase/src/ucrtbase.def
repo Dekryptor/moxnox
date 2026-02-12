@@ -4,3 +4,7 @@ __C_specific_handler = ntdll.__C_specific_handler
 memcpy = ntdll.memcpy
 strlen = ntdll.strlen
 strncmp = ntdll.strncmp
+memset = ntdll.memset
+wcslen = ntdll.wcslen
+strtol = ntdll.strtol
+strtoul = ntdll.strtoul
