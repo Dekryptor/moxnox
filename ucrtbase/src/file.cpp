@@ -312,3 +312,19 @@ FILE* __cdecl _fopen(const char* pathname, const char* mode) {
 
     return reinterpret_cast<FILE*>(f);
 }
+
+extern "C"
+size_t fread(void* ptr, size_t size, size_t n, FILE* file) {
+    print("FIXME - fread\n");
+
+    *__errno() = EINVAL;
+    return 0;
+}
+
+extern "C"
+size_t fwrite(const void* ptr, size_t size, size_t n, FILE* file) {
+    print("FIXME - fwrite\n");
+
+    *__errno() = EINVAL;
+    return 0;
+}

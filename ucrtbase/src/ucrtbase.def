@@ -13,3 +13,5 @@ fputc = _fputc
 malloc
 free
 _errno = __errno
+fread
+fwrite
