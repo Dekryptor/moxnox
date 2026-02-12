@@ -62,3 +62,4 @@ _unlock_file
 _fputc_nolock
 fputc
 fopen
+fputs

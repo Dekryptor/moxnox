@@ -31,5 +31,6 @@ do_stub "strtoll"
 do_stub "strtoull"
 do_stub "tolower"
 do_stub "ungetc"
+do_stub "fputs"
 
 stubs_end
