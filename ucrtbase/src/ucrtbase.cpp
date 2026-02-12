@@ -3,6 +3,8 @@
 
 import nt;
 import ntdll;
+import print;
+import file;
 
 extern "C" __declspec(dllexport)
 void* malloc(size_t size) {
@@ -96,7 +98,9 @@ void _assert(const char* /*str*/, const char* /*file*/, unsigned int /*line*/) {
 }
 
 extern "C"
-int DllMainCRTStartup(HANDLE /*hinstDLL*/, uint32_t /*dwReason*/,
-                      void* /*lpvReserved*/) {
+int DllMainCRTStartup(HANDLE /*hinstDLL*/, uint32_t reason, void*) {
+    if (reason == DLL_PROCESS_ATTACH)
+        init_files();
+
     return 1;
 }
