@@ -18,3 +18,4 @@ fwrite
 fclose
 _fwrite_nolock
 fputs
+puts

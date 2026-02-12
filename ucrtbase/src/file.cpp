@@ -36,29 +36,6 @@ void* operator new(size_t count) {
 }
 
 extern "C" __declspec(dllexport)
-int puts(const char* s) {
-    auto peb = NtCurrentTeb()->ProcessEnvironmentBlock;
-    IO_STATUS_BLOCK iosb;
-    auto sv = string_view(s);
-
-    // FIXME - implement using fwrite and stdout
-
-    auto status = NtWriteFile(peb->ProcessParameters->StandardOutput, 0,
-                              nullptr, nullptr, &iosb, sv.data(),
-                              (uint32_t)sv.size(), nullptr, nullptr);
-    if (!success(status))
-        return EOF;
-
-    status = NtWriteFile(peb->ProcessParameters->StandardOutput, 0,
-                         nullptr, nullptr, &iosb, "\n", 1, nullptr,
-                         nullptr);
-    if (!success(status))
-        return EOF;
-
-    return 0;
-}
-
-extern "C" __declspec(dllexport)
 FILE* __acrt_iob_func(unsigned int idx) {
     switch (idx) {
         case 0:
@@ -362,6 +339,29 @@ int fputs(const char* s, FILE* file) {
     _lock_file(file);
     auto ret = _fwrite_nolock(s, 1, len, file);
     _unlock_file(file);
+
+    if (ret != len)
+        return EOF;
+    else
+        return 0;
+}
+
+extern "C"
+int puts(const char* s) {
+    auto len = strlen(s);
+    auto* f = reinterpret_cast<FILE*>(_stdout);
+    const char c = '\n';
+
+    _lock_file(f);
+    auto ret = _fwrite_nolock(s, 1, len, f);
+
+    if (ret != len) {
+        _unlock_file(f);
+        return EOF;
+    }
+
+    ret = _fwrite_nolock(&c, 1, 1, f);
+    _unlock_file(f);
 
     if (ret != len)
         return EOF;
