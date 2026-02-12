@@ -20,8 +20,8 @@ target_sources(ucrtbase PUBLIC FILE_SET CXX_MODULES FILES src/file.cpp)
 target_compile_options(ucrtbase PRIVATE -fno-exceptions ${USERSPACE_CFLAGS})
 target_link_options(ucrtbase PUBLIC -nostartfiles -nostdlib)
 
+target_link_libraries(ucrtbase PRIVATE format print)
 target_link_libraries(ucrtbase PRIVATE moxnox)
-target_link_libraries(ucrtbase PRIVATE format print) # FIXME - why is format needed??
 
 install(TARGETS ucrtbase DESTINATION ${CMAKE_INSTALL_PREFIX}/lib
     CXX_MODULES_BMI EXCLUDE_FROM_ALL
