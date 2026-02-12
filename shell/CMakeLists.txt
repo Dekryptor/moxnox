@@ -177,6 +177,19 @@ install(TARGETS seh-test DESTINATION ${CMAKE_INSTALL_PREFIX}/bin)
 
 ###
 
+add_executable(file-test src/file-test.cpp)
+
+target_compile_options(file-test PRIVATE -fno-exceptions ${USERSPACE_CFLAGS})
+target_link_options(file-test PUBLIC -mcrtdll=ucrtbase)
+
+target_link_libraries(file-test print)
+target_link_libraries(file-test format)
+target_link_libraries(file-test moxnox)
+
+install(TARGETS file-test DESTINATION ${CMAKE_INSTALL_PREFIX}/bin)
+
+###
+
 add_executable(ps src/ps.cpp)
 
 target_compile_options(ps PRIVATE -fno-exceptions ${USERSPACE_CFLAGS})
