@@ -46,6 +46,7 @@ FILE* __acrt_iob_func(unsigned int idx);
 void _lock_file(FILE* file);
 void _unlock_file(FILE* file);
 int* _errno();
+int _fputc_nolock(int c, FILE* file);
 
 }
 

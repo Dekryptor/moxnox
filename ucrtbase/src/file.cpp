@@ -50,8 +50,17 @@ void _unlock_file(FILE* file) {
 }
 
 extern "C" __declspec(dllexport)
-int fputc(int c, FILE* stream) {
-    print("FIXME - fputc\n");
+int _fputc_nolock(int c, FILE* file) {
+    print("FIXME - _fputc_nolock\n");
 
     return 0;
+}
+
+extern "C" __declspec(dllexport)
+int fputc(int c, FILE* file) {
+    _lock_file(file);
+    auto ret = _fputc_nolock(c, file);
+    _unlock_file(file);
+
+    return ret;
 }
