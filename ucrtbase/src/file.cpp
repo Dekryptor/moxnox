@@ -66,12 +66,16 @@ FILE* __acrt_iob_func(unsigned int idx) {
 
 extern "C" __declspec(dllexport)
 void _lock_file(FILE* file) {
-    print("FIXME - _lock_file\n");
+    auto& f = *reinterpret_cast<_FILE*>(file);
+
+    EnterCriticalSection(&f.cs);
 }
 
 extern "C" __declspec(dllexport)
 void _unlock_file(FILE* file) {
-    print("FIXME - _unlock_file\n");
+    auto& f = *reinterpret_cast<_FILE*>(file);
+
+    LeaveCriticalSection(&f.cs);
 }
 
 extern "C" __declspec(dllexport)
