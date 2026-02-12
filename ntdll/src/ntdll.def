@@ -34,3 +34,5 @@ __C_specific_handler
 RtlExitUserProcess
 RtlInitializeCriticalSection
 RtlDeleteCriticalSection
+RtlEnterCriticalSection
+RtlLeaveCriticalSection

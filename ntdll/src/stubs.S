@@ -2,8 +2,6 @@
 
 stubs_start
 
-do_stub "RtlEnterCriticalSection"
-do_stub "RtlLeaveCriticalSection"
 do_stub "RtlTryEnterCriticalSection"
 do_stub "RtlSetLastWin32Error"
 do_stub "RtlInitializeConditionVariable"

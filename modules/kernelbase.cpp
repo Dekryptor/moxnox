@@ -28,6 +28,8 @@ bool SetConsoleCtrlHandler(HANDLER_ROUTINE func, bool add);
 TOP_LEVEL_EXCEPTION_FILTER SetUnhandledExceptionFilter(TOP_LEVEL_EXCEPTION_FILTER filter);
 void InitializeCriticalSection(RTL_CRITICAL_SECTION* critical_section);
 void DeleteCriticalSection(RTL_CRITICAL_SECTION* critical_section);
+void EnterCriticalSection(RTL_CRITICAL_SECTION* critical_section);
+void LeaveCriticalSection(RTL_CRITICAL_SECTION* critical_section);
 
 }
 

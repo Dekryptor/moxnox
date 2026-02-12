@@ -160,6 +160,8 @@ EXCEPTION_DISPOSITION __C_specific_handler(EXCEPTION_RECORD* exception_record,
 void RtlExitUserProcess(uint32_t status);
 void RtlInitializeCriticalSection(RTL_CRITICAL_SECTION* critical_section);
 void RtlDeleteCriticalSection(RTL_CRITICAL_SECTION* critical_section);
+void RtlEnterCriticalSection(RTL_CRITICAL_SECTION* critical_section);
+void RtlLeaveCriticalSection(RTL_CRITICAL_SECTION* critical_section);
 
 }
 
