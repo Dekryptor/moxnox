@@ -301,11 +301,20 @@ FILE* __cdecl _fopen(const char* pathname, const char* mode) {
 }
 
 extern "C"
-size_t _fread(void* ptr, size_t size, size_t n, FILE* file) {
-    print("FIXME - fread\n");
+size_t _fread_nolock(void* ptr, size_t size, size_t n, FILE* file) {
+    print("FIXME - _fread_nolock\n");
 
     *__errno() = EINVAL;
     return 0;
+}
+
+extern "C"
+size_t _fread(void* ptr, size_t size, size_t n, FILE* file) {
+    _lock_file(file);
+    auto ret = _fread_nolock(ptr, size, n, file);
+    _unlock_file(file);
+
+    return ret;
 }
 
 extern "C"
