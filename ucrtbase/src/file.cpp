@@ -396,3 +396,10 @@ int _ungetc(int c, FILE* file) {
 
     return 0;
 }
+
+extern "C"
+char* _fgets(char* s, int size, FILE* file) {
+    print("FIXME - fgets\n"); // FIXME
+
+    return nullptr;
+}

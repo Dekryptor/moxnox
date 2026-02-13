@@ -29,3 +29,4 @@ isspace = ntdll.isspace
 isxdigit = ntdll.isxdigit
 tolower = ntdll.tolower
 ungetc = _ungetc
+fgets = _fgets
