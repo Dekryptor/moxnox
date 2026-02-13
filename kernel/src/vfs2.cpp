@@ -1401,25 +1401,45 @@ NTSTATUS file::query_information(void* buffer, uint32_t buffer_size,
     if (ino.type != object_type::inode)
         return nt_status::INVALID_PARAMETER;
 
-    if (file_information_class == FILE_INFORMATION_CLASS::NameInformation) {
-        ::dentry* d;
+    switch (file_information_class) {
+        case FILE_INFORMATION_CLASS::NameInformation: {
+            ::dentry* d;
 
-        {
-            lock_guard lg(lock);
+            {
+                lock_guard lg(lock);
 
-            d = dentry;
-            d->acquire();
+                d = dentry;
+                d->acquire();
+            }
+
+            auto ret = query_name(*d, span((uint8_t*)buffer, buffer_size), retlen);
+
+            d->release();
+
+            return ret;
         }
 
-        auto ret = query_name(*d, span((uint8_t*)buffer, buffer_size), retlen);
+        case FILE_INFORMATION_CLASS::PositionInformation: {
+            if (buffer_size < sizeof(FILE_POSITION_INFORMATION))
+                return nt_status::BUFFER_TOO_SMALL;
 
-        d->release();
+            auto& fpi = *(FILE_POSITION_INFORMATION*)buffer;
 
-        return ret;
+            {
+                lock_guard lg(lock);
+                fpi.CurrentByteOffset.QuadPart = file_offset;
+            }
+
+            retlen = sizeof(FILE_POSITION_INFORMATION);
+
+            return nt_status::SUCCESS;
+        }
+
+        default:
+            return static_cast<inode&>(ino).query_information(span((uint8_t*)buffer, buffer_size),
+                                                              file_information_class,
+                                                              retlen);
     }
-
-    return static_cast<inode&>(ino).query_information(span((uint8_t*)buffer, buffer_size),
-                                                      file_information_class, retlen);
 }
 
 nt_status get_dentry_path(dentry& dr, char*& path, size_t& path_len) {
