@@ -1304,6 +1304,10 @@ struct FILE_RENAME_INFORMATION {
     char16_t FileName[1];
 };
 
+struct FILE_POSITION_INFORMATION {
+    LARGE_INTEGER CurrentByteOffset;
+};
+
 const uint32_t MAXIMUM_WAIT_OBJECTS = 64;
 
 enum class EVENT_TYPE {
