@@ -382,3 +382,10 @@ int puts(const char* s) {
     else
         return 0;
 }
+
+extern "C"
+int _fgetc(FILE* file) {
+    print("FIXME - fgetc\n"); // FIXME
+
+    return 0;
+}

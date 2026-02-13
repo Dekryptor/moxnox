@@ -22,4 +22,5 @@ puts
 localeconv = _localeconv
 mbrtowc = _mbrtowc
 isdigit = ntdll.isdigit
-getc = fgetc
+getc = _fgetc
+fgetc = _fgetc
