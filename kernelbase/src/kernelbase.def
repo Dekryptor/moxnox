@@ -14,3 +14,16 @@ HeapAlloc = ntdll.RtlAllocateHeap
 HeapFree = ntdll.RtlFreeHeap
 HeapReAlloc = ntdll.RtlReAllocateHeap
 __C_specific_handler = ntdll.__C_specific_handler
+FormatMessageA
+LocalFree
+SleepConditionVariableCS
+GetSystemTimeAsFileTime
+CloseHandle
+GetThreadId
+TlsAlloc
+TlsFree
+TlsSetValue
+RaiseException
+IsProcessorFeaturePresent
+GetCurrentProcess
+TerminateProcess

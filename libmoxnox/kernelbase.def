@@ -21,3 +21,16 @@ SetUnhandledExceptionFilter
 TlsGetValue
 VirtualProtect
 VirtualQuery
+FormatMessageA
+LocalFree
+SleepConditionVariableCS
+GetSystemTimeAsFileTime
+CloseHandle
+GetThreadId
+TlsAlloc
+TlsFree
+TlsSetValue
+RaiseException
+IsProcessorFeaturePresent
+GetCurrentProcess
+TerminateProcess
