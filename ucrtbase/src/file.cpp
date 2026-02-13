@@ -524,9 +524,18 @@ int _fseek(FILE* file, int32_t offset, int whence) {
 
 extern "C"
 int64_t _ftelli64_nolock(FILE* file) {
-    print("FIXME - _ftelli64_nolock\n"); // FIXME
+    auto& f = *reinterpret_cast<_FILE*>(file);
+    FILE_POSITION_INFORMATION fpi;
+    IO_STATUS_BLOCK iosb;
 
-    return 0;
+    auto status = NtQueryInformationFile(f.h, &iosb, &fpi, sizeof(fpi),
+                                         FILE_INFORMATION_CLASS::PositionInformation);
+    if (!success(status)) {
+        *_errno() = nt_status_to_errno(status);
+        return -1;
+    }
+
+    return fpi.CurrentByteOffset.QuadPart;
 }
 
 extern "C"
@@ -549,7 +558,7 @@ int32_t _ftell(FILE* file) {
     auto ret = _ftelli64_nolock(file);
     _unlock_file(file);
 
-    return ret;
+    return (int32_t)ret;
 }
 
 extern "C"
