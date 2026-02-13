@@ -302,10 +302,19 @@ FILE* __cdecl _fopen(const char* pathname, const char* mode) {
 
 extern "C"
 size_t _fread_nolock(void* ptr, size_t size, size_t n, FILE* file) {
-    print("FIXME - _fread_nolock\n");
+    auto& f = *reinterpret_cast<_FILE*>(file);
+    IO_STATUS_BLOCK iosb;
 
-    *__errno() = EINVAL;
-    return 0;
+    // FIXME - buffering
+
+    auto status = NtReadFile(f.h, 0, nullptr, nullptr, &iosb, ptr,
+                             (uint32_t)(size * n), nullptr, nullptr);
+    if (!success(status)) {
+        *__errno() = nt_status_to_errno(status);
+        return EOF;
+    }
+
+    return iosb.Information;
 }
 
 extern "C"
