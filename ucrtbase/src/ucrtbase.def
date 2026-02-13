@@ -21,3 +21,4 @@ fputs = _fputs
 puts
 localeconv = _localeconv
 mbrtowc = _mbrtowc
+isdigit = ntdll.isdigit

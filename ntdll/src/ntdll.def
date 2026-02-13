@@ -36,3 +36,4 @@ RtlInitializeCriticalSection
 RtlDeleteCriticalSection
 RtlEnterCriticalSection
 RtlLeaveCriticalSection
+isdigit

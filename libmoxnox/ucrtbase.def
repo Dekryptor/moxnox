@@ -47,7 +47,6 @@ ftell
 fgetc
 remove
 getc
-isdigit
 isspace
 isxdigit
 mbrlen
