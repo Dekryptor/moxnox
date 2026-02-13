@@ -1321,12 +1321,31 @@ NTSTATUS file::set_information(void* buffer, uint32_t buffer_size,
     if (ino.type != object_type::inode)
         return nt_status::INVALID_PARAMETER;
 
-    if (file_information_class == FILE_INFORMATION_CLASS::RenameInformation)
-        return rename(span((uint8_t*)buffer, buffer_size));
-    else {
-        return static_cast<inode&>(ino).set_information(span((uint8_t*)buffer, buffer_size),
-                                                        *dentry,
-                                                        file_information_class);
+    switch (file_information_class) {
+        case FILE_INFORMATION_CLASS::RenameInformation:
+            return rename(span((uint8_t*)buffer, buffer_size));
+
+        case FILE_INFORMATION_CLASS::PositionInformation: {
+            if (buffer_size < sizeof(FILE_POSITION_INFORMATION))
+                return nt_status::BUFFER_TOO_SMALL;
+
+            auto& fpi = *(FILE_POSITION_INFORMATION*)buffer;
+
+            if (fpi.CurrentByteOffset.QuadPart < 0)
+                return nt_status::INVALID_PARAMETER;
+
+            {
+                lock_guard lg(lock);
+                file_offset = fpi.CurrentByteOffset.QuadPart;
+            }
+
+            return nt_status::SUCCESS;
+        }
+
+        default:
+            return static_cast<inode&>(ino).set_information(span((uint8_t*)buffer, buffer_size),
+                                                            *dentry,
+                                                            file_information_class);
     }
 }
 
