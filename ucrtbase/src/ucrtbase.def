@@ -36,8 +36,8 @@ remove = _remove
 _fread_nolock
 _fgetc_nolock
 _fseeki64_nolock
-_fseeki64
+_fseeki64 = __fseeki64
 _fseek_nolock
 _ftelli64_nolock
-_ftelli64
+_ftelli64 = __ftelli64
 _ftell_nolock

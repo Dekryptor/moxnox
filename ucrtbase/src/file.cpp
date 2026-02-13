@@ -471,7 +471,7 @@ int64_t _ftelli64_nolock(FILE* file) {
 }
 
 extern "C"
-int64_t _ftelli64(FILE* file) {
+int64_t __ftelli64(FILE* file) {
     _lock_file(file);
     auto ret = _ftelli64_nolock(file);
     _unlock_file(file);
@@ -541,7 +541,7 @@ int _fseeki64_nolock(FILE* file, int64_t offset, int whence) {
 }
 
 extern "C"
-int _fseeki64(FILE* file, int64_t offset, int whence) {
+int __fseeki64(FILE* file, int64_t offset, int whence) {
     _lock_file(file);
     auto ret = _fseeki64_nolock(file, offset, whence);
     _unlock_file(file);
