@@ -403,3 +403,17 @@ char* _fgets(char* s, int size, FILE* file) {
 
     return nullptr;
 }
+
+extern "C"
+int _fseek(FILE* file, int32_t offset, int whence) {
+    print("FIXME - fseek\n"); // FIXME
+
+    return 0;
+}
+
+extern "C"
+int32_t _ftell(FILE* file) {
+    print("FIXME - ftell\n"); // FIXME
+
+    return 0;
+}

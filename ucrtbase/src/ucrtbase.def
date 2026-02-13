@@ -30,3 +30,5 @@ isxdigit = ntdll.isxdigit
 tolower = ntdll.tolower
 ungetc = _ungetc
 fgets = _fgets
+fseek = _fseek
+ftell = _ftell
