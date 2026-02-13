@@ -428,9 +428,30 @@ int _ungetc(int c, FILE* file) {
 
 extern "C"
 char* _fgets(char* s, int size, FILE* file) {
-    print("FIXME - fgets\n"); // FIXME
+    int copied = 0;
 
-    return nullptr;
+    _lock_file(file);
+
+    for (int i = 0; i < size - 1; i++) {
+        auto c = _fgetc_nolock(file);
+        if (c == EOF)
+            break;
+
+        s[i] = (char)c;
+        copied++;
+
+        if (c == '\n')
+            break;
+    }
+
+    _unlock_file(file);
+
+    if (copied == 0)
+        return nullptr;
+
+    s[copied] = 0;
+
+    return s;
 }
 
 extern "C"
