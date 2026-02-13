@@ -417,3 +417,10 @@ int32_t _ftell(FILE* file) {
 
     return 0;
 }
+
+extern "C"
+int _remove(const char* pathname) {
+    print("FIXME - remove\n"); // FIXME
+
+    return 0;
+}

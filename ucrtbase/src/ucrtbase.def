@@ -32,3 +32,4 @@ ungetc = _ungetc
 fgets = _fgets
 fseek = _fseek
 ftell = _ftell
+remove = _remove
