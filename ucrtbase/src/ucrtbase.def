@@ -38,3 +38,6 @@ _fgetc_nolock
 _fseeki64_nolock
 _fseeki64
 _fseek_nolock
+_ftelli64_nolock
+_ftelli64
+_ftell_nolock

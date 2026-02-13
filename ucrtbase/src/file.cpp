@@ -523,10 +523,33 @@ int _fseek(FILE* file, int32_t offset, int whence) {
 }
 
 extern "C"
-int32_t _ftell(FILE* file) {
-    print("FIXME - ftell\n"); // FIXME
+int64_t _ftelli64_nolock(FILE* file) {
+    print("FIXME - _ftelli64_nolock\n"); // FIXME
 
     return 0;
+}
+
+extern "C"
+int64_t _ftelli64(FILE* file) {
+    _lock_file(file);
+    auto ret = _ftelli64_nolock(file);
+    _unlock_file(file);
+
+    return ret;
+}
+
+extern "C"
+int32_t _ftell_nolock(FILE* file) {
+    return _ftelli64_nolock(file);
+}
+
+extern "C"
+int32_t _ftell(FILE* file) {
+    _lock_file(file);
+    auto ret = _ftelli64_nolock(file);
+    _unlock_file(file);
+
+    return ret;
 }
 
 extern "C"
