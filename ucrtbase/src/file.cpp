@@ -402,10 +402,19 @@ int puts(const char* s) {
 }
 
 extern "C"
-int _fgetc(FILE* file) {
-    print("FIXME - fgetc\n"); // FIXME
+int _fgetc_nolock(FILE* file) {
+    print("FIXME - _fgetc_nolock\n"); // FIXME
 
     return 0;
+}
+
+extern "C"
+int _fgetc(FILE* file) {
+    _lock_file(file);
+    auto ret = _fgetc_nolock(file);
+    _unlock_file(file);
+
+    return ret;
 }
 
 extern "C"
