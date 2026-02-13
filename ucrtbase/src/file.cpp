@@ -456,7 +456,45 @@ char* _fgets(char* s, int size, FILE* file) {
 
 extern "C"
 int _fseeki64_nolock(FILE* file, int64_t offset, int whence) {
-    print("FIXME - _fseeki64_nolock\n"); // FIXME
+    auto& f = *reinterpret_cast<_FILE*>(file);
+    int64_t start;
+    FILE_POSITION_INFORMATION fpi;
+    IO_STATUS_BLOCK iosb;
+
+    static const int SEEK_SET = 0;
+    static const int SEEK_CUR = 1;
+    static const int SEEK_END = 2;
+
+    switch (whence) {
+        case SEEK_SET:
+            start = 0;
+            break;
+
+        case SEEK_CUR:
+            print("FIXME - _fseeki64_nolock SEEK_CUR\n");
+            // FIXME - call NtQueryInformationFile with FilePositionInformation
+            *_errno() = EINVAL;
+            return -1;
+
+        case SEEK_END:
+            print("FIXME - _fseeki64_nolock SEEK_END\n");
+            // FIXME - call NtQueryInformationFile with FileEndOfFileInformation
+            *_errno() = EINVAL;
+            return -1;
+
+        default:
+            *_errno() = EINVAL;
+            return -1;
+    }
+
+    fpi.CurrentByteOffset.QuadPart = start + offset;
+
+    auto status = NtSetInformationFile(f.h, &iosb, &fpi, sizeof(fpi),
+                                       FILE_INFORMATION_CLASS::PositionInformation);
+    if (!success(status)) {
+        *_errno() = nt_status_to_errno(status);
+        return -1;
+    }
 
     return 0;
 }
