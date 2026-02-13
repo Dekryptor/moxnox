@@ -403,9 +403,15 @@ int puts(const char* s) {
 
 extern "C"
 int _fgetc_nolock(FILE* file) {
-    print("FIXME - _fgetc_nolock\n"); // FIXME
+    unsigned char c;
 
-    return 0;
+    // FIXME - buffering
+
+    auto ret = _fread_nolock(&c, 1, 1, file);
+    if (ret == 0)
+        return EOF;
+
+    return (int)c;
 }
 
 extern "C"
