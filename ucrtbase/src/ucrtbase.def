@@ -28,3 +28,4 @@ strnlen = ntdll.strnlen
 isspace = ntdll.isspace
 isxdigit = ntdll.isxdigit
 tolower = ntdll.tolower
+ungetc = _ungetc

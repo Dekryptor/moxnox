@@ -21,6 +21,5 @@ do_stub "remove"
 do_stub "mbrlen"
 do_stub "strtoll"
 do_stub "strtoull"
-do_stub "ungetc"
 
 stubs_end

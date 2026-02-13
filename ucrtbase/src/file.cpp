@@ -389,3 +389,10 @@ int _fgetc(FILE* file) {
 
     return 0;
 }
+
+extern "C"
+int _ungetc(int c, FILE* file) {
+    print("FIXME - ungetc\n"); // FIXME
+
+    return 0;
+}
