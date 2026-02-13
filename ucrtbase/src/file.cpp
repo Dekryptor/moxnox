@@ -309,10 +309,8 @@ size_t _fread_nolock(void* ptr, size_t size, size_t n, FILE* file) {
 
     auto status = NtReadFile(f.h, 0, nullptr, nullptr, &iosb, ptr,
                              (uint32_t)(size * n), nullptr, nullptr);
-    if (!success(status)) {
-        *__errno() = nt_status_to_errno(status);
-        return EOF;
-    }
+    if (!success(status))
+        return 0;
 
     return iosb.Information;
 }
@@ -335,10 +333,8 @@ size_t _fwrite_nolock(const void* ptr, size_t size, size_t n, FILE* file) {
 
     auto status = NtWriteFile(f.h, 0, nullptr, nullptr, &iosb, ptr,
                               (uint32_t)(size * n), nullptr, nullptr);
-    if (!success(status)) {
-        *__errno() = nt_status_to_errno(status);
-        return EOF;
-    }
+    if (!success(status))
+        return 0;
 
     return iosb.Information;
 }
