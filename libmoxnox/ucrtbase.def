@@ -35,7 +35,6 @@ signal
 localeconv
 mbrtowc
 strerror
-strnlen
 wcrtomb
 wcsnlen
 fwrite
@@ -47,12 +46,9 @@ ftell
 fgetc
 remove
 getc
-isspace
-isxdigit
 mbrlen
 strtoll
 strtoull
-tolower
 ungetc
 _errno
 puts

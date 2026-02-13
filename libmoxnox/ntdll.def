@@ -440,3 +440,7 @@ RtlWakeConditionVariable
 RtlAddVectoredExceptionHandler
 RtlExitUserProcess
 isdigit
+strnlen
+isspace
+isxdigit
+tolower

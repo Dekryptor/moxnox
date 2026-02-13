@@ -24,3 +24,7 @@ mbrtowc = _mbrtowc
 isdigit = ntdll.isdigit
 getc = _fgetc
 fgetc = _fgetc
+strnlen = ntdll.strnlen
+isspace = ntdll.isspace
+isxdigit = ntdll.isxdigit
+tolower = ntdll.tolower

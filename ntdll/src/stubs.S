@@ -8,5 +8,6 @@ do_stub "RtlInitializeConditionVariable"
 do_stub "RtlWakeAllConditionVariable"
 do_stub "RtlWakeConditionVariable"
 do_stub "RtlAddVectoredExceptionHandler"
+do_stub "strnlen"
 
 stubs_end

@@ -37,3 +37,6 @@ RtlDeleteCriticalSection
 RtlEnterCriticalSection
 RtlLeaveCriticalSection
 isdigit
+isspace
+isxdigit
+tolower
