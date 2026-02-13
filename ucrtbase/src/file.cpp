@@ -455,6 +455,46 @@ char* _fgets(char* s, int size, FILE* file) {
 }
 
 extern "C"
+int64_t _ftelli64_nolock(FILE* file) {
+    auto& f = *reinterpret_cast<_FILE*>(file);
+    FILE_POSITION_INFORMATION fpi;
+    IO_STATUS_BLOCK iosb;
+
+    auto status = NtQueryInformationFile(f.h, &iosb, &fpi, sizeof(fpi),
+                                         FILE_INFORMATION_CLASS::PositionInformation);
+    if (!success(status)) {
+        *_errno() = nt_status_to_errno(status);
+        return -1;
+    }
+
+    return fpi.CurrentByteOffset.QuadPart;
+}
+
+extern "C"
+int64_t _ftelli64(FILE* file) {
+    _lock_file(file);
+    auto ret = _ftelli64_nolock(file);
+    _unlock_file(file);
+
+    return ret;
+}
+
+extern "C"
+int32_t _ftell_nolock(FILE* file) {
+    return _ftelli64_nolock(file);
+}
+
+extern "C"
+int32_t _ftell(FILE* file) {
+    _lock_file(file);
+    auto ret = _ftelli64_nolock(file);
+    _unlock_file(file);
+
+    return (int32_t)ret;
+}
+
+
+extern "C"
 int _fseeki64_nolock(FILE* file, int64_t offset, int whence) {
     auto& f = *reinterpret_cast<_FILE*>(file);
     int64_t start;
@@ -471,10 +511,11 @@ int _fseeki64_nolock(FILE* file, int64_t offset, int whence) {
             break;
 
         case SEEK_CUR:
-            print("FIXME - _fseeki64_nolock SEEK_CUR\n");
-            // FIXME - call NtQueryInformationFile with FilePositionInformation
-            *_errno() = EINVAL;
-            return -1;
+            start = _ftelli64_nolock(file);
+
+            if (start == -1)
+                return -1;
+            break;
 
         case SEEK_END:
             print("FIXME - _fseeki64_nolock SEEK_END\n");
@@ -522,44 +563,6 @@ int _fseek(FILE* file, int32_t offset, int whence) {
     return ret;
 }
 
-extern "C"
-int64_t _ftelli64_nolock(FILE* file) {
-    auto& f = *reinterpret_cast<_FILE*>(file);
-    FILE_POSITION_INFORMATION fpi;
-    IO_STATUS_BLOCK iosb;
-
-    auto status = NtQueryInformationFile(f.h, &iosb, &fpi, sizeof(fpi),
-                                         FILE_INFORMATION_CLASS::PositionInformation);
-    if (!success(status)) {
-        *_errno() = nt_status_to_errno(status);
-        return -1;
-    }
-
-    return fpi.CurrentByteOffset.QuadPart;
-}
-
-extern "C"
-int64_t _ftelli64(FILE* file) {
-    _lock_file(file);
-    auto ret = _ftelli64_nolock(file);
-    _unlock_file(file);
-
-    return ret;
-}
-
-extern "C"
-int32_t _ftell_nolock(FILE* file) {
-    return _ftelli64_nolock(file);
-}
-
-extern "C"
-int32_t _ftell(FILE* file) {
-    _lock_file(file);
-    auto ret = _ftelli64_nolock(file);
-    _unlock_file(file);
-
-    return (int32_t)ret;
-}
 
 extern "C"
 int _remove(const char* pathname) {
