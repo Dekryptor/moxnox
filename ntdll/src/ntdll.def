@@ -40,3 +40,6 @@ isdigit
 isspace
 isxdigit
 tolower
+RtlLookupFunctionEntry
+RtlUnwindEx
+RtlVirtualUnwind
