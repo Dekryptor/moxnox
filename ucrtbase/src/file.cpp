@@ -455,10 +455,33 @@ char* _fgets(char* s, int size, FILE* file) {
 }
 
 extern "C"
-int _fseek(FILE* file, int32_t offset, int whence) {
-    print("FIXME - fseek\n"); // FIXME
+int _fseeki64_nolock(FILE* file, int64_t offset, int whence) {
+    print("FIXME - _fseeki64_nolock\n"); // FIXME
 
     return 0;
+}
+
+extern "C"
+int _fseeki64(FILE* file, int64_t offset, int whence) {
+    _lock_file(file);
+    auto ret = _fseeki64_nolock(file, offset, whence);
+    _unlock_file(file);
+
+    return ret;
+}
+
+extern "C"
+int _fseek_nolock(FILE* file, int32_t offset, int whence) {
+    return _fseeki64_nolock(file, offset, whence);
+}
+
+extern "C"
+int _fseek(FILE* file, int32_t offset, int whence) {
+    _lock_file(file);
+    auto ret = _fseeki64_nolock(file, offset, whence);
+    _unlock_file(file);
+
+    return ret;
 }
 
 extern "C"
