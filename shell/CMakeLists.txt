@@ -293,3 +293,17 @@ target_link_libraries(umount format cmdline unique_handle unicode getopt)
 target_link_libraries(umount moxnox)
 
 install(TARGETS umount DESTINATION ${CMAKE_INSTALL_PREFIX}/bin)
+
+###
+
+add_executable(exc-test src/exc-test.cpp)
+
+target_compile_options(exc-test PRIVATE ${USERSPACE_CFLAGS})
+
+if (CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
+    target_link_options(exc-test PUBLIC -mcrtdll=ucrtbase)
+endif()
+
+target_link_libraries(exc-test moxnox)
+
+install(TARGETS exc-test DESTINATION ${CMAKE_INSTALL_PREFIX}/bin)
