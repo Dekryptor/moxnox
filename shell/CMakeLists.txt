@@ -193,6 +193,22 @@ install(TARGETS file-test DESTINATION ${CMAKE_INSTALL_PREFIX}/bin)
 
 ###
 
+add_executable(crt-test src/crt-test.cpp)
+
+target_compile_options(crt-test PRIVATE -fno-exceptions ${USERSPACE_CFLAGS})
+
+if (CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
+    target_link_options(crt-test PUBLIC -mcrtdll=ucrtbase)
+endif()
+
+# target_link_libraries(crt-test print)
+# target_link_libraries(crt-test format)
+target_link_libraries(crt-test moxnox)
+
+install(TARGETS crt-test DESTINATION ${CMAKE_INSTALL_PREFIX}/bin)
+
+###
+
 add_executable(ps src/ps.cpp)
 
 target_compile_options(ps PRIVATE -fno-exceptions ${USERSPACE_CFLAGS})
