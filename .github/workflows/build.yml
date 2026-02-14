@@ -12,6 +12,8 @@ jobs:
             -GNinja \
             -DCMAKE_BUILD_TYPE=Debug \
             -DCMAKE_INSTALL_PREFIX=${PWD}/install/debug \
+            -DCMAKE_C_COMPILER_WORKS=TRUE \
+            -DCMAKE_CXX_COMPILER_WORKS=TRUE \
             -S ${SHORT_SHA} -B debug-work && \
           cmake --build debug-work --parallel `nproc` && \
           cmake --install debug-work
@@ -20,6 +22,8 @@ jobs:
             -GNinja \
             -DCMAKE_BUILD_TYPE=RelWithDebInfo \
             -DCMAKE_INSTALL_PREFIX=${PWD}/install/release \
+            -DCMAKE_C_COMPILER_WORKS=TRUE \
+            -DCMAKE_CXX_COMPILER_WORKS=TRUE \
             -S ${SHORT_SHA} -B release-work && \
           cmake --build release-work --parallel `nproc` && \
           cmake --install release-work
