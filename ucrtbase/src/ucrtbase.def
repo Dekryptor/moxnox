@@ -16,7 +16,7 @@ _errno = __errno
 fread = _fread
 fwrite = _fwrite
 fclose = _fclose
-_fwrite_nolock
+_fwrite_nolock = __fwrite_nolock
 fputs = _fputs
 puts
 localeconv = _localeconv
@@ -33,14 +33,14 @@ fgets = _fgets
 fseek = _fseek
 ftell = _ftell
 remove = _remove
-_fread_nolock
-_fgetc_nolock
-_fseeki64_nolock
+_fread_nolock = __fread_nolock
+_fgetc_nolock = __fgetc_nolock
+_fseeki64_nolock = __fseeki64_nolock
 _fseeki64 = __fseeki64
-_fseek_nolock
-_ftelli64_nolock
+_fseek_nolock = __fseek_nolock
+_ftelli64_nolock = __ftelli64_nolock
 _ftelli64 = __ftelli64
-_ftell_nolock
+_ftell_nolock = __ftell_nolock
 iswctype = ntdll.iswctype
 memchr = ntdll.memchr
 memcmp = ntdll.memcmp
@@ -65,9 +65,9 @@ _set_invalid_parameter_handler
 _crt_atexit
 exit
 __acrt_iob_func = ___acrt_iob_func
-_lock_file
-_unlock_file
-_fputc_nolock
+_lock_file = __lock_file
+_unlock_file = __unlock_file
+_fputc_nolock = __fputc_nolock
 _set_new_mode
 calloc
 realloc

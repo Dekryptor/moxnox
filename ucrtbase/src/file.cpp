@@ -68,21 +68,21 @@ FILE* ___acrt_iob_func(unsigned int idx) {
 }
 
 extern "C"
-void _lock_file(FILE* file) {
+void __lock_file(FILE* file) {
     auto& f = *reinterpret_cast<_FILE*>(file);
 
     EnterCriticalSection(&f.cs);
 }
 
 extern "C"
-void _unlock_file(FILE* file) {
+void __unlock_file(FILE* file) {
     auto& f = *reinterpret_cast<_FILE*>(file);
 
     LeaveCriticalSection(&f.cs);
 }
 
 extern "C"
-int _fputc_nolock(int c, FILE* file) {
+int __fputc_nolock(int c, FILE* file) {
     auto& f = *reinterpret_cast<_FILE*>(file);
 
     IO_STATUS_BLOCK iosb;
@@ -102,9 +102,9 @@ int _fputc_nolock(int c, FILE* file) {
 
 extern "C"
 int _fputc(int c, FILE* file) {
-    _lock_file(file);
-    auto ret = _fputc_nolock(c, file);
-    _unlock_file(file);
+    __lock_file(file);
+    auto ret = __fputc_nolock(c, file);
+    __unlock_file(file);
 
     return ret;
 }
@@ -318,7 +318,7 @@ FILE* __cdecl _fopen(const char* pathname, const char* mode) {
 }
 
 extern "C"
-size_t _fread_nolock(void* ptr, size_t size, size_t n, FILE* file) {
+size_t __fread_nolock(void* ptr, size_t size, size_t n, FILE* file) {
     auto& f = *reinterpret_cast<_FILE*>(file);
     IO_STATUS_BLOCK iosb;
 
@@ -334,15 +334,15 @@ size_t _fread_nolock(void* ptr, size_t size, size_t n, FILE* file) {
 
 extern "C"
 size_t _fread(void* ptr, size_t size, size_t n, FILE* file) {
-    _lock_file(file);
-    auto ret = _fread_nolock(ptr, size, n, file);
-    _unlock_file(file);
+    __lock_file(file);
+    auto ret = __fread_nolock(ptr, size, n, file);
+    __unlock_file(file);
 
     return ret;
 }
 
 extern "C"
-size_t _fwrite_nolock(const void* ptr, size_t size, size_t n, FILE* file) {
+size_t __fwrite_nolock(const void* ptr, size_t size, size_t n, FILE* file) {
     auto& f = *reinterpret_cast<_FILE*>(file);
     IO_STATUS_BLOCK iosb;
 
@@ -358,9 +358,9 @@ size_t _fwrite_nolock(const void* ptr, size_t size, size_t n, FILE* file) {
 
 extern "C"
 size_t _fwrite(const void* ptr, size_t size, size_t n, FILE* file) {
-    _lock_file(file);
-    auto ret = _fwrite_nolock(ptr, size, n, file);
-    _unlock_file(file);
+    __lock_file(file);
+    auto ret = __fwrite_nolock(ptr, size, n, file);
+    __unlock_file(file);
 
     return ret;
 }
@@ -387,9 +387,9 @@ extern "C"
 int _fputs(const char* s, FILE* file) {
     auto len = strlen(s);
 
-    _lock_file(file);
-    auto ret = _fwrite_nolock(s, 1, len, file);
-    _unlock_file(file);
+    __lock_file(file);
+    auto ret = __fwrite_nolock(s, 1, len, file);
+    __unlock_file(file);
 
     if (ret != len)
         return EOF;
@@ -403,16 +403,16 @@ int puts(const char* s) {
     auto* f = reinterpret_cast<FILE*>(_stdout);
     const char c = '\n';
 
-    _lock_file(f);
-    auto ret = _fwrite_nolock(s, 1, len, f);
+    __lock_file(f);
+    auto ret = __fwrite_nolock(s, 1, len, f);
 
     if (ret != len) {
-        _unlock_file(f);
+        __unlock_file(f);
         return EOF;
     }
 
-    ret = _fwrite_nolock(&c, 1, 1, f);
-    _unlock_file(f);
+    ret = __fwrite_nolock(&c, 1, 1, f);
+    __unlock_file(f);
 
     if (ret != len)
         return EOF;
@@ -421,12 +421,12 @@ int puts(const char* s) {
 }
 
 extern "C"
-int _fgetc_nolock(FILE* file) {
+int __fgetc_nolock(FILE* file) {
     unsigned char c;
 
     // FIXME - buffering
 
-    auto ret = _fread_nolock(&c, 1, 1, file);
+    auto ret = __fread_nolock(&c, 1, 1, file);
     if (ret == 0)
         return EOF;
 
@@ -435,9 +435,9 @@ int _fgetc_nolock(FILE* file) {
 
 extern "C"
 int _fgetc(FILE* file) {
-    _lock_file(file);
-    auto ret = _fgetc_nolock(file);
-    _unlock_file(file);
+    __lock_file(file);
+    auto ret = __fgetc_nolock(file);
+    __unlock_file(file);
 
     return ret;
 }
@@ -453,10 +453,10 @@ extern "C"
 char* _fgets(char* s, int size, FILE* file) {
     int copied = 0;
 
-    _lock_file(file);
+    __lock_file(file);
 
     for (int i = 0; i < size - 1; i++) {
-        auto c = _fgetc_nolock(file);
+        auto c = __fgetc_nolock(file);
         if (c == EOF)
             break;
 
@@ -467,7 +467,7 @@ char* _fgets(char* s, int size, FILE* file) {
             break;
     }
 
-    _unlock_file(file);
+    __unlock_file(file);
 
     if (copied == 0)
         return nullptr;
@@ -478,7 +478,7 @@ char* _fgets(char* s, int size, FILE* file) {
 }
 
 extern "C"
-int64_t _ftelli64_nolock(FILE* file) {
+int64_t __ftelli64_nolock(FILE* file) {
     auto& f = *reinterpret_cast<_FILE*>(file);
     FILE_POSITION_INFORMATION fpi;
     IO_STATUS_BLOCK iosb;
@@ -495,30 +495,30 @@ int64_t _ftelli64_nolock(FILE* file) {
 
 extern "C"
 int64_t __ftelli64(FILE* file) {
-    _lock_file(file);
-    auto ret = _ftelli64_nolock(file);
-    _unlock_file(file);
+    __lock_file(file);
+    auto ret = __ftelli64_nolock(file);
+    __unlock_file(file);
 
     return ret;
 }
 
 extern "C"
-int32_t _ftell_nolock(FILE* file) {
-    return (int32_t)_ftelli64_nolock(file);
+int32_t __ftell_nolock(FILE* file) {
+    return (int32_t)__ftelli64_nolock(file);
 }
 
 extern "C"
 int32_t _ftell(FILE* file) {
-    _lock_file(file);
-    auto ret = _ftelli64_nolock(file);
-    _unlock_file(file);
+    __lock_file(file);
+    auto ret = __ftelli64_nolock(file);
+    __unlock_file(file);
 
     return (int32_t)ret;
 }
 
 
 extern "C"
-int _fseeki64_nolock(FILE* file, int64_t offset, int whence) {
+int __fseeki64_nolock(FILE* file, int64_t offset, int whence) {
     auto& f = *reinterpret_cast<_FILE*>(file);
     int64_t start;
     FILE_POSITION_INFORMATION fpi;
@@ -534,7 +534,7 @@ int _fseeki64_nolock(FILE* file, int64_t offset, int whence) {
             break;
 
         case SEEK_CUR:
-            start = _ftelli64_nolock(file);
+            start = __ftelli64_nolock(file);
 
             if (start == -1)
                 return -1;
@@ -565,23 +565,23 @@ int _fseeki64_nolock(FILE* file, int64_t offset, int whence) {
 
 extern "C"
 int __fseeki64(FILE* file, int64_t offset, int whence) {
-    _lock_file(file);
-    auto ret = _fseeki64_nolock(file, offset, whence);
-    _unlock_file(file);
+    __lock_file(file);
+    auto ret = __fseeki64_nolock(file, offset, whence);
+    __unlock_file(file);
 
     return ret;
 }
 
 extern "C"
-int _fseek_nolock(FILE* file, int32_t offset, int whence) {
-    return _fseeki64_nolock(file, offset, whence);
+int __fseek_nolock(FILE* file, int32_t offset, int whence) {
+    return __fseeki64_nolock(file, offset, whence);
 }
 
 extern "C"
 int _fseek(FILE* file, int32_t offset, int whence) {
-    _lock_file(file);
-    auto ret = _fseeki64_nolock(file, offset, whence);
-    _unlock_file(file);
+    __lock_file(file);
+    auto ret = __fseeki64_nolock(file, offset, whence);
+    __unlock_file(file);
 
     return ret;
 }
