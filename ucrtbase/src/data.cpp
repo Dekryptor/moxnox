@@ -6,10 +6,11 @@ static unsigned int commode = 0;
 static int argc = 0; // FIXME - populate from GetCommandLineW
 static char** argv = nullptr; // FIXME - populate from GetCommandLineW
 static char** environ = nullptr; // FIXME - populate
+static int app_type;
 
 extern "C" __declspec(dllexport)
-void _set_app_type(_crt_app_type _Type) {
-    print("FIXME - _set_app_type\n");
+void _set_app_type(_crt_app_type type) {
+    app_type = type;
 }
 
 extern "C" __declspec(dllexport)
