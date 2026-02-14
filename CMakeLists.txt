@@ -10,7 +10,7 @@ set(CMAKE_CXX_VISIBILITY_PRESET "hidden")
 set(CMAKE_C_STANDARD_LIBRARIES "")
 set(CMAKE_CXX_STANDARD_LIBRARIES "")
 
-add_compile_definitions(_GLIBCXX_NO_ASSERTIONS)
+add_compile_definitions(_GLIBCXX_NO_ASSERTIONS _UCRT)
 
 enable_language(ASM)
 

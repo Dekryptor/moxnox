@@ -1,9 +1,6 @@
 module;
 
-import ucrtbase;
-import kernelbase;
-
-#define _FILE_DEFINED
+#include <wchar.h>
 #include <string_view>
 #include <span>
 #include <stdint.h>
@@ -17,6 +14,8 @@ import nt;
 import unicode;
 import ntdll;
 import list;
+import ucrtbase;
+import kernelbase;
 
 using namespace std;
 

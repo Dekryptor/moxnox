@@ -2,6 +2,7 @@ module;
 
 #define _CRT_ERRNO_DEFINED
 #include <stdint.h>
+#include <wchar.h>
 
 export module ucrtbase;
 
@@ -67,8 +68,6 @@ const int EILSEQ = 42;
 
 extern "C" {
 
-struct FILE;
-
 struct lconv {
     char* decimal_point;
     char* thousands_sep;
@@ -96,7 +95,7 @@ struct lconv {
     char int_n_sign_posn;
 };
 
-using mbstate_t = int;
+using mbstate_t = _Mbstatet;
 
 _invalid_parameter_handler _set_invalid_parameter_handler(_invalid_parameter_handler handler);
 void _set_app_type(_crt_app_type _Type);
