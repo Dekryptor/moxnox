@@ -523,23 +523,23 @@ int __fseeki64_nolock(FILE* file, int64_t offset, int whence) {
     FILE_POSITION_INFORMATION fpi;
     IO_STATUS_BLOCK iosb;
 
-    static const int SEEK_SET = 0;
-    static const int SEEK_CUR = 1;
-    static const int SEEK_END = 2;
+    static const int _SEEK_SET = 0;
+    static const int _SEEK_CUR = 1;
+    static const int _SEEK_END = 2;
 
     switch (whence) {
-        case SEEK_SET:
+        case _SEEK_SET:
             start = 0;
             break;
 
-        case SEEK_CUR:
+        case _SEEK_CUR:
             start = __ftelli64_nolock(file);
 
             if (start == -1)
                 return -1;
             break;
 
-        case SEEK_END:
+        case _SEEK_END:
             print("FIXME - _fseeki64_nolock SEEK_END\n");
             // FIXME - call NtQueryInformationFile with FileEndOfFileInformation
             *_errno() = EINVAL;
