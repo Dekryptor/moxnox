@@ -1,4 +1,4 @@
-#include "dwarf.S"
+#include "../../modules/dwarf.S"
 
 .section .debug_abbrev, "dr"
 

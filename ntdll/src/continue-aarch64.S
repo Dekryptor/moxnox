@@ -1,6 +1,6 @@
 #include "../../kernel/src/context_offsets.h"
 #include "../../modules/exception_record_offsets.h"
-#include "dwarf.S"
+#include "../../modules/dwarf.S"
 
 .section .debug_abbrev, "dr"
 
