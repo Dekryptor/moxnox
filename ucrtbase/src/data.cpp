@@ -1,10 +1,21 @@
+#include <string_view>
+#include <span>
+#include <utility>
+#include <stdlib.h>
+
 import ucrtbase;
+import cmdline;
+import nt;
+import print;
+import unicode;
+
+using namespace std;
 
 static int fmode = _O_TEXT;
 static unsigned int commode = 0;
-static int argc = 0; // FIXME - populate from GetCommandLineW
-static char** argv = nullptr; // FIXME - populate from GetCommandLineW
-static char** environ = nullptr; // FIXME - populate
+static int argc = 0;
+static char** argv = nullptr;
+static char** __environ = nullptr; // FIXME - populate
 static int app_type;
 
 extern "C" __declspec(dllexport)
@@ -29,7 +40,7 @@ unsigned int* __p__commode() {
 
 extern "C" __declspec(dllexport)
 char*** __p__environ() {
-    return &environ;
+    return &__environ;
 }
 
 extern "C" __declspec(dllexport)
@@ -68,5 +79,53 @@ int _initialize_narrow_environment() {
 
 extern "C" __declspec(dllexport)
 int _configure_narrow_argv(int /*mode*/) {
+    // FIXME - what is the parameter supposed to do?
+
+    auto peb = NtCurrentTeb()->ProcessEnvironmentBlock;
+    auto cmdline = u16string_view(peb->ProcessParameters->CommandLine.Buffer,
+                                  peb->ProcessParameters->CommandLine.Length / sizeof(char16_t));
+
+    argc = count_cmdline_args(cmdline);
+
+    span<u16string_view> u16argv;
+    u16string_view* buf = nullptr;
+
+    if (argc == 0)
+        return 0;
+
+    buf = (decltype(buf))malloc(argc * sizeof(*buf));
+    if (!buf) {
+        print_stderr("malloc failed\n");
+        NtTerminateThread(NtCurrentThread(), nt_status::INSUFFICIENT_RESOURCES);
+        unreachable();
+    }
+
+    argv = (decltype(argv))malloc(argc * sizeof(*argv));
+    if (!argv) {
+        print_stderr("malloc failed\n");
+        NtTerminateThread(NtCurrentThread(), nt_status::INSUFFICIENT_RESOURCES);
+        unreachable();
+    }
+
+    u16argv = span(buf, argc);
+    parse_cmdline(cmdline, u16argv);
+
+    for (int i = 0; i < argc; i++) {
+        auto arg = u16argv[i];
+        auto u8len = utf16_to_utf8_len(arg);
+
+        argv[i] = (char*)malloc(u8len + 1);
+        if (!argv[i]) {
+            print_stderr("malloc failed\n");
+            NtTerminateThread(NtCurrentThread(), nt_status::INSUFFICIENT_RESOURCES);
+            unreachable();
+        }
+
+        utf16_to_utf8(span(argv[i], u8len), arg);
+        argv[i][u8len] = 0;
+    }
+
+    free(buf);
+
     return 0;
 }
