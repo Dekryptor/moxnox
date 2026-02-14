@@ -4,7 +4,7 @@ import ucrtbase;
 static int errno = 0; // FIXME
 
 extern "C"
-_invalid_parameter_handler _set_invalid_parameter_handler(_invalid_parameter_handler handler) {
+_invalid_parameter_handler _set_invalid_parameter_handler(_invalid_parameter_handler /*handler*/) {
     // FIXME?
 
     return nullptr;

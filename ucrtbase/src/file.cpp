@@ -443,7 +443,7 @@ int _fgetc(FILE* file) {
 }
 
 extern "C"
-int _ungetc(int c, FILE* file) {
+int _ungetc(int /*c*/, FILE* /*file*/) {
     print("FIXME - ungetc\n"); // FIXME
 
     return 0;
@@ -587,7 +587,7 @@ int _fseek(FILE* file, int32_t offset, int whence) {
 }
 
 extern "C"
-int _remove(const char* pathname) {
+int _remove(const char* /*pathname*/) {
     print("FIXME - remove\n"); // FIXME
 
     return 0;
