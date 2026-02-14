@@ -1,9 +1,14 @@
+#include <utility>
+
 import ucrtbase;
-import print;
+
+using namespace std;
+
+static int new_mode;
 
 extern "C" __declspec(dllexport)
-int _set_new_mode(int new_mode) {
-    print("FIXME - _set_new_mode\n");
+int _set_new_mode(int mode) {
+    swap(mode, new_mode);
 
-    return 0;
+    return mode;
 }
