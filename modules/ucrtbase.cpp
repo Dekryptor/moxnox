@@ -112,7 +112,7 @@ int _set_new_mode(int new_mode);
 int _crt_atexit(_PVFV function);
 void exit(int code) noexcept;
 int puts(const char* s);
-FILE* __acrt_iob_func(unsigned int idx);
+FILE*  __attribute__((__dllimport__)) __acrt_iob_func(unsigned int idx);
 void _lock_file(FILE* file);
 void _unlock_file(FILE* file);
 int* _errno();
