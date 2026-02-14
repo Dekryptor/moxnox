@@ -1,9 +1,14 @@
+#include <utility>
+
 import kernelbase;
-import print;
+
+using namespace std;
+
+static TOP_LEVEL_EXCEPTION_FILTER unhandled_filter = nullptr;
 
 extern "C" __declspec(dllexport)
 TOP_LEVEL_EXCEPTION_FILTER SetUnhandledExceptionFilter(TOP_LEVEL_EXCEPTION_FILTER filter) {
-    print("FIXME - SetUnhandledExceptionFilter\n");
+    swap(filter, unhandled_filter);
 
-    return nullptr;
+    return filter;
 }
