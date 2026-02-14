@@ -1,4 +1,3 @@
-import print;
 import ucrtbase;
 
 static int fmode = _O_TEXT;
@@ -50,7 +49,14 @@ void _initterm(_PVFV* first, _PVFV* last) {
 
 extern "C" __declspec(dllexport)
 int _initterm_e(_PIFV* first, _PIFV* last) {
-    print("FIXME - _initterm_e\n");
+    for (auto* f = first; f < last; f++) {
+        if (!*f)
+            continue;
+
+        auto ret = (**f)();
+        if (ret != 0)
+            return ret;
+    }
 
     return 0;
 }
