@@ -27,3 +27,7 @@ RaiseException
 IsProcessorFeaturePresent
 GetCurrentProcess
 TerminateProcess
+CtrlRoutine
+SetConsoleCtrlHandler
+SetUnhandledExceptionFilter
+Sleep

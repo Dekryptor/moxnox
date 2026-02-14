@@ -11,7 +11,7 @@ struct ctrl_handler {
 
 static ctrl_handler* handlers = nullptr;
 
-extern "C" __declspec(dllexport)
+extern "C"
 uint32_t CtrlRoutine(void* arg) {
     auto param = (uint32_t)(uintptr_t)arg;
 
@@ -28,7 +28,7 @@ uint32_t CtrlRoutine(void* arg) {
     return 0;
 }
 
-extern "C" __declspec(dllexport)
+extern "C"
 bool SetConsoleCtrlHandler(HANDLER_ROUTINE func, bool add) {
     // FIXME - critical section
 

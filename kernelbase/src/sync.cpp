@@ -2,7 +2,7 @@
 
 import nt;
 
-extern "C" __declspec(dllexport)
+extern "C"
 void Sleep(uint32_t timeout) {
     LARGE_INTEGER t;
 
