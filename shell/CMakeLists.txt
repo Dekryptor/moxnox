@@ -27,7 +27,6 @@ endif()
 target_link_options(shell PUBLIC -nostartfiles -nostdlib -Wl,--entry=startup)
 
 target_link_libraries(shell print unicode unique_handle signal cmdline list pagesize env)
-target_link_libraries(shell moxnox)
 target_link_libraries(shell format)
 
 install(TARGETS shell DESTINATION ${CMAKE_INSTALL_PREFIX}/bin
@@ -187,7 +186,6 @@ endif()
 
 target_link_libraries(file-test print)
 target_link_libraries(file-test format)
-target_link_libraries(file-test moxnox)
 
 install(TARGETS file-test DESTINATION ${CMAKE_INSTALL_PREFIX}/bin)
 
@@ -200,10 +198,6 @@ target_compile_options(crt-test PRIVATE -fno-exceptions ${USERSPACE_CFLAGS})
 if (CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
     target_link_options(crt-test PUBLIC -mcrtdll=ucrtbase)
 endif()
-
-# target_link_libraries(crt-test print)
-# target_link_libraries(crt-test format)
-target_link_libraries(crt-test moxnox)
 
 install(TARGETS crt-test DESTINATION ${CMAKE_INSTALL_PREFIX}/bin)
 
@@ -319,7 +313,5 @@ target_compile_options(exc-test PRIVATE ${USERSPACE_CFLAGS})
 if (CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
     target_link_options(exc-test PUBLIC -mcrtdll=ucrtbase)
 endif()
-
-target_link_libraries(exc-test moxnox)
 
 install(TARGETS exc-test DESTINATION ${CMAKE_INSTALL_PREFIX}/bin)
