@@ -69,24 +69,6 @@
 
     # EXCEPTION_RECORD* er is at rsp
 
-    # #define EXCEPTION_RECORD_EXCEPTION_CODE 0x0
-    # #define EXCEPTION_RECORD_EXCEPTION_FLAGS 0x4
-    # #define EXCEPTION_RECORD_EXCEPTION_RECORD 0x8
-    # #define EXCEPTION_RECORD_EXCEPTION_ADDRESS 0x10
-    # #define EXCEPTION_RECORD_NUMBER_PARAMETERS 0x18
-    # #define EXCEPTION_RECORD_EXCEPTION_INFORMATION 0x20
-
-    # typedef struct _EXCEPTION_RECORD {
-    #     DWORD                    ExceptionCode;
-    #     DWORD                    ExceptionFlags;
-    #     struct _EXCEPTION_RECORD *ExceptionRecord;
-    #     PVOID                    ExceptionAddress;
-    #     DWORD                    NumberParameters;
-    #     ULONG_PTR                ExceptionInformation[EXCEPTION_MAXIMUM_PARAMETERS];
-    # } EXCEPTION_RECORD;
-
-#     EXCEPTION_RECORD er;
-
     mov DWORD PTR [rsp+EXCEPTION_RECORD_EXCEPTION_CODE], MOXNOX_STUB_FUNCTION
     mov DWORD PTR [rsp+EXCEPTION_RECORD_EXCEPTION_FLAGS], 0
     mov QWORD PTR [rsp+EXCEPTION_RECORD_EXCEPTION_RECORD], 0
@@ -98,19 +80,6 @@
     mov rcx, rsp
     call RtlRaiseException
 
-#
-#     er.ExceptionFlags = 0;
-#     er.ExceptionRecord = nullptr;
-#     // er.ExceptionAddress = (void*)ctx.Rip;
-#     er.ExceptionCode = 0x12345678;
-#     er.NumberParameters = 0;
-#
-#     print("before exception\n");
-#
-#     RtlRaiseException(&er);
-    # call RtlRaiseException
-
-    ud2
     .seh_endproc
     \name\()_end:
 
