@@ -612,7 +612,7 @@ int _fflush(FILE* file) {
         return ret;
     }
 
-    print("FIXME - fflush\n");
+    // FIXME - flush
 
     return 0;
 }
