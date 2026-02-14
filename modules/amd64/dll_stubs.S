@@ -79,6 +79,7 @@
 
     mov rcx, rsp
     call RtlRaiseException
+    nop # to make stacktrace look nice
 
     .seh_endproc
     \name\()_end:
