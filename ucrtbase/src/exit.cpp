@@ -2,13 +2,12 @@
 #include <array>
 
 import ucrtbase;
-import print;
 import ntdll;
 
 using namespace std;
 
 static array<_PVFV, 64> atexit_funcs;
-static unsigned int num_atexit_funcs;
+static size_t num_atexit_funcs = 0;
 
 extern "C" __declspec(dllexport)
 int _crt_atexit(_PVFV function) {
@@ -23,8 +22,19 @@ int _crt_atexit(_PVFV function) {
     return 0;
 }
 
+extern "C"
+void _cexit() {
+    // FIXME - locks?
+
+    for (size_t i = 0; i < num_atexit_funcs; i++) {
+        atexit_funcs[num_atexit_funcs - i - 1]();
+    }
+}
+
 extern "C" __declspec(dllexport)
 void exit(int code) noexcept {
+    _cexit();
+
     RtlExitUserProcess(code);
     unreachable();
 }
