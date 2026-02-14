@@ -17,6 +17,7 @@ import spinlock;
 import handle;
 import objects;
 import rangelock;
+import rwsem;
 
 #ifdef __aarch64__
 import aarch64;
@@ -111,6 +112,7 @@ public:
     rangelock rl;
     atomic<uint64_t> running_cpus = 0;
     rbtree_node<uintptr_t> tree;
+    rwsem terminating_lock;
     bool added_to_tree = false;
     bool dying = false;
 };

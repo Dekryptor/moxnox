@@ -1789,9 +1789,57 @@ void process::terminate() {
     }
 }
 
+static nt_status terminate_other_threads(nt_status exit_status) {
+    auto& this_thread = *get_current_thread();
+
+    if (!this_thread.proc)
+        return nt_status::INVALID_PARAMETER;
+
+    auto& p = *this_thread.proc;
+
+    {
+        lock_guard lg(p.terminating_lock);
+
+        if (this_thread.status == thread_status::dying || this_thread.status == thread_status::dead)
+            return nt_status::SUCCESS;
+
+        while (true) {
+            ::thread* t;
+
+            {
+                lock_guard lock(p.threads_lock);
+
+                if (is_list_empty(p.threads))
+                    break;
+
+                t = (::thread*)((uint8_t*)p.threads.next - offsetof(::thread, process_le));
+
+                if (t == &this_thread) {
+                    if (t->process_le.next == &p.threads)
+                        break;
+
+                    t = (::thread*)((uint8_t*)p.threads.next->next - offsetof(::thread, process_le));
+                }
+
+                t->exit_status = exit_status;
+                terminate_thread(*t, false);
+                remove_entry_list(t->process_le);
+            }
+
+            // t->release(); // FIXME
+        }
+    }
+
+    return nt_status::SUCCESS;
+}
+
 extern "C"
 NTSTATUS NtTerminateProcess(HANDLE process_handle, NTSTATUS exit_status) {
     object_ref obj;
+
+    // if process_handle == 0, this instead means kill all other threads
+    if (process_handle == 0)
+        return terminate_other_threads(exit_status);
 
     if (process_handle == NtCurrentProcess()) {
         auto t = get_current_thread();
