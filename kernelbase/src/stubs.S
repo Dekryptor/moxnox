@@ -1,4 +1,4 @@
-#include "../../modules/stubs.S"
+#include "dll_stubs.S"
 
 stubs_start
 

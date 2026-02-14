@@ -1,7 +1,7 @@
 .intel_syntax noprefix
 
-#include "dwarf.S"
-#include "exception_record_offsets.h"
+#include "../dwarf.S"
+#include "../exception_record_offsets.h"
 
 .macro stubs_start
     .section .debug_abbrev, "dr"
