@@ -570,7 +570,7 @@ int _remove(const char* pathname) {
     return 0;
 }
 
-extern "C"
+export extern "C"
 int _fflush(FILE* file) {
     print("FIXME - fflush\n");
 

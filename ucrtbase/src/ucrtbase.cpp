@@ -99,8 +99,18 @@ void _assert(const char* /*str*/, const char* /*file*/, unsigned int /*line*/) {
 
 extern "C"
 int DllMainCRTStartup(HANDLE /*hinstDLL*/, uint32_t reason, void*) {
-    if (reason == DLL_PROCESS_ATTACH)
-        init_files();
+    switch (reason) {
+        case DLL_PROCESS_ATTACH:
+            init_files();
+            break;
+
+        case DLL_PROCESS_DETACH:
+            _fflush(nullptr);
+            break;
+
+        default:
+            break;
+    }
 
     return 1;
 }
