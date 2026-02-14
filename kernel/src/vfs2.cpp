@@ -1446,7 +1446,7 @@ NTSTATUS file::query_information(void* buffer, uint32_t buffer_size,
 
             {
                 lock_guard lg(lock);
-                fpi.CurrentByteOffset.QuadPart = file_offset;
+                fpi.CurrentByteOffset.QuadPart = (int64_t)file_offset;
             }
 
             retlen = sizeof(FILE_POSITION_INFORMATION);
