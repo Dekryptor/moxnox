@@ -1774,7 +1774,7 @@ static void dwarf_print_line_no_cu2(span<const uint8_t> debug_line,
         }
     }
 
-    if (dir_fn.empty())
+    if (dir_fn.empty() || (!fn.empty() && fn.front() == '/'))
         sp = format(sp, "{}:{}", fn, line);
     else
         sp = format(sp, "{}/{}:{}", dir_fn, fn, line);
