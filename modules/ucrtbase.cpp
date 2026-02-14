@@ -1,5 +1,6 @@
 module;
 
+#define _CRT_ERRNO_DEFINED
 #include <stdint.h>
 
 export module ucrtbase;
