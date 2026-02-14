@@ -40,7 +40,12 @@ int* __p__fmode() {
 
 extern "C" __declspec(dllexport)
 void _initterm(_PVFV* first, _PVFV* last) {
-    print("FIXME - _initterm\n");
+    for (auto* f = first; f < last; f++) {
+        if (!*f)
+            continue;
+
+        (**f)();
+    }
 }
 
 extern "C" __declspec(dllexport)
