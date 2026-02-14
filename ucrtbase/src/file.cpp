@@ -563,10 +563,16 @@ int _fseek(FILE* file, int32_t offset, int whence) {
     return ret;
 }
 
-
 extern "C"
 int _remove(const char* pathname) {
     print("FIXME - remove\n"); // FIXME
+
+    return 0;
+}
+
+extern "C"
+int _fflush(FILE* file) {
+    print("FIXME - fflush\n");
 
     return 0;
 }
