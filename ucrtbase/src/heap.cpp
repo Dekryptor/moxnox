@@ -6,7 +6,7 @@ using namespace std;
 
 static int new_mode;
 
-extern "C" __declspec(dllexport)
+extern "C"
 int _set_new_mode(int mode) {
     swap(mode, new_mode);
 

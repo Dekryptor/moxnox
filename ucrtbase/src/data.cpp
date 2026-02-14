@@ -18,37 +18,37 @@ static char** argv = nullptr;
 static char** __environ = nullptr;
 static int app_type;
 
-extern "C" __declspec(dllexport)
+extern "C"
 void _set_app_type(_crt_app_type type) {
     app_type = type;
 }
 
-extern "C" __declspec(dllexport)
+extern "C"
 int* __p___argc() {
     return &argc;
 }
 
-extern "C" __declspec(dllexport)
+extern "C"
 char*** __p___argv() {
     return &argv;
 }
 
-extern "C" __declspec(dllexport)
+extern "C"
 unsigned int* __p__commode() {
     return &commode;
 }
 
-extern "C" __declspec(dllexport)
+extern "C"
 char*** __p__environ() {
     return &__environ;
 }
 
-extern "C" __declspec(dllexport)
+extern "C"
 int* __p__fmode() {
     return &fmode;
 }
 
-extern "C" __declspec(dllexport)
+extern "C"
 void _initterm(_PVFV* first, _PVFV* last) {
     for (auto* f = first; f < last; f++) {
         if (!*f)
@@ -58,7 +58,7 @@ void _initterm(_PVFV* first, _PVFV* last) {
     }
 }
 
-extern "C" __declspec(dllexport)
+extern "C"
 int _initterm_e(_PIFV* first, _PIFV* last) {
     for (auto* f = first; f < last; f++) {
         if (!*f)
@@ -72,7 +72,7 @@ int _initterm_e(_PIFV* first, _PIFV* last) {
     return 0;
 }
 
-extern "C" __declspec(dllexport)
+extern "C"
 int _initialize_narrow_environment() {
     return 0;
 }
@@ -192,7 +192,7 @@ static void do_env() {
     *p = nullptr;
 }
 
-extern "C" __declspec(dllexport)
+extern "C"
 int _configure_narrow_argv(int /*mode*/) {
     // FIXME - what is the parameter supposed to do?
 

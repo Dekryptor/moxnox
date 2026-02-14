@@ -9,7 +9,7 @@ using namespace std;
 static array<_PVFV, 64> atexit_funcs;
 static size_t num_atexit_funcs = 0;
 
-extern "C" __declspec(dllexport)
+extern "C"
 int _crt_atexit(_PVFV function) {
     // FIXME - do we need a lock, or is this only ever called from first thread?
 
@@ -31,7 +31,7 @@ void _cexit() {
     }
 }
 
-extern "C" __declspec(dllexport)
+extern "C"
 void exit(int code) noexcept {
     _cexit();
 

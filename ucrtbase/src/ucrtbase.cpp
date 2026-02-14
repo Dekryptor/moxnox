@@ -16,7 +16,7 @@ void free(void* ptr) {
     RtlFreeHeap(GetProcessHeap(), 0, ptr);
 }
 
-extern "C" __declspec(dllexport)
+extern "C"
 void* calloc(size_t nmemb, size_t size) {
     // FIXME - should test for overflow of nmemb * size
 
@@ -29,13 +29,13 @@ void* calloc(size_t nmemb, size_t size) {
     return ptr;
 }
 
-extern "C" __declspec(dllexport)
+extern "C"
 void* realloc(void* ptr, size_t size) {
     return RtlReAllocateHeap(GetProcessHeap(), 0, ptr, size);
 }
 
 // copied from musl: src/math/floorf.c
-extern "C" __declspec(dllexport)
+extern "C"
 float floorf(float x) {
     union {float f; uint32_t i;} u = {x};
 
@@ -61,7 +61,7 @@ float floorf(float x) {
 }
 
 // copied from musl: src/math/floorf.c
-extern "C" __declspec(dllexport)
+extern "C"
 float ceilf(float x) {
     union {float f; uint32_t i;} u = {x};
     int e = (int)(u.i >> 23 & 0xff) - 0x7f;
@@ -85,13 +85,13 @@ float ceilf(float x) {
     return u.f;
 }
 
-extern "C" __declspec(dllexport)
+extern "C"
 void abort() {
     NtTerminateProcess(NtCurrentProcess(), (NTSTATUS)0xffffffff);
     __builtin_unreachable();
 }
 
-extern "C" __declspec(dllexport)
+extern "C"
 void _assert(const char* /*str*/, const char* /*file*/, unsigned int /*line*/) {
     // FIXME - print message
     abort();

@@ -3,7 +3,7 @@ import ucrtbase;
 
 static int errno = 0; // FIXME
 
-extern "C" __declspec(dllexport)
+extern "C"
 _invalid_parameter_handler _set_invalid_parameter_handler(_invalid_parameter_handler handler) {
     // FIXME?
 

@@ -51,3 +51,27 @@ towlower = ntdll.towlower
 towupper = ntdll.towupper
 _cexit
 fflush = _fflush
+_set_app_type
+__p___argc
+__p___argv
+__p__commode
+__p__environ
+__p__fmode
+_initterm
+_initterm_e
+_initialize_narrow_environment
+_configure_narrow_argv
+_set_invalid_parameter_handler
+_crt_atexit
+exit
+__acrt_iob_func
+_lock_file
+_unlock_file
+_fputc_nolock
+_set_new_mode
+calloc
+realloc
+floorf
+ceilf
+abort
+_assert

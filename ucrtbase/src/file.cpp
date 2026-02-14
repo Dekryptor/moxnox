@@ -50,7 +50,7 @@ void operator delete(void* ptr, size_t) noexcept {
     free(ptr);
 }
 
-extern "C" __declspec(dllexport)
+extern "C"
 FILE* __acrt_iob_func(unsigned int idx) {
     switch (idx) {
         case 0:
@@ -67,21 +67,21 @@ FILE* __acrt_iob_func(unsigned int idx) {
     }
 }
 
-extern "C" __declspec(dllexport)
+extern "C"
 void _lock_file(FILE* file) {
     auto& f = *reinterpret_cast<_FILE*>(file);
 
     EnterCriticalSection(&f.cs);
 }
 
-extern "C" __declspec(dllexport)
+extern "C"
 void _unlock_file(FILE* file) {
     auto& f = *reinterpret_cast<_FILE*>(file);
 
     LeaveCriticalSection(&f.cs);
 }
 
-extern "C" __declspec(dllexport)
+extern "C"
 int _fputc_nolock(int c, FILE* file) {
     auto& f = *reinterpret_cast<_FILE*>(file);
 
