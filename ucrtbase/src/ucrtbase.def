@@ -41,3 +41,11 @@ _fseek_nolock
 _ftelli64_nolock
 _ftelli64 = __ftelli64
 _ftell_nolock
+iswctype = ntdll.iswctype
+memchr = ntdll.memchr
+memcmp = ntdll.memcmp
+memmove = ntdll.memmove
+strchr = ntdll.strchr
+strcmp = ntdll.strcmp
+towlower = ntdll.towlower
+towupper = ntdll.towupper
