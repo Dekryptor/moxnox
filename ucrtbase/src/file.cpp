@@ -504,7 +504,7 @@ int64_t __ftelli64(FILE* file) {
 
 extern "C"
 int32_t _ftell_nolock(FILE* file) {
-    return _ftelli64_nolock(file);
+    return (int32_t)_ftelli64_nolock(file);
 }
 
 extern "C"
