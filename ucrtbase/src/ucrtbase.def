@@ -52,11 +52,11 @@ towupper = ntdll.towupper
 _cexit
 fflush = _fflush
 _set_app_type
-__p___argc
-__p___argv
+__p___argc = ___p___argc
+__p___argv = ___p___argv
 __p__commode
-__p__environ
-__p__fmode
+__p__environ = ___p__environ
+__p__fmode = ___p__fmode
 _initterm
 _initterm_e
 _initialize_narrow_environment
@@ -64,7 +64,7 @@ _configure_narrow_argv
 _set_invalid_parameter_handler
 _crt_atexit
 exit
-__acrt_iob_func
+__acrt_iob_func = ___acrt_iob_func
 _lock_file
 _unlock_file
 _fputc_nolock

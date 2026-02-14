@@ -24,12 +24,12 @@ void _set_app_type(_crt_app_type type) {
 }
 
 extern "C"
-int* __p___argc() {
+int* ___p___argc() {
     return &argc;
 }
 
 extern "C"
-char*** __p___argv() {
+char*** ___p___argv() {
     return &argv;
 }
 
@@ -39,12 +39,12 @@ unsigned int* __p__commode() {
 }
 
 extern "C"
-char*** __p__environ() {
+char*** ___p__environ() {
     return &__environ;
 }
 
 extern "C"
-int* __p__fmode() {
+int* ___p__fmode() {
     return &fmode;
 }
 

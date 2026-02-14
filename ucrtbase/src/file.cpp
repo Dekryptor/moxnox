@@ -51,7 +51,7 @@ void operator delete(void* ptr, size_t) noexcept {
 }
 
 extern "C"
-FILE* __acrt_iob_func(unsigned int idx) {
+FILE* ___acrt_iob_func(unsigned int idx) {
     switch (idx) {
         case 0:
             return reinterpret_cast<FILE*>(&_stdin);
