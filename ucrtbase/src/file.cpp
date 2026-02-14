@@ -15,6 +15,8 @@ export module file;
 import print;
 import nt;
 import unicode;
+import ntdll;
+import list;
 
 using namespace std;
 
@@ -24,9 +26,12 @@ struct _FILE {
 
     HANDLE h;
     RTL_CRITICAL_SECTION cs;
+    list_entry le;
 };
 
 static uint8_t _stdin[sizeof(_FILE)], _stdout[sizeof(_FILE)], _stderr[sizeof(_FILE)];
+static RTL_CRITICAL_SECTION files_lock;
+static list_entry files_list = { &files_list, &files_list };
 
 extern "C" int* __errno();
 
@@ -115,9 +120,15 @@ _FILE::~_FILE() {
 export void init_files() {
     auto peb = NtCurrentTeb()->ProcessEnvironmentBlock;
 
-    new (_stdin) _FILE(peb->ProcessParameters->StandardInput);
-    new (_stdout) _FILE(peb->ProcessParameters->StandardOutput);
-    new (_stderr) _FILE(peb->ProcessParameters->StandardError);
+    RtlInitializeCriticalSection(&files_lock);
+
+    auto f1 = new (_stdin) _FILE(peb->ProcessParameters->StandardInput);
+    auto f2 = new (_stdout) _FILE(peb->ProcessParameters->StandardOutput);
+    auto f3 = new (_stderr) _FILE(peb->ProcessParameters->StandardError);
+
+    insert_tail_list(files_list, f1->le);
+    insert_tail_list(files_list, f2->le);
+    insert_tail_list(files_list, f3->le);
 }
 
 static int nt_status_to_errno(nt_status status) {
@@ -297,6 +308,12 @@ FILE* __cdecl _fopen(const char* pathname, const char* mode) {
 
     free(u16pathname);
 
+    {
+        RtlEnterCriticalSection(&files_lock);
+        insert_tail_list(files_list, f->le);
+        RtlLeaveCriticalSection(&files_lock);
+    }
+
     return reinterpret_cast<FILE*>(f);
 }
 
@@ -353,6 +370,12 @@ int _fclose(FILE* file) {
     auto& f = *reinterpret_cast<_FILE*>(file);
 
     // FIXME - do we need to make sure this isn't stdin, stdout, or stderr?
+
+    {
+        RtlEnterCriticalSection(&files_lock);
+        remove_entry_list(f.le);
+        RtlLeaveCriticalSection(&files_lock);
+    }
 
     NtClose(f.h);
     delete &f;
