@@ -1017,10 +1017,11 @@ static void process_attach(LDR_DATA_TABLE_ENTRY& ent) {
 
     auto dll_main = (DLL_ENTRY_PROC)ent.EntryPoint;
 
-    // FIXME - calling DLL_PROCESS_DETACH when process dies
-
     if (!dll_main(ent.DllBase, DLL_PROCESS_ATTACH, (void*)1))
         NtTerminateProcess(NtCurrentProcess(), nt_status::DLL_INIT_FAILED);
+
+    InsertTailList(&ldr_data.InInitializationOrderModuleList,
+                   &ent.InInitializationOrderLinks);
 
     ent.ProcessAttachCalled = 1;
 }
@@ -1086,9 +1087,25 @@ void mn_start_thread(mn_image_info* ntdll_info, mn_image_info* img_info, CONTEXT
     NtContinue(context, false);
 }
 
+static void do_shutdown() {
+    auto& list = ldr_data.InInitializationOrderModuleList;
+    for (auto le = list.Blink; le != &list; le = le->Blink) {
+        auto& ent = *CONTAINING_RECORD(le, LDR_DATA_TABLE_ENTRY, InInitializationOrderLinks);
+
+        auto dll_main = (DLL_ENTRY_PROC)ent.EntryPoint;
+
+        dll_main(ent.DllBase, DLL_PROCESS_DETACH, (void*)1);
+    }
+}
+
 extern "C"
 void RtlExitUserProcess(uint32_t status) {
-    // FIXME - does some more stuff than just this
+    // FIXME - locks?
+
+    // kill other threads
+    NtTerminateProcess(0, (nt_status)status);
+
+    do_shutdown();
 
     NtTerminateProcess(NtCurrentProcess(), (nt_status)status);
     unreachable();

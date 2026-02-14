@@ -40,7 +40,7 @@ const uint32_t HEAP_CREATE_ENABLE_EXECUTE = 0x00040000;
 struct LDR_DATA_TABLE_ENTRY {
     LIST_ENTRY InLoadOrderLinks;
     LIST_ENTRY InMemoryOrderLinks;
-    LIST_ENTRY InProgressLinks;
+    LIST_ENTRY InInitializationOrderLinks;
     void* DllBase;
     void* EntryPoint;
     uint32_t SizeOfImage;
