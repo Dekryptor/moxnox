@@ -1336,7 +1336,7 @@ NTSTATUS file::set_information(void* buffer, uint32_t buffer_size,
 
             {
                 lock_guard lg(lock);
-                file_offset = fpi.CurrentByteOffset.QuadPart;
+                file_offset = (uint64_t)fpi.CurrentByteOffset.QuadPart;
             }
 
             return nt_status::SUCCESS;
