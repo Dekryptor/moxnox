@@ -82,7 +82,7 @@ static void do_cmdline() {
     auto cmdline = u16string_view(peb->ProcessParameters->CommandLine.Buffer,
                                   peb->ProcessParameters->CommandLine.Length / sizeof(char16_t));
 
-    argc = count_cmdline_args(cmdline);
+    argc = (int)count_cmdline_args(cmdline);
 
     span<u16string_view> u16argv;
     u16string_view* buf = nullptr;
@@ -90,24 +90,24 @@ static void do_cmdline() {
     if (argc == 0)
         return;
 
-    buf = (decltype(buf))malloc(argc * sizeof(*buf));
+    buf = (decltype(buf))malloc((unsigned int)argc * sizeof(*buf));
     if (!buf) {
         print_stderr("malloc failed\n");
         NtTerminateThread(NtCurrentThread(), nt_status::INSUFFICIENT_RESOURCES);
         unreachable();
     }
 
-    argv = (decltype(argv))malloc(argc * sizeof(*argv));
+    argv = (decltype(argv))malloc((unsigned int)argc * sizeof(*argv));
     if (!argv) {
         print_stderr("malloc failed\n");
         NtTerminateThread(NtCurrentThread(), nt_status::INSUFFICIENT_RESOURCES);
         unreachable();
     }
 
-    u16argv = span(buf, argc);
+    u16argv = span(buf, (unsigned int)argc);
     parse_cmdline(cmdline, u16argv);
 
-    for (int i = 0; i < argc; i++) {
+    for (unsigned int i = 0; i < (unsigned int)argc; i++) {
         auto arg = u16argv[i];
         auto u8len = utf16_to_utf8_len(arg);
 

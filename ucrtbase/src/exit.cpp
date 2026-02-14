@@ -1,5 +1,6 @@
 #include <utility>
 #include <array>
+#include <stdint.h>
 
 import ucrtbase;
 import ntdll;
@@ -35,6 +36,6 @@ extern "C"
 void exit(int code) noexcept {
     _cexit();
 
-    RtlExitUserProcess(code);
+    RtlExitUserProcess((uint32_t)code);
     unreachable();
 }
