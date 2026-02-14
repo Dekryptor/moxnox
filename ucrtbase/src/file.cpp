@@ -595,6 +595,23 @@ int _remove(const char* pathname) {
 
 export extern "C"
 int _fflush(FILE* file) {
+    if (!file) {
+        int ret = 0;
+
+        RtlEnterCriticalSection(&files_lock);
+
+        for (auto le = files_list.next; le != &files_list; le = le->next) {
+            auto& f = containing_record<_FILE>(le);
+
+            if (auto ret2 = _fflush(reinterpret_cast<FILE*>(&f)); ret2 != 0)
+                ret = ret2;
+        }
+
+        RtlLeaveCriticalSection(&files_lock);
+
+        return ret;
+    }
+
     print("FIXME - fflush\n");
 
     return 0;
