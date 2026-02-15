@@ -75,3 +75,4 @@ floorf
 ceilf
 abort
 _assert
+_fpreset

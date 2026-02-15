@@ -50,3 +50,8 @@ float ceilf(float x) {
     }
     return u.f;
 }
+
+extern "C"
+void _fpreset() {
+    // FIXME(?)
+}

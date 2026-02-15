@@ -45,7 +45,6 @@ do_stub "wcsxfrm"
 do_stub "wctob"
 do_stub "wctype"
 do_stub "putc"
-do_stub "_fpreset"
 do_stub "__stdio_common_vfscanf"
 
 stubs_end
