@@ -19,5 +19,7 @@ do_stub "RaiseException"
 do_stub "IsProcessorFeaturePresent"
 do_stub "GetCurrentProcess"
 do_stub "TerminateProcess"
+do_stub "WideCharToMultiByte"
+do_stub "MultiByteToWideChar"
 
 stubs_end

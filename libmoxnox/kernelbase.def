@@ -34,3 +34,5 @@ RaiseException
 IsProcessorFeaturePresent
 GetCurrentProcess
 TerminateProcess
+WideCharToMultiByte
+MultiByteToWideChar
