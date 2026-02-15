@@ -653,7 +653,7 @@ consteval bool format_spec_valid<enum sd_cmd>(string_view fmt) {
     return fmt.empty();
 }
 
-span<char> do_format_arg(span<char> sp, string_view, enum sd_cmd c) {
+static span<char> do_format_arg(span<char> sp, string_view, enum sd_cmd c) {
     switch (c) {
         using enum sd_cmd;
 
