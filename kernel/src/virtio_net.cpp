@@ -114,6 +114,7 @@ public:
     void recv_thread();
 
     T& dev;
+    uint8_t mac[6];
 
 private:
     virt_queue* receive_queue = nullptr;
@@ -127,6 +128,27 @@ virtio_net<virtio_pci_device>::virtio_net(pci_device& d) : dev(*new virtio_pci_d
               dev.device_cfg->length, sizeof(virtio_net_config));
         return;
     }
+
+    if (!(dev.negotiated_features & VIRTIO_NET_F_MAC)) {
+        // FIXME - generate one in this case?
+        print("virtio_net: device did not provide a MAC address\n");
+        return;
+    }
+
+    auto& cfg = *(virtio_net_config*)(d.bar[dev.device_cfg->bar].data() + dev.device_cfg->offset);
+
+    memcpy(mac, cfg.mac, sizeof(mac));
+
+    print("found virtio-net device with MAC {:02x}:{:02x}:{:02x}:{:02x}:{:02x}:{:02x}\n",
+          mac[0], mac[1], mac[2], mac[3], mac[4], mac[5]);
+
+#if 0
+    print("virtio_net cfg: mac = {:02x}:{:02x}:{:02x}:{:02x}:{:02x}:{:02x}, status = {}, max_virtqueue_pairs = {}, mtu = {}, speed = {}, duplex = {}, rss_max_key_size = {}, rss_max_indirection_table_length = {}, supported_hash_types = {}, supported_tunnel_types = {}\n",
+          cfg.mac[0], cfg.mac[1], cfg.mac[2], cfg.mac[3], cfg.mac[4], cfg.mac[5],
+          cfg.status, cfg.max_virtqueue_pairs, cfg.mtu, cfg.speed, cfg.duplex,
+          cfg.rss_max_key_size, cfg.rss_max_indirection_table_length,
+          cfg.supported_hash_types, cfg.supported_tunnel_types);
+#endif
 
     for (auto le = dev.virtqueues.next; le != &dev.virtqueues; le = le->next) {
         auto& vq = containing_record<virt_queue>(le);
@@ -144,6 +166,19 @@ virtio_net<virtio_pci_device>::virtio_net(pci_device& d) : dev(*new virtio_pci_d
 
 template<>
 virtio_net<virtio_mmio_device>::virtio_net(virtio_mmio_device& d) : dev(d) {
+    if (!(dev.negotiated_features & VIRTIO_NET_F_MAC)) {
+        // FIXME - generate one in this case?
+        print("virtio_net: device did not provide a MAC address\n");
+        return;
+    }
+
+    auto& cfg = *(virtio_net_config*)dev.config;
+
+    memcpy(mac, cfg.mac, sizeof(mac));
+
+    print("found virtio-net device with MAC {:02x}:{:02x}:{:02x}:{:02x}:{:02x}:{:02x}\n",
+          mac[0], mac[1], mac[2], mac[3], mac[4], mac[5]);
+
     for (auto le = dev.virtqueues.next; le != &dev.virtqueues; le = le->next) {
         auto& vq = containing_record<virt_queue>(le);
 
