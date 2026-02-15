@@ -51,7 +51,8 @@ static const uint64_t VIRTIO_NET_F_RSC_EXT = (uint64_t)1 << 61;
 static const uint64_t VIRTIO_NET_F_STANDBY = (uint64_t)1 << 62;
 static const uint64_t VIRTIO_NET_F_SPEED_DUPLEX = (uint64_t)1 << 63;
 
-static const uint64_t SUPPORTED_FEATURES = VIRTIO_NET_F_MTU | VIRTIO_NET_F_MAC;
+static const uint64_t SUPPORTED_FEATURES = VIRTIO_F_VERSION_1 | VIRTIO_NET_F_MTU | \
+                                           VIRTIO_NET_F_MAC;
 
 static const uint16_t DEFAULT_MTU = 1500;
 
@@ -138,6 +139,11 @@ virtio_net<virtio_pci_device>::virtio_net(pci_device& d) : dev(*new virtio_pci_d
         return;
     }
 
+    if (!(dev.negotiated_features & VIRTIO_F_VERSION_1)) {
+        print("virtio-net: legacy devices not supported\n");
+        return;
+    }
+
     auto& cfg = *(virtio_net_config*)(d.bar[dev.device_cfg->bar].data() + dev.device_cfg->offset);
 
     memcpy(mac, cfg.mac, sizeof(mac));
@@ -177,6 +183,11 @@ virtio_net<virtio_mmio_device>::virtio_net(virtio_mmio_device& d) : dev(d) {
     if (!(dev.negotiated_features & VIRTIO_NET_F_MAC)) {
         // FIXME - generate one in this case?
         print("virtio_net: device did not provide a MAC address\n");
+        return;
+    }
+
+    if (!(dev.negotiated_features & VIRTIO_F_VERSION_1)) {
+        print("virtio-net: legacy devices not supported\n");
         return;
     }
 
