@@ -1,13 +1,9 @@
-module;
-
 #include <stdint.h>
 #include <span>
 #include <bit>
 #include <string_view>
 #include <atomic>
 #include <mutex>
-
-export module usbms;
 
 import usb;
 import xhci;

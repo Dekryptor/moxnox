@@ -1,11 +1,7 @@
-module;
-
 #include <string_view>
 #include <atomic>
 #include <span>
 #include <stdlib.h>
-
-export module usbhub;
 
 import nt;
 import print;

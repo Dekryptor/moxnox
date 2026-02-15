@@ -1,13 +1,9 @@
-module;
-
 #include <shared_mutex>
 #include <span>
 #include <optional>
 #include <string_view>
 #include <mutex>
 #include "assert.h"
-
-export module tmpfs;
 
 import nt;
 import bsod;

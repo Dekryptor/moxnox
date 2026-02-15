@@ -1,5 +1,3 @@
-module;
-
 #include <shared_mutex>
 #include <variant>
 #include <span>
@@ -8,8 +6,6 @@ module;
 #include <mutex>
 #include "assert.h"
 #include "btrfs.h"
-
-export module btrfs;
 
 import nt;
 import print;

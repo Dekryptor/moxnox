@@ -1,13 +1,9 @@
-module;
-
 #include <stdint.h>
 #include <string_view>
 #include <optional>
 #include <span>
 #include <mutex>
 #include <shared_mutex>
-
-export module devfs;
 
 import nt;
 import vfs;

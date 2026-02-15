@@ -1,12 +1,8 @@
-module;
-
 #include <span>
 #include <string_view>
 #include <shared_mutex>
 #include <mutex>
 #include "nvme.h"
-
-export module nvme;
 
 import nt;
 import print;

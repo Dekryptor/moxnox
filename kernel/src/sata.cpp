@@ -1,12 +1,8 @@
-module;
-
 #include <shared_mutex>
 #include <span>
 #include <string_view>
 #include <mutex>
 #include <atomic>
-
-export module sata;
 
 import nt;
 import print;

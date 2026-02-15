@@ -1,11 +1,7 @@
-module;
-
 #include <atomic>
 #include <string_view>
 #include <span>
 #include <mutex>
-
-export module usbhid;
 
 import nt;
 import print;

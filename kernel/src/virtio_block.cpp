@@ -1,12 +1,8 @@
-module;
-
 #include <atomic>
 #include <shared_mutex>
 #include <span>
 #include <string_view>
 #include <mutex>
-
-export module virtio_block;
 
 import nt;
 import print;

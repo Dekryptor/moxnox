@@ -1,10 +1,6 @@
-module;
-
 #include <span>
 #include <atomic>
 #include <string_view>
-
-export module virtio_console;
 
 import nt;
 import print;

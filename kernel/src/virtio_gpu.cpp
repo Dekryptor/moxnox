@@ -1,12 +1,8 @@
-module;
-
 #include <span>
 #include <atomic>
 #include <string_view>
 #include <variant>
 #include <optional>
-
-export module virtio_gpu;
 
 import nt;
 import print;

@@ -40,7 +40,6 @@ set(GLOBAL_MODULES src/cmdline.cpp
     src/section.cpp
     src/image.cpp
     src/keyboard.cpp
-    src/tmpfs.cpp
     src/process.cpp
     src/power.cpp
     src/smp.cpp
@@ -48,30 +47,19 @@ set(GLOBAL_MODULES src/cmdline.cpp
     src/cpu_block.cpp
     src/spinlock.cpp
     src/pci.cpp
-    src/sata.cpp
-    src/btrfs.cpp
     src/crc32c.cpp
-    src/nvme.cpp
     src/xhci.cpp
     src/usb.cpp
-    src/usbhub.cpp
-    src/usbhid.cpp
     src/virtio.cpp
-    src/virtio_block.cpp
-    src/virtio_console.cpp
     src/efi.cpp
-    src/virtio_gpu.cpp
     src/framebuffer.cpp
     src/handle.cpp
     src/mapping.cpp
     src/debug.cpp
-    src/sdhci.cpp
     src/version.cpp
     src/kernel_time_page.cpp
-    src/usbms.cpp
     src/dma.cpp
     src/mapping_type.cpp
-    src/devfs.cpp
 )
 
 set(AMD64_MODULES ${GLOBAL_MODULES}
@@ -101,6 +89,18 @@ set(SRC_FILES src/kernel.cpp
     src/vfs2.cpp
     src/syscalls.cpp
     src/rwsem2.cpp
+    src/virtio_block.cpp
+    src/virtio_console.cpp
+    src/virtio_gpu.cpp
+    src/sata.cpp
+    src/btrfs.cpp
+    src/nvme.cpp
+    src/usbhub.cpp
+    src/usbhid.cpp
+    src/sdhci.cpp
+    src/usbms.cpp
+    src/devfs.cpp
+    src/tmpfs.cpp
 )
 
 if(CMAKE_SYSTEM_PROCESSOR STREQUAL aarch64)

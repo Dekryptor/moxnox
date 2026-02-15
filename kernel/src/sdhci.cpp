@@ -1,5 +1,3 @@
-module;
-
 #include <stdint.h>
 #include <optional>
 #include <span>
@@ -28,8 +26,6 @@ import page_cache;
 import handle;
 import acpica;
 import vfs;
-
-export module sdhci;
 
 using namespace std;
 
