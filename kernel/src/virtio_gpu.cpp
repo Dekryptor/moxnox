@@ -28,14 +28,14 @@ import dma;
 
 using namespace std;
 
-const uint64_t VIRTIO_GPU_F_VIRGL = 1 << 0;
-const uint64_t VIRTIO_GPU_F_EDID = 1 << 1;
-const uint64_t VIRTIO_GPU_F_RESOURCE_UUID = 1 << 2;
-const uint64_t VIRTIO_GPU_F_RESOURCE_BLOB = 1 << 3;
-const uint64_t VIRTIO_GPU_F_CONTEXT_INIT = 1 << 4;
+static const uint64_t VIRTIO_GPU_F_VIRGL = 1 << 0;
+static const uint64_t VIRTIO_GPU_F_EDID = 1 << 1;
+static const uint64_t VIRTIO_GPU_F_RESOURCE_UUID = 1 << 2;
+static const uint64_t VIRTIO_GPU_F_RESOURCE_BLOB = 1 << 3;
+static const uint64_t VIRTIO_GPU_F_CONTEXT_INIT = 1 << 4;
 
-const uint64_t SUPPORTED_FEATURES = VIRTIO_RING_F_INDIRECT_DESC |
-                                    VIRTIO_GPU_F_EDID;
+static const uint64_t SUPPORTED_FEATURES = VIRTIO_RING_F_INDIRECT_DESC |
+                                           VIRTIO_GPU_F_EDID;
 
 struct virtio_gpu_config {
     uint32_t events_read;
@@ -108,7 +108,7 @@ struct virtio_gpu_ctrl_hdr {
 
 static_assert(sizeof(virtio_gpu_ctrl_hdr) == 24);
 
-const size_t VIRTIO_GPU_MAX_SCANOUTS = 16;
+static const size_t VIRTIO_GPU_MAX_SCANOUTS = 16;
 
 struct virtio_gpu_rect {
     uint32_t x;
@@ -215,7 +215,7 @@ static_assert(sizeof(virtio_gpu_resp_edid) == 1056);
 
 static const uint16_t PCI_VENDOR_ID_REDHAT = 0x1af4;
 
-void found_virtio_pci_gpu(pci_device& dev);
+static void found_virtio_pci_gpu(pci_device& dev);
 
 static pci_recognizer mod_pci_ids[] = {
     { {}, PCI_VENDOR_ID_REDHAT, 0x1050, true, found_virtio_pci_gpu },
@@ -277,8 +277,8 @@ private:
     atomic<uint32_t> resource_num = 1;
 };
 
-variant<virtio_gpu<virtio_pci_device>*, virtio_gpu<virtio_mmio_device>*> flush_framebuffer_device;
-uint32_t flush_framebuffer_resource;
+static variant<virtio_gpu<virtio_pci_device>*, virtio_gpu<virtio_mmio_device>*> flush_framebuffer_device;
+static uint32_t flush_framebuffer_resource;
 
 template<>
 virtio_gpu<virtio_pci_device>::virtio_gpu(pci_device& d) : dev(*new virtio_pci_device(d, SUPPORTED_FEATURES, 2)) {
@@ -323,7 +323,7 @@ consteval bool format_spec_valid<enum VIRTIO_GPU_RESP>(string_view fmt) {
     return fmt.empty();
 }
 
-span<char> do_format_arg(span<char> sp, string_view, enum VIRTIO_GPU_RESP r) {
+static span<char> do_format_arg(span<char> sp, string_view, enum VIRTIO_GPU_RESP r) {
     switch (r) {
         using enum VIRTIO_GPU_RESP;
 
@@ -358,12 +358,13 @@ span<char> do_format_arg(span<char> sp, string_view, enum VIRTIO_GPU_RESP r) {
     }
 }
 
+#if 0
 template<>
 consteval bool format_spec_valid<virtio_gpu_rect>(string_view fmt) {
     return fmt.empty();
 }
 
-span<char> do_format_arg(span<char> sp, string_view, const virtio_gpu_rect& r) {
+static span<char> do_format_arg(span<char> sp, string_view, const virtio_gpu_rect& r) {
     sp = do_format_arg(sp, "", "(");
     sp = do_format_arg(sp, "", r.x);
     sp = do_format_arg(sp, "", ",");
@@ -376,6 +377,7 @@ span<char> do_format_arg(span<char> sp, string_view, const virtio_gpu_rect& r) {
 
     return sp;
 }
+#endif
 
 template<typename T>
 bool virtio_gpu<T>::get_display_info(virtio_gpu_resp_display_info& disp_info) {
@@ -547,7 +549,7 @@ optional<uint32_t> virtio_gpu<T>::create_resource(VIRTIO_GPU_FORMAT format,
     return num;
 }
 
-unsigned int calc_num_mem_entries(span<const uint8_t> buf) {
+static unsigned int calc_num_mem_entries(span<const uint8_t> buf) {
     unsigned int ret = 0;
 
     // buf must come from vmalloc
@@ -567,7 +569,7 @@ unsigned int calc_num_mem_entries(span<const uint8_t> buf) {
     return ret;
 }
 
-void populate_entries(span<virtio_gpu_mem_entry> entries, span<const uint8_t> buf) {
+static void populate_entries(span<virtio_gpu_mem_entry> entries, span<const uint8_t> buf) {
     while (!buf.empty()) {
         auto pa = va_to_pa_lookup((uintptr_t)buf.data());
         auto order = get_folio_order(pa);
@@ -585,7 +587,7 @@ void populate_entries(span<virtio_gpu_mem_entry> entries, span<const uint8_t> bu
     }
 }
 
-void populate_descs(span<virtq_desc> descs, span<const uint8_t> buf) {
+static void populate_descs(span<virtq_desc> descs, span<const uint8_t> buf) {
     uint16_t i = 0;
 
     while (!buf.empty()) {
@@ -850,8 +852,8 @@ bool virtio_gpu<T>::resource_flush(const virtio_gpu_rect& r, uint32_t resource) 
     return true;
 }
 
-void virtio_gpu_flush_framebuffer(unsigned int x, unsigned int y,
-                                  unsigned int width, unsigned int height) {
+static void virtio_gpu_flush_framebuffer(unsigned int x, unsigned int y,
+                                         unsigned int width, unsigned int height) {
     auto sp = span((uint8_t*)(framebuffer.data() + (y * fb_width)),
                    height * fb_width * sizeof(uint32_t));
     flush_cache(sp, false);
@@ -877,7 +879,7 @@ void virtio_gpu_flush_framebuffer(unsigned int x, unsigned int y,
     }, flush_framebuffer_device);
 }
 
-void parse_video_option(string_view s, virtio_gpu_rect& r) {
+static void parse_video_option(string_view s, virtio_gpu_rect& r) {
     string_view wsv, hsv;
 
     if (auto x = s.find('x'); x == string_view::npos)
@@ -1016,7 +1018,7 @@ void virtio_gpu<T>::start() {
 
 static atomic<uint32_t> virtio_gpu_num = 0;
 
-void found_virtio_pci_gpu(pci_device& dev) {
+static void found_virtio_pci_gpu(pci_device& dev) {
     auto pv = new virtio_gpu<virtio_pci_device>(dev);
     if (!pv) {
         print("new failed\n");
