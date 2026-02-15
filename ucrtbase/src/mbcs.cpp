@@ -28,8 +28,17 @@ size_t _mbrtowc(wchar_t* pwc, const char* s, size_t n, mbstate_t* /*ps*/) {
 }
 
 extern "C"
-size_t _wcrtomb(char* /*s*/, wchar_t /*wc*/, mbstate_t* /*ps*/) {
-    print("FIXME - wcrtomb\n");
+size_t _wcrtomb(char* s, wchar_t wc, mbstate_t* /*ps*/) {
+    if (!s)
+        return 1;
 
-    return 0;
+    if (wc < 0x80) {
+        *s = (char)wc;
+        return 1;
+    }
+
+    // FIXME - proper UTF-16 handling
+
+    *_errno() = EILSEQ;
+    return (size_t)-1;
 }
