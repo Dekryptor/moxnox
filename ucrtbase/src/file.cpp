@@ -442,10 +442,19 @@ int _fgetc(FILE* file) {
 }
 
 extern "C"
-int _ungetc(int /*c*/, FILE* /*file*/) {
-    print("FIXME - ungetc\n"); // FIXME
+int __ungetc_nolock(int /*c*/, FILE* /*file*/) {
+    print("FIXME - _ungetc_nolock\n");
 
     return 0;
+}
+
+extern "C"
+int _ungetc(int c, FILE* file) {
+    __lock_file(file);
+    auto ret = __ungetc_nolock(c, file);
+    __unlock_file(file);
+
+    return ret;
 }
 
 extern "C"
