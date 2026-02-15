@@ -3,6 +3,7 @@ module;
 #include <wchar.h>
 #include <string_view>
 #include <span>
+#include <optional>
 #include <stdint.h>
 #include <stdlib.h>
 #include <string.h>
@@ -26,6 +27,7 @@ struct _FILE {
     HANDLE h;
     RTL_CRITICAL_SECTION cs;
     list_entry le;
+    optional<unsigned char> ungetc_char;
 };
 
 static uint8_t _stdin[sizeof(_FILE)], _stdout[sizeof(_FILE)], _stderr[sizeof(_FILE)];
@@ -421,7 +423,14 @@ int puts(const char* s) {
 
 extern "C"
 int __fgetc_nolock(FILE* file) {
+    auto& f = *reinterpret_cast<_FILE*>(file);
     unsigned char c;
+
+    if (f.ungetc_char.has_value()) {
+        c = *f.ungetc_char;
+        f.ungetc_char = nullopt;
+        return (int)c;
+    }
 
     // FIXME - buffering
 
@@ -442,10 +451,17 @@ int _fgetc(FILE* file) {
 }
 
 extern "C"
-int __ungetc_nolock(int /*c*/, FILE* /*file*/) {
-    print("FIXME - _ungetc_nolock\n");
+int __ungetc_nolock(int c, FILE* file) {
+    auto& f = *reinterpret_cast<_FILE*>(file);
 
-    return 0;
+    if (f.ungetc_char.has_value())
+        return EOF;
+
+    f.ungetc_char = (unsigned char)c;
+
+    // FIXME - clear EOF flag
+
+    return c;
 }
 
 extern "C"
@@ -498,7 +514,12 @@ int64_t __ftelli64_nolock(FILE* file) {
         return -1;
     }
 
-    return fpi.CurrentByteOffset.QuadPart;
+    auto ret = fpi.CurrentByteOffset.QuadPart;
+
+    if (f.ungetc_char.has_value())
+        ret--;
+
+    return ret;
 }
 
 extern "C"
@@ -566,6 +587,8 @@ int __fseeki64_nolock(FILE* file, int64_t offset, int whence) {
         *_errno() = nt_status_to_errno(status);
         return -1;
     }
+
+    f.ungetc_char = nullopt;
 
     return 0;
 }
