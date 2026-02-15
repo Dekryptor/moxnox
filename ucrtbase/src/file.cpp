@@ -524,7 +524,6 @@ int32_t _ftell(FILE* file) {
     return (int32_t)ret;
 }
 
-
 extern "C"
 int __fseeki64_nolock(FILE* file, int64_t offset, int whence) {
     auto& f = *reinterpret_cast<_FILE*>(file);
