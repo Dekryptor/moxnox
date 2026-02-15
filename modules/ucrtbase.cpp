@@ -6,6 +6,8 @@ module;
 
 export module ucrtbase;
 
+export using ::mbstate_t;
+
 export {
 
 extern "C++" using _invalid_parameter_handler = void (*)(const wchar_t*,
@@ -94,8 +96,6 @@ struct lconv {
     char int_p_sign_posn;
     char int_n_sign_posn;
 };
-
-using mbstate_t = _Mbstatet;
 
 _invalid_parameter_handler _set_invalid_parameter_handler(_invalid_parameter_handler handler);
 void _set_app_type(_crt_app_type _Type);

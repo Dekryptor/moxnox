@@ -25,7 +25,6 @@ target_link_options(ucrtbase PUBLIC -nostartfiles -nostdlib)
 
 target_link_libraries(ucrtbase PRIVATE format print unicode list cmdline)
 target_link_libraries(ucrtbase PRIVATE moxnox)
-target_compile_definitions(ucrtbase PRIVATE _UCRT=1)
 
 install(TARGETS ucrtbase DESTINATION ${CMAKE_INSTALL_PREFIX}/lib
     CXX_MODULES_BMI EXCLUDE_FROM_ALL
