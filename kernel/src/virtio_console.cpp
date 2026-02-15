@@ -24,11 +24,11 @@ using namespace std;
 
 static const unsigned int serial_buffer_pages = 1;
 
-const uint64_t VIRTIO_CONSOLE_F_SIZE = 1 << 0;
-const uint64_t VIRTIO_CONSOLE_F_MULTIPORT = 1 << 1;
-const uint64_t VIRTIO_CONSOLE_F_EMERG_WRITE = 1 << 2;
+static const uint64_t VIRTIO_CONSOLE_F_SIZE = 1 << 0;
+static const uint64_t VIRTIO_CONSOLE_F_MULTIPORT = 1 << 1;
+static const uint64_t VIRTIO_CONSOLE_F_EMERG_WRITE = 1 << 2;
 
-const uint64_t SUPPORTED_FEATURES = VIRTIO_CONSOLE_F_EMERG_WRITE;
+static const uint64_t SUPPORTED_FEATURES = VIRTIO_CONSOLE_F_EMERG_WRITE;
 
 struct virtio_console_config {
     uint16_t cols;
@@ -41,7 +41,7 @@ static_assert(sizeof(virtio_console_config) == 12);
 
 static const uint16_t PCI_VENDOR_ID_REDHAT = 0x1af4;
 
-void found_virtio_pci_console(pci_device& dev);
+static void found_virtio_pci_console(pci_device& dev);
 
 static pci_recognizer mod_pci_ids[] = {
     { {}, PCI_VENDOR_ID_REDHAT, 0x1003, true, found_virtio_pci_console },
@@ -234,7 +234,7 @@ static object_ref create_virtio_console_in_pipe(unsigned int buffer_pages) {
     return p;
 }
 
-void found_virtio_pci_console(pci_device& dev) {
+static void found_virtio_pci_console(pci_device& dev) {
     auto recv_handle = create_virtio_console_in_pipe(serial_buffer_pages);
     if (!recv_handle) {
         print("create_virtio_console_in_pipe failed\n");
