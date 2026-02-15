@@ -101,6 +101,7 @@ set(SRC_FILES src/kernel.cpp
     src/usbms.cpp
     src/devfs.cpp
     src/tmpfs.cpp
+    src/virtio_net.cpp
 )
 
 if(CMAKE_SYSTEM_PROCESSOR STREQUAL aarch64)
