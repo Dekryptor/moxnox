@@ -23,24 +23,24 @@ import dma;
 
 using namespace std;
 
-const size_t SECTOR_SIZE = 512;
+static const size_t SECTOR_SIZE = 512;
 
-const uint64_t VIRTIO_BLK_F_BARRIER = 1 << 0;
-const uint64_t VIRTIO_BLK_F_SIZE_MAX = 1 << 1;
-const uint64_t VIRTIO_BLK_F_SEG_MAX = 1 << 2;
-const uint64_t VIRTIO_BLK_F_GEOMETRY = 1 << 4;
-const uint64_t VIRTIO_BLK_F_RO = 1 << 5;
-const uint64_t VIRTIO_BLK_F_BLK_SIZE = 1 << 6;
-const uint64_t VIRTIO_BLK_F_SCSI = 1 << 7;
-const uint64_t VIRTIO_BLK_F_FLUSH = 1 << 9;
-const uint64_t VIRTIO_BLK_F_TOPOLOGY = 1 << 10;
-const uint64_t VIRTIO_BLK_F_CONFIG_WCE = 1 << 11;
-const uint64_t VIRTIO_BLK_F_MQ = 1 << 12;
-const uint64_t VIRTIO_BLK_F_DISCARD = 1 << 13;
-const uint64_t VIRTIO_BLK_F_WRITE_ZEROES = 1 << 14;
-const uint64_t VIRTIO_BLK_F_LIFETIME = 1 << 15;
-const uint64_t VIRTIO_BLK_F_SECURE_ERASE = 1 << 16;
-const uint64_t VIRTIO_BLK_F_ZONED = 1 << 17;
+static const uint64_t VIRTIO_BLK_F_BARRIER = 1 << 0;
+static const uint64_t VIRTIO_BLK_F_SIZE_MAX = 1 << 1;
+static const uint64_t VIRTIO_BLK_F_SEG_MAX = 1 << 2;
+static const uint64_t VIRTIO_BLK_F_GEOMETRY = 1 << 4;
+static const uint64_t VIRTIO_BLK_F_RO = 1 << 5;
+static const uint64_t VIRTIO_BLK_F_BLK_SIZE = 1 << 6;
+static const uint64_t VIRTIO_BLK_F_SCSI = 1 << 7;
+static const uint64_t VIRTIO_BLK_F_FLUSH = 1 << 9;
+static const uint64_t VIRTIO_BLK_F_TOPOLOGY = 1 << 10;
+static const uint64_t VIRTIO_BLK_F_CONFIG_WCE = 1 << 11;
+static const uint64_t VIRTIO_BLK_F_MQ = 1 << 12;
+static const uint64_t VIRTIO_BLK_F_DISCARD = 1 << 13;
+static const uint64_t VIRTIO_BLK_F_WRITE_ZEROES = 1 << 14;
+static const uint64_t VIRTIO_BLK_F_LIFETIME = 1 << 15;
+static const uint64_t VIRTIO_BLK_F_SECURE_ERASE = 1 << 16;
+static const uint64_t VIRTIO_BLK_F_ZONED = 1 << 17;
 
 static const uint64_t SUPPORTED_FEATURES = VIRTIO_BLK_F_RO |
                                            VIRTIO_BLK_F_BLK_SIZE |
