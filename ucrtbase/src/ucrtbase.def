@@ -21,6 +21,7 @@ fputs = _fputs
 puts
 localeconv = _localeconv
 mbrtowc = _mbrtowc
+wcrtomb = _wcrtomb
 isdigit = ntdll.isdigit
 getc = _fgetc
 fgetc = _fgetc

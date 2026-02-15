@@ -119,6 +119,7 @@ int* _errno();
 int _fputc_nolock(int c, FILE* file);
 struct lconv* localeconv();
 size_t mbrtowc(wchar_t* pwc, const char* s, size_t n, mbstate_t* ps);
+size_t wcrtomb(char* s, wchar_t wc, mbstate_t* ps);
 void _fpreset();
 
 }

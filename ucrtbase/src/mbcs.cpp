@@ -26,3 +26,10 @@ size_t _mbrtowc(wchar_t* pwc, const char* s, size_t n, mbstate_t* /*ps*/) {
     *_errno() = EILSEQ;
     return (size_t)-1;
 }
+
+extern "C"
+size_t _wcrtomb(char* /*s*/, wchar_t /*wc*/, mbstate_t* /*ps*/) {
+    print("FIXME - wcrtomb\n");
+
+    return 0;
+}
