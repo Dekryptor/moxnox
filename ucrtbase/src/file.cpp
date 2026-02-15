@@ -617,8 +617,60 @@ int _fseek(FILE* file, int32_t offset, int whence) {
 }
 
 extern "C"
-int _remove(const char* /*pathname*/) {
-    print("FIXME - remove\n"); // FIXME
+int _remove(const char* pathname) {
+    if (!pathname || pathname[0] == 0) {
+        *__errno() = EINVAL;
+        return -1;
+    }
+
+    auto sv = string_view(pathname);
+
+    auto u16len = utf8_to_utf16_len(sv);
+
+    auto buf = (char16_t*)malloc(u16len * sizeof(char16_t));
+    if (!buf) {
+        *__errno() = ENOMEM;
+        return -1;
+    }
+
+    utf8_to_utf16(span(buf, u16len), sv);
+
+    auto peb = NtCurrentTeb()->ProcessEnvironmentBlock;
+    HANDLE h;
+    OBJECT_ATTRIBUTES oa;
+    UNICODE_STRING us;
+    IO_STATUS_BLOCK iosb;
+    FILE_DISPOSITION_INFORMATION fdi;
+
+    us.Length = us.MaximumLength = (uint16_t)(u16len * sizeof(char16_t));
+    us.Buffer = buf;
+
+    memset(&oa, 0, sizeof(oa));
+    oa.Length = sizeof(OBJECT_ATTRIBUTES);
+    oa.ObjectName = &us;
+    oa.RootDirectory = peb->ProcessParameters->CurrentDirectory.Handle;
+
+    auto status = NtCreateFile(&h, DELETE, &oa, &iosb, nullptr, 0, 0,
+                               FILE_OPEN, 0, nullptr, 0);
+    if (!success(status)) {
+        free(buf);
+        *__errno() = nt_status_to_errno(status);
+        return -1;
+    }
+
+    free(buf);
+
+    fdi.DeleteFile = true;
+
+    status = NtSetInformationFile(h, &iosb, &fdi, sizeof(fdi),
+                                  FILE_INFORMATION_CLASS::DispositionInformation);
+    if (!success(status)) {
+        NtClose(h);
+        *__errno() = nt_status_to_errno(status);
+        return -1;
+    }
+
+    NtClose(h);
 
     return 0;
 }
