@@ -1,1 +1,5 @@
-set(CMAKE_CXX_LINK_EXECUTABLE "<CMAKE_CXX_COMPILER> <FLAGS> <CMAKE_CXX_LINK_FLAGS> <LINK_FLAGS> <OBJECTS>  -o <TARGET> -Wl,--out-implib,<TARGET_IMPLIB> ${CMAKE_GNULD_IMAGE_VERSION} <LINK_LIBRARIES> -lstdc++ -lmingw32 -lgcc_eh -lgcc -lmingwex -lucrtbase libmoxnox/libmoxnox.a -lmingw32")
+if(CMAKE_SYSTEM_PROCESSOR STREQUAL "aarch64")
+    set(CMAKE_CXX_LINK_EXECUTABLE "<CMAKE_CXX_COMPILER> <FLAGS> <CMAKE_CXX_LINK_FLAGS> <LINK_FLAGS> <OBJECTS>  -o <TARGET> -Wl,--out-implib,<TARGET_IMPLIB> ${CMAKE_GNULD_IMAGE_VERSION} <LINK_LIBRARIES> -lc++ -lmingw32 -lgcc -lmingwex -lucrtbase libmoxnox/libmoxnox.a -lmingw32")
+else()
+    set(CMAKE_CXX_LINK_EXECUTABLE "<CMAKE_CXX_COMPILER> <FLAGS> <CMAKE_CXX_LINK_FLAGS> <LINK_FLAGS> <OBJECTS>  -o <TARGET> -Wl,--out-implib,<TARGET_IMPLIB> ${CMAKE_GNULD_IMAGE_VERSION} <LINK_LIBRARIES> -lstdc++ -lmingw32 -lgcc_eh -lgcc -lmingwex -lucrtbase libmoxnox/libmoxnox.a -lmingw32")
+endif()
