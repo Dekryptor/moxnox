@@ -51,7 +51,9 @@ static const uint64_t VIRTIO_NET_F_RSC_EXT = (uint64_t)1 << 61;
 static const uint64_t VIRTIO_NET_F_STANDBY = (uint64_t)1 << 62;
 static const uint64_t VIRTIO_NET_F_SPEED_DUPLEX = (uint64_t)1 << 63;
 
-static const uint64_t SUPPORTED_FEATURES = VIRTIO_NET_F_MAC;
+static const uint64_t SUPPORTED_FEATURES = VIRTIO_NET_F_MTU | VIRTIO_NET_F_MAC;
+
+static const uint16_t DEFAULT_MTU = 1500;
 
 struct virtio_net_config {
     uint8_t mac[6];
@@ -115,6 +117,7 @@ public:
 
     T& dev;
     uint8_t mac[6];
+    uint16_t mtu;
 
 private:
     virt_queue* receive_queue = nullptr;
@@ -139,8 +142,13 @@ virtio_net<virtio_pci_device>::virtio_net(pci_device& d) : dev(*new virtio_pci_d
 
     memcpy(mac, cfg.mac, sizeof(mac));
 
-    print("found virtio-net device with MAC {:02x}:{:02x}:{:02x}:{:02x}:{:02x}:{:02x}\n",
-          mac[0], mac[1], mac[2], mac[3], mac[4], mac[5]);
+    if (dev.negotiated_features & VIRTIO_NET_F_MTU)
+        mtu = cfg.mtu;
+    else
+        mtu = DEFAULT_MTU;
+
+    print("found virtio-net device with MAC {:02x}:{:02x}:{:02x}:{:02x}:{:02x}:{:02x}, MTU {}\n",
+          mac[0], mac[1], mac[2], mac[3], mac[4], mac[5], mtu);
 
 #if 0
     print("virtio_net cfg: mac = {:02x}:{:02x}:{:02x}:{:02x}:{:02x}:{:02x}, status = {}, max_virtqueue_pairs = {}, mtu = {}, speed = {}, duplex = {}, rss_max_key_size = {}, rss_max_indirection_table_length = {}, supported_hash_types = {}, supported_tunnel_types = {}\n",
@@ -176,8 +184,13 @@ virtio_net<virtio_mmio_device>::virtio_net(virtio_mmio_device& d) : dev(d) {
 
     memcpy(mac, cfg.mac, sizeof(mac));
 
-    print("found virtio-net device with MAC {:02x}:{:02x}:{:02x}:{:02x}:{:02x}:{:02x}\n",
-          mac[0], mac[1], mac[2], mac[3], mac[4], mac[5]);
+    if (dev.negotiated_features & VIRTIO_NET_F_MTU)
+        mtu = cfg.mtu;
+    else
+        mtu = DEFAULT_MTU;
+
+    print("found virtio-net device with MAC {:02x}:{:02x}:{:02x}:{:02x}:{:02x}:{:02x}, MTU {}\n",
+          mac[0], mac[1], mac[2], mac[3], mac[4], mac[5], mtu);
 
     for (auto le = dev.virtqueues.next; le != &dev.virtqueues; le = le->next) {
         auto& vq = containing_record<virt_queue>(le);
