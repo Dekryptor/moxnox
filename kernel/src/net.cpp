@@ -9,6 +9,7 @@ module;
 export module net;
 
 import format;
+import crt;
 
 using namespace std;
 
@@ -97,11 +98,62 @@ consteval bool format_spec_valid<ipv6_address>(string_view fmt) {
 }
 
 export span<char> do_format_arg(span<char> sp, string_view, const ipv6_address& a) {
-    for (unsigned int i = 0; i < 16; i++) {
-        if (i != 0 && i % 2 == 0)
+    unsigned int run_start = 0, run_length = 0;
+    unsigned int largest_run_start = 0, largest_run_length = 0;
+
+    static const uint8_t MAPPED_IPV4[] = { 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0xff, 0xff };
+
+    if (!memcmp(a.v.data(), MAPPED_IPV4, sizeof(MAPPED_IPV4))) {
+        sp = do_format_arg(sp, "", "::ffff:");
+        sp = do_format_arg(sp, "", a.v[12]);
+        sp = do_format_arg(sp, "", ".");
+        sp = do_format_arg(sp, "", a.v[13]);
+        sp = do_format_arg(sp, "", ".");
+        sp = do_format_arg(sp, "", a.v[14]);
+        sp = do_format_arg(sp, "", ".");
+        sp = do_format_arg(sp, "", a.v[15]);
+        return sp;
+    }
+
+    for (unsigned int i = 0; i < 8; i++) {
+        if (a.v[2 * i] == 0 && a.v[(2 * i) + 1] == 0) {
+            if (run_start + run_length == i)
+                run_length++;
+            else {
+                run_start = i;
+                run_length = 1;
+            }
+        } else if (i == run_start + run_length) {
+            if (run_length > largest_run_length) {
+                largest_run_start = run_start;
+                largest_run_length = run_length;
+            }
+        }
+    }
+
+    if (run_start + run_length == 8 && run_length > largest_run_length) {
+        largest_run_start = run_start;
+        largest_run_length = run_length;
+    }
+
+    if (largest_run_length == 1) {
+        largest_run_start = 0;
+        largest_run_length = 0;
+    }
+
+    for (unsigned int i = 0; i < 8; i++) {
+        uint16_t num = (uint16_t)(a.v[2 * i] << 8) | a.v[(2 * i) + 1];
+
+        if (i == largest_run_start && largest_run_length != 0) {
+            sp = do_format_arg(sp, "", "::");
+            i += largest_run_length - 1;
+            continue;
+        }
+
+        if (i != 0 && i != largest_run_start + largest_run_length)
             sp = do_format_arg(sp, "", ":");
 
-        sp = do_format_arg(sp, ":02x", a.v[i]);
+        sp = do_format_arg(sp, ":x", num);
     }
 
     return sp;
