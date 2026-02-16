@@ -17,6 +17,7 @@ import net;
 import mem;
 import spinlock;
 import dma;
+import crt;
 
 using namespace std;
 
@@ -138,6 +139,7 @@ public:
 
     spinlock addr_lock;
     list_entry addrs = { &addrs, &addrs };
+    ipv6_address ll_addr;
 };
 
 template<typename T>
@@ -222,7 +224,7 @@ void virtio_net<T>::init(const virtio_net_config& cfg) {
 
     //test_ipv6_address_printing();
 
-    auto ll = find_ll_address(mac);
+    ll_addr = find_ll_address(mac);
 
     auto a = new ip_addr;
     if (!a) {
@@ -230,7 +232,7 @@ void virtio_net<T>::init(const virtio_net_config& cfg) {
         return;
     }
 
-    a->addr = ll;
+    a->addr = ll_addr;
 
     {
         lock_guard lg(addr_lock);
@@ -238,7 +240,7 @@ void virtio_net<T>::init(const virtio_net_config& cfg) {
     }
 
     print("found virtio-net device with MAC {}, MTU {}, link-local address {}\n",
-          mac, mtu, ll);
+          mac, mtu, ll_addr);
 
     for (auto le = dev.virtqueues.next; le != &dev.virtqueues; le = le->next) {
         auto& vq = containing_record<virt_queue>(le);
@@ -377,6 +379,84 @@ nt_status virtio_net<T>::send_packet(span<const uint8_t> buf) {
     return status;
 }
 
+static uint16_t calc_icmpv6_checksum(const ipv6_header& ip, span<const uint8_t> icmp) {
+    struct {
+        ipv6_address src;
+        ipv6_address dst;
+        uint32_t length;
+        uint8_t zero[3];
+        ip_proto next_header;
+    } __attribute__((packed)) pseudo;
+
+    uint32_t sum = 0;
+
+    pseudo.src = ip.src;
+    pseudo.dst = ip.dst;
+    pseudo.length = byteswap((uint32_t)icmp.size());
+    pseudo.zero[0] = 0;
+    pseudo.zero[1] = 0;
+    pseudo.zero[2] = 0;
+    pseudo.next_header = ip_proto::icmpv6;
+
+    for (auto s : span((uint16_t*)&pseudo, sizeof(pseudo) / sizeof(uint16_t))) {
+        sum += byteswap(s);
+    }
+
+    for (auto s : span((uint16_t*)icmp.data(), icmp.size() / sizeof(uint16_t))) {
+        sum += byteswap(s);
+    }
+
+    if (icmp.size() & 1)
+        sum += icmp[icmp.size() - 1] << 8;
+
+    while (sum & 0xffff0000) {
+        sum = (sum >> 16) + (sum & 0xffff);
+    }
+
+    return byteswap((uint16_t)(~(uint16_t)sum));
+}
+
+static void send_neighbour_advertisement(network_interface& netif,
+                                         const ipv6_address& target,
+                                         const ipv6_address& dst_ip,
+                                         const mac_address& dst_mac) {
+    struct {
+        ethernet_header eth;
+        ipv6_header ip;
+        icmpv6_neighbour_advertisement na;
+        ndp_option_lladdr opt;
+    } __attribute__((packed)) pkt;
+
+    memset(&pkt, 0, sizeof(pkt));
+
+    pkt.eth.src_mac = netif.mac;
+    pkt.eth.dst_mac = dst_mac;
+
+    pkt.eth.type = ethertype::ipv6;
+
+    pkt.ip.version = 6;
+    pkt.ip.payload_length = byteswap((uint16_t)(sizeof(icmpv6_neighbour_advertisement) + sizeof(ndp_option_lladdr)));
+    pkt.ip.next_header = ip_proto::icmpv6;
+    pkt.ip.hop_limit = 255;
+    pkt.ip.src = netif.ll_addr;
+    pkt.ip.dst = dst_ip;
+
+    pkt.na.type = icmpv6_type::neighbour_advertisement;
+    pkt.na.solicited = 1;
+    pkt.na._override = 1;
+    pkt.na.target = target;
+
+    pkt.opt.type = ndp_option_type::target_lladdr;
+    pkt.opt.length = 1; // 8 bytes
+    pkt.opt.mac = netif.mac;
+
+    pkt.na.checksum = calc_icmpv6_checksum(pkt.ip, span((uint8_t*)&pkt.na, sizeof(pkt.na) + sizeof(pkt.opt)));
+
+    auto status = netif.send_packet(span((const uint8_t*)&pkt, sizeof(pkt)));
+    if (!success(status))
+        print("send_packet returned {}\n", status);
+}
+
 static void handle_neighbour_solicitation(network_interface& netif,
                                           span<const uint8_t> buf) {
     if (buf.size() < sizeof(icmpv6_neighbour_solicitation)) {
@@ -385,7 +465,9 @@ static void handle_neighbour_solicitation(network_interface& netif,
         return;
     }
 
-    auto& ns = *(icmpv6_neighbour_solicitation*)buf.data();
+    auto& eth = *(ethernet_header*)buf.data();
+    auto& ip = *(ipv6_header*)(buf.data() + sizeof(ethernet_header));
+    auto& ns = *(icmpv6_neighbour_solicitation*)(buf.data() + sizeof(ethernet_header) + sizeof(ipv6_header));
 
     print("ns: target = {}\n", ns.target);
 
@@ -408,17 +490,19 @@ static void handle_neighbour_solicitation(network_interface& netif,
     if (!found)
         return;
 
-    print("FIXME - respond to neighbour solicitation\n");
+    // FIXME - if source was :: (DAD), send to 33:33:00:00:00:01 and ff02::1
+
+    send_neighbour_advertisement(netif, ns.target, ip.src, eth.src_mac);
 }
 
 static void handle_icmpv6_packet(network_interface& netif, span<const uint8_t> buf) {
-    if (buf.size() < sizeof(icmpv6_header)) {
+    if (buf.size() < sizeof(ethernet_header) + sizeof(ipv6_header) + sizeof(icmpv6_header)) {
         print("handle_icmpv6_packet: buffer length was {}, expected at least {}\n",
-              buf.size(), sizeof(icmpv6_header));
+              buf.size(), sizeof(ethernet_header) + sizeof(ipv6_header) + sizeof(icmpv6_header));
         return;
     }
 
-    auto& header = *(icmpv6_header*)buf.data();
+    auto& header = *(icmpv6_header*)(buf.data() + sizeof(ethernet_header) + sizeof(ipv6_header));
 
     print("icmpv6: type = {}, code = {:02x}, checksum = {:04x}\n",
           header.type, header.code, byteswap(header.checksum));
@@ -434,13 +518,13 @@ static void handle_icmpv6_packet(network_interface& netif, span<const uint8_t> b
 }
 
 static void handle_ipv6_packet(network_interface& netif, span<const uint8_t> buf) {
-    if (buf.size() < sizeof(ipv6_header)) {
+    if (buf.size() < sizeof(ethernet_header) + sizeof(ipv6_header)) {
         print("handle_ipv6_packet: buffer length was {}, expected at least {}\n",
-              buf.size(), sizeof(ipv6_header));
+              buf.size(), sizeof(ethernet_header) + sizeof(ipv6_header));
         return;
     }
 
-    auto& header = *(ipv6_header*)buf.data();
+    auto& header = *(ipv6_header*)(buf.data() + sizeof(ethernet_header));
 
     print("ipv6: version = {}, traffic_class1 = {}, traffic_class2 = {}, flow_label = {}, payload_length = {}, next_header = {}, hop_limit = {}, src = {}, dst = {}\n",
           header.version, header.traffic_class1, header.traffic_class2, header.flow_label,
@@ -449,7 +533,7 @@ static void handle_ipv6_packet(network_interface& netif, span<const uint8_t> buf
 
     switch (header.next_header) {
         case ip_proto::icmpv6:
-            handle_icmpv6_packet(netif, span(buf.data() + sizeof(ipv6_header), buf.size() - sizeof(ipv6_header)));
+            handle_icmpv6_packet(netif, buf);
             break;
 
         default:
@@ -476,8 +560,6 @@ static bool drop_packet(const mac_address& dst, const mac_address& us) {
 
 template<typename T>
 void virtio_net<T>::recv_thread() {
-    print("FIXME - virtio_net::recv_thread\n"); // FIXME
-
     // FIXME - better to have pool of read buffers? And do more work in interrupt handler?
 
     // FIXME - die gracefully if device ever goes away
@@ -490,7 +572,7 @@ void virtio_net<T>::recv_thread() {
     }
 
     while (true) {
-        uint64_t buf_read_bytes; //, written_bytes;
+        uint64_t buf_read_bytes;
 
         auto status = receive_queue->read(span(buf, buf_size), buf_read_bytes);
 
@@ -521,8 +603,8 @@ void virtio_net<T>::recv_thread() {
         if (drop_packet(eth.dst_mac, mac))
             continue;
 
-        auto data = span(buf + sizeof(virtio_net_hdr) + sizeof(ethernet_header),
-                         buf_read_bytes - sizeof(virtio_net_hdr) - sizeof(ethernet_header));
+        auto data = span(buf + sizeof(virtio_net_hdr),
+                         buf_read_bytes - sizeof(virtio_net_hdr));
 
         if (eth.type == ethertype::ipv6)
             handle_ipv6_packet(*this, data);

@@ -88,6 +88,33 @@ export struct icmpv6_neighbour_solicitation : icmpv6_header {
 
 static_assert(sizeof(icmpv6_neighbour_solicitation) == 24);
 
+export struct icmpv6_neighbour_advertisement : icmpv6_header {
+    uint32_t : 5;
+    uint32_t _override : 1;
+    uint32_t solicited : 1;
+    uint32_t router : 1;
+    uint32_t : 24;
+    ipv6_address target;
+} __attribute((packed));
+
+static_assert(sizeof(icmpv6_neighbour_advertisement) == 24);
+
+export enum class ndp_option_type : uint8_t {
+    source_lladdr = 1,
+    target_lladdr = 2,
+    prefix_info = 3,
+    redirected_header = 4,
+    mtu = 5,
+};
+
+export struct ndp_option_lladdr {
+    ndp_option_type type;
+    uint8_t length;
+    mac_address mac;
+} __attribute((packed));
+
+static_assert(sizeof(ndp_option_lladdr) == 8);
+
 template<>
 consteval bool format_spec_valid<mac_address>(string_view fmt) {
     return fmt.empty();
