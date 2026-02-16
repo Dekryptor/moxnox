@@ -304,6 +304,21 @@ static bool found_virtio_mmio_net(virtio_mmio_device& dev) {
     return true;
 }
 
+static void handle_ipv6_packet(span<const uint8_t> buf) {
+    if (buf.size() < sizeof(ipv6_header)) {
+        print("handle_ipv6_packet: buffer length was {}, expected at least {}\n",
+              buf.size(), sizeof(ipv6_header));
+        return;
+    }
+
+    auto& header = *(ipv6_header*)buf.data();
+
+    print("ipv6: version = {}, traffic_class1 = {}, traffic_class2 = {}, flow_label = {}, payload_length = {}, next_header = {}, hop_limit = {}, src = {}, dst = {}\n",
+          header.version, header.traffic_class1, header.traffic_class2, header.flow_label,
+          byteswap(header.payload_length), header.next_header, header.hop_limit,
+          header.src, header.dst);
+}
+
 template<typename T>
 void virtio_net<T>::recv_thread() {
     print("FIXME - virtio_net::recv_thread\n"); // FIXME
@@ -348,9 +363,13 @@ void virtio_net<T>::recv_thread() {
 
         auto& eth = *(ethernet_header*)(buf + sizeof(virtio_net_hdr));
 
-        print("ethernet: dst_max = {}, src_max = {}, type = {}\n",
+        print("ethernet: dst_mac = {}, src_mac = {}, type = {}\n",
               eth.dst_mac, eth.src_mac, eth.type);
 
-        // FIXME - process
+        auto data = span(buf + sizeof(virtio_net_hdr) + sizeof(ethernet_header),
+                         buf_read_bytes - sizeof(virtio_net_hdr) - sizeof(ethernet_header));
+
+        if (eth.type == ethertype::ipv6)
+            handle_ipv6_packet(data);
     }
 }

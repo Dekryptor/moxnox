@@ -16,6 +16,10 @@ export struct mac_address {
     array<uint8_t, 6> v;
 };
 
+export struct ipv6_address {
+    array<uint8_t, 16> v;
+};
+
 export enum class ethertype : uint16_t { // bytes flipped
     ipv4 = 0x0008,
     arp = 0x0608,
@@ -29,6 +33,20 @@ export struct ethernet_header {
 } __attribute((packed));
 
 static_assert(sizeof(ethernet_header) == 14);
+
+export struct ipv6_header {
+    uint32_t traffic_class1 : 4;
+    uint32_t version : 4;
+    uint32_t traffic_class2 : 4;
+    uint32_t flow_label : 20;
+    uint16_t payload_length;
+    uint8_t next_header;
+    uint8_t hop_limit;
+    ipv6_address src;
+    ipv6_address dst;
+} __attribute((packed));
+
+static_assert(sizeof(ipv6_header) == 40);
 
 template<>
 consteval bool format_spec_valid<mac_address>(string_view fmt) {
@@ -68,6 +86,22 @@ export span<char> do_format_arg(span<char> sp, string_view, ethertype e) {
             return do_format_arg(sp, "", "ipv6");
         default:
             return do_format_arg(sp, ":04x", byteswap((uint16_t)e));
+    }
+
+    return sp;
+}
+
+template<>
+consteval bool format_spec_valid<ipv6_address>(string_view fmt) {
+    return fmt.empty();
+}
+
+export span<char> do_format_arg(span<char> sp, string_view, const ipv6_address& a) {
+    for (unsigned int i = 0; i < 16; i++) {
+        if (i != 0 && i % 2 == 0)
+            sp = do_format_arg(sp, "", ":");
+
+        sp = do_format_arg(sp, ":02x", a.v[i]);
     }
 
     return sp;
