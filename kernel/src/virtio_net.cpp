@@ -1,7 +1,8 @@
 #include <span>
-#include <atomic>
 #include <string_view>
 #include <bit>
+#include <stdint.h>
+#include <mutex>
 
 import nt;
 import print;
@@ -293,8 +294,6 @@ virtio_net<virtio_mmio_device>::virtio_net(virtio_mmio_device& d) : dev(d) {
 
     init(*(virtio_net_config*)dev.config);
 }
-
-static atomic<uint32_t> virtio_net_num = 0;
 
 void found_virtio_pci_net(pci_device& dev) {
     auto pv = new virtio_net<virtio_pci_device>(dev);
