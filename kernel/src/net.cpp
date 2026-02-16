@@ -77,6 +77,13 @@ export struct icmpv6_header {
 
 static_assert(sizeof(icmpv6_header) == 4);
 
+export struct icmpv6_neighbour_solicitation : icmpv6_header {
+    uint32_t reserved;
+    ipv6_address target;
+} __attribute((packed));
+
+static_assert(sizeof(icmpv6_neighbour_solicitation) == 24);
+
 template<>
 consteval bool format_spec_valid<mac_address>(string_view fmt) {
     return fmt.empty();

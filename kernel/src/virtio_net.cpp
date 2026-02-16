@@ -325,6 +325,22 @@ static bool found_virtio_mmio_net(virtio_mmio_device& dev) {
     return true;
 }
 
+static void handle_neighbour_solicitation(span<const uint8_t> buf) {
+    if (buf.size() < sizeof(icmpv6_neighbour_solicitation)) {
+        print("handle_neighbour_solicitation: buffer length was {}, expected at least {}\n",
+              buf.size(), sizeof(icmpv6_neighbour_solicitation));
+        return;
+    }
+
+    auto& ns = *(icmpv6_neighbour_solicitation*)buf.data();
+
+    print("ns: target = {}\n", ns.target);
+
+    // FIXME - options (sender's MAC means we can avoid sending NS back to them)
+
+    // FIXME - respond if one of ours
+}
+
 static void handle_icmpv6_packet(span<const uint8_t> buf) {
     if (buf.size() < sizeof(icmpv6_header)) {
         print("handle_icmpv6_packet: buffer length was {}, expected at least {}\n",
@@ -336,6 +352,15 @@ static void handle_icmpv6_packet(span<const uint8_t> buf) {
 
     print("icmpv6: type = {}, code = {:02x}, checksum = {:04x}\n",
           header.type, header.code, byteswap(header.checksum));
+
+    switch (header.type) {
+        case icmpv6_type::neighbour_solicitation:
+            handle_neighbour_solicitation(buf);
+            break;
+
+        default:
+            break;
+    }
 }
 
 static void handle_ipv6_packet(span<const uint8_t> buf) {
