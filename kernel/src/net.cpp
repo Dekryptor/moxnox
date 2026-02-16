@@ -56,8 +56,21 @@ export struct ipv6_header {
 
 static_assert(sizeof(ipv6_header) == 40);
 
+export enum class icmpv6_type : uint8_t {
+    dest_unreachable = 1,
+    packet_too_big = 2,
+    time_exceeded = 3,
+    param_problem = 4,
+    echo_request = 128,
+    echo_reply = 129,
+    router_solicitation = 133,
+    router_advertisement = 134,
+    neighbour_solicitation = 135,
+    neighbour_advertisement = 136
+};
+
 export struct icmpv6_header {
-    uint8_t type;
+    icmpv6_type type;
     uint8_t code;
     uint16_t checksum;
 } __attribute((packed));
@@ -193,6 +206,42 @@ export span<char> do_format_arg(span<char> sp, string_view, ip_proto p) {
             return do_format_arg(sp, "", "icmpv6");
         default:
             return do_format_arg(sp, ":02x", (uint8_t)p);
+    }
+
+    return sp;
+}
+
+template<>
+consteval bool format_spec_valid<icmpv6_type>(string_view fmt) {
+    return fmt.empty();
+}
+
+export span<char> do_format_arg(span<char> sp, string_view, icmpv6_type t) {
+    switch (t) {
+        using enum icmpv6_type;
+
+        case dest_unreachable:
+            return do_format_arg(sp, "", "dest_unreachable");
+        case packet_too_big:
+            return do_format_arg(sp, "", "packet_too_big");
+        case time_exceeded:
+            return do_format_arg(sp, "", "time_exceeded");
+        case param_problem:
+            return do_format_arg(sp, "", "param_problem");
+        case echo_request:
+            return do_format_arg(sp, "", "echo_request");
+        case echo_reply:
+            return do_format_arg(sp, "", "echo_reply");
+        case router_solicitation:
+            return do_format_arg(sp, "", "router_solicitation");
+        case router_advertisement:
+            return do_format_arg(sp, "", "router_advertisement");
+        case neighbour_solicitation:
+            return do_format_arg(sp, "", "neighbour_solicitation");
+        case neighbour_advertisement:
+            return do_format_arg(sp, "", "neighbour_advertisement");
+        default:
+            return do_format_arg(sp, ":02x", (uint8_t)t);
     }
 
     return sp;

@@ -334,7 +334,7 @@ static void handle_icmpv6_packet(span<const uint8_t> buf) {
 
     auto& header = *(icmpv6_header*)buf.data();
 
-    print("icmpv6: type = {:02x}, code = {:02x}, checksum = {:04x}\n",
+    print("icmpv6: type = {}, code = {:02x}, checksum = {:04x}\n",
           header.type, header.code, byteswap(header.checksum));
 }
 
