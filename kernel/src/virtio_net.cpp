@@ -5,7 +5,6 @@
 
 import nt;
 import print;
-import chardev;
 import format;
 import pci;
 import virtio;
@@ -129,8 +128,17 @@ struct ip_addr {
     ipv6_address addr;
 };
 
+class network_interface {
+public:
+    mac_address mac;
+    uint16_t mtu;
+
+    spinlock addr_lock;
+    list_entry addrs = { &addrs, &addrs };
+};
+
 template<typename T>
-class virtio_net {
+class virtio_net : public network_interface {
 public:
     virtio_net(pci_device& d);
     virtio_net(T& t);
@@ -143,11 +151,6 @@ public:
     void recv_thread();
 
     T& dev;
-    mac_address mac;
-    uint16_t mtu;
-
-    spinlock addr_lock;
-    list_entry addrs = { &addrs, &addrs };
 
 private:
     virt_queue* receive_queue = nullptr;
