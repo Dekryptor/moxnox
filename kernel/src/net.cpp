@@ -14,6 +14,8 @@ import crt;
 using namespace std;
 
 export struct mac_address {
+    auto operator<=>(const mac_address&) const = default;
+
     array<uint8_t, 6> v;
 };
 

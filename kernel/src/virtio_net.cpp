@@ -389,7 +389,7 @@ static void handle_ipv6_packet(span<const uint8_t> buf) {
 }
 
 static bool drop_packet(const mac_address& dst, const mac_address& us) {
-    if (dst.v == us.v)
+    if (dst == us)
         return false;
 
     // IPv6 multicast
