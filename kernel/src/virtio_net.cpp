@@ -16,6 +16,7 @@ import handle;
 import object_ref;
 import net;
 import mem;
+import spinlock;
 
 using namespace std;
 
@@ -123,6 +124,11 @@ static void init_virtio_pci() {
 
 static module_init module_init_virtio_net(init_virtio_pci);
 
+struct ip_addr {
+    list_entry le;
+    ipv6_address addr;
+};
+
 template<typename T>
 class virtio_net : public chardev {
 public:
@@ -148,6 +154,9 @@ public:
     mac_address mac;
     uint16_t mtu;
 
+    spinlock addr_lock;
+    list_entry addrs = { &addrs, &addrs };
+
 private:
     virt_queue* receive_queue = nullptr;
     virt_queue* transmit_queue = nullptr;
@@ -172,6 +181,29 @@ static void test_ipv6_address_printing() {
 }
 #endif
 
+static ipv6_address find_ll_address(const mac_address& m) {
+    ipv6_address ret;
+
+    ret.v[0] = 0xfe;
+    ret.v[1] = 0x80;
+    ret.v[2] = 0x00;
+    ret.v[3] = 0x00;
+    ret.v[4] = 0x00;
+    ret.v[5] = 0x00;
+    ret.v[6] = 0x00;
+    ret.v[7] = 0x00;
+    ret.v[8] = m.v[0] ^ 0x02;
+    ret.v[9] = m.v[1];
+    ret.v[10] = m.v[2];
+    ret.v[11] = 0xff;
+    ret.v[12] = 0xfe;
+    ret.v[13] = m.v[3];
+    ret.v[14] = m.v[4];
+    ret.v[15] = m.v[5];
+
+    return ret;
+}
+
 template<typename T>
 void virtio_net<T>::init(const virtio_net_config& cfg) {
     memcpy(&mac, cfg.mac, sizeof(mac));
@@ -180,8 +212,6 @@ void virtio_net<T>::init(const virtio_net_config& cfg) {
         mtu = cfg.mtu;
     else
         mtu = DEFAULT_MTU;
-
-    print("found virtio-net device with MAC {}, MTU {}\n", mac, mtu);
 
 #if 0
     print("virtio_net cfg: mac = {:02x}:{:02x}:{:02x}:{:02x}:{:02x}:{:02x}, status = {}, max_virtqueue_pairs = {}, mtu = {}, speed = {}, duplex = {}, rss_max_key_size = {}, rss_max_indirection_table_length = {}, supported_hash_types = {}, supported_tunnel_types = {}\n",
@@ -192,6 +222,24 @@ void virtio_net<T>::init(const virtio_net_config& cfg) {
 #endif
 
     //test_ipv6_address_printing();
+
+    auto ll = find_ll_address(mac);
+
+    auto a = new ip_addr;
+    if (!a) {
+        print("new failed\n");
+        return;
+    }
+
+    a->addr = ll;
+
+    {
+        lock_guard lg(addr_lock);
+        insert_tail_list(addrs, a->le);
+    }
+
+    print("found virtio-net device with MAC {}, MTU {}, link-local address {}\n",
+          mac, mtu, ll);
 
     for (auto le = dev.virtqueues.next; le != &dev.virtqueues; le = le->next) {
         auto& vq = containing_record<virt_queue>(le);
