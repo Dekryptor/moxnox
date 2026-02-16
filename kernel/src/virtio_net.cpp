@@ -16,6 +16,7 @@ import object_ref;
 import net;
 import mem;
 import spinlock;
+import dma;
 
 using namespace std;
 
@@ -130,6 +131,8 @@ struct ip_addr {
 
 class network_interface {
 public:
+    virtual nt_status send_packet(span<const uint8_t> buf) = 0;
+
     mac_address mac;
     uint16_t mtu;
 
@@ -143,12 +146,13 @@ public:
     virtio_net(pci_device& d);
     virtio_net(T& t);
 
-    ~virtio_net() {
+    virtual ~virtio_net() {
         delete &dev;
     }
 
     void init(const virtio_net_config& cfg);
     void recv_thread();
+    nt_status send_packet(span<const uint8_t> buf) override;
 
     T& dev;
 
@@ -324,6 +328,53 @@ static bool found_virtio_mmio_net(virtio_mmio_device& dev) {
     v.dev.finalize();
 
     return true;
+}
+
+template<typename T>
+nt_status virtio_net<T>::send_packet(span<const uint8_t> buf) {
+    virtio_net_hdr hdr;
+    uint8_t* bounce1 = nullptr;
+    uint8_t* bounce2 = nullptr;
+    virtq_desc descs[2];
+    uint64_t read_bytes;
+
+    hdr.flags = 0;
+    hdr.gso_type = VIRTIO_NET_HDR_GSO_NONE;
+    hdr.hdr_len = 0;
+    hdr.gso_size = 0;
+    hdr.csum_start = 0;
+    hdr.csum_offset = 0;
+    hdr.num_buffers = 0;
+
+    auto pa1 = dma_setup(span((uint8_t*)&hdr, sizeof(hdr)), true, bounce1);
+    if (!pa1) {
+        print("dma_setup failed\n");
+        return nt_status::INSUFFICIENT_RESOURCES;
+    }
+
+    auto pa2 = dma_setup(buf, true, bounce2);
+    if (!pa2) {
+        print("dma_setup failed\n");
+        dma_finish_write(bounce1);
+        return nt_status::INSUFFICIENT_RESOURCES;
+    }
+
+    descs[0].addr = pa1;
+    descs[0].len = sizeof(virtio_net_hdr);
+    descs[0].flags = VIRTQ_DESC_F_NEXT;
+    descs[0].next = 1;
+
+    descs[1].addr = pa2;
+    descs[1].len = (uint32_t)buf.size();
+    descs[1].flags = 0;
+    descs[1].next = 0;
+
+    auto status = transmit_queue->indirect(descs, read_bytes);
+
+    dma_finish_write(bounce1);
+    dma_finish_write(bounce2);
+
+    return status;
 }
 
 static void handle_neighbour_solicitation(network_interface& netif,
