@@ -326,7 +326,8 @@ static bool found_virtio_mmio_net(virtio_mmio_device& dev) {
     return true;
 }
 
-static void handle_neighbour_solicitation(span<const uint8_t> buf) {
+static void handle_neighbour_solicitation(network_interface& netif,
+                                          span<const uint8_t> buf) {
     if (buf.size() < sizeof(icmpv6_neighbour_solicitation)) {
         print("handle_neighbour_solicitation: buffer length was {}, expected at least {}\n",
               buf.size(), sizeof(icmpv6_neighbour_solicitation));
@@ -339,10 +340,27 @@ static void handle_neighbour_solicitation(span<const uint8_t> buf) {
 
     // FIXME - options (sender's MAC means we can avoid sending NS back to them)
 
-    // FIXME - respond if one of ours
+    bool found = false;
+    {
+        lock_guard lock(netif.addr_lock);
+
+        for (auto le = netif.addrs.next; le != &netif.addrs; le = le->next) {
+            auto& a = containing_record<ip_addr>(le);
+
+            if (a.addr == ns.target) {
+                found = true;
+                break;
+            }
+        }
+    }
+
+    if (!found)
+        return;
+
+    print("FIXME - respond to neighbour solicitation\n");
 }
 
-static void handle_icmpv6_packet(span<const uint8_t> buf) {
+static void handle_icmpv6_packet(network_interface& netif, span<const uint8_t> buf) {
     if (buf.size() < sizeof(icmpv6_header)) {
         print("handle_icmpv6_packet: buffer length was {}, expected at least {}\n",
               buf.size(), sizeof(icmpv6_header));
@@ -356,7 +374,7 @@ static void handle_icmpv6_packet(span<const uint8_t> buf) {
 
     switch (header.type) {
         case icmpv6_type::neighbour_solicitation:
-            handle_neighbour_solicitation(buf);
+            handle_neighbour_solicitation(netif, buf);
             break;
 
         default:
@@ -364,7 +382,7 @@ static void handle_icmpv6_packet(span<const uint8_t> buf) {
     }
 }
 
-static void handle_ipv6_packet(span<const uint8_t> buf) {
+static void handle_ipv6_packet(network_interface& netif, span<const uint8_t> buf) {
     if (buf.size() < sizeof(ipv6_header)) {
         print("handle_ipv6_packet: buffer length was {}, expected at least {}\n",
               buf.size(), sizeof(ipv6_header));
@@ -380,7 +398,7 @@ static void handle_ipv6_packet(span<const uint8_t> buf) {
 
     switch (header.next_header) {
         case ip_proto::icmpv6:
-            handle_icmpv6_packet(span(buf.data() + sizeof(ipv6_header), buf.size() - sizeof(ipv6_header)));
+            handle_icmpv6_packet(netif, span(buf.data() + sizeof(ipv6_header), buf.size() - sizeof(ipv6_header)));
             break;
 
         default:
@@ -456,6 +474,6 @@ void virtio_net<T>::recv_thread() {
                          buf_read_bytes - sizeof(virtio_net_hdr) - sizeof(ethernet_header));
 
         if (eth.type == ethertype::ipv6)
-            handle_ipv6_packet(data);
+            handle_ipv6_packet(*this, data);
     }
 }

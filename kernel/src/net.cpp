@@ -20,6 +20,8 @@ export struct mac_address {
 };
 
 export struct ipv6_address {
+    auto operator<=>(const ipv6_address&) const = default;
+
     array<uint8_t, 16> v;
 };
 
