@@ -1,7 +1,6 @@
 #include <span>
 #include <atomic>
 #include <string_view>
-#include <array>
 
 import nt;
 import print;
@@ -14,6 +13,7 @@ import module_init;
 import thread;
 import handle;
 import object_ref;
+import net;
 
 using namespace std;
 
@@ -96,18 +96,6 @@ static const uint8_t VIRTIO_NET_HDR_GSO_TCPV6 = 4;
 static const uint8_t VIRTIO_NET_HDR_GSO_UDP_L4 = 5;
 static const uint8_t VIRTIO_NET_HDR_GSO_ECN = 0x80;
 
-struct mac_address {
-    array<uint8_t, 6> v;
-};
-
-struct ethernet_header {
-    mac_address dst_mac;
-    mac_address src_mac;
-    uint16_t ethertype;
-} __attribute((packed));
-
-static_assert(sizeof(ethernet_header) == 14);
-
 static const uint16_t PCI_VENDOR_ID_REDHAT = 0x1af4;
 
 void found_virtio_pci_net(pci_device& dev);
@@ -161,27 +149,6 @@ private:
     virt_queue* receive_queue = nullptr;
     virt_queue* transmit_queue = nullptr;
 };
-
-template<>
-consteval bool format_spec_valid<mac_address>(string_view fmt) {
-    return fmt.empty();
-}
-
-static span<char> do_format_arg(span<char> sp, string_view, const mac_address& m) {
-    sp = do_format_arg(sp, ":02x", m.v[0]);
-    sp = do_format_arg(sp, "", ":");
-    sp = do_format_arg(sp, ":02x", m.v[1]);
-    sp = do_format_arg(sp, "", ":");
-    sp = do_format_arg(sp, ":02x", m.v[2]);
-    sp = do_format_arg(sp, "", ":");
-    sp = do_format_arg(sp, ":02x", m.v[3]);
-    sp = do_format_arg(sp, "", ":");
-    sp = do_format_arg(sp, ":02x", m.v[4]);
-    sp = do_format_arg(sp, "", ":");
-    sp = do_format_arg(sp, ":02x", m.v[5]);
-
-    return sp;
-}
 
 template<>
 virtio_net<virtio_pci_device>::virtio_net(pci_device& d) : dev(*new virtio_pci_device(d, SUPPORTED_FEATURES, 2)) {

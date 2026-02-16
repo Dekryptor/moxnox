@@ -60,6 +60,7 @@ set(GLOBAL_MODULES src/cmdline.cpp
     src/kernel_time_page.cpp
     src/dma.cpp
     src/mapping_type.cpp
+    src/net.cpp
 )
 
 set(AMD64_MODULES ${GLOBAL_MODULES}
