@@ -71,6 +71,38 @@ struct virtio_net_config {
 
 static_assert(sizeof(virtio_net_config) == 28);
 
+struct virtio_net_hdr {
+    uint8_t flags;
+    uint8_t gso_type;
+    uint16_t hdr_len;
+    uint16_t gso_size;
+    uint16_t csum_start;
+    uint16_t csum_offset;
+    uint16_t num_buffers;
+} __attribute((packed));
+
+// FIXME - longer if VIRTIO_NET_F_HASH_REPORT
+static_assert(sizeof(virtio_net_hdr) == 12);
+
+static const uint8_t VIRTIO_NET_HDR_F_NEEDS_CSUM = 1;
+static const uint8_t VIRTIO_NET_HDR_F_DATA_VALID = 2;
+static const uint8_t VIRTIO_NET_HDR_F_RSC_INFO = 4;
+
+static const uint8_t VIRTIO_NET_HDR_GSO_NONE = 0;
+static const uint8_t VIRTIO_NET_HDR_GSO_TCPV4 = 1;
+static const uint8_t VIRTIO_NET_HDR_GSO_UDP = 3;
+static const uint8_t VIRTIO_NET_HDR_GSO_TCPV6 = 4;
+static const uint8_t VIRTIO_NET_HDR_GSO_UDP_L4 = 5;
+static const uint8_t VIRTIO_NET_HDR_GSO_ECN = 0x80;
+
+struct ethernet_header {
+    uint8_t dst_mac[6];
+    uint8_t src_mac[6];
+    uint16_t ethertype;
+} __attribute((packed));
+
+static_assert(sizeof(ethernet_header) == 14);
+
 static const uint16_t PCI_VENDOR_ID_REDHAT = 0x1af4;
 
 void found_virtio_pci_net(pci_device& dev);
@@ -282,4 +314,52 @@ static bool found_virtio_mmio_net(virtio_mmio_device& dev) {
 template<typename T>
 void virtio_net<T>::recv_thread() {
     print("FIXME - virtio_net::recv_thread\n"); // FIXME
+
+    // FIXME - better to have pool of read buffers? And do more work in interrupt handler?
+
+    // FIXME - die gracefully if device ever goes away
+
+    auto buf_size = sizeof(virtio_net_hdr) + sizeof(ethernet_header) + mtu;
+    auto buf = (uint8_t*)malloc(buf_size);
+    if (!buf) {
+        print("malloc failed\n");
+        return;
+    }
+
+    while (true) {
+        uint64_t buf_read_bytes; //, written_bytes;
+
+        auto status = receive_queue->read(span(buf, buf_size), buf_read_bytes);
+
+        if (!success(status)) {
+            print("receive_queue->read returned {}\n", status);
+            continue;
+        }
+
+        if (buf_read_bytes == 0)
+            continue;
+
+        print("buf_read_bytes = {}\n", buf_read_bytes);
+
+        if (buf_read_bytes < sizeof(virtio_net_hdr) + sizeof(ethernet_header)) {
+            print("virtio_net::recv_thread: received {} bytes, expected at least {}\n",
+                  buf_read_bytes, sizeof(virtio_net_hdr) + sizeof(ethernet_header));
+            continue;
+        }
+
+        auto& hdr = *(virtio_net_hdr*)buf;
+
+        print("hdr: flags = {}, gso_type = {}, hdr_len = {}, gso_size = {}, csum_start = {}, csum_offset = {}, num_buffers = {}\n",
+              hdr.flags, hdr.gso_type, hdr.hdr_len, hdr.gso_size, hdr.csum_start,
+              hdr.csum_offset, hdr.num_buffers);
+
+        auto& eth = *(ethernet_header*)(buf + sizeof(virtio_net_hdr));
+
+        print("ethernet: dst = {:02x}:{:02x}:{:02x}:{:02x}:{:02x}:{:02x}, src = {:02x}:{:02x}:{:02x}:{:02x}:{:02x}:{:02x}, ethertype = {:04x}\n",
+              eth.dst_mac[0], eth.dst_mac[1], eth.dst_mac[2], eth.dst_mac[3], eth.dst_mac[4], eth.dst_mac[5],
+              eth.src_mac[0], eth.src_mac[1], eth.src_mac[2], eth.src_mac[3], eth.src_mac[4], eth.src_mac[5],
+              byteswap(eth.ethertype));
+
+        // FIXME - process
+    }
 }
