@@ -1,6 +1,7 @@
 #include <span>
 #include <atomic>
 #include <string_view>
+#include <array>
 
 import nt;
 import print;
@@ -95,9 +96,13 @@ static const uint8_t VIRTIO_NET_HDR_GSO_TCPV6 = 4;
 static const uint8_t VIRTIO_NET_HDR_GSO_UDP_L4 = 5;
 static const uint8_t VIRTIO_NET_HDR_GSO_ECN = 0x80;
 
+struct mac_address {
+    array<uint8_t, 6> v;
+};
+
 struct ethernet_header {
-    uint8_t dst_mac[6];
-    uint8_t src_mac[6];
+    mac_address dst_mac;
+    mac_address src_mac;
     uint16_t ethertype;
 } __attribute((packed));
 
@@ -149,13 +154,34 @@ public:
     void recv_thread();
 
     T& dev;
-    uint8_t mac[6];
+    mac_address mac;
     uint16_t mtu;
 
 private:
     virt_queue* receive_queue = nullptr;
     virt_queue* transmit_queue = nullptr;
 };
+
+template<>
+consteval bool format_spec_valid<mac_address>(string_view fmt) {
+    return fmt.empty();
+}
+
+static span<char> do_format_arg(span<char> sp, string_view, const mac_address& m) {
+    sp = do_format_arg(sp, ":02x", m.v[0]);
+    sp = do_format_arg(sp, "", ":");
+    sp = do_format_arg(sp, ":02x", m.v[1]);
+    sp = do_format_arg(sp, "", ":");
+    sp = do_format_arg(sp, ":02x", m.v[2]);
+    sp = do_format_arg(sp, "", ":");
+    sp = do_format_arg(sp, ":02x", m.v[3]);
+    sp = do_format_arg(sp, "", ":");
+    sp = do_format_arg(sp, ":02x", m.v[4]);
+    sp = do_format_arg(sp, "", ":");
+    sp = do_format_arg(sp, ":02x", m.v[5]);
+
+    return sp;
+}
 
 template<>
 virtio_net<virtio_pci_device>::virtio_net(pci_device& d) : dev(*new virtio_pci_device(d, SUPPORTED_FEATURES, 2)) {
@@ -178,15 +204,14 @@ virtio_net<virtio_pci_device>::virtio_net(pci_device& d) : dev(*new virtio_pci_d
 
     auto& cfg = *(virtio_net_config*)(d.bar[dev.device_cfg->bar].data() + dev.device_cfg->offset);
 
-    memcpy(mac, cfg.mac, sizeof(mac));
+    memcpy(&mac, cfg.mac, sizeof(mac));
 
     if (dev.negotiated_features & VIRTIO_NET_F_MTU)
         mtu = cfg.mtu;
     else
         mtu = DEFAULT_MTU;
 
-    print("found virtio-net device with MAC {:02x}:{:02x}:{:02x}:{:02x}:{:02x}:{:02x}, MTU {}\n",
-          mac[0], mac[1], mac[2], mac[3], mac[4], mac[5], mtu);
+    print("found virtio-net device with MAC {}, MTU {}\n", mac, mtu);
 
 #if 0
     print("virtio_net cfg: mac = {:02x}:{:02x}:{:02x}:{:02x}:{:02x}:{:02x}, status = {}, max_virtqueue_pairs = {}, mtu = {}, speed = {}, duplex = {}, rss_max_key_size = {}, rss_max_indirection_table_length = {}, supported_hash_types = {}, supported_tunnel_types = {}\n",
@@ -225,15 +250,14 @@ virtio_net<virtio_mmio_device>::virtio_net(virtio_mmio_device& d) : dev(d) {
 
     auto& cfg = *(virtio_net_config*)dev.config;
 
-    memcpy(mac, cfg.mac, sizeof(mac));
+    memcpy(&mac, cfg.mac, sizeof(mac));
 
     if (dev.negotiated_features & VIRTIO_NET_F_MTU)
         mtu = cfg.mtu;
     else
         mtu = DEFAULT_MTU;
 
-    print("found virtio-net device with MAC {:02x}:{:02x}:{:02x}:{:02x}:{:02x}:{:02x}, MTU {}\n",
-          mac[0], mac[1], mac[2], mac[3], mac[4], mac[5], mtu);
+    print("found virtio-net device with MAC {}, MTU {}\n", mac, mtu);
 
     for (auto le = dev.virtqueues.next; le != &dev.virtqueues; le = le->next) {
         auto& vq = containing_record<virt_queue>(le);
@@ -355,10 +379,8 @@ void virtio_net<T>::recv_thread() {
 
         auto& eth = *(ethernet_header*)(buf + sizeof(virtio_net_hdr));
 
-        print("ethernet: dst = {:02x}:{:02x}:{:02x}:{:02x}:{:02x}:{:02x}, src = {:02x}:{:02x}:{:02x}:{:02x}:{:02x}:{:02x}, ethertype = {:04x}\n",
-              eth.dst_mac[0], eth.dst_mac[1], eth.dst_mac[2], eth.dst_mac[3], eth.dst_mac[4], eth.dst_mac[5],
-              eth.src_mac[0], eth.src_mac[1], eth.src_mac[2], eth.src_mac[3], eth.src_mac[4], eth.src_mac[5],
-              byteswap(eth.ethertype));
+        print("ethernet: dst = {}, src = {}, ethertype = {:04x}\n",
+              eth.dst_mac, eth.src_mac, byteswap(eth.ethertype));
 
         // FIXME - process
     }
