@@ -130,21 +130,13 @@ struct ip_addr {
 };
 
 template<typename T>
-class virtio_net : public chardev {
+class virtio_net {
 public:
     virtio_net(pci_device& d);
     virtio_net(T& t);
 
     ~virtio_net() {
         delete &dev;
-    }
-
-    nt_status read(span<uint8_t>, uint64_t&) override {
-        return nt_status::NOT_SUPPORTED;
-    }
-
-    nt_status write(span<const uint8_t>, uint64_t&) override {
-        return nt_status::NOT_SUPPORTED;
     }
 
     void init(const virtio_net_config& cfg);
@@ -302,25 +294,14 @@ void found_virtio_pci_net(pci_device& dev) {
         return;
     }
 
-    object_ref ref{*pv};
-
     auto& v = *pv;
 
-    if (!v.dev.initialized)
+    if (!v.dev.initialized) {
+        delete pv;
         return;
+    }
 
     v.dev.finalize();
-
-    {
-        char s[10];
-        span sp(s, sizeof(s));
-
-        sp = format(sp, "virtnet{}", virtio_net_num.fetch_add(1));
-
-        auto status = name_object(v, string_view(s, (size_t)(sp.data() - s)));
-        if (!success(status))
-            print("name_object returned {}\n", status);
-    }
 }
 
 static bool found_virtio_mmio_net(virtio_mmio_device& dev) {
@@ -330,27 +311,14 @@ static bool found_virtio_mmio_net(virtio_mmio_device& dev) {
         return false;
     }
 
-    object_ref ref{*pv};
-
     auto& v = *pv;
 
-    if (!v.dev.initialized)
+    if (!v.dev.initialized) {
+        delete pv;
         return false;
+    }
 
     v.dev.finalize();
-
-    {
-        char s[10];
-        span sp(s, sizeof(s));
-
-        sp = format(sp, "virtnet{}", virtio_net_num.fetch_add(1));
-
-        auto status = name_object(v, string_view(s, (size_t)(sp.data() - s)));
-        if (!success(status)) {
-            print("name_object returned {}\n", status);
-            return false;
-        }
-    }
 
     return true;
 }
