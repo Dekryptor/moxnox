@@ -35,13 +35,20 @@ export struct ethernet_header {
 
 static_assert(sizeof(ethernet_header) == 14);
 
+export enum class ip_proto : uint8_t {
+    icmpv4 = 1,
+    tcp = 6,
+    udp = 17,
+    icmpv6 = 58
+};
+
 export struct ipv6_header {
     uint32_t traffic_class1 : 4;
     uint32_t version : 4;
     uint32_t traffic_class2 : 4;
     uint32_t flow_label : 20;
     uint16_t payload_length;
-    uint8_t next_header;
+    ip_proto next_header;
     uint8_t hop_limit;
     ipv6_address src;
     ipv6_address dst;
@@ -154,6 +161,30 @@ export span<char> do_format_arg(span<char> sp, string_view, const ipv6_address& 
             sp = do_format_arg(sp, "", ":");
 
         sp = do_format_arg(sp, ":x", num);
+    }
+
+    return sp;
+}
+
+template<>
+consteval bool format_spec_valid<ip_proto>(string_view fmt) {
+    return fmt.empty();
+}
+
+export span<char> do_format_arg(span<char> sp, string_view, ip_proto p) {
+    switch (p) {
+        using enum ip_proto;
+
+        case icmpv4:
+            return do_format_arg(sp, "", "icmpv4");
+        case tcp:
+            return do_format_arg(sp, "", "tcp");
+        case udp:
+            return do_format_arg(sp, "", "udp");
+        case icmpv6:
+            return do_format_arg(sp, "", "icmpv6");
+        default:
+            return do_format_arg(sp, ":02x", (uint8_t)p);
     }
 
     return sp;
