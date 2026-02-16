@@ -325,6 +325,19 @@ static bool found_virtio_mmio_net(virtio_mmio_device& dev) {
     return true;
 }
 
+static void handle_icmpv6_packet(span<const uint8_t> buf) {
+    if (buf.size() < sizeof(icmpv6_header)) {
+        print("handle_icmpv6_packet: buffer length was {}, expected at least {}\n",
+              buf.size(), sizeof(icmpv6_header));
+        return;
+    }
+
+    auto& header = *(icmpv6_header*)buf.data();
+
+    print("icmpv6: type = {:02x}, code = {:02x}, checksum = {:04x}\n",
+          header.type, header.code, byteswap(header.checksum));
+}
+
 static void handle_ipv6_packet(span<const uint8_t> buf) {
     if (buf.size() < sizeof(ipv6_header)) {
         print("handle_ipv6_packet: buffer length was {}, expected at least {}\n",
@@ -338,6 +351,15 @@ static void handle_ipv6_packet(span<const uint8_t> buf) {
           header.version, header.traffic_class1, header.traffic_class2, header.flow_label,
           byteswap(header.payload_length), header.next_header, header.hop_limit,
           header.src, header.dst);
+
+    switch (header.next_header) {
+        case ip_proto::icmpv6:
+            handle_icmpv6_packet(span(buf.data() + sizeof(ipv6_header), buf.size() - sizeof(ipv6_header)));
+            break;
+
+        default:
+            break;
+    }
 }
 
 template<typename T>

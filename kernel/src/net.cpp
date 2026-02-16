@@ -56,6 +56,14 @@ export struct ipv6_header {
 
 static_assert(sizeof(ipv6_header) == 40);
 
+export struct icmpv6_header {
+    uint8_t type;
+    uint8_t code;
+    uint16_t checksum;
+} __attribute((packed));
+
+static_assert(sizeof(icmpv6_header) == 4);
+
 template<>
 consteval bool format_spec_valid<mac_address>(string_view fmt) {
     return fmt.empty();
