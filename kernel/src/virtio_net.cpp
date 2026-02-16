@@ -348,8 +348,8 @@ void virtio_net<T>::recv_thread() {
 
         auto& eth = *(ethernet_header*)(buf + sizeof(virtio_net_hdr));
 
-        print("ethernet: dst = {}, src = {}, ethertype = {:04x}\n",
-              eth.dst_mac, eth.src_mac, byteswap(eth.ethertype));
+        print("ethernet: dst_max = {}, src_max = {}, type = {}\n",
+              eth.dst_mac, eth.src_mac, eth.type);
 
         // FIXME - process
     }
