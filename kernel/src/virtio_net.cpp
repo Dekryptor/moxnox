@@ -141,6 +141,7 @@ public:
         return nt_status::NOT_SUPPORTED;
     }
 
+    void init(const virtio_net_config& cfg);
     void recv_thread();
 
     T& dev;
@@ -171,27 +172,8 @@ static void test_ipv6_address_printing() {
 }
 #endif
 
-template<>
-virtio_net<virtio_pci_device>::virtio_net(pci_device& d) : dev(*new virtio_pci_device(d, SUPPORTED_FEATURES, 2)) {
-    if (dev.device_cfg->length < sizeof(virtio_net_config)) {
-        print("virtio_net: device cfg length was {}, expected at least {}\n",
-              dev.device_cfg->length, sizeof(virtio_net_config));
-        return;
-    }
-
-    if (!(dev.negotiated_features & VIRTIO_NET_F_MAC)) {
-        // FIXME - generate one in this case?
-        print("virtio_net: device did not provide a MAC address\n");
-        return;
-    }
-
-    if (!(dev.negotiated_features & VIRTIO_F_VERSION_1)) {
-        print("virtio-net: legacy devices not supported\n");
-        return;
-    }
-
-    auto& cfg = *(virtio_net_config*)(d.bar[dev.device_cfg->bar].data() + dev.device_cfg->offset);
-
+template<typename T>
+void virtio_net<T>::init(const virtio_net_config& cfg) {
     memcpy(&mac, cfg.mac, sizeof(mac));
 
     if (dev.negotiated_features & VIRTIO_NET_F_MTU)
@@ -226,6 +208,28 @@ virtio_net<virtio_pci_device>::virtio_net(pci_device& d) : dev(*new virtio_pci_d
 }
 
 template<>
+virtio_net<virtio_pci_device>::virtio_net(pci_device& d) : dev(*new virtio_pci_device(d, SUPPORTED_FEATURES, 2)) {
+    if (dev.device_cfg->length < sizeof(virtio_net_config)) {
+        print("virtio_net: device cfg length was {}, expected at least {}\n",
+              dev.device_cfg->length, sizeof(virtio_net_config));
+        return;
+    }
+
+    if (!(dev.negotiated_features & VIRTIO_NET_F_MAC)) {
+        // FIXME - generate one in this case?
+        print("virtio_net: device did not provide a MAC address\n");
+        return;
+    }
+
+    if (!(dev.negotiated_features & VIRTIO_F_VERSION_1)) {
+        print("virtio-net: legacy devices not supported\n");
+        return;
+    }
+
+    init(*(virtio_net_config*)(d.bar[dev.device_cfg->bar].data() + dev.device_cfg->offset));
+}
+
+template<>
 virtio_net<virtio_mmio_device>::virtio_net(virtio_mmio_device& d) : dev(d) {
     if (!(dev.negotiated_features & VIRTIO_NET_F_MAC)) {
         // FIXME - generate one in this case?
@@ -238,29 +242,7 @@ virtio_net<virtio_mmio_device>::virtio_net(virtio_mmio_device& d) : dev(d) {
         return;
     }
 
-    auto& cfg = *(virtio_net_config*)dev.config;
-
-    memcpy(&mac, cfg.mac, sizeof(mac));
-
-    if (dev.negotiated_features & VIRTIO_NET_F_MTU)
-        mtu = cfg.mtu;
-    else
-        mtu = DEFAULT_MTU;
-
-    print("found virtio-net device with MAC {}, MTU {}\n", mac, mtu);
-
-    for (auto le = dev.virtqueues.next; le != &dev.virtqueues; le = le->next) {
-        auto& vq = containing_record<virt_queue>(le);
-
-        if (vq.num == 0)
-            receive_queue = &vq;
-        else if (vq.num == 1)
-            transmit_queue = &vq;
-    }
-
-    add_kernel_thread([](void* ctx) {
-        ((virtio_net<virtio_mmio_device>*)ctx)->recv_thread();
-    }, this);
+    init(*(virtio_net_config*)dev.config);
 }
 
 static atomic<uint32_t> virtio_net_num = 0;
