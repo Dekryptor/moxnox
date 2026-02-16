@@ -407,7 +407,7 @@ static uint16_t calc_icmpv6_checksum(const ipv6_header& ip, span<const uint8_t> 
     }
 
     if (icmp.size() & 1)
-        sum += icmp[icmp.size() - 1] << 8;
+        sum += (uint16_t)(icmp[icmp.size() - 1] << 8);
 
     while (sum & 0xffff0000) {
         sum = (sum >> 16) + (sum & 0xffff);
