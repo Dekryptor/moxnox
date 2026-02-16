@@ -1,6 +1,7 @@
 #include <span>
 #include <atomic>
 #include <string_view>
+#include <bit>
 
 import nt;
 import print;
@@ -14,6 +15,7 @@ import thread;
 import handle;
 import object_ref;
 import net;
+import mem;
 
 using namespace std;
 
