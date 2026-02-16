@@ -362,6 +362,23 @@ static void handle_ipv6_packet(span<const uint8_t> buf) {
     }
 }
 
+static bool drop_packet(const mac_address& dst, const mac_address& us) {
+    if (dst.v == us.v)
+        return false;
+
+    // IPv6 multicast
+    if (dst.v[0] == 0x33 && dst.v[1] == 0x33)
+        return false;
+
+    // broadcast
+    if (dst.v[0] == 0xff && dst.v[1] == 0xff && dst.v[2] == 0xff &&
+        dst.v[3] == 0xff && dst.v[4] == 0xff && dst.v[5] == 0xff) {
+        return false;
+    }
+
+    return true;
+}
+
 template<typename T>
 void virtio_net<T>::recv_thread() {
     print("FIXME - virtio_net::recv_thread\n"); // FIXME
@@ -387,16 +404,13 @@ void virtio_net<T>::recv_thread() {
             continue;
         }
 
-        if (buf_read_bytes == 0)
-            continue;
-
-        print("buf_read_bytes = {}\n", buf_read_bytes);
-
         if (buf_read_bytes < sizeof(virtio_net_hdr) + sizeof(ethernet_header)) {
             print("virtio_net::recv_thread: received {} bytes, expected at least {}\n",
                   buf_read_bytes, sizeof(virtio_net_hdr) + sizeof(ethernet_header));
             continue;
         }
+
+        print("buf_read_bytes = {}\n", buf_read_bytes);
 
         auto& hdr = *(virtio_net_hdr*)buf;
 
@@ -408,6 +422,9 @@ void virtio_net<T>::recv_thread() {
 
         print("ethernet: dst_mac = {}, src_mac = {}, type = {}\n",
               eth.dst_mac, eth.src_mac, eth.type);
+
+        if (drop_packet(eth.dst_mac, mac))
+            continue;
 
         auto data = span(buf + sizeof(virtio_net_hdr) + sizeof(ethernet_header),
                          buf_read_bytes - sizeof(virtio_net_hdr) - sizeof(ethernet_header));
