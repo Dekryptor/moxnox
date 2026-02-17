@@ -16,6 +16,7 @@ import mem;
 import nt;
 import list;
 import spinlock;
+import objects;
 
 using namespace std;
 
@@ -140,6 +141,20 @@ public:
     spinlock addr_lock;
     list_entry addrs = { &addrs, &addrs };
     ipv6_address ll_addr;
+};
+
+export class socket : public object {
+public:
+    socket() : object(object_type::socket) { }
+
+    void acquire() {
+        refcount++;
+    }
+
+    void release() {
+        if (--refcount == 0)
+            delete this;
+    }
 };
 
 template<>

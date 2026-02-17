@@ -22,7 +22,8 @@ export enum class object_type {
     inode,
     process,
     section,
-    file
+    file,
+    socket
 };
 
 template<>
@@ -54,6 +55,8 @@ export span<char> do_format_arg(span<char> sp, string_view, object_type arg) {
             return do_format_arg(sp, "", "section");
         case file:
             return do_format_arg(sp, "", "file");
+        case socket:
+            return do_format_arg(sp, "", "socket");
         default:
             return do_format_arg(sp, "", (unsigned int)arg);
     }

@@ -21,6 +21,7 @@ import process;
 import section;
 import objects;
 import vfs;
+import net;
 
 using namespace std;
 
@@ -66,6 +67,10 @@ static void visit_obj(object& obj, const T& func) {
 
         case object_type::file:
             func(static_cast<file&>(obj));
+        break;
+
+        case object_type::socket:
+            func(static_cast<socket&>(obj));
         break;
     }
 }
