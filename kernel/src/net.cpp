@@ -158,6 +158,7 @@ public:
 export class socket : public object {
 public:
     socket() : object(object_type::socket) { }
+    ~socket();
 
     void acquire() {
         refcount++;
@@ -167,6 +168,9 @@ public:
         if (--refcount == 0)
             delete this;
     }
+
+    list_entry le;
+    bool added_to_list = false;
 };
 
 class netctl : public chardev {

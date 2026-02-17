@@ -21,6 +21,9 @@ static const uint8_t DEFAULT_HOP_LIMIT = 64;
 
 static object_ref netctl_obj;
 
+static spinlock sockets_lock;
+static list_entry sockets = { &sockets, &sockets };
+
 static uint16_t calc_icmpv6_checksum(const ipv6_header& ip, span<const uint8_t> icmp) {
     struct {
         ipv6_address src;
@@ -323,6 +326,12 @@ static nt_status netctl_socket(span<const uint8_t> buf) {
         return status;
     }
 
+    {
+        lock_guard lg(sockets_lock);
+        insert_tail_list(sockets, s->le);
+        s->added_to_list = true;
+    }
+
     return nt_status::SUCCESS;
 }
 
@@ -334,5 +343,14 @@ nt_status netctl::ioctl(uint32_t code, span<const uint8_t> inbuf,
 
         default:
             return nt_status::NOT_IMPLEMENTED;
+    }
+}
+
+socket::~socket() {
+    {
+        lock_guard lg(sockets_lock);
+
+        if (added_to_list)
+            remove_entry_list(le);
     }
 }
