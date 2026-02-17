@@ -2,3 +2,4 @@ LIBRARY "ws2_32.dll"
 EXPORTS
 socket
 closesocket
+recv

@@ -84,6 +84,7 @@ extern "C" {
 
 SOCKET socket(int af, int type, int protocol);
 int closesocket(SOCKET s);
+int recv(SOCKET s, char* buf, int len, int flags);
 
 }
 
