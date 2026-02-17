@@ -234,6 +234,7 @@ static void handle_icmpv6_packet(network_interface& netif, span<const uint8_t> b
 
 static void send_to_sockets(span<const uint8_t> buf) {
     // FIXME - SOCK_STREAM sockets will be different
+    // FIXME - don't allocate while holding lock
 
     {
         lock_guard lock(ipv6_sockets_lock);
