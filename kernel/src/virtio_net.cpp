@@ -458,9 +458,9 @@ static void send_neighbour_advertisement(network_interface& netif,
 
 static void handle_neighbour_solicitation(network_interface& netif,
                                           span<const uint8_t> buf) {
-    if (buf.size() < sizeof(icmpv6_neighbour_solicitation)) {
+    if (buf.size() < sizeof(ethernet_header) + sizeof(ipv6_header) + sizeof(icmpv6_neighbour_solicitation)) {
         print("handle_neighbour_solicitation: buffer length was {}, expected at least {}\n",
-              buf.size(), sizeof(icmpv6_neighbour_solicitation));
+              buf.size(), sizeof(ethernet_header) + sizeof(ipv6_header) + sizeof(icmpv6_neighbour_solicitation));
         return;
     }
 
