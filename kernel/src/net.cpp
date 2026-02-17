@@ -174,11 +174,19 @@ public:
         if (--refcount == 0)
             delete this;
     }
+
+    nt_status ioctl(uint32_t code, span<const uint8_t> inbuf,
+                    span<uint8_t> outbuf, uintptr_t& written);
+
+    virtual nt_status recv(char* buf, int len, int flags, size_t& recv_bytes) = 0;
 };
+
+static_assert(has_ioctls<socket>);
 
 class ipv6_socket : public socket {
 public:
     ~ipv6_socket() override;
+    nt_status recv(char* buf, int len, int flags, size_t& recv_bytes) override;
 
     list_entry le;
     bool added_to_list = false;

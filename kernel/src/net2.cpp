@@ -15,6 +15,7 @@ import mem;
 import moxnox_ioctls;
 import thread;
 import ws2_32;
+import config;
 
 using namespace std;
 
@@ -426,4 +427,68 @@ ipv6_socket::~ipv6_socket() {
 
         free(pp);
     }
+}
+
+nt_status socket::ioctl(uint32_t code, span<const uint8_t> inbuf,
+                        span<uint8_t>, uintptr_t&) {
+    switch (code) {
+        case IOCTL_MOXNOX_SOCKET_RECV: {
+            if (inbuf.size() < sizeof(MOXNOX_SOCKET_RECV))
+                return nt_status::BUFFER_TOO_SMALL;
+
+            auto& t = *get_current_thread();
+            if (!t.proc)
+                return nt_status::INTERNAL_ERROR;
+
+            auto& params = *(MOXNOX_SOCKET_RECV*)inbuf.data();
+            size_t recv_bytes;
+
+            if (!params.buf || params.len <= 0 || !params.recv_bytes)
+                return nt_status::INVALID_PARAMETER;
+
+            // FIXME - do directly into userspace memory
+
+            // FIXME - jumbo frames, TCP, etc.
+            if ((size_t)params.len > PAGE_SIZE)
+                params.len = PAGE_SIZE;
+
+            auto buf = (char*)malloc(params.len);
+            if (!buf) {
+                print("malloc failed\n");
+                return nt_status::INSUFFICIENT_RESOURCES;
+            }
+
+            auto status = recv(buf, params.len, params.flags, recv_bytes);
+            if (!success(status)) {
+                free(buf);
+                return status;
+            }
+
+            // FIXME - if MSG_TRUNC, recv_bytes might be more than len?
+            status = t.proc->write_vm(params.buf, buf, (uint32_t)recv_bytes,
+                                      nullptr);
+            if (!success(status)) {
+                free(buf);
+                return status;
+            }
+
+            free(buf);
+
+            status = t.proc->write_vm(params.recv_bytes, &recv_bytes,
+                                      sizeof(size_t), nullptr);
+            if (!success(status))
+                return status;
+
+            return nt_status::SUCCESS;
+        }
+
+        default:
+            return nt_status::INVALID_PARAMETER;
+    }
+}
+
+nt_status ipv6_socket::recv(char* /*buf*/, int /*len*/, int /*flags*/, size_t& /*recv_bytes*/) {
+    print("FIXME - ipv6_socket::recv\n");
+
+    return nt_status::INTERNAL_ERROR;
 }
