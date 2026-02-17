@@ -155,6 +155,12 @@ public:
     ipv6_address ll_addr;
 };
 
+struct socket_packet {
+    list_entry le;
+    size_t size;
+    uint8_t data[0];
+};
+
 export class socket : public object {
 public:
     socket() : object(object_type::socket) { }
@@ -171,6 +177,9 @@ public:
 
     list_entry le;
     bool added_to_list = false;
+    spinlock buffer_lock;
+    list_entry buffer = { &buffer, &buffer };
+    size_t buffer_size = 0;
 };
 
 class netctl : public chardev {

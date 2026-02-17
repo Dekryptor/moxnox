@@ -18,6 +18,7 @@ import thread;
 using namespace std;
 
 static const uint8_t DEFAULT_HOP_LIMIT = 64;
+static const size_t MAX_BUFFER_SIZE = 1048576;
 
 static object_ref netctl_obj;
 
@@ -230,6 +231,44 @@ static void handle_icmpv6_packet(network_interface& netif, span<const uint8_t> b
     }
 }
 
+static void send_to_sockets(span<const uint8_t> buf) {
+    // FIXME - SOCK_STREAM sockets will be different
+
+    {
+        lock_guard lock(sockets_lock);
+
+        for (auto le = sockets.next; le != &sockets; le = le->next) {
+            auto& s = containing_record<socket>(le);
+
+            // FIXME - only send to interested sockets
+            // FIXME - strip headers if necessary
+
+            auto p = (socket_packet*)malloc(offsetof(socket_packet, data) + buf.size());
+            if (!p) {
+                print("malloc failed\n");
+                return;
+            }
+
+            p->size = buf.size();
+            memcpy(p->data, buf.data(), buf.size());
+
+            bool done = false;
+            {
+                lock_guard lock2(s.buffer_lock);
+
+                if (s.buffer_size + buf.size() <= MAX_BUFFER_SIZE) {
+                    insert_tail_list(s.buffer, p->le);
+                    s.buffer_size += buf.size();
+                    done = true;
+                }
+            }
+
+            if (!done)
+                free(p);
+        }
+    }
+}
+
 void handle_ipv6_packet(network_interface& netif, span<const uint8_t> buf) {
     if (buf.size() < sizeof(ethernet_header) + sizeof(ipv6_header)) {
         print("handle_ipv6_packet: buffer length was {}, expected at least {}\n",
@@ -254,6 +293,8 @@ void handle_ipv6_packet(network_interface& netif, span<const uint8_t> buf) {
         default:
             break;
     }
+
+    send_to_sockets(buf);
 }
 
 bool drop_packet(const mac_address& dst, const mac_address& us) {
@@ -352,5 +393,26 @@ socket::~socket() {
 
         if (added_to_list)
             remove_entry_list(le);
+    }
+
+    while (true) {
+        socket_packet* pp = nullptr;
+
+        {
+            lock_guard lg(buffer_lock);
+
+            if (is_list_empty(buffer))
+                break;
+
+            auto& p = containing_record<socket_packet>(buffer.next);
+
+            remove_entry_list(p.le);
+            pp = &p;
+        }
+
+        if (!pp)
+            break;
+
+        free(pp);
     }
 }
