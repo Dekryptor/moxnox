@@ -16,6 +16,7 @@ import moxnox_ioctls;
 import thread;
 import ws2_32;
 import config;
+import scheduler;
 
 using namespace std;
 
@@ -274,8 +275,20 @@ static void send_to_sockets(span<const uint8_t> buf) {
                 }
             }
 
-            if (!done)
+            if (!done) {
                 free(p);
+                continue;
+            }
+
+            {
+                sync_lock sl;
+                lock_guard lock(sl);
+
+                if (!s.signalled) {
+                    wake_up_waiters(s.waiters);
+                    s.signalled = true;
+                }
+            }
         }
     }
 }
@@ -502,8 +515,55 @@ nt_status socket::ioctl(uint32_t code, span<const uint8_t> inbuf,
     }
 }
 
-nt_status ipv6_socket::recv(char* /*buf*/, int /*len*/, int /*flags*/, size_t& /*recv_bytes*/) {
-    print("FIXME - ipv6_socket::recv\n");
+nt_status ipv6_socket::recv(char* buf, int len, int flags, size_t& recv_bytes) {
+    // FIXME - MSG_TRUNC
+    if (flags != 0)
+        return nt_status::INVALID_PARAMETER;
 
-    return nt_status::INTERNAL_ERROR;
+    // FIXME - copy directly into userspace
+
+    acquire();
+
+    while (true) {
+        // FIXME - break lock if last handle to socket closed
+        auto status = wait_for_object(*this, true);
+        if (!success(status)) {
+            release();
+            return status;
+        }
+
+        socket_packet* sp = nullptr;
+
+        {
+            lock_guard lock(buffer_lock);
+
+            if (!is_list_empty(buffer)) {
+                sp = &containing_record<socket_packet>(buffer.next);
+                remove_entry_list(sp->le);
+
+                if (is_list_empty(buffer)) {
+                    sync_lock sl;
+                    lock_guard lock(sl);
+
+                    signalled = false;
+                }
+            }
+        }
+
+        if (!sp)
+            continue;
+
+        size_t size = min(sp->size, (size_t)len);
+
+        memcpy(buf, sp->data, size);
+        free(sp);
+
+        recv_bytes = size;
+
+        break;
+    }
+
+    release();
+
+    return nt_status::SUCCESS;
 }

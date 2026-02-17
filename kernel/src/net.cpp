@@ -161,9 +161,9 @@ struct socket_packet {
     uint8_t data[0];
 };
 
-export class socket : public object {
+export class socket : public sync_object {
 public:
-    socket() : object(object_type::socket) { }
+    socket() : sync_object(object_type::socket, false) { }
     virtual ~socket() { }
 
     void acquire() {
@@ -182,6 +182,7 @@ public:
 };
 
 static_assert(has_ioctls<socket>);
+static_assert(is_sync_object<socket>);
 
 class ipv6_socket : public socket {
 public:
