@@ -402,7 +402,9 @@ static void handle_neighbour_solicitation(network_interface& netif,
     auto& ip = *(ipv6_header*)(buf.data() + sizeof(ethernet_header));
     auto& ns = *(icmpv6_neighbour_solicitation*)(buf.data() + sizeof(ethernet_header) + sizeof(ipv6_header));
 
+#if 0
     print("ns: target = {}\n", ns.target);
+#endif
 
     // FIXME - options (sender's MAC means we can avoid sending NS back to them)
 
@@ -495,8 +497,10 @@ static void handle_icmpv6_packet(network_interface& netif, span<const uint8_t> b
 
     auto& header = *(icmpv6_header*)(buf.data() + sizeof(ethernet_header) + sizeof(ipv6_header));
 
+#if 0
     print("icmpv6: type = {}, code = {:02x}, checksum = {:04x}\n",
           header.type, header.code, byteswap(header.checksum));
+#endif
 
     switch (header.type) {
         case icmpv6_type::neighbour_solicitation:
@@ -521,10 +525,12 @@ export void handle_ipv6_packet(network_interface& netif, span<const uint8_t> buf
 
     auto& header = *(ipv6_header*)(buf.data() + sizeof(ethernet_header));
 
+#if 0
     print("ipv6: version = {}, traffic_class1 = {}, traffic_class2 = {}, flow_label = {}, payload_length = {}, next_header = {}, hop_limit = {}, src = {}, dst = {}\n",
           header.version, header.traffic_class1, header.traffic_class2, header.flow_label,
           byteswap(header.payload_length), header.next_header, header.hop_limit,
           header.src, header.dst);
+#endif
 
     switch (header.next_header) {
         case ip_proto::icmpv6:

@@ -390,18 +390,17 @@ void virtio_net<T>::recv_thread() {
             continue;
         }
 
-        print("buf_read_bytes = {}\n", buf_read_bytes);
+        auto& eth = *(ethernet_header*)(buf + sizeof(virtio_net_hdr));
 
+#if 0
         auto& hdr = *(virtio_net_hdr*)buf;
-
+        print("buf_read_bytes = {}\n", buf_read_bytes);
         print("hdr: flags = {}, gso_type = {}, hdr_len = {}, gso_size = {}, csum_start = {}, csum_offset = {}, num_buffers = {}\n",
               hdr.flags, hdr.gso_type, hdr.hdr_len, hdr.gso_size, hdr.csum_start,
               hdr.csum_offset, hdr.num_buffers);
-
-        auto& eth = *(ethernet_header*)(buf + sizeof(virtio_net_hdr));
-
         print("ethernet: dst_mac = {}, src_mac = {}, type = {}\n",
               eth.dst_mac, eth.src_mac, eth.type);
+#endif
 
         if (drop_packet(eth.dst_mac, mac))
             continue;
