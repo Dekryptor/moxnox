@@ -1,4 +1,5 @@
 #include <errno.h>
+#include <stdint.h>
 
 import ws2_32;
 import print;
@@ -26,7 +27,7 @@ int main() {
             if (i % 16 == 0)
                 print("{:04x}: ", i);
 
-            print("{:02x} ", buf[i]);
+            print("{:02x} ", (uint8_t)buf[i]);
 
             if (i % 16 == 15 || i == len - 1)
                 print("\n");
