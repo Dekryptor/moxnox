@@ -20,6 +20,8 @@ import objects;
 
 using namespace std;
 
+static const uint8_t DEFAULT_HOP_LIMIT = 64;
+
 export struct mac_address {
     auto operator<=>(const mac_address&) const = default;
 
@@ -487,6 +489,8 @@ static void handle_v6_echo_request(network_interface& netif,
 
     auto& ip = *(ipv6_header*)(reply + sizeof(ethernet_header));
     swap(ip.src, ip.dst);
+
+    ip.hop_limit = DEFAULT_HOP_LIMIT;
 
     // change type to reply
 
