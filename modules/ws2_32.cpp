@@ -81,6 +81,7 @@ const int IPPROTO_RAW = 255;
 const int IPPROTO_MAX = 256;
 
 const int INVALID_SOCKET = -1;
+const int SOCKET_ERROR = -1;
 
 extern "C" {
 
