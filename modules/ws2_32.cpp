@@ -80,6 +80,8 @@ const int IPPROTO_SCTP = 132;
 const int IPPROTO_RAW = 255;
 const int IPPROTO_MAX = 256;
 
+const int INVALID_SOCKET = -1;
+
 extern "C" {
 
 SOCKET socket(int af, int type, int protocol);
