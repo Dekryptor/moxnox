@@ -17,6 +17,9 @@ import nt;
 import list;
 import spinlock;
 import objects;
+import object_ref;
+import handle;
+import chardev;
 
 using namespace std;
 
@@ -158,6 +161,26 @@ public:
             delete this;
     }
 };
+
+class netctl : public chardev {
+public:
+    netctl() { }
+
+    nt_status read(span<uint8_t>, uint64_t&) override {
+        return nt_status::NOT_IMPLEMENTED;
+    }
+
+    nt_status write(span<const uint8_t>, uint64_t&) override {
+        return nt_status::NOT_IMPLEMENTED;
+    }
+
+    nt_status ioctl(uint32_t /*code*/, span<const uint8_t> /*inbuf*/,
+                    span<uint8_t> /*outbuf*/, uintptr_t& /*written*/) override {
+        return nt_status::NOT_IMPLEMENTED;
+    }
+};
+
+static object_ref netctl_obj;
 
 template<>
 consteval bool format_spec_valid<mac_address>(string_view fmt) {
@@ -572,6 +595,24 @@ export bool drop_packet(const mac_address& dst, const mac_address& us) {
     // broadcast
     if (dst.v[0] == 0xff && dst.v[1] == 0xff && dst.v[2] == 0xff &&
         dst.v[3] == 0xff && dst.v[4] == 0xff && dst.v[5] == 0xff) {
+        return false;
+    }
+
+    return true;
+}
+
+export bool init_netctl() {
+    auto pptr = new netctl;
+    if (!pptr) {
+        print("new failed\n");
+        return false;
+    }
+
+    netctl_obj = object_ref{*pptr};
+
+    auto status = name_object(netctl_obj.get(), "netctl");
+    if (!success(status)) {
+        print("name_object returned {}\n", status);
         return false;
     }
 

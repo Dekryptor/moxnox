@@ -47,6 +47,7 @@ import crt;
 import version;
 import objects;
 import handle;
+import net;
 
 using namespace std;
 
@@ -245,6 +246,9 @@ void main_thread(void* ctx) {
 
     if (!init_vfsctl())
         bsod("init_vfsctl failed\n");
+
+    if (!init_netctl())
+        bsod("init_netctl failed\n");
 
     if (!mount_root())
         bsod("mount_root failed");
