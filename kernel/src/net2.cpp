@@ -234,7 +234,10 @@ static void handle_icmpv6_packet(network_interface& netif, span<const uint8_t> b
 }
 
 static void send_to_sockets(span<const uint8_t> buf) {
+    auto& ip = *(ipv6_header*)buf.data();
+
     // FIXME - SOCK_STREAM sockets will be different
+    // FIXME - UDP
     // FIXME - don't allocate while holding lock
 
     {
@@ -243,7 +246,12 @@ static void send_to_sockets(span<const uint8_t> buf) {
         for (auto le = ipv6_sockets.next; le != &ipv6_sockets; le = le->next) {
             auto& s = containing_record<ipv6_socket>(le);
 
-            // FIXME - only send to interested sockets
+            if (s.type != SOCK_RAW)
+                continue;
+
+            if ((ip_proto)s.protocol != ip.next_header)
+                continue;
+
             // FIXME - strip headers if necessary
 
             auto p = (socket_packet*)malloc(offsetof(socket_packet, data) + buf.size());
@@ -297,7 +305,8 @@ void handle_ipv6_packet(network_interface& netif, span<const uint8_t> buf) {
             break;
     }
 
-    send_to_sockets(buf);
+    send_to_sockets(span(buf.data() + sizeof(ethernet_header),
+                         buf.size() - sizeof(ethernet_header)));
 }
 
 bool drop_packet(const mac_address& dst, const mac_address& us) {
