@@ -12,6 +12,8 @@ import print;
 import object_ref;
 import handle;
 import mem;
+import moxnox_ioctls;
+import thread;
 
 using namespace std;
 
@@ -284,4 +286,53 @@ bool init_netctl() {
     }
 
     return true;
+}
+
+static nt_status netctl_socket(span<const uint8_t> buf) {
+    if (buf.size() < sizeof(MOXNOX_NETCTL_SOCKET))
+        return nt_status::BUFFER_TOO_SMALL;
+
+    auto& params = *(MOXNOX_NETCTL_SOCKET*)buf.data();
+
+    if (!params.h)
+        return nt_status::INVALID_PARAMETER;
+
+    auto t = get_current_thread();
+    if (!t->proc)
+        return nt_status::INTERNAL_ERROR;
+
+    // FIXME - validate params
+    // FIXME - store params in socket
+
+    auto s = new socket;
+    if (!s) {
+        print("new failed\n");
+        return nt_status::INSUFFICIENT_RESOURCES;
+    }
+
+    object_ref ref{*s};
+    HANDLE h;
+
+    auto status = t->proc->add_handle(*s, 0, true, h);
+    if (!success(status))
+        return status;
+
+    status = t->proc->write_vm(params.h, &h, sizeof(h), nullptr);
+    if (!success(status)) {
+        // FIXME - close handle
+        return status;
+    }
+
+    return nt_status::SUCCESS;
+}
+
+nt_status netctl::ioctl(uint32_t code, span<const uint8_t> inbuf,
+                        span<uint8_t> /*outbuf*/, uintptr_t& /*written*/) {
+    switch (code) {
+        case IOCTL_MOXNOX_NETCTL_SOCKET:
+            return netctl_socket(inbuf);
+
+        default:
+            return nt_status::NOT_IMPLEMENTED;
+    }
 }

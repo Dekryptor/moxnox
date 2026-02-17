@@ -181,10 +181,8 @@ public:
         return nt_status::NOT_IMPLEMENTED;
     }
 
-    nt_status ioctl(uint32_t /*code*/, span<const uint8_t> /*inbuf*/,
-                    span<uint8_t> /*outbuf*/, uintptr_t& /*written*/) override {
-        return nt_status::NOT_IMPLEMENTED;
-    }
+    nt_status ioctl(uint32_t code, span<const uint8_t> inbuf,
+                    span<uint8_t> outbuf, uintptr_t& written) override;
 };
 
 template<>
