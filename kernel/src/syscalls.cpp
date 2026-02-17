@@ -18,6 +18,7 @@ import disable_interrupts;
 import cpu_block;
 import process;
 import list;
+import bsod;
 
 using namespace std;
 
@@ -1587,6 +1588,11 @@ void maybe_yield() {
 extern "C"
 void maybe_yield(uint64_t syscall_ret) {
     // interrupts are disabled and sync_lock held
+
+#ifdef DEBUG
+    if (!interrupts_disabled())
+        bsod("calling maybe_yield with interrupts enabled");
+#endif
 
     auto& cb = *get_cpu_block();
     auto& t = *cb.current_thread;

@@ -175,6 +175,12 @@ page_fault_user_isr:
     jnz page_fault_user_exception
 
 page_fault_user_no_exception:
+    call acquire_sync_lock
+    sub rsp, 0x20
+    call maybe_yield
+    add rsp, 0x20
+    call release_sync_lock
+
     # mark thread as not in kernel mode
     mov rax, gs:GS_CURRENT_THREAD
     mov BYTE PTR [rax + THREAD_KERNEL_MODE], 0

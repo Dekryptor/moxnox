@@ -1345,7 +1345,11 @@ bool page_fault_user(uintptr_t address, uint64_t error_code) {
     er.ExceptionInformation[0] = (error_code & 0x12) >> 1;
     er.ExceptionInformation[1] = address;
 
-    return send_signal(er, ctx, nt_status::ACCESS_VIOLATION);
+    auto ret = send_signal(er, ctx, nt_status::ACCESS_VIOLATION);
+
+    disable_interrupts();
+
+    return ret;
 }
 
 extern "C"
