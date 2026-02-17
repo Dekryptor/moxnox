@@ -494,6 +494,64 @@ static void handle_neighbour_solicitation(network_interface& netif,
     send_neighbour_advertisement(netif, ns.target, ip.src, eth.src_mac);
 }
 
+static void handle_v6_echo_request(network_interface& netif,
+                                   span<const uint8_t> buf) {
+    const auto& orig_ip = *(ipv6_header*)(buf.data() + sizeof(ethernet_header));
+
+    // check if it's for us
+
+    bool found = false;
+    {
+        lock_guard lock(netif.addr_lock);
+
+        for (auto le = netif.addrs.next; le != &netif.addrs; le = le->next) {
+            auto& a = containing_record<ip_addr>(le);
+
+            if (a.addr == orig_ip.dst) {
+                found = true;
+                break;
+            }
+        }
+    }
+
+    if (!found)
+        return;
+
+    // take copy
+
+    auto reply = (uint8_t*)malloc(buf.size());
+    if (!reply) {
+        print("malloc failed\n");
+        return;
+    }
+
+    memcpy(reply, buf.data(), buf.size());
+
+    // switch MAC addresses
+
+    auto& eth = *(ethernet_header*)reply;
+    swap(eth.src_mac, eth.dst_mac);
+
+    // switch IP addresses
+
+    auto& ip = *(ipv6_header*)(reply + sizeof(ethernet_header));
+    swap(ip.src, ip.dst);
+
+    // change type to reply
+
+    auto& header = *(icmpv6_header*)(reply + sizeof(ethernet_header) + sizeof(ipv6_header));
+    header.type = icmpv6_type::echo_reply;
+    header.checksum = 0;
+
+    header.checksum = calc_icmpv6_checksum(ip, span((uint8_t*)&header, buf.size() - sizeof(ethernet_header) - sizeof(ipv6_header)));
+
+    auto status = netif.send_packet(span(reply, buf.size()));
+    if (!success(status))
+        print("send_packet returned {}\n", status);
+
+    free(reply);
+}
+
 static void handle_icmpv6_packet(network_interface& netif, span<const uint8_t> buf) {
     if (buf.size() < sizeof(ethernet_header) + sizeof(ipv6_header) + sizeof(icmpv6_header)) {
         print("handle_icmpv6_packet: buffer length was {}, expected at least {}\n",
@@ -509,6 +567,10 @@ static void handle_icmpv6_packet(network_interface& netif, span<const uint8_t> b
     switch (header.type) {
         case icmpv6_type::neighbour_solicitation:
             handle_neighbour_solicitation(netif, buf);
+            break;
+
+        case icmpv6_type::echo_request:
+            handle_v6_echo_request(netif, buf);
             break;
 
         default:
