@@ -14,6 +14,7 @@ import handle;
 import mem;
 import moxnox_ioctls;
 import thread;
+import ws2_32;
 
 using namespace std;
 
@@ -22,8 +23,8 @@ static const size_t MAX_BUFFER_SIZE = 1048576;
 
 static object_ref netctl_obj;
 
-static spinlock sockets_lock;
-static list_entry sockets = { &sockets, &sockets };
+static spinlock ipv6_sockets_lock;
+static list_entry ipv6_sockets = { &ipv6_sockets, &ipv6_sockets };
 
 static uint16_t calc_icmpv6_checksum(const ipv6_header& ip, span<const uint8_t> icmp) {
     struct {
@@ -235,10 +236,10 @@ static void send_to_sockets(span<const uint8_t> buf) {
     // FIXME - SOCK_STREAM sockets will be different
 
     {
-        lock_guard lock(sockets_lock);
+        lock_guard lock(ipv6_sockets_lock);
 
-        for (auto le = sockets.next; le != &sockets; le = le->next) {
-            auto& s = containing_record<socket>(le);
+        for (auto le = ipv6_sockets.next; le != &ipv6_sockets; le = le->next) {
+            auto& s = containing_record<ipv6_socket>(le);
 
             // FIXME - only send to interested sockets
             // FIXME - strip headers if necessary
@@ -348,29 +349,38 @@ static nt_status netctl_socket(span<const uint8_t> buf) {
     // FIXME - validate params
     // FIXME - store params in socket
 
-    auto s = new socket;
-    if (!s) {
-        print("new failed\n");
-        return nt_status::INSUFFICIENT_RESOURCES;
-    }
+    switch (params.af) {
+        case AF_INET6: {
+            auto s = new ipv6_socket;
+            if (!s) {
+                print("new failed\n");
+                return nt_status::INSUFFICIENT_RESOURCES;
+            }
 
-    object_ref ref{*s};
-    HANDLE h;
+            object_ref ref{*s};
+            HANDLE h;
 
-    auto status = t->proc->add_handle(*s, 0, true, h);
-    if (!success(status))
-        return status;
+            auto status = t->proc->add_handle(*s, 0, true, h);
+            if (!success(status))
+                return status;
 
-    status = t->proc->write_vm(params.h, &h, sizeof(h), nullptr);
-    if (!success(status)) {
-        // FIXME - close handle
-        return status;
-    }
+            status = t->proc->write_vm(params.h, &h, sizeof(h), nullptr);
+            if (!success(status)) {
+                // FIXME - close handle
+                return status;
+            }
 
-    {
-        lock_guard lg(sockets_lock);
-        insert_tail_list(sockets, s->le);
-        s->added_to_list = true;
+            {
+                lock_guard lg(ipv6_sockets_lock);
+                insert_tail_list(ipv6_sockets, s->le);
+                s->added_to_list = true;
+            }
+
+            break;
+        }
+
+        default:
+            return nt_status::INVALID_PARAMETER;
     }
 
     return nt_status::SUCCESS;
@@ -387,9 +397,9 @@ nt_status netctl::ioctl(uint32_t code, span<const uint8_t> inbuf,
     }
 }
 
-socket::~socket() {
+ipv6_socket::~ipv6_socket() {
     {
-        lock_guard lg(sockets_lock);
+        lock_guard lg(ipv6_sockets_lock);
 
         if (added_to_list)
             remove_entry_list(le);

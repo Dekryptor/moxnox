@@ -164,7 +164,7 @@ struct socket_packet {
 export class socket : public object {
 public:
     socket() : object(object_type::socket) { }
-    ~socket();
+    virtual ~socket() { }
 
     void acquire() {
         refcount++;
@@ -174,6 +174,11 @@ public:
         if (--refcount == 0)
             delete this;
     }
+};
+
+class ipv6_socket : public socket {
+public:
+    ~ipv6_socket() override;
 
     list_entry le;
     bool added_to_list = false;
