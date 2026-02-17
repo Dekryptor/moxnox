@@ -103,6 +103,7 @@ set(SRC_FILES src/kernel.cpp
     src/devfs.cpp
     src/tmpfs.cpp
     src/virtio_net.cpp
+    src/net2.cpp
 )
 
 if(CMAKE_SYSTEM_PROCESSOR STREQUAL aarch64)
