@@ -7,7 +7,8 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 set(DLLS ntdll
     kernelbase
-    ucrtbase)
+    ucrtbase
+    ws2_32)
 
 add_library(moxnox STATIC IMPORTED GLOBAL)
 
