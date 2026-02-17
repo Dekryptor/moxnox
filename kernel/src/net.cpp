@@ -185,10 +185,12 @@ static_assert(has_ioctls<socket>);
 
 class ipv6_socket : public socket {
 public:
+    ipv6_socket(int type, int protocol) : type(type), protocol(protocol) { }
     ~ipv6_socket() override;
     nt_status recv(char* buf, int len, int flags, size_t& recv_bytes) override;
 
     list_entry le;
+    int type, protocol;
     bool added_to_list = false;
     spinlock buffer_lock;
     list_entry buffer = { &buffer, &buffer };

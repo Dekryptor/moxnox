@@ -348,12 +348,18 @@ static nt_status netctl_socket(span<const uint8_t> buf) {
     if (!t->proc)
         return nt_status::INTERNAL_ERROR;
 
-    // FIXME - validate params
-    // FIXME - store params in socket
-
     switch (params.af) {
         case AF_INET6: {
-            auto s = new ipv6_socket;
+            // FIXME - UDP (SOCK_DGRAM)
+            // FIXME - TCP (SOCK_STREAM)
+
+            if (params.type != SOCK_RAW)
+                return nt_status::INVALID_PARAMETER;
+
+            if (params.protocol == 0)
+                return nt_status::INVALID_PARAMETER;
+
+            auto s = new ipv6_socket(params.type, params.protocol);
             if (!s) {
                 print("new failed\n");
                 return nt_status::INSUFFICIENT_RESOURCES;
