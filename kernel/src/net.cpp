@@ -155,12 +155,6 @@ public:
     ipv6_address ll_addr;
 };
 
-struct socket_packet {
-    list_entry le;
-    size_t size;
-    uint8_t data[0];
-};
-
 export class socket : public sync_object {
 public:
     socket() : sync_object(object_type::socket, false) { }

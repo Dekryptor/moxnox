@@ -29,6 +29,14 @@ static spinlock ipv6_sockets_lock;
 static list_entry ipv6_sockets = { &ipv6_sockets, &ipv6_sockets };
 static size_t num_ipv6_sockets = 0;
 
+struct ipv6_socket_packet {
+    list_entry le;
+    ipv6_address src;
+    ipv6_address dst;
+    size_t size;
+    uint8_t data[0];
+};
+
 static uint16_t calc_icmpv6_checksum(const ipv6_header& ip, span<const uint8_t> icmp) {
     struct {
         ipv6_address src;
@@ -294,15 +302,18 @@ static void send_to_sockets(span<const uint8_t> buf) {
 
         // FIXME - strip headers if necessary
 
-        auto p = (socket_packet*)malloc(offsetof(socket_packet, data) + buf.size());
+        auto p = (ipv6_socket_packet*)malloc(offsetof(ipv6_socket_packet, data) + buf.size());
         if (!p) {
             print("malloc failed\n");
             s.release();
             continue;
         }
 
-        p->size = buf.size();
-        memcpy(p->data, buf.data(), buf.size());
+        p->src = ip.src;
+        p->dst = ip.dst;
+        p->size = buf.size() - sizeof(ipv6_header);
+        memcpy(p->data, buf.data() + sizeof(ipv6_header),
+               buf.size() - sizeof(ipv6_header));
 
         bool done = false;
 
@@ -481,7 +492,7 @@ ipv6_socket::~ipv6_socket() {
     }
 
     while (true) {
-        socket_packet* pp = nullptr;
+        ipv6_socket_packet* pp = nullptr;
 
         {
             lock_guard lg(buffer_lock);
@@ -489,7 +500,7 @@ ipv6_socket::~ipv6_socket() {
             if (is_list_empty(buffer))
                 break;
 
-            auto& p = containing_record<socket_packet>(buffer.next);
+            auto& p = containing_record<ipv6_socket_packet>(buffer.next);
 
             remove_entry_list(p.le);
             pp = &p;
@@ -577,7 +588,7 @@ nt_status ipv6_socket::recv(char* buf, int len, int flags, size_t& recv_bytes) {
             return status;
         }
 
-        socket_packet* sp = nullptr;
+        ipv6_socket_packet* sp = nullptr;
 
         {
             sync_lock sl;
@@ -585,7 +596,7 @@ nt_status ipv6_socket::recv(char* buf, int len, int flags, size_t& recv_bytes) {
             lock_guard lock2(buffer_lock);
 
             if (!is_list_empty(buffer)) {
-                sp = &containing_record<socket_packet>(buffer.next);
+                sp = &containing_record<ipv6_socket_packet>(buffer.next);
                 remove_entry_list(sp->le);
 
                 if (is_list_empty(buffer))
