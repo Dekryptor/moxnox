@@ -2928,8 +2928,8 @@ NTSTATUS NtDuplicateObject(HANDLE source_process_handle, HANDLE source_handle, H
     return nt_status::SUCCESS;
 }
 
-NTSTATUS process::read_vm(void* base_address, void* buffer, uint32_t buffer_size,
-                          uint32_t* number_of_bytes_read) {
+NTSTATUS process::read_vm(const void* base_address, void* buffer,
+                          uint32_t buffer_size, uint32_t* number_of_bytes_read) {
     uint32_t copied = 0;
 
     while (true) {

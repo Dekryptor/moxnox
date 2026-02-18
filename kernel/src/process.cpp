@@ -79,7 +79,7 @@ public:
                            bool create_suspended);
     NTSTATUS query_info(enum PROCESSINFOCLASS process_information_class, span<uint8_t> buf,
                         uint32_t* return_length);
-    NTSTATUS read_vm(void* base_address, void* buffer, uint32_t buffer_size,
+    NTSTATUS read_vm(const void* base_address, void* buffer, uint32_t buffer_size,
                      uint32_t* number_of_bytes_read);
     NTSTATUS write_vm(void* base_address, const void* buffer, uint32_t buffer_size,
                       uint32_t* number_of_bytes_written);
