@@ -3,3 +3,4 @@ EXPORTS
 socket
 closesocket
 recv
+recvfrom

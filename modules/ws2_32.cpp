@@ -1,3 +1,7 @@
+module;
+
+#include <stdint.h>
+
 export module ws2_32;
 
 export {
@@ -83,11 +87,26 @@ const int IPPROTO_MAX = 256;
 const int INVALID_SOCKET = -1;
 const int SOCKET_ERROR = -1;
 
+struct sockaddr {
+    uint16_t sa_family;
+    char sa_data[14];
+};
+
+struct sockaddr_in6 {
+    uint16_t sin6_family;
+    uint16_t sin6_port;
+    uint32_t sin6_flowinfo;
+    uint8_t sin6_addr[16];
+    uint32_t sin6_scope_id;
+};
+
 extern "C" {
 
 SOCKET socket(int af, int type, int protocol);
 int closesocket(SOCKET s);
 int recv(SOCKET s, char* buf, int len, int flags);
+int recvfrom(SOCKET s, char* buf, int len, int flags, sockaddr* from,
+             int* fromlen);
 
 }
 
