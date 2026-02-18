@@ -8,6 +8,7 @@ module;
 
 module net;
 
+import bsod;
 import print;
 import object_ref;
 import handle;
@@ -21,6 +22,7 @@ using namespace std;
 
 static const uint8_t DEFAULT_HOP_LIMIT = 64;
 static const size_t MAX_BUFFER_SIZE = 1048576;
+static const mac_address NULL_MAC_ADDRESS = { 0, 0, 0, 0, 0, 0 };
 
 static object_ref netctl_obj;
 
@@ -709,9 +711,169 @@ nt_status ipv6_socket::recvfrom(char* us_buf, int len, int flags,
     return nt_status::SUCCESS;
 }
 
-nt_status ipv6_socket::sendto(const char* buf, int len, int flags, sockaddr* to,
-                              int tolen, size_t& sent_bytes) {
-    print("FIXME - ipv6_socket::sendto\n");
+nt_status ipv6_socket::sendto(const char* us_buf, int len, int flags,
+                              sockaddr* to, int tolen, size_t& sent_bytes) {
+
+
+    switch (type) {
+        case SOCK_RAW: {
+            if (!to || tolen < 0 || (size_t)tolen < sizeof(sockaddr_in6))
+                return nt_status::INVALID_PARAMETER;
+
+            return sendto_raw(span(us_buf, len), flags, *(sockaddr_in6*)to,
+                              sent_bytes);
+        }
+
+        default:
+            return nt_status::INVALID_PARAMETER;
+    }
 
     return nt_status::NOT_IMPLEMENTED;
+}
+
+static network_interface* ipv6_choose_interface(const ipv6_address& dst,
+                                                uint32_t scope_id) {
+    // FIXME - if link-local, use scope_id
+    // FIXME - otherwise, consult routing tables
+
+    // FIXME - interfaces should have refcounts
+
+    // HACK - choosing first
+    {
+        lock_guard lg(netif_lock);
+
+        if (is_list_empty(netif_list))
+            return nullptr;
+
+        return &containing_record<network_interface>(netif_list.next);
+    }
+}
+
+static bool is_link_local(const ipv6_address& addr) {
+    return addr.v[0] == 0xfe && (addr.v[1] & 0xc0) == 0x80;
+}
+
+static ipv6_address choose_source_ipv6_address(network_interface& netif,
+                                               const ipv6_address& dst) {
+    // see RFC6724
+
+    // FIXME - check if bind has been called
+
+    // rule 1: prefer same address
+
+    {
+        lock_guard lock(netif.addr_lock);
+
+        for (auto le = netif.addrs.next; le != &netif.addrs; le = le->next) {
+            auto& a = containing_record<ip_addr>(le);
+
+            if (a.addr == dst)
+                return dst;
+        }
+    }
+
+    if (is_link_local(dst))
+        return netif.ll_addr;
+
+    // FIXME - rule 2: if link-local, choose link-local
+    // FIXME - rule 3: avoid deprecated address
+    // rule 4: prefer home addresses (Mobile IPv6, not relevant)
+    // FIXME - rule 5: prefer outgoing interface
+    // FIXME - rule 6: prefer matching label
+    // FIXME - rule 7: prefer temporary addresses
+    // FIXME - rule 8: prefer longest matching prefix
+
+    bsod("choose_source_ipv6_address could not choose!"); // FIXME - remove once rule 8 working
+}
+
+static mac_address find_mac_address(const ipv6_address& dst) {
+    if (dst.v[0] == 0xff) { // multicast
+        mac_address ret;
+
+        ret.v[0] = 0x33;
+        ret.v[1] = 0x33;
+        ret.v[2] = dst.v[12];
+        ret.v[3] = dst.v[13];
+        ret.v[4] = dst.v[14];
+        ret.v[5] = dst.v[15];
+
+        return ret;
+    }
+
+    // FIXME - off-link addresses (send to router's MAC)
+
+    // FIXME - on-link addresses:
+    // FIXME - check neighbour cache
+    // FIXME - if not found, send neighbour solicitation and wait for response
+    // FIXME - timing out waiting for response
+
+    return NULL_MAC_ADDRESS;
+}
+
+nt_status ipv6_socket::sendto_raw(span<const char> us_buf, int flags,
+                                  const sockaddr_in6& to, size_t& sent_bytes) {
+    nt_status status;
+
+    if (flags != 0)
+        return nt_status::INVALID_PARAMETER;
+
+    auto& t = *get_current_thread();
+    if (!t.proc)
+        return nt_status::INTERNAL_ERROR;
+
+    auto p = ipv6_choose_interface(*(ipv6_address*)to.sin6_addr, to.sin6_scope_id);
+    if (!p)
+        return nt_status::NETWORK_UNREACHABLE;
+
+    auto& netif = *p;
+
+    if (us_buf.size() + sizeof(ipv6_header) > netif.mtu)
+        return nt_status::INVALID_BUFFER_SIZE;
+
+    auto& dst = *(ipv6_address*)to.sin6_addr;
+    auto mac = find_mac_address(dst);
+
+    if (mac == NULL_MAC_ADDRESS)
+        return nt_status::HOST_UNREACHABLE;
+
+    size_t pktsize = sizeof(ethernet_header) + sizeof(ipv6_header) + us_buf.size();
+    auto pkt = (uint8_t*)malloc(pktsize);
+    if (!pkt) {
+        print("malloc failed\n");
+        return nt_status::INSUFFICIENT_RESOURCES;
+    }
+
+    auto& eth = *(ethernet_header*)pkt;
+    eth.dst_mac = mac;
+    eth.src_mac = netif.mac;
+    eth.type = ethertype::ipv6;
+
+    auto& ip = *(ipv6_header*)(pkt + sizeof(ethernet_header));
+    ip.traffic_class1 = 0;
+    ip.version = 6;
+    ip.traffic_class2 = 0;
+    ip.flow_label = 0;
+    ip.payload_length = byteswap((uint16_t)us_buf.size());
+    ip.next_header = (uint8_t)protocol;
+    ip.hop_limit = DEFAULT_HOP_LIMIT;
+    ip.src = choose_source_ipv6_address(netif, dst);
+    ip.dst = dst;
+
+    status = t.proc->read_vm(us_buf.data(),
+                             pkt + sizeof(ethernet_header) + sizeof(ipv6_header),
+                             (uint32_t)us_buf.size(), nullptr);
+    if (!success(status)) {
+        free(pkt);
+        return status;
+    }
+
+    status = netif.send_packet(span(pkt, pktsize));
+    if (!success(status)) {
+        free(pkt);
+        return status;
+    }
+
+    sent_bytes = us_buf.size();
+
+    return status;
 }

@@ -75,6 +75,7 @@ public:
 
     virtual nt_status send_packet(span<const uint8_t> buf) = 0;
 
+    list_entry le;
     mac_address mac;
     uint16_t mtu;
 
@@ -128,6 +129,10 @@ public:
     spinlock buffer_lock;
     list_entry buffer = { &buffer, &buffer };
     size_t buffer_size = 0;
+
+private:
+    nt_status sendto_raw(span<const char> buf, int flags,
+                         const sockaddr_in6& to, size_t& sent_bytes);
 };
 
 class netctl : public chardev {
@@ -248,6 +253,9 @@ export span<char> do_format_arg(span<char> sp, string_view, icmpv6_type t) {
 
     return sp;
 }
+
+export spinlock netif_lock;
+export list_entry netif_list = { &netif_list, &netif_list };
 
 export void handle_ipv6_packet(network_interface& netif,
                                span<const uint8_t> buf);

@@ -236,6 +236,11 @@ void virtio_net<T>::init(const virtio_net_config& cfg) {
             transmit_queue = &vq;
     }
 
+    {
+        lock_guard lg(netif_lock);
+        insert_tail_list(netif_list, this->le);
+    }
+
     add_kernel_thread([](void* ctx) {
         ((virtio_net<virtio_pci_device>*)ctx)->recv_thread();
     }, this);
