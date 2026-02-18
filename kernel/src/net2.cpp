@@ -530,12 +530,6 @@ nt_status socket::ioctl(uint32_t code, span<const uint8_t> inbuf,
             if (!params.buf || params.len <= 0 || !params.recv_bytes)
                 return nt_status::INVALID_PARAMETER;
 
-            // FIXME - do directly into userspace memory
-
-            // FIXME - jumbo frames, TCP, etc.
-            if ((size_t)params.len > PAGE_SIZE)
-                params.len = PAGE_SIZE;
-
             if (params.fromlen) {
                 status = t.proc->read_vm(params.fromlen, &fromlen,
                                          sizeof(fromlen), nullptr);
@@ -546,39 +540,19 @@ nt_status socket::ioctl(uint32_t code, span<const uint8_t> inbuf,
                     return nt_status::INVALID_PARAMETER;
             }
 
-            auto buf = (char*)malloc((size_t)params.len);
-            if (!buf) {
-                print("malloc failed\n");
-                return nt_status::INSUFFICIENT_RESOURCES;
-            }
-
-            status = this->recvfrom(buf, params.len, params.flags,
+            status = this->recvfrom(params.buf, params.len, params.flags,
                                     (sockaddr*)params.from,
                                     fromlen != 0 ? &fromlen : nullptr,
                                     recv_bytes);
-            if (!success(status)) {
-                free(buf);
+            if (!success(status))
                 return status;
-            }
 
             if (params.fromlen) {
                 status = t.proc->write_vm(params.fromlen, &fromlen,
                                           (uint32_t)sizeof(fromlen), nullptr);
-                if (!success(status)) {
-                    free(buf);
+                if (!success(status))
                     return status;
-                }
             }
-
-            // FIXME - if MSG_TRUNC, recv_bytes might be more than len?
-            status = t.proc->write_vm(params.buf, buf, (uint32_t)recv_bytes,
-                                      nullptr);
-            if (!success(status)) {
-                free(buf);
-                return status;
-            }
-
-            free(buf);
 
             status = t.proc->write_vm(params.recv_bytes, &recv_bytes,
                                       sizeof(size_t), nullptr);
@@ -593,13 +567,12 @@ nt_status socket::ioctl(uint32_t code, span<const uint8_t> inbuf,
     }
 }
 
-nt_status ipv6_socket::recvfrom(char* buf, int len, int flags, sockaddr* us_from,
-                                int* fromlen, size_t& recv_bytes) {
+nt_status ipv6_socket::recvfrom(char* us_buf, int len, int flags,
+                                sockaddr* us_from, int* fromlen,
+                                size_t& recv_bytes) {
     // FIXME - MSG_TRUNC
     if (flags != 0)
         return nt_status::INVALID_PARAMETER;
-
-    // FIXME - copy directly into userspace
 
     sockaddr_in6 addr;
     auto& t = *get_current_thread();
@@ -633,11 +606,16 @@ nt_status ipv6_socket::recvfrom(char* buf, int len, int flags, sockaddr* us_from
         if (!sp)
             continue;
 
-        size_t size = min(sp->size, (size_t)len);
+        auto to_copy = (uint32_t)min(sp->size, (size_t)len);
 
-        memcpy(buf, sp->data, size);
+        status = t.proc->write_vm(us_buf, sp->data, to_copy, nullptr);
+        if (!success(status)) {
+            free(sp);
+            release();
+            return status;
+        }
 
-        recv_bytes = size;
+        recv_bytes = to_copy;
 
         if (us_from && fromlen && *fromlen > 0) {
             addr.sin6_family = AF_INET6;
