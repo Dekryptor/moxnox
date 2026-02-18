@@ -305,7 +305,10 @@ static void send_to_sockets(span<const uint8_t> buf) {
         memcpy(p->data, buf.data(), buf.size());
 
         bool done = false;
+
         {
+            sync_lock sl;
+            lock_guard lock(sl);
             lock_guard lock2(s.buffer_lock);
 
             if (s.buffer_size + buf.size() <= MAX_BUFFER_SIZE) {
@@ -313,22 +316,17 @@ static void send_to_sockets(span<const uint8_t> buf) {
                 s.buffer_size += buf.size();
                 done = true;
             }
+
+            if (!s.signalled) {
+                wake_up_waiters(s.waiters);
+                s.signalled = true;
+            }
         }
 
         if (!done) {
             free(p);
             s.release();
             continue;
-        }
-
-        {
-            sync_lock sl;
-            lock_guard lock(sl);
-
-            if (!s.signalled) {
-                wake_up_waiters(s.waiters);
-                s.signalled = true;
-            }
         }
 
         s.release();
@@ -582,18 +580,16 @@ nt_status ipv6_socket::recv(char* buf, int len, int flags, size_t& recv_bytes) {
         socket_packet* sp = nullptr;
 
         {
-            lock_guard lock(buffer_lock);
+            sync_lock sl;
+            lock_guard lock(sl);
+            lock_guard lock2(buffer_lock);
 
             if (!is_list_empty(buffer)) {
                 sp = &containing_record<socket_packet>(buffer.next);
                 remove_entry_list(sp->le);
 
-                if (is_list_empty(buffer)) {
-                    sync_lock sl;
-                    lock_guard lock(sl);
-
+                if (is_list_empty(buffer))
                     signalled = false;
-                }
             }
         }
 
