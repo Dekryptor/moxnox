@@ -4,3 +4,5 @@ socket
 closesocket
 recv
 recvfrom
+send
+sendto

@@ -107,6 +107,9 @@ int closesocket(SOCKET s);
 int recv(SOCKET s, char* buf, int len, int flags);
 int recvfrom(SOCKET s, char* buf, int len, int flags, sockaddr* from,
              int* fromlen);
+int send(SOCKET s, const char* buf, int len, int flags);
+int sendto(SOCKET s, const char* buf, int len, int flags, const sockaddr* to,
+           int tolen);
 
 }
 
