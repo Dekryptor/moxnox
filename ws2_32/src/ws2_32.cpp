@@ -54,16 +54,18 @@ SOCKET socket(int af, int type, int protocol) {
 extern "C"
 int recv(SOCKET s, char* buf, int len, int flags) {
     IO_STATUS_BLOCK iosb;
-    MOXNOX_SOCKET_RECV params;
+    MOXNOX_SOCKET_RECVFROM params;
     size_t recv_bytes;
 
     params.buf = buf;
     params.len = len;
     params.flags = flags;
+    params.from = nullptr;
+    params.fromlen = nullptr;
     params.recv_bytes = &recv_bytes;
 
     auto status = NtDeviceIoControlFile((HANDLE)s, 0, nullptr, nullptr, &iosb,
-                                        IOCTL_MOXNOX_SOCKET_RECV, &params,
+                                        IOCTL_MOXNOX_SOCKET_RECVFROM, &params,
                                         (uint32_t)sizeof(params), nullptr, 0);
     if (!success(status)) {
         *_errno() = EINVAL; // FIXME

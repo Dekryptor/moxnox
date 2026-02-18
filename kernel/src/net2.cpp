@@ -516,15 +516,15 @@ ipv6_socket::~ipv6_socket() {
 nt_status socket::ioctl(uint32_t code, span<const uint8_t> inbuf,
                         span<uint8_t>, uintptr_t&) {
     switch (code) {
-        case IOCTL_MOXNOX_SOCKET_RECV: {
-            if (inbuf.size() < sizeof(MOXNOX_SOCKET_RECV))
+        case IOCTL_MOXNOX_SOCKET_RECVFROM: {
+            if (inbuf.size() < sizeof(MOXNOX_SOCKET_RECVFROM))
                 return nt_status::BUFFER_TOO_SMALL;
 
             auto& t = *get_current_thread();
             if (!t.proc)
                 return nt_status::INTERNAL_ERROR;
 
-            auto& params = *(MOXNOX_SOCKET_RECV*)inbuf.data();
+            auto& params = *(MOXNOX_SOCKET_RECVFROM*)inbuf.data();
             size_t recv_bytes;
 
             if (!params.buf || params.len <= 0 || !params.recv_bytes)
