@@ -4,3 +4,5 @@ closesocket = ntdll.NtClose
 socket
 recv
 recvfrom
+send
+sendto

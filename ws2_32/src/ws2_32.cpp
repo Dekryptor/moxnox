@@ -82,6 +82,36 @@ int recv(SOCKET s, char* buf, int len, int flags) {
 }
 
 extern "C"
+int sendto(SOCKET s, const char* buf, int len, int flags, const sockaddr* to,
+           int tolen) {
+    IO_STATUS_BLOCK iosb;
+    MOXNOX_SOCKET_SENDTO params;
+    size_t sent_bytes;
+
+    params.buf = buf;
+    params.len = len;
+    params.flags = flags;
+    params.to = to;
+    params.tolen = tolen;
+    params.sent_bytes = &sent_bytes;
+
+    auto status = NtDeviceIoControlFile((HANDLE)s, 0, nullptr, nullptr, &iosb,
+                                        IOCTL_MOXNOX_SOCKET_SENDTO, &params,
+                                        (uint32_t)sizeof(params), nullptr, 0);
+    if (!success(status)) {
+        *_errno() = EINVAL; // FIXME
+        return SOCKET_ERROR;
+    }
+
+    return (int)sent_bytes;
+}
+
+extern "C"
+int send(SOCKET s, const char* buf, int len, int flags) {
+    return sendto(s, buf, len, flags, nullptr, 0);
+}
+
+extern "C"
 int DllMainCRTStartup(HANDLE /*hinstDLL*/, uint32_t /*dwReason*/,
                       void* /*lpvReserved*/) {
     return 1;

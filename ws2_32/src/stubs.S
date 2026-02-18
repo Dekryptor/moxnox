@@ -2,7 +2,4 @@
 
 stubs_start
 
-do_stub "send"
-do_stub "sendto"
-
 stubs_end
