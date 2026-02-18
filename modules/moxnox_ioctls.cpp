@@ -35,6 +35,7 @@ export const auto IOCTL_MOXNOX_VFSCTL_GET_MOUNT_INFO = CTL_CODE(FILE_DEVICE_MOXN
 export const auto IOCTL_MOXNOX_VFSCTL_UNMOUNT = CTL_CODE(FILE_DEVICE_MOXNOX, 6, IOCTL_METHOD::BUFFERED, IOCTL_ACCESS::ANY);
 export const auto IOCTL_MOXNOX_NETCTL_SOCKET = CTL_CODE(FILE_DEVICE_MOXNOX, 7, IOCTL_METHOD::BUFFERED, IOCTL_ACCESS::ANY);
 export const auto IOCTL_MOXNOX_SOCKET_RECVFROM = CTL_CODE(FILE_DEVICE_MOXNOX, 8, IOCTL_METHOD::BUFFERED, IOCTL_ACCESS::ANY);
+export const auto IOCTL_MOXNOX_SOCKET_SENDTO = CTL_CODE(FILE_DEVICE_MOXNOX, 9, IOCTL_METHOD::BUFFERED, IOCTL_ACCESS::ANY);
 
 export struct MOXNOX_SET_CURSOR {
     uint32_t x;
@@ -95,4 +96,13 @@ export struct MOXNOX_SOCKET_RECVFROM {
     void* from;
     int* fromlen;
     size_t* recv_bytes;
+};
+
+export struct MOXNOX_SOCKET_SENDTO {
+    const char* buf;
+    int len;
+    int flags;
+    const void* to;
+    int tolen;
+    size_t* sent_bytes;
 };

@@ -510,57 +510,120 @@ ipv6_socket::~ipv6_socket() {
     }
 }
 
-nt_status socket::ioctl(uint32_t code, span<const uint8_t> inbuf,
-                        span<uint8_t>, uintptr_t&) {
+nt_status socket::do_recvfrom(span<const uint8_t> inbuf) {
     nt_status status;
 
-    switch (code) {
-        case IOCTL_MOXNOX_SOCKET_RECVFROM: {
-            if (inbuf.size() < sizeof(MOXNOX_SOCKET_RECVFROM))
-                return nt_status::BUFFER_TOO_SMALL;
+    if (inbuf.size() < sizeof(MOXNOX_SOCKET_RECVFROM))
+        return nt_status::BUFFER_TOO_SMALL;
 
-            auto& t = *get_current_thread();
-            if (!t.proc)
-                return nt_status::INTERNAL_ERROR;
+    auto& t = *get_current_thread();
+    if (!t.proc)
+        return nt_status::INTERNAL_ERROR;
 
-            auto& params = *(MOXNOX_SOCKET_RECVFROM*)inbuf.data();
-            size_t recv_bytes;
-            int fromlen = 0;
+    auto& params = *(MOXNOX_SOCKET_RECVFROM*)inbuf.data();
+    size_t recv_bytes;
+    int fromlen = 0;
 
-            if (!params.buf || params.len <= 0 || !params.recv_bytes)
-                return nt_status::INVALID_PARAMETER;
+    if (!params.buf || params.len <= 0 || !params.recv_bytes)
+        return nt_status::INVALID_PARAMETER;
 
-            if (params.fromlen) {
-                status = t.proc->read_vm(params.fromlen, &fromlen,
-                                         sizeof(fromlen), nullptr);
-                if (!success(status))
-                    return status;
+    if (params.fromlen) {
+        status = t.proc->read_vm(params.fromlen, &fromlen,
+                                    sizeof(fromlen), nullptr);
+        if (!success(status))
+            return status;
 
-                if (fromlen < 0)
-                    return nt_status::INVALID_PARAMETER;
-            }
+        if (fromlen < 0)
+            return nt_status::INVALID_PARAMETER;
+    }
 
-            status = this->recvfrom(params.buf, params.len, params.flags,
-                                    (sockaddr*)params.from,
-                                    fromlen != 0 ? &fromlen : nullptr,
-                                    recv_bytes);
-            if (!success(status))
-                return status;
+    status = this->recvfrom(params.buf, params.len, params.flags,
+                            (sockaddr*)params.from,
+                            fromlen != 0 ? &fromlen : nullptr,
+                            recv_bytes);
+    if (!success(status))
+        return status;
 
-            if (params.fromlen) {
-                status = t.proc->write_vm(params.fromlen, &fromlen,
-                                          (uint32_t)sizeof(fromlen), nullptr);
-                if (!success(status))
-                    return status;
-            }
+    if (params.fromlen) {
+        status = t.proc->write_vm(params.fromlen, &fromlen,
+                                    (uint32_t)sizeof(fromlen), nullptr);
+        if (!success(status))
+            return status;
+    }
 
-            status = t.proc->write_vm(params.recv_bytes, &recv_bytes,
-                                      sizeof(size_t), nullptr);
-            if (!success(status))
-                return status;
+    status = t.proc->write_vm(params.recv_bytes, &recv_bytes,
+                                sizeof(size_t), nullptr);
+    if (!success(status))
+        return status;
 
-            return nt_status::SUCCESS;
+    return nt_status::SUCCESS;
+}
+
+nt_status socket::do_sendto(span<const uint8_t> inbuf) {
+    nt_status status;
+
+    if (inbuf.size() < sizeof(MOXNOX_SOCKET_SENDTO))
+        return nt_status::BUFFER_TOO_SMALL;
+
+    auto& t = *get_current_thread();
+    if (!t.proc)
+        return nt_status::INTERNAL_ERROR;
+
+    auto& params = *(MOXNOX_SOCKET_SENDTO*)inbuf.data();
+    sockaddr* to = nullptr;
+    size_t sent_bytes;
+
+    if (!params.buf || params.len <= 0 || !params.sent_bytes)
+        return nt_status::INVALID_PARAMETER;
+
+    if ((size_t)params.len > PAGE_SIZE)
+        params.len = PAGE_SIZE;
+
+    if ((params.tolen == 0 && params.to) || (params.tolen != 0 && !params.to))
+        return nt_status::INVALID_PARAMETER;
+
+    if (params.to) {
+        to = (sockaddr*)malloc(params.len);
+        if (!to) {
+            print("malloc failed\n");
+            return nt_status::INSUFFICIENT_RESOURCES;
         }
+
+        status = t.proc->read_vm(params.to, to, params.len, nullptr);
+        if (!success(status)) {
+            free(to);
+            return status;
+        }
+    }
+
+    status = this->sendto(params.buf, params.len, params.flags,
+                          to, params.tolen, sent_bytes);
+    if (!success(status)) {
+        if (to)
+            free(to);
+
+        return status;
+    }
+
+    if (to)
+        free(to);
+
+    status = t.proc->write_vm(params.sent_bytes, &sent_bytes, sizeof(size_t),
+                              nullptr);
+    if (!success(status))
+        return status;
+
+    return nt_status::SUCCESS;
+}
+
+nt_status socket::ioctl(uint32_t code, span<const uint8_t> inbuf,
+                        span<uint8_t>, uintptr_t&) {
+    switch (code) {
+        case IOCTL_MOXNOX_SOCKET_RECVFROM:
+            return do_recvfrom(inbuf);
+
+        case IOCTL_MOXNOX_SOCKET_SENDTO:
+            return do_sendto(inbuf);
 
         default:
             return nt_status::INVALID_PARAMETER;
@@ -644,4 +707,11 @@ nt_status ipv6_socket::recvfrom(char* us_buf, int len, int flags,
     release();
 
     return nt_status::SUCCESS;
+}
+
+nt_status ipv6_socket::sendto(const char* buf, int len, int flags, sockaddr* to,
+                              int tolen, size_t& sent_bytes) {
+    print("FIXME - ipv6_socket::sendto\n");
+
+    return nt_status::NOT_IMPLEMENTED;
 }

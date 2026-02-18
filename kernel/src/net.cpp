@@ -102,6 +102,12 @@ public:
 
     virtual nt_status recvfrom(char* buf, int len, int flags, sockaddr* from,
                                int* fromlen, size_t& recv_bytes) = 0;
+    virtual nt_status sendto(const char* buf, int len, int flags, sockaddr* to,
+                             int tolen, size_t& sent_bytes) = 0;
+
+private:
+    nt_status do_recvfrom(span<const uint8_t> inbuf);
+    nt_status do_sendto(span<const uint8_t> inbuf);
 };
 
 static_assert(has_ioctls<class socket>);
@@ -113,6 +119,8 @@ public:
     ~ipv6_socket() override;
     nt_status recvfrom(char* buf, int len, int flags, sockaddr* from,
                        int* fromlen, size_t& recv_bytes) override;
+    nt_status sendto(const char* buf, int len, int flags, sockaddr* to,
+                     int tolen, size_t& sent_bytes) override;
 
     list_entry le;
     int type, protocol;
