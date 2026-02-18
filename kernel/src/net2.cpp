@@ -591,7 +591,7 @@ nt_status socket::do_sendto(span<const uint8_t> inbuf) {
             return nt_status::INSUFFICIENT_RESOURCES;
         }
 
-        status = t.proc->read_vm(params.to, to, params.len, nullptr);
+        status = t.proc->read_vm(params.to, to, params.tolen, nullptr);
         if (!success(status)) {
             free(to);
             return status;
