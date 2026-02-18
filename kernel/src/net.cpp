@@ -15,6 +15,7 @@ import list;
 import spinlock;
 import objects;
 import chardev;
+import ws2_32;
 import ipv6;
 
 using namespace std;
@@ -99,17 +100,19 @@ public:
     nt_status ioctl(uint32_t code, span<const uint8_t> inbuf,
                     span<uint8_t> outbuf, uintptr_t& written);
 
-    virtual nt_status recv(char* buf, int len, int flags, size_t& recv_bytes) = 0;
+    virtual nt_status recvfrom(char* buf, int len, int flags, sockaddr* from,
+                               int* fromlen, size_t& recv_bytes) = 0;
 };
 
-static_assert(has_ioctls<socket>);
-static_assert(is_sync_object<socket>);
+static_assert(has_ioctls<class socket>);
+static_assert(is_sync_object<class socket>);
 
 class ipv6_socket : public socket {
 public:
     ipv6_socket(int type, int protocol) : type(type), protocol(protocol) { }
     ~ipv6_socket() override;
-    nt_status recv(char* buf, int len, int flags, size_t& recv_bytes) override;
+    nt_status recvfrom(char* buf, int len, int flags, sockaddr* from,
+                       int* fromlen, size_t& recv_bytes) override;
 
     list_entry le;
     int type, protocol;

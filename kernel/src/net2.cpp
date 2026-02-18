@@ -14,7 +14,6 @@ import handle;
 import mem;
 import moxnox_ioctls;
 import thread;
-import ws2_32;
 import config;
 import scheduler;
 
@@ -32,7 +31,6 @@ static size_t num_ipv6_sockets = 0;
 struct ipv6_socket_packet {
     list_entry le;
     ipv6_address src;
-    ipv6_address dst;
     size_t size;
     uint8_t data[0];
 };
@@ -310,7 +308,6 @@ static void send_to_sockets(span<const uint8_t> buf) {
         }
 
         p->src = ip.src;
-        p->dst = ip.dst;
         p->size = buf.size() - sizeof(ipv6_header);
         memcpy(p->data, buf.data() + sizeof(ipv6_header),
                buf.size() - sizeof(ipv6_header));
@@ -515,6 +512,8 @@ ipv6_socket::~ipv6_socket() {
 
 nt_status socket::ioctl(uint32_t code, span<const uint8_t> inbuf,
                         span<uint8_t>, uintptr_t&) {
+    nt_status status;
+
     switch (code) {
         case IOCTL_MOXNOX_SOCKET_RECVFROM: {
             if (inbuf.size() < sizeof(MOXNOX_SOCKET_RECVFROM))
@@ -526,6 +525,7 @@ nt_status socket::ioctl(uint32_t code, span<const uint8_t> inbuf,
 
             auto& params = *(MOXNOX_SOCKET_RECVFROM*)inbuf.data();
             size_t recv_bytes;
+            int fromlen = 0;
 
             if (!params.buf || params.len <= 0 || !params.recv_bytes)
                 return nt_status::INVALID_PARAMETER;
@@ -536,16 +536,38 @@ nt_status socket::ioctl(uint32_t code, span<const uint8_t> inbuf,
             if ((size_t)params.len > PAGE_SIZE)
                 params.len = PAGE_SIZE;
 
+            if (params.fromlen) {
+                status = t.proc->read_vm(params.fromlen, &fromlen,
+                                         sizeof(fromlen), nullptr);
+                if (!success(status))
+                    return status;
+
+                if (fromlen < 0)
+                    return nt_status::INVALID_PARAMETER;
+            }
+
             auto buf = (char*)malloc((size_t)params.len);
             if (!buf) {
                 print("malloc failed\n");
                 return nt_status::INSUFFICIENT_RESOURCES;
             }
 
-            auto status = recv(buf, params.len, params.flags, recv_bytes);
+            status = this->recvfrom(buf, params.len, params.flags,
+                                    (sockaddr*)params.from,
+                                    fromlen != 0 ? &fromlen : nullptr,
+                                    recv_bytes);
             if (!success(status)) {
                 free(buf);
                 return status;
+            }
+
+            if (params.fromlen) {
+                status = t.proc->write_vm(params.fromlen, &fromlen,
+                                          (uint32_t)sizeof(fromlen), nullptr);
+                if (!success(status)) {
+                    free(buf);
+                    return status;
+                }
             }
 
             // FIXME - if MSG_TRUNC, recv_bytes might be more than len?
@@ -571,12 +593,16 @@ nt_status socket::ioctl(uint32_t code, span<const uint8_t> inbuf,
     }
 }
 
-nt_status ipv6_socket::recv(char* buf, int len, int flags, size_t& recv_bytes) {
+nt_status ipv6_socket::recvfrom(char* buf, int len, int flags, sockaddr* us_from,
+                                int* fromlen, size_t& recv_bytes) {
     // FIXME - MSG_TRUNC
     if (flags != 0)
         return nt_status::INVALID_PARAMETER;
 
     // FIXME - copy directly into userspace
+
+    sockaddr_in6 addr;
+    auto& t = *get_current_thread();
 
     acquire();
 
@@ -610,9 +636,29 @@ nt_status ipv6_socket::recv(char* buf, int len, int flags, size_t& recv_bytes) {
         size_t size = min(sp->size, (size_t)len);
 
         memcpy(buf, sp->data, size);
-        free(sp);
 
         recv_bytes = size;
+
+        if (us_from && fromlen && *fromlen > 0) {
+            addr.sin6_family = AF_INET6;
+            addr.sin6_port = 0;
+            addr.sin6_flowinfo = 0; // FIXME? Allowed by RFC3493, but not necessarily what Linux does
+            memcpy(addr.sin6_addr, sp->src.v.data(), sizeof(ipv6_address));
+            addr.sin6_scope_id = 0; // FIXME
+
+            status = t.proc->write_vm(us_from, &addr,
+                                      (uint32_t)min((size_t)*fromlen, sizeof(addr)),
+                                      nullptr);
+            if (!success(status)) {
+                free(sp);
+                release();
+                return status;
+            }
+
+            *fromlen = sizeof(addr);
+        }
+
+        free(sp);
 
         break;
     }
