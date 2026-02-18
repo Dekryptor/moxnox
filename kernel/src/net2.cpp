@@ -27,6 +27,7 @@ static object_ref netctl_obj;
 
 static spinlock ipv6_sockets_lock;
 static list_entry ipv6_sockets = { &ipv6_sockets, &ipv6_sockets };
+static size_t num_ipv6_sockets = 0;
 
 static uint16_t calc_icmpv6_checksum(const ipv6_header& ip, span<const uint8_t> icmp) {
     struct {
@@ -239,7 +240,24 @@ static void send_to_sockets(span<const uint8_t> buf) {
 
     // FIXME - SOCK_STREAM sockets will be different
     // FIXME - UDP
-    // FIXME - don't allocate while holding lock
+
+    size_t num_sockets;
+
+    {
+        lock_guard lock(ipv6_sockets_lock);
+        num_sockets = num_ipv6_sockets;
+    }
+
+    if (num_sockets == 0)
+        return;
+
+    auto arr = (ipv6_socket**)malloc(sizeof(ipv6_socket*) * num_sockets);
+    if (!arr) {
+        print("malloc failed\n");
+        return;
+    }
+
+    size_t num = 0;
 
     {
         lock_guard lock(ipv6_sockets_lock);
@@ -247,50 +265,76 @@ static void send_to_sockets(span<const uint8_t> buf) {
         for (auto le = ipv6_sockets.next; le != &ipv6_sockets; le = le->next) {
             auto& s = containing_record<ipv6_socket>(le);
 
-            if (s.type != SOCK_RAW)
-                continue;
+            arr[num] = &s;
+            s.acquire();
 
-            if ((ip_proto)s.protocol != ip.next_header)
-                continue;
-
-            // FIXME - strip headers if necessary
-
-            auto p = (socket_packet*)malloc(offsetof(socket_packet, data) + buf.size());
-            if (!p) {
-                print("malloc failed\n");
-                return;
-            }
-
-            p->size = buf.size();
-            memcpy(p->data, buf.data(), buf.size());
-
-            bool done = false;
-            {
-                lock_guard lock2(s.buffer_lock);
-
-                if (s.buffer_size + buf.size() <= MAX_BUFFER_SIZE) {
-                    insert_tail_list(s.buffer, p->le);
-                    s.buffer_size += buf.size();
-                    done = true;
-                }
-            }
-
-            if (!done) {
-                free(p);
-                continue;
-            }
-
-            {
-                sync_lock sl;
-                lock_guard lock(sl);
-
-                if (!s.signalled) {
-                    wake_up_waiters(s.waiters);
-                    s.signalled = true;
-                }
-            }
+            num++;
+            if (num == num_sockets)
+                break;
         }
     }
+
+    if (num == 0) {
+        free(arr);
+        return;
+    }
+
+    for (size_t i = 0; i < num; i++) {
+        auto& s = *arr[i];
+
+        if (s.type != SOCK_RAW) {
+            s.release();
+            continue;
+        }
+
+        if ((ip_proto)s.protocol != ip.next_header) {
+            s.release();
+            continue;
+        }
+
+        // FIXME - strip headers if necessary
+
+        auto p = (socket_packet*)malloc(offsetof(socket_packet, data) + buf.size());
+        if (!p) {
+            print("malloc failed\n");
+            s.release();
+            continue;
+        }
+
+        p->size = buf.size();
+        memcpy(p->data, buf.data(), buf.size());
+
+        bool done = false;
+        {
+            lock_guard lock2(s.buffer_lock);
+
+            if (s.buffer_size + buf.size() <= MAX_BUFFER_SIZE) {
+                insert_tail_list(s.buffer, p->le);
+                s.buffer_size += buf.size();
+                done = true;
+            }
+        }
+
+        if (!done) {
+            free(p);
+            s.release();
+            continue;
+        }
+
+        {
+            sync_lock sl;
+            lock_guard lock(sl);
+
+            if (!s.signalled) {
+                wake_up_waiters(s.waiters);
+                s.signalled = true;
+            }
+        }
+
+        s.release();
+    }
+
+    free(arr);
 }
 
 void handle_ipv6_packet(network_interface& netif, span<const uint8_t> buf) {
@@ -403,6 +447,7 @@ static nt_status netctl_socket(span<const uint8_t> buf) {
             {
                 lock_guard lg(ipv6_sockets_lock);
                 insert_tail_list(ipv6_sockets, s->le);
+                num_ipv6_sockets++;
                 s->added_to_list = true;
             }
 
@@ -431,8 +476,10 @@ ipv6_socket::~ipv6_socket() {
     {
         lock_guard lg(ipv6_sockets_lock);
 
-        if (added_to_list)
+        if (added_to_list) {
             remove_entry_list(le);
+            num_ipv6_sockets--;
+        }
     }
 
     while (true) {
