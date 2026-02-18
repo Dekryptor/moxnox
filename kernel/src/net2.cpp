@@ -750,7 +750,15 @@ static network_interface* ipv6_choose_interface(const ipv6_address& dst,
 }
 
 static bool is_link_local(const ipv6_address& addr) {
-    return addr.v[0] == 0xfe && (addr.v[1] & 0xc0) == 0x80;
+    // link-local unicast
+    if (addr.v[0] == 0xfe && (addr.v[1] & 0xc0) == 0x80)
+        return true;
+
+    // interface-local multicast or link-local multicast
+    if (addr.v[0] == 0xff && (addr.v[1] == 0x01 || addr.v[1] == 0x02))
+        return true;
+
+    return false;
 }
 
 static ipv6_address choose_source_ipv6_address(network_interface& netif,
