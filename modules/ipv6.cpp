@@ -78,6 +78,10 @@ export struct icmpv6_neighbour_advertisement : icmpv6_header {
 
 static_assert(sizeof(icmpv6_neighbour_advertisement) == 24);
 
+export struct icmpv6_router_solicitation : icmpv6_header {
+    uint32_t reserved;
+} __attribute((packed));
+
 export enum class ndp_option_type : uint8_t {
     source_lladdr = 1,
     target_lladdr = 2,
