@@ -536,7 +536,7 @@ nt_status socket::ioctl(uint32_t code, span<const uint8_t> inbuf,
             if ((size_t)params.len > PAGE_SIZE)
                 params.len = PAGE_SIZE;
 
-            auto buf = (char*)malloc(params.len);
+            auto buf = (char*)malloc((size_t)params.len);
             if (!buf) {
                 print("malloc failed\n");
                 return nt_status::INSUFFICIENT_RESOURCES;
