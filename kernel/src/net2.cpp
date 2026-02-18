@@ -94,7 +94,7 @@ static void send_neighbour_advertisement(network_interface& netif,
 
     pkt.ip.version = 6;
     pkt.ip.payload_length = byteswap((uint16_t)(sizeof(icmpv6_neighbour_advertisement) + sizeof(ndp_option_lladdr)));
-    pkt.ip.next_header = ip_proto::icmpv6;
+    pkt.ip.next_header = (uint8_t)ip_proto::icmpv6;
     pkt.ip.hop_limit = 255;
     pkt.ip.src = netif.ll_addr;
     pkt.ip.dst = dst_ip;
@@ -295,7 +295,7 @@ static void send_to_sockets(span<const uint8_t> buf) {
             continue;
         }
 
-        if ((ip_proto)s.protocol != ip.next_header) {
+        if (s.protocol != ip.next_header) {
             s.release();
             continue;
         }
@@ -362,7 +362,7 @@ void handle_ipv6_packet(network_interface& netif, span<const uint8_t> buf) {
           header.src, header.dst);
 #endif
 
-    switch (header.next_header) {
+    switch ((ip_proto)header.next_header) {
         case ip_proto::icmpv6:
             handle_icmpv6_packet(netif, buf);
             break;

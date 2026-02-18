@@ -19,6 +19,7 @@ import mem;
 import spinlock;
 import dma;
 import crt;
+import ipv6;
 
 using namespace std;
 
