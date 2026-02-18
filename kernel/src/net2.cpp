@@ -37,43 +37,6 @@ struct ipv6_socket_packet {
     uint8_t data[0];
 };
 
-static uint16_t calc_icmpv6_checksum(const ipv6_header& ip, span<const uint8_t> icmp) {
-    struct {
-        ipv6_address src;
-        ipv6_address dst;
-        uint32_t length;
-        uint8_t zero[3];
-        ip_proto next_header;
-    } __attribute__((packed)) pseudo;
-
-    uint32_t sum = 0;
-
-    pseudo.src = ip.src;
-    pseudo.dst = ip.dst;
-    pseudo.length = byteswap((uint32_t)icmp.size());
-    pseudo.zero[0] = 0;
-    pseudo.zero[1] = 0;
-    pseudo.zero[2] = 0;
-    pseudo.next_header = ip_proto::icmpv6;
-
-    for (auto s : span((uint16_t*)&pseudo, sizeof(pseudo) / sizeof(uint16_t))) {
-        sum += byteswap(s);
-    }
-
-    for (auto s : span((uint16_t*)icmp.data(), icmp.size() / sizeof(uint16_t))) {
-        sum += byteswap(s);
-    }
-
-    if (icmp.size() & 1)
-        sum += (uint16_t)(icmp[icmp.size() - 1] << 8);
-
-    while (sum & 0xffff0000) {
-        sum = (sum >> 16) + (sum & 0xffff);
-    }
-
-    return byteswap((uint16_t)(~(uint16_t)sum));
-}
-
 static void send_neighbour_advertisement(network_interface& netif,
                                          const ipv6_address& target,
                                          const ipv6_address& dst_ip,
