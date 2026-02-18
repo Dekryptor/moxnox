@@ -3,3 +3,4 @@ EXPORTS
 closesocket = ntdll.NtClose
 socket
 recv
+recvfrom

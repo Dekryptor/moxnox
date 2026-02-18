@@ -2,6 +2,4 @@
 
 stubs_start
 
-do_stub "recvfrom"
-
 stubs_end

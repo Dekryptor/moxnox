@@ -52,7 +52,8 @@ SOCKET socket(int af, int type, int protocol) {
 }
 
 extern "C"
-int recv(SOCKET s, char* buf, int len, int flags) {
+int recvfrom(SOCKET s, char* buf, int len, int flags, sockaddr* from,
+             int* fromlen) {
     IO_STATUS_BLOCK iosb;
     MOXNOX_SOCKET_RECVFROM params;
     size_t recv_bytes;
@@ -60,8 +61,8 @@ int recv(SOCKET s, char* buf, int len, int flags) {
     params.buf = buf;
     params.len = len;
     params.flags = flags;
-    params.from = nullptr;
-    params.fromlen = nullptr;
+    params.from = from;
+    params.fromlen = fromlen;
     params.recv_bytes = &recv_bytes;
 
     auto status = NtDeviceIoControlFile((HANDLE)s, 0, nullptr, nullptr, &iosb,
@@ -73,6 +74,11 @@ int recv(SOCKET s, char* buf, int len, int flags) {
     }
 
     return (int)recv_bytes;
+}
+
+extern "C"
+int recv(SOCKET s, char* buf, int len, int flags) {
+    return recvfrom(s, buf, len, flags, nullptr, nullptr);
 }
 
 extern "C"
