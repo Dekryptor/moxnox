@@ -495,6 +495,8 @@ span<char> do_format_arg(span<char> sp, string_view, nt_status arg) {
             return sp_strcpy(sp, "NOT_FOUND");
         case nt_status::NETWORK_UNREACHABLE:
             return sp_strcpy(sp, "NETWORK_UNREACHABLE");
+        case nt_status::HOST_UNREACHABLE:
+            return sp_strcpy(sp, "HOST_UNREACHABLE");
         case nt_status::ILLEGAL_DLL_RELOCATION:
             return sp_strcpy(sp, "ILLEGAL_DLL_RELOCATION");
         case nt_status::DEVICE_REMOVED:
