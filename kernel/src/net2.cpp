@@ -450,6 +450,36 @@ static nt_status netctl_get_netif_count(span<uint8_t> buf, uintptr_t& written) {
     return nt_status::SUCCESS;
 }
 
+static nt_status netctl_get_netif_ids(span<uint8_t> buf, uintptr_t& written) {
+    if (buf.size() < offsetof(MOXNOX_NETCTL_GET_NETIF_IDS, id))
+        return nt_status::BUFFER_TOO_SMALL;
+
+    size_t left = (buf.size() - offsetof(MOXNOX_NETCTL_GET_NETIF_IDS, id)) / sizeof(uint32_t);
+
+    auto& out = *(MOXNOX_NETCTL_GET_NETIF_IDS*)buf.data();
+    uint32_t num = 0;
+
+    {
+        lock_guard lock(netif_lock);
+
+        for (auto le = netif_list.next; le != &netif_list; le = le->next) {
+            auto& ni = containing_record<netif>(le);
+
+            if (left == 0)
+                return nt_status::BUFFER_TOO_SMALL;
+
+            out.id[num] = ni.num;
+            num++;
+            left--;
+        }
+    }
+
+    out.count = num;
+    written = offsetof(MOXNOX_NETCTL_GET_NETIF_IDS, id) + (num * sizeof(uint32_t));
+
+    return nt_status::SUCCESS;
+}
+
 nt_status netctl::ioctl(uint32_t code, span<const uint8_t> inbuf,
                         span<uint8_t> outbuf, uintptr_t& written) {
     switch (code) {
@@ -458,6 +488,9 @@ nt_status netctl::ioctl(uint32_t code, span<const uint8_t> inbuf,
 
         case IOCTL_MOXNOX_NETCTL_GET_NETIF_COUNT:
             return netctl_get_netif_count(outbuf, written);
+
+        case IOCTL_MOXNOX_NETCTL_GET_NETIF_IDS:
+            return netctl_get_netif_ids(outbuf, written);
 
         default:
             return nt_status::NOT_IMPLEMENTED;
