@@ -480,6 +480,36 @@ static nt_status netctl_get_netif_ids(span<uint8_t> buf, uintptr_t& written) {
     return nt_status::SUCCESS;
 }
 
+static nt_status netctl_get_netif_info(span<const uint8_t> inbuf,
+                                       span<uint8_t> outbuf, uintptr_t& written) {
+    if (inbuf.size() < sizeof(uint32_t))
+        return nt_status::INVALID_PARAMETER;
+
+    auto id = *(uint32_t*)inbuf.data();
+
+    if (outbuf.size() < sizeof(MOXNOX_NETCTL_GET_NETIF_INFO))
+        return nt_status::BUFFER_TOO_SMALL;
+
+    auto& out = *(MOXNOX_NETCTL_GET_NETIF_INFO*)outbuf.data();
+
+    {
+        lock_guard lock(netif_lock);
+
+        for (auto le = netif_list.next; le != &netif_list; le = le->next) {
+            auto& ni = containing_record<netif>(le);
+
+            if (ni.num == id) {
+                *(ipv6_address*)out.ll_addr = ni.ll_addr;
+
+                written = sizeof(MOXNOX_NETCTL_GET_NETIF_INFO);
+                return nt_status::SUCCESS;
+            }
+        }
+    }
+
+    return nt_status::NOT_FOUND;
+}
+
 nt_status netctl::ioctl(uint32_t code, span<const uint8_t> inbuf,
                         span<uint8_t> outbuf, uintptr_t& written) {
     switch (code) {
@@ -491,6 +521,9 @@ nt_status netctl::ioctl(uint32_t code, span<const uint8_t> inbuf,
 
         case IOCTL_MOXNOX_NETCTL_GET_NETIF_IDS:
             return netctl_get_netif_ids(outbuf, written);
+
+        case IOCTL_MOXNOX_NETCTL_GET_NETIF_INFO:
+            return netctl_get_netif_info(inbuf, outbuf, written);
 
         default:
             return nt_status::NOT_IMPLEMENTED;
