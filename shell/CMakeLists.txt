@@ -330,3 +330,16 @@ if(NOT CMAKE_SYSTEM_PROCESSOR STREQUAL "aarch64")
 
     install(TARGETS exc-test DESTINATION ${CMAKE_INSTALL_PREFIX}/bin)
 endif()
+
+###
+
+add_executable(ifconfig src/ifconfig.cpp)
+
+target_compile_options(ifconfig PRIVATE -fno-exceptions ${USERSPACE_CFLAGS})
+target_link_libraries(ifconfig moxnox print unique_handle)
+
+if (CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
+    target_link_options(ifconfig PUBLIC -mcrtdll=ucrtbase)
+endif()
+
+install(TARGETS ifconfig DESTINATION ${CMAKE_INSTALL_PREFIX}/bin)
