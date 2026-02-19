@@ -25,8 +25,9 @@ target_compile_options(efistub PRIVATE -Wall -Wextra -Wno-address-of-packed-memb
 target_link_options(efistub PUBLIC -nostartfiles -nostdlib -Wl,--image-base=0 -Wl,--exclude-all-symbols -e efi_main)
 target_link_libraries(efistub format pe loaderblock aarch64 crt unicode gnu-efi)
 
-# FIXME - why does efistub not work with lld?
-set_property(TARGET efistub PROPERTY LINKER_TYPE BFD)
+# HACK! Work around ld.lld bug: it relocates as if .buildid wasn't there, then sticks it before .data anyway
+target_link_options(efistub PRIVATE -Wl,/merge:.rdata=.data)
+target_link_options(efistub PRIVATE -Wl,/merge:.buildid=.debug_str)
 
 add_custom_command(
     TARGET efistub
