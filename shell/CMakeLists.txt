@@ -336,7 +336,7 @@ endif()
 add_executable(ifconfig src/ifconfig.cpp)
 
 target_compile_options(ifconfig PRIVATE -fno-exceptions ${USERSPACE_CFLAGS})
-target_link_libraries(ifconfig moxnox print unique_handle)
+target_link_libraries(ifconfig moxnox print unique_handle ipv6)
 
 if (CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
     target_link_options(ifconfig PUBLIC -mcrtdll=ucrtbase)

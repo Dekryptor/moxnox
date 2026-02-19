@@ -1,11 +1,13 @@
 #include <stdint.h>
 #include <string.h>
+#include <stdlib.h>
 #include <optional>
 
 import nt;
 import print;
 import unique_handle;
 import moxnox_ioctls;
+import ipv6;
 
 using namespace std;
 
@@ -28,7 +30,7 @@ static unique_handle open_netctl() {
                                0, FILE_OPEN, FILE_SYNCHRONOUS_IO_ALERT, nullptr,
                                0);
     if (!success(status)) {
-        print("NtCreateFile returned {}\n", status);
+        print_stderr("NtCreateFile returned {}\n", status);
         return {};
     }
 
@@ -44,11 +46,28 @@ static optional<uint32_t> get_netif_count(unique_handle& netctl) {
                                    IOCTL_MOXNOX_NETCTL_GET_NETIF_COUNT, nullptr,
                                    0, &out, sizeof(out));
     if (!success(status)) {
-        print("NtDeviceIoControlFile returned {}\n", status);
+        print_stderr("NtDeviceIoControlFile returned {}\n", status);
         return nullopt;
     }
 
     return out.count;
+}
+
+static void get_netif_info(unique_handle& netctl, uint32_t id) {
+    nt_status status;
+    IO_STATUS_BLOCK iosb;
+    MOXNOX_NETCTL_GET_NETIF_INFO info;
+
+    status = NtDeviceIoControlFile(netctl.get(), 0, nullptr, nullptr, &iosb,
+                                   IOCTL_MOXNOX_NETCTL_GET_NETIF_INFO, &id,
+                                   sizeof(uint32_t), &info,
+                                   (uint32_t)sizeof(info));
+    if (!success(status)) {
+        print_stderr("NtDeviceIoControlFile returned {}\n", status);
+        return;
+    }
+
+    print("ll_addr = {}\n", *(ipv6_address*)&info.ll_addr);
 }
 
 int main() {
@@ -65,4 +84,35 @@ int main() {
         count = *opt;
 
     print("count = {}\n", count);
+
+    if (count == 0)
+        return 0;
+
+    // FIXME - get count again if we get nt_status::BUFFER_TOO_SMALL?
+
+    size_t ids_size = offsetof(MOXNOX_NETCTL_GET_NETIF_IDS, id) + (count * sizeof(uint32_t));
+    auto ids = (MOXNOX_NETCTL_GET_NETIF_IDS*)malloc(ids_size);
+    if (!ids) {
+        print_stderr("malloc failed\n");
+        return 1;
+    }
+
+    nt_status status;
+    IO_STATUS_BLOCK iosb;
+
+    status = NtDeviceIoControlFile(netctl.get(), 0, nullptr, nullptr, &iosb,
+                                   IOCTL_MOXNOX_NETCTL_GET_NETIF_IDS, nullptr,
+                                   0, ids, (uint32_t)ids_size);
+    if (!success(status)) {
+        print_stderr("NtDeviceIoControlFile returned {}\n", status);
+        free(ids);
+        return 1;
+    }
+
+    for (unsigned int i = 0; i < ids->count; i++) {
+        print("ID: {}\n", ids->id[i]);
+        get_netif_info(netctl, ids->id[i]);
+    }
+
+    free(ids);
 }
