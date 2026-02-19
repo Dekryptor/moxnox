@@ -26,7 +26,7 @@ int main() {
             break;
         }
 
-        print("--- {} bytes --- (from {})\n", len, *(ipv6_address*)&addr.sin6_addr);
+        print("--- {} bytes --- (from {}, netif {})\n", len, *(ipv6_address*)&addr.sin6_addr, addr.sin6_scope_id);
         for (ssize_t i = 0; i < len; i++) {
             if (i % 16 == 0)
                 print("{:04x}: ", i);
