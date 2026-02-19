@@ -33,6 +33,7 @@ static size_t num_ipv6_sockets = 0;
 struct ipv6_socket_packet {
     list_entry le;
     ipv6_address src;
+    uint32_t scope_id;
     size_t size;
     uint8_t data[0];
 };
@@ -203,7 +204,7 @@ static void handle_icmpv6_packet(netif& ni, span<const uint8_t> buf) {
     }
 }
 
-static void send_to_sockets(span<const uint8_t> buf) {
+static void send_to_sockets(uint32_t netif_num, span<const uint8_t> buf) {
     auto& ip = *(ipv6_header*)buf.data();
 
     // FIXME - SOCK_STREAM sockets will be different
@@ -270,6 +271,7 @@ static void send_to_sockets(span<const uint8_t> buf) {
         }
 
         p->src = ip.src;
+        p->scope_id = netif_num;
         p->size = buf.size() - sizeof(ipv6_header);
         memcpy(p->data, buf.data() + sizeof(ipv6_header),
                buf.size() - sizeof(ipv6_header));
@@ -330,8 +332,8 @@ void handle_ipv6_packet(netif& ni, span<const uint8_t> buf) {
             break;
     }
 
-    send_to_sockets(span(buf.data() + sizeof(ethernet_header),
-                         buf.size() - sizeof(ethernet_header)));
+    send_to_sockets(ni.num, span(buf.data() + sizeof(ethernet_header),
+                                 buf.size() - sizeof(ethernet_header)));
 }
 
 bool drop_packet(const mac_address& dst, const mac_address& us) {
@@ -737,7 +739,7 @@ nt_status ipv6_socket::recvfrom(char* us_buf, int len, int flags,
             addr.sin6_port = 0;
             addr.sin6_flowinfo = 0; // FIXME? Allowed by RFC3493, but not necessarily what Linux does
             memcpy(addr.sin6_addr, sp->src.v.data(), sizeof(ipv6_address));
-            addr.sin6_scope_id = 0; // FIXME
+            addr.sin6_scope_id = sp->scope_id;
 
             status = t.proc->write_vm(us_from, &addr,
                                       (uint32_t)min((size_t)*fromlen, sizeof(addr)),
