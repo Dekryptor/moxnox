@@ -68,11 +68,11 @@ export struct ip_addr {
     ipv6_address addr;
 };
 
-export class network_interface {
+export class netif {
 public:
     // FIXME - GCC 15 errors if no ctor or dtor here
-    network_interface() { }
-    ~network_interface() = default;
+    netif() { }
+    ~netif() = default;
 
     virtual nt_status send_packet(span<const uint8_t> buf) = 0;
 
@@ -260,7 +260,6 @@ export spinlock netif_lock;
 export list_entry netif_list = { &netif_list, &netif_list };
 export atomic<uint32_t> next_netif_num = 1;
 
-export void handle_ipv6_packet(network_interface& netif,
-                               span<const uint8_t> buf);
+export void handle_ipv6_packet(netif& ni, span<const uint8_t> buf);
 export bool drop_packet(const mac_address& dst, const mac_address& us);
 export bool init_netctl();

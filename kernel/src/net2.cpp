@@ -37,8 +37,7 @@ struct ipv6_socket_packet {
     uint8_t data[0];
 };
 
-static void send_neighbour_advertisement(network_interface& netif,
-                                         const ipv6_address& target,
+static void send_neighbour_advertisement(netif& ni, const ipv6_address& target,
                                          const ipv6_address& dst_ip,
                                          const mac_address& dst_mac) {
     struct {
@@ -50,7 +49,7 @@ static void send_neighbour_advertisement(network_interface& netif,
 
     memset(&pkt, 0, sizeof(pkt));
 
-    pkt.eth.src_mac = netif.mac;
+    pkt.eth.src_mac = ni.mac;
     pkt.eth.dst_mac = dst_mac;
 
     pkt.eth.type = ethertype::ipv6;
@@ -59,7 +58,7 @@ static void send_neighbour_advertisement(network_interface& netif,
     pkt.ip.payload_length = byteswap((uint16_t)(sizeof(icmpv6_neighbour_advertisement) + sizeof(ndp_option_lladdr)));
     pkt.ip.next_header = (uint8_t)ip_proto::icmpv6;
     pkt.ip.hop_limit = 255;
-    pkt.ip.src = netif.ll_addr;
+    pkt.ip.src = ni.ll_addr;
     pkt.ip.dst = dst_ip;
 
     pkt.na.type = icmpv6_type::neighbour_advertisement;
@@ -69,17 +68,16 @@ static void send_neighbour_advertisement(network_interface& netif,
 
     pkt.opt.type = ndp_option_type::target_lladdr;
     pkt.opt.length = 1; // 8 bytes
-    pkt.opt.mac = netif.mac;
+    pkt.opt.mac = ni.mac;
 
     pkt.na.checksum = calc_icmpv6_checksum(pkt.ip, span((uint8_t*)&pkt.na, sizeof(pkt.na) + sizeof(pkt.opt)));
 
-    auto status = netif.send_packet(span((const uint8_t*)&pkt, sizeof(pkt)));
+    auto status = ni.send_packet(span((const uint8_t*)&pkt, sizeof(pkt)));
     if (!success(status))
         print("send_packet returned {}\n", status);
 }
 
-static void handle_neighbour_solicitation(network_interface& netif,
-                                          span<const uint8_t> buf) {
+static void handle_neighbour_solicitation(netif& ni, span<const uint8_t> buf) {
     if (buf.size() < sizeof(ethernet_header) + sizeof(ipv6_header) + sizeof(icmpv6_neighbour_solicitation)) {
         print("handle_neighbour_solicitation: buffer length was {}, expected at least {}\n",
               buf.size(), sizeof(ethernet_header) + sizeof(ipv6_header) + sizeof(icmpv6_neighbour_solicitation));
@@ -98,9 +96,9 @@ static void handle_neighbour_solicitation(network_interface& netif,
 
     bool found = false;
     {
-        lock_guard lock(netif.addr_lock);
+        lock_guard lock(ni.addr_lock);
 
-        for (auto le = netif.addrs.next; le != &netif.addrs; le = le->next) {
+        for (auto le = ni.addrs.next; le != &ni.addrs; le = le->next) {
             auto& a = containing_record<ip_addr>(le);
 
             if (a.addr == ns.target) {
@@ -115,20 +113,19 @@ static void handle_neighbour_solicitation(network_interface& netif,
 
     // FIXME - if source was :: (DAD), send to 33:33:00:00:00:01 and ff02::1
 
-    send_neighbour_advertisement(netif, ns.target, ip.src, eth.src_mac);
+    send_neighbour_advertisement(ni, ns.target, ip.src, eth.src_mac);
 }
 
-static void handle_v6_echo_request(network_interface& netif,
-                                   span<const uint8_t> buf) {
+static void handle_v6_echo_request(netif& ni, span<const uint8_t> buf) {
     const auto& orig_ip = *(ipv6_header*)(buf.data() + sizeof(ethernet_header));
 
     // check if it's for us
 
     bool found = false;
     {
-        lock_guard lock(netif.addr_lock);
+        lock_guard lock(ni.addr_lock);
 
-        for (auto le = netif.addrs.next; le != &netif.addrs; le = le->next) {
+        for (auto le = ni.addrs.next; le != &ni.addrs; le = le->next) {
             auto& a = containing_record<ip_addr>(le);
 
             if (a.addr == orig_ip.dst) {
@@ -171,14 +168,14 @@ static void handle_v6_echo_request(network_interface& netif,
 
     header.checksum = calc_icmpv6_checksum(ip, span((uint8_t*)&header, buf.size() - sizeof(ethernet_header) - sizeof(ipv6_header)));
 
-    auto status = netif.send_packet(span(reply, buf.size()));
+    auto status = ni.send_packet(span(reply, buf.size()));
     if (!success(status))
         print("send_packet returned {}\n", status);
 
     free(reply);
 }
 
-static void handle_icmpv6_packet(network_interface& netif, span<const uint8_t> buf) {
+static void handle_icmpv6_packet(netif& ni, span<const uint8_t> buf) {
     if (buf.size() < sizeof(ethernet_header) + sizeof(ipv6_header) + sizeof(icmpv6_header)) {
         print("handle_icmpv6_packet: buffer length was {}, expected at least {}\n",
               buf.size(), sizeof(ethernet_header) + sizeof(ipv6_header) + sizeof(icmpv6_header));
@@ -194,11 +191,11 @@ static void handle_icmpv6_packet(network_interface& netif, span<const uint8_t> b
 
     switch (header.type) {
         case icmpv6_type::neighbour_solicitation:
-            handle_neighbour_solicitation(netif, buf);
+            handle_neighbour_solicitation(ni, buf);
             break;
 
         case icmpv6_type::echo_request:
-            handle_v6_echo_request(netif, buf);
+            handle_v6_echo_request(ni, buf);
             break;
 
         default:
@@ -308,7 +305,7 @@ static void send_to_sockets(span<const uint8_t> buf) {
     free(arr);
 }
 
-void handle_ipv6_packet(network_interface& netif, span<const uint8_t> buf) {
+void handle_ipv6_packet(netif& ni, span<const uint8_t> buf) {
     if (buf.size() < sizeof(ethernet_header) + sizeof(ipv6_header)) {
         print("handle_ipv6_packet: buffer length was {}, expected at least {}\n",
               buf.size(), sizeof(ethernet_header) + sizeof(ipv6_header));
@@ -326,7 +323,7 @@ void handle_ipv6_packet(network_interface& netif, span<const uint8_t> buf) {
 
     switch ((ip_proto)header.next_header) {
         case ip_proto::icmpv6:
-            handle_icmpv6_packet(netif, buf);
+            handle_icmpv6_packet(ni, buf);
             break;
 
         default:
@@ -694,8 +691,7 @@ nt_status ipv6_socket::sendto(const char* us_buf, int len, int flags,
     return nt_status::NOT_IMPLEMENTED;
 }
 
-static network_interface* ipv6_choose_interface(const ipv6_address& dst,
-                                                uint32_t scope_id) {
+static netif* ipv6_choose_interface(const ipv6_address& dst, uint32_t scope_id) {
     // FIXME - if link-local, use scope_id
     // FIXME - otherwise, consult routing tables
 
@@ -708,7 +704,7 @@ static network_interface* ipv6_choose_interface(const ipv6_address& dst,
         if (is_list_empty(netif_list))
             return nullptr;
 
-        return &containing_record<network_interface>(netif_list.next);
+        return &containing_record<netif>(netif_list.next);
     }
 }
 
@@ -724,7 +720,7 @@ static bool is_link_local(const ipv6_address& addr) {
     return false;
 }
 
-static ipv6_address choose_source_ipv6_address(network_interface& netif,
+static ipv6_address choose_source_ipv6_address(netif& ni,
                                                const ipv6_address& dst) {
     // see RFC6724
 
@@ -733,9 +729,9 @@ static ipv6_address choose_source_ipv6_address(network_interface& netif,
     // rule 1: prefer same address
 
     {
-        lock_guard lock(netif.addr_lock);
+        lock_guard lock(ni.addr_lock);
 
-        for (auto le = netif.addrs.next; le != &netif.addrs; le = le->next) {
+        for (auto le = ni.addrs.next; le != &ni.addrs; le = le->next) {
             auto& a = containing_record<ip_addr>(le);
 
             if (a.addr == dst)
@@ -744,7 +740,7 @@ static ipv6_address choose_source_ipv6_address(network_interface& netif,
     }
 
     if (is_link_local(dst))
-        return netif.ll_addr;
+        return ni.ll_addr;
 
     // FIXME - rule 2: if link-local, choose link-local
     // FIXME - rule 3: avoid deprecated address

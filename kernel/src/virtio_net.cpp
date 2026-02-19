@@ -128,7 +128,7 @@ static void init_virtio_pci() {
 static module_init module_init_virtio_net(init_virtio_pci);
 
 template<typename T>
-class virtio_net : public network_interface {
+class virtio_net : public netif {
 public:
     virtio_net(pci_device& d);
     virtio_net(T& t);
