@@ -429,11 +429,35 @@ static nt_status netctl_socket(span<const uint8_t> buf) {
     return nt_status::SUCCESS;
 }
 
+static nt_status netctl_get_netif_count(span<uint8_t> buf, uintptr_t& written) {
+    if (buf.size() < sizeof(MOXNOX_NETCTL_GET_NETIF_COUNT))
+        return nt_status::BUFFER_TOO_SMALL;
+
+    auto& out = *(MOXNOX_NETCTL_GET_NETIF_COUNT*)buf.data();
+    uint32_t num = 0;
+
+    {
+        lock_guard lock(netif_lock);
+
+        for (auto le = netif_list.next; le != &netif_list; le = le->next) {
+            num++;
+        }
+    }
+
+    out.count = num;
+    written = sizeof(MOXNOX_NETCTL_GET_NETIF_COUNT);
+
+    return nt_status::SUCCESS;
+}
+
 nt_status netctl::ioctl(uint32_t code, span<const uint8_t> inbuf,
-                        span<uint8_t> /*outbuf*/, uintptr_t& /*written*/) {
+                        span<uint8_t> outbuf, uintptr_t& written) {
     switch (code) {
         case IOCTL_MOXNOX_NETCTL_SOCKET:
             return netctl_socket(inbuf);
+
+        case IOCTL_MOXNOX_NETCTL_GET_NETIF_COUNT:
+            return netctl_get_netif_count(outbuf, written);
 
         default:
             return nt_status::NOT_IMPLEMENTED;
