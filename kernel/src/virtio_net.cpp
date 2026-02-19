@@ -236,6 +236,8 @@ void virtio_net<T>::init(const virtio_net_config& cfg) {
             transmit_queue = &vq;
     }
 
+    this->num = next_netif_num.fetch_add(1);
+
     {
         lock_guard lg(netif_lock);
         insert_tail_list(netif_list, this->le);
