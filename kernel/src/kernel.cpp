@@ -247,8 +247,8 @@ void main_thread(void* ctx) {
     if (!init_vfsctl())
         bsod("init_vfsctl failed\n");
 
-    if (!init_netctl())
-        bsod("init_netctl failed\n");
+    if (!init_net())
+        bsod("init_net failed\n");
 
     if (!mount_root())
         bsod("mount_root failed");

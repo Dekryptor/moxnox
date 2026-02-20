@@ -281,4 +281,4 @@ export atomic<uint32_t> next_eth_num = 0;
 
 export void handle_ipv6_packet(netif& ni, span<const uint8_t> buf);
 export bool drop_packet(const mac_address& dst, const mac_address& us);
-export bool init_netctl();
+export bool init_net();

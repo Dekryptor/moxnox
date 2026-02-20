@@ -18,6 +18,8 @@ import thread;
 import config;
 import scheduler;
 import event;
+import kernel_time_page;
+import timer;
 
 using namespace std;
 
@@ -50,11 +52,6 @@ struct neighbour_cache_entry {
     }
 
     ~neighbour_cache_entry() {
-        if (added) {
-            lock_guard lock(ni.neighbour_lock);
-            remove_entry_list(le);
-        }
-
         ni.release();
     }
 
@@ -69,12 +66,12 @@ struct neighbour_cache_entry {
 
     list_entry le;
     netif& ni;
-    bool added = false;
     ipv6_address addr;
     atomic<unsigned int> refcount = 1;
     object_ref event;
     mac_address mac;
     neighbour_cache_status status;
+    int64_t last_update_time;
 };
 
 static void send_neighbour_advertisement(netif& ni, const ipv6_address& target,
@@ -215,6 +212,7 @@ static void handle_neighbour_advertisement(netif& ni, span<const uint8_t> buf) {
 
             if (c.status == neighbour_cache_status::incomplete) {
                 c.status = neighbour_cache_status::reachable;
+                c.last_update_time = kernel_time_page.system_time;
                 c.acquire();
                 set_event(static_cast<event&>(c.event.get()));
             }
@@ -261,13 +259,15 @@ static void handle_neighbour_advertisement(netif& ni, span<const uint8_t> buf) {
                     set_event(static_cast<event&>(c.event.get()));
                 }
 
+                c.last_update_time = kernel_time_page.system_time;
+
                 break;
             }
         }
 
         if (!beaten_to_it) {
             insert_tail_list(ni.neighbour_cache, nce->le);
-            nce->added = true;
+            nce->last_update_time = kernel_time_page.system_time;
         }
     }
 
@@ -496,6 +496,21 @@ void handle_ipv6_packet(netif& ni, span<const uint8_t> buf) {
 
     send_to_sockets(ni.num, span(buf.data() + sizeof(ethernet_header),
                                  buf.size() - sizeof(ethernet_header)));
+
+    {
+        lock_guard lock(ni.neighbour_lock);
+
+        for (auto le = ni.neighbour_cache.next; le != &ni.neighbour_cache; le = le->next) {
+            auto& c = containing_record<neighbour_cache_entry>(le);
+
+            if (c.addr == header.src) {
+                if (c.status == neighbour_cache_status::reachable)
+                    c.last_update_time = kernel_time_page.system_time;
+
+                break;
+            }
+        }
+    }
 }
 
 bool drop_packet(const mac_address& dst, const mac_address& us) {
@@ -515,7 +530,79 @@ bool drop_packet(const mac_address& dst, const mac_address& us) {
     return true;
 }
 
-bool init_netctl() {
+static void network_housekeeping() {
+    int64_t now = kernel_time_page.system_time;
+
+    // FIXME - implement proper RFC4861 state machine? INCOMPLETE, REACHABLE, STALE, DELAY, PROBE
+
+    static const unsigned int REAP_TIME = 300; // 5 minutes
+
+    {
+        lock_guard lock(netif_lock);
+
+        for (auto le = netif_list.next; le != &netif_list; le = le->next) {
+            list_entry reap_list = { &reap_list, &reap_list };
+
+            auto& ni = containing_record<netif>(le);
+
+            {
+                lock_guard lock2(ni.neighbour_lock);
+
+                for (auto le2 = ni.neighbour_cache.next; le2 != &ni.neighbour_cache; le2 = le2->next) {
+                    auto& c = containing_record<neighbour_cache_entry>(le2);
+
+                    if (now >= c.last_update_time + (REAP_TIME * SYSTEM_TIME_RESOLUTION)) {
+                        auto le_prev = le2->prev;
+
+                        remove_entry_list(c.le);
+                        insert_tail_list(reap_list, c.le);
+
+                        le2 = le_prev;
+                    }
+                }
+            }
+
+            while (!is_list_empty(reap_list)) {
+                auto& c = containing_record<neighbour_cache_entry>(reap_list.next);
+
+                remove_entry_list(c.le);
+                c.release();
+            }
+        }
+    }
+}
+
+static void network_thread() {
+    auto tim_ref = create_timer(true);
+    if (!tim_ref) {
+        print("create_timer failed, exiting network thread\n");
+        return;
+    }
+
+    auto& tim = static_cast<timer&>(tim_ref.get());
+
+    int64_t due_time_ticks = SYSTEM_TIME_RESOLUTION; // 1 second
+    auto due_time_ms = (int32_t)((due_time_ticks * 1000) / SYSTEM_TIME_RESOLUTION);
+
+    auto status = tim.set(-due_time_ticks, nullptr, nullptr, false,
+                          due_time_ms, nullptr);
+    if (!success(status)) {
+        print("timer::set returned {}, exiting network thread\n", status);
+        return;
+    }
+
+    while (true) {
+        status = wait_for_object(tim, true);
+        if (!success(status)) {
+            print("wait_for_object returned {}, exiting network thread\n", status);
+            break;
+        }
+
+        network_housekeeping();
+    }
+}
+
+bool init_net() {
     auto pptr = new netctl;
     if (!pptr) {
         print("new failed\n");
@@ -529,6 +616,8 @@ bool init_netctl() {
         print("name_object returned {}\n", status);
         return false;
     }
+
+    add_kernel_thread(network_thread);
 
     return true;
 }
@@ -1167,7 +1256,7 @@ static mac_address search_neighbour_cache(netif& ni, const ipv6_address& dst) {
 
         if (!nce2) {
             insert_tail_list(ni.neighbour_cache, nce->le);
-            nce->added = true;
+            nce->acquire();
         }
     }
 
@@ -1211,6 +1300,16 @@ static mac_address search_neighbour_cache(netif& ni, const ipv6_address& dst) {
     }
 
     set_event(static_cast<event&>(nce->event.get()));
+
+    {
+        lock_guard lock(ni.neighbour_lock);
+
+        if (nce->status != neighbour_cache_status::reachable) {
+            remove_entry_list(nce->le);
+            nce->release();
+        }
+    }
+
     nce->release();
 
     return NULL_MAC_ADDRESS;
