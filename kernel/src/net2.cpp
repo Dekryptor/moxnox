@@ -156,6 +156,79 @@ static void handle_neighbour_solicitation(netif& ni, span<const uint8_t> buf) {
     send_neighbour_advertisement(ni, ns.target, ip.src, eth.src_mac);
 }
 
+static void handle_neighbour_advertisement(netif& ni, span<const uint8_t> buf) {
+    if (buf.size() < sizeof(ethernet_header) + sizeof(ipv6_header) + sizeof(icmpv6_neighbour_advertisement)) {
+        print("handle_neighbour_advertisement: buffer length was {}, expected at least {}\n",
+              buf.size(), sizeof(ethernet_header) + sizeof(ipv6_header) + sizeof(icmpv6_neighbour_advertisement));
+        return;
+    }
+
+    auto& eth = *(ethernet_header*)buf.data();
+    auto& ip = *(ipv6_header*)(buf.data() + sizeof(ethernet_header));
+    auto& na = *(icmpv6_neighbour_advertisement*)(buf.data() + sizeof(ethernet_header) + sizeof(ipv6_header));
+
+#if 0
+    print("na: override = {}, solicited = {}, router = {}, target = {}\n",
+          na._override, na.solicited, na.router, na.target);
+#endif
+
+    auto opts = span(buf.data() + sizeof(ethernet_header) + sizeof(ipv6_header) + sizeof(icmpv6_neighbour_advertisement),
+                     buf.size() - sizeof(ethernet_header) - sizeof(ipv6_header) - sizeof(icmpv6_neighbour_advertisement));
+
+    mac_address mac = NULL_MAC_ADDRESS;
+
+    while (opts.size() >= 8) {
+        auto& opt = *(ndp_option*)opts.data();
+
+        if (opts.size() < opt.length * 8)
+            break;
+
+        if (opt.type == ndp_option_type::target_lladdr) {
+            auto& opt2 = *(ndp_option_lladdr*)&opt;
+
+            mac = opt2.mac;
+
+            break;
+        }
+
+        opts = span(opts.data() + (opt.length * 8), opts.size() - (opt.length * 8));
+    }
+
+    if (mac == NULL_MAC_ADDRESS) {
+        print("neighbour advertisement did not provide a MAC address\n");
+        return;
+    }
+
+    // FIXME - if !na.solicited, update cache status to stale
+    // FIXME - na._override (only override existing cache entry if set)
+
+    {
+        lock_guard lock(ni.neighbour_lock);
+
+        for (auto le = ni.neighbour_cache.next; le != &ni.neighbour_cache; le = le->next) {
+            auto& c = containing_record<neighbour_cache_entry>(le);
+
+            if (c.addr != na.target)
+                continue;
+
+            if (!na._override && c.status == neighbour_cache_status::reachable)
+                return;
+
+            c.mac = mac;
+
+            if (c.status == neighbour_cache_status::incomplete) {
+                c.status = neighbour_cache_status::reachable;
+                c.acquire();
+                set_event(static_cast<event&>(c.event.get()));
+            }
+
+            return;
+        }
+    }
+
+    // FIXME - add new
+}
+
 static void handle_v6_echo_request(netif& ni, span<const uint8_t> buf) {
     const auto& orig_ip = *(ipv6_header*)(buf.data() + sizeof(ethernet_header));
 
@@ -232,6 +305,10 @@ static void handle_icmpv6_packet(netif& ni, span<const uint8_t> buf) {
     switch (header.type) {
         case icmpv6_type::neighbour_solicitation:
             handle_neighbour_solicitation(ni, buf);
+            break;
+
+        case icmpv6_type::neighbour_advertisement:
+            handle_neighbour_advertisement(ni, buf);
             break;
 
         case icmpv6_type::echo_request:

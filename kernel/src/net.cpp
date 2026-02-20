@@ -55,9 +55,14 @@ export enum class ip_proto : uint8_t {
     icmpv6 = 58
 };
 
-export struct ndp_option_lladdr {
+export struct ndp_option {
     ndp_option_type type;
     uint8_t length;
+} __attribute((packed));
+
+static_assert(sizeof(ndp_option) == 2);
+
+export struct ndp_option_lladdr : ndp_option {
     mac_address mac;
 } __attribute((packed));
 
