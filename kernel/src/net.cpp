@@ -82,6 +82,7 @@ public:
 
     spinlock addr_lock;
     list_entry addrs = { &addrs, &addrs };
+    char name[16];
     ipv6_address ll_addr;
     uint32_t num;
 };
@@ -259,6 +260,7 @@ export span<char> do_format_arg(span<char> sp, string_view, icmpv6_type t) {
 export spinlock netif_lock;
 export list_entry netif_list = { &netif_list, &netif_list };
 export atomic<uint32_t> next_netif_num = 1;
+export atomic<uint32_t> next_eth_num = 0;
 
 export void handle_ipv6_packet(netif& ni, span<const uint8_t> buf);
 export bool drop_packet(const mac_address& dst, const mac_address& us);

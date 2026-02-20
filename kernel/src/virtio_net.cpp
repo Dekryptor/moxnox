@@ -238,6 +238,20 @@ void virtio_net<T>::init(const virtio_net_config& cfg) {
 
     this->num = next_netif_num.fetch_add(1);
 
+    auto eth_num = next_eth_num.fetch_add(1);
+
+    {
+        char s[50];
+        auto sp = span(s, sizeof(s));
+
+        sp = format(sp, "eth{}", eth_num);
+
+        auto sv = string_view(s, (size_t)(sp.data() - s));
+
+        memcpy(this->name, sv.data(), sv.size());
+        memset(this->name + sv.size(), 0, sizeof(this->name) - sv.size());
+    }
+
     {
         lock_guard lg(netif_lock);
         insert_tail_list(netif_list, this->le);
