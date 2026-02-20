@@ -18,7 +18,7 @@ int main() {
     sockaddr_in6 addr;
 
     while (1) {
-        auto addrlen = (int)sizeof(addr) + 4;
+        auto addrlen = (int)sizeof(addr);
         ssize_t len = recvfrom(sock, buf, sizeof(buf), 0, (sockaddr*)&addr,
                                &addrlen);
         if (len < 0) {
