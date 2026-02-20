@@ -640,17 +640,20 @@ nt_status socket::do_sendto(span<const uint8_t> inbuf) {
     if ((size_t)params.len > PAGE_SIZE)
         params.len = PAGE_SIZE;
 
-    if ((params.tolen == 0 && params.to) || (params.tolen != 0 && !params.to))
+    if ((params.tolen == 0 && params.to) || (params.tolen != 0 && !params.to) || params.tolen < 0)
         return nt_status::INVALID_PARAMETER;
 
     if (params.to) {
-        to = (sockaddr*)malloc(params.len);
+        if ((size_t)params.tolen > PAGE_SIZE)
+            params.tolen = PAGE_SIZE;
+
+        to = (sockaddr*)malloc((size_t)params.tolen);
         if (!to) {
             print("malloc failed\n");
             return nt_status::INSUFFICIENT_RESOURCES;
         }
 
-        status = t.proc->read_vm(params.to, to, params.tolen, nullptr);
+        status = t.proc->read_vm(params.to, to, (uint32_t)params.tolen, nullptr);
         if (!success(status)) {
             free(to);
             return status;
