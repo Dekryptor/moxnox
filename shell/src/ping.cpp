@@ -39,13 +39,13 @@ static void do_ping(int sock, const ipv6_address& ip) {
         auto ret = sendto(sock, (char*)&echo, sizeof(echo), 0, (sockaddr*)&dst,
                         sizeof(dst));
         if (ret < 0) {
-            print("sendto failed (errno {})\n", errno);
+            print_stderr("sendto failed (errno {})\n", errno);
             return; // FIXME - don't quit?
         }
 
         status = NtQuerySystemTime(&sent_time);
         if (!success(status)) {
-            print("NtQuerySystemTime returned {}\n", status);
+            print_stderr("NtQuerySystemTime returned {}\n", status);
             return;
         }
 
@@ -57,7 +57,7 @@ static void do_ping(int sock, const ipv6_address& ip) {
 
             status = NtQuerySystemTime(&now);
             if (!success(status)) {
-                print("NtQuerySystemTime returned {}\n", status);
+                print_stderr("NtQuerySystemTime returned {}\n", status);
                 return;
             }
 
@@ -71,7 +71,7 @@ static void do_ping(int sock, const ipv6_address& ip) {
             if (status == nt_status::TIMEOUT)
                 break;
             else if (!success(status)) {
-                print("NtWaitForSingleObject returned {}\n", status);
+                print_stderr("NtWaitForSingleObject returned {}\n", status);
                 return;
             }
 
@@ -79,7 +79,7 @@ static void do_ping(int sock, const ipv6_address& ip) {
             auto len = recvfrom(sock, buf, sizeof(buf), 0, (sockaddr*)&addr,
                                 &addrlen);
             if (len < 0) {
-                print("recv failed (errno {})\n", errno);
+                print_stderr("recv failed (errno {})\n", errno);
                 continue;
             }
 
@@ -96,7 +96,7 @@ static void do_ping(int sock, const ipv6_address& ip) {
 
             status = NtQuerySystemTime(&now);
             if (!success(status)) {
-                print("NtQuerySystemTime returned {}\n", status);
+                print_stderr("NtQuerySystemTime returned {}\n", status);
                 return;
             }
 
@@ -126,7 +126,7 @@ static void do_ping(int sock, const ipv6_address& ip) {
 int main() {
     auto sock = socket(AF_INET6, SOCK_RAW, IPPROTO_ICMPV6);
     if (sock < 0) {
-        print("socket failed (errno {})\n", errno);
+        print_stderr("socket failed (errno {})\n", errno);
         return 1;
     }
 
