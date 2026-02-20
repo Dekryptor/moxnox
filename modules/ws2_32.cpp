@@ -110,6 +110,7 @@ int recvfrom(SOCKET s, char* buf, int len, int flags, sockaddr* from,
 int send(SOCKET s, const char* buf, int len, int flags);
 int sendto(SOCKET s, const char* buf, int len, int flags, const sockaddr* to,
            int tolen);
+int bind(SOCKET s, const sockaddr* addr, int addrlen);
 
 }
 
