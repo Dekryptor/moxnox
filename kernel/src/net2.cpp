@@ -163,8 +163,6 @@ static void handle_neighbour_advertisement(netif& ni, span<const uint8_t> buf) {
         return;
     }
 
-    auto& eth = *(ethernet_header*)buf.data();
-    auto& ip = *(ipv6_header*)(buf.data() + sizeof(ethernet_header));
     auto& na = *(icmpv6_neighbour_advertisement*)(buf.data() + sizeof(ethernet_header) + sizeof(ipv6_header));
 
 #if 0
@@ -200,7 +198,6 @@ static void handle_neighbour_advertisement(netif& ni, span<const uint8_t> buf) {
     }
 
     // FIXME - if !na.solicited, update cache status to stale
-    // FIXME - na._override (only override existing cache entry if set)
 
     {
         lock_guard lock(ni.neighbour_lock);
@@ -226,7 +223,56 @@ static void handle_neighbour_advertisement(netif& ni, span<const uint8_t> buf) {
         }
     }
 
-    // FIXME - add new
+    // add new entry
+
+    auto nce = new neighbour_cache_entry(ni);
+    if (!nce) {
+        print("new failed\n");
+        return;
+    }
+
+    nce->addr = na.target;
+
+    nce->event = create_event(false);
+    if (!nce->event) {
+        print("create_event failed\n");
+        nce->release();
+        return;
+    }
+
+    set_event(static_cast<event&>(nce->event.get()));
+
+    nce->status = neighbour_cache_status::reachable;
+
+    bool beaten_to_it = false;
+
+    {
+        lock_guard lock(ni.neighbour_lock);
+
+        for (auto le = ni.neighbour_cache.next; le != &ni.neighbour_cache; le = le->next) {
+            auto& c = containing_record<neighbour_cache_entry>(le);
+
+            if (c.addr == na.target) {
+                beaten_to_it = true;
+
+                if (c.status == neighbour_cache_status::incomplete) {
+                    c.status = neighbour_cache_status::reachable;
+                    c.acquire();
+                    set_event(static_cast<event&>(c.event.get()));
+                }
+
+                break;
+            }
+        }
+
+        if (!beaten_to_it) {
+            insert_tail_list(ni.neighbour_cache, nce->le);
+            nce->added = true;
+        }
+    }
+
+    if (beaten_to_it)
+        nce->release();
 }
 
 static void handle_v6_echo_request(netif& ni, span<const uint8_t> buf) {
@@ -1097,6 +1143,7 @@ static mac_address search_neighbour_cache(netif& ni, const ipv6_address& dst) {
     nce->event = create_event(false);
     if (!nce->event) {
         print("create_event failed\n");
+        nce->release();
         return NULL_MAC_ADDRESS;
     }
 
