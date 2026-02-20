@@ -120,5 +120,6 @@ export struct MOXNOX_NETCTL_GET_NETIF_IDS {
 };
 
 export struct MOXNOX_NETCTL_GET_NETIF_INFO {
+    char name[16];
     uint8_t ll_addr[16];
 };
