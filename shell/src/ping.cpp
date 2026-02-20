@@ -68,7 +68,7 @@ static void do_ping(int sock, const ipv6_address& ip) {
 
             timeout.QuadPart = - (deadline - now.QuadPart);
 
-            status = NtWaitForSingleObject(sock, false, &timeout);
+            status = NtWaitForSingleObject((HANDLE)sock, false, &timeout);
 
             if (status == nt_status::TIMEOUT)
                 break;
