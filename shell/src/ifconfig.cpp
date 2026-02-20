@@ -3,6 +3,7 @@
 #include <stdlib.h>
 #include <stddef.h>
 #include <optional>
+#include <string_view>
 
 import nt;
 import print;
@@ -68,6 +69,11 @@ static void get_netif_info(unique_handle& netctl, uint32_t id) {
         return;
     }
 
+    auto name = string_view(info.name, sizeof(info.name));
+    if (auto n = name.find('\0'); n != string_view::npos)
+        name = string_view(name.data(), name.size());
+
+    print("name = \"{}\"\n", name);
     print("ll_addr = {}\n", *(ipv6_address*)&info.ll_addr);
 }
 
