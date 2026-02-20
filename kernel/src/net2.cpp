@@ -17,6 +17,7 @@ import moxnox_ioctls;
 import thread;
 import config;
 import scheduler;
+import event;
 
 using namespace std;
 
@@ -36,6 +37,44 @@ struct ipv6_socket_packet {
     uint32_t scope_id;
     size_t size;
     uint8_t data[0];
+};
+
+enum class neighbour_cache_status {
+    incomplete,
+    reachable
+};
+
+struct neighbour_cache_entry {
+    neighbour_cache_entry(netif& ni) : ni(ni) {
+        ni.acquire();
+    }
+
+    ~neighbour_cache_entry() {
+        if (added) {
+            lock_guard lock(ni.neighbour_lock);
+            remove_entry_list(le);
+        }
+
+        ni.release();
+    }
+
+    void acquire() {
+        refcount++;
+    }
+
+    void release() {
+        if (--refcount == 0)
+            delete this;
+    }
+
+    list_entry le;
+    netif& ni;
+    bool added = false;
+    ipv6_address addr;
+    atomic<unsigned int> refcount = 1;
+    object_ref event;
+    mac_address mac;
+    neighbour_cache_status status;
 };
 
 static void send_neighbour_advertisement(netif& ni, const ipv6_address& target,
@@ -878,7 +917,182 @@ static nt_status ipv6_choose_interface(const ipv6_address& dst, uint32_t scope_i
     return nt_status::NETWORK_UNREACHABLE;
 }
 
-static mac_address find_mac_address(const ipv6_address& dst) {
+static void send_neighbour_solicitation(netif& ni, const ipv6_address& dst) {
+    struct {
+        ethernet_header eth;
+        ipv6_header ip;
+        icmpv6_neighbour_solicitation ns;
+        ndp_option_lladdr opt;
+    } __attribute__((packed)) pkt;
+
+    memset(&pkt, 0, sizeof(pkt));
+
+    pkt.eth.src_mac = ni.mac;
+
+    pkt.eth.dst_mac.v[0] = 0x33;
+    pkt.eth.dst_mac.v[1] = 0x33;
+    pkt.eth.dst_mac.v[2] = 0xff;
+    pkt.eth.dst_mac.v[3] = dst.v[13];
+    pkt.eth.dst_mac.v[4] = dst.v[14];
+    pkt.eth.dst_mac.v[5] = dst.v[15];
+
+    pkt.eth.type = ethertype::ipv6;
+
+    pkt.ip.version = 6;
+    pkt.ip.payload_length = byteswap((uint16_t)(sizeof(icmpv6_neighbour_solicitation) + sizeof(ndp_option_lladdr)));
+    pkt.ip.next_header = (uint8_t)ip_proto::icmpv6;
+    pkt.ip.hop_limit = 255;
+    pkt.ip.src = ni.ll_addr;
+
+    pkt.ip.dst.v[0] = 0xff;
+    pkt.ip.dst.v[1] = 0x2;
+    pkt.ip.dst.v[2] = 0x0;
+    pkt.ip.dst.v[3] = 0x0;
+    pkt.ip.dst.v[4] = 0x0;
+    pkt.ip.dst.v[5] = 0x0;
+    pkt.ip.dst.v[6] = 0x0;
+    pkt.ip.dst.v[7] = 0x0;
+    pkt.ip.dst.v[8] = 0x0;
+    pkt.ip.dst.v[9] = 0x0;
+    pkt.ip.dst.v[10] = 0x0;
+    pkt.ip.dst.v[11] = 0x1;
+    pkt.ip.dst.v[12] = 0xff;
+    pkt.ip.dst.v[13] = dst.v[13];
+    pkt.ip.dst.v[14] = dst.v[14];
+    pkt.ip.dst.v[15] = dst.v[15];
+
+    pkt.ns.type = icmpv6_type::neighbour_solicitation;
+    pkt.ns.target = dst;
+
+    pkt.opt.type = ndp_option_type::source_lladdr;
+    pkt.opt.length = 1; // 8 bytes
+    pkt.opt.mac = ni.mac;
+
+    pkt.ns.checksum = calc_icmpv6_checksum(pkt.ip, span((uint8_t*)&pkt.ns, sizeof(pkt.ns) + sizeof(pkt.opt)));
+
+    auto status = ni.send_packet(span((const uint8_t*)&pkt, sizeof(pkt)));
+    if (!success(status))
+        print("send_packet returned {}\n", status);
+}
+
+static mac_address search_neighbour_cache(netif& ni, const ipv6_address& dst) {
+    neighbour_cache_entry* nce = nullptr;
+
+    {
+        lock_guard lock(ni.neighbour_lock);
+
+        for (auto le = ni.neighbour_cache.next; le != &ni.neighbour_cache; le = le->next) {
+            auto& c = containing_record<neighbour_cache_entry>(le);
+
+            if (c.addr == dst) {
+                if (c.status == neighbour_cache_status::reachable)
+                    return c.mac;
+
+                c.acquire();
+                nce = &c;
+                break;
+            }
+        }
+    }
+
+    if (nce) { // found, but incomplete
+        wait_for_object(nce->event.get(), false);
+
+        if (nce->status == neighbour_cache_status::reachable) {
+            auto ret = nce->mac;
+
+            nce->release();
+            return ret;
+        } else
+            nce->release();
+    }
+
+    nce = new neighbour_cache_entry(ni);
+    if (!nce) {
+        print("new failed\n");
+        return NULL_MAC_ADDRESS;
+    }
+
+    neighbour_cache_entry* nce2 = nullptr;
+
+    nce->addr = dst;
+
+    nce->event = create_event(false);
+    if (!nce->event) {
+        print("create_event failed\n");
+        return NULL_MAC_ADDRESS;
+    }
+
+    nce->status = neighbour_cache_status::incomplete;
+
+    {
+        lock_guard lock(ni.neighbour_lock);
+
+        for (auto le = ni.neighbour_cache.next; le != &ni.neighbour_cache; le = le->next) {
+            auto& c = containing_record<neighbour_cache_entry>(le);
+
+            if (c.addr == dst) {
+                if (c.status == neighbour_cache_status::reachable)
+                    return c.mac;
+
+                c.acquire();
+                nce2 = &c;
+                break;
+            }
+        }
+
+        if (!nce2) {
+            insert_tail_list(ni.neighbour_cache, nce->le);
+            nce->added = true;
+        }
+    }
+
+    if (nce2) { // race and we lost
+        nce->release();
+
+        wait_for_object(nce2->event.get(), false);
+
+        if (nce2->status == neighbour_cache_status::reachable) {
+            auto ret = nce2->mac;
+
+            nce2->release();
+            return ret;
+        } else {
+            nce2->release();
+            return NULL_MAC_ADDRESS;
+        }
+    }
+
+    for (unsigned int i = 0; i < 3; i++) {
+        uint64_t timeout = SYSTEM_TIME_RESOLUTION; // 1 second
+
+        send_neighbour_solicitation(ni, dst);
+
+        auto status = wait_for_object(nce->event.get(), false, timeout);
+
+        if (status == nt_status::TIMEOUT)
+            continue;
+        else if (!success(status)) {
+            nce->release();
+            print("wait_for_object returned {}\n", status);
+            return NULL_MAC_ADDRESS;
+        }
+
+        if (nce->status == neighbour_cache_status::reachable) {
+            auto ret = nce->mac;
+
+            nce->release();
+            return ret;
+        }
+    }
+
+    set_event(static_cast<event&>(nce->event.get()));
+    nce->release();
+
+    return NULL_MAC_ADDRESS;
+}
+
+static mac_address find_mac_address(netif& ni, const ipv6_address& dst) {
     if (dst.v[0] == 0xff) { // multicast
         mac_address ret;
 
@@ -892,12 +1106,11 @@ static mac_address find_mac_address(const ipv6_address& dst) {
         return ret;
     }
 
-    // FIXME - off-link addresses (send to router's MAC)
-
-    // FIXME - on-link addresses:
-    // FIXME - check neighbour cache
-    // FIXME - if not found, send neighbour solicitation and wait for response
-    // FIXME - timing out waiting for response
+    if (is_link_local(dst)) // FIXME - or part of router prefix
+        return search_neighbour_cache(ni, dst);
+    else {
+        // FIXME - off-link addresses (send to router's MAC)
+    }
 
     return NULL_MAC_ADDRESS;
 }
@@ -929,7 +1142,7 @@ nt_status ipv6_socket::sendto_raw(span<const char> us_buf, int flags,
         return nt_status::INVALID_BUFFER_SIZE;
     }
 
-    auto mac = find_mac_address(dst);
+    auto mac = find_mac_address(ni, dst);
 
     if (mac == NULL_MAC_ADDRESS) {
         ni.release();

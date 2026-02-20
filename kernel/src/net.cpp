@@ -95,6 +95,8 @@ public:
     char name[16];
     ipv6_address ll_addr;
     uint32_t num;
+    spinlock neighbour_lock;
+    list_entry neighbour_cache = { &neighbour_cache, &neighbour_cache };
 };
 
 export class socket : public sync_object {
