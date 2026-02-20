@@ -5,6 +5,7 @@ module;
 #include <string_view>
 #include <span>
 #include <bit>
+#include <optional>
 #include <string.h>
 
 export module ipv6;
@@ -20,7 +21,7 @@ export struct ipv6_address {
                                                  other.v.begin(), other.v.end());
     }
 
-    bool operator==(const ipv6_address& other) const {
+    constexpr bool operator==(const ipv6_address& other) const {
         return equal(v.begin(), v.end(), other.v.begin());
     }
 
@@ -204,3 +205,102 @@ export uint16_t calc_icmpv6_checksum(const ipv6_header& ip, span<const uint8_t> 
 
     return byteswap((uint16_t)(~(uint16_t)sum));
 }
+
+export constexpr optional<ipv6_address> try_parse_ipv6_address(string_view s) {
+    uint16_t parts[8];
+    unsigned int num_parts = 0;
+    optional<unsigned int> dc_pos;
+    size_t i = 0;
+
+    while (i < s.size() && num_parts < 8) {
+        if (i < s.size() - 1 && s[i] == ':' && s[i+1] == ':') {
+            if (dc_pos.has_value())
+                return nullopt; // multiple ::
+
+            dc_pos = num_parts;
+            i += 2;
+
+            if (i >= s.size())
+                break;
+
+            continue;
+        }
+
+        if (s[i] == ':')
+            i++;
+
+        uint16_t v = 0;
+
+        for (unsigned int j = 0; j < 4; j++) {
+            if (i == s.size()) {
+                if (j == 0)
+                    return nullopt;
+                else
+                    break;
+            }
+
+            uint16_t n;
+
+            if (s[i] >= '0' && s[i] <= '9')
+                n = (uint16_t)(s[i] - '0');
+            else if (s[i] >= 'a' && s[i] <= 'f')
+                n = (uint16_t)(s[i] - 'a' + 10);
+            else if (s[i] >= 'A' && s[i] <= 'F')
+                n = (uint16_t)(s[i] - 'A' + 10);
+            else {
+                if (j == 0)
+                    return nullopt;
+                else
+                    break;
+            }
+
+            v <<= 4;
+            v |= n;
+            i++;
+        }
+
+        parts[num_parts] = v;
+        num_parts++;
+    }
+
+    if (i < s.size())
+        return nullopt;
+
+    if (num_parts != 8 && !dc_pos.has_value())
+        return nullopt;
+
+    if (dc_pos.has_value()) {
+        for (unsigned int i = num_parts; i > *dc_pos; i--) {
+            parts[i - 1 + 8 - num_parts] = parts[i - 1];
+        }
+
+        for (unsigned int i = 0; i < 8 - num_parts; i++) {
+            parts[*dc_pos + i] = 0;
+        }
+
+    }
+
+    ipv6_address ret;
+
+    for (unsigned int i = 0; i < 8; i++) {
+        ret.v[2 * i] = (uint8_t)(parts[i] >> 8);
+        ret.v[(2 * i) + 1] = (uint8_t)(parts[i] & 0xff);
+    }
+
+    return ret;
+}
+
+static_assert(try_parse_ipv6_address("::").has_value());
+static_assert(*try_parse_ipv6_address("::") == ipv6_address{0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00});
+static_assert(try_parse_ipv6_address("::1").has_value());
+static_assert(*try_parse_ipv6_address("::1") == ipv6_address{0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x01});
+static_assert(try_parse_ipv6_address("fe80::1").has_value());
+static_assert(*try_parse_ipv6_address("fe80::1") == ipv6_address{0xfe, 0x80, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x01});
+static_assert(try_parse_ipv6_address("2001:db8::1").has_value());
+static_assert(*try_parse_ipv6_address("2001:db8::1") == ipv6_address{0x20, 0x01, 0x0d, 0xb8, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x01});
+static_assert(try_parse_ipv6_address("2a00:1450:4009:c08:0:0:0:66").has_value());
+static_assert(*try_parse_ipv6_address("2a00:1450:4009:c08:0:0:0:66") == ipv6_address{0x2a, 0x00, 0x14, 0x50, 0x40, 0x09, 0x0c, 0x08, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x66});
+static_assert(!try_parse_ipv6_address("").has_value());
+static_assert(!try_parse_ipv6_address(":::").has_value());
+static_assert(!try_parse_ipv6_address("1::2::3").has_value());
+static_assert(!try_parse_ipv6_address("gggg::1").has_value());
