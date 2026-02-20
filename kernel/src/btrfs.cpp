@@ -5383,7 +5383,7 @@ void btrfs_filesystem::flush_thread() {
 
     auto& tim = static_cast<timer&>(tim_ref.get());
 
-    int64_t due_time_ticks = 300000000; // 30 seconds
+    int64_t due_time_ticks = 30 * SYSTEM_TIME_RESOLUTION; // 30 seconds
     auto due_time_ms = (int32_t)((due_time_ticks * 1000) / SYSTEM_TIME_RESOLUTION);
 
     auto status = tim.set(-due_time_ticks, nullptr, nullptr, false,
