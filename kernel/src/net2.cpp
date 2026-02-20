@@ -927,6 +927,14 @@ nt_status ipv6_socket::sendto_raw(span<const char> us_buf, int flags,
         return status;
     }
 
+    // FIXME - should only be if IPV6_CHECKSUM sockopt set
+    if (protocol == IPPROTO_ICMPV6 && pktsize >= sizeof(ethernet_header) + sizeof(ipv6_header) + sizeof(icmpv6_header)) {
+        auto& icmp = *(icmpv6_header*)(pkt + sizeof(ethernet_header) + sizeof(ipv6_header));
+
+        icmp.checksum = 0;
+        icmp.checksum = calc_icmpv6_checksum(ip, span((uint8_t*)&icmp, pktsize - sizeof(ethernet_header) - sizeof(ipv6_header)));
+    }
+
     status = netif.send_packet(span(pkt, pktsize));
     if (!success(status)) {
         free(pkt);
