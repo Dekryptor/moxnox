@@ -660,7 +660,7 @@ nt_status socket::do_sendto(span<const uint8_t> inbuf) {
         }
     }
 
-    status = this->sendto(params.buf, params.len, params.flags,
+    status = this->sendto(params.buf, (size_t)params.len, params.flags,
                           to, params.tolen, sent_bytes);
     if (!success(status)) {
         if (to)
@@ -773,10 +773,8 @@ nt_status ipv6_socket::recvfrom(char* us_buf, int len, int flags,
     return nt_status::SUCCESS;
 }
 
-nt_status ipv6_socket::sendto(const char* us_buf, int len, int flags,
+nt_status ipv6_socket::sendto(const char* us_buf, size_t len, int flags,
                               sockaddr* to, int tolen, size_t& sent_bytes) {
-
-
     switch (type) {
         case SOCK_RAW: {
             if (!to || tolen < 0 || (size_t)tolen < sizeof(sockaddr_in6))
