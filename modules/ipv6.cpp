@@ -84,6 +84,15 @@ export struct icmpv6_router_solicitation : icmpv6_header {
     uint32_t reserved;
 } __attribute((packed));
 
+static_assert(sizeof(icmpv6_router_solicitation) == 8);
+
+export struct icmpv6_echo : icmpv6_header {
+    uint16_t identifier;
+    uint16_t sequence;
+} __attribute((packed));
+
+static_assert(sizeof(icmpv6_echo) == 8);
+
 export enum class ndp_option_type : uint8_t {
     source_lladdr = 1,
     target_lladdr = 2,
