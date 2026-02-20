@@ -72,11 +72,21 @@ export class netif {
 public:
     // FIXME - GCC 15 errors if no ctor or dtor here
     netif() { }
-    ~netif() = default;
+    virtual ~netif() = default;
+
+    void acquire() {
+        refcount++;
+    }
+
+    void release() {
+        if (--refcount == 0)
+            delete this;
+    }
 
     virtual nt_status send_packet(span<const uint8_t> buf) = 0;
 
     list_entry le;
+    atomic<unsigned int> refcount = 1;
     mac_address mac;
     uint16_t mtu;
 

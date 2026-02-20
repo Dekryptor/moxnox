@@ -493,24 +493,30 @@ static nt_status netctl_get_netif_info(span<const uint8_t> inbuf,
         return nt_status::BUFFER_TOO_SMALL;
 
     auto& out = *(MOXNOX_NETCTL_GET_NETIF_INFO*)outbuf.data();
+    netif* ni = nullptr;
 
     {
         lock_guard lock(netif_lock);
 
         for (auto le = netif_list.next; le != &netif_list; le = le->next) {
-            auto& ni = containing_record<netif>(le);
+            auto& ni2 = containing_record<netif>(le);
 
-            if (ni.num == id) {
-                memcpy(out.name, ni.name, sizeof(ni.name));
-                *(ipv6_address*)out.ll_addr = ni.ll_addr;
-
-                written = sizeof(MOXNOX_NETCTL_GET_NETIF_INFO);
-                return nt_status::SUCCESS;
+            if (ni2.num == id) {
+                ni2.acquire();
+                ni = &ni2;
+                break;
             }
         }
     }
 
-    return nt_status::NOT_FOUND;
+    if (!ni)
+        return nt_status::NOT_FOUND;
+
+    memcpy(out.name, ni->name, sizeof(ni->name));
+    *(ipv6_address*)out.ll_addr = ni->ll_addr;
+
+    written = sizeof(MOXNOX_NETCTL_GET_NETIF_INFO);
+    return nt_status::SUCCESS;
 }
 
 nt_status netctl::ioctl(uint32_t code, span<const uint8_t> inbuf,
@@ -797,7 +803,11 @@ static netif* ipv6_choose_interface(const ipv6_address& dst, uint32_t scope_id) 
         if (is_list_empty(netif_list))
             return nullptr;
 
-        return &containing_record<netif>(netif_list.next);
+        auto& ni = containing_record<netif>(netif_list.next);
+
+        ni.acquire();
+
+        return &ni;
     }
 }
 
@@ -887,19 +897,24 @@ nt_status ipv6_socket::sendto_raw(span<const char> us_buf, int flags,
 
     auto& netif = *p;
 
-    if (us_buf.size() + sizeof(ipv6_header) > netif.mtu)
+    if (us_buf.size() + sizeof(ipv6_header) > netif.mtu) {
+        netif.release();
         return nt_status::INVALID_BUFFER_SIZE;
+    }
 
     auto& dst = *(ipv6_address*)to.sin6_addr;
     auto mac = find_mac_address(dst);
 
-    if (mac == NULL_MAC_ADDRESS)
+    if (mac == NULL_MAC_ADDRESS) {
+        netif.release();
         return nt_status::HOST_UNREACHABLE;
+    }
 
     size_t pktsize = sizeof(ethernet_header) + sizeof(ipv6_header) + us_buf.size();
     auto pkt = (uint8_t*)malloc(pktsize);
     if (!pkt) {
         print("malloc failed\n");
+        netif.release();
         return nt_status::INSUFFICIENT_RESOURCES;
     }
 
@@ -924,6 +939,7 @@ nt_status ipv6_socket::sendto_raw(span<const char> us_buf, int flags,
                              (uint32_t)us_buf.size(), nullptr);
     if (!success(status)) {
         free(pkt);
+        netif.release();
         return status;
     }
 
@@ -938,8 +954,11 @@ nt_status ipv6_socket::sendto_raw(span<const char> us_buf, int flags,
     status = netif.send_packet(span(pkt, pktsize));
     if (!success(status)) {
         free(pkt);
+        netif.release();
         return status;
     }
+
+    netif.release();
 
     sent_bytes = us_buf.size();
 

@@ -257,8 +257,13 @@ void virtio_net<T>::init(const virtio_net_config& cfg) {
         insert_tail_list(netif_list, this->le);
     }
 
+    this->acquire();
+
     add_kernel_thread([](void* ctx) {
-        ((virtio_net<virtio_pci_device>*)ctx)->recv_thread();
+        auto& dev = *(virtio_net<virtio_pci_device>*)ctx;
+
+        dev.recv_thread();
+        dev.release();
     }, this);
 }
 
