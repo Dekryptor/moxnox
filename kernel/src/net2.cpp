@@ -598,7 +598,7 @@ nt_status socket::do_recvfrom(span<const uint8_t> inbuf) {
             return nt_status::INVALID_PARAMETER;
     }
 
-    status = this->recvfrom(params.buf, params.len, params.flags,
+    status = this->recvfrom(params.buf, (size_t)params.len, params.flags,
                             (sockaddr*)params.from,
                             fromlen != 0 ? &fromlen : nullptr,
                             recv_bytes);
@@ -694,7 +694,7 @@ nt_status socket::ioctl(uint32_t code, span<const uint8_t> inbuf,
     }
 }
 
-nt_status ipv6_socket::recvfrom(char* us_buf, int len, int flags,
+nt_status ipv6_socket::recvfrom(char* us_buf, size_t len, int flags,
                                 sockaddr* us_from, int* fromlen,
                                 size_t& recv_bytes) {
     // FIXME - MSG_TRUNC
@@ -733,7 +733,7 @@ nt_status ipv6_socket::recvfrom(char* us_buf, int len, int flags,
         if (!sp)
             continue;
 
-        auto to_copy = (uint32_t)min(sp->size, (size_t)len);
+        auto to_copy = (uint32_t)min(sp->size, len);
 
         status = t.proc->write_vm(us_buf, sp->data, to_copy, nullptr);
         if (!success(status)) {
