@@ -659,7 +659,7 @@ if(CMAKE_SYSTEM_PROCESSOR STREQUAL "aarch64")
 endif()
 
 target_include_directories(libpng PUBLIC ${CMAKE_SOURCE_DIR} libpng)
-target_compile_options(libpng PRIVATE ${GENERAL_CFLAGS} $<$<COMPILE_LANGUAGE:CXX>:-fno-exceptions -fno-rtti>)
+target_compile_options(libpng PRIVATE ${GENERAL_CFLAGS} $<$<COMPILE_LANGUAGE:CXX>:-fno-exceptions -fno-rtti> -Wno-sign-conversion)
 target_link_libraries(libpng PUBLIC zlib)
 target_link_libraries(libpng PRIVATE moxnox)
 
