@@ -1,6 +1,8 @@
 #include <stdint.h>
 #include <stdio.h>
 #include <errno.h>
+#include <optional>
+#include <string_view>
 
 import nt;
 import print;
@@ -123,22 +125,37 @@ static void do_ping(int sock, const ipv6_address& ip) {
     // FIXME - print summary before quitting
 }
 
-int main() {
+int main(int argc, char** argv) {
+    // FIXME - cmdline options (getopt?)
+
+    if (argc < 2) {
+        print_stderr("ping: usage error: Destination address required\n");
+        return 1;
+    }
+
+    if (argc > 2) {
+        // FIXME - Linux prints usage in this case
+        print_stderr("ping: too many cmdline options\n");
+        return 1;
+    }
+
+    // FIXME - if hostname, resolve
+    // FIXME - IPv4
+    // FIXME - if contains %, find interface name
+
+    auto opt = try_parse_ipv6_address(argv[1]);
+    if (!opt.has_value()) {
+        print_stderr("ping: could not parse destination \"{}\"\n", argv[1]);
+        return 1;
+    }
+
     auto sock = socket(AF_INET6, SOCK_RAW, IPPROTO_ICMPV6);
     if (sock < 0) {
         print_stderr("socket failed (errno {})\n", errno);
         return 1;
     }
 
-    // FIXME - parse cmdline
-    // FIXME - if hostname, resolve
-    // FIXME - IPv4
-    // FIXME - if contains %, find interface name
-
-    // ff02::2
-    static const ipv6_address dst = {0xff, 2, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 2}; // FIXME
-
-    do_ping(sock, dst);
+    do_ping(sock, *opt);
 
     closesocket(sock);
 
