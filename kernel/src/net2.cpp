@@ -790,28 +790,6 @@ nt_status ipv6_socket::sendto(const char* us_buf, int len, int flags,
     return nt_status::NOT_IMPLEMENTED;
 }
 
-static nt_status ipv6_choose_interface(const ipv6_address& dst, uint32_t scope_id,
-                                       netif*& ni) {
-    // FIXME - if link-local, use scope_id
-    // FIXME - otherwise, consult routing tables
-
-    // HACK - choosing first
-    {
-        lock_guard lg(netif_lock);
-
-        if (is_list_empty(netif_list))
-            return nt_status::NETWORK_UNREACHABLE;
-
-        auto& ni2 = containing_record<netif>(netif_list.next);
-
-        ni2.acquire();
-
-        ni = &ni2;
-
-        return nt_status::SUCCESS;
-    }
-}
-
 static bool is_link_local(const ipv6_address& addr) {
     // link-local unicast
     if (addr.v[0] == 0xfe && (addr.v[1] & 0xc0) == 0x80)
@@ -824,8 +802,8 @@ static bool is_link_local(const ipv6_address& addr) {
     return false;
 }
 
-static ipv6_address choose_source_ipv6_address(netif& ni,
-                                               const ipv6_address& dst) {
+static nt_status ipv6_choose_interface(const ipv6_address& dst, uint32_t scope_id,
+                                       netif*& ni, ipv6_address& src) {
     // see RFC6724
 
     // FIXME - check if bind has been called
@@ -833,20 +811,60 @@ static ipv6_address choose_source_ipv6_address(netif& ni,
     // rule 1: prefer same address
 
     {
-        lock_guard lock(ni.addr_lock);
+        lock_guard lg(netif_lock);
 
-        for (auto le = ni.addrs.next; le != &ni.addrs; le = le->next) {
-            auto& a = containing_record<ip_addr>(le);
+        for (auto le = netif_list.next; le != &netif_list; le = le->next) {
+            auto& ni2 = containing_record<netif>(le);
 
-            if (a.addr == dst)
-                return dst;
+            {
+                lock_guard lock(ni2.addr_lock);
+
+                for (auto le2 = ni2.addrs.next; le2 != &ni2.addrs; le2 = le2->next) {
+                    auto& a = containing_record<ip_addr>(le2);
+
+                    if (a.addr == dst) {
+                        ni2.acquire();
+
+                        ni = &ni2;
+                        src = dst;
+                        return nt_status::SUCCESS;
+                    }
+                }
+            }
         }
     }
 
-    if (is_link_local(dst))
-        return ni.ll_addr;
+    // rule 2: if link-local, choose link-local
 
-    // FIXME - rule 2: if link-local, choose link-local
+    if (is_link_local(dst)) {
+        if (scope_id == 0)
+            return nt_status::NETWORK_UNREACHABLE;
+
+        ni = nullptr;
+
+        {
+            lock_guard lg(netif_lock);
+
+            for (auto le = netif_list.next; le != &netif_list; le = le->next) {
+                auto& ni2 = containing_record<netif>(le);
+
+                if (ni2.num == scope_id) {
+                    ni = &ni2;
+                    ni2.acquire();
+                    break;
+                }
+            }
+        }
+
+        if (!ni)
+            return nt_status::NETWORK_UNREACHABLE;
+
+        src = ni->ll_addr;
+        return nt_status::SUCCESS;
+    }
+
+    // FIXME - consult routing tables
+
     // FIXME - rule 3: avoid deprecated address
     // rule 4: prefer home addresses (Mobile IPv6, not relevant)
     // FIXME - rule 5: prefer outgoing interface
@@ -854,7 +872,9 @@ static ipv6_address choose_source_ipv6_address(netif& ni,
     // FIXME - rule 7: prefer temporary addresses
     // FIXME - rule 8: prefer longest matching prefix
 
-    bsod("choose_source_ipv6_address could not choose!"); // FIXME - remove once rule 8 working
+    print("FIXME: ipv6_choose_interface could not choose\n"); // FIXME - remove once rule 8 working
+
+    return nt_status::NETWORK_UNREACHABLE;
 }
 
 static mac_address find_mac_address(const ipv6_address& dst) {
@@ -895,17 +915,13 @@ nt_status ipv6_socket::sendto_raw(span<const char> us_buf, int flags,
     auto& dst = *(ipv6_address*)to.sin6_addr;
 
     netif* pni;
-    status = ipv6_choose_interface(dst, to.sin6_scope_id, pni);
+    ipv6_address src;
+
+    status = ipv6_choose_interface(dst, to.sin6_scope_id, pni, src);
     if (!success(status))
         return status;
 
-    // auto p = ipv6_choose_interface(dst, to.sin6_scope_id);
-    // if (!p)
-    //     return nt_status::NETWORK_UNREACHABLE;
-
     auto& ni = *pni;
-
-    auto src = choose_source_ipv6_address(ni, dst);
 
     if (us_buf.size() + sizeof(ipv6_header) > ni.mtu) {
         ni.release();
