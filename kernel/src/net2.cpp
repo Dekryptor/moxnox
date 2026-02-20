@@ -790,24 +790,25 @@ nt_status ipv6_socket::sendto(const char* us_buf, int len, int flags,
     return nt_status::NOT_IMPLEMENTED;
 }
 
-static netif* ipv6_choose_interface(const ipv6_address& dst, uint32_t scope_id) {
+static nt_status ipv6_choose_interface(const ipv6_address& dst, uint32_t scope_id,
+                                       netif*& ni) {
     // FIXME - if link-local, use scope_id
     // FIXME - otherwise, consult routing tables
-
-    // FIXME - interfaces should have refcounts
 
     // HACK - choosing first
     {
         lock_guard lg(netif_lock);
 
         if (is_list_empty(netif_list))
-            return nullptr;
+            return nt_status::NETWORK_UNREACHABLE;
 
-        auto& ni = containing_record<netif>(netif_list.next);
+        auto& ni2 = containing_record<netif>(netif_list.next);
 
-        ni.acquire();
+        ni2.acquire();
 
-        return &ni;
+        ni = &ni2;
+
+        return nt_status::SUCCESS;
     }
 }
 
@@ -891,22 +892,30 @@ nt_status ipv6_socket::sendto_raw(span<const char> us_buf, int flags,
     if (!t.proc)
         return nt_status::INTERNAL_ERROR;
 
-    auto p = ipv6_choose_interface(*(ipv6_address*)to.sin6_addr, to.sin6_scope_id);
-    if (!p)
-        return nt_status::NETWORK_UNREACHABLE;
+    auto& dst = *(ipv6_address*)to.sin6_addr;
 
-    auto& netif = *p;
+    netif* pni;
+    status = ipv6_choose_interface(dst, to.sin6_scope_id, pni);
+    if (!success(status))
+        return status;
 
-    if (us_buf.size() + sizeof(ipv6_header) > netif.mtu) {
-        netif.release();
+    // auto p = ipv6_choose_interface(dst, to.sin6_scope_id);
+    // if (!p)
+    //     return nt_status::NETWORK_UNREACHABLE;
+
+    auto& ni = *pni;
+
+    auto src = choose_source_ipv6_address(ni, dst);
+
+    if (us_buf.size() + sizeof(ipv6_header) > ni.mtu) {
+        ni.release();
         return nt_status::INVALID_BUFFER_SIZE;
     }
 
-    auto& dst = *(ipv6_address*)to.sin6_addr;
     auto mac = find_mac_address(dst);
 
     if (mac == NULL_MAC_ADDRESS) {
-        netif.release();
+        ni.release();
         return nt_status::HOST_UNREACHABLE;
     }
 
@@ -914,13 +923,13 @@ nt_status ipv6_socket::sendto_raw(span<const char> us_buf, int flags,
     auto pkt = (uint8_t*)malloc(pktsize);
     if (!pkt) {
         print("malloc failed\n");
-        netif.release();
+        ni.release();
         return nt_status::INSUFFICIENT_RESOURCES;
     }
 
     auto& eth = *(ethernet_header*)pkt;
     eth.dst_mac = mac;
-    eth.src_mac = netif.mac;
+    eth.src_mac = ni.mac;
     eth.type = ethertype::ipv6;
 
     auto& ip = *(ipv6_header*)(pkt + sizeof(ethernet_header));
@@ -931,7 +940,7 @@ nt_status ipv6_socket::sendto_raw(span<const char> us_buf, int flags,
     ip.payload_length = byteswap((uint16_t)us_buf.size());
     ip.next_header = (uint8_t)protocol;
     ip.hop_limit = DEFAULT_HOP_LIMIT;
-    ip.src = choose_source_ipv6_address(netif, dst);
+    ip.src = src;
     ip.dst = dst;
 
     status = t.proc->read_vm(us_buf.data(),
@@ -939,7 +948,7 @@ nt_status ipv6_socket::sendto_raw(span<const char> us_buf, int flags,
                              (uint32_t)us_buf.size(), nullptr);
     if (!success(status)) {
         free(pkt);
-        netif.release();
+        ni.release();
         return status;
     }
 
@@ -951,14 +960,14 @@ nt_status ipv6_socket::sendto_raw(span<const char> us_buf, int flags,
         icmp.checksum = calc_icmpv6_checksum(ip, span((uint8_t*)&icmp, pktsize - sizeof(ethernet_header) - sizeof(ipv6_header)));
     }
 
-    status = netif.send_packet(span(pkt, pktsize));
+    status = ni.send_packet(span(pkt, pktsize));
     if (!success(status)) {
         free(pkt);
-        netif.release();
+        ni.release();
         return status;
     }
 
-    netif.release();
+    ni.release();
 
     sent_bytes = us_buf.size();
 
