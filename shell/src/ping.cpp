@@ -38,7 +38,7 @@ static void do_ping(int sock, const ipv6_address& ip) {
     echo.code = 0;
     echo.checksum = 0; // done by kernel
     echo.identifier = byteswap((uint16_t)pbi.UniqueProcessId);
-    echo.sequence = 1; // FIXME - increasing
+    echo.sequence = byteswap((uint16_t)1);
 
     char buf[1500]; // FIXME - get MTU
     sockaddr_in6 addr;
@@ -126,10 +126,10 @@ static void do_ping(int sock, const ipv6_address& ip) {
 
             // FIXME - add float support to print
             // FIXME - need higher-quality timer?
-            print("{} bytes from {}: icmp_seq={} time={} ms\n", len, *(ipv6_address*)&addr.sin6_addr, resp.sequence, s);
+            print("{} bytes from {}: icmp_seq={} time={} ms\n", len, *(ipv6_address*)&addr.sin6_addr, byteswap(resp.sequence), s);
         }
 
-        echo.sequence++;
+        echo.sequence = byteswap((uint16_t)(byteswap(echo.sequence) + 1));
     }
 
     // FIXME - print summary before quitting
