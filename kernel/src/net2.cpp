@@ -253,6 +253,8 @@ static void handle_neighbour_advertisement(netif& ni, span<const uint8_t> buf) {
             if (c.addr == na.target) {
                 beaten_to_it = true;
 
+                c.mac = mac;
+
                 if (c.status == neighbour_cache_status::incomplete) {
                     c.status = neighbour_cache_status::reachable;
                     c.acquire();
