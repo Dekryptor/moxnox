@@ -1245,9 +1245,6 @@ static mac_address search_neighbour_cache(netif& ni, const ipv6_address& dst) {
             auto& c = containing_record<neighbour_cache_entry>(le);
 
             if (c.addr == dst) {
-                if (c.status == neighbour_cache_status::reachable)
-                    return c.mac;
-
                 c.acquire();
                 nce2 = &c;
                 break;
