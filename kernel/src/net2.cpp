@@ -567,6 +567,8 @@ static void network_housekeeping() {
             while (!is_list_empty(reap_list)) {
                 auto& c = containing_record<neighbour_cache_entry>(reap_list.next);
 
+                set_event(static_cast<event&>(c.event.get()));
+
                 remove_entry_list(c.le);
                 c.release();
             }
