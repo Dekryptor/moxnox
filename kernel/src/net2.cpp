@@ -1410,11 +1410,17 @@ nt_status ipv6_socket::sendto_raw(span<const char> us_buf, int flags,
         return nt_status::INVALID_BUFFER_SIZE;
     }
 
-    auto mac = find_mac_address(ni, dst);
+    mac_address mac;
 
-    if (mac == NULL_MAC_ADDRESS) {
-        ni.release();
-        return nt_status::HOST_UNREACHABLE;
+    if (src == dst)
+        mac = ni.mac;
+    else {
+        mac = find_mac_address(ni, dst);
+
+        if (mac == NULL_MAC_ADDRESS) {
+            ni.release();
+            return nt_status::HOST_UNREACHABLE;
+        }
     }
 
     size_t pktsize = sizeof(ethernet_header) + sizeof(ipv6_header) + us_buf.size();
