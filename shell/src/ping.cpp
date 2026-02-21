@@ -1,6 +1,7 @@
 #include <stdint.h>
 #include <stdio.h>
 #include <errno.h>
+#include <string.h>
 #include <optional>
 #include <bit>
 #include <string_view>
@@ -10,12 +11,15 @@ import print;
 import unique_handle;
 import ipv6;
 import ws2_32;
+import moxnox_ioctls;
 
 using namespace std;
 
 static const unsigned int SYSTEM_TIME_RESOLUTION = 10000000; // 100ns
 
-static void do_ping(int sock, const ipv6_address& ip) {
+static const char16_t netctl_path[] = u"/dev/netctl";
+
+static void do_ping(int sock, const ipv6_address& ip, uint32_t scope) {
     icmpv6_echo echo;
     sockaddr_in6 dst;
     PROCESS_BASIC_INFORMATION pbi;
@@ -32,7 +36,7 @@ static void do_ping(int sock, const ipv6_address& ip) {
     dst.sin6_port = 0;
     dst.sin6_flowinfo = 0;
     *(ipv6_address*)&dst.sin6_addr = ip;
-    dst.sin6_scope_id = 1; // FIXME - 0 or solicit
+    dst.sin6_scope_id = scope;
 
     echo.type = icmpv6_type::echo_request;
     echo.code = 0;
@@ -135,6 +139,57 @@ static void do_ping(int sock, const ipv6_address& ip) {
     // FIXME - print summary before quitting
 }
 
+static unique_handle open_netctl() {
+    OBJECT_ATTRIBUTES oa;
+    UNICODE_STRING us;
+    IO_STATUS_BLOCK iosb;
+    HANDLE h;
+
+    memset(&oa, 0, sizeof(oa));
+    oa.Length = sizeof(OBJECT_ATTRIBUTES);
+    oa.ObjectName = &us;
+
+    us.Length = us.MaximumLength = (uint16_t)(sizeof(netctl_path) - sizeof(char16_t));
+    us.Buffer = (char16_t*)netctl_path;
+
+    auto status = NtCreateFile(&h, FILE_READ_ATTRIBUTES, &oa, &iosb, nullptr, 0,
+                               0, FILE_OPEN, FILE_SYNCHRONOUS_IO_ALERT, nullptr,
+                               0);
+    if (!success(status)) {
+        print_stderr("NtCreateFile returned {}\n", status);
+        return {};
+    }
+
+    return unique_handle{h};
+}
+
+static uint32_t resolve_scope(string_view s) {
+    nt_status status;
+    MOXNOX_NETCTL_GET_NETIF_BY_NAME p;
+    IO_STATUS_BLOCK iosb;
+    uint32_t id;
+
+    if (s.size() > sizeof(p.name))
+        return 0;
+
+    auto netctl = open_netctl();
+    if (!netctl)
+        return 0;
+
+    memcpy(p.name, s.data(), s.size());
+    memset(p.name + s.size(), 0, sizeof(p.name) - s.size());
+
+    status = NtDeviceIoControlFile(netctl.get(), 0, nullptr, nullptr, &iosb,
+                                   IOCTL_MOXNOX_NETCTL_GET_NETIF_BY_NAME, &p,
+                                   sizeof(p), &id, (uint32_t)sizeof(id));
+    if (!success(status)) {
+        print_stderr("NtDeviceIoControlFile returned {}\n", status);
+        return 0;
+    }
+
+    return id;
+}
+
 int main(int argc, char** argv) {
     // FIXME - cmdline options (getopt?)
 
@@ -153,10 +208,32 @@ int main(int argc, char** argv) {
     // FIXME - IPv4
     // FIXME - if contains %, find interface name
 
-    auto opt = try_parse_ipv6_address(argv[1]);
+    auto dest = string_view(argv[1]);
+    string_view scope;
+    uint32_t scope_num = 0;
+
+    if (auto pc = dest.find('%'); pc != string_view::npos) {
+        scope = string_view(dest.data() + pc + 1, dest.size() - pc - 1);
+        dest = string_view(dest.data(), pc);
+
+        if (scope.empty()) {
+            print_stderr("ping: no scope given\n");
+            return 1;
+        }
+    }
+
+    auto opt = try_parse_ipv6_address(dest);
     if (!opt.has_value()) {
-        print_stderr("ping: could not parse destination \"{}\"\n", argv[1]);
+        print_stderr("ping: could not parse destination \"{}\"\n", dest);
         return 1;
+    }
+
+    if (!scope.empty()) {
+        scope_num = resolve_scope(scope);
+        if (scope_num == 0) {
+            print_stderr("ping: could not resolve scope \"{}\"\n", scope);
+            return 1;
+        }
     }
 
     auto sock = socket(AF_INET6, SOCK_RAW, IPPROTO_ICMPV6);
@@ -165,7 +242,7 @@ int main(int argc, char** argv) {
         return 1;
     }
 
-    do_ping(sock, *opt);
+    do_ping(sock, *opt, scope_num);
 
     closesocket(sock);
 
