@@ -466,7 +466,19 @@ void virtio_net<T>::recv_thread() {
 
         auto data = span(buf, recvd_bytes - sizeof(header));
 
-        if (header.eth.type == ethertype::ipv6)
-            handle_ipv6_packet(*this, data, header.eth.src_mac);
+        if (header.eth.type == ethertype::ipv6) {
+            auto pack = new packet;
+            if (!pack) {
+                print("new failed\n");
+                continue;
+            }
+
+            pack->size = data.size();
+            memcpy(pack->data, data.data(), data.size());
+
+            handle_ipv6_packet(*this, *pack, header.eth.src_mac);
+
+            pack->release();
+        }
     }
 }
