@@ -425,7 +425,7 @@ static void send_to_sockets(uint32_t netif_num, span<const uint8_t> buf) {
 
         // FIXME - strip headers if necessary
 
-        auto p = (ipv6_socket_packet*)malloc(offsetof(ipv6_socket_packet, data) + buf.size());
+        auto p = (ipv6_socket_packet*)malloc(offsetof(ipv6_socket_packet, data) + buf.size() - sizeof(ipv6_header));
         if (!p) {
             print("malloc failed\n");
             s.release();
