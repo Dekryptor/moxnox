@@ -28,8 +28,6 @@ static const uint8_t DEFAULT_HOP_LIMIT = 64;
 static const size_t MAX_BUFFER_SIZE = 1048576;
 static const mac_address NULL_MAC_ADDRESS = { 0, 0, 0, 0, 0, 0 };
 
-static const size_t MTU = 1500; // FIXME - allow jumbo packets
-
 static object_ref netctl_obj;
 
 static spinlock ipv6_sockets_lock;
@@ -37,10 +35,17 @@ static list_entry ipv6_sockets = { &ipv6_sockets, &ipv6_sockets };
 static size_t num_ipv6_sockets = 0;
 
 struct ipv6_socket_packet {
+    ipv6_socket_packet(packet& pack) : pack(pack) {
+        pack.acquire();
+    }
+
+    ~ipv6_socket_packet() {
+        pack.release();
+    }
+
     list_entry le;
     uint32_t scope_id;
-    size_t size;
-    uint8_t data[MTU];
+    packet& pack;
 };
 
 enum class neighbour_cache_status {
@@ -429,18 +434,26 @@ static void send_to_sockets(uint32_t netif_num, span<const uint8_t> buf) {
             continue;
         }
 
-        // FIXME - strip headers if necessary
+        auto pack = new packet;
+        if (!pack) {
+            print("new failed\n");
+            continue;
+        }
 
-        auto p = new ipv6_socket_packet;
+        pack->size = buf.size();
+        memcpy(pack->data, buf.data(), buf.size());
+
+        auto p = new ipv6_socket_packet(*pack);
         if (!p) {
-            print("malloc failed\n");
+            print("new failed\n");
+            pack->release();
             s.release();
             continue;
         }
 
+        pack->release();
+
         p->scope_id = netif_num;
-        p->size = buf.size();
-        memcpy(p->data, buf.data(), buf.size());
 
         bool done = false;
 
@@ -1023,9 +1036,9 @@ nt_status ipv6_socket::recvfrom(char* us_buf, size_t len, int flags,
         if (!sp)
             continue;
 
-        auto to_copy = (uint32_t)min(sp->size - sizeof(ipv6_header), len);
+        auto to_copy = (uint32_t)min(sp->pack.size - sizeof(ipv6_header), len);
 
-        status = t.proc->write_vm(us_buf, sp->data + sizeof(ipv6_header),
+        status = t.proc->write_vm(us_buf, sp->pack.data + sizeof(ipv6_header),
                                   to_copy, nullptr);
         if (!success(status)) {
             delete sp;
@@ -1036,7 +1049,7 @@ nt_status ipv6_socket::recvfrom(char* us_buf, size_t len, int flags,
         recv_bytes = to_copy;
 
         if (us_from && fromlen && *fromlen > 0) {
-            auto& ip = *(ipv6_header*)sp->data;
+            auto& ip = *(ipv6_header*)sp->pack.data;
 
             addr.sin6_family = AF_INET6;
             addr.sin6_port = 0;

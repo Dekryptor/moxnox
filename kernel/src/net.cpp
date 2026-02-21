@@ -21,6 +21,8 @@ import ipv6;
 
 using namespace std;
 
+export const size_t MTU = 1500; // FIXME - allow jumbo packets
+
 export struct mac_address {
     auto operator<=>(const mac_address& other) const {
         return lexicographical_compare_three_way(v.begin(), v.end(),
@@ -71,6 +73,21 @@ static_assert(sizeof(ndp_option_lladdr) == 8);
 export struct ip_addr {
     list_entry le;
     ipv6_address addr;
+};
+
+export struct packet {
+    void acquire() {
+        refcount++;
+    }
+
+    void release() {
+        if (--refcount == 0)
+            delete this;
+    }
+
+    atomic<unsigned int> refcount = 1;
+    size_t size;
+    uint8_t data[MTU];
 };
 
 export class netif {
