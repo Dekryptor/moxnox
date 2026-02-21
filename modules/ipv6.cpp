@@ -290,6 +290,10 @@ export constexpr optional<ipv6_address> try_parse_ipv6_address(string_view s) {
     return ret;
 }
 
+export consteval ipv6_address parse_ipv6_address(string_view s) {
+    return *try_parse_ipv6_address(s);
+}
+
 static_assert(try_parse_ipv6_address("::").has_value());
 static_assert(*try_parse_ipv6_address("::") == ipv6_address{0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00});
 static_assert(try_parse_ipv6_address("::1").has_value());

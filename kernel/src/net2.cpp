@@ -295,27 +295,6 @@ static void handle_v6_echo_request(netif& ni, packet& pack,
         return;
     }
 
-    const auto& orig_ip = *(ipv6_header*)pack.data;
-
-    // check if it's for us
-
-    bool found = false;
-    {
-        lock_guard lock(ni.addr_lock);
-
-        for (auto le = ni.addrs.next; le != &ni.addrs; le = le->next) {
-            auto& a = containing_record<ip_addr>(le);
-
-            if (a.addr == orig_ip.dst) {
-                found = true;
-                break;
-            }
-        }
-    }
-
-    if (!found)
-        return;
-
     auto pack2 = new packet;
     if (!pack2) {
         print("new failed\n");
@@ -498,6 +477,42 @@ void handle_ipv6_packet(netif& ni, packet& pack, const mac_address& src_mac) {
           byteswap(header.payload_length), header.next_header, header.hop_limit,
           header.src, header.dst);
 #endif
+
+    static const auto solicited_multicast = parse_ipv6_address("ff02::1:ff00:0");
+    static const auto all_nodes = parse_ipv6_address("ff02::1");
+
+    const auto& ip = *(ipv6_header*)pack.data;
+    const auto& dst = ip.dst;
+
+    if (dst != all_nodes) {
+        // check if it's for us
+
+        bool is_solicited_multicast = !memcmp(dst.v.data(),
+                                              solicited_multicast.v.data(), 13);
+        bool found = false;
+
+        {
+            lock_guard lock(ni.addr_lock);
+
+            for (auto le = ni.addrs.next; le != &ni.addrs; le = le->next) {
+                auto& a = containing_record<ip_addr>(le);
+
+                if (a.addr == dst) {
+                    found = true;
+                    break;
+                }
+
+                if (is_solicited_multicast && a.addr.v[13] == dst.v[13] &&
+                    a.addr.v[14] == dst.v[14] && a.addr.v[15] == dst.v[15]) {
+                    found = true;
+                    break;
+                }
+            }
+        }
+
+        if (!found)
+            return;
+    }
 
     switch ((ip_proto)header.next_header) {
         case ip_proto::icmpv6:
