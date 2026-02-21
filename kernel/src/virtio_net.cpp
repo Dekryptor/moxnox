@@ -395,11 +395,6 @@ void virtio_net<T>::recv_thread() {
     // FIXME - die gracefully if device ever goes away
 
     auto buf_size = sizeof(virtio_net_hdr) + sizeof(ethernet_header) + mtu;
-    auto buf = (uint8_t*)malloc(buf_size);
-    if (!buf) {
-        print("malloc failed\n");
-        return;
-    }
 
     struct {
         virtio_net_hdr hdr;
@@ -412,16 +407,24 @@ void virtio_net<T>::recv_thread() {
         virtq_desc descs[2];
         uint64_t recvd_bytes;
 
-        auto pa1 = dma_setup(span((uint8_t*)&header, sizeof(header)), false, bounce1);
-        if (!pa1) {
-            print("dma_setup failed\n");
+        auto pack = new packet;
+        if (!pack) {
+            print("new failed\n");
             continue;
         }
 
-        auto pa2 = dma_setup(span(buf, buf_size), false, bounce2);
+        auto pa1 = dma_setup(span((uint8_t*)&header, sizeof(header)), false, bounce1);
+        if (!pa1) {
+            print("dma_setup failed\n");
+            pack->release();
+            continue;
+        }
+
+        auto pa2 = dma_setup(span((uint8_t*)&pack->data, sizeof(pack->data)), false, bounce2);
         if (!pa2) {
             print("dma_setup failed\n");
             dma_finish_read(span((uint8_t*)&header, sizeof(header)), bounce1);
+            pack->release();
             continue;
         }
 
@@ -438,16 +441,18 @@ void virtio_net<T>::recv_thread() {
         auto status = receive_queue->indirect(descs, recvd_bytes);
 
         dma_finish_read(span((uint8_t*)&header, sizeof(header)), bounce1);
-        dma_finish_read(span(buf, buf_size), bounce2);
+        dma_finish_read(span((uint8_t*)&pack->data, sizeof(pack->data)), bounce2);
 
         if (!success(status)) {
             print("receive_queue->indirect returned {}\n", status);
+            pack->release();
             continue;
         }
 
         if (recvd_bytes < sizeof(header)) {
             print("virtio_net::recv_thread: received {} bytes, expected at least {}\n",
                   recvd_bytes, sizeof(header));
+            pack->release();
             continue;
         }
 
@@ -461,24 +466,16 @@ void virtio_net<T>::recv_thread() {
               header.eth.dst_mac, header.eth.src_mac, header.eth.type);
 #endif
 
-        if (drop_packet(header.eth.dst_mac, mac))
+        if (drop_packet(header.eth.dst_mac, mac)) {
+            pack->release();
             continue;
+        }
 
-        auto data = span(buf, recvd_bytes - sizeof(header));
+        pack->size = recvd_bytes - sizeof(header);
 
-        if (header.eth.type == ethertype::ipv6) {
-            auto pack = new packet;
-            if (!pack) {
-                print("new failed\n");
-                continue;
-            }
-
-            pack->size = data.size();
-            memcpy(pack->data, data.data(), data.size());
-
+        if (header.eth.type == ethertype::ipv6)
             handle_ipv6_packet(*this, *pack, header.eth.src_mac);
 
-            pack->release();
-        }
+        pack->release();
     }
 }
