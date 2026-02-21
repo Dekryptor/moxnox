@@ -2,6 +2,7 @@
 #include <stdio.h>
 #include <errno.h>
 #include <optional>
+#include <bit>
 #include <string_view>
 
 import nt;
@@ -17,6 +18,15 @@ static const unsigned int SYSTEM_TIME_RESOLUTION = 10000000; // 100ns
 static void do_ping(int sock, const ipv6_address& ip) {
     icmpv6_echo echo;
     sockaddr_in6 dst;
+    PROCESS_BASIC_INFORMATION pbi;
+
+    auto status = NtQueryInformationProcess(NtCurrentProcess(),
+                                            PROCESSINFOCLASS::BasicInformation,
+                                            &pbi, sizeof(pbi), nullptr);
+    if (!success(status)) {
+        print_stderr("NtQueryInformationProcess returned {}\n", status);
+        return;
+    }
 
     dst.sin6_family = AF_INET6;
     dst.sin6_port = 0;
@@ -27,7 +37,7 @@ static void do_ping(int sock, const ipv6_address& ip) {
     echo.type = icmpv6_type::echo_request;
     echo.code = 0;
     echo.checksum = 0; // done by kernel
-    echo.identifier = 0; // FIXME - PID
+    echo.identifier = byteswap((uint16_t)pbi.UniqueProcessId);
     echo.sequence = 1; // FIXME - increasing
 
     char buf[1500]; // FIXME - get MTU
