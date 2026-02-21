@@ -342,9 +342,13 @@ static void handle_v6_echo_request(netif& ni, packet& pack,
 
     header.checksum = calc_icmpv6_checksum(ip, span((uint8_t*)&header, pack2->size - sizeof(ipv6_header)));
 
-    auto status = ni.send_packet(src_mac, ethertype::ipv6, *pack2);
-    if (!success(status))
-        print("send_packet returned {}\n", status);
+    if (ip.src == ip.dst) // pinging ourselves
+        handle_ipv6_packet(ni, *pack2, ni.mac);
+    else {
+        auto status = ni.send_packet(src_mac, ethertype::ipv6, *pack2);
+        if (!success(status))
+            print("send_packet returned {}\n", status);
+    }
 
     pack2->release();
 }
