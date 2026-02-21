@@ -120,7 +120,7 @@ static void do_ping(int sock, const ipv6_address& ip) {
             // FIXME - count missing pings etc.
 
             auto ticks = now.QuadPart - sent_time.QuadPart;
-            auto ms = (float)ticks / (float)SYSTEM_TIME_RESOLUTION;
+            auto ms = (float)ticks * 1000.0f / (float)SYSTEM_TIME_RESOLUTION;
 
             sprintf(s, "%.3g", ms);
 
