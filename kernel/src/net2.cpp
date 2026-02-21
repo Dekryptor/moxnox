@@ -119,8 +119,7 @@ static void send_neighbour_advertisement(netif& ni, const ipv6_address& target,
 
     pkt.na.checksum = calc_icmpv6_checksum(pkt.ip, span((uint8_t*)&pkt.na, sizeof(pkt.na) + sizeof(pkt.opt)));
 
-    auto status = ni.send_packet(dst_mac, ethertype::ipv6,
-                                 span(pack->data, pack->size));
+    auto status = ni.send_packet(dst_mac, ethertype::ipv6, *pack);
     if (!success(status))
         print("send_packet returned {}\n", status);
 
@@ -343,8 +342,7 @@ static void handle_v6_echo_request(netif& ni, packet& pack,
 
     header.checksum = calc_icmpv6_checksum(ip, span((uint8_t*)&header, pack2->size - sizeof(ipv6_header)));
 
-    auto status = ni.send_packet(src_mac, ethertype::ipv6,
-                                 span(pack2->data, pack2->size));
+    auto status = ni.send_packet(src_mac, ethertype::ipv6, *pack2);
     if (!success(status))
         print("send_packet returned {}\n", status);
 
@@ -1237,8 +1235,7 @@ static void send_neighbour_solicitation(netif& ni, const ipv6_address& dst) {
 
     pkt.ns.checksum = calc_icmpv6_checksum(pkt.ip, span((uint8_t*)&pkt.ns, sizeof(pkt.ns) + sizeof(pkt.opt)));
 
-    auto status = ni.send_packet(dst_mac, ethertype::ipv6,
-                                 span(pack->data, pack->size));
+    auto status = ni.send_packet(dst_mac, ethertype::ipv6, *pack);
     if (!success(status))
         print("send_packet returned {}\n", status);
 
@@ -1464,7 +1461,7 @@ nt_status ipv6_socket::sendto_raw(span<const char> us_buf, int flags,
         icmp.checksum = calc_icmpv6_checksum(ip, span((uint8_t*)&icmp, us_buf.size()));
     }
 
-    status = ni.send_packet(mac, ethertype::ipv6, span(pack->data, pack->size));
+    status = ni.send_packet(mac, ethertype::ipv6, *pack);
     if (!success(status)) {
         pack->release();
         ni.release();

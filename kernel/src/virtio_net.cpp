@@ -140,7 +140,7 @@ public:
     void init(const virtio_net_config& cfg);
     void recv_thread();
     nt_status send_packet(const mac_address& dst_mac, ethertype type,
-                          span<const uint8_t> buf) override;
+                          packet& pack) override;
 
     T& dev;
 
@@ -344,7 +344,7 @@ static bool found_virtio_mmio_net(virtio_mmio_device& dev) {
 
 template<typename T>
 nt_status virtio_net<T>::send_packet(const mac_address& dst_mac, ethertype type,
-                                     span<const uint8_t> buf) {
+                                     packet& pack) {
     uint8_t* bounce1 = nullptr;
     uint8_t* bounce2 = nullptr;
     virtq_desc descs[2];
@@ -373,7 +373,7 @@ nt_status virtio_net<T>::send_packet(const mac_address& dst_mac, ethertype type,
         return nt_status::INSUFFICIENT_RESOURCES;
     }
 
-    auto pa2 = dma_setup(buf, true, bounce2);
+    auto pa2 = dma_setup(pack.data, true, bounce2);
     if (!pa2) {
         print("dma_setup failed\n");
         dma_finish_write(bounce1);
@@ -386,7 +386,7 @@ nt_status virtio_net<T>::send_packet(const mac_address& dst_mac, ethertype type,
     descs[0].next = 1;
 
     descs[1].addr = pa2;
-    descs[1].len = (uint32_t)buf.size();
+    descs[1].len = (uint32_t)pack.size;
     descs[1].flags = 0;
     descs[1].next = 0;
 

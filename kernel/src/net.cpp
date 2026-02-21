@@ -106,7 +106,7 @@ public:
     }
 
     virtual nt_status send_packet(const mac_address& dst_mac, ethertype type,
-                                  span<const uint8_t> buf) = 0;
+                                  packet& pack) = 0;
 
     list_entry le;
     atomic<unsigned int> refcount = 1;
