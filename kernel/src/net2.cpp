@@ -471,6 +471,29 @@ static void send_to_sockets(uint32_t netif_num, packet& pack) {
     free(arr);
 }
 
+static bool should_accept_multicast(netif& ni, const ipv6_address& dst) {
+    static const auto all_nodes = parse_ipv6_address("ff02::1");
+    static const auto solicited_multicast = parse_ipv6_address("ff02::1:ff00:0");
+
+    if (dst == all_nodes)
+        return true;
+
+    if (!memcmp(dst.v.data(), solicited_multicast.v.data(), 13)) {
+        lock_guard lock(ni.addr_lock);
+
+        for (auto le = ni.addrs.next; le != &ni.addrs; le = le->next) {
+            auto& a = containing_record<ip_addr>(le);
+
+            if (a.addr.v[13] == dst.v[13] && a.addr.v[14] == dst.v[14] &&
+                a.addr.v[15] == dst.v[15]) {
+                return true;
+            }
+        }
+    }
+
+    return false;
+}
+
 void handle_ipv6_packet(netif& ni, packet& pack, const mac_address& src_mac) {
     if (pack.size < sizeof(ipv6_header)) {
         print("handle_ipv6_packet: buffer length was {}, expected at least {}\n",
@@ -487,18 +510,16 @@ void handle_ipv6_packet(netif& ni, packet& pack, const mac_address& src_mac) {
           header.src, header.dst);
 #endif
 
-    static const auto solicited_multicast = parse_ipv6_address("ff02::1:ff00:0");
-    static const auto all_nodes = parse_ipv6_address("ff02::1");
-
     const auto& ip = *(ipv6_header*)pack.data;
     const auto& dst = ip.dst;
 
-    if (dst != all_nodes) {
-        // check if it's for us
-
-        bool is_solicited_multicast = !memcmp(dst.v.data(),
-                                              solicited_multicast.v.data(), 13);
+    if (is_multicast_address(ip.dst)) {
+        if (!should_accept_multicast(ni, ip.dst))
+            return;
+    } else {
         bool found = false;
+
+        // check if it's for us
 
         {
             lock_guard lock(ni.addr_lock);
@@ -507,12 +528,6 @@ void handle_ipv6_packet(netif& ni, packet& pack, const mac_address& src_mac) {
                 auto& a = containing_record<ip_addr>(le);
 
                 if (a.addr == dst) {
-                    found = true;
-                    break;
-                }
-
-                if (is_solicited_multicast && a.addr.v[13] == dst.v[13] &&
-                    a.addr.v[14] == dst.v[14] && a.addr.v[15] == dst.v[15]) {
                     found = true;
                     break;
                 }
@@ -1492,6 +1507,9 @@ nt_status ipv6_socket::sendto_raw(span<const char> us_buf, int flags,
     if (src == dst)
         handle_ipv6_packet(ni, *pack, ni.mac);
     else {
+        if (is_multicast_address(ip.dst) && should_accept_multicast(ni, ip.dst))
+            handle_ipv6_packet(ni, *pack, ni.mac); // send copy to ourselves
+
         status = ni.send_packet(mac, ethertype::ipv6, *pack);
         if (!success(status)) {
             pack->release();
