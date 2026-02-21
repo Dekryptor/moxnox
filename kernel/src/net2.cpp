@@ -1179,11 +1179,20 @@ static nt_status ipv6_choose_interface(const ipv6_address& dst, uint32_t scope_i
 }
 
 static void send_neighbour_solicitation(netif& ni, const ipv6_address& dst) {
-    struct {
+    struct ns_pkt {
         ipv6_header ip;
         icmpv6_neighbour_solicitation ns;
         ndp_option_lladdr opt;
-    } __attribute__((packed)) pkt;
+    } __attribute__((packed));
+
+    auto pack = new packet;
+    if (!pack) {
+        print("new failed\n");
+        return;
+    }
+
+    auto& pkt = *(ns_pkt*)pack->data;
+    pack->size = sizeof(pkt);
 
     memset(&pkt, 0, sizeof(pkt));
 
@@ -1229,9 +1238,11 @@ static void send_neighbour_solicitation(netif& ni, const ipv6_address& dst) {
     pkt.ns.checksum = calc_icmpv6_checksum(pkt.ip, span((uint8_t*)&pkt.ns, sizeof(pkt.ns) + sizeof(pkt.opt)));
 
     auto status = ni.send_packet(dst_mac, ethertype::ipv6,
-                                 span((const uint8_t*)&pkt, sizeof(pkt)));
+                                 span(pack->data, pack->size));
     if (!success(status))
         print("send_packet returned {}\n", status);
+
+    pack->release();
 }
 
 static mac_address search_neighbour_cache(netif& ni, const ipv6_address& dst) {
