@@ -4,6 +4,7 @@ module;
 #include <span>
 #include <mutex>
 #include <bit>
+#include <atomic>
 #include <stdint.h>
 
 module net;
