@@ -401,7 +401,10 @@ void virtio_net<T>::recv_thread() {
         return;
     }
 
-    virtio_net_hdr hdr;
+    struct {
+        virtio_net_hdr hdr;
+        ethernet_header eth;
+    } __attribute((packed)) header;
 
     while (true) {
         uint8_t* bounce1 = nullptr;
@@ -409,7 +412,7 @@ void virtio_net<T>::recv_thread() {
         virtq_desc descs[2];
         uint64_t recvd_bytes;
 
-        auto pa1 = dma_setup(span((uint8_t*)&hdr, sizeof(hdr)), false, bounce1);
+        auto pa1 = dma_setup(span((uint8_t*)&header, sizeof(header)), false, bounce1);
         if (!pa1) {
             print("dma_setup failed\n");
             continue;
@@ -418,12 +421,12 @@ void virtio_net<T>::recv_thread() {
         auto pa2 = dma_setup(span(buf, buf_size), false, bounce2);
         if (!pa2) {
             print("dma_setup failed\n");
-            dma_finish_read(span((uint8_t*)&hdr, sizeof(hdr)), bounce1);
+            dma_finish_read(span((uint8_t*)&header, sizeof(header)), bounce1);
             continue;
         }
 
         descs[0].addr = pa1;
-        descs[0].len = sizeof(virtio_net_hdr);
+        descs[0].len = sizeof(header);
         descs[0].flags = VIRTQ_DESC_F_WRITE | VIRTQ_DESC_F_NEXT;
         descs[0].next = 1;
 
@@ -434,7 +437,7 @@ void virtio_net<T>::recv_thread() {
 
         auto status = receive_queue->indirect(descs, recvd_bytes);
 
-        dma_finish_read(span((uint8_t*)&hdr, sizeof(hdr)), bounce1);
+        dma_finish_read(span((uint8_t*)&header, sizeof(header)), bounce1);
         dma_finish_read(span(buf, buf_size), bounce2);
 
         if (!success(status)) {
@@ -442,29 +445,28 @@ void virtio_net<T>::recv_thread() {
             continue;
         }
 
-        if (recvd_bytes < sizeof(virtio_net_hdr) + sizeof(ethernet_header)) {
+        if (recvd_bytes < sizeof(header)) {
             print("virtio_net::recv_thread: received {} bytes, expected at least {}\n",
-                  recvd_bytes, sizeof(virtio_net_hdr) + sizeof(ethernet_header));
+                  recvd_bytes, sizeof(header));
             continue;
         }
-
-        auto& eth = *(ethernet_header*)buf;
 
 #if 0
         print("recvd_bytes = {}\n", recvd_bytes);
         print("hdr: flags = {}, gso_type = {}, hdr_len = {}, gso_size = {}, csum_start = {}, csum_offset = {}, num_buffers = {}\n",
-              hdr.flags, hdr.gso_type, hdr.hdr_len, hdr.gso_size, hdr.csum_start,
-              hdr.csum_offset, hdr.num_buffers);
+              header.hdr.flags, header.hdr.gso_type, header.hdr.hdr_len,
+              header.hdr.gso_size, header.hdr.csum_start, header.hdr.csum_offset,
+              header.hdr.num_buffers);
         print("ethernet: dst_mac = {}, src_mac = {}, type = {}\n",
-              eth.dst_mac, eth.src_mac, eth.type);
+              header.eth.dst_mac, header.eth.src_mac, header.eth.type);
 #endif
 
-        if (drop_packet(eth.dst_mac, mac))
+        if (drop_packet(header.eth.dst_mac, mac))
             continue;
 
-        auto data = span(buf, recvd_bytes - sizeof(virtio_net_hdr));
+        auto data = span(buf, recvd_bytes - sizeof(header));
 
-        if (eth.type == ethertype::ipv6)
-            handle_ipv6_packet(*this, data);
+        if (header.eth.type == ethertype::ipv6)
+            handle_ipv6_packet(*this, data, header.eth.src_mac);
     }
 }
