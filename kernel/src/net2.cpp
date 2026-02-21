@@ -1461,11 +1461,15 @@ nt_status ipv6_socket::sendto_raw(span<const char> us_buf, int flags,
         icmp.checksum = calc_icmpv6_checksum(ip, span((uint8_t*)&icmp, us_buf.size()));
     }
 
-    status = ni.send_packet(mac, ethertype::ipv6, *pack);
-    if (!success(status)) {
-        pack->release();
-        ni.release();
-        return status;
+    if (src == dst)
+        handle_ipv6_packet(ni, *pack, ni.mac);
+    else {
+        status = ni.send_packet(mac, ethertype::ipv6, *pack);
+        if (!success(status)) {
+            pack->release();
+            ni.release();
+            return status;
+        }
     }
 
     pack->release();
