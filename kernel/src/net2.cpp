@@ -38,7 +38,6 @@ static size_t num_ipv6_sockets = 0;
 
 struct ipv6_socket_packet {
     list_entry le;
-    ipv6_address src;
     uint32_t scope_id;
     size_t size;
     uint8_t data[MTU];
@@ -439,11 +438,9 @@ static void send_to_sockets(uint32_t netif_num, span<const uint8_t> buf) {
             continue;
         }
 
-        p->src = ip.src;
         p->scope_id = netif_num;
-        p->size = buf.size() - sizeof(ipv6_header);
-        memcpy(p->data, buf.data() + sizeof(ipv6_header),
-               buf.size() - sizeof(ipv6_header));
+        p->size = buf.size();
+        memcpy(p->data, buf.data(), buf.size());
 
         bool done = false;
 
@@ -1026,9 +1023,10 @@ nt_status ipv6_socket::recvfrom(char* us_buf, size_t len, int flags,
         if (!sp)
             continue;
 
-        auto to_copy = (uint32_t)min(sp->size, len);
+        auto to_copy = (uint32_t)min(sp->size - sizeof(ipv6_header), len);
 
-        status = t.proc->write_vm(us_buf, sp->data, to_copy, nullptr);
+        status = t.proc->write_vm(us_buf, sp->data + sizeof(ipv6_header),
+                                  to_copy, nullptr);
         if (!success(status)) {
             delete sp;
             release();
@@ -1038,10 +1036,12 @@ nt_status ipv6_socket::recvfrom(char* us_buf, size_t len, int flags,
         recv_bytes = to_copy;
 
         if (us_from && fromlen && *fromlen > 0) {
+            auto& ip = *(ipv6_header*)sp->data;
+
             addr.sin6_family = AF_INET6;
             addr.sin6_port = 0;
             addr.sin6_flowinfo = 0; // FIXME? Allowed by RFC3493, but not necessarily what Linux does
-            memcpy(addr.sin6_addr, sp->src.v.data(), sizeof(ipv6_address));
+            memcpy(addr.sin6_addr, ip.src.v.data(), sizeof(ipv6_address));
             addr.sin6_scope_id = sp->scope_id;
 
             status = t.proc->write_vm(us_from, &addr,
