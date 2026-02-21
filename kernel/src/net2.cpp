@@ -28,6 +28,8 @@ static const uint8_t DEFAULT_HOP_LIMIT = 64;
 static const size_t MAX_BUFFER_SIZE = 1048576;
 static const mac_address NULL_MAC_ADDRESS = { 0, 0, 0, 0, 0, 0 };
 
+static const size_t MTU = 1500; // FIXME - allow jumbo packets
+
 static object_ref netctl_obj;
 
 static spinlock ipv6_sockets_lock;
@@ -39,7 +41,7 @@ struct ipv6_socket_packet {
     ipv6_address src;
     uint32_t scope_id;
     size_t size;
-    uint8_t data[0];
+    uint8_t data[MTU];
 };
 
 enum class neighbour_cache_status {
@@ -430,7 +432,7 @@ static void send_to_sockets(uint32_t netif_num, span<const uint8_t> buf) {
 
         // FIXME - strip headers if necessary
 
-        auto p = (ipv6_socket_packet*)malloc(offsetof(ipv6_socket_packet, data) + buf.size() - sizeof(ipv6_header));
+        auto p = new ipv6_socket_packet;
         if (!p) {
             print("malloc failed\n");
             s.release();
@@ -463,7 +465,7 @@ static void send_to_sockets(uint32_t netif_num, span<const uint8_t> buf) {
         }
 
         if (!done) {
-            free(p);
+            delete p;
             s.release();
             continue;
         }
@@ -858,7 +860,7 @@ ipv6_socket::~ipv6_socket() {
         if (!pp)
             break;
 
-        free(pp);
+        delete pp;
     }
 }
 
@@ -1028,7 +1030,7 @@ nt_status ipv6_socket::recvfrom(char* us_buf, size_t len, int flags,
 
         status = t.proc->write_vm(us_buf, sp->data, to_copy, nullptr);
         if (!success(status)) {
-            free(sp);
+            delete sp;
             release();
             return status;
         }
@@ -1046,7 +1048,7 @@ nt_status ipv6_socket::recvfrom(char* us_buf, size_t len, int flags,
                                       (uint32_t)min((size_t)*fromlen, sizeof(addr)),
                                       nullptr);
             if (!success(status)) {
-                free(sp);
+                delete sp;
                 release();
                 return status;
             }
@@ -1054,7 +1056,7 @@ nt_status ipv6_socket::recvfrom(char* us_buf, size_t len, int flags,
             *fromlen = sizeof(addr);
         }
 
-        free(sp);
+        delete sp;
 
         break;
     }
