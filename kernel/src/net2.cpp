@@ -287,6 +287,12 @@ static void handle_neighbour_advertisement(netif& ni, packet& pack) {
         nce->release();
 }
 
+static bool is_multicast_address(const ipv6_address& addr) {
+    static const auto multicast_range = parse_ipv6_address("ff00::");
+
+    return !memcmp(multicast_range.v.data(), addr.v.data(), 1);
+}
+
 static void handle_v6_echo_request(netif& ni, packet& pack,
                                    const mac_address& src_mac) {
     if (pack.size < sizeof(ipv6_header) + sizeof(icmpv6_echo)) {
@@ -310,6 +316,9 @@ static void handle_v6_echo_request(netif& ni, packet& pack,
 
     auto& ip = *(ipv6_header*)pack2->data;
     swap(ip.src, ip.dst);
+
+    if (is_multicast_address(ip.src))
+        ip.src = ni.ll_addr;
 
     ip.hop_limit = DEFAULT_HOP_LIMIT;
 
