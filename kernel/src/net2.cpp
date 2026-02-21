@@ -213,7 +213,6 @@ static void handle_neighbour_advertisement(netif& ni, span<const uint8_t> buf) {
             if (c.status == neighbour_cache_status::incomplete) {
                 c.status = neighbour_cache_status::reachable;
                 c.last_update_time = kernel_time_page.system_time;
-                c.acquire();
                 set_event(static_cast<event&>(c.event.get()));
             }
 
@@ -257,7 +256,6 @@ static void handle_neighbour_advertisement(netif& ni, span<const uint8_t> buf) {
 
                 if (c.status == neighbour_cache_status::incomplete) {
                     c.status = neighbour_cache_status::reachable;
-                    c.acquire();
                     set_event(static_cast<event&>(c.event.get()));
                 }
 
