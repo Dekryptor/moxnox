@@ -1409,15 +1409,11 @@ nt_status ipv6_socket::sendto_raw(span<const char> us_buf, int flags,
         }
     }
 
-    size_t pktsize = sizeof(ipv6_header) + us_buf.size();
-    auto pkt = (uint8_t*)malloc(pktsize);
-    if (!pkt) {
-        print("malloc failed\n");
-        ni.release();
-        return nt_status::INSUFFICIENT_RESOURCES;
-    }
+    auto pack = new packet;
 
-    auto& ip = *(ipv6_header*)pkt;
+    pack->size = sizeof(ipv6_header) + us_buf.size();
+
+    auto& ip = *(ipv6_header*)pack->data;
     ip.traffic_class1 = 0;
     ip.version = 6;
     ip.traffic_class2 = 0;
@@ -1428,29 +1424,30 @@ nt_status ipv6_socket::sendto_raw(span<const char> us_buf, int flags,
     ip.src = src;
     ip.dst = dst;
 
-    status = t.proc->read_vm(us_buf.data(), pkt + sizeof(ipv6_header),
+    status = t.proc->read_vm(us_buf.data(), pack->data + sizeof(ipv6_header),
                              (uint32_t)us_buf.size(), nullptr);
     if (!success(status)) {
-        free(pkt);
+        pack->release();
         ni.release();
         return status;
     }
 
     // FIXME - should only be if IPV6_CHECKSUM sockopt set
-    if (protocol == IPPROTO_ICMPV6 && pktsize >= sizeof(ipv6_header) + sizeof(icmpv6_header)) {
-        auto& icmp = *(icmpv6_header*)(pkt + sizeof(ipv6_header));
+    if (protocol == IPPROTO_ICMPV6 && us_buf.size() >= sizeof(icmpv6_header)) {
+        auto& icmp = *(icmpv6_header*)(pack->data + sizeof(ipv6_header));
 
         icmp.checksum = 0;
-        icmp.checksum = calc_icmpv6_checksum(ip, span((uint8_t*)&icmp, pktsize - sizeof(ipv6_header)));
+        icmp.checksum = calc_icmpv6_checksum(ip, span((uint8_t*)&icmp, us_buf.size()));
     }
 
-    status = ni.send_packet(mac, ethertype::ipv6, span(pkt, pktsize));
+    status = ni.send_packet(mac, ethertype::ipv6, span(pack->data, pack->size));
     if (!success(status)) {
-        free(pkt);
+        pack->release();
         ni.release();
         return status;
     }
 
+    pack->release();
     ni.release();
 
     sent_bytes = us_buf.size();
