@@ -773,6 +773,36 @@ static nt_status netctl_get_netif_info(span<const uint8_t> inbuf,
     return nt_status::SUCCESS;
 }
 
+static nt_status netctl_get_netif_by_name(span<const uint8_t> inbuf,
+                                          span<uint8_t> outbuf,
+                                          uintptr_t& written) {
+    if (inbuf.size() < sizeof(MOXNOX_NETCTL_GET_NETIF_BY_NAME))
+        return nt_status::BUFFER_TOO_SMALL;
+
+    if (outbuf.size() < sizeof(uint32_t))
+        return nt_status::BUFFER_TOO_SMALL;
+
+    auto p = *(MOXNOX_NETCTL_GET_NETIF_BY_NAME*)inbuf.data();
+
+    auto& out = *(uint32_t*)outbuf.data();
+
+    {
+        lock_guard lock(netif_lock);
+
+        for (auto le = netif_list.next; le != &netif_list; le = le->next) {
+            auto& ni = containing_record<netif>(le);
+
+            if (!memcmp(ni.name, p.name, sizeof(p.name))) {
+                out = ni.num;
+                written = sizeof(uint32_t);
+                return nt_status::SUCCESS;
+            }
+        }
+    }
+
+    return nt_status::NOT_FOUND;
+}
+
 nt_status netctl::ioctl(uint32_t code, span<const uint8_t> inbuf,
                         span<uint8_t> outbuf, uintptr_t& written) {
     switch (code) {
@@ -787,6 +817,9 @@ nt_status netctl::ioctl(uint32_t code, span<const uint8_t> inbuf,
 
         case IOCTL_MOXNOX_NETCTL_GET_NETIF_INFO:
             return netctl_get_netif_info(inbuf, outbuf, written);
+
+        case IOCTL_MOXNOX_NETCTL_GET_NETIF_BY_NAME:
+            return netctl_get_netif_by_name(inbuf, outbuf, written);
 
         default:
             return nt_status::NOT_IMPLEMENTED;
