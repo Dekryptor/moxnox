@@ -85,18 +85,12 @@ static void send_neighbour_advertisement(netif& ni, const ipv6_address& target,
                                          const ipv6_address& dst_ip,
                                          const mac_address& dst_mac) {
     struct {
-        ethernet_header eth;
         ipv6_header ip;
         icmpv6_neighbour_advertisement na;
         ndp_option_lladdr opt;
     } __attribute__((packed)) pkt;
 
     memset(&pkt, 0, sizeof(pkt));
-
-    pkt.eth.src_mac = ni.mac;
-    pkt.eth.dst_mac = dst_mac;
-
-    pkt.eth.type = ethertype::ipv6;
 
     pkt.ip.version = 6;
     pkt.ip.payload_length = byteswap((uint16_t)(sizeof(icmpv6_neighbour_advertisement) + sizeof(ndp_option_lladdr)));
@@ -116,7 +110,8 @@ static void send_neighbour_advertisement(netif& ni, const ipv6_address& target,
 
     pkt.na.checksum = calc_icmpv6_checksum(pkt.ip, span((uint8_t*)&pkt.na, sizeof(pkt.na) + sizeof(pkt.opt)));
 
-    auto status = ni.send_packet(span((const uint8_t*)&pkt, sizeof(pkt)));
+    auto status = ni.send_packet(dst_mac, ethertype::ipv6,
+                                 span((const uint8_t*)&pkt, sizeof(pkt)));
     if (!success(status))
         print("send_packet returned {}\n", status);
 }
@@ -313,37 +308,30 @@ static void handle_v6_echo_request(netif& ni, packet& pack,
 
     // take copy
 
-    auto reply = (uint8_t*)malloc(sizeof(ethernet_header) + pack.size);
+    auto reply = (uint8_t*)malloc(pack.size);
     if (!reply) {
         print("malloc failed\n");
         return;
     }
 
-    memcpy(reply + sizeof(ethernet_header), pack.data, pack.size);
-
-    // switch MAC addresses
-
-    auto& eth = *(ethernet_header*)reply;
-    eth.src_mac = ni.mac;
-    eth.dst_mac = src_mac;
-    eth.type = ethertype::ipv6;
+    memcpy(reply, pack.data, pack.size);
 
     // switch IP addresses
 
-    auto& ip = *(ipv6_header*)(reply + sizeof(ethernet_header));
+    auto& ip = *(ipv6_header*)reply;
     swap(ip.src, ip.dst);
 
     ip.hop_limit = DEFAULT_HOP_LIMIT;
 
     // change type to reply
 
-    auto& header = *(icmpv6_header*)(reply + sizeof(ethernet_header) + sizeof(ipv6_header));
+    auto& header = *(icmpv6_header*)(reply + sizeof(ipv6_header));
     header.type = icmpv6_type::echo_reply;
     header.checksum = 0;
 
     header.checksum = calc_icmpv6_checksum(ip, span((uint8_t*)&header, pack.size - sizeof(ipv6_header)));
 
-    auto status = ni.send_packet(span(reply, sizeof(ethernet_header) + pack.size));
+    auto status = ni.send_packet(src_mac, ethertype::ipv6, span(reply, pack.size));
     if (!success(status))
         print("send_packet returned {}\n", status);
 
@@ -1179,7 +1167,6 @@ static nt_status ipv6_choose_interface(const ipv6_address& dst, uint32_t scope_i
 
 static void send_neighbour_solicitation(netif& ni, const ipv6_address& dst) {
     struct {
-        ethernet_header eth;
         ipv6_header ip;
         icmpv6_neighbour_solicitation ns;
         ndp_option_lladdr opt;
@@ -1187,16 +1174,14 @@ static void send_neighbour_solicitation(netif& ni, const ipv6_address& dst) {
 
     memset(&pkt, 0, sizeof(pkt));
 
-    pkt.eth.src_mac = ni.mac;
+    mac_address dst_mac;
 
-    pkt.eth.dst_mac.v[0] = 0x33;
-    pkt.eth.dst_mac.v[1] = 0x33;
-    pkt.eth.dst_mac.v[2] = 0xff;
-    pkt.eth.dst_mac.v[3] = dst.v[13];
-    pkt.eth.dst_mac.v[4] = dst.v[14];
-    pkt.eth.dst_mac.v[5] = dst.v[15];
-
-    pkt.eth.type = ethertype::ipv6;
+    dst_mac.v[0] = 0x33;
+    dst_mac.v[1] = 0x33;
+    dst_mac.v[2] = 0xff;
+    dst_mac.v[3] = dst.v[13];
+    dst_mac.v[4] = dst.v[14];
+    dst_mac.v[5] = dst.v[15];
 
     pkt.ip.version = 6;
     pkt.ip.payload_length = byteswap((uint16_t)(sizeof(icmpv6_neighbour_solicitation) + sizeof(ndp_option_lladdr)));
@@ -1230,7 +1215,8 @@ static void send_neighbour_solicitation(netif& ni, const ipv6_address& dst) {
 
     pkt.ns.checksum = calc_icmpv6_checksum(pkt.ip, span((uint8_t*)&pkt.ns, sizeof(pkt.ns) + sizeof(pkt.opt)));
 
-    auto status = ni.send_packet(span((const uint8_t*)&pkt, sizeof(pkt)));
+    auto status = ni.send_packet(dst_mac, ethertype::ipv6,
+                                 span((const uint8_t*)&pkt, sizeof(pkt)));
     if (!success(status))
         print("send_packet returned {}\n", status);
 }
@@ -1423,7 +1409,7 @@ nt_status ipv6_socket::sendto_raw(span<const char> us_buf, int flags,
         }
     }
 
-    size_t pktsize = sizeof(ethernet_header) + sizeof(ipv6_header) + us_buf.size();
+    size_t pktsize = sizeof(ipv6_header) + us_buf.size();
     auto pkt = (uint8_t*)malloc(pktsize);
     if (!pkt) {
         print("malloc failed\n");
@@ -1431,12 +1417,7 @@ nt_status ipv6_socket::sendto_raw(span<const char> us_buf, int flags,
         return nt_status::INSUFFICIENT_RESOURCES;
     }
 
-    auto& eth = *(ethernet_header*)pkt;
-    eth.dst_mac = mac;
-    eth.src_mac = ni.mac;
-    eth.type = ethertype::ipv6;
-
-    auto& ip = *(ipv6_header*)(pkt + sizeof(ethernet_header));
+    auto& ip = *(ipv6_header*)pkt;
     ip.traffic_class1 = 0;
     ip.version = 6;
     ip.traffic_class2 = 0;
@@ -1447,8 +1428,7 @@ nt_status ipv6_socket::sendto_raw(span<const char> us_buf, int flags,
     ip.src = src;
     ip.dst = dst;
 
-    status = t.proc->read_vm(us_buf.data(),
-                             pkt + sizeof(ethernet_header) + sizeof(ipv6_header),
+    status = t.proc->read_vm(us_buf.data(), pkt + sizeof(ipv6_header),
                              (uint32_t)us_buf.size(), nullptr);
     if (!success(status)) {
         free(pkt);
@@ -1457,14 +1437,14 @@ nt_status ipv6_socket::sendto_raw(span<const char> us_buf, int flags,
     }
 
     // FIXME - should only be if IPV6_CHECKSUM sockopt set
-    if (protocol == IPPROTO_ICMPV6 && pktsize >= sizeof(ethernet_header) + sizeof(ipv6_header) + sizeof(icmpv6_header)) {
-        auto& icmp = *(icmpv6_header*)(pkt + sizeof(ethernet_header) + sizeof(ipv6_header));
+    if (protocol == IPPROTO_ICMPV6 && pktsize >= sizeof(ipv6_header) + sizeof(icmpv6_header)) {
+        auto& icmp = *(icmpv6_header*)(pkt + sizeof(ipv6_header));
 
         icmp.checksum = 0;
-        icmp.checksum = calc_icmpv6_checksum(ip, span((uint8_t*)&icmp, pktsize - sizeof(ethernet_header) - sizeof(ipv6_header)));
+        icmp.checksum = calc_icmpv6_checksum(ip, span((uint8_t*)&icmp, pktsize - sizeof(ipv6_header)));
     }
 
-    status = ni.send_packet(span(pkt, pktsize));
+    status = ni.send_packet(mac, ethertype::ipv6, span(pkt, pktsize));
     if (!success(status)) {
         free(pkt);
         ni.release();
