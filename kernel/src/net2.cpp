@@ -84,11 +84,20 @@ struct neighbour_cache_entry {
 static void send_neighbour_advertisement(netif& ni, const ipv6_address& target,
                                          const ipv6_address& dst_ip,
                                          const mac_address& dst_mac) {
-    struct {
+    auto pack = new packet;
+    if (!pack) {
+        print("new failed\n");
+        return;
+    }
+
+    struct na_pkt {
         ipv6_header ip;
         icmpv6_neighbour_advertisement na;
         ndp_option_lladdr opt;
-    } __attribute__((packed)) pkt;
+    } __attribute__((packed));
+
+    pack->size = sizeof(na_pkt);
+    auto& pkt = *(na_pkt*)pack->data;
 
     memset(&pkt, 0, sizeof(pkt));
 
@@ -111,9 +120,11 @@ static void send_neighbour_advertisement(netif& ni, const ipv6_address& target,
     pkt.na.checksum = calc_icmpv6_checksum(pkt.ip, span((uint8_t*)&pkt.na, sizeof(pkt.na) + sizeof(pkt.opt)));
 
     auto status = ni.send_packet(dst_mac, ethertype::ipv6,
-                                 span((const uint8_t*)&pkt, sizeof(pkt)));
+                                 span(pack->data, pack->size));
     if (!success(status))
         print("send_packet returned {}\n", status);
+
+    pack->release();
 }
 
 static void handle_neighbour_solicitation(netif& ni, packet& pack,
