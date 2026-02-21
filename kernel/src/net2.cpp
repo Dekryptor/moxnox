@@ -317,36 +317,38 @@ static void handle_v6_echo_request(netif& ni, packet& pack,
     if (!found)
         return;
 
-    // take copy
-
-    auto reply = (uint8_t*)malloc(pack.size);
-    if (!reply) {
-        print("malloc failed\n");
+    auto pack2 = new packet;
+    if (!pack2) {
+        print("new failed\n");
         return;
     }
 
-    memcpy(reply, pack.data, pack.size);
+    // take copy
+
+    pack2->size = pack.size;
+    memcpy(pack2->data, pack.data, pack.size);
 
     // switch IP addresses
 
-    auto& ip = *(ipv6_header*)reply;
+    auto& ip = *(ipv6_header*)pack2->data;
     swap(ip.src, ip.dst);
 
     ip.hop_limit = DEFAULT_HOP_LIMIT;
 
     // change type to reply
 
-    auto& header = *(icmpv6_header*)(reply + sizeof(ipv6_header));
+    auto& header = *(icmpv6_header*)(pack2->data + sizeof(ipv6_header));
     header.type = icmpv6_type::echo_reply;
     header.checksum = 0;
 
-    header.checksum = calc_icmpv6_checksum(ip, span((uint8_t*)&header, pack.size - sizeof(ipv6_header)));
+    header.checksum = calc_icmpv6_checksum(ip, span((uint8_t*)&header, pack2->size - sizeof(ipv6_header)));
 
-    auto status = ni.send_packet(src_mac, ethertype::ipv6, span(reply, pack.size));
+    auto status = ni.send_packet(src_mac, ethertype::ipv6,
+                                 span(pack2->data, pack2->size));
     if (!success(status))
         print("send_packet returned {}\n", status);
 
-    free(reply);
+    pack2->release();
 }
 
 static void handle_icmpv6_packet(netif& ni, packet& pack,
