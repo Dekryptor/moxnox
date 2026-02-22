@@ -303,7 +303,6 @@ add_subdirectory(ucrtbase)
 add_subdirectory(usercon)
 add_subdirectory(shell)
 add_subdirectory(ws2_32)
-add_subdirectory(netd)
 
 if(CMAKE_SYSTEM_PROCESSOR STREQUAL "aarch64")
     add_subdirectory(bootloader/aarch64)
