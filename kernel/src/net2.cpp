@@ -761,6 +761,7 @@ static void handle_router_advertisement(netif& ni, packet& pack) {
 
     if (ra.router_lifetime == 0) {
         ipv6_router* r = nullptr;
+        bool no_routers_left = false;
 
         {
             lock_guard lock(ni.routers_lock);
@@ -774,12 +775,15 @@ static void handle_router_advertisement(netif& ni, packet& pack) {
                     break;
                 }
             }
+
+            no_routers_left = is_list_empty(ni.routers);
         }
 
         if (r)
             delete r;
 
-        // FIXME - delete default route if no more routers
+        if (no_routers_left)
+            remove_ipv6_route(ni, parse_ipv6_address("::"), 0); // remove default route
     } else {
         bool router_found = false;
 
@@ -823,10 +827,10 @@ static void handle_router_advertisement(netif& ni, packet& pack) {
                         insert_tail_list(ni.routers, r->le);
                 }
 
-                if (router_found)
+                if (!router_found)
+                    add_ipv6_route(ni, parse_ipv6_address("::"), 0); // add default route
+                else
                     delete r;
-
-                // FIXME - add default route if first router and route wasn't already present
             }
         }
     }
