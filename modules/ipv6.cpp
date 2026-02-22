@@ -87,6 +87,22 @@ export struct icmpv6_router_solicitation : icmpv6_header {
 
 static_assert(sizeof(icmpv6_router_solicitation) == 8);
 
+export struct icmpv6_router_advertisement : icmpv6_header {
+    uint8_t cur_hop_limit;
+    uint8_t : 1;
+    uint8_t snac_router : 1;
+    uint8_t nd_proxy : 1;
+    uint8_t prf : 2;
+    uint8_t home_agent : 1;
+    uint8_t other_configuration : 1;
+    uint8_t managed_address_configuration : 1;
+    uint16_t router_lifetime;
+    uint32_t reachable_time;
+    uint32_t retrans_timer;
+} __attribute((packed));
+
+static_assert(sizeof(icmpv6_router_advertisement) == 16);
+
 export struct icmpv6_echo : icmpv6_header {
     uint16_t identifier;
     uint16_t sequence;
