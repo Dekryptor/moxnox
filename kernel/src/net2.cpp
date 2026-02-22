@@ -1575,6 +1575,21 @@ static netif* lookup_route(const ipv6_address& dst) {
     return &best_match->ni;
 }
 
+static uint8_t ipv6_match_len(const ipv6_address& addr1, const ipv6_address& addr2) {
+    uint8_t ret = 0;
+
+    for (uint8_t i = 0; i < 16; i++) {
+        if (addr1.v[i] == addr2.v[i])
+            ret += 8;
+        else {
+            ret += (uint8_t)countl_zero((uint8_t)(addr1.v[i] ^ addr2.v[i]));
+            break;
+        }
+    }
+
+    return ret;
+}
+
 static nt_status ipv6_choose_interface(const ipv6_address& dst, uint32_t scope_id,
                                        netif*& ni, ipv6_address& src) {
     // see RFC6724
@@ -1647,13 +1662,35 @@ static nt_status ipv6_choose_interface(const ipv6_address& dst, uint32_t scope_i
     // FIXME - rule 5: prefer outgoing interface
     // FIXME - rule 6: prefer matching label
     // FIXME - rule 7: prefer temporary addresses
-    // FIXME - rule 8: prefer longest matching prefix
 
-    print("FIXME: ipv6_choose_interface could not choose\n"); // FIXME - remove once rule 8 working
+    // rule 8: prefer longest matching prefix
 
-    ni->release();
+    auto& n = *ni;
 
-    return nt_status::NETWORK_UNREACHABLE;
+    {
+        lock_guard lock(n.addr_lock);
+
+        ip_addr* best = nullptr;
+        uint8_t best_match_len = 0;
+
+        for (auto le = n.addrs.next; le != &n.addrs; le = le->next) {
+            auto& a = containing_record<ip_addr>(le);
+            auto match_len = ipv6_match_len(dst, a.addr);
+
+            if (!best || match_len > best_match_len) {
+                best = &a;
+                best_match_len = match_len;
+            }
+        }
+
+        if (!best) {
+            ni->release();
+            return nt_status::NETWORK_UNREACHABLE;
+        }
+
+        src = best->addr;
+        return nt_status::SUCCESS;
+    }
 }
 
 static void send_neighbour_solicitation(netif& ni, const ipv6_address& dst) {
