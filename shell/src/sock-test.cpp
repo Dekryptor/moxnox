@@ -1,14 +1,16 @@
-#include <errno.h>
 #include <stdint.h>
 
 import ws2_32;
 import print;
 import ipv6;
 
+#undef errno
+import errno;
+
 int main() {
     auto sock = socket(AF_INET6, SOCK_RAW, IPPROTO_ICMPV6);
     if (sock < 0) {
-        print("socket failed (errno {})\n", errno);
+        print("socket failed (errno {})\n", errno_to_string_view(*_errno()));
         return 1;
     }
 
@@ -22,7 +24,7 @@ int main() {
         ssize_t len = recvfrom(sock, buf, sizeof(buf), 0, (sockaddr*)&addr,
                                &addrlen);
         if (len < 0) {
-            print("recv failed (errno {})\n", errno);
+            print("recv failed (errno {})\n", errno_to_string_view(*_errno()));
             break;
         }
 
