@@ -464,8 +464,6 @@ static void add_ipv6_prefix(netif& ni, const ipv6_address& prefix,
                             bool autonomous) {
     ipv6_prefix* found = nullptr;
 
-    // FIXME - if prefix comes through but this time autonomous flag not set, delete corresponding SLAAC address?
-
     {
         lock_guard lock(ni.prefix_lock);
 
@@ -561,55 +559,86 @@ static void add_ipv6_prefix(netif& ni, const ipv6_address& prefix,
             insert_tail_list(ni.prefixes, p->le);
     }
 
-    if (autonomous && prefix_length == 64) {
-        ipv6_address slaac;
+    if (prefix_length == 64) {
+        if (autonomous) {
+            ipv6_address slaac;
 
-        memcpy(slaac.v.data(), prefix.v.data(), 8);
-        memcpy(&slaac.v[8], &ni.ll_addr.v[8], 8);
+            memcpy(slaac.v.data(), prefix.v.data(), 8);
+            memcpy(&slaac.v[8], &ni.ll_addr.v[8], 8);
 
-        bool already_exists = false;
+            bool already_exists = false;
 
-        {
-            lock_guard lock(ni.addr_lock);
+            {
+                lock_guard lock(ni.addr_lock);
 
-            for (auto le = ni.addrs.next; le != &ni.addrs; le = le->next) {
-                auto& a = containing_record<ip_addr>(le);
+                for (auto le = ni.addrs.next; le != &ni.addrs; le = le->next) {
+                    auto& a = containing_record<ip_addr>(le);
 
-                if (a.addr == slaac) {
-                    already_exists = true;
-                    break;
+                    if (a.addr == slaac) {
+                        already_exists = true;
+                        break;
+                    }
                 }
             }
-        }
 
-        if (!already_exists) {
-            auto a = new ip_addr;
-            if (!a)
-                print("new failed\n");
-            else {
-                a->addr = slaac;
-                a->slaac = true;
+            if (!already_exists) {
+                auto a = new ip_addr;
+                if (!a)
+                    print("new failed\n");
+                else {
+                    a->addr = slaac;
+                    a->slaac = true;
+
+                    {
+                        lock_guard lock(ni.addr_lock);
+
+                        for (auto le = ni.addrs.next; le != &ni.addrs; le = le->next) {
+                            auto& a2 = containing_record<ip_addr>(le);
+
+                            if (a2.addr == slaac) {
+                                already_exists = true;
+                                break;
+                            }
+                        }
+
+                        if (!already_exists)
+                            insert_tail_list(ni.addrs, a->le);
+                    }
+
+                    if (already_exists)
+                        delete a;
+                    else
+                        print("{}: added new IPv6 address {}\n", ni, slaac);
+                }
+            }
+        } else {
+            // delete SLAAC addresses
+
+            while (true) {
+                ip_addr* dead_addr = nullptr;
 
                 {
                     lock_guard lock(ni.addr_lock);
 
                     for (auto le = ni.addrs.next; le != &ni.addrs; le = le->next) {
-                        auto& a2 = containing_record<ip_addr>(le);
+                        auto& a = containing_record<ip_addr>(le);
 
-                        if (a2.addr == slaac) {
-                            already_exists = true;
+                        if (!a.slaac)
+                            continue;
+
+                        if (!memcmp(a.addr.v.data(), prefix.v.data(), 8)) {
+                            remove_entry_list(a.le);
+                            dead_addr = &a;
                             break;
                         }
                     }
-
-                    if (!already_exists)
-                        insert_tail_list(ni.addrs, a->le);
                 }
 
-                if (already_exists)
-                    delete a;
-                else
-                    print("{}: added new IPv6 address {}\n", ni, slaac);
+                if (!dead_addr)
+                    break;
+
+                print("{}: removing IPv6 address {}\n", ni, dead_addr->addr);
+                delete dead_addr;
             }
         }
     }
