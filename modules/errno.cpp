@@ -166,6 +166,35 @@ export int nt_status_to_errno(nt_status status) {
         case nt_status::DISK_FULL:
             return ENOSPC;
 
+        case nt_status::DEVICE_NOT_READY:
+        case nt_status::CANT_WAIT:
+            return EAGAIN;
+
+        case nt_status::CONNECTION_RESET:
+            return ECONNRESET;
+
+        case nt_status::HOST_UNREACHABLE:
+            return EHOSTUNREACH;
+
+        case nt_status::CONNECTION_ACTIVE:
+            return EISCONN;
+
+        case nt_status::BUFFER_OVERFLOW:
+            return EMSGSIZE;
+
+        case nt_status::NETWORK_UNREACHABLE:
+            return ENETDOWN;
+
+        case nt_status::CONNECTION_DISCONNECTED:
+            return ENOTCONN;
+
+        case nt_status::PIPE_BROKEN:
+        case nt_status::CONNECTION_ABORTED:
+            return EPIPE;
+
+        case nt_status::ACCESS_VIOLATION:
+            return EFAULT;
+
         default:
             return EINVAL;
     }
