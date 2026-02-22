@@ -32,7 +32,7 @@ SOCKET socket(int af, int type, int protocol) {
     if (success(status))
         netctl.reset(h);
     else {
-        *_errno() = EINVAL;
+        *_errno() = nt_status_to_errno(status);
         return INVALID_SOCKET;
     }
 
@@ -70,7 +70,7 @@ int recvfrom(SOCKET s, char* buf, int len, int flags, sockaddr* from,
                                         IOCTL_MOXNOX_SOCKET_RECVFROM, &params,
                                         (uint32_t)sizeof(params), nullptr, 0);
     if (!success(status)) {
-        *_errno() = EINVAL; // FIXME
+        *_errno() = nt_status_to_errno(status);
         return SOCKET_ERROR;
     }
 
@@ -100,7 +100,7 @@ int sendto(SOCKET s, const char* buf, int len, int flags, const sockaddr* to,
                                         IOCTL_MOXNOX_SOCKET_SENDTO, &params,
                                         (uint32_t)sizeof(params), nullptr, 0);
     if (!success(status)) {
-        *_errno() = EINVAL; // FIXME
+        *_errno() = nt_status_to_errno(status);
         return SOCKET_ERROR;
     }
 
