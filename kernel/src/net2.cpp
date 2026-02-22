@@ -1772,6 +1772,10 @@ nt_status ipv6_socket::sendto_raw(span<const char> us_buf, int flags,
     }
 
     auto pack = new packet;
+    if (!pack) {
+        print("new failed\n");
+        return nt_status::INSUFFICIENT_RESOURCES;
+    }
 
     pack->size = sizeof(ipv6_header) + us_buf.size();
 
