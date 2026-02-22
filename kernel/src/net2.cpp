@@ -167,6 +167,88 @@ static void handle_neighbour_solicitation(netif& ni, packet& pack,
     send_neighbour_advertisement(ni, ns.target, ip.src, src_mac);
 }
 
+static void add_neighbour_cache_entry(netif& ni, const mac_address& mac,
+                                      const ipv6_address& addr,
+                                      bool do_override) {
+    {
+        lock_guard lock(ni.neighbour_lock);
+
+        for (auto le = ni.neighbour_cache.next; le != &ni.neighbour_cache; le = le->next) {
+            auto& c = containing_record<neighbour_cache_entry>(le);
+
+            if (c.addr != addr)
+                continue;
+
+            if (!do_override && c.status == neighbour_cache_status::reachable)
+                return;
+
+            c.mac = mac;
+
+            if (c.status == neighbour_cache_status::incomplete) {
+                c.status = neighbour_cache_status::reachable;
+                c.last_update_time = kernel_time_page.system_time;
+                set_event(static_cast<event&>(c.event.get()));
+            }
+
+            return;
+        }
+    }
+
+    // add new entry
+
+    auto nce = new neighbour_cache_entry(ni);
+    if (!nce) {
+        print("new failed\n");
+        return;
+    }
+
+    nce->addr = addr;
+
+    nce->event = create_event(false);
+    if (!nce->event) {
+        print("create_event failed\n");
+        nce->release();
+        return;
+    }
+
+    set_event(static_cast<event&>(nce->event.get()));
+
+    nce->status = neighbour_cache_status::reachable;
+
+    bool beaten_to_it = false;
+
+    {
+        lock_guard lock(ni.neighbour_lock);
+
+        for (auto le = ni.neighbour_cache.next; le != &ni.neighbour_cache; le = le->next) {
+            auto& c = containing_record<neighbour_cache_entry>(le);
+
+            if (c.addr == addr) {
+                beaten_to_it = true;
+
+                c.mac = mac;
+
+                if (c.status == neighbour_cache_status::incomplete) {
+                    c.status = neighbour_cache_status::reachable;
+                    set_event(static_cast<event&>(c.event.get()));
+                }
+
+                c.last_update_time = kernel_time_page.system_time;
+
+                break;
+            }
+        }
+
+        if (!beaten_to_it) {
+            insert_tail_list(ni.neighbour_cache, nce->le);
+            nce->last_update_time = kernel_time_page.system_time;
+        }
+    }
+
+    if (beaten_to_it)
+        nce->release();
+}
+
 static void handle_neighbour_advertisement(netif& ni, packet& pack) {
     if (pack.size < sizeof(ipv6_header) + sizeof(icmpv6_neighbour_advertisement)) {
         print("handle_neighbour_advertisement: buffer length was {}, expected at least {}\n",
@@ -210,83 +292,7 @@ static void handle_neighbour_advertisement(netif& ni, packet& pack) {
 
     // FIXME - if !na.solicited, update cache status to stale
 
-    {
-        lock_guard lock(ni.neighbour_lock);
-
-        for (auto le = ni.neighbour_cache.next; le != &ni.neighbour_cache; le = le->next) {
-            auto& c = containing_record<neighbour_cache_entry>(le);
-
-            if (c.addr != na.target)
-                continue;
-
-            if (!na._override && c.status == neighbour_cache_status::reachable)
-                return;
-
-            c.mac = mac;
-
-            if (c.status == neighbour_cache_status::incomplete) {
-                c.status = neighbour_cache_status::reachable;
-                c.last_update_time = kernel_time_page.system_time;
-                set_event(static_cast<event&>(c.event.get()));
-            }
-
-            return;
-        }
-    }
-
-    // add new entry
-
-    auto nce = new neighbour_cache_entry(ni);
-    if (!nce) {
-        print("new failed\n");
-        return;
-    }
-
-    nce->addr = na.target;
-
-    nce->event = create_event(false);
-    if (!nce->event) {
-        print("create_event failed\n");
-        nce->release();
-        return;
-    }
-
-    set_event(static_cast<event&>(nce->event.get()));
-
-    nce->status = neighbour_cache_status::reachable;
-
-    bool beaten_to_it = false;
-
-    {
-        lock_guard lock(ni.neighbour_lock);
-
-        for (auto le = ni.neighbour_cache.next; le != &ni.neighbour_cache; le = le->next) {
-            auto& c = containing_record<neighbour_cache_entry>(le);
-
-            if (c.addr == na.target) {
-                beaten_to_it = true;
-
-                c.mac = mac;
-
-                if (c.status == neighbour_cache_status::incomplete) {
-                    c.status = neighbour_cache_status::reachable;
-                    set_event(static_cast<event&>(c.event.get()));
-                }
-
-                c.last_update_time = kernel_time_page.system_time;
-
-                break;
-            }
-        }
-
-        if (!beaten_to_it) {
-            insert_tail_list(ni.neighbour_cache, nce->le);
-            nce->last_update_time = kernel_time_page.system_time;
-        }
-    }
-
-    if (beaten_to_it)
-        nce->release();
+    add_neighbour_cache_entry(ni, mac, na.target, na._override);
 }
 
 static bool is_multicast_address(const ipv6_address& addr) {
@@ -364,6 +370,8 @@ static void handle_router_advertisement(netif& ni, packet& pack) {
     // FIXME - reachable_time (neighbour cache state machine)
     // FIXME - retrans_timer (how long to wait between neighbour solicitations)
 
+    optional<mac_address> src_lladdr;
+
     auto opts = span(pack.data + sizeof(ipv6_header) + sizeof(icmpv6_router_advertisement),
                      pack.size - sizeof(ipv6_header) - sizeof(icmpv6_router_advertisement));
 
@@ -381,7 +389,7 @@ static void handle_router_advertisement(netif& ni, packet& pack) {
 
                 print("source link-local address: {}\n", src.mac);
 
-                // FIXME - add to neighbour cache
+                src_lladdr = src.mac;
 
                 break;
             }
@@ -416,6 +424,9 @@ static void handle_router_advertisement(netif& ni, packet& pack) {
 
         opts = span(opts.data() + (opt.length * 8), opts.size() - (opt.length * 8));
     }
+
+    if (src_lladdr.has_value())
+        add_neighbour_cache_entry(ni, *src_lladdr, ip.src, true);
 
     // FIXME - router_lifetime (how long default route is valid for)
 }
