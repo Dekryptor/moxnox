@@ -260,7 +260,7 @@ target_link_libraries(timepage pagesize)
 add_library(getopt STATIC)
 target_sources(getopt PUBLIC FILE_SET CXX_MODULES FILES modules/getopt.cpp)
 target_compile_options(getopt PRIVATE -fno-exceptions ${USERSPACE_CFLAGS})
-target_link_libraries(getopt format)
+target_link_libraries(getopt print)
 target_compile_definitions(getopt PUBLIC -D_LIBCPP_VERBOSE_ABORT=)
 
 add_library(moxnox_ioctls STATIC)

@@ -10,7 +10,7 @@ module;
 export module getopt;
 
 import nt;
-import format;
+import print;
 
 using namespace std;
 
@@ -22,23 +22,6 @@ export struct option {
     char16_t short_form;
     variant<opt_func, opt_param_func> func;
 };
-
-template<typename... Args>
-static void print(type_identity_t<checker<type_identity_t<Args>...>> fmt, Args... args) {
-    char buf[4096];
-    auto teb = NtCurrentTeb();
-    auto peb = teb->ProcessEnvironmentBlock;
-    IO_STATUS_BLOCK iosb;
-
-    auto sp = span(buf, sizeof(buf));
-
-    sp = format_to(sp, fmt.sv, forward_as_tuple(std::forward<Args>(args)...));
-
-    auto sv = string_view(buf, (size_t)(sp.data() - buf));
-
-    NtWriteFile(peb->ProcessParameters->StandardError, 0, nullptr, nullptr,
-                &iosb, sv.data(), (uint32_t)sv.size(), nullptr, nullptr);
-}
 
 #ifdef __llvm__ // work around Clang *really* wanting exceptions to be enabled
 extern "C++"
@@ -88,7 +71,7 @@ export bool getopt(span<u16string_view>& argv, span<const option> options) {
                         get<opt_func>(o.func)();
                     else if (holds_alternative<opt_param_func>(o.func)) {
                         if (argv.size() == 1) {
-                            print("option requires an argument -- '--{}'\n", full);
+                            print_stderr("option requires an argument -- '--{}'\n", full);
                             return false;
                         }
 
@@ -102,7 +85,7 @@ export bool getopt(span<u16string_view>& argv, span<const option> options) {
             }
 
             if (!done) {
-                print("unrecognized option '--{}'\n", full); // FIXME - prefix with name of program
+                print_stderr("unrecognized option '--{}'\n", full); // FIXME - prefix with name of program
                 return false;
             }
         } else { // short form
@@ -124,7 +107,7 @@ export bool getopt(span<u16string_view>& argv, span<const option> options) {
                                 func(argv[1]);
                                 argv = span(argv.data() + 1, argv.size() - 1);
                             } else {
-                                print("option requires an argument -- '-{}'\n", u16string_view(arg.data(), 1));
+                                print_stderr("option requires an argument -- '-{}'\n", u16string_view(arg.data(), 1));
                                 return false;
                             }
                         }
@@ -135,7 +118,7 @@ export bool getopt(span<u16string_view>& argv, span<const option> options) {
                 }
 
                 if (!done) {
-                    print("invalid option -- '{}'\n", u16string_view(arg.data(), 1)); // FIXME - prefix with name of program
+                    print_stderr("invalid option -- '{}'\n", u16string_view(arg.data(), 1)); // FIXME - prefix with name of program
                     return false;
                 }
 
