@@ -633,7 +633,7 @@ consteval bool format_spec_valid<netif>(string_view fmt) {
     return fmt.empty();
 }
 
-span<char> do_format_arg(span<char> sp, string_view, const netif& ni) {
+static span<char> do_format_arg(span<char> sp, string_view, const netif& ni) {
     auto sv = string_view(ni.name, sizeof(ni.name));
 
     if (auto zero = sv.find('\0'); zero != string_view::npos)
