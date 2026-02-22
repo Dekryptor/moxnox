@@ -262,7 +262,9 @@ target_link_libraries(mv print)
 target_link_libraries(mv format cmdline unique_handle list)
 target_link_libraries(mv moxnox)
 
-install(TARGETS mv DESTINATION ${CMAKE_INSTALL_PREFIX}/bin)
+install(TARGETS mv DESTINATION ${CMAKE_INSTALL_PREFIX}/bin
+    CXX_MODULES_BMI EXCLUDE_FROM_ALL
+)
 
 ###
 
