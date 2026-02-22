@@ -392,6 +392,10 @@ static void add_ipv6_prefix(netif& ni, const ipv6_address& prefix,
         return;
 
     auto p = new ipv6_prefix;
+    if (!p) {
+        print("new failed\n");
+        return;
+    }
 
     p->prefix = prefix;
     p->prefix_length = prefix_length;
