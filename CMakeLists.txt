@@ -435,6 +435,7 @@ target_link_libraries(harfbuzz PRIVATE moxnox -lgcc)
 
 install(TARGETS harfbuzz DESTINATION ${CMAKE_INSTALL_PREFIX}/lib
     ARCHIVE EXCLUDE_FROM_ALL
+    CXX_MODULES_BMI EXCLUDE_FROM_ALL
 )
 
 add_library(acpica STATIC
