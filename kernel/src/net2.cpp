@@ -83,6 +83,21 @@ struct neighbour_cache_entry {
     int64_t last_update_time;
 };
 
+struct ipv6_route {
+    ipv6_route(netif& ni, const ipv6_address& prefix, uint8_t prefix_length) : ni(ni), prefix(prefix), prefix_length(prefix_length) {
+        ni.acquire();
+    }
+
+    ~ipv6_route() {
+        ni.release();
+    }
+
+    list_entry le;
+    netif& ni;
+    ipv6_address prefix;
+    uint8_t prefix_length;
+};
+
 struct ipv6_prefix {
     list_entry le;
     ipv6_address prefix;
@@ -90,6 +105,9 @@ struct ipv6_prefix {
     uint32_t preferred_lifetime;
     uint32_t valid_lifetime;
 };
+
+static spinlock ipv6_routes_lock;
+static list_entry ipv6_routes = { &ipv6_routes, &ipv6_routes };
 
 static void send_neighbour_advertisement(netif& ni, const ipv6_address& target,
                                          const ipv6_address& dst_ip,
@@ -357,6 +375,73 @@ static void handle_v6_echo_request(netif& ni, packet& pack,
     pack2->release();
 }
 
+static void add_ipv6_route(netif& ni, const ipv6_address& prefix,
+                           uint8_t prefix_length) {
+    {
+        lock_guard lock(ipv6_routes_lock);
+
+        for (auto le = ipv6_routes.next; le != &ipv6_routes; le = le->next) {
+            auto& r = containing_record<ipv6_route>(le);
+
+            if (r.prefix == prefix && r.prefix_length == prefix_length &&
+                &r.ni == &ni) {
+                return;
+            }
+        }
+    }
+
+    auto r = new ipv6_route(ni, prefix, prefix_length);
+    if (!r) {
+        print("new failed\n");
+        return;
+    }
+
+    bool beaten_to_it = false;
+
+    {
+        lock_guard lock(ipv6_routes_lock);
+
+        for (auto le = ipv6_routes.next; le != &ipv6_routes; le = le->next) {
+            auto& r2 = containing_record<ipv6_route>(le);
+
+            if (r2.prefix == prefix && r2.prefix_length == prefix_length &&
+                &r2.ni == &ni) {
+                beaten_to_it = true;
+                break;
+            }
+        }
+
+        if (!beaten_to_it)
+            insert_tail_list(ipv6_routes, r->le);
+    }
+
+    if (beaten_to_it)
+        delete r;
+}
+
+static void remove_ipv6_route(netif& ni, const ipv6_address& prefix,
+                              uint8_t prefix_length) {
+    ipv6_route* found = nullptr;
+
+    {
+        lock_guard lock(ipv6_routes_lock);
+
+        for (auto le = ipv6_routes.next; le != &ipv6_routes; le = le->next) {
+            auto& r = containing_record<ipv6_route>(le);
+
+            if (r.prefix == prefix && r.prefix_length == prefix_length &&
+                &r.ni == &ni) {
+                found = &r;
+                remove_entry_list(r.le);
+                break;
+            }
+        }
+    }
+
+    if (found)
+        delete found;
+}
+
 static void add_ipv6_prefix(netif& ni, const ipv6_address& prefix,
                             uint8_t prefix_length, uint32_t valid_lifetime,
                             uint32_t preferred_lifetime) {
@@ -384,7 +469,7 @@ static void add_ipv6_prefix(netif& ni, const ipv6_address& prefix,
 
     if (found) {
         delete found;
-        // FIXME - remove route
+        remove_ipv6_route(ni, prefix, prefix_length);
         return;
     }
 
@@ -427,7 +512,7 @@ static void add_ipv6_prefix(netif& ni, const ipv6_address& prefix,
         return;
     }
 
-    // FIXME - add route
+    add_ipv6_route(ni, prefix, prefix_length);
 }
 
 static void handle_router_advertisement(netif& ni, packet& pack) {
