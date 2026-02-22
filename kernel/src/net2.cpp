@@ -104,6 +104,7 @@ struct ipv6_prefix {
     uint8_t prefix_length;
     uint32_t preferred_lifetime;
     uint32_t valid_lifetime;
+    bool on_link;
 };
 
 static spinlock ipv6_routes_lock;
@@ -444,7 +445,7 @@ static void remove_ipv6_route(netif& ni, const ipv6_address& prefix,
 
 static void add_ipv6_prefix(netif& ni, const ipv6_address& prefix,
                             uint8_t prefix_length, uint32_t valid_lifetime,
-                            uint32_t preferred_lifetime) {
+                            uint32_t preferred_lifetime, bool on_link) {
     ipv6_prefix* found = nullptr;
 
     {
@@ -462,6 +463,7 @@ static void add_ipv6_prefix(netif& ni, const ipv6_address& prefix,
 
                 p.valid_lifetime = valid_lifetime;
                 p.preferred_lifetime = preferred_lifetime;
+                p.on_link = on_link;
                 return;
             }
         }
@@ -486,6 +488,7 @@ static void add_ipv6_prefix(netif& ni, const ipv6_address& prefix,
     p->prefix_length = prefix_length;
     p->preferred_lifetime = preferred_lifetime;
     p->valid_lifetime = valid_lifetime;
+    p->on_link = on_link;
 
     bool beaten_to_it = false;
 
@@ -498,6 +501,7 @@ static void add_ipv6_prefix(netif& ni, const ipv6_address& prefix,
             if (p2.prefix == prefix && p2.prefix_length == prefix_length) {
                 p2.valid_lifetime = valid_lifetime;
                 p2.preferred_lifetime = preferred_lifetime;
+                p2.on_link = on_link;
                 beaten_to_it = true;
                 break;
             }
@@ -595,7 +599,7 @@ static void handle_router_advertisement(netif& ni, packet& pack) {
 
                 add_ipv6_prefix(ni, zero_right_bits(pref.prefix, 128 - pref.prefix_length),
                                 pref.prefix_length, byteswap(pref.valid_lifetime),
-                                byteswap(pref.preferred_lifetime));
+                                byteswap(pref.preferred_lifetime), pref.onlink);
 
                 // FIXME - if on-link flag set, add prefix as on-link
                 // FIXME - if autonomous flag set and length is 64, add as SLAAC address
@@ -1898,11 +1902,28 @@ static mac_address find_mac_address(netif& ni, const ipv6_address& dst) {
         return ret;
     }
 
-    if (is_link_local(dst)) // FIXME - or part of router prefix
+    if (is_link_local(dst))
         return search_neighbour_cache(ni, dst);
-    else {
-        // FIXME - off-link addresses (send to router's MAC)
+
+    bool on_link = false;
+
+    {
+        lock_guard lock(ni.prefix_lock);
+
+        for (auto le = ni.prefixes.next; le != &ni.prefixes; le = le->next) {
+            auto& p = containing_record<ipv6_prefix>(le);
+
+            if (ipv6_prefix_match(dst, p.prefix, p.prefix_length)) {
+                on_link = p.on_link;
+                break;
+            }
+        }
     }
+
+    if (on_link)
+        return search_neighbour_cache(ni, dst);
+
+    // FIXME - off-link addresses (send to router's MAC)
 
     return NULL_MAC_ADDRESS;
 }
