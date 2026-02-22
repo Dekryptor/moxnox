@@ -105,6 +105,7 @@ set(SRC_FILES src/kernel.cpp
     src/virtio_net.cpp
     src/net2.cpp
     src/framebuffer2.cpp
+    src/interrupts2.cpp
 )
 
 if(CMAKE_SYSTEM_PROCESSOR STREQUAL aarch64)
