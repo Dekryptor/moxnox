@@ -5,6 +5,7 @@ module;
 #include <mutex>
 #include <bit>
 #include <atomic>
+#include <string_view>
 #include <stdint.h>
 
 module net;
@@ -21,6 +22,7 @@ import scheduler;
 import event;
 import kernel_time_page;
 import timer;
+import format;
 
 using namespace std;
 
@@ -582,7 +584,7 @@ bool drop_packet(const mac_address& dst, const mac_address& us) {
     return true;
 }
 
-static void network_housekeeping() {
+static void reap_neighbour_cache() {
     int64_t now = kernel_time_page.system_time;
 
     // FIXME - implement proper RFC4861 state machine? INCOMPLETE, REACHABLE, STALE, DELAY, PROBE
@@ -624,6 +626,126 @@ static void network_housekeeping() {
             }
         }
     }
+}
+
+template<>
+consteval bool format_spec_valid<netif*>(string_view fmt) {
+    return fmt.empty();
+}
+
+// FIXME - why does this not work with reference?
+span<char> do_format_arg(span<char> sp, string_view, const netif* pni) {
+    auto& ni = *pni;
+
+    auto sv = string_view(ni.name, sizeof(ni.name));
+
+    if (auto zero = sv.find('\0'); zero != string_view::npos)
+        sv = string_view(sv.data(), zero);
+
+    return do_format_arg(sp, "", sv);
+}
+
+static void send_router_solicitation(netif& ni) {
+    static const unsigned int MAX_TRIES = 3;
+    static const mac_address dst_mac = { 0x33, 0x33, 0x00, 0x00, 0x00, 0x02 };
+
+    if (ni.rs_tries == MAX_TRIES) {
+        print("no response to router solicitations on {} after {} tries, giving up\n",
+              &ni, ni.rs_tries);
+        ni.rs_needed = false;
+        return;
+    }
+
+    auto pack = new packet;
+    if (!pack) {
+        print("new failed\n");
+        return;
+    }
+
+    struct rs_pkt {
+        ipv6_header ip;
+        icmpv6_router_solicitation rs;
+        ndp_option_lladdr opt;
+    } __attribute__((packed));
+
+    pack->size = sizeof(rs_pkt);
+    auto& pkt = *(rs_pkt*)pack->data;
+
+    memset(&pkt, 0, sizeof(pkt));
+
+    pkt.ip.version = 6;
+    pkt.ip.payload_length = byteswap((uint16_t)(sizeof(icmpv6_router_solicitation) + sizeof(ndp_option_lladdr)));
+    pkt.ip.next_header = (uint8_t)ip_proto::icmpv6;
+    pkt.ip.hop_limit = 255;
+    pkt.ip.src = ni.ll_addr;
+    pkt.ip.dst = parse_ipv6_address("ff02::2");
+
+    pkt.rs.type = icmpv6_type::router_solicitation;
+
+    pkt.opt.type = ndp_option_type::source_lladdr;
+    pkt.opt.length = 1; // 8 bytes
+    pkt.opt.mac = ni.mac;
+
+    pkt.rs.checksum = calc_icmpv6_checksum(pkt.ip, span((uint8_t*)&pkt.rs, sizeof(pkt.rs) + sizeof(pkt.opt)));
+
+    auto status = ni.send_packet(dst_mac, ethertype::ipv6, *pack);
+    if (!success(status))
+        print("send_packet returned {}\n", status);
+
+    pack->release();
+
+    ni.rs_tries++;
+    ni.secs_since_last_rs = 0;
+}
+
+static void send_router_solicitations() {
+    static const unsigned int RS_DELAY = 4; // seconds
+
+    while (true) {
+        netif* ni = nullptr;
+
+        {
+            lock_guard lock(netif_lock);
+
+            for (auto le = netif_list.next; le != &netif_list; le = le->next) {
+                auto& ni2 = containing_record<netif>(le);
+
+                if (!ni2.rs_needed || ni2.rs_visited)
+                    continue;
+
+                ni2.rs_visited = true;
+                ni2.secs_since_last_rs++;
+
+                if (ni2.rs_tries == 0 || ni2.secs_since_last_rs >= RS_DELAY) {
+                    ni = &ni2;
+                    ni2.acquire();
+                    break;
+                }
+            }
+        }
+
+        if (!ni)
+            break;
+
+        send_router_solicitation(*ni);
+    }
+
+    {
+        lock_guard lock(netif_lock);
+
+        for (auto le = netif_list.next; le != &netif_list; le = le->next) {
+            auto& ni = containing_record<netif>(le);
+
+            ni.rs_visited = false;
+        }
+    }
+}
+
+static void network_housekeeping() {
+    // once a second
+
+    send_router_solicitations();
+    reap_neighbour_cache();
 }
 
 static void network_thread() {

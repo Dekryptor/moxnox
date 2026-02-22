@@ -120,6 +120,8 @@ public:
     uint32_t num;
     spinlock neighbour_lock;
     list_entry neighbour_cache = { &neighbour_cache, &neighbour_cache };
+    bool rs_needed = true, rs_visited = false;
+    unsigned int rs_tries = 0, secs_since_last_rs = 0;
 };
 
 export class socket : public sync_object {
