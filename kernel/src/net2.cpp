@@ -666,6 +666,9 @@ static ipv6_address zero_right_bits(const ipv6_address& addr, uint8_t n) {
             ret.v[i] = 0;
             n -= 8;
             i--;
+
+            if (n == 0)
+                break;
         } else {
             ret.v[i] = (uint8_t)(ret.v[i] & ~((1 << n) - 1));
             break;
