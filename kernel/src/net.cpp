@@ -140,6 +140,8 @@ public:
     unsigned int rs_tries = 0, secs_since_last_rs = 0;
     spinlock prefix_lock;
     list_entry prefixes = { &prefixes, &prefixes };
+    spinlock routers_lock;
+    list_entry routers = { &routers, &routers };
 };
 
 export class socket : public sync_object {

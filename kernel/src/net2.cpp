@@ -108,6 +108,12 @@ struct ipv6_prefix {
     bool on_link;
 };
 
+struct ipv6_router {
+    list_entry le;
+    ipv6_address addr;
+    uint32_t lifetime;
+};
+
 static spinlock ipv6_routes_lock;
 static list_entry ipv6_routes = { &ipv6_routes, &ipv6_routes };
 
@@ -750,7 +756,77 @@ static void handle_router_advertisement(netif& ni, packet& pack) {
     if (src_lladdr.has_value())
         add_neighbour_cache_entry(ni, *src_lladdr, ip.src, true);
 
-    // FIXME - router_lifetime (how long default route is valid for)
+    if (ra.router_lifetime == 0) {
+        ipv6_router* r = nullptr;
+
+        {
+            lock_guard lock(ni.routers_lock);
+
+            for (auto le = ni.routers.next; le != &ni.routers; le = le->next) {
+                auto& r2 = containing_record<ipv6_router>(le);
+
+                if (r2.addr == ip.src) {
+                    remove_entry_list(r2.le);
+                    r = &r2;
+                    break;
+                }
+            }
+        }
+
+        if (r)
+            delete r;
+
+        // FIXME - delete default route if no more routers
+    } else {
+        bool router_found = false;
+
+        {
+            lock_guard lock(ni.routers_lock);
+
+            for (auto le = ni.routers.next; le != &ni.routers; le = le->next) {
+                auto& r = containing_record<ipv6_router>(le);
+
+                if (r.addr == ip.src) {
+                    r.lifetime = ra.router_lifetime;
+                    router_found = true;
+                    break;
+                }
+            }
+        }
+
+        if (!router_found) {
+            auto r = new ipv6_router;
+
+            if (!r)
+                print("new failed");
+            else {
+                r->addr = ip.src;
+                r->lifetime = ra.router_lifetime;
+
+                {
+                    lock_guard lock(ni.routers_lock);
+
+                    for (auto le = ni.routers.next; le != &ni.routers; le = le->next) {
+                        auto& r = containing_record<ipv6_router>(le);
+
+                        if (r.addr == ip.src) {
+                            r.lifetime = ra.router_lifetime;
+                            router_found = true;
+                            break;
+                        }
+                    }
+
+                    if (!router_found)
+                        insert_tail_list(ni.routers, r->le);
+                }
+
+                if (router_found)
+                    delete r;
+
+                // FIXME - add default route if first router and route wasn't already present
+            }
+        }
+    }
 
     // FIXME - router solicitation no longer needed
 }
