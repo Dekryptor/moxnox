@@ -1849,7 +1849,7 @@ static nt_status ipv6_choose_interface(const ipv6_address& dst, uint32_t scope_i
 
     ni = lookup_route(dst);
     if (!ni)
-        return nt_status::NETWORK_UNREACHABLE;
+        return nt_status::HOST_UNREACHABLE;
 
     // FIXME - consult routing tables
 
