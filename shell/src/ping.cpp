@@ -1,6 +1,5 @@
 #include <stdint.h>
 #include <stdio.h>
-#include <errno.h>
 #include <string.h>
 #include <optional>
 #include <bit>
@@ -12,6 +11,9 @@ import unique_handle;
 import ipv6;
 import ws2_32;
 import moxnox_ioctls;
+
+#undef errno
+import errno;
 
 using namespace std;
 
@@ -55,7 +57,7 @@ static void do_ping(int sock, const ipv6_address& ip, uint32_t scope) {
         auto ret = sendto(sock, (char*)&echo, sizeof(echo), 0, (sockaddr*)&dst,
                         sizeof(dst));
         if (ret < 0) {
-            print_stderr("sendto failed (errno {})\n", errno);
+            print_stderr("sendto failed (errno {})\n", errno_to_string_view(*_errno()));
             return; // FIXME - don't quit?
         }
 
@@ -95,7 +97,7 @@ static void do_ping(int sock, const ipv6_address& ip, uint32_t scope) {
             auto len = recvfrom(sock, buf, sizeof(buf), 0, (sockaddr*)&addr,
                                 &addrlen);
             if (len < 0) {
-                print_stderr("recv failed (errno {})\n", errno);
+                print_stderr("recv failed (errno {})\n", errno_to_string_view(*_errno()));
                 continue;
             }
 
@@ -238,7 +240,7 @@ int main(int argc, char** argv) {
 
     auto sock = socket(AF_INET6, SOCK_RAW, IPPROTO_ICMPV6);
     if (sock < 0) {
-        print_stderr("socket failed (errno {})\n", errno);
+        print_stderr("socket failed (errno {})\n", errno_to_string_view(*_errno()));
         return 1;
     }
 
