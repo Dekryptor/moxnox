@@ -485,18 +485,28 @@ span<char> do_format_arg(span<char> sp, string_view, nt_status arg) {
             return sp_strcpy(sp, "DLL_INIT_FAILED");
         case nt_status::UNHANDLED_EXCEPTION:
             return sp_strcpy(sp, "UNHANDLED_EXCEPTION");
+        case nt_status::PIPE_BROKEN:
+            return sp_strcpy(sp, "PIPE_BROKEN");
         case nt_status::UNRECOGNIZED_VOLUME:
             return sp_strcpy(sp, "UNRECOGNIZED_VOLUME");
         case nt_status::IO_DEVICE_ERROR:
             return sp_strcpy(sp, "IO_DEVICE_ERROR");
         case nt_status::INVALID_BUFFER_SIZE:
             return sp_strcpy(sp, "INVALID_BUFFER_SIZE");
+        case nt_status::CONNECTION_DISCONNECTED:
+            return sp_strcpy(sp, "CONNECTION_DISCONNECTED");
+        case nt_status::CONNECTION_RESET:
+            return sp_strcpy(sp, "CONNECTION_RESET");
         case nt_status::NOT_FOUND:
             return sp_strcpy(sp, "NOT_FOUND");
+        case nt_status::CONNECTION_ACTIVE:
+            return sp_strcpy(sp, "CONNECTION_ACTIVE");
         case nt_status::NETWORK_UNREACHABLE:
             return sp_strcpy(sp, "NETWORK_UNREACHABLE");
         case nt_status::HOST_UNREACHABLE:
             return sp_strcpy(sp, "HOST_UNREACHABLE");
+        case nt_status::CONNECTION_ABORTED:
+            return sp_strcpy(sp, "CONNECTION_ABORTED");
         case nt_status::ILLEGAL_DLL_RELOCATION:
             return sp_strcpy(sp, "ILLEGAL_DLL_RELOCATION");
         case nt_status::DEVICE_REMOVED:
