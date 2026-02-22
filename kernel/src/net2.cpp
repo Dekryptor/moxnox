@@ -464,8 +464,6 @@ static void add_ipv6_prefix(netif& ni, const ipv6_address& prefix,
                             bool autonomous) {
     ipv6_prefix* found = nullptr;
 
-    // FIXME - if removing prefix with length of 64, also remove IP address
-
     // FIXME - if prefix comes through but this time autonomous flag not set, delete corresponding SLAAC address?
 
     {
@@ -492,6 +490,38 @@ static void add_ipv6_prefix(netif& ni, const ipv6_address& prefix,
     if (found) {
         delete found;
         remove_ipv6_route(ni, prefix, prefix_length);
+
+        if (prefix_length == 64) {
+            // delete SLAAC addresses
+
+            while (true) {
+                ip_addr* dead_addr = nullptr;
+
+                {
+                    lock_guard lock(ni.addr_lock);
+
+                    for (auto le = ni.addrs.next; le != &ni.addrs; le = le->next) {
+                        auto& a = containing_record<ip_addr>(le);
+
+                        if (!a.slaac)
+                            continue;
+
+                        if (!memcmp(a.addr.v.data(), prefix.v.data(), 8)) {
+                            remove_entry_list(a.le);
+                            dead_addr = &a;
+                            break;
+                        }
+                    }
+                }
+
+                if (!dead_addr)
+                    break;
+
+                print("{}: removing IPv6 address {}\n", ni, dead_addr->addr);
+                delete dead_addr;
+            }
+        }
+
         return;
     }
 
@@ -558,6 +588,7 @@ static void add_ipv6_prefix(netif& ni, const ipv6_address& prefix,
                 print("new failed\n");
             else {
                 a->addr = slaac;
+                a->slaac = true;
 
                 {
                     lock_guard lock(ni.addr_lock);

@@ -88,6 +88,7 @@ static_assert(sizeof(ndp_option_prefix_info) == 32);
 export struct ip_addr {
     list_entry le;
     ipv6_address addr;
+    bool slaac = false;
 };
 
 export struct packet {
