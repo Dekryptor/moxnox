@@ -5,6 +5,7 @@ module;
 #include <mutex>
 #include <bit>
 #include <atomic>
+#include <optional>
 #include <string_view>
 #include <stdint.h>
 
