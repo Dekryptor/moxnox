@@ -83,6 +83,14 @@ struct neighbour_cache_entry {
     int64_t last_update_time;
 };
 
+struct ipv6_prefix {
+    list_entry le;
+    ipv6_address prefix;
+    uint8_t prefix_length;
+    uint32_t preferred_lifetime;
+    uint32_t valid_lifetime;
+};
+
 static void send_neighbour_advertisement(netif& ni, const ipv6_address& target,
                                          const ipv6_address& dst_ip,
                                          const mac_address& dst_mac) {
@@ -349,6 +357,75 @@ static void handle_v6_echo_request(netif& ni, packet& pack,
     pack2->release();
 }
 
+static void add_ipv6_prefix(netif& ni, const ipv6_address& prefix,
+                            uint8_t prefix_length, uint32_t valid_lifetime,
+                            uint32_t preferred_lifetime) {
+    ipv6_prefix* found = nullptr;
+
+    {
+        lock_guard lock(ni.prefix_lock);
+
+        for (auto le = ni.prefixes.next; le != &ni.prefixes; le = le->next) {
+            auto& p = containing_record<ipv6_prefix>(le);
+
+            if (p.prefix == prefix && p.prefix_length == prefix_length) {
+                if (valid_lifetime == 0) {
+                    found = &p;
+                    remove_entry_list(p.le);
+                    break;
+                }
+
+                p.valid_lifetime = valid_lifetime;
+                p.preferred_lifetime = preferred_lifetime;
+                return;
+            }
+        }
+    }
+
+    if (found) {
+        delete found;
+        // FIXME - remove route
+        return;
+    }
+
+    if (valid_lifetime == 0)
+        return;
+
+    auto p = new ipv6_prefix;
+
+    p->prefix = prefix;
+    p->prefix_length = prefix_length;
+    p->preferred_lifetime = preferred_lifetime;
+    p->valid_lifetime = valid_lifetime;
+
+    bool beaten_to_it = false;
+
+    {
+        lock_guard lock(ni.prefix_lock);
+
+        for (auto le = ni.prefixes.next; le != &ni.prefixes; le = le->next) {
+            auto& p2 = containing_record<ipv6_prefix>(le);
+
+            if (p2.prefix == prefix && p2.prefix_length == prefix_length) {
+                p2.valid_lifetime = valid_lifetime;
+                p2.preferred_lifetime = preferred_lifetime;
+                beaten_to_it = true;
+                break;
+            }
+        }
+
+        if (!beaten_to_it)
+            insert_tail_list(ni.prefixes, p->le);
+    }
+
+    if (beaten_to_it) {
+        delete p;
+        return;
+    }
+
+    // FIXME - add route
+}
+
 static void handle_router_advertisement(netif& ni, packet& pack) {
     if (pack.size < sizeof(ipv6_header) + sizeof(icmpv6_router_advertisement)) {
         print("handle_router_advertisement: buffer length was {}, expected at least {}\n",
@@ -409,6 +486,10 @@ static void handle_router_advertisement(netif& ni, packet& pack) {
                       byteswap(pref.preferred_lifetime), pref.prefix,
                       pref.prefix_length);
 
+                add_ipv6_prefix(ni, pref.prefix, pref.prefix_length,
+                                byteswap(pref.valid_lifetime),
+                                byteswap(pref.preferred_lifetime));
+
                 // FIXME - if on-link flag set, add prefix as on-link
                 // FIXME - if autonomous flag set and length is 64, add as SLAAC address
 
@@ -429,6 +510,8 @@ static void handle_router_advertisement(netif& ni, packet& pack) {
         add_neighbour_cache_entry(ni, *src_lladdr, ip.src, true);
 
     // FIXME - router_lifetime (how long default route is valid for)
+
+    // FIXME - router solicitation no longer needed
 }
 
 static void handle_icmpv6_packet(netif& ni, packet& pack,
@@ -1735,4 +1818,26 @@ nt_status ipv6_socket::sendto_raw(span<const char> us_buf, int flags,
     sent_bytes = us_buf.size();
 
     return status;
+}
+
+netif::~netif() {
+    while (true) {
+        ipv6_prefix* pref = nullptr;
+
+        {
+            lock_guard lock(prefix_lock);
+
+            if (!is_list_empty(prefixes)) {
+                auto& p = containing_record<ipv6_prefix>(prefixes.next);
+
+                remove_entry_list(p.le);
+                pref = &p;
+            }
+        }
+
+        if (!pref)
+            break;
+
+        delete pref;
+    }
 }

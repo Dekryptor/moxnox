@@ -109,7 +109,7 @@ export class netif {
 public:
     // FIXME - GCC 15 errors if no ctor or dtor here
     netif() { }
-    virtual ~netif() = default;
+    virtual ~netif();
 
     void acquire() {
         refcount++;
@@ -137,6 +137,8 @@ public:
     list_entry neighbour_cache = { &neighbour_cache, &neighbour_cache };
     bool rs_needed = true, rs_visited = false;
     unsigned int rs_tries = 0, secs_since_last_rs = 0;
+    spinlock prefix_lock;
+    list_entry prefixes = { &prefixes, &prefixes };
 };
 
 export class socket : public sync_object {
