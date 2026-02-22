@@ -2218,6 +2218,26 @@ nt_status ipv6_socket::sendto_raw(span<const char> us_buf, int flags,
 }
 
 netif::~netif() {
+    // not routes or neighbour cache, as they hold reference to netif
+
+    while (true) {
+        ip_addr* a = nullptr;
+
+        {
+            lock_guard lock(addr_lock);
+
+            if (!is_list_empty(addrs)) {
+                a = &containing_record<ip_addr>(addrs.next);
+                remove_entry_list(a->le);
+            }
+        }
+
+        if (!a)
+            break;
+
+        delete a;
+    }
+
     while (true) {
         ipv6_prefix* pref = nullptr;
 
@@ -2225,10 +2245,8 @@ netif::~netif() {
             lock_guard lock(prefix_lock);
 
             if (!is_list_empty(prefixes)) {
-                auto& p = containing_record<ipv6_prefix>(prefixes.next);
-
-                remove_entry_list(p.le);
-                pref = &p;
+                pref = &containing_record<ipv6_prefix>(prefixes.next);
+                remove_entry_list(pref->le);
             }
         }
 
@@ -2236,5 +2254,23 @@ netif::~netif() {
             break;
 
         delete pref;
+    }
+
+    while (true) {
+        ipv6_router* r = nullptr;
+
+        {
+            lock_guard lock(routers_lock);
+
+            if (!is_list_empty(routers)) {
+                r = &containing_record<ipv6_router>(routers.next);
+                remove_entry_list(r->le);
+            }
+        }
+
+        if (!r)
+            break;
+
+        delete r;
     }
 }
