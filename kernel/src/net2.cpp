@@ -515,6 +515,24 @@ static void add_ipv6_prefix(netif& ni, const ipv6_address& prefix,
     add_ipv6_route(ni, prefix, prefix_length);
 }
 
+static ipv6_address zero_right_bits(const ipv6_address& addr, uint8_t n) {
+    ipv6_address ret = addr;
+    unsigned int i = 15;
+
+    while (true) {
+        if (n >= 8) {
+            ret.v[i] = 0;
+            n -= 8;
+            i--;
+        } else {
+            ret.v[i] = (uint8_t)(ret.v[i] & ~((1 << n) - 1));
+            break;
+        }
+    }
+
+    return ret;
+}
+
 static void handle_router_advertisement(netif& ni, packet& pack) {
     if (pack.size < sizeof(ipv6_header) + sizeof(icmpv6_router_advertisement)) {
         print("handle_router_advertisement: buffer length was {}, expected at least {}\n",
@@ -575,8 +593,8 @@ static void handle_router_advertisement(netif& ni, packet& pack) {
                       byteswap(pref.preferred_lifetime), pref.prefix,
                       pref.prefix_length);
 
-                add_ipv6_prefix(ni, pref.prefix, pref.prefix_length,
-                                byteswap(pref.valid_lifetime),
+                add_ipv6_prefix(ni, zero_right_bits(pref.prefix, 128 - pref.prefix_length),
+                                pref.prefix_length, byteswap(pref.valid_lifetime),
                                 byteswap(pref.preferred_lifetime));
 
                 // FIXME - if on-link flag set, add prefix as on-link
@@ -1527,6 +1545,36 @@ static bool is_link_local(const ipv6_address& addr) {
     return false;
 }
 
+static bool ipv6_prefix_match(const ipv6_address& addr, const ipv6_address& pref,
+                              uint8_t len) {
+    auto addr2 = zero_right_bits(addr, 128 - len);
+
+    return addr2 == pref;
+}
+
+static netif* lookup_route(const ipv6_address& dst) {
+    lock_guard lock(ipv6_routes_lock);
+
+    ipv6_route* best_match = nullptr;
+
+    for (auto le = ipv6_routes.next; le != &ipv6_routes; le = le->next) {
+        auto& r = containing_record<ipv6_route>(le);
+
+        if (!ipv6_prefix_match(dst, r.prefix, r.prefix_length))
+            continue;
+
+        if (!best_match || (r.prefix_length > best_match->prefix_length))
+            best_match = &r;
+    }
+
+    if (!best_match)
+        return nullptr;
+
+    best_match->ni.acquire();
+
+    return &best_match->ni;
+}
+
 static nt_status ipv6_choose_interface(const ipv6_address& dst, uint32_t scope_id,
                                        netif*& ni, ipv6_address& src) {
     // see RFC6724
@@ -1588,6 +1636,10 @@ static nt_status ipv6_choose_interface(const ipv6_address& dst, uint32_t scope_i
         return nt_status::SUCCESS;
     }
 
+    ni = lookup_route(dst);
+    if (!ni)
+        return nt_status::NETWORK_UNREACHABLE;
+
     // FIXME - consult routing tables
 
     // FIXME - rule 3: avoid deprecated address
@@ -1598,6 +1650,8 @@ static nt_status ipv6_choose_interface(const ipv6_address& dst, uint32_t scope_i
     // FIXME - rule 8: prefer longest matching prefix
 
     print("FIXME: ipv6_choose_interface could not choose\n"); // FIXME - remove once rule 8 working
+
+    ni->release();
 
     return nt_status::NETWORK_UNREACHABLE;
 }
