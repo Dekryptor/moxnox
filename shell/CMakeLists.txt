@@ -278,7 +278,9 @@ target_link_libraries(cp print)
 target_link_libraries(cp format cmdline unique_handle getopt list)
 target_link_libraries(cp moxnox)
 
-install(TARGETS cp DESTINATION ${CMAKE_INSTALL_PREFIX}/bin)
+install(TARGETS cp DESTINATION ${CMAKE_INSTALL_PREFIX}/bin
+    CXX_MODULES_BMI EXCLUDE_FROM_ALL
+)
 
 ###
 
