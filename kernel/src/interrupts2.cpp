@@ -56,19 +56,6 @@ static const uint32_t IA32_APIC_BASE_MSR = 0x1b;
 
 static const uint16_t interrupt_cs = 0x8;
 
-struct idt_entry {
-    uint16_t offset_1;
-    uint16_t selector;
-    uint8_t ist;
-    uint8_t gate_type : 4;
-    uint8_t zero1 : 1;
-    uint8_t dpl : 2;
-    uint8_t present : 1;
-    uint16_t offset_2;
-    uint32_t offset_3;
-    uint32_t zero2;
-};
-
 static auto idt = span((idt_entry*)0xfffffac000000000, 256);
 
 static const uint8_t MIN_DYNAMIC_INTERRUPT = 0x30;

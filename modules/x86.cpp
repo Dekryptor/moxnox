@@ -57,6 +57,21 @@ export struct gdt_entry {
 
 static_assert(sizeof(gdt_entry) == 8);
 
+export struct idt_entry {
+    uint16_t offset_1;
+    uint16_t selector;
+    uint8_t ist;
+    uint8_t gate_type : 4;
+    uint8_t zero1 : 1;
+    uint8_t dpl : 2;
+    uint8_t present : 1;
+    uint16_t offset_2;
+    uint32_t offset_3;
+    uint32_t zero2;
+};
+
+static_assert(sizeof(idt_entry) == 16);
+
 export struct GDTIDT {
     uint16_t Limit;
     uint32_t Base;
