@@ -1093,6 +1093,17 @@ struct checker {
     string_view sv;
 };
 
+template<size_t N, typename... Args>
+auto tuple_drop_n(tuple<Args...>&& t) {
+    if constexpr (N >= sizeof...(Args))
+        return tuple<>();
+    else {
+        return []<size_t... Is>(auto&& tuple, index_sequence<Is...>) {
+            return forward_as_tuple(get<Is + N>(std::forward<decltype(tuple)>(tuple))...);
+        }(std::forward<tuple<Args...>>(t), make_index_sequence<sizeof...(Args) - N>{});
+    }
+}
+
 export
 template<typename... Args>
 span<char> format_to(span<char> sp, string_view fmt, tuple<Args...>&& args) {
@@ -1155,9 +1166,9 @@ span<char> format_to(span<char> sp, string_view fmt, tuple<Args...>&& args) {
 
         if constexpr (num_args >= 2) {
             if (nested)
-                return format_to(sp, fmt, apply([](auto, auto, auto... rest) { return make_tuple(rest...); }, args));
+                return format_to(sp, fmt, tuple_drop_n<2>(std::forward<tuple<Args...>>(args)));
             else
-                return format_to(sp, fmt, apply([](auto, auto... rest) { return make_tuple(rest...); }, args));
+                return format_to(sp, fmt, tuple_drop_n<1>(std::forward<tuple<Args...>>(args)));
         } else
             return sp_strcpy(sp, fmt);
     }
