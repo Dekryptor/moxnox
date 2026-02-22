@@ -444,10 +444,29 @@ static void remove_ipv6_route(netif& ni, const ipv6_address& prefix,
         delete found;
 }
 
+template<>
+consteval bool format_spec_valid<netif>(string_view fmt) {
+    return fmt.empty();
+}
+
+static span<char> do_format_arg(span<char> sp, string_view, const netif& ni) {
+    auto sv = string_view(ni.name, sizeof(ni.name));
+
+    if (auto zero = sv.find('\0'); zero != string_view::npos)
+        sv = string_view(sv.data(), zero);
+
+    return do_format_arg(sp, "", sv);
+}
+
 static void add_ipv6_prefix(netif& ni, const ipv6_address& prefix,
                             uint8_t prefix_length, uint32_t valid_lifetime,
-                            uint32_t preferred_lifetime, bool on_link) {
+                            uint32_t preferred_lifetime, bool on_link,
+                            bool autonomous) {
     ipv6_prefix* found = nullptr;
+
+    // FIXME - if removing prefix with length of 64, also remove IP address
+
+    // FIXME - if prefix comes through but this time autonomous flag not set, delete corresponding SLAAC address?
 
     {
         lock_guard lock(ni.prefix_lock);
@@ -510,6 +529,58 @@ static void add_ipv6_prefix(netif& ni, const ipv6_address& prefix,
 
         if (!beaten_to_it)
             insert_tail_list(ni.prefixes, p->le);
+    }
+
+    if (autonomous && prefix_length == 64) {
+        ipv6_address slaac;
+
+        memcpy(slaac.v.data(), prefix.v.data(), 8);
+        memcpy(&slaac.v[8], &ni.ll_addr.v[8], 8);
+
+        bool already_exists = false;
+
+        {
+            lock_guard lock(ni.addr_lock);
+
+            for (auto le = ni.addrs.next; le != &ni.addrs; le = le->next) {
+                auto& a = containing_record<ip_addr>(le);
+
+                if (a.addr == slaac) {
+                    already_exists = true;
+                    break;
+                }
+            }
+        }
+
+        if (!already_exists) {
+            auto a = new ip_addr;
+            if (!a)
+                print("new failed\n");
+            else {
+                a->addr = slaac;
+
+                {
+                    lock_guard lock(ni.addr_lock);
+
+                    for (auto le = ni.addrs.next; le != &ni.addrs; le = le->next) {
+                        auto& a2 = containing_record<ip_addr>(le);
+
+                        if (a2.addr == slaac) {
+                            already_exists = true;
+                            break;
+                        }
+                    }
+
+                    if (!already_exists)
+                        insert_tail_list(ni.addrs, a->le);
+                }
+
+                if (already_exists)
+                    delete a;
+                else
+                    print("{}: added new IPv6 address {}\n", ni, slaac);
+            }
+        }
     }
 
     if (beaten_to_it) {
@@ -600,10 +671,8 @@ static void handle_router_advertisement(netif& ni, packet& pack) {
 
                 add_ipv6_prefix(ni, zero_right_bits(pref.prefix, 128 - pref.prefix_length),
                                 pref.prefix_length, byteswap(pref.valid_lifetime),
-                                byteswap(pref.preferred_lifetime), pref.onlink);
-
-                // FIXME - if on-link flag set, add prefix as on-link
-                // FIXME - if autonomous flag set and length is 64, add as SLAAC address
+                                byteswap(pref.preferred_lifetime), pref.onlink,
+                                pref.autonomous);
 
                 break;
             }
@@ -913,20 +982,6 @@ static void reap_neighbour_cache() {
             }
         }
     }
-}
-
-template<>
-consteval bool format_spec_valid<netif>(string_view fmt) {
-    return fmt.empty();
-}
-
-static span<char> do_format_arg(span<char> sp, string_view, const netif& ni) {
-    auto sv = string_view(ni.name, sizeof(ni.name));
-
-    if (auto zero = sv.find('\0'); zero != string_view::npos)
-        sv = string_view(sv.data(), zero);
-
-    return do_format_arg(sp, "", sv);
 }
 
 static void send_router_solicitation(netif& ni) {
