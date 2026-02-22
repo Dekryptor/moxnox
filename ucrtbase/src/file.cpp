@@ -18,6 +18,9 @@ import list;
 import ucrtbase;
 import kernelbase;
 
+#undef errno
+import errno;
+
 using namespace std;
 
 struct _FILE {
@@ -130,37 +133,6 @@ export void init_files() {
     insert_tail_list(files_list, f1->le);
     insert_tail_list(files_list, f2->le);
     insert_tail_list(files_list, f3->le);
-}
-
-static int nt_status_to_errno(nt_status status) {
-    switch (status) {
-        case nt_status::ACCESS_DENIED:
-        case nt_status::SHARING_VIOLATION:
-            return EACCES;
-
-        case nt_status::NO_MORE_FILES:
-        case nt_status::OBJECT_NAME_NOT_FOUND:
-        case nt_status::OBJECT_PATH_NOT_FOUND:
-            return ENOENT;
-
-        case nt_status::DISK_CORRUPT_ERROR:
-        case nt_status::CRC_ERROR:
-        case nt_status::IO_DEVICE_ERROR:
-            return EIO;
-
-        case nt_status::INVALID_HANDLE:
-            return EBADF;
-
-        case nt_status::INSUFFICIENT_RESOURCES:
-        case nt_status::NO_MEMORY:
-            return ENOMEM;
-
-        case nt_status::DISK_FULL:
-            return ENOSPC;
-
-        default:
-            return EINVAL;
-    }
 }
 
 extern "C"

@@ -1,11 +1,12 @@
-#include <stdint.h>
-#include <string.h>
-
+import errno;
 import nt;
 import ucrtbase;
 import ws2_32;
 import unique_handle;
 import moxnox_ioctls;
+
+#include <stdint.h>
+#include <string.h>
 
 static const char16_t netctl_path[] = u"/dev/netctl";
 

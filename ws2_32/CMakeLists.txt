@@ -17,7 +17,7 @@ add_library(ws2_32 SHARED ${SRC_FILES})
 target_compile_options(ws2_32 PRIVATE -fno-exceptions ${USERSPACE_CFLAGS})
 target_link_options(ws2_32 PUBLIC -nostartfiles -nostdlib)
 
-target_link_libraries(ws2_32 PRIVATE unique_handle)
+target_link_libraries(ws2_32 PRIVATE unique_handle errno)
 target_link_libraries(ws2_32 PRIVATE moxnox)
 
 install(TARGETS ws2_32 DESTINATION ${CMAKE_INSTALL_PREFIX}/lib

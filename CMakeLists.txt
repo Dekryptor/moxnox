@@ -283,6 +283,11 @@ target_sources(print PUBLIC FILE_SET CXX_MODULES FILES modules/print.cpp)
 target_compile_options(print PRIVATE -fno-exceptions ${USERSPACE_CFLAGS})
 target_link_libraries(print PRIVATE nt format)
 
+add_library(errno STATIC)
+target_sources(errno PUBLIC FILE_SET CXX_MODULES FILES modules/errno.cpp)
+target_compile_options(errno PRIVATE -fno-exceptions ${USERSPACE_CFLAGS})
+target_link_libraries(errno PRIVATE nt)
+
 if(CMAKE_SYSTEM_PROCESSOR STREQUAL "aarch64")
     add_library(aarch64 STATIC)
     target_sources(aarch64 PUBLIC FILE_SET CXX_MODULES FILES modules/aarch64.cpp)

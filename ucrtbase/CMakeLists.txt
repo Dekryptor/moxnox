@@ -23,7 +23,7 @@ target_sources(ucrtbase PUBLIC FILE_SET CXX_MODULES FILES src/file.cpp)
 target_compile_options(ucrtbase PRIVATE -fno-exceptions ${USERSPACE_CFLAGS})
 target_link_options(ucrtbase PUBLIC -nostartfiles -nostdlib)
 
-target_link_libraries(ucrtbase PRIVATE format print unicode list cmdline)
+target_link_libraries(ucrtbase PRIVATE format print unicode list cmdline errno)
 target_link_libraries(ucrtbase PRIVATE moxnox)
 
 install(TARGETS ucrtbase DESTINATION ${CMAKE_INSTALL_PREFIX}/lib
