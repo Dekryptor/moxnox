@@ -629,14 +629,11 @@ static void reap_neighbour_cache() {
 }
 
 template<>
-consteval bool format_spec_valid<netif*>(string_view fmt) {
+consteval bool format_spec_valid<netif>(string_view fmt) {
     return fmt.empty();
 }
 
-// FIXME - why does this not work with reference?
-span<char> do_format_arg(span<char> sp, string_view, const netif* pni) {
-    auto& ni = *pni;
-
+span<char> do_format_arg(span<char> sp, string_view, const netif& ni) {
     auto sv = string_view(ni.name, sizeof(ni.name));
 
     if (auto zero = sv.find('\0'); zero != string_view::npos)
@@ -651,7 +648,7 @@ static void send_router_solicitation(netif& ni) {
 
     if (ni.rs_tries == MAX_TRIES) {
         print("no response to router solicitations on {} after {} tries, giving up\n",
-              &ni, ni.rs_tries);
+              ni, ni.rs_tries);
         ni.rs_needed = false;
         return;
     }
