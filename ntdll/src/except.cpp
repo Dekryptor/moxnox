@@ -259,7 +259,7 @@ void mn_signal(EXCEPTION_RECORD* exception, CONTEXT* context) {
                 esr.value = exception->ExceptionInformation[0];
 
                 sp = format(sp, "Unhandled exception (ESR_EL1 = {:08x} [ISS = {:x}, IL = {:x}, EC = {:x}, ISS2 = {:x}])\n",
-                            esr.value, esr.ISS, esr.IL, esr.EC, esr.ISS2);
+                            esr.value, +esr.ISS, +esr.IL, +esr.EC, +esr.ISS2);
                 break;
             }
 #endif

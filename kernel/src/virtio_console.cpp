@@ -107,7 +107,7 @@ virtio_console<virtio_pci_device>::virtio_console(pci_device& d, pipe& recv_pipe
 
     if (dev.device_cfg->length < sizeof(virtio_console_config)) {
         print("virtio_console: device cfg length was {}, expected at least {}\n",
-              dev.device_cfg->length, sizeof(virtio_console_config));
+              +dev.device_cfg->length, sizeof(virtio_console_config));
         return;
     }
 

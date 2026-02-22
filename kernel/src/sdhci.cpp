@@ -1280,7 +1280,7 @@ nt_status sdhci_slot::read_scr() {
 
     if (scr.scr_structure != 0) {
         print("sdhci_slot::read_scr: SCR had scr_structure of {}, expected 0\n",
-              scr.scr_structure);
+              +scr.scr_structure);
         return nt_status::IO_DEVICE_ERROR;
     }
 
@@ -1804,7 +1804,7 @@ void sdhci_slot::card_insertion() {
 
         default:
             print("sdhci_slot::card_insertion: unhandled CSD type {}\n",
-                  csd.v1.csd_structure);
+                  +csd.v1.csd_structure);
             return;
     }
 

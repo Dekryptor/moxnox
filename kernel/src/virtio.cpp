@@ -241,7 +241,7 @@ bool virtio_pci_device::add_virtqueue(uint16_t num) {
 
     if (common->queue_size < QUEUE_SIZE) {
         print("virtio_pci_device::add_virtqueue: size for queue {} was {}, wanted at least {}\n",
-              common->queue_select, common->queue_size, QUEUE_SIZE);
+              +common->queue_select, +common->queue_size, QUEUE_SIZE);
         return false;
     }
 
@@ -605,7 +605,7 @@ virtio_pci_device::virtio_pci_device(pci_device& dev, uint64_t supported_feature
 
     if (common_cfg->length < sizeof(virtio_pci_common_cfg)) {
         print("virtio_pci_device: common cfg length was {}, expected at least {}\n",
-              common_cfg->length, sizeof(virtio_pci_common_cfg));
+              +common_cfg->length, sizeof(virtio_pci_common_cfg));
         return;
     }
 
@@ -859,7 +859,7 @@ bool virtio_mmio_device::add_virtqueue(uint16_t num) {
 
         if (regs.QueueSizeMax < QUEUE_SIZE) {
             print("virtio_mmio_device::add_virtqueue: max size for queue {} was {}, wanted at least {}\n",
-                  regs.QueueSel, regs.QueueSizeMax, QUEUE_SIZE);
+                  +regs.QueueSel, +regs.QueueSizeMax, QUEUE_SIZE);
             return false;
         }
 
@@ -871,13 +871,13 @@ bool virtio_mmio_device::add_virtqueue(uint16_t num) {
 
         if (regs.QueuePFN != 0) {
             print("virtio_mmio_device::add_virtqueue: QueuePFN was {:x}, expected 0\n",
-                  regs.QueuePFN);
+                  +regs.QueuePFN);
             return false;
         }
 
         if (regs.QueueSizeMax < QUEUE_SIZE) {
             print("virtio_mmio_device::add_virtqueue: max size for queue {} was {}, wanted at least {}\n",
-                  regs.QueueSel, regs.QueueSizeMax, QUEUE_SIZE);
+                  +regs.QueueSel, +regs.QueueSizeMax, QUEUE_SIZE);
             return false;
         }
 
@@ -1000,7 +1000,7 @@ static bool init_virtio_mmio2(volatile virtio_mmio_regs_v2& regs,
                               void* config, uint32_t irq) {
     if (regs.MagicValue != VIRTIO_MMIO_MAGIC_VALUE) {
         print("init_virtio_mmio2: incorrect MagicValue (found {:x}, expected {:x})\n",
-              regs.MagicValue, VIRTIO_MMIO_MAGIC_VALUE);
+              +regs.MagicValue, VIRTIO_MMIO_MAGIC_VALUE);
         return false;
     }
 
@@ -1045,7 +1045,7 @@ static bool init_virtio_mmio2(volatile virtio_mmio_regs_v2& regs,
             return true;
         }
 
-        print("init_virtio_mmio2: device type {} not recognized\n", regs.DeviceID);
+        print("init_virtio_mmio2: device type {} not recognized\n", +regs.DeviceID);
 
         return false;
     };
@@ -1058,7 +1058,7 @@ static bool init_virtio_mmio2(volatile virtio_mmio_regs_v2& regs,
             return func(regs);
 
         default:
-            print("init_virtio_mmio2: unsupported version {}\n", regs.Version);
+            print("init_virtio_mmio2: unsupported version {}\n", +regs.Version);
             return false;
     }
 }

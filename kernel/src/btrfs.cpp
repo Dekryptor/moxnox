@@ -460,7 +460,7 @@ btrfs_filesystem::btrfs_filesystem(volume& vol) : filesystem(&vol) {
     }
 
     if (sb->nodesize & (sb->nodesize - 1)) {
-        print("btrfs node size {:x} not a power of two\n", sb->nodesize);
+        print("btrfs node size {:x} not a power of two\n", +sb->nodesize);
         return;
     }
 
@@ -478,7 +478,7 @@ btrfs_filesystem::btrfs_filesystem(volume& vol) : filesystem(&vol) {
     }
 
     if (sb->csum_type != 0) {
-        print("unsupported csum type {}\n", sb->csum_type);
+        print("unsupported csum type {}\n", +sb->csum_type);
         return;
     }
 
@@ -1977,7 +1977,7 @@ nt_status btrfs_filesystem::find_item(root& r, const btrfs_key& k, btrfs_path& p
 
         if (th.bytenr != addr) {
             print("btrfs_filesystem::find_item: metadata address was {:x}, expected {:x}\n",
-                  th.bytenr, addr);
+                  +th.bytenr, addr);
             return nt_status::DISK_CORRUPT_ERROR;
         }
 

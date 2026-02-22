@@ -408,7 +408,7 @@ bool nvme_controller::identify_controller(nvme_queue& queue) {
     wait_for_object(req.event.get(), false);
 
     if (req.cqe.status != 0) {
-        print("NVMe identify returned status {:x}\n", req.cqe.status);
+        print("NVMe identify returned status {:x}\n", +req.cqe.status);
         free_folio(p);
         return false;
     }
@@ -477,7 +477,7 @@ bool nvme_controller::identify_namespaces(nvme_queue& queue) {
     wait_for_object(req.event.get(), false);
 
     if (req.cqe.status != 0) {
-        print("NVMe identify returned status {:x}\n", req.cqe.status);
+        print("NVMe identify returned status {:x}\n", +req.cqe.status);
         free_folio(p);
         return false;
     }
@@ -550,14 +550,14 @@ bool nvme_controller::identify_namespaces(nvme_queue& queue) {
 
         if (fidxl > num_lba_formats) {
             print("skipping NVMe namespace {}: FIDXL was {}, expected 0 to {}\n",
-                  req2.req.sqe.nsid, fidxl, num_lba_formats - 1);
+                  +req2.req.sqe.nsid, fidxl, num_lba_formats - 1);
             free_folio(req2.p);
             delete &req2;
             continue;
         }
 
         if (!(nsinfo.lbaf[fidxl] & 0xf0000)) {
-            print("skipping NVMe namespace {}: LBADS was 0\n", req2.req.sqe.nsid);
+            print("skipping NVMe namespace {}: LBADS was 0\n", +req2.req.sqe.nsid);
             free_folio(req2.p);
             delete &req2;
             continue;
@@ -569,7 +569,7 @@ bool nvme_controller::identify_namespaces(nvme_queue& queue) {
 
         if (block_size > PAGE_SIZE) {
             print("skipping NVMe namespace {}: block size {} more than page size {}\n",
-                  req2.req.sqe.nsid, block_size, PAGE_SIZE);
+                  +req2.req.sqe.nsid, block_size, PAGE_SIZE);
             free_folio(req2.p);
             delete &req2;
             continue;
@@ -577,7 +577,7 @@ bool nvme_controller::identify_namespaces(nvme_queue& queue) {
 
         if (PAGE_SIZE % block_size) {
             print("skipping NVMe namespace {}: page size {} not a multiple of block size {}\n",
-                  req2.req.sqe.nsid, PAGE_SIZE, block_size);
+                  +req2.req.sqe.nsid, PAGE_SIZE, block_size);
             free_folio(req2.p);
             delete &req2;
             continue;
@@ -590,7 +590,7 @@ bool nvme_controller::identify_namespaces(nvme_queue& queue) {
         }
 
         print("found /dev/nvme{}n{}: {}, block size {}, capacity {}\n", controller_num,
-              req2.req.sqe.nsid, model_number, byte_size(block_size), byte_size(nsinfo.nsze * block_size));
+              +req2.req.sqe.nsid, model_number, byte_size(block_size), byte_size(nsinfo.nsze * block_size));
 
         // FIXME - readonly if nsattr & 1
 
@@ -613,7 +613,7 @@ bool nvme_controller::identify_namespaces(nvme_queue& queue) {
             char s[50];
             auto sp = span(s, sizeof(s));
 
-            sp = format(sp, "nvme{}n{}", controller_num, req2.req.sqe.nsid);
+            sp = format(sp, "nvme{}n{}", controller_num, +req2.req.sqe.nsid);
 
             auto sv = string_view(s, (size_t)(sp.data() - s));
 
@@ -670,13 +670,13 @@ static bool init_nvme(const pci_device& dev) {
     if (msi) {
         // FIXME - support MSI too?
         if (dev.msix->bir >= dev.bar.size()) {
-            print("invalid value {} for NVMe MSI-X BIR\n", dev.msix->bir);
+            print("invalid value {} for NVMe MSI-X BIR\n", +dev.msix->bir);
             return false;
         }
 
         if ((size_t)(dev.msix->table_offset << 3) >= dev.bar[dev.msix->bir].size()) {
             print("NVMe MSI-X table offset {:x} overflowed BAR {}\n",
-                  dev.msix->table_offset << 3, dev.msix->bir);
+                  dev.msix->table_offset << 3, +dev.msix->bir);
             return false;
         }
     }
@@ -809,7 +809,7 @@ bool nvme_controller::create_io_queues(const pci_device& dev, nvme_queue& queue)
         wait_for_object(req.event.get(), false);
 
         if (req.cqe.status != 0) {
-            print("NVMe create completion queue returned status {:x}\n", req.cqe.status);
+            print("NVMe create completion queue returned status {:x}\n", +req.cqe.status);
             free_folio(cq);
             return false;
         }
@@ -853,7 +853,7 @@ bool nvme_controller::create_io_queues(const pci_device& dev, nvme_queue& queue)
         wait_for_object(req.event.get(), false);
 
         if (req.cqe.status != 0) {
-            print("NVMe create submission queue returned status {:x}\n", req.cqe.status);
+            print("NVMe create submission queue returned status {:x}\n", +req.cqe.status);
             // FIXME - delete CQ and free its buffer
             free_folio(sq);
             return false;
@@ -983,7 +983,7 @@ nt_status nvme_namespace::dio_read(uint64_t page_num, uint64_t num_pages,
     }
 
     if (req.cqe.status != 0) {
-        print("NVMe read returned status {:x}\n", req.cqe.status);
+        print("NVMe read returned status {:x}\n", +req.cqe.status);
         // FIXME - translate into nt_status properly
         return nt_status::INTERNAL_ERROR;
     }
@@ -1085,7 +1085,7 @@ nt_status nvme_namespace::dio_write(uint64_t page_num, uint64_t num_pages,
         free_folio(prp2);
 
     if (req.cqe.status != 0) {
-        print("NVMe write returned status {:x}\n", req.cqe.status);
+        print("NVMe write returned status {:x}\n", +req.cqe.status);
         // FIXME - properly translate into nt_status
         return nt_status::INTERNAL_ERROR;
     }
@@ -1114,7 +1114,7 @@ nt_status nvme_namespace::flush() {
     wait_for_object(req.event.get(), false);
 
     if (req.cqe.status != 0) {
-        print("NVMe flush returned status {:x}\n", req.cqe.status);
+        print("NVMe flush returned status {:x}\n", +req.cqe.status);
         // FIXME - translate into nt_status properly
         return nt_status::INTERNAL_ERROR;
     }

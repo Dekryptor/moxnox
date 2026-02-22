@@ -130,7 +130,7 @@ static void do_ping(int sock, const ipv6_address& ip, uint32_t scope) {
 
             // FIXME - add float support to print
             // FIXME - need higher-quality timer?
-            print("{} bytes from {}: icmp_seq={} time={} ms\n", len, *(ipv6_address*)&addr.sin6_addr, byteswap(resp.sequence), s);
+            print("{} bytes from {}: icmp_seq={} time={} ms\n", len, *(ipv6_address*)&addr.sin6_addr, byteswap(resp.sequence), string_view(s));
         }
 
         echo.sequence = byteswap((uint16_t)(byteswap(echo.sequence) + 1));

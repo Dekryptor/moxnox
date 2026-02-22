@@ -272,7 +272,7 @@ template<>
 virtio_net<virtio_pci_device>::virtio_net(pci_device& d) : dev(*new virtio_pci_device(d, SUPPORTED_FEATURES, 2)) {
     if (dev.device_cfg->length < sizeof(virtio_net_config)) {
         print("virtio_net: device cfg length was {}, expected at least {}\n",
-              dev.device_cfg->length, sizeof(virtio_net_config));
+              +dev.device_cfg->length, sizeof(virtio_net_config));
         return;
     }
 

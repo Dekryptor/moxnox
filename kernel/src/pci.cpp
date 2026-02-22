@@ -4,6 +4,7 @@ module;
 #include <atomic>
 #include <optional>
 #include <algorithm>
+#include <string_view>
 #include "pci.h"
 
 export module pci;
@@ -304,7 +305,7 @@ static optional<uint32_t> search_routing(ACPI_HANDLE handle, uint8_t dev,
             auto status = AcpiGetHandle(handle, ent.Source, &h);
             if (ACPI_FAILURE(status)) {
                 print("AcpiGetHandle returned {} for {}\n", (acpi_status)status,
-                      ent.Source);
+                      string_view(ent.Source));
                 return nullopt;
             }
 
@@ -315,7 +316,7 @@ static optional<uint32_t> search_routing(ACPI_HANDLE handle, uint8_t dev,
             status = get_resources(h, res);
             if (ACPI_FAILURE(status)) {
                 print("get_resources returned {} for {}\n", (acpi_status)status,
-                      ent.Source);
+                      string_view(ent.Source));
                 return nullopt;
             }
 
@@ -359,7 +360,7 @@ static optional<uint32_t> search_routing(ACPI_HANDLE handle, uint8_t dev,
             }
 
             print("source index {} not found in resources for {}\n",
-                  ent.SourceIndex, ent.Source);
+                  ent.SourceIndex, string_view(ent.Source));
 
             vfree(orig_res.data(), bytes_to_pages(orig_res.size()) << PAGE_SHIFT);
 

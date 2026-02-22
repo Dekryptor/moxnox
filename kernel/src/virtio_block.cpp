@@ -168,7 +168,7 @@ template<>
 virtio_block<virtio_pci_device>::virtio_block(pci_device& d) : dev(*new virtio_pci_device(d, SUPPORTED_FEATURES, 1)) {
     if (dev.device_cfg->length < sizeof(virtio_blk_config)) {
         print("virtio_block: device cfg length was {}, expected at least {}\n",
-              dev.device_cfg->length, sizeof(virtio_blk_config));
+              +dev.device_cfg->length, sizeof(virtio_blk_config));
         return;
     }
 

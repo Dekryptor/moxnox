@@ -32,9 +32,7 @@ static void print(type_identity_t<checker<type_identity_t<Args>...>> fmt, Args..
 
     auto sp = span(buf, sizeof(buf));
 
-    auto t = make_tuple(args...);
-
-    sp = format_to(sp, fmt.sv, t);
+    sp = format_to(sp, fmt.sv, forward_as_tuple(std::forward<Args>(args)...));
 
     auto sv = string_view(buf, (size_t)(sp.data() - buf));
 

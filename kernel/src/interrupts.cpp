@@ -1681,7 +1681,7 @@ static void unhandled_kernel_exception(uint64_t esr_value) {
 
     sp = format(sp, ", CPU {}\n", cb.cpu_no);
     sp = format(sp, "ESR_EL1 = {:08x} (ISS = {:x}, IL = {:x}, EC = {:x}, ISS2 = {:x})\n",
-                esr_value, esr.ISS, esr.IL, esr.EC, esr.ISS2);
+                esr_value, +esr.ISS, +esr.IL, +esr.EC, +esr.ISS2);
     sp = format(sp, "{}", cb.thread_context);
 
     bsod(string_view(s, (size_t)(sp.data() - s)), source_location::current(),

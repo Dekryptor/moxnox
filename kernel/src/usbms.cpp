@@ -445,13 +445,13 @@ bool usbms_device::send_scsi_msg_no_data(uint8_t lun, span<uint8_t> msg) {
 
     if (csw.dCSWSignature != USBMS_CSW_SIG) {
         print("send_scsi_msg_no_data: response had invalid signature ({:08x}, expected {:08x})\n",
-              csw.dCSWSignature, USBMS_CSW_SIG);
+              +csw.dCSWSignature, USBMS_CSW_SIG);
         return false;
     }
 
     if (csw.dCSWTag != cbw.dCBWTag) {
         print("usbms_device::send_scsi_msg_no_data: response had invalid tag ({:02x}, expected {:02x})\n",
-              csw.dCSWTag, cbw.dCBWTag);
+              +csw.dCSWTag, +cbw.dCBWTag);
         return false;
     }
 
@@ -540,13 +540,13 @@ size_t usbms_device::send_scsi_msg_in(uint8_t lun, span<uint8_t> msg,
 
     if (csw.dCSWSignature != USBMS_CSW_SIG) {
         print("usbms_device::send_scsi_msg_in: response had invalid signature ({:08x}, expected {:08x})\n",
-              csw.dCSWSignature, USBMS_CSW_SIG);
+              +csw.dCSWSignature, USBMS_CSW_SIG);
         return 0;
     }
 
     if (csw.dCSWTag != cbw.dCBWTag) {
         print("usbms_device::send_scsi_msg_in: response had invalid tag ({:02x}, expected {:02x})\n",
-              csw.dCSWTag, cbw.dCBWTag);
+              +csw.dCSWTag, +cbw.dCBWTag);
         return 0;
     }
 
@@ -634,13 +634,13 @@ size_t usbms_device::send_scsi_msg_in_dio(uint8_t lun, span<uint8_t> msg,
 
     if (csw.dCSWSignature != USBMS_CSW_SIG) {
         print("usbms_device::send_scsi_msg_in_dio: response had invalid signature ({:08x}, expected {:08x})\n",
-              csw.dCSWSignature, USBMS_CSW_SIG);
+              +csw.dCSWSignature, USBMS_CSW_SIG);
         return 0;
     }
 
     if (csw.dCSWTag != cbw.dCBWTag) {
         print("usbms_device::send_scsi_msg_in_dio: response had invalid tag ({:02x}, expected {:02x})\n",
-              csw.dCSWTag, cbw.dCBWTag);
+              +csw.dCSWTag, +cbw.dCBWTag);
         return 0;
     }
 
@@ -728,13 +728,13 @@ size_t usbms_device::send_scsi_msg_out_dio(uint8_t lun, span<uint8_t> msg,
 
     if (csw.dCSWSignature != USBMS_CSW_SIG) {
         print("usbms_device::send_scsi_msg_out_dio: response had invalid signature ({:08x}, expected {:08x})\n",
-              csw.dCSWSignature, USBMS_CSW_SIG);
+              +csw.dCSWSignature, USBMS_CSW_SIG);
         return 0;
     }
 
     if (csw.dCSWTag != cbw.dCBWTag) {
         print("usbms_device::send_scsi_msg_out_dio: response had invalid tag ({:02x}, expected {:02x})\n",
-              csw.dCSWTag, cbw.dCBWTag);
+              +csw.dCSWTag, +cbw.dCBWTag);
         return 0;
     }
 

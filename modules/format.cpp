@@ -1095,7 +1095,7 @@ struct checker {
 
 export
 template<typename... Args>
-span<char> format_to(span<char> sp, string_view fmt, const tuple<Args...>& args) {
+span<char> format_to(span<char> sp, string_view fmt, tuple<Args...>&& args) {
     static constexpr size_t num_args = sizeof...(Args);
 
     if constexpr (num_args == 0)
@@ -1165,8 +1165,6 @@ span<char> format_to(span<char> sp, string_view fmt, const tuple<Args...>& args)
 
 export
 template<typename... Args>
-span<char> format(span<char> sp, type_identity_t<checker<type_identity_t<Args>...>> fmt, Args... args) {
-    auto t = make_tuple(args...);
-
-    return format_to(sp, fmt.sv, t);
+span<char> format(span<char> sp, type_identity_t<checker<type_identity_t<Args>...>> fmt, Args&&... args) {
+    return format_to(sp, fmt.sv, forward_as_tuple(std::forward<Args>(args)...));
 }

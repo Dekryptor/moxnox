@@ -86,7 +86,7 @@ export
 template<typename... Args>
 struct bsod_format {
     __attribute__((noreturn))
-    bsod_format(type_identity_t<checker<type_identity_t<Args>...>> fmt, Args... args,
+    bsod_format(type_identity_t<checker<type_identity_t<Args>...>> fmt, Args&&... args,
                 const source_location& sl = source_location::current()) {
         CONTEXT this_context;
 
@@ -96,7 +96,7 @@ struct bsod_format {
 
         auto sp = span(cb.printk_scratch, PAGE_SIZE);
 
-        sp = format_to(sp, fmt.sv, make_tuple(args...));
+        sp = format_to(sp, fmt.sv, forward_as_tuple(std::forward<Args>(args)...));
 
         in_bsod = true;
 

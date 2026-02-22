@@ -1991,9 +1991,9 @@ export void print_usb_config(span<const uint8_t> buf) {
                 }
 
                 print("DEVICE: bcdUSB = {:x}, bDeviceClass = {}, bDeviceSubClass = {}, bDeviceProtocol = {}, bMaxPacketSize0 = {}, idVendor = {:04x}, idProduct = {:04x}, bcdDevice = {:x}, iManufacturer = {}, iProduct = {}, iSerialNumber = {}, bNumConfigurations = {}\n",
-                      d.bcdUSB, d.bDeviceClass, d.bDeviceSubClass, d.bDeviceProtocol, d.bMaxPacketSize0,
-                      d.idVendor, d.idProduct, d.bcdDevice, d.iManufacturer, d.iProduct, d.iSerialNumber,
-                      d.bNumConfigurations);
+                      +d.bcdUSB, d.bDeviceClass, +d.bDeviceSubClass, +d.bDeviceProtocol, +d.bMaxPacketSize0,
+                      +d.idVendor, +d.idProduct, +d.bcdDevice, +d.iManufacturer, +d.iProduct, +d.iSerialNumber,
+                      +d.bNumConfigurations);
                 break;
             }
 
@@ -2006,7 +2006,7 @@ export void print_usb_config(span<const uint8_t> buf) {
                 }
 
                 print("CONFIGURATION: wTotalLength = {}, bNumInterfaces = {}, bConfigurationValue = {}, iConfiguration = {}, bmAttributes = {:x}, bMaxPower = {}\n",
-                      c.wTotalLength, c.bNumInterfaces, c.bConfigurationValue, c.iConfiguration, c.bmAttributes, c.bMaxPower);
+                      +c.wTotalLength, c.bNumInterfaces, c.bConfigurationValue, c.iConfiguration, c.bmAttributes, c.bMaxPower);
                 break;
             }
 
@@ -2054,9 +2054,9 @@ export void print_usb_config(span<const uint8_t> buf) {
                 }
 
                 print("ENDPOINT: endpoint = {} {}, transfer_type = {}, synchronization_type = {:x}, usage_type = {:x}, wMaxPacketSize = {}, bInterval = {}\n",
-                      e.endpoint_number, e.direction == USB_ENDPOINT_DIRECTION_IN ? "IN" : "OUT",
-                      transfer_type, e.synchronization_type, e.usage_type,
-                      e.wMaxPacketSize, e.bInterval);
+                      +e.endpoint_number, e.direction == USB_ENDPOINT_DIRECTION_IN ? "IN" : "OUT",
+                      transfer_type, +e.synchronization_type, +e.usage_type,
+                      +e.wMaxPacketSize, e.bInterval);
                 break;
             }
 
@@ -2089,7 +2089,7 @@ export void print_usb_config(span<const uint8_t> buf) {
                 }
 
                 print("HID: bcdHID = {:x}, bCountryCode = {}, bNumDescriptors = {}, bDescriptorType2 = {}, wDescriptorLength = {}\n",
-                      h.bcdHID, h.bCountryCode, h.bNumDescriptors, h.bDescriptorType2, h.wDescriptorLength);
+                      +h.bcdHID, h.bCountryCode, h.bNumDescriptors, h.bDescriptorType2, +h.wDescriptorLength);
 
                 break;
             }
@@ -2110,8 +2110,8 @@ export void print_usb_config(span<const uint8_t> buf) {
                 }
 
                 print("HUB: bNbrPorts = {}, power_switching_mode = {}, compound_device = {}, overcurrent_protection_mode = {}, tt_think_time = {}, port_indicators_supported = {}, bPwrOn2PwrGood = {}, bHubContrCurrent = {}, DeviceRemovable = ",
-                      h.bNbrPorts, h.power_switching_mode, h.compound_device, h.overcurrent_protection_mode, h.tt_think_time,
-                      h.port_indicators_supported, h.bPwrOn2PwrGood, h.bHubContrCurrent);
+                      h.bNbrPorts, +h.power_switching_mode, +h.compound_device, +h.overcurrent_protection_mode, +h.tt_think_time,
+                      +h.port_indicators_supported, h.bPwrOn2PwrGood, h.bHubContrCurrent);
 
                 for (unsigned int i = 0; i < dev_rem_bytes; i++) {
                     print("{:02x}", h.DeviceRemovable[i]);
@@ -2131,8 +2131,8 @@ export void print_usb_config(span<const uint8_t> buf) {
                 }
 
                 print("SUPERSPEED_HUB: bNbrPorts = {}, power_switching_mode = {}, compound_device = {}, overcurrent_protection_mode = {}, bPwrOn2PwrGood = {}, bHubContrCurrent = {}, bHubHdrDecLat = {}, wHubDelay = {}, DeviceRemovable = {:x}\n",
-                      h.bNbrPorts, h.power_switching_mode, h.compound_device, h.overcurrent_protection_mode, h.bPwrOn2PwrGood,
-                      h.bHubContrCurrent, h.bHubHdrDecLat, h.wHubDelay, h.DeviceRemovable);
+                      h.bNbrPorts, +h.power_switching_mode, +h.compound_device, +h.overcurrent_protection_mode, h.bPwrOn2PwrGood,
+                      h.bHubContrCurrent, h.bHubHdrDecLat, +h.wHubDelay, +h.DeviceRemovable);
 
                 break;
             }
@@ -2428,8 +2428,8 @@ void usb_device::device_removed() {
 
     // FIXME - if hub, handle child devices
 
-    print("USB device {:04x}:{:04x} removed\n", device_descriptor.idVendor,
-          device_descriptor.idProduct);
+    print("USB device {:04x}:{:04x} removed\n", +device_descriptor.idVendor,
+          +device_descriptor.idProduct);
 
     {
         lock_guard lock(endpoint_mutex);
@@ -2537,8 +2537,8 @@ void usb_hub::device_found(uint8_t slot, uint8_t port, enum usb_speed_class spee
 
     memcpy(&d->device_descriptor, buf, sizeof(d->device_descriptor));
 
-    print("found USB device {:04x}:{:04x}\n", d->device_descriptor.idVendor,
-          d->device_descriptor.idProduct);
+    print("found USB device {:04x}:{:04x}\n", +d->device_descriptor.idVendor,
+          +d->device_descriptor.idProduct);
 
 #if 0
     print_usb_config(span((uint8_t*)&d->device_descriptor, sizeof(d->device_descriptor)));
@@ -2565,7 +2565,7 @@ void usb_hub::device_found(uint8_t slot, uint8_t port, enum usb_speed_class spee
 
         if (cd.wTotalLength < sizeof(cd)) {
             print("usb_hub::device_found: config descriptor was {} bytes, expected at least {}\n",
-                  cd.wTotalLength, sizeof(cd));
+                  +cd.wTotalLength, sizeof(cd));
             d->release();
             free(buf);
             return;
@@ -2728,7 +2728,7 @@ void xhci::port_status_changed(uint8_t port_id) {
 
         default:
             print("xhci::port_status_changed: unexpected PLS value {}\n",
-                  portsc.PLS);
+                  (enum xhci_portsc_pls)portsc.PLS);
             return;
     }
 
@@ -2952,7 +2952,7 @@ bool xhci::isr() {
             }
 
             default:
-                print("xhci::isr: event type {}\n", ev.trb_type); // FIXME?
+                print("xhci::isr: event type {}\n", +ev.trb_type); // FIXME?
                 break;
         }
 

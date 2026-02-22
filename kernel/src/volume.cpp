@@ -202,7 +202,8 @@ bool volume::check_for_partitions() {
     }
 
     if (gpt.size_of_partition_entry < 128) {
-        print("partition entry size was 0x{:x}, expected at least 0x80\n", gpt.size_of_partition_entry);
+        print("partition entry size was 0x{:x}, expected at least 0x80\n",
+              +gpt.size_of_partition_entry);
         free(first_sects);
         return false;
     }
