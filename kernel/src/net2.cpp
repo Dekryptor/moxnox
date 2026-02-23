@@ -113,6 +113,7 @@ struct ipv6_router {
     ipv6_address addr;
     mac_address mac;
     uint32_t lifetime;
+    bool tick_visited = false;
 };
 
 static spinlock ipv6_routes_lock;
@@ -1229,10 +1230,71 @@ static void send_router_solicitations() {
     }
 }
 
+static void netif_router_lifetime_tick(netif& ni) {
+    // routers tick
+
+    while (true) {
+        ipv6_router* dead_router = nullptr;
+        bool no_more_routers;
+
+        {
+            lock_guard lock(ni.routers_lock);
+
+            for (auto le = ni.routers.next; le != &ni.routers; le = le->next) {
+                auto& r = containing_record<ipv6_router>(le);
+
+                if (r.tick_visited)
+                    continue;
+
+                r.lifetime--;
+                r.tick_visited = true;
+
+                if (r.lifetime == 0) {
+                    remove_entry_list(r.le);
+                    dead_router = &r;
+                    no_more_routers = is_list_empty(ni.routers);
+                    break;
+                }
+            }
+        }
+
+        if (!dead_router)
+            break;
+
+        delete dead_router;
+
+        if (no_more_routers)
+            remove_ipv6_route(ni, parse_ipv6_address("::"), 64);
+    }
+
+    {
+        lock_guard lock(ni.routers_lock);
+
+        for (auto le = ni.routers.next; le != &ni.routers; le = le->next) {
+            auto& r = containing_record<ipv6_router>(le);
+
+            r.tick_visited = false;
+        }
+    }
+
+    // FIXME - prefix tick
+}
+
+static void router_lifetime_tick() {
+    lock_guard lock(netif_lock);
+
+    for (auto le = netif_list.next; le != &netif_list; le = le->next) {
+        auto& ni = containing_record<netif>(le);
+
+        netif_router_lifetime_tick(ni);
+    }
+}
+
 static void network_housekeeping() {
     // once a second
 
     send_router_solicitations();
+    router_lifetime_tick();
     reap_neighbour_cache();
 }
 
