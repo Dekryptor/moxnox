@@ -439,7 +439,7 @@ target_include_directories(harfbuzz PRIVATE harfbuzz/src)
 target_include_directories(harfbuzz PRIVATE freetype/include)
 target_link_libraries(harfbuzz PRIVATE freetype)
 target_link_options(harfbuzz PRIVATE -nostartfiles -nostdlib)
-target_link_libraries(harfbuzz PRIVATE moxnox -lgcc)
+target_link_libraries(harfbuzz PRIVATE moxnox ${LIBGCC})
 
 install(TARGETS harfbuzz DESTINATION ${CMAKE_INSTALL_PREFIX}/lib
     ARCHIVE EXCLUDE_FROM_ALL
