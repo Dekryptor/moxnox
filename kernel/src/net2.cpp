@@ -1655,6 +1655,70 @@ static nt_status netctl_get_netif_ip_count(span<const uint8_t> inbuf,
     return nt_status::SUCCESS;
 }
 
+static nt_status netctl_get_netif_ips(span<const uint8_t> inbuf,
+                                      span<uint8_t> outbuf,
+                                      uintptr_t& written) {
+    if (inbuf.size() < sizeof(uint32_t))
+        return nt_status::INVALID_PARAMETER;
+
+    auto id = *(uint32_t*)inbuf.data();
+
+    if (outbuf.size() < offsetof(MOXNOX_NETCTL_GET_NETIF_IPS, ip))
+        return nt_status::BUFFER_TOO_SMALL;
+
+    size_t left = (outbuf.size() - offsetof(MOXNOX_NETCTL_GET_NETIF_IPS, ip)) / sizeof(uint32_t);
+
+    auto& out = *(MOXNOX_NETCTL_GET_NETIF_IPS*)outbuf.data();
+    netif* ni = nullptr;
+
+    {
+        lock_guard lock(netif_lock);
+
+        for (auto le = netif_list.next; le != &netif_list; le = le->next) {
+            auto& ni2 = containing_record<netif>(le);
+
+            if (ni2.num == id) {
+                ni2.acquire();
+                ni = &ni2;
+                break;
+            }
+        }
+    }
+
+    if (!ni)
+        return nt_status::NOT_FOUND;
+
+    uint32_t num = 0;
+    nt_status ret = nt_status::SUCCESS;
+
+    {
+        lock_guard lock(ni->addr_lock);
+
+        for (auto le = ni->addrs.next; le != &ni->addrs; le = le->next) {
+            auto& a = containing_record<ip_addr>(le);
+
+            if (left == 0) {
+                ret = nt_status::BUFFER_TOO_SMALL;
+                break;
+            }
+
+            out.ip[num] = a.addr;
+            num++;
+            left--;
+        }
+    }
+
+    ni->release();
+
+    if (!success(ret))
+        return ret;
+
+    out.count = num;
+    written = offsetof(MOXNOX_NETCTL_GET_NETIF_IPS, ip) + (num * sizeof(uint32_t));
+
+    return ret;
+}
+
 nt_status netctl::ioctl(uint32_t code, span<const uint8_t> inbuf,
                         span<uint8_t> outbuf, uintptr_t& written) {
     switch (code) {
@@ -1675,6 +1739,9 @@ nt_status netctl::ioctl(uint32_t code, span<const uint8_t> inbuf,
 
         case IOCTL_MOXNOX_NETCTL_GET_NETIF_IP_COUNT:
             return netctl_get_netif_ip_count(inbuf, outbuf, written);
+
+        case IOCTL_MOXNOX_NETCTL_GET_NETIF_IPS:
+            return netctl_get_netif_ips(inbuf, outbuf, written);
 
         default:
             return nt_status::NOT_IMPLEMENTED;
