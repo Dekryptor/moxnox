@@ -111,6 +111,7 @@ struct ipv6_prefix {
 struct ipv6_router {
     list_entry le;
     ipv6_address addr;
+    mac_address mac;
     uint32_t lifetime;
 };
 
@@ -801,13 +802,14 @@ static void handle_router_advertisement(netif& ni, packet& pack) {
             }
         }
 
-        if (!router_found) {
+        if (!router_found && src_lladdr.has_value()) {
             auto r = new ipv6_router;
 
             if (!r)
                 print("new failed");
             else {
                 r->addr = ip.src;
+                r->mac = *src_lladdr;
                 r->lifetime = ra.router_lifetime;
 
                 {
@@ -2121,10 +2123,16 @@ static mac_address find_mac_address(netif& ni, const ipv6_address& dst) {
 
     if (on_link)
         return search_neighbour_cache(ni, dst);
+    else {
+        lock_guard lock(ni.routers_lock);
 
-    // FIXME - off-link addresses (send to router's MAC)
+        if (is_list_empty(ni.routers))
+            return NULL_MAC_ADDRESS;
 
-    return NULL_MAC_ADDRESS;
+        auto& r = containing_record<ipv6_router>(ni.routers.next);
+
+        return r.mac;
+    }
 }
 
 nt_status ipv6_socket::sendto_raw(span<const char> us_buf, int flags,
