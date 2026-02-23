@@ -193,6 +193,12 @@ struct ndp_option_prefix_info : ndp_option  {
 
 static_assert(sizeof(ndp_option_prefix_info) == 32);
 
+class loopback_netif : public netif {
+public:
+    nt_status send_packet(const mac_address& dst_mac, ethertype type,
+                          packet& pack) override;
+};
+
 static spinlock ipv6_routes_lock;
 static list_entry ipv6_routes = { &ipv6_routes, &ipv6_routes };
 
@@ -1483,6 +1489,8 @@ static void network_thread() {
 }
 
 bool init_net() {
+    static const string_view LOOPBACK_NAME = "lo";
+
     auto pptr = new netctl;
     if (!pptr) {
         print("new failed\n");
@@ -1495,6 +1503,41 @@ bool init_net() {
     if (!success(status)) {
         print("name_object returned {}\n", status);
         return false;
+    }
+
+    auto lo = new loopback_netif;
+    if (!lo) {
+        print("new failed\n");
+        return false;
+    }
+
+    auto lo_addr = new ip_addr;
+    if (!lo_addr) {
+        print("new failed\n");
+        delete lo;
+        return false;
+    }
+
+    lo->num = next_netif_num.fetch_add(1);
+
+    memcpy(lo->name, LOOPBACK_NAME.data(), LOOPBACK_NAME.size());
+    memset(lo->name + LOOPBACK_NAME.size(), 0,
+           sizeof(lo->name) - LOOPBACK_NAME.size());
+
+    memset(lo->ll_addr.v.data(), 0, lo->ll_addr.v.size());
+    lo->rs_needed = false;
+    lo->mtu = MTU;
+
+    lo_addr->addr = parse_ipv6_address("::1");
+
+    {
+        lock_guard lg(lo->addr_lock);
+        insert_tail_list(lo->addrs, lo_addr->le);
+    }
+
+    {
+        lock_guard lg(netif_lock);
+        insert_tail_list(netif_list, lo->le);
     }
 
     add_kernel_thread(network_thread);
@@ -2629,4 +2672,11 @@ netif::~netif() {
 
         delete r;
     }
+}
+
+nt_status loopback_netif::send_packet(const mac_address& dst_mac, ethertype type,
+                                      packet& pack) {
+    print("FIXME - loopback_netif::send_packet\n");
+
+    return nt_status::INTERNAL_ERROR;
 }
