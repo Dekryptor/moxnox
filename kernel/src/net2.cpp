@@ -689,13 +689,13 @@ static void handle_router_advertisement(netif& ni, packet& pack) {
     auto& ip = *(ipv6_header*)pack.data;
     auto& ra = *(icmpv6_router_advertisement*)(pack.data + sizeof(ipv6_header));
 
-    print("FIXME - handle_router_advertisement\n"); // FIXME
-
+#if 0
     print("RA: src = {}, cur_hop_limit = {}, snac_router = {}, nd_proxy = {}, prf = {}, home_agent = {}, other_configuration = {}, managed_address_configuration = {}, router_lifetime = {}, reachable_time = {}, retrans_timer = {}\n",
           ip.src, ra.cur_hop_limit, +ra.snac_router, +ra.nd_proxy, +ra.prf,
           +ra.home_agent, +ra.other_configuration,
           +ra.managed_address_configuration, byteswap(ra.router_lifetime),
           byteswap(ra.reachable_time), byteswap(ra.retrans_timer));
+#endif
 
     // FIXME - reachable_time (neighbour cache state machine)
     // FIXME - retrans_timer (how long to wait between neighbour solicitations)
@@ -709,7 +709,7 @@ static void handle_router_advertisement(netif& ni, packet& pack) {
         auto& opt = *(ndp_option*)opts.data();
 
         if (opts.size() < opt.length * 8) {
-            print("router advertisement option truncated\n");
+            print("handle_router_advertisement: router advertisement option truncated\n");
             break;
         }
 
@@ -717,7 +717,9 @@ static void handle_router_advertisement(netif& ni, packet& pack) {
             case ndp_option_type::source_lladdr: {
                 auto& src = *(ndp_option_lladdr*)&opt;
 
+#if 0
                 print("source link-local address: {}\n", src.mac);
+#endif
 
                 src_lladdr = src.mac;
 
@@ -726,18 +728,20 @@ static void handle_router_advertisement(netif& ni, packet& pack) {
 
             case ndp_option_type::prefix_info: {
                 if (opts.size() * 8 < sizeof(ndp_option_prefix_info)) {
-                    print("prefix info was {} bytes, expected {}\n",
+                    print("handle_router_advertisement: prefix info was {} bytes, expected {}\n",
                           opts.size() * 8, sizeof(ndp_option_prefix_info));
                     break;
                 }
 
                 auto& pref = *(ndp_option_prefix_info*)&opt;
 
+#if 0
                 print("prefix: onlink = {}, autonomous = {}, router_address = {}, dhcpv6_pd_preferred = {}, valid_lifetime = {}, preferred_lifetime = {}, prefix = {}/{}\n",
                       +pref.onlink, +pref.autonomous, +pref.router_address,
                       +pref.dhcpv6_pd_preferred, byteswap(pref.valid_lifetime),
                       byteswap(pref.preferred_lifetime), pref.prefix,
                       pref.prefix_length);
+#endif
 
                 add_ipv6_prefix(ni, zero_right_bits(pref.prefix, 128 - pref.prefix_length),
                                 pref.prefix_length, byteswap(pref.valid_lifetime),
