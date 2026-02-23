@@ -10,6 +10,10 @@ set(CMAKE_CXX_VISIBILITY_PRESET "hidden")
 set(CMAKE_C_STANDARD_LIBRARIES "")
 set(CMAKE_CXX_STANDARD_LIBRARIES "")
 
+if(CMAKE_SYSTEM_PROCESSOR STREQUAL "aarch64")
+    option(USE_COMPILER_RT OFF)
+endif()
+
 add_compile_definitions(_GLIBCXX_NO_ASSERTIONS)
 
 enable_language(ASM)
