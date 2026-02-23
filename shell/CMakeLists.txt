@@ -352,7 +352,8 @@ install(TARGETS ifconfig DESTINATION ${CMAKE_INSTALL_PREFIX}/bin)
 add_executable(ping src/ping.cpp)
 
 target_compile_options(ping PRIVATE -fno-exceptions ${USERSPACE_CFLAGS})
-target_link_libraries(ping moxnox print unique_handle ipv6 errno)
+target_link_libraries(ping print unique_handle ipv6 errno)
+target_link_libraries(ping moxnox)
 
 if (CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
     target_link_options(ping PUBLIC -mcrtdll=ucrtbase)
