@@ -837,7 +837,7 @@ static void handle_router_advertisement(netif& ni, packet& pack) {
         }
     }
 
-    // FIXME - router solicitation no longer needed
+    ni.rs_needed = false;
 }
 
 static void handle_icmpv6_packet(netif& ni, packet& pack,
