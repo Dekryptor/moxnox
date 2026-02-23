@@ -1570,6 +1570,8 @@ static nt_status netctl_get_netif_info(span<const uint8_t> inbuf,
     memcpy(out.name, ni->name, sizeof(ni->name));
     *(ipv6_address*)out.ll_addr = ni->ll_addr;
 
+    ni->release();
+
     written = sizeof(MOXNOX_NETCTL_GET_NETIF_INFO);
     return nt_status::SUCCESS;
 }
