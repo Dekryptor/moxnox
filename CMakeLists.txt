@@ -365,7 +365,7 @@ target_include_directories(freetype_kernel PRIVATE freetype/include)
 add_custom_command(
     TARGET freetype_kernel
     POST_BUILD
-    COMMAND objcopy --remove-section .drectve "${CMAKE_CURRENT_BINARY_DIR}/libfreetype_kernel.a"
+    COMMAND ${CMAKE_OBJCOPY} --remove-section .drectve "${CMAKE_CURRENT_BINARY_DIR}/libfreetype_kernel.a"
 )
 
 add_library(freetype SHARED ${FREETYPE_FILES} ${CMAKE_SOURCE_DIR}/ftshim.cpp)
