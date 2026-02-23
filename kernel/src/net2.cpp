@@ -117,6 +117,82 @@ struct ipv6_router {
     bool tick_visited = false;
 };
 
+struct icmpv6_neighbour_solicitation : icmpv6_header {
+    uint32_t reserved;
+    ipv6_address target;
+} __attribute((packed));
+
+static_assert(sizeof(icmpv6_neighbour_solicitation) == 24);
+
+struct icmpv6_neighbour_advertisement : icmpv6_header {
+    uint32_t : 5;
+    uint32_t _override : 1;
+    uint32_t solicited : 1;
+    uint32_t router : 1;
+    uint32_t : 24;
+    ipv6_address target;
+} __attribute((packed));
+
+static_assert(sizeof(icmpv6_neighbour_advertisement) == 24);
+
+struct icmpv6_router_solicitation : icmpv6_header {
+    uint32_t reserved;
+} __attribute((packed));
+
+static_assert(sizeof(icmpv6_router_solicitation) == 8);
+
+struct icmpv6_router_advertisement : icmpv6_header {
+    uint8_t cur_hop_limit;
+    uint8_t : 1;
+    uint8_t snac_router : 1;
+    uint8_t nd_proxy : 1;
+    uint8_t prf : 2;
+    uint8_t home_agent : 1;
+    uint8_t other_configuration : 1;
+    uint8_t managed_address_configuration : 1;
+    uint16_t router_lifetime;
+    uint32_t reachable_time;
+    uint32_t retrans_timer;
+} __attribute((packed));
+
+static_assert(sizeof(icmpv6_router_advertisement) == 16);
+
+enum class ndp_option_type : uint8_t {
+    source_lladdr = 1,
+    target_lladdr = 2,
+    prefix_info = 3,
+    redirected_header = 4,
+    mtu = 5,
+};
+
+struct ndp_option {
+    ndp_option_type type;
+    uint8_t length;
+} __attribute((packed));
+
+static_assert(sizeof(ndp_option) == 2);
+
+struct ndp_option_lladdr : ndp_option {
+    mac_address mac;
+} __attribute((packed));
+
+static_assert(sizeof(ndp_option_lladdr) == 8);
+
+struct ndp_option_prefix_info : ndp_option  {
+    uint8_t prefix_length;
+    uint8_t : 4;
+    uint8_t dhcpv6_pd_preferred : 1;
+    uint8_t router_address : 1;
+    uint8_t autonomous : 1;
+    uint8_t onlink : 1;
+    uint32_t valid_lifetime;
+    uint32_t preferred_lifetime;
+    uint32_t reserved;
+    ipv6_address prefix;
+} __attribute__((packed));
+
+static_assert(sizeof(ndp_option_prefix_info) == 32);
+
 static spinlock ipv6_routes_lock;
 static list_entry ipv6_routes = { &ipv6_routes, &ipv6_routes };
 

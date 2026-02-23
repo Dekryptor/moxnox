@@ -57,34 +57,6 @@ export enum class ip_proto : uint8_t {
     icmpv6 = 58
 };
 
-export struct ndp_option {
-    ndp_option_type type;
-    uint8_t length;
-} __attribute((packed));
-
-static_assert(sizeof(ndp_option) == 2);
-
-export struct ndp_option_lladdr : ndp_option {
-    mac_address mac;
-} __attribute((packed));
-
-static_assert(sizeof(ndp_option_lladdr) == 8);
-
-struct ndp_option_prefix_info : ndp_option  {
-    uint8_t prefix_length;
-    uint8_t : 4;
-    uint8_t dhcpv6_pd_preferred : 1;
-    uint8_t router_address : 1;
-    uint8_t autonomous : 1;
-    uint8_t onlink : 1;
-    uint32_t valid_lifetime;
-    uint32_t preferred_lifetime;
-    uint32_t reserved;
-    ipv6_address prefix;
-} __attribute__((packed));
-
-static_assert(sizeof(ndp_option_prefix_info) == 32);
-
 export struct ip_addr {
     list_entry le;
     ipv6_address addr;

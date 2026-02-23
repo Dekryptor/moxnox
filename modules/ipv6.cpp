@@ -63,60 +63,12 @@ export struct icmpv6_header {
 
 static_assert(sizeof(icmpv6_header) == 4);
 
-export struct icmpv6_neighbour_solicitation : icmpv6_header {
-    uint32_t reserved;
-    ipv6_address target;
-} __attribute((packed));
-
-static_assert(sizeof(icmpv6_neighbour_solicitation) == 24);
-
-export struct icmpv6_neighbour_advertisement : icmpv6_header {
-    uint32_t : 5;
-    uint32_t _override : 1;
-    uint32_t solicited : 1;
-    uint32_t router : 1;
-    uint32_t : 24;
-    ipv6_address target;
-} __attribute((packed));
-
-static_assert(sizeof(icmpv6_neighbour_advertisement) == 24);
-
-export struct icmpv6_router_solicitation : icmpv6_header {
-    uint32_t reserved;
-} __attribute((packed));
-
-static_assert(sizeof(icmpv6_router_solicitation) == 8);
-
-export struct icmpv6_router_advertisement : icmpv6_header {
-    uint8_t cur_hop_limit;
-    uint8_t : 1;
-    uint8_t snac_router : 1;
-    uint8_t nd_proxy : 1;
-    uint8_t prf : 2;
-    uint8_t home_agent : 1;
-    uint8_t other_configuration : 1;
-    uint8_t managed_address_configuration : 1;
-    uint16_t router_lifetime;
-    uint32_t reachable_time;
-    uint32_t retrans_timer;
-} __attribute((packed));
-
-static_assert(sizeof(icmpv6_router_advertisement) == 16);
-
 export struct icmpv6_echo : icmpv6_header {
     uint16_t identifier;
     uint16_t sequence;
 } __attribute((packed));
 
 static_assert(sizeof(icmpv6_echo) == 8);
-
-export enum class ndp_option_type : uint8_t {
-    source_lladdr = 1,
-    target_lladdr = 2,
-    prefix_info = 3,
-    redirected_header = 4,
-    mtu = 5,
-};
 
 template<>
 consteval bool format_spec_valid<ipv6_address>(string_view fmt) {
