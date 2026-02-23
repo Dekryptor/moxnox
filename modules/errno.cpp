@@ -1,6 +1,7 @@
 module;
 
 #include <string_view>
+#undef errno
 
 export module errno;
 
