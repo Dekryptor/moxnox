@@ -2674,9 +2674,10 @@ netif::~netif() {
     }
 }
 
-nt_status loopback_netif::send_packet(const mac_address& dst_mac, ethertype type,
-                                      packet& pack) {
-    print("FIXME - loopback_netif::send_packet\n");
+nt_status loopback_netif::send_packet(const mac_address&, ethertype, packet&) {
+    // can happen by doing e.g. "ping ff02::1%lo"
 
-    return nt_status::INTERNAL_ERROR;
+    // silently drop
+
+    return nt_status::SUCCESS;
 }
