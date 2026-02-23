@@ -105,6 +105,7 @@ struct ipv6_prefix {
     uint8_t prefix_length;
     uint32_t preferred_lifetime;
     uint32_t valid_lifetime;
+    bool tick_visited = false;
     bool on_link;
 };
 
@@ -1230,9 +1231,7 @@ static void send_router_solicitations() {
     }
 }
 
-static void netif_router_lifetime_tick(netif& ni) {
-    // routers tick
-
+static void netif_routers_tick(netif& ni) {
     while (true) {
         ipv6_router* dead_router = nullptr;
         bool no_more_routers;
@@ -1276,8 +1275,86 @@ static void netif_router_lifetime_tick(netif& ni) {
             r.tick_visited = false;
         }
     }
+}
 
-    // FIXME - prefix tick
+static void netif_prefixes_tick(netif& ni) {
+    netif_routers_tick(ni);
+
+    // FIXME - also preferred_lifetime
+
+    while (true) {
+        ipv6_prefix* dead_prefix = nullptr;
+
+        {
+            lock_guard lock(ni.prefix_lock);
+
+            for (auto le = ni.prefixes.next; le != &ni.prefixes; le = le->next) {
+                auto& p = containing_record<ipv6_prefix>(le);
+
+                if (p.tick_visited)
+                    continue;
+
+                p.valid_lifetime--;
+                p.tick_visited = true;
+
+                if (p.valid_lifetime == 0) {
+                    remove_entry_list(p.le);
+                    dead_prefix = &p;
+                    break;
+                }
+            }
+        }
+
+        if (!dead_prefix)
+            break;
+
+        remove_ipv6_route(ni, dead_prefix->prefix, dead_prefix->prefix_length);
+
+        // FIXME - should we be sending neighbour advertisements to say these IPs are going away?
+
+        if (dead_prefix->prefix_length == 64) {
+            // delete SLAAC addresses
+
+            while (true) {
+                ip_addr* dead_addr = nullptr;
+
+                {
+                    lock_guard lock(ni.addr_lock);
+
+                    for (auto le = ni.addrs.next; le != &ni.addrs; le = le->next) {
+                        auto& a = containing_record<ip_addr>(le);
+
+                        if (!a.slaac)
+                            continue;
+
+                        if (!memcmp(a.addr.v.data(), dead_prefix->prefix.v.data(), 8)) {
+                            remove_entry_list(a.le);
+                            dead_addr = &a;
+                            break;
+                        }
+                    }
+                }
+
+                if (!dead_addr)
+                    break;
+
+                print("{}: removing IPv6 address {}\n", ni, dead_addr->addr);
+                delete dead_addr;
+            }
+        }
+
+        delete dead_prefix;
+    }
+
+    {
+        lock_guard lock(ni.prefix_lock);
+
+        for (auto le = ni.prefixes.next; le != &ni.prefixes; le = le->next) {
+            auto& p = containing_record<ipv6_prefix>(le);
+
+            p.tick_visited = false;
+        }
+    }
 }
 
 static void router_lifetime_tick() {
@@ -1286,7 +1363,8 @@ static void router_lifetime_tick() {
     for (auto le = netif_list.next; le != &netif_list; le = le->next) {
         auto& ni = containing_record<netif>(le);
 
-        netif_router_lifetime_tick(ni);
+        netif_routers_tick(ni);
+        netif_prefixes_tick(ni);
     }
 }
 
