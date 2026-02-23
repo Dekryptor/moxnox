@@ -1568,7 +1568,7 @@ static nt_status netctl_get_netif_info(span<const uint8_t> inbuf,
         return nt_status::NOT_FOUND;
 
     memcpy(out.name, ni->name, sizeof(ni->name));
-    *(ipv6_address*)out.ll_addr = ni->ll_addr;
+    out.ll_addr = ni->ll_addr;
 
     ni->release();
 

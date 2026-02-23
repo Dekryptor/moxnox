@@ -74,7 +74,7 @@ static void get_netif_info(unique_handle& netctl, uint32_t id) {
         name = string_view(name.data(), name.size());
 
     print("name = \"{}\"\n", name);
-    print("ll_addr = {}\n", *(ipv6_address*)&info.ll_addr);
+    print("ll_addr = {}\n", info.ll_addr);
 }
 
 int main() {

@@ -5,6 +5,7 @@ module;
 export module moxnox_ioctls;
 
 import nt;
+import ipv6;
 
 enum class IOCTL_METHOD : uint8_t {
     BUFFERED = 0,
@@ -123,7 +124,7 @@ export struct MOXNOX_NETCTL_GET_NETIF_IDS {
 
 export struct MOXNOX_NETCTL_GET_NETIF_INFO {
     char name[16];
-    uint8_t ll_addr[16];
+    ipv6_address ll_addr;
 };
 
 export struct MOXNOX_NETCTL_GET_NETIF_BY_NAME {
