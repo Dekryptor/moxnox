@@ -77,6 +77,47 @@ static void get_netif_info(unique_handle& netctl, uint32_t id) {
     print("ll_addr = {}\n", info.ll_addr);
 }
 
+static void get_netif_ips(unique_handle& netctl, uint32_t id) {
+    nt_status status;
+    IO_STATUS_BLOCK iosb;
+    uint32_t count;
+
+    status = NtDeviceIoControlFile(netctl.get(), 0, nullptr, nullptr, &iosb,
+                                   IOCTL_MOXNOX_NETCTL_GET_NETIF_IP_COUNT, &id,
+                                   sizeof(uint32_t), &count,
+                                   (uint32_t)sizeof(count));
+    if (!success(status)) {
+        print_stderr("NtDeviceIoControlFile returned {}\n", status);
+        return;
+    }
+
+    if (count == 0)
+        return;
+
+    size_t size = offsetof(MOXNOX_NETCTL_GET_NETIF_IPS, ip) + (count * sizeof(ipv6_address));
+    auto ips = (MOXNOX_NETCTL_GET_NETIF_IPS*)malloc(size);
+    if (!ips) {
+        print("malloc failed\n");
+        return;
+    }
+
+    status = NtDeviceIoControlFile(netctl.get(), 0, nullptr, nullptr, &iosb,
+                                   IOCTL_MOXNOX_NETCTL_GET_NETIF_IPS, &id,
+                                   sizeof(uint32_t), ips,
+                                   (uint32_t)size);
+    if (!success(status)) {
+        free(ips);
+        print_stderr("NtDeviceIoControlFile returned {}\n", status);
+        return;
+    }
+
+    for (uint32_t i = 0; i < ips->count; i++) {
+        print("IPv6 address: {}\n", ips->ip[i]);
+    }
+
+    free(ips);
+}
+
 int main() {
     auto netctl = open_netctl();
 
@@ -119,6 +160,7 @@ int main() {
     for (unsigned int i = 0; i < ids->count; i++) {
         print("ID: {}\n", ids->id[i]);
         get_netif_info(netctl, ids->id[i]);
+        get_netif_ips(netctl, ids->id[i]);
     }
 
     free(ids);
