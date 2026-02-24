@@ -986,7 +986,7 @@ static bool addr_in_range(uint64_t addr, span<const uint8_t> rnglist,
 
 static uint32_t find_die_parent(span<const uint8_t> cu, span<const uint8_t*> abbrev_list,
                                 uint32_t offset, malloc_func _malloc, free_func _free) {
-    unsigned int max_depth = 0, cur_depth;
+    unsigned int max_depth = 0, cur_depth = 0;
 
     loop_through_dies(cu, abbrev_list, [&](enum DW_TAG, bool, span<const uint8_t>,
                                            span<const uint8_t>, unsigned int depth,
