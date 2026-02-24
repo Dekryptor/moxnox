@@ -1279,6 +1279,7 @@ static optional<uint64_t> read_address(span<const uint8_t> data, enum DW_FORM fo
             break;
 
         default:
+            unreachable();
             break;
     }
 
