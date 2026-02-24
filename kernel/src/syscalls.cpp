@@ -881,7 +881,7 @@ NTSTATUS user_NtQueryInformationProcess(HANDLE process_handle, enum PROCESSINFOC
                                         void* process_information, uint32_t process_information_length,
                                         uint32_t* return_length) {
     NTSTATUS status;
-    void* buf;
+    void* buf = nullptr;
     uint32_t retlen;
 
     if (!process_information)
