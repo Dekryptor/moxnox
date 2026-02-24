@@ -5,6 +5,7 @@ module;
 #include <functional>
 #include <string_view>
 #include <variant>
+#include <utility>
 #include <stdint.h>
 
 module visit;
@@ -72,6 +73,9 @@ static void visit_obj(object& obj, const T& func) {
         case object_type::socket:
             func(static_cast<socket&>(obj));
         break;
+
+        default:
+            unreachable();
     }
 }
 
