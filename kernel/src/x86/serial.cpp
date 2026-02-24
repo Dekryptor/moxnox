@@ -162,7 +162,7 @@ static optional<unsigned int> parse_uid(string_view uid) {
             return nullopt;
     }
 
-    unsigned int val;
+    unsigned int val = 0;
 
     from_chars(uid.data(), uid.data() + uid.size(), val);
 
