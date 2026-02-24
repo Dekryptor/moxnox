@@ -253,7 +253,10 @@ static bool valid_ndp_packet(const packet& pack) {
     if (ip.hop_limit != 255)
         return false;
 
-    // FIXME - check checksum
+    const auto& icmp = *(icmpv6_header*)(pack.data + sizeof(ipv6_header));
+
+    if (calc_icmpv6_checksum(ip, span((uint8_t*)&icmp, pack.size - sizeof(ipv6_header))) != 0)
+        return false;
 
     return true;
 }
