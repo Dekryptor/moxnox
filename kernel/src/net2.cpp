@@ -247,6 +247,17 @@ static void send_neighbour_advertisement(netif& ni, const ipv6_address& target,
     pack->release();
 }
 
+static bool valid_ndp_packet(const packet& pack) {
+    const auto& ip = *(ipv6_header*)pack.data;
+
+    if (ip.hop_limit != 255)
+        return false;
+
+    // FIXME - check checksum
+
+    return true;
+}
+
 static void handle_neighbour_solicitation(netif& ni, packet& pack,
                                           const mac_address& src_mac) {
     if (pack.size < sizeof(ipv6_header) + sizeof(icmpv6_neighbour_solicitation)) {
@@ -254,6 +265,9 @@ static void handle_neighbour_solicitation(netif& ni, packet& pack,
               pack.size, sizeof(ipv6_header) + sizeof(icmpv6_neighbour_solicitation));
         return;
     }
+
+    if (!valid_ndp_packet(pack))
+        return;
 
     auto& ip = *(ipv6_header*)pack.data;
     auto& ns = *(icmpv6_neighbour_solicitation*)(pack.data + sizeof(ipv6_header));
@@ -374,6 +388,9 @@ static void handle_neighbour_advertisement(netif& ni, packet& pack) {
               pack.size, sizeof(ipv6_header) + sizeof(icmpv6_neighbour_advertisement));
         return;
     }
+
+    if (!valid_ndp_packet(pack))
+        return;
 
     auto& na = *(icmpv6_neighbour_advertisement*)(pack.data + sizeof(ipv6_header));
 
@@ -769,6 +786,9 @@ static void handle_router_advertisement(netif& ni, packet& pack) {
               pack.size, sizeof(ipv6_header) + sizeof(icmpv6_router_advertisement));
         return;
     }
+
+    if (!valid_ndp_packet(pack))
+        return;
 
     auto& ip = *(ipv6_header*)pack.data;
     auto& ra = *(icmpv6_router_advertisement*)(pack.data + sizeof(ipv6_header));
