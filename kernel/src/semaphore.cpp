@@ -26,10 +26,6 @@ export class semaphore : public sync_object {
 public:
     semaphore() : sync_object(object_type::semaphore, false) { }
 
-    void acquire() {
-        refcount++;
-    }
-
     void release() {
         if (--refcount == 0)
             delete this;

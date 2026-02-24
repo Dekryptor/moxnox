@@ -44,10 +44,6 @@ public:
     timer() : sync_object(object_type::timer, false) { }
     ~timer();
 
-    void acquire() {
-        refcount++;
-    }
-
     void release() {
         if (--refcount == 0)
             delete this;

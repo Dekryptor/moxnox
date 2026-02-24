@@ -101,10 +101,6 @@ public:
         fs.release();
     }
 
-    void acquire() {
-        refcount++;
-    }
-
     virtual void release() = 0;
 
     nt_status read(span<uint8_t> s, uint64_t offset, uint64_t& read_bytes);

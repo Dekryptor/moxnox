@@ -35,10 +35,6 @@ public:
         return nt_status::SUCCESS;
     }
 
-    void acquire() {
-        refcount++;
-    }
-
     void release() {
         if (--refcount == 0)
             delete this;

@@ -35,10 +35,6 @@ public:
     process();
     ~process();
 
-    void acquire() {
-        refcount++;
-    }
-
     void release() {
         if (--refcount == 0)
             delete this;

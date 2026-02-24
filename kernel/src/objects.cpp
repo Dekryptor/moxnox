@@ -79,6 +79,10 @@ class object {
 public:
     object(enum object_type type) : type(type) { }
 
+    void acquire() {
+        refcount++;
+    }
+
     enum object_type type;
     atomic<unsigned int> refcount = 1;
     atomic<unsigned int> handle_count = 0;

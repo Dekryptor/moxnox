@@ -52,10 +52,6 @@ public:
     thread() : sync_object(object_type::thread, false) { }
     ~thread();
 
-    void acquire() {
-        refcount++;
-    }
-
     void release() {
         if (--refcount == 0)
             delete this;

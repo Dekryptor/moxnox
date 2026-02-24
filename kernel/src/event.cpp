@@ -26,10 +26,6 @@ export class event : public sync_object {
 public:
     event() : sync_object(object_type::event, false) { }
 
-    void acquire() {
-        refcount++;
-    }
-
     void release() {
         if (--refcount == 0)
             delete this;

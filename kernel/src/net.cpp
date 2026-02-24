@@ -121,10 +121,6 @@ public:
     socket() : sync_object(object_type::socket, false) { }
     virtual ~socket() { }
 
-    void acquire() {
-        refcount++;
-    }
-
     void release() {
         if (--refcount == 0)
             delete this;

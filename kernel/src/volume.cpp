@@ -45,10 +45,6 @@ public:
             free(volume_name);
     }
 
-    void acquire() {
-        refcount++;
-    }
-
     virtual void release() = 0;
     virtual nt_status flush() = 0;
     virtual nt_status dio_read(uint64_t page_num, uint64_t num_pages,
