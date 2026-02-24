@@ -966,7 +966,7 @@ NTSTATUS user_NtQueryInformationThread(HANDLE thread_handle, enum THREAD_INFORMA
                                        void* thread_information, uint32_t thread_information_length,
                                        uint32_t* return_length) {
     NTSTATUS status;
-    void* buf;
+    void* buf = nullptr;
     uint32_t retlen;
 
     if (!thread_information)
