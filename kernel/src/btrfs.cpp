@@ -482,7 +482,12 @@ btrfs_filesystem::btrfs_filesystem(volume& vol) : filesystem(&vol) {
         return;
     }
 
-    // FIXME - make sure sb->n < sizeof(sb->sys_chunk_array)
+    if (sb->sys_chunk_array_size > sb->sys_chunk_array.size()) {
+        print("sys_chunk_array_size was {}, expected {} or less\n",
+              +sb->sys_chunk_array_size, sb->sys_chunk_array.size());
+        return;
+    }
+
     auto chunk_array = span(sb->sys_chunk_array.data(), sb->sys_chunk_array_size);
 
     while (!chunk_array.empty()) {
