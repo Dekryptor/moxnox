@@ -117,6 +117,8 @@ static void keywait() {
             return;
 
         p = static_cast<chardev*>(&console_chardev.get());
+
+        [[assume(p)]]; // fix warning
         p->acquire();
     } else {
         object_ref keybh;
