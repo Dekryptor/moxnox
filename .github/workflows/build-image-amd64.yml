@@ -1,0 +1,20 @@
+name: Build Docker Image
+on:
+  push:
+    paths:
+      - 'docker/Dockerfile-amd64.build'
+  workflow_dispatch:
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build and push
+        run: |
+          docker build \
+            -f docker/Dockerfile-amd64.build \
+            -t registry.burntcomma.com/ubuntu-moxnox:latest \
+            -t registry.burntcomma.com/ubuntu-moxnox:${{ github.sha }} \
+            docker/
+          docker push registry.burntcomma.com/ubuntu-moxnox:latest
+          docker push registry.burntcomma.com/ubuntu-moxnox:${{ github.sha }}

@@ -1,5 +1,8 @@
 name: build
-on: [push]
+on:
+  push:
+    paths-ignore:
+      - 'docker/**'
 jobs:
   x86_64 Clang:
     runs-on: ubuntu-moxnox
