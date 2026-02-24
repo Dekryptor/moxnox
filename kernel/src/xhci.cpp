@@ -1136,7 +1136,7 @@ TRB_CODE try_address_device(xhci_input_context<LARGE>& context, uint8_t slot,
     {
         xhci_request req;
 
-        auto& s = *reinterpret_cast<xhci_trb_address_device*>(&req.trb);
+        auto& s = *bit_cast<xhci_trb_address_device*>(&req.trb);
 
         memset(&s, 0, sizeof(s));
 
@@ -1162,7 +1162,7 @@ TRB_CODE try_address_device(xhci_input_context<LARGE>& context, uint8_t slot,
 
         xhci_request req;
 
-        auto& s = *reinterpret_cast<xhci_trb_address_device*>(&req.trb);
+        auto& s = *bit_cast<xhci_trb_address_device*>(&req.trb);
 
         memset(&s, 0, sizeof(s));
 
@@ -1423,7 +1423,7 @@ bool usb_device::change_ep0_max_packet_size(uint16_t max_packet_size) {
     xhci_request req;
 
     // evaluate context command uses same TRB format as address device
-    auto& s = *reinterpret_cast<xhci_trb_address_device*>(&req.trb);
+    auto& s = *bit_cast<xhci_trb_address_device*>(&req.trb);
 
     memset(&s, 0, sizeof(s));
 
@@ -1516,7 +1516,7 @@ xhci_queue* usb_device::configure_endpoint(const usb_endpoint_descriptor& ep_des
     device_endpoint* dep = nullptr;
     xhci_request req;
 
-    auto& s = *reinterpret_cast<xhci_trb_configure_endpoint*>(&req.trb);
+    auto& s = *bit_cast<xhci_trb_configure_endpoint*>(&req.trb);
 
     memset(&s, 0, sizeof(s));
 
@@ -1674,7 +1674,7 @@ bool xhci_queue::control_transfer(span<uint8_t> buf, uint8_t bmRequestType,
         req_data.event = create_event(false);
 
     {
-        auto& s = *reinterpret_cast<xhci_trb_setup_stage*>(&req_setup.trb);
+        auto& s = *bit_cast<xhci_trb_setup_stage*>(&req_setup.trb);
 
         memset(&s, 0, sizeof(s));
 
@@ -1696,7 +1696,7 @@ bool xhci_queue::control_transfer(span<uint8_t> buf, uint8_t bmRequestType,
     }
 
     if (!buf.empty()) {
-        auto& s = *reinterpret_cast<xhci_trb_data_stage*>(&req_data.trb);
+        auto& s = *bit_cast<xhci_trb_data_stage*>(&req_data.trb);
 
         memset(&s, 0, sizeof(s));
 
@@ -1707,7 +1707,7 @@ bool xhci_queue::control_transfer(span<uint8_t> buf, uint8_t bmRequestType,
     }
 
     {
-        auto& s = *reinterpret_cast<xhci_trb_status_stage*>(&req_status.trb);
+        auto& s = *bit_cast<xhci_trb_status_stage*>(&req_status.trb);
 
         memset(&s, 0, sizeof(s));
 
@@ -1829,7 +1829,7 @@ size_t xhci_queue::normal_transfer(span<uint8_t> buf) {
         return 0;
 
     {
-        auto& s = *reinterpret_cast<xhci_trb_normal*>(&req.trb);
+        auto& s = *bit_cast<xhci_trb_normal*>(&req.trb);
 
         memset(&s, 0, sizeof(s));
 
@@ -1872,7 +1872,7 @@ size_t xhci_queue::normal_transfer_dio(pfn_iterator& it, uint64_t num_pages) {
     }
 
     for (uint64_t i = 0; i < num_pages; i++) {
-        auto& s = *reinterpret_cast<xhci_trb_normal*>(&reqs[i].trb);
+        auto& s = *bit_cast<xhci_trb_normal*>(&reqs[i].trb);
 
         if (i != 0)
             it++;
@@ -1918,7 +1918,7 @@ size_t xhci_queue::normal_transfer_dio(pfn_iterator& it, uint64_t num_pages) {
 
     if (dir) {
         for (uint64_t i = 0; i < num_pages; i++) {
-            auto& s = *reinterpret_cast<xhci_trb_normal*>(&reqs[i].trb);
+            auto& s = *bit_cast<xhci_trb_normal*>(&reqs[i].trb);
 
             flush_cache(span((uint8_t*)phys_address(s.data_buffer), PAGE_SIZE),
                         true);
@@ -2204,7 +2204,7 @@ uint8_t xhci::get_speed_num(uint8_t port_id, uint32_t psi_num) {
                     ptr2++;
 
                     if ((num & 0xfffffff0) == psi_num) {
-                        auto& psi = *(xhci_psi*)&num;
+                        auto& psi = *bit_cast<xhci_psi*>(&num);
 
                         return psi.psiv;
                     }
@@ -2297,7 +2297,7 @@ pair<uint32_t, uint16_t> xhci::get_speed(uint8_t port_id, uint8_t speed) {
                     ptr2++;
 
                     if (psi.psiv == speed) {
-                        found_speed = *(uint32_t*)&psi;
+                        found_speed = *bit_cast<uint32_t*>(&psi);
                         break;
                     }
                 }
@@ -3018,7 +3018,7 @@ void xhci_queue::submit(xhci_request& req, bool ring_bell) {
 uint8_t xhci::enable_slot(uint8_t slot_type) {
     xhci_request req;
 
-    auto& s = *reinterpret_cast<xhci_trb_enable_slot*>(&req.trb);
+    auto& s = *bit_cast<xhci_trb_enable_slot*>(&req.trb);
 
     memset(&s, 0, sizeof(s));
 
@@ -3044,7 +3044,7 @@ uint8_t xhci::enable_slot(uint8_t slot_type) {
 bool xhci::disable_slot(uint8_t slot_id) {
     xhci_request req;
 
-    auto& s = *reinterpret_cast<xhci_trb_disable_slot*>(&req.trb);
+    auto& s = *bit_cast<xhci_trb_disable_slot*>(&req.trb);
 
     memset(&s, 0, sizeof(s));
 
