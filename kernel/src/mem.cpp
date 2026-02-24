@@ -1345,7 +1345,7 @@ export bool init_memory(const loader_block& lb) {
 
     auto map_entries = span(lb_map, num_map_entries);
 
-    size_t first_real_entry;
+    size_t first_real_entry = 0;
     for (size_t i = 0; i < num_map_entries; i++) {
         bool found = false;
 
