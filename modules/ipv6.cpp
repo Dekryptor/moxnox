@@ -70,6 +70,23 @@ export struct icmpv6_echo : icmpv6_header {
 
 static_assert(sizeof(icmpv6_echo) == 8);
 
+export struct icmpv6_dest_unreachable : icmpv6_header {
+    uint32_t reserved;
+    ipv6_header header;
+} __attribute((packed));
+
+static_assert(sizeof(icmpv6_dest_unreachable) == 48);
+
+export enum icmpv6_dest_unreachable_code : uint8_t {
+    no_route = 0,
+    administratively_prohibited = 1,
+    beyond_scope = 2,
+    address_unreachable = 3,
+    no_port = 4,
+    policy_fail = 5,
+    reject_route = 6,
+};
+
 template<>
 consteval bool format_spec_valid<ipv6_address>(string_view fmt) {
     return fmt.empty();
