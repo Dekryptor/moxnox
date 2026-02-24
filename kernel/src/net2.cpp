@@ -2561,6 +2561,47 @@ static mac_address find_mac_address(netif& ni, const ipv6_address& dst) {
     }
 }
 
+static void send_address_unreachable(netif& ni, const packet& pack,
+                                     const ipv6_address& addr) {
+    static const size_t MIN_MTU = 1280;
+
+    auto pack2 = new packet;
+    if (!pack2) {
+        print("new failed\n");
+        return;
+    }
+
+    size_t payload_size = min(pack.size, MIN_MTU - sizeof(ipv6_header) - sizeof(icmpv6_error));
+
+    pack2->size = sizeof(ipv6_header) + offsetof(icmpv6_error, header) + payload_size;
+
+    auto& ip = *(ipv6_header*)pack2->data;
+    ip.traffic_class1 = 0;
+    ip.version = 6;
+    ip.traffic_class2 = 0;
+    ip.flow_label = 0;
+    ip.payload_length = byteswap((uint16_t)(offsetof(icmpv6_error, header) + payload_size));
+    ip.next_header = IPPROTO_ICMPV6;
+    ip.hop_limit = DEFAULT_HOP_LIMIT;
+    ip.src = addr;
+    ip.dst = addr;
+
+    auto& err = *(icmpv6_error*)(pack2->data + sizeof(ipv6_header));
+
+    err.type = icmpv6_type::dest_unreachable;
+    err.code = (uint8_t)icmpv6_dest_unreachable_code::address_unreachable;
+    err.checksum = 0;
+    err.reserved = 0;
+
+    memcpy(&err.header, pack.data, payload_size);
+
+    err.checksum = calc_icmpv6_checksum(ip, span((uint8_t*)&err, offsetof(icmpv6_error, header) + payload_size));
+
+    handle_ipv6_packet(ni, *pack2, ni.mac);
+
+    pack2->release();
+}
+
 nt_status ipv6_socket::sendto_raw(span<const char> us_buf, int flags,
                                   const sockaddr_in6& to, size_t& sent_bytes) {
     nt_status status;
@@ -2593,14 +2634,8 @@ nt_status ipv6_socket::sendto_raw(span<const char> us_buf, int flags,
 
     if (src == dst)
         mac = ni.mac;
-    else {
+    else
         mac = find_mac_address(ni, dst);
-
-        if (mac == NULL_MAC_ADDRESS) {
-            ni.release();
-            return nt_status::HOST_UNREACHABLE;
-        }
-    }
 
     auto pack = new packet;
     if (!pack) {
@@ -2639,6 +2674,13 @@ nt_status ipv6_socket::sendto_raw(span<const char> us_buf, int flags,
 
         icmp.checksum = 0;
         icmp.checksum = calc_icmpv6_checksum(ip, span((uint8_t*)&icmp, us_buf.size()));
+    }
+
+    if (mac == NULL_MAC_ADDRESS) {
+        send_address_unreachable(ni, *pack, src);
+        pack->release();
+        ni.release();
+        return nt_status::HOST_UNREACHABLE;
     }
 
     if (src == dst)
