@@ -70,12 +70,12 @@ export struct icmpv6_echo : icmpv6_header {
 
 static_assert(sizeof(icmpv6_echo) == 8);
 
-export struct icmpv6_dest_unreachable : icmpv6_header {
+export struct icmpv6_error : icmpv6_header {
     uint32_t reserved;
     ipv6_header header;
 } __attribute((packed));
 
-static_assert(sizeof(icmpv6_dest_unreachable) == 48);
+static_assert(sizeof(icmpv6_error) == 48);
 
 export enum icmpv6_dest_unreachable_code : uint8_t {
     no_route = 0,
@@ -85,6 +85,11 @@ export enum icmpv6_dest_unreachable_code : uint8_t {
     no_port = 4,
     policy_fail = 5,
     reject_route = 6,
+};
+
+export enum icmpv6_time_exceeded_code : uint8_t {
+    hop_limit = 0,
+    defragmentation_failure = 1,
 };
 
 template<>

@@ -62,71 +62,100 @@ static void handle_echo_reply(span<const char> data, int64_t sent_time,
 
 static void handle_dest_unreachable(span<const char> data, const sockaddr_in6& addr,
                                     uint16_t identifier) {
-    if (data.size() < sizeof(icmpv6_dest_unreachable))
+    if (data.size() < sizeof(icmpv6_error))
         return;
 
-    auto& resp = *(icmpv6_dest_unreachable*)data.data();
+    auto& resp = *(icmpv6_error*)data.data();
 
     if (resp.header.next_header != IPPROTO_ICMPV6)
         return;
 
-    if (data.size() < sizeof(icmpv6_dest_unreachable) + sizeof(icmpv6_header))
+    if (data.size() < sizeof(icmpv6_error) + sizeof(icmpv6_header))
         return;
 
-    auto& payload = *(icmpv6_header*)(data.data() + sizeof(icmpv6_dest_unreachable));
+    auto& payload = *(icmpv6_header*)(data.data() + sizeof(icmpv6_error));
 
     if (payload.type != icmpv6_type::echo_request) // not a ping
         return;
 
-    if (data.size() < sizeof(icmpv6_dest_unreachable) + sizeof(icmpv6_echo))
+    if (data.size() < sizeof(icmpv6_error) + sizeof(icmpv6_echo))
         return;
 
-    auto& echo = *(icmpv6_echo*)(data.data() + sizeof(icmpv6_dest_unreachable));
+    auto& echo = *(icmpv6_echo*)(data.data() + sizeof(icmpv6_error));
 
     if (echo.identifier != identifier) // not our ping
         return;
 
-    string_view reason;
+    string_view message, reason;
 
-    switch ((icmpv6_dest_unreachable_code)resp.code) {
-        using enum icmpv6_dest_unreachable_code;
+    switch (resp.type) {
+        case icmpv6_type::dest_unreachable:
+            message = "Destination unreachable";
 
-        case no_route:
-            reason = "No route";
-            break;
+            switch ((icmpv6_dest_unreachable_code)resp.code) {
+                using enum icmpv6_dest_unreachable_code;
 
-        case administratively_prohibited:
-            reason = "Administratively prohibited";
-            break;
+                case no_route:
+                    reason = "No route";
+                    break;
 
-        case beyond_scope:
-            reason = "Beyond scope of source address";
-            break;
+                case administratively_prohibited:
+                    reason = "Administratively prohibited";
+                    break;
 
-        case address_unreachable:
-            reason = "Address unreachable";
-            break;
+                case beyond_scope:
+                    reason = "Beyond scope of source address";
+                    break;
 
-        case no_port:
-            reason = "Port unreachable";
-            break;
+                case address_unreachable:
+                    reason = "Address unreachable";
+                    break;
 
-        case policy_fail:
-            reason = "Source address failed ingress/egress policy";
-            break;
+                case no_port:
+                    reason = "Port unreachable";
+                    break;
 
-        case reject_route:
-            reason = "Reject route to destination";
-            break;
+                case policy_fail:
+                    reason = "Source address failed ingress/egress policy";
+                    break;
+
+                case reject_route:
+                    reason = "Reject route to destination";
+                    break;
+
+                default:
+                    reason = "?";
+                    break;
+            }
+        break;
+
+        case icmpv6_type::time_exceeded:
+            message = "Time exceeded";
+
+            switch ((icmpv6_time_exceeded_code)resp.code) {
+                using enum icmpv6_time_exceeded_code;
+
+                case hop_limit:
+                    reason = "Hop limit";
+                    break;
+
+                case defragmentation_failure:
+                    reason = "Defragmentation failure";
+                    break;
+
+                default:
+                    reason = "?";
+                    break;
+            }
+        break;
 
         default:
-            reason = "?";
             break;
     }
 
-    print_stderr("From {} icmp_seq={} Destination unreachable: {}\n",
+    print_stderr("From {} icmp_seq={} {}: {}\n",
                  *(ipv6_address*)&addr.sin6_addr, byteswap(echo.sequence),
-                 reason);
+                 message, reason);
 }
 
 static void do_ping(int sock, const ipv6_address& ip, uint32_t scope) {
@@ -215,6 +244,7 @@ static void do_ping(int sock, const ipv6_address& ip, uint32_t scope) {
 
             switch (h.type) {
                 case icmpv6_type::dest_unreachable:
+                case icmpv6_type::time_exceeded:
                     handle_dest_unreachable(span(buf, len), addr,
                                             echo.identifier);
                 break;
