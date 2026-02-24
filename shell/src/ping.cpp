@@ -227,10 +227,8 @@ static void do_ping(int sock, const ipv6_address& ip, uint32_t scope) {
 
         auto ret = sendto(sock, (char*)&echo, sizeof(echo), 0, (sockaddr*)&dst,
                         sizeof(dst));
-        if (ret < 0) {
+        if (ret < 0)
             print_stderr("sendto failed (errno {})\n", errno_to_string_view(*_errno()));
-            return; // FIXME - don't quit?
-        }
 
         status = NtQuerySystemTime(&sent_time);
         if (!success(status)) {
