@@ -691,9 +691,7 @@ bool map_page(uint64_t pa, uint64_t va, enum mapping_type type) {
 
     auto pml4_entry_ptr = (volatile uint64_t*)phys_address((__readcr3() & 0xfffffffffffff000) | (((va & 0xff8000000000) >> 39) << 3));
 
-    HARDWARE_PTE pml4_entry;
-
-    *(uint64_t*)&pml4_entry = *pml4_entry_ptr;
+    auto pml4_entry = bit_cast<HARDWARE_PTE>(*pml4_entry_ptr);
 
     if (!pml4_entry.p) {
         uint64_t page = allocate_page(); // FIXME - should there be an allocate_zeroed_page?
@@ -707,15 +705,13 @@ bool map_page(uint64_t pa, uint64_t va, enum mapping_type type) {
 
         memset(phys_address(page), 0, PAGE_SIZE);
 
-        *pml4_entry_ptr = *(uint64_t*)&pml4_entry;
+        *pml4_entry_ptr = bit_cast<uint64_t>(pml4_entry);
     }
 
     uint64_t pfn = pml4_entry.pfn;
     auto pdpt_entry_ptr = (volatile uint64_t*)phys_address((pfn << PAGE_SHIFT) | (((va & 0x7fc0000000) >> 30) << 3));
 
-    HARDWARE_PTE pdpt_entry;
-
-    *(uint64_t*)&pdpt_entry = *pdpt_entry_ptr;
+    auto pdpt_entry = bit_cast<HARDWARE_PTE>(*pdpt_entry_ptr);
 
     if (!pdpt_entry.p) {
         uint64_t page = allocate_page();
@@ -729,15 +725,13 @@ bool map_page(uint64_t pa, uint64_t va, enum mapping_type type) {
 
         memset(phys_address(page), 0, PAGE_SIZE);
 
-        *pdpt_entry_ptr = *(uint64_t*)&pdpt_entry;
+        *pdpt_entry_ptr = bit_cast<uint64_t>(pdpt_entry);
     }
 
     pfn = pdpt_entry.pfn;
     auto pdt_entry_ptr = (volatile uint64_t*)phys_address((pfn << PAGE_SHIFT) | (((va & 0x3fe00000) >> 21) << 3));
 
-    HARDWARE_PTE pdt_entry;
-
-    *(uint64_t*)&pdt_entry = *pdt_entry_ptr;
+    auto pdt_entry = bit_cast<HARDWARE_PTE>(*pdt_entry_ptr);
 
     if (!pdt_entry.p) {
         uint64_t page = allocate_page();
@@ -751,7 +745,7 @@ bool map_page(uint64_t pa, uint64_t va, enum mapping_type type) {
 
         memset(phys_address(page), 0, PAGE_SIZE);
 
-        *pdt_entry_ptr = *(uint64_t*)&pdt_entry;
+        *pdt_entry_ptr = bit_cast<uint64_t>(pdt_entry);
     }
 
     pfn = pdt_entry.pfn;
@@ -759,7 +753,7 @@ bool map_page(uint64_t pa, uint64_t va, enum mapping_type type) {
 
     HARDWARE_PTE pt_entry;
 
-    *(uint64_t*)&pt_entry = 0;
+    memset(&pt_entry, 0, sizeof(pt_entry));
 
     pt_entry.pfn = (pa >> PAGE_SHIFT) & 0x3ffffffffffff;
     pt_entry.p = 1;
@@ -804,7 +798,7 @@ bool map_page(uint64_t pa, uint64_t va, enum mapping_type type) {
 
     pt_entry.u = (type == mapping_type::no_access || va & 0x8000000000000000) ? 0 : 1;
 
-    *pt_entry_ptr = *(uint64_t*)&pt_entry;
+    *pt_entry_ptr = bit_cast<uint64_t>(pt_entry);
 
     return true;
 }
