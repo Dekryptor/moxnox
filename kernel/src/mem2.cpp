@@ -1944,7 +1944,7 @@ static inline __attribute((always_inline)) uint64_t allocate_va_no_lock(uint32_t
     auto mb = span((uint64_t*)vablock, vablock_size / sizeof(uint64_t));
     uint64_t run_start = 0;
     uint64_t run_length = 0;
-    uint64_t mask;
+    uint64_t mask = 0;
 
     if (num_pages < 64)
         mask = (((uint64_t)1 << num_pages) - 1) << (uint64_t)(64 - num_pages);
