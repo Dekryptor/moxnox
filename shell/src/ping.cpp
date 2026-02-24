@@ -281,12 +281,12 @@ static void do_ping(int sock, const ipv6_address& ip, uint32_t scope) {
                 case icmpv6_type::packet_too_big:
                 case icmpv6_type::time_exceeded:
                 case icmpv6_type::param_problem:
-                    handle_dest_unreachable(span(buf, len), addr,
+                    handle_dest_unreachable(span(buf, (size_t)len), addr,
                                             echo.identifier);
                 break;
 
                 case icmpv6_type::echo_reply:
-                    handle_echo_reply(span(buf, len), sent_time.QuadPart,
+                    handle_echo_reply(span(buf, (size_t)len), sent_time.QuadPart,
                                       addr, echo.identifier);
                 break;
 
