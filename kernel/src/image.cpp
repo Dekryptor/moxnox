@@ -16,7 +16,7 @@ import crt;
 
 using namespace std;
 
-extern "C" uint8_t __image_base__;
+extern "C" uint8_t __image_base__[];
 
 export void init_images_list(span<const uint8_t> debug_info,
                              span<const uint8_t> debug_abbrev,
@@ -28,7 +28,7 @@ export void init_images_list(span<const uint8_t> debug_info,
                              span<const uint8_t> debug_line_str) {
     const char kernel_name[] = "kernel.exe";
 
-    uint64_t kernel_size = get_image_size(&__image_base__);
+    uint64_t kernel_size = get_image_size(__image_base__);
     if (kernel_size == 0)
         bsod("get_image_size failed for kernel");
 
@@ -36,7 +36,7 @@ export void init_images_list(span<const uint8_t> debug_info,
     if (!img)
         bsod("malloc failed");
 
-    img->base_address = &__image_base__;
+    img->base_address = __image_base__;
     img->size = kernel_size;
     img->debug_info = debug_info;
     img->debug_abbrev = debug_abbrev;

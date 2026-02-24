@@ -27,7 +27,7 @@ import aarch64;
 import x86;
 #endif
 
-extern "C" uint8_t __image_base__;
+extern "C" uint8_t __image_base__[];
 
 #ifdef __x86_64__
 // x86/mem.S
@@ -2738,14 +2738,14 @@ export enum mapping_type characteristics_to_mapping_type(uint32_t c) {
 }
 
 export void protect_kernel_pages() {
-    const auto& dos_header = *(IMAGE_DOS_HEADER*)&__image_base__;
+    const auto& dos_header = *(IMAGE_DOS_HEADER*)__image_base__;
 
     if (dos_header.e_magic != IMAGE_DOS_SIGNATURE) {
         print("Incorrect DOS signature.\n");
         return;
     }
 
-    const auto& nt_header = *(IMAGE_NT_HEADERS*)(&__image_base__ + dos_header.e_lfanew);
+    const auto& nt_header = *(IMAGE_NT_HEADERS*)(__image_base__ + dos_header.e_lfanew);
 
     if (nt_header.Signature != IMAGE_NT_SIGNATURE) {
         print("Incorrect PE signature.\n");
@@ -2764,14 +2764,14 @@ export void protect_kernel_pages() {
     }
 
     // first page
-    protect_page((uintptr_t)&__image_base__, mapping_type::read_only);
+    protect_page((uintptr_t)__image_base__, mapping_type::read_only);
 
     for (const auto& sect : sections) {
         if (sect.VirtualSize == 0)
             continue;
 
         auto pages = bytes_to_pages(sect.VirtualSize);
-        auto va = (uintptr_t)&__image_base__ + sect.VirtualAddress;
+        auto va = (uintptr_t)__image_base__ + sect.VirtualAddress;
 
         for (unsigned int i = 0; i < pages; i++) {
             protect_page(va, characteristics_to_mapping_type(sect.Characteristics));
