@@ -1946,10 +1946,15 @@ nt_status socket::do_recvfrom(span<const uint8_t> inbuf) {
         return nt_status::INVALID_PARAMETER;
 
     if (params.fromlen) {
-        status = t.proc->read_vm(params.fromlen, &fromlen,
-                                    sizeof(fromlen), nullptr);
+        uint32_t read_bytes;
+
+        status = t.proc->read_vm(params.fromlen, &fromlen, sizeof(fromlen),
+                                 &read_bytes);
         if (!success(status))
             return status;
+
+        if (read_bytes < sizeof(fromlen))
+            return nt_status::NO_MEMORY;
 
         if (fromlen < 0)
             return nt_status::INVALID_PARAMETER;
