@@ -45,7 +45,11 @@ public:
             free(volume_name);
     }
 
-    virtual void release() = 0;
+    void release() {
+        if (--refcount == 0)
+            delete this;
+    }
+
     virtual nt_status flush() = 0;
     virtual nt_status dio_read(uint64_t page_num, uint64_t num_pages,
                                pfn_iterator& it, uint64_t& read_pages) = 0;
@@ -85,11 +89,6 @@ public:
     diskpart(volume& parent, unsigned int part_num, uint64_t disk_offset, uint64_t length,
              const guid& partition_guid, const guid& type_guid);
     ~diskpart();
-
-    void release() override {
-        if (--refcount == 0)
-            delete this;
-    }
 
     nt_status flush() override {
         return parent.flush();

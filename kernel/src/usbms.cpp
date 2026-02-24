@@ -337,11 +337,6 @@ public:
         dev.release();
     }
 
-    void release() override {
-        if (--refcount == 0)
-            delete this;
-    }
-
     nt_status flush() override;
     nt_status dio_read(uint64_t page_num, uint64_t num_pages,
                        pfn_iterator& it, uint64_t& read_pages) override;

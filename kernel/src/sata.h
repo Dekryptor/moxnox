@@ -539,11 +539,6 @@ class sata_device : public volume {
 public:
     sata_device(volatile HBA_PORT& port);
 
-    void release() override {
-        if (--refcount == 0)
-            delete this;
-    }
-
     bool identify();
     uint8_t get_slot();
     void release_slot(uint8_t slot);

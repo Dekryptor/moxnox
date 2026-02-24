@@ -130,11 +130,6 @@ public:
         remove_entry_list(le);
     }
 
-    void release() override {
-        if (--refcount == 0)
-            delete this;
-    }
-
     nt_status flush() override;
 
     nt_status dio_read(uint64_t page_num, uint64_t num_pages,
