@@ -1947,7 +1947,7 @@ uint8_t xhci::get_port_slot_type(uint8_t port_id) {
     while (true) {
         xhci_extended_capability cap;
 
-        *(uint32_t*)&cap = *ptr;
+        copy_by_uint32(&cap, ptr, sizeof(cap));
 
         if (cap.cap_type == xhci_capability_type::supported_protocol) {
             xhci_supported_protocol prot;
@@ -2185,7 +2185,7 @@ uint8_t xhci::get_speed_num(uint8_t port_id, uint32_t psi_num) {
     while (true) {
         xhci_extended_capability cap;
 
-        *(uint32_t*)&cap = *ptr;
+        copy_by_uint32(&cap, ptr, sizeof(cap));
 
         if (cap.cap_type == xhci_capability_type::supported_protocol) {
             xhci_supported_protocol prot;
@@ -2276,7 +2276,7 @@ pair<uint32_t, uint16_t> xhci::get_speed(uint8_t port_id, uint8_t speed) {
     while (true) {
         xhci_extended_capability cap;
 
-        *(uint32_t*)&cap = *ptr;
+        copy_by_uint32(&cap, ptr, sizeof(cap));
 
         if (cap.cap_type == xhci_capability_type::supported_protocol) {
             xhci_supported_protocol prot;
