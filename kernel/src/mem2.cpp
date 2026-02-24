@@ -698,6 +698,7 @@ bool map_page(uint64_t pa, uint64_t va, enum mapping_type type) {
 #endif
 
 template bool map_page<true>(uint64_t pa, uint64_t va, enum mapping_type type);
+template bool map_page<false>(uint64_t pa, uint64_t va, enum mapping_type type);
 
 static bool map_memblock(uint64_t pa, uint64_t num_pages, uint64_t& scratch_pages,
                          bool use_huge_pages) {
