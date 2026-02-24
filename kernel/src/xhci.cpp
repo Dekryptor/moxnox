@@ -1264,7 +1264,7 @@ usb_device::usb_device(xhci& controller, usb_hub& parent, void* devctx, uint8_t 
                 max_packet_size = 512;
                 break;
 
-            case usb_speed_class::unknown:
+            default:
                 unreachable();
                 break;
         }
