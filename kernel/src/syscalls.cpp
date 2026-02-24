@@ -927,7 +927,7 @@ NTSTATUS user_NtQuerySection(HANDLE section_handle, enum SECTION_INFORMATION_CLA
                              void* section_information, size_t section_information_length,
                              size_t* return_length) {
     NTSTATUS status;
-    void* buf;
+    void* buf = nullptr;
     size_t retlen;
 
     if (!section_information)
