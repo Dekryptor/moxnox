@@ -661,7 +661,7 @@ add_library(libpng SHARED
 )
 
 if(CMAKE_SYSTEM_PROCESSOR STREQUAL "aarch64")
-    target_sources(libpng PUBLIC
+    target_sources(libpng PRIVATE
         libpng/arm/arm_init.c
         libpng/arm/filter_neon_intrinsics.c
         libpng/arm/palette_neon_intrinsics.c
