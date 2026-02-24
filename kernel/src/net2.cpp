@@ -448,6 +448,12 @@ static void handle_v6_echo_request(netif& ni, packet& pack,
         return;
     }
 
+    const auto& orig_ip = *(ipv6_header*)pack.data;
+    const auto& icmp = *(icmpv6_header*)(pack.data + sizeof(ipv6_header));
+
+    if (calc_icmpv6_checksum(orig_ip, span((uint8_t*)&icmp, pack.size - sizeof(ipv6_header))) != 0)
+        return;
+
     auto pack2 = new packet;
     if (!pack2) {
         print("new failed\n");
