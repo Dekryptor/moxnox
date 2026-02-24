@@ -486,6 +486,8 @@ bool nvme_controller::identify_namespaces(nvme_queue& queue) {
         if (ns_list[i] == 0)
             break;
 
+        // FIXME - on failure, also free the entries already added to list
+
         auto req2 = new nvme_namespace_req;
         if (!req2) {
             print("malloc failed\n");
@@ -496,7 +498,7 @@ bool nvme_controller::identify_namespaces(nvme_queue& queue) {
         req2->p = allocate_folio(bytes_to_folio_order(sizeof(nvme_identify_namespace_data)));
         if (!req2->p) {
             print("allocate_folio failed\n");
-            free_folio(req2->p);
+            delete req2;
             return false;
         }
 
