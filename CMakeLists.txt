@@ -15,6 +15,7 @@ if(CMAKE_SYSTEM_PROCESSOR STREQUAL "aarch64")
 endif()
 
 add_compile_definitions(_GLIBCXX_NO_ASSERTIONS)
+add_compile_options(-U_FORTIFY_SOURCE)
 
 enable_language(ASM)
 
