@@ -42,6 +42,9 @@ public:
     }
 
     object& get() {
+#ifndef __clang__ // fix GCC warnings (Clang doesn't like this)
+        [[assume(rw.has_value())]];
+#endif
         return rw->get();
     }
 
