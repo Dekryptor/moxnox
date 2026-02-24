@@ -10,7 +10,6 @@ import objects;
 
 using namespace std;
 
-export void object_acquire(object& obj);
 export void object_release(object& obj);
 export bool object_is_sync_object(object& obj);
 export void object_on_wake(object& obj);

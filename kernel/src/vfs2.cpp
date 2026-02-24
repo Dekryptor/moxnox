@@ -951,7 +951,7 @@ nt_status inode::write(span<const uint8_t> s, uint64_t offset, uint64_t& written
 }
 
 file::file(object& ino, uint32_t create_options) : object(object_type::file), ino(ino), create_options(create_options) {
-    object_acquire(ino);
+    ino.acquire();
 }
 
 file::~file() {

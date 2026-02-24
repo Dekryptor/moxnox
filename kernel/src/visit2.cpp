@@ -75,10 +75,6 @@ static void visit_obj(object& obj, const T& func) {
     }
 }
 
-void object_acquire(object& obj) {
-    obj.acquire();
-}
-
 void object_release(object& obj) {
     visit_obj(obj, [](auto&& o) {
         o.release();

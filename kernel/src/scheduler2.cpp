@@ -741,7 +741,7 @@ extern "C" NTSTATUS NtWaitForMultipleObjects(uint32_t object_count, HANDLE* obje
             }
         }
 
-        object_acquire(objrw.get());
+        objrw.get().acquire();
         objs[i] = &objrw.get();
     }
 

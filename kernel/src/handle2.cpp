@@ -62,7 +62,7 @@ nt_status name_object(object& obj, string_view name, bool persistent) {
     memcpy(ne->name, name.data(), name.length());
     insert_tail_list(name_list, ne->le);
 
-    object_acquire(obj);
+    obj.acquire();
 
     return nt_status::SUCCESS;
 }
@@ -84,7 +84,7 @@ nt_status open_object(string_view name, object_ref& obj) {
                 auto nesv = string_view(ne.name, ne.name_len);
 
                 if (nesv == name) {
-                    object_acquire(*ne.obj);
+                    ne.obj->acquire();
 
                     obj = *ne.obj;
                     return nt_status::SUCCESS;

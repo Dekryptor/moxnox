@@ -2021,7 +2021,7 @@ nt_status process::add_handle(object& obj, uint32_t access_mask,
     if (!ho)
         return nt_status::INSUFFICIENT_RESOURCES;
 
-    object_acquire(obj);
+    obj.acquire();
 
     {
         lock_guard lock(handle_lock);
@@ -2343,7 +2343,7 @@ object_ref process::deref_handle(handle_t h) {
 
         auto& ho = rbtree_containing_record<handle_obj>(n);
 
-        object_acquire(*ho.obj); // needs to be within spinlock
+        ho.obj->acquire(); // needs to be within spinlock
 
         return *ho.obj;
     }
@@ -2368,7 +2368,7 @@ object_ref process::deref_handle(handle_t h, ACCESS_MASK& access_mask) {
 
         auto& ho = rbtree_containing_record<handle_obj>(n);
 
-        object_acquire(*ho.obj); // needs to be within spinlock
+        ho.obj->acquire(); // needs to be within spinlock
 
         access_mask = ho.access_mask;
 
