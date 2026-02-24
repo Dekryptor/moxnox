@@ -187,6 +187,7 @@ export int nt_status_to_errno(nt_status status) {
             return EISCONN;
 
         case nt_status::BUFFER_OVERFLOW:
+        case nt_status::INVALID_BUFFER_SIZE:
             return EMSGSIZE;
 
         case nt_status::NETWORK_UNREACHABLE:
