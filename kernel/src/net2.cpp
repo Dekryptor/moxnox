@@ -2006,6 +2006,8 @@ nt_status socket::do_sendto(span<const uint8_t> inbuf) {
         return nt_status::INVALID_PARAMETER;
 
     if (params.to) {
+        uint32_t read_bytes;
+
         if ((size_t)params.tolen > PAGE_SIZE)
             params.tolen = PAGE_SIZE;
 
@@ -2015,10 +2017,16 @@ nt_status socket::do_sendto(span<const uint8_t> inbuf) {
             return nt_status::INSUFFICIENT_RESOURCES;
         }
 
-        status = t.proc->read_vm(params.to, to, (uint32_t)params.tolen, nullptr);
+        status = t.proc->read_vm(params.to, to, (uint32_t)params.tolen,
+                                 &read_bytes);
         if (!success(status)) {
             free(to);
             return status;
+        }
+
+        if (read_bytes < (uint32_t)params.tolen) {
+            free(to);
+            return nt_status::NO_MEMORY;
         }
     }
 
