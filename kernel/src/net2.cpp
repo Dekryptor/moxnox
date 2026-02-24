@@ -2564,6 +2564,7 @@ static mac_address find_mac_address(netif& ni, const ipv6_address& dst) {
 nt_status ipv6_socket::sendto_raw(span<const char> us_buf, int flags,
                                   const sockaddr_in6& to, size_t& sent_bytes) {
     nt_status status;
+    uint32_t read_bytes;
 
     if (flags != 0)
         return nt_status::INVALID_PARAMETER;
@@ -2621,7 +2622,11 @@ nt_status ipv6_socket::sendto_raw(span<const char> us_buf, int flags,
     ip.dst = dst;
 
     status = t.proc->read_vm(us_buf.data(), pack->data + sizeof(ipv6_header),
-                             (uint32_t)us_buf.size(), nullptr);
+                             (uint32_t)us_buf.size(), &read_bytes);
+
+    if (success(status) && read_bytes < us_buf.size())
+        status = nt_status::NO_MEMORY;
+
     if (!success(status)) {
         pack->release();
         ni.release();
