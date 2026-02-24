@@ -772,7 +772,7 @@ static bool found_usb_hub_interface(usb_device& d, const usb_device_config& conf
 
         if (num_ports == 0) {
             print("found_usb_hub_interface: number of ports was 0\n");
-            free(hub_desc);
+            delete hub_desc;
             return false;
         }
 
@@ -784,18 +784,18 @@ static bool found_usb_hub_interface(usb_device& d, const usb_device_config& conf
         auto queue = d.configure_endpoint(*ep_desc, num_ports);
         if (!queue) {
             print("usb_device::configure_endpoint failed\n");
-            free(hub_desc);
+            delete hub_desc;
             return false;
         }
 
         hub = new usb_device_hub(d, *queue, hub_desc, num_ports);
         if (!hub) {
             print("new failed\n");
-            free(hub_desc);
+            delete hub_desc;
             return false;
         }
 
-        free(hub_desc);
+        delete hub_desc;
     } else {
         auto hub_desc = get_usb2_hub_descriptor(d);
         if (!hub_desc) {
