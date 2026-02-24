@@ -383,7 +383,7 @@ bool nvme_controller::identify_controller(nvme_queue& queue) {
 
     memset(&req.sqe, 0, sizeof(req.sqe));
 
-    auto& sqe = *reinterpret_cast<nvme_identify_command*>(&req.sqe);
+    auto& sqe = *bit_cast<nvme_identify_command*>(&req.sqe);
 
     sqe.opc = NVME_ADMIN_OPCODE_IDENTIFY;
     sqe.fuse = 0;
@@ -453,7 +453,7 @@ bool nvme_controller::identify_namespaces(nvme_queue& queue) {
 
     memset(&req.sqe, 0, sizeof(req.sqe));
 
-    auto& sqe = *reinterpret_cast<nvme_identify_command*>(&req.sqe);
+    auto& sqe = *bit_cast<nvme_identify_command*>(&req.sqe);
 
     sqe.opc = NVME_ADMIN_OPCODE_IDENTIFY;
     sqe.fuse = 0;
@@ -502,7 +502,7 @@ bool nvme_controller::identify_namespaces(nvme_queue& queue) {
 
         memset(&req2->req.sqe, 0, sizeof(req2->req.sqe));
 
-        auto& sqe2 = *reinterpret_cast<nvme_identify_command*>(&req2->req.sqe);
+        auto& sqe2 = *bit_cast<nvme_identify_command*>(&req2->req.sqe);
 
         sqe2.opc = NVME_ADMIN_OPCODE_IDENTIFY;
         sqe2.fuse = 0;
@@ -783,7 +783,7 @@ bool nvme_controller::create_io_queues(const pci_device& dev, nvme_queue& queue)
 
         memset(&req.sqe, 0, sizeof(req.sqe));
 
-        auto& sqe = *reinterpret_cast<nvme_create_cq_command*>(&req.sqe);
+        auto& sqe = *bit_cast<nvme_create_cq_command*>(&req.sqe);
 
         sqe.opc = NVME_ADMIN_OPCODE_CREATE_CQ;
         sqe.fuse = 0;
@@ -826,7 +826,7 @@ bool nvme_controller::create_io_queues(const pci_device& dev, nvme_queue& queue)
 
         memset(&req.sqe, 0, sizeof(req.sqe));
 
-        auto& sqe = *reinterpret_cast<nvme_create_sq_command*>(&req.sqe);
+        auto& sqe = *bit_cast<nvme_create_sq_command*>(&req.sqe);
 
         sqe.opc = NVME_ADMIN_OPCODE_CREATE_SQ;
         sqe.fuse = 0;
@@ -900,7 +900,7 @@ nt_status nvme_namespace::dio_read(uint64_t page_num, uint64_t num_pages,
 
     memset(&req.sqe, 0, sizeof(req.sqe));
 
-    auto& sqe = *reinterpret_cast<nvme_read_command*>(&req.sqe);
+    auto& sqe = *bit_cast<nvme_read_command*>(&req.sqe);
 
     uint64_t prp1, prp2;
 
@@ -1012,7 +1012,7 @@ nt_status nvme_namespace::dio_write(uint64_t page_num, uint64_t num_pages,
 
     memset(&req.sqe, 0, sizeof(req.sqe));
 
-    auto& sqe = *reinterpret_cast<nvme_write_command*>(&req.sqe);
+    auto& sqe = *bit_cast<nvme_write_command*>(&req.sqe);
 
     uint64_t prp1, prp2;
 
