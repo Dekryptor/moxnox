@@ -55,7 +55,7 @@ static const uint8_t MM_TEXT = 0;
 
 extern e820_entry* ptr_e820_entries;
 extern uint32_t* ptr_e820_count;
-extern uint8_t payload_data;
+extern uint8_t payload_data[];
 extern const uint64_t payload_size;
 extern char* ptr_cmdline;
 extern uint8_t* ptr_initrd_data;
@@ -554,7 +554,7 @@ static void sanitize_mem_entries() {
 static void mark_bootloader_memory() {
     uint64_t bootloader_end;
 
-    bootloader_end = (uintptr_t)&payload_data + payload_size;
+    bootloader_end = (uintptr_t)payload_data + payload_size;
 
     if (bootloader_end & (PAGE_SIZE - 1))
         bootloader_end = (bootloader_end & ~(PAGE_SIZE - 1)) + PAGE_SIZE;
@@ -684,7 +684,7 @@ static string_view get_section_name(const IMAGE_SECTION_HEADER& s, const IMAGE_F
 static void print(string_view s);
 
 static bool load_payload() {
-    auto& dos_header = *(IMAGE_DOS_HEADER*)&payload_data;
+    auto& dos_header = *(IMAGE_DOS_HEADER*)payload_data;
 
     if (dos_header.e_magic != IMAGE_DOS_SIGNATURE)
         return false;
@@ -724,7 +724,7 @@ static bool load_payload() {
     for (const auto& s : sects) {
         uint32_t section_size;
         auto name = get_section_name(s, pe_header.FileHeader,
-                                     span(&payload_data, payload_size));
+                                     span(payload_data, payload_size));
 
         if (name == ".debug_info") {
             debug_info_ptr = img_addr + s.VirtualAddress;
