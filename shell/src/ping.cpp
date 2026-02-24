@@ -88,9 +88,11 @@ static void handle_dest_unreachable(span<const char> data, const sockaddr_in6& a
 
     string_view message, reason;
 
+    // FIXME - print codes if unknown
+
     switch (resp.type) {
         case icmpv6_type::dest_unreachable:
-            message = "Destination unreachable";
+            message = "Destination unreachable: ";
 
             switch ((icmpv6_dest_unreachable_code)resp.code) {
                 using enum icmpv6_dest_unreachable_code;
@@ -129,8 +131,14 @@ static void handle_dest_unreachable(span<const char> data, const sockaddr_in6& a
             }
         break;
 
+        case icmpv6_type::packet_too_big:
+            message = "Packet too big"; // FIXME - include mtu, like Linux ping does
+            reason = "";
+            // FIXME - include code if not 0
+        break;
+
         case icmpv6_type::time_exceeded:
-            message = "Time exceeded";
+            message = "Time exceeded: ";
 
             switch ((icmpv6_time_exceeded_code)resp.code) {
                 using enum icmpv6_time_exceeded_code;
@@ -153,7 +161,7 @@ static void handle_dest_unreachable(span<const char> data, const sockaddr_in6& a
             break;
     }
 
-    print_stderr("From {} icmp_seq={} {}: {}\n",
+    print_stderr("From {} icmp_seq={} {}{}\n",
                  *(ipv6_address*)&addr.sin6_addr, byteswap(echo.sequence),
                  message, reason);
 }
@@ -244,6 +252,7 @@ static void do_ping(int sock, const ipv6_address& ip, uint32_t scope) {
 
             switch (h.type) {
                 case icmpv6_type::dest_unreachable:
+                case icmpv6_type::packet_too_big:
                 case icmpv6_type::time_exceeded:
                     handle_dest_unreachable(span(buf, len), addr,
                                             echo.identifier);
