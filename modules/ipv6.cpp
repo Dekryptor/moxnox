@@ -92,6 +92,12 @@ export enum icmpv6_time_exceeded_code : uint8_t {
     defragmentation_failure = 1,
 };
 
+export enum icmpv6_param_problem_code : uint8_t {
+    wrong_header_field = 0,
+    unknown_header = 1,
+    unknown_option = 2,
+};
+
 template<>
 consteval bool format_spec_valid<ipv6_address>(string_view fmt) {
     return fmt.empty();

@@ -157,6 +157,32 @@ static void handle_dest_unreachable(span<const char> data, const sockaddr_in6& a
             }
         break;
 
+        case icmpv6_type::param_problem:
+            message = "Parameter problem: ";
+
+            switch ((icmpv6_param_problem_code)resp.code) {
+                using enum icmpv6_param_problem_code;
+
+                case wrong_header_field:
+                    reason = "Wrong header field";
+                    break;
+
+                case unknown_header:
+                    reason = "Unknown header";
+                    break;
+
+                case unknown_option:
+                    reason = "Unknown option";
+                    break;
+
+                default:
+                    reason = "?";
+                    break;
+            }
+
+            // FIXME - Linux ping then has "at" value
+        break;
+
         default:
             break;
     }
@@ -254,6 +280,7 @@ static void do_ping(int sock, const ipv6_address& ip, uint32_t scope) {
                 case icmpv6_type::dest_unreachable:
                 case icmpv6_type::packet_too_big:
                 case icmpv6_type::time_exceeded:
+                case icmpv6_type::param_problem:
                     handle_dest_unreachable(span(buf, len), addr,
                                             echo.identifier);
                 break;
