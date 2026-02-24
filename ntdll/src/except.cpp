@@ -288,6 +288,7 @@ void mn_signal(EXCEPTION_RECORD* exception, CONTEXT* context) {
     } while (true);
 
     NtTerminateProcess(NtCurrentProcess(), (NTSTATUS)exception->ExceptionCode);
+    unreachable();
 }
 
 extern "C"

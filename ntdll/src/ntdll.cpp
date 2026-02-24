@@ -260,11 +260,13 @@ static void resolve_imports_dll(void* base, void* dll_base, string_view name, T*
     if (!found || exp_dir.VirtualAddress == 0) {
         print("no export directory in {}\n", name);
         NtTerminateProcess(NtCurrentProcess(), nt_status::PROCEDURE_NOT_FOUND);
+        unreachable();
     }
 
     if (exp_dir.Size < sizeof(IMAGE_EXPORT_DIRECTORY)) {
         print("invalid export directory in {}\n", name);
         NtTerminateProcess(NtCurrentProcess(), nt_status::PROCEDURE_NOT_FOUND);
+        unreachable();
     }
 
     const auto& ied = *(IMAGE_EXPORT_DIRECTORY*)((uint8_t*)dll_base + exp_dir.VirtualAddress);
@@ -272,6 +274,7 @@ static void resolve_imports_dll(void* base, void* dll_base, string_view name, T*
     if (ied.NumberOfFunctions == 0) {
         print("no exports in {}\n", name);
         NtTerminateProcess(NtCurrentProcess(), nt_status::PROCEDURE_NOT_FOUND);
+        unreachable();
     }
 
     auto names = span((uint32_t*)((uint8_t*)dll_base + ied.AddressOfNames), ied.NumberOfNames);
@@ -289,6 +292,7 @@ static void resolve_imports_dll(void* base, void* dll_base, string_view name, T*
             if (ord < ied.Base || ord >= ied.Base + ied.NumberOfFunctions || funcs[ord - ied.Base] == 0) {
                 print("Ordinal {} in {} not found.\n", ord, name);
                 NtTerminateProcess(NtCurrentProcess(), nt_status::ORDINAL_NOT_FOUND);
+                unreachable();
             }
 
             auto addr = funcs[ord - ied.Base];
@@ -323,6 +327,7 @@ static void resolve_imports_dll(void* base, void* dll_base, string_view name, T*
         if (!ord || funcs[*ord] == 0) {
             print("Could not resolve {} in {}.\n", func, name);
             NtTerminateProcess(NtCurrentProcess(), nt_status::PROCEDURE_NOT_FOUND);
+            unreachable();
         }
 
         auto addr = funcs[*ord];
@@ -374,12 +379,15 @@ static void resolve_imports_img(void* base) {
         if (u16len == 0) {
             print("DLL name is empty.\n");
             NtTerminateProcess(NtCurrentProcess(), nt_status::DLL_NOT_FOUND);
+            unreachable();
         }
 
         auto u16buf = (char16_t*)malloc(u16len * sizeof(char16_t));
 
-        if (!u16buf)
+        if (!u16buf) {
             NtTerminateProcess(NtCurrentProcess(), nt_status::INSUFFICIENT_RESOURCES);
+            unreachable();
+        }
 
         utf8_to_utf16(span(u16buf, u16len), name);
 
@@ -406,6 +414,7 @@ static void resolve_imports_img(void* base) {
         if (!ent) {
             print("{} not loaded.\n", name);
             NtTerminateProcess(NtCurrentProcess(), nt_status::DLL_NOT_FOUND);
+            unreachable();
         }
 
         if (nt_header.OptionalHeader32.Magic == IMAGE_NT_OPTIONAL_HDR64_MAGIC) {
@@ -500,7 +509,7 @@ static void resolve_relocations_img(void* base) {
                 default:
                     print("Unsupported relocation type {:x}.\n", type);
                     NtTerminateProcess(NtCurrentProcess(), nt_status::ILLEGAL_DLL_RELOCATION);
-                    return;
+                    unreachable();
             }
         }
 
@@ -562,6 +571,7 @@ static void toggle_protections_img(void* base, bool enable) {
         if (!success(ret)) {
             print("NtProtectVirtualMemory returned {}.\n", ret);
             NtTerminateProcess(NtCurrentProcess(), ret);
+            unreachable();
         }
     }
 }
@@ -586,6 +596,7 @@ static ldr_entry& add_ldr_entry(void* base, u16string_view full_name, u16string_
     if (!ptr) {
         print("RtlAllocateHeap failed.\n");
         NtTerminateProcess(NtCurrentProcess(), nt_status::INSUFFICIENT_RESOURCES);
+        unreachable();
     }
 
     auto& ent = *(ldr_entry*)ptr;
@@ -986,11 +997,13 @@ static void load_dlls_img(LDR_DATA_TABLE_ENTRY& ent) {
         if (name.empty()) {
             print("DLL with empty name.\n");
             NtTerminateProcess(NtCurrentProcess(), nt_status::DLL_NOT_FOUND);
+            unreachable();
         }
 
         if (!load_dll(name)) {
             print("Could not load {}.\n", name);
             NtTerminateProcess(NtCurrentProcess(), nt_status::DLL_NOT_FOUND);
+            unreachable();
         }
     }
 }
@@ -1017,8 +1030,10 @@ static void process_attach(LDR_DATA_TABLE_ENTRY& ent) {
 
     auto dll_main = (DLL_ENTRY_PROC)ent.EntryPoint;
 
-    if (!dll_main(ent.DllBase, DLL_PROCESS_ATTACH, (void*)1))
+    if (!dll_main(ent.DllBase, DLL_PROCESS_ATTACH, (void*)1)) {
         NtTerminateProcess(NtCurrentProcess(), nt_status::DLL_INIT_FAILED);
+        unreachable();
+    }
 
     InsertTailList(&ldr_data.InInitializationOrderModuleList,
                    &ent.InInitializationOrderLinks);
@@ -1050,6 +1065,7 @@ void mn_start_thread(mn_image_info* ntdll_info, mn_image_info* img_info, CONTEXT
         if (!heap) {
             print("RtlCreateHeap failed\n");
             NtTerminateProcess(NtCurrentProcess(), nt_status::NO_MEMORY);
+            unreachable();
         }
 
         peb.ProcessHeap = (HANDLE)heap;
@@ -1061,6 +1077,7 @@ void mn_start_thread(mn_image_info* ntdll_info, mn_image_info* img_info, CONTEXT
         if (!load_dll("kernelbase.dll")) {
             print("Could not load kernelbase.dll\n");
             NtTerminateProcess(NtCurrentProcess(), nt_status::DLL_NOT_FOUND);
+            unreachable();
         }
 
         load_dlls();
