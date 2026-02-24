@@ -3,6 +3,7 @@
 #include <string.h>
 #include <stdlib.h>
 #include <optional>
+#include <span>
 #include <bit>
 #include <string_view>
 
@@ -21,6 +22,48 @@ using namespace std;
 static const unsigned int SYSTEM_TIME_RESOLUTION = 10000000; // 100ns
 
 static const char16_t netctl_path[] = u"/dev/netctl";
+
+static void handle_echo_reply(span<const char> data, int64_t sent_time,
+                              const sockaddr_in6& addr, uint16_t identifier) {
+    char s[10];
+    nt_status status;
+    LARGE_INTEGER now;
+
+    if (data.size() < sizeof(icmpv6_echo))
+        return;
+
+    auto& resp = *(icmpv6_echo*)data.data();
+
+    if (resp.identifier != identifier) // not our ping
+        return;
+
+    status = NtQuerySystemTime(&now);
+    if (!success(status)) {
+        print_stderr("NtQuerySystemTime returned {}\n", status);
+        return;
+    }
+
+    // FIXME - do reverse DNS
+    // FIXME - include ttl (need recvmsg)
+    // FIXME - check payload
+
+    // FIXME - print if duplicate
+    // FIXME - count missing pings etc.
+
+    auto ticks = now.QuadPart - sent_time;
+    auto ms = (float)ticks * 1000.0f / (float)SYSTEM_TIME_RESOLUTION;
+
+    sprintf(s, "%.3g", ms);
+
+    // FIXME - add float support to print
+    // FIXME - need higher-quality timer?
+    print("{} bytes from {}: icmp_seq={} time={} ms\n", data.size(), *(ipv6_address*)&addr.sin6_addr, byteswap(resp.sequence), string_view(s));
+}
+
+static void handle_dest_unreachable(span<const char> data, const sockaddr_in6& addr,
+                                    uint16_t identifier) {
+    print("FIXME - dest unreachable\n");
+}
 
 static void do_ping(int sock, const ipv6_address& ip, uint32_t scope) {
     icmpv6_echo echo;
@@ -72,7 +115,6 @@ static void do_ping(int sock, const ipv6_address& ip, uint32_t scope) {
 
         while (true) {
             LARGE_INTEGER now, timeout;
-            char s[10];
 
             status = NtQuerySystemTime(&now);
             if (!success(status)) {
@@ -102,38 +144,25 @@ static void do_ping(int sock, const ipv6_address& ip, uint32_t scope) {
                 continue;
             }
 
-            if ((size_t)len < sizeof(icmpv6_echo))
+            if ((size_t)len < sizeof(icmpv6_header))
                 continue;
 
-            auto& resp = *(icmpv6_echo*)buf;
+            auto& h = *(icmpv6_header*)buf;
 
-            if (resp.type != icmpv6_type::echo_reply) // not a ping
-                continue;
+            switch (h.type) {
+                case icmpv6_type::dest_unreachable:
+                    handle_dest_unreachable(span(buf, len), addr,
+                                            echo.identifier);
+                break;
 
-            if (resp.identifier != echo.identifier) // not our ping
-                continue;
+                case icmpv6_type::echo_reply:
+                    handle_echo_reply(span(buf, len), sent_time.QuadPart,
+                                      addr, echo.identifier);
+                break;
 
-            status = NtQuerySystemTime(&now);
-            if (!success(status)) {
-                print_stderr("NtQuerySystemTime returned {}\n", status);
-                return;
+                default:
+                    break;
             }
-
-            // FIXME - do reverse DNS
-            // FIXME - include ttl (need recvmsg)
-            // FIXME - check payload
-
-            // FIXME - print if duplicate
-            // FIXME - count missing pings etc.
-
-            auto ticks = now.QuadPart - sent_time.QuadPart;
-            auto ms = (float)ticks * 1000.0f / (float)SYSTEM_TIME_RESOLUTION;
-
-            sprintf(s, "%.3g", ms);
-
-            // FIXME - add float support to print
-            // FIXME - need higher-quality timer?
-            print("{} bytes from {}: icmp_seq={} time={} ms\n", len, *(ipv6_address*)&addr.sin6_addr, byteswap(resp.sequence), string_view(s));
         }
 
         echo.sequence = byteswap((uint16_t)(byteswap(echo.sequence) + 1));
