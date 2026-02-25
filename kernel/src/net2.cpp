@@ -1095,14 +1095,8 @@ static void received_ipv6_udp_packet(uint32_t netif_num, packet& pack) {
     // FIXME - send ICMPv6 "port unreachable" error back if not dispatched
 }
 
-static void send_to_sockets(uint32_t netif_num, packet& pack) {
+static void send_to_raw_sockets(uint32_t netif_num, packet& pack) {
     auto& ip = *(ipv6_header*)pack.data;
-
-    // FIXME - SOCK_STREAM sockets will be different
-
-    if (ip.next_header == IPPROTO_UDP)
-        received_ipv6_udp_packet(netif_num, pack);
-
     size_t num_sockets;
 
     {
@@ -1192,6 +1186,17 @@ static void send_to_sockets(uint32_t netif_num, packet& pack) {
     }
 
     free(arr);
+}
+
+static void send_to_sockets(uint32_t netif_num, packet& pack) {
+    auto& ip = *(ipv6_header*)pack.data;
+
+    // FIXME - SOCK_STREAM sockets will be different
+
+    if (ip.next_header == IPPROTO_UDP)
+        received_ipv6_udp_packet(netif_num, pack);
+
+    send_to_raw_sockets(netif_num, pack);
 }
 
 static bool should_accept_multicast(netif& ni, const ipv6_address& dst) {
