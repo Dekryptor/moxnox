@@ -1157,7 +1157,7 @@ span<char> format_to(span<char> sp, string_view fmt, tuple<Args...>&& args) {
             return sp;
 
         if constexpr (num_args >= 2) {
-            if constexpr (is_integral_v<tuple_element_t<0, remove_cvref_t<decltype(args)>>> && is_integral_v<tuple_element_t<1, remove_cvref_t<decltype(args)>>>) {
+            if constexpr (is_integral_v<remove_cvref_t<tuple_element_t<0, remove_cvref_t<decltype(args)>>>> && is_integral_v<remove_cvref_t<tuple_element_t<1, remove_cvref_t<decltype(args)>>>>) {
                 if (nested)
                     sp = do_format_arg(sp, string_view(fmt.data() + 1, close - 1), get<0>(args), get<1>(args));
                 else
