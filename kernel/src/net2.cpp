@@ -242,7 +242,8 @@ public:
 static spinlock ipv6_routes_lock;
 static list_entry ipv6_routes = { &ipv6_routes, &ipv6_routes };
 
-static uint16_t calc_icmpv6_checksum(const ipv6_header& ip, span<const uint8_t> icmp) {
+static uint16_t calc_ipv6_checksum(const ipv6_header& ip, span<const uint8_t> icmp,
+                                   uint8_t next_header) {
     struct {
         ipv6_address src;
         ipv6_address dst;
@@ -259,7 +260,7 @@ static uint16_t calc_icmpv6_checksum(const ipv6_header& ip, span<const uint8_t> 
     pseudo.zero[0] = 0;
     pseudo.zero[1] = 0;
     pseudo.zero[2] = 0;
-    pseudo.next_header = IPPROTO_ICMPV6;
+    pseudo.next_header = next_header;
 
     for (auto s : span((uint16_t*)&pseudo, sizeof(pseudo) / sizeof(uint16_t))) {
         sum += byteswap(s);
@@ -315,7 +316,8 @@ static void send_neighbour_advertisement(netif& ni, const ipv6_address& target,
     pkt.opt.length = 1; // 8 bytes
     pkt.opt.mac = ni.mac;
 
-    pkt.na.checksum = calc_icmpv6_checksum(pkt.ip, span((uint8_t*)&pkt.na, sizeof(pkt.na) + sizeof(pkt.opt)));
+    pkt.na.checksum = calc_ipv6_checksum(pkt.ip, span((uint8_t*)&pkt.na, sizeof(pkt.na) + sizeof(pkt.opt)),
+                                         IPPROTO_ICMPV6);
 
     auto status = ni.send_packet(dst_mac, ethertype::ipv6, *pack);
     if (!success(status))
@@ -332,7 +334,7 @@ static bool valid_ndp_packet(const packet& pack) {
 
     const auto& icmp = *(icmpv6_header*)(pack.data + sizeof(ipv6_header));
 
-    if (calc_icmpv6_checksum(ip, span((uint8_t*)&icmp, pack.size - sizeof(ipv6_header))) != 0)
+    if (calc_ipv6_checksum(ip, span((uint8_t*)&icmp, pack.size - sizeof(ipv6_header)), IPPROTO_ICMPV6) != 0)
         return false;
 
     return true;
@@ -528,7 +530,7 @@ static void handle_v6_echo_request(netif& ni, packet& pack,
     const auto& orig_ip = *(ipv6_header*)pack.data;
     const auto& icmp = *(icmpv6_header*)(pack.data + sizeof(ipv6_header));
 
-    if (calc_icmpv6_checksum(orig_ip, span((uint8_t*)&icmp, pack.size - sizeof(ipv6_header))) != 0)
+    if (calc_ipv6_checksum(orig_ip, span((uint8_t*)&icmp, pack.size - sizeof(ipv6_header)), IPPROTO_ICMPV6) != 0)
         return;
 
     auto pack2 = new packet;
@@ -558,7 +560,7 @@ static void handle_v6_echo_request(netif& ni, packet& pack,
     header.type = icmpv6_type::echo_reply;
     header.checksum = 0;
 
-    header.checksum = calc_icmpv6_checksum(ip, span((uint8_t*)&header, pack2->size - sizeof(ipv6_header)));
+    header.checksum = calc_ipv6_checksum(ip, span((uint8_t*)&header, pack2->size - sizeof(ipv6_header)), IPPROTO_ICMPV6);
 
     if (ip.src == ip.dst) // pinging ourselves
         handle_ipv6_packet(ni, *pack2, ni.mac);
@@ -1387,7 +1389,7 @@ static void send_router_solicitation(netif& ni) {
     pkt.opt.length = 1; // 8 bytes
     pkt.opt.mac = ni.mac;
 
-    pkt.rs.checksum = calc_icmpv6_checksum(pkt.ip, span((uint8_t*)&pkt.rs, sizeof(pkt.rs) + sizeof(pkt.opt)));
+    pkt.rs.checksum = calc_ipv6_checksum(pkt.ip, span((uint8_t*)&pkt.rs, sizeof(pkt.rs) + sizeof(pkt.opt)), IPPROTO_ICMPV6);
 
     auto status = ni.send_packet(dst_mac, ethertype::ipv6, *pack);
     if (!success(status))
@@ -2502,7 +2504,7 @@ static void send_neighbour_solicitation(netif& ni, const ipv6_address& dst) {
     pkt.opt.length = 1; // 8 bytes
     pkt.opt.mac = ni.mac;
 
-    pkt.ns.checksum = calc_icmpv6_checksum(pkt.ip, span((uint8_t*)&pkt.ns, sizeof(pkt.ns) + sizeof(pkt.opt)));
+    pkt.ns.checksum = calc_ipv6_checksum(pkt.ip, span((uint8_t*)&pkt.ns, sizeof(pkt.ns) + sizeof(pkt.opt)), IPPROTO_ICMPV6);
 
     auto status = ni.send_packet(dst_mac, ethertype::ipv6, *pack);
     if (!success(status))
@@ -2716,7 +2718,7 @@ static void send_address_unreachable(netif& ni, const packet& pack,
 
     memcpy(&err.header, pack.data, payload_size);
 
-    err.checksum = calc_icmpv6_checksum(ip, span((uint8_t*)&err, offsetof(icmpv6_error, header) + payload_size));
+    err.checksum = calc_ipv6_checksum(ip, span((uint8_t*)&err, offsetof(icmpv6_error, header) + payload_size), IPPROTO_ICMPV6);
 
     handle_ipv6_packet(ni, *pack2, ni.mac);
 
@@ -2794,7 +2796,7 @@ nt_status ipv6_socket::sendto_raw(span<const char> us_buf, int flags,
         auto& icmp = *(icmpv6_header*)(pack->data + sizeof(ipv6_header));
 
         icmp.checksum = 0;
-        icmp.checksum = calc_icmpv6_checksum(ip, span((uint8_t*)&icmp, us_buf.size()));
+        icmp.checksum = calc_ipv6_checksum(ip, span((uint8_t*)&icmp, us_buf.size()), IPPROTO_ICMPV6);
     }
 
     if (mac == NULL_MAC_ADDRESS) {
