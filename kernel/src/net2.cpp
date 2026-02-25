@@ -63,6 +63,8 @@ public:
 private:
     nt_status sendto_raw(span<const char> buf, int flags,
                          const sockaddr_in6& to, size_t& sent_bytes);
+    nt_status sendto_udp(span<const char> buf, int flags,
+                         const sockaddr_in6& to, size_t& sent_bytes);
 };
 
 static spinlock udp_ports_lock;
@@ -2348,6 +2350,15 @@ nt_status ipv6_socket::sendto(const char* us_buf, size_t len, int flags,
                               sent_bytes);
         }
 
+        case SOCK_DGRAM: {
+            // FIXME - okay if connected
+            if (!to || tolen < 0 || (size_t)tolen < sizeof(sockaddr_in6))
+                return nt_status::INVALID_PARAMETER;
+
+            return sendto_udp(span(us_buf, len), flags, *(sockaddr_in6*)to,
+                              sent_bytes);
+        }
+
         default:
             return nt_status::INVALID_PARAMETER;
     }
@@ -2896,6 +2907,140 @@ nt_status ipv6_socket::sendto_raw(span<const char> us_buf, int flags,
     return status;
 }
 
+static uint16_t find_ephemeral_udp_port() {
+    // FIXME
+
+    return 0;
+}
+
+nt_status ipv6_socket::sendto_udp(span<const char> us_buf, int flags,
+                                  const sockaddr_in6& to, size_t& sent_bytes) {
+    nt_status status;
+    uint32_t read_bytes;
+    uint16_t srcport;
+
+    if (flags != 0)
+        return nt_status::INVALID_PARAMETER;
+
+    // get source port (implicit bind on first sendto)
+
+    {
+        lock_guard lock(udp_ports_lock);
+        lock_guard lock2(bind_lock);
+
+        if (bind_done)
+            srcport = bound_port;
+        else {
+            srcport = find_ephemeral_udp_port();
+            if (srcport == 0) // no ephemeral ports left
+                return nt_status::ADDRESS_ALREADY_ASSOCIATED;
+
+            udp_ports[srcport] = this;
+            this->acquire();
+
+            bound_port = srcport;
+            bound_address = parse_ipv6_address("::");
+
+            bind_done = true;
+        }
+    }
+
+    auto& t = *get_current_thread();
+    if (!t.proc)
+        return nt_status::INTERNAL_ERROR;
+
+    auto& dst = *(ipv6_address*)to.sin6_addr;
+
+    netif* pni;
+    ipv6_address src;
+
+    status = ipv6_choose_interface(dst, to.sin6_scope_id, pni, src);
+    if (!success(status))
+        return status;
+
+    auto& ni = *pni;
+
+    if (us_buf.size() + sizeof(ipv6_header) + sizeof(udp_header) > ni.mtu) {
+        ni.release();
+        return nt_status::INVALID_BUFFER_SIZE;
+    }
+
+    mac_address mac;
+
+    if (src == dst)
+        mac = ni.mac;
+    else
+        mac = find_mac_address(ni, dst);
+
+    auto pack = new packet;
+    if (!pack) {
+        print("new failed\n");
+        return nt_status::INSUFFICIENT_RESOURCES;
+    }
+
+    pack->size = sizeof(ipv6_header) + sizeof(udp_header) + us_buf.size();
+
+    auto& ip = *(ipv6_header*)pack->data;
+    ip.traffic_class1 = 0;
+    ip.version = 6;
+    ip.traffic_class2 = 0;
+    ip.flow_label = 0;
+    ip.payload_length = byteswap((uint16_t)(sizeof(udp_header) + us_buf.size()));
+    ip.next_header = IPPROTO_UDP;
+    ip.hop_limit = DEFAULT_HOP_LIMIT;
+    ip.src = src;
+    ip.dst = dst;
+
+    auto& udp = *(udp_header*)(pack->data + sizeof(ipv6_header));
+    udp.srcport = srcport;
+    udp.dstport = to.sin6_port;
+    udp.length = ip.payload_length;
+    udp.checksum = 0;
+
+    status = t.proc->read_vm(us_buf.data(),
+                             pack->data + sizeof(ipv6_header) + sizeof(udp_header),
+                             (uint32_t)us_buf.size(), &read_bytes);
+
+    if (success(status) && read_bytes < us_buf.size())
+        status = nt_status::NO_MEMORY;
+
+    if (!success(status)) {
+        pack->release();
+        ni.release();
+        return status;
+    }
+
+    udp.checksum = calc_ipv6_checksum(ip, span((uint8_t*)&udp, pack->size - sizeof(ipv6_header)), IPPROTO_UDP);
+
+    if (mac == NULL_MAC_ADDRESS) {
+        send_address_unreachable(ni, *pack, src);
+        pack->release();
+        ni.release();
+        return nt_status::HOST_UNREACHABLE;
+    }
+
+    if (src == dst)
+        handle_ipv6_packet(ni, *pack, ni.mac);
+    else {
+        if (is_multicast_address(ip.dst) && should_accept_multicast(ni, ip.dst))
+            handle_ipv6_packet(ni, *pack, ni.mac); // send copy to ourselves
+
+        status = ni.send_packet(mac, ethertype::ipv6, *pack);
+        if (!success(status)) {
+            pack->release();
+            ni.release();
+            return status;
+        }
+    }
+
+    pack->release();
+    ni.release();
+
+    sent_bytes = us_buf.size();
+
+    return status;
+}
+
 netif::~netif() {
     // not routes or neighbour cache, as they hold reference to netif
 
@@ -2960,12 +3105,6 @@ nt_status loopback_netif::send_packet(const mac_address&, ethertype, packet&) {
     // silently drop
 
     return nt_status::SUCCESS;
-}
-
-static uint16_t find_ephemeral_udp_port() {
-    // FIXME
-
-    return 0;
 }
 
 nt_status ipv6_socket::bind(const sockaddr* addr, size_t addrlen) {
