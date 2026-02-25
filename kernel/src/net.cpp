@@ -128,6 +128,7 @@ public:
 
     nt_status ioctl(uint32_t code, span<const uint8_t> inbuf,
                     span<uint8_t> outbuf, uintptr_t& written);
+    virtual void last_handle_closed() = 0;
 
     virtual nt_status recvfrom(char* buf, size_t len, int flags, sockaddr* from,
                                int* fromlen, size_t& recv_bytes) = 0;
@@ -143,6 +144,7 @@ private:
 
 static_assert(has_ioctls<class socket>);
 static_assert(is_sync_object<class socket>);
+static_assert(has_last_handle_closed<class socket>);
 
 class netctl : public chardev {
 public:

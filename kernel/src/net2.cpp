@@ -41,6 +41,8 @@ class ipv6_socket : public socket {
 public:
     ipv6_socket(int type, int protocol) : type(type), protocol(protocol) { }
     ~ipv6_socket() override;
+    void last_handle_closed() override;
+
     nt_status recvfrom(char* buf, size_t len, int flags, sockaddr* from,
                        int* fromlen, size_t& recv_bytes) override;
     nt_status sendto(const char* buf, size_t len, int flags, sockaddr* to,
@@ -1966,14 +1968,6 @@ ipv6_socket::~ipv6_socket() {
 
         delete pp;
     }
-
-    if (type == SOCK_DGRAM) {
-        lock_guard lock(udp_ports_lock);
-        lock_guard lock2(bind_lock);
-
-        if (bind_done && udp_ports[bound_port] == this)
-            udp_ports[bound_port] = nullptr;
-    }
 }
 
 nt_status socket::do_recvfrom(span<const uint8_t> inbuf) {
@@ -2882,4 +2876,16 @@ nt_status ipv6_socket::bind(const sockaddr* addr, size_t addrlen) {
     }
 
     return nt_status::SUCCESS;
+}
+
+void ipv6_socket::last_handle_closed() {
+    if (type == SOCK_DGRAM) {
+        lock_guard lock(udp_ports_lock);
+        lock_guard lock2(bind_lock);
+
+        if (bind_done && udp_ports[bound_port] == this) {
+            udp_ports[bound_port] = nullptr;
+            this->release();
+        }
+    }
 }
