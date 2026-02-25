@@ -203,6 +203,9 @@ export int nt_status_to_errno(nt_status status) {
         case nt_status::ACCESS_VIOLATION:
             return EFAULT;
 
+        case nt_status::ADDRESS_ALREADY_ASSOCIATED:
+            return EADDRINUSE;
+
         default:
             return EINVAL;
     }

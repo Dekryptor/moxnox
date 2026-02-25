@@ -499,6 +499,8 @@ span<char> do_format_arg(span<char> sp, string_view, nt_status arg) {
             return sp_strcpy(sp, "CONNECTION_RESET");
         case nt_status::NOT_FOUND:
             return sp_strcpy(sp, "NOT_FOUND");
+        case nt_status::ADDRESS_ALREADY_ASSOCIATED:
+            return sp_strcpy(sp, "ADDRESS_ALREADY_ASSOCIATED");
         case nt_status::CONNECTION_ACTIVE:
             return sp_strcpy(sp, "CONNECTION_ACTIVE");
         case nt_status::NETWORK_UNREACHABLE:
