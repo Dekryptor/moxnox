@@ -48,6 +48,7 @@ public:
     nt_status sendto(const char* buf, size_t len, int flags, sockaddr* to,
                      int tolen, size_t& sent_bytes) override;
     nt_status bind(const sockaddr* addr, size_t addrlen) override;
+    nt_status connect(const sockaddr* addr, size_t addrlen) override;
 
     list_entry le;
     int type, protocol;
@@ -2228,6 +2229,13 @@ nt_status socket::do_bind(span<const uint8_t> inbuf) {
     return this->bind((sockaddr*)inbuf.data(), inbuf.size());
 }
 
+nt_status socket::do_connect(span<const uint8_t> inbuf) {
+    if (inbuf.size() < sizeof(sockaddr))
+        return nt_status::BUFFER_TOO_SMALL;
+
+    return this->connect((sockaddr*)inbuf.data(), inbuf.size());
+}
+
 nt_status socket::ioctl(uint32_t code, span<const uint8_t> inbuf,
                         span<uint8_t>, uintptr_t&) {
     switch (code) {
@@ -2239,6 +2247,9 @@ nt_status socket::ioctl(uint32_t code, span<const uint8_t> inbuf,
 
         case IOCTL_MOXNOX_SOCKET_BIND:
             return do_bind(inbuf);
+
+        case IOCTL_MOXNOX_SOCKET_CONNECT:
+            return do_connect(inbuf);
 
         default:
             return nt_status::INVALID_PARAMETER;
@@ -3154,6 +3165,21 @@ nt_status ipv6_socket::bind(const sockaddr* addr, size_t addrlen) {
     }
 
     return nt_status::SUCCESS;
+}
+
+nt_status ipv6_socket::connect(const sockaddr* addr, size_t addrlen) {
+    if (addr->sa_family != AF_INET6)
+        return nt_status::INVALID_PARAMETER;
+
+    if (addrlen < sizeof(sockaddr_in6))
+        return nt_status::BUFFER_TOO_SMALL;
+
+    if (type != SOCK_DGRAM)
+        return nt_status::INVALID_PARAMETER;
+
+    print("FIXME - ipv6_socket::connect\n");
+
+    return nt_status::NOT_IMPLEMENTED;
 }
 
 void ipv6_socket::last_handle_closed() {
