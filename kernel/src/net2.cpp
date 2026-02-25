@@ -2282,10 +2282,15 @@ nt_status ipv6_socket::recvfrom(char* us_buf, size_t len, int flags,
         if (!sp)
             continue;
 
-        auto to_copy = (uint32_t)min(sp->pack.size - sizeof(ipv6_header), len);
+        size_t overhead = sizeof(ipv6_header);
 
-        status = t.proc->write_vm(us_buf, sp->pack.data + sizeof(ipv6_header),
-                                  to_copy, nullptr);
+        if (type == SOCK_DGRAM)
+            overhead += sizeof(udp_header);
+
+        auto to_copy = (uint32_t)min(sp->pack.size - overhead, len);
+
+        status = t.proc->write_vm(us_buf, sp->pack.data + overhead, to_copy,
+                                  nullptr);
         if (!success(status)) {
             delete sp;
             release();
