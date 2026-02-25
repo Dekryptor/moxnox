@@ -336,6 +336,19 @@ install(TARGETS udp-server-test DESTINATION ${CMAKE_INSTALL_PREFIX}/bin)
 
 ###
 
+add_executable(udp-client-test src/udp-client-test.cpp)
+
+target_compile_options(udp-client-test PRIVATE -fno-exceptions ${USERSPACE_CFLAGS})
+target_link_libraries(udp-client-test moxnox print errno)
+
+if (CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
+    target_link_options(udp-client-test PUBLIC -mcrtdll=ucrtbase)
+endif()
+
+install(TARGETS udp-client-test DESTINATION ${CMAKE_INSTALL_PREFIX}/bin)
+
+###
+
 if(NOT CMAKE_SYSTEM_PROCESSOR STREQUAL "aarch64")
     add_executable(exc-test src/exc-test.cpp)
 
