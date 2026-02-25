@@ -6,3 +6,4 @@ recv
 recvfrom
 send
 sendto
+bind
