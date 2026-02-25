@@ -7,3 +7,4 @@ recvfrom
 send
 sendto
 bind
+connect
