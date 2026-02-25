@@ -2303,7 +2303,14 @@ nt_status ipv6_socket::recvfrom(char* us_buf, size_t len, int flags,
             auto& ip = *(ipv6_header*)sp->pack.data;
 
             addr.sin6_family = AF_INET6;
-            addr.sin6_port = 0;
+
+            if (type == SOCK_DGRAM) {
+                auto& udp = *(udp_header*)(sp->pack.data + sizeof(ipv6_header));
+
+                addr.sin6_port = udp.srcport;
+            } else
+                addr.sin6_port = 0;
+
             addr.sin6_flowinfo = 0; // FIXME? Allowed by RFC3493, but not necessarily what Linux does
             memcpy(addr.sin6_addr, ip.src.v.data(), sizeof(ipv6_address));
             addr.sin6_scope_id = sp->scope_id;
