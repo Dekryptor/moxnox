@@ -58,7 +58,8 @@ static void print_rip(chardev& p, uint64_t rip) {
                              img->debug_rnglists, img->debug_addr,
                              img->debug_str, img->debug_str_offsets,
                              rip - (uintptr_t)img->base_address,
-                             (uint64_t)img->base_address, sp, img->name, // FIXME - should be preferred base
+                             (uint64_t)img->base_address, // FIXME - should be preferred base
+                             (uint64_t)img->base_address, sp, img->name,
                              bsod_malloc, bsod_free);
 
         sp = format(sp, " ");

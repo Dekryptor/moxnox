@@ -1307,7 +1307,8 @@ static optional<uint64_t> read_address(span<const uint8_t> data, enum DW_FORM fo
 static void dwarf_print_function2(span<const uint8_t> debug_addr,
                                   span<const uint8_t> debug_str,
                                   span<const uint8_t> debug_str_offsets,
-                                  uint64_t rva, uint64_t base, span<const uint8_t> cu,
+                                  uint64_t rva, uint64_t base,
+                                  uint64_t actual_base, span<const uint8_t> cu,
                                   span<const uint8_t> abbrev,
                                   span<char>& sp, optional<uint32_t> addr_base,
                                   optional<uint32_t> str_offsets_base,
@@ -1327,7 +1328,7 @@ static void dwarf_print_function2(span<const uint8_t> debug_addr,
     auto abbrev_list = load_abbrev_entries(abbrev, _malloc);
 
     if (abbrev_list.empty()) {
-        sp = format(sp, "{:016x} ({}+{:x})", rva + base, mod_name, rva);
+        sp = format(sp, "{:016x} ({}+{:x})", rva + actual_base, mod_name, rva);
         return;
     }
 
@@ -1461,7 +1462,7 @@ static void dwarf_print_function2(span<const uint8_t> debug_addr,
     }
 
     if (!function_die.empty()) {
-        sp = format(sp, "{:016x} ({}!", rva + base, mod_name);
+        sp = format(sp, "{:016x} ({}!", rva + actual_base, mod_name);
 
         get_func_name(debug_str, debug_str_offsets, function_die,
                       function_att_list, abbrev_list, cu, sp,
@@ -1471,7 +1472,7 @@ static void dwarf_print_function2(span<const uint8_t> debug_addr,
     _free(abbrev_list.data());
 
     if (func_start == 0) {
-        sp = format(sp, "{:016x} ({}+{:x})", rva + base, mod_name, rva);
+        sp = format(sp, "{:016x} ({}+{:x})", rva + actual_base, mod_name, rva);
         return;
     }
 
@@ -1488,11 +1489,12 @@ export void dwarf_print_function(span<const uint8_t> debug_info,
                                  span<const uint8_t> debug_str,
                                  span<const uint8_t> debug_str_offsets,
                                  uint64_t rva, uint64_t base,
-                                 span<char>& sp, string_view mod_name,
+                                 uint64_t actual_base, span<char>& sp,
+                                 string_view mod_name,
                                  malloc_func _malloc = malloc,
                                  free_func _free = free) {
     if (debug_info.empty()) {
-        sp = format(sp, "{:016x} ({}+{:x})", rva + base, mod_name, rva);
+        sp = format(sp, "{:016x} ({}+{:x})", rva + actual_base, mod_name, rva);
         return;
     }
 
@@ -1584,12 +1586,13 @@ export void dwarf_print_function(span<const uint8_t> debug_info,
     });
 
     if (found_cu.empty()) {
-        sp = format(sp, "{:016x} ({}+{:x})", rva + base, mod_name, rva);
+        sp = format(sp, "{:016x} ({}+{:x})", rva + actual_base, mod_name, rva);
         return;
     }
 
     dwarf_print_function2(debug_addr, debug_str, debug_str_offsets, rva, base,
-                          found_cu, debug_abbrev.subspan(found_debug_abbrev_object),
+                          actual_base, found_cu,
+                          debug_abbrev.subspan(found_debug_abbrev_object),
                           sp, addr_base, str_offsets_base, mod_name,
                           _malloc, _free);
 }
