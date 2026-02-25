@@ -34,8 +34,8 @@ static const mac_address NULL_MAC_ADDRESS = { 0, 0, 0, 0, 0, 0 };
 static object_ref netctl_obj;
 
 static spinlock ipv6_sockets_lock;
-static list_entry ipv6_sockets = { &ipv6_sockets, &ipv6_sockets };
-static size_t num_ipv6_sockets = 0;
+static list_entry ipv6_raw_sockets = { &ipv6_raw_sockets, &ipv6_raw_sockets };
+static size_t num_ipv6_raw_sockets = 0;
 
 class ipv6_socket : public socket {
 public:
@@ -1101,7 +1101,7 @@ static void send_to_raw_sockets(uint32_t netif_num, packet& pack) {
 
     {
         lock_guard lock(ipv6_sockets_lock);
-        num_sockets = num_ipv6_sockets;
+        num_sockets = num_ipv6_raw_sockets;
     }
 
     if (num_sockets == 0)
@@ -1118,7 +1118,7 @@ static void send_to_raw_sockets(uint32_t netif_num, packet& pack) {
     {
         lock_guard lock(ipv6_sockets_lock);
 
-        for (auto le = ipv6_sockets.next; le != &ipv6_sockets; le = le->next) {
+        for (auto le = ipv6_raw_sockets.next; le != &ipv6_raw_sockets; le = le->next) {
             auto& s = containing_record<ipv6_socket>(le);
 
             arr[num] = &s;
@@ -1736,10 +1736,10 @@ static nt_status netctl_socket(span<const uint8_t> buf) {
                 return status;
             }
 
-            {
+            if (params.type == SOCK_RAW) {
                 lock_guard lg(ipv6_sockets_lock);
-                insert_tail_list(ipv6_sockets, s->le);
-                num_ipv6_sockets++;
+                insert_tail_list(ipv6_raw_sockets, s->le);
+                num_ipv6_raw_sockets++;
                 s->added_to_list = true;
             }
 
@@ -2021,7 +2021,9 @@ ipv6_socket::~ipv6_socket() {
 
         if (added_to_list) {
             remove_entry_list(le);
-            num_ipv6_sockets--;
+
+            if (type == SOCK_RAW)
+                num_ipv6_raw_sockets--;
         }
     }
 
