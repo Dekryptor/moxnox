@@ -51,8 +51,8 @@ int main() {
         }
 
         if (bytes > 0) {
-            print("--- {} bytes --- (from {}, netif {})\n", bytes,
-                  *(ipv6_address*)&client_addr.sin6_addr, client_addr.sin6_scope_id);
+            print("--- {} bytes --- (from {} port {}, netif {})\n", bytes,
+                  *(ipv6_address*)&client_addr.sin6_addr, byteswap(client_addr.sin6_port), client_addr.sin6_scope_id);
             for (ssize_t i = 0; i < bytes; i++) {
                 if (i % 16 == 0)
                     print("{:04x}: ", i);
