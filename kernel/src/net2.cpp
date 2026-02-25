@@ -1087,12 +1087,60 @@ static void received_ipv6_udp_packet(uint32_t netif_num, packet& pack) {
     if (calc_ipv6_checksum(ip, span((uint8_t*)&udp, pack.size - sizeof(ipv6_header)), IPPROTO_UDP) != 0)
         return;
 
-    print("FIXME - received_udp_packet (src {}, dst {}, {}, {:04x})\n",
+#if 0
+    print("received_udp_packet (src {}, dst {}, {}, {:04x})\n",
           byteswap(udp.srcport), byteswap(udp.dstport), byteswap(udp.length),
           byteswap(udp.checksum));
+#endif
 
-    // FIXME - dispatch to UDP socket
-    // FIXME - send ICMPv6 "port unreachable" error back if not dispatched
+    ipv6_socket* sock = nullptr;
+
+    {
+        lock_guard lock(udp_ports_lock);
+
+        if (udp_ports[udp.dstport]) {
+            sock = udp_ports[udp.dstport];
+            sock->acquire();
+        }
+    }
+
+    if (!sock) {
+        // FIXME - send ICMPv6 "port unreachable" error back
+        return;
+    }
+
+    auto p = new ipv6_socket_packet(pack);
+    if (!p) {
+        print("new failed\n");
+        sock->release();
+        return;
+    }
+
+    p->scope_id = netif_num;
+
+    bool done = false;
+
+    {
+        sync_lock sl;
+        lock_guard lock(sl);
+        lock_guard lock2(sock->buffer_lock);
+
+        if (sock->buffer_size + pack.size <= MAX_BUFFER_SIZE) {
+            insert_tail_list(sock->buffer, p->le);
+            sock->buffer_size += pack.size;
+            done = true;
+        }
+
+        if (!sock->signalled) {
+            wake_up_waiters(sock->waiters);
+            sock->signalled = true;
+        }
+    }
+
+    if (!done)
+        delete p;
+
+    sock->release();
 }
 
 static void send_to_raw_sockets(uint32_t netif_num, packet& pack) {
