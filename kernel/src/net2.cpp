@@ -224,6 +224,15 @@ struct ndp_option_prefix_info : ndp_option  {
 
 static_assert(sizeof(ndp_option_prefix_info) == 32);
 
+struct udp_header {
+    uint16_t srcport;
+    uint16_t dstport;
+    uint16_t length;
+    uint16_t checksum;
+} __attribute__((packed));
+
+static_assert(sizeof(udp_header) == 8);
+
 class loopback_netif : public netif {
 public:
     nt_status send_packet(const mac_address& dst_mac, ethertype type,
@@ -1025,11 +1034,29 @@ static void handle_icmpv6_packet(netif& ni, packet& pack,
     }
 }
 
+static void received_ipv6_udp_packet(uint32_t netif_num, packet& pack) {
+    if (pack.size < sizeof(ipv6_header) + sizeof(udp_header))
+        return;
+
+    auto& udp = *(udp_header*)(pack.data + sizeof(ipv6_header));
+
+    print("FIXME - received_udp_packet (src {}, dst {}, {}, {:04x})\n",
+          byteswap(udp.srcport), byteswap(udp.dstport), byteswap(udp.length),
+          byteswap(udp.checksum));
+
+    // FIXME - check checksum (drop if doesn't match)
+
+    // FIXME - dispatch to UDP socket
+    // FIXME - send ICMPv6 "port unreachable" error back if not dispatched
+}
+
 static void send_to_sockets(uint32_t netif_num, packet& pack) {
     auto& ip = *(ipv6_header*)pack.data;
 
     // FIXME - SOCK_STREAM sockets will be different
-    // FIXME - UDP
+
+    if (ip.next_header == IPPROTO_UDP)
+        received_ipv6_udp_packet(netif_num, pack);
 
     size_t num_sockets;
 
