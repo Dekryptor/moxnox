@@ -1084,11 +1084,12 @@ static void received_ipv6_udp_packet(uint32_t netif_num, packet& pack) {
 
     auto& udp = *(udp_header*)(pack.data + sizeof(ipv6_header));
 
+    if (calc_ipv6_checksum(ip, span((uint8_t*)&udp, pack.size - sizeof(ipv6_header)), IPPROTO_UDP) != 0)
+        return;
+
     print("FIXME - received_udp_packet (src {}, dst {}, {}, {:04x})\n",
           byteswap(udp.srcport), byteswap(udp.dstport), byteswap(udp.length),
           byteswap(udp.checksum));
-
-    // FIXME - check checksum (drop if doesn't match)
 
     // FIXME - dispatch to UDP socket
     // FIXME - send ICMPv6 "port unreachable" error back if not dispatched
