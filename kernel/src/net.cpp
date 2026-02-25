@@ -133,10 +133,12 @@ public:
                                int* fromlen, size_t& recv_bytes) = 0;
     virtual nt_status sendto(const char* buf, size_t len, int flags,
                              sockaddr* to, int tolen, size_t& sent_bytes) = 0;
+    virtual nt_status bind(const sockaddr* addr, size_t addrlen) = 0;
 
 private:
     nt_status do_recvfrom(span<const uint8_t> inbuf);
     nt_status do_sendto(span<const uint8_t> inbuf);
+    nt_status do_bind(span<const uint8_t> inbuf);
 };
 
 static_assert(has_ioctls<class socket>);

@@ -45,6 +45,7 @@ public:
                        int* fromlen, size_t& recv_bytes) override;
     nt_status sendto(const char* buf, size_t len, int flags, sockaddr* to,
                      int tolen, size_t& sent_bytes) override;
+    nt_status bind(const sockaddr* addr, size_t addrlen) override;
 
     list_entry le;
     int type, protocol;
@@ -2082,6 +2083,13 @@ nt_status socket::do_sendto(span<const uint8_t> inbuf) {
     return nt_status::SUCCESS;
 }
 
+nt_status socket::do_bind(span<const uint8_t> inbuf) {
+    if (inbuf.size() < sizeof(sockaddr))
+        return nt_status::BUFFER_TOO_SMALL;
+
+    return this->bind((sockaddr*)inbuf.data(), inbuf.size());
+}
+
 nt_status socket::ioctl(uint32_t code, span<const uint8_t> inbuf,
                         span<uint8_t>, uintptr_t&) {
     switch (code) {
@@ -2090,6 +2098,9 @@ nt_status socket::ioctl(uint32_t code, span<const uint8_t> inbuf,
 
         case IOCTL_MOXNOX_SOCKET_SENDTO:
             return do_sendto(inbuf);
+
+        case IOCTL_MOXNOX_SOCKET_BIND:
+            return do_bind(inbuf);
 
         default:
             return nt_status::INVALID_PARAMETER;
@@ -2801,4 +2812,10 @@ nt_status loopback_netif::send_packet(const mac_address&, ethertype, packet&) {
     // silently drop
 
     return nt_status::SUCCESS;
+}
+
+nt_status ipv6_socket::bind(const sockaddr* addr, size_t addrlen) {
+    print("FIXME - ipv6_socket::bind\n"); // FIXME
+
+    return nt_status::NOT_IMPLEMENTED;
 }
