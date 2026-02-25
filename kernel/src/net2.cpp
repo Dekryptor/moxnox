@@ -1038,6 +1038,11 @@ static void received_ipv6_udp_packet(uint32_t netif_num, packet& pack) {
     if (pack.size < sizeof(ipv6_header) + sizeof(udp_header))
         return;
 
+    auto& ip = *(ipv6_header*)pack.data;
+
+    if (is_multicast_address(ip.dst))
+        return;
+
     auto& udp = *(udp_header*)(pack.data + sizeof(ipv6_header));
 
     print("FIXME - received_udp_packet (src {}, dst {}, {}, {:04x})\n",
