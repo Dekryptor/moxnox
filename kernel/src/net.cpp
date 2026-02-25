@@ -142,27 +142,6 @@ private:
 static_assert(has_ioctls<class socket>);
 static_assert(is_sync_object<class socket>);
 
-class ipv6_socket : public socket {
-public:
-    ipv6_socket(int type, int protocol) : type(type), protocol(protocol) { }
-    ~ipv6_socket() override;
-    nt_status recvfrom(char* buf, size_t len, int flags, sockaddr* from,
-                       int* fromlen, size_t& recv_bytes) override;
-    nt_status sendto(const char* buf, size_t len, int flags, sockaddr* to,
-                     int tolen, size_t& sent_bytes) override;
-
-    list_entry le;
-    int type, protocol;
-    bool added_to_list = false;
-    spinlock buffer_lock;
-    list_entry buffer = { &buffer, &buffer };
-    size_t buffer_size = 0;
-
-private:
-    nt_status sendto_raw(span<const char> buf, int flags,
-                         const sockaddr_in6& to, size_t& sent_bytes);
-};
-
 class netctl : public chardev {
 public:
     netctl() { }
