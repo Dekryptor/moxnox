@@ -53,6 +53,10 @@ public:
     spinlock buffer_lock;
     list_entry buffer = { &buffer, &buffer };
     size_t buffer_size = 0;
+    spinlock bind_lock;
+    bool bind_done = false;
+    uint16_t bound_port;
+    ipv6_address bound_address;
 
 private:
     nt_status sendto_raw(span<const char> buf, int flags,
@@ -2815,7 +2819,25 @@ nt_status loopback_netif::send_packet(const mac_address&, ethertype, packet&) {
 }
 
 nt_status ipv6_socket::bind(const sockaddr* addr, size_t addrlen) {
-    print("FIXME - ipv6_socket::bind\n"); // FIXME
+    if (addr->sa_family != AF_INET6)
+        return nt_status::INVALID_PARAMETER;
 
-    return nt_status::NOT_IMPLEMENTED;
+    if (addrlen < sizeof(sockaddr_in6))
+        return nt_status::BUFFER_TOO_SMALL;
+
+    auto& b = *(sockaddr_in6*)addr;
+
+    // FIXME - what if port already bound to another socket?
+
+    {
+        lock_guard lock(bind_lock);
+
+        if (bind_done)
+            return nt_status::INVALID_PARAMETER;
+
+        bound_port = b.sin6_port;
+        bound_address = *(ipv6_address*)b.sin6_addr;
+    }
+
+    return nt_status::SUCCESS;
 }
