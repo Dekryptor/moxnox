@@ -1589,14 +1589,25 @@ static nt_status netctl_socket(span<const uint8_t> buf) {
 
     switch (params.af) {
         case AF_INET6: {
-            // FIXME - UDP (SOCK_DGRAM)
             // FIXME - TCP (SOCK_STREAM)
 
-            if (params.type != SOCK_RAW)
-                return nt_status::INVALID_PARAMETER;
+            switch (params.type) {
+                case SOCK_RAW:
+                    if (params.protocol == 0)
+                        return nt_status::INVALID_PARAMETER;
+                break;
 
-            if (params.protocol == 0)
-                return nt_status::INVALID_PARAMETER;
+                case SOCK_DGRAM:
+                    if (params.protocol == 0)
+                        params.protocol = IPPROTO_UDP;
+                    else if (params.protocol != IPPROTO_UDP)
+                        return nt_status::INVALID_PARAMETER;
+
+                    break;
+
+                default:
+                    return nt_status::INVALID_PARAMETER;
+            }
 
             auto s = new ipv6_socket(params.type, params.protocol);
             if (!s) {
