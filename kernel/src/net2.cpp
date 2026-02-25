@@ -63,6 +63,9 @@ private:
                          const sockaddr_in6& to, size_t& sent_bytes);
 };
 
+static spinlock udp_ports_lock;
+static ipv6_socket* udp_ports[65536];
+
 struct ipv6_socket_packet {
     ipv6_socket_packet(packet& pack) : pack(pack) {
         pack.acquire();
@@ -1963,6 +1966,14 @@ ipv6_socket::~ipv6_socket() {
 
         delete pp;
     }
+
+    if (type == SOCK_DGRAM) {
+        lock_guard lock(udp_ports_lock);
+        lock_guard lock2(bind_lock);
+
+        if (bind_done && udp_ports[bound_port] == this)
+            udp_ports[bound_port] = nullptr;
+    }
 }
 
 nt_status socket::do_recvfrom(span<const uint8_t> inbuf) {
@@ -2818,6 +2829,12 @@ nt_status loopback_netif::send_packet(const mac_address&, ethertype, packet&) {
     return nt_status::SUCCESS;
 }
 
+static uint16_t find_ephemeral_udp_port() {
+    // FIXME
+
+    return 0;
+}
+
 nt_status ipv6_socket::bind(const sockaddr* addr, size_t addrlen) {
     if (addr->sa_family != AF_INET6)
         return nt_status::INVALID_PARAMETER;
@@ -2827,9 +2844,34 @@ nt_status ipv6_socket::bind(const sockaddr* addr, size_t addrlen) {
 
     auto& b = *(sockaddr_in6*)addr;
 
-    // FIXME - what if port already bound to another socket?
+    if (type == SOCK_DGRAM) {
+        uint16_t port;
 
-    {
+        lock_guard lock(udp_ports_lock);
+        lock_guard lock2(bind_lock);
+
+        if (bind_done)
+            return nt_status::INVALID_PARAMETER;
+
+        if (b.sin6_port == 0) {
+            port = find_ephemeral_udp_port();
+            if (port == 0) // no ephemeral ports left
+                return nt_status::ADDRESS_ALREADY_ASSOCIATED;
+        } else {
+            port = b.sin6_port;
+
+            if (udp_ports[b.sin6_port])
+                return nt_status::ADDRESS_ALREADY_ASSOCIATED;
+        }
+
+        udp_ports[b.sin6_port] = this;
+        this->acquire();
+
+        bound_port = port;
+        bound_address = *(ipv6_address*)b.sin6_addr;
+
+        bind_done = true;
+    } else {
         lock_guard lock(bind_lock);
 
         if (bind_done)
