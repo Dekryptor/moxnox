@@ -5,6 +5,7 @@
 
 #undef errno
 
+import ucrtbase;
 import ws2_32;
 import errno;
 import print;
