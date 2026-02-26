@@ -6,6 +6,7 @@ module;
 #include <bit>
 #include <atomic>
 #include <optional>
+#include <utility>
 #include <string_view>
 #include <stdint.h>
 
@@ -61,6 +62,7 @@ public:
     uint16_t bound_port, connected_port;
     uint32_t connected_scope;
     ipv6_address bound_address, connected_address;
+    nt_status pending_error = nt_status::SUCCESS;
 
 private:
     nt_status sendto_raw(span<const char> buf, int flags,
@@ -1041,6 +1043,119 @@ static void handle_router_advertisement(netif& ni, packet& pack) {
     ni.rs_needed = false;
 }
 
+static void handle_icmpv6_error(packet& pack) {
+    if (pack.size < sizeof(ipv6_header) + sizeof(icmpv6_error)) {
+        print("handle_icmpv6_error: buffer length was {}, expected at least {}\n",
+              pack.size, sizeof(ipv6_header) + sizeof(icmpv6_error));
+        return;
+    }
+
+    const auto& orig_ip = *(ipv6_header*)pack.data;
+    const auto& icmp = *(icmpv6_error*)(pack.data + sizeof(ipv6_header));
+
+    if (calc_ipv6_checksum(orig_ip, span((uint8_t*)&icmp, pack.size - sizeof(ipv6_header)), IPPROTO_ICMPV6) != 0)
+        return;
+
+    if (icmp.header.next_header != IPPROTO_UDP)
+        return;
+
+    if (pack.size < sizeof(ipv6_header) + sizeof(icmpv6_error) + sizeof(udp_header))
+        return;
+
+    const auto& udp = *(udp_header*)(pack.data + sizeof(ipv6_header) + sizeof(icmpv6_error));
+
+    ipv6_socket* sock;
+
+    {
+        lock_guard lock(udp_ports_lock);
+
+        if (udp_ports[udp.srcport]) {
+            sock = udp_ports[udp.srcport];
+            sock->acquire();
+        } else
+            return;
+    }
+
+    bool drop = false;
+
+    {
+        lock_guard lock(sock->bind_lock);
+
+        if (sock->bound_address != parse_ipv6_address("::") && sock->bound_address != icmp.header.src)
+            drop = true;
+        else if (sock->connect_done && (sock->connected_address != icmp.header.dst || sock->connected_port != udp.dstport))
+            drop = true;
+    }
+
+    if (drop) {
+        sock->release();
+        return;
+    }
+
+    nt_status err;
+
+    switch (icmp.type) {
+        case icmpv6_type::dest_unreachable:
+            switch ((icmpv6_dest_unreachable_code)icmp.code) {
+                case no_route:
+                case reject_route:
+                    err = nt_status::NETWORK_UNREACHABLE;
+                    break;
+
+                case administratively_prohibited:
+                case policy_fail:
+                    err = nt_status::ACCESS_DENIED;
+                    break;
+
+                case beyond_scope:
+                case address_unreachable:
+                    err = nt_status::HOST_UNREACHABLE;
+                    break;
+
+                case no_port:
+                    err = nt_status::CONNECTION_REFUSED;
+                    break;
+
+                default:
+                    err = nt_status::HOST_UNREACHABLE;
+                    break;
+            }
+            break;
+
+        case icmpv6_type::packet_too_big:
+            err = nt_status::BUFFER_TOO_SMALL;
+            break;
+
+        case icmpv6_type::time_exceeded:
+            err = nt_status::HOST_UNREACHABLE;
+            break;
+
+        case icmpv6_type::param_problem:
+            err = nt_status::PROTOCOL_UNREACHABLE;
+            break;
+
+        default:
+            unreachable();
+    }
+
+    {
+        sync_lock sl;
+        lock_guard lock(sl);
+        lock_guard lock2(sock->buffer_lock);
+
+        if (success(sock->pending_error)) {
+            sock->pending_error = err;
+
+            if (!sock->signalled) {
+                wake_up_waiters(sock->waiters);
+                sock->signalled = true;
+            }
+        }
+    }
+
+    sock->release();
+}
+
 static void handle_icmpv6_packet(netif& ni, packet& pack,
                                  const mac_address& src_mac) {
     if (pack.size < sizeof(ipv6_header) + sizeof(icmpv6_header)) {
@@ -1057,20 +1172,27 @@ static void handle_icmpv6_packet(netif& ni, packet& pack,
 #endif
 
     switch (header.type) {
-        case icmpv6_type::neighbour_solicitation:
-            handle_neighbour_solicitation(ni, pack, src_mac);
+        case icmpv6_type::dest_unreachable:
+        case icmpv6_type::packet_too_big:
+        case icmpv6_type::time_exceeded:
+        case icmpv6_type::param_problem:
+            handle_icmpv6_error(pack);
             break;
 
-        case icmpv6_type::neighbour_advertisement:
-            handle_neighbour_advertisement(ni, pack);
+        case icmpv6_type::echo_request:
+            handle_v6_echo_request(ni, pack, src_mac);
             break;
 
         case icmpv6_type::router_advertisement:
             handle_router_advertisement(ni, pack);
             break;
 
-        case icmpv6_type::echo_request:
-            handle_v6_echo_request(ni, pack, src_mac);
+        case icmpv6_type::neighbour_solicitation:
+            handle_neighbour_solicitation(ni, pack, src_mac);
+            break;
+
+        case icmpv6_type::neighbour_advertisement:
+            handle_neighbour_advertisement(ni, pack);
             break;
 
         default:
@@ -2286,11 +2408,20 @@ nt_status ipv6_socket::recvfrom(char* us_buf, size_t len, int flags,
         }
 
         ipv6_socket_packet* sp = nullptr;
+        nt_status error = nt_status::SUCCESS;
 
         {
             sync_lock sl;
             lock_guard lock(sl);
             lock_guard lock2(buffer_lock);
+
+            if (!success(pending_error)) {
+                error = pending_error;
+                pending_error = nt_status::SUCCESS;
+
+                if (is_list_empty(buffer))
+                    signalled = false;
+            }
 
             if (!is_list_empty(buffer)) {
                 sp = &containing_record<ipv6_socket_packet>(buffer.next);
@@ -2299,6 +2430,11 @@ nt_status ipv6_socket::recvfrom(char* us_buf, size_t len, int flags,
                 if (is_list_empty(buffer))
                     signalled = false;
             }
+        }
+
+        if (!success(error)) {
+            release();
+            return error;
         }
 
         if (!sp)
