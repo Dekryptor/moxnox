@@ -3136,6 +3136,34 @@ nt_status ipv6_socket::sendto_udp(span<const char> us_buf, int flags,
     if (flags != 0)
         return nt_status::INVALID_PARAMETER;
 
+    bool has_error = false;
+
+    {
+        lock_guard lock(buffer_lock);
+        has_error = !success(pending_error);
+    }
+
+    if (has_error) { // avoid getting sync_lock unless we have to
+        nt_status err = nt_status::SUCCESS;
+
+        {
+            sync_lock sl;
+            lock_guard lock(sl);
+            lock_guard lock2(buffer_lock);
+
+            if (!success(pending_error)) {
+                err = pending_error;
+                pending_error = nt_status::SUCCESS;
+
+                if (is_list_empty(buffer))
+                    signalled = false;
+            }
+        }
+
+        if (!success(err))
+            return err;
+    }
+
     // get source port (implicit bind on first sendto)
 
     {
