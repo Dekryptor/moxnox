@@ -501,6 +501,8 @@ span<char> do_format_arg(span<char> sp, string_view, nt_status arg) {
             return sp_strcpy(sp, "CONNECTION_RESET");
         case nt_status::NOT_FOUND:
             return sp_strcpy(sp, "NOT_FOUND");
+        case nt_status::CONNECTION_REFUSED:
+            return sp_strcpy(sp, "CONNECTION_REFUSED");
         case nt_status::ADDRESS_ALREADY_ASSOCIATED:
             return sp_strcpy(sp, "ADDRESS_ALREADY_ASSOCIATED");
         case nt_status::CONNECTION_ACTIVE:
@@ -509,6 +511,8 @@ span<char> do_format_arg(span<char> sp, string_view, nt_status arg) {
             return sp_strcpy(sp, "NETWORK_UNREACHABLE");
         case nt_status::HOST_UNREACHABLE:
             return sp_strcpy(sp, "HOST_UNREACHABLE");
+        case nt_status::PROTOCOL_UNREACHABLE:
+            return sp_strcpy(sp, "PROTOCOL_UNREACHABLE");
         case nt_status::CONNECTION_ABORTED:
             return sp_strcpy(sp, "CONNECTION_ABORTED");
         case nt_status::ILLEGAL_DLL_RELOCATION:

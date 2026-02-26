@@ -209,6 +209,12 @@ export int nt_status_to_errno(nt_status status) {
         case nt_status::INVALID_ADDRESS_COMPONENT:
             return EADDRNOTAVAIL;
 
+        case nt_status::PROTOCOL_UNREACHABLE:
+            return EPROTO;
+
+        case nt_status::CONNECTION_REFUSED:
+            return ECONNREFUSED;
+
         default:
             return EINVAL;
     }
