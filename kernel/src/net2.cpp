@@ -2458,7 +2458,31 @@ static nt_status ipv6_choose_interface(const ipv6_address& dst, uint32_t scope_i
                                        netif*& ni, ipv6_address& src) {
     // see RFC6724
 
-    // FIXME - check if bind has been called
+    // bind overrides everything
+    if (src != parse_ipv6_address("::")) {
+        lock_guard lg(netif_lock);
+
+        for (auto le = netif_list.next; le != &netif_list; le = le->next) {
+            auto& ni2 = containing_record<netif>(le);
+
+            {
+                lock_guard lock(ni2.addr_lock);
+
+                for (auto le2 = ni2.addrs.next; le2 != &ni2.addrs; le2 = le2->next) {
+                    auto& a = containing_record<ip_addr>(le2);
+
+                    if (a.addr == src) {
+                        ni2.acquire();
+
+                        ni = &ni2;
+                        return nt_status::SUCCESS;
+                    }
+                }
+            }
+        }
+
+        return nt_status::NETWORK_UNREACHABLE;
+    }
 
     // rule 1: prefer same address
 
@@ -2839,6 +2863,7 @@ nt_status ipv6_socket::sendto_raw(span<const char> us_buf, int flags,
                                   const sockaddr_in6& to, size_t& sent_bytes) {
     nt_status status;
     uint32_t read_bytes;
+    ipv6_address src;
 
     if (flags != 0)
         return nt_status::INVALID_PARAMETER;
@@ -2847,10 +2872,18 @@ nt_status ipv6_socket::sendto_raw(span<const char> us_buf, int flags,
     if (!t.proc)
         return nt_status::INTERNAL_ERROR;
 
+    {
+        lock_guard lock(bind_lock);
+
+        if (bind_done)
+            src = bound_address;
+        else
+            src = parse_ipv6_address("::");
+    }
+
     auto& dst = *(ipv6_address*)to.sin6_addr;
 
     netif* pni;
-    ipv6_address src;
 
     status = ipv6_choose_interface(dst, to.sin6_scope_id, pni, src);
     if (!success(status))
@@ -2961,6 +2994,7 @@ nt_status ipv6_socket::sendto_udp(span<const char> us_buf, int flags,
                                   const sockaddr_in6& to, size_t& sent_bytes) {
     nt_status status;
     uint32_t read_bytes;
+    ipv6_address src;
     uint16_t srcport;
 
     if (flags != 0)
@@ -2972,9 +3006,7 @@ nt_status ipv6_socket::sendto_udp(span<const char> us_buf, int flags,
         lock_guard lock(udp_ports_lock);
         lock_guard lock2(bind_lock);
 
-        if (bind_done)
-            srcport = bound_port;
-        else {
+        if (!bind_done) {
             srcport = find_ephemeral_udp_port();
             if (srcport == 0) // no ephemeral ports left
                 return nt_status::ADDRESS_ALREADY_ASSOCIATED;
@@ -2987,6 +3019,9 @@ nt_status ipv6_socket::sendto_udp(span<const char> us_buf, int flags,
 
             bind_done = true;
         }
+
+        srcport = bound_port;
+        src = bound_address;
     }
 
     auto& t = *get_current_thread();
@@ -2996,7 +3031,6 @@ nt_status ipv6_socket::sendto_udp(span<const char> us_buf, int flags,
     auto& dst = *(ipv6_address*)to.sin6_addr;
 
     netif* pni;
-    ipv6_address src;
 
     status = ipv6_choose_interface(dst, to.sin6_scope_id, pni, src);
     if (!success(status))
