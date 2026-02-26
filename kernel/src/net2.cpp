@@ -1114,6 +1114,13 @@ static void received_ipv6_udp_packet(uint32_t netif_num, packet& pack) {
         return;
     }
 
+    {
+        lock_guard lock(sock->bind_lock);
+
+        if (sock->connect_done && (sock->connected_address != ip.src || sock->connected_port != udp.srcport))
+            return;
+    }
+
     auto p = new ipv6_socket_packet(pack);
     if (!p) {
         print("new failed\n");
