@@ -2919,9 +2919,22 @@ nt_status ipv6_socket::sendto_raw(span<const char> us_buf, int flags,
 }
 
 static uint16_t find_ephemeral_udp_port() {
-    // FIXME
+    auto rnd = kernel_time_page.system_time / (SYSTEM_TIME_RESOLUTION / TICK_RATE);
+    uint16_t port = 49152 + (rnd & 0x3fff);
+    uint16_t orig_port = port;
 
-    return 0;
+    while (true) {
+        if (!udp_ports[byteswap(port)])
+            return byteswap(port);
+
+        if (port == 65535)
+            port = 49152;
+        else
+            port++;
+
+        if (port == orig_port)
+            return 0;
+    }
 }
 
 nt_status ipv6_socket::sendto_udp(span<const char> us_buf, int flags,
