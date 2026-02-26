@@ -59,6 +59,7 @@ public:
     spinlock bind_lock;
     bool bind_done = false, connect_done = false;
     uint16_t bound_port, connected_port;
+    uint32_t connected_scope;
     ipv6_address bound_address, connected_address;
 
 private:
@@ -66,6 +67,7 @@ private:
                          const sockaddr_in6& to, size_t& sent_bytes);
     nt_status sendto_udp(span<const char> buf, int flags,
                          const sockaddr_in6& to, size_t& sent_bytes);
+    nt_status send_udp(span<const char> buf, int flags, size_t& sent_bytes);
 };
 
 static spinlock udp_ports_lock;
@@ -2362,12 +2364,13 @@ nt_status ipv6_socket::sendto(const char* us_buf, size_t len, int flags,
         }
 
         case SOCK_DGRAM: {
-            // FIXME - okay if connected
-            if (!to || tolen < 0 || (size_t)tolen < sizeof(sockaddr_in6))
+            if (to && tolen > 0 && (size_t)tolen >= sizeof(sockaddr_in6)) {
+                return sendto_udp(span(us_buf, len), flags, *(sockaddr_in6*)to,
+                                  sent_bytes);
+            } else if (!to && tolen == 0)
+                return send_udp(span(us_buf, len), flags, sent_bytes);
+            else
                 return nt_status::INVALID_PARAMETER;
-
-            return sendto_udp(span(us_buf, len), flags, *(sockaddr_in6*)to,
-                              sent_bytes);
         }
 
         default:
@@ -3065,6 +3068,24 @@ nt_status ipv6_socket::sendto_udp(span<const char> us_buf, int flags,
     return status;
 }
 
+nt_status ipv6_socket::send_udp(span<const char> us_buf, int flags,
+                                size_t& sent_bytes) {
+    sockaddr_in6 dest;
+
+    {
+        lock_guard lock(bind_lock);
+
+        if (!connect_done)
+            return nt_status::INVALID_PARAMETER;
+
+        *(ipv6_address*)&dest.sin6_addr = connected_address;
+        dest.sin6_port = connected_port;
+        dest.sin6_scope_id = connected_scope;
+    }
+
+    return sendto_udp(us_buf, flags, dest, sent_bytes);
+}
+
 netif::~netif() {
     // not routes or neighbour cache, as they hold reference to netif
 
@@ -3217,6 +3238,7 @@ nt_status ipv6_socket::connect(const sockaddr* addr, size_t addrlen) {
 
         connected_port = c.sin6_port;
         connected_address = *(ipv6_address*)c.sin6_addr;
+        connected_scope = c.sin6_scope_id;
         connect_done = true;
     } else
         return nt_status::INVALID_PARAMETER;
