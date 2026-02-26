@@ -3195,7 +3195,7 @@ nt_status ipv6_socket::bind(const sockaddr* addr, size_t addrlen) {
                     lock_guard lock2(ni.addr_lock);
 
                     for (auto le2 = ni.addrs.next; le2 != &ni.addrs; le2 = le2->next) {
-                        auto& a = containing_record<ip_addr>(le);
+                        auto& a = containing_record<ip_addr>(le2);
 
                         if (a.addr == ip) {
                             okay = true;
