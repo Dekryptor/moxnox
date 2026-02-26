@@ -57,9 +57,9 @@ public:
     list_entry buffer = { &buffer, &buffer };
     size_t buffer_size = 0;
     spinlock bind_lock;
-    bool bind_done = false;
-    uint16_t bound_port;
-    ipv6_address bound_address;
+    bool bind_done = false, connect_done = false;
+    uint16_t bound_port, connected_port;
+    ipv6_address bound_address, connected_address;
 
 private:
     nt_status sendto_raw(span<const char> buf, int flags,
@@ -3190,9 +3190,38 @@ nt_status ipv6_socket::connect(const sockaddr* addr, size_t addrlen) {
     if (type != SOCK_DGRAM)
         return nt_status::INVALID_PARAMETER;
 
-    print("FIXME - ipv6_socket::connect\n");
+    auto& c = *(sockaddr_in6*)addr;
 
-    return nt_status::NOT_IMPLEMENTED;
+    if (type == SOCK_DGRAM) {
+        uint16_t port;
+
+        lock_guard lock(udp_ports_lock);
+        lock_guard lock2(bind_lock);
+
+        if (!bind_done) { // implicit bind if not already done
+            port = find_ephemeral_udp_port();
+            if (port == 0) // no ephemeral ports left
+                return nt_status::ADDRESS_ALREADY_ASSOCIATED;
+
+            udp_ports[port] = this;
+            this->acquire();
+
+            bound_port = port;
+            bound_address = parse_ipv6_address("::");
+
+            bind_done = true;
+        }
+
+        if (connect_done)
+            return nt_status::INVALID_PARAMETER;
+
+        connected_port = c.sin6_port;
+        connected_address = *(ipv6_address*)c.sin6_addr;
+        connect_done = true;
+    } else
+        return nt_status::INVALID_PARAMETER;
+
+    return nt_status::SUCCESS;
 }
 
 void ipv6_socket::last_handle_closed() {
