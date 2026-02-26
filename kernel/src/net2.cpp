@@ -3180,6 +3180,39 @@ nt_status ipv6_socket::bind(const sockaddr* addr, size_t addrlen) {
 
     auto& b = *(sockaddr_in6*)addr;
 
+    auto ip = *(ipv6_address*)b.sin6_addr;
+
+    if (ip != parse_ipv6_address("::")) {
+        bool okay = false;
+
+        {
+            lock_guard lock(netif_lock);
+
+            for (auto le = netif_list.next; le != &netif_list; le = le->next) {
+                auto& ni = containing_record<netif>(le);
+
+                {
+                    lock_guard lock2(ni.addr_lock);
+
+                    for (auto le2 = ni.addrs.next; le2 != &ni.addrs; le2 = le2->next) {
+                        auto& a = containing_record<ip_addr>(le);
+
+                        if (a.addr == ip) {
+                            okay = true;
+                            break;
+                        }
+                    }
+                }
+
+                if (okay)
+                    break;
+            }
+        }
+
+        if (!okay)
+            return nt_status::INVALID_ADDRESS_COMPONENT;
+    }
+
     if (type == SOCK_DGRAM) {
         uint16_t port;
 
@@ -3204,7 +3237,7 @@ nt_status ipv6_socket::bind(const sockaddr* addr, size_t addrlen) {
         this->acquire();
 
         bound_port = port;
-        bound_address = *(ipv6_address*)b.sin6_addr;
+        bound_address = ip;
 
         bind_done = true;
     } else {
@@ -3214,7 +3247,7 @@ nt_status ipv6_socket::bind(const sockaddr* addr, size_t addrlen) {
             return nt_status::INVALID_PARAMETER;
 
         bound_port = b.sin6_port;
-        bound_address = *(ipv6_address*)b.sin6_addr;
+        bound_address = ip;
     }
 
     return nt_status::SUCCESS;
