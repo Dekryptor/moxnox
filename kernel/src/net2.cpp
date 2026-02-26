@@ -1200,7 +1200,53 @@ static void handle_icmpv6_packet(netif& ni, packet& pack,
     }
 }
 
-static void received_ipv6_udp_packet(uint32_t netif_num, packet& pack) {
+static void send_port_unreachable(netif& ni, const packet& pack,
+                                  const mac_address& mac) {
+    static const size_t MIN_MTU = 1280;
+
+    const auto& orig_ip = *(ipv6_header*)pack.data;
+
+    auto pack2 = new packet;
+    if (!pack2) {
+        print("new failed\n");
+        return;
+    }
+
+    size_t payload_size = min(pack.size, MIN_MTU - sizeof(ipv6_header) - sizeof(icmpv6_error));
+
+    pack2->size = sizeof(ipv6_header) + offsetof(icmpv6_error, header) + payload_size;
+
+    auto& ip = *(ipv6_header*)pack2->data;
+    ip.traffic_class1 = 0;
+    ip.version = 6;
+    ip.traffic_class2 = 0;
+    ip.flow_label = 0;
+    ip.payload_length = byteswap((uint16_t)(offsetof(icmpv6_error, header) + payload_size));
+    ip.next_header = IPPROTO_ICMPV6;
+    ip.hop_limit = DEFAULT_HOP_LIMIT;
+    ip.src = orig_ip.dst; // FIXME - make sure not multicast?
+    ip.dst = orig_ip.src;
+
+    auto& err = *(icmpv6_error*)(pack2->data + sizeof(ipv6_header));
+
+    err.type = icmpv6_type::dest_unreachable;
+    err.code = (uint8_t)icmpv6_dest_unreachable_code::no_port;
+    err.checksum = 0;
+    err.reserved = 0;
+
+    memcpy(&err.header, pack.data, payload_size);
+
+    err.checksum = calc_ipv6_checksum(ip, span((uint8_t*)&err, offsetof(icmpv6_error, header) + payload_size), IPPROTO_ICMPV6);
+
+    auto status = ni.send_packet(mac, ethertype::ipv6, *pack2);
+    if (!success(status))
+        print("netif::send_packet returned {}\n", status);
+
+    pack2->release();
+}
+
+static void received_ipv6_udp_packet(netif& ni, packet& pack,
+                                     const mac_address& src_mac) {
     if (pack.size < sizeof(ipv6_header) + sizeof(udp_header))
         return;
 
@@ -1232,7 +1278,7 @@ static void received_ipv6_udp_packet(uint32_t netif_num, packet& pack) {
     }
 
     if (!sock) {
-        // FIXME - send ICMPv6 "port unreachable" error back
+        send_port_unreachable(ni, pack, src_mac);
         return;
     }
 
@@ -1250,7 +1296,7 @@ static void received_ipv6_udp_packet(uint32_t netif_num, packet& pack) {
         return;
     }
 
-    p->scope_id = netif_num;
+    p->scope_id = ni.num;
 
     bool done = false;
 
@@ -1370,15 +1416,16 @@ static void send_to_raw_sockets(uint32_t netif_num, packet& pack) {
     free(arr);
 }
 
-static void send_to_sockets(uint32_t netif_num, packet& pack) {
+static void send_to_sockets(netif& ni, packet& pack,
+                            const mac_address& src_mac) {
     auto& ip = *(ipv6_header*)pack.data;
 
     // FIXME - SOCK_STREAM sockets will be different
 
     if (ip.next_header == IPPROTO_UDP)
-        received_ipv6_udp_packet(netif_num, pack);
+        received_ipv6_udp_packet(ni, pack, src_mac);
 
-    send_to_raw_sockets(netif_num, pack);
+    send_to_raw_sockets(ni.num, pack);
 }
 
 static bool should_accept_multicast(netif& ni, const ipv6_address& dst) {
@@ -1457,7 +1504,7 @@ void handle_ipv6_packet(netif& ni, packet& pack, const mac_address& src_mac) {
             break;
     }
 
-    send_to_sockets(ni.num, pack);
+    send_to_sockets(ni, pack, src_mac);
 
     {
         lock_guard lock(ni.neighbour_lock);
