@@ -324,12 +324,13 @@ unsigned int wake_up_waiters(list_entry& waiters) {
             case waiter_object_type::thread: {
                 auto& t = *(thread*)((uint8_t*)&wo - offsetof(thread, wait_obj));
 
-                assert(t.status == thread_status::waiting);
+                assert(t.status == thread_status::waiting || t.status == thread_status::dying);
 
                 if (t.wait_timeout != 0)
                     remove_entry_list(t.timeout_le);
 
-                t.status = thread_status::runnable;
+                if (t.status != thread_status::dying)
+                    t.status = thread_status::runnable;
 
                 break;
             }
@@ -339,7 +340,7 @@ unsigned int wake_up_waiters(list_entry& waiters) {
                 auto& block = *wom.block;
                 auto& t = *block.t;
 
-                assert(t.status == thread_status::waiting_multiple);
+                assert(t.status == thread_status::waiting_multiple || t.status == thread_status::dying);
 
                 if (t.wait_timeout != 0)
                     remove_entry_list(t.timeout_le);
@@ -355,7 +356,9 @@ unsigned int wake_up_waiters(list_entry& waiters) {
                     }
 
                     t.multwait = nullptr;
-                    t.status = thread_status::runnable;
+
+                    if (t.status != thread_status::dying)
+                        t.status = thread_status::runnable;
                 }
 
                 break;
