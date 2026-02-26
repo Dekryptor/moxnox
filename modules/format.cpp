@@ -493,6 +493,8 @@ span<char> do_format_arg(span<char> sp, string_view, nt_status arg) {
             return sp_strcpy(sp, "IO_DEVICE_ERROR");
         case nt_status::INVALID_BUFFER_SIZE:
             return sp_strcpy(sp, "INVALID_BUFFER_SIZE");
+        case nt_status::INVALID_ADDRESS_COMPONENT:
+            return sp_strcpy(sp, "INVALID_ADDRESS_COMPONENT");
         case nt_status::CONNECTION_DISCONNECTED:
             return sp_strcpy(sp, "CONNECTION_DISCONNECTED");
         case nt_status::CONNECTION_RESET:

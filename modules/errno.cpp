@@ -206,6 +206,9 @@ export int nt_status_to_errno(nt_status status) {
         case nt_status::ADDRESS_ALREADY_ASSOCIATED:
             return EADDRINUSE;
 
+        case nt_status::INVALID_ADDRESS_COMPONENT:
+            return EADDRNOTAVAIL;
+
         default:
             return EINVAL;
     }
