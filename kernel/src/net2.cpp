@@ -3282,6 +3282,8 @@ nt_status ipv6_socket::bind(const sockaddr* addr, size_t addrlen) {
 
         bound_port = b.sin6_port;
         bound_address = ip;
+
+        bind_done = true;
     }
 
     return nt_status::SUCCESS;
