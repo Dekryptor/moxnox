@@ -70,7 +70,7 @@ void test_sendto_recvfrom() {
         // Print first few bytes
         print("    Data: ");
         for (ssize_t i = 0; i < (received < 16 ? received : 16); i++) {
-            print("{:02x} ", response[i]);
+            print("{:02x} ", (uint8_t)response[i]);
         }
         print("\n");
     }
