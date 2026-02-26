@@ -104,7 +104,15 @@ void test_connected_udp() {
     print("  ✓ Connected socket\n");
 
     // Now can use send() instead of sendto()
-    char query[] = {0x56, 0x78, 0x01, 0x00, 0x00, 0x01, 0x00, 0x00};
+    char query[] = {
+        0x12, 0x34,  // Transaction ID
+        0x01, 0x00,  // Flags (standard query)
+        0x00, 0x01,  // Questions: 1
+        0x00, 0x00,  // Answers: 0
+        0x00, 0x00,  // Authority: 0
+        0x00, 0x00,  // Additional: 0
+        // (Would normally have question here, but this is just a test)
+    };
 
     ssize_t sent = send(sock, query, sizeof(query), 0);
     if (sent < 0) {
