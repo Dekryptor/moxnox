@@ -2371,13 +2371,23 @@ nt_status ipv6_socket::sendto(const char* us_buf, size_t len, int flags,
         }
 
         case SOCK_DGRAM: {
-            if (to && tolen > 0 && (size_t)tolen >= sizeof(sockaddr_in6)) {
+            bool connected;
+
+            {
+                lock_guard lock(bind_lock);
+                connected = this->connect_done;
+            }
+
+            // if connected, sendto destination is ignored
+            if (connected)
+                return send_udp(span(us_buf, len), flags, sent_bytes);
+            else {
+                if (!to || tolen < 0 || (size_t)tolen < sizeof(sockaddr_in6))
+                    return nt_status::INVALID_PARAMETER;
+
                 return sendto_udp(span(us_buf, len), flags, *(sockaddr_in6*)to,
                                   sent_bytes);
-            } else if (!to && tolen == 0)
-                return send_udp(span(us_buf, len), flags, sent_bytes);
-            else
-                return nt_status::INVALID_PARAMETER;
+            }
         }
 
         default:
