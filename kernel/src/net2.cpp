@@ -2177,7 +2177,7 @@ nt_status socket::do_sendto(span<const uint8_t> inbuf) {
     sockaddr* to = nullptr;
     size_t sent_bytes;
 
-    if (!params.buf || params.len <= 0 || !params.sent_bytes)
+    if ((!params.buf && params.len > 0) || params.len < 0 || !params.sent_bytes)
         return nt_status::INVALID_PARAMETER;
 
     if ((size_t)params.len > PAGE_SIZE)
@@ -3041,17 +3041,19 @@ nt_status ipv6_socket::sendto_udp(span<const char> us_buf, int flags,
     udp.length = ip.payload_length;
     udp.checksum = 0;
 
-    status = t.proc->read_vm(us_buf.data(),
-                             pack->data + sizeof(ipv6_header) + sizeof(udp_header),
-                             (uint32_t)us_buf.size(), &read_bytes);
+    if (us_buf.size() > 0) {
+        status = t.proc->read_vm(us_buf.data(),
+                                pack->data + sizeof(ipv6_header) + sizeof(udp_header),
+                                (uint32_t)us_buf.size(), &read_bytes);
 
-    if (success(status) && read_bytes < us_buf.size())
-        status = nt_status::NO_MEMORY;
+        if (success(status) && read_bytes < us_buf.size())
+            status = nt_status::NO_MEMORY;
 
-    if (!success(status)) {
-        pack->release();
-        ni.release();
-        return status;
+        if (!success(status)) {
+            pack->release();
+            ni.release();
+            return status;
+        }
     }
 
     udp.checksum = calc_ipv6_checksum(ip, span((uint8_t*)&udp, pack->size - sizeof(ipv6_header)), IPPROTO_UDP);
