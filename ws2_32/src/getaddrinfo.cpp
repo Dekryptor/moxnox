@@ -1,5 +1,6 @@
 #include <string_view>
 #include <optional>
+#include <bit>
 #include <stdlib.h>
 #include <stdint.h>
 #include <string.h>
@@ -80,7 +81,7 @@ static optional<uint32_t> parse_scope_id(string_view n) {
         }
 
         ret *= 10;
-        ret += c - '0';
+        ret += (unsigned int)(c - '0');
     }
 
     if (numeric)
@@ -108,7 +109,7 @@ static optional<uint16_t> parse_service(string_view n) {
         }
 
         ret *= 10;
-        ret += c - '0';
+        ret += (unsigned int)(c - '0');
     }
 
     if (numeric)
