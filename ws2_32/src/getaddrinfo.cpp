@@ -57,11 +57,42 @@ int getaddrinfo(const char* node, const char* service, const addrinfo* hints,
     if (flags & ~understood_flags)
         return EAI_BADFLAGS;
 
-    if (!node) {
-        // FIXME - if node is NULL and no AI_PASSIVE, return loopback address
-        // FIXME - if node is NULL and AI_PASSIVE, return wildcard address
+    auto return_ipv6 = [socktype, protocol, res](const ipv6_address& addr, uint32_t scope) -> int {
+        auto ret = (addrinfo*)malloc(sizeof(addrinfo));
+        if (!ret)
+            return EAI_MEMORY;
 
-        return EAI_FAIL;
+        auto sock = (sockaddr_in6*)malloc(sizeof(sockaddr_in6));
+        if (!sock) {
+            free(ret);
+            return EAI_MEMORY;
+        }
+
+        sock->sin6_family = AF_INET6;
+        sock->sin6_port = 0;
+        sock->sin6_flowinfo = 0;
+        *(ipv6_address*)sock->sin6_addr = addr;
+        sock->sin6_scope_id = scope;
+
+        ret->ai_flags = 0;
+        ret->ai_family = AF_INET6;
+        ret->ai_socktype = socktype;
+        ret->ai_protocol = protocol;
+        ret->ai_addrlen = sizeof(sockaddr_in6);
+        ret->ai_addr = (sockaddr*)sock;
+        ret->ai_canonname = nullptr;
+        ret->ai_next = nullptr;
+
+        *res = ret;
+
+        return 0;
+    };
+
+    if (!node) {
+        if (flags & AI_PASSIVE)
+            return return_ipv6(parse_ipv6_address("::"), 0);
+        else
+            return return_ipv6(parse_ipv6_address("::1"), 0);
     }
 
     string_view n = node;
@@ -85,36 +116,8 @@ int getaddrinfo(const char* node, const char* service, const addrinfo* hints,
 
         auto opt = try_parse_ipv6_address(name);
 
-        if (opt.has_value()) {
-            auto ret = (addrinfo*)malloc(sizeof(addrinfo));
-            if (!ret)
-                return EAI_MEMORY;
-
-            auto sock = (sockaddr_in6*)malloc(sizeof(sockaddr_in6));
-            if (!sock) {
-                free(ret);
-                return EAI_MEMORY;
-            }
-
-            sock->sin6_family = AF_INET6;
-            sock->sin6_port = 0;
-            sock->sin6_flowinfo = 0;
-            *(ipv6_address*)sock->sin6_addr = opt.value();
-            sock->sin6_scope_id = scope_id;
-
-            ret->ai_flags = 0;
-            ret->ai_family = AF_INET6;
-            ret->ai_socktype = socktype;
-            ret->ai_protocol = protocol;
-            ret->ai_addrlen = sizeof(sockaddr_in6);
-            ret->ai_addr = (sockaddr*)sock;
-            ret->ai_canonname = nullptr;
-            ret->ai_next = nullptr;
-
-            *res = ret;
-
-            return 0;
-        }
+        if (opt.has_value())
+            return return_ipv6(*opt, scope_id);
     }
 
     // FIXME - DNS if not AI_NUMERICHOST
