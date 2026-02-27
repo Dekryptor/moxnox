@@ -224,7 +224,6 @@ static span<const uint8_t> get_dns_name(span<uint8_t>& ans, span<uint8_t> pack) 
             return {};
 
         auto val = (uint16_t)(byteswap(*(uint16_t*)ans.data()) & 0x3fff);
-        print("val = {:x}\n", val);
 
         if (val > pack.size())
             return {};
@@ -387,19 +386,12 @@ static int dns_lookup(string_view name) {
             if (sp.empty())
                 break;
 
-            print("FIXME\n");
-
-            auto name = get_dns_name(sp, span((uint8_t*)resp, bytes));
-            if (name.empty())
+            auto name2 = get_dns_name(sp, span((uint8_t*)resp, bytes));
+            if (name2.empty())
                 break;
 
             if (sp.size() < sizeof(dns_resource_record))
                 break;
-
-            for (unsigned int i = 0; i < name.size(); i++) {
-                print("{:02x} ", name[i]);
-            }
-            print("\n");
 
             auto& rr = *(dns_resource_record*)sp.data();
 
@@ -408,16 +400,25 @@ static int dns_lookup(string_view name) {
             if (sp.size() < byteswap(rr.rdlength))
                 break;
 
-            sp = span(sp.data() + byteswap(rr.rdlength), sp.size() - byteswap(rr.rdlength));
+            auto payload = span(sp.data(), byteswap(rr.rdlength));
 
-            print("rr.type = {}, rr.dns_class = {}, rr.ttl = {}\n", byteswap(rr.type), byteswap(rr.dns_class), byteswap(rr.ttl));
+            sp = span(sp.data() + payload.size(), sp.size() - payload.size());
 
-            // FIXME - check name matches
-            // FIXME - check type and class match
-            // FIXME - check length is as expected
+            if (rr.type != suf.type || rr.dns_class != suf.dns_class)
+                continue;
+
+            if (name2.size() != name_len || memcmp(name2.data(), pack + sizeof(dns_header), name_len))
+                continue;
+
+            if (payload.size() != sizeof(ipv6_address))
+                continue;
+
+            auto& addr = *(ipv6_address*)payload.data();
+
+            print("rr.type = {}, rr.dns_class = {}, rr.ttl = {}, {}\n", byteswap(rr.type), byteswap(rr.dns_class), byteswap(rr.ttl), addr);
+
             // FIXME - take a copy
         }
-
     }
 
     free(pack);
