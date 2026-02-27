@@ -1,6 +1,7 @@
 #include <string_view>
 #include <optional>
 #include <bit>
+#include <span>
 #include <stdlib.h>
 #include <stdint.h>
 #include <string.h>
@@ -38,6 +39,13 @@ struct dns_header {
 struct dns_question_suffix {
     uint16_t type;
     uint16_t dns_class;
+} __attribute__((packed));
+
+struct dns_resource_record {
+    uint16_t type;
+    uint16_t dns_class;
+    uint32_t ttl;
+    uint16_t rdlength;
 } __attribute__((packed));
 
 static const char16_t netctl_path[] = u"/dev/netctl";
@@ -208,6 +216,48 @@ static void get_encoded_name(string_view name, uint8_t* buf) {
     *buf = 0;
 }
 
+static span<const uint8_t> get_dns_name(span<uint8_t>& ans, span<uint8_t> pack) {
+    span<uint8_t> sp;
+
+    if ((ans[0] & 0xc0) == 0xc0) { // name compression
+        if (ans.size() < sizeof(uint16_t))
+            return {};
+
+        auto val = (uint16_t)(byteswap(*(uint16_t*)ans.data()) & 0x3fff);
+        print("val = {:x}\n", val);
+
+        if (val > pack.size())
+            return {};
+
+        sp = span(pack.data() + val, pack.size() - val);
+        ans = span(ans.data() + sizeof(uint16_t), ans.size() - sizeof(uint16_t));
+    } else
+        sp = ans;
+
+    auto orig_sp = sp;
+
+    while (true) {
+        if (sp.empty())
+            return {};
+
+        auto len = sp[0];
+        sp = span(sp.data() + 1, sp.size() - 1);
+
+        if (len == 0)
+            break;
+
+        if (sp.size() < len)
+            return {};
+
+        sp = span(sp.data() + len, sp.size() - len);
+    }
+
+    if (orig_sp.data() == ans.data())
+        ans = sp;
+
+    return span(orig_sp.data(), sp.data() - orig_sp.data());
+}
+
 static int dns_lookup(string_view name) {
     int sock = socket(AF_INET6, SOCK_DGRAM, 0);
     if (sock < 0) {
@@ -266,9 +316,111 @@ static int dns_lookup(string_view name) {
         return EAI_SYSTEM;
     }
 
-    // FIXME - wait for answer
     // FIXME - timeouts
 
+    // FIXME - handling CNAMEs?
+
+    // FIXME - can have larger packets with EDNS0
+    // FIXME - TCP packets
+
+    while (true) {
+        char resp[512]; // maximum size of DNS packet
+
+        auto bytes = recv(sock, resp, sizeof(resp), 0);
+        if (bytes < 0) {
+            print_stderr("recv returned {} (errno {})\n", bytes, errno_to_string_view(*_errno()));
+            free(pack);
+            closesocket(sock);
+            return EAI_SYSTEM;
+        }
+
+        if ((size_t)bytes < sizeof(dns_header))
+            continue;
+
+        auto& h2 = *(dns_header*)resp;
+
+        // check transaction ID matches
+        if (h2.id != h.id)
+            continue;
+
+        if (!h2.response) { // FIXME - wait and retry?
+            free(pack);
+            closesocket(sock);
+            return EAI_SYSTEM;
+        }
+
+        if (h2.rcode != 0) { // FIXME - wait and retry (depending on error)?
+            print_stderr("DNS server returned RCODE {}\n", +h2.rcode);
+            free(pack);
+            closesocket(sock);
+            return EAI_SYSTEM;
+        }
+
+        if (h2.qdcount != h.qdcount) { // FIXME - wait and retry?
+            print_stderr("DNS server returned unexpected QDCOUNT {}\n", byteswap(h2.qdcount));
+            free(pack);
+            closesocket(sock);
+            return EAI_SYSTEM;
+        }
+
+        span sp((uint8_t*)resp + sizeof(dns_header), bytes - sizeof(dns_header));
+
+        if (sp.size() < question_len || memcmp(sp.data(), pack + sizeof(dns_header), question_len)) { // FIXME - wait and retry?
+            print_stderr("DNS server did not return question\n");
+            free(pack);
+            closesocket(sock);
+            return EAI_SYSTEM;
+        }
+
+        if (h2.ancount == 0) { // FIXME - wait and retry?
+            print_stderr("DNS server had ANCOUNT of 0\n");
+            free(pack);
+            closesocket(sock);
+            return EAI_SYSTEM;
+        }
+
+        sp = span(sp.data() + question_len, sp.size() - question_len);
+
+        auto num_answers = byteswap(h2.ancount);
+
+        for (uint16_t i = 0; i < num_answers; i++) {
+            if (sp.empty())
+                break;
+
+            print("FIXME\n");
+
+            auto name = get_dns_name(sp, span((uint8_t*)resp, bytes));
+            if (name.empty())
+                break;
+
+            if (sp.size() < sizeof(dns_resource_record))
+                break;
+
+            for (unsigned int i = 0; i < name.size(); i++) {
+                print("{:02x} ", name[i]);
+            }
+            print("\n");
+
+            auto& rr = *(dns_resource_record*)sp.data();
+
+            sp = span(sp.data() + sizeof(rr), sp.size() - sizeof(rr));
+
+            if (sp.size() < byteswap(rr.rdlength))
+                break;
+
+            sp = span(sp.data() + byteswap(rr.rdlength), sp.size() - byteswap(rr.rdlength));
+
+            print("rr.type = {}, rr.dns_class = {}, rr.ttl = {}\n", byteswap(rr.type), byteswap(rr.dns_class), byteswap(rr.ttl));
+
+            // FIXME - check name matches
+            // FIXME - check type and class match
+            // FIXME - check length is as expected
+            // FIXME - take a copy
+        }
+
+    }
+
+    free(pack);
     closesocket(sock);
 
     return EAI_NONAME; // FIXME
