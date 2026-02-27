@@ -257,7 +257,8 @@ static span<const uint8_t> get_dns_name(span<uint8_t>& ans, span<uint8_t> pack) 
     return span(orig_sp.data(), sp.data() - orig_sp.data());
 }
 
-static int dns_lookup(string_view name) {
+static int dns_lookup(string_view name, addrinfo** res, int socktype,
+                      int protocol, uint16_t port) {
     int sock = socket(AF_INET6, SOCK_DGRAM, 0);
     if (sock < 0) {
         print_stderr("socket returned {} (errno {})\n", sock, errno_to_string_view(*_errno()));
@@ -382,6 +383,8 @@ static int dns_lookup(string_view name) {
 
         auto num_answers = byteswap(h2.ancount);
 
+        addrinfo* last_ai = nullptr;
+
         for (uint16_t i = 0; i < num_answers; i++) {
             if (sp.empty())
                 break;
@@ -415,16 +418,67 @@ static int dns_lookup(string_view name) {
 
             auto& addr = *(ipv6_address*)payload.data();
 
-            print("rr.type = {}, rr.dns_class = {}, rr.ttl = {}, {}\n", byteswap(rr.type), byteswap(rr.dns_class), byteswap(rr.ttl), addr);
+            auto ai = (addrinfo*)malloc(sizeof(addrinfo));
+            if (!ai) {
+                while (*res) {
+                    auto next = (*res)->ai_next;
 
-            // FIXME - take a copy
+                    free((*res)->ai_addr);
+                    free(*res);
+                    *res = next;
+                }
+
+                return EAI_MEMORY;
+            }
+
+            auto sock = (sockaddr_in6*)malloc(sizeof(sockaddr_in6));
+            if (!sock) {
+                while (*res) {
+                    auto next = (*res)->ai_next;
+
+                    free((*res)->ai_addr);
+                    free(*res);
+                    *res = next;
+                }
+
+                free(ai);
+                return EAI_MEMORY;
+            }
+
+            sock->sin6_family = AF_INET6;
+            sock->sin6_port = byteswap(port);
+            sock->sin6_flowinfo = 0;
+            *(ipv6_address*)sock->sin6_addr = addr;
+            sock->sin6_scope_id = 0;
+
+            ai->ai_flags = 0;
+            ai->ai_family = AF_INET6;
+            ai->ai_socktype = socktype;
+            ai->ai_protocol = protocol;
+            ai->ai_addrlen = sizeof(sockaddr_in6);
+            ai->ai_addr = (sockaddr*)sock;
+            ai->ai_canonname = nullptr;
+            ai->ai_next = nullptr;
+
+            if (last_ai)
+                last_ai->ai_next = ai;
+            else
+                *res = ai;
+
+            last_ai = ai;
+        }
+
+        if (last_ai) {
+            free(pack);
+            closesocket(sock);
+            return 0;
         }
     }
 
     free(pack);
     closesocket(sock);
 
-    return EAI_NONAME; // FIXME
+    return EAI_NONAME;
 }
 
 extern "C"
@@ -532,7 +586,7 @@ int getaddrinfo(const char* node, const char* service, const addrinfo* hints,
     if (flags & AI_NUMERICHOST)
         return EAI_NONAME;
 
-    return dns_lookup(n);
+    return dns_lookup(n, res, socktype, protocol, port);
 }
 
 extern "C"
