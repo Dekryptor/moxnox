@@ -349,13 +349,6 @@ static int dns_lookup(string_view name, addrinfo** res, int socktype,
             return EAI_SYSTEM;
         }
 
-        if (h2.rcode != 0) { // FIXME - wait and retry (depending on error)?
-            print_stderr("DNS server returned RCODE {}\n", +h2.rcode);
-            free(pack);
-            closesocket(sock);
-            return EAI_SYSTEM;
-        }
-
         if (h2.qdcount != h.qdcount) { // FIXME - wait and retry?
             print_stderr("DNS server returned unexpected QDCOUNT {}\n", byteswap(h2.qdcount));
             free(pack);
@@ -367,6 +360,17 @@ static int dns_lookup(string_view name, addrinfo** res, int socktype,
 
         if (sp.size() < question_len || memcmp(sp.data(), pack + sizeof(dns_header), question_len)) { // FIXME - wait and retry?
             print_stderr("DNS server did not return question\n");
+            free(pack);
+            closesocket(sock);
+            return EAI_SYSTEM;
+        }
+
+        if (h2.rcode == 3) { // no such name
+            free(pack);
+            closesocket(sock);
+            return EAI_NONAME;
+        } else if (h2.rcode != 0) { // FIXME - wait and retry (depending on error)?
+            print_stderr("DNS server returned RCODE {}\n", +h2.rcode);
             free(pack);
             closesocket(sock);
             return EAI_SYSTEM;
