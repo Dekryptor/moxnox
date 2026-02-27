@@ -81,3 +81,5 @@ wcsftime
 wcsxfrm
 wctob
 wctype
+srand
+rand
