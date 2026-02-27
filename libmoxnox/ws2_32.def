@@ -8,3 +8,6 @@ send
 sendto
 bind
 connect
+getaddrinfo
+freeaddrinfo
+gai_strerror

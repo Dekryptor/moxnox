@@ -1,6 +1,7 @@
 module;
 
 #include <stdint.h>
+#include <stddef.h>
 
 export module ws2_32;
 
@@ -100,6 +101,25 @@ struct sockaddr_in6 {
     uint32_t sin6_scope_id;
 };
 
+const int AI_PASSIVE = 0x0001;
+const int AI_CANONNAME = 0x0002;
+const int AI_NUMERICHOST = 0x0004;
+const int AI_V4MAPPED = 0x0008;
+const int AI_ALL = 0x0010;
+const int AI_ADDRCONFIG = 0x0020;
+const int AI_NUMERICSERV = 0x0400;
+
+struct addrinfo {
+    int ai_flags;
+    int ai_family;
+    int ai_socktype;
+    int ai_protocol;
+    size_t ai_addrlen;
+    sockaddr* ai_addr; // Windows has this field and the next swapped
+    char* ai_canonname;
+    addrinfo* ai_next;
+};
+
 extern "C" {
 
 SOCKET socket(int af, int type, int protocol);
@@ -112,6 +132,10 @@ int sendto(SOCKET s, const char* buf, int len, int flags, const sockaddr* to,
            int tolen);
 int bind(SOCKET s, const sockaddr* addr, int addrlen);
 int connect(SOCKET s, const sockaddr* addr, int addrlen);
+int getaddrinfo(const char* node, const char* service, const addrinfo* hints,
+                addrinfo** res);
+void freeaddrinfo(addrinfo* res);
+const char* gai_strerror(int errcode);
 
 }
 
