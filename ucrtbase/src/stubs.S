@@ -45,7 +45,5 @@ do_stub "wctob"
 do_stub "wctype"
 do_stub "putc"
 do_stub "__stdio_common_vfscanf"
-do_stub "srand"
-do_stub "rand"
 
 stubs_end

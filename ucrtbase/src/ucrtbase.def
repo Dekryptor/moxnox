@@ -78,3 +78,5 @@ abort
 _assert
 _fpreset
 _ungetc_nolock = __ungetc_nolock
+rand
+srand

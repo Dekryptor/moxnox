@@ -15,6 +15,7 @@ set(SRC_FILES src/ucrtbase.cpp
     src/locale.cpp
     src/mbcs.cpp
     src/math.cpp
+    src/misc.cpp
 )
 
 add_library(ucrtbase SHARED ${SRC_FILES})
