@@ -376,11 +376,11 @@ static int dns_lookup(string_view name, addrinfo** res, int socktype,
             return EAI_SYSTEM;
         }
 
-        if (h2.ancount == 0) { // FIXME - wait and retry?
-            print_stderr("DNS server had ANCOUNT of 0\n");
+        if (h2.ancount == 0) { // no matching records
             free(pack);
             closesocket(sock);
-            return EAI_SYSTEM;
+            // Linux returns non-standard EAI_ADDRFAMILY here
+            return EAI_NONAME;
         }
 
         sp = span(sp.data() + question_len, sp.size() - question_len);
