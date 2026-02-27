@@ -16,7 +16,41 @@ void freeaddrinfo(addrinfo* res) {
 
 extern "C"
 const char* gai_strerror(int errcode) {
-    print_stderr("FIXME - gai_strerror {}", errcode);
+    switch (errcode) {
+        case 0:
+            return "Success";
 
-    return "?";
+        case EAI_BADFLAGS:
+            return "Bad value for ai_flags";
+
+        case EAI_NONAME:
+            return "Name or service not known";
+
+        case EAI_AGAIN:
+            return "Temporary failure in name resolution";
+
+        case EAI_FAIL:
+            return "Non-recoverable failure in name resolution";
+
+        case EAI_FAMILY:
+            return "ai_family not supported";
+
+        case EAI_SOCKTYPE:
+            return "ai_socktype not supported";
+
+        case EAI_SERVICE:
+            return "Servname not supported for ai_socktype";
+
+        case EAI_MEMORY:
+            return "Memory allocation failure";
+
+        case EAI_SYSTEM:
+            return "System error";
+
+        case EAI_OVERFLOW:
+            return "Result too large for supplied buffer";
+
+        default:
+            return "?";
+    }
 }
