@@ -33,10 +33,45 @@ static optional<uint32_t> parse_scope_id(string_view n) {
     return nullopt;
 }
 
+static optional<uint16_t> parse_service(string_view n) {
+    if (n.empty())
+        return 0;
+
+    bool numeric = true;
+    unsigned int ret = 0;
+
+    for (auto c : n) {
+        if (c < '0' || c > '9') {
+            numeric = false;
+            break;
+        }
+
+        ret *= 10;
+        ret += c - '0';
+    }
+
+    if (numeric)
+        return ret;
+
+    if (n == "http")
+        return 80;
+    else if (n == "https")
+        return 443;
+    else if (n == "ssh")
+        return 22;
+    else if (n == "dns")
+        return 53;
+    else if (n == "ftp")
+        return 21;
+
+    return nullopt;
+}
+
 extern "C"
 int getaddrinfo(const char* node, const char* service, const addrinfo* hints,
                 addrinfo** res) {
     int socktype, protocol, family, flags;
+    uint16_t port;
 
     static const int understood_flags = AI_PASSIVE | AI_CANONNAME | AI_NUMERICHOST |
                                         AI_V4MAPPED | AI_ALL | AI_ADDRCONFIG |
@@ -57,7 +92,15 @@ int getaddrinfo(const char* node, const char* service, const addrinfo* hints,
     if (flags & ~understood_flags)
         return EAI_BADFLAGS;
 
-    auto return_ipv6 = [socktype, protocol, res](const ipv6_address& addr, uint32_t scope) -> int {
+    if (service) {
+        if (auto opt = parse_service(service); opt.has_value())
+            port = *opt;
+        else
+            return EAI_NONAME;
+    } else
+        port = 0;
+
+    auto return_ipv6 = [socktype, protocol, res, port](const ipv6_address& addr, uint32_t scope) -> int {
         auto ret = (addrinfo*)malloc(sizeof(addrinfo));
         if (!ret)
             return EAI_MEMORY;
@@ -69,7 +112,7 @@ int getaddrinfo(const char* node, const char* service, const addrinfo* hints,
         }
 
         sock->sin6_family = AF_INET6;
-        sock->sin6_port = 0;
+        sock->sin6_port = byteswap(port);
         sock->sin6_flowinfo = 0;
         *(ipv6_address*)sock->sin6_addr = addr;
         sock->sin6_scope_id = scope;
