@@ -2,11 +2,69 @@
 #include <optional>
 #include <stdlib.h>
 #include <stdint.h>
+#include <string.h>
 
+import nt;
+import moxnox_ioctls;
+import unique_handle;
 import ws2_32;
 import ipv6;
+import print;
 
 using namespace std;
+
+static const char16_t netctl_path[] = u"/dev/netctl";
+
+static unique_handle open_netctl() {
+    OBJECT_ATTRIBUTES oa;
+    UNICODE_STRING us;
+    IO_STATUS_BLOCK iosb;
+    HANDLE h;
+
+    memset(&oa, 0, sizeof(oa));
+    oa.Length = sizeof(OBJECT_ATTRIBUTES);
+    oa.ObjectName = &us;
+
+    us.Length = us.MaximumLength = (uint16_t)(sizeof(netctl_path) - sizeof(char16_t));
+    us.Buffer = (char16_t*)netctl_path;
+
+    auto status = NtCreateFile(&h, FILE_READ_ATTRIBUTES, &oa, &iosb, nullptr, 0,
+                               0, FILE_OPEN, FILE_SYNCHRONOUS_IO_ALERT, nullptr,
+                               0);
+    if (!success(status)) {
+        print_stderr("NtCreateFile returned {}\n", status);
+        return {};
+    }
+
+    return unique_handle{h};
+}
+
+static uint32_t resolve_scope(string_view s) {
+    nt_status status;
+    MOXNOX_NETCTL_GET_NETIF_BY_NAME p;
+    IO_STATUS_BLOCK iosb;
+    uint32_t id;
+
+    if (s.size() > sizeof(p.name))
+        return 0;
+
+    auto netctl = open_netctl();
+    if (!netctl)
+        return 0;
+
+    memcpy(p.name, s.data(), s.size());
+    memset(p.name + s.size(), 0, sizeof(p.name) - s.size());
+
+    status = NtDeviceIoControlFile(netctl.get(), 0, nullptr, nullptr, &iosb,
+                                   IOCTL_MOXNOX_NETCTL_GET_NETIF_BY_NAME, &p,
+                                   sizeof(p), &id, (uint32_t)sizeof(id));
+    if (!success(status)) {
+        print_stderr("NtDeviceIoControlFile returned {}\n", status);
+        return 0;
+    }
+
+    return id;
+}
 
 static optional<uint32_t> parse_scope_id(string_view n) {
     if (n.empty())
@@ -28,9 +86,12 @@ static optional<uint32_t> parse_scope_id(string_view n) {
     if (numeric)
         return ret;
 
-    // FIXME - resolve scope names
+    ret = resolve_scope(n);
 
-    return nullopt;
+    if (ret != 0)
+        return ret;
+    else
+        return nullopt;
 }
 
 static optional<uint16_t> parse_service(string_view n) {
