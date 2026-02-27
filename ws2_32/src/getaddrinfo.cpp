@@ -3,7 +3,6 @@
 
 import ws2_32;
 import ipv6;
-import print;
 
 using namespace std;
 
@@ -82,7 +81,18 @@ int getaddrinfo(const char* node, const char* service, const addrinfo* hints,
 
 extern "C"
 void freeaddrinfo(addrinfo* res) {
-    print_stderr("FIXME - freeaddrinfo\n");
+    while (res) {
+        auto next = res->ai_next;
+
+        if (res->ai_addr)
+            free(res->ai_addr);
+
+        if (res->ai_canonname)
+            free(res->ai_canonname);
+
+        free(res);
+        res = next;
+    }
 }
 
 extern "C"
