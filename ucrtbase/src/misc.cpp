@@ -16,10 +16,25 @@ static void rand_init() {
 
     rand_init_done = true;
 
-    // Seed from rdtsc
+    uint64_t tsc;
+
+#ifdef __x86_64__
     uint32_t lo, hi;
-    __asm__ volatile("rdtsc" : "=a"(lo), "=d"(hi));
-    uint64_t tsc = ((uint64_t)hi << 32) | lo;
+
+    __asm__ volatile(
+        "rdtsc"
+        : "=a"(lo), "=d"(hi)
+    );
+
+    tsc = ((uint64_t)hi << 32) | lo;
+#elifdef __aarch64__
+    __asm__ volatile(
+        "mrs %0, cntvct_el0"
+        : "=r" (tsc)
+    );
+#else
+#error "unhandled architecture"
+#endif
 
     srand((unsigned int)tsc);
 }
