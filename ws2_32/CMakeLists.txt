@@ -10,6 +10,7 @@ enable_language(ASM)
 set(SRC_FILES src/ws2_32.def
     src/ws2_32.cpp
     src/stubs.S
+    src/getaddrinfo.cpp
 )
 
 add_library(ws2_32 SHARED ${SRC_FILES})
@@ -17,7 +18,7 @@ add_library(ws2_32 SHARED ${SRC_FILES})
 target_compile_options(ws2_32 PRIVATE -fno-exceptions ${USERSPACE_CFLAGS})
 target_link_options(ws2_32 PUBLIC -nostartfiles -nostdlib)
 
-target_link_libraries(ws2_32 PRIVATE unique_handle errno)
+target_link_libraries(ws2_32 PRIVATE unique_handle errno print)
 target_link_libraries(ws2_32 PRIVATE moxnox)
 
 install(TARGETS ws2_32 DESTINATION ${CMAKE_INSTALL_PREFIX}/lib

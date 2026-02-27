@@ -109,6 +109,17 @@ const int AI_ALL = 0x0010;
 const int AI_ADDRCONFIG = 0x0020;
 const int AI_NUMERICSERV = 0x0400;
 
+const int EAI_BADFLAGS = -1;
+const int EAI_NONAME = -2;
+const int EAI_AGAIN = -3;
+const int EAI_FAIL = -4;
+const int EAI_FAMILY = -6;
+const int EAI_SOCKTYPE = -7;
+const int EAI_SERVICE = -8;
+const int EAI_MEMORY = -10;
+const int EAI_SYSTEM = -11;
+const int EAI_OVERFLOW = -12;
+
 struct addrinfo {
     int ai_flags;
     int ai_family;
