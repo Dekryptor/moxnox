@@ -1,10 +1,37 @@
 #include <string_view>
+#include <optional>
 #include <stdlib.h>
+#include <stdint.h>
 
 import ws2_32;
 import ipv6;
 
 using namespace std;
+
+static optional<uint32_t> parse_scope_id(string_view n) {
+    if (n.empty())
+        return 0;
+
+    bool numeric = true;
+    unsigned int ret = 0;
+
+    for (auto c : n) {
+        if (c < '0' || c > '9') {
+            numeric = false;
+            break;
+        }
+
+        ret *= 10;
+        ret += c - '0';
+    }
+
+    if (numeric)
+        return ret;
+
+    // FIXME - resolve scope names
+
+    return nullopt;
+}
 
 extern "C"
 int getaddrinfo(const char* node, const char* service, const addrinfo* hints,
@@ -40,7 +67,23 @@ int getaddrinfo(const char* node, const char* service, const addrinfo* hints,
     string_view n = node;
 
     if (family == AF_UNSPEC || family == AF_INET6) {
-        auto opt = try_parse_ipv6_address(n);
+        string_view name, scope;
+        uint32_t scope_id = 0;
+
+        if (auto pc = n.find('%'); pc != string_view::npos) {
+            name = string_view(n.data(), pc);
+            scope = string_view(n.data() + pc + 1, n.size() - pc - 1);
+        } else
+            name = n;
+
+        if (!scope.empty()) {
+            if (auto opt = parse_scope_id(scope); opt.has_value())
+                scope_id = *opt;
+            else
+                return EAI_NONAME;
+        }
+
+        auto opt = try_parse_ipv6_address(name);
 
         if (opt.has_value()) {
             auto ret = (addrinfo*)malloc(sizeof(addrinfo));
@@ -57,7 +100,7 @@ int getaddrinfo(const char* node, const char* service, const addrinfo* hints,
             sock->sin6_port = 0;
             sock->sin6_flowinfo = 0;
             *(ipv6_address*)sock->sin6_addr = opt.value();
-            sock->sin6_scope_id = 0;
+            sock->sin6_scope_id = scope_id;
 
             ret->ai_flags = 0;
             ret->ai_family = AF_INET6;
