@@ -254,7 +254,7 @@ static span<const uint8_t> get_dns_name(span<uint8_t>& ans, span<uint8_t> pack) 
     if (orig_sp.data() == ans.data())
         ans = sp;
 
-    return span(orig_sp.data(), sp.data() - orig_sp.data());
+    return span(orig_sp.data(), (size_t)(sp.data() - orig_sp.data()));
 }
 
 static int dns_lookup(string_view name, addrinfo** res, int socktype,
@@ -356,7 +356,7 @@ static int dns_lookup(string_view name, addrinfo** res, int socktype,
             return EAI_SYSTEM;
         }
 
-        span sp((uint8_t*)resp + sizeof(dns_header), bytes - sizeof(dns_header));
+        span sp((uint8_t*)resp + sizeof(dns_header), (size_t)bytes - sizeof(dns_header));
 
         if (sp.size() < question_len || memcmp(sp.data(), pack + sizeof(dns_header), question_len)) { // FIXME - wait and retry?
             print_stderr("DNS server did not return question\n");
@@ -393,7 +393,7 @@ static int dns_lookup(string_view name, addrinfo** res, int socktype,
             if (sp.empty())
                 break;
 
-            auto name2 = get_dns_name(sp, span((uint8_t*)resp, bytes));
+            auto name2 = get_dns_name(sp, span((uint8_t*)resp, (size_t)bytes));
             if (name2.empty())
                 break;
 
