@@ -296,7 +296,7 @@ static int dns_lookup(string_view name, addrinfo** res, int socktype,
     auto& h = *(dns_header*)pack;
     memset(&h, 0, sizeof(h));
 
-    h.id = 0; // FIXME
+    h.id = (uint16_t)rand();
     h.recursion_desired = 1;
     h.opcode = 0;
     h.response = 0;
