@@ -12,9 +12,42 @@ import ws2_32;
 import ipv6;
 import print;
 
+#undef errno
+import errno;
+
 using namespace std;
 
+struct dns_header {
+    uint16_t id;
+    uint16_t recursion_desired : 1;
+    uint16_t truncated : 1;
+    uint16_t authoritative_answer : 1;
+    uint16_t opcode : 4;
+    uint16_t response : 1;
+    uint16_t rcode : 4;
+    uint16_t checking_disabled : 1;
+    uint16_t authenticated_data : 1;
+    uint16_t : 1;
+    uint16_t recursion_available : 1;
+    uint16_t qdcount;
+    uint16_t ancount;
+    uint16_t nscount;
+    uint16_t arcount;
+} __attribute__((packed));
+
+struct dns_question_suffix {
+    uint16_t type;
+    uint16_t dns_class;
+} __attribute__((packed));
+
 static const char16_t netctl_path[] = u"/dev/netctl";
+
+static const ipv6_address DNS_SERVER = parse_ipv6_address("fd14:7420:2b17::1"); // FIXME
+static const uint16_t DNS_PORT = 53;
+
+static constexpr auto DNS_AAAA = byteswap((uint16_t)28);
+
+static constexpr auto DNS_IN = byteswap((uint16_t)1);
 
 static unique_handle open_netctl() {
     OBJECT_ATTRIBUTES oa;
@@ -129,6 +162,118 @@ static optional<uint16_t> parse_service(string_view n) {
     return nullopt;
 }
 
+static size_t get_encoded_name_len(string_view name) {
+    size_t ret = 1;
+
+    while (true) {
+        auto dot = name.find('.');
+
+        ret++;
+
+        if (dot == string_view::npos) {
+            ret += name.size();
+            break;
+        }
+
+        ret += dot;
+        name = string_view(name.data() + dot + 1, name.size() - dot - 1);
+    }
+
+    return ret;
+}
+
+static void get_encoded_name(string_view name, uint8_t* buf) {
+    while (true) {
+        auto dot = name.find('.');
+
+        if (dot == string_view::npos) {
+            *buf = (uint8_t)name.size();
+            buf++;
+
+            memcpy(buf, name.data(), name.size());
+            buf += name.size();
+
+            break;
+        }
+
+        *buf = (uint8_t)dot;
+        buf++;
+
+        memcpy(buf, name.data(), dot);
+        buf += dot;
+
+        name = string_view(name.data() + dot + 1, name.size() - dot - 1);
+    }
+
+    *buf = 0;
+}
+
+static int dns_lookup(string_view name) {
+    int sock = socket(AF_INET6, SOCK_DGRAM, 0);
+    if (sock < 0) {
+        print_stderr("socket returned {} (errno {})\n", sock, errno_to_string_view(*_errno()));
+        return EAI_SYSTEM;
+    }
+
+    // FIXME - querying for A exclusively, querying for both A and AAAA
+
+    struct sockaddr_in6 dest;
+
+    memset(&dest, 0, sizeof(dest));
+
+    dest.sin6_family = AF_INET6;
+    dest.sin6_port = byteswap(DNS_PORT);
+    *(ipv6_address*)&dest.sin6_addr = DNS_SERVER;
+
+    int ret = connect(sock, (struct sockaddr*)&dest, sizeof(dest));
+    if (ret < 0) {
+        print_stderr("connect returned {} (errno {})\n", ret, errno_to_string_view(*_errno()));
+        closesocket(sock);
+        return EAI_SYSTEM;
+    }
+
+    auto name_len = get_encoded_name_len(name);
+    size_t question_len = name_len + sizeof(dns_question_suffix);
+
+    size_t packlen = sizeof(dns_header) + question_len;
+    auto pack = (char*)malloc(packlen);
+    if (!pack) {
+        print("malloc failed\n");
+        closesocket(sock);
+        return EAI_MEMORY;
+    }
+
+    auto& h = *(dns_header*)pack;
+    memset(&h, 0, sizeof(h));
+
+    h.id = 0; // FIXME
+    h.recursion_desired = 1;
+    h.opcode = 0;
+    h.response = 0;
+    h.qdcount = byteswap((uint16_t)1);
+
+    get_encoded_name(name, (uint8_t*)pack + sizeof(dns_header));
+
+    auto& suf = *(dns_question_suffix*)(pack + sizeof(dns_header) + name_len);
+    suf.type = DNS_AAAA;
+    suf.dns_class = DNS_IN;
+
+    auto sent = send(sock, pack, (int)packlen, 0);
+    if (sent < 0) {
+        print_stderr("send returned {} (errno {})\n", sent, errno_to_string_view(*_errno()));
+        free(pack);
+        closesocket(sock);
+        return EAI_SYSTEM;
+    }
+
+    // FIXME - wait for answer
+    // FIXME - timeouts
+
+    closesocket(sock);
+
+    return EAI_NONAME; // FIXME
+}
+
 extern "C"
 int getaddrinfo(const char* node, const char* service, const addrinfo* hints,
                 addrinfo** res) {
@@ -138,6 +283,12 @@ int getaddrinfo(const char* node, const char* service, const addrinfo* hints,
     static const int understood_flags = AI_PASSIVE | AI_CANONNAME | AI_NUMERICHOST |
                                         AI_V4MAPPED | AI_ALL | AI_ADDRCONFIG |
                                         AI_NUMERICSERV;
+
+    // FIXME - AI_CANONNAME
+    // FIXME - AI_V4MAPPED
+    // FIXME - AI_ALL
+    // FIXME - AI_ADDRCONFIG
+    // FIXME - AI_NUMERICSERV
 
     if (!hints) {
         socktype = 0;
@@ -225,9 +376,10 @@ int getaddrinfo(const char* node, const char* service, const addrinfo* hints,
             return return_ipv6(*opt, scope_id);
     }
 
-    // FIXME - DNS if not AI_NUMERICHOST
+    if (flags & AI_NUMERICHOST)
+        return EAI_NONAME;
 
-    return EAI_FAIL;
+    return dns_lookup(n);
 }
 
 extern "C"
