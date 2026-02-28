@@ -89,10 +89,6 @@ public:
     uint32_t connected_scope;
     ipv6_address bound_address, connected_address;
     nt_status pending_error = nt_status::SUCCESS;
-
-private:
-    nt_status sendto_udp(span<const char> buf, int flags,
-                         const sockaddr_in6& to, size_t& sent_bytes);
 };
 
 static spinlock udp_ports_lock;
@@ -2691,34 +2687,6 @@ nt_status ipv6_udp_socket::recvfrom(char* us_buf, size_t len, int flags,
     return nt_status::SUCCESS;
 }
 
-nt_status ipv6_udp_socket::sendto(const char* buf, size_t len, int flags,
-                                  sockaddr* to, int tolen, size_t& sent_bytes) {
-    bool connected;
-    sockaddr_in6 dest;
-
-    {
-        lock_guard lock(bind_lock);
-        connected = this->connect_done;
-
-        if (connected) {
-            *(ipv6_address*)&dest.sin6_addr = connected_address;
-            dest.sin6_port = connected_port;
-            dest.sin6_scope_id = connected_scope;
-        }
-    }
-
-    // if connected, sendto destination is ignored
-    if (connected)
-        return sendto_udp(span(buf, len), flags, dest, sent_bytes);
-    else {
-        if (!to || tolen < 0 || (size_t)tolen < sizeof(sockaddr_in6))
-            return nt_status::INVALID_PARAMETER;
-
-        return sendto_udp(span(buf, len), flags, *(sockaddr_in6*)to,
-                          sent_bytes);
-    }
-}
-
 static bool is_link_local(const ipv6_address& addr) {
     // link-local unicast
     if (addr.v[0] == 0xfe && (addr.v[1] & 0xc0) == 0x80)
@@ -3318,13 +3286,33 @@ static uint16_t find_ephemeral_udp_port() {
     }
 }
 
-nt_status ipv6_udp_socket::sendto_udp(span<const char> us_buf, int flags,
-                                      const sockaddr_in6& to,
-                                      size_t& sent_bytes) {
+nt_status ipv6_udp_socket::sendto(const char* buf, size_t len, int flags,
+                                  sockaddr* to, int tolen, size_t& sent_bytes) {
     nt_status status;
     uint32_t read_bytes;
     ipv6_address src;
     uint16_t srcport;
+    bool connected;
+    sockaddr_in6 dest;
+
+    {
+        lock_guard lock(bind_lock);
+        connected = this->connect_done;
+
+        if (connected) {
+            *(ipv6_address*)&dest.sin6_addr = connected_address;
+            dest.sin6_port = connected_port;
+            dest.sin6_scope_id = connected_scope;
+        }
+    }
+
+    auto us_buf = span(buf, len);
+
+    // if connected, sendto destination is ignored
+    auto& to6 = connected ? dest : *(sockaddr_in6*)to;
+
+    if (!connected && (!to || tolen < 0 || (size_t)tolen < sizeof(sockaddr_in6)))
+        return nt_status::INVALID_PARAMETER;
 
     if (flags != 0)
         return nt_status::INVALID_PARAMETER;
@@ -3385,11 +3373,11 @@ nt_status ipv6_udp_socket::sendto_udp(span<const char> us_buf, int flags,
     if (!t.proc)
         return nt_status::INTERNAL_ERROR;
 
-    auto& dst = *(ipv6_address*)to.sin6_addr;
+    auto& dst = *(ipv6_address*)to6.sin6_addr;
 
     netif* pni;
 
-    status = ipv6_choose_interface(dst, to.sin6_scope_id, pni, src);
+    status = ipv6_choose_interface(dst, to6.sin6_scope_id, pni, src);
     if (!success(status))
         return status;
 
@@ -3428,7 +3416,7 @@ nt_status ipv6_udp_socket::sendto_udp(span<const char> us_buf, int flags,
 
     auto& udp = *(udp_header*)(pack->data + sizeof(ipv6_header));
     udp.srcport = srcport;
-    udp.dstport = to.sin6_port;
+    udp.dstport = to6.sin6_port;
     udp.length = ip.payload_length;
     udp.checksum = 0;
 
