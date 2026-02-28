@@ -1573,7 +1573,7 @@ static bool ctrl_handler(uint32_t type) {
     return true;
 }
 
-extern "C" void startup() {
+int main() {
     auto teb = NtCurrentTeb();
     auto peb = teb->ProcessEnvironmentBlock;
     unique_handle server_handle, client_handle;
@@ -1583,18 +1583,15 @@ extern "C" void startup() {
                            EVENT_TYPE::SynchronizationEvent, false);
     if (!success(status)) {
         print_stderr("NtCreateEvent returned {}\n", status);
-        NtTerminateThread(NtCurrentThread(), status);
-        return;
+        return 1;
     }
 
     if (!SetConsoleCtrlHandler(ctrl_handler, true))
         print_stderr("SetConsoleCtrlHandler failed\n");
 
     status = create_pipe(server_handle, client_handle);
-    if (!success(status)) {
-        NtTerminateThread(NtCurrentThread(), status);
-        return;
-    }
+    if (!success(status))
+        return 1;
 
     get_prompt();
     print("{}", prompt);
@@ -1654,5 +1651,5 @@ extern "C" void startup() {
         }
     }
 
-    NtTerminateThread(NtCurrentThread(), nt_status::SUCCESS);
+    return 0;
 }

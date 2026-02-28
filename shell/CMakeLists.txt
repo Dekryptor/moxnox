@@ -24,8 +24,6 @@ if(CMAKE_SYSTEM_PROCESSOR STREQUAL "amd64")
     target_compile_options(shell PRIVATE -masm=intel)
 endif()
 
-target_link_options(shell PUBLIC -nostartfiles -nostdlib -Wl,--entry=startup)
-
 target_link_libraries(shell print unicode unique_handle signal cmdline list pagesize env)
 target_link_libraries(shell format)
 
