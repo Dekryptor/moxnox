@@ -16,6 +16,7 @@ SET(AR x86_64-w64-mingw32-ar)
 #set(CMAKE_CXX_STANDARD_LIBRARIES "-static -static-libgcc -static-libstdc++ ${CMAKE_CXX_STANDARD_LIBRARIES}")
 #set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -Wl,-Bstatic,--whole-archive -Wl,--no-whole-archive")
 set(CMAKE_EXE_LINKER_FLAGS "-static -nodefaultlibs")
+set(CMAKE_SHARED_LINKER_FLAGS "-nodefaultlibs")
 
 # here is the target environment located
 SET(CMAKE_FIND_ROOT_PATH /usr/x86_64-w64-mingw32)

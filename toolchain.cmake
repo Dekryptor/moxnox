@@ -6,9 +6,10 @@ if(CMAKE_SYSTEM_PROCESSOR STREQUAL "aarch64")
     endif()
 
     set(CMAKE_CXX_LINK_EXECUTABLE "<CMAKE_CXX_COMPILER> <FLAGS> <CMAKE_CXX_LINK_FLAGS> <LINK_FLAGS> <OBJECTS>  -o <TARGET> -Wl,--out-implib,<TARGET_IMPLIB> ${CMAKE_GNULD_IMAGE_VERSION} <LINK_LIBRARIES> -lc++ -lmingw32 ${LIBGCC} -lmingwex -lucrtbase libmoxnox/libmoxnox.a -lmingw32")
+    set(CMAKE_CXX_CREATE_SHARED_LIBRARY "${CMAKE_CXX_CREATE_SHARED_LIBRARY} -lc++ -lmingw32 ${LIBGCC} -lmingwex -lucrtbase libmoxnox/libmoxnox.a -lmingw32")
 else()
     set(LIBGCC "-lgcc")
 
     set(CMAKE_CXX_LINK_EXECUTABLE "<CMAKE_CXX_COMPILER> <FLAGS> <CMAKE_CXX_LINK_FLAGS> <LINK_FLAGS> <OBJECTS>  -o <TARGET> -Wl,--out-implib,<TARGET_IMPLIB> ${CMAKE_GNULD_IMAGE_VERSION} <LINK_LIBRARIES> -lstdc++ -lmingw32 -lgcc_eh -lgcc -lmingwex -lucrtbase libmoxnox/libmoxnox.a -lmingw32")
-    set(CMAKE_CXX_CREATE_SHARED_LIBRARY "${CMAKE_CXX_CREATE_SHARED_LIBRARY} libmoxnox/libmoxnox.a")
+    set(CMAKE_CXX_CREATE_SHARED_LIBRARY "${CMAKE_CXX_CREATE_SHARED_LIBRARY} -lstdc++ -lmingw32 -lgcc_eh -lgcc -lmingwex -lucrtbase libmoxnox/libmoxnox.a -lmingw32")
 endif()
