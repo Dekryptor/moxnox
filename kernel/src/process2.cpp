@@ -1826,7 +1826,7 @@ static nt_status terminate_other_threads(nt_status exit_status) {
                 remove_entry_list(t->process_le);
             }
 
-            // t->release(); // FIXME
+            t->release();
         }
     }
 
@@ -1889,7 +1889,7 @@ NTSTATUS NtTerminateProcess(HANDLE process_handle, NTSTATUS exit_status) {
             remove_entry_list(t->process_le);
         }
 
-        // t->release(); // FIXME
+        t->release();
     }
 
     p.exit_status = exit_status;

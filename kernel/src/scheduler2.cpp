@@ -56,6 +56,8 @@ static thread* pick_runnable_thread(thread* current) {
         if (!t.kernel_mode && t.suspend_count != 0)
             return nullptr;
 
+        t.acquire();
+
         return &t;
     };
 
@@ -66,8 +68,10 @@ static thread* pick_runnable_thread(thread* current) {
             auto& t = containing_record<thread>(le);
 
             auto ret = consider(t);
-            if (ret)
+            if (ret) {
+                current->release();
                 return ret;
+            }
         }
     }
 
@@ -76,14 +80,20 @@ static thread* pick_runnable_thread(thread* current) {
         auto& t = containing_record<thread>(le);
 
         auto ret = consider(t);
-        if (ret)
+        if (ret) {
+            if (current)
+                current->release();
             return ret;
+        }
 
         if (&t == current)
             break;
 
         le = le->next;
     }
+
+    if (current)
+        current->release();
 
     return nullptr;
 }
