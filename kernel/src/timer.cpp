@@ -29,6 +29,8 @@ import acpica;
 #ifdef __x86_64__
 import inout;
 import apic;
+#elifdef __aarch64__
+import aarch64;
 #endif
 
 export extern "C++" {
@@ -179,6 +181,13 @@ export bool init_timer() {
         : [res] "r" (hardware_tick_rate)
         : "x0"
     );
+
+    // allow userspace to read timers
+    ARM64_CNTKCTL cntkctl;
+
+    cntkctl.value = cntkctl_el1_load();
+    cntkctl.EL0VCTEN = 1;
+    cntkctl_el1_store(cntkctl.value);
 
     clear_irq_pending_bit(timer_irq_no);
     enable_irq(timer_irq_no);

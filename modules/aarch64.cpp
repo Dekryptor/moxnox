@@ -363,6 +363,24 @@ export union ARM64_MPIDR {
 
 static_assert(sizeof(ARM64_MPIDR) == 8);
 
+export union ARM64_CNTKCTL {
+    struct {
+        uint64_t EL0PCTEN : 1;
+        uint64_t EL0VCTEN : 1;
+        uint64_t EVNTEN : 1;
+        uint64_t EVNTDIR : 1;
+        uint64_t EVNTI : 4;
+        uint64_t EL0VTEN : 1;
+        uint64_t EL0PTEN : 1;
+        uint64_t : 7;
+        uint64_t EVNTIS : 1;
+        uint64_t : 46;
+    };
+    uint64_t value;
+} __attribute((packed));
+
+static_assert(sizeof(ARM64_CNTKCTL) == 8);
+
 export template<>
 consteval bool format_spec_valid<ARM64_SCTLR_EL1>(string_view fmt) {
     return fmt.empty();
@@ -698,4 +716,25 @@ export uint64_t inline ccsidr_el1_load() {
     );
 
     return ret;
+}
+
+__attribute__((always_inline))
+export uint64_t inline cntkctl_el1_load() {
+    uint64_t ret;
+
+    __asm __volatile (
+        "mrs %x[res], cntkctl_el1"
+        : [res] "=r" (ret)
+    );
+
+    return ret;
+}
+
+__attribute__((always_inline))
+export void inline cntkctl_el1_store(uint64_t v) {
+    __asm __volatile (
+        "msr cntkctl_el1, %0"
+        :
+        : "r" (v)
+    );
 }
