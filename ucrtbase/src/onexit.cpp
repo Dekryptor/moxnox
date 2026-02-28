@@ -2,8 +2,15 @@ import ucrtbase;
 import print;
 
 extern "C"
-int _initialize_onexit_table(_onexit_table_t* /*table*/) {
-    print_stderr("FIXME - _initialize_onexit_table\n");
+int _initialize_onexit_table(_onexit_table_t* table) {
+    if (!table)
+        return -1;
+
+    if (table->_first == table->_end) {
+        table->_first = nullptr;
+        table->_end = nullptr;
+        table->_last = nullptr;
+    }
 
     return 0;
 }
