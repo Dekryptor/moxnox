@@ -3477,8 +3477,7 @@ nt_status btrfs_inode::read_extent_into_cache(uint64_t page_num, uint64_t num_pa
 
     uint64_t addr = ie.ed.disk_bytenr + ie.ed.offset + (page_num << PAGE_SHIFT) - ie.offset;
 
-    // FIXME - shouldn't there be an offset here?
-    num_pages = min(num_pages, ie.ed.num_bytes >> PAGE_SHIFT);
+    num_pages = min(num_pages, ((ie.offset + ie.ed.num_bytes) >> PAGE_SHIFT) - page_num);
 
     uint64_t pages_read;
 
