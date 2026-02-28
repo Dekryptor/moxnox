@@ -11,3 +11,5 @@ connect
 getaddrinfo
 freeaddrinfo
 gai_strerror
+setsockopt
+getsockopt

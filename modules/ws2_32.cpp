@@ -147,6 +147,9 @@ int getaddrinfo(const char* node, const char* service, const addrinfo* hints,
                 addrinfo** res);
 void freeaddrinfo(addrinfo* res);
 const char* gai_strerror(int errcode);
+int setsockopt(SOCKET s, int level, int optname, const char* optval,
+               int optlen);
+int getsockopt(SOCKET s, int level, int optname, char* optval, int* optlen);
 
 }
 
