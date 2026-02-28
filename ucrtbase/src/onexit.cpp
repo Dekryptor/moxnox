@@ -38,7 +38,7 @@ int _register_onexit_function(_onexit_table_t* table, _onexit_t func) {
         t._last = t._first;
         t._end = t._first + INIT_SIZE;
     } else if (t._last == t._end) { // table is full, double size
-        size_t len = t._end - t._first;
+        auto len = (size_t)(t._end - t._first);
 
         auto ptr = (_PVFV*)realloc(t._first, 2 * len * sizeof(void*));
         if (!ptr)
