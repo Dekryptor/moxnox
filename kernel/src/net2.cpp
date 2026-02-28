@@ -64,10 +64,6 @@ public:
     bool bind_done = false;
     ipv6_address bound_address;
     nt_status pending_error = nt_status::SUCCESS;
-
-private:
-    nt_status sendto_raw(span<const char> buf, int flags,
-                         const sockaddr_in6& to, size_t& sent_bytes);
 };
 
 class ipv6_udp_socket : public socket {
@@ -2696,14 +2692,6 @@ nt_status ipv6_udp_socket::recvfrom(char* us_buf, size_t len, int flags,
     return nt_status::SUCCESS;
 }
 
-nt_status ipv6_raw_socket::sendto(const char* us_buf, size_t len, int flags,
-                                  sockaddr* to, int tolen, size_t& sent_bytes) {
-    if (!to || tolen < 0 || (size_t)tolen < sizeof(sockaddr_in6))
-        return nt_status::INVALID_PARAMETER;
-
-    return sendto_raw(span(us_buf, len), flags, *(sockaddr_in6*)to, sent_bytes);
-}
-
 nt_status ipv6_udp_socket::sendto(const char* us_buf, size_t len, int flags,
                                   sockaddr* to, int tolen, size_t& sent_bytes) {
     bool connected;
@@ -3187,14 +3175,20 @@ static void send_address_unreachable(netif& ni, const packet& pack,
     pack2->release();
 }
 
-nt_status ipv6_raw_socket::sendto_raw(span<const char> us_buf, int flags,
-                                      const sockaddr_in6& to, size_t& sent_bytes) {
+nt_status ipv6_raw_socket::sendto(const char* buf, size_t len, int flags,
+                                  sockaddr* to, int tolen, size_t& sent_bytes) {
     nt_status status;
     uint32_t read_bytes;
     ipv6_address src;
 
+    if (!to || tolen < 0 || (size_t)tolen < sizeof(sockaddr_in6))
+        return nt_status::INVALID_PARAMETER;
+
     if (flags != 0)
         return nt_status::INVALID_PARAMETER;
+
+    auto us_buf = span(buf, len);
+    auto& to6 = *(sockaddr_in6*)to;
 
     auto& t = *get_current_thread();
     if (!t.proc)
@@ -3209,11 +3203,11 @@ nt_status ipv6_raw_socket::sendto_raw(span<const char> us_buf, int flags,
             src = parse_ipv6_address("::");
     }
 
-    auto& dst = *(ipv6_address*)to.sin6_addr;
+    auto& dst = *(ipv6_address*)to6.sin6_addr;
 
     netif* pni;
 
-    status = ipv6_choose_interface(dst, to.sin6_scope_id, pni, src);
+    status = ipv6_choose_interface(dst, to6.sin6_scope_id, pni, src);
     if (!success(status))
         return status;
 
