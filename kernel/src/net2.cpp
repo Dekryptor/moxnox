@@ -133,6 +133,8 @@ public:
 
     nt_status connect(const sockaddr* addr, size_t addrlen) override;
 
+    void received_packet(packet& pack);
+
     bool init = false;
     spinlock state_lock;
     object_ref state_change_event;
@@ -1432,6 +1434,55 @@ static void received_ipv6_udp_packet(netif& ni, packet& pack,
     sock->release();
 }
 
+static void received_ipv6_tcp_packet(packet& pack) {
+    if (pack.size < sizeof(ipv6_header) + sizeof(udp_header))
+        return;
+
+    auto& ip = *(ipv6_header*)pack.data;
+
+    if (is_multicast_address(ip.dst))
+        return;
+
+    auto& tcp = *(udp_header*)(pack.data + sizeof(ipv6_header));
+
+    if (calc_ipv6_checksum(ip, span((uint8_t*)&tcp, pack.size - sizeof(ipv6_header)), IPPROTO_TCP) != 0)
+        return;
+
+#if 0
+    print("received_tcp_packet (src {}, dst {}, {}, {:04x})\n",
+          byteswap(tcp.srcport), byteswap(tcp.dstport), byteswap(tcp.length),
+          byteswap(tcp.checksum));
+#endif
+
+    ipv6_tcp_socket* sock = nullptr;
+
+    {
+        lock_guard lock(tcp_ports_lock);
+
+        if (tcp_ports[tcp.dstport]) {
+            sock = tcp_ports[tcp.dstport];
+
+            {
+                lock_guard lock(sock->state_lock);
+
+                if (!sock->bind_done || (sock->bound_address != parse_ipv6_address("::") && sock->bound_address != ip.dst))
+                    sock = nullptr;
+                else
+                    sock->acquire();
+            }
+        }
+    }
+
+    if (!sock) {
+        // FIXME - send port unreachable(?) message back if no socket found
+        return;
+    }
+
+    sock->received_packet(pack);
+
+    sock->release();
+}
+
 static void send_to_raw_sockets(uint32_t netif_num, packet& pack) {
     auto& ip = *(ipv6_header*)pack.data;
     size_t num_sockets;
@@ -1524,10 +1575,10 @@ static void send_to_sockets(netif& ni, packet& pack,
                             const mac_address& src_mac) {
     auto& ip = *(ipv6_header*)pack.data;
 
-    // FIXME - SOCK_STREAM sockets will be different
-
     if (ip.next_header == IPPROTO_UDP)
         received_ipv6_udp_packet(ni, pack, src_mac);
+    else if (ip.next_header == IPPROTO_TCP)
+        received_ipv6_tcp_packet(pack);
 
     send_to_raw_sockets(ni.num, pack);
 }
@@ -3994,4 +4045,9 @@ void ipv6_tcp_socket::last_handle_closed() {
         tcp_ports[bound_port] = nullptr;
         this->release();
     }
+}
+
+void ipv6_tcp_socket::received_packet(packet& pack) {
+    print("FIXME - ipv6_tcp_socket::received_packet\n");
+    // FIXME
 }
