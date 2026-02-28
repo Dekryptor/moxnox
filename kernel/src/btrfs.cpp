@@ -3403,11 +3403,12 @@ static nt_status check_csums(btrfs_inode& ino, uint64_t page_num, uint64_t addr,
         auto& th = *(btrfs_header*)p.data[0];
         auto items = span((btrfs_item*)((uint8_t*)&th + sizeof(btrfs_header)), th.nritems);
 
-        if (p.slots[0] == 0 && items[p.slots[0]].key != k)
-            return nt_status::NOT_FOUND;
-
-        if (items[p.slots[0]].key != k)
+        if (p.slots[0] == th.nritems) {
             p.slots[0]--;
+        } else if (items[p.slots[0]].key != k) {
+            if (!fs.move_path_back(p))
+                return nt_status::NOT_FOUND;
+        }
     }
 
     do {
