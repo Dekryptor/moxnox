@@ -89,9 +89,22 @@ public:
     nt_status pending_error = nt_status::SUCCESS;
 };
 
+enum class tcp_state {
+    CLOSED,
+    SYN_SENT,
+    ESTABLISHED,
+    FIN_WAIT_1,
+    FIN_WAIT_2,
+    TIME_WAIT,
+};
+
 class ipv6_tcp_socket : public socket {
 public:
-    ~ipv6_tcp_socket() override { }
+    ~ipv6_tcp_socket() override {
+        if (pni)
+            pni->release();
+    }
+
     void last_handle_closed() override { }
 
     nt_status recvfrom(char* /*buf*/, size_t /*len*/, int /*flags*/, sockaddr* /*from*/,
@@ -108,13 +121,26 @@ public:
         return nt_status::NOT_IMPLEMENTED;
     }
 
-    nt_status connect(const sockaddr* /*addr*/, size_t /*addrlen*/) override {
-        return nt_status::NOT_IMPLEMENTED;
-    }
+    nt_status connect(const sockaddr* addr, size_t addrlen) override;
+
+    spinlock state_lock;
+    bool bind_done = false;
+    uint16_t bound_port, connected_port;
+    uint32_t connected_scope;
+    ipv6_address bound_address, connected_address;
+    tcp_state state = tcp_state::CLOSED;
+    netif* pni = nullptr;
+    uint16_t window = 0xffff;
+    uint32_t seq;
+
+private:
+    nt_status send_syn(const sockaddr_in6& c, ipv6_address& src);
 };
 
 static spinlock udp_ports_lock;
 static ipv6_udp_socket* udp_ports[65536];
+static spinlock tcp_ports_lock;
+static ipv6_tcp_socket* tcp_ports[65536];
 
 struct ipv6_socket_packet {
     ipv6_socket_packet(packet& pack) : pack(pack) {
@@ -280,6 +306,28 @@ struct udp_header {
 } __attribute__((packed));
 
 static_assert(sizeof(udp_header) == 8);
+
+struct tcp_header {
+    uint16_t src_port;
+    uint16_t dst_port;
+    uint32_t seq;
+    uint32_t ack;
+    uint8_t : 4;
+    uint8_t header_length : 4;
+    uint8_t FIN : 1;
+    uint8_t SYN : 1;
+    uint8_t RST : 1;
+    uint8_t PSH : 1;
+    uint8_t ACK : 1;
+    uint8_t URG : 1;
+    uint8_t ECE : 1;
+    uint8_t CWR : 1;
+    uint16_t window;
+    uint16_t checksum;
+    uint16_t urgent_ptr;
+} __attribute__((packed));
+
+static_assert(sizeof(tcp_header) == 20);
 
 class loopback_netif : public netif {
 public:
@@ -3312,6 +3360,25 @@ static uint16_t find_ephemeral_udp_port() {
     }
 }
 
+static uint16_t find_ephemeral_tcp_port() {
+    auto rnd = kernel_time_page.system_time / (SYSTEM_TIME_RESOLUTION / TICK_RATE);
+    uint16_t port = 49152 + (rnd & 0x3fff);
+    uint16_t orig_port = port;
+
+    while (true) {
+        if (!tcp_ports[byteswap(port)])
+            return byteswap(port);
+
+        if (port == 65535)
+            port = 49152;
+        else
+            port++;
+
+        if (port == orig_port)
+            return 0;
+    }
+}
+
 nt_status ipv6_udp_socket::sendto(const char* buf, size_t len, int flags,
                                   sockaddr* to, int tolen, size_t& sent_bytes) {
     nt_status status;
@@ -3706,4 +3773,175 @@ void ipv6_udp_socket::last_handle_closed() {
         udp_ports[bound_port] = nullptr;
         this->release();
     }
+}
+
+nt_status ipv6_tcp_socket::send_syn(const sockaddr_in6& c, ipv6_address& src) {
+    nt_status status;
+
+    auto& dst = *(ipv6_address*)c.sin6_addr;
+
+    {
+        netif* newni;
+
+        status = ipv6_choose_interface(dst, c.sin6_scope_id, newni, src);
+        if (!success(status))
+            return status;
+
+        {
+            lock_guard lock(state_lock);
+
+            swap(pni, newni);
+        }
+
+        if (newni)
+            newni->release();
+    }
+
+    auto& ni = *pni;
+
+    mac_address mac;
+
+    if (src == dst)
+        mac = ni.mac;
+    else
+        mac = find_mac_address(ni, dst);
+
+    ni.acquire();
+
+    auto pack = new packet;
+    if (!pack) {
+        print("new failed\n");
+        return nt_status::INSUFFICIENT_RESOURCES;
+    }
+
+    pack->size = sizeof(ipv6_header) + sizeof(tcp_header);
+
+    auto& ip = *(ipv6_header*)pack->data;
+    ip.traffic_class1 = 0;
+    ip.version = 6;
+    ip.traffic_class2 = 0;
+    ip.flow_label = 0;
+    ip.payload_length = byteswap((uint16_t)sizeof(tcp_header));
+    ip.next_header = IPPROTO_TCP;
+    ip.hop_limit = DEFAULT_HOP_LIMIT;
+    ip.src = src;
+    ip.dst = dst;
+
+    auto& tcp = *(tcp_header*)(pack->data + sizeof(ipv6_header));
+
+    memset(&tcp, 0, sizeof(tcp));
+
+    tcp.src_port = bound_port;
+    tcp.dst_port = connected_port;
+    tcp.seq = byteswap(seq);
+    tcp.header_length = sizeof(tcp_header) / sizeof(uint32_t);
+    tcp.SYN = 1;
+    tcp.window = byteswap(window);
+
+    tcp.checksum = calc_ipv6_checksum(ip, span((uint8_t*)&tcp, pack->size - sizeof(ipv6_header)), IPPROTO_TCP);
+
+    if (mac == NULL_MAC_ADDRESS) {
+        send_address_unreachable(ni, *pack, src);
+        pack->release();
+        ni.release();
+        return nt_status::HOST_UNREACHABLE;
+    }
+
+    if (src == dst)
+        handle_ipv6_packet(ni, *pack, ni.mac);
+    else {
+        if (is_multicast_address(ip.dst) && should_accept_multicast(ni, ip.dst))
+            handle_ipv6_packet(ni, *pack, ni.mac); // send copy to ourselves
+
+        status = ni.send_packet(mac, ethertype::ipv6, *pack);
+        if (!success(status)) {
+            pack->release();
+            ni.release();
+            return status;
+        }
+    }
+
+    pack->release();
+    ni.release();
+
+    // FIXME - wait for reply
+    // FIXME - retry if no response
+    // FIXME - timeout
+
+    return nt_status::SUCCESS;
+}
+
+static uint32_t rand_tcp_seq() {
+    auto rnd = kernel_time_page.system_time / (SYSTEM_TIME_RESOLUTION / TICK_RATE);
+
+    rnd = rnd * (uint64_t)1103515245 + 12345; // from Knuth
+
+    return (uint32_t)(rnd >> 16);
+}
+
+nt_status ipv6_tcp_socket::connect(const sockaddr* addr, size_t addrlen) {
+    nt_status status;
+
+    if (addr->sa_family != AF_INET6)
+        return nt_status::INVALID_PARAMETER;
+
+    if (addrlen < sizeof(sockaddr_in6))
+        return nt_status::BUFFER_TOO_SMALL;
+
+    auto& c = *(sockaddr_in6*)addr;
+    ipv6_address src;
+
+    status = nt_status::SUCCESS;
+
+    {
+        uint16_t port;
+        lock_guard lock(tcp_ports_lock);
+        lock_guard lock2(state_lock);
+
+        if (state != tcp_state::CLOSED)
+            return nt_status::INVALID_PARAMETER;
+
+        if (!bind_done) { // implicit bind if not already done
+            port = find_ephemeral_tcp_port();
+            if (port == 0) // no ephemeral ports left
+                return nt_status::ADDRESS_ALREADY_ASSOCIATED;
+
+            tcp_ports[port] = this;
+            this->acquire();
+
+            bound_port = port;
+            bound_address = parse_ipv6_address("::");
+
+            bind_done = true;
+        }
+
+        state = tcp_state::SYN_SENT;
+
+        connected_port = c.sin6_port;
+        connected_address = *(ipv6_address*)c.sin6_addr;
+        connected_scope = c.sin6_scope_id;
+
+        src = bound_address;
+        seq = rand_tcp_seq();
+    }
+
+    status = send_syn(c, src);
+    if (!success(status)) {
+        netif* oldni = nullptr;
+
+        // FIXME - should also undo bind?
+
+        {
+            lock_guard lock(state_lock);
+            state = tcp_state::CLOSED;
+            swap(oldni, pni);
+        }
+
+        if (oldni)
+            oldni->release();
+
+        return status;
+    }
+
+    return nt_status::SUCCESS;
 }
