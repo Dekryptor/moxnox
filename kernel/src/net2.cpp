@@ -1394,10 +1394,19 @@ static void received_ipv6_udp_packet(netif& ni, packet& pack,
     }
 
     {
-        lock_guard lock(sock->bind_lock);
+        bool ignore = false;
 
-        if (sock->connect_done && (sock->connected_address != ip.src || sock->connected_port != udp.srcport))
+        {
+            lock_guard lock(sock->bind_lock);
+
+            if (sock->connect_done && (sock->connected_address != ip.src || sock->connected_port != udp.srcport))
+                ignore = true;
+        }
+
+        if (ignore) {
+            sock->release();
             return;
+        }
     }
 
     auto p = new ipv6_socket_packet(pack);
