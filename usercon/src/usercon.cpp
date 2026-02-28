@@ -682,31 +682,30 @@ static glyph_info* load_glyph(font_info& font, FT_UInt glyph) {
 
             for (unsigned int y = 0; y < gi->bitmap.rows; y++) {
                 for (unsigned int x = 0; x < gi->bitmap.width; x++) {
-                    auto src_x = (float)x / font.scale;
-                    auto src_y = (float)y / font.scale;
-                    auto src_x_l = (unsigned int)src_x;
-                    auto src_y_l = (unsigned int)src_y;
-                    auto src_x_h = src_x_l + 1;
-                    auto src_y_h = src_y_l + 1;
+                    float src_x0 = (float)x / font.scale;
+                    float src_y0 = (float)y / font.scale;
+                    float src_x1 = (float)(x + 1) / font.scale;
+                    float src_y1 = (float)(y + 1) / font.scale;
 
-                    auto xw = src_x - (float)src_x_l;
-                    auto yw = src_y - (float)src_y_l;
-
-                    auto* src_line = &src_buf[src_y_l * (unsigned int)src.pitch];
-                    auto* src_line_down = &src_buf[(src_y_h < src.rows ? src_y_h : src_y_l) * (unsigned int)src.pitch];
+                    unsigned int x0 = (unsigned int)src_x0;
+                    unsigned int y0 = (unsigned int)src_y0;
+                    unsigned int x1 = min((unsigned int)ceilf(src_x1), src.width);
+                    unsigned int y1 = min((unsigned int)ceilf(src_y1), src.rows);
 
                     for (unsigned int i = 0; i < bytes; i++) {
-                        auto tl = src_line[(src_x_l * bytes) + i];
-                        auto tr = (src_x_h < src.width) ? src_line[(src_x_h * bytes) + i] : tl;
-                        auto bl = src_line_down[(src_x_l * bytes) + i];
-                        auto br = (src_x_h < src.width) ? src_line_down[(src_x_h * bytes) + i] : tl;
+                        float sum = 0;
+                        unsigned int count = 0;
 
-                        auto v = (tl * (1.0f - xw) * (1.0f - yw)) +
-                                (tr * xw * (1.0f - yw)) +
-                                (bl * yw * (1.0f - xw)) +
-                                (br * xw * yw);
+                        for (unsigned int sy = y0; sy < y1; sy++) {
+                            auto* row = &src_buf[sy * (unsigned int)src.pitch];
+                            for (unsigned int sx = x0; sx < x1; sx++) {
+                                sum += row[(sx * bytes) + i];
+                                count++;
+                            }
+                        }
 
-                        buf[(y * (unsigned int)gi->bitmap.pitch) + (x * bytes) + i] = (uint8_t)v;
+                        buf[(y * (unsigned int)gi->bitmap.pitch) + (x * bytes) + i] =
+                            (uint8_t)(sum / (float)count);
                     }
                 }
             }
