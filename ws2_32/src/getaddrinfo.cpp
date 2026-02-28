@@ -57,6 +57,9 @@ static constexpr auto DNS_AAAA = byteswap((uint16_t)28);
 
 static constexpr auto DNS_IN = byteswap((uint16_t)1);
 
+static const unsigned int SYSTEM_TIME_RESOLUTION = 10000000; // 100ns
+static const unsigned int DNS_TIMEOUT = 5; // secs
+
 static unique_handle open_netctl() {
     OBJECT_ATTRIBUTES oa;
     UNICODE_STRING us;
@@ -259,6 +262,10 @@ static span<const uint8_t> get_dns_name(span<uint8_t>& ans, span<uint8_t> pack) 
 
 static int dns_lookup(string_view name, addrinfo** res, int socktype,
                       int protocol, uint16_t port) {
+    LARGE_INTEGER sent_time;
+    int64_t deadline;
+    nt_status status;
+
     int sock = socket(AF_INET6, SOCK_DGRAM, 0);
     if (sock < 0) {
         print_stderr("socket returned {} (errno {})\n", sock, errno_to_string_view(*_errno()));
@@ -323,8 +330,48 @@ static int dns_lookup(string_view name, addrinfo** res, int socktype,
     // FIXME - can have larger packets with EDNS0
     // FIXME - TCP packets
 
+    status = NtQuerySystemTime(&sent_time);
+    if (!success(status)) {
+        print_stderr("NtQuerySystemTime returned {}\n", status);
+        free(pack);
+        closesocket(sock);
+        return EAI_SYSTEM;
+    }
+
+    deadline = sent_time.QuadPart + (DNS_TIMEOUT * SYSTEM_TIME_RESOLUTION);
+
     while (true) {
         char resp[512]; // maximum size of DNS packet
+        LARGE_INTEGER now, timeout;
+
+        status = NtQuerySystemTime(&now);
+        if (!success(status)) {
+            print_stderr("NtQuerySystemTime returned {}\n", status);
+            free(pack);
+            closesocket(sock);
+            return EAI_SYSTEM;
+        }
+
+        if (now.QuadPart >= deadline) {
+            free(pack);
+            closesocket(sock);
+            return EAI_AGAIN;
+        }
+
+        timeout.QuadPart = - (deadline - now.QuadPart);
+
+        status = NtWaitForSingleObject((HANDLE)sock, false, &timeout);
+
+        if (status == nt_status::TIMEOUT) {
+            free(pack);
+            closesocket(sock);
+            return EAI_AGAIN;
+        } else if (!success(status)) {
+            print_stderr("NtWaitForSingleObject returned {}\n", status);
+            free(pack);
+            closesocket(sock);
+            return EAI_SYSTEM;
+        }
 
         auto bytes = recv(sock, resp, sizeof(resp), 0);
         if (bytes < 0) {
