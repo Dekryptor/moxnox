@@ -115,7 +115,7 @@ public:
             pni->release();
     }
 
-    void last_handle_closed() override { }
+    void last_handle_closed() override;
 
     nt_status recvfrom(char* /*buf*/, size_t /*len*/, int /*flags*/, sockaddr* /*from*/,
                        int* /*fromlen*/, size_t& /*recv_bytes*/) override {
@@ -3976,4 +3976,14 @@ nt_status ipv6_tcp_socket::connect(const sockaddr* addr, size_t addrlen) {
     }
 
     return nt_status::SUCCESS;
+}
+
+void ipv6_tcp_socket::last_handle_closed() {
+    lock_guard lock(tcp_ports_lock);
+    lock_guard lock2(state_lock);
+
+    if (bind_done && tcp_ports[bound_port] == this) {
+        tcp_ports[bound_port] = nullptr;
+        this->release();
+    }
 }
