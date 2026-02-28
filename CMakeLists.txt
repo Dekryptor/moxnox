@@ -369,7 +369,10 @@ add_custom_command(
     COMMAND ${CMAKE_OBJCOPY} --remove-section .drectve "${CMAKE_CURRENT_BINARY_DIR}/libfreetype_kernel.a"
 )
 
-add_library(freetype SHARED ${FREETYPE_FILES} ${CMAKE_SOURCE_DIR}/ftshim.cpp)
+add_library(freetype SHARED
+    ${FREETYPE_FILES}
+    freetype/src/base/ftsystem.c
+)
 
 add_library(freetype_module STATIC)
 target_sources(freetype_module PUBLIC FILE_SET CXX_MODULES FILES modules/freetype.cpp)
@@ -383,7 +386,6 @@ target_compile_definitions(freetype PRIVATE -DFT_CONFIG_STANDARD_LIBRARY_H=\"${C
 target_compile_options(freetype PRIVATE -mno-stack-arg-probe ${GENERAL_CFLAGS} $<$<COMPILE_LANGUAGE:CXX>:-fno-exceptions -fno-rtti>)
 target_include_directories(freetype PRIVATE modules)
 target_include_directories(freetype PRIVATE freetype/include)
-target_link_options(freetype PRIVATE -nostartfiles -nostdlib)
 target_link_libraries(freetype PRIVATE moxnox)
 target_link_libraries(freetype PRIVATE libpng)
 
