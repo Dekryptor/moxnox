@@ -629,12 +629,10 @@ add_library(zlib SHARED
     zlib/inftrees.c
     zlib/trees.c
     zlib/zutil.c
-    ${CMAKE_SOURCE_DIR}/zlibshim.cpp
 )
 
 target_include_directories(zlib PUBLIC zlib)
 target_compile_options(zlib PRIVATE ${GENERAL_CFLAGS} $<$<COMPILE_LANGUAGE:CXX>:-fno-exceptions -fno-rtti>)
-target_link_options(zlib PRIVATE -nostartfiles -nostdlib)
 target_link_libraries(zlib PRIVATE moxnox)
 
 install(TARGETS zlib DESTINATION ${CMAKE_INSTALL_PREFIX}/lib
