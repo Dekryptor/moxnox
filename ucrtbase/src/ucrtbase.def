@@ -80,3 +80,6 @@ _fpreset
 _ungetc_nolock = __ungetc_nolock
 rand
 srand
+_initialize_onexit_table
+_register_onexit_function
+_execute_onexit_table

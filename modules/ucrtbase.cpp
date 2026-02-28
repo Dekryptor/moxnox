@@ -58,6 +58,14 @@ struct lconv {
     char int_n_sign_posn;
 };
 
+struct _onexit_table_t {
+    _PVFV* _first;
+    _PVFV* _last;
+    _PVFV* _end;
+};
+
+using _onexit_t = int (*)(void);
+
 _invalid_parameter_handler _set_invalid_parameter_handler(_invalid_parameter_handler handler);
 void _set_app_type(_crt_app_type _Type);
 int* __p___argc();
@@ -82,6 +90,9 @@ struct lconv* localeconv();
 size_t mbrtowc(wchar_t* pwc, const char* s, size_t n, mbstate_t* ps);
 size_t wcrtomb(char* s, wchar_t wc, mbstate_t* ps);
 void _fpreset();
+int _initialize_onexit_table(_onexit_table_t* table);
+int _register_onexit_function(_onexit_table_t* table, _onexit_t func);
+int _execute_onexit_table(_onexit_table_t* table);
 
 }
 
