@@ -1374,7 +1374,15 @@ static void received_ipv6_udp_packet(netif& ni, packet& pack,
 
         if (udp_ports[udp.dstport]) {
             sock = udp_ports[udp.dstport];
-            sock->acquire();
+
+            {
+                lock_guard lock2(sock->bind_lock);
+
+                if (sock->bind_done && sock->bound_address != parse_ipv6_address("::") && sock->bound_address != ip.dst)
+                    sock = nullptr;
+                else
+                    sock->acquire();
+            }
         }
     }
 
