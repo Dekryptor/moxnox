@@ -38,10 +38,41 @@ static spinlock ipv6_sockets_lock;
 static list_entry ipv6_raw_sockets = { &ipv6_raw_sockets, &ipv6_raw_sockets };
 static size_t num_ipv6_raw_sockets = 0;
 
-class ipv6_socket : public socket {
+class ipv6_raw_socket : public socket {
 public:
-    ipv6_socket(int type, int protocol) : type(type), protocol(protocol) { }
-    ~ipv6_socket() override;
+    ipv6_raw_socket(int protocol) : protocol(protocol) { }
+    ~ipv6_raw_socket() override;
+    void last_handle_closed() override { }
+
+    nt_status recvfrom(char* buf, size_t len, int flags, sockaddr* from,
+                       int* fromlen, size_t& recv_bytes) override;
+    nt_status sendto(const char* buf, size_t len, int flags, sockaddr* to,
+                     int tolen, size_t& sent_bytes) override;
+    nt_status bind(const sockaddr* addr, size_t addrlen) override;
+
+    nt_status connect(const sockaddr*, size_t) override {
+        return nt_status::INVALID_PARAMETER;
+    }
+
+    list_entry le;
+    int protocol;
+    bool added_to_list = false;
+    spinlock buffer_lock;
+    list_entry buffer = { &buffer, &buffer };
+    size_t buffer_size = 0;
+    spinlock bind_lock;
+    bool bind_done = false;
+    ipv6_address bound_address;
+    nt_status pending_error = nt_status::SUCCESS;
+
+private:
+    nt_status sendto_raw(span<const char> buf, int flags,
+                         const sockaddr_in6& to, size_t& sent_bytes);
+};
+
+class ipv6_udp_socket : public socket {
+public:
+    ~ipv6_udp_socket() override;
     void last_handle_closed() override;
 
     nt_status recvfrom(char* buf, size_t len, int flags, sockaddr* from,
@@ -52,7 +83,6 @@ public:
     nt_status connect(const sockaddr* addr, size_t addrlen) override;
 
     list_entry le;
-    int type, protocol;
     bool added_to_list = false;
     spinlock buffer_lock;
     list_entry buffer = { &buffer, &buffer };
@@ -65,15 +95,13 @@ public:
     nt_status pending_error = nt_status::SUCCESS;
 
 private:
-    nt_status sendto_raw(span<const char> buf, int flags,
-                         const sockaddr_in6& to, size_t& sent_bytes);
     nt_status sendto_udp(span<const char> buf, int flags,
                          const sockaddr_in6& to, size_t& sent_bytes);
     nt_status send_udp(span<const char> buf, int flags, size_t& sent_bytes);
 };
 
 static spinlock udp_ports_lock;
-static ipv6_socket* udp_ports[65536];
+static ipv6_udp_socket* udp_ports[65536];
 
 struct ipv6_socket_packet {
     ipv6_socket_packet(packet& pack) : pack(pack) {
@@ -1064,7 +1092,7 @@ static void handle_icmpv6_error(packet& pack) {
 
     const auto& udp = *(udp_header*)(pack.data + sizeof(ipv6_header) + sizeof(icmpv6_error));
 
-    ipv6_socket* sock;
+    ipv6_udp_socket* sock;
 
     {
         lock_guard lock(udp_ports_lock);
@@ -1266,7 +1294,7 @@ static void received_ipv6_udp_packet(netif& ni, packet& pack,
           byteswap(udp.checksum));
 #endif
 
-    ipv6_socket* sock = nullptr;
+    ipv6_udp_socket* sock = nullptr;
 
     {
         lock_guard lock(udp_ports_lock);
@@ -1335,7 +1363,7 @@ static void send_to_raw_sockets(uint32_t netif_num, packet& pack) {
     if (num_sockets == 0)
         return;
 
-    auto arr = (ipv6_socket**)malloc(sizeof(ipv6_socket*) * num_sockets);
+    auto arr = (ipv6_raw_socket**)malloc(sizeof(ipv6_raw_socket*) * num_sockets);
     if (!arr) {
         print("malloc failed\n");
         return;
@@ -1347,7 +1375,7 @@ static void send_to_raw_sockets(uint32_t netif_num, packet& pack) {
         lock_guard lock(ipv6_sockets_lock);
 
         for (auto le = ipv6_raw_sockets.next; le != &ipv6_raw_sockets; le = le->next) {
-            auto& s = containing_record<ipv6_socket>(le);
+            auto& s = containing_record<ipv6_raw_socket>(le);
 
             arr[num] = &s;
             s.acquire();
@@ -1365,11 +1393,6 @@ static void send_to_raw_sockets(uint32_t netif_num, packet& pack) {
 
     for (size_t i = 0; i < num; i++) {
         auto& s = *arr[i];
-
-        if (s.type != SOCK_RAW) {
-            s.release();
-            continue;
-        }
 
         if (s.protocol != ip.next_header) {
             s.release();
@@ -1926,36 +1949,50 @@ static nt_status netctl_socket(span<const uint8_t> buf) {
 
     switch (params.af) {
         case AF_INET6: {
+            object_ref ref;
+
             // FIXME - TCP (SOCK_STREAM)
 
             switch (params.type) {
-                case SOCK_RAW:
+                case SOCK_RAW: {
                     if (params.protocol == 0)
                         return nt_status::INVALID_PARAMETER;
-                break;
 
-                case SOCK_DGRAM:
+                    auto s = new ipv6_raw_socket(params.protocol);
+                    if (!s) {
+                        print("new failed\n");
+                        return nt_status::INSUFFICIENT_RESOURCES;
+                    }
+
+                    ref = object_ref{*s};
+
+                    break;
+                }
+
+                case SOCK_DGRAM: {
                     if (params.protocol == 0)
                         params.protocol = IPPROTO_UDP;
                     else if (params.protocol != IPPROTO_UDP)
                         return nt_status::INVALID_PARAMETER;
 
+                    auto s = new ipv6_udp_socket;
+                    if (!s) {
+                        print("new failed\n");
+                        return nt_status::INSUFFICIENT_RESOURCES;
+                    }
+
+                    ref = object_ref{*s};
+
                     break;
+                }
 
                 default:
                     return nt_status::INVALID_PARAMETER;
             }
 
-            auto s = new ipv6_socket(params.type, params.protocol);
-            if (!s) {
-                print("new failed\n");
-                return nt_status::INSUFFICIENT_RESOURCES;
-            }
-
-            object_ref ref{*s};
             HANDLE h;
 
-            auto status = t->proc->add_handle(*s, 0, true, h);
+            auto status = t->proc->add_handle(ref.get(), 0, true, h);
             if (!success(status))
                 return status;
 
@@ -1966,10 +2003,12 @@ static nt_status netctl_socket(span<const uint8_t> buf) {
             }
 
             if (params.type == SOCK_RAW) {
+                auto& s = static_cast<ipv6_raw_socket&>(ref.get());
+
                 lock_guard lg(ipv6_sockets_lock);
-                insert_tail_list(ipv6_raw_sockets, s->le);
+                insert_tail_list(ipv6_raw_sockets, s.le);
                 num_ipv6_raw_sockets++;
-                s->added_to_list = true;
+                s.added_to_list = true;
             }
 
             break;
@@ -2244,16 +2283,44 @@ nt_status netctl::ioctl(uint32_t code, span<const uint8_t> inbuf,
     }
 }
 
-ipv6_socket::~ipv6_socket() {
+ipv6_raw_socket::~ipv6_raw_socket() {
     {
         lock_guard lg(ipv6_sockets_lock);
 
         if (added_to_list) {
             remove_entry_list(le);
-
-            if (type == SOCK_RAW)
-                num_ipv6_raw_sockets--;
+            num_ipv6_raw_sockets--;
         }
+    }
+
+    while (true) {
+        ipv6_socket_packet* pp = nullptr;
+
+        {
+            lock_guard lg(buffer_lock);
+
+            if (is_list_empty(buffer))
+                break;
+
+            auto& p = containing_record<ipv6_socket_packet>(buffer.next);
+
+            remove_entry_list(p.le);
+            pp = &p;
+        }
+
+        if (!pp)
+            break;
+
+        delete pp;
+    }
+}
+
+ipv6_udp_socket::~ipv6_udp_socket() {
+    {
+        lock_guard lg(ipv6_sockets_lock);
+
+        if (added_to_list)
+            remove_entry_list(le);
     }
 
     while (true) {
@@ -2434,9 +2501,9 @@ nt_status socket::ioctl(uint32_t code, span<const uint8_t> inbuf,
     }
 }
 
-nt_status ipv6_socket::recvfrom(char* us_buf, size_t len, int flags,
-                                sockaddr* us_from, int* fromlen,
-                                size_t& recv_bytes) {
+nt_status ipv6_raw_socket::recvfrom(char* us_buf, size_t len, int flags,
+                                    sockaddr* us_from, int* fromlen,
+                                    size_t& recv_bytes) {
     // FIXME - MSG_TRUNC
     if (flags != 0)
         return nt_status::INVALID_PARAMETER;
@@ -2487,15 +2554,10 @@ nt_status ipv6_socket::recvfrom(char* us_buf, size_t len, int flags,
         if (!sp)
             continue;
 
-        size_t overhead = sizeof(ipv6_header);
+        auto to_copy = (uint32_t)min(sp->pack.size - sizeof(ipv6_header), len);
 
-        if (type == SOCK_DGRAM)
-            overhead += sizeof(udp_header);
-
-        auto to_copy = (uint32_t)min(sp->pack.size - overhead, len);
-
-        status = t.proc->write_vm(us_buf, sp->pack.data + overhead, to_copy,
-                                  nullptr);
+        status = t.proc->write_vm(us_buf, sp->pack.data + sizeof(ipv6_header),
+                                  to_copy, nullptr);
         if (!success(status)) {
             delete sp;
             release();
@@ -2508,14 +2570,7 @@ nt_status ipv6_socket::recvfrom(char* us_buf, size_t len, int flags,
             auto& ip = *(ipv6_header*)sp->pack.data;
 
             addr.sin6_family = AF_INET6;
-
-            if (type == SOCK_DGRAM) {
-                auto& udp = *(udp_header*)(sp->pack.data + sizeof(ipv6_header));
-
-                addr.sin6_port = udp.srcport;
-            } else
-                addr.sin6_port = 0;
-
+            addr.sin6_port = 0;
             addr.sin6_flowinfo = 0; // FIXME? Allowed by RFC3493, but not necessarily what Linux does
             memcpy(addr.sin6_addr, ip.src.v.data(), sizeof(ipv6_address));
             addr.sin6_scope_id = sp->scope_id;
@@ -2542,42 +2597,132 @@ nt_status ipv6_socket::recvfrom(char* us_buf, size_t len, int flags,
     return nt_status::SUCCESS;
 }
 
-nt_status ipv6_socket::sendto(const char* us_buf, size_t len, int flags,
-                              sockaddr* to, int tolen, size_t& sent_bytes) {
-    switch (type) {
-        case SOCK_RAW: {
-            if (!to || tolen < 0 || (size_t)tolen < sizeof(sockaddr_in6))
-                return nt_status::INVALID_PARAMETER;
+nt_status ipv6_udp_socket::recvfrom(char* us_buf, size_t len, int flags,
+                                    sockaddr* us_from, int* fromlen,
+                                    size_t& recv_bytes) {
+    // FIXME - MSG_TRUNC
+    if (flags != 0)
+        return nt_status::INVALID_PARAMETER;
 
-            return sendto_raw(span(us_buf, len), flags, *(sockaddr_in6*)to,
-                              sent_bytes);
+    sockaddr_in6 addr;
+    auto& t = *get_current_thread();
+
+    acquire();
+
+    while (true) {
+        // FIXME - break lock if last handle to socket closed
+        auto status = wait_for_object(*this, true);
+        if (!success(status)) {
+            release();
+            return status;
         }
 
-        case SOCK_DGRAM: {
-            bool connected;
+        ipv6_socket_packet* sp = nullptr;
+        nt_status error = nt_status::SUCCESS;
 
-            {
-                lock_guard lock(bind_lock);
-                connected = this->connect_done;
+        {
+            sync_lock sl;
+            lock_guard lock(sl);
+            lock_guard lock2(buffer_lock);
+
+            if (!success(pending_error)) {
+                error = pending_error;
+                pending_error = nt_status::SUCCESS;
+
+                if (is_list_empty(buffer))
+                    signalled = false;
             }
 
-            // if connected, sendto destination is ignored
-            if (connected)
-                return send_udp(span(us_buf, len), flags, sent_bytes);
-            else {
-                if (!to || tolen < 0 || (size_t)tolen < sizeof(sockaddr_in6))
-                    return nt_status::INVALID_PARAMETER;
+            if (!is_list_empty(buffer)) {
+                sp = &containing_record<ipv6_socket_packet>(buffer.next);
+                remove_entry_list(sp->le);
 
-                return sendto_udp(span(us_buf, len), flags, *(sockaddr_in6*)to,
-                                  sent_bytes);
+                if (is_list_empty(buffer))
+                    signalled = false;
             }
         }
 
-        default:
-            return nt_status::INVALID_PARAMETER;
+        if (!success(error)) {
+            release();
+            return error;
+        }
+
+        if (!sp)
+            continue;
+
+        size_t overhead = sizeof(ipv6_header) + sizeof(udp_header);
+
+        auto to_copy = (uint32_t)min(sp->pack.size - overhead, len);
+
+        status = t.proc->write_vm(us_buf, sp->pack.data + overhead, to_copy,
+                                  nullptr);
+        if (!success(status)) {
+            delete sp;
+            release();
+            return status;
+        }
+
+        recv_bytes = to_copy;
+
+        if (us_from && fromlen && *fromlen > 0) {
+            auto& ip = *(ipv6_header*)sp->pack.data;
+            auto& udp = *(udp_header*)(sp->pack.data + sizeof(ipv6_header));
+
+            addr.sin6_family = AF_INET6;
+            addr.sin6_port = udp.srcport;
+            addr.sin6_flowinfo = 0; // FIXME? Allowed by RFC3493, but not necessarily what Linux does
+            memcpy(addr.sin6_addr, ip.src.v.data(), sizeof(ipv6_address));
+            addr.sin6_scope_id = sp->scope_id;
+
+            status = t.proc->write_vm(us_from, &addr,
+                                      (uint32_t)min((size_t)*fromlen, sizeof(addr)),
+                                      nullptr);
+            if (!success(status)) {
+                delete sp;
+                release();
+                return status;
+            }
+
+            *fromlen = sizeof(addr);
+        }
+
+        delete sp;
+
+        break;
     }
 
-    return nt_status::NOT_IMPLEMENTED;
+    release();
+
+    return nt_status::SUCCESS;
+}
+
+nt_status ipv6_raw_socket::sendto(const char* us_buf, size_t len, int flags,
+                                  sockaddr* to, int tolen, size_t& sent_bytes) {
+    if (!to || tolen < 0 || (size_t)tolen < sizeof(sockaddr_in6))
+        return nt_status::INVALID_PARAMETER;
+
+    return sendto_raw(span(us_buf, len), flags, *(sockaddr_in6*)to, sent_bytes);
+}
+
+nt_status ipv6_udp_socket::sendto(const char* us_buf, size_t len, int flags,
+                                  sockaddr* to, int tolen, size_t& sent_bytes) {
+    bool connected;
+
+    {
+        lock_guard lock(bind_lock);
+        connected = this->connect_done;
+    }
+
+    // if connected, sendto destination is ignored
+    if (connected)
+        return send_udp(span(us_buf, len), flags, sent_bytes);
+    else {
+        if (!to || tolen < 0 || (size_t)tolen < sizeof(sockaddr_in6))
+            return nt_status::INVALID_PARAMETER;
+
+        return sendto_udp(span(us_buf, len), flags, *(sockaddr_in6*)to,
+                          sent_bytes);
+    }
 }
 
 static bool is_link_local(const ipv6_address& addr) {
@@ -3042,8 +3187,8 @@ static void send_address_unreachable(netif& ni, const packet& pack,
     pack2->release();
 }
 
-nt_status ipv6_socket::sendto_raw(span<const char> us_buf, int flags,
-                                  const sockaddr_in6& to, size_t& sent_bytes) {
+nt_status ipv6_raw_socket::sendto_raw(span<const char> us_buf, int flags,
+                                      const sockaddr_in6& to, size_t& sent_bytes) {
     nt_status status;
     uint32_t read_bytes;
     ipv6_address src;
@@ -3173,8 +3318,9 @@ static uint16_t find_ephemeral_udp_port() {
     }
 }
 
-nt_status ipv6_socket::sendto_udp(span<const char> us_buf, int flags,
-                                  const sockaddr_in6& to, size_t& sent_bytes) {
+nt_status ipv6_udp_socket::sendto_udp(span<const char> us_buf, int flags,
+                                      const sockaddr_in6& to,
+                                      size_t& sent_bytes) {
     nt_status status;
     uint32_t read_bytes;
     ipv6_address src;
@@ -3332,8 +3478,8 @@ nt_status ipv6_socket::sendto_udp(span<const char> us_buf, int flags,
     return status;
 }
 
-nt_status ipv6_socket::send_udp(span<const char> us_buf, int flags,
-                                size_t& sent_bytes) {
+nt_status ipv6_udp_socket::send_udp(span<const char> us_buf, int flags,
+                                    size_t& sent_bytes) {
     sockaddr_in6 dest;
 
     {
@@ -3416,7 +3562,28 @@ nt_status loopback_netif::send_packet(const mac_address&, ethertype, packet&) {
     return nt_status::SUCCESS;
 }
 
-nt_status ipv6_socket::bind(const sockaddr* addr, size_t addrlen) {
+static bool is_our_ip(const ipv6_address& ip) {
+    lock_guard lock(netif_lock);
+
+    for (auto le = netif_list.next; le != &netif_list; le = le->next) {
+        auto& ni = containing_record<netif>(le);
+
+        {
+            lock_guard lock2(ni.addr_lock);
+
+            for (auto le2 = ni.addrs.next; le2 != &ni.addrs; le2 = le2->next) {
+                auto& a = containing_record<ip_addr>(le2);
+
+                if (a.addr == ip)
+                    return true;
+            }
+        }
+    }
+
+    return false;
+}
+
+nt_status ipv6_raw_socket::bind(const sockaddr* addr, size_t addrlen) {
     if (addr->sa_family != AF_INET6)
         return nt_status::INVALID_PARAMETER;
 
@@ -3428,37 +3595,41 @@ nt_status ipv6_socket::bind(const sockaddr* addr, size_t addrlen) {
     auto ip = *(ipv6_address*)b.sin6_addr;
 
     if (ip != parse_ipv6_address("::")) {
-        bool okay = false;
-
-        {
-            lock_guard lock(netif_lock);
-
-            for (auto le = netif_list.next; le != &netif_list; le = le->next) {
-                auto& ni = containing_record<netif>(le);
-
-                {
-                    lock_guard lock2(ni.addr_lock);
-
-                    for (auto le2 = ni.addrs.next; le2 != &ni.addrs; le2 = le2->next) {
-                        auto& a = containing_record<ip_addr>(le2);
-
-                        if (a.addr == ip) {
-                            okay = true;
-                            break;
-                        }
-                    }
-                }
-
-                if (okay)
-                    break;
-            }
-        }
-
-        if (!okay)
+        if (!is_our_ip(ip))
             return nt_status::INVALID_ADDRESS_COMPONENT;
     }
 
-    if (type == SOCK_DGRAM) {
+    {
+        lock_guard lock(bind_lock);
+
+        if (bind_done)
+            return nt_status::INVALID_PARAMETER;
+
+        bound_address = ip;
+
+        bind_done = true;
+    }
+
+    return nt_status::SUCCESS;
+}
+
+nt_status ipv6_udp_socket::bind(const sockaddr* addr, size_t addrlen) {
+    if (addr->sa_family != AF_INET6)
+        return nt_status::INVALID_PARAMETER;
+
+    if (addrlen < sizeof(sockaddr_in6))
+        return nt_status::BUFFER_TOO_SMALL;
+
+    auto& b = *(sockaddr_in6*)addr;
+
+    auto ip = *(ipv6_address*)b.sin6_addr;
+
+    if (ip != parse_ipv6_address("::")) {
+        if (!is_our_ip(ip))
+            return nt_status::INVALID_ADDRESS_COMPONENT;
+    }
+
+    {
         uint16_t port;
 
         lock_guard lock(udp_ports_lock);
@@ -3485,36 +3656,23 @@ nt_status ipv6_socket::bind(const sockaddr* addr, size_t addrlen) {
         bound_address = ip;
 
         bind_done = true;
-    } else {
-        lock_guard lock(bind_lock);
-
-        if (bind_done)
-            return nt_status::INVALID_PARAMETER;
-
-        bound_port = b.sin6_port;
-        bound_address = ip;
-
-        bind_done = true;
     }
 
     return nt_status::SUCCESS;
 }
 
-nt_status ipv6_socket::connect(const sockaddr* addr, size_t addrlen) {
+nt_status ipv6_udp_socket::connect(const sockaddr* addr, size_t addrlen) {
     if (addr->sa_family != AF_INET6)
         return nt_status::INVALID_PARAMETER;
 
     if (addrlen < sizeof(sockaddr_in6))
         return nt_status::BUFFER_TOO_SMALL;
 
-    if (type != SOCK_DGRAM)
-        return nt_status::INVALID_PARAMETER;
-
     auto& c = *(sockaddr_in6*)addr;
 
-    if (type == SOCK_DGRAM) {
-        uint16_t port;
+    uint16_t port;
 
+    {
         lock_guard lock(udp_ports_lock);
         lock_guard lock2(bind_lock);
 
@@ -3539,20 +3697,17 @@ nt_status ipv6_socket::connect(const sockaddr* addr, size_t addrlen) {
         connected_address = *(ipv6_address*)c.sin6_addr;
         connected_scope = c.sin6_scope_id;
         connect_done = true;
-    } else
-        return nt_status::INVALID_PARAMETER;
+    }
 
     return nt_status::SUCCESS;
 }
 
-void ipv6_socket::last_handle_closed() {
-    if (type == SOCK_DGRAM) {
-        lock_guard lock(udp_ports_lock);
-        lock_guard lock2(bind_lock);
+void ipv6_udp_socket::last_handle_closed() {
+    lock_guard lock(udp_ports_lock);
+    lock_guard lock2(bind_lock);
 
-        if (bind_done && udp_ports[bound_port] == this) {
-            udp_ports[bound_port] = nullptr;
-            this->release();
-        }
+    if (bind_done && udp_ports[bound_port] == this) {
+        udp_ports[bound_port] = nullptr;
+        this->release();
     }
 }
