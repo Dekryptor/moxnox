@@ -145,10 +145,12 @@ public:
     tcp_state state = tcp_state::CLOSED;
     netif* pni = nullptr;
     uint16_t window = 0xffff;
-    uint32_t seq;
+    uint32_t send_next, send_unacknowledged, recv_next;
+    mac_address dst_mac;
 
 private:
     nt_status send_syn(const sockaddr_in6& c, ipv6_address& src);
+    void send_ack();
 };
 
 static spinlock udp_ports_lock;
@@ -328,20 +330,27 @@ struct tcp_header {
     uint32_t ack;
     uint8_t : 4;
     uint8_t header_length : 4;
-    uint8_t FIN : 1;
-    uint8_t SYN : 1;
-    uint8_t RST : 1;
-    uint8_t PSH : 1;
-    uint8_t ACK : 1;
-    uint8_t URG : 1;
-    uint8_t ECE : 1;
-    uint8_t CWR : 1;
+    union {
+        struct {
+            uint8_t FIN : 1;
+            uint8_t SYN : 1;
+            uint8_t RST : 1;
+            uint8_t PSH : 1;
+            uint8_t ACK : 1;
+            uint8_t URG : 1;
+            uint8_t ECE : 1;
+            uint8_t CWR : 1;
+        };
+        uint8_t flags;
+    };
     uint16_t window;
     uint16_t checksum;
     uint16_t urgent_ptr;
 } __attribute__((packed));
 
 static_assert(sizeof(tcp_header) == 20);
+
+static const uint8_t TCP_SYN_ACK = 0x12;
 
 class loopback_netif : public netif {
 public:
@@ -3882,14 +3891,19 @@ nt_status ipv6_tcp_socket::send_syn(const sockaddr_in6& c, ipv6_address& src) {
             newni->release();
     }
 
+    {
+        lock_guard lock(state_lock);
+
+        if (bound_address == parse_ipv6_address("::"))
+            bound_address = src;
+    }
+
     auto& ni = *pni;
 
-    mac_address mac;
-
     if (src == dst)
-        mac = ni.mac;
+        dst_mac = ni.mac;
     else
-        mac = find_mac_address(ni, dst);
+        dst_mac = find_mac_address(ni, dst);
 
     ni.acquire();
 
@@ -3918,14 +3932,14 @@ nt_status ipv6_tcp_socket::send_syn(const sockaddr_in6& c, ipv6_address& src) {
 
     tcp.src_port = bound_port;
     tcp.dst_port = connected_port;
-    tcp.seq = byteswap(seq);
+    tcp.seq = byteswap(send_next);
     tcp.header_length = sizeof(tcp_header) / sizeof(uint32_t);
     tcp.SYN = 1;
     tcp.window = byteswap(window);
 
     tcp.checksum = calc_ipv6_checksum(ip, span((uint8_t*)&tcp, pack->size - sizeof(ipv6_header)), IPPROTO_TCP);
 
-    if (mac == NULL_MAC_ADDRESS) {
+    if (dst_mac == NULL_MAC_ADDRESS) {
         send_address_unreachable(ni, *pack, src);
         pack->release();
         ni.release();
@@ -3941,7 +3955,7 @@ nt_status ipv6_tcp_socket::send_syn(const sockaddr_in6& c, ipv6_address& src) {
             if (is_multicast_address(ip.dst) && should_accept_multicast(ni, ip.dst))
                 handle_ipv6_packet(ni, *pack, ni.mac); // send copy to ourselves
 
-            status = ni.send_packet(mac, ethertype::ipv6, *pack);
+            status = ni.send_packet(dst_mac, ethertype::ipv6, *pack);
             if (!success(status)) {
                 pack->release();
                 ni.release();
@@ -4022,7 +4036,9 @@ nt_status ipv6_tcp_socket::connect(const sockaddr* addr, size_t addrlen) {
         connected_scope = c.sin6_scope_id;
 
         src = bound_address;
-        seq = rand_tcp_seq();
+
+        send_next = rand_tcp_seq();
+        send_unacknowledged = send_next;
     }
 
     status = send_syn(c, src);
@@ -4056,7 +4072,103 @@ void ipv6_tcp_socket::last_handle_closed() {
     }
 }
 
+void ipv6_tcp_socket::send_ack() {
+    nt_status status;
+
+    auto pack = new packet;
+    if (!pack) {
+        print("new failed\n");
+        return;
+    }
+
+    auto& ni = *pni;
+
+    ni.acquire();
+
+    pack->size = sizeof(ipv6_header) + sizeof(tcp_header);
+
+    auto& ip = *(ipv6_header*)pack->data;
+    ip.traffic_class1 = 0;
+    ip.version = 6;
+    ip.traffic_class2 = 0;
+    ip.flow_label = 0;
+    ip.payload_length = byteswap((uint16_t)sizeof(tcp_header));
+    ip.next_header = IPPROTO_TCP;
+    ip.hop_limit = DEFAULT_HOP_LIMIT;
+    ip.src = bound_address;
+    ip.dst = connected_address;
+
+    auto& tcp = *(tcp_header*)(pack->data + sizeof(ipv6_header));
+
+    memset(&tcp, 0, sizeof(tcp));
+
+    send_next++;
+
+    tcp.src_port = bound_port;
+    tcp.dst_port = connected_port;
+    tcp.seq = byteswap(send_next);
+    tcp.ack = byteswap(recv_next);
+    tcp.header_length = sizeof(tcp_header) / sizeof(uint32_t);
+    tcp.ACK = 1;
+    tcp.window = byteswap(window);
+
+    tcp.checksum = calc_ipv6_checksum(ip, span((uint8_t*)&tcp, pack->size - sizeof(ipv6_header)), IPPROTO_TCP);
+
+    if (ip.src == ip.dst)
+        handle_ipv6_packet(ni, *pack, ni.mac);
+    else {
+        if (is_multicast_address(ip.dst) && should_accept_multicast(ni, ip.dst))
+            handle_ipv6_packet(ni, *pack, ni.mac); // send copy to ourselves
+
+        status = ni.send_packet(dst_mac, ethertype::ipv6, *pack);
+        if (!success(status)) {
+            pack->release();
+            ni.release();
+            return;
+        }
+    }
+
+    pack->release();
+    ni.release();
+}
+
 void ipv6_tcp_socket::received_packet(packet& pack) {
     print("FIXME - ipv6_tcp_socket::received_packet\n");
-    // FIXME
+
+    auto& ip = *(ipv6_header*)pack.data;
+    auto& tcp = *(tcp_header*)(pack.data + sizeof(ipv6_header));
+
+    tcp_state cur_state;
+
+    {
+        lock_guard lock(state_lock);
+
+        if (state == tcp_state::CLOSED)
+            return;
+
+        if (connected_address != ip.src || connected_port != tcp.src_port)
+            return;
+
+        cur_state = state;
+    }
+
+    if (cur_state == tcp_state::SYN_SENT && tcp.flags == TCP_SYN_ACK) {
+        // FIXME - parse options
+
+        {
+            lock_guard lock(state_lock);
+
+            recv_next = byteswap(tcp.seq) + 1;
+            send_unacknowledged = byteswap(tcp.ack);
+        }
+
+        send_ack();
+
+        {
+            lock_guard lock(state_lock);
+            state = cur_state = tcp_state::ESTABLISHED;
+        }
+
+        set_event(static_cast<event&>(state_change_event.get()));
+    }
 }
