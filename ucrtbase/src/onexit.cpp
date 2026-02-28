@@ -56,8 +56,27 @@ int _register_onexit_function(_onexit_table_t* table, _onexit_t func) {
 }
 
 extern "C"
-int _execute_onexit_table(_onexit_table_t* /*table*/) {
-    print_stderr("FIXME - _execute_onexit_table\n");
+int _execute_onexit_table(_onexit_table_t* table) {
+    auto& t = *table;
+
+    if (!table)
+        return -1;
+
+    // FIXME - lock
+
+    if (!t._first || t._first >= t._last)
+        return 0;
+
+    auto f = t._last - 1;
+
+    while (f >= t._first) {
+        if (*f)
+            (*f)();
+
+        f--;
+    }
+
+    free(t._first);
 
     return 0;
 }
