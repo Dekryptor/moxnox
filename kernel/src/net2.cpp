@@ -100,6 +100,16 @@ enum class tcp_state {
 
 class ipv6_tcp_socket : public socket {
 public:
+    ipv6_tcp_socket() {
+        state_change_event = create_event(true);
+        if (!state_change_event) {
+            print("create_event failed\n");
+            return;
+        }
+
+        init = true;
+    }
+
     ~ipv6_tcp_socket() override {
         if (pni)
             pni->release();
@@ -123,7 +133,9 @@ public:
 
     nt_status connect(const sockaddr* addr, size_t addrlen) override;
 
+    bool init = false;
     spinlock state_lock;
+    object_ref state_change_event;
     bool bind_done = false;
     uint16_t bound_port, connected_port;
     uint32_t connected_scope;
@@ -2053,6 +2065,11 @@ static nt_status netctl_socket(span<const uint8_t> buf) {
                         return nt_status::INSUFFICIENT_RESOURCES;
                     }
 
+                    if (!s->init) {
+                        s->release();
+                        return nt_status::INTERNAL_ERROR;
+                    }
+
                     ref = object_ref{*s};
 
                     break;
@@ -3847,14 +3864,30 @@ nt_status ipv6_tcp_socket::send_syn(const sockaddr_in6& c, ipv6_address& src) {
         return nt_status::HOST_UNREACHABLE;
     }
 
-    if (src == dst)
-        handle_ipv6_packet(ni, *pack, ni.mac);
-    else {
-        if (is_multicast_address(ip.dst) && should_accept_multicast(ni, ip.dst))
-            handle_ipv6_packet(ni, *pack, ni.mac); // send copy to ourselves
+    auto& ev = static_cast<event&>(state_change_event.get());
 
-        status = ni.send_packet(mac, ethertype::ipv6, *pack);
-        if (!success(status)) {
+    for (unsigned int i = 0; i < 3; i++) {
+        if (src == dst)
+            handle_ipv6_packet(ni, *pack, ni.mac);
+        else {
+            if (is_multicast_address(ip.dst) && should_accept_multicast(ni, ip.dst))
+                handle_ipv6_packet(ni, *pack, ni.mac); // send copy to ourselves
+
+            status = ni.send_packet(mac, ethertype::ipv6, *pack);
+            if (!success(status)) {
+                pack->release();
+                ni.release();
+                return status;
+            }
+        }
+
+        status = wait_for_object(ev, true, SYSTEM_TIME_RESOLUTION); // wait 1 second
+
+        if (status == nt_status::TIMEOUT)
+            continue;
+        else if (success(status))
+            break;
+        else {
             pack->release();
             ni.release();
             return status;
@@ -3864,9 +3897,8 @@ nt_status ipv6_tcp_socket::send_syn(const sockaddr_in6& c, ipv6_address& src) {
     pack->release();
     ni.release();
 
-    // FIXME - wait for reply
-    // FIXME - retry if no response
-    // FIXME - timeout
+    if (status == nt_status::TIMEOUT)
+        return nt_status::HOST_UNREACHABLE;
 
     return nt_status::SUCCESS;
 }
