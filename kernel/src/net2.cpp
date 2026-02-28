@@ -93,7 +93,6 @@ public:
 private:
     nt_status sendto_udp(span<const char> buf, int flags,
                          const sockaddr_in6& to, size_t& sent_bytes);
-    nt_status send_udp(span<const char> buf, int flags, size_t& sent_bytes);
 };
 
 static spinlock udp_ports_lock;
@@ -2692,23 +2691,30 @@ nt_status ipv6_udp_socket::recvfrom(char* us_buf, size_t len, int flags,
     return nt_status::SUCCESS;
 }
 
-nt_status ipv6_udp_socket::sendto(const char* us_buf, size_t len, int flags,
+nt_status ipv6_udp_socket::sendto(const char* buf, size_t len, int flags,
                                   sockaddr* to, int tolen, size_t& sent_bytes) {
     bool connected;
+    sockaddr_in6 dest;
 
     {
         lock_guard lock(bind_lock);
         connected = this->connect_done;
+
+        if (connected) {
+            *(ipv6_address*)&dest.sin6_addr = connected_address;
+            dest.sin6_port = connected_port;
+            dest.sin6_scope_id = connected_scope;
+        }
     }
 
     // if connected, sendto destination is ignored
     if (connected)
-        return send_udp(span(us_buf, len), flags, sent_bytes);
+        return sendto_udp(span(buf, len), flags, dest, sent_bytes);
     else {
         if (!to || tolen < 0 || (size_t)tolen < sizeof(sockaddr_in6))
             return nt_status::INVALID_PARAMETER;
 
-        return sendto_udp(span(us_buf, len), flags, *(sockaddr_in6*)to,
+        return sendto_udp(span(buf, len), flags, *(sockaddr_in6*)to,
                           sent_bytes);
     }
 }
@@ -3470,24 +3476,6 @@ nt_status ipv6_udp_socket::sendto_udp(span<const char> us_buf, int flags,
     sent_bytes = us_buf.size();
 
     return status;
-}
-
-nt_status ipv6_udp_socket::send_udp(span<const char> us_buf, int flags,
-                                    size_t& sent_bytes) {
-    sockaddr_in6 dest;
-
-    {
-        lock_guard lock(bind_lock);
-
-        if (!connect_done)
-            return nt_status::INVALID_PARAMETER;
-
-        *(ipv6_address*)&dest.sin6_addr = connected_address;
-        dest.sin6_port = connected_port;
-        dest.sin6_scope_id = connected_scope;
-    }
-
-    return sendto_udp(us_buf, flags, dest, sent_bytes);
 }
 
 netif::~netif() {
