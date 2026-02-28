@@ -1524,18 +1524,25 @@ export void dwarf_print_function(span<const uint8_t> debug_info,
             if (tag != DW_TAG::compile_unit)
                 return false;
 
+            bool go_again = false;
+            auto orig_die = die;
+
             loop_through_atts(die, att_list, [&](enum DW_AT att_num, enum DW_FORM form, span<const uint8_t> data) {
                 if (att_num == DW_AT::ranges) {
                     if (form == DW_FORM::sec_offset)
                         ranges_offset = *(uint32_t*)data.data();
                     else if (form == DW_FORM::rnglistx)
                         rnglistx = read_uleb128(data);
-                } else if (att_num == DW_AT::low_pc && form == DW_FORM::addr)
-                    low_pc = *(uint64_t*)data.data();
+                } else if (att_num == DW_AT::low_pc && form == DW_FORM::addrx && !addr_base.has_value())
+                    go_again = true;
+                else if (att_num == DW_AT::low_pc && form_is_address(form))
+                    low_pc = read_address(data, form, debug_addr, addr_base);
                 else if (att_num == DW_AT::high_pc && form == DW_FORM::udata)
                     high_pc = read_uleb128(data);
-                else if (att_num == DW_AT::high_pc && form == DW_FORM::data8)
+                else if (att_num == DW_AT::high_pc && form == DW_FORM::data8) // FIXME - generic integer-reading code
                     high_pc = *(uint64_t*)data.data();
+                else if (att_num == DW_AT::high_pc && form == DW_FORM::data4) // FIXME - generic integer-reading code
+                    high_pc = *(uint32_t*)data.data();
                 else if (att_num == DW_AT::rnglists_base && form == DW_FORM::sec_offset)
                     rnglist_base = *(uint32_t*)data.data();
                 else if (att_num == DW_AT::addr_base && form == DW_FORM::sec_offset)
@@ -1545,6 +1552,19 @@ export void dwarf_print_function(span<const uint8_t> debug_info,
 
                 return true;
             });
+
+            if (go_again && !low_pc.has_value() && addr_base.has_value()) {
+                die = orig_die;
+
+                loop_through_atts(die, att_list, [&](enum DW_AT att_num, enum DW_FORM form, span<const uint8_t> data) {
+                    if (att_num == DW_AT::low_pc && form_is_address(form)) {
+                        low_pc = read_address(data, form, debug_addr, addr_base);
+                        return false;
+                    }
+
+                    return true;
+                });
+            }
 
             if (ranges_offset.has_value()) {
                 if (addr_in_range(rva + base, debug_rnglists.subspan(*ranges_offset),
