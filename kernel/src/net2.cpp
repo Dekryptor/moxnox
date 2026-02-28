@@ -89,6 +89,30 @@ public:
     nt_status pending_error = nt_status::SUCCESS;
 };
 
+class ipv6_tcp_socket : public socket {
+public:
+    ~ipv6_tcp_socket() override { }
+    void last_handle_closed() override { }
+
+    nt_status recvfrom(char* /*buf*/, size_t /*len*/, int /*flags*/, sockaddr* /*from*/,
+                       int* /*fromlen*/, size_t& /*recv_bytes*/) override {
+        return nt_status::NOT_IMPLEMENTED;
+    }
+
+    nt_status sendto(const char* /*buf*/, size_t /*len*/, int /*flags*/, sockaddr* /*to*/,
+                     int /*tolen*/, size_t& /*sent_bytes*/) override {
+        return nt_status::NOT_IMPLEMENTED;
+    }
+
+    nt_status bind(const sockaddr* /*addr*/, size_t /*addrlen*/) override {
+        return nt_status::NOT_IMPLEMENTED;
+    }
+
+    nt_status connect(const sockaddr* /*addr*/, size_t /*addrlen*/) override {
+        return nt_status::NOT_IMPLEMENTED;
+    }
+};
+
 static spinlock udp_ports_lock;
 static ipv6_udp_socket* udp_ports[65536];
 
@@ -1940,8 +1964,6 @@ static nt_status netctl_socket(span<const uint8_t> buf) {
         case AF_INET6: {
             object_ref ref;
 
-            // FIXME - TCP (SOCK_STREAM)
-
             switch (params.type) {
                 case SOCK_RAW: {
                     if (params.protocol == 0)
@@ -1959,12 +1981,25 @@ static nt_status netctl_socket(span<const uint8_t> buf) {
                 }
 
                 case SOCK_DGRAM: {
-                    if (params.protocol == 0)
-                        params.protocol = IPPROTO_UDP;
-                    else if (params.protocol != IPPROTO_UDP)
+                    if (params.protocol != 0 && params.protocol != IPPROTO_UDP)
                         return nt_status::INVALID_PARAMETER;
 
                     auto s = new ipv6_udp_socket;
+                    if (!s) {
+                        print("new failed\n");
+                        return nt_status::INSUFFICIENT_RESOURCES;
+                    }
+
+                    ref = object_ref{*s};
+
+                    break;
+                }
+
+                case SOCK_STREAM: {
+                    if (params.protocol != 0 && params.protocol != IPPROTO_TCP)
+                        return nt_status::INVALID_PARAMETER;
+
+                    auto s = new ipv6_tcp_socket;
                     if (!s) {
                         print("new failed\n");
                         return nt_status::INSUFFICIENT_RESOURCES;
