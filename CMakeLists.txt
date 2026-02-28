@@ -430,7 +430,7 @@ add_library(harfbuzz SHARED
     harfbuzz/src/hb-static.cc
     harfbuzz/src/hb-ucd.cc
     harfbuzz/src/hb-unicode.cc
-    ${CMAKE_SOURCE_DIR}/hbshim.cpp)
+)
 target_sources(harfbuzz PUBLIC FILE_SET CXX_MODULES FILES modules/harfbuzz.cpp)
 
 target_compile_definitions(harfbuzz PRIVATE -DHAVE_FREETYPE -DHB_LEAN -DHB_NO_AAT -DHB_NO_MT)
@@ -439,7 +439,6 @@ target_compile_options(harfbuzz PRIVATE -include ${CMAKE_SOURCE_DIR}/hbshim.h)
 target_include_directories(harfbuzz PRIVATE harfbuzz/src)
 target_include_directories(harfbuzz PRIVATE freetype/include)
 target_link_libraries(harfbuzz PRIVATE freetype)
-target_link_options(harfbuzz PRIVATE -nostartfiles -nostdlib)
 target_link_libraries(harfbuzz PRIVATE moxnox ${LIBGCC})
 
 install(TARGETS harfbuzz DESTINATION ${CMAKE_INSTALL_PREFIX}/lib
