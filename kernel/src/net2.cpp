@@ -34,7 +34,7 @@ static const mac_address NULL_MAC_ADDRESS = { 0, 0, 0, 0, 0, 0 };
 
 static object_ref netctl_obj;
 
-static spinlock ipv6_sockets_lock;
+static spinlock ipv6_raw_sockets_lock;
 static list_entry ipv6_raw_sockets = { &ipv6_raw_sockets, &ipv6_raw_sockets };
 static size_t num_ipv6_raw_sockets = 0;
 
@@ -78,8 +78,6 @@ public:
     nt_status bind(const sockaddr* addr, size_t addrlen) override;
     nt_status connect(const sockaddr* addr, size_t addrlen) override;
 
-    list_entry le;
-    bool added_to_list = false;
     spinlock buffer_lock;
     list_entry buffer = { &buffer, &buffer };
     size_t buffer_size = 0;
@@ -1347,7 +1345,7 @@ static void send_to_raw_sockets(uint32_t netif_num, packet& pack) {
     size_t num_sockets;
 
     {
-        lock_guard lock(ipv6_sockets_lock);
+        lock_guard lock(ipv6_raw_sockets_lock);
         num_sockets = num_ipv6_raw_sockets;
     }
 
@@ -1363,7 +1361,7 @@ static void send_to_raw_sockets(uint32_t netif_num, packet& pack) {
     size_t num = 0;
 
     {
-        lock_guard lock(ipv6_sockets_lock);
+        lock_guard lock(ipv6_raw_sockets_lock);
 
         for (auto le = ipv6_raw_sockets.next; le != &ipv6_raw_sockets; le = le->next) {
             auto& s = containing_record<ipv6_raw_socket>(le);
@@ -1996,7 +1994,7 @@ static nt_status netctl_socket(span<const uint8_t> buf) {
             if (params.type == SOCK_RAW) {
                 auto& s = static_cast<ipv6_raw_socket&>(ref.get());
 
-                lock_guard lg(ipv6_sockets_lock);
+                lock_guard lg(ipv6_raw_sockets_lock);
                 insert_tail_list(ipv6_raw_sockets, s.le);
                 num_ipv6_raw_sockets++;
                 s.added_to_list = true;
@@ -2276,7 +2274,7 @@ nt_status netctl::ioctl(uint32_t code, span<const uint8_t> inbuf,
 
 ipv6_raw_socket::~ipv6_raw_socket() {
     {
-        lock_guard lg(ipv6_sockets_lock);
+        lock_guard lg(ipv6_raw_sockets_lock);
 
         if (added_to_list) {
             remove_entry_list(le);
@@ -2307,13 +2305,6 @@ ipv6_raw_socket::~ipv6_raw_socket() {
 }
 
 ipv6_udp_socket::~ipv6_udp_socket() {
-    {
-        lock_guard lg(ipv6_sockets_lock);
-
-        if (added_to_list)
-            remove_entry_list(le);
-    }
-
     while (true) {
         ipv6_socket_packet* pp = nullptr;
 
