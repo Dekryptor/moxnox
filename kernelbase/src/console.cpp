@@ -23,7 +23,7 @@ uint32_t CtrlRoutine(void* arg) {
         h = h->next;
     }
 
-    NtTerminateProcess(NtCurrentProcess(), nt_status::CONTROL_C_EXIT);
+    RtlExitUserProcess((uint32_t)nt_status::CONTROL_C_EXIT);
 
     return 0;
 }
