@@ -4208,6 +4208,35 @@ void ipv6_tcp_socket::received_packet(packet& pack) {
         if (first_ack)
             dispatch_packet(*pni, *first_ack, dst_mac);
     }
+
+    if (tcp.ACK) {
+        auto ack = byteswap(tcp.ack);
+
+        // FIXME - wraparound?
+
+        while (true) {
+            ipv6_tcp_retransmission* r = nullptr;
+
+            {
+                lock_guard lock(retransmission_list_lock);
+
+                if (is_list_empty(retransmission_list))
+                    break;
+
+                auto& r2 = containing_record<ipv6_tcp_retransmission>(retransmission_list.next);
+
+                auto& rtcp = *(tcp_header*)(r2.pack.data + sizeof(ipv6_header));
+
+                if (byteswap(rtcp.seq) >= ack)
+                    break;
+
+                remove_entry_list(r2.le);
+                r = &r2;
+            }
+
+            r->release();
+        }
+    }
 }
 
 nt_status ipv6_tcp_socket::sendto(const char* buf, size_t len, int flags,
