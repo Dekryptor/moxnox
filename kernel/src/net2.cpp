@@ -4007,7 +4007,7 @@ nt_status ipv6_tcp_socket::send_syn(const sockaddr_in6& c, ipv6_address& src) {
 }
 
 static uint32_t rand_tcp_seq() {
-    auto rnd = kernel_time_page.system_time / (SYSTEM_TIME_RESOLUTION / TICK_RATE);
+    auto rnd = (uint64_t)(kernel_time_page.system_time / (SYSTEM_TIME_RESOLUTION / TICK_RATE));
 
     rnd = rnd * (uint64_t)1103515245 + 12345; // from Knuth
 
@@ -4355,7 +4355,7 @@ nt_status ipv6_tcp_socket::sendto(const char* buf, size_t len, int flags,
 
         dispatch_packet(ni, *pack, dst_mac);
 
-        r->deadline = kernel_time_page.system_time + (RETRANSMISSION_DELAY * SYSTEM_TIME_RESOLUTION);
+        r->deadline = (uint64_t)kernel_time_page.system_time + (RETRANSMISSION_DELAY * SYSTEM_TIME_RESOLUTION);
 
         {
             lock_guard lock(retransmission_list_lock);
@@ -4494,7 +4494,7 @@ void ipv6_tcp_socket::do_retransmissions() {
         // FIXME - delay increase should be exponential
 
         r.attempt++;
-        r.deadline = kernel_time_page.system_time + (RETRANSMISSION_DELAY * SYSTEM_TIME_RESOLUTION);
+        r.deadline = (uint64_t)kernel_time_page.system_time + (RETRANSMISSION_DELAY * SYSTEM_TIME_RESOLUTION);
 
         r.release();
     }
