@@ -4131,7 +4131,6 @@ void ipv6_tcp_socket::send_ack(bool first) {
 
     dispatch_packet(ni, *pack, dst_mac);
 
-
     if (first) {
         pack->acquire();
         first_ack = pack;
