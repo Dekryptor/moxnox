@@ -38,6 +38,8 @@ static spinlock ipv6_raw_sockets_lock;
 static list_entry ipv6_raw_sockets = { &ipv6_raw_sockets, &ipv6_raw_sockets };
 static size_t num_ipv6_raw_sockets = 0;
 
+static const uint64_t RETRANSMISSION_DELAY = 1; // seconds
+
 class ipv6_raw_socket : public socket {
 public:
     ipv6_raw_socket(int protocol) : protocol(protocol) { }
@@ -100,20 +102,8 @@ enum class tcp_state {
 
 class ipv6_tcp_socket : public socket {
 public:
-    ipv6_tcp_socket() {
-        state_change_event = create_event(true);
-        if (!state_change_event) {
-            print("create_event failed\n");
-            return;
-        }
-
-        init = true;
-    }
-
-    ~ipv6_tcp_socket() override {
-        if (pni)
-            pni->release();
-    }
+    ipv6_tcp_socket();
+    ~ipv6_tcp_socket();
 
     void last_handle_closed() override;
 
@@ -149,10 +139,14 @@ public:
     size_t mss = 1220; // FIXME - different for IPv4
     spinlock retransmission_list_lock;
     list_entry retransmission_list = { &retransmission_list, &retransmission_list };
+    object_ref retransmission_thread_obj;
+    object_ref retransmission_thread_quit_event;
 
 private:
     nt_status send_syn(const sockaddr_in6& c, ipv6_address& src);
     void send_ack(bool first);
+    void retransmission_thread();
+    void do_retransmissions();
 };
 
 static spinlock udp_ports_lock;
@@ -183,7 +177,19 @@ struct ipv6_tcp_retransmission {
         pack.release();
     }
 
+    void acquire() {
+        refcount++;
+    }
+
+    void release() {
+        if (--refcount == 0)
+            delete this;
+    }
+
     list_entry le;
+    atomic<unsigned int> refcount = 1;
+    uint64_t deadline;
+    unsigned int attempt = 0;
     packet& pack;
 };
 
@@ -4078,13 +4084,17 @@ nt_status ipv6_tcp_socket::connect(const sockaddr* addr, size_t addrlen) {
 }
 
 void ipv6_tcp_socket::last_handle_closed() {
-    lock_guard lock(tcp_ports_lock);
-    lock_guard lock2(state_lock);
+    {
+        lock_guard lock(tcp_ports_lock);
+        lock_guard lock2(state_lock);
 
-    if (bind_done && tcp_ports[bound_port] == this) {
-        tcp_ports[bound_port] = nullptr;
-        this->release();
+        if (bind_done && tcp_ports[bound_port] == this) {
+            tcp_ports[bound_port] = nullptr;
+            this->release();
+        }
     }
+
+    set_event(static_cast<event&>(retransmission_thread_quit_event.get()));
 }
 
 static void dispatch_packet(netif& ni, packet& pack, const mac_address& dst_mac) {
@@ -4316,6 +4326,8 @@ nt_status ipv6_tcp_socket::sendto(const char* buf, size_t len, int flags,
 
         dispatch_packet(ni, *pack, dst_mac);
 
+        r->deadline = kernel_time_page.system_time + (RETRANSMISSION_DELAY * SYSTEM_TIME_RESOLUTION);
+
         {
             lock_guard lock(retransmission_list_lock);
 
@@ -4333,4 +4345,130 @@ nt_status ipv6_tcp_socket::sendto(const char* buf, size_t len, int flags,
     sent_bytes = done;
 
     return nt_status::SUCCESS;
+}
+
+ipv6_tcp_socket::ipv6_tcp_socket() {
+    state_change_event = create_event(true);
+    if (!state_change_event) {
+        print("create_event failed\n");
+        return;
+    }
+
+    retransmission_thread_quit_event = create_event(false);
+    if (!retransmission_thread_quit_event) {
+        print("create_event failed\n");
+        return;
+    }
+
+    this->acquire();
+
+    retransmission_thread_obj = add_kernel_thread([](void* ctx) {
+        auto& s = *(ipv6_tcp_socket*)ctx;
+
+        s.retransmission_thread();
+
+        s.release();
+    }, this);
+
+    init = true;
+}
+
+ipv6_tcp_socket::~ipv6_tcp_socket() {
+    while (true) {
+        ipv6_tcp_retransmission* r;
+
+        {
+            lock_guard lock(retransmission_list_lock);
+
+            if (is_list_empty(retransmission_list))
+                break;
+
+            r = &containing_record<ipv6_tcp_retransmission>(retransmission_list.next);
+
+            remove_entry_list(r->le);
+        }
+
+        r->release();
+    }
+
+    if (pni)
+        pni->release();
+}
+
+void ipv6_tcp_socket::retransmission_thread() {
+    auto& ev = static_cast<event&>(retransmission_thread_quit_event.get());
+
+    while (true) {
+        auto status = wait_for_object(ev, true, SYSTEM_TIME_RESOLUTION);
+
+        if (status == nt_status::SUCCESS)
+            break;
+
+        if (!success(status)) {
+            print("wait_for_object returned {}, exiting network thread\n", status);
+            break;
+        }
+
+        do_retransmissions();
+    }
+}
+
+void ipv6_tcp_socket::do_retransmissions() {
+    unsigned int num = 0, added = 0;
+    auto now = (uint64_t)kernel_time_page.system_time;
+
+    {
+        lock_guard lock(retransmission_list_lock);
+
+        for (auto le = retransmission_list.next; le != &retransmission_list; le = le->next) {
+            auto& r = containing_record<ipv6_tcp_retransmission>(le);
+
+            if (now >= r.deadline)
+                num++;
+            else
+                break;
+        }
+    }
+
+    if (num == 0)
+        return;
+
+    auto arr = (ipv6_tcp_retransmission**)malloc(sizeof(ipv6_tcp_retransmission*) * num);
+    if (!arr) {
+        print("malloc failed\n");
+        return;
+    }
+
+    {
+        lock_guard lock(retransmission_list_lock);
+
+        for (auto le = retransmission_list.next; le != &retransmission_list; le = le->next) {
+            auto& r = containing_record<ipv6_tcp_retransmission>(le);
+
+            if (now >= r.deadline) {
+                r.acquire();
+                arr[added] = &r;
+                added++;
+
+                if (added == num)
+                    break;
+            } else
+                break;
+        }
+    }
+
+    for (unsigned int i = 0; i < added; i++) {
+        auto& r = *arr[i];
+
+        dispatch_packet(*pni, r.pack, dst_mac);
+
+        // FIXME - delay increase should be exponential
+
+        r.attempt++;
+        r.deadline = kernel_time_page.system_time + (RETRANSMISSION_DELAY * SYSTEM_TIME_RESOLUTION);
+
+        r.release();
+    }
+
+    free(arr);
 }
