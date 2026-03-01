@@ -147,10 +147,11 @@ public:
     uint16_t window = 0xffff;
     uint32_t send_next, send_unacknowledged, recv_next;
     mac_address dst_mac;
+    packet* first_ack = nullptr;
 
 private:
     nt_status send_syn(const sockaddr_in6& c, ipv6_address& src);
-    void send_ack();
+    void send_ack(bool first);
 };
 
 static spinlock udp_ports_lock;
@@ -4072,9 +4073,24 @@ void ipv6_tcp_socket::last_handle_closed() {
     }
 }
 
-void ipv6_tcp_socket::send_ack() {
+static void dispatch_packet(netif& ni, packet& pack, const mac_address& dst_mac) {
     nt_status status;
 
+    auto& ip = *(ipv6_header*)pack.data;
+
+    if (ip.src == ip.dst)
+        handle_ipv6_packet(ni, pack, ni.mac);
+    else {
+        if (is_multicast_address(ip.dst) && should_accept_multicast(ni, ip.dst))
+            handle_ipv6_packet(ni, pack, ni.mac); // send copy to ourselves
+
+        status = ni.send_packet(dst_mac, ethertype::ipv6, pack);
+        if (!success(status))
+            print("netif::send_packet returned {}\n", status);
+    }
+}
+
+void ipv6_tcp_socket::send_ack(bool first) {
     auto pack = new packet;
     if (!pack) {
         print("new failed\n");
@@ -4114,18 +4130,12 @@ void ipv6_tcp_socket::send_ack() {
 
     tcp.checksum = calc_ipv6_checksum(ip, span((uint8_t*)&tcp, pack->size - sizeof(ipv6_header)), IPPROTO_TCP);
 
-    if (ip.src == ip.dst)
-        handle_ipv6_packet(ni, *pack, ni.mac);
-    else {
-        if (is_multicast_address(ip.dst) && should_accept_multicast(ni, ip.dst))
-            handle_ipv6_packet(ni, *pack, ni.mac); // send copy to ourselves
+    dispatch_packet(ni, *pack, dst_mac);
 
-        status = ni.send_packet(dst_mac, ethertype::ipv6, *pack);
-        if (!success(status)) {
-            pack->release();
-            ni.release();
-            return;
-        }
+
+    if (first) {
+        pack->acquire();
+        first_ack = pack;
     }
 
     pack->release();
@@ -4162,7 +4172,7 @@ void ipv6_tcp_socket::received_packet(packet& pack) {
             send_unacknowledged = byteswap(tcp.ack);
         }
 
-        send_ack();
+        send_ack(true);
 
         {
             lock_guard lock(state_lock);
@@ -4170,5 +4180,9 @@ void ipv6_tcp_socket::received_packet(packet& pack) {
         }
 
         set_event(static_cast<event&>(state_change_event.get()));
+    } else if (cur_state == tcp_state::ESTABLISHED && tcp.flags == TCP_SYN_ACK) {
+        // first ACK must have been lost, retransmit
+        if (first_ack)
+            dispatch_packet(*pni, *first_ack, dst_mac);
     }
 }
