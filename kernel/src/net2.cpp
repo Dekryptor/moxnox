@@ -1482,15 +1482,14 @@ static void received_ipv6_tcp_packet(packet& pack) {
     if (is_multicast_address(ip.dst))
         return;
 
-    auto& tcp = *(udp_header*)(pack.data + sizeof(ipv6_header));
+    auto& tcp = *(tcp_header*)(pack.data + sizeof(ipv6_header));
 
     if (calc_ipv6_checksum(ip, span((uint8_t*)&tcp, pack.size - sizeof(ipv6_header)), IPPROTO_TCP) != 0)
         return;
 
 #if 0
-    print("received_tcp_packet (src {}, dst {}, {}, {:04x})\n",
-          byteswap(tcp.srcport), byteswap(tcp.dstport), byteswap(tcp.length),
-          byteswap(tcp.checksum));
+    print("received_tcp_packet (src {}, dst {}, {:04x})\n",
+          byteswap(tcp.src_port), byteswap(tcp.dst_port), byteswap(tcp.checksum));
 #endif
 
     ipv6_tcp_socket* sock = nullptr;
@@ -1498,8 +1497,8 @@ static void received_ipv6_tcp_packet(packet& pack) {
     {
         lock_guard lock(tcp_ports_lock);
 
-        if (tcp_ports[tcp.dstport]) {
-            sock = tcp_ports[tcp.dstport];
+        if (tcp_ports[tcp.dst_port]) {
+            sock = tcp_ports[tcp.dst_port];
 
             {
                 lock_guard lock(sock->state_lock);
