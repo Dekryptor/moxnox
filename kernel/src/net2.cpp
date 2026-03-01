@@ -147,6 +147,8 @@ public:
     mac_address dst_mac;
     packet* first_ack = nullptr;
     size_t mss = 1220; // FIXME - different for IPv4
+    spinlock retransmission_list_lock;
+    list_entry retransmission_list = { &retransmission_list, &retransmission_list };
 
 private:
     nt_status send_syn(const sockaddr_in6& c, ipv6_address& src);
@@ -169,6 +171,19 @@ struct ipv6_socket_packet {
 
     list_entry le;
     uint32_t scope_id;
+    packet& pack;
+};
+
+struct ipv6_tcp_retransmission {
+    ipv6_tcp_retransmission(packet& pack) : pack(pack) {
+        pack.acquire();
+    }
+
+    ~ipv6_tcp_retransmission() {
+        pack.release();
+    }
+
+    list_entry le;
     packet& pack;
 };
 
@@ -4230,6 +4245,20 @@ nt_status ipv6_tcp_socket::sendto(const char* buf, size_t len, int flags,
             }
         }
 
+        auto r = new ipv6_tcp_retransmission(*pack);
+        if (!r) {
+            print("new failed\n");
+            pack->release();
+            ni.release();
+
+            if (done == 0)
+                return nt_status::INSUFFICIENT_RESOURCES;
+            else {
+                sent_bytes = done;
+                return nt_status::SUCCESS;
+            }
+        }
+
         pack->size = sizeof(ipv6_header) + sizeof(tcp_header) + size;
 
         auto& ip = *(ipv6_header*)pack->data;
@@ -4272,6 +4301,7 @@ nt_status ipv6_tcp_socket::sendto(const char* buf, size_t len, int flags,
 
         if (!success(status)) {
             pack->release();
+            delete r;
             ni.release();
 
             if (done == 0)
@@ -4285,6 +4315,12 @@ nt_status ipv6_tcp_socket::sendto(const char* buf, size_t len, int flags,
         tcp.checksum = calc_ipv6_checksum(ip, span((uint8_t*)&tcp, pack->size - sizeof(ipv6_header)), IPPROTO_TCP);
 
         dispatch_packet(ni, *pack, dst_mac);
+
+        {
+            lock_guard lock(retransmission_list_lock);
+
+            insert_tail_list(retransmission_list, r->le);
+        }
 
         pack->release();
 
