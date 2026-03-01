@@ -122,10 +122,8 @@ public:
         return nt_status::NOT_IMPLEMENTED;
     }
 
-    nt_status sendto(const char* /*buf*/, size_t /*len*/, int /*flags*/, sockaddr* /*to*/,
-                     int /*tolen*/, size_t& /*sent_bytes*/) override {
-        return nt_status::NOT_IMPLEMENTED;
-    }
+    nt_status sendto(const char* buf, size_t len, int flags, sockaddr* to,
+                     int tolen, size_t& sent_bytes) override;
 
     nt_status bind(const sockaddr* /*addr*/, size_t /*addrlen*/) override {
         return nt_status::NOT_IMPLEMENTED;
@@ -148,6 +146,7 @@ public:
     uint32_t send_next, send_unacknowledged, recv_next;
     mac_address dst_mac;
     packet* first_ack = nullptr;
+    size_t mss = 1220; // FIXME - different for IPv4
 
 private:
     nt_status send_syn(const sockaddr_in6& c, ipv6_address& src);
@@ -4185,4 +4184,118 @@ void ipv6_tcp_socket::received_packet(packet& pack) {
         if (first_ack)
             dispatch_packet(*pni, *first_ack, dst_mac);
     }
+}
+
+nt_status ipv6_tcp_socket::sendto(const char* buf, size_t len, int flags,
+                                  sockaddr*, int, size_t& sent_bytes) {
+    nt_status status;
+
+    // sockaddr is ignored
+
+    auto& t = *get_current_thread();
+    if (!t.proc)
+        return nt_status::INTERNAL_ERROR;
+
+    if (flags != 0)
+        return nt_status::INVALID_PARAMETER;
+
+    {
+        lock_guard lock(state_lock);
+
+        if (state != tcp_state::ESTABLISHED)
+            return nt_status::CONNECTION_DISCONNECTED;
+    }
+
+    // FIXME - Nagle's algorithm (batching of outgoing data)
+    // FIXME - windowing
+
+    size_t done = 0;
+
+    auto& ni = *pni;
+
+    ni.acquire();
+
+    while (len > 0) {
+        size_t size = min(len, mss);
+
+        auto pack = new packet;
+        if (!pack) {
+            print("new failed\n");
+            ni.release();
+
+            if (done == 0)
+                return nt_status::INSUFFICIENT_RESOURCES;
+            else {
+                sent_bytes = done;
+                return nt_status::SUCCESS;
+            }
+        }
+
+        pack->size = sizeof(ipv6_header) + sizeof(tcp_header) + size;
+
+        auto& ip = *(ipv6_header*)pack->data;
+        ip.traffic_class1 = 0;
+        ip.version = 6;
+        ip.traffic_class2 = 0;
+        ip.flow_label = 0;
+        ip.payload_length = byteswap((uint16_t)(sizeof(tcp_header) + size));
+        ip.next_header = IPPROTO_TCP;
+        ip.hop_limit = DEFAULT_HOP_LIMIT;
+        ip.src = bound_address;
+        ip.dst = connected_address;
+
+        auto& tcp = *(tcp_header*)(pack->data + sizeof(ipv6_header));
+
+        memset(&tcp, 0, sizeof(tcp));
+
+        tcp.src_port = bound_port;
+        tcp.dst_port = connected_port;
+        tcp.seq = byteswap(send_next);
+        tcp.ack = byteswap(recv_next);
+        tcp.header_length = sizeof(tcp_header) / sizeof(uint32_t);
+        tcp.PSH = 1;
+        tcp.ACK = 1;
+        tcp.window = byteswap(window);
+
+        send_next += (uint32_t)size;
+
+        uint32_t read_bytes;
+
+        status = t.proc->read_vm(buf, pack->data + sizeof(ipv6_header) + sizeof(tcp_header),
+                                 (uint32_t)size, &read_bytes);
+
+        if (success(status) && read_bytes < size) {
+            status = nt_status::NO_MEMORY;
+            print("process::read_vm returned {} bytes, expected {}\n",
+                  read_bytes, size);
+        } else if (!success(status))
+            print("process::read_vm returned {}\n", status);
+
+        if (!success(status)) {
+            pack->release();
+            ni.release();
+
+            if (done == 0)
+                return status;
+            else {
+                sent_bytes = done;
+                return nt_status::SUCCESS;
+            }
+        }
+
+        tcp.checksum = calc_ipv6_checksum(ip, span((uint8_t*)&tcp, pack->size - sizeof(ipv6_header)), IPPROTO_TCP);
+
+        dispatch_packet(ni, *pack, dst_mac);
+
+        pack->release();
+
+        buf += size;
+        len -= size;
+    }
+
+    ni.release();
+
+    sent_bytes = done;
+
+    return nt_status::SUCCESS;
 }
