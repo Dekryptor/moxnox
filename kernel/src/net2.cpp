@@ -141,6 +141,9 @@ public:
     list_entry retransmission_list = { &retransmission_list, &retransmission_list };
     object_ref retransmission_thread_obj;
     object_ref retransmission_thread_quit_event;
+    spinlock buffer_lock;
+    list_entry buffer = { &buffer, &buffer };
+    list_entry ooo_buffer = { &ooo_buffer, &ooo_buffer };
 
 private:
     nt_status send_syn(const sockaddr_in6& c, ipv6_address& src);
@@ -4169,6 +4172,13 @@ void ipv6_tcp_socket::received_packet(packet& pack) {
 
     auto& ip = *(ipv6_header*)pack.data;
     auto& tcp = *(tcp_header*)(pack.data + sizeof(ipv6_header));
+    size_t header_length = tcp.header_length * sizeof(uint32_t);
+
+    if (header_length < sizeof(tcp_header))
+        return;
+
+    if (pack.size < sizeof(ipv6_header) + sizeof(header_length))
+        return;
 
     tcp_state cur_state;
 
@@ -4206,6 +4216,61 @@ void ipv6_tcp_socket::received_packet(packet& pack) {
         // first ACK must have been lost, retransmit
         if (first_ack)
             dispatch_packet(*pni, *first_ack, dst_mac);
+    }
+
+    if (tcp.PSH) { // data
+        auto p = new ipv6_socket_packet(pack);
+        if (!p) {
+            print("new failed\n");
+            return;
+        }
+
+        // FIXME - p->scope_id
+
+        bool added = false;
+
+        {
+            lock_guard lock(buffer_lock);
+
+            auto seq = byteswap(tcp.seq);
+
+            if (seq > recv_next) {
+                insert_tail_list(ooo_buffer, p->le);
+                added = true;
+            } else if (seq == recv_next)  {
+                insert_tail_list(buffer, p->le);
+                added = true;
+
+                recv_next += (uint32_t)(pack.size - header_length - sizeof(ipv6_header));
+
+                // check out-of-order list for anything now okay
+                while (true) {
+                    if (is_list_empty(ooo_buffer))
+                        break;
+
+                    auto& p2 = containing_record<ipv6_socket_packet>(ooo_buffer.next);
+                    auto& tcp2 = *(tcp_header*)(p2.pack.data + sizeof(ipv6_header));
+                    size_t header_length2 = tcp2.header_length * sizeof(uint32_t);
+
+                    // FIXME - what if tcp2.seq < recv_next (i.e. packets overlap)?
+
+                    if (tcp2.seq != recv_next)
+                        break;
+
+                    remove_entry_list(p2.le);
+                    insert_tail_list(buffer, p2.le);
+
+                    recv_next += (uint32_t)(p2.pack.size - header_length2 - sizeof(ipv6_header));
+                }
+            }
+        }
+
+        if (!added)
+            delete p;
+        else {
+            // FIXME - send ACK
+            // FIXME - signalling etc.
+        }
     }
 
     if (tcp.ACK) {
