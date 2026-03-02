@@ -2690,7 +2690,6 @@ nt_status ipv6_raw_socket::recvfrom(char* us_buf, size_t len, int flags,
     if (flags != 0)
         return nt_status::INVALID_PARAMETER;
 
-    sockaddr_in6 addr;
     auto& t = *get_current_thread();
 
     acquire();
@@ -2749,7 +2748,11 @@ nt_status ipv6_raw_socket::recvfrom(char* us_buf, size_t len, int flags,
         recv_bytes = to_copy;
 
         if (us_from && fromlen && *fromlen > 0) {
+            sockaddr_in6 addr;
+
             auto& ip = *(ipv6_header*)sp->pack.data;
+
+            memset(&addr, 0, sizeof(addr));
 
             addr.sin6_family = AF_INET6;
             addr.sin6_port = 0;
