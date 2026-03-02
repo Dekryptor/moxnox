@@ -147,7 +147,7 @@ public:
 
 private:
     nt_status send_syn(const sockaddr_in6& c, ipv6_address& src);
-    void send_ack(bool first);
+    void send_ack(bool first, uint32_t ack);
     void retransmission_thread();
     void do_retransmissions();
 };
@@ -4116,7 +4116,7 @@ static void dispatch_packet(netif& ni, packet& pack, const mac_address& dst_mac)
     }
 }
 
-void ipv6_tcp_socket::send_ack(bool first) {
+void ipv6_tcp_socket::send_ack(bool first, uint32_t ack) {
     auto pack = new packet;
     if (!pack) {
         print("new failed\n");
@@ -4149,7 +4149,7 @@ void ipv6_tcp_socket::send_ack(bool first) {
     tcp.src_port = bound_port;
     tcp.dst_port = connected_port;
     tcp.seq = byteswap(send_next);
-    tcp.ack = byteswap(recv_next);
+    tcp.ack = byteswap(ack);
     tcp.header_length = sizeof(tcp_header) / sizeof(uint32_t);
     tcp.ACK = 1;
     tcp.window = byteswap(window);
@@ -4161,6 +4161,9 @@ void ipv6_tcp_socket::send_ack(bool first) {
     if (first) {
         pack->acquire();
         first_ack = pack;
+    } else if (first_ack) {
+        first_ack->release();
+        first_ack = nullptr;
     }
 
     pack->release();
@@ -4195,6 +4198,8 @@ void ipv6_tcp_socket::received_packet(packet& pack) {
     }
 
     if (cur_state == tcp_state::SYN_SENT && tcp.flags == TCP_SYN_ACK) {
+        uint32_t ack;
+
         // FIXME - parse options
 
         {
@@ -4202,9 +4207,11 @@ void ipv6_tcp_socket::received_packet(packet& pack) {
 
             recv_next = byteswap(tcp.seq) + 1;
             send_unacknowledged = byteswap(tcp.ack);
+
+            ack = recv_next;
         }
 
-        send_ack(true);
+        send_ack(true, ack);
 
         {
             lock_guard lock(state_lock);
@@ -4228,6 +4235,7 @@ void ipv6_tcp_socket::received_packet(packet& pack) {
         // FIXME - p->scope_id
 
         bool added = false;
+        optional<uint32_t> ack;
 
         {
             lock_guard lock(buffer_lock);
@@ -4262,15 +4270,18 @@ void ipv6_tcp_socket::received_packet(packet& pack) {
 
                     recv_next += (uint32_t)(p2.pack.size - header_length2 - sizeof(ipv6_header));
                 }
+
+                ack = recv_next;
             }
         }
 
         if (!added)
             delete p;
-        else {
-            // FIXME - send ACK
-            // FIXME - signalling etc.
-        }
+
+        if (ack.has_value())
+            send_ack(false, *ack);
+
+        // FIXME - signalling etc.
     }
 
     if (tcp.ACK) {
