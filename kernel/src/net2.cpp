@@ -25,6 +25,7 @@ import event;
 import kernel_time_page;
 import timer;
 import format;
+import rwsem;
 
 using namespace std;
 
@@ -107,11 +108,8 @@ public:
 
     void last_handle_closed() override;
 
-    nt_status recvfrom(char* /*buf*/, size_t /*len*/, int /*flags*/, sockaddr* /*from*/,
-                       int* /*fromlen*/, size_t& /*recv_bytes*/) override {
-        return nt_status::NOT_IMPLEMENTED;
-    }
-
+    nt_status recvfrom(char* buf, size_t len, int flags, sockaddr* from,
+                       int* fromlen, size_t& recv_bytes) override;
     nt_status sendto(const char* buf, size_t len, int flags, sockaddr* to,
                      int tolen, size_t& sent_bytes) override;
 
@@ -144,6 +142,8 @@ public:
     spinlock buffer_lock;
     list_entry buffer = { &buffer, &buffer };
     list_entry ooo_buffer = { &ooo_buffer, &ooo_buffer };
+    rwsem us_read_mutex;
+    size_t us_read_offset = 0;
 
 private:
     nt_status send_syn(const sockaddr_in6& c, ipv6_address& src);
@@ -4238,7 +4238,7 @@ void ipv6_tcp_socket::received_packet(packet& pack) {
             return;
         }
 
-        // FIXME - p->scope_id
+        p->scope_id = connected_scope;
 
         bool added = false;
         optional<uint32_t> ack;
@@ -4591,4 +4591,128 @@ void ipv6_tcp_socket::do_retransmissions() {
     }
 
     free(arr);
+}
+
+nt_status ipv6_tcp_socket::recvfrom(char* buf, size_t len, int flags,
+                                    sockaddr* from, int* fromlen,
+                                    size_t& recv_bytes) {
+    nt_status status;
+
+    if (flags != 0)
+        return nt_status::INVALID_PARAMETER;
+
+    auto& t = *get_current_thread();
+
+    recv_bytes = 0;
+
+    acquire();
+
+    while (true) {
+        lock_guard lock(us_read_mutex);
+
+        // FIXME - break lock if last handle to socket closed
+        status = wait_for_object(*this, true);
+        if (!success(status)) {
+            release();
+            return status;
+        }
+
+        bool have_removed_packets = false;
+
+        while (true) {
+            ipv6_socket_packet* r;
+
+            {
+                lock_guard lock(buffer_lock);
+
+                if (is_list_empty(buffer))
+                    break;
+
+                r = &containing_record<ipv6_socket_packet>(buffer.next);
+            }
+
+            auto& tcp = *(tcp_header*)(r->pack.data + sizeof(ipv6_header));
+
+            size_t header_length = tcp.header_length * sizeof(uint32_t);
+            auto to_copy = (uint32_t)min(r->pack.size - sizeof(ipv6_header) - header_length - us_read_offset, len);
+            uint32_t written_bytes;
+
+            status = t.proc->write_vm(buf, r->pack.data + sizeof(ipv6_header) + header_length,
+                                      to_copy, &written_bytes);
+            if (!success(status)) {
+                print("process::write_vm returned {}\n", status);
+                break;
+            }
+
+            if (written_bytes != to_copy) {
+                print("process::write_vm: wrote {} bytes, expected {}\n",
+                      written_bytes, to_copy);
+                status = nt_status::NO_MEMORY;
+                break;
+            }
+
+            recv_bytes += to_copy;
+
+            if (sizeof(ipv6_header) + header_length + us_read_offset + to_copy < r->pack.size) {
+                us_read_offset += to_copy;
+                break;
+            }
+
+            {
+                lock_guard lock(buffer_lock);
+                remove_entry_list(r->le);
+            }
+
+            delete r;
+
+            buf += to_copy;
+            len -= to_copy;
+            us_read_offset = 0;
+
+            if (len == 0)
+                break;
+        }
+
+        if (have_removed_packets) {
+            sync_lock sl;
+            lock_guard lock(sl);
+            lock_guard lock2(buffer_lock);
+
+            if (is_list_empty(buffer))
+                signalled = false;
+        }
+
+        if (!success(status) && recv_bytes == 0) {
+            release();
+            return status;
+        }
+
+        if (from && fromlen && *fromlen > 0) {
+            sockaddr_in6 addr;
+
+            memset(&addr, 0, sizeof(addr));
+
+            addr.sin6_family = AF_INET6;
+            addr.sin6_port = connected_port;
+            addr.sin6_flowinfo = 0; // FIXME? Allowed by RFC3493, but not necessarily what Linux does
+            *(ipv6_address*)addr.sin6_addr = connected_address;
+            addr.sin6_scope_id = connected_scope;
+
+            status = t.proc->write_vm(from, &addr,
+                                      (uint32_t)min((size_t)*fromlen, sizeof(addr)),
+                                      nullptr);
+            if (!success(status)) {
+                release();
+                return status;
+            }
+
+            *fromlen = sizeof(addr);
+        }
+
+        break;
+    }
+
+    release();
+
+    return nt_status::SUCCESS;
 }
