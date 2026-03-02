@@ -4278,10 +4278,20 @@ void ipv6_tcp_socket::received_packet(packet& pack) {
         if (!added)
             delete p;
 
-        if (ack.has_value())
+        if (ack.has_value()) {
             send_ack(false, *ack);
 
-        // FIXME - signalling etc.
+            {
+                sync_lock sl;
+                lock_guard lock(sl);
+                lock_guard lock2(buffer_lock);
+
+                if (!is_list_empty(buffer) && !signalled) {
+                    wake_up_waiters(waiters);
+                    signalled = true;
+                }
+            }
+        }
     }
 
     if (tcp.ACK) {
