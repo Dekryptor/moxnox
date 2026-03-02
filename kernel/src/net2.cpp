@@ -4511,6 +4511,25 @@ ipv6_tcp_socket::~ipv6_tcp_socket() {
         r->release();
     }
 
+    while (true) {
+        ipv6_socket_packet* p;
+
+        {
+            lock_guard lock(buffer_lock);
+
+            if (!is_list_empty(buffer))
+                p = &containing_record<ipv6_socket_packet>(buffer.next);
+            else if (!is_list_empty(ooo_buffer))
+                p = &containing_record<ipv6_socket_packet>(ooo_buffer.next);
+            else
+                break;
+
+            remove_entry_list(p->le);
+        }
+
+        delete p;
+    }
+
     if (pni)
         pni->release();
 }
