@@ -706,7 +706,7 @@ void ipv6_tcp_socket::received_packet(packet& pack) {
 
                         // FIXME - what if tcp2.seq < recv_next (i.e. packets overlap)?
 
-                        if (tcp2.seq != recv_next)
+                        if (byteswap(tcp2.seq) != recv_next)
                             break;
 
                         recv_next += (uint32_t)(p2.pack.size - header_length2 - sizeof(ipv6_header));
