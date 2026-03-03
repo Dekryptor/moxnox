@@ -4725,6 +4725,7 @@ nt_status ipv6_tcp_socket::recvfrom(char* buf, size_t len, int flags,
             buf += to_copy;
             len -= to_copy;
             us_read_offset = 0;
+            have_removed_packets = true;
 
             if (len == 0)
                 break;
