@@ -775,8 +775,14 @@ void ipv6_tcp_socket::received_packet(packet& pack) {
             auto seq = tcp.seq;
 
             if (seq > recv_next) {
-                insert_tail_list(ooo_buffer, p->le);
-                added = true;
+                auto data_len = (uint32_t)(pack.size - header_length - sizeof(ipv6_header));
+
+                if (data_len <= recv_window) {
+                    recv_window -= (uint16_t)data_len;
+
+                    insert_tail_list(ooo_buffer, p->le);
+                    added = true;
+                }
             } else if (seq < recv_next) {
                 // send ACK for packet we've already received
                 ack = recv_next;
