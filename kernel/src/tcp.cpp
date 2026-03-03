@@ -391,7 +391,7 @@ void ipv6_tcp_socket::last_handle_closed() {
     add_kernel_thread([](void* ctx) {
         auto& s = *(ipv6_tcp_socket*)ctx;
 
-        bool do_fin = false, local_closing = false;
+        bool do_fin = false;
 
         {
             lock_guard lock(s.state_lock);
@@ -399,7 +399,6 @@ void ipv6_tcp_socket::last_handle_closed() {
             if (s.state == tcp_state::ESTABLISHED) {
                 s.state = tcp_state::FIN_WAIT_1;
                 do_fin = true;
-                local_closing = true;
             } else if (s.state == tcp_state::CLOSE_WAIT) {
                 s.state = tcp_state::LAST_ACK;
                 do_fin = true;
@@ -408,20 +407,6 @@ void ipv6_tcp_socket::last_handle_closed() {
 
         if (do_fin)
             s.send_fin();
-
-        if (!local_closing) {
-            {
-                lock_guard lock(tcp_ports_lock);
-                lock_guard lock2(s.state_lock);
-
-                if (s.bind_done && tcp_ports[s.bound_port] == &s) {
-                    tcp_ports[s.bound_port] = nullptr;
-                    s.release();
-                }
-            }
-
-            set_event(static_cast<event&>(s.retransmission_thread_quit_event.get()));
-        }
 
         s.release();
     }, this);
@@ -617,6 +602,7 @@ void ipv6_tcp_socket::received_packet(packet& pack) {
     }
 
     if (tcp.ACK) {
+        bool do_cleanup = false;
         auto ack = byteswap(tcp.ack);
 
         // FIXME - wraparound?
@@ -633,6 +619,8 @@ void ipv6_tcp_socket::received_packet(packet& pack) {
 
                         if (state == tcp_state::FIN_WAIT_1)
                             state = tcp_state::FIN_WAIT_2;
+                        else if (state == tcp_state::LAST_ACK)
+                            do_cleanup = true;
                     }
                     break;
                 }
@@ -651,6 +639,20 @@ void ipv6_tcp_socket::received_packet(packet& pack) {
             }
 
             r->release();
+        }
+
+        if (do_cleanup) {
+            {
+                lock_guard lock(tcp_ports_lock);
+                lock_guard lock2(state_lock);
+
+                if (bind_done && tcp_ports[bound_port] == this) {
+                    tcp_ports[bound_port] = nullptr;
+                    release();
+                }
+            }
+
+            set_event(static_cast<event&>(retransmission_thread_quit_event.get()));
         }
     }
 
