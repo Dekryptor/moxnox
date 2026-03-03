@@ -3349,6 +3349,27 @@ static void send_address_unreachable(netif& ni, const packet& pack,
     pack2->release();
 }
 
+static nt_status dispatch_packet(netif& ni, packet& pack, const mac_address& dst_mac) {
+    nt_status status;
+
+    auto& ip = *(ipv6_header*)pack.data;
+
+    if (ip.src == ip.dst)
+        handle_ipv6_packet(ni, pack, ni.mac);
+    else {
+        if (is_multicast_address(ip.dst) && should_accept_multicast(ni, ip.dst))
+            handle_ipv6_packet(ni, pack, ni.mac); // send copy to ourselves
+
+        status = ni.send_packet(dst_mac, ethertype::ipv6, pack);
+        if (!success(status)) {
+            print("netif::send_packet returned {}\n", status);
+            return status;
+        }
+    }
+
+    return nt_status::SUCCESS;
+}
+
 nt_status ipv6_raw_socket::sendto(const char* buf, size_t len, int flags,
                                   sockaddr* to, int tolen, size_t& sent_bytes) {
     nt_status status;
@@ -3445,18 +3466,11 @@ nt_status ipv6_raw_socket::sendto(const char* buf, size_t len, int flags,
         return nt_status::HOST_UNREACHABLE;
     }
 
-    if (src == dst)
-        handle_ipv6_packet(ni, *pack, ni.mac);
-    else {
-        if (is_multicast_address(ip.dst) && should_accept_multicast(ni, ip.dst))
-            handle_ipv6_packet(ni, *pack, ni.mac); // send copy to ourselves
-
-        status = ni.send_packet(mac, ethertype::ipv6, *pack);
-        if (!success(status)) {
-            pack->release();
-            ni.release();
-            return status;
-        }
+    status = dispatch_packet(ni, *pack, mac);
+    if (!success(status)) {
+        pack->release();
+        ni.release();
+        return status;
     }
 
     pack->release();
@@ -4131,23 +4145,6 @@ void ipv6_tcp_socket::last_handle_closed() {
 
         s.release();
     }, this);
-}
-
-static void dispatch_packet(netif& ni, packet& pack, const mac_address& dst_mac) {
-    nt_status status;
-
-    auto& ip = *(ipv6_header*)pack.data;
-
-    if (ip.src == ip.dst)
-        handle_ipv6_packet(ni, pack, ni.mac);
-    else {
-        if (is_multicast_address(ip.dst) && should_accept_multicast(ni, ip.dst))
-            handle_ipv6_packet(ni, pack, ni.mac); // send copy to ourselves
-
-        status = ni.send_packet(dst_mac, ethertype::ipv6, pack);
-        if (!success(status))
-            print("netif::send_packet returned {}\n", status);
-    }
 }
 
 void ipv6_tcp_socket::send_ack(bool first, uint32_t ack) {
