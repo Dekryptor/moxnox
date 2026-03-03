@@ -40,6 +40,7 @@ static list_entry ipv6_raw_sockets = { &ipv6_raw_sockets, &ipv6_raw_sockets };
 static size_t num_ipv6_raw_sockets = 0;
 
 static const uint64_t RETRANSMISSION_DELAY = 1; // seconds
+static const uint64_t TIME_WAIT_LENGTH = 60; // seconds
 
 class ipv6_raw_socket : public socket {
 public:
@@ -4100,7 +4101,7 @@ void ipv6_tcp_socket::last_handle_closed() {
     add_kernel_thread([](void* ctx) {
         auto& s = *(ipv6_tcp_socket*)ctx;
 
-        bool do_fin = false;
+        bool do_fin = false, local_closing = false;
 
         {
             lock_guard lock(s.state_lock);
@@ -4108,6 +4109,7 @@ void ipv6_tcp_socket::last_handle_closed() {
             if (s.state == tcp_state::ESTABLISHED) {
                 s.state = tcp_state::FIN_WAIT_1;
                 do_fin = true;
+                local_closing = true;
             } else if (s.state == tcp_state::CLOSE_WAIT) {
                 s.state = tcp_state::LAST_ACK;
                 do_fin = true;
@@ -4117,17 +4119,19 @@ void ipv6_tcp_socket::last_handle_closed() {
         if (do_fin)
             s.send_fin();
 
-        { // FIXME - keep until after TIME_WAIT
-            lock_guard lock(tcp_ports_lock);
-            lock_guard lock2(s.state_lock);
+        if (!local_closing) {
+            {
+                lock_guard lock(tcp_ports_lock);
+                lock_guard lock2(s.state_lock);
 
-            if (s.bind_done && tcp_ports[s.bound_port] == &s) {
-                tcp_ports[s.bound_port] = nullptr;
-                s.release();
+                if (s.bind_done && tcp_ports[s.bound_port] == &s) {
+                    tcp_ports[s.bound_port] = nullptr;
+                    s.release();
+                }
             }
-        }
 
-        set_event(static_cast<event&>(s.retransmission_thread_quit_event.get()));
+            set_event(static_cast<event&>(s.retransmission_thread_quit_event.get()));
+        }
 
         s.release();
     }, this);
@@ -4312,6 +4316,42 @@ void ipv6_tcp_socket::received_packet(packet& pack) {
             dispatch_packet(*pni, *first_ack, dst_mac);
     }
 
+    if (tcp.ACK) {
+        auto ack = byteswap(tcp.ack);
+
+        // FIXME - wraparound?
+
+        while (true) {
+            ipv6_tcp_retransmission* r = nullptr;
+
+            {
+                lock_guard lock(retransmission_list_lock);
+
+                if (is_list_empty(retransmission_list)) {
+                    {
+                        lock_guard lock(state_lock);
+
+                        if (state == tcp_state::FIN_WAIT_1)
+                            state = tcp_state::FIN_WAIT_2;
+                    }
+                    break;
+                }
+
+                auto& r2 = containing_record<ipv6_tcp_retransmission>(retransmission_list.next);
+
+                auto& rtcp = *(tcp_header*)(r2.pack.data + sizeof(ipv6_header));
+
+                if (byteswap(rtcp.seq) >= ack)
+                    break;
+
+                remove_entry_list(r2.le);
+                r = &r2;
+            }
+
+            r->release();
+        }
+    }
+
     if (pack.size > header_length + sizeof(ipv6_header) || tcp.FIN) { // data or FIN
         auto p = new ipv6_socket_packet(pack);
         if (!p) {
@@ -4346,6 +4386,8 @@ void ipv6_tcp_socket::received_packet(packet& pack) {
 
                     if (state == tcp_state::ESTABLISHED)
                         state = tcp_state::CLOSE_WAIT;
+                    else if (state == tcp_state::FIN_WAIT_2)
+                        state = tcp_state::TIME_WAIT;
 
                     clear_ooo = true;
 
@@ -4372,6 +4414,8 @@ void ipv6_tcp_socket::received_packet(packet& pack) {
 
                             if (state == tcp_state::ESTABLISHED)
                                 state = tcp_state::CLOSE_WAIT;
+                            else if (state == tcp_state::FIN_WAIT_2)
+                                state = tcp_state::TIME_WAIT;
 
                             clear_ooo = true;
                             break;
@@ -4424,42 +4468,6 @@ void ipv6_tcp_socket::received_packet(packet& pack) {
                 } else
                     signalled = false;
             }
-        }
-    }
-
-    if (tcp.ACK) {
-        auto ack = byteswap(tcp.ack);
-
-        // FIXME - wraparound?
-
-        while (true) {
-            ipv6_tcp_retransmission* r = nullptr;
-
-            {
-                lock_guard lock(retransmission_list_lock);
-
-                if (is_list_empty(retransmission_list)) {
-                    {
-                        lock_guard lock(state_lock);
-
-                        if (state == tcp_state::FIN_WAIT_1)
-                            state = tcp_state::FIN_WAIT_2;
-                    }
-                    break;
-                }
-
-                auto& r2 = containing_record<ipv6_tcp_retransmission>(retransmission_list.next);
-
-                auto& rtcp = *(tcp_header*)(r2.pack.data + sizeof(ipv6_header));
-
-                if (byteswap(rtcp.seq) >= ack)
-                    break;
-
-                remove_entry_list(r2.le);
-                r = &r2;
-            }
-
-            r->release();
         }
     }
 }
@@ -4673,9 +4681,13 @@ ipv6_tcp_socket::~ipv6_tcp_socket() {
 }
 
 void ipv6_tcp_socket::retransmission_thread() {
+    unsigned int time_wait_count = 0;
+
     auto& ev = static_cast<event&>(retransmission_thread_quit_event.get());
 
     while (true) {
+        bool time_wait_done = false;
+
         auto status = wait_for_object(ev, true, SYSTEM_TIME_RESOLUTION);
 
         if (status == nt_status::SUCCESS)
@@ -4683,6 +4695,30 @@ void ipv6_tcp_socket::retransmission_thread() {
 
         if (!success(status)) {
             print("wait_for_object returned {}, exiting network thread\n", status);
+            break;
+        }
+
+        {
+            lock_guard lock(state_lock);
+
+            if (state == tcp_state::TIME_WAIT) {
+                time_wait_count++;
+                if (time_wait_count == TIME_WAIT_LENGTH)
+                    time_wait_done = true;
+            }
+        }
+
+        if (time_wait_done) {
+            {
+                lock_guard lock(tcp_ports_lock);
+                lock_guard lock2(state_lock);
+
+                if (bind_done && tcp_ports[bound_port] == this) {
+                    tcp_ports[bound_port] = nullptr;
+                    release();
+                }
+            }
+
             break;
         }
 
