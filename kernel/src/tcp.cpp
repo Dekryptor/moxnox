@@ -794,10 +794,10 @@ void ipv6_tcp_socket::received_packet(packet& pack) {
 
                 auto data_len = (uint32_t)(pack.size - header_length - sizeof(ipv6_header));
 
+                recv_next += data_len;
+
                 if (data_len > recv_window)
                     data_len = recv_window;
-
-                recv_next += data_len;
 
                 if (tcp.FIN) {
                     recv_next++;
