@@ -1290,6 +1290,7 @@ nt_status ipv6_tcp_socket::recvfrom(char* buf, size_t len, int flags,
             }
 
             bool opening = false;
+            tcp_seq ack;
 
             {
                 lock_guard lock(io_mutex);
@@ -1298,10 +1299,11 @@ nt_status ipv6_tcp_socket::recvfrom(char* buf, size_t len, int flags,
                     opening = true;
 
                 recv_window += (uint16_t)removed_bytes;
+                ack = recv_next;
             }
 
             if (opening)
-                send_ack(false, recv_next);
+                send_ack(false, ack);
         }
 
         if (!success(status) && recv_bytes == 0) {
