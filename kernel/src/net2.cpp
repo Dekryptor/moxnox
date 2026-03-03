@@ -4053,6 +4053,13 @@ nt_status ipv6_tcp_socket::send_syn(const sockaddr_in6& c, ipv6_address& src) {
     pack->release();
     ni.release();
 
+    {
+        lock_guard lock(state_lock);
+
+        if (state == tcp_state::CLOSED)
+            return nt_status::CONNECTION_REFUSED;
+    }
+
     if (status == nt_status::TIMEOUT)
         return nt_status::HOST_UNREACHABLE;
 
@@ -4327,6 +4334,21 @@ void ipv6_tcp_socket::received_packet(packet& pack) {
             return;
 
         cur_state = state;
+    }
+
+    if (tcp.RST) {
+        if (cur_state == tcp_state::SYN_SENT) {
+            {
+                lock_guard lock(state_lock);
+                state = cur_state = tcp_state::CLOSED;
+            }
+
+            set_event(static_cast<event&>(state_change_event.get()));
+            return;
+        }
+
+        print("RST!\n"); // FIXME
+        return;
     }
 
     if (cur_state == tcp_state::SYN_SENT && tcp.flags == TCP_SYN_ACK) {
