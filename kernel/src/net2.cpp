@@ -1476,7 +1476,51 @@ static void received_ipv6_udp_packet(netif& ni, packet& pack,
     sock->release();
 }
 
-static void received_ipv6_tcp_packet(packet& pack) {
+static void send_tcp_port_closed(netif& ni, const ipv6_address& src,
+                                 uint16_t src_port, const ipv6_address& dst,
+                                 uint16_t dst_port, const mac_address& mac,
+                                 uint32_t seq) {
+    auto pack2 = new packet;
+    if (!pack2) {
+        print("new failed\n");
+        return;
+    }
+
+    pack2->size = sizeof(ipv6_header) + sizeof(tcp_header);
+
+    auto& ip = *(ipv6_header*)pack2->data;
+    ip.traffic_class1 = 0;
+    ip.version = 6;
+    ip.traffic_class2 = 0;
+    ip.flow_label = 0;
+    ip.payload_length = byteswap((uint16_t)sizeof(tcp_header));
+    ip.next_header = IPPROTO_TCP;
+    ip.hop_limit = DEFAULT_HOP_LIMIT;
+    ip.src = dst; // FIXME - make sure not multicast?
+    ip.dst = src;
+
+    auto& tcp = *(tcp_header*)(pack2->data + sizeof(ipv6_header));
+
+    memset(&tcp, 0, sizeof(tcp));
+
+    tcp.src_port = dst_port;
+    tcp.dst_port = src_port;
+    tcp.ack = byteswap(byteswap(seq) + 1);
+    tcp.header_length = sizeof(tcp_header) / sizeof(uint32_t);
+    tcp.RST = 1;
+    tcp.ACK = 1;
+
+    tcp.checksum = calc_ipv6_checksum(ip, span((uint8_t*)&tcp, pack2->size - sizeof(ipv6_header)), IPPROTO_TCP);
+
+    auto status = ni.send_packet(mac, ethertype::ipv6, *pack2);
+    if (!success(status))
+        print("netif::send_packet returned {}\n", status);
+
+    pack2->release();
+}
+
+static void received_ipv6_tcp_packet(netif& ni, packet& pack,
+                                     const mac_address& src_mac) {
     if (pack.size < sizeof(ipv6_header) + sizeof(udp_header))
         return;
 
@@ -1515,7 +1559,8 @@ static void received_ipv6_tcp_packet(packet& pack) {
     }
 
     if (!sock) {
-        // FIXME - send port unreachable(?) message back if no socket found
+        send_tcp_port_closed(ni, ip.src, tcp.src_port, ip.dst, tcp.dst_port,
+                             src_mac, tcp.seq);
         return;
     }
 
@@ -1619,7 +1664,7 @@ static void send_to_sockets(netif& ni, packet& pack,
     if (ip.next_header == IPPROTO_UDP)
         received_ipv6_udp_packet(ni, pack, src_mac);
     else if (ip.next_header == IPPROTO_TCP)
-        received_ipv6_tcp_packet(pack);
+        received_ipv6_tcp_packet(ni, pack, src_mac);
 
     send_to_raw_sockets(ni.num, pack);
 }
