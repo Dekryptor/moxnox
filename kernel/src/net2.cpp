@@ -4382,8 +4382,10 @@ void ipv6_tcp_socket::received_packet(packet& pack) {
 
                 auto& rtcp = *(tcp_header*)(r2.pack.data + sizeof(ipv6_header));
 
-                if (byteswap(rtcp.seq) >= ack)
+                if (ack < byteswap(rtcp.seq))
                     break;
+
+                send_unacknowledged = ack;
 
                 remove_entry_list(r2.le);
                 r = &r2;
