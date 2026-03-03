@@ -1133,7 +1133,7 @@ nt_status ipv6_tcp_socket::recvfrom(char* buf, size_t len, int flags,
             auto to_copy = (uint32_t)min(r->pack.size - sizeof(ipv6_header) - header_length - us_read_offset, len);
             uint32_t written_bytes;
 
-            status = t.proc->write_vm(buf, r->pack.data + sizeof(ipv6_header) + header_length,
+            status = t.proc->write_vm(buf, r->pack.data + sizeof(ipv6_header) + header_length + us_read_offset,
                                       to_copy, &written_bytes);
             if (!success(status)) {
                 print("process::write_vm returned {}\n", status);
