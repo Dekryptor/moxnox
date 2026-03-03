@@ -6,6 +6,7 @@ module;
 #include <mutex>
 #include <bit>
 #include <algorithm>
+#include <type_traits>
 #include <stdlib.h>
 
 module net;
@@ -48,6 +49,56 @@ struct ipv6_tcp_retransmission {
     packet& pack;
 };
 
+class tcp_seq {
+public:
+    constexpr tcp_seq() = default;
+
+    explicit constexpr tcp_seq(uint32_t v) {
+        data[0] = (uint8_t)((v >> 24) & 0xff);
+        data[1] = (v >> 16) & 0xff;
+        data[2] = (v >> 8) & 0xff;
+        data[3] = v & 0xff;
+    }
+
+    constexpr uint32_t host() const noexcept {
+        return (static_cast<uint32_t>(data[0]) << 24) |
+                (static_cast<uint32_t>(data[1]) << 16) |
+                (static_cast<uint32_t>(data[2]) << 8) |
+                static_cast<uint32_t>(data[3]);
+    }
+
+    constexpr tcp_seq& operator+=(uint32_t n) {
+        *this = tcp_seq(host() + n);
+        return *this;
+    }
+
+    constexpr tcp_seq operator++(int) {
+        tcp_seq old = *this;
+        *this = tcp_seq(host() + 1);
+        return old;
+    }
+
+    constexpr tcp_seq operator+(uint32_t n) const {
+        return tcp_seq(host() + n);
+    }
+
+    constexpr strong_ordering operator<=>(tcp_seq other) const {
+        int32_t diff = static_cast<int32_t>(host() - other.host());
+
+        return diff <=> 0;
+    }
+
+    constexpr bool operator==(const tcp_seq& other) const {
+        return !memcmp(data, other.data, sizeof(data));
+    }
+
+private:
+    uint8_t data[4];
+};
+
+static_assert(is_standard_layout_v<tcp_seq>);
+static_assert(is_trivial_v<tcp_seq>);
+
 class ipv6_tcp_socket : public socket {
 public:
     ipv6_tcp_socket();
@@ -74,7 +125,7 @@ public:
     tcp_state state = tcp_state::CLOSED;
     netif* pni = nullptr;
     uint16_t window = 0xffff;
-    uint32_t send_next, send_unacknowledged, recv_next;
+    tcp_seq send_next, send_unacknowledged, recv_next;
     mac_address dst_mac;
     packet* first_ack = nullptr;
     size_t mss = 1220; // FIXME - different for IPv4
@@ -90,7 +141,7 @@ public:
 
 private:
     nt_status send_syn(const sockaddr_in6& c, ipv6_address& src);
-    void send_ack(bool first, uint32_t ack);
+    void send_ack(bool first, tcp_seq ack);
     void send_fin();
     void retransmission_thread();
     void do_retransmissions();
@@ -102,8 +153,8 @@ static ipv6_tcp_socket* tcp_ports[65536];
 struct tcp_header {
     uint16_t src_port;
     uint16_t dst_port;
-    uint32_t seq;
-    uint32_t ack;
+    tcp_seq seq;
+    tcp_seq ack;
     uint8_t : 4;
     uint8_t header_length : 4;
     union {
@@ -122,7 +173,7 @@ struct tcp_header {
     uint16_t window;
     uint16_t checksum;
     uint16_t urgent_ptr;
-} __attribute__((packed));
+};
 
 static_assert(sizeof(tcp_header) == 20);
 
@@ -131,7 +182,7 @@ static const uint8_t TCP_SYN_ACK = 0x12;
 static void send_tcp_port_closed(netif& ni, const ipv6_address& src,
                                  uint16_t src_port, const ipv6_address& dst,
                                  uint16_t dst_port, const mac_address& mac,
-                                 uint32_t seq) {
+                                 tcp_seq seq) {
     auto pack2 = new packet;
     if (!pack2) {
         print("new failed\n");
@@ -157,7 +208,7 @@ static void send_tcp_port_closed(netif& ni, const ipv6_address& src,
 
     tcp.src_port = dst_port;
     tcp.dst_port = src_port;
-    tcp.ack = byteswap(byteswap(seq) + 1);
+    tcp.ack = seq + 1;
     tcp.header_length = sizeof(tcp_header) / sizeof(uint32_t);
     tcp.RST = 1;
     tcp.ACK = 1;
@@ -305,7 +356,7 @@ nt_status ipv6_tcp_socket::send_syn(const sockaddr_in6& c, ipv6_address& src) {
 
     tcp.src_port = bound_port;
     tcp.dst_port = connected_port;
-    tcp.seq = byteswap(send_next);
+    tcp.seq = send_next;
     tcp.header_length = sizeof(tcp_header) / sizeof(uint32_t);
     tcp.SYN = 1;
     tcp.window = byteswap(window);
@@ -358,12 +409,12 @@ nt_status ipv6_tcp_socket::send_syn(const sockaddr_in6& c, ipv6_address& src) {
     return nt_status::SUCCESS;
 }
 
-static uint32_t rand_tcp_seq() {
+static tcp_seq rand_tcp_seq() {
     auto rnd = (uint64_t)(kernel_time_page.system_time / (SYSTEM_TIME_RESOLUTION / TICK_RATE));
 
     rnd = rnd * (uint64_t)1103515245 + 12345; // from Knuth
 
-    return (uint32_t)(rnd >> 16);
+    return tcp_seq{(uint32_t)(rnd >> 16)};
 }
 
 nt_status ipv6_tcp_socket::connect(const sockaddr* addr, size_t addrlen) {
@@ -462,7 +513,7 @@ void ipv6_tcp_socket::last_handle_closed() {
     }, this);
 }
 
-void ipv6_tcp_socket::send_ack(bool first, uint32_t ack) {
+void ipv6_tcp_socket::send_ack(bool first, tcp_seq ack) {
     auto pack = new packet;
     if (!pack) {
         print("new failed\n");
@@ -498,8 +549,8 @@ void ipv6_tcp_socket::send_ack(bool first, uint32_t ack) {
 
         tcp.src_port = bound_port;
         tcp.dst_port = connected_port;
-        tcp.seq = byteswap(send_next);
-        tcp.ack = byteswap(ack);
+        tcp.seq = send_next;
+        tcp.ack = ack;
         tcp.header_length = sizeof(tcp_header) / sizeof(uint32_t);
         tcp.ACK = 1;
         tcp.window = byteswap(window);
@@ -563,8 +614,8 @@ void ipv6_tcp_socket::send_fin() {
 
         tcp.src_port = bound_port;
         tcp.dst_port = connected_port;
-        tcp.seq = byteswap(send_next);
-        tcp.ack = byteswap(recv_next);
+        tcp.seq = send_next;
+        tcp.ack = recv_next;
         tcp.header_length = sizeof(tcp_header) / sizeof(uint32_t);
         tcp.FIN = 1;
         tcp.ACK = 1;
@@ -624,15 +675,15 @@ void ipv6_tcp_socket::received_packet(packet& pack) {
     }
 
     if (cur_state == tcp_state::SYN_SENT && tcp.flags == TCP_SYN_ACK) {
-        uint32_t ack;
+        tcp_seq ack;
 
         // FIXME - parse options
 
         {
             lock_guard lock(state_lock);
 
-            recv_next = byteswap(tcp.seq) + 1;
-            send_unacknowledged = byteswap(tcp.ack);
+            recv_next = tcp.seq + 1;
+            send_unacknowledged = tcp.ack;
 
             ack = recv_next;
         }
@@ -653,9 +704,7 @@ void ipv6_tcp_socket::received_packet(packet& pack) {
 
     if (tcp.ACK) {
         bool do_cleanup = false;
-        auto ack = byteswap(tcp.ack);
-
-        // FIXME - wraparound?
+        auto ack = tcp.ack;
 
         while (true) {
             ipv6_tcp_retransmission* r = nullptr;
@@ -679,7 +728,7 @@ void ipv6_tcp_socket::received_packet(packet& pack) {
 
                 auto& rtcp = *(tcp_header*)(r2.pack.data + sizeof(ipv6_header));
 
-                if (ack <= byteswap(rtcp.seq))
+                if (ack <= rtcp.seq)
                     break;
 
                 send_unacknowledged = ack;
@@ -716,13 +765,13 @@ void ipv6_tcp_socket::received_packet(packet& pack) {
         p->scope_id = connected_scope;
 
         bool added = false;
-        optional<uint32_t> ack;
+        optional<tcp_seq> ack;
         bool clear_ooo = false;
 
         {
             lock_guard lock(state_lock);
 
-            auto seq = byteswap(tcp.seq);
+            auto seq = tcp.seq;
 
             if (seq > recv_next) {
                 insert_tail_list(ooo_buffer, p->le);
@@ -761,7 +810,7 @@ void ipv6_tcp_socket::received_packet(packet& pack) {
 
                         // FIXME - what if tcp2.seq < recv_next (i.e. packets overlap)?
 
-                        if (byteswap(tcp2.seq) != recv_next)
+                        if (tcp2.seq != recv_next)
                             break;
 
                         recv_next += (uint32_t)(p2.pack.size - header_length2 - sizeof(ipv6_header));
@@ -935,8 +984,8 @@ nt_status ipv6_tcp_socket::sendto(const char* buf, size_t len, int flags,
 
             tcp.src_port = bound_port;
             tcp.dst_port = connected_port;
-            tcp.seq = byteswap(send_next);
-            tcp.ack = byteswap(recv_next);
+            tcp.seq = send_next;
+            tcp.ack = recv_next;
             tcp.header_length = sizeof(tcp_header) / sizeof(uint32_t);
             tcp.PSH = 1;
             tcp.ACK = 1;
