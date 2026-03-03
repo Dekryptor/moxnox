@@ -4343,7 +4343,10 @@ void ipv6_tcp_socket::received_packet(packet& pack) {
 
                 if (tcp.FIN) {
                     recv_next++;
-                    state = tcp_state::CLOSE_WAIT;
+
+                    if (state == tcp_state::ESTABLISHED)
+                        state = tcp_state::CLOSE_WAIT;
+
                     clear_ooo = true;
 
                     ack = recv_next;
@@ -4366,7 +4369,10 @@ void ipv6_tcp_socket::received_packet(packet& pack) {
 
                         if (tcp2.FIN) {
                             recv_next++;
-                            state = tcp_state::CLOSE_WAIT;
+
+                            if (state == tcp_state::ESTABLISHED)
+                                state = tcp_state::CLOSE_WAIT;
+
                             clear_ooo = true;
                             break;
                         } else {
@@ -4432,8 +4438,15 @@ void ipv6_tcp_socket::received_packet(packet& pack) {
             {
                 lock_guard lock(retransmission_list_lock);
 
-                if (is_list_empty(retransmission_list))
+                if (is_list_empty(retransmission_list)) {
+                    {
+                        lock_guard lock(state_lock);
+
+                        if (state == tcp_state::FIN_WAIT_1)
+                            state = tcp_state::FIN_WAIT_2;
+                    }
                     break;
+                }
 
                 auto& r2 = containing_record<ipv6_tcp_retransmission>(retransmission_list.next);
 
