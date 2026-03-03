@@ -904,6 +904,7 @@ nt_status ipv6_tcp_socket::sendto(const char* buf, size_t len, int flags,
 
         pack->release();
 
+        done += size;
         buf += size;
         len -= size;
     }
