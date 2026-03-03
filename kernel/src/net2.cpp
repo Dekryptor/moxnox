@@ -4337,17 +4337,12 @@ void ipv6_tcp_socket::received_packet(packet& pack) {
     }
 
     if (tcp.RST) {
-        if (cur_state == tcp_state::SYN_SENT) {
-            {
-                lock_guard lock(state_lock);
-                state = cur_state = tcp_state::CLOSED;
-            }
-
-            set_event(static_cast<event&>(state_change_event.get()));
-            return;
+        {
+            lock_guard lock(state_lock);
+            state = tcp_state::CLOSED;
         }
 
-        print("RST!\n"); // FIXME
+        set_event(static_cast<event&>(state_change_event.get()));
         return;
     }
 
