@@ -3988,18 +3988,11 @@ nt_status ipv6_tcp_socket::send_syn(const sockaddr_in6& c, ipv6_address& src) {
     auto& ev = static_cast<event&>(state_change_event.get());
 
     for (unsigned int i = 0; i < 3; i++) {
-        if (src == dst)
-            handle_ipv6_packet(ni, *pack, ni.mac);
-        else {
-            if (is_multicast_address(ip.dst) && should_accept_multicast(ni, ip.dst))
-                handle_ipv6_packet(ni, *pack, ni.mac); // send copy to ourselves
-
-            status = ni.send_packet(dst_mac, ethertype::ipv6, *pack);
-            if (!success(status)) {
-                pack->release();
-                ni.release();
-                return status;
-            }
+        status = dispatch_packet(ni, *pack, dst_mac);
+        if (!success(status)) {
+            pack->release();
+            ni.release();
+            return status;
         }
 
         status = wait_for_object(ev, true, SYSTEM_TIME_RESOLUTION); // wait 1 second
