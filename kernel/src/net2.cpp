@@ -115,11 +115,7 @@ public:
                        int* fromlen, size_t& recv_bytes) override;
     nt_status sendto(const char* buf, size_t len, int flags, sockaddr* to,
                      int tolen, size_t& sent_bytes) override;
-
-    nt_status bind(const sockaddr* /*addr*/, size_t /*addrlen*/) override {
-        return nt_status::NOT_IMPLEMENTED;
-    }
-
+    nt_status bind(const sockaddr* addr, size_t addrlen) override;
     nt_status connect(const sockaddr* addr, size_t addrlen) override;
 
     void received_packet(packet& pack);
@@ -4907,6 +4903,53 @@ nt_status ipv6_tcp_socket::recvfrom(char* buf, size_t len, int flags,
     }
 
     release();
+
+    return nt_status::SUCCESS;
+}
+
+nt_status ipv6_tcp_socket::bind(const sockaddr* addr, size_t addrlen) {
+    if (addr->sa_family != AF_INET6)
+        return nt_status::INVALID_PARAMETER;
+
+    if (addrlen < sizeof(sockaddr_in6))
+        return nt_status::BUFFER_TOO_SMALL;
+
+    auto& b = *(sockaddr_in6*)addr;
+
+    auto ip = *(ipv6_address*)b.sin6_addr;
+
+    if (ip != parse_ipv6_address("::")) {
+        if (!is_our_ip(ip))
+            return nt_status::INVALID_ADDRESS_COMPONENT;
+    }
+
+    {
+        uint16_t port;
+        lock_guard lock(tcp_ports_lock);
+        lock_guard lock2(state_lock);
+
+        if (bind_done)
+            return nt_status::INVALID_PARAMETER;
+
+        if (b.sin6_port == 0) {
+            port = find_ephemeral_tcp_port();
+            if (port == 0) // no ephemeral ports left
+                return nt_status::ADDRESS_ALREADY_ASSOCIATED;
+        } else {
+            port = b.sin6_port;
+
+            if (tcp_ports[b.sin6_port])
+                return nt_status::ADDRESS_ALREADY_ASSOCIATED;
+        }
+
+        tcp_ports[b.sin6_port] = this;
+        this->acquire();
+
+        bound_port = port;
+        bound_address = ip;
+
+        bind_done = true;
+    }
 
     return nt_status::SUCCESS;
 }
