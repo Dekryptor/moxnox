@@ -260,6 +260,77 @@ static span<const uint8_t> get_dns_name(span<uint8_t>& ans, span<uint8_t> pack) 
     return span(orig_sp.data(), (size_t)(sp.data() - orig_sp.data()));
 }
 
+static int parse_dns_response(span<uint8_t> sp, span<uint8_t> resp,
+                              uint16_t num_answers, uint16_t type,
+                              span<char> name, addrinfo** res) {
+    addrinfo* last_ai = nullptr;
+
+    for (uint16_t i = 0; i < num_answers; i++) {
+        if (sp.empty())
+            break;
+
+        auto name2 = get_dns_name(sp, resp);
+        if (name2.empty())
+            break;
+
+        if (sp.size() < sizeof(dns_resource_record))
+            break;
+
+        auto& rr = *(dns_resource_record*)sp.data();
+
+        sp = span(sp.data() + sizeof(rr), sp.size() - sizeof(rr));
+
+        if (sp.size() < byteswap(rr.rdlength))
+            break;
+
+        auto payload = span(sp.data(), byteswap(rr.rdlength));
+
+        sp = span(sp.data() + payload.size(), sp.size() - payload.size());
+
+        if (rr.type != type || rr.dns_class != DNS_IN)
+            continue;
+
+        if (name2.size() != name.size() || memcmp(name2.data(), name.data(), name.size()))
+            continue;
+
+        if (payload.size() != sizeof(ipv6_address))
+            continue;
+
+        auto& addr = *(ipv6_address*)payload.data();
+
+        auto ai = (addrinfo*)malloc(sizeof(addrinfo));
+        if (!ai)
+            return EAI_MEMORY;
+
+        auto sock = (sockaddr_in6*)malloc(sizeof(sockaddr_in6));
+        if (!sock) {
+            free(ai);
+            return EAI_MEMORY;
+        }
+
+        sock->sin6_family = AF_INET6;
+        sock->sin6_flowinfo = 0;
+        *(ipv6_address*)sock->sin6_addr = addr;
+        sock->sin6_scope_id = 0;
+
+        ai->ai_flags = 0;
+        ai->ai_family = AF_INET6;
+        ai->ai_addrlen = sizeof(sockaddr_in6);
+        ai->ai_addr = (sockaddr*)sock;
+        ai->ai_canonname = nullptr;
+        ai->ai_next = nullptr;
+
+        if (last_ai)
+            last_ai->ai_next = ai;
+        else
+            *res = ai;
+
+        last_ai = ai;
+    }
+
+    return 0;
+}
+
 static int dns_lookup(string_view name, addrinfo** res, int socktype,
                       int protocol, uint16_t port) {
     LARGE_INTEGER sent_time;
@@ -434,92 +505,31 @@ static int dns_lookup(string_view name, addrinfo** res, int socktype,
 
         auto num_answers = byteswap(h2.ancount);
 
-        addrinfo* last_ai = nullptr;
+        *res = nullptr;
 
-        for (uint16_t i = 0; i < num_answers; i++) {
-            if (sp.empty())
-                break;
+        auto ret = parse_dns_response(sp, span((uint8_t*)resp, (size_t)bytes),
+                                      num_answers, suf.type,
+                                      span(pack + sizeof(dns_header), name_len),
+                                      res);
 
-            auto name2 = get_dns_name(sp, span((uint8_t*)resp, (size_t)bytes));
-            if (name2.empty())
-                break;
+        if (ret) {
+            while (*res) {
+                auto next = (*res)->ai_next;
 
-            if (sp.size() < sizeof(dns_resource_record))
-                break;
-
-            auto& rr = *(dns_resource_record*)sp.data();
-
-            sp = span(sp.data() + sizeof(rr), sp.size() - sizeof(rr));
-
-            if (sp.size() < byteswap(rr.rdlength))
-                break;
-
-            auto payload = span(sp.data(), byteswap(rr.rdlength));
-
-            sp = span(sp.data() + payload.size(), sp.size() - payload.size());
-
-            if (rr.type != suf.type || rr.dns_class != suf.dns_class)
-                continue;
-
-            if (name2.size() != name_len || memcmp(name2.data(), pack + sizeof(dns_header), name_len))
-                continue;
-
-            if (payload.size() != sizeof(ipv6_address))
-                continue;
-
-            auto& addr = *(ipv6_address*)payload.data();
-
-            auto ai = (addrinfo*)malloc(sizeof(addrinfo));
-            if (!ai) {
-                while (*res) {
-                    auto next = (*res)->ai_next;
-
-                    free((*res)->ai_addr);
-                    free(*res);
-                    *res = next;
-                }
-
-                return EAI_MEMORY;
+                free((*res)->ai_addr);
+                free(*res);
+                *res = next;
             }
-
-            auto sock = (sockaddr_in6*)malloc(sizeof(sockaddr_in6));
-            if (!sock) {
-                while (*res) {
-                    auto next = (*res)->ai_next;
-
-                    free((*res)->ai_addr);
-                    free(*res);
-                    *res = next;
-                }
-
-                free(ai);
-                return EAI_MEMORY;
-            }
-
-            sock->sin6_family = AF_INET6;
-            sock->sin6_port = byteswap(port);
-            sock->sin6_flowinfo = 0;
-            *(ipv6_address*)sock->sin6_addr = addr;
-            sock->sin6_scope_id = 0;
-
-            ai->ai_flags = 0;
-            ai->ai_family = AF_INET6;
-            ai->ai_socktype = socktype;
-            ai->ai_protocol = protocol;
-            ai->ai_addrlen = sizeof(sockaddr_in6);
-            ai->ai_addr = (sockaddr*)sock;
-            ai->ai_canonname = nullptr;
-            ai->ai_next = nullptr;
-
-            if (last_ai)
-                last_ai->ai_next = ai;
-            else
-                *res = ai;
-
-            last_ai = ai;
+            return ret;
         }
 
-        if (last_ai) {
+        if (*res) {
+            auto* ai = *res;
+
+            ((sockaddr_in6*)ai->ai_addr)->sin6_port = byteswap(port);
+            ai->ai_socktype = socktype;
+            ai->ai_protocol = protocol;
+
             free(pack);
             closesocket(sock);
             return 0;
