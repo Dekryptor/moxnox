@@ -796,10 +796,7 @@ void ipv6_tcp_socket::received_packet(packet& pack) {
 
                 recv_next += data_len;
 
-                if (data_len > recv_window)
-                    data_len = recv_window;
-
-                if (tcp.FIN) {
+                if (tcp.FIN && data_len <= recv_window) {
                     recv_next++;
 
                     if (state == tcp_state::ESTABLISHED)
@@ -841,6 +838,9 @@ void ipv6_tcp_socket::received_packet(packet& pack) {
                         }
                     }
                 }
+
+                if (data_len > recv_window)
+                    data_len = recv_window;
 
                 ack = recv_next;
                 recv_window -= (uint16_t)data_len;
