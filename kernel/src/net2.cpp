@@ -4231,7 +4231,7 @@ void ipv6_tcp_socket::received_packet(packet& pack) {
             dispatch_packet(*pni, *first_ack, dst_mac);
     }
 
-    if (tcp.PSH) { // data
+    if (pack.size > header_length + sizeof(ipv6_header)) { // data
         auto p = new ipv6_socket_packet(pack);
         if (!p) {
             print("new failed\n");
