@@ -124,7 +124,7 @@ public:
     ipv6_address bound_address, connected_address;
     tcp_state state = tcp_state::CLOSED;
     netif* pni = nullptr;
-    uint16_t window = 0xffff;
+    uint16_t recv_window = 0xffff;
     tcp_seq send_next, send_unacknowledged, recv_next;
     mac_address dst_mac;
     packet* first_ack = nullptr;
@@ -137,7 +137,7 @@ public:
     list_entry ooo_buffer = { &ooo_buffer, &ooo_buffer };
     rwsem us_read_mutex;
     size_t us_read_offset = 0;
-    rwsem send_mutex;
+    rwsem io_mutex;
 
 private:
     nt_status send_syn(const sockaddr_in6& c, ipv6_address& src);
@@ -359,7 +359,7 @@ nt_status ipv6_tcp_socket::send_syn(const sockaddr_in6& c, ipv6_address& src) {
     tcp.seq = send_next;
     tcp.header_length = sizeof(tcp_header) / sizeof(uint32_t);
     tcp.SYN = 1;
-    tcp.window = byteswap(window);
+    tcp.window = byteswap(recv_window);
 
     tcp.checksum = calc_ipv6_checksum(ip, span((uint8_t*)&tcp, pack->size - sizeof(ipv6_header)), IPPROTO_TCP);
 
@@ -542,7 +542,7 @@ void ipv6_tcp_socket::send_ack(bool first, tcp_seq ack) {
     memset(&tcp, 0, sizeof(tcp));
 
     {
-        lock_guard lock(send_mutex);
+        lock_guard lock(io_mutex);
 
         if (first)
             send_next++;
@@ -553,7 +553,7 @@ void ipv6_tcp_socket::send_ack(bool first, tcp_seq ack) {
         tcp.ack = ack;
         tcp.header_length = sizeof(tcp_header) / sizeof(uint32_t);
         tcp.ACK = 1;
-        tcp.window = byteswap(window);
+        tcp.window = byteswap(recv_window);
 
         tcp.checksum = calc_ipv6_checksum(ip, span((uint8_t*)&tcp, pack->size - sizeof(ipv6_header)), IPPROTO_TCP);
 
@@ -610,7 +610,7 @@ void ipv6_tcp_socket::send_fin() {
     memset(&tcp, 0, sizeof(tcp));
 
     {
-        lock_guard lock(send_mutex);
+        lock_guard lock(io_mutex);
 
         tcp.src_port = bound_port;
         tcp.dst_port = connected_port;
@@ -619,7 +619,7 @@ void ipv6_tcp_socket::send_fin() {
         tcp.header_length = sizeof(tcp_header) / sizeof(uint32_t);
         tcp.FIN = 1;
         tcp.ACK = 1;
-        tcp.window = byteswap(window);
+        tcp.window = byteswap(recv_window);
 
         send_next++;
 
@@ -769,7 +769,8 @@ void ipv6_tcp_socket::received_packet(packet& pack) {
         bool clear_ooo = false;
 
         {
-            lock_guard lock(state_lock);
+            lock_guard lock(io_mutex);
+            lock_guard lock2(state_lock);
 
             auto seq = tcp.seq;
 
@@ -785,7 +786,12 @@ void ipv6_tcp_socket::received_packet(packet& pack) {
                     added = true;
                 }
 
-                recv_next += (uint32_t)(pack.size - header_length - sizeof(ipv6_header));
+                auto data_len = (uint32_t)(pack.size - header_length - sizeof(ipv6_header));
+
+                if (data_len > recv_window)
+                    data_len = recv_window;
+
+                recv_next += data_len;
 
                 if (tcp.FIN) {
                     recv_next++;
@@ -796,8 +802,6 @@ void ipv6_tcp_socket::received_packet(packet& pack) {
                         state = tcp_state::TIME_WAIT;
 
                     clear_ooo = true;
-
-                    ack = recv_next;
                 } else {
                     // check out-of-order list for anything now okay
                     while (true) {
@@ -830,9 +834,10 @@ void ipv6_tcp_socket::received_packet(packet& pack) {
                             insert_tail_list(buffer, p2.le);
                         }
                     }
-
-                    ack = recv_next;
                 }
+
+                ack = recv_next;
+                recv_window -= (uint16_t)data_len;
             }
         }
 
@@ -980,7 +985,7 @@ nt_status ipv6_tcp_socket::sendto(const char* buf, size_t len, int flags,
         memset(&tcp, 0, sizeof(tcp));
 
         {
-            lock_guard lock(send_mutex);
+            lock_guard lock(io_mutex);
 
             tcp.src_port = bound_port;
             tcp.dst_port = connected_port;
@@ -989,7 +994,7 @@ nt_status ipv6_tcp_socket::sendto(const char* buf, size_t len, int flags,
             tcp.header_length = sizeof(tcp_header) / sizeof(uint32_t);
             tcp.PSH = 1;
             tcp.ACK = 1;
-            tcp.window = byteswap(window);
+            tcp.window = byteswap(recv_window);
 
             send_next += (uint32_t)size;
 
@@ -1217,7 +1222,7 @@ nt_status ipv6_tcp_socket::recvfrom(char* buf, size_t len, int flags,
             return status;
         }
 
-        bool have_removed_packets = false;
+        size_t removed_bytes = 0;
 
         while (true) {
             ipv6_socket_packet* r;
@@ -1268,19 +1273,35 @@ nt_status ipv6_tcp_socket::recvfrom(char* buf, size_t len, int flags,
             buf += to_copy;
             len -= to_copy;
             us_read_offset = 0;
-            have_removed_packets = true;
+            removed_bytes += r->pack.size - sizeof(ipv6_header) - header_length;
 
             if (len == 0)
                 break;
         }
 
-        if (have_removed_packets) {
-            sync_lock sl;
-            lock_guard lock(sl);
-            lock_guard lock2(state_lock);
+        if (removed_bytes != 0) {
+            {
+                sync_lock sl;
+                lock_guard lock(sl);
+                lock_guard lock2(state_lock);
 
-            if (is_list_empty(buffer) && state == tcp_state::ESTABLISHED)
-                signalled = false;
+                if (is_list_empty(buffer) && state == tcp_state::ESTABLISHED)
+                    signalled = false;
+            }
+
+            bool opening = false;
+
+            {
+                lock_guard lock(io_mutex);
+
+                if (recv_window == 0)
+                    opening = true;
+
+                recv_window += (uint16_t)removed_bytes;
+            }
+
+            if (opening)
+                send_ack(false, recv_next);
         }
 
         if (!success(status) && recv_bytes == 0) {
