@@ -561,7 +561,7 @@ void ipv6_tcp_socket::received_packet(packet& pack) {
     if (header_length < sizeof(tcp_header))
         return;
 
-    if (pack.size < sizeof(ipv6_header) + sizeof(header_length))
+    if (pack.size < sizeof(ipv6_header) + header_length)
         return;
 
     tcp_state cur_state;
