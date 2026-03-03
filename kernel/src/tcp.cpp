@@ -162,9 +162,11 @@ void received_ipv6_tcp_packet(netif& ni, packet& pack,
         }
     }
 
-    if (!sock && !tcp.RST) {
-        send_tcp_port_closed(ni, ip.src, tcp.src_port, ip.dst, tcp.dst_port,
-                             src_mac, tcp.seq);
+    if (!sock) {
+        if (!tcp.RST) {
+            send_tcp_port_closed(ni, ip.src, tcp.src_port, ip.dst,
+                                 tcp.dst_port, src_mac, tcp.seq);
+        }
         return;
     }
 
