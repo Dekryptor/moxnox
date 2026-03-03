@@ -4205,9 +4205,18 @@ void ipv6_tcp_socket::send_ack(bool first, uint32_t ack) {
 }
 
 void ipv6_tcp_socket::send_fin() {
+    // FIXME - send RST if new fails?
+
     auto pack = new packet;
     if (!pack) {
         print("new failed\n");
+        return;
+    }
+
+    auto r = new ipv6_tcp_retransmission(*pack);
+    if (!r) {
+        print("new failed\n");
+        pack->release();
         return;
     }
 
@@ -4241,7 +4250,16 @@ void ipv6_tcp_socket::send_fin() {
     tcp.ACK = 1;
     tcp.window = byteswap(window);
 
+    send_next++;
+
     tcp.checksum = calc_ipv6_checksum(ip, span((uint8_t*)&tcp, pack->size - sizeof(ipv6_header)), IPPROTO_TCP);
+
+    r->deadline = (uint64_t)kernel_time_page.system_time + (RETRANSMISSION_DELAY * SYSTEM_TIME_RESOLUTION);
+
+    {
+        lock_guard lock(retransmission_list_lock);
+        insert_tail_list(retransmission_list, r->le);
+    }
 
     dispatch_packet(ni, *pack, dst_mac);
 
