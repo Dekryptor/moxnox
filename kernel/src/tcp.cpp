@@ -1268,12 +1268,12 @@ nt_status ipv6_tcp_socket::recvfrom(char* buf, size_t len, int flags,
                 remove_entry_list(r->le);
             }
 
-            delete r;
-
             buf += to_copy;
             len -= to_copy;
             us_read_offset = 0;
             removed_bytes += r->pack.size - sizeof(ipv6_header) - header_length;
+
+            delete r;
 
             if (len == 0)
                 break;
