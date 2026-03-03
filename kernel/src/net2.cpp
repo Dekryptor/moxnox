@@ -100,6 +100,7 @@ enum class tcp_state {
     FIN_WAIT_1,
     FIN_WAIT_2,
     TIME_WAIT,
+    LAST_ACK,
 };
 
 class ipv6_tcp_socket : public socket {
@@ -148,6 +149,7 @@ public:
 private:
     nt_status send_syn(const sockaddr_in6& c, ipv6_address& src);
     void send_ack(bool first, uint32_t ack);
+    void send_fin();
     void retransmission_thread();
     void do_retransmissions();
 };
@@ -4092,17 +4094,42 @@ nt_status ipv6_tcp_socket::connect(const sockaddr* addr, size_t addrlen) {
 }
 
 void ipv6_tcp_socket::last_handle_closed() {
-    {
-        lock_guard lock(tcp_ports_lock);
-        lock_guard lock2(state_lock);
+    acquire();
 
-        if (bind_done && tcp_ports[bound_port] == this) {
-            tcp_ports[bound_port] = nullptr;
-            this->release();
+    add_kernel_thread([](void* ctx) {
+        auto& s = *(ipv6_tcp_socket*)ctx;
+
+        bool do_fin = false;
+
+        {
+            lock_guard lock(s.state_lock);
+
+            if (s.state == tcp_state::ESTABLISHED) {
+                s.state = tcp_state::FIN_WAIT_1;
+                do_fin = true;
+            } else if (s.state == tcp_state::CLOSE_WAIT) {
+                s.state = tcp_state::LAST_ACK;
+                do_fin = true;
+            }
         }
-    }
 
-    set_event(static_cast<event&>(retransmission_thread_quit_event.get()));
+        if (do_fin)
+            s.send_fin();
+
+        { // FIXME - keep until after TIME_WAIT
+            lock_guard lock(tcp_ports_lock);
+            lock_guard lock2(s.state_lock);
+
+            if (s.bind_done && tcp_ports[s.bound_port] == &s) {
+                tcp_ports[s.bound_port] = nullptr;
+                s.release();
+            }
+        }
+
+        set_event(static_cast<event&>(s.retransmission_thread_quit_event.get()));
+
+        s.release();
+    }, this);
 }
 
 static void dispatch_packet(netif& ni, packet& pack, const mac_address& dst_mac) {
@@ -4172,6 +4199,51 @@ void ipv6_tcp_socket::send_ack(bool first, uint32_t ack) {
         first_ack->release();
         first_ack = nullptr;
     }
+
+    pack->release();
+    ni.release();
+}
+
+void ipv6_tcp_socket::send_fin() {
+    auto pack = new packet;
+    if (!pack) {
+        print("new failed\n");
+        return;
+    }
+
+    auto& ni = *pni;
+
+    ni.acquire();
+
+    pack->size = sizeof(ipv6_header) + sizeof(tcp_header);
+
+    auto& ip = *(ipv6_header*)pack->data;
+    ip.traffic_class1 = 0;
+    ip.version = 6;
+    ip.traffic_class2 = 0;
+    ip.flow_label = 0;
+    ip.payload_length = byteswap((uint16_t)sizeof(tcp_header));
+    ip.next_header = IPPROTO_TCP;
+    ip.hop_limit = DEFAULT_HOP_LIMIT;
+    ip.src = bound_address;
+    ip.dst = connected_address;
+
+    auto& tcp = *(tcp_header*)(pack->data + sizeof(ipv6_header));
+
+    memset(&tcp, 0, sizeof(tcp));
+
+    tcp.src_port = bound_port;
+    tcp.dst_port = connected_port;
+    tcp.seq = byteswap(send_next);
+    tcp.ack = byteswap(recv_next);
+    tcp.header_length = sizeof(tcp_header) / sizeof(uint32_t);
+    tcp.FIN = 1;
+    tcp.ACK = 1;
+    tcp.window = byteswap(window);
+
+    tcp.checksum = calc_ipv6_checksum(ip, span((uint8_t*)&tcp, pack->size - sizeof(ipv6_header)), IPPROTO_TCP);
+
+    dispatch_packet(ni, *pack, dst_mac);
 
     pack->release();
     ni.release();
