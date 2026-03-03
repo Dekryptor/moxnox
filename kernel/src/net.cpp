@@ -18,10 +18,13 @@ import objects;
 import chardev;
 import ws2_32;
 import ipv6;
+import object_ref;
+import rwsem;
 
 using namespace std;
 
 export const size_t MTU = 1500; // FIXME - allow jumbo packets
+const uint8_t DEFAULT_HOP_LIMIT = 64;
 
 export struct mac_address {
     auto operator<=>(const mac_address& other) const {
@@ -35,6 +38,8 @@ export struct mac_address {
 
     array<uint8_t, 6> v;
 };
+
+const mac_address NULL_MAC_ADDRESS = { 0, 0, 0, 0, 0, 0 };
 
 export enum class ethertype : uint16_t { // bytes flipped
     ipv4 = 0x0008,
@@ -76,6 +81,20 @@ export struct packet {
     atomic<unsigned int> refcount = 1;
     size_t size;
     uint8_t data[MTU];
+};
+
+struct ipv6_socket_packet {
+    ipv6_socket_packet(packet& pack) : pack(pack) {
+        pack.acquire();
+    }
+
+    ~ipv6_socket_packet() {
+        pack.release();
+    }
+
+    list_entry le;
+    uint32_t scope_id;
+    packet& pack;
 };
 
 export class netif {
@@ -147,6 +166,65 @@ private:
 static_assert(has_ioctls<class socket>);
 static_assert(is_sync_object<class socket>);
 static_assert(has_last_handle_closed<class socket>);
+
+enum class tcp_state {
+    CLOSED,
+    SYN_SENT,
+    ESTABLISHED,
+    CLOSE_WAIT,
+    FIN_WAIT_1,
+    FIN_WAIT_2,
+    TIME_WAIT,
+    LAST_ACK,
+};
+
+class ipv6_tcp_socket : public socket {
+public:
+    ipv6_tcp_socket();
+    ~ipv6_tcp_socket();
+
+    void last_handle_closed() override;
+
+    nt_status recvfrom(char* buf, size_t len, int flags, sockaddr* from,
+                       int* fromlen, size_t& recv_bytes) override;
+    nt_status sendto(const char* buf, size_t len, int flags, sockaddr* to,
+                     int tolen, size_t& sent_bytes) override;
+    nt_status bind(const sockaddr* addr, size_t addrlen) override;
+    nt_status connect(const sockaddr* addr, size_t addrlen) override;
+
+    void received_packet(packet& pack);
+
+    bool init = false;
+    spinlock state_lock;
+    object_ref state_change_event;
+    bool bind_done = false;
+    uint16_t bound_port, connected_port;
+    uint32_t connected_scope;
+    ipv6_address bound_address, connected_address;
+    tcp_state state = tcp_state::CLOSED;
+    netif* pni = nullptr;
+    uint16_t window = 0xffff;
+    uint32_t send_next, send_unacknowledged, recv_next;
+    mac_address dst_mac;
+    packet* first_ack = nullptr;
+    size_t mss = 1220; // FIXME - different for IPv4
+    spinlock retransmission_list_lock;
+    list_entry retransmission_list = { &retransmission_list, &retransmission_list };
+    object_ref retransmission_thread_obj;
+    object_ref retransmission_thread_quit_event;
+    list_entry buffer = { &buffer, &buffer };
+    list_entry ooo_buffer = { &ooo_buffer, &ooo_buffer };
+    rwsem us_read_mutex;
+    size_t us_read_offset = 0;
+    rwsem send_mutex;
+
+private:
+    nt_status send_syn(const sockaddr_in6& c, ipv6_address& src);
+    void send_ack(bool first, uint32_t ack);
+    void send_fin();
+    void retransmission_thread();
+    void do_retransmissions();
+};
 
 class netctl : public chardev {
 public:
@@ -276,3 +354,16 @@ export void handle_ipv6_packet(netif& ni, packet& pack,
                                const mac_address& src_mac);
 export bool drop_packet(const mac_address& dst, const mac_address& us);
 export bool init_net();
+
+void received_ipv6_tcp_packet(netif& ni, packet& pack,
+                              const mac_address& src_mac);
+bool is_our_ip(const ipv6_address& ip);
+nt_status dispatch_packet(netif& ni, packet& pack, const mac_address& dst_mac);
+uint16_t calc_ipv6_checksum(const ipv6_header& ip, span<const uint8_t> data,
+                            uint8_t next_header);
+nt_status ipv6_choose_interface(const ipv6_address& dst, uint32_t scope_id,
+                                netif*& ni, ipv6_address& src);
+bool is_multicast_address(const ipv6_address& addr);
+void send_address_unreachable(netif& ni, const packet& pack,
+                              const ipv6_address& addr);
+mac_address find_mac_address(netif& ni, const ipv6_address& dst);

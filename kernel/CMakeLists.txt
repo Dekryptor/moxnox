@@ -107,6 +107,7 @@ set(SRC_FILES src/kernel.cpp
     src/framebuffer2.cpp
     src/interrupts2.cpp
     src/mem2.cpp
+    src/tcp.cpp
 )
 
 if(CMAKE_SYSTEM_PROCESSOR STREQUAL aarch64)
