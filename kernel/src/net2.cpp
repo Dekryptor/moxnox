@@ -145,6 +145,7 @@ public:
     list_entry ooo_buffer = { &ooo_buffer, &ooo_buffer };
     rwsem us_read_mutex;
     size_t us_read_offset = 0;
+    rwsem send_mutex;
 
 private:
     nt_status send_syn(const sockaddr_in6& c, ipv6_address& src);
@@ -4177,27 +4178,31 @@ void ipv6_tcp_socket::send_ack(bool first, uint32_t ack) {
 
     memset(&tcp, 0, sizeof(tcp));
 
-    if (first)
-        send_next++;
+    {
+        lock_guard lock(send_mutex);
 
-    tcp.src_port = bound_port;
-    tcp.dst_port = connected_port;
-    tcp.seq = byteswap(send_next);
-    tcp.ack = byteswap(ack);
-    tcp.header_length = sizeof(tcp_header) / sizeof(uint32_t);
-    tcp.ACK = 1;
-    tcp.window = byteswap(window);
+        if (first)
+            send_next++;
 
-    tcp.checksum = calc_ipv6_checksum(ip, span((uint8_t*)&tcp, pack->size - sizeof(ipv6_header)), IPPROTO_TCP);
+        tcp.src_port = bound_port;
+        tcp.dst_port = connected_port;
+        tcp.seq = byteswap(send_next);
+        tcp.ack = byteswap(ack);
+        tcp.header_length = sizeof(tcp_header) / sizeof(uint32_t);
+        tcp.ACK = 1;
+        tcp.window = byteswap(window);
 
-    dispatch_packet(ni, *pack, dst_mac);
+        tcp.checksum = calc_ipv6_checksum(ip, span((uint8_t*)&tcp, pack->size - sizeof(ipv6_header)), IPPROTO_TCP);
 
-    if (first) {
-        pack->acquire();
-        first_ack = pack;
-    } else if (first_ack) {
-        first_ack->release();
-        first_ack = nullptr;
+        dispatch_packet(ni, *pack, dst_mac);
+
+        if (first) {
+            pack->acquire();
+            first_ack = pack;
+        } else if (first_ack) {
+            first_ack->release();
+            first_ack = nullptr;
+        }
     }
 
     pack->release();
@@ -4241,27 +4246,31 @@ void ipv6_tcp_socket::send_fin() {
 
     memset(&tcp, 0, sizeof(tcp));
 
-    tcp.src_port = bound_port;
-    tcp.dst_port = connected_port;
-    tcp.seq = byteswap(send_next);
-    tcp.ack = byteswap(recv_next);
-    tcp.header_length = sizeof(tcp_header) / sizeof(uint32_t);
-    tcp.FIN = 1;
-    tcp.ACK = 1;
-    tcp.window = byteswap(window);
-
-    send_next++;
-
-    tcp.checksum = calc_ipv6_checksum(ip, span((uint8_t*)&tcp, pack->size - sizeof(ipv6_header)), IPPROTO_TCP);
-
-    r->deadline = (uint64_t)kernel_time_page.system_time + (RETRANSMISSION_DELAY * SYSTEM_TIME_RESOLUTION);
-
     {
-        lock_guard lock(retransmission_list_lock);
-        insert_tail_list(retransmission_list, r->le);
-    }
+        lock_guard lock(send_mutex);
 
-    dispatch_packet(ni, *pack, dst_mac);
+        tcp.src_port = bound_port;
+        tcp.dst_port = connected_port;
+        tcp.seq = byteswap(send_next);
+        tcp.ack = byteswap(recv_next);
+        tcp.header_length = sizeof(tcp_header) / sizeof(uint32_t);
+        tcp.FIN = 1;
+        tcp.ACK = 1;
+        tcp.window = byteswap(window);
+
+        send_next++;
+
+        tcp.checksum = calc_ipv6_checksum(ip, span((uint8_t*)&tcp, pack->size - sizeof(ipv6_header)), IPPROTO_TCP);
+
+        r->deadline = (uint64_t)kernel_time_page.system_time + (RETRANSMISSION_DELAY * SYSTEM_TIME_RESOLUTION);
+
+        {
+            lock_guard lock(retransmission_list_lock);
+            insert_tail_list(retransmission_list, r->le);
+        }
+
+        dispatch_packet(ni, *pack, dst_mac);
+    }
 
     pack->release();
     ni.release();
@@ -4533,21 +4542,6 @@ nt_status ipv6_tcp_socket::sendto(const char* buf, size_t len, int flags,
         ip.src = bound_address;
         ip.dst = connected_address;
 
-        auto& tcp = *(tcp_header*)(pack->data + sizeof(ipv6_header));
-
-        memset(&tcp, 0, sizeof(tcp));
-
-        tcp.src_port = bound_port;
-        tcp.dst_port = connected_port;
-        tcp.seq = byteswap(send_next);
-        tcp.ack = byteswap(recv_next);
-        tcp.header_length = sizeof(tcp_header) / sizeof(uint32_t);
-        tcp.PSH = 1;
-        tcp.ACK = 1;
-        tcp.window = byteswap(window);
-
-        send_next += (uint32_t)size;
-
         uint32_t read_bytes;
 
         status = t.proc->read_vm(buf, pack->data + sizeof(ipv6_header) + sizeof(tcp_header),
@@ -4573,16 +4567,35 @@ nt_status ipv6_tcp_socket::sendto(const char* buf, size_t len, int flags,
             }
         }
 
-        tcp.checksum = calc_ipv6_checksum(ip, span((uint8_t*)&tcp, pack->size - sizeof(ipv6_header)), IPPROTO_TCP);
+        auto& tcp = *(tcp_header*)(pack->data + sizeof(ipv6_header));
 
-        dispatch_packet(ni, *pack, dst_mac);
-
-        r->deadline = (uint64_t)kernel_time_page.system_time + (RETRANSMISSION_DELAY * SYSTEM_TIME_RESOLUTION);
+        memset(&tcp, 0, sizeof(tcp));
 
         {
-            lock_guard lock(retransmission_list_lock);
+            lock_guard lock(send_mutex);
 
-            insert_tail_list(retransmission_list, r->le);
+            tcp.src_port = bound_port;
+            tcp.dst_port = connected_port;
+            tcp.seq = byteswap(send_next);
+            tcp.ack = byteswap(recv_next);
+            tcp.header_length = sizeof(tcp_header) / sizeof(uint32_t);
+            tcp.PSH = 1;
+            tcp.ACK = 1;
+            tcp.window = byteswap(window);
+
+            send_next += (uint32_t)size;
+
+            tcp.checksum = calc_ipv6_checksum(ip, span((uint8_t*)&tcp, pack->size - sizeof(ipv6_header)), IPPROTO_TCP);
+
+            dispatch_packet(ni, *pack, dst_mac);
+
+            r->deadline = (uint64_t)kernel_time_page.system_time + (RETRANSMISSION_DELAY * SYSTEM_TIME_RESOLUTION);
+
+            {
+                lock_guard lock(retransmission_list_lock);
+
+                insert_tail_list(retransmission_list, r->le);
+            }
         }
 
         pack->release();
