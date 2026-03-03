@@ -4330,10 +4330,13 @@ void ipv6_tcp_socket::received_packet(packet& pack) {
                 lock_guard lock(sl);
                 lock_guard lock2(state_lock);
 
-                if (!is_list_empty(buffer) && !signalled) {
-                    wake_up_waiters(waiters);
-                    signalled = true;
-                }
+                if (!is_list_empty(buffer) || state != tcp_state::ESTABLISHED) {
+                    if (!signalled) {
+                        wake_up_waiters(waiters);
+                        signalled = true;
+                    }
+                } else
+                    signalled = false;
             }
         }
     }
@@ -4736,7 +4739,7 @@ nt_status ipv6_tcp_socket::recvfrom(char* buf, size_t len, int flags,
             lock_guard lock(sl);
             lock_guard lock2(state_lock);
 
-            if (is_list_empty(buffer))
+            if (is_list_empty(buffer) && state == tcp_state::ESTABLISHED)
                 signalled = false;
         }
 
