@@ -3677,18 +3677,11 @@ nt_status ipv6_udp_socket::sendto(const char* buf, size_t len, int flags,
         return nt_status::HOST_UNREACHABLE;
     }
 
-    if (src == dst)
-        handle_ipv6_packet(ni, *pack, ni.mac);
-    else {
-        if (is_multicast_address(ip.dst) && should_accept_multicast(ni, ip.dst))
-            handle_ipv6_packet(ni, *pack, ni.mac); // send copy to ourselves
-
-        status = ni.send_packet(mac, ethertype::ipv6, *pack);
-        if (!success(status)) {
-            pack->release();
-            ni.release();
-            return status;
-        }
+    status = dispatch_packet(ni, *pack, mac);
+    if (!success(status)) {
+        pack->release();
+        ni.release();
+        return status;
     }
 
     pack->release();
