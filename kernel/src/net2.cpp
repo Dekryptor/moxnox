@@ -4260,8 +4260,6 @@ void ipv6_tcp_socket::send_fin() {
 }
 
 void ipv6_tcp_socket::received_packet(packet& pack) {
-    print("FIXME - ipv6_tcp_socket::received_packet\n");
-
     auto& ip = *(ipv6_header*)pack.data;
     auto& tcp = *(tcp_header*)(pack.data + sizeof(ipv6_header));
     size_t header_length = tcp.header_length * sizeof(uint32_t);
