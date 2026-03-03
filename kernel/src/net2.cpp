@@ -1975,18 +1975,9 @@ static nt_status netctl_socket(span<const uint8_t> buf) {
                     if (params.protocol != 0 && params.protocol != IPPROTO_TCP)
                         return nt_status::INVALID_PARAMETER;
 
-                    auto s = new ipv6_tcp_socket;
-                    if (!s) {
-                        print("new failed\n");
-                        return nt_status::INSUFFICIENT_RESOURCES;
-                    }
-
-                    if (!s->init) {
-                        s->release();
-                        return nt_status::INTERNAL_ERROR;
-                    }
-
-                    ref = object_ref{*s};
+                    auto status = create_new_ipv6_tcp_socket(ref);
+                    if (!success(status))
+                        return status;
 
                     break;
                 }

@@ -23,9 +23,6 @@ using namespace std;
 static const uint64_t RETRANSMISSION_DELAY = 1; // seconds
 static const uint64_t TIME_WAIT_LENGTH = 60; // seconds
 
-static spinlock tcp_ports_lock;
-static ipv6_tcp_socket* tcp_ports[65536];
-
 struct ipv6_tcp_retransmission {
     ipv6_tcp_retransmission(packet& pack) : pack(pack) {
         pack.acquire();
@@ -50,6 +47,57 @@ struct ipv6_tcp_retransmission {
     unsigned int attempt = 0;
     packet& pack;
 };
+
+class ipv6_tcp_socket : public socket {
+public:
+    ipv6_tcp_socket();
+    ~ipv6_tcp_socket();
+
+    void last_handle_closed() override;
+
+    nt_status recvfrom(char* buf, size_t len, int flags, sockaddr* from,
+                       int* fromlen, size_t& recv_bytes) override;
+    nt_status sendto(const char* buf, size_t len, int flags, sockaddr* to,
+                     int tolen, size_t& sent_bytes) override;
+    nt_status bind(const sockaddr* addr, size_t addrlen) override;
+    nt_status connect(const sockaddr* addr, size_t addrlen) override;
+
+    void received_packet(packet& pack);
+
+    bool init = false;
+    spinlock state_lock;
+    object_ref state_change_event;
+    bool bind_done = false;
+    uint16_t bound_port, connected_port;
+    uint32_t connected_scope;
+    ipv6_address bound_address, connected_address;
+    tcp_state state = tcp_state::CLOSED;
+    netif* pni = nullptr;
+    uint16_t window = 0xffff;
+    uint32_t send_next, send_unacknowledged, recv_next;
+    mac_address dst_mac;
+    packet* first_ack = nullptr;
+    size_t mss = 1220; // FIXME - different for IPv4
+    spinlock retransmission_list_lock;
+    list_entry retransmission_list = { &retransmission_list, &retransmission_list };
+    object_ref retransmission_thread_obj;
+    object_ref retransmission_thread_quit_event;
+    list_entry buffer = { &buffer, &buffer };
+    list_entry ooo_buffer = { &ooo_buffer, &ooo_buffer };
+    rwsem us_read_mutex;
+    size_t us_read_offset = 0;
+    rwsem send_mutex;
+
+private:
+    nt_status send_syn(const sockaddr_in6& c, ipv6_address& src);
+    void send_ack(bool first, uint32_t ack);
+    void send_fin();
+    void retransmission_thread();
+    void do_retransmissions();
+};
+
+static spinlock tcp_ports_lock;
+static ipv6_tcp_socket* tcp_ports[65536];
 
 struct tcp_header {
     uint16_t src_port;
@@ -1264,6 +1312,23 @@ nt_status ipv6_tcp_socket::bind(const sockaddr* addr, size_t addrlen) {
 
         bind_done = true;
     }
+
+    return nt_status::SUCCESS;
+}
+
+nt_status create_new_ipv6_tcp_socket(object_ref& ref) {
+    auto s = new ipv6_tcp_socket;
+    if (!s) {
+        print("new failed\n");
+        return nt_status::INSUFFICIENT_RESOURCES;
+    }
+
+    if (!s->init) {
+        s->release();
+        return nt_status::INTERNAL_ERROR;
+    }
+
+    ref = object_ref{*s};
 
     return nt_status::SUCCESS;
 }

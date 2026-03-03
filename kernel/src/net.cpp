@@ -178,54 +178,6 @@ enum class tcp_state {
     LAST_ACK,
 };
 
-class ipv6_tcp_socket : public socket {
-public:
-    ipv6_tcp_socket();
-    ~ipv6_tcp_socket();
-
-    void last_handle_closed() override;
-
-    nt_status recvfrom(char* buf, size_t len, int flags, sockaddr* from,
-                       int* fromlen, size_t& recv_bytes) override;
-    nt_status sendto(const char* buf, size_t len, int flags, sockaddr* to,
-                     int tolen, size_t& sent_bytes) override;
-    nt_status bind(const sockaddr* addr, size_t addrlen) override;
-    nt_status connect(const sockaddr* addr, size_t addrlen) override;
-
-    void received_packet(packet& pack);
-
-    bool init = false;
-    spinlock state_lock;
-    object_ref state_change_event;
-    bool bind_done = false;
-    uint16_t bound_port, connected_port;
-    uint32_t connected_scope;
-    ipv6_address bound_address, connected_address;
-    tcp_state state = tcp_state::CLOSED;
-    netif* pni = nullptr;
-    uint16_t window = 0xffff;
-    uint32_t send_next, send_unacknowledged, recv_next;
-    mac_address dst_mac;
-    packet* first_ack = nullptr;
-    size_t mss = 1220; // FIXME - different for IPv4
-    spinlock retransmission_list_lock;
-    list_entry retransmission_list = { &retransmission_list, &retransmission_list };
-    object_ref retransmission_thread_obj;
-    object_ref retransmission_thread_quit_event;
-    list_entry buffer = { &buffer, &buffer };
-    list_entry ooo_buffer = { &ooo_buffer, &ooo_buffer };
-    rwsem us_read_mutex;
-    size_t us_read_offset = 0;
-    rwsem send_mutex;
-
-private:
-    nt_status send_syn(const sockaddr_in6& c, ipv6_address& src);
-    void send_ack(bool first, uint32_t ack);
-    void send_fin();
-    void retransmission_thread();
-    void do_retransmissions();
-};
-
 class netctl : public chardev {
 public:
     netctl() { }
@@ -367,3 +319,4 @@ bool is_multicast_address(const ipv6_address& addr);
 void send_address_unreachable(netif& ni, const packet& pack,
                               const ipv6_address& addr);
 mac_address find_mac_address(netif& ni, const ipv6_address& dst);
+nt_status create_new_ipv6_tcp_socket(object_ref& ref);
