@@ -53,6 +53,7 @@ static const char16_t netctl_path[] = u"/dev/netctl";
 static const ipv6_address DNS_SERVER = parse_ipv6_address("fd14:7420:2b17::1"); // FIXME
 static const uint16_t DNS_PORT = 53;
 
+static constexpr auto DNS_CNAME = byteswap((uint16_t)5);
 static constexpr auto DNS_AAAA = byteswap((uint16_t)28);
 
 static constexpr auto DNS_IN = byteswap((uint16_t)1);
@@ -264,68 +265,95 @@ static int parse_dns_response(span<uint8_t> sp, span<uint8_t> resp,
                               uint16_t num_answers, uint16_t type,
                               span<char> name, addrinfo** res) {
     addrinfo* last_ai = nullptr;
+    auto orig_sp = sp;
+    unsigned int cname_count = 0;
 
-    for (uint16_t i = 0; i < num_answers; i++) {
-        if (sp.empty())
-            break;
+    static const int MAX_CNAME_COUNT = 10;
 
-        auto name2 = get_dns_name(sp, resp);
-        if (name2.empty())
-            break;
+    while (true) {
+        bool found_cname = false;
 
-        if (sp.size() < sizeof(dns_resource_record))
-            break;
+        sp = orig_sp;
 
-        auto& rr = *(dns_resource_record*)sp.data();
+        for (uint16_t i = 0; i < num_answers; i++) {
+            if (sp.empty())
+                break;
 
-        sp = span(sp.data() + sizeof(rr), sp.size() - sizeof(rr));
+            auto name2 = get_dns_name(sp, resp);
+            if (name2.empty())
+                break;
 
-        if (sp.size() < byteswap(rr.rdlength))
-            break;
+            if (sp.size() < sizeof(dns_resource_record))
+                break;
 
-        auto payload = span(sp.data(), byteswap(rr.rdlength));
+            auto& rr = *(dns_resource_record*)sp.data();
 
-        sp = span(sp.data() + payload.size(), sp.size() - payload.size());
+            sp = span(sp.data() + sizeof(rr), sp.size() - sizeof(rr));
 
-        if (rr.type != type || rr.dns_class != DNS_IN)
-            continue;
+            if (sp.size() < byteswap(rr.rdlength))
+                break;
 
-        if (name2.size() != name.size() || memcmp(name2.data(), name.data(), name.size()))
-            continue;
+            auto payload = span(sp.data(), byteswap(rr.rdlength));
 
-        if (payload.size() != sizeof(ipv6_address))
-            continue;
+            sp = span(sp.data() + payload.size(), sp.size() - payload.size());
 
-        auto& addr = *(ipv6_address*)payload.data();
+            if (rr.dns_class != DNS_IN)
+                continue;
 
-        auto ai = (addrinfo*)malloc(sizeof(addrinfo));
-        if (!ai)
-            return EAI_MEMORY;
+            if (name2.size() != name.size() || memcmp(name2.data(), name.data(), name.size()))
+                continue;
 
-        auto sock = (sockaddr_in6*)malloc(sizeof(sockaddr_in6));
-        if (!sock) {
-            free(ai);
-            return EAI_MEMORY;
+            if (rr.type == DNS_CNAME) {
+                name = span((char*)payload.data(), payload.size());
+                found_cname = true;
+                break;
+            }
+
+            if (rr.type != type)
+                continue;
+
+            if (payload.size() != sizeof(ipv6_address))
+                continue;
+
+            auto& addr = *(ipv6_address*)payload.data();
+
+            auto ai = (addrinfo*)malloc(sizeof(addrinfo));
+            if (!ai)
+                return EAI_MEMORY;
+
+            auto sock = (sockaddr_in6*)malloc(sizeof(sockaddr_in6));
+            if (!sock) {
+                free(ai);
+                return EAI_MEMORY;
+            }
+
+            sock->sin6_family = AF_INET6;
+            sock->sin6_flowinfo = 0;
+            *(ipv6_address*)sock->sin6_addr = addr;
+            sock->sin6_scope_id = 0;
+
+            ai->ai_flags = 0;
+            ai->ai_family = AF_INET6;
+            ai->ai_addrlen = sizeof(sockaddr_in6);
+            ai->ai_addr = (sockaddr*)sock;
+            ai->ai_canonname = nullptr;
+            ai->ai_next = nullptr;
+
+            if (last_ai)
+                last_ai->ai_next = ai;
+            else
+                *res = ai;
+
+            last_ai = ai;
         }
 
-        sock->sin6_family = AF_INET6;
-        sock->sin6_flowinfo = 0;
-        *(ipv6_address*)sock->sin6_addr = addr;
-        sock->sin6_scope_id = 0;
+        if (!found_cname)
+            break;
 
-        ai->ai_flags = 0;
-        ai->ai_family = AF_INET6;
-        ai->ai_addrlen = sizeof(sockaddr_in6);
-        ai->ai_addr = (sockaddr*)sock;
-        ai->ai_canonname = nullptr;
-        ai->ai_next = nullptr;
+        cname_count++;
 
-        if (last_ai)
-            last_ai->ai_next = ai;
-        else
-            *res = ai;
-
-        last_ai = ai;
+        if (cname_count == MAX_CNAME_COUNT)
+            break;
     }
 
     return 0;
