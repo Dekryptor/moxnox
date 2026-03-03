@@ -13,3 +13,5 @@ freeaddrinfo
 gai_strerror
 setsockopt
 getsockopt
+listen
+accept

@@ -150,6 +150,8 @@ const char* gai_strerror(int errcode);
 int setsockopt(SOCKET s, int level, int optname, const char* optval,
                int optlen);
 int getsockopt(SOCKET s, int level, int optname, char* optval, int* optlen);
+int listen(SOCKET s, int backlog);
+SOCKET accept(SOCKET s, sockaddr* addr, int* addrlen);
 
 }
 
