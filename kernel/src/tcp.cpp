@@ -641,7 +641,7 @@ void ipv6_tcp_socket::received_packet(packet& pack) {
 
                 auto& rtcp = *(tcp_header*)(r2.pack.data + sizeof(ipv6_header));
 
-                if (ack < byteswap(rtcp.seq))
+                if (ack <= byteswap(rtcp.seq))
                     break;
 
                 send_unacknowledged = ack;
