@@ -309,6 +309,8 @@ export bool init_net();
 
 void received_ipv6_tcp_packet(netif& ni, packet& pack,
                               const mac_address& src_mac);
+void received_ipv6_udp_packet(netif& ni, packet& pack,
+                              const mac_address& src_mac);
 bool is_our_ip(const ipv6_address& ip);
 nt_status dispatch_packet(netif& ni, packet& pack, const mac_address& dst_mac);
 uint16_t calc_ipv6_checksum(const ipv6_header& ip, span<const uint8_t> data,
@@ -319,4 +321,6 @@ bool is_multicast_address(const ipv6_address& addr);
 void send_address_unreachable(netif& ni, const packet& pack,
                               const ipv6_address& addr);
 mac_address find_mac_address(netif& ni, const ipv6_address& dst);
+void handle_icmpv6_error_udp(packet& pack);
 nt_status create_new_ipv6_tcp_socket(object_ref& ref);
+nt_status create_new_ipv6_udp_socket(object_ref& ref);
