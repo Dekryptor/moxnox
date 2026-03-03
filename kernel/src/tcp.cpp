@@ -1249,7 +1249,7 @@ nt_status ipv6_tcp_socket::bind(const sockaddr* addr, size_t addrlen) {
                 return nt_status::ADDRESS_ALREADY_ASSOCIATED;
         }
 
-        tcp_ports[b.sin6_port] = this;
+        tcp_ports[port] = this;
         this->acquire();
 
         bound_port = port;
