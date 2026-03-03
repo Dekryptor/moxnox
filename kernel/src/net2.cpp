@@ -96,6 +96,7 @@ enum class tcp_state {
     CLOSED,
     SYN_SENT,
     ESTABLISHED,
+    CLOSE_WAIT,
     FIN_WAIT_1,
     FIN_WAIT_2,
     TIME_WAIT,
@@ -139,7 +140,6 @@ public:
     list_entry retransmission_list = { &retransmission_list, &retransmission_list };
     object_ref retransmission_thread_obj;
     object_ref retransmission_thread_quit_event;
-    spinlock buffer_lock;
     list_entry buffer = { &buffer, &buffer };
     list_entry ooo_buffer = { &ooo_buffer, &ooo_buffer };
     rwsem us_read_mutex;
@@ -4150,7 +4150,8 @@ void ipv6_tcp_socket::send_ack(bool first, uint32_t ack) {
 
     memset(&tcp, 0, sizeof(tcp));
 
-    send_next++;
+    if (first)
+        send_next++;
 
     tcp.src_port = bound_port;
     tcp.dst_port = connected_port;
@@ -4231,7 +4232,7 @@ void ipv6_tcp_socket::received_packet(packet& pack) {
             dispatch_packet(*pni, *first_ack, dst_mac);
     }
 
-    if (pack.size > header_length + sizeof(ipv6_header)) { // data
+    if (pack.size > header_length + sizeof(ipv6_header) || tcp.FIN) { // data or FIN
         auto p = new ipv6_socket_packet(pack);
         if (!p) {
             print("new failed\n");
@@ -4242,9 +4243,10 @@ void ipv6_tcp_socket::received_packet(packet& pack) {
 
         bool added = false;
         optional<uint32_t> ack;
+        bool clear_ooo = false;
 
         {
-            lock_guard lock(buffer_lock);
+            lock_guard lock(state_lock);
 
             auto seq = byteswap(tcp.seq);
 
@@ -4252,32 +4254,68 @@ void ipv6_tcp_socket::received_packet(packet& pack) {
                 insert_tail_list(ooo_buffer, p->le);
                 added = true;
             } else if (seq == recv_next)  {
-                insert_tail_list(buffer, p->le);
-                added = true;
+                if (pack.size > header_length + sizeof(ipv6_header)) {
+                    insert_tail_list(buffer, p->le);
+                    added = true;
+                }
 
                 recv_next += (uint32_t)(pack.size - header_length - sizeof(ipv6_header));
 
-                // check out-of-order list for anything now okay
-                while (true) {
-                    if (is_list_empty(ooo_buffer))
+                if (tcp.FIN) {
+                    recv_next++;
+                    state = tcp_state::CLOSE_WAIT;
+                    clear_ooo = true;
+
+                    ack = recv_next;
+                } else {
+                    // check out-of-order list for anything now okay
+                    while (true) {
+                        if (is_list_empty(ooo_buffer))
+                            break;
+
+                        auto& p2 = containing_record<ipv6_socket_packet>(ooo_buffer.next);
+                        auto& tcp2 = *(tcp_header*)(p2.pack.data + sizeof(ipv6_header));
+                        size_t header_length2 = tcp2.header_length * sizeof(uint32_t);
+
+                        // FIXME - what if tcp2.seq < recv_next (i.e. packets overlap)?
+
+                        if (tcp2.seq != recv_next)
+                            break;
+
+                        recv_next += (uint32_t)(p2.pack.size - header_length2 - sizeof(ipv6_header));
+
+                        if (tcp2.FIN) {
+                            recv_next++;
+                            state = tcp_state::CLOSE_WAIT;
+                            clear_ooo = true;
+                            break;
+                        } else {
+                            remove_entry_list(p2.le);
+                            insert_tail_list(buffer, p2.le);
+                        }
+                    }
+
+                    ack = recv_next;
+                }
+            }
+        }
+
+        if (clear_ooo) {
+            while (true) {
+                ipv6_socket_packet* p;
+
+                {
+                    lock_guard lock(state_lock);
+
+                    if (!is_list_empty(ooo_buffer))
+                        p = &containing_record<ipv6_socket_packet>(ooo_buffer.next);
+                    else
                         break;
 
-                    auto& p2 = containing_record<ipv6_socket_packet>(ooo_buffer.next);
-                    auto& tcp2 = *(tcp_header*)(p2.pack.data + sizeof(ipv6_header));
-                    size_t header_length2 = tcp2.header_length * sizeof(uint32_t);
-
-                    // FIXME - what if tcp2.seq < recv_next (i.e. packets overlap)?
-
-                    if (tcp2.seq != recv_next)
-                        break;
-
-                    remove_entry_list(p2.le);
-                    insert_tail_list(buffer, p2.le);
-
-                    recv_next += (uint32_t)(p2.pack.size - header_length2 - sizeof(ipv6_header));
+                    remove_entry_list(p->le);
                 }
 
-                ack = recv_next;
+                delete p;
             }
         }
 
@@ -4290,7 +4328,7 @@ void ipv6_tcp_socket::received_packet(packet& pack) {
             {
                 sync_lock sl;
                 lock_guard lock(sl);
-                lock_guard lock2(buffer_lock);
+                lock_guard lock2(state_lock);
 
                 if (!is_list_empty(buffer) && !signalled) {
                     wake_up_waiters(waiters);
@@ -4346,7 +4384,7 @@ nt_status ipv6_tcp_socket::sendto(const char* buf, size_t len, int flags,
     {
         lock_guard lock(state_lock);
 
-        if (state != tcp_state::ESTABLISHED)
+        if (state != tcp_state::ESTABLISHED && state != tcp_state::CLOSE_WAIT)
             return nt_status::CONNECTION_DISCONNECTED;
     }
 
@@ -4515,7 +4553,7 @@ ipv6_tcp_socket::~ipv6_tcp_socket() {
         ipv6_socket_packet* p;
 
         {
-            lock_guard lock(buffer_lock);
+            lock_guard lock(state_lock);
 
             if (!is_list_empty(buffer))
                 p = &containing_record<ipv6_socket_packet>(buffer.next);
@@ -4642,7 +4680,7 @@ nt_status ipv6_tcp_socket::recvfrom(char* buf, size_t len, int flags,
             ipv6_socket_packet* r;
 
             {
-                lock_guard lock(buffer_lock);
+                lock_guard lock(state_lock);
 
                 if (is_list_empty(buffer))
                     break;
@@ -4678,7 +4716,7 @@ nt_status ipv6_tcp_socket::recvfrom(char* buf, size_t len, int flags,
             }
 
             {
-                lock_guard lock(buffer_lock);
+                lock_guard lock(state_lock);
                 remove_entry_list(r->le);
             }
 
@@ -4695,7 +4733,7 @@ nt_status ipv6_tcp_socket::recvfrom(char* buf, size_t len, int flags,
         if (have_removed_packets) {
             sync_lock sl;
             lock_guard lock(sl);
-            lock_guard lock2(buffer_lock);
+            lock_guard lock2(state_lock);
 
             if (is_list_empty(buffer))
                 signalled = false;
