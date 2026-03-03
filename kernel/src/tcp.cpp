@@ -675,7 +675,10 @@ void ipv6_tcp_socket::received_packet(packet& pack) {
             if (seq > recv_next) {
                 insert_tail_list(ooo_buffer, p->le);
                 added = true;
-            } else if (seq == recv_next)  {
+            } else if (seq < recv_next) {
+                // send ACK for packet we've already received
+                ack = recv_next;
+            } else {
                 if (pack.size > header_length + sizeof(ipv6_header)) {
                     insert_tail_list(buffer, p->le);
                     added = true;
