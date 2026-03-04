@@ -152,6 +152,7 @@ private:
     void send_fin();
     void retransmission_thread();
     void do_retransmissions();
+    uint16_t allowed_send_bytes();
 };
 
 static spinlock tcp_ports_lock;
@@ -911,6 +912,13 @@ void ipv6_tcp_socket::received_packet(packet& pack) {
     }
 }
 
+uint16_t ipv6_tcp_socket::allowed_send_bytes() {
+    if (send_unacknowledged < send_next)
+        return 0;
+
+    return (uint16_t)((send_unacknowledged - send_next) + send_window);
+}
+
 nt_status ipv6_tcp_socket::sendto(const char* buf, size_t len, int flags,
                                   sockaddr*, int, size_t& sent_bytes) {
     nt_status status;
@@ -932,7 +940,6 @@ nt_status ipv6_tcp_socket::sendto(const char* buf, size_t len, int flags,
     }
 
     // FIXME - Nagle's algorithm (batching of outgoing data)
-    // FIXME - windowing
 
     size_t done = 0;
 
@@ -951,7 +958,8 @@ nt_status ipv6_tcp_socket::sendto(const char* buf, size_t len, int flags,
             lock_guard lock(io_mutex);
 
             size = min(len, mss);
-            auto usable = (uint16_t)((send_unacknowledged - send_next) + send_window);
+
+            auto usable = allowed_send_bytes();
 
             if (size > usable)
                 size = usable;
