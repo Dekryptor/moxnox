@@ -1081,6 +1081,9 @@ nt_status ipv6_tcp_socket::sendto(const char* buf, size_t len, int flags,
             }
 
             pack->release();
+
+            if (allowed_send_bytes() == 0)
+                reset_event(static_cast<event&>(send_window_open_event.get()));
         }
 
         done += size;
