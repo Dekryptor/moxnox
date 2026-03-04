@@ -82,6 +82,10 @@ public:
         return tcp_seq(host() + n);
     }
 
+    constexpr int32_t operator-(tcp_seq other) const {
+        return static_cast<int32_t>(host() - other.host());
+    }
+
     constexpr strong_ordering operator<=>(tcp_seq other) const {
         int32_t diff = static_cast<int32_t>(host() - other.host());
 
@@ -947,9 +951,10 @@ nt_status ipv6_tcp_socket::sendto(const char* buf, size_t len, int flags,
             lock_guard lock(io_mutex);
 
             size = min(len, mss);
+            auto usable = (uint16_t)((send_unacknowledged - send_next) + send_window);
 
-            if (size > send_window)
-                size = send_window;
+            if (size > usable)
+                size = usable;
 
             if (size == 0)
                 continue;
@@ -1047,8 +1052,6 @@ nt_status ipv6_tcp_socket::sendto(const char* buf, size_t len, int flags,
             }
 
             pack->release();
-
-            send_window -= (uint16_t)size;
         }
 
         done += size;
