@@ -143,6 +143,21 @@ int connect(SOCKET s, const sockaddr* addr, int addrlen) {
 }
 
 extern "C"
+int listen(SOCKET s, int backlog) {
+    IO_STATUS_BLOCK iosb;
+
+    auto status = NtDeviceIoControlFile((HANDLE)s, 0, nullptr, nullptr, &iosb,
+                                        IOCTL_MOXNOX_SOCKET_LISTEN, &backlog,
+                                        (uint32_t)sizeof(backlog), nullptr, 0);
+    if (!success(status)) {
+        *_errno() = nt_status_to_errno(status);
+        return SOCKET_ERROR;
+    }
+
+    return 0;
+}
+
+extern "C"
 int DllMainCRTStartup(HANDLE /*hinstDLL*/, uint32_t /*dwReason*/,
                       void* /*lpvReserved*/) {
     return 1;
