@@ -126,6 +126,8 @@ public:
     netif* pni = nullptr;
     uint16_t recv_window = 0xffff;
     tcp_seq send_next, send_unacknowledged, recv_next;
+    uint16_t send_window = 0;
+    tcp_seq last_send_window_seq;
     mac_address dst_mac;
     packet* first_ack = nullptr;
     size_t mss = 1220; // FIXME - different for IPv4
@@ -133,6 +135,7 @@ public:
     list_entry retransmission_list = { &retransmission_list, &retransmission_list };
     object_ref retransmission_thread_obj;
     object_ref retransmission_thread_quit_event;
+    object_ref send_window_open_event;
     list_entry buffer = { &buffer, &buffer };
     list_entry ooo_buffer = { &ooo_buffer, &ooo_buffer };
     rwsem us_read_mutex;
@@ -674,6 +677,21 @@ void ipv6_tcp_socket::received_packet(packet& pack) {
         return;
     }
 
+    {
+        lock_guard lock(io_mutex);
+
+        if (tcp.seq > last_send_window_seq) {
+            last_send_window_seq = tcp.seq;
+
+            if (byteswap(tcp.window) == 0 && send_window > 0)
+                reset_event(static_cast<event&>(send_window_open_event.get()));
+            else if (byteswap(tcp.window) > 0 && send_window == 0)
+                set_event(static_cast<event&>(send_window_open_event.get()));
+
+            send_window = byteswap(tcp.window);
+        }
+    }
+
     if (cur_state == tcp_state::SYN_SENT && tcp.flags == TCP_SYN_ACK) {
         tcp_seq ack;
 
@@ -919,79 +937,91 @@ nt_status ipv6_tcp_socket::sendto(const char* buf, size_t len, int flags,
     ni.acquire();
 
     while (len > 0) {
-        size_t size = min(len, mss);
+        size_t size;
 
-        auto pack = new packet;
-        if (!pack) {
-            print("new failed\n");
-            ni.release();
-
-            if (done == 0)
-                return nt_status::INSUFFICIENT_RESOURCES;
-            else {
-                sent_bytes = done;
-                return nt_status::SUCCESS;
-            }
-        }
-
-        auto r = new ipv6_tcp_retransmission(*pack);
-        if (!r) {
-            print("new failed\n");
-            pack->release();
-            ni.release();
-
-            if (done == 0)
-                return nt_status::INSUFFICIENT_RESOURCES;
-            else {
-                sent_bytes = done;
-                return nt_status::SUCCESS;
-            }
-        }
-
-        pack->size = sizeof(ipv6_header) + sizeof(tcp_header) + size;
-
-        auto& ip = *(ipv6_header*)pack->data;
-        ip.traffic_class1 = 0;
-        ip.version = 6;
-        ip.traffic_class2 = 0;
-        ip.flow_label = 0;
-        ip.payload_length = byteswap((uint16_t)(sizeof(tcp_header) + size));
-        ip.next_header = IPPROTO_TCP;
-        ip.hop_limit = DEFAULT_HOP_LIMIT;
-        ip.src = bound_address;
-        ip.dst = connected_address;
-
-        uint32_t read_bytes;
-
-        status = t.proc->read_vm(buf, pack->data + sizeof(ipv6_header) + sizeof(tcp_header),
-                                 (uint32_t)size, &read_bytes);
-
-        if (success(status) && read_bytes < size) {
-            status = nt_status::NO_MEMORY;
-            print("process::read_vm returned {} bytes, expected {}\n",
-                  read_bytes, size);
-        } else if (!success(status))
-            print("process::read_vm returned {}\n", status);
-
-        if (!success(status)) {
-            pack->release();
-            delete r;
-            ni.release();
-
-            if (done == 0)
-                return status;
-            else {
-                sent_bytes = done;
-                return nt_status::SUCCESS;
-            }
-        }
-
-        auto& tcp = *(tcp_header*)(pack->data + sizeof(ipv6_header));
-
-        memset(&tcp, 0, sizeof(tcp));
+        status = wait_for_object(send_window_open_event.get(), true);
+        if (!success(status))
+            break;
 
         {
             lock_guard lock(io_mutex);
+
+            size = min(len, mss);
+
+            if (size > send_window)
+                size = send_window;
+
+            if (size == 0)
+                continue;
+
+            auto pack = new packet;
+            if (!pack) {
+                print("new failed\n");
+                ni.release();
+
+                if (done == 0)
+                    return nt_status::INSUFFICIENT_RESOURCES;
+                else {
+                    sent_bytes = done;
+                    return nt_status::SUCCESS;
+                }
+            }
+
+            auto r = new ipv6_tcp_retransmission(*pack);
+            if (!r) {
+                print("new failed\n");
+                pack->release();
+                ni.release();
+
+                if (done == 0)
+                    return nt_status::INSUFFICIENT_RESOURCES;
+                else {
+                    sent_bytes = done;
+                    return nt_status::SUCCESS;
+                }
+            }
+
+            pack->size = sizeof(ipv6_header) + sizeof(tcp_header) + size;
+
+            auto& ip = *(ipv6_header*)pack->data;
+            ip.traffic_class1 = 0;
+            ip.version = 6;
+            ip.traffic_class2 = 0;
+            ip.flow_label = 0;
+            ip.payload_length = byteswap((uint16_t)(sizeof(tcp_header) + size));
+            ip.next_header = IPPROTO_TCP;
+            ip.hop_limit = DEFAULT_HOP_LIMIT;
+            ip.src = bound_address;
+            ip.dst = connected_address;
+
+            uint32_t read_bytes;
+
+            status = t.proc->read_vm(buf, pack->data + sizeof(ipv6_header) + sizeof(tcp_header),
+                                    (uint32_t)size, &read_bytes);
+
+            if (success(status) && read_bytes < size) {
+                status = nt_status::NO_MEMORY;
+                print("process::read_vm returned {} bytes, expected {}\n",
+                    read_bytes, size);
+            } else if (!success(status))
+                print("process::read_vm returned {}\n", status);
+
+            if (!success(status)) {
+                pack->release();
+                delete r;
+                ni.release();
+
+                if (done == 0)
+                    return status;
+                else {
+                    sent_bytes = done;
+                    return nt_status::SUCCESS;
+                }
+            }
+
+            auto& tcp = *(tcp_header*)(pack->data + sizeof(ipv6_header));
+
+            memset(&tcp, 0, sizeof(tcp));
 
             tcp.src_port = bound_port;
             tcp.dst_port = connected_port;
@@ -1015,9 +1045,9 @@ nt_status ipv6_tcp_socket::sendto(const char* buf, size_t len, int flags,
 
                 insert_tail_list(retransmission_list, r->le);
             }
-        }
 
-        pack->release();
+            pack->release();
+        }
 
         done += size;
         buf += size;
@@ -1028,7 +1058,7 @@ nt_status ipv6_tcp_socket::sendto(const char* buf, size_t len, int flags,
 
     sent_bytes = done;
 
-    return nt_status::SUCCESS;
+    return status;
 }
 
 ipv6_tcp_socket::ipv6_tcp_socket() {
@@ -1040,6 +1070,12 @@ ipv6_tcp_socket::ipv6_tcp_socket() {
 
     retransmission_thread_quit_event = create_event(false);
     if (!retransmission_thread_quit_event) {
+        print("create_event failed\n");
+        return;
+    }
+
+    send_window_open_event = create_event(false);
+    if (!send_window_open_event) {
         print("create_event failed\n");
         return;
     }
