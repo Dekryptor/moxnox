@@ -934,10 +934,12 @@ void ipv6_tcp_socket::received_packet(packet& pack) {
 }
 
 uint16_t ipv6_tcp_socket::allowed_send_bytes() {
-    if (send_unacknowledged < send_next)
+    int32_t raw = (send_unacknowledged - send_next) + send_window;
+
+    if (raw < 0)
         return 0;
 
-    return (uint16_t)((send_unacknowledged - send_next) + send_window);
+    return (uint16_t)raw;
 }
 
 nt_status ipv6_tcp_socket::sendto(const char* buf, size_t len, int flags,
