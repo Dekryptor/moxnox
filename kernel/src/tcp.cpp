@@ -762,13 +762,26 @@ void ipv6_tcp_socket::received_packet(packet& pack) {
                 if (ack <= rtcp.seq)
                     break;
 
-                send_unacknowledged = ack;
-
                 remove_entry_list(r2.le);
                 r = &r2;
             }
 
             r->release();
+
+            {
+                lock_guard lock(io_mutex);
+
+                auto old_usable = allowed_send_bytes();
+
+                send_unacknowledged = ack;
+
+                auto new_usable = allowed_send_bytes();
+
+                if (old_usable > 0 && new_usable == 0)
+                    reset_event(static_cast<event&>(send_window_open_event.get()));
+                else if (old_usable == 0 && new_usable > 0)
+                    set_event(static_cast<event&>(send_window_open_event.get()));
+            }
         }
 
         if (do_cleanup) {
