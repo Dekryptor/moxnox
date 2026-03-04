@@ -710,9 +710,13 @@ void ipv6_tcp_socket::received_packet(packet& pack) {
             lock_guard lock(state_lock);
 
             recv_next = tcp.seq + 1;
-            send_unacknowledged = tcp.ack;
 
             ack = recv_next;
+        }
+
+        {
+            lock_guard lock(io_mutex);
+            send_unacknowledged = tcp.ack;
         }
 
         send_ack(true, ack);
