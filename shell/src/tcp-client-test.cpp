@@ -1,5 +1,6 @@
 #include <stdint.h>
 #include <stdlib.h>
+#include <string_view>
 #include <bit>
 
 #undef errno
@@ -36,6 +37,33 @@ static void test(sockaddr_in6& s) {
         return;
     }
 
+    static const char request[] = "GET /success.txt HTTP/1.1\r\nHost: detectportal.firefox.com\r\n\r\n";
+
+    ssize_t sent = send(sock, request, sizeof(request) - 1, 0);
+
+    if (sent < 0) {
+        print_stderr("send returned {} (errno {})\n", sent, errno_to_string_view(*_errno()));
+        closesocket(sock);
+        return;
+    }
+
+    while (true) {
+        char buf[4096];
+
+        ssize_t bytes = recv(sock, buf, sizeof(buf), 0);
+
+        if (bytes < 0) {
+            print_stderr("recv returned {} (errno {})\n", bytes, errno_to_string_view(*_errno()));
+            closesocket(sock);
+            return;
+        }
+
+        if (bytes == 0)
+            break;
+
+        print("{}", string_view(buf, (size_t)bytes));
+    }
+
     closesocket(sock);
 }
 
@@ -44,7 +72,7 @@ int main() {
 
     addrinfo* ai;
 
-    if (auto res = getaddrinfo("moxnox.dev", nullptr, nullptr, &ai); res != 0) {
+    if (auto res = getaddrinfo("detectportal.firefox.com", nullptr, nullptr, &ai); res != 0) {
         print_stderr("getaddrinfo failed: {}\n", gai_strerror(res));
         return 1;
     }
