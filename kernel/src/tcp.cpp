@@ -116,6 +116,7 @@ public:
                      int tolen, size_t& sent_bytes) override;
     nt_status bind(const sockaddr* addr, size_t addrlen) override;
     nt_status connect(const sockaddr* addr, size_t addrlen) override;
+    nt_status listen(int backlog) override;
 
     void received_packet(packet& pack);
 
@@ -1484,4 +1485,10 @@ nt_status create_new_ipv6_tcp_socket(object_ref& ref) {
     ref = object_ref{*s};
 
     return nt_status::SUCCESS;
+}
+
+nt_status ipv6_tcp_socket::listen(int /*backlog*/) {
+    print("FIXME - ipv6_tcp_socket::listen\n"); // FIXME
+
+    return nt_status::NOT_IMPLEMENTED;
 }

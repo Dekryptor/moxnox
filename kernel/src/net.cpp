@@ -155,12 +155,14 @@ public:
                              sockaddr* to, int tolen, size_t& sent_bytes) = 0;
     virtual nt_status bind(const sockaddr* addr, size_t addrlen) = 0;
     virtual nt_status connect(const sockaddr* addr, size_t addrlen) = 0;
+    virtual nt_status listen(int backlog) = 0;
 
 private:
     nt_status do_recvfrom(span<const uint8_t> inbuf);
     nt_status do_sendto(span<const uint8_t> inbuf);
     nt_status do_bind(span<const uint8_t> inbuf);
     nt_status do_connect(span<const uint8_t> inbuf);
+    nt_status do_listen(span<const uint8_t> inbuf);
 };
 
 static_assert(has_ioctls<class socket>);

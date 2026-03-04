@@ -29,6 +29,10 @@ public:
     nt_status bind(const sockaddr* addr, size_t addrlen) override;
     nt_status connect(const sockaddr* addr, size_t addrlen) override;
 
+    nt_status listen(int) override {
+        return nt_status::INVALID_PARAMETER;
+    }
+
     spinlock buffer_lock;
     list_entry buffer = { &buffer, &buffer };
     size_t buffer_size = 0;

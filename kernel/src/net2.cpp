@@ -51,6 +51,10 @@ public:
         return nt_status::INVALID_PARAMETER;
     }
 
+    nt_status listen(int) override {
+        return nt_status::INVALID_PARAMETER;
+    }
+
     list_entry le;
     int protocol;
     bool added_to_list = false;
@@ -2172,6 +2176,15 @@ nt_status socket::do_connect(span<const uint8_t> inbuf) {
     return this->connect((sockaddr*)inbuf.data(), inbuf.size());
 }
 
+nt_status socket::do_listen(span<const uint8_t> inbuf) {
+    if (inbuf.size() < sizeof(int))
+        return nt_status::BUFFER_TOO_SMALL;
+
+    auto backlog = *(int*)inbuf.data();
+
+    return this->listen(backlog);
+}
+
 nt_status socket::ioctl(uint32_t code, span<const uint8_t> inbuf,
                         span<uint8_t>, uintptr_t&) {
     switch (code) {
@@ -2186,6 +2199,9 @@ nt_status socket::ioctl(uint32_t code, span<const uint8_t> inbuf,
 
         case IOCTL_MOXNOX_SOCKET_CONNECT:
             return do_connect(inbuf);
+
+        case IOCTL_MOXNOX_SOCKET_LISTEN:
+            return do_listen(inbuf);
 
         default:
             return nt_status::INVALID_PARAMETER;
