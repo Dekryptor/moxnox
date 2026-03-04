@@ -688,12 +688,16 @@ void ipv6_tcp_socket::received_packet(packet& pack) {
         if ((cur_state == tcp_state::SYN_SENT && tcp.flags == TCP_SYN_ACK) || tcp.seq >= last_send_window_seq) {
             last_send_window_seq = tcp.seq;
 
-            if (byteswap(tcp.window) == 0 && send_window > 0)
-                reset_event(static_cast<event&>(send_window_open_event.get()));
-            else if (byteswap(tcp.window) > 0 && send_window == 0)
-                set_event(static_cast<event&>(send_window_open_event.get()));
+            auto old_usable = allowed_send_bytes();
 
             send_window = byteswap(tcp.window);
+
+            auto new_usable = allowed_send_bytes();
+
+            if (old_usable > 0 && new_usable == 0)
+                reset_event(static_cast<event&>(send_window_open_event.get()));
+            else if (old_usable == 0 && new_usable > 0)
+                set_event(static_cast<event&>(send_window_open_event.get()));
         }
     }
 
