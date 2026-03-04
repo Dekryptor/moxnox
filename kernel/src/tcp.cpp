@@ -1048,7 +1048,7 @@ nt_status ipv6_tcp_socket::sendto(const char* buf, size_t len, int flags,
 
             pack->release();
 
-            send_window -= size;
+            send_window -= (uint16_t)size;
         }
 
         done += size;
