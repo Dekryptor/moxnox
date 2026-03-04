@@ -680,7 +680,7 @@ void ipv6_tcp_socket::received_packet(packet& pack) {
     {
         lock_guard lock(io_mutex);
 
-        if (tcp.seq > last_send_window_seq) {
+        if ((cur_state == tcp_state::SYN_SENT && tcp.flags == TCP_SYN_ACK) || tcp.seq >= last_send_window_seq) {
             last_send_window_seq = tcp.seq;
 
             if (byteswap(tcp.window) == 0 && send_window > 0)
