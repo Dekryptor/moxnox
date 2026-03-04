@@ -3,6 +3,7 @@ module;
 #include <utility>
 #include <mutex>
 #include <algorithm>
+#include <span>
 #include <bit>
 
 module net;
