@@ -371,6 +371,19 @@ install(TARGETS tcp-client-test DESTINATION ${CMAKE_INSTALL_PREFIX}/bin)
 
 ###
 
+add_executable(tcp-server-test src/tcp-server-test.cpp)
+
+target_compile_options(tcp-server-test PRIVATE -fno-exceptions ${USERSPACE_CFLAGS})
+target_link_libraries(tcp-server-test moxnox print errno)
+
+if (CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
+    target_link_options(tcp-server-test PUBLIC -mcrtdll=ucrtbase)
+endif()
+
+install(TARGETS tcp-server-test DESTINATION ${CMAKE_INSTALL_PREFIX}/bin)
+
+###
+
 if(NOT CMAKE_SYSTEM_PROCESSOR STREQUAL "aarch64")
     add_executable(exc-test src/exc-test.cpp)
 
