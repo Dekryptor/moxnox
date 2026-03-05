@@ -118,9 +118,13 @@ export struct MOXNOX_SOCKET_SENDTO {
     size_t* sent_bytes;
 };
 
-export struct MOXNOX_SOCKET_ACCEPT {
-    HANDLE sock;
+export struct MOXNOX_SOCKET_ACCEPT_IN {
     void* addr;
+    int addrlen;
+};
+
+export struct MOXNOX_SOCKET_ACCEPT_OUT {
+    HANDLE sock;
     int addrlen;
 };
 

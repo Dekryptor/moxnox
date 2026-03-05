@@ -55,7 +55,7 @@ public:
         return nt_status::INVALID_PARAMETER;
     }
 
-    nt_status accept(HANDLE*, void*, int*) override {
+    nt_status accept(HANDLE&, void*, int&) override {
         return nt_status::INVALID_PARAMETER;
     }
 
@@ -2189,17 +2189,39 @@ nt_status socket::do_listen(span<const uint8_t> inbuf) {
     return this->listen(backlog);
 }
 
-nt_status socket::do_accept(span<const uint8_t> inbuf) {
-    if (inbuf.size() < sizeof(MOXNOX_SOCKET_ACCEPT))
+nt_status socket::do_accept(span<const uint8_t> inbuf, span<uint8_t> outbuf,
+                            uintptr_t& written_bytes) {
+    if (inbuf.size() < sizeof(MOXNOX_SOCKET_ACCEPT_IN))
         return nt_status::BUFFER_TOO_SMALL;
 
-    auto& params = *(MOXNOX_SOCKET_ACCEPT*)inbuf.data();
+    if (outbuf.size() < sizeof(MOXNOX_SOCKET_ACCEPT_OUT))
+        return nt_status::BUFFER_TOO_SMALL;
 
-    return this->accept(&params.sock, params.addr, &params.addrlen);
+    auto& t = *get_current_thread();
+    if (!t.proc)
+        return nt_status::INTERNAL_ERROR;
+
+    auto& params_in = *(MOXNOX_SOCKET_ACCEPT_IN*)inbuf.data();
+    auto& params_out = *(MOXNOX_SOCKET_ACCEPT_OUT*)outbuf.data();
+
+    HANDLE sock;
+    int addrlen = params_in.addrlen;
+
+    auto status = this->accept(sock, params_in.addr, addrlen);
+
+    if (!success(status))
+        return status;
+
+    params_out.sock = sock;
+    params_out.addrlen = addrlen;
+
+    written_bytes = sizeof(MOXNOX_SOCKET_ACCEPT_OUT);
+
+    return nt_status::SUCCESS;
 }
 
 nt_status socket::ioctl(uint32_t code, span<const uint8_t> inbuf,
-                        span<uint8_t>, uintptr_t&) {
+                        span<uint8_t> outbuf, uintptr_t& written_bytes) {
     switch (code) {
         case IOCTL_MOXNOX_SOCKET_RECVFROM:
             return do_recvfrom(inbuf);
@@ -2217,7 +2239,7 @@ nt_status socket::ioctl(uint32_t code, span<const uint8_t> inbuf,
             return do_listen(inbuf);
 
         case IOCTL_MOXNOX_SOCKET_ACCEPT:
-            return do_accept(inbuf);
+            return do_accept(inbuf, outbuf, written_bytes);
 
         default:
             return nt_status::INVALID_PARAMETER;

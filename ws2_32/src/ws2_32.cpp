@@ -160,22 +160,24 @@ int listen(SOCKET s, int backlog) {
 extern "C"
 SOCKET accept(SOCKET s, sockaddr* addr, int* addrlen) {
     IO_STATUS_BLOCK iosb;
-    MOXNOX_SOCKET_ACCEPT params;
+    MOXNOX_SOCKET_ACCEPT_IN params_in;
+    MOXNOX_SOCKET_ACCEPT_OUT params_out;
 
-    params.addr = addr;
-    params.addrlen = *addrlen;
+    params_in.addr = addr;
+    params_in.addrlen = *addrlen;
 
     auto status = NtDeviceIoControlFile((HANDLE)s, 0, nullptr, nullptr, &iosb,
-                                        IOCTL_MOXNOX_SOCKET_ACCEPT, &params,
-                                        (uint32_t)sizeof(params), nullptr, 0);
+                                        IOCTL_MOXNOX_SOCKET_ACCEPT, &params_in,
+                                        (uint32_t)sizeof(params_in),
+                                        &params_out, (uint32_t)sizeof(params_out));
     if (!success(status)) {
         *_errno() = nt_status_to_errno(status);
         return SOCKET_ERROR;
     }
 
-    *addrlen = params.addrlen;
+    *addrlen = params_out.addrlen;
 
-    return (SOCKET)params.sock;
+    return (SOCKET)params_out.sock;
 }
 
 extern "C"

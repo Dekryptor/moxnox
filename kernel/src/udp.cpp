@@ -33,7 +33,7 @@ public:
         return nt_status::INVALID_PARAMETER;
     }
 
-    nt_status accept(HANDLE*, void*, int*) override {
+    nt_status accept(HANDLE&, void*, int&) override {
         return nt_status::INVALID_PARAMETER;
     }
 
