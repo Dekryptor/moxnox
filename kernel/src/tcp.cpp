@@ -112,6 +112,7 @@ enum class tcp_state {
     FIN_WAIT_2,
     TIME_WAIT,
     LAST_ACK,
+    LISTEN,
 };
 
 class ipv6_tcp_socket : public socket {
@@ -157,6 +158,7 @@ public:
     rwsem us_read_mutex;
     size_t us_read_offset = 0;
     rwsem io_mutex;
+    unsigned int listen_backlog;
 
 private:
     nt_status send_syn(const sockaddr_in6& c, ipv6_address& src);
@@ -1498,8 +1500,19 @@ nt_status create_new_ipv6_tcp_socket(object_ref& ref) {
     return nt_status::SUCCESS;
 }
 
-nt_status ipv6_tcp_socket::listen(int /*backlog*/) {
-    print("FIXME - ipv6_tcp_socket::listen\n"); // FIXME
+nt_status ipv6_tcp_socket::listen(int backlog) {
+    if (backlog < 0)
+        return nt_status::INVALID_PARAMETER;
 
-    return nt_status::NOT_IMPLEMENTED;
+    {
+        lock_guard lock(state_lock);
+
+        if (state != tcp_state::CLOSED)
+            return nt_status::INVALID_PARAMETER;
+
+        listen_backlog = (unsigned int)backlog;
+        state = tcp_state::LISTEN;
+
+        return nt_status::SUCCESS;
+    }
 }
