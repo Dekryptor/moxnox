@@ -167,6 +167,7 @@ public:
     list_entry le;
     list_entry syn_queue = { &syn_queue, &syn_queue };
     list_entry accept_queue = { &accept_queue, &accept_queue };
+    list_entry children = { &children, &children };
 
 private:
     nt_status send_syn(const sockaddr_in6& c, ipv6_address& src);
@@ -1595,13 +1596,14 @@ nt_status ipv6_tcp_socket::accept(HANDLE& sock, void* us_addr, int& addrlen) {
 
             auto& s = containing_record<ipv6_tcp_socket>(accept_queue.next);
 
-            s.acquire();
             c = &s;
 
             remove_entry_list(s.le);
 
             if (is_list_empty(accept_queue))
                 reset_event(static_cast<event&>(accept_queue_event.get()));
+
+            insert_tail_list(children, s.le);
         }
 
         break;
@@ -1629,9 +1631,12 @@ nt_status ipv6_tcp_socket::accept(HANDLE& sock, void* us_addr, int& addrlen) {
     }
 
     status = t.proc->add_handle(*c, 0, true, sock);
-    if (!success(status))
+    if (!success(status)) {
+        c->release();
         return status;
+    }
 
+    // parent holds reference to syn_queue and accept_queue sockets, but not child sockets
     c->release();
 
     return nt_status::SUCCESS;
@@ -1723,12 +1728,23 @@ void ipv6_tcp_socket::received_listen_packet(packet& pack, netif& ni,
     {
         lock_guard lock(list_lock);
 
-        for (auto le = syn_queue.next; le != &syn_queue; le = le->next) {
+        for (auto le = children.next; le != &children; le = le->next) {
             auto& s = containing_record<ipv6_tcp_socket>(le);
 
             if (s.connected_address == ip.src && s.connected_port == tcp.src_port) {
                 found = &s;
                 s.acquire();
+            }
+        }
+
+        if (!found) {
+            for (auto le = syn_queue.next; le != &syn_queue; le = le->next) {
+                auto& s = containing_record<ipv6_tcp_socket>(le);
+
+                if (s.connected_address == ip.src && s.connected_port == tcp.src_port) {
+                    found = &s;
+                    s.acquire();
+                }
             }
         }
 
