@@ -165,6 +165,7 @@ public:
     spinlock list_lock;
     list_entry le;
     list_entry syn_queue = { &syn_queue, &syn_queue };
+    list_entry accepted_queue = { &accepted_queue, &accepted_queue };
 
 private:
     nt_status send_syn(const sockaddr_in6& c, ipv6_address& src);
@@ -764,7 +765,7 @@ void ipv6_tcp_socket::received_packet(packet& pack, netif& ni,
     }
 
     if (tcp.ACK) {
-        bool do_cleanup = false;
+        bool do_cleanup = false, just_established = false;
         auto ack = tcp.ack;
 
         while (true) {
@@ -781,6 +782,10 @@ void ipv6_tcp_socket::received_packet(packet& pack, netif& ni,
                             state = tcp_state::FIN_WAIT_2;
                         else if (state == tcp_state::LAST_ACK)
                             do_cleanup = true;
+                        else if (state == tcp_state::SYN_RECEIVED) {
+                            state = tcp_state::ESTABLISHED;
+                            just_established = true;
+                        }
                     }
                     break;
                 }
@@ -826,6 +831,11 @@ void ipv6_tcp_socket::received_packet(packet& pack, netif& ni,
             }
 
             set_event(static_cast<event&>(retransmission_thread_quit_event.get()));
+        } else if (just_established) {
+            lock_guard lock(parent->list_lock);
+
+            remove_entry_list(le);
+            insert_tail_list(parent->accepted_queue, le);
         }
     }
 
@@ -1643,7 +1653,16 @@ void ipv6_tcp_socket::received_listen_packet(packet& pack, netif& ni,
             }
         }
 
-        // FIXME - and other lists
+        if (!found) {
+            for (auto le = accepted_queue.next; le != &accepted_queue; le = le->next) {
+                auto& s = containing_record<ipv6_tcp_socket>(le);
+
+                if (s.connected_address == ip.src && s.connected_port == tcp.src_port) {
+                    found = &s;
+                    s.acquire();
+                }
+            }
+        }
     }
 
     if (found) {
