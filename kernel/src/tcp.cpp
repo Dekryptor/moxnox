@@ -168,6 +168,7 @@ private:
     void retransmission_thread();
     void do_retransmissions();
     uint16_t allowed_send_bytes();
+    void received_listen_packet(packet& pack);
 };
 
 static spinlock tcp_ports_lock;
@@ -681,10 +682,15 @@ void ipv6_tcp_socket::received_packet(packet& pack) {
         if (state == tcp_state::CLOSED)
             return;
 
-        if (connected_address != ip.src || connected_port != tcp.src_port)
+        if (state != tcp_state::LISTEN && (connected_address != ip.src || connected_port != tcp.src_port))
             return;
 
         cur_state = state;
+    }
+
+    if (cur_state == tcp_state::LISTEN) {
+        received_listen_packet(pack);
+        return;
     }
 
     if (tcp.RST) {
@@ -1508,7 +1514,7 @@ nt_status ipv6_tcp_socket::listen(int backlog) {
     {
         lock_guard lock(state_lock);
 
-        if (state != tcp_state::CLOSED)
+        if (state != tcp_state::CLOSED || !bind_done)
             return nt_status::INVALID_PARAMETER;
 
         listen_backlog = (unsigned int)backlog;
@@ -1522,4 +1528,10 @@ nt_status ipv6_tcp_socket::accept(HANDLE* /*sock*/, void* /*addr*/, int* /*addrl
     print("FIXME - ipv6_tcp_socket::accept\n"); // FIXME
 
     return nt_status::NOT_IMPLEMENTED;
+}
+
+void ipv6_tcp_socket::received_listen_packet(packet& pack) {
+    print("FIXME - ipv6_tcp_socket::received_listen_packet\n");
+
+    // FIXME
 }
