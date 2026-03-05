@@ -1920,12 +1920,12 @@ void ipv6_tcp_socket::received_listen_packet(packet& pack, netif& ni,
     c->parent = this;
     this->acquire();
 
-    c->send_syn_ack(src_mac);
-
     {
         lock_guard lock(list_lock);
         insert_tail_list(syn_queue, c->le);
     }
+
+    c->send_syn_ack(src_mac);
 
     // FIXME - decrease backlog value
 
