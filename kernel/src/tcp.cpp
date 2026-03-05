@@ -103,6 +103,17 @@ private:
 static_assert(is_standard_layout_v<tcp_seq>);
 static_assert(is_trivial_v<tcp_seq>);
 
+enum class tcp_state {
+    CLOSED,
+    SYN_SENT,
+    ESTABLISHED,
+    CLOSE_WAIT,
+    FIN_WAIT_1,
+    FIN_WAIT_2,
+    TIME_WAIT,
+    LAST_ACK,
+};
+
 class ipv6_tcp_socket : public socket {
 public:
     ipv6_tcp_socket();

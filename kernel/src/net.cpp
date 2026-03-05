@@ -169,17 +169,6 @@ static_assert(has_ioctls<class socket>);
 static_assert(is_sync_object<class socket>);
 static_assert(has_last_handle_closed<class socket>);
 
-enum class tcp_state {
-    CLOSED,
-    SYN_SENT,
-    ESTABLISHED,
-    CLOSE_WAIT,
-    FIN_WAIT_1,
-    FIN_WAIT_2,
-    TIME_WAIT,
-    LAST_ACK,
-};
-
 class netctl : public chardev {
 public:
     netctl() { }
