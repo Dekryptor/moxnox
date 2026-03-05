@@ -169,6 +169,7 @@ public:
     list_entry accept_queue = { &accept_queue, &accept_queue };
     list_entry children = { &children, &children };
     bool accepted = false;
+    bool added_to_list = false;
 
 private:
     nt_status send_syn(const sockaddr_in6& c, ipv6_address& src);
@@ -811,6 +812,7 @@ void ipv6_tcp_socket::received_packet(packet& pack, netif& ni,
                 lock_guard lock(parent->list_lock);
 
                 remove_entry_list(le);
+                added_to_list = false;
 
                 if (is_list_empty(parent->accept_queue))
                     reset_event(static_cast<event&>(parent->accept_queue_event.get()));
@@ -1327,7 +1329,7 @@ ipv6_tcp_socket::~ipv6_tcp_socket() {
         pni->release();
 
     if (parent) {
-        if (init) {
+        if (added_to_list) {
             lock_guard lock(parent->list_lock);
             remove_entry_list(le);
         }
@@ -1925,6 +1927,8 @@ void ipv6_tcp_socket::received_listen_packet(packet& pack, netif& ni,
         lock_guard lock(list_lock);
         insert_tail_list(syn_queue, c->le);
     }
+
+    c->added_to_list = true;
 
     c->send_syn_ack(src_mac);
 
