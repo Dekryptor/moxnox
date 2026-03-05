@@ -534,6 +534,49 @@ nt_status ipv6_tcp_socket::connect(const sockaddr* addr, size_t addrlen) {
     return nt_status::SUCCESS;
 }
 
+static void reset_child_socket(ipv6_tcp_socket& s) {
+    auto pack2 = new packet;
+    if (!pack2) {
+        print("new failed\n");
+        return;
+    }
+
+    pack2->size = sizeof(ipv6_header) + sizeof(tcp_header);
+
+    auto& ip = *(ipv6_header*)pack2->data;
+    ip.traffic_class1 = 0;
+    ip.version = 6;
+    ip.traffic_class2 = 0;
+    ip.flow_label = 0;
+    ip.payload_length = byteswap((uint16_t)sizeof(tcp_header));
+    ip.next_header = IPPROTO_TCP;
+    ip.hop_limit = DEFAULT_HOP_LIMIT;
+    ip.src = s.bound_address; // FIXME - make sure not multicast?
+    ip.dst = s.connected_address;
+
+    auto& tcp = *(tcp_header*)(pack2->data + sizeof(ipv6_header));
+
+    memset(&tcp, 0, sizeof(tcp));
+
+    tcp.src_port = s.bound_port;
+    tcp.dst_port = s.connected_port;
+
+    tcp.seq = s.send_next;
+    tcp.ack = s.recv_next;
+
+    tcp.header_length = sizeof(tcp_header) / sizeof(uint32_t);
+    tcp.RST = 1;
+    tcp.ACK = 1;
+
+    tcp.checksum = calc_ipv6_checksum(ip, span((uint8_t*)&tcp, pack2->size - sizeof(ipv6_header)), IPPROTO_TCP);
+
+    auto status = s.pni->send_packet(s.dst_mac, ethertype::ipv6, *pack2);
+    if (!success(status))
+        print("netif::send_packet returned {}\n", status);
+
+    pack2->release();
+}
+
 void ipv6_tcp_socket::last_handle_closed() {
     acquire();
 
@@ -575,7 +618,7 @@ void ipv6_tcp_socket::last_handle_closed() {
             if (!s2)
                 break;
 
-            // FIXME - send FIN
+            reset_child_socket(*s2);
 
             s2->release();
         }
