@@ -557,6 +557,29 @@ void ipv6_tcp_socket::last_handle_closed() {
         if (do_fin)
             s.send_fin();
 
+        while (true) {
+            ipv6_tcp_socket* s2 = nullptr;
+
+            {
+                lock_guard lock(s.list_lock);
+
+                if (!is_list_empty(s.syn_queue)) {
+                    s2 = &containing_record<ipv6_tcp_socket>(s.syn_queue.next);
+                    remove_entry_list(s2->le);
+                } else if (!is_list_empty(s.accept_queue)) {
+                    s2 = &containing_record<ipv6_tcp_socket>(s.accept_queue.next);
+                    remove_entry_list(s2->le);
+                }
+            }
+
+            if (!s2)
+                break;
+
+            // FIXME - send FIN
+
+            s2->release();
+        }
+
         s.release();
     }, this);
 }
