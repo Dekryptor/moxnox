@@ -155,6 +155,7 @@ public:
     object_ref retransmission_thread_obj;
     object_ref retransmission_thread_quit_event;
     object_ref send_window_open_event;
+    object_ref accept_queue_event;
     list_entry buffer = { &buffer, &buffer };
     list_entry ooo_buffer = { &ooo_buffer, &ooo_buffer };
     rwsem us_read_mutex;
@@ -836,6 +837,8 @@ void ipv6_tcp_socket::received_packet(packet& pack, netif& ni,
 
             remove_entry_list(le);
             insert_tail_list(parent->accept_queue, le);
+
+            set_event(static_cast<event&>(parent->accept_queue_event.get()));
         }
     }
 
@@ -1539,6 +1542,12 @@ nt_status ipv6_tcp_socket::listen(int backlog) {
     if (backlog < 0)
         return nt_status::INVALID_PARAMETER;
 
+    auto ev = create_event(false);
+    if (!ev) {
+        print("create_event failed\n");
+        return nt_status::INSUFFICIENT_RESOURCES;
+    }
+
     {
         lock_guard lock(state_lock);
 
@@ -1547,6 +1556,8 @@ nt_status ipv6_tcp_socket::listen(int backlog) {
 
         listen_backlog = (unsigned int)backlog;
         state = tcp_state::LISTEN;
+
+        swap(accept_queue_event, ev);
 
         return nt_status::SUCCESS;
     }
