@@ -1796,6 +1796,12 @@ void ipv6_tcp_socket::received_listen_packet(packet& pack, netif& ni,
     c->connected_scope = ni.num;
     c->recv_next = tcp.seq;
 
+    c->last_send_window_seq = tcp.seq;
+    c->send_window = byteswap(tcp.window);
+
+    if (c->allowed_send_bytes() > 0)
+        set_event(static_cast<event&>(c->send_window_open_event.get()));
+
     c->pni = &ni;
     ni.acquire();
 
