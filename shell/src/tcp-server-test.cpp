@@ -8,6 +8,7 @@
 import errno;
 import ws2_32;
 import print;
+import ipv6;
 
 using namespace std;
 
@@ -44,17 +45,28 @@ int main() {
 
     while (true) {
         struct sockaddr_in6 client_addr;
-        int client_addrlen;
+        int client_addrlen = sizeof(client_addr);
         char buf[4096];
 
         auto client_sock = accept(server_sock, (struct sockaddr*)&client_addr,
-                                &client_addrlen);
+                                  &client_addrlen);
         if (client_sock < 0) {
             print_stderr("accept returned {} (errno {})\n", client_sock,
                          errno_to_string_view(*_errno()));
             closesocket(server_sock);
             return 1;
         }
+
+        if (client_addrlen != sizeof(client_addr)) {
+            print_stderr("client_addrlen was {}, expected {}\n", client_addrlen,
+                         sizeof(client_addr));
+            closesocket(client_sock);
+            closesocket(server_sock);
+            return 1;
+        }
+
+        print("Connected from [{}]:{}, socket {}\n", *(ipv6_address*)client_addr.sin6_addr,
+              byteswap(client_addr.sin6_port), (uintptr_t)client_sock);
 
         auto bytes = recv(client_sock, buf, sizeof(buf), 0);
         if (bytes < 0) {
