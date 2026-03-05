@@ -821,6 +821,7 @@ void ipv6_tcp_socket::received_packet(packet& pack, netif& ni,
         }
 
         set_event(static_cast<event&>(state_change_event.get()));
+        set_event(static_cast<event&>(retransmission_thread_quit_event.get()));
         return;
     }
 
