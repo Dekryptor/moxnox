@@ -1611,6 +1611,8 @@ nt_status ipv6_tcp_socket::send_syn_ack(const mac_address& mac) {
     tcp.ACK = 1;
     tcp.window = byteswap(recv_window);
 
+    send_next++;
+
     tcp.checksum = calc_ipv6_checksum(ip, span((uint8_t*)&tcp, pack->size - sizeof(ipv6_header)), IPPROTO_TCP);
 
     status = dispatch_packet(ni, *pack, dst_mac);
