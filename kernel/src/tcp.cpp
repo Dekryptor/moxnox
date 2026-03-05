@@ -1650,8 +1650,6 @@ void ipv6_tcp_socket::received_listen_packet(packet& pack, netif& ni,
     auto& ip = *(ipv6_header*)pack.data;
     auto& tcp = *(tcp_header*)(pack.data + sizeof(ipv6_header));
 
-    print("FIXME - ipv6_tcp_socket::received_listen_packet\n");
-
     ipv6_tcp_socket* found = nullptr;
 
     {
