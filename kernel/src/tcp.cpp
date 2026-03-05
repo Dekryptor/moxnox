@@ -175,6 +175,7 @@ private:
     uint16_t allowed_send_bytes();
     void received_listen_packet(packet& pack, netif& ni,
                                 const mac_address& src_mac);
+    nt_status send_syn_ack(const mac_address& mac);
 };
 
 static spinlock tcp_ports_lock;
@@ -1547,6 +1548,67 @@ nt_status ipv6_tcp_socket::accept(HANDLE* /*sock*/, void* /*addr*/, int* /*addrl
     return nt_status::NOT_IMPLEMENTED;
 }
 
+nt_status ipv6_tcp_socket::send_syn_ack(const mac_address& mac) {
+    nt_status status;
+
+    auto& ni = *pni;
+
+    if (connected_address == bound_address)
+        dst_mac = ni.mac;
+    else {
+        maybe_add_to_neighbour_cache(ni, connected_address, mac);
+        dst_mac = mac;
+    }
+
+    auto pack = new packet;
+    if (!pack) {
+        print("new failed\n");
+        return nt_status::INSUFFICIENT_RESOURCES;
+    }
+
+    pack->size = sizeof(ipv6_header) + sizeof(tcp_header);
+
+    auto& ip = *(ipv6_header*)pack->data;
+    ip.traffic_class1 = 0;
+    ip.version = 6;
+    ip.traffic_class2 = 0;
+    ip.flow_label = 0;
+    ip.payload_length = byteswap((uint16_t)sizeof(tcp_header));
+    ip.next_header = IPPROTO_TCP;
+    ip.hop_limit = DEFAULT_HOP_LIMIT;
+    ip.src = bound_address;
+    ip.dst = connected_address;
+
+    auto& tcp = *(tcp_header*)(pack->data + sizeof(ipv6_header));
+
+    memset(&tcp, 0, sizeof(tcp));
+
+    recv_next++;
+
+    tcp.src_port = bound_port;
+    tcp.dst_port = connected_port;
+    tcp.seq = send_next;
+    tcp.ack = recv_next;
+    tcp.header_length = sizeof(tcp_header) / sizeof(uint32_t);
+    tcp.SYN = 1;
+    tcp.ACK = 1;
+    tcp.window = byteswap(recv_window);
+
+    tcp.checksum = calc_ipv6_checksum(ip, span((uint8_t*)&tcp, pack->size - sizeof(ipv6_header)), IPPROTO_TCP);
+
+    status = dispatch_packet(ni, *pack, dst_mac);
+    if (!success(status)) {
+        pack->release();
+        return status;
+    }
+
+    pack->release();
+
+    // FIXME - put on retransmission list
+
+    return nt_status::SUCCESS;
+}
+
 void ipv6_tcp_socket::received_listen_packet(packet& pack, netif& ni,
                                              const mac_address& src_mac) {
     auto& ip = *(ipv6_header*)pack.data;
@@ -1554,8 +1616,30 @@ void ipv6_tcp_socket::received_listen_packet(packet& pack, netif& ni,
 
     print("FIXME - ipv6_tcp_socket::received_listen_packet\n");
 
-    // FIXME - dispatch to child socket if already connected
-    // FIXME - if receive SYN from something already on SYN queue, send SYN-ACK again
+    ipv6_tcp_socket* found = nullptr;
+
+    {
+        lock_guard lock(list_lock);
+
+        for (auto le = syn_queue.next; le != &syn_queue; le = le->next) {
+            auto& s = containing_record<ipv6_tcp_socket>(le);
+
+            if (s.connected_address == ip.src && s.connected_port == tcp.src_port) {
+                found = &s;
+                s.acquire();
+            }
+        }
+
+        // FIXME - and other lists
+    }
+
+    if (found) {
+        found->received_packet(pack, ni, src_mac);
+        found->release();
+        return;
+    }
+
+    // FIXME - if receive SYN from something already on SYN queue, send SYN-ACK again (already handled by retransmissions?)
 
     // FIXME - also return RST if backlog exhausted
     if (tcp.flags != TCP_SYN) {
@@ -1578,11 +1662,12 @@ void ipv6_tcp_socket::received_listen_packet(packet& pack, netif& ni,
 
     c->state = tcp_state::SYN_RECEIVED;
     c->bind_done = true;
-    c->bound_address = bound_address;
+    c->bound_address = ip.dst;
     c->bound_port = bound_port;
     c->connected_address = ip.src;
-    c->connected_port = tcp.dst_port;
+    c->connected_port = tcp.src_port;
     c->connected_scope = ni.num;
+    c->recv_next = tcp.seq;
 
     c->pni = &ni;
     ni.acquire();
@@ -1590,7 +1675,7 @@ void ipv6_tcp_socket::received_listen_packet(packet& pack, netif& ni,
     c->parent = this;
     this->acquire();
 
-    // FIXME - send SYN-ACK (with retransmission)
+    c->send_syn_ack(src_mac);
 
     {
         lock_guard lock(list_lock);
