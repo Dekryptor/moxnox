@@ -2744,6 +2744,90 @@ mac_address find_mac_address(netif& ni, const ipv6_address& dst) {
     }
 }
 
+void maybe_add_to_neighbour_cache(netif& ni, const ipv6_address& dst,
+                                  const mac_address& mac) {
+    bool on_link = false;
+
+    {
+        lock_guard lock(ni.prefix_lock);
+
+        for (auto le = ni.prefixes.next; le != &ni.prefixes; le = le->next) {
+            auto& p = containing_record<ipv6_prefix>(le);
+
+            if (ipv6_prefix_match(dst, p.prefix, p.prefix_length)) {
+                on_link = p.on_link;
+                break;
+            }
+        }
+    }
+
+    if (!on_link)
+        return;
+
+    {
+        lock_guard lock(ni.neighbour_lock);
+
+        for (auto le = ni.neighbour_cache.next; le != &ni.neighbour_cache; le = le->next) {
+            auto& c = containing_record<neighbour_cache_entry>(le);
+
+            if (c.addr == dst) {
+                if (c.status != neighbour_cache_status::reachable) {
+                    c.mac = mac;
+                    set_event(static_cast<event&>(c.event.get()));
+                }
+                return;
+            }
+        }
+    }
+
+    auto nce = new neighbour_cache_entry(ni);
+    if (!nce) {
+        print("new failed\n");
+        return;
+    }
+
+    nce->addr = dst;
+    nce->mac = mac;
+
+    nce->event = create_event(false);
+    if (!nce->event) {
+        print("create_event failed\n");
+        nce->release();
+        return;
+    }
+
+    set_event(static_cast<event&>(nce->event.get()));
+
+    nce->status = neighbour_cache_status::reachable;
+
+    bool found = false;
+
+    {
+        lock_guard lock(ni.neighbour_lock);
+
+        for (auto le = ni.neighbour_cache.next; le != &ni.neighbour_cache; le = le->next) {
+            auto& c = containing_record<neighbour_cache_entry>(le);
+
+            if (c.addr == dst) {
+                if (c.status != neighbour_cache_status::reachable) {
+                    c.mac = mac;
+                    set_event(static_cast<event&>(c.event.get()));
+                }
+
+                found = true;
+                break;
+            }
+        }
+
+        if (!found) {
+            insert_tail_list(ni.neighbour_cache, nce->le);
+            nce->acquire();
+        }
+    }
+
+    nce->release();
+}
+
 void send_address_unreachable(netif& ni, const packet& pack,
                               const ipv6_address& addr) {
     static const size_t MIN_MTU = 1280;
