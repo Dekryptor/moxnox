@@ -12,3 +12,4 @@ getaddrinfo
 freeaddrinfo
 gai_strerror
 listen
+accept

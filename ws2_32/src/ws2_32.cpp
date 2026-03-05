@@ -158,6 +158,27 @@ int listen(SOCKET s, int backlog) {
 }
 
 extern "C"
+SOCKET accept(SOCKET s, sockaddr* addr, int* addrlen) {
+    IO_STATUS_BLOCK iosb;
+    MOXNOX_SOCKET_ACCEPT params;
+
+    params.addr = addr;
+    params.addrlen = *addrlen;
+
+    auto status = NtDeviceIoControlFile((HANDLE)s, 0, nullptr, nullptr, &iosb,
+                                        IOCTL_MOXNOX_SOCKET_ACCEPT, &params,
+                                        (uint32_t)sizeof(params), nullptr, 0);
+    if (!success(status)) {
+        *_errno() = nt_status_to_errno(status);
+        return SOCKET_ERROR;
+    }
+
+    *addrlen = params.addrlen;
+
+    return (SOCKET)params.sock;
+}
+
+extern "C"
 int DllMainCRTStartup(HANDLE /*hinstDLL*/, uint32_t /*dwReason*/,
                       void* /*lpvReserved*/) {
     return 1;
