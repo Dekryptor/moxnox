@@ -165,7 +165,7 @@ public:
     spinlock list_lock;
     list_entry le;
     list_entry syn_queue = { &syn_queue, &syn_queue };
-    list_entry accepted_queue = { &accepted_queue, &accepted_queue };
+    list_entry accept_queue = { &accept_queue, &accept_queue };
 
 private:
     nt_status send_syn(const sockaddr_in6& c, ipv6_address& src);
@@ -835,7 +835,7 @@ void ipv6_tcp_socket::received_packet(packet& pack, netif& ni,
             lock_guard lock(parent->list_lock);
 
             remove_entry_list(le);
-            insert_tail_list(parent->accepted_queue, le);
+            insert_tail_list(parent->accept_queue, le);
         }
     }
 
@@ -1656,7 +1656,7 @@ void ipv6_tcp_socket::received_listen_packet(packet& pack, netif& ni,
         }
 
         if (!found) {
-            for (auto le = accepted_queue.next; le != &accepted_queue; le = le->next) {
+            for (auto le = accept_queue.next; le != &accept_queue; le = le->next) {
                 auto& s = containing_record<ipv6_tcp_socket>(le);
 
                 if (s.connected_address == ip.src && s.connected_port == tcp.src_port) {
