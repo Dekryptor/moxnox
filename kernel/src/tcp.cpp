@@ -214,15 +214,16 @@ static_assert(sizeof(tcp_header) == 20);
 static const uint8_t TCP_SYN = 0x02;
 static const uint8_t TCP_SYN_ACK = 0x12;
 
-static void send_tcp_port_closed(netif& ni, const ipv6_address& src,
-                                 uint16_t src_port, const ipv6_address& dst,
-                                 uint16_t dst_port, const mac_address& mac,
-                                 tcp_seq seq) {
+static void send_tcp_port_closed(packet& pack, netif& ni,
+                                 const mac_address& mac) {
     auto pack2 = new packet;
     if (!pack2) {
         print("new failed\n");
         return;
     }
+
+    auto& orig_ip = *(ipv6_header*)pack.data;
+    auto& orig_tcp = *(tcp_header*)(pack.data + sizeof(ipv6_header));
 
     pack2->size = sizeof(ipv6_header) + sizeof(tcp_header);
 
@@ -234,16 +235,16 @@ static void send_tcp_port_closed(netif& ni, const ipv6_address& src,
     ip.payload_length = byteswap((uint16_t)sizeof(tcp_header));
     ip.next_header = IPPROTO_TCP;
     ip.hop_limit = DEFAULT_HOP_LIMIT;
-    ip.src = dst; // FIXME - make sure not multicast?
-    ip.dst = src;
+    ip.src = orig_ip.dst; // FIXME - make sure not multicast?
+    ip.dst = orig_ip.src;
 
     auto& tcp = *(tcp_header*)(pack2->data + sizeof(ipv6_header));
 
     memset(&tcp, 0, sizeof(tcp));
 
-    tcp.src_port = dst_port;
-    tcp.dst_port = src_port;
-    tcp.ack = seq + 1;
+    tcp.src_port = orig_tcp.dst_port;
+    tcp.dst_port = orig_tcp.src_port;
+    tcp.ack = orig_tcp.seq + 1;
     tcp.header_length = sizeof(tcp_header) / sizeof(uint32_t);
     tcp.RST = 1;
     tcp.ACK = 1;
@@ -297,10 +298,8 @@ void received_ipv6_tcp_packet(netif& ni, packet& pack,
     }
 
     if (!sock) {
-        if (!tcp.RST) {
-            send_tcp_port_closed(ni, ip.src, tcp.src_port, ip.dst,
-                                 tcp.dst_port, src_mac, tcp.seq);
-        }
+        if (!tcp.RST)
+            send_tcp_port_closed(pack, ni, src_mac);
         return;
     }
 
@@ -1770,8 +1769,7 @@ void ipv6_tcp_socket::received_listen_packet(packet& pack, netif& ni,
 
     // FIXME - also return RST if backlog exhausted
     if (tcp.flags != TCP_SYN) {
-        send_tcp_port_closed(ni, ip.src, tcp.src_port, ip.dst,
-                             tcp.dst_port, src_mac, tcp.seq);
+        send_tcp_port_closed(pack, ni, src_mac);
         return;
     }
 
