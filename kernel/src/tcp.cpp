@@ -168,6 +168,7 @@ public:
     list_entry syn_queue = { &syn_queue, &syn_queue };
     list_entry accept_queue = { &accept_queue, &accept_queue };
     list_entry children = { &children, &children };
+    bool accepted = false;
 
 private:
     nt_status send_syn(const sockaddr_in6& c, ipv6_address& src);
@@ -795,9 +796,28 @@ void ipv6_tcp_socket::received_packet(packet& pack, netif& ni,
     }
 
     if (tcp.RST) {
+        tcp_state old_state;
+        bool was_accepted;
+
         {
             lock_guard lock(state_lock);
+            old_state = state;
             state = tcp_state::CLOSED;
+            was_accepted = accepted;
+        }
+
+        if (parent) {
+            {
+                lock_guard lock(parent->list_lock);
+
+                remove_entry_list(le);
+
+                if (is_list_empty(accept_queue))
+                    reset_event(static_cast<event&>(accept_queue_event.get()));
+            }
+
+            if (old_state == tcp_state::SYN_RECEIVED || (old_state == tcp_state::ESTABLISHED && !was_accepted))
+                release();
         }
 
         set_event(static_cast<event&>(state_change_event.get()));
@@ -1688,6 +1708,7 @@ nt_status ipv6_tcp_socket::accept(HANDLE& sock, void* us_addr, int& addrlen) {
             c = &s;
 
             remove_entry_list(s.le);
+            accepted = true;
 
             if (is_list_empty(accept_queue))
                 reset_event(static_cast<event&>(accept_queue_event.get()));
