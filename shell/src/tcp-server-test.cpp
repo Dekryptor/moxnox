@@ -79,6 +79,15 @@ int main() {
 
         print("Received: \"{}\"\n", string_view(buf, (size_t)bytes));
 
+        bytes = send(client_sock, buf, bytes, 0);
+        if (bytes < 0) {
+            print_stderr("send returned {} (errno {})\n", bytes,
+                         errno_to_string_view(*_errno()));
+            closesocket(client_sock);
+            closesocket(server_sock);
+            return 1;
+        }
+
         closesocket(client_sock);
     }
 
