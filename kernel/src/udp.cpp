@@ -33,6 +33,10 @@ public:
         return nt_status::INVALID_PARAMETER;
     }
 
+    nt_status accept(HANDLE*, void*, int*) override {
+        return nt_status::INVALID_PARAMETER;
+    }
+
     spinlock buffer_lock;
     list_entry buffer = { &buffer, &buffer };
     size_t buffer_size = 0;

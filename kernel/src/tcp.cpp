@@ -129,6 +129,7 @@ public:
     nt_status bind(const sockaddr* addr, size_t addrlen) override;
     nt_status connect(const sockaddr* addr, size_t addrlen) override;
     nt_status listen(int backlog) override;
+    nt_status accept(HANDLE* sock, void* addr, int* addrlen) override;
 
     void received_packet(packet& pack);
 
@@ -1515,4 +1516,10 @@ nt_status ipv6_tcp_socket::listen(int backlog) {
 
         return nt_status::SUCCESS;
     }
+}
+
+nt_status ipv6_tcp_socket::accept(HANDLE* /*sock*/, void* /*addr*/, int* /*addrlen*/) {
+    print("FIXME - ipv6_tcp_socket::accept\n"); // FIXME
+
+    return nt_status::NOT_IMPLEMENTED;
 }
