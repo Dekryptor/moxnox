@@ -623,6 +623,16 @@ void ipv6_tcp_socket::last_handle_closed() {
             s2->release();
         }
 
+        if (!s.parent) {
+            lock_guard lock(tcp_ports_lock);
+            lock_guard lock2(s.state_lock);
+
+            if (s.bind_done && tcp_ports[s.bound_port] == &s) {
+                tcp_ports[s.bound_port] = nullptr;
+                s.release();
+            }
+        }
+
         s.release();
     }, this);
 }
