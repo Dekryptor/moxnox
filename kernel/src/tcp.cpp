@@ -1847,6 +1847,7 @@ void ipv6_tcp_socket::received_listen_packet(packet& pack, netif& ni,
             if (s.connected_address == ip.src && s.connected_port == tcp.src_port) {
                 found = &s;
                 s.acquire();
+                break;
             }
         }
 
@@ -1857,6 +1858,7 @@ void ipv6_tcp_socket::received_listen_packet(packet& pack, netif& ni,
                 if (s.connected_address == ip.src && s.connected_port == tcp.src_port) {
                     found = &s;
                     s.acquire();
+                    break;
                 }
             }
         }
@@ -1868,6 +1870,7 @@ void ipv6_tcp_socket::received_listen_packet(packet& pack, netif& ni,
                 if (s.connected_address == ip.src && s.connected_port == tcp.src_port) {
                     found = &s;
                     s.acquire();
+                    break;
                 }
             }
         }
