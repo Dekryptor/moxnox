@@ -113,6 +113,7 @@ enum class tcp_state {
     TIME_WAIT,
     LAST_ACK,
     LISTEN,
+    SYN_RECEIVED,
 };
 
 class ipv6_tcp_socket : public socket {
@@ -131,7 +132,7 @@ public:
     nt_status listen(int backlog) override;
     nt_status accept(HANDLE* sock, void* addr, int* addrlen) override;
 
-    void received_packet(packet& pack);
+    void received_packet(packet& pack, netif& ni, const mac_address& src_mac);
 
     bool init = false;
     spinlock state_lock;
@@ -160,6 +161,10 @@ public:
     size_t us_read_offset = 0;
     rwsem io_mutex;
     unsigned int listen_backlog;
+    ipv6_tcp_socket* parent = nullptr;
+    spinlock list_lock;
+    list_entry le;
+    list_entry syn_queue = { &syn_queue, &syn_queue };
 
 private:
     nt_status send_syn(const sockaddr_in6& c, ipv6_address& src);
@@ -168,7 +173,8 @@ private:
     void retransmission_thread();
     void do_retransmissions();
     uint16_t allowed_send_bytes();
-    void received_listen_packet(packet& pack);
+    void received_listen_packet(packet& pack, netif& ni,
+                                const mac_address& src_mac);
 };
 
 static spinlock tcp_ports_lock;
@@ -201,6 +207,7 @@ struct tcp_header {
 
 static_assert(sizeof(tcp_header) == 20);
 
+static const uint8_t TCP_SYN = 0x02;
 static const uint8_t TCP_SYN_ACK = 0x12;
 
 static void send_tcp_port_closed(netif& ni, const ipv6_address& src,
@@ -293,7 +300,7 @@ void received_ipv6_tcp_packet(netif& ni, packet& pack,
         return;
     }
 
-    sock->received_packet(pack);
+    sock->received_packet(pack, ni, src_mac);
 
     sock->release();
 }
@@ -663,7 +670,8 @@ void ipv6_tcp_socket::send_fin() {
     ni.release();
 }
 
-void ipv6_tcp_socket::received_packet(packet& pack) {
+void ipv6_tcp_socket::received_packet(packet& pack, netif& ni,
+                                      const mac_address& src_mac) {
     auto& ip = *(ipv6_header*)pack.data;
     auto& tcp = *(tcp_header*)(pack.data + sizeof(ipv6_header));
     size_t header_length = tcp.header_length * sizeof(uint32_t);
@@ -689,7 +697,7 @@ void ipv6_tcp_socket::received_packet(packet& pack) {
     }
 
     if (cur_state == tcp_state::LISTEN) {
-        received_listen_packet(pack);
+        received_listen_packet(pack, ni, src_mac);
         return;
     }
 
@@ -806,7 +814,7 @@ void ipv6_tcp_socket::received_packet(packet& pack) {
         }
 
         if (do_cleanup) {
-            {
+            if (!parent) {
                 lock_guard lock(tcp_ports_lock);
                 lock_guard lock2(state_lock);
 
@@ -1192,6 +1200,15 @@ ipv6_tcp_socket::~ipv6_tcp_socket() {
 
     if (pni)
         pni->release();
+
+    if (parent) {
+        if (init) {
+            lock_guard lock(parent->list_lock);
+            remove_entry_list(le);
+        }
+
+        parent->release();
+    }
 }
 
 void ipv6_tcp_socket::retransmission_thread() {
@@ -1223,7 +1240,7 @@ void ipv6_tcp_socket::retransmission_thread() {
         }
 
         if (time_wait_done) {
-            {
+            if (!parent) {
                 lock_guard lock(tcp_ports_lock);
                 lock_guard lock2(state_lock);
 
@@ -1530,8 +1547,58 @@ nt_status ipv6_tcp_socket::accept(HANDLE* /*sock*/, void* /*addr*/, int* /*addrl
     return nt_status::NOT_IMPLEMENTED;
 }
 
-void ipv6_tcp_socket::received_listen_packet(packet& pack) {
+void ipv6_tcp_socket::received_listen_packet(packet& pack, netif& ni,
+                                             const mac_address& src_mac) {
+    auto& ip = *(ipv6_header*)pack.data;
+    auto& tcp = *(tcp_header*)(pack.data + sizeof(ipv6_header));
+
     print("FIXME - ipv6_tcp_socket::received_listen_packet\n");
 
-    // FIXME
+    // FIXME - dispatch to child socket if already connected
+    // FIXME - if receive SYN from something already on SYN queue, send SYN-ACK again
+
+    // FIXME - also return RST if backlog exhausted
+    if (tcp.flags != TCP_SYN) {
+        send_tcp_port_closed(ni, ip.src, tcp.src_port, ip.dst,
+                             tcp.dst_port, src_mac, tcp.seq);
+        return;
+    }
+
+    auto c = new ipv6_tcp_socket;
+    if (!c) {
+        print("new failed\n");
+        return;
+    }
+
+    if (!c->init) {
+        print("ipv6_tcp_socket init failed\n");
+        delete c;
+        return;
+    }
+
+    c->state = tcp_state::SYN_RECEIVED;
+    c->bind_done = true;
+    c->bound_address = bound_address;
+    c->bound_port = bound_port;
+    c->connected_address = ip.src;
+    c->connected_port = tcp.dst_port;
+    c->connected_scope = ni.num;
+
+    c->pni = &ni;
+    ni.acquire();
+
+    c->parent = this;
+    this->acquire();
+
+    // FIXME - send SYN-ACK (with retransmission)
+
+    {
+        lock_guard lock(list_lock);
+        insert_tail_list(syn_queue, c->le);
+    }
+
+    // FIXME - decrease backlog value
+
+    // FIXME - free child socket if stays at SYN_RECEIVED too long
+    // FIXME - increase backlog value when child goes away
 }
