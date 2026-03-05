@@ -1563,10 +1563,78 @@ nt_status ipv6_tcp_socket::listen(int backlog) {
     }
 }
 
-nt_status ipv6_tcp_socket::accept(HANDLE& /*sock*/, void* /*addr*/, int& /*addrlen*/) {
-    print("FIXME - ipv6_tcp_socket::accept\n"); // FIXME
+nt_status ipv6_tcp_socket::accept(HANDLE& sock, void* us_addr, int& addrlen) {
+    nt_status status;
 
-    return nt_status::NOT_IMPLEMENTED;
+    if (addrlen < 0 || (size_t)addrlen < sizeof(sockaddr_in6))
+        return nt_status::INVALID_PARAMETER;
+
+    auto& t = *get_current_thread();
+    if (!t.proc)
+        return nt_status::INTERNAL_ERROR;
+
+    {
+        lock_guard lock(state_lock);
+
+        if (state != tcp_state::LISTEN)
+            return nt_status::INVALID_PARAMETER;
+    }
+
+    ipv6_tcp_socket* c = nullptr;
+
+    while (true) {
+        status = wait_for_object(accept_queue_event.get(), true);
+        if (!success(status))
+            return status;
+
+        {
+            lock_guard lock(list_lock);
+
+            if (is_list_empty(accept_queue))
+                continue;
+
+            auto& s = containing_record<ipv6_tcp_socket>(accept_queue.next);
+
+            s.acquire();
+            c = &s;
+
+            remove_entry_list(s.le);
+
+            if (is_list_empty(accept_queue))
+                reset_event(static_cast<event&>(accept_queue_event.get()));
+        }
+
+        break;
+    }
+
+    {
+        sockaddr_in6 addr;
+
+        memset(&addr, 0, sizeof(addr));
+
+        addr.sin6_family = AF_INET6;
+        addr.sin6_port = c->connected_port;
+        addr.sin6_flowinfo = 0; // FIXME? Allowed by RFC3493, but not necessarily what Linux does
+        *(ipv6_address*)addr.sin6_addr = c->connected_address;
+        addr.sin6_scope_id = c->connected_scope;
+
+        status = t.proc->write_vm(us_addr, &addr, (uint32_t)sizeof(addr),
+                                  nullptr);
+        if (!success(status)) {
+            c->release();
+            return status;
+        }
+
+        addrlen = sizeof(addr);
+    }
+
+    status = t.proc->add_handle(*c, 0, true, sock);
+    if (!success(status))
+        return status;
+
+    c->release();
+
+    return nt_status::SUCCESS;
 }
 
 nt_status ipv6_tcp_socket::send_syn_ack(const mac_address& mac) {
