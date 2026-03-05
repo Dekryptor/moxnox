@@ -244,10 +244,24 @@ static void send_tcp_port_closed(packet& pack, netif& ni,
 
     tcp.src_port = orig_tcp.dst_port;
     tcp.dst_port = orig_tcp.src_port;
-    tcp.ack = orig_tcp.seq + 1;
+
+    if (orig_tcp.ACK)
+        tcp.seq = orig_tcp.ack;
+    else {
+        auto len = (uint32_t)(pack.size - sizeof(ipv6_header) - (orig_tcp.header_length * sizeof(uint32_t)));
+
+        if (orig_tcp.SYN)
+            len++;
+
+        if (orig_tcp.FIN)
+            len++;
+
+        tcp.ack = orig_tcp.seq + len;
+        tcp.ACK = 1;
+    }
+
     tcp.header_length = sizeof(tcp_header) / sizeof(uint32_t);
     tcp.RST = 1;
-    tcp.ACK = 1;
 
     tcp.checksum = calc_ipv6_checksum(ip, span((uint8_t*)&tcp, pack2->size - sizeof(ipv6_header)), IPPROTO_TCP);
 
