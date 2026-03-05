@@ -1708,7 +1708,7 @@ nt_status ipv6_tcp_socket::accept(HANDLE& sock, void* us_addr, int& addrlen) {
             c = &s;
 
             remove_entry_list(s.le);
-            accepted = true;
+            s.accepted = true;
 
             if (is_list_empty(accept_queue))
                 reset_event(static_cast<event&>(accept_queue_event.get()));
