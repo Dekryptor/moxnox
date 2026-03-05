@@ -812,8 +812,8 @@ void ipv6_tcp_socket::received_packet(packet& pack, netif& ni,
 
                 remove_entry_list(le);
 
-                if (is_list_empty(accept_queue))
-                    reset_event(static_cast<event&>(accept_queue_event.get()));
+                if (is_list_empty(parent->accept_queue))
+                    reset_event(static_cast<event&>(parent->accept_queue_event.get()));
             }
 
             if (old_state == tcp_state::SYN_RECEIVED || (old_state == tcp_state::ESTABLISHED && !was_accepted))
