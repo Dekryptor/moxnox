@@ -1566,6 +1566,13 @@ nt_status ipv6_tcp_socket::send_syn_ack(const mac_address& mac) {
         return nt_status::INSUFFICIENT_RESOURCES;
     }
 
+    auto r = new ipv6_tcp_retransmission(*pack);
+    if (!r) {
+        print("new failed\n");
+        pack->release();
+        return nt_status::INSUFFICIENT_RESOURCES;
+    }
+
     pack->size = sizeof(ipv6_header) + sizeof(tcp_header);
 
     auto& ip = *(ipv6_header*)pack->data;
@@ -1599,12 +1606,18 @@ nt_status ipv6_tcp_socket::send_syn_ack(const mac_address& mac) {
     status = dispatch_packet(ni, *pack, dst_mac);
     if (!success(status)) {
         pack->release();
+        r->release();
         return status;
     }
 
-    pack->release();
+    r->deadline = (uint64_t)kernel_time_page.system_time + (RETRANSMISSION_DELAY * SYSTEM_TIME_RESOLUTION);
 
-    // FIXME - put on retransmission list
+    {
+        lock_guard lock(retransmission_list_lock);
+        insert_tail_list(retransmission_list, r->le);
+    }
+
+    pack->release();
 
     return nt_status::SUCCESS;
 }
