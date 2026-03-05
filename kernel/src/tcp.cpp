@@ -1905,6 +1905,9 @@ void ipv6_tcp_socket::received_listen_packet(packet& pack, netif& ni,
     c->connected_scope = ni.num;
     c->recv_next = tcp.seq;
 
+    c->send_next = rand_tcp_seq();
+    c->send_unacknowledged = c->send_next;
+
     c->last_send_window_seq = tcp.seq;
     c->send_window = byteswap(tcp.window);
 
