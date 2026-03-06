@@ -59,6 +59,10 @@ public:
         return nt_status::INVALID_PARAMETER;
     }
 
+    nt_status read(span<uint8_t>, uint64_t&) override {
+        return nt_status::NOT_SUPPORTED;
+    }
+
     list_entry le;
     int protocol;
     bool added_to_list = false;

@@ -157,6 +157,7 @@ public:
     virtual nt_status connect(const sockaddr* addr, size_t addrlen) = 0;
     virtual nt_status listen(int backlog) = 0;
     virtual nt_status accept(HANDLE& sock, void* addr, int& addrlen) = 0;
+    virtual nt_status read(span<uint8_t> s, uint64_t& read_bytes) = 0;
 
 private:
     nt_status do_recvfrom(span<const uint8_t> inbuf);
@@ -171,6 +172,7 @@ private:
 static_assert(has_ioctls<class socket>);
 static_assert(is_sync_object<class socket>);
 static_assert(has_last_handle_closed<class socket>);
+static_assert(is_readable_object_without_offset<class socket>);
 
 class netctl : public chardev {
 public:
