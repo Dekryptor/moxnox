@@ -162,6 +162,7 @@ void RtlInitializeCriticalSection(RTL_CRITICAL_SECTION* critical_section);
 void RtlDeleteCriticalSection(RTL_CRITICAL_SECTION* critical_section);
 void RtlEnterCriticalSection(RTL_CRITICAL_SECTION* critical_section);
 void RtlLeaveCriticalSection(RTL_CRITICAL_SECTION* critical_section);
+void RtlSetLastWin32Error(uint32_t err_code);
 
 }
 

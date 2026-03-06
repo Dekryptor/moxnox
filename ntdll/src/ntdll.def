@@ -43,3 +43,4 @@ tolower
 RtlLookupFunctionEntry
 RtlUnwindEx
 RtlVirtualUnwind
+RtlSetLastWin32Error

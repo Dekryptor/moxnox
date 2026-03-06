@@ -13,7 +13,9 @@ set(SRC_FILES src/ntdll.cpp
     src/except.cpp
     src/time.cpp
     src/stubs.S
-    src/critsect.cpp)
+    src/critsect.cpp
+    src/error.cpp
+)
 
 if(CMAKE_SYSTEM_PROCESSOR STREQUAL aarch64)
     list(APPEND SRC_FILES
