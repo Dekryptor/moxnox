@@ -17,6 +17,7 @@ set(SRC_FILES src/ucrtbase.cpp
     src/math.cpp
     src/misc.cpp
     src/onexit.cpp
+    src/environ.cpp
 )
 
 add_library(ucrtbase SHARED ${SRC_FILES})
