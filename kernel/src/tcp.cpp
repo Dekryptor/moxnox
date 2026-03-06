@@ -814,6 +814,9 @@ void ipv6_tcp_socket::received_packet(packet& pack, netif& ni,
                 remove_entry_list(le);
                 added_to_list = false;
 
+                if (old_state == tcp_state::SYN_RECEIVED || (old_state == tcp_state::ESTABLISHED && !was_accepted))
+                    parent->listen_backlog++;
+
                 if (is_list_empty(parent->accept_queue))
                     reset_event(static_cast<event&>(parent->accept_queue_event.get()));
             }
@@ -1716,6 +1719,8 @@ nt_status ipv6_tcp_socket::accept(HANDLE& sock, void* us_addr, int& addrlen) {
             if (is_list_empty(accept_queue))
                 reset_event(static_cast<event&>(accept_queue_event.get()));
 
+            listen_backlog++;
+
             insert_tail_list(children, s.le);
         }
 
@@ -1926,9 +1931,23 @@ void ipv6_tcp_socket::received_listen_packet(packet& pack, netif& ni,
     c->parent = this;
     this->acquire();
 
+    bool done = false;
+
     {
         lock_guard lock(list_lock);
-        insert_tail_list(syn_queue, c->le);
+
+        if (listen_backlog > 0) {
+            insert_tail_list(syn_queue, c->le);
+            listen_backlog--;
+            done = true;
+        }
+    }
+
+    if (!done) {
+        // syn_queue is full, drop
+        this->release();
+        c->release();
+        return;
     }
 
     c->added_to_list = true;
