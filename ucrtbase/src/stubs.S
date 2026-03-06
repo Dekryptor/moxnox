@@ -42,5 +42,12 @@ do_stub "wctob"
 do_stub "wctype"
 do_stub "putc"
 do_stub "__stdio_common_vfscanf"
+do_stub "sqrt"
+do_stub "sqrtf"
+do_stub "atan2"
+do_stub "exp"
+do_stub "sin"
+do_stub "ceil"
+do_stub "floor"
 
 stubs_end

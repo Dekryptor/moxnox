@@ -83,3 +83,10 @@ wctob
 wctype
 srand
 rand
+sqrt
+sqrtf
+atan2
+exp
+sin
+ceil
+floor
