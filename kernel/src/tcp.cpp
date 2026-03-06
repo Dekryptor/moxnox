@@ -1945,6 +1945,7 @@ void ipv6_tcp_socket::received_listen_packet(packet& pack, netif& ni,
 
     if (!done) {
         // syn_queue is full, drop
+        set_event(static_cast<event&>(c->retransmission_thread_quit_event.get()));
         this->release();
         c->release();
         return;
