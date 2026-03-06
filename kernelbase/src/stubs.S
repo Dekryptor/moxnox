@@ -2,7 +2,6 @@
 
 stubs_start
 
-do_stub "TlsGetValue"
 do_stub "VirtualProtect"
 do_stub "VirtualQuery"
 do_stub "FormatMessageA"

@@ -16,3 +16,10 @@ uint32_t GetLastError() {
 
     return 0;
 }
+
+extern "C"
+void* TlsGetValue(uint32_t tls_index) {
+    print_stderr("FIXME - TlsGetValue {}\n", tls_index);
+
+    return nullptr;
+}
