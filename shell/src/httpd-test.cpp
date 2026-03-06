@@ -70,11 +70,26 @@ static void create_thread(void(*func)(void*), void* ctx) {
 
 static void socket_thread(void* ctx) {
     auto sock = (SOCKET)(uintptr_t)ctx;
+    IO_STATUS_BLOCK iosb;
     char buf[4096];
     char* req = nullptr;
     size_t reqlen = 0;
 
     while (true) {
+        auto status = NtReadFile(sock, 0, nullptr, nullptr, &iosb,
+                                 buf, sizeof(buf), nullptr, nullptr);
+        if (status == nt_status::END_OF_FILE) {
+            closesocket(sock);
+            NtTerminateThread(NtCurrentThread(), nt_status::SUCCESS);
+            unreachable();
+        } else if (!success(status)) {
+            print_stderr("NtReadFile returned {}\n", status);
+            closesocket(sock);
+            NtTerminateThread(NtCurrentThread(), status);
+            unreachable();
+        }
+
+#if 0
         auto bytes = recv(sock, buf, sizeof(buf), 0);
         if (bytes == 0) {
             closesocket(sock);
@@ -87,6 +102,8 @@ static void socket_thread(void* ctx) {
             NtTerminateThread(NtCurrentThread(), nt_status::INVALID_PARAMETER);
             unreachable();
         }
+#endif
+        auto bytes = iosb.Information;
 
         req = (char*)realloc(req, reqlen + (size_t)bytes);
         memcpy(req + reqlen, buf, (size_t)bytes);
@@ -135,9 +152,9 @@ static void socket_thread(void* ctx) {
         print("Received: \"{}\", \"{}\"\n", verb, first_line);
 
         // FIXME - really ought to be looping
-        bytes = send(sock, resp.data(), (int)resp.size(), 0);
-        if (bytes < 0) {
-            print_stderr("send returned {} (errno {})\n", bytes,
+        auto bytes2 = send(sock, resp.data(), (int)resp.size(), 0);
+        if (bytes2 < 0) {
+            print_stderr("send returned {} (errno {})\n", bytes2,
                          errno_to_string_view(*_errno()));
             closesocket(sock);
             NtTerminateThread(NtCurrentThread(), nt_status::SUCCESS);
