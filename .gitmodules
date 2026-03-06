@@ -16,3 +16,6 @@
 [submodule "harfbuzz"]
 	path = harfbuzz
 	url = https://git.burntcomma.com/maharmstone/harfbuzz
+[submodule "pixman"]
+	path = pixman
+	url = https://git.burntcomma.com/maharmstone/pixman

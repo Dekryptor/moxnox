@@ -434,3 +434,17 @@ if (CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
 endif()
 
 install(TARGETS ping DESTINATION ${CMAKE_INSTALL_PREFIX}/bin)
+
+###
+
+add_executable(pixman-test src/pixman-test.cpp)
+
+target_compile_options(pixman-test PRIVATE -fno-exceptions ${USERSPACE_CFLAGS})
+target_link_libraries(pixman-test moxnox print errno)
+target_link_libraries(pixman-test pixman)
+
+if (CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
+    target_link_options(pixman-test PUBLIC -mcrtdll=ucrtbase)
+endif()
+
+install(TARGETS pixman-test DESTINATION ${CMAKE_INSTALL_PREFIX}/bin)
