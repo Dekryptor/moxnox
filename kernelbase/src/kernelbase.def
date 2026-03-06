@@ -31,3 +31,4 @@ CtrlRoutine
 SetConsoleCtrlHandler
 SetUnhandledExceptionFilter
 Sleep
+GetLastError

@@ -9,3 +9,10 @@ uint32_t TlsAlloc() {
 
     return 0;
 }
+
+extern "C"
+uint32_t GetLastError() {
+    print_stderr("FIXME - GetLastError\n");
+
+    return 0;
+}
