@@ -13,6 +13,7 @@ set(SRC_FILES src/kernelbase.def
     src/console.cpp
     src/stubs.S
     src/debug.cpp
+    src/thread.cpp
 )
 
 add_library(kernelbase SHARED ${SRC_FILES})
