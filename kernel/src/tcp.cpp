@@ -1963,7 +1963,104 @@ void ipv6_tcp_socket::received_listen_packet(packet& pack, netif& ni,
 }
 
 nt_status ipv6_tcp_socket::read(span<uint8_t> s, uint64_t& read_bytes) {
-    print("FIXME - ipv6_tcp_socket::read\n"); // FIXME
+    // FIXME - merge into recvfrom once NtReadFile is zero-copy
 
-    return nt_status::NOT_IMPLEMENTED;
+    nt_status status;
+
+    read_bytes = 0;
+
+    acquire();
+
+    while (true) {
+        lock_guard lock(us_read_mutex);
+
+        // FIXME - break lock if last handle to socket closed
+        status = wait_for_object(*this, true);
+        if (!success(status)) {
+            release();
+            return status;
+        }
+
+        size_t removed_bytes = 0;
+
+        while (true) {
+            ipv6_socket_packet* r;
+
+            {
+                lock_guard lock(state_lock);
+
+                if (is_list_empty(buffer))
+                    break;
+
+                r = &containing_record<ipv6_socket_packet>(buffer.next);
+            }
+
+            auto& tcp = *(tcp_header*)(r->pack.data + sizeof(ipv6_header));
+
+            size_t header_length = tcp.header_length * sizeof(uint32_t);
+            auto to_copy = (uint32_t)min(r->pack.size - sizeof(ipv6_header) - header_length - us_read_offset, s.size());
+
+            memcpy(s.data(), r->pack.data + sizeof(ipv6_header) + header_length + us_read_offset,
+                   to_copy);
+
+            read_bytes += to_copy;
+
+            if (sizeof(ipv6_header) + header_length + us_read_offset + to_copy < r->pack.size) {
+                us_read_offset += to_copy;
+                break;
+            }
+
+            {
+                lock_guard lock(state_lock);
+                remove_entry_list(r->le);
+            }
+
+            s = span(s.data() + to_copy, s.size() - to_copy);
+            us_read_offset = 0;
+            removed_bytes += r->pack.size - sizeof(ipv6_header) - header_length;
+
+            delete r;
+
+            if (s.size() == 0)
+                break;
+        }
+
+        if (removed_bytes != 0) {
+            {
+                sync_lock sl;
+                lock_guard lock(sl);
+                lock_guard lock2(state_lock);
+
+                if (is_list_empty(buffer) && state == tcp_state::ESTABLISHED)
+                    signalled = false;
+            }
+
+            bool opening = false;
+            tcp_seq ack;
+
+            {
+                lock_guard lock(io_mutex);
+
+                if (recv_window == 0)
+                    opening = true;
+
+                recv_window += (uint16_t)removed_bytes;
+                ack = recv_next;
+            }
+
+            if (opening)
+                send_ack(false, ack);
+        }
+
+        if (!success(status) && read_bytes == 0) {
+            release();
+            return status;
+        }
+
+        break;
+    }
+
+    release();
+
+    return nt_status::SUCCESS;
 }
