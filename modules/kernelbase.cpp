@@ -34,6 +34,7 @@ uint32_t TlsAlloc();
 uint32_t GetLastError();
 void* TlsGetValue(uint32_t tls_index);
 void SetLastError(uint32_t err_code);
+bool TlsSetValue(uint32_t tls_index, void* tls_value);
 
 }
 

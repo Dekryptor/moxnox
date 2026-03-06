@@ -33,3 +33,4 @@ SetUnhandledExceptionFilter
 Sleep
 GetLastError
 TlsGetValue
+TlsSetValue

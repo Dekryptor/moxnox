@@ -23,3 +23,10 @@ void* TlsGetValue(uint32_t tls_index) {
 
     return nullptr;
 }
+
+extern "C"
+bool TlsSetValue(uint32_t tls_index, void* tls_value) {
+    print_stderr("FIXME - TlsSetValue {}, {:x}\n", tls_index, (uintptr_t)tls_value);
+
+    return false;
+}
