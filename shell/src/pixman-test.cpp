@@ -1,7 +1,8 @@
-#include <pixman.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <stdint.h>
+
+import pixman;
 
 int main() {
     uint16_t width = 100;

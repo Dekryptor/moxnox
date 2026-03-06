@@ -747,10 +747,14 @@ configure_file(
     "${CMAKE_CURRENT_BINARY_DIR}/pixman/pixman-config.h"
 )
 
-target_include_directories(pixman PUBLIC ${CMAKE_SOURCE_DIR}/pixman/pixman)
-target_include_directories(pixman PUBLIC ${CMAKE_CURRENT_BINARY_DIR}/pixman) # FIXME - make PRIVATE
-target_compile_definitions(pixman PUBLIC -DHAVE_CONFIG_H)
-target_compile_options(pixman PRIVATE ${GENERAL_CFLAGS} $<$<COMPILE_LANGUAGE:CXX>:-fno-exceptions -fno-rtti> -mno-stack-arg-probe $<$<STREQUAL:${CMAKE_SYSTEM_PROCESSOR},amd64>:-mssse3>)
+target_sources(pixman PUBLIC FILE_SET CXX_MODULES FILES modules/pixman.cpp)
+
+target_include_directories(pixman PRIVATE ${CMAKE_SOURCE_DIR}/pixman/pixman)
+target_include_directories(pixman PRIVATE ${CMAKE_CURRENT_BINARY_DIR}/pixman)
+target_compile_definitions(pixman PRIVATE -DHAVE_CONFIG_H)
+target_compile_options(pixman PRIVATE ${GENERAL_CFLAGS} $<$<COMPILE_LANGUAGE:CXX>:-fno-exceptions -fno-rtti> -mno-stack-arg-probe)
+target_compile_options(pixman PUBLIC $<$<STREQUAL:${CMAKE_SYSTEM_PROCESSOR},amd64>:-mssse3>) # because of module
+
 target_link_libraries(pixman PRIVATE moxnox)
 
 install(TARGETS pixman DESTINATION ${CMAKE_INSTALL_PREFIX}/lib
