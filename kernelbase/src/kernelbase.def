@@ -34,3 +34,4 @@ Sleep
 GetLastError
 TlsGetValue
 TlsSetValue
+CreateThread
