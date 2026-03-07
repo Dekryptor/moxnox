@@ -82,6 +82,8 @@ else()
     set(PIXMAN_USE_SSE2 OFF)
     set(PIXMAN_USE_SSSE3 OFF)
     set(PIXMAN_USE_X86_MMX OFF)
+
+    # FIXME - NEON support not compiled in
 endif()
 
 configure_file(
