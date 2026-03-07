@@ -14,9 +14,7 @@ uint32_t TlsAlloc() {
 
 extern "C"
 uint32_t GetLastError() {
-    print_stderr("FIXME - GetLastError\n");
-
-    return 0;
+    return NtCurrentTeb()->LastErrorValue;
 }
 
 extern "C"
