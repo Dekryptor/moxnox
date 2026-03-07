@@ -2068,7 +2068,132 @@ nt_status ipv6_tcp_socket::read(span<uint8_t> s, uint64_t& read_bytes) {
 }
 
 nt_status ipv6_tcp_socket::write(span<const uint8_t> s, uint64_t& written_bytes) {
-    print("FIXME: ipv6_tcp_socket::write\n");
+    // FIXME - merge into sendto once NtWriteFile is zero-copy
 
-    return nt_status::NOT_IMPLEMENTED;
+    nt_status status;
+
+    auto& t = *get_current_thread();
+    if (!t.proc)
+        return nt_status::INTERNAL_ERROR;
+
+    {
+        lock_guard lock(state_lock);
+
+        if (state != tcp_state::ESTABLISHED && state != tcp_state::CLOSE_WAIT)
+            return nt_status::CONNECTION_DISCONNECTED;
+    }
+
+    // FIXME - Nagle's algorithm (batching of outgoing data)
+
+    size_t done = 0;
+
+    auto& ni = *pni;
+
+    ni.acquire();
+
+    while (s.size() > 0) {
+        size_t size;
+
+        status = wait_for_object(send_window_open_event.get(), true);
+        if (!success(status))
+            break;
+
+        {
+            lock_guard lock(io_mutex);
+
+            size = min(s.size(), mss);
+
+            auto usable = allowed_send_bytes();
+
+            if (size > usable)
+                size = usable;
+
+            if (size == 0)
+                continue;
+
+            auto pack = new packet;
+            if (!pack) {
+                print("new failed\n");
+                ni.release();
+
+                if (done == 0)
+                    return nt_status::INSUFFICIENT_RESOURCES;
+                else {
+                    written_bytes = done;
+                    return nt_status::SUCCESS;
+                }
+            }
+
+            auto r = new ipv6_tcp_retransmission(*pack);
+            if (!r) {
+                print("new failed\n");
+                pack->release();
+                ni.release();
+
+                if (done == 0)
+                    return nt_status::INSUFFICIENT_RESOURCES;
+                else {
+                    written_bytes = done;
+                    return nt_status::SUCCESS;
+                }
+            }
+
+            pack->size = sizeof(ipv6_header) + sizeof(tcp_header) + size;
+
+            auto& ip = *(ipv6_header*)pack->data;
+            ip.traffic_class1 = 0;
+            ip.version = 6;
+            ip.traffic_class2 = 0;
+            ip.flow_label = 0;
+            ip.payload_length = byteswap((uint16_t)(sizeof(tcp_header) + size));
+            ip.next_header = IPPROTO_TCP;
+            ip.hop_limit = DEFAULT_HOP_LIMIT;
+            ip.src = bound_address;
+            ip.dst = connected_address;
+
+            auto& tcp = *(tcp_header*)(pack->data + sizeof(ipv6_header));
+
+            memset(&tcp, 0, sizeof(tcp));
+
+            tcp.src_port = bound_port;
+            tcp.dst_port = connected_port;
+            tcp.seq = send_next;
+            tcp.ack = recv_next;
+            tcp.header_length = sizeof(tcp_header) / sizeof(uint32_t);
+            tcp.PSH = 1;
+            tcp.ACK = 1;
+            tcp.window = byteswap(recv_window);
+
+            send_next += (uint32_t)size;
+
+            memcpy(r->pack.data + sizeof(ipv6_header) + (tcp.header_length * sizeof(uint32_t)),
+                   s.data(), size);
+
+            tcp.checksum = calc_ipv6_checksum(ip, span((uint8_t*)&tcp, pack->size - sizeof(ipv6_header)), IPPROTO_TCP);
+
+            dispatch_packet(ni, *pack, dst_mac);
+
+            r->deadline = (uint64_t)kernel_time_page.system_time + (RETRANSMISSION_DELAY * SYSTEM_TIME_RESOLUTION);
+
+            {
+                lock_guard lock(retransmission_list_lock);
+
+                insert_tail_list(retransmission_list, r->le);
+            }
+
+            pack->release();
+
+            if (allowed_send_bytes() == 0)
+                reset_event(static_cast<event&>(send_window_open_event.get()));
+        }
+
+        done += size;
+        s = span(s.data() + size, s.size() - size);
+    }
+
+    ni.release();
+
+    written_bytes = done;
+
+    return status;
 }
