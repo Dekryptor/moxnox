@@ -19,11 +19,11 @@ static constexpr uint32_t bytes_to_pages(size_t bytes) {
 
 extern "C"
 bool CreateProcessW(const char16_t* application_name, char16_t* command_line,
-                    SECURITY_ATTRIBUTES* process_attributes,
-                    SECURITY_ATTRIBUTES* thread_attributes,
+                    const SECURITY_ATTRIBUTES* process_attributes,
+                    const SECURITY_ATTRIBUTES* thread_attributes,
                     bool inherit_handles, uint32_t creation_flags,
-                    void* /*environment*/, const char16_t* current_directory,
-                    STARTUPINFOW* startup_info,
+                    const void* /*environment*/, const char16_t* current_directory,
+                    const STARTUPINFOW* startup_info,
                     PROCESS_INFORMATION* process_information) {
     HANDLE h, stdinh = 0, stdouth, stderrh, curdirh = 0;
     HANDLE orig_stdin, orig_stdout, orig_stderr;

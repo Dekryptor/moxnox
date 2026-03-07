@@ -92,11 +92,11 @@ HANDLE CreateThread(SECURITY_ATTRIBUTES* sa, size_t stack,
                     THREAD_START_ROUTINE start, void* param, uint32_t flags,
                     uint32_t* id);
 bool CreateProcessW(const char16_t* application_name, char16_t* command_line,
-                    SECURITY_ATTRIBUTES* process_attributes,
-                    SECURITY_ATTRIBUTES* thread_attributes,
+                    const SECURITY_ATTRIBUTES* process_attributes,
+                    const SECURITY_ATTRIBUTES* thread_attributes,
                     bool inherit_handles, uint32_t creation_flags,
-                    void* environment, const char16_t* current_directory,
-                    STARTUPINFOW* startup_info,
+                    const void* environment, const char16_t* current_directory,
+                    const STARTUPINFOW* startup_info,
                     PROCESS_INFORMATION* process_information);
 
 }
