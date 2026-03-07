@@ -207,11 +207,11 @@ static bool run_program(HANDLE server_handle, unique_handle& proc) {
     return true;
 }
 
-static void start_program(HANDLE sect, const SECTION_IMAGE_INFORMATION& sii,
-                          string_view cmdline, HANDLE server_handle,
-                          HANDLE client_handle) {
+static bool start_program(HANDLE sect, const SECTION_IMAGE_INFORMATION& sii,
+                          string_view cmdline, HANDLE client_handle,
+                          unique_handle& proc) {
     NTSTATUS status;
-    unique_handle proc, thread;
+    unique_handle thread;
     HANDLE h;
     CLIENT_ID client_id;
     CONTEXT context;
@@ -230,7 +230,7 @@ static void start_program(HANDLE sect, const SECTION_IMAGE_INFORMATION& sii,
 
     if (!success(status)) {
         print_stderr("NtCreateProcess returned {}\n", status);
-        return;
+        return false;
     }
 
     proc.reset(h);
@@ -243,7 +243,7 @@ static void start_program(HANDLE sect, const SECTION_IMAGE_INFORMATION& sii,
 
     if (!success(status)) {
         print_stderr("NtDuplicateObject returned {}\n", status);
-        return;
+        return false;
     }
 
     status = NtDuplicateObject(NtCurrentProcess(), client_handle,
@@ -252,7 +252,7 @@ static void start_program(HANDLE sect, const SECTION_IMAGE_INFORMATION& sii,
 
     if (!success(status)) {
         print_stderr("NtDuplicateObject returned {}\n", status);
-        return;
+        return false;
     }
 
     if (peb->ProcessParameters->CurrentDirectory.Handle) {
@@ -262,7 +262,7 @@ static void start_program(HANDLE sect, const SECTION_IMAGE_INFORMATION& sii,
 
         if (!success(status)) {
             print_stderr("NtDuplicateObject returned {}\n", status);
-            return;
+            return false;
         }
     }
 
@@ -272,14 +272,14 @@ static void start_program(HANDLE sect, const SECTION_IMAGE_INFORMATION& sii,
                                        &pbi, sizeof(pbi), nullptr);
     if (!success(status)) {
         print_stderr("NtQueryInformationProcess returned {}\n", status);
-        return;
+        return false;
     }
 
     status = NtReadVirtualMemory(proc.get(), pbi.PebBaseAddress, &newpeb,
                                  sizeof(PEB), nullptr);
     if (!success(status)) {
         print_stderr("NtReadVirtualMemory returned {}\n", status);
-        return;
+        return false;
     }
 
     // take copy of ProcessParameters
@@ -288,7 +288,7 @@ static void start_program(HANDLE sect, const SECTION_IMAGE_INFORMATION& sii,
                                  sizeof(params), nullptr);
     if (!success(status)) {
         print_stderr("NtReadVirtualMemory returned {}\n", status);
-        return;
+        return false;
     }
 
     // change handles
@@ -308,7 +308,7 @@ static void start_program(HANDLE sect, const SECTION_IMAGE_INFORMATION& sii,
                                   params.CurrentDirectory.DosPath.Length, nullptr);
     if (!success(status)) {
         print_stderr("NtWriteVirtualMemory returned {}\n", status);
-        return;
+        return false;
     }
 
     // allocate misc block
@@ -322,7 +322,7 @@ static void start_program(HANDLE sect, const SECTION_IMAGE_INFORMATION& sii,
     auto misc_block = (uint8_t*)malloc(misc_block_size);
     if (!misc_block) {
         print_stderr("malloc failed\n");
-        return;
+        return false;
     }
 
     // allocate misc block in process
@@ -336,7 +336,7 @@ static void start_program(HANDLE sect, const SECTION_IMAGE_INFORMATION& sii,
     if (!success(status)) {
         print_stderr("NtAllocateVirtualMemory returned {}\n", status);
         free(misc_block);
-        return;
+        return false;
     }
 
     // copy cmdline
@@ -365,7 +365,7 @@ static void start_program(HANDLE sect, const SECTION_IMAGE_INFORMATION& sii,
     if (!success(status)) {
         print_stderr("NtWriteVirtualMemory returned {}\n", status);
         free(misc_block);
-        return;
+        return false;
     }
 
     free(misc_block);
@@ -375,7 +375,7 @@ static void start_program(HANDLE sect, const SECTION_IMAGE_INFORMATION& sii,
     status = NtWriteVirtualMemory(proc.get(), newpeb.ProcessParameters, &params, sizeof(params), nullptr);
     if (!success(status)) {
         print_stderr("NtWriteVirtualMemory returned {}\n", status);
-        return;
+        return false;
     }
 
     // create thread
@@ -389,7 +389,7 @@ static void start_program(HANDLE sect, const SECTION_IMAGE_INFORMATION& sii,
                                      MEM_COMMIT | MEM_RESERVE, PAGE_READWRITE);
     if (!success(status)) {
         print_stderr("NtAllocateVirtualMemory returned {}\n", status);
-        return;
+        return false;
     }
 
     initial_teb.OldStackBase = nullptr;
@@ -414,7 +414,7 @@ static void start_program(HANDLE sect, const SECTION_IMAGE_INFORMATION& sii,
 
     if (!success(status)) {
         print_stderr("NtCreateThread returned {}\n", status);
-        return;
+        return false;
     }
 
     thread.reset(h);
@@ -423,7 +423,7 @@ static void start_program(HANDLE sect, const SECTION_IMAGE_INFORMATION& sii,
 
     NtResumeThread(thread.get(), nullptr);
 
-    run_program(server_handle, proc);
+    return true;
 }
 
 static constexpr chrono::year_month_day system_time_to_ymd(int64_t system_time) noexcept {
@@ -770,7 +770,12 @@ static void try_run_program(string_view program, string_view cmdline,
         return;
     }
 
-    start_program(sect.get(), sii, cmdline, server_handle, client_handle);
+    unique_handle proc;
+
+    if (!start_program(sect.get(), sii, cmdline, client_handle, proc))
+        return;
+
+    run_program(server_handle, proc);
 }
 
 static void int3() {
