@@ -76,7 +76,7 @@ static void socket_thread(void* ctx) {
     size_t reqlen = 0;
 
     while (true) {
-        auto status = NtReadFile(sock, 0, nullptr, nullptr, &iosb,
+        auto status = NtReadFile((HANDLE)sock, 0, nullptr, nullptr, &iosb,
                                  buf, sizeof(buf), nullptr, nullptr);
         if (status == nt_status::END_OF_FILE) {
             closesocket(sock);
@@ -165,7 +165,7 @@ static void socket_thread(void* ctx) {
         auto resp2 = span(resp.data(), resp.size());
 
         while (true) {
-            status = NtWriteFile(sock, 0, nullptr, nullptr, &iosb, resp2.data(),
+            status = NtWriteFile((HANDLE)sock, 0, nullptr, nullptr, &iosb, resp2.data(),
                                  (uint32_t)resp2.size(), nullptr, nullptr);
             if (status == nt_status::END_OF_FILE) {
                 closesocket(sock);
