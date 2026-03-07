@@ -22,12 +22,12 @@ bool CreateProcessW(const char16_t* application_name, char16_t* command_line,
                     SECURITY_ATTRIBUTES* process_attributes,
                     SECURITY_ATTRIBUTES* thread_attributes,
                     bool inherit_handles, uint32_t creation_flags,
-                    void* /*environment*/, const char16_t* /*current_directory*/,
+                    void* /*environment*/, const char16_t* current_directory,
                     STARTUPINFOW* startup_info,
                     PROCESS_INFORMATION* process_information) {
     HANDLE h, stdinh = 0, stdouth, stderrh, curdirh = 0;
     HANDLE orig_stdin, orig_stdout, orig_stderr;
-    unique_handle file, sect, proc, thread;
+    unique_handle file, sect, proc, thread, curdir;
     OBJECT_ATTRIBUTES oa;
     UNICODE_STRING us;
     IO_STATUS_BLOCK iosb;
@@ -46,7 +46,6 @@ bool CreateProcessW(const char16_t* application_name, char16_t* command_line,
     static const uint32_t supported_si_flags = STARTF_USESTDHANDLES;
 
     // FIXME - environment
-    // FIXME - current_directory
 
     if (!application_name) {
         print_stderr("FIXME - CreateProcess with no application_name\n");
@@ -207,13 +206,39 @@ bool CreateProcessW(const char16_t* application_name, char16_t* command_line,
         return false;
     }
 
-    status = NtDuplicateObject(NtCurrentProcess(), peb->ProcessParameters->CurrentDirectory.Handle,
-                               proc.get(), &curdirh, 0, 0,
-                               DUPLICATE_SAME_ATTRIBUTES | DUPLICATE_SAME_ACCESS);
-    if (!success(status)) {
-        print_stderr("NtDuplicateObject returned {}\n", status);
-        SetLastError(ERROR_INTERNAL_ERROR); // FIXME
-        return false;
+    if (current_directory) {
+        u16string_view sv{current_directory};
+
+        us.Length = us.MaximumLength = (uint16_t)(sv.size() * sizeof(char16_t));
+        us.Buffer = (char16_t*)sv.data();
+
+        auto status = NtCreateFile(&h, FILE_TRAVERSE, &oa, &iosb, nullptr,
+                                   FILE_ATTRIBUTE_NORMAL, 0, FILE_OPEN,
+                                   FILE_DIRECTORY_FILE, nullptr, 0);
+        if (!success(status)) {
+            print_stderr("NtCreateFile returned {}\n", status);
+            SetLastError(ERROR_INTERNAL_ERROR); // FIXME
+            return false;
+        } else
+            curdir = unique_handle{h};
+
+        status = NtDuplicateObject(NtCurrentProcess(), curdir.get(),
+                                   proc.get(), &curdirh, 0, 0,
+                                   DUPLICATE_SAME_ATTRIBUTES | DUPLICATE_SAME_ACCESS);
+        if (!success(status)) {
+            print_stderr("NtDuplicateObject returned {}\n", status);
+            SetLastError(ERROR_INTERNAL_ERROR); // FIXME
+            return false;
+        }
+    } else {
+        status = NtDuplicateObject(NtCurrentProcess(), peb->ProcessParameters->CurrentDirectory.Handle,
+                                   proc.get(), &curdirh, 0, 0,
+                                   DUPLICATE_SAME_ATTRIBUTES | DUPLICATE_SAME_ACCESS);
+        if (!success(status)) {
+            print_stderr("NtDuplicateObject returned {}\n", status);
+            SetLastError(ERROR_INTERNAL_ERROR); // FIXME
+            return false;
+        }
     }
 
     // take copy of PEB
