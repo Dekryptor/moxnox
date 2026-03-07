@@ -36,3 +36,4 @@ GetCurrentProcess
 TerminateProcess
 WideCharToMultiByte
 MultiByteToWideChar
+CreateThread

@@ -19,8 +19,15 @@ struct EXCEPTION_POINTERS {
      CONTEXT* ContextRecord;
 };
 
+struct SECURITY_ATTRIBUTES {
+     uint32_t nLength;
+     void* lpSecurityDescriptor;
+     bool bInheritHandle;
+};
+
 using HANDLER_ROUTINE = bool (*)(uint32_t ctrl_type);
 using TOP_LEVEL_EXCEPTION_FILTER = int32_t (*)(EXCEPTION_POINTERS* exception_info);
+using THREAD_START_ROUTINE = uint32_t (*)(void* ctx);
 
 extern "C" {
 
@@ -35,6 +42,9 @@ uint32_t GetLastError();
 void* TlsGetValue(uint32_t tls_index);
 void SetLastError(uint32_t err_code);
 bool TlsSetValue(uint32_t tls_index, void* tls_value);
+HANDLE CreateThread(SECURITY_ATTRIBUTES* sa, size_t stack,
+                    THREAD_START_ROUTINE start, void* param, uint32_t flags,
+                    uint32_t* id);
 
 }
 
