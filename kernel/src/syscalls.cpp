@@ -1563,18 +1563,21 @@ void maybe_yield(uint64_t syscall_ret)
     t.kernel_mode = false;
 
     if (t.status == thread_status::dying) {
-        bool last_thread = false;
+        bool terminate_proc = false;
 
         if (t.proc) {
             lock_guard lock(t.proc->threads_lock);
-            remove_entry_list(t.process_le);
-            last_thread = is_list_empty(t.proc->threads);
+
+            if (!t.proc->dying) {
+                remove_entry_list(t.process_le);
+                terminate_proc = is_list_empty(t.proc->threads);
+            }
         }
 
         release_sync_lock();
         enable_interrupts();
 
-        if (last_thread) {
+        if (terminate_proc) {
             t.proc->exit_status = t.exit_status;
             t.proc->terminate();
         } else {
@@ -1586,6 +1589,8 @@ void maybe_yield(uint64_t syscall_ret)
 
         disable_interrupts();
         acquire_sync_lock();
+
+        bool last_thread;
 
         thread_died(t, last_thread, false);
     }
