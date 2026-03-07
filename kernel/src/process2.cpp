@@ -3395,7 +3395,7 @@ NTSTATUS process::create_thread(optional<reference_wrapper<handle_t>> thread_han
         insert_tail_list(thread_list, t.le);
     }
 
-    client_id.UniqueProcess = 0; // FIXME - PID
+    client_id.UniqueProcess = this->tree.key;
     client_id.UniqueThread = tid;
 
     // FIXME - copy initial_teb into TEB
