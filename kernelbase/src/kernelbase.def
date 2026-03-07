@@ -35,3 +35,4 @@ GetLastError
 TlsGetValue
 TlsSetValue
 CreateThread
+CreateProcessW
