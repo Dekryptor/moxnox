@@ -285,18 +285,80 @@ bool CreateProcessW(const char16_t* application_name, char16_t* command_line,
     params.WindowFlags = startup_info->dwFlags;
     params.ShowWindowFlags = startup_info->wShowWindow;
 
-    // copy current directory string
+    if (current_directory) {
+        FILE_NAME_INFORMATION fni;
 
-    params.CurrentDirectory.DosPath.Length = min(params.CurrentDirectory.DosPath.MaximumLength,
-                                                 peb->ProcessParameters->CurrentDirectory.DosPath.Length);
+        status = NtQueryInformationFile(curdir.get(), &iosb, &fni, sizeof(fni),
+                                        FILE_INFORMATION_CLASS::NameInformation);
+        if (!success(status) && status != nt_status::BUFFER_OVERFLOW) {
+            print_stderr("NtQueryInformationFile returned {}\n", status);
+            SetLastError(ERROR_INTERNAL_ERROR); // FIXME
+            return false;
+        }
 
-    status = NtWriteVirtualMemory(proc.get(), params.CurrentDirectory.DosPath.Buffer,
-                                  peb->ProcessParameters->CurrentDirectory.DosPath.Buffer,
-                                  params.CurrentDirectory.DosPath.Length, nullptr);
-    if (!success(status)) {
-        print_stderr("NtWriteVirtualMemory returned {}\n", status);
-        SetLastError(ERROR_INTERNAL_ERROR); // FIXME
-        return false;
+        size_t len = offsetof(FILE_NAME_INFORMATION, FileName) + fni.FileNameLength;
+
+        auto fni2 = (FILE_NAME_INFORMATION*)malloc(len);
+        if (!fni2) {
+            print_stderr("malloc failed\n");
+            SetLastError(ERROR_NO_SYSTEM_RESOURCES);
+            return false;
+        }
+
+        status = NtQueryInformationFile(curdir.get(), &iosb, fni2, (uint32_t)len,
+                                        FILE_INFORMATION_CLASS::NameInformation);
+        if (!success(status)) {
+            print_stderr("NtQueryInformationFile returned {}\n", status);
+            free(fni2);
+            SetLastError(ERROR_INTERNAL_ERROR); // FIXME
+            return false;
+        }
+
+        auto sv = u16string_view(fni2->FileName, fni2->FileNameLength / sizeof(char16_t));
+
+        static const u16string_view prefix = u"C:";
+
+        for (size_t i = 0; i < sv.size(); i++) {
+            if (fni2->FileName[i] == u'/')
+                fni2->FileName[i] = u'\\';
+        }
+
+        status = NtWriteVirtualMemory(proc.get(), params.CurrentDirectory.DosPath.Buffer,
+                                      prefix.data(), (uint32_t)(prefix.size() * sizeof(char16_t)),
+                                      nullptr);
+        if (!success(status)) {
+            print_stderr("NtWriteVirtualMemory returned {}\n", status);
+            SetLastError(ERROR_INTERNAL_ERROR); // FIXME
+            return false;
+        }
+
+        status = NtWriteVirtualMemory(proc.get(), params.CurrentDirectory.DosPath.Buffer + prefix.size(),
+                                      fni2->FileName,
+                                      (uint32_t)min(sv.size() * sizeof(char16_t), (size_t)params.CurrentDirectory.DosPath.MaximumLength - (prefix.size() * sizeof(char16_t))),
+                                      nullptr);
+        if (!success(status)) {
+            print_stderr("NtWriteVirtualMemory returned {}\n", status);
+            SetLastError(ERROR_INTERNAL_ERROR); // FIXME
+            return false;
+        }
+
+        params.CurrentDirectory.DosPath.Length = min(params.CurrentDirectory.DosPath.MaximumLength, (uint16_t)((prefix.size() * sizeof(char16_t)) + fni2->FileNameLength));
+
+        free(fni2);
+    } else {
+        // copy current directory string
+
+        params.CurrentDirectory.DosPath.Length = min(params.CurrentDirectory.DosPath.MaximumLength,
+                                                     peb->ProcessParameters->CurrentDirectory.DosPath.Length);
+
+        status = NtWriteVirtualMemory(proc.get(), params.CurrentDirectory.DosPath.Buffer,
+                                      peb->ProcessParameters->CurrentDirectory.DosPath.Buffer,
+                                      params.CurrentDirectory.DosPath.Length, nullptr);
+        if (!success(status)) {
+            print_stderr("NtWriteVirtualMemory returned {}\n", status);
+            SetLastError(ERROR_INTERNAL_ERROR); // FIXME
+            return false;
+        }
     }
 
     // allocate misc block
