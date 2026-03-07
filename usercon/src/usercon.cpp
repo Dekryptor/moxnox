@@ -1422,7 +1422,7 @@ static void recv_data_fb(string_view s) {
 }
 
 static bool run_program(u16string_view exe, u16string_view cmdline,
-                        const unique_handle& curdir, unique_handle& proc,
+                        HANDLE curdir, unique_handle& proc,
                         HANDLE client_handle) {
     HANDLE h, stdinh = 0, stdouth, curdirh = 0;
     unique_handle file, sect, thread;
@@ -1524,8 +1524,8 @@ static bool run_program(u16string_view exe, u16string_view cmdline,
         return false;
     }
 
-    if (curdir) {
-        status = NtDuplicateObject(NtCurrentProcess(), curdir.get(), proc.get(),
+    if (curdir != 0) {
+        status = NtDuplicateObject(NtCurrentProcess(), curdir, proc.get(),
                                    &curdirh, 0, 0,
                                    DUPLICATE_SAME_ATTRIBUTES | DUPLICATE_SAME_ACCESS);
 
@@ -1705,7 +1705,7 @@ static bool run_program(u16string_view exe, u16string_view cmdline,
 static void handle_ctrl_alt_delete(HANDLE client_handle) {
     unique_handle proc;
 
-    if (!run_program(u"\\reboot.exe", u"reboot.exe", unique_handle{}, proc, client_handle))
+    if (!run_program(u"\\reboot.exe", u"reboot.exe", 0, proc, client_handle))
         print("failed to run reboot.exe\n");
 }
 
@@ -1873,7 +1873,7 @@ static void run_shell(u16string_view exe, u16string_view cmdline,
 
     auto home_handle = get_home_handle(recv_func);
 
-    if (!run_program(exe, cmdline, home_handle, proc, client_handle.get()))
+    if (!run_program(exe, cmdline, home_handle.get(), proc, client_handle.get()))
         return;
 
     home_handle.reset();
@@ -2010,7 +2010,7 @@ static void run_shell(u16string_view exe, u16string_view cmdline,
             case 3: {
                 // process terminated, start again
 
-                if (!run_program(exe, cmdline, get_home_handle(recv_func),
+                if (!run_program(exe, cmdline, get_home_handle(recv_func).get(),
                                  proc, client_handle.get())) {
                     return;
                 }
@@ -2248,7 +2248,7 @@ static int do_serial_console() {
 
     auto home_handle = get_home_handle(serial_print);
 
-    if (!run_program(exe, cmdline, home_handle, proc, client_handle.get()))
+    if (!run_program(exe, cmdline, home_handle.get(), proc, client_handle.get()))
         return 1;
 
     home_handle.reset();
@@ -2338,7 +2338,7 @@ static int do_serial_console() {
             case 2: {
                 // process terminated, start again
 
-                if (!run_program(exe, cmdline, get_home_handle(serial_print),
+                if (!run_program(exe, cmdline, get_home_handle(serial_print).get(),
                                  proc, client_handle.get())) {
                     return 1;
                 }
