@@ -1725,7 +1725,8 @@ static nt_status netctl_socket(span<const uint8_t> buf) {
 
             HANDLE h;
 
-            auto status = t->proc->add_handle(ref.get(), 0, true, h);
+            auto status = t->proc->add_handle(ref.get(), FILE_READ_DATA | FILE_WRITE_DATA,
+                                              true, h);
             if (!success(status))
                 return status;
 
