@@ -593,7 +593,7 @@ static bool setup_idt() {
     // FIXME - int 5 (bound range exceeded)
     add_idt_entry(0x6, (void*)invalid_opcode_isr, false, 0, false);
     // FIXME - int 7 (device not available)
-    add_idt_entry(0x8, (void*)double_fault_isr, false, 0, false);
+    add_idt_entry(0x8, (void*)double_fault_isr, false, 1, false);
     // FIXME - int 9 (coprocessor segment overrun)
     // FIXME - int a (invalid TSS)
     // FIXME - int b (segment not present)
