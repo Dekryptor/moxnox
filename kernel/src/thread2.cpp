@@ -35,7 +35,7 @@ static const uint16_t kernel_DS = 0x10;
     return t;
 }
 
-void thread_died(::thread& t, bool& last_thread, bool remove_from_proc) {
+void thread_died(::thread& t, bool* last_thread, bool remove_from_proc) {
     t.status = thread_status::dead;
     t.signalled = true;
 
@@ -48,13 +48,14 @@ void thread_died(::thread& t, bool& last_thread, bool remove_from_proc) {
 
         remove_entry_list(t.process_le);
 
-        last_thread = is_list_empty(t.proc->threads);
+        if (last_thread)
+            *last_thread = is_list_empty(t.proc->threads);
     }
 
     // t.release(); // FIXME - why does this crash?
 }
 
-static void terminate_thread2(::thread& t, bool& last_thread,
+static void terminate_thread2(::thread& t, bool* last_thread,
                               bool remove_from_proc) {
     if (t.status == thread_status::dying || t.status == thread_status::dead)
         return;
@@ -114,7 +115,7 @@ void terminate_thread(::thread& t, bool remove_from_proc) {
     disable_interrupts();
     acquire_sync_lock();
 
-    terminate_thread2(t, last_thread, remove_from_proc);
+    terminate_thread2(t, &last_thread, remove_from_proc);
 
     thread_is_dead = t.status == thread_status::dead;
 

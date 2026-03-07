@@ -154,7 +154,7 @@ static_assert(offsetof(AMD64_CONTEXT, FltSave) == CONTEXT_FXSAVE); // must be al
 export uint16_t last_tid; // FIXME
 
 export ::thread* get_current_thread();
-export void thread_died(::thread& t, bool& last_thread, bool remove_from_proc);
+export void thread_died(::thread& t, bool* last_thread, bool remove_from_proc);
 export void terminate_thread(::thread& t, bool remove_from_proc);
 export object_ref deref_handle(handle_t h);
 export object_ref deref_handle(handle_t h, ACCESS_MASK& access_mask);

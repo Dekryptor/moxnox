@@ -1590,9 +1590,7 @@ void maybe_yield(uint64_t syscall_ret)
         disable_interrupts();
         acquire_sync_lock();
 
-        bool last_thread;
-
-        thread_died(t, last_thread, false);
+        thread_died(t, nullptr, false);
     }
 
 #ifdef __aarch64__
