@@ -25,7 +25,7 @@ if(CMAKE_SYSTEM_PROCESSOR STREQUAL "aarch64")
     set(KERNEL_CFLAGS -Wall -Wextra -Wno-address-of-packed-member -Wconversion -Wno-unknown-pragmas -Werror=pointer-arith -Werror=return-type -fno-exceptions -fno-rtti -fcheck-new -Wno-invalid-offsetof -mno-stack-arg-probe -fno-threadsafe-statics -fvisibility=hidden ${GENERAL_CFLAGS})
 elseif(CMAKE_SYSTEM_PROCESSOR STREQUAL "amd64")
     set(GENERAL_CFLAGS -gdwarf-5)
-    set(USERSPACE_CFLAGS -Wall -Wextra -Wno-address-of-packed-member -Wconversion -Wno-unknown-pragmas -Werror=pointer-arith -Werror=return-type -fno-rtti -fcheck-new -Wno-invalid-offsetof -mno-stack-arg-probe -fno-threadsafe-statics -fvisibility=hidden ${GENERAL_CFLAGS})
+    set(USERSPACE_CFLAGS -Wall -Wextra -Wno-address-of-packed-member -Wconversion -Wno-unknown-pragmas -Werror=pointer-arith -Werror=return-type $<$<COMPILE_LANGUAGE:CXX>:-fno-rtti -Wno-invalid-offsetof -fno-threadsafe-statics> -fcheck-new -mno-stack-arg-probe -fvisibility=hidden ${GENERAL_CFLAGS})
     set(KERNEL_CFLAGS -Wall -Wextra -Wno-address-of-packed-member -Wconversion -Wno-unknown-pragmas -Werror=pointer-arith -Werror=return-type -fno-exceptions -fno-rtti -mno-red-zone -fcheck-new -Wno-invalid-offsetof -mno-stack-arg-probe -mno-sse -fno-threadsafe-statics -fvisibility=hidden -masm=intel ${GENERAL_CFLAGS})
 endif()
 
