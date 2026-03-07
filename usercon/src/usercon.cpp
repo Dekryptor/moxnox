@@ -154,10 +154,6 @@ static uint32_t bg_colour_index = 0, fg_colour_index = 7;
 static bool bg_bright = false, fg_bright = false, bold = false, italic = false;
 static uint32_t bg_colour = DEFAULT_BG_COLOUR, fg_colour = DEFAULT_FG_COLOUR;
 
-static constexpr uint32_t bytes_to_pages(size_t bytes) {
-    return (uint32_t)((bytes + PAGE_SIZE - 1) / PAGE_SIZE);
-}
-
 void* operator new(size_t count) {
     return malloc(count);
 }
