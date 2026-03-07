@@ -1,3 +1,6 @@
+include(CheckCSourceCompiles)
+include(CMakePushCheckState)
+
 add_library(pixman SHARED
     pixman/pixman/pixman.c
     pixman/pixman/pixman-access.c
@@ -48,9 +51,27 @@ configure_file(
 )
 
 if(CMAKE_SYSTEM_PROCESSOR STREQUAL "amd64")
-    set(PIXMAN_USE_SSE2 ON)
-    set(PIXMAN_USE_SSSE3 ON)
-    set(PIXMAN_USE_X86_MMX ON)
+    cmake_push_check_state()
+    set(CMAKE_REQUIRED_FLAGS "${USERSPACE_CFLAGS}")
+    set(CMAKE_TRY_COMPILE_TARGET_TYPE STATIC_LIBRARY)
+
+    set(PIXMAN_USE_SSE2 ON) # supported on every amd64 CPU
+
+    check_c_source_compiles("
+        #include <mmintrin.h>
+        #include <xmmintrin.h>
+        #include <emmintrin.h>
+        int param;
+        int main () {
+            __m128i a = _mm_set1_epi32 (param), b = _mm_set1_epi32 (param + 1), c;
+            c = _mm_xor_si128 (a, b);
+            return _mm_cvtsi128_si32(c);
+        }
+    " PIXMAN_USE_SSSE3)
+
+    cmake_pop_check_state()
+
+    set(PIXMAN_USE_X86_MMX ON) # supported on every amd64 CPU
 
     target_sources(pixman PRIVATE
         pixman/pixman/pixman-mmx.c
@@ -63,7 +84,6 @@ else()
     set(PIXMAN_USE_X86_MMX OFF)
 endif()
 
-# FIXME - generate pixman-config.h properly
 configure_file(
     "${CMAKE_CURRENT_SOURCE_DIR}/pixman-config.h.in"
     "${CMAKE_CURRENT_BINARY_DIR}/pixman/pixman-config.h"

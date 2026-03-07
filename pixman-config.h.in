@@ -1,5 +1,3 @@
-// FIXME - generate this
-
 #pragma once
 
 #define ASM_HAVE_FUNC_DIRECTIVE 1
