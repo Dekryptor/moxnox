@@ -81,7 +81,6 @@ target_compile_definitions(pixman PRIVATE -DHAVE_CONFIG_H)
 target_compile_definitions(pixman PRIVATE "-DPIXMAN_API=__declspec(dllexport)")
 target_compile_options(pixman PRIVATE ${USERSPACE_CFLAGS} -Wno-conversion -Wno-unused-parameter -Wno-type-limits -Wno-sign-compare -Wno-missing-field-initializers -Wno-unused-local-typedefs)
 target_compile_options(pixman PRIVATE $<$<COMPILE_LANGUAGE:CXX>:-fno-exceptions -fno-rtti> -mno-stack-arg-probe)
-target_compile_options(pixman PUBLIC $<$<STREQUAL:${CMAKE_SYSTEM_PROCESSOR},amd64>:-mssse3>) # because of module
 
 target_link_libraries(pixman PRIVATE moxnox)
 target_link_libraries(pixman PUBLIC pixman_mod)
