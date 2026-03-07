@@ -1168,6 +1168,13 @@ static void handle_char2(char32_t c) {
     else
         return;
 
+    if (!buf) {
+        buf = (char*)malloc(cp_len);
+
+        if (!buf)
+            return;
+    }
+
     memmove(&buf[cursor_pos + cp_len], &buf[cursor_pos], buflen - cursor_pos);
 
     if (c < 0x80)
