@@ -23,9 +23,10 @@ bool CreateProcessW(const char16_t* application_name, char16_t* command_line,
                     SECURITY_ATTRIBUTES* thread_attributes,
                     bool inherit_handles, uint32_t creation_flags,
                     void* /*environment*/, const char16_t* /*current_directory*/,
-                    STARTUPINFOW* /*startup_info*/,
+                    STARTUPINFOW* startup_info,
                     PROCESS_INFORMATION* process_information) {
     HANDLE h, stdinh = 0, stdouth, stderrh, curdirh = 0;
+    HANDLE orig_stdin, orig_stdout, orig_stderr;
     unique_handle file, sect, proc, thread;
     OBJECT_ATTRIBUTES oa;
     UNICODE_STRING us;
@@ -42,8 +43,8 @@ bool CreateProcessW(const char16_t* application_name, char16_t* command_line,
     auto peb = teb->ProcessEnvironmentBlock;
 
     static const uint32_t supported_flags = CREATE_SUSPENDED;
+    static const uint32_t supported_si_flags = STARTF_USESTDHANDLES;
 
-    // FIXME - startup_info
     // FIXME - environment
     // FIXME - current_directory
 
@@ -80,6 +81,18 @@ bool CreateProcessW(const char16_t* application_name, char16_t* command_line,
 
     if (!application_name && !command_line) {
         SetLastError(ERROR_INVALID_PARAMETER);
+        return false;
+    }
+
+    if (!startup_info || startup_info->cb < sizeof(*startup_info)) {
+        SetLastError(ERROR_INVALID_PARAMETER);
+        return false;
+    }
+
+    if (startup_info->dwFlags & ~supported_si_flags) {
+        print_stderr("FIXME - unsupported CreateProcess STARTUPINFO flags {:x}\n",
+                     startup_info->dwFlags & ~supported_si_flags);
+        SetLastError(ERROR_CALL_NOT_IMPLEMENTED);
         return false;
     }
 
@@ -157,7 +170,17 @@ bool CreateProcessW(const char16_t* application_name, char16_t* command_line,
 
     // duplicate handles
 
-    status = NtDuplicateObject(NtCurrentProcess(), peb->ProcessParameters->StandardInput,
+    if (startup_info->dwFlags & STARTF_USESTDHANDLES) {
+        orig_stdin = startup_info->hStdInput;
+        orig_stdout = startup_info->hStdOutput;
+        orig_stderr = startup_info->hStdError;
+    } else {
+        orig_stdin = peb->ProcessParameters->StandardInput;
+        orig_stdout = peb->ProcessParameters->StandardOutput;
+        orig_stderr = peb->ProcessParameters->StandardError;
+    }
+
+    status = NtDuplicateObject(NtCurrentProcess(), orig_stdin,
                                proc.get(), &stdinh, FILE_READ_DATA, 0,
                                DUPLICATE_SAME_ATTRIBUTES);
     if (!success(status)) {
@@ -166,7 +189,7 @@ bool CreateProcessW(const char16_t* application_name, char16_t* command_line,
         return false;
     }
 
-    status = NtDuplicateObject(NtCurrentProcess(), peb->ProcessParameters->StandardOutput,
+    status = NtDuplicateObject(NtCurrentProcess(), orig_stdout,
                                proc.get(), &stdouth, FILE_WRITE_DATA, 0,
                                DUPLICATE_SAME_ATTRIBUTES);
     if (!success(status)) {
@@ -175,7 +198,7 @@ bool CreateProcessW(const char16_t* application_name, char16_t* command_line,
         return false;
     }
 
-    status = NtDuplicateObject(NtCurrentProcess(), peb->ProcessParameters->StandardError,
+    status = NtDuplicateObject(NtCurrentProcess(), orig_stderr,
                                proc.get(), &stderrh, FILE_WRITE_DATA, 0,
                                DUPLICATE_SAME_ATTRIBUTES);
     if (!success(status)) {
@@ -221,12 +244,21 @@ bool CreateProcessW(const char16_t* application_name, char16_t* command_line,
         return false;
     }
 
-    // change handles
+    // change handles and set params
 
     params.StandardInput = stdinh;
     params.StandardOutput = stdouth;
     params.StandardError = stdouth;
     params.CurrentDirectory.Handle = curdirh;
+    params.StartingX = startup_info->dwX;
+    params.StartingY = startup_info->dwY;
+    params.CountX = startup_info->dwXSize;
+    params.CountY = startup_info->dwYSize;
+    params.CountCharsX = startup_info->dwXCountChars;
+    params.CountCharsY = startup_info->dwYCountChars;
+    params.FillAttribute = startup_info->dwFillAttribute;
+    params.WindowFlags = startup_info->dwFlags;
+    params.ShowWindowFlags = startup_info->wShowWindow;
 
     // copy current directory string
 
@@ -355,13 +387,20 @@ bool CreateProcessW(const char16_t* application_name, char16_t* command_line,
                             &client_id, &context, &initial_teb, true);
     if (!success(status)) {
         print_stderr("NtCreateThread returned {}\n", status);
+        SetLastError(ERROR_INTERNAL_ERROR); // FIXME
         return false;
     }
 
     thread.reset(h);
 
-    if (!(creation_flags & CREATE_SUSPENDED))
-        NtResumeThread(thread.get(), nullptr);
+    if (!(creation_flags & CREATE_SUSPENDED)) {
+        status = NtResumeThread(thread.get(), nullptr);
+        if (!success(status)) {
+            print_stderr("NtResumeThread returned {}\n", status);
+            SetLastError(ERROR_INTERNAL_ERROR); // FIXME
+            return false;
+        }
+    }
 
     process_information->hProcess = 0;
     process_information->hThread = 0;
