@@ -132,6 +132,7 @@ public:
     nt_status listen(int backlog) override;
     nt_status accept(HANDLE& sock, void* addr, int& addrlen) override;
     nt_status read(span<uint8_t> s, uint64_t& read_bytes) override;
+    nt_status write(span<const uint8_t> s, uint64_t& written_bytes) override;
 
     void received_packet(packet& pack, netif& ni, const mac_address& src_mac);
 
@@ -2064,4 +2065,10 @@ nt_status ipv6_tcp_socket::read(span<uint8_t> s, uint64_t& read_bytes) {
     release();
 
     return nt_status::SUCCESS;
+}
+
+nt_status ipv6_tcp_socket::write(span<const uint8_t> s, uint64_t& written_bytes) {
+    print("FIXME: ipv6_tcp_socket::write\n");
+
+    return nt_status::NOT_IMPLEMENTED;
 }

@@ -63,6 +63,10 @@ public:
         return nt_status::NOT_SUPPORTED;
     }
 
+    nt_status write(span<const uint8_t>, uint64_t&) override {
+        return nt_status::NOT_SUPPORTED;
+    }
+
     list_entry le;
     int protocol;
     bool added_to_list = false;
