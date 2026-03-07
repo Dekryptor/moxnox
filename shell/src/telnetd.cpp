@@ -18,6 +18,7 @@ import ipv6;
 import unique_handle;
 import kernelbase;
 import format;
+import env;
 
 using namespace std;
 
@@ -74,11 +75,11 @@ static uint32_t socket_thread(void* ctx) {
     si.hStdOutput = sock.get();
     si.hStdError = sock.get();
 
-    // FIXME - set current directory to HOME
-    // FIXME - change environment variables?
+    auto home = get_env(u"HOME");
 
     if (!CreateProcessW(u"/bin/shell.exe", nullptr, nullptr, nullptr,
-                        false, 0, nullptr, nullptr, &si, &pi)) {
+                        false, 0, nullptr, !home.empty() ? home.data() : nullptr,
+                        &si, &pi)) {
         print_to_handle(sock.get(), "CreateProcessW failed (last error {})\n", GetLastError());
         return 1;
     }
