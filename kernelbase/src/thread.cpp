@@ -1,10 +1,13 @@
 #include <stdint.h>
 #include <string.h>
 #include <winerror.h>
+#include <utility>
 
 import nt;
 import kernelbase;
 import print;
+
+using namespace std;
 
 extern "C"
 uint32_t TlsAlloc() {
@@ -30,6 +33,13 @@ bool TlsSetValue(uint32_t tls_index, void* tls_value) {
     print_stderr("FIXME - TlsSetValue {}, {:x}\n", tls_index, (uintptr_t)tls_value);
 
     return false;
+}
+
+static void thread_start(THREAD_START_ROUTINE func, void* param) {
+    auto ret = func(param);
+
+    NtTerminateThread(NtCurrentThread(), (nt_status)ret);
+    unreachable();
 }
 
 extern "C"
@@ -87,14 +97,16 @@ HANDLE CreateThread(SECURITY_ATTRIBUTES* sa, size_t stack_size,
 
     memset(&context, 0, sizeof(context));
 #ifdef __aarch64__
-    context.Pc = (uintptr_t)start;
+    context.Pc = (uintptr_t)thread_start;
     context.Sp = (uintptr_t)initial_teb.StackBase - 0x10; // 0x10 bytes for red zone
-    context.X0 = (uintptr_t)param;
+    context.X0 = (uintptr_t)start;
+    context.X1 = (uintptr_t)param;
 #elifdef __x86_64__
-    context.Rip = (uintptr_t)start;
+    context.Rip = (uintptr_t)thread_start;
     context.Rsp = (uintptr_t)initial_teb.StackBase - 0x28; // 0x20 bytes for MS ABI, 0x8 for return pointer
     context.EFlags = 0x200;
-    context.Rcx = (uintptr_t)param;
+    context.Rcx = (uintptr_t)start;
+    context.Rdx = (uintptr_t)param;
 #endif
     context.ContextFlags = CONTEXT_CONTROL | CONTEXT_INTEGER | CONTEXT_SEGMENTS;
 
