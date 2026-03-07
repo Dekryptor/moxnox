@@ -48,9 +48,20 @@
 
 #define USE_GCC_INLINE_ASM 1
 
-#cmakedefine USE_SSE2 1
+#cmakedefine PIXMAN_USE_SSE2
 
-#cmakedefine USE_SSSE3 1
+#cmakedefine PIXMAN_USE_SSSE3
 
-#cmakedefine USE_X86_MMX 1
+#cmakedefine PIXMAN_USE_X86_MMX
 
+#ifdef PIXMAN_USE_SSE2
+#define USE_SSE2 1
+#endif
+
+#ifdef PIXMAN_USE_SSSE3
+#define USE_SSSE3 1
+#endif
+
+#ifdef PIXMAN_USE_X86_MMX
+#define USE_X86_MMX 1
+#endif

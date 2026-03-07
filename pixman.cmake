@@ -47,11 +47,10 @@ configure_file(
     "${CMAKE_CURRENT_BINARY_DIR}/pixman/pixman-version.h"
 )
 
-# FIXME - don't pollute CMake namespace
 if(CMAKE_SYSTEM_PROCESSOR STREQUAL "amd64")
-    set(USE_SSE2 ON)
-    set(USE_SSSE3 ON)
-    set(USE_X86_MMX ON)
+    set(PIXMAN_USE_SSE2 ON)
+    set(PIXMAN_USE_SSSE3 ON)
+    set(PIXMAN_USE_X86_MMX ON)
 
     target_sources(pixman PRIVATE
         pixman/pixman/pixman-mmx.c
@@ -59,9 +58,9 @@ if(CMAKE_SYSTEM_PROCESSOR STREQUAL "amd64")
         pixman/pixman/pixman-ssse3.c
     )
 else()
-    set(USE_SSE2 OFF)
-    set(USE_SSSE3 OFF)
-    set(USE_X86_MMX OFF)
+    set(PIXMAN_USE_SSE2 OFF)
+    set(PIXMAN_USE_SSSE3 OFF)
+    set(PIXMAN_USE_X86_MMX OFF)
 endif()
 
 # FIXME - generate pixman-config.h properly
