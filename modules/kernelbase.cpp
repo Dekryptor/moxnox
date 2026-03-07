@@ -27,6 +27,34 @@ struct SECURITY_ATTRIBUTES {
      bool bInheritHandle;
 };
 
+struct STARTUPINFOW {
+     uint32_t cb;
+     char16_t* lpReserved;
+     char16_t* lpDesktop;
+     char16_t* lpTitle;
+     uint32_t dwX;
+     uint32_t dwY;
+     uint32_t dwXSize;
+     uint32_t dwYSize;
+     uint32_t dwXCountChars;
+     uint32_t dwYCountChars;
+     uint32_t dwFillAttribute;
+     uint32_t dwFlags;
+     uint16_t wShowWindow;
+     uint16_t cbReserved2;
+     uint8_t* lpReserved2;
+     HANDLE hStdInput;
+     HANDLE hStdOutput;
+     HANDLE hStdError;
+};
+
+struct PROCESS_INFORMATION {
+     HANDLE hProcess;
+     HANDLE hThread;
+     uint32_t dwProcessId;
+     uint32_t dwThreadId;
+};
+
 using HANDLER_ROUTINE = bool (*)(uint32_t ctrl_type);
 using TOP_LEVEL_EXCEPTION_FILTER = int32_t (*)(EXCEPTION_POINTERS* exception_info);
 using THREAD_START_ROUTINE = uint32_t (*)(void* ctx);
@@ -47,6 +75,13 @@ bool TlsSetValue(uint32_t tls_index, void* tls_value);
 HANDLE CreateThread(SECURITY_ATTRIBUTES* sa, size_t stack,
                     THREAD_START_ROUTINE start, void* param, uint32_t flags,
                     uint32_t* id);
+bool CreateProcessW(const char16_t* application_name, char16_t* command_line,
+                    SECURITY_ATTRIBUTES* process_attributes,
+                    SECURITY_ATTRIBUTES* thread_attributes,
+                    bool inherit_handles, uint32_t creation_flags,
+                    void* environment, const char16_t* current_directory,
+                    STARTUPINFOW* startup_info,
+                    PROCESS_INFORMATION* process_information);
 
 }
 

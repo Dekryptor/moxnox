@@ -37,3 +37,4 @@ TerminateProcess
 WideCharToMultiByte
 MultiByteToWideChar
 CreateThread
+CreateProcessW
