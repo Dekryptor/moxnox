@@ -3,6 +3,7 @@
 #include <stdlib.h>
 #include <winerror.h>
 #include <string_view>
+#include <span>
 
 import nt;
 import kernelbase;
@@ -10,6 +11,7 @@ import print;
 import unique_handle;
 import pe;
 import pagesize;
+import unicode;
 
 using namespace std;
 
@@ -17,12 +19,44 @@ static constexpr uint32_t bytes_to_pages(size_t bytes) {
     return (uint32_t)((bytes + PAGE_SIZE - 1) / PAGE_SIZE);
 }
 
+static size_t calc_environment_size(const void* environment, bool utf16) {
+    size_t ret = 0;
+
+    if (utf16) {
+        auto env = (const char16_t*)environment;
+
+        while (*env) {
+            auto sv = u16string_view(env);
+
+            ret += sv.size() * sizeof(char16_t);
+            ret += sizeof(char16_t);
+
+            env += sv.size() + 1;
+        }
+    } else {
+        auto env = (const char*)environment;
+
+        while (*env) {
+            auto sv = string_view(env);
+
+            ret += utf8_to_utf16_len(sv) * sizeof(char16_t);
+            ret += sizeof(char16_t);
+
+            env += sv.size() + 1;
+        }
+    }
+
+    ret += sizeof(char16_t);
+
+    return ret;
+}
+
 extern "C"
 bool CreateProcessW(const char16_t* application_name, char16_t* command_line,
                     const SECURITY_ATTRIBUTES* process_attributes,
                     const SECURITY_ATTRIBUTES* thread_attributes,
                     bool inherit_handles, uint32_t creation_flags,
-                    const void* /*environment*/, const char16_t* current_directory,
+                    const void* environment, const char16_t* current_directory,
                     const STARTUPINFOW* startup_info,
                     PROCESS_INFORMATION* process_information) {
     HANDLE h, stdinh = 0, stdouth, stderrh, curdirh = 0;
@@ -42,10 +76,9 @@ bool CreateProcessW(const char16_t* application_name, char16_t* command_line,
     auto teb = NtCurrentTeb();
     auto peb = teb->ProcessEnvironmentBlock;
 
-    static const uint32_t supported_flags = CREATE_SUSPENDED;
+    static const uint32_t supported_flags = CREATE_SUSPENDED | \
+                                            CREATE_UNICODE_ENVIRONMENT;
     static const uint32_t supported_si_flags = STARTF_USESTDHANDLES;
-
-    // FIXME - environment
 
     if (!application_name) {
         print_stderr("FIXME - CreateProcess with no application_name\n");
@@ -372,7 +405,15 @@ bool CreateProcessW(const char16_t* application_name, char16_t* command_line,
 
     size_t misc_block_size = (cmdline.size() + 1) * sizeof(char16_t);
 
-    misc_block_size += peb->ProcessParameters->EnvironmentSize;
+    size_t environment_size;
+
+    if (environment) {
+        environment_size = calc_environment_size(environment,
+                                                 creation_flags & CREATE_UNICODE_ENVIRONMENT);
+    } else
+        environment_size = peb->ProcessParameters->EnvironmentSize;
+
+    misc_block_size += environment_size;
 
     auto misc_block = (uint8_t*)malloc(misc_block_size);
     if (!misc_block) {
@@ -410,10 +451,34 @@ bool CreateProcessW(const char16_t* application_name, char16_t* command_line,
     params.CommandLine.MaximumLength = (uint16_t)((cmdline.size() + 1) * sizeof(char16_t));
     params.CommandLine.Buffer = (char16_t*)proc_misc_block;
 
-    memcpy(ptr, peb->ProcessParameters->Environment,
-           peb->ProcessParameters->EnvironmentSize);
+    if (environment) {
+        if (creation_flags & CREATE_UNICODE_ENVIRONMENT)
+            memcpy(ptr, environment, environment_size);
+        else {
+            span sp((char16_t*)ptr, environment_size * sizeof(char16_t));
+            auto env = (const char*)environment;
+
+            while (*env) {
+                auto sv = string_view(env);
+
+                utf8_to_utf16(sp, sv);
+                sp = sp.subspan(utf8_to_utf16_len(sv));
+
+                sp[0] = u'\0';
+                sp = sp.subspan(1);
+
+                env += sv.size() + 1;
+            }
+
+            sp[0] = u'\0';
+        }
+    } else {
+        memcpy(ptr, peb->ProcessParameters->Environment,
+               peb->ProcessParameters->EnvironmentSize);
+    }
+
     params.Environment = (uint8_t*)proc_misc_block + (ptr - misc_block);
-    params.EnvironmentSize = peb->ProcessParameters->EnvironmentSize;
+    params.EnvironmentSize = environment_size;
 
     // copy misc block
 
