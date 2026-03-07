@@ -1,9 +1,10 @@
 #include <stdint.h>
 
+import nt;
 import ntdll;
 import print;
 
 extern "C"
 void RtlSetLastWin32Error(uint32_t err_code) {
-    print_stderr("FIXME - RtlSetLastWin32Error {}\n", err_code); // FIXME
+    NtCurrentTeb()->LastErrorValue = err_code;
 }
