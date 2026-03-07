@@ -50,6 +50,5 @@ public:
         return h;
     }
 
-private:
     HANDLE h;
 };
