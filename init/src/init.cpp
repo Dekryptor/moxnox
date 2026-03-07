@@ -15,6 +15,7 @@ import pagesize;
 import env;
 import unique_handle;
 import moxnox_ioctls;
+import kernelbase;
 
 static span<char16_t> environment;
 
@@ -327,7 +328,7 @@ static void run_program(u16string_view fn, u16string_view cmdline, HANDLE stdinh
     NtClose(proc);
 }
 
-static void do_serial() {
+static uint32_t do_serial(void*) {
     NTSTATUS status;
     UNICODE_STRING us;
     OBJECT_ATTRIBUTES oa;
@@ -354,14 +355,12 @@ static void do_serial() {
 
     if (status == nt_status::OBJECT_NAME_NOT_FOUND ||
         status == nt_status::SHARING_VIOLATION) {
-        NtTerminateThread(NtCurrentThread(), nt_status::SUCCESS);
-        return;
+        return 1;
     }
 
     if (!success(status)) {
         print("NtCreateFile returned {}\n", status);
-        NtTerminateThread(NtCurrentThread(), nt_status::SUCCESS);
-        return;
+        return 1;
     }
 
     while (true) {
@@ -371,56 +370,7 @@ static void do_serial() {
 
     NtClose(h);
 
-    NtTerminateThread(NtCurrentThread(), nt_status::SUCCESS);
-}
-
-static void create_thread(void(*func)()) {
-    NTSTATUS status;
-    HANDLE h;
-    CLIENT_ID client_id;
-    CONTEXT context;
-    INITIAL_TEB initial_teb;
-
-    memset(&initial_teb, 0, sizeof(initial_teb));
-
-    void* stack = nullptr;
-    size_t stack_size = 0x100000;
-
-    status = NtAllocateVirtualMemory(NtCurrentProcess(), &stack, 0, &stack_size,
-                                     MEM_COMMIT | MEM_RESERVE, PAGE_READWRITE);
-    if (!success(status)) {
-        print("NtAllocateVirtualMemory returned {}\n", status); // FIXME - should be to stderr
-        return;
-    }
-
-    initial_teb.OldStackBase = nullptr;
-    initial_teb.OldStackLimit = nullptr;
-    initial_teb.StackBase = (uint8_t*)stack + stack_size;
-    initial_teb.StackLimit = (uint8_t*)stack + stack_size;
-    initial_teb.StackAllocationBase = stack;
-
-    memset(&context, 0, sizeof(context));
-#ifdef __aarch64__
-    context.Pc = (uintptr_t)func;
-    context.Sp = (uintptr_t)initial_teb.StackBase - 0x10; // 0x10 bytes for red zone
-#elifdef __x86_64__
-    context.Rip = (uintptr_t)func;
-    context.Rsp = (uintptr_t)initial_teb.StackBase - 0x28; // 0x20 bytes for MS ABI, 0x8 for return pointer
-    context.EFlags = 0x200;
-#endif
-    context.ContextFlags = CONTEXT_CONTROL | CONTEXT_INTEGER | CONTEXT_SEGMENTS;
-
-    status = NtCreateThread(&h, THREAD_ALL_ACCESS, nullptr, NtCurrentProcess(), &client_id, &context,
-                            &initial_teb, true);
-
-    if (!success(status)) {
-        print("NtCreateThread returned {}\n", status); // FIXME - should be to stderr
-        return;
-    }
-
-    NtResumeThread(h, nullptr);
-
-    NtClose(h);
+    return 0;
 }
 
 static void prepare_environment() {
@@ -594,7 +544,11 @@ extern "C" void startup() {
                         peb->ProcessParameters->StandardError, environment);
         }
     } else {
-        create_thread(do_serial);
+        auto h = CreateThread(nullptr, 0, do_serial, nullptr, 0, nullptr);
+        if (h == 0)
+            print_stderr("CreateThread failed (last error {})\n", GetLastError());
+        else
+            NtClose(h);
 
         while (true) {
             auto teb = NtCurrentTeb();
