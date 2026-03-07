@@ -1749,7 +1749,8 @@ nt_status ipv6_tcp_socket::accept(HANDLE& sock, void* us_addr, int& addrlen) {
         addrlen = sizeof(addr);
     }
 
-    status = t.proc->add_handle(*c, 0, true, sock);
+    status = t.proc->add_handle(*c, FILE_READ_DATA | FILE_WRITE_DATA, true,
+                                sock);
     if (!success(status)) {
         c->release();
         return status;
