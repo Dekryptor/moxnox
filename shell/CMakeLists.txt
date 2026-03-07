@@ -454,7 +454,7 @@ install(TARGETS pixman-test DESTINATION ${CMAKE_INSTALL_PREFIX}/bin)
 add_executable(telnetd src/telnetd.cpp)
 
 target_compile_options(telnetd PRIVATE -fno-exceptions ${USERSPACE_CFLAGS})
-target_link_libraries(telnetd moxnox print errno unique_handle pe pagesize)
+target_link_libraries(telnetd moxnox print errno unique_handle)
 
 if (CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
     target_link_options(telnetd PUBLIC -mcrtdll=ucrtbase)
