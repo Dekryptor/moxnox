@@ -14,6 +14,8 @@ const uint32_t CTRL_CLOSE_EVENT = 2;
 const uint32_t CTRL_LOGOFF_EVENT = 5;
 const uint32_t CTRL_SHUTDOWN_EVENT = 6;
 
+const uint32_t CREATE_SUSPENDED = 0x00000004;
+
 struct EXCEPTION_POINTERS {
      EXCEPTION_RECORD* ExceptionRecord;
      CONTEXT* ContextRecord;
