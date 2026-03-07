@@ -8,10 +8,7 @@
 using namespace std;
 
 import nt;
-import ntdll;
 import print;
-import cmdline;
-import pagesize;
 import env;
 import unique_handle;
 import moxnox_ioctls;
@@ -227,47 +224,20 @@ static void mount_dev() {
     free(buf);
 }
 
-extern "C" void startup() {
+int main(int argc, char** argv) {
     bool serial_mode = false;
 
     // FIXME - start services etc.
 
-    {
-        auto teb = NtCurrentTeb();
-        auto peb = teb->ProcessEnvironmentBlock;
+    for (int i = 1; i < argc; i++) {
+        static const char search[] = "console=";
 
-        auto cmdline = u16string_view(peb->ProcessParameters->CommandLine.Buffer,
-                                    peb->ProcessParameters->CommandLine.Length / sizeof(char16_t));
+        string_view sv = argv[i];
 
-        auto argc = count_cmdline_args(cmdline);
-        span<u16string_view> argv;
-        u16string_view* buf = nullptr;
-
-        if (argc != 0) {
-            buf = (decltype(buf))RtlAllocateHeap(GetProcessHeap(), 0, argc * sizeof(*buf));
-            if (!buf)
-                NtTerminateThread(NtCurrentThread(), nt_status::INSUFFICIENT_RESOURCES);
-
-            argv = span(buf, argc);
+        if (sv.size() >= sizeof(search) - 1 && !memcmp(sv.data(), search, sizeof(search) - 1)) {
+            serial_mode = true;
+            break;
         }
-
-        parse_cmdline(cmdline, argv);
-
-        if (!argv.empty())
-            argv = argv.subspan(1);
-
-        for (auto arg : argv) {
-            if (arg.empty())
-                continue;
-
-            static const u16string_view opt = u"console=";
-
-            if (arg.size() >= opt.size() && !memcmp(arg.data(), opt.data(), opt.size()))
-                serial_mode = true;
-        }
-
-        if (buf)
-            RtlFreeHeap(GetProcessHeap(), 0, buf);
     }
 
     mount_dev();
