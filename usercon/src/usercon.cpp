@@ -20,7 +20,6 @@ import signal;
 import unicode;
 import cp437;
 import text;
-import cmdline;
 import evdev;
 import keyboard;
 import pe;
@@ -2097,75 +2096,22 @@ static int do_serial_console() {
     return 0;
 }
 
-static int _main() {
-    auto teb = NtCurrentTeb();
-    auto peb = teb->ProcessEnvironmentBlock;
-    int ret;
+int main(int argc, char** argv) {
     bool serial_mode = false;
 
-    auto cmdline = u16string_view(peb->ProcessParameters->CommandLine.Buffer,
-                                  peb->ProcessParameters->CommandLine.Length / sizeof(char16_t));
+    for (int i = 1; i < argc; i++) {
+        auto arg = string_view(argv[i]);
 
-    auto argc = count_cmdline_args(cmdline);
-    span<u16string_view> argv;
-    u16string_view* buf = nullptr;
-
-    if (argc != 0) {
-        buf = (decltype(buf))RtlAllocateHeap(GetProcessHeap(), 0, argc * sizeof(*buf));
-        if (!buf)
-            NtTerminateThread(NtCurrentThread(), nt_status::INSUFFICIENT_RESOURCES);
-
-        argv = span(buf, argc);
-    }
-
-    parse_cmdline(cmdline, argv);
-
-    if (!argv.empty())
-        argv = argv.subspan(1);
-
-    for (auto arg : argv) {
-        if (arg.empty())
-            continue;
-
-        if (arg == u"serial")
+        if (arg == "serial")
             serial_mode = true;
         else {
             print("unhandled command line option \"{}\"\n", arg);
-            RtlFreeHeap(GetProcessHeap(), 0, buf);
             return 1;
         }
     }
 
     if (serial_mode)
-        ret = do_serial_console();
+        return do_serial_console();
     else
-        ret = do_console();
-
-    if (buf)
-        RtlFreeHeap(GetProcessHeap(), 0, buf);
-
-    return ret;
-}
-
-static void call_global_constructors() {
-    auto v = &__CTOR_LIST__;
-
-    if (*v != 0xffffffffffffffff)
-        return;
-
-    v++;
-
-    while (*v != 0) {
-        auto func = reinterpret_cast<void (*)()>(*v);
-
-        func();
-
-        v++;
-    }
-}
-
-extern "C" void startup() {
-    call_global_constructors();
-
-    NtTerminateThread(NtCurrentThread(), (NTSTATUS)_main());
+        return do_console();
 }
