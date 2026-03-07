@@ -17,62 +17,12 @@ import ipv6;
 import unique_handle;
 import pe;
 import pagesize;
+import kernelbase;
 
 using namespace std;
 
 static constexpr uint32_t bytes_to_pages(size_t bytes) {
     return (uint32_t)((bytes + PAGE_SIZE - 1) / PAGE_SIZE);
-}
-
-static void create_thread(void(*func)(void*), void* ctx) {
-    NTSTATUS status;
-    HANDLE h;
-    CLIENT_ID client_id;
-    CONTEXT context;
-    INITIAL_TEB initial_teb;
-
-    memset(&initial_teb, 0, sizeof(initial_teb));
-
-    void* stack = nullptr;
-    size_t stack_size = 0x100000;
-
-    status = NtAllocateVirtualMemory(NtCurrentProcess(), &stack, 0, &stack_size,
-                                     MEM_COMMIT | MEM_RESERVE, PAGE_READWRITE);
-    if (!success(status)) {
-        print("NtAllocateVirtualMemory returned {}\n", status); // FIXME - should be to stderr
-        return;
-    }
-
-    initial_teb.OldStackBase = nullptr;
-    initial_teb.OldStackLimit = nullptr;
-    initial_teb.StackBase = (uint8_t*)stack + stack_size;
-    initial_teb.StackLimit = (uint8_t*)stack + stack_size;
-    initial_teb.StackAllocationBase = stack;
-
-    memset(&context, 0, sizeof(context));
-#ifdef __aarch64__
-    context.Pc = (uintptr_t)func;
-    context.Sp = (uintptr_t)initial_teb.StackBase - 0x10; // 0x10 bytes for red zone
-    context.X0 = (uintptr_t)ctx;
-#elifdef __x86_64__
-    context.Rip = (uintptr_t)func;
-    context.Rsp = (uintptr_t)initial_teb.StackBase - 0x28; // 0x20 bytes for MS ABI, 0x8 for return pointer
-    context.EFlags = 0x200;
-    context.Rcx = (uintptr_t)ctx;
-#endif
-    context.ContextFlags = CONTEXT_CONTROL | CONTEXT_INTEGER | CONTEXT_SEGMENTS;
-
-    status = NtCreateThread(&h, THREAD_ALL_ACCESS, nullptr, NtCurrentProcess(), &client_id, &context,
-                            &initial_teb, true);
-
-    if (!success(status)) {
-        print("NtCreateThread returned {}\n", status); // FIXME - should be to stderr
-        return;
-    }
-
-    NtResumeThread(h, nullptr);
-
-    NtClose(h);
 }
 
 static bool run_program(u16string_view exe, u16string_view cmdline,
@@ -354,7 +304,7 @@ static bool run_program(u16string_view exe, u16string_view cmdline,
     return true;
 }
 
-static void socket_thread(void* ctx) {
+static uint32_t socket_thread(void* ctx) {
     auto sock = (SOCKET)(uintptr_t)ctx;
     unique_handle proc;
 
@@ -392,13 +342,11 @@ static void socket_thread(void* ctx) {
         }
 
         closesocket(sock);
-        NtTerminateThread(NtCurrentThread(), nt_status::INTERNAL_ERROR);
-        unreachable();
+        return 1;
     }
 
     closesocket(sock);
-    NtTerminateThread(NtCurrentThread(), nt_status::SUCCESS);
-    unreachable();
+    return 0;
 }
 
 int main() {
@@ -456,7 +404,11 @@ int main() {
         print("Connected from [{}]:{}, socket {}\n", *(ipv6_address*)client_addr.sin6_addr,
               byteswap(client_addr.sin6_port), (uintptr_t)client_sock);
 
-        create_thread(socket_thread, (void*)(uintptr_t)client_sock);
+        if (!CreateThread(nullptr, 0, socket_thread, (void*)(uintptr_t)client_sock,
+                          0, nullptr)) {
+            print_stderr("CreateThread failed (last error {})\n", GetLastError());
+            closesocket(client_sock);
+        }
     }
 
     closesocket(server_sock);
