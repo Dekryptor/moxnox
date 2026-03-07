@@ -1635,8 +1635,7 @@ int main() {
                 auto buf2 = (char*)malloc(buflen + iosb.Information);
                 if (!buf2) {
                     print_stderr("out of memory\n");
-                    NtTerminateThread(NtCurrentThread(),
-                                      nt_status::INSUFFICIENT_RESOURCES);
+                    return 1;
                 }
 
                 if (buf) {
