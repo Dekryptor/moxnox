@@ -52,7 +52,7 @@ void thread_died(::thread& t, bool* last_thread, bool remove_from_proc) {
             *last_thread = is_list_empty(t.proc->threads);
     }
 
-    // t.release(); // FIXME - why does this crash?
+    t.release();
 }
 
 static void terminate_thread2(::thread& t, bool* last_thread,
