@@ -69,7 +69,11 @@ configure_file(
     "${CMAKE_CURRENT_BINARY_DIR}/pixman/pixman-config.h"
 )
 
-target_sources(pixman PUBLIC FILE_SET CXX_MODULES FILES modules/pixman.cpp)
+add_library(pixman_mod STATIC)
+target_sources(pixman_mod PUBLIC FILE_SET CXX_MODULES FILES modules/pixman.cpp)
+target_include_directories(pixman_mod PRIVATE ${CMAKE_SOURCE_DIR}/pixman/pixman)
+target_include_directories(pixman_mod PRIVATE ${CMAKE_CURRENT_BINARY_DIR}/pixman)
+target_compile_options(pixman_mod PRIVATE ${USERSPACE_CFLAGS} -fno-exceptions)
 
 target_include_directories(pixman PRIVATE ${CMAKE_SOURCE_DIR}/pixman/pixman)
 target_include_directories(pixman PRIVATE ${CMAKE_CURRENT_BINARY_DIR}/pixman)
@@ -79,6 +83,7 @@ target_compile_options(pixman PRIVATE $<$<COMPILE_LANGUAGE:CXX>:-fno-exceptions 
 target_compile_options(pixman PUBLIC $<$<STREQUAL:${CMAKE_SYSTEM_PROCESSOR},amd64>:-mssse3>) # because of module
 
 target_link_libraries(pixman PRIVATE moxnox)
+target_link_libraries(pixman PUBLIC pixman_mod)
 
 install(TARGETS pixman DESTINATION ${CMAKE_INSTALL_PREFIX}/lib
     ARCHIVE EXCLUDE_FROM_ALL
