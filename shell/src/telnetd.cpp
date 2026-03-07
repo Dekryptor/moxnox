@@ -6,6 +6,7 @@
 #include <bit>
 #include <utility>
 #include <span>
+#include <tuple>
 
 #undef errno
 import errno;
@@ -18,6 +19,7 @@ import unique_handle;
 import pe;
 import pagesize;
 import kernelbase;
+import format;
 
 using namespace std;
 
@@ -304,6 +306,47 @@ static bool run_program(u16string_view exe, u16string_view cmdline,
     return true;
 }
 
+static void print_to_sock2(SOCKET sock, string_view msg) {
+    auto msg2 = span(msg.data(), msg.size());
+
+    while (true) {
+        nt_status status;
+        IO_STATUS_BLOCK iosb;
+
+        status = NtWriteFile((HANDLE)sock, 0, nullptr, nullptr, &iosb, msg2.data(),
+                                (uint32_t)msg2.size(), nullptr, nullptr);
+        if (status == nt_status::END_OF_FILE) {
+            closesocket(sock);
+            NtTerminateThread(NtCurrentThread(), nt_status::SUCCESS);
+            unreachable();
+        } else if (!success(status)) {
+            print_stderr("NtWriteFile returned {}\n", status);
+            closesocket(sock);
+            NtTerminateThread(NtCurrentThread(), status);
+            unreachable();
+        }
+
+        if (iosb.Information == msg2.size())
+            break;
+
+        msg2 = span(msg2.data() + iosb.Information,
+                    msg2.size() - iosb.Information);
+    }
+}
+
+template<typename... Args>
+void print_to_sock(SOCKET sock, type_identity_t<checker<type_identity_t<Args>...>> fmt, Args... args) {
+    char buf[4096];
+
+    auto sp = span(buf, sizeof(buf));
+
+    sp = format_to(sp, fmt.sv, forward_as_tuple(std::forward<Args>(args)...));
+
+    auto sv = string_view(buf, (size_t)(sp.data() - buf));
+
+    print_to_sock2(sock, sv);
+}
+
 static uint32_t socket_thread(void* ctx) {
     auto sock = (SOCKET)(uintptr_t)ctx;
     unique_handle proc;
@@ -313,34 +356,7 @@ static uint32_t socket_thread(void* ctx) {
     // FIXME - get curdir from HOME?
     if (!run_program(u"/bin/shell.exe", u"/bin/shell.exe", 0, proc,
                      (HANDLE)sock)) {
-        static const string_view msg = "Unable to start shell\n";
-
-        auto msg2 = span(msg.data(), msg.size());
-
-        while (true) {
-            nt_status status;
-            IO_STATUS_BLOCK iosb;
-
-            status = NtWriteFile((HANDLE)sock, 0, nullptr, nullptr, &iosb, msg2.data(),
-                                 (uint32_t)msg2.size(), nullptr, nullptr);
-            if (status == nt_status::END_OF_FILE) {
-                closesocket(sock);
-                NtTerminateThread(NtCurrentThread(), nt_status::SUCCESS);
-                unreachable();
-            } else if (!success(status)) {
-                print_stderr("NtWriteFile returned {}\n", status);
-                closesocket(sock);
-                NtTerminateThread(NtCurrentThread(), status);
-                unreachable();
-            }
-
-            if (iosb.Information == msg2.size())
-                break;
-
-            msg2 = span(msg2.data() + iosb.Information,
-                        msg2.size() - iosb.Information);
-        }
-
+        print_to_sock(sock, "Unable to start shell\n");
         closesocket(sock);
         return 1;
     }
