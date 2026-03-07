@@ -19,315 +19,6 @@ import kernelbase;
 
 static span<char16_t> environment;
 
-static constexpr uint32_t bytes_to_pages(size_t bytes) {
-    return (uint32_t)((bytes + PAGE_SIZE - 1) / PAGE_SIZE);
-}
-
-static void run_program(u16string_view fn, u16string_view cmdline, HANDLE stdinh,
-                        HANDLE stdouth, HANDLE stderrh,
-                        span<const char16_t> env) {
-    OBJECT_ATTRIBUTES oa;
-    UNICODE_STRING us;
-    NTSTATUS status;
-    HANDLE file, sect, proc, thread;
-    IO_STATUS_BLOCK iosb;
-    CLIENT_ID client_id;
-    CONTEXT context;
-    INITIAL_TEB initial_teb;
-    HANDLE proc_stdinh = 0, proc_stdouth = 0, proc_stderrh = 0, curdirh = 0;
-    PROCESS_BASIC_INFORMATION pbi;
-    PEB newpeb;
-    RTL_USER_PROCESS_PARAMETERS params;
-    SECTION_IMAGE_INFORMATION sii;
-    auto teb = NtCurrentTeb();
-    auto peb = teb->ProcessEnvironmentBlock;
-
-    // open file
-
-    us.Length = us.MaximumLength = (uint16_t)(fn.size() * sizeof(char16_t));
-    us.Buffer = (char16_t*)malloc(us.Length);
-
-    if (!us.Buffer) {
-        print("malloc failed\n");
-        return;
-    }
-
-    memcpy(us.Buffer, fn.data(), fn.size() * sizeof(char16_t));
-
-    memset(&oa, 0, sizeof(oa));
-    oa.Length = sizeof(OBJECT_ATTRIBUTES);
-    oa.ObjectName = &us;
-
-    status = NtCreateFile(&file, FILE_READ_DATA, &oa, &iosb, nullptr, 0, 0,
-                          FILE_OPEN, 0, nullptr, 0);
-
-    free(us.Buffer);
-
-    if (!success(status)) {
-        print("NtCreateFile returned {}\n", status);
-        return;
-    }
-
-    // create section
-
-    status = NtCreateSection(&sect, 0, nullptr, nullptr, PAGE_READONLY, SEC_IMAGE, file);
-
-    NtClose(file);
-
-    if (!success(status)) {
-        print("NtCreateSection returned {}\n", status);
-        return;
-    }
-
-    // get entry point
-
-    status = NtQuerySection(sect, SECTION_INFORMATION_CLASS::ImageInformation, &sii,
-                            sizeof(SECTION_IMAGE_INFORMATION), nullptr);
-
-    if (!success(status)) {
-        print("NtQuerySection returned {}\n", status);
-        NtClose(sect);
-        return;
-    }
-
-    // create process
-
-    status = NtCreateProcess(&proc, MAXIMUM_ALLOWED, nullptr, NtCurrentProcess(), false, sect,
-                             0, 0);
-
-    NtClose(sect);
-
-    if (!success(status)) {
-        print("NtCreateProcess returned {}\n", status);
-        return;
-    }
-
-    // duplicate handles
-
-    if (stdinh) {
-        status = NtDuplicateObject(NtCurrentProcess(), stdinh, proc, &proc_stdinh, 0, 0,
-                                   DUPLICATE_SAME_ATTRIBUTES | DUPLICATE_SAME_ACCESS);
-
-        if (!success(status)) {
-            print("NtDuplicateObject returned {}\n", status);
-            NtClose(proc);
-            return;
-        }
-    }
-
-    if (stdouth) {
-        status = NtDuplicateObject(NtCurrentProcess(), stdouth, proc, &proc_stdouth, 0, 0,
-                                   DUPLICATE_SAME_ATTRIBUTES | DUPLICATE_SAME_ACCESS);
-
-        if (!success(status)) {
-            print("NtDuplicateObject returned {}\n", status);
-            NtClose(proc);
-            return;
-        }
-    }
-
-    if (stderrh) {
-        status = NtDuplicateObject(NtCurrentProcess(), stderrh, proc, &proc_stderrh, 0, 0,
-                                   DUPLICATE_SAME_ATTRIBUTES | DUPLICATE_SAME_ACCESS);
-
-        if (!success(status)) {
-            print("NtDuplicateObject returned {}\n", status);
-            NtClose(proc);
-            return;
-        }
-    }
-
-    if (peb->ProcessParameters->CurrentDirectory.Handle) {
-        status = NtDuplicateObject(NtCurrentProcess(), peb->ProcessParameters->CurrentDirectory.Handle, proc,
-                                   &curdirh, 0, 0, DUPLICATE_SAME_ATTRIBUTES | DUPLICATE_SAME_ACCESS);
-
-        if (!success(status)) {
-            print("NtDuplicateObject returned {}\n", status);
-            NtClose(proc);
-            return;
-        }
-    }
-
-    // take copy of PEB
-
-    status = NtQueryInformationProcess(proc, PROCESSINFOCLASS::BasicInformation, &pbi, sizeof(pbi),
-                                       nullptr);
-    if (!success(status)) {
-        print("NtQueryInformationProcess returned {}\n", status);
-        NtClose(proc);
-        return;
-    }
-
-    status = NtReadVirtualMemory(proc, pbi.PebBaseAddress, &newpeb, sizeof(PEB), nullptr);
-    if (!success(status)) {
-        print("NtReadVirtualMemory returned {}\n", status);
-        NtClose(proc);
-        return;
-    }
-
-    // take copy of ProcessParameters
-
-    status = NtReadVirtualMemory(proc, newpeb.ProcessParameters, &params, sizeof(params), nullptr);
-    if (!success(status)) {
-        print("NtReadVirtualMemory returned {}\n", status);
-        NtClose(proc);
-        return;
-    }
-
-    // change handles
-
-    params.StandardInput = proc_stdinh;
-    params.StandardOutput = proc_stdouth;
-    params.StandardError = proc_stderrh;
-    params.CurrentDirectory.Handle = curdirh;
-
-    // copy current directory string
-
-    params.CurrentDirectory.DosPath.Length = min(params.CurrentDirectory.DosPath.MaximumLength,
-                                                 peb->ProcessParameters->CurrentDirectory.DosPath.Length);
-
-    // FIXME - environment variables
-
-    // allocate misc block
-
-    size_t misc_block_size = (cmdline.size() + 1) * sizeof(char16_t);
-
-    misc_block_size += env.size_bytes();
-
-    auto misc_block = (uint8_t*)malloc(misc_block_size);
-    if (!misc_block) {
-        print("malloc failed\n");
-        NtClose(proc);
-        return;
-    }
-
-    // allocate misc block in process
-
-    void* proc_misc_block = nullptr;
-    size_t proc_misc_block_size = bytes_to_pages(misc_block_size) << PAGE_SHIFT;
-
-    status = NtAllocateVirtualMemory(proc, &proc_misc_block, 0,
-                                     &proc_misc_block_size,
-                                     MEM_COMMIT | MEM_RESERVE, PAGE_READWRITE);
-    if (!success(status)) {
-        print("NtAllocateVirtualMemory returned {}\n", status);
-        free(misc_block);
-        NtClose(proc);
-        return;
-    }
-
-    // copy cmdline
-
-    auto ptr = misc_block;
-
-    memcpy(misc_block, cmdline.data(), cmdline.size() * sizeof(char16_t));
-    ptr += cmdline.size() * sizeof(char16_t);
-
-    *ptr = 0;
-    ptr++;
-
-    params.CommandLine.Length = (uint16_t)(cmdline.size() * sizeof(char16_t));
-    params.CommandLine.MaximumLength = (uint16_t)((cmdline.size() + 1) * sizeof(char16_t));
-    params.CommandLine.Buffer = (char16_t*)proc_misc_block;
-
-    memcpy(ptr, env.data(), env.size_bytes());
-    params.Environment = (uint8_t*)proc_misc_block + (ptr - misc_block);
-    params.EnvironmentSize = env.size_bytes();
-
-    // copy misc block
-
-    status = NtWriteVirtualMemory(proc, proc_misc_block, misc_block,
-                                  (uint32_t)misc_block_size, nullptr);
-    if (!success(status)) {
-        print("NtWriteVirtualMemory returned {}\n", status);
-        free(misc_block);
-        NtClose(proc);
-        return;
-    }
-
-    free(misc_block);
-
-    // write ProcessParameters back
-
-    status = NtWriteVirtualMemory(proc, newpeb.ProcessParameters, &params, sizeof(params), nullptr);
-    if (!success(status)) {
-        print("NtWriteVirtualMemory returned {}\n", status);
-        NtClose(proc);
-        return;
-    }
-
-    status = NtWriteVirtualMemory(proc, params.CurrentDirectory.DosPath.Buffer,
-                                  peb->ProcessParameters->CurrentDirectory.DosPath.Buffer,
-                                  params.CurrentDirectory.DosPath.Length, nullptr);
-    if (!success(status)) {
-        print("NtWriteVirtualMemory returned {}\n", status);
-        NtClose(proc);
-        return;
-    }
-
-    // create thread
-
-    memset(&initial_teb, 0, sizeof(initial_teb));
-
-    void* stack = nullptr;
-    size_t stack_size = 0x100000;
-
-    status = NtAllocateVirtualMemory(proc, &stack, 0, &stack_size,
-                                     MEM_COMMIT | MEM_RESERVE, PAGE_READWRITE);
-    if (!success(status)) {
-        print("NtAllocateVirtualMemory returned {}\n", status);
-        NtClose(proc);
-        return;
-    }
-
-    initial_teb.OldStackBase = nullptr;
-    initial_teb.OldStackLimit = nullptr;
-    initial_teb.StackBase = (uint8_t*)stack + stack_size;
-    initial_teb.StackLimit = (uint8_t*)stack + stack_size;
-    initial_teb.StackAllocationBase = stack;
-
-    memset(&context, 0, sizeof(context));
-#ifdef __aarch64__
-    context.Pc = (uintptr_t)sii.TransferAddress;
-    context.Sp = (uintptr_t)initial_teb.StackBase - 0x10; // 0x10 bytes for red zone
-#elifdef __x86_64__
-    context.Rip = (uintptr_t)sii.TransferAddress;
-    context.Rsp = (uintptr_t)initial_teb.StackBase - 0x28; // 0x20 for MS ABI, 0x8 for return pointer
-    context.EFlags = 0x200;
-#endif
-    context.ContextFlags = CONTEXT_CONTROL | CONTEXT_INTEGER | CONTEXT_SEGMENTS;
-
-    status = NtCreateThread(&thread, THREAD_ALL_ACCESS, nullptr, proc, &client_id, &context,
-                            &initial_teb, true);
-
-    if (!success(status)) {
-        print("NtCreateThread returned {}\n", status);
-        NtClose(proc);
-        return;
-    }
-
-    NtResumeThread(thread, nullptr);
-
-    NtClose(thread);
-
-    do {
-        status = NtWaitForSingleObject(proc, true, nullptr);
-
-        if (status == nt_status::ALERTED)
-            continue;
-
-        if (!success(status)) {
-            print("NtWaitForSingleObject returned {}\n", status);
-            NtClose(proc);
-            return;
-        }
-
-        break;
-    } while (true);
-
-    NtClose(proc);
-}
-
 static uint32_t do_serial(void*) {
     NTSTATUS status;
     UNICODE_STRING us;
@@ -364,8 +55,58 @@ static uint32_t do_serial(void*) {
     }
 
     while (true) {
-        run_program(u"\\bin\\usercon.exe", u"usercon.exe serial", h, h, h,
-                    environment);
+        STARTUPINFOW si;
+        PROCESS_INFORMATION pi;
+
+        memset(&si, 0, sizeof(si));
+        si.cb = sizeof(si);
+        memset(&pi, 0, sizeof(pi));
+
+        si.dwFlags = STARTF_USESTDHANDLES;
+        si.hStdInput = h;
+        si.hStdOutput = h;
+        si.hStdError = h;
+
+        // CreateProcess forces us to take a copy :-(
+
+        static const char16_t serial_cmdline[] = u"usercon.exe serial";
+
+        auto cmdline = (char16_t*)malloc(sizeof(serial_cmdline));
+        if (!cmdline) {
+            print_stderr("malloc failed\n");
+            continue;
+        }
+
+        memcpy(cmdline, serial_cmdline, sizeof(serial_cmdline));
+
+        if (!CreateProcessW(u"/bin/usercon.exe", cmdline,
+                            nullptr, nullptr, false, CREATE_UNICODE_ENVIRONMENT,
+                            environment.data(), nullptr, &si, &pi)) {
+            print_stderr("CreateProcessW failed (last error {})\n",
+                         GetLastError());
+            free(cmdline);
+            continue;
+        }
+
+        free(cmdline);
+
+        NtClose(pi.hThread);
+
+        unique_handle proc{pi.hProcess};
+
+        do {
+            auto status = NtWaitForSingleObject(proc.get(), true, nullptr);
+
+            if (status == nt_status::ALERTED)
+                continue;
+
+            if (!success(status)) {
+                print_stderr("NtWaitForSingleObject returned {}\n", status);
+                break;
+            }
+
+            break;
+        } while (true);
     }
 
     NtClose(h);
@@ -533,31 +274,69 @@ extern "C" void startup() {
 
     prepare_environment();
 
-    if (serial_mode) {
-        while (true) {
-            auto teb = NtCurrentTeb();
-            auto peb = teb->ProcessEnvironmentBlock;
-
-            run_program(u"\\bin\\usercon.exe", u"usercon.exe serial",
-                        peb->ProcessParameters->StandardInput,
-                        peb->ProcessParameters->StandardOutput,
-                        peb->ProcessParameters->StandardError, environment);
-        }
-    } else {
+    if (!serial_mode) {
         auto h = CreateThread(nullptr, 0, do_serial, nullptr, 0, nullptr);
         if (h == 0)
             print_stderr("CreateThread failed (last error {})\n", GetLastError());
         else
             NtClose(h);
+    }
 
-        while (true) {
-            auto teb = NtCurrentTeb();
-            auto peb = teb->ProcessEnvironmentBlock;
+    while (true) {
+        STARTUPINFOW si;
+        PROCESS_INFORMATION pi;
 
-            run_program(u"\\bin\\usercon.exe", u"usercon.exe",
-                        peb->ProcessParameters->StandardInput,
-                        peb->ProcessParameters->StandardOutput,
-                        peb->ProcessParameters->StandardError, environment);
+        memset(&si, 0, sizeof(si));
+        si.cb = sizeof(si);
+        memset(&pi, 0, sizeof(pi));
+
+        char16_t* cmdline = nullptr;
+
+        if (serial_mode) {
+            // CreateProcess forces us to take a copy :-(
+
+            static const char16_t serial_cmdline[] = u"usercon.exe serial";
+
+            cmdline = (char16_t*)malloc(sizeof(serial_cmdline));
+            if (!cmdline) {
+                print_stderr("malloc failed\n");
+                continue;
+            }
+
+            memcpy(cmdline, serial_cmdline, sizeof(serial_cmdline));
         }
+
+        if (!CreateProcessW(u"/bin/usercon.exe", cmdline,
+                            nullptr, nullptr, false, CREATE_UNICODE_ENVIRONMENT,
+                            environment.data(), nullptr, &si, &pi)) {
+            print_stderr("CreateProcessW failed (last error {})\n",
+                            GetLastError());
+
+            if (cmdline)
+                free(cmdline);
+
+            continue;
+        }
+
+        if (cmdline)
+            free(cmdline);
+
+        NtClose(pi.hThread);
+
+        unique_handle proc{pi.hProcess};
+
+        do {
+            auto status = NtWaitForSingleObject(proc.get(), true, nullptr);
+
+            if (status == nt_status::ALERTED)
+                continue;
+
+            if (!success(status)) {
+                print_stderr("NtWaitForSingleObject returned {}\n", status);
+                break;
+            }
+
+            break;
+        } while (true);
     }
 }
