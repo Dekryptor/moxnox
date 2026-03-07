@@ -88,6 +88,11 @@ static void terminate_thread2(::thread& t, bool& last_thread,
                 default:
                     break;
             }
+
+            if (t.current_cpu == 0xffffffff && (t.status == thread_status::waiting || t.status == thread_status::waiting_multiple)) {
+                thread_died(t, last_thread, remove_from_proc);
+                return;
+            }
         }
 
         t.status = thread_status::dying;
