@@ -30,6 +30,7 @@ import harfbuzz;
 import freetype;
 import env;
 import emoji;
+import kernelbase;
 
 using namespace std;
 
@@ -1720,39 +1721,8 @@ static string_view get_os_version() {
     return sv;
 }
 
-static unique_handle get_home_handle(void (*recv_func)(string_view)) {
-    if (auto env_home = get_env(u"HOME"); !env_home.empty()) {
-        HANDLE h;
-        UNICODE_STRING us;
-        OBJECT_ATTRIBUTES oa;
-        IO_STATUS_BLOCK iosb;
-
-        us.Length = us.MaximumLength = (uint16_t)(env_home.size() * sizeof(char16_t));
-        us.Buffer = (char16_t*)env_home.data();
-
-        memset(&oa, 0, sizeof(oa));
-        oa.Length = sizeof(OBJECT_ATTRIBUTES);
-        oa.ObjectName = &us;
-
-        auto status = NtCreateFile(&h, FILE_TRAVERSE, &oa, &iosb, nullptr,
-                                   FILE_ATTRIBUTE_NORMAL, 0, FILE_OPEN,
-                                   FILE_DIRECTORY_FILE, nullptr, 0);
-        if (!success(status)) {
-            char s[255];
-            span sp(s, sizeof(s));
-
-            sp = format(sp, "NtCreateFile returned {} for {}\n",
-                        status, env_home);
-            recv_func(string_view(s, (size_t)(sp.data() - s)));
-        } else
-            return unique_handle{h};
-    }
-
-    return unique_handle{};
-}
-
-static void run_shell(u16string_view exe, u16string_view cmdline,
-                      void (*recv_func)(string_view), void (*flush_func)()) {
+static void run_shell(const char16_t* exe, void (*recv_func)(string_view),
+                      void (*flush_func)()) {
     HANDLE h;
     unique_handle server_handle, client_handle, proc, kmsg, keyboard_pipe;
     OBJECT_ATTRIBUTES oa;
@@ -1871,12 +1841,35 @@ static void run_shell(u16string_view exe, u16string_view cmdline,
     recv_func(welcome_message2);
     flush_func();
 
-    auto home_handle = get_home_handle(recv_func);
+    auto do_run_shell = [&exe, &proc, &client_handle]() -> bool {
+        STARTUPINFOW si;
+        PROCESS_INFORMATION pi;
 
-    if (!run_program(exe, cmdline, home_handle.get(), proc, client_handle.get()))
+        auto home = get_env(u"HOME");
+
+        memset(&si, 0, sizeof(si));
+        si.cb = sizeof(si);
+        memset(&pi, 0, sizeof(pi));
+
+        si.dwFlags = STARTF_USESTDHANDLES;
+        si.hStdInput = client_handle.get();
+        si.hStdOutput = client_handle.get();
+        si.hStdError = client_handle.get();
+
+        if (!CreateProcessW(exe, nullptr, nullptr, nullptr,
+                            false, 0, nullptr, !home.empty() ? home.data() : nullptr,
+                            &si, &pi)) {
+            return false;
+        }
+
+        proc.reset(pi.hProcess);
+        NtClose(pi.hThread);
+
+        return true;
+    };
+
+    if (!do_run_shell())
         return;
-
-    home_handle.reset();
 
     do {
         array<HANDLE, 4> objs;
@@ -2010,10 +2003,8 @@ static void run_shell(u16string_view exe, u16string_view cmdline,
             case 3: {
                 // process terminated, start again
 
-                if (!run_program(exe, cmdline, get_home_handle(recv_func).get(),
-                                 proc, client_handle.get())) {
+                if (!do_run_shell())
                     return;
-                }
 
                 break;
             }
@@ -2031,7 +2022,7 @@ static int try_text_console() {
         return 1;
     }
 
-    run_shell(u"\\bin\\shell.exe", u"shell.exe", recv_data_text, flush_text_console);
+    run_shell(u"\\bin\\shell.exe", recv_data_text, flush_text_console);
 
     return 0;
 }
@@ -2119,7 +2110,7 @@ static int do_console() {
     rect(0, 0, fb_info.width, fb_info.height, 0x000000);
     flush_framebuffer();
 
-    run_shell(u"\\bin\\shell.exe", u"shell.exe", recv_data_fb, flush_framebuffer);
+    run_shell(u"\\bin\\shell.exe", recv_data_fb, flush_framebuffer);
 
     return 0;
 }
@@ -2193,8 +2184,7 @@ static int do_serial_console() {
     auto teb = NtCurrentTeb();
     auto peb = teb->ProcessEnvironmentBlock;
 
-    static const u16string_view exe = u"\\bin\\shell.exe";
-    static const u16string_view cmdline = u"shell.exe";
+    static const char16_t exe[] = u"\\bin\\shell.exe";
 
     // create pipe
 
@@ -2246,12 +2236,35 @@ static int do_serial_console() {
     serial_print(get_os_version());
     serial_print(welcome_message2);
 
-    auto home_handle = get_home_handle(serial_print);
+    auto do_run_shell = [&proc, &client_handle]() -> bool {
+        STARTUPINFOW si;
+        PROCESS_INFORMATION pi;
 
-    if (!run_program(exe, cmdline, home_handle.get(), proc, client_handle.get()))
+        auto home = get_env(u"HOME");
+
+        memset(&si, 0, sizeof(si));
+        si.cb = sizeof(si);
+        memset(&pi, 0, sizeof(pi));
+
+        si.dwFlags = STARTF_USESTDHANDLES;
+        si.hStdInput = client_handle.get();
+        si.hStdOutput = client_handle.get();
+        si.hStdError = client_handle.get();
+
+        if (!CreateProcessW(exe, nullptr, nullptr, nullptr,
+                            false, 0, nullptr, !home.empty() ? home.data() : nullptr,
+                            &si, &pi)) {
+            return false;
+        }
+
+        proc.reset(pi.hProcess);
+        NtClose(pi.hThread);
+
+        return true;
+    };
+
+    if (!do_run_shell())
         return 1;
-
-    home_handle.reset();
 
     do {
         array<HANDLE, 3> objs;
@@ -2338,10 +2351,8 @@ static int do_serial_console() {
             case 2: {
                 // process terminated, start again
 
-                if (!run_program(exe, cmdline, get_home_handle(serial_print).get(),
-                                 proc, client_handle.get())) {
+                if (!do_run_shell())
                     return 1;
-                }
 
                 break;
             }
