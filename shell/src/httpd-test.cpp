@@ -151,7 +151,7 @@ static void socket_thread(void* ctx) {
 
         print("Received: \"{}\", \"{}\"\n", verb, first_line);
 
-        // FIXME - really ought to be looping
+#if 0
         auto bytes2 = send(sock, resp.data(), (int)resp.size(), 0);
         if (bytes2 < 0) {
             print_stderr("send returned {} (errno {})\n", bytes2,
@@ -159,6 +159,30 @@ static void socket_thread(void* ctx) {
             closesocket(sock);
             NtTerminateThread(NtCurrentThread(), nt_status::SUCCESS);
             unreachable();
+        }
+#endif
+
+        auto resp2 = span(resp.data(), resp.size());
+
+        while (true) {
+            status = NtWriteFile(sock, 0, nullptr, nullptr, &iosb, resp2.data(),
+                                 (uint32_t)resp2.size(), nullptr, nullptr);
+            if (status == nt_status::END_OF_FILE) {
+                closesocket(sock);
+                NtTerminateThread(NtCurrentThread(), nt_status::SUCCESS);
+                unreachable();
+            } else if (!success(status)) {
+                print_stderr("NtWriteFile returned {}\n", status);
+                closesocket(sock);
+                NtTerminateThread(NtCurrentThread(), status);
+                unreachable();
+            }
+
+            if (iosb.Information == resp2.size())
+                break;
+
+            resp2 = span(resp2.data() + iosb.Information,
+                         resp2.size() - iosb.Information);
         }
 
         break;
