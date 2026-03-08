@@ -1,6 +1,7 @@
 #include <stdint.h>
 #include <stdlib.h>
 #include <string.h>
+#include <winerror.h>
 #include <span>
 #include <charconv>
 #include <chrono>
@@ -35,10 +36,6 @@ static HANDLE ctrl_c_event = 0;
 
 static char* prompt_buf;
 static string_view prompt;
-
-static constexpr uint32_t bytes_to_pages(size_t bytes) {
-    return (uint32_t)((bytes + PAGE_SIZE - 1) / PAGE_SIZE);
-}
 
 struct suspended_process {
     list_entry le;
@@ -207,225 +204,6 @@ static bool run_program(HANDLE server_handle, unique_handle& proc) {
     return true;
 }
 
-static bool start_program(HANDLE sect, const SECTION_IMAGE_INFORMATION& sii,
-                          string_view cmdline, HANDLE client_handle,
-                          unique_handle& proc) {
-    NTSTATUS status;
-    unique_handle thread;
-    HANDLE h;
-    CLIENT_ID client_id;
-    CONTEXT context;
-    INITIAL_TEB initial_teb;
-    HANDLE stdinh = 0, stdouth = 0, curdirh = 0;
-    PROCESS_BASIC_INFORMATION pbi;
-    PEB newpeb;
-    RTL_USER_PROCESS_PARAMETERS params;
-    auto teb = NtCurrentTeb();
-    auto peb = teb->ProcessEnvironmentBlock;
-
-    // create process
-
-    status = NtCreateProcess(&h, MAXIMUM_ALLOWED, nullptr, NtCurrentProcess(),
-                             false, sect, 0, 0);
-
-    if (!success(status)) {
-        print_stderr("NtCreateProcess returned {}\n", status);
-        return false;
-    }
-
-    proc.reset(h);
-
-    // duplicate handles
-
-    status = NtDuplicateObject(NtCurrentProcess(), client_handle,
-                               proc.get(), &stdinh, FILE_READ_DATA, 0,
-                               DUPLICATE_SAME_ATTRIBUTES);
-
-    if (!success(status)) {
-        print_stderr("NtDuplicateObject returned {}\n", status);
-        return false;
-    }
-
-    status = NtDuplicateObject(NtCurrentProcess(), client_handle,
-                               proc.get(), &stdouth, FILE_WRITE_DATA, 0,
-                               DUPLICATE_SAME_ATTRIBUTES);
-
-    if (!success(status)) {
-        print_stderr("NtDuplicateObject returned {}\n", status);
-        return false;
-    }
-
-    if (peb->ProcessParameters->CurrentDirectory.Handle) {
-        status = NtDuplicateObject(NtCurrentProcess(), peb->ProcessParameters->CurrentDirectory.Handle,
-                                   proc.get(), &curdirh, 0, 0,
-                                   DUPLICATE_SAME_ATTRIBUTES | DUPLICATE_SAME_ACCESS);
-
-        if (!success(status)) {
-            print_stderr("NtDuplicateObject returned {}\n", status);
-            return false;
-        }
-    }
-
-    // take copy of PEB
-
-    status = NtQueryInformationProcess(proc.get(), PROCESSINFOCLASS::BasicInformation,
-                                       &pbi, sizeof(pbi), nullptr);
-    if (!success(status)) {
-        print_stderr("NtQueryInformationProcess returned {}\n", status);
-        return false;
-    }
-
-    status = NtReadVirtualMemory(proc.get(), pbi.PebBaseAddress, &newpeb,
-                                 sizeof(PEB), nullptr);
-    if (!success(status)) {
-        print_stderr("NtReadVirtualMemory returned {}\n", status);
-        return false;
-    }
-
-    // take copy of ProcessParameters
-
-    status = NtReadVirtualMemory(proc.get(), newpeb.ProcessParameters, &params,
-                                 sizeof(params), nullptr);
-    if (!success(status)) {
-        print_stderr("NtReadVirtualMemory returned {}\n", status);
-        return false;
-    }
-
-    // change handles
-
-    params.StandardInput = stdinh;
-    params.StandardOutput = stdouth;
-    params.StandardError = stdouth;
-    params.CurrentDirectory.Handle = curdirh;
-
-    // copy current directory string
-
-    params.CurrentDirectory.DosPath.Length = min(params.CurrentDirectory.DosPath.MaximumLength,
-                                                 peb->ProcessParameters->CurrentDirectory.DosPath.Length);
-
-    status = NtWriteVirtualMemory(proc.get(), params.CurrentDirectory.DosPath.Buffer,
-                                  peb->ProcessParameters->CurrentDirectory.DosPath.Buffer,
-                                  params.CurrentDirectory.DosPath.Length, nullptr);
-    if (!success(status)) {
-        print_stderr("NtWriteVirtualMemory returned {}\n", status);
-        return false;
-    }
-
-    // allocate misc block
-
-    auto u16_cmdline_len = utf8_to_utf16_len(cmdline);
-
-    size_t misc_block_size = (u16_cmdline_len + 1) * sizeof(char16_t);
-
-    misc_block_size += peb->ProcessParameters->EnvironmentSize;
-
-    auto misc_block = (uint8_t*)malloc(misc_block_size);
-    if (!misc_block) {
-        print_stderr("malloc failed\n");
-        return false;
-    }
-
-    // allocate misc block in process
-
-    void* proc_misc_block = nullptr;
-    size_t proc_misc_block_size = bytes_to_pages(misc_block_size) << PAGE_SHIFT;
-
-    status = NtAllocateVirtualMemory(proc.get(), &proc_misc_block, 0,
-                                     &proc_misc_block_size, MEM_COMMIT | MEM_RESERVE,
-                                     PAGE_READWRITE);
-    if (!success(status)) {
-        print_stderr("NtAllocateVirtualMemory returned {}\n", status);
-        free(misc_block);
-        return false;
-    }
-
-    // copy cmdline
-
-    auto ptr = misc_block;
-
-    utf8_to_utf16(span((char16_t*)misc_block, u16_cmdline_len), cmdline);
-    ptr += u16_cmdline_len * sizeof(char16_t);
-
-    *ptr = 0;
-    ptr++;
-
-    params.CommandLine.Length = (uint16_t)(u16_cmdline_len * sizeof(char16_t));
-    params.CommandLine.MaximumLength = (uint16_t)((u16_cmdline_len + 1) * sizeof(char16_t));
-    params.CommandLine.Buffer = (char16_t*)proc_misc_block;
-
-    memcpy(ptr, peb->ProcessParameters->Environment,
-           peb->ProcessParameters->EnvironmentSize);
-    params.Environment = (uint8_t*)proc_misc_block + (ptr - misc_block);
-    params.EnvironmentSize = peb->ProcessParameters->EnvironmentSize;
-
-    // copy misc block
-
-    status = NtWriteVirtualMemory(proc.get(), proc_misc_block, misc_block,
-                                  (uint32_t)misc_block_size, nullptr);
-    if (!success(status)) {
-        print_stderr("NtWriteVirtualMemory returned {}\n", status);
-        free(misc_block);
-        return false;
-    }
-
-    free(misc_block);
-
-    // write ProcessParameters back
-
-    status = NtWriteVirtualMemory(proc.get(), newpeb.ProcessParameters, &params, sizeof(params), nullptr);
-    if (!success(status)) {
-        print_stderr("NtWriteVirtualMemory returned {}\n", status);
-        return false;
-    }
-
-    // create thread
-
-    memset(&initial_teb, 0, sizeof(initial_teb));
-
-    void* stack = nullptr;
-    size_t stack_size = 0x100000;
-
-    status = NtAllocateVirtualMemory(proc.get(), &stack, 0, &stack_size,
-                                     MEM_COMMIT | MEM_RESERVE, PAGE_READWRITE);
-    if (!success(status)) {
-        print_stderr("NtAllocateVirtualMemory returned {}\n", status);
-        return false;
-    }
-
-    initial_teb.OldStackBase = nullptr;
-    initial_teb.OldStackLimit = nullptr;
-    initial_teb.StackBase = (uint8_t*)stack + stack_size;
-    initial_teb.StackLimit = (uint8_t*)stack + stack_size;
-    initial_teb.StackAllocationBase = stack;
-
-    memset(&context, 0, sizeof(context));
-#ifdef __aarch64__
-    context.Pc = (uintptr_t)sii.TransferAddress;
-    context.Sp = (uintptr_t)initial_teb.StackBase - 0x10; // 0x10 bytes for red zone
-#elifdef __x86_64__
-    context.Rip = (uintptr_t)sii.TransferAddress;
-    context.Rsp = (uintptr_t)initial_teb.StackBase - 0x28; // 0x20 bytes for MS ABI, 0x8 for return pointer
-    context.EFlags = 0x200;
-#endif
-    context.ContextFlags = CONTEXT_CONTROL | CONTEXT_INTEGER | CONTEXT_SEGMENTS;
-
-    status = NtCreateThread(&h, THREAD_ALL_ACCESS, nullptr, proc.get(),
-                            &client_id, &context, &initial_teb, true);
-
-    if (!success(status)) {
-        print_stderr("NtCreateThread returned {}\n", status);
-        return false;
-    }
-
-    thread.reset(h);
-
-    running_proc = proc.get();
-
-    NtResumeThread(thread.get(), nullptr);
-
-    return true;
-}
-
 static constexpr chrono::year_month_day system_time_to_ymd(int64_t system_time) noexcept {
     signed long long j, e, f, g, h;
     uint8_t day, month;
@@ -541,239 +319,178 @@ static void halt() {
     print_stderr("NtShutdownSystem returned {}\n", status);
 }
 
-static bool path_open(u16string_view program, u16string_view path,
-                      unique_handle& file) {
-    NTSTATUS status;
-    OBJECT_ATTRIBUTES oa;
-    UNICODE_STRING us, us2;
-    IO_STATUS_BLOCK iosb;
-    HANDLE h;
-    char16_t* exebuf = nullptr;
-
-    memset(&oa, 0, sizeof(oa));
-    oa.Length = sizeof(OBJECT_ATTRIBUTES);
-    oa.ObjectName = &us;
-
-    while (true) {
-        HANDLE dirh;
-        u16string_view p;
-        auto col = path.find(u":");
-
-        if (col == u16string_view::npos)
-            p = path;
-        else
-            p = u16string_view(path.data(), col);
-
-        if (p.empty()) {
-            if (col == u16string_view::npos)
-                break;
-
-            path = u16string_view(path.data() + col + 1, path.size() - col - 1);
-            continue;
-        }
-
-        oa.RootDirectory = 0;
-        oa.ObjectName = &us;
-        us.Length = us.MaximumLength = (uint16_t)(p.size() * sizeof(char16_t));
-        us.Buffer = (char16_t*)p.data();
-
-        status = NtCreateFile(&dirh, FILE_TRAVERSE, &oa, &iosb, nullptr, 0, 0,
-                              FILE_OPEN, FILE_DIRECTORY_FILE, nullptr, 0);
-        switch (status) {
-            case nt_status::OBJECT_NAME_NOT_FOUND:
-            case nt_status::OBJECT_PATH_NOT_FOUND:
-            case nt_status::FILE_IS_A_DIRECTORY:
-                break;
-
-            default:
-                if (!success(status)) {
-                    print_stderr("NtCreateFile returned {} for {}\n", status, p);
-
-                    if (exebuf)
-                        free(exebuf);
-
-                    return false;
-                }
-                break;
-        }
-
-        if (success(status)) {
-            unique_handle dir{dirh};
-
-            oa.RootDirectory = dir.get();
-
-            us.Length = us.MaximumLength = (uint16_t)(program.size() * sizeof(char16_t));
-            us.Buffer = (char16_t*)program.data();
-
-            status = NtCreateFile(&h, FILE_READ_DATA, &oa, &iosb, nullptr, 0, 0,
-                                  FILE_OPEN, FILE_NON_DIRECTORY_FILE, nullptr, 0);
-            if (status == nt_status::OBJECT_NAME_NOT_FOUND &&
-                program.find(u'.') == u16string_view::npos) {
-
-                if (!exebuf) {
-                    static const char16_t suffix[] = u".exe";
-
-                    exebuf = (char16_t*)malloc(us.Length + sizeof(suffix) - sizeof(char16_t));
-
-                    memcpy(exebuf, us.Buffer, us.Length);
-                    memcpy(exebuf + (us.Length / sizeof(char16_t)), suffix,
-                           sizeof(suffix) - sizeof(char16_t));
-
-                    us2.Length = us2.MaximumLength = us.Length + sizeof(suffix) - sizeof(char16_t);
-                    us2.Buffer = exebuf;
-                }
-
-                oa.ObjectName = &us2;
-
-                status = NtCreateFile(&h, FILE_READ_DATA, &oa, &iosb, nullptr,
-                                      0, 0, FILE_OPEN, FILE_NON_DIRECTORY_FILE,
-                                      nullptr, 0);
-            }
-
-            switch (status) {
-                case nt_status::OBJECT_NAME_NOT_FOUND:
-                case nt_status::OBJECT_PATH_NOT_FOUND:
-                case nt_status::FILE_IS_A_DIRECTORY:
-                    break;
-
-                default:
-                    if (!success(status)) {
-                        print_stderr("NtCreateFile returned {}\n", status);
-
-                        if (exebuf)
-                            free(exebuf);
-
-                        return false;
-                    }
-                    break;
-            }
-
-            if (success(status)) {
-                file.reset(h);
-
-                if (exebuf)
-                    free(exebuf);
-
-                return true;
-            }
-        }
-
-        if (col == u16string_view::npos)
-            break;
-
-        path = u16string_view(path.data() + col + 1, path.size() - col - 1);
-    }
-
-    print_stderr("{}: command not found\n", program);
-
-    if (exebuf)
-        free(exebuf);
-
-    return false;
-}
-
 static void try_run_program(string_view program, string_view cmdline,
                             HANDLE server_handle, HANDLE client_handle) {
-    auto peb = NtCurrentTeb()->ProcessEnvironmentBlock;
-    NTSTATUS status;
-    HANDLE h;
-    unique_handle file, sect;
-    SECTION_IMAGE_INFORMATION sii;
     u16string_view env_path = get_env(u"PATH");
 
-    // open file
-
-    auto u16len = utf8_to_utf16_len(program);
-    auto u16buf = (char16_t*)malloc(u16len * sizeof(char16_t));
-    if (!u16buf) {
+    auto u16cmdlinelen = utf8_to_utf16_len(cmdline);
+    auto u16cmdline = (char16_t*)malloc((u16cmdlinelen + 1) * sizeof(char16_t));
+    if (!u16cmdline) {
         print_stderr("malloc failed\n");
         return;
     }
 
-    utf8_to_utf16(span(u16buf, u16len), program);
+    utf8_to_utf16(span(u16cmdline, u16cmdlinelen), cmdline);
+    u16cmdline[u16cmdlinelen] = 0;
 
-    auto u16program = u16string_view(u16buf, u16len);
+    STARTUPINFOW si;
+    PROCESS_INFORMATION pi;
 
-    if (u16program.find(u'/') != u16string_view::npos) {
-        OBJECT_ATTRIBUTES oa;
-        UNICODE_STRING us;
-        IO_STATUS_BLOCK iosb;
+    memset(&si, 0, sizeof(si));
+    si.cb = sizeof(si);
+    memset(&pi, 0, sizeof(pi));
 
-        memset(&oa, 0, sizeof(oa));
-        oa.Length = sizeof(OBJECT_ATTRIBUTES);
-        oa.RootDirectory = peb->ProcessParameters->CurrentDirectory.Handle;
-        oa.ObjectName = &us;
+    si.dwFlags = STARTF_USESTDHANDLES;
+    si.hStdInput = client_handle;
+    si.hStdOutput = client_handle;
+    si.hStdError = client_handle;
 
-        us.Length = us.MaximumLength = (uint16_t)(u16program.size() * sizeof(char16_t));
-        us.Buffer = (char16_t*)u16program.data();
-
-        status = NtCreateFile(&h, FILE_READ_DATA, &oa, &iosb, nullptr, 0, 0,
-                              FILE_OPEN, FILE_NON_DIRECTORY_FILE, nullptr, 0);
-        if (status == nt_status::OBJECT_NAME_NOT_FOUND ||
-            status == nt_status::OBJECT_PATH_NOT_FOUND) {
-            print_stderr("{}: No such file or directory\n", program);
-            return;
-        } else if (status == nt_status::FILE_IS_A_DIRECTORY) {
-            print_stderr("{}: Is a directory\n", program);
-            return;
-        } else if (!success(status)) {
-            print_stderr("NtCreateFile returned {}\n", status);
-            return;
-        }
-
-        file = unique_handle{h};
-    } else {
-        if (!path_open(u16string_view(u16buf, u16len), env_path, file)) {
-            free(u16buf);
-            return;
-        }
-    }
-
-    free(u16buf);
-
-    // create section
-
-    status = NtCreateSection(&h, 0, nullptr, nullptr, PAGE_READONLY, SEC_IMAGE,
-                             file.get());
-
-    if (status == nt_status::INVALID_IMAGE_FORMAT) {
-        print_stderr("{}: not an executable\n", program);
-        return;
-    } else if (!success(status)) {
-        print_stderr("NtCreateSection returned {}\n", status);
-        return;
-    }
-
-    sect.reset(h);
-
-    status = NtQuerySection(sect.get(), SECTION_INFORMATION_CLASS::ImageInformation, &sii,
-                            sizeof(SECTION_IMAGE_INFORMATION), nullptr);
-
-    if (!success(status)) {
-        print_stderr("NtQuerySection returned {}\n", status);
-        return;
-    }
-
-    if (sii.ImageCharacteristics & IMAGE_FILE_DLL) {
-        print_stderr("{}: not an executable\n", program);
-        return;
-    }
-
-#ifdef __aarch64__
-    static const uint16_t this_arch = IMAGE_FILE_MACHINE_ARM64;
-#elifdef __x86_64__
-    static const uint16_t this_arch = IMAGE_FILE_MACHINE_AMD64;
-#endif
-
-    if (sii.Machine != this_arch) {
-        print_stderr("{}: unsupported architecture\n", program);
-        return;
-    }
+    auto proglen = utf8_to_utf16_len(program);
 
     unique_handle proc;
 
-    if (!start_program(sect.get(), sii, cmdline, client_handle, proc))
+    if (program.find('/') != string_view::npos) {
+        auto exe = (char16_t*)malloc((proglen + 1) * sizeof(char16_t));
+        if (!exe) {
+            print_stderr("malloc failed\n");
+            free(u16cmdline);
+            return;
+        }
+
+        utf8_to_utf16(span(exe, proglen), program);
+        exe[proglen] = 0;
+
+        if (!CreateProcessW(exe, u16cmdline, nullptr, nullptr, false,
+                            CREATE_SUSPENDED, nullptr, nullptr, &si, &pi)) {
+            auto le = GetLastError();
+
+            switch (le) {
+                case ERROR_FILE_NOT_FOUND:
+                    print_stderr("{}: No such file or directory\n", program);
+                    break;
+
+                case ERROR_ACCESS_DENIED:
+                    print_stderr("{}: Permission denied\n", program);
+                    break;
+
+                case ERROR_BAD_EXE_FORMAT:
+                    print_stderr("{}: not an executable\n", program);
+                    break;
+
+                case ERROR_EXE_MACHINE_TYPE_MISMATCH:
+                    print_stderr("{}: unsupported architecture\n", program);
+                    break;
+
+                default:
+                    print_stderr("CreateProcessW failed (error {})\n", GetLastError());
+            }
+
+            free(exe);
+            free(u16cmdline);
+            return;
+        }
+
+        proc.reset(pi.hProcess);
+
+        free(exe);
+    } else {
+        while (true) {
+            auto col = env_path.find(u':');
+            u16string_view dir;
+
+            if (col == u16string_view::npos)
+                dir = env_path;
+            else
+                dir = u16string_view(env_path.data(), col);
+
+            for (unsigned int i = 0; i < 2; i++) {
+                if (i == 1 && program.find('.') != string_view::npos)
+                    break;
+
+                static const u16string_view suffix = u".exe";
+
+                bool add_suffix = i == 1;
+
+                auto exe = (char16_t*)malloc((dir.size() + 1 + proglen + (add_suffix ? suffix.size() : 0) + 1) * sizeof(char16_t));
+                if (!exe) {
+                    print_stderr("malloc failed\n");
+                    free(u16cmdline);
+                    return;
+                }
+
+                memcpy(exe, dir.data(), dir.size() * sizeof(char16_t));
+                exe[dir.size()] = '/';
+                utf8_to_utf16(span(exe + dir.size() + 1, proglen), program);
+
+                if (add_suffix) {
+                    memcpy(exe + dir.size() + 1 + proglen, suffix.data(),
+                           suffix.size() * sizeof(char16_t));
+                    exe[dir.size() + 1 + proglen + suffix.size()] = 0;
+                } else
+                    exe[dir.size() + 1 + proglen] = 0;
+
+                if (!CreateProcessW(exe, u16cmdline, nullptr, nullptr, false,
+                                    CREATE_SUSPENDED, nullptr, nullptr, &si, &pi)) {
+                    auto le = GetLastError();
+
+                    if (le != ERROR_FILE_NOT_FOUND) {
+                        switch (le) {
+                            case ERROR_ACCESS_DENIED:
+                                print_stderr("{}: Permission denied\n", program);
+                                break;
+
+                            case ERROR_BAD_EXE_FORMAT:
+                                print_stderr("{}: not an executable\n", program);
+                                break;
+
+                            case ERROR_EXE_MACHINE_TYPE_MISMATCH:
+                                print_stderr("{}: unsupported architecture\n", program);
+                                break;
+
+                            default:
+                                print_stderr("CreateProcessW failed (error {})\n", GetLastError());
+                        }
+
+                        free(exe);
+                        free(u16cmdline);
+                        return;
+                    }
+                } else {
+                    proc.reset(pi.hProcess);
+                    break;
+                }
+            }
+
+            if (proc)
+                break;
+
+            if (col == u16string_view::npos)
+                break;
+
+            env_path = u16string_view(env_path.data() + col + 1,
+                                      env_path.size() - col - 1);
+        }
+
+        if (!proc) {
+            print_stderr("{}: No such file or directory\n", program);
+            free(u16cmdline);
+            return;
+        }
+    }
+
+    free(u16cmdline);
+
+    running_proc = proc.get();
+
+    auto status = NtResumeThread(pi.hThread, nullptr);
+    if (!success(status)) {
+        print_stderr("NtResumeThread returned {}\n", status);
+        running_proc = 0;
+        NtClose(pi.hThread);
         return;
+    }
+
+    NtClose(pi.hThread);
 
     run_program(server_handle, proc);
 }
@@ -1011,6 +728,9 @@ static void process_line(string_view sv, HANDLE server_handle,
 
     if (cmd.front() == '"' && cmd.back() == '"')
         cmd = string_view(cmd.data() + 1, cmd.size() - 2);
+
+    if (cmd.empty())
+        return;
 
     if (cmd == "exit")
         exit();
