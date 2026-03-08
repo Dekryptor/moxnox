@@ -309,7 +309,7 @@ bool CreateProcessW(const char16_t* application_name, char16_t* command_line,
 
     params.StandardInput = stdinh;
     params.StandardOutput = stdouth;
-    params.StandardError = stdouth;
+    params.StandardError = stderrh;
     params.CurrentDirectory.Handle = curdirh;
     params.StartingX = startup_info->dwX;
     params.StartingY = startup_info->dwY;
