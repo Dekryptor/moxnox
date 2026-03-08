@@ -98,10 +98,10 @@ export bool send_ctrl_c(HANDLE proc) {
     memset(&context, 0, sizeof(context));
 #ifdef __aarch64__
     context.Pc = (uintptr_t)addr;
-    context.Sp = (uintptr_t)initial_teb.StackBase - 0x10; // 0x10 for red zone
+    context.Sp = (uintptr_t)initial_teb.StackBase - 0x10;
 #elifdef __x86_64__
     context.Rip = (uintptr_t)addr;
-    context.Rsp = (uintptr_t)initial_teb.StackBase - 0x20 - sizeof(uint64_t); // red zone, plus (unused) return pointer
+    context.Rsp = (uintptr_t)initial_teb.StackBase - 0x20 - sizeof(uint64_t); // home space, plus (unused) return pointer
     context.EFlags = 0x200;
     context.ContextFlags = CONTEXT_CONTROL | CONTEXT_INTEGER | CONTEXT_SEGMENTS;
 #endif

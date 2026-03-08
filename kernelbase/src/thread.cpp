@@ -99,7 +99,7 @@ HANDLE CreateThread(SECURITY_ATTRIBUTES* sa, size_t stack_size,
     memset(&context, 0, sizeof(context));
 #ifdef __aarch64__
     context.Pc = (uintptr_t)thread_start;
-    context.Sp = (uintptr_t)initial_teb.StackBase - 0x10; // 0x10 bytes for red zone
+    context.Sp = (uintptr_t)initial_teb.StackBase - 0x10;
     context.X0 = (uintptr_t)start;
     context.X1 = (uintptr_t)param;
 #elifdef __x86_64__

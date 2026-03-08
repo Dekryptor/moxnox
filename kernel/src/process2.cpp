@@ -605,7 +605,7 @@ object_ref create_process(string_view fn, string_view curdir,
     uintptr_t entry_point_ctx_addr = (uintptr_t)stackaddr + stack_size - sizeof(CONTEXT);
 
 #ifdef __aarch64__
-    entry_point_ctx_addr -= 0x10; // 0x10 for red zone
+    entry_point_ctx_addr -= 0x10;
 #elifdef __x86_64__
     entry_point_ctx_addr -= 0x28; // 0x20 for MS ABI, 0x8 for return pointer
 #endif
@@ -3334,7 +3334,7 @@ NTSTATUS process::create_thread(optional<reference_wrapper<handle_t>> thread_han
     t.context.X2 = ctx_addr;
     t.context.X18 = (uintptr_t)t.teb;
 
-    t.user_stack = (uintptr_t)img_info_addr - 0x10; // 0x10 for red zone
+    t.user_stack = (uintptr_t)img_info_addr - 0x10;
 #elifdef __x86_64__
     memset(&t.syscall_context, 0, sizeof(CONTEXT));
 
@@ -3365,7 +3365,7 @@ NTSTATUS process::create_thread(optional<reference_wrapper<handle_t>> thread_han
     t.syscall_stack = (uint8_t*)t.kernel_stack + ((KERNEL_STACK_PAGES + KERNEL_GUARD_PAGES) << PAGE_SHIFT);
 
 #ifdef __aarch64__
-    t.syscall_stack = (uint8_t*)t.syscall_stack - 0x10; // 0x10 bytes for red zone
+    t.syscall_stack = (uint8_t*)t.syscall_stack - 0x10;
 #elifdef __x86_64__
     t.syscall_stack = (uint8_t*)t.syscall_stack - 0x20; // 0x20 bytes for MS ABI
 #endif

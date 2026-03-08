@@ -488,7 +488,7 @@ uintptr_t init_cpu_block(unsigned int cpu_no) {
     cb.scheduler_stack = (uint8_t*)stack + ((KERNEL_STACK_PAGES + KERNEL_GUARD_PAGES) << PAGE_SHIFT);
 
 #ifdef __aarch64__
-    cb.scheduler_stack = (uint8_t*)cb.scheduler_stack - 0x10; // 0x10 for red zone
+    cb.scheduler_stack = (uint8_t*)cb.scheduler_stack - 0x10;
 #elifdef __x86_64__
     cb.scheduler_stack = (uint8_t*)cb.scheduler_stack - 0x20; // 0x20 for MS ABI
 #endif

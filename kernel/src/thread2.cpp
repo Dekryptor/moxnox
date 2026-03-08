@@ -363,7 +363,6 @@ object_ref add_kernel_thread(void (*func)(void*, void*), void* param1, void* par
     t.context.X1 = (uintptr_t)param1;
     t.context.X2 = (uintptr_t)param2;
 
-    // 0x10 bytes for red zone
     t.syscall_stack = (void*)((uint8_t*)t.kernel_stack + ((KERNEL_STACK_PAGES + KERNEL_GUARD_PAGES) << PAGE_SHIFT) - 0x10);
 
     t.context.Cpsr = 0x5; // EL1 with SP_EL1

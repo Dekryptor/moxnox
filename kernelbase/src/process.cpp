@@ -530,7 +530,7 @@ bool CreateProcessW(const char16_t* application_name, char16_t* command_line,
     memset(&context, 0, sizeof(context));
 #ifdef __aarch64__
     context.Pc = (uintptr_t)sii.TransferAddress;
-    context.Sp = (uintptr_t)initial_teb.StackBase - 0x10; // 0x10 bytes for red zone
+    context.Sp = (uintptr_t)initial_teb.StackBase - 0x10;
 #elifdef __x86_64__
     context.Rip = (uintptr_t)sii.TransferAddress;
     context.Rsp = (uintptr_t)initial_teb.StackBase - 0x28; // 0x20 bytes for MS ABI, 0x8 for return pointer

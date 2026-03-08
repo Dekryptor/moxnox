@@ -939,7 +939,7 @@ b	kernel_exception_entry
 .endm
 
 .macro kernel_irq_entry bsp
-	// extra 0x10 bytes for "red zone"
+	// extra 0x10 bytes for ABI
 	sub	sp, sp, #0x40
 
 	stp	x0, x1, [sp]
