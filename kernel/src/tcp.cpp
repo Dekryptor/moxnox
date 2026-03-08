@@ -649,9 +649,6 @@ void ipv6_tcp_socket::last_handle_closed() {
                 tcp_ports[s.bound_port] = nullptr;
                 s.release();
             }
-        } else if (s.on_accepted_list) {
-            lock_guard lock(tcp_ports_lock);
-            remove_entry_list(s.accepted_le);
         }
 
         s.release();
@@ -840,6 +837,16 @@ void ipv6_tcp_socket::received_packet(packet& pack, netif& ni,
                     reset_event(static_cast<event&>(parent->accept_queue_event.get()));
             }
 
+            if (on_accepted_list) {
+                {
+                    lock_guard lock(tcp_ports_lock);
+                    remove_entry_list(accepted_le);
+                }
+
+                on_accepted_list = false;
+                release();
+            }
+
             if (old_state == tcp_state::SYN_RECEIVED || (old_state == tcp_state::ESTABLISHED && !was_accepted))
                 release();
         }
@@ -964,6 +971,14 @@ void ipv6_tcp_socket::received_packet(packet& pack, netif& ni,
                     tcp_ports[bound_port] = nullptr;
                     release();
                 }
+            } else if (on_accepted_list) {
+                {
+                    lock_guard lock(tcp_ports_lock);
+                    remove_entry_list(accepted_le);
+                }
+
+                on_accepted_list = false;
+                release();
             }
 
             set_event(static_cast<event&>(retransmission_thread_quit_event.get()));
@@ -1085,6 +1100,16 @@ void ipv6_tcp_socket::received_packet(packet& pack, netif& ni,
                 }
 
                 delete p;
+            }
+
+            if (on_accepted_list && state == tcp_state::TIME_WAIT) {
+                {
+                    lock_guard lock(tcp_ports_lock);
+                    remove_entry_list(accepted_le);
+                }
+
+                on_accepted_list = false;
+                release();
             }
         }
 
@@ -1785,9 +1810,6 @@ nt_status ipv6_tcp_socket::accept(HANDLE& sock, void* us_addr, int& addrlen) {
         c->release();
         return status;
     }
-
-    // parent holds reference to syn_queue and accept_queue sockets, but not child sockets
-    c->release();
 
     return nt_status::SUCCESS;
 }
