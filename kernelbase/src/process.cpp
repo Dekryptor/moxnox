@@ -143,7 +143,11 @@ bool CreateProcessW(const char16_t* application_name, char16_t* command_line,
     status = NtOpenFile(&h, FILE_READ_DATA, &oa, &iosb, 0,
                         FILE_NON_DIRECTORY_FILE);
     if (!success(status)) {
-        print_stderr("NtOpenFile returned {}\n", status);
+        if (status != nt_status::OBJECT_NAME_NOT_FOUND &&
+            status != nt_status::OBJECT_PATH_NOT_FOUND) {
+            print_stderr("NtOpenFile returned {}\n", status);
+        }
+
         SetLastError(RtlNtStatusToDosError(status));
         return false;
     }
