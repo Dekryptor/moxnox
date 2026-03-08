@@ -311,6 +311,7 @@ void received_ipv6_tcp_packet(netif& ni, packet& pack,
                 c.connected_address == ip.src && c.connected_port == tcp.src_port) {
                 sock = &c;
                 sock->acquire();
+                break;
             }
         }
 
