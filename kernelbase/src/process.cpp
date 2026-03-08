@@ -172,8 +172,7 @@ bool CreateProcessW(const char16_t* application_name, char16_t* command_line,
     }
 
     if (sii.ImageCharacteristics & IMAGE_FILE_DLL) {
-        print_stderr("{}: not an executable\n", exe); // FIXME
-        SetLastError(ERROR_INTERNAL_ERROR); // FIXME
+        SetLastError(ERROR_BAD_EXE_FORMAT);
         return false;
     }
 
@@ -184,8 +183,7 @@ bool CreateProcessW(const char16_t* application_name, char16_t* command_line,
 #endif
 
     if (sii.Machine != this_arch) {
-        print_stderr("{}: unsupported architecture\n", exe); // FIXME
-        SetLastError(ERROR_INTERNAL_ERROR); // FIXME
+        SetLastError(ERROR_EXE_MACHINE_TYPE_MISMATCH);
         return false;
     }
 
