@@ -1236,9 +1236,9 @@ static bool send_signal(const EXCEPTION_RECORD& er, CONTEXT& ctx,
     size_t er_size = offsetof(EXCEPTION_RECORD, ExceptionInformation) + (sizeof(uintptr_t) * er.NumberParameters);
     uintptr_t us_er = us_context - er_size;
 
-    us_er &= ~(uint64_t)(alignof(EXCEPTION_RECORD) - 1);
+    us_er &= ~(uint64_t)0xf;
 
-    assert(!(us_er & (alignof(EXCEPTION_RECORD) - 1)));
+    assert(!(us_er & 0xf));
 
     if (!p.copy_to((void*)us_er, &er, er_size)) {
         print("Unable to copy exception record to stack.\n");
@@ -1251,7 +1251,7 @@ static bool send_signal(const EXCEPTION_RECORD& er, CONTEXT& ctx,
     ctx.Pc = p.ntdll_addr + mn_signal;
     ctx.X0 = us_er;
     ctx.X1 = us_context;
-    ctx.Sp = us_er & ~(uint64_t)0xf;
+    ctx.Sp = us_er;
 #elifdef __x86_64__
     disable_interrupts();
 
