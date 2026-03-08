@@ -172,6 +172,8 @@ public:
     list_entry children = { &children, &children };
     bool accepted = false;
     bool added_to_list = false;
+    list_entry accepted_le;
+    bool on_accepted_list = false;
 
 private:
     nt_status send_syn(const sockaddr_in6& c, ipv6_address& src);
@@ -187,6 +189,7 @@ private:
 
 static spinlock tcp_ports_lock;
 static ipv6_tcp_socket* tcp_ports[65536];
+static list_entry accepted_sockets = { &accepted_sockets, &accepted_sockets };
 
 struct tcp_header {
     uint16_t src_port;
@@ -301,7 +304,17 @@ void received_ipv6_tcp_packet(netif& ni, packet& pack,
     {
         lock_guard lock(tcp_ports_lock);
 
-        if (tcp_ports[tcp.dst_port]) {
+        for (auto le = accepted_sockets.next; le != &accepted_sockets; le = le->next) {
+            auto& c = *(ipv6_tcp_socket*)((uint8_t*)le - offsetof(ipv6_tcp_socket, accepted_le));
+
+            if (c.bound_address == ip.dst && c.bound_port == tcp.dst_port &&
+                c.connected_address == ip.src && c.connected_port == tcp.src_port) {
+                sock = &c;
+                sock->acquire();
+            }
+        }
+
+        if (!sock && tcp_ports[tcp.dst_port]) {
             sock = tcp_ports[tcp.dst_port];
 
             {
@@ -635,6 +648,9 @@ void ipv6_tcp_socket::last_handle_closed() {
                 tcp_ports[s.bound_port] = nullptr;
                 s.release();
             }
+        } else if (s.on_accepted_list) {
+            lock_guard lock(tcp_ports_lock);
+            remove_entry_list(s.accepted_le);
         }
 
         s.release();
@@ -1750,9 +1766,21 @@ nt_status ipv6_tcp_socket::accept(HANDLE& sock, void* us_addr, int& addrlen) {
         addrlen = sizeof(addr);
     }
 
+    {
+        lock_guard lock(tcp_ports_lock);
+        insert_tail_list(accepted_sockets, c->accepted_le);
+        c->on_accepted_list = true;
+    }
+
     status = t.proc->add_handle(*c, FILE_READ_DATA | FILE_WRITE_DATA, true,
                                 sock);
     if (!success(status)) {
+        {
+            lock_guard lock(tcp_ports_lock);
+            remove_entry_list(c->accepted_le);
+            c->on_accepted_list = false;
+        }
+
         c->release();
         return status;
     }
@@ -1849,25 +1877,13 @@ void ipv6_tcp_socket::received_listen_packet(packet& pack, netif& ni,
     {
         lock_guard lock(list_lock);
 
-        for (auto le = children.next; le != &children; le = le->next) {
+        for (auto le = syn_queue.next; le != &syn_queue; le = le->next) {
             auto& s = containing_record<ipv6_tcp_socket>(le);
 
             if (s.connected_address == ip.src && s.connected_port == tcp.src_port) {
                 found = &s;
                 s.acquire();
                 break;
-            }
-        }
-
-        if (!found) {
-            for (auto le = syn_queue.next; le != &syn_queue; le = le->next) {
-                auto& s = containing_record<ipv6_tcp_socket>(le);
-
-                if (s.connected_address == ip.src && s.connected_port == tcp.src_port) {
-                    found = &s;
-                    s.acquire();
-                    break;
-                }
             }
         }
 
