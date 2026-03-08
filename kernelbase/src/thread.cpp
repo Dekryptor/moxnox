@@ -125,8 +125,8 @@ HANDLE CreateThread(SECURITY_ATTRIBUTES* sa, size_t stack_size,
         if (!success(status)) {
             print_stderr("NtResumeThread returned {}\n", status);
             SetLastError(RtlNtStatusToDosError(status));
+            return 0;
         }
-        return 0;
     }
 
     return h;
