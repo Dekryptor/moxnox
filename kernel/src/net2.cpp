@@ -39,7 +39,7 @@ class ipv6_raw_socket : public socket {
 public:
     ipv6_raw_socket(int protocol) : protocol(protocol) { }
     ~ipv6_raw_socket() override;
-    void last_handle_closed() override { }
+    void last_handle_closed() override;
 
     nt_status recvfrom(char* buf, size_t len, int flags, sockaddr* from,
                        int* fromlen, size_t& recv_bytes) override;
@@ -77,6 +77,7 @@ public:
     bool bind_done = false;
     ipv6_address bound_address;
     nt_status pending_error = nt_status::SUCCESS;
+    bool dead = false;
 };
 
 enum class neighbour_cache_status {
@@ -2267,11 +2268,15 @@ nt_status ipv6_raw_socket::recvfrom(char* us_buf, size_t len, int flags,
     acquire();
 
     while (true) {
-        // FIXME - break lock if last handle to socket closed
         auto status = wait_for_object(*this, true);
         if (!success(status)) {
             release();
             return status;
+        }
+
+        if (dead) {
+            release();
+            return nt_status::CONNECTION_DISCONNECTED;
         }
 
         ipv6_socket_packet* sp = nullptr;
@@ -3163,4 +3168,18 @@ nt_status ipv6_raw_socket::bind(const sockaddr* addr, size_t addrlen) {
     }
 
     return nt_status::SUCCESS;
+}
+
+void ipv6_raw_socket::last_handle_closed() {
+    dead = true;
+
+    {
+        sync_lock sl;
+        lock_guard lock(sl);
+
+        if (!signalled) {
+            wake_up_waiters(waiters);
+            signalled = true;
+        }
+    }
 }
