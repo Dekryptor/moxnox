@@ -2715,10 +2715,14 @@ static mac_address search_neighbour_cache(netif& ni, const ipv6_address& dst) {
 
     set_event(static_cast<event&>(nce->event.get()));
 
+    auto ret = NULL_MAC_ADDRESS;
+
     {
         lock_guard lock(ni.neighbour_lock);
 
-        if (nce->status != neighbour_cache_status::reachable) {
+        if (nce->status == neighbour_cache_status::reachable)
+            ret = nce->mac;
+        else {
             remove_entry_list(nce->le);
             nce->release();
         }
@@ -2726,7 +2730,7 @@ static mac_address search_neighbour_cache(netif& ni, const ipv6_address& dst) {
 
     nce->release();
 
-    return NULL_MAC_ADDRESS;
+    return ret;
 }
 
 mac_address find_mac_address(netif& ni, const ipv6_address& dst) {
