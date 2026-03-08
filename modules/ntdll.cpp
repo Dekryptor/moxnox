@@ -164,6 +164,7 @@ void RtlEnterCriticalSection(RTL_CRITICAL_SECTION* critical_section);
 void RtlLeaveCriticalSection(RTL_CRITICAL_SECTION* critical_section);
 void RtlSetLastWin32Error(uint32_t err_code);
 uint32_t RtlNtStatusToDosErrorNoTeb(nt_status status);
+uint32_t RtlNtStatusToDosError(nt_status status);
 
 }
 

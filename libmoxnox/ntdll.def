@@ -448,3 +448,4 @@ RtlLookupFunctionEntry
 RtlUnwindEx
 RtlVirtualUnwind
 RtlNtStatusToDosErrorNoTeb
+RtlNtStatusToDosError

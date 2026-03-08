@@ -45,3 +45,4 @@ RtlUnwindEx
 RtlVirtualUnwind
 RtlSetLastWin32Error
 RtlNtStatusToDosErrorNoTeb
+RtlNtStatusToDosError

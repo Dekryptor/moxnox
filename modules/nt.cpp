@@ -446,7 +446,7 @@ struct TEB {
     void* glTable;
     void* glCurrentRC;
     void* glContext;
-    uint32_t LastStatusValue;
+    nt_status LastStatusValue;
     uint8_t Padding2[4];
     UNICODE_STRING StaticUnicodeString;
     char16_t StaticUnicodeBuffer[261];

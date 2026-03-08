@@ -167,3 +167,12 @@ uint32_t RtlNtStatusToDosErrorNoTeb(nt_status status) {
 
     return ERROR_MR_MID_NOT_FOUND;
 }
+
+extern "C"
+uint32_t RtlNtStatusToDosError(nt_status status) {
+    auto& teb = *NtCurrentTeb();
+
+    teb.LastStatusValue = status;
+
+    return RtlNtStatusToDosErrorNoTeb(status);
+}
