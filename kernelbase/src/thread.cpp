@@ -120,8 +120,14 @@ HANDLE CreateThread(SECURITY_ATTRIBUTES* sa, size_t stack_size,
         return 0;
     }
 
-    if (!(flags & CREATE_SUSPENDED))
-        NtResumeThread(h, nullptr);
+    if (!(flags & CREATE_SUSPENDED)) {
+        status = NtResumeThread(h, nullptr);
+        if (!success(status)) {
+            print_stderr("NtResumeThread returned {}\n", status);
+            SetLastError(RtlNtStatusToDosError(status));
+        }
+        return 0;
+    }
 
     return h;
 }
