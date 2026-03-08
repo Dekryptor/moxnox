@@ -2700,7 +2700,19 @@ static mac_address search_neighbour_cache(netif& ni, const ipv6_address& dst) {
         if (status == nt_status::TIMEOUT)
             continue;
         else if (!success(status)) {
+            set_event(static_cast<event&>(nce->event.get()));
+
+            {
+                lock_guard lock(ni.neighbour_lock);
+
+                if (nce->status != neighbour_cache_status::reachable) {
+                    remove_entry_list(nce->le);
+                    nce->release();
+                }
+            }
+
             nce->release();
+
             print("wait_for_object returned {}\n", status);
             return NULL_MAC_ADDRESS;
         }
