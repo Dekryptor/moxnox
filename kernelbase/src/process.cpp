@@ -6,6 +6,7 @@
 #include <span>
 
 import nt;
+import ntdll;
 import kernelbase;
 import print;
 import unique_handle;
@@ -143,7 +144,7 @@ bool CreateProcessW(const char16_t* application_name, char16_t* command_line,
                         FILE_NON_DIRECTORY_FILE);
     if (!success(status)) {
         print_stderr("NtOpenFile returned {}\n", status);
-        SetLastError(ERROR_INTERNAL_ERROR); // FIXME
+        SetLastError(RtlNtStatusToDosError(status));
         return false;
     }
 
@@ -155,7 +156,7 @@ bool CreateProcessW(const char16_t* application_name, char16_t* command_line,
                              file.get());
     if (!success(status)) {
         print_stderr("NtCreateSection returned {}\n", status);
-        SetLastError(ERROR_INTERNAL_ERROR); // FIXME
+        SetLastError(RtlNtStatusToDosError(status));
         return false;
     }
 
@@ -166,7 +167,7 @@ bool CreateProcessW(const char16_t* application_name, char16_t* command_line,
 
     if (!success(status)) {
         print_stderr("NtQuerySection returned {}\n", status);
-        SetLastError(ERROR_INTERNAL_ERROR); // FIXME
+        SetLastError(RtlNtStatusToDosError(status));
         return false;
     }
 
@@ -194,7 +195,7 @@ bool CreateProcessW(const char16_t* application_name, char16_t* command_line,
                              false, sect.get(), 0, 0);
     if (!success(status)) {
         print_stderr("NtCreateProcess returned {}\n", status);
-        SetLastError(ERROR_INTERNAL_ERROR); // FIXME
+        SetLastError(RtlNtStatusToDosError(status));
         return false;
     }
 
@@ -217,7 +218,7 @@ bool CreateProcessW(const char16_t* application_name, char16_t* command_line,
                                DUPLICATE_SAME_ATTRIBUTES);
     if (!success(status)) {
         print_stderr("NtDuplicateObject returned {}\n", status);
-        SetLastError(ERROR_INTERNAL_ERROR); // FIXME
+        SetLastError(RtlNtStatusToDosError(status));
         return false;
     }
 
@@ -226,7 +227,7 @@ bool CreateProcessW(const char16_t* application_name, char16_t* command_line,
                                DUPLICATE_SAME_ATTRIBUTES);
     if (!success(status)) {
         print_stderr("NtDuplicateObject returned {}\n", status);
-        SetLastError(ERROR_INTERNAL_ERROR); // FIXME
+        SetLastError(RtlNtStatusToDosError(status));
         return false;
     }
 
@@ -235,7 +236,7 @@ bool CreateProcessW(const char16_t* application_name, char16_t* command_line,
                                DUPLICATE_SAME_ATTRIBUTES);
     if (!success(status)) {
         print_stderr("NtDuplicateObject returned {}\n", status);
-        SetLastError(ERROR_INTERNAL_ERROR); // FIXME
+        SetLastError(RtlNtStatusToDosError(status));
         return false;
     }
 
@@ -250,7 +251,7 @@ bool CreateProcessW(const char16_t* application_name, char16_t* command_line,
                                    FILE_DIRECTORY_FILE, nullptr, 0);
         if (!success(status)) {
             print_stderr("NtCreateFile returned {}\n", status);
-            SetLastError(ERROR_INTERNAL_ERROR); // FIXME
+            SetLastError(RtlNtStatusToDosError(status));
             return false;
         } else
             curdir = unique_handle{h};
@@ -260,7 +261,7 @@ bool CreateProcessW(const char16_t* application_name, char16_t* command_line,
                                    DUPLICATE_SAME_ATTRIBUTES | DUPLICATE_SAME_ACCESS);
         if (!success(status)) {
             print_stderr("NtDuplicateObject returned {}\n", status);
-            SetLastError(ERROR_INTERNAL_ERROR); // FIXME
+            SetLastError(RtlNtStatusToDosError(status));
             return false;
         }
     } else {
@@ -269,7 +270,7 @@ bool CreateProcessW(const char16_t* application_name, char16_t* command_line,
                                    DUPLICATE_SAME_ATTRIBUTES | DUPLICATE_SAME_ACCESS);
         if (!success(status)) {
             print_stderr("NtDuplicateObject returned {}\n", status);
-            SetLastError(ERROR_INTERNAL_ERROR); // FIXME
+            SetLastError(RtlNtStatusToDosError(status));
             return false;
         }
     }
@@ -280,7 +281,7 @@ bool CreateProcessW(const char16_t* application_name, char16_t* command_line,
                                        &pbi, sizeof(pbi), nullptr);
     if (!success(status)) {
         print_stderr("NtQueryInformationProcess returned {}\n", status);
-        SetLastError(ERROR_INTERNAL_ERROR); // FIXME
+        SetLastError(RtlNtStatusToDosError(status));
         return false;
     }
 
@@ -288,7 +289,7 @@ bool CreateProcessW(const char16_t* application_name, char16_t* command_line,
                                  sizeof(PEB), nullptr);
     if (!success(status)) {
         print_stderr("NtReadVirtualMemory returned {}\n", status);
-        SetLastError(ERROR_INTERNAL_ERROR); // FIXME
+        SetLastError(RtlNtStatusToDosError(status));
         return false;
     }
 
@@ -298,7 +299,7 @@ bool CreateProcessW(const char16_t* application_name, char16_t* command_line,
                                  sizeof(params), nullptr);
     if (!success(status)) {
         print_stderr("NtReadVirtualMemory returned {}\n", status);
-        SetLastError(ERROR_INTERNAL_ERROR); // FIXME
+        SetLastError(RtlNtStatusToDosError(status));
         return false;
     }
 
@@ -325,7 +326,7 @@ bool CreateProcessW(const char16_t* application_name, char16_t* command_line,
                                         FILE_INFORMATION_CLASS::NameInformation);
         if (!success(status) && status != nt_status::BUFFER_OVERFLOW) {
             print_stderr("NtQueryInformationFile returned {}\n", status);
-            SetLastError(ERROR_INTERNAL_ERROR); // FIXME
+            SetLastError(RtlNtStatusToDosError(status));
             return false;
         }
 
@@ -343,7 +344,7 @@ bool CreateProcessW(const char16_t* application_name, char16_t* command_line,
         if (!success(status)) {
             print_stderr("NtQueryInformationFile returned {}\n", status);
             free(fni2);
-            SetLastError(ERROR_INTERNAL_ERROR); // FIXME
+            SetLastError(RtlNtStatusToDosError(status));
             return false;
         }
 
@@ -361,7 +362,7 @@ bool CreateProcessW(const char16_t* application_name, char16_t* command_line,
                                       nullptr);
         if (!success(status)) {
             print_stderr("NtWriteVirtualMemory returned {}\n", status);
-            SetLastError(ERROR_INTERNAL_ERROR); // FIXME
+            SetLastError(RtlNtStatusToDosError(status));
             return false;
         }
 
@@ -371,7 +372,7 @@ bool CreateProcessW(const char16_t* application_name, char16_t* command_line,
                                       nullptr);
         if (!success(status)) {
             print_stderr("NtWriteVirtualMemory returned {}\n", status);
-            SetLastError(ERROR_INTERNAL_ERROR); // FIXME
+            SetLastError(RtlNtStatusToDosError(status));
             return false;
         }
 
@@ -389,7 +390,7 @@ bool CreateProcessW(const char16_t* application_name, char16_t* command_line,
                                       params.CurrentDirectory.DosPath.Length, nullptr);
         if (!success(status)) {
             print_stderr("NtWriteVirtualMemory returned {}\n", status);
-            SetLastError(ERROR_INTERNAL_ERROR); // FIXME
+            SetLastError(RtlNtStatusToDosError(status));
             return false;
         }
     }
@@ -433,7 +434,7 @@ bool CreateProcessW(const char16_t* application_name, char16_t* command_line,
     if (!success(status)) {
         print_stderr("NtAllocateVirtualMemory returned {}\n", status);
         free(misc_block);
-        SetLastError(ERROR_INTERNAL_ERROR); // FIXME
+        SetLastError(RtlNtStatusToDosError(status));
         return false;
     }
 
@@ -487,7 +488,7 @@ bool CreateProcessW(const char16_t* application_name, char16_t* command_line,
     if (!success(status)) {
         print_stderr("NtWriteVirtualMemory returned {}\n", status);
         free(misc_block);
-        SetLastError(ERROR_INTERNAL_ERROR); // FIXME
+        SetLastError(RtlNtStatusToDosError(status));
         return false;
     }
 
@@ -499,7 +500,7 @@ bool CreateProcessW(const char16_t* application_name, char16_t* command_line,
                                   sizeof(params), nullptr);
     if (!success(status)) {
         print_stderr("NtWriteVirtualMemory returned {}\n", status);
-        SetLastError(ERROR_INTERNAL_ERROR); // FIXME
+        SetLastError(RtlNtStatusToDosError(status));
         return false;
     }
 
@@ -514,7 +515,7 @@ bool CreateProcessW(const char16_t* application_name, char16_t* command_line,
                                      MEM_COMMIT | MEM_RESERVE, PAGE_READWRITE);
     if (!success(status)) {
         print_stderr("NtAllocateVirtualMemory returned {}\n", status);
-        SetLastError(ERROR_INTERNAL_ERROR); // FIXME
+        SetLastError(RtlNtStatusToDosError(status));
         return false;
     }
 
@@ -539,7 +540,7 @@ bool CreateProcessW(const char16_t* application_name, char16_t* command_line,
                             &client_id, &context, &initial_teb, true);
     if (!success(status)) {
         print_stderr("NtCreateThread returned {}\n", status);
-        SetLastError(ERROR_INTERNAL_ERROR); // FIXME
+        SetLastError(RtlNtStatusToDosError(status));
         return false;
     }
 
@@ -549,7 +550,7 @@ bool CreateProcessW(const char16_t* application_name, char16_t* command_line,
         status = NtResumeThread(thread.get(), nullptr);
         if (!success(status)) {
             print_stderr("NtResumeThread returned {}\n", status);
-            SetLastError(ERROR_INTERNAL_ERROR); // FIXME
+            SetLastError(RtlNtStatusToDosError(status));
             return false;
         }
     }
