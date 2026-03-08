@@ -4,6 +4,7 @@
 #include <utility>
 
 import nt;
+import ntdll;
 import kernelbase;
 import print;
 
@@ -85,7 +86,7 @@ HANDLE CreateThread(SECURITY_ATTRIBUTES* sa, size_t stack_size,
                                      MEM_COMMIT | MEM_RESERVE, PAGE_READWRITE);
     if (!success(status)) {
         print_stderr("NtAllocateVirtualMemory returned {}\n", status);
-        // FIXME - last error
+        SetLastError(RtlNtStatusToDosError(status));
         return 0;
     }
 
@@ -115,7 +116,7 @@ HANDLE CreateThread(SECURITY_ATTRIBUTES* sa, size_t stack_size,
 
     if (!success(status)) {
         print_stderr("NtCreateThread returned {}\n", status);
-        // FIXME - last error
+        SetLastError(RtlNtStatusToDosError(status));
         return 0;
     }
 
