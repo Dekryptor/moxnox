@@ -24,9 +24,9 @@ uint32_t RtlNtStatusToDosErrorNoTeb(nt_status status) {
         case PENDING:
             return ERROR_IO_PENDING;
         case BREAKPOINT:
-            return (int)nt_status::BREAKPOINT;
+            return (uint32_t)nt_status::BREAKPOINT;
         case SINGLE_STEP:
-            return (int)nt_status::SINGLE_STEP;
+            return (uint32_t)nt_status::SINGLE_STEP;
         case BUFFER_OVERFLOW:
             return ERROR_MORE_DATA;
         case NO_MORE_FILES:
@@ -52,7 +52,7 @@ uint32_t RtlNtStatusToDosErrorNoTeb(nt_status status) {
         case NO_MEMORY:
             return ERROR_NOT_ENOUGH_MEMORY;
         case ILLEGAL_INSTRUCTION:
-            return (int)nt_status::ILLEGAL_INSTRUCTION;
+            return (uint32_t)nt_status::ILLEGAL_INSTRUCTION;
         case ACCESS_DENIED:
             return ERROR_ACCESS_DENIED;
         case BUFFER_TOO_SMALL:
@@ -60,7 +60,7 @@ uint32_t RtlNtStatusToDosErrorNoTeb(nt_status status) {
         case OBJECT_TYPE_MISMATCH:
             return ERROR_INVALID_HANDLE;
         case INVALID_DISPOSITION:
-            return (int)nt_status::INVALID_DISPOSITION;
+            return (uint32_t)nt_status::INVALID_DISPOSITION;
         case BAD_STACK:
             return ERROR_BAD_STACK;
         case DISK_CORRUPT_ERROR:
@@ -90,7 +90,7 @@ uint32_t RtlNtStatusToDosErrorNoTeb(nt_status status) {
         case DISK_FULL:
             return ERROR_DISK_FULL;
         case INTEGER_DIVIDE_BY_ZERO:
-            return (int)nt_status::INTEGER_DIVIDE_BY_ZERO;
+            return (uint32_t)nt_status::INTEGER_DIVIDE_BY_ZERO;
         case INSUFFICIENT_RESOURCES:
             return ERROR_NO_SYSTEM_RESOURCES;
         case MEDIA_WRITE_PROTECTED:
