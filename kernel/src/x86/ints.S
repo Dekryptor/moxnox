@@ -59,6 +59,7 @@ dwarf_func_asm divide_by_zero_isr
 dwarf_func_asm yield_isr
 dwarf_func_asm breakpoint_isr
 dwarf_func_asm single_step_isr
+dwarf_func_asm nmi_isr
 
 dwarf_func_asm dynamic_isr_30
 dwarf_func_asm dynamic_isr_31
@@ -386,6 +387,36 @@ double_fault_isr:
     iretq
     .seh_endproc
 double_fault_isr_end:
+
+.seh_proc nmi_isr
+.global nmi_isr
+nmi_isr:
+#ifdef __llvm__
+    .seh_pushframe @code
+#else
+    .seh_pushframe code
+#endif
+    sub rsp, 0x20
+    .seh_stackalloc 32
+    .seh_endprologue
+
+    cmp QWORD PTR [rsp+0x28], 0x8
+    je 0f
+    swapgs
+    load_kernel_cr3
+0:
+    save_context2
+    call nmi
+
+    cmp QWORD PTR [rsp+0x28], 0x8
+    je 1f
+    load_process_cr3
+    swapgs
+1:
+    add rsp, 0x20
+    iretq
+    .seh_endproc
+nmi_isr_end:
 
 .seh_proc general_protection_fault_isr
 .global general_protection_fault_isr

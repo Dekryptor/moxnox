@@ -587,7 +587,7 @@ static bool setup_idt() {
 
     add_idt_entry(0x0, (void*)divide_by_zero_isr, false, 0, false);
     add_idt_entry(0x1, (void*)single_step_isr, false, 0, false);
-    // FIXME - int 2 (NMI)
+    add_idt_entry(0x2, (void*)nmi_isr, false, 0, false);
     add_idt_entry(0x3, (void*)breakpoint_isr, false, 0, true);
     // FIXME - int 4 (overflow)
     // FIXME - int 5 (bound range exceeded)
@@ -1349,6 +1349,28 @@ void double_fault() {
     auto sp = span(s, sizeof(s));
 
     sp = format(sp, "Double fault, ");
+
+    if (!current_thread)
+        sp = format(sp, "not in thread");
+    else
+        sp = format(sp, "thread {:x}", (uintptr_t)current_thread);
+
+    sp = format(sp, ", CPU {}\n", cb.cpu_no);
+    sp = format(sp, "{}", cb.thread_context);
+
+    bsod(string_view(s, (size_t)(sp.data() - s)), source_location::current(),
+         &cb.thread_context);
+}
+
+extern "C"
+void nmi() {
+    auto& cb = *get_cpu_block();
+    auto current_thread = cb.current_thread;
+
+    char s[1024];
+    auto sp = span(s, sizeof(s));
+
+    sp = format(sp, "Non-maskable interrupt, ");
 
     if (!current_thread)
         sp = format(sp, "not in thread");
