@@ -56,6 +56,7 @@ public:
     uint32_t connected_scope;
     ipv6_address bound_address, connected_address;
     nt_status pending_error = nt_status::SUCCESS;
+    bool dead = false;
 };
 
 static spinlock udp_ports_lock;
@@ -247,11 +248,15 @@ nt_status ipv6_udp_socket::recvfrom(char* us_buf, size_t len, int flags,
     acquire();
 
     while (true) {
-        // FIXME - break lock if last handle to socket closed
         auto status = wait_for_object(*this, true);
         if (!success(status)) {
             release();
             return status;
+        }
+
+        if (dead) {
+            release();
+            return nt_status::CONNECTION_DISCONNECTED;
         }
 
         ipv6_socket_packet* sp = nullptr;
@@ -619,12 +624,26 @@ nt_status ipv6_udp_socket::connect(const sockaddr* addr, size_t addrlen) {
 }
 
 void ipv6_udp_socket::last_handle_closed() {
-    lock_guard lock(udp_ports_lock);
-    lock_guard lock2(bind_lock);
+    {
+        lock_guard lock(udp_ports_lock);
+        lock_guard lock2(bind_lock);
 
-    if (bind_done && udp_ports[bound_port] == this) {
-        udp_ports[bound_port] = nullptr;
-        this->release();
+        if (bind_done && udp_ports[bound_port] == this) {
+            udp_ports[bound_port] = nullptr;
+            this->release();
+        }
+    }
+
+    dead = true;
+
+    {
+        sync_lock sl;
+        lock_guard lock(sl);
+
+        if (!signalled) {
+            wake_up_waiters(waiters);
+            signalled = true;
+        }
     }
 }
 
