@@ -174,6 +174,7 @@ public:
     bool added_to_list = false;
     list_entry accepted_le;
     bool on_accepted_list = false;
+    bool dead = false;
 
 private:
     nt_status send_syn(const sockaddr_in6& c, ipv6_address& src);
@@ -650,6 +651,23 @@ void ipv6_tcp_socket::last_handle_closed() {
                 s.release();
             }
         }
+
+        s.dead = true;
+
+        {
+            sync_lock sl;
+            lock_guard lock(sl);
+
+            if (!s.signalled) {
+                wake_up_waiters(s.waiters);
+                s.signalled = true;
+            }
+        }
+
+        set_event(static_cast<event&>(s.send_window_open_event.get()));
+
+        if (s.accept_queue_event)
+            set_event(static_cast<event&>(s.accept_queue_event.get()));
 
         s.release();
     }, this);
@@ -1180,6 +1198,11 @@ nt_status ipv6_tcp_socket::sendto(const char* buf, size_t len, int flags,
         if (!success(status))
             break;
 
+        if (dead) {
+            status = nt_status::CONNECTION_DISCONNECTED;
+            break;
+        }
+
         {
             lock_guard lock(io_mutex);
 
@@ -1508,12 +1531,14 @@ nt_status ipv6_tcp_socket::recvfrom(char* buf, size_t len, int flags,
     while (true) {
         lock_guard lock(us_read_mutex);
 
-        // FIXME - break lock if last handle to socket closed
         status = wait_for_object(*this, true);
         if (!success(status)) {
             release();
             return status;
         }
+
+        if (dead)
+            break;
 
         size_t removed_bytes = 0;
 
@@ -1631,6 +1656,9 @@ nt_status ipv6_tcp_socket::recvfrom(char* buf, size_t len, int flags,
 
     release();
 
+    if (dead)
+        return nt_status::CONNECTION_DISCONNECTED;
+
     return nt_status::SUCCESS;
 }
 
@@ -1746,6 +1774,9 @@ nt_status ipv6_tcp_socket::accept(HANDLE& sock, void* us_addr, int& addrlen) {
         status = wait_for_object(accept_queue_event.get(), true);
         if (!success(status))
             return status;
+
+        if (dead)
+            return nt_status::CONNECTION_DISCONNECTED;
 
         {
             lock_guard lock(list_lock);
@@ -2015,12 +2046,14 @@ nt_status ipv6_tcp_socket::read(span<uint8_t> s, uint64_t& read_bytes) {
     while (true) {
         lock_guard lock(us_read_mutex);
 
-        // FIXME - break lock if last handle to socket closed
         status = wait_for_object(*this, true);
         if (!success(status)) {
             release();
             return status;
         }
+
+        if (dead)
+            break;
 
         size_t removed_bytes = 0;
 
@@ -2103,6 +2136,9 @@ nt_status ipv6_tcp_socket::read(span<uint8_t> s, uint64_t& read_bytes) {
 
     release();
 
+    if (dead)
+        return nt_status::CONNECTION_DISCONNECTED;
+
     return nt_status::SUCCESS;
 }
 
@@ -2136,6 +2172,11 @@ nt_status ipv6_tcp_socket::write(span<const uint8_t> s, uint64_t& written_bytes)
         status = wait_for_object(send_window_open_event.get(), true);
         if (!success(status))
             break;
+
+        if (dead) {
+            status = nt_status::CONNECTION_DISCONNECTED;
+            break;
+        }
 
         {
             lock_guard lock(io_mutex);
