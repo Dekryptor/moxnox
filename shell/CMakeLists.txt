@@ -198,7 +198,6 @@ install(TARGETS crt-test DESTINATION ${CMAKE_INSTALL_PREFIX}/bin)
 add_executable(ps src/ps.cpp)
 
 target_compile_options(ps PRIVATE -fno-exceptions ${USERSPACE_CFLAGS})
-target_link_options(ps PUBLIC -nostartfiles -nostdlib -Wl,--entry=startup)
 
 target_link_libraries(ps print unique_handle format list)
 target_link_libraries(ps moxnox)

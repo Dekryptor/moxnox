@@ -89,7 +89,7 @@ static void get_process_name(ps_entry& e, HANDLE proc, void* peb_address) {
                                      params.ImagePathName.Length / sizeof(char16_t));
 }
 
-static nt_status ps() {
+int main() {
     PROCESS_BASIC_INFORMATION pbi;
     unique_handle proc;
     HANDLE h;
@@ -103,7 +103,7 @@ static nt_status ps() {
             break;
         else if (!success(status)) {
             print_stderr("NtGetNextProcess returned {}\n", status);
-            return status;
+            return 1;
         }
 
         proc.reset(h);
@@ -113,14 +113,14 @@ static nt_status ps() {
                                            &pbi, sizeof(pbi), nullptr);
         if (!success(status)) {
             print_stderr("NtQueryInformationProcess returned {}\n", status);
-            return status;
+            return 1;
         }
 
         // auto e = (ps_entry*)malloc(sizeof(ps_entry));
         auto e = new ps_entry;
         if (!e) {
             print_stderr("new failed\n");
-            return nt_status::INSUFFICIENT_RESOURCES;
+            return 1;
         }
 
         e->pid = pbi.UniqueProcessId;
@@ -137,7 +137,7 @@ static nt_status ps() {
 
     auto arr = (ps_entry**)malloc(sizeof(ps_entry*) * num_entries);
     if (!arr)
-        return nt_status::INSUFFICIENT_RESOURCES;
+        return 1;
 
     {
         auto ptr = arr;
@@ -203,11 +203,5 @@ static nt_status ps() {
         delete &e;
     }
 
-    return nt_status::SUCCESS;
-}
-
-extern "C" void startup() {
-    auto status = ps();
-
-    NtTerminateThread(NtCurrentThread(), status);
+    return 0;
 }
