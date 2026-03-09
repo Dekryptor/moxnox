@@ -31,7 +31,7 @@ int main(int argc, char** argv) {
                 pid *= 10;
 
                 if (arg.front() >= '0' && arg.front() <= '9')
-                    pid += arg.front() - '0';
+                    pid += (unsigned int)(arg.front() - '0');
                 else {
                     valid = false;
                     break;
