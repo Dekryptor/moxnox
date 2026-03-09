@@ -2,11 +2,12 @@
 #include <span>
 #include <string.h>
 #include <stdint.h>
+#include <stdlib.h>
 
 import nt;
 import ntdll;
 import print;
-import cmdline;
+import unicode;
 
 using namespace std;
 
@@ -164,44 +165,40 @@ static void cat_file_mmap(u16string_view fn) {
     }
 }
 
-extern "C" void startup() {
-    auto teb = NtCurrentTeb();
-    auto peb = teb->ProcessEnvironmentBlock;
-
-    auto cmdline = u16string_view(peb->ProcessParameters->CommandLine.Buffer,
-                                  peb->ProcessParameters->CommandLine.Length / sizeof(char16_t));
-
-    auto argc = count_cmdline_args(cmdline);
-    span<u16string_view> argv;
-    u16string_view* buf = nullptr;
-
-    if (argc != 0) {
-        buf = (decltype(buf))RtlAllocateHeap(GetProcessHeap(), 0, argc * sizeof(*buf));
-        if (!buf)
-            NtTerminateThread(NtCurrentThread(), nt_status::INSUFFICIENT_RESOURCES);
-
-        argv = span(buf, argc);
-    }
-
-    parse_cmdline(cmdline, argv);
+int main(int argc, char** argv) {
     bool mmap_mode = false;
 
-    for (size_t i = 1; i < argv.size(); i++) {
-        if (argv[i] == u"-m") {
+    for (int i = 1; i < argc; i++) {
+        auto sv = string_view(argv[i]);
+
+        if (sv == "-m") {
             mmap_mode = true;
             continue;
         }
 
-        if (mmap_mode) // TESTING
-            cat_file_mmap(argv[i]);
-        else
-            cat_file(argv[i]);
-    }
+        if (sv.empty())
+            continue;
 
-    if (buf)
-        RtlFreeHeap(GetProcessHeap(), 0, buf);
+        auto u16len = utf8_to_utf16_len(sv);
+        auto u16 = (char16_t*)malloc(u16len * sizeof(char16_t));
+        if (!u16) {
+            print("malloc failed\n");
+            return 1;
+        }
+
+        utf8_to_utf16(span(u16, u16len), sv);
+
+        auto u16sv = u16string_view(u16, u16len);
+
+        if (mmap_mode) // TESTING
+            cat_file_mmap(u16sv);
+        else
+            cat_file(u16sv);
+
+        free(u16);
+    }
 
     // FIXME - return value should be different if anything failed
 
-    NtTerminateThread(NtCurrentThread(), nt_status::SUCCESS);
+    return 0;
 }

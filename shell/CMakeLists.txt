@@ -60,10 +60,9 @@ install(TARGETS ls DESTINATION ${CMAKE_INSTALL_PREFIX}/bin)
 add_executable(cat src/cat.cpp)
 
 target_compile_options(cat PRIVATE -fno-exceptions ${USERSPACE_CFLAGS})
-target_link_options(cat PUBLIC -nostartfiles -nostdlib -Wl,--entry=startup)
 
 target_link_libraries(cat print)
-target_link_libraries(cat format cmdline)
+target_link_libraries(cat format unicode)
 target_link_libraries(cat moxnox)
 
 install(TARGETS cat DESTINATION ${CMAKE_INSTALL_PREFIX}/bin)
