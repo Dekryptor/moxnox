@@ -1,17 +1,13 @@
 #include <string_view>
-#include <span>
-#include <utility>
 #include <stdlib.h>
 #include <stdint.h>
 
 using namespace std;
 
 import nt;
-import ntdll;
 import print;
-import unicode;
 
-extern "C" void startup() {
+int main() {
     const auto& teb = *NtCurrentTeb();
     const auto& peb = *teb.ProcessEnvironmentBlock;
     const auto& params = *peb.ProcessParameters;
@@ -25,8 +21,7 @@ extern "C" void startup() {
                                     FILE_INFORMATION_CLASS::NameInformation);
     if (!success(status) && status != nt_status::BUFFER_OVERFLOW) {
         print_stderr("pwd: NtQueryInformationFile returned {}\n", status);
-        NtTerminateThread(NtCurrentThread(), status);
-        unreachable();
+        return 1;
     }
 
     size_t len = offsetof(FILE_NAME_INFORMATION, FileName) + fni.FileNameLength;
@@ -34,8 +29,7 @@ extern "C" void startup() {
     auto fni2 = (FILE_NAME_INFORMATION*)malloc(len);
     if (!fni2) {
         print_stderr("malloc failed\n");
-        NtTerminateThread(NtCurrentThread(), nt_status::INSUFFICIENT_RESOURCES);
-        unreachable();
+        return 1;
     }
 
     status = NtQueryInformationFile(params.CurrentDirectory.Handle, &iosb,
@@ -44,8 +38,7 @@ extern "C" void startup() {
     if (!success(status)) {
         print_stderr("pwd: NtQueryInformationFile returned {}\n", status);
         free(fni2);
-        NtTerminateThread(NtCurrentThread(), status);
-        unreachable();
+        return 1;
     }
 
     auto sv = u16string_view(fni2->FileName, fni2->FileNameLength / sizeof(char16_t));
@@ -54,5 +47,5 @@ extern "C" void startup() {
 
     free(fni2);
 
-    NtTerminateThread(NtCurrentThread(), nt_status::SUCCESS);
+    return 0;
 }
