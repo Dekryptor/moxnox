@@ -1251,7 +1251,7 @@ void console_fb::print_chars(span<const char32_t> s) {
 }
 
 static void redo_line2(span<const char32_t> s, console_line& line,
-                       font_info& font) {
+                       font_info& font, size_t text_offset) {
     // FIXME - keep HB buffer around?
     // FIXME - cap how much data we send to hb_buffer_add_utf8?
 
@@ -1273,10 +1273,15 @@ static void redo_line2(span<const char32_t> s, console_line& line,
     for (unsigned int i = 0; i < len; i++) {
         auto clus = hb_clus(s, span(info, len), i);
         bool wide = is_cluster_wide(clus);
+        auto& att = line.atts[text_offset + info[i].cluster];
 
         c->pos = pos[i];
         c->glyph = info[i].codepoint;
-        // c->font = &font; // FIXME - clears bold etc.
+
+        c->font = &font == &emoji_font ? &font : att.font;
+        c->fg_colour = att.fg_colour;
+        c->bg_colour = att.bg_colour;
+
         c->ignore = false;
 
         c++;
@@ -1284,9 +1289,9 @@ static void redo_line2(span<const char32_t> s, console_line& line,
 
         if (wide) {
             c->ignore = true;
-            c->fg_colour = fg_colour;
-            c->bg_colour = bg_colour;
-            c->font = &normal_font;
+            c->fg_colour = att.fg_colour;
+            c->bg_colour = att.bg_colour;
+            c->font = &font == &emoji_font ? &font : att.font;
 
             c++;
             line.num_cells++;
@@ -1301,13 +1306,16 @@ static void redo_line(console_line& line) {
         // lay out using harfbuzz
 
         auto s = span(line.text, line.len);
+        size_t text_offset = 0;
 
         while (!s.empty()) {
             font_info* font;
             auto sp = find_font_run(s, font);
 
-            redo_line2(sp, line, *font);
+            redo_line2(sp, line, *font, text_offset);
+
             s = span(s.data() + sp.size(), s.size() - sp.size());
+            text_offset += sp.size();
         }
     }
 
