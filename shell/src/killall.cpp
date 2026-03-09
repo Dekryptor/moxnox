@@ -18,18 +18,18 @@ int main(int argc, char** argv) {
     uint32_t retlen;
     int ret;
 
-    if (argc == 1) {
+    if (argc <= 1) {
         print_stderr("usage: killall NAME\n");
         return 1;
     }
 
-    auto done = (bool*)malloc(sizeof(bool) * (argc - 1));
+    auto done = (bool*)malloc(sizeof(bool) * (unsigned int)(argc - 1));
     if (!done) {
         print_stderr("malloc failed\n");
         return 1;
     }
 
-    auto arr = (u16string_view*)malloc((argc - 1) * sizeof(u16string_view));
+    auto arr = (u16string_view*)malloc((unsigned int)(argc - 1) * sizeof(u16string_view));
     if (!arr) {
         print_stderr("malloc failed\n");
         free(done);
@@ -59,12 +59,7 @@ int main(int argc, char** argv) {
         arr[i] = u16string_view(u16src, u16len);
     }
 
-//     if (argc > 3)
-//         ret = mv_multiple(span(&arr[0], argc - 2), arr[argc - 2]);
-//     else
-//         ret = mv(arr[0], arr[1]);
-
-    memset(done, 0, sizeof(bool) * (argc - 1));
+    memset(done, 0, sizeof(bool) * (unsigned int)(argc - 1));
 
     while (true) {
         HANDLE h;
