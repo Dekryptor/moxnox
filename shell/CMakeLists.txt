@@ -118,10 +118,9 @@ install(TARGETS touch DESTINATION ${CMAKE_INSTALL_PREFIX}/bin)
 add_executable(rm src/rm.cpp)
 
 target_compile_options(rm PRIVATE -fno-exceptions ${USERSPACE_CFLAGS})
-target_link_options(rm PUBLIC -nostartfiles -nostdlib -Wl,--entry=startup)
 
 target_link_libraries(rm print)
-target_link_libraries(rm format cmdline)
+target_link_libraries(rm format unicode)
 target_link_libraries(rm moxnox)
 
 install(TARGETS rm DESTINATION ${CMAKE_INSTALL_PREFIX}/bin)
