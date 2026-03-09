@@ -235,7 +235,6 @@ install(TARGETS killall DESTINATION ${CMAKE_INSTALL_PREFIX}/bin)
 add_executable(reboot src/reboot.cpp)
 
 target_compile_options(reboot PRIVATE -fno-exceptions ${USERSPACE_CFLAGS})
-target_link_options(reboot PUBLIC -nostartfiles -nostdlib -Wl,--entry=startup)
 
 target_link_libraries(reboot print)
 target_link_libraries(reboot format)
