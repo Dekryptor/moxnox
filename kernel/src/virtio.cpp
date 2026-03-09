@@ -411,7 +411,6 @@ nt_status virt_queue::read(span<uint8_t> s, uint64_t& read_bytes) {
 
     *notification_addr = num;
 
-    // FIXME - make interruptible
     wait_for_object(events[slot].get(), false);
 
     read_bytes = lengths[slot];
@@ -478,10 +477,8 @@ nt_status virt_queue::indirect(span<virtq_desc> descs, uint64_t& read_bytes) {
             if (e.signalled)
                 break;
         }
-    } else {
-        // FIXME - make interruptible
+    } else
         wait_for_object(events[slot].get(), false);
-    }
 
     read_bytes = lengths[slot];
 
@@ -520,7 +517,6 @@ nt_status virt_queue::write(span<const uint8_t> msg) {
 
     *notification_addr = num;
 
-    // FIXME - make interruptible
     wait_for_object(events[slot].get(), false);
 
     release_slot(slot);
