@@ -241,10 +241,9 @@ add_executable(mv src/mv.cpp)
 target_sources(mv PUBLIC FILE_SET CXX_MODULES FILES src/copy.cpp)
 
 target_compile_options(mv PRIVATE -fno-exceptions ${USERSPACE_CFLAGS})
-target_link_options(mv PUBLIC -nostartfiles -nostdlib -Wl,--entry=startup)
 
 target_link_libraries(mv print)
-target_link_libraries(mv format cmdline unique_handle list)
+target_link_libraries(mv format cmdline unique_handle list unicode)
 target_link_libraries(mv moxnox)
 
 install(TARGETS mv DESTINATION ${CMAKE_INSTALL_PREFIX}/bin

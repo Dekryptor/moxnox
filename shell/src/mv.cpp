@@ -8,15 +8,15 @@
 import nt;
 import ntdll;
 import print;
-import cmdline;
 import unique_handle;
 import copy;
 import list;
+import unicode;
 
 using namespace std;
 
-static nt_status cross_device_move(u16string_view src, u16string_view destdir,
-                                   u16string_view fn) {
+static int cross_device_move(u16string_view src, u16string_view destdir,
+                             u16string_view fn) {
     auto peb = NtCurrentTeb()->ProcessEnvironmentBlock;
     nt_status status;
     unique_handle destdirh;
@@ -39,11 +39,11 @@ static nt_status cross_device_move(u16string_view src, u16string_view destdir,
     if (status == nt_status::OBJECT_NAME_NOT_FOUND ||
         status == nt_status::OBJECT_PATH_NOT_FOUND) {
         print_stderr("mv: target '{}': No such file or directory\n", destdir);
-        return status;
+        return 1;
     } else if (!success(status)) {
         print_stderr("mv: target '{}': NtCreateFile returned {}\n", destdir,
                      status);
-        return status;
+        return 1;
     }
 
     destdirh.reset(h);
@@ -51,8 +51,7 @@ static nt_status cross_device_move(u16string_view src, u16string_view destdir,
     auto d = (dir*)malloc(offsetof(dir, destname) + (destdir.size() * sizeof(char16_t)));
     if (!d) {
         print_stderr("malloc failed\n");
-        NtTerminateThread(NtCurrentThread(), nt_status::INSUFFICIENT_RESOURCES);
-        unreachable();
+        return 1;
     }
 
     d->src = peb->ProcessParameters->CurrentDirectory.Handle;
@@ -65,8 +64,7 @@ static nt_status cross_device_move(u16string_view src, u16string_view destdir,
     auto sf = (src_file*)malloc(offsetof(src_file, name) + (src.size() * sizeof(char16_t)));
     if (!sf) {
         print_stderr("malloc failed\n");
-        NtTerminateThread(NtCurrentThread(), nt_status::INSUFFICIENT_RESOURCES);
-        unreachable();
+        return 1;
     }
 
     d->handle_refcount++;
@@ -137,10 +135,10 @@ static nt_status cross_device_move(u16string_view src, u16string_view destdir,
 
     free(d);
 
-    return nt_status::NOT_IMPLEMENTED;
+    return 0;
 }
 
-static nt_status mv(u16string_view src, u16string_view dest) {
+static int mv(u16string_view src, u16string_view dest) {
     auto peb = NtCurrentTeb()->ProcessEnvironmentBlock;
     nt_status status;
     OBJECT_ATTRIBUTES oa;
@@ -166,10 +164,10 @@ static nt_status mv(u16string_view src, u16string_view dest) {
     else if (status == nt_status::OBJECT_PATH_NOT_FOUND) {
         print_stderr("mv: cannot move '{}' to '{}': No such file or directory\n",
                      src, dest);
-        return status;
+        return 1;
     } else if (status != nt_status::OBJECT_NAME_NOT_FOUND && status != nt_status::NOT_A_DIRECTORY) {
         print_stderr("mv: '{}': NtCreateFile returned {}\n", dest, status);
-        return status;
+        return 1;
     }
 
     // open src
@@ -182,10 +180,10 @@ static nt_status mv(u16string_view src, u16string_view dest) {
     if (status == nt_status::OBJECT_NAME_NOT_FOUND ||
         status == nt_status::OBJECT_PATH_NOT_FOUND) {
         print_stderr("mv: '{}': No such file or directory\n", src);
-        return status;
+        return 1;
     } else if (!success(status)) {
         print_stderr("mv: '{}': NtCreateFile returned {}\n", src, status);
-        return status;
+        return 1;
     }
 
     file.reset(h);
@@ -209,7 +207,7 @@ static nt_status mv(u16string_view src, u16string_view dest) {
     auto fri = (FILE_RENAME_INFORMATION*)malloc(frilen);
     if (!fri) {
         print_stderr("malloc failed\n");
-        return nt_status::INSUFFICIENT_RESOURCES;
+        return 1;
     }
 
     fri->ReplaceIfExists = true; // FIXME? --interactive option
@@ -236,13 +234,13 @@ static nt_status mv(u16string_view src, u16string_view dest) {
         return cross_device_move(src, destdir, fn);
     } else if (!success(status)) {
         print("mv: NtSetInformationFile returned {}\n", status);
-        return status;
+        return 1;
     }
 
-    return nt_status::SUCCESS;
+    return 0;
 }
 
-static nt_status mv_multiple(span<u16string_view> srcs, u16string_view dest) {
+static int mv_multiple(span<u16string_view> srcs, u16string_view dest) {
     auto peb = NtCurrentTeb()->ProcessEnvironmentBlock;
     nt_status status;
     OBJECT_ATTRIBUTES oa;
@@ -265,14 +263,14 @@ static nt_status mv_multiple(span<u16string_view> srcs, u16string_view dest) {
                           FILE_OPEN, FILE_DIRECTORY_FILE, nullptr, 0);
     if (status == nt_status::NOT_A_DIRECTORY) {
         print_stderr("mv: target '{}': Not a directory\n", dest);
-        return status;
+        return 1;
     } else if (status == nt_status::OBJECT_NAME_NOT_FOUND ||
                status == nt_status::OBJECT_PATH_NOT_FOUND) {
         print_stderr("mv: target '{}': No such file or directory\n", dest);
-        return status;
+        return 1;
     } else if (!success(status)) {
         print_stderr("mv: target '{}': NtCreateFile returned {}\n", dest, status);
-        return status;
+        return 1;
     }
 
     desth.reset(h);
@@ -316,7 +314,7 @@ static nt_status mv_multiple(span<u16string_view> srcs, u16string_view dest) {
         auto fri = (FILE_RENAME_INFORMATION*)malloc(frilen);
         if (!fri) {
             print_stderr("malloc failed\n");
-            return nt_status::INSUFFICIENT_RESOURCES;
+            return 1;
         }
 
         fri->ReplaceIfExists = true; // FIXME? --interactive option
@@ -335,54 +333,58 @@ static nt_status mv_multiple(span<u16string_view> srcs, u16string_view dest) {
 
     // FIXME - what error should we return if some moves fail?
 
-    return nt_status::SUCCESS;
+    return 0;
 }
 
-extern "C" void startup() {
-    auto teb = NtCurrentTeb();
-    auto peb = teb->ProcessEnvironmentBlock;
+int main(int argc, char** argv) {
+    int ret;
 
-    auto cmdline = u16string_view(peb->ProcessParameters->CommandLine.Buffer,
-                                  peb->ProcessParameters->CommandLine.Length / sizeof(char16_t));
-
-    auto argc = count_cmdline_args(cmdline);
-    span<u16string_view> argv;
-    u16string_view* buf = nullptr;
-
-    if (argc != 0) {
-        buf = (decltype(buf))RtlAllocateHeap(GetProcessHeap(), 0, argc * sizeof(*buf));
-        if (!buf)
-            NtTerminateThread(NtCurrentThread(), nt_status::INSUFFICIENT_RESOURCES);
-
-        argv = span(buf, argc);
-    }
-
-    parse_cmdline(cmdline, argv);
-
-    if (!argv.empty()) // skip program name
-        argv = span(argv.data() + 1, argv.size() - 1);
-
-    if (argv.empty()) {
+    if (argc < 2) {
         print_stderr("mv: missing operand\n");
-        NtTerminateThread(NtCurrentThread(), nt_status::INVALID_PARAMETER);
-        unreachable();
+        return 1;
     }
 
-    if (argv.size() < 2) {
-        print_stderr("mv: missing destination file operand after '{}'\n", argv[0]);
-        NtTerminateThread(NtCurrentThread(), nt_status::INVALID_PARAMETER);
-        unreachable();
+    if (argc < 3) {
+        print_stderr("mv: missing destination file operand after '{}'\n", argv[1]);
+        return 1;
     }
 
-    nt_status ret;
+    auto arr = (u16string_view*)malloc((argc - 1) * sizeof(u16string_view));
+    if (!arr) {
+        print_stderr("malloc failed\n");
+        return 1;
+    }
 
-    if (argv.size() > 2)
-        ret = mv_multiple(span(argv.data(), argv.size() - 1), argv.back());
+    for (int i = 0; i < argc - 1; i++) {
+        auto sv = string_view(argv[i + 1]);
+
+        auto u16len = utf8_to_utf16_len(sv);
+        auto u16src = (char16_t*)malloc(u16len * sizeof(char16_t));
+        if (!u16src) {
+            print_stderr("malloc failed\n");
+
+            for (int j = 0; j < i; j++) {
+                free((void*)arr[j].data());
+            }
+            free(arr);
+
+            return 1;
+        }
+
+        utf8_to_utf16(span(u16src, u16len), sv);
+
+        arr[i] = u16string_view(u16src, u16len);
+    }
+
+    if (argc > 3)
+        ret = mv_multiple(span(&arr[0], argc - 2), arr[argc - 2]);
     else
-        ret = mv(argv[0], argv[1]);
+        ret = mv(arr[0], arr[1]);
 
-    if (buf)
-        RtlFreeHeap(GetProcessHeap(), 0, buf);
+    for (int i = 0; i < argc - 1; i++) {
+        free((void*)arr[i].data());
+    }
+    free(arr);
 
-    NtTerminateThread(NtCurrentThread(), ret);
+    return ret;
 }
