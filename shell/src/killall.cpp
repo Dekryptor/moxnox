@@ -2,32 +2,69 @@
 #include <string_view>
 #include <string.h>
 #include <stdint.h>
+#include <stdlib.h>
 
 import nt;
 import ntdll;
-import cmdline;
 import print;
 import unique_handle;
+import unicode;
 
 using namespace std;
 
-static nt_status killall(span<const u16string_view> argv) {
+int main(int argc, char** argv) {
     unique_handle proc;
     UNICODE_STRING us;
     uint32_t retlen;
+    int ret;
 
-    if (argv.empty()) {
-        print("usage: killall NAME\n");
-        return nt_status::INVALID_PARAMETER;
+    if (argc == 1) {
+        print_stderr("usage: killall NAME\n");
+        return 1;
     }
 
-    auto done = (bool*)RtlAllocateHeap(GetProcessHeap(), 0, sizeof(bool) * argv.size());
+    auto done = (bool*)malloc(sizeof(bool) * (argc - 1));
     if (!done) {
-        print_stderr("RtlAllocateHeap failed\n");
-        return nt_status::INSUFFICIENT_RESOURCES;
+        print_stderr("malloc failed\n");
+        return 1;
     }
 
-    memset(done, 0, sizeof(bool) * argv.size());
+    auto arr = (u16string_view*)malloc((argc - 1) * sizeof(u16string_view));
+    if (!arr) {
+        print_stderr("malloc failed\n");
+        free(done);
+        return 1;
+    }
+
+    for (int i = 0; i < argc - 1; i++) {
+        auto sv = string_view(argv[i + 1]);
+
+        auto u16len = utf8_to_utf16_len(sv);
+        auto u16src = (char16_t*)malloc(u16len * sizeof(char16_t));
+        if (!u16src) {
+            print_stderr("malloc failed\n");
+
+            for (int j = 0; j < i; j++) {
+                free((void*)arr[j].data());
+            }
+
+            free(arr);
+            free(done);
+
+            return 1;
+        }
+
+        utf8_to_utf16(span(u16src, u16len), sv);
+
+        arr[i] = u16string_view(u16src, u16len);
+    }
+
+//     if (argc > 3)
+//         ret = mv_multiple(span(&arr[0], argc - 2), arr[argc - 2]);
+//     else
+//         ret = mv(arr[0], arr[1]);
+
+    memset(done, 0, sizeof(bool) * (argc - 1));
 
     while (true) {
         HANDLE h;
@@ -38,8 +75,8 @@ static nt_status killall(span<const u16string_view> argv) {
             break;
         else if (!success(status)) {
             print_stderr("NtGetNextProcess returned {}\n", status);
-            RtlFreeHeap(GetProcessHeap(), 0, done);
-            return status;
+            ret = 1;
+            goto end;
         }
 
         proc.reset(h);
@@ -48,23 +85,24 @@ static nt_status killall(span<const u16string_view> argv) {
                                            &us, sizeof(us), &retlen);
         if (!success(status) && status != nt_status::INFO_LENGTH_MISMATCH) {
             print_stderr("NtQueryInformationProcess returned {}\n", status);
-            RtlFreeHeap(GetProcessHeap(), 0, done);
-            return status;
+            ret = 1;
+            goto end;
         }
 
-        auto buffer = RtlAllocateHeap(GetProcessHeap(), 0, retlen);
+        auto buffer = malloc(retlen);
         if (!buffer) {
-            print_stderr("RtlAllocateHeap failed\n");
-            RtlFreeHeap(GetProcessHeap(), 0, done);
-            return nt_status::INSUFFICIENT_RESOURCES;
+            print_stderr("malloc failed\n");
+            ret = 1;
+            goto end;
         }
 
         status = NtQueryInformationProcess(proc.get(), PROCESSINFOCLASS::ImageFileName,
                                            buffer, retlen, &retlen);
         if (!success(status)) {
-            RtlFreeHeap(GetProcessHeap(), 0, buffer);
             print_stderr("NtQueryInformationProcess returned {}\n", status);
-            return status;
+            free(buffer);
+            ret = 1;
+            goto end;
         }
 
         auto& us = *(UNICODE_STRING*)buffer;
@@ -77,8 +115,8 @@ static nt_status killall(span<const u16string_view> argv) {
         if (auto dot = name.find_last_of(u'.'); dot != u16string_view::npos)
             name = u16string_view(name.data(), dot);
 
-        for (size_t i = 0; i < argv.size(); i++) {
-            if (argv[i] == name) {
+        for (int i = 0; i < argc - 1; i++) {
+            if (arr[i] == name) {
                 auto status = NtTerminateProcess(proc.get(),
                                                  nt_status::CONTROL_C_EXIT);
                 if (!success(status))
@@ -89,47 +127,23 @@ static nt_status killall(span<const u16string_view> argv) {
             }
         }
 
-        RtlFreeHeap(GetProcessHeap(), 0, buffer);
+        free(buffer);
     }
 
-    for (size_t i = 0; i < argv.size(); i++) {
+    for (int i = 0; i < argc - 1; i++) {
         if (!done[i])
-            print_stderr("{}: no process found\n", argv[i]);
+            print_stderr("{}: no process found\n", argv[i + 1]);
     }
 
-    RtlFreeHeap(GetProcessHeap(), 0, done);
+    ret = 0;
 
-    return nt_status::SUCCESS;
-}
-
-extern "C" void startup() {
-    auto teb = NtCurrentTeb();
-    auto peb = teb->ProcessEnvironmentBlock;
-
-    auto cmdline = u16string_view(peb->ProcessParameters->CommandLine.Buffer,
-                                  peb->ProcessParameters->CommandLine.Length / sizeof(char16_t));
-
-    auto argc = count_cmdline_args(cmdline);
-    span<u16string_view> argv;
-    u16string_view* buf = nullptr;
-
-    if (argc != 0) {
-        buf = (decltype(buf))RtlAllocateHeap(GetProcessHeap(), 0, argc * sizeof(*buf));
-        if (!buf)
-            NtTerminateThread(NtCurrentThread(), nt_status::INSUFFICIENT_RESOURCES);
-
-        argv = span(buf, argc);
+end:
+    for (int i = 0; i < argc - 1; i++) {
+        free((void*)arr[i].data());
     }
 
-    parse_cmdline(cmdline, argv);
+    free(arr);
+    free(done);
 
-    if (!argv.empty())
-        argv = span(argv.data() + 1, argv.size() - 1);
-
-    auto status = killall(argv);
-
-    if (buf)
-        RtlFreeHeap(GetProcessHeap(), 0, buf);
-
-    NtTerminateThread(NtCurrentThread(), status);
+    return ret;
 }
