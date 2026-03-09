@@ -237,6 +237,12 @@ target_sources(kernelbase_mod PUBLIC FILE_SET CXX_MODULES FILES modules/kernelba
 target_compile_options(kernelbase_mod PRIVATE -fno-exceptions ${USERSPACE_CFLAGS})
 target_link_libraries(kernelbase_mod nt)
 
+set(DEFAULT_MSVCRT_VERSION 0x600)
+set(DEFAULT_WIN32_WINNT 0xa00)
+configure_file(${CMAKE_CURRENT_SOURCE_DIR}/mingw-w64/mingw-w64-headers/crt/_mingw.h.in ${CMAKE_CURRENT_BINARY_DIR}/mingw-w64/_mingw.h)
+unset(DEFAULT_WIN32_WINNT)
+unset(DEFAULT_MSVCRT_VERSION)
+
 add_library(ucrtbase_static STATIC
     mingw-w64/mingw-w64-crt/misc/ucrt_amsg_exit.c
     mingw-w64/mingw-w64-crt/misc/ucrt__getmainargs.c
@@ -247,7 +253,7 @@ add_library(ucrtbase_static STATIC
     mingw-w64/mingw-w64-crt/stdio/ucrt_vfprintf.c
     mingw-w64/mingw-w64-crt/stdio/ucrt___local_stdio_printf_options.c
 )
-target_include_directories(ucrtbase_static PRIVATE mingw-w64/mingw-w64-headers/crt mingw-w64/mingw-w64-crt/include)
+target_include_directories(ucrtbase_static PRIVATE ${CMAKE_CURRENT_BINARY_DIR}/mingw-w64 mingw-w64/mingw-w64-headers/crt mingw-w64/mingw-w64-crt/include)
 target_compile_definitions(ucrtbase_static PRIVATE -D_CRTIMP=)
 
 add_library(ucrtbase_mod STATIC)
