@@ -247,7 +247,7 @@ add_library(ucrtbase_static STATIC
     mingw-w64/mingw-w64-crt/stdio/ucrt_vfprintf.c
     mingw-w64/mingw-w64-crt/stdio/ucrt___local_stdio_printf_options.c
 )
-target_include_directories(ucrtbase_static PRIVATE mingw-w64/mingw-w64-crt/include)
+target_include_directories(ucrtbase_static PRIVATE mingw-w64/mingw-w64-headers/crt mingw-w64/mingw-w64-crt/include)
 target_compile_definitions(ucrtbase_static PRIVATE -D_CRTIMP=)
 
 add_library(ucrtbase_mod STATIC)
