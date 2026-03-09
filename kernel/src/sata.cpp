@@ -134,8 +134,7 @@ nt_status sata_device::dio_read(uint64_t page_num, uint64_t num_pages,
     pending_slots |= 1 << slot;
     port.ci = 1 << slot;
 
-    // FIXME - should this be uninterruptible?
-    auto status = wait_for_object(events[slot].get(), true);
+    auto status = wait_for_object(events[slot].get(), false);
 
     if (status == nt_status::ALERTED || status == nt_status::THREAD_IS_TERMINATING) {
         release_slot(slot);
