@@ -349,7 +349,7 @@ int main(int argc, char** argv) {
         return 1;
     }
 
-    auto arr = (u16string_view*)malloc((argc - 1) * sizeof(u16string_view));
+    auto arr = (u16string_view*)malloc((unsigned int)(argc - 1) * sizeof(u16string_view));
     if (!arr) {
         print_stderr("malloc failed\n");
         return 1;
@@ -377,7 +377,7 @@ int main(int argc, char** argv) {
     }
 
     if (argc > 3)
-        ret = mv_multiple(span(&arr[0], argc - 2), arr[argc - 2]);
+        ret = mv_multiple(span(&arr[0], (unsigned int)(argc - 2)), arr[argc - 2]);
     else
         ret = mv(arr[0], arr[1]);
 
