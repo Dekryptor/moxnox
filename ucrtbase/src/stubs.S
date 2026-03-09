@@ -51,5 +51,6 @@ do_stub "floor"
 do_stub "iswctype"
 do_stub "towupper"
 do_stub "towlower"
+do_stub "___lc_codepage_func"
 
 stubs_end
