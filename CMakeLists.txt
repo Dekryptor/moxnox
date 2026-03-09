@@ -249,6 +249,7 @@ add_library(ucrtbase_static STATIC
     mingw-w64/mingw-w64-crt/misc/__set_app_type.c
     mingw-w64/mingw-w64-crt/misc/__p___initenv.c
     mingw-w64/mingw-w64-crt/misc/__initenv.c
+    mingw-w64/mingw-w64-crt/misc/_onexit.c
     mingw-w64/mingw-w64-crt/stdio/ucrt_fprintf.c
     mingw-w64/mingw-w64-crt/stdio/ucrt_vfprintf.c
     mingw-w64/mingw-w64-crt/stdio/ucrt___local_stdio_printf_options.c
