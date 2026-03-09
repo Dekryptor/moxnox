@@ -150,7 +150,7 @@ void scheduler() {
         if (t.proc)
             t.proc->running_cpus &= ~((uint64_t)1 << cb.cpu_no);
 
-        if (t.kernel_mode && t.status == thread_status::dying) // kernel thread died
+        if (t.kernel_mode && t.status == thread_status::dying && !t.proc) // kernel thread died
             thread_died(t, nullptr, false);
 
         if (t.status == thread_status::running)
