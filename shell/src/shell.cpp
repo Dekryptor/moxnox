@@ -311,14 +311,6 @@ static void __attribute__((noinline)) inline1() {
     __asm __volatile("nop");
 }
 
-static void halt() {
-    auto status = NtShutdownSystem(SHUTDOWN_ACTION::ShutdownPowerOff);
-
-    // shouldn't return
-
-    print_stderr("NtShutdownSystem returned {}\n", status);
-}
-
 static void try_run_program(string_view program, string_view cmdline,
                             HANDLE server_handle, HANDLE client_handle) {
     u16string_view env_path = get_env(u"PATH");
@@ -758,8 +750,6 @@ static void process_line(string_view sv, HANDLE server_handle,
         scroll(param);
     else if (cmd == "cursor") // TESTING
         cursor();
-    else if (cmd == "halt")
-        halt();
     else if (cmd == "fg")
         fg(server_handle);
     else if (cmd == "cd") {

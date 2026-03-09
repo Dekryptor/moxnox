@@ -235,6 +235,18 @@ install(TARGETS reboot DESTINATION ${CMAKE_INSTALL_PREFIX}/bin)
 
 ###
 
+add_executable(halt src/halt.cpp)
+
+target_compile_options(halt PRIVATE -fno-exceptions ${USERSPACE_CFLAGS})
+
+target_link_libraries(halt print)
+target_link_libraries(halt format)
+target_link_libraries(halt moxnox)
+
+install(TARGETS halt DESTINATION ${CMAKE_INSTALL_PREFIX}/bin)
+
+###
+
 add_executable(mv src/mv.cpp)
 target_sources(mv PUBLIC FILE_SET CXX_MODULES FILES src/copy.cpp)
 
