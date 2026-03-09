@@ -204,9 +204,8 @@ install(TARGETS ps DESTINATION ${CMAKE_INSTALL_PREFIX}/bin)
 add_executable(kill src/kill.cpp)
 
 target_compile_options(kill PRIVATE -fno-exceptions ${USERSPACE_CFLAGS})
-target_link_options(kill PUBLIC -nostartfiles -nostdlib -Wl,--entry=startup)
 
-target_link_libraries(kill print cmdline format unique_handle)
+target_link_libraries(kill print format unique_handle)
 target_link_libraries(kill moxnox)
 
 install(TARGETS kill DESTINATION ${CMAKE_INSTALL_PREFIX}/bin)

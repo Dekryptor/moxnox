@@ -4,20 +4,19 @@
 
 import nt;
 import ntdll;
-import cmdline;
 import print;
 import unique_handle;
 
 using namespace std;
 
-static nt_status kill(span<const u16string_view> argv) {
-    if (argv.empty()) {
-        print("usage: kill pid\n");
-        return nt_status::INVALID_PARAMETER;
+int main(int argc, char** argv) {
+    if (argc == 1) {
+        print_stderr("usage: kill pid\n");
+        return 1;
     }
 
-    for (auto arg : argv) {
-        auto orig_arg = arg;
+    for (int i = 1; i < argc; i++) {
+        auto arg = string_view(argv[i]);
         bool valid = true;
         uintptr_t pid = 0;
         OBJECT_ATTRIBUTES oa;
@@ -31,19 +30,19 @@ static nt_status kill(span<const u16string_view> argv) {
             while (!arg.empty()) {
                 pid *= 10;
 
-                if (arg.front() >= u'0' && arg.front() <= u'9')
-                    pid += arg.front() - u'0';
+                if (arg.front() >= '0' && arg.front() <= '9')
+                    pid += arg.front() - '0';
                 else {
                     valid = false;
                     break;
                 }
 
-                arg = u16string_view(arg.data() + 1, arg.size() - 1);
+                arg = string_view(arg.data() + 1, arg.size() - 1);
             }
         }
 
         if (!valid) {
-            print_stderr("kill: {}: arguments must be process IDs\n", orig_arg);
+            print_stderr("kill: {}: arguments must be process IDs\n", argv[i]);
             continue;
         }
 
@@ -71,37 +70,5 @@ static nt_status kill(span<const u16string_view> argv) {
 
     // FIXME - different status if we fail?
 
-    return nt_status::SUCCESS;
-}
-
-extern "C" void startup() {
-    auto teb = NtCurrentTeb();
-    auto peb = teb->ProcessEnvironmentBlock;
-
-    auto cmdline = u16string_view(peb->ProcessParameters->CommandLine.Buffer,
-                                  peb->ProcessParameters->CommandLine.Length / sizeof(char16_t));
-
-    auto argc = count_cmdline_args(cmdline);
-    span<u16string_view> argv;
-    u16string_view* buf = nullptr;
-
-    if (argc != 0) {
-        buf = (decltype(buf))RtlAllocateHeap(GetProcessHeap(), 0, argc * sizeof(*buf));
-        if (!buf)
-            NtTerminateThread(NtCurrentThread(), nt_status::INSUFFICIENT_RESOURCES);
-
-        argv = span(buf, argc);
-    }
-
-    parse_cmdline(cmdline, argv);
-
-    if (!argv.empty())
-        argv = span(argv.data() + 1, argv.size() - 1);
-
-    auto status = kill(argv);
-
-    if (buf)
-        RtlFreeHeap(GetProcessHeap(), 0, buf);
-
-    NtTerminateThread(NtCurrentThread(), status);
+    return 0;
 }
