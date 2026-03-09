@@ -82,6 +82,7 @@ public:
     list_entry timeout_le;
     uint64_t wait_timeout;
     multiple_wait_block* multwait;
+    bool kill_on_wake = false;
 } __attribute__ ((aligned (16)));
 
 static_assert(is_sync_object<::thread>);

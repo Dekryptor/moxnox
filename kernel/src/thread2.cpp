@@ -94,6 +94,9 @@ static void terminate_thread2(::thread& t, bool* last_thread,
                 t.status = thread_status::dying;
                 return;
             }
+        } else if (t.status == thread_status::waiting || t.status == thread_status::waiting_multiple) {
+            t.kill_on_wake = true;
+            return;
         }
 
         t.status = thread_status::dying;

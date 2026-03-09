@@ -307,6 +307,12 @@ nt_status wait_for_object(object& obj, bool interruptible,
     yield(); // releases sync_lock
 #endif
 
+    if (current_thread->kill_on_wake) {
+        current_thread->kill_on_wake = false;
+        current_thread->status = thread_status::dying;
+        return nt_status::THREAD_IS_TERMINATING;
+    }
+
     if (interruptible && current_thread->status == thread_status::dying)
         return nt_status::THREAD_IS_TERMINATING;
 
@@ -690,6 +696,12 @@ nt_status wait_for_objects(span<object*> objects, bool wait_any,
     free(mwb);
 
     // FIXME - non-alertable waits
+
+    if (current_thread->kill_on_wake) {
+        current_thread->kill_on_wake = false;
+        current_thread->status = thread_status::dying;
+        return nt_status::THREAD_IS_TERMINATING;
+    }
 
     if (current_thread->status == thread_status::dying)
         return nt_status::THREAD_IS_TERMINATING;
