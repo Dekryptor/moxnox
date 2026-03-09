@@ -255,6 +255,7 @@ add_library(ucrtbase_static STATIC
 )
 target_include_directories(ucrtbase_static PRIVATE ${CMAKE_CURRENT_BINARY_DIR}/mingw-w64 mingw-w64/mingw-w64-headers/crt mingw-w64/mingw-w64-crt/include)
 target_compile_definitions(ucrtbase_static PRIVATE -D_CRTIMP=)
+target_compile_options(ucrtbase_static PRIVATE -ffreestanding)
 
 add_library(ucrtbase_mod STATIC)
 target_link_libraries(ucrtbase_mod PUBLIC ucrtbase_static)
