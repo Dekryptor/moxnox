@@ -48,5 +48,8 @@ do_stub "exp"
 do_stub "sin"
 do_stub "ceil"
 do_stub "floor"
+do_stub "iswctype"
+do_stub "towupper"
+do_stub "towlower"
 
 stubs_end

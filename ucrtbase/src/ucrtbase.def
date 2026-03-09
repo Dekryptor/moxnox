@@ -84,3 +84,6 @@ _initialize_onexit_table
 _register_onexit_function
 _execute_onexit_table
 getenv
+fileno = _fileno
+write = _write
+fdopen = _fdopen

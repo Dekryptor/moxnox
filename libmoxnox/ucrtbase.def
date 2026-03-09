@@ -63,6 +63,7 @@ fflush
 fgetpos
 _filelengthi64
 _fileno
+fileno
 fsetpos
 _fstat64
 getenv
@@ -90,3 +91,15 @@ exp
 sin
 ceil
 floor
+rand_s
+_read
+___mb_cur_max_func
+_fdopen
+fdopen
+_wfopen
+_write
+write
+_get_osfhandle
+iswctype
+towupper
+towlower
