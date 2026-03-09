@@ -19,3 +19,6 @@
 [submodule "pixman"]
 	path = pixman
 	url = https://git.burntcomma.com/maharmstone/pixman
+[submodule "mingw-w64"]
+	path = mingw-w64
+	url = https://git.burntcomma.com/maharmstone/mingw-w64

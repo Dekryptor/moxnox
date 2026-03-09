@@ -237,7 +237,21 @@ target_sources(kernelbase_mod PUBLIC FILE_SET CXX_MODULES FILES modules/kernelba
 target_compile_options(kernelbase_mod PRIVATE -fno-exceptions ${USERSPACE_CFLAGS})
 target_link_libraries(kernelbase_mod nt)
 
+add_library(ucrtbase_static STATIC
+    mingw-w64/mingw-w64-crt/misc/ucrt_amsg_exit.c
+    mingw-w64/mingw-w64-crt/misc/ucrt__getmainargs.c
+    mingw-w64/mingw-w64-crt/misc/__set_app_type.c
+    mingw-w64/mingw-w64-crt/misc/__p___initenv.c
+    mingw-w64/mingw-w64-crt/misc/__initenv.c
+    mingw-w64/mingw-w64-crt/stdio/ucrt_fprintf.c
+    mingw-w64/mingw-w64-crt/stdio/ucrt_vfprintf.c
+    mingw-w64/mingw-w64-crt/stdio/ucrt___local_stdio_printf_options.c
+)
+target_include_directories(ucrtbase_static PRIVATE mingw-w64/mingw-w64-crt/include)
+target_compile_definitions(ucrtbase_static PRIVATE -D_CRTIMP=)
+
 add_library(ucrtbase_mod STATIC)
+target_link_libraries(ucrtbase_mod PUBLIC ucrtbase_static)
 target_sources(ucrtbase_mod PUBLIC FILE_SET CXX_MODULES FILES modules/ucrtbase.cpp)
 target_compile_options(ucrtbase_mod PRIVATE -fno-exceptions ${USERSPACE_CFLAGS})
 

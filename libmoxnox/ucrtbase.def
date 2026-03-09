@@ -103,3 +103,4 @@ _get_osfhandle
 iswctype
 towupper
 towlower
+_fpreset
