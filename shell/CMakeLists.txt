@@ -130,10 +130,9 @@ install(TARGETS rm DESTINATION ${CMAKE_INSTALL_PREFIX}/bin)
 add_executable(rmdir src/rmdir.cpp)
 
 target_compile_options(rmdir PRIVATE -fno-exceptions ${USERSPACE_CFLAGS})
-target_link_options(rmdir PUBLIC -nostartfiles -nostdlib -Wl,--entry=startup)
 
 target_link_libraries(rmdir print)
-target_link_libraries(rmdir format cmdline)
+target_link_libraries(rmdir format unicode)
 target_link_libraries(rmdir moxnox)
 
 install(TARGETS rmdir DESTINATION ${CMAKE_INSTALL_PREFIX}/bin)

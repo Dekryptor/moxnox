@@ -2,11 +2,12 @@
 #include <span>
 #include <string.h>
 #include <stdint.h>
+#include <stdlib.h>
 
 import nt;
 import ntdll;
 import print;
-import cmdline;
+import unicode;
 
 using namespace std;
 
@@ -61,35 +62,27 @@ static void rmdir(u16string_view fn) {
     NtClose(file);
 }
 
-extern "C" void startup() {
-    auto teb = NtCurrentTeb();
-    auto peb = teb->ProcessEnvironmentBlock;
+int main(int argc, char** argv) {
+    for (int i = 1; i < argc; i++) {
+        auto sv = string_view(argv[i]);
 
-    auto cmdline = u16string_view(peb->ProcessParameters->CommandLine.Buffer,
-                                  peb->ProcessParameters->CommandLine.Length / sizeof(char16_t));
+        auto u16len = utf8_to_utf16_len(sv);
+        auto u16 = (char16_t*)malloc(u16len * sizeof(char16_t));
+        if (!u16) {
+            print("malloc failed\n");
+            return 1;
+        }
 
-    auto argc = count_cmdline_args(cmdline);
-    span<u16string_view> argv;
-    u16string_view* buf = nullptr;
+        utf8_to_utf16(span(u16, u16len), sv);
 
-    if (argc != 0) {
-        buf = (decltype(buf))RtlAllocateHeap(GetProcessHeap(), 0, argc * sizeof(*buf));
-        if (!buf)
-            NtTerminateThread(NtCurrentThread(), nt_status::INSUFFICIENT_RESOURCES);
+        auto u16sv = u16string_view(u16, u16len);
 
-        argv = span(buf, argc);
+        rmdir(u16sv);
+
+        free(u16);
     }
-
-    parse_cmdline(cmdline, argv);
-
-    for (size_t i = 1; i < argv.size(); i++) {
-        rmdir(argv[i]);
-    }
-
-    if (buf)
-        RtlFreeHeap(GetProcessHeap(), 0, buf);
 
     // FIXME - return value should be different if anything failed
 
-    NtTerminateThread(NtCurrentThread(), nt_status::SUCCESS);
+    return 0;
 }
