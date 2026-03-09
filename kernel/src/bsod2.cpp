@@ -7,6 +7,7 @@ module;
 #include <span>
 #include <atomic>
 #include "ints.h"
+#include "timer-asm.h"
 
 module bsod;
 
@@ -108,6 +109,8 @@ void __attribute__((noreturn)) _bsod(string_view msg, source_location sl,
         if (cb.cpu_no != bsod_cpu)
             halt_isr();
     }
+
+    release_sync_lock();
 
     if (num_cpus > 1) {
 #ifdef __aarch64__
