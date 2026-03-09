@@ -81,14 +81,24 @@ public:
 
 using unique_hb_buffer = unique_ptr<hb_buffer_t*, hb_buffer_closer>;
 
+struct text_attribute {
+    font_info* font;
+    uint32_t fg_colour;
+    uint32_t bg_colour;
+};
+
 struct console_line {
     ~console_line() {
         if (text)
             free(text);
+
+        if (atts)
+            free(atts);
     }
 
     list_entry le;
     char32_t* text = nullptr;
+    text_attribute* atts = nullptr;
     size_t len = 0;
     unsigned int num_cells = 0;
     bool changed = false;
@@ -1012,6 +1022,7 @@ static unsigned int find_text_pos(unsigned int cursor_x) {
 static void print_chars2(console_fb& con, font_info& font,
                          span<const char32_t> s) {
     unsigned int text_pos;
+    font_info* cur_font;
 
     // get current position in string
 
@@ -1022,26 +1033,60 @@ static void print_chars2(console_fb& con, font_info& font,
     else
         text_pos = find_text_pos(con.cursor_x);
 
+    if (&font == &normal_font) {
+        if (bold && italic)
+            cur_font = &bold_italic_font;
+        else if (bold)
+            cur_font = &bold_font;
+        else if (italic)
+            cur_font = &italic_font;
+        else
+            cur_font = &normal_font;
+    } else
+        cur_font = &font;
+
     // append to existing buffer
 
-    if (text_pos + s.size() < curline->len)
+    if (text_pos + s.size() < curline->len) {
         memcpy(&curline->text[text_pos], s.data(), s.size() * sizeof(char32_t));
-    else {
+
+        for (size_t i = 0; i < s.size(); i++) {
+            curline->atts[text_pos + i].font = cur_font;
+            curline->atts[text_pos + i].fg_colour = fg_colour;
+            curline->atts[text_pos + i].bg_colour = bg_colour;
+        }
+    } else {
         auto t = (char32_t*)malloc((curline->len + s.size()) * sizeof(char32_t));
         if (!t) {
             print("malloc failed\n");
             return;
         }
 
-        if (curline->len != 0)
+        auto a = (text_attribute*)malloc((curline->len + s.size()) * sizeof(text_attribute));
+        if (!a) {
+            print("malloc failed\n");
+            free(t);
+            return;
+        }
+
+        if (curline->len != 0) {
             memcpy(t, curline->text, curline->len * sizeof(char32_t));
+            memcpy(a, curline->atts, curline->len * sizeof(text_attribute));
+        }
 
         memcpy(t + curline->len, s.data(), s.size() * sizeof(char32_t));
+
+        for (size_t i = 0; i < s.size(); i++) {
+            a[curline->len + i].font = cur_font;
+            a[curline->len + i].fg_colour = fg_colour;
+            a[curline->len + i].bg_colour = bg_colour;
+        }
 
         if (curline->text)
             free(curline->text);
 
         curline->text = t;
+        curline->atts = a;
         curline->len += s.size();
     }
 
@@ -1132,17 +1177,27 @@ static void print_chars2(console_fb& con, font_info& font,
             return;
         }
 
+        auto a = (text_attribute*)malloc((curline->len - trunc) * sizeof(text_attribute));
+        if (!a) {
+            print("malloc failed\n");
+            free(t);
+            return;
+        }
+
         memcpy(t, curline->text + trunc, (curline->len - trunc) * sizeof(char32_t));
+        memcpy(a, curline->atts + trunc, (curline->len - trunc) * sizeof(text_attribute));
 
         auto oldline = curline;
 
         con.console_overflow();
 
         curline->text = t;
+        curline->atts = a;
         curline->len = oldline->len - trunc;
         curline->changed = true;
 
         oldline->text = (char32_t*)realloc(oldline->text, trunc * sizeof(char32_t));
+        oldline->atts = (text_attribute*)realloc(oldline->atts, trunc * sizeof(text_attribute));
         oldline->len = trunc;
 
         orig_cursor_x = 0;
@@ -1213,8 +1268,6 @@ static void redo_line2(span<const char32_t> s, console_line& line,
     auto info = hb_buffer_get_glyph_infos(buf.get(), nullptr);
     auto pos = hb_buffer_get_glyph_positions(buf.get(), nullptr);
 
-    // FIXME - overwriting bold, italic, and colours
-
     auto c = &line.cells[line.num_cells];
 
     for (unsigned int i = 0; i < len; i++) {
@@ -1282,7 +1335,11 @@ void console_fb::erase_in_line(unsigned int param) {
                 if (curline->text)
                     free(curline->text);
 
+                if (curline->atts)
+                    free(curline->atts);
+
                 curline->text = nullptr;
+                curline->atts = nullptr;
                 curline->len = 0;
             } else if (text_pos < curline->len) {
                 auto t = (char32_t*)malloc(text_pos * sizeof(char32_t));
@@ -1291,13 +1348,26 @@ void console_fb::erase_in_line(unsigned int param) {
                     return;
                 }
 
-                if (curline->len != 0)
+                auto a = (text_attribute*)malloc(text_pos * sizeof(text_attribute));
+                if (!a) {
+                    print("malloc failed\n");
+                    free(t);
+                    return;
+                }
+
+                if (curline->len != 0) {
                     memcpy(t, curline->text, text_pos * sizeof(char32_t));
+                    memcpy(a, curline->atts, text_pos * sizeof(text_attribute));
+                }
 
                 if (curline->text)
                     free(curline->text);
 
+                if (curline->atts)
+                    free(curline->atts);
+
                 curline->text = t;
+                curline->atts = a;
                 curline->len = text_pos;
             }
 
@@ -1312,19 +1382,36 @@ void console_fb::erase_in_line(unsigned int param) {
                 return;
             }
 
+            auto a = (text_attribute*)malloc(newlen * sizeof(text_attribute));
+            if (!a) {
+                print("malloc failed\n");
+                free(t);
+                return;
+            }
+
             for (unsigned int i = 0; i <= cursor_x; i++) {
                 t[i] = U' ';
+
+                a[i].font = curline->atts[i].font;
+                a[i].fg_colour = curline->atts[i].fg_colour;
+                a[i].bg_colour = curline->atts[i].bg_colour;
             }
 
             if (text_pos < curline->len) {
                 memcpy(&t[cursor_x + 1], &curline->text[text_pos + 1],
                        (curline->len - text_pos - 1) * sizeof(char32_t));
+                memcpy(&a[cursor_x + 1], &curline->atts[text_pos + 1],
+                       (curline->len - text_pos - 1) * sizeof(text_attribute));
             }
 
             if (curline->text)
                 free(curline->text);
 
+            if (curline->atts)
+                free(curline->atts);
+
             curline->text = t;
+            curline->atts = a;
             curline->len = newlen;
 
             break;
@@ -1334,7 +1421,11 @@ void console_fb::erase_in_line(unsigned int param) {
             if (curline->text)
                 free(curline->text);
 
+            if (curline->atts)
+                free(curline->atts);
+
             curline->text = nullptr;
+            curline->atts = nullptr;
             curline->len = 0;
 
             break;
@@ -1355,7 +1446,11 @@ void console_fb::erase_in_display(unsigned int param) {
                 if (l.text)
                     free(l.text);
 
+                if (l.atts)
+                    free(l.atts);
+
                 l.text = nullptr;
+                l.atts = nullptr;
                 l.len = 0;
 
                 redo_line(l);
@@ -1372,7 +1467,11 @@ void console_fb::erase_in_display(unsigned int param) {
                 if (l.text)
                     free(l.text);
 
+                if (l.atts)
+                    free(l.atts);
+
                 l.text = nullptr;
+                l.atts = nullptr;
                 l.len = 0;
 
                 redo_line(l);
@@ -1388,7 +1487,11 @@ void console_fb::erase_in_display(unsigned int param) {
                 if (l.text)
                     free(l.text);
 
+                if (l.atts)
+                    free(l.atts);
+
                 l.text = nullptr;
+                l.atts = nullptr;
                 l.len = 0;
 
                 redo_line(l);
