@@ -92,6 +92,7 @@ sin
 ceil
 floor
 rand_s
+read
 _read
 ___mb_cur_max_func
 _fdopen

@@ -87,3 +87,4 @@ getenv
 fileno = _fileno
 write = _write
 fdopen = _fdopen
+read = _read
