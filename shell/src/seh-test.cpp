@@ -46,12 +46,10 @@ static void __attribute__((noinline)) seh_test() {
     // *(char*)1 = 1;
 }
 
-extern "C" void startup() {
-    print("beginning of startup\n");
+int main() {
+    print("beginning of main\n");
 
     seh_test();
 
-    print("end of startup\n");
-
-    NtTerminateThread(NtCurrentThread(), nt_status::SUCCESS);
+    print("end of main\n");
 }

@@ -159,7 +159,6 @@ install(TARGETS screenshot DESTINATION ${CMAKE_INSTALL_PREFIX}/bin)
 add_executable(seh-test src/seh-test.cpp)
 
 target_compile_options(seh-test PRIVATE -fno-exceptions ${USERSPACE_CFLAGS})
-target_link_options(seh-test PUBLIC -nostartfiles -nostdlib -Wl,--entry=startup)
 
 target_link_libraries(seh-test print)
 target_link_libraries(seh-test format)
