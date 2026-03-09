@@ -36,7 +36,6 @@ install(TARGETS shell DESTINATION ${CMAKE_INSTALL_PREFIX}/bin
 add_executable(echo src/echo.cpp)
 
 target_compile_options(echo PRIVATE -fno-exceptions ${USERSPACE_CFLAGS})
-target_link_options(echo PUBLIC -nostartfiles -nostdlib -Wl,--entry=startup)
 
 target_link_libraries(echo print unicode cmdline format)
 target_link_libraries(echo moxnox)
