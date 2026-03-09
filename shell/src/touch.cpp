@@ -71,7 +71,7 @@ int main(int argc, char** argv) {
         return 1;
     }
 
-    for (size_t i = 1; i < argc; i++) {
+    for (int i = 1; i < argc; i++) {
         auto sv = string_view(argv[i]);
 
         auto u16len = utf8_to_utf16_len(sv);
