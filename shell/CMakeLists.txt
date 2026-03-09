@@ -94,10 +94,9 @@ install(TARGETS yes DESTINATION ${CMAKE_INSTALL_PREFIX}/bin)
 add_executable(mkdir src/mkdir.cpp)
 
 target_compile_options(mkdir PRIVATE -fno-exceptions ${USERSPACE_CFLAGS})
-target_link_options(mkdir PUBLIC -nostartfiles -nostdlib -Wl,--entry=startup)
 
 target_link_libraries(mkdir print)
-target_link_libraries(mkdir format cmdline)
+target_link_libraries(mkdir format unicode)
 target_link_libraries(mkdir moxnox)
 
 install(TARGETS mkdir DESTINATION ${CMAKE_INSTALL_PREFIX}/bin)
