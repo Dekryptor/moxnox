@@ -2,11 +2,12 @@
 #include <span>
 #include <string.h>
 #include <stdint.h>
+#include <stdlib.h>
 
 import nt;
 import ntdll;
 import print;
-import cmdline;
+import unicode;
 
 using namespace std;
 
@@ -64,41 +65,32 @@ static void touch(u16string_view fn) {
     NtClose(file);
 }
 
-extern "C" void startup() {
-    auto teb = NtCurrentTeb();
-    auto peb = teb->ProcessEnvironmentBlock;
-
-    auto cmdline = u16string_view(peb->ProcessParameters->CommandLine.Buffer,
-                                  peb->ProcessParameters->CommandLine.Length / sizeof(char16_t));
-
-    auto argc = count_cmdline_args(cmdline);
-    span<u16string_view> argv;
-    u16string_view* buf = nullptr;
-
-    if (argc != 0) {
-        buf = (decltype(buf))RtlAllocateHeap(GetProcessHeap(), 0, argc * sizeof(*buf));
-        if (!buf)
-            NtTerminateThread(NtCurrentThread(), nt_status::INSUFFICIENT_RESOURCES);
-
-        argv = span(buf, argc);
-    }
-
-    parse_cmdline(cmdline, argv);
-
-    if (argv.size() < 2) {
+int main(int argc, char** argv) {
+    if (argc < 2) {
         print_stderr("touch: missing operand\n");
-        NtTerminateThread(NtCurrentThread(), nt_status::SUCCESS);
-        return;
+        return 1;
     }
 
-    for (size_t i = 1; i < argv.size(); i++) {
-        touch(argv[i]);
-    }
+    for (size_t i = 1; i < argc; i++) {
+        auto sv = string_view(argv[i]);
 
-    if (buf)
-        RtlFreeHeap(GetProcessHeap(), 0, buf);
+        auto u16len = utf8_to_utf16_len(sv);
+        auto u16 = (char16_t*)malloc(u16len * sizeof(char16_t));
+        if (!u16) {
+            print("malloc failed\n");
+            return 1;
+        }
+
+        utf8_to_utf16(span(u16, u16len), sv);
+
+        auto u16sv = u16string_view(u16, u16len);
+
+        touch(u16sv);
+
+        free(u16);
+    }
 
     // FIXME - return value should be different if anything failed
 
-    NtTerminateThread(NtCurrentThread(), nt_status::SUCCESS);
+    return 0;
 }

@@ -106,10 +106,9 @@ install(TARGETS mkdir DESTINATION ${CMAKE_INSTALL_PREFIX}/bin)
 add_executable(touch src/touch.cpp)
 
 target_compile_options(touch PRIVATE -fno-exceptions ${USERSPACE_CFLAGS})
-target_link_options(touch PUBLIC -nostartfiles -nostdlib -Wl,--entry=startup)
 
 target_link_libraries(touch print)
-target_link_libraries(touch format cmdline)
+target_link_libraries(touch format unicode)
 target_link_libraries(touch moxnox)
 
 install(TARGETS touch DESTINATION ${CMAKE_INSTALL_PREFIX}/bin)
