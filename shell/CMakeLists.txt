@@ -84,7 +84,6 @@ install(TARGETS pwd DESTINATION ${CMAKE_INSTALL_PREFIX}/bin)
 add_executable(yes src/yes.cpp)
 
 target_compile_options(yes PRIVATE -fno-exceptions ${USERSPACE_CFLAGS})
-target_link_options(yes PUBLIC -nostartfiles -nostdlib -Wl,--entry=startup)
 
 target_link_libraries(yes print format)
 target_link_libraries(yes moxnox)
