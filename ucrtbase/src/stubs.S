@@ -52,5 +52,6 @@ do_stub "iswctype"
 do_stub "towupper"
 do_stub "towlower"
 do_stub "___lc_codepage_func"
+do_stub "_strdup"
 
 stubs_end

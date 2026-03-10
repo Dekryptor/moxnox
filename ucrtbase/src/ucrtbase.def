@@ -88,3 +88,4 @@ fileno = _fileno
 write = _write
 fdopen = _fdopen
 read = _read
+strdup = _strdup

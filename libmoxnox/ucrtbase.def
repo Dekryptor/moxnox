@@ -106,3 +106,5 @@ towupper
 towlower
 _fpreset
 ___lc_codepage_func
+strdup
+_strdup
