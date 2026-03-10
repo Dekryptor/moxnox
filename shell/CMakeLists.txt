@@ -24,7 +24,7 @@ if(CMAKE_SYSTEM_PROCESSOR STREQUAL "amd64")
     target_compile_options(shell PRIVATE -masm=intel)
 endif()
 
-target_link_libraries(shell print unicode unique_handle signal cmdline list pagesize env)
+target_link_libraries(shell print unicode unique_handle signal list pagesize env)
 target_link_libraries(shell format)
 
 install(TARGETS shell DESTINATION ${CMAKE_INSTALL_PREFIX}/bin
@@ -37,7 +37,7 @@ add_executable(echo src/echo.cpp)
 
 target_compile_options(echo PRIVATE -fno-exceptions ${USERSPACE_CFLAGS})
 
-target_link_libraries(echo print unicode cmdline format)
+target_link_libraries(echo print unicode format)
 target_link_libraries(echo moxnox)
 
 install(TARGETS echo DESTINATION ${CMAKE_INSTALL_PREFIX}/bin)
@@ -252,7 +252,7 @@ target_sources(mv PUBLIC FILE_SET CXX_MODULES FILES src/copy.cpp)
 target_compile_options(mv PRIVATE -fno-exceptions ${USERSPACE_CFLAGS})
 
 target_link_libraries(mv print)
-target_link_libraries(mv format cmdline unique_handle list unicode)
+target_link_libraries(mv format unique_handle list unicode)
 target_link_libraries(mv moxnox)
 
 install(TARGETS mv DESTINATION ${CMAKE_INSTALL_PREFIX}/bin

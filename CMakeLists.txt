@@ -200,10 +200,6 @@ add_library(cp437 STATIC)
 target_sources(cp437 PUBLIC FILE_SET CXX_MODULES FILES modules/cp437.cpp)
 target_compile_options(cp437 PRIVATE -fno-exceptions ${USERSPACE_CFLAGS})
 
-add_library(cmdline STATIC)
-target_sources(cmdline PUBLIC FILE_SET CXX_MODULES FILES modules/cmdline.cpp)
-target_compile_options(cmdline PRIVATE -fno-exceptions ${USERSPACE_CFLAGS})
-
 add_library(evdev STATIC)
 target_sources(evdev PUBLIC FILE_SET CXX_MODULES FILES modules/evdev.cpp)
 target_compile_options(evdev PRIVATE -fno-exceptions ${USERSPACE_CFLAGS})
