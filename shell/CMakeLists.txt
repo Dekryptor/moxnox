@@ -265,10 +265,9 @@ add_executable(cp src/cp.cpp)
 target_sources(cp PUBLIC FILE_SET CXX_MODULES FILES src/copy.cpp)
 
 target_compile_options(cp PRIVATE -fno-exceptions ${USERSPACE_CFLAGS})
-target_link_options(cp PUBLIC -nostartfiles -nostdlib -Wl,--entry=startup)
 
 target_link_libraries(cp print)
-target_link_libraries(cp format cmdline unique_handle getopt list)
+target_link_libraries(cp format unique_handle list unicode)
 target_link_libraries(cp moxnox)
 
 install(TARGETS cp DESTINATION ${CMAKE_INSTALL_PREFIX}/bin

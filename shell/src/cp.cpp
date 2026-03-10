@@ -4,21 +4,21 @@
 #include <string.h>
 #include <stdint.h>
 #include <stdlib.h>
+#include <getopt.h>
 
 import nt;
 import ntdll;
 import print;
-import cmdline;
 import unique_handle;
-import getopt;
 import list;
 import copy;
+import unicode;
 
 using namespace std;
 
 static bool recursive = false;
 
-static nt_status cp(span<u16string_view> srcs, u16string_view dest) {
+static int cp(span<u16string_view> srcs, u16string_view dest) {
     auto peb = NtCurrentTeb()->ProcessEnvironmentBlock;
     nt_status status;
     OBJECT_ATTRIBUTES oa;
@@ -44,7 +44,7 @@ static nt_status cp(span<u16string_view> srcs, u16string_view dest) {
 
     if (status == nt_status::OBJECT_PATH_NOT_FOUND) {
         print_stderr("cp: target '{}': No such file or directory\n", dest);
-        return status;
+        return 1;
     } else if (success(status))
         destdirh.reset(h);
 
@@ -53,7 +53,7 @@ static nt_status cp(span<u16string_view> srcs, u16string_view dest) {
             if (status != nt_status::OBJECT_NAME_NOT_FOUND &&
                 status != nt_status::NOT_A_DIRECTORY) {
                 print_stderr("cp: '{}': NtCreateFile returned {}\n", dest, status);
-                return status;
+                return 1;
             }
 
             if (auto slash = dest.find_last_of(u'/'); slash != u16string_view::npos) {
@@ -77,20 +77,19 @@ static nt_status cp(span<u16string_view> srcs, u16string_view dest) {
 
     if (status == nt_status::NOT_A_DIRECTORY) {
         print_stderr("cp: target '{}': Not a directory\n", destdir);
-        return status;
+        return 1;
     } else if (status == nt_status::OBJECT_NAME_NOT_FOUND) {
         print_stderr("cp: target '{}': No such file or directory\n", destdir);
-        return status;
+        return 1;
     } else if (!success(status)) {
         print_stderr("cp: target '{}': NtCreateFile returned {}\n", destdir, status);
-        return status;
+        return 1;
     }
 
     auto d = (dir*)malloc(offsetof(dir, destname) + (destdir.size() * sizeof(char16_t)));
     if (!d) {
         print_stderr("malloc failed\n");
-        NtTerminateThread(NtCurrentThread(), nt_status::INSUFFICIENT_RESOURCES);
-        unreachable();
+        return 1;
     }
 
     d->src = peb->ProcessParameters->CurrentDirectory.Handle;
@@ -104,8 +103,7 @@ static nt_status cp(span<u16string_view> srcs, u16string_view dest) {
         auto sf = (src_file*)malloc(offsetof(src_file, name) + (src.size() * sizeof(char16_t)));
         if (!sf) {
             print_stderr("malloc failed\n");
-            NtTerminateThread(NtCurrentThread(), nt_status::INSUFFICIENT_RESOURCES);
-            unreachable();
+            return 1;
         }
 
         d->handle_refcount++;
@@ -186,69 +184,77 @@ static nt_status cp(span<u16string_view> srcs, u16string_view dest) {
 
     free(d);
 
-    return status;
+    return 0;
 }
 
-extern "C" void startup() {
-    auto teb = NtCurrentTeb();
-    auto peb = teb->ProcessEnvironmentBlock;
-
+int main(int argc, char** argv) {
     static const option options[] = {
-        { u"recursive", u'r', []{ recursive = true; } },
-        { u"", u'R', []{ recursive = true; } },
+        { "recursive", no_argument, nullptr, 'r' },
+        { "", no_argument, nullptr, 'R' },
+        { nullptr, 0, nullptr, 0 }
     };
 
-    auto cmdline = u16string_view(peb->ProcessParameters->CommandLine.Buffer,
-                                  peb->ProcessParameters->CommandLine.Length / sizeof(char16_t));
+    while (true) {
+        int index;
+        auto c = getopt_long(argc, argv, "rR", options, &index);
 
-    auto argc = count_cmdline_args(cmdline);
-    span<u16string_view> argv;
-    u16string_view* buf = nullptr;
+        if (c == -1)
+            break;
 
-    if (argc != 0) {
-        buf = (decltype(buf))RtlAllocateHeap(GetProcessHeap(), 0, argc * sizeof(*buf));
-        if (!buf) {
-            NtTerminateThread(NtCurrentThread(), nt_status::INSUFFICIENT_RESOURCES);
-            unreachable();
+        switch (c) {
+            case 'r':
+            case 'R':
+                recursive = true;
+                break;
+
+            case '?':
+                return 1;
+        }
+    }
+
+    if (argc == optind) {
+        print_stderr("cp: missing file operand\n");
+        return 1;
+    }
+
+    if (argc == optind + 1) {
+        print_stderr("cp: missing destination file operand after '{}'\n", argv[0]);
+        return 1;
+    }
+
+    auto arr = (u16string_view*)malloc((unsigned int)(argc - optind) * sizeof(u16string_view));
+    if (!arr) {
+        print_stderr("malloc failed\n");
+        return 1;
+    }
+
+    for (int i = optind; i < argc; i++) {
+        auto sv = string_view(argv[i]);
+
+        auto u16len = utf8_to_utf16_len(sv);
+        auto u16src = (char16_t*)malloc(u16len * sizeof(char16_t));
+        if (!u16src) {
+            print_stderr("malloc failed\n");
+
+            for (int j = optind; j < i; j++) {
+                free((void*)arr[j - optind].data());
+            }
+            free(arr);
+
+            return 1;
         }
 
-        argv = span(buf, argc);
+        utf8_to_utf16(span(u16src, u16len), sv);
+
+        arr[i - optind] = u16string_view(u16src, u16len);
     }
 
-    parse_cmdline(cmdline, argv);
+    auto ret = cp(span(arr, argc - optind - 1), arr[argc - optind - 1]);
 
-    if (!argv.empty()) // skip program name
-        argv = span(argv.data() + 1, argv.size() - 1);
-
-    if (!getopt(argv, options)) {
-        if (buf)
-            RtlFreeHeap(GetProcessHeap(), 0, buf);
-
-        NtTerminateThread(NtCurrentThread(), nt_status::INVALID_PARAMETER);
-        unreachable();
+    for (int i = 0; i < argc - optind; i++) {
+        free((void*)arr[i].data());
     }
+    free(arr);
 
-    if (argv.empty()) {
-        print_stderr("cp: missing file operand\n");
-        NtTerminateThread(NtCurrentThread(), nt_status::INVALID_PARAMETER);
-        unreachable();
-    }
-
-    if (argv.size() < 2) {
-        print_stderr("cp: missing destination file operand after '{}'\n", argv[0]);
-        NtTerminateThread(NtCurrentThread(), nt_status::INVALID_PARAMETER);
-        unreachable();
-    }
-
-    nt_status ret;
-
-    u16string_view dest = argv.back();
-    argv = span(argv.data(), argv.size() - 1);
-
-    ret = cp(argv, dest);
-
-    if (buf)
-        RtlFreeHeap(GetProcessHeap(), 0, buf);
-
-    NtTerminateThread(NtCurrentThread(), ret);
+    return ret;
 }
