@@ -105,6 +105,8 @@ using HANDLER_ROUTINE = bool (*)(uint32_t ctrl_type);
 using TOP_LEVEL_EXCEPTION_FILTER = int32_t (*)(EXCEPTION_POINTERS* exception_info);
 using THREAD_START_ROUTINE = uint32_t (*)(void* ctx);
 
+const uint32_t TLS_OUT_OF_INDEXES = 0xffffffff;
+
 extern "C" {
 
 bool SetConsoleCtrlHandler(HANDLER_ROUTINE func, bool add);
