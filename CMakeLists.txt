@@ -284,12 +284,6 @@ target_sources(timepage PUBLIC FILE_SET CXX_MODULES FILES modules/timepage.cpp)
 target_compile_options(timepage PRIVATE -fno-exceptions ${USERSPACE_CFLAGS})
 target_link_libraries(timepage pagesize)
 
-add_library(getopt STATIC)
-target_sources(getopt PUBLIC FILE_SET CXX_MODULES FILES modules/getopt.cpp)
-target_compile_options(getopt PRIVATE -fno-exceptions ${USERSPACE_CFLAGS})
-target_link_libraries(getopt print)
-target_compile_definitions(getopt PUBLIC -D_LIBCPP_VERBOSE_ABORT=)
-
 add_library(moxnox_ioctls STATIC)
 target_sources(moxnox_ioctls PUBLIC FILE_SET CXX_MODULES FILES modules/moxnox_ioctls.cpp)
 target_compile_options(moxnox_ioctls PRIVATE -fno-exceptions ${USERSPACE_CFLAGS})
