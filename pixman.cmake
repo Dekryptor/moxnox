@@ -109,4 +109,5 @@ target_link_libraries(pixman PUBLIC pixman_mod)
 
 install(TARGETS pixman DESTINATION ${CMAKE_INSTALL_PREFIX}/lib
     ARCHIVE EXCLUDE_FROM_ALL
+    CXX_MODULES_BMI EXCLUDE_FROM_ALL
 )
