@@ -94,6 +94,7 @@ int _initialize_onexit_table(_onexit_table_t* table);
 int _register_onexit_function(_onexit_table_t* table, _onexit_t func);
 int _execute_onexit_table(_onexit_table_t* table);
 char* getenv(const char* name);
+char* _strdup(const char* s);
 
 }
 
