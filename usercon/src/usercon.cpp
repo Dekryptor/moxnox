@@ -40,6 +40,10 @@ static const char32_t TEXT_PRESENTATION = 0xfe0e;
 static const char32_t EMOJI_PRESENTATION = 0xfe0f;
 static const char32_t ZWJ = 0x200d;
 static const char32_t KEYCAP = 0x20e3;
+static const char32_t SKIN_TONE_1 = 0x1f3fb;
+static const char32_t SKIN_TONE_6 = 0x1f3ff;
+static const char32_t FLAG_LETTER_A = 0x1f1e6;
+static const char32_t FLAG_LETTER_Z = 0x1f1ff;
 
 extern uint64_t __CTOR_LIST__;
 
@@ -113,6 +117,12 @@ static unsigned int font_width, font_height, font_descender;
 static console_line* curline = nullptr;
 static list_entry lines = { &lines, &lines };
 static unsigned int num_lines = 0;
+
+static array<char32_t, 32> prev_emoji_cps;
+static size_t prev_emoji_cp_len = 0;
+static unsigned int prev_emoji_cursor_x = 0;
+static unsigned int prev_emoji_num_cells = 0;
+static console_line* prev_emoji_line = nullptr;
 
 struct console_fb {
     void console_overflow(unsigned int rows = 1);
@@ -893,6 +903,27 @@ static void flush_framebuffer() {
     }
 }
 
+static bool is_emoji_continuation(char32_t c) {
+    if (c == ZWJ || c == EMOJI_PRESENTATION || c == KEYCAP)
+        return true;
+
+    if (c >= SKIN_TONE_1 && c <= SKIN_TONE_6)
+        return true;
+
+    if (prev_emoji_cp_len > 0 && prev_emoji_cps[prev_emoji_cp_len - 1] == ZWJ &&
+        is_emoji(c)) {
+        return true;
+    }
+
+    if (c >= FLAG_LETTER_A && c <= FLAG_LETTER_Z &&
+        prev_emoji_cp_len == 1 &&
+        prev_emoji_cps[0] >= FLAG_LETTER_A && prev_emoji_cps[0] <= FLAG_LETTER_Z) {
+        return true;
+    }
+
+    return false;
+}
+
 static bool is_emoji_char(char32_t c, char32_t next) {
     if (!is_emoji(c))
         return false;
@@ -928,6 +959,7 @@ static span<const char32_t> find_font_run(span<const char32_t> s,
 
         while (len < s.size()) {
             auto next = len < s.size() - 1 ? s[len + 1] : 0;
+            bool after_zwj = len > 0 && s[len - 1] == ZWJ;
 
             if (s[len] == ZWJ || s[len] == EMOJI_PRESENTATION || s[len] == KEYCAP) {
                 len++;
@@ -937,9 +969,9 @@ static span<const char32_t> find_font_run(span<const char32_t> s,
             if (!is_emoji(s[len]))
                 break;
 
-            if (next != EMOJI_PRESENTATION &&
+            if (!after_zwj && next != EMOJI_PRESENTATION &&
                 (next == TEXT_PRESENTATION || !has_emoji_presentation(s[len]))) {
-                    break;
+                break;
             }
 
             len++;
@@ -1234,8 +1266,32 @@ void console_fb::print_chars(span<const char32_t> s) {
             // nop
             s = span(s.data() + 1, s.size() - 1);
         } else {
+            span<const char32_t> sp;
             font_info* font;
-            auto sp = find_font_run(s, font);
+            array<char32_t, 64> combined_buf;
+            size_t old_emoji_len = 0;
+
+            if (prev_emoji_cp_len > 0 && prev_emoji_line == curline && is_emoji_continuation(s[0])) {
+                // backtracking - combine with previous emoji and re-render
+                old_emoji_len = prev_emoji_cp_len;
+                memcpy(combined_buf.data(), prev_emoji_cps.data(),
+                       old_emoji_len * sizeof(char32_t));
+
+                auto new_count = min(s.size(), combined_buf.size() - old_emoji_len);
+
+                memcpy(combined_buf.data() + old_emoji_len, s.data(),
+                       new_count * sizeof(char32_t));
+
+                // roll-back to previous emoji position
+                cursor_x = prev_emoji_cursor_x;
+                curline->num_cells = prev_emoji_num_cells;
+                curline->len -= old_emoji_len;
+                prev_emoji_cp_len = 0;
+
+                sp = span(combined_buf.data(), old_emoji_len + new_count);
+                sp = find_font_run(sp, font);
+            } else
+                sp = find_font_run(s, font);
 
             for (size_t i = 0; i < sp.size(); i++) {
                 if (sp[i] == '\n' || sp[i] == '\b' || sp[i] < ' ') {
@@ -1244,8 +1300,33 @@ void console_fb::print_chars(span<const char32_t> s) {
                 }
             }
 
+            // save emoji state for potential future backtracking
+            if (font == &emoji_font) {
+                prev_emoji_cursor_x = cursor_x;
+                prev_emoji_num_cells = curline->num_cells;
+
+                auto save_len = min(sp.size(), prev_emoji_cps.size());
+
+                memcpy(prev_emoji_cps.data(), sp.data(), save_len * sizeof(char32_t));
+                prev_emoji_cp_len = save_len;
+                prev_emoji_line = curline;
+            }
+
             print_chars2(*this, *font, sp);
-            s = span(s.data() + sp.size(), s.size() - sp.size());
+
+            s = span(s.data() + sp.size() - old_emoji_len,
+                     s.size() - sp.size() + old_emoji_len);
+
+            if (font != &emoji_font) {
+                if (!sp.empty() && is_emoji(sp.back())) {
+                    prev_emoji_cps[0] = sp.back();
+                    prev_emoji_cp_len = 1;
+                    prev_emoji_cursor_x = cursor_x - 1;
+                    prev_emoji_num_cells = curline->num_cells - 1;
+                    prev_emoji_line = curline;
+                } else
+                    prev_emoji_cp_len = 0;
+            }
         }
     }
 }
