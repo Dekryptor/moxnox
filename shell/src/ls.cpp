@@ -452,7 +452,7 @@ int main(int argc, char** argv) {
             arr[i - optind] = u16string_view(u16src, u16len);
         }
 
-        ls(span(arr, argc - optind));
+        ls(span(arr, (size_t)(argc - optind)));
 
         for (int i = 0; i < argc - optind; i++) {
             free((void*)arr[i].data());
