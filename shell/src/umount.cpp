@@ -4,15 +4,14 @@
 #include <string.h>
 #include <stdint.h>
 #include <stdlib.h>
+#include <getopt.h>
 
 import nt;
 import ntdll;
-import cmdline;
 import print;
 import unique_handle;
 import unicode;
 import moxnox_ioctls;
-import getopt;
 
 using namespace std;
 
@@ -20,7 +19,7 @@ static const char16_t vfsctl_path[] = u"/dev/vfsctl";
 
 static bool force = false;
 
-static nt_status umount(u16string_view path) {
+static int umount(u16string_view path) {
     auto peb = NtCurrentTeb()->ProcessEnvironmentBlock;
     NTSTATUS status;
     HANDLE h;
@@ -47,13 +46,13 @@ static nt_status umount(u16string_view path) {
     if (status == nt_status::OBJECT_NAME_NOT_FOUND ||
         status == nt_status::OBJECT_PATH_NOT_FOUND) {
         print_stderr("umount: {}: No such file or directory\n", path);
-        return status;
+        return 1;
     } else if (status == nt_status::NOT_A_DIRECTORY) {
         print_stderr("umount: {}: Not a directory\n", path);
-        return status;
+        return 1;
     } else if (!success(status)) {
         print_stderr("umount: NtCreateFile returned {} for {}\n", status, path);
-        return status;
+        return 1;
     }
 
     dir.reset(h);
@@ -69,7 +68,7 @@ static nt_status umount(u16string_view path) {
         vfsctl.reset(h);
     else {
         print_stderr("umount: NtCreateFile returned {} for /dev/vfsctl\n", status);
-        return status;
+        return 1;
     }
 
     // get proper name
@@ -79,7 +78,7 @@ static nt_status umount(u16string_view path) {
     if (!success(status) && status != nt_status::BUFFER_OVERFLOW) {
         print_stderr("umount: {}: NtQueryInformationFile returned {}\n",
                      path, status);
-        return status;
+        return 1;
     }
 
     size_t len = offsetof(FILE_NAME_INFORMATION, FileName) + fni.FileNameLength;
@@ -87,7 +86,7 @@ static nt_status umount(u16string_view path) {
     auto fni2 = (FILE_NAME_INFORMATION*)malloc(len);
     if (!fni2) {
         print_stderr("malloc failed\n");
-        return nt_status::INSUFFICIENT_RESOURCES;
+        return 1;
     }
 
     status = NtQueryInformationFile(dir.get(), &iosb, fni2, (uint32_t)len,
@@ -96,7 +95,7 @@ static nt_status umount(u16string_view path) {
         print_stderr("umount: {}: NtQueryInformationFile returned {}\n",
                      path, status);
         free(fni2);
-        return status;
+        return 1;
     }
 
     auto u16sv = u16string_view(fni2->FileName, fni2->FileNameLength / sizeof(char16_t));
@@ -108,7 +107,7 @@ static nt_status umount(u16string_view path) {
     if (!params) {
         print_stderr("malloc failed\n");
         free(fni2);
-        return nt_status::INSUFFICIENT_RESOURCES;
+        return 1;
     }
 
     params->flags = 0;
@@ -135,60 +134,75 @@ static nt_status umount(u16string_view path) {
 
     free(params);
 
-    return status;
+    return success(status) ? 0 : 1;
 }
 
-extern "C" void startup() {
-    auto teb = NtCurrentTeb();
-    auto peb = teb->ProcessEnvironmentBlock;
-    nt_status status;
-
+int main(int argc, char** argv) {
     static const option options[] = {
-        { u"force", u'f', []{ force = true; } },
+        { "force", no_argument, nullptr, 'f' },
+        { nullptr, 0, nullptr, 0 }
     };
 
-    auto cmdline = u16string_view(peb->ProcessParameters->CommandLine.Buffer,
-                                  peb->ProcessParameters->CommandLine.Length / sizeof(char16_t));
+    while (true) {
+        int index;
+        auto c = getopt_long(argc, argv, "f", options, &index);
 
-    auto argc = count_cmdline_args(cmdline);
-    span<u16string_view> argv;
-    u16string_view* buf = nullptr;
+        if (c == -1)
+            break;
 
-    if (argc != 0) {
-        buf = (decltype(buf))RtlAllocateHeap(GetProcessHeap(), 0, argc * sizeof(*buf));
-        if (!buf)
-            NtTerminateThread(NtCurrentThread(), nt_status::INSUFFICIENT_RESOURCES);
+        switch (c) {
+            case 'f':
+                force = true;
+                break;
 
-        argv = span(buf, argc);
+            case '?':
+                return 1;
+        }
     }
 
-    parse_cmdline(cmdline, argv);
-
-    if (!argv.empty()) // skip program name
-        argv = span(argv.data() + 1, argv.size() - 1);
-
-    if (!getopt(argv, options)) {
-        if (buf)
-            RtlFreeHeap(GetProcessHeap(), 0, buf);
-
-        NtTerminateThread(NtCurrentThread(), nt_status::INVALID_PARAMETER);
-        unreachable();
-    }
-
-    if (argv.size() == 0) {
+    if (argc == optind) {
         print_stderr("umount: bad usage\n");
-        status = nt_status::INVALID_PARAMETER;
+        return 1;
     }
 
-    status = nt_status::SUCCESS;
-
-    for (auto arg : argv) {
-        if (auto status2 = umount(arg); !success(status2))
-            status = status2;
+    auto arr = (u16string_view*)malloc((unsigned int)(argc - optind) * sizeof(u16string_view));
+    if (!arr) {
+        print_stderr("malloc failed\n");
+        return 1;
     }
 
-    if (buf)
-        RtlFreeHeap(GetProcessHeap(), 0, buf);
+    for (int i = optind; i < argc; i++) {
+        auto sv = string_view(argv[i]);
 
-    NtTerminateThread(NtCurrentThread(), status);
+        auto u16len = utf8_to_utf16_len(sv);
+        auto u16src = (char16_t*)malloc(u16len * sizeof(char16_t));
+        if (!u16src) {
+            print_stderr("malloc failed\n");
+
+            for (int j = optind; j < i; j++) {
+                free((void*)arr[j - optind].data());
+            }
+            free(arr);
+
+            return 1;
+        }
+
+        utf8_to_utf16(span(u16src, u16len), sv);
+
+        arr[i - optind] = u16string_view(u16src, u16len);
+    }
+
+    int ret = 0;
+
+    for (int i = 0; i < argc - optind; i++) {
+        if (umount(arr[i]))
+            ret = 1;
+    }
+
+    for (int i = 0; i < argc - optind; i++) {
+        free((void*)arr[i].data());
+    }
+    free(arr);
+
+    return ret;
 }
