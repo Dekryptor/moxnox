@@ -19,7 +19,7 @@ import gnu_efi;
 using namespace std;
 
 static const uint64_t UEFI_VABLOCK = 0xfffffa6000000000;
-static EFI_MEMORY_DESCRIPTOR uefi_mappings[256];
+static array<EFI_MEMORY_DESCRIPTOR, 256> uefi_mappings;
 export EFI_GET_TIME GetTime = nullptr;
 export EFI_RESET_SYSTEM ResetSystem = nullptr;
 export EFI_SET_VARIABLE SetVariable = nullptr;
@@ -49,11 +49,14 @@ export bool map_uefi(const loader_block& lb) {
     mark_lower_half_writable();
 #endif
 
-    // FIXME - fail if we would overflow uefi_mappings
-
-    auto d = uefi_mappings;
+    auto d = uefi_mappings.data();
     for (const auto& m : map_entries) {
         enum mapping_type mt;
+
+        if (count == uefi_mappings.size()) {
+            print("map_uefi: overflow\n");
+            return false;
+        }
 
         if (!(m.efi_attributes & EFI_MEMORY_RUNTIME))
             continue;
@@ -119,7 +122,7 @@ export bool map_uefi(const loader_block& lb) {
     auto ret = lb.SetVirtualAddressMap(count * sizeof(EFI_MEMORY_DESCRIPTOR),
                                        sizeof(EFI_MEMORY_DESCRIPTOR),
                                        EFI_MEMORY_DESCRIPTOR_VERSION,
-                                       uefi_mappings);
+                                       uefi_mappings.data());
     if (ret != EFI_SUCCESS) { // FIXME - enum
         do_print("SetVirtualAddressMap returned {}\n", ret);
         return false;
