@@ -36,3 +36,4 @@ TlsGetValue
 TlsSetValue
 CreateThread
 CreateProcessW
+GetEnvironmentVariableW

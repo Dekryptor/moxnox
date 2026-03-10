@@ -567,3 +567,12 @@ bool CreateProcessW(const char16_t* application_name, char16_t* command_line,
 
     return true;
 }
+
+extern "C"
+uint32_t GetEnvironmentVariableW(const char16_t* name, char16_t* /*buffer*/,
+                                 uint32_t /*size*/) {
+    print_stderr("FIXME - GetEnvironmentVariableW {}\n", u16string_view(name));
+
+    SetLastError(ERROR_ENVVAR_NOT_FOUND);
+    return 0;
+}

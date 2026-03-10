@@ -17,6 +17,5 @@ do_stub "GetCurrentProcess"
 do_stub "TerminateProcess"
 do_stub "WideCharToMultiByte"
 do_stub "MultiByteToWideChar"
-do_stub "GetEnvironmentVariableW"
 
 stubs_end
