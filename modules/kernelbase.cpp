@@ -131,6 +131,7 @@ bool CreateProcessW(const char16_t* application_name, char16_t* command_line,
                     PROCESS_INFORMATION* process_information);
 uint32_t GetEnvironmentVariableW(const char16_t* name, char16_t* buffer,
                                  uint32_t size);
+void Sleep(uint32_t timeout);
 
 }
 
