@@ -455,3 +455,18 @@ if (CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
 endif()
 
 install(TARGETS telnetd DESTINATION ${CMAKE_INSTALL_PREFIX}/bin)
+
+###
+
+if(NOT CMAKE_SYSTEM_PROCESSOR STREQUAL "aarch64")
+    add_executable(rtti-test src/rtti-test.cpp)
+
+    target_compile_options(rtti-test PRIVATE -fno-exceptions ${USERSPACE_CFLAGS} -frtti)
+    target_link_libraries(rtti-test print-rtti)
+
+    if (CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
+        target_link_options(rtti-test PUBLIC -mcrtdll=ucrtbase)
+    endif()
+
+    install(TARGETS rtti-test DESTINATION ${CMAKE_INSTALL_PREFIX}/bin)
+endif()
