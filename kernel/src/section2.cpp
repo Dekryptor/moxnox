@@ -383,7 +383,14 @@ nt_status section::load_image() {
             return nt_status::INVALID_IMAGE_FORMAT;
         }
 
-        // FIXME - make sure sect.PointerToRawData isn't out of bounds of file
+        if (sect.SizeOfRawData != 0) {
+            if (sect.PointerToRawData >= f.file_size ||
+                sect.PointerToRawData + sect.SizeOfRawData > f.file_size) {
+                print("section runs outside of bounds of file\n");
+                cache.unpin(0, num_pages);
+                return nt_status::INVALID_IMAGE_FORMAT;
+            }
+        }
     }
 
     // don't confuse malloc
