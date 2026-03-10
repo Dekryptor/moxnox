@@ -38,3 +38,4 @@ WideCharToMultiByte
 MultiByteToWideChar
 CreateThread
 CreateProcessW
+GetEnvironmentVariableW
