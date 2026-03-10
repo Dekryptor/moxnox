@@ -114,10 +114,11 @@ void DeleteCriticalSection(RTL_CRITICAL_SECTION* critical_section);
 void EnterCriticalSection(RTL_CRITICAL_SECTION* critical_section);
 void LeaveCriticalSection(RTL_CRITICAL_SECTION* critical_section);
 uint32_t TlsAlloc();
-uint32_t GetLastError();
 void* TlsGetValue(uint32_t tls_index);
-void SetLastError(uint32_t err_code);
 bool TlsSetValue(uint32_t tls_index, void* tls_value);
+bool TlsFree(uint32_t tls_index);
+uint32_t GetLastError();
+void SetLastError(uint32_t err_code);
 HANDLE CreateThread(SECURITY_ATTRIBUTES* sa, size_t stack,
                     THREAD_START_ROUTINE start, void* param, uint32_t flags,
                     uint32_t* id);

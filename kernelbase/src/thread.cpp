@@ -18,6 +18,13 @@ uint32_t TlsAlloc() {
 }
 
 extern "C"
+bool TlsFree(uint32_t tls_index) {
+    print_stderr("FIXME - TlsFree {}\n", tls_index);
+
+    return false;
+}
+
+extern "C"
 uint32_t GetLastError() {
     return NtCurrentTeb()->LastErrorValue;
 }
