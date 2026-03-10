@@ -249,7 +249,7 @@ int main(int argc, char** argv) {
         arr[i - optind] = u16string_view(u16src, u16len);
     }
 
-    auto ret = cp(span(arr, argc - optind - 1), arr[argc - optind - 1]);
+    auto ret = cp(span(arr, (size_t)(argc - optind - 1)), arr[argc - optind - 1]);
 
     for (int i = 0; i < argc - optind; i++) {
         free((void*)arr[i].data());
