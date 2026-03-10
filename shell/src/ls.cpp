@@ -4,6 +4,7 @@
 #include <algorithm>
 #include <utility>
 #include <string.h>
+#include <getopt.h>
 
 using namespace std;
 
@@ -12,8 +13,7 @@ import ntdll;
 import format;
 import print;
 import list;
-import cmdline;
-import getopt;
+import unicode;
 
 static bool long_mode = false;
 static bool directory_flag = false;
@@ -389,51 +389,76 @@ static void ls(span<u16string_view> argv) {
     }
 }
 
-extern "C" void startup() {
-    auto teb = NtCurrentTeb();
-    auto peb = teb->ProcessEnvironmentBlock;
-
+int main(int argc, char** argv) {
     static const option options[] = {
-        { u"", u'l', []{ long_mode = true; } },
-        { u"directory", u'd', []{ directory_flag = true; } },
-        { u"all", u'a', []{ show_all = true; } },
+        { "", no_argument, nullptr, 'l' },
+        { "directory", no_argument, nullptr, 'd' },
+        { "all", no_argument, nullptr, 'a' },
+        { nullptr, 0, nullptr, 0 }
     };
 
-    auto cmdline = u16string_view(peb->ProcessParameters->CommandLine.Buffer,
-                                  peb->ProcessParameters->CommandLine.Length / sizeof(char16_t));
+    while (true) {
+        int index;
+        auto c = getopt_long(argc, argv, "lda", options, &index);
 
-    auto argc = count_cmdline_args(cmdline);
-    span<u16string_view> argv;
-    u16string_view* buf = nullptr;
+        if (c == -1)
+            break;
 
-    if (argc != 0) {
-        buf = (decltype(buf))RtlAllocateHeap(GetProcessHeap(), 0, argc * sizeof(*buf));
-        if (!buf) {
-            NtTerminateThread(NtCurrentThread(), nt_status::INSUFFICIENT_RESOURCES);
-            unreachable();
+        switch (c) {
+            case 'l':
+                long_mode = true;
+                break;
+
+            case 'd':
+                directory_flag = true;
+                break;
+
+            case 'a':
+                show_all = true;
+                break;
+
+            case '?':
+                return 1;
+        }
+    }
+
+    if (argc == optind)
+        ls(span<u16string_view>());
+    else {
+        auto arr = (u16string_view*)malloc((unsigned int)(argc - optind) * sizeof(u16string_view));
+        if (!arr) {
+            print_stderr("malloc failed\n");
+            return 1;
         }
 
-        argv = span(buf, argc);
+        for (int i = optind; i < argc; i++) {
+            auto sv = string_view(argv[i]);
+
+            auto u16len = utf8_to_utf16_len(sv);
+            auto u16src = (char16_t*)malloc(u16len * sizeof(char16_t));
+            if (!u16src) {
+                print_stderr("malloc failed\n");
+
+                for (int j = optind; j < i; j++) {
+                    free((void*)arr[j - optind].data());
+                }
+                free(arr);
+
+                return 1;
+            }
+
+            utf8_to_utf16(span(u16src, u16len), sv);
+
+            arr[i - optind] = u16string_view(u16src, u16len);
+        }
+
+        ls(span(arr, argc - optind));
+
+        for (int i = 0; i < argc - optind; i++) {
+            free((void*)arr[i].data());
+        }
+        free(arr);
     }
 
-    parse_cmdline(cmdline, argv);
-
-    if (!argv.empty()) // skip program name
-        argv = span(argv.data() + 1, argv.size() - 1);
-
-    if (!getopt(argv, options)) {
-        if (buf)
-            RtlFreeHeap(GetProcessHeap(), 0, buf);
-
-        NtTerminateThread(NtCurrentThread(), nt_status::INVALID_PARAMETER);
-        unreachable();
-    }
-
-    ls(argv);
-
-    if (buf)
-        RtlFreeHeap(GetProcessHeap(), 0, buf);
-
-    NtTerminateThread(NtCurrentThread(), nt_status::SUCCESS);
-    unreachable();
+    return 0;
 }
