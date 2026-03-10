@@ -3,13 +3,12 @@
 #include <string.h>
 #include <stdint.h>
 #include <stdlib.h>
+#include <getopt.h>
 #include <utility>
 
 import nt;
 import ntdll;
-import cmdline;
 import print;
-import getopt;
 import crt;
 import unique_handle;
 import unicode;
@@ -19,9 +18,9 @@ using namespace std;
 
 static const char16_t vfsctl_path[] = u"/dev/vfsctl";
 
-static u16string_view mount_type;
+static char* mount_type = nullptr;
 
-static nt_status mount(u16string_view source, u16string_view directory) {
+static int mount(string_view source, string_view directory) {
     NTSTATUS status;
     HANDLE h;
     OBJECT_ATTRIBUTES oa;
@@ -39,34 +38,60 @@ static nt_status mount(u16string_view source, u16string_view directory) {
 
     // open source
 
-    if (source != u"none") {
-        us.Length = us.MaximumLength = (uint16_t)(source.size() * sizeof(char16_t));
-        us.Buffer = (char16_t*)source.data();
+    if (source != "none") {
+        auto u16len = utf8_to_utf16_len(source);
+        auto u16 = (char16_t*)malloc(u16len * sizeof(char16_t));
+        if (!u16) {
+            print_stderr("malloc failed\n");
+            return 1;
+        }
+
+        utf8_to_utf16(span(u16, u16len), source);
+
+        us.Length = us.MaximumLength = (uint16_t)(u16len * sizeof(char16_t));
+        us.Buffer = u16;
 
         status = NtCreateFile(&h, FILE_READ_ATTRIBUTES, &oa, &iosb, nullptr,
                               0, 0, FILE_OPEN, FILE_NON_DIRECTORY_FILE,
                               nullptr, 0);
+
+        free(u16);
+
         if (success(status))
             src.reset(h);
         else {
             print_stderr("mount: NtCreateFile returned {} for {}\n", status,
                          source);
-            return status;
+            return 1;
         }
     }
 
     // open directory
 
-    us.Length = us.MaximumLength = (uint16_t)(directory.size() * sizeof(char16_t));
-    us.Buffer = (char16_t*)directory.data();
+    {
+        auto u16len = utf8_to_utf16_len(directory);
+        auto u16 = (char16_t*)malloc(u16len * sizeof(char16_t));
+        if (!u16) {
+            print_stderr("malloc failed\n");
+            return 1;
+        }
 
-    status = NtCreateFile(&h, FILE_READ_ATTRIBUTES, &oa, &iosb, nullptr, 0, 0,
-                          FILE_OPEN, FILE_DIRECTORY_FILE, nullptr, 0);
-    if (success(status))
-        dir.reset(h);
-    else {
-        print_stderr("mount: NtCreateFile returned {} for {}\n", status, directory);
-        return status;
+        utf8_to_utf16(span(u16, u16len), directory);
+
+        us.Length = us.MaximumLength = (uint16_t)(u16len * sizeof(char16_t));
+        us.Buffer = u16;
+
+        status = NtCreateFile(&h, FILE_READ_ATTRIBUTES, &oa, &iosb, nullptr, 0, 0,
+                            FILE_OPEN, FILE_DIRECTORY_FILE, nullptr, 0);
+
+        free(u16);
+
+        if (success(status))
+            dir.reset(h);
+        else {
+            print_stderr("mount: NtCreateFile returned {} for {}\n", status, directory);
+            return 1;
+        }
     }
 
     // open /dev/vfsctl
@@ -80,18 +105,22 @@ static nt_status mount(u16string_view source, u16string_view directory) {
         vfsctl.reset(h);
     else {
         print_stderr("mount: NtCreateFile returned {} for /dev/vfsctl\n", status);
-        return status;
+        return 1;
     }
 
-    auto u8len = utf16_to_utf8_len(mount_type);
-    size_t buflen = sizeof(MOXNOX_VFSCTL_MOUNT) + u8len;
+    string_view type;
+
+    if (mount_type)
+        type = mount_type;
+
+    size_t buflen = sizeof(MOXNOX_VFSCTL_MOUNT) + type.size();
     auto buf = (MOXNOX_VFSCTL_MOUNT*)malloc(buflen);
     if (!buf) {
         print_stderr("malloc failed\n");
-        return nt_status::INSUFFICIENT_RESOURCES;
+        return 1;
     }
 
-    if (!mount_type.empty())
+    if (!type.empty())
         buf->mount_type = sizeof(MOXNOX_VFSCTL_MOUNT);
     else
         buf->mount_type = 0;
@@ -99,8 +128,8 @@ static nt_status mount(u16string_view source, u16string_view directory) {
     buf->source = src ? src.get() : 0;
     buf->directory = dir.get();
 
-    if (!mount_type.empty())
-        utf16_to_utf8(span((char*)buf + buf->mount_type, u8len), mount_type);
+    if (!type.empty())
+        memcpy((char*)buf + buf->mount_type, type.data(), type.size());
 
     status = NtDeviceIoControlFile(vfsctl.get(), 0, nullptr, nullptr, &iosb,
                                    IOCTL_MOXNOX_VFSCTL_MOUNT, buf,
@@ -110,7 +139,7 @@ static nt_status mount(u16string_view source, u16string_view directory) {
 
     free(buf);
 
-    return status;
+    return success(status) ? 0 : 1;
 }
 
 static void get_mount_info(HANDLE vfsctl, uint64_t num) {
@@ -145,7 +174,7 @@ static void get_mount_info(HANDLE vfsctl, uint64_t num) {
     print("{} on {} type {}\n", source, directory, type);
 }
 
-static nt_status list_mounts() {
+static int list_mounts() {
     OBJECT_ATTRIBUTES oa;
     UNICODE_STRING us;
     IO_STATUS_BLOCK iosb;
@@ -166,7 +195,7 @@ static nt_status list_mounts() {
                           FILE_OPEN, 0, nullptr, 0);
     if (!success(status)) {
         print_stderr("mount: NtCreateFile returned {} for /dev/vfsctl\n", status);
-        return status;
+        return 1;
     }
 
     vfsctl.reset(h);
@@ -180,14 +209,14 @@ static nt_status list_mounts() {
                                    &lm1, offsetof(MOXNOX_VFSCTL_LIST_MOUNTS, ids));
     if (!success(status) && status != nt_status::BUFFER_OVERFLOW) {
         print("IOCTL_MOXNOX_VFSCTL_LIST_MOUNTS returned {}\n", status);
-        return status;
+        return 1;
     }
 
     size_t lm_size = offsetof(MOXNOX_VFSCTL_LIST_MOUNTS, ids) + (lm1.num * sizeof(uint64_t));
     auto lm2 = (MOXNOX_VFSCTL_LIST_MOUNTS*)malloc(lm_size);
     if (!lm2) {
         print("malloc failed\n");
-        return nt_status::INSUFFICIENT_RESOURCES;
+        return 1;
     }
 
     status = NtDeviceIoControlFile(vfsctl.get(), 0, nullptr, nullptr, &iosb,
@@ -196,7 +225,7 @@ static nt_status list_mounts() {
     if (!success(status)) {
         print("IOCTL_MOXNOX_VFSCTL_LIST_MOUNTS returned {}\n", status);
         free(lm2);
-        return status;
+        return 1;
     }
 
     // FIXME - really ought to start from the beginning again if get_mount_info encounters nt_status::NOT_FOUND
@@ -207,58 +236,50 @@ static nt_status list_mounts() {
 
     free(lm2);
 
-    return nt_status::SUCCESS;
+    return 0;
 }
 
-extern "C" void startup() {
-    auto teb = NtCurrentTeb();
-    auto peb = teb->ProcessEnvironmentBlock;
-    nt_status status;
+int main(int argc, char** argv) {
+    int ret;
 
     static const option options[] = {
-        { u"type", u't', [](u16string_view param){ mount_type = param; } }, // FIXME - on Linux is actually --types
+        { "type", required_argument, nullptr, 't' }, // FIXME - on Linux is actually --types
+        { nullptr, 0, nullptr, 0 }
     };
 
-    auto cmdline = u16string_view(peb->ProcessParameters->CommandLine.Buffer,
-                                  peb->ProcessParameters->CommandLine.Length / sizeof(char16_t));
+    while (true) {
+        int index;
+        auto c = getopt_long(argc, argv, "t:", options, &index);
 
-    auto argc = count_cmdline_args(cmdline);
-    span<u16string_view> argv;
-    u16string_view* buf = nullptr;
+        if (c == -1)
+            break;
 
-    if (argc != 0) {
-        buf = (decltype(buf))RtlAllocateHeap(GetProcessHeap(), 0, argc * sizeof(*buf));
-        if (!buf)
-            NtTerminateThread(NtCurrentThread(), nt_status::INSUFFICIENT_RESOURCES);
+        switch (c) {
+            case 't':
+                mount_type = strdup(optarg);
+                if (!mount_type) {
+                    print_stderr("strdup failed\n");
+                    return 1;
+                }
+                break;
 
-        argv = span(buf, argc);
-    }
-
-    parse_cmdline(cmdline, argv);
-
-    if (!argv.empty()) // skip program name
-        argv = span(argv.data() + 1, argv.size() - 1);
-
-    if (!getopt(argv, options)) {
-        if (buf)
-            RtlFreeHeap(GetProcessHeap(), 0, buf);
-
-        NtTerminateThread(NtCurrentThread(), nt_status::INVALID_PARAMETER);
-        unreachable();
+            case '?':
+                return 1;
+        }
     }
 
     // FIXME - if only one option, try to mount from /etc/fstab
 
-    if (argv.size() == 0)
-        status = list_mounts();
-    else if (argv.size() < 2) {
+    if (argc == optind)
+        ret = list_mounts();
+    else if (argc == optind + 1) {
         print_stderr("no source or directory given\n");
-        status = nt_status::INVALID_PARAMETER;
+        ret = 1;
     } else
-        status = mount(argv[0], argv[1]);
+        ret = mount(argv[optind], argv[optind + 1]);
 
-    if (buf)
-        RtlFreeHeap(GetProcessHeap(), 0, buf);
+    if (mount_type)
+        free(mount_type);
 
-    NtTerminateThread(NtCurrentThread(), status);
+    return ret;
 }

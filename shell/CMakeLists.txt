@@ -279,10 +279,9 @@ install(TARGETS cp DESTINATION ${CMAKE_INSTALL_PREFIX}/bin
 add_executable(mount src/mount.cpp)
 
 target_compile_options(mount PRIVATE -fno-exceptions ${USERSPACE_CFLAGS})
-target_link_options(mount PUBLIC -nostartfiles -nostdlib -Wl,--entry=startup)
 
 target_link_libraries(mount print)
-target_link_libraries(mount format cmdline getopt crt unique_handle unicode)
+target_link_libraries(mount format crt unique_handle unicode)
 target_link_libraries(mount moxnox)
 
 install(TARGETS mount DESTINATION ${CMAKE_INSTALL_PREFIX}/bin)
