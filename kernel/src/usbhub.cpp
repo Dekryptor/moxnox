@@ -291,7 +291,7 @@ void usb_device_hub::device_connected(uint8_t port) {
     auto& p = ports[port - 1];
 
     // FIXME - can we rely on slot_type always being 0?
-    auto slot = controller.enable_slot(0);
+    auto slot = xhci_enable_slot(controller, 0);
     if (slot == 0) {
         print("usb_device_hub::device_connected: could not enable slot\n");
         return;
@@ -304,7 +304,8 @@ void usb_device_hub::device_connected(uint8_t port) {
     if (d.speed_class >= usb_speed_class::super_speed) {
         // FIXME - what about SuperSpeed+ devices?
 
-        auto speed = controller.get_speed_num(d.find_root_port(), 0x00050130);
+        auto speed = xhci_get_speed_num(controller, d.find_root_port(),
+                                        0x00050130);
 
         if (speed == 0) {
             print("usb_device_hub::device_connected: could not find speed number for port\n");
@@ -326,7 +327,8 @@ void usb_device_hub::device_connected(uint8_t port) {
             psi_num = 0x000c0020;
         }
 
-        auto speed = controller.get_speed_num(d.find_root_port(), psi_num);
+        auto speed = xhci_get_speed_num(controller, d.find_root_port(),
+                                        psi_num);
 
         if (speed == 0) {
             print("usb_device_hub::device_connected: could not find speed number for port\n");

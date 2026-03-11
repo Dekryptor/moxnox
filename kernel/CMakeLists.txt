@@ -110,6 +110,7 @@ set(SRC_FILES src/kernel.cpp
     src/tcp.cpp
     src/udp.cpp
     src/rtl8168.cpp
+    src/xhci2.cpp
 )
 
 if(CMAKE_SYSTEM_PROCESSOR STREQUAL aarch64)
