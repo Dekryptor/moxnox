@@ -27,8 +27,10 @@ using DLL_ENTRY_PROC = bool (*)(void*, uint32_t, void*);
 
 static PEB_LDR_DATA ldr_data; // zero-initialized
 static uint64_t tls_bitmap; // FIXME - should be RTL_BITMAP
-static uint16_t next_tls_slot = 0;
 static bool initialized = false;
+
+static IMAGE_TLS_DIRECTORY64** tls_dirs = nullptr;
+static uint16_t num_tls_dirs = 0;
 
 static ldr_entry* load_dll(string_view name);
 
@@ -1043,6 +1045,29 @@ static void process_attach(LDR_DATA_TABLE_ENTRY& ent) {
     ent.ProcessAttachCalled = 1;
 }
 
+static void call_tls_callbacks(const LDR_DATA_TABLE_ENTRY& ent, uint32_t reason) {
+    using IMAGE_TLS_CALLBACK = void (*)(void* dll_handle, uint32_t reason,
+                                        void* reserved);
+
+    if (ent.TlsIndex == 0xffff)
+        return;
+
+    auto& dir = *tls_dirs[ent.TlsIndex];
+
+    if (dir.AddressOfCallBacks == 0)
+        return;
+
+    auto ptr = (IMAGE_TLS_CALLBACK*)dir.AddressOfCallBacks;
+
+    while (*ptr) {
+        auto func = *ptr;
+
+        func(ent.DllBase, reason, nullptr);
+
+        ptr++;
+    }
+}
+
 static void call_dll_main() {
     // FIXME - send in correct order (bottom of tree to top)
 
@@ -1050,6 +1075,8 @@ static void call_dll_main() {
 
     while (le != &ldr_data.InLoadOrderModuleList) {
         auto& ent = *CONTAINING_RECORD(le, LDR_DATA_TABLE_ENTRY, InLoadOrderLinks);
+
+        call_tls_callbacks(ent, DLL_PROCESS_ATTACH);
 
         process_attach(ent);
 
@@ -1104,13 +1131,16 @@ static nt_status alloc_thread_tls_mod(LDR_DATA_TABLE_ENTRY& ent) {
         return nt_status::SUCCESS;
     }
 
-    print("FIXME - alloc_thread_tls_mod\n");
-    print("StartAddressOfRawData = {:x}, EndAddressOfRawData = {:x}, AddressOfIndex = {:x}, AddressOfCallBacks = {:x}, SizeOfZeroFill = {:x}, Characteristics = {:x}\n",
-          dir.StartAddressOfRawData, dir.EndAddressOfRawData, dir.AddressOfIndex,
-          dir.AddressOfCallBacks, dir.SizeOfZeroFill, dir.Characteristics);
+    tls_dirs = (IMAGE_TLS_DIRECTORY64**)realloc(tls_dirs, sizeof(IMAGE_TLS_DIRECTORY64*) * (num_tls_dirs + 1));
+    if (!tls_dirs) {
+        print_stderr("realloc failed\n");
+        return nt_status::INSUFFICIENT_RESOURCES;
+    }
 
-    ent.TlsIndex = next_tls_slot;
-    next_tls_slot++;
+    tls_dirs[num_tls_dirs] = &dir;
+
+    ent.TlsIndex = num_tls_dirs;
+    num_tls_dirs++;
 
     *(uint16_t*)dir.AddressOfIndex = ent.TlsIndex;
 
