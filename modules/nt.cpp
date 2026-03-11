@@ -96,6 +96,7 @@ using LONGLONG = int64_t;
 using ACCESS_MASK = uint32_t;
 using KPRIORITY = int32_t;
 using BOOLEAN = uint8_t;
+using HMODULE = void*;
 
 consteval HANDLE NtCurrentProcess() {
     return (HANDLE)-1;

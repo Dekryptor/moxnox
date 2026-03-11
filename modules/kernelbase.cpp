@@ -135,6 +135,7 @@ uint32_t GetEnvironmentVariableW(const char16_t* name, char16_t* buffer,
                                  uint32_t size);
 void Sleep(uint32_t timeout);
 uint32_t GetCurrentThreadId();
+bool GetModuleHandleExW(uint32_t flags, const char16_t* name, HMODULE* mod);
 
 }
 
