@@ -12,9 +12,27 @@ using namespace std;
 
 extern "C"
 uint32_t TlsAlloc() {
-    print_stderr("FIXME - TlsAlloc\n");
+    auto& teb = *NtCurrentTeb();
+    auto& peb = *teb.ProcessEnvironmentBlock;
 
-    return 0;
+    // FIXME - TlsExpansionBitmap
+
+    // FIXME - get PEB lock
+
+    // FIXME - should be proper RTL_BITMAP
+    auto& bitmap = *(uint64_t*)peb.TlsBitmap;
+
+    for (uint32_t i = 0; i < sizeof(bitmap) * 8; i++) {
+        if (!(bitmap & (1 << i))) {
+            bitmap |= 1 << i;
+            teb.TlsSlots[i] = 0;
+
+            return i;
+        }
+    }
+
+    SetLastError(ERROR_NO_MORE_ITEMS);
+    return 0xffffffff;
 }
 
 extern "C"
