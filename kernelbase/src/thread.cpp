@@ -64,9 +64,17 @@ void* TlsGetValue(uint32_t tls_index) {
 
 extern "C"
 bool TlsSetValue(uint32_t tls_index, void* tls_value) {
-    print_stderr("FIXME - TlsSetValue {}, {:x}\n", tls_index, (uintptr_t)tls_value);
+    auto& teb = *NtCurrentTeb();
 
-    return false;
+    // FIXME - TlsExpansion
+    if (tls_index >= sizeof(teb.TlsSlots) / sizeof(*teb.TlsSlots)) {
+        SetLastError(ERROR_INVALID_PARAMETER);
+        return false;
+    }
+
+    teb.TlsSlots[tls_index] = tls_value;
+
+    return true;
 }
 
 static void thread_start(THREAD_START_ROUTINE func, void* param) {
