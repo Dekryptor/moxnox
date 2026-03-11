@@ -26,6 +26,7 @@ static_assert(sizeof(LDR_DATA_TABLE_ENTRY) == 0x88);
 using DLL_ENTRY_PROC = bool (*)(void*, uint32_t, void*);
 
 static PEB_LDR_DATA ldr_data; // zero-initialized
+static uint64_t tls_bitmap; // FIXME - should be RTL_BITMAP
 static bool initialized = false;
 
 static ldr_entry* load_dll(string_view name);
@@ -1070,6 +1071,7 @@ void mn_start_thread(mn_image_info* ntdll_info, mn_image_info* img_info, CONTEXT
 
         peb.ProcessHeap = (HANDLE)heap;
         peb.Ldr = &ldr_data;
+        peb.TlsBitmap = &tls_bitmap;
 
         init_ldr_data(*ntdll_info, *img_info);
 
