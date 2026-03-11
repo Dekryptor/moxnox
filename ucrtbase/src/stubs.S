@@ -48,5 +48,6 @@ do_stub "floor"
 do_stub "towupper"
 do_stub "towlower"
 do_stub "___lc_codepage_func"
+do_stub "_register_thread_local_exe_atexit_callback"
 
 stubs_end

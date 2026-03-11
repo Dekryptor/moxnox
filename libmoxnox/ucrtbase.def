@@ -108,3 +108,4 @@ _fpreset
 ___lc_codepage_func
 strdup
 _strdup
+_register_thread_local_exe_atexit_callback
