@@ -39,3 +39,4 @@ MultiByteToWideChar
 CreateThread
 CreateProcessW
 GetEnvironmentVariableW
+GetCurrentThreadId

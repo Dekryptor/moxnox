@@ -193,3 +193,8 @@ HANDLE CreateThread(SECURITY_ATTRIBUTES* sa, size_t stack_size,
 
     return h;
 }
+
+extern "C"
+uint32_t GetCurrentThreadId() {
+    return (uint32_t)(NtCurrentTeb()->ClientId.UniqueThread);
+}
