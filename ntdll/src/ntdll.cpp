@@ -27,6 +27,7 @@ using DLL_ENTRY_PROC = bool (*)(void*, uint32_t, void*);
 
 static PEB_LDR_DATA ldr_data; // zero-initialized
 static uint64_t tls_bitmap; // FIXME - should be RTL_BITMAP
+static uint16_t next_tls_slot = 0;
 static bool initialized = false;
 
 static ldr_entry* load_dll(string_view name);
@@ -1098,7 +1099,7 @@ static nt_status alloc_thread_tls_mod(LDR_DATA_TABLE_ENTRY& ent) {
 
     size_t size = dir.EndAddressOfRawData - dir.StartAddressOfRawData + dir.SizeOfZeroFill;
 
-    if (size == 0) {
+    if (size == 0 && dir.AddressOfCallBacks == 0) {
         ent.TlsIndex = 0xffff;
         return nt_status::SUCCESS;
     }
@@ -1107,6 +1108,11 @@ static nt_status alloc_thread_tls_mod(LDR_DATA_TABLE_ENTRY& ent) {
     print("StartAddressOfRawData = {:x}, EndAddressOfRawData = {:x}, AddressOfIndex = {:x}, AddressOfCallBacks = {:x}, SizeOfZeroFill = {:x}, Characteristics = {:x}\n",
           dir.StartAddressOfRawData, dir.EndAddressOfRawData, dir.AddressOfIndex,
           dir.AddressOfCallBacks, dir.SizeOfZeroFill, dir.Characteristics);
+
+    ent.TlsIndex = next_tls_slot;
+    next_tls_slot++;
+
+    *(uint16_t*)dir.AddressOfIndex = ent.TlsIndex;
 
     return nt_status::SUCCESS;
 }
