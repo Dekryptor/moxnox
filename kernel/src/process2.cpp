@@ -744,7 +744,6 @@ static void free_page_tables(process& proc) {
 #endif
 
 process::~process() {
-    // FIXME - race condition here with NtOpenProcess etc.
     if (added_to_tree) {
         lock_guard lock(process_list_lock);
         remove_from_rbtree(process_tree, tree);
@@ -3691,7 +3690,9 @@ NTSTATUS NtOpenProcess(HANDLE* process_handle, ACCESS_MASK desired_access,
 
         auto& p = rbtree_containing_record<process>(n);
 
-        p.acquire();
+        if (!p.try_acquire())
+            return nt_status::INVALID_CID;
+
         proc = p;
     }
 

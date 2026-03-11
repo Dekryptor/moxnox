@@ -83,6 +83,17 @@ public:
         refcount++;
     }
 
+    bool try_acquire() {
+        auto old = refcount.load(memory_order_relaxed);
+
+        do {
+            if (old == 0)
+                return false;
+        } while (!refcount.compare_exchange_weak(old, old + 1, memory_order_acquire, memory_order_relaxed));
+
+        return true;
+    }
+
     enum object_type type;
     atomic<unsigned int> refcount = 1;
     atomic<unsigned int> handle_count = 0;
