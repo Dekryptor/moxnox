@@ -1056,8 +1056,49 @@ static void call_dll_main() {
     }
 }
 
+static nt_status alloc_thread_tls_mod(LDR_DATA_TABLE_ENTRY& ent) {
+    auto& dos_header = *(IMAGE_DOS_HEADER*)ent.DllBase;
+    auto& nt_header = *(IMAGE_NT_HEADERS*)((uint8_t*)ent.DllBase + dos_header.e_lfanew);
+    uintptr_t dir_addr;
+
+    if (nt_header.OptionalHeader32.Magic == IMAGE_NT_OPTIONAL_HDR64_MAGIC) {
+        if (nt_header.OptionalHeader64.NumberOfRvaAndSizes <= IMAGE_DIRECTORY_ENTRY_TLS) {
+            ent.TlsIndex = -1;
+            return nt_status::SUCCESS;
+        }
+
+        dir_addr = dos_header.e_lfanew + offsetof(IMAGE_NT_HEADERS, OptionalHeader64.DataDirectory);
+    } else {
+        if (nt_header.OptionalHeader32.NumberOfRvaAndSizes <= IMAGE_DIRECTORY_ENTRY_TLS) {
+            ent.TlsIndex = -1;
+            return nt_status::SUCCESS;
+        }
+
+        dir_addr = dos_header.e_lfanew + offsetof(IMAGE_NT_HEADERS, OptionalHeader32.DataDirectory);
+    }
+
+    dir_addr += IMAGE_DIRECTORY_ENTRY_TLS * sizeof(IMAGE_DATA_DIRECTORY);
+
+    auto& data_dir = *(IMAGE_DATA_DIRECTORY*)((uint8_t*)ent.DllBase + dir_addr);
+
+    if (data_dir.VirtualAddress == 0 || data_dir.Size == 0) {
+        ent.TlsIndex = -1;
+        return nt_status::SUCCESS;
+    }
+
+    print("FIXME - alloc_thread_tls_mod\n");
+
+    return nt_status::SUCCESS;
+}
+
 static nt_status alloc_thread_tls() {
-    print("FIXME - alloc_thread_tls\n");
+    for (auto le = ldr_data.InLoadOrderModuleList.Flink; le != &ldr_data.InLoadOrderModuleList; le = le->Flink) {
+        auto& ent = *CONTAINING_RECORD(le, LDR_DATA_TABLE_ENTRY, InLoadOrderLinks);
+
+        auto ret = alloc_thread_tls_mod(ent);
+        if (!success(ret))
+            return ret;
+    }
 
     return nt_status::SUCCESS;
 }
