@@ -140,6 +140,8 @@ struct ANSI_STRING {
     char* Buffer;
 };
 
+struct RTL_CONDITION_VARIABLE;
+
 extern "C" {
 
 void* RtlCreateHeap(uint32_t flags, void* heap_base, size_t reserve_size, size_t commit_size,
@@ -165,6 +167,7 @@ void RtlLeaveCriticalSection(RTL_CRITICAL_SECTION* critical_section);
 void RtlSetLastWin32Error(uint32_t err_code);
 uint32_t RtlNtStatusToDosErrorNoTeb(nt_status status);
 uint32_t RtlNtStatusToDosError(nt_status status);
+void RtlInitializeConditionVariable(RTL_CONDITION_VARIABLE* var);
 
 }
 

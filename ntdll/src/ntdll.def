@@ -46,3 +46,4 @@ RtlVirtualUnwind
 RtlSetLastWin32Error
 RtlNtStatusToDosErrorNoTeb
 RtlNtStatusToDosError
+RtlInitializeConditionVariable

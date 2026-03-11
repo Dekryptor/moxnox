@@ -15,6 +15,7 @@ set(SRC_FILES src/ntdll.cpp
     src/stubs.S
     src/critsect.cpp
     src/error.cpp
+    src/sync.cpp
 )
 
 if(CMAKE_SYSTEM_PROCESSOR STREQUAL aarch64)
