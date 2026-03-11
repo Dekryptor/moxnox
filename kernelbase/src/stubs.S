@@ -16,5 +16,7 @@ do_stub "GetCurrentProcess"
 do_stub "TerminateProcess"
 do_stub "WideCharToMultiByte"
 do_stub "MultiByteToWideChar"
+do_stub "FreeLibrary"
+do_stub "GetModuleHandleExW"
 
 stubs_end

@@ -40,3 +40,5 @@ CreateThread
 CreateProcessW
 GetEnvironmentVariableW
 GetCurrentThreadId
+FreeLibrary
+GetModuleHandleExW
