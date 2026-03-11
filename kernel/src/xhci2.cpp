@@ -2104,8 +2104,6 @@ pair<uint32_t, uint16_t> xhci::get_speed(uint8_t port_id, uint8_t speed) {
     volatile auto& cap_regs = *cap_regs_ptr;
     auto xecp = ((cap_regs.HCCPARAMS1) & XHCI_HCCPARAMS1_XECP) >> XHCI_HCCPARAMS1_XECP_SHIFT;
 
-    // FIXME - make sure we don't overflow BAR
-
     static const uint32_t default_speeds[] = {
         0x000c0021, // full-speed
         0x05dc0012, // low-speed
@@ -2121,10 +2119,18 @@ pair<uint32_t, uint16_t> xhci::get_speed(uint8_t port_id, uint8_t speed) {
     while (true) {
         xhci_extended_capability cap;
 
+        auto off = (uintptr_t)((uint8_t*)ptr - (uint8_t*)cap_regs_ptr);
+        if (off + sizeof(xhci_extended_capability) > cap_regs_max_size) // would overflow BAR
+            break;
+
         copy_by_uint32(&cap, ptr, sizeof(cap));
 
         if (cap.cap_type == xhci_capability_type::supported_protocol) {
             xhci_supported_protocol prot;
+
+            auto off = (uintptr_t)((uint8_t*)ptr - (uint8_t*)cap_regs_ptr);
+            if (off + sizeof(xhci_supported_protocol) > cap_regs_max_size) // would overflow BAR
+                break;
 
             // Qemu insists that we read 32 bits at a time
             copy_by_uint32(&prot, ptr, sizeof(prot));
