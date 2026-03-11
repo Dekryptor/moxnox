@@ -49,9 +49,17 @@ uint32_t GetLastError() {
 
 extern "C"
 void* TlsGetValue(uint32_t tls_index) {
-    print_stderr("FIXME - TlsGetValue {}\n", tls_index);
+    auto& teb = *NtCurrentTeb();
 
-    return nullptr;
+    // FIXME - TlsExpansion
+    if (tls_index >= sizeof(teb.TlsSlots) / sizeof(*teb.TlsSlots)) {
+        SetLastError(ERROR_INVALID_PARAMETER);
+        return nullptr;
+    }
+
+    SetLastError(ERROR_SUCCESS);
+
+    return teb.TlsSlots[tls_index];
 }
 
 extern "C"
