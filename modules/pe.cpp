@@ -215,4 +215,13 @@ struct IMAGE_IMPORT_DESCRIPTOR {
     uint32_t FirstThunk;
 } __attribute__((packed));
 
+struct IMAGE_TLS_DIRECTORY64 {
+    uint64_t StartAddressOfRawData;
+    uint64_t EndAddressOfRawData;
+    uint64_t AddressOfIndex;
+    uint64_t AddressOfCallBacks;
+    uint32_t SizeOfZeroFill;
+    uint32_t Characteristics;
+};
+
 }

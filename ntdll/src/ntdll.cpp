@@ -1063,14 +1063,14 @@ static nt_status alloc_thread_tls_mod(LDR_DATA_TABLE_ENTRY& ent) {
 
     if (nt_header.OptionalHeader32.Magic == IMAGE_NT_OPTIONAL_HDR64_MAGIC) {
         if (nt_header.OptionalHeader64.NumberOfRvaAndSizes <= IMAGE_DIRECTORY_ENTRY_TLS) {
-            ent.TlsIndex = -1;
+            ent.TlsIndex = 0xffff;
             return nt_status::SUCCESS;
         }
 
         dir_addr = dos_header.e_lfanew + offsetof(IMAGE_NT_HEADERS, OptionalHeader64.DataDirectory);
     } else {
         if (nt_header.OptionalHeader32.NumberOfRvaAndSizes <= IMAGE_DIRECTORY_ENTRY_TLS) {
-            ent.TlsIndex = -1;
+            ent.TlsIndex = 0xffff;
             return nt_status::SUCCESS;
         }
 
@@ -1082,11 +1082,31 @@ static nt_status alloc_thread_tls_mod(LDR_DATA_TABLE_ENTRY& ent) {
     auto& data_dir = *(IMAGE_DATA_DIRECTORY*)((uint8_t*)ent.DllBase + dir_addr);
 
     if (data_dir.VirtualAddress == 0 || data_dir.Size == 0) {
-        ent.TlsIndex = -1;
+        ent.TlsIndex = 0xffff;
+        return nt_status::SUCCESS;
+    }
+
+    // FIXME - IMAGE_TLS_DIRECTORY32 if 32-bit
+
+    if (data_dir.Size < sizeof(IMAGE_TLS_DIRECTORY64)) {
+        print_stderr("alloc_thread_tls_mod: TLS directory was {} bytes, expected {}\n",
+                     data_dir.Size, sizeof(IMAGE_TLS_DIRECTORY64));
+        return nt_status::INVALID_IMAGE_FORMAT;
+    }
+
+    auto& dir = *(IMAGE_TLS_DIRECTORY64*)((uint8_t*)ent.DllBase + data_dir.VirtualAddress);
+
+    size_t size = dir.EndAddressOfRawData - dir.StartAddressOfRawData + dir.SizeOfZeroFill;
+
+    if (size == 0) {
+        ent.TlsIndex = 0xffff;
         return nt_status::SUCCESS;
     }
 
     print("FIXME - alloc_thread_tls_mod\n");
+    print("StartAddressOfRawData = {:x}, EndAddressOfRawData = {:x}, AddressOfIndex = {:x}, AddressOfCallBacks = {:x}, SizeOfZeroFill = {:x}, Characteristics = {:x}\n",
+          dir.StartAddressOfRawData, dir.EndAddressOfRawData, dir.AddressOfIndex,
+          dir.AddressOfCallBacks, dir.SizeOfZeroFill, dir.Characteristics);
 
     return nt_status::SUCCESS;
 }
