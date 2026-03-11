@@ -3,6 +3,7 @@ module;
 #define _CRT_ERRNO_DEFINED
 #include <stdint.h>
 #include <wchar.h>
+#include <wctype.h>
 
 export module ucrtbase;
 
@@ -95,6 +96,9 @@ int _register_onexit_function(_onexit_table_t* table, _onexit_t func);
 int _execute_onexit_table(_onexit_table_t* table);
 char* getenv(const char* name);
 char* _strdup(const char* s);
+int wctob(wint_t wchar);
+wint_t btowc(int c);
+wctype_t wctype(const char* prop);
 
 }
 

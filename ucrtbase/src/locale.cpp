@@ -1,6 +1,8 @@
 #include <limits.h>
+#include <wchar.h>
 
 import ucrtbase;
+import print;
 
 static char dot[] = ".";
 static char empty[] = "";
@@ -36,4 +38,25 @@ static lconv posix_lconv = {
 extern "C"
 lconv* _localeconv() {
     return &posix_lconv;
+}
+
+extern "C"
+int wctob(wint_t wchar) {
+    print_stderr("FIXME - wctob {}\n", wchar); // FIXME
+
+    return -1;
+}
+
+extern "C"
+wint_t btowc(int c) {
+    print_stderr("FIXME - btowc {}\n", c); // FIXME
+
+    return WEOF;
+}
+
+extern "C"
+wctype_t wctype(const char* prop) {
+    print_stderr("FIXME - wctype \"{}\"\n", prop); // FIXME
+
+    return 0;
 }
