@@ -195,8 +195,10 @@ void mn_signal(EXCEPTION_RECORD* exception, CONTEXT* context) {
     auto sp = span(s, sizeof(s));
 
     auto status = handle_exception(exception, *context);
-    if (success(status))
+    if (success(status)) {
         NtContinue(context, false); // doesn't return
+        unreachable();
+    }
 
     if (status != nt_status::UNHANDLED_EXCEPTION) {
         sp = format(sp, "Error {} received while trying to handle exception\n", status);
