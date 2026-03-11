@@ -1185,7 +1185,8 @@ static bool populate_teb(process& proc, ::thread& t) {
     teb.NtTib.Self = &t.teb->NtTib;
     // FIXME - StackBase
     // FIXME - StackLimit
-    // FIXME - ClientId
+    teb.ClientId.UniqueProcess = proc.tree.key;
+    teb.ClientId.UniqueThread = t.tid;
     teb.ProcessEnvironmentBlock = proc.peb;
 
     if (!m.copy_to((uint32_t)((uintptr_t)t.teb - m.address), &teb,
