@@ -37,9 +37,30 @@ uint32_t TlsAlloc() {
 
 extern "C"
 bool TlsFree(uint32_t tls_index) {
-    print_stderr("FIXME - TlsFree {}\n", tls_index);
+    auto& teb = *NtCurrentTeb();
+    auto& peb = *teb.ProcessEnvironmentBlock;
 
-    return false;
+    // FIXME - get PEB lock
+
+    // FIXME - should be proper RTL_BITMAP
+    auto& bitmap = *(uint64_t*)peb.TlsBitmap;
+
+    // FIXME - TlsExpansion
+    if (tls_index >= sizeof(teb.TlsSlots) / sizeof(*teb.TlsSlots)) {
+        SetLastError(ERROR_INVALID_PARAMETER);
+        return false;
+    }
+
+    if (!(bitmap & 1 << tls_index)) {
+        SetLastError(ERROR_INVALID_PARAMETER);
+        return false;
+    }
+
+    bitmap |= 1 << tls_index;
+
+    // FIXME - ThreadZeroTlsCell?
+
+    return true;
 }
 
 extern "C"
