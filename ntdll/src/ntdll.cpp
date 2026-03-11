@@ -1056,8 +1056,16 @@ static void call_dll_main() {
     }
 }
 
+static nt_status alloc_thread_tls() {
+    print("FIXME - alloc_thread_tls\n");
+
+    return nt_status::SUCCESS;
+}
+
 extern "C"
 void mn_start_thread(mn_image_info* ntdll_info, mn_image_info* img_info, CONTEXT* context) {
+    nt_status status;
+
     if (!initialized) {
         auto& peb = *NtCurrentTeb()->ProcessEnvironmentBlock;
 
@@ -1092,12 +1100,26 @@ void mn_start_thread(mn_image_info* ntdll_info, mn_image_info* img_info, CONTEXT
 
         toggle_protections(true);
 
+        status = alloc_thread_tls();
+        if (!success(status)) {
+            print_stderr("alloc_thread_tls returned {}\n", status);
+            NtTerminateProcess(NtCurrentProcess(), status);
+            unreachable();
+        }
+
         call_dll_main();
 
         initialized = true;
-    }
+    } else {
+        status = alloc_thread_tls();
+        if (!success(status)) {
+            print_stderr("alloc_thread_tls returned {}\n", status);
+            NtTerminateThread(NtCurrentThread(), status);
+            unreachable();
+        }
 
-    // FIXME - call DllMain for modules if starting another thread
+        // FIXME - call DllMain for modules when starting another thread
+    }
 
 #ifdef __aarch64__
     context->X18 = (uintptr_t)NtCurrentTeb();
