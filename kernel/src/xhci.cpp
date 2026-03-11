@@ -191,6 +191,7 @@ private:
     uint64_t* scratchpad_array = nullptr;
     size_t scratchpad_array_size;
     volatile xhci_cap_regs* cap_regs_ptr;
+    size_t cap_regs_max_size;
 };
 
 struct device_endpoint {
@@ -432,6 +433,7 @@ bool xhci::init_scratchpad() {
 
 bool xhci::init(span<volatile uint8_t> mmio) {
     cap_regs_ptr = (xhci_cap_regs*)mmio.data();
+    cap_regs_max_size = mmio.size();
 
     volatile auto& cap_regs = *cap_regs_ptr;
 
@@ -1940,17 +1942,23 @@ uint8_t xhci::get_port_slot_type(uint8_t port_id) {
     volatile auto& cap_regs = *cap_regs_ptr;
     auto xecp = ((cap_regs.HCCPARAMS1) & XHCI_HCCPARAMS1_XECP) >> XHCI_HCCPARAMS1_XECP_SHIFT;
 
-    // FIXME - make sure we don't overflow BAR
-
     volatile auto* ptr = (uint32_t*)((uint8_t*)&cap_regs + (xecp << 2));
 
     while (true) {
         xhci_extended_capability cap;
 
+        auto off = (uintptr_t)((uint8_t*)ptr - (uint8_t*)cap_regs_ptr);
+        if (off + sizeof(xhci_extended_capability) > cap_regs_max_size) // would overflow BAR
+            break;
+
         copy_by_uint32(&cap, ptr, sizeof(cap));
 
         if (cap.cap_type == xhci_capability_type::supported_protocol) {
             xhci_supported_protocol prot;
+
+            auto off = (uintptr_t)((uint8_t*)ptr - (uint8_t*)cap_regs_ptr);
+            if (off + sizeof(xhci_supported_protocol) > cap_regs_max_size) // would overflow BAR
+                break;
 
             // Qemu insists that we read 32 bits at a time
             copy_by_uint32(&prot, ptr, sizeof(prot));
