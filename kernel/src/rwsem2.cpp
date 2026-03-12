@@ -1,5 +1,6 @@
 module;
 
+#include <stdint.h>
 #include "timer-asm.h"
 #include "assert.h"
 
@@ -9,6 +10,7 @@ import bsod;
 import disable_interrupts;
 import cpu_block;
 import scheduler;
+import thread;
 
 void rwsem::lock() { // exclusive
     // FIXME - assert that interrupts enabled and cr8 == 0
@@ -31,7 +33,19 @@ void rwsem::lock() { // exclusive
 }
 
 static void wake_up_exclusive_thread(rwsem& sem) {
-    wake_up_waiters(sem.wait_list_exclusive);
+    list_entry tmp = { &tmp, &tmp };
+
+    assert(!is_list_empty(sem.wait_list_exclusive));
+
+    auto& wo = *(waiter_object*)((uint8_t*)sem.wait_list_exclusive.next - offsetof(waiter_object, wait_le));
+
+    // put top entry on temporary list, so we can use wake_up_waiters
+
+    remove_entry_list(wo.wait_le);
+    insert_tail_list(tmp, wo.wait_le);
+    wake_up_waiters(tmp);
+
+    assert(is_list_empty(tmp));
 }
 
 void rwsem::unlock() { // exclusive
