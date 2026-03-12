@@ -1079,7 +1079,7 @@ static void call_dll_main(uint32_t reason) {
     for (auto le = ldr_data.InLoadOrderModuleList.Flink; le != &ldr_data.InLoadOrderModuleList; le = le->Flink) {
         auto& ent = *CONTAINING_RECORD(le, LDR_DATA_TABLE_ENTRY, InLoadOrderLinks);
 
-        call_tls_callbacks(ent, DLL_PROCESS_ATTACH);
+        call_tls_callbacks(ent, reason);
 
         if (reason == DLL_PROCESS_ATTACH)
             process_attach(ent);
@@ -1263,7 +1263,7 @@ extern "C"
 void __attribute__((noreturn)) RtlExitUserThread(nt_status exit_status) {
     // FIXME - call RtlExitUserProcess instead if last thread (ThreadAmILastThread)
 
-    // FIXME - exit gracefully
+    call_dll_main(DLL_THREAD_DETACH);
 
     while (true) {
         NtTerminateThread(NtCurrentThread(), exit_status);
