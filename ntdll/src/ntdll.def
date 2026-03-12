@@ -48,3 +48,4 @@ RtlNtStatusToDosErrorNoTeb
 RtlNtStatusToDosError
 RtlInitializeConditionVariable
 RtlWakeAllConditionVariable
+RtlExitUserThread

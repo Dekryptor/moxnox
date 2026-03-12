@@ -1258,3 +1258,14 @@ void RtlExitUserProcess(uint32_t status) {
     NtTerminateProcess(NtCurrentProcess(), (nt_status)status);
     unreachable();
 }
+
+extern "C"
+void __attribute__((noreturn)) RtlExitUserThread(nt_status exit_status) {
+    // FIXME - call RtlExitUserProcess instead if last thread (ThreadAmILastThread)
+
+    // FIXME - exit gracefully
+
+    while (true) {
+        NtTerminateThread(NtCurrentThread(), exit_status);
+    }
+}

@@ -169,6 +169,7 @@ uint32_t RtlNtStatusToDosErrorNoTeb(nt_status status);
 uint32_t RtlNtStatusToDosError(nt_status status);
 void RtlInitializeConditionVariable(RTL_CONDITION_VARIABLE* var);
 void RtlWakeAllConditionVariable(RTL_CONDITION_VARIABLE* var);
+void RtlExitUserThread(nt_status exit_status) __attribute__((noreturn));
 
 }
 

@@ -449,3 +449,4 @@ RtlUnwindEx
 RtlVirtualUnwind
 RtlNtStatusToDosErrorNoTeb
 RtlNtStatusToDosError
+RtlExitUserThread
