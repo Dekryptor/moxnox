@@ -31,6 +31,7 @@ static bool initialized = false;
 
 static IMAGE_TLS_DIRECTORY64** tls_dirs = nullptr;
 static uint16_t num_tls_dirs = 0;
+static LIST_ENTRY tls_list = { &tls_list, &tls_list };
 
 static ldr_entry* load_dll(string_view name);
 
@@ -1236,6 +1237,9 @@ void mn_start_thread(mn_image_info* ntdll_info, mn_image_info* img_info, CONTEXT
     context->X18 = (uintptr_t)NtCurrentTeb();
 #endif
 
+    // FIXME - hold PEB lock while inserting into list
+    InsertTailList(&tls_list, &NtCurrentTeb()->TlsLinks);
+
     NtContinue(context, false);
 }
 
@@ -1257,6 +1261,9 @@ void __attribute__((noreturn)) RtlExitUserThread(nt_status exit_status) {
     // FIXME - call RtlExitUserProcess instead if last thread (ThreadAmILastThread)
 
     call_dll_main(DLL_THREAD_DETACH);
+
+    // FIXME - hold PEB lock while removing from list
+    RemoveEntryList(&NtCurrentTeb()->TlsLinks);
 
     while (true) {
         NtTerminateThread(NtCurrentThread(), exit_status);

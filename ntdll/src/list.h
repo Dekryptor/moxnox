@@ -27,4 +27,12 @@ static void __inline InsertHeadList(LIST_ENTRY* head, LIST_ENTRY* le) {
     head->Flink = le;
 }
 
+static void __inline RemoveEntryList(LIST_ENTRY* le) {
+    LIST_ENTRY* prev = le->Blink;
+    LIST_ENTRY* next = le->Flink;
+
+    prev->Flink = next;
+    next->Blink = prev;
+}
+
 #define CONTAINING_RECORD(address, type, field) ((type*)((uint8_t*)address - (uintptr_t)(&((type*)0)->field)))
