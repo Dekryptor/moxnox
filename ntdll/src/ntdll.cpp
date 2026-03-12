@@ -1306,12 +1306,27 @@ void RtlExitUserProcess(uint32_t status) {
 
 extern "C"
 void __attribute__((noreturn)) RtlExitUserThread(nt_status exit_status) {
+    auto& teb = *NtCurrentTeb();
+
     // FIXME - call RtlExitUserProcess instead if last thread (ThreadAmILastThread)
 
     call_dll_main(DLL_THREAD_DETACH);
 
     // FIXME - hold PEB lock while removing from list
-    RemoveEntryList(&NtCurrentTeb()->TlsLinks);
+    RemoveEntryList(&teb.TlsLinks);
+
+    // FIXME - read num_tls_dirs while holding loader lock
+
+    auto tlsptr = (void**)teb.ThreadLocalStoragePointer;
+
+    if (tlsptr) {
+        for (unsigned int i = 0; i < num_tls_dirs; i++) {
+            if (tlsptr[i])
+                free(tlsptr[i]);
+        }
+
+        free(tlsptr);
+    }
 
     while (true) {
         NtTerminateThread(NtCurrentThread(), exit_status);
