@@ -144,3 +144,13 @@ nt_status RtlLeaveCriticalSection(RTL_CRITICAL_SECTION* critical_section) {
 
     return nt_status::SUCCESS;
 }
+
+extern "C"
+void RtlAcquirePebLock() {
+    RtlEnterCriticalSection(NtCurrentTeb()->ProcessEnvironmentBlock->FastPebLock);
+}
+
+extern "C"
+void RtlReleasePebLock() {
+    RtlLeaveCriticalSection(NtCurrentTeb()->ProcessEnvironmentBlock->FastPebLock);
+}

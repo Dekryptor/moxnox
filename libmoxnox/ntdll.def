@@ -450,3 +450,5 @@ RtlVirtualUnwind
 RtlNtStatusToDosErrorNoTeb
 RtlNtStatusToDosError
 RtlExitUserThread
+RtlAcquirePebLock
+RtlReleasePebLock

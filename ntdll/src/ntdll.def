@@ -49,3 +49,5 @@ RtlNtStatusToDosError
 RtlInitializeConditionVariable
 RtlWakeAllConditionVariable
 RtlExitUserThread
+RtlAcquirePebLock
+RtlReleasePebLock
