@@ -1319,10 +1319,16 @@ static void send_tlb_ipi(uint8_t cpu_no) {
 #endif
 
 void send_page_tlb_ipi(process& proc, uint64_t va, uint64_t num_pages) {
+    disable_preempt();
+
     auto cpus = proc.running_cpus.load();
 
-    if (cpus == 0)
+    if ((cpus & ~((uint64_t)1 << get_cpu_block()->cpu_no)) == 0) {
+        enable_preempt();
         return;
+    }
+
+    enable_preempt();
 
     {
         lock_guard lock(ipi_lock);
