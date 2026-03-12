@@ -6,7 +6,7 @@ import print;
 using namespace std;
 
 extern "C"
-void RtlInitializeCriticalSection(RTL_CRITICAL_SECTION* critical_section) {
+nt_status RtlInitializeCriticalSection(RTL_CRITICAL_SECTION* critical_section) {
     auto& cs = *critical_section;
 
     cs.DebugInfo = nullptr;
@@ -15,6 +15,8 @@ void RtlInitializeCriticalSection(RTL_CRITICAL_SECTION* critical_section) {
     cs.OwningThread = 0;
     cs.LockSemaphore = 0;
     cs.SpinCount = 4000; // FIXME - 0 if single-CPU machine
+
+    return nt_status::SUCCESS;
 }
 
 extern "C"
