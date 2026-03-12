@@ -2512,7 +2512,13 @@ static nt_status protect_vm(process& proc, void** base_address, size_t* region_s
                 }
             }
 
-            if (!set_page_protection(proc, addr, num_pages, prot, cow, false)) {
+            bool cow2 = cow;
+
+            // force COW on for images
+            if (m->sect.type == section_type::image)
+                cow2 = true;
+
+            if (!set_page_protection(proc, addr, num_pages, prot, cow2, false)) {
                 m->release();
                 return nt_status::INSUFFICIENT_RESOURCES;
             }
