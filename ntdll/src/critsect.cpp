@@ -108,6 +108,21 @@ nt_status RtlEnterCriticalSection(RTL_CRITICAL_SECTION* critical_section) {
 }
 
 extern "C"
-void RtlLeaveCriticalSection(RTL_CRITICAL_SECTION* /*critical_section*/) {
-    // FIXME
+nt_status RtlLeaveCriticalSection(RTL_CRITICAL_SECTION* critical_section) {
+    auto& cs = *critical_section;
+
+    atomic_ref<int32_t> lock_count(cs.LockCount);
+
+    cs.RecursionCount--;
+    if (cs.RecursionCount > 0) {
+        lock_count.fetch_sub(1, memory_order_relaxed);
+        return nt_status::SUCCESS;
+    }
+
+    cs.OwningThread = 0;
+
+    if (lock_count.fetch_sub(1, memory_order_release) >= 0)
+        return NtSetEvent(cs.LockSemaphore, nullptr);
+
+    return nt_status::SUCCESS;
 }

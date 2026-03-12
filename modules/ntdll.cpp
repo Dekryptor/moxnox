@@ -163,7 +163,7 @@ void RtlExitUserProcess(uint32_t status);
 void RtlInitializeCriticalSection(RTL_CRITICAL_SECTION* critical_section);
 void RtlDeleteCriticalSection(RTL_CRITICAL_SECTION* critical_section);
 nt_status RtlEnterCriticalSection(RTL_CRITICAL_SECTION* critical_section);
-void RtlLeaveCriticalSection(RTL_CRITICAL_SECTION* critical_section);
+nt_status RtlLeaveCriticalSection(RTL_CRITICAL_SECTION* critical_section);
 void RtlSetLastWin32Error(uint32_t err_code);
 uint32_t RtlNtStatusToDosErrorNoTeb(nt_status status);
 uint32_t RtlNtStatusToDosError(nt_status status);
