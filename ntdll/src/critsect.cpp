@@ -1,4 +1,9 @@
+#include <atomic>
+
 import nt;
+import print;
+
+using namespace std;
 
 extern "C"
 void RtlInitializeCriticalSection(RTL_CRITICAL_SECTION* critical_section) {
@@ -18,8 +23,88 @@ void RtlDeleteCriticalSection(RTL_CRITICAL_SECTION* /*critical_section*/) {
 }
 
 extern "C"
-void RtlEnterCriticalSection(RTL_CRITICAL_SECTION* /*critical_section*/) {
-    // FIXME
+nt_status RtlEnterCriticalSection(RTL_CRITICAL_SECTION* critical_section) {
+    auto& cs = *critical_section;
+
+    atomic_ref<int32_t> lock_count(cs.LockCount);
+
+    auto this_thread = (HANDLE)(NtCurrentTeb()->ClientId.UniqueThread);
+
+    // fast path
+    int32_t expected = -1;
+    if (lock_count.compare_exchange_strong(expected, 0, memory_order_acquire,
+                                           memory_order_relaxed)) {
+        cs.OwningThread = this_thread;
+        cs.RecursionCount = 1;
+        return nt_status::SUCCESS;
+    }
+
+    // recursive
+    if (cs.OwningThread == this_thread) {
+        lock_count.fetch_add(1, memory_order_relaxed);
+        cs.RecursionCount++;
+        return nt_status::SUCCESS;
+    }
+
+    // spin
+    for (uintptr_t i = 0; i < cs.SpinCount; i++) {
+        if (lock_count.load(memory_order_relaxed) == -1) {
+            expected = -1;
+
+            if (lock_count.compare_exchange_weak(expected, 0,
+                                                 memory_order_acquire,
+                                                 memory_order_relaxed)) {
+                cs.OwningThread = this_thread;
+                cs.RecursionCount = 1;
+                return nt_status::SUCCESS;
+            }
+        }
+
+#ifdef __x86_64__
+        __asm __volatile ("pause");
+#endif
+    }
+
+    // slow path
+
+    if (!cs.LockSemaphore) {
+        HANDLE h;
+
+        // FIXME - access mask?
+        auto status = NtCreateEvent(&h, 0, nullptr,
+                                    EVENT_TYPE::SynchronizationEvent, false);
+        if (!success(status)) {
+            print_stderr("NtCreateEvent returned {}\n", status);
+            return status;
+        }
+
+        atomic_ref<HANDLE> event_handle(cs.LockSemaphore);
+        HANDLE expected_zero = 0;
+
+        if (!event_handle.compare_exchange_strong(expected_zero, h,
+                                                  memory_order_release,
+                                                  memory_order_relaxed)) {
+            NtClose(h);
+        }
+    }
+
+    lock_count.fetch_add(1, memory_order_acquire);
+
+    while (true) {
+        auto status = NtWaitForSingleObject(cs.LockSemaphore, false, nullptr);
+        if (!success(status)) {
+            print_stderr("NtWaitForSingleObject returned {}\n", status);
+            return status;
+        }
+
+        expected = -1;
+        if (lock_count.compare_exchange_strong(expected, 0, memory_order_acquire,
+                                               memory_order_relaxed)) {
+            cs.OwningThread = this_thread;
+            cs.RecursionCount = 1;
+            return nt_status::SUCCESS;
+        }
+    }
 }
 
 extern "C"
