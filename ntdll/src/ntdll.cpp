@@ -1083,7 +1083,11 @@ static void call_dll_main(uint32_t reason) {
 
         if (reason == DLL_PROCESS_ATTACH)
             process_attach(ent);
-        else if (ent.ProcessAttachCalled && ent.ImageDll) {
+        else if (reason == DLL_PROCESS_DETACH) {
+            auto dll_main = (DLL_ENTRY_PROC)ent.EntryPoint;
+
+            dll_main(ent.DllBase, DLL_PROCESS_DETACH, (void*)1);
+        } else if (ent.ProcessAttachCalled && ent.ImageDll) {
             auto dll_main = (DLL_ENTRY_PROC)ent.EntryPoint;
 
             if (!dll_main(ent.DllBase, reason, nullptr)) {
@@ -1235,17 +1239,6 @@ void mn_start_thread(mn_image_info* ntdll_info, mn_image_info* img_info, CONTEXT
     NtContinue(context, false);
 }
 
-static void do_shutdown() {
-    auto& list = ldr_data.InInitializationOrderModuleList;
-    for (auto le = list.Blink; le != &list; le = le->Blink) {
-        auto& ent = *CONTAINING_RECORD(le, LDR_DATA_TABLE_ENTRY, InInitializationOrderLinks);
-
-        auto dll_main = (DLL_ENTRY_PROC)ent.EntryPoint;
-
-        dll_main(ent.DllBase, DLL_PROCESS_DETACH, (void*)1);
-    }
-}
-
 extern "C"
 void RtlExitUserProcess(uint32_t status) {
     // FIXME - locks?
@@ -1253,7 +1246,7 @@ void RtlExitUserProcess(uint32_t status) {
     // kill other threads
     NtTerminateProcess(0, (nt_status)status);
 
-    do_shutdown();
+    call_dll_main(DLL_PROCESS_DETACH);
 
     NtTerminateProcess(NtCurrentProcess(), (nt_status)status);
     unreachable();
