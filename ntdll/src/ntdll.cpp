@@ -592,7 +592,8 @@ static void toggle_protections(bool enable) {
     }
 }
 
-static ldr_entry& add_ldr_entry(void* base, u16string_view full_name, u16string_view base_name, bool no_dll_main) {
+static ldr_entry& add_ldr_entry(void* base, u16string_view full_name, u16string_view base_name,
+                                bool no_dll_main, bool is_dll) {
     auto& peb = *NtCurrentTeb()->ProcessEnvironmentBlock;
     auto size = sizeof(ldr_entry) + ((full_name.size() + 1) * sizeof(char16_t)) + ((base_name.size() + 1) * sizeof(char16_t));
     auto ptr = RtlAllocateHeap((void*)peb.ProcessHeap, HEAP_ZERO_MEMORY, size);
@@ -632,6 +633,9 @@ static ldr_entry& add_ldr_entry(void* base, u16string_view full_name, u16string_
 
     if (no_dll_main)
         ldr.ProcessAttachCalled = 1;
+
+    if (is_dll)
+        ldr.ImageDll = 1;
 
     memcpy(ldr.FullDllName.Buffer, full_name.data(), ldr.FullDllName.Length);
     ldr.FullDllName.Buffer[full_name.size()] = 0;
@@ -684,7 +688,8 @@ static void init_ldr_data(mn_image_info& ntdll_info, mn_image_info& img_info) {
     if (auto pos = base_name.find_last_of('/'); pos != u16string_view::npos)
         base_name = u16string_view(base_name.data() + pos + 1, base_name.size() - pos - 1);
 
-    auto& ntdll = add_ldr_entry(ntdll_info.base, u"\\lib\\ntdll.dll", u"ntdll.dll", true); // FIXME - name and path
+    auto& ntdll = add_ldr_entry(ntdll_info.base, u"\\lib\\ntdll.dll", u"ntdll.dll",
+                                true, true); // FIXME - name and path
 
     ntdll.offset_debug_info = ntdll_info.offset_debug_info;
     ntdll.size_debug_info = ntdll_info.size_debug_info;
@@ -703,7 +708,7 @@ static void init_ldr_data(mn_image_info& ntdll_info, mn_image_info& img_info) {
     ntdll.offset_debug_line_str = ntdll_info.offset_debug_line_str;
     ntdll.size_debug_line_str = ntdll_info.size_debug_line_str;
 
-    auto& img = add_ldr_entry(img_info.base, image_path, base_name, true);
+    auto& img = add_ldr_entry(img_info.base, image_path, base_name, true, false);
 
     img.offset_debug_info = img_info.offset_debug_info;
     img.size_debug_info = img_info.size_debug_info;
@@ -845,7 +850,7 @@ static ldr_entry* try_load_dll(u16string_view dir, u16string_view name) {
     }
 
     auto& ent = add_ldr_entry(addr, u16string_view(us.Buffer, us.Length / sizeof(char16_t)),
-                              name, false);
+                              name, false, true);
 
     span<IMAGE_SECTION_HEADER> sections;
 
@@ -1068,19 +1073,24 @@ static void call_tls_callbacks(const LDR_DATA_TABLE_ENTRY& ent, uint32_t reason)
     }
 }
 
-static void call_dll_main() {
+static void call_dll_main(uint32_t reason) {
     // FIXME - send in correct order (bottom of tree to top)
 
-    auto le = ldr_data.InLoadOrderModuleList.Flink;
-
-    while (le != &ldr_data.InLoadOrderModuleList) {
+    for (auto le = ldr_data.InLoadOrderModuleList.Flink; le != &ldr_data.InLoadOrderModuleList; le = le->Flink) {
         auto& ent = *CONTAINING_RECORD(le, LDR_DATA_TABLE_ENTRY, InLoadOrderLinks);
 
         call_tls_callbacks(ent, DLL_PROCESS_ATTACH);
 
-        process_attach(ent);
+        if (reason == DLL_PROCESS_ATTACH)
+            process_attach(ent);
+        else if (ent.ProcessAttachCalled && ent.ImageDll) {
+            auto dll_main = (DLL_ENTRY_PROC)ent.EntryPoint;
 
-        le = le->Flink;
+            if (!dll_main(ent.DllBase, reason, nullptr)) {
+                NtTerminateProcess(NtCurrentProcess(), nt_status::DLL_INIT_FAILED);
+                unreachable();
+            }
+        }
     }
 }
 
@@ -1204,7 +1214,7 @@ void mn_start_thread(mn_image_info* ntdll_info, mn_image_info* img_info, CONTEXT
             unreachable();
         }
 
-        call_dll_main();
+        call_dll_main(DLL_PROCESS_ATTACH);
 
         initialized = true;
     } else {
@@ -1215,7 +1225,7 @@ void mn_start_thread(mn_image_info* ntdll_info, mn_image_info* img_info, CONTEXT
             unreachable();
         }
 
-        // FIXME - call DllMain for modules when starting another thread
+        call_dll_main(DLL_THREAD_ATTACH);
     }
 
 #ifdef __aarch64__
