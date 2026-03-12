@@ -1,6 +1,7 @@
 module;
 
 #include <stdint.h>
+#include <stddef.h>
 #include "timer-asm.h"
 #include "assert.h"
 
