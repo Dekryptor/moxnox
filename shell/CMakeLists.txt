@@ -463,6 +463,7 @@ if(NOT CMAKE_SYSTEM_PROCESSOR STREQUAL "aarch64")
 
     target_compile_options(rtti-test PRIVATE -fno-exceptions ${USERSPACE_CFLAGS} -frtti)
     target_link_libraries(rtti-test print-rtti)
+    target_link_options(rtti-test PRIVATE -Wl,--allow-multiple-definition) # FIXME
 
     if (CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
         target_link_options(rtti-test PUBLIC -mcrtdll=ucrtbase)
