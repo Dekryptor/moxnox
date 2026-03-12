@@ -20,8 +20,24 @@ nt_status RtlInitializeCriticalSection(RTL_CRITICAL_SECTION* critical_section) {
 }
 
 extern "C"
-void RtlDeleteCriticalSection(RTL_CRITICAL_SECTION* /*critical_section*/) {
-    // FIXME
+nt_status RtlDeleteCriticalSection(RTL_CRITICAL_SECTION* critical_section) {
+    auto& cs = *critical_section;
+
+    cs.LockCount = -1;
+    cs.RecursionCount = 0;
+    cs.OwningThread = 0;
+
+    if (cs.LockSemaphore != 0) {
+        auto status = NtClose(cs.LockSemaphore);
+        if (!success(status)) {
+            print_stderr("NtClose returned {}\n", status);
+            return status;
+        }
+
+        cs.LockSemaphore = 0;
+    }
+
+    return nt_status::SUCCESS;
 }
 
 extern "C"

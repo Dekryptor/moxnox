@@ -161,7 +161,7 @@ EXCEPTION_DISPOSITION __C_specific_handler(EXCEPTION_RECORD* exception_record,
                                            DISPATCHER_CONTEXT* dispatcher_context);
 void RtlExitUserProcess(uint32_t status);
 nt_status RtlInitializeCriticalSection(RTL_CRITICAL_SECTION* critical_section);
-void RtlDeleteCriticalSection(RTL_CRITICAL_SECTION* critical_section);
+nt_status RtlDeleteCriticalSection(RTL_CRITICAL_SECTION* critical_section);
 nt_status RtlEnterCriticalSection(RTL_CRITICAL_SECTION* critical_section);
 nt_status RtlLeaveCriticalSection(RTL_CRITICAL_SECTION* critical_section);
 void RtlSetLastWin32Error(uint32_t err_code);
