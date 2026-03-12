@@ -1174,6 +1174,47 @@ static nt_status alloc_thread_tls() {
     return nt_status::SUCCESS;
 }
 
+static nt_status init_tls_block() {
+    auto& teb = *NtCurrentTeb();
+
+    if (num_tls_dirs == 0)
+        return nt_status::SUCCESS;
+
+    auto ptr = (void**)malloc(sizeof(void*) * num_tls_dirs);
+    if (!ptr)
+        return nt_status::INSUFFICIENT_RESOURCES;
+
+    memset(ptr, 0, sizeof(void*) * num_tls_dirs);
+
+    for (auto le = ldr_data.InLoadOrderModuleList.Flink; le != &ldr_data.InLoadOrderModuleList; le = le->Flink) {
+        auto& ent = *CONTAINING_RECORD(le, LDR_DATA_TABLE_ENTRY, InLoadOrderLinks);
+
+        if (ent.TlsIndex == 0xffff)
+            continue;
+
+        auto& dir = *tls_dirs[ent.TlsIndex];
+
+        size_t size = dir.EndAddressOfRawData - dir.StartAddressOfRawData + dir.SizeOfZeroFill;
+
+        if (size == 0)
+            continue;
+
+        auto& p = ptr[ent.TlsIndex];
+
+        p = malloc(size);
+        if (!p)
+            return nt_status::INSUFFICIENT_RESOURCES;
+
+        memcpy(p, (void*)dir.StartAddressOfRawData,
+               dir.EndAddressOfRawData - dir.StartAddressOfRawData);
+        memset((uint8_t*)p + size - dir.SizeOfZeroFill, 0, dir.SizeOfZeroFill);
+    }
+
+    teb.ThreadLocalStoragePointer = ptr;
+
+    return nt_status::SUCCESS;
+}
+
 extern "C"
 void mn_start_thread(mn_image_info* ntdll_info, mn_image_info* img_info, CONTEXT* context) {
     nt_status status;
@@ -1219,14 +1260,21 @@ void mn_start_thread(mn_image_info* ntdll_info, mn_image_info* img_info, CONTEXT
             unreachable();
         }
 
+        status = init_tls_block();
+        if (!success(status)) {
+            print_stderr("init_tls_block returned {}\n", status);
+            NtTerminateProcess(NtCurrentProcess(), status);
+            unreachable();
+        }
+
         call_dll_main(DLL_PROCESS_ATTACH);
 
         initialized = true;
     } else {
-        status = alloc_thread_tls();
+        status = init_tls_block();
         if (!success(status)) {
-            print_stderr("alloc_thread_tls returned {}\n", status);
-            NtTerminateThread(NtCurrentThread(), status);
+            print_stderr("init_tls_block returned {}\n", status);
+            NtTerminateProcess(NtCurrentProcess(), status);
             unreachable();
         }
 
