@@ -92,3 +92,4 @@ strdup = _strdup
 wctob
 btowc
 wctype
+_register_thread_local_exe_atexit_callback

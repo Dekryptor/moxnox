@@ -66,6 +66,8 @@ struct _onexit_table_t {
 };
 
 using _onexit_t = int (*)(void);
+using _tls_callback_type = void (*)(void* dll_base, uint32_t reason,
+                                    void* reserved);
 
 _invalid_parameter_handler _set_invalid_parameter_handler(_invalid_parameter_handler handler);
 void _set_app_type(_crt_app_type _Type);
@@ -99,6 +101,7 @@ char* _strdup(const char* s);
 int wctob(wint_t wchar);
 wint_t btowc(int c);
 wctype_t wctype(const char* prop);
+void _register_thread_local_exe_atexit_callback(_tls_callback_type callback);
 
 }
 

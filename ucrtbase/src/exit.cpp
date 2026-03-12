@@ -4,6 +4,7 @@
 
 import ucrtbase;
 import ntdll;
+import print;
 
 using namespace std;
 
@@ -38,4 +39,12 @@ void exit(int code) noexcept {
 
     RtlExitUserProcess((uint32_t)code);
     unreachable();
+}
+
+using _tls_callback_type = void (*)(void* dll_base, uint32_t reason,
+                                    void* reserved);
+
+extern "C"
+void _register_thread_local_exe_atexit_callback(_tls_callback_type /*callback*/) {
+    print("FIXME - _register_thread_local_exe_atexit_callback\n"); // FIXME
 }
