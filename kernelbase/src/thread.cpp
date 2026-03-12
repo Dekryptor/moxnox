@@ -101,8 +101,7 @@ bool TlsSetValue(uint32_t tls_index, void* tls_value) {
 static void thread_start(THREAD_START_ROUTINE func, void* param) {
     auto ret = func(param);
 
-    NtTerminateThread(NtCurrentThread(), (nt_status)ret);
-    unreachable();
+    RtlExitUserThread((nt_status)ret);
 }
 
 extern "C"
