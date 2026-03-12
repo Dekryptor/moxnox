@@ -1083,16 +1083,16 @@ static void call_dll_main(uint32_t reason) {
 
         if (reason == DLL_PROCESS_ATTACH)
             process_attach(ent);
-        else if (reason == DLL_PROCESS_DETACH) {
+        else if (ent.ProcessAttachCalled && ent.ImageDll) {
             auto dll_main = (DLL_ENTRY_PROC)ent.EntryPoint;
 
-            dll_main(ent.DllBase, DLL_PROCESS_DETACH, (void*)1);
-        } else if (ent.ProcessAttachCalled && ent.ImageDll) {
-            auto dll_main = (DLL_ENTRY_PROC)ent.EntryPoint;
-
-            if (!dll_main(ent.DllBase, reason, nullptr)) {
-                NtTerminateProcess(NtCurrentProcess(), nt_status::DLL_INIT_FAILED);
-                unreachable();
+            if (reason == DLL_PROCESS_DETACH)
+                dll_main(ent.DllBase, DLL_PROCESS_DETACH, (void*)1);
+            else {
+                if (!dll_main(ent.DllBase, reason, nullptr)) {
+                    NtTerminateProcess(NtCurrentProcess(), nt_status::DLL_INIT_FAILED);
+                    unreachable();
+                }
             }
         }
     }
