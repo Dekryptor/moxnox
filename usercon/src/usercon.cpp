@@ -27,7 +27,6 @@ import pagesize;
 import timepage;
 import harfbuzz;
 import freetype;
-import env;
 import emoji;
 import kernelbase;
 
@@ -1766,8 +1765,21 @@ static void run_shell(const char16_t* exe, void (*recv_func)(string_view),
     auto do_run_shell = [&exe, &proc, &client_handle]() -> bool {
         STARTUPINFOW si;
         PROCESS_INFORMATION pi;
+        char16_t* u16home = nullptr;
 
-        auto home = get_env(u"HOME");
+        auto home = getenv("HOME");
+        if (home && home[0]) {
+            auto len = utf8_to_utf16_len(home);
+
+            u16home = (char16_t*)malloc((len + 1) * sizeof(char16_t));
+            if (!u16home) {
+                print_stderr("malloc failed\n");
+                return 1;
+            }
+
+            utf8_to_utf16(span(u16home, len), home);
+            u16home[len] = 0;
+        }
 
         memset(&si, 0, sizeof(si));
         si.cb = sizeof(si);
@@ -1778,11 +1790,16 @@ static void run_shell(const char16_t* exe, void (*recv_func)(string_view),
         si.hStdOutput = client_handle.get();
         si.hStdError = client_handle.get();
 
-        if (!CreateProcessW(exe, nullptr, nullptr, nullptr,
-                            false, 0, nullptr, !home.empty() ? home.data() : nullptr,
-                            &si, &pi)) {
+        if (!CreateProcessW(exe, nullptr, nullptr, nullptr, false, 0, nullptr,
+                            u16home, &si, &pi)) {
+            if (u16home)
+                free(u16home);
+
             return false;
         }
+
+        if (u16home)
+            free(u16home);
 
         proc.reset(pi.hProcess);
         NtClose(pi.hThread);
@@ -2161,8 +2178,21 @@ static int do_serial_console() {
     auto do_run_shell = [&proc, &client_handle]() -> bool {
         STARTUPINFOW si;
         PROCESS_INFORMATION pi;
+        char16_t* u16home = nullptr;
 
-        auto home = get_env(u"HOME");
+        auto home = getenv("HOME");
+        if (home && home[0]) {
+            auto len = utf8_to_utf16_len(home);
+
+            u16home = (char16_t*)malloc((len + 1) * sizeof(char16_t));
+            if (!u16home) {
+                print_stderr("malloc failed\n");
+                return 1;
+            }
+
+            utf8_to_utf16(span(u16home, len), home);
+            u16home[len] = 0;
+        }
 
         memset(&si, 0, sizeof(si));
         si.cb = sizeof(si);
@@ -2173,11 +2203,16 @@ static int do_serial_console() {
         si.hStdOutput = client_handle.get();
         si.hStdError = client_handle.get();
 
-        if (!CreateProcessW(exe, nullptr, nullptr, nullptr,
-                            false, 0, nullptr, !home.empty() ? home.data() : nullptr,
-                            &si, &pi)) {
+        if (!CreateProcessW(exe, nullptr, nullptr, nullptr, false, 0, nullptr,
+                            u16home, &si, &pi)) {
+            if (u16home)
+                free(u16home);
+
             return false;
         }
+
+        if (u16home)
+            free(u16home);
 
         proc.reset(pi.hProcess);
         NtClose(pi.hThread);
