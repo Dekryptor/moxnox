@@ -208,7 +208,6 @@ static void take_screenshot() {
     NtClose(file);
 
     NtUnmapViewOfSection(NtCurrentProcess(), addr);
-
 }
 
 int main() {
