@@ -39,3 +39,4 @@ CreateProcessW
 GetEnvironmentVariableW
 GetCurrentThreadId
 GetModuleHandleExW
+GetModuleHandleW

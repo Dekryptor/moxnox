@@ -107,6 +107,10 @@ using THREAD_START_ROUTINE = uint32_t (*)(void* ctx);
 
 const uint32_t TLS_OUT_OF_INDEXES = 0xffffffff;
 
+const uint32_t GET_MODULE_HANDLE_EX_FLAG_PIN = 0x00000001;
+const uint32_t GET_MODULE_HANDLE_EX_FLAG_UNCHANGED_REFCOUNT = 0x00000002;
+const uint32_t GET_MODULE_HANDLE_EX_FLAG_FROM_ADDRESS = 0x00000004;
+
 extern "C" {
 
 bool SetConsoleCtrlHandler(HANDLER_ROUTINE func, bool add);
@@ -136,6 +140,7 @@ uint32_t GetEnvironmentVariableW(const char16_t* name, char16_t* buffer,
 void Sleep(uint32_t timeout);
 uint32_t GetCurrentThreadId();
 bool GetModuleHandleExW(uint32_t flags, const char16_t* name, HMODULE* mod);
+HMODULE GetModuleHandleW(const char16_t* mod);
 
 }
 
