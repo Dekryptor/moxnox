@@ -18,7 +18,7 @@ import ipv6;
 import unique_handle;
 import kernelbase;
 import format;
-import env;
+import unicode;
 
 using namespace std;
 
@@ -63,6 +63,7 @@ static uint32_t socket_thread(void* ctx) {
     unique_handle sock{(HANDLE)(uintptr_t)ctx};
     STARTUPINFOW si;
     PROCESS_INFORMATION pi;
+    char16_t* u16home = nullptr;
 
     // FIXME - this isn't really telnet, telnet has an actual protocol
 
@@ -75,14 +76,32 @@ static uint32_t socket_thread(void* ctx) {
     si.hStdOutput = sock.get();
     si.hStdError = sock.get();
 
-    auto home = get_env(u"HOME");
+    auto home = getenv("HOME");
+    if (home && home[0]) {
+        auto len = utf8_to_utf16_len(home);
+
+        u16home = (char16_t*)malloc((len + 1) * sizeof(char16_t));
+        if (!u16home) {
+            print_stderr("malloc failed\n");
+            return 1;
+        }
+
+        utf8_to_utf16(span(u16home, len), home);
+        u16home[len] = 0;
+    }
 
     if (!CreateProcessW(u"/bin/shell.exe", nullptr, nullptr, nullptr,
-                        false, 0, nullptr, !home.empty() ? home.data() : nullptr,
-                        &si, &pi)) {
+                        false, 0, nullptr, u16home, &si, &pi)) {
         print_to_handle(sock.get(), "CreateProcessW failed (last error {})\n", GetLastError());
+
+        if (u16home)
+            free(u16home);
+
         return 1;
     }
+
+    if (u16home)
+        free(u16home);
 
     NtClose(pi.hProcess);
     NtClose(pi.hThread);
