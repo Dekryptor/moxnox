@@ -51,3 +51,4 @@ RtlWakeAllConditionVariable
 RtlExitUserThread
 RtlAcquirePebLock
 RtlReleasePebLock
+RtlSleepConditionVariableCS
