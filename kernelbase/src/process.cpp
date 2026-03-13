@@ -4,6 +4,7 @@
 #include <winerror.h>
 #include <string_view>
 #include <span>
+#include <mutex>
 
 import nt;
 import ntdll;
@@ -571,41 +572,46 @@ bool CreateProcessW(const char16_t* application_name, char16_t* command_line,
 extern "C"
 uint32_t GetEnvironmentVariableW(const char16_t* name, char16_t* buffer,
                                  uint32_t size) {
-    auto peb = NtCurrentTeb()->ProcessEnvironmentBlock;
-    auto env = u16string_view((char16_t*)peb->ProcessParameters->Environment,
-                              peb->ProcessParameters->EnvironmentSize / sizeof(char16_t));
+    {
+        mn_peb_lock lock;
+        lock_guard lg(lock);
 
-    while (true) {
-        if (env.empty() || env[0] == 0)
-            break;
+        auto peb = NtCurrentTeb()->ProcessEnvironmentBlock;
+        auto env = u16string_view((char16_t*)peb->ProcessParameters->Environment,
+                                peb->ProcessParameters->EnvironmentSize / sizeof(char16_t));
 
-        auto zero = env.find(u'\0');
+        while (true) {
+            if (env.empty() || env[0] == 0)
+                break;
 
-        u16string_view bit;
+            auto zero = env.find(u'\0');
 
-        if (zero == u16string_view::npos)
-            bit = env;
-        else
-            bit = u16string_view(env.data(), zero);
+            u16string_view bit;
 
-        if (auto eq = bit.find(u'='); eq != u16string_view::npos) {
-            if (u16string_view(bit.data(), eq) == name) {
-                auto v = u16string_view(bit.data() + eq + 1, bit.size() - eq - 1);
+            if (zero == u16string_view::npos)
+                bit = env;
+            else
+                bit = u16string_view(env.data(), zero);
 
-                if (size >= v.size() + 1) {
-                    memcpy(buffer, v.data(), v.size());
-                    buffer[v.size()] = 0;
-                    return (uint32_t)v.size();
+            if (auto eq = bit.find(u'='); eq != u16string_view::npos) {
+                if (u16string_view(bit.data(), eq) == name) {
+                    auto v = u16string_view(bit.data() + eq + 1, bit.size() - eq - 1);
+
+                    if (size >= v.size() + 1) {
+                        memcpy(buffer, v.data(), v.size());
+                        buffer[v.size()] = 0;
+                        return (uint32_t)v.size();
+                    }
+
+                    return (uint32_t)(v.size() + 1);
                 }
-
-                return (uint32_t)(v.size() + 1);
             }
-        }
 
-        if (zero != u16string_view::npos)
-            env = u16string_view(env.data() + zero + 1, env.size() - zero - 1);
-        else
-            break;
+            if (zero != u16string_view::npos)
+                env = u16string_view(env.data() + zero + 1, env.size() - zero - 1);
+            else
+                break;
+        }
     }
 
     SetLastError(ERROR_ENVVAR_NOT_FOUND);
