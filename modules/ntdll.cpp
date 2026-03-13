@@ -140,7 +140,9 @@ struct ANSI_STRING {
     char* Buffer;
 };
 
-struct RTL_CONDITION_VARIABLE;
+struct RTL_CONDITION_VARIABLE {
+    void* Ptr;
+};
 
 extern "C" {
 
@@ -172,6 +174,10 @@ void RtlWakeAllConditionVariable(RTL_CONDITION_VARIABLE* var);
 void RtlExitUserThread(nt_status exit_status) __attribute__((noreturn));
 void RtlAcquirePebLock();
 void RtlReleasePebLock();
+nt_status RtlSleepConditionVariableCS(RTL_CONDITION_VARIABLE* variable,
+                                      RTL_CRITICAL_SECTION* crit,
+                                      const LARGE_INTEGER* timeout);
+void RtlWakeConditionVariable(RTL_CONDITION_VARIABLE* variable);
 
 }
 

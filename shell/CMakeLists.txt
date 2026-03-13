@@ -497,3 +497,16 @@ if (CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
 endif()
 
 install(TARGETS tls2-test DESTINATION ${CMAKE_INSTALL_PREFIX}/bin)
+
+###
+
+add_executable(condvar-test src/condvar-test.cpp)
+
+target_compile_options(condvar-test PRIVATE -fno-exceptions ${USERSPACE_CFLAGS})
+target_link_libraries(condvar-test moxnox print)
+
+if (CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
+    target_link_options(condvar-test PUBLIC -mcrtdll=ucrtbase)
+endif()
+
+install(TARGETS condvar-test DESTINATION ${CMAKE_INSTALL_PREFIX}/bin)
