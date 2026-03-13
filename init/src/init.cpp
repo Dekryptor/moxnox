@@ -173,7 +173,7 @@ static void mount_dev() {
         }
 
         h *= 10;
-        h += e2.front() - u'0';
+        h += (uintptr_t)(e2.front() - '0');
         e2 = string_view(e2.data() + 1, e2.size() - 1);
     }
 
