@@ -5,6 +5,7 @@
 #include <string_view>
 #include <span>
 #include <utility>
+#include <mutex>
 
 using namespace std;
 
@@ -1347,20 +1348,24 @@ void __attribute__((noreturn)) RtlExitUserThread(nt_status exit_status) {
 
     call_dll_main(DLL_THREAD_DETACH);
 
-    // FIXME - hold PEB lock while removing from list
-    RemoveEntryList(&teb.TlsLinks);
+    {
+        mn_peb_lock lock;
+        lock_guard lg(lock);
 
-    // FIXME - read num_tls_dirs while holding loader lock
+        RemoveEntryList(&teb.TlsLinks);
 
-    auto tlsptr = (void**)teb.ThreadLocalStoragePointer;
+        // FIXME - read num_tls_dirs while holding loader lock
 
-    if (tlsptr) {
-        for (unsigned int i = 0; i < num_tls_dirs; i++) {
-            if (tlsptr[i])
-                free(tlsptr[i]);
+        auto tlsptr = (void**)teb.ThreadLocalStoragePointer;
+
+        if (tlsptr) {
+            for (unsigned int i = 0; i < num_tls_dirs; i++) {
+                if (tlsptr[i])
+                    free(tlsptr[i]);
+            }
+
+            free(tlsptr);
         }
-
-        free(tlsptr);
     }
 
     while (true) {
