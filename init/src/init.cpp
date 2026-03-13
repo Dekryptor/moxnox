@@ -9,7 +9,6 @@ using namespace std;
 
 import nt;
 import print;
-import env;
 import unique_handle;
 import moxnox_ioctls;
 import kernelbase;
@@ -155,9 +154,9 @@ static void mount_dev() {
     static const u16string_view directory = u"/dev";
     static const string_view mount_type = "devfs";
 
-    auto e = get_env(u"VFSCTL");
+    auto e = getenv("VFSCTL");
 
-    if (e.empty()) {
+    if (!e || !e[0]) {
         print("Could not read VFSCTL environment variable.\n");
         NtTerminateThread(NtCurrentThread(), nt_status::INTERNAL_ERROR);
         unreachable();
@@ -165,9 +164,9 @@ static void mount_dev() {
 
     uintptr_t h = 0;
 
-    auto e2 = e;
+    auto e2 = string_view(e);
     while (!e2.empty()) {
-        if (e2.front() < u'0' || e2.front() > u'9') {
+        if (e2.front() < '0' || e2.front() > '9') {
             print("Could not parse VFSCTL value \"{}\" as integer.\n", e);
             NtTerminateThread(NtCurrentThread(), nt_status::INTERNAL_ERROR);
             unreachable();
@@ -175,7 +174,7 @@ static void mount_dev() {
 
         h *= 10;
         h += e2.front() - u'0';
-        e2 = u16string_view(e2.data() + 1, e2.size() - 1);
+        e2 = string_view(e2.data() + 1, e2.size() - 1);
     }
 
     vfsctl.reset(h);
