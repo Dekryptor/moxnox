@@ -1,11 +1,14 @@
 #include <stddef.h>
 #include <string.h>
+#include <atomic>
 
 import nt;
 import ntdll;
 import print;
 import list;
 import unique_handle;
+
+using namespace std;
 
 static RTL_CRITICAL_SECTION waiters_lock = {
     .DebugInfo = nullptr,
@@ -38,7 +41,7 @@ extern "C"
 nt_status RtlSleepConditionVariableCS(RTL_CONDITION_VARIABLE* var,
                                       RTL_CRITICAL_SECTION* crit,
                                       const LARGE_INTEGER* timeout) {
-    auto val = *(int*)&var->Ptr;
+    auto val = var->Ptr;
 
     RtlLeaveCriticalSection(crit);
     auto ret = RtlWaitOnAddress(&var->Ptr, &val, sizeof(val), timeout);
@@ -96,6 +99,9 @@ nt_status RtlWaitOnAddress(const void* addr, const void* cmp,
 }
 
 extern "C"
-void RtlWakeConditionVariable(RTL_CONDITION_VARIABLE* /*var*/) {
-    print("FIXME - RtlWakeConditionVariable\n"); // FIXME
+void RtlWakeConditionVariable(RTL_CONDITION_VARIABLE* var) {
+    atomic_ref<uintptr_t> ptr_ref(*(uintptr_t*)&var->Ptr);
+
+    ptr_ref.fetch_add(1, memory_order_release);
+    RtlWakeAddressSingle(&var->Ptr);
 }
