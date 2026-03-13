@@ -1321,8 +1321,12 @@ void mn_start_thread(mn_image_info* ntdll_info, mn_image_info* img_info, CONTEXT
     context->X18 = (uintptr_t)NtCurrentTeb();
 #endif
 
-    // FIXME - hold PEB lock while inserting into list
-    InsertTailList(&tls_list, &NtCurrentTeb()->TlsLinks);
+    {
+        mn_peb_lock lock;
+        lock_guard lg(lock);
+
+        InsertTailList(&tls_list, &NtCurrentTeb()->TlsLinks);
+    }
 
     NtContinue(context, false);
 }
