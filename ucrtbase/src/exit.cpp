@@ -10,6 +10,7 @@ using namespace std;
 
 static array<_PVFV, 64> atexit_funcs;
 static size_t num_atexit_funcs = 0;
+static _tls_callback_type tls_atexit_callback;
 
 extern "C"
 int _crt_atexit(_PVFV function) {
@@ -28,6 +29,9 @@ extern "C"
 void _cexit() {
     // FIXME - locks?
 
+    if (tls_atexit_callback)
+        tls_atexit_callback(nullptr, DLL_PROCESS_DETACH, nullptr);
+
     for (size_t i = 0; i < num_atexit_funcs; i++) {
         atexit_funcs[num_atexit_funcs - i - 1]();
     }
@@ -45,6 +49,6 @@ using _tls_callback_type = void (*)(void* dll_base, uint32_t reason,
                                     void* reserved);
 
 extern "C"
-void _register_thread_local_exe_atexit_callback(_tls_callback_type /*callback*/) {
-    print("FIXME - _register_thread_local_exe_atexit_callback\n"); // FIXME
+void _register_thread_local_exe_atexit_callback(_tls_callback_type callback) {
+    tls_atexit_callback = callback;
 }
