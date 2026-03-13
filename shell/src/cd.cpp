@@ -11,7 +11,6 @@ export module cd;
 import nt;
 import print;
 import unicode;
-import env;
 
 using namespace std;
 
@@ -65,35 +64,29 @@ export void cd(string_view param) {
     HANDLE h;
     IO_STATUS_BLOCK iosb;
     nt_status status;
-    char16_t* buf = nullptr;
     auto peb = NtCurrentTeb()->ProcessEnvironmentBlock;
 
     if (param.empty()) {
-        auto env_home = get_env(u"HOME");
+        auto env_home = getenv("HOME");
 
-        if (env_home.empty()) {
-            static const u16string_view def = u"/";
-
-            us.Length = us.MaximumLength = (uint16_t)(def.size() * sizeof(char16_t));
-            us.Buffer = (char16_t*)def.data();
-        } else {
-            us.Length = us.MaximumLength = (uint16_t)(env_home.size() * sizeof(char16_t));
-            us.Buffer = (char16_t*)env_home.data();
-        }
-    } else {
-        auto len = utf8_to_utf16_len(param);
-
-        auto buf = (char16_t*)malloc(len * sizeof(char16_t));
-        if (!buf) {
-            print_stderr("malloc failed\n");
-            return;
-        }
-
-        utf8_to_utf16(span(buf, len), param);
-
-        us.Length = us.MaximumLength = (uint16_t)(len * sizeof(char16_t));
-        us.Buffer = (char16_t*)buf;
+        if (env_home && env_home[0])
+            param = env_home;
+        else
+            param = "/";
     }
+
+    auto len = utf8_to_utf16_len(param);
+
+    auto buf = (char16_t*)malloc(len * sizeof(char16_t));
+    if (!buf) {
+        print_stderr("malloc failed\n");
+        return;
+    }
+
+    utf8_to_utf16(span(buf, len), param);
+
+    us.Length = us.MaximumLength = (uint16_t)(len * sizeof(char16_t));
+    us.Buffer = (char16_t*)buf;
 
     memset(&oa, 0, sizeof(oa));
     oa.Length = sizeof(OBJECT_ATTRIBUTES);
@@ -104,8 +97,7 @@ export void cd(string_view param) {
                           FILE_SHARE_READ | FILE_SHARE_WRITE,
                           FILE_OPEN, FILE_DIRECTORY_FILE | FILE_SYNCHRONOUS_IO_ALERT,
                           nullptr, 0);
-    if (buf)
-        free(buf);
+    free(buf);
 
     if (status == nt_status::OBJECT_NAME_NOT_FOUND ||
         status == nt_status::OBJECT_PATH_NOT_FOUND) {
