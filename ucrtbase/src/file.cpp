@@ -7,6 +7,7 @@ module;
 #include <stdint.h>
 #include <stdlib.h>
 #include <string.h>
+#include <stdio.h>
 
 export module file;
 
@@ -671,11 +672,19 @@ int _fflush(FILE* file) {
     return 0;
 }
 
-export extern "C"
-int __stdio_common_vfprintf(uint64_t /*options*/, FILE* /*file*/,
-                            const char* /*format*/, _locale_t /*locale*/,
-                            va_list /*valist*/) {
-    print("FIXME - __stdio_common_vfprintf\n");
+extern "C"
+int atexit(_PVFV) {
+    // stub - __mingw_vfprintf uses this through gdtoa
 
     return 0;
+}
+
+export extern "C"
+int __stdio_common_vfprintf(uint64_t /*options*/, FILE* file,
+                            const char* format, _locale_t /*locale*/,
+                            va_list valist) {
+    // FIXME - options
+    // FIXME - locale
+
+    return __mingw_vfprintf(file, format, valist);
 }
