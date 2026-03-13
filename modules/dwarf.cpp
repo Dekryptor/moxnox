@@ -350,14 +350,13 @@ static void loop_through_cus(span<const uint8_t> info, cus_func auto func) {
         if (h.unit_length >= 0xfffffff0) // FIXME - support 64-bit DWARF
             return;
 
-        if (h.version != 5) // FIXME - support DWARF versions other than 5?
-            return;
+        if (h.version == 5) { // FIXME - support DWARF versions other than 5?
+            auto cu = span<const uint8_t>((uint8_t*)&h + sizeof(dwarf_cu_header),
+                                          h.unit_length - sizeof(dwarf_cu_header) + sizeof(uint32_t));
 
-        auto cu = span<const uint8_t>((uint8_t*)&h + sizeof(dwarf_cu_header),
-                                      h.unit_length - sizeof(dwarf_cu_header) + sizeof(uint32_t));
-
-        if (!func(cu, h.debug_abbrev_object))
-            return;
+            if (!func(cu, h.debug_abbrev_object))
+                return;
+        }
 
         info = span(info.data() + h.unit_length + sizeof(uint32_t),
                     info.size() - h.unit_length - sizeof(uint32_t));
