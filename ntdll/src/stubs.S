@@ -3,7 +3,6 @@
 stubs_start
 
 do_stub "RtlTryEnterCriticalSection"
-do_stub "RtlWakeConditionVariable"
 do_stub "RtlAddVectoredExceptionHandler"
 do_stub "strnlen"
 do_stub "RtlLookupFunctionEntry"

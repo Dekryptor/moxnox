@@ -94,3 +94,8 @@ nt_status RtlWaitOnAddress(const void* addr, const void* cmp,
 
     return status;
 }
+
+extern "C"
+void RtlWakeConditionVariable(RTL_CONDITION_VARIABLE* /*var*/) {
+    print("FIXME - RtlWakeConditionVariable\n"); // FIXME
+}

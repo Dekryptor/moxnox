@@ -53,3 +53,4 @@ RtlAcquirePebLock
 RtlReleasePebLock
 RtlSleepConditionVariableCS
 RtlWaitOnAddress
+RtlWakeConditionVariable
