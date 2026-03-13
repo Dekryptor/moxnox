@@ -179,4 +179,14 @@ __inline void* GetProcessHeap() {
     return (void*)NtCurrentTeb()->ProcessEnvironmentBlock->ProcessHeap;
 }
 
+struct mn_peb_lock {
+    void lock() {
+        RtlAcquirePebLock();
+    }
+
+    void unlock() {
+        RtlReleasePebLock();
+    }
+};
+
 };

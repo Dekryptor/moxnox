@@ -2,6 +2,7 @@
 #include <string.h>
 #include <winerror.h>
 #include <utility>
+#include <mutex>
 
 import nt;
 import ntdll;
@@ -15,19 +16,22 @@ uint32_t TlsAlloc() {
     auto& teb = *NtCurrentTeb();
     auto& peb = *teb.ProcessEnvironmentBlock;
 
-    // FIXME - TlsExpansionBitmap
+    {
+        mn_peb_lock lock;
+        lock_guard lg(lock);
 
-    // FIXME - get PEB lock
+        // FIXME - TlsExpansionBitmap
 
-    // FIXME - should be proper RTL_BITMAP
-    auto& bitmap = *(uint64_t*)peb.TlsBitmap;
+        // FIXME - should be proper RTL_BITMAP
+        auto& bitmap = *(uint64_t*)peb.TlsBitmap;
 
-    for (uint32_t i = 0; i < sizeof(bitmap) * 8; i++) {
-        if (!(bitmap & (1 << i))) {
-            bitmap |= 1 << i;
-            teb.TlsSlots[i] = 0;
+        for (uint32_t i = 0; i < sizeof(bitmap) * 8; i++) {
+            if (!(bitmap & (1 << i))) {
+                bitmap |= 1 << i;
+                teb.TlsSlots[i] = 0;
 
-            return i;
+                return i;
+            }
         }
     }
 
@@ -40,25 +44,28 @@ bool TlsFree(uint32_t tls_index) {
     auto& teb = *NtCurrentTeb();
     auto& peb = *teb.ProcessEnvironmentBlock;
 
-    // FIXME - get PEB lock
+    {
+        mn_peb_lock lock;
+        lock_guard lg(lock);
 
-    // FIXME - should be proper RTL_BITMAP
-    auto& bitmap = *(uint64_t*)peb.TlsBitmap;
+        // FIXME - should be proper RTL_BITMAP
+        auto& bitmap = *(uint64_t*)peb.TlsBitmap;
 
-    // FIXME - TlsExpansion
-    if (tls_index >= sizeof(teb.TlsSlots) / sizeof(*teb.TlsSlots)) {
-        SetLastError(ERROR_INVALID_PARAMETER);
-        return false;
+        // FIXME - TlsExpansion
+        if (tls_index >= sizeof(teb.TlsSlots) / sizeof(*teb.TlsSlots)) {
+            SetLastError(ERROR_INVALID_PARAMETER);
+            return false;
+        }
+
+        if (!(bitmap & 1 << tls_index)) {
+            SetLastError(ERROR_INVALID_PARAMETER);
+            return false;
+        }
+
+        bitmap |= 1 << tls_index;
+
+        // FIXME - ThreadZeroTlsCell?
     }
-
-    if (!(bitmap & 1 << tls_index)) {
-        SetLastError(ERROR_INVALID_PARAMETER);
-        return false;
-    }
-
-    bitmap |= 1 << tls_index;
-
-    // FIXME - ThreadZeroTlsCell?
 
     return true;
 }
