@@ -15,12 +15,16 @@ void RtlWakeAllConditionVariable(RTL_CONDITION_VARIABLE* /*var*/) {
 }
 
 extern "C"
-nt_status RtlSleepConditionVariableCS(RTL_CONDITION_VARIABLE* /*variable*/,
-                                      RTL_CRITICAL_SECTION* /*crit*/,
-                                      const LARGE_INTEGER* /*timeout*/) {
-    print("FIXME - RtlSleepConditionVariableCS\n");
+nt_status RtlSleepConditionVariableCS(RTL_CONDITION_VARIABLE* var,
+                                      RTL_CRITICAL_SECTION* crit,
+                                      const LARGE_INTEGER* timeout) {
+    auto val = *(int*)&var->Ptr;
 
-    return nt_status::NOT_IMPLEMENTED;
+    RtlLeaveCriticalSection(crit);
+    auto ret = RtlWaitOnAddress(&var->Ptr, &val, sizeof(val), timeout);
+    RtlEnterCriticalSection(crit);
+
+    return ret;
 }
 
 extern "C"
