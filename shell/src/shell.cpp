@@ -20,7 +20,6 @@ import pe;
 import kernelbase;
 import pagesize;
 import cd;
-import env;
 
 static char* buf = nullptr;
 static unsigned int buflen = 0;
@@ -313,8 +312,6 @@ static void __attribute__((noinline)) inline1() {
 
 static void try_run_program(string_view program, string_view cmdline,
                             HANDLE server_handle, HANDLE client_handle) {
-    u16string_view env_path = get_env(u"PATH");
-
     auto u16cmdlinelen = utf8_to_utf16_len(cmdline);
     auto u16cmdline = (char16_t*)malloc((u16cmdlinelen + 1) * sizeof(char16_t));
     if (!u16cmdline) {
@@ -386,6 +383,26 @@ static void try_run_program(string_view program, string_view cmdline,
 
         free(exe);
     } else {
+        char16_t* buf = nullptr;
+        u16string_view env_path;
+
+        auto path = getenv("PATH");
+
+        if (path && path[0]) {
+            auto len = utf8_to_utf16_len(path);
+
+            buf = (char16_t*)malloc(len * sizeof(char16_t));
+            if (!buf) {
+                print_stderr("malloc failed\n");
+                free(u16cmdline);
+                return;
+            }
+
+            utf8_to_utf16(span(buf, len), path);
+
+            env_path = u16string_view(buf, len);
+        }
+
         while (true) {
             auto col = env_path.find(u':');
             u16string_view dir;
@@ -407,6 +424,10 @@ static void try_run_program(string_view program, string_view cmdline,
                 if (!exe) {
                     print_stderr("malloc failed\n");
                     free(u16cmdline);
+
+                    if (buf)
+                        free(buf);
+
                     return;
                 }
 
@@ -445,6 +466,10 @@ static void try_run_program(string_view program, string_view cmdline,
 
                         free(exe);
                         free(u16cmdline);
+
+                        if (buf)
+                            free(buf);
+
                         return;
                     }
                 } else {
@@ -462,6 +487,9 @@ static void try_run_program(string_view program, string_view cmdline,
             env_path = u16string_view(env_path.data() + col + 1,
                                       env_path.size() - col - 1);
         }
+
+        if (buf)
+            free(buf);
 
         if (!proc) {
             print_stderr("{}: No such file or directory\n", program);
