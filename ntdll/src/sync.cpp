@@ -3,8 +3,8 @@ import ntdll;
 import print;
 
 extern "C"
-void RtlInitializeConditionVariable(RTL_CONDITION_VARIABLE* /*var*/) {
-    print("FIXME - RtlInitializeConditionVariable\n"); // FIXME
+void RtlInitializeConditionVariable(RTL_CONDITION_VARIABLE* var) {
+    var->Ptr = nullptr;
 }
 
 extern "C"
