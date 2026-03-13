@@ -670,3 +670,12 @@ int _fflush(FILE* file) {
 
     return 0;
 }
+
+export extern "C"
+int __stdio_common_vfprintf(uint64_t /*options*/, FILE* /*file*/,
+                            const char* /*format*/, _locale_t /*locale*/,
+                            va_list /*valist*/) {
+    print("FIXME - __stdio_common_vfprintf\n");
+
+    return 0;
+}
