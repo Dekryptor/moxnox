@@ -41,7 +41,8 @@ extern "C"
 nt_status RtlSleepConditionVariableCS(RTL_CONDITION_VARIABLE* var,
                                       RTL_CRITICAL_SECTION* crit,
                                       const LARGE_INTEGER* timeout) {
-    auto val = var->Ptr;
+    atomic_ref<uintptr_t> ptr_ref(*(uintptr_t*)&var->Ptr);
+    auto val = ptr_ref.load(memory_order_acquire);
 
     RtlLeaveCriticalSection(crit);
     auto ret = RtlWaitOnAddress(&var->Ptr, &val, sizeof(val), timeout);
