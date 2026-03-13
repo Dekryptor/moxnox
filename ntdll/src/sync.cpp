@@ -105,3 +105,8 @@ void RtlWakeConditionVariable(RTL_CONDITION_VARIABLE* var) {
     ptr_ref.fetch_add(1, memory_order_release);
     RtlWakeAddressSingle(&var->Ptr);
 }
+
+extern "C"
+void RtlWakeAddressSingle(const void* /*addr*/) {
+    print("FIXME - RtlWakeAddressSingle\n"); // FIXME
+}
