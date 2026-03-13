@@ -383,6 +383,9 @@ bool CreateProcessW(const char16_t* application_name, char16_t* command_line,
 
         free(fni2);
     } else {
+        mn_peb_lock lock;
+        lock_guard lg(lock);
+
         // copy current directory string
 
         params.CurrentDirectory.DosPath.Length = min(params.CurrentDirectory.DosPath.MaximumLength,
@@ -408,81 +411,87 @@ bool CreateProcessW(const char16_t* application_name, char16_t* command_line,
         cmdline = application_name;
 
     size_t misc_block_size = (cmdline.size() + 1) * sizeof(char16_t);
-
-    size_t environment_size;
-
-    if (environment) {
-        environment_size = calc_environment_size(environment,
-                                                 creation_flags & CREATE_UNICODE_ENVIRONMENT);
-    } else
-        environment_size = peb->ProcessParameters->EnvironmentSize;
-
-    misc_block_size += environment_size;
-
-    auto misc_block = (uint8_t*)malloc(misc_block_size);
-    if (!misc_block) {
-        print_stderr("malloc failed\n");
-        SetLastError(ERROR_NO_SYSTEM_RESOURCES);
-        return false;
-    }
-
-    // allocate misc block in process
-
+    uint8_t* misc_block;
     void* proc_misc_block = nullptr;
-    size_t proc_misc_block_size = bytes_to_pages(misc_block_size) << PAGE_SHIFT;
 
-    status = NtAllocateVirtualMemory(proc.get(), &proc_misc_block, 0,
-                                     &proc_misc_block_size,
-                                     MEM_COMMIT | MEM_RESERVE, PAGE_READWRITE);
-    if (!success(status)) {
-        print_stderr("NtAllocateVirtualMemory returned {}\n", status);
-        free(misc_block);
-        SetLastError(RtlNtStatusToDosError(status));
-        return false;
-    }
+    {
+        mn_peb_lock lock;
+        lock_guard lg(lock);
 
-    // copy cmdline
+        size_t environment_size;
 
-    auto ptr = misc_block;
+        if (environment) {
+            environment_size = calc_environment_size(environment,
+                                                    creation_flags & CREATE_UNICODE_ENVIRONMENT);
+        } else
+            environment_size = peb->ProcessParameters->EnvironmentSize;
 
-    memcpy(misc_block, cmdline.data(), cmdline.size() * sizeof(char16_t));
-    ptr += cmdline.size() * sizeof(char16_t);
+        misc_block_size += environment_size;
 
-    *ptr = 0;
-    ptr++;
+        misc_block = (uint8_t*)malloc(misc_block_size);
+        if (!misc_block) {
+            print_stderr("malloc failed\n");
+            SetLastError(ERROR_NO_SYSTEM_RESOURCES);
+            return false;
+        }
 
-    params.CommandLine.Length = (uint16_t)(cmdline.size() * sizeof(char16_t));
-    params.CommandLine.MaximumLength = (uint16_t)((cmdline.size() + 1) * sizeof(char16_t));
-    params.CommandLine.Buffer = (char16_t*)proc_misc_block;
+        // allocate misc block in process
 
-    if (environment) {
-        if (creation_flags & CREATE_UNICODE_ENVIRONMENT)
-            memcpy(ptr, environment, environment_size);
-        else {
-            span sp((char16_t*)ptr, environment_size * sizeof(char16_t));
-            auto env = (const char*)environment;
+        size_t proc_misc_block_size = bytes_to_pages(misc_block_size) << PAGE_SHIFT;
 
-            while (*env) {
-                auto sv = string_view(env);
+        status = NtAllocateVirtualMemory(proc.get(), &proc_misc_block, 0,
+                                        &proc_misc_block_size,
+                                        MEM_COMMIT | MEM_RESERVE, PAGE_READWRITE);
+        if (!success(status)) {
+            print_stderr("NtAllocateVirtualMemory returned {}\n", status);
+            free(misc_block);
+            SetLastError(RtlNtStatusToDosError(status));
+            return false;
+        }
 
-                utf8_to_utf16(sp, sv);
-                sp = sp.subspan(utf8_to_utf16_len(sv));
+        // copy cmdline
+
+        auto ptr = misc_block;
+
+        memcpy(misc_block, cmdline.data(), cmdline.size() * sizeof(char16_t));
+        ptr += cmdline.size() * sizeof(char16_t);
+
+        *ptr = 0;
+        ptr++;
+
+        params.CommandLine.Length = (uint16_t)(cmdline.size() * sizeof(char16_t));
+        params.CommandLine.MaximumLength = (uint16_t)((cmdline.size() + 1) * sizeof(char16_t));
+        params.CommandLine.Buffer = (char16_t*)proc_misc_block;
+
+        if (environment) {
+            if (creation_flags & CREATE_UNICODE_ENVIRONMENT)
+                memcpy(ptr, environment, environment_size);
+            else {
+                span sp((char16_t*)ptr, environment_size * sizeof(char16_t));
+                auto env = (const char*)environment;
+
+                while (*env) {
+                    auto sv = string_view(env);
+
+                    utf8_to_utf16(sp, sv);
+                    sp = sp.subspan(utf8_to_utf16_len(sv));
+
+                    sp[0] = u'\0';
+                    sp = sp.subspan(1);
+
+                    env += sv.size() + 1;
+                }
 
                 sp[0] = u'\0';
-                sp = sp.subspan(1);
-
-                env += sv.size() + 1;
             }
-
-            sp[0] = u'\0';
+        } else {
+            memcpy(ptr, peb->ProcessParameters->Environment,
+                   peb->ProcessParameters->EnvironmentSize);
         }
-    } else {
-        memcpy(ptr, peb->ProcessParameters->Environment,
-               peb->ProcessParameters->EnvironmentSize);
-    }
 
-    params.Environment = (uint8_t*)proc_misc_block + (ptr - misc_block);
-    params.EnvironmentSize = environment_size;
+        params.Environment = (uint8_t*)proc_misc_block + (ptr - misc_block);
+        params.EnvironmentSize = environment_size;
+    }
 
     // copy misc block
 
