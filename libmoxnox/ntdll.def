@@ -455,3 +455,4 @@ RtlReleasePebLock
 RtlSleepConditionVariableCS
 RtlWaitOnAddress
 RtlWakeAddressSingle
+RtlWakeAddressAll
