@@ -2,6 +2,7 @@ module;
 
 #include <string_view>
 #include <span>
+#include <mutex>
 #include <stdint.h>
 #include <stdlib.h>
 #include <string.h>
@@ -9,6 +10,7 @@ module;
 export module cd;
 
 import nt;
+import ntdll;
 import print;
 import unicode;
 
@@ -111,12 +113,15 @@ export void cd(string_view param) {
         return;
     }
 
-    // FIXME - do while holding PEB lock
+    {
+        mn_peb_lock lock;
+        lock_guard lg(lock);
 
-    if (peb->ProcessParameters->CurrentDirectory.Handle != 0)
-        NtClose(peb->ProcessParameters->CurrentDirectory.Handle);
+        if (peb->ProcessParameters->CurrentDirectory.Handle != 0)
+            NtClose(peb->ProcessParameters->CurrentDirectory.Handle);
 
-    peb->ProcessParameters->CurrentDirectory.Handle = h;
+        peb->ProcessParameters->CurrentDirectory.Handle = h;
 
-    get_dos_path(h, peb->ProcessParameters->CurrentDirectory.DosPath);
+        get_dos_path(h, peb->ProcessParameters->CurrentDirectory.DosPath);
+    }
 }
