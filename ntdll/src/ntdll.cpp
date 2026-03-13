@@ -900,6 +900,9 @@ static ldr_entry* try_load_dll(u16string_view dir, u16string_view name) {
 }
 
 static u16string_view get_env(u16string_view name) {
+    mn_peb_lock lock;
+    lock_guard lg(lock);
+
     auto peb = NtCurrentTeb()->ProcessEnvironmentBlock;
     auto env = u16string_view((char16_t*)peb->ProcessParameters->Environment,
                               peb->ProcessParameters->EnvironmentSize / sizeof(char16_t));
