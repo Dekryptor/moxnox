@@ -107,6 +107,17 @@ void RtlWakeConditionVariable(RTL_CONDITION_VARIABLE* var) {
 }
 
 extern "C"
-void RtlWakeAddressSingle(const void* /*addr*/) {
-    print("FIXME - RtlWakeAddressSingle\n"); // FIXME
+void RtlWakeAddressSingle(const void* addr) {
+    RtlEnterCriticalSection(&waiters_lock);
+
+    for (auto le = waiters.next; le != &waiters; le = le->next) {
+        auto& e = containing_record<wait_entry>(le);
+
+        if (e.address == addr) {
+            NtSetEvent(e.event, nullptr);
+            break;
+        }
+    }
+
+    RtlLeaveCriticalSection(&waiters_lock);
 }
