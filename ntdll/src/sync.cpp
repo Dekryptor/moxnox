@@ -1,8 +1,28 @@
 #include <stddef.h>
+#include <string.h>
 
 import nt;
 import ntdll;
 import print;
+import list;
+import unique_handle;
+
+static RTL_CRITICAL_SECTION waiters_lock = {
+    .DebugInfo = nullptr,
+    .LockCount = -1,
+    .RecursionCount = 0,
+    .OwningThread = 0,
+    .LockSemaphore = 0,
+    .SpinCount = 4000
+};
+
+struct wait_entry {
+    const void* address;
+    HANDLE event;
+    list_entry le;
+};
+
+static list_entry waiters = { &waiters, &waiters };
 
 extern "C"
 void RtlInitializeConditionVariable(RTL_CONDITION_VARIABLE* var) {
@@ -28,9 +48,49 @@ nt_status RtlSleepConditionVariableCS(RTL_CONDITION_VARIABLE* var,
 }
 
 extern "C"
-nt_status RtlWaitOnAddress(const void* /*addr*/, const void* /*cmp*/,
-                           size_t /*size*/, const LARGE_INTEGER* /*timeout*/) {
-    print("FIXME - RtlWaitOnAddress\n");
+nt_status RtlWaitOnAddress(const void* addr, const void* cmp,
+                           size_t size, const LARGE_INTEGER* timeout) {
+    nt_status status;
+    unique_handle event;
 
-    return nt_status::NOT_IMPLEMENTED;
+    if (memcmp(addr, cmp, size))
+        return nt_status::SUCCESS;
+
+    // FIXME - have thread-local event instead? (where would we free HANDLE?)
+
+    {
+        HANDLE h;
+
+        status = NtCreateEvent(&h, 0, nullptr, EVENT_TYPE::SynchronizationEvent,
+                               false);
+        if (!success(status))
+            return status;
+
+        event.reset(h);
+    }
+
+    wait_entry entry;
+    entry.address = addr;
+    entry.event = event.get();
+
+    RtlEnterCriticalSection(&waiters_lock);
+
+    if (memcmp(addr, cmp, size)) {
+        RtlLeaveCriticalSection(&waiters_lock);
+        return nt_status::SUCCESS;
+    }
+
+    insert_tail_list(waiters, entry.le);
+
+    RtlLeaveCriticalSection(&waiters_lock);
+
+    status = NtWaitForSingleObject(event.get(), false, timeout);
+
+    RtlEnterCriticalSection(&waiters_lock);
+
+    remove_entry_list(entry.le);
+
+    RtlLeaveCriticalSection(&waiters_lock);
+
+    return status;
 }
