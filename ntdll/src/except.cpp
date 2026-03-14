@@ -178,7 +178,7 @@ static nt_status handle_exception(EXCEPTION_RECORD* exception,
         dispatcher_context.HandlerData = handler_data;
 #endif
 
-        auto disp = handler(exception, (void*)frame, &prev_context,
+        auto disp = handler(exception, (void*)frame, &orig_context,
                             &dispatcher_context);
 
         switch (disp) {
