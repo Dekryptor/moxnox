@@ -1427,8 +1427,26 @@ nt_status LdrAddRefDll(uint32_t flags, HMODULE mod) {
 }
 
 extern "C"
-nt_status LdrUnloadDll(HMODULE /*mod*/) {
-    print("FIXME - LdrUnloadDll\n");
+nt_status LdrUnloadDll(HMODULE mod) {
+    auto& teb = *NtCurrentTeb();
+    auto& peb = *teb.ProcessEnvironmentBlock;
 
-    return nt_status::NOT_IMPLEMENTED;
+    // FIXME - loader lock
+
+    for (auto le = peb.Ldr->InMemoryOrderModuleList.Flink; le != &peb.Ldr->InMemoryOrderModuleList; le = le->Flink) {
+        auto& mod2 = *CONTAINING_RECORD(le, LDR_DATA_TABLE_ENTRY, InMemoryOrderLinks);
+
+        if (mod2.DllBase == mod) {
+            if (mod2.LoadCount == 1) { // FIXME
+                print("FIXME - actually unloading in LdrUnloadDll\n");
+                // FIXME - remove from list, call DLL_PROCESS_DETACH, TLS, etc.
+                return nt_status::SUCCESS;
+            }
+
+            mod2.LoadCount--;
+            return nt_status::SUCCESS;
+        }
+    }
+
+    return nt_status::DLL_NOT_FOUND;
 }
