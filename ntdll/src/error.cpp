@@ -61,6 +61,8 @@ uint32_t RtlNtStatusToDosErrorNoTeb(nt_status status) {
             return ERROR_INVALID_HANDLE;
         case INVALID_DISPOSITION:
             return (uint32_t)nt_status::INVALID_DISPOSITION;
+        case UNWIND:
+            return ERROR_UNWIND;
         case BAD_STACK:
             return ERROR_BAD_STACK;
         case DISK_CORRUPT_ERROR:

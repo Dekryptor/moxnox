@@ -419,6 +419,8 @@ span<char> do_format_arg(span<char> sp, string_view, nt_status arg) {
             return sp_strcpy(sp, "OBJECT_TYPE_MISMATCH");
         case nt_status::INVALID_DISPOSITION:
             return sp_strcpy(sp, "INVALID_DISPOSITION");
+        case nt_status::UNWIND:
+            return sp_strcpy(sp, "UNWIND");
         case nt_status::BAD_STACK:
             return sp_strcpy(sp, "BAD_STACK");
         case nt_status::DISK_CORRUPT_ERROR:
