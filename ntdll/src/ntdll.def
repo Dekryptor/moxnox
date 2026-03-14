@@ -55,3 +55,4 @@ RtlSleepConditionVariableCS
 RtlWaitOnAddress
 RtlWakeConditionVariable
 RtlWakeAddressSingle
+RtlPcToFileHeader

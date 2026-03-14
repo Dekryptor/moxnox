@@ -1379,3 +1379,10 @@ void __attribute__((noreturn)) RtlExitUserThread(nt_status exit_status) {
         NtTerminateThread(NtCurrentThread(), exit_status);
     }
 }
+
+extern "C"
+void* RtlPcToFileHeader(const void* pc, void** address) {
+    print("FIXME - RtlPcToFileHeader\n");
+
+    return nullptr;
+}
