@@ -59,9 +59,13 @@ HMODULE GetModuleHandleW(const char16_t* mod) {
 }
 
 extern "C"
-bool FreeLibrary(HMODULE /*mod*/) {
-    print("FIXME - FreeLibrary\n");
+bool FreeLibrary(HMODULE mod) {
+    auto status = LdrUnloadDll(mod);
 
-    SetLastError(ERROR_CALL_NOT_IMPLEMENTED);
-    return false;
+    if (!success(status)) {
+        SetLastError(RtlNtStatusToDosError(status));
+        return false;
+    }
+
+    return true;
 }
