@@ -306,11 +306,11 @@ void RtlUnwindEx(void* target_frame, void* target_ip,
                  UNWIND_HISTORY_TABLE* history_table);
 RUNTIME_FUNCTION* RtlLookupFunctionEntry(uintptr_t pc, uintptr_t* base,
                                          UNWIND_HISTORY_TABLE* table);
-EXCEPTION_ROUTINE* RtlVirtualUnwind(uint32_t type, uint64_t image_base,
-                                    uint64_t pc, RUNTIME_FUNCTION *func,
-                                    CONTEXT* context, void* handler_data,
-                                    uint64_t* establisher_frame,
-                                    KNONVOLATILE_CONTEXT_POINTERS* ctx_ptr);
+EXCEPTION_ROUTINE RtlVirtualUnwind(uint32_t type, uint64_t image_base,
+                                   uint64_t pc, RUNTIME_FUNCTION *func,
+                                   CONTEXT* context, void** handler_data,
+                                   uint64_t* establisher_frame,
+                                   KNONVOLATILE_CONTEXT_POINTERS* ctx_ptr);
 #endif
 
 }

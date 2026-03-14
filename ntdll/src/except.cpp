@@ -368,6 +368,18 @@ EXCEPTION_DISPOSITION __C_specific_handler(EXCEPTION_RECORD* /*exception_record*
 
 #ifdef __x86_64__
 
+enum class unwind_opcode {
+    UWOP_PUSH_NONVOL = 0,
+    UWOP_ALLOC_LARGE = 1,
+    UWOP_ALLOC_SMALL = 2,
+    UWOP_SET_FPREG = 3,
+    UWOP_SAVE_NONVOL = 4,
+    UWOP_SAVE_NONVOL_FAR = 5,
+    UWOP_SAVE_XMM128 = 8,
+    UWOP_SAVE_XMM128_FAR = 9,
+    UWOP_PUSH_MACHFRAME = 10,
+};
+
 enum class unwind_register {
     rax = 0,
     rcx = 1,
@@ -424,6 +436,59 @@ static uint64_t get_register(const CONTEXT& context, enum unwind_register reg) {
     }
 
     return 0;
+}
+
+static void set_register(CONTEXT& context, enum unwind_register reg, uint64_t value) {
+    switch (reg) {
+        case unwind_register::rax:
+            context.Rax = value;
+            break;
+        case unwind_register::rcx:
+            context.Rcx = value;
+            break;
+        case unwind_register::rdx:
+            context.Rdx = value;
+            break;
+        case unwind_register::rbx:
+            context.Rbx = value;
+            break;
+        case unwind_register::rsp:
+            context.Rsp = value;
+            break;
+        case unwind_register::rbp:
+            context.Rbp = value;
+            break;
+        case unwind_register::rsi:
+            context.Rsi = value;
+            break;
+        case unwind_register::rdi:
+            context.Rdi = value;
+            break;
+        case unwind_register::r8:
+            context.R8 = value;
+            break;
+        case unwind_register::r9:
+            context.R9 = value;
+            break;
+        case unwind_register::r10:
+            context.R10 = value;
+            break;
+        case unwind_register::r11:
+            context.R11 = value;
+            break;
+        case unwind_register::r12:
+            context.R12 = value;
+            break;
+        case unwind_register::r13:
+            context.R13 = value;
+            break;
+        case unwind_register::r14:
+            context.R14 = value;
+            break;
+        case unwind_register::r15:
+            context.R15 = value;
+            break;
+    }
 }
 
 extern "C"
@@ -582,14 +647,160 @@ RUNTIME_FUNCTION* RtlLookupFunctionEntry(uintptr_t pc, uintptr_t* base,
 }
 
 extern "C"
-EXCEPTION_ROUTINE* RtlVirtualUnwind(uint32_t /*type*/, uint64_t /*image_base*/,
-                                    uint64_t /*pc*/, RUNTIME_FUNCTION */*func*/,
-                                    CONTEXT* /*context*/, void* /*handler_data*/,
-                                    uint64_t* /*establisher_frame*/,
-                                    KNONVOLATILE_CONTEXT_POINTERS* /*ctx_ptr*/) {
+EXCEPTION_ROUTINE RtlVirtualUnwind(uint32_t type, uint64_t image_base,
+                                   uint64_t pc, RUNTIME_FUNCTION* func,
+                                   CONTEXT* context, void** handler_data,
+                                   uint64_t* establisher_frame,
+                                   KNONVOLATILE_CONTEXT_POINTERS* /*ctx_ptr*/) {
+    bool machine_frame = false;
+
     print("FIXME - RtlVirtualUnwind\n");
 
-    return nullptr;
+    auto& ui = *(UNWIND_INFO*)((uint8_t*)image_base + func->UnwindInfoAddress);
+
+    if (ui.version != 1)
+        return nullptr;
+
+    uint64_t frame;
+
+    if (ui.frame_register == 0)
+        frame = context->Rsp;
+    else {
+        frame = get_register(*context, (enum unwind_register)ui.frame_register);
+        frame -= ui.frame_offset * 16;
+    }
+
+    *establisher_frame = frame;
+
+    auto func_offset = (uint32_t)(pc - (uintptr_t)image_base - func->BeginAddress);
+
+    span codes((UNWIND_CODE*)((uint8_t*)image_base + func->UnwindInfoAddress + sizeof(UNWIND_INFO)),
+               ui.unwind_codes_count);
+
+    for (size_t i = 0; i < codes.size(); i++) {
+        const auto& c = codes[i];
+
+        // FIXME - skip some codes if we're in prologue
+
+        if (c.offset > func_offset)
+            continue;
+
+        switch ((enum unwind_opcode)c.code) {
+            case unwind_opcode::UWOP_PUSH_NONVOL: { // push reg (.seh_pushreg)
+                auto val = read_uint64_t(context->Rsp);
+
+                if (!val.has_value())
+                    return nullptr;
+
+                set_register(*context, (enum unwind_register)c.info, *val);
+                context->Rsp += sizeof(uint64_t);
+                break;
+            }
+
+            case unwind_opcode::UWOP_ALLOC_LARGE: // sub rsp, n (.seh_stackalloc)
+                if (c.info == 0) {
+                    if (i == codes.size() - 1)
+                        return nullptr;
+
+                    context->Rsp += *(uint16_t*)&codes[i + 1] * 8;
+                    i++;
+                } else {
+                    if (i >= codes.size() - 2)
+                        return nullptr;
+
+                    context->Rsp += *(uint32_t*)&codes[i + 1];
+                    i += 2;
+                }
+                break;
+
+            case unwind_opcode::UWOP_ALLOC_SMALL: // sub rsp, n (.seh_stackalloc)
+                context->Rsp += (c.info * 8) + 8;
+                break;
+
+            case unwind_opcode::UWOP_SET_FPREG: // lea framereg, [rsp + n] (.seh_setframe)
+                context->Rsp = frame;
+                break;
+
+            case unwind_opcode::UWOP_SAVE_NONVOL: // mov [rsp+n], reg (.seh_savereg)
+                if (i == codes.size() - 1)
+                    return nullptr;
+
+                set_register(*context, (enum unwind_register)c.info,
+                             frame + *(uint16_t*)&codes[i + 1] * 8);
+                i++;
+                break;
+
+            case unwind_opcode::UWOP_SAVE_NONVOL_FAR: // mov [rsp+n], reg (.seh_savereg)
+                if (i >= codes.size() - 2)
+                    return nullptr;
+
+                set_register(*context, (enum unwind_register)c.info,
+                             frame + *(uint32_t*)&codes[i + 1]);
+                i += 2;
+                break;
+
+            case unwind_opcode::UWOP_SAVE_XMM128: // movaps [rsp+n], xmmreg (.seh_savexmm)
+                if (i == codes.size() - 1)
+                    return nullptr;
+
+                // FIXME - ctx_ptr?
+
+                i++;
+                break;
+
+            case unwind_opcode::UWOP_SAVE_XMM128_FAR: // movaps [rsp+n], xmmreg (.seh_savexmm)
+                if (i >= codes.size() - 2)
+                    return nullptr;
+
+                // FIXME - ctx_ptr?
+
+                i += 2;
+                break;
+
+            case unwind_opcode::UWOP_PUSH_MACHFRAME: { // interrupt (.seh_pushframe)
+                if (c.info != 0)
+                    context->Rsp += sizeof(uint64_t);
+
+                auto val = read_uint64_t(context->Rsp);
+
+                if (!val.has_value())
+                    return nullptr;
+
+                context->Rip = *val;
+
+                val = read_uint64_t(context->Rsp + (3 * sizeof(uint64_t)));
+
+                if (!val.has_value())
+                    return nullptr;
+
+                context->Rsp = *val;
+                machine_frame = true;
+                break;
+            }
+
+            default:
+                return nullptr;
+        }
+    }
+
+    if (!machine_frame) {
+        context->Rip = *(uint64_t*)context->Rsp;
+        context->Rsp += 8;
+    }
+
+    auto ptr = (uint8_t*)&ui + sizeof(UNWIND_INFO) + (ui.unwind_codes_count * sizeof(UNWIND_CODE));
+
+    if (ui.unwind_codes_count % 2)
+        ptr += sizeof(UNWIND_CODE);
+
+    *handler_data = (uint32_t*)(ptr + sizeof(uint32_t));
+
+    if (!(ui.flags & type))
+        return nullptr;
+
+    // FIXME - also return nullptr if inside prologue
+
+    return (EXCEPTION_ROUTINE)(image_base + *(uint32_t*)ptr);
 }
 
 #else
