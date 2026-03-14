@@ -658,14 +658,21 @@ nt_status wait_for_objects(span<object*> objects, bool wait_any,
     mwb->left = wait_any ? 1 : (unsigned int)objects.size();
     mwb->num_entries = (unsigned int)objects.size();
 
+    size_t j = 0;
     for (size_t i = 0; i < objects.size(); i++) {
-        auto ent = new (&mwb->entries[i]) waiter_object_multiple;
-
         auto& so = object_get_sync_object(*objects[i]);
 
-        insert_tail_list(so.waiters, ent->wait_le);
+        if (!so.signalled) {
+            auto ent = new (&mwb->entries[j]) waiter_object_multiple;
 
-        ent->block = mwb;
+            insert_tail_list(so.waiters, ent->wait_le);
+
+            ent->block = mwb;
+            j++;
+        } else if (!wait_any) {
+            mwb->left--;
+            mwb->num_entries--;
+        }
     }
 
     current_thread->multwait = mwb;
