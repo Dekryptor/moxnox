@@ -365,3 +365,15 @@ EXCEPTION_DISPOSITION __C_specific_handler(EXCEPTION_RECORD* /*exception_record*
 
     return EXCEPTION_DISPOSITION::ExceptionContinueSearch;
 }
+
+#ifdef __x86_64__
+
+extern "C"
+void RtlUnwindEx(void* /*target_frame*/, void* /*target_ip*/,
+                 EXCEPTION_RECORD* /*exception_record*/, void* /*return_value*/,
+                 CONTEXT* /*original_context*/,
+                 UNWIND_HISTORY_TABLE* /*history_table*/) {
+    print_stderr("FIXME - RtlUnwindEx\n");
+}
+
+#endif

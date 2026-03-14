@@ -152,6 +152,25 @@ struct RTL_CONDITION_VARIABLE {
     void* Ptr;
 };
 
+#ifdef __x86_64__
+
+const size_t UNWIND_HISTORY_TABLE_SIZE = 12;
+
+struct UNWIND_HISTORY_TABLE_ENTRY {
+    uint64_t ImageBase;
+    RUNTIME_FUNCTION* FunctionEntry;
+};
+
+struct UNWIND_HISTORY_TABLE {
+    uint32_t Count;
+    uint8_t Search;
+    uint64_t LowAddress;
+    uint64_t HighAddress;
+    UNWIND_HISTORY_TABLE_ENTRY Entry[UNWIND_HISTORY_TABLE_SIZE];
+};
+
+#endif
+
 extern "C" {
 
 void* RtlCreateHeap(uint32_t flags, void* heap_base, size_t reserve_size, size_t commit_size,
@@ -194,6 +213,13 @@ void RtlWakeAddressAll(const void* addr);
 void* RtlPcToFileHeader(const void* pc, void** address);
 nt_status LdrAddRefDll(uint32_t flags, HMODULE mod);
 nt_status LdrUnloadDll(HMODULE mod);
+
+#ifdef __x86_64__
+void RtlUnwindEx(void* target_frame, void* target_ip,
+                 EXCEPTION_RECORD* exception_record, void* return_value,
+                 CONTEXT* original_context,
+                 UNWIND_HISTORY_TABLE* history_table);
+#endif
 
 }
 
