@@ -458,3 +458,4 @@ RtlWakeAddressSingle
 RtlWakeAddressAll
 RtlPcToFileHeader
 LdrAddRefDll
+LdrUnloadDll

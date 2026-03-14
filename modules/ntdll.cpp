@@ -185,6 +185,7 @@ void RtlWakeAddressSingle(const void* addr);
 void RtlWakeAddressAll(const void* addr);
 void* RtlPcToFileHeader(const void* pc, void** address);
 nt_status LdrAddRefDll(uint32_t flags, HMODULE mod);
+nt_status LdrUnloadDll(HMODULE mod);
 
 }
 
