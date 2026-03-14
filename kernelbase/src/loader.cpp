@@ -57,3 +57,11 @@ HMODULE GetModuleHandleW(const char16_t* mod) {
 
     return ret;
 }
+
+extern "C"
+bool FreeLibrary(HMODULE /*mod*/) {
+    print("FIXME - FreeLibrary\n");
+
+    SetLastError(ERROR_CALL_NOT_IMPLEMENTED);
+    return false;
+}

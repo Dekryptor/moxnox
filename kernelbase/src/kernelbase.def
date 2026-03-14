@@ -40,3 +40,4 @@ GetEnvironmentVariableW
 GetCurrentThreadId
 GetModuleHandleExW
 GetModuleHandleW
+FreeLibrary

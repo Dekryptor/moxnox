@@ -141,6 +141,7 @@ void Sleep(uint32_t timeout);
 uint32_t GetCurrentThreadId();
 bool GetModuleHandleExW(uint32_t flags, const char16_t* name, HMODULE* mod);
 HMODULE GetModuleHandleW(const char16_t* mod);
+bool FreeLibrary(HMODULE mod);
 
 }
 
