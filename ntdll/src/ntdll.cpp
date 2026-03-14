@@ -1401,8 +1401,27 @@ void* RtlPcToFileHeader(const void* pc, void** address) {
 }
 
 extern "C"
-nt_status LdrAddRefDll(uint32_t /*flags*/, HMODULE /*mod*/) {
-    print("FIXME - LdrAddRefDll\n");
+nt_status LdrAddRefDll(uint32_t flags, HMODULE mod) {
+    auto& teb = *NtCurrentTeb();
+    auto& peb = *teb.ProcessEnvironmentBlock;
 
-    return nt_status::NOT_IMPLEMENTED;
+    // FIXME - LDR_ADDREF_DLL_PIN
+
+    if (flags != 0) {
+        print("FIXME - LdrAddRefDll {:x}\n", flags);
+        return nt_status::NOT_IMPLEMENTED;
+    }
+
+    // FIXME - loader lock
+
+    for (auto le = peb.Ldr->InMemoryOrderModuleList.Flink; le != &peb.Ldr->InMemoryOrderModuleList; le = le->Flink) {
+        auto& mod2 = *CONTAINING_RECORD(le, LDR_DATA_TABLE_ENTRY, InMemoryOrderLinks);
+
+        if (mod2.DllBase == mod) {
+            mod2.LoadCount++;
+            return nt_status::SUCCESS;
+        }
+    }
+
+    return nt_status::INVALID_PARAMETER;
 }
