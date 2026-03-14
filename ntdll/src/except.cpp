@@ -533,9 +533,6 @@ void RtlUnwindEx(void* target_frame, void* target_ip,
             frame -= ui.frame_offset * 16;
         }
 
-        if (target_frame && frame == (uint64_t)target_frame)
-            break;
-
         if (ui.flags & UNW_FLAG_UHANDLER) {
             auto ptr = (uint8_t*)&ui + sizeof(UNWIND_INFO) + (ui.unwind_codes_count * sizeof(UNWIND_CODE));
 
@@ -561,6 +558,9 @@ void RtlUnwindEx(void* target_frame, void* target_ip,
             handler(exception_record, (void*)frame, &context,
                     &dispatcher_context);
         }
+
+        if (target_frame && frame == (uint64_t)target_frame)
+            break;
 
         RtlVirtualUnwind(UNW_FLAG_UHANDLER, image_base, context.Rip,
                          function_entry, &context, &data, &frame,
