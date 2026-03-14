@@ -513,38 +513,25 @@ void RtlUnwindEx(void* target_frame, void* target_ip,
             continue;
         }
 
-        auto& ui = *(UNWIND_INFO*)(image_base + function_entry->UnwindData);
+        auto control_pc = context.Rip;
 
-        if (ui.frame_register == 0)
-            frame = context.Rsp;
-        else {
-            frame = get_register(context, (enum unwind_register)ui.frame_register);
-            frame -= ui.frame_offset * 16;
-        }
+        auto handler = RtlVirtualUnwind(UNW_FLAG_UHANDLER, image_base,
+                                        context.Rip, function_entry, &context,
+                                        &data, &frame, nullptr);
 
-        if (target_frame)
+        if (target_frame && frame == (uint64_t)target_frame)
             exception_record->ExceptionFlags |= EH_TARGET_UNWIND;
 
-        if (ui.flags & UNW_FLAG_UHANDLER) {
-            auto ptr = (uint8_t*)&ui + sizeof(UNWIND_INFO) + (ui.unwind_codes_count * sizeof(UNWIND_CODE));
-
-            if (ui.unwind_codes_count % 2)
-                ptr += sizeof(UNWIND_CODE);
-
-            auto handler_addr = *(uint32_t*)ptr;
-            auto handler_data = (uint32_t*)(ptr + sizeof(uint32_t));
-
-            auto handler = (EXCEPTION_ROUTINE)(image_base + handler_addr);
-
+        if (handler) {
             DISPATCHER_CONTEXT dispatcher_context;
-            dispatcher_context.ControlPc = context.Rip;
+            dispatcher_context.ControlPc = control_pc;
             dispatcher_context.ImageBase = image_base;
             dispatcher_context.FunctionEntry = function_entry;
             dispatcher_context.EstablisherFrame = frame;
             dispatcher_context.TargetIp = (uint64_t)target_ip;
             dispatcher_context.ContextRecord = &context;
             dispatcher_context.LanguageHandler = handler;
-            dispatcher_context.HandlerData = handler_data;
+            dispatcher_context.HandlerData = data;
             dispatcher_context.HistoryTable = history_table;
 
             handler(exception_record, (void*)frame, &context,
@@ -553,10 +540,6 @@ void RtlUnwindEx(void* target_frame, void* target_ip,
 
         if (target_frame && frame == (uint64_t)target_frame)
             break;
-
-        RtlVirtualUnwind(UNW_FLAG_UHANDLER, image_base, context.Rip,
-                         function_entry, &context, &data, &frame,
-                         nullptr);
 
         if (context.Rip == 0)
             break;
