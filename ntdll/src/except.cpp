@@ -130,6 +130,7 @@ static bool do_unwind_context(CONTEXT& context) {
 static nt_status handle_exception(EXCEPTION_RECORD* exception,
                                   CONTEXT& orig_context) {
     CONTEXT context;
+    DISPATCHER_CONTEXT dispatcher_context;
 
     context = orig_context;
 
@@ -161,8 +162,20 @@ static nt_status handle_exception(EXCEPTION_RECORD* exception,
         auto handler = (EXCEPTION_ROUTINE)((uint8_t*)ent->ldr.DllBase + handler_addr);
 
         // FIXME - frame
-        // FIXME - dispatcher context
-        auto disp = handler(exception, nullptr, &prev_context, nullptr);
+
+        // FIXME - aarch64??
+
+        dispatcher_context.ControlPc = 0; // FIXME (uint64_t)
+        dispatcher_context.ImageBase = 0; // FIXME (uint64_t)
+        dispatcher_context.FunctionEntry = nullptr; // FIXME (RUNTIME_FUNCTION*)
+        dispatcher_context.EstablisherFrame = 0; // FIXME (uint64_t)
+        dispatcher_context.TargetIp = 0; // FIXME (uint64_t)
+        dispatcher_context.ContextRecord = nullptr; // FIXME (AMD64_CONTEXT*)
+        dispatcher_context.LanguageHandler = nullptr; // FIXME (EXCEPTION_ROUTINE*)
+        dispatcher_context.HandlerData = nullptr; // FIXME (void*)
+
+        auto disp = handler(exception, nullptr, &prev_context,
+                            &dispatcher_context);
 
         switch (disp) {
             case EXCEPTION_DISPOSITION::ExceptionContinueExecution:
