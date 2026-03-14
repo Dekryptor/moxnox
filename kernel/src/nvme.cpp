@@ -891,8 +891,8 @@ nt_status nvme_namespace::dio_read(uint64_t page_num, uint64_t num_pages,
     // FIXME - support linked PRP lists (last entry should be pointer to next list)
     // not an issue on Qemu, which only supports transfers up to 512KB - is this
     // larger on real hardware?
-    if (num_pages >= PRP_LIST_ENTRIES)
-        num_pages = PRP_LIST_ENTRIES;
+    if (num_pages >= PRP_LIST_ENTRIES + 1)
+        num_pages = PRP_LIST_ENTRIES + 1;
 
     uint64_t num_blocks = (num_pages << PAGE_SHIFT) / sector_size;
 
