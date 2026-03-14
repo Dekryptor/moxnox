@@ -644,8 +644,6 @@ EXCEPTION_ROUTINE RtlVirtualUnwind(uint32_t type, uint64_t image_base,
                                    KNONVOLATILE_CONTEXT_POINTERS* /*ctx_ptr*/) {
     bool machine_frame = false;
 
-    print("FIXME - RtlVirtualUnwind\n");
-
     auto& ui = *(UNWIND_INFO*)((uint8_t*)image_base + func->UnwindInfoAddress);
 
     if (ui.version != 1)
