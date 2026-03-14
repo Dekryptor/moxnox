@@ -377,3 +377,11 @@ void RtlUnwindEx(void* /*target_frame*/, void* /*target_ip*/,
 }
 
 #endif
+
+extern "C"
+RUNTIME_FUNCTION* RtlLookupFunctionEntry(uintptr_t pc, uintptr_t* base,
+                                         UNWIND_HISTORY_TABLE* table) {
+    print_stderr("FIXME - RtlLookupFunctionEntry\n"); // FIXME
+
+    return nullptr;
+}

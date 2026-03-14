@@ -58,3 +58,4 @@ RtlWakeAddressSingle
 RtlPcToFileHeader
 LdrAddRefDll
 LdrUnloadDll
+RtlLookupFunctionEntry
