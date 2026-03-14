@@ -1425,3 +1425,10 @@ nt_status LdrAddRefDll(uint32_t flags, HMODULE mod) {
 
     return nt_status::INVALID_PARAMETER;
 }
+
+extern "C"
+nt_status LdrUnloadDll(HMODULE /*mod*/) {
+    print("FIXME - LdrUnloadDll\n");
+
+    return nt_status::NOT_IMPLEMENTED;
+}

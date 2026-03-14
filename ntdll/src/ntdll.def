@@ -57,3 +57,4 @@ RtlWakeConditionVariable
 RtlWakeAddressSingle
 RtlPcToFileHeader
 LdrAddRefDll
+LdrUnloadDll
