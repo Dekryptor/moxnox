@@ -721,23 +721,33 @@ EXCEPTION_ROUTINE RtlVirtualUnwind(uint32_t type, uint64_t image_base,
                 context->Rsp = frame;
                 break;
 
-            case unwind_opcode::UWOP_SAVE_NONVOL: // mov [rsp+n], reg (.seh_savereg)
+            case unwind_opcode::UWOP_SAVE_NONVOL: { // mov [rsp+n], reg (.seh_savereg)
                 if (i == codes.size() - 1)
                     return nullptr;
 
-                set_register(*context, (enum unwind_register)c.info,
-                             frame + *(uint16_t*)&codes[i + 1] * 8);
+                auto val = read_uint64_t(frame + (*(uint16_t*)&codes[i + 1] * 8));
+
+                if (!val.has_value())
+                    return nullptr;
+
+                set_register(*context, (enum unwind_register)c.info, *val);
                 i++;
                 break;
+            }
 
-            case unwind_opcode::UWOP_SAVE_NONVOL_FAR: // mov [rsp+n], reg (.seh_savereg)
+            case unwind_opcode::UWOP_SAVE_NONVOL_FAR: { // mov [rsp+n], reg (.seh_savereg)
                 if (i >= codes.size() - 2)
                     return nullptr;
 
-                set_register(*context, (enum unwind_register)c.info,
-                             frame + *(uint32_t*)&codes[i + 1]);
+                auto val = read_uint64_t(frame + *(uint32_t*)&codes[i + 1]);
+
+                if (!val.has_value())
+                    return nullptr;
+
+                set_register(*context, (enum unwind_register)c.info, *val);
                 i += 2;
                 break;
+            }
 
             case unwind_opcode::UWOP_SAVE_XMM128: // movaps [rsp+n], xmmreg (.seh_savexmm)
                 if (i == codes.size() - 1)
