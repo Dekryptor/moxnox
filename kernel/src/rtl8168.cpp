@@ -5,6 +5,7 @@ import pci;
 import list;
 import module_init;
 import net;
+import timer;
 
 static const uint16_t PCI_VENDOR_ID_REALTEK = 0x10ec;
 
@@ -52,6 +53,10 @@ struct rtl8168_regs {
 
 static_assert(sizeof(rtl8168_regs) == 0x100);
 
+static const uint8_t RTL_CMD_RESET = 0x10;
+static const uint8_t RTL_CMD_RX_ENABLE = 0x08;
+static const uint8_t RTL_CMD_TX_ENABLE = 0x04;
+
 void found_rtl8168(pci_device& dev);
 
 static pci_recognizer mod_pci_ids[] = {
@@ -83,6 +88,24 @@ void found_rtl8168(pci_device& dev) {
     }
 
     volatile auto& regs = *(rtl8168_regs*)dev.bar[2].data();
+    bool reset_done = false;
+
+    regs.cmd = RTL_CMD_RESET;
+
+    // wait up to 100ms
+    for (unsigned int i = 0; i < 100; i++) {
+        if (!(regs.cmd & RTL_CMD_RESET)) {
+            reset_done = true;
+            break;
+        }
+
+        msleep(1);
+    }
+
+    if (!reset_done) {
+        print("found_rtl8168: card unresponsive, reset did not complete\n");
+        return;
+    }
 
     mac_address mac;
 
