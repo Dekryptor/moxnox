@@ -183,6 +183,7 @@ nt_status RtlWaitOnAddress(const void* addr, const void* cmp, size_t size,
 void RtlWakeConditionVariable(RTL_CONDITION_VARIABLE* variable);
 void RtlWakeAddressSingle(const void* addr);
 void RtlWakeAddressAll(const void* addr);
+void* RtlPcToFileHeader(const void* pc, void** address);
 
 }
 
