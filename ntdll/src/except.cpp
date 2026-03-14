@@ -514,6 +514,7 @@ void RtlUnwindEx(void* target_frame, void* target_ip,
         }
 
         auto control_pc = context.Rip;
+        auto prev_context = context;
 
         auto handler = RtlVirtualUnwind(UNW_FLAG_UHANDLER, image_base,
                                         context.Rip, function_entry, &context,
@@ -529,17 +530,19 @@ void RtlUnwindEx(void* target_frame, void* target_ip,
             dispatcher_context.FunctionEntry = function_entry;
             dispatcher_context.EstablisherFrame = frame;
             dispatcher_context.TargetIp = (uint64_t)target_ip;
-            dispatcher_context.ContextRecord = &context;
+            dispatcher_context.ContextRecord = &prev_context;
             dispatcher_context.LanguageHandler = handler;
             dispatcher_context.HandlerData = data;
             dispatcher_context.HistoryTable = history_table;
 
-            handler(exception_record, (void*)frame, &context,
+            handler(exception_record, (void*)frame, &prev_context,
                     &dispatcher_context);
         }
 
-        if (target_frame && frame == (uint64_t)target_frame)
+        if (target_frame && frame == (uint64_t)target_frame) {
+            context = prev_context;
             break;
+        }
 
         if (context.Rip == 0)
             break;
