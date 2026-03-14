@@ -378,6 +378,72 @@ void RtlUnwindEx(void* /*target_frame*/, void* /*target_ip*/,
 
 #endif
 
+static span<const uint8_t> find_pdata(void* img_addr) {
+    const auto& dos_header = *(IMAGE_DOS_HEADER*)img_addr;
+
+    if (dos_header.e_magic != IMAGE_DOS_SIGNATURE)
+        return span<const uint8_t>();
+
+    const auto& nt_header = *(IMAGE_NT_HEADERS*)((uint8_t*)img_addr + dos_header.e_lfanew);
+
+    if (nt_header.Signature != IMAGE_NT_SIGNATURE)
+        return span<const uint8_t>();
+
+    span<const IMAGE_SECTION_HEADER> sections;
+
+    if (nt_header.OptionalHeader32.Magic == IMAGE_NT_OPTIONAL_HDR64_MAGIC)
+        sections = span((IMAGE_SECTION_HEADER*)((uint8_t*)&nt_header.OptionalHeader64 + nt_header.FileHeader.SizeOfOptionalHeader), nt_header.FileHeader.NumberOfSections);
+    else if (nt_header.OptionalHeader32.Magic == IMAGE_NT_OPTIONAL_HDR32_MAGIC)
+        sections = span((IMAGE_SECTION_HEADER*)((uint8_t*)&nt_header.OptionalHeader32 + nt_header.FileHeader.SizeOfOptionalHeader), nt_header.FileHeader.NumberOfSections);
+
+    // FIXME - probably should be looking in data directory rather than going off name
+
+    for (const auto& sect : sections) {
+        if (string_view(sect.Name) == ".pdata")
+            return span((uint8_t*)img_addr + sect.VirtualAddress, sect.VirtualSize);
+    }
+
+    return span<const uint8_t>();
+}
+
+#ifdef __x86_64__
+
+extern "C"
+RUNTIME_FUNCTION* RtlLookupFunctionEntry(uintptr_t pc, uintptr_t* base,
+                                         UNWIND_HISTORY_TABLE* /*history_table*/) {
+    void* img_base;
+
+    // FIXME - history_table?
+
+    if (!RtlPcToFileHeader((void*)pc, &img_base))
+        return nullptr;
+
+    *base = (uintptr_t)img_base;
+
+    pc -= (uintptr_t)*base;
+
+    // FIXME - how do JITted programs provide their pdata?
+
+    auto pdata = find_pdata(img_base);
+    if (pdata.empty())
+        return nullptr;
+
+    span<RUNTIME_FUNCTION> rt_funcs((RUNTIME_FUNCTION*)pdata.data(),
+                                    pdata.size() / sizeof(RUNTIME_FUNCTION));
+
+    for (auto& f : rt_funcs) {
+        if (pc >= f.BeginAddress && pc < f.EndAddress)
+            return &f;
+
+        if (f.BeginAddress > pc) // stored in order
+            break;
+    }
+
+    return nullptr;
+}
+
+#else
+
 extern "C"
 RUNTIME_FUNCTION* RtlLookupFunctionEntry(uintptr_t pc, uintptr_t* base,
                                          UNWIND_HISTORY_TABLE* table) {
@@ -385,3 +451,5 @@ RUNTIME_FUNCTION* RtlLookupFunctionEntry(uintptr_t pc, uintptr_t* base,
 
     return nullptr;
 }
+
+#endif
