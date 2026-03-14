@@ -457,3 +457,4 @@ RtlWaitOnAddress
 RtlWakeAddressSingle
 RtlWakeAddressAll
 RtlPcToFileHeader
+LdrAddRefDll

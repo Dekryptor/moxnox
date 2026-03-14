@@ -12,5 +12,6 @@ do_stub "iswctype"
 do_stub "towlower"
 do_stub "towupper"
 do_stub "RtlPcToFileHeader"
+do_stub "LdrAddRefDll"
 
 stubs_end
