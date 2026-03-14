@@ -49,9 +49,10 @@ int wctob(wint_t wchar) {
 
 extern "C"
 wint_t btowc(int c) {
-    print_stderr("FIXME - btowc {}\n", c); // FIXME
+    if (c == EOF)
+        return WEOF;
 
-    return WEOF;
+    return c & 0xff;
 }
 
 extern "C"
