@@ -505,9 +505,6 @@ void RtlUnwindEx(void* target_frame, void* target_ip,
     } else
         exception_record->ExceptionFlags |= EH_UNWINDING;
 
-    if (target_frame)
-        exception_record->ExceptionFlags |= EH_TARGET_UNWIND;
-
     while (true) {
         uint64_t image_base, frame;
         void* data = nullptr;
@@ -532,6 +529,9 @@ void RtlUnwindEx(void* target_frame, void* target_ip,
             frame = get_register(context, (enum unwind_register)ui.frame_register);
             frame -= ui.frame_offset * 16;
         }
+
+        if (target_frame)
+            exception_record->ExceptionFlags |= EH_TARGET_UNWIND;
 
         if (ui.flags & UNW_FLAG_UHANDLER) {
             auto ptr = (uint8_t*)&ui + sizeof(UNWIND_INFO) + (ui.unwind_codes_count * sizeof(UNWIND_CODE));
