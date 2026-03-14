@@ -165,8 +165,6 @@ static nt_status handle_exception(EXCEPTION_RECORD* exception,
 
         auto handler = (EXCEPTION_ROUTINE)((uint8_t*)ent->ldr.DllBase + handler_addr);
 
-        // FIXME - frame
-
         // FIXME - aarch64??
 
 #ifdef __x86_64__
@@ -180,7 +178,7 @@ static nt_status handle_exception(EXCEPTION_RECORD* exception,
         dispatcher_context.HandlerData = handler_data;
 #endif
 
-        auto disp = handler(exception, nullptr, &prev_context,
+        auto disp = handler(exception, (void*)frame, &prev_context,
                             &dispatcher_context);
 
         switch (disp) {
