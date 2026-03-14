@@ -118,6 +118,14 @@ enum class EXCEPTION_DISPOSITION : int {
     ExceptionExecuteHandler = 4
 };
 
+const uint32_t EH_NONCONTINUABLE = 0x0000001;
+const uint32_t EH_UNWINDING = 0x0000002;
+const uint32_t EH_EXIT_UNWIND = 0x0000004;
+const uint32_t EH_STACK_INVALID = 0x0000008;
+const uint32_t EH_NESTED_CALL = 0x00000010;
+const uint32_t EH_TARGET_UNWIND = 0x00000020;
+const uint32_t EH_COLLIDED_UNWIND = 0x00000040;
+
 using EXCEPTION_ROUTINE = EXCEPTION_DISPOSITION(*)(EXCEPTION_RECORD*, void*,
                                                    CONTEXT*, void*);
 
