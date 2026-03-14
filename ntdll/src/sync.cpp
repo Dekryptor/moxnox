@@ -23,6 +23,7 @@ static RTL_CRITICAL_SECTION waiters_lock = {
 struct wait_entry {
     const void* address;
     HANDLE event;
+    bool removed;
     list_entry le;
 };
 
@@ -80,6 +81,7 @@ nt_status RtlWaitOnAddress(const void* addr, const void* cmp,
     wait_entry entry;
     entry.address = addr;
     entry.event = event.get();
+    entry.removed = false;
 
     RtlEnterCriticalSection(&waiters_lock);
 
@@ -94,11 +96,14 @@ nt_status RtlWaitOnAddress(const void* addr, const void* cmp,
 
     status = NtWaitForSingleObject(event.get(), false, timeout);
 
-    RtlEnterCriticalSection(&waiters_lock);
+    if (!entry.removed) {
+        RtlEnterCriticalSection(&waiters_lock);
 
-    remove_entry_list(entry.le);
+        if (!entry.removed)
+            remove_entry_list(entry.le);
 
-    RtlLeaveCriticalSection(&waiters_lock);
+        RtlLeaveCriticalSection(&waiters_lock);
+    }
 
     return status;
 }
@@ -120,6 +125,8 @@ void RtlWakeAddressSingle(const void* addr) {
 
         if (e.address == addr) {
             NtSetEvent(e.event, nullptr);
+            remove_entry_list(e.le);
+            e.removed = true;
             break;
         }
     }
@@ -134,8 +141,15 @@ void RtlWakeAddressAll(const void* addr) {
     for (auto le = waiters.next; le != &waiters; le = le->next) {
         auto& e = containing_record<wait_entry>(le);
 
-        if (e.address == addr)
+        if (e.address == addr) {
+            auto prev = e.le.prev;
+
             NtSetEvent(e.event, nullptr);
+            remove_entry_list(e.le);
+            e.removed = true;
+
+            le = prev;
+        }
     }
 
     RtlLeaveCriticalSection(&waiters_lock);
