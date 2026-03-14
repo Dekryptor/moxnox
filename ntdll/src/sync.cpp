@@ -10,6 +10,7 @@ import unique_handle;
 
 using namespace std;
 
+// FIXME? - LockSemaphore HANDLE sticks around until end of program (is this an issue?)
 static RTL_CRITICAL_SECTION waiters_lock = {
     .DebugInfo = nullptr,
     .LockCount = -1,
@@ -33,8 +34,11 @@ void RtlInitializeConditionVariable(RTL_CONDITION_VARIABLE* var) {
 }
 
 extern "C"
-void RtlWakeAllConditionVariable(RTL_CONDITION_VARIABLE* /*var*/) {
-    print("FIXME - RtlWakeAllConditionVariable\n"); // FIXME
+void RtlWakeAllConditionVariable(RTL_CONDITION_VARIABLE* var) {
+    atomic_ref<uintptr_t> ptr_ref(*(uintptr_t*)&var->Ptr);
+
+    ptr_ref.fetch_add(1, memory_order_release);
+    RtlWakeAddressAll(&var->Ptr);
 }
 
 extern "C"
@@ -118,6 +122,20 @@ void RtlWakeAddressSingle(const void* addr) {
             NtSetEvent(e.event, nullptr);
             break;
         }
+    }
+
+    RtlLeaveCriticalSection(&waiters_lock);
+}
+
+extern "C"
+void RtlWakeAddressAll(const void* addr) {
+    RtlEnterCriticalSection(&waiters_lock);
+
+    for (auto le = waiters.next; le != &waiters; le = le->next) {
+        auto& e = containing_record<wait_entry>(le);
+
+        if (e.address == addr)
+            NtSetEvent(e.event, nullptr);
     }
 
     RtlLeaveCriticalSection(&waiters_lock);
