@@ -219,6 +219,8 @@ void RtlUnwindEx(void* target_frame, void* target_ip,
                  EXCEPTION_RECORD* exception_record, void* return_value,
                  CONTEXT* original_context,
                  UNWIND_HISTORY_TABLE* history_table);
+RUNTIME_FUNCTION* RtlLookupFunctionEntry(uintptr_t pc, uintptr_t* base,
+                                         UNWIND_HISTORY_TABLE* table);
 #endif
 
 }
