@@ -42,6 +42,7 @@ nt_status RtlDeleteCriticalSection(RTL_CRITICAL_SECTION* critical_section) {
 
 extern "C"
 nt_status RtlEnterCriticalSection(RTL_CRITICAL_SECTION* critical_section) {
+    nt_status status;
     auto& cs = *critical_section;
 
     atomic_ref<int32_t> lock_count(cs.LockCount);
@@ -106,23 +107,21 @@ nt_status RtlEnterCriticalSection(RTL_CRITICAL_SECTION* critical_section) {
         }
     }
 
-    lock_count.fetch_add(1, memory_order_acquire);
-
-    while (true) {
-        auto status = NtWaitForSingleObject(cs.LockSemaphore, false, nullptr);
-        if (!success(status)) {
-            print_stderr("NtWaitForSingleObject returned {}\n", status);
-            return status;
-        }
-
-        expected = -1;
-        if (lock_count.compare_exchange_strong(expected, 0, memory_order_acquire,
-                                               memory_order_relaxed)) {
-            cs.OwningThread = this_thread;
-            cs.RecursionCount = 1;
-            return nt_status::SUCCESS;
-        }
+    if (lock_count.fetch_add(1, memory_order_acquire) == -1) {
+        cs.OwningThread = this_thread;
+        cs.RecursionCount = 1;
+        return nt_status::SUCCESS;
     }
+
+    status = NtWaitForSingleObject(cs.LockSemaphore, false, nullptr);
+    if (!success(status)) {
+        print_stderr("NtWaitForSingleObject returned {}\n", status);
+        return status;
+    }
+
+    cs.OwningThread = this_thread;
+    cs.RecursionCount = 1;
+    return nt_status::SUCCESS;
 }
 
 extern "C"
