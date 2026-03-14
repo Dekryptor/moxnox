@@ -129,19 +129,6 @@ const uint32_t EH_COLLIDED_UNWIND = 0x00000040;
 using EXCEPTION_ROUTINE = EXCEPTION_DISPOSITION(*)(EXCEPTION_RECORD*, void*,
                                                    CONTEXT*, void*);
 
-struct DISPATCHER_CONTEXT_AMD64 {
-    uint64_t ControlPc;
-    uint64_t ImageBase;
-    RUNTIME_FUNCTION* FunctionEntry;
-    uint64_t EstablisherFrame;
-    uint64_t TargetIp;
-    AMD64_CONTEXT* ContextRecord;
-    EXCEPTION_ROUTINE LanguageHandler;
-    void* HandlerData;
-};
-
-using DISPATCHER_CONTEXT = DISPATCHER_CONTEXT_AMD64;
-
 struct ANSI_STRING {
     uint16_t Length;
     uint16_t MaximumLength;
@@ -213,6 +200,59 @@ struct KNONVOLATILE_CONTEXT_POINTERS {
         };
     };
 };
+
+struct DISPATCHER_CONTEXT_AMD64 {
+    uint64_t ControlPc;
+    uint64_t ImageBase;
+    RUNTIME_FUNCTION* FunctionEntry;
+    uint64_t EstablisherFrame;
+    uint64_t TargetIp;
+    AMD64_CONTEXT* ContextRecord;
+    EXCEPTION_ROUTINE LanguageHandler;
+    void* HandlerData;
+    UNWIND_HISTORY_TABLE* HistoryTable;
+    uint32_t ScopeIndex;
+    uint32_t Fill0;
+};
+
+using DISPATCHER_CONTEXT = DISPATCHER_CONTEXT_AMD64;
+
+#elifdef __aarch64__
+
+const size_t UNWIND_HISTORY_TABLE_SIZE = 12;
+
+struct UNWIND_HISTORY_TABLE_ENTRY {
+    uint64_t ImageBase;
+    RUNTIME_FUNCTION* FunctionEntry;
+};
+
+struct UNWIND_HISTORY_TABLE {
+    uint32_t Count;
+    uint8_t LocalHint;
+    uint8_t GlobalHint;
+    uint8_t Search;
+    uint8_t Once;
+    uint64_t LowAddress;
+    uint64_t HighAddress;
+    UNWIND_HISTORY_TABLE_ENTRY Entry[UNWIND_HISTORY_TABLE_SIZE];
+};
+
+struct DISPATCHER_CONTEXT_ARM64 {
+    uintptr_t ControlPc;
+    uintptr_t ImageBase;
+    RUNTIME_FUNCTION* FunctionEntry;
+    uintptr_t EstablisherFrame;
+    uintptr_t TargetPc;
+    ARM64_NT_CONTEXT* ContextRecord;
+    EXCEPTION_ROUTINE* LanguageHandler;
+    void* HandlerData;
+    UNWIND_HISTORY_TABLE* HistoryTable;
+    uint32_t ScopeIndex;
+    bool ControlPcIsUnwound; // FIXME?
+    uint8_t* NonVolatileRegisters;
+};
+
+using DISPATCHER_CONTEXT = DISPATCHER_CONTEXT_ARM64;
 
 #endif
 
