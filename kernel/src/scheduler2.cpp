@@ -670,6 +670,7 @@ nt_status wait_for_objects(span<object*> objects, bool wait_any,
             ent->block = mwb;
             j++;
         } else if (!wait_any) {
+            object_on_wake(*objects[i]);
             mwb->left--;
             mwb->num_entries--;
         }
