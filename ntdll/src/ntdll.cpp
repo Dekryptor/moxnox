@@ -1399,3 +1399,10 @@ void* RtlPcToFileHeader(const void* pc, void** address) {
     *address = nullptr;
     return nullptr;
 }
+
+extern "C"
+nt_status LdrAddRefDll(uint32_t /*flags*/, HMODULE /*mod*/) {
+    print("FIXME - LdrAddRefDll\n");
+
+    return nt_status::NOT_IMPLEMENTED;
+}

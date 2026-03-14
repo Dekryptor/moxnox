@@ -11,6 +11,5 @@ do_stub "RtlVirtualUnwind"
 do_stub "iswctype"
 do_stub "towlower"
 do_stub "towupper"
-do_stub "LdrAddRefDll"
 
 stubs_end
