@@ -165,14 +165,16 @@ static nt_status handle_exception(EXCEPTION_RECORD* exception,
 
         // FIXME - aarch64??
 
-        dispatcher_context.ControlPc = 0; // FIXME (uint64_t)
-        dispatcher_context.ImageBase = 0; // FIXME (uint64_t)
+#ifdef __x86_64__
+        dispatcher_context.ControlPc = prev_context.Rip;
+        dispatcher_context.ImageBase = (uint64_t)ent->ldr.DllBase;
         dispatcher_context.FunctionEntry = nullptr; // FIXME (RUNTIME_FUNCTION*)
         dispatcher_context.EstablisherFrame = 0; // FIXME (uint64_t)
         dispatcher_context.TargetIp = 0; // FIXME (uint64_t)
-        dispatcher_context.ContextRecord = nullptr; // FIXME (AMD64_CONTEXT*)
+        dispatcher_context.ContextRecord = &prev_context;
         dispatcher_context.LanguageHandler = nullptr; // FIXME (EXCEPTION_ROUTINE*)
         dispatcher_context.HandlerData = nullptr; // FIXME (void*)
+#endif
 
         auto disp = handler(exception, nullptr, &prev_context,
                             &dispatcher_context);
