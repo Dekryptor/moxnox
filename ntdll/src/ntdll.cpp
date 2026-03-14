@@ -1382,7 +1382,20 @@ void __attribute__((noreturn)) RtlExitUserThread(nt_status exit_status) {
 
 extern "C"
 void* RtlPcToFileHeader(const void* pc, void** address) {
-    print("FIXME - RtlPcToFileHeader\n");
+    auto& teb = *NtCurrentTeb();
+    auto& peb = *teb.ProcessEnvironmentBlock;
 
+    // FIXME - loader lock
+
+    for (auto le = peb.Ldr->InMemoryOrderModuleList.Flink; le != &peb.Ldr->InMemoryOrderModuleList; le = le->Flink) {
+        auto& mod = *CONTAINING_RECORD(le, LDR_DATA_TABLE_ENTRY, InMemoryOrderLinks);
+
+        if (pc >= mod.DllBase && pc < (uint8_t*)mod.DllBase + mod.SizeOfImage) {
+            *address = mod.DllBase;
+            return mod.DllBase;
+        }
+    }
+
+    *address = nullptr;
     return nullptr;
 }
