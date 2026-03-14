@@ -42,9 +42,10 @@ lconv* _localeconv() {
 
 extern "C"
 int wctob(wint_t wchar) {
-    print_stderr("FIXME - wctob {}\n", wchar); // FIXME
-
-    return -1;
+    if (wchar < 0xff)
+        return (signed char)wchar;
+    else
+        return EOF;
 }
 
 extern "C"
