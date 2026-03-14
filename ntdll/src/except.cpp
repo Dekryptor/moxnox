@@ -442,6 +442,17 @@ RUNTIME_FUNCTION* RtlLookupFunctionEntry(uintptr_t pc, uintptr_t* base,
     return nullptr;
 }
 
+extern "C"
+EXCEPTION_ROUTINE* RtlVirtualUnwind(uint32_t /*type*/, uint64_t /*image_base*/,
+                                    uint64_t /*pc*/, RUNTIME_FUNCTION */*func*/,
+                                    CONTEXT* /*context*/, void* /*handler_data*/,
+                                    uint64_t* /*establisher_frame*/,
+                                    KNONVOLATILE_CONTEXT_POINTERS* /*ctx_ptr*/) {
+    print("FIXME - RtlVirtualUnwind\n");
+
+    return nullptr;
+}
+
 #else
 
 extern "C"
