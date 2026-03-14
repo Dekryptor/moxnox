@@ -81,7 +81,7 @@ static span<const uint8_t> find_pdata(void* img_addr) {
 }
 
 #ifdef __x86_64__
-static const RUNTIME_FUNCTION* find_runtime_function(void* img_addr, uint64_t rip) {
+static RUNTIME_FUNCTION* find_runtime_function(void* img_addr, uint64_t rip) {
     rip -= (uintptr_t)img_addr;
 
     // FIXME - how do JITted programs provide their pdata?
@@ -93,7 +93,7 @@ static const RUNTIME_FUNCTION* find_runtime_function(void* img_addr, uint64_t ri
     span<RUNTIME_FUNCTION> rt_funcs((RUNTIME_FUNCTION*)pdata.data(),
                                     pdata.size() / sizeof(RUNTIME_FUNCTION));
 
-    for (const auto& f : rt_funcs) {
+    for (auto& f : rt_funcs) {
         if (rip >= f.BeginAddress && rip < f.EndAddress)
             return &f;
 
@@ -228,13 +228,15 @@ static void set_register(CONTEXT& context, enum unwind_register reg, uint64_t va
 }
 
 static bool unwind_context2(CONTEXT& context, void* img_addr, size_t img_size,
-                            const RUNTIME_FUNCTION* prt_func,
-                            bool& machine_frame, uint32_t* handler_addr) {
+                            RUNTIME_FUNCTION* prt_func, bool& machine_frame,
+                            uint32_t* handler_addr, uint32_t** handler_data,
+                            RUNTIME_FUNCTION** function_entry,
+                            uint64_t* establisher_frame) {
     uint32_t func_offset;
     uint64_t frame = context.Rsp;
 
     while (true) {
-        const auto& rt_func = *prt_func;
+        auto& rt_func = *prt_func;
 
         if (rt_func.UnwindInfoAddress > img_size - sizeof(UNWIND_INFO))
             return false;
@@ -366,17 +368,26 @@ static bool unwind_context2(CONTEXT& context, void* img_addr, size_t img_size,
             }
         }
 
+        if (establisher_frame)
+            *establisher_frame = frame;
+
         if (handler_addr) {
-            if (ui.flags & UNW_FLAG_EHANDLER) {
+            if (ui.flags & (UNW_FLAG_EHANDLER | UNW_FLAG_UHANDLER)) {
                 auto ptr = (uint8_t*)&ui + sizeof(UNWIND_INFO) + (ui.unwind_codes_count * sizeof(UNWIND_CODE));
 
                 if (ui.unwind_codes_count % 2)
                     ptr += sizeof(UNWIND_CODE);
 
                 *handler_addr = *(uint32_t*)ptr;
+
+                if (handler_data)
+                    *handler_data = (uint32_t*)(ptr + sizeof(uint32_t));
             } else
                 *handler_addr = 0;
         }
+
+        if (function_entry)
+            *function_entry = prt_func;
 
         if (!(ui.flags & UNW_FLAG_CHAININFO))
             break;
@@ -479,7 +490,7 @@ static bool unwind_context_packed(CONTEXT& context,
 
 static bool unwind_context2(CONTEXT& context, void* img_addr,
                             const IMAGE_ARM64_RUNTIME_FUNCTION_ENTRY& rt_func,
-                            uint32_t* handler_addr) {
+                            uint32_t* handler_addr, uint32_t**) {
     // FIXME - handle case when address in prologue or epilogue
 
     if (rt_func.Flag)
@@ -1033,13 +1044,16 @@ static const IMAGE_ARM64_RUNTIME_FUNCTION_ENTRY* find_runtime_function(void* img
 }
 
 export bool unwind_context(CONTEXT& context, void* img_addr, size_t,
-                           uint32_t* handler_addr = nullptr) {
+                           uint32_t* handler_addr = nullptr,
+                           uint32_t** handler_data = nullptr,
+                           RUNTIME_FUNCTION** function_entry = nullptr,
+                           uint64_t* frame = nullptr) {
     auto rt_func = find_runtime_function(img_addr, context.Pc);
 
     // rt_func should return nullptr for leaf functions that don't use stack
     if (rt_func) {
-        if (!unwind_context2(context, img_addr, *rt_func,
-                             handler_addr)) {
+        if (!unwind_context2(context, img_addr, *rt_func, handler_addr,
+                             handler_data)) {
             return false;
         }
     }
@@ -1055,7 +1069,10 @@ export bool unwind_context(CONTEXT& context, void* img_addr, size_t,
 #elifdef __x86_64__
 
 export bool unwind_context(CONTEXT& context, void* img_addr, size_t img_size,
-                           uint32_t* handler_addr = nullptr) {
+                           uint32_t* handler_addr = nullptr,
+                           uint32_t** handler_data = nullptr,
+                           RUNTIME_FUNCTION** function_entry = nullptr,
+                           uint64_t* frame = nullptr) {
     bool machine_frame = false;
 
     auto rt_func = find_runtime_function(img_addr, context.Rip);
@@ -1063,7 +1080,8 @@ export bool unwind_context(CONTEXT& context, void* img_addr, size_t img_size,
     // RUNTIME_FUNCTION isn't compulsory for leaf functions with no stack
     if (rt_func) {
         if (!unwind_context2(context, img_addr, img_size, rt_func,
-                             machine_frame, handler_addr)) {
+                             machine_frame, handler_addr, handler_data,
+                             function_entry, frame)) {
             return false;
         }
     }

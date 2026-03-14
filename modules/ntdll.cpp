@@ -136,7 +136,7 @@ struct DISPATCHER_CONTEXT_AMD64 {
     uint64_t EstablisherFrame;
     uint64_t TargetIp;
     AMD64_CONTEXT* ContextRecord;
-    EXCEPTION_ROUTINE* LanguageHandler;
+    EXCEPTION_ROUTINE LanguageHandler;
     void* HandlerData;
 };
 

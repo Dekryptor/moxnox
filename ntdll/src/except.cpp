@@ -136,6 +136,9 @@ static nt_status handle_exception(EXCEPTION_RECORD* exception,
 
     while (true) {
         uint32_t handler_addr = 0;
+        uint32_t* handler_data = nullptr;
+        RUNTIME_FUNCTION* function_entry = nullptr;
+        uint64_t frame = 0;
 
 #ifdef __aarch64__
         auto ent = get_ldr_from_address(context.Pc);
@@ -148,7 +151,8 @@ static nt_status handle_exception(EXCEPTION_RECORD* exception,
         auto prev_context = context;
 
         if (!unwind_context(context, ent->ldr.DllBase, ent->ldr.SizeOfImage,
-                            &handler_addr)) {
+                            &handler_addr, &handler_data, &function_entry,
+                            &frame)) {
             break;
         }
 
@@ -168,12 +172,12 @@ static nt_status handle_exception(EXCEPTION_RECORD* exception,
 #ifdef __x86_64__
         dispatcher_context.ControlPc = prev_context.Rip;
         dispatcher_context.ImageBase = (uint64_t)ent->ldr.DllBase;
-        dispatcher_context.FunctionEntry = nullptr; // FIXME (RUNTIME_FUNCTION*)
-        dispatcher_context.EstablisherFrame = 0; // FIXME (uint64_t)
-        dispatcher_context.TargetIp = 0; // FIXME (uint64_t)
+        dispatcher_context.FunctionEntry = function_entry;
+        dispatcher_context.EstablisherFrame = frame;
+        dispatcher_context.TargetIp = 0; // FIXME? (uint64_t)
         dispatcher_context.ContextRecord = &prev_context;
-        dispatcher_context.LanguageHandler = nullptr; // FIXME (EXCEPTION_ROUTINE*)
-        dispatcher_context.HandlerData = nullptr; // FIXME (void*)
+        dispatcher_context.LanguageHandler = handler;
+        dispatcher_context.HandlerData = handler_data;
 #endif
 
         auto disp = handler(exception, nullptr, &prev_context,
