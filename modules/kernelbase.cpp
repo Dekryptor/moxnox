@@ -142,6 +142,8 @@ uint32_t GetCurrentThreadId();
 bool GetModuleHandleExW(uint32_t flags, const char16_t* name, HMODULE* mod);
 HMODULE GetModuleHandleW(const char16_t* mod);
 bool FreeLibrary(HMODULE mod);
+void RaiseException(uint32_t code, uint32_t flags, uint32_t count,
+                    const uintptr_t* args);
 
 }
 
