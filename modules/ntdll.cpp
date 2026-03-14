@@ -169,6 +169,51 @@ struct UNWIND_HISTORY_TABLE {
     UNWIND_HISTORY_TABLE_ENTRY Entry[UNWIND_HISTORY_TABLE_SIZE];
 };
 
+struct KNONVOLATILE_CONTEXT_POINTERS {
+    union {
+        M128A* FloatingContext[16];
+        struct {
+            M128A* Xmm0;
+            M128A* Xmm1;
+            M128A* Xmm2;
+            M128A* Xmm3;
+            M128A* Xmm4;
+            M128A* Xmm5;
+            M128A* Xmm6;
+            M128A* Xmm7;
+            M128A* Xmm8;
+            M128A* Xmm9;
+            M128A* Xmm10;
+            M128A* Xmm11;
+            M128A* Xmm12;
+            M128A* Xmm13;
+            M128A* Xmm14;
+            M128A* Xmm15;
+        };
+    };
+    union {
+        uint64_t* IntegerContext[16];
+        struct {
+            uint64_t* Rax;
+            uint64_t* Rcx;
+            uint64_t* Rdx;
+            uint64_t* Rbx;
+            uint64_t* Rsp;
+            uint64_t* Rbp;
+            uint64_t* Rsi;
+            uint64_t* Rdi;
+            uint64_t* R8;
+            uint64_t* R9;
+            uint64_t* R10;
+            uint64_t* R11;
+            uint64_t* R12;
+            uint64_t* R13;
+            uint64_t* R14;
+            uint64_t* R15;
+        };
+    };
+};
+
 #endif
 
 extern "C" {
@@ -221,6 +266,11 @@ void RtlUnwindEx(void* target_frame, void* target_ip,
                  UNWIND_HISTORY_TABLE* history_table);
 RUNTIME_FUNCTION* RtlLookupFunctionEntry(uintptr_t pc, uintptr_t* base,
                                          UNWIND_HISTORY_TABLE* table);
+EXCEPTION_ROUTINE* RtlVirtualUnwind(uint32_t type, uint64_t image_base,
+                                    uint64_t pc, RUNTIME_FUNCTION *func,
+                                    CONTEXT* context, void* handler_data,
+                                    uint64_t* establisher_frame,
+                                    KNONVOLATILE_CONTEXT_POINTERS* ctx_ptr);
 #endif
 
 }
