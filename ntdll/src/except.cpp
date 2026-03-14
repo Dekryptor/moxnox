@@ -129,54 +129,43 @@ static bool do_unwind_context(CONTEXT& context) {
 
 static nt_status handle_exception(EXCEPTION_RECORD* exception,
                                   CONTEXT& orig_context) {
-    CONTEXT context;
+#ifdef __x86_64__
+    CONTEXT context = orig_context;
     DISPATCHER_CONTEXT dispatcher_context;
 
-    context = orig_context;
-
     while (true) {
-        uint32_t handler_addr = 0;
-        uint32_t* handler_data = nullptr;
-        RUNTIME_FUNCTION* function_entry = nullptr;
-        uint64_t frame = 0;
+        uint64_t image_base, frame;
+        void* handler_data = nullptr;
 
-#ifdef __aarch64__
-        auto ent = get_ldr_from_address(context.Pc);
-#elifdef __x86_64__
-        auto ent = get_ldr_from_address(context.Rip);
-#endif
-        if (!ent)
-            break;
+        auto function_entry = RtlLookupFunctionEntry(context.Rip, &image_base,
+                                                     nullptr);
+        if (!function_entry) { // leaf function
+            context.Rip = *(uint64_t*)context.Rsp;
+            context.Rsp += 8;
 
-        auto prev_context = context;
+            if (context.Rip == 0)
+                break;
 
-        if (!unwind_context(context, ent->ldr.DllBase, ent->ldr.SizeOfImage,
-                            &handler_addr, &handler_data, &function_entry,
-                            &frame)) {
-            break;
+            continue;
         }
 
-        // FIXME - should be using RtlVirtualUnwind?
+        auto control_pc = context.Rip;
 
-        // FIXME - UNW_FLAG_UHANDLER handlers
-
-        if (!handler_addr)
+        auto handler = RtlVirtualUnwind(UNW_FLAG_EHANDLER, image_base,
+                                        context.Rip, function_entry,
+                                        &context, &handler_data, &frame,
+                                        nullptr);
+        if (!handler)
             continue;
 
-        auto handler = (EXCEPTION_ROUTINE)((uint8_t*)ent->ldr.DllBase + handler_addr);
-
-        // FIXME - aarch64??
-
-#ifdef __x86_64__
-        dispatcher_context.ControlPc = prev_context.Rip;
-        dispatcher_context.ImageBase = (uint64_t)ent->ldr.DllBase;
+        dispatcher_context.ControlPc = control_pc;
+        dispatcher_context.ImageBase = image_base;
         dispatcher_context.FunctionEntry = function_entry;
         dispatcher_context.EstablisherFrame = frame;
         dispatcher_context.TargetIp = 0; // FIXME? (uint64_t)
-        dispatcher_context.ContextRecord = &prev_context;
+        dispatcher_context.ContextRecord = &context;
         dispatcher_context.LanguageHandler = handler;
         dispatcher_context.HandlerData = handler_data;
-#endif
 
         auto disp = handler(exception, (void*)frame, &orig_context,
                             &dispatcher_context);
@@ -184,7 +173,6 @@ static nt_status handle_exception(EXCEPTION_RECORD* exception,
         switch (disp) {
             case EXCEPTION_DISPOSITION::ExceptionContinueExecution:
                 // FIXME - check for EH_NONCONTINUABLE
-                memcpy(&orig_context, &prev_context, sizeof(CONTEXT));
                 return nt_status::SUCCESS;
 
             case EXCEPTION_DISPOSITION::ExceptionContinueSearch:
@@ -204,6 +192,10 @@ static nt_status handle_exception(EXCEPTION_RECORD* exception,
     }
 
     return nt_status::UNHANDLED_EXCEPTION;
+#else
+    // FIXME - aarch64
+    return nt_status::UNHANDLED_EXCEPTION;
+#endif
 }
 
 extern "C"
