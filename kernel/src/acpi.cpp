@@ -1871,11 +1871,50 @@ ACPI_STATUS AcpiOsReadPciConfiguration(ACPI_PCI_ID* PciId, UINT32 Reg,
 }
 
 extern "C"
-ACPI_STATUS AcpiOsWritePciConfiguration(ACPI_PCI_ID* /*PciId*/, UINT32 /*Reg*/,
-                                        UINT64 /*Value*/, UINT32 /*Width*/) {
-    print("FIXME - AcpiOsWritePciConfiguration\n");
+ACPI_STATUS AcpiOsWritePciConfiguration(ACPI_PCI_ID* PciId, UINT32 Reg,
+                                        UINT64 Value, UINT32 Width) {
+    ACPI_TABLE_HEADER* tbl;
 
-    return AE_ERROR;
+    auto status = AcpiGetTable((char*)ACPI_SIG_MCFG, 1, &tbl);
+    if (ACPI_FAILURE(status))
+        return status;
+
+    if (tbl->Length < sizeof(ACPI_TABLE_MCFG))
+        return AE_ERROR;
+
+    auto items = span((ACPI_MCFG_ALLOCATION*)((uint8_t*)tbl + sizeof(ACPI_TABLE_MCFG)),
+                      (tbl->Length - sizeof(ACPI_TABLE_MCFG)) / sizeof(ACPI_MCFG_ALLOCATION));
+
+    if (items.empty())
+        return AE_NOT_FOUND;
+
+    for (auto& it : items) {
+        if (it.PciSegment != PciId->Segment)
+            continue;
+
+        if (PciId->Bus < it.StartBusNumber || PciId->Bus > it.EndBusNumber)
+            continue;
+
+        auto pa = pci_pa(it, (uint8_t)PciId->Bus, (uint8_t)PciId->Device, (uint8_t)PciId->Function) + Reg;
+        auto va = phys_address(pa);
+
+        if (Width == 8) {
+            *(volatile uint8_t*)va = (uint8_t)Value;
+            return AE_OK;
+        } else if (Width == 16) {
+            *(volatile uint16_t*)va = (uint16_t)Value;
+            return AE_OK;
+        } else if (Width == 32) {
+            *(volatile uint32_t*)va = (uint32_t)Value;
+            return AE_OK;
+        } else if (Width == 64) {
+            *(volatile uint64_t*)va = Value;
+            return AE_OK;
+        } else
+            return AE_BAD_PARAMETER;
+    }
+
+    return AE_NOT_FOUND;
 }
 
 extern "C"
