@@ -16,6 +16,10 @@ import ipv6;
 import thread;
 import mem;
 import interrupts;
+import event;
+import object_ref;
+import objects;
+import scheduler;
 
 using namespace std;
 
@@ -183,7 +187,7 @@ public:
         return nt_status::NOT_IMPLEMENTED;
     }
 
-    void init();
+    bool init();
     bool isr();
 
     pci_device& dev;
@@ -192,6 +196,7 @@ public:
 private:
     void setup_descriptors();
     void enable_interrupts();
+    object_ref receive_packet_event, link_change_event;
 };
 
 void found_rtl8168(pci_device& dev);
@@ -238,22 +243,29 @@ void rtl8168_netif::enable_interrupts() {
 
     b.value = 0;
     b.rx_ok = 1;
-    b.tx_ok = 1;
-    b.rx_err = 1;
-    b.tx_err = 1;
     b.link_change = 1;
-    b.rx_fifo_overflow = 1;
 
     regs.interrupt_mask.value = b.value;
 }
 
 bool rtl8168_netif::isr() {
-    print("FIXME - rtl8168_netif::isr\n");
+    int_bits status;
+
+    status.value = regs.interrupt_status.value;
+    regs.interrupt_status.value = status.value; // acknowledge interrupts
+
+    // FIXME - tx_ok, rx_err, tx_err, rx_fifo_overflow?
+
+    if (status.rx_ok)
+        set_event(static_cast<event&>(receive_packet_event.get()));
+
+    if (status.link_change)
+        set_event(static_cast<event&>(link_change_event.get()));
 
     return false;
 }
 
-void rtl8168_netif::init() {
+bool rtl8168_netif::init() {
     tcr_bits tx_config;
     rcr_bits rx_config;
 
@@ -279,13 +291,25 @@ void rtl8168_netif::init() {
 
     regs.rx_max_size = RX_BUF_SIZE;
 
+    receive_packet_event = create_event(true);
+    if (!receive_packet_event) {
+        print("create_event failed\n");
+        return false;
+    }
+
+    link_change_event = create_event(true);
+    if (!link_change_event) {
+        print("create_event failed\n");
+        return false;
+    }
+
     setup_descriptors();
 
     // FIXME - MSI
 
     if (!add_irq_handler(*dev.irq, true, [](void* ctx) { return ((rtl8168_netif*)ctx)->isr(); }, this)) {
         print("add_irq_handler failed\n");
-        return;
+        return false;
     }
 
     enable_interrupts();
@@ -293,6 +317,8 @@ void rtl8168_netif::init() {
     regs.cmd = RTL_CMD_RX_ENABLE;
 
     regs.eeprom_command_register = RTL_CFG9346_LOCK;
+
+    return true;
 }
 
 void found_rtl8168(pci_device& dev) {
@@ -345,7 +371,10 @@ void found_rtl8168(pci_device& dev) {
 
     auto& c = *pc;
 
-    c.init();
+    if (!c.init()) {
+        delete pc;
+        return;
+    }
 
     memcpy(&c.mac, &mac, sizeof(mac));
     c.mtu = DEFAULT_MTU; // FIXME?
@@ -402,4 +431,22 @@ void found_rtl8168(pci_device& dev) {
 
 void rtl8168_netif::recv_thread() {
     print("FIXME - rtl8168_netif::recv_thread\n"); // FIXME
+
+    while (true) {
+        array<object*, 2> objs;
+
+        objs[0] = &link_change_event.get();
+        objs[1] = &receive_packet_event.get();
+
+        auto status = wait_for_objects(objs, true);
+        if (!success(status)) {
+            print("wait_for_objects returned {}\n", status);
+            break;
+        }
+
+        if ((unsigned int)status == (unsigned int)nt_status::SUCCESS)
+            print("FIXME - rtl8168 link change event\n");
+        else if ((unsigned int)status == (unsigned int)nt_status::SUCCESS + 1)
+            print("FIXME - rtl8168 receive packet event\n");
+    }
 }
