@@ -1,11 +1,19 @@
 #include <stdint.h>
+#include <string.h>
+#include <mutex>
 
+import nt;
+import format;
 import print;
 import pci;
 import list;
 import module_init;
 import net;
 import timer;
+import ipv6;
+import thread;
+
+using namespace std;
 
 static const uint16_t PCI_VENDOR_ID_REALTEK = 0x10ec;
 
@@ -56,6 +64,23 @@ static_assert(sizeof(rtl8168_regs) == 0x100);
 static const uint8_t RTL_CMD_RESET = 0x10;
 static const uint8_t RTL_CMD_RX_ENABLE = 0x08;
 static const uint8_t RTL_CMD_TX_ENABLE = 0x04;
+
+static const uint16_t DEFAULT_MTU = 1500; // FIXME - put in net module?
+
+class rtl8168_netif : public netif {
+public:
+    rtl8168_netif(pci_device& pci) : pci(pci) { }
+
+    void recv_thread();
+    nt_status send_packet(const mac_address& /*dst_mac*/, ethertype /*type*/,
+                          packet& /*pack*/) override {
+        print("FIXME - rtl8168_netif::send_packet\n");
+
+        return nt_status::NOT_IMPLEMENTED;
+    }
+
+    pci_device& pci;
+};
 
 void found_rtl8168(pci_device& dev);
 
@@ -113,10 +138,67 @@ void found_rtl8168(pci_device& dev) {
         mac.v[i] = regs.mac_addr[i];
     }
 
-    print("MAC address: {}\n", mac);
+    auto pc = new rtl8168_netif(dev);
+    if (!pc) {
+        print("new failed\n");
+        return;
+    }
 
-    uint32_t tcr = regs.tx_config;
+    auto& c = *pc;
 
-    print("TCR = {:08x}\n", tcr);
-    print("MAC version = {:08x}\n", tcr & 0x7cf00000);
+    memcpy(&c.mac, &mac, sizeof(mac));
+    c.mtu = DEFAULT_MTU; // FIXME?
+
+    c.ll_addr = find_ll_address(mac);
+
+    auto a = new ip_addr;
+    if (!a) {
+        print("new failed\n");
+        delete pc;
+        return;
+    }
+
+    a->addr = c.ll_addr;
+
+    {
+        lock_guard lg(c.addr_lock);
+        insert_tail_list(c.addrs, a->le);
+    }
+
+    print("found rtl8168 device with MAC {}, MTU {}, link-local address {}\n",
+          c.mac, c.mtu, c.ll_addr);
+
+    c.num = next_netif_num.fetch_add(1);
+
+    auto eth_num = next_eth_num.fetch_add(1);
+
+    {
+        char s[50];
+        auto sp = span(s, sizeof(s));
+
+        sp = format(sp, "eth{}", eth_num);
+
+        auto sv = string_view(s, (size_t)(sp.data() - s));
+
+        memcpy(c.name, sv.data(), sv.size());
+        memset(c.name + sv.size(), 0, sizeof(c.name) - sv.size());
+    }
+
+    {
+        lock_guard lg(netif_lock);
+        insert_tail_list(netif_list, c.le);
+    }
+
+    c.acquire();
+
+    add_kernel_thread([](void* ctx) {
+        auto& dev = *(rtl8168_netif*)ctx;
+
+        dev.recv_thread();
+        dev.release();
+    }, &c);
+}
+
+void rtl8168_netif::recv_thread() {
+    print("FIXME - rtl8168_netif::recv_thread\n"); // FIXME
 }

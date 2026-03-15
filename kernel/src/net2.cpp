@@ -3183,3 +3183,26 @@ void ipv6_raw_socket::last_handle_closed() {
         }
     }
 }
+
+ipv6_address find_ll_address(const mac_address& m) {
+    ipv6_address ret;
+
+    ret.v[0] = 0xfe;
+    ret.v[1] = 0x80;
+    ret.v[2] = 0x00;
+    ret.v[3] = 0x00;
+    ret.v[4] = 0x00;
+    ret.v[5] = 0x00;
+    ret.v[6] = 0x00;
+    ret.v[7] = 0x00;
+    ret.v[8] = m.v[0] ^ 0x02;
+    ret.v[9] = m.v[1];
+    ret.v[10] = m.v[2];
+    ret.v[11] = 0xff;
+    ret.v[12] = 0xfe;
+    ret.v[13] = m.v[3];
+    ret.v[14] = m.v[4];
+    ret.v[15] = m.v[5];
+
+    return ret;
+}

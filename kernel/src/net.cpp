@@ -304,6 +304,7 @@ export void handle_ipv6_packet(netif& ni, packet& pack,
                                const mac_address& src_mac);
 export bool drop_packet(const mac_address& dst, const mac_address& us);
 export bool init_net();
+export ipv6_address find_ll_address(const mac_address& m);
 
 void received_ipv6_tcp_packet(netif& ni, packet& pack,
                               const mac_address& src_mac);
