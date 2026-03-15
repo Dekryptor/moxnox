@@ -12,6 +12,8 @@ import net;
 import timer;
 import ipv6;
 import thread;
+import mem;
+import interrupts;
 
 using namespace std;
 
@@ -55,6 +57,25 @@ union rcr_bits {
     };
 } __attribute__((packed));
 
+union int_bits {
+    uint16_t value;
+    struct {
+        uint16_t rx_ok : 1;
+        uint16_t rx_err : 1;
+        uint16_t tx_ok : 1;
+        uint16_t tx_err : 1;
+        uint16_t rx_desc_unavail : 1;
+        uint16_t link_change : 1;
+        uint16_t rx_fifo_overflow : 1;
+        uint16_t tx_desc_unavail : 1;
+        uint16_t sw_int : 1;
+        uint16_t rx_fifo_empty_under_fifo_full: 1;
+        uint16_t : 4;
+        uint16_t timeout : 1;
+        uint16_t : 1;
+    };
+} __attribute__((packed));
+
 struct rtl8168_regs {
     uint8_t mac_addr[6];
     uint8_t padding1[2];
@@ -70,8 +91,8 @@ struct rtl8168_regs {
     uint8_t cmd;
     uint8_t tx_poll;
     uint8_t padding4[3];
-    uint16_t interrupt_mask;
-    uint16_t interrupt_status;
+    int_bits interrupt_mask;
+    int_bits interrupt_status;
     tcr_bits tx_config;
     rcr_bits rx_config;
     uint32_t time_counter_register;
@@ -99,11 +120,50 @@ struct rtl8168_regs {
 
 static_assert(sizeof(rtl8168_regs) == 0x100);
 
+struct rtl8168_rx_desc {
+    union {
+        uint32_t opts1;
+        struct {
+            uint32_t packet_length : 14;
+            uint32_t : 1;
+            uint32_t tcp_checksum_failed : 1;
+            uint32_t udp_checksum_failed : 1;
+            uint32_t ip_checksum_failed : 1;
+            uint32_t : 4;
+            uint32_t tcpv6 : 1;
+            uint32_t udpv6 : 1;
+            uint32_t ipv6 : 1;
+            uint32_t tcpv4 : 1;
+            uint32_t udpv4 : 1;
+            uint32_t ipv4 : 1;
+            uint32_t last_segment : 1;
+            uint32_t first_segment : 1;
+            uint32_t end_of_ring : 1;
+            uint32_t owned_by_nic : 1;
+        };
+    };
+
+    union {
+        uint32_t opts2;
+        struct {
+            uint32_t vlan_id : 16;
+            uint32_t vlan_tagged : 1;
+            uint32_t : 15;
+        };
+    };
+
+    uint64_t addr;
+} __attribute__((packed));
+
+static_assert(sizeof(rtl8168_rx_desc) == 0x10);
+
 static const uint8_t RTL_CMD_RESET = 0x10;
 static const uint8_t RTL_CMD_RX_ENABLE = 0x08;
 static const uint8_t RTL_CMD_TX_ENABLE = 0x04;
 
 static const uint16_t DEFAULT_MTU = 1500; // FIXME - put in net module?
+
+static const size_t NUM_RX_DESC = 256;
 static const uint16_t RX_BUF_SIZE = 2048;
 
 static const uint8_t RTL_CFG9346_UNLOCK = 0xc0;
@@ -111,7 +171,7 @@ static const uint8_t RTL_CFG9346_LOCK = 0x00;
 
 class rtl8168_netif : public netif {
 public:
-    rtl8168_netif(pci_device& pci) : pci(pci) { }
+    rtl8168_netif(pci_device& dev, volatile rtl8168_regs& regs) : dev(dev), regs(regs) { }
 
     void recv_thread();
     nt_status send_packet(const mac_address& /*dst_mac*/, ethertype /*type*/,
@@ -121,7 +181,15 @@ public:
         return nt_status::NOT_IMPLEMENTED;
     }
 
-    pci_device& pci;
+    void init();
+    bool isr();
+
+    pci_device& dev;
+    volatile rtl8168_regs& regs;
+
+private:
+    void setup_descriptors();
+    void enable_interrupts();
 };
 
 void found_rtl8168(pci_device& dev);
@@ -138,43 +206,54 @@ static void init_rtl8168() {
 
 static module_init module_init_rtl8168(init_rtl8168);
 
-void found_rtl8168(pci_device& dev) {
-    print("FIXME - found_rtl8168\n"); // FIXME
+void rtl8168_netif::setup_descriptors() {
+    auto rx_ring = (rtl8168_rx_desc*)malloc_aligned(NUM_RX_DESC * sizeof(rtl8168_rx_desc), 256);
+    // FIXME - check for OOM
 
-    // FIXME - is it definitely always BAR2? What does Linux do?
+    memset(rx_ring, 0, NUM_RX_DESC * sizeof(rtl8168_rx_desc));
 
-    if (dev.bar[2].empty()) {
-        print("found_rtl8168: BAR2 not set\n");
-        return;
+    for (size_t i = 0; i < NUM_RX_DESC; i++) {
+        void* rx_buf = malloc(RX_BUF_SIZE); // FIXME - check for OOM
+
+        rx_ring[i].addr = va_to_pa_phys(rx_buf);
+        rx_ring[i].owned_by_nic = 1;
+        rx_ring[i].packet_length = RX_BUF_SIZE;
+
+        if (i == NUM_RX_DESC - 1)
+            rx_ring[i].end_of_ring = 1;
     }
 
-    if (dev.bar[2].size() < sizeof(rtl8168_regs)) {
-        print("found_rtl8168: BAR2 was {} bytes, expected at least {}\n",
-              dev.bar[2].size(), sizeof(rtl8168_regs));
-        return;
-    }
+    auto rx_phys = va_to_pa_phys(rx_ring);
 
-    volatile auto& regs = *(rtl8168_regs*)dev.bar[2].data();
-    bool reset_done = false;
+    regs.rx_desc_addr_low = (uint32_t)rx_phys;
+    regs.rx_desc_addr_high = (uint32_t)(rx_phys >> 32);
+}
+
+void rtl8168_netif::enable_interrupts() {
+    regs.interrupt_status.value = 0xffff; // clear pending
+
+    int_bits b;
+
+    b.value = 0;
+    b.rx_ok = 1;
+    b.tx_ok = 1;
+    b.rx_err = 1;
+    b.tx_err = 1;
+    b.link_change = 1;
+    b.rx_fifo_overflow = 1;
+
+    regs.interrupt_mask.value = b.value;
+}
+
+bool rtl8168_netif::isr() {
+    print("FIXME - rtl8168_netif::isr\n");
+
+    return false;
+}
+
+void rtl8168_netif::init() {
     tcr_bits tx_config;
     rcr_bits rx_config;
-
-    regs.cmd = RTL_CMD_RESET;
-
-    // wait up to 100ms
-    for (unsigned int i = 0; i < 100; i++) {
-        if (!(regs.cmd & RTL_CMD_RESET)) {
-            reset_done = true;
-            break;
-        }
-
-        msleep(1);
-    }
-
-    if (!reset_done) {
-        print("found_rtl8168: card unresponsive, reset did not complete\n");
-        return;
-    }
 
     regs.eeprom_command_register = RTL_CFG9346_UNLOCK;
 
@@ -198,12 +277,57 @@ void found_rtl8168(pci_device& dev) {
 
     regs.rx_max_size = RX_BUF_SIZE;
 
-    // FIXME - setup descriptors
-    // FIXME - enable interrupts
+    setup_descriptors();
 
-    regs.cmd = RTL_CMD_TX_ENABLE | RTL_CMD_RX_ENABLE;
+    // FIXME - MSI
+
+    if (!add_irq_handler(*dev.irq, true, [](void* ctx) { return ((rtl8168_netif*)ctx)->isr(); }, this)) {
+        print("add_irq_handler failed\n");
+        return;
+    }
+
+    enable_interrupts();
+
+    regs.cmd = RTL_CMD_RX_ENABLE;
 
     regs.eeprom_command_register = RTL_CFG9346_LOCK;
+}
+
+void found_rtl8168(pci_device& dev) {
+    print("FIXME - found_rtl8168\n"); // FIXME
+
+    // FIXME - is it definitely always BAR2? What does Linux do?
+
+    if (dev.bar[2].empty()) {
+        print("found_rtl8168: BAR2 not set\n");
+        return;
+    }
+
+    if (dev.bar[2].size() < sizeof(rtl8168_regs)) {
+        print("found_rtl8168: BAR2 was {} bytes, expected at least {}\n",
+              dev.bar[2].size(), sizeof(rtl8168_regs));
+        return;
+    }
+
+    volatile auto& regs = *(rtl8168_regs*)dev.bar[2].data();
+    bool reset_done = false;
+
+    regs.cmd = RTL_CMD_RESET;
+
+    // wait up to 100ms
+    for (unsigned int i = 0; i < 100; i++) {
+        if (!(regs.cmd & RTL_CMD_RESET)) {
+            reset_done = true;
+            break;
+        }
+
+        msleep(1);
+    }
+
+    if (!reset_done) {
+        print("found_rtl8168: card unresponsive, reset did not complete\n");
+        return;
+    }
 
     mac_address mac;
 
@@ -211,13 +335,15 @@ void found_rtl8168(pci_device& dev) {
         mac.v[i] = regs.mac_addr[i];
     }
 
-    auto pc = new rtl8168_netif(dev);
+    auto pc = new rtl8168_netif(dev, regs);
     if (!pc) {
         print("new failed\n");
         return;
     }
 
     auto& c = *pc;
+
+    c.init();
 
     memcpy(&c.mac, &mac, sizeof(mac));
     c.mtu = DEFAULT_MTU; // FIXME?
