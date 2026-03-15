@@ -17,6 +17,44 @@ using namespace std;
 
 static const uint16_t PCI_VENDOR_ID_REALTEK = 0x10ec;
 
+union tcr_bits {
+    uint32_t value;
+    struct {
+        uint32_t : 4;
+        uint32_t tx_retry_count : 4;
+        uint32_t dma_burst : 3;
+        uint32_t : 5;
+        uint32_t crc_append : 1;
+        uint32_t loopback : 2;
+        uint32_t : 5;
+        uint32_t ifg : 2;
+        uint32_t : 6;
+    };
+};
+
+union rcr_bits {
+    uint32_t value;
+    struct {
+        uint32_t accept_phys_match : 1;
+        uint32_t accept_phys : 1;
+        uint32_t accept_multicast : 1;
+        uint32_t accept_broadcast : 1;
+        uint32_t accept_runt : 1;
+        uint32_t accept_error : 1;
+        uint32_t : 1;
+        uint32_t wrap : 1;
+        uint32_t rx_dma_burst : 3;
+        uint32_t rx_buf_size : 2;
+        uint32_t rx_fifo_thresh : 3;
+        uint32_t : 6;
+        uint32_t vlan_strip : 1;
+        uint32_t : 1;
+        uint32_t max_dma : 3;
+        uint32_t : 4;
+        uint32_t accept_all : 1;
+    };
+} __attribute__((packed));
+
 struct rtl8168_regs {
     uint8_t mac_addr[6];
     uint8_t padding1[2];
@@ -34,8 +72,8 @@ struct rtl8168_regs {
     uint8_t padding4[3];
     uint16_t interrupt_mask;
     uint16_t interrupt_status;
-    uint32_t tx_config;
-    uint32_t rx_config;
+    tcr_bits tx_config;
+    rcr_bits rx_config;
     uint32_t time_counter_register;
     uint32_t padding5;
     uint8_t eeprom_command_register;
@@ -66,6 +104,10 @@ static const uint8_t RTL_CMD_RX_ENABLE = 0x08;
 static const uint8_t RTL_CMD_TX_ENABLE = 0x04;
 
 static const uint16_t DEFAULT_MTU = 1500; // FIXME - put in net module?
+static const uint16_t RX_BUF_SIZE = 2048;
+
+static const uint8_t RTL_CFG9346_UNLOCK = 0xc0;
+static const uint8_t RTL_CFG9346_LOCK = 0x00;
 
 class rtl8168_netif : public netif {
 public:
@@ -114,6 +156,8 @@ void found_rtl8168(pci_device& dev) {
 
     volatile auto& regs = *(rtl8168_regs*)dev.bar[2].data();
     bool reset_done = false;
+    tcr_bits tx_config;
+    rcr_bits rx_config;
 
     regs.cmd = RTL_CMD_RESET;
 
@@ -131,6 +175,35 @@ void found_rtl8168(pci_device& dev) {
         print("found_rtl8168: card unresponsive, reset did not complete\n");
         return;
     }
+
+    regs.eeprom_command_register = RTL_CFG9346_UNLOCK;
+
+    tx_config.value = 0;
+    tx_config.ifg = 3; // standard IFG
+    tx_config.dma_burst = 7; // unlimited
+
+    regs.tx_config.value = tx_config.value;
+
+    rx_config.value = 0;
+    rx_config.accept_phys = 1; // our MAC
+    rx_config.accept_multicast = 1; // multicast
+    rx_config.accept_broadcast = 1; // broadcast
+    rx_config.rx_dma_burst = 7; // unlimited
+    rx_config.rx_fifo_thresh = 7; // no threshold
+    rx_config.rx_buf_size = 1; // 16K
+    rx_config.accept_all = 1; // FIXME (promiscuous mode)
+    rx_config.accept_error = 1; // FIXME
+
+    regs.rx_config.value = rx_config.value;
+
+    regs.rx_max_size = RX_BUF_SIZE;
+
+    // FIXME - setup descriptors
+    // FIXME - enable interrupts
+
+    regs.cmd = RTL_CMD_TX_ENABLE | RTL_CMD_RX_ENABLE;
+
+    regs.eeprom_command_register = RTL_CFG9346_LOCK;
 
     mac_address mac;
 
