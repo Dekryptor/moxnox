@@ -1,0 +1,782 @@
+module;
+
+#include <span>
+#include <atomic>
+#include <optional>
+#include <algorithm>
+#include <string_view>
+#include <stdint.h>
+#include "pci.h"
+
+module pci;
+
+import print;
+import mem;
+import config;
+import event;
+import thread;
+import object_ref;
+import scheduler;
+import acpi;
+import module_init;
+import acpica;
+
+using namespace std;
+
+static list_entry pci_device_list = { &pci_device_list, &pci_device_list };
+atomic<unsigned int> devices_left = 0;
+static object_ref init_device_event;
+
+static void found_pci_bus(const acpi_device& dev);
+static void found_pci_link(const acpi_device& dev);
+
+static acpi_recognizer mod_pnp_hids_pci[] = {
+#ifdef __x86_64__
+    { {}, "PNP0A03", found_pci_bus, nullptr },
+#endif
+    { {}, "PNP0A08", found_pci_bus, nullptr },
+    { {}, "PNP0C0F", found_pci_link, nullptr },
+};
+
+static void init_acpi_hids_pci() {
+    for (unsigned int i = 0; i < sizeof(mod_pnp_hids_pci) / sizeof(*mod_pnp_hids_pci); i++) {
+        insert_tail_list(pnp_hids, mod_pnp_hids_pci[i].le);
+    }
+}
+
+static module_init module_init_pci(init_acpi_hids_pci);
+
+static ACPI_STATUS get_resources(ACPI_HANDLE handle, span<uint8_t>& out) {
+    ACPI_BUFFER buf;
+
+    buf.Length = 0;
+    buf.Pointer = nullptr;
+
+    auto status = AcpiGetCurrentResources(handle, &buf);
+    if (ACPI_FAILURE(status) && status != AE_BUFFER_OVERFLOW)
+        return status;
+
+    if (buf.Length == 0)
+        return AE_BAD_DATA;
+
+    auto pages = bytes_to_pages(buf.Length);
+
+    buf.Pointer = vmalloc(pages << PAGE_SHIFT);
+    if (!buf.Pointer) {
+        print("vmalloc failed\n");
+        return AE_NO_MEMORY;
+    }
+
+    status = AcpiGetCurrentResources(handle, &buf);
+    if (ACPI_FAILURE(status)) {
+        vfree(buf.Pointer, pages << PAGE_SHIFT);
+        return status;
+    }
+
+    out = span((uint8_t*)buf.Pointer, buf.Length);
+
+    return AE_OK;
+}
+
+static optional<uint32_t> search_routing(ACPI_HANDLE handle, uint8_t dev,
+                                         uint8_t pin, span<uint8_t> routing) {
+    while (routing.size() > 0) {
+        auto& ent = *(ACPI_PCI_ROUTING_TABLE*)routing.data();
+
+        if (ent.Length == 0)
+            break;
+
+        if (((ent.Address >> 16) & 0xffff) == dev && pin == ent.Pin + 1) {
+            ACPI_HANDLE h;
+
+            if (!ent.Source[0])
+                return ent.SourceIndex; // source index is actually IRQ
+
+            auto status = AcpiGetHandle(handle, ent.Source, &h);
+            if (ACPI_FAILURE(status)) {
+                print("AcpiGetHandle returned {} for {}\n", (acpi_status)status,
+                      string_view(ent.Source));
+                return nullopt;
+            }
+
+            // FIXME - Linux doesn't search resource straightaway (see acpi_pci_irq_check_entry)
+
+            span<uint8_t> res, orig_res;
+
+            status = get_resources(h, res);
+            if (ACPI_FAILURE(status)) {
+                print("get_resources returned {} for {}\n", (acpi_status)status,
+                      string_view(ent.Source));
+                return nullopt;
+            }
+
+            orig_res = res;
+
+            uint32_t i = 0;
+            while (!res.empty()) {
+                auto& r = *(ACPI_RESOURCE*)res.data();
+
+                if (r.Length == 0)
+                    break;
+
+                if (i == ent.SourceIndex) {
+                    switch (r.Type) {
+                        case ACPI_RESOURCE_TYPE_EXTENDED_IRQ: {
+                            auto ret = r.Data.ExtendedIrq.Interrupt;
+
+                            vfree(orig_res.data(), bytes_to_pages(orig_res.size()) << PAGE_SHIFT);
+
+                            return ret;
+                        }
+
+                        case ACPI_RESOURCE_TYPE_IRQ: {
+                            auto ret = r.Data.Irq.Interrupt;
+
+                            vfree(orig_res.data(), bytes_to_pages(orig_res.size()) << PAGE_SHIFT);
+
+                            return ret;
+                        }
+
+                        default:
+                            print("search_routing: unexpected ACPI resource type {}\n",
+                                  r.Type);
+                            vfree(orig_res.data(), bytes_to_pages(orig_res.size()) << PAGE_SHIFT);
+                            return nullopt;
+                    }
+                }
+
+                res = res.subspan(r.Length);
+                i++;
+            }
+
+            print("source index {} not found in resources for {}\n",
+                  ent.SourceIndex, string_view(ent.Source));
+
+            vfree(orig_res.data(), bytes_to_pages(orig_res.size()) << PAGE_SHIFT);
+
+            return nullopt;
+        }
+
+        routing = routing.subspan(ent.Length);
+    }
+
+    return nullopt;
+}
+
+static optional<uint64_t> translate_pci_pa(const acpi_device& dev, uint64_t pa) {
+    // FIXME - return error if BAR would cross resource boundary?
+
+    for (auto le = dev.resources.next; le != &dev.resources; le = le->next) {
+        auto& r = containing_record<acpi_device_resource>(le);
+
+        switch (r.type) {
+            case acpi_device_resource_type::address: {
+                auto& r2 = static_cast<acpi_device_resource_address&>(r);
+
+                if (r2.address.ResourceType != ACPI_MEMORY_RANGE)
+                    break;
+
+                if (pa >= r2.address.Address.Minimum &&
+                    pa < r2.address.Address.Maximum)
+                    return pa + r2.address.Address.TranslationOffset;
+
+                break;
+            }
+
+            default:
+                break;
+        }
+    }
+
+    print("translate_pci_pa: unable to find resource for address {:x}\n", pa);
+
+    return nullopt;
+}
+
+static void device_found0(const volatile pci_header& h, uint16_t seg,
+                          uint8_t bus, uint8_t dev, uint8_t func,
+                          const acpi_device& acpi_dev, span<uint8_t> routing) {
+    volatile auto& h0 = *(pci_header0*)&h;
+    uint16_t vendor_id = h.vendor_id;
+    uint16_t device_id = h.device_id;
+
+    auto ppci_dev = new pci_device;
+    if (!ppci_dev) {
+        print("new failed\n");
+        return;
+    }
+
+    auto& pci_dev = *ppci_dev;
+    pci_dev.header = &h0;
+    pci_dev.bus = bus;
+    pci_dev.device = dev;
+    pci_dev.function = func;
+    pci_dev.pin = h0.interrupt_pin;
+
+    if (h0.status & 0x10 && (h0.capabilities_pointer & ~0x3) != 0) {
+        auto ptr = (uint8_t*)((uint8_t*)&h0 + (h0.capabilities_pointer & ~0x3));
+
+        while (true) {
+            auto& cap = *(pci_capability*)ptr;
+
+            switch (cap.type) {
+                case pci_capability_type::msi: {
+                    volatile auto& msi = *(pci_msi*)ptr;
+                    size_t len;
+
+                    if (msi.message_control & 0x80) { // 64-bit
+                        if (msi.message_control & 0x100) // per-vector masking
+                            len = sizeof(pci_msi);
+                        else
+                            len = offsetof(pci_msi, v64.reserved);
+                    } else
+                        len = offsetof(pci_msi, v32.message_data) + sizeof(uint16_t);
+
+                    pci_dev.msi = span((volatile uint8_t*)((uintptr_t)&h | ((uintptr_t)ptr & (PAGE_SIZE - 1))), len);
+                    break;
+                }
+
+                case pci_capability_type::msix:
+                    pci_dev.msix = (volatile pci_msix*)((uintptr_t)&h | ((uintptr_t)ptr & (PAGE_SIZE - 1)));
+                    break;
+
+                case pci_capability_type::vendor_specific: {
+                    auto ent = new vendor_specific_cap;
+                    if (!ent) {
+                        print("new failed\n");
+                        return;
+                    }
+
+                    ent->ptr = (void*)((uintptr_t)&h | ((uintptr_t)(ptr + sizeof(pci_capability)) & (PAGE_SIZE - 1)));
+
+                    insert_tail_list(pci_dev.vendor_specific_caps, ent->le);
+                    break;
+                }
+
+                default:
+                    break;
+            }
+
+            if (cap.next == 0)
+                break;
+
+            ptr = (uint8_t*)((uint8_t*)&h0 + (cap.next & ~0x3));
+        }
+    }
+
+    for (unsigned int i = 0; i < 6; i++) {
+        volatile auto& b = h0.bar[i];
+
+        if (b != 0) {
+            uint32_t orig = b;
+
+            if (!(b & 1)) { // memory space
+                auto type = (orig >> 1) & 0x3;
+
+                if (type != 0 && type != 2) {
+                    print("Unhandled PCI BAR type {:x}\n", type);
+                    continue;
+                }
+
+                b = 0xffffffff;
+                uint32_t changed = b;
+                b = orig;
+
+                uint64_t end = orig + ~changed + 1;
+
+                if (type == 0) {
+                    auto pa = (uint64_t)(orig & 0xfffffff0);
+                    auto pages = bytes_to_pages(end - pa);
+                    auto va = allocate_va(pages);
+
+                    if (!va) {
+                        print("allocate_va failed\n");
+                        return;
+                    }
+
+                    if (auto pa2 = translate_pci_pa(acpi_dev, pa); pa2.has_value())
+                        pa = *pa2;
+                    else
+                        return;
+
+                    for (unsigned int j = 0; j < pages; j++) {
+                        // FIXME - if prefetchable, map as write-through (or write-combine if framebuffer)?
+                        if (!map_page(pa + (j << PAGE_SHIFT), va + (j << PAGE_SHIFT), mapping_type::no_cache)) {
+                            print("map_page failed\n");
+                            return;
+                        }
+                    }
+
+                    pci_dev.bar[i] = span((volatile uint8_t*)va, end - pa);
+                } else { // 64-bit register
+                    if (i == 5) {
+                        print("64-bit PCI register cannot occupy BAR slot 5.\n");
+                        continue;
+                    }
+
+                    // FIXME - what if BAR crosses 32-bit boundary?
+
+                    uint64_t pa = orig & 0xfffffff0;
+
+                    pa |= (uint64_t)h0.bar[i+1] << 32;
+                    end |= (uint64_t)h0.bar[i+1] << 32;
+
+                    auto pages = bytes_to_pages(end - pa);
+                    auto va = allocate_va(pages);
+
+                    if (!va) {
+                        print("allocate_va failed\n");
+                        return;
+                    }
+
+                    if (auto pa2 = translate_pci_pa(acpi_dev, pa); pa2.has_value())
+                        pa = *pa2;
+                    else
+                        return;
+
+                    for (unsigned int j = 0; j < pages; j++) {
+                        // FIXME - if prefetchable, map as write-through (or write-combine if framebuffer)?
+                        if (!map_page(pa + (j << PAGE_SHIFT), va + (j << PAGE_SHIFT), mapping_type::no_cache)) {
+                            print("map_page for {:x} failed\n", pa + (j << PAGE_SHIFT));
+                            return;
+                        }
+                    }
+
+                    pci_dev.bar[i] = span((volatile uint8_t*)va, end - pa);
+
+                    i++;
+                }
+            }
+        }
+    }
+
+    if (pci_dev.pin != 0 && !routing.empty()) {
+        auto irq = search_routing(acpi_dev.handle, dev, pci_dev.pin, routing);
+
+        if (!irq.has_value())
+            print("no IRQ found for {:04x}:{:02x}:{:02x}:{:x}\n", seg,
+                  bus, dev, func);
+        else
+            pci_dev.irq = *irq;
+    }
+
+    if (pci_dev.irq.has_value()) {
+        print("found PCI device {:04x}:{:02x}:{:02x}:{:x} {:04x}:{:04x} (IRQ {})\n",
+              seg, bus, dev, func, vendor_id, device_id, *pci_dev.irq);
+    } else {
+        print("found PCI device {:04x}:{:02x}:{:02x}:{:x} {:04x}:{:04x}\n",
+              seg, bus, dev, func, vendor_id, device_id);
+    }
+
+    insert_tail_list(pci_device_list, pci_dev.le);
+}
+
+static ACPI_STATUS find_routing(ACPI_HANDLE handle, span<uint8_t>& out) {
+    ACPI_BUFFER buf;
+
+    buf.Length = 0;
+    buf.Pointer = nullptr;
+
+    auto status = AcpiGetIrqRoutingTable(handle, &buf);
+    if (ACPI_FAILURE(status) && status != AE_BUFFER_OVERFLOW)
+        return status;
+
+    if (buf.Length == 0)
+        return AE_BAD_DATA;
+
+    auto pages = bytes_to_pages(buf.Length);
+
+    buf.Pointer = vmalloc(pages << PAGE_SHIFT);
+    if (!buf.Pointer) {
+        print("vmalloc failed\n");
+        return AE_NO_MEMORY;
+    }
+
+    status = AcpiGetIrqRoutingTable(handle, &buf);
+    if (ACPI_FAILURE(status)) {
+        vfree(buf.Pointer, pages << PAGE_SHIFT);
+        return status;
+    }
+
+    out = span((uint8_t*)buf.Pointer, buf.Length);
+
+    return AE_OK;
+}
+
+static void device_found(volatile pci_header& h, uint16_t seg,
+                         uint8_t bus, uint8_t dev, uint8_t func,
+                         const acpi_device& acpi_dev, span<uint8_t> routing) {
+    uint8_t header_type = h.header_type & 0x7f;
+
+    if (header_type != 0)
+        return;
+
+    h.command |= PCI_COMMAND_MASTER | PCI_COMMAND_MEMORY;
+
+    device_found0(h, seg, bus, dev, func, acpi_dev, routing);
+}
+
+static void check_bus(uint8_t bus, const acpi_device& acpi_dev,
+                      span<uint8_t> routing, const ACPI_MCFG_ALLOCATION& item) {
+    // FIXME - handle VA leaks?
+
+    for (uint8_t dev = 0; dev < 32; dev++) {
+        auto pa = pci_pa(item, bus, dev, 0);
+
+        auto va = allocate_va(1);
+        if (!va) {
+            print("allocate_va failed\n");
+            return;
+        }
+
+        if (!map_page(pa, va, mapping_type::no_cache)) {
+            print("map_page failed\n");
+            free_va(va, 1);
+            return;
+        }
+
+        volatile auto& h = *(pci_header*)va;
+        uint16_t vendor_id = h.vendor_id;
+
+        if (vendor_id == 0xffff || vendor_id == 0x0000) {
+            unmap_page(va);
+            free_va(va, 1);
+            continue;
+        }
+
+        bool multifunction = h.header_type & 0x80;
+
+        device_found(h, item.PciSegment, bus, dev, 0, acpi_dev, routing);
+
+        if (multifunction) {
+            for (uint8_t func = 1; func < 8; func++) {
+                pa = pci_pa(item, bus, dev, func);
+
+                va = allocate_va(1);
+                if (!va) {
+                    print("allocate_va failed\n");
+                    return;
+                }
+
+                if (!map_page(pa, va, mapping_type::no_cache)) {
+                    print("map_page failed\n");
+                    free_va(va, 1);
+                    return;
+                }
+
+                volatile auto& h2 = *(pci_header*)va;
+                uint16_t vendor_id = h2.vendor_id;
+
+                if (vendor_id == 0xffff || vendor_id == 0x0000) {
+                    unmap_page(va);
+                    free_va(va, 1);
+                    continue;
+                }
+
+                device_found(h2, item.PciSegment, bus, dev, func,
+                             acpi_dev, routing);
+            }
+        }
+    }
+}
+
+static void pci_device_found(void* ctx, void* ctx2) {
+    auto& dev = *(pci_device*)ctx;
+    auto early = (bool)ctx2;
+
+    bool found = false;
+    auto vendor_id = dev.header->vendor_id;
+    auto device_id = dev.header->device_id;
+
+    for (auto le = pci_ids.next; le != &pci_ids; le = le->next) {
+        auto& ent = containing_record<pci_recognizer>(le);
+
+        if (ent.vendor_id == vendor_id && ent.device_id == device_id && !!ent.early == !!early) {
+            ent.func(dev);
+            dev.initialized = true;
+            found = true;
+            break;
+        }
+    }
+
+    if (!found) {
+        for (auto le = pci_classes.next; le != &pci_classes; le = le->next) {
+            auto& ent = containing_record<pci_class_recognizer>(le);
+
+            if (ent.pci_class == dev.header->class_code &&
+                  ent.pci_subclass == dev.header->sub_class &&
+                  !!ent.early == !!early) {
+                if (ent.func(dev)) {
+                    dev.initialized = true;
+                    break;
+                }
+            }
+        }
+    }
+
+    if (--devices_left == 0)
+        set_event(static_cast<event&>(init_device_event.get()));
+}
+
+void init_pci(bool early) {
+    devices_left = 0;
+
+    for (auto le = pci_device_list.next; le != &pci_device_list; le = le->next) {
+        auto& dev = containing_record<pci_device>(le);
+
+        if (dev.initialized)
+            continue;
+
+        devices_left++;
+    }
+
+    if (devices_left == 0)
+        return;
+
+    init_device_event = create_event(true);
+
+    if (early) {
+        unsigned int nvme_num = 0;
+
+        for (auto le = pci_device_list.next; le != &pci_device_list; le = le->next) {
+            auto& dev = containing_record<pci_device>(le);
+
+            if (dev.header->class_code == pci_class::mass_storage &&
+                (enum pci_mass_storage)dev.header->sub_class == pci_mass_storage::nonvolatile_memory) {
+                dev.num = nvme_num;
+                nvme_num++;
+            }
+        }
+    }
+
+    for (auto le = pci_device_list.next; le != &pci_device_list; le = le->next) {
+        auto& dev = containing_record<pci_device>(le);
+
+        if (dev.initialized)
+            continue;
+
+        add_kernel_thread(pci_device_found, &dev, (void*)early);
+    }
+
+    wait_for_object(init_device_event.get(), false);
+    init_device_event.reset();
+}
+
+pci_device::~pci_device() {
+    while (!is_list_empty(vendor_specific_caps)) {
+        auto& ent = containing_record<vendor_specific_cap>(vendor_specific_caps.next);
+
+        remove_entry_list(ent.le);
+
+        delete &ent;
+    }
+}
+
+static void found_pci_bus(const acpi_device& dev) {
+    uint64_t seg;
+    ACPI_TABLE_HEADER* tbl;
+
+    // FIXME - call _PIC on x86
+
+    auto status = acpi_evaluate_integer(dev.handle, (char*)"_SEG", seg);
+    if (status == AE_NOT_FOUND)
+        seg = 0; // _SEG is optional
+    else if (ACPI_FAILURE(status)) {
+        print("acpi_evaluate_integer returned {} for _SEG for {}\n",
+              (acpi_status)status, dev.acpi_name);
+        return;
+    }
+
+    optional<uint8_t> bus_start, bus_end;
+
+    for (auto le = dev.resources.next; le != &dev.resources; le = le->next) {
+        auto& r = containing_record<acpi_device_resource>(le);
+
+        switch (r.type) {
+            case acpi_device_resource_type::address: {
+                auto& r2 = static_cast<acpi_device_resource_address&>(r);
+
+                if (r2.address.Address.AddressLength > 0 &&
+                    r2.address.ResourceType == ACPI_BUS_NUMBER_RANGE) {
+                    bus_start = r2.address.Address.Minimum;
+                    bus_end = r2.address.Address.Minimum +
+                              r2.address.Address.AddressLength - 1;
+                }
+
+                break;
+            }
+
+            default:
+                break;
+        }
+
+        if (bus_start.has_value())
+            break;
+    }
+
+    if (!bus_start.has_value()) {
+        print("unable to find bus numbers for {}\n", dev.acpi_name);
+        return;
+    }
+
+    status = AcpiGetTable((char*)ACPI_SIG_MCFG, 1, &tbl);
+
+    if (status == AE_NOT_FOUND) {
+        print("found_pci_bus: unable to find MCFG table\n");
+        return;
+    } else if (ACPI_FAILURE(status)) {
+        print("AcpiGetTable returned {} for MCFG\n", (enum acpi_status)status);
+        return;
+    }
+
+    if (tbl->Length < sizeof(ACPI_TABLE_MCFG)) {
+        print("MCFG table was {:x} bytes, expected at least {:x}\n",
+              tbl->Length, sizeof(ACPI_TABLE_MCFG));
+        return;
+    }
+
+    auto items = span((ACPI_MCFG_ALLOCATION*)((uint8_t*)tbl + sizeof(ACPI_TABLE_MCFG)),
+                      (tbl->Length - sizeof(ACPI_TABLE_MCFG)) / sizeof(ACPI_MCFG_ALLOCATION));
+
+    if (items.empty()) {
+        print("No ACPI_MCFG_ALLOCATIONs found\n");
+        return;
+    }
+
+    span<uint8_t> routing;
+
+    status = find_routing(dev.handle, routing);
+    if (ACPI_FAILURE(status)) {
+        print("find_routing returned {} for _PRT for {}\n",
+              (acpi_status)status, dev.acpi_name);
+        return;
+    }
+
+    auto routing_pages = bytes_to_pages(routing.size());
+
+    for (auto& it : items) {
+        if (it.PciSegment != seg)
+            continue;
+
+        if (*bus_end < it.StartBusNumber || *bus_start > it.EndBusNumber)
+            continue;
+
+        auto start = max(*bus_start, it.StartBusNumber);
+        auto end = min(*bus_end, it.EndBusNumber);
+
+        for (unsigned int num = start; num <= end; num++) {
+            check_bus((uint8_t)num, dev, routing, it);
+        }
+    }
+
+    vfree(routing.data(), routing_pages << PAGE_SHIFT);
+}
+
+uint16_t setup_msi(const pci_device& dev, bool msix, irq_func_type func,
+                   void* ctx) {
+#ifdef __aarch64__
+    auto int_num = allocate_msi_irq();
+    if (int_num == 0) {
+        print("allocate_msi_irq failed\n");
+        return 0;
+    }
+
+    if (!add_irq_handler(int_num, false, func, ctx)) {
+        free_msi_irq(int_num);
+        print("add_irq_handler failed\n");
+        return 0;
+    }
+#elifdef __x86_64__
+    auto int_num = add_isr(func, ctx);
+    if (int_num == 0) {
+        print("add_isr failed\n");
+        return 0;
+    }
+#endif
+
+    if (msix) {
+        // enable MSI-X
+        dev.msix->message_control |= 0x8000;
+
+        // set up interrupt
+        auto& vec = *(volatile msix_entry*)(dev.bar[dev.msix->bir].data() + (dev.msix->table_offset << 3));
+
+        vec.message_data = int_num;
+#ifdef __aarch64__
+        vec.message_address_high = msi_frame_setspi >> 32;
+        vec.message_address_low = msi_frame_setspi & 0xffffffff;
+#elifdef __x86_64__
+        vec.message_address_high = 0;
+        vec.message_address_low = apic_msi_address(0, false, false); // FIXME - spread out amongst processors
+#endif
+        vec.vector_control &= ~(uint32_t)1; // unmask
+    } else {
+        auto& msi = *(volatile pci_msi*)dev.msi.data();
+
+#ifdef __aarch64__
+        msi.message_address_low = msi_frame_setspi & 0xffffffff;
+#elifdef __x86_64__
+        msi.message_address_low = apic_msi_address(0, false, false); // FIXME - spread out amongst processors
+#endif
+
+        if (msi.message_control & 0x80) { // 64-bit
+#ifdef __aarch64__
+            msi.v64.message_address_high = msi_frame_setspi >> 32;
+#elifdef __x86_64__
+            msi.v64.message_address_high = 0;
+#endif
+            msi.v64.message_data = int_num;
+        } else
+            msi.v32.message_data = int_num;
+
+        msi.message_control = msi.message_control | 1; // enable
+    }
+
+    return int_num;
+}
+
+uint16_t add_msix_entry(const pci_device& dev, uint16_t vec, irq_func_type func,
+                        void* ctx) {
+    auto vecs = (volatile msix_entry*)(dev.bar[dev.msix->bir].data() + (dev.msix->table_offset << 3));
+
+#ifdef __aarch64__
+    auto int_num = allocate_msi_irq();
+    if (int_num == 0) {
+        print("allocate_msi_irq failed\n");
+        return 0;
+    }
+
+    if (!add_irq_handler(int_num, false, func, ctx)) {
+        free_msi_irq(int_num);
+        print("add_irq_handler failed\n");
+        return 0;
+    }
+#elifdef __x86_64__
+    auto int_num = add_isr(func, ctx);
+    if (int_num == 0) {
+        print("add_isr failed\n");
+        return false;
+    }
+#endif
+
+    vecs[vec].message_data = int_num;
+#ifdef __aarch64__
+    vecs[vec].message_address_high = msi_frame_setspi >> 32;
+    vecs[vec].message_address_low = msi_frame_setspi & 0xffffffff;
+#elifdef __x86_64__
+    vecs[vec].message_address_high = 0;
+    vecs[vec].message_address_low = apic_msi_address(0, false, false); // FIXME - spread out amongst processors
+#endif
+    vecs[vec].vector_control &= ~(uint32_t)1; // unmask
+
+    return int_num;
+}
+
+static void found_pci_link(const acpi_device& dev) {
+    auto status = AcpiEvaluateObject(dev.handle, (char*)"_DIS", nullptr,
+                                     nullptr);
+    if (ACPI_FAILURE(status) && status != AE_NOT_FOUND) {
+        print("found_pci_link: AcpiEvaluateObject returned {} for _DIS\n", (acpi_status)status);
+        return;
+    }
+}
