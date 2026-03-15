@@ -1,5 +1,7 @@
 #include <stdint.h>
 #include <string.h>
+#include <span>
+#include <string_view>
 #include <mutex>
 
 import nt;
