@@ -6,7 +6,6 @@ module;
 #include <algorithm>
 #include <string_view>
 #include <stdint.h>
-#include "pci.h"
 
 module pci;
 
