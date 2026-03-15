@@ -238,10 +238,12 @@ export struct pci_class_recognizer {
 export list_entry pci_classes = { &pci_classes, &pci_classes };
 
 static void found_pci_bus(const acpi_device& dev);
+static void found_pci_link(const acpi_device& dev);
 
 // FIXME - PNP0A03 is non-express PCI?
 static acpi_recognizer mod_pnp_hids_pci[] = {
-    { {}, "PNP0A08", found_pci_bus, nullptr }
+    { {}, "PNP0A08", found_pci_bus, nullptr },
+    { {}, "PNP0C0F", found_pci_link, nullptr },
 };
 
 static void init_acpi_hids_pci() {
@@ -980,4 +982,13 @@ export uint16_t add_msix_entry(const pci_device& dev, uint16_t vec,
     vecs[vec].vector_control &= ~(uint32_t)1; // unmask
 
     return int_num;
+}
+
+static void found_pci_link(const acpi_device& dev) {
+    auto status = AcpiEvaluateObject(dev.handle, (char*)"_DIS", nullptr,
+                                     nullptr);
+    if (ACPI_FAILURE(status) && status != AE_NOT_FOUND) {
+        print("found_pci_link: AcpiEvaluateObject returned {} for _DIS\n", (acpi_status)status);
+        return;
+    }
 }
