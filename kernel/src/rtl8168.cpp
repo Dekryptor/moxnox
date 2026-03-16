@@ -233,6 +233,7 @@ static const uint8_t RTL_CFG9346_LOCK = 0x00;
 class rtl8168_netif : public netif {
 public:
     rtl8168_netif(pci_device& dev, volatile rtl8168_regs& regs) : dev(dev), regs(regs) { }
+    ~rtl8168_netif();
 
     void recv_thread();
     nt_status send_packet(const mac_address& dst_mac, ethertype type,
@@ -678,4 +679,17 @@ nt_status rtl8168_netif::send_packet(const mac_address& dst_mac, ethertype type,
     }
 
     return nt_status::SUCCESS;
+}
+
+rtl8168_netif::~rtl8168_netif() {
+    for (size_t i = 0; i < NUM_TX_DESC; i++) {
+        free(phys_address(tx_ring[i].addr));
+    }
+
+    for (size_t i = 0; i < NUM_RX_DESC; i++) {
+        free(phys_address(rx_ring[i].addr));
+    }
+
+    free(rx_ring);
+    free(tx_ring);
 }
