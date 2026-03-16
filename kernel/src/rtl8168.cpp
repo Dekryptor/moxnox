@@ -244,7 +244,7 @@ public:
     volatile rtl8168_regs& regs;
 
 private:
-    void setup_descriptors();
+    bool setup_descriptors();
     void enable_interrupts();
     void receive_packets();
     void handle_received_packet(span<const uint8_t> data);
@@ -271,14 +271,22 @@ static void init_rtl8168() {
 
 static module_init module_init_rtl8168(init_rtl8168);
 
-void rtl8168_netif::setup_descriptors() {
+bool rtl8168_netif::setup_descriptors() {
     rx_ring = (rtl8168_rx_desc*)malloc_aligned(NUM_RX_DESC * sizeof(rtl8168_rx_desc), 256);
-    // FIXME - check for OOM
+    if (!rx_ring)
+        return false;
 
     memset(rx_ring, 0, NUM_RX_DESC * sizeof(rtl8168_rx_desc));
 
     for (size_t i = 0; i < NUM_RX_DESC; i++) {
-        void* rx_buf = malloc(RX_BUF_SIZE); // FIXME - check for OOM
+        void* rx_buf = malloc(RX_BUF_SIZE);
+        if (!rx_buf) {
+            for (size_t j = 0; j < i; j++) {
+                free(phys_address(rx_ring[j].addr));
+            }
+            free(rx_ring);
+            return false;
+        }
 
         rx_ring[i].addr = va_to_pa_phys(rx_buf);
         rx_ring[i].owned_by_nic = 1;
@@ -294,12 +302,32 @@ void rtl8168_netif::setup_descriptors() {
                 false);
 
     tx_ring = (rtl8168_tx_desc*)malloc_aligned(NUM_TX_DESC * sizeof(rtl8168_tx_desc), 256);
-    // FIXME - check for OOM
+    if (!tx_ring) {
+        for (size_t i = 0; i < NUM_RX_DESC; i++) {
+            free(phys_address(rx_ring[i].addr));
+        }
+        free(rx_ring);
+        return false;
+    }
 
     memset(tx_ring, 0, NUM_TX_DESC * sizeof(rtl8168_tx_desc));
 
     for (size_t i = 0; i < NUM_TX_DESC; i++) {
-        void* tx_buf = malloc(TX_BUF_SIZE); // FIXME - check for OOM
+        void* tx_buf = malloc(TX_BUF_SIZE);
+        if (!tx_buf) {
+            for (size_t j = 0; j < i; j++) {
+                free(phys_address(tx_ring[j].addr));
+            }
+
+            for (size_t j = 0; j < NUM_RX_DESC; j++) {
+                free(phys_address(rx_ring[j].addr));
+            }
+
+            free(rx_ring);
+            free(tx_ring);
+
+            return false;
+        }
 
         tx_ring[i].addr = va_to_pa_phys(tx_buf);
 
@@ -317,6 +345,8 @@ void rtl8168_netif::setup_descriptors() {
     regs.tx_desc_addr_high = (uint32_t)(tx_phys >> 32);
     regs.rx_desc_addr_low = (uint32_t)rx_phys;
     regs.rx_desc_addr_high = (uint32_t)(rx_phys >> 32);
+
+    return true;
 }
 
 void rtl8168_netif::enable_interrupts() {
@@ -415,7 +445,10 @@ bool rtl8168_netif::init() {
         return false;
     }
 
-    setup_descriptors();
+    if (!setup_descriptors()) {
+        print("setup_descriptors failed\n");
+        return false;
+    }
 
     // FIXME - MSI
 
