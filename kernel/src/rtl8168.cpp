@@ -21,6 +21,7 @@ import object_ref;
 import objects;
 import scheduler;
 import spinlock;
+import semaphore;
 
 using namespace std;
 
@@ -249,7 +250,8 @@ private:
     void handle_received_packet(span<const uint8_t> data);
 
     object_ref receive_packet_event, transmit_packet_event, link_change_event;
-    uint16_t rx_index = 0, tx_index = 0;
+    object_ref tx_semaphore;
+    uint16_t rx_index = 0, tx_index = 0, tx_ack_index = 0;
     rtl8168_rx_desc* rx_ring = nullptr;
     rtl8168_tx_desc* tx_ring = nullptr;
     spinlock tx_lock;
@@ -392,6 +394,12 @@ bool rtl8168_netif::init() {
     link_change_event = create_event(true);
     if (!link_change_event) {
         print("create_event failed\n");
+        return false;
+    }
+
+    tx_semaphore = create_semaphore(NUM_TX_DESC);
+    if (!tx_semaphore) {
+        print("create_semaphore failed\n");
         return false;
     }
 
@@ -539,8 +547,26 @@ void rtl8168_netif::recv_thread() {
             print("FIXME - rtl8168 link change event\n");
         else if ((unsigned int)status == (unsigned int)nt_status::SUCCESS + 1)
             receive_packets();
-        else if ((unsigned int)status == (unsigned int)nt_status::SUCCESS + 2)
-            print("FIXME - rtl8168 transmit packet event\n");
+        else if ((unsigned int)status == (unsigned int)nt_status::SUCCESS + 2) {
+            unsigned int to_release = 0;
+
+            {
+                lock_guard lock(tx_lock);
+
+                while (!tx_ring[tx_ack_index].owned_by_nic) {
+                    to_release++;
+
+                    tx_ack_index = (tx_ack_index + 1) % NUM_TX_DESC;
+
+                    if (tx_ack_index == tx_index)
+                        break;
+                }
+            }
+
+            for (unsigned int i = 0; i < to_release; i++) {
+                release_semaphore(static_cast<semaphore&>(tx_semaphore.get()));
+            }
+        }
     }
 }
 
@@ -592,7 +618,7 @@ void rtl8168_netif::receive_packets() {
 
 nt_status rtl8168_netif::send_packet(const mac_address& dst_mac, ethertype type,
                                      packet& pack) {
-    // FIXME - semaphore
+    wait_for_object(tx_semaphore.get(), false);
 
     {
         lock_guard lock(tx_lock);
