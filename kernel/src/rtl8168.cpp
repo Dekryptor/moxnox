@@ -232,8 +232,12 @@ void rtl8168_netif::setup_descriptors() {
 
         if (i == NUM_RX_DESC - 1)
             rx_ring[i].end_of_ring = 1;
+
+        flush_cache(span((uint8_t*)rx_buf, RX_BUF_SIZE), true);
     }
 
+    flush_cache(span((uint8_t*)rx_ring, NUM_RX_DESC * sizeof(rtl8168_rx_desc)),
+                false);
     auto rx_phys = va_to_pa_phys(rx_ring);
 
     regs.rx_desc_addr_low = (uint32_t)rx_phys;
@@ -456,12 +460,19 @@ void rtl8168_netif::recv_thread() {
 void rtl8168_netif::receive_packets() {
     print("FIXME - rtl8168 receive packet event\n");
 
-    while (!(rx_ring[rx_index].owned_by_nic)) {
+    while (true) {
         auto& r = rx_ring[rx_index];
+
+        flush_cache(span((uint8_t*)&r, sizeof(r)), true);
+
+        if (rx_ring[rx_index].owned_by_nic)
+            break;
 
         print("packet (length = {}, addr = {:x})\n", +r.packet_length, +r.addr);
 
         auto data = span((uint8_t*)phys_address(r.addr), r.packet_length);
+
+        flush_cache(data, true);
 
         for (size_t i = 0; i < data.size(); i++) {
             if (i % 16 == 0 && i != 0)
