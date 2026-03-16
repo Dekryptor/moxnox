@@ -249,7 +249,7 @@ private:
     void receive_packets();
     void handle_received_packet(span<const uint8_t> data);
 
-    object_ref receive_packet_event, transmit_packet_event, link_change_event;
+    object_ref receive_packet_event, link_change_event;
     object_ref tx_semaphore;
     uint16_t rx_index = 0, tx_index = 0, tx_ack_index = 0;
     rtl8168_rx_desc* rx_ring = nullptr;
@@ -343,11 +343,29 @@ bool rtl8168_netif::isr() {
     if (status.rx_ok)
         set_event(static_cast<event&>(receive_packet_event.get()));
 
-    if (status.tx_ok)
-        set_event(static_cast<event&>(transmit_packet_event.get()));
-
     if (status.link_change)
         set_event(static_cast<event&>(link_change_event.get()));
+
+    if (status.tx_ok) {
+        unsigned int to_release = 0;
+
+        {
+            lock_guard lock(tx_lock);
+
+            while (!tx_ring[tx_ack_index].owned_by_nic) {
+                to_release++;
+
+                tx_ack_index = (tx_ack_index + 1) % NUM_TX_DESC;
+
+                if (tx_ack_index == tx_index)
+                    break;
+            }
+        }
+
+        for (unsigned int i = 0; i < to_release; i++) {
+            release_semaphore(static_cast<semaphore&>(tx_semaphore.get()));
+        }
+    }
 
     return false;
 }
@@ -381,12 +399,6 @@ bool rtl8168_netif::init() {
 
     receive_packet_event = create_event(true);
     if (!receive_packet_event) {
-        print("create_event failed\n");
-        return false;
-    }
-
-    transmit_packet_event = create_event(true);
-    if (!transmit_packet_event) {
         print("create_event failed\n");
         return false;
     }
@@ -531,11 +543,10 @@ void found_rtl8168(pci_device& dev) {
 
 void rtl8168_netif::recv_thread() {
     while (true) {
-        array<object*, 3> objs;
+        array<object*, 2> objs;
 
         objs[0] = &link_change_event.get();
         objs[1] = &receive_packet_event.get();
-        objs[2] = &transmit_packet_event.get();
 
         auto status = wait_for_objects(objs, true);
         if (!success(status)) {
@@ -547,26 +558,6 @@ void rtl8168_netif::recv_thread() {
             print("FIXME - rtl8168 link change event\n");
         else if ((unsigned int)status == (unsigned int)nt_status::SUCCESS + 1)
             receive_packets();
-        else if ((unsigned int)status == (unsigned int)nt_status::SUCCESS + 2) {
-            unsigned int to_release = 0;
-
-            {
-                lock_guard lock(tx_lock);
-
-                while (!tx_ring[tx_ack_index].owned_by_nic) {
-                    to_release++;
-
-                    tx_ack_index = (tx_ack_index + 1) % NUM_TX_DESC;
-
-                    if (tx_ack_index == tx_index)
-                        break;
-                }
-            }
-
-            for (unsigned int i = 0; i < to_release; i++) {
-                release_semaphore(static_cast<semaphore&>(tx_semaphore.get()));
-            }
-        }
     }
 }
 
