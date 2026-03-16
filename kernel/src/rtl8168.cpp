@@ -459,7 +459,9 @@ void rtl8168_netif::recv_thread() {
 }
 
 void rtl8168_netif::handle_received_packet(span<const uint8_t> data) {
-    if (data.size() < sizeof(ethernet_header))
+    // ignoring the 4-byte "frame check sequence" the rtl8168 sticks at the end
+
+    if (data.size() < sizeof(ethernet_header) + sizeof(uint32_t))
         return;
 
     auto& eth = *(ethernet_header*)data.data();
@@ -473,7 +475,7 @@ void rtl8168_netif::handle_received_packet(span<const uint8_t> data) {
         return;
     }
 
-    pack->size = data.size() - sizeof(ethernet_header);
+    pack->size = data.size() - sizeof(ethernet_header) - sizeof(uint32_t);
     memcpy(pack->data, data.data() + sizeof(ethernet_header), pack->size);
 
     if (eth.type == ethertype::ipv6)
