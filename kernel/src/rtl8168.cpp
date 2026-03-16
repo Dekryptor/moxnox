@@ -126,6 +126,39 @@ struct rtl8168_regs {
 
 static_assert(sizeof(rtl8168_regs) == 0x100);
 
+struct rtl8168_tx_desc {
+    union {
+        uint32_t opts1;
+        struct {
+            uint32_t packet_length : 16;
+            uint32_t tx_csum_tcp : 1;
+            uint32_t tx_csum_udp : 1;
+            uint32_t tx_csum_ip : 1;
+            uint32_t : 7;
+            uint32_t large_send : 1;
+            uint32_t last_segment : 1;
+            uint32_t first_segment : 1;
+            uint32_t end_of_ring : 1;
+            uint32_t owned_by_nic : 1;
+        };
+    };
+
+    union {
+        uint32_t opts2;
+
+        struct {
+            uint32_t vlan_tag : 16;
+            uint32_t : 1;
+            uint32_t tagc : 1;
+            uint32_t : 14;
+        };
+    };
+
+    uint64_t addr;
+} __attribute__((packed));
+
+static_assert(sizeof(rtl8168_tx_desc) == 0x10);
+
 struct rtl8168_rx_desc {
     union {
         uint32_t opts1;
@@ -170,7 +203,9 @@ static const uint8_t RTL_CMD_TX_ENABLE = 0x04;
 static const uint16_t DEFAULT_MTU = 1500; // FIXME - put in net module?
 
 static const size_t NUM_RX_DESC = 256;
+static const size_t NUM_TX_DESC = 256;
 static const uint16_t RX_BUF_SIZE = 2048;
+static const uint16_t TX_BUF_SIZE = 2048;
 
 static const uint8_t RTL_CFG9346_UNLOCK = 0xc0;
 static const uint8_t RTL_CFG9346_LOCK = 0x00;
@@ -199,9 +234,10 @@ private:
     void receive_packets();
     void handle_received_packet(span<const uint8_t> data);
 
-    object_ref receive_packet_event, link_change_event;
+    object_ref receive_packet_event, transmit_packet_event, link_change_event;
     uint16_t rx_index = 0;
     rtl8168_rx_desc* rx_ring = nullptr;
+    rtl8168_tx_desc* tx_ring = nullptr;
 };
 
 void found_rtl8168(pci_device& dev);
@@ -219,6 +255,9 @@ static void init_rtl8168() {
 static module_init module_init_rtl8168(init_rtl8168);
 
 void rtl8168_netif::setup_descriptors() {
+    tx_ring = (rtl8168_tx_desc*)malloc_aligned(NUM_TX_DESC * sizeof(rtl8168_tx_desc), 256);
+    // FIXME - check for OOM
+
     rx_ring = (rtl8168_rx_desc*)malloc_aligned(NUM_RX_DESC * sizeof(rtl8168_rx_desc), 256);
     // FIXME - check for OOM
 
@@ -239,8 +278,26 @@ void rtl8168_netif::setup_descriptors() {
 
     flush_cache(span((uint8_t*)rx_ring, NUM_RX_DESC * sizeof(rtl8168_rx_desc)),
                 false);
+
+    memset(tx_ring, 0, NUM_TX_DESC * sizeof(rtl8168_tx_desc));
+
+    for (size_t i = 0; i < NUM_TX_DESC; i++) {
+        void* tx_buf = malloc(TX_BUF_SIZE); // FIXME - check for OOM
+
+        tx_ring[i].addr = va_to_pa_phys(tx_buf);
+
+        if (i == NUM_RX_DESC - 1)
+            tx_ring[i].end_of_ring = 1;
+    }
+
+    flush_cache(span((uint8_t*)tx_ring, NUM_TX_DESC * sizeof(rtl8168_tx_desc)),
+                false);
+
+    auto tx_phys = va_to_pa_phys(tx_ring);
     auto rx_phys = va_to_pa_phys(rx_ring);
 
+    regs.tx_desc_addr_low = (uint32_t)tx_phys;
+    regs.tx_desc_addr_high = (uint32_t)(tx_phys >> 32);
     regs.rx_desc_addr_low = (uint32_t)rx_phys;
     regs.rx_desc_addr_high = (uint32_t)(rx_phys >> 32);
 }
@@ -252,6 +309,7 @@ void rtl8168_netif::enable_interrupts() {
 
     b.value = 0;
     b.rx_ok = 1;
+    b.tx_ok = 1;
     b.link_change = 1;
 
     regs.interrupt_mask.value = b.value;
@@ -263,10 +321,13 @@ bool rtl8168_netif::isr() {
     status.value = regs.interrupt_status.value;
     regs.interrupt_status.value = status.value; // acknowledge interrupts
 
-    // FIXME - tx_ok, rx_err, tx_err, rx_fifo_overflow?
+    // FIXME - rx_err, tx_err, rx_fifo_overflow?
 
     if (status.rx_ok)
         set_event(static_cast<event&>(receive_packet_event.get()));
+
+    if (status.tx_ok)
+        set_event(static_cast<event&>(transmit_packet_event.get()));
 
     if (status.link_change)
         set_event(static_cast<event&>(link_change_event.get()));
@@ -306,6 +367,12 @@ bool rtl8168_netif::init() {
         return false;
     }
 
+    transmit_packet_event = create_event(true);
+    if (!transmit_packet_event) {
+        print("create_event failed\n");
+        return false;
+    }
+
     link_change_event = create_event(true);
     if (!link_change_event) {
         print("create_event failed\n");
@@ -323,7 +390,7 @@ bool rtl8168_netif::init() {
 
     enable_interrupts();
 
-    regs.cmd = RTL_CMD_RX_ENABLE;
+    regs.cmd = RTL_CMD_TX_ENABLE | RTL_CMD_RX_ENABLE;
 
     regs.eeprom_command_register = RTL_CFG9346_LOCK;
 
@@ -440,10 +507,11 @@ void found_rtl8168(pci_device& dev) {
 
 void rtl8168_netif::recv_thread() {
     while (true) {
-        array<object*, 2> objs;
+        array<object*, 3> objs;
 
         objs[0] = &link_change_event.get();
         objs[1] = &receive_packet_event.get();
+        objs[2] = &transmit_packet_event.get();
 
         auto status = wait_for_objects(objs, true);
         if (!success(status)) {
@@ -455,6 +523,8 @@ void rtl8168_netif::recv_thread() {
             print("FIXME - rtl8168 link change event\n");
         else if ((unsigned int)status == (unsigned int)nt_status::SUCCESS + 1)
             receive_packets();
+        else if ((unsigned int)status == (unsigned int)nt_status::SUCCESS + 2)
+            print("FIXME - rtl8168 transmit packet event\n");
     }
 }
 
