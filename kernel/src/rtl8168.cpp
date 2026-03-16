@@ -608,7 +608,7 @@ nt_status rtl8168_netif::send_packet(const mac_address& dst_mac, ethertype type,
         d.end_of_ring = tx_index == NUM_TX_DESC - 1 ? 1 : 0;
         d.owned_by_nic = 1;
 
-        // FIXME - flush d
+        flush_cache(span((uint8_t*)&d, sizeof(d)), false);
 
         auto buf = phys_address(d.addr);
 
@@ -619,7 +619,8 @@ nt_status rtl8168_netif::send_packet(const mac_address& dst_mac, ethertype type,
 
         memcpy((uint8_t*)buf + sizeof(ethernet_header), pack.data, pack.size);
 
-        // FIXME - flush buffer
+        flush_cache(span((uint8_t*)buf, pack.size + sizeof(ethernet_header)),
+                    false);
 
         regs.tx_poll = TXPOLL_NPQ;
 
