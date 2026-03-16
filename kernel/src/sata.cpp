@@ -807,8 +807,7 @@ sata_card::~sata_card() {
     if (!isr_registered)
         return;
 
-    // FIXME
-    if (!dev.msi.empty()) {
+    if (!dev.msi.empty() && msi_supported) {
 #ifdef __aarch64__
         remove_irq_handler(msi_irq, sata_isr_func, this);
         free_msi_irq(msi_irq);
