@@ -197,6 +197,7 @@ private:
     void setup_descriptors();
     void enable_interrupts();
     void receive_packets();
+    void handle_received_packet(span<const uint8_t> data);
 
     object_ref receive_packet_event, link_change_event;
     uint16_t rx_index = 0;
@@ -457,9 +458,31 @@ void rtl8168_netif::recv_thread() {
     }
 }
 
-void rtl8168_netif::receive_packets() {
-    print("FIXME - rtl8168 receive packet event\n");
+void rtl8168_netif::handle_received_packet(span<const uint8_t> data) {
+    if (data.size() < sizeof(ethernet_header))
+        return;
 
+    auto& eth = *(ethernet_header*)data.data();
+
+    if (drop_packet(eth.dst_mac, mac))
+        return;
+
+    auto pack = new packet;
+    if (!pack) {
+        print("new failed\n");
+        return;
+    }
+
+    pack->size = data.size() - sizeof(ethernet_header);
+    memcpy(pack->data, data.data() + sizeof(ethernet_header), pack->size);
+
+    if (eth.type == ethertype::ipv6)
+        handle_ipv6_packet(*this, *pack, eth.src_mac);
+
+    pack->release();
+}
+
+void rtl8168_netif::receive_packets() {
     while (true) {
         auto& r = rx_ring[rx_index];
 
@@ -468,19 +491,11 @@ void rtl8168_netif::receive_packets() {
         if (rx_ring[rx_index].owned_by_nic)
             break;
 
-        print("packet (length = {}, addr = {:x})\n", +r.packet_length, +r.addr);
-
         auto data = span((uint8_t*)phys_address(r.addr), r.packet_length);
 
         flush_cache(data, true);
 
-        for (size_t i = 0; i < data.size(); i++) {
-            if (i % 16 == 0 && i != 0)
-                print("\n");
-
-            print("{:02x} ", data[i]);
-        }
-        print("\n");
+        handle_received_packet(data);
 
         r.owned_by_nic = true;
         rx_index = (rx_index + 1) % NUM_RX_DESC;
