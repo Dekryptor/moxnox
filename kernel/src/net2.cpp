@@ -1216,17 +1216,15 @@ void handle_ipv6_packet(netif& ni, packet& pack, const mac_address& src_mac) {
         return;
     }
 
-    auto& header = *(ipv6_header*)pack.data;
+    const auto& ip = *(ipv6_header*)pack.data;
+    const auto& dst = ip.dst;
 
 #if 0
     print("ipv6: version = {}, traffic_class1 = {}, traffic_class2 = {}, flow_label = {}, payload_length = {}, next_header = {}, hop_limit = {}, src = {}, dst = {}\n",
-          header.version, header.traffic_class1, header.traffic_class2, header.flow_label,
-          byteswap(header.payload_length), header.next_header, header.hop_limit,
-          header.src, header.dst);
+          +ip.version, +ip.traffic_class1, +ip.traffic_class2, +ip.flow_label,
+          byteswap(ip.payload_length), ip.next_header, ip.hop_limit,
+          ip.src, ip.dst);
 #endif
-
-    const auto& ip = *(ipv6_header*)pack.data;
-    const auto& dst = ip.dst;
 
     if (is_multicast_address(ip.dst)) {
         if (!should_accept_multicast(ni, ip.dst))
@@ -1253,7 +1251,7 @@ void handle_ipv6_packet(netif& ni, packet& pack, const mac_address& src_mac) {
             return;
     }
 
-    switch ((ip_proto)header.next_header) {
+    switch ((ip_proto)ip.next_header) {
         case ip_proto::icmpv6:
             handle_icmpv6_packet(ni, pack, src_mac);
             break;
@@ -1270,7 +1268,7 @@ void handle_ipv6_packet(netif& ni, packet& pack, const mac_address& src_mac) {
         for (auto le = ni.neighbour_cache.next; le != &ni.neighbour_cache; le = le->next) {
             auto& c = containing_record<neighbour_cache_entry>(le);
 
-            if (c.addr == header.src) {
+            if (c.addr == ip.src) {
                 if (c.status == neighbour_cache_status::reachable)
                     c.last_update_time = kernel_time_page.system_time;
 
