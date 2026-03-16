@@ -20,6 +20,7 @@ import event;
 import object_ref;
 import objects;
 import scheduler;
+import spinlock;
 
 using namespace std;
 
@@ -142,6 +143,8 @@ struct rtl8168_regs {
 
 static_assert(sizeof(rtl8168_regs) == 0x100);
 
+static const uint8_t TXPOLL_NPQ = 1 << 6;
+
 struct rtl8168_tx_desc {
     union {
         uint32_t opts1;
@@ -150,7 +153,7 @@ struct rtl8168_tx_desc {
             uint32_t tx_csum_tcp : 1;
             uint32_t tx_csum_udp : 1;
             uint32_t tx_csum_ip : 1;
-            uint32_t : 7;
+            uint32_t : 8;
             uint32_t large_send : 1;
             uint32_t last_segment : 1;
             uint32_t first_segment : 1;
@@ -231,13 +234,8 @@ public:
     rtl8168_netif(pci_device& dev, volatile rtl8168_regs& regs) : dev(dev), regs(regs) { }
 
     void recv_thread();
-    nt_status send_packet(const mac_address& /*dst_mac*/, ethertype /*type*/,
-                          packet& /*pack*/) override {
-        print("FIXME - rtl8168_netif::send_packet\n");
-
-        return nt_status::NOT_IMPLEMENTED;
-    }
-
+    nt_status send_packet(const mac_address& dst_mac, ethertype type,
+                          packet& pack) override;
     bool init();
     bool isr();
 
@@ -251,9 +249,10 @@ private:
     void handle_received_packet(span<const uint8_t> data);
 
     object_ref receive_packet_event, transmit_packet_event, link_change_event;
-    uint16_t rx_index = 0;
+    uint16_t rx_index = 0, tx_index = 0;
     rtl8168_rx_desc* rx_ring = nullptr;
     rtl8168_tx_desc* tx_ring = nullptr;
+    spinlock tx_lock;
 };
 
 void found_rtl8168(pci_device& dev);
@@ -271,9 +270,6 @@ static void init_rtl8168() {
 static module_init module_init_rtl8168(init_rtl8168);
 
 void rtl8168_netif::setup_descriptors() {
-    tx_ring = (rtl8168_tx_desc*)malloc_aligned(NUM_TX_DESC * sizeof(rtl8168_tx_desc), 256);
-    // FIXME - check for OOM
-
     rx_ring = (rtl8168_rx_desc*)malloc_aligned(NUM_RX_DESC * sizeof(rtl8168_rx_desc), 256);
     // FIXME - check for OOM
 
@@ -295,6 +291,9 @@ void rtl8168_netif::setup_descriptors() {
     flush_cache(span((uint8_t*)rx_ring, NUM_RX_DESC * sizeof(rtl8168_rx_desc)),
                 false);
 
+    tx_ring = (rtl8168_tx_desc*)malloc_aligned(NUM_TX_DESC * sizeof(rtl8168_tx_desc), 256);
+    // FIXME - check for OOM
+
     memset(tx_ring, 0, NUM_TX_DESC * sizeof(rtl8168_tx_desc));
 
     for (size_t i = 0; i < NUM_TX_DESC; i++) {
@@ -302,7 +301,7 @@ void rtl8168_netif::setup_descriptors() {
 
         tx_ring[i].addr = va_to_pa_phys(tx_buf);
 
-        if (i == NUM_RX_DESC - 1)
+        if (i == NUM_TX_DESC - 1)
             tx_ring[i].end_of_ring = 1;
     }
 
@@ -376,6 +375,7 @@ bool rtl8168_netif::init() {
     regs.rx_config.value = rx_config.value;
 
     regs.rx_max_size = RX_BUF_SIZE;
+    regs.tx_max_size = TX_BUF_SIZE / 128;
 
     receive_packet_event = create_event(true);
     if (!receive_packet_event) {
@@ -588,4 +588,43 @@ void rtl8168_netif::receive_packets() {
         r.owned_by_nic = true;
         rx_index = (rx_index + 1) % NUM_RX_DESC;
     }
+}
+
+nt_status rtl8168_netif::send_packet(const mac_address& dst_mac, ethertype type,
+                                     packet& pack) {
+    // FIXME - semaphore
+
+    {
+        lock_guard lock(tx_lock);
+
+        auto& d = tx_ring[tx_index];
+
+        d.opts1 = 0;
+        d.opts2 = 0;
+
+        d.packet_length = (uint16_t)(sizeof(ethernet_header) + pack.size);
+        d.last_segment = 1;
+        d.first_segment = 1;
+        d.end_of_ring = tx_index == NUM_TX_DESC - 1 ? 1 : 0;
+        d.owned_by_nic = 1;
+
+        // FIXME - flush d
+
+        auto buf = phys_address(d.addr);
+
+        auto& eth = *(ethernet_header*)buf;
+        eth.src_mac = mac;
+        eth.dst_mac = dst_mac;
+        eth.type = type;
+
+        memcpy((uint8_t*)buf + sizeof(ethernet_header), pack.data, pack.size);
+
+        // FIXME - flush buffer
+
+        regs.tx_poll = TXPOLL_NPQ;
+
+        tx_index = (tx_index + 1) % NUM_TX_DESC;
+    }
+
+    return nt_status::SUCCESS;
 }
