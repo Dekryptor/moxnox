@@ -256,6 +256,10 @@ private:
     rtl8168_rx_desc* rx_ring = nullptr;
     rtl8168_tx_desc* tx_ring = nullptr;
     spinlock tx_lock;
+    bool isr_registered = false;
+#ifdef __aarch64__
+    uint16_t msi_irq;
+#endif
 };
 
 void found_rtl8168(pci_device& dev);
@@ -401,6 +405,12 @@ bool rtl8168_netif::isr() {
     return false;
 }
 
+static bool rtl8168_isr_func(void* ctx) {
+    auto& r = *(rtl8168_netif*)ctx;
+
+    return r.isr();
+}
+
 bool rtl8168_netif::init() {
     tcr_bits tx_config;
     rcr_bits rx_config;
@@ -451,10 +461,25 @@ bool rtl8168_netif::init() {
         return false;
     }
 
-    // FIXME - MSI
+    if (!dev.msi.empty() && msi_supported) {
+        // FIXME - MSI-X?
+        auto int_num = setup_msi(dev, false, rtl8168_isr_func, this);
+        if (int_num == 0)
+            return false;
 
-    if (!add_irq_handler(*dev.irq, true, [](void* ctx) { return ((rtl8168_netif*)ctx)->isr(); }, this)) {
-        print("add_irq_handler failed\n");
+        isr_registered = true;
+#ifdef __aarch64__
+        msi_irq = int_num;
+#endif
+    } else if (dev.irq.has_value()) {
+        if (!add_irq_handler(*dev.irq, true, rtl8168_isr_func, this)) {
+            print("add_irq_handler failed\n");
+            return false;
+        }
+
+        isr_registered = true;
+    } else {
+        print("rtl8168_netif::init: no MSI and no IRQ found\n");
         return false;
     }
 
@@ -682,6 +707,18 @@ nt_status rtl8168_netif::send_packet(const mac_address& dst_mac, ethertype type,
 }
 
 rtl8168_netif::~rtl8168_netif() {
+    if (isr_registered) {
+        if (msi_supported && !dev.msi.empty()) {
+#ifdef __aarch64__
+            remove_irq_handler(msi_irq, rtl8168_isr_func, this);
+            free_msi_irq(msi_irq);
+#elifdef __x86_64__
+            remove_isr(rtl8168_isr_func, this);
+#endif
+        } else if (dev.irq.has_value())
+            remove_irq_handler(*dev.irq, rtl8168_isr_func, this);
+    }
+
     for (size_t i = 0; i < NUM_TX_DESC; i++) {
         free(phys_address(tx_ring[i].addr));
     }
