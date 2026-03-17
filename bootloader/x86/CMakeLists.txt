@@ -25,6 +25,12 @@ target_compile_options(efistub PRIVATE -Wall -Wextra -Wno-address-of-packed-memb
 target_link_options(efistub PUBLIC -nostartfiles -nostdlib -Wl,--image-base=0 -Wl,--exclude-all-symbols -e efi_main)
 target_link_libraries(efistub format_kernel pe_kernel loaderblock crt_kernel unicode_kernel x86 gnu-efi)
 
+# HACK! Work around ld.lld bug: it relocates as if .buildid wasn't there, then sticks it before .data anyway
+if (CMAKE_CXX_COMPILER_ID MATCHES "Clang")
+    target_link_options(efistub PRIVATE -Wl,/merge:.rdata=.data)
+    target_link_options(efistub PRIVATE -Wl,/merge:.buildid=.debug_str)
+endif()
+
 add_custom_command(
     TARGET efistub
     POST_BUILD
