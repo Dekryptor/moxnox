@@ -287,7 +287,7 @@ static void send_tcp_port_closed(packet& pack, netif& ni,
 }
 
 void received_ipv6_tcp_packet(netif& ni, packet& pack,
-                              const mac_address& src_mac) {
+                              const mac_address& src_mac, bool skip_checksum) {
     if (pack.size < sizeof(ipv6_header) + sizeof(tcp_header))
         return;
 
@@ -298,8 +298,10 @@ void received_ipv6_tcp_packet(netif& ni, packet& pack,
 
     auto& tcp = *(tcp_header*)(pack.data + sizeof(ipv6_header));
 
-    if (calc_ipv6_checksum(ip, span((uint8_t*)&tcp, pack.size - sizeof(ipv6_header)), IPPROTO_TCP) != 0)
-        return;
+    if (!skip_checksum) {
+        if (calc_ipv6_checksum(ip, span((uint8_t*)&tcp, pack.size - sizeof(ipv6_header)), IPPROTO_TCP) != 0)
+            return;
+    }
 
 #if 0
     print("received_tcp_packet (src {}, dst {}, {:04x})\n",

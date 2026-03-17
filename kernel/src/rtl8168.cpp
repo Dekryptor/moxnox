@@ -192,17 +192,19 @@ struct rtl8168_rx_desc {
         uint32_t opts1;
         struct {
             uint32_t packet_length : 14;
-            uint32_t : 1;
             uint32_t tcp_checksum_failed : 1;
             uint32_t udp_checksum_failed : 1;
             uint32_t ip_checksum_failed : 1;
-            uint32_t : 4;
-            uint32_t tcpv6 : 1;
-            uint32_t udpv6 : 1;
-            uint32_t ipv6 : 1;
-            uint32_t tcpv4 : 1;
-            uint32_t udpv4 : 1;
-            uint32_t ipv4 : 1;
+            uint32_t pid : 2;
+            uint32_t crc_error : 1;
+            uint32_t runt_packet : 1;
+            uint32_t receive_error_summary : 1;
+            uint32_t receive_watchdog_timer_expired : 1;
+            uint32_t : 2;
+            uint32_t broadcast_address_received : 1;
+            uint32_t physical_address_matched : 1;
+            uint32_t multicast_address_received : 1;
+
             uint32_t last_segment : 1;
             uint32_t first_segment : 1;
             uint32_t end_of_ring : 1;
@@ -256,7 +258,8 @@ private:
     bool setup_descriptors();
     void enable_interrupts();
     void receive_packets();
-    void handle_received_packet(span<const uint8_t> data);
+    void handle_received_packet(span<const uint8_t> data,
+                                const rtl8168_rx_desc& r);
 
     object_ref receive_packet_event, link_change_event;
     object_ref tx_semaphore;
@@ -635,11 +638,27 @@ void rtl8168_netif::recv_thread() {
     }
 }
 
-void rtl8168_netif::handle_received_packet(span<const uint8_t> data) {
+void rtl8168_netif::handle_received_packet(span<const uint8_t> data,
+                                           const rtl8168_rx_desc& r) {
+    bool checksum_okay = false;
+
     // ignoring the 4-byte "frame check sequence" the rtl8168 sticks at the end
 
     if (data.size() < sizeof(ethernet_header) + sizeof(uint32_t))
         return;
+
+    // FIXME - IPv4 checksums
+    if (r.pid == 1) {
+        if (r.tcp_checksum_failed)
+            return;
+
+        checksum_okay = true;
+    } else if (r.pid == 2) {
+        if (r.udp_checksum_failed)
+            return;
+
+        checksum_okay = true;
+    }
 
     auto& eth = *(ethernet_header*)data.data();
 
@@ -656,7 +675,7 @@ void rtl8168_netif::handle_received_packet(span<const uint8_t> data) {
     memcpy(pack->data, data.data() + sizeof(ethernet_header), pack->size);
 
     if (eth.type == ethertype::ipv6)
-        handle_ipv6_packet(*this, *pack, eth.src_mac);
+        handle_ipv6_packet(*this, *pack, eth.src_mac, checksum_okay);
 
     pack->release();
 }
@@ -674,7 +693,7 @@ void rtl8168_netif::receive_packets() {
 
         flush_cache(data, true);
 
-        handle_received_packet(data);
+        handle_received_packet(data, r);
 
         r.owned_by_nic = true;
         rx_index = (rx_index + 1) % NUM_RX_DESC;

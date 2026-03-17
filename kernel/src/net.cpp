@@ -303,15 +303,15 @@ export atomic<uint32_t> next_netif_num = 1;
 export atomic<uint32_t> next_eth_num = 0;
 
 export void handle_ipv6_packet(netif& ni, packet& pack,
-                               const mac_address& src_mac);
+                               const mac_address& src_mac, bool skip_checksum);
 export bool drop_packet(const mac_address& dst, const mac_address& us);
 export bool init_net();
 export ipv6_address find_ll_address(const mac_address& m);
 
 void received_ipv6_tcp_packet(netif& ni, packet& pack,
-                              const mac_address& src_mac);
+                              const mac_address& src_mac, bool skip_checksum);
 void received_ipv6_udp_packet(netif& ni, packet& pack,
-                              const mac_address& src_mac);
+                              const mac_address& src_mac, bool skip_checksum);
 bool is_our_ip(const ipv6_address& ip);
 nt_status dispatch_packet(netif& ni, packet& pack, const mac_address& dst_mac);
 uint16_t calc_ipv6_checksum(const ipv6_header& ip, span<const uint8_t> data,

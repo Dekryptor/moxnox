@@ -583,7 +583,7 @@ static void handle_v6_echo_request(netif& ni, packet& pack,
     header.checksum = calc_ipv6_checksum(ip, span((uint8_t*)&header, pack2->size - sizeof(ipv6_header)), IPPROTO_ICMPV6);
 
     if (ip.src == ip.dst) // pinging ourselves
-        handle_ipv6_packet(ni, *pack2, ni.mac);
+        handle_ipv6_packet(ni, *pack2, ni.mac, true);
     else {
         auto status = ni.send_packet(src_mac, ethertype::ipv6, *pack2);
         if (!success(status))
@@ -1206,13 +1206,13 @@ static void send_to_raw_sockets(uint32_t netif_num, packet& pack) {
 }
 
 static void send_to_sockets(netif& ni, packet& pack,
-                            const mac_address& src_mac) {
+                            const mac_address& src_mac, bool skip_checksum) {
     auto& ip = *(ipv6_header*)pack.data;
 
     if (ip.next_header == IPPROTO_UDP)
-        received_ipv6_udp_packet(ni, pack, src_mac);
+        received_ipv6_udp_packet(ni, pack, src_mac, skip_checksum);
     else if (ip.next_header == IPPROTO_TCP)
-        received_ipv6_tcp_packet(ni, pack, src_mac);
+        received_ipv6_tcp_packet(ni, pack, src_mac, skip_checksum);
 
     send_to_raw_sockets(ni.num, pack);
 }
@@ -1240,7 +1240,8 @@ static bool should_accept_multicast(netif& ni, const ipv6_address& dst) {
     return false;
 }
 
-void handle_ipv6_packet(netif& ni, packet& pack, const mac_address& src_mac) {
+void handle_ipv6_packet(netif& ni, packet& pack, const mac_address& src_mac,
+                        bool skip_checksum) {
     if (pack.size < sizeof(ipv6_header)) {
         print("handle_ipv6_packet: buffer length was {}, expected at least {}\n",
               pack.size, sizeof(ipv6_header));
@@ -1291,7 +1292,7 @@ void handle_ipv6_packet(netif& ni, packet& pack, const mac_address& src_mac) {
             break;
     }
 
-    send_to_sockets(ni, pack, src_mac);
+    send_to_sockets(ni, pack, src_mac, skip_checksum);
 
     {
         lock_guard lock(ni.neighbour_lock);
@@ -2945,7 +2946,7 @@ void send_address_unreachable(netif& ni, const packet& pack,
 
     err.checksum = calc_ipv6_checksum(ip, span((uint8_t*)&err, offsetof(icmpv6_error, header) + payload_size), IPPROTO_ICMPV6);
 
-    handle_ipv6_packet(ni, *pack2, ni.mac);
+    handle_ipv6_packet(ni, *pack2, ni.mac, true);
 
     pack2->release();
 }
@@ -2956,10 +2957,10 @@ nt_status dispatch_packet(netif& ni, packet& pack, const mac_address& dst_mac) {
     auto& ip = *(ipv6_header*)pack.data;
 
     if (ip.src == ip.dst)
-        handle_ipv6_packet(ni, pack, ni.mac);
+        handle_ipv6_packet(ni, pack, ni.mac, true);
     else {
         if (is_multicast_address(ip.dst) && should_accept_multicast(ni, ip.dst))
-            handle_ipv6_packet(ni, pack, ni.mac); // send copy to ourselves
+            handle_ipv6_packet(ni, pack, ni.mac, true); // send copy to ourselves
 
         status = ni.send_packet(dst_mac, ethertype::ipv6, pack);
         if (!success(status)) {
