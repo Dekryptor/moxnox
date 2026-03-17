@@ -22,6 +22,7 @@ import objects;
 import scheduler;
 import spinlock;
 import semaphore;
+import ws2_32;
 
 using namespace std;
 
@@ -149,12 +150,15 @@ static const uint8_t TXPOLL_NPQ = 1 << 6;
 struct rtl8168_tx_desc {
     union {
         uint32_t opts1;
+
         struct {
             uint32_t packet_length : 16;
-            uint32_t tx_csum_tcp : 1;
-            uint32_t tx_csum_udp : 1;
-            uint32_t tx_csum_ip : 1;
-            uint32_t : 8;
+            uint32_t v1_tx_csum_tcp : 1;
+            uint32_t v1_tx_csum_udp : 1;
+            uint32_t v1_tx_csum_ip : 1;
+            uint32_t : 6;
+            uint32_t v2_gtsenv6 : 1;
+            uint32_t v2_gtsenv4 : 1;
             uint32_t large_send : 1;
             uint32_t last_segment : 1;
             uint32_t first_segment : 1;
@@ -170,7 +174,11 @@ struct rtl8168_tx_desc {
             uint32_t vlan_tag : 16;
             uint32_t : 1;
             uint32_t tagc : 1;
-            uint32_t : 14;
+            uint32_t v2_transport_offset : 10;
+            uint32_t v2_tx_csum_ipv6 : 1;
+            uint32_t v2_tx_csum_ipv4 : 1;
+            uint32_t v2_tx_csum_tdp : 1;
+            uint32_t v2_tx_csum_udp : 1;
         };
     };
 
@@ -489,6 +497,11 @@ bool rtl8168_netif::init() {
 
     regs.eeprom_command_register = RTL_CFG9346_LOCK;
 
+    auto xid = (regs.tx_config.value >> 20) & 0xfcf;
+
+    if ((xid & 0x7c8) != 0x380) // RTL8168B only supports v1 offload
+        tx_udpv6_csum_offload = true;
+
     return true;
 }
 
@@ -683,6 +696,18 @@ nt_status rtl8168_netif::send_packet(const mac_address& dst_mac, ethertype type,
         d.first_segment = 1;
         d.end_of_ring = tx_index == NUM_TX_DESC - 1 ? 1 : 0;
         d.owned_by_nic = 1;
+
+        // FIXME - IPv4 checksumming
+
+        if (type == ethertype::ipv6) {
+            const auto& ip = *(ipv6_header*)pack.data;
+
+            if (tx_udpv6_csum_offload && ip.next_header == IPPROTO_UDP) {
+                d.v2_tx_csum_ipv6 = 1;
+                d.v2_tx_csum_udp = 1;
+                d.v2_transport_offset = sizeof(ethernet_header) + sizeof(ipv6_header);
+            }
+        }
 
         flush_cache(span((uint8_t*)&d, sizeof(d)), false);
 
