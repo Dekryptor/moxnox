@@ -515,8 +515,6 @@ bool rtl8168_netif::init() {
 }
 
 void found_rtl8168(pci_device& dev) {
-    print("FIXME - found_rtl8168\n"); // FIXME
-
     // FIXME - is it definitely always BAR2? What does Linux do?
 
     if (dev.bar[2].empty()) {
