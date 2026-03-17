@@ -134,6 +134,7 @@ public:
     spinlock routers_lock;
     list_entry routers = { &routers, &routers };
     bool tx_udpv6_csum_offload = false;
+    bool tx_tcpv6_csum_offload = false;
 };
 
 export class socket : public sync_object {

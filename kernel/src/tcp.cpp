@@ -271,7 +271,13 @@ static void send_tcp_port_closed(packet& pack, netif& ni,
     tcp.header_length = sizeof(tcp_header) / sizeof(uint32_t);
     tcp.RST = 1;
 
-    tcp.checksum = calc_ipv6_checksum(ip, span((uint8_t*)&tcp, pack2->size - sizeof(ipv6_header)), IPPROTO_TCP);
+    if (!ni.tx_tcpv6_csum_offload) {
+        tcp.checksum = calc_ipv6_checksum(ip, span((uint8_t*)&tcp, pack2->size - sizeof(ipv6_header)),
+                                          IPPROTO_TCP);
+    } else {
+        tcp.checksum = calc_ipv6_checksum_offload(ip, (uint32_t)(pack2->size - sizeof(ipv6_header)),
+                                                  IPPROTO_TCP);
+    }
 
     auto status = ni.send_packet(mac, ethertype::ipv6, *pack2);
     if (!success(status))
@@ -428,7 +434,13 @@ nt_status ipv6_tcp_socket::send_syn(const sockaddr_in6& c, ipv6_address& src) {
     tcp.SYN = 1;
     tcp.window = byteswap(recv_window);
 
-    tcp.checksum = calc_ipv6_checksum(ip, span((uint8_t*)&tcp, pack->size - sizeof(ipv6_header)), IPPROTO_TCP);
+    if (!ni.tx_tcpv6_csum_offload) {
+        tcp.checksum = calc_ipv6_checksum(ip, span((uint8_t*)&tcp, pack->size - sizeof(ipv6_header)),
+                                          IPPROTO_TCP);
+    } else {
+        tcp.checksum = calc_ipv6_checksum_offload(ip, (uint32_t)(pack->size - sizeof(ipv6_header)),
+                                                  IPPROTO_TCP);
+    }
 
     if (dst_mac == NULL_MAC_ADDRESS) {
         send_address_unreachable(ni, *pack, src);
@@ -587,7 +599,13 @@ static void reset_child_socket(ipv6_tcp_socket& s) {
     tcp.RST = 1;
     tcp.ACK = 1;
 
-    tcp.checksum = calc_ipv6_checksum(ip, span((uint8_t*)&tcp, pack2->size - sizeof(ipv6_header)), IPPROTO_TCP);
+    if (!s.pni->tx_tcpv6_csum_offload) {
+        tcp.checksum = calc_ipv6_checksum(ip, span((uint8_t*)&tcp, pack2->size - sizeof(ipv6_header)),
+                                          IPPROTO_TCP);
+    } else {
+        tcp.checksum = calc_ipv6_checksum_offload(ip, (uint32_t)(pack2->size - sizeof(ipv6_header)),
+                                                  IPPROTO_TCP);
+    }
 
     auto status = s.pni->send_packet(s.dst_mac, ethertype::ipv6, *pack2);
     if (!success(status))
@@ -715,7 +733,13 @@ void ipv6_tcp_socket::send_ack(bool first, tcp_seq ack) {
         tcp.ACK = 1;
         tcp.window = byteswap(recv_window);
 
-        tcp.checksum = calc_ipv6_checksum(ip, span((uint8_t*)&tcp, pack->size - sizeof(ipv6_header)), IPPROTO_TCP);
+        if (!ni.tx_tcpv6_csum_offload) {
+            tcp.checksum = calc_ipv6_checksum(ip, span((uint8_t*)&tcp, pack->size - sizeof(ipv6_header)),
+                                              IPPROTO_TCP);
+        } else {
+            tcp.checksum = calc_ipv6_checksum_offload(ip, (uint32_t)(pack->size - sizeof(ipv6_header)),
+                                                      IPPROTO_TCP);
+        }
 
         dispatch_packet(ni, *pack, dst_mac);
 
@@ -783,7 +807,13 @@ void ipv6_tcp_socket::send_fin() {
 
         send_next++;
 
-        tcp.checksum = calc_ipv6_checksum(ip, span((uint8_t*)&tcp, pack->size - sizeof(ipv6_header)), IPPROTO_TCP);
+        if (!ni.tx_tcpv6_csum_offload) {
+            tcp.checksum = calc_ipv6_checksum(ip, span((uint8_t*)&tcp, pack->size - sizeof(ipv6_header)),
+                                              IPPROTO_TCP);
+        } else {
+            tcp.checksum = calc_ipv6_checksum_offload(ip, (uint32_t)(pack->size - sizeof(ipv6_header)),
+                                                      IPPROTO_TCP);
+        }
 
         r->deadline = (uint64_t)kernel_time_page.system_time + (RETRANSMISSION_DELAY * SYSTEM_TIME_RESOLUTION);
 
@@ -1296,7 +1326,13 @@ nt_status ipv6_tcp_socket::sendto(const char* buf, size_t len, int flags,
 
             send_next += (uint32_t)size;
 
-            tcp.checksum = calc_ipv6_checksum(ip, span((uint8_t*)&tcp, pack->size - sizeof(ipv6_header)), IPPROTO_TCP);
+            if (!ni.tx_tcpv6_csum_offload) {
+                tcp.checksum = calc_ipv6_checksum(ip, span((uint8_t*)&tcp, pack->size - sizeof(ipv6_header)),
+                                                  IPPROTO_TCP);
+            } else {
+                tcp.checksum = calc_ipv6_checksum_offload(ip, (uint32_t)(pack->size - sizeof(ipv6_header)),
+                                                          IPPROTO_TCP);
+            }
 
             dispatch_packet(ni, *pack, dst_mac);
 
@@ -1900,7 +1936,13 @@ nt_status ipv6_tcp_socket::send_syn_ack(const mac_address& mac) {
 
     send_next++;
 
-    tcp.checksum = calc_ipv6_checksum(ip, span((uint8_t*)&tcp, pack->size - sizeof(ipv6_header)), IPPROTO_TCP);
+    if (!ni.tx_tcpv6_csum_offload) {
+        tcp.checksum = calc_ipv6_checksum(ip, span((uint8_t*)&tcp, pack->size - sizeof(ipv6_header)),
+                                          IPPROTO_TCP);
+    } else {
+        tcp.checksum = calc_ipv6_checksum_offload(ip, (uint32_t)(pack->size - sizeof(ipv6_header)),
+                                                  IPPROTO_TCP);
+    }
 
     status = dispatch_packet(ni, *pack, dst_mac);
     if (!success(status)) {
@@ -2249,7 +2291,13 @@ nt_status ipv6_tcp_socket::write(span<const uint8_t> s, uint64_t& written_bytes)
             memcpy(r->pack.data + sizeof(ipv6_header) + (tcp.header_length * sizeof(uint32_t)),
                    s.data(), size);
 
-            tcp.checksum = calc_ipv6_checksum(ip, span((uint8_t*)&tcp, pack->size - sizeof(ipv6_header)), IPPROTO_TCP);
+            if (!ni.tx_tcpv6_csum_offload) {
+                tcp.checksum = calc_ipv6_checksum(ip, span((uint8_t*)&tcp, pack->size - sizeof(ipv6_header)),
+                                                  IPPROTO_TCP);
+            } else {
+                tcp.checksum = calc_ipv6_checksum_offload(ip, (uint32_t)(pack->size - sizeof(ipv6_header)),
+                                                          IPPROTO_TCP);
+            }
 
             dispatch_packet(ni, *pack, dst_mac);
 
