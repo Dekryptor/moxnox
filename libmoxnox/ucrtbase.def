@@ -109,3 +109,13 @@ ___lc_codepage_func
 strdup
 _strdup
 _register_thread_local_exe_atexit_callback
+_configure_wide_argv
+_crt_at_quick_exit
+__daylight
+_initialize_wide_environment
+__p___wargv
+__p__wenviron
+__stdio_common_vfwprintf
+__timezone
+__tzname
+_tzset
