@@ -510,7 +510,13 @@ nt_status ipv6_udp_socket::sendto(const char* buf, size_t len, int flags,
         }
     }
 
-    udp.checksum = calc_ipv6_checksum(ip, span((uint8_t*)&udp, pack->size - sizeof(ipv6_header)), IPPROTO_UDP);
+    if (!ni.tx_udpv6_csum_offload)
+        udp.checksum = calc_ipv6_checksum(ip, span((uint8_t*)&udp, pack->size - sizeof(ipv6_header)),
+                                          IPPROTO_UDP);
+    else {
+        udp.checksum = calc_ipv6_checksum_offload(ip, (uint32_t)(pack->size - sizeof(ipv6_header)),
+                                                  IPPROTO_UDP);
+    }
 
     if (mac == NULL_MAC_ADDRESS) {
         send_address_unreachable(ni, *pack, src);

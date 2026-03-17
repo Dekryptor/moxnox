@@ -133,6 +133,7 @@ public:
     list_entry prefixes = { &prefixes, &prefixes };
     spinlock routers_lock;
     list_entry routers = { &routers, &routers };
+    bool tx_udpv6_csum_offload = false;
 };
 
 export class socket : public sync_object {
@@ -314,6 +315,8 @@ bool is_our_ip(const ipv6_address& ip);
 nt_status dispatch_packet(netif& ni, packet& pack, const mac_address& dst_mac);
 uint16_t calc_ipv6_checksum(const ipv6_header& ip, span<const uint8_t> data,
                             uint8_t next_header);
+uint16_t calc_ipv6_checksum_offload(const ipv6_header& ip, uint32_t length,
+                                    uint8_t next_header);
 nt_status ipv6_choose_interface(const ipv6_address& dst, uint32_t scope_id,
                                 netif*& ni, ipv6_address& src);
 bool is_multicast_address(const ipv6_address& addr);
