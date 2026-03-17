@@ -177,7 +177,7 @@ struct rtl8168_tx_desc {
             uint32_t v2_transport_offset : 10;
             uint32_t v2_tx_csum_ipv6 : 1;
             uint32_t v2_tx_csum_ipv4 : 1;
-            uint32_t v2_tx_csum_tdp : 1;
+            uint32_t v2_tx_csum_tcp : 1;
             uint32_t v2_tx_csum_udp : 1;
         };
     };
@@ -499,8 +499,10 @@ bool rtl8168_netif::init() {
 
     auto xid = (regs.tx_config.value >> 20) & 0xfcf;
 
-    if ((xid & 0x7c8) != 0x380) // RTL8168B only supports v1 offload
+    if ((xid & 0x7c8) != 0x380) { // RTL8168B only supports v1 offload
         tx_udpv6_csum_offload = true;
+        tx_tcpv6_csum_offload = true;
+    }
 
     return true;
 }
@@ -705,6 +707,10 @@ nt_status rtl8168_netif::send_packet(const mac_address& dst_mac, ethertype type,
             if (tx_udpv6_csum_offload && ip.next_header == IPPROTO_UDP) {
                 d.v2_tx_csum_ipv6 = 1;
                 d.v2_tx_csum_udp = 1;
+                d.v2_transport_offset = sizeof(ethernet_header) + sizeof(ipv6_header);
+            } else if (tx_tcpv6_csum_offload && ip.next_header == IPPROTO_TCP) {
+                d.v2_tx_csum_ipv6 = 1;
+                d.v2_tx_csum_tcp = 1;
                 d.v2_transport_offset = sizeof(ethernet_header) + sizeof(ipv6_header);
             }
         }
