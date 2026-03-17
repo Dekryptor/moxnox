@@ -147,6 +147,8 @@ static_assert(sizeof(rtl8168_regs) == 0x100);
 
 static const uint8_t TXPOLL_NPQ = 1 << 6;
 
+static const uint16_t CPLUS_RXCHKSUM = 1 << 5;
+
 struct rtl8168_tx_desc {
     union {
         uint32_t opts1;
@@ -497,6 +499,8 @@ bool rtl8168_netif::init() {
     enable_interrupts();
 
     regs.cmd = RTL_CMD_TX_ENABLE | RTL_CMD_RX_ENABLE;
+
+    regs.cplus_command_register |= CPLUS_RXCHKSUM;
 
     regs.eeprom_command_register = RTL_CFG9346_LOCK;
 
