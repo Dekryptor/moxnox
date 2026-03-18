@@ -376,41 +376,50 @@ void rtl8168_netif::enable_interrupts() {
 }
 
 bool rtl8168_netif::isr() {
-    int_bits status;
+    bool handled = false;
 
-    status.value = regs.interrupt_status.value;
-    regs.interrupt_status.value = status.value; // acknowledge interrupts
+    while (true) {
+        int_bits status;
 
-    // FIXME - rx_err, tx_err, rx_fifo_overflow?
+        status.value = regs.interrupt_status.value;
 
-    if (status.rx_ok)
-        set_event(static_cast<event&>(receive_packet_event.get()));
+        if (status.value == 0)
+            break;
 
-    if (status.link_change)
-        set_event(static_cast<event&>(link_change_event.get()));
+        regs.interrupt_status.value = status.value; // acknowledge interrupts
+        handled = true;
 
-    if (status.tx_ok) {
-        unsigned int to_release = 0;
+        // FIXME - rx_err, tx_err, rx_fifo_overflow?
 
-        {
-            lock_guard lock(tx_lock);
+        if (status.rx_ok)
+            set_event(static_cast<event&>(receive_packet_event.get()));
 
-            while (!tx_ring[tx_ack_index].owned_by_nic) {
-                to_release++;
+        if (status.link_change)
+            set_event(static_cast<event&>(link_change_event.get()));
 
-                tx_ack_index = (tx_ack_index + 1) % NUM_TX_DESC;
+        if (status.tx_ok) {
+            unsigned int to_release = 0;
 
-                if (tx_ack_index == tx_index)
-                    break;
+            {
+                lock_guard lock(tx_lock);
+
+                while (!tx_ring[tx_ack_index].owned_by_nic) {
+                    to_release++;
+
+                    tx_ack_index = (tx_ack_index + 1) % NUM_TX_DESC;
+
+                    if (tx_ack_index == tx_index)
+                        break;
+                }
             }
-        }
 
-        for (unsigned int i = 0; i < to_release; i++) {
-            release_semaphore(static_cast<semaphore&>(tx_semaphore.get()));
+            for (unsigned int i = 0; i < to_release; i++) {
+                release_semaphore(static_cast<semaphore&>(tx_semaphore.get()));
+            }
         }
     }
 
-    return false;
+    return handled;
 }
 
 static bool rtl8168_isr_func(void* ctx) {
