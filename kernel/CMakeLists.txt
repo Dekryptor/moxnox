@@ -48,6 +48,7 @@ set(GLOBAL_MODULES src/cmdline.cpp
     src/spinlock.cpp
     src/pci.cpp
     src/crc32c.cpp
+    src/crc32.cpp
     src/xhci.cpp
     src/usb.cpp
     src/virtio.cpp
