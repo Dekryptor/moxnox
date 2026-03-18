@@ -122,3 +122,4 @@ _tzset
 _aligned_malloc
 _aligned_free
 _beginthreadex
+__stdio_common_vsprintf

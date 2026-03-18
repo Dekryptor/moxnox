@@ -60,5 +60,6 @@ do_stub "_tzset"
 do_stub "_aligned_malloc"
 do_stub "_aligned_free"
 do_stub "_beginthreadex"
+do_stub "__stdio_common_vsprintf"
 
 stubs_end
