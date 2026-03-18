@@ -14,7 +14,7 @@ SET(CMAKE_CXX_COMPILER_TARGET x86_64-w64-mingw32)
 SET(CMAKE_ASM_COMPILER_TARGET x86_64-w64-mingw32)
 
 set(CMAKE_EXE_LINKER_FLAGS "-static -nodefaultlibs -fuse-ld=lld")
-set(CMAKE_SHARED_LINKER_FLAGS "-nodefaultlibs -fuse-ld=lld")
+set(CMAKE_SHARED_LINKER_FLAGS_INIT "-nodefaultlibs -fuse-ld=lld")
 
 # SET(CMAKE_FIND_ROOT_PATH /usr/x86_64-w64-mingw32)
 
