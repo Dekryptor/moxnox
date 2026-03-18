@@ -250,7 +250,7 @@ export void inline __attribute((always_inline)) flush_cache(span<const uint8_t> 
     if (invalidate) {
         for (unsigned int i = 0; i < num; i++) {
             __asm __volatile(
-                "dc ivac, %x[res]\n"
+                "dc civac, %x[res]\n"
                 :
                 : [res] "r" (start)
             );
