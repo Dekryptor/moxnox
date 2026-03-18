@@ -23,6 +23,7 @@ import scheduler;
 import spinlock;
 import semaphore;
 import ws2_32;
+import crc32;
 
 using namespace std;
 
@@ -257,6 +258,7 @@ private:
     void receive_packets();
     void handle_received_packet(span<const uint8_t> data,
                                 const rtl8168_rx_desc& r);
+    void add_multicast(const mac_address& mac);
 
     object_ref receive_packet_event, link_change_event;
     object_ref tx_semaphore;
@@ -428,6 +430,30 @@ static bool rtl8168_isr_func(void* ctx) {
     return r.isr();
 }
 
+static constexpr uint32_t bitrev32(uint32_t x) {
+    x = ((x & 0xaaaaaaaa) >> 1)  | ((x & 0x55555555) << 1);
+    x = ((x & 0xcccccccc) >> 2)  | ((x & 0x33333333) << 2);
+    x = ((x & 0xf0f0f0f0) >> 4)  | ((x & 0x0f0f0f0f) << 4);
+    x = ((x & 0xff00ff00) >> 8)  | ((x & 0x00ff00ff) << 8);
+
+    return (x >> 16) | (x << 16);
+}
+
+static constexpr uint32_t ether_crc32(const mac_address& mac) {
+    return bitrev32(calc_crc32(0xffffffff, span(mac.v.data(), mac.v.size())));
+}
+
+void rtl8168_netif::add_multicast(const mac_address& mac) {
+    auto crc = ether_crc32(mac);
+    auto index = crc >> 26;
+
+    auto v = byteswap(regs.multicast_filter[1 - (index >> 5)]);
+
+    v |= 1 << (index & 0x1f);
+
+    regs.multicast_filter[1 - (index >> 5)] = byteswap(v);
+}
+
 bool rtl8168_netif::init() {
     tcr_bits tx_config;
     rcr_bits rx_config;
@@ -440,16 +466,21 @@ bool rtl8168_netif::init() {
 
     regs.tx_config.value = tx_config.value;
 
+    regs.multicast_filter[0] = 0;
+    regs.multicast_filter[1] = 0;
+
     rx_config.value = 0;
     rx_config.accept_phys = 1; // our MAC
     rx_config.accept_multicast = 1; // multicast
     rx_config.accept_broadcast = 1; // broadcast
     rx_config.rx_dma_burst = 7; // unlimited
     rx_config.rx_fifo_thresh = 7; // no threshold
-    rx_config.accept_all = 1; // FIXME (promiscuous mode)
-    rx_config.accept_error = 1; // FIXME
 
     regs.rx_config.value = rx_config.value;
+
+    add_multicast({0x33, 0x33, 0x00, 0x00, 0x00, 0x01}); // all nodes, ff02::1
+    add_multicast({0x33, 0x33, 0xff, ll_addr.v[13], ll_addr.v[14], ll_addr.v[15]}); // solicited address
+    // FIXME - should do solicited address for each of the actual IPv6 addresses too
 
     regs.rx_max_size = RX_BUF_SIZE;
     regs.tx_max_size = TX_BUF_SIZE / 128;
