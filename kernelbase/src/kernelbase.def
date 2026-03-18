@@ -41,3 +41,8 @@ GetCurrentThreadId
 GetModuleHandleExW
 GetModuleHandleW
 FreeLibrary
+TryAcquireSRWLockExclusive = ntdll.RtlTryAcquireSRWLockExclusive
+AcquireSRWLockExclusive = ntdll.RtlAcquireSRWLockExclusive
+ReleaseSRWLockExclusive = ntdll.RtlReleaseSRWLockExclusive
+QueryPerformanceCounter = ntdll.RtlQueryPerformanceCounter
+QueryPerformanceFrequency = ntdll.RtlQueryPerformanceFrequency

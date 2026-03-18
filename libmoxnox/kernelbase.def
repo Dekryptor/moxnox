@@ -42,3 +42,8 @@ GetEnvironmentVariableW
 GetCurrentThreadId
 FreeLibrary
 GetModuleHandleExW
+TryAcquireSRWLockExclusive
+AcquireSRWLockExclusive
+ReleaseSRWLockExclusive
+QueryPerformanceCounter
+QueryPerformanceFrequency
