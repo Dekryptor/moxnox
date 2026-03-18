@@ -47,3 +47,11 @@ AcquireSRWLockExclusive
 ReleaseSRWLockExclusive
 QueryPerformanceCounter
 QueryPerformanceFrequency
+SleepConditionVariableSRW
+InitOnceExecuteOnce
+WaitForSingleObjectEx
+SwitchToThread
+FlsAlloc
+FlsGetValue
+FlsSetValue
+GetProcAddress

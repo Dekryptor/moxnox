@@ -15,5 +15,13 @@ do_stub "GetCurrentProcess"
 do_stub "TerminateProcess"
 do_stub "WideCharToMultiByte"
 do_stub "MultiByteToWideChar"
+do_stub "SleepConditionVariableSRW"
+do_stub "InitOnceExecuteOnce"
+do_stub "WaitForSingleObjectEx"
+do_stub "SwitchToThread"
+do_stub "FlsAlloc"
+do_stub "FlsGetValue"
+do_stub "FlsSetValue"
+do_stub "GetProcAddress"
 
 stubs_end
