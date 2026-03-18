@@ -119,3 +119,6 @@ __stdio_common_vfwprintf
 __timezone
 __tzname
 _tzset
+_aligned_malloc
+_aligned_free
+_beginthreadex
