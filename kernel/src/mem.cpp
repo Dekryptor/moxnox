@@ -279,8 +279,6 @@ export void inline __attribute((always_inline)) flush_cache(span<const uint8_t> 
 }
 #elifdef __x86_64__
 export void inline __attribute((always_inline)) flush_cache(span<const uint8_t>, bool) {
-    // FIXME?
-
     __asm __volatile (
         ""
         :
