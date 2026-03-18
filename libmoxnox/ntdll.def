@@ -464,3 +464,4 @@ RtlAcquireSRWLockExclusive
 RtlReleaseSRWLockExclusive
 RtlQueryPerformanceCounter
 RtlQueryPerformanceFrequency
+RtlRestoreContext
