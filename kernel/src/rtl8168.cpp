@@ -3,6 +3,7 @@
 #include <span>
 #include <string_view>
 #include <mutex>
+#include <bit>
 
 import nt;
 import format;
