@@ -691,7 +691,8 @@ void rtl8168_netif::receive_packets() {
 
         handle_received_packet(data, r);
 
-        r.owned_by_nic = true;
+        r.packet_length = RX_BUF_SIZE;
+        r.owned_by_nic = 1;
         flush_cache(span((uint8_t*)&r, sizeof(r)), false);
 
         rx_index = (rx_index + 1) % NUM_RX_DESC;
