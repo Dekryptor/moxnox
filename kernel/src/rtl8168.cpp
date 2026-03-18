@@ -46,23 +46,18 @@ union tcr_bits {
 union rcr_bits {
     uint32_t value;
     struct {
-        uint32_t accept_phys_match : 1;
+        uint32_t accept_all : 1;
         uint32_t accept_phys : 1;
         uint32_t accept_multicast : 1;
         uint32_t accept_broadcast : 1;
         uint32_t accept_runt : 1;
         uint32_t accept_error : 1;
+        uint32_t eeprom_type : 1;
         uint32_t : 1;
-        uint32_t wrap : 1;
         uint32_t rx_dma_burst : 3;
-        uint32_t rx_buf_size : 2;
+        uint32_t : 2;
         uint32_t rx_fifo_thresh : 3;
-        uint32_t : 6;
-        uint32_t vlan_strip : 1;
-        uint32_t : 1;
-        uint32_t max_dma : 3;
-        uint32_t : 4;
-        uint32_t accept_all : 1;
+        uint32_t : 16;
     };
 } __attribute__((packed));
 
@@ -442,7 +437,6 @@ bool rtl8168_netif::init() {
     rx_config.accept_broadcast = 1; // broadcast
     rx_config.rx_dma_burst = 7; // unlimited
     rx_config.rx_fifo_thresh = 7; // no threshold
-    rx_config.rx_buf_size = 1; // 16K
     rx_config.accept_all = 1; // FIXME (promiscuous mode)
     rx_config.accept_error = 1; // FIXME
 
