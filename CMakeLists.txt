@@ -257,6 +257,7 @@ add_library(ucrtbase_static STATIC
     mingw-w64/mingw-w64-crt/misc/_onexit.c
     mingw-w64/mingw-w64-crt/stdio/ucrt_fprintf.c
     mingw-w64/mingw-w64-crt/stdio/ucrt_vfprintf.c
+    mingw-w64/mingw-w64-crt/stdio/ucrt_snprintf.c
     mingw-w64/mingw-w64-crt/stdio/ucrt___local_stdio_printf_options.c
 )
 target_include_directories(ucrtbase_static PRIVATE ${CMAKE_CURRENT_BINARY_DIR}/mingw-w64 mingw-w64/mingw-w64-headers/crt mingw-w64/mingw-w64-crt/include)
