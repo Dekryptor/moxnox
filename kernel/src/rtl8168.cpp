@@ -263,6 +263,7 @@ public:
                           packet& pack) override;
     bool init();
     bool isr();
+    void add_multicast(const mac_address& mac);
 
     pci_device& dev;
     volatile rtl8168_regs& regs;
@@ -273,7 +274,6 @@ private:
     void receive_packets();
     void handle_received_packet(span<const uint8_t> data,
                                 const rtl8168_rx_desc& r);
-    void add_multicast(const mac_address& mac);
 
     object_ref receive_packet_event, link_change_event;
     object_ref tx_semaphore;
@@ -495,8 +495,6 @@ bool rtl8168_netif::init() {
     regs.rx_config.value = rx_config.value;
 
     add_multicast({0x33, 0x33, 0x00, 0x00, 0x00, 0x01}); // all nodes, ff02::1
-    add_multicast({0x33, 0x33, 0xff, ll_addr.v[13], ll_addr.v[14], ll_addr.v[15]}); // solicited address
-    // FIXME - should do solicited address for each of the actual IPv6 addresses too
 
     regs.rx_max_size = RX_BUF_SIZE;
     regs.tx_max_size = TX_BUF_SIZE / 128;
@@ -637,6 +635,9 @@ void found_rtl8168(pci_device& dev) {
         lock_guard lg(c.addr_lock);
         insert_tail_list(c.addrs, a->le);
     }
+
+    c.add_multicast({0x33, 0x33, 0xff, c.ll_addr.v[13], c.ll_addr.v[14], c.ll_addr.v[15]}); // solicited address
+    // FIXME - should do solicited address for each of the actual IPv6 addresses too
 
     print("found rtl8168 device with MAC {}, MTU {}, link-local address {}\n",
           c.mac, c.mtu, c.ll_addr);
