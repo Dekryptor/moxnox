@@ -297,6 +297,20 @@ export span<char> do_format_arg(span<char> sp, string_view, icmpv6_type t) {
     return sp;
 }
 
+template<>
+consteval bool format_spec_valid<netif>(string_view fmt) {
+    return fmt.empty();
+}
+
+export span<char> do_format_arg(span<char> sp, string_view, const netif& ni) {
+    auto sv = string_view(ni.name, sizeof(ni.name));
+
+    if (auto zero = sv.find('\0'); zero != string_view::npos)
+        sv = string_view(sv.data(), zero);
+
+    return do_format_arg(sp, "", sv);
+}
+
 export spinlock netif_lock;
 export list_entry netif_list = { &netif_list, &netif_list };
 export atomic<uint32_t> next_netif_num = 1;

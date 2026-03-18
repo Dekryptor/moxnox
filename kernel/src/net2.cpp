@@ -660,20 +660,6 @@ static void remove_ipv6_route(netif& ni, const ipv6_address& prefix,
         delete found;
 }
 
-template<>
-consteval bool format_spec_valid<netif>(string_view fmt) {
-    return fmt.empty();
-}
-
-static span<char> do_format_arg(span<char> sp, string_view, const netif& ni) {
-    auto sv = string_view(ni.name, sizeof(ni.name));
-
-    if (auto zero = sv.find('\0'); zero != string_view::npos)
-        sv = string_view(sv.data(), zero);
-
-    return do_format_arg(sp, "", sv);
-}
-
 static void add_ipv6_prefix(netif& ni, const ipv6_address& prefix,
                             uint8_t prefix_length, uint32_t valid_lifetime,
                             uint32_t preferred_lifetime, bool on_link,

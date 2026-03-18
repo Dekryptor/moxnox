@@ -81,6 +81,20 @@ union int_bits {
     };
 } __attribute__((packed));
 
+union rtl8168_phy_status {
+    uint8_t value;
+    struct {
+        uint8_t full_duplex : 1;
+        uint8_t link_status : 1;
+        uint8_t speed_10M : 1;
+        uint8_t speed_100M : 1;
+        uint8_t speed_1G: 1;
+        uint8_t rxflow : 1;
+        uint8_t txflow : 1;
+        uint8_t : 1;
+    };
+};
+
 struct rtl8168_regs {
     uint8_t mac_addr[6];
     uint8_t padding1[2];
@@ -114,7 +128,7 @@ struct rtl8168_regs {
     uint8_t padding7[4];
     uint32_t phy_access;
     uint8_t padding8[8];
-    uint8_t phy_status;
+    rtl8168_phy_status phy_status;
     uint8_t padding9[23];
     uint32_t wakeup_frame0_low;
     uint32_t wakeup_frame0_high;
@@ -267,6 +281,7 @@ private:
     rtl8168_tx_desc* tx_ring = nullptr;
     spinlock tx_lock;
     bool isr_registered = false;
+    bool link_up;
 #ifdef __aarch64__
     uint16_t msi_irq;
 #endif
@@ -508,6 +523,8 @@ bool rtl8168_netif::init() {
         return false;
     }
 
+    link_up = regs.phy_status.link_status;
+
     if (!dev.msi.empty() && msi_supported) {
         // FIXME - MSI-X?
         auto int_num = setup_msi(dev, false, rtl8168_isr_func, this);
@@ -667,9 +684,18 @@ void rtl8168_netif::recv_thread() {
             break;
         }
 
-        if ((unsigned int)status == (unsigned int)nt_status::SUCCESS)
-            print("FIXME - rtl8168 link change event\n");
-        else if ((unsigned int)status == (unsigned int)nt_status::SUCCESS + 1)
+        if ((unsigned int)status == (unsigned int)nt_status::SUCCESS) {
+            bool new_link_status = regs.phy_status.link_status;
+
+            if (!!new_link_status != !!link_up) {
+                if (new_link_status)
+                    print("{}: link up\n", static_cast<netif&>(*this));
+                else
+                    print("{}: link down\n", static_cast<netif&>(*this));
+
+                link_up = new_link_status;
+            }
+        } else if ((unsigned int)status == (unsigned int)nt_status::SUCCESS + 1)
             receive_packets();
     }
 }
