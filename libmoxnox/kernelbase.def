@@ -55,3 +55,4 @@ FlsAlloc
 FlsGetValue
 FlsSetValue
 GetProcAddress
+GetModuleHandleW
