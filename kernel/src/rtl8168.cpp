@@ -283,6 +283,7 @@ public:
 
     pci_device& dev;
     volatile rtl8168_regs& regs;
+    bool is_8125;
 
 private:
     bool setup_descriptors();
@@ -635,6 +636,8 @@ static void found_rtl8168(pci_device& dev, bool is_8125) {
         return;
     }
 
+    c.is_8125 = is_8125;
+
     memcpy(&c.mac, &mac, sizeof(mac));
     c.mtu = DEFAULT_MTU; // FIXME?
 
@@ -841,7 +844,10 @@ nt_status rtl8168_netif::send_packet(const mac_address& dst_mac, ethertype type,
         flush_cache(span((uint8_t*)buf, pack.size + sizeof(ethernet_header)),
                     false);
 
-        regs.tx_poll = TXPOLL_NPQ;
+        if (is_8125)
+            regs.tx_poll_8125 = 1;
+        else
+            regs.tx_poll = TXPOLL_NPQ;
 
         tx_index = (tx_index + 1) % NUM_TX_DESC;
     }
