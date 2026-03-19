@@ -148,6 +148,7 @@ void RaiseException(uint32_t code, uint32_t flags, uint32_t count,
 bool IsProcessorFeaturePresent(uint32_t processor_feature);
 void* GetProcAddress(HMODULE mod, const char* function);
 void AcquireSRWLockExclusive(RTL_SRWLOCK* lock);
+void ReleaseSRWLockExclusive(RTL_SRWLOCK* lock);
 
 }
 

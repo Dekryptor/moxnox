@@ -159,3 +159,8 @@ extern "C"
 void RtlAcquireSRWLockExclusive(RTL_SRWLOCK* /*lock*/) {
     print_stderr("FIXME - RtlAcquireSRWLockExclusive\n");
 }
+
+extern "C"
+void RtlReleaseSRWLockExclusive(RTL_SRWLOCK* /*lock*/) {
+    print_stderr("FIXME - RtlReleaseSRWLockExclusive\n");
+}
