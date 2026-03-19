@@ -288,10 +288,12 @@ private:
 #endif
 };
 
-void found_rtl8168(pci_device& dev);
+static void found_actual_rtl8168(pci_device& dev);
+static void found_rtl8125(pci_device& dev);
 
 static pci_recognizer mod_pci_ids[] = {
-    { {}, PCI_VENDOR_ID_REALTEK, 0x8168, true, found_rtl8168 },
+    { {}, PCI_VENDOR_ID_REALTEK, 0x8125, true, found_rtl8125 },
+    { {}, PCI_VENDOR_ID_REALTEK, 0x8168, true, found_actual_rtl8168 },
 };
 
 static void init_rtl8168() {
@@ -564,7 +566,7 @@ bool rtl8168_netif::init() {
     return true;
 }
 
-void found_rtl8168(pci_device& dev) {
+static void found_rtl8168(pci_device& dev, bool is_8125) {
     // FIXME - is it definitely always BAR2? What does Linux do?
 
     if (dev.bar[2].empty()) {
@@ -639,8 +641,8 @@ void found_rtl8168(pci_device& dev) {
     c.add_multicast({0x33, 0x33, 0xff, c.ll_addr.v[13], c.ll_addr.v[14], c.ll_addr.v[15]}); // solicited address
     // FIXME - should do solicited address for each of the actual IPv6 addresses too
 
-    print("found rtl8168 device with MAC {}, MTU {}, link-local address {}\n",
-          c.mac, c.mtu, c.ll_addr);
+    print("found {} device with MAC {}, MTU {}, link-local address {}\n",
+          is_8125 ? "rtl8125"sv : "rtl8168"sv, c.mac, c.mtu, c.ll_addr);
 
     c.num = next_netif_num.fetch_add(1);
 
@@ -671,6 +673,14 @@ void found_rtl8168(pci_device& dev) {
         dev.recv_thread();
         dev.release();
     }, &c);
+}
+
+static void found_actual_rtl8168(pci_device& dev) {
+    found_rtl8168(dev, false);
+}
+
+static void found_rtl8125(pci_device& dev) {
+    found_rtl8168(dev, true);
 }
 
 void rtl8168_netif::recv_thread() {
