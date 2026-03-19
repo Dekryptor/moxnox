@@ -154,3 +154,8 @@ void RtlWakeAddressAll(const void* addr) {
 
     RtlLeaveCriticalSection(&waiters_lock);
 }
+
+extern "C"
+void RtlAcquireSRWLockExclusive(RTL_SRWLOCK* /*lock*/) {
+    print_stderr("FIXME - RtlAcquireSRWLockExclusive\n");
+}

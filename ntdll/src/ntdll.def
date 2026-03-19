@@ -59,3 +59,4 @@ RtlPcToFileHeader
 LdrAddRefDll
 LdrUnloadDll
 RtlLookupFunctionEntry
+RtlAcquireSRWLockExclusive

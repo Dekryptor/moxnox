@@ -238,7 +238,7 @@ endif()
 add_library(kernelbase_mod STATIC)
 target_sources(kernelbase_mod PUBLIC FILE_SET CXX_MODULES FILES modules/kernelbase.cpp)
 target_compile_options(kernelbase_mod PRIVATE -fno-exceptions ${USERSPACE_CFLAGS})
-target_link_libraries(kernelbase_mod nt)
+target_link_libraries(kernelbase_mod nt ntdll_mod)
 
 set(DEFAULT_MSVCRT_VERSION 0x600)
 set(DEFAULT_WIN32_WINNT 0xa00)

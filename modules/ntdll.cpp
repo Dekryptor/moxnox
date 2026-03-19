@@ -139,6 +139,10 @@ struct RTL_CONDITION_VARIABLE {
     void* Ptr;
 };
 
+struct RTL_SRWLOCK {
+    void* Ptr;
+};
+
 #ifdef __x86_64__
 
 const size_t UNWIND_HISTORY_TABLE_SIZE = 12;
@@ -298,6 +302,7 @@ void RtlWakeAddressAll(const void* addr);
 void* RtlPcToFileHeader(const void* pc, void** address);
 nt_status LdrAddRefDll(uint32_t flags, HMODULE mod);
 nt_status LdrUnloadDll(HMODULE mod);
+void RtlAcquireSRWLockExclusive(RTL_SRWLOCK* lock);
 
 #ifdef __x86_64__
 void RtlUnwindEx(void* target_frame, void* target_ip,
