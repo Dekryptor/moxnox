@@ -89,6 +89,7 @@ write = _write
 fdopen = _fdopen
 read = _read
 strdup = _strdup
+_strdup
 wctob
 btowc
 wctype
