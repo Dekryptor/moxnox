@@ -1,10 +1,13 @@
 #include <stdint.h>
 #include <winerror.h>
+#include <string_view>
 
 import nt;
 import ntdll;
 import kernelbase;
 import print;
+
+using namespace std;
 
 extern "C"
 bool GetModuleHandleExW(uint32_t flags, const char16_t* name, HMODULE* mod) {
@@ -68,4 +71,12 @@ bool FreeLibrary(HMODULE mod) {
     }
 
     return true;
+}
+
+extern "C"
+void* GetProcAddress(HMODULE mod, const char* function) {
+    print_stderr("FIXME - GetProcAddress {:x}, \"{}\"\n", (uintptr_t)mod, string_view(function));
+
+    SetLastError(ERROR_PROC_NOT_FOUND);
+    return nullptr;
 }

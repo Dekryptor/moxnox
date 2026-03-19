@@ -145,6 +145,7 @@ bool FreeLibrary(HMODULE mod);
 void RaiseException(uint32_t code, uint32_t flags, uint32_t count,
                     const uintptr_t* args);
 bool IsProcessorFeaturePresent(uint32_t processor_feature);
+void* GetProcAddress(HMODULE mod, const char* function);
 
 }
 
