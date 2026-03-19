@@ -18,7 +18,7 @@ add_compile_options(-U_FORTIFY_SOURCE)
 enable_language(ASM)
 
 if(CMAKE_SYSTEM_PROCESSOR STREQUAL "aarch64")
-    set(GENERAL_CFLAGS -gdwarf-5 $<$<COMPILE_LANGUAGE:CXX>:-stdlib=libc++> -march=armv8.1-a)
+    set(GENERAL_CFLAGS -gdwarf-5 -march=armv8.1-a)
     set(USERSPACE_CFLAGS -Wall -Wextra -Wno-address-of-packed-member -Wconversion -Wno-unknown-pragmas -Werror=pointer-arith -Werror=return-type -fno-rtti -fcheck-new -Wno-invalid-offsetof -mno-stack-arg-probe -fno-threadsafe-statics -fvisibility=hidden ${GENERAL_CFLAGS})
     set(KERNEL_CFLAGS -Wall -Wextra -Wno-address-of-packed-member -Wconversion -Wno-unknown-pragmas -Werror=pointer-arith -Werror=return-type -fno-exceptions -fno-rtti -fcheck-new -Wno-invalid-offsetof -mno-stack-arg-probe -fno-threadsafe-statics -fvisibility=hidden ${GENERAL_CFLAGS})
 elseif(CMAKE_SYSTEM_PROCESSOR STREQUAL "amd64")
