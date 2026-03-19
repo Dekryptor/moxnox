@@ -82,6 +82,25 @@ union int_bits {
     };
 } __attribute__((packed));
 
+union int_bits_8125 {
+    uint32_t value;
+    struct {
+        uint32_t rx_ok : 1;
+        uint32_t rx_err : 1;
+        uint32_t tx_ok : 1;
+        uint32_t tx_err : 1;
+        uint32_t rx_desc_unavail : 1;
+        uint32_t link_change : 1;
+        uint32_t rx_fifo_overflow : 1;
+        uint32_t tx_desc_unavail : 1;
+        uint32_t sw_int : 1;
+        uint32_t : 5;
+        uint32_t pcs_timeout : 1;
+        uint32_t sys_error : 1;
+        uint32_t : 16;
+    };
+} __attribute__((packed));
+
 union rtl8168_phy_status {
     uint8_t value;
     struct {
@@ -110,14 +129,14 @@ struct rtl8168_regs {
     uint8_t padding3[7];
     uint8_t cmd;
     union {
-        uint32_t interrupt_mask_8125;
+        int_bits_8125 interrupt_mask_8125;
         struct {
             uint8_t tx_poll;
             uint8_t padding4[3];
         };
     };
     union {
-        uint32_t interrupt_status_8125;
+        int_bits_8125 interrupt_status_8125;
         struct {
             int_bits interrupt_mask;
             int_bits interrupt_status;
@@ -400,41 +419,76 @@ bool rtl8168_netif::setup_descriptors() {
 }
 
 void rtl8168_netif::enable_interrupts() {
-    regs.interrupt_status.value = 0xffff; // clear pending
+    if (is_8125) {
+        regs.interrupt_status_8125.value = 0xffffffff; // clear pending
 
-    int_bits b;
+        int_bits_8125 b;
 
-    b.value = 0;
-    b.rx_ok = 1;
-    b.tx_ok = 1;
-    b.link_change = 1;
+        b.value = 0;
+        b.rx_ok = 1;
+        b.tx_ok = 1;
+        b.link_change = 1;
 
-    regs.interrupt_mask.value = b.value;
+        regs.interrupt_mask_8125.value = b.value;
+    } else {
+        regs.interrupt_status.value = 0xffff; // clear pending
+
+        int_bits b;
+
+        b.value = 0;
+        b.rx_ok = 1;
+        b.tx_ok = 1;
+        b.link_change = 1;
+
+        regs.interrupt_mask.value = b.value;
+    }
 }
 
 bool rtl8168_netif::isr() {
     bool handled = false;
 
     while (true) {
-        int_bits status;
+        bool rx_ok, link_change, tx_ok;
 
-        status.value = regs.interrupt_status.value;
+        if (is_8125) {
+            int_bits_8125 status;
 
-        if (status.value == 0)
-            break;
+            status.value = regs.interrupt_status_8125.value;
 
-        regs.interrupt_status.value = status.value; // acknowledge interrupts
-        handled = true;
+            if (status.value == 0)
+                break;
+
+            regs.interrupt_status_8125.value = status.value; // acknowledge interrupts
+            handled = true;
+
+            rx_ok = status.rx_ok;
+            link_change = status.link_change;
+            tx_ok = status.tx_ok;
+        } else {
+            int_bits status;
+
+            status.value = regs.interrupt_status.value;
+
+            if (status.value == 0)
+                break;
+
+            regs.interrupt_status.value = status.value; // acknowledge interrupts
+            handled = true;
+
+            rx_ok = status.rx_ok;
+            link_change = status.link_change;
+            tx_ok = status.tx_ok;
+        }
 
         // FIXME - rx_err, tx_err, rx_fifo_overflow?
 
-        if (status.rx_ok)
+        if (rx_ok)
             set_event(static_cast<event&>(receive_packet_event.get()));
 
-        if (status.link_change)
+        if (link_change)
             set_event(static_cast<event&>(link_change_event.get()));
 
-        if (status.tx_ok) {
+        if (tx_ok) {
             unsigned int to_release = 0;
 
             {
@@ -631,12 +685,12 @@ static void found_rtl8168(pci_device& dev, bool is_8125) {
 
     auto& c = *pc;
 
+    c.is_8125 = is_8125;
+
     if (!c.init()) {
         delete pc;
         return;
     }
-
-    c.is_8125 = is_8125;
 
     memcpy(&c.mac, &mac, sizeof(mac));
     c.mtu = DEFAULT_MTU; // FIXME?
