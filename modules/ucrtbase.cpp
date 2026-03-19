@@ -102,6 +102,7 @@ int wctob(wint_t wchar);
 wint_t btowc(int c);
 wctype_t wctype(const char* prop);
 void _register_thread_local_exe_atexit_callback(_tls_callback_type callback);
+void* _aligned_malloc(size_t size, size_t alignment);
 
 }
 
