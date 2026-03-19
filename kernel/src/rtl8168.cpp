@@ -109,10 +109,20 @@ struct rtl8168_regs {
     uint32_t tx_hpq_desc_addr_high;
     uint8_t padding3[7];
     uint8_t cmd;
-    uint8_t tx_poll;
-    uint8_t padding4[3];
-    int_bits interrupt_mask;
-    int_bits interrupt_status;
+    union {
+        uint32_t interrupt_mask_8125;
+        struct {
+            uint8_t tx_poll;
+            uint8_t padding4[3];
+        };
+    };
+    union {
+        uint32_t interrupt_status_8125;
+        struct {
+            int_bits interrupt_mask;
+            int_bits interrupt_status;
+        };
+    };
     tcr_bits tx_config;
     rcr_bits rx_config;
     uint32_t time_counter_register;
@@ -134,7 +144,13 @@ struct rtl8168_regs {
     uint32_t wakeup_frame0_low;
     uint32_t wakeup_frame0_high;
     uint32_t wakeup_frame1_low;
-    uint32_t wakeup_frame1_high;
+    union {
+        struct {
+            uint16_t tx_poll_8125;
+            uint8_t padding10[2];
+        };
+        uint32_t wakeup_frame1_high;
+    };
     uint32_t wakeup_frame2[4];
     uint32_t wakeup_frame3[4];
     uint32_t wakeup_frame4[4];
@@ -143,15 +159,15 @@ struct rtl8168_regs {
     uint16_t wakeup_frame2_crc;
     uint16_t wakeup_frame3_crc;
     uint16_t wakeup_frame4_crc;
-    uint8_t padding10[12];
+    uint8_t padding11[12];
     uint16_t rx_max_size;
-    uint32_t padding11;
+    uint32_t padding12;
     uint16_t cplus_command_register;
-    uint16_t padding12;
+    uint16_t padding13;
     uint32_t rx_desc_addr_low;
     uint32_t rx_desc_addr_high;
     uint8_t tx_max_size;
-    uint8_t padding13[19];
+    uint8_t padding14[19];
 } __attribute__((packed));
 
 static_assert(sizeof(rtl8168_regs) == 0x100);
