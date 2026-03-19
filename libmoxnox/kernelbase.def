@@ -56,3 +56,4 @@ FlsGetValue
 FlsSetValue
 GetProcAddress
 GetModuleHandleW
+IsProcessorFeaturePresent

@@ -626,3 +626,10 @@ uint32_t GetEnvironmentVariableW(const char16_t* name, char16_t* buffer,
     SetLastError(ERROR_ENVVAR_NOT_FOUND);
     return 0;
 }
+
+extern "C"
+bool IsProcessorFeaturePresent(uint32_t processor_feature) {
+    print_stderr("FIXME - IsProcessorFeaturePresent {:x}\n", processor_feature);
+
+    return false;
+}
