@@ -1,7 +1,8 @@
-#include <iostream>
 #include <stdexcept>
 #include <string>
 #include <memory>
+
+import print;
 
 using namespace std;
 
@@ -9,11 +10,11 @@ using namespace std;
 class ResourceHolder {
 public:
     ResourceHolder(const char* name) : name_(name) {
-        cout << "ResourceHolder(" << name_ << ") constructed\n";
+        print("ResourceHolder({}) constructed\n", name_);
     }
 
     ~ResourceHolder() {
-        cout << "ResourceHolder(" << name_ << ") destroyed\n";
+        print("ResourceHolder({}) destroyed\n", name_);
     }
 
 private:
@@ -55,71 +56,71 @@ void level1(unsigned int type) {
 }
 
 int main() {
-    cout << "=== C++ Exception Test ===\n\n";
+    print("=== C++ Exception Test ===\n\n");
 
     // Test 1: Basic catch
-    cout << "Test 1: Basic exception catch\n";
+    print("Test 1: Basic exception catch\n");
     try {
         throw runtime_error("basic test");
     } catch (const exception& e) {
-        cout << "Caught: " << e.what() << "\n\n";
+        print("Caught: {}\n\n", e.what());
     }
 
     // Test 2: Stack unwinding with destructors
-    cout << "Test 2: Stack unwinding (watch destructors)\n";
+    print("Test 2: Stack unwinding (watch destructors)\n");
     try {
         ResourceHolder rh("main");
         level1(1);
     } catch (const exception& e) {
-        cout << "Caught: " << e.what() << "\n\n";
+        print("Caught: {}\n\n", e.what());
     }
 
     // Test 3: Multiple catch blocks
-    cout << "Test 3: Multiple catch blocks\n";
+    print("Test 3: Multiple catch blocks\n");
     for (unsigned int i = 1; i <= 5; i++) {
         try {
             throw_something(i);
         } catch (const runtime_error& e) {
-            cout << "Caught runtime_error: " << e.what() << "\n";
+            print("Caught runtime_error: {}\n", e.what());
         } catch (const logic_error& e) {
-            cout << "Caught logic_error: " << e.what() << "\n";
+            print("Caught logic_error: {}\n", e.what());
         } catch (int n) {
-            cout << "Caught int: " << n << "\n";
+            print("Caught int: {}\n", n);
         } catch (const string& s) {
-            cout << "Caught string: " << s << "\n";
+            print("Caught string: {}\n", string_view(s));
         } catch (...) {
-            cout << "Caught unknown exception\n";
+            print("Caught unknown exception\n");
         }
     }
-    cout << "\n";
+    print("\n");
 
     // Test 4: Nested try-catch
-    cout << "Test 4: Nested try-catch\n";
+    print("Test 4: Nested try-catch\n");
     try {
         try {
             throw runtime_error("inner");
         } catch (const logic_error& e) {
-            cout << "Inner catch (shouldn't reach)\n";
+            print("Inner catch (shouldn't reach)\n");
         }
     } catch (const runtime_error& e) {
-        cout << "Outer catch: " << e.what() << "\n\n";
+        print("Outer catch: {}\n\n", e.what());
     }
 
     // Test 5: Rethrowing
-    cout << "Test 5: Rethrow\n";
+    print("Test 5: Rethrow\n");
     try {
         try {
             throw runtime_error("rethrow test");
         } catch (...) {
-            cout << "Caught in inner, rethrowing...\n";
+            print("Caught in inner, rethrowing...\n");
             throw;  // rethrow
         }
     } catch (const exception& e) {
-        cout << "Caught in outer: " << e.what() << "\n\n";
+        print("Caught in outer: {}\n\n", e.what());
     }
 
     // Test 6: Exception in constructor
-    cout << "Test 6: Exception in constructor\n";
+    print("Test 6: Exception in constructor\n");
     class ThrowInConstructor {
     public:
         ThrowInConstructor() {
@@ -130,18 +131,18 @@ int main() {
     try {
         ThrowInConstructor t;
     } catch (const exception& e) {
-        cout << "Caught: " << e.what() << "\n\n";
+        print("Caught: {}\n\n", e.what());
     }
 
     // Test 7: unique_ptr cleanup during unwinding
-    cout << "Test 7: Smart pointer cleanup\n";
+    print("Test 7: Smart pointer cleanup\n");
     try {
         auto ptr = make_unique<ResourceHolder>("unique_ptr resource");
         throw runtime_error("with unique_ptr");
     } catch (const exception& e) {
-        cout << "Caught: " << e.what() << "\n\n";
+        print("Caught: {}\n\n", e.what());
     }
 
-    cout << "=== All tests passed! ===\n";
+    print("=== All tests passed! ===\n");
     return 0;
 }
