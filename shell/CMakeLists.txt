@@ -391,17 +391,15 @@ install(TARGETS httpd-test DESTINATION ${CMAKE_INSTALL_PREFIX}/bin)
 
 ###
 
-if(NOT CMAKE_SYSTEM_PROCESSOR STREQUAL "aarch64")
-    add_executable(exc-test src/exc-test.cpp)
+add_executable(exc-test src/exc-test.cpp)
 
-    target_compile_options(exc-test PRIVATE ${USERSPACE_CFLAGS})
+target_compile_options(exc-test PRIVATE ${USERSPACE_CFLAGS})
 
-    if (CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
-        target_link_options(exc-test PUBLIC -mcrtdll=ucrtbase)
-    endif()
-
-    install(TARGETS exc-test DESTINATION ${CMAKE_INSTALL_PREFIX}/bin)
+if (CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
+    target_link_options(exc-test PUBLIC -mcrtdll=ucrtbase)
 endif()
+
+install(TARGETS exc-test DESTINATION ${CMAKE_INSTALL_PREFIX}/bin)
 
 ###
 
