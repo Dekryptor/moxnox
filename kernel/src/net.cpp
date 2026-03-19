@@ -316,8 +316,8 @@ export list_entry netif_list = { &netif_list, &netif_list };
 export atomic<uint32_t> next_netif_num = 1;
 export atomic<uint32_t> next_eth_num = 0;
 
-export void handle_ipv6_packet(netif& ni, packet& pack,
-                               const mac_address& src_mac, bool skip_checksum);
+export void received_packet(netif& ni, packet& pack, const mac_address& src_mac,
+                            ethertype type, bool skip_csumming);
 export bool drop_packet(const mac_address& dst, const mac_address& us);
 export bool init_net();
 export ipv6_address find_ll_address(const mac_address& m);

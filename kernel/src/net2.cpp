@@ -231,6 +231,9 @@ public:
 static spinlock ipv6_routes_lock;
 static list_entry ipv6_routes = { &ipv6_routes, &ipv6_routes };
 
+static void handle_ipv6_packet(netif& ni, packet& pack, const mac_address& src_mac,
+                               bool skip_checksum);
+
 uint16_t calc_ipv6_checksum(const ipv6_header& ip, span<const uint8_t> data,
                             uint8_t next_header) {
     struct {
@@ -1226,8 +1229,8 @@ static bool should_accept_multicast(netif& ni, const ipv6_address& dst) {
     return false;
 }
 
-void handle_ipv6_packet(netif& ni, packet& pack, const mac_address& src_mac,
-                        bool skip_checksum) {
+static void handle_ipv6_packet(netif& ni, packet& pack, const mac_address& src_mac,
+                               bool skip_checksum) {
     if (pack.size < sizeof(ipv6_header)) {
         print("handle_ipv6_packet: buffer length was {}, expected at least {}\n",
               pack.size, sizeof(ipv6_header));
@@ -3221,4 +3224,10 @@ ipv6_address find_ll_address(const mac_address& m) {
     ret.v[15] = m.v[5];
 
     return ret;
+}
+
+void received_packet(netif& ni, packet& pack, const mac_address& src_mac,
+                     ethertype type, bool skip_csumming) {
+    if (type == ethertype::ipv6)
+        handle_ipv6_packet(ni, pack, src_mac, skip_csumming);
 }

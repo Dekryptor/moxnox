@@ -460,8 +460,8 @@ void virtio_net<T>::recv_thread() {
 
         pack->size = recvd_bytes - sizeof(header);
 
-        if (header.eth.type == ethertype::ipv6)
-            handle_ipv6_packet(*this, *pack, header.eth.src_mac, false);
+        received_packet(*this, *pack, header.eth.src_mac, header.eth.type,
+                        false);
 
         pack->release();
     }

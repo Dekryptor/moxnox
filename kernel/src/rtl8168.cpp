@@ -821,8 +821,7 @@ void rtl8168_netif::handle_received_packet(span<const uint8_t> data,
     pack->size = data.size() - sizeof(ethernet_header) - sizeof(uint32_t);
     memcpy(pack->data, data.data() + sizeof(ethernet_header), pack->size);
 
-    if (eth.type == ethertype::ipv6)
-        handle_ipv6_packet(*this, *pack, eth.src_mac, checksum_okay);
+    received_packet(*this, *pack, eth.src_mac, eth.type, checksum_okay);
 
     pack->release();
 }
