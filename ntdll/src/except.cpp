@@ -626,7 +626,7 @@ RUNTIME_FUNCTION* RtlLookupFunctionEntry(uintptr_t pc, uintptr_t* base,
                                     pdata.size() / sizeof(RUNTIME_FUNCTION));
 
     for (auto& f : rt_funcs) {
-        if (pc >= f.BeginAddress && pc < f.EndAddress)
+        if (pc >= f.BeginAddress && pc <= f.EndAddress)
             return &f;
 
         if (f.BeginAddress > pc) // stored in order
