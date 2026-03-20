@@ -484,41 +484,57 @@ static void set_register(CONTEXT& context, enum unwind_register reg, uint64_t va
 extern "C"
 void RtlUnwindEx(void* target_frame, void* target_ip,
                  EXCEPTION_RECORD* exception_record, void* return_value,
-                 CONTEXT* original_context,
-                 UNWIND_HISTORY_TABLE* history_table) {
-    CONTEXT context = *original_context;
+                 CONTEXT* context, UNWIND_HISTORY_TABLE* history_table) {
+    CONTEXT new_context;
     EXCEPTION_RECORD er;
+    uint64_t frame;
+
+    RtlCaptureContext(context);
+    new_context = *context;
 
     if (!exception_record) {
         memset(&er, 0, sizeof(er));
         er.ExceptionCode = (uint32_t)nt_status::UNWIND;
         er.ExceptionFlags = EH_UNWINDING;
+        er.ExceptionAddress = (void *)context->Rip;
         exception_record = &er;
     } else
         exception_record->ExceptionFlags |= EH_UNWINDING;
 
+    if (!target_frame)
+        exception_record->ExceptionFlags |= EH_EXIT_UNWIND;
+
+    frame = context->Rsp;
+
     while (true) {
-        uint64_t image_base, frame;
+        uint64_t image_base;
         void* data = nullptr;
 
-        auto function_entry = RtlLookupFunctionEntry(context.Rip, &image_base,
+        auto function_entry = RtlLookupFunctionEntry(context->Rip, &image_base,
                                                      history_table);
         if (!function_entry) {
-            context.Rip = *(uint64_t*)context.Rsp;
-            context.Rsp += 8;
+            frame = new_context.Rsp;
+            new_context.Rip = *(uint64_t *)new_context.Rsp;
+            new_context.Rsp += sizeof(uint64_t);
 
-            if (!context.Rip)
+            if (!frame)
                 break;
+
+            if (frame == (uint64_t)target_frame)
+                break;
+
+            *context = new_context;
 
             continue;
         }
 
-        auto control_pc = context.Rip;
-        auto prev_context = context;
+        auto control_pc = new_context.Rip;
 
         auto handler = RtlVirtualUnwind(UNW_FLAG_UHANDLER, image_base,
-                                        context.Rip, function_entry, &context,
-                                        &data, &frame, nullptr);
+                                        new_context.Rip, function_entry,
+                                        &new_context, &data, &frame, nullptr);
+        if (!frame)
+            break;
 
         if (target_frame && frame == (uint64_t)target_frame)
             exception_record->ExceptionFlags |= EH_TARGET_UNWIND;
@@ -530,30 +546,28 @@ void RtlUnwindEx(void* target_frame, void* target_ip,
             dispatcher_context.FunctionEntry = function_entry;
             dispatcher_context.EstablisherFrame = frame;
             dispatcher_context.TargetIp = (uint64_t)target_ip;
-            dispatcher_context.ContextRecord = &prev_context;
+            dispatcher_context.ContextRecord = context;
             dispatcher_context.LanguageHandler = handler;
             dispatcher_context.HandlerData = data;
             dispatcher_context.HistoryTable = history_table;
+            dispatcher_context.ScopeIndex = 0;
 
-            handler(exception_record, (void*)frame, &prev_context,
+            handler(exception_record, (void*)frame, context,
                     &dispatcher_context);
         }
 
-        if (target_frame && frame == (uint64_t)target_frame) {
-            context = prev_context;
+        if (target_frame && frame == (uint64_t)target_frame)
             break;
-        }
 
-        if (context.Rip == 0)
-            break;
+        *context = new_context;
     }
 
-    context.Rax = (uint64_t)return_value;
+    context->Rax = (uint64_t)return_value;
 
     if (target_ip)
-        context.Rip = (uint64_t)target_ip;
+        context->Rip = (uint64_t)target_ip;
 
-    NtContinue(&context, false);
+    NtContinue(context, false);
 }
 
 #endif
