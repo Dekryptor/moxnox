@@ -39,4 +39,13 @@ void* _aligned_malloc(size_t size, size_t alignment) {
     return ret;
 }
 
+extern "C"
+void _aligned_free(void* ptr) {
+    auto& n = *(uint32_t*)((uint8_t*)ptr - sizeof(uint32_t));
+
+    auto m = (uint8_t*)ptr - sizeof(uint32_t) - n;
+
+    free(m);
+}
+
 #pragma clang diagnostic pop
