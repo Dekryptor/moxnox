@@ -3,7 +3,6 @@
 #include <stdint.h>
 
 import ucrtbase;
-import print;
 
 using namespace std;
 
@@ -16,12 +15,8 @@ int _set_new_mode(int mode) {
     return mode;
 }
 
-// FIXME - Clang leaks header file from format module?
-#pragma clang diagnostic push
-#pragma clang diagnostic ignored "-Winconsistent-dllimport"
-
 extern "C"
-void* _aligned_malloc(size_t size, size_t alignment) {
+void* __aligned_malloc(size_t size, size_t alignment) {
     auto m = (uint8_t*)malloc(sizeof(uint32_t) + size + alignment - 1);
     if (!m)
         return nullptr;
@@ -40,12 +35,10 @@ void* _aligned_malloc(size_t size, size_t alignment) {
 }
 
 extern "C"
-void _aligned_free(void* ptr) {
+void __aligned_free(void* ptr) {
     auto& n = *(uint32_t*)((uint8_t*)ptr - sizeof(uint32_t));
 
     auto m = (uint8_t*)ptr - sizeof(uint32_t) - n;
 
     free(m);
 }
-
-#pragma clang diagnostic pop
