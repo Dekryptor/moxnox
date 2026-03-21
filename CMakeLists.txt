@@ -326,6 +326,22 @@ target_sources(print-exc PUBLIC FILE_SET CXX_MODULES FILES modules/print.cpp)
 target_compile_options(print-exc PRIVATE ${USERSPACE_CFLAGS})
 target_link_libraries(print-exc PRIVATE nt-exc format-exc)
 
+if (CMAKE_CXX_COMPILER_ID MATCHES "Clang")
+    add_library(format-ms STATIC)
+    target_sources(format-ms PUBLIC FILE_SET CXX_MODULES FILES modules/format.cpp)
+    target_compile_options(format-ms PRIVATE -fno-exceptions -fms-extensions ${USERSPACE_CFLAGS})
+    target_link_libraries(format-ms PRIVATE nt-ms)
+
+    add_library(nt-ms STATIC)
+    target_sources(nt-ms PUBLIC FILE_SET CXX_MODULES FILES modules/nt.cpp)
+    target_compile_options(nt-ms PRIVATE -fno-exceptions -fms-extensions ${USERSPACE_CFLAGS})
+
+    add_library(print-ms STATIC)
+    target_sources(print-ms PUBLIC FILE_SET CXX_MODULES FILES modules/print.cpp)
+    target_compile_options(print-ms PRIVATE -fno-exceptions -fms-extensions ${USERSPACE_CFLAGS})
+    target_link_libraries(print-ms PRIVATE nt-ms format-ms)
+endif()
+
 add_library(errno STATIC)
 target_sources(errno PUBLIC FILE_SET CXX_MODULES FILES modules/errno.cpp)
 target_compile_options(errno PRIVATE -fno-exceptions ${USERSPACE_CFLAGS})

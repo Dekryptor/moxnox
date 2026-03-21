@@ -162,6 +162,18 @@ install(TARGETS seh-test DESTINATION ${CMAKE_INSTALL_PREFIX}/bin)
 
 ###
 
+if (CMAKE_CXX_COMPILER_ID MATCHES "Clang")
+    add_executable(seh2-test src/seh2-test.cpp)
+
+    target_compile_options(seh2-test PRIVATE -fno-exceptions -fms-extensions ${USERSPACE_CFLAGS})
+
+    target_link_libraries(seh2-test print-ms)
+
+    install(TARGETS seh2-test DESTINATION ${CMAKE_INSTALL_PREFIX}/bin)
+endif()
+
+###
+
 add_executable(file-test src/file-test.cpp)
 
 target_compile_options(file-test PRIVATE -fno-exceptions ${USERSPACE_CFLAGS})
