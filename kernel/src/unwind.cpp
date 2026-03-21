@@ -808,23 +808,25 @@ static bool unwind_context2(CONTEXT& context, void* img_addr,
 
                 switch (codes[i + next_chain]) {
                     case 0x20 ... 0x3f: { // save_r19r20_x
-                        uint8_t z = codes[i + next_chain] & 0x1f;
+                        // save_next handles only the extra pair at [Sp + next_chain*16].
+                        // The base opcode (save_r19r20_x) is processed by the main loop.
 
                         if (next_chain >= 6)
                             return false;
 
-                        if (auto ret = read_uint64_t(context.Sp); ret.has_value())
+                        uint64_t base = context.Sp + (next_chain * 16);
+
+                        if (auto ret = read_uint64_t(base); ret.has_value())
                             context.X[19 + (next_chain * 2)] = *ret;
                         else
                             return false;
 
-                        if (auto ret = read_uint64_t(context.Sp + 8); ret.has_value())
+                        if (auto ret = read_uint64_t(base + 8); ret.has_value())
                             context.X[20 + (next_chain * 2)] = *ret;
                         else
                             return false;
 
-                        context.Sp += z * 8;
-
+                        // No Sp change; leave i so the main loop processes the base opcode next.
                         break;
                     }
 
@@ -856,23 +858,23 @@ static bool unwind_context2(CONTEXT& context, void* img_addr,
                             return false;
 
                         auto x = (uint8_t)(((codes[i + next_chain] & 3) << 2) | (codes[i + next_chain + 1] >> 6));
-                        uint8_t z = codes[i + next_chain + 1] & 0x3f;
 
                         if ((next_chain * 2) + x >= 11)
                             return false;
 
-                        if (auto ret = read_uint64_t(context.Sp); ret.has_value())
+                        uint64_t base = context.Sp + (next_chain * 16);
+
+                        if (auto ret = read_uint64_t(base); ret.has_value())
                             context.X[19 + (next_chain * 2) + x] = *ret;
                         else
                             return false;
 
-                        if (auto ret = read_uint64_t(context.Sp + 8); ret.has_value())
+                        if (auto ret = read_uint64_t(base + 8); ret.has_value())
                             context.X[20 + (next_chain * 2) + x] = *ret;
                         else
                             return false;
 
-                        context.Sp += (z + 1) * 8;
-
+                        // No Sp change; leave i so the main loop processes the base opcode next.
                         break;
                     }
 
@@ -904,23 +906,23 @@ static bool unwind_context2(CONTEXT& context, void* img_addr,
                             return false;
 
                         auto x = (uint8_t)(((codes[i + next_chain] & 1) << 2) | (codes[i + next_chain + 1] >> 6));
-                        uint8_t z = codes[i + next_chain + 1] & 0x3f;
 
                         if ((next_chain * 2) + x >= 22)
                             return false;
 
-                        if (auto ret = read_uint64_t(context.Sp); ret.has_value())
+                        uint64_t base = context.Sp + (next_chain * 16);
+
+                        if (auto ret = read_uint64_t(base); ret.has_value())
                             *(uint64_t*)&context.V[8 + (next_chain * 2) + x].D[0] = *ret;
                         else
                             return false;
 
-                        if (auto ret = read_uint64_t(context.Sp + 8); ret.has_value())
+                        if (auto ret = read_uint64_t(base + 8); ret.has_value())
                             *(uint64_t*)&context.V[9 + (next_chain * 2) + x].D[0] = *ret;
                         else
                             return false;
 
-                        context.Sp += (z + 1) * 8;
-
+                        // No Sp change; leave i so the main loop processes the base opcode next.
                         break;
                     }
 
