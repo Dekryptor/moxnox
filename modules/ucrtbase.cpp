@@ -30,6 +30,15 @@ using _PIFV = int (*)();
 
 const int EOF = -1;
 
+using _onexit_t = int (*)(void);
+using _tls_callback_type = void (*)(void* dll_base, uint32_t reason,
+                                    void* reserved);
+using __sighandler_t = void (*)(int sig);
+
+const __sighandler_t SIG_DFL = (__sighandler_t)0;
+const __sighandler_t SIG_IGN = (__sighandler_t)1;
+const __sighandler_t SIG_ERR = (__sighandler_t)-1;
+
 extern "C" {
 
 struct lconv {
@@ -64,10 +73,6 @@ struct _onexit_table_t {
     _PVFV* _last;
     _PVFV* _end;
 };
-
-using _onexit_t = int (*)(void);
-using _tls_callback_type = void (*)(void* dll_base, uint32_t reason,
-                                    void* reserved);
 
 _invalid_parameter_handler _set_invalid_parameter_handler(_invalid_parameter_handler handler);
 void _set_app_type(_crt_app_type _Type);
@@ -104,6 +109,7 @@ wctype_t wctype(const char* prop);
 void _register_thread_local_exe_atexit_callback(_tls_callback_type callback);
 void* _aligned_malloc(size_t size, size_t alignment);
 void _aligned_free(void* ptr);
+__sighandler_t signal(int sig, __sighandler_t func);
 
 }
 

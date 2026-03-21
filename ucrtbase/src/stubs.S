@@ -5,7 +5,6 @@ stubs_start
 do_stub "__setusermatherr"
 do_stub "_configthreadlocale"
 do_stub "_exit"
-do_stub "signal"
 do_stub "strerror"
 do_stub "wcsnlen"
 do_stub "mbrlen"

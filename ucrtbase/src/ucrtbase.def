@@ -97,3 +97,4 @@ _register_thread_local_exe_atexit_callback
 __stdio_common_vfprintf
 _aligned_malloc = __aligned_malloc
 _aligned_free = __aligned_free
+signal

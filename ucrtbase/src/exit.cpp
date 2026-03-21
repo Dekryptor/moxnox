@@ -45,9 +45,6 @@ void exit(int code) noexcept {
     unreachable();
 }
 
-using _tls_callback_type = void (*)(void* dll_base, uint32_t reason,
-                                    void* reserved);
-
 extern "C"
 void _register_thread_local_exe_atexit_callback(_tls_callback_type callback) {
     tls_atexit_callback = callback;
