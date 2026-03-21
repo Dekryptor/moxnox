@@ -347,11 +347,65 @@ void mn_ctrl_c() {
 }
 
 extern "C"
-EXCEPTION_DISPOSITION __C_specific_handler(EXCEPTION_RECORD* /*exception_record*/,
-                                           void* /*establisher_frame*/,
-                                           CONTEXT* /*context_record*/,
-                                           DISPATCHER_CONTEXT* /*dispatcher_context*/) {
+EXCEPTION_DISPOSITION __C_specific_handler(EXCEPTION_RECORD* rec, void* frame,
+                                           CONTEXT* context_record,
+                                           DISPATCHER_CONTEXT* dispatcher_context) {
+#ifdef __x86_64__
+    auto pc = dispatcher_context->ControlPc;
+    auto image_base = dispatcher_context->ImageBase;
+    auto& table = *(SCOPE_TABLE*)dispatcher_context->HandlerData;
+
+    for (uint32_t i = 0; i < table.Count; i++) {
+        auto& r = table.ScopeRecord[i];
+
+        if (pc < image_base + r.BeginAddress || pc >= image_base + r.EndAddress)
+            continue;
+
+        if (rec->ExceptionFlags & (EH_UNWINDING | EH_EXIT_UNWIND)) {
+            if (r.JumpTarget)
+                continue;
+
+            if (rec->ExceptionFlags & EH_TARGET_UNWIND &&
+                dispatcher_context->TargetIp >= image_base + r.BeginAddress &&
+                dispatcher_context->TargetIp < image_base + r.EndAddress) {
+                break;
+            }
+
+            auto handler = (TERMINATION_HANDLER)(image_base + r.HandlerAddress);
+
+            dispatcher_context->ScopeIndex = i + 1;
+
+            handler(true, frame);
+        } else {
+            if (!r.JumpTarget)
+                continue;
+
+            if (r.HandlerAddress != EXCEPTION_EXECUTE_HANDLER) {
+                EXCEPTION_POINTERS exception_pointers;
+
+                auto filter = (EXCEPTION_FILTER)(image_base + r.HandlerAddress);
+
+                exception_pointers.ExceptionRecord = rec;
+                exception_pointers.ContextRecord = context_record;
+
+                auto ret = filter(&exception_pointers, frame);
+
+                if (ret == EXCEPTION_CONTINUE_EXECUTION)
+                    return EXCEPTION_DISPOSITION::ExceptionContinueExecution;
+                else if (ret == EXCEPTION_CONTINUE_SEARCH)
+                    continue;
+                else if (ret != EXCEPTION_EXECUTE_HANDLER)
+                    print_stderr("__C_specific_handler: filter returned unexpected value {}\n", ret);
+            }
+
+            RtlUnwindEx(frame, (uint8_t*)image_base + r.JumpTarget, rec, 0,
+                        dispatcher_context->ContextRecord,
+                        dispatcher_context->HistoryTable);
+        }
+    }
+#elifdef __aarch64__
     print("FIXME - __C_specific_handler\n"); // FIXME
+#endif
 
     return EXCEPTION_DISPOSITION::ExceptionContinueSearch;
 }

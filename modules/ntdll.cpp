@@ -118,6 +118,10 @@ enum class EXCEPTION_DISPOSITION : int {
     ExceptionExecuteHandler = 4
 };
 
+const int32_t EXCEPTION_EXECUTE_HANDLER = 1;
+const int32_t EXCEPTION_CONTINUE_SEARCH = 0;
+const int32_t EXCEPTION_CONTINUE_EXECUTION = -1;
+
 const uint32_t EH_NONCONTINUABLE = 0x00000001;
 const uint32_t EH_UNWINDING = 0x00000002;
 const uint32_t EH_EXIT_UNWIND = 0x00000004;
@@ -128,6 +132,33 @@ const uint32_t EH_COLLIDED_UNWIND = 0x00000040;
 
 using EXCEPTION_ROUTINE = EXCEPTION_DISPOSITION(*)(EXCEPTION_RECORD*, void*,
                                                    CONTEXT*, void*);
+
+struct EXCEPTION_POINTERS {
+    EXCEPTION_RECORD* ExceptionRecord;
+    CONTEXT* ContextRecord;
+};
+
+struct SCOPE_TABLE {
+    uint32_t Count;
+    struct {
+        uint32_t BeginAddress;
+        uint32_t EndAddress;
+        uint32_t HandlerAddress;
+        uint32_t JumpTarget;
+    } ScopeRecord[1];
+};
+
+#ifdef __x86_64__
+using EXCEPTION_FILTER = int32_t (*)(EXCEPTION_POINTERS* exception_pointers,
+                                     void* establisher_frame);
+using TERMINATION_HANDLER = void (*)(bool abnormal_termination,
+                                     void* establisher_frame);
+#elifdef __aarch64__
+using EXCEPTION_FILTER = int32_t (*)(EXCEPTION_POINTERS* exception_pointers,
+                                     uint64_t establisher_frame);
+using TERMINATION_HANDLER = void (*)(bool abnormal_termination,
+                                     uint64_t establisher_frame);
+#endif
 
 struct ANSI_STRING {
     uint16_t Length;
@@ -304,11 +335,11 @@ nt_status LdrAddRefDll(uint32_t flags, HMODULE mod);
 nt_status LdrUnloadDll(HMODULE mod);
 void RtlAcquireSRWLockExclusive(RTL_SRWLOCK* lock);
 
-#ifdef __x86_64__
 void RtlUnwindEx(void* target_frame, void* target_ip,
                  EXCEPTION_RECORD* exception_record, void* return_value,
                  CONTEXT* original_context,
                  UNWIND_HISTORY_TABLE* history_table);
+#ifdef __x86_64__
 RUNTIME_FUNCTION* RtlLookupFunctionEntry(uintptr_t pc, uintptr_t* base,
                                          UNWIND_HISTORY_TABLE* table);
 EXCEPTION_ROUTINE RtlVirtualUnwind(uint32_t type, uint64_t image_base,

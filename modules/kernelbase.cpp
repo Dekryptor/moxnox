@@ -47,11 +47,6 @@ const uint32_t PROFILE_KERNEL = 0x20000000;
 const uint32_t PROFILE_SERVER = 0x40000000;
 const uint32_t CREATE_IGNORE_SYSTEM_DEFAULT = 0x80000000;
 
-struct EXCEPTION_POINTERS {
-     EXCEPTION_RECORD* ExceptionRecord;
-     CONTEXT* ContextRecord;
-};
-
 struct SECURITY_ATTRIBUTES {
      uint32_t nLength;
      void* lpSecurityDescriptor;
