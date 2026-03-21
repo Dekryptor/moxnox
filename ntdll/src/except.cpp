@@ -629,10 +629,16 @@ void RtlUnwindEx(void* target_frame, void* target_ip,
             frame = new_context.Rsp;
             new_context.Rip = *(uint64_t *)new_context.Rsp;
             new_context.Rsp += sizeof(uint64_t);
+
+            if (!new_context.Rip)
+                break;
 #elifdef __aarch64__
             frame = new_context.Sp;
             new_context.Pc = new_context.Lr;
             new_context.Lr = 0;
+
+            if (!new_context.Pc)
+                break;
 #endif
 
             if (!frame)
