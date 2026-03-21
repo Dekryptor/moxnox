@@ -115,18 +115,6 @@ optional<uint64_t> read_uint64_t(uint64_t addr) {
     return ret;
 }
 
-static bool do_unwind_context(CONTEXT& context) {
-#ifdef __aarch64__
-    auto ent = get_ldr_from_address(context.Pc);
-#elifdef __x86_64__
-    auto ent = get_ldr_from_address(context.Rip);
-#endif
-    if (!ent)
-        return false;
-
-    return unwind_context(context, ent->ldr.DllBase, ent->ldr.SizeOfImage);
-}
-
 static nt_status handle_exception(EXCEPTION_RECORD* exception,
                                   CONTEXT& orig_context) {
 #ifdef __x86_64__
@@ -295,7 +283,15 @@ void mn_signal(EXCEPTION_RECORD* exception, CONTEXT* context) {
 #endif
         print_rip(rip);
 
-        if (!do_unwind_context(*context))
+#ifdef __aarch64__
+        auto ent = get_ldr_from_address(context->Pc);
+#elifdef __x86_64__
+        auto ent = get_ldr_from_address(context->Rip);
+#endif
+        if (!ent)
+            break;
+
+        if (!unwind_context(*context, ent->ldr.DllBase, ent->ldr.SizeOfImage))
             break;
     } while (true);
 
