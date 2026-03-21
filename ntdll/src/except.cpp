@@ -1496,8 +1496,13 @@ EXCEPTION_ROUTINE RtlVirtualUnwind(uint32_t type, uint64_t image_base,
 
     *establisher_frame = context->Sp;
 
-    // FIXME - type
-    // FIXME - handler_data
+    if (type != 0 && xdata.ExceptionDataPresent) {
+        auto handler = (uint32_t*)((uint8_t*)&xdata + sizeof(uint32_t) + off + (epilogue_count * sizeof(uint32_t)) + (code_words * sizeof(uint32_t)));
+
+        *handler_data = &handler[1];
+
+        return (EXCEPTION_ROUTINE)(image_base + *handler);
+    }
 
     return nullptr;
 }
