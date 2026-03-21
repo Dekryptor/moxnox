@@ -992,6 +992,7 @@ EXCEPTION_ROUTINE RtlVirtualUnwind(uint32_t type, uint64_t image_base,
     if (func->Flag) {
         unwind_context_packed(*context, *func);
 
+        context->Pc = context->Lr;
         *establisher_frame = context->Sp;
         *handler_data = nullptr;
 
