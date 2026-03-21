@@ -339,9 +339,9 @@ void RtlUnwindEx(void* target_frame, void* target_ip,
                  EXCEPTION_RECORD* exception_record, void* return_value,
                  CONTEXT* original_context,
                  UNWIND_HISTORY_TABLE* history_table);
-#ifdef __x86_64__
 RUNTIME_FUNCTION* RtlLookupFunctionEntry(uintptr_t pc, uintptr_t* base,
                                          UNWIND_HISTORY_TABLE* table);
+#ifdef __x86_64__
 EXCEPTION_ROUTINE RtlVirtualUnwind(uint32_t type, uint64_t image_base,
                                    uint64_t pc, RUNTIME_FUNCTION *func,
                                    CONTEXT* context, void** handler_data,

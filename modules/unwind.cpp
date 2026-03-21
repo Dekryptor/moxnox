@@ -16,34 +16,6 @@ extern "C++" optional<uint64_t> read_uint64_t(uint64_t addr);
 
 #ifdef __aarch64__
 
-struct IMAGE_ARM64_RUNTIME_FUNCTION_ENTRY {
-    uint32_t BeginAddress;
-    union {
-        uint32_t UnwindData;
-        struct {
-            uint32_t Flag : 2;
-            uint32_t FunctionLength : 11;
-            uint32_t RegF : 3;
-            uint32_t RegI : 4;
-            uint32_t H : 1;
-            uint32_t CR : 2;
-            uint32_t FrameSize : 9;
-        };
-    };
-};
-
-union IMAGE_ARM64_RUNTIME_FUNCTION_ENTRY_XDATA {
-    uint32_t HeaderData;
-    struct {
-        uint32_t FunctionLength : 18;
-        uint32_t Version : 2;
-        uint32_t ExceptionDataPresent : 1;
-        uint32_t EpilogInHeader : 1;
-        uint32_t EpilogCount : 5;
-        uint32_t CodeWords : 5;
-    };
-};
-
 struct aarch64_seh_extended_counts {
     uint16_t epilogue_count;
     uint8_t code_words;

@@ -1249,7 +1249,7 @@ enum class TIMER_TYPE {
 
 using PTIMER_APC_ROUTINE = void (*)(void*, uint32_t, int32_t);
 
-struct RUNTIME_FUNCTION {
+struct AMD64_RUNTIME_FUNCTION {
     uint32_t BeginAddress;
     uint32_t EndAddress;
     union {
@@ -1257,6 +1257,40 @@ struct RUNTIME_FUNCTION {
         uint32_t UnwindData;
     };
 };
+
+struct IMAGE_ARM64_RUNTIME_FUNCTION_ENTRY {
+    uint32_t BeginAddress;
+    union {
+        uint32_t UnwindData;
+        struct {
+            uint32_t Flag : 2;
+            uint32_t FunctionLength : 11;
+            uint32_t RegF : 3;
+            uint32_t RegI : 4;
+            uint32_t H : 1;
+            uint32_t CR : 2;
+            uint32_t FrameSize : 9;
+        };
+    };
+};
+
+union IMAGE_ARM64_RUNTIME_FUNCTION_ENTRY_XDATA {
+    uint32_t HeaderData;
+    struct {
+        uint32_t FunctionLength : 18;
+        uint32_t Version : 2;
+        uint32_t ExceptionDataPresent : 1;
+        uint32_t EpilogInHeader : 1;
+        uint32_t EpilogCount : 5;
+        uint32_t CodeWords : 5;
+    };
+};
+
+#ifdef __x86_64__
+using RUNTIME_FUNCTION = AMD64_RUNTIME_FUNCTION;
+#elifdef __aarch64__
+using RUNTIME_FUNCTION = IMAGE_ARM64_RUNTIME_FUNCTION_ENTRY;
+#endif
 
 const uint8_t UNW_FLAG_EHANDLER = 0x01;
 const uint8_t UNW_FLAG_UHANDLER = 0x02;

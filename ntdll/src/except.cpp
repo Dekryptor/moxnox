@@ -654,8 +654,6 @@ static span<const uint8_t> find_pdata(void* img_addr) {
     return span<const uint8_t>();
 }
 
-#ifdef __x86_64__
-
 extern "C"
 RUNTIME_FUNCTION* RtlLookupFunctionEntry(uintptr_t pc, uintptr_t* base,
                                          UNWIND_HISTORY_TABLE* /*history_table*/) {
@@ -680,15 +678,35 @@ RUNTIME_FUNCTION* RtlLookupFunctionEntry(uintptr_t pc, uintptr_t* base,
                                     pdata.size() / sizeof(RUNTIME_FUNCTION));
 
     for (auto& f : rt_funcs) {
+#ifdef __x86_64__
         if (pc >= f.BeginAddress && pc <= f.EndAddress)
             return &f;
 
         if (f.BeginAddress > pc) // stored in order
             break;
+#elifdef __aarch64__
+        uint32_t length;
+
+        if (f.BeginAddress > pc) // stored in order
+            break;
+
+        if (f.Flag) // packed unwind data
+            length = f.FunctionLength * 4;
+        else {
+            const auto& xdata = *(IMAGE_ARM64_RUNTIME_FUNCTION_ENTRY_XDATA*)((uintptr_t)img_base + f.UnwindData);
+
+            length = xdata.FunctionLength * 4;
+        }
+
+        if (pc >= f.BeginAddress && pc < f.BeginAddress + length)
+            return &f;
+#endif
     }
 
     return nullptr;
 }
+
+#ifdef __x86_64__
 
 extern "C"
 EXCEPTION_ROUTINE RtlVirtualUnwind(uint32_t type, uint64_t image_base,
@@ -853,16 +871,6 @@ EXCEPTION_ROUTINE RtlVirtualUnwind(uint32_t type, uint64_t image_base,
     // FIXME - also return nullptr if inside prologue
 
     return (EXCEPTION_ROUTINE)(image_base + *(uint32_t*)ptr);
-}
-
-#else
-
-extern "C"
-RUNTIME_FUNCTION* RtlLookupFunctionEntry(uintptr_t pc, uintptr_t* base,
-                                         UNWIND_HISTORY_TABLE* table) {
-    print_stderr("FIXME - RtlLookupFunctionEntry\n"); // FIXME
-
-    return nullptr;
 }
 
 #endif
