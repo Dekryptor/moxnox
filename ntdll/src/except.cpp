@@ -147,6 +147,7 @@ static nt_status handle_exception(EXCEPTION_RECORD* exception,
             continue;
         }
 
+        CONTEXT context_before = context;
 
         auto handler = RtlVirtualUnwind(UNW_FLAG_EHANDLER, image_base,
                                         control_pc, function_entry,
@@ -164,7 +165,7 @@ static nt_status handle_exception(EXCEPTION_RECORD* exception,
 #elifdef __aarch64__
         dispatcher_context.TargetPc = 0;
 #endif
-        dispatcher_context.ContextRecord = &context;
+        dispatcher_context.ContextRecord = &context_before;
         dispatcher_context.LanguageHandler = handler;
         dispatcher_context.HandlerData = handler_data;
 #ifdef __aarch64__
