@@ -1436,20 +1436,23 @@ nt_status LdrUnloadDll(HMODULE mod) {
     auto& teb = *NtCurrentTeb();
     auto& peb = *teb.ProcessEnvironmentBlock;
 
-    // FIXME - loader lock
+    {
+        mn_loader_lock lock;
+        lock_guard lg(lock);
 
-    for (auto le = peb.Ldr->InMemoryOrderModuleList.Flink; le != &peb.Ldr->InMemoryOrderModuleList; le = le->Flink) {
-        auto& mod2 = *CONTAINING_RECORD(le, LDR_DATA_TABLE_ENTRY, InMemoryOrderLinks);
+        for (auto le = peb.Ldr->InMemoryOrderModuleList.Flink; le != &peb.Ldr->InMemoryOrderModuleList; le = le->Flink) {
+            auto& mod2 = *CONTAINING_RECORD(le, LDR_DATA_TABLE_ENTRY, InMemoryOrderLinks);
 
-        if (mod2.DllBase == mod) {
-            if (mod2.LoadCount == 1) { // FIXME
-                print("FIXME - actually unloading in LdrUnloadDll\n");
-                // FIXME - remove from list, call DLL_PROCESS_DETACH, TLS, etc.
+            if (mod2.DllBase == mod) {
+                if (mod2.LoadCount == 1) { // FIXME
+                    print("FIXME - actually unloading in LdrUnloadDll\n");
+                    // FIXME - remove from list, call DLL_PROCESS_DETACH, TLS, etc.
+                    return nt_status::SUCCESS;
+                }
+
+                mod2.LoadCount--;
                 return nt_status::SUCCESS;
             }
-
-            mod2.LoadCount--;
-            return nt_status::SUCCESS;
         }
     }
 
