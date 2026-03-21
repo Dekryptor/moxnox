@@ -272,6 +272,29 @@ struct UNWIND_HISTORY_TABLE {
     UNWIND_HISTORY_TABLE_ENTRY Entry[UNWIND_HISTORY_TABLE_SIZE];
 };
 
+struct KNONVOLATILE_CONTEXT_POINTERS {
+    uint64_t* X19;
+    uint64_t* X20;
+    uint64_t* X21;
+    uint64_t* X22;
+    uint64_t* X23;
+    uint64_t* X24;
+    uint64_t* X25;
+    uint64_t* X26;
+    uint64_t* X27;
+    uint64_t* X28;
+    uint64_t* Fp;
+    uint64_t* Lr;
+    uint64_t* D8;
+    uint64_t* D9;
+    uint64_t* D10;
+    uint64_t* D11;
+    uint64_t* D12;
+    uint64_t* D13;
+    uint64_t* D14;
+    uint64_t* D15;
+};
+
 struct DISPATCHER_CONTEXT_ARM64 {
     uintptr_t ControlPc;
     uintptr_t ImageBase;
@@ -341,13 +364,11 @@ void RtlUnwindEx(void* target_frame, void* target_ip,
                  UNWIND_HISTORY_TABLE* history_table);
 RUNTIME_FUNCTION* RtlLookupFunctionEntry(uintptr_t pc, uintptr_t* base,
                                          UNWIND_HISTORY_TABLE* table);
-#ifdef __x86_64__
 EXCEPTION_ROUTINE RtlVirtualUnwind(uint32_t type, uint64_t image_base,
                                    uint64_t pc, RUNTIME_FUNCTION *func,
                                    CONTEXT* context, void** handler_data,
                                    uint64_t* establisher_frame,
                                    KNONVOLATILE_CONTEXT_POINTERS* ctx_ptr);
-#endif
 
 }
 

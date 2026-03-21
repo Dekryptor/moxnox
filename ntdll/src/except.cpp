@@ -17,10 +17,6 @@ import ntdll;
 import ntdll_private;
 import crt;
 
-#ifdef __aarch64__
-import unwind;
-#endif
-
 using namespace std;
 
 static_assert(offsetof(EXCEPTION_RECORD, ExceptionCode) == EXCEPTION_RECORD_EXCEPTION_CODE);
@@ -290,22 +286,19 @@ void mn_signal(EXCEPTION_RECORD* exception, CONTEXT* context) {
 #endif
         print_rip(rip);
 
-#ifdef __aarch64__
-        auto ent = get_ldr_from_address(rip);
-        if (!ent)
-            break;
-
-        if (!unwind_context(*context, ent->ldr.DllBase, ent->ldr.SizeOfImage))
-            break;
-#elifdef __x86_64__
         if (rip == 0)
             break;
 
         auto func = RtlLookupFunctionEntry(rip, &image_base, &history_table);
 
         if (!func) {
+#ifdef __aarch64__
+            context->Pc = context->Lr;
+            context->Lr = 0;
+#elifdef __x86_64__
             context->Rip = *(uint64_t*)context->Rsp;
             context->Rsp += sizeof(uint64_t);
+#endif
         } else {
             void* data;
             uint64_t frame;
@@ -313,7 +306,6 @@ void mn_signal(EXCEPTION_RECORD* exception, CONTEXT* context) {
             RtlVirtualUnwind(0, image_base, rip, func, context, &data, &frame,
                              nullptr);
         }
-#endif
     } while (true);
 
     NtTerminateProcess(NtCurrentProcess(), (NTSTATUS)exception->ExceptionCode);
@@ -888,6 +880,545 @@ EXCEPTION_ROUTINE RtlVirtualUnwind(uint32_t type, uint64_t image_base,
     // FIXME - also return nullptr if inside prologue
 
     return (EXCEPTION_ROUTINE)(image_base + *(uint32_t*)ptr);
+}
+
+#elifdef __aarch64__
+
+struct aarch64_seh_extended_counts {
+    uint16_t epilogue_count;
+    uint8_t code_words;
+    uint8_t reserved;
+};
+
+extern "C"
+EXCEPTION_ROUTINE RtlVirtualUnwind(uint32_t type, uint64_t image_base,
+                                   uint64_t /*pc*/, RUNTIME_FUNCTION* func,
+                                   CONTEXT* context, void** handler_data,
+                                   uint64_t* establisher_frame,
+                                   KNONVOLATILE_CONTEXT_POINTERS* /*ctx_ptr*/) {
+    // FIXME - handle case when address in prologue or epilogue (don't ignore pc)
+
+    if (func->Flag) {
+        print("FIXME - packed unwind context\n");
+        return nullptr;
+    }
+
+    const auto& xdata = *(IMAGE_ARM64_RUNTIME_FUNCTION_ENTRY_XDATA*)(image_base + func->UnwindData);
+
+    if (xdata.Version != 0)
+        return nullptr;
+
+    // FIXME - establisher_frame
+
+    uint8_t code_words;
+    uint16_t epilogue_count;
+    size_t off = 0;
+
+    if (xdata.EpilogInHeader) {
+        code_words = xdata.CodeWords;
+        epilogue_count = 0;
+    } else if (xdata.EpilogCount != 0 || xdata.CodeWords != 0) {
+        code_words = xdata.CodeWords;
+        epilogue_count = xdata.EpilogCount;
+    } else {
+        auto& ec = *(aarch64_seh_extended_counts*)((uint8_t*)&xdata + sizeof(uint32_t));
+
+        off = sizeof(aarch64_seh_extended_counts);
+
+        epilogue_count = ec.epilogue_count;
+        code_words = ec.code_words;
+    }
+
+    span codes((uint8_t*)&xdata + sizeof(uint32_t) + off + (epilogue_count * sizeof(uint32_t)),
+               code_words * sizeof(uint32_t));
+
+    for (size_t i = 0; i < codes.size(); i++) {
+        switch (codes[i]) {
+            case 0x00 ... 0x1f:
+                // alloc_s
+                context->Sp += codes[i] * 16;
+                break;
+
+            case 0x20 ... 0x3f: {
+                // save_r19r20_x
+
+                uint8_t z = codes[i] & 0x1f;
+
+                if (auto ret = read_uint64_t(context->Sp); ret.has_value())
+                    context->X[19] = *ret;
+                else
+                    return nullptr;
+
+                if (auto ret = read_uint64_t(context->Sp + 8); ret.has_value())
+                    context->X[20] = *ret;
+                else
+                    return nullptr;
+
+                context->Sp += z * 8;
+
+                break;
+            }
+
+            case 0x40 ... 0x7f: {
+                uint32_t z = codes[i] & 0x3f;
+
+                // save_fplr
+
+                if (auto ret = read_uint64_t(context->Sp + (z * 8)); ret.has_value())
+                    context->Fp = *ret;
+                else
+                    return nullptr;
+
+                if (auto ret = read_uint64_t(context->Sp + ((z + 1) * 8)); ret.has_value())
+                    context->Lr = *ret;
+                else
+                    return nullptr;
+
+                break;
+            }
+
+            case 0x80 ... 0xbf: {
+                uint32_t z = codes[i] & 0x3f;
+
+                // save_fplr_x
+
+                if (auto ret = read_uint64_t(context->Sp); ret.has_value())
+                    context->Fp = *ret;
+                else
+                    return nullptr;
+
+                if (auto ret = read_uint64_t(context->Sp + 8); ret.has_value())
+                    context->Lr = *ret;
+                else
+                    return nullptr;
+
+                context->Sp += (z + 1) * 8;
+
+                break;
+            }
+
+            case 0xc0 ... 0xc7: {
+                if (i == codes.size() - 1)
+                    return nullptr;
+
+                // alloc_m
+
+                auto x = (uint16_t)(((codes[i] & 3) << 8) | codes[i + 1]);
+
+                context->Sp += x * 16;
+
+                i++;
+                break;
+            }
+
+            case 0xc8 ... 0xcb: {
+                if (i == codes.size() - 1)
+                    return nullptr;
+
+                // save_regp
+
+                auto x = (uint8_t)(((codes[i] & 3) << 2) | (codes[i + 1] >> 6));
+                uint8_t z = codes[i + 1] & 0x3f;
+
+                if (auto ret = read_uint64_t(context->Sp + (z * 8)); ret.has_value())
+                    context->X[19 + x] = *ret;
+                else
+                    return nullptr;
+
+                if (auto ret = read_uint64_t(context->Sp + ((z + 1) * 8)); ret.has_value())
+                    context->X[20 + x] = *ret;
+                else
+                    return nullptr;
+
+                i++;
+                break;
+            }
+
+            case 0xcc ... 0xcf: {
+                if (i == codes.size() - 1)
+                    return nullptr;
+
+                // save_regp_x
+
+                auto x = (uint8_t)(((codes[i] & 3) << 2) | (codes[i + 1] >> 6));
+                uint8_t z = codes[i + 1] & 0x3f;
+
+                if (auto ret = read_uint64_t(context->Sp); ret.has_value())
+                    context->X[19 + x] = *ret;
+                else
+                    return nullptr;
+
+                if (auto ret = read_uint64_t(context->Sp + 8); ret.has_value())
+                    context->X[20 + x] = *ret;
+                else
+                    return nullptr;
+
+                context->Sp += (z + 1) * 8;
+
+                i++;
+                break;
+            }
+
+            case 0xd0 ... 0xd3: {
+                if (i == codes.size() - 1)
+                    return nullptr;
+
+                // save_reg
+
+                auto x = (uint8_t)(((codes[i] & 3) << 2) | (codes[i + 1] >> 6));
+                uint8_t z = codes[i + 1] & 0x3f;
+
+                if (auto ret = read_uint64_t(context->Sp + (z * 8)); ret.has_value())
+                    context->X[19 + x] = *ret;
+                else
+                    return nullptr;
+
+                i++;
+                break;
+            }
+
+            case 0xd4 ... 0xd5: {
+                if (i == codes.size() - 1)
+                    return nullptr;
+
+                auto x = (uint8_t)(((codes[i] & 1) << 3) | (codes[i + 1] >> 5));
+                uint8_t z = codes[i + 1] & 0x1f;
+
+                // save_reg_x
+
+                if (auto ret = read_uint64_t(context->Sp); ret.has_value())
+                    context->X[19 + x] = *ret;
+                else
+                    return nullptr;
+
+                context->Sp += (z + 1) * 8;
+
+                i++;
+                break;
+            }
+
+            case 0xd6 ... 0xd7: {
+                if (i == codes.size() - 1)
+                    return nullptr;
+
+                // save_lrpair
+
+                auto x = (uint8_t)(((codes[i] & 1) << 2) | (codes[i + 1] >> 6));
+                uint8_t z = codes[i + 1] & 0x3f;
+
+                if (auto ret = read_uint64_t(context->Sp + (z * 8)); ret.has_value())
+                    context->X[19 + (2 * x)] = *ret;
+                else
+                    return nullptr;
+
+                if (auto ret = read_uint64_t(context->Sp + ((z + 1) * 8)); ret.has_value())
+                    context->Lr = *ret;
+                else
+                    return nullptr;
+
+                i++;
+                break;
+            }
+
+            case 0xd8 ... 0xd9: {
+                if (i == codes.size() - 1)
+                    return nullptr;
+
+                // save_fregp
+
+                auto x = (uint8_t)(((codes[i] & 1) << 2) | (codes[i + 1] >> 6));
+                uint8_t z = codes[i + 1] & 0x3f;
+
+                if (auto ret = read_uint64_t(context->Sp + (z * 8)); ret.has_value())
+                    *(uint64_t*)&context->V[8 + x].D[0] = *ret;
+                else
+                    return nullptr;
+
+                if (auto ret = read_uint64_t(context->Sp + ((z + 1) * 8)); ret.has_value())
+                    *(uint64_t*)&context->V[9 + x].D[0] = *ret;
+                else
+                    return nullptr;
+
+                i++;
+                break;
+            }
+
+            case 0xda ... 0xdb: {
+                if (i == codes.size() - 1)
+                    return nullptr;
+
+                // save_fregp_x
+
+                auto x = (uint8_t)(((codes[i] & 1) << 2) | (codes[i + 1] >> 6));
+                uint8_t z = codes[i + 1] & 0x3f;
+
+                if (auto ret = read_uint64_t(context->Sp); ret.has_value())
+                    *(uint64_t*)&context->V[8 + x].D[0] = *ret;
+                else
+                    return nullptr;
+
+                if (auto ret = read_uint64_t(context->Sp + 8); ret.has_value())
+                    *(uint64_t*)&context->V[9 + x].D[0] = *ret;
+                else
+                    return nullptr;
+
+                context->Sp += (z + 1) * 8;
+
+                i++;
+                break;
+            }
+
+            case 0xdc ... 0xdd: {
+                if (i == codes.size() - 1)
+                    return nullptr;
+
+                // save_freg
+
+                auto x = (uint8_t)(((codes[i] & 1) << 2) | (codes[i + 1] >> 6));
+                uint8_t z = codes[i + 1] & 0x3f;
+
+                if (auto ret = read_uint64_t(context->Sp + (z * 8)); ret.has_value())
+                    *(uint64_t*)&context->V[8 + x].D[0] = *ret;
+                else
+                    return nullptr;
+
+                i++;
+                break;
+            }
+
+            case 0xde: {
+                if (i == codes.size() - 1)
+                    return nullptr;
+
+                // save_freg_x
+
+                uint8_t x = codes[i + 1] >> 5;
+                uint8_t z = codes[i + 1] & 0x1f;
+
+                if (auto ret = read_uint64_t(context->Sp); ret.has_value())
+                    *(uint64_t*)&context->V[8 + x].D[0] = *ret;
+                else
+                    return nullptr;
+
+                context->Sp += (z + 1) * 8;
+
+                i++;
+                break;
+            }
+
+            case 0xdf:
+                if (i == codes.size() - 1)
+                    return nullptr;
+
+                // FIXME - alloc_z
+
+                i++;
+                return nullptr;
+
+            case 0xe0: {
+                if (i > codes.size() - 4)
+                    return nullptr;
+
+                // alloc_l
+
+                auto size = (uint64_t)((codes[i + 1] << 16) | (codes[i + 2] << 8) | codes[i + 3]);
+
+                context->Sp += size * 16;
+
+                i += 3;
+                break;
+            }
+
+            case 0xe1:
+                // set_fp
+                context->Sp = context->Fp;
+                break;
+
+            case 0xe2:
+                if (i == codes.size() - 1)
+                    return nullptr;
+
+                // add_fp
+                context->Sp = context->Fp - (codes[i + 1] * 8);
+
+                i++;
+                break;
+
+            case 0xe3:
+                // nop
+                break;
+
+            case 0xe4: // end
+            case 0xe5: // end_c
+                i = codes.size() - 1;
+                break;
+
+            case 0xe6: {
+                unsigned int next_chain = 1;
+
+                // save_next
+
+                while (i + next_chain < codes.size()) {
+                    if (codes[i + next_chain] == 0xe6)
+                        next_chain++;
+                    else
+                        break;
+                }
+
+                if (i + next_chain == codes.size())
+                    return nullptr;
+
+                switch (codes[i + next_chain]) {
+                    case 0x20 ... 0x3f: { // save_r19r20_x
+                        uint8_t z = codes[i + next_chain] & 0x1f;
+
+                        if (next_chain >= 6)
+                            return nullptr;
+
+                        if (auto ret = read_uint64_t(context->Sp); ret.has_value())
+                            context->X[19 + (next_chain * 2)] = *ret;
+                        else
+                            return nullptr;
+
+                        if (auto ret = read_uint64_t(context->Sp + 8); ret.has_value())
+                            context->X[20 + (next_chain * 2)] = *ret;
+                        else
+                            return nullptr;
+
+                        context->Sp += z * 8;
+
+                        break;
+                    }
+
+                    case 0xc8 ... 0xcb: { // save_regp
+                        if (i + next_chain == codes.size() - 1)
+                            return nullptr;
+
+                        auto x = (uint8_t)(((codes[i + next_chain] & 3) << 2) | (codes[i + next_chain + 1] >> 6));
+                        auto z = (uint8_t)((codes[i + next_chain + 1] & 0x3f) + (next_chain * 2));
+
+                        if ((next_chain * 2) + x >= 11)
+                            return nullptr;
+
+                        if (auto ret = read_uint64_t(context->Sp + (z * 8)); ret.has_value())
+                            context->X[19 + (next_chain * 2) + x] = *ret;
+                        else
+                            return nullptr;
+
+                        if (auto ret = read_uint64_t(context->Sp + ((z + 1) * 8)); ret.has_value())
+                            context->X[20 + (next_chain * 2) + x] = *ret;
+                        else
+                            return nullptr;
+
+                        break;
+                    }
+
+                    case 0xcc ... 0xcf: { // save_regp_x
+                        if (i + next_chain == codes.size() - 1)
+                            return nullptr;
+
+                        auto x = (uint8_t)(((codes[i + next_chain] & 3) << 2) | (codes[i + next_chain + 1] >> 6));
+                        uint8_t z = codes[i + next_chain + 1] & 0x3f;
+
+                        if ((next_chain * 2) + x >= 11)
+                            return nullptr;
+
+                        if (auto ret = read_uint64_t(context->Sp); ret.has_value())
+                            context->X[19 + (next_chain * 2) + x] = *ret;
+                        else
+                            return nullptr;
+
+                        if (auto ret = read_uint64_t(context->Sp + 8); ret.has_value())
+                            context->X[20 + (next_chain * 2) + x] = *ret;
+                        else
+                            return nullptr;
+
+                        context->Sp += (z + 1) * 8;
+
+                        break;
+                    }
+
+                    case 0xd8 ... 0xd9: { // save_fregp
+                        if (i + next_chain == codes.size() - 1)
+                            return nullptr;
+
+                        auto x = (uint8_t)(((codes[i + next_chain] & 1) << 2) | (codes[i + next_chain + 1] >> 6));
+                        auto z = (uint8_t)((codes[i + next_chain + 1] & 0x3f) + (next_chain * 2));
+
+                        if ((next_chain * 2) + x >= 22)
+                            return nullptr;
+
+                        if (auto ret = read_uint64_t(context->Sp + (z * 8)); ret.has_value())
+                            *(uint64_t*)&context->V[8 + (next_chain * 2) + x].D[0] = *ret;
+                        else
+                            return nullptr;
+
+                        if (auto ret = read_uint64_t(context->Sp + ((z + 1) * 8)); ret.has_value())
+                            *(uint64_t*)&context->V[9 + (next_chain * 2) + x].D[0] = *ret;
+                        else
+                            return nullptr;
+
+                        break;
+                    }
+
+                    case 0xda ... 0xdb: { // save_fregp_x
+                        if (i + next_chain == codes.size() - 1)
+                            return nullptr;
+
+                        auto x = (uint8_t)(((codes[i + next_chain] & 1) << 2) | (codes[i + next_chain + 1] >> 6));
+                        uint8_t z = codes[i + next_chain + 1] & 0x3f;
+
+                        if ((next_chain * 2) + x >= 22)
+                            return nullptr;
+
+                        if (auto ret = read_uint64_t(context->Sp); ret.has_value())
+                            *(uint64_t*)&context->V[8 + (next_chain * 2) + x].D[0] = *ret;
+                        else
+                            return nullptr;
+
+                        if (auto ret = read_uint64_t(context->Sp + 8); ret.has_value())
+                            *(uint64_t*)&context->V[9 + (next_chain * 2) + x].D[0] = *ret;
+                        else
+                            return nullptr;
+
+                        context->Sp += (z + 1) * 8;
+
+                        break;
+                    }
+
+                    // FIXME - save_any_xreg, save_any_dreg, save_any_qreg
+
+                    default:
+                        return nullptr;
+                }
+
+                break;
+            }
+
+            case 0xe7:
+                if (i > codes.size() - 3)
+                    return nullptr;
+
+                // FIXME - save_any_xreg, save_any_dreg, save_any_qreg, save_zreg, save_preg
+
+                i += 2;
+                return nullptr;
+
+            case 0xfc:
+                // FIXME - pac_sign_lr
+                return nullptr;
+
+            default:
+                return nullptr;
+        }
+    }
+
+    context->Pc = context->Lr;
+
+    // FIXME - type
+    // FIXME - handler_data
+
+    return nullptr;
 }
 
 #endif
