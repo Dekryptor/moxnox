@@ -1414,14 +1414,17 @@ nt_status LdrAddRefDll(uint32_t flags, HMODULE mod) {
         return nt_status::NOT_IMPLEMENTED;
     }
 
-    // FIXME - loader lock
+    {
+        mn_loader_lock lock;
+        lock_guard lg(lock);
 
-    for (auto le = peb.Ldr->InMemoryOrderModuleList.Flink; le != &peb.Ldr->InMemoryOrderModuleList; le = le->Flink) {
-        auto& mod2 = *CONTAINING_RECORD(le, LDR_DATA_TABLE_ENTRY, InMemoryOrderLinks);
+        for (auto le = peb.Ldr->InMemoryOrderModuleList.Flink; le != &peb.Ldr->InMemoryOrderModuleList; le = le->Flink) {
+            auto& mod2 = *CONTAINING_RECORD(le, LDR_DATA_TABLE_ENTRY, InMemoryOrderLinks);
 
-        if (mod2.DllBase == mod) {
-            mod2.LoadCount++;
-            return nt_status::SUCCESS;
+            if (mod2.DllBase == mod) {
+                mod2.LoadCount++;
+                return nt_status::SUCCESS;
+            }
         }
     }
 
