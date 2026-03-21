@@ -309,6 +309,9 @@ void mn_signal(EXCEPTION_RECORD* exception, CONTEXT* context) {
 #ifdef __aarch64__
             context->Pc = context->Lr;
             context->Lr = 0;
+
+            if (context->Pc == rip)
+                break;
 #elifdef __x86_64__
             context->Rip = *(uint64_t*)context->Rsp;
             context->Rsp += sizeof(uint64_t);
@@ -319,6 +322,10 @@ void mn_signal(EXCEPTION_RECORD* exception, CONTEXT* context) {
 
             RtlVirtualUnwind(0, image_base, rip, func, context, &data, &frame,
                              nullptr);
+#ifdef __aarch64__
+            if (context->Pc == rip || context->Pc == 0)
+                break;
+#endif
         }
     } while (true);
 
