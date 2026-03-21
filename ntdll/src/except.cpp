@@ -5,6 +5,7 @@
 #include <string_view>
 #include <span>
 #include <utility>
+#include <mutex>
 #include "../../modules/exception_record_offsets.h"
 
 import format;
@@ -38,10 +39,17 @@ static uint64_t get_preferred_base(ldr_entry& ent) {
 
 static void print_rip(uint64_t rip) {
     LDR_DATA_TABLE_ENTRY* mod;
+    nt_status status;
     char s[1024];
     auto sp = span(s, sizeof(s));
 
-    auto status = LdrFindEntryForAddress((void*)rip, &mod);
+    {
+        mn_loader_lock lock;
+        lock_guard lg(lock);
+
+        status = LdrFindEntryForAddress((void*)rip, &mod);
+    }
+
     if (success(status)) {
         auto& ent = *CONTAINING_RECORD(mod, ldr_entry, ldr);
         char mod_name[255];
