@@ -302,7 +302,7 @@ struct DISPATCHER_CONTEXT_ARM64 {
     uintptr_t EstablisherFrame;
     uintptr_t TargetPc;
     ARM64_NT_CONTEXT* ContextRecord;
-    EXCEPTION_ROUTINE* LanguageHandler;
+    EXCEPTION_ROUTINE LanguageHandler;
     void* HandlerData;
     UNWIND_HISTORY_TABLE* HistoryTable;
     uint32_t ScopeIndex;
