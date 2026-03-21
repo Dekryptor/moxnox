@@ -978,8 +978,7 @@ EXCEPTION_ROUTINE RtlVirtualUnwind(uint32_t type, uint64_t image_base,
     if (func->Flag) {
         unwind_context_packed(*context, *func);
 
-        // FIXME - establisher_frame?
-
+        *establisher_frame = context->Sp;
         *handler_data = nullptr;
 
         return nullptr;
@@ -989,8 +988,6 @@ EXCEPTION_ROUTINE RtlVirtualUnwind(uint32_t type, uint64_t image_base,
 
     if (xdata.Version != 0)
         return nullptr;
-
-    // FIXME - establisher_frame
 
     uint8_t code_words;
     uint16_t epilogue_count;
@@ -1496,6 +1493,8 @@ EXCEPTION_ROUTINE RtlVirtualUnwind(uint32_t type, uint64_t image_base,
     }
 
     context->Pc = context->Lr;
+
+    *establisher_frame = context->Sp;
 
     // FIXME - type
     // FIXME - handler_data
