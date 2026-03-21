@@ -344,6 +344,8 @@ void RtlWakeAllConditionVariable(RTL_CONDITION_VARIABLE* var);
 void RtlExitUserThread(nt_status exit_status) __attribute__((noreturn));
 void RtlAcquirePebLock();
 void RtlReleasePebLock();
+void RtlAcquireLoaderLock();
+void RtlReleaseLoaderLock();
 nt_status RtlSleepConditionVariableCS(RTL_CONDITION_VARIABLE* variable,
                                       RTL_CRITICAL_SECTION* crit,
                                       const LARGE_INTEGER* timeout);
@@ -384,6 +386,16 @@ struct mn_peb_lock {
 
     void unlock() {
         RtlReleasePebLock();
+    }
+};
+
+struct mn_loader_lock {
+    void lock() {
+        RtlAcquireLoaderLock();
+    }
+
+    void unlock() {
+        RtlReleaseLoaderLock();
     }
 };
 

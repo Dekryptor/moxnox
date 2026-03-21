@@ -153,3 +153,13 @@ extern "C"
 void RtlReleasePebLock() {
     RtlLeaveCriticalSection(NtCurrentTeb()->ProcessEnvironmentBlock->FastPebLock);
 }
+
+extern "C"
+void RtlAcquireLoaderLock() {
+    RtlEnterCriticalSection(NtCurrentTeb()->ProcessEnvironmentBlock->LoaderLock);
+}
+
+extern "C"
+void RtlReleaseLoaderLock() {
+    RtlLeaveCriticalSection(NtCurrentTeb()->ProcessEnvironmentBlock->LoaderLock);
+}

@@ -466,3 +466,5 @@ RtlQueryPerformanceCounter
 RtlQueryPerformanceFrequency
 RtlRestoreContext
 LdrFindEntryForAddress
+RtlAcquireLoaderLock
+RtlReleaseLoaderLock

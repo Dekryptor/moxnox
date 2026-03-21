@@ -61,3 +61,5 @@ LdrUnloadDll
 RtlAcquireSRWLockExclusive
 RtlReleaseSRWLockExclusive
 LdrFindEntryForAddress
+RtlAcquireLoaderLock
+RtlReleaseLoaderLock
