@@ -1380,14 +1380,17 @@ void* RtlPcToFileHeader(const void* pc, void** address) {
     auto& teb = *NtCurrentTeb();
     auto& peb = *teb.ProcessEnvironmentBlock;
 
-    // FIXME - loader lock
+    {
+        mn_loader_lock lock;
+        lock_guard lg(lock);
 
-    for (auto le = peb.Ldr->InMemoryOrderModuleList.Flink; le != &peb.Ldr->InMemoryOrderModuleList; le = le->Flink) {
-        auto& mod = *CONTAINING_RECORD(le, LDR_DATA_TABLE_ENTRY, InMemoryOrderLinks);
+        for (auto le = peb.Ldr->InMemoryOrderModuleList.Flink; le != &peb.Ldr->InMemoryOrderModuleList; le = le->Flink) {
+            auto& mod = *CONTAINING_RECORD(le, LDR_DATA_TABLE_ENTRY, InMemoryOrderLinks);
 
-        if (pc >= mod.DllBase && pc < (uint8_t*)mod.DllBase + mod.SizeOfImage) {
-            *address = mod.DllBase;
-            return mod.DllBase;
+            if (pc >= mod.DllBase && pc < (uint8_t*)mod.DllBase + mod.SizeOfImage) {
+                *address = mod.DllBase;
+                return mod.DllBase;
+            }
         }
     }
 
