@@ -465,3 +465,4 @@ RtlReleaseSRWLockExclusive
 RtlQueryPerformanceCounter
 RtlQueryPerformanceFrequency
 RtlRestoreContext
+LdrFindEntryForAddress

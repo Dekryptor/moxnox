@@ -1450,3 +1450,10 @@ nt_status LdrUnloadDll(HMODULE mod) {
 
     return nt_status::DLL_NOT_FOUND;
 }
+
+extern "C"
+nt_status LdrFindEntryForAddress(void* /*address*/, LDR_DATA_TABLE_ENTRY** /*entry*/) {
+    print("FIXME - LdrFindEntryForAddress\n");
+
+    return nt_status::NOT_IMPLEMENTED;
+}

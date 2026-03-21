@@ -369,6 +369,7 @@ EXCEPTION_ROUTINE RtlVirtualUnwind(uint32_t type, uint64_t image_base,
                                    CONTEXT* context, void** handler_data,
                                    uint64_t* establisher_frame,
                                    KNONVOLATILE_CONTEXT_POINTERS* ctx_ptr);
+nt_status LdrFindEntryForAddress(void* address, LDR_DATA_TABLE_ENTRY** entry);
 
 }
 

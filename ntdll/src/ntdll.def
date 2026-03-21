@@ -60,3 +60,4 @@ LdrAddRefDll
 LdrUnloadDll
 RtlAcquireSRWLockExclusive
 RtlReleaseSRWLockExclusive
+LdrFindEntryForAddress
