@@ -51,9 +51,9 @@ void do_print(string_view s) {
                 (uint32_t)s.size(), nullptr, nullptr);
 }
 
-// work round GCC 15 ICE (FIXME)
-static NTSTATUS _LdrGetProcedureAddress(void* dll_handle, const ANSI_STRING* procedure_name,
-                                        uint32_t /*procedure_number*/, void** procedure_address) {
+extern "C"
+NTSTATUS LdrGetProcedureAddress(void* dll_handle, const ANSI_STRING* procedure_name,
+                                uint32_t /*procedure_number*/, void** procedure_address) {
     auto& dos_header = *(IMAGE_DOS_HEADER*)dll_handle;
     auto& nt_header = *(IMAGE_NT_HEADERS*)((uint8_t*)dll_handle + dos_header.e_lfanew);
     uintptr_t dir_addr;
@@ -170,13 +170,6 @@ static NTSTATUS _LdrGetProcedureAddress(void* dll_handle, const ANSI_STRING* pro
     *procedure_address = (uint8_t*)dll_handle + rva;
 
     return nt_status::SUCCESS;
-}
-
-extern "C"
-NTSTATUS LdrGetProcedureAddress(void* dll_handle, const ANSI_STRING* procedure_name,
-                                uint32_t procedure_number, void** procedure_address) {
-    return _LdrGetProcedureAddress(dll_handle, procedure_name,
-                                   procedure_number, procedure_address);
 }
 
 template<typename T>
