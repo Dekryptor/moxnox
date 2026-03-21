@@ -140,7 +140,7 @@ static nt_status handle_exception(EXCEPTION_RECORD* exception,
 #elifdef __aarch64__
             context.Pc = context.Lr;
 
-            if (context.Pc == 0)
+            if (context.Pc == 0 || context.Pc == control_pc)
                 break;
 #endif
 
