@@ -1356,12 +1356,19 @@ void __attribute__((noreturn)) RtlExitUserThread(nt_status exit_status) {
 
         RemoveEntryList(&teb.TlsLinks);
 
-        // FIXME - read num_tls_dirs while holding loader lock
+        decltype(num_tls_dirs) read_num_tls_dirs;
+
+        {
+            mn_loader_lock lock2;
+            lock_guard lg2(lock2);
+
+            read_num_tls_dirs = num_tls_dirs;
+        }
 
         auto tlsptr = (void**)teb.ThreadLocalStoragePointer;
 
         if (tlsptr) {
-            for (unsigned int i = 0; i < num_tls_dirs; i++) {
+            for (unsigned int i = 0; i < read_num_tls_dirs; i++) {
                 if (tlsptr[i])
                     free(tlsptr[i]);
             }
