@@ -38,11 +38,6 @@ if(CMAKE_SYSTEM_PROCESSOR STREQUAL "amd64")
     target_compile_options(dwarf_kernel PRIVATE ${KERNEL_CFLAGS})
     target_link_libraries(dwarf_kernel format_kernel list_kernel)
 
-    add_library(unwind_kernel STATIC)
-    target_sources(unwind_kernel PUBLIC FILE_SET CXX_MODULES FILES modules/unwind.cpp)
-    target_compile_options(unwind_kernel PRIVATE ${KERNEL_CFLAGS})
-    target_link_libraries(unwind_kernel nt_kernel pe_kernel)
-
     add_library(list_kernel STATIC)
     target_sources(list_kernel PUBLIC FILE_SET CXX_MODULES FILES modules/list.cpp)
     target_compile_options(list_kernel PRIVATE ${KERNEL_CFLAGS})
@@ -171,11 +166,6 @@ add_library(dwarf STATIC)
 target_sources(dwarf PUBLIC FILE_SET CXX_MODULES FILES modules/dwarf.cpp)
 target_compile_options(dwarf PRIVATE -fno-exceptions ${USERSPACE_CFLAGS})
 target_link_libraries(dwarf PRIVATE format list)
-
-add_library(unwind STATIC)
-target_sources(unwind PUBLIC FILE_SET CXX_MODULES FILES modules/unwind.cpp)
-target_compile_options(unwind PRIVATE -fno-exceptions ${USERSPACE_CFLAGS})
-target_link_libraries(unwind PRIVATE nt pe)
 
 add_library(signal STATIC)
 target_sources(signal PUBLIC FILE_SET CXX_MODULES FILES modules/signal.cpp)
