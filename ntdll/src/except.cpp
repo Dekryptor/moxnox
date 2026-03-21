@@ -116,30 +116,40 @@ optional<uint64_t> read_uint64_t(uint64_t addr) {
 
 static nt_status handle_exception(EXCEPTION_RECORD* exception,
                                   CONTEXT& orig_context) {
-#ifdef __x86_64__
     CONTEXT context = orig_context;
     DISPATCHER_CONTEXT dispatcher_context;
 
     while (true) {
         uint64_t image_base, frame;
         void* handler_data = nullptr;
+#ifdef __x86_64__
+        auto control_pc = context.Rip;
+#elifdef __aarch64__
+        auto control_pc = context.Pc;
+#endif
 
-        auto function_entry = RtlLookupFunctionEntry(context.Rip, &image_base,
+        auto function_entry = RtlLookupFunctionEntry(control_pc, &image_base,
                                                      nullptr);
         if (!function_entry) { // leaf function
+#ifdef __x86_64__
             context.Rip = *(uint64_t*)context.Rsp;
             context.Rsp += 8;
 
             if (context.Rip == 0)
                 break;
+#elifdef __aarch64__
+            context.Pc = context.Lr;
+
+            if (context.Pc == 0)
+                break;
+#endif
 
             continue;
         }
 
-        auto control_pc = context.Rip;
 
         auto handler = RtlVirtualUnwind(UNW_FLAG_EHANDLER, image_base,
-                                        context.Rip, function_entry,
+                                        control_pc, function_entry,
                                         &context, &handler_data, &frame,
                                         nullptr);
         if (!handler)
@@ -149,10 +159,18 @@ static nt_status handle_exception(EXCEPTION_RECORD* exception,
         dispatcher_context.ImageBase = image_base;
         dispatcher_context.FunctionEntry = function_entry;
         dispatcher_context.EstablisherFrame = frame;
-        dispatcher_context.TargetIp = 0; // FIXME? (uint64_t)
+#ifdef __x86_64__
+        dispatcher_context.TargetIp = 0;
+#elifdef __aarch64__
+        dispatcher_context.TargetPc = 0;
+#endif
         dispatcher_context.ContextRecord = &context;
         dispatcher_context.LanguageHandler = handler;
         dispatcher_context.HandlerData = handler_data;
+#ifdef __aarch64__
+        dispatcher_context.ControlPcIsUnwound = false;
+        dispatcher_context.NonVolatileRegisters = nullptr; // FIXME?
+#endif
 
         auto disp = handler(exception, (void*)frame, &orig_context,
                             &dispatcher_context);
@@ -179,10 +197,6 @@ static nt_status handle_exception(EXCEPTION_RECORD* exception,
     }
 
     return nt_status::UNHANDLED_EXCEPTION;
-#else
-    // FIXME - aarch64
-    return nt_status::UNHANDLED_EXCEPTION;
-#endif
 }
 
 extern "C"
