@@ -380,7 +380,6 @@ extern "C"
 EXCEPTION_DISPOSITION __C_specific_handler(EXCEPTION_RECORD* rec, void* frame,
                                            CONTEXT* context_record,
                                            DISPATCHER_CONTEXT* dispatcher_context) {
-#ifdef __x86_64__
     auto pc = dispatcher_context->ControlPc;
     auto image_base = dispatcher_context->ImageBase;
     auto& table = *(SCOPE_TABLE*)dispatcher_context->HandlerData;
@@ -395,17 +394,29 @@ EXCEPTION_DISPOSITION __C_specific_handler(EXCEPTION_RECORD* rec, void* frame,
             if (r.JumpTarget)
                 continue;
 
+#ifdef __x86_64__
             if (rec->ExceptionFlags & EH_TARGET_UNWIND &&
                 dispatcher_context->TargetIp >= image_base + r.BeginAddress &&
                 dispatcher_context->TargetIp < image_base + r.EndAddress) {
                 break;
             }
+#elifdef __aarch64__
+            if (rec->ExceptionFlags & EH_TARGET_UNWIND &&
+                dispatcher_context->TargetPc >= image_base + r.BeginAddress &&
+                dispatcher_context->TargetPc < image_base + r.EndAddress) {
+                break;
+            }
+#endif
 
             auto handler = (TERMINATION_HANDLER)(image_base + r.HandlerAddress);
 
             dispatcher_context->ScopeIndex = i + 1;
 
+#ifdef __x86_64__
             handler(true, frame);
+#elifdef __aarch64__
+            handler(true, (uint64_t)frame);
+#endif
         } else {
             if (!r.JumpTarget)
                 continue;
@@ -418,7 +429,11 @@ EXCEPTION_DISPOSITION __C_specific_handler(EXCEPTION_RECORD* rec, void* frame,
                 exception_pointers.ExceptionRecord = rec;
                 exception_pointers.ContextRecord = context_record;
 
+#ifdef __x86_64__
                 auto ret = filter(&exception_pointers, frame);
+#elifdef __aarch64__
+                auto ret = filter(&exception_pointers, (uint64_t)frame);
+#endif
 
                 if (ret == EXCEPTION_CONTINUE_EXECUTION)
                     return EXCEPTION_DISPOSITION::ExceptionContinueExecution;
@@ -433,9 +448,6 @@ EXCEPTION_DISPOSITION __C_specific_handler(EXCEPTION_RECORD* rec, void* frame,
                         dispatcher_context->HistoryTable);
         }
     }
-#elifdef __aarch64__
-    print("FIXME - __C_specific_handler\n"); // FIXME
-#endif
 
     return EXCEPTION_DISPOSITION::ExceptionContinueSearch;
 }
