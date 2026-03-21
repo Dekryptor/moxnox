@@ -26,23 +26,6 @@ static_assert(offsetof(EXCEPTION_RECORD, ExceptionAddress) == EXCEPTION_RECORD_E
 static_assert(offsetof(EXCEPTION_RECORD, NumberParameters) == EXCEPTION_RECORD_NUMBER_PARAMETERS);
 static_assert(offsetof(EXCEPTION_RECORD, ExceptionInformation) == EXCEPTION_RECORD_EXCEPTION_INFORMATION);
 
-static ldr_entry* get_ldr_from_address(uint64_t addr) {
-    auto& peb = *NtCurrentTeb()->ProcessEnvironmentBlock;
-    auto& ldr_data = *peb.Ldr;
-    auto le = ldr_data.InMemoryOrderModuleList.Flink;
-
-    while (le != &ldr_data.InMemoryOrderModuleList) {
-        auto& ent = *CONTAINING_RECORD(le, LDR_DATA_TABLE_ENTRY, InMemoryOrderLinks);
-
-        if (addr >= (uintptr_t)ent.DllBase && addr < (uintptr_t)ent.DllBase + ent.SizeOfImage)
-            return CONTAINING_RECORD(&ent, ldr_entry, ldr);
-
-        le = le->Flink;
-    }
-
-    return nullptr;
-}
-
 static uint64_t get_preferred_base(ldr_entry& ent) {
     auto& dos_header = *(IMAGE_DOS_HEADER*)ent.ldr.DllBase;
     auto& nt_header = *(IMAGE_NT_HEADERS*)((uint8_t*)ent.ldr.DllBase + dos_header.e_lfanew);
@@ -54,39 +37,40 @@ static uint64_t get_preferred_base(ldr_entry& ent) {
 }
 
 static void print_rip(uint64_t rip) {
+    LDR_DATA_TABLE_ENTRY* mod;
     char s[1024];
     auto sp = span(s, sizeof(s));
 
-    auto ent = get_ldr_from_address(rip);
-
-    if (ent) {
+    auto status = LdrFindEntryForAddress((void*)rip, &mod);
+    if (success(status)) {
+        auto& ent = *CONTAINING_RECORD(mod, ldr_entry, ldr);
         char mod_name[255];
-        uint64_t rva = rip - (uintptr_t)ent->ldr.DllBase;
+        uint64_t rva = rip - (uintptr_t)ent.ldr.DllBase;
 
         // FIXME - also get filename and line no. from DWARF
 
-        auto u16sv_mod_name = u16string_view(ent->ldr.BaseDllName.Buffer, ent->ldr.BaseDllName.Length / sizeof(char16_t));
+        auto u16sv_mod_name = u16string_view(ent.ldr.BaseDllName.Buffer, ent.ldr.BaseDllName.Length / sizeof(char16_t));
 
         utf16_to_utf8(mod_name, u16sv_mod_name);
 
         auto mod_name_sv = string_view(mod_name, utf16_to_utf8_len(u16sv_mod_name));
 
-        auto debug_info = span((uint8_t*)ent->ldr.DllBase + ent->offset_debug_info, ent->size_debug_info);
-        auto debug_abbrev = span((uint8_t*)ent->ldr.DllBase + ent->offset_debug_abbrev, ent->size_debug_abbrev);
-        auto debug_rnglists = span((uint8_t*)ent->ldr.DllBase + ent->offset_debug_rnglists, ent->size_debug_rnglists);
-        auto debug_addr = span((uint8_t*)ent->ldr.DllBase + ent->offset_debug_addr, ent->size_debug_addr);
-        auto debug_str = span((uint8_t*)ent->ldr.DllBase + ent->offset_debug_str, ent->size_debug_str);
-        auto debug_str_offsets = span((uint8_t*)ent->ldr.DllBase + ent->offset_debug_str_offsets, ent->size_debug_str_offsets);
-        auto debug_line = span((uint8_t*)ent->ldr.DllBase + ent->offset_debug_line,
-                               ent->size_debug_line);
-        auto debug_line_str = span((uint8_t*)ent->ldr.DllBase + ent->offset_debug_line_str,
-                                   ent->size_debug_line_str);
+        auto debug_info = span((uint8_t*)ent.ldr.DllBase + ent.offset_debug_info, ent.size_debug_info);
+        auto debug_abbrev = span((uint8_t*)ent.ldr.DllBase + ent.offset_debug_abbrev, ent.size_debug_abbrev);
+        auto debug_rnglists = span((uint8_t*)ent.ldr.DllBase + ent.offset_debug_rnglists, ent.size_debug_rnglists);
+        auto debug_addr = span((uint8_t*)ent.ldr.DllBase + ent.offset_debug_addr, ent.size_debug_addr);
+        auto debug_str = span((uint8_t*)ent.ldr.DllBase + ent.offset_debug_str, ent.size_debug_str);
+        auto debug_str_offsets = span((uint8_t*)ent.ldr.DllBase + ent.offset_debug_str_offsets, ent.size_debug_str_offsets);
+        auto debug_line = span((uint8_t*)ent.ldr.DllBase + ent.offset_debug_line,
+                               ent.size_debug_line);
+        auto debug_line_str = span((uint8_t*)ent.ldr.DllBase + ent.offset_debug_line_str,
+                                   ent.size_debug_line_str);
 
-        auto base = get_preferred_base(*ent);
+        auto base = get_preferred_base(ent);
 
         dwarf_print_function(debug_info, debug_abbrev, debug_rnglists,
                              debug_addr, debug_str, debug_str_offsets,
-                             rva, base, (uintptr_t)ent->ldr.DllBase, sp,
+                             rva, base, (uintptr_t)ent.ldr.DllBase, sp,
                              mod_name_sv);
 
         sp = format(sp, " ");
