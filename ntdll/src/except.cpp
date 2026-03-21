@@ -10,13 +10,16 @@
 import format;
 import dwarf;
 import print;
-import unwind;
 import unicode;
 import pe;
 import kernelbase;
 import ntdll;
 import ntdll_private;
 import crt;
+
+#ifdef __aarch64__
+import unwind;
+#endif
 
 using namespace std;
 
@@ -275,7 +278,11 @@ void mn_signal(EXCEPTION_RECORD* exception, CONTEXT* context) {
 
     print("\n");
 
+    UNWIND_HISTORY_TABLE history_table;
+
     do {
+        uint64_t image_base;
+
 #ifdef __aarch64__
         uint64_t rip = context->Pc;
 #elifdef __x86_64__
@@ -284,15 +291,29 @@ void mn_signal(EXCEPTION_RECORD* exception, CONTEXT* context) {
         print_rip(rip);
 
 #ifdef __aarch64__
-        auto ent = get_ldr_from_address(context->Pc);
-#elifdef __x86_64__
-        auto ent = get_ldr_from_address(context->Rip);
-#endif
+        auto ent = get_ldr_from_address(rip);
         if (!ent)
             break;
 
         if (!unwind_context(*context, ent->ldr.DllBase, ent->ldr.SizeOfImage))
             break;
+#elifdef __x86_64__
+        if (rip == 0)
+            break;
+
+        auto func = RtlLookupFunctionEntry(rip, &image_base, &history_table);
+
+        if (!func) {
+            context->Rip = *(uint64_t*)context->Rsp;
+            context->Rsp += sizeof(uint64_t);
+        } else {
+            void* data;
+            uint64_t frame;
+
+            RtlVirtualUnwind(0, image_base, rip, func, context, &data, &frame,
+                             nullptr);
+        }
+#endif
     } while (true);
 
     NtTerminateProcess(NtCurrentProcess(), (NTSTATUS)exception->ExceptionCode);
