@@ -1452,8 +1452,22 @@ nt_status LdrUnloadDll(HMODULE mod) {
 }
 
 extern "C"
-nt_status LdrFindEntryForAddress(void* /*address*/, LDR_DATA_TABLE_ENTRY** /*entry*/) {
-    print("FIXME - LdrFindEntryForAddress\n");
+nt_status LdrFindEntryForAddress(void* address, LDR_DATA_TABLE_ENTRY** entry) {
+    auto& teb = *NtCurrentTeb();
+    auto& peb = *teb.ProcessEnvironmentBlock;
+    auto& ldr_data = *peb.Ldr;
 
-    return nt_status::NOT_IMPLEMENTED;
+    // loader lock must be held before calling this function
+
+    for (auto le = ldr_data.InMemoryOrderModuleList.Flink; le != &ldr_data.InMemoryOrderModuleList; le = le->Flink) {
+        auto& ent = *CONTAINING_RECORD(le, LDR_DATA_TABLE_ENTRY, InMemoryOrderLinks);
+
+        if ((uintptr_t)address >= (uintptr_t)ent.DllBase &&
+            (uintptr_t)address < (uintptr_t)ent.DllBase + ent.SizeOfImage) {
+            *entry = &ent;
+            return nt_status::SUCCESS;
+        }
+    }
+
+    return nt_status::NO_MORE_ENTRIES;
 }
