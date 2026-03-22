@@ -240,8 +240,7 @@ static module_init module_init_virtio_gpu(init_virtio_pci);
 template<virtio_device T>
 class virtio_gpu : public chardev {
 public:
-    virtio_gpu(pci_device& d);
-    virtio_gpu(T& t);
+    virtio_gpu(T& dev);
 
     ~virtio_gpu() {
         delete &dev;
@@ -280,33 +279,23 @@ private:
 static variant<virtio_gpu<virtio_pci_device>*, virtio_gpu<virtio_mmio_device>*> flush_framebuffer_device;
 static uint32_t flush_framebuffer_resource;
 
-template<>
-virtio_gpu<virtio_pci_device>::virtio_gpu(pci_device& d) : dev(*new virtio_pci_device(d, SUPPORTED_FEATURES, 2)) {
-    if (dev.device_cfg->length < sizeof(virtio_gpu_config)) {
-        print("virtio_gpu: device cfg length was {}, expected at least {}\n",
-              +dev.device_cfg->length, sizeof(virtio_gpu_config));
-        return;
+template<virtio_device T>
+virtio_gpu<T>::virtio_gpu(T& dev) : dev(dev) {
+    if constexpr (is_same_v<T, virtio_pci_device>) {
+        if (dev.device_cfg->length < sizeof(virtio_gpu_config)) {
+            print("virtio_gpu: device cfg length was {}, expected at least {}\n",
+                +dev.device_cfg->length, sizeof(virtio_gpu_config));
+            return;
+        }
+
+        auto& cfg = *(volatile virtio_gpu_config*)(dev.dev.bar[dev.device_cfg->bar].data() + dev.device_cfg->offset);
+
+        num_scanouts = cfg.num_scanouts;
+    } else if constexpr (is_same_v<T, virtio_mmio_device>) {
+        auto& cfg = *(volatile virtio_gpu_config*)(dev.config);
+
+        num_scanouts = cfg.num_scanouts;
     }
-
-    auto& cfg = *(volatile virtio_gpu_config*)(d.bar[dev.device_cfg->bar].data() + dev.device_cfg->offset);
-
-    num_scanouts = cfg.num_scanouts;
-
-    for (auto le = dev.virtqueues.next; le != &dev.virtqueues; le = le->next) {
-        auto& vq = containing_record<virt_queue>(le);
-
-        if (vq.num == 0)
-            control_queue = &vq;
-        else if (vq.num == 1)
-            cursor_queue = &vq;
-    }
-}
-
-template<>
-virtio_gpu<virtio_mmio_device>::virtio_gpu(virtio_mmio_device& d) : dev(d) {
-    auto& cfg = *(volatile virtio_gpu_config*)(d.config);
-
-    num_scanouts = cfg.num_scanouts;
 
     for (auto le = dev.virtqueues.next; le != &dev.virtqueues; le = le->next) {
         auto& vq = containing_record<virt_queue>(le);
@@ -1019,9 +1008,16 @@ void virtio_gpu<T>::start() {
 static atomic<uint32_t> virtio_gpu_num = 0;
 
 static void found_virtio_pci_gpu(pci_device& dev) {
-    auto pv = new virtio_gpu<virtio_pci_device>(dev);
+    auto d = new virtio_pci_device(dev, SUPPORTED_FEATURES, 2);
+    if (!d) {
+        print("new failed\n");
+        return;
+    }
+
+    auto pv = new virtio_gpu(*d);
     if (!pv) {
         print("new failed\n");
+        delete d;
         return;
     }
 
@@ -1049,7 +1045,7 @@ static void found_virtio_pci_gpu(pci_device& dev) {
 }
 
 static bool found_virtio_mmio_gpu(virtio_mmio_device& dev) {
-    auto pv = new virtio_gpu<virtio_mmio_device>(dev);
+    auto pv = new virtio_gpu(dev);
     if (!pv) {
         print("new failed\n");
         return false;
