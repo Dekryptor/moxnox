@@ -232,7 +232,7 @@ static void found_virtio_pci_console(pci_device& dev) {
         return;
     }
 
-    auto v = new virtio_console<virtio_pci_device>(*d, recv_pipe);
+    auto v = new virtio_console(*d, recv_pipe);
     if (!v) {
         print("new failed\n");
         delete d;
@@ -274,7 +274,7 @@ static bool found_virtio_mmio_console(virtio_mmio_device& dev) {
 
     auto& recv_pipe = static_cast<pipe&>(recv_handle.get());
 
-    auto pv = new virtio_console<virtio_mmio_device>(dev, recv_pipe);
+    auto pv = new virtio_console(dev, recv_pipe);
     if (!pv) {
         print("new failed\n");
         return false;
