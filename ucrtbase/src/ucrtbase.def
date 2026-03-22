@@ -98,3 +98,4 @@ __stdio_common_vfprintf
 _aligned_malloc = __aligned_malloc
 _aligned_free = __aligned_free
 signal
+__stdio_common_vsprintf

@@ -688,3 +688,13 @@ int __stdio_common_vfprintf(uint64_t /*options*/, FILE* file,
 
     return __mingw_vfprintf(file, format, valist);
 }
+
+extern "C"
+int __stdio_common_vsprintf(uint64_t /*options*/, char* str, size_t len,
+                            const char* format, _locale_t /*locale*/,
+                            va_list valist) {
+    // FIXME - options
+    // FIXME - locale
+
+    return __mingw_vsnprintf(str, len, format, valist);
+}
