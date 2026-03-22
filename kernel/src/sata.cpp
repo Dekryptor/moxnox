@@ -450,6 +450,11 @@ static void init_sata_device(void* ctx, void* ctx2) {
     }
 
     auto pdev = new sata_device(p);
+    if (!pdev) {
+        print("new failed\n");
+        return;
+    }
+
     auto& dev = *pdev;
 
     if (!dev.valid) {
