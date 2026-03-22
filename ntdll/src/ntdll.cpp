@@ -1107,14 +1107,12 @@ static void call_process_attach() {
     mn_loader_lock lock;
     lock_guard lg(lock);
 
-    // FIXME - send in correct order
-
     for (auto le = ldr_data.InLoadOrderModuleList.Flink; le != &ldr_data.InLoadOrderModuleList; le = le->Flink) {
         auto& ent = *CONTAINING_RECORD(le, LDR_DATA_TABLE_ENTRY, InLoadOrderLinks);
 
-        call_tls_callbacks(ent, DLL_PROCESS_ATTACH);
-
         process_attach(ent);
+
+        call_tls_callbacks(ent, DLL_PROCESS_ATTACH);
     }
 }
 
