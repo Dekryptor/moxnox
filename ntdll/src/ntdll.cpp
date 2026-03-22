@@ -1121,16 +1121,32 @@ static void call_process_attach() {
 static void call_process_detach() {
     // FIXME - send in correct order
 
-    for (auto le = ldr_data.InLoadOrderModuleList.Flink; le != &ldr_data.InLoadOrderModuleList; le = le->Flink) {
-        auto& ent = *CONTAINING_RECORD(le, LDR_DATA_TABLE_ENTRY, InLoadOrderLinks);
+    while (true) {
+        bool changed = false;
 
-        call_tls_callbacks(ent, DLL_PROCESS_DETACH);
+        {
+            mn_loader_lock lock;
+            lock_guard lg(lock);
 
-        if (ent.ProcessAttachCalled && ent.ImageDll) {
-            auto dll_main = (DLL_ENTRY_PROC)ent.EntryPoint;
+            for (auto le = ldr_data.InLoadOrderModuleList.Flink; le != &ldr_data.InLoadOrderModuleList; le = le->Flink) {
+                auto& ent = *CONTAINING_RECORD(le, LDR_DATA_TABLE_ENTRY, InLoadOrderLinks);
 
-            dll_main(ent.DllBase, DLL_PROCESS_DETACH, (void*)1);
+                if (ent.ProcessAttachCalled && ent.ImageDll) {
+                    call_tls_callbacks(ent, DLL_PROCESS_DETACH);
+
+                    auto dll_main = (DLL_ENTRY_PROC)ent.EntryPoint;
+
+                    dll_main(ent.DllBase, DLL_PROCESS_DETACH, (void*)1);
+                    ent.ProcessAttachCalled = 0;
+                    changed = true;
+
+                    break;
+                }
+            }
         }
+
+        if (!changed)
+            break;
     }
 }
 
