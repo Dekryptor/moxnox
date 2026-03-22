@@ -115,7 +115,6 @@ static const uint16_t PCI_VENDOR_ID_REDHAT = 0x1af4;
 template<virtio_device T>
 class virtio_block : public volume {
 public:
-    virtio_block(pci_device& d);
     virtio_block(T& t);
     ~virtio_block();
 
@@ -159,26 +158,16 @@ static void init_virtio_block() {
 
 static module_init module_init_virtio_block(init_virtio_block);
 
-template<>
-virtio_block<virtio_pci_device>::virtio_block(pci_device& d) : dev(*new virtio_pci_device(d, SUPPORTED_FEATURES, 1)) {
-    if (dev.device_cfg->length < sizeof(virtio_blk_config)) {
-        print("virtio_block: device cfg length was {}, expected at least {}\n",
-              +dev.device_cfg->length, sizeof(virtio_blk_config));
-        return;
-    }
-
-    for (auto le = dev.virtqueues.next; le != &dev.virtqueues; le = le->next) {
-        auto& vq = containing_record<virt_queue>(le);
-
-        if (vq.num == 0) {
-            queue = &vq;
-            break;
+template<virtio_device T>
+virtio_block<T>::virtio_block(T& dev) : dev(dev) {
+    if constexpr (is_same_v<T, virtio_pci_device>) {
+        if (dev.device_cfg->length < sizeof(virtio_blk_config)) {
+            print("virtio_block: device cfg length was {}, expected at least {}\n",
+                  +dev.device_cfg->length, sizeof(virtio_blk_config));
+            return;
         }
     }
-}
 
-template<>
-virtio_block<virtio_mmio_device>::virtio_block(virtio_mmio_device& d) : dev(d) {
     for (auto le = dev.virtqueues.next; le != &dev.virtqueues; le = le->next) {
         auto& vq = containing_record<virt_queue>(le);
 
@@ -420,9 +409,16 @@ nt_status virtio_block<T>::dio_write(uint64_t page_num, uint64_t num_pages,
 }
 
 void found_virtio_pci_block(pci_device& dev) {
-    auto pv = new virtio_block<virtio_pci_device>(dev);
+    auto d = new virtio_pci_device(dev, SUPPORTED_FEATURES, 1);
+    if (!d) {
+        print("new failed\n");
+        return;
+    }
+
+    auto pv = new virtio_block(*d);
     if (!pv) {
         print("new failed\n");
+        delete d;
         return;
     }
 
