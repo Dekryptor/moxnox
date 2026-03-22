@@ -1154,8 +1154,8 @@ static void call_thread_attach() {
             auto dll_main = (DLL_ENTRY_PROC)ent.EntryPoint;
 
             if (!dll_main(ent.DllBase, DLL_THREAD_ATTACH, nullptr)) {
-                NtTerminateProcess(NtCurrentProcess(), nt_status::DLL_INIT_FAILED);
-                unreachable();
+                print_stderr("DllMain returned false for DLL_THREAD_ATTACH for {}\n",
+                             ent.BaseDllName);
             }
         }
     }
