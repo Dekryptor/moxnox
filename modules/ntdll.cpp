@@ -372,6 +372,8 @@ EXCEPTION_ROUTINE RtlVirtualUnwind(uint32_t type, uint64_t image_base,
                                    uint64_t* establisher_frame,
                                    KNONVOLATILE_CONTEXT_POINTERS* ctx_ptr);
 nt_status LdrFindEntryForAddress(void* address, LDR_DATA_TABLE_ENTRY** entry);
+nt_status LdrGetDllHandle(const char16_t* dll_path, uint32_t dll_characteristics,
+                          const UNICODE_STRING* dll_name, void** dll_handle);
 
 }
 

@@ -63,3 +63,4 @@ RtlReleaseSRWLockExclusive
 LdrFindEntryForAddress
 RtlAcquireLoaderLock
 RtlReleaseLoaderLock
+LdrGetDllHandle

@@ -1548,3 +1548,11 @@ nt_status LdrFindEntryForAddress(void* address, LDR_DATA_TABLE_ENTRY** entry) {
 
     return nt_status::NO_MORE_ENTRIES;
 }
+
+extern "C"
+nt_status LdrGetDllHandle(const char16_t* /*dll_path*/, uint32_t /*dll_characteristics*/,
+                          const UNICODE_STRING* /*dll_name*/, void** /*dll_handle*/) {
+    print("FIXME - LdrGetDllHandle\n");
+
+    return nt_status::NOT_IMPLEMENTED;
+}
