@@ -1103,26 +1103,67 @@ static void call_tls_callbacks(const LDR_DATA_TABLE_ENTRY& ent, uint32_t reason)
     }
 }
 
-static void call_dll_main(uint32_t reason) {
-    // FIXME - send in correct order (bottom of tree to top)
+static void call_process_attach() {
+    // FIXME - send in correct order
 
     for (auto le = ldr_data.InLoadOrderModuleList.Flink; le != &ldr_data.InLoadOrderModuleList; le = le->Flink) {
         auto& ent = *CONTAINING_RECORD(le, LDR_DATA_TABLE_ENTRY, InLoadOrderLinks);
 
-        call_tls_callbacks(ent, reason);
+        call_tls_callbacks(ent, DLL_PROCESS_ATTACH);
 
-        if (reason == DLL_PROCESS_ATTACH)
-            process_attach(ent);
-        else if (ent.ProcessAttachCalled && ent.ImageDll) {
+        process_attach(ent);
+    }
+}
+
+static void call_process_detach() {
+    // FIXME - send in correct order
+
+    for (auto le = ldr_data.InLoadOrderModuleList.Flink; le != &ldr_data.InLoadOrderModuleList; le = le->Flink) {
+        auto& ent = *CONTAINING_RECORD(le, LDR_DATA_TABLE_ENTRY, InLoadOrderLinks);
+
+        call_tls_callbacks(ent, DLL_PROCESS_DETACH);
+
+        if (ent.ProcessAttachCalled && ent.ImageDll) {
             auto dll_main = (DLL_ENTRY_PROC)ent.EntryPoint;
 
-            if (reason == DLL_PROCESS_DETACH)
-                dll_main(ent.DllBase, DLL_PROCESS_DETACH, (void*)1);
-            else {
-                if (!dll_main(ent.DllBase, reason, nullptr)) {
-                    NtTerminateProcess(NtCurrentProcess(), nt_status::DLL_INIT_FAILED);
-                    unreachable();
-                }
+            dll_main(ent.DllBase, DLL_PROCESS_DETACH, (void*)1);
+        }
+    }
+}
+
+static void call_thread_attach() {
+    // FIXME - send in correct order
+
+    for (auto le = ldr_data.InLoadOrderModuleList.Flink; le != &ldr_data.InLoadOrderModuleList; le = le->Flink) {
+        auto& ent = *CONTAINING_RECORD(le, LDR_DATA_TABLE_ENTRY, InLoadOrderLinks);
+
+        call_tls_callbacks(ent, DLL_THREAD_ATTACH);
+
+        if (ent.ProcessAttachCalled && ent.ImageDll) {
+            auto dll_main = (DLL_ENTRY_PROC)ent.EntryPoint;
+
+            if (!dll_main(ent.DllBase, DLL_THREAD_ATTACH, nullptr)) {
+                NtTerminateProcess(NtCurrentProcess(), nt_status::DLL_INIT_FAILED);
+                unreachable();
+            }
+        }
+    }
+}
+
+static void call_thread_detach() {
+    // FIXME - send in correct order
+
+    for (auto le = ldr_data.InLoadOrderModuleList.Flink; le != &ldr_data.InLoadOrderModuleList; le = le->Flink) {
+        auto& ent = *CONTAINING_RECORD(le, LDR_DATA_TABLE_ENTRY, InLoadOrderLinks);
+
+        call_tls_callbacks(ent, DLL_THREAD_DETACH);
+
+        if (ent.ProcessAttachCalled && ent.ImageDll) {
+            auto dll_main = (DLL_ENTRY_PROC)ent.EntryPoint;
+
+            if (!dll_main(ent.DllBase, DLL_THREAD_DETACH, nullptr)) {
+                NtTerminateProcess(NtCurrentProcess(), nt_status::DLL_INIT_FAILED);
+                unreachable();
             }
         }
     }
@@ -1301,7 +1342,7 @@ void mn_start_thread(mn_image_info* ntdll_info, mn_image_info* img_info, CONTEXT
             unreachable();
         }
 
-        call_dll_main(DLL_PROCESS_ATTACH);
+        call_process_attach();
 
         initialized = true;
     } else {
@@ -1312,7 +1353,7 @@ void mn_start_thread(mn_image_info* ntdll_info, mn_image_info* img_info, CONTEXT
             unreachable();
         }
 
-        call_dll_main(DLL_THREAD_ATTACH);
+        call_thread_attach();
     }
 
 #ifdef __aarch64__
@@ -1336,7 +1377,7 @@ void RtlExitUserProcess(uint32_t status) {
     // kill other threads
     NtTerminateProcess(0, (nt_status)status);
 
-    call_dll_main(DLL_PROCESS_DETACH);
+    call_process_detach();
 
     NtTerminateProcess(NtCurrentProcess(), (nt_status)status);
     unreachable();
@@ -1348,7 +1389,7 @@ void __attribute__((noreturn)) RtlExitUserThread(nt_status exit_status) {
 
     // FIXME - call RtlExitUserProcess instead if last thread (ThreadAmILastThread)
 
-    call_dll_main(DLL_THREAD_DETACH);
+    call_thread_detach();
 
     {
         mn_peb_lock lock;
