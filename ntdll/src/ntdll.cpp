@@ -1094,8 +1094,6 @@ static void call_process_attach() {
 
             ent.LoadInProgress = 1;
 
-            // FIXME - call process_attach for dependencies
-
             auto dll_main = (DLL_ENTRY_PROC)ent.EntryPoint;
 
             if (!dll_main(ent.DllBase, DLL_PROCESS_ATTACH, (void*)1)) {
