@@ -1152,10 +1152,8 @@ static void call_thread_attach() {
     mn_loader_lock lock;
     lock_guard lg(lock);
 
-    // FIXME - send in correct order
-
-    for (auto le = ldr_data.InLoadOrderModuleList.Flink; le != &ldr_data.InLoadOrderModuleList; le = le->Flink) {
-        auto& ent = *CONTAINING_RECORD(le, LDR_DATA_TABLE_ENTRY, InLoadOrderLinks);
+    for (auto le = ldr_data.InInitializationOrderModuleList.Flink; le != &ldr_data.InInitializationOrderModuleList; le = le->Flink) {
+        auto& ent = *CONTAINING_RECORD(le, LDR_DATA_TABLE_ENTRY, InInitializationOrderLinks);
 
         call_tls_callbacks(ent, DLL_THREAD_ATTACH);
 
