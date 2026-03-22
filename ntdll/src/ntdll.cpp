@@ -1090,6 +1090,8 @@ static void call_process_attach() {
         auto& ent = *CONTAINING_RECORD(le, LDR_DATA_TABLE_ENTRY, InLoadOrderLinks);
 
         if (!ent.LoadInProgress && !ent.ProcessAttachCalled) {
+            call_tls_callbacks(ent, DLL_PROCESS_ATTACH);
+
             ent.LoadInProgress = 1;
 
             // FIXME - call process_attach for dependencies
@@ -1106,8 +1108,6 @@ static void call_process_attach() {
 
             ent.ProcessAttachCalled = 1;
         }
-
-        call_tls_callbacks(ent, DLL_PROCESS_ATTACH);
     }
 }
 
