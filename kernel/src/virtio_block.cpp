@@ -479,7 +479,7 @@ void found_virtio_pci_block(pci_device& dev) {
 }
 
 static bool found_virtio_mmio_block(virtio_mmio_device& dev) {
-    auto pv = new virtio_block<virtio_mmio_device>(dev);
+    auto pv = new virtio_block(dev);
     if (!pv) {
         print("new failed\n");
         return false;
