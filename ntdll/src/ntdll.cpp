@@ -1550,9 +1550,32 @@ nt_status LdrFindEntryForAddress(void* address, LDR_DATA_TABLE_ENTRY** entry) {
 }
 
 extern "C"
-nt_status LdrGetDllHandle(const char16_t* /*dll_path*/, uint32_t /*dll_characteristics*/,
-                          const UNICODE_STRING* /*dll_name*/, void** /*dll_handle*/) {
-    print("FIXME - LdrGetDllHandle\n");
+nt_status LdrGetDllHandle(const char16_t* /*dll_path*/, uint32_t* /*dll_characteristics*/,
+                          const UNICODE_STRING* dll_name, void** dll_handle) {
+    auto& teb = *NtCurrentTeb();
+    auto& peb = *teb.ProcessEnvironmentBlock;
 
-    return nt_status::NOT_IMPLEMENTED;
+    // FIXME - dll_path
+    // FIXME - dll_characteristics
+
+    if (!dll_name)
+        return nt_status::INVALID_PARAMETER;
+
+    auto search = u16string_view(dll_name->Buffer, dll_name->Length / sizeof(char16_t));
+
+    mn_loader_lock lock;
+    lock_guard lg(lock);
+
+    for (auto le = peb.Ldr->InLoadOrderModuleList.Flink; le != &peb.Ldr->InLoadOrderModuleList; le = le->Flink) {
+        auto& ldr = *(LDR_DATA_TABLE_ENTRY*)((uint8_t*)le - offsetof(LDR_DATA_TABLE_ENTRY, InLoadOrderLinks));
+
+        auto sv = u16string_view(ldr.BaseDllName.Buffer, ldr.BaseDllName.Length / sizeof(char16_t));
+
+        if (sv == search) {
+            *dll_handle = ldr.DllBase;
+            return nt_status::SUCCESS;
+        }
+    }
+
+    return nt_status::DLL_NOT_FOUND;
 }
