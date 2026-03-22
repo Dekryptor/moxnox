@@ -121,9 +121,20 @@ virtio_console<T>::virtio_console(T& dev, pipe& recv_pipe) : dev(dev), recv_pipe
             send_queue = &vq;
     }
 
-    add_kernel_thread([](void* ctx) {
-        ((virtio_console<T>*)ctx)->recv_thread();
+    this->acquire();
+
+    auto t = add_kernel_thread([](void* ctx) {
+        auto& dev = *(virtio_console<T>*)ctx;
+
+        dev.recv_thread();
+        dev.release();
     }, this);
+
+    if (!t) {
+        print("add_kernel_thread failed\n");
+        this->release();
+        return;
+    }
 }
 
 template<virtio_device T>
