@@ -237,7 +237,7 @@ static void init_virtio_pci() {
 
 static module_init module_init_virtio_gpu(init_virtio_pci);
 
-template<typename T>
+template<virtio_device T>
 class virtio_gpu : public chardev {
 public:
     virtio_gpu(pci_device& d);
@@ -379,7 +379,7 @@ static span<char> do_format_arg(span<char> sp, string_view, const virtio_gpu_rec
 }
 #endif
 
-template<typename T>
+template<virtio_device T>
 bool virtio_gpu<T>::get_display_info(virtio_gpu_resp_display_info& disp_info) {
     virtio_gpu_ctrl_hdr req;
     virtq_desc descs[2];
@@ -432,7 +432,7 @@ bool virtio_gpu<T>::get_display_info(virtio_gpu_resp_display_info& disp_info) {
     return true;
 }
 
-template<typename T>
+template<virtio_device T>
 bool virtio_gpu<T>::get_edid(uint32_t scanout, span<uint8_t> ret) {
     virtio_gpu_get_edid req;
     virtio_gpu_resp_edid resp;
@@ -488,7 +488,7 @@ bool virtio_gpu<T>::get_edid(uint32_t scanout, span<uint8_t> ret) {
     return true;
 }
 
-template<typename T>
+template<virtio_device T>
 optional<uint32_t> virtio_gpu<T>::create_resource(VIRTIO_GPU_FORMAT format,
                                                   uint32_t width,
                                                   uint32_t height) {
@@ -609,7 +609,7 @@ static void populate_descs(span<virtq_desc> descs, span<const uint8_t> buf) {
     }
 }
 
-template<typename T>
+template<virtio_device T>
 bool virtio_gpu<T>::attach_backing(uint32_t resource, span<uint8_t> buf) {
     virtio_gpu_ctrl_hdr resp;
     uint64_t read_bytes;
@@ -683,7 +683,7 @@ bool virtio_gpu<T>::attach_backing(uint32_t resource, span<uint8_t> buf) {
     return true;
 }
 
-template<typename T>
+template<virtio_device T>
 bool virtio_gpu<T>::set_scanout(const virtio_gpu_rect& r, uint32_t scanout,
                                 uint32_t resource) {
     virtio_gpu_set_scanout req;
@@ -740,7 +740,7 @@ bool virtio_gpu<T>::set_scanout(const virtio_gpu_rect& r, uint32_t scanout,
     return true;
 }
 
-template<typename T>
+template<virtio_device T>
 bool virtio_gpu<T>::transfer_to_host(const virtio_gpu_rect& r, uint64_t offset,
                                      uint32_t resource) {
     virtio_gpu_transfer_to_host_2d req;
@@ -797,7 +797,7 @@ bool virtio_gpu<T>::transfer_to_host(const virtio_gpu_rect& r, uint64_t offset,
     return true;
 }
 
-template<typename T>
+template<virtio_device T>
 bool virtio_gpu<T>::resource_flush(const virtio_gpu_rect& r, uint32_t resource) {
     virtio_gpu_resource_flush req;
     virtio_gpu_ctrl_hdr resp;
@@ -917,7 +917,7 @@ static void parse_video_option(string_view s, virtio_gpu_rect& r) {
     r.height = h;
 }
 
-template<typename T>
+template<virtio_device T>
 void virtio_gpu<T>::start() {
     virtio_gpu_resp_display_info disp_info;
 

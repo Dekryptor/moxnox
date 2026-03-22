@@ -147,6 +147,9 @@ private:
     variant<volatile virtio_mmio_regs_v1*, volatile virtio_mmio_regs_v2*> var_regs;
 };
 
+export template<typename T>
+concept virtio_device = is_same_v<T, virtio_pci_device> || is_same_v<T, virtio_mmio_device>;
+
 export struct virtio_mmio_recognizer {
     list_entry le;
     uint32_t device_id;

@@ -64,7 +64,7 @@ static void init_virtio_pci() {
 
 static module_init module_init_virtio_console(init_virtio_pci);
 
-template<typename T>
+template<virtio_device T>
 class virtio_console : public chardev {
 public:
     virtio_console(T& t, pipe& recv_pipe);
@@ -100,7 +100,7 @@ private:
 
 static atomic<uint32_t> virtio_console_num = 0;
 
-template<typename T>
+template<virtio_device T>
 virtio_console<T>::virtio_console(T& dev, pipe& recv_pipe) : dev(dev), recv_pipe(recv_pipe) {
     recv_pipe.acquire();
 
@@ -126,7 +126,7 @@ virtio_console<T>::virtio_console(T& dev, pipe& recv_pipe) : dev(dev), recv_pipe
     }, this);
 }
 
-template<typename T>
+template<virtio_device T>
 void virtio_console<T>::recv_thread() {
     // FIXME - die gracefully if device ever goes away
 
@@ -168,7 +168,7 @@ void virtio_console<T>::recv_thread() {
     }
 }
 
-template<typename T>
+template<virtio_device T>
 nt_status virtio_console<T>::write(span<const uint8_t> s, uint64_t& written_bytes) {
     if (shutting_down)
         return nt_status::SYSTEM_SHUTDOWN;

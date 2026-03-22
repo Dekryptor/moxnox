@@ -112,7 +112,7 @@ static_assert(sizeof(virtio_blk_req) == 17);
 
 static const uint16_t PCI_VENDOR_ID_REDHAT = 0x1af4;
 
-template<typename T>
+template<virtio_device T>
 class virtio_block : public volume {
 public:
     virtio_block(pci_device& d);
@@ -189,12 +189,12 @@ virtio_block<virtio_mmio_device>::virtio_block(virtio_mmio_device& d) : dev(d) {
     }
 }
 
-template<typename T>
+template<virtio_device T>
 virtio_block<T>::~virtio_block() {
     delete &dev;
 }
 
-template<typename T>
+template<virtio_device T>
 nt_status virtio_block<T>::flush() {
     if (!(dev.negotiated_features & VIRTIO_BLK_F_FLUSH))
         return nt_status::SUCCESS;
@@ -246,7 +246,7 @@ nt_status virtio_block<T>::flush() {
     return nt_status::SUCCESS;
 }
 
-template<typename T>
+template<virtio_device T>
 nt_status virtio_block<T>::dio_read(uint64_t page_num, uint64_t num_pages,
                                     pfn_iterator& it, uint64_t& read_pages) {
     if (num_pages == 0) {
@@ -326,7 +326,7 @@ nt_status virtio_block<T>::dio_read(uint64_t page_num, uint64_t num_pages,
     return nt_status::SUCCESS;
 }
 
-template<typename T>
+template<virtio_device T>
 nt_status virtio_block<T>::dio_write(uint64_t page_num, uint64_t num_pages,
                                      pfn_iterator& it, uint64_t& written_pages,
                                      bool fua) {

@@ -127,7 +127,7 @@ static void init_virtio_pci() {
 
 static module_init module_init_virtio_net(init_virtio_pci);
 
-template<typename T>
+template<virtio_device T>
 class virtio_net : public netif {
 public:
     virtio_net(pci_device& d);
@@ -168,7 +168,7 @@ static void test_ipv6_address_printing() {
 }
 #endif
 
-template<typename T>
+template<virtio_device T>
 void virtio_net<T>::init(const virtio_net_config& cfg) {
     memcpy(&mac, cfg.mac, sizeof(mac));
 
@@ -319,7 +319,7 @@ static bool found_virtio_mmio_net(virtio_mmio_device& dev) {
     return true;
 }
 
-template<typename T>
+template<virtio_device T>
 nt_status virtio_net<T>::send_packet(const mac_address& dst_mac, ethertype type,
                                      packet& pack) {
     uint8_t* bounce1 = nullptr;
@@ -375,7 +375,7 @@ nt_status virtio_net<T>::send_packet(const mac_address& dst_mac, ethertype type,
     return status;
 }
 
-template<typename T>
+template<virtio_device T>
 void virtio_net<T>::recv_thread() {
     // FIXME - better to have pool of read buffers? And do more work in interrupt handler?
 
