@@ -94,7 +94,7 @@ private:
     uint32_t allocated_slots = 0;
     uint16_t old_used_idx = 0;
     spinlock slot_lock, submit_lock;
-    object_ref sem{create_semaphore(QUEUE_SIZE)};
+    object_ref sem;
     object_ref events[QUEUE_SIZE];
     uint32_t lengths[QUEUE_SIZE];
 };
@@ -694,10 +694,18 @@ virtio_pci_device::virtio_pci_device(pci_device& dev, uint64_t supported_feature
 }
 
 virt_queue::virt_queue() {
+    sem = create_semaphore(QUEUE_SIZE);
+    if (!sem) {
+        print("create_semaphore failed\n");
+        return;
+    }
+
     for (unsigned int i = 0; i < QUEUE_SIZE; i++) {
         events[i] = create_event(true);
-        if (!events[i])
+        if (!events[i]) {
+            print("create_event failed\n");
             return;
+        }
     }
 
     init = true;
