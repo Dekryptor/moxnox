@@ -39,6 +39,13 @@ const __sighandler_t SIG_DFL = (__sighandler_t)0;
 const __sighandler_t SIG_IGN = (__sighandler_t)1;
 const __sighandler_t SIG_ERR = (__sighandler_t)-1;
 
+const int SIGINT = 2;
+const int SIGILL = 4;
+const int SIGFPE = 8;
+const int SIGSEGV = 11;
+const int SIGTERM = 15;
+const int SIGABRT = 22;
+
 extern "C" {
 
 struct lconv {
