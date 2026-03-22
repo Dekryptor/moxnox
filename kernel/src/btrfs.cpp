@@ -3103,6 +3103,10 @@ nt_status btrfs_inode::create_child(string_view name, uint32_t create_options,
 
         auto bi = new btrfs_inode(fs, r->id, new_inode,
                                   is_dir ? btrfs_inode_type::directory : btrfs_inode_type::file);
+        if (!bi) {
+            print("new failed\n");
+            return nt_status::INSUFFICIENT_RESOURCES;
+        }
 
         memcpy(&bi->ii, &child_ii, sizeof(btrfs_inode_item));
         bi->file_size = 0;
