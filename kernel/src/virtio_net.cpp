@@ -130,7 +130,6 @@ static module_init module_init_virtio_net(init_virtio_pci);
 template<virtio_device T>
 class virtio_net : public netif {
 public:
-    virtio_net(pci_device& d);
     virtio_net(T& t);
 
     virtual ~virtio_net() {
@@ -245,12 +244,14 @@ void virtio_net<T>::init(const virtio_net_config& cfg) {
     }, this);
 }
 
-template<>
-virtio_net<virtio_pci_device>::virtio_net(pci_device& d) : dev(*new virtio_pci_device(d, SUPPORTED_FEATURES, 2)) {
-    if (dev.device_cfg->length < sizeof(virtio_net_config)) {
-        print("virtio_net: device cfg length was {}, expected at least {}\n",
-              +dev.device_cfg->length, sizeof(virtio_net_config));
-        return;
+template<virtio_device T>
+virtio_net<T>::virtio_net(T& dev) : dev(dev) {
+    if constexpr (is_same_v<T, virtio_pci_device>) {
+        if (dev.device_cfg->length < sizeof(virtio_net_config)) {
+            print("virtio_net: device cfg length was {}, expected at least {}\n",
+                +dev.device_cfg->length, sizeof(virtio_net_config));
+            return;
+        }
     }
 
     if (!(dev.negotiated_features & VIRTIO_NET_F_MAC)) {
@@ -264,29 +265,24 @@ virtio_net<virtio_pci_device>::virtio_net(pci_device& d) : dev(*new virtio_pci_d
         return;
     }
 
-    init(*(virtio_net_config*)(d.bar[dev.device_cfg->bar].data() + dev.device_cfg->offset));
-}
-
-template<>
-virtio_net<virtio_mmio_device>::virtio_net(virtio_mmio_device& d) : dev(d) {
-    if (!(dev.negotiated_features & VIRTIO_NET_F_MAC)) {
-        // FIXME - generate one in this case?
-        print("virtio_net: device did not provide a MAC address\n");
-        return;
+    if constexpr (is_same_v<T, virtio_pci_device>) {
+        init(*(virtio_net_config*)(dev.dev.bar[dev.device_cfg->bar].data() + dev.device_cfg->offset));
+    } else if constexpr (is_same_v<T, virtio_mmio_device>) {
+        init(*(virtio_net_config*)dev.config);
     }
-
-    if (!(dev.negotiated_features & VIRTIO_F_VERSION_1)) {
-        print("virtio-net: legacy devices not supported\n");
-        return;
-    }
-
-    init(*(virtio_net_config*)dev.config);
 }
 
 void found_virtio_pci_net(pci_device& dev) {
-    auto pv = new virtio_net<virtio_pci_device>(dev);
+    auto d = new virtio_pci_device(dev, SUPPORTED_FEATURES, 2);
+    if (!d) {
+        print("new failed\n");
+        return;
+    }
+
+    auto pv = new virtio_net<virtio_pci_device>(*d);
     if (!pv) {
         print("new failed\n");
+        delete d;
         return;
     }
 
