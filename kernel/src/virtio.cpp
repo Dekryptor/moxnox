@@ -84,6 +84,7 @@ public:
     list_entry le;
     uint16_t num;
     volatile uint32_t* notification_addr;
+    bool init = false;
 
 private:
     uint8_t get_slot();
@@ -274,6 +275,20 @@ bool virtio_pci_device::add_virtqueue(uint16_t num) {
     auto vq = new virt_queue;
     if (!vq) {
         print("new failed\n");
+
+        for (unsigned int i = 0; i < (unsigned int)1 << order; i++) {
+            unmap_page(va + (i << PAGE_SHIFT));
+        }
+
+        free_va(va, 1 << order);
+        free_folio(pa);
+        return false;
+    }
+
+    if (!vq->init) {
+        print("virtqueue initialization failed\n");
+
+        delete vq;
 
         for (unsigned int i = 0; i < (unsigned int)1 << order; i++) {
             unmap_page(va + (i << PAGE_SHIFT));
@@ -681,7 +696,11 @@ virtio_pci_device::virtio_pci_device(pci_device& dev, uint64_t supported_feature
 virt_queue::virt_queue() {
     for (unsigned int i = 0; i < QUEUE_SIZE; i++) {
         events[i] = create_event(true);
+        if (!events[i])
+            return;
     }
+
+    init = true;
 }
 
 virt_queue::~virt_queue() {
@@ -910,6 +929,20 @@ bool virtio_mmio_device::add_virtqueue(uint16_t num) {
     auto vq = new virt_queue;
     if (!vq) {
         print("new failed\n");
+
+        for (unsigned int i = 0; i < 1 << order; i++) {
+            unmap_page(va + (i << PAGE_SHIFT));
+        }
+
+        free_va(va, 1 << order);
+        free_folio(pa);
+        return false;
+    }
+
+    if (!vq->init) {
+        print("virt_queue initialization failed\n");
+
+        delete vq;
 
         for (unsigned int i = 0; i < 1 << order; i++) {
             unmap_page(va + (i << PAGE_SHIFT));
