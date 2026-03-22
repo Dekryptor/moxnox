@@ -328,27 +328,22 @@ void mn_signal(EXCEPTION_RECORD* exception, CONTEXT* context) {
 
 extern "C"
 void mn_ctrl_c() {
-    auto teb = NtCurrentTeb();
-    auto peb = teb->ProcessEnvironmentBlock;
-    optional<uintptr_t> kernelbase;
+    void* kernelbase;
     ANSI_STRING ansiname;
+    nt_status status;
+    UNICODE_STRING us;
     uint32_t (*func)(void*);
 
+    static const u16string_view dll = u"kernelbase.dll";
     static const string_view name = "CtrlRoutine";
 
-    for (auto le = peb->Ldr->InLoadOrderModuleList.Flink; le != &peb->Ldr->InLoadOrderModuleList; le = le->Flink) {
-        auto& ldr = *(LDR_DATA_TABLE_ENTRY*)((uint8_t*)le - offsetof(LDR_DATA_TABLE_ENTRY, InLoadOrderLinks));
+    us.Buffer = (char16_t*)dll.data();
+    us.Length = us.MaximumLength = (uint16_t)(dll.size() * sizeof(char16_t));
 
-        auto sv = u16string_view(ldr.BaseDllName.Buffer, ldr.BaseDllName.Length / sizeof(char16_t));
-
-        if (sv == u"kernelbase.dll") {
-            kernelbase = (uintptr_t)ldr.DllBase;
-            break;
-        }
-    }
-
-    if (!kernelbase.has_value()) {
-        print("could not find kernelbase.dll in process\n");
+    status = LdrGetDllHandle(nullptr, nullptr, &us, &kernelbase);
+    if (!success(status)) {
+        print("LdrGetDllHandle returned {} while looking for kernelbase.dll\n",
+              status);
         NtTerminateThread(NtCurrentThread(), nt_status::CONTROL_C_EXIT);
         return;
     }
@@ -356,7 +351,7 @@ void mn_ctrl_c() {
     ansiname.Buffer = (char*)name.data();
     ansiname.Length = ansiname.MaximumLength = (uint16_t)name.size();
 
-    auto status = LdrGetProcedureAddress((void*)*kernelbase, &ansiname, 0, (void**)&func);
+    status = LdrGetProcedureAddress(kernelbase, &ansiname, 0, (void**)&func);
     if (!success(status)) {
         print("LdrGetProcedureAddress returned {} looking for {} in kernelbase\n",
               status, name);
