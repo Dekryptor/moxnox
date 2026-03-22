@@ -1172,12 +1172,8 @@ static void call_thread_detach() {
     mn_loader_lock lock;
     lock_guard lg(lock);
 
-    // FIXME - send in correct order
-
-    for (auto le = ldr_data.InLoadOrderModuleList.Flink; le != &ldr_data.InLoadOrderModuleList; le = le->Flink) {
-        auto& ent = *CONTAINING_RECORD(le, LDR_DATA_TABLE_ENTRY, InLoadOrderLinks);
-
-        call_tls_callbacks(ent, DLL_THREAD_DETACH);
+    for (auto le = ldr_data.InInitializationOrderModuleList.Blink; le != &ldr_data.InInitializationOrderModuleList; le = le->Blink) {
+        auto& ent = *CONTAINING_RECORD(le, LDR_DATA_TABLE_ENTRY, InInitializationOrderLinks);
 
         if (ent.ProcessAttachCalled && ent.ImageDll) {
             auto dll_main = (DLL_ENTRY_PROC)ent.EntryPoint;
@@ -1187,6 +1183,8 @@ static void call_thread_detach() {
                 unreachable();
             }
         }
+
+        call_tls_callbacks(ent, DLL_THREAD_DETACH);
     }
 }
 
