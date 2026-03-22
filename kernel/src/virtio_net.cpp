@@ -279,7 +279,7 @@ void found_virtio_pci_net(pci_device& dev) {
         return;
     }
 
-    auto pv = new virtio_net<virtio_pci_device>(*d);
+    auto pv = new virtio_net(*d);
     if (!pv) {
         print("new failed\n");
         delete d;
@@ -297,7 +297,7 @@ void found_virtio_pci_net(pci_device& dev) {
 }
 
 static bool found_virtio_mmio_net(virtio_mmio_device& dev) {
-    auto pv = new virtio_net<virtio_mmio_device>(dev);
+    auto pv = new virtio_net(dev);
     if (!pv) {
         print("new failed\n");
         return false;
