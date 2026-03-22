@@ -1135,6 +1135,9 @@ static void call_process_detach() {
 }
 
 static void call_thread_attach() {
+    mn_loader_lock lock;
+    lock_guard lg(lock);
+
     // FIXME - send in correct order
 
     for (auto le = ldr_data.InLoadOrderModuleList.Flink; le != &ldr_data.InLoadOrderModuleList; le = le->Flink) {
