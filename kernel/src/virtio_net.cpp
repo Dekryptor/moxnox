@@ -236,12 +236,18 @@ void virtio_net<T>::init(const virtio_net_config& cfg) {
 
     this->acquire();
 
-    add_kernel_thread([](void* ctx) {
+    auto t = add_kernel_thread([](void* ctx) {
         auto& dev = *(virtio_net<virtio_pci_device>*)ctx;
 
         dev.recv_thread();
         dev.release();
     }, this);
+
+    if (!t) {
+        print("add_kernel_thread failed\n");
+        this->release();
+        return;
+    }
 }
 
 template<virtio_device T>
