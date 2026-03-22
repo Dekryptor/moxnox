@@ -303,6 +303,10 @@ static irq* find_irq(uint32_t number, uint32_t apic_id, bool level) {
     // FIXME - double-dipping on spinlock
 
     auto i = new irq;
+    if (!i) {
+        print("new failed\n");
+        return nullptr;
+    }
 
     i->number = number;
     i->level = level;
@@ -404,6 +408,10 @@ static irq* find_irq(uint32_t number, bool level) {
     }
 
     auto i = new irq;
+    if (!i) {
+        print("new failed\n");
+        return nullptr;
+    }
 
     i->number = number;
     i->level = level;
