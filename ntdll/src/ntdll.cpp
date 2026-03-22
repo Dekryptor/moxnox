@@ -1059,27 +1059,6 @@ static void load_dlls() {
     }
 }
 
-static void process_attach(LDR_DATA_TABLE_ENTRY& ent) {
-    if (ent.LoadInProgress || ent.ProcessAttachCalled)
-        return;
-
-    ent.LoadInProgress = 1;
-
-    // FIXME - call process_attach for dependencies
-
-    auto dll_main = (DLL_ENTRY_PROC)ent.EntryPoint;
-
-    if (!dll_main(ent.DllBase, DLL_PROCESS_ATTACH, (void*)1)) {
-        NtTerminateProcess(NtCurrentProcess(), nt_status::DLL_INIT_FAILED);
-        unreachable();
-    }
-
-    InsertTailList(&ldr_data.InInitializationOrderModuleList,
-                   &ent.InInitializationOrderLinks);
-
-    ent.ProcessAttachCalled = 1;
-}
-
 static void call_tls_callbacks(const LDR_DATA_TABLE_ENTRY& ent, uint32_t reason) {
     using IMAGE_TLS_CALLBACK = void (*)(void* dll_handle, uint32_t reason,
                                         void* reserved);
@@ -1110,7 +1089,23 @@ static void call_process_attach() {
     for (auto le = ldr_data.InLoadOrderModuleList.Flink; le != &ldr_data.InLoadOrderModuleList; le = le->Flink) {
         auto& ent = *CONTAINING_RECORD(le, LDR_DATA_TABLE_ENTRY, InLoadOrderLinks);
 
-        process_attach(ent);
+        if (!ent.LoadInProgress && !ent.ProcessAttachCalled) {
+            ent.LoadInProgress = 1;
+
+            // FIXME - call process_attach for dependencies
+
+            auto dll_main = (DLL_ENTRY_PROC)ent.EntryPoint;
+
+            if (!dll_main(ent.DllBase, DLL_PROCESS_ATTACH, (void*)1)) {
+                NtTerminateProcess(NtCurrentProcess(), nt_status::DLL_INIT_FAILED);
+                unreachable();
+            }
+
+            InsertTailList(&ldr_data.InInitializationOrderModuleList,
+                           &ent.InInitializationOrderLinks);
+
+            ent.ProcessAttachCalled = 1;
+        }
 
         call_tls_callbacks(ent, DLL_PROCESS_ATTACH);
     }
