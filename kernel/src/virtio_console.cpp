@@ -67,7 +67,6 @@ static module_init module_init_virtio_console(init_virtio_pci);
 template<typename T>
 class virtio_console : public chardev {
 public:
-    virtio_console(pci_device& d, pipe& recv_pipe);
     virtio_console(T& t, pipe& recv_pipe);
 
     ~virtio_console() {
@@ -101,14 +100,16 @@ private:
 
 static atomic<uint32_t> virtio_console_num = 0;
 
-template<>
-virtio_console<virtio_pci_device>::virtio_console(pci_device& d, pipe& recv_pipe) : dev(*new virtio_pci_device(d, SUPPORTED_FEATURES, 2)), recv_pipe(recv_pipe) {
+template<typename T>
+virtio_console<T>::virtio_console(T& dev, pipe& recv_pipe) : dev(dev), recv_pipe(recv_pipe) {
     recv_pipe.acquire();
 
-    if (dev.device_cfg->length < sizeof(virtio_console_config)) {
-        print("virtio_console: device cfg length was {}, expected at least {}\n",
-              +dev.device_cfg->length, sizeof(virtio_console_config));
-        return;
+    if constexpr (is_same_v<T, virtio_pci_device>) {
+        if (dev.device_cfg->length < sizeof(virtio_console_config)) {
+            print("virtio_console: device cfg length was {}, expected at least {}\n",
+                +dev.device_cfg->length, sizeof(virtio_console_config));
+            return;
+        }
     }
 
     for (auto le = dev.virtqueues.next; le != &dev.virtqueues; le = le->next) {
@@ -121,25 +122,7 @@ virtio_console<virtio_pci_device>::virtio_console(pci_device& d, pipe& recv_pipe
     }
 
     add_kernel_thread([](void* ctx) {
-        ((virtio_console<virtio_pci_device>*)ctx)->recv_thread();
-    }, this);
-}
-
-template<>
-virtio_console<virtio_mmio_device>::virtio_console(virtio_mmio_device& d, pipe& recv_pipe) : dev(d), recv_pipe(recv_pipe) {
-    recv_pipe.acquire();
-
-    for (auto le = dev.virtqueues.next; le != &dev.virtqueues; le = le->next) {
-        auto& vq = containing_record<virt_queue>(le);
-
-        if (vq.num == 0)
-            recv_queue = &vq;
-        else if (vq.num == 1)
-            send_queue = &vq;
-    }
-
-    add_kernel_thread([](void* ctx) {
-        ((virtio_console<virtio_mmio_device>*)ctx)->recv_thread();
+        ((virtio_console<T>*)ctx)->recv_thread();
     }, this);
 }
 
@@ -243,9 +226,16 @@ static void found_virtio_pci_console(pci_device& dev) {
 
     auto& recv_pipe = static_cast<pipe&>(recv_handle.get());
 
-    auto v = new virtio_console<virtio_pci_device>(dev, recv_pipe);
+    auto d = new virtio_pci_device(dev, SUPPORTED_FEATURES, 2);
+    if (!d) {
+        print("new failed\n");
+        return;
+    }
+
+    auto v = new virtio_console<virtio_pci_device>(*d, recv_pipe);
     if (!v) {
         print("new failed\n");
+        delete d;
         return;
     }
 
