@@ -2467,6 +2467,8 @@ void usb_hub::device_found(uint8_t slot, uint8_t port, enum usb_speed_class spee
             return;
         }
 
+        conf->len = cd_len;
+
         memcpy(&conf->data, phys_address(f2), cd_len);
         free_folio(f2);
 

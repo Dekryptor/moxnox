@@ -172,6 +172,7 @@ export struct usb_device_config {
 
     list_entry le;
     list_entry interfaces = { &interfaces, &interfaces };
+    size_t len;
     uint8_t data[1];
 };
 
