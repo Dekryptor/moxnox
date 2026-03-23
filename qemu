@@ -8,6 +8,9 @@ qemu-system-x86_64 -M q35 -enable-kvm -cpu host \
 -device ide-hd,drive=disk,bus=ahci.0 \
 -device virtio-net-pci,netdev=hn0,id=nic1,mac=52:54:4d:78:4e:78 \
 -netdev tap,helper=/usr/libexec/qemu-bridge-helper,id=hn0 \
+-device qemu-xhci \
+-device usb-kbd,id=kbd \
+-device usb-tablet,id=tablet \
 -serial stdio \
 -s
 
