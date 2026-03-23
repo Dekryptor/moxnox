@@ -113,7 +113,7 @@ export enum class usb_request : uint8_t {
     SET_ISOCH_DELAY = 49,
 };
 
-export enum class usb_descriptor {
+export enum class usb_descriptor : uint8_t {
     DEVICE = 1,
     CONFIGURATION = 2,
     STRING = 3,
