@@ -33,9 +33,24 @@ static const size_t evdev_buffer_pages = 1;
 
 static atomic<unsigned int> keyboard_num = 0;
 
+struct usb_hid_field {
+    list_entry le;
+    bool is_variable;
+    bool is_relative;
+    unsigned int count;
+    unsigned int size;
+    int32_t logical_min;
+    int32_t logical_max;
+    uint16_t usage_page;
+    uint32_t usage_min;
+    uint32_t usage_max;
+    unsigned int bit_offset;
+};
+
 struct usb_hid_report {
     list_entry le;
     uint8_t id;
+    list_entry fields = { &fields, &fields };
 };
 
 class usb_keyboard {
@@ -722,7 +737,8 @@ usb_hid_report* usb_keyboard::find_report(uint8_t id) {
 bool usb_keyboard::parse_report_descriptor(span<const uint8_t> r) {
     uint32_t usage_min = 0, usage_max = 0;
     uint8_t report_id = 0;
-    uint32_t report_count = 0, report_size = 0, usage_page = 0;
+    uint32_t report_count = 0, report_size = 0;
+    uint16_t usage_page = 0;
     uint32_t logical_max_u = 0;
     int32_t logical_min = 0, logical_max_s = 0;
     unsigned int input_bit_offset = 0, output_bit_offset = 0;
@@ -803,6 +819,25 @@ bool usb_keyboard::parse_report_descriptor(span<const uint8_t> r) {
                             else
                                 logical_max = logical_max_s;
 
+                            auto f = new usb_hid_field;
+                            if (!f) {
+                                print("new failed\n");
+                                return false;
+                            }
+
+                            f->is_variable = v & 2;
+                            f->is_relative = v & 4;
+                            f->count = report_count;
+                            f->size = report_size;
+                            f->logical_min = logical_min;
+                            f->logical_max = logical_max;
+                            f->usage_page = usage_page;
+                            f->usage_min = usage_min;
+                            f->usage_max = usage_max;
+                            f->bit_offset = input_bit_offset;
+
+                            insert_tail_list(rep->fields, f->le);
+
                             print("input {:x} (usage min = {:x}, usage max = {:x}, report ID {:x}, report count {:x}, report size {:x}, usage page {:x}, logical min = {}, logical max = {}, bit offset = {})\n",
                                 v, usage_min, usage_max, report_id, report_count,
                                 report_size, usage_page, logical_min, logical_max,
@@ -850,7 +885,8 @@ bool usb_keyboard::parse_report_descriptor(span<const uint8_t> r) {
             case 0x4: // global
                 switch (b & 0xf0) {
                     case 0x00:
-                        usage_page = v;
+                        // FIXME - return error if more than 0xffff?
+                        usage_page = (uint16_t)v;
                         break;
 
                     case 0x10:
@@ -997,6 +1033,14 @@ usb_keyboard::~usb_keyboard() {
         auto& r = containing_record<usb_hid_report>(reports.next);
 
         remove_entry_list(r.le);
+
+        while (!is_list_empty(r.fields)) {
+            auto& f = containing_record<usb_hid_field>(r.fields.next);
+
+            remove_entry_list(f.le);
+
+            delete &f;
+        }
 
         delete &r;
     }
