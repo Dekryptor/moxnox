@@ -786,9 +786,11 @@ static bool found_usb_keyboard(usb_device& d, const usb_interface& interface) {
     return true;
 }
 
-static bool get_hid_descriptor(const usb_device_config& cfg) {
+static bool get_hid_descriptor(const usb_device_config& cfg,
+                               const usb_interface& interface) {
     auto sp = span(cfg.data, cfg.len);
     span<const uint8_t> hid;
+    bool ignore = true;
 
     while (true) {
         if (sp.empty())
@@ -801,7 +803,13 @@ static bool get_hid_descriptor(const usb_device_config& cfg) {
 
         auto type = (usb_descriptor)sp[1];
 
-        if (type == usb_descriptor::HID) {
+        if (type == usb_descriptor::INTERFACE && len >= sizeof(usb_interface_descriptor)) {
+            auto& desc = *(usb_interface_descriptor*)sp.data();
+
+            ignore = desc.bInterfaceNumber != interface.desc.bInterfaceNumber;
+        }
+
+        if (type == usb_descriptor::HID && !ignore) {
             hid = sp.subspan(0, len);
             break;
         }
@@ -810,7 +818,8 @@ static bool get_hid_descriptor(const usb_device_config& cfg) {
     }
 
     if (hid.empty()) {
-        print("HID descriptor not found on USB HID device\n");
+        print("HID descriptor not found for interface {} on USB HID device\n",
+              interface.desc.bInterfaceNumber);
         return false;
     }
 
@@ -830,7 +839,7 @@ static bool get_hid_descriptor(const usb_device_config& cfg) {
 
 static bool found_usb_hid_device(usb_device& d, const usb_device_config& config,
                                  const usb_interface& interface) {
-    get_hid_descriptor(config);
+    get_hid_descriptor(config, interface);
 
     if (interface.desc.bAlternateSetting)
         return false;
