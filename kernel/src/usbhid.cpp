@@ -500,10 +500,8 @@ static int32_t get_signed_num(uint32_t v, unsigned int n) {
         return (int32_t)(0xffffff00 | (uint8_t)v);
     else if (n == 2 && v & 0x8000)
         return (int32_t)(0xffff0000 | (uint16_t)v);
-    else if (n == 4 && v & 0x80000000)
-        return (int32_t)v;
     else
-        return v;
+        return (int32_t)v;
 }
 
 #if 0
@@ -802,9 +800,9 @@ bool usb_keyboard::parse_report_descriptor(span<const uint8_t> r) {
         else if (n == 1)
             v = sp[0];
         else if (n == 2)
-            v = (sp[1] << 8) | sp[0];
+            v = (uint32_t)(sp[1] << 8) | sp[0];
         else if (n == 4)
-            v = (sp[3] << 24) | (sp[2] << 16) | (sp[1] << 8) | sp[0];
+            v = (uint32_t)(sp[3] << 24) | (uint32_t)(sp[2] << 16) | (uint32_t)(sp[1] << 8) | sp[0];
 
         switch (b & 0xc) {
             case 0x0: // main
@@ -818,7 +816,7 @@ bool usb_keyboard::parse_report_descriptor(span<const uint8_t> r) {
                                 return false;
 
                             if (logical_min >= 0)
-                                logical_max = logical_max_u;
+                                logical_max = (int32_t)logical_max_u;
                             else
                                 logical_max = logical_max_s;
 
@@ -859,7 +857,7 @@ bool usb_keyboard::parse_report_descriptor(span<const uint8_t> r) {
                                 return false;
 
                             if (logical_min >= 0)
-                                logical_max = logical_max_u;
+                                logical_max = (int32_t)logical_max_u;
                             else
                                 logical_max = logical_max_s;
 
