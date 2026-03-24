@@ -1609,6 +1609,18 @@ bool usb_device::get_descriptor_class(span<uint8_t> buf, enum usb_descriptor des
     return true;
 }
 
+bool usb_device::get_descriptor_interface(span<uint8_t> buf, enum usb_descriptor desc_type,
+                                          uint8_t desc_index, uint16_t int_num) {
+    if (!ep0_queue.control_transfer(buf,
+            USB_REQUEST_TYPE_DEVICE_TO_HOST | USB_REQUEST_TYPE_STANDARD | USB_REQUEST_TYPE_RECIPIENT_INTERFACE,
+            usb_request::GET_DESCRIPTOR, (uint16_t)(((uint8_t)desc_type << 8) | desc_index), int_num)) {
+        print("xhci_queue::control_transfer failed\n");
+        return false;
+    }
+
+    return true;
+}
+
 bool usb_device::set_configuration(uint8_t configuration_value) {
     if (!ep0_queue.control_transfer(span<uint8_t>(),
             USB_REQUEST_TYPE_HOST_TO_DEVICE | USB_REQUEST_TYPE_STANDARD | USB_REQUEST_TYPE_RECIPIENT_DEVICE,

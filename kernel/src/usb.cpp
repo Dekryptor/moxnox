@@ -126,6 +126,7 @@ export enum class usb_descriptor : uint8_t {
     BOS = 15,
     DEVICE_CAPABILITY = 16,
     HID = 33,
+    HID_REPORT = 34,
     HUB = 41,
     SUPERSPEED_HUB = 42,
     SUPERSPEED_USB_ENDPOINT_COMPANION = 48,

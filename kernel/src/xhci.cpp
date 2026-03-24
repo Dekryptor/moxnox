@@ -101,6 +101,8 @@ public:
                         uint8_t desc_index);
     bool get_descriptor_class(span<uint8_t> buf, enum usb_descriptor desc_type,
                               uint8_t desc_index);
+    bool get_descriptor_interface(span<uint8_t> buf, enum usb_descriptor desc_type,
+                                  uint8_t desc_index, uint16_t int_num);
     bool set_configuration(uint8_t configuration_value);
     bool set_feature(uint8_t bmRequestType, uint8_t feature, uint16_t index);
     bool clear_feature(uint8_t bmRequestType, uint8_t feature, uint16_t index);

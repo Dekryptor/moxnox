@@ -786,7 +786,7 @@ static bool found_usb_keyboard(usb_device& d, const usb_interface& interface) {
     return true;
 }
 
-static bool get_hid_descriptor(const usb_device_config& cfg,
+static bool get_hid_descriptor(usb_device& d, const usb_device_config& cfg,
                                const usb_interface& interface) {
     auto sp = span(cfg.data, cfg.len);
     span<const uint8_t> hid;
@@ -831,15 +831,38 @@ static bool get_hid_descriptor(const usb_device_config& cfg,
 
     auto& h = *(usb_hid_descriptor*)hid.data();
 
-    print("FIXME - HID (bNumDescriptors = {}, wDescriptorLength = {})\n",
-          h.bNumDescriptors, +h.wDescriptorLength);
+    if (h.wDescriptorLength == 0) {
+        print("HID descriptor length was 0\n");
+        return false;
+    }
+
+    auto buf = (uint8_t*)malloc(h.wDescriptorLength);
+    if (!buf) {
+        print("malloc failed\n");
+        return false;
+    }
+
+    if (!d.get_descriptor_interface(span(buf, h.wDescriptorLength), usb_descriptor::HID_REPORT,
+                                    0, interface.desc.bInterfaceNumber)) {
+        free(buf);
+        print("usb_device::get_descriptor_interface failed\n");
+        return false;
+    }
+
+    print("HID report:");
+    for (unsigned int i = 0; i < h.wDescriptorLength; i++) {
+        print(" {:02x}", buf[i]);
+    }
+    print("\n");
+
+    free(buf);
 
     return true;
 }
 
 static bool found_usb_hid_device(usb_device& d, const usb_device_config& config,
                                  const usb_interface& interface) {
-    get_hid_descriptor(config, interface);
+    get_hid_descriptor(d, config, interface);
 
     if (interface.desc.bAlternateSetting)
         return false;
