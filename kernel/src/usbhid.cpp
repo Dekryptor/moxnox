@@ -731,6 +731,8 @@ usb_hid_report* usb_keyboard::find_report(uint8_t id) {
 
     r->id = id;
 
+    insert_tail_list(reports, r->le);
+
     return r;
 }
 
@@ -837,11 +839,6 @@ bool usb_keyboard::parse_report_descriptor(span<const uint8_t> r) {
                             f->bit_offset = input_bit_offset;
 
                             insert_tail_list(rep->fields, f->le);
-
-                            print("input {:x} (usage min = {:x}, usage max = {:x}, report ID {:x}, report count {:x}, report size {:x}, usage page {:x}, logical min = {}, logical max = {}, bit offset = {})\n",
-                                v, usage_min, usage_max, report_id, report_count,
-                                report_size, usage_page, logical_min, logical_max,
-                                input_bit_offset);
                         }
 
                         usage_min = 0;
@@ -960,6 +957,21 @@ usb_keyboard::usb_keyboard(usb_device& d, const usb_device_config& config,
     print_report_descriptor(span(report_descriptor, report_descriptor_len));
 #endif
     parse_report_descriptor(span(report_descriptor, report_descriptor_len));
+
+    for (auto le = reports.next; le != &reports; le = le->next) {
+        auto& r = containing_record<usb_hid_report>(le);
+
+        print("report {}:\n", r.id);
+
+        for (auto le2 = r.fields.next; le2 != &r.fields; le2 = le2->next) {
+            auto& f = containing_record<usb_hid_field>(le2);
+
+            print("input (is_variable {}, is_relative {}, usage min = {:x}, usage max = {:x}, count {:x}, size {:x}, usage page {:x}, logical min = {}, logical max = {}, bit offset = {})\n",
+                  f.is_variable ? "true" : "false", f.is_relative ? "true" : "false",
+                  f.usage_min, f.usage_max, f.count, f.size,
+                  f.usage_page, f.logical_min, f.logical_max, f.bit_offset);
+        }
+    }
 
     this->packet_size = packet_size;
 
