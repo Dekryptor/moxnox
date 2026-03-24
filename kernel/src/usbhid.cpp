@@ -697,6 +697,7 @@ static bool parse_report_descriptor(span<const uint8_t> r) {
     uint32_t report_id = 0, report_count = 0, report_size = 0, usage_page = 0;
     uint32_t logical_max_u = 0;
     int32_t logical_min = 0, logical_max_s = 0;
+    unsigned int input_bit_offset = 0, output_bit_offset = 0;
 
     print("report descriptor:\n");
 
@@ -762,34 +763,48 @@ static bool parse_report_descriptor(span<const uint8_t> r) {
             case 0x0: // main
                 switch (b & 0xf0) {
                     case 0x80: {
-                        int32_t logical_max;
+                        if (!(v & 1)) { // skip constant
+                            int32_t logical_max;
 
-                        if (logical_min >= 0)
-                            logical_max = logical_max_u;
-                        else
-                            logical_max = logical_max_s;
+                            if (logical_min >= 0)
+                                logical_max = logical_max_u;
+                            else
+                                logical_max = logical_max_s;
 
-                        print("input {:x} (usage min = {:x}, usage max = {:x}, report ID {:x}, report count {:x}, report size {:x}, usage page {:x}, logical min = {}, logical max = {})\n",
-                              v, usage_min, usage_max, report_id, report_count,
-                              report_size, usage_page, logical_min, logical_max);
+                            print("input {:x} (usage min = {:x}, usage max = {:x}, report ID {:x}, report count {:x}, report size {:x}, usage page {:x}, logical min = {}, logical max = {}, bit offset = {})\n",
+                                v, usage_min, usage_max, report_id, report_count,
+                                report_size, usage_page, logical_min, logical_max,
+                                input_bit_offset);
+                        }
+
                         usage_min = 0;
                         usage_max = 0;
+
+                        input_bit_offset += report_count * report_size;
+
                         break;
                     }
 
                     case 0x90: {
-                        int32_t logical_max;
+                        if (!(v & 1)) { // skip constant
+                            int32_t logical_max;
 
-                        if (logical_min >= 0)
-                            logical_max = logical_max_u;
-                        else
-                            logical_max = logical_max_s;
+                            if (logical_min >= 0)
+                                logical_max = logical_max_u;
+                            else
+                                logical_max = logical_max_s;
 
-                        print("output {:x} (usage min = {:x}, usage max = {:x}, report ID {:x}, report count {:x}, report size {:x}, usage page {:x}, logical min = {}, logical max = {})\n",
-                              v, usage_min, usage_max, report_id, report_count,
-                              report_size, usage_page, logical_min, logical_max);
+                            print("output {:x} (usage min = {:x}, usage max = {:x}, report ID {:x}, report count {:x}, report size {:x}, usage page {:x}, logical min = {}, logical max = {}, bit offset = {})\n",
+                                v, usage_min, usage_max, report_id, report_count,
+                                report_size, usage_page, logical_min, logical_max,
+                                output_bit_offset);
+                        }
+
                         usage_min = 0;
                         usage_max = 0;
+
+                        output_bit_offset += report_count * report_size;
+
                         break;
                     }
 
