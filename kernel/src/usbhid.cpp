@@ -471,6 +471,196 @@ bool usb_keyboard::get_report_descriptor(const usb_device_config& cfg) {
     return true;
 }
 
+static void parse_report_descriptor(span<const uint8_t> r) {
+    print("report descriptor:\n");
+
+    while (!r.empty()) {
+        auto b = r[0];
+
+        unsigned int n;
+
+        switch (b & 0x3) {
+            case 0:
+                n = 0;
+                break;
+
+            case 1:
+                n = 1;
+                break;
+
+            case 2:
+                n = 2;
+                break;
+
+            case 3:
+                n = 4;
+                break;
+        }
+
+        if (r.size() < n + 1) {
+            print("report descriptor is truncated\n");
+            return;
+        }
+
+        auto sp = span(r.data() + 1, n);
+
+        uint32_t v;
+
+        if (n == 0)
+            v = 0;
+        else if (n == 1)
+            v = sp[0];
+        else if (n == 2)
+            v = (sp[1] << 8) | sp[0];
+        else if (n == 4)
+            v = (sp[3] << 24) | (sp[2] << 16) | (sp[1] << 8) | sp[0];
+
+        switch (b & 0xc) {
+            case 0x0: // main
+                switch (b & 0xf0) {
+                    case 0x80: {
+                        print("input {:x}\n", v);
+                        break;
+                    }
+
+                    case 0x90: {
+                        print("output {:x}\n", v);
+                        break;
+                    }
+
+                    case 0xa0: {
+                        print("collection {:x}\n", v);
+                        break;
+                    }
+
+                    case 0xb0: {
+                        print("feature {:x}\n", v);
+                        break;
+                    }
+
+                    case 0xc0:
+                        print("end collection\n");
+                        break;
+
+                    default:
+                        print("unrecognized main item {:02x}, {:x}\n", b, v);
+                        break;
+                }
+            break;
+
+            case 0x4: // global
+                switch (b & 0xf0) {
+                    case 0x00:
+                        print("usage page {:x}\n", v);
+                        break;
+
+                    case 0x10:
+                        print("logical minimum {:x}\n", v);
+                        break;
+
+                    case 0x20:
+                        print("logical maximum {:x}\n", v);
+                        break;
+
+                    case 0x30:
+                        print("physical minimum {:x}\n", v);
+                        break;
+
+                    case 0x40:
+                        print("physical maximum {:x}\n", v);
+                        break;
+
+                    case 0x50:
+                        print("unit exponent {:x}\n", v);
+                        break;
+
+                    case 0x60:
+                        print("unit {:x}\n", v);
+                        break;
+
+                    case 0x70:
+                        print("report size {:x}\n", v);
+                        break;
+
+                    case 0x80:
+                        print("report ID {:x}\n", v);
+                        break;
+
+                    case 0x90:
+                        print("report count {:x}\n", v);
+                        break;
+
+                    case 0xa0:
+                        print("push\n");
+                        break;
+
+                    case 0xb0:
+                        print("pop\n");
+                        break;
+
+                    default:
+                        print("unrecognized global item {:02x}, {:x}\n", b, v);
+                        break;
+                }
+            break;
+
+            case 0x8: // local
+                switch (b & 0xf0) {
+                    case 0x00:
+                        print("usage {:x}\n", v);
+                        break;
+
+                    case 0x10:
+                        print("usage minimum {:x}\n", v);
+                        break;
+
+                    case 0x20:
+                        print("usage maximum {:x}\n", v);
+                        break;
+
+                    case 0x30:
+                        print("designator index {:x}\n", v);
+                        break;
+
+                    case 0x40:
+                        print("designator minimum {:x}\n", v);
+                        break;
+
+                    case 0x50:
+                        print("designator maximum {:x}\n", v);
+                        break;
+
+                    case 0x70:
+                        print("string index {:x}\n", v);
+                        break;
+
+                    case 0x80:
+                        print("string minimum {:x}\n", v);
+                        break;
+
+                    case 0x90:
+                        print("string maximum {:x}\n", v);
+                        break;
+
+                    case 0xa0:
+                        print("delimiter {:x}\n", v);
+                        break;
+
+                    default:
+                        print("unrecognized local item {:02x}, {:x}\n", b, v);
+                        break;
+                }
+            break;
+
+            default:
+                print("unrecognized item {:02x}, {:x}\n", b, v);
+                break;
+        }
+
+        r = r.subspan(n + 1);
+    }
+}
+
 usb_keyboard::usb_keyboard(usb_device& d, const usb_device_config& config,
                            xhci_queue& queue, uint16_t packet_size,
                            const usb_interface& interface) : d(d), queue(queue), interface(interface) {
@@ -481,11 +671,7 @@ usb_keyboard::usb_keyboard(usb_device& d, const usb_device_config& config,
         return;
     }
 
-    print("report descriptor:");
-    for (unsigned int i = 0; i < report_descriptor_len; i++) {
-        print(" {:02x}", report_descriptor[i]);
-    }
-    print("\n");
+    parse_report_descriptor(span(report_descriptor, report_descriptor_len));
 
     this->packet_size = packet_size;
 
