@@ -35,7 +35,8 @@ static atomic<unsigned int> keyboard_num = 0;
 
 class usb_keyboard {
 public:
-    usb_keyboard(usb_device& d, xhci_queue& queue, uint16_t packet_size,
+    usb_keyboard(usb_device& d, const usb_device_config& config,
+                 xhci_queue& queue, uint16_t packet_size,
                  const usb_interface& interface);
     ~usb_keyboard();
     void set_leds(keyboard_leds leds);
@@ -53,6 +54,7 @@ public:
 private:
     void post_evdev(enum evdev_code code, int32_t value);
     void keyboard_repeat_thread();
+    bool get_report_descriptor(const usb_device_config& cfg);
 
     usb_device& d;
     xhci_queue& queue;
@@ -63,6 +65,8 @@ private:
     enum evdev_code repeat_key = evdev_code::KEY_RESERVED;
     object_ref repeat_timer;
     atomic<unsigned int> refcount = 1;
+    uint8_t* report_descriptor = nullptr;
+    size_t report_descriptor_len;
 };
 
 static const enum evdev_code keycodes[] = {
@@ -378,9 +382,110 @@ static bool usb_hid_set_report(usb_device& d, span<uint8_t> buf,
                                         interface);
 }
 
-usb_keyboard::usb_keyboard(usb_device& d, xhci_queue& queue, uint16_t packet_size,
+bool usb_keyboard::get_report_descriptor(const usb_device_config& cfg) {
+    auto sp = span(cfg.data, cfg.len);
+    span<const uint8_t> hid;
+    bool ignore = true;
+
+    while (true) {
+        if (sp.empty())
+            return false;
+
+        auto len = sp[0];
+
+        if (sp.size() < len || len < 2)
+            return false;
+
+        auto type = (usb_descriptor)sp[1];
+
+        if (type == usb_descriptor::INTERFACE && len >= sizeof(usb_interface_descriptor)) {
+            auto& desc = *(usb_interface_descriptor*)sp.data();
+
+            ignore = desc.bInterfaceNumber != interface.desc.bInterfaceNumber;
+        }
+
+        if (type == usb_descriptor::HID && !ignore) {
+            hid = sp.subspan(0, len);
+            break;
+        }
+
+        sp = sp.subspan(len);
+    }
+
+    if (hid.empty()) {
+        print("HID descriptor not found for interface {} on USB HID device\n",
+              interface.desc.bInterfaceNumber);
+        return false;
+    }
+
+    if (hid.size() < offsetof(usb_hid_descriptor, entries)) {
+        print("HID descriptor was {} bytes, expected at least {}\n", hid.size(),
+              offsetof(usb_hid_descriptor, entries));
+        return false;
+    }
+
+    auto& h = *(usb_hid_descriptor*)hid.data();
+
+    if (hid.size() < offsetof(usb_hid_descriptor, entries) + (sizeof(usb_hid_descriptor_entry) * h.bNumDescriptors)) {
+        print("HID descriptor was {} bytes, expected {}\n", hid.size(),
+              offsetof(usb_hid_descriptor, entries), offsetof(usb_hid_descriptor, entries) + (sizeof(usb_hid_descriptor_entry) * h.bNumDescriptors));
+        return false;
+    }
+
+    optional<uint16_t> len;
+
+    for (unsigned int i = 0; i < h.bNumDescriptors; i++) {
+        if (h.entries[i].bDescriptorType != usb_descriptor::HID_REPORT)
+            continue;
+
+        len = +h.entries[i].wDescriptorLength;
+        break;
+    }
+
+    if (!len.has_value()) {
+        print("HID report descriptor not found for interface {} on USB HID device\n",
+              interface.desc.bInterfaceNumber);
+        return false;
+    }
+
+    if (*len == 0) {
+        print("HID report descriptor length was 0\n");
+        return false;
+    }
+
+    report_descriptor_len = *len;
+
+    report_descriptor = (uint8_t*)malloc(*len);
+    if (!report_descriptor) {
+        print("malloc failed\n");
+        return false;
+    }
+
+    if (!d.get_descriptor_interface(span(report_descriptor, *len),
+                                    usb_descriptor::HID_REPORT, 0,
+                                    interface.desc.bInterfaceNumber)) {
+        print("usb_device::get_descriptor_interface failed\n");
+        return false;
+    }
+
+    return true;
+}
+
+usb_keyboard::usb_keyboard(usb_device& d, const usb_device_config& config,
+                           xhci_queue& queue, uint16_t packet_size,
                            const usb_interface& interface) : d(d), queue(queue), interface(interface) {
     d.acquire();
+
+    if (!get_report_descriptor(config)) {
+        print("usb_keyboard::get_report_descriptor failed\n");
+        return;
+    }
+
+    print("report descriptor:");
+    for (unsigned int i = 0; i < report_descriptor_len; i++) {
+        print(" {:02x}", report_descriptor[i]);
+    }
+    print("\n");
 
     this->packet_size = packet_size;
 
@@ -446,6 +551,9 @@ usb_keyboard::~usb_keyboard() {
             wake_up_waiters(p.waiters);
         }
     }
+
+    if (report_descriptor)
+        free(report_descriptor);
 
     d.release();
 }
@@ -721,7 +829,8 @@ void usb_keyboard::keyboard_repeat_thread() {
     release();
 }
 
-static bool found_usb_keyboard(usb_device& d, const usb_interface& interface) {
+static bool found_usb_keyboard(usb_device& d, const usb_device_config& config,
+                               const usb_interface& interface) {
     usb_endpoint* ep_desc = nullptr;
 
     // find endpoint number
@@ -770,8 +879,8 @@ static bool found_usb_keyboard(usb_device& d, const usb_interface& interface) {
         return false;
     }
 
-    auto kbd = new usb_keyboard(d, *queue, ep_desc->desc.wMaxPacketSize,
-                                interface);
+    auto kbd = new usb_keyboard(d, config, *queue,
+                                ep_desc->desc.wMaxPacketSize, interface);
     if (!kbd) {
         print("new failed\n");
         return false;
@@ -787,112 +896,14 @@ static bool found_usb_keyboard(usb_device& d, const usb_interface& interface) {
     return true;
 }
 
-static bool get_hid_descriptor(usb_device& d, const usb_device_config& cfg,
-                               const usb_interface& interface) {
-    auto sp = span(cfg.data, cfg.len);
-    span<const uint8_t> hid;
-    bool ignore = true;
-
-    while (true) {
-        if (sp.empty())
-            return false;
-
-        auto len = sp[0];
-
-        if (sp.size() < len || len < 2)
-            return false;
-
-        auto type = (usb_descriptor)sp[1];
-
-        if (type == usb_descriptor::INTERFACE && len >= sizeof(usb_interface_descriptor)) {
-            auto& desc = *(usb_interface_descriptor*)sp.data();
-
-            ignore = desc.bInterfaceNumber != interface.desc.bInterfaceNumber;
-        }
-
-        if (type == usb_descriptor::HID && !ignore) {
-            hid = sp.subspan(0, len);
-            break;
-        }
-
-        sp = sp.subspan(len);
-    }
-
-    if (hid.empty()) {
-        print("HID descriptor not found for interface {} on USB HID device\n",
-              interface.desc.bInterfaceNumber);
-        return false;
-    }
-
-    if (hid.size() < offsetof(usb_hid_descriptor, entries)) {
-        print("HID descriptor was {} bytes, expected at least {}\n", hid.size(),
-              offsetof(usb_hid_descriptor, entries));
-        return false;
-    }
-
-    auto& h = *(usb_hid_descriptor*)hid.data();
-
-    if (hid.size() < offsetof(usb_hid_descriptor, entries) + (sizeof(usb_hid_descriptor_entry) * h.bNumDescriptors)) {
-        print("HID descriptor was {} bytes, expected {}\n", hid.size(),
-              offsetof(usb_hid_descriptor, entries), offsetof(usb_hid_descriptor, entries) + (sizeof(usb_hid_descriptor_entry) * h.bNumDescriptors));
-        return false;
-    }
-
-    optional<uint16_t> len;
-
-    for (unsigned int i = 0; i < h.bNumDescriptors; i++) {
-        if (h.entries[i].bDescriptorType != usb_descriptor::HID_REPORT)
-            continue;
-
-        len = +h.entries[i].wDescriptorLength;
-        break;
-    }
-
-    if (!len.has_value()) {
-        print("HID report descriptor not found for interface {} on USB HID device\n",
-              interface.desc.bInterfaceNumber);
-        return false;
-    }
-
-    if (*len == 0) {
-        print("HID report descriptor length was 0\n");
-        return false;
-    }
-
-    auto buf = (uint8_t*)malloc(*len);
-    if (!buf) {
-        print("malloc failed\n");
-        return false;
-    }
-
-    if (!d.get_descriptor_interface(span(buf, *len), usb_descriptor::HID_REPORT,
-                                    0, interface.desc.bInterfaceNumber)) {
-        free(buf);
-        print("usb_device::get_descriptor_interface failed\n");
-        return false;
-    }
-
-    print("HID report:");
-    for (unsigned int i = 0; i < *len; i++) {
-        print(" {:02x}", buf[i]);
-    }
-    print("\n");
-
-    free(buf);
-
-    return true;
-}
-
 static bool found_usb_hid_device(usb_device& d, const usb_device_config& config,
                                  const usb_interface& interface) {
-    get_hid_descriptor(d, config, interface);
-
-    if (interface.desc.bAlternateSetting)
+    if (interface.desc.bAlternateSetting) // FIXME?
         return false;
 
     // FIXME - reject anything for now that doesn't have a keyboard boot interface
     if (interface.desc.bInterfaceSubClass != 1 || interface.desc.bInterfaceProtocol != 1)
         return false;
 
-    return found_usb_keyboard(d, interface);
+    return found_usb_keyboard(d, config, interface);
 }
