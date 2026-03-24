@@ -33,6 +33,11 @@ static const size_t evdev_buffer_pages = 1;
 
 static atomic<unsigned int> keyboard_num = 0;
 
+struct usb_hid_report {
+    list_entry le;
+    uint8_t id;
+};
+
 class usb_keyboard {
 public:
     usb_keyboard(usb_device& d, const usb_device_config& config,
@@ -55,6 +60,8 @@ private:
     void post_evdev(enum evdev_code code, int32_t value);
     void keyboard_repeat_thread();
     bool get_report_descriptor(const usb_device_config& cfg);
+    bool parse_report_descriptor(span<const uint8_t> r);
+    usb_hid_report* find_report(uint8_t id);
 
     usb_device& d;
     xhci_queue& queue;
@@ -67,6 +74,7 @@ private:
     atomic<unsigned int> refcount = 1;
     uint8_t* report_descriptor = nullptr;
     size_t report_descriptor_len;
+    list_entry reports = { &reports, &reports };
 };
 
 static const enum evdev_code keycodes[] = {
@@ -692,9 +700,29 @@ static void print_report_descriptor(span<const uint8_t> r) {
 }
 #endif
 
-static bool parse_report_descriptor(span<const uint8_t> r) {
+usb_hid_report* usb_keyboard::find_report(uint8_t id) {
+    for (auto le = reports.next; le != &reports; le = le->next) {
+        auto& r = containing_record<usb_hid_report>(le);
+
+        if (r.id == id)
+            return &r;
+    }
+
+    auto r = new usb_hid_report;
+    if (!r) {
+        print("new failed\n");
+        return nullptr;
+    }
+
+    r->id = id;
+
+    return r;
+}
+
+bool usb_keyboard::parse_report_descriptor(span<const uint8_t> r) {
     uint32_t usage_min = 0, usage_max = 0;
-    uint32_t report_id = 0, report_count = 0, report_size = 0, usage_page = 0;
+    uint8_t report_id = 0;
+    uint32_t report_count = 0, report_size = 0, usage_page = 0;
     uint32_t logical_max_u = 0;
     int32_t logical_min = 0, logical_max_s = 0;
     unsigned int input_bit_offset = 0, output_bit_offset = 0;
@@ -766,6 +794,10 @@ static bool parse_report_descriptor(span<const uint8_t> r) {
                         if (!(v & 1)) { // skip constant
                             int32_t logical_max;
 
+                            auto rep = find_report(report_id);
+                            if (!rep)
+                                return false;
+
                             if (logical_min >= 0)
                                 logical_max = logical_max_u;
                             else
@@ -835,7 +867,8 @@ static bool parse_report_descriptor(span<const uint8_t> r) {
                         break;
 
                     case 0x80:
-                        report_id = v;
+                        // FIXME - return error if more than 0xff?
+                        report_id = (uint8_t)v;
                         break;
 
                     case 0x90:
@@ -959,6 +992,14 @@ usb_keyboard::~usb_keyboard() {
 
     if (report_descriptor)
         free(report_descriptor);
+
+    while (!is_list_empty(reports)) {
+        auto& r = containing_record<usb_hid_report>(reports.next);
+
+        remove_entry_list(r.le);
+
+        delete &r;
+    }
 
     d.release();
 }
