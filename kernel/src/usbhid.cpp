@@ -471,7 +471,19 @@ bool usb_keyboard::get_report_descriptor(const usb_device_config& cfg) {
     return true;
 }
 
-static void parse_report_descriptor(span<const uint8_t> r) {
+static int32_t get_signed_num(uint32_t v, unsigned int n) {
+    if (n == 1 && v & 0x80)
+        return (int32_t)(0xffffff00 | (uint8_t)v);
+    else if (n == 2 && v & 0x8000)
+        return (int32_t)(0xffff0000 | (uint16_t)v);
+    else if (n == 4 && v & 0x80000000)
+        return (int32_t)v;
+    else
+        return v;
+}
+
+#if 0
+static void print_report_descriptor(span<const uint8_t> r) {
     print("report descriptor:\n");
 
     while (!r.empty()) {
@@ -573,19 +585,19 @@ static void parse_report_descriptor(span<const uint8_t> r) {
                         break;
 
                     case 0x10:
-                        print("logical minimum {:x}\n", v);
+                        print("logical minimum {}\n", get_signed_num(v, n));
                         break;
 
                     case 0x20:
-                        print("logical maximum {:x}\n", v);
+                        print("logical maximum {}\n", get_signed_num(v, n));
                         break;
 
                     case 0x30:
-                        print("physical minimum {:x}\n", v);
+                        print("physical minimum {}\n", get_signed_num(v, n));
                         break;
 
                     case 0x40:
-                        print("physical maximum {:x}\n", v);
+                        print("physical maximum {}\n", get_signed_num(v, n));
                         break;
 
                     case 0x50:
@@ -678,6 +690,177 @@ static void parse_report_descriptor(span<const uint8_t> r) {
         r = r.subspan(n + 1);
     }
 }
+#endif
+
+static bool parse_report_descriptor(span<const uint8_t> r) {
+    uint32_t usage_min = 0, usage_max = 0;
+    uint32_t report_id = 0, report_count = 0, report_size = 0, usage_page = 0;
+    uint32_t logical_max_u = 0;
+    int32_t logical_min = 0, logical_max_s = 0;
+
+    print("report descriptor:\n");
+
+    while (!r.empty()) {
+        auto b = r[0];
+
+        if (b == 0xfe) { // long item
+            if (r.size() == 1) {
+                print("report descriptor is truncated\n");
+                return false;
+            }
+
+            uint8_t size = r[1];
+
+            if (r.size() < (size_t)(size + 3)) {
+                print("report descriptor is truncated\n");
+                return false;
+            }
+
+            r = r.subspan(size + 3);
+            continue;
+        }
+
+        unsigned int n;
+
+        switch (b & 0x3) {
+            case 0:
+                n = 0;
+                break;
+
+            case 1:
+                n = 1;
+                break;
+
+            case 2:
+                n = 2;
+                break;
+
+            case 3:
+                n = 4;
+                break;
+        }
+
+        if (r.size() < n + 1) {
+            print("report descriptor is truncated\n");
+            return false;
+        }
+
+        auto sp = span(r.data() + 1, n);
+
+        uint32_t v;
+
+        if (n == 0)
+            v = 0;
+        else if (n == 1)
+            v = sp[0];
+        else if (n == 2)
+            v = (sp[1] << 8) | sp[0];
+        else if (n == 4)
+            v = (sp[3] << 24) | (sp[2] << 16) | (sp[1] << 8) | sp[0];
+
+        switch (b & 0xc) {
+            case 0x0: // main
+                switch (b & 0xf0) {
+                    case 0x80: {
+                        int32_t logical_max;
+
+                        if (logical_min >= 0)
+                            logical_max = logical_max_u;
+                        else
+                            logical_max = logical_max_s;
+
+                        print("input {:x} (usage min = {:x}, usage max = {:x}, report ID {:x}, report count {:x}, report size {:x}, usage page {:x}, logical min = {}, logical max = {})\n",
+                              v, usage_min, usage_max, report_id, report_count,
+                              report_size, usage_page, logical_min, logical_max);
+                        usage_min = 0;
+                        usage_max = 0;
+                        break;
+                    }
+
+                    case 0x90: {
+                        int32_t logical_max;
+
+                        if (logical_min >= 0)
+                            logical_max = logical_max_u;
+                        else
+                            logical_max = logical_max_s;
+
+                        print("output {:x} (usage min = {:x}, usage max = {:x}, report ID {:x}, report count {:x}, report size {:x}, usage page {:x}, logical min = {}, logical max = {})\n",
+                              v, usage_min, usage_max, report_id, report_count,
+                              report_size, usage_page, logical_min, logical_max);
+                        usage_min = 0;
+                        usage_max = 0;
+                        break;
+                    }
+
+                    default:
+                        usage_min = 0;
+                        usage_max = 0;
+                        break;
+                }
+            break;
+
+            case 0x4: // global
+                switch (b & 0xf0) {
+                    case 0x00:
+                        usage_page = v;
+                        break;
+
+                    case 0x10:
+                        logical_min = get_signed_num(v, n);
+                        break;
+
+                    case 0x20:
+                        logical_max_u = v;
+                        logical_max_s = get_signed_num(v, n);
+                        break;
+
+                    case 0x70:
+                        report_size = v;
+                        break;
+
+                    case 0x80:
+                        report_id = v;
+                        break;
+
+                    case 0x90:
+                        report_count = v;
+                        break;
+
+                    default:
+                        break;
+                }
+            break;
+
+            case 0x8: // local
+                switch (b & 0xf0) {
+                    case 0x00:
+                        usage_min = v;
+                        usage_max = v;
+                        break;
+
+                    case 0x10:
+                        usage_min = v;
+                        break;
+
+                    case 0x20:
+                        usage_max = v;
+                        break;
+
+                    default:
+                        break;
+                }
+            break;
+
+            default:
+                break;
+        }
+
+        r = r.subspan(n + 1);
+    }
+
+    return true;
+}
 
 usb_keyboard::usb_keyboard(usb_device& d, const usb_device_config& config,
                            xhci_queue& queue, uint16_t packet_size,
@@ -689,6 +872,9 @@ usb_keyboard::usb_keyboard(usb_device& d, const usb_device_config& config,
         return;
     }
 
+#if 0
+    print_report_descriptor(span(report_descriptor, report_descriptor_len));
+#endif
     parse_report_descriptor(span(report_descriptor, report_descriptor_len));
 
     this->packet_size = packet_size;
