@@ -206,14 +206,18 @@ export const uint8_t USB_ENDPOINT_TRANSFER_TYPE_INTERRUPT = 0x03;
 export const uint8_t USB_ENDPOINT_USAGE_TYPE_PERIODIC = 0x00;
 export const uint8_t USB_ENDPOINT_USAGE_TYPE_NOTIFICATION = 0x01;
 
+export struct usb_hid_descriptor_entry {
+    usb_descriptor bDescriptorType;
+    uint16_t wDescriptorLength;
+} __attribute((packed));
+
 export struct usb_hid_descriptor {
     uint8_t bLength;
     uint8_t bDescriptorType;
     uint16_t bcdHID;
     uint8_t bCountryCode;
     uint8_t bNumDescriptors;
-    uint8_t bDescriptorType2;
-    uint16_t wDescriptorLength;
+    usb_hid_descriptor_entry entries[1];
 } __attribute((packed));
 
 static_assert(sizeof(usb_hid_descriptor) == 0x9);

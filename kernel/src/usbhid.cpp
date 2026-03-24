@@ -2,6 +2,7 @@
 #include <string_view>
 #include <span>
 #include <mutex>
+#include <optional>
 
 import nt;
 import print;
@@ -823,26 +824,48 @@ static bool get_hid_descriptor(usb_device& d, const usb_device_config& cfg,
         return false;
     }
 
-    if (hid.size() < sizeof(usb_hid_descriptor)) {
-        print("HID descriptor was {} bytes, expected {}\n", hid.size(),
-              sizeof(usb_hid_descriptor));
+    if (hid.size() < offsetof(usb_hid_descriptor, entries)) {
+        print("HID descriptor was {} bytes, expected at least {}\n", hid.size(),
+              offsetof(usb_hid_descriptor, entries));
         return false;
     }
 
     auto& h = *(usb_hid_descriptor*)hid.data();
 
-    if (h.wDescriptorLength == 0) {
-        print("HID descriptor length was 0\n");
+    if (hid.size() < offsetof(usb_hid_descriptor, entries) + (sizeof(usb_hid_descriptor_entry) * h.bNumDescriptors)) {
+        print("HID descriptor was {} bytes, expected {}\n", hid.size(),
+              offsetof(usb_hid_descriptor, entries), offsetof(usb_hid_descriptor, entries) + (sizeof(usb_hid_descriptor_entry) * h.bNumDescriptors));
         return false;
     }
 
-    auto buf = (uint8_t*)malloc(h.wDescriptorLength);
+    optional<uint16_t> len;
+
+    for (unsigned int i = 0; i < h.bNumDescriptors; i++) {
+        if (h.entries[i].bDescriptorType != usb_descriptor::HID_REPORT)
+            continue;
+
+        len = +h.entries[i].wDescriptorLength;
+        break;
+    }
+
+    if (!len.has_value()) {
+        print("HID report descriptor not found for interface {} on USB HID device\n",
+              interface.desc.bInterfaceNumber);
+        return false;
+    }
+
+    if (*len == 0) {
+        print("HID report descriptor length was 0\n");
+        return false;
+    }
+
+    auto buf = (uint8_t*)malloc(*len);
     if (!buf) {
         print("malloc failed\n");
         return false;
     }
 
-    if (!d.get_descriptor_interface(span(buf, h.wDescriptorLength), usb_descriptor::HID_REPORT,
+    if (!d.get_descriptor_interface(span(buf, *len), usb_descriptor::HID_REPORT,
                                     0, interface.desc.bInterfaceNumber)) {
         free(buf);
         print("usb_device::get_descriptor_interface failed\n");
@@ -850,7 +873,7 @@ static bool get_hid_descriptor(usb_device& d, const usb_device_config& cfg,
     }
 
     print("HID report:");
-    for (unsigned int i = 0; i < h.wDescriptorLength; i++) {
+    for (unsigned int i = 0; i < *len; i++) {
         print(" {:02x}", buf[i]);
     }
     print("\n");

@@ -1934,13 +1934,24 @@ void print_usb_config(span<const uint8_t> buf) {
             case usb_descriptor::HID: {
                 auto& h = *(usb_hid_descriptor*)buf.data();
 
-                if (len < sizeof(usb_hid_descriptor)) {
+                if (len < offsetof(usb_hid_descriptor, entries)) {
                     print("buffer truncated\n");
                     return;
                 }
 
-                print("HID: bcdHID = {:x}, bCountryCode = {}, bNumDescriptors = {}, bDescriptorType2 = {}, wDescriptorLength = {}\n",
-                      +h.bcdHID, h.bCountryCode, h.bNumDescriptors, h.bDescriptorType2, +h.wDescriptorLength);
+                if (len < offsetof(usb_hid_descriptor, entries) + (sizeof(usb_hid_descriptor_entry) * h.bNumDescriptors)) {
+                    print("buffer truncated\n");
+                    return;
+                }
+
+                print("HID: bcdHID = {:x}, bCountryCode = {}, bNumDescriptors = {}",
+                      +h.bcdHID, h.bCountryCode, h.bNumDescriptors);
+
+                for (unsigned int i = 0; i < h.bNumDescriptors; i++) {
+                    print(", bDescriptorType2 = {}, wDescriptorLength = {}",
+                        (uint8_t)h.entries[i].bDescriptorType, +h.entries[i].wDescriptorLength);
+                }
+                print("\n");
 
                 break;
             }
