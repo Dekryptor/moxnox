@@ -76,7 +76,7 @@ private:
     void keyboard_repeat_thread();
     bool get_report_descriptor(const usb_device_config& cfg);
     bool parse_report_descriptor(span<const uint8_t> r);
-    usb_hid_report* find_report(uint8_t id);
+    usb_hid_report* find_report(uint8_t id, bool input);
 
     usb_device& d;
     xhci_queue& queue;
@@ -89,7 +89,8 @@ private:
     atomic<unsigned int> refcount = 1;
     uint8_t* report_descriptor = nullptr;
     size_t report_descriptor_len;
-    list_entry reports = { &reports, &reports };
+    list_entry input_reports = { &input_reports, &input_reports };
+    list_entry output_reports = { &output_reports, &output_reports };
 };
 
 static const enum evdev_code keycodes[] = {
@@ -715,8 +716,10 @@ static void print_report_descriptor(span<const uint8_t> r) {
 }
 #endif
 
-usb_hid_report* usb_keyboard::find_report(uint8_t id) {
-    for (auto le = reports.next; le != &reports; le = le->next) {
+usb_hid_report* usb_keyboard::find_report(uint8_t id, bool input) {
+    auto& list = input ? input_reports : output_reports;
+
+    for (auto le = list.next; le != &list; le = le->next) {
         auto& r = containing_record<usb_hid_report>(le);
 
         if (r.id == id)
@@ -731,7 +734,7 @@ usb_hid_report* usb_keyboard::find_report(uint8_t id) {
 
     r->id = id;
 
-    insert_tail_list(reports, r->le);
+    insert_tail_list(list, r->le);
 
     return r;
 }
@@ -744,8 +747,6 @@ bool usb_keyboard::parse_report_descriptor(span<const uint8_t> r) {
     uint32_t logical_max_u = 0;
     int32_t logical_min = 0, logical_max_s = 0;
     unsigned int input_bit_offset = 0, output_bit_offset = 0;
-
-    print("report descriptor:\n");
 
     while (!r.empty()) {
         auto b = r[0];
@@ -812,7 +813,7 @@ bool usb_keyboard::parse_report_descriptor(span<const uint8_t> r) {
                         if (!(v & 1)) { // skip constant
                             int32_t logical_max;
 
-                            auto rep = find_report(report_id);
+                            auto rep = find_report(report_id, true);
                             if (!rep)
                                 return false;
 
@@ -853,15 +854,33 @@ bool usb_keyboard::parse_report_descriptor(span<const uint8_t> r) {
                         if (!(v & 1)) { // skip constant
                             int32_t logical_max;
 
+                            auto rep = find_report(report_id, false);
+                            if (!rep)
+                                return false;
+
                             if (logical_min >= 0)
                                 logical_max = logical_max_u;
                             else
                                 logical_max = logical_max_s;
 
-                            print("output {:x} (usage min = {:x}, usage max = {:x}, report ID {:x}, report count {:x}, report size {:x}, usage page {:x}, logical min = {}, logical max = {}, bit offset = {})\n",
-                                v, usage_min, usage_max, report_id, report_count,
-                                report_size, usage_page, logical_min, logical_max,
-                                output_bit_offset);
+                            auto f = new usb_hid_field;
+                            if (!f) {
+                                print("new failed\n");
+                                return false;
+                            }
+
+                            f->is_variable = v & 2;
+                            f->is_relative = v & 4;
+                            f->count = report_count;
+                            f->size = report_size;
+                            f->logical_min = logical_min;
+                            f->logical_max = logical_max;
+                            f->usage_page = usage_page;
+                            f->usage_min = usage_min;
+                            f->usage_max = usage_max;
+                            f->bit_offset = output_bit_offset;
+
+                            insert_tail_list(rep->fields, f->le);
                         }
 
                         usage_min = 0;
@@ -958,15 +977,30 @@ usb_keyboard::usb_keyboard(usb_device& d, const usb_device_config& config,
 #endif
     parse_report_descriptor(span(report_descriptor, report_descriptor_len));
 
-    for (auto le = reports.next; le != &reports; le = le->next) {
+    for (auto le = input_reports.next; le != &input_reports; le = le->next) {
         auto& r = containing_record<usb_hid_report>(le);
 
-        print("report {}:\n", r.id);
+        print("input report {}:\n", r.id);
 
         for (auto le2 = r.fields.next; le2 != &r.fields; le2 = le2->next) {
             auto& f = containing_record<usb_hid_field>(le2);
 
-            print("input (is_variable {}, is_relative {}, usage min = {:x}, usage max = {:x}, count {:x}, size {:x}, usage page {:x}, logical min = {}, logical max = {}, bit offset = {})\n",
+            print("is_variable {}, is_relative {}, usage min = {:x}, usage max = {:x}, count {:x}, size {:x}, usage page {:x}, logical min = {}, logical max = {}, bit offset = {}\n",
+                  f.is_variable ? "true" : "false", f.is_relative ? "true" : "false",
+                  f.usage_min, f.usage_max, f.count, f.size,
+                  f.usage_page, f.logical_min, f.logical_max, f.bit_offset);
+        }
+    }
+
+    for (auto le = output_reports.next; le != &output_reports; le = le->next) {
+        auto& r = containing_record<usb_hid_report>(le);
+
+        print("output report {}:\n", r.id);
+
+        for (auto le2 = r.fields.next; le2 != &r.fields; le2 = le2->next) {
+            auto& f = containing_record<usb_hid_field>(le2);
+
+            print("is_variable {}, is_relative {}, usage min = {:x}, usage max = {:x}, count {:x}, size {:x}, usage page {:x}, logical min = {}, logical max = {}, bit offset = {}\n",
                   f.is_variable ? "true" : "false", f.is_relative ? "true" : "false",
                   f.usage_min, f.usage_max, f.count, f.size,
                   f.usage_page, f.logical_min, f.logical_max, f.bit_offset);
@@ -1041,8 +1075,24 @@ usb_keyboard::~usb_keyboard() {
     if (report_descriptor)
         free(report_descriptor);
 
-    while (!is_list_empty(reports)) {
-        auto& r = containing_record<usb_hid_report>(reports.next);
+    while (!is_list_empty(input_reports)) {
+        auto& r = containing_record<usb_hid_report>(input_reports.next);
+
+        remove_entry_list(r.le);
+
+        while (!is_list_empty(r.fields)) {
+            auto& f = containing_record<usb_hid_field>(r.fields.next);
+
+            remove_entry_list(f.le);
+
+            delete &f;
+        }
+
+        delete &r;
+    }
+
+    while (!is_list_empty(output_reports)) {
+        auto& r = containing_record<usb_hid_report>(output_reports.next);
 
         remove_entry_list(r.le);
 
