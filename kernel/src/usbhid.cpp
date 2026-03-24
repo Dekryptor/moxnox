@@ -477,6 +477,24 @@ static void parse_report_descriptor(span<const uint8_t> r) {
     while (!r.empty()) {
         auto b = r[0];
 
+        if (b == 0xfe) { // long item
+            if (r.size() == 1) {
+                print("report descriptor is truncated\n");
+                return;
+            }
+
+            uint8_t size = r[1];
+
+            if (r.size() < (size_t)(size + 3)) {
+                print("report descriptor is truncated\n");
+                return;
+            }
+
+            print("parse_report_descriptor: skipping long item\n");
+            r = r.subspan(size + 3);
+            continue;
+        }
+
         unsigned int n;
 
         switch (b & 0x3) {
