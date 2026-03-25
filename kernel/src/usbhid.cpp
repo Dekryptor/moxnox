@@ -1409,10 +1409,6 @@ static bool found_usb_hid_device(usb_device& d, const usb_device_config& config,
     if (interface.desc.bAlternateSetting) // FIXME?
         return false;
 
-    // FIXME - reject anything for now that doesn't have a keyboard boot interface
-    if (interface.desc.bInterfaceSubClass != 1 || interface.desc.bInterfaceProtocol != 1)
-        return false;
-
     usb_endpoint* ep_desc = nullptr;
 
     // find endpoint number
@@ -1449,10 +1445,12 @@ static bool found_usb_hid_device(usb_device& d, const usb_device_config& config,
         return false;
     }
 
-    // change to report protocol
-    if (!set_protocol(d, 1, interface.desc.bInterfaceNumber)) {
-        print("found_usb_hid_device: set_protocol failed\n");
-        return false;
+    if (interface.desc.bInterfaceSubClass == 1) {
+        // change to report protocol
+        if (!set_protocol(d, 1, interface.desc.bInterfaceNumber)) {
+            print("found_usb_hid_device: set_protocol failed\n");
+            return false;
+        }
     }
 
     auto queue = d.configure_endpoint(ep_desc->desc);
