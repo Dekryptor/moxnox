@@ -29,6 +29,8 @@ using namespace std;
 static const int64_t REPEAT_DELAY_MS = 660;
 static const int64_t REPEAT_RATE_HZ = 25;
 
+static const uint16_t USAGE_PAGE_KEYBOARD = 7;
+
 static const size_t evdev_buffer_pages = 1;
 
 static atomic<unsigned int> keyboard_num = 0;
@@ -333,14 +335,14 @@ static const enum evdev_code keycodes[] = {
     evdev_code::KEY_RESERVED,
     evdev_code::KEY_RESERVED,
     // e0
-    evdev_code::KEY_RESERVED,
-    evdev_code::KEY_RESERVED,
-    evdev_code::KEY_RESERVED,
-    evdev_code::KEY_RESERVED,
-    evdev_code::KEY_RESERVED,
-    evdev_code::KEY_RESERVED,
-    evdev_code::KEY_RESERVED,
-    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_LEFTCTRL,
+    evdev_code::KEY_LEFTSHIFT,
+    evdev_code::KEY_LEFTALT,
+    evdev_code::KEY_LEFTMETA,
+    evdev_code::KEY_RIGHTCTRL,
+    evdev_code::KEY_RIGHTSHIFT,
+    evdev_code::KEY_RIGHTALT,
+    evdev_code::KEY_RIGHTMETA,
     evdev_code::KEY_RESERVED,
     evdev_code::KEY_RESERVED,
     evdev_code::KEY_RESERVED,
@@ -1210,6 +1212,72 @@ void usb_keyboard::post_evdev(enum evdev_code code, int32_t value) {
     }
 }
 
+static uint32_t extract_num(span<const uint8_t> sp, unsigned int offset,
+                            unsigned int size) {
+    uint32_t ret = 0;
+
+    for (unsigned int i = 0; i < size; i++) {
+        unsigned int byte_index = (offset + i) / 8;
+        unsigned int bit_index = (offset + i) % 8;
+
+        if (byte_index < sp.size() && (sp[byte_index] >> bit_index) & 1)
+            ret |= (uint32_t)1 << i;
+    }
+
+    return ret;
+}
+
+static void handle_keyboard_input_field(usb_hid_field& f, span<const uint8_t> sp,
+                                        span<uint64_t, 4> keys) {
+    auto set_key = [&keys](uint8_t key) {
+        keys[key / 64] |= (uint64_t)1 << (key % 64);
+    };
+
+    if (f.is_variable) {
+        unsigned int offset = f.bit_offset;
+
+        for (unsigned int i = 0; i < f.count; i++) {
+            auto num = extract_num(sp, offset, f.size);
+
+            if (num != 0) {
+                auto usage = f.usage_min + i;
+                if (usage < 256)
+                    set_key((uint8_t)usage);
+            }
+
+            offset += f.size;
+        }
+    } else {
+        unsigned int offset = f.bit_offset;
+
+        for (unsigned int i = 0; i < f.count; i++) {
+            auto usage = extract_num(sp, offset, f.size);
+
+            if (usage != 0 && usage < 256 && usage >= f.usage_min && usage <= f.usage_max)
+                set_key((uint8_t)usage);
+
+            offset += f.size;
+        }
+    }
+}
+
+static void handle_keyboard_input(usb_hid_report& r, span<const uint8_t> sp,
+                                  span<uint64_t, 4> keys) {
+    if (r.id != 0) {
+        if (sp.empty() || sp[0] != r.id)
+            return;
+
+        sp = sp.subspan(1);
+    }
+
+    for (auto le = r.fields.next; le != &r.fields; le = le->next) {
+        auto& f = containing_record<usb_hid_field>(le);
+
+        if (f.usage_page == USAGE_PAGE_KEYBOARD)
+            handle_keyboard_input_field(f, sp, keys);
+    }
+}
+
 void usb_keyboard::recv_thread() {
     if (packet_size < 8) {
         print("usb_keyboard::recv_thread: packet_size was {}, expected at least 8\n",
@@ -1223,12 +1291,9 @@ void usb_keyboard::recv_thread() {
         return;
     }
 
-    uint64_t status[4], last_status[4];
-    uint8_t last_mod = 0;
+    array<uint64_t, 4> old_keys;
 
-    for (unsigned int i = 0; i < 4; i++) {
-        last_status[i] = 0;
-    }
+    old_keys[0] = old_keys[1] = old_keys[2] = old_keys[3] = 0;
 
     while (true) {
         auto recv_bytes = queue.normal_transfer(span(buf, packet_size));
@@ -1245,81 +1310,41 @@ void usb_keyboard::recv_thread() {
             continue;
         }
 
-#if 0
-        char s[255];
-        span<char> sp(s, sizeof(s));
+        // FIXME - check is keyboard
 
-        for (uint16_t i = 0; i < recv_bytes; i++) {
-            if (i != 0)
-                sp = format_to(sp, " ", make_tuple());
+        array<uint64_t, 4> keys;
 
-            sp = format_to(sp, "{:02x}", make_tuple(buf[i]));
+        keys[0] = keys[1] = keys[2] = keys[3] = 0;
+
+        for (auto le = input_reports.next; le != &input_reports; le = le->next) {
+            auto& r = containing_record<usb_hid_report>(le);
+
+            handle_keyboard_input(r, span(buf, packet_size), keys);
         }
 
-        print("{}\n", string_view(s, (size_t)(sp.data() - s)));
-#endif
-        uint8_t mod = buf[0];
+        if (keys != old_keys) {
+            for (size_t i = 0; i < keys.size(); i++) {
+                auto diff = keys[i] ^ old_keys[i];
 
-        for (unsigned int i = 0; i < 4; i++) {
-            status[i] = 0;
-        }
+                while (diff != 0) {
+                    auto bit = countr_zero(diff);
+                    auto code = (i * 64) + bit;
 
-        for (uint16_t i = 2; i < recv_bytes; i++) {
-            if (buf[i] == 0)
-                continue;
+                    if (keycodes[code] == evdev_code::KEY_RESERVED)
+                        print("unrecognized keycode {:x}\n", code);
+                    else {
+                        if (keys[i] & (uint64_t)1 << bit)
+                            post_evdev(keycodes[code], 1);
+                        else
+                            post_evdev(keycodes[code], 0);
+                    }
 
-            status[buf[i] / 64] |= (uint64_t)1 << (buf[i] % 64);
-        }
-
-        if (mod != last_mod) {
-            uint8_t changed = mod ^ last_mod;
-
-            while (changed != 0) {
-                auto bit = countr_zero(changed);
-                bool down = mod & (1 << bit);
-
-                static const enum evdev_code modifiers[] = {
-                    evdev_code::KEY_LEFTCTRL,
-                    evdev_code::KEY_LEFTSHIFT,
-                    evdev_code::KEY_LEFTALT,
-                    evdev_code::KEY_LEFTMETA,
-                    evdev_code::KEY_RIGHTCTRL,
-                    evdev_code::KEY_RIGHTSHIFT,
-                    evdev_code::KEY_RIGHTALT,
-                    evdev_code::KEY_RIGHTMETA,
-                };
-
-                post_evdev(modifiers[bit], down ? 1 : 0);
-
-                changed &= (uint8_t)~(1 << bit);
+                    diff &= ~((uint64_t)1 << bit);
+                }
             }
+
+            old_keys = keys;
         }
-
-        for (unsigned int i = 0; i < 4; i++) {
-            if (status[i] == last_status[i])
-                continue;
-
-            auto changed = status[i] ^ last_status[i];
-
-            while (changed != 0) {
-                auto bit = (unsigned int)countr_zero(changed);
-                auto code = (i * 64) + bit;
-                bool down = status[i] & (uint64_t)1 << bit;
-
-                if (keycodes[code] != evdev_code::KEY_RESERVED)
-                    post_evdev(keycodes[code], down ? 1 : 0);
-                else
-                    print("unrecognized keycode {:x}\n", code);
-
-                changed &= ~((uint64_t)1 << bit);
-            }
-        }
-
-        for (unsigned int i = 0; i < 4; i++) {
-            last_status[i] = status[i];
-        }
-
-        last_mod = mod;
     }
 
     free(buf);
@@ -1417,8 +1442,8 @@ static bool found_usb_keyboard(usb_device& d, const usb_device_config& config,
         return false;
     }
 
-    // change to boot protocol
-    if (!set_protocol(d, 0, interface.desc.bInterfaceNumber)) {
+    // change to report protocol
+    if (!set_protocol(d, 1, interface.desc.bInterfaceNumber)) {
         print("found_usb_keyboard: set_protocol failed\n");
         return false;
     }
