@@ -1404,8 +1404,15 @@ void usb_keyboard::keyboard_repeat_thread() {
     release();
 }
 
-static bool found_usb_keyboard(usb_device& d, const usb_device_config& config,
-                               const usb_interface& interface) {
+static bool found_usb_hid_device(usb_device& d, const usb_device_config& config,
+                                 const usb_interface& interface) {
+    if (interface.desc.bAlternateSetting) // FIXME?
+        return false;
+
+    // FIXME - reject anything for now that doesn't have a keyboard boot interface
+    if (interface.desc.bInterfaceSubClass != 1 || interface.desc.bInterfaceProtocol != 1)
+        return false;
+
     usb_endpoint* ep_desc = nullptr;
 
     // find endpoint number
@@ -1425,7 +1432,7 @@ static bool found_usb_keyboard(usb_device& d, const usb_device_config& config,
             continue;
 
         if (ep_desc) {
-            print("found_usb_keyboard: multiple potential endpoints found\n");
+            print("found_usb_hid_device: multiple potential endpoints found\n");
             return false;
         }
 
@@ -1433,18 +1440,18 @@ static bool found_usb_keyboard(usb_device& d, const usb_device_config& config,
     }
 
     if (!ep_desc) {
-        print("found_usb_keyboard: no potential endpoint found\n");
+        print("found_usb_hid_device: no potential endpoint found\n");
         return false;
     }
 
     if (ep_desc->desc.wMaxPacketSize == 0) {
-        print("found_usb_keyboard: wMaxPacketSize was 0\n");
+        print("found_usb_hid_device: wMaxPacketSize was 0\n");
         return false;
     }
 
     // change to report protocol
     if (!set_protocol(d, 1, interface.desc.bInterfaceNumber)) {
-        print("found_usb_keyboard: set_protocol failed\n");
+        print("found_usb_hid_device: set_protocol failed\n");
         return false;
     }
 
@@ -1469,16 +1476,4 @@ static bool found_usb_keyboard(usb_device& d, const usb_device_config& config,
     }, kbd);
 
     return true;
-}
-
-static bool found_usb_hid_device(usb_device& d, const usb_device_config& config,
-                                 const usb_interface& interface) {
-    if (interface.desc.bAlternateSetting) // FIXME?
-        return false;
-
-    // FIXME - reject anything for now that doesn't have a keyboard boot interface
-    if (interface.desc.bInterfaceSubClass != 1 || interface.desc.bInterfaceProtocol != 1)
-        return false;
-
-    return found_usb_keyboard(d, config, interface);
 }
