@@ -33,7 +33,7 @@ static const uint16_t USAGE_PAGE_KEYBOARD = 7;
 
 static const size_t evdev_buffer_pages = 1;
 
-static atomic<unsigned int> keyboard_num = 0;
+static atomic<unsigned int> hid_num = 0;
 
 struct usb_hid_field {
     list_entry le;
@@ -55,12 +55,12 @@ struct usb_hid_report {
     list_entry fields = { &fields, &fields };
 };
 
-class usb_keyboard {
+class usb_hid_device {
 public:
-    usb_keyboard(usb_device& d, const usb_device_config& config,
-                 xhci_queue& queue, uint16_t packet_size,
-                 const usb_interface& interface);
-    ~usb_keyboard();
+    usb_hid_device(usb_device& d, const usb_device_config& config,
+                   xhci_queue& queue, uint16_t packet_size,
+                   const usb_interface& interface);
+    ~usb_hid_device();
     void set_leds(keyboard_leds leds);
     void recv_thread();
 
@@ -408,7 +408,7 @@ static bool usb_hid_set_report(usb_device& d, span<uint8_t> buf,
                                         interface);
 }
 
-bool usb_keyboard::get_report_descriptor(const usb_device_config& cfg) {
+bool usb_hid_device::get_report_descriptor(const usb_device_config& cfg) {
     auto sp = span(cfg.data, cfg.len);
     span<const uint8_t> hid;
     bool ignore = true;
@@ -716,7 +716,7 @@ static void print_report_descriptor(span<const uint8_t> r) {
 }
 #endif
 
-usb_hid_report* usb_keyboard::find_report(uint8_t id, bool input) {
+usb_hid_report* usb_hid_device::find_report(uint8_t id, bool input) {
     auto& list = input ? input_reports : output_reports;
 
     for (auto le = list.next; le != &list; le = le->next) {
@@ -739,7 +739,7 @@ usb_hid_report* usb_keyboard::find_report(uint8_t id, bool input) {
     return r;
 }
 
-bool usb_keyboard::parse_report_descriptor(span<const uint8_t> r) {
+bool usb_hid_device::parse_report_descriptor(span<const uint8_t> r) {
     uint32_t usage_min = 0, usage_max = 0;
     uint8_t report_id = 0;
     uint32_t report_count = 0, report_size = 0;
@@ -962,13 +962,13 @@ bool usb_keyboard::parse_report_descriptor(span<const uint8_t> r) {
     return true;
 }
 
-usb_keyboard::usb_keyboard(usb_device& d, const usb_device_config& config,
-                           xhci_queue& queue, uint16_t packet_size,
-                           const usb_interface& interface) : d(d), queue(queue), interface(interface) {
+usb_hid_device::usb_hid_device(usb_device& d, const usb_device_config& config,
+                               xhci_queue& queue, uint16_t packet_size,
+                               const usb_interface& interface) : d(d), queue(queue), interface(interface) {
     d.acquire();
 
     if (!get_report_descriptor(config)) {
-        print("usb_keyboard::get_report_descriptor failed\n");
+        print("usb_hid_device::get_report_descriptor failed\n");
         return;
     }
 
@@ -1017,13 +1017,13 @@ usb_keyboard::usb_keyboard(usb_device& d, const usb_device_config& config,
 
     evdev_pipe = object_ref{*pptr};
 
-    unsigned int num = keyboard_num.fetch_add(1);
+    unsigned int num = hid_num.fetch_add(1);
 
     {
         char s[50];
         auto sp = span(s, sizeof(s));
 
-        sp = format(sp, "usbkeyboard{}", num);
+        sp = format(sp, "usbhid{}", num);
 
         auto sv = string_view(s, (size_t)(sp.data() - s));
 
@@ -1036,7 +1036,7 @@ usb_keyboard::usb_keyboard(usb_device& d, const usb_device_config& config,
     }
 
     this->kc = register_keyboard(static_cast<pipe&>(evdev_pipe.get()), [](void* ctx, keyboard_leds leds) {
-        auto& kbd = *(usb_keyboard*)ctx;
+        auto& kbd = *(usb_hid_device*)ctx;
 
         kbd.set_leds(leds);
     }, this);
@@ -1048,14 +1048,14 @@ usb_keyboard::usb_keyboard(usb_device& d, const usb_device_config& config,
     }
 
     acquire();
-    if (!add_kernel_thread([](void* ctx) { ((usb_keyboard*)ctx)->keyboard_repeat_thread(); }, this)) {
+    if (!add_kernel_thread([](void* ctx) { ((usb_hid_device*)ctx)->keyboard_repeat_thread(); }, this)) {
         release();
         print("add_kernel_thread failed\n");
         return;
     }
 }
 
-usb_keyboard::~usb_keyboard() {
+usb_hid_device::~usb_hid_device() {
     if (kc)
         kc->unregister();
 
@@ -1110,7 +1110,7 @@ usb_keyboard::~usb_keyboard() {
     d.release();
 }
 
-void usb_keyboard::set_leds(keyboard_leds leds) {
+void usb_hid_device::set_leds(keyboard_leds leds) {
     uint8_t buf = 0;
 
     if (leds.num_lock)
@@ -1150,7 +1150,7 @@ static bool should_key_repeat(enum evdev_code code) {
     }
 }
 
-void usb_keyboard::post_evdev(enum evdev_code code, int32_t value) {
+void usb_hid_device::post_evdev(enum evdev_code code, int32_t value) {
     input_event ev;
     auto& p = static_cast<pipe&>(evdev_pipe.get());
 
@@ -1278,13 +1278,7 @@ static void handle_keyboard_input(usb_hid_report& r, span<const uint8_t> sp,
     }
 }
 
-void usb_keyboard::recv_thread() {
-    if (packet_size < 8) {
-        print("usb_keyboard::recv_thread: packet_size was {}, expected at least 8\n",
-              packet_size);
-        return;
-    }
-
+void usb_hid_device::recv_thread() {
     auto buf = (uint8_t*)malloc(packet_size);
     if (!buf) {
         print("malloc failed\n");
@@ -1305,7 +1299,7 @@ void usb_keyboard::recv_thread() {
         }
 
         if (recv_bytes < 2) {
-            print("usb_keyboard::recv_thread: received {} bytes, expected at least 2\n",
+            print("usb_hid_device::recv_thread: received {} bytes, expected at least 2\n",
                   recv_bytes);
             continue;
         }
@@ -1369,7 +1363,7 @@ static bool set_protocol(usb_device& d, uint16_t wValue, uint16_t wIndex) {
     return true;
 }
 
-void usb_keyboard::keyboard_repeat_thread() {
+void usb_hid_device::keyboard_repeat_thread() {
     auto& t = static_cast<timer&>(repeat_timer.get());
 
     t.acquire();
@@ -1461,19 +1455,19 @@ static bool found_usb_hid_device(usb_device& d, const usb_device_config& config,
         return false;
     }
 
-    auto kbd = new usb_keyboard(d, config, *queue,
-                                ep_desc->desc.wMaxPacketSize, interface);
-    if (!kbd) {
+    auto dev = new usb_hid_device(d, config, *queue,
+                                  ep_desc->desc.wMaxPacketSize, interface);
+    if (!dev) {
         print("new failed\n");
         return false;
     }
 
     add_kernel_thread([](void* ctx) {
-        auto kbd = (usb_keyboard*)ctx;
+        auto& dev = *(usb_hid_device*)ctx;
 
-        kbd->recv_thread();
-        kbd->release();
-    }, kbd);
+        dev.recv_thread();
+        dev.release();
+    }, dev);
 
     return true;
 }
