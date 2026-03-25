@@ -3,6 +3,7 @@
 #include <span>
 #include <mutex>
 #include <optional>
+#include <string.h>
 
 import nt;
 import print;
@@ -1304,11 +1305,7 @@ void usb_hid_device::recv_thread() {
             break;
         }
 
-        if (recv_bytes < 2) {
-            print("usb_hid_device::recv_thread: received {} bytes, expected at least 2\n",
-                  recv_bytes);
-            continue;
-        }
+        memset(buf + recv_bytes, 0, packet_size - recv_bytes);
 
         if (is_keyboard) {
             array<uint64_t, 4> keys;
