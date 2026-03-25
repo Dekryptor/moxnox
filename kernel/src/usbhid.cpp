@@ -91,6 +91,7 @@ private:
     atomic<unsigned int> refcount = 1;
     uint8_t* report_descriptor = nullptr;
     size_t report_descriptor_len;
+    bool is_keyboard = false;
     list_entry input_reports = { &input_reports, &input_reports };
     list_entry output_reports = { &output_reports, &output_reports };
 };
@@ -985,6 +986,9 @@ usb_hid_device::usb_hid_device(usb_device& d, const usb_device_config& config,
         for (auto le2 = r.fields.next; le2 != &r.fields; le2 = le2->next) {
             auto& f = containing_record<usb_hid_field>(le2);
 
+            if (f.usage_page == USAGE_PAGE_KEYBOARD)
+                is_keyboard = true;
+
             print("is_variable {}, is_relative {}, usage min = {:x}, usage max = {:x}, count {:x}, size {:x}, usage page {:x}, logical min = {}, logical max = {}, bit offset = {}\n",
                   f.is_variable ? "true" : "false", f.is_relative ? "true" : "false",
                   f.usage_min, f.usage_max, f.count, f.size,
@@ -1035,23 +1039,25 @@ usb_hid_device::usb_hid_device(usb_device& d, const usb_device_config& config,
         }
     }
 
-    this->kc = register_keyboard(static_cast<pipe&>(evdev_pipe.get()), [](void* ctx, keyboard_leds leds) {
-        auto& kbd = *(usb_hid_device*)ctx;
+    if (is_keyboard) {
+        this->kc = register_keyboard(static_cast<pipe&>(evdev_pipe.get()), [](void* ctx, keyboard_leds leds) {
+            auto& kbd = *(usb_hid_device*)ctx;
 
-        kbd.set_leds(leds);
-    }, this);
+            kbd.set_leds(leds);
+        }, this);
 
-    repeat_timer = create_timer(true);
-    if (!repeat_timer) {
-        print("create_timer failed\n");
-        return;
-    }
+        repeat_timer = create_timer(true);
+        if (!repeat_timer) {
+            print("create_timer failed\n");
+            return;
+        }
 
-    acquire();
-    if (!add_kernel_thread([](void* ctx) { ((usb_hid_device*)ctx)->keyboard_repeat_thread(); }, this)) {
-        release();
-        print("add_kernel_thread failed\n");
-        return;
+        acquire();
+        if (!add_kernel_thread([](void* ctx) { ((usb_hid_device*)ctx)->keyboard_repeat_thread(); }, this)) {
+            release();
+            print("add_kernel_thread failed\n");
+            return;
+        }
     }
 }
 
@@ -1304,40 +1310,40 @@ void usb_hid_device::recv_thread() {
             continue;
         }
 
-        // FIXME - check is keyboard
+        if (is_keyboard) {
+            array<uint64_t, 4> keys;
 
-        array<uint64_t, 4> keys;
+            keys[0] = keys[1] = keys[2] = keys[3] = 0;
 
-        keys[0] = keys[1] = keys[2] = keys[3] = 0;
+            for (auto le = input_reports.next; le != &input_reports; le = le->next) {
+                auto& r = containing_record<usb_hid_report>(le);
 
-        for (auto le = input_reports.next; le != &input_reports; le = le->next) {
-            auto& r = containing_record<usb_hid_report>(le);
-
-            handle_keyboard_input(r, span(buf, packet_size), keys);
-        }
-
-        if (keys != old_keys) {
-            for (size_t i = 0; i < keys.size(); i++) {
-                auto diff = keys[i] ^ old_keys[i];
-
-                while (diff != 0) {
-                    auto bit = countr_zero(diff);
-                    auto code = (i * 64) + bit;
-
-                    if (keycodes[code] == evdev_code::KEY_RESERVED)
-                        print("unrecognized keycode {:x}\n", code);
-                    else {
-                        if (keys[i] & (uint64_t)1 << bit)
-                            post_evdev(keycodes[code], 1);
-                        else
-                            post_evdev(keycodes[code], 0);
-                    }
-
-                    diff &= ~((uint64_t)1 << bit);
-                }
+                handle_keyboard_input(r, span(buf, packet_size), keys);
             }
 
-            old_keys = keys;
+            if (keys != old_keys) {
+                for (size_t i = 0; i < keys.size(); i++) {
+                    auto diff = keys[i] ^ old_keys[i];
+
+                    while (diff != 0) {
+                        auto bit = countr_zero(diff);
+                        auto code = (i * 64) + bit;
+
+                        if (keycodes[code] == evdev_code::KEY_RESERVED)
+                            print("unrecognized keycode {:x}\n", code);
+                        else {
+                            if (keys[i] & (uint64_t)1 << bit)
+                                post_evdev(keycodes[code], 1);
+                            else
+                                post_evdev(keycodes[code], 0);
+                        }
+
+                        diff &= ~((uint64_t)1 << bit);
+                    }
+                }
+
+                old_keys = keys;
+            }
         }
     }
 
