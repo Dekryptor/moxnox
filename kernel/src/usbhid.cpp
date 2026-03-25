@@ -53,6 +53,7 @@ struct usb_hid_field {
 struct usb_hid_report {
     list_entry le;
     uint8_t id;
+    unsigned int bit_offset = 0;
     list_entry fields = { &fields, &fields };
 };
 
@@ -748,7 +749,6 @@ bool usb_hid_device::parse_report_descriptor(span<const uint8_t> r) {
     uint16_t usage_page = 0;
     uint32_t logical_max_u = 0;
     int32_t logical_min = 0, logical_max_s = 0;
-    unsigned int input_bit_offset = 0, output_bit_offset = 0;
 
     while (!r.empty()) {
         auto b = r[0];
@@ -811,13 +811,15 @@ bool usb_hid_device::parse_report_descriptor(span<const uint8_t> r) {
         switch (b & 0xc) {
             case 0x0: // main
                 switch (b & 0xf0) {
-                    case 0x80: {
+                    case 0x80: // input
+                    case 0x90: // output
+                    {
+                        auto rep = find_report(report_id, (b & 0xf0) == 0x80);
+                        if (!rep)
+                            return false;
+
                         if (!(v & 1)) { // skip constant
                             int32_t logical_max;
-
-                            auto rep = find_report(report_id, true);
-                            if (!rep)
-                                return false;
 
                             if (logical_min >= 0)
                                 logical_max = (int32_t)logical_max_u;
@@ -839,7 +841,7 @@ bool usb_hid_device::parse_report_descriptor(span<const uint8_t> r) {
                             f->usage_page = usage_page;
                             f->usage_min = usage_min;
                             f->usage_max = usage_max;
-                            f->bit_offset = input_bit_offset;
+                            f->bit_offset = rep->bit_offset;
 
                             insert_tail_list(rep->fields, f->le);
                         }
@@ -847,48 +849,7 @@ bool usb_hid_device::parse_report_descriptor(span<const uint8_t> r) {
                         usage_min = 0;
                         usage_max = 0;
 
-                        input_bit_offset += report_count * report_size;
-
-                        break;
-                    }
-
-                    case 0x90: {
-                        if (!(v & 1)) { // skip constant
-                            int32_t logical_max;
-
-                            auto rep = find_report(report_id, false);
-                            if (!rep)
-                                return false;
-
-                            if (logical_min >= 0)
-                                logical_max = (int32_t)logical_max_u;
-                            else
-                                logical_max = logical_max_s;
-
-                            auto f = new usb_hid_field;
-                            if (!f) {
-                                print("new failed\n");
-                                return false;
-                            }
-
-                            f->is_variable = v & 2;
-                            f->is_relative = v & 4;
-                            f->count = report_count;
-                            f->size = report_size;
-                            f->logical_min = logical_min;
-                            f->logical_max = logical_max;
-                            f->usage_page = usage_page;
-                            f->usage_min = usage_min;
-                            f->usage_max = usage_max;
-                            f->bit_offset = output_bit_offset;
-
-                            insert_tail_list(rep->fields, f->le);
-                        }
-
-                        usage_min = 0;
-                        usage_max = 0;
-
-                        output_bit_offset += report_count * report_size;
+                        rep->bit_offset += report_count * report_size;
 
                         break;
                     }
