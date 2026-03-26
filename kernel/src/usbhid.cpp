@@ -110,6 +110,7 @@ private:
     bool is_keyboard = false;
     list_entry input_reports = { &input_reports, &input_reports };
     list_entry output_reports = { &output_reports, &output_reports };
+    array<uint64_t, 4> keys;
 };
 
 static const enum evdev_code keycodes[] = {
@@ -1272,58 +1273,19 @@ static uint32_t extract_num(span<const uint8_t> sp, unsigned int offset,
     return ret;
 }
 
-static void handle_keyboard_input_field(usb_hid_field& f, span<const uint8_t> sp,
-                                        span<uint64_t, 4> keys) {
-    auto set_key = [&keys](uint8_t key) {
-        keys[key / 64] |= (uint64_t)1 << (key % 64);
-    };
-
-    if (f.is_variable) {
-        unsigned int offset = f.bit_offset;
-
-        for (unsigned int i = 0; i < f.count; i++) {
-            auto num = extract_num(sp, offset, f.size);
-
-            if (num != 0) {
-                auto usage = f.usage_min + i;
-                if (usage < 256)
-                    set_key((uint8_t)usage);
-            }
-
-            offset += f.size;
-        }
-    } else {
-        unsigned int offset = f.bit_offset;
-
-        for (unsigned int i = 0; i < f.count; i++) {
-            auto usage = extract_num(sp, offset, f.size);
-
-            if (usage != 0 && usage < 256 && usage >= f.usage_min && usage <= f.usage_max)
-                set_key((uint8_t)usage);
-
-            offset += f.size;
-        }
-    }
-}
-
-static void handle_keyboard_input(usb_hid_report& r, span<const uint8_t> sp,
-                                  span<uint64_t, 4> keys) {
-    if (r.id != 0) {
-        if (sp.empty() || sp[0] != r.id)
+void usb_hid_device::input_usage(uint16_t usage_page, uint32_t usage, int32_t num) {
+    if (usage_page == USAGE_PAGE_KEYBOARD) {
+        if (usage > 255)
             return;
 
-        sp = sp.subspan(1);
+        if (num)
+            keys[usage / 64] |= (uint64_t)1 << (usage % 64);
+        else
+            keys[usage / 64] &= ~((uint64_t)1 << (usage % 64));
+
+        return;
     }
 
-    for (auto le = r.fields.next; le != &r.fields; le = le->next) {
-        auto& f = containing_record<usb_hid_field>(le);
-
-        if (f.usage_page == USAGE_PAGE_KEYBOARD)
-            handle_keyboard_input_field(f, sp, keys);
-    }
-}
-
-void usb_hid_device::input_usage(uint16_t usage_page, uint32_t usage, int32_t num) {
     print("input_usage: usage page {:x}, usage {:x}, num {}\n",
           usage_page, usage, num);
 
@@ -1446,6 +1408,9 @@ void usb_hid_device::recv_thread() {
 
         memset(buf + recv_bytes, 0, packet_size - recv_bytes);
 
+        if (is_keyboard)
+            keys = old_keys;
+
         for (auto le = input_reports.next; le != &input_reports; le = le->next) {
             auto& r = containing_record<usb_hid_report>(le);
 
@@ -1453,16 +1418,6 @@ void usb_hid_device::recv_thread() {
         }
 
         if (is_keyboard) {
-            array<uint64_t, 4> keys;
-
-            keys[0] = keys[1] = keys[2] = keys[3] = 0;
-
-            for (auto le = input_reports.next; le != &input_reports; le = le->next) {
-                auto& r = containing_record<usb_hid_report>(le);
-
-                handle_keyboard_input(r, span(buf, packet_size), keys);
-            }
-
             if (keys != old_keys) {
                 for (size_t i = 0; i < keys.size(); i++) {
                     auto diff = keys[i] ^ old_keys[i];
