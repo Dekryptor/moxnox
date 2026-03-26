@@ -1316,6 +1316,63 @@ static void handle_keyboard_input(usb_hid_report& r, span<const uint8_t> sp,
     }
 }
 
+static void handle_input_field(usb_hid_field& f, span<const uint8_t> sp) {
+    if (f.is_variable) {
+        unsigned int offset = f.bit_offset;
+
+        for (unsigned int i = 0; i < f.count; i++) {
+            auto num = extract_num(sp, offset, f.size);
+
+            // FIXME - sign extension
+
+            uint32_t usage;
+
+            if (f.num_usages > 0) {
+                if (f.num_usages > i)
+                    usage = f.usages[i];
+                else
+                    usage = f.usages[f.num_usages - 1];
+            } else
+                usage = f.usage_min + i;
+
+            print("handle_input_field: usage page {:x}, usage {:x}, num {}\n",
+                  f.usage_page, usage, num);
+
+            offset += f.size;
+        }
+    } else {
+        unsigned int offset = f.bit_offset;
+
+        // FIXME - detect changes
+
+        for (unsigned int i = 0; i < f.count; i++) {
+            auto usage = extract_num(sp, offset, f.size);
+
+            if (usage != 0 && usage >= f.usage_min && usage <= f.usage_max) {
+                print("handle_input_field: usage page {:x}, usage {:x}, num 1\n",
+                      f.usage_page, usage);
+            }
+
+            offset += f.size;
+        }
+    }
+}
+
+static void handle_input(usb_hid_report& r, span<const uint8_t> sp) {
+    if (r.id != 0) {
+        if (sp.empty() || sp[0] != r.id)
+            return;
+
+        sp = sp.subspan(1);
+    }
+
+    for (auto le = r.fields.next; le != &r.fields; le = le->next) {
+        auto& f = containing_record<usb_hid_field>(le);
+
+        handle_input_field(f, sp);
+    }
+}
+
 void usb_hid_device::recv_thread() {
     auto buf = (uint8_t*)malloc(packet_size);
     if (!buf) {
@@ -1337,6 +1394,12 @@ void usb_hid_device::recv_thread() {
         }
 
         memset(buf + recv_bytes, 0, packet_size - recv_bytes);
+
+        for (auto le = input_reports.next; le != &input_reports; le = le->next) {
+            auto& r = containing_record<usb_hid_report>(le);
+
+            handle_input(r, span(buf, packet_size));
+        }
 
         if (is_keyboard) {
             array<uint64_t, 4> keys;
