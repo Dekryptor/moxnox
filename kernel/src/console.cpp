@@ -1416,18 +1416,8 @@ static void* ft_alloc(FT_Memory, long size) {
     return malloc((size_t)size);
 }
 
-static void* ft_realloc(FT_Memory, long cur_size, long new_size, void* block) {
-    void* ret;
-
-    ret = malloc((size_t)new_size);
-    if (!ret)
-        return nullptr;
-
-    memcpy(ret, block, cur_size < new_size ? (size_t)new_size : (size_t)cur_size);
-
-    free(block);
-
-    return ret;
+static void* ft_realloc(FT_Memory, long, long new_size, void* block) {
+    return realloc(block, new_size);
 }
 
 static void ft_free(FT_Memory, void* block) {

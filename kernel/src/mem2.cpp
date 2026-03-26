@@ -1455,6 +1455,74 @@ void* calloc(size_t nmemb, size_t size) {
     return ptr;
 }
 
+extern "C"
+void* realloc(void* ptr, size_t size) {
+    if (!ptr)
+        return malloc(size);
+    else if (size == 0) {
+        free(ptr);
+        return nullptr;
+    }
+
+    if (!is_phys_memory(ptr))
+        bsod_format("realloc called for non-physical address {:x}", (uintptr_t)ptr);
+
+    size_t slab_size;
+
+    switch (pages[phys_memory_pfn(ptr)].state) {
+        case page_state::allocator_8k:
+            slab_size = 8192;
+            break;
+
+        case page_state::allocator_4k:
+            slab_size = 4096;
+            break;
+
+        case page_state::allocator_2k:
+            slab_size = 2048;
+            break;
+
+        case page_state::allocator_1k:
+            slab_size = 1024;
+            break;
+
+        case page_state::allocator_512:
+            slab_size = 512;
+            break;
+
+        case page_state::allocator_256:
+            slab_size = 256;
+            break;
+
+        case page_state::allocator_128:
+            slab_size = 128;
+            break;
+
+        case page_state::allocator_64:
+            slab_size = 64;
+            break;
+
+        default:
+            bsod_format("realloc called for unexpected page state {}",
+                        pages[phys_memory_pfn(ptr)].state);
+    }
+
+    if (size <= slab_size)
+        return ptr;
+
+    auto ret = malloc(size);
+    if (!ret) {
+        free(ptr);
+        return nullptr;
+    }
+
+    memcpy(ret, ptr, slab_size);
+
+    free(ptr);
+
+    return ret;
+}
+
 template<bool no_lock>
 static void free2(void* ptr) {
     if (!ptr)

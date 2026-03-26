@@ -147,6 +147,7 @@ export constexpr uint64_t va_to_pa_phys(const void* ptr) {
 export extern "C" void* malloc(size_t size);
 export extern "C" void free(void* ptr);
 export extern "C" void* calloc(size_t nmemb, size_t size);
+export extern "C" void* realloc(void* ptr, size_t size);
 
 export extern "C++" void* operator new(size_t count);
 export extern "C++" void* operator new(size_t count, align_val_t al);
