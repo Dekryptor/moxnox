@@ -1297,9 +1297,14 @@ void usb_hid_device::handle_input_field(usb_hid_field& f, span<const uint8_t> sp
         unsigned int offset = f.bit_offset;
 
         for (unsigned int i = 0; i < f.count; i++) {
+            int32_t signed_num;
+
             auto num = extract_num(sp, offset, f.size);
 
-            // FIXME - sign extension
+            if (f.logical_min < 0 && (num & ((uint32_t)1 << (f.size - 1))))
+                signed_num = (int32_t)(num | (~(uint32_t)0 << f.size));
+            else
+                signed_num = (int32_t)num;
 
             uint32_t usage;
 
@@ -1311,7 +1316,7 @@ void usb_hid_device::handle_input_field(usb_hid_field& f, span<const uint8_t> sp
             } else
                 usage = f.usage_min + i;
 
-            input_usage(f.usage_page, usage, num);
+            input_usage(f.usage_page, usage, signed_num);
 
             offset += f.size;
         }
