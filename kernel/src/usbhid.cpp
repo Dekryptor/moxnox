@@ -1280,8 +1280,6 @@ void usb_hid_device::input_usage(uint16_t usage_page, uint32_t usage, int32_t nu
 
         if (num)
             keys[usage / 64] |= (uint64_t)1 << (usage % 64);
-        else
-            keys[usage / 64] &= ~((uint64_t)1 << (usage % 64));
 
         return;
     }
@@ -1386,6 +1384,28 @@ void usb_hid_device::handle_input(usb_hid_report& r, span<const uint8_t> sp) {
             return;
 
         sp = sp.subspan(1);
+    }
+
+    for (auto le = r.fields.next; le != &r.fields; le = le->next) {
+        auto& f = containing_record<usb_hid_field>(le);
+
+        if (f.usage_page == USAGE_PAGE_KEYBOARD) {
+            auto clear_bit = [this](uint32_t usage) {
+                keys[usage / 64] &= ~((uint64_t)1 << (usage % 64));
+            };
+
+            if (f.num_usages > 0) {
+                for (unsigned int i = 0; i < f.num_usages; i++) {
+                    if (f.usages[i] < 256)
+                        clear_bit(f.usages[i]);
+                }
+            } else {
+                for (unsigned int i = f.usage_min; i <= f.usage_max; i++) {
+                    if (i < 256)
+                        clear_bit(i);
+                }
+            }
+        }
     }
 
     for (auto le = r.fields.next; le != &r.fields; le = le->next) {
