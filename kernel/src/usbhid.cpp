@@ -1423,7 +1423,7 @@ void usb_hid_device::recv_thread() {
                     auto diff = keys[i] ^ old_keys[i];
 
                     while (diff != 0) {
-                        auto bit = countr_zero(diff);
+                        auto bit = (size_t)countr_zero(diff);
                         auto code = (i * 64) + bit;
 
                         if (keycodes[code] == evdev_code::KEY_RESERVED)
