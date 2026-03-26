@@ -37,6 +37,11 @@ static const size_t evdev_buffer_pages = 1;
 static atomic<unsigned int> hid_num = 0;
 
 struct usb_hid_field {
+    ~usb_hid_field() {
+        if (usages)
+            free(usages);
+    }
+
     list_entry le;
     bool is_variable;
     bool is_relative;
@@ -45,6 +50,8 @@ struct usb_hid_field {
     int32_t logical_min;
     int32_t logical_max;
     uint16_t usage_page;
+    size_t num_usages = 0;
+    uint32_t* usages = nullptr;
     uint32_t usage_min;
     uint32_t usage_max;
     unsigned int bit_offset;
@@ -744,6 +751,8 @@ usb_hid_report* usb_hid_device::find_report(uint8_t id, bool input) {
 
 bool usb_hid_device::parse_report_descriptor(span<const uint8_t> r) {
     uint32_t usage_min = 0, usage_max = 0;
+    size_t num_usages = 0;
+    uint32_t* usages = nullptr;
     uint8_t report_id = 0;
     uint32_t report_count = 0, report_size = 0;
     uint16_t usage_page = 0;
@@ -756,6 +765,10 @@ bool usb_hid_device::parse_report_descriptor(span<const uint8_t> r) {
         if (b == 0xfe) { // long item
             if (r.size() == 1) {
                 print("report descriptor is truncated\n");
+
+                if (usages)
+                    free(usages);
+
                 return false;
             }
 
@@ -763,6 +776,10 @@ bool usb_hid_device::parse_report_descriptor(span<const uint8_t> r) {
 
             if (r.size() < (size_t)(size + 3)) {
                 print("report descriptor is truncated\n");
+
+                if (usages)
+                    free(usages);
+
                 return false;
             }
 
@@ -792,6 +809,10 @@ bool usb_hid_device::parse_report_descriptor(span<const uint8_t> r) {
 
         if (r.size() < n + 1) {
             print("report descriptor is truncated\n");
+
+            if (usages)
+                free(usages);
+
             return false;
         }
 
@@ -815,8 +836,12 @@ bool usb_hid_device::parse_report_descriptor(span<const uint8_t> r) {
                     case 0x90: // output
                     {
                         auto rep = find_report(report_id, (b & 0xf0) == 0x80);
-                        if (!rep)
+                        if (!rep) {
+                            if (usages)
+                                free(usages);
+
                             return false;
+                        }
 
                         if (!(v & 1)) { // skip constant
                             int32_t logical_max;
@@ -829,6 +854,10 @@ bool usb_hid_device::parse_report_descriptor(span<const uint8_t> r) {
                             auto f = new usb_hid_field;
                             if (!f) {
                                 print("new failed\n");
+
+                                if (usages)
+                                    free(usages);
+
                                 return false;
                             }
 
@@ -839,13 +868,23 @@ bool usb_hid_device::parse_report_descriptor(span<const uint8_t> r) {
                             f->logical_min = logical_min;
                             f->logical_max = logical_max;
                             f->usage_page = usage_page;
+                            f->usages = usages;
+                            f->num_usages = num_usages;
                             f->usage_min = usage_min;
                             f->usage_max = usage_max;
                             f->bit_offset = rep->bit_offset;
 
                             insert_tail_list(rep->fields, f->le);
+
+                            usages = nullptr;
+                        } else {
+                            if (usages) {
+                                free(usages);
+                                usages = nullptr;
+                            }
                         }
 
+                        num_usages = 0;
                         usage_min = 0;
                         usage_max = 0;
 
@@ -857,6 +896,14 @@ bool usb_hid_device::parse_report_descriptor(span<const uint8_t> r) {
                     default:
                         usage_min = 0;
                         usage_max = 0;
+
+                        if (usages) {
+                            free(usages);
+                            usages = nullptr;
+                        }
+
+                        num_usages = 0;
+
                         break;
                 }
             break;
@@ -898,8 +945,15 @@ bool usb_hid_device::parse_report_descriptor(span<const uint8_t> r) {
             case 0x8: // local
                 switch (b & 0xf0) {
                     case 0x00:
-                        usage_min = v;
-                        usage_max = v;
+                        usages = (decltype(usages))realloc(usages, sizeof(*usages) + (num_usages + 1));
+                        if (!usages) {
+                            print("realloc failed\n");
+                            return false;
+                        }
+
+                        usages[num_usages] = v;
+                        num_usages++;
+
                         break;
 
                     case 0x10:
@@ -922,7 +976,29 @@ bool usb_hid_device::parse_report_descriptor(span<const uint8_t> r) {
         r = r.subspan(n + 1);
     }
 
+    if (usages)
+        free(usages);
+
     return true;
+}
+
+static void print_field(const usb_hid_field& f) {
+    print("is_variable {}, is_relative {}, ", f.is_variable ? "true" : "false",
+          f.is_relative ? "true" : "false");
+
+    if (f.num_usages == 0)
+        print("usage min = {:x}, usage max = {:x}, ", f.usage_min, f.usage_max);
+    else {
+        print("usage = ");
+
+        for (size_t i = 0; i < f.num_usages; i++) {
+            print("{:x}, ", f.usages[i]);
+        }
+    }
+
+    print("count {:x}, size {:x}, usage page {:x}, logical min = {}, logical max = {}, bit offset = {}\n",
+          f.count, f.size, f.usage_page, f.logical_min, f.logical_max,
+          f.bit_offset);
 }
 
 usb_hid_device::usb_hid_device(usb_device& d, const usb_device_config& config,
@@ -951,10 +1027,7 @@ usb_hid_device::usb_hid_device(usb_device& d, const usb_device_config& config,
             if (f.usage_page == USAGE_PAGE_KEYBOARD)
                 is_keyboard = true;
 
-            print("is_variable {}, is_relative {}, usage min = {:x}, usage max = {:x}, count {:x}, size {:x}, usage page {:x}, logical min = {}, logical max = {}, bit offset = {}\n",
-                  f.is_variable ? "true" : "false", f.is_relative ? "true" : "false",
-                  f.usage_min, f.usage_max, f.count, f.size,
-                  f.usage_page, f.logical_min, f.logical_max, f.bit_offset);
+            print_field(f);
         }
     }
 
@@ -966,10 +1039,7 @@ usb_hid_device::usb_hid_device(usb_device& d, const usb_device_config& config,
         for (auto le2 = r.fields.next; le2 != &r.fields; le2 = le2->next) {
             auto& f = containing_record<usb_hid_field>(le2);
 
-            print("is_variable {}, is_relative {}, usage min = {:x}, usage max = {:x}, count {:x}, size {:x}, usage page {:x}, logical min = {}, logical max = {}, bit offset = {}\n",
-                  f.is_variable ? "true" : "false", f.is_relative ? "true" : "false",
-                  f.usage_min, f.usage_max, f.count, f.size,
-                  f.usage_page, f.logical_min, f.logical_max, f.bit_offset);
+            print_field(f);
         }
     }
 
