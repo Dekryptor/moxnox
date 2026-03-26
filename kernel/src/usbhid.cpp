@@ -92,6 +92,9 @@ private:
     bool get_report_descriptor(const usb_device_config& cfg);
     bool parse_report_descriptor(span<const uint8_t> r);
     usb_hid_report* find_report(uint8_t id, bool input);
+    void handle_input(usb_hid_report& r, span<const uint8_t> sp);
+    void handle_input_field(usb_hid_field& f, span<const uint8_t> sp);
+    void input_usage(uint16_t usage_page, uint32_t usage, int32_t num);
 
     usb_device& d;
     xhci_queue& queue;
@@ -1320,7 +1323,14 @@ static void handle_keyboard_input(usb_hid_report& r, span<const uint8_t> sp,
     }
 }
 
-static void handle_input_field(usb_hid_field& f, span<const uint8_t> sp) {
+void usb_hid_device::input_usage(uint16_t usage_page, uint32_t usage, int32_t num) {
+    print("input_usage: usage page {:x}, usage {:x}, num {}\n",
+          usage_page, usage, num);
+
+    // FIXME
+}
+
+void usb_hid_device::handle_input_field(usb_hid_field& f, span<const uint8_t> sp) {
     if (f.is_variable) {
         unsigned int offset = f.bit_offset;
 
@@ -1339,8 +1349,7 @@ static void handle_input_field(usb_hid_field& f, span<const uint8_t> sp) {
             } else
                 usage = f.usage_min + i;
 
-            print("handle_input_field: usage page {:x}, usage {:x}, num {}\n",
-                  f.usage_page, usage, num);
+            input_usage(f.usage_page, usage, num);
 
             offset += f.size;
         }
@@ -1376,10 +1385,8 @@ static void handle_input_field(usb_hid_field& f, span<const uint8_t> sp) {
             auto usage = extract_num(old, offset, f.size);
 
             if (usage != 0 && usage >= f.usage_min && usage <= f.usage_max) {
-                if (!in_report(sp, usage)) {
-                    print("handle_input_field: usage page {:x}, usage {:x}, num 0\n",
-                          f.usage_page, usage);
-                }
+                if (!in_report(sp, usage))
+                    input_usage(f.usage_page, usage, 0);
             }
 
             offset += f.size;
@@ -1391,10 +1398,8 @@ static void handle_input_field(usb_hid_field& f, span<const uint8_t> sp) {
             auto usage = extract_num(sp, offset, f.size);
 
             if (usage != 0 && usage >= f.usage_min && usage <= f.usage_max) {
-                if (!in_report(old, usage)) {
-                    print("handle_input_field: usage page {:x}, usage {:x}, num 1\n",
-                          f.usage_page, usage);
-                }
+                if (!in_report(old, usage))
+                    input_usage(f.usage_page, usage, 1);
             }
 
             offset += f.size;
@@ -1404,7 +1409,7 @@ static void handle_input_field(usb_hid_field& f, span<const uint8_t> sp) {
     }
 }
 
-static void handle_input(usb_hid_report& r, span<const uint8_t> sp) {
+void usb_hid_device::handle_input(usb_hid_report& r, span<const uint8_t> sp) {
     if (r.id != 0) {
         if (sp.empty() || sp[0] != r.id)
             return;
