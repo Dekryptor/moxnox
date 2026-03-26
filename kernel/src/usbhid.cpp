@@ -1286,6 +1286,10 @@ void usb_hid_device::input_usage(uint16_t usage_page, uint32_t usage, int32_t nu
         return;
     }
 
+    // ignore vendor-defined usages
+    if (usage_page >= 0xff00)
+        return;
+
     print("input_usage: usage page {:x}, usage {:x}, num {}\n",
           usage_page, usage, num);
 
