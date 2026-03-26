@@ -361,7 +361,7 @@ void mn_ctrl_c() {
 
     func((void*)CTRL_C_EVENT);
 
-    NtTerminateThread(NtCurrentThread(), nt_status::CONTROL_C_EXIT);
+    RtlExitUserThread(nt_status::CONTROL_C_EXIT);
 }
 
 extern "C"
