@@ -40,9 +40,6 @@ struct usb_hid_field {
     ~usb_hid_field() {
         if (usages)
             free(usages);
-
-        if (old)
-            free(old);
     }
 
     list_entry le;
@@ -58,14 +55,19 @@ struct usb_hid_field {
     uint32_t usage_min;
     uint32_t usage_max;
     unsigned int bit_offset;
-    void* old = nullptr;
 };
 
 struct usb_hid_report {
+    ~usb_hid_report() {
+        if (old)
+            free(old);
+    }
+
     list_entry le;
     uint8_t id;
     unsigned int bit_offset = 0;
     list_entry fields = { &fields, &fields };
+    void* old = nullptr;
 };
 
 class usb_hid_device {
@@ -95,7 +97,8 @@ private:
     bool parse_report_descriptor(span<const uint8_t> r);
     usb_hid_report* find_report(uint8_t id, bool input);
     void handle_input(usb_hid_report& r, span<const uint8_t> sp);
-    void handle_input_field(usb_hid_field& f, span<const uint8_t> sp);
+    void handle_input_field(usb_hid_report& r, usb_hid_field& f,
+                            span<const uint8_t> sp);
     void input_usage(uint16_t usage_page, uint32_t usage, int32_t num);
 
     usb_device& d;
@@ -1300,7 +1303,8 @@ void usb_hid_device::input_usage(uint16_t usage_page, uint32_t usage, int32_t nu
     // FIXME
 }
 
-void usb_hid_device::handle_input_field(usb_hid_field& f, span<const uint8_t> sp) {
+void usb_hid_device::handle_input_field(usb_hid_report& r, usb_hid_field& f,
+                                        span<const uint8_t> sp) {
     if (f.is_variable) {
         unsigned int offset = f.bit_offset;
 
@@ -1331,17 +1335,17 @@ void usb_hid_device::handle_input_field(usb_hid_field& f, span<const uint8_t> sp
     } else {
         unsigned int offset = f.bit_offset;
 
-        if (!f.old) {
-            f.old = malloc(sp.size());
-            if (!f.old) {
+        if (!r.old) {
+            r.old = malloc(sp.size());
+            if (!r.old) {
                 print("malloc failed\n");
                 return;
             }
 
-            memset(f.old, 0, sp.size());
+            memset(r.old, 0, sp.size());
         }
 
-        auto old = span((const uint8_t*)f.old, sp.size());
+        auto old = span((const uint8_t*)r.old, sp.size());
 
         auto in_report = [&f](span<const uint8_t> sp, uint32_t usage) {
             unsigned int offset = f.bit_offset;
@@ -1379,8 +1383,6 @@ void usb_hid_device::handle_input_field(usb_hid_field& f, span<const uint8_t> sp
 
             offset += f.size;
         }
-
-        memcpy(f.old, sp.data(), sp.size());
     }
 }
 
@@ -1417,8 +1419,11 @@ void usb_hid_device::handle_input(usb_hid_report& r, span<const uint8_t> sp) {
     for (auto le = r.fields.next; le != &r.fields; le = le->next) {
         auto& f = containing_record<usb_hid_field>(le);
 
-        handle_input_field(f, sp);
+        handle_input_field(r, f, sp);
     }
+
+    if (r.old)
+        memcpy(r.old, sp.data(), sp.size());
 }
 
 void usb_hid_device::recv_thread() {
