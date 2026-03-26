@@ -86,6 +86,8 @@ public:
             delete this;
     }
 
+    bool init = false;
+
 private:
     void post_evdev(enum evdev_code code, int32_t value);
     void keyboard_repeat_thread();
@@ -1099,22 +1101,26 @@ usb_hid_device::usb_hid_device(usb_device& d, const usb_device_config& config,
             return;
         }
     }
+
+    init = true;
 }
 
 usb_hid_device::~usb_hid_device() {
     if (kc)
         kc->unregister();
 
-    auto& p = static_cast<pipe&>(evdev_pipe.get());
+    if (evdev_pipe) {
+        auto& p = static_cast<pipe&>(evdev_pipe.get());
 
-    {
-        sync_lock sl;
-        lock_guard l(sl);
+        {
+            sync_lock sl;
+            lock_guard l(sl);
 
-        if (!p.signalled) {
-            p.signalled = true;
+            if (!p.signalled) {
+                p.signalled = true;
 
-            wake_up_waiters(p.waiters);
+                wake_up_waiters(p.waiters);
+            }
         }
     }
 
@@ -1589,6 +1595,12 @@ static bool found_usb_hid_device(usb_device& d, const usb_device_config& config,
                                   ep_desc->desc.wMaxPacketSize, interface);
     if (!dev) {
         print("new failed\n");
+        return false;
+    }
+
+    if (!dev->init) {
+        print("usb_hid_device::usb_hid_device failed\n");
+        delete dev;
         return false;
     }
 
