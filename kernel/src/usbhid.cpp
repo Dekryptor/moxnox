@@ -40,6 +40,9 @@ struct usb_hid_field {
     ~usb_hid_field() {
         if (usages)
             free(usages);
+
+        if (old)
+            free(old);
     }
 
     list_entry le;
@@ -55,6 +58,7 @@ struct usb_hid_field {
     uint32_t usage_min;
     uint32_t usage_max;
     unsigned int bit_offset;
+    void* old = nullptr;
 };
 
 struct usb_hid_report {
@@ -1343,18 +1347,60 @@ static void handle_input_field(usb_hid_field& f, span<const uint8_t> sp) {
     } else {
         unsigned int offset = f.bit_offset;
 
-        // FIXME - detect changes
+        if (!f.old) {
+            f.old = malloc(sp.size());
+            if (!f.old) {
+                print("malloc failed\n");
+                return;
+            }
+
+            memset(f.old, 0, sp.size());
+        }
+
+        auto old = span((const uint8_t*)f.old, sp.size());
+
+        auto in_report = [&f](span<const uint8_t> sp, uint32_t usage) {
+            unsigned int offset = f.bit_offset;
+
+            for (unsigned int i = 0; i < f.count; i++) {
+                if (extract_num(sp, offset, f.size) == usage)
+                    return true;
+
+                offset += f.size;
+            }
+
+            return false;
+        };
+
+        for (unsigned int i = 0; i < f.count; i++) {
+            auto usage = extract_num(old, offset, f.size);
+
+            if (usage != 0 && usage >= f.usage_min && usage <= f.usage_max) {
+                if (!in_report(sp, usage)) {
+                    print("handle_input_field: usage page {:x}, usage {:x}, num 0\n",
+                          f.usage_page, usage);
+                }
+            }
+
+            offset += f.size;
+        }
+
+        offset = f.bit_offset;
 
         for (unsigned int i = 0; i < f.count; i++) {
             auto usage = extract_num(sp, offset, f.size);
 
             if (usage != 0 && usage >= f.usage_min && usage <= f.usage_max) {
-                print("handle_input_field: usage page {:x}, usage {:x}, num 1\n",
-                      f.usage_page, usage);
+                if (!in_report(old, usage)) {
+                    print("handle_input_field: usage page {:x}, usage {:x}, num 1\n",
+                          f.usage_page, usage);
+                }
             }
 
             offset += f.size;
         }
+
+        memcpy(f.old, sp.data(), sp.size());
     }
 }
 
