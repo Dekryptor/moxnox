@@ -1423,7 +1423,7 @@ void usb_hid_device::recv_thread() {
         }
 
         if (is_keyboard) {
-            if (keys != old_keys) {
+            if (memcmp(keys.data(), old_keys.data(), keys.size() * sizeof(uint64_t))) {
                 for (size_t i = 0; i < keys.size(); i++) {
                     auto diff = keys[i] ^ old_keys[i];
 
