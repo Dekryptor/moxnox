@@ -16,6 +16,10 @@ import spinlock;
 import handle;
 import object_ref;
 import moxnox_ioctls;
+import chardev;
+import event;
+import scheduler;
+import rwsem;
 
 using namespace std;
 
@@ -30,11 +34,80 @@ public:
 
     nt_status ioctl(uint32_t code, span<const uint8_t> inbuf,
                     span<uint8_t> outbuf, uintptr_t& written) override;
+    nt_status userspace_open(object_ref& objref) override;
+    void post_event(const input_event& ev, uint32_t id);
 
-    nt_status userspace_open(object_ref&) override {
-        print("FIXME - keyboard_pipe::userspace_open\n");
-        return nt_status::SUCCESS;
+    rwsem post_event_mutex;
+    spinlock client_lock;
+    list_entry clients = { &clients, &clients };
+};
+
+struct input_event_item {
+    list_entry le;
+    input_event_with_id ev;
+};
+
+class keyboard_pipe_client : public chardev {
+public:
+    keyboard_pipe_client(keyboard_pipe& p) : p(p) {
+        p.acquire();
+
+        {
+            lock_guard lock(p.client_lock);
+            insert_tail_list(p.clients, le);
+        }
+
+        not_empty_event = create_event(false);
+        if (!not_empty_event) {
+            print("create_event failed\n");
+            return;
+        }
+
+        init = true;
     }
+
+    ~keyboard_pipe_client() {
+        {
+            lock_guard lock(p.client_lock);
+            remove_entry_list(le);
+        }
+
+        while (true) {
+            input_event_item* it = nullptr;
+
+            {
+                lock_guard lock(items_lock);
+
+                if (is_list_empty(items))
+                    break;
+
+                it = &containing_record<input_event_item>(items.next);
+                remove_entry_list(it->le);
+            }
+
+            delete it;
+        }
+
+        p.release();
+    }
+
+    nt_status read(span<uint8_t> s, uint64_t& read_bytes) override;
+
+    nt_status write(span<const uint8_t>, uint64_t&) override {
+        return nt_status::NOT_SUPPORTED;
+    }
+
+    void post_event(const input_event& ev, uint32_t id);
+
+    list_entry le;
+    bool init = false;
+    bool visited = false;
+    spinlock items_lock;
+    list_entry items = { &items, &items };
+
+private:
+    keyboard_pipe& p;
+    object_ref not_empty_event;
 };
 
 using set_leds_func = void (*)(void* ctx, keyboard_leds leds);
@@ -84,8 +157,6 @@ public:
     void* ctx;
 
 private:
-    void key_event(input_event& ev);
-
     pipe& p;
     atomic<unsigned int> refcount = 1;
 };
@@ -146,33 +217,6 @@ nt_status keyboard_pipe::ioctl(uint32_t code, span<const uint8_t> inbuf,
         return nt_status::NOT_SUPPORTED;
 }
 
-void keyboard_context::key_event(input_event& ev) {
-    input_event_with_id ev2;
-
-    ev2.ev = ev;
-    ev2.id = this->id;
-
-    auto sp = span((uint8_t*)&ev2, sizeof(ev2));
-    auto& k = static_cast<keyboard_pipe&>(keyboard_pipe_obj.get());
-
-    // FIXME - make sure we don't do partial writes
-
-    while (!sp.empty()) {
-        uint64_t written_bytes;
-        auto status = k.write(sp, written_bytes);
-
-        if (!success(status)) {
-            print("pipe::write returned {}\n", status);
-            return;
-        }
-
-        if (written_bytes == sp.size())
-            break;
-
-        sp = span(sp.data() + written_bytes, sp.size() - written_bytes);
-    }
-}
-
 void keyboard_context::listen_thread() {
     if (led_func) {
         keyboard_leds leds;
@@ -216,7 +260,9 @@ void keyboard_context::listen_thread() {
         if (ev.type != evdev_type::EV_KEY)
             continue;
 
-        key_event(ev);
+        auto& k = static_cast<keyboard_pipe&>(keyboard_pipe_obj.get());
+
+        k.post_event(ev, this->id);
     }
 }
 
@@ -240,4 +286,148 @@ export keyboard_context* register_keyboard(pipe& p, set_leds_func led_func, void
     }, kc);
 
     return kc;
+}
+
+nt_status keyboard_pipe::userspace_open(object_ref& objref) {
+    auto c = new keyboard_pipe_client(*this);
+    if (!c) {
+        print("new failed\n");
+        return nt_status::INSUFFICIENT_RESOURCES;
+    }
+
+    if (!c->init) {
+        print("keyboard_pipe_client init failed\n");
+        c->release();
+        return nt_status::INSUFFICIENT_RESOURCES;
+    }
+
+    object_ref r{*c};
+
+    objref.swap(r);
+
+    return nt_status::SUCCESS;
+}
+
+nt_status keyboard_pipe_client::read(span<uint8_t> s, uint64_t& read_bytes) {
+    if (s.size() < sizeof(input_event_with_id))
+        return nt_status::BUFFER_TOO_SMALL;
+
+    read_bytes = 0;
+
+    auto& e = static_cast<event&>(not_empty_event.get());
+
+    while (true) {
+        auto status = wait_for_object(not_empty_event.get(), true);
+        if (!success(status))
+            return status;
+
+        while (true) {
+            input_event_item* it = nullptr;
+
+            {
+                lock_guard lock(items_lock);
+
+                if (!is_list_empty(items) && s.size() >= sizeof(input_event_with_id)) {
+                    auto& it2 = containing_record<input_event_item>(items.next);
+
+                    remove_entry_list(it2.le);
+                    it = &it2;
+
+                    if (is_list_empty(items))
+                        reset_event(e);
+                }
+            }
+
+            if (!it) {
+                if (read_bytes > 0)
+                    return nt_status::SUCCESS;
+
+                break;
+            }
+
+            memcpy(s.data(), &it->ev, sizeof(input_event_with_id));
+            s = s.subspan(sizeof(input_event_with_id));
+
+            delete it;
+
+            read_bytes += sizeof(input_event_with_id);
+        }
+    }
+}
+
+void keyboard_pipe::post_event(const input_event& ev, uint32_t id) {
+    lock_guard lg(post_event_mutex);
+
+    {
+        lock_guard lock(client_lock);
+
+        if (is_list_empty(clients))
+            return;
+    }
+
+    while (true) {
+        keyboard_pipe_client* c = nullptr;
+        bool done = false;
+
+        {
+            lock_guard lock(client_lock);
+
+            for (auto le = clients.next; le != &clients; le = le->next) {
+                auto& c2 = containing_record<keyboard_pipe_client>(le);
+
+                if (c2.visited) {
+                    done = true;
+                    break;
+                }
+
+                c = &c2;
+                c2.acquire();
+                c2.visited = true;
+
+                remove_entry_list(c2.le);
+                insert_tail_list(clients, c2.le);
+            }
+        }
+
+        if (done)
+            break;
+
+        c->post_event(ev, id);
+        c->release();
+    }
+
+    {
+        lock_guard lock(client_lock);
+
+        for (auto le = clients.next; le != &clients; le = le->next) {
+            auto& c = containing_record<keyboard_pipe_client>(le);
+
+            c.visited = false;
+        }
+    }
+}
+
+void keyboard_pipe_client::post_event(const input_event& ev, uint32_t id) {
+    if (!not_empty_event)
+        return;
+
+    // FIXME - drop oldest event if over limit
+
+    auto it = new input_event_item;
+    if (!it) {
+        print("new failed\n");
+        return;
+    }
+
+    it->ev.ev = ev;
+    it->ev.id = id;
+
+    auto& e = static_cast<event&>(not_empty_event.get());
+
+    {
+        lock_guard lock(items_lock);
+
+        insert_tail_list(items, it->le);
+        set_event(e);
+    }
 }
