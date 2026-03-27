@@ -30,6 +30,11 @@ public:
 
     nt_status ioctl(uint32_t code, span<const uint8_t> inbuf,
                     span<uint8_t> outbuf, uintptr_t& written) override;
+
+    nt_status userspace_open(object_ref&) override {
+        print("FIXME - keyboard_pipe::userspace_open\n");
+        return nt_status::SUCCESS;
+    }
 };
 
 using set_leds_func = void (*)(void* ctx, keyboard_leds leds);

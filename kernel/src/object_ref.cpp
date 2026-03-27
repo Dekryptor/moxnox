@@ -5,6 +5,7 @@ module;
 
 export module object_ref;
 
+import nt;
 import objects;
 
 using namespace std;
@@ -59,4 +60,10 @@ public:
 
 private:
     optional<reference_wrapper<object>> rw;
+};
+
+export
+template<typename T>
+concept has_userspace_open = requires(T t, object_ref& objref) {
+    { t.userspace_open(objref) } -> convertible_to<NTSTATUS>;
 };

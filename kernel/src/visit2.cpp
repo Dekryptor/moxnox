@@ -216,3 +216,14 @@ void object_last_handle_closed(object& obj) {
             o.last_handle_closed();
     });
 }
+
+nt_status object_userspace_open(object_ref& objref) {
+    nt_status ret = nt_status::SUCCESS;
+
+    visit_obj(objref.get(), [&](auto&& o) {
+        if constexpr (has_userspace_open<remove_reference_t<decltype(o)>>)
+            ret = o.userspace_open(objref);
+    });
+
+    return ret;
+}

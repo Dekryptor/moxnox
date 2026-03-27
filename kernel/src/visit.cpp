@@ -7,6 +7,7 @@ export module visit;
 
 import nt;
 import objects;
+import object_ref;
 
 using namespace std;
 
@@ -26,3 +27,4 @@ export nt_status object_read_without_offset(object& obj, span<uint8_t> s,
 export bool object_is_exclusive(object& obj);
 export sync_object& object_get_sync_object(object& obj);
 export void object_last_handle_closed(object& obj);
+export nt_status object_userspace_open(object_ref& objref);

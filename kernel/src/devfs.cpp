@@ -16,6 +16,7 @@ import handle;
 import objects;
 import unicode;
 import module_init;
+import visit;
 
 using namespace std;
 
@@ -128,7 +129,11 @@ nt_status devfs_inode::open_child(string_view name, object_ref& obj) {
     if (this != fs.root_inode)
         return nt_status::OBJECT_NAME_NOT_FOUND;
 
-    return open_object(name, obj);
+    auto status = open_object(name, obj);
+    if (!success(status))
+        return status;
+
+    return object_userspace_open(obj);
 }
 
 nt_status devfs_inode::create_child(string_view /*name*/, uint32_t /*create_options*/,

@@ -8,6 +8,7 @@ export module chardev;
 
 import nt;
 import objects;
+import object_ref;
 
 using namespace std;
 
@@ -50,6 +51,10 @@ public:
     virtual void last_handle_closed() {
     }
 
+    virtual nt_status userspace_open(object_ref&) {
+        return nt_status::SUCCESS;
+    }
+
     bool exclusive = true;
     bool readonly = false;
 };
@@ -61,3 +66,4 @@ static_assert(has_ioctls<chardev>);
 static_assert(has_exclusive_field<chardev>);
 static_assert(has_get_sync_object<chardev>);
 static_assert(has_last_handle_closed<chardev>);
+static_assert(has_userspace_open<chardev>);
