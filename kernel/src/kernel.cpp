@@ -48,6 +48,8 @@ import version;
 import objects;
 import handle;
 import net;
+import visit;
+import evdev;
 
 using namespace std;
 
@@ -143,19 +145,30 @@ static void keywait() {
     if (!p)
         return;
 
+    nt_status status;
     object_ref obj{*p}; // so it gets released automatically
 
     print("Press any key to continue...\n\e[?25l");
 
-    uint8_t c;
-    uint64_t read_bytes;
-    nt_status status;
+    status = object_userspace_open(obj);
+    if (!success(status)) {
+        print("object_userspace_open returned {}\n", status);
+        return;
+    }
 
-    status = p->read(span(&c, 1), read_bytes);
-    if (!success(status))
-        print("pipe::read returned {}\n", status);
+    while (true) {
+        input_event_with_id ev;
+        uint64_t read_bytes;
 
-    p->clear();
+        status = static_cast<chardev&>(obj.get()).read(span((uint8_t*)&ev, sizeof(ev)), read_bytes);
+        if (!success(status)) {
+            print("keyboard_pipe::read returned {}\n", status);
+            break;
+        }
+
+        if (ev.ev.value != 0)
+            break;
+    }
 
     print("\e[?25h");
 }
