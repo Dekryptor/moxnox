@@ -102,6 +102,7 @@ public:
     bool visited = false;
     spinlock items_lock;
     list_entry items = { &items, &items };
+    size_t items_left = 256;
 
 private:
     keyboard_pipe& p;
@@ -321,6 +322,7 @@ nt_status keyboard_pipe_client::read(span<uint8_t> s, uint64_t& read_bytes) {
 
                     remove_entry_list(it2.le);
                     it = &it2;
+                    items_left++;
                 }
             }
 
@@ -414,9 +416,23 @@ void keyboard_pipe_client::post_event(const input_event& ev, uint32_t id) {
     it->ev.ev = ev;
     it->ev.id = id;
 
+    bool failed = false;
+
     {
         lock_guard lock(items_lock);
-        insert_tail_list(items, it->le);
+
+        if (items_left == 0)
+            failed = true;
+        else {
+            insert_tail_list(items, it->le);
+            items_left--;
+        }
+    }
+
+    if (failed) {
+        // FIXME - Linux posts SYN_DROPPED event
+        delete it;
+        return;
     }
 
     {
