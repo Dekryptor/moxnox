@@ -6,7 +6,6 @@ module;
 export module object_ref;
 
 import objects;
-import visit;
 
 using namespace std;
 
@@ -56,10 +55,7 @@ public:
         this->rw = rw2;
     }
 
-    void reset() {
-        if (rw)
-            object_release(rw->get());
-    }
+    void reset();
 
 private:
     optional<reference_wrapper<object>> rw;
