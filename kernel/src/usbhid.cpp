@@ -1906,6 +1906,31 @@ static bool should_key_repeat(enum evdev_code code) {
         case evdev_code::KEY_CAPSLOCK:
         case evdev_code::KEY_NUMLOCK:
         case evdev_code::KEY_SCROLLLOCK:
+        case evdev_code::KEY_BRIGHTNESSUP:
+        case evdev_code::KEY_BRIGHTNESSDOWN:
+        case evdev_code::KEY_PLAY:
+        case evdev_code::KEY_PAUSE:
+        case evdev_code::KEY_RECORD:
+        case evdev_code::KEY_FASTFORWARD:
+        case evdev_code::KEY_REWIND:
+        case evdev_code::KEY_NEXTSONG:
+        case evdev_code::KEY_PREVIOUSSONG:
+        case evdev_code::KEY_STOPCD:
+        case evdev_code::KEY_EJECTCD:
+        case evdev_code::KEY_PLAYPAUSE:
+        case evdev_code::KEY_MUTE:
+        case evdev_code::KEY_CONFIG:
+        case evdev_code::KEY_EMAIL:
+        case evdev_code::KEY_CALC:
+        case evdev_code::KEY_MEDIA:
+        case evdev_code::KEY_COFFEE:
+        case evdev_code::KEY_FILE:
+        case evdev_code::KEY_SEARCH:
+        case evdev_code::KEY_HOMEPAGE:
+        case evdev_code::KEY_BACK:
+        case evdev_code::KEY_FORWARD:
+        case evdev_code::KEY_STOP:
+        case evdev_code::KEY_REFRESH:
             return false;
 
         default:
