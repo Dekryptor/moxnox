@@ -52,7 +52,7 @@ int main() {
         }
 
         print("tv_sec = {}, tv_usec = {}, type = {}, code = {}, value = {}, id = {}\n",
-              ev.ev.time.tv_sec, ev.ev.time.tv_usec, ev.ev.type,
-              ev.ev.code, ev.ev.value, ev.id);
+              +ev.ev.time.tv_sec, +ev.ev.time.tv_usec, (evdev_type)ev.ev.type,
+              (evdev_code)ev.ev.code, +ev.ev.value, +ev.id);
     }
 }

@@ -1950,6 +1950,6 @@ static_assert(sizeof(input_event) == 0x18);
 export struct input_event_with_id {
     uint32_t id;
     input_event ev;
-};
+} __attribute__((packed));
 
-static_assert(sizeof(input_event_with_id) == 0x20);
+static_assert(sizeof(input_event_with_id) == 0x1c);
