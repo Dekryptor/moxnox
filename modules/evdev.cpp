@@ -1,8 +1,14 @@
 module;
 
 #include <stdint.h>
+#include <string_view>
+#include <span>
 
 export module evdev;
+
+import format;
+
+using namespace std;
 
 export enum class evdev_code : uint16_t {
     KEY_RESERVED = 0,
@@ -646,6 +652,42 @@ export enum class evdev_type : uint16_t {
     EV_FF_STATUS = 0x17,
     EV_MAX = 0x1f,
 };
+
+export span<char> do_format_arg(span<char> sp, string_view, evdev_type arg) {
+    switch (arg) {
+        case evdev_type::EV_SYN:
+            return do_format_arg(sp, "", "EV_SYN");
+        case evdev_type::EV_KEY:
+            return do_format_arg(sp, "", "EV_KEY");
+        case evdev_type::EV_REL:
+            return do_format_arg(sp, "", "EV_REL");
+        case evdev_type::EV_ABS:
+            return do_format_arg(sp, "", "EV_ABS");
+        case evdev_type::EV_MSC:
+            return do_format_arg(sp, "", "EV_MSC");
+        case evdev_type::EV_SW:
+            return do_format_arg(sp, "", "EV_SW");
+        case evdev_type::EV_LED:
+            return do_format_arg(sp, "", "EV_LED");
+        case evdev_type::EV_SND:
+            return do_format_arg(sp, "", "EV_SND");
+        case evdev_type::EV_REP:
+            return do_format_arg(sp, "", "EV_REP");
+        case evdev_type::EV_FF:
+            return do_format_arg(sp, "", "EV_FF");
+        case evdev_type::EV_PWR:
+            return do_format_arg(sp, "", "EV_PWR");
+        case evdev_type::EV_FF_STATUS:
+            return do_format_arg(sp, "", "EV_FF_STATUS");
+        default:
+            return do_format_arg(sp, ":x", (uint32_t)arg);
+    }
+}
+
+template<>
+consteval bool format_spec_valid<evdev_type>(string_view fmt) {
+    return fmt.empty();
+}
 
 struct _timeval {
     uint64_t tv_sec;
