@@ -24,7 +24,9 @@ static object_ref keyboard_pipe_obj;
 
 class keyboard_pipe : public pipe {
 public:
-    keyboard_pipe(unsigned int buffer_pages) : pipe(buffer_pages) { }
+    keyboard_pipe(unsigned int buffer_pages) : pipe(buffer_pages) {
+        exclusive = false;
+    }
 
     nt_status ioctl(uint32_t code, span<const uint8_t> inbuf,
                     span<uint8_t> outbuf, uintptr_t& written) override;
