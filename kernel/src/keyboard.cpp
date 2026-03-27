@@ -91,6 +91,11 @@ public:
         return nt_status::NOT_SUPPORTED;
     }
 
+    nt_status ioctl(uint32_t code, span<const uint8_t> inbuf,
+                    span<uint8_t> outbuf, uintptr_t& written) override {
+        return p.ioctl(code, inbuf, outbuf, written);
+    }
+
     void post_event(const input_event& ev, uint32_t id);
 
     list_entry le;
