@@ -105,8 +105,7 @@ private:
     bool parse_report_descriptor(span<const uint8_t> r);
     usb_hid_report* find_report(uint8_t id, bool input);
     void handle_input(usb_hid_report& r, span<const uint8_t> sp);
-    void handle_input_field(usb_hid_report& r, usb_hid_field& f,
-                            span<const uint8_t> sp);
+    void handle_input_field(usb_hid_field& f, span<const uint8_t> sp);
     void input_usage(uint16_t usage_page, uint32_t usage, int32_t num);
 
     usb_device& d;
@@ -1412,7 +1411,7 @@ void usb_hid_device::input_usage(uint16_t usage_page, uint32_t usage, int32_t nu
     // FIXME
 }
 
-void usb_hid_device::handle_input_field(usb_hid_report& r, usb_hid_field& f,
+void usb_hid_device::handle_input_field(usb_hid_field& f,
                                         span<const uint8_t> sp) {
     if (f.is_variable) {
         unsigned int offset = f.bit_offset;
@@ -1444,51 +1443,11 @@ void usb_hid_device::handle_input_field(usb_hid_report& r, usb_hid_field& f,
     } else {
         unsigned int offset = f.bit_offset;
 
-        if (!r.old) {
-            r.old = malloc(sp.size());
-            if (!r.old) {
-                print("malloc failed\n");
-                return;
-            }
-
-            memset(r.old, 0, sp.size());
-        }
-
-        auto old = span((const uint8_t*)r.old, sp.size());
-
-        auto in_report = [&f](span<const uint8_t> sp, uint32_t usage) {
-            unsigned int offset = f.bit_offset;
-
-            for (unsigned int i = 0; i < f.count; i++) {
-                if (extract_num(sp, offset, f.size) == usage)
-                    return true;
-
-                offset += f.size;
-            }
-
-            return false;
-        };
-
-        for (unsigned int i = 0; i < f.count; i++) {
-            auto usage = extract_num(old, offset, f.size);
-
-            if (usage != 0 && usage >= f.usage_min && usage <= f.usage_max) {
-                if (!in_report(sp, usage))
-                    input_usage(f.usage_page, usage, 0);
-            }
-
-            offset += f.size;
-        }
-
-        offset = f.bit_offset;
-
         for (unsigned int i = 0; i < f.count; i++) {
             auto usage = extract_num(sp, offset, f.size);
 
-            if (usage != 0 && usage >= f.usage_min && usage <= f.usage_max) {
-                if (!in_report(old, usage))
-                    input_usage(f.usage_page, usage, 1);
-            }
+            if (usage != 0 && usage >= f.usage_min && usage <= f.usage_max)
+                input_usage(f.usage_page, usage, 1);
 
             offset += f.size;
         }
@@ -1528,7 +1487,7 @@ void usb_hid_device::handle_input(usb_hid_report& r, span<const uint8_t> sp) {
     for (auto le = r.fields.next; le != &r.fields; le = le->next) {
         auto& f = containing_record<usb_hid_field>(le);
 
-        handle_input_field(r, f, sp);
+        handle_input_field(f, sp);
     }
 
     if (r.old)
