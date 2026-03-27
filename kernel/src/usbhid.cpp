@@ -31,8 +31,9 @@ using namespace std;
 static const int64_t REPEAT_DELAY_MS = 660;
 static const int64_t REPEAT_RATE_HZ = 25;
 
-static const uint16_t USAGE_PAGE_KEYBOARD = 7;
-static const uint16_t USAGE_PAGE_LEDS = 8;
+static const uint16_t USAGE_PAGE_KEYBOARD = 0x7;
+static const uint16_t USAGE_PAGE_LEDS = 0x8;
+static const uint16_t USAGE_PAGE_CONSUMER = 0xc;
 
 static const uint32_t LED_USAGE_NUM_LOCK = 1;
 static const uint32_t LED_USAGE_CAPS_LOCK = 2;
@@ -123,9 +124,10 @@ private:
     list_entry input_reports = { &input_reports, &input_reports };
     list_entry output_reports = { &output_reports, &output_reports };
     array<uint64_t, 4> keys;
+    array<uint64_t, 11> media_keys;
 };
 
-static const enum evdev_code keycodes[] = {
+static const evdev_code keycodes[] = {
     // 00
     evdev_code::KEY_RESERVED,
     evdev_code::KEY_RESERVED,
@@ -390,6 +392,604 @@ static const enum evdev_code keycodes[] = {
     evdev_code::KEY_RESERVED,
     evdev_code::KEY_RESERVED,
     evdev_code::KEY_RESERVED,
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_RESERVED,
+};
+
+static const evdev_code media_keycodes[] = {
+    // 00
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_RESERVED,
+    // 10
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_RESERVED,
+    // 20
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_RESERVED,
+    // 30
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_RESERVED,
+    // 40
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_RESERVED,
+    // 50
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_RESERVED,
+    // 60
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_RESERVED,
+    // 70
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_RESERVED,
+    // 80
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_RESERVED,
+    // 90
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_RESERVED,
+    // a0
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_RESERVED,
+    // b0
+    evdev_code::KEY_PLAY,
+    evdev_code::KEY_PAUSE,
+    evdev_code::KEY_RECORD,
+    evdev_code::KEY_FASTFORWARD,
+    evdev_code::KEY_REWIND,
+    evdev_code::KEY_NEXTSONG,
+    evdev_code::KEY_PREVIOUSSONG,
+    evdev_code::KEY_STOPCD,
+    evdev_code::KEY_EJECTCD,
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_RESERVED,
+    // c0
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_PLAYPAUSE,
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_RESERVED,
+    // d0
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_RESERVED,
+    // e0
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_MUTE,
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_VOLUMEUP,
+    evdev_code::KEY_VOLUMEDOWN,
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_RESERVED,
+    // f0
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_RESERVED,
+    // 100
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_RESERVED,
+    // 110
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_RESERVED,
+    // 120
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_RESERVED,
+    // 130
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_RESERVED,
+    // 140
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_RESERVED,
+    // 150
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_RESERVED,
+    // 160
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_RESERVED,
+    // 170
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_RESERVED,
+    // 180
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_EMAIL,
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_RESERVED,
+    // 190
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_CALC,
+    evdev_code::KEY_MEDIA,
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_COFFEE,
+    evdev_code::KEY_RESERVED,
+    // 1a0
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_RESERVED,
+    // 1b0
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_FILE,
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_RESERVED,
+    // 1c0
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_RESERVED,
+    // 1d0
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_RESERVED,
+    // 1e0
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_RESERVED,
+    // 1f0
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_RESERVED,
+    // 200
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_RESERVED,
+    // 210
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_RESERVED,
+    // 220
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_SEARCH,
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_HOMEPAGE,
+    evdev_code::KEY_BACK,
+    evdev_code::KEY_FORWARD,
+    evdev_code::KEY_STOP,
+    evdev_code::KEY_REFRESH,
     evdev_code::KEY_RESERVED,
     evdev_code::KEY_RESERVED,
     evdev_code::KEY_RESERVED,
@@ -1044,7 +1644,7 @@ usb_hid_device::usb_hid_device(usb_device& d, const usb_device_config& config,
         for (auto le2 = r.fields.next; le2 != &r.fields; le2 = le2->next) {
             auto& f = containing_record<usb_hid_field>(le2);
 
-            if (f.usage_page == USAGE_PAGE_KEYBOARD)
+            if (f.usage_page == USAGE_PAGE_KEYBOARD || f.usage_page == USAGE_PAGE_CONSUMER)
                 is_keyboard = true;
 
             print_field(f);
@@ -1399,6 +1999,14 @@ void usb_hid_device::input_usage(uint16_t usage_page, uint32_t usage, int32_t nu
             keys[usage / 64] |= (uint64_t)1 << (usage % 64);
 
         return;
+    } else if (usage_page == USAGE_PAGE_CONSUMER) {
+        if (usage >= media_keys.size() * 64)
+            return;
+
+        if (num)
+            media_keys[usage / 64] |= (uint64_t)1 << (usage % 64);
+
+        return;
     }
 
     // ignore vendor-defined usages
@@ -1481,6 +2089,22 @@ void usb_hid_device::handle_input(usb_hid_report& r, span<const uint8_t> sp) {
                         clear_bit(i);
                 }
             }
+        } else if (f.usage_page == USAGE_PAGE_CONSUMER) {
+            auto clear_bit = [this](uint32_t usage) {
+                media_keys[usage / 64] &= ~((uint64_t)1 << (usage % 64));
+            };
+
+            if (f.num_usages > 0) {
+                for (unsigned int i = 0; i < f.num_usages; i++) {
+                    if (f.usages[i] < media_keys.size() * 64)
+                        clear_bit(f.usages[i]);
+                }
+            } else {
+                for (unsigned int i = f.usage_min; i <= f.usage_max; i++) {
+                    if (i < media_keys.size() * 64)
+                        clear_bit(i);
+                }
+            }
         }
     }
 
@@ -1502,8 +2126,13 @@ void usb_hid_device::recv_thread() {
     }
 
     array<uint64_t, 4> old_keys;
+    decltype(media_keys) old_media_keys;
 
     old_keys[0] = old_keys[1] = old_keys[2] = old_keys[3] = 0;
+
+    for (auto& c : old_media_keys) {
+        c = 0;
+    }
 
     while (true) {
         auto recv_bytes = queue.normal_transfer(span(buf, packet_size));
@@ -1516,8 +2145,10 @@ void usb_hid_device::recv_thread() {
 
         memset(buf + recv_bytes, 0, packet_size - recv_bytes);
 
-        if (is_keyboard)
+        if (is_keyboard) {
             keys = old_keys;
+            media_keys = old_media_keys;
+        }
 
         for (auto le = input_reports.next; le != &input_reports; le = le->next) {
             auto& r = containing_record<usb_hid_report>(le);
@@ -1548,6 +2179,31 @@ void usb_hid_device::recv_thread() {
                 }
 
                 old_keys = keys;
+            }
+
+            if (memcmp(media_keys.data(), old_media_keys.data(), media_keys.size() * sizeof(uint64_t))) {
+                for (size_t i = 0; i < media_keys.size(); i++) {
+                    auto diff = media_keys[i] ^ old_media_keys[i];
+
+                    while (diff != 0) {
+                        auto bit = (size_t)countr_zero(diff);
+                        auto code = (i * 64) + bit;
+
+                        if (code >= sizeof(media_keycodes) / sizeof(*media_keycodes) ||
+                            media_keycodes[code] == evdev_code::KEY_RESERVED) {
+                                print("unrecognized media keycode {:x}\n", code);
+                        } else {
+                            if (media_keys[i] & (uint64_t)1 << bit)
+                                post_evdev(media_keycodes[code], 1);
+                            else
+                                post_evdev(media_keycodes[code], 0);
+                        }
+
+                        diff &= ~((uint64_t)1 << bit);
+                    }
+                }
+
+                old_media_keys = media_keys;
             }
         }
     }
