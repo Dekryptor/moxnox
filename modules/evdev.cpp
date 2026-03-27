@@ -685,6 +685,1250 @@ export span<char> do_format_arg(span<char> sp, string_view, evdev_type arg) {
 }
 
 template<>
+consteval bool format_spec_valid<evdev_code>(string_view fmt) {
+    return fmt.empty();
+}
+
+export span<char> do_format_arg(span<char> sp, string_view, evdev_code arg) {
+    switch (arg) {
+        case evdev_code::KEY_RESERVED:
+            return do_format_arg(sp, "", "KEY_RESERVED");
+        case evdev_code::KEY_ESC:
+            return do_format_arg(sp, "", "KEY_ESC");
+        case evdev_code::KEY_1:
+            return do_format_arg(sp, "", "KEY_1");
+        case evdev_code::KEY_2:
+            return do_format_arg(sp, "", "KEY_2");
+        case evdev_code::KEY_3:
+            return do_format_arg(sp, "", "KEY_3");
+        case evdev_code::KEY_4:
+            return do_format_arg(sp, "", "KEY_4");
+        case evdev_code::KEY_5:
+            return do_format_arg(sp, "", "KEY_5");
+        case evdev_code::KEY_6:
+            return do_format_arg(sp, "", "KEY_6");
+        case evdev_code::KEY_7:
+            return do_format_arg(sp, "", "KEY_7");
+        case evdev_code::KEY_8:
+            return do_format_arg(sp, "", "KEY_8");
+        case evdev_code::KEY_9:
+            return do_format_arg(sp, "", "KEY_9");
+        case evdev_code::KEY_0:
+            return do_format_arg(sp, "", "KEY_0");
+        case evdev_code::KEY_MINUS:
+            return do_format_arg(sp, "", "KEY_MINUS");
+        case evdev_code::KEY_EQUAL:
+            return do_format_arg(sp, "", "KEY_EQUAL");
+        case evdev_code::KEY_BACKSPACE:
+            return do_format_arg(sp, "", "KEY_BACKSPACE");
+        case evdev_code::KEY_TAB:
+            return do_format_arg(sp, "", "KEY_TAB");
+        case evdev_code::KEY_Q:
+            return do_format_arg(sp, "", "KEY_Q");
+        case evdev_code::KEY_W:
+            return do_format_arg(sp, "", "KEY_W");
+        case evdev_code::KEY_E:
+            return do_format_arg(sp, "", "KEY_E");
+        case evdev_code::KEY_R:
+            return do_format_arg(sp, "", "KEY_R");
+        case evdev_code::KEY_T:
+            return do_format_arg(sp, "", "KEY_T");
+        case evdev_code::KEY_Y:
+            return do_format_arg(sp, "", "KEY_Y");
+        case evdev_code::KEY_U:
+            return do_format_arg(sp, "", "KEY_U");
+        case evdev_code::KEY_I:
+            return do_format_arg(sp, "", "KEY_I");
+        case evdev_code::KEY_O:
+            return do_format_arg(sp, "", "KEY_O");
+        case evdev_code::KEY_P:
+            return do_format_arg(sp, "", "KEY_P");
+        case evdev_code::KEY_LEFTBRACE:
+            return do_format_arg(sp, "", "KEY_LEFTBRACE");
+        case evdev_code::KEY_RIGHTBRACE:
+            return do_format_arg(sp, "", "KEY_RIGHTBRACE");
+        case evdev_code::KEY_ENTER:
+            return do_format_arg(sp, "", "KEY_ENTER");
+        case evdev_code::KEY_LEFTCTRL:
+            return do_format_arg(sp, "", "KEY_LEFTCTRL");
+        case evdev_code::KEY_A:
+            return do_format_arg(sp, "", "KEY_A");
+        case evdev_code::KEY_S:
+            return do_format_arg(sp, "", "KEY_S");
+        case evdev_code::KEY_D:
+            return do_format_arg(sp, "", "KEY_D");
+        case evdev_code::KEY_F:
+            return do_format_arg(sp, "", "KEY_F");
+        case evdev_code::KEY_G:
+            return do_format_arg(sp, "", "KEY_G");
+        case evdev_code::KEY_H:
+            return do_format_arg(sp, "", "KEY_H");
+        case evdev_code::KEY_J:
+            return do_format_arg(sp, "", "KEY_J");
+        case evdev_code::KEY_K:
+            return do_format_arg(sp, "", "KEY_K");
+        case evdev_code::KEY_L:
+            return do_format_arg(sp, "", "KEY_L");
+        case evdev_code::KEY_SEMICOLON:
+            return do_format_arg(sp, "", "KEY_SEMICOLON");
+        case evdev_code::KEY_APOSTROPHE:
+            return do_format_arg(sp, "", "KEY_APOSTROPHE");
+        case evdev_code::KEY_GRAVE:
+            return do_format_arg(sp, "", "KEY_GRAVE");
+        case evdev_code::KEY_LEFTSHIFT:
+            return do_format_arg(sp, "", "KEY_LEFTSHIFT");
+        case evdev_code::KEY_BACKSLASH:
+            return do_format_arg(sp, "", "KEY_BACKSLASH");
+        case evdev_code::KEY_Z:
+            return do_format_arg(sp, "", "KEY_Z");
+        case evdev_code::KEY_X:
+            return do_format_arg(sp, "", "KEY_X");
+        case evdev_code::KEY_C:
+            return do_format_arg(sp, "", "KEY_C");
+        case evdev_code::KEY_V:
+            return do_format_arg(sp, "", "KEY_V");
+        case evdev_code::KEY_B:
+            return do_format_arg(sp, "", "KEY_B");
+        case evdev_code::KEY_N:
+            return do_format_arg(sp, "", "KEY_N");
+        case evdev_code::KEY_M:
+            return do_format_arg(sp, "", "KEY_M");
+        case evdev_code::KEY_COMMA:
+            return do_format_arg(sp, "", "KEY_COMMA");
+        case evdev_code::KEY_DOT:
+            return do_format_arg(sp, "", "KEY_DOT");
+        case evdev_code::KEY_SLASH:
+            return do_format_arg(sp, "", "KEY_SLASH");
+        case evdev_code::KEY_RIGHTSHIFT:
+            return do_format_arg(sp, "", "KEY_RIGHTSHIFT");
+        case evdev_code::KEY_KPASTERISK:
+            return do_format_arg(sp, "", "KEY_KPASTERISK");
+        case evdev_code::KEY_LEFTALT:
+            return do_format_arg(sp, "", "KEY_LEFTALT");
+        case evdev_code::KEY_SPACE:
+            return do_format_arg(sp, "", "KEY_SPACE");
+        case evdev_code::KEY_CAPSLOCK:
+            return do_format_arg(sp, "", "KEY_CAPSLOCK");
+        case evdev_code::KEY_F1:
+            return do_format_arg(sp, "", "KEY_F1");
+        case evdev_code::KEY_F2:
+            return do_format_arg(sp, "", "KEY_F2");
+        case evdev_code::KEY_F3:
+            return do_format_arg(sp, "", "KEY_F3");
+        case evdev_code::KEY_F4:
+            return do_format_arg(sp, "", "KEY_F4");
+        case evdev_code::KEY_F5:
+            return do_format_arg(sp, "", "KEY_F5");
+        case evdev_code::KEY_F6:
+            return do_format_arg(sp, "", "KEY_F6");
+        case evdev_code::KEY_F7:
+            return do_format_arg(sp, "", "KEY_F7");
+        case evdev_code::KEY_F8:
+            return do_format_arg(sp, "", "KEY_F8");
+        case evdev_code::KEY_F9:
+            return do_format_arg(sp, "", "KEY_F9");
+        case evdev_code::KEY_F10:
+            return do_format_arg(sp, "", "KEY_F10");
+        case evdev_code::KEY_NUMLOCK:
+            return do_format_arg(sp, "", "KEY_NUMLOCK");
+        case evdev_code::KEY_SCROLLLOCK:
+            return do_format_arg(sp, "", "KEY_SCROLLLOCK");
+        case evdev_code::KEY_KP7:
+            return do_format_arg(sp, "", "KEY_KP7");
+        case evdev_code::KEY_KP8:
+            return do_format_arg(sp, "", "KEY_KP8");
+        case evdev_code::KEY_KP9:
+            return do_format_arg(sp, "", "KEY_KP9");
+        case evdev_code::KEY_KPMINUS:
+            return do_format_arg(sp, "", "KEY_KPMINUS");
+        case evdev_code::KEY_KP4:
+            return do_format_arg(sp, "", "KEY_KP4");
+        case evdev_code::KEY_KP5:
+            return do_format_arg(sp, "", "KEY_KP5");
+        case evdev_code::KEY_KP6:
+            return do_format_arg(sp, "", "KEY_KP6");
+        case evdev_code::KEY_KPPLUS:
+            return do_format_arg(sp, "", "KEY_KPPLUS");
+        case evdev_code::KEY_KP1:
+            return do_format_arg(sp, "", "KEY_KP1");
+        case evdev_code::KEY_KP2:
+            return do_format_arg(sp, "", "KEY_KP2");
+        case evdev_code::KEY_KP3:
+            return do_format_arg(sp, "", "KEY_KP3");
+        case evdev_code::KEY_KP0:
+            return do_format_arg(sp, "", "KEY_KP0");
+        case evdev_code::KEY_KPDOT:
+            return do_format_arg(sp, "", "KEY_KPDOT");
+        case evdev_code::KEY_ZENKAKUHANKAKU:
+            return do_format_arg(sp, "", "KEY_ZENKAKUHANKAKU");
+        case evdev_code::KEY_102ND:
+            return do_format_arg(sp, "", "KEY_102ND");
+        case evdev_code::KEY_F11:
+            return do_format_arg(sp, "", "KEY_F11");
+        case evdev_code::KEY_F12:
+            return do_format_arg(sp, "", "KEY_F12");
+        case evdev_code::KEY_RO:
+            return do_format_arg(sp, "", "KEY_RO");
+        case evdev_code::KEY_KATAKANA:
+            return do_format_arg(sp, "", "KEY_KATAKANA");
+        case evdev_code::KEY_HIRAGANA:
+            return do_format_arg(sp, "", "KEY_HIRAGANA");
+        case evdev_code::KEY_HENKAN:
+            return do_format_arg(sp, "", "KEY_HENKAN");
+        case evdev_code::KEY_KATAKANAHIRAGANA:
+            return do_format_arg(sp, "", "KEY_KATAKANAHIRAGANA");
+        case evdev_code::KEY_MUHENKAN:
+            return do_format_arg(sp, "", "KEY_MUHENKAN");
+        case evdev_code::KEY_KPJPCOMMA:
+            return do_format_arg(sp, "", "KEY_KPJPCOMMA");
+        case evdev_code::KEY_KPENTER:
+            return do_format_arg(sp, "", "KEY_KPENTER");
+        case evdev_code::KEY_RIGHTCTRL:
+            return do_format_arg(sp, "", "KEY_RIGHTCTRL");
+        case evdev_code::KEY_KPSLASH:
+            return do_format_arg(sp, "", "KEY_KPSLASH");
+        case evdev_code::KEY_SYSRQ:
+            return do_format_arg(sp, "", "KEY_SYSRQ");
+        case evdev_code::KEY_RIGHTALT:
+            return do_format_arg(sp, "", "KEY_RIGHTALT");
+        case evdev_code::KEY_LINEFEED:
+            return do_format_arg(sp, "", "KEY_LINEFEED");
+        case evdev_code::KEY_HOME:
+            return do_format_arg(sp, "", "KEY_HOME");
+        case evdev_code::KEY_UP:
+            return do_format_arg(sp, "", "KEY_UP");
+        case evdev_code::KEY_PAGEUP:
+            return do_format_arg(sp, "", "KEY_PAGEUP");
+        case evdev_code::KEY_LEFT:
+            return do_format_arg(sp, "", "KEY_LEFT");
+        case evdev_code::KEY_RIGHT:
+            return do_format_arg(sp, "", "KEY_RIGHT");
+        case evdev_code::KEY_END:
+            return do_format_arg(sp, "", "KEY_END");
+        case evdev_code::KEY_DOWN:
+            return do_format_arg(sp, "", "KEY_DOWN");
+        case evdev_code::KEY_PAGEDOWN:
+            return do_format_arg(sp, "", "KEY_PAGEDOWN");
+        case evdev_code::KEY_INSERT:
+            return do_format_arg(sp, "", "KEY_INSERT");
+        case evdev_code::KEY_DELETE:
+            return do_format_arg(sp, "", "KEY_DELETE");
+        case evdev_code::KEY_MACRO:
+            return do_format_arg(sp, "", "KEY_MACRO");
+        case evdev_code::KEY_MUTE:
+            return do_format_arg(sp, "", "KEY_MUTE");
+        case evdev_code::KEY_VOLUMEDOWN:
+            return do_format_arg(sp, "", "KEY_VOLUMEDOWN");
+        case evdev_code::KEY_VOLUMEUP:
+            return do_format_arg(sp, "", "KEY_VOLUMEUP");
+        case evdev_code::KEY_POWER:
+            return do_format_arg(sp, "", "KEY_POWER");
+        case evdev_code::KEY_KPEQUAL:
+            return do_format_arg(sp, "", "KEY_KPEQUAL");
+        case evdev_code::KEY_KPPLUSMINUS:
+            return do_format_arg(sp, "", "KEY_KPPLUSMINUS");
+        case evdev_code::KEY_PAUSE:
+            return do_format_arg(sp, "", "KEY_PAUSE");
+        case evdev_code::KEY_SCALE:
+            return do_format_arg(sp, "", "KEY_SCALE");
+        case evdev_code::KEY_KPCOMMA:
+            return do_format_arg(sp, "", "KEY_KPCOMMA");
+        case evdev_code::KEY_HANGEUL:
+            return do_format_arg(sp, "", "KEY_HANGEUL");
+        case evdev_code::KEY_HANJA:
+            return do_format_arg(sp, "", "KEY_HANJA");
+        case evdev_code::KEY_YEN:
+            return do_format_arg(sp, "", "KEY_YEN");
+        case evdev_code::KEY_LEFTMETA:
+            return do_format_arg(sp, "", "KEY_LEFTMETA");
+        case evdev_code::KEY_RIGHTMETA:
+            return do_format_arg(sp, "", "KEY_RIGHTMETA");
+        case evdev_code::KEY_COMPOSE:
+            return do_format_arg(sp, "", "KEY_COMPOSE");
+        case evdev_code::KEY_STOP:
+            return do_format_arg(sp, "", "KEY_STOP");
+        case evdev_code::KEY_AGAIN:
+            return do_format_arg(sp, "", "KEY_AGAIN");
+        case evdev_code::KEY_PROPS:
+            return do_format_arg(sp, "", "KEY_PROPS");
+        case evdev_code::KEY_UNDO:
+            return do_format_arg(sp, "", "KEY_UNDO");
+        case evdev_code::KEY_FRONT:
+            return do_format_arg(sp, "", "KEY_FRONT");
+        case evdev_code::KEY_COPY:
+            return do_format_arg(sp, "", "KEY_COPY");
+        case evdev_code::KEY_OPEN:
+            return do_format_arg(sp, "", "KEY_OPEN");
+        case evdev_code::KEY_PASTE:
+            return do_format_arg(sp, "", "KEY_PASTE");
+        case evdev_code::KEY_FIND:
+            return do_format_arg(sp, "", "KEY_FIND");
+        case evdev_code::KEY_CUT:
+            return do_format_arg(sp, "", "KEY_CUT");
+        case evdev_code::KEY_HELP:
+            return do_format_arg(sp, "", "KEY_HELP");
+        case evdev_code::KEY_MENU:
+            return do_format_arg(sp, "", "KEY_MENU");
+        case evdev_code::KEY_CALC:
+            return do_format_arg(sp, "", "KEY_CALC");
+        case evdev_code::KEY_SETUP:
+            return do_format_arg(sp, "", "KEY_SETUP");
+        case evdev_code::KEY_SLEEP:
+            return do_format_arg(sp, "", "KEY_SLEEP");
+        case evdev_code::KEY_WAKEUP:
+            return do_format_arg(sp, "", "KEY_WAKEUP");
+        case evdev_code::KEY_FILE:
+            return do_format_arg(sp, "", "KEY_FILE");
+        case evdev_code::KEY_SENDFILE:
+            return do_format_arg(sp, "", "KEY_SENDFILE");
+        case evdev_code::KEY_DELETEFILE:
+            return do_format_arg(sp, "", "KEY_DELETEFILE");
+        case evdev_code::KEY_XFER:
+            return do_format_arg(sp, "", "KEY_XFER");
+        case evdev_code::KEY_PROG1:
+            return do_format_arg(sp, "", "KEY_PROG1");
+        case evdev_code::KEY_PROG2:
+            return do_format_arg(sp, "", "KEY_PROG2");
+        case evdev_code::KEY_WWW:
+            return do_format_arg(sp, "", "KEY_WWW");
+        case evdev_code::KEY_MSDOS:
+            return do_format_arg(sp, "", "KEY_MSDOS");
+        case evdev_code::KEY_COFFEE:
+            return do_format_arg(sp, "", "KEY_COFFEE");
+        case evdev_code::KEY_ROTATE_DISPLAY:
+            return do_format_arg(sp, "", "KEY_ROTATE_DISPLAY");
+        case evdev_code::KEY_CYCLEWINDOWS:
+            return do_format_arg(sp, "", "KEY_CYCLEWINDOWS");
+        case evdev_code::KEY_MAIL:
+            return do_format_arg(sp, "", "KEY_MAIL");
+        case evdev_code::KEY_BOOKMARKS:
+            return do_format_arg(sp, "", "KEY_BOOKMARKS");
+        case evdev_code::KEY_COMPUTER:
+            return do_format_arg(sp, "", "KEY_COMPUTER");
+        case evdev_code::KEY_BACK:
+            return do_format_arg(sp, "", "KEY_BACK");
+        case evdev_code::KEY_FORWARD:
+            return do_format_arg(sp, "", "KEY_FORWARD");
+        case evdev_code::KEY_CLOSECD:
+            return do_format_arg(sp, "", "KEY_CLOSECD");
+        case evdev_code::KEY_EJECTCD:
+            return do_format_arg(sp, "", "KEY_EJECTCD");
+        case evdev_code::KEY_EJECTCLOSECD:
+            return do_format_arg(sp, "", "KEY_EJECTCLOSECD");
+        case evdev_code::KEY_NEXTSONG:
+            return do_format_arg(sp, "", "KEY_NEXTSONG");
+        case evdev_code::KEY_PLAYPAUSE:
+            return do_format_arg(sp, "", "KEY_PLAYPAUSE");
+        case evdev_code::KEY_PREVIOUSSONG:
+            return do_format_arg(sp, "", "KEY_PREVIOUSSONG");
+        case evdev_code::KEY_STOPCD:
+            return do_format_arg(sp, "", "KEY_STOPCD");
+        case evdev_code::KEY_RECORD:
+            return do_format_arg(sp, "", "KEY_RECORD");
+        case evdev_code::KEY_REWIND:
+            return do_format_arg(sp, "", "KEY_REWIND");
+        case evdev_code::KEY_PHONE:
+            return do_format_arg(sp, "", "KEY_PHONE");
+        case evdev_code::KEY_ISO:
+            return do_format_arg(sp, "", "KEY_ISO");
+        case evdev_code::KEY_CONFIG:
+            return do_format_arg(sp, "", "KEY_CONFIG");
+        case evdev_code::KEY_HOMEPAGE:
+            return do_format_arg(sp, "", "KEY_HOMEPAGE");
+        case evdev_code::KEY_REFRESH:
+            return do_format_arg(sp, "", "KEY_REFRESH");
+        case evdev_code::KEY_EXIT:
+            return do_format_arg(sp, "", "KEY_EXIT");
+        case evdev_code::KEY_MOVE:
+            return do_format_arg(sp, "", "KEY_MOVE");
+        case evdev_code::KEY_EDIT:
+            return do_format_arg(sp, "", "KEY_EDIT");
+        case evdev_code::KEY_SCROLLUP:
+            return do_format_arg(sp, "", "KEY_SCROLLUP");
+        case evdev_code::KEY_SCROLLDOWN:
+            return do_format_arg(sp, "", "KEY_SCROLLDOWN");
+        case evdev_code::KEY_KPLEFTPAREN:
+            return do_format_arg(sp, "", "KEY_KPLEFTPAREN");
+        case evdev_code::KEY_KPRIGHTPAREN:
+            return do_format_arg(sp, "", "KEY_KPRIGHTPAREN");
+        case evdev_code::KEY_NEW:
+            return do_format_arg(sp, "", "KEY_NEW");
+        case evdev_code::KEY_REDO:
+            return do_format_arg(sp, "", "KEY_REDO");
+        case evdev_code::KEY_F13:
+            return do_format_arg(sp, "", "KEY_F13");
+        case evdev_code::KEY_F14:
+            return do_format_arg(sp, "", "KEY_F14");
+        case evdev_code::KEY_F15:
+            return do_format_arg(sp, "", "KEY_F15");
+        case evdev_code::KEY_F16:
+            return do_format_arg(sp, "", "KEY_F16");
+        case evdev_code::KEY_F17:
+            return do_format_arg(sp, "", "KEY_F17");
+        case evdev_code::KEY_F18:
+            return do_format_arg(sp, "", "KEY_F18");
+        case evdev_code::KEY_F19:
+            return do_format_arg(sp, "", "KEY_F19");
+        case evdev_code::KEY_F20:
+            return do_format_arg(sp, "", "KEY_F20");
+        case evdev_code::KEY_F21:
+            return do_format_arg(sp, "", "KEY_F21");
+        case evdev_code::KEY_F22:
+            return do_format_arg(sp, "", "KEY_F22");
+        case evdev_code::KEY_F23:
+            return do_format_arg(sp, "", "KEY_F23");
+        case evdev_code::KEY_F24:
+            return do_format_arg(sp, "", "KEY_F24");
+        case evdev_code::KEY_PLAYCD:
+            return do_format_arg(sp, "", "KEY_PLAYCD");
+        case evdev_code::KEY_PAUSECD:
+            return do_format_arg(sp, "", "KEY_PAUSECD");
+        case evdev_code::KEY_PROG3:
+            return do_format_arg(sp, "", "KEY_PROG3");
+        case evdev_code::KEY_PROG4:
+            return do_format_arg(sp, "", "KEY_PROG4");
+        case evdev_code::KEY_ALL_APPLICATIONS:
+            return do_format_arg(sp, "", "KEY_ALL_APPLICATIONS");
+        case evdev_code::KEY_SUSPEND:
+            return do_format_arg(sp, "", "KEY_SUSPEND");
+        case evdev_code::KEY_CLOSE:
+            return do_format_arg(sp, "", "KEY_CLOSE");
+        case evdev_code::KEY_PLAY:
+            return do_format_arg(sp, "", "KEY_PLAY");
+        case evdev_code::KEY_FASTFORWARD:
+            return do_format_arg(sp, "", "KEY_FASTFORWARD");
+        case evdev_code::KEY_BASSBOOST:
+            return do_format_arg(sp, "", "KEY_BASSBOOST");
+        case evdev_code::KEY_PRINT:
+            return do_format_arg(sp, "", "KEY_PRINT");
+        case evdev_code::KEY_HP:
+            return do_format_arg(sp, "", "KEY_HP");
+        case evdev_code::KEY_CAMERA:
+            return do_format_arg(sp, "", "KEY_CAMERA");
+        case evdev_code::KEY_SOUND:
+            return do_format_arg(sp, "", "KEY_SOUND");
+        case evdev_code::KEY_QUESTION:
+            return do_format_arg(sp, "", "KEY_QUESTION");
+        case evdev_code::KEY_EMAIL:
+            return do_format_arg(sp, "", "KEY_EMAIL");
+        case evdev_code::KEY_CHAT:
+            return do_format_arg(sp, "", "KEY_CHAT");
+        case evdev_code::KEY_SEARCH:
+            return do_format_arg(sp, "", "KEY_SEARCH");
+        case evdev_code::KEY_CONNECT:
+            return do_format_arg(sp, "", "KEY_CONNECT");
+        case evdev_code::KEY_FINANCE:
+            return do_format_arg(sp, "", "KEY_FINANCE");
+        case evdev_code::KEY_SPORT:
+            return do_format_arg(sp, "", "KEY_SPORT");
+        case evdev_code::KEY_SHOP:
+            return do_format_arg(sp, "", "KEY_SHOP");
+        case evdev_code::KEY_ALTERASE:
+            return do_format_arg(sp, "", "KEY_ALTERASE");
+        case evdev_code::KEY_CANCEL:
+            return do_format_arg(sp, "", "KEY_CANCEL");
+        case evdev_code::KEY_BRIGHTNESSDOWN:
+            return do_format_arg(sp, "", "KEY_BRIGHTNESSDOWN");
+        case evdev_code::KEY_BRIGHTNESSUP:
+            return do_format_arg(sp, "", "KEY_BRIGHTNESSUP");
+        case evdev_code::KEY_MEDIA:
+            return do_format_arg(sp, "", "KEY_MEDIA");
+        case evdev_code::KEY_SWITCHVIDEOMODE:
+            return do_format_arg(sp, "", "KEY_SWITCHVIDEOMODE");
+        case evdev_code::KEY_KBDILLUMTOGGLE:
+            return do_format_arg(sp, "", "KEY_KBDILLUMTOGGLE");
+        case evdev_code::KEY_KBDILLUMDOWN:
+            return do_format_arg(sp, "", "KEY_KBDILLUMDOWN");
+        case evdev_code::KEY_KBDILLUMUP:
+            return do_format_arg(sp, "", "KEY_KBDILLUMUP");
+        case evdev_code::KEY_SEND:
+            return do_format_arg(sp, "", "KEY_SEND");
+        case evdev_code::KEY_REPLY:
+            return do_format_arg(sp, "", "KEY_REPLY");
+        case evdev_code::KEY_FORWARDMAIL:
+            return do_format_arg(sp, "", "KEY_FORWARDMAIL");
+        case evdev_code::KEY_SAVE:
+            return do_format_arg(sp, "", "KEY_SAVE");
+        case evdev_code::KEY_DOCUMENTS:
+            return do_format_arg(sp, "", "KEY_DOCUMENTS");
+        case evdev_code::KEY_BATTERY:
+            return do_format_arg(sp, "", "KEY_BATTERY");
+        case evdev_code::KEY_BLUETOOTH:
+            return do_format_arg(sp, "", "KEY_BLUETOOTH");
+        case evdev_code::KEY_WLAN:
+            return do_format_arg(sp, "", "KEY_WLAN");
+        case evdev_code::KEY_UWB:
+            return do_format_arg(sp, "", "KEY_UWB");
+        case evdev_code::KEY_UNKNOWN:
+            return do_format_arg(sp, "", "KEY_UNKNOWN");
+        case evdev_code::KEY_VIDEO_NEXT:
+            return do_format_arg(sp, "", "KEY_VIDEO_NEXT");
+        case evdev_code::KEY_VIDEO_PREV:
+            return do_format_arg(sp, "", "KEY_VIDEO_PREV");
+        case evdev_code::KEY_BRIGHTNESS_CYCLE:
+            return do_format_arg(sp, "", "KEY_BRIGHTNESS_CYCLE");
+        case evdev_code::KEY_BRIGHTNESS_AUTO:
+            return do_format_arg(sp, "", "KEY_BRIGHTNESS_AUTO");
+        case evdev_code::KEY_DISPLAY_OFF:
+            return do_format_arg(sp, "", "KEY_DISPLAY_OFF");
+        case evdev_code::KEY_WWAN:
+            return do_format_arg(sp, "", "KEY_WWAN");
+        case evdev_code::KEY_RFKILL:
+            return do_format_arg(sp, "", "KEY_RFKILL");
+        case evdev_code::KEY_MICMUTE:
+            return do_format_arg(sp, "", "KEY_MICMUTE");
+        case evdev_code::BTN_0:
+            return do_format_arg(sp, "", "BTN_0");
+        case evdev_code::BTN_1:
+            return do_format_arg(sp, "", "BTN_1");
+        case evdev_code::BTN_2:
+            return do_format_arg(sp, "", "BTN_2");
+        case evdev_code::BTN_3:
+            return do_format_arg(sp, "", "BTN_3");
+        case evdev_code::BTN_4:
+            return do_format_arg(sp, "", "BTN_4");
+        case evdev_code::BTN_5:
+            return do_format_arg(sp, "", "BTN_5");
+        case evdev_code::BTN_6:
+            return do_format_arg(sp, "", "BTN_6");
+        case evdev_code::BTN_7:
+            return do_format_arg(sp, "", "BTN_7");
+        case evdev_code::BTN_8:
+            return do_format_arg(sp, "", "BTN_8");
+        case evdev_code::BTN_9:
+            return do_format_arg(sp, "", "BTN_9");
+        case evdev_code::BTN_LEFT:
+            return do_format_arg(sp, "", "BTN_LEFT");
+        case evdev_code::BTN_RIGHT:
+            return do_format_arg(sp, "", "BTN_RIGHT");
+        case evdev_code::BTN_MIDDLE:
+            return do_format_arg(sp, "", "BTN_MIDDLE");
+        case evdev_code::BTN_SIDE:
+            return do_format_arg(sp, "", "BTN_SIDE");
+        case evdev_code::BTN_EXTRA:
+            return do_format_arg(sp, "", "BTN_EXTRA");
+        case evdev_code::BTN_FORWARD:
+            return do_format_arg(sp, "", "BTN_FORWARD");
+        case evdev_code::BTN_BACK:
+            return do_format_arg(sp, "", "BTN_BACK");
+        case evdev_code::BTN_TASK:
+            return do_format_arg(sp, "", "BTN_TASK");
+        case evdev_code::BTN_TRIGGER:
+            return do_format_arg(sp, "", "BTN_TRIGGER");
+        case evdev_code::BTN_THUMB:
+            return do_format_arg(sp, "", "BTN_THUMB");
+        case evdev_code::BTN_THUMB2:
+            return do_format_arg(sp, "", "BTN_THUMB2");
+        case evdev_code::BTN_TOP:
+            return do_format_arg(sp, "", "BTN_TOP");
+        case evdev_code::BTN_TOP2:
+            return do_format_arg(sp, "", "BTN_TOP2");
+        case evdev_code::BTN_PINKIE:
+            return do_format_arg(sp, "", "BTN_PINKIE");
+        case evdev_code::BTN_BASE:
+            return do_format_arg(sp, "", "BTN_BASE");
+        case evdev_code::BTN_BASE2:
+            return do_format_arg(sp, "", "BTN_BASE2");
+        case evdev_code::BTN_BASE3:
+            return do_format_arg(sp, "", "BTN_BASE3");
+        case evdev_code::BTN_BASE4:
+            return do_format_arg(sp, "", "BTN_BASE4");
+        case evdev_code::BTN_BASE5:
+            return do_format_arg(sp, "", "BTN_BASE5");
+        case evdev_code::BTN_BASE6:
+            return do_format_arg(sp, "", "BTN_BASE6");
+        case evdev_code::BTN_DEAD:
+            return do_format_arg(sp, "", "BTN_DEAD");
+        case evdev_code::BTN_SOUTH:
+            return do_format_arg(sp, "", "BTN_SOUTH");
+        case evdev_code::BTN_EAST:
+            return do_format_arg(sp, "", "BTN_EAST");
+        case evdev_code::BTN_C:
+            return do_format_arg(sp, "", "BTN_C");
+        case evdev_code::BTN_NORTH:
+            return do_format_arg(sp, "", "BTN_NORTH");
+        case evdev_code::BTN_WEST:
+            return do_format_arg(sp, "", "BTN_WEST");
+        case evdev_code::BTN_Z:
+            return do_format_arg(sp, "", "BTN_Z");
+        case evdev_code::BTN_TL:
+            return do_format_arg(sp, "", "BTN_TL");
+        case evdev_code::BTN_TR:
+            return do_format_arg(sp, "", "BTN_TR");
+        case evdev_code::BTN_TL2:
+            return do_format_arg(sp, "", "BTN_TL2");
+        case evdev_code::BTN_TR2:
+            return do_format_arg(sp, "", "BTN_TR2");
+        case evdev_code::BTN_SELECT:
+            return do_format_arg(sp, "", "BTN_SELECT");
+        case evdev_code::BTN_START:
+            return do_format_arg(sp, "", "BTN_START");
+        case evdev_code::BTN_MODE:
+            return do_format_arg(sp, "", "BTN_MODE");
+        case evdev_code::BTN_THUMBL:
+            return do_format_arg(sp, "", "BTN_THUMBL");
+        case evdev_code::BTN_THUMBR:
+            return do_format_arg(sp, "", "BTN_THUMBR");
+        case evdev_code::BTN_TOOL_PEN:
+            return do_format_arg(sp, "", "BTN_TOOL_PEN");
+        case evdev_code::BTN_TOOL_RUBBER:
+            return do_format_arg(sp, "", "BTN_TOOL_RUBBER");
+        case evdev_code::BTN_TOOL_BRUSH:
+            return do_format_arg(sp, "", "BTN_TOOL_BRUSH");
+        case evdev_code::BTN_TOOL_PENCIL:
+            return do_format_arg(sp, "", "BTN_TOOL_PENCIL");
+        case evdev_code::BTN_TOOL_AIRBRUSH:
+            return do_format_arg(sp, "", "BTN_TOOL_AIRBRUSH");
+        case evdev_code::BTN_TOOL_FINGER:
+            return do_format_arg(sp, "", "BTN_TOOL_FINGER");
+        case evdev_code::BTN_TOOL_MOUSE:
+            return do_format_arg(sp, "", "BTN_TOOL_MOUSE");
+        case evdev_code::BTN_TOOL_LENS:
+            return do_format_arg(sp, "", "BTN_TOOL_LENS");
+        case evdev_code::BTN_TOOL_QUINTTAP:
+            return do_format_arg(sp, "", "BTN_TOOL_QUINTTAP");
+        case evdev_code::BTN_STYLUS3:
+            return do_format_arg(sp, "", "BTN_STYLUS3");
+        case evdev_code::BTN_TOUCH:
+            return do_format_arg(sp, "", "BTN_TOUCH");
+        case evdev_code::BTN_STYLUS:
+            return do_format_arg(sp, "", "BTN_STYLUS");
+        case evdev_code::BTN_STYLUS2:
+            return do_format_arg(sp, "", "BTN_STYLUS2");
+        case evdev_code::BTN_TOOL_DOUBLETAP:
+            return do_format_arg(sp, "", "BTN_TOOL_DOUBLETAP");
+        case evdev_code::BTN_TOOL_TRIPLETAP:
+            return do_format_arg(sp, "", "BTN_TOOL_TRIPLETAP");
+        case evdev_code::BTN_TOOL_QUADTAP:
+            return do_format_arg(sp, "", "BTN_TOOL_QUADTAP");
+        case evdev_code::BTN_GEAR_DOWN:
+            return do_format_arg(sp, "", "BTN_GEAR_DOWN");
+        case evdev_code::BTN_GEAR_UP:
+            return do_format_arg(sp, "", "BTN_GEAR_UP");
+        case evdev_code::KEY_OK:
+            return do_format_arg(sp, "", "KEY_OK");
+        case evdev_code::KEY_SELECT:
+            return do_format_arg(sp, "", "KEY_SELECT");
+        case evdev_code::KEY_GOTO:
+            return do_format_arg(sp, "", "KEY_GOTO");
+        case evdev_code::KEY_CLEAR:
+            return do_format_arg(sp, "", "KEY_CLEAR");
+        case evdev_code::KEY_POWER2:
+            return do_format_arg(sp, "", "KEY_POWER2");
+        case evdev_code::KEY_OPTION:
+            return do_format_arg(sp, "", "KEY_OPTION");
+        case evdev_code::KEY_INFO:
+            return do_format_arg(sp, "", "KEY_INFO");
+        case evdev_code::KEY_TIME:
+            return do_format_arg(sp, "", "KEY_TIME");
+        case evdev_code::KEY_VENDOR:
+            return do_format_arg(sp, "", "KEY_VENDOR");
+        case evdev_code::KEY_ARCHIVE:
+            return do_format_arg(sp, "", "KEY_ARCHIVE");
+        case evdev_code::KEY_PROGRAM:
+            return do_format_arg(sp, "", "KEY_PROGRAM");
+        case evdev_code::KEY_CHANNEL:
+            return do_format_arg(sp, "", "KEY_CHANNEL");
+        case evdev_code::KEY_FAVORITES:
+            return do_format_arg(sp, "", "KEY_FAVORITES");
+        case evdev_code::KEY_EPG:
+            return do_format_arg(sp, "", "KEY_EPG");
+        case evdev_code::KEY_PVR:
+            return do_format_arg(sp, "", "KEY_PVR");
+        case evdev_code::KEY_MHP:
+            return do_format_arg(sp, "", "KEY_MHP");
+        case evdev_code::KEY_LANGUAGE:
+            return do_format_arg(sp, "", "KEY_LANGUAGE");
+        case evdev_code::KEY_TITLE:
+            return do_format_arg(sp, "", "KEY_TITLE");
+        case evdev_code::KEY_SUBTITLE:
+            return do_format_arg(sp, "", "KEY_SUBTITLE");
+        case evdev_code::KEY_ANGLE:
+            return do_format_arg(sp, "", "KEY_ANGLE");
+        case evdev_code::KEY_FULL_SCREEN:
+            return do_format_arg(sp, "", "KEY_FULL_SCREEN");
+        case evdev_code::KEY_MODE:
+            return do_format_arg(sp, "", "KEY_MODE");
+        case evdev_code::KEY_KEYBOARD:
+            return do_format_arg(sp, "", "KEY_KEYBOARD");
+        case evdev_code::KEY_ASPECT_RATIO:
+            return do_format_arg(sp, "", "KEY_ASPECT_RATIO");
+        case evdev_code::KEY_PC:
+            return do_format_arg(sp, "", "KEY_PC");
+        case evdev_code::KEY_TV:
+            return do_format_arg(sp, "", "KEY_TV");
+        case evdev_code::KEY_TV2:
+            return do_format_arg(sp, "", "KEY_TV2");
+        case evdev_code::KEY_VCR:
+            return do_format_arg(sp, "", "KEY_VCR");
+        case evdev_code::KEY_VCR2:
+            return do_format_arg(sp, "", "KEY_VCR2");
+        case evdev_code::KEY_SAT:
+            return do_format_arg(sp, "", "KEY_SAT");
+        case evdev_code::KEY_SAT2:
+            return do_format_arg(sp, "", "KEY_SAT2");
+        case evdev_code::KEY_CD:
+            return do_format_arg(sp, "", "KEY_CD");
+        case evdev_code::KEY_TAPE:
+            return do_format_arg(sp, "", "KEY_TAPE");
+        case evdev_code::KEY_RADIO:
+            return do_format_arg(sp, "", "KEY_RADIO");
+        case evdev_code::KEY_TUNER:
+            return do_format_arg(sp, "", "KEY_TUNER");
+        case evdev_code::KEY_PLAYER:
+            return do_format_arg(sp, "", "KEY_PLAYER");
+        case evdev_code::KEY_TEXT:
+            return do_format_arg(sp, "", "KEY_TEXT");
+        case evdev_code::KEY_DVD:
+            return do_format_arg(sp, "", "KEY_DVD");
+        case evdev_code::KEY_AUX:
+            return do_format_arg(sp, "", "KEY_AUX");
+        case evdev_code::KEY_MP3:
+            return do_format_arg(sp, "", "KEY_MP3");
+        case evdev_code::KEY_AUDIO:
+            return do_format_arg(sp, "", "KEY_AUDIO");
+        case evdev_code::KEY_VIDEO:
+            return do_format_arg(sp, "", "KEY_VIDEO");
+        case evdev_code::KEY_DIRECTORY:
+            return do_format_arg(sp, "", "KEY_DIRECTORY");
+        case evdev_code::KEY_LIST:
+            return do_format_arg(sp, "", "KEY_LIST");
+        case evdev_code::KEY_MEMO:
+            return do_format_arg(sp, "", "KEY_MEMO");
+        case evdev_code::KEY_CALENDAR:
+            return do_format_arg(sp, "", "KEY_CALENDAR");
+        case evdev_code::KEY_RED:
+            return do_format_arg(sp, "", "KEY_RED");
+        case evdev_code::KEY_GREEN:
+            return do_format_arg(sp, "", "KEY_GREEN");
+        case evdev_code::KEY_YELLOW:
+            return do_format_arg(sp, "", "KEY_YELLOW");
+        case evdev_code::KEY_BLUE:
+            return do_format_arg(sp, "", "KEY_BLUE");
+        case evdev_code::KEY_CHANNELUP:
+            return do_format_arg(sp, "", "KEY_CHANNELUP");
+        case evdev_code::KEY_CHANNELDOWN:
+            return do_format_arg(sp, "", "KEY_CHANNELDOWN");
+        case evdev_code::KEY_FIRST:
+            return do_format_arg(sp, "", "KEY_FIRST");
+        case evdev_code::KEY_LAST:
+            return do_format_arg(sp, "", "KEY_LAST");
+        case evdev_code::KEY_AB:
+            return do_format_arg(sp, "", "KEY_AB");
+        case evdev_code::KEY_NEXT:
+            return do_format_arg(sp, "", "KEY_NEXT");
+        case evdev_code::KEY_RESTART:
+            return do_format_arg(sp, "", "KEY_RESTART");
+        case evdev_code::KEY_SLOW:
+            return do_format_arg(sp, "", "KEY_SLOW");
+        case evdev_code::KEY_SHUFFLE:
+            return do_format_arg(sp, "", "KEY_SHUFFLE");
+        case evdev_code::KEY_BREAK:
+            return do_format_arg(sp, "", "KEY_BREAK");
+        case evdev_code::KEY_PREVIOUS:
+            return do_format_arg(sp, "", "KEY_PREVIOUS");
+        case evdev_code::KEY_DIGITS:
+            return do_format_arg(sp, "", "KEY_DIGITS");
+        case evdev_code::KEY_TEEN:
+            return do_format_arg(sp, "", "KEY_TEEN");
+        case evdev_code::KEY_TWEN:
+            return do_format_arg(sp, "", "KEY_TWEN");
+        case evdev_code::KEY_VIDEOPHONE:
+            return do_format_arg(sp, "", "KEY_VIDEOPHONE");
+        case evdev_code::KEY_GAMES:
+            return do_format_arg(sp, "", "KEY_GAMES");
+        case evdev_code::KEY_ZOOMIN:
+            return do_format_arg(sp, "", "KEY_ZOOMIN");
+        case evdev_code::KEY_ZOOMOUT:
+            return do_format_arg(sp, "", "KEY_ZOOMOUT");
+        case evdev_code::KEY_ZOOMRESET:
+            return do_format_arg(sp, "", "KEY_ZOOMRESET");
+        case evdev_code::KEY_WORDPROCESSOR:
+            return do_format_arg(sp, "", "KEY_WORDPROCESSOR");
+        case evdev_code::KEY_EDITOR:
+            return do_format_arg(sp, "", "KEY_EDITOR");
+        case evdev_code::KEY_SPREADSHEET:
+            return do_format_arg(sp, "", "KEY_SPREADSHEET");
+        case evdev_code::KEY_GRAPHICSEDITOR:
+            return do_format_arg(sp, "", "KEY_GRAPHICSEDITOR");
+        case evdev_code::KEY_PRESENTATION:
+            return do_format_arg(sp, "", "KEY_PRESENTATION");
+        case evdev_code::KEY_DATABASE:
+            return do_format_arg(sp, "", "KEY_DATABASE");
+        case evdev_code::KEY_NEWS:
+            return do_format_arg(sp, "", "KEY_NEWS");
+        case evdev_code::KEY_VOICEMAIL:
+            return do_format_arg(sp, "", "KEY_VOICEMAIL");
+        case evdev_code::KEY_ADDRESSBOOK:
+            return do_format_arg(sp, "", "KEY_ADDRESSBOOK");
+        case evdev_code::KEY_MESSENGER:
+            return do_format_arg(sp, "", "KEY_MESSENGER");
+        case evdev_code::KEY_DISPLAYTOGGLE:
+            return do_format_arg(sp, "", "KEY_DISPLAYTOGGLE");
+        case evdev_code::KEY_SPELLCHECK:
+            return do_format_arg(sp, "", "KEY_SPELLCHECK");
+        case evdev_code::KEY_LOGOFF:
+            return do_format_arg(sp, "", "KEY_LOGOFF");
+        case evdev_code::KEY_DOLLAR:
+            return do_format_arg(sp, "", "KEY_DOLLAR");
+        case evdev_code::KEY_EURO:
+            return do_format_arg(sp, "", "KEY_EURO");
+        case evdev_code::KEY_FRAMEBACK:
+            return do_format_arg(sp, "", "KEY_FRAMEBACK");
+        case evdev_code::KEY_FRAMEFORWARD:
+            return do_format_arg(sp, "", "KEY_FRAMEFORWARD");
+        case evdev_code::KEY_CONTEXT_MENU:
+            return do_format_arg(sp, "", "KEY_CONTEXT_MENU");
+        case evdev_code::KEY_MEDIA_REPEAT:
+            return do_format_arg(sp, "", "KEY_MEDIA_REPEAT");
+        case evdev_code::KEY_10CHANNELSUP:
+            return do_format_arg(sp, "", "KEY_10CHANNELSUP");
+        case evdev_code::KEY_10CHANNELSDOWN:
+            return do_format_arg(sp, "", "KEY_10CHANNELSDOWN");
+        case evdev_code::KEY_IMAGES:
+            return do_format_arg(sp, "", "KEY_IMAGES");
+        case evdev_code::KEY_NOTIFICATION_CENTER:
+            return do_format_arg(sp, "", "KEY_NOTIFICATION_CENTER");
+        case evdev_code::KEY_PICKUP_PHONE:
+            return do_format_arg(sp, "", "KEY_PICKUP_PHONE");
+        case evdev_code::KEY_HANGUP_PHONE:
+            return do_format_arg(sp, "", "KEY_HANGUP_PHONE");
+        case evdev_code::KEY_DEL_EOL:
+            return do_format_arg(sp, "", "KEY_DEL_EOL");
+        case evdev_code::KEY_DEL_EOS:
+            return do_format_arg(sp, "", "KEY_DEL_EOS");
+        case evdev_code::KEY_INS_LINE:
+            return do_format_arg(sp, "", "KEY_INS_LINE");
+        case evdev_code::KEY_DEL_LINE:
+            return do_format_arg(sp, "", "KEY_DEL_LINE");
+        case evdev_code::KEY_FN:
+            return do_format_arg(sp, "", "KEY_FN");
+        case evdev_code::KEY_FN_ESC:
+            return do_format_arg(sp, "", "KEY_FN_ESC");
+        case evdev_code::KEY_FN_F1:
+            return do_format_arg(sp, "", "KEY_FN_F1");
+        case evdev_code::KEY_FN_F2:
+            return do_format_arg(sp, "", "KEY_FN_F2");
+        case evdev_code::KEY_FN_F3:
+            return do_format_arg(sp, "", "KEY_FN_F3");
+        case evdev_code::KEY_FN_F4:
+            return do_format_arg(sp, "", "KEY_FN_F4");
+        case evdev_code::KEY_FN_F5:
+            return do_format_arg(sp, "", "KEY_FN_F5");
+        case evdev_code::KEY_FN_F6:
+            return do_format_arg(sp, "", "KEY_FN_F6");
+        case evdev_code::KEY_FN_F7:
+            return do_format_arg(sp, "", "KEY_FN_F7");
+        case evdev_code::KEY_FN_F8:
+            return do_format_arg(sp, "", "KEY_FN_F8");
+        case evdev_code::KEY_FN_F9:
+            return do_format_arg(sp, "", "KEY_FN_F9");
+        case evdev_code::KEY_FN_F10:
+            return do_format_arg(sp, "", "KEY_FN_F10");
+        case evdev_code::KEY_FN_F11:
+            return do_format_arg(sp, "", "KEY_FN_F11");
+        case evdev_code::KEY_FN_F12:
+            return do_format_arg(sp, "", "KEY_FN_F12");
+        case evdev_code::KEY_FN_1:
+            return do_format_arg(sp, "", "KEY_FN_1");
+        case evdev_code::KEY_FN_2:
+            return do_format_arg(sp, "", "KEY_FN_2");
+        case evdev_code::KEY_FN_D:
+            return do_format_arg(sp, "", "KEY_FN_D");
+        case evdev_code::KEY_FN_E:
+            return do_format_arg(sp, "", "KEY_FN_E");
+        case evdev_code::KEY_FN_F:
+            return do_format_arg(sp, "", "KEY_FN_F");
+        case evdev_code::KEY_FN_S:
+            return do_format_arg(sp, "", "KEY_FN_S");
+        case evdev_code::KEY_FN_B:
+            return do_format_arg(sp, "", "KEY_FN_B");
+        case evdev_code::KEY_FN_RIGHT_SHIFT:
+            return do_format_arg(sp, "", "KEY_FN_RIGHT_SHIFT");
+        case evdev_code::KEY_BRL_DOT1:
+            return do_format_arg(sp, "", "KEY_BRL_DOT1");
+        case evdev_code::KEY_BRL_DOT2:
+            return do_format_arg(sp, "", "KEY_BRL_DOT2");
+        case evdev_code::KEY_BRL_DOT3:
+            return do_format_arg(sp, "", "KEY_BRL_DOT3");
+        case evdev_code::KEY_BRL_DOT4:
+            return do_format_arg(sp, "", "KEY_BRL_DOT4");
+        case evdev_code::KEY_BRL_DOT5:
+            return do_format_arg(sp, "", "KEY_BRL_DOT5");
+        case evdev_code::KEY_BRL_DOT6:
+            return do_format_arg(sp, "", "KEY_BRL_DOT6");
+        case evdev_code::KEY_BRL_DOT7:
+            return do_format_arg(sp, "", "KEY_BRL_DOT7");
+        case evdev_code::KEY_BRL_DOT8:
+            return do_format_arg(sp, "", "KEY_BRL_DOT8");
+        case evdev_code::KEY_BRL_DOT9:
+            return do_format_arg(sp, "", "KEY_BRL_DOT9");
+        case evdev_code::KEY_BRL_DOT10:
+            return do_format_arg(sp, "", "KEY_BRL_DOT10");
+        case evdev_code::KEY_NUMERIC_0:
+            return do_format_arg(sp, "", "KEY_NUMERIC_0");
+        case evdev_code::KEY_NUMERIC_1:
+            return do_format_arg(sp, "", "KEY_NUMERIC_1");
+        case evdev_code::KEY_NUMERIC_2:
+            return do_format_arg(sp, "", "KEY_NUMERIC_2");
+        case evdev_code::KEY_NUMERIC_3:
+            return do_format_arg(sp, "", "KEY_NUMERIC_3");
+        case evdev_code::KEY_NUMERIC_4:
+            return do_format_arg(sp, "", "KEY_NUMERIC_4");
+        case evdev_code::KEY_NUMERIC_5:
+            return do_format_arg(sp, "", "KEY_NUMERIC_5");
+        case evdev_code::KEY_NUMERIC_6:
+            return do_format_arg(sp, "", "KEY_NUMERIC_6");
+        case evdev_code::KEY_NUMERIC_7:
+            return do_format_arg(sp, "", "KEY_NUMERIC_7");
+        case evdev_code::KEY_NUMERIC_8:
+            return do_format_arg(sp, "", "KEY_NUMERIC_8");
+        case evdev_code::KEY_NUMERIC_9:
+            return do_format_arg(sp, "", "KEY_NUMERIC_9");
+        case evdev_code::KEY_NUMERIC_STAR:
+            return do_format_arg(sp, "", "KEY_NUMERIC_STAR");
+        case evdev_code::KEY_NUMERIC_POUND:
+            return do_format_arg(sp, "", "KEY_NUMERIC_POUND");
+        case evdev_code::KEY_NUMERIC_A:
+            return do_format_arg(sp, "", "KEY_NUMERIC_A");
+        case evdev_code::KEY_NUMERIC_B:
+            return do_format_arg(sp, "", "KEY_NUMERIC_B");
+        case evdev_code::KEY_NUMERIC_C:
+            return do_format_arg(sp, "", "KEY_NUMERIC_C");
+        case evdev_code::KEY_NUMERIC_D:
+            return do_format_arg(sp, "", "KEY_NUMERIC_D");
+        case evdev_code::KEY_CAMERA_FOCUS:
+            return do_format_arg(sp, "", "KEY_CAMERA_FOCUS");
+        case evdev_code::KEY_WPS_BUTTON:
+            return do_format_arg(sp, "", "KEY_WPS_BUTTON");
+        case evdev_code::KEY_TOUCHPAD_TOGGLE:
+            return do_format_arg(sp, "", "KEY_TOUCHPAD_TOGGLE");
+        case evdev_code::KEY_TOUCHPAD_ON:
+            return do_format_arg(sp, "", "KEY_TOUCHPAD_ON");
+        case evdev_code::KEY_TOUCHPAD_OFF:
+            return do_format_arg(sp, "", "KEY_TOUCHPAD_OFF");
+        case evdev_code::KEY_CAMERA_ZOOMIN:
+            return do_format_arg(sp, "", "KEY_CAMERA_ZOOMIN");
+        case evdev_code::KEY_CAMERA_ZOOMOUT:
+            return do_format_arg(sp, "", "KEY_CAMERA_ZOOMOUT");
+        case evdev_code::KEY_CAMERA_UP:
+            return do_format_arg(sp, "", "KEY_CAMERA_UP");
+        case evdev_code::KEY_CAMERA_DOWN:
+            return do_format_arg(sp, "", "KEY_CAMERA_DOWN");
+        case evdev_code::KEY_CAMERA_LEFT:
+            return do_format_arg(sp, "", "KEY_CAMERA_LEFT");
+        case evdev_code::KEY_CAMERA_RIGHT:
+            return do_format_arg(sp, "", "KEY_CAMERA_RIGHT");
+        case evdev_code::KEY_ATTENDANT_ON:
+            return do_format_arg(sp, "", "KEY_ATTENDANT_ON");
+        case evdev_code::KEY_ATTENDANT_OFF:
+            return do_format_arg(sp, "", "KEY_ATTENDANT_OFF");
+        case evdev_code::KEY_ATTENDANT_TOGGLE:
+            return do_format_arg(sp, "", "KEY_ATTENDANT_TOGGLE");
+        case evdev_code::KEY_LIGHTS_TOGGLE:
+            return do_format_arg(sp, "", "KEY_LIGHTS_TOGGLE");
+        case evdev_code::BTN_DPAD_UP:
+            return do_format_arg(sp, "", "BTN_DPAD_UP");
+        case evdev_code::BTN_DPAD_DOWN:
+            return do_format_arg(sp, "", "BTN_DPAD_DOWN");
+        case evdev_code::BTN_DPAD_LEFT:
+            return do_format_arg(sp, "", "BTN_DPAD_LEFT");
+        case evdev_code::BTN_DPAD_RIGHT:
+            return do_format_arg(sp, "", "BTN_DPAD_RIGHT");
+        case evdev_code::KEY_ALS_TOGGLE:
+            return do_format_arg(sp, "", "KEY_ALS_TOGGLE");
+        case evdev_code::KEY_ROTATE_LOCK_TOGGLE:
+            return do_format_arg(sp, "", "KEY_ROTATE_LOCK_TOGGLE");
+        case evdev_code::KEY_REFRESH_RATE_TOGGLE:
+            return do_format_arg(sp, "", "KEY_REFRESH_RATE_TOGGLE");
+        case evdev_code::KEY_BUTTONCONFIG:
+            return do_format_arg(sp, "", "KEY_BUTTONCONFIG");
+        case evdev_code::KEY_TASKMANAGER:
+            return do_format_arg(sp, "", "KEY_TASKMANAGER");
+        case evdev_code::KEY_JOURNAL:
+            return do_format_arg(sp, "", "KEY_JOURNAL");
+        case evdev_code::KEY_CONTROLPANEL:
+            return do_format_arg(sp, "", "KEY_CONTROLPANEL");
+        case evdev_code::KEY_APPSELECT:
+            return do_format_arg(sp, "", "KEY_APPSELECT");
+        case evdev_code::KEY_SCREENSAVER:
+            return do_format_arg(sp, "", "KEY_SCREENSAVER");
+        case evdev_code::KEY_VOICECOMMAND:
+            return do_format_arg(sp, "", "KEY_VOICECOMMAND");
+        case evdev_code::KEY_ASSISTANT:
+            return do_format_arg(sp, "", "KEY_ASSISTANT");
+        case evdev_code::KEY_KBD_LAYOUT_NEXT:
+            return do_format_arg(sp, "", "KEY_KBD_LAYOUT_NEXT");
+        case evdev_code::KEY_EMOJI_PICKER:
+            return do_format_arg(sp, "", "KEY_EMOJI_PICKER");
+        case evdev_code::KEY_DICTATE:
+            return do_format_arg(sp, "", "KEY_DICTATE");
+        case evdev_code::KEY_CAMERA_ACCESS_ENABLE:
+            return do_format_arg(sp, "", "KEY_CAMERA_ACCESS_ENABLE");
+        case evdev_code::KEY_CAMERA_ACCESS_DISABLE:
+            return do_format_arg(sp, "", "KEY_CAMERA_ACCESS_DISABLE");
+        case evdev_code::KEY_CAMERA_ACCESS_TOGGLE:
+            return do_format_arg(sp, "", "KEY_CAMERA_ACCESS_TOGGLE");
+        case evdev_code::KEY_ACCESSIBILITY:
+            return do_format_arg(sp, "", "KEY_ACCESSIBILITY");
+        case evdev_code::KEY_DO_NOT_DISTURB:
+            return do_format_arg(sp, "", "KEY_DO_NOT_DISTURB");
+        case evdev_code::KEY_BRIGHTNESS_MIN:
+            return do_format_arg(sp, "", "KEY_BRIGHTNESS_MIN");
+        case evdev_code::KEY_BRIGHTNESS_MAX:
+            return do_format_arg(sp, "", "KEY_BRIGHTNESS_MAX");
+        case evdev_code::KEY_KBDINPUTASSIST_PREV:
+            return do_format_arg(sp, "", "KEY_KBDINPUTASSIST_PREV");
+        case evdev_code::KEY_KBDINPUTASSIST_NEXT:
+            return do_format_arg(sp, "", "KEY_KBDINPUTASSIST_NEXT");
+        case evdev_code::KEY_KBDINPUTASSIST_PREVGROUP:
+            return do_format_arg(sp, "", "KEY_KBDINPUTASSIST_PREVGROUP");
+        case evdev_code::KEY_KBDINPUTASSIST_NEXTGROUP:
+            return do_format_arg(sp, "", "KEY_KBDINPUTASSIST_NEXTGROUP");
+        case evdev_code::KEY_KBDINPUTASSIST_ACCEPT:
+            return do_format_arg(sp, "", "KEY_KBDINPUTASSIST_ACCEPT");
+        case evdev_code::KEY_KBDINPUTASSIST_CANCEL:
+            return do_format_arg(sp, "", "KEY_KBDINPUTASSIST_CANCEL");
+        case evdev_code::KEY_RIGHT_UP:
+            return do_format_arg(sp, "", "KEY_RIGHT_UP");
+        case evdev_code::KEY_RIGHT_DOWN:
+            return do_format_arg(sp, "", "KEY_RIGHT_DOWN");
+        case evdev_code::KEY_LEFT_UP:
+            return do_format_arg(sp, "", "KEY_LEFT_UP");
+        case evdev_code::KEY_LEFT_DOWN:
+            return do_format_arg(sp, "", "KEY_LEFT_DOWN");
+        case evdev_code::KEY_ROOT_MENU:
+            return do_format_arg(sp, "", "KEY_ROOT_MENU");
+        case evdev_code::KEY_MEDIA_TOP_MENU:
+            return do_format_arg(sp, "", "KEY_MEDIA_TOP_MENU");
+        case evdev_code::KEY_NUMERIC_11:
+            return do_format_arg(sp, "", "KEY_NUMERIC_11");
+        case evdev_code::KEY_NUMERIC_12:
+            return do_format_arg(sp, "", "KEY_NUMERIC_12");
+        case evdev_code::KEY_AUDIO_DESC:
+            return do_format_arg(sp, "", "KEY_AUDIO_DESC");
+        case evdev_code::KEY_3D_MODE:
+            return do_format_arg(sp, "", "KEY_3D_MODE");
+        case evdev_code::KEY_NEXT_FAVORITE:
+            return do_format_arg(sp, "", "KEY_NEXT_FAVORITE");
+        case evdev_code::KEY_STOP_RECORD:
+            return do_format_arg(sp, "", "KEY_STOP_RECORD");
+        case evdev_code::KEY_PAUSE_RECORD:
+            return do_format_arg(sp, "", "KEY_PAUSE_RECORD");
+        case evdev_code::KEY_VOD:
+            return do_format_arg(sp, "", "KEY_VOD");
+        case evdev_code::KEY_UNMUTE:
+            return do_format_arg(sp, "", "KEY_UNMUTE");
+        case evdev_code::KEY_FASTREVERSE:
+            return do_format_arg(sp, "", "KEY_FASTREVERSE");
+        case evdev_code::KEY_SLOWREVERSE:
+            return do_format_arg(sp, "", "KEY_SLOWREVERSE");
+        case evdev_code::KEY_DATA:
+            return do_format_arg(sp, "", "KEY_DATA");
+        case evdev_code::KEY_ONSCREEN_KEYBOARD:
+            return do_format_arg(sp, "", "KEY_ONSCREEN_KEYBOARD");
+        case evdev_code::KEY_PRIVACY_SCREEN_TOGGLE:
+            return do_format_arg(sp, "", "KEY_PRIVACY_SCREEN_TOGGLE");
+        case evdev_code::KEY_SELECTIVE_SCREENSHOT:
+            return do_format_arg(sp, "", "KEY_SELECTIVE_SCREENSHOT");
+        case evdev_code::KEY_NEXT_ELEMENT:
+            return do_format_arg(sp, "", "KEY_NEXT_ELEMENT");
+        case evdev_code::KEY_PREVIOUS_ELEMENT:
+            return do_format_arg(sp, "", "KEY_PREVIOUS_ELEMENT");
+        case evdev_code::KEY_AUTOPILOT_ENGAGE_TOGGLE:
+            return do_format_arg(sp, "", "KEY_AUTOPILOT_ENGAGE_TOGGLE");
+        case evdev_code::KEY_MARK_WAYPOINT:
+            return do_format_arg(sp, "", "KEY_MARK_WAYPOINT");
+        case evdev_code::KEY_SOS:
+            return do_format_arg(sp, "", "KEY_SOS");
+        case evdev_code::KEY_NAV_CHART:
+            return do_format_arg(sp, "", "KEY_NAV_CHART");
+        case evdev_code::KEY_FISHING_CHART:
+            return do_format_arg(sp, "", "KEY_FISHING_CHART");
+        case evdev_code::KEY_SINGLE_RANGE_RADAR:
+            return do_format_arg(sp, "", "KEY_SINGLE_RANGE_RADAR");
+        case evdev_code::KEY_DUAL_RANGE_RADAR:
+            return do_format_arg(sp, "", "KEY_DUAL_RANGE_RADAR");
+        case evdev_code::KEY_RADAR_OVERLAY:
+            return do_format_arg(sp, "", "KEY_RADAR_OVERLAY");
+        case evdev_code::KEY_TRADITIONAL_SONAR:
+            return do_format_arg(sp, "", "KEY_TRADITIONAL_SONAR");
+        case evdev_code::KEY_CLEARVU_SONAR:
+            return do_format_arg(sp, "", "KEY_CLEARVU_SONAR");
+        case evdev_code::KEY_SIDEVU_SONAR:
+            return do_format_arg(sp, "", "KEY_SIDEVU_SONAR");
+        case evdev_code::KEY_NAV_INFO:
+            return do_format_arg(sp, "", "KEY_NAV_INFO");
+        case evdev_code::KEY_BRIGHTNESS_MENU:
+            return do_format_arg(sp, "", "KEY_BRIGHTNESS_MENU");
+        case evdev_code::KEY_MACRO1:
+            return do_format_arg(sp, "", "KEY_MACRO1");
+        case evdev_code::KEY_MACRO2:
+            return do_format_arg(sp, "", "KEY_MACRO2");
+        case evdev_code::KEY_MACRO3:
+            return do_format_arg(sp, "", "KEY_MACRO3");
+        case evdev_code::KEY_MACRO4:
+            return do_format_arg(sp, "", "KEY_MACRO4");
+        case evdev_code::KEY_MACRO5:
+            return do_format_arg(sp, "", "KEY_MACRO5");
+        case evdev_code::KEY_MACRO6:
+            return do_format_arg(sp, "", "KEY_MACRO6");
+        case evdev_code::KEY_MACRO7:
+            return do_format_arg(sp, "", "KEY_MACRO7");
+        case evdev_code::KEY_MACRO8:
+            return do_format_arg(sp, "", "KEY_MACRO8");
+        case evdev_code::KEY_MACRO9:
+            return do_format_arg(sp, "", "KEY_MACRO9");
+        case evdev_code::KEY_MACRO10:
+            return do_format_arg(sp, "", "KEY_MACRO10");
+        case evdev_code::KEY_MACRO11:
+            return do_format_arg(sp, "", "KEY_MACRO11");
+        case evdev_code::KEY_MACRO12:
+            return do_format_arg(sp, "", "KEY_MACRO12");
+        case evdev_code::KEY_MACRO13:
+            return do_format_arg(sp, "", "KEY_MACRO13");
+        case evdev_code::KEY_MACRO14:
+            return do_format_arg(sp, "", "KEY_MACRO14");
+        case evdev_code::KEY_MACRO15:
+            return do_format_arg(sp, "", "KEY_MACRO15");
+        case evdev_code::KEY_MACRO16:
+            return do_format_arg(sp, "", "KEY_MACRO16");
+        case evdev_code::KEY_MACRO17:
+            return do_format_arg(sp, "", "KEY_MACRO17");
+        case evdev_code::KEY_MACRO18:
+            return do_format_arg(sp, "", "KEY_MACRO18");
+        case evdev_code::KEY_MACRO19:
+            return do_format_arg(sp, "", "KEY_MACRO19");
+        case evdev_code::KEY_MACRO20:
+            return do_format_arg(sp, "", "KEY_MACRO20");
+        case evdev_code::KEY_MACRO21:
+            return do_format_arg(sp, "", "KEY_MACRO21");
+        case evdev_code::KEY_MACRO22:
+            return do_format_arg(sp, "", "KEY_MACRO22");
+        case evdev_code::KEY_MACRO23:
+            return do_format_arg(sp, "", "KEY_MACRO23");
+        case evdev_code::KEY_MACRO24:
+            return do_format_arg(sp, "", "KEY_MACRO24");
+        case evdev_code::KEY_MACRO25:
+            return do_format_arg(sp, "", "KEY_MACRO25");
+        case evdev_code::KEY_MACRO26:
+            return do_format_arg(sp, "", "KEY_MACRO26");
+        case evdev_code::KEY_MACRO27:
+            return do_format_arg(sp, "", "KEY_MACRO27");
+        case evdev_code::KEY_MACRO28:
+            return do_format_arg(sp, "", "KEY_MACRO28");
+        case evdev_code::KEY_MACRO29:
+            return do_format_arg(sp, "", "KEY_MACRO29");
+        case evdev_code::KEY_MACRO30:
+            return do_format_arg(sp, "", "KEY_MACRO30");
+        case evdev_code::KEY_MACRO_RECORD_START:
+            return do_format_arg(sp, "", "KEY_MACRO_RECORD_START");
+        case evdev_code::KEY_MACRO_RECORD_STOP:
+            return do_format_arg(sp, "", "KEY_MACRO_RECORD_STOP");
+        case evdev_code::KEY_MACRO_PRESET_CYCLE:
+            return do_format_arg(sp, "", "KEY_MACRO_PRESET_CYCLE");
+        case evdev_code::KEY_MACRO_PRESET1:
+            return do_format_arg(sp, "", "KEY_MACRO_PRESET1");
+        case evdev_code::KEY_MACRO_PRESET2:
+            return do_format_arg(sp, "", "KEY_MACRO_PRESET2");
+        case evdev_code::KEY_MACRO_PRESET3:
+            return do_format_arg(sp, "", "KEY_MACRO_PRESET3");
+        case evdev_code::KEY_KBD_LCD_MENU1:
+            return do_format_arg(sp, "", "KEY_KBD_LCD_MENU1");
+        case evdev_code::KEY_KBD_LCD_MENU2:
+            return do_format_arg(sp, "", "KEY_KBD_LCD_MENU2");
+        case evdev_code::KEY_KBD_LCD_MENU3:
+            return do_format_arg(sp, "", "KEY_KBD_LCD_MENU3");
+        case evdev_code::KEY_KBD_LCD_MENU4:
+            return do_format_arg(sp, "", "KEY_KBD_LCD_MENU4");
+        case evdev_code::KEY_KBD_LCD_MENU5:
+            return do_format_arg(sp, "", "KEY_KBD_LCD_MENU5");
+        case evdev_code::BTN_TRIGGER_HAPPY1:
+            return do_format_arg(sp, "", "BTN_TRIGGER_HAPPY1");
+        case evdev_code::BTN_TRIGGER_HAPPY2:
+            return do_format_arg(sp, "", "BTN_TRIGGER_HAPPY2");
+        case evdev_code::BTN_TRIGGER_HAPPY3:
+            return do_format_arg(sp, "", "BTN_TRIGGER_HAPPY3");
+        case evdev_code::BTN_TRIGGER_HAPPY4:
+            return do_format_arg(sp, "", "BTN_TRIGGER_HAPPY4");
+        case evdev_code::BTN_TRIGGER_HAPPY5:
+            return do_format_arg(sp, "", "BTN_TRIGGER_HAPPY5");
+        case evdev_code::BTN_TRIGGER_HAPPY6:
+            return do_format_arg(sp, "", "BTN_TRIGGER_HAPPY6");
+        case evdev_code::BTN_TRIGGER_HAPPY7:
+            return do_format_arg(sp, "", "BTN_TRIGGER_HAPPY7");
+        case evdev_code::BTN_TRIGGER_HAPPY8:
+            return do_format_arg(sp, "", "BTN_TRIGGER_HAPPY8");
+        case evdev_code::BTN_TRIGGER_HAPPY9:
+            return do_format_arg(sp, "", "BTN_TRIGGER_HAPPY9");
+        case evdev_code::BTN_TRIGGER_HAPPY10:
+            return do_format_arg(sp, "", "BTN_TRIGGER_HAPPY10");
+        case evdev_code::BTN_TRIGGER_HAPPY11:
+            return do_format_arg(sp, "", "BTN_TRIGGER_HAPPY11");
+        case evdev_code::BTN_TRIGGER_HAPPY12:
+            return do_format_arg(sp, "", "BTN_TRIGGER_HAPPY12");
+        case evdev_code::BTN_TRIGGER_HAPPY13:
+            return do_format_arg(sp, "", "BTN_TRIGGER_HAPPY13");
+        case evdev_code::BTN_TRIGGER_HAPPY14:
+            return do_format_arg(sp, "", "BTN_TRIGGER_HAPPY14");
+        case evdev_code::BTN_TRIGGER_HAPPY15:
+            return do_format_arg(sp, "", "BTN_TRIGGER_HAPPY15");
+        case evdev_code::BTN_TRIGGER_HAPPY16:
+            return do_format_arg(sp, "", "BTN_TRIGGER_HAPPY16");
+        case evdev_code::BTN_TRIGGER_HAPPY17:
+            return do_format_arg(sp, "", "BTN_TRIGGER_HAPPY17");
+        case evdev_code::BTN_TRIGGER_HAPPY18:
+            return do_format_arg(sp, "", "BTN_TRIGGER_HAPPY18");
+        case evdev_code::BTN_TRIGGER_HAPPY19:
+            return do_format_arg(sp, "", "BTN_TRIGGER_HAPPY19");
+        case evdev_code::BTN_TRIGGER_HAPPY20:
+            return do_format_arg(sp, "", "BTN_TRIGGER_HAPPY20");
+        case evdev_code::BTN_TRIGGER_HAPPY21:
+            return do_format_arg(sp, "", "BTN_TRIGGER_HAPPY21");
+        case evdev_code::BTN_TRIGGER_HAPPY22:
+            return do_format_arg(sp, "", "BTN_TRIGGER_HAPPY22");
+        case evdev_code::BTN_TRIGGER_HAPPY23:
+            return do_format_arg(sp, "", "BTN_TRIGGER_HAPPY23");
+        case evdev_code::BTN_TRIGGER_HAPPY24:
+            return do_format_arg(sp, "", "BTN_TRIGGER_HAPPY24");
+        case evdev_code::BTN_TRIGGER_HAPPY25:
+            return do_format_arg(sp, "", "BTN_TRIGGER_HAPPY25");
+        case evdev_code::BTN_TRIGGER_HAPPY26:
+            return do_format_arg(sp, "", "BTN_TRIGGER_HAPPY26");
+        case evdev_code::BTN_TRIGGER_HAPPY27:
+            return do_format_arg(sp, "", "BTN_TRIGGER_HAPPY27");
+        case evdev_code::BTN_TRIGGER_HAPPY28:
+            return do_format_arg(sp, "", "BTN_TRIGGER_HAPPY28");
+        case evdev_code::BTN_TRIGGER_HAPPY29:
+            return do_format_arg(sp, "", "BTN_TRIGGER_HAPPY29");
+        case evdev_code::BTN_TRIGGER_HAPPY30:
+            return do_format_arg(sp, "", "BTN_TRIGGER_HAPPY30");
+        case evdev_code::BTN_TRIGGER_HAPPY31:
+            return do_format_arg(sp, "", "BTN_TRIGGER_HAPPY31");
+        case evdev_code::BTN_TRIGGER_HAPPY32:
+            return do_format_arg(sp, "", "BTN_TRIGGER_HAPPY32");
+        case evdev_code::BTN_TRIGGER_HAPPY33:
+            return do_format_arg(sp, "", "BTN_TRIGGER_HAPPY33");
+        case evdev_code::BTN_TRIGGER_HAPPY34:
+            return do_format_arg(sp, "", "BTN_TRIGGER_HAPPY34");
+        case evdev_code::BTN_TRIGGER_HAPPY35:
+            return do_format_arg(sp, "", "BTN_TRIGGER_HAPPY35");
+        case evdev_code::BTN_TRIGGER_HAPPY36:
+            return do_format_arg(sp, "", "BTN_TRIGGER_HAPPY36");
+        case evdev_code::BTN_TRIGGER_HAPPY37:
+            return do_format_arg(sp, "", "BTN_TRIGGER_HAPPY37");
+        case evdev_code::BTN_TRIGGER_HAPPY38:
+            return do_format_arg(sp, "", "BTN_TRIGGER_HAPPY38");
+        case evdev_code::BTN_TRIGGER_HAPPY39:
+            return do_format_arg(sp, "", "BTN_TRIGGER_HAPPY39");
+        case evdev_code::BTN_TRIGGER_HAPPY40:
+            return do_format_arg(sp, "", "BTN_TRIGGER_HAPPY40");
+        default:
+            return do_format_arg(sp, ":x", (uint32_t)arg);
+    }
+}
+
+template<>
 consteval bool format_spec_valid<evdev_type>(string_view fmt) {
     return fmt.empty();
 }
