@@ -519,3 +519,16 @@ if (CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
 endif()
 
 install(TARGETS condvar-test DESTINATION ${CMAKE_INSTALL_PREFIX}/bin)
+
+###
+
+add_executable(keyboard-test src/keyboard-test.cpp)
+
+target_compile_options(keyboard-test PRIVATE -fno-exceptions ${USERSPACE_CFLAGS})
+target_link_libraries(keyboard-test moxnox print evdev unique_handle)
+
+if (CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
+    target_link_options(keyboard-test PUBLIC -mcrtdll=ucrtbase)
+endif()
+
+install(TARGETS keyboard-test DESTINATION ${CMAKE_INSTALL_PREFIX}/bin)
