@@ -57,13 +57,7 @@ public:
             insert_tail_list(p.clients, le);
         }
 
-        not_empty_event = create_event(false);
-        if (!not_empty_event) {
-            print("create_event failed\n");
-            return;
-        }
-
-        init = true;
+        signalled = false;
     }
 
     ~keyboard_pipe_client() {
@@ -100,14 +94,12 @@ public:
     void post_event(const input_event& ev, uint32_t id);
 
     list_entry le;
-    bool init = false;
     bool visited = false;
     spinlock items_lock;
     list_entry items = { &items, &items };
 
 private:
     keyboard_pipe& p;
-    object_ref not_empty_event;
 };
 
 using set_leds_func = void (*)(void* ctx, keyboard_leds leds);
@@ -295,12 +287,6 @@ nt_status keyboard_pipe::userspace_open(object_ref& objref) {
         return nt_status::INSUFFICIENT_RESOURCES;
     }
 
-    if (!c->init) {
-        print("keyboard_pipe_client init failed\n");
-        c->release();
-        return nt_status::INSUFFICIENT_RESOURCES;
-    }
-
     object_ref r{*c};
 
     objref.swap(r);
@@ -314,10 +300,8 @@ nt_status keyboard_pipe_client::read(span<uint8_t> s, uint64_t& read_bytes) {
 
     read_bytes = 0;
 
-    auto& e = static_cast<event&>(not_empty_event.get());
-
     while (true) {
-        auto status = wait_for_object(not_empty_event.get(), true);
+        auto status = wait_for_object(*this, true);
         if (!success(status))
             return status;
 
@@ -332,9 +316,6 @@ nt_status keyboard_pipe_client::read(span<uint8_t> s, uint64_t& read_bytes) {
 
                     remove_entry_list(it2.le);
                     it = &it2;
-
-                    if (is_list_empty(items))
-                        reset_event(e);
                 }
             }
 
@@ -343,6 +324,15 @@ nt_status keyboard_pipe_client::read(span<uint8_t> s, uint64_t& read_bytes) {
                     return nt_status::SUCCESS;
 
                 break;
+            }
+
+            {
+                sync_lock sl;
+                lock_guard lock(sl);
+                lock_guard lock2(items_lock);
+
+                if (is_list_empty(items))
+                    signalled = false;
             }
 
             memcpy(s.data(), &it->ev, sizeof(input_event_with_id));
@@ -408,9 +398,6 @@ void keyboard_pipe::post_event(const input_event& ev, uint32_t id) {
 }
 
 void keyboard_pipe_client::post_event(const input_event& ev, uint32_t id) {
-    if (!not_empty_event)
-        return;
-
     // FIXME - drop oldest event if over limit
 
     auto it = new input_event_item;
@@ -422,12 +409,19 @@ void keyboard_pipe_client::post_event(const input_event& ev, uint32_t id) {
     it->ev.ev = ev;
     it->ev.id = id;
 
-    auto& e = static_cast<event&>(not_empty_event.get());
-
     {
         lock_guard lock(items_lock);
-
         insert_tail_list(items, it->le);
-        set_event(e);
+    }
+
+    {
+        sync_lock sl;
+        lock_guard lock(sl);
+        lock_guard lock2(items_lock);
+
+        if (!is_list_empty(items) && !signalled) {
+            signalled = true;
+            wake_up_waiters(waiters);
+        }
     }
 }
