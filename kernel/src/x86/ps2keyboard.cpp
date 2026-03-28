@@ -299,8 +299,7 @@ static bool add_keyboard_evdev_pipe() {
         return false;
     }
 
-    register_keyboard(static_cast<evdev_device&>(keyboard_evdev_obj.get()),
-                      keyboard_write, nullptr);
+    register_keyboard(*pptr);
 
     return true;
 }

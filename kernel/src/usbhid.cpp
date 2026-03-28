@@ -89,7 +89,7 @@ public:
                        bool on);
     void recv_thread();
 
-    nt_status write_event(const input_event& ev);
+    nt_status write(span<const uint8_t> s, uint64_t& written_bytes) override;
 
     void acquire() {
         refcount++;
@@ -1686,11 +1686,7 @@ usb_hid_device::usb_hid_device(usb_device& d, const usb_device_config& config,
     }
 
     if (is_keyboard) {
-        this->kc = register_keyboard(static_cast<evdev_device&>(*this), [](void* ctx, const input_event& ev) {
-            auto& kbd = *(usb_hid_device*)ctx;
-
-            return kbd.write_event(ev);
-        }, this);
+        this->kc = register_keyboard(*this);
 
         repeat_timer = create_timer(true);
         if (!repeat_timer) {
@@ -2203,7 +2199,12 @@ static bool set_protocol(usb_device& d, uint16_t wValue, uint16_t wIndex) {
     return true;
 }
 
-nt_status usb_hid_device::write_event(const input_event& ev) {
+nt_status usb_hid_device::write(span<const uint8_t> s, uint64_t& written_bytes) {
+    if (s.size() < sizeof(input_event))
+        return nt_status::INVALID_PARAMETER;
+
+    auto& ev = *(input_event*)s.data();
+
     if (ev.type != evdev_type::EV_LED)
         return nt_status::NOT_SUPPORTED;
 
@@ -2219,6 +2220,8 @@ nt_status usb_hid_device::write_event(const input_event& ev) {
             set_led_field(r, f, (evdev_led)ev.code, ev.value);
         }
     }
+
+    written_bytes = sizeof(input_event);
 
     return nt_status::SUCCESS;
 }

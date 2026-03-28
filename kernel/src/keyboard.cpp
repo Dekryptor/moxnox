@@ -109,8 +109,6 @@ private:
     keyboard_pipe& p;
 };
 
-using write_func = nt_status (*)(void* ctx, const input_event& ev);
-
 static atomic<uint32_t> next_keyboard_id = 0;
 static spinlock keyboard_contexts_spinlock;
 static list_entry keyboard_contexts = { &keyboard_contexts, &keyboard_contexts };
@@ -197,7 +195,7 @@ private:
 
 export class keyboard_context {
 public:
-    keyboard_context(chardev& p, write_func write_func, void* ctx) : write_func(write_func), ctx(ctx), p(p) {
+    keyboard_context(chardev& p) : p(p) {
         p.acquire();
 
         id = ++next_keyboard_id;
@@ -227,10 +225,9 @@ public:
     }
 
     nt_status write(const input_event& ev) {
-        if (!write_func)
-            return nt_status::NOT_SUPPORTED;
+        uint64_t written_bytes;
 
-        return write_func(ctx, ev);
+        return p.write(span((const uint8_t*)&ev, sizeof(input_event)), written_bytes);
     }
 
     void listen_thread();
@@ -239,8 +236,6 @@ public:
     bool dead = false;
     uint32_t id;
     list_entry le;
-    write_func write_func;
-    void* ctx;
 
 private:
     chardev& p;
@@ -308,8 +303,7 @@ void keyboard_context::unregister() {
     dead = true;
 }
 
-export keyboard_context* register_keyboard(evdev_device& p, write_func write_func,
-                                           void* ctx) {
+export keyboard_context* register_keyboard(evdev_device& p) {
     object_ref objref{p};
 
     p.acquire();
@@ -320,7 +314,7 @@ export keyboard_context* register_keyboard(evdev_device& p, write_func write_fun
         return nullptr;
     }
 
-    auto kc = new keyboard_context(static_cast<chardev&>(objref.get()), write_func, ctx);
+    auto kc = new keyboard_context(static_cast<chardev&>(objref.get()));
     if (!kc) {
         print("new failed\n");
         return nullptr;
