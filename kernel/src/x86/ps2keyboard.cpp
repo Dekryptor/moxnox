@@ -124,7 +124,7 @@ static bool should_key_repeat(enum evdev_code code) {
 
 static void post_evdev(enum evdev_code code, int32_t value) {
     input_event ev;
-    auto& p = static_cast<pipe&>(keyboard_evdev_obj.get());
+    auto& p = static_cast<ps2_keyboard&>(keyboard_evdev_obj.get());
 
     if (value != 2 && should_key_repeat(code)) {
         auto& t = static_cast<timer&>(repeat_timer.get());
@@ -166,22 +166,7 @@ static void post_evdev(enum evdev_code code, int32_t value) {
     ev.code = code;
     ev.value = value;
 
-    auto sp = span((uint8_t*)&ev, sizeof(ev));
-
-    while (!sp.empty()) {
-        uint64_t written_bytes;
-
-        auto status = p.write(sp, written_bytes);
-        if (!success(status)) {
-            print("pipe::write returned {}\n", status);
-            return;
-        }
-
-        if (written_bytes == sp.size())
-            break;
-
-        sp = span(sp.data() + written_bytes, sp.size() - written_bytes);
-    }
+    p.post_event(ev);
 }
 
 static void keyboard_event_recv() {
