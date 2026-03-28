@@ -593,9 +593,7 @@ static const bool numlock_codes[] = {
 
 class keyboard_context {
 public:
-    keyboard_context(uint32_t id) : id(id) {
-        memset(&leds, 0, sizeof(leds));
-    }
+    keyboard_context(uint32_t id) : id(id) { }
 
     span<char> handle_keyboard_event(const input_event& ev, HANDLE pipe,
                                      bool& cad);
@@ -608,7 +606,7 @@ private:
     bool left_shift = false, right_shift = false;
     bool left_ctrl = false, right_ctrl = false;
     bool left_alt = false, right_alt = false;
-    keyboard_leds leds;
+    bool caps_lock = false, num_lock = false, scroll_lock = false;
 };
 
 static list_entry contexts = { &contexts, &contexts };
@@ -670,28 +668,28 @@ span<char> keyboard_context::handle_keyboard_event(const input_event& ev,
     }
 
     if (ev.code == evdev_code::KEY_CAPSLOCK) {
-        leds.caps_lock = leds.caps_lock ? 0 : 1;
+        caps_lock = !caps_lock;
 
-        set_led(pipe, evdev_led::LED_CAPSL, leds.caps_lock ? 1 : 0);
+        set_led(pipe, evdev_led::LED_CAPSL, caps_lock ? 1 : 0);
         return {};
     } else if (ev.code == evdev_code::KEY_NUMLOCK) {
-        leds.num_lock = leds.num_lock ? 0 : 1;
+        num_lock = !num_lock;
 
-        set_led(pipe, evdev_led::LED_NUML, leds.num_lock ? 1 : 0);
+        set_led(pipe, evdev_led::LED_NUML, num_lock ? 1 : 0);
         return {};
     } else if (ev.code == evdev_code::KEY_SCROLLLOCK) {
-        leds.scroll_lock = leds.scroll_lock ? 0 : 1;
+        scroll_lock = !scroll_lock;
 
-        set_led(pipe, evdev_led::LED_SCROLLL, leds.scroll_lock ? 1 : 0);
+        set_led(pipe, evdev_led::LED_SCROLLL, scroll_lock ? 1 : 0);
         return {};
     }
 
     bool holding_shift = left_shift || right_shift;
 
-    if (leds.caps_lock && idx < sizeof(capslock_codes) / sizeof(*capslock_codes) && capslock_codes[idx])
+    if (caps_lock && idx < sizeof(capslock_codes) / sizeof(*capslock_codes) && capslock_codes[idx])
         holding_shift = !holding_shift;
 
-    if (!leds.num_lock && idx < sizeof(numlock_codes) / sizeof(*numlock_codes) && numlock_codes[idx])
+    if (!num_lock && idx < sizeof(numlock_codes) / sizeof(*numlock_codes) && numlock_codes[idx])
         holding_shift = true;
 
     u8string_view val;
