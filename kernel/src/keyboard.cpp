@@ -44,7 +44,7 @@ public:
     list_entry clients = { &clients, &clients };
 };
 
-struct input_event_item {
+struct input_event_with_id_item {
     list_entry le;
     input_event_with_id ev;
 };
@@ -69,7 +69,7 @@ public:
         }
 
         while (true) {
-            input_event_item* it = nullptr;
+            input_event_with_id_item* it = nullptr;
 
             {
                 lock_guard lock(items_lock);
@@ -77,7 +77,7 @@ public:
                 if (is_list_empty(items))
                     break;
 
-                it = &containing_record<input_event_item>(items.next);
+                it = &containing_record<input_event_with_id_item>(items.next);
                 remove_entry_list(it->le);
             }
 
@@ -274,13 +274,13 @@ nt_status keyboard_pipe_client::read(span<uint8_t> s, uint64_t& read_bytes) {
             return status;
 
         while (true) {
-            input_event_item* it = nullptr;
+            input_event_with_id_item* it = nullptr;
 
             {
                 lock_guard lock(items_lock);
 
                 if (!is_list_empty(items) && s.size() >= sizeof(input_event_with_id)) {
-                    auto& it2 = containing_record<input_event_item>(items.next);
+                    auto& it2 = containing_record<input_event_with_id_item>(items.next);
 
                     remove_entry_list(it2.le);
                     it = &it2;
@@ -369,7 +369,7 @@ void keyboard_pipe::post_event(const input_event& ev, uint32_t id) {
 void keyboard_pipe_client::post_event(const input_event& ev, uint32_t id) {
     // FIXME - drop oldest event if over limit
 
-    auto it = new input_event_item;
+    auto it = new input_event_with_id_item;
     if (!it) {
         print("new failed\n");
         return;
