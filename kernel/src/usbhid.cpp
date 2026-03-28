@@ -91,15 +91,6 @@ public:
 
     nt_status write(span<const uint8_t> s, uint64_t& written_bytes) override;
 
-    void acquire() {
-        refcount++;
-    }
-
-    void release() {
-        if (--refcount == 0)
-            delete this;
-    }
-
     bool init = false;
 
 private:
@@ -119,7 +110,6 @@ private:
     keyboard_context* kc = nullptr;
     enum evdev_code repeat_key = evdev_code::KEY_RESERVED;
     object_ref repeat_timer;
-    atomic<unsigned int> refcount = 1;
     uint8_t* report_descriptor = nullptr;
     size_t report_descriptor_len;
     bool is_keyboard = false;
