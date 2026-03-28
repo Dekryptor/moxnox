@@ -62,6 +62,17 @@ static uint16_t keyboard_port1, keyboard_port2;
 
 static bool keyboard_isr_func(void*);
 
+class ps2_keyboard : public evdev_device {
+public:
+    nt_status read(span<uint8_t>, uint64_t&) override {
+        return nt_status::NOT_SUPPORTED;
+    }
+
+    nt_status write(span<const uint8_t>, uint64_t&) override {
+        return nt_status::NOT_SUPPORTED;
+    }
+};
+
 static void found_ps2_keyboard(const acpi_device& d);
 
 static acpi_recognizer mod_pnp_hids[] = {
@@ -288,7 +299,7 @@ static nt_status keyboard_write(void*, const input_event& ev) {
 }
 
 static bool add_keyboard_evdev_pipe() {
-    auto pptr = new evdev_device(keyboard_evdev_buffer_pages);
+    auto pptr = new ps2_keyboard;
     if (!pptr) {
         print("new failed\n");
         return false;

@@ -7,7 +7,6 @@ module;
 export module keyboard;
 
 import nt;
-import pipe;
 import print;
 import evdev;
 import list;
@@ -111,14 +110,12 @@ static atomic<uint32_t> next_keyboard_id = 0;
 static spinlock keyboard_contexts_spinlock;
 static list_entry keyboard_contexts = { &keyboard_contexts, &keyboard_contexts };
 
-export class evdev_device : public pipe {
-public:
-    evdev_device(unsigned int buffer_pages) : pipe(buffer_pages) { }
+export class evdev_device : public chardev {
 };
 
 export class keyboard_context {
 public:
-    keyboard_context(evdev_device& p, write_func write_func, void* ctx) : write_func(write_func), ctx(ctx), p(p) {
+    keyboard_context(chardev& p, write_func write_func, void* ctx) : write_func(write_func), ctx(ctx), p(p) {
         p.acquire();
 
         id = ++next_keyboard_id;
@@ -164,7 +161,7 @@ public:
     void* ctx;
 
 private:
-    evdev_device& p;
+    chardev& p;
     atomic<unsigned int> refcount = 1;
 };
 
@@ -212,7 +209,7 @@ void keyboard_context::listen_thread() {
             break;
 
         if (!success(status)) {
-            print("pipe::read returned {}\n", status);
+            print("evdev_device::read returned {}\n", status);
             break;
         }
 
@@ -231,7 +228,17 @@ void keyboard_context::unregister() {
 
 export keyboard_context* register_keyboard(evdev_device& p, write_func write_func,
                                            void* ctx) {
-    auto kc = new keyboard_context(p, write_func, ctx);
+    object_ref objref{p};
+
+    p.acquire();
+
+    auto status = p.userspace_open(objref);
+    if (!success(status)) {
+        print("evdev_device::userspace_open returned {}\n", status);
+        return nullptr;
+    }
+
+    auto kc = new keyboard_context(static_cast<chardev&>(objref.get()), write_func, ctx);
     if (!kc) {
         print("new failed\n");
         return nullptr;

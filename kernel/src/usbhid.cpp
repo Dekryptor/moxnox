@@ -25,6 +25,8 @@ import handle;
 import object_ref;
 import config;
 import moxnox_ioctls;
+import chardev;
+import rwsem;
 
 using namespace std;
 
@@ -77,7 +79,7 @@ struct usb_hid_report {
     void* old = nullptr;
 };
 
-class usb_hid_device {
+class usb_hid_device : public evdev_device {
 public:
     usb_hid_device(usb_device& d, const usb_device_config& config,
                    xhci_queue& queue, uint16_t packet_size,
@@ -86,6 +88,17 @@ public:
     void set_led_field(usb_hid_report& r, usb_hid_field& f, evdev_led led,
                        bool on);
     void recv_thread();
+
+    nt_status userspace_open(object_ref& objref) override;
+
+    nt_status read(span<uint8_t>, uint64_t&) override {
+        return nt_status::NOT_SUPPORTED;
+    }
+
+    nt_status write(span<const uint8_t>, uint64_t&) override {
+        return nt_status::NOT_SUPPORTED;
+    }
+
     nt_status write(const input_event& ev);
 
     void acquire() {
@@ -98,6 +111,8 @@ public:
     }
 
     bool init = false;
+    spinlock client_lock;
+    list_entry clients = { &clients, &clients };
 
 private:
     void post_evdev(enum evdev_code code, int32_t value);
@@ -111,7 +126,6 @@ private:
 
     usb_device& d;
     xhci_queue& queue;
-    object_ref evdev_pipe;
     uint16_t packet_size;
     const usb_interface& interface;
     keyboard_context* kc = nullptr;
@@ -125,6 +139,68 @@ private:
     list_entry output_reports = { &output_reports, &output_reports };
     array<uint64_t, 4> keys;
     array<uint64_t, 11> media_keys;
+    rwsem post_event_mutex;
+};
+
+struct input_event_item {
+    list_entry le;
+    input_event ev;
+};
+
+class usb_hid_device_client : public chardev {
+public:
+    usb_hid_device_client(usb_hid_device& p) : p(p) {
+        p.acquire();
+
+        {
+            lock_guard lock(p.client_lock);
+            insert_tail_list(p.clients, le);
+        }
+
+        signalled = false;
+    }
+
+    ~usb_hid_device_client() {
+        {
+            lock_guard lock(p.client_lock);
+            remove_entry_list(le);
+        }
+
+        while (true) {
+            input_event_item* it = nullptr;
+
+            {
+                lock_guard lock(items_lock);
+
+                if (is_list_empty(items))
+                    break;
+
+                it = &containing_record<input_event_item>(items.next);
+                remove_entry_list(it->le);
+            }
+
+            delete it;
+        }
+
+        p.release();
+    }
+
+    nt_status read(span<uint8_t> s, uint64_t& read_bytes) override;
+
+    nt_status write(span<const uint8_t> s, uint64_t& written_bytes) override {
+        return p.write(s, written_bytes);
+    }
+
+    void post_event(const input_event& ev);
+
+    list_entry le;
+    bool visited = false;
+    spinlock items_lock;
+    list_entry items = { &items, &items };
+    size_t items_left = 256;
+
+private:
+    usb_hid_device& p;
 };
 
 static const evdev_code keycodes[] = {
@@ -1665,14 +1741,6 @@ usb_hid_device::usb_hid_device(usb_device& d, const usb_device_config& config,
 
     this->packet_size = packet_size;
 
-    auto pptr = new evdev_device(evdev_buffer_pages);
-    if (!pptr) {
-        print("new failed\n");
-        return;
-    }
-
-    evdev_pipe = object_ref{*pptr};
-
     unsigned int num = hid_num.fetch_add(1);
 
     {
@@ -1684,7 +1752,7 @@ usb_hid_device::usb_hid_device(usb_device& d, const usb_device_config& config,
         auto sv = string_view(s, (size_t)(sp.data() - s));
 
         // FIXME - put in /dev/input like on Linux?
-        auto status = name_object(evdev_pipe.get(), sv);
+        auto status = name_object(*this, sv);
         if (!success(status)) {
             print("name_object returned {}\n", status);
             return;
@@ -1692,7 +1760,7 @@ usb_hid_device::usb_hid_device(usb_device& d, const usb_device_config& config,
     }
 
     if (is_keyboard) {
-        this->kc = register_keyboard(static_cast<evdev_device&>(evdev_pipe.get()), [](void* ctx, const input_event& ev) {
+        this->kc = register_keyboard(static_cast<evdev_device&>(*this), [](void* ctx, const input_event& ev) {
             auto& kbd = *(usb_hid_device*)ctx;
 
             return kbd.write(ev);
@@ -1718,21 +1786,6 @@ usb_hid_device::usb_hid_device(usb_device& d, const usb_device_config& config,
 usb_hid_device::~usb_hid_device() {
     if (kc)
         kc->unregister();
-
-    if (evdev_pipe) {
-        auto& p = static_cast<pipe&>(evdev_pipe.get());
-
-        {
-            sync_lock sl;
-            lock_guard l(sl);
-
-            if (!p.signalled) {
-                p.signalled = true;
-
-                wake_up_waiters(p.waiters);
-            }
-        }
-    }
 
     if (report_descriptor)
         free(report_descriptor);
@@ -1925,7 +1978,6 @@ static bool should_key_repeat(enum evdev_code code) {
 
 void usb_hid_device::post_evdev(enum evdev_code code, int32_t value) {
     input_event ev;
-    auto& p = static_cast<pipe&>(evdev_pipe.get());
 
     if (value != 2 && should_key_repeat(code)) {
         auto& t = static_cast<timer&>(repeat_timer.get());
@@ -1967,21 +2019,56 @@ void usb_hid_device::post_evdev(enum evdev_code code, int32_t value) {
     ev.code = code;
     ev.value = value;
 
-    auto sp = span((uint8_t*)&ev, sizeof(ev));
+    {
+        lock_guard lg(post_event_mutex);
 
-    while (!sp.empty()) {
-        uint64_t written_bytes;
+        {
+            lock_guard lock(client_lock);
 
-        auto status = p.write(sp, written_bytes);
-        if (!success(status)) {
-            print("pipe::write returned {}\n", status);
-            return;
+            if (is_list_empty(clients))
+                return;
         }
 
-        if (written_bytes == sp.size())
-            break;
+        while (true) {
+            usb_hid_device_client* c = nullptr;
+            bool done = false;
 
-        sp = span(sp.data() + written_bytes, sp.size() - written_bytes);
+            {
+                lock_guard lock(client_lock);
+
+                for (auto le = clients.next; le != &clients; le = le->next) {
+                    auto& c2 = containing_record<usb_hid_device_client>(le);
+
+                    if (c2.visited) {
+                        done = true;
+                        break;
+                    }
+
+                    c = &c2;
+                    c2.acquire();
+                    c2.visited = true;
+
+                    remove_entry_list(c2.le);
+                    insert_tail_list(clients, c2.le);
+                }
+            }
+
+            if (done)
+                break;
+
+            c->post_event(ev);
+            c->release();
+        }
+
+        {
+            lock_guard lock(client_lock);
+
+            for (auto le = clients.next; le != &clients; le = le->next) {
+                auto& c = containing_record<usb_hid_device_client>(le);
+
+                c.visited = false;
+            }
+        }
     }
 }
 
@@ -2256,6 +2343,114 @@ nt_status usb_hid_device::write(const input_event& ev) {
             set_led_field(r, f, (evdev_led)ev.code, ev.value);
         }
     }
+
+    return nt_status::SUCCESS;
+}
+
+nt_status usb_hid_device_client::read(span<uint8_t> s, uint64_t& read_bytes) {
+    if (s.size() < sizeof(input_event))
+        return nt_status::BUFFER_TOO_SMALL;
+
+    read_bytes = 0;
+
+    while (true) {
+        auto status = wait_for_object(*this, true);
+        if (!success(status))
+            return status;
+
+        while (true) {
+            input_event_item* it = nullptr;
+
+            {
+                lock_guard lock(items_lock);
+
+                if (!is_list_empty(items) && s.size() >= sizeof(input_event)) {
+                    auto& it2 = containing_record<input_event_item>(items.next);
+
+                    remove_entry_list(it2.le);
+                    it = &it2;
+                    items_left++;
+                }
+            }
+
+            if (!it) {
+                if (read_bytes > 0)
+                    return nt_status::SUCCESS;
+
+                break;
+            }
+
+            {
+                sync_lock sl;
+                lock_guard lock(sl);
+                lock_guard lock2(items_lock);
+
+                if (is_list_empty(items))
+                    signalled = false;
+            }
+
+            memcpy(s.data(), &it->ev, sizeof(input_event));
+            s = s.subspan(sizeof(input_event));
+
+            delete it;
+
+            read_bytes += sizeof(input_event);
+        }
+    }
+}
+
+void usb_hid_device_client::post_event(const input_event& ev) {
+    // FIXME - drop oldest event if over limit
+
+    auto it = new input_event_item;
+    if (!it) {
+        print("new failed\n");
+        return;
+    }
+
+    it->ev = ev;
+
+    bool failed = false;
+
+    {
+        lock_guard lock(items_lock);
+
+        if (items_left == 0)
+            failed = true;
+        else {
+            insert_tail_list(items, it->le);
+            items_left--;
+        }
+    }
+
+    if (failed) {
+        // FIXME - Linux posts SYN_DROPPED event
+        delete it;
+        return;
+    }
+
+    {
+        sync_lock sl;
+        lock_guard lock(sl);
+        lock_guard lock2(items_lock);
+
+        if (!is_list_empty(items) && !signalled) {
+            signalled = true;
+            wake_up_waiters(waiters);
+        }
+    }
+}
+
+nt_status usb_hid_device::userspace_open(object_ref& objref) {
+    auto c = new usb_hid_device_client(*this);
+    if (!c) {
+        print("new failed\n");
+        return nt_status::INSUFFICIENT_RESOURCES;
+    }
+
+    object_ref r{*c};
+
+    objref.swap(r);
 
     return nt_status::SUCCESS;
 }
