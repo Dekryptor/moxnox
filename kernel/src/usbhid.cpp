@@ -457,13 +457,13 @@ static const evdev_code media_keycodes[] = {
     evdev_code::KEY_RESERVED,
     evdev_code::KEY_RESERVED,
     // 30
+    evdev_code::KEY_POWER,
+    evdev_code::KEY_RESTART,
+    evdev_code::KEY_SLEEP,
     evdev_code::KEY_RESERVED,
-    evdev_code::KEY_RESERVED,
-    evdev_code::KEY_RESERVED,
-    evdev_code::KEY_RESERVED,
-    evdev_code::KEY_RESERVED,
-    evdev_code::KEY_RESERVED,
-    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_SLEEP,
+    evdev_code::KEY_KBDILLUMTOGGLE,
+    evdev_code::KEY_RESERVED, // FIXME - BTN_MISC
     evdev_code::KEY_RESERVED,
     evdev_code::KEY_RESERVED,
     evdev_code::KEY_RESERVED,
@@ -474,15 +474,15 @@ static const evdev_code media_keycodes[] = {
     evdev_code::KEY_RESERVED,
     evdev_code::KEY_RESERVED,
     // 40
-    evdev_code::KEY_RESERVED,
-    evdev_code::KEY_RESERVED,
-    evdev_code::KEY_RESERVED,
-    evdev_code::KEY_RESERVED,
-    evdev_code::KEY_RESERVED,
-    evdev_code::KEY_RESERVED,
-    evdev_code::KEY_RESERVED,
-    evdev_code::KEY_RESERVED,
-    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_MENU,
+    evdev_code::KEY_SELECT,
+    evdev_code::KEY_UP,
+    evdev_code::KEY_DOWN,
+    evdev_code::KEY_LEFT,
+    evdev_code::KEY_RIGHT,
+    evdev_code::KEY_ESC,
+    evdev_code::KEY_KPPLUS,
+    evdev_code::KEY_KPMINUS,
     evdev_code::KEY_RESERVED,
     evdev_code::KEY_RESERVED,
     evdev_code::KEY_RESERVED,
@@ -508,75 +508,75 @@ static const evdev_code media_keycodes[] = {
     evdev_code::KEY_RESERVED,
     evdev_code::KEY_RESERVED,
     // 60
+    evdev_code::KEY_INFO,
+    evdev_code::KEY_SUBTITLE,
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_VCR,
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_CAMERA,
     evdev_code::KEY_RESERVED,
     evdev_code::KEY_RESERVED,
     evdev_code::KEY_RESERVED,
-    evdev_code::KEY_RESERVED,
-    evdev_code::KEY_RESERVED,
-    evdev_code::KEY_RESERVED,
-    evdev_code::KEY_RESERVED,
-    evdev_code::KEY_RESERVED,
-    evdev_code::KEY_RESERVED,
-    evdev_code::KEY_RESERVED,
-    evdev_code::KEY_RESERVED,
-    evdev_code::KEY_RESERVED,
-    evdev_code::KEY_RESERVED,
-    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_RED,
+    evdev_code::KEY_GREEN,
+    evdev_code::KEY_BLUE,
+    evdev_code::KEY_YELLOW,
+    evdev_code::KEY_ASPECT_RATIO,
     evdev_code::KEY_RESERVED,
     evdev_code::KEY_BRIGHTNESSUP,
     // 70
     evdev_code::KEY_BRIGHTNESSDOWN,
     evdev_code::KEY_RESERVED,
+    evdev_code::KEY_DISPLAYTOGGLE,
+    evdev_code::KEY_BRIGHTNESS_MIN,
+    evdev_code::KEY_BRIGHTNESS_MAX,
+    evdev_code::KEY_BRIGHTNESS_AUTO,
+    evdev_code::KEY_CAMERA_ACCESS_ENABLE,
+    evdev_code::KEY_CAMERA_ACCESS_DISABLE,
+    evdev_code::KEY_CAMERA_ACCESS_TOGGLE,
+    evdev_code::KEY_KBDILLUMUP,
+    evdev_code::KEY_KBDILLUMDOWN,
     evdev_code::KEY_RESERVED,
-    evdev_code::KEY_RESERVED,
-    evdev_code::KEY_RESERVED,
-    evdev_code::KEY_RESERVED,
-    evdev_code::KEY_RESERVED,
-    evdev_code::KEY_RESERVED,
-    evdev_code::KEY_RESERVED,
-    evdev_code::KEY_RESERVED,
-    evdev_code::KEY_RESERVED,
-    evdev_code::KEY_RESERVED,
-    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_KBDILLUMTOGGLE,
     evdev_code::KEY_RESERVED,
     evdev_code::KEY_RESERVED,
     evdev_code::KEY_RESERVED,
     // 80
     evdev_code::KEY_RESERVED,
     evdev_code::KEY_RESERVED,
+    evdev_code::KEY_VIDEO_NEXT,
+    evdev_code::KEY_LAST,
+    evdev_code::KEY_ENTER,
     evdev_code::KEY_RESERVED,
     evdev_code::KEY_RESERVED,
     evdev_code::KEY_RESERVED,
-    evdev_code::KEY_RESERVED,
-    evdev_code::KEY_RESERVED,
-    evdev_code::KEY_RESERVED,
-    evdev_code::KEY_RESERVED,
-    evdev_code::KEY_RESERVED,
-    evdev_code::KEY_RESERVED,
-    evdev_code::KEY_RESERVED,
-    evdev_code::KEY_RESERVED,
-    evdev_code::KEY_RESERVED,
-    evdev_code::KEY_RESERVED,
-    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_PC,
+    evdev_code::KEY_TV,
+    evdev_code::KEY_WWW,
+    evdev_code::KEY_DVD,
+    evdev_code::KEY_PHONE,
+    evdev_code::KEY_PROGRAM,
+    evdev_code::KEY_VIDEOPHONE,
+    evdev_code::KEY_GAMES,
     // 90
+    evdev_code::KEY_MEMO,
+    evdev_code::KEY_CD,
+    evdev_code::KEY_VCR,
+    evdev_code::KEY_TUNER,
+    evdev_code::KEY_EXIT,
+    evdev_code::KEY_HELP,
+    evdev_code::KEY_TAPE,
+    evdev_code::KEY_TV2,
+    evdev_code::KEY_SAT,
     evdev_code::KEY_RESERVED,
+    evdev_code::KEY_PVR,
     evdev_code::KEY_RESERVED,
-    evdev_code::KEY_RESERVED,
-    evdev_code::KEY_RESERVED,
-    evdev_code::KEY_RESERVED,
-    evdev_code::KEY_RESERVED,
-    evdev_code::KEY_RESERVED,
-    evdev_code::KEY_RESERVED,
-    evdev_code::KEY_RESERVED,
-    evdev_code::KEY_RESERVED,
-    evdev_code::KEY_RESERVED,
-    evdev_code::KEY_RESERVED,
-    evdev_code::KEY_RESERVED,
-    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_CHANNELUP,
+    evdev_code::KEY_CHANNELDOWN,
     evdev_code::KEY_RESERVED,
     evdev_code::KEY_RESERVED,
     // a0
-    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_VCR2,
     evdev_code::KEY_RESERVED,
     evdev_code::KEY_RESERVED,
     evdev_code::KEY_RESERVED,
@@ -602,13 +602,13 @@ static const evdev_code media_keycodes[] = {
     evdev_code::KEY_PREVIOUSSONG,
     evdev_code::KEY_STOPCD,
     evdev_code::KEY_EJECTCD,
+    evdev_code::KEY_SHUFFLE,
     evdev_code::KEY_RESERVED,
     evdev_code::KEY_RESERVED,
+    evdev_code::KEY_MEDIA_REPEAT,
     evdev_code::KEY_RESERVED,
     evdev_code::KEY_RESERVED,
-    evdev_code::KEY_RESERVED,
-    evdev_code::KEY_RESERVED,
-    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_SLOW,
     // c0
     evdev_code::KEY_RESERVED,
     evdev_code::KEY_RESERVED,
@@ -625,7 +625,7 @@ static const evdev_code media_keycodes[] = {
     evdev_code::KEY_RESERVED,
     evdev_code::KEY_PLAYPAUSE,
     evdev_code::KEY_RESERVED,
-    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_VOICECOMMAND,
     // d0
     evdev_code::KEY_RESERVED,
     evdev_code::KEY_RESERVED,
@@ -635,8 +635,8 @@ static const evdev_code media_keycodes[] = {
     evdev_code::KEY_RESERVED,
     evdev_code::KEY_RESERVED,
     evdev_code::KEY_RESERVED,
-    evdev_code::KEY_RESERVED,
-    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_DICTATE,
+    evdev_code::KEY_EMOJI_PICKER,
     evdev_code::KEY_RESERVED,
     evdev_code::KEY_RESERVED,
     evdev_code::KEY_RESERVED,
@@ -644,12 +644,12 @@ static const evdev_code media_keycodes[] = {
     evdev_code::KEY_RESERVED,
     evdev_code::KEY_RESERVED,
     // e0
-    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_RESERVED, // FIXME - ABS_VOLUME
     evdev_code::KEY_RESERVED,
     evdev_code::KEY_MUTE,
     evdev_code::KEY_RESERVED,
     evdev_code::KEY_RESERVED,
-    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_BASSBOOST,
     evdev_code::KEY_RESERVED,
     evdev_code::KEY_RESERVED,
     evdev_code::KEY_RESERVED,
@@ -666,7 +666,7 @@ static const evdev_code media_keycodes[] = {
     evdev_code::KEY_RESERVED,
     evdev_code::KEY_RESERVED,
     evdev_code::KEY_RESERVED,
-    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_SLOW,
     evdev_code::KEY_RESERVED,
     evdev_code::KEY_RESERVED,
     evdev_code::KEY_RESERVED,
@@ -815,70 +815,70 @@ static const evdev_code media_keycodes[] = {
     evdev_code::KEY_RESERVED,
     // 180
     evdev_code::KEY_RESERVED,
-    evdev_code::KEY_RESERVED,
-    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_BUTTONCONFIG,
+    evdev_code::KEY_BOOKMARKS,
     evdev_code::KEY_CONFIG,
-    evdev_code::KEY_RESERVED,
-    evdev_code::KEY_RESERVED,
-    evdev_code::KEY_RESERVED,
-    evdev_code::KEY_RESERVED,
-    evdev_code::KEY_RESERVED,
-    evdev_code::KEY_RESERVED,
-    evdev_code::KEY_EMAIL,
-    evdev_code::KEY_RESERVED,
-    evdev_code::KEY_RESERVED,
-    evdev_code::KEY_RESERVED,
-    evdev_code::KEY_RESERVED,
-    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_WORDPROCESSOR,
+    evdev_code::KEY_EDITOR,
+    evdev_code::KEY_SPREADSHEET,
+    evdev_code::KEY_GRAPHICSEDITOR,
+    evdev_code::KEY_PRESENTATION,
+    evdev_code::KEY_DATABASE,
+    evdev_code::KEY_MAIL,
+    evdev_code::KEY_NEWS,
+    evdev_code::KEY_VOICEMAIL,
+    evdev_code::KEY_ADDRESSBOOK,
+    evdev_code::KEY_CALENDAR,
+    evdev_code::KEY_TASKMANAGER,
     // 190
-    evdev_code::KEY_RESERVED,
-    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_JOURNAL,
+    evdev_code::KEY_FINANCE,
     evdev_code::KEY_CALC,
-    evdev_code::KEY_MEDIA,
+    evdev_code::KEY_PLAYER,
+    evdev_code::KEY_FILE,
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_WWW,
     evdev_code::KEY_RESERVED,
     evdev_code::KEY_RESERVED,
+    evdev_code::KEY_CHAT,
     evdev_code::KEY_RESERVED,
     evdev_code::KEY_RESERVED,
-    evdev_code::KEY_RESERVED,
-    evdev_code::KEY_RESERVED,
-    evdev_code::KEY_RESERVED,
-    evdev_code::KEY_RESERVED,
-    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_LOGOFF,
     evdev_code::KEY_RESERVED,
     evdev_code::KEY_COFFEE,
-    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_CONTROLPANEL,
     // 1a0
     evdev_code::KEY_RESERVED,
     evdev_code::KEY_RESERVED,
+    evdev_code::KEY_APPSELECT,
+    evdev_code::KEY_NEXT,
+    evdev_code::KEY_PREVIOUS,
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_HELP,
+    evdev_code::KEY_DOCUMENTS,
     evdev_code::KEY_RESERVED,
     evdev_code::KEY_RESERVED,
     evdev_code::KEY_RESERVED,
+    evdev_code::KEY_SPELLCHECK,
     evdev_code::KEY_RESERVED,
     evdev_code::KEY_RESERVED,
-    evdev_code::KEY_RESERVED,
-    evdev_code::KEY_RESERVED,
-    evdev_code::KEY_RESERVED,
-    evdev_code::KEY_RESERVED,
-    evdev_code::KEY_RESERVED,
-    evdev_code::KEY_RESERVED,
-    evdev_code::KEY_RESERVED,
-    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_KEYBOARD,
     evdev_code::KEY_RESERVED,
     // 1b0
     evdev_code::KEY_RESERVED,
-    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_SCREENSAVER,
     evdev_code::KEY_RESERVED,
     evdev_code::KEY_RESERVED,
     evdev_code::KEY_FILE,
     evdev_code::KEY_RESERVED,
+    evdev_code::KEY_IMAGES,
+    evdev_code::KEY_AUDIO,
+    evdev_code::KEY_VIDEO,
     evdev_code::KEY_RESERVED,
     evdev_code::KEY_RESERVED,
     evdev_code::KEY_RESERVED,
-    evdev_code::KEY_RESERVED,
-    evdev_code::KEY_RESERVED,
-    evdev_code::KEY_RESERVED,
-    evdev_code::KEY_RESERVED,
-    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_MESSENGER,
+    evdev_code::KEY_INFO,
     evdev_code::KEY_RESERVED,
     evdev_code::KEY_RESERVED,
     // 1c0
@@ -893,7 +893,7 @@ static const evdev_code media_keycodes[] = {
     evdev_code::KEY_RESERVED,
     evdev_code::KEY_RESERVED,
     evdev_code::KEY_RESERVED,
-    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_ASSISTANT,
     evdev_code::KEY_RESERVED,
     evdev_code::KEY_RESERVED,
     evdev_code::KEY_RESERVED,
@@ -951,15 +951,15 @@ static const evdev_code media_keycodes[] = {
     evdev_code::KEY_RESERVED,
     // 200
     evdev_code::KEY_RESERVED,
+    evdev_code::KEY_NEW,
+    evdev_code::KEY_OPEN,
+    evdev_code::KEY_CLOSE,
+    evdev_code::KEY_EXIT,
     evdev_code::KEY_RESERVED,
     evdev_code::KEY_RESERVED,
-    evdev_code::KEY_RESERVED,
-    evdev_code::KEY_RESERVED,
-    evdev_code::KEY_RESERVED,
-    evdev_code::KEY_RESERVED,
-    evdev_code::KEY_RESERVED,
-    evdev_code::KEY_RESERVED,
-    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_SAVE,
+    evdev_code::KEY_PRINT,
+    evdev_code::KEY_PROPS,
     evdev_code::KEY_RESERVED,
     evdev_code::KEY_RESERVED,
     evdev_code::KEY_RESERVED,
@@ -977,16 +977,16 @@ static const evdev_code media_keycodes[] = {
     evdev_code::KEY_RESERVED,
     evdev_code::KEY_RESERVED,
     evdev_code::KEY_RESERVED,
+    evdev_code::KEY_UNDO,
+    evdev_code::KEY_COPY,
+    evdev_code::KEY_CUT,
+    evdev_code::KEY_PASTE,
     evdev_code::KEY_RESERVED,
-    evdev_code::KEY_RESERVED,
-    evdev_code::KEY_RESERVED,
-    evdev_code::KEY_RESERVED,
-    evdev_code::KEY_RESERVED,
-    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_FIND,
     // 220
     evdev_code::KEY_RESERVED,
     evdev_code::KEY_SEARCH,
-    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_GOTO,
     evdev_code::KEY_HOMEPAGE,
     evdev_code::KEY_BACK,
     evdev_code::KEY_FORWARD,
@@ -994,9 +994,179 @@ static const evdev_code media_keycodes[] = {
     evdev_code::KEY_REFRESH,
     evdev_code::KEY_RESERVED,
     evdev_code::KEY_RESERVED,
+    evdev_code::KEY_BOOKMARKS,
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_ZOOMIN,
+    evdev_code::KEY_ZOOMOUT,
+    evdev_code::KEY_ZOOMRESET,
+    // 230
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_FULL_SCREEN,
+    evdev_code::KEY_SCROLLUP,
+    evdev_code::KEY_SCROLLDOWN,
     evdev_code::KEY_RESERVED,
     evdev_code::KEY_RESERVED,
     evdev_code::KEY_RESERVED,
+    evdev_code::KEY_RESERVED, // FIXME - AC Pan
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_EDIT,
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_RESERVED,
+    // 240
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_RESERVED,
+    // 250
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_CANCEL,
+    // 260
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_INSERT,
+    evdev_code::KEY_DELETE,
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_RESERVED,
+    // 270
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_REDO,
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_RESERVED,
+    // 280
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_REPLY,
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_FORWARDMAIL,
+    evdev_code::KEY_SEND,
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_RESERVED,
+    // 290
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_KBD_LAYOUT_NEXT,
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_SCALE,
+    // 2a0
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_ALL_APPLICATIONS,
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_RESERVED,
+    // 2b0
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_RESERVED,
+    // 2c0
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_RESERVED,
+    evdev_code::KEY_KBDINPUTASSIST_PREV,
+    evdev_code::KEY_KBDINPUTASSIST_NEXT,
+    evdev_code::KEY_KBDINPUTASSIST_PREVGROUP,
+    evdev_code::KEY_KBDINPUTASSIST_NEXTGROUP,
+    evdev_code::KEY_KBDINPUTASSIST_ACCEPT,
+    evdev_code::KEY_KBDINPUTASSIST_CANCEL,
     evdev_code::KEY_RESERVED,
     evdev_code::KEY_RESERVED,
     evdev_code::KEY_RESERVED,
@@ -1891,6 +2061,136 @@ static bool should_key_repeat(enum evdev_code code) {
         case evdev_code::KEY_FORWARD:
         case evdev_code::KEY_STOP:
         case evdev_code::KEY_REFRESH:
+        case evdev_code::KEY_POWER:
+        case evdev_code::KEY_RESTART:
+        case evdev_code::KEY_SLEEP:
+        case evdev_code::KEY_KBDILLUMTOGGLE:
+        case evdev_code::KEY_MENU:
+        case evdev_code::KEY_SELECT:
+        case evdev_code::KEY_UP:
+        case evdev_code::KEY_DOWN:
+        case evdev_code::KEY_LEFT:
+        case evdev_code::KEY_RIGHT:
+        case evdev_code::KEY_ESC:
+        case evdev_code::KEY_KPPLUS:
+        case evdev_code::KEY_KPMINUS:
+        case evdev_code::KEY_INFO:
+        case evdev_code::KEY_SUBTITLE:
+        case evdev_code::KEY_VCR:
+        case evdev_code::KEY_CAMERA:
+        case evdev_code::KEY_RED:
+        case evdev_code::KEY_GREEN:
+        case evdev_code::KEY_BLUE:
+        case evdev_code::KEY_YELLOW:
+        case evdev_code::KEY_ASPECT_RATIO:
+        case evdev_code::KEY_DISPLAYTOGGLE:
+        case evdev_code::KEY_BRIGHTNESS_MIN:
+        case evdev_code::KEY_BRIGHTNESS_MAX:
+        case evdev_code::KEY_BRIGHTNESS_AUTO:
+        case evdev_code::KEY_CAMERA_ACCESS_ENABLE:
+        case evdev_code::KEY_CAMERA_ACCESS_DISABLE:
+        case evdev_code::KEY_CAMERA_ACCESS_TOGGLE:
+        case evdev_code::KEY_KBDILLUMUP:
+        case evdev_code::KEY_KBDILLUMDOWN:
+        case evdev_code::KEY_VIDEO_NEXT:
+        case evdev_code::KEY_LAST:
+        case evdev_code::KEY_ENTER:
+        case evdev_code::KEY_PC:
+        case evdev_code::KEY_TV:
+        case evdev_code::KEY_WWW:
+        case evdev_code::KEY_DVD:
+        case evdev_code::KEY_PHONE:
+        case evdev_code::KEY_PROGRAM:
+        case evdev_code::KEY_VIDEOPHONE:
+        case evdev_code::KEY_GAMES:
+        case evdev_code::KEY_MEMO:
+        case evdev_code::KEY_CD:
+        case evdev_code::KEY_TUNER:
+        case evdev_code::KEY_EXIT:
+        case evdev_code::KEY_HELP:
+        case evdev_code::KEY_TAPE:
+        case evdev_code::KEY_TV2:
+        case evdev_code::KEY_SAT:
+        case evdev_code::KEY_PVR:
+        case evdev_code::KEY_CHANNELUP:
+        case evdev_code::KEY_CHANNELDOWN:
+        case evdev_code::KEY_VCR2:
+        case evdev_code::KEY_SHUFFLE:
+        case evdev_code::KEY_MEDIA_REPEAT:
+        case evdev_code::KEY_SLOW:
+        case evdev_code::KEY_VOICECOMMAND:
+        case evdev_code::KEY_DICTATE:
+        case evdev_code::KEY_EMOJI_PICKER:
+        case evdev_code::KEY_BASSBOOST:
+        case evdev_code::KEY_VOLUMEUP:
+        case evdev_code::KEY_VOLUMEDOWN:
+        case evdev_code::KEY_BUTTONCONFIG:
+        case evdev_code::KEY_BOOKMARKS:
+        case evdev_code::KEY_WORDPROCESSOR:
+        case evdev_code::KEY_EDITOR:
+        case evdev_code::KEY_SPREADSHEET:
+        case evdev_code::KEY_GRAPHICSEDITOR:
+        case evdev_code::KEY_PRESENTATION:
+        case evdev_code::KEY_DATABASE:
+        case evdev_code::KEY_MAIL:
+        case evdev_code::KEY_NEWS:
+        case evdev_code::KEY_VOICEMAIL:
+        case evdev_code::KEY_ADDRESSBOOK:
+        case evdev_code::KEY_CALENDAR:
+        case evdev_code::KEY_TASKMANAGER:
+        case evdev_code::KEY_JOURNAL:
+        case evdev_code::KEY_FINANCE:
+        case evdev_code::KEY_PLAYER:
+        case evdev_code::KEY_CHAT:
+        case evdev_code::KEY_LOGOFF:
+        case evdev_code::KEY_CONTROLPANEL:
+        case evdev_code::KEY_APPSELECT:
+        case evdev_code::KEY_NEXT:
+        case evdev_code::KEY_PREVIOUS:
+        case evdev_code::KEY_DOCUMENTS:
+        case evdev_code::KEY_SPELLCHECK:
+        case evdev_code::KEY_KEYBOARD:
+        case evdev_code::KEY_SCREENSAVER:
+        case evdev_code::KEY_IMAGES:
+        case evdev_code::KEY_AUDIO:
+        case evdev_code::KEY_VIDEO:
+        case evdev_code::KEY_MESSENGER:
+        case evdev_code::KEY_ASSISTANT:
+        case evdev_code::KEY_NEW:
+        case evdev_code::KEY_OPEN:
+        case evdev_code::KEY_CLOSE:
+        case evdev_code::KEY_SAVE:
+        case evdev_code::KEY_PRINT:
+        case evdev_code::KEY_PROPS:
+        case evdev_code::KEY_UNDO:
+        case evdev_code::KEY_COPY:
+        case evdev_code::KEY_CUT:
+        case evdev_code::KEY_PASTE:
+        case evdev_code::KEY_FIND:
+        case evdev_code::KEY_GOTO:
+        case evdev_code::KEY_ZOOMIN:
+        case evdev_code::KEY_ZOOMOUT:
+        case evdev_code::KEY_ZOOMRESET:
+        case evdev_code::KEY_FULL_SCREEN:
+        case evdev_code::KEY_SCROLLUP:
+        case evdev_code::KEY_SCROLLDOWN:
+        case evdev_code::KEY_EDIT:
+        case evdev_code::KEY_CANCEL:
+        case evdev_code::KEY_INSERT:
+        case evdev_code::KEY_DELETE:
+        case evdev_code::KEY_REDO:
+        case evdev_code::KEY_REPLY:
+        case evdev_code::KEY_FORWARDMAIL:
+        case evdev_code::KEY_SEND:
+        case evdev_code::KEY_KBD_LAYOUT_NEXT:
+        case evdev_code::KEY_SCALE:
+        case evdev_code::KEY_ALL_APPLICATIONS:
+        case evdev_code::KEY_KBDINPUTASSIST_PREV:
+        case evdev_code::KEY_KBDINPUTASSIST_NEXT:
+        case evdev_code::KEY_KBDINPUTASSIST_PREVGROUP:
+        case evdev_code::KEY_KBDINPUTASSIST_NEXTGROUP:
+        case evdev_code::KEY_KBDINPUTASSIST_ACCEPT:
+        case evdev_code::KEY_KBDINPUTASSIST_CANCEL:
             return false;
 
         default:
