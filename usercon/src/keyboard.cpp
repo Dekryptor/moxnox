@@ -599,7 +599,7 @@ public:
 
     span<char> handle_keyboard_event(const input_event& ev, HANDLE pipe,
                                      bool& cad);
-    void set_leds(HANDLE pipe);
+    void set_led(HANDLE pipe, evdev_led led, int32_t value);
 
     list_entry le;
     uint32_t id;
@@ -672,17 +672,17 @@ span<char> keyboard_context::handle_keyboard_event(const input_event& ev,
     if (ev.code == evdev_code::KEY_CAPSLOCK) {
         leds.caps_lock = leds.caps_lock ? 0 : 1;
 
-        set_leds(pipe);
+        set_led(pipe, evdev_led::LED_CAPSL, leds.caps_lock ? 1 : 0);
         return {};
     } else if (ev.code == evdev_code::KEY_NUMLOCK) {
         leds.num_lock = leds.num_lock ? 0 : 1;
 
-        set_leds(pipe);
+        set_led(pipe, evdev_led::LED_NUML, leds.num_lock ? 1 : 0);
         return {};
     } else if (ev.code == evdev_code::KEY_SCROLLLOCK) {
         leds.scroll_lock = leds.scroll_lock ? 0 : 1;
 
-        set_leds(pipe);
+        set_led(pipe, evdev_led::LED_SCROLLL, leds.scroll_lock ? 1 : 0);
         return {};
     }
 
@@ -725,18 +725,19 @@ span<char> keyboard_context::handle_keyboard_event(const input_event& ev,
     return span((char*)val.data(), val.size());
 }
 
-void keyboard_context::set_leds(HANDLE pipe) {
-    MOXNOX_SET_LEDS msl;
+void keyboard_context::set_led(HANDLE pipe, evdev_led led, int32_t value) {
     IO_STATUS_BLOCK iosb;
+    input_event_with_id ev;
 
-    msl.id = id;
-    msl.leds = leds;
+    ev.id = id;
+    ev.ev.type = evdev_type::EV_LED;
+    ev.ev.code = (enum evdev_code)led;
+    ev.ev.value = value;
 
-    auto status = NtDeviceIoControlFile(pipe, 0, nullptr, nullptr, &iosb,
-                                        IOCTL_MOXNOX_KEYBOARD_SET_LEDS, &msl,
-                                        sizeof(msl), nullptr, 0);
+    auto status = NtWriteFile(pipe, 0, nullptr, nullptr, &iosb, &ev, sizeof(ev),
+                              nullptr, nullptr);
     if (!success(status)) {
-        print("IOCTL_MOXNOX_KEYBOARD_SET_LEDS returned {}\n", status);
+        print("NtWriteFile returned {}\n", status);
         return;
     }
 }
@@ -758,7 +759,9 @@ export span<char> handle_keyboard_event(const input_event_with_id& ev,
 
     insert_tail_list(contexts, ctx->le);
 
-    ctx->set_leds(pipe);
+    ctx->set_led(pipe, evdev_led::LED_CAPSL, 0);
+    ctx->set_led(pipe, evdev_led::LED_NUML, 0);
+    ctx->set_led(pipe, evdev_led::LED_SCROLLL, 0);
 
     return ctx->handle_keyboard_event(ev.ev, pipe, cad);
 }
