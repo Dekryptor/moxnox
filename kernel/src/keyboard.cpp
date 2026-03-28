@@ -34,7 +34,7 @@ public:
         return nt_status::NOT_SUPPORTED;
     }
 
-    nt_status write(span<const uint8_t> s, uint64_t& written_bytes);
+    nt_status write(span<const uint8_t> s, uint64_t& written_bytes) override;
     nt_status userspace_open(object_ref& objref) override;
     void post_event(const input_event& ev, uint32_t id);
 
@@ -46,6 +46,11 @@ public:
 struct input_event_with_id_item {
     list_entry le;
     input_event_with_id ev;
+};
+
+struct input_event_item {
+    list_entry le;
+    input_event ev;
 };
 
 class keyboard_pipe_client : public chardev {
@@ -111,6 +116,83 @@ static spinlock keyboard_contexts_spinlock;
 static list_entry keyboard_contexts = { &keyboard_contexts, &keyboard_contexts };
 
 export class evdev_device : public chardev {
+public:
+    // FIXME - empty ctor to work round GCC bug
+    evdev_device() : chardev() { }
+
+    nt_status read(span<uint8_t>, uint64_t&) override {
+        return nt_status::NOT_SUPPORTED;
+    }
+
+    nt_status write(span<const uint8_t>, uint64_t&) override {
+        return nt_status::NOT_SUPPORTED;
+    }
+
+    nt_status userspace_open(object_ref& objref) override;
+
+    void post_event(const input_event& ev);
+
+    spinlock client_lock;
+    list_entry clients = { &clients, &clients };
+
+private:
+    rwsem post_event_mutex;
+};
+
+export class evdev_device_client : public chardev {
+public:
+    evdev_device_client(evdev_device& p) : p(p) {
+        p.acquire();
+
+        {
+            lock_guard lock(p.client_lock);
+            insert_tail_list(p.clients, le);
+        }
+
+        signalled = false;
+    }
+
+    ~evdev_device_client() {
+        {
+            lock_guard lock(p.client_lock);
+            remove_entry_list(le);
+        }
+
+        while (true) {
+            input_event_item* it = nullptr;
+
+            {
+                lock_guard lock(items_lock);
+
+                if (is_list_empty(items))
+                    break;
+
+                it = &containing_record<input_event_item>(items.next);
+                remove_entry_list(it->le);
+            }
+
+            delete it;
+        }
+
+        p.release();
+    }
+
+    nt_status read(span<uint8_t> s, uint64_t& read_bytes) override;
+
+    nt_status write(span<const uint8_t> s, uint64_t& written_bytes) override {
+        return p.write(s, written_bytes);
+    }
+
+    void post_event(const input_event& ev);
+
+    list_entry le;
+    bool visited = false;
+    spinlock items_lock;
+    list_entry items = { &items, &items };
+    size_t items_left = 256;
+
+private:
+    evdev_device& p;
 };
 
 export class keyboard_context {
@@ -449,4 +531,164 @@ nt_status keyboard_pipe::write(span<const uint8_t> s, uint64_t& written_bytes) {
     ctx->release();
 
     return status;
+}
+
+nt_status evdev_device_client::read(span<uint8_t> s, uint64_t& read_bytes) {
+    if (s.size() < sizeof(input_event))
+        return nt_status::BUFFER_TOO_SMALL;
+
+    read_bytes = 0;
+
+    while (true) {
+        auto status = wait_for_object(*this, true);
+        if (!success(status))
+            return status;
+
+        while (true) {
+            input_event_item* it = nullptr;
+
+            {
+                lock_guard lock(items_lock);
+
+                if (!is_list_empty(items) && s.size() >= sizeof(input_event)) {
+                    auto& it2 = containing_record<input_event_item>(items.next);
+
+                    remove_entry_list(it2.le);
+                    it = &it2;
+                    items_left++;
+                }
+            }
+
+            if (!it) {
+                if (read_bytes > 0)
+                    return nt_status::SUCCESS;
+
+                break;
+            }
+
+            {
+                sync_lock sl;
+                lock_guard lock(sl);
+                lock_guard lock2(items_lock);
+
+                if (is_list_empty(items))
+                    signalled = false;
+            }
+
+            memcpy(s.data(), &it->ev, sizeof(input_event));
+            s = s.subspan(sizeof(input_event));
+
+            delete it;
+
+            read_bytes += sizeof(input_event);
+        }
+    }
+}
+
+void evdev_device_client::post_event(const input_event& ev) {
+    // FIXME - drop oldest event if over limit
+
+    auto it = new input_event_item;
+    if (!it) {
+        print("new failed\n");
+        return;
+    }
+
+    it->ev = ev;
+
+    bool failed = false;
+
+    {
+        lock_guard lock(items_lock);
+
+        if (items_left == 0)
+            failed = true;
+        else {
+            insert_tail_list(items, it->le);
+            items_left--;
+        }
+    }
+
+    if (failed) {
+        // FIXME - Linux posts SYN_DROPPED event
+        delete it;
+        return;
+    }
+
+    {
+        sync_lock sl;
+        lock_guard lock(sl);
+        lock_guard lock2(items_lock);
+
+        if (!is_list_empty(items) && !signalled) {
+            signalled = true;
+            wake_up_waiters(waiters);
+        }
+    }
+}
+
+nt_status evdev_device::userspace_open(object_ref& objref) {
+    auto c = new evdev_device_client(*this);
+    if (!c) {
+        print("new failed\n");
+        return nt_status::INSUFFICIENT_RESOURCES;
+    }
+
+    object_ref r{*c};
+
+    objref.swap(r);
+
+    return nt_status::SUCCESS;
+}
+
+void evdev_device::post_event(const input_event& ev) {
+    lock_guard lg(post_event_mutex);
+
+    {
+        lock_guard lock(client_lock);
+
+        if (is_list_empty(clients))
+            return;
+    }
+
+    while (true) {
+        evdev_device_client* c = nullptr;
+        bool done = false;
+
+        {
+            lock_guard lock(client_lock);
+
+            for (auto le = clients.next; le != &clients; le = le->next) {
+                auto& c2 = containing_record<evdev_device_client>(le);
+
+                if (c2.visited) {
+                    done = true;
+                    break;
+                }
+
+                c = &c2;
+                c2.acquire();
+                c2.visited = true;
+
+                remove_entry_list(c2.le);
+                insert_tail_list(clients, c2.le);
+            }
+        }
+
+        if (done)
+            break;
+
+        c->post_event(ev);
+        c->release();
+    }
+
+    {
+        lock_guard lock(client_lock);
+
+        for (auto le = clients.next; le != &clients; le = le->next) {
+            auto& c = containing_record<evdev_device_client>(le);
+
+            c.visited = false;
+        }
+    }
 }
