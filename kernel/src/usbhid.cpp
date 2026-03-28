@@ -83,9 +83,8 @@ public:
                    xhci_queue& queue, uint16_t packet_size,
                    const usb_interface& interface);
     ~usb_hid_device();
-    void set_leds(keyboard_leds leds);
-    void set_leds_field(usb_hid_report& r, usb_hid_field& f,
-                        keyboard_leds leds);
+    void set_led_field(usb_hid_report& r, usb_hid_field& f, evdev_led led,
+                       bool on);
     void recv_thread();
     nt_status write(const input_event& ev);
 
@@ -1693,11 +1692,7 @@ usb_hid_device::usb_hid_device(usb_device& d, const usb_device_config& config,
     }
 
     if (is_keyboard) {
-        this->kc = register_keyboard(static_cast<pipe&>(evdev_pipe.get()), [](void* ctx, keyboard_leds leds) {
-            auto& kbd = *(usb_hid_device*)ctx;
-
-            kbd.set_leds(leds);
-        }, [](void* ctx, const input_event& ev) {
+        this->kc = register_keyboard(static_cast<pipe&>(evdev_pipe.get()), nullptr, [](void* ctx, const input_event& ev) {
             auto& kbd = *(usb_hid_device*)ctx;
 
             return kbd.write(ev);
@@ -1777,20 +1772,38 @@ usb_hid_device::~usb_hid_device() {
     d.release();
 }
 
-void usb_hid_device::set_leds_field(usb_hid_report& r, usb_hid_field& f,
-                                    keyboard_leds leds) {
+void usb_hid_device::set_led_field(usb_hid_report& r, usb_hid_field& f,
+                                   evdev_led led, bool on) {
     if (!f.is_variable)
         return; // FIXME - handle arrays?
 
+    uint32_t usage;
+
+    switch (led) {
+        case evdev_led::LED_NUML:
+            usage = LED_USAGE_NUM_LOCK;
+            break;
+
+        case evdev_led::LED_CAPSL:
+            usage = LED_USAGE_CAPS_LOCK;
+            break;
+
+        case evdev_led::LED_SCROLLL:
+            usage = LED_USAGE_SCROLL_LOCK;
+            break;
+
+        default:
+            return;
+    }
+
     if (f.num_usages == 0) {
-        if (f.usage_min > LED_USAGE_SCROLL_LOCK || f.usage_max < LED_USAGE_NUM_LOCK)
+        if (f.usage_min > usage || f.usage_max < usage)
             return;
     } else {
         bool match = false;
 
         for (unsigned int i = 0; i < f.num_usages; i++) {
-            if (f.usages[i] == LED_USAGE_NUM_LOCK || f.usages[i] == LED_USAGE_CAPS_LOCK ||
-                f.usages[i] == LED_USAGE_SCROLL_LOCK) {
+            if (f.usages[i] == usage) {
                 match = true;
                 break;
             }
@@ -1842,33 +1855,15 @@ void usb_hid_device::set_leds_field(usb_hid_report& r, usb_hid_field& f,
 
     if (f.num_usages == 0) {
         for (unsigned int i = f.usage_min; i < f.count && i <= f.usage_max; i++) {
-            switch (i) {
-                case LED_USAGE_NUM_LOCK:
-                    set_bit(i - f.usage_min, leds.num_lock);
-                    break;
-
-                case LED_USAGE_CAPS_LOCK:
-                    set_bit(i - f.usage_min, leds.caps_lock);
-                    break;
-
-                case LED_USAGE_SCROLL_LOCK:
-                    set_bit(i - f.usage_min, leds.scroll_lock);
-                    break;
+            if (i == usage) {
+                set_bit(i - f.usage_min, on);
+                break;
             }
         }
     } else {
         for (unsigned int i = 0; i < f.num_usages; i++) {
-            switch (f.usages[i]) {
-                case LED_USAGE_NUM_LOCK:
-                    set_bit(i, leds.num_lock);
-                break;
-
-                case LED_USAGE_CAPS_LOCK:
-                    set_bit(i, leds.caps_lock);
-                break;
-
-                case LED_USAGE_SCROLL_LOCK:
-                    set_bit(i, leds.scroll_lock);
+            if (f.usages[i] == usage) {
+                set_bit(i, on);
                 break;
             }
         }
@@ -1879,21 +1874,6 @@ void usb_hid_device::set_leds_field(usb_hid_report& r, usb_hid_field& f,
                             interface.desc.bInterfaceNumber)) {
         print("usb_hid_set_report failed\n");
         return;
-    }
-}
-
-void usb_hid_device::set_leds(keyboard_leds leds) {
-    for (auto le = output_reports.next; le != &output_reports; le = le->next) {
-        auto& r = containing_record<usb_hid_report>(le);
-
-        for (auto le2 = r.fields.next; le2 != &r.fields; le2 = le2->next) {
-            auto& f = containing_record<usb_hid_field>(le2);
-
-            if (f.usage_page != USAGE_PAGE_LEDS)
-                continue;
-
-            set_leds_field(r, f, leds);
-        }
     }
 }
 
@@ -2260,10 +2240,24 @@ static bool set_protocol(usb_device& d, uint16_t wValue, uint16_t wIndex) {
     return true;
 }
 
-nt_status usb_hid_device::write(const input_event& /*ev*/) {
-    print("FIXME - usb_hid_device::write\n");
+nt_status usb_hid_device::write(const input_event& ev) {
+    if (ev.type != evdev_type::EV_LED)
+        return nt_status::NOT_SUPPORTED;
 
-    return nt_status::NOT_IMPLEMENTED;
+    for (auto le = output_reports.next; le != &output_reports; le = le->next) {
+        auto& r = containing_record<usb_hid_report>(le);
+
+        for (auto le2 = r.fields.next; le2 != &r.fields; le2 = le2->next) {
+            auto& f = containing_record<usb_hid_field>(le2);
+
+            if (f.usage_page != USAGE_PAGE_LEDS)
+                continue;
+
+            set_led_field(r, f, (evdev_led)ev.code, ev.value);
+        }
+    }
+
+    return nt_status::SUCCESS;
 }
 
 void usb_hid_device::keyboard_repeat_thread() {
