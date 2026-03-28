@@ -10,14 +10,23 @@ import pci;
 import virtio;
 import list;
 import module_init;
+import mem;
 import thread;
 import handle;
 import object_ref;
 import keyboard;
+import dma;
+import evdev;
 
 using namespace std;
 
 static const uint64_t SUPPORTED_FEATURES = 0;
+
+struct virtio_input_event {
+    evdev_type type;
+    evdev_code code;
+    int32_t value;
+} __attribute((packed));
 
 static const uint16_t PCI_VENDOR_ID_REDHAT = 0x1af4;
 
@@ -94,12 +103,61 @@ template<virtio_device T>
 void virtio_input<T>::recv_thread() {
     // FIXME - die gracefully if device ever goes away
 
-    print("FIXME - virtio_input::recv_thread\n");
+    static const size_t BUFFER_LENGTH = 16;
+
+    virtio_input_event evs[BUFFER_LENGTH];
+    uint8_t* bounce[BUFFER_LENGTH];
+    uint8_t slot[BUFFER_LENGTH];
+    uintptr_t pa[BUFFER_LENGTH];
+    size_t idx = 0;
+
+    for (size_t i = 0; i < BUFFER_LENGTH; i++) {
+        pa[i] = dma_setup(span((uint8_t*)&evs[i], sizeof(evs[i])),
+                          false, bounce[i]);
+        if (!pa[i]) {
+            print("dma_setup failed\n");
+
+            for (size_t j = 0; j < i; j++) {
+                dma_finish_read(span((uint8_t*)&evs[j], sizeof(evs[j])),
+                                bounce[j]);
+            }
+
+            return;
+        }
+
+        flush_cache(span((uint8_t*)phys_address(pa[i]), sizeof(virtio_input_event)),
+                    false);
+
+        slot[i] = event_queue->async_read(pa[i], sizeof(virtio_input_event));
+    }
+
+    while (true) {
+        auto len = event_queue->wait_read(slot[idx]);
+
+        if (len >= sizeof(virtio_input_event)) {
+            if (bounce[idx]) {
+                flush_cache(span(bounce[idx], sizeof(virtio_input_event)), true);
+                memcpy(&evs[idx], bounce[idx], sizeof(virtio_input_event));
+            } else
+                flush_cache(span((uint8_t*)&evs[idx], sizeof(virtio_input_event)), true);
+
+            auto& ev = evs[idx];
+
+            print("ev: type = {}, code = {}, value = {}\n",
+                  (evdev_type)ev.type, (evdev_code)ev.code, +ev.value);
+        }
+
+        slot[idx] = event_queue->async_read(pa[idx], sizeof(virtio_input_event));
+        idx = (idx + 1) % BUFFER_LENGTH;
+    }
+
+    for (size_t i = 0; i < BUFFER_LENGTH; i++) {
+        if (bounce[i])
+            free(bounce[i]);
+    }
 }
 
 static void found_virtio_pci_input(pci_device& dev) {
-    print("FIXME - found_virtio_pci_input\n");
-
     auto d = new virtio_pci_device(dev, SUPPORTED_FEATURES, 2);
     if (!d) {
         print("new failed\n");
@@ -137,8 +195,6 @@ static void found_virtio_pci_input(pci_device& dev) {
 }
 
 static bool found_virtio_mmio_input(virtio_mmio_device& dev) {
-    print("FIXME - found_virtio_mmio_input\n");
-
     auto pv = new virtio_input(dev);
     if (!pv) {
         print("new failed\n");
