@@ -23,13 +23,20 @@ import rwsem;
 
 using namespace std;
 
-static const unsigned int keyboard_pipe_buffer_pages = 1;
 static object_ref keyboard_pipe_obj;
 
-class keyboard_pipe : public pipe {
+class keyboard_pipe : public chardev {
 public:
-    keyboard_pipe(unsigned int buffer_pages) : pipe(buffer_pages) {
+    keyboard_pipe() {
         exclusive = false;
+    }
+
+    nt_status read(span<uint8_t>, uint64_t&) override {
+        return nt_status::NOT_SUPPORTED;
+    }
+
+    nt_status write(span<const uint8_t>, uint64_t&) override {
+        return nt_status::NOT_SUPPORTED;
     }
 
     nt_status ioctl(uint32_t code, span<const uint8_t> inbuf,
@@ -160,7 +167,7 @@ private:
 };
 
 export bool init_keyboard_pipe() {
-    auto pptr = new keyboard_pipe(keyboard_pipe_buffer_pages);
+    auto pptr = new keyboard_pipe;
     if (!pptr) {
         print("new failed\n");
         return false;
