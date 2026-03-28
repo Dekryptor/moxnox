@@ -1665,7 +1665,7 @@ usb_hid_device::usb_hid_device(usb_device& d, const usb_device_config& config,
 
     this->packet_size = packet_size;
 
-    auto pptr = new pipe(evdev_buffer_pages);
+    auto pptr = new evdev_device(evdev_buffer_pages);
     if (!pptr) {
         print("new failed\n");
         return;
@@ -1692,7 +1692,7 @@ usb_hid_device::usb_hid_device(usb_device& d, const usb_device_config& config,
     }
 
     if (is_keyboard) {
-        this->kc = register_keyboard(static_cast<pipe&>(evdev_pipe.get()), [](void* ctx, const input_event& ev) {
+        this->kc = register_keyboard(static_cast<evdev_device&>(evdev_pipe.get()), [](void* ctx, const input_event& ev) {
             auto& kbd = *(usb_hid_device*)ctx;
 
             return kbd.write(ev);

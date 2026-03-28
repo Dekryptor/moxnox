@@ -288,7 +288,7 @@ static nt_status keyboard_write(void*, const input_event& ev) {
 }
 
 static bool add_keyboard_evdev_pipe() {
-    auto pptr = new pipe(keyboard_evdev_buffer_pages);
+    auto pptr = new evdev_device(keyboard_evdev_buffer_pages);
     if (!pptr) {
         print("new failed\n");
         return false;
@@ -303,7 +303,7 @@ static bool add_keyboard_evdev_pipe() {
         return false;
     }
 
-    register_keyboard(static_cast<pipe&>(keyboard_evdev_obj.get()),
+    register_keyboard(static_cast<evdev_device&>(keyboard_evdev_obj.get()),
                       keyboard_write, nullptr);
 
     return true;

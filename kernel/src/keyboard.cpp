@@ -111,9 +111,14 @@ static atomic<uint32_t> next_keyboard_id = 0;
 static spinlock keyboard_contexts_spinlock;
 static list_entry keyboard_contexts = { &keyboard_contexts, &keyboard_contexts };
 
+export class evdev_device : public pipe {
+public:
+    evdev_device(unsigned int buffer_pages) : pipe(buffer_pages) { }
+};
+
 export class keyboard_context {
 public:
-    keyboard_context(pipe& p, write_func write_func, void* ctx) : write_func(write_func), ctx(ctx), p(p) {
+    keyboard_context(evdev_device& p, write_func write_func, void* ctx) : write_func(write_func), ctx(ctx), p(p) {
         p.acquire();
 
         id = ++next_keyboard_id;
@@ -159,7 +164,7 @@ public:
     void* ctx;
 
 private:
-    pipe& p;
+    evdev_device& p;
     atomic<unsigned int> refcount = 1;
 };
 
@@ -224,7 +229,7 @@ void keyboard_context::unregister() {
     dead = true;
 }
 
-export keyboard_context* register_keyboard(pipe& p, write_func write_func,
+export keyboard_context* register_keyboard(evdev_device& p, write_func write_func,
                                            void* ctx) {
     auto kc = new keyboard_context(p, write_func, ctx);
     if (!kc) {
