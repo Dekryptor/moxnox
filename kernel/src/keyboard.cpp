@@ -590,6 +590,10 @@ void evdev_device_client::post_event(const input_event& ev) {
 
     it->ev = ev;
 
+    // FIXME - populate time field
+    it->ev.time.tv_sec = 0;
+    it->ev.time.tv_usec = 0;
+
     bool failed = false;
 
     {
