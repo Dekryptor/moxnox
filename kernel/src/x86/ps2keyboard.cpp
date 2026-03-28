@@ -46,7 +46,7 @@ static uint8_t* keyboard_buffer;
 static unsigned int keyboard_buffer_write_pos = 0;
 static unsigned int keyboard_buffer_read_pos = 0;
 static unsigned int modifier = 0;
-static keyboard_leds leds_state;
+static bool caps_lock = false, num_lock = false, scroll_lock = false;
 static rwsem leds_rwsem;
 
 static uint64_t keydown1 = 0, keydown2 = 0;
@@ -236,46 +236,21 @@ static void keyboard_event_recv() {
     } while (true);
 }
 
-static void keyboard_set_leds(void*, keyboard_leds leds) {
-    while (inb(keyboard_port2) & 2) { }
-
-    outb(keyboard_port1, 0xed);
-
-    wait_for_object(keyboard_ack_event_obj->get(), false);
-
-    while (inb(keyboard_port2) & 2) { }
-
-    uint8_t state = 0;
-
-    if (leds.scroll_lock)
-        state |= 1 << 0;
-
-    if (leds.num_lock)
-        state |= 1 << 1;
-
-    if (leds.caps_lock)
-        state |= 1 << 2;
-
-    outb(keyboard_port1, state);
-
-    wait_for_object(keyboard_ack_event_obj->get(), false);
-}
-
 static nt_status keyboard_write(void*, const input_event& ev) {
     if (ev.type != evdev_type::EV_LED)
         return nt_status::NOT_SUPPORTED;
 
     switch ((evdev_led)ev.code) {
         case evdev_led::LED_CAPSL:
-            leds_state.caps_lock = ev.value ? 1 : 0;
+            caps_lock = ev.value ? 1 : 0;
         break;
 
         case evdev_led::LED_NUML:
-            leds_state.num_lock = ev.value ? 1 : 0;
+            num_lock = ev.value ? 1 : 0;
         break;
 
         case evdev_led::LED_SCROLLL:
-            leds_state.scroll_lock = ev.value ? 1 : 0;
+            scroll_lock = ev.value ? 1 : 0;
         break;
 
         default:
@@ -295,13 +270,13 @@ static nt_status keyboard_write(void*, const input_event& ev) {
 
         uint8_t state = 0;
 
-        if (leds_state.scroll_lock)
+        if (scroll_lock)
             state |= 1 << 0;
 
-        if (leds_state.num_lock)
+        if (num_lock)
             state |= 1 << 1;
 
-        if (leds_state.caps_lock)
+        if (caps_lock)
             state |= 1 << 2;
 
         outb(keyboard_port1, state);
@@ -329,7 +304,7 @@ static bool add_keyboard_evdev_pipe() {
     }
 
     register_keyboard(static_cast<pipe&>(keyboard_evdev_obj.get()),
-                      keyboard_set_leds, keyboard_write, nullptr);
+                      keyboard_write, nullptr);
 
     return true;
 }

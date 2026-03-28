@@ -36,8 +36,6 @@ public:
     }
 
     nt_status write(span<const uint8_t> s, uint64_t& written_bytes);
-    nt_status ioctl(uint32_t code, span<const uint8_t> inbuf,
-                    span<uint8_t> outbuf, uintptr_t& written) override;
     nt_status userspace_open(object_ref& objref) override;
     void post_event(const input_event& ev, uint32_t id);
 
@@ -95,11 +93,6 @@ public:
         return p.write(s, written_bytes);
     }
 
-    nt_status ioctl(uint32_t code, span<const uint8_t> inbuf,
-                    span<uint8_t> outbuf, uintptr_t& written) override {
-        return p.ioctl(code, inbuf, outbuf, written);
-    }
-
     void post_event(const input_event& ev, uint32_t id);
 
     list_entry le;
@@ -112,7 +105,6 @@ private:
     keyboard_pipe& p;
 };
 
-using set_leds_func = void (*)(void* ctx, keyboard_leds leds);
 using write_func = nt_status (*)(void* ctx, const input_event& ev);
 
 static atomic<uint32_t> next_keyboard_id = 0;
@@ -121,8 +113,7 @@ static list_entry keyboard_contexts = { &keyboard_contexts, &keyboard_contexts }
 
 export class keyboard_context {
 public:
-    keyboard_context(pipe& p, set_leds_func led_func, write_func write_func,
-                     void* ctx) : led_func(led_func), write_func(write_func), ctx(ctx), p(p) {
+    keyboard_context(pipe& p, write_func write_func, void* ctx) : write_func(write_func), ctx(ctx), p(p) {
         p.acquire();
 
         id = ++next_keyboard_id;
@@ -164,7 +155,6 @@ public:
     bool dead = false;
     uint32_t id;
     list_entry le;
-    set_leds_func led_func;
     write_func write_func;
     void* ctx;
 
@@ -191,55 +181,7 @@ export bool init_keyboard_pipe() {
     return true;
 }
 
-nt_status keyboard_pipe::ioctl(uint32_t code, span<const uint8_t> inbuf,
-                               span<uint8_t>, uintptr_t& written) {
-    if (code == IOCTL_MOXNOX_KEYBOARD_SET_LEDS) {
-        if (inbuf.size() < sizeof(MOXNOX_SET_LEDS))
-            return nt_status::INVALID_PARAMETER;
-
-        const auto& leds = *(MOXNOX_SET_LEDS*)inbuf.data();
-
-        keyboard_context* ctx = nullptr;
-
-        {
-            lock_guard lock(keyboard_contexts_spinlock);
-
-            for (auto le = keyboard_contexts.next; le != &keyboard_contexts; le = le->next) {
-                auto& c = containing_record<keyboard_context>(le);
-
-                if (c.id == leds.id) {
-                    c.acquire();
-                    ctx = &c;
-                    break;
-                }
-            }
-        }
-
-        if (ctx) {
-            if (ctx->led_func)
-                ctx->led_func(ctx->ctx, leds.leds);
-
-            ctx->release();
-        }
-
-        written = 0;
-
-        return nt_status::SUCCESS;
-    } else
-        return nt_status::NOT_SUPPORTED;
-}
-
 void keyboard_context::listen_thread() {
-    if (led_func) {
-        keyboard_leds leds;
-
-        leds.caps_lock = 0;
-        leds.num_lock = 0;
-        leds.scroll_lock = 0;
-
-        led_func(ctx, leds);
-    }
-
     // FIXME - make sure this thread dies if keyboard goes away
 
     while (true) {
@@ -282,9 +224,9 @@ void keyboard_context::unregister() {
     dead = true;
 }
 
-export keyboard_context* register_keyboard(pipe& p, set_leds_func led_func,
-                                           write_func write_func, void* ctx) {
-    auto kc = new keyboard_context(p, led_func, write_func, ctx);
+export keyboard_context* register_keyboard(pipe& p, write_func write_func,
+                                           void* ctx) {
+    auto kc = new keyboard_context(p, write_func, ctx);
     if (!kc) {
         print("new failed\n");
         return nullptr;
