@@ -68,9 +68,7 @@ public:
         return nt_status::NOT_SUPPORTED;
     }
 
-    nt_status write(span<const uint8_t>, uint64_t&) override {
-        return nt_status::NOT_SUPPORTED;
-    }
+    nt_status write(span<const uint8_t> s, uint64_t& written_bytes) override;
 };
 
 static void found_ps2_keyboard(const acpi_device& d);
@@ -232,7 +230,12 @@ static void keyboard_event_recv() {
     } while (true);
 }
 
-static nt_status keyboard_write(void*, const input_event& ev) {
+nt_status ps2_keyboard::write(span<const uint8_t> s, uint64_t& written_bytes) {
+    if (s.size() < sizeof(input_event))
+        return nt_status::INVALID_PARAMETER;
+
+    auto& ev = *(input_event*)s.data();
+
     if (ev.type != evdev_type::EV_LED)
         return nt_status::NOT_SUPPORTED;
 
@@ -279,6 +282,8 @@ static nt_status keyboard_write(void*, const input_event& ev) {
 
         wait_for_object(keyboard_ack_event_obj->get(), false);
     }
+
+    written_bytes = sizeof(input_event);
 
     return nt_status::SUCCESS;
 }
