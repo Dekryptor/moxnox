@@ -58,12 +58,16 @@ public:
     virtio_input(T& t);
 
     ~virtio_input() {
+        if (kc)
+            kc->unregister();
+
         delete &dev;
     }
 
     void recv_thread();
 
     T& dev;
+    keyboard_context* kc = nullptr;
 
 private:
     virt_queue* event_queue = nullptr;
@@ -97,6 +101,8 @@ virtio_input<T>::virtio_input(T& dev) : dev(dev) {
         this->release();
         return;
     }
+
+    this->kc = register_keyboard(*this);
 }
 
 template<virtio_device T>
@@ -141,10 +147,19 @@ void virtio_input<T>::recv_thread() {
             } else
                 flush_cache(span((uint8_t*)&evs[idx], sizeof(virtio_input_event)), true);
 
-            auto& ev = evs[idx];
-
+#if 0
             print("ev: type = {}, code = {}, value = {}\n",
-                  (evdev_type)ev.type, (evdev_code)ev.code, +ev.value);
+                  (evdev_type)evs[idx].type, (evdev_code)evs[idx].code,
+                  +evs[idx].value);
+#endif
+
+            input_event ev;
+
+            ev.type = evs[idx].type;
+            ev.code = evs[idx].code;
+            ev.value = evs[idx].value;
+
+            post_event(ev);
         }
 
         slot[idx] = event_queue->async_read(pa[idx], sizeof(virtio_input_event));
