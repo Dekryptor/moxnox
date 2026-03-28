@@ -75,6 +75,8 @@ public:
     virt_queue();
     ~virt_queue();
     nt_status read(span<uint8_t> msg, uint64_t& read_bytes);
+    uint8_t async_read(uintptr_t pa, size_t len);
+    uint32_t wait_read(uint8_t slot);
     nt_status write(span<const uint8_t> msg);
     nt_status indirect(span<virtq_desc> descs, uint64_t& read_bytes);
     bool isr();
@@ -394,24 +396,13 @@ void virt_queue::release_slot(uint8_t slot) {
     release_semaphore(static_cast<semaphore&>(sem.get()));
 }
 
-nt_status virt_queue::read(span<uint8_t> s, uint64_t& read_bytes) {
-    uint8_t* bounce = nullptr;
-
-    if (s.empty()) {
-        read_bytes = 0;
-        return nt_status::SUCCESS;
-    }
-
-    assert(s.size() <= PAGE_SIZE);
-
-    auto pa = dma_setup(s, false, bounce);
-    if (!pa)
-        return nt_status::INSUFFICIENT_RESOURCES;
+uint8_t virt_queue::async_read(uintptr_t pa, size_t len) {
+    assert(len <= PAGE_SIZE);
 
     auto slot = get_slot();
 
     queue->buffers[slot].addr = pa;
-    queue->buffers[slot].len = (uint32_t)s.size();
+    queue->buffers[slot].len = (uint32_t)len;
     queue->buffers[slot].flags = VIRTQ_DESC_F_WRITE;
 
     {
@@ -429,11 +420,34 @@ nt_status virt_queue::read(span<uint8_t> s, uint64_t& read_bytes) {
 
     *notification_addr = num;
 
+    return slot;
+}
+
+uint32_t virt_queue::wait_read(uint8_t slot) {
     wait_for_object(events[slot].get(), false);
 
-    read_bytes = lengths[slot];
+    auto ret = lengths[slot];
 
     release_slot(slot);
+
+    return ret;
+}
+
+nt_status virt_queue::read(span<uint8_t> s, uint64_t& read_bytes) {
+    uint8_t* bounce = nullptr;
+
+    if (s.empty()) {
+        read_bytes = 0;
+        return nt_status::SUCCESS;
+    }
+
+    auto pa = dma_setup(s, false, bounce);
+    if (!pa)
+        return nt_status::INSUFFICIENT_RESOURCES;
+
+    auto slot = async_read(pa, s.size());
+
+    read_bytes = wait_read(slot);
 
     dma_finish_read(s, bounce);
 
