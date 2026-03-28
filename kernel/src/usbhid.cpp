@@ -87,6 +87,7 @@ public:
     void set_leds_field(usb_hid_report& r, usb_hid_field& f,
                         keyboard_leds leds);
     void recv_thread();
+    nt_status write(const input_event& ev);
 
     void acquire() {
         refcount++;
@@ -1696,6 +1697,10 @@ usb_hid_device::usb_hid_device(usb_device& d, const usb_device_config& config,
             auto& kbd = *(usb_hid_device*)ctx;
 
             kbd.set_leds(leds);
+        }, [](void* ctx, const input_event& ev) {
+            auto& kbd = *(usb_hid_device*)ctx;
+
+            return kbd.write(ev);
         }, this);
 
         repeat_timer = create_timer(true);
@@ -2253,6 +2258,12 @@ static bool set_protocol(usb_device& d, uint16_t wValue, uint16_t wIndex) {
     }
 
     return true;
+}
+
+nt_status usb_hid_device::write(const input_event& /*ev*/) {
+    print("FIXME - usb_hid_device::write\n");
+
+    return nt_status::NOT_IMPLEMENTED;
 }
 
 void usb_hid_device::keyboard_repeat_thread() {

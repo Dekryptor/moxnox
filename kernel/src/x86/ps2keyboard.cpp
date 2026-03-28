@@ -275,7 +275,7 @@ static bool add_keyboard_evdev_pipe() {
     }
 
     register_keyboard(static_cast<pipe&>(keyboard_evdev_obj.get()),
-                      keyboard_set_leds, nullptr);
+                      keyboard_set_leds, nullptr, nullptr);
 
     return true;
 }
