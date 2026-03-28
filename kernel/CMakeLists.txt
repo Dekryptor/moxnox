@@ -95,6 +95,7 @@ set(SRC_FILES src/kernel.cpp
     src/virtio_block.cpp
     src/virtio_console.cpp
     src/virtio_gpu.cpp
+    src/virtio_input.cpp
     src/sata.cpp
     src/btrfs.cpp
     src/nvme.cpp
