@@ -22,7 +22,7 @@ import rwsem;
 
 using namespace std;
 
-static object_ref keyboard_pipe_obj;
+static object_ref keyboard_pipe_obj, mice_pipe_obj;
 
 class evdev_multiplexer : public chardev {
 public:
@@ -257,12 +257,27 @@ export bool init_evdev_multiplexers() {
         return false;
     }
 
+    pptr = new evdev_multiplexer;
+    if (!pptr) {
+        print("new failed\n");
+        return false;
+    }
+
+    mice_pipe_obj = object_ref{*pptr};
+
+    status = name_object(mice_pipe_obj.get(), "mice");
+    if (!success(status)) {
+        print("name_object returned {}\n", status);
+        return false;
+    }
+
     return true;
 }
 
 void evdev_context::listen_thread() {
-    bool sent_key = false;
+    bool sent_key = false, sent_mouse = false;
     auto& k = static_cast<evdev_multiplexer&>(keyboard_pipe_obj.get());
+    auto& m = static_cast<evdev_multiplexer&>(mice_pipe_obj.get());
 
     // FIXME - make sure this thread dies if device goes away
 
@@ -297,12 +312,18 @@ void evdev_context::listen_thread() {
 
         if (ev.type == evdev_type::EV_KEY) {
             if (ev.code >= evdev_code::BTN_LEFT && ev.code <= evdev_code::BTN_EXTRA) {
-                // FIXME - post to mouse queue
+                m.post_event(ev, this->id);
+                sent_mouse = true;
             } else {
                 k.post_event(ev, this->id);
                 sent_key = true;
             }
         } else if (is_syn) {
+            if (sent_mouse) {
+                m.post_event(ev, this->id);
+                sent_mouse = false;
+            }
+
             if (sent_key) {
                 k.post_event(ev, this->id);
                 sent_key = false;
