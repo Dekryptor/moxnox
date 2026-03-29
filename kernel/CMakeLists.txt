@@ -68,7 +68,6 @@ set(GLOBAL_MODULES src/cmdline.cpp
 set(AMD64_MODULES ${GLOBAL_MODULES}
     src/x86/inout.cpp
     src/x86/rtc.cpp
-    src/x86/ps2keyboard.cpp
     src/x86/serial.cpp
     src/x86/apic.cpp
 )
@@ -119,6 +118,10 @@ set(SRC_FILES src/kernel.cpp
     src/object_ref2.cpp
 )
 
+set(AMD64_SRC_FILES ${SRC_FILES}
+    src/x86/ps2keyboard.cpp
+)
+
 if(CMAKE_SYSTEM_PROCESSOR STREQUAL aarch64)
     set(SRC_ASM_FILES src/aarch64/ints.S
         src/aarch64/timer.S
@@ -137,7 +140,7 @@ elseif(CMAKE_SYSTEM_PROCESSOR STREQUAL "amd64")
         src/x86/tlb.S
         ${CMAKE_CURRENT_BINARY_DIR}/font.S)
 
-    add_executable(kernel ${SRC_FILES} ${SRC_ASM_FILES})
+    add_executable(kernel ${AMD64_SRC_FILES} ${SRC_ASM_FILES})
     target_sources(kernel PUBLIC FILE_SET CXX_MODULES FILES ${AMD64_MODULES})
     target_link_libraries(kernel format_kernel dwarf_kernel list_kernel unicode_kernel rbtree_kernel vt100_kernel cp437_kernel evdev_kernel nt_kernel ntdll_kernel pe_kernel loaderblock crt_kernel x86 pagesize_kernel timepage_kernel moxnox_ioctls_kernel ws2_32_kernel ipv6_kernel)
 endif()

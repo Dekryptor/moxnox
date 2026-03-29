@@ -1,10 +1,6 @@
-module;
-
 #include <span>
 #include <optional>
 #include <mutex>
-
-export module ps2keyboard;
 
 import nt;
 import print;
