@@ -32,6 +32,61 @@ using namespace std;
 
 static const unsigned int keyboard_evdev_buffer_pages = 1;
 
+// 8042 controller commands (sent to port2)
+static const uint8_t I8042_CMD_READ_CONFIG = 0x20;
+static const uint8_t I8042_CMD_WRITE_CONFIG = 0x60;
+static const uint8_t I8042_CMD_DISABLE_MOUSE = 0xa7;
+static const uint8_t I8042_CMD_ENABLE_MOUSE = 0xa8;
+static const uint8_t I8042_CMD_TEST_MOUSE = 0xa9;
+static const uint8_t I8042_CMD_SELF_TEST = 0xaa;
+static const uint8_t I8042_CMD_TEST_KEYBOARD = 0xab;
+static const uint8_t I8042_CMD_MOUSE_PREFIX = 0xd4;
+
+// 8042 status register bits (read from port2)
+static const uint8_t I8042_STR_OBF = 0x01; // output buffer full
+static const uint8_t I8042_STR_IBF = 0x02; // input buffer full
+static const uint8_t I8042_STR_AUXDATA = 0x20; // data from mouse
+
+// 8042 config byte bits
+static const uint8_t I8042_CFG_KBD_IRQ = 0x01;
+static const uint8_t I8042_CFG_AUX_IRQ = 0x02;
+static const uint8_t I8042_CFG_KBD_CLOCK_DIS = 0x10;
+static const uint8_t I8042_CFG_AUX_CLOCK_DIS = 0x20;
+
+// Keyboard commands (sent to port1)
+static const uint8_t KBD_CMD_SET_LEDS = 0xed;
+static const uint8_t KBD_CMD_SET_SCANCODE = 0xf0;
+static const uint8_t KBD_CMD_GET_ID = 0xf2;
+static const uint8_t KBD_CMD_SET_RATE = 0xf3;
+static const uint8_t KBD_CMD_ENABLE = 0xf4;
+static const uint8_t KBD_CMD_RESET = 0xff;
+
+// Mouse commands (sent via 0xd4 prefix)
+static const uint8_t MOUSE_CMD_SET_RATE = 0xf3;
+static const uint8_t MOUSE_CMD_GET_ID = 0xf2;
+static const uint8_t MOUSE_CMD_ENABLE = 0xf4;
+static const uint8_t MOUSE_CMD_RESET = 0xff;
+
+// Response bytes
+static const uint8_t PS2_ACK = 0xfa;
+static const uint8_t PS2_RESEND = 0xfe;
+static const uint8_t PS2_SELF_TEST_PASS = 0xaa;
+static const uint8_t PS2_SELF_TEST_FAIL = 0xfc;
+
+// Mouse IDs
+static const uint8_t MOUSE_ID_STANDARD = 0x00;
+static const uint8_t MOUSE_ID_IMPS2 = 0x03;
+static const uint8_t MOUSE_ID_IMEX = 0x04;
+
+// Mouse packet bits (byte 0)
+static const uint8_t MOUSE_BTN_LEFT = 0x01;
+static const uint8_t MOUSE_BTN_RIGHT = 0x02;
+static const uint8_t MOUSE_BTN_MIDDLE = 0x04;
+static const uint8_t MOUSE_X_SIGN = 0x10;
+static const uint8_t MOUSE_Y_SIGN = 0x20;
+static const uint8_t MOUSE_X_OVERFLOW = 0x40;
+static const uint8_t MOUSE_Y_OVERFLOW = 0x80;
+
 static optional<reference_wrapper<event>> keyboard_event_obj, keyboard_ack_event_obj;
 static object_ref keyboard_evdev_obj;
 
@@ -258,9 +313,9 @@ nt_status ps2_keyboard::write(span<const uint8_t> s, uint64_t& written_bytes) {
         {
             lock_guard lock2(keyboard_lock);
 
-            while (inb(keyboard_port2) & 2) { }
+            while (inb(keyboard_port2) & I8042_STR_IBF) { }
 
-            outb(keyboard_port1, 0xed);
+            outb(keyboard_port1, KBD_CMD_SET_LEDS);
         }
 
         wait_for_object(keyboard_ack_event_obj->get(), false);
@@ -268,7 +323,7 @@ nt_status ps2_keyboard::write(span<const uint8_t> s, uint64_t& written_bytes) {
         {
             lock_guard lock2(keyboard_lock);
 
-            while (inb(keyboard_port2) & 2) { }
+            while (inb(keyboard_port2) & I8042_STR_IBF) { }
 
             uint8_t state = 0;
 
@@ -381,7 +436,7 @@ static void init_keyboard(uint16_t port1, uint16_t port2, uint32_t irq) {
     {
         lock_guard lock(keyboard_lock);
 
-        while (inb(port2) & 1) {
+        while (inb(port2) & I8042_STR_OBF) {
             inb(port1);
         }
     }
@@ -411,12 +466,12 @@ static bool keyboard_isr_func(void*) {
     {
         lock_guard lock(keyboard_lock);
 
-        if (!(inb(keyboard_port2) & 0x1)) // not for us
+        if (!(inb(keyboard_port2) & I8042_STR_OBF)) // not for us
             return false;
 
         auto code = inb(keyboard_port1);
 
-        if (code == 0xfa) {
+        if (code == PS2_ACK) {
             set_event(keyboard_ack_event_obj->get());
             return true;
         }
