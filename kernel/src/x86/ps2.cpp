@@ -112,8 +112,9 @@ static bool keyboard_initialized = false;
 static uint16_t keyboard_port1, keyboard_port2;
 static bool mouse_initialized = false, mouse_init_pending = false;
 static uint32_t mouse_irq;
+static object_ref mouse_ack_event;
 
-static bool keyboard_isr_func(void*);
+static bool ps2_isr_func(void*);
 
 class ps2_keyboard : public evdev_device {
 public:
@@ -452,7 +453,7 @@ static void init_keyboard(uint16_t port1, uint16_t port2, uint32_t irq) {
         return;
     }
 
-    if (!add_irq_handler(irq, false, keyboard_isr_func, nullptr)) {
+    if (!add_irq_handler(irq, false, ps2_isr_func, nullptr)) {
         print("add_irq_handler failed\n");
         return;
     }
@@ -462,27 +463,44 @@ static void init_keyboard(uint16_t port1, uint16_t port2, uint32_t irq) {
     keyboard_initialized = true;
 }
 
-static bool keyboard_isr_func(void*) {
+static bool ps2_isr_func(void*) {
+    uint8_t status, code;
+
     {
         lock_guard lock(ps2_lock);
 
-        if (!(inb(keyboard_port2) & I8042_STR_OBF)) // not for us
+        status = inb(keyboard_port2);
+
+        if (!(status & I8042_STR_OBF)) // not for us
             return false;
 
-        auto code = inb(keyboard_port1);
+        code = inb(keyboard_port1);
+    }
 
+    if (status & I8042_STR_AUXDATA) {
+        if (code == PS2_ACK) {
+            set_event(static_cast<event&>(mouse_ack_event.get()));
+            return true;
+        }
+        // FIXME - for mouse
+        print("FIXME - mouse interrupt\n");
+    } else {
         if (code == PS2_ACK) {
             set_event(keyboard_ack_event_obj->get());
             return true;
         }
 
-        keyboard_buffer[keyboard_buffer_write_pos] = code;
+        {
+            lock_guard lock(ps2_lock);
 
-        keyboard_buffer_write_pos++;
-        keyboard_buffer_write_pos &= 0xfff;
+            keyboard_buffer[keyboard_buffer_write_pos] = code;
+
+            keyboard_buffer_write_pos++;
+            keyboard_buffer_write_pos &= 0xfff;
+
+            set_event(keyboard_event_obj->get());
+        }
     }
-
-    set_event(keyboard_event_obj->get());
 
     return true;
 }
@@ -492,6 +510,78 @@ static void init_mouse(uint16_t port1, uint16_t port2, uint32_t irq) {
         return;
 
     print("FIXME - init_mouse ({:x}, {:x}, {})\n", port1, port2, irq);
+
+    mouse_ack_event = create_event(true);
+    if (!mouse_ack_event) {
+        print("create_event failed\n");
+        return;
+    }
+
+    if (!add_irq_handler(irq, false, ps2_isr_func, nullptr)) {
+        print("add_irq_handler failed\n");
+        return;
+    }
+
+    uint8_t id;
+
+    {
+        lock_guard lock(ps2_lock);
+
+        // enable auxiliary device
+        while (inb(port2) & I8042_STR_IBF) { }
+        outb(port2, I8042_CMD_ENABLE_MOUSE);
+
+        // read current config
+        while (inb(port2) & I8042_STR_IBF) { }
+        outb(port2, I8042_CMD_READ_CONFIG);
+        while (!(inb(port2) & I8042_STR_OBF)) { }
+        auto config = inb(port1);
+
+        config |= I8042_CFG_AUX_IRQ;
+        config &= ~I8042_CFG_AUX_CLOCK_DIS;
+
+        // write config back
+        while (inb(port2) & I8042_STR_IBF) { }
+        outb(port2, I8042_CMD_WRITE_CONFIG);
+        while (inb(port2) & I8042_STR_IBF) { }
+        outb(port1, config);
+
+        while (inb(port2) & I8042_STR_IBF) { }
+        outb(port2, I8042_CMD_MOUSE_PREFIX);
+        while (inb(port2) & I8042_STR_IBF) { }
+        outb(port1, MOUSE_CMD_RESET);
+
+        while (!(inb(port2) & I8042_STR_OBF)) { }
+
+        if (inb(port1) != PS2_ACK)
+            return; // no mouse
+
+        while (!(inb(port2) & I8042_STR_OBF)) { }
+
+        if (inb(port1) != PS2_SELF_TEST_PASS)
+            return; // hardware fault
+
+        while (!(inb(port2) & I8042_STR_OBF)) { }
+        id = inb(port1);
+    }
+
+    if (id != 0x00)
+        print("init_mouse: hardware reported ID of 0x{:02x}, expected 0x00\n", id);
+
+    // FIXME - intellimouse
+
+    {
+        lock_guard lock(ps2_lock);
+
+        reset_event(static_cast<event&>(mouse_ack_event.get()));
+
+        while (inb(port2) & I8042_STR_IBF) { }
+        outb(port2, I8042_CMD_MOUSE_PREFIX);
+        while (inb(port2) & I8042_STR_IBF) { }
+        outb(port1, MOUSE_CMD_ENABLE);
+    }
+
+    wait_for_object(mouse_ack_event.get(), false);
 
     mouse_initialized = true;
 }
