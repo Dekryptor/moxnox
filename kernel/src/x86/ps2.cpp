@@ -55,7 +55,8 @@ static const int64_t REPEAT_RATE_HZ = 25;
 
 static bool keyboard_initialized = false;
 static uint16_t keyboard_port1, keyboard_port2;
-static bool mouse_initialized = false;
+static bool mouse_initialized = false, mouse_init_pending = false;
+static uint32_t mouse_irq;
 
 static bool keyboard_isr_func(void*);
 
@@ -423,6 +424,15 @@ static bool keyboard_isr_func(void*) {
     return true;
 }
 
+static void init_mouse(uint16_t port1, uint16_t port2, uint32_t irq) {
+    if (mouse_initialized) // can only be one PS/2 mouse(?)
+        return;
+
+    print("FIXME - init_mouse ({:x}, {:x}, {})\n", port1, port2, irq);
+
+    mouse_initialized = true;
+}
+
 static void found_ps2_keyboard(const acpi_device& d) {
     optional<uint16_t> port1, port2;
     optional<uint32_t> irq;
@@ -454,15 +464,9 @@ static void found_ps2_keyboard(const acpi_device& d) {
         return;
 
     init_keyboard(*port1, *port2, *irq);
-}
 
-static void init_mouse(uint32_t irq) {
-    if (mouse_initialized) // can only be one PS/2 mouse(?)
-        return;
-
-    print("FIXME - init_mouse ({})\n", irq);
-
-    mouse_initialized = true;
+    if (mouse_init_pending)
+        init_mouse(*port1, *port2, mouse_irq);
 }
 
 static void found_ps2_mouse(const acpi_device& d) {
@@ -485,5 +489,10 @@ static void found_ps2_mouse(const acpi_device& d) {
     if (!irq.has_value())
         return;
 
-    init_mouse(*irq);
+    if (keyboard_initialized)
+        init_mouse(keyboard_port1, keyboard_port2, *irq);
+    else {
+        mouse_irq = *irq;
+        mouse_init_pending = true;
+    }
 }
