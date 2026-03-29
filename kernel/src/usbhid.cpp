@@ -35,6 +35,7 @@ static const int64_t REPEAT_RATE_HZ = 25;
 
 static const uint16_t USAGE_PAGE_KEYBOARD = 0x7;
 static const uint16_t USAGE_PAGE_LEDS = 0x8;
+static const uint16_t USAGE_PAGE_BUTTONS = 0x9;
 static const uint16_t USAGE_PAGE_CONSUMER = 0xc;
 
 static const uint32_t LED_USAGE_NUM_LOCK = 1;
@@ -117,6 +118,7 @@ private:
     list_entry output_reports = { &output_reports, &output_reports };
     array<uint64_t, 4> keys;
     array<uint64_t, 11> media_keys;
+    uint8_t buttons;
 };
 
 static const evdev_code keycodes[] = {
@@ -2181,6 +2183,11 @@ static bool should_key_repeat(enum evdev_code code) {
         case evdev_code::KEY_KBDINPUTASSIST_NEXTGROUP:
         case evdev_code::KEY_KBDINPUTASSIST_ACCEPT:
         case evdev_code::KEY_KBDINPUTASSIST_CANCEL:
+        case evdev_code::BTN_LEFT:
+        case evdev_code::BTN_RIGHT:
+        case evdev_code::BTN_MIDDLE:
+        case evdev_code::BTN_SIDE:
+        case evdev_code::BTN_EXTRA:
             return false;
 
         default:
@@ -2252,26 +2259,28 @@ void usb_hid_device::input_usage(uint16_t usage_page, uint32_t usage, int32_t nu
 
         if (num)
             keys[usage / 64] |= (uint64_t)1 << (usage % 64);
+    } else if (usage_page == USAGE_PAGE_BUTTONS) {
+        if (usage == 0 || usage > 5)
+            return;
 
-        return;
+        if (num)
+            buttons |= 1 << (usage - 1);
     } else if (usage_page == USAGE_PAGE_CONSUMER) {
         if (usage >= media_keys.size() * 64)
             return;
 
         if (num)
             media_keys[usage / 64] |= (uint64_t)1 << (usage % 64);
+    } else {
+        // ignore vendor-defined usages
+        if (usage_page >= 0xff00)
+            return;
 
-        return;
+#if 0
+        print("input_usage: usage page {:x}, usage {:x}, num {}\n",
+              usage_page, usage, num);
+#endif
     }
-
-    // ignore vendor-defined usages
-    if (usage_page >= 0xff00)
-        return;
-
-    print("input_usage: usage page {:x}, usage {:x}, num {}\n",
-          usage_page, usage, num);
-
-    // FIXME
 }
 
 void usb_hid_device::handle_input_field(usb_hid_field& f,
@@ -2344,6 +2353,22 @@ void usb_hid_device::handle_input(usb_hid_report& r, span<const uint8_t> sp) {
                         clear_bit(i);
                 }
             }
+        } else if (f.usage_page == USAGE_PAGE_BUTTONS) {
+            auto clear_bit = [this](uint32_t usage) {
+                buttons &= (uint8_t)~(1 << usage);
+            };
+
+            if (f.num_usages > 0) {
+                for (unsigned int i = 0; i < f.num_usages; i++) {
+                    if (f.usages[i] != 0 && f.usages[i] < 6)
+                        clear_bit(f.usages[i] - 1);
+                }
+            } else {
+                for (unsigned int i = f.usage_min; i <= f.usage_max; i++) {
+                    if (i != 0 && i < 6)
+                        clear_bit(i - 1);
+                }
+            }
         } else if (f.usage_page == USAGE_PAGE_CONSUMER) {
             auto clear_bit = [this](uint32_t usage) {
                 media_keys[usage / 64] &= ~((uint64_t)1 << (usage % 64));
@@ -2382,8 +2407,10 @@ void usb_hid_device::recv_thread() {
 
     array<uint64_t, 4> old_keys;
     decltype(media_keys) old_media_keys;
+    uint8_t old_buttons;
 
     old_keys[0] = old_keys[1] = old_keys[2] = old_keys[3] = 0;
+    old_buttons = 0;
 
     for (auto& c : old_media_keys) {
         c = 0;
@@ -2400,10 +2427,9 @@ void usb_hid_device::recv_thread() {
 
         memset(buf + recv_bytes, 0, packet_size - recv_bytes);
 
-        if (is_keyboard) {
-            keys = old_keys;
-            media_keys = old_media_keys;
-        }
+        keys = old_keys;
+        media_keys = old_media_keys;
+        buttons = old_buttons;
 
         for (auto le = input_reports.next; le != &input_reports; le = le->next) {
             auto& r = containing_record<usb_hid_report>(le);
@@ -2411,55 +2437,99 @@ void usb_hid_device::recv_thread() {
             handle_input(r, span(buf, packet_size));
         }
 
-        if (is_keyboard) {
-            if (memcmp(keys.data(), old_keys.data(), keys.size() * sizeof(uint64_t))) {
-                for (size_t i = 0; i < keys.size(); i++) {
-                    auto diff = keys[i] ^ old_keys[i];
+        if (memcmp(keys.data(), old_keys.data(), keys.size() * sizeof(uint64_t))) {
+            for (size_t i = 0; i < keys.size(); i++) {
+                auto diff = keys[i] ^ old_keys[i];
 
-                    while (diff != 0) {
-                        auto bit = (size_t)countr_zero(diff);
-                        auto code = (i * 64) + bit;
+                while (diff != 0) {
+                    auto bit = (size_t)countr_zero(diff);
+                    auto code = (i * 64) + bit;
 
-                        if (keycodes[code] == evdev_code::KEY_RESERVED)
-                            print("unrecognized keycode {:x}\n", code);
-                        else {
-                            if (keys[i] & (uint64_t)1 << bit)
-                                post_evdev(keycodes[code], 1);
-                            else
-                                post_evdev(keycodes[code], 0);
-                        }
-
-                        diff &= ~((uint64_t)1 << bit);
+                    if (keycodes[code] == evdev_code::KEY_RESERVED)
+                        print("unrecognized keycode {:x}\n", code);
+                    else {
+                        if (keys[i] & (uint64_t)1 << bit)
+                            post_evdev(keycodes[code], 1);
+                        else
+                            post_evdev(keycodes[code], 0);
                     }
-                }
 
-                old_keys = keys;
+                    diff &= ~((uint64_t)1 << bit);
+                }
             }
 
-            if (memcmp(media_keys.data(), old_media_keys.data(), media_keys.size() * sizeof(uint64_t))) {
-                for (size_t i = 0; i < media_keys.size(); i++) {
-                    auto diff = media_keys[i] ^ old_media_keys[i];
+            old_keys = keys;
+        }
 
-                    while (diff != 0) {
-                        auto bit = (size_t)countr_zero(diff);
-                        auto code = (i * 64) + bit;
+        if (memcmp(media_keys.data(), old_media_keys.data(), media_keys.size() * sizeof(uint64_t))) {
+            for (size_t i = 0; i < media_keys.size(); i++) {
+                auto diff = media_keys[i] ^ old_media_keys[i];
 
-                        if (code >= sizeof(media_keycodes) / sizeof(*media_keycodes) ||
-                            media_keycodes[code] == evdev_code::KEY_RESERVED) {
-                                print("unrecognized media keycode {:x}\n", code);
-                        } else {
-                            if (media_keys[i] & (uint64_t)1 << bit)
-                                post_evdev(media_keycodes[code], 1);
-                            else
-                                post_evdev(media_keycodes[code], 0);
-                        }
+                while (diff != 0) {
+                    auto bit = (size_t)countr_zero(diff);
+                    auto code = (i * 64) + bit;
 
-                        diff &= ~((uint64_t)1 << bit);
+                    if (code >= sizeof(media_keycodes) / sizeof(*media_keycodes) ||
+                        media_keycodes[code] == evdev_code::KEY_RESERVED) {
+                            print("unrecognized media keycode {:x}\n", code);
+                    } else {
+                        if (media_keys[i] & (uint64_t)1 << bit)
+                            post_evdev(media_keycodes[code], 1);
+                        else
+                            post_evdev(media_keycodes[code], 0);
                     }
+
+                    diff &= ~((uint64_t)1 << bit);
+                }
+            }
+
+            old_media_keys = media_keys;
+        }
+
+        if (buttons != old_buttons) {
+            uint8_t diff = buttons ^ old_buttons;
+
+            while (diff != 0) {
+                auto bit = (size_t)countr_zero(diff);
+                evdev_code code;
+
+                switch (bit) {
+                    case 0:
+                        code = evdev_code::BTN_LEFT;
+                    break;
+
+                    case 1:
+                        code = evdev_code::BTN_RIGHT;
+                    break;
+
+                    case 2:
+                        code = evdev_code::BTN_MIDDLE;
+                    break;
+
+                    case 3:
+                        code = evdev_code::BTN_SIDE;
+                    break;
+
+                    case 4:
+                        code = evdev_code::BTN_EXTRA;
+                    break;
+
+                    default:
+                        code = evdev_code::KEY_RESERVED;
+                    break;
                 }
 
-                old_media_keys = media_keys;
+                if (code != evdev_code::KEY_RESERVED) {
+                    if (buttons & 1 << bit)
+                        post_evdev(code, 1);
+                    else
+                        post_evdev(code, 0);
+                }
+
+                diff &= (uint8_t)~(1 << bit);
             }
+
+            old_buttons = buttons;
         }
     }
 
