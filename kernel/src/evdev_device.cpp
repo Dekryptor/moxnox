@@ -261,6 +261,9 @@ export bool init_keyboard_pipe() {
 }
 
 void evdev_context::listen_thread() {
+    bool sent_key = false;
+    auto& k = static_cast<keyboard_pipe&>(keyboard_pipe_obj.get());
+
     // FIXME - make sure this thread dies if device goes away
 
     while (true) {
@@ -290,12 +293,17 @@ void evdev_context::listen_thread() {
             break;
         }
 
-        if (ev.type != evdev_type::EV_KEY)
-            continue;
+        bool is_syn = ev.type == evdev_type::EV_SYN && ev.code == evdev_code::SYN_REPORT;
 
-        auto& k = static_cast<keyboard_pipe&>(keyboard_pipe_obj.get());
-
-        k.post_event(ev, this->id);
+        if (ev.type == evdev_type::EV_KEY) {
+            k.post_event(ev, this->id);
+            sent_key = true;
+        } else if (is_syn) {
+            if (sent_key) {
+                k.post_event(ev, this->id);
+                sent_key = false;
+            }
+        }
     }
 }
 
