@@ -296,8 +296,12 @@ void evdev_context::listen_thread() {
         bool is_syn = ev.type == evdev_type::EV_SYN && ev.code == evdev_code::SYN_REPORT;
 
         if (ev.type == evdev_type::EV_KEY) {
-            k.post_event(ev, this->id);
-            sent_key = true;
+            if (ev.code >= evdev_code::BTN_LEFT && ev.code <= evdev_code::BTN_EXTRA) {
+                // FIXME - post to mouse queue
+            } else {
+                k.post_event(ev, this->id);
+                sent_key = true;
+            }
         } else if (is_syn) {
             if (sent_key) {
                 k.post_event(ev, this->id);
