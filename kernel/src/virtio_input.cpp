@@ -161,7 +161,7 @@ void virtio_input<T>::recv_thread() {
             ev.code = evs[idx].code;
             ev.value = evs[idx].value;
 
-            post_event(ev);
+            post_event(ev, false);
         }
 
         slot[idx] = event_queue->async_read(pa[idx], sizeof(virtio_input_event));

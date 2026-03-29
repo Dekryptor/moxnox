@@ -2221,13 +2221,13 @@ void usb_hid_device::post_evdev(enum evdev_code code, int32_t value) {
         }
     }
 
-    // FIXME - Linux also has EV_SYN and EV_MSC events
+    // FIXME - Linux also has EV_MSC events
 
     ev.type = evdev_type::EV_KEY;
     ev.code = code;
     ev.value = value;
 
-    post_event(ev);
+    post_event(ev, true);
 }
 
 static uint32_t extract_num(span<const uint8_t> sp, unsigned int offset,

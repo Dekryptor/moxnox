@@ -128,7 +128,7 @@ public:
 
     nt_status userspace_open(object_ref& objref) override;
 
-    void post_event(const input_event& ev);
+    void post_event(const input_event& ev, bool add_syn);
 
     spinlock client_lock;
     list_entry clients = { &clients, &clients };
@@ -639,7 +639,7 @@ nt_status evdev_device::userspace_open(object_ref& objref) {
     return nt_status::SUCCESS;
 }
 
-void evdev_device::post_event(const input_event& ev) {
+void evdev_device::post_event(const input_event& ev, bool add_syn) {
     input_event syn;
 
     syn.type = evdev_type::EV_SYN;
@@ -683,7 +683,10 @@ void evdev_device::post_event(const input_event& ev) {
             break;
 
         c->post_event(ev);
-        c->post_event(syn);
+
+        if (add_syn)
+            c->post_event(syn);
+
         c->release();
     }
 

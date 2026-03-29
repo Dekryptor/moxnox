@@ -154,13 +154,13 @@ static void post_evdev(enum evdev_code code, int32_t value) {
         }
     }
 
-    // FIXME - Linux also has EV_SYN and EV_MSC events
+    // FIXME - Linux also has EV_MSC events
 
     ev.type = evdev_type::EV_KEY;
     ev.code = code;
     ev.value = value;
 
-    p.post_event(ev);
+    p.post_event(ev, true);
 }
 
 static void keyboard_event_recv() {
