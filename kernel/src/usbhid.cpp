@@ -33,6 +33,7 @@ using namespace std;
 static const int64_t REPEAT_DELAY_MS = 660;
 static const int64_t REPEAT_RATE_HZ = 25;
 
+static const uint16_t USAGE_PAGE_GENERIC = 0x1;
 static const uint16_t USAGE_PAGE_KEYBOARD = 0x7;
 static const uint16_t USAGE_PAGE_LEDS = 0x8;
 static const uint16_t USAGE_PAGE_BUTTONS = 0x9;
@@ -41,6 +42,10 @@ static const uint16_t USAGE_PAGE_CONSUMER = 0xc;
 static const uint32_t LED_USAGE_NUM_LOCK = 1;
 static const uint32_t LED_USAGE_CAPS_LOCK = 2;
 static const uint32_t LED_USAGE_SCROLL_LOCK = 3;
+
+static const uint32_t GENERIC_USAGE_X = 0x30;
+static const uint32_t GENERIC_USAGE_Y = 0x31;
+static const uint32_t GENERIC_USAGE_WHEEL = 0x38;
 
 static const size_t evdev_buffer_pages = 1;
 
@@ -95,14 +100,16 @@ public:
     bool init = false;
 
 private:
-    void post_evdev(enum evdev_code code, int32_t value);
+    void post_evdev(enum evdev_type type, enum evdev_code code, int32_t value,
+                    bool add_syn);
     void keyboard_repeat_thread();
     bool get_report_descriptor(const usb_device_config& cfg);
     bool parse_report_descriptor(span<const uint8_t> r);
     usb_hid_report* find_report(uint8_t id, bool input);
     void handle_input(usb_hid_report& r, span<const uint8_t> sp);
     void handle_input_field(usb_hid_field& f, span<const uint8_t> sp);
-    void input_usage(uint16_t usage_page, uint32_t usage, int32_t num);
+    void input_usage(uint16_t usage_page, uint32_t usage, int32_t num,
+                     bool is_relative);
 
     usb_device& d;
     xhci_queue& queue;
@@ -119,6 +126,8 @@ private:
     array<uint64_t, 4> keys;
     array<uint64_t, 11> media_keys;
     uint8_t buttons;
+    optional<int32_t> relative_x, relative_y, relative_wheel;
+    optional<int32_t> absolute_x, absolute_y, absolute_wheel;
 };
 
 static const evdev_code keycodes[] = {
@@ -2195,10 +2204,11 @@ static bool should_key_repeat(enum evdev_code code) {
     }
 }
 
-void usb_hid_device::post_evdev(enum evdev_code code, int32_t value) {
+void usb_hid_device::post_evdev(enum evdev_type type, enum evdev_code code,
+                                int32_t value, bool add_syn) {
     input_event ev;
 
-    if (value != 2 && should_key_repeat(code)) {
+    if (type == evdev_type::EV_KEY && value != 2 && should_key_repeat(code)) {
         auto& t = static_cast<timer&>(repeat_timer.get());
 
         if (value == 0) { // up
@@ -2230,11 +2240,11 @@ void usb_hid_device::post_evdev(enum evdev_code code, int32_t value) {
 
     // FIXME - Linux also has EV_MSC events
 
-    ev.type = evdev_type::EV_KEY;
+    ev.type = type;
     ev.code = code;
     ev.value = value;
 
-    post_event(ev, true);
+    post_event(ev, add_syn);
 }
 
 static uint32_t extract_num(span<const uint8_t> sp, unsigned int offset,
@@ -2252,34 +2262,71 @@ static uint32_t extract_num(span<const uint8_t> sp, unsigned int offset,
     return ret;
 }
 
-void usb_hid_device::input_usage(uint16_t usage_page, uint32_t usage, int32_t num) {
-    if (usage_page == USAGE_PAGE_KEYBOARD) {
-        if (usage > 255)
-            return;
+void usb_hid_device::input_usage(uint16_t usage_page, uint32_t usage,
+                                 int32_t num, bool is_relative) {
+    switch (usage_page) {
+        case USAGE_PAGE_GENERIC:
+            switch (usage) {
+                case GENERIC_USAGE_X:
+                    if (is_relative)
+                        relative_x = num;
+                    else
+                        absolute_x = num;
+                break;
 
-        if (num)
-            keys[usage / 64] |= (uint64_t)1 << (usage % 64);
-    } else if (usage_page == USAGE_PAGE_BUTTONS) {
-        if (usage == 0 || usage > 5)
-            return;
+                case GENERIC_USAGE_Y:
+                    if (is_relative)
+                        relative_y = num;
+                    else
+                        absolute_y = num;
+                break;
 
-        if (num)
-            buttons |= 1 << (usage - 1);
-    } else if (usage_page == USAGE_PAGE_CONSUMER) {
-        if (usage >= media_keys.size() * 64)
-            return;
+                case GENERIC_USAGE_WHEEL:
+                    if (is_relative)
+                        relative_wheel = num;
+                    else
+                        absolute_wheel = num;
+                break;
 
-        if (num)
-            media_keys[usage / 64] |= (uint64_t)1 << (usage % 64);
-    } else {
-        // ignore vendor-defined usages
-        if (usage_page >= 0xff00)
-            return;
+                default:
+                    break;
+            }
+        break;
+
+        case USAGE_PAGE_KEYBOARD:
+            if (usage > 255)
+                return;
+
+            if (num)
+                keys[usage / 64] |= (uint64_t)1 << (usage % 64);
+        break;
+
+        case USAGE_PAGE_BUTTONS:
+            if (usage == 0 || usage > 5)
+                return;
+
+            if (num)
+                buttons |= 1 << (usage - 1);
+        break;
+
+        case USAGE_PAGE_CONSUMER:
+            if (usage >= media_keys.size() * 64)
+                return;
+
+            if (num)
+                media_keys[usage / 64] |= (uint64_t)1 << (usage % 64);
+        break;
+
+        default:
+            // ignore vendor-defined usages
+            if (usage_page >= 0xff00)
+                return;
 
 #if 0
-        print("input_usage: usage page {:x}, usage {:x}, num {}\n",
-              usage_page, usage, num);
+            print("input_usage: usage page {:x}, usage {:x}, num {}\n",
+                  usage_page, usage, num);
 #endif
+        break;
     }
 }
 
@@ -2308,7 +2355,7 @@ void usb_hid_device::handle_input_field(usb_hid_field& f,
             } else
                 usage = f.usage_min + i;
 
-            input_usage(f.usage_page, usage, signed_num);
+            input_usage(f.usage_page, usage, signed_num, f.is_relative);
 
             offset += f.size;
         }
@@ -2319,7 +2366,7 @@ void usb_hid_device::handle_input_field(usb_hid_field& f,
             auto usage = extract_num(sp, offset, f.size);
 
             if (usage != 0 && usage >= f.usage_min && usage <= f.usage_max)
-                input_usage(f.usage_page, usage, 1);
+                input_usage(f.usage_page, usage, 1, f.is_relative);
 
             offset += f.size;
         }
@@ -2430,6 +2477,8 @@ void usb_hid_device::recv_thread() {
         keys = old_keys;
         media_keys = old_media_keys;
         buttons = old_buttons;
+        relative_x = relative_y = relative_wheel = nullopt;
+        absolute_x = absolute_y = absolute_wheel = nullopt;
 
         for (auto le = input_reports.next; le != &input_reports; le = le->next) {
             auto& r = containing_record<usb_hid_report>(le);
@@ -2449,9 +2498,9 @@ void usb_hid_device::recv_thread() {
                         print("unrecognized keycode {:x}\n", code);
                     else {
                         if (keys[i] & (uint64_t)1 << bit)
-                            post_evdev(keycodes[code], 1);
+                            post_evdev(evdev_type::EV_KEY, keycodes[code], 1, true);
                         else
-                            post_evdev(keycodes[code], 0);
+                            post_evdev(evdev_type::EV_KEY, keycodes[code], 0, true);
                     }
 
                     diff &= ~((uint64_t)1 << bit);
@@ -2474,9 +2523,9 @@ void usb_hid_device::recv_thread() {
                             print("unrecognized media keycode {:x}\n", code);
                     } else {
                         if (media_keys[i] & (uint64_t)1 << bit)
-                            post_evdev(media_keycodes[code], 1);
+                            post_evdev(evdev_type::EV_KEY, media_keycodes[code], 1, true);
                         else
-                            post_evdev(media_keycodes[code], 0);
+                            post_evdev(evdev_type::EV_KEY, media_keycodes[code], 0, true);
                     }
 
                     diff &= ~((uint64_t)1 << bit);
@@ -2521,15 +2570,37 @@ void usb_hid_device::recv_thread() {
 
                 if (code != evdev_code::KEY_RESERVED) {
                     if (buttons & 1 << bit)
-                        post_evdev(code, 1);
+                        post_evdev(evdev_type::EV_KEY, code, 1, true);
                     else
-                        post_evdev(code, 0);
+                        post_evdev(evdev_type::EV_KEY, code, 0, true);
                 }
 
                 diff &= (uint8_t)~(1 << bit);
             }
 
             old_buttons = buttons;
+        }
+
+        if (relative_x.has_value() || relative_y.has_value() ||
+            relative_wheel.has_value() || absolute_x.has_value() ||
+            absolute_y.has_value() || absolute_wheel.has_value()) {
+
+            if (relative_x.has_value())
+                post_evdev(evdev_type::EV_REL, evdev_code::REL_X, *relative_x, false);
+            else if (absolute_x.has_value())
+                post_evdev(evdev_type::EV_ABS, evdev_code::ABS_X, *absolute_x, false);
+
+            if (relative_y.has_value())
+                post_evdev(evdev_type::EV_REL, evdev_code::REL_Y, *relative_y, false);
+            else if (absolute_y.has_value())
+                post_evdev(evdev_type::EV_ABS, evdev_code::ABS_Y, *absolute_y, false);
+
+            if (relative_wheel.has_value())
+                post_evdev(evdev_type::EV_REL, evdev_code::REL_WHEEL, *relative_wheel, false);
+            else if (absolute_wheel.has_value())
+                post_evdev(evdev_type::EV_ABS, evdev_code::ABS_WHEEL, *absolute_wheel, false);
+
+            post_evdev(evdev_type::EV_SYN, evdev_code::SYN_REPORT, 0, false);
         }
     }
 
@@ -2602,7 +2673,7 @@ void usb_hid_device::keyboard_repeat_thread() {
         if (code == evdev_code::KEY_RESERVED)
             continue;
 
-        post_evdev(code, 2);
+        post_evdev(evdev_type::EV_KEY, code, 2, true);
 
         auto& t = static_cast<timer&>(repeat_timer.get());
 
