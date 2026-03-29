@@ -110,8 +110,8 @@ private:
 };
 
 static atomic<uint32_t> next_keyboard_id = 0;
-static spinlock keyboard_contexts_spinlock;
-static list_entry keyboard_contexts = { &keyboard_contexts, &keyboard_contexts };
+static spinlock evdev_contexts_spinlock;
+static list_entry evdev_contexts = { &evdev_contexts, &evdev_contexts };
 
 export class evdev_device : public chardev {
 public:
@@ -193,22 +193,22 @@ private:
     evdev_device& p;
 };
 
-export class keyboard_context {
+export class evdev_context {
 public:
-    keyboard_context(chardev& p) : p(p) {
+    evdev_context(chardev& p) : p(p) {
         p.acquire();
 
         id = ++next_keyboard_id;
 
         {
-            lock_guard lock(keyboard_contexts_spinlock);
-            insert_tail_list(keyboard_contexts, this->le);
+            lock_guard lock(evdev_contexts_spinlock);
+            insert_tail_list(evdev_contexts, this->le);
         }
     }
 
-    ~keyboard_context() {
+    ~evdev_context() {
         {
-            lock_guard lock(keyboard_contexts_spinlock);
+            lock_guard lock(evdev_contexts_spinlock);
             remove_entry_list(this->le);
         }
 
@@ -260,8 +260,8 @@ export bool init_keyboard_pipe() {
     return true;
 }
 
-void keyboard_context::listen_thread() {
-    // FIXME - make sure this thread dies if keyboard goes away
+void evdev_context::listen_thread() {
+    // FIXME - make sure this thread dies if device goes away
 
     while (true) {
         input_event ev;
@@ -299,11 +299,11 @@ void keyboard_context::listen_thread() {
     }
 }
 
-void keyboard_context::unregister() {
+void evdev_context::unregister() {
     dead = true;
 }
 
-export keyboard_context* register_keyboard(evdev_device& p) {
+export evdev_context* register_evdev_device(evdev_device& p) {
     object_ref objref{p};
 
     p.acquire();
@@ -314,14 +314,14 @@ export keyboard_context* register_keyboard(evdev_device& p) {
         return nullptr;
     }
 
-    auto kc = new keyboard_context(static_cast<chardev&>(objref.get()));
+    auto kc = new evdev_context(static_cast<chardev&>(objref.get()));
     if (!kc) {
         print("new failed\n");
         return nullptr;
     }
 
     add_kernel_thread([](void* ctx) {
-        auto& kc = *(keyboard_context*)ctx;
+        auto& kc = *(evdev_context*)ctx;
 
         kc.listen_thread();
 
@@ -498,13 +498,13 @@ nt_status keyboard_pipe::write(span<const uint8_t> s, uint64_t& written_bytes) {
 
     auto& ev = *(input_event_with_id*)s.data();
 
-    keyboard_context* ctx = nullptr;
+    evdev_context* ctx = nullptr;
 
     {
-        lock_guard lock(keyboard_contexts_spinlock);
+        lock_guard lock(evdev_contexts_spinlock);
 
-        for (auto le = keyboard_contexts.next; le != &keyboard_contexts; le = le->next) {
-            auto& c = containing_record<keyboard_context>(le);
+        for (auto le = evdev_contexts.next; le != &evdev_contexts; le = le->next) {
+            auto& c = containing_record<evdev_context>(le);
 
             if (c.id == ev.id) {
                 c.acquire();

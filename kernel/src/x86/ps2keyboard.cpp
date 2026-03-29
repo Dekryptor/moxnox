@@ -300,7 +300,7 @@ static bool add_keyboard_evdev_pipe() {
         return false;
     }
 
-    register_keyboard(*pptr);
+    register_evdev_device(*pptr);
 
     return true;
 }

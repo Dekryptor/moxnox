@@ -107,7 +107,7 @@ private:
     xhci_queue& queue;
     uint16_t packet_size;
     const usb_interface& interface;
-    keyboard_context* kc = nullptr;
+    evdev_context* kc = nullptr;
     enum evdev_code repeat_key = evdev_code::KEY_RESERVED;
     object_ref repeat_timer;
     uint8_t* report_descriptor = nullptr;
@@ -1845,9 +1845,9 @@ usb_hid_device::usb_hid_device(usb_device& d, const usb_device_config& config,
         }
     }
 
-    if (is_keyboard) {
-        this->kc = register_keyboard(*this);
+    this->kc = register_evdev_device(*this);
 
+    if (is_keyboard) {
         repeat_timer = create_timer(true);
         if (!repeat_timer) {
             print("create_timer failed\n");

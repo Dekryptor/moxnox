@@ -69,7 +69,7 @@ public:
     void recv_thread();
 
     T& dev;
-    keyboard_context* kc = nullptr;
+    evdev_context* kc = nullptr;
 
 private:
     virt_queue* event_queue = nullptr;
@@ -104,7 +104,7 @@ virtio_input<T>::virtio_input(T& dev) : dev(dev) {
         return;
     }
 
-    this->kc = register_keyboard(*this);
+    this->kc = register_evdev_device(*this);
 }
 
 template<virtio_device T>
