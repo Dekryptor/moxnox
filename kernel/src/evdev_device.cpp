@@ -4,7 +4,7 @@ module;
 #include <atomic>
 #include <mutex>
 
-export module keyboard;
+export module evdev_device;
 
 import nt;
 import print;

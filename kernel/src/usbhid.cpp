@@ -11,7 +11,7 @@ import print;
 import format;
 import xhci;
 import usb;
-import keyboard;
+import evdev_device;
 import pipe;
 import evdev;
 import timer;

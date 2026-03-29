@@ -39,7 +39,7 @@ set(GLOBAL_MODULES src/cmdline.cpp
     src/cpio.cpp
     src/section.cpp
     src/image.cpp
-    src/keyboard.cpp
+    src/evdev_device.cpp
     src/process.cpp
     src/power.cpp
     src/smp.cpp

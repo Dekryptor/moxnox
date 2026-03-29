@@ -14,7 +14,7 @@ import mem;
 import thread;
 import handle;
 import object_ref;
-import keyboard;
+import evdev_device;
 import dma;
 import evdev;
 

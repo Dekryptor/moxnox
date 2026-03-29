@@ -13,7 +13,7 @@ import mem;
 import interrupts;
 import event;
 import acpi;
-import keyboard;
+import evdev_device;
 import timer;
 import module_init;
 import thread;
