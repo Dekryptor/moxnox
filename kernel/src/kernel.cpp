@@ -182,8 +182,8 @@ void main_thread(void* ctx) {
 
     setup_folios();
 
-    if (!init_keyboard_pipe())
-        print("init_keyboard_pipe failed\n");
+    if (!init_evdev_multiplexers())
+        print("init_evdev_multiplexers failed\n");
 
     init_acpi();
     find_acpi_devices();

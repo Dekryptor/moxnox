@@ -24,9 +24,9 @@ using namespace std;
 
 static object_ref keyboard_pipe_obj;
 
-class keyboard_pipe : public chardev {
+class evdev_multiplexer : public chardev {
 public:
-    keyboard_pipe() {
+    evdev_multiplexer() {
         exclusive = false;
     }
 
@@ -53,9 +53,9 @@ struct input_event_item {
     input_event ev;
 };
 
-class keyboard_pipe_client : public chardev {
+class evdev_multiplexer_client : public chardev {
 public:
-    keyboard_pipe_client(keyboard_pipe& p) : p(p) {
+    evdev_multiplexer_client(evdev_multiplexer& p) : p(p) {
         p.acquire();
 
         {
@@ -66,7 +66,7 @@ public:
         signalled = false;
     }
 
-    ~keyboard_pipe_client() {
+    ~evdev_multiplexer_client() {
         {
             lock_guard lock(p.client_lock);
             remove_entry_list(le);
@@ -106,7 +106,7 @@ public:
     size_t items_left = 256;
 
 private:
-    keyboard_pipe& p;
+    evdev_multiplexer& p;
 };
 
 static atomic<uint32_t> next_keyboard_id = 0;
@@ -242,8 +242,8 @@ private:
     atomic<unsigned int> refcount = 1;
 };
 
-export bool init_keyboard_pipe() {
-    auto pptr = new keyboard_pipe;
+export bool init_evdev_multiplexers() {
+    auto pptr = new evdev_multiplexer;
     if (!pptr) {
         print("new failed\n");
         return false;
@@ -262,7 +262,7 @@ export bool init_keyboard_pipe() {
 
 void evdev_context::listen_thread() {
     bool sent_key = false;
-    auto& k = static_cast<keyboard_pipe&>(keyboard_pipe_obj.get());
+    auto& k = static_cast<evdev_multiplexer&>(keyboard_pipe_obj.get());
 
     // FIXME - make sure this thread dies if device goes away
 
@@ -343,8 +343,8 @@ export evdev_context* register_evdev_device(evdev_device& p) {
     return kc;
 }
 
-nt_status keyboard_pipe::userspace_open(object_ref& objref) {
-    auto c = new keyboard_pipe_client(*this);
+nt_status evdev_multiplexer::userspace_open(object_ref& objref) {
+    auto c = new evdev_multiplexer_client(*this);
     if (!c) {
         print("new failed\n");
         return nt_status::INSUFFICIENT_RESOURCES;
@@ -357,7 +357,7 @@ nt_status keyboard_pipe::userspace_open(object_ref& objref) {
     return nt_status::SUCCESS;
 }
 
-nt_status keyboard_pipe_client::read(span<uint8_t> s, uint64_t& read_bytes) {
+nt_status evdev_multiplexer_client::read(span<uint8_t> s, uint64_t& read_bytes) {
     if (s.size() < sizeof(input_event_with_id))
         return nt_status::BUFFER_TOO_SMALL;
 
@@ -409,7 +409,7 @@ nt_status keyboard_pipe_client::read(span<uint8_t> s, uint64_t& read_bytes) {
     }
 }
 
-void keyboard_pipe::post_event(const input_event& ev, uint32_t id) {
+void evdev_multiplexer::post_event(const input_event& ev, uint32_t id) {
     lock_guard lg(post_event_mutex);
 
     {
@@ -420,14 +420,14 @@ void keyboard_pipe::post_event(const input_event& ev, uint32_t id) {
     }
 
     while (true) {
-        keyboard_pipe_client* c = nullptr;
+        evdev_multiplexer_client* c = nullptr;
         bool done = false;
 
         {
             lock_guard lock(client_lock);
 
             for (auto le = clients.next; le != &clients; le = le->next) {
-                auto& c2 = containing_record<keyboard_pipe_client>(le);
+                auto& c2 = containing_record<evdev_multiplexer_client>(le);
 
                 if (c2.visited) {
                     done = true;
@@ -454,14 +454,14 @@ void keyboard_pipe::post_event(const input_event& ev, uint32_t id) {
         lock_guard lock(client_lock);
 
         for (auto le = clients.next; le != &clients; le = le->next) {
-            auto& c = containing_record<keyboard_pipe_client>(le);
+            auto& c = containing_record<evdev_multiplexer_client>(le);
 
             c.visited = false;
         }
     }
 }
 
-void keyboard_pipe_client::post_event(const input_event& ev, uint32_t id) {
+void evdev_multiplexer_client::post_event(const input_event& ev, uint32_t id) {
     // FIXME - drop oldest event if over limit
 
     auto it = new input_event_with_id_item;
@@ -504,7 +504,7 @@ void keyboard_pipe_client::post_event(const input_event& ev, uint32_t id) {
     }
 }
 
-nt_status keyboard_pipe::write(span<const uint8_t> s, uint64_t& written_bytes) {
+nt_status evdev_multiplexer::write(span<const uint8_t> s, uint64_t& written_bytes) {
     if (s.size() < sizeof(input_event_with_id))
         return nt_status::INVALID_PARAMETER;
 
