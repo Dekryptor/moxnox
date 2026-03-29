@@ -92,7 +92,7 @@ static object_ref keyboard_evdev_obj;
 
 static const unsigned int MODIFIER_EXTD = 4;
 
-static spinlock keyboard_lock;
+static spinlock ps2_lock;
 static uint8_t* keyboard_buffer;
 static unsigned int keyboard_buffer_write_pos = 0;
 static unsigned int keyboard_buffer_read_pos = 0;
@@ -222,7 +222,7 @@ static void keyboard_event_recv() {
     do {
         wait_for_object(keyboard_event_obj->get(), false);
 
-        lock_guard lock(keyboard_lock);
+        lock_guard lock(ps2_lock);
 
         while (keyboard_buffer_read_pos != keyboard_buffer_write_pos) {
             auto sc = keyboard_buffer[keyboard_buffer_read_pos];
@@ -311,7 +311,7 @@ nt_status ps2_keyboard::write(span<const uint8_t> s, uint64_t& written_bytes) {
         lock_guard lock(leds_rwsem);
 
         {
-            lock_guard lock2(keyboard_lock);
+            lock_guard lock2(ps2_lock);
 
             while (inb(keyboard_port2) & I8042_STR_IBF) { }
 
@@ -321,7 +321,7 @@ nt_status ps2_keyboard::write(span<const uint8_t> s, uint64_t& written_bytes) {
         wait_for_object(keyboard_ack_event_obj->get(), false);
 
         {
-            lock_guard lock2(keyboard_lock);
+            lock_guard lock2(ps2_lock);
 
             while (inb(keyboard_port2) & I8042_STR_IBF) { }
 
@@ -434,7 +434,7 @@ static void init_keyboard(uint16_t port1, uint16_t port2, uint32_t irq) {
     }
 
     {
-        lock_guard lock(keyboard_lock);
+        lock_guard lock(ps2_lock);
 
         while (inb(port2) & I8042_STR_OBF) {
             inb(port1);
@@ -464,7 +464,7 @@ static void init_keyboard(uint16_t port1, uint16_t port2, uint32_t irq) {
 
 static bool keyboard_isr_func(void*) {
     {
-        lock_guard lock(keyboard_lock);
+        lock_guard lock(ps2_lock);
 
         if (!(inb(keyboard_port2) & I8042_STR_OBF)) // not for us
             return false;
