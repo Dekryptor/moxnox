@@ -2584,23 +2584,40 @@ void usb_hid_device::recv_thread() {
         if (relative_x.has_value() || relative_y.has_value() ||
             relative_wheel.has_value() || absolute_x.has_value() ||
             absolute_y.has_value() || absolute_wheel.has_value()) {
+            bool done = false;
 
-            if (relative_x.has_value())
-                post_evdev(evdev_type::EV_REL, evdev_code::REL_X, *relative_x, false);
-            else if (absolute_x.has_value())
+            if (relative_x.has_value()) {
+                if (*relative_x != 0) {
+                    post_evdev(evdev_type::EV_REL, evdev_code::REL_X, *relative_x, false);
+                    done = true;
+                }
+            } else if (absolute_x.has_value()) {
                 post_evdev(evdev_type::EV_ABS, evdev_code::ABS_X, *absolute_x, false);
+                done = true;
+            }
 
-            if (relative_y.has_value())
-                post_evdev(evdev_type::EV_REL, evdev_code::REL_Y, *relative_y, false);
-            else if (absolute_y.has_value())
+            if (relative_y.has_value()) {
+                if (*relative_y != 0) {
+                    post_evdev(evdev_type::EV_REL, evdev_code::REL_Y, *relative_y, false);
+                    done = true;
+                }
+            } else if (absolute_y.has_value()) {
                 post_evdev(evdev_type::EV_ABS, evdev_code::ABS_Y, *absolute_y, false);
+                done = true;
+            }
 
-            if (relative_wheel.has_value())
-                post_evdev(evdev_type::EV_REL, evdev_code::REL_WHEEL, *relative_wheel, false);
-            else if (absolute_wheel.has_value())
+            if (relative_wheel.has_value()) {
+                if (*relative_wheel != 0) {
+                    post_evdev(evdev_type::EV_REL, evdev_code::REL_WHEEL, *relative_wheel, false);
+                    done = true;
+                }
+            } else if (absolute_wheel.has_value()) {
                 post_evdev(evdev_type::EV_ABS, evdev_code::ABS_WHEEL, *absolute_wheel, false);
+                done = true;
+            }
 
-            post_evdev(evdev_type::EV_SYN, evdev_code::SYN_REPORT, 0, false);
+            if (done)
+                post_evdev(evdev_type::EV_SYN, evdev_code::SYN_REPORT, 0, false);
         }
     }
 
