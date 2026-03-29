@@ -64,6 +64,8 @@ public:
         delete &dev;
     }
 
+    nt_status write(span<const uint8_t> s, uint64_t& written_bytes) override;
+
     void recv_thread();
 
     T& dev;
@@ -170,6 +172,29 @@ void virtio_input<T>::recv_thread() {
         if (bounce[i])
             free(bounce[i]);
     }
+}
+
+template<virtio_device T>
+nt_status virtio_input<T>::write(span<const uint8_t> s, uint64_t& written_bytes) {
+    if (s.size() < sizeof(input_event))
+        return nt_status::INVALID_PARAMETER;
+
+    auto& ev = *(input_event*)s.data();
+
+    virtio_input_event vie;
+
+    vie.type = ev.type;
+    vie.code = ev.code;
+    vie.value = ev.value;
+
+    auto status = status_queue->write(span((uint8_t*)&vie, sizeof(vie)));
+
+    if (!success(status))
+        return status;
+
+    written_bytes = sizeof(input_event);
+
+    return nt_status::SUCCESS;
 }
 
 static void found_virtio_pci_input(pci_device& dev) {
