@@ -640,6 +640,12 @@ nt_status evdev_device::userspace_open(object_ref& objref) {
 }
 
 void evdev_device::post_event(const input_event& ev) {
+    input_event syn;
+
+    syn.type = evdev_type::EV_SYN;
+    syn.code = evdev_code::SYN_REPORT;
+    syn.value = 0;
+
     lock_guard lg(post_event_mutex);
 
     {
@@ -677,6 +683,7 @@ void evdev_device::post_event(const input_event& ev) {
             break;
 
         c->post_event(ev);
+        c->post_event(syn);
         c->release();
     }
 

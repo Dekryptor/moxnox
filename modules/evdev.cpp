@@ -635,6 +635,11 @@ export enum class evdev_code : uint16_t {
     BTN_TRIGGER_HAPPY39 = 0x2e6,
     BTN_TRIGGER_HAPPY40 = 0x2e7,
     KEY_MAX = 0x2ff,
+    SYN_REPORT = 0x0,
+    SYN_CONFIG = 0x1,
+    SYN_MT_REPORT = 0x2,
+    SYN_DROPPED = 0x3,
+    SYN_MAX = 0xf
 };
 
 export enum class evdev_led : uint16_t {
