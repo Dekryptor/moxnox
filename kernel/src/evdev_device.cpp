@@ -318,6 +318,9 @@ void evdev_context::listen_thread() {
                 k.post_event(ev, this->id);
                 sent_key = true;
             }
+        } else if (ev.type == evdev_type::EV_REL || ev.type == evdev_type::EV_ABS) {
+            m.post_event(ev, this->id);
+            sent_mouse = true;
         } else if (is_syn) {
             if (sent_mouse) {
                 m.post_event(ev, this->id);
