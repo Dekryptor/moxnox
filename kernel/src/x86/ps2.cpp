@@ -255,26 +255,34 @@ nt_status ps2_keyboard::write(span<const uint8_t> s, uint64_t& written_bytes) {
     {
         lock_guard lock(leds_rwsem);
 
-        while (inb(keyboard_port2) & 2) { }
+        {
+            lock_guard lock2(keyboard_lock);
 
-        outb(keyboard_port1, 0xed);
+            while (inb(keyboard_port2) & 2) { }
+
+            outb(keyboard_port1, 0xed);
+        }
 
         wait_for_object(keyboard_ack_event_obj->get(), false);
 
-        while (inb(keyboard_port2) & 2) { }
+        {
+            lock_guard lock2(keyboard_lock);
 
-        uint8_t state = 0;
+            while (inb(keyboard_port2) & 2) { }
 
-        if (scroll_lock)
-            state |= 1 << 0;
+            uint8_t state = 0;
 
-        if (num_lock)
-            state |= 1 << 1;
+            if (scroll_lock)
+                state |= 1 << 0;
 
-        if (caps_lock)
-            state |= 1 << 2;
+            if (num_lock)
+                state |= 1 << 1;
 
-        outb(keyboard_port1, state);
+            if (caps_lock)
+                state |= 1 << 2;
+
+            outb(keyboard_port1, state);
+        }
 
         wait_for_object(keyboard_ack_event_obj->get(), false);
     }
@@ -370,13 +378,13 @@ static void init_keyboard(uint16_t port1, uint16_t port2, uint32_t irq) {
         return;
     }
 
-    disable_interrupts();
+    {
+        lock_guard lock(keyboard_lock);
 
-    while (inb(port2) & 1) {
-        inb(port1);
+        while (inb(port2) & 1) {
+            inb(port1);
+        }
     }
-
-    enable_interrupts();
 
     repeat_timer = create_timer(true);
     if (!repeat_timer) {
@@ -400,13 +408,13 @@ static void init_keyboard(uint16_t port1, uint16_t port2, uint32_t irq) {
 }
 
 static bool keyboard_isr_func(void*) {
-    if (!(inb(keyboard_port2) & 0x1)) // not for us
-        return false;
-
-    auto code = inb(keyboard_port1);
-
     {
         lock_guard lock(keyboard_lock);
+
+        if (!(inb(keyboard_port2) & 0x1)) // not for us
+            return false;
+
+        auto code = inb(keyboard_port1);
 
         if (code == 0xfa) {
             set_event(keyboard_ack_event_obj->get());
