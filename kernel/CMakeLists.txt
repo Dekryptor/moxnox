@@ -119,7 +119,7 @@ set(SRC_FILES src/kernel.cpp
 )
 
 set(AMD64_SRC_FILES ${SRC_FILES}
-    src/x86/ps2keyboard.cpp
+    src/x86/ps2.cpp
 )
 
 if(CMAKE_SYSTEM_PROCESSOR STREQUAL aarch64)
