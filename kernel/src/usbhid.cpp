@@ -1775,6 +1775,7 @@ bool usb_hid_device::parse_report_descriptor(span<const uint8_t> r) {
     return true;
 }
 
+#if 0
 static void print_field(const usb_hid_field& f) {
     print("is_variable {}, is_relative {}, ", f.is_variable ? "true" : "false",
           f.is_relative ? "true" : "false");
@@ -1793,6 +1794,7 @@ static void print_field(const usb_hid_field& f) {
           f.count, f.size, f.usage_page, f.logical_min, f.logical_max,
           f.bit_offset);
 }
+#endif
 
 usb_hid_device::usb_hid_device(usb_device& d, const usb_device_config& config,
                                xhci_queue& queue, uint16_t packet_size,
@@ -1812,18 +1814,21 @@ usb_hid_device::usb_hid_device(usb_device& d, const usb_device_config& config,
     for (auto le = input_reports.next; le != &input_reports; le = le->next) {
         auto& r = containing_record<usb_hid_report>(le);
 
+#if 0
         print("input report {}:\n", r.id);
-
+#endif
         for (auto le2 = r.fields.next; le2 != &r.fields; le2 = le2->next) {
             auto& f = containing_record<usb_hid_field>(le2);
 
             if (f.usage_page == USAGE_PAGE_KEYBOARD || f.usage_page == USAGE_PAGE_CONSUMER)
                 is_keyboard = true;
-
+#if 0
             print_field(f);
+#endif
         }
     }
 
+#if 0
     for (auto le = output_reports.next; le != &output_reports; le = le->next) {
         auto& r = containing_record<usb_hid_report>(le);
 
@@ -1835,6 +1840,7 @@ usb_hid_device::usb_hid_device(usb_device& d, const usb_device_config& config,
             print_field(f);
         }
     }
+#endif
 
     this->packet_size = packet_size;
 
