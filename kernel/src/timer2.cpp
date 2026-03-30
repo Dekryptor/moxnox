@@ -40,6 +40,8 @@ static const uint8_t timer_ap_interrupt = 0x24;
 static uint32_t apic_timer_freq;
 static uint64_t tsc_freq;
 
+static const uint32_t PIT_HZ = 1193182;
+
 #endif
 
 static const unsigned int TIMER_PERIOD_RESOLUTION = 1000; // milliseconds
@@ -63,7 +65,7 @@ void init_lapic_timer(bool ap) {
     *timer_initial = apic_timer_freq / TICK_RATE;
 }
 
-void pit_delay(uint16_t delay) {
+static void pit_delay(uint16_t delay) {
     outb(0x43, 0x30); // initialize channel 0 of PIT
     outb(0x40, (uint8_t)(delay & 0xff)); // push lower byte of param
     outb(0x40, (uint8_t)(delay >> 8)); // push higher byte of param

@@ -52,10 +52,6 @@ export extern "C++" {
     uint64_t hardware_tick_rate;
 }
 
-#elifdef __x86_64__
-
-export const uint32_t PIT_HZ = 1193182;
-
 #endif
 
 static_assert(offsetof(timer, le) == TIMER_LE);
@@ -67,7 +63,6 @@ export extern "C" {
 
 #ifdef __x86_64__
 export void init_lapic_timer(bool ap);
-export void pit_delay(uint16_t delay);
 #endif
 
 export bool init_timer();
