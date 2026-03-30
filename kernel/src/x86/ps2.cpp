@@ -88,8 +88,7 @@ static const uint8_t MOUSE_Y_SIGN = 0x20;
 static const uint8_t MOUSE_X_OVERFLOW = 0x40;
 static const uint8_t MOUSE_Y_OVERFLOW = 0x80;
 
-static optional<reference_wrapper<event>> keyboard_event_obj, keyboard_ack_event_obj;
-static object_ref keyboard_evdev_obj;
+static object_ref keyboard_evdev_obj, keyboard_event_obj, keyboard_ack_event_obj;
 
 static const unsigned int MODIFIER_EXTD = 4;
 
@@ -238,7 +237,7 @@ static void post_key_evdev(enum evdev_code code, int32_t value) {
 
 static void keyboard_event_recv() {
     do {
-        wait_for_object(keyboard_event_obj->get(), false);
+        wait_for_object(keyboard_event_obj.get(), false);
 
         lock_guard lock(ps2_lock);
 
@@ -336,7 +335,7 @@ nt_status ps2_keyboard::write(span<const uint8_t> s, uint64_t& written_bytes) {
             outb(keyboard_port1, KBD_CMD_SET_LEDS);
         }
 
-        wait_for_object(keyboard_ack_event_obj->get(), false);
+        wait_for_object(keyboard_ack_event_obj.get(), false);
 
         {
             lock_guard lock2(ps2_lock);
@@ -357,7 +356,7 @@ nt_status ps2_keyboard::write(span<const uint8_t> s, uint64_t& written_bytes) {
             outb(keyboard_port1, state);
         }
 
-        wait_for_object(keyboard_ack_event_obj->get(), false);
+        wait_for_object(keyboard_ack_event_obj.get(), false);
     }
 
     written_bytes = sizeof(input_event);
@@ -423,23 +422,17 @@ static void init_keyboard(uint16_t port1, uint16_t port2, uint32_t irq) {
 
     keyboard_buffer = (uint8_t*)phys_address(pa);
 
-    auto keyboard_event = create_event(true);
-    if (!keyboard_event) {
+    keyboard_event_obj = create_event(true);
+    if (!keyboard_event_obj) {
         print("create_event failed\n");
         return;
     }
 
-    auto keyboard_ack_event = create_event(true);
-    if (!keyboard_ack_event) {
+    keyboard_ack_event_obj = create_event(true);
+    if (!keyboard_ack_event_obj) {
         print("create_event failed\n");
         return;
     }
-
-    keyboard_event_obj = static_cast<event&>(keyboard_event.get());
-    keyboard_event_obj->get().acquire();
-
-    keyboard_ack_event_obj = static_cast<event&>(keyboard_ack_event.get());
-    keyboard_ack_event_obj->get().acquire();
 
     if (!add_kernel_thread(keyboard_event_recv)) {
         print("add_kernel_thread failed\n");
@@ -624,7 +617,7 @@ static bool ps2_isr_func(void*) {
         mouse_received_byte(code);
     } else {
         if (code == PS2_ACK) {
-            set_event(keyboard_ack_event_obj->get());
+            set_event(static_cast<event&>(keyboard_ack_event_obj.get()));
             return true;
         }
 
@@ -636,7 +629,7 @@ static bool ps2_isr_func(void*) {
             keyboard_buffer_write_pos++;
             keyboard_buffer_write_pos &= 0xfff;
 
-            set_event(keyboard_event_obj->get());
+            set_event(static_cast<event&>(keyboard_event_obj.get()));
         }
     }
 
