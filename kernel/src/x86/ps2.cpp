@@ -114,10 +114,17 @@ static uint16_t keyboard_port1, keyboard_port2;
 static bool mouse_initialized = false, mouse_init_pending = false;
 static uint32_t mouse_irq;
 static object_ref mouse_ack_event, mouse_evdev_obj;
-static uint8_t mouse_packet[3];
+static uint8_t mouse_packet[4];
 static size_t mouse_packet_len = 0;
 static bool mouse_left = false, mouse_right = false, mouse_middle = false;
 static bool mouse_expecting_ack = false;
+
+enum class mouse_type {
+    normal,
+    imps2 // Intellimouse PS/2
+};
+
+static mouse_type mouse_type = mouse_type::normal;
 
 static bool ps2_isr_func(void*);
 
@@ -571,6 +578,19 @@ static void process_mouse_packet() {
         posted = true;
     }
 
+    if (mouse_type == mouse_type::imps2) {
+        auto wheel = (int8_t)mouse_packet[3];
+
+        if (wheel != 0) {
+            ev.type = evdev_type::EV_REL;
+            ev.code = evdev_code::REL_WHEEL;
+            ev.value = wheel;
+
+            m.post_event(ev, false);
+            posted = true;
+        }
+    }
+
     if (posted) {
         ev.type = evdev_type::EV_SYN;
         ev.code = evdev_code::SYN_REPORT;
@@ -587,9 +607,20 @@ static void mouse_received_byte(uint8_t code) {
     mouse_packet[mouse_packet_len] = code;
     mouse_packet_len++;
 
-    if (mouse_packet_len == 3) {
-        process_mouse_packet();
-        mouse_packet_len = 0;
+    switch (mouse_type) {
+        case mouse_type::normal:
+            if (mouse_packet_len == 3) {
+                process_mouse_packet();
+                mouse_packet_len = 0;
+            }
+        break;
+
+        case mouse_type::imps2:
+            if (mouse_packet_len == 4) {
+                process_mouse_packet();
+                mouse_packet_len = 0;
+            }
+        break;
     }
 }
 
@@ -634,6 +665,50 @@ static bool ps2_isr_func(void*) {
     }
 
     return true;
+}
+
+static bool set_mouse_sample_rate(uint16_t port1, uint16_t port2, uint8_t rate) {
+    lock_guard lock(ps2_lock);
+
+    while (inb(port2) & I8042_STR_IBF) { }
+    outb(port2, I8042_CMD_MOUSE_PREFIX);
+    while (inb(port2) & I8042_STR_IBF) { }
+    outb(port1, MOUSE_CMD_SET_RATE);
+
+    while (!(inb(port2) & I8042_STR_OBF)) { }
+
+    if (inb(port1) != PS2_ACK)
+        return false;
+
+    while (inb(port2) & I8042_STR_IBF) { }
+    outb(port2, I8042_CMD_MOUSE_PREFIX);
+    while (inb(port2) & I8042_STR_IBF) { }
+    outb(port1, rate);
+
+    while (!(inb(port2) & I8042_STR_OBF)) { }
+
+    if (inb(port1) != PS2_ACK)
+        return false;
+
+    return true;
+}
+
+static uint8_t get_mouse_id(uint16_t port1, uint16_t port2) {
+    lock_guard lock(ps2_lock);
+
+    while (inb(port2) & I8042_STR_IBF) { }
+    outb(port2, I8042_CMD_MOUSE_PREFIX);
+    while (inb(port2) & I8042_STR_IBF) { }
+    outb(port1, MOUSE_CMD_GET_ID);
+
+    while (!(inb(port2) & I8042_STR_OBF)) { }
+
+    if (inb(port1) != PS2_ACK)
+        return 0;
+
+    while (!(inb(port2) & I8042_STR_OBF)) { }
+
+    return inb(port1);
 }
 
 static void init_mouse(uint16_t port1, uint16_t port2, uint32_t irq) {
@@ -696,8 +771,16 @@ static void init_mouse(uint16_t port1, uint16_t port2, uint32_t irq) {
 
     if (id != 0x00)
         print("init_mouse: hardware reported ID of 0x{:02x}, expected 0x00\n", id);
+    else {
+        set_mouse_sample_rate(port1, port2, 200);
+        set_mouse_sample_rate(port1, port2, 100);
+        set_mouse_sample_rate(port1, port2, 80);
 
-    // FIXME - intellimouse
+        id = get_mouse_id(port1, port2);
+
+        if (id == 0x03)
+            mouse_type = mouse_type::imps2;
+    }
 
     {
         lock_guard lock(ps2_lock);
