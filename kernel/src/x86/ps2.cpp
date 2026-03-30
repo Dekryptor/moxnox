@@ -647,8 +647,6 @@ static void init_mouse(uint16_t port1, uint16_t port2, uint32_t irq) {
     if (mouse_initialized) // can only be one PS/2 mouse(?)
         return;
 
-    print("FIXME - init_mouse ({:x}, {:x}, {})\n", port1, port2, irq);
-
     mouse_ack_event = create_event(true);
     if (!mouse_ack_event) {
         print("create_event failed\n");
