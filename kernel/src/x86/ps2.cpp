@@ -118,6 +118,7 @@ static object_ref mouse_ack_event;
 static uint8_t mouse_packet[3];
 static size_t mouse_packet_len = 0;
 static bool mouse_left = false, mouse_right = false, mouse_middle = false;
+static bool mouse_expecting_ack = false;
 
 static bool ps2_isr_func(void*);
 
@@ -546,8 +547,9 @@ static bool ps2_isr_func(void*) {
     }
 
     if (status & I8042_STR_AUXDATA) {
-        if (mouse_packet_len == 0 && code == PS2_ACK) {
+        if (mouse_expecting_ack && code == PS2_ACK) {
             set_event(static_cast<event&>(mouse_ack_event.get()));
+            mouse_expecting_ack = false;
             return true;
         }
 
@@ -641,6 +643,7 @@ static void init_mouse(uint16_t port1, uint16_t port2, uint32_t irq) {
     {
         lock_guard lock(ps2_lock);
 
+        mouse_expecting_ack = true;
         reset_event(static_cast<event&>(mouse_ack_event.get()));
 
         while (inb(port2) & I8042_STR_OBF) {
