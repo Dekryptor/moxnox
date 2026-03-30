@@ -71,7 +71,6 @@ set(AMD64_MODULES ${GLOBAL_MODULES}
 )
 
 set(AARCH64_MODULES ${GLOBAL_MODULES}
-    src/aarch64/pl011.cpp
     src/aarch64/psci.cpp
 )
 
@@ -122,13 +121,17 @@ set(AMD64_SRC_FILES ${SRC_FILES}
     src/x86/serial.cpp
 )
 
+set(AARCH64_SRC_FILES ${SRC_FILES}
+    src/aarch64/pl011.cpp
+)
+
 if(CMAKE_SYSTEM_PROCESSOR STREQUAL aarch64)
     set(SRC_ASM_FILES src/aarch64/ints.S
         src/aarch64/timer.S
         src/aarch64/smp.S
         ${CMAKE_CURRENT_BINARY_DIR}/font.S)
 
-    add_executable(kernel ${SRC_FILES} ${SRC_ASM_FILES})
+    add_executable(kernel ${AARCH64_SRC_FILES} ${SRC_ASM_FILES})
     target_sources(kernel PUBLIC FILE_SET CXX_MODULES FILES ${AARCH64_MODULES})
     target_link_libraries(kernel format dwarf list unicode rbtree vt100 cp437 evdev nt ntdll_mod loaderblock aarch64 crt pagesize timepage moxnox_ioctls ws2_32_mod ipv6 pe)
 elseif(CMAKE_SYSTEM_PROCESSOR STREQUAL "amd64")

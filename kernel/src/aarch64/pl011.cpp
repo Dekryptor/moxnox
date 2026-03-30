@@ -1,5 +1,3 @@
-module;
-
 #include <stdint.h>
 #include <utility>
 #include <optional>
@@ -8,8 +6,6 @@ module;
 #include <atomic>
 #include <charconv>
 #include <mutex>
-
-export module pl011;
 
 import nt;
 import module_init;
