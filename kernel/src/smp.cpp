@@ -97,7 +97,7 @@ static void start_ap(uint8_t i) {
         __asm __volatile ("pause");
     } while (*icr1 & 0x1000);
 
-    pit_delay(PIT_HZ / 100); // wait 10ms
+    udelay(10000); // wait 10ms
 
     // send STARTUP IP twice
 
@@ -105,7 +105,7 @@ static void start_ap(uint8_t i) {
         *error_status = 0;
         *icr2 = (*icr2 & 0x00ffffff) | (uint32_t)(i << 24);
         *icr1 = (*icr1 & 0xfff0f800) | 0x000600; // start at 0000:00000000
-        pit_delay(PIT_HZ / 5000); // wait 200us
+        udelay(200); // wait 200us
 
         do {
             __asm __volatile ("pause");
