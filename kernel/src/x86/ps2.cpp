@@ -497,7 +497,7 @@ static void process_mouse_packet() {
     if (rel_y != 0 && mouse_packet[0] & MOUSE_Y_SIGN)
         rel_y |= (int16_t)0xff00;
 
-    rel_y = -rel_y; // opposite direction to USB
+    rel_y = (int16_t)-rel_y; // opposite direction to USB
 
     auto& m = static_cast<ps2_mouse&>(mouse_evdev_obj.get());
     bool posted = false;
