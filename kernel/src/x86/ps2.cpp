@@ -82,6 +82,7 @@ static const uint8_t MOUSE_ID_IMEX = 0x04;
 static const uint8_t MOUSE_BTN_LEFT = 0x01;
 static const uint8_t MOUSE_BTN_RIGHT = 0x02;
 static const uint8_t MOUSE_BTN_MIDDLE = 0x04;
+static const uint8_t MOUSE_SYNC_BIT = 0x08;
 static const uint8_t MOUSE_X_SIGN = 0x10;
 static const uint8_t MOUSE_Y_SIGN = 0x20;
 static const uint8_t MOUSE_X_OVERFLOW = 0x40;
@@ -116,6 +117,7 @@ static uint32_t mouse_irq;
 static object_ref mouse_ack_event;
 static uint8_t mouse_packet[3];
 static size_t mouse_packet_len = 0;
+static bool mouse_left = false, mouse_right = false, mouse_middle = false;
 
 static bool ps2_isr_func(void*);
 
@@ -467,14 +469,57 @@ static void init_keyboard(uint16_t port1, uint16_t port2, uint32_t irq) {
 }
 
 static void process_mouse_packet() {
-    print("FIXME - process_mouse_packet {:02x} {:02x} {:02x}\n",
-          mouse_packet[0], mouse_packet[1], mouse_packet[2]);
+    if (mouse_packet[0] & (MOUSE_X_OVERFLOW | MOUSE_Y_OVERFLOW))
+        return;
 
-    // FIXME
+    int16_t rel_x = mouse_packet[1];
+    if (rel_x != 0 && mouse_packet[0] & MOUSE_X_SIGN)
+        rel_x |= (int16_t)0xff00;
+
+    int16_t rel_y = mouse_packet[2];
+    if (rel_y != 0 && mouse_packet[0] & MOUSE_Y_SIGN)
+        rel_y |= (int16_t)0xff00;
+
+    rel_y = -rel_y; // opposite direction to USB
+
+    if (rel_x != 0 || rel_y != 0) {
+        print("rel_x = {}, rel_y = {}\n", rel_x, rel_y);
+        // FIXME - send evdev message
+    }
+
+    if (mouse_left && !(mouse_packet[0] & MOUSE_BTN_LEFT)) {
+        print("mouse left up\n");
+        mouse_left = false;
+        // FIXME - send evdev message
+    } else if (!mouse_left && mouse_packet[0] & MOUSE_BTN_LEFT) {
+        print("mouse left down\n");
+        mouse_left = true;
+        // FIXME - send evdev message
+    }
+
+    if (mouse_right && !(mouse_packet[0] & MOUSE_BTN_RIGHT)) {
+        print("mouse right up\n");
+        mouse_right = false;
+        // FIXME - send evdev message
+    } else if (!mouse_right && mouse_packet[0] & MOUSE_BTN_RIGHT) {
+        print("mouse right down\n");
+        mouse_right = true;
+        // FIXME - send evdev message
+    }
+
+    if (mouse_middle && !(mouse_packet[0] & MOUSE_BTN_MIDDLE)) {
+        print("mouse middle up\n");
+        mouse_middle = false;
+        // FIXME - send evdev message
+    } else if (!mouse_middle && mouse_packet[0] & MOUSE_BTN_MIDDLE) {
+        print("mouse middle down\n");
+        mouse_middle = true;
+        // FIXME - send evdev message
+    }
 }
 
 static void mouse_received_byte(uint8_t code) {
-    if (mouse_packet_len == 0 && !(code & 0x08))
+    if (mouse_packet_len == 0 && !(code & MOUSE_SYNC_BIT))
         return; // out of sync
 
     mouse_packet[mouse_packet_len] = code;
@@ -501,7 +546,7 @@ static bool ps2_isr_func(void*) {
     }
 
     if (status & I8042_STR_AUXDATA) {
-        if (code == PS2_ACK) {
+        if (mouse_packet_len == 0 && code == PS2_ACK) {
             set_event(static_cast<event&>(mouse_ack_event.get()));
             return true;
         }
