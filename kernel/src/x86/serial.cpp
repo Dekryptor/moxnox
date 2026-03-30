@@ -1,13 +1,9 @@
-module;
-
 #include <span>
 #include <optional>
 #include <string_view>
 #include <charconv>
 #include <atomic>
 #include <mutex>
-
-export module serial;
 
 import nt;
 import print;
@@ -169,7 +165,7 @@ static optional<unsigned int> parse_uid(string_view uid) {
     return val;
 }
 
-export bool init_serial(uint16_t port, uint32_t irq, string_view uid) {
+static bool init_serial(uint16_t port, uint32_t irq, string_view uid) {
     if (!init_serial_port(port))
         return false;
 

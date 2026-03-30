@@ -67,7 +67,6 @@ set(GLOBAL_MODULES src/cmdline.cpp
 
 set(AMD64_MODULES ${GLOBAL_MODULES}
     src/x86/inout.cpp
-    src/x86/serial.cpp
     src/x86/apic.cpp
 )
 
@@ -120,6 +119,7 @@ set(SRC_FILES src/kernel.cpp
 set(AMD64_SRC_FILES ${SRC_FILES}
     src/x86/ps2.cpp
     src/x86/rtc.cpp
+    src/x86/serial.cpp
 )
 
 if(CMAKE_SYSTEM_PROCESSOR STREQUAL aarch64)

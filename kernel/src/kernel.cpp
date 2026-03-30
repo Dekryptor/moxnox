@@ -8,8 +8,6 @@
 
 #ifdef __aarch64__
 import psci;
-#elifdef __x86_64__
-import serial;
 #endif
 
 import nt;
@@ -218,12 +216,6 @@ void main_thread(void* ctx) {
 
     if (GetTime)
         get_time_from_efi();
-
-#ifdef __x86_64__
-    // if no ACPI, look for serial port at its traditional address
-    if (rsdp_pa == 0)
-        init_serial(0x3f8, 4, "");
-#endif
 
     print("found {} of memory\n", byte_size(num_ram_pages << PAGE_SHIFT));
 
