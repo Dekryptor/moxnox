@@ -88,6 +88,9 @@ static const uint8_t MOUSE_Y_SIGN = 0x20;
 static const uint8_t MOUSE_X_OVERFLOW = 0x40;
 static const uint8_t MOUSE_Y_OVERFLOW = 0x80;
 
+static const uint8_t MOUSE_IMEX_BTN_SIDE = 0x10;
+static const uint8_t MOUSE_IMEX_BTN_EXTRA = 0x20;
+
 static object_ref keyboard_evdev_obj, keyboard_event_obj, keyboard_ack_event_obj;
 
 static const unsigned int MODIFIER_EXTD = 4;
@@ -117,11 +120,13 @@ static object_ref mouse_ack_event, mouse_evdev_obj;
 static uint8_t mouse_packet[4];
 static size_t mouse_packet_len = 0;
 static bool mouse_left = false, mouse_right = false, mouse_middle = false;
+static bool mouse_side = false, mouse_extra = false;
 static bool mouse_expecting_ack = false;
 
 enum class mouse_type {
     normal,
-    imps2 // Intellimouse PS/2
+    imps2, // Intellimouse PS/2
+    imex // Intellimouse Explorer
 };
 
 static mouse_type mouse_type = mouse_type::normal;
@@ -578,16 +583,81 @@ static void process_mouse_packet() {
         posted = true;
     }
 
-    if (mouse_type == mouse_type::imps2) {
-        auto wheel = (int8_t)mouse_packet[3];
+    switch (mouse_type) {
+        case mouse_type::normal:
+            break;
 
-        if (wheel != 0) {
-            ev.type = evdev_type::EV_REL;
-            ev.code = evdev_code::REL_WHEEL;
-            ev.value = wheel;
+        case mouse_type::imps2: {
+            auto wheel = (int8_t)mouse_packet[3];
 
-            m.post_event(ev, false);
-            posted = true;
+            if (wheel != 0) {
+                ev.type = evdev_type::EV_REL;
+                ev.code = evdev_code::REL_WHEEL;
+                ev.value = wheel;
+
+                m.post_event(ev, false);
+                posted = true;
+            }
+
+            break;
+        }
+
+        case mouse_type::imex: {
+            auto wheel = (int8_t)(mouse_packet[3] & 0xf);
+
+            if (wheel & 0x8)
+                wheel |= (int8_t)0xf0;
+
+            if (wheel != 0) {
+                ev.type = evdev_type::EV_REL;
+                ev.code = evdev_code::REL_WHEEL;
+                ev.value = wheel;
+
+                m.post_event(ev, false);
+                posted = true;
+            }
+
+            if (mouse_side && !(mouse_packet[3] & MOUSE_IMEX_BTN_SIDE)) {
+                mouse_side = false;
+
+                ev.type = evdev_type::EV_KEY;
+                ev.code = evdev_code::BTN_SIDE;
+                ev.value = 0;
+
+                m.post_event(ev, false);
+                posted = true;
+            } else if (!mouse_side && mouse_packet[3] & MOUSE_IMEX_BTN_SIDE) {
+                mouse_side = true;
+
+                ev.type = evdev_type::EV_KEY;
+                ev.code = evdev_code::BTN_SIDE;
+                ev.value = 1;
+
+                m.post_event(ev, false);
+                posted = true;
+            }
+
+            if (mouse_extra && !(mouse_packet[3] & MOUSE_IMEX_BTN_EXTRA)) {
+                mouse_extra = false;
+
+                ev.type = evdev_type::EV_KEY;
+                ev.code = evdev_code::BTN_EXTRA;
+                ev.value = 0;
+
+                m.post_event(ev, false);
+                posted = true;
+            } else if (!mouse_extra && mouse_packet[3] & MOUSE_IMEX_BTN_EXTRA) {
+                mouse_extra = true;
+
+                ev.type = evdev_type::EV_KEY;
+                ev.code = evdev_code::BTN_EXTRA;
+                ev.value = 1;
+
+                m.post_event(ev, false);
+                posted = true;
+            }
+
+            break;
         }
     }
 
@@ -616,6 +686,7 @@ static void mouse_received_byte(uint8_t code) {
         break;
 
         case mouse_type::imps2:
+        case mouse_type::imex:
             if (mouse_packet_len == 4) {
                 process_mouse_packet();
                 mouse_packet_len = 0;
@@ -778,8 +849,18 @@ static void init_mouse(uint16_t port1, uint16_t port2, uint32_t irq) {
 
         id = get_mouse_id(port1, port2);
 
-        if (id == 0x03)
+        if (id == 0x03) {
             mouse_type = mouse_type::imps2;
+
+            set_mouse_sample_rate(port1, port2, 200);
+            set_mouse_sample_rate(port1, port2, 200);
+            set_mouse_sample_rate(port1, port2, 80);
+
+            id = get_mouse_id(port1, port2);
+
+            if (id == 0x04)
+                mouse_type = mouse_type::imex;
+        }
     }
 
     {
