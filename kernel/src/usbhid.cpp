@@ -2129,8 +2129,6 @@ static bool should_key_repeat(enum evdev_code code) {
         case evdev_code::KEY_DICTATE:
         case evdev_code::KEY_EMOJI_PICKER:
         case evdev_code::KEY_BASSBOOST:
-        case evdev_code::KEY_VOLUMEUP:
-        case evdev_code::KEY_VOLUMEDOWN:
         case evdev_code::KEY_BUTTONCONFIG:
         case evdev_code::KEY_BOOKMARKS:
         case evdev_code::KEY_WORDPROCESSOR:
