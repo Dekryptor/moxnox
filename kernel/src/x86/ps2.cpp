@@ -598,6 +598,10 @@ static void init_mouse(uint16_t port1, uint16_t port2, uint32_t irq) {
 
         reset_event(static_cast<event&>(mouse_ack_event.get()));
 
+        while (inb(port2) & I8042_STR_OBF) {
+            inb(port1);
+        }
+
         while (inb(port2) & I8042_STR_IBF) { }
         outb(port2, I8042_CMD_MOUSE_PREFIX);
         while (inb(port2) & I8042_STR_IBF) { }
