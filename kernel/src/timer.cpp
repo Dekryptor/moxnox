@@ -8,6 +8,10 @@ module;
 #include "context_offsets.h"
 #include "timer-asm.h"
 
+#ifdef __x86_64__
+#include <x86intrin.h>
+#endif
+
 export module timer;
 
 import nt;
@@ -85,6 +89,8 @@ static const uint8_t timer_ap_interrupt = 0x24;
 volatile uint64_t timer_count;
 
 uint32_t apic_timer_freq;
+
+static uint64_t tsc_freq;
 
 export const uint32_t PIT_HZ = 1193182;
 
@@ -223,6 +229,18 @@ export bool init_timer() {
     add_idt_entry(timer_ap_interrupt, (void*)timer_isr_ap, false, 1, false);
 
     init_lapic_timer(false);
+
+    // measure RDTSC frequency
+
+    uint32_t aux;
+
+    auto r1 = __rdtscp(&aux);
+    pit_delay(PIT_HZ / 100); // spin for 10ms
+    auto r2 = __rdtscp(&aux);
+
+    tsc_freq = (r2 - r1) * 100;
+
+    // FIXME - cpuid 0x15 actually tells you the frequency (if it's supported)
 
     return true;
 }
