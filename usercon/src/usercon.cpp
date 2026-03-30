@@ -1201,22 +1201,27 @@ static void print_chars2(console_fb& con, font_info& font,
             break;
 
         auto trunc = curlen + info[hb_len_done].cluster;
+        char32_t* t = nullptr;
+        text_attribute* a = nullptr;
+        size_t left = curline->len - trunc;
 
-        auto t = (char32_t*)malloc((curline->len - trunc) * sizeof(char32_t));
-        if (!t) {
-            print("malloc failed\n");
-            return;
+        if (left > 0) {
+            t = (char32_t*)malloc(left * sizeof(char32_t));
+            if (!t) {
+                print("malloc failed\n");
+                return;
+            }
+
+            a = (text_attribute*)malloc(left * sizeof(text_attribute));
+            if (!a) {
+                print("malloc failed\n");
+                free(t);
+                return;
+            }
+
+            memcpy(t, curline->text + trunc, left * sizeof(char32_t));
+            memcpy(a, curline->atts + trunc, left * sizeof(text_attribute));
         }
-
-        auto a = (text_attribute*)malloc((curline->len - trunc) * sizeof(text_attribute));
-        if (!a) {
-            print("malloc failed\n");
-            free(t);
-            return;
-        }
-
-        memcpy(t, curline->text + trunc, (curline->len - trunc) * sizeof(char32_t));
-        memcpy(a, curline->atts + trunc, (curline->len - trunc) * sizeof(text_attribute));
 
         auto oldline = curline;
 
@@ -1464,32 +1469,37 @@ void console_fb::erase_in_line(unsigned int param) {
 
         case 1: { // clear from beginning of line to cursor
             auto newlen = cursor_x + (curline->len - text_pos);
-            auto t = (char32_t*)malloc(newlen * sizeof(char32_t));
-            if (!t) {
-                print("malloc failed\n");
-                return;
-            }
+            char32_t* t = nullptr;
+            text_attribute* a = nullptr;
 
-            auto a = (text_attribute*)malloc(newlen * sizeof(text_attribute));
-            if (!a) {
-                print("malloc failed\n");
-                free(t);
-                return;
-            }
+            if (newlen > 0) {
+                t = (char32_t*)malloc(newlen * sizeof(char32_t));
+                if (!t) {
+                    print("malloc failed\n");
+                    return;
+                }
 
-            for (unsigned int i = 0; i <= cursor_x; i++) {
-                t[i] = U' ';
+                a = (text_attribute*)malloc(newlen * sizeof(text_attribute));
+                if (!a) {
+                    print("malloc failed\n");
+                    free(t);
+                    return;
+                }
 
-                a[i].font = curline->atts[i].font;
-                a[i].fg_colour = curline->atts[i].fg_colour;
-                a[i].bg_colour = curline->atts[i].bg_colour;
-            }
+                for (unsigned int i = 0; i <= cursor_x; i++) {
+                    t[i] = U' ';
 
-            if (text_pos < curline->len) {
-                memcpy(&t[cursor_x + 1], &curline->text[text_pos + 1],
-                       (curline->len - text_pos - 1) * sizeof(char32_t));
-                memcpy(&a[cursor_x + 1], &curline->atts[text_pos + 1],
-                       (curline->len - text_pos - 1) * sizeof(text_attribute));
+                    a[i].font = curline->atts[i].font;
+                    a[i].fg_colour = curline->atts[i].fg_colour;
+                    a[i].bg_colour = curline->atts[i].bg_colour;
+                }
+
+                if (text_pos < curline->len) {
+                    memcpy(&t[cursor_x + 1], &curline->text[text_pos + 1],
+                           (curline->len - text_pos - 1) * sizeof(char32_t));
+                    memcpy(&a[cursor_x + 1], &curline->atts[text_pos + 1],
+                           (curline->len - text_pos - 1) * sizeof(text_attribute));
+                }
             }
 
             if (curline->text)
