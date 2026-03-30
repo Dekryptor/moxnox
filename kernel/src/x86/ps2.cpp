@@ -740,11 +740,11 @@ static bool ps2_isr_func(void*) {
 
 static bool wait_for_output(uint16_t port2, optional<unsigned int> timeout = nullopt) {
     if (timeout.has_value()) {
-        for (unsigned int i = 0; i < *timeout; i++) {
+        for (unsigned int i = 0; i < *timeout * 20; i++) {
             if (inb(port2) & I8042_STR_OBF)
                 return true;
 
-            msleep(1);
+            udelay(50);
         }
 
         return false;
