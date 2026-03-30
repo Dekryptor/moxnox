@@ -738,6 +738,23 @@ static bool ps2_isr_func(void*) {
     return true;
 }
 
+static bool wait_for_output(uint16_t port2, optional<unsigned int> timeout = nullopt) {
+    if (timeout.has_value()) {
+        for (unsigned int i = 0; i < *timeout; i++) {
+            if (inb(port2) & I8042_STR_OBF)
+                return true;
+
+            msleep(1);
+        }
+
+        return false;
+    } else {
+        while (!(inb(port2) & I8042_STR_OBF)) { }
+
+        return true;
+    }
+}
+
 static bool set_mouse_sample_rate(uint16_t port1, uint16_t port2, uint8_t rate) {
     lock_guard lock(ps2_lock);
 
@@ -746,7 +763,7 @@ static bool set_mouse_sample_rate(uint16_t port1, uint16_t port2, uint8_t rate) 
     while (inb(port2) & I8042_STR_IBF) { }
     outb(port1, MOUSE_CMD_SET_RATE);
 
-    while (!(inb(port2) & I8042_STR_OBF)) { }
+    wait_for_output(port2);
 
     if (inb(port1) != PS2_ACK)
         return false;
@@ -756,7 +773,7 @@ static bool set_mouse_sample_rate(uint16_t port1, uint16_t port2, uint8_t rate) 
     while (inb(port2) & I8042_STR_IBF) { }
     outb(port1, rate);
 
-    while (!(inb(port2) & I8042_STR_OBF)) { }
+    wait_for_output(port2);
 
     if (inb(port1) != PS2_ACK)
         return false;
@@ -772,12 +789,12 @@ static uint8_t get_mouse_id(uint16_t port1, uint16_t port2) {
     while (inb(port2) & I8042_STR_IBF) { }
     outb(port1, MOUSE_CMD_GET_ID);
 
-    while (!(inb(port2) & I8042_STR_OBF)) { }
+    wait_for_output(port2);
 
     if (inb(port1) != PS2_ACK)
         return 0;
 
-    while (!(inb(port2) & I8042_STR_OBF)) { }
+    wait_for_output(port2);
 
     return inb(port1);
 }
@@ -789,11 +806,6 @@ static void init_mouse(uint16_t port1, uint16_t port2, uint32_t irq) {
     mouse_ack_event = create_event(true);
     if (!mouse_ack_event) {
         print("create_event failed\n");
-        return;
-    }
-
-    if (!add_irq_handler(irq, false, ps2_isr_func, nullptr)) {
-        print("add_irq_handler failed\n");
         return;
     }
 
@@ -809,7 +821,7 @@ static void init_mouse(uint16_t port1, uint16_t port2, uint32_t irq) {
         // read current config
         while (inb(port2) & I8042_STR_IBF) { }
         outb(port2, I8042_CMD_READ_CONFIG);
-        while (!(inb(port2) & I8042_STR_OBF)) { }
+        wait_for_output(port2);
         auto config = inb(port1);
 
         config |= I8042_CFG_AUX_IRQ;
@@ -826,17 +838,21 @@ static void init_mouse(uint16_t port1, uint16_t port2, uint32_t irq) {
         while (inb(port2) & I8042_STR_IBF) { }
         outb(port1, MOUSE_CMD_RESET);
 
-        while (!(inb(port2) & I8042_STR_OBF)) { }
+        if (!wait_for_output(port2, 100))
+            return;
 
         if (inb(port1) != PS2_ACK)
             return; // no mouse
 
-        while (!(inb(port2) & I8042_STR_OBF)) { }
+        if (!wait_for_output(port2, 100))
+            return;
 
         if (inb(port1) != PS2_SELF_TEST_PASS)
             return; // hardware fault
 
-        while (!(inb(port2) & I8042_STR_OBF)) { }
+        if (!wait_for_output(port2, 100))
+            return;
+
         id = inb(port1);
     }
 
@@ -861,6 +877,11 @@ static void init_mouse(uint16_t port1, uint16_t port2, uint32_t irq) {
             if (id == 0x04)
                 mouse_type = mouse_type::imex;
         }
+    }
+
+    if (!add_irq_handler(irq, false, ps2_isr_func, nullptr)) {
+        print("add_irq_handler failed\n");
+        return;
     }
 
     {
