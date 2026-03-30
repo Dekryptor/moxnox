@@ -113,6 +113,7 @@ set(SRC_FILES src/kernel.cpp
     src/acpi2.cpp
     src/pci2.cpp
     src/object_ref2.cpp
+    src/timer2.cpp
 )
 
 set(AMD64_SRC_FILES ${SRC_FILES}
