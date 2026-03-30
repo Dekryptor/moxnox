@@ -114,7 +114,7 @@ static uint16_t keyboard_port1, keyboard_port2;
 
 static bool mouse_initialized = false, mouse_init_pending = false;
 static uint32_t mouse_irq;
-static object_ref mouse_ack_event;
+static object_ref mouse_ack_event, mouse_evdev_obj;
 static uint8_t mouse_packet[3];
 static size_t mouse_packet_len = 0;
 static bool mouse_left = false, mouse_right = false, mouse_middle = false;
@@ -129,6 +129,17 @@ public:
     }
 
     nt_status write(span<const uint8_t> s, uint64_t& written_bytes) override;
+};
+
+class ps2_mouse : public evdev_device {
+public:
+    nt_status read(span<uint8_t>, uint64_t&) override {
+        return nt_status::NOT_SUPPORTED;
+    }
+
+    nt_status write(span<const uint8_t>, uint64_t&) override {
+        return nt_status::NOT_SUPPORTED;
+    }
 };
 
 static void found_ps2_keyboard(const acpi_device& d);
@@ -182,7 +193,7 @@ static bool should_key_repeat(enum evdev_code code) {
     }
 }
 
-static void post_evdev(enum evdev_code code, int32_t value) {
+static void post_key_evdev(enum evdev_code code, int32_t value) {
     input_event ev;
     auto& p = static_cast<ps2_keyboard&>(keyboard_evdev_obj.get());
 
@@ -274,14 +285,14 @@ static void keyboard_event_recv() {
             else if (modifier & MODIFIER_EXTD) {
                 if ((sc & 0x7f) < sizeof(evdev_codes_modified) / sizeof(*evdev_codes_modified) &&
                     evdev_codes_modified[sc & 0x7f] != evdev_code::KEY_RESERVED) {
-                    post_evdev(evdev_codes_modified[sc & 0x7f], !(sc & 0x80) ? 1 : 0);
+                    post_key_evdev(evdev_codes_modified[sc & 0x7f], !(sc & 0x80) ? 1 : 0);
                 }
 
                 modifier &= ~MODIFIER_EXTD;
             } else {
                 if ((sc & 0x7f) < sizeof(evdev_codes) / sizeof(*evdev_codes) &&
                     evdev_codes[sc & 0x7f] != evdev_code::KEY_RESERVED) {
-                    post_evdev(evdev_codes[sc & 0x7f], !(sc & 0x80) ? 1 : 0);
+                    post_key_evdev(evdev_codes[sc & 0x7f], !(sc & 0x80) ? 1 : 0);
                 }
             }
         }
@@ -388,7 +399,7 @@ static void keyboard_repeat_thread() {
         if (code == evdev_code::KEY_RESERVED)
             continue;
 
-        post_evdev(code, 2);
+        post_key_evdev(code, 2);
 
         auto& t = static_cast<timer&>(repeat_timer.get());
 
@@ -483,39 +494,96 @@ static void process_mouse_packet() {
 
     rel_y = -rel_y; // opposite direction to USB
 
+    auto& m = static_cast<ps2_mouse&>(mouse_evdev_obj.get());
+    bool posted = false;
+    input_event ev;
+
     if (rel_x != 0 || rel_y != 0) {
-        print("rel_x = {}, rel_y = {}\n", rel_x, rel_y);
-        // FIXME - send evdev message
+        if (rel_x != 0) {
+            ev.type = evdev_type::EV_REL;
+            ev.code = evdev_code::REL_X;
+            ev.value = rel_x;
+
+            m.post_event(ev, false);
+        }
+
+        if (rel_y != 0) {
+            ev.type = evdev_type::EV_REL;
+            ev.code = evdev_code::REL_Y;
+            ev.value = rel_y;
+
+            m.post_event(ev, false);
+        }
+
+        posted = true;
     }
 
     if (mouse_left && !(mouse_packet[0] & MOUSE_BTN_LEFT)) {
-        print("mouse left up\n");
         mouse_left = false;
-        // FIXME - send evdev message
+
+        ev.type = evdev_type::EV_KEY;
+        ev.code = evdev_code::BTN_LEFT;
+        ev.value = 0;
+
+        m.post_event(ev, false);
+        posted = true;
     } else if (!mouse_left && mouse_packet[0] & MOUSE_BTN_LEFT) {
-        print("mouse left down\n");
         mouse_left = true;
-        // FIXME - send evdev message
+
+        ev.type = evdev_type::EV_KEY;
+        ev.code = evdev_code::BTN_LEFT;
+        ev.value = 1;
+
+        m.post_event(ev, false);
+        posted = true;
     }
 
     if (mouse_right && !(mouse_packet[0] & MOUSE_BTN_RIGHT)) {
-        print("mouse right up\n");
         mouse_right = false;
-        // FIXME - send evdev message
+
+        ev.type = evdev_type::EV_KEY;
+        ev.code = evdev_code::BTN_RIGHT;
+        ev.value = 0;
+
+        m.post_event(ev, false);
+        posted = true;
     } else if (!mouse_right && mouse_packet[0] & MOUSE_BTN_RIGHT) {
-        print("mouse right down\n");
         mouse_right = true;
-        // FIXME - send evdev message
+
+        ev.type = evdev_type::EV_KEY;
+        ev.code = evdev_code::BTN_RIGHT;
+        ev.value = 1;
+
+        m.post_event(ev, false);
+        posted = true;
     }
 
     if (mouse_middle && !(mouse_packet[0] & MOUSE_BTN_MIDDLE)) {
-        print("mouse middle up\n");
         mouse_middle = false;
-        // FIXME - send evdev message
+
+        ev.type = evdev_type::EV_KEY;
+        ev.code = evdev_code::BTN_MIDDLE;
+        ev.value = 0;
+
+        m.post_event(ev, false);
+        posted = true;
     } else if (!mouse_middle && mouse_packet[0] & MOUSE_BTN_MIDDLE) {
-        print("mouse middle down\n");
         mouse_middle = true;
-        // FIXME - send evdev message
+
+        ev.type = evdev_type::EV_KEY;
+        ev.code = evdev_code::BTN_MIDDLE;
+        ev.value = 1;
+
+        m.post_event(ev, false);
+        posted = true;
+    }
+
+    if (posted) {
+        ev.type = evdev_type::EV_SYN;
+        ev.code = evdev_code::SYN_REPORT;
+        ev.value = 0;
+
+        m.post_event(ev, false);
     }
 }
 
@@ -657,6 +725,23 @@ static void init_mouse(uint16_t port1, uint16_t port2, uint32_t irq) {
     }
 
     wait_for_object(mouse_ack_event.get(), false);
+
+    auto pptr = new ps2_mouse;
+    if (!pptr) {
+        print("new failed\n");
+        return;
+    }
+
+    mouse_evdev_obj = object_ref{*pptr};
+
+    // FIXME - put in /dev/input like on Linux
+    auto status = name_object(mouse_evdev_obj.get(), "ps2mouse");
+    if (!success(status)) {
+        print("name_object returned {}\n", status);
+        return;
+    }
+
+    register_evdev_device(*pptr);
 
     mouse_initialized = true;
 }
