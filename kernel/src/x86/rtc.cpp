@@ -1,9 +1,5 @@
-module;
-
 #include <optional>
 #include <chrono>
-
-export module rtc;
 
 import inout;
 import timer;
