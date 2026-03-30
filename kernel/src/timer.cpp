@@ -73,3 +73,4 @@ export void pit_delay(uint16_t delay);
 export bool init_timer();
 export object_ref create_timer(bool autoreset);
 export void msleep(unsigned int ms);
+export void udelay(uint64_t us);

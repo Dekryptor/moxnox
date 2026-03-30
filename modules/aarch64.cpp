@@ -738,3 +738,27 @@ export void inline cntkctl_el1_store(uint64_t v) {
         : "r" (v)
     );
 }
+
+__attribute__((always_inline))
+export uint64_t inline cntfrq_el0_load() {
+    uint64_t ret;
+
+    __asm __volatile (
+        "mrs %x[res], cntfrq_el0"
+        : [res] "=r" (ret)
+    );
+
+    return ret;
+}
+
+__attribute__((always_inline))
+export uint64_t inline cntvct_el0_load() {
+    uint64_t ret;
+
+    __asm __volatile (
+        "mrs %x[res], cntvct_el0"
+        : [res] "=r" (ret)
+    );
+
+    return ret;
+}

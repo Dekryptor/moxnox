@@ -400,3 +400,25 @@ void msleep(unsigned int ms) {
 
     wait_for_object(tim, true);
 }
+
+void udelay(uint64_t us) {
+#ifdef __x86_64__
+    auto deadline = __rdtsc() + ((tsc_freq * us) / 1000000);
+
+    while (true) {
+        auto r = __rdtsc();
+
+        if (r >= deadline)
+            return;
+    }
+#elifdef __aarch64__
+    auto deadline = cntvct_el0_load() + ((cntfrq_el0_load() * us) / 1000000);
+
+    while (true) {
+        auto r = cntvct_el0_load();
+
+        if (r >= deadline)
+            return;
+    }
+#endif
+}
