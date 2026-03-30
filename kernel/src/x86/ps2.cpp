@@ -110,9 +110,12 @@ static const int64_t REPEAT_RATE_HZ = 25;
 
 static bool keyboard_initialized = false;
 static uint16_t keyboard_port1, keyboard_port2;
+
 static bool mouse_initialized = false, mouse_init_pending = false;
 static uint32_t mouse_irq;
 static object_ref mouse_ack_event;
+static uint8_t mouse_packet[3];
+static size_t mouse_packet_len = 0;
 
 static bool ps2_isr_func(void*);
 
@@ -463,6 +466,26 @@ static void init_keyboard(uint16_t port1, uint16_t port2, uint32_t irq) {
     keyboard_initialized = true;
 }
 
+static void process_mouse_packet() {
+    print("FIXME - process_mouse_packet {:02x} {:02x} {:02x}\n",
+          mouse_packet[0], mouse_packet[1], mouse_packet[2]);
+
+    // FIXME
+}
+
+static void mouse_received_byte(uint8_t code) {
+    if (mouse_packet_len == 0 && !(code & 0x08))
+        return; // out of sync
+
+    mouse_packet[mouse_packet_len] = code;
+    mouse_packet_len++;
+
+    if (mouse_packet_len == 3) {
+        process_mouse_packet();
+        mouse_packet_len = 0;
+    }
+}
+
 static bool ps2_isr_func(void*) {
     uint8_t status, code;
 
@@ -482,8 +505,8 @@ static bool ps2_isr_func(void*) {
             set_event(static_cast<event&>(mouse_ack_event.get()));
             return true;
         }
-        // FIXME - for mouse
-        print("FIXME - mouse interrupt\n");
+
+        mouse_received_byte(code);
     } else {
         if (code == PS2_ACK) {
             set_event(keyboard_ack_event_obj->get());
