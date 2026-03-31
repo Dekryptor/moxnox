@@ -819,6 +819,10 @@ b	kernel_exception_entry
 		add	x1, x1, x2
 		str	x1, [x0]
 
+		add	x0, x0, #(TIME_PAGE_SYSTEM_TIME_TSC - TIME_PAGE_SYSTEM_TIME)
+		mrs	x1, cntvct_el0
+		str	x1, [x0]
+
 		// timers
 		bl	acquire_sync_lock
 
