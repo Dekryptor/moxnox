@@ -51,8 +51,19 @@ int main() {
             return 1;
         }
 
-        print("tv_sec = {}, tv_usec = {}, type = {}, code = {}, value = {}, id = {}\n",
-              +ev.ev.time.tv_sec, +ev.ev.time.tv_usec, (evdev_type)ev.ev.type,
-              (evdev_code)ev.ev.code, +ev.ev.value, +ev.id);
+        print("tv_sec = {}, tv_usec = {}, type = {}, code = ",
+              +ev.ev.time.tv_sec, +ev.ev.time.tv_usec, (evdev_type)ev.ev.type);
+
+        switch (ev.ev.type) {
+            case evdev_type::EV_KEY:
+                print("{}", (evdev_key_code)ev.ev.code);
+            break;
+
+            default:
+                print("{}", (evdev_code)ev.ev.code);
+            break;
+        }
+
+        print(", value = {}, id = {}\n", +ev.ev.value, +ev.id);
     }
 }

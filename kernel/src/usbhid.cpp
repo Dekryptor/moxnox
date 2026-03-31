@@ -116,7 +116,7 @@ private:
     uint16_t packet_size;
     const usb_interface& interface;
     evdev_context* kc = nullptr;
-    enum evdev_code repeat_key = evdev_code::KEY_RESERVED;
+    enum evdev_key_code repeat_key = evdev_key_code::KEY_RESERVED;
     object_ref repeat_timer;
     uint8_t* report_descriptor = nullptr;
     size_t report_descriptor_len;
@@ -130,1047 +130,1047 @@ private:
     optional<int32_t> absolute_x, absolute_y, absolute_wheel;
 };
 
-static const evdev_code keycodes[] = {
+static const evdev_key_code keycodes[] = {
     // 00
-    evdev_code::KEY_RESERVED,
-    evdev_code::KEY_RESERVED,
-    evdev_code::KEY_RESERVED,
-    evdev_code::KEY_RESERVED,
-    evdev_code::KEY_A,
-    evdev_code::KEY_B,
-    evdev_code::KEY_C,
-    evdev_code::KEY_D,
-    evdev_code::KEY_E,
-    evdev_code::KEY_F,
-    evdev_code::KEY_G,
-    evdev_code::KEY_H,
-    evdev_code::KEY_I,
-    evdev_code::KEY_J,
-    evdev_code::KEY_K,
-    evdev_code::KEY_L,
+    evdev_key_code::KEY_RESERVED,
+    evdev_key_code::KEY_RESERVED,
+    evdev_key_code::KEY_RESERVED,
+    evdev_key_code::KEY_RESERVED,
+    evdev_key_code::KEY_A,
+    evdev_key_code::KEY_B,
+    evdev_key_code::KEY_C,
+    evdev_key_code::KEY_D,
+    evdev_key_code::KEY_E,
+    evdev_key_code::KEY_F,
+    evdev_key_code::KEY_G,
+    evdev_key_code::KEY_H,
+    evdev_key_code::KEY_I,
+    evdev_key_code::KEY_J,
+    evdev_key_code::KEY_K,
+    evdev_key_code::KEY_L,
     // 10
-    evdev_code::KEY_M,
-    evdev_code::KEY_N,
-    evdev_code::KEY_O,
-    evdev_code::KEY_P,
-    evdev_code::KEY_Q,
-    evdev_code::KEY_R,
-    evdev_code::KEY_S,
-    evdev_code::KEY_T,
-    evdev_code::KEY_U,
-    evdev_code::KEY_V,
-    evdev_code::KEY_W,
-    evdev_code::KEY_X,
-    evdev_code::KEY_Y,
-    evdev_code::KEY_Z,
-    evdev_code::KEY_1,
-    evdev_code::KEY_2,
+    evdev_key_code::KEY_M,
+    evdev_key_code::KEY_N,
+    evdev_key_code::KEY_O,
+    evdev_key_code::KEY_P,
+    evdev_key_code::KEY_Q,
+    evdev_key_code::KEY_R,
+    evdev_key_code::KEY_S,
+    evdev_key_code::KEY_T,
+    evdev_key_code::KEY_U,
+    evdev_key_code::KEY_V,
+    evdev_key_code::KEY_W,
+    evdev_key_code::KEY_X,
+    evdev_key_code::KEY_Y,
+    evdev_key_code::KEY_Z,
+    evdev_key_code::KEY_1,
+    evdev_key_code::KEY_2,
     // 20
-    evdev_code::KEY_3,
-    evdev_code::KEY_4,
-    evdev_code::KEY_5,
-    evdev_code::KEY_6,
-    evdev_code::KEY_7,
-    evdev_code::KEY_8,
-    evdev_code::KEY_9,
-    evdev_code::KEY_0,
-    evdev_code::KEY_ENTER,
-    evdev_code::KEY_ESC,
-    evdev_code::KEY_BACKSPACE,
-    evdev_code::KEY_TAB,
-    evdev_code::KEY_SPACE,
-    evdev_code::KEY_MINUS,
-    evdev_code::KEY_EQUAL,
-    evdev_code::KEY_LEFTBRACE,
+    evdev_key_code::KEY_3,
+    evdev_key_code::KEY_4,
+    evdev_key_code::KEY_5,
+    evdev_key_code::KEY_6,
+    evdev_key_code::KEY_7,
+    evdev_key_code::KEY_8,
+    evdev_key_code::KEY_9,
+    evdev_key_code::KEY_0,
+    evdev_key_code::KEY_ENTER,
+    evdev_key_code::KEY_ESC,
+    evdev_key_code::KEY_BACKSPACE,
+    evdev_key_code::KEY_TAB,
+    evdev_key_code::KEY_SPACE,
+    evdev_key_code::KEY_MINUS,
+    evdev_key_code::KEY_EQUAL,
+    evdev_key_code::KEY_LEFTBRACE,
     // 30
-    evdev_code::KEY_RIGHTBRACE,
-    evdev_code::KEY_BACKSLASH,
-    evdev_code::KEY_BACKSLASH,
-    evdev_code::KEY_SEMICOLON,
-    evdev_code::KEY_APOSTROPHE,
-    evdev_code::KEY_GRAVE,
-    evdev_code::KEY_COMMA,
-    evdev_code::KEY_DOT,
-    evdev_code::KEY_SLASH,
-    evdev_code::KEY_CAPSLOCK,
-    evdev_code::KEY_F1,
-    evdev_code::KEY_F2,
-    evdev_code::KEY_F3,
-    evdev_code::KEY_F4,
-    evdev_code::KEY_F5,
-    evdev_code::KEY_F6,
+    evdev_key_code::KEY_RIGHTBRACE,
+    evdev_key_code::KEY_BACKSLASH,
+    evdev_key_code::KEY_BACKSLASH,
+    evdev_key_code::KEY_SEMICOLON,
+    evdev_key_code::KEY_APOSTROPHE,
+    evdev_key_code::KEY_GRAVE,
+    evdev_key_code::KEY_COMMA,
+    evdev_key_code::KEY_DOT,
+    evdev_key_code::KEY_SLASH,
+    evdev_key_code::KEY_CAPSLOCK,
+    evdev_key_code::KEY_F1,
+    evdev_key_code::KEY_F2,
+    evdev_key_code::KEY_F3,
+    evdev_key_code::KEY_F4,
+    evdev_key_code::KEY_F5,
+    evdev_key_code::KEY_F6,
     // 40
-    evdev_code::KEY_F7,
-    evdev_code::KEY_F8,
-    evdev_code::KEY_F9,
-    evdev_code::KEY_F10,
-    evdev_code::KEY_F11,
-    evdev_code::KEY_F12,
-    evdev_code::KEY_SYSRQ,
-    evdev_code::KEY_SCROLLLOCK,
-    evdev_code::KEY_PAUSE,
-    evdev_code::KEY_INSERT,
-    evdev_code::KEY_HOME,
-    evdev_code::KEY_PAGEUP,
-    evdev_code::KEY_DELETE,
-    evdev_code::KEY_END,
-    evdev_code::KEY_PAGEDOWN,
-    evdev_code::KEY_RIGHT,
+    evdev_key_code::KEY_F7,
+    evdev_key_code::KEY_F8,
+    evdev_key_code::KEY_F9,
+    evdev_key_code::KEY_F10,
+    evdev_key_code::KEY_F11,
+    evdev_key_code::KEY_F12,
+    evdev_key_code::KEY_SYSRQ,
+    evdev_key_code::KEY_SCROLLLOCK,
+    evdev_key_code::KEY_PAUSE,
+    evdev_key_code::KEY_INSERT,
+    evdev_key_code::KEY_HOME,
+    evdev_key_code::KEY_PAGEUP,
+    evdev_key_code::KEY_DELETE,
+    evdev_key_code::KEY_END,
+    evdev_key_code::KEY_PAGEDOWN,
+    evdev_key_code::KEY_RIGHT,
     // 50
-    evdev_code::KEY_LEFT,
-    evdev_code::KEY_DOWN,
-    evdev_code::KEY_UP,
-    evdev_code::KEY_NUMLOCK,
-    evdev_code::KEY_KPSLASH,
-    evdev_code::KEY_KPASTERISK,
-    evdev_code::KEY_KPMINUS,
-    evdev_code::KEY_KPPLUS,
-    evdev_code::KEY_KPENTER,
-    evdev_code::KEY_KP1,
-    evdev_code::KEY_KP2,
-    evdev_code::KEY_KP3,
-    evdev_code::KEY_KP4,
-    evdev_code::KEY_KP5,
-    evdev_code::KEY_KP6,
-    evdev_code::KEY_KP7,
+    evdev_key_code::KEY_LEFT,
+    evdev_key_code::KEY_DOWN,
+    evdev_key_code::KEY_UP,
+    evdev_key_code::KEY_NUMLOCK,
+    evdev_key_code::KEY_KPSLASH,
+    evdev_key_code::KEY_KPASTERISK,
+    evdev_key_code::KEY_KPMINUS,
+    evdev_key_code::KEY_KPPLUS,
+    evdev_key_code::KEY_KPENTER,
+    evdev_key_code::KEY_KP1,
+    evdev_key_code::KEY_KP2,
+    evdev_key_code::KEY_KP3,
+    evdev_key_code::KEY_KP4,
+    evdev_key_code::KEY_KP5,
+    evdev_key_code::KEY_KP6,
+    evdev_key_code::KEY_KP7,
     // 60
-    evdev_code::KEY_KP8,
-    evdev_code::KEY_KP9,
-    evdev_code::KEY_KP0,
-    evdev_code::KEY_KPDOT,
-    evdev_code::KEY_102ND,
-    evdev_code::KEY_COMPOSE,
-    evdev_code::KEY_POWER,
-    evdev_code::KEY_KPEQUAL,
-    evdev_code::KEY_F13,
-    evdev_code::KEY_F14,
-    evdev_code::KEY_F15,
-    evdev_code::KEY_F16,
-    evdev_code::KEY_F17,
-    evdev_code::KEY_F18,
-    evdev_code::KEY_F19,
-    evdev_code::KEY_F20,
+    evdev_key_code::KEY_KP8,
+    evdev_key_code::KEY_KP9,
+    evdev_key_code::KEY_KP0,
+    evdev_key_code::KEY_KPDOT,
+    evdev_key_code::KEY_102ND,
+    evdev_key_code::KEY_COMPOSE,
+    evdev_key_code::KEY_POWER,
+    evdev_key_code::KEY_KPEQUAL,
+    evdev_key_code::KEY_F13,
+    evdev_key_code::KEY_F14,
+    evdev_key_code::KEY_F15,
+    evdev_key_code::KEY_F16,
+    evdev_key_code::KEY_F17,
+    evdev_key_code::KEY_F18,
+    evdev_key_code::KEY_F19,
+    evdev_key_code::KEY_F20,
     // 70
-    evdev_code::KEY_F21,
-    evdev_code::KEY_F22,
-    evdev_code::KEY_F23,
-    evdev_code::KEY_F24,
-    evdev_code::KEY_OPEN,
-    evdev_code::KEY_HELP,
-    evdev_code::KEY_PROPS,
-    evdev_code::KEY_FRONT,
-    evdev_code::KEY_STOP,
-    evdev_code::KEY_AGAIN,
-    evdev_code::KEY_UNDO,
-    evdev_code::KEY_CUT,
-    evdev_code::KEY_COPY,
-    evdev_code::KEY_PASTE,
-    evdev_code::KEY_FIND,
-    evdev_code::KEY_MUTE,
+    evdev_key_code::KEY_F21,
+    evdev_key_code::KEY_F22,
+    evdev_key_code::KEY_F23,
+    evdev_key_code::KEY_F24,
+    evdev_key_code::KEY_OPEN,
+    evdev_key_code::KEY_HELP,
+    evdev_key_code::KEY_PROPS,
+    evdev_key_code::KEY_FRONT,
+    evdev_key_code::KEY_STOP,
+    evdev_key_code::KEY_AGAIN,
+    evdev_key_code::KEY_UNDO,
+    evdev_key_code::KEY_CUT,
+    evdev_key_code::KEY_COPY,
+    evdev_key_code::KEY_PASTE,
+    evdev_key_code::KEY_FIND,
+    evdev_key_code::KEY_MUTE,
     // 80
-    evdev_code::KEY_VOLUMEUP,
-    evdev_code::KEY_VOLUMEDOWN,
-    evdev_code::KEY_RESERVED,
-    evdev_code::KEY_RESERVED,
-    evdev_code::KEY_RESERVED,
-    evdev_code::KEY_KPCOMMA,
-    evdev_code::KEY_RESERVED,
-    evdev_code::KEY_RO,
-    evdev_code::KEY_KATAKANAHIRAGANA,
-    evdev_code::KEY_YEN,
-    evdev_code::KEY_HENKAN,
-    evdev_code::KEY_MUHENKAN,
-    evdev_code::KEY_KPJPCOMMA,
-    evdev_code::KEY_RESERVED,
-    evdev_code::KEY_RESERVED,
-    evdev_code::KEY_RESERVED,
+    evdev_key_code::KEY_VOLUMEUP,
+    evdev_key_code::KEY_VOLUMEDOWN,
+    evdev_key_code::KEY_RESERVED,
+    evdev_key_code::KEY_RESERVED,
+    evdev_key_code::KEY_RESERVED,
+    evdev_key_code::KEY_KPCOMMA,
+    evdev_key_code::KEY_RESERVED,
+    evdev_key_code::KEY_RO,
+    evdev_key_code::KEY_KATAKANAHIRAGANA,
+    evdev_key_code::KEY_YEN,
+    evdev_key_code::KEY_HENKAN,
+    evdev_key_code::KEY_MUHENKAN,
+    evdev_key_code::KEY_KPJPCOMMA,
+    evdev_key_code::KEY_RESERVED,
+    evdev_key_code::KEY_RESERVED,
+    evdev_key_code::KEY_RESERVED,
     // 90
-    evdev_code::KEY_HANGEUL,
-    evdev_code::KEY_HANJA,
-    evdev_code::KEY_KATAKANA,
-    evdev_code::KEY_HIRAGANA,
-    evdev_code::KEY_ZENKAKUHANKAKU,
-    evdev_code::KEY_RESERVED,
-    evdev_code::KEY_RESERVED,
-    evdev_code::KEY_RESERVED,
-    evdev_code::KEY_RESERVED,
-    evdev_code::KEY_RESERVED,
-    evdev_code::KEY_RESERVED,
-    evdev_code::KEY_RESERVED,
-    evdev_code::KEY_DELETE,
-    evdev_code::KEY_RESERVED,
-    evdev_code::KEY_RESERVED,
-    evdev_code::KEY_RESERVED,
+    evdev_key_code::KEY_HANGEUL,
+    evdev_key_code::KEY_HANJA,
+    evdev_key_code::KEY_KATAKANA,
+    evdev_key_code::KEY_HIRAGANA,
+    evdev_key_code::KEY_ZENKAKUHANKAKU,
+    evdev_key_code::KEY_RESERVED,
+    evdev_key_code::KEY_RESERVED,
+    evdev_key_code::KEY_RESERVED,
+    evdev_key_code::KEY_RESERVED,
+    evdev_key_code::KEY_RESERVED,
+    evdev_key_code::KEY_RESERVED,
+    evdev_key_code::KEY_RESERVED,
+    evdev_key_code::KEY_DELETE,
+    evdev_key_code::KEY_RESERVED,
+    evdev_key_code::KEY_RESERVED,
+    evdev_key_code::KEY_RESERVED,
     // a0
-    evdev_code::KEY_RESERVED,
-    evdev_code::KEY_RESERVED,
-    evdev_code::KEY_RESERVED,
-    evdev_code::KEY_RESERVED,
-    evdev_code::KEY_RESERVED,
-    evdev_code::KEY_RESERVED,
-    evdev_code::KEY_RESERVED,
-    evdev_code::KEY_RESERVED,
-    evdev_code::KEY_RESERVED,
-    evdev_code::KEY_RESERVED,
-    evdev_code::KEY_RESERVED,
-    evdev_code::KEY_RESERVED,
-    evdev_code::KEY_RESERVED,
-    evdev_code::KEY_RESERVED,
-    evdev_code::KEY_RESERVED,
-    evdev_code::KEY_RESERVED,
+    evdev_key_code::KEY_RESERVED,
+    evdev_key_code::KEY_RESERVED,
+    evdev_key_code::KEY_RESERVED,
+    evdev_key_code::KEY_RESERVED,
+    evdev_key_code::KEY_RESERVED,
+    evdev_key_code::KEY_RESERVED,
+    evdev_key_code::KEY_RESERVED,
+    evdev_key_code::KEY_RESERVED,
+    evdev_key_code::KEY_RESERVED,
+    evdev_key_code::KEY_RESERVED,
+    evdev_key_code::KEY_RESERVED,
+    evdev_key_code::KEY_RESERVED,
+    evdev_key_code::KEY_RESERVED,
+    evdev_key_code::KEY_RESERVED,
+    evdev_key_code::KEY_RESERVED,
+    evdev_key_code::KEY_RESERVED,
     // b0
-    evdev_code::KEY_RESERVED,
-    evdev_code::KEY_RESERVED,
-    evdev_code::KEY_RESERVED,
-    evdev_code::KEY_RESERVED,
-    evdev_code::KEY_RESERVED,
-    evdev_code::KEY_RESERVED,
-    evdev_code::KEY_KPLEFTPAREN,
-    evdev_code::KEY_KPRIGHTPAREN,
-    evdev_code::KEY_RESERVED,
-    evdev_code::KEY_RESERVED,
-    evdev_code::KEY_RESERVED,
-    evdev_code::KEY_RESERVED,
-    evdev_code::KEY_RESERVED,
-    evdev_code::KEY_RESERVED,
-    evdev_code::KEY_RESERVED,
-    evdev_code::KEY_RESERVED,
+    evdev_key_code::KEY_RESERVED,
+    evdev_key_code::KEY_RESERVED,
+    evdev_key_code::KEY_RESERVED,
+    evdev_key_code::KEY_RESERVED,
+    evdev_key_code::KEY_RESERVED,
+    evdev_key_code::KEY_RESERVED,
+    evdev_key_code::KEY_KPLEFTPAREN,
+    evdev_key_code::KEY_KPRIGHTPAREN,
+    evdev_key_code::KEY_RESERVED,
+    evdev_key_code::KEY_RESERVED,
+    evdev_key_code::KEY_RESERVED,
+    evdev_key_code::KEY_RESERVED,
+    evdev_key_code::KEY_RESERVED,
+    evdev_key_code::KEY_RESERVED,
+    evdev_key_code::KEY_RESERVED,
+    evdev_key_code::KEY_RESERVED,
     // c0
-    evdev_code::KEY_RESERVED,
-    evdev_code::KEY_RESERVED,
-    evdev_code::KEY_RESERVED,
-    evdev_code::KEY_RESERVED,
-    evdev_code::KEY_RESERVED,
-    evdev_code::KEY_RESERVED,
-    evdev_code::KEY_RESERVED,
-    evdev_code::KEY_RESERVED,
-    evdev_code::KEY_RESERVED,
-    evdev_code::KEY_RESERVED,
-    evdev_code::KEY_RESERVED,
-    evdev_code::KEY_RESERVED,
-    evdev_code::KEY_RESERVED,
-    evdev_code::KEY_RESERVED,
-    evdev_code::KEY_RESERVED,
-    evdev_code::KEY_RESERVED,
+    evdev_key_code::KEY_RESERVED,
+    evdev_key_code::KEY_RESERVED,
+    evdev_key_code::KEY_RESERVED,
+    evdev_key_code::KEY_RESERVED,
+    evdev_key_code::KEY_RESERVED,
+    evdev_key_code::KEY_RESERVED,
+    evdev_key_code::KEY_RESERVED,
+    evdev_key_code::KEY_RESERVED,
+    evdev_key_code::KEY_RESERVED,
+    evdev_key_code::KEY_RESERVED,
+    evdev_key_code::KEY_RESERVED,
+    evdev_key_code::KEY_RESERVED,
+    evdev_key_code::KEY_RESERVED,
+    evdev_key_code::KEY_RESERVED,
+    evdev_key_code::KEY_RESERVED,
+    evdev_key_code::KEY_RESERVED,
     // d0
-    evdev_code::KEY_RESERVED,
-    evdev_code::KEY_RESERVED,
-    evdev_code::KEY_RESERVED,
-    evdev_code::KEY_RESERVED,
-    evdev_code::KEY_RESERVED,
-    evdev_code::KEY_RESERVED,
-    evdev_code::KEY_RESERVED,
-    evdev_code::KEY_RESERVED,
-    evdev_code::KEY_DELETE,
-    evdev_code::KEY_RESERVED,
-    evdev_code::KEY_RESERVED,
-    evdev_code::KEY_RESERVED,
-    evdev_code::KEY_RESERVED,
-    evdev_code::KEY_RESERVED,
-    evdev_code::KEY_RESERVED,
-    evdev_code::KEY_RESERVED,
+    evdev_key_code::KEY_RESERVED,
+    evdev_key_code::KEY_RESERVED,
+    evdev_key_code::KEY_RESERVED,
+    evdev_key_code::KEY_RESERVED,
+    evdev_key_code::KEY_RESERVED,
+    evdev_key_code::KEY_RESERVED,
+    evdev_key_code::KEY_RESERVED,
+    evdev_key_code::KEY_RESERVED,
+    evdev_key_code::KEY_DELETE,
+    evdev_key_code::KEY_RESERVED,
+    evdev_key_code::KEY_RESERVED,
+    evdev_key_code::KEY_RESERVED,
+    evdev_key_code::KEY_RESERVED,
+    evdev_key_code::KEY_RESERVED,
+    evdev_key_code::KEY_RESERVED,
+    evdev_key_code::KEY_RESERVED,
     // e0
-    evdev_code::KEY_LEFTCTRL,
-    evdev_code::KEY_LEFTSHIFT,
-    evdev_code::KEY_LEFTALT,
-    evdev_code::KEY_LEFTMETA,
-    evdev_code::KEY_RIGHTCTRL,
-    evdev_code::KEY_RIGHTSHIFT,
-    evdev_code::KEY_RIGHTALT,
-    evdev_code::KEY_RIGHTMETA,
-    evdev_code::KEY_PLAYPAUSE,
-    evdev_code::KEY_STOPCD,
-    evdev_code::KEY_PREVIOUSSONG,
-    evdev_code::KEY_NEXTSONG,
-    evdev_code::KEY_EJECTCD,
-    evdev_code::KEY_VOLUMEUP,
-    evdev_code::KEY_VOLUMEDOWN,
-    evdev_code::KEY_MUTE,
+    evdev_key_code::KEY_LEFTCTRL,
+    evdev_key_code::KEY_LEFTSHIFT,
+    evdev_key_code::KEY_LEFTALT,
+    evdev_key_code::KEY_LEFTMETA,
+    evdev_key_code::KEY_RIGHTCTRL,
+    evdev_key_code::KEY_RIGHTSHIFT,
+    evdev_key_code::KEY_RIGHTALT,
+    evdev_key_code::KEY_RIGHTMETA,
+    evdev_key_code::KEY_PLAYPAUSE,
+    evdev_key_code::KEY_STOPCD,
+    evdev_key_code::KEY_PREVIOUSSONG,
+    evdev_key_code::KEY_NEXTSONG,
+    evdev_key_code::KEY_EJECTCD,
+    evdev_key_code::KEY_VOLUMEUP,
+    evdev_key_code::KEY_VOLUMEDOWN,
+    evdev_key_code::KEY_MUTE,
     // f0
-    evdev_code::KEY_WWW,
-    evdev_code::KEY_BACK,
-    evdev_code::KEY_FORWARD,
-    evdev_code::KEY_STOP,
-    evdev_code::KEY_FIND,
-    evdev_code::KEY_SCROLLUP,
-    evdev_code::KEY_SCROLLDOWN,
-    evdev_code::KEY_EDIT,
-    evdev_code::KEY_SLEEP,
-    evdev_code::KEY_COFFEE,
-    evdev_code::KEY_REFRESH,
-    evdev_code::KEY_CALC,
-    evdev_code::KEY_RESERVED,
-    evdev_code::KEY_RESERVED,
-    evdev_code::KEY_RESERVED,
-    evdev_code::KEY_RESERVED,
+    evdev_key_code::KEY_WWW,
+    evdev_key_code::KEY_BACK,
+    evdev_key_code::KEY_FORWARD,
+    evdev_key_code::KEY_STOP,
+    evdev_key_code::KEY_FIND,
+    evdev_key_code::KEY_SCROLLUP,
+    evdev_key_code::KEY_SCROLLDOWN,
+    evdev_key_code::KEY_EDIT,
+    evdev_key_code::KEY_SLEEP,
+    evdev_key_code::KEY_COFFEE,
+    evdev_key_code::KEY_REFRESH,
+    evdev_key_code::KEY_CALC,
+    evdev_key_code::KEY_RESERVED,
+    evdev_key_code::KEY_RESERVED,
+    evdev_key_code::KEY_RESERVED,
+    evdev_key_code::KEY_RESERVED,
 };
 
-static const evdev_code media_keycodes[] = {
+static const evdev_key_code media_keycodes[] = {
     // 00
-    evdev_code::KEY_RESERVED,
-    evdev_code::KEY_RESERVED,
-    evdev_code::KEY_RESERVED,
-    evdev_code::KEY_RESERVED,
-    evdev_code::KEY_RESERVED,
-    evdev_code::KEY_RESERVED,
-    evdev_code::KEY_RESERVED,
-    evdev_code::KEY_RESERVED,
-    evdev_code::KEY_RESERVED,
-    evdev_code::KEY_RESERVED,
-    evdev_code::KEY_RESERVED,
-    evdev_code::KEY_RESERVED,
-    evdev_code::KEY_RESERVED,
-    evdev_code::KEY_RESERVED,
-    evdev_code::KEY_RESERVED,
-    evdev_code::KEY_RESERVED,
+    evdev_key_code::KEY_RESERVED,
+    evdev_key_code::KEY_RESERVED,
+    evdev_key_code::KEY_RESERVED,
+    evdev_key_code::KEY_RESERVED,
+    evdev_key_code::KEY_RESERVED,
+    evdev_key_code::KEY_RESERVED,
+    evdev_key_code::KEY_RESERVED,
+    evdev_key_code::KEY_RESERVED,
+    evdev_key_code::KEY_RESERVED,
+    evdev_key_code::KEY_RESERVED,
+    evdev_key_code::KEY_RESERVED,
+    evdev_key_code::KEY_RESERVED,
+    evdev_key_code::KEY_RESERVED,
+    evdev_key_code::KEY_RESERVED,
+    evdev_key_code::KEY_RESERVED,
+    evdev_key_code::KEY_RESERVED,
     // 10
-    evdev_code::KEY_RESERVED,
-    evdev_code::KEY_RESERVED,
-    evdev_code::KEY_RESERVED,
-    evdev_code::KEY_RESERVED,
-    evdev_code::KEY_RESERVED,
-    evdev_code::KEY_RESERVED,
-    evdev_code::KEY_RESERVED,
-    evdev_code::KEY_RESERVED,
-    evdev_code::KEY_RESERVED,
-    evdev_code::KEY_RESERVED,
-    evdev_code::KEY_RESERVED,
-    evdev_code::KEY_RESERVED,
-    evdev_code::KEY_RESERVED,
-    evdev_code::KEY_RESERVED,
-    evdev_code::KEY_RESERVED,
-    evdev_code::KEY_RESERVED,
+    evdev_key_code::KEY_RESERVED,
+    evdev_key_code::KEY_RESERVED,
+    evdev_key_code::KEY_RESERVED,
+    evdev_key_code::KEY_RESERVED,
+    evdev_key_code::KEY_RESERVED,
+    evdev_key_code::KEY_RESERVED,
+    evdev_key_code::KEY_RESERVED,
+    evdev_key_code::KEY_RESERVED,
+    evdev_key_code::KEY_RESERVED,
+    evdev_key_code::KEY_RESERVED,
+    evdev_key_code::KEY_RESERVED,
+    evdev_key_code::KEY_RESERVED,
+    evdev_key_code::KEY_RESERVED,
+    evdev_key_code::KEY_RESERVED,
+    evdev_key_code::KEY_RESERVED,
+    evdev_key_code::KEY_RESERVED,
     // 20
-    evdev_code::KEY_RESERVED,
-    evdev_code::KEY_RESERVED,
-    evdev_code::KEY_RESERVED,
-    evdev_code::KEY_RESERVED,
-    evdev_code::KEY_RESERVED,
-    evdev_code::KEY_RESERVED,
-    evdev_code::KEY_RESERVED,
-    evdev_code::KEY_RESERVED,
-    evdev_code::KEY_RESERVED,
-    evdev_code::KEY_RESERVED,
-    evdev_code::KEY_RESERVED,
-    evdev_code::KEY_RESERVED,
-    evdev_code::KEY_RESERVED,
-    evdev_code::KEY_RESERVED,
-    evdev_code::KEY_RESERVED,
-    evdev_code::KEY_RESERVED,
+    evdev_key_code::KEY_RESERVED,
+    evdev_key_code::KEY_RESERVED,
+    evdev_key_code::KEY_RESERVED,
+    evdev_key_code::KEY_RESERVED,
+    evdev_key_code::KEY_RESERVED,
+    evdev_key_code::KEY_RESERVED,
+    evdev_key_code::KEY_RESERVED,
+    evdev_key_code::KEY_RESERVED,
+    evdev_key_code::KEY_RESERVED,
+    evdev_key_code::KEY_RESERVED,
+    evdev_key_code::KEY_RESERVED,
+    evdev_key_code::KEY_RESERVED,
+    evdev_key_code::KEY_RESERVED,
+    evdev_key_code::KEY_RESERVED,
+    evdev_key_code::KEY_RESERVED,
+    evdev_key_code::KEY_RESERVED,
     // 30
-    evdev_code::KEY_POWER,
-    evdev_code::KEY_RESTART,
-    evdev_code::KEY_SLEEP,
-    evdev_code::KEY_RESERVED,
-    evdev_code::KEY_SLEEP,
-    evdev_code::KEY_KBDILLUMTOGGLE,
-    evdev_code::KEY_RESERVED, // FIXME - BTN_MISC
-    evdev_code::KEY_RESERVED,
-    evdev_code::KEY_RESERVED,
-    evdev_code::KEY_RESERVED,
-    evdev_code::KEY_RESERVED,
-    evdev_code::KEY_RESERVED,
-    evdev_code::KEY_RESERVED,
-    evdev_code::KEY_RESERVED,
-    evdev_code::KEY_RESERVED,
-    evdev_code::KEY_RESERVED,
+    evdev_key_code::KEY_POWER,
+    evdev_key_code::KEY_RESTART,
+    evdev_key_code::KEY_SLEEP,
+    evdev_key_code::KEY_RESERVED,
+    evdev_key_code::KEY_SLEEP,
+    evdev_key_code::KEY_KBDILLUMTOGGLE,
+    evdev_key_code::KEY_RESERVED, // FIXME - BTN_MISC
+    evdev_key_code::KEY_RESERVED,
+    evdev_key_code::KEY_RESERVED,
+    evdev_key_code::KEY_RESERVED,
+    evdev_key_code::KEY_RESERVED,
+    evdev_key_code::KEY_RESERVED,
+    evdev_key_code::KEY_RESERVED,
+    evdev_key_code::KEY_RESERVED,
+    evdev_key_code::KEY_RESERVED,
+    evdev_key_code::KEY_RESERVED,
     // 40
-    evdev_code::KEY_MENU,
-    evdev_code::KEY_SELECT,
-    evdev_code::KEY_UP,
-    evdev_code::KEY_DOWN,
-    evdev_code::KEY_LEFT,
-    evdev_code::KEY_RIGHT,
-    evdev_code::KEY_ESC,
-    evdev_code::KEY_KPPLUS,
-    evdev_code::KEY_KPMINUS,
-    evdev_code::KEY_RESERVED,
-    evdev_code::KEY_RESERVED,
-    evdev_code::KEY_RESERVED,
-    evdev_code::KEY_RESERVED,
-    evdev_code::KEY_RESERVED,
-    evdev_code::KEY_RESERVED,
-    evdev_code::KEY_RESERVED,
+    evdev_key_code::KEY_MENU,
+    evdev_key_code::KEY_SELECT,
+    evdev_key_code::KEY_UP,
+    evdev_key_code::KEY_DOWN,
+    evdev_key_code::KEY_LEFT,
+    evdev_key_code::KEY_RIGHT,
+    evdev_key_code::KEY_ESC,
+    evdev_key_code::KEY_KPPLUS,
+    evdev_key_code::KEY_KPMINUS,
+    evdev_key_code::KEY_RESERVED,
+    evdev_key_code::KEY_RESERVED,
+    evdev_key_code::KEY_RESERVED,
+    evdev_key_code::KEY_RESERVED,
+    evdev_key_code::KEY_RESERVED,
+    evdev_key_code::KEY_RESERVED,
+    evdev_key_code::KEY_RESERVED,
     // 50
-    evdev_code::KEY_RESERVED,
-    evdev_code::KEY_RESERVED,
-    evdev_code::KEY_RESERVED,
-    evdev_code::KEY_RESERVED,
-    evdev_code::KEY_RESERVED,
-    evdev_code::KEY_RESERVED,
-    evdev_code::KEY_RESERVED,
-    evdev_code::KEY_RESERVED,
-    evdev_code::KEY_RESERVED,
-    evdev_code::KEY_RESERVED,
-    evdev_code::KEY_RESERVED,
-    evdev_code::KEY_RESERVED,
-    evdev_code::KEY_RESERVED,
-    evdev_code::KEY_RESERVED,
-    evdev_code::KEY_RESERVED,
-    evdev_code::KEY_RESERVED,
+    evdev_key_code::KEY_RESERVED,
+    evdev_key_code::KEY_RESERVED,
+    evdev_key_code::KEY_RESERVED,
+    evdev_key_code::KEY_RESERVED,
+    evdev_key_code::KEY_RESERVED,
+    evdev_key_code::KEY_RESERVED,
+    evdev_key_code::KEY_RESERVED,
+    evdev_key_code::KEY_RESERVED,
+    evdev_key_code::KEY_RESERVED,
+    evdev_key_code::KEY_RESERVED,
+    evdev_key_code::KEY_RESERVED,
+    evdev_key_code::KEY_RESERVED,
+    evdev_key_code::KEY_RESERVED,
+    evdev_key_code::KEY_RESERVED,
+    evdev_key_code::KEY_RESERVED,
+    evdev_key_code::KEY_RESERVED,
     // 60
-    evdev_code::KEY_INFO,
-    evdev_code::KEY_SUBTITLE,
-    evdev_code::KEY_RESERVED,
-    evdev_code::KEY_VCR,
-    evdev_code::KEY_RESERVED,
-    evdev_code::KEY_CAMERA,
-    evdev_code::KEY_RESERVED,
-    evdev_code::KEY_RESERVED,
-    evdev_code::KEY_RESERVED,
-    evdev_code::KEY_RED,
-    evdev_code::KEY_GREEN,
-    evdev_code::KEY_BLUE,
-    evdev_code::KEY_YELLOW,
-    evdev_code::KEY_ASPECT_RATIO,
-    evdev_code::KEY_RESERVED,
-    evdev_code::KEY_BRIGHTNESSUP,
+    evdev_key_code::KEY_INFO,
+    evdev_key_code::KEY_SUBTITLE,
+    evdev_key_code::KEY_RESERVED,
+    evdev_key_code::KEY_VCR,
+    evdev_key_code::KEY_RESERVED,
+    evdev_key_code::KEY_CAMERA,
+    evdev_key_code::KEY_RESERVED,
+    evdev_key_code::KEY_RESERVED,
+    evdev_key_code::KEY_RESERVED,
+    evdev_key_code::KEY_RED,
+    evdev_key_code::KEY_GREEN,
+    evdev_key_code::KEY_BLUE,
+    evdev_key_code::KEY_YELLOW,
+    evdev_key_code::KEY_ASPECT_RATIO,
+    evdev_key_code::KEY_RESERVED,
+    evdev_key_code::KEY_BRIGHTNESSUP,
     // 70
-    evdev_code::KEY_BRIGHTNESSDOWN,
-    evdev_code::KEY_RESERVED,
-    evdev_code::KEY_DISPLAYTOGGLE,
-    evdev_code::KEY_BRIGHTNESS_MIN,
-    evdev_code::KEY_BRIGHTNESS_MAX,
-    evdev_code::KEY_BRIGHTNESS_AUTO,
-    evdev_code::KEY_CAMERA_ACCESS_ENABLE,
-    evdev_code::KEY_CAMERA_ACCESS_DISABLE,
-    evdev_code::KEY_CAMERA_ACCESS_TOGGLE,
-    evdev_code::KEY_KBDILLUMUP,
-    evdev_code::KEY_KBDILLUMDOWN,
-    evdev_code::KEY_RESERVED,
-    evdev_code::KEY_KBDILLUMTOGGLE,
-    evdev_code::KEY_RESERVED,
-    evdev_code::KEY_RESERVED,
-    evdev_code::KEY_RESERVED,
+    evdev_key_code::KEY_BRIGHTNESSDOWN,
+    evdev_key_code::KEY_RESERVED,
+    evdev_key_code::KEY_DISPLAYTOGGLE,
+    evdev_key_code::KEY_BRIGHTNESS_MIN,
+    evdev_key_code::KEY_BRIGHTNESS_MAX,
+    evdev_key_code::KEY_BRIGHTNESS_AUTO,
+    evdev_key_code::KEY_CAMERA_ACCESS_ENABLE,
+    evdev_key_code::KEY_CAMERA_ACCESS_DISABLE,
+    evdev_key_code::KEY_CAMERA_ACCESS_TOGGLE,
+    evdev_key_code::KEY_KBDILLUMUP,
+    evdev_key_code::KEY_KBDILLUMDOWN,
+    evdev_key_code::KEY_RESERVED,
+    evdev_key_code::KEY_KBDILLUMTOGGLE,
+    evdev_key_code::KEY_RESERVED,
+    evdev_key_code::KEY_RESERVED,
+    evdev_key_code::KEY_RESERVED,
     // 80
-    evdev_code::KEY_RESERVED,
-    evdev_code::KEY_RESERVED,
-    evdev_code::KEY_VIDEO_NEXT,
-    evdev_code::KEY_LAST,
-    evdev_code::KEY_ENTER,
-    evdev_code::KEY_RESERVED,
-    evdev_code::KEY_RESERVED,
-    evdev_code::KEY_RESERVED,
-    evdev_code::KEY_PC,
-    evdev_code::KEY_TV,
-    evdev_code::KEY_WWW,
-    evdev_code::KEY_DVD,
-    evdev_code::KEY_PHONE,
-    evdev_code::KEY_PROGRAM,
-    evdev_code::KEY_VIDEOPHONE,
-    evdev_code::KEY_GAMES,
+    evdev_key_code::KEY_RESERVED,
+    evdev_key_code::KEY_RESERVED,
+    evdev_key_code::KEY_VIDEO_NEXT,
+    evdev_key_code::KEY_LAST,
+    evdev_key_code::KEY_ENTER,
+    evdev_key_code::KEY_RESERVED,
+    evdev_key_code::KEY_RESERVED,
+    evdev_key_code::KEY_RESERVED,
+    evdev_key_code::KEY_PC,
+    evdev_key_code::KEY_TV,
+    evdev_key_code::KEY_WWW,
+    evdev_key_code::KEY_DVD,
+    evdev_key_code::KEY_PHONE,
+    evdev_key_code::KEY_PROGRAM,
+    evdev_key_code::KEY_VIDEOPHONE,
+    evdev_key_code::KEY_GAMES,
     // 90
-    evdev_code::KEY_MEMO,
-    evdev_code::KEY_CD,
-    evdev_code::KEY_VCR,
-    evdev_code::KEY_TUNER,
-    evdev_code::KEY_EXIT,
-    evdev_code::KEY_HELP,
-    evdev_code::KEY_TAPE,
-    evdev_code::KEY_TV2,
-    evdev_code::KEY_SAT,
-    evdev_code::KEY_RESERVED,
-    evdev_code::KEY_PVR,
-    evdev_code::KEY_RESERVED,
-    evdev_code::KEY_CHANNELUP,
-    evdev_code::KEY_CHANNELDOWN,
-    evdev_code::KEY_RESERVED,
-    evdev_code::KEY_RESERVED,
+    evdev_key_code::KEY_MEMO,
+    evdev_key_code::KEY_CD,
+    evdev_key_code::KEY_VCR,
+    evdev_key_code::KEY_TUNER,
+    evdev_key_code::KEY_EXIT,
+    evdev_key_code::KEY_HELP,
+    evdev_key_code::KEY_TAPE,
+    evdev_key_code::KEY_TV2,
+    evdev_key_code::KEY_SAT,
+    evdev_key_code::KEY_RESERVED,
+    evdev_key_code::KEY_PVR,
+    evdev_key_code::KEY_RESERVED,
+    evdev_key_code::KEY_CHANNELUP,
+    evdev_key_code::KEY_CHANNELDOWN,
+    evdev_key_code::KEY_RESERVED,
+    evdev_key_code::KEY_RESERVED,
     // a0
-    evdev_code::KEY_VCR2,
-    evdev_code::KEY_RESERVED,
-    evdev_code::KEY_RESERVED,
-    evdev_code::KEY_RESERVED,
-    evdev_code::KEY_RESERVED,
-    evdev_code::KEY_RESERVED,
-    evdev_code::KEY_RESERVED,
-    evdev_code::KEY_RESERVED,
-    evdev_code::KEY_RESERVED,
-    evdev_code::KEY_RESERVED,
-    evdev_code::KEY_RESERVED,
-    evdev_code::KEY_RESERVED,
-    evdev_code::KEY_RESERVED,
-    evdev_code::KEY_RESERVED,
-    evdev_code::KEY_RESERVED,
-    evdev_code::KEY_RESERVED,
+    evdev_key_code::KEY_VCR2,
+    evdev_key_code::KEY_RESERVED,
+    evdev_key_code::KEY_RESERVED,
+    evdev_key_code::KEY_RESERVED,
+    evdev_key_code::KEY_RESERVED,
+    evdev_key_code::KEY_RESERVED,
+    evdev_key_code::KEY_RESERVED,
+    evdev_key_code::KEY_RESERVED,
+    evdev_key_code::KEY_RESERVED,
+    evdev_key_code::KEY_RESERVED,
+    evdev_key_code::KEY_RESERVED,
+    evdev_key_code::KEY_RESERVED,
+    evdev_key_code::KEY_RESERVED,
+    evdev_key_code::KEY_RESERVED,
+    evdev_key_code::KEY_RESERVED,
+    evdev_key_code::KEY_RESERVED,
     // b0
-    evdev_code::KEY_PLAY,
-    evdev_code::KEY_PAUSE,
-    evdev_code::KEY_RECORD,
-    evdev_code::KEY_FASTFORWARD,
-    evdev_code::KEY_REWIND,
-    evdev_code::KEY_NEXTSONG,
-    evdev_code::KEY_PREVIOUSSONG,
-    evdev_code::KEY_STOPCD,
-    evdev_code::KEY_EJECTCD,
-    evdev_code::KEY_SHUFFLE,
-    evdev_code::KEY_RESERVED,
-    evdev_code::KEY_RESERVED,
-    evdev_code::KEY_MEDIA_REPEAT,
-    evdev_code::KEY_RESERVED,
-    evdev_code::KEY_RESERVED,
-    evdev_code::KEY_SLOW,
+    evdev_key_code::KEY_PLAY,
+    evdev_key_code::KEY_PAUSE,
+    evdev_key_code::KEY_RECORD,
+    evdev_key_code::KEY_FASTFORWARD,
+    evdev_key_code::KEY_REWIND,
+    evdev_key_code::KEY_NEXTSONG,
+    evdev_key_code::KEY_PREVIOUSSONG,
+    evdev_key_code::KEY_STOPCD,
+    evdev_key_code::KEY_EJECTCD,
+    evdev_key_code::KEY_SHUFFLE,
+    evdev_key_code::KEY_RESERVED,
+    evdev_key_code::KEY_RESERVED,
+    evdev_key_code::KEY_MEDIA_REPEAT,
+    evdev_key_code::KEY_RESERVED,
+    evdev_key_code::KEY_RESERVED,
+    evdev_key_code::KEY_SLOW,
     // c0
-    evdev_code::KEY_RESERVED,
-    evdev_code::KEY_RESERVED,
-    evdev_code::KEY_RESERVED,
-    evdev_code::KEY_RESERVED,
-    evdev_code::KEY_RESERVED,
-    evdev_code::KEY_RESERVED,
-    evdev_code::KEY_RESERVED,
-    evdev_code::KEY_RESERVED,
-    evdev_code::KEY_RESERVED,
-    evdev_code::KEY_RESERVED,
-    evdev_code::KEY_RESERVED,
-    evdev_code::KEY_RESERVED,
-    evdev_code::KEY_RESERVED,
-    evdev_code::KEY_PLAYPAUSE,
-    evdev_code::KEY_RESERVED,
-    evdev_code::KEY_VOICECOMMAND,
+    evdev_key_code::KEY_RESERVED,
+    evdev_key_code::KEY_RESERVED,
+    evdev_key_code::KEY_RESERVED,
+    evdev_key_code::KEY_RESERVED,
+    evdev_key_code::KEY_RESERVED,
+    evdev_key_code::KEY_RESERVED,
+    evdev_key_code::KEY_RESERVED,
+    evdev_key_code::KEY_RESERVED,
+    evdev_key_code::KEY_RESERVED,
+    evdev_key_code::KEY_RESERVED,
+    evdev_key_code::KEY_RESERVED,
+    evdev_key_code::KEY_RESERVED,
+    evdev_key_code::KEY_RESERVED,
+    evdev_key_code::KEY_PLAYPAUSE,
+    evdev_key_code::KEY_RESERVED,
+    evdev_key_code::KEY_VOICECOMMAND,
     // d0
-    evdev_code::KEY_RESERVED,
-    evdev_code::KEY_RESERVED,
-    evdev_code::KEY_RESERVED,
-    evdev_code::KEY_RESERVED,
-    evdev_code::KEY_RESERVED,
-    evdev_code::KEY_RESERVED,
-    evdev_code::KEY_RESERVED,
-    evdev_code::KEY_RESERVED,
-    evdev_code::KEY_DICTATE,
-    evdev_code::KEY_EMOJI_PICKER,
-    evdev_code::KEY_RESERVED,
-    evdev_code::KEY_RESERVED,
-    evdev_code::KEY_RESERVED,
-    evdev_code::KEY_RESERVED,
-    evdev_code::KEY_RESERVED,
-    evdev_code::KEY_RESERVED,
+    evdev_key_code::KEY_RESERVED,
+    evdev_key_code::KEY_RESERVED,
+    evdev_key_code::KEY_RESERVED,
+    evdev_key_code::KEY_RESERVED,
+    evdev_key_code::KEY_RESERVED,
+    evdev_key_code::KEY_RESERVED,
+    evdev_key_code::KEY_RESERVED,
+    evdev_key_code::KEY_RESERVED,
+    evdev_key_code::KEY_DICTATE,
+    evdev_key_code::KEY_EMOJI_PICKER,
+    evdev_key_code::KEY_RESERVED,
+    evdev_key_code::KEY_RESERVED,
+    evdev_key_code::KEY_RESERVED,
+    evdev_key_code::KEY_RESERVED,
+    evdev_key_code::KEY_RESERVED,
+    evdev_key_code::KEY_RESERVED,
     // e0
-    evdev_code::KEY_RESERVED, // FIXME - ABS_VOLUME
-    evdev_code::KEY_RESERVED,
-    evdev_code::KEY_MUTE,
-    evdev_code::KEY_RESERVED,
-    evdev_code::KEY_RESERVED,
-    evdev_code::KEY_BASSBOOST,
-    evdev_code::KEY_RESERVED,
-    evdev_code::KEY_RESERVED,
-    evdev_code::KEY_RESERVED,
-    evdev_code::KEY_VOLUMEUP,
-    evdev_code::KEY_VOLUMEDOWN,
-    evdev_code::KEY_RESERVED,
-    evdev_code::KEY_RESERVED,
-    evdev_code::KEY_RESERVED,
-    evdev_code::KEY_RESERVED,
-    evdev_code::KEY_RESERVED,
+    evdev_key_code::KEY_RESERVED, // FIXME - ABS_VOLUME
+    evdev_key_code::KEY_RESERVED,
+    evdev_key_code::KEY_MUTE,
+    evdev_key_code::KEY_RESERVED,
+    evdev_key_code::KEY_RESERVED,
+    evdev_key_code::KEY_BASSBOOST,
+    evdev_key_code::KEY_RESERVED,
+    evdev_key_code::KEY_RESERVED,
+    evdev_key_code::KEY_RESERVED,
+    evdev_key_code::KEY_VOLUMEUP,
+    evdev_key_code::KEY_VOLUMEDOWN,
+    evdev_key_code::KEY_RESERVED,
+    evdev_key_code::KEY_RESERVED,
+    evdev_key_code::KEY_RESERVED,
+    evdev_key_code::KEY_RESERVED,
+    evdev_key_code::KEY_RESERVED,
     // f0
-    evdev_code::KEY_RESERVED,
-    evdev_code::KEY_RESERVED,
-    evdev_code::KEY_RESERVED,
-    evdev_code::KEY_RESERVED,
-    evdev_code::KEY_RESERVED,
-    evdev_code::KEY_SLOW,
-    evdev_code::KEY_RESERVED,
-    evdev_code::KEY_RESERVED,
-    evdev_code::KEY_RESERVED,
-    evdev_code::KEY_RESERVED,
-    evdev_code::KEY_RESERVED,
-    evdev_code::KEY_RESERVED,
-    evdev_code::KEY_RESERVED,
-    evdev_code::KEY_RESERVED,
-    evdev_code::KEY_RESERVED,
-    evdev_code::KEY_RESERVED,
+    evdev_key_code::KEY_RESERVED,
+    evdev_key_code::KEY_RESERVED,
+    evdev_key_code::KEY_RESERVED,
+    evdev_key_code::KEY_RESERVED,
+    evdev_key_code::KEY_RESERVED,
+    evdev_key_code::KEY_SLOW,
+    evdev_key_code::KEY_RESERVED,
+    evdev_key_code::KEY_RESERVED,
+    evdev_key_code::KEY_RESERVED,
+    evdev_key_code::KEY_RESERVED,
+    evdev_key_code::KEY_RESERVED,
+    evdev_key_code::KEY_RESERVED,
+    evdev_key_code::KEY_RESERVED,
+    evdev_key_code::KEY_RESERVED,
+    evdev_key_code::KEY_RESERVED,
+    evdev_key_code::KEY_RESERVED,
     // 100
-    evdev_code::KEY_RESERVED,
-    evdev_code::KEY_RESERVED,
-    evdev_code::KEY_RESERVED,
-    evdev_code::KEY_RESERVED,
-    evdev_code::KEY_RESERVED,
-    evdev_code::KEY_RESERVED,
-    evdev_code::KEY_RESERVED,
-    evdev_code::KEY_RESERVED,
-    evdev_code::KEY_RESERVED,
-    evdev_code::KEY_RESERVED,
-    evdev_code::KEY_RESERVED,
-    evdev_code::KEY_RESERVED,
-    evdev_code::KEY_RESERVED,
-    evdev_code::KEY_RESERVED,
-    evdev_code::KEY_RESERVED,
-    evdev_code::KEY_RESERVED,
+    evdev_key_code::KEY_RESERVED,
+    evdev_key_code::KEY_RESERVED,
+    evdev_key_code::KEY_RESERVED,
+    evdev_key_code::KEY_RESERVED,
+    evdev_key_code::KEY_RESERVED,
+    evdev_key_code::KEY_RESERVED,
+    evdev_key_code::KEY_RESERVED,
+    evdev_key_code::KEY_RESERVED,
+    evdev_key_code::KEY_RESERVED,
+    evdev_key_code::KEY_RESERVED,
+    evdev_key_code::KEY_RESERVED,
+    evdev_key_code::KEY_RESERVED,
+    evdev_key_code::KEY_RESERVED,
+    evdev_key_code::KEY_RESERVED,
+    evdev_key_code::KEY_RESERVED,
+    evdev_key_code::KEY_RESERVED,
     // 110
-    evdev_code::KEY_RESERVED,
-    evdev_code::KEY_RESERVED,
-    evdev_code::KEY_RESERVED,
-    evdev_code::KEY_RESERVED,
-    evdev_code::KEY_RESERVED,
-    evdev_code::KEY_RESERVED,
-    evdev_code::KEY_RESERVED,
-    evdev_code::KEY_RESERVED,
-    evdev_code::KEY_RESERVED,
-    evdev_code::KEY_RESERVED,
-    evdev_code::KEY_RESERVED,
-    evdev_code::KEY_RESERVED,
-    evdev_code::KEY_RESERVED,
-    evdev_code::KEY_RESERVED,
-    evdev_code::KEY_RESERVED,
-    evdev_code::KEY_RESERVED,
+    evdev_key_code::KEY_RESERVED,
+    evdev_key_code::KEY_RESERVED,
+    evdev_key_code::KEY_RESERVED,
+    evdev_key_code::KEY_RESERVED,
+    evdev_key_code::KEY_RESERVED,
+    evdev_key_code::KEY_RESERVED,
+    evdev_key_code::KEY_RESERVED,
+    evdev_key_code::KEY_RESERVED,
+    evdev_key_code::KEY_RESERVED,
+    evdev_key_code::KEY_RESERVED,
+    evdev_key_code::KEY_RESERVED,
+    evdev_key_code::KEY_RESERVED,
+    evdev_key_code::KEY_RESERVED,
+    evdev_key_code::KEY_RESERVED,
+    evdev_key_code::KEY_RESERVED,
+    evdev_key_code::KEY_RESERVED,
     // 120
-    evdev_code::KEY_RESERVED,
-    evdev_code::KEY_RESERVED,
-    evdev_code::KEY_RESERVED,
-    evdev_code::KEY_RESERVED,
-    evdev_code::KEY_RESERVED,
-    evdev_code::KEY_RESERVED,
-    evdev_code::KEY_RESERVED,
-    evdev_code::KEY_RESERVED,
-    evdev_code::KEY_RESERVED,
-    evdev_code::KEY_RESERVED,
-    evdev_code::KEY_RESERVED,
-    evdev_code::KEY_RESERVED,
-    evdev_code::KEY_RESERVED,
-    evdev_code::KEY_RESERVED,
-    evdev_code::KEY_RESERVED,
-    evdev_code::KEY_RESERVED,
+    evdev_key_code::KEY_RESERVED,
+    evdev_key_code::KEY_RESERVED,
+    evdev_key_code::KEY_RESERVED,
+    evdev_key_code::KEY_RESERVED,
+    evdev_key_code::KEY_RESERVED,
+    evdev_key_code::KEY_RESERVED,
+    evdev_key_code::KEY_RESERVED,
+    evdev_key_code::KEY_RESERVED,
+    evdev_key_code::KEY_RESERVED,
+    evdev_key_code::KEY_RESERVED,
+    evdev_key_code::KEY_RESERVED,
+    evdev_key_code::KEY_RESERVED,
+    evdev_key_code::KEY_RESERVED,
+    evdev_key_code::KEY_RESERVED,
+    evdev_key_code::KEY_RESERVED,
+    evdev_key_code::KEY_RESERVED,
     // 130
-    evdev_code::KEY_RESERVED,
-    evdev_code::KEY_RESERVED,
-    evdev_code::KEY_RESERVED,
-    evdev_code::KEY_RESERVED,
-    evdev_code::KEY_RESERVED,
-    evdev_code::KEY_RESERVED,
-    evdev_code::KEY_RESERVED,
-    evdev_code::KEY_RESERVED,
-    evdev_code::KEY_RESERVED,
-    evdev_code::KEY_RESERVED,
-    evdev_code::KEY_RESERVED,
-    evdev_code::KEY_RESERVED,
-    evdev_code::KEY_RESERVED,
-    evdev_code::KEY_RESERVED,
-    evdev_code::KEY_RESERVED,
-    evdev_code::KEY_RESERVED,
+    evdev_key_code::KEY_RESERVED,
+    evdev_key_code::KEY_RESERVED,
+    evdev_key_code::KEY_RESERVED,
+    evdev_key_code::KEY_RESERVED,
+    evdev_key_code::KEY_RESERVED,
+    evdev_key_code::KEY_RESERVED,
+    evdev_key_code::KEY_RESERVED,
+    evdev_key_code::KEY_RESERVED,
+    evdev_key_code::KEY_RESERVED,
+    evdev_key_code::KEY_RESERVED,
+    evdev_key_code::KEY_RESERVED,
+    evdev_key_code::KEY_RESERVED,
+    evdev_key_code::KEY_RESERVED,
+    evdev_key_code::KEY_RESERVED,
+    evdev_key_code::KEY_RESERVED,
+    evdev_key_code::KEY_RESERVED,
     // 140
-    evdev_code::KEY_RESERVED,
-    evdev_code::KEY_RESERVED,
-    evdev_code::KEY_RESERVED,
-    evdev_code::KEY_RESERVED,
-    evdev_code::KEY_RESERVED,
-    evdev_code::KEY_RESERVED,
-    evdev_code::KEY_RESERVED,
-    evdev_code::KEY_RESERVED,
-    evdev_code::KEY_RESERVED,
-    evdev_code::KEY_RESERVED,
-    evdev_code::KEY_RESERVED,
-    evdev_code::KEY_RESERVED,
-    evdev_code::KEY_RESERVED,
-    evdev_code::KEY_RESERVED,
-    evdev_code::KEY_RESERVED,
-    evdev_code::KEY_RESERVED,
+    evdev_key_code::KEY_RESERVED,
+    evdev_key_code::KEY_RESERVED,
+    evdev_key_code::KEY_RESERVED,
+    evdev_key_code::KEY_RESERVED,
+    evdev_key_code::KEY_RESERVED,
+    evdev_key_code::KEY_RESERVED,
+    evdev_key_code::KEY_RESERVED,
+    evdev_key_code::KEY_RESERVED,
+    evdev_key_code::KEY_RESERVED,
+    evdev_key_code::KEY_RESERVED,
+    evdev_key_code::KEY_RESERVED,
+    evdev_key_code::KEY_RESERVED,
+    evdev_key_code::KEY_RESERVED,
+    evdev_key_code::KEY_RESERVED,
+    evdev_key_code::KEY_RESERVED,
+    evdev_key_code::KEY_RESERVED,
     // 150
-    evdev_code::KEY_RESERVED,
-    evdev_code::KEY_RESERVED,
-    evdev_code::KEY_RESERVED,
-    evdev_code::KEY_RESERVED,
-    evdev_code::KEY_RESERVED,
-    evdev_code::KEY_RESERVED,
-    evdev_code::KEY_RESERVED,
-    evdev_code::KEY_RESERVED,
-    evdev_code::KEY_RESERVED,
-    evdev_code::KEY_RESERVED,
-    evdev_code::KEY_RESERVED,
-    evdev_code::KEY_RESERVED,
-    evdev_code::KEY_RESERVED,
-    evdev_code::KEY_RESERVED,
-    evdev_code::KEY_RESERVED,
-    evdev_code::KEY_RESERVED,
+    evdev_key_code::KEY_RESERVED,
+    evdev_key_code::KEY_RESERVED,
+    evdev_key_code::KEY_RESERVED,
+    evdev_key_code::KEY_RESERVED,
+    evdev_key_code::KEY_RESERVED,
+    evdev_key_code::KEY_RESERVED,
+    evdev_key_code::KEY_RESERVED,
+    evdev_key_code::KEY_RESERVED,
+    evdev_key_code::KEY_RESERVED,
+    evdev_key_code::KEY_RESERVED,
+    evdev_key_code::KEY_RESERVED,
+    evdev_key_code::KEY_RESERVED,
+    evdev_key_code::KEY_RESERVED,
+    evdev_key_code::KEY_RESERVED,
+    evdev_key_code::KEY_RESERVED,
+    evdev_key_code::KEY_RESERVED,
     // 160
-    evdev_code::KEY_RESERVED,
-    evdev_code::KEY_RESERVED,
-    evdev_code::KEY_RESERVED,
-    evdev_code::KEY_RESERVED,
-    evdev_code::KEY_RESERVED,
-    evdev_code::KEY_RESERVED,
-    evdev_code::KEY_RESERVED,
-    evdev_code::KEY_RESERVED,
-    evdev_code::KEY_RESERVED,
-    evdev_code::KEY_RESERVED,
-    evdev_code::KEY_RESERVED,
-    evdev_code::KEY_RESERVED,
-    evdev_code::KEY_RESERVED,
-    evdev_code::KEY_RESERVED,
-    evdev_code::KEY_RESERVED,
-    evdev_code::KEY_RESERVED,
+    evdev_key_code::KEY_RESERVED,
+    evdev_key_code::KEY_RESERVED,
+    evdev_key_code::KEY_RESERVED,
+    evdev_key_code::KEY_RESERVED,
+    evdev_key_code::KEY_RESERVED,
+    evdev_key_code::KEY_RESERVED,
+    evdev_key_code::KEY_RESERVED,
+    evdev_key_code::KEY_RESERVED,
+    evdev_key_code::KEY_RESERVED,
+    evdev_key_code::KEY_RESERVED,
+    evdev_key_code::KEY_RESERVED,
+    evdev_key_code::KEY_RESERVED,
+    evdev_key_code::KEY_RESERVED,
+    evdev_key_code::KEY_RESERVED,
+    evdev_key_code::KEY_RESERVED,
+    evdev_key_code::KEY_RESERVED,
     // 170
-    evdev_code::KEY_RESERVED,
-    evdev_code::KEY_RESERVED,
-    evdev_code::KEY_RESERVED,
-    evdev_code::KEY_RESERVED,
-    evdev_code::KEY_RESERVED,
-    evdev_code::KEY_RESERVED,
-    evdev_code::KEY_RESERVED,
-    evdev_code::KEY_RESERVED,
-    evdev_code::KEY_RESERVED,
-    evdev_code::KEY_RESERVED,
-    evdev_code::KEY_RESERVED,
-    evdev_code::KEY_RESERVED,
-    evdev_code::KEY_RESERVED,
-    evdev_code::KEY_RESERVED,
-    evdev_code::KEY_RESERVED,
-    evdev_code::KEY_RESERVED,
+    evdev_key_code::KEY_RESERVED,
+    evdev_key_code::KEY_RESERVED,
+    evdev_key_code::KEY_RESERVED,
+    evdev_key_code::KEY_RESERVED,
+    evdev_key_code::KEY_RESERVED,
+    evdev_key_code::KEY_RESERVED,
+    evdev_key_code::KEY_RESERVED,
+    evdev_key_code::KEY_RESERVED,
+    evdev_key_code::KEY_RESERVED,
+    evdev_key_code::KEY_RESERVED,
+    evdev_key_code::KEY_RESERVED,
+    evdev_key_code::KEY_RESERVED,
+    evdev_key_code::KEY_RESERVED,
+    evdev_key_code::KEY_RESERVED,
+    evdev_key_code::KEY_RESERVED,
+    evdev_key_code::KEY_RESERVED,
     // 180
-    evdev_code::KEY_RESERVED,
-    evdev_code::KEY_BUTTONCONFIG,
-    evdev_code::KEY_BOOKMARKS,
-    evdev_code::KEY_CONFIG,
-    evdev_code::KEY_WORDPROCESSOR,
-    evdev_code::KEY_EDITOR,
-    evdev_code::KEY_SPREADSHEET,
-    evdev_code::KEY_GRAPHICSEDITOR,
-    evdev_code::KEY_PRESENTATION,
-    evdev_code::KEY_DATABASE,
-    evdev_code::KEY_MAIL,
-    evdev_code::KEY_NEWS,
-    evdev_code::KEY_VOICEMAIL,
-    evdev_code::KEY_ADDRESSBOOK,
-    evdev_code::KEY_CALENDAR,
-    evdev_code::KEY_TASKMANAGER,
+    evdev_key_code::KEY_RESERVED,
+    evdev_key_code::KEY_BUTTONCONFIG,
+    evdev_key_code::KEY_BOOKMARKS,
+    evdev_key_code::KEY_CONFIG,
+    evdev_key_code::KEY_WORDPROCESSOR,
+    evdev_key_code::KEY_EDITOR,
+    evdev_key_code::KEY_SPREADSHEET,
+    evdev_key_code::KEY_GRAPHICSEDITOR,
+    evdev_key_code::KEY_PRESENTATION,
+    evdev_key_code::KEY_DATABASE,
+    evdev_key_code::KEY_MAIL,
+    evdev_key_code::KEY_NEWS,
+    evdev_key_code::KEY_VOICEMAIL,
+    evdev_key_code::KEY_ADDRESSBOOK,
+    evdev_key_code::KEY_CALENDAR,
+    evdev_key_code::KEY_TASKMANAGER,
     // 190
-    evdev_code::KEY_JOURNAL,
-    evdev_code::KEY_FINANCE,
-    evdev_code::KEY_CALC,
-    evdev_code::KEY_PLAYER,
-    evdev_code::KEY_FILE,
-    evdev_code::KEY_RESERVED,
-    evdev_code::KEY_WWW,
-    evdev_code::KEY_RESERVED,
-    evdev_code::KEY_RESERVED,
-    evdev_code::KEY_CHAT,
-    evdev_code::KEY_RESERVED,
-    evdev_code::KEY_RESERVED,
-    evdev_code::KEY_LOGOFF,
-    evdev_code::KEY_RESERVED,
-    evdev_code::KEY_COFFEE,
-    evdev_code::KEY_CONTROLPANEL,
+    evdev_key_code::KEY_JOURNAL,
+    evdev_key_code::KEY_FINANCE,
+    evdev_key_code::KEY_CALC,
+    evdev_key_code::KEY_PLAYER,
+    evdev_key_code::KEY_FILE,
+    evdev_key_code::KEY_RESERVED,
+    evdev_key_code::KEY_WWW,
+    evdev_key_code::KEY_RESERVED,
+    evdev_key_code::KEY_RESERVED,
+    evdev_key_code::KEY_CHAT,
+    evdev_key_code::KEY_RESERVED,
+    evdev_key_code::KEY_RESERVED,
+    evdev_key_code::KEY_LOGOFF,
+    evdev_key_code::KEY_RESERVED,
+    evdev_key_code::KEY_COFFEE,
+    evdev_key_code::KEY_CONTROLPANEL,
     // 1a0
-    evdev_code::KEY_RESERVED,
-    evdev_code::KEY_RESERVED,
-    evdev_code::KEY_APPSELECT,
-    evdev_code::KEY_NEXT,
-    evdev_code::KEY_PREVIOUS,
-    evdev_code::KEY_RESERVED,
-    evdev_code::KEY_HELP,
-    evdev_code::KEY_DOCUMENTS,
-    evdev_code::KEY_RESERVED,
-    evdev_code::KEY_RESERVED,
-    evdev_code::KEY_RESERVED,
-    evdev_code::KEY_SPELLCHECK,
-    evdev_code::KEY_RESERVED,
-    evdev_code::KEY_RESERVED,
-    evdev_code::KEY_KEYBOARD,
-    evdev_code::KEY_RESERVED,
+    evdev_key_code::KEY_RESERVED,
+    evdev_key_code::KEY_RESERVED,
+    evdev_key_code::KEY_APPSELECT,
+    evdev_key_code::KEY_NEXT,
+    evdev_key_code::KEY_PREVIOUS,
+    evdev_key_code::KEY_RESERVED,
+    evdev_key_code::KEY_HELP,
+    evdev_key_code::KEY_DOCUMENTS,
+    evdev_key_code::KEY_RESERVED,
+    evdev_key_code::KEY_RESERVED,
+    evdev_key_code::KEY_RESERVED,
+    evdev_key_code::KEY_SPELLCHECK,
+    evdev_key_code::KEY_RESERVED,
+    evdev_key_code::KEY_RESERVED,
+    evdev_key_code::KEY_KEYBOARD,
+    evdev_key_code::KEY_RESERVED,
     // 1b0
-    evdev_code::KEY_RESERVED,
-    evdev_code::KEY_SCREENSAVER,
-    evdev_code::KEY_RESERVED,
-    evdev_code::KEY_RESERVED,
-    evdev_code::KEY_FILE,
-    evdev_code::KEY_RESERVED,
-    evdev_code::KEY_IMAGES,
-    evdev_code::KEY_AUDIO,
-    evdev_code::KEY_VIDEO,
-    evdev_code::KEY_RESERVED,
-    evdev_code::KEY_RESERVED,
-    evdev_code::KEY_RESERVED,
-    evdev_code::KEY_MESSENGER,
-    evdev_code::KEY_INFO,
-    evdev_code::KEY_RESERVED,
-    evdev_code::KEY_RESERVED,
+    evdev_key_code::KEY_RESERVED,
+    evdev_key_code::KEY_SCREENSAVER,
+    evdev_key_code::KEY_RESERVED,
+    evdev_key_code::KEY_RESERVED,
+    evdev_key_code::KEY_FILE,
+    evdev_key_code::KEY_RESERVED,
+    evdev_key_code::KEY_IMAGES,
+    evdev_key_code::KEY_AUDIO,
+    evdev_key_code::KEY_VIDEO,
+    evdev_key_code::KEY_RESERVED,
+    evdev_key_code::KEY_RESERVED,
+    evdev_key_code::KEY_RESERVED,
+    evdev_key_code::KEY_MESSENGER,
+    evdev_key_code::KEY_INFO,
+    evdev_key_code::KEY_RESERVED,
+    evdev_key_code::KEY_RESERVED,
     // 1c0
-    evdev_code::KEY_RESERVED,
-    evdev_code::KEY_RESERVED,
-    evdev_code::KEY_RESERVED,
-    evdev_code::KEY_RESERVED,
-    evdev_code::KEY_RESERVED,
-    evdev_code::KEY_RESERVED,
-    evdev_code::KEY_RESERVED,
-    evdev_code::KEY_RESERVED,
-    evdev_code::KEY_RESERVED,
-    evdev_code::KEY_RESERVED,
-    evdev_code::KEY_RESERVED,
-    evdev_code::KEY_ASSISTANT,
-    evdev_code::KEY_RESERVED,
-    evdev_code::KEY_RESERVED,
-    evdev_code::KEY_RESERVED,
-    evdev_code::KEY_RESERVED,
+    evdev_key_code::KEY_RESERVED,
+    evdev_key_code::KEY_RESERVED,
+    evdev_key_code::KEY_RESERVED,
+    evdev_key_code::KEY_RESERVED,
+    evdev_key_code::KEY_RESERVED,
+    evdev_key_code::KEY_RESERVED,
+    evdev_key_code::KEY_RESERVED,
+    evdev_key_code::KEY_RESERVED,
+    evdev_key_code::KEY_RESERVED,
+    evdev_key_code::KEY_RESERVED,
+    evdev_key_code::KEY_RESERVED,
+    evdev_key_code::KEY_ASSISTANT,
+    evdev_key_code::KEY_RESERVED,
+    evdev_key_code::KEY_RESERVED,
+    evdev_key_code::KEY_RESERVED,
+    evdev_key_code::KEY_RESERVED,
     // 1d0
-    evdev_code::KEY_RESERVED,
-    evdev_code::KEY_RESERVED,
-    evdev_code::KEY_RESERVED,
-    evdev_code::KEY_RESERVED,
-    evdev_code::KEY_RESERVED,
-    evdev_code::KEY_RESERVED,
-    evdev_code::KEY_RESERVED,
-    evdev_code::KEY_RESERVED,
-    evdev_code::KEY_RESERVED,
-    evdev_code::KEY_RESERVED,
-    evdev_code::KEY_RESERVED,
-    evdev_code::KEY_RESERVED,
-    evdev_code::KEY_RESERVED,
-    evdev_code::KEY_RESERVED,
-    evdev_code::KEY_RESERVED,
-    evdev_code::KEY_RESERVED,
+    evdev_key_code::KEY_RESERVED,
+    evdev_key_code::KEY_RESERVED,
+    evdev_key_code::KEY_RESERVED,
+    evdev_key_code::KEY_RESERVED,
+    evdev_key_code::KEY_RESERVED,
+    evdev_key_code::KEY_RESERVED,
+    evdev_key_code::KEY_RESERVED,
+    evdev_key_code::KEY_RESERVED,
+    evdev_key_code::KEY_RESERVED,
+    evdev_key_code::KEY_RESERVED,
+    evdev_key_code::KEY_RESERVED,
+    evdev_key_code::KEY_RESERVED,
+    evdev_key_code::KEY_RESERVED,
+    evdev_key_code::KEY_RESERVED,
+    evdev_key_code::KEY_RESERVED,
+    evdev_key_code::KEY_RESERVED,
     // 1e0
-    evdev_code::KEY_RESERVED,
-    evdev_code::KEY_RESERVED,
-    evdev_code::KEY_RESERVED,
-    evdev_code::KEY_RESERVED,
-    evdev_code::KEY_RESERVED,
-    evdev_code::KEY_RESERVED,
-    evdev_code::KEY_RESERVED,
-    evdev_code::KEY_RESERVED,
-    evdev_code::KEY_RESERVED,
-    evdev_code::KEY_RESERVED,
-    evdev_code::KEY_RESERVED,
-    evdev_code::KEY_RESERVED,
-    evdev_code::KEY_RESERVED,
-    evdev_code::KEY_RESERVED,
-    evdev_code::KEY_RESERVED,
-    evdev_code::KEY_RESERVED,
+    evdev_key_code::KEY_RESERVED,
+    evdev_key_code::KEY_RESERVED,
+    evdev_key_code::KEY_RESERVED,
+    evdev_key_code::KEY_RESERVED,
+    evdev_key_code::KEY_RESERVED,
+    evdev_key_code::KEY_RESERVED,
+    evdev_key_code::KEY_RESERVED,
+    evdev_key_code::KEY_RESERVED,
+    evdev_key_code::KEY_RESERVED,
+    evdev_key_code::KEY_RESERVED,
+    evdev_key_code::KEY_RESERVED,
+    evdev_key_code::KEY_RESERVED,
+    evdev_key_code::KEY_RESERVED,
+    evdev_key_code::KEY_RESERVED,
+    evdev_key_code::KEY_RESERVED,
+    evdev_key_code::KEY_RESERVED,
     // 1f0
-    evdev_code::KEY_RESERVED,
-    evdev_code::KEY_RESERVED,
-    evdev_code::KEY_RESERVED,
-    evdev_code::KEY_RESERVED,
-    evdev_code::KEY_RESERVED,
-    evdev_code::KEY_RESERVED,
-    evdev_code::KEY_RESERVED,
-    evdev_code::KEY_RESERVED,
-    evdev_code::KEY_RESERVED,
-    evdev_code::KEY_RESERVED,
-    evdev_code::KEY_RESERVED,
-    evdev_code::KEY_RESERVED,
-    evdev_code::KEY_RESERVED,
-    evdev_code::KEY_RESERVED,
-    evdev_code::KEY_RESERVED,
-    evdev_code::KEY_RESERVED,
+    evdev_key_code::KEY_RESERVED,
+    evdev_key_code::KEY_RESERVED,
+    evdev_key_code::KEY_RESERVED,
+    evdev_key_code::KEY_RESERVED,
+    evdev_key_code::KEY_RESERVED,
+    evdev_key_code::KEY_RESERVED,
+    evdev_key_code::KEY_RESERVED,
+    evdev_key_code::KEY_RESERVED,
+    evdev_key_code::KEY_RESERVED,
+    evdev_key_code::KEY_RESERVED,
+    evdev_key_code::KEY_RESERVED,
+    evdev_key_code::KEY_RESERVED,
+    evdev_key_code::KEY_RESERVED,
+    evdev_key_code::KEY_RESERVED,
+    evdev_key_code::KEY_RESERVED,
+    evdev_key_code::KEY_RESERVED,
     // 200
-    evdev_code::KEY_RESERVED,
-    evdev_code::KEY_NEW,
-    evdev_code::KEY_OPEN,
-    evdev_code::KEY_CLOSE,
-    evdev_code::KEY_EXIT,
-    evdev_code::KEY_RESERVED,
-    evdev_code::KEY_RESERVED,
-    evdev_code::KEY_SAVE,
-    evdev_code::KEY_PRINT,
-    evdev_code::KEY_PROPS,
-    evdev_code::KEY_RESERVED,
-    evdev_code::KEY_RESERVED,
-    evdev_code::KEY_RESERVED,
-    evdev_code::KEY_RESERVED,
-    evdev_code::KEY_RESERVED,
-    evdev_code::KEY_RESERVED,
+    evdev_key_code::KEY_RESERVED,
+    evdev_key_code::KEY_NEW,
+    evdev_key_code::KEY_OPEN,
+    evdev_key_code::KEY_CLOSE,
+    evdev_key_code::KEY_EXIT,
+    evdev_key_code::KEY_RESERVED,
+    evdev_key_code::KEY_RESERVED,
+    evdev_key_code::KEY_SAVE,
+    evdev_key_code::KEY_PRINT,
+    evdev_key_code::KEY_PROPS,
+    evdev_key_code::KEY_RESERVED,
+    evdev_key_code::KEY_RESERVED,
+    evdev_key_code::KEY_RESERVED,
+    evdev_key_code::KEY_RESERVED,
+    evdev_key_code::KEY_RESERVED,
+    evdev_key_code::KEY_RESERVED,
     // 210
-    evdev_code::KEY_RESERVED,
-    evdev_code::KEY_RESERVED,
-    evdev_code::KEY_RESERVED,
-    evdev_code::KEY_RESERVED,
-    evdev_code::KEY_RESERVED,
-    evdev_code::KEY_RESERVED,
-    evdev_code::KEY_RESERVED,
-    evdev_code::KEY_RESERVED,
-    evdev_code::KEY_RESERVED,
-    evdev_code::KEY_RESERVED,
-    evdev_code::KEY_UNDO,
-    evdev_code::KEY_COPY,
-    evdev_code::KEY_CUT,
-    evdev_code::KEY_PASTE,
-    evdev_code::KEY_RESERVED,
-    evdev_code::KEY_FIND,
+    evdev_key_code::KEY_RESERVED,
+    evdev_key_code::KEY_RESERVED,
+    evdev_key_code::KEY_RESERVED,
+    evdev_key_code::KEY_RESERVED,
+    evdev_key_code::KEY_RESERVED,
+    evdev_key_code::KEY_RESERVED,
+    evdev_key_code::KEY_RESERVED,
+    evdev_key_code::KEY_RESERVED,
+    evdev_key_code::KEY_RESERVED,
+    evdev_key_code::KEY_RESERVED,
+    evdev_key_code::KEY_UNDO,
+    evdev_key_code::KEY_COPY,
+    evdev_key_code::KEY_CUT,
+    evdev_key_code::KEY_PASTE,
+    evdev_key_code::KEY_RESERVED,
+    evdev_key_code::KEY_FIND,
     // 220
-    evdev_code::KEY_RESERVED,
-    evdev_code::KEY_SEARCH,
-    evdev_code::KEY_GOTO,
-    evdev_code::KEY_HOMEPAGE,
-    evdev_code::KEY_BACK,
-    evdev_code::KEY_FORWARD,
-    evdev_code::KEY_STOP,
-    evdev_code::KEY_REFRESH,
-    evdev_code::KEY_RESERVED,
-    evdev_code::KEY_RESERVED,
-    evdev_code::KEY_BOOKMARKS,
-    evdev_code::KEY_RESERVED,
-    evdev_code::KEY_RESERVED,
-    evdev_code::KEY_ZOOMIN,
-    evdev_code::KEY_ZOOMOUT,
-    evdev_code::KEY_ZOOMRESET,
+    evdev_key_code::KEY_RESERVED,
+    evdev_key_code::KEY_SEARCH,
+    evdev_key_code::KEY_GOTO,
+    evdev_key_code::KEY_HOMEPAGE,
+    evdev_key_code::KEY_BACK,
+    evdev_key_code::KEY_FORWARD,
+    evdev_key_code::KEY_STOP,
+    evdev_key_code::KEY_REFRESH,
+    evdev_key_code::KEY_RESERVED,
+    evdev_key_code::KEY_RESERVED,
+    evdev_key_code::KEY_BOOKMARKS,
+    evdev_key_code::KEY_RESERVED,
+    evdev_key_code::KEY_RESERVED,
+    evdev_key_code::KEY_ZOOMIN,
+    evdev_key_code::KEY_ZOOMOUT,
+    evdev_key_code::KEY_ZOOMRESET,
     // 230
-    evdev_code::KEY_RESERVED,
-    evdev_code::KEY_RESERVED,
-    evdev_code::KEY_FULL_SCREEN,
-    evdev_code::KEY_SCROLLUP,
-    evdev_code::KEY_SCROLLDOWN,
-    evdev_code::KEY_RESERVED,
-    evdev_code::KEY_RESERVED,
-    evdev_code::KEY_RESERVED,
-    evdev_code::KEY_RESERVED, // FIXME - AC Pan
-    evdev_code::KEY_RESERVED,
-    evdev_code::KEY_RESERVED,
-    evdev_code::KEY_RESERVED,
-    evdev_code::KEY_RESERVED,
-    evdev_code::KEY_EDIT,
-    evdev_code::KEY_RESERVED,
-    evdev_code::KEY_RESERVED,
+    evdev_key_code::KEY_RESERVED,
+    evdev_key_code::KEY_RESERVED,
+    evdev_key_code::KEY_FULL_SCREEN,
+    evdev_key_code::KEY_SCROLLUP,
+    evdev_key_code::KEY_SCROLLDOWN,
+    evdev_key_code::KEY_RESERVED,
+    evdev_key_code::KEY_RESERVED,
+    evdev_key_code::KEY_RESERVED,
+    evdev_key_code::KEY_RESERVED, // FIXME - AC Pan
+    evdev_key_code::KEY_RESERVED,
+    evdev_key_code::KEY_RESERVED,
+    evdev_key_code::KEY_RESERVED,
+    evdev_key_code::KEY_RESERVED,
+    evdev_key_code::KEY_EDIT,
+    evdev_key_code::KEY_RESERVED,
+    evdev_key_code::KEY_RESERVED,
     // 240
-    evdev_code::KEY_RESERVED,
-    evdev_code::KEY_RESERVED,
-    evdev_code::KEY_RESERVED,
-    evdev_code::KEY_RESERVED,
-    evdev_code::KEY_RESERVED,
-    evdev_code::KEY_RESERVED,
-    evdev_code::KEY_RESERVED,
-    evdev_code::KEY_RESERVED,
-    evdev_code::KEY_RESERVED,
-    evdev_code::KEY_RESERVED,
-    evdev_code::KEY_RESERVED,
-    evdev_code::KEY_RESERVED,
-    evdev_code::KEY_RESERVED,
-    evdev_code::KEY_RESERVED,
-    evdev_code::KEY_RESERVED,
-    evdev_code::KEY_RESERVED,
+    evdev_key_code::KEY_RESERVED,
+    evdev_key_code::KEY_RESERVED,
+    evdev_key_code::KEY_RESERVED,
+    evdev_key_code::KEY_RESERVED,
+    evdev_key_code::KEY_RESERVED,
+    evdev_key_code::KEY_RESERVED,
+    evdev_key_code::KEY_RESERVED,
+    evdev_key_code::KEY_RESERVED,
+    evdev_key_code::KEY_RESERVED,
+    evdev_key_code::KEY_RESERVED,
+    evdev_key_code::KEY_RESERVED,
+    evdev_key_code::KEY_RESERVED,
+    evdev_key_code::KEY_RESERVED,
+    evdev_key_code::KEY_RESERVED,
+    evdev_key_code::KEY_RESERVED,
+    evdev_key_code::KEY_RESERVED,
     // 250
-    evdev_code::KEY_RESERVED,
-    evdev_code::KEY_RESERVED,
-    evdev_code::KEY_RESERVED,
-    evdev_code::KEY_RESERVED,
-    evdev_code::KEY_RESERVED,
-    evdev_code::KEY_RESERVED,
-    evdev_code::KEY_RESERVED,
-    evdev_code::KEY_RESERVED,
-    evdev_code::KEY_RESERVED,
-    evdev_code::KEY_RESERVED,
-    evdev_code::KEY_RESERVED,
-    evdev_code::KEY_RESERVED,
-    evdev_code::KEY_RESERVED,
-    evdev_code::KEY_RESERVED,
-    evdev_code::KEY_RESERVED,
-    evdev_code::KEY_CANCEL,
+    evdev_key_code::KEY_RESERVED,
+    evdev_key_code::KEY_RESERVED,
+    evdev_key_code::KEY_RESERVED,
+    evdev_key_code::KEY_RESERVED,
+    evdev_key_code::KEY_RESERVED,
+    evdev_key_code::KEY_RESERVED,
+    evdev_key_code::KEY_RESERVED,
+    evdev_key_code::KEY_RESERVED,
+    evdev_key_code::KEY_RESERVED,
+    evdev_key_code::KEY_RESERVED,
+    evdev_key_code::KEY_RESERVED,
+    evdev_key_code::KEY_RESERVED,
+    evdev_key_code::KEY_RESERVED,
+    evdev_key_code::KEY_RESERVED,
+    evdev_key_code::KEY_RESERVED,
+    evdev_key_code::KEY_CANCEL,
     // 260
-    evdev_code::KEY_RESERVED,
-    evdev_code::KEY_RESERVED,
-    evdev_code::KEY_RESERVED,
-    evdev_code::KEY_RESERVED,
-    evdev_code::KEY_RESERVED,
-    evdev_code::KEY_RESERVED,
-    evdev_code::KEY_RESERVED,
-    evdev_code::KEY_RESERVED,
-    evdev_code::KEY_RESERVED,
-    evdev_code::KEY_INSERT,
-    evdev_code::KEY_DELETE,
-    evdev_code::KEY_RESERVED,
-    evdev_code::KEY_RESERVED,
-    evdev_code::KEY_RESERVED,
-    evdev_code::KEY_RESERVED,
-    evdev_code::KEY_RESERVED,
+    evdev_key_code::KEY_RESERVED,
+    evdev_key_code::KEY_RESERVED,
+    evdev_key_code::KEY_RESERVED,
+    evdev_key_code::KEY_RESERVED,
+    evdev_key_code::KEY_RESERVED,
+    evdev_key_code::KEY_RESERVED,
+    evdev_key_code::KEY_RESERVED,
+    evdev_key_code::KEY_RESERVED,
+    evdev_key_code::KEY_RESERVED,
+    evdev_key_code::KEY_INSERT,
+    evdev_key_code::KEY_DELETE,
+    evdev_key_code::KEY_RESERVED,
+    evdev_key_code::KEY_RESERVED,
+    evdev_key_code::KEY_RESERVED,
+    evdev_key_code::KEY_RESERVED,
+    evdev_key_code::KEY_RESERVED,
     // 270
-    evdev_code::KEY_RESERVED,
-    evdev_code::KEY_RESERVED,
-    evdev_code::KEY_RESERVED,
-    evdev_code::KEY_RESERVED,
-    evdev_code::KEY_RESERVED,
-    evdev_code::KEY_RESERVED,
-    evdev_code::KEY_RESERVED,
-    evdev_code::KEY_RESERVED,
-    evdev_code::KEY_RESERVED,
-    evdev_code::KEY_REDO,
-    evdev_code::KEY_RESERVED,
-    evdev_code::KEY_RESERVED,
-    evdev_code::KEY_RESERVED,
-    evdev_code::KEY_RESERVED,
-    evdev_code::KEY_RESERVED,
-    evdev_code::KEY_RESERVED,
+    evdev_key_code::KEY_RESERVED,
+    evdev_key_code::KEY_RESERVED,
+    evdev_key_code::KEY_RESERVED,
+    evdev_key_code::KEY_RESERVED,
+    evdev_key_code::KEY_RESERVED,
+    evdev_key_code::KEY_RESERVED,
+    evdev_key_code::KEY_RESERVED,
+    evdev_key_code::KEY_RESERVED,
+    evdev_key_code::KEY_RESERVED,
+    evdev_key_code::KEY_REDO,
+    evdev_key_code::KEY_RESERVED,
+    evdev_key_code::KEY_RESERVED,
+    evdev_key_code::KEY_RESERVED,
+    evdev_key_code::KEY_RESERVED,
+    evdev_key_code::KEY_RESERVED,
+    evdev_key_code::KEY_RESERVED,
     // 280
-    evdev_code::KEY_RESERVED,
-    evdev_code::KEY_RESERVED,
-    evdev_code::KEY_RESERVED,
-    evdev_code::KEY_RESERVED,
-    evdev_code::KEY_RESERVED,
-    evdev_code::KEY_RESERVED,
-    evdev_code::KEY_RESERVED,
-    evdev_code::KEY_RESERVED,
-    evdev_code::KEY_RESERVED,
-    evdev_code::KEY_REPLY,
-    evdev_code::KEY_RESERVED,
-    evdev_code::KEY_FORWARDMAIL,
-    evdev_code::KEY_SEND,
-    evdev_code::KEY_RESERVED,
-    evdev_code::KEY_RESERVED,
-    evdev_code::KEY_RESERVED,
+    evdev_key_code::KEY_RESERVED,
+    evdev_key_code::KEY_RESERVED,
+    evdev_key_code::KEY_RESERVED,
+    evdev_key_code::KEY_RESERVED,
+    evdev_key_code::KEY_RESERVED,
+    evdev_key_code::KEY_RESERVED,
+    evdev_key_code::KEY_RESERVED,
+    evdev_key_code::KEY_RESERVED,
+    evdev_key_code::KEY_RESERVED,
+    evdev_key_code::KEY_REPLY,
+    evdev_key_code::KEY_RESERVED,
+    evdev_key_code::KEY_FORWARDMAIL,
+    evdev_key_code::KEY_SEND,
+    evdev_key_code::KEY_RESERVED,
+    evdev_key_code::KEY_RESERVED,
+    evdev_key_code::KEY_RESERVED,
     // 290
-    evdev_code::KEY_RESERVED,
-    evdev_code::KEY_RESERVED,
-    evdev_code::KEY_RESERVED,
-    evdev_code::KEY_RESERVED,
-    evdev_code::KEY_RESERVED,
-    evdev_code::KEY_RESERVED,
-    evdev_code::KEY_RESERVED,
-    evdev_code::KEY_RESERVED,
-    evdev_code::KEY_RESERVED,
-    evdev_code::KEY_RESERVED,
-    evdev_code::KEY_RESERVED,
-    evdev_code::KEY_RESERVED,
-    evdev_code::KEY_RESERVED,
-    evdev_code::KEY_KBD_LAYOUT_NEXT,
-    evdev_code::KEY_RESERVED,
-    evdev_code::KEY_SCALE,
+    evdev_key_code::KEY_RESERVED,
+    evdev_key_code::KEY_RESERVED,
+    evdev_key_code::KEY_RESERVED,
+    evdev_key_code::KEY_RESERVED,
+    evdev_key_code::KEY_RESERVED,
+    evdev_key_code::KEY_RESERVED,
+    evdev_key_code::KEY_RESERVED,
+    evdev_key_code::KEY_RESERVED,
+    evdev_key_code::KEY_RESERVED,
+    evdev_key_code::KEY_RESERVED,
+    evdev_key_code::KEY_RESERVED,
+    evdev_key_code::KEY_RESERVED,
+    evdev_key_code::KEY_RESERVED,
+    evdev_key_code::KEY_KBD_LAYOUT_NEXT,
+    evdev_key_code::KEY_RESERVED,
+    evdev_key_code::KEY_SCALE,
     // 2a0
-    evdev_code::KEY_RESERVED,
-    evdev_code::KEY_RESERVED,
-    evdev_code::KEY_ALL_APPLICATIONS,
-    evdev_code::KEY_RESERVED,
-    evdev_code::KEY_RESERVED,
-    evdev_code::KEY_RESERVED,
-    evdev_code::KEY_RESERVED,
-    evdev_code::KEY_RESERVED,
-    evdev_code::KEY_RESERVED,
-    evdev_code::KEY_RESERVED,
-    evdev_code::KEY_RESERVED,
-    evdev_code::KEY_RESERVED,
-    evdev_code::KEY_RESERVED,
-    evdev_code::KEY_RESERVED,
-    evdev_code::KEY_RESERVED,
-    evdev_code::KEY_RESERVED,
+    evdev_key_code::KEY_RESERVED,
+    evdev_key_code::KEY_RESERVED,
+    evdev_key_code::KEY_ALL_APPLICATIONS,
+    evdev_key_code::KEY_RESERVED,
+    evdev_key_code::KEY_RESERVED,
+    evdev_key_code::KEY_RESERVED,
+    evdev_key_code::KEY_RESERVED,
+    evdev_key_code::KEY_RESERVED,
+    evdev_key_code::KEY_RESERVED,
+    evdev_key_code::KEY_RESERVED,
+    evdev_key_code::KEY_RESERVED,
+    evdev_key_code::KEY_RESERVED,
+    evdev_key_code::KEY_RESERVED,
+    evdev_key_code::KEY_RESERVED,
+    evdev_key_code::KEY_RESERVED,
+    evdev_key_code::KEY_RESERVED,
     // 2b0
-    evdev_code::KEY_RESERVED,
-    evdev_code::KEY_RESERVED,
-    evdev_code::KEY_RESERVED,
-    evdev_code::KEY_RESERVED,
-    evdev_code::KEY_RESERVED,
-    evdev_code::KEY_RESERVED,
-    evdev_code::KEY_RESERVED,
-    evdev_code::KEY_RESERVED,
-    evdev_code::KEY_RESERVED,
-    evdev_code::KEY_RESERVED,
-    evdev_code::KEY_RESERVED,
-    evdev_code::KEY_RESERVED,
-    evdev_code::KEY_RESERVED,
-    evdev_code::KEY_RESERVED,
-    evdev_code::KEY_RESERVED,
-    evdev_code::KEY_RESERVED,
+    evdev_key_code::KEY_RESERVED,
+    evdev_key_code::KEY_RESERVED,
+    evdev_key_code::KEY_RESERVED,
+    evdev_key_code::KEY_RESERVED,
+    evdev_key_code::KEY_RESERVED,
+    evdev_key_code::KEY_RESERVED,
+    evdev_key_code::KEY_RESERVED,
+    evdev_key_code::KEY_RESERVED,
+    evdev_key_code::KEY_RESERVED,
+    evdev_key_code::KEY_RESERVED,
+    evdev_key_code::KEY_RESERVED,
+    evdev_key_code::KEY_RESERVED,
+    evdev_key_code::KEY_RESERVED,
+    evdev_key_code::KEY_RESERVED,
+    evdev_key_code::KEY_RESERVED,
+    evdev_key_code::KEY_RESERVED,
     // 2c0
-    evdev_code::KEY_RESERVED,
-    evdev_code::KEY_RESERVED,
-    evdev_code::KEY_RESERVED,
-    evdev_code::KEY_RESERVED,
-    evdev_code::KEY_RESERVED,
-    evdev_code::KEY_RESERVED,
-    evdev_code::KEY_RESERVED,
-    evdev_code::KEY_KBDINPUTASSIST_PREV,
-    evdev_code::KEY_KBDINPUTASSIST_NEXT,
-    evdev_code::KEY_KBDINPUTASSIST_PREVGROUP,
-    evdev_code::KEY_KBDINPUTASSIST_NEXTGROUP,
-    evdev_code::KEY_KBDINPUTASSIST_ACCEPT,
-    evdev_code::KEY_KBDINPUTASSIST_CANCEL,
-    evdev_code::KEY_RESERVED,
-    evdev_code::KEY_RESERVED,
-    evdev_code::KEY_RESERVED,
+    evdev_key_code::KEY_RESERVED,
+    evdev_key_code::KEY_RESERVED,
+    evdev_key_code::KEY_RESERVED,
+    evdev_key_code::KEY_RESERVED,
+    evdev_key_code::KEY_RESERVED,
+    evdev_key_code::KEY_RESERVED,
+    evdev_key_code::KEY_RESERVED,
+    evdev_key_code::KEY_KBDINPUTASSIST_PREV,
+    evdev_key_code::KEY_KBDINPUTASSIST_NEXT,
+    evdev_key_code::KEY_KBDINPUTASSIST_PREVGROUP,
+    evdev_key_code::KEY_KBDINPUTASSIST_NEXTGROUP,
+    evdev_key_code::KEY_KBDINPUTASSIST_ACCEPT,
+    evdev_key_code::KEY_KBDINPUTASSIST_CANCEL,
+    evdev_key_code::KEY_RESERVED,
+    evdev_key_code::KEY_RESERVED,
+    evdev_key_code::KEY_RESERVED,
 };
 
 static bool found_usb_hid_device(usb_device& d, const usb_device_config& config,
@@ -2029,178 +2029,178 @@ void usb_hid_device::set_led_field(usb_hid_report& r, usb_hid_field& f,
     }
 }
 
-static bool should_key_repeat(enum evdev_code code) {
+static bool should_key_repeat(enum evdev_key_code code) {
     switch (code) {
-        case evdev_code::KEY_RESERVED:
-        case evdev_code::KEY_LEFTALT:
-        case evdev_code::KEY_RIGHTALT:
-        case evdev_code::KEY_LEFTCTRL:
-        case evdev_code::KEY_RIGHTCTRL:
-        case evdev_code::KEY_LEFTSHIFT:
-        case evdev_code::KEY_RIGHTSHIFT:
-        case evdev_code::KEY_LEFTMETA:
-        case evdev_code::KEY_RIGHTMETA:
-        case evdev_code::KEY_CAPSLOCK:
-        case evdev_code::KEY_NUMLOCK:
-        case evdev_code::KEY_SCROLLLOCK:
-        case evdev_code::KEY_BRIGHTNESSUP:
-        case evdev_code::KEY_BRIGHTNESSDOWN:
-        case evdev_code::KEY_PLAY:
-        case evdev_code::KEY_PAUSE:
-        case evdev_code::KEY_RECORD:
-        case evdev_code::KEY_FASTFORWARD:
-        case evdev_code::KEY_REWIND:
-        case evdev_code::KEY_NEXTSONG:
-        case evdev_code::KEY_PREVIOUSSONG:
-        case evdev_code::KEY_STOPCD:
-        case evdev_code::KEY_EJECTCD:
-        case evdev_code::KEY_PLAYPAUSE:
-        case evdev_code::KEY_MUTE:
-        case evdev_code::KEY_CONFIG:
-        case evdev_code::KEY_EMAIL:
-        case evdev_code::KEY_CALC:
-        case evdev_code::KEY_MEDIA:
-        case evdev_code::KEY_COFFEE:
-        case evdev_code::KEY_FILE:
-        case evdev_code::KEY_SEARCH:
-        case evdev_code::KEY_HOMEPAGE:
-        case evdev_code::KEY_BACK:
-        case evdev_code::KEY_FORWARD:
-        case evdev_code::KEY_STOP:
-        case evdev_code::KEY_REFRESH:
-        case evdev_code::KEY_POWER:
-        case evdev_code::KEY_RESTART:
-        case evdev_code::KEY_SLEEP:
-        case evdev_code::KEY_KBDILLUMTOGGLE:
-        case evdev_code::KEY_MENU:
-        case evdev_code::KEY_SELECT:
-        case evdev_code::KEY_UP:
-        case evdev_code::KEY_DOWN:
-        case evdev_code::KEY_LEFT:
-        case evdev_code::KEY_RIGHT:
-        case evdev_code::KEY_ESC:
-        case evdev_code::KEY_KPPLUS:
-        case evdev_code::KEY_KPMINUS:
-        case evdev_code::KEY_INFO:
-        case evdev_code::KEY_SUBTITLE:
-        case evdev_code::KEY_VCR:
-        case evdev_code::KEY_CAMERA:
-        case evdev_code::KEY_RED:
-        case evdev_code::KEY_GREEN:
-        case evdev_code::KEY_BLUE:
-        case evdev_code::KEY_YELLOW:
-        case evdev_code::KEY_ASPECT_RATIO:
-        case evdev_code::KEY_DISPLAYTOGGLE:
-        case evdev_code::KEY_BRIGHTNESS_MIN:
-        case evdev_code::KEY_BRIGHTNESS_MAX:
-        case evdev_code::KEY_BRIGHTNESS_AUTO:
-        case evdev_code::KEY_CAMERA_ACCESS_ENABLE:
-        case evdev_code::KEY_CAMERA_ACCESS_DISABLE:
-        case evdev_code::KEY_CAMERA_ACCESS_TOGGLE:
-        case evdev_code::KEY_KBDILLUMUP:
-        case evdev_code::KEY_KBDILLUMDOWN:
-        case evdev_code::KEY_VIDEO_NEXT:
-        case evdev_code::KEY_LAST:
-        case evdev_code::KEY_ENTER:
-        case evdev_code::KEY_PC:
-        case evdev_code::KEY_TV:
-        case evdev_code::KEY_WWW:
-        case evdev_code::KEY_DVD:
-        case evdev_code::KEY_PHONE:
-        case evdev_code::KEY_PROGRAM:
-        case evdev_code::KEY_VIDEOPHONE:
-        case evdev_code::KEY_GAMES:
-        case evdev_code::KEY_MEMO:
-        case evdev_code::KEY_CD:
-        case evdev_code::KEY_TUNER:
-        case evdev_code::KEY_EXIT:
-        case evdev_code::KEY_HELP:
-        case evdev_code::KEY_TAPE:
-        case evdev_code::KEY_TV2:
-        case evdev_code::KEY_SAT:
-        case evdev_code::KEY_PVR:
-        case evdev_code::KEY_CHANNELUP:
-        case evdev_code::KEY_CHANNELDOWN:
-        case evdev_code::KEY_VCR2:
-        case evdev_code::KEY_SHUFFLE:
-        case evdev_code::KEY_MEDIA_REPEAT:
-        case evdev_code::KEY_SLOW:
-        case evdev_code::KEY_VOICECOMMAND:
-        case evdev_code::KEY_DICTATE:
-        case evdev_code::KEY_EMOJI_PICKER:
-        case evdev_code::KEY_BASSBOOST:
-        case evdev_code::KEY_BUTTONCONFIG:
-        case evdev_code::KEY_BOOKMARKS:
-        case evdev_code::KEY_WORDPROCESSOR:
-        case evdev_code::KEY_EDITOR:
-        case evdev_code::KEY_SPREADSHEET:
-        case evdev_code::KEY_GRAPHICSEDITOR:
-        case evdev_code::KEY_PRESENTATION:
-        case evdev_code::KEY_DATABASE:
-        case evdev_code::KEY_MAIL:
-        case evdev_code::KEY_NEWS:
-        case evdev_code::KEY_VOICEMAIL:
-        case evdev_code::KEY_ADDRESSBOOK:
-        case evdev_code::KEY_CALENDAR:
-        case evdev_code::KEY_TASKMANAGER:
-        case evdev_code::KEY_JOURNAL:
-        case evdev_code::KEY_FINANCE:
-        case evdev_code::KEY_PLAYER:
-        case evdev_code::KEY_CHAT:
-        case evdev_code::KEY_LOGOFF:
-        case evdev_code::KEY_CONTROLPANEL:
-        case evdev_code::KEY_APPSELECT:
-        case evdev_code::KEY_NEXT:
-        case evdev_code::KEY_PREVIOUS:
-        case evdev_code::KEY_DOCUMENTS:
-        case evdev_code::KEY_SPELLCHECK:
-        case evdev_code::KEY_KEYBOARD:
-        case evdev_code::KEY_SCREENSAVER:
-        case evdev_code::KEY_IMAGES:
-        case evdev_code::KEY_AUDIO:
-        case evdev_code::KEY_VIDEO:
-        case evdev_code::KEY_MESSENGER:
-        case evdev_code::KEY_ASSISTANT:
-        case evdev_code::KEY_NEW:
-        case evdev_code::KEY_OPEN:
-        case evdev_code::KEY_CLOSE:
-        case evdev_code::KEY_SAVE:
-        case evdev_code::KEY_PRINT:
-        case evdev_code::KEY_PROPS:
-        case evdev_code::KEY_UNDO:
-        case evdev_code::KEY_COPY:
-        case evdev_code::KEY_CUT:
-        case evdev_code::KEY_PASTE:
-        case evdev_code::KEY_FIND:
-        case evdev_code::KEY_GOTO:
-        case evdev_code::KEY_ZOOMIN:
-        case evdev_code::KEY_ZOOMOUT:
-        case evdev_code::KEY_ZOOMRESET:
-        case evdev_code::KEY_FULL_SCREEN:
-        case evdev_code::KEY_SCROLLUP:
-        case evdev_code::KEY_SCROLLDOWN:
-        case evdev_code::KEY_EDIT:
-        case evdev_code::KEY_CANCEL:
-        case evdev_code::KEY_INSERT:
-        case evdev_code::KEY_DELETE:
-        case evdev_code::KEY_REDO:
-        case evdev_code::KEY_REPLY:
-        case evdev_code::KEY_FORWARDMAIL:
-        case evdev_code::KEY_SEND:
-        case evdev_code::KEY_KBD_LAYOUT_NEXT:
-        case evdev_code::KEY_SCALE:
-        case evdev_code::KEY_ALL_APPLICATIONS:
-        case evdev_code::KEY_KBDINPUTASSIST_PREV:
-        case evdev_code::KEY_KBDINPUTASSIST_NEXT:
-        case evdev_code::KEY_KBDINPUTASSIST_PREVGROUP:
-        case evdev_code::KEY_KBDINPUTASSIST_NEXTGROUP:
-        case evdev_code::KEY_KBDINPUTASSIST_ACCEPT:
-        case evdev_code::KEY_KBDINPUTASSIST_CANCEL:
-        case evdev_code::BTN_LEFT:
-        case evdev_code::BTN_RIGHT:
-        case evdev_code::BTN_MIDDLE:
-        case evdev_code::BTN_SIDE:
-        case evdev_code::BTN_EXTRA:
+        case evdev_key_code::KEY_RESERVED:
+        case evdev_key_code::KEY_LEFTALT:
+        case evdev_key_code::KEY_RIGHTALT:
+        case evdev_key_code::KEY_LEFTCTRL:
+        case evdev_key_code::KEY_RIGHTCTRL:
+        case evdev_key_code::KEY_LEFTSHIFT:
+        case evdev_key_code::KEY_RIGHTSHIFT:
+        case evdev_key_code::KEY_LEFTMETA:
+        case evdev_key_code::KEY_RIGHTMETA:
+        case evdev_key_code::KEY_CAPSLOCK:
+        case evdev_key_code::KEY_NUMLOCK:
+        case evdev_key_code::KEY_SCROLLLOCK:
+        case evdev_key_code::KEY_BRIGHTNESSUP:
+        case evdev_key_code::KEY_BRIGHTNESSDOWN:
+        case evdev_key_code::KEY_PLAY:
+        case evdev_key_code::KEY_PAUSE:
+        case evdev_key_code::KEY_RECORD:
+        case evdev_key_code::KEY_FASTFORWARD:
+        case evdev_key_code::KEY_REWIND:
+        case evdev_key_code::KEY_NEXTSONG:
+        case evdev_key_code::KEY_PREVIOUSSONG:
+        case evdev_key_code::KEY_STOPCD:
+        case evdev_key_code::KEY_EJECTCD:
+        case evdev_key_code::KEY_PLAYPAUSE:
+        case evdev_key_code::KEY_MUTE:
+        case evdev_key_code::KEY_CONFIG:
+        case evdev_key_code::KEY_EMAIL:
+        case evdev_key_code::KEY_CALC:
+        case evdev_key_code::KEY_MEDIA:
+        case evdev_key_code::KEY_COFFEE:
+        case evdev_key_code::KEY_FILE:
+        case evdev_key_code::KEY_SEARCH:
+        case evdev_key_code::KEY_HOMEPAGE:
+        case evdev_key_code::KEY_BACK:
+        case evdev_key_code::KEY_FORWARD:
+        case evdev_key_code::KEY_STOP:
+        case evdev_key_code::KEY_REFRESH:
+        case evdev_key_code::KEY_POWER:
+        case evdev_key_code::KEY_RESTART:
+        case evdev_key_code::KEY_SLEEP:
+        case evdev_key_code::KEY_KBDILLUMTOGGLE:
+        case evdev_key_code::KEY_MENU:
+        case evdev_key_code::KEY_SELECT:
+        case evdev_key_code::KEY_UP:
+        case evdev_key_code::KEY_DOWN:
+        case evdev_key_code::KEY_LEFT:
+        case evdev_key_code::KEY_RIGHT:
+        case evdev_key_code::KEY_ESC:
+        case evdev_key_code::KEY_KPPLUS:
+        case evdev_key_code::KEY_KPMINUS:
+        case evdev_key_code::KEY_INFO:
+        case evdev_key_code::KEY_SUBTITLE:
+        case evdev_key_code::KEY_VCR:
+        case evdev_key_code::KEY_CAMERA:
+        case evdev_key_code::KEY_RED:
+        case evdev_key_code::KEY_GREEN:
+        case evdev_key_code::KEY_BLUE:
+        case evdev_key_code::KEY_YELLOW:
+        case evdev_key_code::KEY_ASPECT_RATIO:
+        case evdev_key_code::KEY_DISPLAYTOGGLE:
+        case evdev_key_code::KEY_BRIGHTNESS_MIN:
+        case evdev_key_code::KEY_BRIGHTNESS_MAX:
+        case evdev_key_code::KEY_BRIGHTNESS_AUTO:
+        case evdev_key_code::KEY_CAMERA_ACCESS_ENABLE:
+        case evdev_key_code::KEY_CAMERA_ACCESS_DISABLE:
+        case evdev_key_code::KEY_CAMERA_ACCESS_TOGGLE:
+        case evdev_key_code::KEY_KBDILLUMUP:
+        case evdev_key_code::KEY_KBDILLUMDOWN:
+        case evdev_key_code::KEY_VIDEO_NEXT:
+        case evdev_key_code::KEY_LAST:
+        case evdev_key_code::KEY_ENTER:
+        case evdev_key_code::KEY_PC:
+        case evdev_key_code::KEY_TV:
+        case evdev_key_code::KEY_WWW:
+        case evdev_key_code::KEY_DVD:
+        case evdev_key_code::KEY_PHONE:
+        case evdev_key_code::KEY_PROGRAM:
+        case evdev_key_code::KEY_VIDEOPHONE:
+        case evdev_key_code::KEY_GAMES:
+        case evdev_key_code::KEY_MEMO:
+        case evdev_key_code::KEY_CD:
+        case evdev_key_code::KEY_TUNER:
+        case evdev_key_code::KEY_EXIT:
+        case evdev_key_code::KEY_HELP:
+        case evdev_key_code::KEY_TAPE:
+        case evdev_key_code::KEY_TV2:
+        case evdev_key_code::KEY_SAT:
+        case evdev_key_code::KEY_PVR:
+        case evdev_key_code::KEY_CHANNELUP:
+        case evdev_key_code::KEY_CHANNELDOWN:
+        case evdev_key_code::KEY_VCR2:
+        case evdev_key_code::KEY_SHUFFLE:
+        case evdev_key_code::KEY_MEDIA_REPEAT:
+        case evdev_key_code::KEY_SLOW:
+        case evdev_key_code::KEY_VOICECOMMAND:
+        case evdev_key_code::KEY_DICTATE:
+        case evdev_key_code::KEY_EMOJI_PICKER:
+        case evdev_key_code::KEY_BASSBOOST:
+        case evdev_key_code::KEY_BUTTONCONFIG:
+        case evdev_key_code::KEY_BOOKMARKS:
+        case evdev_key_code::KEY_WORDPROCESSOR:
+        case evdev_key_code::KEY_EDITOR:
+        case evdev_key_code::KEY_SPREADSHEET:
+        case evdev_key_code::KEY_GRAPHICSEDITOR:
+        case evdev_key_code::KEY_PRESENTATION:
+        case evdev_key_code::KEY_DATABASE:
+        case evdev_key_code::KEY_MAIL:
+        case evdev_key_code::KEY_NEWS:
+        case evdev_key_code::KEY_VOICEMAIL:
+        case evdev_key_code::KEY_ADDRESSBOOK:
+        case evdev_key_code::KEY_CALENDAR:
+        case evdev_key_code::KEY_TASKMANAGER:
+        case evdev_key_code::KEY_JOURNAL:
+        case evdev_key_code::KEY_FINANCE:
+        case evdev_key_code::KEY_PLAYER:
+        case evdev_key_code::KEY_CHAT:
+        case evdev_key_code::KEY_LOGOFF:
+        case evdev_key_code::KEY_CONTROLPANEL:
+        case evdev_key_code::KEY_APPSELECT:
+        case evdev_key_code::KEY_NEXT:
+        case evdev_key_code::KEY_PREVIOUS:
+        case evdev_key_code::KEY_DOCUMENTS:
+        case evdev_key_code::KEY_SPELLCHECK:
+        case evdev_key_code::KEY_KEYBOARD:
+        case evdev_key_code::KEY_SCREENSAVER:
+        case evdev_key_code::KEY_IMAGES:
+        case evdev_key_code::KEY_AUDIO:
+        case evdev_key_code::KEY_VIDEO:
+        case evdev_key_code::KEY_MESSENGER:
+        case evdev_key_code::KEY_ASSISTANT:
+        case evdev_key_code::KEY_NEW:
+        case evdev_key_code::KEY_OPEN:
+        case evdev_key_code::KEY_CLOSE:
+        case evdev_key_code::KEY_SAVE:
+        case evdev_key_code::KEY_PRINT:
+        case evdev_key_code::KEY_PROPS:
+        case evdev_key_code::KEY_UNDO:
+        case evdev_key_code::KEY_COPY:
+        case evdev_key_code::KEY_CUT:
+        case evdev_key_code::KEY_PASTE:
+        case evdev_key_code::KEY_FIND:
+        case evdev_key_code::KEY_GOTO:
+        case evdev_key_code::KEY_ZOOMIN:
+        case evdev_key_code::KEY_ZOOMOUT:
+        case evdev_key_code::KEY_ZOOMRESET:
+        case evdev_key_code::KEY_FULL_SCREEN:
+        case evdev_key_code::KEY_SCROLLUP:
+        case evdev_key_code::KEY_SCROLLDOWN:
+        case evdev_key_code::KEY_EDIT:
+        case evdev_key_code::KEY_CANCEL:
+        case evdev_key_code::KEY_INSERT:
+        case evdev_key_code::KEY_DELETE:
+        case evdev_key_code::KEY_REDO:
+        case evdev_key_code::KEY_REPLY:
+        case evdev_key_code::KEY_FORWARDMAIL:
+        case evdev_key_code::KEY_SEND:
+        case evdev_key_code::KEY_KBD_LAYOUT_NEXT:
+        case evdev_key_code::KEY_SCALE:
+        case evdev_key_code::KEY_ALL_APPLICATIONS:
+        case evdev_key_code::KEY_KBDINPUTASSIST_PREV:
+        case evdev_key_code::KEY_KBDINPUTASSIST_NEXT:
+        case evdev_key_code::KEY_KBDINPUTASSIST_PREVGROUP:
+        case evdev_key_code::KEY_KBDINPUTASSIST_NEXTGROUP:
+        case evdev_key_code::KEY_KBDINPUTASSIST_ACCEPT:
+        case evdev_key_code::KEY_KBDINPUTASSIST_CANCEL:
+        case evdev_key_code::BTN_LEFT:
+        case evdev_key_code::BTN_RIGHT:
+        case evdev_key_code::BTN_MIDDLE:
+        case evdev_key_code::BTN_SIDE:
+        case evdev_key_code::BTN_EXTRA:
             return false;
 
         default:
@@ -2212,23 +2212,23 @@ void usb_hid_device::post_evdev(enum evdev_type type, enum evdev_code code,
                                 int32_t value, bool add_syn) {
     input_event ev;
 
-    if (type == evdev_type::EV_KEY && value != 2 && should_key_repeat(code)) {
+    if (type == evdev_type::EV_KEY && value != 2 && should_key_repeat((evdev_key_code)code)) {
         auto& t = static_cast<timer&>(repeat_timer.get());
 
         if (value == 0) { // up
-            if (repeat_key == code) {
+            if (repeat_key == (evdev_key_code)code) {
                 if (auto status = t.cancel(nullptr); !success(status))
                     print("timer::cancel returned {}\n", status);
 
-                repeat_key = evdev_code::KEY_RESERVED;
+                repeat_key = evdev_key_code::KEY_RESERVED;
             }
         } else { // down
-            if (repeat_key == evdev_code::KEY_RESERVED) {
+            if (repeat_key == evdev_key_code::KEY_RESERVED) {
                 if (auto status = t.set(-ONE_MS_TICKS * REPEAT_DELAY_MS, nullptr,
                                         nullptr, false, 0, nullptr); !success(status)) {
                     print("timer::set returned {}\n", status);
                 }
-            } else if (repeat_key != code) {
+            } else if (repeat_key != (evdev_key_code)code) {
                 if (auto status = t.cancel(nullptr); !success(status))
                     print("timer::cancel returned {}\n", status);
 
@@ -2238,7 +2238,7 @@ void usb_hid_device::post_evdev(enum evdev_type type, enum evdev_code code,
                 }
             }
 
-            repeat_key = code;
+            repeat_key = (evdev_key_code)code;
         }
     }
 
@@ -2498,13 +2498,13 @@ void usb_hid_device::recv_thread() {
                     auto bit = (size_t)countr_zero(diff);
                     auto code = (i * 64) + bit;
 
-                    if (keycodes[code] == evdev_code::KEY_RESERVED)
+                    if (keycodes[code] == evdev_key_code::KEY_RESERVED)
                         print("unrecognized keycode {:x}\n", code);
                     else {
                         if (keys[i] & (uint64_t)1 << bit)
-                            post_evdev(evdev_type::EV_KEY, keycodes[code], 1, true);
+                            post_evdev(evdev_type::EV_KEY, (evdev_code)keycodes[code], 1, true);
                         else
-                            post_evdev(evdev_type::EV_KEY, keycodes[code], 0, true);
+                            post_evdev(evdev_type::EV_KEY, (evdev_code)keycodes[code], 0, true);
                     }
 
                     diff &= ~((uint64_t)1 << bit);
@@ -2523,13 +2523,13 @@ void usb_hid_device::recv_thread() {
                     auto code = (i * 64) + bit;
 
                     if (code >= sizeof(media_keycodes) / sizeof(*media_keycodes) ||
-                        media_keycodes[code] == evdev_code::KEY_RESERVED) {
+                        media_keycodes[code] == evdev_key_code::KEY_RESERVED) {
                             print("unrecognized media keycode {:x}\n", code);
                     } else {
                         if (media_keys[i] & (uint64_t)1 << bit)
-                            post_evdev(evdev_type::EV_KEY, media_keycodes[code], 1, true);
+                            post_evdev(evdev_type::EV_KEY, (evdev_code)media_keycodes[code], 1, true);
                         else
-                            post_evdev(evdev_type::EV_KEY, media_keycodes[code], 0, true);
+                            post_evdev(evdev_type::EV_KEY, (evdev_code)media_keycodes[code], 0, true);
                     }
 
                     diff &= ~((uint64_t)1 << bit);
@@ -2544,39 +2544,39 @@ void usb_hid_device::recv_thread() {
 
             while (diff != 0) {
                 auto bit = (size_t)countr_zero(diff);
-                evdev_code code;
+                evdev_key_code code;
 
                 switch (bit) {
                     case 0:
-                        code = evdev_code::BTN_LEFT;
+                        code = evdev_key_code::BTN_LEFT;
                     break;
 
                     case 1:
-                        code = evdev_code::BTN_RIGHT;
+                        code = evdev_key_code::BTN_RIGHT;
                     break;
 
                     case 2:
-                        code = evdev_code::BTN_MIDDLE;
+                        code = evdev_key_code::BTN_MIDDLE;
                     break;
 
                     case 3:
-                        code = evdev_code::BTN_SIDE;
+                        code = evdev_key_code::BTN_SIDE;
                     break;
 
                     case 4:
-                        code = evdev_code::BTN_EXTRA;
+                        code = evdev_key_code::BTN_EXTRA;
                     break;
 
                     default:
-                        code = evdev_code::KEY_RESERVED;
+                        code = evdev_key_code::KEY_RESERVED;
                     break;
                 }
 
-                if (code != evdev_code::KEY_RESERVED) {
+                if (code != evdev_key_code::KEY_RESERVED) {
                     if (buttons & 1 << bit)
-                        post_evdev(evdev_type::EV_KEY, code, 1, true);
+                        post_evdev(evdev_type::EV_KEY, (evdev_code)code, 1, true);
                     else
-                        post_evdev(evdev_type::EV_KEY, code, 0, true);
+                        post_evdev(evdev_type::EV_KEY, (evdev_code)code, 0, true);
                 }
 
                 diff &= (uint8_t)~(1 << bit);
@@ -2691,10 +2691,10 @@ void usb_hid_device::keyboard_repeat_thread() {
 
         auto code = repeat_key;
 
-        if (code == evdev_code::KEY_RESERVED)
+        if (code == evdev_key_code::KEY_RESERVED)
             continue;
 
-        post_evdev(evdev_type::EV_KEY, code, 2, true);
+        post_evdev(evdev_type::EV_KEY, (evdev_code)code, 2, true);
 
         auto& t = static_cast<timer&>(repeat_timer.get());
 

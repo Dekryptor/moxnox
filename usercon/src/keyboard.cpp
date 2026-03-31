@@ -614,43 +614,44 @@ static list_entry contexts = { &contexts, &contexts };
 span<char> keyboard_context::handle_keyboard_event(const input_event& ev,
                                                    HANDLE pipe, bool& cad) {
     auto idx = (unsigned int)ev.code;
+    auto code = (evdev_key_code)ev.code;
 
-    if (ev.code == evdev_code::KEY_LEFTSHIFT) {
+    if (code == evdev_key_code::KEY_LEFTSHIFT) {
         if (ev.value == 1) // key down
             left_shift = true;
         else if (ev.value == 0) // key up
             left_shift = false;
 
         return {};
-    } else if (ev.code == evdev_code::KEY_RIGHTSHIFT) {
+    } else if (code == evdev_key_code::KEY_RIGHTSHIFT) {
         if (ev.value == 1) // key down
             right_shift = true;
         else if (ev.value == 0) // key up
             right_shift = false;
 
         return {};
-    } else if (ev.code == evdev_code::KEY_LEFTCTRL) {
+    } else if (code == evdev_key_code::KEY_LEFTCTRL) {
         if (ev.value == 1) // key down
             left_ctrl = true;
         else if (ev.value == 0) // key up
             left_ctrl = false;
 
         return {};
-    } else if (ev.code == evdev_code::KEY_RIGHTCTRL) {
+    } else if (code == evdev_key_code::KEY_RIGHTCTRL) {
         if (ev.value == 1) // key down
             right_ctrl = true;
         else if (ev.value == 0) // key up
             right_ctrl = false;
 
         return {};
-    } else if (ev.code == evdev_code::KEY_LEFTALT) {
+    } else if (code == evdev_key_code::KEY_LEFTALT) {
         if (ev.value == 1) // key down
             left_alt = true;
         else if (ev.value == 0) // key up
             left_alt = false;
 
         return {};
-    } else if (ev.code == evdev_code::KEY_RIGHTALT) {
+    } else if (code == evdev_key_code::KEY_RIGHTALT) {
         if (ev.value == 1) // key down
             right_alt = true;
         else if (ev.value == 0) // key up
@@ -662,22 +663,22 @@ span<char> keyboard_context::handle_keyboard_event(const input_event& ev,
     if (ev.value == 0) // ignore key-ups
         return {};
 
-    if (ev.code == evdev_code::KEY_DELETE && (left_ctrl || right_ctrl) && (left_alt || right_alt)) {
+    if (code == evdev_key_code::KEY_DELETE && (left_ctrl || right_ctrl) && (left_alt || right_alt)) {
         cad = true;
         return {};
     }
 
-    if (ev.code == evdev_code::KEY_CAPSLOCK) {
+    if (code == evdev_key_code::KEY_CAPSLOCK) {
         caps_lock = !caps_lock;
 
         set_led(pipe, evdev_led::LED_CAPSL, caps_lock ? 1 : 0);
         return {};
-    } else if (ev.code == evdev_code::KEY_NUMLOCK) {
+    } else if (code == evdev_key_code::KEY_NUMLOCK) {
         num_lock = !num_lock;
 
         set_led(pipe, evdev_led::LED_NUML, num_lock ? 1 : 0);
         return {};
-    } else if (ev.code == evdev_code::KEY_SCROLLLOCK) {
+    } else if (code == evdev_key_code::KEY_SCROLLLOCK) {
         scroll_lock = !scroll_lock;
 
         set_led(pipe, evdev_led::LED_SCROLLL, scroll_lock ? 1 : 0);

@@ -311,7 +311,7 @@ void evdev_context::listen_thread() {
         bool is_syn = ev.type == evdev_type::EV_SYN && ev.code == evdev_code::SYN_REPORT;
 
         if (ev.type == evdev_type::EV_KEY) {
-            if (ev.code >= evdev_code::BTN_LEFT && ev.code <= evdev_code::BTN_EXTRA) {
+            if ((evdev_key_code)ev.code >= evdev_key_code::BTN_LEFT && (evdev_key_code)ev.code <= evdev_key_code::BTN_EXTRA) {
                 m.post_event(ev, this->id);
                 sent_mouse = true;
             } else {

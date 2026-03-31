@@ -105,7 +105,7 @@ static rwsem leds_rwsem;
 
 static uint64_t keydown1 = 0, keydown2 = 0;
 static uint64_t keydown_extended1 = 0, keydown_extended2 = 0;
-static enum evdev_code repeat_key = evdev_code::KEY_RESERVED;
+static enum evdev_key_code repeat_key = evdev_key_code::KEY_RESERVED;
 static object_ref repeat_timer;
 
 static const int64_t REPEAT_DELAY_MS = 660;
@@ -183,20 +183,20 @@ static void init_acpi_hids() {
 
 static module_init module_init_keyboard(init_acpi_hids);
 
-static bool should_key_repeat(enum evdev_code code) {
+static bool should_key_repeat(enum evdev_key_code code) {
     switch (code) {
-        case evdev_code::KEY_RESERVED:
-        case evdev_code::KEY_LEFTALT:
-        case evdev_code::KEY_RIGHTALT:
-        case evdev_code::KEY_LEFTCTRL:
-        case evdev_code::KEY_RIGHTCTRL:
-        case evdev_code::KEY_LEFTSHIFT:
-        case evdev_code::KEY_RIGHTSHIFT:
-        case evdev_code::KEY_LEFTMETA:
-        case evdev_code::KEY_RIGHTMETA:
-        case evdev_code::KEY_CAPSLOCK:
-        case evdev_code::KEY_NUMLOCK:
-        case evdev_code::KEY_SCROLLLOCK:
+        case evdev_key_code::KEY_RESERVED:
+        case evdev_key_code::KEY_LEFTALT:
+        case evdev_key_code::KEY_RIGHTALT:
+        case evdev_key_code::KEY_LEFTCTRL:
+        case evdev_key_code::KEY_RIGHTCTRL:
+        case evdev_key_code::KEY_LEFTSHIFT:
+        case evdev_key_code::KEY_RIGHTSHIFT:
+        case evdev_key_code::KEY_LEFTMETA:
+        case evdev_key_code::KEY_RIGHTMETA:
+        case evdev_key_code::KEY_CAPSLOCK:
+        case evdev_key_code::KEY_NUMLOCK:
+        case evdev_key_code::KEY_SCROLLLOCK:
             return false;
 
         default:
@@ -204,7 +204,7 @@ static bool should_key_repeat(enum evdev_code code) {
     }
 }
 
-static void post_key_evdev(enum evdev_code code, int32_t value) {
+static void post_key_evdev(enum evdev_key_code code, int32_t value) {
     input_event ev;
     auto& p = static_cast<ps2_keyboard&>(keyboard_evdev_obj.get());
 
@@ -216,10 +216,10 @@ static void post_key_evdev(enum evdev_code code, int32_t value) {
                 if (auto status = t.cancel(nullptr); !success(status))
                     print("timer::cancel returned {}\n", status);
 
-                repeat_key = evdev_code::KEY_RESERVED;
+                repeat_key = evdev_key_code::KEY_RESERVED;
             }
         } else { // down
-            if (repeat_key == evdev_code::KEY_RESERVED) {
+            if (repeat_key == evdev_key_code::KEY_RESERVED) {
                 if (auto status = t.set(-ONE_MS_TICKS * REPEAT_DELAY_MS, nullptr,
                                         nullptr, false, 0, nullptr); !success(status)) {
                     print("timer::set returned {}\n", status);
@@ -241,7 +241,7 @@ static void post_key_evdev(enum evdev_code code, int32_t value) {
     // FIXME - Linux also has EV_MSC events
 
     ev.type = evdev_type::EV_KEY;
-    ev.code = code;
+    ev.code = (evdev_code)code;
     ev.value = value;
 
     p.post_event(ev, true);
@@ -295,14 +295,14 @@ static void keyboard_event_recv() {
                 modifier |= MODIFIER_EXTD;
             else if (modifier & MODIFIER_EXTD) {
                 if ((sc & 0x7f) < sizeof(evdev_codes_modified) / sizeof(*evdev_codes_modified) &&
-                    evdev_codes_modified[sc & 0x7f] != evdev_code::KEY_RESERVED) {
+                    evdev_codes_modified[sc & 0x7f] != evdev_key_code::KEY_RESERVED) {
                     post_key_evdev(evdev_codes_modified[sc & 0x7f], !(sc & 0x80) ? 1 : 0);
                 }
 
                 modifier &= ~MODIFIER_EXTD;
             } else {
                 if ((sc & 0x7f) < sizeof(evdev_codes) / sizeof(*evdev_codes) &&
-                    evdev_codes[sc & 0x7f] != evdev_code::KEY_RESERVED) {
+                    evdev_codes[sc & 0x7f] != evdev_key_code::KEY_RESERVED) {
                     post_key_evdev(evdev_codes[sc & 0x7f], !(sc & 0x80) ? 1 : 0);
                 }
             }
@@ -407,7 +407,7 @@ static void keyboard_repeat_thread() {
 
         auto code = repeat_key;
 
-        if (code == evdev_code::KEY_RESERVED)
+        if (code == evdev_key_code::KEY_RESERVED)
             continue;
 
         post_key_evdev(code, 2);
@@ -527,7 +527,7 @@ static void process_mouse_packet() {
         mouse_left = false;
 
         ev.type = evdev_type::EV_KEY;
-        ev.code = evdev_code::BTN_LEFT;
+        ev.code = (evdev_code)evdev_key_code::BTN_LEFT;
         ev.value = 0;
 
         m.post_event(ev, false);
@@ -536,7 +536,7 @@ static void process_mouse_packet() {
         mouse_left = true;
 
         ev.type = evdev_type::EV_KEY;
-        ev.code = evdev_code::BTN_LEFT;
+        ev.code = (evdev_code)evdev_key_code::BTN_LEFT;
         ev.value = 1;
 
         m.post_event(ev, false);
@@ -547,7 +547,7 @@ static void process_mouse_packet() {
         mouse_right = false;
 
         ev.type = evdev_type::EV_KEY;
-        ev.code = evdev_code::BTN_RIGHT;
+        ev.code = (evdev_code)evdev_key_code::BTN_RIGHT;
         ev.value = 0;
 
         m.post_event(ev, false);
@@ -556,7 +556,7 @@ static void process_mouse_packet() {
         mouse_right = true;
 
         ev.type = evdev_type::EV_KEY;
-        ev.code = evdev_code::BTN_RIGHT;
+        ev.code = (evdev_code)evdev_key_code::BTN_RIGHT;
         ev.value = 1;
 
         m.post_event(ev, false);
@@ -567,7 +567,7 @@ static void process_mouse_packet() {
         mouse_middle = false;
 
         ev.type = evdev_type::EV_KEY;
-        ev.code = evdev_code::BTN_MIDDLE;
+        ev.code = (evdev_code)evdev_key_code::BTN_MIDDLE;
         ev.value = 0;
 
         m.post_event(ev, false);
@@ -576,7 +576,7 @@ static void process_mouse_packet() {
         mouse_middle = true;
 
         ev.type = evdev_type::EV_KEY;
-        ev.code = evdev_code::BTN_MIDDLE;
+        ev.code = (evdev_code)evdev_key_code::BTN_MIDDLE;
         ev.value = 1;
 
         m.post_event(ev, false);
@@ -621,7 +621,7 @@ static void process_mouse_packet() {
                 mouse_side = false;
 
                 ev.type = evdev_type::EV_KEY;
-                ev.code = evdev_code::BTN_SIDE;
+                ev.code = (evdev_code)evdev_key_code::BTN_SIDE;
                 ev.value = 0;
 
                 m.post_event(ev, false);
@@ -630,7 +630,7 @@ static void process_mouse_packet() {
                 mouse_side = true;
 
                 ev.type = evdev_type::EV_KEY;
-                ev.code = evdev_code::BTN_SIDE;
+                ev.code = (evdev_code)evdev_key_code::BTN_SIDE;
                 ev.value = 1;
 
                 m.post_event(ev, false);
@@ -641,7 +641,7 @@ static void process_mouse_packet() {
                 mouse_extra = false;
 
                 ev.type = evdev_type::EV_KEY;
-                ev.code = evdev_code::BTN_EXTRA;
+                ev.code = (evdev_code)evdev_key_code::BTN_EXTRA;
                 ev.value = 0;
 
                 m.post_event(ev, false);
@@ -650,7 +650,7 @@ static void process_mouse_packet() {
                 mouse_extra = true;
 
                 ev.type = evdev_type::EV_KEY;
-                ev.code = evdev_code::BTN_EXTRA;
+                ev.code = (evdev_code)evdev_key_code::BTN_EXTRA;
                 ev.value = 1;
 
                 m.post_event(ev, false);

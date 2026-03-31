@@ -1875,7 +1875,10 @@ static void run_shell(const char16_t* exe, void (*recv_func)(string_view),
                     return;
                 }
 
-                auto sp = handle_keyboard_event(ev, keyboard_pipe.get(), cad);
+                span<char> sp;
+
+                if (ev.ev.type == evdev_type::EV_KEY)
+                    sp = handle_keyboard_event(ev, keyboard_pipe.get(), cad);
 
                 if (cad)
                     handle_ctrl_alt_delete(client_handle.get());
