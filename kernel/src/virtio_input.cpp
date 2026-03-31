@@ -18,6 +18,7 @@ import object_ref;
 import evdev_device;
 import dma;
 import evdev;
+import moxnox_ioctls;
 
 using namespace std;
 
@@ -112,6 +113,8 @@ public:
     }
 
     nt_status write(span<const uint8_t> s, uint64_t& written_bytes) override;
+    nt_status ioctl(uint32_t code, span<const uint8_t> inbuf,
+                    span<uint8_t> outbuf, uintptr_t& written) override;
 
     void recv_thread();
 
@@ -120,6 +123,8 @@ public:
 
 private:
     void init(volatile virtio_input_config& cfg);
+    nt_status ioctl_get_absinfo(span<const uint8_t> inbuf, span<uint8_t> outbuf,
+                                uintptr_t& written);
 
     virt_queue* event_queue = nullptr;
     virt_queue* status_queue = nullptr;
@@ -311,6 +316,63 @@ nt_status virtio_input<T>::write(span<const uint8_t> s, uint64_t& written_bytes)
     written_bytes = sizeof(input_event);
 
     return nt_status::SUCCESS;
+}
+
+template<virtio_device T>
+nt_status virtio_input<T>::ioctl(uint32_t code, span<const uint8_t> inbuf,
+                                 span<uint8_t> outbuf, uintptr_t& written) {
+    switch (code) {
+        case IOCTL_MOXNOX_EVDEV_GET_ABSINFO:
+            return ioctl_get_absinfo(inbuf, outbuf, written);
+
+        default:
+            return nt_status::NOT_SUPPORTED;
+    }
+}
+
+template<virtio_device T>
+nt_status virtio_input<T>::ioctl_get_absinfo(span<const uint8_t> inbuf,
+                                             span<uint8_t> outbuf,
+                                             uintptr_t& written) {
+    if (inbuf.size() < sizeof(evdev_abs_code))
+        return nt_status::INVALID_PARAMETER;
+
+    if (outbuf.size() < sizeof(input_absinfo))
+        return nt_status::INVALID_PARAMETER;
+
+    auto code = *(evdev_abs_code*)inbuf.data();
+    auto& ret = *(input_absinfo*)outbuf.data();
+
+    switch (code) {
+        case evdev_abs_code::ABS_X:
+            if (absinfo_x.has_value()) {
+                ret = *absinfo_x;
+                written = sizeof(input_absinfo);
+                return nt_status::SUCCESS;
+            }
+        break;
+
+        case evdev_abs_code::ABS_Y:
+            if (absinfo_y.has_value()) {
+                ret = *absinfo_y;
+                written = sizeof(input_absinfo);
+                return nt_status::SUCCESS;
+            }
+        break;
+
+        case evdev_abs_code::ABS_WHEEL:
+            if (absinfo_wheel.has_value()) {
+                ret = *absinfo_wheel;
+                written = sizeof(input_absinfo);
+                return nt_status::SUCCESS;
+            }
+        break;
+
+        default:
+            break;
+    }
+
+    return nt_status::NOT_FOUND;
 }
 
 static void found_virtio_pci_input(pci_device& dev) {
