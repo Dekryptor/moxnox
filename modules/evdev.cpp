@@ -662,7 +662,7 @@ export enum class evdev_rel_code : uint16_t {
     REL_MAX = 0x0f,
 };
 
-export enum class evdev_code : uint16_t {
+export enum class evdev_abs_code : uint16_t {
     ABS_X = 0x00,
     ABS_Y = 0x01,
     ABS_Z = 0x02,
@@ -708,6 +708,9 @@ export enum class evdev_code : uint16_t {
     ABS_MT_TOOL_X = 0x3c,
     ABS_MT_TOOL_Y = 0x3d,
     ABS_MAX = 0x3f,
+};
+
+export enum class evdev_code : uint16_t {
 };
 
 export enum class evdev_led : uint16_t {
@@ -2079,6 +2082,110 @@ export span<char> do_format_arg(span<char> sp, string_view, evdev_rel_code arg) 
             return do_format_arg(sp, "", "REL_HWHEEL_HI_RES");
         case REL_MAX:
             return do_format_arg(sp, "", "REL_MAX");
+        default:
+            return do_format_arg(sp, ":x", (uint32_t)arg);
+    }
+}
+
+template<>
+consteval bool format_spec_valid<evdev_abs_code>(string_view fmt) {
+    return fmt.empty();
+}
+
+export span<char> do_format_arg(span<char> sp, string_view, evdev_abs_code arg) {
+    switch (arg) {
+        using enum evdev_abs_code;
+
+        case ABS_X:
+            return do_format_arg(sp, "", "ABS_X");
+        case ABS_Y:
+            return do_format_arg(sp, "", "ABS_Y");
+        case ABS_Z:
+            return do_format_arg(sp, "", "ABS_Z");
+        case ABS_RX:
+            return do_format_arg(sp, "", "ABS_RX");
+        case ABS_RY:
+            return do_format_arg(sp, "", "ABS_RY");
+        case ABS_RZ:
+            return do_format_arg(sp, "", "ABS_RZ");
+        case ABS_THROTTLE:
+            return do_format_arg(sp, "", "ABS_THROTTLE");
+        case ABS_RUDDER:
+            return do_format_arg(sp, "", "ABS_RUDDER");
+        case ABS_WHEEL:
+            return do_format_arg(sp, "", "ABS_WHEEL");
+        case ABS_GAS:
+            return do_format_arg(sp, "", "ABS_GAS");
+        case ABS_BRAKE:
+            return do_format_arg(sp, "", "ABS_BRAKE");
+        case ABS_HAT0X:
+            return do_format_arg(sp, "", "ABS_HAT0X");
+        case ABS_HAT0Y:
+            return do_format_arg(sp, "", "ABS_HAT0Y");
+        case ABS_HAT1X:
+            return do_format_arg(sp, "", "ABS_HAT1X");
+        case ABS_HAT1Y:
+            return do_format_arg(sp, "", "ABS_HAT1Y");
+        case ABS_HAT2X:
+            return do_format_arg(sp, "", "ABS_HAT2X");
+        case ABS_HAT2Y:
+            return do_format_arg(sp, "", "ABS_HAT2Y");
+        case ABS_HAT3X:
+            return do_format_arg(sp, "", "ABS_HAT3X");
+        case ABS_HAT3Y:
+            return do_format_arg(sp, "", "ABS_HAT3Y");
+        case ABS_PRESSURE:
+            return do_format_arg(sp, "", "ABS_PRESSURE");
+        case ABS_DISTANCE:
+            return do_format_arg(sp, "", "ABS_DISTANCE");
+        case ABS_TILT_X:
+            return do_format_arg(sp, "", "ABS_TILT_X");
+        case ABS_TILT_Y:
+            return do_format_arg(sp, "", "ABS_TILT_Y");
+        case ABS_TOOL_WIDTH:
+            return do_format_arg(sp, "", "ABS_TOOL_WIDTH");
+        case ABS_VOLUME:
+            return do_format_arg(sp, "", "ABS_VOLUME");
+        case ABS_PROFILE:
+            return do_format_arg(sp, "", "ABS_PROFILE");
+        case ABS_SND_PROFILE:
+            return do_format_arg(sp, "", "ABS_SND_PROFILE");
+        case ABS_MISC:
+            return do_format_arg(sp, "", "ABS_MISC");
+        case ABS_RESERVED:
+            return do_format_arg(sp, "", "ABS_RESERVED");
+        case ABS_MT_SLOT:
+            return do_format_arg(sp, "", "ABS_MT_SLOT");
+        case ABS_MT_TOUCH_MAJOR:
+            return do_format_arg(sp, "", "ABS_MT_TOUCH_MAJOR");
+        case ABS_MT_TOUCH_MINOR:
+            return do_format_arg(sp, "", "ABS_MT_TOUCH_MINOR");
+        case ABS_MT_WIDTH_MAJOR:
+            return do_format_arg(sp, "", "ABS_MT_WIDTH_MAJOR");
+        case ABS_MT_WIDTH_MINOR:
+            return do_format_arg(sp, "", "ABS_MT_WIDTH_MINOR");
+        case ABS_MT_ORIENTATION:
+            return do_format_arg(sp, "", "ABS_MT_ORIENTATION");
+        case ABS_MT_POSITION_X:
+            return do_format_arg(sp, "", "ABS_MT_POSITION_X");
+        case ABS_MT_POSITION_Y:
+            return do_format_arg(sp, "", "ABS_MT_POSITION_Y");
+        case ABS_MT_TOOL_TYPE:
+            return do_format_arg(sp, "", "ABS_MT_TOOL_TYPE");
+        case ABS_MT_BLOB_ID:
+            return do_format_arg(sp, "", "ABS_MT_BLOB_ID");
+        case ABS_MT_TRACKING_ID:
+            return do_format_arg(sp, "", "ABS_MT_TRACKING_ID");
+        case ABS_MT_PRESSURE:
+            return do_format_arg(sp, "", "ABS_MT_PRESSURE");
+        case ABS_MT_DISTANCE:
+            return do_format_arg(sp, "", "ABS_MT_DISTANCE");
+        case ABS_MT_TOOL_X:
+            return do_format_arg(sp, "", "ABS_MT_TOOL_X");
+        case ABS_MT_TOOL_Y:
+            return do_format_arg(sp, "", "ABS_MT_TOOL_Y");
+        case ABS_MAX:
+            return do_format_arg(sp, "", "ABS_MAX");
         default:
             return do_format_arg(sp, ":x", (uint32_t)arg);
     }
