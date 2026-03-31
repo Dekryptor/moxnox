@@ -1,5 +1,6 @@
 #include <span>
 #include <atomic>
+#include <optional>
 #include <string_view>
 #include <stdint.h>
 
@@ -27,6 +28,52 @@ struct virtio_input_event {
     evdev_code code;
     int32_t value;
 } __attribute((packed));
+
+static_assert(sizeof(virtio_input_event) == 8);
+
+enum class virtio_input_config_select : uint8_t {
+    UNSET = 0x00,
+    ID_NAME = 0x01,
+    ID_SERIAL = 0x02,
+    ID_DEVIDS = 0x03,
+    PROP_BITS = 0x10,
+    EV_BITS = 0x11,
+    ABS_INFO = 0x12,
+};
+
+struct virtio_input_absinfo {
+    int32_t min;
+    int32_t max;
+    int32_t fuzz;
+    int32_t flat;
+    int32_t res;
+};
+
+static_assert(sizeof(virtio_input_absinfo) == 20);
+
+struct virtio_input_devids {
+    int16_t bustype;
+    int16_t vendor;
+    int16_t product;
+    int16_t version;
+};
+
+static_assert(sizeof(virtio_input_devids) == 8);
+
+struct virtio_input_config {
+    virtio_input_config_select select;
+    uint8_t subsel;
+    uint8_t size;
+    uint8_t reserved[5];
+    union {
+        char string[128];
+        uint8_t bitmap[128];
+        struct virtio_input_absinfo abs;
+        struct virtio_input_devids ids;
+    };
+};
+
+static_assert(sizeof(virtio_input_config) == 136);
 
 static const uint16_t PCI_VENDOR_ID_REDHAT = 0x1af4;
 
@@ -72,14 +119,25 @@ public:
     evdev_context* kc = nullptr;
 
 private:
+    void init(volatile virtio_input_config& cfg);
+
     virt_queue* event_queue = nullptr;
     virt_queue* status_queue = nullptr;
+    optional<input_absinfo> absinfo_x, absinfo_y, absinfo_wheel;
 };
 
 static atomic<uint32_t> virtio_input_num = 0;
 
 template<virtio_device T>
 virtio_input<T>::virtio_input(T& dev) : dev(dev) {
+    if constexpr (is_same_v<T, virtio_pci_device>) {
+        if (dev.device_cfg->length < sizeof(virtio_input_config)) {
+            print("virtio_input: device cfg length was {}, expected at least {}\n",
+                  +dev.device_cfg->length, sizeof(virtio_input_config));
+            return;
+        }
+    }
+
     for (auto le = dev.virtqueues.next; le != &dev.virtqueues; le = le->next) {
         auto& vq = containing_record<virt_queue>(le);
 
@@ -87,6 +145,12 @@ virtio_input<T>::virtio_input(T& dev) : dev(dev) {
             event_queue = &vq;
         else if (vq.num == 1)
             status_queue = &vq;
+    }
+
+    if constexpr (is_same_v<T, virtio_pci_device>) {
+        init(*(virtio_input_config*)(dev.dev.bar[dev.device_cfg->bar].data() + dev.device_cfg->offset));
+    } else if constexpr (is_same_v<T, virtio_mmio_device>) {
+        init(*(virtio_input_config*)dev.config);
     }
 
     this->acquire();
@@ -105,6 +169,58 @@ virtio_input<T>::virtio_input(T& dev) : dev(dev) {
     }
 
     this->kc = register_evdev_device(*this);
+}
+
+template<virtio_device T>
+void virtio_input<T>::init(volatile virtio_input_config& cfg) {
+    cfg.select = virtio_input_config_select::EV_BITS;
+    cfg.subsel = (uint8_t)evdev_type::EV_ABS;
+
+    uint8_t size = cfg.size;
+
+    if (size == 0)
+        return;
+
+    auto is_bit_set = [&](uint8_t num) -> bool {
+        if (num / 8 >= size)
+            return false;
+
+        return cfg.bitmap[num / 8] & (1 << (num % 8));
+    };
+
+    bool has_abs_x = is_bit_set((uint8_t)evdev_abs_code::ABS_X);
+    bool has_abs_y = is_bit_set((uint8_t)evdev_abs_code::ABS_Y);
+    bool has_abs_wheel = is_bit_set((uint8_t)evdev_abs_code::ABS_WHEEL);
+
+    auto read_absinfo = [&](evdev_abs_code code, optional<input_absinfo>& buf) {
+        cfg.select = virtio_input_config_select::ABS_INFO;
+        cfg.subsel = (uint8_t)evdev_abs_code::ABS_X;
+
+        size = cfg.size;
+
+        if (size < sizeof(virtio_input_absinfo)) {
+            print("virtio_input: absinfo for {} was {} bytes, expected {}\n",
+                  code, size, sizeof(virtio_input_absinfo));
+            return;
+        }
+
+        buf = input_absinfo{};
+        buf->value = 0;
+        buf->minimum = cfg.abs.min;
+        buf->maximum = cfg.abs.max;
+        buf->fuzz = cfg.abs.fuzz;
+        buf->flat = cfg.abs.flat;
+        buf->resolution = cfg.abs.res;
+    };
+
+    if (has_abs_x)
+        read_absinfo(evdev_abs_code::ABS_X, absinfo_x);
+
+    if (has_abs_y)
+        read_absinfo(evdev_abs_code::ABS_Y, absinfo_y);
+
+    if (has_abs_wheel)
+        read_absinfo(evdev_abs_code::ABS_WHEEL, absinfo_wheel);
 }
 
 template<virtio_device T>
