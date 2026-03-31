@@ -2592,7 +2592,7 @@ void usb_hid_device::recv_thread() {
 
             if (relative_x.has_value()) {
                 if (*relative_x != 0) {
-                    post_evdev(evdev_type::EV_REL, evdev_code::REL_X, *relative_x, false);
+                    post_evdev(evdev_type::EV_REL, (evdev_code)evdev_rel_code::REL_X, *relative_x, false);
                     done = true;
                 }
             } else if (absolute_x.has_value()) {
@@ -2602,7 +2602,7 @@ void usb_hid_device::recv_thread() {
 
             if (relative_y.has_value()) {
                 if (*relative_y != 0) {
-                    post_evdev(evdev_type::EV_REL, evdev_code::REL_Y, *relative_y, false);
+                    post_evdev(evdev_type::EV_REL, (evdev_code)evdev_rel_code::REL_Y, *relative_y, false);
                     done = true;
                 }
             } else if (absolute_y.has_value()) {
@@ -2612,7 +2612,7 @@ void usb_hid_device::recv_thread() {
 
             if (relative_wheel.has_value()) {
                 if (*relative_wheel != 0) {
-                    post_evdev(evdev_type::EV_REL, evdev_code::REL_WHEEL, *relative_wheel, false);
+                    post_evdev(evdev_type::EV_REL, (evdev_code)evdev_rel_code::REL_WHEEL, *relative_wheel, false);
                     done = true;
                 }
             } else if (absolute_wheel.has_value()) {

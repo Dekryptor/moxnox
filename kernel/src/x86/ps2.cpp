@@ -506,7 +506,7 @@ static void process_mouse_packet() {
     if (rel_x != 0 || rel_y != 0) {
         if (rel_x != 0) {
             ev.type = evdev_type::EV_REL;
-            ev.code = evdev_code::REL_X;
+            ev.code = (evdev_code)evdev_rel_code::REL_X;
             ev.value = rel_x;
 
             m.post_event(ev, false);
@@ -514,7 +514,7 @@ static void process_mouse_packet() {
 
         if (rel_y != 0) {
             ev.type = evdev_type::EV_REL;
-            ev.code = evdev_code::REL_Y;
+            ev.code = (evdev_code)evdev_rel_code::REL_Y;
             ev.value = rel_y;
 
             m.post_event(ev, false);
@@ -592,7 +592,7 @@ static void process_mouse_packet() {
 
             if (wheel != 0) {
                 ev.type = evdev_type::EV_REL;
-                ev.code = evdev_code::REL_WHEEL;
+                ev.code = (evdev_code)evdev_rel_code::REL_WHEEL;
                 ev.value = wheel;
 
                 m.post_event(ev, false);
@@ -610,7 +610,7 @@ static void process_mouse_packet() {
 
             if (wheel != 0) {
                 ev.type = evdev_type::EV_REL;
-                ev.code = evdev_code::REL_WHEEL;
+                ev.code = (evdev_code)evdev_rel_code::REL_WHEEL;
                 ev.value = wheel;
 
                 m.post_event(ev, false);

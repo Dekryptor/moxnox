@@ -645,7 +645,7 @@ export enum class evdev_syn_code : uint16_t {
     SYN_MAX = 0xf,
 };
 
-export enum class evdev_code : uint16_t {
+export enum class evdev_rel_code : uint16_t {
     REL_X = 0x00,
     REL_Y = 0x01,
     REL_Z = 0x02,
@@ -660,6 +660,9 @@ export enum class evdev_code : uint16_t {
     REL_WHEEL_HI_RES = 0x0b,
     REL_HWHEEL_HI_RES = 0x0c,
     REL_MAX = 0x0f,
+};
+
+export enum class evdev_code : uint16_t {
     ABS_X = 0x00,
     ABS_Y = 0x01,
     ABS_Z = 0x02,
@@ -2034,6 +2037,48 @@ export span<char> do_format_arg(span<char> sp, string_view, evdev_syn_code arg) 
             return do_format_arg(sp, "", "SYN_DROPPED");
         case SYN_MAX:
             return do_format_arg(sp, "", "SYN_MAX");
+        default:
+            return do_format_arg(sp, ":x", (uint32_t)arg);
+    }
+}
+
+template<>
+consteval bool format_spec_valid<evdev_rel_code>(string_view fmt) {
+    return fmt.empty();
+}
+
+export span<char> do_format_arg(span<char> sp, string_view, evdev_rel_code arg) {
+    switch (arg) {
+        using enum evdev_rel_code;
+
+        case REL_X:
+            return do_format_arg(sp, "", "REL_X");
+        case REL_Y:
+            return do_format_arg(sp, "", "REL_Y");
+        case REL_Z:
+            return do_format_arg(sp, "", "REL_Z");
+        case REL_RX:
+            return do_format_arg(sp, "", "REL_RX");
+        case REL_RY:
+            return do_format_arg(sp, "", "REL_RY");
+        case REL_RZ:
+            return do_format_arg(sp, "", "REL_RZ");
+        case REL_HWHEEL:
+            return do_format_arg(sp, "", "REL_HWHEEL");
+        case REL_DIAL:
+            return do_format_arg(sp, "", "REL_DIAL");
+        case REL_WHEEL:
+            return do_format_arg(sp, "", "REL_WHEEL");
+        case REL_MISC:
+            return do_format_arg(sp, "", "REL_MISC");
+        case REL_RESERVED:
+            return do_format_arg(sp, "", "REL_RESERVED");
+        case REL_WHEEL_HI_RES:
+            return do_format_arg(sp, "", "REL_WHEEL_HI_RES");
+        case REL_HWHEEL_HI_RES:
+            return do_format_arg(sp, "", "REL_HWHEEL_HI_RES");
+        case REL_MAX:
+            return do_format_arg(sp, "", "REL_MAX");
         default:
             return do_format_arg(sp, ":x", (uint32_t)arg);
     }
