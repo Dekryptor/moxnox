@@ -2621,7 +2621,7 @@ void usb_hid_device::recv_thread() {
             }
 
             if (done)
-                post_evdev(evdev_type::EV_SYN, evdev_code::SYN_REPORT, 0, false);
+                post_evdev(evdev_type::EV_SYN, (evdev_code)evdev_syn_code::SYN_REPORT, 0, false);
         }
     }
 

@@ -308,7 +308,7 @@ void evdev_context::listen_thread() {
             break;
         }
 
-        bool is_syn = ev.type == evdev_type::EV_SYN && ev.code == evdev_code::SYN_REPORT;
+        bool is_syn = ev.type == evdev_type::EV_SYN && (evdev_syn_code)ev.code == evdev_syn_code::SYN_REPORT;
 
         if (ev.type == evdev_type::EV_KEY) {
             if ((evdev_key_code)ev.code >= evdev_key_code::BTN_LEFT && (evdev_key_code)ev.code <= evdev_key_code::BTN_EXTRA) {
@@ -679,7 +679,7 @@ void evdev_device::post_event(const input_event& ev, bool add_syn) {
     input_event syn;
 
     syn.type = evdev_type::EV_SYN;
-    syn.code = evdev_code::SYN_REPORT;
+    syn.code = (evdev_code)evdev_syn_code::SYN_REPORT;
     syn.value = 0;
 
     lock_guard lg(post_event_mutex);

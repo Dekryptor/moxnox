@@ -663,7 +663,7 @@ static void process_mouse_packet() {
 
     if (posted) {
         ev.type = evdev_type::EV_SYN;
-        ev.code = evdev_code::SYN_REPORT;
+        ev.code = (evdev_code)evdev_syn_code::SYN_REPORT;
         ev.value = 0;
 
         m.post_event(ev, false);

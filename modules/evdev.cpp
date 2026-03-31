@@ -637,12 +637,15 @@ export enum class evdev_key_code : uint16_t {
     KEY_MAX = 0x2ff,
 };
 
-export enum class evdev_code : uint16_t {
+export enum class evdev_syn_code : uint16_t {
     SYN_REPORT = 0x0,
     SYN_CONFIG = 0x1,
     SYN_MT_REPORT = 0x2,
     SYN_DROPPED = 0x3,
     SYN_MAX = 0xf,
+};
+
+export enum class evdev_code : uint16_t {
     REL_X = 0x00,
     REL_Y = 0x01,
     REL_Z = 0x02,
@@ -2007,6 +2010,30 @@ export span<char> do_format_arg(span<char> sp, string_view, evdev_key_code arg) 
             return do_format_arg(sp, "", "BTN_TRIGGER_HAPPY39");
         case BTN_TRIGGER_HAPPY40:
             return do_format_arg(sp, "", "BTN_TRIGGER_HAPPY40");
+        default:
+            return do_format_arg(sp, ":x", (uint32_t)arg);
+    }
+}
+
+template<>
+consteval bool format_spec_valid<evdev_syn_code>(string_view fmt) {
+    return fmt.empty();
+}
+
+export span<char> do_format_arg(span<char> sp, string_view, evdev_syn_code arg) {
+    switch (arg) {
+        using enum evdev_syn_code;
+
+        case SYN_REPORT:
+            return do_format_arg(sp, "", "SYN_REPORT");
+        case SYN_CONFIG:
+            return do_format_arg(sp, "", "SYN_CONFIG");
+        case SYN_MT_REPORT:
+            return do_format_arg(sp, "", "SYN_MT_REPORT");
+        case SYN_DROPPED:
+            return do_format_arg(sp, "", "SYN_DROPPED");
+        case SYN_MAX:
+            return do_format_arg(sp, "", "SYN_MAX");
         default:
             return do_format_arg(sp, ":x", (uint32_t)arg);
     }
