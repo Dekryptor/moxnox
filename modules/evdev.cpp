@@ -712,7 +712,7 @@ export enum class evdev_abs_code : evdev_code {
     ABS_MAX = 0x3f,
 };
 
-export enum class evdev_led : evdev_code {
+export enum class evdev_led_code : evdev_code {
     LED_NUML = 0x00,
     LED_CAPSL = 0x01,
     LED_SCROLLL = 0x02,
@@ -742,6 +742,11 @@ export enum class evdev_type : uint16_t {
     EV_FF_STATUS = 0x17,
     EV_MAX = 0x1f,
 };
+
+template<>
+consteval bool format_spec_valid<evdev_type>(string_view fmt) {
+    return fmt.empty();
+}
 
 export span<char> do_format_arg(span<char> sp, string_view, evdev_type arg) {
     switch (arg) {
@@ -2191,8 +2196,41 @@ export span<char> do_format_arg(span<char> sp, string_view, evdev_abs_code arg) 
 }
 
 template<>
-consteval bool format_spec_valid<evdev_type>(string_view fmt) {
+consteval bool format_spec_valid<evdev_led_code>(string_view fmt) {
     return fmt.empty();
+}
+
+export span<char> do_format_arg(span<char> sp, string_view, evdev_led_code arg) {
+    switch (arg) {
+        using enum evdev_led_code;
+
+        case LED_NUML:
+            return do_format_arg(sp, "", "LED_NUML");
+        case LED_CAPSL:
+            return do_format_arg(sp, "", "LED_CAPSL");
+        case LED_SCROLLL:
+            return do_format_arg(sp, "", "LED_SCROLLL");
+        case LED_COMPOSE:
+            return do_format_arg(sp, "", "LED_COMPOSE");
+        case LED_KANA:
+            return do_format_arg(sp, "", "LED_KANA");
+        case LED_SLEEP:
+            return do_format_arg(sp, "", "LED_SLEEP");
+        case LED_SUSPEND:
+            return do_format_arg(sp, "", "LED_SUSPEND");
+        case LED_MUTE:
+            return do_format_arg(sp, "", "LED_MUTE");
+        case LED_MISC:
+            return do_format_arg(sp, "", "LED_MISC");
+        case LED_MAIL:
+            return do_format_arg(sp, "", "LED_MAIL");
+        case LED_CHARGING:
+            return do_format_arg(sp, "", "LED_CHARGING");
+        case LED_MAX:
+            return do_format_arg(sp, "", "LED_MAX");
+        default:
+            return do_format_arg(sp, ":x", (uint32_t)arg);
+    }
 }
 
 struct _timeval {

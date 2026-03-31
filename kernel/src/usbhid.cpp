@@ -91,7 +91,7 @@ public:
                    xhci_queue& queue, uint16_t packet_size,
                    const usb_interface& interface);
     ~usb_hid_device();
-    void set_led_field(usb_hid_report& r, usb_hid_field& f, evdev_led led,
+    void set_led_field(usb_hid_report& r, usb_hid_field& f, evdev_led_code led,
                        bool on);
     void recv_thread();
 
@@ -1925,22 +1925,22 @@ usb_hid_device::~usb_hid_device() {
 }
 
 void usb_hid_device::set_led_field(usb_hid_report& r, usb_hid_field& f,
-                                   evdev_led led, bool on) {
+                                   evdev_led_code led, bool on) {
     if (!f.is_variable)
         return; // FIXME - handle arrays?
 
     uint32_t usage;
 
     switch (led) {
-        case evdev_led::LED_NUML:
+        case evdev_led_code::LED_NUML:
             usage = LED_USAGE_NUM_LOCK;
             break;
 
-        case evdev_led::LED_CAPSL:
+        case evdev_led_code::LED_CAPSL:
             usage = LED_USAGE_CAPS_LOCK;
             break;
 
-        case evdev_led::LED_SCROLLL:
+        case evdev_led_code::LED_SCROLLL:
             usage = LED_USAGE_SCROLL_LOCK;
             break;
 
@@ -2665,7 +2665,7 @@ nt_status usb_hid_device::write(span<const uint8_t> s, uint64_t& written_bytes) 
             if (f.usage_page != USAGE_PAGE_LEDS)
                 continue;
 
-            set_led_field(r, f, (evdev_led)ev.code, ev.value);
+            set_led_field(r, f, (evdev_led_code)ev.code, ev.value);
         }
     }
 

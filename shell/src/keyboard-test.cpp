@@ -71,6 +71,10 @@ int main() {
                 print("{}", (evdev_abs_code)ev.ev.code);
             break;
 
+            case evdev_type::EV_LED:
+                print("{}", (evdev_led_code)ev.ev.code);
+            break;
+
             default:
                 print("{}", (evdev_code)ev.ev.code);
             break;

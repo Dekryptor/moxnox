@@ -597,7 +597,7 @@ public:
 
     span<char> handle_keyboard_event(const input_event& ev, HANDLE pipe,
                                      bool& cad);
-    void set_led(HANDLE pipe, evdev_led led, int32_t value);
+    void set_led(HANDLE pipe, evdev_led_code led, int32_t value);
 
     list_entry le;
     uint32_t id;
@@ -671,17 +671,17 @@ span<char> keyboard_context::handle_keyboard_event(const input_event& ev,
     if (code == evdev_key_code::KEY_CAPSLOCK) {
         caps_lock = !caps_lock;
 
-        set_led(pipe, evdev_led::LED_CAPSL, caps_lock ? 1 : 0);
+        set_led(pipe, evdev_led_code::LED_CAPSL, caps_lock ? 1 : 0);
         return {};
     } else if (code == evdev_key_code::KEY_NUMLOCK) {
         num_lock = !num_lock;
 
-        set_led(pipe, evdev_led::LED_NUML, num_lock ? 1 : 0);
+        set_led(pipe, evdev_led_code::LED_NUML, num_lock ? 1 : 0);
         return {};
     } else if (code == evdev_key_code::KEY_SCROLLLOCK) {
         scroll_lock = !scroll_lock;
 
-        set_led(pipe, evdev_led::LED_SCROLLL, scroll_lock ? 1 : 0);
+        set_led(pipe, evdev_led_code::LED_SCROLLL, scroll_lock ? 1 : 0);
         return {};
     }
 
@@ -724,7 +724,7 @@ span<char> keyboard_context::handle_keyboard_event(const input_event& ev,
     return span((char*)val.data(), val.size());
 }
 
-void keyboard_context::set_led(HANDLE pipe, evdev_led led, int32_t value) {
+void keyboard_context::set_led(HANDLE pipe, evdev_led_code led, int32_t value) {
     IO_STATUS_BLOCK iosb;
     input_event_with_id ev;
 
@@ -758,9 +758,9 @@ export span<char> handle_keyboard_event(const input_event_with_id& ev,
 
     insert_tail_list(contexts, ctx->le);
 
-    ctx->set_led(pipe, evdev_led::LED_CAPSL, 0);
-    ctx->set_led(pipe, evdev_led::LED_NUML, 0);
-    ctx->set_led(pipe, evdev_led::LED_SCROLLL, 0);
+    ctx->set_led(pipe, evdev_led_code::LED_CAPSL, 0);
+    ctx->set_led(pipe, evdev_led_code::LED_NUML, 0);
+    ctx->set_led(pipe, evdev_led_code::LED_SCROLLL, 0);
 
     return ctx->handle_keyboard_event(ev.ev, pipe, cad);
 }

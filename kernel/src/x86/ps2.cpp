@@ -319,16 +319,16 @@ nt_status ps2_keyboard::write(span<const uint8_t> s, uint64_t& written_bytes) {
     if (ev.type != evdev_type::EV_LED)
         return nt_status::NOT_SUPPORTED;
 
-    switch ((evdev_led)ev.code) {
-        case evdev_led::LED_CAPSL:
+    switch ((evdev_led_code)ev.code) {
+        case evdev_led_code::LED_CAPSL:
             caps_lock = ev.value ? 1 : 0;
         break;
 
-        case evdev_led::LED_NUML:
+        case evdev_led_code::LED_NUML:
             num_lock = ev.value ? 1 : 0;
         break;
 
-        case evdev_led::LED_SCROLLL:
+        case evdev_led_code::LED_SCROLLL:
             scroll_lock = ev.value ? 1 : 0;
         break;
 
