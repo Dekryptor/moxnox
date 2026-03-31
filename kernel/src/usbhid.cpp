@@ -96,6 +96,8 @@ public:
     void recv_thread();
 
     nt_status write(span<const uint8_t> s, uint64_t& written_bytes) override;
+    nt_status ioctl(uint32_t code, span<const uint8_t> inbuf,
+                    span<uint8_t> outbuf, uintptr_t& written) override;
 
     bool init = false;
 
@@ -2672,6 +2674,15 @@ nt_status usb_hid_device::write(span<const uint8_t> s, uint64_t& written_bytes) 
     written_bytes = sizeof(input_event);
 
     return nt_status::SUCCESS;
+}
+
+nt_status usb_hid_device::ioctl(uint32_t /*code*/, span<const uint8_t> /*inbuf*/,
+                              span<uint8_t> /*outbuf*/, uintptr_t& /*written*/) {
+    print("FIXME - usb_hid_device::ioctl\n");
+
+    // FIXME
+
+    return nt_status::NOT_IMPLEMENTED;
 }
 
 void usb_hid_device::keyboard_repeat_thread() {

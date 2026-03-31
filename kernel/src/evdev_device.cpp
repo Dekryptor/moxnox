@@ -181,6 +181,11 @@ public:
         return p.write(s, written_bytes);
     }
 
+    nt_status ioctl(uint32_t code, span<const uint8_t> inbuf,
+                    span<uint8_t> outbuf, uintptr_t& written) override {
+        return p.ioctl(code, inbuf, outbuf, written);
+    }
+
     void post_event(const input_event& ev);
 
     list_entry le;
