@@ -10,7 +10,9 @@ import format;
 
 using namespace std;
 
-export enum class evdev_key_code : uint16_t {
+export using evdev_code = uint16_t;
+
+export enum class evdev_key_code : evdev_code {
     KEY_RESERVED = 0,
     KEY_ESC = 1,
     KEY_1 = 2,
@@ -637,7 +639,7 @@ export enum class evdev_key_code : uint16_t {
     KEY_MAX = 0x2ff,
 };
 
-export enum class evdev_syn_code : uint16_t {
+export enum class evdev_syn_code : evdev_code {
     SYN_REPORT = 0x0,
     SYN_CONFIG = 0x1,
     SYN_MT_REPORT = 0x2,
@@ -645,7 +647,7 @@ export enum class evdev_syn_code : uint16_t {
     SYN_MAX = 0xf,
 };
 
-export enum class evdev_rel_code : uint16_t {
+export enum class evdev_rel_code : evdev_code {
     REL_X = 0x00,
     REL_Y = 0x01,
     REL_Z = 0x02,
@@ -662,7 +664,7 @@ export enum class evdev_rel_code : uint16_t {
     REL_MAX = 0x0f,
 };
 
-export enum class evdev_abs_code : uint16_t {
+export enum class evdev_abs_code : evdev_code {
     ABS_X = 0x00,
     ABS_Y = 0x01,
     ABS_Z = 0x02,
@@ -710,10 +712,7 @@ export enum class evdev_abs_code : uint16_t {
     ABS_MAX = 0x3f,
 };
 
-export enum class evdev_code : uint16_t {
-};
-
-export enum class evdev_led : uint16_t {
+export enum class evdev_led : evdev_code {
     LED_NUML = 0x00,
     LED_CAPSL = 0x01,
     LED_SCROLLL = 0x02,
@@ -2192,18 +2191,6 @@ export span<char> do_format_arg(span<char> sp, string_view, evdev_abs_code arg) 
 }
 
 template<>
-consteval bool format_spec_valid<evdev_code>(string_view fmt) {
-    return fmt.empty();
-}
-
-export span<char> do_format_arg(span<char> sp, string_view, evdev_code arg) {
-    switch (arg) {
-        default:
-            return do_format_arg(sp, ":x", (uint32_t)arg);
-    }
-}
-
-template<>
 consteval bool format_spec_valid<evdev_type>(string_view fmt) {
     return fmt.empty();
 }
@@ -2215,8 +2202,8 @@ struct _timeval {
 
 export struct input_event {
     struct _timeval time;
-    enum evdev_type type;
-    enum evdev_code code;
+    evdev_type type;
+    evdev_code code;
     int32_t value;
 };
 

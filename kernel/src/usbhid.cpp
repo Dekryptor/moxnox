@@ -100,7 +100,7 @@ public:
     bool init = false;
 
 private:
-    void post_evdev(enum evdev_type type, enum evdev_code code, int32_t value,
+    void post_evdev(evdev_type type, evdev_code code, int32_t value,
                     bool add_syn);
     void keyboard_repeat_thread();
     bool get_report_descriptor(const usb_device_config& cfg);
@@ -2208,7 +2208,7 @@ static bool should_key_repeat(enum evdev_key_code code) {
     }
 }
 
-void usb_hid_device::post_evdev(enum evdev_type type, enum evdev_code code,
+void usb_hid_device::post_evdev(evdev_type type, evdev_code code,
                                 int32_t value, bool add_syn) {
     input_event ev;
 

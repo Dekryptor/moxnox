@@ -730,7 +730,7 @@ void keyboard_context::set_led(HANDLE pipe, evdev_led led, int32_t value) {
 
     ev.id = id;
     ev.ev.type = evdev_type::EV_LED;
-    ev.ev.code = (enum evdev_code)led;
+    ev.ev.code = (evdev_code)led;
     ev.ev.value = value;
 
     auto status = NtWriteFile(pipe, 0, nullptr, nullptr, &iosb, &ev, sizeof(ev),
