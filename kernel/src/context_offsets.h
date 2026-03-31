@@ -98,3 +98,4 @@
 #endif
 
 #define TIME_PAGE_SYSTEM_TIME 0
+#define TIME_PAGE_SYSTEM_TIME_TSC 0x10

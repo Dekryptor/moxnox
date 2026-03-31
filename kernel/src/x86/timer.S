@@ -116,6 +116,12 @@ timer_isr:
     push rax
     push rcx
     push rdx
+
+    rdtscp
+    shl rdx, 32
+    or rdx, rax
+    mov [rip+kernel_time_page+TIME_PAGE_SYSTEM_TIME_TSC], rdx
+
     call acquire_sync_lock
 
     mov rax, [rip+active_timer_list] # set rax to active_timer_list.next
