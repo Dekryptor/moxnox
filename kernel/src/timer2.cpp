@@ -38,7 +38,6 @@ static const uint8_t timer_interrupt = 0x20;
 static const uint8_t timer_ap_interrupt = 0x24;
 
 static uint32_t apic_timer_freq;
-static uint64_t tsc_freq;
 
 static const uint32_t PIT_HZ = 1193182;
 

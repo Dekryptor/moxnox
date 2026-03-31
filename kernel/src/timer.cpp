@@ -63,6 +63,7 @@ export extern "C" {
 
 #ifdef __x86_64__
 export void init_lapic_timer(bool ap);
+export uint64_t tsc_freq;
 #endif
 
 export bool init_timer();

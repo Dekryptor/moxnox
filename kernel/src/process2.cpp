@@ -40,6 +40,7 @@ import mem;
 import cmdline;
 import chardev;
 import console;
+import timer;
 
 #ifdef __x86_64__
 import apic;
@@ -1731,6 +1732,14 @@ void create_time_page() {
 
     memcpy(kernel_time_page.os_version, version.data(), version.size());
     kernel_time_page.os_version[version.size()] = 0;
+
+#ifdef __x86_64__
+    kernel_time_page.tsc_freq = tsc_freq;
+#elifdef __aarch64__
+    kernel_time_page.tsc_freq = cntfrq_el0_load();
+#endif
+
+    kernel_time_page.tick_rate = SYSTEM_TIME_RESOLUTION / TICK_RATE;
 
     time_page = new section;
     if (!time_page)

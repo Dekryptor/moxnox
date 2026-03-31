@@ -12,5 +12,7 @@ export uintptr_t TIME_PAGE_BASE = 0x7ffd0000;
 export struct __attribute__((aligned(PAGE_SIZE))) time_page_struct {
     volatile int64_t system_time;
     uint64_t system_time_offset;
+    uint64_t tsc_freq;
+    uint64_t tick_rate;
     char os_version[32];
 };
