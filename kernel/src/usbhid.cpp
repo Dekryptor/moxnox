@@ -112,6 +112,8 @@ private:
     void handle_input_field(usb_hid_field& f, span<const uint8_t> sp);
     void input_usage(uint16_t usage_page, uint32_t usage, int32_t num,
                      bool is_relative);
+    nt_status ioctl_get_absinfo(span<const uint8_t> inbuf, span<uint8_t> outbuf,
+                                uintptr_t& written);
 
     usb_device& d;
     xhci_queue& queue;
@@ -2676,13 +2678,88 @@ nt_status usb_hid_device::write(span<const uint8_t> s, uint64_t& written_bytes) 
     return nt_status::SUCCESS;
 }
 
-nt_status usb_hid_device::ioctl(uint32_t /*code*/, span<const uint8_t> /*inbuf*/,
-                              span<uint8_t> /*outbuf*/, uintptr_t& /*written*/) {
-    print("FIXME - usb_hid_device::ioctl\n");
+nt_status usb_hid_device::ioctl(uint32_t code, span<const uint8_t> inbuf,
+                                span<uint8_t> outbuf, uintptr_t& written) {
+    switch (code) {
+        case IOCTL_MOXNOX_EVDEV_GET_ABSINFO:
+            return ioctl_get_absinfo(inbuf, outbuf, written);
 
-    // FIXME
+        default:
+            return nt_status::NOT_SUPPORTED;
+    }
+}
 
-    return nt_status::NOT_IMPLEMENTED;
+nt_status usb_hid_device::ioctl_get_absinfo(span<const uint8_t> inbuf,
+                                            span<uint8_t> outbuf,
+                                            uintptr_t& written) {
+    if (inbuf.size() < sizeof(evdev_abs_code))
+        return nt_status::INVALID_PARAMETER;
+
+    if (outbuf.size() < sizeof(input_absinfo))
+        return nt_status::INVALID_PARAMETER;
+
+    auto code = *(evdev_abs_code*)inbuf.data();
+    auto& ret = *(input_absinfo*)outbuf.data();
+
+    uint32_t usage;
+
+    switch (code) {
+        case evdev_abs_code::ABS_X:
+            usage = GENERIC_USAGE_X;
+        break;
+
+        case evdev_abs_code::ABS_Y:
+            usage = GENERIC_USAGE_Y;
+        break;
+
+        case evdev_abs_code::ABS_WHEEL:
+            usage = GENERIC_USAGE_WHEEL;
+        break;
+
+        default:
+            return nt_status::NOT_FOUND;
+    }
+
+    // FIXME - should we be populating these?
+    ret.value = 0;
+    ret.fuzz = 0;
+    ret.flat = 0;
+    ret.resolution = 0;
+
+    for (auto le = input_reports.next; le != &input_reports; le = le->next) {
+        auto& r = containing_record<usb_hid_report>(le);
+
+        for (auto le2 = r.fields.next; le2 != &r.fields; le2 = le2->next) {
+            auto& f = containing_record<usb_hid_field>(le2);
+
+            if (f.usage_page != USAGE_PAGE_GENERIC)
+                continue;
+
+            if (!f.is_variable)
+                continue;
+
+            if (f.num_usages > 0) {
+                for (size_t i = 0; i < f.num_usages; i++) {
+                    if (f.usages[i] == usage) {
+                        ret.minimum = f.logical_min;
+                        ret.maximum = f.logical_max;
+                        written = sizeof(input_absinfo);
+                        return nt_status::SUCCESS;
+                    }
+                }
+            } else {
+                if (usage >= f.usage_min && usage < f.usage_min + f.count) {
+                    ret.minimum = f.logical_min;
+                    ret.maximum = f.logical_max;
+                    written = sizeof(input_absinfo);
+                    return nt_status::SUCCESS;
+                }
+            }
+
+        }
+    }
+
+    return nt_status::NOT_FOUND;
 }
 
 void usb_hid_device::keyboard_repeat_thread() {

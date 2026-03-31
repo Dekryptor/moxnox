@@ -2253,3 +2253,14 @@ export struct input_event_with_id {
 } __attribute__((packed));
 
 static_assert(sizeof(input_event_with_id) == 0x1c);
+
+export struct input_absinfo {
+    int32_t value;
+    int32_t minimum;
+    int32_t maximum;
+    int32_t fuzz;
+    int32_t flat;
+    int32_t resolution;
+};
+
+static_assert(sizeof(input_absinfo) == 0x18);
