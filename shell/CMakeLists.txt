@@ -532,3 +532,16 @@ if (CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
 endif()
 
 install(TARGETS keyboard-test DESTINATION ${CMAKE_INSTALL_PREFIX}/bin)
+
+###
+
+add_executable(mouse-test src/mouse-test.cpp)
+
+target_compile_options(mouse-test PRIVATE -fno-exceptions ${USERSPACE_CFLAGS})
+target_link_libraries(mouse-test moxnox print evdev unique_handle)
+
+if (CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
+    target_link_options(mouse-test PUBLIC -mcrtdll=ucrtbase)
+endif()
+
+install(TARGETS mouse-test DESTINATION ${CMAKE_INSTALL_PREFIX}/bin)
