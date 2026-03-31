@@ -38,6 +38,10 @@ target_compile_options(ntdll PRIVATE -fno-exceptions ${USERSPACE_CFLAGS})
 target_link_options(ntdll PUBLIC -nostartfiles -nostdlib)
 target_link_libraries(ntdll PRIVATE format dwarf list unicode nt ntdll_mod pe kernelbase_mod crt pagesize timepage unique_handle print)
 
+if(CMAKE_SYSTEM_PROCESSOR STREQUAL "aarch64")
+    target_link_libraries(ntdll PRIVATE aarch64)
+endif()
+
 install(TARGETS ntdll DESTINATION ${CMAKE_INSTALL_PREFIX}/lib
     CXX_MODULES_BMI EXCLUDE_FROM_ALL
     ARCHIVE EXCLUDE_FROM_ALL

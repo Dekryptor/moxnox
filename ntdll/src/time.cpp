@@ -8,6 +8,10 @@
 import nt;
 import timepage;
 
+#ifdef __aarch64__
+import aarch64;
+#endif
+
 using namespace std;
 
 static const unsigned int SYSTEM_TIME_RESOLUTION = 10000000; // 100ns
@@ -18,16 +22,18 @@ NTSTATUS NtQuerySystemTime(LARGE_INTEGER* SystemTime) {
 
     do {
         auto t1 = (uint64_t)time_page.system_time + time_page.system_time_offset;
-        uint64_t delta;
+        uint64_t r, delta;
 
 #ifdef __x86_64__
-        auto r = __rdtsc() - time_page.system_time_tsc;
+        r = __rdtsc();
+#elifdef __aarch64__
+        r = cntvct_el0_load();
+#endif
+
+        r -= time_page.system_time_tsc;
 
         delta = r * SYSTEM_TIME_RESOLUTION / time_page.tsc_freq;
         delta = min(time_page.tick_rate - 1, delta);
-#else
-        delta = 0;
-#endif
 
         auto t2 = (uint64_t)time_page.system_time + time_page.system_time_offset;
 
