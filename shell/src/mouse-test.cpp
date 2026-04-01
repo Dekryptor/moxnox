@@ -16,6 +16,7 @@ using namespace std;
 static map<pair<uint32_t, evdev_abs_code>, pair<int32_t, int32_t>> abs_ranges;
 static uint32_t fb_width, fb_height, fb_pixels_per_scan_line;
 static uint32_t mouse_x, mouse_y;
+static uint32_t old_mouse_x, old_mouse_y, old_colour;
 static span<uint32_t> framebuffer;
 
 static pair<int32_t, int32_t> find_abs_range(HANDLE h, uint32_t id,
@@ -66,7 +67,18 @@ static void handle_syn_report() {
     size_t flush_size = framebuffer.size_bytes();
     IO_STATUS_BLOCK iosb;
 
-    framebuffer[(mouse_y * fb_pixels_per_scan_line) + mouse_x] = 0xff0000;
+    if (mouse_x == old_mouse_x && mouse_y == old_mouse_y)
+        return;
+
+    framebuffer[(old_mouse_y * fb_pixels_per_scan_line) + old_mouse_x] = old_colour;
+
+    auto& px = framebuffer[(mouse_y * fb_pixels_per_scan_line) + mouse_x];
+
+    old_colour = px;
+    px = 0xff0000;
+
+    old_mouse_x = mouse_x;
+    old_mouse_y = mouse_y;
 
     auto status = NtFlushVirtualMemory(NtCurrentProcess(), &flush_addr,
                                        &flush_size, &iosb);
@@ -151,6 +163,9 @@ int main() {
     mouse_x = fb_width / 2;
     mouse_y = fb_height / 2;
 
+    old_mouse_x = mouse_x;
+    old_mouse_y = mouse_y;
+
     addr = nullptr;
     size = 0;
 
@@ -163,6 +178,8 @@ int main() {
     }
 
     framebuffer = span((uint32_t*)addr, size / sizeof(uint32_t));
+
+    old_colour = framebuffer[(mouse_y * fb_pixels_per_scan_line) + mouse_x];
 
     while (true) {
         input_event_with_id ev;
