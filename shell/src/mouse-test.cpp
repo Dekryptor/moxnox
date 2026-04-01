@@ -2,13 +2,43 @@
 #include <stdint.h>
 #include <string.h>
 #include <string_view>
+#include <map>
 
 import nt;
 import print;
 import evdev;
 import unique_handle;
+import moxnox_ioctls;
 
 using namespace std;
+
+static map<pair<uint32_t, uint32_t>, pair<int32_t, int32_t>> abs_ranges;
+
+static pair<int32_t, int32_t> find_abs_range(HANDLE h, uint32_t id,
+                                             uint32_t code) {
+    if (auto it = abs_ranges.find(make_pair(id, code)); it != abs_ranges.end())
+        return it->second;
+
+    MOXNOX_IOCTL_EVDEV_MULTIPLEXER_GET_ABSINFO input;
+    IO_STATUS_BLOCK iosb;
+    input_absinfo ai;
+
+    input.id = id;
+    input.code = code;
+
+    auto status = NtDeviceIoControlFile(h, 0, nullptr, nullptr, &iosb,
+                                        IOCTL_MOXNOX_EVDEV_GET_ABSINFO,
+                                        &input, sizeof(input), &ai, sizeof(ai));
+    if (!success(status)) {
+        print_stderr("IOCTL_MOXNOX_EVDEV_GET_ABSINFO returned {}\n",
+                     status);
+        return {0, 0};
+    }
+
+    abs_ranges[make_pair(id, code)] = make_pair(ai.minimum, ai.maximum);
+
+    return {ai.minimum, ai.maximum};
+}
 
 int main() {
     auto peb = NtCurrentTeb()->ProcessEnvironmentBlock;
@@ -36,12 +66,12 @@ int main() {
         return 1;
     }
 
-    unique_handle keyboard_pipe{h};
+    unique_handle mouse_pipe{h};
 
     while (true) {
         input_event_with_id ev;
 
-        status = NtReadFile(keyboard_pipe.get(), 0, nullptr, nullptr,
+        status = NtReadFile(mouse_pipe.get(), 0, nullptr, nullptr,
                             &iosb, &ev, sizeof(ev), nullptr, nullptr);
 
         if (status == nt_status::ALERTED)
@@ -80,6 +110,14 @@ int main() {
             break;
         }
 
-        print(", value = {}, id = {}\n", +ev.ev.value, +ev.id);
+        print(", value = {}", +ev.ev.value);
+
+        if (ev.ev.type == evdev_type::EV_ABS) {
+            auto [min, max] = find_abs_range(mouse_pipe.get(), ev.id, ev.ev.code);
+
+            print(" (min {}, max {})", min, max);
+        }
+
+        print("\n");
     }
 }
