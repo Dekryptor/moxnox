@@ -35,12 +35,18 @@ public:
     }
 
     nt_status write(span<const uint8_t> s, uint64_t& written_bytes) override;
+    nt_status ioctl(uint32_t code, span<const uint8_t> inbuf,
+                    span<uint8_t> outbuf, uintptr_t& written) override;
     nt_status userspace_open(object_ref& objref) override;
     void post_event(const input_event& ev, uint32_t id);
 
     rwsem post_event_mutex;
     spinlock client_lock;
     list_entry clients = { &clients, &clients };
+
+private:
+    nt_status ioctl_get_absinfo(span<const uint8_t> inbuf, span<uint8_t> outbuf,
+                                uintptr_t& written);
 };
 
 struct input_event_with_id_item {
@@ -95,6 +101,11 @@ public:
 
     nt_status write(span<const uint8_t> s, uint64_t& written_bytes) override {
         return p.write(s, written_bytes);
+    }
+
+    nt_status ioctl(uint32_t code, span<const uint8_t> inbuf,
+                    span<uint8_t> outbuf, uintptr_t& written) override {
+        return p.ioctl(code, inbuf, outbuf, written);
     }
 
     void post_event(const input_event& ev, uint32_t id);
@@ -241,9 +252,9 @@ public:
     bool dead = false;
     uint32_t id;
     list_entry le;
+    chardev& p;
 
 private:
-    chardev& p;
     atomic<unsigned int> refcount = 1;
 };
 
@@ -740,4 +751,51 @@ void evdev_device::post_event(const input_event& ev, bool add_syn) {
             c.visited = false;
         }
     }
+}
+
+nt_status evdev_multiplexer::ioctl(uint32_t code, span<const uint8_t> inbuf,
+                                   span<uint8_t> outbuf, uintptr_t& written) {
+    switch (code) {
+        case IOCTL_MOXNOX_EVDEV_GET_ABSINFO:
+            return ioctl_get_absinfo(inbuf, outbuf, written);
+
+        default:
+            return nt_status::NOT_SUPPORTED;
+    }
+}
+
+nt_status evdev_multiplexer::ioctl_get_absinfo(span<const uint8_t> inbuf,
+                                               span<uint8_t> outbuf,
+                                               uintptr_t& written) {
+    if (inbuf.size() < sizeof(MOXNOX_IOCTL_EVDEV_MULTIPLEXER_GET_ABSINFO))
+        return nt_status::INVALID_PARAMETER;
+
+    auto& input = *(MOXNOX_IOCTL_EVDEV_MULTIPLEXER_GET_ABSINFO*)inbuf.data();
+
+    evdev_context* ctx = nullptr;
+
+    {
+        lock_guard lock(evdev_contexts_spinlock);
+
+        for (auto le = evdev_contexts.next; le != &evdev_contexts; le = le->next) {
+            auto& c = containing_record<evdev_context>(le);
+
+            if (c.id == input.id) {
+                c.acquire();
+                ctx = &c;
+                break;
+            }
+        }
+    }
+
+    if (!ctx)
+        return nt_status::NOT_FOUND;
+
+    auto ret = ctx->p.ioctl(IOCTL_MOXNOX_EVDEV_GET_ABSINFO,
+                            span((uint8_t*)&input.code, sizeof(input.code)),
+                            outbuf, written);
+
+    ctx->release();
+
+    return ret;
 }

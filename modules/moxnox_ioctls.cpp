@@ -138,3 +138,8 @@ export struct MOXNOX_NETCTL_GET_NETIF_IPS {
     uint32_t count;
     ipv6_address ip[0];
 };
+
+export struct MOXNOX_IOCTL_EVDEV_MULTIPLEXER_GET_ABSINFO {
+    uint32_t id;
+    uint32_t code;
+};
