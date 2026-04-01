@@ -57,9 +57,9 @@ static void handle_mouse_abs(HANDLE mouse_pipe, const input_event_with_id& ev) {
         return;
 
     if (code == evdev_abs_code::ABS_X)
-        mouse_x = ((ev.ev.value - min) * fb_width) / (max - min);
+        mouse_x = ((uint32_t)(ev.ev.value - min) * fb_width) / (uint32_t)(max - min);
     else if (code == evdev_abs_code::ABS_Y)
-        mouse_y = ((ev.ev.value - min) * fb_height) / (max - min);
+        mouse_y = ((uint32_t)(ev.ev.value - min) * fb_height) / (uint32_t)(max - min);
 }
 
 static void handle_syn_report() {
