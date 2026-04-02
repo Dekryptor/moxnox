@@ -19,6 +19,9 @@ import chardev;
 import event;
 import scheduler;
 import rwsem;
+import kernel_time_page;
+import config;
+import disable_interrupts;
 
 using namespace std;
 
@@ -139,7 +142,7 @@ public:
 
     nt_status userspace_open(object_ref& objref) override;
 
-    void post_event(const input_event& ev, bool add_syn);
+    void post_event(input_event ev, bool add_syn);
 
     spinlock client_lock;
     list_entry clients = { &clients, &clients };
@@ -642,10 +645,6 @@ void evdev_device_client::post_event(const input_event& ev) {
 
     it->ev = ev;
 
-    // FIXME - populate time field
-    it->ev.time.tv_sec = 0;
-    it->ev.time.tv_usec = 0;
-
     bool failed = false;
 
     {
@@ -691,7 +690,20 @@ nt_status evdev_device::userspace_open(object_ref& objref) {
     return nt_status::SUCCESS;
 }
 
-void evdev_device::post_event(const input_event& ev, bool add_syn) {
+static void populate_event_time(input_event& ev) {
+    disable_preempt();
+
+    auto now = (uint64_t)kernel_time_page.system_time + kernel_time_page.system_time_offset;
+
+    ev.time.tv_usec = (uint32_t)(((now % SYSTEM_TIME_RESOLUTION) * 1000000) / SYSTEM_TIME_RESOLUTION);
+    now /= SYSTEM_TIME_RESOLUTION;
+
+    ev.time.tv_sec = now - 11644473600;
+
+    enable_preempt();
+}
+
+void evdev_device::post_event(input_event ev, bool add_syn) {
     input_event syn;
 
     syn.type = evdev_type::EV_SYN;
@@ -706,6 +718,11 @@ void evdev_device::post_event(const input_event& ev, bool add_syn) {
         if (is_list_empty(clients))
             return;
     }
+
+    populate_event_time(ev);
+
+    if (add_syn)
+        syn.time = ev.time;
 
     while (true) {
         evdev_device_client* c = nullptr;
