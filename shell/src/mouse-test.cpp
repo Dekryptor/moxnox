@@ -62,6 +62,34 @@ static void handle_mouse_abs(HANDLE mouse_pipe, const input_event_with_id& ev) {
         mouse_y = ((uint32_t)(ev.ev.value - min) * fb_height) / (uint32_t)(max - min);
 }
 
+static void handle_mouse_rel(const input_event_with_id& ev) {
+    auto code = (evdev_rel_code)ev.ev.code;
+
+    if (code != evdev_rel_code::REL_X && code != evdev_rel_code::REL_Y)
+        return;
+
+    if (ev.ev.value == 0)
+        return;
+
+    auto& pos = code == evdev_rel_code::REL_X ? mouse_x : mouse_y;
+    auto curpos = (int32_t)pos;
+    auto maxpos = (int32_t)((code == evdev_rel_code::REL_X ? fb_width : fb_height) - 1);
+
+    if (curpos == 0 && ev.ev.value < 0)
+        return;
+    else if (curpos == maxpos && ev.ev.value > 0)
+        return;
+
+    curpos += ev.ev.value; // FIXME
+
+    if (curpos < 0)
+        curpos = 0;
+    else if (curpos > (int32_t)maxpos)
+        curpos = maxpos;
+
+    pos = curpos;
+}
+
 static void handle_syn_report() {
     void* flush_addr = framebuffer.data();
     size_t flush_size = framebuffer.size_bytes();
@@ -94,7 +122,9 @@ static void handle_mouse_event(HANDLE mouse_pipe, const input_event_with_id& ev)
             handle_mouse_abs(mouse_pipe, ev);
             break;
 
-        // FIXME - also handle EV_REL
+        case evdev_type::EV_REL:
+            handle_mouse_rel(ev);
+            break;
 
         case evdev_type::EV_SYN:
             if ((evdev_syn_code)ev.ev.code == evdev_syn_code::SYN_REPORT)
