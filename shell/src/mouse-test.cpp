@@ -88,7 +88,7 @@ static void handle_mouse_rel(const input_event_with_id& ev) {
     else if (curpos > (int32_t)maxpos)
         curpos = maxpos;
 
-    pos = curpos;
+    pos = (uint32_t)curpos;
 }
 
 static void handle_syn_report() {
