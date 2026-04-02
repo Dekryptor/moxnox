@@ -1,5 +1,6 @@
 #include <stddef.h>
 #include <stdint.h>
+#include <stdlib.h>
 #include <string.h>
 #include <string_view>
 #include <map>
@@ -136,6 +137,40 @@ static void handle_mouse_event(HANDLE mouse_pipe, const input_event_with_id& ev)
     }
 }
 
+static void set_cursor(HANDLE fb) {
+    MOXNOX_IOCTL_FB_SET_CURSOR sc;
+    IO_STATUS_BLOCK iosb;
+
+    sc.width = 64;
+    sc.height = 64;
+    sc.hotspot_x = 32;
+    sc.hotspot_y = 32;
+
+    sc.data = (uint32_t*)malloc(sc.width * sc.height * sizeof(uint32_t));
+    if (!sc.data) {
+        print_stderr("malloc failed\n");
+        return;
+    }
+
+    for (uint16_t y = 0; y < sc.height; y++) {
+        for (uint16_t x = 0; x < sc.width; x++) {
+            sc.data[(y * sc.width) + x] = 0x00ff00;
+        }
+    }
+
+    auto status = NtDeviceIoControlFile(fb, 0, nullptr, nullptr, &iosb,
+                                        IOCTL_MOXNOX_FB_SET_CURSOR,
+                                        &sc, sizeof(sc), nullptr, 0);
+    if (!success(status)) {
+        print_stderr("IOCTL_MOXNOX_FB_SET_CURSOR returned {}\n",
+                     status);
+        free(sc.data);
+        return;
+    }
+
+    free(sc.data);
+}
+
 int main() {
     auto peb = NtCurrentTeb()->ProcessEnvironmentBlock;
     OBJECT_ATTRIBUTES oa;
@@ -210,6 +245,8 @@ int main() {
     framebuffer = span((uint32_t*)addr, size / sizeof(uint32_t));
 
     old_colour = framebuffer[(mouse_y * fb_pixels_per_scan_line) + mouse_x];
+
+    set_cursor(sect.get());
 
     while (true) {
         input_event_with_id ev;
