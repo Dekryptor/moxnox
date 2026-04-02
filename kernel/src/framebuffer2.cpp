@@ -35,11 +35,11 @@ public:
     NTSTATUS flush_cache(uint64_t page_num, uint64_t num_pages) override;
     NTSTATUS query_info(enum SECTION_INFORMATION_CLASS section_information_class,
                         span<uint8_t> buf, size_t* return_length) override;
+    nt_status ioctl(uint32_t code, span<const uint8_t> inbuf,
+                    span<uint8_t> outbuf, uintptr_t& written) override;
 
-    nt_status ioctl(uint32_t, span<const uint8_t>, span<uint8_t>,
-                    uintptr_t&) override {
-        return nt_status::NOT_SUPPORTED;
-    }
+private:
+    nt_status ioctl_set_cursor(span<const uint8_t> inbuf);
 };
 
 #ifdef __x86_64__
@@ -398,3 +398,32 @@ void create_text_console_section() {
     }
 }
 #endif
+
+template<bool BOOT>
+nt_status framebuffer_cache<BOOT>::ioctl(uint32_t code, span<const uint8_t> inbuf,
+                                         span<uint8_t> /*outbuf*/, uintptr_t& /*written*/) {
+    switch (code) {
+        case IOCTL_MOXNOX_FB_SET_CURSOR:
+            return ioctl_set_cursor(inbuf);
+
+        default:
+            return nt_status::NOT_SUPPORTED;
+    }
+}
+
+template<bool BOOT>
+nt_status framebuffer_cache<BOOT>::ioctl_set_cursor(span<const uint8_t> inbuf) {
+    print("FIXME - framebuffer_cache::ioctl_set_cursor\n");
+
+    if (inbuf.size() < sizeof(MOXNOX_IOCTL_FB_SET_CURSOR))
+        return nt_status::INVALID_PARAMETER;
+
+    auto& sc = *(MOXNOX_IOCTL_FB_SET_CURSOR*)inbuf.data();
+
+    print("width = {}, height = {}, hotspot_x = {}, hotspot_y = {}\n",
+          sc.width, sc.height, sc.hotspot_x, sc.hotspot_y);
+
+    // FIXME
+
+    return nt_status::NOT_IMPLEMENTED;
+}
