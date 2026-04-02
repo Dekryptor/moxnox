@@ -68,6 +68,7 @@ set(GLOBAL_MODULES src/cmdline.cpp
 set(AMD64_MODULES ${GLOBAL_MODULES}
     src/x86/inout.cpp
     src/x86/apic.cpp
+    src/x86/text_console.cpp
 )
 
 set(AARCH64_MODULES ${GLOBAL_MODULES}

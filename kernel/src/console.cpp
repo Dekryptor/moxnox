@@ -11,6 +11,7 @@ export module console;
 
 #ifdef __x86_64__
 import inout;
+import text_console;
 #endif
 
 import nt;
