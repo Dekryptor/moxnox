@@ -3,6 +3,11 @@ module;
 #include <span>
 #include <atomic>
 #include <mutex>
+#include <algorithm>
+
+#ifdef __x86_64__
+#include <x86intrin.h>
+#endif
 
 export module evdev_device;
 
@@ -22,6 +27,10 @@ import rwsem;
 import kernel_time_page;
 import config;
 import disable_interrupts;
+
+#ifdef __aarch64__
+import aarch64;
+#endif
 
 using namespace std;
 
@@ -693,12 +702,37 @@ nt_status evdev_device::userspace_open(object_ref& objref) {
 static void populate_event_time(input_event& ev) {
     disable_preempt();
 
-    auto now = (uint64_t)kernel_time_page.system_time + kernel_time_page.system_time_offset;
+    do {
+        auto t1 = (uint64_t)kernel_time_page.system_time + kernel_time_page.system_time_offset;
+        uint64_t r, delta;
 
-    ev.time.tv_usec = (uint32_t)(((now % SYSTEM_TIME_RESOLUTION) * 1000000) / SYSTEM_TIME_RESOLUTION);
-    now /= SYSTEM_TIME_RESOLUTION;
+#ifdef __x86_64__
+        r = __rdtsc();
+#elifdef __aarch64__
+        r = cntvct_el0_load();
+#endif
 
-    ev.time.tv_sec = now - 11644473600;
+        r -= kernel_time_page.system_time_tsc;
+
+        if (kernel_time_page.tsc_freq != 0) { // might not be set up yet
+            delta = r * SYSTEM_TIME_RESOLUTION / kernel_time_page.tsc_freq;
+            delta = min(kernel_time_page.tick_rate - 1, delta);
+        } else
+            delta = 0;
+
+        auto t2 = (uint64_t)kernel_time_page.system_time + kernel_time_page.system_time_offset;
+
+        if (t1 == t2) {
+            t1 += delta;
+
+            ev.time.tv_usec = (uint32_t)(((t1 % SYSTEM_TIME_RESOLUTION) * 1000000) / SYSTEM_TIME_RESOLUTION);
+            t1 /= SYSTEM_TIME_RESOLUTION;
+
+            ev.time.tv_sec = t1 - 11644473600;
+
+            break;
+        }
+    } while (true);
 
     enable_preempt();
 }
