@@ -18,12 +18,14 @@ import moxnox_ioctls;
 import crt;
 import thread;
 import spinlock;
+import disable_interrupts;
 
 using namespace std;
 
 static spinlock cursor_lock;
 static uint32_t* cursor_buffer;
 static uint16_t cursor_width, cursor_height, cursor_hotspot_x, cursor_hotspot_y;
+static uint16_t cursor_x, cursor_y;
 
 template<bool BOOT>
 class framebuffer_cache : public custom_section_cache {
@@ -85,6 +87,27 @@ nt_status framebuffer_cache<BOOT>::read_into_cache(uint64_t page_num, uint64_t n
     return nt_status::SUCCESS;
 }
 
+static void blit_cursor() {
+    // cursor_lock held
+
+    int16_t start_x = (int16_t)cursor_x - (int16_t)cursor_hotspot_x;
+    int16_t start_y = (int16_t)cursor_y - (int16_t)cursor_hotspot_y;
+
+    auto draw_y_start = (uint32_t)max((int16_t)0, start_y);
+    auto draw_y_end = (uint32_t)min((int)fb_height, start_y + cursor_height);
+
+    auto draw_x_start = (uint32_t)max((int16_t)0, start_x);
+    auto draw_x_end = (uint32_t)min((int)fb_width, start_x + cursor_width);
+
+    for (unsigned int y = draw_y_start; y < draw_y_end; y++) {
+        auto cursor_line = &cursor_buffer[((int16_t)y - start_y) * cursor_width];
+        auto fb_line = &framebuffer[y * fb_pixels_per_scan_line];
+
+        memcpy(&fb_line[draw_x_start], &cursor_line[(int16_t)draw_x_start - start_x],
+               (draw_x_end - draw_x_start) * sizeof(uint32_t));
+    }
+}
+
 template<bool BOOT>
 NTSTATUS framebuffer_cache<BOOT>::flush_cache(uint64_t page_num, uint64_t num_pages) {
     auto start = page_num << PAGE_SHIFT;
@@ -104,8 +127,25 @@ NTSTATUS framebuffer_cache<BOOT>::flush_cache(uint64_t page_num, uint64_t num_pa
         len = fb.size_bytes() - start;
 
     if constexpr (BOOT) {
+        disable_preempt();
+
         memcpy((uint8_t*)framebuffer.data() + start,
-               (uint8_t*)fb.data() + start, len);
+               (uint8_t*)shadow_framebuffer.data() + start, len);
+
+        auto min_y = (uint16_t)((page_num << PAGE_SHIFT) / (fb_pixels_per_scan_line * sizeof(uint32_t)));
+        auto max_y = (uint16_t)(((page_num + num_pages + 1) << PAGE_SHIFT) / (fb_pixels_per_scan_line * sizeof(uint32_t)));
+
+        {
+            lock_guard lock(cursor_lock);
+
+            auto cursor_top = (int16_t)(cursor_y - cursor_hotspot_y);
+            auto cursor_bottom = (int16_t)(cursor_top + cursor_height);
+
+            if (min_y < cursor_bottom && max_y >= cursor_top)
+                blit_cursor();
+        }
+
+        enable_preempt();
     } else {
         auto y1 = (unsigned int)(((page_num << PAGE_SHIFT) / sizeof(uint32_t)) / fb_width);
         auto y2 = (unsigned int)((((page_num + num_pages) << PAGE_SHIFT) / sizeof(uint32_t)) / fb_width);
