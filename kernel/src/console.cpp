@@ -276,7 +276,7 @@ void console_text::move_cursor() {
     auto pos = (uint16_t)(((uint8_t)cursor_y * console_cols) + (uint8_t)cursor_x);
 
     {
-        lock_guard lock(cursor_lock);
+        lock_guard lock(text_cursor_lock);
 
         outb(0x3d4, 0xf);
         outb(0x3d5, (uint8_t)(pos & 0xff));

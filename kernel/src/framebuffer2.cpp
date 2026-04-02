@@ -16,6 +16,7 @@ import section;
 import page_cache;
 import moxnox_ioctls;
 import crt;
+import thread;
 
 #ifdef __x86_64__
 import inout;
@@ -26,6 +27,10 @@ using namespace std;
 #ifdef __x86_64__
 static span<uint16_t> shadow_text_console;
 #endif
+
+static spinlock cursor_lock;
+static uint32_t* cursor_buffer;
+static uint16_t cursor_width, cursor_height, cursor_hotspot_x, cursor_hotspot_y;
 
 template<bool BOOT>
 class framebuffer_cache : public custom_section_cache {
@@ -309,7 +314,7 @@ nt_status text_console_cache::set_cursor(span<const uint8_t> inbuf,
         return nt_status::INVALID_PARAMETER;
 
     if (!!mnsc.enabled != cursor_enabled) {
-        lock_guard lock(cursor_lock);
+        lock_guard lock(text_cursor_lock);
 
         if (mnsc.enabled) {
             uint8_t cursor_start = 14, cursor_end = 15;
@@ -330,7 +335,7 @@ nt_status text_console_cache::set_cursor(span<const uint8_t> inbuf,
     auto pos = (uint16_t)(((uint8_t)mnsc.y * text_console_cols) + (uint8_t)mnsc.x);
 
     {
-        lock_guard lock(cursor_lock);
+        lock_guard lock(text_cursor_lock);
 
         outb(0x3d4, 0xf);
         outb(0x3d5, (uint8_t)(pos & 0xff));
@@ -413,17 +418,62 @@ nt_status framebuffer_cache<BOOT>::ioctl(uint32_t code, span<const uint8_t> inbu
 
 template<bool BOOT>
 nt_status framebuffer_cache<BOOT>::ioctl_set_cursor(span<const uint8_t> inbuf) {
-    print("FIXME - framebuffer_cache::ioctl_set_cursor\n");
-
     if (inbuf.size() < sizeof(MOXNOX_IOCTL_FB_SET_CURSOR))
         return nt_status::INVALID_PARAMETER;
 
     auto& sc = *(MOXNOX_IOCTL_FB_SET_CURSOR*)inbuf.data();
+    auto& t = *get_current_thread();
 
-    print("width = {}, height = {}, hotspot_x = {}, hotspot_y = {}\n",
-          sc.width, sc.height, sc.hotspot_x, sc.hotspot_y);
+    if (!t.proc)
+        return nt_status::INTERNAL_ERROR;
 
-    // FIXME
+    // FIXME - should be clearing existing cursor in this case?
+    if (sc.width == 0 || sc.height == 0)
+        return nt_status::INVALID_PARAMETER;
 
-    return nt_status::NOT_IMPLEMENTED;
+    if (!sc.data)
+        return nt_status::INVALID_PARAMETER;
+
+    if (sc.hotspot_x >= sc.width || sc.hotspot_y >= sc.height)
+        return nt_status::INVALID_PARAMETER;
+
+    // FIXME - if smaller than 64x64, should be copying and adding padding
+    if (sc.width != 64 || sc.height != 64)
+        return nt_status::INVALID_PARAMETER;
+
+    size_t bytes = sc.width * sc.height * sizeof(uint32_t);
+
+    auto buf = (uint32_t*)vmalloc(bytes);
+    if (!buf) {
+        print("vmalloc failed\n");
+        return nt_status::INSUFFICIENT_RESOURCES;
+    }
+
+    if (!t.proc->copy_from(buf, sc.data, bytes)) {
+        print("process::copy_from failed\n");
+        vfree(buf, bytes);
+        return nt_status::NO_MEMORY;
+    }
+
+    uint32_t* old_cursor_buffer;
+    uint32_t old_cursor_width, old_cursor_height;
+
+    {
+        lock_guard lock(cursor_lock);
+
+        old_cursor_buffer = cursor_buffer;
+        old_cursor_width = cursor_width;
+        old_cursor_height = cursor_height;
+
+        cursor_buffer = buf;
+        cursor_width = sc.width;
+        cursor_height = sc.height;
+        cursor_hotspot_x = sc.hotspot_x;
+        cursor_hotspot_y = sc.hotspot_y;
+    }
+
+    if (old_cursor_buffer)
+        vfree(old_cursor_buffer, old_cursor_width * old_cursor_height * sizeof(uint32_t));
+
+    return nt_status::SUCCESS;
 }

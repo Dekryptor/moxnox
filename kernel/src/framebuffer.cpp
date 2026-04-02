@@ -17,7 +17,7 @@ export void(*flush_framebuffer)(unsigned int, unsigned int, unsigned int,
 #ifdef __x86_64__
 export span<uint16_t> text_console;
 export uint32_t text_console_cols, text_console_rows;
-export spinlock cursor_lock;
+export spinlock text_cursor_lock;
 #endif
 
 export void create_boot_framebuffer_section();
