@@ -51,7 +51,7 @@ int main() {
             return 1;
         }
 
-        print("tv_sec = {}, tv_usec = {}, type = {}, code = ",
+        print("time = {}.{:06}, type = {}, code = ",
               +ev.ev.time.tv_sec, +ev.ev.time.tv_usec, (evdev_type)ev.ev.type);
 
         switch (ev.ev.type) {
