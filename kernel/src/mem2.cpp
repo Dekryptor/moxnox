@@ -1386,8 +1386,6 @@ bool init_memory(const loader_block& lb) {
                     p.state = page_state::reserved;
                     p.order = 0;
                 }
-
-                num_ram_pages += map.len >> PAGE_SHIFT;
             break;
         }
     }
