@@ -865,9 +865,6 @@ bool virtio_gpu<T>::resource_flush(const virtio_gpu_rect& r, uint32_t resource) 
 template<virtio_device T>
 bool virtio_gpu<T>::move_cursor(uint32_t scanout, uint32_t x, uint32_t y) {
     virtio_gpu_update_cursor req;
-    virtq_desc descs[1];
-    uint64_t read_bytes;
-    uint8_t* bounce1 = nullptr;
 
     memset(&req, 0, sizeof(req));
     req.hdr.type = (uint32_t)VIRTIO_GPU_CMD::MOVE_CURSOR;
@@ -875,22 +872,8 @@ bool virtio_gpu<T>::move_cursor(uint32_t scanout, uint32_t x, uint32_t y) {
     req.pos.x = x;
     req.pos.y = y;
 
-    auto pa1 = dma_setup(span((uint8_t*)&req, sizeof(req)), true, bounce1);
-    if (!pa1) {
-        print("dma_setup failed\n");
-        return false;
-    }
-
-    descs[0].addr = pa1;
-    descs[0].len = sizeof(virtio_gpu_update_cursor);
-    descs[0].flags = 0;
-    descs[0].next = 0;
-
     // no response, contrary to what the specs imply
-
-    auto status = cursor_queue->indirect(descs, read_bytes);
-
-    dma_finish_write(bounce1);
+    auto status = cursor_queue->write(span((uint8_t*)&req, sizeof(req)));
 
     if (!success(status))
         return false;
