@@ -40,6 +40,8 @@ public:
 
 private:
     nt_status ioctl_set_cursor(span<const uint8_t> inbuf);
+    nt_status ioctl_move_cursor(span<const uint8_t> inbuf);
+    void flush_scanlines(int16_t top, int16_t bottom);
 };
 
 template<bool BOOT>
@@ -226,9 +228,23 @@ nt_status framebuffer_cache<BOOT>::ioctl(uint32_t code, span<const uint8_t> inbu
         case IOCTL_MOXNOX_FB_SET_CURSOR:
             return ioctl_set_cursor(inbuf);
 
+        case IOCTL_MOXNOX_FB_MOVE_CURSOR:
+            return ioctl_move_cursor(inbuf);
+
         default:
             return nt_status::NOT_SUPPORTED;
     }
+}
+
+template<bool BOOT>
+void framebuffer_cache<BOOT>::flush_scanlines(int16_t top, int16_t bottom) {
+    top = max((int16_t)0, top);
+    bottom = min((int16_t)fb_height, bottom);
+
+    auto first_cursor_page = (top * fb_pixels_per_scan_line * sizeof(uint32_t)) >> PAGE_SHIFT;
+    auto last_cursor_page = ((bottom * fb_pixels_per_scan_line * sizeof(uint32_t)) + PAGE_SIZE - 1) >> PAGE_SHIFT;
+
+    flush_cache(first_cursor_page, last_cursor_page - first_cursor_page);
 }
 
 template<bool BOOT>
@@ -291,16 +307,42 @@ nt_status framebuffer_cache<BOOT>::ioctl_set_cursor(span<const uint8_t> inbuf) {
         cursor_bottom = (int16_t)(cursor_top + cursor_height);
     }
 
-    cursor_top = max((int16_t)0, cursor_top);
-    cursor_bottom = min((int16_t)fb_height, cursor_bottom);
-
-    auto first_cursor_page = (cursor_top * fb_pixels_per_scan_line * sizeof(uint32_t)) >> PAGE_SHIFT;
-    auto last_cursor_page = (cursor_bottom * fb_pixels_per_scan_line * sizeof(uint32_t) + PAGE_SIZE - 1) >> PAGE_SHIFT;
-
-    flush_cache(first_cursor_page, last_cursor_page - first_cursor_page + 1);
+    flush_scanlines(cursor_top, cursor_bottom);
 
     if (old_cursor_buffer)
         vfree(old_cursor_buffer, old_cursor_width * old_cursor_height * sizeof(uint32_t));
+
+    return nt_status::SUCCESS;
+}
+
+template<bool BOOT>
+nt_status framebuffer_cache<BOOT>::ioctl_move_cursor(span<const uint8_t> inbuf) {
+    if (inbuf.size() < sizeof(MOXNOX_IOCTL_FB_MOVE_CURSOR))
+        return nt_status::INVALID_PARAMETER;
+
+    auto& mc = *(MOXNOX_IOCTL_FB_MOVE_CURSOR*)inbuf.data();
+
+    auto mc_x = min(mc.x, (uint16_t)(fb_width - 1));
+    auto mc_y = min(mc.y, (uint16_t)(fb_height - 1));
+
+    int16_t cursor_top, cursor_bottom;
+    int16_t last_cursor_top, last_cursor_bottom;
+
+    {
+        lock_guard lock(cursor_lock);
+
+        last_cursor_top = (int16_t)((int16_t)cursor_y - (int16_t)cursor_hotspot_y);
+        last_cursor_bottom = (int16_t)(last_cursor_top + cursor_height);
+
+        cursor_x = mc_x;
+        cursor_y = mc_y;
+
+        cursor_top = (int16_t)((int16_t)cursor_y - (int16_t)cursor_hotspot_y);
+        cursor_bottom = (int16_t)(cursor_top + cursor_height);
+    }
+
+    flush_scanlines(last_cursor_top, last_cursor_bottom);
+    flush_scanlines(cursor_top, cursor_bottom);
 
     return nt_status::SUCCESS;
 }
