@@ -392,8 +392,17 @@ nt_status framebuffer_cache<BOOT>::ioctl_move_cursor(span<const uint8_t> inbuf) 
         cursor_bottom = (int16_t)(cursor_top + cursor_height);
     }
 
-    flush_scanlines(last_cursor_top, last_cursor_bottom);
-    flush_scanlines(cursor_top, cursor_bottom);
+    auto higher_cursor_top = cursor_top < last_cursor_top ? cursor_top : last_cursor_top;
+    auto higher_cursor_bottom = cursor_top < last_cursor_top ? cursor_bottom : last_cursor_bottom;
+    auto lower_cursor_top = cursor_top < last_cursor_top ? last_cursor_top : cursor_top;
+    auto lower_cursor_bottom = cursor_top < last_cursor_top ? last_cursor_bottom : cursor_bottom;
+
+    if (lower_cursor_top <= higher_cursor_bottom)
+        flush_scanlines(higher_cursor_top, lower_cursor_bottom);
+    else {
+        flush_scanlines(higher_cursor_top, higher_cursor_bottom);
+        flush_scanlines(lower_cursor_top, lower_cursor_bottom);
+    }
 
     return nt_status::SUCCESS;
 }
