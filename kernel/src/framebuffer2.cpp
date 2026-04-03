@@ -272,6 +272,7 @@ nt_status framebuffer_cache<BOOT>::ioctl_set_cursor(span<const uint8_t> inbuf) {
 
     uint32_t* old_cursor_buffer;
     uint32_t old_cursor_width, old_cursor_height;
+    int16_t cursor_top, cursor_bottom;
 
     {
         lock_guard lock(cursor_lock);
@@ -285,7 +286,18 @@ nt_status framebuffer_cache<BOOT>::ioctl_set_cursor(span<const uint8_t> inbuf) {
         cursor_height = sc.height;
         cursor_hotspot_x = sc.hotspot_x;
         cursor_hotspot_y = sc.hotspot_y;
+
+        cursor_top = (int16_t)((int16_t)cursor_y - (int16_t)cursor_hotspot_y);
+        cursor_bottom = (int16_t)(cursor_top + cursor_height);
     }
+
+    cursor_top = max((int16_t)0, cursor_top);
+    cursor_bottom = min((int16_t)fb_height, cursor_bottom);
+
+    auto first_cursor_page = (cursor_top * fb_pixels_per_scan_line * sizeof(uint32_t)) >> PAGE_SHIFT;
+    auto last_cursor_page = (cursor_bottom * fb_pixels_per_scan_line * sizeof(uint32_t) + PAGE_SIZE - 1) >> PAGE_SHIFT;
+
+    flush_cache(first_cursor_page, last_cursor_page - first_cursor_page + 1);
 
     if (old_cursor_buffer)
         vfree(old_cursor_buffer, old_cursor_width * old_cursor_height * sizeof(uint32_t));
