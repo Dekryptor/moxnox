@@ -91,12 +91,9 @@ static void handle_mouse_rel(const input_event_with_id& ev) {
     pos = (uint32_t)curpos;
 }
 
-static void handle_syn_report(HANDLE fb) {
+static void move_cursor(HANDLE fb) {
     IO_STATUS_BLOCK iosb;
     MOXNOX_IOCTL_FB_MOVE_CURSOR curpos;
-
-    if (mouse_x == old_mouse_x && mouse_y == old_mouse_y)
-        return;
 
     curpos.x = (uint16_t)mouse_x;
     curpos.y = (uint16_t)mouse_y;
@@ -122,8 +119,10 @@ static void handle_mouse_event(HANDLE mouse_pipe, HANDLE fb,
             break;
 
         case evdev_type::EV_SYN:
-            if ((evdev_syn_code)ev.ev.code == evdev_syn_code::SYN_REPORT)
-                handle_syn_report(fb);
+            if ((evdev_syn_code)ev.ev.code == evdev_syn_code::SYN_REPORT) {
+                if (mouse_x != old_mouse_x || mouse_y != old_mouse_y)
+                    move_cursor(fb);
+            }
             break;
 
         default:
@@ -240,6 +239,7 @@ int main() {
 
     old_colour = framebuffer[(mouse_y * fb_pixels_per_scan_line) + mouse_x];
 
+    move_cursor(sect.get());
     set_cursor(sect.get());
 
     while (true) {
