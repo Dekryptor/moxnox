@@ -213,6 +213,26 @@ struct virtio_gpu_resp_edid {
 
 static_assert(sizeof(virtio_gpu_resp_edid) == 1056);
 
+struct virtio_gpu_cursor_pos {
+    uint32_t scanout_id;
+    uint32_t x;
+    uint32_t y;
+    uint32_t padding;
+} __attribute((packed));
+
+static_assert(sizeof(virtio_gpu_cursor_pos) == 16);
+
+struct virtio_gpu_update_cursor {
+    virtio_gpu_ctrl_hdr hdr;
+    virtio_gpu_cursor_pos pos;
+    uint32_t resource_id;
+    uint32_t hot_x;
+    uint32_t hot_y;
+    uint32_t padding;
+} __attribute((packed));
+
+static_assert(sizeof(virtio_gpu_update_cursor) == 56);
+
 static const uint16_t PCI_VENDOR_ID_REDHAT = 0x1af4;
 
 static void found_virtio_pci_gpu(pci_device& dev);
@@ -266,6 +286,7 @@ public:
     bool transfer_to_host(const virtio_gpu_rect& r, uint64_t offset,
                           uint32_t resource);
     bool resource_flush(const virtio_gpu_rect& r, uint32_t resource);
+    bool move_cursor(uint32_t scanout, uint32_t x, uint32_t y);
 
     T& dev;
     uint32_t num_scanouts;
@@ -841,6 +862,42 @@ bool virtio_gpu<T>::resource_flush(const virtio_gpu_rect& r, uint32_t resource) 
     return true;
 }
 
+template<virtio_device T>
+bool virtio_gpu<T>::move_cursor(uint32_t scanout, uint32_t x, uint32_t y) {
+    virtio_gpu_update_cursor req;
+    virtq_desc descs[1];
+    uint64_t read_bytes;
+    uint8_t* bounce1 = nullptr;
+
+    memset(&req, 0, sizeof(req));
+    req.hdr.type = (uint32_t)VIRTIO_GPU_CMD::MOVE_CURSOR;
+    req.pos.scanout_id = scanout;
+    req.pos.x = x;
+    req.pos.y = y;
+
+    auto pa1 = dma_setup(span((uint8_t*)&req, sizeof(req)), true, bounce1);
+    if (!pa1) {
+        print("dma_setup failed\n");
+        return false;
+    }
+
+    descs[0].addr = pa1;
+    descs[0].len = sizeof(virtio_gpu_update_cursor);
+    descs[0].flags = 0;
+    descs[0].next = 0;
+
+    // no response, contrary to what the specs imply
+
+    auto status = cursor_queue->indirect(descs, read_bytes);
+
+    dma_finish_write(bounce1);
+
+    if (!success(status))
+        return false;
+
+    return true;
+}
+
 static void virtio_gpu_flush_framebuffer(unsigned int x, unsigned int y,
                                          unsigned int width, unsigned int height) {
     auto sp = span((uint8_t*)(framebuffer.data() + (y * fb_width)),
@@ -863,6 +920,15 @@ static void virtio_gpu_flush_framebuffer(unsigned int x, unsigned int y,
 
         if (!v->resource_flush(r, flush_framebuffer_resource)) {
             print("virtio_gpu::resource_flush failed\n");
+            return;
+        }
+    }, flush_framebuffer_device);
+}
+
+static void virtio_gpu_move_cursor(uint32_t x, uint32_t y) {
+    visit([&](auto&& v) {
+        if (!v->move_cursor(0, x, y)) {
+            print("virtio_gpu::move_cursor failed\n");
             return;
         }
     }, flush_framebuffer_device);
@@ -984,6 +1050,7 @@ void virtio_gpu<T>::start() {
     flush_framebuffer_device = decltype(flush_framebuffer_device)(this);
     flush_framebuffer_resource = *res;
     flush_framebuffer = virtio_gpu_flush_framebuffer;
+    ::move_cursor = virtio_gpu_move_cursor;
 
     if (!transfer_to_host(r, 0, *res)) {
         print("virtio_gpu::transfer_to_host failed\n");
