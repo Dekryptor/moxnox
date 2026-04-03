@@ -147,7 +147,7 @@ static void set_cursor(HANDLE fb) {
 
     for (uint16_t y = 0; y < sc.height; y++) {
         for (uint16_t x = 0; x < sc.width; x++) {
-            sc.data[(y * sc.width) + x] = 0x00ff00;
+            sc.data[(y * sc.width) + x] = 0x8000ff00;
         }
     }
 
