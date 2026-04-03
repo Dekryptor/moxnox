@@ -91,33 +91,27 @@ static void handle_mouse_rel(const input_event_with_id& ev) {
     pos = (uint32_t)curpos;
 }
 
-static void handle_syn_report() {
-    void* flush_addr = framebuffer.data();
-    size_t flush_size = framebuffer.size_bytes();
+static void handle_syn_report(HANDLE fb) {
     IO_STATUS_BLOCK iosb;
+    MOXNOX_IOCTL_FB_MOVE_CURSOR curpos;
 
     if (mouse_x == old_mouse_x && mouse_y == old_mouse_y)
         return;
 
-    framebuffer[(old_mouse_y * fb_pixels_per_scan_line) + old_mouse_x] = old_colour;
+    curpos.x = (uint16_t)mouse_x;
+    curpos.y = (uint16_t)mouse_y;
 
-    auto& px = framebuffer[(mouse_y * fb_pixels_per_scan_line) + mouse_x];
-
-    old_colour = px;
-    px = 0xff0000;
-
-    old_mouse_x = mouse_x;
-    old_mouse_y = mouse_y;
-
-    auto status = NtFlushVirtualMemory(NtCurrentProcess(), &flush_addr,
-                                       &flush_size, &iosb);
+    auto status = NtDeviceIoControlFile(fb, 0, nullptr, nullptr, &iosb,
+                                        IOCTL_MOXNOX_FB_MOVE_CURSOR,
+                                        &curpos, sizeof(curpos), nullptr, 0);
     if (!success(status)) {
-        print_stderr("NtFlushVirtualMemory returned {}\n", status);
+        print_stderr("IOCTL_MOXNOX_FB_MOVE_CURSOR returned {}\n", status);
         return;
     }
 }
 
-static void handle_mouse_event(HANDLE mouse_pipe, const input_event_with_id& ev) {
+static void handle_mouse_event(HANDLE mouse_pipe, HANDLE fb,
+                               const input_event_with_id& ev) {
     switch (ev.ev.type) {
         case evdev_type::EV_ABS:
             handle_mouse_abs(mouse_pipe, ev);
@@ -129,7 +123,7 @@ static void handle_mouse_event(HANDLE mouse_pipe, const input_event_with_id& ev)
 
         case evdev_type::EV_SYN:
             if ((evdev_syn_code)ev.ev.code == evdev_syn_code::SYN_REPORT)
-                handle_syn_report();
+                handle_syn_report(fb);
             break;
 
         default:
@@ -261,7 +255,7 @@ int main() {
             return 1;
         }
 
-        handle_mouse_event(mouse_pipe.get(), ev);
+        handle_mouse_event(mouse_pipe.get(), sect.get(), ev);
 
 #if 0
         print("tv_sec = {}, tv_usec = {}, type = {}, code = ",
