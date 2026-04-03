@@ -287,6 +287,9 @@ public:
                           uint32_t resource);
     bool resource_flush(const virtio_gpu_rect& r, uint32_t resource);
     bool move_cursor(uint32_t scanout, uint32_t x, uint32_t y);
+    bool update_cursor(uint32_t scanout, uint32_t x, uint32_t y,
+                       uint32_t resource, uint32_t hot_x,
+                       uint32_t hot_y);
 
     T& dev;
     uint32_t num_scanouts;
@@ -881,6 +884,30 @@ bool virtio_gpu<T>::move_cursor(uint32_t scanout, uint32_t x, uint32_t y) {
     return true;
 }
 
+template<virtio_device T>
+bool virtio_gpu<T>::update_cursor(uint32_t scanout, uint32_t x, uint32_t y,
+                                  uint32_t resource, uint32_t hot_x,
+                                  uint32_t hot_y) {
+    virtio_gpu_update_cursor req;
+
+    memset(&req, 0, sizeof(req));
+    req.hdr.type = (uint32_t)VIRTIO_GPU_CMD::UPDATE_CURSOR;
+    req.pos.scanout_id = scanout;
+    req.pos.x = x;
+    req.pos.y = y;
+    req.resource_id = resource;
+    req.hot_x = hot_x;
+    req.hot_y = hot_y;
+
+    // no response, contrary to what the specs imply
+    auto status = cursor_queue->write(span((uint8_t*)&req, sizeof(req)));
+
+    if (!success(status))
+        return false;
+
+    return true;
+}
+
 static void virtio_gpu_flush_framebuffer(unsigned int x, unsigned int y,
                                          unsigned int width, unsigned int height) {
     auto sp = span((uint8_t*)(framebuffer.data() + (y * fb_width)),
@@ -914,6 +941,55 @@ static void virtio_gpu_move_cursor(uint32_t x, uint32_t y) {
             print("virtio_gpu::move_cursor failed\n");
             return;
         }
+    }, flush_framebuffer_device);
+}
+
+static void virtio_gpu_set_cursor(uint32_t x, uint32_t y,
+                                  span<const uint32_t> buf, uint32_t hot_x,
+                                  uint32_t hot_y) {
+    visit([&](auto&& v) {
+        static const uint32_t CURSOR_WIDTH = 64;
+        static const uint32_t CURSOR_HEIGHT = 64;
+
+        auto opt_res = v->create_resource(VIRTIO_GPU_FORMAT::B8G8R8A8_UNORM,
+                                          CURSOR_WIDTH, CURSOR_HEIGHT);
+        if (!opt_res.has_value()) {
+            print("virtio_gpu::create_resource failed\n");
+            return;
+        }
+
+        auto resource = *opt_res;
+
+        print("resource = {}\n", resource);
+
+        if (!v->attach_backing(resource, span((uint8_t*)buf.data(), buf.size_bytes()))) {
+            print("virtio_gpu::attach_backing failed\n");
+            // FIXME - RESOURCE_UNREF
+            return;
+        }
+
+        virtio_gpu_rect r;
+
+        r.x = 0;
+        r.y = 0;
+        r.width = CURSOR_WIDTH;
+        r.height = CURSOR_HEIGHT;
+
+        if (!v->transfer_to_host(r, 0, resource)) {
+            print("virtio_gpu::transfer_to_host failed\n");
+            // FIXME - RESOURCE_UNREF
+            return;
+        }
+
+        // FIXME - VIRTIO_GPU_FLAG_FENCE
+
+        if (!v->update_cursor(0, x, y, resource, hot_x, hot_y)) {
+            print("virtio_gpu::update_cursor failed\n");
+            // FIXME - RESOURCE_UNREF
+            return;
+        }
+
+        // FIXME - destroy existing resource (RESOURCE_UNREF)
     }, flush_framebuffer_device);
 }
 
@@ -1034,6 +1110,7 @@ void virtio_gpu<T>::start() {
     flush_framebuffer_resource = *res;
     flush_framebuffer = virtio_gpu_flush_framebuffer;
     ::move_cursor = virtio_gpu_move_cursor;
+    set_cursor = virtio_gpu_set_cursor;
 
     if (!transfer_to_host(r, 0, *res)) {
         print("virtio_gpu::transfer_to_host failed\n");

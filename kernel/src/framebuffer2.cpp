@@ -340,6 +340,7 @@ nt_status framebuffer_cache<BOOT>::ioctl_set_cursor(span<const uint8_t> inbuf) {
     uint32_t* old_cursor_buffer;
     uint32_t old_cursor_width, old_cursor_height;
     int16_t cursor_top, cursor_bottom;
+    uint16_t mouse_x, mouse_y;
 
     {
         lock_guard lock(cursor_lock);
@@ -354,11 +355,21 @@ nt_status framebuffer_cache<BOOT>::ioctl_set_cursor(span<const uint8_t> inbuf) {
         cursor_hotspot_x = sc.hotspot_x;
         cursor_hotspot_y = sc.hotspot_y;
 
+        mouse_x = cursor_x;
+        mouse_y = cursor_y;
+
         cursor_top = (int16_t)((int16_t)cursor_y - (int16_t)cursor_hotspot_y);
         cursor_bottom = (int16_t)(cursor_top + cursor_height);
     }
 
-    flush_scanlines(cursor_top, cursor_bottom);
+    if constexpr (BOOT) {
+        flush_scanlines(cursor_top, cursor_bottom);
+    } else {
+        if (set_cursor) {
+            set_cursor(mouse_x, mouse_y, span(buf, sc.width * sc.height),
+                       sc.hotspot_x, sc.hotspot_y);
+        }
+    }
 
     if (old_cursor_buffer)
         vfree(old_cursor_buffer, old_cursor_width * old_cursor_height * sizeof(uint32_t));
