@@ -144,7 +144,7 @@ NTSTATUS framebuffer_cache<BOOT>::flush_cache(uint64_t page_num, uint64_t num_pa
                         auto fb_g = (uint8_t)(cursor_g + (((255 - alpha) * shadow_g) / 255));
                         auto fb_b = (uint8_t)(cursor_b + (((255 - alpha) * shadow_b) / 255));
 
-                        fb_pixel = (fb_r << 16) | (fb_g << 8) | fb_b;
+                        fb_pixel = (uint32_t)(fb_r << 16) | (uint32_t)(fb_g << 8) | (uint32_t)fb_b;
                     }
                 }
 
@@ -266,8 +266,8 @@ void framebuffer_cache<BOOT>::flush_scanlines(int16_t top, int16_t bottom) {
     top = max((int16_t)0, top);
     bottom = min((int16_t)fb_height, bottom);
 
-    auto first_cursor_page = (top * fb_pixels_per_scan_line * sizeof(uint32_t)) >> PAGE_SHIFT;
-    auto last_cursor_page = ((bottom * fb_pixels_per_scan_line * sizeof(uint32_t)) + PAGE_SIZE - 1) >> PAGE_SHIFT;
+    auto first_cursor_page = ((uint16_t)top * fb_pixels_per_scan_line * sizeof(uint32_t)) >> PAGE_SHIFT;
+    auto last_cursor_page = (((uint16_t)bottom * fb_pixels_per_scan_line * sizeof(uint32_t)) + PAGE_SIZE - 1) >> PAGE_SHIFT;
 
     flush_cache(first_cursor_page, last_cursor_page - first_cursor_page);
 }
