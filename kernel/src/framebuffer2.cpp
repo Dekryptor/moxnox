@@ -87,27 +87,6 @@ nt_status framebuffer_cache<BOOT>::read_into_cache(uint64_t page_num, uint64_t n
     return nt_status::SUCCESS;
 }
 
-static void blit_cursor() {
-    // cursor_lock held
-
-    int16_t start_x = (int16_t)cursor_x - (int16_t)cursor_hotspot_x;
-    int16_t start_y = (int16_t)cursor_y - (int16_t)cursor_hotspot_y;
-
-    auto draw_y_start = (uint32_t)max((int16_t)0, start_y);
-    auto draw_y_end = (uint32_t)min((int)fb_height, start_y + cursor_height);
-
-    auto draw_x_start = (uint32_t)max((int16_t)0, start_x);
-    auto draw_x_end = (uint32_t)min((int)fb_width, start_x + cursor_width);
-
-    for (unsigned int y = draw_y_start; y < draw_y_end; y++) {
-        auto cursor_line = &cursor_buffer[((int16_t)y - start_y) * cursor_width];
-        auto fb_line = &framebuffer[y * fb_pixels_per_scan_line];
-
-        memcpy(&fb_line[draw_x_start], &cursor_line[(int16_t)draw_x_start - start_x],
-               (draw_x_end - draw_x_start) * sizeof(uint32_t));
-    }
-}
-
 template<bool BOOT>
 NTSTATUS framebuffer_cache<BOOT>::flush_cache(uint64_t page_num, uint64_t num_pages) {
     auto start = page_num << PAGE_SHIFT;
@@ -121,31 +100,32 @@ NTSTATUS framebuffer_cache<BOOT>::flush_cache(uint64_t page_num, uint64_t num_pa
     if (start >= fb.size_bytes())
         return nt_status::SUCCESS;
 
-    auto len = num_pages << PAGE_SHIFT;
-
-    if (start + len > fb.size_bytes())
-        len = fb.size_bytes() - start;
-
     if constexpr (BOOT) {
-        disable_preempt();
-
-        memcpy((uint8_t*)framebuffer.data() + start,
-               (uint8_t*)shadow_framebuffer.data() + start, len);
+        lock_guard lock(cursor_lock);
 
         auto min_y = (uint16_t)((page_num << PAGE_SHIFT) / (fb_pixels_per_scan_line * sizeof(uint32_t)));
-        auto max_y = (uint16_t)(((page_num + num_pages + 1) << PAGE_SHIFT) / (fb_pixels_per_scan_line * sizeof(uint32_t)));
+        auto max_y = min((uint16_t)(((page_num + num_pages + 1) << PAGE_SHIFT) / (fb_pixels_per_scan_line * sizeof(uint32_t))), (uint16_t)(fb_height - 1));
+        auto cursor_top = (int16_t)((int16_t)cursor_y - (int16_t)cursor_hotspot_y);
+        auto cursor_bottom = (int16_t)(cursor_top + cursor_height);
+        auto cursor_left = (int16_t)((int16_t)cursor_x - (int16_t)cursor_hotspot_x);
+        auto draw_x_start = (uint32_t)max((int16_t)0, cursor_left);
+        auto draw_x_end = (uint32_t)min((int16_t)fb_width, (int16_t)(cursor_left + cursor_width));
 
-        {
-            lock_guard lock(cursor_lock);
+        for (uint16_t y = min_y; y <= max_y; y++) {
+            auto fb_line = &framebuffer[y * fb_pixels_per_scan_line];
+            auto shadow_line = &shadow_framebuffer[y * fb_pixels_per_scan_line];
 
-            auto cursor_top = (int16_t)(cursor_y - cursor_hotspot_y);
-            auto cursor_bottom = (int16_t)(cursor_top + cursor_height);
+            if (y >= cursor_top && y < cursor_bottom) {
+                auto cursor_line = &cursor_buffer[((int16_t)y - cursor_top) * cursor_width];
 
-            if (min_y < cursor_bottom && max_y >= cursor_top)
-                blit_cursor();
+                memcpy(fb_line, shadow_line, draw_x_start * sizeof(uint32_t));
+                memcpy(&fb_line[draw_x_start], &cursor_line[(int16_t)draw_x_start - cursor_left],
+                       (draw_x_end - draw_x_start) * sizeof(uint32_t));
+                memcpy(&fb_line[draw_x_end], &shadow_line[draw_x_end],
+                       (fb_width - draw_x_end) * sizeof(uint32_t));
+            } else
+                memcpy(fb_line, shadow_line, fb_width * sizeof(uint32_t));
         }
-
-        enable_preempt();
     } else {
         auto y1 = (unsigned int)(((page_num << PAGE_SHIFT) / sizeof(uint32_t)) / fb_width);
         auto y2 = (unsigned int)((((page_num + num_pages) << PAGE_SHIFT) / sizeof(uint32_t)) / fb_width);
