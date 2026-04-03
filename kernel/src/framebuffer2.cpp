@@ -110,8 +110,8 @@ NTSTATUS framebuffer_cache<BOOT>::flush_cache(uint64_t page_num, uint64_t num_pa
         auto cursor_top = (int16_t)((int16_t)cursor_y - (int16_t)cursor_hotspot_y);
         auto cursor_bottom = (int16_t)(cursor_top + cursor_height);
         auto cursor_left = (int16_t)((int16_t)cursor_x - (int16_t)cursor_hotspot_x);
-        auto draw_x_start = (uint32_t)max((int16_t)0, cursor_left);
-        auto draw_x_end = (uint32_t)min((int16_t)fb_width, (int16_t)(cursor_left + cursor_width));
+        auto draw_x_start = (uint16_t)max((int16_t)0, cursor_left);
+        auto draw_x_end = (uint16_t)min((int16_t)fb_width, (int16_t)(cursor_left + cursor_width));
 
         for (uint16_t y = min_y; y <= max_y; y++) {
             auto fb_line = &framebuffer[y * fb_pixels_per_scan_line];
@@ -121,8 +121,33 @@ NTSTATUS framebuffer_cache<BOOT>::flush_cache(uint64_t page_num, uint64_t num_pa
                 auto cursor_line = &cursor_buffer[((int16_t)y - cursor_top) * cursor_width];
 
                 memcpy(fb_line, shadow_line, draw_x_start * sizeof(uint32_t));
-                memcpy(&fb_line[draw_x_start], &cursor_line[(int16_t)draw_x_start - cursor_left],
-                       (draw_x_end - draw_x_start) * sizeof(uint32_t));
+
+                for (uint16_t x = draw_x_start; x < draw_x_end; x++) {
+                    auto& fb_pixel = fb_line[x];
+                    auto& shadow_pixel = shadow_line[x];
+                    auto& cursor_pixel = cursor_line[(int16_t)x - cursor_left];
+                    auto alpha = (uint8_t)(cursor_pixel >> 24);
+
+                    if (alpha == 0)
+                        fb_pixel = shadow_pixel;
+                    else if (alpha == 255)
+                        fb_pixel = cursor_pixel;
+                    else {
+                        uint8_t cursor_r = (uint8_t)(cursor_pixel >> 16);
+                        uint8_t cursor_g = (uint8_t)(cursor_pixel >> 8);
+                        uint8_t cursor_b = (uint8_t)cursor_pixel;
+                        uint8_t shadow_r = (uint8_t)(shadow_pixel >> 16);
+                        uint8_t shadow_g = (uint8_t)(shadow_pixel >> 8);
+                        uint8_t shadow_b = (uint8_t)shadow_pixel;
+
+                        auto fb_r = (uint8_t)(cursor_r + (((255 - alpha) * shadow_r) / 255));
+                        auto fb_g = (uint8_t)(cursor_g + (((255 - alpha) * shadow_g) / 255));
+                        auto fb_b = (uint8_t)(cursor_b + (((255 - alpha) * shadow_b) / 255));
+
+                        fb_pixel = (fb_r << 16) | (fb_g << 8) | fb_b;
+                    }
+                }
+
                 memcpy(&fb_line[draw_x_end], &shadow_line[draw_x_end],
                        (fb_width - draw_x_end) * sizeof(uint32_t));
             } else
@@ -284,6 +309,32 @@ nt_status framebuffer_cache<BOOT>::ioctl_set_cursor(span<const uint8_t> inbuf) {
         print("process::copy_from failed\n");
         vfree(buf, bytes);
         return nt_status::NO_MEMORY;
+    }
+
+    // premultiply
+
+    for (unsigned int y = 0; y < sc.height; y++) {
+        auto* line = &buf[y * sc.width];
+
+        for (unsigned int x = 0; x < sc.width; x++) {
+            auto& pixel = line[x];
+
+            uint8_t alpha = (uint8_t)(pixel >> 24);
+
+            if (alpha == 0)
+                pixel = 0;
+            else if (alpha != 255) {
+                uint8_t r = (uint8_t)(pixel >> 16);
+                uint8_t g = (uint8_t)(pixel >> 8);
+                uint8_t b = (uint8_t)pixel;
+
+                r = (uint8_t)((r * alpha) / 255);
+                g = (uint8_t)((g * alpha) / 255);
+                b = (uint8_t)((b * alpha) / 255);
+
+                pixel = ((uint32_t)alpha << 24) | ((uint32_t)r << 16) | ((uint32_t)g << 8) | b;
+            }
+        }
     }
 
     uint32_t* old_cursor_buffer;
