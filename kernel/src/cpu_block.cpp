@@ -9,6 +9,10 @@ export module cpu_block;
 import nt;
 import thread;
 
+#ifdef __x86_64__
+import x86;
+#endif
+
 using namespace std;
 
 export struct cpu_block {
@@ -19,6 +23,9 @@ export struct cpu_block {
     thread* current_thread;
     uint64_t time_slice_left;
     CONTEXT thread_context;
+#ifdef __x86_64__
+    xsave_area xsave;
+#endif
     uint32_t cpu_no;
     void* scheduler_stack;
 #ifdef __aarch64__

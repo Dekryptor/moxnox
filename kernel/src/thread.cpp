@@ -20,6 +20,10 @@ import objects;
 import list;
 import process;
 
+#ifdef __x86_64__
+import x86;
+#endif
+
 using namespace std;
 
 export struct multiple_wait_block;
@@ -45,12 +49,6 @@ export enum class thread_status {
     dead,
     dying
 };
-
-#ifdef __x86_64__
-struct xsave_area {
-    uint8_t buf[576];
-} __attribute__ ((aligned (64)));
-#endif
 
 export extern "C++"
 class thread : public sync_object {

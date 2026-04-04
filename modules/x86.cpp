@@ -117,6 +117,10 @@ export struct e820_entry {
     enum e820_mem_type type;
 } __attribute__((packed));
 
+export struct xsave_area {
+    uint8_t buf[576];
+} __attribute__ ((aligned (64)));
+
 export __attribute__((always_inline))
 uintptr_t inline __readcr0() {
     uintptr_t ret;
