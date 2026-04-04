@@ -52,8 +52,12 @@ public:
         return nt_status::NOT_SUPPORTED;
     }
 
-    nt_status write(span<const uint8_t>, uint64_t&) override {
-        return nt_status::NOT_SUPPORTED;
+    nt_status write(span<const uint8_t> s, uint64_t& written_bytes) override {
+        // silently ignore
+
+        written_bytes = s.size();
+
+        return nt_status::SUCCESS;
     }
 };
 
