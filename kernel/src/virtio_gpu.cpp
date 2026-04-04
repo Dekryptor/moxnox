@@ -3,6 +3,7 @@
 #include <string_view>
 #include <variant>
 #include <optional>
+#include <mutex>
 
 import nt;
 import print;
@@ -25,6 +26,7 @@ import handle;
 import object_ref;
 import crt;
 import dma;
+import rwsem;
 
 using namespace std;
 
@@ -150,6 +152,14 @@ struct virtio_gpu_resource_create_2d {
 } __attribute((packed));
 
 static_assert(sizeof(virtio_gpu_resource_create_2d) == 40);
+
+struct virtio_gpu_resource_unref {
+    virtio_gpu_ctrl_hdr hdr;
+    uint32_t resource_id;
+    uint32_t padding;
+} __attribute((packed));
+
+static_assert(sizeof(virtio_gpu_resource_unref) == 32);
 
 struct virtio_gpu_mem_entry {
     uint64_t addr;
@@ -280,6 +290,7 @@ public:
     bool get_edid(uint32_t scanout, span<uint8_t> ret);
     optional<uint32_t> create_resource(VIRTIO_GPU_FORMAT format,
                                        uint32_t width, uint32_t height);
+    bool unref_resource(uint32_t resource);
     bool attach_backing(uint32_t resource, span<uint8_t> buf);
     bool set_scanout(const virtio_gpu_rect& r, uint32_t scanout,
                      uint32_t resource);
@@ -293,6 +304,8 @@ public:
 
     T& dev;
     uint32_t num_scanouts;
+    rwsem cursor_lock;
+    uint32_t mouse_resource = 0;
 
 private:
     virt_queue* control_queue = nullptr;
@@ -560,6 +573,60 @@ optional<uint32_t> virtio_gpu<T>::create_resource(VIRTIO_GPU_FORMAT format,
     }
 
     return num;
+}
+
+template<virtio_device T>
+bool virtio_gpu<T>::unref_resource(uint32_t resource) {
+    virtio_gpu_resource_unref req;
+    virtio_gpu_ctrl_hdr resp;
+    virtq_desc descs[2];
+    uint64_t read_bytes;
+    uint8_t* bounce1 = nullptr;
+    uint8_t* bounce2 = nullptr;
+
+    memset(&req, 0, sizeof(req));
+    req.hdr.type = (uint32_t)VIRTIO_GPU_CMD::RESOURCE_UNREF;
+    req.resource_id = resource;
+
+    auto pa1 = dma_setup(span((uint8_t*)&req, sizeof(req)), true, bounce1);
+    if (!pa1) {
+        print("dma_setup failed\n");
+        return false;
+    }
+
+    auto pa2 = dma_setup(span((uint8_t*)&resp, sizeof(resp)), false, bounce2);
+    if (!pa2) {
+        print("dma_setup failed\n");
+        dma_finish_write(bounce1);
+        return false;
+    }
+
+    descs[0].addr = pa1;
+    descs[0].len = sizeof(virtio_gpu_resource_unref);
+    descs[0].flags = VIRTQ_DESC_F_NEXT;
+    descs[0].next = 1;
+
+    descs[1].addr = pa2;
+    descs[1].len = sizeof(virtio_gpu_ctrl_hdr);
+    descs[1].flags = VIRTQ_DESC_F_WRITE;
+    descs[1].next = 0;
+
+    auto status = control_queue->indirect(descs, read_bytes);
+
+    dma_finish_read(span((uint8_t*)&resp, sizeof(resp)), bounce2);
+    dma_finish_write(bounce1);
+
+    if (!success(status))
+        return false;
+
+    auto resp_err = (enum VIRTIO_GPU_RESP)resp.type;
+
+    if (resp_err != VIRTIO_GPU_RESP::OK_NODATA) {
+        print("VIRTIO_GPU_CMD_RESOURCE_UNREF returned {}\n", resp_err);
+        return false;
+    }
+
+    return true;
 }
 
 static unsigned int calc_num_mem_entries(span<const uint8_t> buf) {
@@ -964,7 +1031,7 @@ static void virtio_gpu_set_cursor(uint32_t x, uint32_t y,
 
         if (!v->attach_backing(resource, span((uint8_t*)buf.data(), buf.size_bytes()))) {
             print("virtio_gpu::attach_backing failed\n");
-            // FIXME - RESOURCE_UNREF
+            v->unref_resource(resource);
             return;
         }
 
@@ -977,19 +1044,28 @@ static void virtio_gpu_set_cursor(uint32_t x, uint32_t y,
 
         if (!v->transfer_to_host(r, 0, resource)) {
             print("virtio_gpu::transfer_to_host failed\n");
-            // FIXME - RESOURCE_UNREF
+            v->unref_resource(resource);
             return;
         }
 
         // FIXME - VIRTIO_GPU_FLAG_FENCE
 
-        if (!v->update_cursor(0, x, y, resource, hot_x, hot_y)) {
-            print("virtio_gpu::update_cursor failed\n");
-            // FIXME - RESOURCE_UNREF
-            return;
-        }
+        {
+            lock_guard lock(v->cursor_lock);
 
-        // FIXME - destroy existing resource (RESOURCE_UNREF)
+            if (!v->update_cursor(0, x, y, resource, hot_x, hot_y)) {
+                print("virtio_gpu::update_cursor failed\n");
+                v->unref_resource(resource);
+                return;
+            }
+
+            if (v->mouse_resource != 0) {
+                if (!v->unref_resource(v->mouse_resource))
+                    print("virtio_gpu::unref_resource failed\n");
+            }
+
+            v->mouse_resource = resource;
+        }
     }, flush_framebuffer_device);
 }
 
