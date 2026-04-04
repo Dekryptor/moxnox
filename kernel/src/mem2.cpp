@@ -1604,6 +1604,16 @@ void operator delete(void* ptr, size_t) noexcept {
 }
 
 extern "C++"
+void operator delete(void* ptr, align_val_t) noexcept {
+    free(ptr);
+}
+
+extern "C++"
+void operator delete(void* ptr, size_t, align_val_t) noexcept {
+    free(ptr);
+}
+
+extern "C++"
 void operator delete[](void* ptr) noexcept {
     free(ptr);
 }
