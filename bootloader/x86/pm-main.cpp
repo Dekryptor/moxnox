@@ -333,11 +333,14 @@ static void enable_paging() {
     pd[(SELFMAP & 0xff8000000000) >> 39].p = 1;
     pd[(SELFMAP & 0xff8000000000) >> 39].w = 1;
 
-    // enable PAE, and set OXFSXR and OSXMMEXCPT bits on cr4
-    __writecr4(__readcr4() | CR4_PAE | CR4_OSFXSR | CR4_OSXMMEXCPT);
+    // enable PAE, and set OXFSXR, OSXMMEXCPT, and OSXSAVE bits on cr4
+    __writecr4(__readcr4() | CR4_PAE | CR4_OSFXSR | CR4_OSXMMEXCPT | CR4_OSXSAVE);
 
     // set cr3
     __writecr3((uintptr_t)pd.data());
+
+    // setup xsave
+    _xsetbv(0, _xgetbv(0) | XCR0_X87 | XCR0_SSE);
 
     // enable long mode, NX bit, and syscalls
     __writemsr(EFER_MSR, __readmsr(EFER_MSR) | EFER_LME | EFER_NX | EFER_SCE);

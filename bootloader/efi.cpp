@@ -1641,7 +1641,9 @@ static void start_kernel(uint64_t entry_point, uint64_t pml4t, loader_block* lb)
 
     __writecr0(__readcr0() | CR0_WP | CR0_MP);
 
-    __writecr4(__readcr4() | CR4_OSXMMEXCPT | CR4_OSFXSR);
+    __writecr4(__readcr4() | CR4_OSXMMEXCPT | CR4_OSFXSR | CR4_OSXSAVE);
+
+    _xsetbv(0, _xgetbv(0) | XCR0_X87 | XCR0_SSE);
 
     // enable NX bit and System Call Extensions
     __writemsr(EFER_MSR, __readmsr(EFER_MSR) | EFER_NX | EFER_SCE);

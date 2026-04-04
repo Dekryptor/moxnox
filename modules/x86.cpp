@@ -15,11 +15,15 @@ export const uint64_t CR0_PG = (uint64_t)1 << 31;
 export const uint64_t CR4_PAE = 1 << 5;
 export const uint64_t CR4_OSFXSR = 1 << 9;
 export const uint64_t CR4_OSXMMEXCPT = 1 << 10;
+export const uint64_t CR4_OSXSAVE = 1 << 18;
 
 export const uint32_t EFER_MSR = 0xc0000080;
 export const uint64_t EFER_SCE = 1 << 0;
 export const uint64_t EFER_LME = 1 << 8;
 export const uint64_t EFER_NX = 1 << 11;
+
+export const uint64_t XCR0_X87 = 1 << 0;
+export const uint64_t XCR0_SSE = 1 << 1;
 
 export struct HARDWARE_PTE {
     uint64_t p : 1;
@@ -193,5 +197,30 @@ export __attribute__((always_inline))
 void inline _disable() {
     __asm__ __volatile__ (
         "cli"
+    );
+}
+
+export __attribute__((always_inline))
+uint64_t inline _xgetbv(uint32_t r) {
+    uint32_t high, low;
+
+    __asm__ __volatile__ (
+        "xgetbv"
+        : "=d" (high), "=a" (low)
+        : "c" (r)
+    );
+
+    return ((uint64_t)high << 32) | low;
+}
+
+export __attribute__((always_inline))
+void inline _xsetbv(uint32_t r, uint64_t v) {
+    auto high = (uint32_t)(v >> 32);
+    uint32_t low = v & 0xffffffff;
+
+    __asm__ __volatile__ (
+        "xsetbv"
+        :
+        : "c" (r), "d" (high), "a" (low)
     );
 }

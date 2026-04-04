@@ -110,10 +110,16 @@ Llong_mode:
     or rax, 0x2
     mov cr0, rax
 
-    # set OSFXSR and OSXMMEXCPT flags on CR4
+    # set OSFXSR, OSXMMEXCPT, and OSXSAVE flags on CR4
     mov rax, cr4
-    or ax, 0x600
+    or rax, 0x40600
     mov cr4, rax
+
+    # set x87 and SSE bits in xcr0
+    xor rcx, rcx
+    xgetbv
+    or eax, 0x3
+    xsetbv
 
     mov rsp, [RSP_ADDRESS]
     mov rax, [TRAMPOLINE_ADDRESS]
