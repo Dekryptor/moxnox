@@ -178,8 +178,6 @@ void main_thread(void* ctx) {
 
     acpi_early_init_done = true;
 
-    setup_folios();
-
     if (!init_evdev_multiplexers())
         print("init_evdev_multiplexers failed\n");
 
@@ -380,6 +378,8 @@ void startup(loader_block* lb) {
     enable_interrupts();
 
     _printk = early_print;
+
+    setup_folios();
 
     if (!add_kernel_thread(main_thread, lb))
         goto hang;
