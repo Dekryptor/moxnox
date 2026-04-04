@@ -46,6 +46,12 @@ export enum class thread_status {
     dying
 };
 
+#ifdef __x86_64__
+struct xsave_area {
+    uint8_t buf[576];
+} __attribute__ ((aligned (64)));
+#endif
+
 export extern "C++"
 class thread : public sync_object {
 public:
@@ -61,6 +67,7 @@ public:
     CONTEXT context;
 #ifdef __x86_64__
     CONTEXT syscall_context;
+    xsave_area xsave;
 #endif
     enum thread_status status;
     uint32_t tid;
