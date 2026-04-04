@@ -295,17 +295,18 @@ public:
     bool set_scanout(const virtio_gpu_rect& r, uint32_t scanout,
                      uint32_t resource);
     bool transfer_to_host(const virtio_gpu_rect& r, uint64_t offset,
-                          uint32_t resource);
+                          uint32_t resource, optional<uint64_t> fence_num = nullopt);
     bool resource_flush(const virtio_gpu_rect& r, uint32_t resource);
     bool move_cursor(uint32_t scanout, uint32_t x, uint32_t y);
     bool update_cursor(uint32_t scanout, uint32_t x, uint32_t y,
                        uint32_t resource, uint32_t hot_x,
-                       uint32_t hot_y);
+                       uint32_t hot_y, optional<uint64_t> fence_num = nullopt);
 
     T& dev;
     uint32_t num_scanouts;
     rwsem cursor_lock;
     uint32_t mouse_resource = 0;
+    atomic<uint64_t> fence = 1;
 
 private:
     virt_queue* control_queue = nullptr;
@@ -822,7 +823,7 @@ bool virtio_gpu<T>::set_scanout(const virtio_gpu_rect& r, uint32_t scanout,
 
 template<virtio_device T>
 bool virtio_gpu<T>::transfer_to_host(const virtio_gpu_rect& r, uint64_t offset,
-                                     uint32_t resource) {
+                                     uint32_t resource, optional<uint64_t> fence_num) {
     virtio_gpu_transfer_to_host_2d req;
     virtio_gpu_ctrl_hdr resp;
     virtq_desc descs[2];
@@ -832,6 +833,12 @@ bool virtio_gpu<T>::transfer_to_host(const virtio_gpu_rect& r, uint64_t offset,
 
     memset(&req, 0, sizeof(req));
     req.hdr.type = (uint32_t)VIRTIO_GPU_CMD::TRANSFER_TO_HOST_2D;
+
+    if (fence_num.has_value()) {
+        req.hdr.flags = VIRTIO_GPU_FLAG_FENCE;
+        req.hdr.fence_id = *fence_num;
+    }
+
     req.r = r;
     req.offset = offset;
     req.resource_id = resource;
@@ -954,11 +961,15 @@ bool virtio_gpu<T>::move_cursor(uint32_t scanout, uint32_t x, uint32_t y) {
 template<virtio_device T>
 bool virtio_gpu<T>::update_cursor(uint32_t scanout, uint32_t x, uint32_t y,
                                   uint32_t resource, uint32_t hot_x,
-                                  uint32_t hot_y) {
+                                  uint32_t hot_y, optional<uint64_t> fence_num) {
     virtio_gpu_update_cursor req;
 
     memset(&req, 0, sizeof(req));
     req.hdr.type = (uint32_t)VIRTIO_GPU_CMD::UPDATE_CURSOR;
+
+    if (fence_num.has_value())
+        req.hdr.fence_id = *fence_num;
+
     req.pos.scanout_id = scanout;
     req.pos.x = x;
     req.pos.y = y;
@@ -1042,18 +1053,18 @@ static void virtio_gpu_set_cursor(uint32_t x, uint32_t y,
         r.width = CURSOR_WIDTH;
         r.height = CURSOR_HEIGHT;
 
-        if (!v->transfer_to_host(r, 0, resource)) {
+        uint64_t fence_num = v->fence.fetch_add(1);
+
+        if (!v->transfer_to_host(r, 0, resource, fence_num)) {
             print("virtio_gpu::transfer_to_host failed\n");
             v->unref_resource(resource);
             return;
         }
 
-        // FIXME - VIRTIO_GPU_FLAG_FENCE
-
         {
             lock_guard lock(v->cursor_lock);
 
-            if (!v->update_cursor(0, x, y, resource, hot_x, hot_y)) {
+            if (!v->update_cursor(0, x, y, resource, hot_x, hot_y, fence_num)) {
                 print("virtio_gpu::update_cursor failed\n");
                 v->unref_resource(resource);
                 return;
