@@ -103,6 +103,7 @@ static_assert(offsetof(::thread, wait_timeout) == THREAD_WAIT_TIMEOUT);
 static_assert(offsetof(::thread, user_stack) == THREAD_USER_STACK);
 #elifdef __x86_64__
 static_assert(offsetof(::thread, syscall_context) == THREAD_SYSCALL_CONTEXT);
+static_assert(offsetof(::thread, xsave) == THREAD_XSAVE);
 static_assert(offsetof(::thread, status) == THREAD_STATUS);
 static_assert(offsetof(::thread, suspend_count) == THREAD_SUSPEND_COUNT);
 static_assert(offsetof(::thread, teb) == THREAD_TEB);

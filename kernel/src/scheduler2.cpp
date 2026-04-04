@@ -145,6 +145,9 @@ void scheduler() {
         auto& t = *cb.current_thread;
 
         memcpy(&t.context, &cb.thread_context, sizeof(CONTEXT));
+#ifdef __x86_64__
+        memcpy(&t.xsave, &cb.xsave, sizeof(t.xsave));
+#endif
         t.current_cpu = 0xffffffff;
 
         if (t.proc)
@@ -185,6 +188,9 @@ void scheduler() {
 
         if (cb.current_thread) {
             memcpy(&cb.thread_context, &cb.current_thread->context, sizeof(CONTEXT));
+#ifdef __x86_64__
+            memcpy(&cb.xsave, &cb.current_thread->xsave, sizeof(cb.xsave));
+#endif
             cb.time_slice_left = time_slice;
 
 #ifdef __aarch64__

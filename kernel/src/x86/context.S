@@ -1,6 +1,6 @@
 #include "../context_offsets.h"
 
-.macro save_context # clobbers rax
+.macro save_context # clobbers rax and rdx
     mov gs:GS_CONTEXT + CONTEXT_RAX, rax
     mov gs:GS_CONTEXT + CONTEXT_RCX, rcx
     mov gs:GS_CONTEXT + CONTEXT_RDX, rdx
@@ -31,10 +31,13 @@
     mov WORD PTR gs:GS_CONTEXT + CONTEXT_FS, fs
     mov WORD PTR gs:GS_CONTEXT + CONTEXT_GS, gs
     # FIXME - debug registers
-    fxsave gs:GS_CONTEXT + CONTEXT_FXSAVE
+
+    mov eax, 0xffffffff
+    mov edx, 0xffffffff
+    xsave gs:GS_XSAVE
 .endm
 
-.macro save_context2 # clobbers rax
+.macro save_context2 # clobbers rax and rdx
     mov gs:GS_CONTEXT + CONTEXT_RAX, rax
     mov gs:GS_CONTEXT + CONTEXT_RCX, rcx
     mov gs:GS_CONTEXT + CONTEXT_RDX, rdx
@@ -65,10 +68,13 @@
     mov WORD PTR gs:GS_CONTEXT + CONTEXT_FS, fs
     mov WORD PTR gs:GS_CONTEXT + CONTEXT_GS, gs
     # FIXME - debug registers
-    fxsave gs:GS_CONTEXT + CONTEXT_FXSAVE
+
+    mov eax, 0xffffffff
+    mov edx, 0xffffffff
+    xsave gs:GS_XSAVE
 .endm
 
-.macro save_context_when_error_code # clobbers rax
+.macro save_context_when_error_code # clobbers rax and rdx
     mov gs:GS_CONTEXT + CONTEXT_RAX, rax
     mov gs:GS_CONTEXT + CONTEXT_RCX, rcx
     mov gs:GS_CONTEXT + CONTEXT_RDX, rdx
@@ -99,7 +105,10 @@
     mov WORD PTR gs:GS_CONTEXT + CONTEXT_FS, fs
     mov WORD PTR gs:GS_CONTEXT + CONTEXT_GS, gs
     # FIXME - debug registers
-    fxsave gs:GS_CONTEXT + CONTEXT_FXSAVE
+
+    mov eax, 0xffffffff
+    mov edx, 0xffffffff
+    xsave gs:GS_XSAVE
 .endm
 
 .macro save_syscall_context
@@ -112,7 +121,6 @@
     mov rax, gs:GS_SYSCALL_RAX
     mov [rdx + THREAD_SYSCALL_CONTEXT + CONTEXT_RAX], rax
     mov rax, gs:GS_CURRENT_THREAD
-    mov rdx, [rax + THREAD_SYSCALL_CONTEXT + CONTEXT_RDX]
 
     mov [rax + THREAD_SYSCALL_CONTEXT + CONTEXT_RBX], rbx
     mov [rax + THREAD_SYSCALL_CONTEXT + CONTEXT_RSP], rsp
@@ -136,7 +144,13 @@
     mov WORD PTR [rax + THREAD_SYSCALL_CONTEXT + CONTEXT_FS], fs
     mov WORD PTR [rax + THREAD_SYSCALL_CONTEXT + CONTEXT_GS], gs
     # FIXME - debug registers
-    fxsave [rax + THREAD_SYSCALL_CONTEXT + CONTEXT_FXSAVE]
+
+    mov rcx, rax
+    mov eax, 0xffffffff
+    mov edx, 0xffffffff
+    xsave [rcx + THREAD_XSAVE]
+
+    mov rdx, [rcx + THREAD_SYSCALL_CONTEXT + CONTEXT_RDX]
 .endm
 
 .macro load_kernel_cr3

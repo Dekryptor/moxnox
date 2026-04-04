@@ -3358,6 +3358,7 @@ NTSTATUS process::create_thread(optional<reference_wrapper<handle_t>> thread_han
     t.user_stack = (uintptr_t)img_info_addr - 0x10;
 #elifdef __x86_64__
     memset(&t.syscall_context, 0, sizeof(CONTEXT));
+    memset(&t.xsave, 0, sizeof(t.xsave));
 
     t.context.EFlags |= 0x202; // IF, reserved flag
     t.context.SegCs = user_CS;

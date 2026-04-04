@@ -217,9 +217,7 @@ scheduler_restore:
     movzx rax, WORD PTR gs:GS_CONTEXT + CONTEXT_CS
     push rax
     push gs:GS_CONTEXT + CONTEXT_RIP
-    mov rax, gs:GS_CONTEXT + CONTEXT_RAX
-    mov rcx, gs:GS_CONTEXT + CONTEXT_RCX
-    mov rdx, gs:GS_CONTEXT + CONTEXT_RDX
+    # rax, rcx, and rdx done below
     mov rbx, gs:GS_CONTEXT + CONTEXT_RBX
     mov rbp, gs:GS_CONTEXT + CONTEXT_RBP
     mov rsi, gs:GS_CONTEXT + CONTEXT_RSI
@@ -237,13 +235,12 @@ scheduler_restore:
     mov fs, gs:GS_CONTEXT + CONTEXT_FS
     # setting gs nukes gsbase
     # FIXME - debug registers
-    fxrstor gs:GS_CONTEXT + CONTEXT_FXSAVE
 
-    push rax
+    mov eax, 0xffffffff
+    mov edx, 0xffffffff
+    xrstor gs:GS_XSAVE
 
     # set GS base to TEB
-    push rcx
-    push rdx
     mov rax, gs:GS_CURRENT_THREAD
     mov rax, [rax+THREAD_TEB]
     mov rdx, rax
@@ -251,8 +248,12 @@ scheduler_restore:
     and eax, 0xffffffff
     mov ecx, IA32_KERNEL_GS_BASE
     wrmsr
-    pop rdx
-    pop rcx
+
+    mov rax, gs:GS_CONTEXT + CONTEXT_RAX
+    mov rcx, gs:GS_CONTEXT + CONTEXT_RCX
+    mov rdx, gs:GS_CONTEXT + CONTEXT_RDX
+
+    push rax
 
     # change cr3 and swap GS, if currently in user mode
     mov rax, gs:GS_CURRENT_THREAD
@@ -299,8 +300,11 @@ yield:
     mov WORD PTR gs:GS_CONTEXT + CONTEXT_FS, fs
     mov WORD PTR gs:GS_CONTEXT + CONTEXT_GS, gs
     mov WORD PTR gs:GS_CONTEXT + CONTEXT_SS, ss
-    fxsave gs:GS_CONTEXT + CONTEXT_FXSAVE
     # FIXME - debug registers
+
+    mov eax, 0xffffffff
+    mov edx, 0xffffffff
+    xsave gs:GS_XSAVE
 
     mov rsp, gs:GS_SCHEDULER_STACK
     jmp scheduler

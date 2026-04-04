@@ -55,6 +55,7 @@ static_assert(offsetof(cpu_block, gicc) == GS_GICC);
 static_assert(offsetof(cpu_block, self) == GS_SELF);
 static_assert(offsetof(cpu_block, kernel_cr3) == GS_KERNEL_CR3);
 static_assert(offsetof(cpu_block, syscall_rax) == GS_SYSCALL_RAX);
+static_assert(offsetof(cpu_block, xsave) == GS_XSAVE);
 #endif
 
 #ifdef __aarch64__

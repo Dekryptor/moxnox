@@ -1557,6 +1557,7 @@ void maybe_yield(uint64_t syscall_ret)
 
 #ifdef __x86_64__
     memcpy(&cb.thread_context, &t.syscall_context, sizeof(CONTEXT));
+    memcpy(&cb.xsave, &t.xsave, sizeof(cb.xsave));
     cb.thread_context.Rax = syscall_ret;
 #endif
 
