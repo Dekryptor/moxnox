@@ -352,7 +352,7 @@ nt_status framebuffer_cache<BOOT>::ioctl_set_cursor(span<const uint8_t> inbuf) {
         old_cursor_height = cursor_height;
 
         old_cursor_top = (int16_t)((int16_t)cursor_y - (int16_t)cursor_hotspot_y);
-        old_cursor_bottom = (int16_t)(old_cursor_top + old_cursor_height);
+        old_cursor_bottom = (int16_t)(old_cursor_top + (int16_t)old_cursor_height);
 
         cursor_buffer = buf;
         cursor_width = sc.width;
