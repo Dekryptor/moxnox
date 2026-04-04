@@ -926,7 +926,12 @@ static uint8_t find_max_order(uint64_t pfn) {
 void setup_folios() {
     lock_guard lock(pa_spinlock);
 
-    for (uint64_t i = first_pfn; i < total_pages; i += 2) {
+    uint64_t start_pfn = first_pfn;
+
+    if (start_pfn % 2)
+        start_pfn++;
+
+    for (uint64_t i = start_pfn; i < total_pages; i += 2) {
         if (pages[i].state != page_state::free)
             continue;
 
