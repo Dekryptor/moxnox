@@ -65,7 +65,6 @@ public:
     CONTEXT context;
 #ifdef __x86_64__
     CONTEXT syscall_context;
-    xsave_area xsave;
 #endif
     enum thread_status status;
     uint32_t tid;
@@ -88,6 +87,9 @@ public:
     uint64_t wait_timeout;
     multiple_wait_block* multwait;
     bool kill_on_wake = false;
+#ifdef __x86_64__
+    xsave_area xsave;
+#endif
 } __attribute__ ((aligned (16)));
 
 static_assert(is_sync_object<::thread>);
