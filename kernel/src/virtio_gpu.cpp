@@ -1038,8 +1038,6 @@ static void virtio_gpu_set_cursor(uint32_t x, uint32_t y,
 
         auto resource = *opt_res;
 
-        print("resource = {}\n", resource);
-
         if (!v->attach_backing(resource, span((uint8_t*)buf.data(), buf.size_bytes()))) {
             print("virtio_gpu::attach_backing failed\n");
             v->unref_resource(resource);
