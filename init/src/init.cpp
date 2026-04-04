@@ -12,6 +12,7 @@ import print;
 import unique_handle;
 import moxnox_ioctls;
 import kernelbase;
+import evdev;
 
 static span<char16_t> environment;
 
@@ -223,6 +224,64 @@ static void mount_dev() {
     free(buf);
 }
 
+static unsigned int power_button_thread(void*) {
+    auto peb = NtCurrentTeb()->ProcessEnvironmentBlock;
+    OBJECT_ATTRIBUTES oa;
+    UNICODE_STRING us;
+    IO_STATUS_BLOCK iosb;
+    NTSTATUS status;
+    HANDLE h;
+
+    static const u16string_view fn = u"/dev/keyboard";
+
+    us.Length = us.MaximumLength = (uint16_t)(fn.size() * sizeof(char16_t));
+    us.Buffer = (char16_t*)fn.data();
+
+    memset(&oa, 0, sizeof(oa));
+    oa.Length = sizeof(OBJECT_ATTRIBUTES);
+    oa.ObjectName = &us;
+    oa.RootDirectory = peb->ProcessParameters->CurrentDirectory.Handle;
+
+    status = NtCreateFile(&h, FILE_READ_DATA, &oa, &iosb, nullptr,
+                          FILE_ATTRIBUTE_NORMAL, 0, FILE_OPEN,
+                          0, nullptr, 0);
+    if (!success(status)) {
+        print_stderr("NtCreateFile returned {}\n", status);
+        return 1;
+    }
+
+    unique_handle power_button{h};
+
+    while (true) {
+        input_event_with_id ev;
+
+        status = NtReadFile(power_button.get(), 0, nullptr, nullptr,
+                            &iosb, &ev, sizeof(ev), nullptr, nullptr);
+
+        if (status == nt_status::ALERTED)
+            continue;
+        else if (!success(status)) {
+            print_stderr("NtReadFile returned {}\n", status);
+            return 1;
+        }
+
+        if (ev.ev.type != evdev_type::EV_KEY)
+            continue;
+
+        auto code = (evdev_key_code)ev.ev.code;
+
+        if (code == evdev_key_code::KEY_POWER && ev.ev.value == 1) {
+            status = NtShutdownSystem(SHUTDOWN_ACTION::ShutdownPowerOff);
+
+            // shouldn't return
+
+            print_stderr("NtShutdownSystem returned {}\n", status);
+        }
+    }
+
+    return 0;
+}
+
 int main(int argc, char** argv) {
     bool serial_mode = false;
 
@@ -245,6 +304,15 @@ int main(int argc, char** argv) {
 
     if (!serial_mode) {
         auto h = CreateThread(nullptr, 0, do_serial, nullptr, 0, nullptr);
+        if (h == 0)
+            print_stderr("CreateThread failed (last error {})\n", GetLastError());
+        else
+            NtClose(h);
+    }
+
+    {
+        auto h = CreateThread(nullptr, 0, power_button_thread, nullptr,
+                              0, nullptr);
         if (h == 0)
             print_stderr("CreateThread failed (last error {})\n", GetLastError());
         else
