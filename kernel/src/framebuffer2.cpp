@@ -311,28 +311,30 @@ nt_status framebuffer_cache<BOOT>::ioctl_set_cursor(span<const uint8_t> inbuf) {
         return nt_status::NO_MEMORY;
     }
 
-    // premultiply
+    if constexpr (BOOT) {
+        // premultiply
 
-    for (unsigned int y = 0; y < sc.height; y++) {
-        auto* line = &buf[y * sc.width];
+        for (unsigned int y = 0; y < sc.height; y++) {
+            auto* line = &buf[y * sc.width];
 
-        for (unsigned int x = 0; x < sc.width; x++) {
-            auto& pixel = line[x];
+            for (unsigned int x = 0; x < sc.width; x++) {
+                auto& pixel = line[x];
 
-            uint8_t alpha = (uint8_t)(pixel >> 24);
+                uint8_t alpha = (uint8_t)(pixel >> 24);
 
-            if (alpha == 0)
-                pixel = 0;
-            else if (alpha != 255) {
-                uint8_t r = (uint8_t)(pixel >> 16);
-                uint8_t g = (uint8_t)(pixel >> 8);
-                uint8_t b = (uint8_t)pixel;
+                if (alpha == 0)
+                    pixel = 0;
+                else if (alpha != 255) {
+                    uint8_t r = (uint8_t)(pixel >> 16);
+                    uint8_t g = (uint8_t)(pixel >> 8);
+                    uint8_t b = (uint8_t)pixel;
 
-                r = (uint8_t)((r * alpha) / 255);
-                g = (uint8_t)((g * alpha) / 255);
-                b = (uint8_t)((b * alpha) / 255);
+                    r = (uint8_t)((r * alpha) / 255);
+                    g = (uint8_t)((g * alpha) / 255);
+                    b = (uint8_t)((b * alpha) / 255);
 
-                pixel = ((uint32_t)alpha << 24) | ((uint32_t)r << 16) | ((uint32_t)g << 8) | b;
+                    pixel = ((uint32_t)alpha << 24) | ((uint32_t)r << 16) | ((uint32_t)g << 8) | b;
+                }
             }
         }
     }
