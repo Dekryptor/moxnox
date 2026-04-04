@@ -85,3 +85,11 @@ export inline __attribute__((always_inline)) cpu_block* get_cpu_block() {
 #endif
 }
 #endif
+
+export inline __attribute__((always_inline)) size_t cpu_block_size() {
+#ifdef __x86_64__
+    return offsetof(cpu_block, xsave) + XSAVE_SIZE;
+#else
+    return sizeof(cpu_block);
+#endif
+}

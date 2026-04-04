@@ -146,7 +146,7 @@ void scheduler() {
 
         memcpy(&t.context, &cb.thread_context, sizeof(CONTEXT));
 #ifdef __x86_64__
-        memcpy(&t.xsave, &cb.xsave, sizeof(t.xsave));
+        memcpy(&t.xsave, &cb.xsave, XSAVE_SIZE);
 #endif
         t.current_cpu = 0xffffffff;
 
@@ -189,7 +189,7 @@ void scheduler() {
         if (cb.current_thread) {
             memcpy(&cb.thread_context, &cb.current_thread->context, sizeof(CONTEXT));
 #ifdef __x86_64__
-            memcpy(&cb.xsave, &cb.current_thread->xsave, sizeof(cb.xsave));
+            memcpy(&cb.xsave, &cb.current_thread->xsave, XSAVE_SIZE);
 #endif
             cb.time_slice_left = time_slice;
 
@@ -428,7 +428,7 @@ uintptr_t allocate_emergency_stack() {
 #endif
 
 uintptr_t init_cpu_block(unsigned int cpu_no) {
-    auto pages = bytes_to_pages(sizeof(cpu_block));
+    auto pages = bytes_to_pages(cpu_block_size());
     auto va = cpu_block_va.fetch_add(pages << PAGE_SHIFT);
     auto& cb = *(cpu_block*)va;
 

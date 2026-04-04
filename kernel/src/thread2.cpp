@@ -331,7 +331,7 @@ static void kernel_thread_start(void (*func)(void*, void*), void* param1, void* 
 object_ref add_kernel_thread(void (*func)(void*, void*), void* param1, void* param2) {
     uint16_t tid;
 
-    auto tptr = new (align_val_t(16)) ::thread;
+    auto tptr = new ::thread;
     if (!tptr) {
         print("new failed\n");
         return {};
@@ -370,7 +370,7 @@ object_ref add_kernel_thread(void (*func)(void*, void*), void* param1, void* par
 
     t.context.Cpsr = 0x5; // EL1 with SP_EL1
 #elifdef __x86_64__
-    memset(&t.xsave, 0, sizeof(t.xsave));
+    memset(&t.xsave, 0, XSAVE_SIZE);
 
     t.context.Rip = (uintptr_t)kernel_thread_start;
     t.context.Rcx = (uintptr_t)func;

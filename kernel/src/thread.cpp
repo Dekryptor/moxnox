@@ -50,11 +50,26 @@ export enum class thread_status {
     dying
 };
 
+#ifdef __x86_64__
+export size_t XSAVE_SIZE = 576; // FIXME
+#endif
+
 export extern "C++"
 class thread : public sync_object {
 public:
     thread() : sync_object(object_type::thread, false) { }
     ~thread();
+
+#ifdef __x86_64__
+    static void* operator new(size_t) {
+        return ::operator new(offsetof(::thread, xsave) + XSAVE_SIZE,
+                              align_val_t{alignof(::thread)});
+    }
+
+    static void operator delete(void* p) {
+        ::operator delete(p, align_val_t{alignof(::thread)});
+    }
+#endif
 
     void release() {
         if (--refcount == 0)
