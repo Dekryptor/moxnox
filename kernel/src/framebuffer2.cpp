@@ -279,69 +279,69 @@ nt_status framebuffer_cache<BOOT>::ioctl_set_cursor(span<const uint8_t> inbuf) {
 
     auto& sc = *(MOXNOX_IOCTL_FB_SET_CURSOR*)inbuf.data();
     auto& t = *get_current_thread();
+    uint32_t* buf = nullptr;
 
     if (!t.proc)
         return nt_status::INTERNAL_ERROR;
 
-    // FIXME - should be clearing existing cursor in this case?
-    if (sc.width == 0 || sc.height == 0)
-        return nt_status::INVALID_PARAMETER;
+    if (sc.width != 0 && sc.height != 0 && sc.data) {
+        if (sc.hotspot_x >= sc.width || sc.hotspot_y >= sc.height)
+            return nt_status::INVALID_PARAMETER;
 
-    if (!sc.data)
-        return nt_status::INVALID_PARAMETER;
+        // FIXME - if smaller than 64x64, should be copying and adding padding
+        if (sc.width != 64 || sc.height != 64)
+            return nt_status::INVALID_PARAMETER;
 
-    if (sc.hotspot_x >= sc.width || sc.hotspot_y >= sc.height)
-        return nt_status::INVALID_PARAMETER;
+        size_t bytes = sc.width * sc.height * sizeof(uint32_t);
 
-    // FIXME - if smaller than 64x64, should be copying and adding padding
-    if (sc.width != 64 || sc.height != 64)
-        return nt_status::INVALID_PARAMETER;
+        buf = (uint32_t*)vmalloc(bytes);
+        if (!buf) {
+            print("vmalloc failed\n");
+            return nt_status::INSUFFICIENT_RESOURCES;
+        }
 
-    size_t bytes = sc.width * sc.height * sizeof(uint32_t);
+        if (!t.proc->copy_from(buf, sc.data, bytes)) {
+            print("process::copy_from failed\n");
+            vfree(buf, bytes);
+            return nt_status::NO_MEMORY;
+        }
 
-    auto buf = (uint32_t*)vmalloc(bytes);
-    if (!buf) {
-        print("vmalloc failed\n");
-        return nt_status::INSUFFICIENT_RESOURCES;
-    }
+        if constexpr (BOOT) {
+            // premultiply
 
-    if (!t.proc->copy_from(buf, sc.data, bytes)) {
-        print("process::copy_from failed\n");
-        vfree(buf, bytes);
-        return nt_status::NO_MEMORY;
-    }
+            for (unsigned int y = 0; y < sc.height; y++) {
+                auto* line = &buf[y * sc.width];
 
-    if constexpr (BOOT) {
-        // premultiply
+                for (unsigned int x = 0; x < sc.width; x++) {
+                    auto& pixel = line[x];
 
-        for (unsigned int y = 0; y < sc.height; y++) {
-            auto* line = &buf[y * sc.width];
+                    uint8_t alpha = (uint8_t)(pixel >> 24);
 
-            for (unsigned int x = 0; x < sc.width; x++) {
-                auto& pixel = line[x];
+                    if (alpha == 0)
+                        pixel = 0;
+                    else if (alpha != 255) {
+                        uint8_t r = (uint8_t)(pixel >> 16);
+                        uint8_t g = (uint8_t)(pixel >> 8);
+                        uint8_t b = (uint8_t)pixel;
 
-                uint8_t alpha = (uint8_t)(pixel >> 24);
+                        r = (uint8_t)((r * alpha) / 255);
+                        g = (uint8_t)((g * alpha) / 255);
+                        b = (uint8_t)((b * alpha) / 255);
 
-                if (alpha == 0)
-                    pixel = 0;
-                else if (alpha != 255) {
-                    uint8_t r = (uint8_t)(pixel >> 16);
-                    uint8_t g = (uint8_t)(pixel >> 8);
-                    uint8_t b = (uint8_t)pixel;
-
-                    r = (uint8_t)((r * alpha) / 255);
-                    g = (uint8_t)((g * alpha) / 255);
-                    b = (uint8_t)((b * alpha) / 255);
-
-                    pixel = ((uint32_t)alpha << 24) | ((uint32_t)r << 16) | ((uint32_t)g << 8) | b;
+                        pixel = ((uint32_t)alpha << 24) | ((uint32_t)r << 16) | ((uint32_t)g << 8) | b;
+                    }
                 }
             }
         }
+    } else {
+        sc.width = 0;
+        sc.height = 0;
+        sc.data = nullptr;
     }
 
     uint32_t* old_cursor_buffer;
     uint32_t old_cursor_width, old_cursor_height;
-    int16_t cursor_top, cursor_bottom;
+    int16_t cursor_top, cursor_bottom, old_cursor_top, old_cursor_bottom;
     uint16_t mouse_x, mouse_y;
 
     {
@@ -350,6 +350,9 @@ nt_status framebuffer_cache<BOOT>::ioctl_set_cursor(span<const uint8_t> inbuf) {
         old_cursor_buffer = cursor_buffer;
         old_cursor_width = cursor_width;
         old_cursor_height = cursor_height;
+
+        old_cursor_top = (int16_t)((int16_t)cursor_y - (int16_t)cursor_hotspot_y);
+        old_cursor_bottom = (int16_t)(old_cursor_top + old_cursor_height);
 
         cursor_buffer = buf;
         cursor_width = sc.width;
@@ -365,7 +368,8 @@ nt_status framebuffer_cache<BOOT>::ioctl_set_cursor(span<const uint8_t> inbuf) {
     }
 
     if constexpr (BOOT) {
-        flush_scanlines(cursor_top, cursor_bottom);
+        flush_scanlines(min(cursor_top, old_cursor_top),
+                        max(cursor_bottom, old_cursor_bottom));
     } else {
         if (set_cursor) {
             set_cursor(mouse_x, mouse_y, span(buf, sc.width * sc.height),

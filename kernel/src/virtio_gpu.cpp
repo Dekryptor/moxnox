@@ -1026,37 +1026,42 @@ static void virtio_gpu_set_cursor(uint32_t x, uint32_t y,
                                   span<const uint32_t> buf, uint32_t hot_x,
                                   uint32_t hot_y) {
     visit([&](auto&& v) {
-        static const uint32_t CURSOR_WIDTH = 64;
-        static const uint32_t CURSOR_HEIGHT = 64;
+        optional<uint64_t> fence_num;
+        uint32_t resource = 0;
 
-        auto opt_res = v->create_resource(VIRTIO_GPU_FORMAT::B8G8R8A8_UNORM,
-                                          CURSOR_WIDTH, CURSOR_HEIGHT);
-        if (!opt_res.has_value()) {
-            print("virtio_gpu::create_resource failed\n");
-            return;
-        }
+        if (!buf.empty()) {
+            static const uint32_t CURSOR_WIDTH = 64;
+            static const uint32_t CURSOR_HEIGHT = 64;
 
-        auto resource = *opt_res;
+            auto opt_res = v->create_resource(VIRTIO_GPU_FORMAT::B8G8R8A8_UNORM,
+                                            CURSOR_WIDTH, CURSOR_HEIGHT);
+            if (!opt_res.has_value()) {
+                print("virtio_gpu::create_resource failed\n");
+                return;
+            }
 
-        if (!v->attach_backing(resource, span((uint8_t*)buf.data(), buf.size_bytes()))) {
-            print("virtio_gpu::attach_backing failed\n");
-            v->unref_resource(resource);
-            return;
-        }
+            resource = *opt_res;
 
-        virtio_gpu_rect r;
+            if (!v->attach_backing(resource, span((uint8_t*)buf.data(), buf.size_bytes()))) {
+                print("virtio_gpu::attach_backing failed\n");
+                v->unref_resource(resource);
+                return;
+            }
 
-        r.x = 0;
-        r.y = 0;
-        r.width = CURSOR_WIDTH;
-        r.height = CURSOR_HEIGHT;
+            virtio_gpu_rect r;
 
-        uint64_t fence_num = v->fence.fetch_add(1);
+            r.x = 0;
+            r.y = 0;
+            r.width = CURSOR_WIDTH;
+            r.height = CURSOR_HEIGHT;
 
-        if (!v->transfer_to_host(r, 0, resource, fence_num)) {
-            print("virtio_gpu::transfer_to_host failed\n");
-            v->unref_resource(resource);
-            return;
+            fence_num = v->fence.fetch_add(1);
+
+            if (!v->transfer_to_host(r, 0, resource, fence_num)) {
+                print("virtio_gpu::transfer_to_host failed\n");
+                v->unref_resource(resource);
+                return;
+            }
         }
 
         {
@@ -1064,7 +1069,10 @@ static void virtio_gpu_set_cursor(uint32_t x, uint32_t y,
 
             if (!v->update_cursor(0, x, y, resource, hot_x, hot_y, fence_num)) {
                 print("virtio_gpu::update_cursor failed\n");
-                v->unref_resource(resource);
+
+                if (resource != 0)
+                    v->unref_resource(resource);
+
                 return;
             }
 
