@@ -12,6 +12,7 @@ module acpi;
 import inout;
 #endif
 
+import nt;
 import print;
 import mem;
 import thread;
@@ -27,6 +28,9 @@ import loaderblock;
 import efi;
 import kernel_time_page;
 import gnu_efi;
+import evdev_device;
+import evdev;
+import handle;
 
 using namespace std;
 
@@ -42,10 +46,23 @@ struct acpi_irq_num {
     list_entry handlers = { &handlers, &handlers };
 };
 
+class acpi_button : public evdev_device {
+public:
+    nt_status read(span<uint8_t>, uint64_t&) override {
+        return nt_status::NOT_SUPPORTED;
+    }
+
+    nt_status write(span<const uint8_t>, uint64_t&) override {
+        return nt_status::NOT_SUPPORTED;
+    }
+};
+
 static rwsem irq_handlers_lock;
 static list_entry irq_handlers = { &irq_handlers, &irq_handlers };
 
 static list_entry acpi_devices = { &acpi_devices, &acpi_devices };
+
+static object_ref power_button;
 
 static void acpi_notify_handler(ACPI_HANDLE device, uint32_t value, void*) {
     print("FIXME - acpi_notify_handler({}, {})\n", (uintptr_t)device, value);
@@ -89,17 +106,20 @@ void init_acpi_early() {
 }
 
 static void power_button_pressed_thread() {
-    // FIXME - should be calling NtShutdownSystem (why does it not work?)
+    input_event ev;
+    auto& p = static_cast<acpi_button&>(power_button.get());
 
-    if (ResetSystem)
-        ResetSystem(EfiResetShutdown, (EFI_STATUS)0, 0, nullptr);
-    else {
-        AcpiEnterSleepStatePrep(5);
-        disable_interrupts();
-        AcpiEnterSleepState(5);
-    }
+    ev.type = evdev_type::EV_KEY;
+    ev.code = (evdev_code)evdev_key_code::KEY_POWER;
+    ev.value = 1;
 
-    print("power off\n");
+    p.post_event(ev, true);
+
+    ev.type = evdev_type::EV_KEY;
+    ev.code = (evdev_code)evdev_key_code::KEY_POWER;
+    ev.value = 0;
+
+    p.post_event(ev, true);
 }
 
 static uint32_t power_button_pressed(void*) {
@@ -150,6 +170,23 @@ void init_acpi() {
         print("AcpiInitializeObjects returned {}\n", (acpi_status)Status);
         return;
     }
+
+    auto pptr = new acpi_button;
+    if (!pptr) {
+        print("new failed\n");
+        return;
+    }
+
+    power_button = object_ref{*pptr};
+
+    // FIXME - put in /dev/input like on Linux
+    auto status = name_object(power_button.get(), "powerbutton");
+    if (!success(status)) {
+        print("name_object returned {}\n", status);
+        return;
+    }
+
+    register_evdev_device(*pptr);
 
     Status = AcpiInstallFixedEventHandler(ACPI_EVENT_POWER_BUTTON,
                                           power_button_pressed, nullptr);
