@@ -1630,6 +1630,19 @@ static void start_kernel(uint64_t entry_point, loader_block* lb) {
 
 #elifdef __x86_64__
 
+static bool avx512_supported() {
+    uint32_t ebx;
+
+    __asm__ __volatile__ (
+        "cpuid\n\t"
+        : "=b" (ebx)
+        : "a" (0x7), "c" (0)
+        : "edx"
+    );
+
+    return ebx & (1 << 16);
+}
+
 __attribute__((noreturn))
 static void start_kernel(uint64_t entry_point, uint64_t pml4t, loader_block* lb) {
     _disable();
@@ -1644,6 +1657,9 @@ static void start_kernel(uint64_t entry_point, uint64_t pml4t, loader_block* lb)
     __writecr4(__readcr4() | CR4_OSXMMEXCPT | CR4_OSFXSR | CR4_OSXSAVE);
 
     _xsetbv(0, _xgetbv(0) | XCR0_X87 | XCR0_SSE | XCR0_AVX);
+
+    if (avx512_supported())
+        _xsetbv(0, _xgetbv(0) | XCR0_OPMASK | XCR0_ZMM_HI256 | XCR0_HI16_ZMM);
 
     // enable NX bit and System Call Extensions
     __writemsr(EFER_MSR, __readmsr(EFER_MSR) | EFER_NX | EFER_SCE);

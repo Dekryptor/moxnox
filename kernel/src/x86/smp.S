@@ -121,6 +121,20 @@ Llong_mode:
     or eax, 0x7
     xsetbv
 
+    # test for AVX512
+    xor rcx, rcx
+    mov rax, 0x7
+    cpuid
+    test ebx, 1 << 16
+    jz 0f
+
+    # enable AVX512
+    xor rcx, rcx
+    xgetbv
+    or eax, 0xe0
+    xsetbv
+
+0:
     mov rsp, [RSP_ADDRESS]
     mov rax, [TRAMPOLINE_ADDRESS]
     jmp rax

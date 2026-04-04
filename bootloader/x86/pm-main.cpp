@@ -297,6 +297,19 @@ static void map_acpi(pte_span pd) {
     }
 }
 
+static bool avx512_supported() {
+    uint32_t ebx;
+
+    __asm__ __volatile__ (
+        "cpuid\n\t"
+        : "=b" (ebx)
+        : "a" (0x7), "c" (0)
+        : "edx"
+    );
+
+    return ebx & (1 << 16);
+}
+
 static void enable_paging() {
     pte_span pd((HARDWARE_PTE*)(uintptr_t)get_page(mem_type::paging_table), PAGE_SIZE / sizeof(HARDWARE_PTE));
 
@@ -341,6 +354,9 @@ static void enable_paging() {
 
     // setup xsave
     _xsetbv(0, _xgetbv(0) | XCR0_X87 | XCR0_SSE | XCR0_AVX);
+
+    if (avx512_supported())
+        _xsetbv(0, _xgetbv(0) | XCR0_OPMASK | XCR0_ZMM_HI256 | XCR0_HI16_ZMM);
 
     // enable long mode, NX bit, and syscalls
     __writemsr(EFER_MSR, __readmsr(EFER_MSR) | EFER_LME | EFER_NX | EFER_SCE);
