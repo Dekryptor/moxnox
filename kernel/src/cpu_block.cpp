@@ -23,9 +23,6 @@ export struct cpu_block {
     thread* current_thread;
     uint64_t time_slice_left;
     CONTEXT thread_context;
-#ifdef __x86_64__
-    xsave_area xsave;
-#endif
     uint32_t cpu_no;
     void* scheduler_stack;
 #ifdef __aarch64__
@@ -38,6 +35,9 @@ export struct cpu_block {
     uint64_t syscall_rax;
 #endif
     char* printk_scratch;
+#ifdef __x86_64__
+    xsave_area xsave;
+#endif
 };
 
 static_assert(offsetof(cpu_block, current_thread) == GS_CURRENT_THREAD);
