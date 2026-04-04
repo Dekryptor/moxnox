@@ -115,10 +115,10 @@ Llong_mode:
     or rax, 0x40600
     mov cr4, rax
 
-    # set x87 and SSE bits in xcr0
+    # set x87, SSE, and AVX bits in xcr0
     xor rcx, rcx
     xgetbv
-    or eax, 0x3
+    or eax, 0x7
     xsetbv
 
     mov rsp, [RSP_ADDRESS]

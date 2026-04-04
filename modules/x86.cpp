@@ -24,6 +24,7 @@ export const uint64_t EFER_NX = 1 << 11;
 
 export const uint64_t XCR0_X87 = 1 << 0;
 export const uint64_t XCR0_SSE = 1 << 1;
+export const uint64_t XCR0_AVX = 1 << 2;
 
 export struct HARDWARE_PTE {
     uint64_t p : 1;

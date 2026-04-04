@@ -340,7 +340,7 @@ static void enable_paging() {
     __writecr3((uintptr_t)pd.data());
 
     // setup xsave
-    _xsetbv(0, _xgetbv(0) | XCR0_X87 | XCR0_SSE);
+    _xsetbv(0, _xgetbv(0) | XCR0_X87 | XCR0_SSE | XCR0_AVX);
 
     // enable long mode, NX bit, and syscalls
     __writemsr(EFER_MSR, __readmsr(EFER_MSR) | EFER_LME | EFER_NX | EFER_SCE);
