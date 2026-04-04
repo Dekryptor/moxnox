@@ -1288,6 +1288,7 @@ bool page_fault_user(uintptr_t address, uint64_t error_code) {
     CONTEXT ctx;
 
     memcpy(&ctx, &get_cpu_block()->thread_context, sizeof(CONTEXT));
+    memcpy(&ctx.FltSave, &get_cpu_block()->xsave, sizeof(ctx.FltSave));
 
     enable_interrupts();
 
@@ -1419,6 +1420,7 @@ void general_protection_fault_user() {
     CONTEXT ctx;
 
     memcpy(&ctx, &get_cpu_block()->thread_context, sizeof(CONTEXT));
+    memcpy(&ctx.FltSave, &get_cpu_block()->xsave, sizeof(ctx.FltSave));
 
     enable_interrupts();
 
@@ -1462,6 +1464,7 @@ void invalid_opcode_user() {
     CONTEXT ctx;
 
     memcpy(&ctx, &get_cpu_block()->thread_context, sizeof(CONTEXT));
+    memcpy(&ctx.FltSave, &get_cpu_block()->xsave, sizeof(ctx.FltSave));
 
     enable_interrupts();
 
@@ -1503,6 +1506,7 @@ void divide_by_zero_user() {
     CONTEXT ctx;
 
     memcpy(&ctx, &get_cpu_block()->thread_context, sizeof(CONTEXT));
+    memcpy(&ctx.FltSave, &get_cpu_block()->xsave, sizeof(ctx.FltSave));
 
     enable_interrupts();
 
@@ -1544,6 +1548,7 @@ void breakpoint_user() {
     CONTEXT ctx;
 
     memcpy(&ctx, &get_cpu_block()->thread_context, sizeof(CONTEXT));
+    memcpy(&ctx.FltSave, &get_cpu_block()->xsave, sizeof(ctx.FltSave));
 
     enable_interrupts();
 
@@ -1585,6 +1590,7 @@ void single_step_user() {
     CONTEXT ctx;
 
     memcpy(&ctx, &get_cpu_block()->thread_context, sizeof(CONTEXT));
+    memcpy(&ctx.FltSave, &get_cpu_block()->xsave, sizeof(ctx.FltSave));
 
     enable_interrupts();
 
