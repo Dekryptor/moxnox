@@ -277,6 +277,25 @@ void main_thread(void* ctx) {
     bsod_format("init process died (exit code {})", init_process.exit_status);
 }
 
+#ifdef __x86_64__
+static void find_xsave_size() {
+    uint32_t ebx;
+
+    static const size_t MIN_XSAVE_SIZE = 576;
+
+    __asm__ __volatile__ (
+        "cpuid\n\t"
+        : "=b" (ebx)
+        : "a" (0xd), "c" (0)
+    );
+
+    if (ebx < MIN_XSAVE_SIZE) // FIXME - print warning if this happens?
+        XSAVE_SIZE = MIN_XSAVE_SIZE;
+    else
+        XSAVE_SIZE = ebx;
+}
+#endif
+
 extern "C"
 void startup(loader_block* lb) {
     span<const uint8_t> debug_info, debug_abbrev, debug_rnglists, debug_str,
@@ -342,6 +361,8 @@ void startup(loader_block* lb) {
     if (!init_cpu_block(0))
         goto hang;
 #elifdef __x86_64__
+    find_xsave_size();
+
     if (!init_cpu_block(current_cpu_id()))
         goto hang;
 #endif
