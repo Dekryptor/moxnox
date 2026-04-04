@@ -3,6 +3,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <string_view>
+#include <utility>
 #include <map>
 #include <span>
 
@@ -11,6 +12,7 @@ import print;
 import evdev;
 import unique_handle;
 import moxnox_ioctls;
+import kernelbase;
 
 using namespace std;
 
@@ -19,6 +21,7 @@ static uint32_t fb_width, fb_height, fb_pixels_per_scan_line;
 static uint32_t mouse_x, mouse_y;
 static uint32_t old_mouse_x, old_mouse_y, old_colour;
 static span<uint32_t> framebuffer;
+static unique_handle sect;
 
 static pair<int32_t, int32_t> find_abs_range(HANDLE h, uint32_t id,
                                              evdev_abs_code code) {
@@ -164,6 +167,32 @@ static void set_cursor(HANDLE fb) {
     free(sc.data);
 }
 
+static void clear_cursor(HANDLE fb) {
+    MOXNOX_IOCTL_FB_SET_CURSOR sc;
+    IO_STATUS_BLOCK iosb;
+
+    sc.width = 0;
+    sc.height = 0;
+    sc.data = nullptr;
+
+    auto status = NtDeviceIoControlFile(fb, 0, nullptr, nullptr, &iosb,
+                                        IOCTL_MOXNOX_FB_SET_CURSOR,
+                                        &sc, sizeof(sc), nullptr, 0);
+    if (!success(status)) {
+        print_stderr("IOCTL_MOXNOX_FB_SET_CURSOR returned {}\n",
+                     status);
+        return;
+    }
+}
+
+static bool ctrl_handler(uint32_t type) {
+    if (type != CTRL_C_EVENT)
+        return false;
+
+    exit(0);
+    unreachable();
+}
+
 int main() {
     auto peb = NtCurrentTeb()->ProcessEnvironmentBlock;
     OBJECT_ATTRIBUTES oa;
@@ -174,6 +203,9 @@ int main() {
     MN_SECTION_FRAMEBUFFER_INFORMATION fb_info;
     void* addr;
     size_t size, return_length;
+
+    if (!SetConsoleCtrlHandler(ctrl_handler, true))
+        print_stderr("SetConsoleCtrlHandler failed\n");
 
     static const u16string_view fn = u"/dev/mice";
     static const u16string_view fb = u"/dev/framebuffer";
@@ -205,7 +237,7 @@ int main() {
         return 1;
     }
 
-    unique_handle sect{h};
+    sect.reset(h);
 
     status = NtQuerySection(sect.get(), SECTION_INFORMATION_CLASS::MoxnoxFramebufferInformation,
                             &fb_info, sizeof(fb_info), &return_length);
@@ -241,6 +273,10 @@ int main() {
 
     move_cursor(sect.get());
     set_cursor(sect.get());
+
+    atexit([]() {
+        clear_cursor(sect.get());
+    });
 
     while (true) {
         input_event_with_id ev;
