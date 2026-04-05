@@ -39,7 +39,7 @@ extern "C" {
 static thread* pick_runnable_thread(thread* current) {
     list_entry* le;
     auto cb = get_cpu_block();
-    uint64_t mask = 1 << cb->cpu_no; // FIXME - is the local APIC ID guaranteed to start at 0?
+    auto mask = (uint64_t)1 << cb->cpu_no; // FIXME - is the local APIC ID guaranteed to start at 0?
 
     // FIXME - proper scheduling algorithm (currently just loops through runnable threads)
 
