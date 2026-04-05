@@ -359,7 +359,7 @@ static irq* find_irq(uint32_t number, uint32_t apic_id, bool level) {
 
 void clear_irq_pending_bit(uint32_t number) {
     auto& GICD_ICPENDR = *(volatile uint32_t*)(gicd + 0x280 + ((number / 32) * 4));
-    GICD_ICPENDR = 1 << (number % 32);
+    GICD_ICPENDR = (uint32_t)1 << (number % 32);
 }
 
 void enable_irq(uint32_t number) {
