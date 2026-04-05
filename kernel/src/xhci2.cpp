@@ -1498,7 +1498,8 @@ bool xhci_queue::control_transfer(span<uint8_t> buf, uint8_t bmRequestType,
                        bounce);
         if (!pa)
             return false;
-    }
+    } else
+        pa = 0; // silence warning
 
     req_setup.event = create_event(false);
     req_status.event = create_event(false);
