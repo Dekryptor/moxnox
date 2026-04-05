@@ -1656,10 +1656,33 @@ static void start_kernel(uint64_t entry_point, uint64_t pml4t, loader_block* lb)
 
     __writecr4(__readcr4() | CR4_OSXMMEXCPT | CR4_OSFXSR | CR4_OSXSAVE);
 
+#if 0
     _xsetbv(0, _xgetbv(0) | XCR0_X87 | XCR0_SSE | XCR0_AVX);
+#endif
+    __asm__ __volatile__ (
+        "xor ecx, ecx\n"
+        "xgetbv\n"
+        "or eax, %0\n"
+        "xsetbv\n"
+        :
+        : "i" (XCR0_X87 | XCR0_SSE | XCR0_AVX)
+        : "eax", "ecx", "edx"
+    );
 
-    if (avx512_supported())
+    if (avx512_supported()) {
+#if 0
         _xsetbv(0, _xgetbv(0) | XCR0_OPMASK | XCR0_ZMM_HI256 | XCR0_HI16_ZMM);
+#endif
+        __asm__ __volatile__ (
+            "xor ecx, ecx\n"
+            "xgetbv\n"
+            "or eax, %0\n"
+            "xsetbv\n"
+            :
+            : "i" (XCR0_OPMASK | XCR0_ZMM_HI256 | XCR0_HI16_ZMM)
+            : "eax", "ecx", "edx"
+        );
+    }
 
     // enable NX bit and System Call Extensions
     __writemsr(EFER_MSR, __readmsr(EFER_MSR) | EFER_NX | EFER_SCE);

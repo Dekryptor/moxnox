@@ -208,6 +208,8 @@ void inline _disable() {
     );
 }
 
+// FIXME - commented out because bug in GCC 15 means clobbers aren't working properly
+#if 0
 export __attribute__((always_inline))
 uint64_t inline _xgetbv(uint32_t r) {
     uint32_t high, low;
@@ -232,3 +234,4 @@ void inline _xsetbv(uint32_t r, uint64_t v) {
         : "c" (r), "d" (high), "a" (low)
     );
 }
+#endif
