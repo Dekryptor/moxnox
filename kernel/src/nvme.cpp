@@ -424,7 +424,7 @@ bool nvme_controller::identify_controller(nvme_queue& queue) {
     if (controller_info->mdts == 0)
         maximum_transfer_size = 0;
     else
-        maximum_transfer_size = 1 << (controller_info->mdts + mpsmin + 12);
+        maximum_transfer_size = (uint64_t)1 << (controller_info->mdts + mpsmin + 12);
 
     volatile uint32_t* cc = &regs->cc;
 
