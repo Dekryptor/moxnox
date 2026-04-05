@@ -372,12 +372,12 @@ void enable_irq(uint32_t number) {
         auto cpu_gicr = gicr + (cb.cpu_no * 0x20000);
 
         auto& GICR_ISENABLER0 = *(volatile uint32_t*)(cpu_gicr + 0x10100);
-        GICR_ISENABLER0 = 1 << number;
+        GICR_ISENABLER0 = (uint32_t)1 << number;
 
         enable_preempt();
     } else {
         auto& GICD_ISENABLER = *(volatile uint32_t*)(gicd + 0x100 + ((number / 32) * 4));
-        GICD_ISENABLER = 1 << (number % 32);
+        GICD_ISENABLER = (uint32_t)1 << (number % 32);
     }
 }
 
