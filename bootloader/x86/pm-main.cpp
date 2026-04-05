@@ -353,10 +353,39 @@ static void enable_paging() {
     __writecr3((uintptr_t)pd.data());
 
     // setup xsave
-    _xsetbv(0, _xgetbv(0) | XCR0_X87 | XCR0_SSE | XCR0_AVX);
 
-    if (avx512_supported())
+    /* FIXME - explicit inline asm is here to work round apparent bug in GCC 15:
+               clobbers aren't getting done properly in inline module imports
+               in Release mode */
+
+#if 0
+    _xsetbv(0, _xgetbv(0) | XCR0_X87 | XCR0_SSE | XCR0_AVX);
+#endif
+
+    __asm__ __volatile__ (
+        "xor ecx, ecx\n"
+        "xgetbv\n"
+        "or eax, %0\n"
+        "xsetbv\n"
+        :
+        : "i" (XCR0_X87 | XCR0_SSE | XCR0_AVX)
+        : "eax", "ecx", "edx"
+    );
+
+    if (avx512_supported()) {
+#if 0
         _xsetbv(0, _xgetbv(0) | XCR0_OPMASK | XCR0_ZMM_HI256 | XCR0_HI16_ZMM);
+#endif
+        __asm__ __volatile__ (
+            "xor ecx, ecx\n"
+            "xgetbv\n"
+            "or eax, %0\n"
+            "xsetbv\n"
+            :
+            : "i" (XCR0_OPMASK | XCR0_ZMM_HI256 | XCR0_HI16_ZMM)
+            : "eax", "ecx", "edx"
+        );
+    }
 
     // enable long mode, NX bit, and syscalls
     __writemsr(EFER_MSR, __readmsr(EFER_MSR) | EFER_LME | EFER_NX | EFER_SCE);
