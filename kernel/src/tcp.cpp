@@ -2189,7 +2189,7 @@ nt_status ipv6_tcp_socket::read(span<uint8_t> s, uint64_t& read_bytes) {
 nt_status ipv6_tcp_socket::write(span<const uint8_t> s, uint64_t& written_bytes) {
     // FIXME - merge into sendto once NtWriteFile is zero-copy
 
-    nt_status status;
+    nt_status status = nt_status::SUCCESS;
 
     auto& t = *get_current_thread();
     if (!t.proc)
