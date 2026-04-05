@@ -1357,7 +1357,7 @@ xhci_queue* usb_device::configure_endpoint(const usb_endpoint_descriptor& ep_des
         auto& context = *(xhci_input_context<LARGE>*)input_context;
 
         memset(&context.control, 0, sizeof(context.control));
-        context.control.add_context = 1 | (1 << (ep_index + 1)); // slot, endpoint
+        context.control.add_context = (uint32_t)1 | ((uint32_t)1 << (ep_index + 1)); // slot, endpoint
 
         s.input_context_pointer = va_to_pa_phys(&context);
         s.trb_type = (uint16_t)xhci_trb_type::configure_endpoint_command;
