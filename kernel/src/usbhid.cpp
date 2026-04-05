@@ -47,6 +47,8 @@ static const uint32_t GENERIC_USAGE_X = 0x30;
 static const uint32_t GENERIC_USAGE_Y = 0x31;
 static const uint32_t GENERIC_USAGE_WHEEL = 0x38;
 
+static const uint32_t CONSUMER_USAGE_AC_PAN = 0x238;
+
 static const size_t evdev_buffer_pages = 1;
 
 static atomic<unsigned int> hid_num = 0;
@@ -130,7 +132,7 @@ private:
     array<uint64_t, 4> keys;
     array<uint64_t, 11> media_keys;
     uint8_t buttons;
-    optional<int32_t> relative_x, relative_y, relative_wheel;
+    optional<int32_t> relative_x, relative_y, relative_wheel, relative_hwheel;
     optional<int32_t> absolute_x, absolute_y, absolute_wheel;
 };
 
@@ -1014,7 +1016,7 @@ static const evdev_key_code media_keycodes[] = {
     evdev_key_code::KEY_RESERVED,
     evdev_key_code::KEY_RESERVED,
     evdev_key_code::KEY_RESERVED,
-    evdev_key_code::KEY_RESERVED, // FIXME - AC Pan
+    evdev_key_code::KEY_RESERVED, // AC Pan, dealt with separately
     evdev_key_code::KEY_RESERVED,
     evdev_key_code::KEY_RESERVED,
     evdev_key_code::KEY_RESERVED,
@@ -2318,11 +2320,16 @@ void usb_hid_device::input_usage(uint16_t usage_page, uint32_t usage,
         break;
 
         case USAGE_PAGE_CONSUMER:
-            if (usage >= media_keys.size() * 64)
-                return;
+            if (usage == CONSUMER_USAGE_AC_PAN) {
+                if (is_relative)
+                    relative_hwheel = num;
+            } else {
+                if (usage >= media_keys.size() * 64)
+                    return;
 
-            if (num)
-                media_keys[usage / 64] |= (uint64_t)1 << (usage % 64);
+                if (num)
+                    media_keys[usage / 64] |= (uint64_t)1 << (usage % 64);
+            }
         break;
 
         default:
@@ -2485,7 +2492,7 @@ void usb_hid_device::recv_thread() {
         keys = old_keys;
         media_keys = old_media_keys;
         buttons = old_buttons;
-        relative_x = relative_y = relative_wheel = nullopt;
+        relative_x = relative_y = relative_wheel = relative_hwheel = nullopt;
         absolute_x = absolute_y = absolute_wheel = nullopt;
 
         for (auto le = input_reports.next; le != &input_reports; le = le->next) {
@@ -2528,7 +2535,7 @@ void usb_hid_device::recv_thread() {
 
                     if (code >= sizeof(media_keycodes) / sizeof(*media_keycodes) ||
                         media_keycodes[code] == evdev_key_code::KEY_RESERVED) {
-                            print("unrecognized media keycode {:x}\n", code);
+                            print("unrecognized media keycode {:x} ({})\n", code, media_keys[i] & (uint64_t)1 << bit);
                     } else {
                         if (media_keys[i] & (uint64_t)1 << bit)
                             post_evdev(evdev_type::EV_KEY, (evdev_code)media_keycodes[code], 1, true);
@@ -2590,37 +2597,50 @@ void usb_hid_device::recv_thread() {
         }
 
         if (relative_x.has_value() || relative_y.has_value() ||
-            relative_wheel.has_value() || absolute_x.has_value() ||
-            absolute_y.has_value() || absolute_wheel.has_value()) {
+            relative_wheel.has_value() || relative_hwheel.has_value() ||
+            absolute_x.has_value() || absolute_y.has_value() ||
+            absolute_wheel.has_value()) {
             bool done = false;
 
             if (relative_x.has_value()) {
                 if (*relative_x != 0) {
-                    post_evdev(evdev_type::EV_REL, (evdev_code)evdev_rel_code::REL_X, *relative_x, false);
+                    post_evdev(evdev_type::EV_REL, (evdev_code)evdev_rel_code::REL_X,
+                               *relative_x, false);
                     done = true;
                 }
             } else if (absolute_x.has_value()) {
-                post_evdev(evdev_type::EV_ABS, (evdev_code)evdev_abs_code::ABS_X, *absolute_x, false);
+                post_evdev(evdev_type::EV_ABS, (evdev_code)evdev_abs_code::ABS_X,
+                           *absolute_x, false);
                 done = true;
             }
 
             if (relative_y.has_value()) {
                 if (*relative_y != 0) {
-                    post_evdev(evdev_type::EV_REL, (evdev_code)evdev_rel_code::REL_Y, *relative_y, false);
+                    post_evdev(evdev_type::EV_REL, (evdev_code)evdev_rel_code::REL_Y,
+                               *relative_y, false);
                     done = true;
                 }
             } else if (absolute_y.has_value()) {
-                post_evdev(evdev_type::EV_ABS, (evdev_code)evdev_abs_code::ABS_Y, *absolute_y, false);
+                post_evdev(evdev_type::EV_ABS, (evdev_code)evdev_abs_code::ABS_Y,
+                           *absolute_y, false);
                 done = true;
             }
 
             if (relative_wheel.has_value()) {
                 if (*relative_wheel != 0) {
-                    post_evdev(evdev_type::EV_REL, (evdev_code)evdev_rel_code::REL_WHEEL, *relative_wheel, false);
+                    post_evdev(evdev_type::EV_REL, (evdev_code)evdev_rel_code::REL_WHEEL,
+                               *relative_wheel, false);
                     done = true;
                 }
             } else if (absolute_wheel.has_value()) {
-                post_evdev(evdev_type::EV_ABS, (evdev_code)evdev_abs_code::ABS_WHEEL, *absolute_wheel, false);
+                post_evdev(evdev_type::EV_ABS, (evdev_code)evdev_abs_code::ABS_WHEEL,
+                           *absolute_wheel, false);
+                done = true;
+            }
+
+            if (relative_hwheel.has_value() && *relative_hwheel != 0) {
+                post_evdev(evdev_type::EV_REL, (evdev_code)evdev_rel_code::REL_HWHEEL,
+                            *relative_hwheel, false);
                 done = true;
             }
 
