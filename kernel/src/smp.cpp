@@ -646,10 +646,10 @@ export bool init_smp() {
         }
     }
 
-    auto trampoline = (void*)0;
+    auto trampoline = phys_address(0);
 
     // we already reserved page 0 in the bootloader
-    if (!map_page(0, (uintptr_t)trampoline, mapping_type::read_write_execute)) {
+    if (!map_page(0, 0, mapping_type::read_write_execute)) {
         print("map_page failed\n");
         return false;
     }
