@@ -87,8 +87,8 @@ export bool interrupts_disabled() {
         "pushf\n"
         "pop rax\n"
         "mov %0, rax\n"
+        : "=m" (rflags)
         :
-        : "m" (rflags)
         : "rax"
     );
 
