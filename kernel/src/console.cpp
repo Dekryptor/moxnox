@@ -579,6 +579,9 @@ void console_fb::console_overflow(unsigned int rows) {
 }
 
 void console_fb::print_chars(span<const char32_t> s) {
+    if (in_bsod && cursor_y == console_rows)
+        return;
+
     for (auto c : s) {
         if (c == '\n') {
             if (console) {
@@ -597,6 +600,9 @@ void console_fb::print_chars(span<const char32_t> s) {
             cursor_y++;
 
             if (cursor_y == console_rows) {
+                if (in_bsod)
+                    break;
+
                 console_overflow();
                 cursor_y = console_rows - 1;
             }
@@ -645,6 +651,9 @@ void console_fb::print_chars(span<const char32_t> s) {
                 cursor_y++;
 
                 if (cursor_y == console_rows) {
+                    if (in_bsod)
+                        break;
+
                     console_overflow();
                     cursor_y = console_rows - 1;
                 }
