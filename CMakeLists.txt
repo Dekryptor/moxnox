@@ -378,6 +378,7 @@ set(FREETYPE_FILES freetype/src/autofit/autofit.c
     freetype/src/base/ftbdf.c
     freetype/src/base/ftbitmap.c
     freetype/src/base/ftcid.c
+    freetype/src/base/ftdebug.c
     freetype/src/base/ftfstype.c
     freetype/src/base/ftgasp.c
     freetype/src/base/ftglyph.c
