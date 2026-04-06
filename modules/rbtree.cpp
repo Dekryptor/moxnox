@@ -58,14 +58,17 @@ export
 template<typename KeyType>
 rbtree_node<KeyType>* find_rbtree_node_or_less(rbtree_node<KeyType>* root, KeyType key) {
     rbtree_node<KeyType>* ret = root;
+    rbtree_node<KeyType>* last_less = nullptr;
 
     while (ret && ret->key != key) {
         if (key < ret->key) {
             if (!ret->left)
-                return ret;
+                return last_less;
 
             ret = ret->left;
         } else {
+            last_less = ret;
+
             if (!ret->right)
                 return ret;
 
@@ -80,14 +83,17 @@ export
 template<typename KeyType>
 const rbtree_node<KeyType>* find_rbtree_node_or_less(const rbtree_node<KeyType>* root, KeyType key) {
     const rbtree_node<KeyType>* ret = root;
+    const rbtree_node<KeyType>* last_less = nullptr;
 
     while (ret && ret->key != key) {
         if (key < ret->key) {
             if (!ret->left)
-                return ret;
+                return last_less;
 
             ret = ret->left;
         } else {
+            last_less = ret;
+
             if (!ret->right)
                 return ret;
 
