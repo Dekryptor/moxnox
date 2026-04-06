@@ -724,3 +724,5 @@ install(TARGETS libpng DESTINATION ${CMAKE_INSTALL_PREFIX}/lib
 include(pixman.cmake)
 
 install(SCRIPT initrd.cmake)
+
+configure_file(${CMAKE_CURRENT_SOURCE_DIR}/gdbinit.in ${CMAKE_CURRENT_BINARY_DIR}/.gdbinit)
