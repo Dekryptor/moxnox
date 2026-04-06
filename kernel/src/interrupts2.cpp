@@ -1272,6 +1272,10 @@ static bool send_signal(const EXCEPTION_RECORD& er, CONTEXT& ctx,
     cb.thread_context.Rdx = us_context;
     cb.thread_context.Rsp = us_er - 0x20 - sizeof(uint64_t); // home space, plus (unused) return pointer
 
+    // align stack pointer for the sake of AVX2 / AVX512
+    cb.thread_context.Rsp &= ~(uint64_t)0x3f;
+    cb.thread_context.Rsp += sizeof(uint64_t);
+
     if (exit_status == nt_status::SINGLE_STEP) {
         // clear TF flag when we return
         cb.thread_context.EFlags &= ~(uint32_t)0x100;
