@@ -105,6 +105,22 @@ void rangelock_req::unlock() {
             continue;
         }
 
+        bool still_blocked = false;
+
+        for (auto le2 = rl.active.next; le2 != &rl.active; le2 = le2->next) {
+            auto& rlr2 = containing_record<rangelock_req>(le2);
+
+            if (rlr_overlap(rlr, rlr2)) {
+                still_blocked = true;
+                break;
+            }
+        }
+
+        if (still_blocked) {
+            le = next;
+            continue;
+        }
+
         bool okay = true;
 
         for (auto le2 = waking.next; le2 != &waking; le2 = le2->next) {
