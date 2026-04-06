@@ -121,7 +121,7 @@ template<typename KeyType>
 const rbtree_node<KeyType>* get_tree_minimum(const rbtree_node<KeyType>* root) {
     const rbtree_node<KeyType>* ret = root;
 
-    while (ret->left) {
+    while (ret && ret->left) {
         ret = ret->left;
     }
 
