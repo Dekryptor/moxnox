@@ -47,8 +47,8 @@ void rangelock_req::lock() {
     __asm __volatile(
         "mov rax, cr8\n"
         "mov %0, rax\n"
+        : "=m" (cr8)
         :
-        : "m" (cr8)
         : "rax"
     );
 
