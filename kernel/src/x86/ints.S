@@ -512,6 +512,7 @@ general_protection_fault_isr:
 
 1:
     # kernelspace version
+    mov rcx, [rsp+0x20]
     call general_protection_fault_kernel
 
     mov r11, gs:GS_CONTEXT + CONTEXT_R11
