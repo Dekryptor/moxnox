@@ -589,8 +589,8 @@ nt_status wait_for_objects(span<object*> objects, bool wait_any,
     __asm __volatile(
         "mov rax, cr8\n"
         "mov %0, rax\n"
+        : "=m" (cr8)
         :
-        : "m" (cr8)
         : "rax"
     );
 
