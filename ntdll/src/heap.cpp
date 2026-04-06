@@ -38,9 +38,10 @@ public:
 struct alloc_header {
     uint32_t size : 31;
     uint32_t free : 1;
+    uint8_t _pad[12];
 };
 
-static_assert(sizeof(alloc_header) == 4);
+static_assert(sizeof(alloc_header) == 16);
 
 subheap::subheap(size_t reserve_size, size_t commit_size) : reserve_size(reserve_size), commit_size(commit_size) {
     auto& ah = *(alloc_header*)data;
@@ -197,9 +198,9 @@ void* subheap::allocate(uint32_t flags, size_t size) {
 void* heap::allocate(uint32_t flags, size_t size) {
     // FIXME - flags
 
-    // round to multiple of 4
-    if (size & 3)
-        size = ((size >> 2) + 1) << 2;
+    // round to multiple of 16
+    if (size & 15)
+        size = ((size >> 4) + 1) << 4;
 
     if (size == 0 || size >= 0x80000000)
         return nullptr;
