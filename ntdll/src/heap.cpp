@@ -159,16 +159,9 @@ void* subheap::allocate(uint32_t flags, size_t size) {
         return nullptr;
     }
 
-    if (ah) {
-#pragma GCC diagnostic push
-#pragma GCC diagnostic ignored "-Wconversion"
-        ah->size += new_commit_size;
-#pragma GCC diagnostic pop
-        // FIXME - handle case when size would overflow 31 bits
-    } else {
+    if (!ah) {
         ah = (alloc_header*)((uint8_t*)this + commit_size);
         ah->free = 1;
-        ah->size = PAGE_SIZE - sizeof(alloc_header);
     }
 
     commit_size += new_commit_size;
