@@ -3,6 +3,7 @@ module;
 #include <ft2build.h>
 #include <freetype/freetype.h>
 #include <freetype/ftbitmap.h>
+#include <freetype/fterrors.h>
 
 export module freetype;
 
@@ -28,6 +29,7 @@ export using ::FT_Set_Char_Size;
 export using ::FT_Done_Face;
 export using ::FT_Done_FreeType;
 export using ::FT_Select_Size;
+export using ::FT_Error_String;
 
 static const FT_Int32 _FT_LOAD_DEFAULT = FT_LOAD_DEFAULT;
 static const FT_Int32 _FT_LOAD_NO_SCALE = FT_LOAD_NO_SCALE;

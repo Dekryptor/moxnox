@@ -434,7 +434,7 @@ static bool init_font(span<const uint8_t> buf, font_info& font,
     error = FT_New_Memory_Face(ft, buf.data(), (FT_Long)buf.size(),
                                0, &font.face);
     if (error) {
-        print("FT_New_Memory_Face failed ({:x})\n", error);
+        print("FT_New_Memory_Face failed ({}, {})\n", error, FT_Error_String(error));
         return false;
     }
 
@@ -468,7 +468,7 @@ static bool init_font(span<const uint8_t> buf, font_info& font,
 
         error = FT_Select_Size(font.face, *size);
         if (error) {
-            print("FT_Select_Size failed ({:x})\n", error);
+            print("FT_Select_Size failed ({}, {})\n", error, FT_Error_String(error));
             return false;
         }
 
@@ -477,7 +477,7 @@ static bool init_font(span<const uint8_t> buf, font_info& font,
         error = FT_Set_Char_Size(font.face, (FT_F26Dot6)(font_size * 64), 0,
                                 fb_info.dpi, 0);
         if (error) {
-            print("FT_Set_Char_Size failed ({:x})\n", error);
+            print("FT_Set_Char_Size failed ({}, {})\n", error, FT_Error_String(error));
             return false;
         }
     }
@@ -653,7 +653,7 @@ static glyph_info* load_glyph(font_info& font, FT_UInt glyph) {
 
     auto error = FT_Load_Glyph(font.face, glyph, flags);
     if (error) {
-        print("FT_Load_Glyph returned {:x}\n", error);
+        print("FT_Load_Glyph returned {} ({})\n", error, FT_Error_String(error));
         return nullptr;
     }
 
@@ -2000,7 +2000,7 @@ static int do_console() {
 
     auto error = FT_Init_FreeType(&ft); // FIXME - free at end
     if (error) {
-        print("FT_Init_FreeType failed ({:x})\n", error);
+        print("FT_Init_FreeType failed ({}, {})\n", error, FT_Error_String(error));
         return 1;
     }
 
