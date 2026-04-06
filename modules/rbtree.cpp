@@ -36,9 +36,6 @@ rbtree_node<KeyType>* find_rbtree_node(rbtree_node<KeyType>* root, KeyType key) 
             ret = ret->right;
     }
 
-    if (ret && ret->key != key)
-        return nullptr;
-
     return ret;
 }
 
@@ -53,9 +50,6 @@ const rbtree_node<KeyType>* find_rbtree_node(const rbtree_node<KeyType>* root, K
         else
             ret = ret->right;
     }
-
-    if (ret && ret->key != key)
-        return nullptr;
 
     return ret;
 }
