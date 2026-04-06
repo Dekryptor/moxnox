@@ -3379,7 +3379,11 @@ NTSTATUS process::create_thread(optional<reference_wrapper<handle_t>> thread_han
     t.context.Rcx = ntdll_info_addr;
     t.context.Rdx = img_info_addr;
     t.context.R8 = ctx_addr;
-    t.context.Rsp = (uintptr_t)img_info_addr - 0x28; // 0x20 for MS ABI, 0x8 for return pointer
+    t.context.Rsp = (uintptr_t)img_info_addr - 0x20 - sizeof(uint64_t); // home space, plus (unused) return pointer
+
+    // align stack pointer for the sake of AVX2 / AVX512
+    t.context.Rsp &= ~(uint64_t)0x3f;
+    t.context.Rsp += sizeof(uint64_t);
 #endif
 
     t.kernel_mode = false;
