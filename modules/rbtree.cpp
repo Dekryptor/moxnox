@@ -411,9 +411,6 @@ void remove_from_rbtree(rbtree_node<KeyType>*& root, rbtree_node<KeyType>& ent) 
 
             rb_transplant(root, *y, y->right);
 
-            if (y->right)
-                y->right->parent = y;
-
             y->right = ent.right;
 
             if (y->right)
