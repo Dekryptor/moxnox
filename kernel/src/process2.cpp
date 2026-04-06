@@ -1365,8 +1365,19 @@ void send_page_tlb_ipi(process& proc, uint64_t va, uint64_t num_pages) {
     }
 }
 
-static bool handle_page_fault2(process& p, uintptr_t address, pte_type* pte) {
+static bool handle_page_fault2(process& p, uintptr_t address) {
     rangelock_req rlr(p.rl, address >> PAGE_SHIFT, 1);
+
+    auto pte = find_pte(p, address);
+
+    if (!pte)
+        return false;
+
+#ifdef __aarch64__
+    // don't handle if kernel-only page
+    if (pte->AP == ARM64_PTE_AP_EL1RW || pte->AP == ARM64_PTE_AP_EL1RO)
+        return false;
+#endif
 
     if (!pte->allow_write)
         return false;
@@ -1502,17 +1513,13 @@ bool process::handle_page_fault(uintptr_t address, uint64_t esr_value) {
 
     address &= ~(PAGE_SIZE - 1);
 
-    auto pte = find_pte(*this, address);
-
-    if (pte && pte->valid) {
+    if ((esr.ISS & 0x3c) == 0x0c) { // permission fault - page is present
         // FIXME - NX violations
 
-        // don't handle if kernel-only page
-        if (pte->AP == ARM64_PTE_AP_EL1RW || pte->AP == ARM64_PTE_AP_EL1RO)
-            return false;
-
-        return handle_page_fault2(*this, address, pte);
+        return handle_page_fault2(*this, address);
     }
+
+    auto pte = find_pte(*this, address);
 
     if (pte && pte->reserved)
         return false;
@@ -1535,17 +1542,14 @@ bool process::handle_page_fault(uintptr_t address, uint64_t error_code) {
 
     address &= ~(PAGE_SIZE - 1);
 
-    auto pte = find_pte(*this, address);
-
     if (ec.present) {
         if (ec.instruction_fetch) // NX violation
             return false;
 
-        if (!pte)
-            return false;
-
-        return handle_page_fault2(*this, address, pte);
+        return handle_page_fault2(*this, address);
     }
+
+    auto pte = find_pte(*this, address);
 
     if (pte && pte->reserved)
         return false;
