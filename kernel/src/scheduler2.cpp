@@ -233,8 +233,8 @@ nt_status wait_for_object(object& obj, bool interruptible,
     __asm __volatile(
         "mov rax, cr8\n"
         "mov %0, rax\n"
+        : "=m" (cr8)
         :
-        : "m" (cr8)
         : "rax"
     );
 
