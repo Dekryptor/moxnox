@@ -1513,6 +1513,9 @@ bool process::handle_page_fault(uintptr_t address, uint64_t esr_value) {
 
     address &= ~(PAGE_SIZE - 1);
 
+    if (address >= 0x800000000000) // not userspace
+        return false;
+
     if ((esr.ISS & 0x3c) == 0x0c) { // permission fault - page is present
         // FIXME - NX violations
 
@@ -1541,6 +1544,9 @@ bool process::handle_page_fault(uintptr_t address, uint64_t error_code) {
     ec.value = error_code;
 
     address &= ~(PAGE_SIZE - 1);
+
+    if (address >= 0x800000000000) // not userspace
+        return false;
 
     if (ec.present) {
         if (ec.instruction_fetch) // NX violation
