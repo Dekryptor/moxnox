@@ -1365,17 +1365,17 @@ void send_page_tlb_ipi(process& proc, uint64_t va, uint64_t num_pages) {
     }
 }
 
-static bool handle_page_fault2(process& p, uintptr_t address, pte_type& pte) {
+static bool handle_page_fault2(process& p, uintptr_t address, pte_type* pte) {
     rangelock_req rlr(p.rl, address >> PAGE_SHIFT, 1);
 
-    if (!pte.allow_write)
+    if (!pte->allow_write)
         return false;
 
 #ifdef __aarch64__
-    if (pte.AP != ARM64_PTE_AP_EL0RO)
+    if (pte->AP != ARM64_PTE_AP_EL0RO)
         return false;
 #elifdef __x86_64__
-    if (pte.w)
+    if (pte->w)
         return false;
 #endif
 
@@ -1390,7 +1390,7 @@ static bool handle_page_fault2(process& p, uintptr_t address, pte_type& pte) {
     uint64_t sect_page_num = page_num + (m->offset >> PAGE_SHIFT);
     bool send_ipi = false;
 
-    if (pte.cow) {
+    if (pte->cow) {
         auto pfn = allocate_folio(0) >> PAGE_SHIFT;
         if (pfn == 0) {
             print("allocate_folio failed\n");
@@ -1399,11 +1399,10 @@ static bool handle_page_fault2(process& p, uintptr_t address, pte_type& pte) {
         }
 
         memcpy(phys_address(pfn << PAGE_SHIFT),
-                phys_address(pte.pfn << PAGE_SHIFT),
-                PAGE_SIZE);
+               phys_address(pte->pfn << PAGE_SHIFT), PAGE_SIZE);
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wconversion"
-        pte.pfn = pfn;
+        pte->pfn = pfn;
 #pragma GCC diagnostic pop
     } else {
         auto ret = visit([&](auto* ptr) {
@@ -1453,7 +1452,7 @@ static bool handle_page_fault2(process& p, uintptr_t address, pte_type& pte) {
 
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wconversion"
-            pte.pfn = p->pfn;
+            pte->pfn = p->pfn;
 #pragma GCC diagnostic pop
 
             cache.unpin(sect_page_num, 1); // FIXME?
@@ -1470,7 +1469,7 @@ static bool handle_page_fault2(process& p, uintptr_t address, pte_type& pte) {
     m->release();
 
 #ifdef __aarch64__
-    pte.AP = ARM64_PTE_AP_EL0RW;
+    pte->AP = ARM64_PTE_AP_EL0RW;
 
     __asm __volatile (
         "tlbi vae1, %x[res]\n"
@@ -1480,7 +1479,7 @@ static bool handle_page_fault2(process& p, uintptr_t address, pte_type& pte) {
         : [res] "r" (address >> PAGE_SHIFT)
     );
 #elifdef __x86_64__
-    pte.w = 1;
+    pte->w = 1;
 
     __asm __volatile (
         "invlpg [%0]\n"
@@ -1512,7 +1511,7 @@ bool process::handle_page_fault(uintptr_t address, uint64_t esr_value) {
         if (pte->AP == ARM64_PTE_AP_EL1RW || pte->AP == ARM64_PTE_AP_EL1RO)
             return false;
 
-        return handle_page_fault2(*this, address, *pte);
+        return handle_page_fault2(*this, address, pte);
     }
 
     if (pte && pte->reserved)
@@ -1545,7 +1544,7 @@ bool process::handle_page_fault(uintptr_t address, uint64_t error_code) {
         if (!pte)
             return false;
 
-        return handle_page_fault2(*this, address, *pte);
+        return handle_page_fault2(*this, address, pte);
     }
 
     if (pte && pte->reserved)
