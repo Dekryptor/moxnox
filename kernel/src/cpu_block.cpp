@@ -65,6 +65,8 @@ export inline __attribute__((always_inline)) cpu_block* get_cpu_block() {
     __asm __volatile (
         "mov %x[res], x18"
         : [res] "=r" (ret)
+        :
+        : "memory"
     );
 
     return (cpu_block*)ret;
@@ -79,6 +81,7 @@ export inline __attribute__((always_inline)) cpu_block* get_cpu_block() {
     __asm("mov %0, gs:%1"
         : "=r" (ret)
         : "i" (offsetof(cpu_block, self))
+        : "memory"
     );
 
     return ret;
