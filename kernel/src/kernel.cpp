@@ -155,17 +155,31 @@ static void keywait() {
     }
 
     while (true) {
-        input_event_with_id ev;
-        uint64_t read_bytes;
+        auto& p = static_cast<chardev&>(obj.get());
 
-        status = static_cast<chardev&>(obj.get()).read(span((uint8_t*)&ev, sizeof(ev)), read_bytes);
-        if (!success(status)) {
-            print("keyboard_pipe::read returned {}\n", status);
+        if (console_type == console_type::other) {
+            uint8_t c;
+            uint64_t read_bytes;
+
+            status = p.read(span(&c, 1), read_bytes);
+            if (!success(status))
+                print("pipe::read returned {}\n", status);
+
+            p.clear();
             break;
+        } else {
+            input_event_with_id ev;
+            uint64_t read_bytes;
+
+            status = p.read(span((uint8_t*)&ev, sizeof(ev)), read_bytes);
+            if (!success(status)) {
+                print("keyboard_pipe::read returned {}\n", status);
+                break;
+            }
+
+            if (ev.ev.value != 0)
+                break;
         }
-
-        if (ev.ev.value != 0)
-            break;
     }
 
     print("\e[?25h");
