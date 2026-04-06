@@ -24,6 +24,12 @@ if(CMAKE_SYSTEM_PROCESSOR STREQUAL "aarch64")
 elseif(CMAKE_SYSTEM_PROCESSOR STREQUAL "amd64")
     set(GENERAL_CFLAGS -gdwarf-5 -fomit-frame-pointer -fno-strict-aliasing)
     set(USERSPACE_CFLAGS -Wall -Wextra -Wno-address-of-packed-member -Wconversion -Wno-unknown-pragmas -Werror=pointer-arith -Werror=return-type $<$<COMPILE_LANGUAGE:CXX>:-fno-rtti -Wno-invalid-offsetof -fno-threadsafe-statics> -fcheck-new -mno-stack-arg-probe -fvisibility=hidden -march=x86-64-v3 ${GENERAL_CFLAGS})
+
+    if (CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
+        # FIXME - workaround for GCC bug 49001 messing up AVX2 and AVX512
+        set(USERSPACE_CFLAGS ${USERSPACE_CFLAGS} -Wa,--muse-unaligned-vector-move)
+    endif()
+
     set(KERNEL_CFLAGS -Wall -Wextra -Wno-address-of-packed-member -Wconversion -Wno-unknown-pragmas -Werror=pointer-arith -Werror=return-type -fno-exceptions -fno-rtti -mno-red-zone -fcheck-new -Wno-invalid-offsetof -mno-stack-arg-probe -mno-sse -fno-threadsafe-statics -fvisibility=hidden -masm=intel ${GENERAL_CFLAGS})
 endif()
 
