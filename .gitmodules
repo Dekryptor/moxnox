@@ -8,7 +8,7 @@
 	path = acpica
 	url = https://git.burntcomma.com/maharmstone/acpica
 [submodule "libpng"]
-	path = libpng
+	path = ports/libpng/repo
 	url = https://git.burntcomma.com/maharmstone/libpng
 [submodule "zlib"]
 	path = ports/zlib/repo

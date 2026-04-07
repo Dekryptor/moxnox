@@ -674,42 +674,8 @@ target_compile_options(acpica PRIVATE ${GENERAL_CFLAGS} -Wno-overflow -Wno-shift
 target_compile_options(acpica PRIVATE $<$<AND:$<COMPILE_LANGUAGE:CXX>,$<CXX_COMPILER_ID:GNU>>:-Wno-global-module>)
 target_compile_options(acpica PRIVATE $<$<COMPILE_LANGUAGE:CXX>:-fno-exceptions -fno-rtti>)
 
+add_subdirectory(ports/libpng)
 add_subdirectory(ports/zlib)
-
-add_library(libpng SHARED
-    libpng/png.c
-    libpng/pngerror.c
-    libpng/pngget.c
-    libpng/pngmem.c
-    libpng/pngpread.c
-    libpng/pngread.c
-    libpng/pngrio.c
-    libpng/pngrtran.c
-    libpng/pngrutil.c
-    libpng/pngset.c
-    libpng/pngtrans.c
-    libpng/pngwio.c
-    libpng/pngwrite.c
-    libpng/pngwtran.c
-    libpng/pngwutil.c
-)
-
-if(CMAKE_SYSTEM_PROCESSOR STREQUAL "aarch64")
-    target_sources(libpng PRIVATE
-        libpng/arm/arm_init.c
-        libpng/arm/filter_neon_intrinsics.c
-        libpng/arm/palette_neon_intrinsics.c
-    )
-endif()
-
-target_include_directories(libpng PUBLIC ${CMAKE_SOURCE_DIR} libpng)
-target_compile_options(libpng PRIVATE ${GENERAL_CFLAGS} $<$<COMPILE_LANGUAGE:CXX>:-fno-exceptions -fno-rtti> -Wno-sign-conversion)
-target_link_libraries(libpng PUBLIC zlib)
-target_link_libraries(libpng PRIVATE moxnox)
-
-install(TARGETS libpng DESTINATION ${CMAKE_INSTALL_PREFIX}/lib
-    ARCHIVE EXCLUDE_FROM_ALL
-)
 
 include(pixman.cmake)
 
