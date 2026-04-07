@@ -17,17 +17,18 @@ import efi;
 import loaderblock;
 import acpica;
 import gnu_efi;
+import scheduler;
+import cpu_block;
 
 #ifdef __aarch64__
 import aarch64;
-import cpu_block;
 #elifdef __x86_64__
 import apic;
 #endif
 
 using namespace std;
 
-export bool shutting_down = false;
+export atomic<uint32_t> shutting_down_cpu = 0xffffffff;
 
 static void reboot() {
     if (ResetSystem)
@@ -64,60 +65,29 @@ static NTSTATUS _NtShutdownSystem(enum SHUTDOWN_ACTION action) {
         return status;
 
     disable_interrupts();
+    disable_preempt();
 
-    if (num_cpus > 1) {
-#ifdef __aarch64__
-        auto& cb = *get_cpu_block();
+    uint32_t expected = 0xffffffff;
 
-        processors_left_to_halt = num_cpus - 1;
-
-        if (cb.gicc) { // GICv2
-            auto& GICD_SGIR = *(volatile uint32_t*)(gicd + 0xf00);
-            ARM64_GICD_SGIR sgir;
-
-            sgir.value = 0;
-            sgir.TargetListFilter = 1; // send IPI to everybody else
-            sgir.SGIINTID = HALT_SGI;
-
-            GICD_SGIR = sgir.value;
-        } else {
-            ARM64_ICC_SGI1R sgir;
-
-            sgir.value = 0;
-            sgir.IRM = 1;
-            sgir.INTID = HALT_SGI;
-
-            __asm __volatile (
-                "msr icc_sgi1r_el1, %x[res]"
-                :
-                : [res] "r" (sgir.value)
-            );
-        }
-
-        while (processors_left_to_halt.load(memory_order_acquire) > 0) {
-            __asm("yield");
-        }
-#elifdef __x86_64__
-        processors_left_to_halt = num_cpus - 1;
-
-        // send IPI to other cores to stop them
-
-        auto icr1 = (volatile uint32_t*)&local_apic[0x300];
-
-        *icr1 = 0xc0000 | halt_interrupt;
-
-        while (processors_left_to_halt > 0) { }
-#endif
+    if (!shutting_down_cpu.compare_exchange_strong(expected, get_cpu_block()->cpu_no,
+                                                   memory_order::release)) {
+        enable_preempt();
+        enable_interrupts();
+        return nt_status::SYSTEM_SHUTDOWN;
     }
 
-    disable_preempt();
+    while (popcount(active_cpus.load(memory_order::acquire)) > 1) {
+#ifdef __aarch64__
+        __asm("yield");
+#elifdef __x86_64__
+        __asm("pause");
+#endif
+    }
 
     enable_interrupts();
 
     print("shutting down\n");
     shutdown_pipes();
-
-    shutting_down = true;
 
     if (action == SHUTDOWN_ACTION::ShutdownPowerOff)
         halt();

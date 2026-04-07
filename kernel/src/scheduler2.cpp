@@ -18,6 +18,7 @@ import thread;
 import disable_interrupts;
 import cpu_block;
 import crt;
+import power;
 
 using namespace std;
 
@@ -42,6 +43,11 @@ static thread* pick_runnable_thread(thread* current) {
     auto mask = (uint64_t)1 << cb->cpu_no; // FIXME - is the local APIC ID guaranteed to start at 0?
 
     // FIXME - proper scheduling algorithm (currently just loops through runnable threads)
+
+    auto sdc = shutting_down_cpu.load(memory_order::acquire);
+
+    if (sdc != 0xffffffff && sdc != cb->cpu_no)
+        return nullptr;
 
     auto consider = [&](thread& t) -> thread* {
         if (t.status != thread_status::runnable && t.status != thread_status::dying)

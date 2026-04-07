@@ -181,7 +181,7 @@ void virtio_console<T>::recv_thread() {
 
 template<virtio_device T>
 nt_status virtio_console<T>::write(span<const uint8_t> s, uint64_t& written_bytes) {
-    if (shutting_down)
+    if (shutting_down_cpu.load(memory_order::acquire) != 0xffffffff)
         return nt_status::SYSTEM_SHUTDOWN;
 
     if (in_bsod) {
