@@ -14,7 +14,7 @@
 	path = ports/zlib/repo
 	url = https://git.burntcomma.com/maharmstone/zlib
 [submodule "harfbuzz"]
-	path = harfbuzz
+	path = ports/harfbuzz/repo
 	url = https://git.burntcomma.com/maharmstone/harfbuzz
 [submodule "pixman"]
 	path = pixman

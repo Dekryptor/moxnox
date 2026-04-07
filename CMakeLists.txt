@@ -372,61 +372,6 @@ elseif(CMAKE_SYSTEM_PROCESSOR STREQUAL "amd64")
     add_subdirectory(bootloader/x86)
 endif()
 
-add_library(harfbuzz SHARED
-    harfbuzz/src/hb-aat-layout.cc
-    harfbuzz/src/hb-blob.cc
-    harfbuzz/src/hb-buffer.cc
-    harfbuzz/src/hb-common.cc
-    harfbuzz/src/hb-face-builder.cc
-    harfbuzz/src/hb-face.cc
-    harfbuzz/src/hb-fallback-shape.cc
-    harfbuzz/src/hb-font.cc
-    harfbuzz/src/hb-ft.cc
-    harfbuzz/src/hb-number.cc
-    harfbuzz/src/hb-ot-face.cc
-    harfbuzz/src/hb-ot-font.cc
-    harfbuzz/src/hb-ot-layout.cc
-    harfbuzz/src/hb-ot-map.cc
-    harfbuzz/src/hb-ot-metrics.cc
-    harfbuzz/src/hb-ot-shape.cc
-    harfbuzz/src/hb-ot-shape-fallback.cc
-    harfbuzz/src/hb-ot-shape-normalize.cc
-    harfbuzz/src/hb-ot-shaper-arabic.cc
-    harfbuzz/src/hb-ot-shaper-default.cc
-    harfbuzz/src/hb-ot-shaper-hangul.cc
-    harfbuzz/src/hb-ot-shaper-hebrew.cc
-    harfbuzz/src/hb-ot-shaper-indic.cc
-    harfbuzz/src/hb-ot-shaper-indic-table.cc
-    harfbuzz/src/hb-ot-shaper-khmer.cc
-    harfbuzz/src/hb-ot-shaper-myanmar.cc
-    harfbuzz/src/hb-ot-shaper-syllabic.cc
-    harfbuzz/src/hb-ot-shaper-thai.cc
-    harfbuzz/src/hb-ot-shaper-use.cc
-    harfbuzz/src/hb-ot-shaper-vowel-constraints.cc
-    harfbuzz/src/hb-ot-tag.cc
-    harfbuzz/src/hb-set.cc
-    harfbuzz/src/hb-shape.cc
-    harfbuzz/src/hb-shape-plan.cc
-    harfbuzz/src/hb-shaper.cc
-    harfbuzz/src/hb-static.cc
-    harfbuzz/src/hb-ucd.cc
-    harfbuzz/src/hb-unicode.cc
-)
-target_sources(harfbuzz PUBLIC FILE_SET CXX_MODULES FILES modules/harfbuzz.cpp)
-
-target_compile_definitions(harfbuzz PRIVATE -DHAVE_FREETYPE -DHB_LEAN -DHB_NO_AAT -DHB_NO_MT)
-target_compile_options(harfbuzz PRIVATE -mno-stack-arg-probe -Wa,-mbig-obj -fno-exceptions -fno-rtti ${GENERAL_CFLAGS} -w)
-target_compile_options(harfbuzz PRIVATE -include ${CMAKE_SOURCE_DIR}/hbshim.h)
-target_include_directories(harfbuzz PRIVATE harfbuzz/src)
-target_include_directories(harfbuzz PRIVATE ports/freetype/repo/include)
-target_link_libraries(harfbuzz PRIVATE freetype)
-target_link_libraries(harfbuzz PRIVATE moxnox ${LIBGCC})
-
-install(TARGETS harfbuzz DESTINATION ${CMAKE_INSTALL_PREFIX}/lib
-    ARCHIVE EXCLUDE_FROM_ALL
-    CXX_MODULES_BMI EXCLUDE_FROM_ALL
-)
-
 add_library(acpica STATIC
     acpica/source/components/dispatcher/dsargs.c
     acpica/source/components/dispatcher/dscontrol.c
@@ -601,6 +546,7 @@ target_compile_options(acpica PRIVATE $<$<AND:$<COMPILE_LANGUAGE:CXX>,$<CXX_COMP
 target_compile_options(acpica PRIVATE $<$<COMPILE_LANGUAGE:CXX>:-fno-exceptions -fno-rtti>)
 
 add_subdirectory(ports/freetype)
+add_subdirectory(ports/harfbuzz)
 add_subdirectory(ports/libpng)
 add_subdirectory(ports/zlib)
 
