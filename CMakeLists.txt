@@ -237,32 +237,6 @@ target_sources(kernelbase_mod PUBLIC FILE_SET CXX_MODULES FILES modules/kernelba
 target_compile_options(kernelbase_mod PRIVATE -fno-exceptions ${USERSPACE_CFLAGS})
 target_link_libraries(kernelbase_mod nt ntdll_mod)
 
-set(DEFAULT_MSVCRT_VERSION 0x600)
-set(DEFAULT_WIN32_WINNT 0xa00)
-configure_file(${CMAKE_CURRENT_SOURCE_DIR}/mingw-w64/mingw-w64-headers/crt/_mingw.h.in ${CMAKE_CURRENT_BINARY_DIR}/mingw-w64/_mingw.h)
-unset(DEFAULT_WIN32_WINNT)
-unset(DEFAULT_MSVCRT_VERSION)
-
-add_library(ucrtbase_static STATIC
-    mingw-w64/mingw-w64-crt/misc/ucrt_amsg_exit.c
-    mingw-w64/mingw-w64-crt/misc/ucrt__getmainargs.c
-    mingw-w64/mingw-w64-crt/misc/__set_app_type.c
-    mingw-w64/mingw-w64-crt/misc/__p___initenv.c
-    mingw-w64/mingw-w64-crt/misc/__initenv.c
-    mingw-w64/mingw-w64-crt/misc/_onexit.c
-    mingw-w64/mingw-w64-crt/stdio/ucrt_fprintf.c
-    mingw-w64/mingw-w64-crt/stdio/ucrt_vfprintf.c
-    mingw-w64/mingw-w64-crt/stdio/ucrt_snprintf.c
-    mingw-w64/mingw-w64-crt/stdio/ucrt_sscanf.c
-    mingw-w64/mingw-w64-crt/stdio/ucrt_swprintf.c
-    mingw-w64/mingw-w64-crt/stdio/ucrt_vsnprintf.c
-    mingw-w64/mingw-w64-crt/stdio/ucrt___local_stdio_printf_options.c
-    mingw-w64/mingw-w64-crt/stdio/ucrt___local_stdio_scanf_options.c
-)
-target_include_directories(ucrtbase_static PRIVATE ${CMAKE_CURRENT_BINARY_DIR}/mingw-w64 mingw-w64/mingw-w64-headers/crt mingw-w64/mingw-w64-crt/include)
-target_compile_definitions(ucrtbase_static PRIVATE -D_CRTIMP=)
-target_compile_options(ucrtbase_static PRIVATE -ffreestanding)
-
 add_library(ucrtbase_mod STATIC)
 target_link_libraries(ucrtbase_mod PUBLIC ucrtbase_static)
 target_sources(ucrtbase_mod PUBLIC FILE_SET CXX_MODULES FILES modules/ucrtbase.cpp)
@@ -367,6 +341,7 @@ add_subdirectory(ports/freetype)
 add_subdirectory(ports/gnu-efi)
 add_subdirectory(ports/harfbuzz)
 add_subdirectory(ports/libpng)
+add_subdirectory(ports/mingw-w64)
 add_subdirectory(ports/pixman)
 add_subdirectory(ports/zlib)
 
