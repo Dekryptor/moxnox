@@ -3219,7 +3219,6 @@ NTSTATUS process::create_thread(optional<reference_wrapper<handle_t>> thread_han
                                 const OBJECT_ATTRIBUTES*, CLIENT_ID& client_id,
                                 const CONTEXT& thread_context,
                                 const INITIAL_TEB& initial_teb, bool create_suspended) {
-    uint16_t tid;
     CONTEXT start_context;
     mn_image_info ntdll_info, img_info;
 
@@ -3239,17 +3238,7 @@ NTSTATUS process::create_thread(optional<reference_wrapper<handle_t>> thread_han
 
     auto& t = *tptr;
 
-    // FIXME - spinlock for last_tid (or use atomics)
-    if (last_tid == 0xffff) { // FIXME - check for lowest unused number
-        print("Thread limit reached.\n");
-        delete &t;
-        return nt_status::INTERNAL_ERROR; // FIXME
-    }
-
-    last_tid++;
-    tid = last_tid;
-
-    t.tid = tid;
+    t.tid = next_tid.fetch_add(1);
 
     t.teb = nullptr;
     size_t teb_size = sizeof(TEB);
@@ -3431,7 +3420,7 @@ NTSTATUS process::create_thread(optional<reference_wrapper<handle_t>> thread_han
     }
 
     client_id.UniqueProcess = this->tree.key;
-    client_id.UniqueThread = tid;
+    client_id.UniqueThread = t.tid;
 
     // FIXME - copy initial_teb into TEB
     // FIXME - copy client_id into TEB

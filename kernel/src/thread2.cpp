@@ -329,8 +329,6 @@ static void kernel_thread_start(void (*func)(void*, void*), void* param1, void* 
 }
 
 object_ref add_kernel_thread(void (*func)(void*, void*), void* param1, void* param2) {
-    uint16_t tid;
-
     auto tptr = new ::thread;
     if (!tptr) {
         print("new failed\n");
@@ -339,17 +337,7 @@ object_ref add_kernel_thread(void (*func)(void*, void*), void* param1, void* par
 
     auto& t = *tptr;
 
-    // FIXME - spinlock for last_tid (or use atomics)
-    if (last_tid == 0xffff) { // FIXME - check for lowest unused number
-        print("Thread limit reached.\n");
-        delete &t;
-        return {};
-    }
-
-    last_tid++;
-    tid = last_tid;
-
-    t.tid = tid;
+    t.tid = next_tid.fetch_add(1);
 
     t.kernel_stack = allocate_stack();
     if (!t.kernel_stack) {
