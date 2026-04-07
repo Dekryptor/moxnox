@@ -2,6 +2,7 @@ module;
 
 #include <string_view>
 #include <atomic>
+#include <bit>
 #include "ints.h"
 
 export module power;
