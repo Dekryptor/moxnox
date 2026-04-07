@@ -5,7 +5,7 @@
 	path = ports/freetype/repo
 	url = https://git.burntcomma.com/maharmstone/freetype
 [submodule "acpica"]
-	path = acpica
+	path = ports/acpica/repo
 	url = https://git.burntcomma.com/maharmstone/acpica
 [submodule "libpng"]
 	path = ports/libpng/repo
