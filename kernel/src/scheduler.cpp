@@ -2,6 +2,7 @@ module;
 
 #include <span>
 #include <optional>
+#include <atomic>
 #include <stdint.h>
 
 export module scheduler;
@@ -13,6 +14,8 @@ import objects;
 using namespace std;
 
 export list_entry thread_list = { &thread_list, &thread_list };
+
+export atomic<uint64_t> active_cpus = 0;
 
 export nt_status wait_for_object(object& obj, bool interruptible,
                                  optional<uint64_t> timeout = nullopt);

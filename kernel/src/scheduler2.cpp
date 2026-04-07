@@ -153,6 +153,8 @@ void scheduler() {
         if (t.proc)
             t.proc->running_cpus &= ~((uint64_t)1 << cb.cpu_no);
 
+        active_cpus.fetch_and(~((uint64_t)1 << cb.cpu_no), memory_order::relaxed);
+
         if (t.kernel_mode && t.status == thread_status::dying && !t.proc) // kernel thread died
             thread_died(t, nullptr, false);
 
@@ -182,6 +184,8 @@ void scheduler() {
 
             if (cb.current_thread->proc)
                 cb.current_thread->proc->running_cpus |= (uint64_t)1 << cb.cpu_no;
+
+            active_cpus.fetch_or((uint64_t)1 << cb.cpu_no, memory_order::relaxed);
         }
 
         release_sync_lock();
@@ -288,6 +292,8 @@ nt_status wait_for_object(object& obj, bool interruptible,
 
         if (current_thread->proc)
             current_thread->proc->running_cpus &= ~((uint64_t)1 << cb.cpu_no);
+
+        active_cpus.fetch_and(~((uint64_t)1 << cb.cpu_no), memory_order::relaxed);
 
         if (!timeout.has_value())
             current_thread->wait_timeout = 0;
@@ -693,6 +699,8 @@ nt_status wait_for_objects(span<object*> objects, bool wait_any,
     if (current_thread->proc)
         current_thread->proc->running_cpus &= ~((uint64_t)1 << cb.cpu_no);
 
+    active_cpus.fetch_and(~((uint64_t)1 << cb.cpu_no), memory_order::relaxed);
+
     if (!timeout.has_value())
         current_thread->wait_timeout = 0;
     else {
@@ -803,6 +811,8 @@ void set_current_thread_waiting() {
 
     if (t->proc)
         t->proc->running_cpus &= ~((uint64_t)1 << cb.cpu_no);
+
+    active_cpus.fetch_and(~((uint64_t)1 << cb.cpu_no), memory_order::relaxed);
 
     yield();
 }
