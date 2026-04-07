@@ -27,6 +27,7 @@ public:
 class heap {
 public:
     heap(size_t reserve_size, size_t commit_size);
+    ~heap();
 
     void* allocate(uint32_t flags, size_t size);
     void* reallocate(uint32_t flags, void* ptr, size_t size);
@@ -77,6 +78,22 @@ heap::heap(size_t reserve_size, size_t commit_size) {
     auto sh = new (addr) subheap(reserve_size, commit_size);
 
     insert_tail_list(subheaps, sh->le);
+}
+
+heap::~heap() {
+    auto le = subheaps.next;
+
+    while (le != &subheaps) {
+        auto& sh = containing_record<subheap>(le);
+        auto next = le->next;
+
+        void* addr = &sh;
+        size_t region_size = 0;
+
+        NtFreeVirtualMemory(NtCurrentProcess(), &addr, &region_size, MEM_RELEASE);
+
+        le = next;
+    }
 }
 
 void* subheap::allocate(uint32_t flags, size_t size) {
