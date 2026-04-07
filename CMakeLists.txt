@@ -376,9 +376,8 @@ add_subdirectory(ports/acpica)
 add_subdirectory(ports/freetype)
 add_subdirectory(ports/harfbuzz)
 add_subdirectory(ports/libpng)
+add_subdirectory(ports/pixman)
 add_subdirectory(ports/zlib)
-
-include(pixman.cmake)
 
 install(SCRIPT initrd.cmake)
 

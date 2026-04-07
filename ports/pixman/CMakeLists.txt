@@ -2,38 +2,38 @@ include(CheckCSourceCompiles)
 include(CMakePushCheckState)
 
 add_library(pixman SHARED
-    pixman/pixman/pixman.c
-    pixman/pixman/pixman-access.c
-    pixman/pixman/pixman-access-accessors.c
-    pixman/pixman/pixman-arm.c
-    pixman/pixman/pixman-bits-image.c
-    pixman/pixman/pixman-combine32.c
-    pixman/pixman/pixman-combine-float.c
-    pixman/pixman/pixman-conical-gradient.c
-    pixman/pixman/pixman-edge.c
-    pixman/pixman/pixman-edge-accessors.c
-    pixman/pixman/pixman-fast-path.c
-    pixman/pixman/pixman-filter.c
-    pixman/pixman/pixman-glyph.c
-    pixman/pixman/pixman-general.c
-    pixman/pixman/pixman-gradient-walker.c
-    pixman/pixman/pixman-image.c
-    pixman/pixman/pixman-implementation.c
-    pixman/pixman/pixman-linear-gradient.c
-    pixman/pixman/pixman-matrix.c
-    pixman/pixman/pixman-mips.c
-    pixman/pixman/pixman-noop.c
-    pixman/pixman/pixman-ppc.c
-    pixman/pixman/pixman-radial-gradient.c
-    pixman/pixman/pixman-region16.c
-    pixman/pixman/pixman-region32.c
-    pixman/pixman/pixman-region64f.c
-    pixman/pixman/pixman-riscv.c
-    pixman/pixman/pixman-solid-fill.c
-    pixman/pixman/pixman-timer.c
-    pixman/pixman/pixman-trap.c
-    pixman/pixman/pixman-utils.c
-    pixman/pixman/pixman-x86.c
+    repo/pixman/pixman.c
+    repo/pixman/pixman-access.c
+    repo/pixman/pixman-access-accessors.c
+    repo/pixman/pixman-arm.c
+    repo/pixman/pixman-bits-image.c
+    repo/pixman/pixman-combine32.c
+    repo/pixman/pixman-combine-float.c
+    repo/pixman/pixman-conical-gradient.c
+    repo/pixman/pixman-edge.c
+    repo/pixman/pixman-edge-accessors.c
+    repo/pixman/pixman-fast-path.c
+    repo/pixman/pixman-filter.c
+    repo/pixman/pixman-glyph.c
+    repo/pixman/pixman-general.c
+    repo/pixman/pixman-gradient-walker.c
+    repo/pixman/pixman-image.c
+    repo/pixman/pixman-implementation.c
+    repo/pixman/pixman-linear-gradient.c
+    repo/pixman/pixman-matrix.c
+    repo/pixman/pixman-mips.c
+    repo/pixman/pixman-noop.c
+    repo/pixman/pixman-ppc.c
+    repo/pixman/pixman-radial-gradient.c
+    repo/pixman/pixman-region16.c
+    repo/pixman/pixman-region32.c
+    repo/pixman/pixman-region64f.c
+    repo/pixman/pixman-riscv.c
+    repo/pixman/pixman-solid-fill.c
+    repo/pixman/pixman-timer.c
+    repo/pixman/pixman-trap.c
+    repo/pixman/pixman-utils.c
+    repo/pixman/pixman-x86.c
 )
 
 set_target_properties(pixman PROPERTIES
@@ -46,8 +46,8 @@ set(PIXMAN_VERSION_MINOR 46)
 set(PIXMAN_VERSION_MICRO 4)
 
 configure_file(
-    "${CMAKE_CURRENT_SOURCE_DIR}/pixman/pixman/pixman-version.h.in"
-    "${CMAKE_CURRENT_BINARY_DIR}/pixman/pixman-version.h"
+    "${CMAKE_CURRENT_SOURCE_DIR}/repo/pixman/pixman-version.h.in"
+    "${CMAKE_CURRENT_BINARY_DIR}/pixman-version.h"
 )
 
 if(CMAKE_SYSTEM_PROCESSOR STREQUAL "amd64")
@@ -74,9 +74,9 @@ if(CMAKE_SYSTEM_PROCESSOR STREQUAL "amd64")
     set(PIXMAN_USE_X86_MMX ON) # supported on every amd64 CPU
 
     target_sources(pixman PRIVATE
-        pixman/pixman/pixman-mmx.c
-        pixman/pixman/pixman-sse2.c
-        pixman/pixman/pixman-ssse3.c
+        repo/pixman/pixman-mmx.c
+        repo/pixman/pixman-sse2.c
+        repo/pixman/pixman-ssse3.c
     )
 else()
     set(PIXMAN_USE_SSE2 OFF)
@@ -88,17 +88,17 @@ endif()
 
 configure_file(
     "${CMAKE_CURRENT_SOURCE_DIR}/pixman-config.h.in"
-    "${CMAKE_CURRENT_BINARY_DIR}/pixman/pixman-config.h"
+    "${CMAKE_CURRENT_BINARY_DIR}/pixman-config.h"
 )
 
 add_library(pixman_mod STATIC)
-target_sources(pixman_mod PUBLIC FILE_SET CXX_MODULES FILES modules/pixman.cpp)
-target_include_directories(pixman_mod PRIVATE ${CMAKE_SOURCE_DIR}/pixman/pixman)
-target_include_directories(pixman_mod PRIVATE ${CMAKE_CURRENT_BINARY_DIR}/pixman)
+target_sources(pixman_mod PUBLIC FILE_SET CXX_MODULES FILES pixman.cpp)
+target_include_directories(pixman_mod PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/repo/pixman)
+target_include_directories(pixman_mod PRIVATE ${CMAKE_CURRENT_BINARY_DIR})
 target_compile_options(pixman_mod PRIVATE ${USERSPACE_CFLAGS} -fno-exceptions)
 
-target_include_directories(pixman PRIVATE ${CMAKE_SOURCE_DIR}/pixman/pixman)
-target_include_directories(pixman PRIVATE ${CMAKE_CURRENT_BINARY_DIR}/pixman)
+target_include_directories(pixman PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/repo/pixman)
+target_include_directories(pixman PRIVATE ${CMAKE_CURRENT_BINARY_DIR})
 target_compile_definitions(pixman PRIVATE -DHAVE_CONFIG_H)
 target_compile_definitions(pixman PRIVATE "-DPIXMAN_API=__declspec(dllexport)")
 target_compile_options(pixman PRIVATE ${USERSPACE_CFLAGS} -Wno-conversion -Wno-unused-parameter -Wno-type-limits -Wno-sign-compare -Wno-missing-field-initializers -Wno-unused-local-typedefs -Wno-unknown-attributes)

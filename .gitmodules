@@ -17,7 +17,7 @@
 	path = ports/harfbuzz/repo
 	url = https://git.burntcomma.com/maharmstone/harfbuzz
 [submodule "pixman"]
-	path = pixman
+	path = ports/pixman/repo
 	url = https://git.burntcomma.com/maharmstone/pixman
 [submodule "mingw-w64"]
 	path = mingw-w64
