@@ -1237,9 +1237,7 @@ ACPI_STATUS AcpiOsSignal(UINT32 /*Function*/, void* /*Info*/) {
 }
 
 extern "C"
-ACPI_STATUS AcpiOsEnterSleep(UINT8 SleepState, UINT32 RegaValue, UINT32 RegbValue) {
-    print("FIXME - AcpiOsEnterSleep({:x}, {:x}, {:x})\n", SleepState, RegaValue, RegbValue);
-
+ACPI_STATUS AcpiOsEnterSleep(UINT8 /*SleepState*/, UINT32 /*RegaValue*/, UINT32 /*RegbValue*/) {
     return AE_OK;
 }
 
