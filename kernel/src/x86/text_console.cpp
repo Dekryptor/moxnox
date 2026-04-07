@@ -3,6 +3,7 @@ module;
 #include <stdint.h>
 #include <span>
 #include <mutex>
+#include <string.h>
 
 export module text_console;
 
