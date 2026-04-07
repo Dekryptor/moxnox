@@ -258,8 +258,6 @@ void* heap::allocate(uint32_t flags, size_t size) {
 void* heap::reallocate(uint32_t flags, void* ptr, size_t size) {
     // FIXME - flags?
 
-    // FIXME - handle actual extending or shrinking
-
     if (!ptr)
         return allocate(flags, size);
 
@@ -268,6 +266,11 @@ void* heap::reallocate(uint32_t flags, void* ptr, size_t size) {
         return nullptr;
     }
 
+    // round to multiple of 16, same as allocate
+    size_t rounded_size = size;
+    if (rounded_size & 15)
+        rounded_size = ((rounded_size >> 4) + 1) << 4;
+
     RtlEnterCriticalSection(&cs);
 
     auto ah = (alloc_header*)((uint8_t*)ptr - sizeof(alloc_header));
@@ -275,11 +278,14 @@ void* heap::reallocate(uint32_t flags, void* ptr, size_t size) {
 
     RtlLeaveCriticalSection(&cs);
 
+    if (rounded_size <= old_size)
+        return ptr;
+
     auto ret = allocate(flags, size);
     if (!ret)
         return nullptr;
 
-    memcpy(ret, ptr, min(size, old_size));
+    memcpy(ret, ptr, old_size);
 
     free(flags, ptr);
 
