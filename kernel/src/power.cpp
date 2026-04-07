@@ -9,23 +9,14 @@ export module power;
 
 import nt;
 import print;
-import interrupts;
 import vfs;
 import pipe;
 import disable_interrupts;
-import smp;
 import efi;
-import loaderblock;
 import acpica;
 import gnu_efi;
 import scheduler;
 import cpu_block;
-
-#ifdef __aarch64__
-import aarch64;
-#elifdef __x86_64__
-import apic;
-#endif
 
 using namespace std;
 
