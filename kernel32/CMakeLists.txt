@@ -9,6 +9,7 @@ enable_language(ASM)
 
 set(SRC_FILES src/kernel32.def
     src/kernel32.cpp
+    src/stubs.S
 )
 
 add_library(kernel32 SHARED ${SRC_FILES})

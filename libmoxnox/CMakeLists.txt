@@ -7,6 +7,7 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 set(DLLS ntdll
     kernelbase
+    kernel32
     ucrtbase
     ws2_32)
 
@@ -31,7 +32,7 @@ endforeach()
 add_custom_command(
     OUTPUT libmoxnox.a
     COMMAND ${AR} -M < ${CMAKE_CURRENT_SOURCE_DIR}/moxnox.mri
-    DEPENDS ${DEPS}
+    DEPENDS ${DEPS} ${CMAKE_CURRENT_SOURCE_DIR}/moxnox.mri
 )
 
 add_custom_target(moxnox_target ALL DEPENDS libmoxnox.a)
