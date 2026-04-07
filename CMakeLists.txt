@@ -674,24 +674,7 @@ target_compile_options(acpica PRIVATE ${GENERAL_CFLAGS} -Wno-overflow -Wno-shift
 target_compile_options(acpica PRIVATE $<$<AND:$<COMPILE_LANGUAGE:CXX>,$<CXX_COMPILER_ID:GNU>>:-Wno-global-module>)
 target_compile_options(acpica PRIVATE $<$<COMPILE_LANGUAGE:CXX>:-fno-exceptions -fno-rtti>)
 
-add_library(zlib SHARED
-    zlib/adler32.c
-    zlib/crc32.c
-    zlib/deflate.c
-    zlib/inffast.c
-    zlib/inflate.c
-    zlib/inftrees.c
-    zlib/trees.c
-    zlib/zutil.c
-)
-
-target_include_directories(zlib PUBLIC zlib)
-target_compile_options(zlib PRIVATE ${GENERAL_CFLAGS} $<$<COMPILE_LANGUAGE:CXX>:-fno-exceptions -fno-rtti>)
-target_link_libraries(zlib PRIVATE moxnox)
-
-install(TARGETS zlib DESTINATION ${CMAKE_INSTALL_PREFIX}/lib
-    ARCHIVE EXCLUDE_FROM_ALL
-)
+add_subdirectory(ports/zlib)
 
 add_library(libpng SHARED
     libpng/png.c

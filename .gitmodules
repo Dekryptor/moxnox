@@ -11,7 +11,7 @@
 	path = libpng
 	url = https://git.burntcomma.com/maharmstone/libpng
 [submodule "zlib"]
-	path = zlib
+	path = ports/zlib/repo
 	url = https://git.burntcomma.com/maharmstone/zlib
 [submodule "harfbuzz"]
 	path = harfbuzz
