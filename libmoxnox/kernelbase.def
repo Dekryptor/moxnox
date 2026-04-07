@@ -57,3 +57,12 @@ FlsSetValue
 GetProcAddress
 GetModuleHandleW
 IsProcessorFeaturePresent
+CreateFileA
+MapViewOfFile
+UnmapViewOfFile
+GetConsoleMode
+FindFirstFileA
+FindClose
+FindNextFileA
+GetModuleHandleA
+GetSystemInfo
