@@ -34,6 +34,7 @@ public:
     bool free(uint32_t flags, void* base_address);
 
     list_entry subheaps = { &subheaps, &subheaps };
+    RTL_CRITICAL_SECTION cs;
 };
 
 struct alloc_header {
@@ -78,9 +79,12 @@ heap::heap(size_t reserve_size, size_t commit_size) {
     auto sh = new (addr) subheap(reserve_size, commit_size);
 
     insert_tail_list(subheaps, sh->le);
+
+    RtlInitializeCriticalSection(&cs);
 }
 
 heap::~heap() {
+    RtlDeleteCriticalSection(&cs);
     auto le = subheaps.next;
 
     while (le != &subheaps) {
@@ -215,14 +219,16 @@ void* heap::allocate(uint32_t flags, size_t size) {
     if (size == 0 || size >= 0x80000000)
         return nullptr;
 
-    // FIXME - lock (critical section?)
+    RtlEnterCriticalSection(&cs);
 
     for (auto le = subheaps.next; le != &subheaps; le = le->next) {
         auto& sh = containing_record<subheap>(le);
 
         auto ret = sh.allocate(flags, size);
-        if (ret)
+        if (ret) {
+            RtlLeaveCriticalSection(&cs);
             return ret;
+        }
     }
 
     // FIXME - return nullptr if heap not growable
@@ -236,7 +242,7 @@ void* heap::allocate(uint32_t flags, size_t size) {
 
     if (!success(ret)) {
         print("NtAllocateVirtualMemory returned {}\n", ret);
-        // FIXME - return error
+        RtlLeaveCriticalSection(&cs);
         return nullptr;
     }
 
@@ -244,7 +250,9 @@ void* heap::allocate(uint32_t flags, size_t size) {
 
     insert_tail_list(subheaps, sh->le);
 
-    return sh->allocate(flags, size);
+    auto ptr = sh->allocate(flags, size);
+    RtlLeaveCriticalSection(&cs);
+    return ptr;
 }
 
 void* heap::reallocate(uint32_t flags, void* ptr, size_t size) {
@@ -260,8 +268,12 @@ void* heap::reallocate(uint32_t flags, void* ptr, size_t size) {
         return nullptr;
     }
 
+    RtlEnterCriticalSection(&cs);
+
     auto ah = (alloc_header*)((uint8_t*)ptr - sizeof(alloc_header));
     auto old_size = (size_t)ah->size;
+
+    RtlLeaveCriticalSection(&cs);
 
     auto ret = allocate(flags, size);
     if (!ret)
@@ -277,13 +289,15 @@ void* heap::reallocate(uint32_t flags, void* ptr, size_t size) {
 bool heap::free(uint32_t, void* base_address) {
     // FIXME - flags
 
-    // FIXME - lock
+    RtlEnterCriticalSection(&cs);
 
     auto ah = (alloc_header*)((uint8_t*)base_address - sizeof(alloc_header));
 
     ah->free = 1;
 
     // FIXME - decommit part of heap if last page(s) now clear?
+
+    RtlLeaveCriticalSection(&cs);
 
     return true;
 }
@@ -304,7 +318,6 @@ void* RtlCreateHeap(uint32_t, void*, size_t reserve_size, size_t commit_size,
 
     // FIXME - flags
     // FIXME - heap_base
-    // FIXME - lock
     // FIXME - parameters
 
     reserve_size = round_up(reserve_size, PAGE_SIZE);
