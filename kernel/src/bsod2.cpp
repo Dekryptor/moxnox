@@ -145,11 +145,11 @@ void __attribute__((noreturn)) _bsod(string_view msg, source_location sl,
 #elifdef __x86_64__
         processors_left_to_halt = num_cpus - 1;
 
-        // send IPI to other cores to stop them
+        // send NMI IPI to other cores to stop them
 
         auto icr1 = (volatile uint32_t*)&local_apic[0x300];
 
-        *icr1 = 0xc0000 | halt_interrupt;
+        *icr1 = 0xc4400;
 
         while (processors_left_to_halt > 0) { }
 #endif

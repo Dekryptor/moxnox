@@ -400,6 +400,9 @@ nmi_isr:
     .seh_stackalloc 32
     .seh_endprologue
 
+    cmp DWORD PTR [rip+processors_left_to_halt], 0
+    jne halt_isr
+
     cmp QWORD PTR [rsp+0x28], 0x8
     je 0f
     swapgs
