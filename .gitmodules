@@ -1,5 +1,5 @@
 [submodule "efi/code"]
-	path = gnu-efi
+	path = ports/gnu-efi/repo
 	url = https://git.burntcomma.com/maharmstone/gnu-efi
 [submodule "freetype"]
 	path = ports/freetype/repo
