@@ -2,7 +2,7 @@
 	path = gnu-efi
 	url = https://git.burntcomma.com/maharmstone/gnu-efi
 [submodule "freetype"]
-	path = freetype
+	path = ports/freetype/repo
 	url = https://git.burntcomma.com/maharmstone/freetype
 [submodule "acpica"]
 	path = acpica

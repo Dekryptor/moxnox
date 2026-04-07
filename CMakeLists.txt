@@ -372,80 +372,6 @@ elseif(CMAKE_SYSTEM_PROCESSOR STREQUAL "amd64")
     add_subdirectory(bootloader/x86)
 endif()
 
-set(FREETYPE_FILES freetype/src/autofit/autofit.c
-    freetype/src/base/ftbase.c
-    freetype/src/base/ftbbox.c
-    freetype/src/base/ftbdf.c
-    freetype/src/base/ftbitmap.c
-    freetype/src/base/ftcid.c
-    freetype/src/base/ftdebug.c
-    freetype/src/base/ftfstype.c
-    freetype/src/base/ftgasp.c
-    freetype/src/base/ftglyph.c
-    freetype/src/base/ftgxval.c
-    freetype/src/base/ftinit.c
-    freetype/src/base/ftmm.c
-    freetype/src/base/ftotval.c
-    freetype/src/base/ftpatent.c
-    freetype/src/base/ftpfr.c
-    freetype/src/base/ftstroke.c
-    freetype/src/base/ftsynth.c
-    freetype/src/base/fttype1.c
-    freetype/src/base/ftwinfnt.c
-    freetype/src/bzip2/ftbzip2.c
-    freetype/src/cache/ftcache.c
-    freetype/src/gzip/ftgzip.c
-    freetype/src/lzw/ftlzw.c
-    freetype/src/pcf/pcf.c
-    freetype/src/pfr/pfr.c
-    freetype/src/pshinter/pshinter.c
-    freetype/src/raster/raster.c
-    freetype/src/sfnt/sfnt.c
-    freetype/src/smooth/smooth.c
-    freetype/src/truetype/truetype.c
-    freetype/src/winfonts/winfnt.c)
-
-add_library(freetype_kernel STATIC ${FREETYPE_FILES})
-target_sources(freetype_kernel PUBLIC FILE_SET CXX_MODULES FILES modules/freetype.cpp)
-
-target_compile_definitions(freetype_kernel PRIVATE -DFT2_BUILD_LIBRARY -DFT_CONFIG_OPTION_DISABLE_STREAM_SUPPORT)
-target_compile_definitions(freetype_kernel PRIVATE -DFT_CONFIG_MODULES_H=\"${CMAKE_SOURCE_DIR}/modules/ftmodule.h\")
-target_compile_definitions(freetype_kernel PRIVATE -DFT_CONFIG_STANDARD_LIBRARY_H=\"${CMAKE_SOURCE_DIR}/modules/ftstdlib.h\")
-target_compile_options(freetype_kernel PRIVATE -mno-stack-arg-probe ${GENERAL_CFLAGS} $<$<COMPILE_LANGUAGE:CXX>:-fno-exceptions -fno-rtti>)
-target_include_directories(freetype_kernel PRIVATE modules)
-target_include_directories(freetype_kernel PRIVATE freetype/include)
-
-# undo freetype's dllexport markings
-add_custom_command(
-    TARGET freetype_kernel
-    POST_BUILD
-    COMMAND ${CMAKE_OBJCOPY} --remove-section .drectve "${CMAKE_CURRENT_BINARY_DIR}/libfreetype_kernel.a"
-)
-
-add_library(freetype SHARED
-    ${FREETYPE_FILES}
-    freetype/src/base/ftsystem.c
-)
-
-add_library(freetype_module STATIC)
-target_sources(freetype_module PUBLIC FILE_SET CXX_MODULES FILES modules/freetype.cpp)
-target_include_directories(freetype_module PRIVATE freetype/include)
-target_compile_options(freetype_module PRIVATE -mno-stack-arg-probe ${GENERAL_CFLAGS} $<$<COMPILE_LANGUAGE:CXX>:-fno-exceptions -fno-rtti>)
-target_link_libraries(freetype_module PUBLIC freetype)
-
-target_compile_definitions(freetype PRIVATE -DFT2_BUILD_LIBRARY -DFT_CONFIG_OPTION_DISABLE_STREAM_SUPPORT -DFT_CONFIG_OPTION_USE_PNG -DFT_CONFIG_OPTION_ERROR_STRINGS)
-target_compile_definitions(freetype PRIVATE -DFT_CONFIG_MODULES_H=\"${CMAKE_SOURCE_DIR}/modules/ftmodule.h\")
-target_compile_definitions(freetype PRIVATE -DFT_CONFIG_STANDARD_LIBRARY_H=\"${CMAKE_SOURCE_DIR}/modules/ftstdlib.h\")
-target_compile_options(freetype PRIVATE -mno-stack-arg-probe ${GENERAL_CFLAGS} $<$<COMPILE_LANGUAGE:CXX>:-fno-exceptions -fno-rtti>)
-target_include_directories(freetype PRIVATE modules)
-target_include_directories(freetype PRIVATE freetype/include)
-target_link_libraries(freetype PRIVATE moxnox)
-target_link_libraries(freetype PRIVATE libpng)
-
-install(TARGETS freetype DESTINATION ${CMAKE_INSTALL_PREFIX}/lib
-    ARCHIVE EXCLUDE_FROM_ALL
-)
-
 add_library(harfbuzz SHARED
     harfbuzz/src/hb-aat-layout.cc
     harfbuzz/src/hb-blob.cc
@@ -492,7 +418,7 @@ target_compile_definitions(harfbuzz PRIVATE -DHAVE_FREETYPE -DHB_LEAN -DHB_NO_AA
 target_compile_options(harfbuzz PRIVATE -mno-stack-arg-probe -Wa,-mbig-obj -fno-exceptions -fno-rtti ${GENERAL_CFLAGS} -w)
 target_compile_options(harfbuzz PRIVATE -include ${CMAKE_SOURCE_DIR}/hbshim.h)
 target_include_directories(harfbuzz PRIVATE harfbuzz/src)
-target_include_directories(harfbuzz PRIVATE freetype/include)
+target_include_directories(harfbuzz PRIVATE ports/freetype/repo/include)
 target_link_libraries(harfbuzz PRIVATE freetype)
 target_link_libraries(harfbuzz PRIVATE moxnox ${LIBGCC})
 
@@ -674,6 +600,7 @@ target_compile_options(acpica PRIVATE ${GENERAL_CFLAGS} -Wno-overflow -Wno-shift
 target_compile_options(acpica PRIVATE $<$<AND:$<COMPILE_LANGUAGE:CXX>,$<CXX_COMPILER_ID:GNU>>:-Wno-global-module>)
 target_compile_options(acpica PRIVATE $<$<COMPILE_LANGUAGE:CXX>:-fno-exceptions -fno-rtti>)
 
+add_subdirectory(ports/freetype)
 add_subdirectory(ports/libpng)
 add_subdirectory(ports/zlib)
 
