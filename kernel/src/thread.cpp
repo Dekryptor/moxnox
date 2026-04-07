@@ -82,7 +82,7 @@ public:
     CONTEXT syscall_context;
 #endif
     enum thread_status status;
-    uint32_t tid;
+    uintptr_t tid;
     void* kernel_stack = nullptr;
     process* proc = nullptr;
     uint64_t affinity = 0xffffffffffffffff;
@@ -175,7 +175,7 @@ static_assert(offsetof(AMD64_CONTEXT, FltSave) == CONTEXT_FXSAVE); // must be al
 
 #endif
 
-export atomic<uint32_t> next_tid = 1;
+export atomic<uintptr_t> next_tid = 1;
 
 export ::thread* get_current_thread();
 export void thread_died(::thread& t, bool* last_thread, bool remove_from_proc);
