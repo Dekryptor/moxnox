@@ -1,6 +1,7 @@
 module;
 
 #include <string_view>
+#include <array>
 #include <stdint.h>
 
 export module console;
@@ -10,8 +11,7 @@ import loaderblock;
 
 using namespace std;
 
-static const size_t EDID_SIZE = 128; // FIXME
-export uint8_t edid[EDID_SIZE];
+export array<uint8_t, 128> edid;
 
 export bool have_edid;
 export object_ref console_chardev;

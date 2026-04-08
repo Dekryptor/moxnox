@@ -1141,7 +1141,7 @@ void virtio_gpu<T>::start() {
     auto& r = disp_info.pmodes[0].r;
 
     if (dev.negotiated_features & VIRTIO_GPU_F_EDID) {
-        if (!get_edid(0, span(edid)))
+        if (!get_edid(0, edid))
             print("virtio_gpu::get_edid failed\n");
         else
             have_edid = true;

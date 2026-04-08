@@ -197,8 +197,6 @@ static enum console_colour bg_colour_text = DEFAULT_BG_COLOUR_TEXT;
 static enum console_colour fg_colour_text = DEFAULT_FG_COLOUR_TEXT;
 #endif
 
-static const size_t EDID_SIZE = 128; // FIXME
-
 struct console_fb {
     void console_overflow(unsigned int rows = 1);
     static void handle_sgr_part_num(unsigned int num);
@@ -1542,7 +1540,7 @@ bool init_fb_console() {
 }
 
 void copy_edid(loader_block* lb) {
-    memcpy(edid, (void*)lb->edid, EDID_SIZE);
+    memcpy(edid.data(), (void*)lb->edid, edid.size());
     have_edid = true;
 }
 
