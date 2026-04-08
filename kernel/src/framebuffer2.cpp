@@ -150,7 +150,7 @@ NTSTATUS framebuffer_cache<BOOT>::flush_cache(uint64_t page_num, uint64_t num_pa
                 memcpy(&fb_line[draw_x_end], &shadow_line[draw_x_end],
                        (fb_width - draw_x_end) * sizeof(uint32_t));
             } else
-                copy_scanline(fb_line, shadow_line, fb_width * sizeof(uint32_t));
+                copy_scanline(fb_line, shadow_line, fb_pixels_per_scan_line * sizeof(uint32_t));
         }
     } else {
         auto y1 = (unsigned int)(((page_num << PAGE_SHIFT) / sizeof(uint32_t)) / fb_width);
