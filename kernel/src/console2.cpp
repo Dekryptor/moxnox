@@ -33,6 +33,7 @@ import framebuffer;
 import handle;
 import objects;
 import freetype;
+import section;
 
 using namespace std;
 
@@ -72,6 +73,8 @@ static bool text_console_started = false;;
 spinlock early_print_lock;
 char early_print_buf[65536];
 size_t early_print_buf_size = 0;
+
+static object_ref framebuffer_section;
 
 static uint32_t console_output_mode = ENABLE_PROCESSED_OUTPUT;
 
@@ -1093,45 +1096,54 @@ static void refresh_framebuffer() {
     }
 }
 
-static void shadow_blit(unsigned int x, unsigned int y, unsigned int width,
-                        unsigned int height) {
-    for (unsigned int i = 0; i < height; i++) {
-        memcpy(framebuffer.data() + (fb_pixels_per_scan_line * y) + x,
-               shadow_framebuffer.data() + (shadow_fb_pixels_per_scan_line * y) + x,
-               width * sizeof(uint32_t));
-        y++;
-    }
-}
-
 static void copy_shadow_framebuffer() {
     auto* c = &console[0];
+    auto& sect = static_cast<section&>(framebuffer_section.get());
+
+    unsigned int dirty_run_start = 0, dirty_run_length = 0;
+
+    auto flush_lines = [&sect](unsigned int start, unsigned int length) {
+        size_t start_off = shadow_fb_pixels_per_scan_line * start * font_height * sizeof(uint32_t);
+        size_t end_off = shadow_fb_pixels_per_scan_line * (start + length + 1) * font_height * sizeof(uint32_t);
+
+        size_t start_page = start_off >> PAGE_SHIFT;
+        size_t end_page = (end_off + PAGE_SIZE - 1) >> PAGE_SHIFT;
+
+        if (start_page >= sect.size >> PAGE_SHIFT)
+            return;
+
+        if (end_page > sect.size >> PAGE_SHIFT)
+            end_page = sect.size >> PAGE_SHIFT;
+
+        sect.custom_cache->flush_cache(start_page, end_page - start_page + 1);
+    };
 
     for (unsigned int y = 0; y < console_fb_inst.console_rows; y++) {
+        bool line_dirty = false;
+
         for (unsigned int x = 0; x < console_fb_inst.console_cols; x++) {
             if (!c->changed) {
                 c++;
                 continue;
             }
 
-            unsigned int run =  1;
-
-            c->changed = false;
-            c++;
-
-            for (unsigned int i = x + 1; i < console_fb_inst.console_rows; i++) {
-                if (!c->changed)
-                    break;
-
-                run++;
-                c->changed = false;
-                c++;
-            }
-
-            shadow_blit(x * font_width, y * font_height, run * font_width,
-                        font_height);
-            x += run - 1;
+            line_dirty = true;
+            break;
         }
+
+        if (line_dirty) {
+            if (dirty_run_start + dirty_run_length == y)
+                dirty_run_length++;
+            else {
+                dirty_run_start = y;
+                dirty_run_length = 1;
+            }
+        } else if (y != 0 && y == dirty_run_start + dirty_run_length)
+            flush_lines(dirty_run_start, dirty_run_length);
     }
+
+    if (dirty_run_start + dirty_run_length == console_fb_inst.console_rows)
+        flush_lines(dirty_run_start, dirty_run_length);
 }
 
 template<bool no_lock>
@@ -1396,6 +1408,12 @@ bool init_console(const loader_block_framebuffer& fb)
             else
                 print("warning: framebuffer will be slow as fb_pixels_per_scan_line is {}, not a multiple of 8\n", fb_pixels_per_scan_line);
 #endif
+        }
+
+        auto status = open_object("framebuffer", framebuffer_section);
+        if (!success(status)) {
+            print("open_object returned {} for /dev/framebuffer\n", status);
+            return false;
         }
 #ifdef __x86_64__
     }
