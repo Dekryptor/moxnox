@@ -308,6 +308,21 @@ static void find_xsave_size() {
 }
 #endif
 
+#ifdef __x86_64__
+static void check_cpu_features() {
+    uint32_t ebx;
+
+    __asm__ __volatile__ (
+        "cpuid\n\t"
+        : "=b" (ebx)
+        : "a" (0x7), "c" (0)
+        : "edx"
+    );
+
+    avx512_supported = ebx & (1 << 16);
+}
+#endif
+
 extern "C"
 void startup(loader_block* lb) {
     span<const uint8_t> debug_info, debug_abbrev, debug_rnglists, debug_str,
@@ -377,6 +392,10 @@ void startup(loader_block* lb) {
 
     if (!init_cpu_block(current_cpu_id()))
         goto hang;
+#endif
+
+#ifdef __x86_64__
+    check_cpu_features();
 #endif
 
     init_acpi_early();

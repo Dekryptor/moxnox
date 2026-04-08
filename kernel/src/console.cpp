@@ -1283,21 +1283,6 @@ static bool create_kmsg() {
 }
 
 #ifdef __x86_64__
-static bool avx512_supported() {
-    uint32_t ebx;
-
-    __asm__ __volatile__ (
-        "cpuid\n\t"
-        : "=b" (ebx)
-        : "a" (0x7), "c" (0)
-        : "edx"
-    );
-
-    return ebx & (1 << 16);
-}
-#endif
-
-#ifdef __x86_64__
 export bool init_console(const loader_block_framebuffer& fb,
                          const loader_block_text_console& tc)
 #else
@@ -1434,7 +1419,7 @@ export bool init_console(const loader_block_framebuffer& fb)
             create_boot_framebuffer_section();
 
 #ifdef __x86_64__
-            if (avx512_supported() && (fb_pixels_per_scan_line % (64 / sizeof(uint32_t)) == 0))
+            if (avx512_supported && (fb_pixels_per_scan_line % (64 / sizeof(uint32_t)) == 0))
                 copy_scanline = copy_scanline_avx512;
             else if (fb_pixels_per_scan_line % (32 / sizeof(uint32_t)) == 0)
                 copy_scanline = copy_scanline_avx2;

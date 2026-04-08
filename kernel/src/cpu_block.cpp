@@ -96,3 +96,7 @@ export inline __attribute__((always_inline)) size_t cpu_block_size() {
     return sizeof(cpu_block);
 #endif
 }
+
+#ifdef __x86_64__
+export bool avx512_supported = false;
+#endif
