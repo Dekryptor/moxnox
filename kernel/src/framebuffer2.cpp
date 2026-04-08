@@ -92,15 +92,14 @@ nt_status framebuffer_cache<BOOT>::read_into_cache(uint64_t page_num, uint64_t n
 template<bool BOOT>
 NTSTATUS framebuffer_cache<BOOT>::flush_cache(uint64_t page_num, uint64_t num_pages) {
     auto start = page_num << PAGE_SHIFT;
-    span<uint32_t> fb;
 
-    if constexpr (BOOT)
-        fb = shadow_framebuffer;
-    else
-        fb = framebuffer;
-
-    if (start >= fb.size_bytes())
-        return nt_status::SUCCESS;
+    if constexpr (BOOT) {
+        if (start >= shadow_framebuffer.size_bytes())
+            return nt_status::SUCCESS;
+    } else {
+        if (start >= framebuffer.size_bytes())
+            return nt_status::SUCCESS;
+    }
 
     if constexpr (BOOT) {
         lock_guard lock(cursor_lock);
