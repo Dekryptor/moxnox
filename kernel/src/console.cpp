@@ -982,7 +982,16 @@ static glyph_info* load_glyph(font_info& font, FT_UInt glyph) {
 
 static void draw_ft_char(const console_info& c, unsigned int fb_x, unsigned int fb_y,
                          bool is_cursor) {
-    auto fb = console_type == console_type::boot_framebuffer ? shadow_framebuffer : framebuffer;
+    span<uint32_t> fb;
+    uint32_t pixels_per_scan_line;
+
+    if (console_type == console_type::boot_framebuffer) {
+        fb = shadow_framebuffer;
+        pixels_per_scan_line = shadow_fb_pixels_per_scan_line;
+    } else {
+        fb = framebuffer;
+        pixels_per_scan_line = fb_pixels_per_scan_line;
+    }
 
     auto gi = load_glyph(face, c.glyph);
     if (!gi)
@@ -1022,7 +1031,7 @@ static void draw_ft_char(const console_info& c, unsigned int fb_x, unsigned int 
     uint32_t bg_colour_b = bg & 0xff;
     uint32_t fg_colour_b = fg & 0xff;
 
-    auto base = fb.data() + ((uint32_t)y * fb_pixels_per_scan_line) + fb_x + gi->bitmap_left;
+    auto base = fb.data() + ((uint32_t)y * pixels_per_scan_line) + fb_x + gi->bitmap_left;
 
     while (y < bottom) {
         for (unsigned int x = 0; x < width; x++) {
@@ -1041,14 +1050,24 @@ static void draw_ft_char(const console_info& c, unsigned int fb_x, unsigned int 
 
         buf += bitmap.width - width;
 
-        base += fb_pixels_per_scan_line;
+        base += pixels_per_scan_line;
         y++;
     }
 }
 
 static void rect(unsigned int x, unsigned int y, unsigned int w, unsigned int h, uint32_t col) {
-    auto fb = console_type == console_type::boot_framebuffer ? shadow_framebuffer : framebuffer;
-    auto dest = fb.data() + (fb_pixels_per_scan_line * y) + x;
+    span<uint32_t> fb;
+    uint32_t pixels_per_scan_line;
+
+    if (console_type == console_type::boot_framebuffer) {
+        fb = shadow_framebuffer;
+        pixels_per_scan_line = shadow_fb_pixels_per_scan_line;
+    } else {
+        fb = framebuffer;
+        pixels_per_scan_line = fb_pixels_per_scan_line;
+    }
+
+    auto dest = fb.data() + (pixels_per_scan_line * y) + x;
 
     for (unsigned int i = 0; i < h; i++) {
         for (unsigned int j = 0; j < w; j++) {
@@ -1056,7 +1075,7 @@ static void rect(unsigned int x, unsigned int y, unsigned int w, unsigned int h,
             dest++;
         }
 
-        dest += fb_pixels_per_scan_line - w;
+        dest += pixels_per_scan_line - w;
     }
 }
 
@@ -1102,7 +1121,7 @@ static void shadow_blit(unsigned int x, unsigned int y, unsigned int width,
                         unsigned int height) {
     for (unsigned int i = 0; i < height; i++) {
         memcpy(framebuffer.data() + (fb_pixels_per_scan_line * y) + x,
-               shadow_framebuffer.data() + (fb_pixels_per_scan_line * y) + x,
+               shadow_framebuffer.data() + (shadow_fb_pixels_per_scan_line * y) + x,
                width * sizeof(uint32_t));
         y++;
     }
@@ -1367,13 +1386,15 @@ export bool init_console(const loader_block_framebuffer& fb)
                 }
             }
 
-            auto ptr = (uint32_t*)vmalloc(fb.pixels_per_scan_line * fb.height * sizeof(uint32_t));
+            shadow_fb_pixels_per_scan_line = fb.pixels_per_scan_line; // FIXME
+
+            auto ptr = (uint32_t*)vmalloc(shadow_fb_pixels_per_scan_line * fb.height * sizeof(uint32_t));
             if (!ptr) {
                 print("vmalloc failed\n");
                 return false;
             }
 
-            shadow_framebuffer = span(ptr, fb.pixels_per_scan_line * fb.height);
+            shadow_framebuffer = span(ptr, shadow_fb_pixels_per_scan_line * fb.height);
 
             fb_width = fb.width;
             fb_height = fb.height;
