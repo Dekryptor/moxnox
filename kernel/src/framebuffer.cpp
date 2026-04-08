@@ -2,6 +2,7 @@ module;
 
 #include <span>
 #include <stdint.h>
+#include <string.h>
 
 export module framebuffer;
 
@@ -15,6 +16,12 @@ export void (*flush_framebuffer)(unsigned int x, unsigned int y,
 export void (*move_cursor)(uint32_t x, uint32_t y);
 export void (*set_cursor)(uint32_t x, uint32_t y, span<const uint32_t> buf,
                           uint32_t hot_x, uint32_t hot_y);
+
+using copy_scanline_func = void (*)(void*, const void*, size_t);
+
+export copy_scanline_func copy_scanline = [](void* dst, const void* src, size_t n) {
+    memcpy(dst, src, n);
+};
 
 export void create_boot_framebuffer_section();
 export void create_other_framebuffer_section();

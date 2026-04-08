@@ -143,6 +143,7 @@ elseif(CMAKE_SYSTEM_PROCESSOR STREQUAL "amd64")
         src/x86/mem.S
         src/x86/smp.S
         src/x86/tlb.S
+        src/x86/framebuffer.S
         ${CMAKE_CURRENT_BINARY_DIR}/font.S)
 
     add_executable(kernel ${AMD64_SRC_FILES} ${SRC_ASM_FILES})

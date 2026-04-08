@@ -92,6 +92,11 @@ static uint32_t console_output_mode = ENABLE_PROCESSED_OUTPUT;
 extern "C" void* console_font_data;
 extern "C" uint64_t console_font_size;
 
+#ifdef __x86_64__
+// framebuffer.S
+extern "C" void copy_scanline_avx512(void* dst, const void* src, size_t n);
+#endif
+
 static const auto console_font = span(&console_font_data, console_font_size);
 
 struct glyph_info {
@@ -1277,6 +1282,21 @@ static bool create_kmsg() {
 }
 
 #ifdef __x86_64__
+static bool avx512_supported() {
+    uint32_t ebx;
+
+    __asm__ __volatile__ (
+        "cpuid\n\t"
+        : "=b" (ebx)
+        : "a" (0x7), "c" (0)
+        : "edx"
+    );
+
+    return ebx & (1 << 16);
+}
+#endif
+
+#ifdef __x86_64__
 export bool init_console(const loader_block_framebuffer& fb,
                          const loader_block_text_console& tc)
 #else
@@ -1411,6 +1431,12 @@ export bool init_console(const loader_block_framebuffer& fb)
             memset(shadow_framebuffer.data(), 0, shadow_framebuffer.size_bytes());
 
             create_boot_framebuffer_section();
+
+#ifdef __x86_64__
+            if (avx512_supported() && (fb_pixels_per_scan_line % (64 / sizeof(uint32_t)) == 0))
+                copy_scanline = copy_scanline_avx512;
+            // FIXME - AVX2 version
+#endif
         }
 #ifdef __x86_64__
     }
