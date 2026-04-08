@@ -2080,13 +2080,6 @@ static bool should_key_repeat(enum evdev_key_code code) {
         case evdev_key_code::KEY_KBDILLUMTOGGLE:
         case evdev_key_code::KEY_MENU:
         case evdev_key_code::KEY_SELECT:
-        case evdev_key_code::KEY_UP:
-        case evdev_key_code::KEY_DOWN:
-        case evdev_key_code::KEY_LEFT:
-        case evdev_key_code::KEY_RIGHT:
-        case evdev_key_code::KEY_ESC:
-        case evdev_key_code::KEY_KPPLUS:
-        case evdev_key_code::KEY_KPMINUS:
         case evdev_key_code::KEY_INFO:
         case evdev_key_code::KEY_SUBTITLE:
         case evdev_key_code::KEY_VCR:
@@ -2107,7 +2100,6 @@ static bool should_key_repeat(enum evdev_key_code code) {
         case evdev_key_code::KEY_KBDILLUMDOWN:
         case evdev_key_code::KEY_VIDEO_NEXT:
         case evdev_key_code::KEY_LAST:
-        case evdev_key_code::KEY_ENTER:
         case evdev_key_code::KEY_PC:
         case evdev_key_code::KEY_TV:
         case evdev_key_code::KEY_WWW:
@@ -2187,8 +2179,6 @@ static bool should_key_repeat(enum evdev_key_code code) {
         case evdev_key_code::KEY_SCROLLDOWN:
         case evdev_key_code::KEY_EDIT:
         case evdev_key_code::KEY_CANCEL:
-        case evdev_key_code::KEY_INSERT:
-        case evdev_key_code::KEY_DELETE:
         case evdev_key_code::KEY_REDO:
         case evdev_key_code::KEY_REPLY:
         case evdev_key_code::KEY_FORWARDMAIL:
