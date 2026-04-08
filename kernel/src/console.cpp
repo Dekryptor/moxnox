@@ -1386,7 +1386,14 @@ export bool init_console(const loader_block_framebuffer& fb)
                 }
             }
 
-            shadow_fb_pixels_per_scan_line = fb.pixels_per_scan_line; // FIXME
+            // for AVX512, but also cache line
+            static const size_t SCANLINE_ALIGNMENT_BYTES = 64;
+            static const size_t SCANLINE_ALIGNMENT_PIXELS = SCANLINE_ALIGNMENT_BYTES / sizeof(uint32_t);
+
+            shadow_fb_pixels_per_scan_line = fb.width;
+
+            if (shadow_fb_pixels_per_scan_line % SCANLINE_ALIGNMENT_PIXELS)
+                shadow_fb_pixels_per_scan_line += (uint32_t)(SCANLINE_ALIGNMENT_PIXELS - (shadow_fb_pixels_per_scan_line % SCANLINE_ALIGNMENT_PIXELS));
 
             auto ptr = (uint32_t*)vmalloc(shadow_fb_pixels_per_scan_line * fb.height * sizeof(uint32_t));
             if (!ptr) {
