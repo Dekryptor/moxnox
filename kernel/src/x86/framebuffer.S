@@ -49,6 +49,7 @@
 .short DW_LANG_Mips_Assembler # language
 
 dwarf_func_asm copy_scanline_avx512
+dwarf_func_asm copy_scanline_avx2
 
 .uleb128 0
 
@@ -64,9 +65,9 @@ copy_scanline_avx512:
     # restore anything because of the calling convention
 
     cmp r8, 384
-    jb .Lloop_one_reg
+    jb .Lloop_one_reg_avx512
 
-.Lloop_multi_reg:
+.Lloop_multi_reg_avx512:
     # FIXME - prefetch?
 
     vmovdqa64 zmm0, [rdx]
@@ -87,22 +88,75 @@ copy_scanline_avx512:
     add rcx, 384
     sub r8, 384
     cmp r8, 384
-    jae .Lloop_multi_reg
+    jae .Lloop_multi_reg_avx512
 
-    sfence
+    cmp r8, 64
+    jb .Lend_avx512
 
-.Lloop_one_reg:
+.Lloop_one_reg_avx512:
     vmovdqa64 zmm0, [rdx]
     vmovntdq [rcx], zmm0
     add rdx, 64
     add rcx, 64
     sub r8, 64
     cmp r8, 64
-    jae .Lloop_one_reg
+    jae .Lloop_one_reg_avx512
 
+.Lend_avx512:
     sfence
 
     ret
 copy_scanline_avx512_end:
+
+# void copy_scanline_avx2(void* dst, const void* src, size_t n);
+# rcx = dst, rdx = src, r8 = n
+.global copy_scanline_avx2
+copy_scanline_avx2:
+    # using the six volatile AVX2 registers, so we don't have to save and
+    # restore anything because of the calling convention
+
+    cmp r8, 192
+    jb .Lloop_one_reg_avx2
+
+.Lloop_multi_reg_avx2:
+    # FIXME - prefetch?
+
+    vmovdqa ymm0, [rdx]
+    vmovdqa ymm1, [rdx + 32]
+    vmovdqa ymm2, [rdx + 64]
+    vmovdqa ymm3, [rdx + 96]
+    vmovdqa ymm4, [rdx + 128]
+    vmovdqa ymm5, [rdx + 160]
+
+    vmovntdq [rcx], ymm0
+    vmovntdq [rcx + 32], ymm1
+    vmovntdq [rcx + 64], ymm2
+    vmovntdq [rcx + 96], ymm3
+    vmovntdq [rcx + 128], ymm4
+    vmovntdq [rcx + 160], ymm5
+
+    add rdx, 192
+    add rcx, 192
+    sub r8, 192
+    cmp r8, 192
+    jae .Lloop_multi_reg_avx2
+
+    cmp r8, 64
+    jb .Lend_avx2
+
+.Lloop_one_reg_avx2:
+    vmovdqa ymm0, [rdx]
+    vmovntdq [rcx], ymm0
+    add rdx, 32
+    add rcx, 32
+    sub r8, 32
+    cmp r8, 32
+    jae .Lloop_one_reg_avx2
+
+.Lend_avx2:
+    sfence
+
+    ret
+copy_scanline_avx2_end:
 
 .text_end:

@@ -95,6 +95,7 @@ extern "C" uint64_t console_font_size;
 #ifdef __x86_64__
 // framebuffer.S
 extern "C" void copy_scanline_avx512(void* dst, const void* src, size_t n);
+extern "C" void copy_scanline_avx2(void* dst, const void* src, size_t n);
 #endif
 
 static const auto console_font = span(&console_font_data, console_font_size);
@@ -1435,7 +1436,10 @@ export bool init_console(const loader_block_framebuffer& fb)
 #ifdef __x86_64__
             if (avx512_supported() && (fb_pixels_per_scan_line % (64 / sizeof(uint32_t)) == 0))
                 copy_scanline = copy_scanline_avx512;
-            // FIXME - AVX2 version
+            else if (fb_pixels_per_scan_line % (32 / sizeof(uint32_t)) == 0)
+                copy_scanline = copy_scanline_avx2;
+            else
+                print("warning: framebuffer will be slow as fb_pixels_per_scan_line is {}, not a multiple of 8\n", fb_pixels_per_scan_line);
 #endif
         }
 #ifdef __x86_64__
