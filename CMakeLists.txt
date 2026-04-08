@@ -344,6 +344,7 @@ add_subdirectory(ports/libpng)
 add_subdirectory(ports/mingw-w64)
 add_subdirectory(ports/pixman)
 add_subdirectory(ports/zlib)
+add_subdirectory(ports/zstd)
 
 install(SCRIPT initrd.cmake)
 

@@ -22,3 +22,6 @@
 [submodule "mingw-w64"]
 	path = ports/mingw-w64/repo
 	url = https://git.burntcomma.com/maharmstone/mingw-w64
+[submodule "ports/zstd/zstd"]
+	path = ports/zstd/repo
+	url = https://git.burntcomma.com/maharmstone/zstd
