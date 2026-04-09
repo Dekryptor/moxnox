@@ -3,6 +3,7 @@ module;
 #include <string_view>
 #include <string.h>
 #include <mutex>
+#include <span>
 
 module console;
 
