@@ -23,5 +23,7 @@ export copy_scanline_func copy_scanline = [](void* dst, const void* src, size_t 
     memcpy(dst, src, n);
 };
 
+export size_t copy_scanline_granularity = sizeof(uint32_t);
+
 export void create_boot_framebuffer_section();
 export void create_other_framebuffer_section();

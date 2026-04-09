@@ -1405,11 +1405,13 @@ bool init_console(const loader_block_framebuffer& fb)
             create_boot_framebuffer_section();
 
 #ifdef __x86_64__
-            if (avx512_supported && (fb_pixels_per_scan_line % (64 / sizeof(uint32_t)) == 0))
+            if (avx512_supported && (fb_pixels_per_scan_line % (64 / sizeof(uint32_t)) == 0)) {
                 copy_scanline = copy_scanline_avx512;
-            else if (fb_pixels_per_scan_line % (32 / sizeof(uint32_t)) == 0)
+                copy_scanline_granularity = 64;
+            } else if (fb_pixels_per_scan_line % (32 / sizeof(uint32_t)) == 0) {
                 copy_scanline = copy_scanline_avx2;
-            else
+                copy_scanline_granularity = 32;
+            } else
                 print("warning: framebuffer will be slow as fb_pixels_per_scan_line is {}, not a multiple of 8\n", fb_pixels_per_scan_line);
 #endif
         }

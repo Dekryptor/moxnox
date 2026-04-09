@@ -120,9 +120,9 @@ NTSTATUS framebuffer_cache<BOOT>::flush_cache(uint64_t page_num, uint64_t num_pa
             if (y >= cursor_top && y < cursor_bottom && !in_bsod) {
                 auto cursor_line = &cursor_buffer[((int16_t)y - cursor_top) * cursor_width];
 
-                static const size_t SCANLINE_X_GRANULARITY = 64 / sizeof(uint32_t);
+                size_t scanline_x_granularity = copy_scanline_granularity / sizeof(uint32_t);
 
-                size_t fast_pixels_start = (draw_x_start / SCANLINE_X_GRANULARITY) * SCANLINE_X_GRANULARITY;
+                size_t fast_pixels_start = (draw_x_start / scanline_x_granularity) * scanline_x_granularity;
 
                 if (fast_pixels_start > 0)
                     copy_scanline(fb_line, shadow_line, fast_pixels_start * sizeof(uint32_t));
@@ -156,7 +156,7 @@ NTSTATUS framebuffer_cache<BOOT>::flush_cache(uint64_t page_num, uint64_t num_pa
                     }
                 }
 
-                size_t fast_pixels_end = ((draw_x_end + SCANLINE_X_GRANULARITY) / SCANLINE_X_GRANULARITY) * SCANLINE_X_GRANULARITY;
+                size_t fast_pixels_end = ((draw_x_end + scanline_x_granularity) / scanline_x_granularity) * scanline_x_granularity;
 
                 if (fast_pixels_end < fb_pixels_per_scan_line) {
                     copy_scanline(fb_line + fast_pixels_end,
