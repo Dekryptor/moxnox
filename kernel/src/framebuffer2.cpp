@@ -120,7 +120,15 @@ NTSTATUS framebuffer_cache<BOOT>::flush_cache(uint64_t page_num, uint64_t num_pa
             if (y >= cursor_top && y < cursor_bottom && !in_bsod) {
                 auto cursor_line = &cursor_buffer[((int16_t)y - cursor_top) * cursor_width];
 
-                memcpy(fb_line, shadow_line, draw_x_start * sizeof(uint32_t));
+                static const size_t SCANLINE_X_GRANULARITY = 64 / sizeof(uint32_t);
+
+                size_t fast_pixels_start = (draw_x_start / SCANLINE_X_GRANULARITY) * SCANLINE_X_GRANULARITY;
+
+                if (fast_pixels_start > 0)
+                    copy_scanline(fb_line, shadow_line, fast_pixels_start * sizeof(uint32_t));
+
+                memcpy(fb_line + fast_pixels_start, shadow_line + fast_pixels_start,
+                       (draw_x_start - fast_pixels_start) * sizeof(uint32_t));
 
                 for (uint16_t x = draw_x_start; x < draw_x_end; x++) {
                     auto& fb_pixel = fb_line[x];
@@ -148,8 +156,16 @@ NTSTATUS framebuffer_cache<BOOT>::flush_cache(uint64_t page_num, uint64_t num_pa
                     }
                 }
 
-                memcpy(&fb_line[draw_x_end], &shadow_line[draw_x_end],
-                       (fb_width - draw_x_end) * sizeof(uint32_t));
+                size_t fast_pixels_end = ((draw_x_end + SCANLINE_X_GRANULARITY) / SCANLINE_X_GRANULARITY) * SCANLINE_X_GRANULARITY;
+
+                if (fast_pixels_end < fb_pixels_per_scan_line) {
+                    copy_scanline(fb_line + fast_pixels_end,
+                                  shadow_line + fast_pixels_end,
+                                  (fb_pixels_per_scan_line - fast_pixels_end) * sizeof(uint32_t));
+                }
+
+                memcpy(fb_line + draw_x_end, shadow_line + draw_x_end,
+                       (fast_pixels_end - draw_x_end) * sizeof(uint32_t));
             } else
                 copy_scanline(fb_line, shadow_line, fb_pixels_per_scan_line * sizeof(uint32_t));
         }
