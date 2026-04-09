@@ -19,6 +19,7 @@ import crt;
 import thread;
 import spinlock;
 import disable_interrupts;
+import bsod;
 
 using namespace std;
 
@@ -116,7 +117,7 @@ NTSTATUS framebuffer_cache<BOOT>::flush_cache(uint64_t page_num, uint64_t num_pa
             auto fb_line = &framebuffer[y * fb_pixels_per_scan_line];
             auto shadow_line = &shadow_framebuffer[y * shadow_fb_pixels_per_scan_line];
 
-            if (y >= cursor_top && y < cursor_bottom) {
+            if (y >= cursor_top && y < cursor_bottom && !in_bsod) {
                 auto cursor_line = &cursor_buffer[((int16_t)y - cursor_top) * cursor_width];
 
                 memcpy(fb_line, shadow_line, draw_x_start * sizeof(uint32_t));
