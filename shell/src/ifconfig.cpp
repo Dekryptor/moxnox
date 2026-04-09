@@ -71,7 +71,7 @@ static void get_netif_info(unique_handle& netctl, uint32_t id) {
 
     auto name = string_view(info.name, sizeof(info.name));
     if (auto n = name.find('\0'); n != string_view::npos)
-        name = string_view(name.data(), name.size());
+        name = string_view(name.data(), n);
 
     print("name = \"{}\"\n", name);
 
