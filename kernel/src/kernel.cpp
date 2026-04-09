@@ -280,6 +280,8 @@ void main_thread(void* ctx) {
     if (!init)
         bsod("Could not start init process.");
 
+    userspace_started = true;
+
     static_cast<process&>(init.get()).resume();
 
     wait_for_object(init.get(), false);

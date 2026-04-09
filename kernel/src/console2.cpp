@@ -1172,6 +1172,9 @@ void very_early_print(string_view s) {
 }
 
 void early_print(string_view s) {
+    if (userspace_started && !in_bsod)
+        return;
+
 #ifdef __x86_64__
     if (console_type == console_type::text) {
         if (!text_console_started) {
