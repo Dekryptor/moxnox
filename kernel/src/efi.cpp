@@ -19,7 +19,6 @@ import gnu_efi;
 using namespace std;
 
 static const uint64_t UEFI_VABLOCK = 0xfffffa6000000000;
-static array<EFI_MEMORY_DESCRIPTOR, 256> uefi_mappings;
 export EFI_GET_TIME GetTime = nullptr;
 export EFI_RESET_SYSTEM ResetSystem = nullptr;
 export EFI_SET_VARIABLE SetVariable = nullptr;
@@ -39,9 +38,6 @@ void do_print(type_identity_t<checker<type_identity_t<Args>...>> fmt, Args... ar
 }
 
 export bool map_uefi(const loader_block& lb) {
-    auto map_entries = span((map_entry*)lb.map_ptr, lb.num_map_entries);
-    unsigned int count = 0;
-
     uint64_t va = UEFI_VABLOCK;
 
 #ifdef __aarch64__
@@ -49,80 +45,48 @@ export bool map_uefi(const loader_block& lb) {
     mark_lower_half_writable();
 #endif
 
-    auto d = uefi_mappings.data();
-    for (const auto& m : map_entries) {
+    auto d = (EFI_MEMORY_DESCRIPTOR*)lb.runtime_map_ptr;
+
+    for (unsigned int i = 0; i < lb.num_runtime_map_entries; i++) {
         enum mapping_type mt;
 
-        if (count == uefi_mappings.size()) {
-            print("map_uefi: overflow\n");
-            return false;
-        }
-
-        if (!(m.efi_attributes & EFI_MEMORY_RUNTIME))
-            continue;
-
-        if (m.type == mem_type::uefi_code)
-            d->Type = EfiRuntimeServicesCode;
-        else if (m.type == mem_type::uefi_data)
-            d->Type = EfiRuntimeServicesData;
-        else if (m.type == mem_type::mmio)
-            d->Type = EfiMemoryMappedIO;
-        else
-            continue;
+        d->VirtualStart = va;
 
         // FIXME - read-only and NX flags
 
-        if (m.efi_attributes & EFI_MEMORY_WB)
+        if (d->Attribute & EFI_MEMORY_WB)
             mt = mapping_type::read_write_execute;
-        else if (m.efi_attributes & EFI_MEMORY_UC)
+        else if (d->Attribute & EFI_MEMORY_UC)
             mt = mapping_type::no_cache;
         else
-            continue;
+            mt = mapping_type::read_write_execute;
 
-        for (unsigned int i = 0; i < m.len >> PAGE_SHIFT; i++) {
-            if (!map_page<true>(m.addr + (i << PAGE_SHIFT), va + (i << PAGE_SHIFT),
-                                mt)) {
+        for (unsigned int i = 0; i < d->NumberOfPages; i++) {
+            if (!map_page<true>(d->PhysicalStart + (i << PAGE_SHIFT),
+                                d->VirtualStart + (i << PAGE_SHIFT), mt)) {
                 do_print("map_page failed\n");
                 return false;
             }
         }
 
-        d->Pad = 0;
-        d->PhysicalStart = m.addr;
-        d->VirtualStart = va;
-        d->NumberOfPages = m.len >> PAGE_SHIFT;
-        d->Attribute = EFI_MEMORY_RUNTIME;
+        if (!GetTime && (uintptr_t)lb.GetTime >= d->PhysicalStart && (uintptr_t)lb.GetTime < d->PhysicalStart + (d->NumberOfPages << PAGE_SHIFT))
+            GetTime = (EFI_GET_TIME)((uintptr_t)lb.GetTime - d->PhysicalStart + va);
 
-        if (m.efi_attributes & EFI_MEMORY_UC)
-            d->Attribute |= EFI_MEMORY_UC;
-        else if (m.efi_attributes & EFI_MEMORY_WB)
-            d->Attribute |= EFI_MEMORY_WB;
+        if (!ResetSystem && (uintptr_t)lb.ResetSystem >= d->PhysicalStart && (uintptr_t)lb.ResetSystem < d->PhysicalStart + (d->NumberOfPages << PAGE_SHIFT))
+            ResetSystem = (EFI_RESET_SYSTEM)((uintptr_t)lb.ResetSystem - d->PhysicalStart + va);
 
-        if (!GetTime && (uintptr_t)lb.GetTime >= m.addr && (uintptr_t)lb.GetTime < m.addr + m.len)
-            GetTime = (EFI_GET_TIME)((uintptr_t)lb.GetTime - m.addr + va);
+        if (!SetVariable && (uintptr_t)lb.SetVariable >= d->PhysicalStart && (uintptr_t)lb.SetVariable < d->PhysicalStart + (d->NumberOfPages << PAGE_SHIFT))
+            SetVariable = (EFI_SET_VARIABLE)((uintptr_t)lb.SetVariable - d->PhysicalStart + va);
 
-        if (!ResetSystem && (uintptr_t)lb.ResetSystem >= m.addr && (uintptr_t)lb.ResetSystem < m.addr + m.len)
-            ResetSystem = (EFI_RESET_SYSTEM)((uintptr_t)lb.ResetSystem - m.addr + va);
+        va += d->NumberOfPages << PAGE_SHIFT;
 
-        if (!SetVariable && (uintptr_t)lb.SetVariable >= m.addr && (uintptr_t)lb.SetVariable < m.addr + m.len)
-            SetVariable = (EFI_SET_VARIABLE)((uintptr_t)lb.SetVariable - m.addr + va);
-
-        va += m.len;
-        count++;
-        d++;
+        d = (EFI_MEMORY_DESCRIPTOR*)((uint8_t*)d + lb.runtime_map_entry_size);
     }
 
-    if (count == 0) {
-        do_print("SetVirtualAddressMap set but no UEFI mappings given");
-        GetTime = nullptr;
-        ResetSystem = nullptr;
-        return false;
-    }
-
-    auto ret = lb.SetVirtualAddressMap(count * sizeof(EFI_MEMORY_DESCRIPTOR),
-                                       sizeof(EFI_MEMORY_DESCRIPTOR),
+    auto ret = lb.SetVirtualAddressMap(lb.num_runtime_map_entries * lb.runtime_map_entry_size,
+                                       lb.runtime_map_entry_size,
                                        EFI_MEMORY_DESCRIPTOR_VERSION,
-                                       uefi_mappings.data());
+                                       (EFI_MEMORY_DESCRIPTOR*)lb.runtime_map_ptr);
     if (ret != EFI_SUCCESS) { // FIXME - enum
         do_print("SetVirtualAddressMap returned {}\n", ret);
         return false;
