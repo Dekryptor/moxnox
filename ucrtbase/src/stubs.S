@@ -114,5 +114,6 @@ do_stub "_isatty"
 do_stub "_mkdir"
 do_stub "_chmod"
 do_stub "_utime64"
+do_stub "getenv_s"
 
 stubs_end

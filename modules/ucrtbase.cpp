@@ -109,6 +109,7 @@ int _initialize_onexit_table(_onexit_table_t* table);
 int _register_onexit_function(_onexit_table_t* table, _onexit_t func);
 int _execute_onexit_table(_onexit_table_t* table);
 char* getenv(const char* name);
+errno_t getenv_s(size_t* len, char* value, rsize_t valuesz, const char* name);
 char* _strdup(const char* s);
 int wctob(wint_t wchar);
 wint_t btowc(int c);

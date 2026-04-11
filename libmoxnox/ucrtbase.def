@@ -185,3 +185,4 @@ chmod
 _utime64
 _utime
 utime
+getenv_s
