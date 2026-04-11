@@ -3,6 +3,7 @@
 #include <span>
 #include <tuple>
 #include <algorithm>
+#include <array>
 
 using namespace std;
 
@@ -24,7 +25,7 @@ static EFI_BOOT_SERVICES* bs __attribute__((section (".data")));
 
 static const uintptr_t KERNEL_ADDR = 0xfffff80000000000;
 
-static map_entry map[256] __attribute__((section (".data")));
+static array<map_entry, 256> map __attribute__((section (".data")));
 static unsigned int num_map_entries = 0;
 
 static uint64_t debug_info_ptr __attribute__((section (".data")));
@@ -576,7 +577,7 @@ EFI_STATUS load_pe(span<const uint8_t> payload, uint64_t va, uint64_t& entry_poi
 static void insert_map_entry(unsigned int i) {
     // FIXME - memmove?
     for (int j = (int)num_map_entries - 1; j >= (int)i; j--) {
-        memcpy(&map[j+1], &map[j], sizeof(map_entry));
+        memcpy(&map[(size_t)(j+1)], &map[(size_t)j], sizeof(map_entry));
     }
 }
 
@@ -1163,7 +1164,7 @@ static EFI_STATUS setup_paging() {
         return status;
     }
 
-    memcpy(map_copy, map, sizeof(map_entry) * num_map_entries);
+    memcpy(map_copy, map.data(), sizeof(map_entry) * num_map_entries);
 
     for (unsigned int i = 0; i < num_map_entries_copy; i++) {
         switch (map_copy[i].type) {
@@ -1223,7 +1224,7 @@ static EFI_STATUS setup_paging(uint64_t& cr3) {
         return status;
     }
 
-    memcpy(map_copy, map, sizeof(map_entry) * num_map_entries);
+    memcpy(map_copy, map.data(), sizeof(map_entry) * num_map_entries);
 
     for (unsigned int i = 0; i < num_map_entries_copy; i++) {
         switch (map_copy[i].type) {
@@ -1738,7 +1739,7 @@ static EFI_STATUS finish_setting_up(EFI_HANDLE image_handle, uint64_t rsdp_pa) {
     UINT32 version;
     EFI_MEMORY_DESCRIPTOR* mapdesc;
 
-    lb.map_ptr = (uintptr_t)map;
+    lb.map_ptr = (uintptr_t)map.data();
     lb.num_map_entries = num_map_entries;
     lb.rsdp_pa = rsdp_pa;
 #ifdef __x86_64__
