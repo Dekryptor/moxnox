@@ -23,22 +23,21 @@ using namespace std;
 export atomic<uint32_t> shutting_down_cpu = 0xffffffff;
 
 static void reboot() {
+    AcpiReset();
+
     if (ResetSystem)
         ResetSystem(EfiResetCold, (EFI_STATUS)0, 0, nullptr);
-    else
-        AcpiReset();
 }
 
 static void halt() {
+    AcpiEnterSleepStatePrep(5);
+
+    disable_interrupts();
+
+    AcpiEnterSleepState(5);
+
     if (ResetSystem)
         ResetSystem(EfiResetShutdown, (EFI_STATUS)0, 0, nullptr);
-    else {
-        AcpiEnterSleepStatePrep(5);
-
-        disable_interrupts();
-
-        AcpiEnterSleepState(5);
-    }
 }
 
 // work round ICE on GCC 15
