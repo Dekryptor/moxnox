@@ -124,7 +124,9 @@ _aligned_free
 _beginthreadex
 __stdio_common_vsprintf
 _fseeki64
+fseeko64
 _ftelli64
+ftello64
 toupper
 __pctype_func
 _strftime_l
