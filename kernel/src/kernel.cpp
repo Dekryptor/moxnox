@@ -48,6 +48,7 @@ import handle;
 import net;
 import visit;
 import evdev;
+import kernel_time_page;
 
 using namespace std;
 
@@ -226,8 +227,11 @@ void main_thread(void* ctx) {
     free_lower_half_mappings();
     free_bootloader_memory();
 
-    if (GetTime)
+    // assume we'll always have an RTC on x86 (FIXME?)
+#ifndef __x86_64__
+    if (kernel_time_page.system_time_offset == 0 && GetTime)
         get_time_from_efi();
+#endif
 
     print("found {} of memory\n", byte_size(num_ram_pages << PAGE_SHIFT));
 

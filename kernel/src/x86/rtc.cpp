@@ -112,10 +112,6 @@ static void init_rtc(uint16_t port) {
 static void found_rtc(const acpi_device& d) {
     optional<uint16_t> port;
 
-    // ignore RTCs if EFI has provided the GetTime function
-    if (GetTime)
-        return;
-
     for (auto le = d.resources.next; le != &d.resources; le = le->next) {
         auto& r = containing_record<acpi_device_resource>(le);
 
