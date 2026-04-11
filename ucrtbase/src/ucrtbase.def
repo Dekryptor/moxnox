@@ -105,3 +105,4 @@ chmod = _chmod
 _utime = _utime64
 utime = _utime64
 setvbuf
+getenv_s = _getenv_s

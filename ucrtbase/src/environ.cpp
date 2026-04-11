@@ -1,6 +1,8 @@
 #include <string_view>
 #include <span>
 #include <stdlib.h>
+#include <string.h>
+#include <errno.h>
 
 import nt;
 import ucrtbase;
@@ -34,4 +36,40 @@ char* getenv(const char* name) {
     }
 
     return nullptr;
+}
+
+extern "C"
+errno_t _getenv_s(size_t* len, char* value, rsize_t valuesz, const char* name) {
+    if (!len) {
+        *_errno() = EINVAL;
+        return EINVAL;
+    }
+
+    if (!value && valuesz > 0) {
+        *_errno() = EINVAL;
+        return EINVAL;
+    }
+
+    if (!name) {
+        *_errno() = EINVAL;
+        return EINVAL;
+    }
+
+    auto var = getenv(name);
+    if (!var) {
+        *len = 0;
+        *_errno() = EINVAL;
+        return EINVAL;
+    }
+
+    *len = strlen(var) + 1;
+
+    if (valuesz < *len) {
+        *_errno() = ERANGE;
+        return ERANGE;
+    }
+
+    strcpy(value, var);
+
+    return 0;
 }
