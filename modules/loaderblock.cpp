@@ -91,6 +91,9 @@ struct loader_block_text_console {
 struct loader_block {
     uint64_t map_ptr;
     uint32_t num_map_entries;
+    uint64_t runtime_map_ptr;
+    uint32_t num_runtime_map_entries;
+    uint32_t runtime_map_entry_size;
     uint64_t rsdp_pa;
 #if defined(__x86_64__) || defined(_X86_)
     bool text_mode;

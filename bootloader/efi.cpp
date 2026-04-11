@@ -28,6 +28,10 @@ static const uintptr_t KERNEL_ADDR = 0xfffff80000000000;
 static array<map_entry, 256> map __attribute__((section (".data")));
 static unsigned int num_map_entries = 0;
 
+static array<uint8_t, map.size() * sizeof(EFI_MEMORY_DESCRIPTOR)> runtime_map __attribute__((section (".data")));
+static unsigned int num_runtime_map_entries = 0;
+static size_t runtime_map_entry_size;
+
 static uint64_t debug_info_ptr __attribute__((section (".data")));
 static uint64_t debug_abbrev_ptr __attribute__((section (".data")));
 static uint64_t debug_rnglists_ptr __attribute__((section (".data")));
@@ -733,12 +737,28 @@ static EFI_STATUS get_memory_map() {
         return status;
     }
 
+    runtime_map_entry_size = descriptor_size;
+
     auto ptr = (uint8_t*)memory_map;
     auto left = map_size;
+    span rm = span(runtime_map.data(), runtime_map.size());
 
     while (left >= descriptor_size) {
         auto& m = *(EFI_MEMORY_DESCRIPTOR*)ptr;
         auto& me = map[num_map_entries];
+
+        if (m.Attribute & EFI_MEMORY_RUNTIME) {
+            if (rm.size() < descriptor_size) {
+                print_string("Too many entries in runtime memory map.\n");
+                bs->FreePool(memory_map);
+                return EFI_INVALID_PARAMETER;
+            }
+
+            memcpy(rm.data(), &m, descriptor_size);
+
+            num_runtime_map_entries++;
+            rm = span(rm.data() + descriptor_size, rm.size() - descriptor_size);
+        }
 
         if (num_map_entries == sizeof(map) / sizeof(map[0])) {
             print_string("Too many entries in memory map.\n");
@@ -1741,6 +1761,9 @@ static EFI_STATUS finish_setting_up(EFI_HANDLE image_handle, uint64_t rsdp_pa) {
 
     lb.map_ptr = (uintptr_t)map.data();
     lb.num_map_entries = num_map_entries;
+    lb.runtime_map_ptr = (uintptr_t)runtime_map.data();
+    lb.num_runtime_map_entries = num_runtime_map_entries;
+    lb.runtime_map_entry_size = (uint32_t)runtime_map_entry_size;
     lb.rsdp_pa = rsdp_pa;
 #ifdef __x86_64__
     lb.text_mode = false;
