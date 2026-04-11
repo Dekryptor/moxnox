@@ -118,6 +118,7 @@ void _register_thread_local_exe_atexit_callback(_tls_callback_type callback);
 void* _aligned_malloc(size_t size, size_t alignment);
 void _aligned_free(void* ptr);
 __sighandler_t signal(int sig, __sighandler_t func);
+int setvbuf(FILE* stream, char* buffer, int mode, size_t size);
 
 }
 

@@ -698,3 +698,10 @@ int __stdio_common_vsprintf(uint64_t /*options*/, char* str, size_t len,
 
     return __mingw_vsnprintf(str, len, format, valist);
 }
+
+extern "C"
+int setvbuf(FILE* stream, char* buffer, int mode, size_t size) {
+    print_stderr("FIXME - setvbuf\n");
+
+    return 0;
+}

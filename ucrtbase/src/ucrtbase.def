@@ -104,3 +104,4 @@ __stdio_common_vsprintf
 chmod = _chmod
 _utime = _utime64
 utime = _utime64
+setvbuf
