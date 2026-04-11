@@ -1943,6 +1943,7 @@ sdhci_slot::sdhci_slot(sdhci_device& d, volatile sdhci_regs& regs) : d(d), regs(
 
     norintstsen.card_insertion = 1;
     norintstsen.card_removal = 1;
+    norintstsen.error_interrupt = 1;
 
     regs.norintstsen.value = norintstsen.value;
 
@@ -1954,6 +1955,7 @@ sdhci_slot::sdhci_slot(sdhci_device& d, volatile sdhci_regs& regs) : d(d), regs(
     norintsigen.transfer_complete = 1;
     norintsigen.dma_interrupt = 1;
     norintsigen.buffer_read_ready = 1;
+    norintsigen.error_interrupt = 1;
 
     regs.norintsigen.value = norintsigen.value;
 
