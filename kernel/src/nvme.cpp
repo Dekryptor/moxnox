@@ -764,6 +764,9 @@ bool nvme_controller::isr() {
     if (admin_queue.isr())
         return true;
 
+    if (!controller_info)
+        return false;
+
     return io_queue.isr();
 }
 
