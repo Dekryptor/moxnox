@@ -1504,6 +1504,12 @@ bool init_fb_console() {
         return false;
     }
 
+    // ignore EDID if it has an invalid manufacturer ID
+    if (have_edid && edid[8] == 0 && edid[9] == 0) {
+        print("ignoring EDID with manufacturer ID of 0\n");
+        have_edid = false;
+    }
+
     if (have_edid && edid[21] != 0) {
         uint8_t screen_x_cm = edid[21];
 
