@@ -211,10 +211,10 @@ void main_thread(void* ctx) {
         bsod("init_console failed\n");
 #endif
 
-    _printk = safe_print;
-
     if ((console_type == console_type::boot_framebuffer || console_type == console_type::other_framebuffer) && !init_fb_console())
         print("init_fb_console failed\n");
+
+    _printk = safe_print;
 
     if (lb.SetVirtualAddressMap) {
         if (!map_uefi(lb))
