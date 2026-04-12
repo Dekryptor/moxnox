@@ -132,6 +132,7 @@ if(CMAKE_SYSTEM_PROCESSOR STREQUAL aarch64)
     set(SRC_ASM_FILES src/aarch64/ints.S
         src/aarch64/timer.S
         src/aarch64/smp.S
+        src/aarch64/framebuffer.S
         ${CMAKE_CURRENT_BINARY_DIR}/font.S)
 
     add_executable(kernel ${AARCH64_SRC_FILES} ${SRC_ASM_FILES})
