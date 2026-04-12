@@ -44,7 +44,7 @@ lconv* _localeconv() {
 }
 
 extern "C"
-int wctob(wint_t wchar) {
+int _wctob(wint_t wchar) {
     if (wchar < 0xff)
         return (signed char)wchar;
     else
@@ -52,7 +52,7 @@ int wctob(wint_t wchar) {
 }
 
 extern "C"
-wint_t btowc(int c) {
+wint_t _btowc(int c) {
     if (c == EOF)
         return WEOF;
 

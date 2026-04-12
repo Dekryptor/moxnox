@@ -92,8 +92,8 @@ fdopen = _fdopen
 read = _read
 strdup = _strdup
 _strdup
-wctob
-btowc
+wctob = _wctob
+btowc = _btowc
 wctype
 _register_thread_local_exe_atexit_callback
 __stdio_common_vfprintf
