@@ -985,6 +985,8 @@ static nt_status last_error_to_nt_status(sdhci_errint err,
 }
 
 nt_status sdhci_slot::send_command(enum sd_cmd cmd, uint32_t arg) {
+    static const uint64_t COMMAND_TIMEOUT = 100; // ms
+
     reset_event(static_cast<event&>(command_complete_event.get()));
     regs.norintstsen.command_complete = 1;
 
@@ -1112,9 +1114,15 @@ nt_status sdhci_slot::send_command(enum sd_cmd cmd, uint32_t arg) {
     regs.argument = arg;
     regs.cmdreg = cmdreg.value;
 
-    wait_for_object(command_complete_event.get(), false); // FIXME - timeout (still clear norintstsen flag)
+    auto status = wait_for_object(command_complete_event.get(), false,
+                                  COMMAND_TIMEOUT * SYSTEM_TIME_RESOLUTION / 1000);
 
     regs.norintstsen.command_complete = 0;
+
+    if (!success(status))
+        return status;
+    else if (status == nt_status::TIMEOUT)
+        return nt_status::IO_TIMEOUT;
 
     if (last_error.value != 0)
         return last_error_to_nt_status(last_error, acmd12errsts);
