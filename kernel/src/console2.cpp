@@ -1515,7 +1515,7 @@ bool init_fb_console() {
 
         fb_dpi = (fb_width * 254) / ((uint16_t)screen_x_cm * 100);
     } else
-        fb_dpi = 72;
+        fb_dpi = 96;
 
     error = FT_New_Memory_Face(ft, (uint8_t*)&console_font_data, (FT_Long)console_font_size,
                                0, &face.face);
