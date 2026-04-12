@@ -94,7 +94,7 @@ strdup = _strdup
 _strdup
 wctob = _wctob
 btowc = _btowc
-wctype
+wctype = __wctype
 _register_thread_local_exe_atexit_callback
 __stdio_common_vfprintf
 _aligned_malloc = __aligned_malloc

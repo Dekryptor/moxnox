@@ -60,7 +60,7 @@ wint_t _btowc(int c) {
 }
 
 extern "C"
-wctype_t wctype(const char* prop) {
+wctype_t __wctype(const char* prop) {
     auto sv = string_view(prop);
 
     if (sv == "alnum")
