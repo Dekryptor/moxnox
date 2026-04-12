@@ -700,8 +700,8 @@ int __stdio_common_vsprintf(uint64_t /*options*/, char* str, size_t len,
 }
 
 extern "C"
-int setvbuf(FILE* stream, char* buffer, int mode, size_t size) {
-    print_stderr("FIXME - setvbuf\n");
+int setvbuf(FILE* /*stream*/, char* /*buffer*/, int /*mode*/, size_t /*size*/) {
+    // FIXME - change buffering mode of stream?
 
     return 0;
 }
