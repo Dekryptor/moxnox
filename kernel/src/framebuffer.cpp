@@ -8,6 +8,13 @@ export module framebuffer;
 
 using namespace std;
 
+export enum class fb_transform {
+    normal,
+    flipped,
+};
+
+export fb_transform fb_transform = fb_transform::normal;
+
 export span<uint32_t> framebuffer, shadow_framebuffer;
 export uint32_t fb_width, fb_height, fb_pixels_per_scan_line, fb_dpi;
 export uint32_t shadow_fb_pixels_per_scan_line;

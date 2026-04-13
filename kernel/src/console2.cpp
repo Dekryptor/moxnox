@@ -1278,18 +1278,29 @@ bool init_console(const loader_block_framebuffer& fb,
 bool init_console(const loader_block_framebuffer& fb)
 #endif
 {
-    string_view console_opt;
+    string_view console_opt, transform_opt;
 
     loop_through_cmdline([&](string_view s) {
-        static const string_view prefix = "console=";
+        static const string_view console_prefix = "console=";
+        static const string_view transform_prefix = "transform=";
 
-        if (s.size() >= prefix.size() && string_view(s.data(), prefix.size()) == prefix) {
-            console_opt = string_view(s.data() + prefix.size(), s.size() - prefix.size());
-            return false;
-        }
+        if (s.size() >= console_prefix.size() && string_view(s.data(), console_prefix.size()) == console_prefix)
+            console_opt = string_view(s.data() + console_prefix.size(), s.size() - console_prefix.size());
+
+        if (s.size() >= transform_prefix.size() && string_view(s.data(), transform_prefix.size()) == transform_prefix)
+            transform_opt = string_view(s.data() + transform_prefix.size(), s.size() - transform_prefix.size());
 
         return true;
     });
+
+    if (!transform_opt.empty()) {
+        if (transform_opt == "normal")
+            fb_transform = fb_transform::normal;
+        else if (transform_opt == "flipped")
+            fb_transform = fb_transform::flipped;
+        else
+            print("unrecognized transform option \"{}\"\n", transform_opt);
+    }
 
     if (!console_opt.empty()) {
         static const char prefix[] = "/dev/";

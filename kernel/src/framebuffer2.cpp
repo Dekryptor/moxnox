@@ -114,8 +114,13 @@ NTSTATUS framebuffer_cache<BOOT>::flush_cache(uint64_t page_num, uint64_t num_pa
         auto draw_x_end = (uint16_t)min((int16_t)fb_width, (int16_t)(cursor_left + cursor_width));
 
         for (uint16_t y = min_y; y <= max_y; y++) {
-            auto fb_line = &framebuffer[y * fb_pixels_per_scan_line];
+            uint32_t* fb_line;
             auto shadow_line = &shadow_framebuffer[y * shadow_fb_pixels_per_scan_line];
+
+            if (fb_transform == fb_transform::flipped)
+                fb_line = &framebuffer[(fb_height - y) * fb_pixels_per_scan_line];
+            else
+                fb_line = &framebuffer[y * fb_pixels_per_scan_line];
 
             if (y >= cursor_top && y < cursor_bottom && !in_bsod) {
                 auto cursor_line = &cursor_buffer[((int16_t)y - cursor_top) * cursor_width];
