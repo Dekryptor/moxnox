@@ -16,8 +16,12 @@ export enum class fb_transform {
 
 export fb_transform fb_transform = fb_transform::normal;
 
+extern "C" {
+    export uint32_t fb_pixels_per_scan_line;
+}
+
 export span<uint32_t> framebuffer, shadow_framebuffer;
-export uint32_t fb_width, fb_height, fb_pixels_per_scan_line, fb_dpi;
+export uint32_t fb_width, fb_height, fb_dpi;
 export uint32_t shadow_fb_pixels_per_scan_line;
 export void (*flush_framebuffer)(unsigned int x, unsigned int y,
                                  unsigned int width, unsigned int height);
@@ -30,6 +34,14 @@ using copy_scanline_func = void (*)(void*, const void*, size_t);
 export copy_scanline_func copy_scanline = [](void* dst, const void* src, size_t n) {
     memcpy(dst, src, n);
 };
+
+using copy_scanline_mirrored_func = void (*)(uint32_t*, const uint32_t*,
+                                             uint64_t, uint64_t);
+
+export void copy_scanline_mirrored_slow(uint32_t* dst, const uint32_t* src,
+                                        uint64_t x, uint64_t length);
+
+export copy_scanline_mirrored_func copy_scanline_mirrored = copy_scanline_mirrored_slow;
 
 export size_t copy_scanline_granularity = sizeof(uint32_t);
 

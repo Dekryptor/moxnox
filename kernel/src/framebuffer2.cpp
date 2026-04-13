@@ -90,9 +90,9 @@ nt_status framebuffer_cache<BOOT>::read_into_cache(uint64_t page_num, uint64_t n
     return nt_status::SUCCESS;
 }
 
-static void copy_scanline_mirrored(uint32_t* dst, const uint32_t* src,
-                                   unsigned int x, unsigned int length) {
-    for (unsigned int i = x; i < x + length; i++) {
+void copy_scanline_mirrored_slow(uint32_t* dst, const uint32_t* src,
+                                 uint64_t x, uint64_t length) {
+    for (uint64_t i = x; i < x + length; i++) {
         dst[fb_pixels_per_scan_line - i - 1] = src[i];
     }
 }
