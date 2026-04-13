@@ -90,6 +90,12 @@ nt_status framebuffer_cache<BOOT>::read_into_cache(uint64_t page_num, uint64_t n
     return nt_status::SUCCESS;
 }
 
+static void copy_scanline_mirrored(uint32_t* dst, const uint32_t* src) {
+    for (unsigned int i = 0; i < fb_pixels_per_scan_line; i++) {
+        dst[fb_pixels_per_scan_line - i] = src[i];
+    }
+}
+
 template<bool BOOT>
 NTSTATUS framebuffer_cache<BOOT>::flush_cache(uint64_t page_num, uint64_t num_pages) {
     auto start = page_num << PAGE_SHIFT;
@@ -171,8 +177,12 @@ NTSTATUS framebuffer_cache<BOOT>::flush_cache(uint64_t page_num, uint64_t num_pa
 
                 memcpy(fb_line + draw_x_end, shadow_line + draw_x_end,
                        (fast_pixels_end - draw_x_end) * sizeof(uint32_t));
-            } else
-                copy_scanline(fb_line, shadow_line, fb_pixels_per_scan_line * sizeof(uint32_t));
+            } else {
+                if (fb_transform == fb_transform::mirrored)
+                    copy_scanline_mirrored(fb_line, shadow_line);
+                else
+                    copy_scanline(fb_line, shadow_line, fb_pixels_per_scan_line * sizeof(uint32_t));
+            }
         }
     } else {
         auto y1 = (unsigned int)(((page_num << PAGE_SHIFT) / sizeof(uint32_t)) / fb_width);

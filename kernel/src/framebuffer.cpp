@@ -11,6 +11,7 @@ using namespace std;
 export enum class fb_transform {
     normal,
     flipped,
+    mirrored,
 };
 
 export fb_transform fb_transform = fb_transform::normal;
