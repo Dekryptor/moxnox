@@ -90,10 +90,136 @@ nt_status framebuffer_cache<BOOT>::read_into_cache(uint64_t page_num, uint64_t n
     return nt_status::SUCCESS;
 }
 
-static void copy_scanline_mirrored(uint32_t* dst, const uint32_t* src) {
-    for (unsigned int i = 0; i < fb_pixels_per_scan_line; i++) {
-        dst[fb_pixels_per_scan_line - i] = src[i];
+static void copy_scanline_mirrored(uint32_t* dst, const uint32_t* src,
+                                   unsigned int x, unsigned int length) {
+    for (unsigned int i = x; i < x + length; i++) {
+        dst[fb_pixels_per_scan_line - i - 1] = src[i];
     }
+}
+
+static void flush_scanline(uint16_t y, uint32_t* fb_line) {
+    auto cursor_top = (int16_t)((int16_t)cursor_y - (int16_t)cursor_hotspot_y);
+    auto cursor_bottom = (int16_t)(cursor_top + cursor_height);
+    auto cursor_left = (int16_t)((int16_t)cursor_x - (int16_t)cursor_hotspot_x);
+    auto draw_x_start = (uint16_t)max((int16_t)0, cursor_left);
+    auto draw_x_end = (uint16_t)min((int16_t)fb_width, (int16_t)(cursor_left + cursor_width));
+
+    auto shadow_line = &shadow_framebuffer[y * shadow_fb_pixels_per_scan_line];
+
+    if (y >= cursor_top && y < cursor_bottom && !in_bsod) {
+        auto cursor_line = &cursor_buffer[((int16_t)y - cursor_top) * cursor_width];
+
+        size_t scanline_x_granularity = copy_scanline_granularity / sizeof(uint32_t);
+
+        size_t fast_pixels_start = (draw_x_start / scanline_x_granularity) * scanline_x_granularity;
+
+        if (fast_pixels_start > 0)
+            copy_scanline(fb_line, shadow_line, fast_pixels_start * sizeof(uint32_t));
+
+        memcpy(fb_line + fast_pixels_start, shadow_line + fast_pixels_start,
+                (draw_x_start - fast_pixels_start) * sizeof(uint32_t));
+
+        for (uint16_t x = draw_x_start; x < draw_x_end; x++) {
+            auto& fb_pixel = fb_line[x];
+            auto& shadow_pixel = shadow_line[x];
+            auto& cursor_pixel = cursor_line[(int16_t)x - cursor_left];
+            auto alpha = (uint8_t)(cursor_pixel >> 24);
+
+            if (alpha == 0)
+                fb_pixel = shadow_pixel;
+            else if (alpha == 255)
+                fb_pixel = cursor_pixel;
+            else {
+                uint8_t cursor_r = (uint8_t)(cursor_pixel >> 16);
+                uint8_t cursor_g = (uint8_t)(cursor_pixel >> 8);
+                uint8_t cursor_b = (uint8_t)cursor_pixel;
+                uint8_t shadow_r = (uint8_t)(shadow_pixel >> 16);
+                uint8_t shadow_g = (uint8_t)(shadow_pixel >> 8);
+                uint8_t shadow_b = (uint8_t)shadow_pixel;
+
+                auto fb_r = (uint8_t)(cursor_r + (((255 - alpha) * shadow_r) / 255));
+                auto fb_g = (uint8_t)(cursor_g + (((255 - alpha) * shadow_g) / 255));
+                auto fb_b = (uint8_t)(cursor_b + (((255 - alpha) * shadow_b) / 255));
+
+                fb_pixel = (uint32_t)(fb_r << 16) | (uint32_t)(fb_g << 8) | (uint32_t)fb_b;
+            }
+        }
+
+        size_t fast_pixels_end = ((draw_x_end + scanline_x_granularity) / scanline_x_granularity) * scanline_x_granularity;
+
+        if (fast_pixels_end < fb_pixels_per_scan_line) {
+            copy_scanline(fb_line + fast_pixels_end,
+                            shadow_line + fast_pixels_end,
+                            (fb_pixels_per_scan_line - fast_pixels_end) * sizeof(uint32_t));
+        }
+
+        memcpy(fb_line + draw_x_end, shadow_line + draw_x_end,
+               (fast_pixels_end - draw_x_end) * sizeof(uint32_t));
+    } else
+        copy_scanline(fb_line, shadow_line, fb_pixels_per_scan_line * sizeof(uint32_t));
+}
+
+static void flush_scanline_mirrored(uint16_t y, uint32_t* fb_line) {
+    auto cursor_top = (int16_t)((int16_t)cursor_y - (int16_t)cursor_hotspot_y);
+    auto cursor_bottom = (int16_t)(cursor_top + cursor_height);
+    auto cursor_left = (int16_t)((int16_t)cursor_x - (int16_t)cursor_hotspot_x);
+    auto draw_x_start = (uint16_t)max((int16_t)0, cursor_left);
+    auto draw_x_end = (uint16_t)min((int16_t)fb_width, (int16_t)(cursor_left + cursor_width));
+
+    auto shadow_line = &shadow_framebuffer[y * shadow_fb_pixels_per_scan_line];
+
+    if (y >= cursor_top && y < cursor_bottom && !in_bsod) {
+        auto cursor_line = &cursor_buffer[((int16_t)y - cursor_top) * cursor_width];
+
+        size_t scanline_x_granularity = copy_scanline_granularity / sizeof(uint32_t);
+
+        size_t fast_pixels_start = (draw_x_start / scanline_x_granularity) * scanline_x_granularity;
+
+        if (fast_pixels_start > 0)
+            copy_scanline_mirrored(fb_line, shadow_line, 0, (unsigned int)fast_pixels_start);
+
+        for (unsigned int x = (unsigned int)fast_pixels_start; x < draw_x_start; x++) {
+            fb_line[fb_pixels_per_scan_line - x - 1] = shadow_line[x];
+        }
+
+        for (uint16_t x = draw_x_start; x < draw_x_end; x++) {
+            auto& fb_pixel = fb_line[fb_pixels_per_scan_line - x - 1];
+            auto& shadow_pixel = shadow_line[x];
+            auto& cursor_pixel = cursor_line[(int16_t)x - cursor_left];
+            auto alpha = (uint8_t)(cursor_pixel >> 24);
+
+            if (alpha == 0)
+                fb_pixel = shadow_pixel;
+            else if (alpha == 255)
+                fb_pixel = cursor_pixel;
+            else {
+                uint8_t cursor_r = (uint8_t)(cursor_pixel >> 16);
+                uint8_t cursor_g = (uint8_t)(cursor_pixel >> 8);
+                uint8_t cursor_b = (uint8_t)cursor_pixel;
+                uint8_t shadow_r = (uint8_t)(shadow_pixel >> 16);
+                uint8_t shadow_g = (uint8_t)(shadow_pixel >> 8);
+                uint8_t shadow_b = (uint8_t)shadow_pixel;
+
+                auto fb_r = (uint8_t)(cursor_r + (((255 - alpha) * shadow_r) / 255));
+                auto fb_g = (uint8_t)(cursor_g + (((255 - alpha) * shadow_g) / 255));
+                auto fb_b = (uint8_t)(cursor_b + (((255 - alpha) * shadow_b) / 255));
+
+                fb_pixel = (uint32_t)(fb_r << 16) | (uint32_t)(fb_g << 8) | (uint32_t)fb_b;
+            }
+        }
+
+        size_t fast_pixels_end = ((draw_x_end + scanline_x_granularity) / scanline_x_granularity) * scanline_x_granularity;
+
+        if (fast_pixels_end < fb_pixels_per_scan_line) {
+            copy_scanline_mirrored(fb_line, shadow_line, (unsigned int)fast_pixels_end,
+                                   (unsigned int)(fb_pixels_per_scan_line - fast_pixels_end));
+        }
+
+        for (unsigned int x = draw_x_end; x < fast_pixels_end; x++) {
+            fb_line[fb_pixels_per_scan_line - x - 1] = shadow_line[x];
+        }
+    } else
+        copy_scanline_mirrored(fb_line, shadow_line, 0, fb_pixels_per_scan_line);
 }
 
 template<bool BOOT>
@@ -113,76 +239,19 @@ NTSTATUS framebuffer_cache<BOOT>::flush_cache(uint64_t page_num, uint64_t num_pa
 
         auto min_y = (uint16_t)((page_num << PAGE_SHIFT) / (shadow_fb_pixels_per_scan_line * sizeof(uint32_t)));
         auto max_y = min((uint16_t)(((page_num + num_pages + 1) << PAGE_SHIFT) / (shadow_fb_pixels_per_scan_line * sizeof(uint32_t))), (uint16_t)(fb_height - 1));
-        auto cursor_top = (int16_t)((int16_t)cursor_y - (int16_t)cursor_hotspot_y);
-        auto cursor_bottom = (int16_t)(cursor_top + cursor_height);
-        auto cursor_left = (int16_t)((int16_t)cursor_x - (int16_t)cursor_hotspot_x);
-        auto draw_x_start = (uint16_t)max((int16_t)0, cursor_left);
-        auto draw_x_end = (uint16_t)min((int16_t)fb_width, (int16_t)(cursor_left + cursor_width));
 
         for (uint16_t y = min_y; y <= max_y; y++) {
             uint32_t* fb_line;
-            auto shadow_line = &shadow_framebuffer[y * shadow_fb_pixels_per_scan_line];
 
             if (fb_transform == fb_transform::flipped)
                 fb_line = &framebuffer[(fb_height - y) * fb_pixels_per_scan_line];
             else
                 fb_line = &framebuffer[y * fb_pixels_per_scan_line];
 
-            if (y >= cursor_top && y < cursor_bottom && !in_bsod) {
-                auto cursor_line = &cursor_buffer[((int16_t)y - cursor_top) * cursor_width];
-
-                size_t scanline_x_granularity = copy_scanline_granularity / sizeof(uint32_t);
-
-                size_t fast_pixels_start = (draw_x_start / scanline_x_granularity) * scanline_x_granularity;
-
-                if (fast_pixels_start > 0)
-                    copy_scanline(fb_line, shadow_line, fast_pixels_start * sizeof(uint32_t));
-
-                memcpy(fb_line + fast_pixels_start, shadow_line + fast_pixels_start,
-                       (draw_x_start - fast_pixels_start) * sizeof(uint32_t));
-
-                for (uint16_t x = draw_x_start; x < draw_x_end; x++) {
-                    auto& fb_pixel = fb_line[x];
-                    auto& shadow_pixel = shadow_line[x];
-                    auto& cursor_pixel = cursor_line[(int16_t)x - cursor_left];
-                    auto alpha = (uint8_t)(cursor_pixel >> 24);
-
-                    if (alpha == 0)
-                        fb_pixel = shadow_pixel;
-                    else if (alpha == 255)
-                        fb_pixel = cursor_pixel;
-                    else {
-                        uint8_t cursor_r = (uint8_t)(cursor_pixel >> 16);
-                        uint8_t cursor_g = (uint8_t)(cursor_pixel >> 8);
-                        uint8_t cursor_b = (uint8_t)cursor_pixel;
-                        uint8_t shadow_r = (uint8_t)(shadow_pixel >> 16);
-                        uint8_t shadow_g = (uint8_t)(shadow_pixel >> 8);
-                        uint8_t shadow_b = (uint8_t)shadow_pixel;
-
-                        auto fb_r = (uint8_t)(cursor_r + (((255 - alpha) * shadow_r) / 255));
-                        auto fb_g = (uint8_t)(cursor_g + (((255 - alpha) * shadow_g) / 255));
-                        auto fb_b = (uint8_t)(cursor_b + (((255 - alpha) * shadow_b) / 255));
-
-                        fb_pixel = (uint32_t)(fb_r << 16) | (uint32_t)(fb_g << 8) | (uint32_t)fb_b;
-                    }
-                }
-
-                size_t fast_pixels_end = ((draw_x_end + scanline_x_granularity) / scanline_x_granularity) * scanline_x_granularity;
-
-                if (fast_pixels_end < fb_pixels_per_scan_line) {
-                    copy_scanline(fb_line + fast_pixels_end,
-                                  shadow_line + fast_pixels_end,
-                                  (fb_pixels_per_scan_line - fast_pixels_end) * sizeof(uint32_t));
-                }
-
-                memcpy(fb_line + draw_x_end, shadow_line + draw_x_end,
-                       (fast_pixels_end - draw_x_end) * sizeof(uint32_t));
-            } else {
-                if (fb_transform == fb_transform::mirrored)
-                    copy_scanline_mirrored(fb_line, shadow_line);
-                else
-                    copy_scanline(fb_line, shadow_line, fb_pixels_per_scan_line * sizeof(uint32_t));
-            }
+            if (fb_transform == fb_transform::mirrored)
+                flush_scanline_mirrored(y, fb_line);
+            else
+                flush_scanline(y, fb_line);
         }
     } else {
         auto y1 = (unsigned int)(((page_num << PAGE_SHIFT) / sizeof(uint32_t)) / fb_width);
