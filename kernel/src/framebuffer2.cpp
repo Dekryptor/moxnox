@@ -243,12 +243,12 @@ NTSTATUS framebuffer_cache<BOOT>::flush_cache(uint64_t page_num, uint64_t num_pa
         for (uint16_t y = min_y; y <= max_y; y++) {
             uint32_t* fb_line;
 
-            if (fb_transform == fb_transform::flipped)
+            if (fb_transform == fb_transform::flipped || fb_transform == fb_transform::rotated180)
                 fb_line = &framebuffer[(fb_height - y) * fb_pixels_per_scan_line];
             else
                 fb_line = &framebuffer[y * fb_pixels_per_scan_line];
 
-            if (fb_transform == fb_transform::mirrored)
+            if (fb_transform == fb_transform::mirrored || fb_transform == fb_transform::rotated180)
                 flush_scanline_mirrored(y, fb_line);
             else
                 flush_scanline(y, fb_line);

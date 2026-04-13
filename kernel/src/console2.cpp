@@ -1306,6 +1306,8 @@ bool init_console(const loader_block_framebuffer& fb)
             fb_transform = fb_transform::flipped;
         else if (transform_opt == "mirrored")
             fb_transform = fb_transform::mirrored;
+        else if (transform_opt == "rotated180")
+            fb_transform = fb_transform::rotated180;
         else
             print("unrecognized transform option \"{}\"\n", transform_opt);
     }
