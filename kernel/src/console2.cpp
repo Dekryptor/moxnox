@@ -94,6 +94,8 @@ extern "C" void copy_scanline_mirrored_avx2(uint32_t* dst, const uint32_t* src,
 #elifdef __aarch64__
 // aarch64/framebuffer.S
 extern "C" void copy_scanline_neon(void* dst, const void* src, size_t n);
+extern "C" void copy_scanline_mirrored_neon(uint32_t* dst, const uint32_t* src,
+                                            uint64_t x, uint64_t length);
 #endif
 
 struct glyph_info {
@@ -1438,6 +1440,7 @@ bool init_console(const loader_block_framebuffer& fb)
 #elifdef __aarch64__
             if (fb_pixels_per_scan_line % (16 / sizeof(uint32_t)) == 0) {
                 copy_scanline = copy_scanline_neon;
+                copy_scanline_mirrored = copy_scanline_mirrored_neon;
                 copy_scanline_granularity = 16;
             } else
                 print("warning: framebuffer will be slow as fb_pixels_per_scan_line is {}, not a multiple of 4\n", fb_pixels_per_scan_line);

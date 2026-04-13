@@ -47,10 +47,32 @@
 .short DW_LANG_Mips_Assembler // language
 
 dwarf_func_asm copy_scanline_neon
+dwarf_func_asm copy_scanline_mirrored_neon
 
 .uleb128 0
 
 .debug_info_end:
+
+.section ".rdata", "r"
+
+.p2align 4
+mirrored_neon_permute:
+.byte 12
+.byte 13
+.byte 14
+.byte 15
+.byte 8
+.byte 9
+.byte 10
+.byte 11
+.byte 4
+.byte 5
+.byte 6
+.byte 7
+.byte 0
+.byte 1
+.byte 2
+.byte 3
 
 .text
 
@@ -95,5 +117,36 @@ copy_scanline_neon:
 .Lend_avx512:
     ret
 copy_scanline_neon_end:
+
+# void copy_scanline_mirrored_neon(uint32_t* dst, const uint32_t* src,
+#                                  uint64_t x, uint64_t length);
+# x0 = dst, x1 = src, x2 = x, x3 = length
+# x4 = source pointer, x5 = destination pointer
+.global copy_scanline_mirrored_neon
+copy_scanline_mirrored_neon:
+    add x4, x1, x2, lsl 2
+
+    adrp x5, fb_pixels_per_scan_line
+    ldr w5, [x5, #:lo12:fb_pixels_per_scan_line]
+    sub x5, x5, x2
+    sub x5, x5, 4
+    add x5, x0, x5, lsl 2
+
+    adrp x6, mirrored_neon_permute
+    ldr q17, [x6, #:lo12:mirrored_neon_permute]
+
+0:
+    ldr q16, [x4]
+    tbl v16.16b, {v16.16b}, v17.16b
+    str q16, [x5]
+
+    sub x5, x5, 16
+    add x4, x4, 16
+    sub x3, x3, 4
+    cmp x3, 4
+    b.ge 0b
+
+    ret
+copy_scanline_mirrored_neon_end:
 
 .text_end:
