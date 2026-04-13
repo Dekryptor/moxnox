@@ -50,6 +50,7 @@
 
 dwarf_func_asm copy_scanline_avx512
 dwarf_func_asm copy_scanline_avx2
+dwarf_func_asm copy_scanline_mirrored_avx512
 dwarf_func_asm copy_scanline_mirrored_avx2
 
 .uleb128 0
@@ -60,6 +61,25 @@ dwarf_func_asm copy_scanline_mirrored_avx2
 
 .p2align 5
 mirrored_avx2_permute:
+.long 7
+.long 6
+.long 5
+.long 4
+.long 3
+.long 2
+.long 1
+.long 0
+
+.p2align 6
+mirrored_avx512_permute:
+.long 15
+.long 14
+.long 13
+.long 12
+.long 11
+.long 10
+.long 9
+.long 8
 .long 7
 .long 6
 .long 5
@@ -172,6 +192,36 @@ copy_scanline_avx2:
 
     ret
 copy_scanline_avx2_end:
+
+# void copy_scanline_mirrored_avx512(uint32_t* dst, const uint32_t* src,
+#                                    uint64_t x, uint64_t length);
+# rcx = dst, rdx = src, r8 = x, r9 = length
+# rax = source pointer, r10 = destination pointer
+.global copy_scanline_mirrored_avx512
+copy_scanline_mirrored_avx512:
+    lea rax, [rdx+(r8*4)]
+
+    mov r10d, DWORD PTR [rip+fb_pixels_per_scan_line]
+    sub r10, r8
+    sub r10, 16
+    lea r10, [rcx+(r10*4)]
+
+    vmovdqa64 zmm1, [rip+mirrored_avx512_permute]
+
+0:
+    vmovdqa64 zmm0, [rax]
+    vpermd zmm0, zmm1, zmm0
+    vmovntdq [r10], zmm0
+
+    sub r10, 64
+    add rax, 64
+    sub r9, 16
+    cmp r9, 16
+    jae 0b
+
+    sfence
+    ret
+copy_scanline_mirrored_avx512_end:
 
 # void copy_scanline_mirrored_avx2(uint32_t* dst, const uint32_t* src,
 #                                  uint64_t x, uint64_t length);

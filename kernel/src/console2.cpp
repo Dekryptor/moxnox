@@ -87,6 +87,8 @@ extern "C" uint64_t console_font_size;
 // x86/framebuffer.S
 extern "C" void copy_scanline_avx512(void* dst, const void* src, size_t n);
 extern "C" void copy_scanline_avx2(void* dst, const void* src, size_t n);
+extern "C" void copy_scanline_mirrored_avx512(uint32_t* dst, const uint32_t* src,
+                                              uint64_t x, uint64_t length);
 extern "C" void copy_scanline_mirrored_avx2(uint32_t* dst, const uint32_t* src,
                                             uint64_t x, uint64_t length);
 #elifdef __aarch64__
@@ -1425,7 +1427,7 @@ bool init_console(const loader_block_framebuffer& fb)
 #ifdef __x86_64__
             if (avx512_supported && (fb_pixels_per_scan_line % (64 / sizeof(uint32_t)) == 0)) {
                 copy_scanline = copy_scanline_avx512;
-                copy_scanline_mirrored = copy_scanline_mirrored_avx2; // FIXME
+                copy_scanline_mirrored = copy_scanline_mirrored_avx512;
                 copy_scanline_granularity = 64;
             } else if (fb_pixels_per_scan_line % (32 / sizeof(uint32_t)) == 0) {
                 copy_scanline = copy_scanline_avx2;
