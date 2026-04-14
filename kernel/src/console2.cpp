@@ -1416,7 +1416,10 @@ bool init_console(const loader_block_framebuffer& fb)
 
                 shadow_fb_height_alloc = shadow_fb_height;
 #ifdef __x86_64__
-                shadow_fb_height_alloc += 8;
+                if (avx512_supported)
+                    shadow_fb_height_alloc += 16;
+                else
+                    shadow_fb_height_alloc += 8;
 #endif
             } else {
                 shadow_fb_width = fb_width;
@@ -1451,7 +1454,7 @@ bool init_console(const loader_block_framebuffer& fb)
                 copy_scanline_mirrored = copy_scanline_mirrored_avx512;
                 copy_scanline_granularity = 64;
 
-                flush_scanlines_rotated90 = flush_scanlines_rotated90_avx2; // FIXME
+                flush_scanlines_rotated90 = flush_scanlines_rotated90_avx512;
             } else if (fb_pixels_per_scan_line % (32 / sizeof(uint32_t)) == 0) {
                 copy_scanline = copy_scanline_avx2;
                 copy_scanline_mirrored = copy_scanline_mirrored_avx2;
