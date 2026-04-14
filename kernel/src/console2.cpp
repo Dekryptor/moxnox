@@ -1457,12 +1457,14 @@ bool init_console(const loader_block_framebuffer& fb)
                 copy_scanline_granularity = 64;
 
                 flush_scanlines_rotated90 = flush_scanlines_rotated90_avx512;
+                flush_scanlines_rotated270 = flush_scanlines_rotated270_avx2; // FIXME
             } else if (fb_pixels_per_scan_line % (32 / sizeof(uint32_t)) == 0) {
                 copy_scanline = copy_scanline_avx2;
                 copy_scanline_mirrored = copy_scanline_mirrored_avx2;
                 copy_scanline_granularity = 32;
 
                 flush_scanlines_rotated90 = flush_scanlines_rotated90_avx2;
+                flush_scanlines_rotated270 = flush_scanlines_rotated270_avx2;
             } else
                 print("warning: framebuffer will be slow as fb_pixels_per_scan_line is {}, not a multiple of 8\n", fb_pixels_per_scan_line);
 #elifdef __aarch64__

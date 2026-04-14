@@ -249,7 +249,7 @@ void flush_scanlines_rotated90_slow(uint32_t min_y, uint32_t max_y) {
     }
 }
 
-static void flush_scanlines_rotated270_slow(uint32_t min_y, uint32_t max_y) {
+void flush_scanlines_rotated270_slow(uint32_t min_y, uint32_t max_y) {
     static const size_t BLOCK = 16;
 
     min_y &= (uint32_t)~(BLOCK - 1);
@@ -297,7 +297,7 @@ NTSTATUS framebuffer_cache<BOOT>::flush_cache(uint64_t page_num, uint64_t num_pa
         if (fb_transform == fb_transform::rotated90)
             flush_scanlines_rotated90(min_y, max_y);
         else if (fb_transform == fb_transform::rotated270)
-            flush_scanlines_rotated270_slow(min_y, max_y);
+            flush_scanlines_rotated270(min_y, max_y);
         else {
             for (uint16_t y = min_y; y <= max_y; y++) {
                 uint32_t* fb_line;
