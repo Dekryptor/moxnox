@@ -8,7 +8,8 @@ module framebuffer;
 
 using namespace std;
 
-static void transpose_16x16_avx512(__m512i* rows_out, const __m512i* rows_in) {
+static void transpose_16x16_avx512(__m512i* rows_out, const __m512i* rows_in,
+                                   bool reverse) {
     alignas(64) static const uint32_t reverse_idx[16] = {
         15, 14, 13, 12, 11, 10, 9, 8, 7, 6, 5, 4, 3, 2, 1, 0
     };
@@ -99,22 +100,41 @@ static void transpose_16x16_avx512(__m512i* rows_out, const __m512i* rows_in) {
     __m512i w14 = _mm512_shuffle_i32x4(v6, v14, 0xdd);
     __m512i w15 = _mm512_shuffle_i32x4(v7, v15, 0xdd);
 
-    rows_out[0] = _mm512_permutexvar_epi32(rev_idx, w0);
-    rows_out[1] = _mm512_permutexvar_epi32(rev_idx, w1);
-    rows_out[2] = _mm512_permutexvar_epi32(rev_idx, w2);
-    rows_out[3] = _mm512_permutexvar_epi32(rev_idx, w3);
-    rows_out[4] = _mm512_permutexvar_epi32(rev_idx, w4);
-    rows_out[5] = _mm512_permutexvar_epi32(rev_idx, w5);
-    rows_out[6] = _mm512_permutexvar_epi32(rev_idx, w6);
-    rows_out[7] = _mm512_permutexvar_epi32(rev_idx, w7);
-    rows_out[8] = _mm512_permutexvar_epi32(rev_idx, w8);
-    rows_out[9] = _mm512_permutexvar_epi32(rev_idx, w9);
-    rows_out[10] = _mm512_permutexvar_epi32(rev_idx, w10);
-    rows_out[11] = _mm512_permutexvar_epi32(rev_idx, w11);
-    rows_out[12] = _mm512_permutexvar_epi32(rev_idx, w12);
-    rows_out[13] = _mm512_permutexvar_epi32(rev_idx, w13);
-    rows_out[14] = _mm512_permutexvar_epi32(rev_idx, w14);
-    rows_out[15] = _mm512_permutexvar_epi32(rev_idx, w15);
+    if (reverse) {
+        rows_out[0] = _mm512_permutexvar_epi32(rev_idx, w0);
+        rows_out[1] = _mm512_permutexvar_epi32(rev_idx, w1);
+        rows_out[2] = _mm512_permutexvar_epi32(rev_idx, w2);
+        rows_out[3] = _mm512_permutexvar_epi32(rev_idx, w3);
+        rows_out[4] = _mm512_permutexvar_epi32(rev_idx, w4);
+        rows_out[5] = _mm512_permutexvar_epi32(rev_idx, w5);
+        rows_out[6] = _mm512_permutexvar_epi32(rev_idx, w6);
+        rows_out[7] = _mm512_permutexvar_epi32(rev_idx, w7);
+        rows_out[8] = _mm512_permutexvar_epi32(rev_idx, w8);
+        rows_out[9] = _mm512_permutexvar_epi32(rev_idx, w9);
+        rows_out[10] = _mm512_permutexvar_epi32(rev_idx, w10);
+        rows_out[11] = _mm512_permutexvar_epi32(rev_idx, w11);
+        rows_out[12] = _mm512_permutexvar_epi32(rev_idx, w12);
+        rows_out[13] = _mm512_permutexvar_epi32(rev_idx, w13);
+        rows_out[14] = _mm512_permutexvar_epi32(rev_idx, w14);
+        rows_out[15] = _mm512_permutexvar_epi32(rev_idx, w15);
+    } else {
+        rows_out[0] = w0;
+        rows_out[1] = w1;
+        rows_out[2] = w2;
+        rows_out[3] = w3;
+        rows_out[4] = w4;
+        rows_out[5] = w5;
+        rows_out[6] = w6;
+        rows_out[7] = w7;
+        rows_out[8] = w8;
+        rows_out[9] = w9;
+        rows_out[10] = w10;
+        rows_out[11] = w11;
+        rows_out[12] = w12;
+        rows_out[13] = w13;
+        rows_out[14] = w14;
+        rows_out[15] = w15;
+    }
 }
 
 void flush_scanlines_rotated90_avx512(uint32_t min_y, uint32_t max_y) {
@@ -134,12 +154,47 @@ void flush_scanlines_rotated90_avx512(uint32_t min_y, uint32_t max_y) {
             }
 
             __m512i rows_out[16];
-            transpose_16x16_avx512(rows_out, rows_in);
+            transpose_16x16_avx512(rows_out, rows_in, true);
 
             uint32_t dest_x = shadow_fb_height - 16 - block_y;
 
             for (unsigned int i = 0; i < 16; i++) {
                 uint32_t dest_y = block_x + i;
+
+                if (dest_y >= fb_height)
+                    continue;
+
+                auto fb_line = &framebuffer[dest_y  * fb_pixels_per_scan_line];
+
+                _mm512_storeu_si512((__m256i*)&fb_line[dest_x], rows_out[i]);
+            }
+        }
+    }
+}
+
+void flush_scanlines_rotated270_avx512(uint32_t min_y, uint32_t max_y) {
+    min_y &= (uint32_t)~15;
+    max_y = min(shadow_fb_height - 1, (uint32_t)((max_y + 15) & (uint32_t)~15));
+
+    for (uint32_t block_y = min_y; block_y <= max_y; block_y += 16) {
+        for (uint32_t block_x = 0; block_x < shadow_fb_width; block_x += 16) {
+            __m512i rows_in[16];
+
+            for (unsigned int i = 0; i < 16; i++) {
+                uint32_t src_y = block_y + i;
+
+                auto shadow_line = &shadow_framebuffer[src_y * shadow_fb_pixels_per_scan_line];
+
+                rows_in[i] = _mm512_loadu_si512((__m512i*)&shadow_line[block_x]);
+            }
+
+            __m512i rows_out[16];
+            transpose_16x16_avx512(rows_out, rows_in, false);
+
+            uint32_t dest_x = block_y;
+
+            for (unsigned int i = 0; i < 16; i++) {
+                uint32_t dest_y = shadow_fb_width - 1 - block_x - i;
 
                 if (dest_y >= fb_height)
                     continue;

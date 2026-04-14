@@ -61,4 +61,5 @@ export void create_other_framebuffer_section();
 export void flush_scanlines_rotated90_avx2(uint32_t min_y, uint32_t max_y);
 export void flush_scanlines_rotated90_avx512(uint32_t min_y, uint32_t max_y);
 export void flush_scanlines_rotated270_avx2(uint32_t min_y, uint32_t max_y);
+export void flush_scanlines_rotated270_avx512(uint32_t min_y, uint32_t max_y);
 #endif
