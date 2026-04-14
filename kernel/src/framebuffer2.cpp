@@ -222,7 +222,7 @@ static void flush_scanline_mirrored(uint16_t y, uint32_t* fb_line) {
         copy_scanline_mirrored(fb_line, shadow_line, 0, fb_pixels_per_scan_line);
 }
 
-static void flush_scanlines_rotated90(uint32_t min_y, uint32_t max_y) {
+void flush_scanlines_rotated90_slow(uint32_t min_y, uint32_t max_y) {
     static const size_t BLOCK = 16;
 
     min_y &= (uint32_t)~(BLOCK - 1);

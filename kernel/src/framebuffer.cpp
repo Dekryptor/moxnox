@@ -47,5 +47,13 @@ export copy_scanline_mirrored_func copy_scanline_mirrored = copy_scanline_mirror
 
 export size_t copy_scanline_granularity = sizeof(uint32_t);
 
+using flush_scanlines_rotated90_func = void (*)(uint32_t, uint32_t);
+void flush_scanlines_rotated90_slow(uint32_t min_y, uint32_t max_y);
+export flush_scanlines_rotated90_func flush_scanlines_rotated90 = flush_scanlines_rotated90_slow;
+
 export void create_boot_framebuffer_section();
 export void create_other_framebuffer_section();
+
+#ifdef __x86_64__
+export void flush_scanlines_rotated90_avx2(uint32_t min_y, uint32_t max_y);
+#endif

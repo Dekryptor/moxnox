@@ -122,6 +122,7 @@ set(AMD64_SRC_FILES ${SRC_FILES}
     src/x86/ps2.cpp
     src/x86/rtc.cpp
     src/x86/serial.cpp
+    src/x86/framebuffer_avx.cpp
 )
 
 set(AARCH64_SRC_FILES ${SRC_FILES}
@@ -151,6 +152,8 @@ elseif(CMAKE_SYSTEM_PROCESSOR STREQUAL "amd64")
     add_executable(kernel ${AMD64_SRC_FILES} ${SRC_ASM_FILES})
     target_sources(kernel PUBLIC FILE_SET CXX_MODULES FILES ${AMD64_MODULES})
     target_link_libraries(kernel format_kernel dwarf_kernel list_kernel unicode_kernel rbtree_kernel vt100_kernel cp437_kernel evdev_kernel nt_kernel ntdll_kernel pe_kernel loaderblock crt_kernel x86 pagesize_kernel timepage_kernel moxnox_ioctls_kernel ws2_32_kernel ipv6_kernel)
+
+    set_source_files_properties(src/x86/framebuffer_avx.cpp PROPERTIES COMPILE_OPTIONS "-mavx2")
 endif()
 
 target_compile_options(kernel PRIVATE ${KERNEL_CFLAGS} -Wno-unused-const-variable)
