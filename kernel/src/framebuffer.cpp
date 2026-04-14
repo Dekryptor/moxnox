@@ -14,6 +14,7 @@ export enum class fb_transform {
     mirrored,
     rotated90,
     rotated180,
+    rotated270,
 };
 
 export fb_transform fb_transform = fb_transform::normal;

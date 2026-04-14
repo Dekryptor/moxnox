@@ -1310,6 +1310,8 @@ bool init_console(const loader_block_framebuffer& fb)
             fb_transform = fb_transform::rotated90;
         else if (transform_opt == "rotated180")
             fb_transform = fb_transform::rotated180;
+        else if (transform_opt == "rotated270")
+            fb_transform = fb_transform::rotated270;
         else
             print("unrecognized transform option \"{}\"\n", transform_opt);
     }
@@ -1410,7 +1412,7 @@ bool init_console(const loader_block_framebuffer& fb)
             fb_height = fb.height;
             fb_pixels_per_scan_line = fb.pixels_per_scan_line;
 
-            if (fb_transform == fb_transform::rotated90) {
+            if (fb_transform == fb_transform::rotated90 || fb_transform == fb_transform::rotated270) {
                 shadow_fb_width = fb_height;
                 shadow_fb_height = fb_width;
 
