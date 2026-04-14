@@ -23,8 +23,6 @@ jobs:
             -GNinja \
             -DCMAKE_BUILD_TYPE=Debug \
             -DCMAKE_INSTALL_PREFIX=${PWD}/install/debug \
-            -DCMAKE_C_COMPILER_WORKS=TRUE \
-            -DCMAKE_CXX_COMPILER_WORKS=TRUE \
             -S ${SHORT_SHA} -B debug-work
 
       - name: Build Debug
@@ -39,8 +37,6 @@ jobs:
             -GNinja \
             -DCMAKE_BUILD_TYPE=RelWithDebInfo \
             -DCMAKE_INSTALL_PREFIX=${PWD}/install/release \
-            -DCMAKE_C_COMPILER_WORKS=TRUE \
-            -DCMAKE_CXX_COMPILER_WORKS=TRUE \
             -S ${SHORT_SHA} -B release-work
 
       - name: Build RelWithDebInfo

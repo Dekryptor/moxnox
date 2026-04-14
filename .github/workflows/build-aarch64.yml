@@ -23,8 +23,6 @@ jobs:
             -GNinja \
             -DCMAKE_BUILD_TYPE=Debug \
             -DCMAKE_INSTALL_PREFIX=${PWD}/install/debug \
-            -DCMAKE_C_COMPILER_WORKS=TRUE \
-            -DCMAKE_CXX_COMPILER_WORKS=TRUE \
             -DCMAKE_CXX_FLAGS="-isystem /usr/lib/llvm-20/include/c++/v1 -isystem /usr/share/mingw-w64/include" \
             -DCMAKE_C_FLAGS="-isystem /usr/share/mingw-w64/include" \
             -DCMAKE_CXX_LINK_FLAGS="-L/root/llvm-mingw/aarch64-w64-mingw32/lib -L/root/llvm-mingw/lib/clang/20/lib/windows" \
@@ -44,8 +42,6 @@ jobs:
             -GNinja \
             -DCMAKE_BUILD_TYPE=RelWithDebInfo \
             -DCMAKE_INSTALL_PREFIX=${PWD}/install/release \
-            -DCMAKE_C_COMPILER_WORKS=TRUE \
-            -DCMAKE_CXX_COMPILER_WORKS=TRUE \
             -DCMAKE_CXX_FLAGS="-isystem /usr/lib/llvm-20/include/c++/v1 -isystem /usr/share/mingw-w64/include" \
             -DCMAKE_C_FLAGS="-isystem /usr/share/mingw-w64/include" \
             -DCMAKE_CXX_LINK_FLAGS="-L/root/llvm-mingw/aarch64-w64-mingw32/lib -L/root/llvm-mingw/lib/clang/20/lib/windows" \
