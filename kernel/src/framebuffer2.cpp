@@ -222,6 +222,33 @@ static void flush_scanline_mirrored(uint16_t y, uint32_t* fb_line) {
         copy_scanline_mirrored(fb_line, shadow_line, 0, fb_pixels_per_scan_line);
 }
 
+static void flush_scanlines_rotated90(uint32_t min_y, uint32_t max_y) {
+    static const size_t BLOCK = 16;
+
+    min_y &= (uint32_t)~(BLOCK - 1);
+    max_y = min(shadow_fb_height - 1, (uint32_t)((max_y + BLOCK - 1) & ~(BLOCK - 1)));
+
+    for (uint32_t by = min_y; by <= max_y; by += BLOCK) {
+        for (uint32_t bx = 0; bx < shadow_fb_width; bx += BLOCK) {
+            uint32_t bh = (by + BLOCK <= shadow_fb_height) ? BLOCK : (shadow_fb_height - by);
+            uint32_t bw = (bx + BLOCK <= shadow_fb_width) ? BLOCK : (shadow_fb_width - bx);
+
+            for (uint32_t y = 0; y < bh; y++) {
+                auto shadow_line = &shadow_framebuffer[(by + y) * shadow_fb_pixels_per_scan_line];
+
+                for (uint32_t x = 0; x < bw; x++) {
+                    uint32_t dest_y = bx + x;
+                    uint32_t dest_x = shadow_fb_height - 1 - (by + y);
+
+                    auto fb_line = &framebuffer[dest_y  * fb_pixels_per_scan_line];
+
+                    fb_line[dest_x] = shadow_line[bx + x];
+                }
+            }
+        }
+    }
+}
+
 template<bool BOOT>
 NTSTATUS framebuffer_cache<BOOT>::flush_cache(uint64_t page_num, uint64_t num_pages) {
     auto start = page_num << PAGE_SHIFT;
@@ -238,20 +265,24 @@ NTSTATUS framebuffer_cache<BOOT>::flush_cache(uint64_t page_num, uint64_t num_pa
         lock_guard lock(cursor_lock);
 
         auto min_y = (uint16_t)((page_num << PAGE_SHIFT) / (shadow_fb_pixels_per_scan_line * sizeof(uint32_t)));
-        auto max_y = min((uint16_t)(((page_num + num_pages + 1) << PAGE_SHIFT) / (shadow_fb_pixels_per_scan_line * sizeof(uint32_t))), (uint16_t)(fb_height - 1));
+        auto max_y = min((uint16_t)(((page_num + num_pages + 1) << PAGE_SHIFT) / (shadow_fb_pixels_per_scan_line * sizeof(uint32_t))), (uint16_t)(shadow_fb_height - 1));
 
-        for (uint16_t y = min_y; y <= max_y; y++) {
-            uint32_t* fb_line;
+        if (fb_transform == fb_transform::rotated90)
+            flush_scanlines_rotated90(min_y, max_y);
+        else {
+            for (uint16_t y = min_y; y <= max_y; y++) {
+                uint32_t* fb_line;
 
-            if (fb_transform == fb_transform::flipped || fb_transform == fb_transform::rotated180)
-                fb_line = &framebuffer[(fb_height - y) * fb_pixels_per_scan_line];
-            else
-                fb_line = &framebuffer[y * fb_pixels_per_scan_line];
+                if (fb_transform == fb_transform::flipped || fb_transform == fb_transform::rotated180)
+                    fb_line = &framebuffer[(fb_height - y) * fb_pixels_per_scan_line];
+                else
+                    fb_line = &framebuffer[y * fb_pixels_per_scan_line];
 
-            if (fb_transform == fb_transform::mirrored || fb_transform == fb_transform::rotated180)
-                flush_scanline_mirrored(y, fb_line);
-            else
-                flush_scanline(y, fb_line);
+                if (fb_transform == fb_transform::mirrored || fb_transform == fb_transform::rotated180)
+                    flush_scanline_mirrored(y, fb_line);
+                else
+                    flush_scanline(y, fb_line);
+            }
         }
     } else {
         auto y1 = (unsigned int)(((page_num << PAGE_SHIFT) / sizeof(uint32_t)) / fb_width);
@@ -273,8 +304,13 @@ NTSTATUS framebuffer_cache<BOOT>::query_info(enum SECTION_INFORMATION_CLASS sect
 
             auto& info = *(MN_SECTION_FRAMEBUFFER_INFORMATION*)buf.data();
 
-            info.width = fb_width;
-            info.height = fb_height;
+            if constexpr (BOOT) {
+                info.width = shadow_fb_width;
+                info.height = shadow_fb_height;
+            } else {
+                info.width = fb_width;
+                info.height = fb_height;
+            }
 
             if constexpr (BOOT)
                 info.pixels_per_scan_line = shadow_fb_pixels_per_scan_line;
@@ -376,7 +412,7 @@ void framebuffer_cache<BOOT>::flush_scanlines(int16_t top, int16_t bottom) {
         pixels_per_scan_line = fb_pixels_per_scan_line;
 
     top = max((int16_t)0, top);
-    bottom = min((int16_t)fb_height, bottom);
+    bottom = min((int16_t)shadow_fb_height, bottom);
 
     auto first_cursor_page = ((uint16_t)top * pixels_per_scan_line * sizeof(uint32_t)) >> PAGE_SHIFT;
     auto last_cursor_page = (((uint16_t)bottom * pixels_per_scan_line * sizeof(uint32_t)) + PAGE_SIZE - 1) >> PAGE_SHIFT;
@@ -502,8 +538,8 @@ nt_status framebuffer_cache<BOOT>::ioctl_move_cursor(span<const uint8_t> inbuf) 
 
     auto& mc = *(MOXNOX_IOCTL_FB_MOVE_CURSOR*)inbuf.data();
 
-    auto mc_x = min(mc.x, (uint16_t)(fb_width - 1));
-    auto mc_y = min(mc.y, (uint16_t)(fb_height - 1));
+    auto mc_x = min(mc.x, (uint16_t)(shadow_fb_width - 1));
+    auto mc_y = min(mc.y, (uint16_t)(shadow_fb_height - 1));
 
     int16_t cursor_top, cursor_bottom;
     int16_t last_cursor_top, last_cursor_bottom;

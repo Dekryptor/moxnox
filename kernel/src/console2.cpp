@@ -990,8 +990,8 @@ static void draw_ft_char(const console_info& c, unsigned int fb_x, unsigned int 
     auto buf = bitmap.buffer;
 
     auto width = (unsigned int)bitmap.width;
-    if ((int)fb_x + gi->bitmap_left + (int)width > (int)fb_width)
-        width = (unsigned int)((int)fb_width - (int)fb_x - gi->bitmap_left);
+    if ((int)fb_x + gi->bitmap_left + (int)width > (int)shadow_fb_width)
+        width = (unsigned int)((int)shadow_fb_width - (int)fb_x - gi->bitmap_left);
 
     int y = (int)fb_y - gi->bitmap_top;
     int bottom = y + (int)bitmap.rows;
@@ -1001,11 +1001,11 @@ static void draw_ft_char(const console_info& c, unsigned int fb_x, unsigned int 
         y = 0;
     }
 
-    if (y >= (int)fb_height)
+    if (y >= (int)shadow_fb_height)
         return;
 
-    if (bottom > (int)fb_height)
-        bottom = (int)fb_height;
+    if (bottom > (int)shadow_fb_height)
+        bottom = (int)shadow_fb_height;
 
     auto bg = c.bg;
     auto fg = c.fg;
@@ -1085,19 +1085,19 @@ static void refresh_framebuffer() {
 
             // don't leave black lines at edge of screen
 
-            if (x == console_fb_inst.console_cols - 1 && font_width * console_fb_inst.console_cols < fb_width) {
-                rect((x + 1) * font_width, y * font_height, fb_width - (font_width * console_fb_inst.console_cols),
+            if (x == console_fb_inst.console_cols - 1 && font_width * console_fb_inst.console_cols < shadow_fb_width) {
+                rect((x + 1) * font_width, y * font_height, shadow_fb_width - (font_width * console_fb_inst.console_cols),
                      font_height, c->bg);
             }
 
-            if (y == console_fb_inst.console_rows - 1 && font_height * console_fb_inst.console_rows < fb_height) {
+            if (y == console_fb_inst.console_rows - 1 && font_height * console_fb_inst.console_rows < shadow_fb_height) {
                 rect(x * font_width, (y + 1) * font_height, font_width,
-                     fb_height - (font_height * console_fb_inst.console_rows), c->bg);
+                     shadow_fb_height - (font_height * console_fb_inst.console_rows), c->bg);
 
-                if (x == console_fb_inst.console_cols - 1 && font_width * console_fb_inst.console_cols < fb_width) {
+                if (x == console_fb_inst.console_cols - 1 && font_width * console_fb_inst.console_cols < shadow_fb_width) {
                     rect((x + 1) * font_width, (y + 1) * font_height,
-                         fb_width - (font_width * console_fb_inst.console_cols),
-                         fb_height - (font_height * console_fb_inst.console_rows), c->bg);
+                         shadow_fb_width - (font_width * console_fb_inst.console_cols),
+                         shadow_fb_height - (font_height * console_fb_inst.console_rows), c->bg);
                 }
             }
 
@@ -1209,7 +1209,7 @@ void early_print(string_view s) {
     refresh_framebuffer();
 
     if (flush_framebuffer)
-        flush_framebuffer(0, 0, fb_width, fb_height);
+        flush_framebuffer(0, 0, shadow_fb_width, shadow_fb_height);
     else
         copy_shadow_framebuffer();
 
@@ -1306,6 +1306,8 @@ bool init_console(const loader_block_framebuffer& fb)
             fb_transform = fb_transform::flipped;
         else if (transform_opt == "mirrored")
             fb_transform = fb_transform::mirrored;
+        else if (transform_opt == "rotated90")
+            fb_transform = fb_transform::rotated90;
         else if (transform_opt == "rotated180")
             fb_transform = fb_transform::rotated180;
         else
@@ -1402,26 +1404,34 @@ bool init_console(const loader_block_framebuffer& fb)
                 }
             }
 
+            fb_width = fb.width;
+            fb_height = fb.height;
+            fb_pixels_per_scan_line = fb.pixels_per_scan_line;
+
+            if (fb_transform == fb_transform::rotated90) {
+                shadow_fb_width = fb_height;
+                shadow_fb_height = fb_width;
+            } else {
+                shadow_fb_width = fb_width;
+                shadow_fb_height = fb_height;
+            }
+
             // for AVX512, but also cache line
             static const size_t SCANLINE_ALIGNMENT_BYTES = 64;
             static const size_t SCANLINE_ALIGNMENT_PIXELS = SCANLINE_ALIGNMENT_BYTES / sizeof(uint32_t);
 
-            shadow_fb_pixels_per_scan_line = fb.width;
+            shadow_fb_pixels_per_scan_line = shadow_fb_width;
 
             if (shadow_fb_pixels_per_scan_line % SCANLINE_ALIGNMENT_PIXELS)
                 shadow_fb_pixels_per_scan_line += (uint32_t)(SCANLINE_ALIGNMENT_PIXELS - (shadow_fb_pixels_per_scan_line % SCANLINE_ALIGNMENT_PIXELS));
 
-            auto ptr = (uint32_t*)vmalloc(shadow_fb_pixels_per_scan_line * fb.height * sizeof(uint32_t));
+            auto ptr = (uint32_t*)vmalloc(shadow_fb_pixels_per_scan_line * shadow_fb_height * sizeof(uint32_t));
             if (!ptr) {
                 print("vmalloc failed\n");
                 return false;
             }
 
-            shadow_framebuffer = span(ptr, shadow_fb_pixels_per_scan_line * fb.height);
-
-            fb_width = fb.width;
-            fb_height = fb.height;
-            fb_pixels_per_scan_line = fb.pixels_per_scan_line;
+            shadow_framebuffer = span(ptr, shadow_fb_pixels_per_scan_line * shadow_fb_height);
 
             memset(framebuffer.data(), 0, framebuffer.size_bytes());
             memset(shadow_framebuffer.data(), 0, shadow_framebuffer.size_bytes());
@@ -1567,8 +1577,8 @@ bool init_fb_console() {
     font_height = (unsigned int)(face.face->size->metrics.height / 64);
     font_descender = (unsigned int)(-face.face->size->metrics.descender / 64);
 
-    console_fb_inst.console_cols = fb_width / font_width;
-    console_fb_inst.console_rows = fb_height / font_height;
+    console_fb_inst.console_cols = shadow_fb_width / font_width;
+    console_fb_inst.console_rows = shadow_fb_height / font_height;
     console_cols = console_fb_inst.console_cols;
 
     console_fb_inst.cursor_x = 0;

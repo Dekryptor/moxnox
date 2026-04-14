@@ -1222,6 +1222,9 @@ void virtio_gpu<T>::start() {
     fb_height = r.height;
     fb_dpi = 72; // FIXME!
 
+    shadow_fb_width = fb_width;
+    shadow_fb_height = fb_height;
+
     console_type = console_type::other_framebuffer;
 }
 
