@@ -1,27 +1,27 @@
 [submodule "efi/code"]
 	path = ports/gnu-efi/repo
-	url = https://git.burntcomma.com/maharmstone/gnu-efi
+	url = https://git.burntcomma.com/moxnox/gnu-efi
 [submodule "freetype"]
 	path = ports/freetype/repo
-	url = https://git.burntcomma.com/maharmstone/freetype
+	url = https://git.burntcomma.com/moxnox/freetype
 [submodule "acpica"]
 	path = ports/acpica/repo
-	url = https://git.burntcomma.com/maharmstone/acpica
+	url = https://git.burntcomma.com/moxnox/acpica
 [submodule "libpng"]
 	path = ports/libpng/repo
-	url = https://git.burntcomma.com/maharmstone/libpng
+	url = https://git.burntcomma.com/moxnox/libpng
 [submodule "zlib"]
 	path = ports/zlib/repo
-	url = https://git.burntcomma.com/maharmstone/zlib
+	url = https://git.burntcomma.com/moxnox/zlib
 [submodule "harfbuzz"]
 	path = ports/harfbuzz/repo
-	url = https://git.burntcomma.com/maharmstone/harfbuzz
+	url = https://git.burntcomma.com/moxnox/harfbuzz
 [submodule "pixman"]
 	path = ports/pixman/repo
-	url = https://git.burntcomma.com/maharmstone/pixman
+	url = https://git.burntcomma.com/moxnox/pixman
 [submodule "mingw-w64"]
 	path = ports/mingw-w64/repo
-	url = https://git.burntcomma.com/maharmstone/mingw-w64
+	url = https://git.burntcomma.com/moxnox/mingw-w64
 [submodule "ports/zstd/zstd"]
 	path = ports/zstd/repo
-	url = https://git.burntcomma.com/maharmstone/zstd
+	url = https://git.burntcomma.com/moxnox/zstd
