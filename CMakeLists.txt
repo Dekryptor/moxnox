@@ -346,6 +346,26 @@ add_subdirectory(ports/pixman)
 add_subdirectory(ports/zlib)
 add_subdirectory(ports/zstd)
 
+function(add_moxnox_deps dir)
+    get_property(targets DIRECTORY ${dir} PROPERTY BUILDSYSTEM_TARGETS)
+
+    foreach(target IN LISTS targets)
+        get_target_property(type ${target} TYPE)
+
+        if(type STREQUAL "EXECUTABLE" OR type STREQUAL "SHARED_LIBRARY")
+            add_dependencies(${target} moxnox ucrtbase)
+        endif()
+    endforeach()
+
+    get_property(subdirs DIRECTORY ${dir} PROPERTY SUBDIRECTORIES)
+
+    foreach(subdir IN LISTS subdirs)
+        add_moxnox_deps(${subdir})
+    endforeach()
+endfunction()
+
+add_moxnox_deps(${CMAKE_SOURCE_DIR})
+
 install(SCRIPT initrd.cmake)
 
 configure_file(${CMAKE_CURRENT_SOURCE_DIR}/gdbinit.in ${CMAKE_CURRENT_BINARY_DIR}/.gdbinit)

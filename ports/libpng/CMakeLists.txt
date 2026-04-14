@@ -27,7 +27,6 @@ endif()
 target_include_directories(libpng PUBLIC repo ${CMAKE_CURRENT_SOURCE_DIR})
 target_compile_options(libpng PRIVATE ${GENERAL_CFLAGS} $<$<COMPILE_LANGUAGE:CXX>:-fno-exceptions -fno-rtti> -Wno-sign-conversion)
 target_link_libraries(libpng PUBLIC zlib)
-target_link_libraries(libpng PRIVATE moxnox)
 
 install(TARGETS libpng DESTINATION ${CMAKE_INSTALL_PREFIX}/lib
     ARCHIVE EXCLUDE_FROM_ALL

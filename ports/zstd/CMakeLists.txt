@@ -28,7 +28,6 @@ if(CMAKE_SYSTEM_PROCESSOR STREQUAL "amd64")
 endif()
 
 target_compile_options(zstd PRIVATE ${GENERAL_CFLAGS} $<$<COMPILE_LANGUAGE:CXX>:-fno-exceptions -fno-rtti>)
-target_link_libraries(zstd PRIVATE moxnox)
 
 install(TARGETS zstd DESTINATION ${CMAKE_INSTALL_PREFIX}/lib
     ARCHIVE EXCLUDE_FROM_ALL
