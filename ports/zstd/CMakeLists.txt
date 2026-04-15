@@ -48,7 +48,8 @@ set_target_properties(zstdcli PROPERTIES OUTPUT_NAME zstd)
 
 target_compile_definitions(zstdcli PRIVATE -DZSTD_NOBENCH -DZSTD_NODICT -DZSTD_NOTRACE -DZSTD_LEGACY_SUPPORT=0)
 
-target_link_libraries(zstdcli PRIVATE zstd moxnox)
+target_link_libraries(zstdcli PRIVATE zstd)
+target_link_libraries(zstdcli PRIVATE moxnox) # FIXME
 
 install(TARGETS zstdcli DESTINATION ${CMAKE_INSTALL_PREFIX}/bin
     ARCHIVE EXCLUDE_FROM_ALL

@@ -19,8 +19,18 @@ else()
     endif()
 endif()
 
-set(CMAKE_CXX_LINK_EXECUTABLE "<CMAKE_CXX_COMPILER> <FLAGS> <CMAKE_CXX_LINK_FLAGS> <LINK_FLAGS> <OBJECTS>  -o <TARGET> -Wl,--out-implib,<TARGET_IMPLIB> ${CMAKE_GNULD_IMAGE_VERSION} <LINK_LIBRARIES> ${LIBSTDCXX} -lmingw32 ports/mingw-w64/libucrtbase_static.a ${LIBEH} ${LIBGCC} -lmingwex libmoxnox/libmoxnox.a -lmingw32 libmoxnox/libucrtbase.a")
-set(CMAKE_C_LINK_EXECUTABLE "<CMAKE_C_COMPILER> <FLAGS> <CMAKE_C_LINK_FLAGS> <LINK_FLAGS> <OBJECTS>  -o <TARGET> -Wl,--out-implib,<TARGET_IMPLIB> ${CMAKE_GNULD_IMAGE_VERSION} <LINK_LIBRARIES> -lmingw32 ports/mingw-w64/libucrtbase_static.a ${LIBGCC} -lmingwex libmoxnox/libmoxnox.a -lmingw32 libmoxnox/libucrtbase.a")
+if (USE_COMPILER_RT)
+    execute_process(
+        COMMAND ${CMAKE_C_COMPILER} --target=${CLANG_TARGET_TRIPLE} -print-runtime-dir
+        OUTPUT_VARIABLE CLANG_RUNTIME_DIR
+        OUTPUT_STRIP_TRAILING_WHITESPACE
+    )
+    set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -L${CLANG_RUNTIME_DIR}")
+    set(CMAKE_SHARED_LINKER_FLAGS_INIT "${CMAKE_SHARED_LINKER_FLAGS_INIT} -L${CLANG_RUNTIME_DIR}")
+endif()
 
-set(CMAKE_CXX_CREATE_SHARED_LIBRARY "${CMAKE_CXX_CREATE_SHARED_LIBRARY} ${LIBSTDCXX} -lmingw32 ports/mingw-w64/libucrtbase_static.a ${LIBEH} ${LIBGCC} -lmingwex libmoxnox/libmoxnox.a -lmingw32 libmoxnox/libucrtbase.a")
-set(CMAKE_C_CREATE_SHARED_LIBRARY "${CMAKE_C_CREATE_SHARED_LIBRARY} -lmingw32 ports/mingw-w64/libucrtbase_static.a ${LIBGCC} -lmingwex libmoxnox/libmoxnox.a -lmingw32 libmoxnox/libucrtbase.a")
+set(CMAKE_CXX_LINK_EXECUTABLE "<CMAKE_CXX_COMPILER> <FLAGS> <CMAKE_CXX_LINK_FLAGS> <LINK_FLAGS> <OBJECTS>  -o <TARGET> -Wl,--out-implib,<TARGET_IMPLIB> ${CMAKE_GNULD_IMAGE_VERSION} <LINK_LIBRARIES> ${LIBSTDCXX} -lmingw32 ports/mingw-w64/libucrtbase_static.a ${LIBEH} ${LIBGCC} ports/mingw-w64/libmingwex.a libmoxnox/libmoxnox.a -lmingw32 libmoxnox/libucrtbase.a")
+set(CMAKE_C_LINK_EXECUTABLE "<CMAKE_C_COMPILER> <FLAGS> <CMAKE_C_LINK_FLAGS> <LINK_FLAGS> <OBJECTS>  -o <TARGET> -Wl,--out-implib,<TARGET_IMPLIB> ${CMAKE_GNULD_IMAGE_VERSION} <LINK_LIBRARIES> -lmingw32 ports/mingw-w64/libucrtbase_static.a ${LIBGCC} ports/mingw-w64/libmingwex.a libmoxnox/libmoxnox.a -lmingw32 libmoxnox/libucrtbase.a")
+
+set(CMAKE_CXX_CREATE_SHARED_LIBRARY "${CMAKE_CXX_CREATE_SHARED_LIBRARY} ${LIBSTDCXX} -lmingw32 ports/mingw-w64/libucrtbase_static.a ${LIBEH} ${LIBGCC} ports/mingw-w64/libmingwex.a libmoxnox/libmoxnox.a -lmingw32 libmoxnox/libucrtbase.a")
+set(CMAKE_C_CREATE_SHARED_LIBRARY "${CMAKE_C_CREATE_SHARED_LIBRARY} -lmingw32 ports/mingw-w64/libucrtbase_static.a ${LIBGCC} ports/mingw-w64/libmingwex.a libmoxnox/libmoxnox.a -lmingw32 libmoxnox/libucrtbase.a")

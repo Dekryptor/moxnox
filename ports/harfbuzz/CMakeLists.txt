@@ -46,7 +46,7 @@ target_compile_options(harfbuzz PRIVATE -include ${CMAKE_CURRENT_SOURCE_DIR}/hbs
 target_include_directories(harfbuzz PRIVATE repo/src)
 target_include_directories(harfbuzz PRIVATE ../freetype/repo/include)
 target_link_libraries(harfbuzz PRIVATE freetype)
-target_link_libraries(harfbuzz PRIVATE moxnox ${LIBGCC})
+target_link_libraries(harfbuzz PRIVATE ${LIBGCC})
 
 install(TARGETS harfbuzz DESTINATION ${CMAKE_INSTALL_PREFIX}/lib
     ARCHIVE EXCLUDE_FROM_ALL

@@ -104,7 +104,6 @@ target_compile_definitions(pixman PRIVATE "-DPIXMAN_API=__declspec(dllexport)")
 target_compile_options(pixman PRIVATE ${USERSPACE_CFLAGS} -Wno-conversion -Wno-unused-parameter -Wno-type-limits -Wno-sign-compare -Wno-missing-field-initializers -Wno-unused-local-typedefs -Wno-unknown-attributes)
 target_compile_options(pixman PRIVATE $<$<COMPILE_LANGUAGE:CXX>:-fno-exceptions -fno-rtti> -mno-stack-arg-probe)
 
-target_link_libraries(pixman PRIVATE moxnox)
 target_link_libraries(pixman PUBLIC pixman_mod)
 
 install(TARGETS pixman DESTINATION ${CMAKE_INSTALL_PREFIX}/lib
