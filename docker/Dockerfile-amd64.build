@@ -3,6 +3,6 @@ ENV DEBIAN_FRONTEND=noninteractive
 RUN apt-get update && apt-get install -y \
     git cmake ninja-build g++-mingw-w64-x86-64 \
     g++-mingw-w64-i686 clang lld clang-tools \
-    g++ nodejs cpio s3cmd llvm \
+    g++ nodejs cpio s3cmd llvm jq \
     && rm -rf /var/lib/apt/lists/*
 WORKDIR /workspace
