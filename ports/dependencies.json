@@ -1,0 +1,11 @@
+{
+    "acpica": [],
+    "freetype": ["libpng"],
+    "harfbuzz": ["freetype"],
+    "gnu-efi": [],
+    "libpng": ["zlib"],
+    "mingw-w64": [],
+    "pixman": [],
+    "zlib": [],
+    "zstd": []
+}

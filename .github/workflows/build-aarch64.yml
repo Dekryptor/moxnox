@@ -3,6 +3,7 @@ on:
   push:
     paths-ignore:
       - 'docker/**'
+      - 'ports/**'
 jobs:
   aarch64 Clang:
     runs-on: ubuntu-moxnox-aarch64
