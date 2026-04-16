@@ -20,6 +20,7 @@ target_link_options(kernel32 PUBLIC -nostartfiles -nostdlib)
 target_link_libraries(kernel32 PRIVATE moxnox)
 
 install(TARGETS kernel32 DESTINATION ${CMAKE_INSTALL_PREFIX}/lib
+    COMPONENT core
     CXX_MODULES_BMI EXCLUDE_FROM_ALL
     ARCHIVE EXCLUDE_FROM_ALL
 )

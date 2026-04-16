@@ -28,6 +28,7 @@ target_link_libraries(shell print unicode unique_handle signal list pagesize)
 target_link_libraries(shell format)
 
 install(TARGETS shell DESTINATION ${CMAKE_INSTALL_PREFIX}/bin
+    COMPONENT core
     CXX_MODULES_BMI EXCLUDE_FROM_ALL
 )
 
@@ -40,7 +41,7 @@ target_compile_options(echo PRIVATE -fno-exceptions ${USERSPACE_CFLAGS})
 target_link_libraries(echo print unicode format)
 target_link_libraries(echo moxnox)
 
-install(TARGETS echo DESTINATION ${CMAKE_INSTALL_PREFIX}/bin)
+install(TARGETS echo DESTINATION ${CMAKE_INSTALL_PREFIX}/bin COMPONENT core)
 
 ###
 
@@ -52,7 +53,7 @@ target_link_libraries(ls print)
 target_link_libraries(ls format list unicode)
 target_link_libraries(ls moxnox)
 
-install(TARGETS ls DESTINATION ${CMAKE_INSTALL_PREFIX}/bin)
+install(TARGETS ls DESTINATION ${CMAKE_INSTALL_PREFIX}/bin COMPONENT core)
 
 ###
 
@@ -64,7 +65,7 @@ target_link_libraries(cat print)
 target_link_libraries(cat format unicode)
 target_link_libraries(cat moxnox)
 
-install(TARGETS cat DESTINATION ${CMAKE_INSTALL_PREFIX}/bin)
+install(TARGETS cat DESTINATION ${CMAKE_INSTALL_PREFIX}/bin COMPONENT core)
 
 ###
 
@@ -75,7 +76,7 @@ target_compile_options(pwd PRIVATE -fno-exceptions ${USERSPACE_CFLAGS})
 target_link_libraries(pwd print unicode format)
 target_link_libraries(pwd moxnox)
 
-install(TARGETS pwd DESTINATION ${CMAKE_INSTALL_PREFIX}/bin)
+install(TARGETS pwd DESTINATION ${CMAKE_INSTALL_PREFIX}/bin COMPONENT core)
 
 ###
 
@@ -86,7 +87,7 @@ target_compile_options(yes PRIVATE -fno-exceptions ${USERSPACE_CFLAGS})
 target_link_libraries(yes print format)
 target_link_libraries(yes moxnox)
 
-install(TARGETS yes DESTINATION ${CMAKE_INSTALL_PREFIX}/bin)
+install(TARGETS yes DESTINATION ${CMAKE_INSTALL_PREFIX}/bin COMPONENT core)
 
 ###
 
@@ -98,7 +99,7 @@ target_link_libraries(mkdir print)
 target_link_libraries(mkdir format unicode)
 target_link_libraries(mkdir moxnox)
 
-install(TARGETS mkdir DESTINATION ${CMAKE_INSTALL_PREFIX}/bin)
+install(TARGETS mkdir DESTINATION ${CMAKE_INSTALL_PREFIX}/bin COMPONENT core)
 
 ###
 
@@ -110,7 +111,7 @@ target_link_libraries(touch print)
 target_link_libraries(touch format unicode)
 target_link_libraries(touch moxnox)
 
-install(TARGETS touch DESTINATION ${CMAKE_INSTALL_PREFIX}/bin)
+install(TARGETS touch DESTINATION ${CMAKE_INSTALL_PREFIX}/bin COMPONENT core)
 
 ###
 
@@ -122,7 +123,7 @@ target_link_libraries(rm print)
 target_link_libraries(rm format unicode)
 target_link_libraries(rm moxnox)
 
-install(TARGETS rm DESTINATION ${CMAKE_INSTALL_PREFIX}/bin)
+install(TARGETS rm DESTINATION ${CMAKE_INSTALL_PREFIX}/bin COMPONENT core)
 
 ###
 
@@ -134,7 +135,7 @@ target_link_libraries(rmdir print)
 target_link_libraries(rmdir format unicode)
 target_link_libraries(rmdir moxnox)
 
-install(TARGETS rmdir DESTINATION ${CMAKE_INSTALL_PREFIX}/bin)
+install(TARGETS rmdir DESTINATION ${CMAKE_INSTALL_PREFIX}/bin COMPONENT core)
 
 ###
 
@@ -146,7 +147,7 @@ target_link_libraries(screenshot print format unicode)
 target_link_libraries(screenshot moxnox)
 target_link_libraries(screenshot libpng zlib)
 
-install(TARGETS screenshot DESTINATION ${CMAKE_INSTALL_PREFIX}/bin)
+install(TARGETS screenshot DESTINATION ${CMAKE_INSTALL_PREFIX}/bin COMPONENT core)
 
 ###
 
@@ -158,7 +159,7 @@ target_link_libraries(seh-test print)
 target_link_libraries(seh-test format)
 target_link_libraries(seh-test moxnox)
 
-install(TARGETS seh-test DESTINATION ${CMAKE_INSTALL_PREFIX}/bin)
+install(TARGETS seh-test DESTINATION ${CMAKE_INSTALL_PREFIX}/bin COMPONENT core)
 
 ###
 
@@ -169,7 +170,7 @@ if (CMAKE_CXX_COMPILER_ID MATCHES "Clang")
 
     target_link_libraries(seh2-test print-ms)
 
-    install(TARGETS seh2-test DESTINATION ${CMAKE_INSTALL_PREFIX}/bin)
+    install(TARGETS seh2-test DESTINATION ${CMAKE_INSTALL_PREFIX}/bin COMPONENT core)
 endif()
 
 ###
@@ -185,7 +186,7 @@ endif()
 target_link_libraries(file-test print)
 target_link_libraries(file-test format)
 
-install(TARGETS file-test DESTINATION ${CMAKE_INSTALL_PREFIX}/bin)
+install(TARGETS file-test DESTINATION ${CMAKE_INSTALL_PREFIX}/bin COMPONENT core)
 
 ###
 
@@ -197,7 +198,7 @@ if (CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
     target_link_options(crt-test PUBLIC -mcrtdll=ucrtbase)
 endif()
 
-install(TARGETS crt-test DESTINATION ${CMAKE_INSTALL_PREFIX}/bin)
+install(TARGETS crt-test DESTINATION ${CMAKE_INSTALL_PREFIX}/bin COMPONENT core)
 
 ###
 
@@ -208,7 +209,7 @@ target_compile_options(ps PRIVATE -fno-exceptions ${USERSPACE_CFLAGS})
 target_link_libraries(ps print unique_handle format list)
 target_link_libraries(ps moxnox)
 
-install(TARGETS ps DESTINATION ${CMAKE_INSTALL_PREFIX}/bin)
+install(TARGETS ps DESTINATION ${CMAKE_INSTALL_PREFIX}/bin COMPONENT core)
 
 ###
 
@@ -219,7 +220,7 @@ target_compile_options(kill PRIVATE -fno-exceptions ${USERSPACE_CFLAGS})
 target_link_libraries(kill print format unique_handle)
 target_link_libraries(kill moxnox)
 
-install(TARGETS kill DESTINATION ${CMAKE_INSTALL_PREFIX}/bin)
+install(TARGETS kill DESTINATION ${CMAKE_INSTALL_PREFIX}/bin COMPONENT core)
 
 ###
 
@@ -230,7 +231,7 @@ target_compile_options(killall PRIVATE -fno-exceptions ${USERSPACE_CFLAGS})
 target_link_libraries(killall print format unique_handle unicode)
 target_link_libraries(killall moxnox)
 
-install(TARGETS killall DESTINATION ${CMAKE_INSTALL_PREFIX}/bin)
+install(TARGETS killall DESTINATION ${CMAKE_INSTALL_PREFIX}/bin COMPONENT core)
 
 ###
 
@@ -242,7 +243,7 @@ target_link_libraries(reboot print)
 target_link_libraries(reboot format)
 target_link_libraries(reboot moxnox)
 
-install(TARGETS reboot DESTINATION ${CMAKE_INSTALL_PREFIX}/bin)
+install(TARGETS reboot DESTINATION ${CMAKE_INSTALL_PREFIX}/bin COMPONENT core)
 
 ###
 
@@ -254,7 +255,7 @@ target_link_libraries(halt print)
 target_link_libraries(halt format)
 target_link_libraries(halt moxnox)
 
-install(TARGETS halt DESTINATION ${CMAKE_INSTALL_PREFIX}/bin)
+install(TARGETS halt DESTINATION ${CMAKE_INSTALL_PREFIX}/bin COMPONENT core)
 
 ###
 
@@ -268,6 +269,7 @@ target_link_libraries(mv format unique_handle list unicode)
 target_link_libraries(mv moxnox)
 
 install(TARGETS mv DESTINATION ${CMAKE_INSTALL_PREFIX}/bin
+    COMPONENT core
     CXX_MODULES_BMI EXCLUDE_FROM_ALL
 )
 
@@ -283,6 +285,7 @@ target_link_libraries(cp format unique_handle list unicode)
 target_link_libraries(cp moxnox)
 
 install(TARGETS cp DESTINATION ${CMAKE_INSTALL_PREFIX}/bin
+    COMPONENT core
     CXX_MODULES_BMI EXCLUDE_FROM_ALL
 )
 
@@ -296,7 +299,7 @@ target_link_libraries(mount print)
 target_link_libraries(mount format crt unique_handle unicode)
 target_link_libraries(mount moxnox)
 
-install(TARGETS mount DESTINATION ${CMAKE_INSTALL_PREFIX}/bin)
+install(TARGETS mount DESTINATION ${CMAKE_INSTALL_PREFIX}/bin COMPONENT core)
 
 ###
 
@@ -308,7 +311,7 @@ target_link_libraries(umount print)
 target_link_libraries(umount format unique_handle unicode)
 target_link_libraries(umount moxnox)
 
-install(TARGETS umount DESTINATION ${CMAKE_INSTALL_PREFIX}/bin)
+install(TARGETS umount DESTINATION ${CMAKE_INSTALL_PREFIX}/bin COMPONENT core)
 
 ###
 
@@ -321,7 +324,7 @@ if (CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
     target_link_options(sock-test PUBLIC -mcrtdll=ucrtbase)
 endif()
 
-install(TARGETS sock-test DESTINATION ${CMAKE_INSTALL_PREFIX}/bin)
+install(TARGETS sock-test DESTINATION ${CMAKE_INSTALL_PREFIX}/bin COMPONENT core)
 
 ###
 
@@ -334,7 +337,7 @@ if (CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
     target_link_options(udp-server-test PUBLIC -mcrtdll=ucrtbase)
 endif()
 
-install(TARGETS udp-server-test DESTINATION ${CMAKE_INSTALL_PREFIX}/bin)
+install(TARGETS udp-server-test DESTINATION ${CMAKE_INSTALL_PREFIX}/bin COMPONENT core)
 
 ###
 
@@ -347,7 +350,7 @@ if (CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
     target_link_options(udp-client-test PUBLIC -mcrtdll=ucrtbase)
 endif()
 
-install(TARGETS udp-client-test DESTINATION ${CMAKE_INSTALL_PREFIX}/bin)
+install(TARGETS udp-client-test DESTINATION ${CMAKE_INSTALL_PREFIX}/bin COMPONENT core)
 
 ###
 
@@ -360,7 +363,7 @@ if (CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
     target_link_options(getaddrinfo-test PUBLIC -mcrtdll=ucrtbase)
 endif()
 
-install(TARGETS getaddrinfo-test DESTINATION ${CMAKE_INSTALL_PREFIX}/bin)
+install(TARGETS getaddrinfo-test DESTINATION ${CMAKE_INSTALL_PREFIX}/bin COMPONENT core)
 
 ###
 
@@ -373,7 +376,7 @@ if (CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
     target_link_options(tcp-client-test PUBLIC -mcrtdll=ucrtbase)
 endif()
 
-install(TARGETS tcp-client-test DESTINATION ${CMAKE_INSTALL_PREFIX}/bin)
+install(TARGETS tcp-client-test DESTINATION ${CMAKE_INSTALL_PREFIX}/bin COMPONENT core)
 
 ###
 
@@ -386,7 +389,7 @@ if (CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
     target_link_options(tcp-server-test PUBLIC -mcrtdll=ucrtbase)
 endif()
 
-install(TARGETS tcp-server-test DESTINATION ${CMAKE_INSTALL_PREFIX}/bin)
+install(TARGETS tcp-server-test DESTINATION ${CMAKE_INSTALL_PREFIX}/bin COMPONENT core)
 
 ###
 
@@ -399,7 +402,7 @@ if (CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
     target_link_options(httpd-test PUBLIC -mcrtdll=ucrtbase)
 endif()
 
-install(TARGETS httpd-test DESTINATION ${CMAKE_INSTALL_PREFIX}/bin)
+install(TARGETS httpd-test DESTINATION ${CMAKE_INSTALL_PREFIX}/bin COMPONENT core)
 
 ###
 
@@ -412,7 +415,7 @@ if (CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
     target_link_options(exc-test PUBLIC -mcrtdll=ucrtbase)
 endif()
 
-install(TARGETS exc-test DESTINATION ${CMAKE_INSTALL_PREFIX}/bin)
+install(TARGETS exc-test DESTINATION ${CMAKE_INSTALL_PREFIX}/bin COMPONENT core)
 
 ###
 
@@ -425,7 +428,7 @@ if (CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
     target_link_options(ifconfig PUBLIC -mcrtdll=ucrtbase)
 endif()
 
-install(TARGETS ifconfig DESTINATION ${CMAKE_INSTALL_PREFIX}/bin)
+install(TARGETS ifconfig DESTINATION ${CMAKE_INSTALL_PREFIX}/bin COMPONENT core)
 
 ###
 
@@ -439,7 +442,7 @@ if (CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
     target_link_options(ping PUBLIC -mcrtdll=ucrtbase)
 endif()
 
-install(TARGETS ping DESTINATION ${CMAKE_INSTALL_PREFIX}/bin)
+install(TARGETS ping DESTINATION ${CMAKE_INSTALL_PREFIX}/bin COMPONENT core)
 
 ###
 
@@ -466,7 +469,7 @@ if (CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
     target_link_options(telnetd PUBLIC -mcrtdll=ucrtbase)
 endif()
 
-install(TARGETS telnetd DESTINATION ${CMAKE_INSTALL_PREFIX}/bin)
+install(TARGETS telnetd DESTINATION ${CMAKE_INSTALL_PREFIX}/bin COMPONENT core)
 
 ###
 
@@ -480,7 +483,7 @@ if (CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
     target_link_options(rtti-test PUBLIC -mcrtdll=ucrtbase)
 endif()
 
-install(TARGETS rtti-test DESTINATION ${CMAKE_INSTALL_PREFIX}/bin)
+install(TARGETS rtti-test DESTINATION ${CMAKE_INSTALL_PREFIX}/bin COMPONENT core)
 
 ###
 
@@ -493,7 +496,7 @@ if (CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
     target_link_options(tls-test PUBLIC -mcrtdll=ucrtbase)
 endif()
 
-install(TARGETS tls-test DESTINATION ${CMAKE_INSTALL_PREFIX}/bin)
+install(TARGETS tls-test DESTINATION ${CMAKE_INSTALL_PREFIX}/bin COMPONENT core)
 
 ###
 
@@ -506,7 +509,7 @@ if (CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
     target_link_options(tls2-test PUBLIC -mcrtdll=ucrtbase)
 endif()
 
-install(TARGETS tls2-test DESTINATION ${CMAKE_INSTALL_PREFIX}/bin)
+install(TARGETS tls2-test DESTINATION ${CMAKE_INSTALL_PREFIX}/bin COMPONENT core)
 
 ###
 
@@ -519,7 +522,7 @@ if (CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
     target_link_options(condvar-test PUBLIC -mcrtdll=ucrtbase)
 endif()
 
-install(TARGETS condvar-test DESTINATION ${CMAKE_INSTALL_PREFIX}/bin)
+install(TARGETS condvar-test DESTINATION ${CMAKE_INSTALL_PREFIX}/bin COMPONENT core)
 
 ###
 
@@ -532,7 +535,7 @@ if (CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
     target_link_options(keyboard-test PUBLIC -mcrtdll=ucrtbase)
 endif()
 
-install(TARGETS keyboard-test DESTINATION ${CMAKE_INSTALL_PREFIX}/bin)
+install(TARGETS keyboard-test DESTINATION ${CMAKE_INSTALL_PREFIX}/bin COMPONENT core)
 
 ###
 
@@ -545,4 +548,4 @@ if (CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
     target_link_options(mouse-test PUBLIC -mcrtdll=ucrtbase)
 endif()
 
-install(TARGETS mouse-test DESTINATION ${CMAKE_INSTALL_PREFIX}/bin)
+install(TARGETS mouse-test DESTINATION ${CMAKE_INSTALL_PREFIX}/bin COMPONENT core)

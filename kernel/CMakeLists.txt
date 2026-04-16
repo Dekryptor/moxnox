@@ -174,5 +174,6 @@ target_compile_definitions(kernel PUBLIC "$<$<CONFIG:DEBUG>:DEBUG>")
 target_compile_definitions(kernel PUBLIC -D_LIBCPP_VERBOSE_ABORT=)
 
 install(TARGETS kernel DESTINATION ${CMAKE_INSTALL_PREFIX}/bin
+    COMPONENT core
     CXX_MODULES_BMI EXCLUDE_FROM_ALL
 )

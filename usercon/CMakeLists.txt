@@ -22,12 +22,14 @@ target_link_libraries(usercon harfbuzz)
 target_link_libraries(usercon freetype_module)
 
 install(TARGETS usercon DESTINATION ${CMAKE_INSTALL_PREFIX}/bin
-    CXX_MODULES_BMI EXCLUDE_FROM_ALL)
+    COMPONENT core
+    CXX_MODULES_BMI EXCLUDE_FROM_ALL
+)
 
 # FIXME - put this in a better place in repo
-install(FILES ../kernel/console.ttf DESTINATION ${CMAKE_INSTALL_PREFIX}/share/fonts)
+install(FILES ../kernel/console.ttf DESTINATION ${CMAKE_INSTALL_PREFIX}/share/fonts COMPONENT core)
 
-install(FILES console-bold.ttf DESTINATION ${CMAKE_INSTALL_PREFIX}/share/fonts)
-install(FILES console-italic.ttf DESTINATION ${CMAKE_INSTALL_PREFIX}/share/fonts)
-install(FILES console-bold-italic.ttf DESTINATION ${CMAKE_INSTALL_PREFIX}/share/fonts)
-install(FILES emoji.ttf DESTINATION ${CMAKE_INSTALL_PREFIX}/share/fonts)
+install(FILES console-bold.ttf DESTINATION ${CMAKE_INSTALL_PREFIX}/share/fonts COMPONENT core)
+install(FILES console-italic.ttf DESTINATION ${CMAKE_INSTALL_PREFIX}/share/fonts COMPONENT core)
+install(FILES console-bold-italic.ttf DESTINATION ${CMAKE_INSTALL_PREFIX}/share/fonts COMPONENT core)
+install(FILES emoji.ttf DESTINATION ${CMAKE_INSTALL_PREFIX}/share/fonts COMPONENT core)

@@ -17,5 +17,6 @@ target_link_libraries(init format unique_handle print evdev)
 target_link_libraries(init moxnox)
 
 install(TARGETS init DESTINATION ${CMAKE_INSTALL_PREFIX}/bin
+    COMPONENT core
     CXX_MODULES_BMI EXCLUDE_FROM_ALL
 )
