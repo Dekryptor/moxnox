@@ -1,5 +1,7 @@
 name: build-ports
-on: push
+on:
+  push:
+    paths: ['ports/**']
 jobs:
   compute-ports:
     runs-on: ubuntu-latest
@@ -131,3 +133,36 @@ jobs:
               -H "Authorization: Bearer ${ACTIONS_RUNTIME_TOKEN}" \
               "${ACTIONS_RUNTIME_URL}_apis/pipelines/workflows/${GITHUB_RUN_ID}/artifacts?api-version=6.0-preview&artifactName=$port"
           done
+
+      - name: Download initrd
+        run: |
+          s3cmd --host=minio.burntcomma.com:443 \
+            --host-bucket=minio.burntcomma.com:443 \
+            get s3://ipxe/initrd ${PWD}/initrd
+        env:
+          AWS_ACCESS_KEY_ID: ${{secrets.S3_ACCESS_KEY}}
+          AWS_SECRET_ACCESS_KEY: ${{secrets.S3_SECRET_KEY}}
+
+      - name: Extract initrd
+        run: |
+          cpio -idm --no-absolute-filenames -D ${PWD}/root < ${PWD}/initrd
+
+      - name: Copy ports
+        run: |
+          for port in $(echo '${{ needs.compute-ports.outputs.ports }}' | jq -r '.[]'); do
+            cp -av install/$port/. root/
+          done
+
+      - name: Repack initrd
+        run: |
+          cd root && \
+          find . -print0 | cpio --null --create --format=newc > ../initrd
+
+      - name: Upload initrd
+        run: |
+          s3cmd --host=minio.burntcomma.com:443 \
+            --host-bucket=minio.burntcomma.com:443 \
+            put ${PWD}/initrd s3://ipxe/initrd
+        env:
+          AWS_ACCESS_KEY_ID: ${{secrets.S3_ACCESS_KEY}}
+          AWS_SECRET_ACCESS_KEY: ${{secrets.S3_SECRET_KEY}}
