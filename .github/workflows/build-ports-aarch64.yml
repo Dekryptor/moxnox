@@ -1,5 +1,7 @@
 name: build-ports
-on: push
+on:
+  push:
+    paths: ['ports/**']
 jobs:
   compute-ports:
     runs-on: ubuntu-latest
