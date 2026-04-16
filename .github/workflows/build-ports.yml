@@ -34,17 +34,17 @@ jobs:
           submodules: recursive
           fetch-depth: 1
 
-      - name: Configure Debug
+      - name: Configure
         run: |
           cmake -DCMAKE_TOOLCHAIN_FILE=clang-amd64.cmake \
             -GNinja \
-            -DCMAKE_BUILD_TYPE=Debug \
-            -DCMAKE_INSTALL_PREFIX=${PWD}/install/debug \
-            -S ${SHORT_SHA} -B debug-work
+            -DCMAKE_BUILD_TYPE=RelWithDebInfo \
+            -DCMAKE_INSTALL_PREFIX=${PWD}/install \
+            -S ${SHORT_SHA} -B work
 
       - name: Build ports
         run: |
           for port in $(echo '${{ needs.compute-ports.outputs.ports }}' | jq -r '.[]'); do
             echo "Building $port"
-            cmake --build debug-work --parallel `nproc` --target ports/$port/all
+            cmake --build work --parallel `nproc` --target ports/$port/all
           done
