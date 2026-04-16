@@ -5,6 +5,7 @@ jobs:
     runs-on: ubuntu-latest
     outputs:
       ports: ${{ steps.compute.outputs.ports }}
+      checkout: ${{ steps.compute.outputs.checkout }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -17,7 +18,8 @@ jobs:
         id: compute
         run: |
           python3 ports/calcdeps.py ${{ github.event.before }} ${{ github.event.after }} > ports.json
-          echo "ports=$(cat ports.json)" >> $GITHUB_OUTPUT
+          echo "ports=$(jq -c .build ports.json)" >> $GITHUB_OUTPUT
+          echo "checkout=$(jq -c .checkout ports.json)" >> $GITHUB_OUTPUT
 
   build-port:
     needs: compute-ports
@@ -31,8 +33,19 @@ jobs:
         uses: actions/checkout@v4
         with:
           path: ${{ env.SHORT_SHA }}
-          submodules: recursive
           fetch-depth: 1
+
+      - name: Checkout mingw
+        working-directory: ${{ env.SHORT_SHA }}
+        run: |
+          git submodule update --init --depth 1 ports/mingw-w64/repo
+
+      - name: Checkout submodules
+        working-directory: ${{ env.SHORT_SHA }}
+        run: |
+          for port in $(echo '${{ needs.compute-ports.outputs.checkout }}' | jq -r '.[]'); do
+            git submodule update --init --depth 1 ports/$port/repo
+          done
 
       - name: Configure
         run: |

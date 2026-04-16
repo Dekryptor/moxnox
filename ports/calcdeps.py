@@ -27,4 +27,15 @@ while True:
         break
     dirty = new
 
-print(json.dumps(sorted(dirty)))
+# Expand to include all transitive dependencies (for submodule checkout)
+def dependencies(port):
+    return set(deps.get(port, []))
+
+checkout = set(dirty)
+while True:
+    new = checkout | {p for d in checkout for p in dependencies(d)}
+    if new == checkout:
+        break
+    checkout = new
+
+print(json.dumps({"build": sorted(dirty), "checkout": sorted(checkout)}))
