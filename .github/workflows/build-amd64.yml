@@ -66,11 +66,33 @@ jobs:
           AWS_ACCESS_KEY_ID: ${{secrets.S3_ACCESS_KEY}}
           AWS_SECRET_ACCESS_KEY: ${{secrets.S3_SECRET_KEY}}
 
-      - name: Upload debug initrd
+      - name: Download initrd
         run: |
           s3cmd --host=minio.burntcomma.com:443 \
             --host-bucket=minio.burntcomma.com:443 \
-            put ${PWD}/install/debug/initrd s3://ipxe/
+            get s3://ipxe/initrd ${PWD}/initrd
+        env:
+          AWS_ACCESS_KEY_ID: ${{secrets.S3_ACCESS_KEY}}
+          AWS_SECRET_ACCESS_KEY: ${{secrets.S3_SECRET_KEY}}
+
+      - name: Extract initrd
+        run: |
+          cpio -idm --no-absolute-filenames -D ${PWD}/root < ${PWD}/initrd
+
+      - name: Copy files
+        run: |
+          cp -av install/debug/. root/
+
+      - name: Repack initrd
+        run: |
+          cd root && \
+          find . -print0 | cpio --null --create --format=newc > ../initrd
+
+      - name: Upload initrd
+        run: |
+          s3cmd --host=minio.burntcomma.com:443 \
+            --host-bucket=minio.burntcomma.com:443 \
+            put ${PWD}/initrd s3://ipxe/initrd
         env:
           AWS_ACCESS_KEY_ID: ${{secrets.S3_ACCESS_KEY}}
           AWS_SECRET_ACCESS_KEY: ${{secrets.S3_SECRET_KEY}}
