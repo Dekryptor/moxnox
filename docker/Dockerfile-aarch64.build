@@ -4,7 +4,8 @@ RUN apt-get update && apt-get install -y \
     git cmake ninja-build ca-certificates \
     clang clang-tools libc++-dev llvm lld \
     wget xz-utils make texinfo bison flex \
-    nodejs cpio s3cmd llvm mingw-w64-common jq \
+    nodejs cpio s3cmd llvm mingw-w64-common \
+    jq xxd curl \
     && rm -rf /var/lib/apt/lists/*
 RUN git clone --branch binutils-2_46-branch --depth 1 https://git.burntcomma.com/maharmstone/binutils-gdb &&\
     cd binutils-gdb &&\
