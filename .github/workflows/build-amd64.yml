@@ -34,7 +34,7 @@ jobs:
         run: cmake --build debug-work --parallel `nproc`
 
       - name: Install Debug
-        run: cmake --install debug-work
+        run: cmake --install debug-work --component core
 
       - name: Configure RelWithDebInfo
         run: |
@@ -48,7 +48,7 @@ jobs:
         run: cmake --build release-work --parallel `nproc`
 
       - name: Install RelWithDebInfo
-        run: cmake --install release-work
+        run: cmake --install release-work --component core
 
       # - uses: actions/upload-artifact@v3
       #   with:
