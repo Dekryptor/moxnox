@@ -150,7 +150,9 @@ jobs:
       - name: Copy ports
         run: |
           for port in $(echo '${{ needs.compute-ports.outputs.ports }}' | jq -r '.[]'); do
+            mkdir -p root/share/pkg/$port
             cp -av install/$port/. root/
+            find install/$port -type f -printf '%P\n' > root/share/pkg/$port/manifest
           done
 
       - name: Repack initrd
