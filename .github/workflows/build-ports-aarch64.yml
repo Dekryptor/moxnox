@@ -1,0 +1,107 @@
+name: build-ports
+on: push
+jobs:
+  compute-ports:
+    runs-on: ubuntu-latest
+    outputs:
+      ports: ${{ steps.compute.outputs.ports }}
+      checkout: ${{ steps.compute.outputs.checkout }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Fetch before SHA
+        run: git fetch origin ${{ github.event.before }} || true
+
+      - name: Compute ports to rebuild
+        id: compute
+        run: |
+          python3 ports/calcdeps.py ${{ github.event.before }} ${{ github.event.after }} > ports.json
+          echo "ports=$(jq -c .build ports.json)" >> $GITHUB_OUTPUT
+          echo "checkout=$(jq -c .checkout ports.json)" >> $GITHUB_OUTPUT
+
+  build-port:
+    needs: compute-ports
+    if: ${{ needs.compute-ports.outputs.ports != '[]' }}
+    runs-on: ubuntu-moxnox-aarch64
+    steps:
+      - name: Set short SHA
+        run: echo "SHORT_SHA=${GITHUB_SHA::8}" >> $GITHUB_ENV
+
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          path: ${{ env.SHORT_SHA }}
+          fetch-depth: 1
+
+      - name: Checkout mingw
+        working-directory: ${{ env.SHORT_SHA }}
+        run: |
+          git submodule update --init --depth 1 ports/mingw-w64/repo
+
+      - name: Checkout submodules
+        working-directory: ${{ env.SHORT_SHA }}
+        run: |
+          for port in $(echo '${{ needs.compute-ports.outputs.checkout }}' | jq -r '.[]'); do
+            git submodule update --init --depth 1 ports/$port/repo
+          done
+
+      - name: Configure
+        run: |
+          cmake -DCMAKE_TOOLCHAIN_FILE=clang-aarch64.cmake \
+            -GNinja \
+            -DCMAKE_BUILD_TYPE=RelWithDebInfo \
+            -DCMAKE_INSTALL_PREFIX= \
+            -DCMAKE_CXX_FLAGS="-isystem /usr/lib/llvm-20/include/c++/v1 -isystem /usr/share/mingw-w64/include" \
+            -DCMAKE_C_FLAGS="-isystem /usr/share/mingw-w64/include" \
+            -DCMAKE_CXX_LINK_FLAGS="-L/root/llvm-mingw/aarch64-w64-mingw32/lib -L/root/llvm-mingw/lib/clang/20/lib/windows" \
+            -DCMAKE_SHARED_LINKER_FLAGS="-nodefaultlibs -L/root/llvm-mingw/aarch64-w64-mingw32/lib -L/root/llvm-mingw/lib/clang/20/lib/windows" \
+            -DUSE_COMPILER_RT=ON \
+            -S ${SHORT_SHA} -B work
+
+      - name: Build ports
+        run: |
+          for port in $(echo '${{ needs.compute-ports.outputs.ports }}' | jq -r '.[]'); do
+            echo "Building $port"
+            DESTDIR=${PWD}/install/$port cmake --build work --parallel `nproc` --target ports/$port/install
+            tar -czf $port.tar.gz -C ${PWD}/install/$port .
+          done
+
+      - name: Upload tarballs
+        run: |
+          for port in $(echo '${{ needs.compute-ports.outputs.ports }}' | jq -r '.[]'); do
+            s3cmd --host=minio.burntcomma.com:443 \
+              --host-bucket=minio.burntcomma.com:443 \
+              put $port.tar.gz s3://moxnox-packages/aarch64/
+          done
+        env:
+          AWS_ACCESS_KEY_ID: ${{secrets.S3_ACCESS_KEY}}
+          AWS_SECRET_ACCESS_KEY: ${{secrets.S3_SECRET_KEY}}
+
+      - name: Upload artefacts
+        run: |
+          for port in $(echo '${{ needs.compute-ports.outputs.ports }}' | jq -r '.[]'); do
+            FILE_SIZE=$(stat -c%s "$port.tar.gz")
+            FILE_MD5_B64=$(md5sum "$port.tar.gz" | cut -d' ' -f1 | xxd -r -p | base64 -w0)
+
+            RESPONSE=$(curl -sf -X POST \
+              -H "Authorization: Bearer ${ACTIONS_RUNTIME_TOKEN}" \
+              -H "Content-Type: application/json" \
+              -d "{\"Type\":\"actions_storage\",\"Name\":\"$port\"}" \
+              "${ACTIONS_RUNTIME_URL}_apis/pipelines/workflows/${GITHUB_RUN_ID}/artifacts?api-version=6.0-preview")
+              UPLOAD_URL=$(echo "$RESPONSE" | jq -r '.fileContainerResourceUrl')
+
+            curl -sf -X PUT \
+              -H "Authorization: Bearer ${ACTIONS_RUNTIME_TOKEN}" \
+              -H "Content-Type: application/octet-stream" \
+              -H "Content-Range: bytes 0-$((FILE_SIZE - 1))/${FILE_SIZE}" \
+              -H "x-tfs-filelength: ${FILE_SIZE}" \
+              -H "x-actions-results-md5: ${FILE_MD5_B64}" \
+              --data-binary "@$port.tar.gz" \
+              "${UPLOAD_URL}?itemPath=$port/$port.tar.gz"
+
+            curl -sf -X PATCH \
+              -H "Authorization: Bearer ${ACTIONS_RUNTIME_TOKEN}" \
+              "${ACTIONS_RUNTIME_URL}_apis/pipelines/workflows/${GITHUB_RUN_ID}/artifacts?api-version=6.0-preview&artifactName=$port"
+          done
