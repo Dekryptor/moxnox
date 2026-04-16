@@ -15,8 +15,12 @@ jobs:
         uses: actions/checkout@v4
         with:
           path: ${{ env.SHORT_SHA }}
-          submodules: recursive
           fetch-depth: 1
+
+      - name: Checkout submodules
+        working-directory: ${{ env.SHORT_SHA }}
+        run: |
+          git submodule update --init --depth 1 ports/acpica/repo ports/freetype/repo ports/gnu-efi/repo ports/harfbuzz/repo ports/libpng/repo ports/mingw-w64/repo ports/zlib/repo
 
       - name: Configure Debug
         run: |
