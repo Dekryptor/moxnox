@@ -79,34 +79,63 @@ jobs:
           AWS_ACCESS_KEY_ID: ${{secrets.S3_ACCESS_KEY}}
           AWS_SECRET_ACCESS_KEY: ${{secrets.S3_SECRET_KEY}}
 
+      # FIXME - needs Gitea 1.26
+      # - name: Upload artefacts
+      #   run: |
+      #     TWIRP="${ACTIONS_RESULTS_URL%/}/twirp/github.actions.results.api.v1.ArtifactService"
+      #     SCP=$(echo "$ACTIONS_RUNTIME_TOKEN" | cut -d'.' -f2 | tr '_-' '/+' | \
+      #       awk '{n=length($0)%4; if(n==2)$0=$0"=="; if(n==3)$0=$0"="; print}' | \
+      #       base64 -d 2>/dev/null | python3 -c "import sys,json; print(json.load(sys.stdin)['scp'])")
+      #     RUN_ID=$(echo "$SCP" | cut -d':' -f2)
+      #     JOB_ID=$(echo "$SCP" | cut -d':' -f3)
+      #
+      #     for port in $(echo '${{ needs.compute-ports.outputs.ports }}' | jq -r '.[]'); do
+      #       FILE_SIZE=$(stat -c%s "$port.tar.gz")
+      #       SHA256=$(sha256sum "$port.tar.gz" | cut -d' ' -f1)
+      #
+      #       BODY="{\"workflow_run_backend_id\":\"$RUN_ID\",\"workflow_job_run_backend_id\":\"$JOB_ID\",\"name\":\"$port.tar.gz\",\"version\":4,\"mime_type\":\"application/gzip\"}"
+      #       echo "CreateArtifact body: $BODY"
+      #       CREATE_RESP=$(curl --no-progress-meter -X POST "$TWIRP/CreateArtifact" \
+      #         -H "Authorization: Bearer ${ACTIONS_RUNTIME_TOKEN}" \
+      #         -H "Content-Type: application/json" \
+      #         -d "$BODY")
+      #       echo "CreateArtifact response: $CREATE_RESP"
+      #       UPLOAD_URL=$(echo "$CREATE_RESP" | jq -r '.signedUploadUrl')
+      #
+      #       curl --no-progress-meter -X PUT "${UPLOAD_URL}&comp=block" \
+      #         -H "Content-Type: application/octet-stream" \
+      #         --data-binary "@$port.tar.gz"
+      #
+      #       curl --no-progress-meter -X POST "$TWIRP/FinalizeArtifact" \
+      #         -H "Authorization: Bearer ${ACTIONS_RUNTIME_TOKEN}" \
+      #         -H "Content-Type: application/json" \
+      #         -d "{\"workflow_run_backend_id\":\"$RUN_ID\",\"workflow_job_run_backend_id\":\"$JOB_ID\",\"name\":\"$port.tar.gz\",\"size\":\"$FILE_SIZE\",\"hash\":\"sha256:$SHA256\"}"
+      #     done
+
       - name: Upload artefacts
         run: |
-          TWIRP="${ACTIONS_RESULTS_URL%/}/twirp/github.actions.results.api.v1.ArtifactService"
-          SCP=$(echo "$ACTIONS_RUNTIME_TOKEN" | cut -d'.' -f2 | tr '_-' '/+' | \
-            awk '{n=length($0)%4; if(n==2)$0=$0"=="; if(n==3)$0=$0"="; print}' | \
-            base64 -d 2>/dev/null | python3 -c "import sys,json; print(json.load(sys.stdin)['scp'])")
-          RUN_ID=$(echo "$SCP" | cut -d':' -f2)
-          JOB_ID=$(echo "$SCP" | cut -d':' -f3)
-
           for port in $(echo '${{ needs.compute-ports.outputs.ports }}' | jq -r '.[]'); do
             FILE_SIZE=$(stat -c%s "$port.tar.gz")
-            SHA256=$(sha256sum "$port.tar.gz" | cut -d' ' -f1)
+            FILE_MD5_B64=$(md5sum "$port.tar.gz" | cut -d' ' -f1 | xxd -r -p | base64 -w0)
 
-            BODY="{\"workflow_run_backend_id\":\"$RUN_ID\",\"workflow_job_run_backend_id\":\"$JOB_ID\",\"name\":\"$port.tar.gz\",\"version\":4,\"mime_type\":\"application/gzip\"}"
-            echo "CreateArtifact body: $BODY"
-            CREATE_RESP=$(curl --no-progress-meter -X POST "$TWIRP/CreateArtifact" \
+            RESPONSE=$(curl -sf -X POST \
               -H "Authorization: Bearer ${ACTIONS_RUNTIME_TOKEN}" \
               -H "Content-Type: application/json" \
-              -d "$BODY")
-            echo "CreateArtifact response: $CREATE_RESP"
-            UPLOAD_URL=$(echo "$CREATE_RESP" | jq -r '.signedUploadUrl')
+              -d "{\"Type\":\"actions_storage\",\"Name\":\"$port\"}" \
+              "${ACTIONS_RUNTIME_URL}_apis/pipelines/workflows/${GITHUB_RUN_ID}/artifacts?api-version=6.0-preview")
 
-            curl --no-progress-meter -X PUT "${UPLOAD_URL}&comp=block" \
+            UPLOAD_URL=$(echo "$RESPONSE" | jq -r '.fileContainerResourceUrl')
+
+            curl -sf -X PUT \
+              -H "Authorization: Bearer ${ACTIONS_RUNTIME_TOKEN}" \
               -H "Content-Type: application/octet-stream" \
-              --data-binary "@$port.tar.gz"
+              -H "Content-Range: bytes 0-$((FILE_SIZE - 1))/${FILE_SIZE}" \
+              -H "x-tfs-filelength: ${FILE_SIZE}" \
+              -H "x-actions-results-md5: ${FILE_MD5_B64}" \
+              --data-binary "@$port.tar.gz" \
+              "${UPLOAD_URL}?itemPath=$port/$port.tar.gz"
 
-            curl --no-progress-meter -X POST "$TWIRP/FinalizeArtifact" \
+            curl -sf -X PATCH \
               -H "Authorization: Bearer ${ACTIONS_RUNTIME_TOKEN}" \
-              -H "Content-Type: application/json" \
-              -d "{\"workflow_run_backend_id\":\"$RUN_ID\",\"workflow_job_run_backend_id\":\"$JOB_ID\",\"name\":\"$port.tar.gz\",\"size\":\"$FILE_SIZE\",\"hash\":\"sha256:$SHA256\"}"
+              "${ACTIONS_RUNTIME_URL}_apis/pipelines/workflows/${GITHUB_RUN_ID}/artifacts?api-version=6.0-preview&artifactName=$port"
           done
