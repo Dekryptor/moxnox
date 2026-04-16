@@ -60,3 +60,30 @@ jobs:
         env:
           AWS_ACCESS_KEY_ID: ${{secrets.S3_ACCESS_KEY}}
           AWS_SECRET_ACCESS_KEY: ${{secrets.S3_SECRET_KEY}}
+
+      - name: Upload artefacts
+        run: |
+          for port in $(echo '${{ needs.compute-ports.outputs.ports }}' | jq -r '.[]'); do
+            FILE_SIZE=$(stat -c%s "$port.tar.gz")
+            FILE_MD5_B64=$(md5sum "$port.tar.gz" | cut -d' ' -f1 | xxd -r -p | base64 -w0)
+
+            RESPONSE=$(curl -sf -X POST \
+              -H "Authorization: Bearer ${ACTIONS_RUNTIME_TOKEN}" \
+              -H "Content-Type: application/json" \
+              -d "{\"Type\":\"actions_storage\",\"Name\":\"$port\"}" \
+              "${ACTIONS_RUNTIME_URL}_apis/pipelines/workflows/${GITHUB_RUN_ID}/artifacts?api-version=6.0-preview")
+              UPLOAD_URL=$(echo "$RESPONSE" | jq -r '.fileContainerResourceUrl')
+
+            curl -sf -X PUT \
+              -H "Authorization: Bearer ${ACTIONS_RUNTIME_TOKEN}" \
+              -H "Content-Type: application/octet-stream" \
+              -H "Content-Range: bytes 0-$((FILE_SIZE - 1))/${FILE_SIZE}" \
+              -H "x-tfs-filelength: ${FILE_SIZE}" \
+              -H "x-actions-results-md5: ${FILE_MD5_B64}" \
+              --data-binary "@$port.tar.gz" \
+              "${UPLOAD_URL}?itemPath=$port/$port.tar.gz"
+
+            curl -sf -X PATCH \
+              -H "Authorization: Bearer ${ACTIONS_RUNTIME_TOKEN}" \
+              "${ACTIONS_RUNTIME_URL}_apis/pipelines/workflows/${GITHUB_RUN_ID}/artifacts?api-version=6.0-preview&artifactName=$port"
+          done
