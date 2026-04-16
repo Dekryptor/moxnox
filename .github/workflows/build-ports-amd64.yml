@@ -151,7 +151,13 @@ jobs:
         run: |
           for port in $(echo '${{ needs.compute-ports.outputs.ports }}' | jq -r '.[]'); do
             mkdir -p root/share/pkg/$port
+
+            if [ -f root/share/pkg/$port/manifest ]; then
+              xargs -I{} rm -fv "root/{}" < root/share/pkg/$port/manifest
+            fi
+
             cp -av install/$port/. root/
+
             find install/$port -type f -printf '%P\n' > root/share/pkg/$port/manifest
           done
 
