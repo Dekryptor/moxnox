@@ -204,6 +204,8 @@ void main_thread(void* ctx) {
 
     init_debug();
 
+    init_smbios(lb);
+
 #ifdef __aarch64__
     if (!init_console(lb_fb))
         bsod("init_console failed\n");
@@ -211,8 +213,6 @@ void main_thread(void* ctx) {
     if (!init_console(lb_fb, lb_tc))
         bsod("init_console failed\n");
 #endif
-
-    init_smbios(lb);
 
     if ((console_type == console_type::boot_framebuffer || console_type == console_type::other_framebuffer) && !init_fb_console())
         print("init_fb_console failed\n");

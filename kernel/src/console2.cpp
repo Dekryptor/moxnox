@@ -35,6 +35,7 @@ import handle;
 import objects;
 import freetype;
 import section;
+import smbios_parser;
 
 using namespace std;
 
@@ -1299,7 +1300,13 @@ bool init_console(const loader_block_framebuffer& fb)
         return true;
     });
 
-    if (!transform_opt.empty()) {
+    if (transform_opt.empty()) {
+#ifdef __x86_64__
+        // quirk for the Steam Deck, which has its framebuffer at 90 degrees
+        if (smbios_manufacturer == "Valve" && (smbios_product_name == "Jupiter" || smbios_product_name == "Galileo"))
+            fb_transform = fb_transform::rotated90;
+#endif
+    } else {
         if (transform_opt == "normal")
             fb_transform = fb_transform::normal;
         else if (transform_opt == "flipped")

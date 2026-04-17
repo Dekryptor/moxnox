@@ -14,7 +14,7 @@ import mem;
 using namespace std;
 
 static span<const uint8_t> smbios_data;
-static string_view smbios_manufacturer, smbios_product_name;
+export string_view smbios_manufacturer, smbios_product_name;
 
 static string_view find_smbios_string(span<const uint8_t> tbl, size_t index) {
     auto& h = *(smbios_header*)tbl.data();
