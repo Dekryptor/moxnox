@@ -624,7 +624,6 @@ static EFI_STATUS add_map_entry(uint64_t start, uint64_t len, enum mem_type type
             map[i+1].len = map[i+1].addr + map[i+1].len - start - len;
             map[i+1].addr = start + len;
             map[i+1].type = map[i].type;
-            map[i+1].efi_attributes = map[i].efi_attributes;
         }
     }
 
@@ -638,7 +637,6 @@ static EFI_STATUS add_map_entry(uint64_t start, uint64_t len, enum mem_type type
         map[0].addr = 0;
         map[0].len = len;
         map[0].type = type;
-        map[0].efi_attributes = 0;
         num_map_entries++;
 
         return EFI_SUCCESS;
@@ -662,7 +660,6 @@ static EFI_STATUS add_map_entry(uint64_t start, uint64_t len, enum mem_type type
             map[i+1].addr = start;
             map[i+1].len = len;
             map[i+1].type = type;
-            map[i+1].efi_attributes = 0;
 
             num_map_entries++;
         }
@@ -770,7 +767,6 @@ static EFI_STATUS get_memory_map() {
         me.addr = m.PhysicalStart;
         me.len = m.NumberOfPages << EFI_PAGE_SHIFT;
         me.type = map_efi_type(m.Type);
-        me.efi_attributes = m.Attribute;
         num_map_entries++;
 
         if (left == descriptor_size)
@@ -816,7 +812,6 @@ static EFI_STATUS get_memory_map() {
         map[0].addr = 0;
         map[0].len = map[1].addr;
         map[0].type = mem_type::reserved;
-        map[0].efi_attributes = 0;
 
         num_map_entries++;
     } else {
@@ -826,7 +821,6 @@ static EFI_STATUS get_memory_map() {
             map[0].addr = 0;
             map[0].len = EFI_PAGE_SIZE;
             map[0].type = mem_type::reserved;
-            map[0].efi_attributes = 0;
 
             map[1].addr += EFI_PAGE_SIZE;
             map[1].len -= EFI_PAGE_SIZE;
@@ -847,7 +841,6 @@ static EFI_STATUS get_memory_map() {
             map[i+1].addr = map[i].addr + map[i].len;
             map[i+1].len = map[i+2].addr - map[i+1].addr;
             map[i+1].type = mem_type::reserved;
-            map[i+1].efi_attributes = 0;
 
             num_map_entries++;
         }
@@ -858,7 +851,7 @@ static EFI_STATUS get_memory_map() {
         auto& me1 = map[i - 1];
         auto& me2 = map[i];
 
-        if (me2.addr == me1.addr + me1.len && me2.type == me1.type && me2.efi_attributes == me1.efi_attributes) {
+        if (me2.addr == me1.addr + me1.len && me2.type == me1.type) {
             me1.len += me2.len;
             memcpy(&map[i], &map[i+1], (num_map_entries - i - 1) * sizeof(map_entry));
             i--;

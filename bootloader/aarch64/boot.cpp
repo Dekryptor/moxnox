@@ -122,7 +122,6 @@ static bool add_map_entry(uint64_t address, uint64_t size, enum mem_type type) {
     m.addr = address;
     m.len = size;
     m.type = type;
-    m.efi_attributes = 0;
 
     mem_entries_count++;
 
@@ -396,7 +395,6 @@ static void sanitize_mem_entries() {
                     c.addr = b.addr + b.len;
                     c.len = a_end - c.addr;
                     c.type = a.type;
-                    c.efi_attributes = 0;
                 } else
                     b.len = 0;
             } else {
@@ -435,7 +433,6 @@ static void sanitize_mem_entries() {
             mem_entries[i + 1].addr = new_address;
             mem_entries[i + 1].len = new_length;
             mem_entries[i + 1].type = mem_type::reserved;
-            mem_entries[i + 1].efi_attributes = 0;
 
             i--;
         }
@@ -555,7 +552,6 @@ static optional<uint64_t> alloc_page(enum mem_type type) {
         mem_entries[i + 1].addr = ret + PAGE_SIZE;
         mem_entries[i + 1].len = m.len - PAGE_SIZE;
         mem_entries[i + 1].type = mem_type::free;
-        mem_entries[i + 1].efi_attributes = 0;
 
         m.len = PAGE_SIZE;
         m.type = type;
@@ -608,7 +604,6 @@ static bool set_pages_type(uint64_t addr, uint64_t len, enum mem_type type) {
                     mem_entries[i + 1].addr = m.addr + len;
                     mem_entries[i + 1].len = m.len - len;
                     mem_entries[i + 1].type = m.type;
-                    mem_entries[i + 1].efi_attributes = 0;
 
                     m.len = len;
                     m.type = type;
@@ -627,12 +622,10 @@ static bool set_pages_type(uint64_t addr, uint64_t len, enum mem_type type) {
                 m2.addr = addr;
                 m2.len = len;
                 m2.type = type;
-                m2.efi_attributes = 0;
 
                 m3.addr = addr + len;
                 m3.len = m.addr + m.len - addr - len;
                 m3.type = m.type;
-                m3.efi_attributes = 0;
 
                 m.len = addr - m.addr;
 
@@ -652,7 +645,6 @@ static bool set_pages_type(uint64_t addr, uint64_t len, enum mem_type type) {
                     mem_entries[i + 1].addr = addr;
                     mem_entries[i + 1].len = delta;
                     mem_entries[i + 1].type = type;
-                    mem_entries[i + 1].efi_attributes = 0;
                 }
 
                 if (len == delta)
