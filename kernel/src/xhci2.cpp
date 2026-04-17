@@ -2349,8 +2349,8 @@ void usb_hub::device_found(uint8_t slot, uint8_t port, enum usb_speed_class spee
                            uint8_t port_speed) {
     usb_device* d;
 
-    // wait 100ms for device to come up
-    msleep(100);
+    // wait 200ms for device to come up
+    msleep(200);
 
     auto func = [&]<bool LARGE>() -> bool {
         auto devctx = new xhci_device_context<LARGE>;
