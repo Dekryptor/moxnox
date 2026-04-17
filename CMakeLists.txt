@@ -142,6 +142,10 @@ if(CMAKE_SYSTEM_PROCESSOR STREQUAL "amd64")
     target_sources(ipv6_kernel PUBLIC FILE_SET CXX_MODULES FILES modules/ipv6.cpp)
     target_compile_options(ipv6_kernel PRIVATE ${KERNEL_CFLAGS})
     target_link_libraries(ipv6_kernel PRIVATE format_kernel ws2_32_kernel)
+
+    add_library(smbios_32bit STATIC)
+    target_sources(smbios_32bit PUBLIC FILE_SET CXX_MODULES FILES modules/smbios.cpp)
+    target_compile_options(smbios_32bit PRIVATE -march=i386 -m32 -fno-ident -fno-pic -fno-exceptions -fno-rtti)
 endif()
 
 add_library(format STATIC)
