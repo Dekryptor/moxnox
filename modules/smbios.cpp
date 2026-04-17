@@ -37,3 +37,38 @@ export struct smbios3_entry_point {
 } __attribute__((packed));
 
 static_assert(sizeof(smbios3_entry_point) == 0x18);
+
+export enum class smbios_type : uint8_t {
+    firmware_information = 0,
+    system_information = 1,
+    system_enclosure = 3,
+    processor_information = 4,
+    cache_information = 7,
+    system_slots = 9,
+    physical_memory_array = 16,
+    memory_device = 17,
+    memory_array_mapped_address = 19,
+    system_boot_information = 32,
+    end = 127
+};
+
+export struct smbios_header {
+    smbios_type type;
+    uint8_t length;
+    uint16_t handle;
+} __attribute__((packed));
+
+static_assert(sizeof(smbios_header) == 0x4);
+
+export struct smbios_system_information : smbios_header {
+    uint8_t manufacturer;
+    uint8_t product_name;
+    uint8_t version;
+    uint8_t serial_number;
+    uint8_t uuid[16];
+    uint8_t wakeup_type;
+    uint8_t sku_number;
+    uint8_t family;
+} __attribute__((packed));
+
+static_assert(sizeof(smbios_system_information) == 0x1b);
