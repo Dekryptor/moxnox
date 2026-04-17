@@ -95,6 +95,8 @@ struct loader_block {
     uint32_t num_runtime_map_entries;
     uint32_t runtime_map_entry_size;
     uint64_t rsdp_pa;
+    uint64_t smbios_address;
+    uint64_t smbios_length;
 #if defined(__x86_64__) || defined(_X86_)
     bool text_mode;
 #endif

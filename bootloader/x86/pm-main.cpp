@@ -51,6 +51,25 @@ struct vbe_mode_info {
 
 static_assert(sizeof(vbe_mode_info) == 52);
 
+struct smbios2_entry_point {
+    char anchor_string[4];
+    uint8_t entry_point_checksum;
+    uint8_t entry_point_length;
+    uint8_t major_version;
+    uint8_t minor_version;
+    uint16_t maximum_structure_size;
+    uint8_t entry_point_revision;
+    uint8_t formatted_area[5];
+    char intermediate_anchor_string[5];
+    uint8_t intermediate_checksum;
+    uint16_t structure_table_length;
+    uint32_t structure_table_address;
+    uint16_t number_of_structures;
+    uint8_t smbios_bcd_revision;
+} __attribute__((packed));
+
+static_assert(sizeof(smbios2_entry_point) == 0x1f);
+
 static const uint8_t MM_TEXT = 0;
 
 extern e820_entry* ptr_e820_entries;
@@ -147,6 +166,7 @@ struct ACPISDTHeader {
 
 uint64_t entry_point;
 static uint64_t rsdp_pa = 0, rsdt_address = 0;
+static uint64_t smbios_address = 0, smbios_length = 0;
 loader_block lb;
 
 static void add_new_mem_entry(unsigned int pos) {
@@ -297,6 +317,15 @@ static void map_acpi(pte_span pd) {
     }
 }
 
+static void map_smbios(pte_span pd) {
+    uint64_t start_page = smbios_address & ~(PAGE_SHIFT - 1);
+    uint64_t end_page = (smbios_address + smbios_length - 1) & ~(PAGE_SHIFT - 1);
+
+    for (uint64_t i = start_page; i <= end_page; i++) {
+        map_page(pd, i, i);
+    }
+}
+
 static bool avx512_supported() {
     uint32_t ebx;
 
@@ -341,6 +370,9 @@ static void enable_paging() {
 
     if (rsdt_address != 0)
         map_acpi(pd);
+
+    if (smbios_address != 0)
+        map_smbios(pd);
 
     pd[(SELFMAP & 0xff8000000000) >> 39].pfn = (uintptr_t)pd.data() >> PAGE_SHIFT;
     pd[(SELFMAP & 0xff8000000000) >> 39].p = 1;
@@ -964,6 +996,39 @@ static bool find_acpi() {
     return false;
 }
 
+static bool find_smbios() {
+    auto data = span((uint8_t*)0xf0000, 0x10000);
+
+    static const char smbios2_magic[] = "_SM_";
+
+    while (data.size() >= 16) {
+        if (!memcmp(data.data(), smbios2_magic, sizeof(smbios2_magic) - 1)) {
+            auto& ep = *(smbios2_entry_point*)data.data();
+
+            // FIXME - check entry_point_length?
+
+            uint8_t sum = 0;
+
+            for (unsigned int i = 0; i < sizeof(smbios2_entry_point); i++) {
+                sum += data[i];
+            }
+
+            if (sum != 0)
+                goto next;
+
+            smbios_address = ep.structure_table_address;
+            smbios_length = ep.structure_table_length;
+
+            return true;
+        }
+
+next:
+        data = data.subspan(16);
+    }
+
+    return false;
+}
+
 static void set_graphics_info() {
     auto& mode = ptr_vbe_modes[pm_vbe_selected_mode];
 
@@ -1019,6 +1084,9 @@ void protected_mode_main() {
     if (!find_acpi())
         print("Unable to find ACPI tables\n");
 
+    if (!find_smbios())
+        print("Unable to find SMBIOS tables\n");
+
     if (!load_payload()) {
         print("load_payload failed\n");
         goto halt;
@@ -1029,6 +1097,8 @@ void protected_mode_main() {
     lb.map_ptr = (uintptr_t)mem_entries;
     lb.num_map_entries = mem_entries_count;
     lb.rsdp_pa = rsdp_pa;
+    lb.smbios_address = smbios_address;
+    lb.smbios_length = smbios_length;
     lb.cmdline = (uintptr_t)ptr_cmdline;
     lb.initrd_data = initrd_addr;
     lb.initrd_size = *ptr_initrd_size;
