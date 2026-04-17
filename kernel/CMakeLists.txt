@@ -63,6 +63,7 @@ set(GLOBAL_MODULES src/cmdline.cpp
     src/mapping_type.cpp
     src/net.cpp
     src/unwind.cpp
+    src/smbios_parser.cpp
 )
 
 set(AMD64_MODULES ${GLOBAL_MODULES}
