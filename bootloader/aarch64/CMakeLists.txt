@@ -23,7 +23,7 @@ add_library(efistub SHARED ../efi.cpp)
 
 target_compile_options(efistub PRIVATE -Wall -Wextra -Wno-address-of-packed-member -Wconversion -Wno-unknown-pragmas -Werror=pointer-arith -fno-exceptions -fno-rtti -mno-red-zone -fcheck-new -Wno-invalid-offsetof -mno-stack-arg-probe -fno-threadsafe-statics -fvisibility=hidden -fno-asynchronous-unwind-tables -fno-zero-initialized-in-bss -mno-unaligned-access -march=armv8.1-a)
 target_link_options(efistub PUBLIC -nostartfiles -nostdlib -Wl,--image-base=0 -Wl,--exclude-all-symbols -e efi_main)
-target_link_libraries(efistub format pe loaderblock aarch64 crt unicode gnu-efi)
+target_link_libraries(efistub format pe loaderblock aarch64 crt unicode gnu-efi smbios)
 
 # HACK! Work around ld.lld bug: it relocates as if .buildid wasn't there, then sticks it before .data anyway
 target_link_options(efistub PRIVATE -Wl,/merge:.rdata=.data)

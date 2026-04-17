@@ -13,6 +13,7 @@ import loaderblock;
 import crt;
 import unicode;
 import gnu_efi;
+import smbios;
 
 #ifdef __aarch64__
 import aarch64;
@@ -1306,6 +1307,23 @@ static EFI_STATUS find_acpi_tables(uint64_t& rsdp_pa) {
     return EFI_SUCCESS;
 }
 
+static void find_smbios_tables(uint64_t& smbios_address, uint32_t& smbios_length) {
+    EFI_GUID smbios2_guid = SMBIOS_TABLE_GUID;
+
+    for (unsigned int i = 0; i < systable->NumberOfTableEntries; i++) {
+        if (!memcmp(&systable->ConfigurationTable[i].VendorGuid, &smbios2_guid, sizeof(EFI_GUID))) {
+            auto& ep = *(smbios2_entry_point*)systable->ConfigurationTable[i].VendorTable;
+
+            smbios_address = ep.structure_table_address;
+            smbios_length = ep.structure_table_length;
+
+            return;
+        }
+    }
+
+    print_string("SMBIOS tables not found\n");
+}
+
 static const struct {
     VENDOR_DEVICE_PATH vendor;
     EFI_DEVICE_PATH_PROTOCOL end;
@@ -1753,7 +1771,8 @@ static bool prepare_for_el1() {
 
 #endif
 
-static EFI_STATUS finish_setting_up(EFI_HANDLE image_handle, uint64_t rsdp_pa) {
+static EFI_STATUS finish_setting_up(EFI_HANDLE image_handle, uint64_t rsdp_pa,
+                                    uint64_t smbios_address, uint32_t smbios_length) {
     EFI_STATUS status;
     UINTN size, key, descsize;
     UINT32 version;
@@ -1765,6 +1784,8 @@ static EFI_STATUS finish_setting_up(EFI_HANDLE image_handle, uint64_t rsdp_pa) {
     lb.num_runtime_map_entries = num_runtime_map_entries;
     lb.runtime_map_entry_size = (uint32_t)runtime_map_entry_size;
     lb.rsdp_pa = rsdp_pa;
+    lb.smbios_address = smbios_address;
+    lb.smbios_length = smbios_length;
 #ifdef __x86_64__
     lb.text_mode = false;
 #endif
@@ -2035,7 +2056,8 @@ extern "C"
 EFI_STATUS efi_main(EFI_HANDLE image_handle, EFI_SYSTEM_TABLE* system_table) {
     EFI_STATUS Status;
     EFI_LOADED_IMAGE_PROTOCOL* image;
-    uint64_t entry_point, img_pa, rsdp_pa;
+    uint64_t entry_point, img_pa, rsdp_pa, smbios_address = 0;
+    uint32_t smbios_length = 0;
     size_t img_size;
 #ifdef __x86_64__
     uint64_t cr3;
@@ -2065,6 +2087,8 @@ EFI_STATUS efi_main(EFI_HANDLE image_handle, EFI_SYSTEM_TABLE* system_table) {
         print_error("find_acpi_tables", Status);
         return Status;
     }
+
+    find_smbios_tables(smbios_address, smbios_length);
 
     Status = find_initrd_devpath();
     if (EFI_ERROR(Status) && Status != EFI_NOT_FOUND) {
@@ -2134,7 +2158,8 @@ EFI_STATUS efi_main(EFI_HANDLE image_handle, EFI_SYSTEM_TABLE* system_table) {
     }
 #endif
 
-    Status = finish_setting_up(image_handle, rsdp_pa);
+    Status = finish_setting_up(image_handle, rsdp_pa, smbios_address,
+                               smbios_length);
     if (EFI_ERROR(Status)) {
         print_error("finish_setting_up", Status);
         return Status;
