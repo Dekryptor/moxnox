@@ -1309,6 +1309,18 @@ static EFI_STATUS find_acpi_tables(uint64_t& rsdp_pa) {
 
 static void find_smbios_tables(uint64_t& smbios_address, uint32_t& smbios_length) {
     EFI_GUID smbios2_guid = SMBIOS_TABLE_GUID;
+    EFI_GUID smbios3_guid = SMBIOS3_TABLE_GUID;
+
+    for (unsigned int i = 0; i < systable->NumberOfTableEntries; i++) {
+        if (!memcmp(&systable->ConfigurationTable[i].VendorGuid, &smbios3_guid, sizeof(EFI_GUID))) {
+            auto& ep = *(smbios3_entry_point*)systable->ConfigurationTable[i].VendorTable;
+
+            smbios_address = ep.structure_table_address;
+            smbios_length = ep.structure_table_maximum_size;
+
+            return;
+        }
+    }
 
     for (unsigned int i = 0; i < systable->NumberOfTableEntries; i++) {
         if (!memcmp(&systable->ConfigurationTable[i].VendorGuid, &smbios2_guid, sizeof(EFI_GUID))) {
