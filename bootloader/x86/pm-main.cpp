@@ -70,6 +70,21 @@ struct smbios2_entry_point {
 
 static_assert(sizeof(smbios2_entry_point) == 0x1f);
 
+struct smbios3_entry_point {
+    char anchor_string[5];
+    uint8_t entry_point_checksum;
+    uint8_t entry_point_length;
+    uint8_t major_version;
+    uint8_t minor_version;
+    uint8_t docrev;
+    uint8_t entry_point_revision;
+    uint8_t reserved;
+    uint32_t structure_table_maximum_size;
+    uint64_t structure_table_address;
+} __attribute__((packed));
+
+static_assert(sizeof(smbios3_entry_point) == 0x18);
+
 static const uint8_t MM_TEXT = 0;
 
 extern e820_entry* ptr_e820_entries;
@@ -1000,6 +1015,7 @@ static bool find_smbios() {
     auto data = span((uint8_t*)0xf0000, 0x10000);
 
     static const char smbios2_magic[] = "_SM_";
+    static const char smbios3_magic[] = "_SM3_";
 
     while (data.size() >= 16) {
         if (!memcmp(data.data(), smbios2_magic, sizeof(smbios2_magic) - 1)) {
@@ -1018,6 +1034,24 @@ static bool find_smbios() {
 
             smbios_address = ep.structure_table_address;
             smbios_length = ep.structure_table_length;
+
+            return true;
+        } else if (!memcmp(data.data(), smbios3_magic, sizeof(smbios3_magic) - 1)) {
+            auto& ep = *(smbios3_entry_point*)data.data();
+
+            // FIXME - check entry_point_length?
+
+            uint8_t sum = 0;
+
+            for (unsigned int i = 0; i < sizeof(smbios2_entry_point); i++) {
+                sum += data[i];
+            }
+
+            if (sum != 0)
+                goto next;
+
+            smbios_address = ep.structure_table_address;
+            smbios_length = ep.structure_table_maximum_size;
 
             return true;
         }
