@@ -1123,14 +1123,18 @@ static void print_chars2(console_fb& con, font_info& font,
 
     // lay out using harfbuzz
 
+    size_t s_offset = 0;
+
     do {
         // FIXME - keep HB buffer around?
         // FIXME - cap how much data we send to hb_buffer_add_utf8?
 
         unique_hb_buffer buf{hb_buffer_create()};
 
-        hb_buffer_add_codepoints(buf.get(), (const hb_codepoint_t*)s.data(),
-                                 (int)s.size(), 0, -1);
+        auto s_rem = s.subspan(s_offset);
+
+        hb_buffer_add_codepoints(buf.get(), (const hb_codepoint_t*)s_rem.data(),
+                                 (int)s_rem.size(), 0, -1);
         hb_buffer_guess_segment_properties(buf.get());
 
         hb_shape(font.hb_font, buf.get(), nullptr, 0);
@@ -1148,7 +1152,7 @@ static void print_chars2(console_fb& con, font_info& font,
             if (curline->num_cells == console_fb_inst.console_cols - 1)
                 break;
 
-            auto clus = hb_clus(s, span(info, len), i);
+            auto clus = hb_clus(s_rem, span(info, len), i);
             bool wide = is_cluster_wide(clus);
 
             if (wide && curline->num_cells + 2 == console_fb_inst.console_cols)
@@ -1236,6 +1240,7 @@ static void print_chars2(console_fb& con, font_info& font,
         oldline->atts = (text_attribute*)realloc(oldline->atts, trunc * sizeof(text_attribute));
         oldline->len = trunc;
 
+        s_offset += info[hb_len_done].cluster;
         orig_cursor_x = 0;
     } while (true);
 
