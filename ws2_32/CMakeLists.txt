@@ -21,8 +21,9 @@ target_link_options(ws2_32 PUBLIC -nostartfiles -nostdlib)
 target_link_libraries(ws2_32 PRIVATE unique_handle errno print)
 target_link_libraries(ws2_32 PRIVATE moxnox)
 
-install(TARGETS ws2_32 DESTINATION ${CMAKE_INSTALL_PREFIX}/lib
+install(TARGETS ws2_32
     COMPONENT core
+    RUNTIME DESTINATION ${CMAKE_INSTALL_PREFIX}/lib
     CXX_MODULES_BMI EXCLUDE_FROM_ALL
     ARCHIVE EXCLUDE_FROM_ALL
 )
