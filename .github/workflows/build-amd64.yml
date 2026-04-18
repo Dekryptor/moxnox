@@ -82,6 +82,8 @@ jobs:
       - name: Copy files
         run: |
           cp -av install/debug/. root/
+          rm root/boot
+          rm root/initrd
 
       - name: Repack initrd
         run: |
