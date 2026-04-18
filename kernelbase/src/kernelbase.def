@@ -29,7 +29,7 @@ TlsAlloc
 TlsFree
 TlsSetValue
 RaiseException
-IsProcessorFeaturePresent
+IsProcessorFeaturePresent = ntdll.RtlIsProcessorFeaturePresent
 GetCurrentProcess
 TerminateProcess
 CtrlRoutine

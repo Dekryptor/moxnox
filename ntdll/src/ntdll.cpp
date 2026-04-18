@@ -1564,3 +1564,10 @@ nt_status LdrGetDllHandle(const char16_t* /*dll_path*/, uint32_t* /*dll_characte
 
     return nt_status::DLL_NOT_FOUND;
 }
+
+extern "C"
+bool RtlIsProcessorFeaturePresent(uint32_t processor_feature) {
+    print_stderr("FIXME - RtlIsProcessorFeaturePresent {:x}\n", processor_feature);
+
+    return false;
+}

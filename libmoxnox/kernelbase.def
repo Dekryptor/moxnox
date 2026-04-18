@@ -56,7 +56,6 @@ FlsGetValue
 FlsSetValue
 GetProcAddress
 GetModuleHandleW
-IsProcessorFeaturePresent
 CreateFileA
 MapViewOfFile
 UnmapViewOfFile

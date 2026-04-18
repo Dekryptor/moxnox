@@ -469,3 +469,4 @@ LdrFindEntryForAddress
 RtlAcquireLoaderLock
 RtlReleaseLoaderLock
 LdrGetDllHandle
+RtlIsProcessorFeaturePresent
