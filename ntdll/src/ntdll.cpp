@@ -1567,7 +1567,63 @@ nt_status LdrGetDllHandle(const char16_t* /*dll_path*/, uint32_t* /*dll_characte
 
 extern "C"
 bool RtlIsProcessorFeaturePresent(uint32_t processor_feature) {
-    print_stderr("FIXME - RtlIsProcessorFeaturePresent {:x}\n", processor_feature);
+#ifdef __x86_64__
+    switch (processor_feature) {
+        case PF_COMPARE_EXCHANGE_DOUBLE:
+        case PF_MMX_INSTRUCTIONS_AVAILABLE:
+        case PF_XMMI_INSTRUCTIONS_AVAILABLE:
+        case PF_RDTSC_INSTRUCTION_AVAILABLE:
+        case PF_PAE_ENABLED:
+        case PF_XMMI64_INSTRUCTIONS_AVAILABLE:
+        case PF_SSE3_INSTRUCTIONS_AVAILABLE:
+        case PF_SSSE3_INSTRUCTIONS_AVAILABLE:
+        case PF_XSAVE_ENABLED:
+        case PF_COMPARE_EXCHANGE128:
+        case PF_SSE_DAZ_MODE_AVAILABLE:
+        case PF_NX_ENABLED:
+        case PF_SSE4_1_INSTRUCTIONS_AVAILABLE:
+        case PF_SSE4_2_INSTRUCTIONS_AVAILABLE:
+        case PF_AVX_INSTRUCTIONS_AVAILABLE:
+        case PF_AVX2_INSTRUCTIONS_AVAILABLE:
+            return true;
+
+        case PF_3DNOW_INSTRUCTIONS_AVAILABLE:
+            return false; // FIXME - check
+
+        case PF_SECOND_LEVEL_ADDRESS_TRANSLATION:
+            return false; // FIXME - check
+
+        case PF_VIRT_FIRMWARE_ENABLED:
+            return false; // FIXME - check
+
+        case PF_RDWRFSGSBASE_AVAILABLE:
+            return false; // FIXME - check
+
+        // FIXME - PF_FASTFAIL_AVAILABLE?
+        // FIXME - AVX512 features? All other x86 features?
+
+        default:
+            break;
+    }
+#elifdef __aarch64__
+    switch (processor_feature) {
+        case PF_ARM_V8_INSTRUCTIONS_AVAILABLE:
+        case PF_ARM_V81_ATOMIC_INSTRUCTIONS_AVAILABLE:
+            return true;
+
+        case PF_ARM_V8_CRC32_INSTRUCTIONS_AVAILABLE:
+            return false; // FIXME - check
+
+        case PF_ARM_V8_CRYPTO_INSTRUCTIONS_AVAILABLE:
+            return false; // FIXME - check
+
+        // FIXME - all other ARM features?
+
+        default:
+            break;
+
+    }
+#endif
 
     return false;
 }
