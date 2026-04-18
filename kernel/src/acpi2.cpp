@@ -973,7 +973,7 @@ ACPI_STATUS AcpiOsInstallInterruptHandler(UINT32 InterruptNumber,
     insert_tail_list(irq_handlers, n->le);
     insert_tail_list(n->handlers, h->le);
 
-    if (!add_irq_handler(InterruptNumber, false, acpi_isr_func, n)) {
+    if (!add_irq_handler(InterruptNumber, true, acpi_isr_func, n)) {
         print("add_irq_handler failed\n");
         delete h;
         delete n;
