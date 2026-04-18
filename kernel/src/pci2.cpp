@@ -28,6 +28,8 @@ static object_ref init_device_event;
 
 static void found_pci_bus(const acpi_device& dev);
 static void found_pci_link(const acpi_device& dev);
+static void check_bus(uint8_t bus, const acpi_device& acpi_dev,
+                      span<uint8_t> routing, const ACPI_MCFG_ALLOCATION& item);
 
 static acpi_recognizer mod_pnp_hids_pci[] = {
 #ifdef __x86_64__
@@ -402,17 +404,28 @@ static ACPI_STATUS find_routing(ACPI_HANDLE handle, span<uint8_t>& out) {
     return AE_OK;
 }
 
-static void device_found(volatile pci_header& h, uint16_t seg,
+static void device_found1(volatile pci_header& h, const acpi_device& acpi_dev,
+                          span<uint8_t> routing, const ACPI_MCFG_ALLOCATION& item) {
+    volatile auto& h1 = *(pci_header1*)&h;
+    uint8_t secondary = h1.secondary_bus_number;
+
+    if (secondary == 0)
+        return;
+
+    check_bus(secondary, acpi_dev, routing, item);
+}
+
+static void device_found(volatile pci_header& h, const ACPI_MCFG_ALLOCATION& item,
                          uint8_t bus, uint8_t dev, uint8_t func,
                          const acpi_device& acpi_dev, span<uint8_t> routing) {
     uint8_t header_type = h.header_type & 0x7f;
 
-    if (header_type != 0)
-        return;
+    if (header_type == 0) {
+        h.command |= PCI_COMMAND_MASTER | PCI_COMMAND_MEMORY;
 
-    h.command |= PCI_COMMAND_MASTER | PCI_COMMAND_MEMORY;
-
-    device_found0(h, seg, bus, dev, func, acpi_dev, routing);
+        device_found0(h, item.PciSegment, bus, dev, func, acpi_dev, routing);
+    } else if (header_type == 1)
+        device_found1(h, acpi_dev, routing, item);
 }
 
 static void check_bus(uint8_t bus, const acpi_device& acpi_dev,
@@ -445,7 +458,7 @@ static void check_bus(uint8_t bus, const acpi_device& acpi_dev,
 
         bool multifunction = h.header_type & 0x80;
 
-        device_found(h, item.PciSegment, bus, dev, 0, acpi_dev, routing);
+        device_found(h, item, bus, dev, 0, acpi_dev, routing);
 
         if (multifunction) {
             for (uint8_t func = 1; func < 8; func++) {
@@ -472,8 +485,7 @@ static void check_bus(uint8_t bus, const acpi_device& acpi_dev,
                     continue;
                 }
 
-                device_found(h2, item.PciSegment, bus, dev, func,
-                             acpi_dev, routing);
+                device_found(h2, item, bus, dev, func, acpi_dev, routing);
             }
         }
     }
@@ -661,11 +673,8 @@ static void found_pci_bus(const acpi_device& dev) {
             continue;
 
         auto start = max(*bus_start, it.StartBusNumber);
-        auto end = min(*bus_end, it.EndBusNumber);
 
-        for (unsigned int num = start; num <= end; num++) {
-            check_bus((uint8_t)num, dev, routing, it);
-        }
+        check_bus((uint8_t)start, dev, routing, it);
     }
 
     vfree(routing.data(), routing_pages << PAGE_SHIFT);
