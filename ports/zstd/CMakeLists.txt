@@ -46,6 +46,7 @@ add_executable(zstdcli
 
 set_target_properties(zstdcli PROPERTIES OUTPUT_NAME zstd)
 
+target_compile_options(zstdcli PRIVATE ${GENERAL_CFLAGS})
 target_compile_definitions(zstdcli PRIVATE -DZSTD_NOBENCH -DZSTD_NODICT -DZSTD_NOTRACE -DZSTD_LEGACY_SUPPORT=0)
 
 target_link_libraries(zstdcli PRIVATE zstd)
