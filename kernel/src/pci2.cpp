@@ -198,7 +198,7 @@ static optional<uint64_t> translate_pci_pa(const acpi_device& dev, uint64_t pa) 
 static void device_found0(const volatile pci_header& h, uint16_t seg,
                           uint8_t bus, uint8_t dev, uint8_t func,
                           const acpi_device& acpi_dev, span<uint8_t> routing,
-                          optional<uint8_t> bridge_dev) {
+                          optional<uint8_t> bridge_dev, ACPI_HANDLE routing_handle) {
     volatile auto& h0 = *(pci_header0*)&h;
     uint16_t vendor_id = h.vendor_id;
     uint16_t device_id = h.device_id;
@@ -357,9 +357,9 @@ static void device_found0(const volatile pci_header& h, uint16_t seg,
         optional<uint32_t> irq;
 
         if (bridge_dev.has_value())
-            irq = search_routing(acpi_dev.handle, *bridge_dev, pci_dev.pin, routing);
+            irq = search_routing(routing_handle, *bridge_dev, pci_dev.pin, routing);
         else
-            irq = search_routing(acpi_dev.handle, dev, pci_dev.pin, routing);
+            irq = search_routing(routing_handle, dev, pci_dev.pin, routing);
 
         if (!irq.has_value())
             print("no IRQ found for {:04x}:{:02x}:{:02x}:{:x}\n", seg,
@@ -464,7 +464,7 @@ static void device_found(volatile pci_header& h, const ACPI_MCFG_ALLOCATION& ite
         h.command |= PCI_COMMAND_MASTER | PCI_COMMAND_MEMORY;
 
         device_found0(h, item.PciSegment, bus, dev, func, acpi_dev, routing,
-                      bridge_dev);
+                      bridge_dev, parent_handle);
     } else if (header_type == 1)
         device_found1(h, item, dev, func, acpi_dev, routing, parent_handle);
 }
