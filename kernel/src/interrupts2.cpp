@@ -153,7 +153,7 @@ static inline uint64_t rdmsr(uint64_t msr) {
     return ((uint64_t)high << 32) | low;
 }
 
-static uint32_t get_irq_gsi(span<const uint8_t> madt, uint32_t irq) {
+static pair<uint32_t, uint16_t> get_irq_gsi(span<const uint8_t> madt, uint32_t irq) {
     auto data = madt;
 
     // check source overrides in MADT
@@ -165,13 +165,13 @@ static uint32_t get_irq_gsi(span<const uint8_t> madt, uint32_t irq) {
             auto& ent = *(ACPI_MADT_INTERRUPT_OVERRIDE*)data.data();
 
             if (ent.Bus == 0 && ent.SourceIrq == irq)
-                return ent.GlobalIrq;
+                return { ent.GlobalIrq, ent.IntiFlags };
         }
 
         data = data.subspan(h.Length);
     }
 
-    return irq;
+    return { irq, 0 };
 }
 
 static ACPI_MADT_IO_APIC* find_ioapic(span<const uint8_t> madt, uint32_t gsi) {
@@ -296,7 +296,7 @@ static irq* find_irq(uint32_t number, uint32_t apic_id, bool level) {
     span madt((const uint8_t*)tbl + sizeof(ACPI_TABLE_MADT),
               tbl->Length - sizeof(ACPI_TABLE_MADT));
 
-    auto gsi = get_irq_gsi(madt, number);
+    auto [gsi, inti_flags] = get_irq_gsi(madt, number);
     ACPI_MADT_IO_APIC* ioapic = nullptr;
     uint8_t vec = 0;
 
@@ -333,7 +333,18 @@ static irq* find_irq(uint32_t number, uint32_t apic_id, bool level) {
             *IOREGWIN = val;
         };
 
-        write_reg(0x10 + ((gsi - ioapic->GlobalIrqBase) * 2), (level ? 0x8000 : 0) | vec);
+        uint32_t redir = vec;
+
+        if ((inti_flags & 0x3) == 3) // active-low
+            redir |= 0x2000;
+
+        if (((inti_flags >> 2) & 0x3) == 3) // level-triggered
+            redir |= 0x8000;
+
+        if (inti_flags == 0 && level) // fallback if no override entry
+            redir |= 0x8000;
+
+        write_reg(0x10 + ((gsi - ioapic->GlobalIrqBase) * 2), redir);
         write_reg(0x11 + ((gsi - ioapic->GlobalIrqBase) * 2), apic_id);
 
         insert_tail_list(irqs, i->le);
