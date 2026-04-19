@@ -31,3 +31,6 @@
 [submodule "ports/cairo/cairo"]
 	path = ports/cairo/repo
 	url = https://git.burntcomma.com/moxnox/cairo
+[submodule "ncurses"]
+	path = ports/ncurses/repo
+	url = https://git.burntcomma.com/moxnox/ncurses

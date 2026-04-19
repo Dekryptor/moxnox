@@ -1,0 +1,509 @@
+set(GEN ${CMAKE_CURRENT_BINARY_DIR}/gen)
+file(MAKE_DIRECTORY ${GEN})
+
+project(ncurses VERSION 6.5.20250802)
+
+# Version
+set(NCURSES_MAJOR ${PROJECT_VERSION_MAJOR})
+set(NCURSES_MINOR ${PROJECT_VERSION_MINOR})
+set(NCURSES_PATCH ${PROJECT_VERSION_PATCH})
+
+# Template variables (shared by curses.h.in, unctrl.h.in, MKterm.h.awk.in)
+set(EXP_WIN32_DRIVER 0)
+set(HAVE_SGTTY_H 0)
+set(HAVE_STDINT_H 1)
+set(HAVE_STDNORETURN_H 0)
+set(HAVE_TERMIO_H 0)
+set(HAVE_TERMIOS_H 1)
+set(HAVE_TCGETATTR 1)
+set(HAVE_VSSCANF 1)
+
+# curses.h type/feature knobs
+set(BROKEN_LINKER 0)
+set(cf_cv_1UL "1U")
+set(cf_cv_enable_lp64 0) # Windows is LLP64, not LP64
+set(cf_cv_enable_reentrant 0)
+set(cf_cv_enable_sigwinch 0)
+set(cf_cv_type_of_bool "unsigned char")
+set(cf_cv_typeof_chtype "uint32_t")
+set(cf_cv_typeof_mmask_t "uint32_t")
+set(GENERATED_EXT_FUNCS "generated")
+set(NCURSES_CCHARW_MAX 5)
+set(NCURSES_CH_T "chtype") # narrow build
+set(NCURSES_CONST "const")
+set(NCURSES_EXT_COLORS 0) # requires wide char
+set(NCURSES_EXT_FUNCS 1)
+set(NCURSES_INLINE "inline")
+set(NCURSES_INTEROP_FUNCS 1)
+set(NCURSES_LIBUTF8 0)
+set(NCURSES_MOUSE_VERSION 2)
+set(NCURSES_OK_WCHAR_T "")
+set(NCURSES_OPAQUE 1)
+set(NCURSES_OPAQUE_FORM 1)
+set(NCURSES_OPAQUE_MENU 1)
+set(NCURSES_OPAQUE_PANEL 1)
+set(NCURSES_REENTRANT 0)
+set(NCURSES_RGB_COLORS 0)
+set(NCURSES_SBOOL "signed char")
+set(NCURSES_SIGWINCH 0)
+set(NCURSES_SIZE_T "short")
+set(NCURSES_SP_FUNCS ${NCURSES_PATCH})
+set(NCURSES_TPARM_ARG "intptr_t")
+set(NCURSES_TPARM_VARARGS 1)
+set(NCURSES_USE_DATABASE 0)
+set(NCURSES_USE_TERMCAP 0)
+set(NCURSES_WATTR_MACROS 1)
+set(NCURSES_WCHAR_T 0)
+set(NCURSES_WCWIDTH_GRAPHICS 1) # use internal table; no wcwidth in narrow build
+set(NCURSES_WINT_T 0)
+set(NCURSES_WRAP_PREFIX "_nc_")
+set(NCURSES_XNAMES 1)
+set(NEED_WCHAR_H 0) # narrow build
+set(USE_BUILTIN_BOOL 1)
+set(USE_CXX_BOOL 0)
+set(USE_STDBOOL_H 1)
+set(NCURSES_OSPEED short)
+
+configure_file(ncurses_cfg.h.in ${GEN}/ncurses_cfg.h @ONLY)
+
+add_custom_command(
+    OUTPUT ${GEN}/hashsize.h
+    COMMAND sh -c "sh '${CMAKE_CURRENT_SOURCE_DIR}/repo/include/MKhashsize.sh' '${CMAKE_CURRENT_SOURCE_DIR}/repo/include/Caps' '${CMAKE_CURRENT_SOURCE_DIR}/repo/include/Caps-ncurses' > '${GEN}/hashsize.h'"
+    DEPENDS
+        repo/include/MKhashsize.sh
+        repo/include/Caps
+        repo/include/Caps-ncurses
+    VERBATIM
+)
+
+add_custom_command(
+    OUTPUT ${GEN}/parametrized.h
+    COMMAND sh -c "AWK=awk sh '${CMAKE_CURRENT_SOURCE_DIR}/repo/include/MKparametrized.sh' '${CMAKE_CURRENT_SOURCE_DIR}/repo/include/Caps' '${CMAKE_CURRENT_SOURCE_DIR}/repo/include/Caps-ncurses' > '${GEN}/parametrized.h'"
+    DEPENDS
+        repo/include/MKparametrized.sh
+        repo/include/Caps
+        repo/include/Caps-ncurses
+    VERBATIM
+)
+
+add_custom_command(
+    OUTPUT ${GEN}/ncurses_def.h
+    COMMAND sh -c "sh '${CMAKE_CURRENT_SOURCE_DIR}/repo/include/MKncurses_def.sh' '${CMAKE_CURRENT_SOURCE_DIR}/repo/include/ncurses_defs' > '${GEN}/ncurses_def.h'"
+    DEPENDS
+        repo/include/MKncurses_def.sh
+        repo/include/ncurses_defs
+    VERBATIM
+)
+
+configure_file(repo/include/MKterm.h.awk.in ${GEN}/MKterm.h.awk @ONLY)
+add_custom_command(
+    OUTPUT ${GEN}/term.h
+    COMMAND sh -c "awk -f '${GEN}/MKterm.h.awk' '${CMAKE_CURRENT_SOURCE_DIR}/repo/include/Caps' '${CMAKE_CURRENT_SOURCE_DIR}/repo/include/Caps-ncurses' > '${GEN}/term.h'"
+    DEPENDS
+        ${GEN}/MKterm.h.awk
+        repo/include/Caps
+        repo/include/Caps-ncurses
+    VERBATIM
+)
+
+configure_file(repo/include/ncurses_dll.h.in ${GEN}/ncurses_dll.h @ONLY)
+
+configure_file(repo/include/curses.h.in ${GEN}/curses.h.in.generated @ONLY)
+
+add_custom_command(
+    OUTPUT ${GEN}/curses.h
+    COMMAND sh -c "cat '${GEN}/curses.h.in.generated' > '${GEN}/curses.h' && AWK=awk sh '${CMAKE_CURRENT_SOURCE_DIR}/repo/include/MKkey_defs.sh' '${CMAKE_CURRENT_SOURCE_DIR}/repo/include/Caps' '${CMAKE_CURRENT_SOURCE_DIR}/repo/include/Caps-ncurses' >> '${GEN}/curses.h' && cat '${CMAKE_CURRENT_SOURCE_DIR}/repo/include/curses.tail' >> '${GEN}/curses.h'"
+    DEPENDS
+        ${GEN}/curses.h.in.generated
+        repo/include/MKkey_defs.sh
+        repo/include/Caps
+        repo/include/Caps-ncurses
+        repo/include/curses.tail
+    VERBATIM
+)
+
+configure_file(repo/include/unctrl.h.in ${GEN}/unctrl.h @ONLY)
+
+configure_file(repo/include/termcap.h.in ${GEN}/termcap.h @ONLY)
+
+add_custom_command(
+    OUTPUT ${GEN}/init_keytry.h
+    COMMAND sh -c "awk -f '${CMAKE_CURRENT_SOURCE_DIR}/MKinit_keytry.awk' '${CMAKE_CURRENT_SOURCE_DIR}/repo/include/Caps' '${CMAKE_CURRENT_SOURCE_DIR}/repo/include/Caps-ncurses' > '${GEN}/init_keytry.h'"
+    DEPENDS
+        ${CMAKE_CURRENT_SOURCE_DIR}/MKinit_keytry.awk
+        repo/include/Caps
+        repo/include/Caps-ncurses
+    VERBATIM
+)
+
+add_custom_command(
+    OUTPUT ${GEN}/names.c
+    COMMAND sh -c "awk -f '${CMAKE_CURRENT_SOURCE_DIR}/repo/ncurses/tinfo/MKnames.awk' '${CMAKE_CURRENT_SOURCE_DIR}/repo/include/Caps' '${CMAKE_CURRENT_SOURCE_DIR}/repo/include/Caps-ncurses' > '${GEN}/names.c'"
+    DEPENDS
+        repo/ncurses/tinfo/MKnames.awk
+        repo/include/Caps
+        repo/include/Caps-ncurses
+    VERBATIM
+)
+
+add_custom_command(
+    OUTPUT ${GEN}/codes.c
+    COMMAND sh -c "awk -f '${CMAKE_CURRENT_SOURCE_DIR}/repo/ncurses/tinfo/MKcodes.awk' '${CMAKE_CURRENT_SOURCE_DIR}/repo/include/Caps' '${CMAKE_CURRENT_SOURCE_DIR}/repo/include/Caps-ncurses' > '${GEN}/codes.c'"
+    DEPENDS
+        repo/ncurses/tinfo/MKcodes.awk
+        repo/include/Caps
+        repo/include/Caps-ncurses
+    VERBATIM
+)
+
+add_custom_command(
+    OUTPUT ${GEN}/lib_unctrl.c
+    COMMAND sh -c "echo '' | awk -f '${CMAKE_CURRENT_SOURCE_DIR}/repo/ncurses/base/MKunctrl.awk' > '${GEN}/lib_unctrl.c'"
+    DEPENDS
+        repo/ncurses/base/MKunctrl.awk
+    VERBATIM
+)
+
+add_custom_command(
+    OUTPUT ${GEN}/comp_captab.c
+    COMMAND sh -c "HASHTABSIZE=$(grep 'define CAPTABSIZE' '${GEN}/hashsize.h' | awk '{print $NF * 2}') && cat '${CMAKE_CURRENT_SOURCE_DIR}/comp_captab_head.c' > '${GEN}/comp_captab.c' && awk -v mode=info -v HASHTABSIZE=$HASHTABSIZE -f '${CMAKE_CURRENT_SOURCE_DIR}/MKhash.awk' '${CMAKE_CURRENT_SOURCE_DIR}/repo/include/Caps' '${CMAKE_CURRENT_SOURCE_DIR}/repo/include/Caps-ncurses' >> '${GEN}/comp_captab.c' && awk -v mode=cap -v HASHTABSIZE=$HASHTABSIZE -f '${CMAKE_CURRENT_SOURCE_DIR}/MKhash.awk' '${CMAKE_CURRENT_SOURCE_DIR}/repo/include/Caps' '${CMAKE_CURRENT_SOURCE_DIR}/repo/include/Caps-ncurses' >> '${GEN}/comp_captab.c' && awk -f '${CMAKE_CURRENT_SOURCE_DIR}/repo/ncurses/tinfo/MKcaptab.awk' bigstrings=0 tablename=capalias '${CMAKE_CURRENT_SOURCE_DIR}/repo/include/Caps' '${CMAKE_CURRENT_SOURCE_DIR}/repo/include/Caps-ncurses' >> '${GEN}/comp_captab.c' && awk -f '${CMAKE_CURRENT_SOURCE_DIR}/repo/ncurses/tinfo/MKcaptab.awk' bigstrings=0 tablename=infoalias '${CMAKE_CURRENT_SOURCE_DIR}/repo/include/Caps' '${CMAKE_CURRENT_SOURCE_DIR}/repo/include/Caps-ncurses' >> '${GEN}/comp_captab.c' && cat '${CMAKE_CURRENT_SOURCE_DIR}/comp_captab_tail.c' >> '${GEN}/comp_captab.c'"
+    DEPENDS
+        ${CMAKE_CURRENT_SOURCE_DIR}/comp_captab_head.c
+        ${CMAKE_CURRENT_SOURCE_DIR}/comp_captab_tail.c
+        ${CMAKE_CURRENT_SOURCE_DIR}/MKhash.awk
+        repo/ncurses/tinfo/MKcaptab.awk
+        repo/include/Caps
+        repo/include/Caps-ncurses
+        ${GEN}/hashsize.h
+    VERBATIM
+)
+
+add_custom_command(
+    OUTPUT ${GEN}/curses.priv.h
+    COMMAND sh -c "sed 's/#if (defined(_WIN32) || defined(_WIN64))/#if (defined(_WIN32) || defined(_WIN64)) \\&\\& !defined(MOXNOX)/' '${CMAKE_CURRENT_SOURCE_DIR}/repo/ncurses/curses.priv.h' > '${GEN}/curses.priv.h'"
+    DEPENDS repo/ncurses/curses.priv.h
+    VERBATIM
+)
+
+add_custom_command(
+    OUTPUT ${GEN}/comp_userdefs.c
+    COMMAND sh -c "HASHTABSIZE=$(grep 'define CAPTABSIZE' '${GEN}/hashsize.h' | awk '{print $NF * 2}') && cat '${CMAKE_CURRENT_SOURCE_DIR}/comp_userdefs_head.c' > '${GEN}/comp_userdefs.c' && awk -v mode=user -v HASHTABSIZE=$HASHTABSIZE -f '${CMAKE_CURRENT_SOURCE_DIR}/MKhash.awk' '${CMAKE_CURRENT_SOURCE_DIR}/repo/include/Caps' '${CMAKE_CURRENT_SOURCE_DIR}/repo/include/Caps-ncurses' >> '${GEN}/comp_userdefs.c' && cat '${CMAKE_CURRENT_SOURCE_DIR}/comp_userdefs_tail.c' >> '${GEN}/comp_userdefs.c'"
+    DEPENDS
+        ${CMAKE_CURRENT_SOURCE_DIR}/comp_userdefs_head.c
+        ${CMAKE_CURRENT_SOURCE_DIR}/comp_userdefs_tail.c
+        ${CMAKE_CURRENT_SOURCE_DIR}/MKhash.awk
+        repo/include/Caps
+        repo/include/Caps-ncurses
+        ${GEN}/hashsize.h
+    VERBATIM
+)
+
+# ncurses shared library
+
+add_library(ncurses SHARED
+    repo/ncurses/base/define_key.c
+    repo/ncurses/base/keybound.c
+    repo/ncurses/base/key_defined.c
+    repo/ncurses/base/keyok.c
+    repo/ncurses/base/legacy_coding.c
+    repo/ncurses/base/lib_addch.c
+    repo/ncurses/base/lib_addstr.c
+    repo/ncurses/base/lib_beep.c
+    repo/ncurses/base/lib_bkgd.c
+    repo/ncurses/base/lib_box.c
+    repo/ncurses/base/lib_chgat.c
+    repo/ncurses/base/lib_clear.c
+    repo/ncurses/base/lib_clearok.c
+    repo/ncurses/base/lib_clrbot.c
+    repo/ncurses/base/lib_clreol.c
+    repo/ncurses/base/lib_color.c
+    repo/ncurses/base/lib_colorset.c
+    repo/ncurses/base/lib_delch.c
+    repo/ncurses/base/lib_delwin.c
+    repo/ncurses/base/lib_dft_fgbg.c
+    repo/ncurses/base/lib_echo.c
+    repo/ncurses/base/lib_endwin.c
+    repo/ncurses/base/lib_erase.c
+    repo/ncurses/base/lib_flash.c
+    repo/ncurses/base/lib_freeall.c
+    repo/ncurses/base/lib_getch.c
+    repo/ncurses/base/lib_getstr.c
+    repo/ncurses/base/lib_hline.c
+    repo/ncurses/base/lib_immedok.c
+    repo/ncurses/base/lib_inchstr.c
+    repo/ncurses/base/lib_initscr.c
+    repo/ncurses/base/lib_insch.c
+    repo/ncurses/base/lib_insdel.c
+    repo/ncurses/base/lib_insnstr.c
+    repo/ncurses/base/lib_instr.c
+    repo/ncurses/base/lib_isendwin.c
+    repo/ncurses/base/lib_leaveok.c
+    repo/ncurses/base/lib_mouse.c
+    repo/ncurses/base/lib_move.c
+    repo/ncurses/base/lib_mvwin.c
+    repo/ncurses/base/lib_newterm.c
+    repo/ncurses/base/lib_newwin.c
+    repo/ncurses/base/lib_nl.c
+    repo/ncurses/base/lib_overlay.c
+    repo/ncurses/base/lib_pad.c
+    repo/ncurses/base/lib_printw.c
+    repo/ncurses/base/lib_redrawln.c
+    repo/ncurses/base/lib_refresh.c
+    repo/ncurses/base/lib_restart.c
+    repo/ncurses/base/lib_scanw.c
+    repo/ncurses/base/lib_screen.c
+    repo/ncurses/base/lib_scroll.c
+    repo/ncurses/base/lib_scrollok.c
+    repo/ncurses/base/lib_scrreg.c
+    repo/ncurses/base/lib_set_term.c
+    repo/ncurses/base/lib_slk.c
+    repo/ncurses/base/lib_slkatrof.c
+    repo/ncurses/base/lib_slkatron.c
+    repo/ncurses/base/lib_slkatr_set.c
+    repo/ncurses/base/lib_slkatrset.c
+    repo/ncurses/base/lib_slkattr.c
+    repo/ncurses/base/lib_slkclear.c
+    repo/ncurses/base/lib_slkcolor.c
+    repo/ncurses/base/lib_slkinit.c
+    repo/ncurses/base/lib_slklab.c
+    repo/ncurses/base/lib_slkrefr.c
+    repo/ncurses/base/lib_slkset.c
+    repo/ncurses/base/lib_slktouch.c
+    repo/ncurses/base/lib_touch.c
+    repo/ncurses/base/lib_ungetch.c
+    repo/ncurses/base/lib_vline.c
+    repo/ncurses/base/lib_wattroff.c
+    repo/ncurses/base/lib_wattron.c
+    repo/ncurses/base/lib_winch.c
+    repo/ncurses/base/lib_window.c
+    repo/ncurses/base/nc_panel.c
+    repo/ncurses/base/new_pair.c
+    repo/ncurses/base/resizeterm.c
+    repo/ncurses/base/safe_sprintf.c
+    repo/ncurses/base/tries.c
+    repo/ncurses/base/use_window.c
+    repo/ncurses/base/version.c
+    repo/ncurses/base/vsscanf.c
+    repo/ncurses/base/wresize.c
+    repo/ncurses/tinfo/access.c
+    repo/ncurses/tinfo/add_tries.c
+    repo/ncurses/tinfo/alloc_entry.c
+    repo/ncurses/tinfo/alloc_ttype.c
+    repo/ncurses/tinfo/captoinfo.c
+    repo/ncurses/tinfo/comp_error.c
+    repo/ncurses/tinfo/comp_expand.c
+    repo/ncurses/tinfo/comp_hash.c
+    repo/ncurses/tinfo/comp_parse.c
+    repo/ncurses/tinfo/comp_scan.c
+    repo/ncurses/tinfo/db_iterator.c
+    repo/ncurses/tinfo/doalloc.c
+    repo/ncurses/tinfo/entries.c
+    repo/ncurses/tinfo/free_ttype.c
+    repo/ncurses/tinfo/getenv_num.c
+    repo/ncurses/tinfo/hashed_db.c
+    repo/ncurses/tinfo/home_terminfo.c
+    repo/ncurses/tinfo/init_keytry.c
+    repo/ncurses/tinfo/lib_acs.c
+    repo/ncurses/tinfo/lib_baudrate.c
+    repo/ncurses/tinfo/lib_cur_term.c
+    repo/ncurses/tinfo/lib_data.c
+    repo/ncurses/tinfo/lib_has_cap.c
+    repo/ncurses/tinfo/lib_kernel.c
+    repo/ncurses/tinfo/lib_longname.c
+    repo/ncurses/tinfo/lib_napms.c
+    repo/ncurses/tinfo/lib_options.c
+    repo/ncurses/tinfo/lib_print.c
+    repo/ncurses/tinfo/lib_raw.c
+    repo/ncurses/tinfo/lib_setup.c
+    repo/ncurses/tinfo/lib_termcap.c
+    repo/ncurses/tinfo/lib_termname.c
+    repo/ncurses/tinfo/lib_tgoto.c
+    repo/ncurses/tinfo/lib_ti.c
+    repo/ncurses/tinfo/lib_tparm.c
+    repo/ncurses/tinfo/lib_tputs.c
+    repo/ncurses/tinfo/lib_ttyflags.c
+    repo/ncurses/tinfo/lib_win32util.c
+    repo/ncurses/tinfo/name_match.c
+    repo/ncurses/tinfo/obsolete.c
+    repo/ncurses/tinfo/parse_entry.c
+    repo/ncurses/tinfo/read_entry.c
+    repo/ncurses/tinfo/read_termcap.c
+    repo/ncurses/tinfo/strings.c
+    repo/ncurses/tinfo/trim_sgr0.c
+    repo/ncurses/tinfo/use_screen.c
+    repo/ncurses/tinfo/write_entry.c
+    repo/ncurses/trace/lib_trace.c
+    repo/ncurses/trace/lib_traceatr.c
+    repo/ncurses/trace/lib_tracebits.c
+    repo/ncurses/trace/lib_tracechr.c
+    repo/ncurses/trace/lib_tracedmp.c
+    repo/ncurses/trace/lib_tracemse.c
+    repo/ncurses/trace/trace_buf.c
+    repo/ncurses/trace/trace_tries.c
+    repo/ncurses/trace/trace_xnames.c
+    repo/ncurses/trace/varargs.c
+    repo/ncurses/trace/visbuf.c
+    repo/ncurses/tty/hardscroll.c
+    repo/ncurses/tty/hashmap.c
+    repo/ncurses/tty/lib_mvcur.c
+    repo/ncurses/tty/lib_tstp.c
+    repo/ncurses/tty/lib_twait.c
+    repo/ncurses/tty/lib_vidattr.c
+    repo/ncurses/tty/tty_update.c
+    ${GEN}/names.c
+    ${GEN}/codes.c
+    ${GEN}/lib_unctrl.c
+    fallback.c
+    ${GEN}/comp_captab.c
+    ${GEN}/comp_userdefs.c
+)
+
+target_compile_definitions(ncurses PRIVATE BUILDING_NCURSES)
+target_compile_options(ncurses PRIVATE ${USERSPACE_CFLAGS} -Wno-pointer-sign -Wno-conversion -Wno-unused-parameter -Wno-unused-but-set-variable)
+target_include_directories(ncurses PUBLIC ${GEN} ${CMAKE_CURRENT_SOURCE_DIR})
+target_include_directories(ncurses PRIVATE repo/ncurses repo/include)
+target_link_libraries(ncurses PRIVATE posixshim)
+
+add_custom_target(ncurses_generated_headers
+    DEPENDS
+        ${GEN}/hashsize.h
+        ${GEN}/parametrized.h
+        ${GEN}/ncurses_def.h
+        ${GEN}/init_keytry.h
+        ${GEN}/term.h
+        ${GEN}/curses.h
+        ${GEN}/curses.priv.h
+)
+add_dependencies(ncurses ncurses_generated_headers)
+
+# form shared library
+
+add_library(form SHARED
+    repo/form/f_trace.c
+    repo/form/fld_arg.c
+    repo/form/fld_attr.c
+    repo/form/fld_current.c
+    repo/form/fld_def.c
+    repo/form/fld_dup.c
+    repo/form/fld_ftchoice.c
+    repo/form/fld_ftlink.c
+    repo/form/fld_info.c
+    repo/form/fld_just.c
+    repo/form/fld_link.c
+    repo/form/fld_max.c
+    repo/form/fld_move.c
+    repo/form/fld_newftyp.c
+    repo/form/fld_opts.c
+    repo/form/fld_pad.c
+    repo/form/fld_page.c
+    repo/form/fld_stat.c
+    repo/form/fld_type.c
+    repo/form/fld_user.c
+    repo/form/frm_cursor.c
+    repo/form/frm_data.c
+    repo/form/frm_def.c
+    repo/form/frm_driver.c
+    repo/form/frm_hook.c
+    repo/form/frm_opts.c
+    repo/form/frm_page.c
+    repo/form/frm_post.c
+    repo/form/frm_req_name.c
+    repo/form/frm_scale.c
+    repo/form/frm_sub.c
+    repo/form/frm_user.c
+    repo/form/frm_win.c
+    repo/form/fty_alnum.c
+    repo/form/fty_alpha.c
+    repo/form/fty_enum.c
+    repo/form/fty_generic.c
+    repo/form/fty_int.c
+    repo/form/fty_ipv4.c
+    repo/form/fty_num.c
+    repo/form/fty_regex.c
+)
+
+target_compile_definitions(form PRIVATE BUILDING_NCURSES BUILDING_FORM)
+target_compile_options(form PRIVATE ${USERSPACE_CFLAGS} -Wno-unused-parameter -Wno-unused-variable)
+target_include_directories(form PRIVATE repo/ncurses repo/include repo/form repo/menu)
+target_link_libraries(form PRIVATE ncurses)
+
+# menu shared library
+
+add_library(menu SHARED
+    repo/menu/m_attribs.c
+    repo/menu/m_cursor.c
+    repo/menu/m_driver.c
+    repo/menu/m_format.c
+    repo/menu/m_global.c
+    repo/menu/m_hook.c
+    repo/menu/m_item_cur.c
+    repo/menu/m_item_nam.c
+    repo/menu/m_item_new.c
+    repo/menu/m_item_opt.c
+    repo/menu/m_item_top.c
+    repo/menu/m_item_use.c
+    repo/menu/m_item_val.c
+    repo/menu/m_item_vis.c
+    repo/menu/m_items.c
+    repo/menu/m_new.c
+    repo/menu/m_opts.c
+    repo/menu/m_pad.c
+    repo/menu/m_pattern.c
+    repo/menu/m_post.c
+    repo/menu/m_req_name.c
+    repo/menu/m_scale.c
+    repo/menu/m_spacing.c
+    repo/menu/m_sub.c
+    repo/menu/m_trace.c
+    repo/menu/m_userptr.c
+    repo/menu/m_win.c
+)
+
+target_compile_definitions(menu PRIVATE BUILDING_NCURSES BUILDING_MENU)
+target_compile_options(menu PRIVATE ${USERSPACE_CFLAGS})
+target_include_directories(menu PRIVATE repo/ncurses repo/include repo/menu)
+target_link_libraries(menu PRIVATE ncurses)
+
+# panel shared library
+
+add_library(panel SHARED
+    repo/panel/p_above.c
+    repo/panel/p_below.c
+    repo/panel/p_bottom.c
+    repo/panel/p_delete.c
+    repo/panel/p_hidden.c
+    repo/panel/p_hide.c
+    repo/panel/p_move.c
+    repo/panel/p_new.c
+    repo/panel/p_replace.c
+    repo/panel/p_show.c
+    repo/panel/p_top.c
+    repo/panel/p_update.c
+    repo/panel/p_user.c
+    repo/panel/p_win.c
+    repo/panel/panel.c
+)
+
+target_compile_definitions(panel PRIVATE BUILDING_NCURSES BUILDING_PANEL)
+target_compile_options(panel PRIVATE ${USERSPACE_CFLAGS})
+target_include_directories(panel PRIVATE repo/ncurses repo/include)
+target_link_libraries(panel PRIVATE ncurses)
+
+install(TARGETS ncurses form menu panel
+    DESTINATION ${CMAKE_INSTALL_PREFIX}/lib
+    ARCHIVE EXCLUDE_FROM_ALL
+)
+
+####
+
+add_executable(ncurses-test ncurses-test.cpp)
+
+target_compile_options(ncurses-test PRIVATE -fno-exceptions ${USERSPACE_CFLAGS})
+target_link_libraries(ncurses-test moxnox)
+target_link_libraries(ncurses-test ncurses)
+
+if (CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
+    target_link_options(ncurses-test PUBLIC -mcrtdll=ucrtbase)
+endif()
+
+install(TARGETS ncurses-test DESTINATION ${CMAKE_INSTALL_PREFIX}/bin)

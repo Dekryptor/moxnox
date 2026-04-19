@@ -1,0 +1,92 @@
+#pragma once
+
+/* System headers */
+#define HAVE_DIRENT_H       0
+#define HAVE_FCNTL_H        1
+#define HAVE_INTTYPES_H     1
+#define HAVE_LIMITS_H       1
+#define HAVE_LOCALE_H       0
+#define HAVE_MALLOC_H       0
+#define HAVE_STDINT_H       1
+#define HAVE_STDLIB_H       1
+#define HAVE_STRING_H       1
+#define HAVE_SYS_STAT_H     1
+#define HAVE_SYS_TIME_H     0
+#define HAVE_SYS_TYPES_H    1
+#define HAVE_TERMIOS_H      1
+#define HAVE_UNISTD_H       0
+#define HAVE_WCHAR_H        0
+#define HAVE_WCTYPE_H       0
+
+/* C library functions */
+#define HAVE_ALLOCA         0
+#define HAVE_CLOCK_GETTIME  0
+#define HAVE_GETCWD         1
+#define HAVE_GETTIMEOFDAY   0
+#define HAVE_ISASCII        1
+#define HAVE_NANOSLEEP      0
+#define HAVE_PUTENV         1
+#define HAVE_REMOVE         1
+#define HAVE_SETENV         0
+#define HAVE_SNPRINTF       1
+#define HAVE_STRDUP         1
+#define HAVE_STRSTR         1
+#define HAVE_VSNPRINTF      1
+#define HAVE_VSSCANF        1
+
+/* Terminal control */
+#define HAVE_CFMAKERAW      0
+#define HAVE_TCGETATTR      1
+
+/* I/O multiplexing */
+#define HAVE_POLL           0
+#define HAVE_SELECT         0
+#define HAVE_WORKING_POLL   0
+#define USE_FUNC_POLL       0
+
+/* Signals */
+#define HAVE_SIGACTION      0
+#define HAVE_SIGVEC         0
+#define NCURSES_SIGWINCH    0
+
+/* Wide-character - narrow build, UTF-8 handled by the terminal */
+#define USE_WIDEC_SUPPORT   0
+#define HAVE_MBSTATE_T      0
+#define NCURSES_LIBUTF8     0
+
+/* ncurses feature flags */
+#define HAVE_HASHED_DB      0
+#define NCURSES_EXT_COLORS  0   /* ext colors require wide char */
+#define NCURSES_EXT_FUNCS   1
+#define NCURSES_INTEROP_FUNCS 1
+#define NCURSES_MOUSE_VERSION 2
+#define NCURSES_XNAMES      1
+#define PURE_TERMINFO       1
+#define USE_DATABASE        1
+#define USE_SP_FUNCS        1
+
+/* Types */
+#define HAVE_SIGNAL_H       1
+#define SIG_ATOMIC_T        volatile sig_atomic_t
+
+/* Version string (normally set by autoconf) */
+#define NCURSES_VERSION_STRING "@NCURSES_MAJOR@.@NCURSES_MINOR@.@NCURSES_PATCH@"
+
+/* Miscellaneous */
+#define DECL_ERRNO          0
+#define HAVE_LONG_FILE_NAMES 1
+#define USE_RCS_IDS         0
+#define USE_SCROLL_HINTS    1
+
+#include <ncurses_def.h>
+
+/* mkdir on Windows only takes one argument; ignore mode */
+#include <direct.h>
+#define mkdir(path, mode) _mkdir(path)
+
+unsigned int sleep(unsigned int seconds);
+
+#ifdef __cplusplus
+#undef const
+#undef inline
+#endif
