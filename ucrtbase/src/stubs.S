@@ -137,5 +137,13 @@ do_stub "strpbrk"
 do_stub "tan"
 do_stub "tmpfile"
 do_stub "_setjmpex"
+do_stub "clearerr"
+do_stub "isalnum"
+do_stub "isalpha"
+do_stub "iscntrl"
+do_stub "isgraph"
+do_stub "islower"
+do_stub "isprint"
+do_stub "isupper"
 
 stubs_end

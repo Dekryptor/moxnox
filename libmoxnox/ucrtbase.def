@@ -213,3 +213,11 @@ strpbrk
 tan
 tmpfile
 _setjmpex
+clearerr
+isalnum
+isalpha
+iscntrl
+isgraph
+islower
+isprint
+isupper
