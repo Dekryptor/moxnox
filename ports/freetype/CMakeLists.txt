@@ -64,7 +64,7 @@ target_compile_definitions(freetype PRIVATE -DFT_CONFIG_MODULES_H=\"${CMAKE_CURR
 target_compile_definitions(freetype PRIVATE -DFT_CONFIG_STANDARD_LIBRARY_H=\"${CMAKE_CURRENT_SOURCE_DIR}/ftstdlib.h\")
 target_compile_options(freetype PRIVATE -mno-stack-arg-probe ${GENERAL_CFLAGS} $<$<COMPILE_LANGUAGE:CXX>:-fno-exceptions -fno-rtti>)
 target_include_directories(freetype PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
-target_include_directories(freetype PRIVATE repo/include)
+target_include_directories(freetype PUBLIC repo/include)
 target_link_libraries(freetype PRIVATE libpng)
 
 install(TARGETS freetype DESTINATION ${CMAKE_INSTALL_PREFIX}/lib

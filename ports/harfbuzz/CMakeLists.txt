@@ -44,7 +44,6 @@ target_compile_definitions(harfbuzz PRIVATE -DHAVE_FREETYPE -DHB_LEAN -DHB_NO_AA
 target_compile_options(harfbuzz PRIVATE -mno-stack-arg-probe -Wa,-mbig-obj -fno-exceptions -fno-rtti ${GENERAL_CFLAGS} -w)
 target_compile_options(harfbuzz PRIVATE -include ${CMAKE_CURRENT_SOURCE_DIR}/hbshim.h)
 target_include_directories(harfbuzz PRIVATE repo/src)
-target_include_directories(harfbuzz PRIVATE ../freetype/repo/include)
 target_link_libraries(harfbuzz PRIVATE freetype)
 target_link_libraries(harfbuzz PRIVATE ${LIBGCC})
 
