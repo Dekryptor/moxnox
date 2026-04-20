@@ -56,12 +56,3 @@ FlsGetValue
 FlsSetValue
 GetProcAddress
 GetModuleHandleW
-CreateFileA
-MapViewOfFile
-UnmapViewOfFile
-GetConsoleMode
-FindFirstFileA
-FindClose
-FindNextFileA
-GetModuleHandleA
-GetSystemInfo
