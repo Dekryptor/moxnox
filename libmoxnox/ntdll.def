@@ -470,3 +470,4 @@ RtlAcquireLoaderLock
 RtlReleaseLoaderLock
 LdrGetDllHandle
 RtlIsProcessorFeaturePresent
+strncat
