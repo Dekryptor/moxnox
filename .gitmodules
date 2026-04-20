@@ -28,3 +28,6 @@
 [submodule "ports/musl/repo"]
 	path = ports/musl/repo
 	url = https://git.burntcomma.com/moxnox/musl
+[submodule "ports/cairo/cairo"]
+	path = ports/cairo/repo
+	url = https://git.burntcomma.com/moxnox/cairo

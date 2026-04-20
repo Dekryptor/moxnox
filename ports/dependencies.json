@@ -1,5 +1,6 @@
 {
     "acpica": [],
+    "cairo": ["freetype", "libpng", "pixman", "zlib"],
     "freetype": ["libpng"],
     "harfbuzz": ["freetype"],
     "gnu-efi": [],
