@@ -136,5 +136,6 @@ do_stub "sinf"
 do_stub "strpbrk"
 do_stub "tan"
 do_stub "tmpfile"
+do_stub "_setjmpex"
 
 stubs_end
