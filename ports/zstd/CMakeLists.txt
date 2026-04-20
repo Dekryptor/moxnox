@@ -35,18 +35,42 @@ install(TARGETS zstd DESTINATION ${CMAKE_INSTALL_PREFIX}/lib
 
 # FIXME - zlib dependency?
 
+set(ZSTD_PROG ${CMAKE_CURRENT_SOURCE_DIR}/repo/programs)
+set(ZSTD_GEN  ${CMAKE_CURRENT_BINARY_DIR}/programs)
+file(MAKE_DIRECTORY ${ZSTD_GEN})
+
+file(READ ${ZSTD_PROG}/fileio.c _src)
+string(REPLACE
+    "#elif defined(_MSC_VER) || defined(_WIN32)"
+    "#elif (defined(_MSC_VER) || defined(_WIN32)) && !defined(MOXNOX)"
+    _src "${_src}")
+file(WRITE ${ZSTD_GEN}/fileio.c "${_src}")
+
+file(READ ${ZSTD_PROG}/util.c _src)
+string(REPLACE
+    "#ifdef _WIN32"
+    "#if defined(_WIN32) && !defined(MOXNOX)"
+    _src "${_src}")
+string(REPLACE
+    "#if defined(_WIN32) || defined(WIN32)"
+    "#if (defined(_WIN32) || defined(WIN32)) && !defined(MOXNOX)"
+    _src "${_src}")
+file(WRITE ${ZSTD_GEN}/util.c "${_src}")
+
 add_executable(zstdcli
     repo/lib/common/pool.c
-    repo/programs/fileio.c
     repo/programs/fileio_asyncio.c
     repo/programs/timefn.c
-    repo/programs/util.c
     repo/programs/zstdcli.c
+    ${ZSTD_GEN}/fileio.c
+    ${ZSTD_GEN}/util.c
 )
 
 set_target_properties(zstdcli PROPERTIES OUTPUT_NAME zstd)
 
-target_compile_options(zstdcli PRIVATE ${GENERAL_CFLAGS})
+target_compile_options(zstdcli PRIVATE ${GENERAL_CFLAGS}
+    -include ${CMAKE_CURRENT_SOURCE_DIR}/zstdshim.h)
+target_include_directories(zstdcli PRIVATE ${ZSTD_PROG})
 target_compile_definitions(zstdcli PRIVATE -DZSTD_NOBENCH -DZSTD_NODICT -DZSTD_NOTRACE -DZSTD_LEGACY_SUPPORT=0)
 
 target_link_libraries(zstdcli PRIVATE zstd)
