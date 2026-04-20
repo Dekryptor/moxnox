@@ -7,7 +7,6 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 set(DLLS ntdll
     kernelbase
-    kernel32
     ucrtbase
     ws2_32)
 
