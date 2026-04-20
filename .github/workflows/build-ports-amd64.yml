@@ -67,6 +67,7 @@ jobs:
           done
 
       - name: Upload tarballs
+        if: github.ref == 'refs/heads/master'
         run: |
           for port in $(echo '${{ needs.compute-ports.outputs.ports }}' | jq -r '.[]'); do
             s3cmd --host=minio.burntcomma.com:443 \
@@ -136,6 +137,7 @@ jobs:
           done
 
       - name: Download initrd
+        if: github.ref == 'refs/heads/master'
         run: |
           s3cmd --host=minio.burntcomma.com:443 \
             --host-bucket=minio.burntcomma.com:443 \
@@ -145,10 +147,12 @@ jobs:
           AWS_SECRET_ACCESS_KEY: ${{secrets.S3_SECRET_KEY}}
 
       - name: Extract initrd
+        if: github.ref == 'refs/heads/master'
         run: |
           cpio -idm --no-absolute-filenames -D ${PWD}/root < ${PWD}/initrd
 
       - name: Copy ports
+        if: github.ref == 'refs/heads/master'
         run: |
           for port in $(echo '${{ needs.compute-ports.outputs.ports }}' | jq -r '.[]'); do
             mkdir -p root/share/pkg/$port
@@ -163,11 +167,13 @@ jobs:
           done
 
       - name: Repack initrd
+        if: github.ref == 'refs/heads/master'
         run: |
           cd root && \
           find . -print0 | cpio --null --create --format=newc > ../initrd
 
       - name: Upload initrd
+        if: github.ref == 'refs/heads/master'
         run: |
           s3cmd --host=minio.burntcomma.com:443 \
             --host-bucket=minio.burntcomma.com:443 \
