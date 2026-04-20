@@ -160,3 +160,15 @@ install(TARGETS cairo
     DESTINATION ${CMAKE_INSTALL_PREFIX}/lib
     ARCHIVE EXCLUDE_FROM_ALL
 )
+
+add_executable(cairo-test cairo-test.cpp)
+
+target_compile_options(cairo-test PRIVATE -fno-exceptions ${USERSPACE_CFLAGS})
+target_link_libraries(cairo-test moxnox print unique_handle evdev)
+target_link_libraries(cairo-test cairo)
+
+if (CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
+    target_link_options(cairo-test PUBLIC -mcrtdll=ucrtbase)
+endif()
+
+install(TARGETS cairo-test DESTINATION ${CMAKE_INSTALL_PREFIX}/bin)
