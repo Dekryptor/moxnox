@@ -107,3 +107,4 @@ utime = _utime64
 setvbuf
 getenv_s = _getenv_s
 strncat = ntdll.strncat
+_hypot = hypot

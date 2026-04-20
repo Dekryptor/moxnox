@@ -199,6 +199,7 @@ fmod
 frexp
 _gmtime64
 _hypot
+hypot
 longjmp
 _setjmp
 _localtime64
