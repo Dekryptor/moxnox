@@ -30,6 +30,8 @@ add_library(musl STATIC
     ../ports/musl/repo/src/math/atan.c
     ../ports/musl/repo/src/math/atan2f.c
     ../ports/musl/repo/src/math/atanf.c
+    ../ports/musl/repo/src/math/acos.c
+    ../ports/musl/repo/src/math/acosf.c
 )
 
 target_include_directories(musl PRIVATE musl_compat ../ports/musl/repo/src/internal ../ports/musl/repo/arch/generic)

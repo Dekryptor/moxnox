@@ -122,3 +122,5 @@ atanf
 atan2
 atan2f
 _setjmp
+acos
+acosf

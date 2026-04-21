@@ -189,6 +189,7 @@ _utime
 utime
 getenv_s
 acos
+acosf
 atoi
 bsearch
 cos
