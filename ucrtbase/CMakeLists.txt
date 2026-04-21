@@ -8,6 +8,12 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 add_library(musl STATIC
     ../ports/musl/repo/src/math/floorf.c
     ../ports/musl/repo/src/math/ceilf.c
+    ../ports/musl/repo/src/math/sin.c
+    ../ports/musl/repo/src/math/cos.c
+    ../ports/musl/repo/src/math/__sin.c
+    ../ports/musl/repo/src/math/__cos.c
+    ../ports/musl/repo/src/math/__rem_pio2.c
+    ../ports/musl/repo/src/math/__rem_pio2_large.c
 )
 
 target_include_directories(musl PRIVATE musl_compat ../ports/musl/repo/src/internal ../ports/musl/repo/arch/generic)
