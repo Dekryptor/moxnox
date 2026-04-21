@@ -25,3 +25,6 @@
 [submodule "ports/zstd/zstd"]
 	path = ports/zstd/repo
 	url = https://git.burntcomma.com/moxnox/zstd
+[submodule "ports/musl/repo"]
+	path = ports/musl/repo
+	url = https://git.burntcomma.com/moxnox/musl
