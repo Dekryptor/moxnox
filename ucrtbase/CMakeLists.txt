@@ -10,12 +10,21 @@ add_library(musl STATIC
     ../ports/musl/repo/src/math/ceilf.c
     ../ports/musl/repo/src/math/sin.c
     ../ports/musl/repo/src/math/cos.c
+    ../ports/musl/repo/src/math/tan.c
     ../ports/musl/repo/src/math/__sin.c
     ../ports/musl/repo/src/math/__cos.c
+    ../ports/musl/repo/src/math/__tan.c
     ../ports/musl/repo/src/math/__rem_pio2.c
     ../ports/musl/repo/src/math/__rem_pio2_large.c
     ../ports/musl/repo/src/math/ceil.c
     ../ports/musl/repo/src/math/floor.c
+    ../ports/musl/repo/src/math/sinf.c
+    ../ports/musl/repo/src/math/cosf.c
+    ../ports/musl/repo/src/math/tanf.c
+    ../ports/musl/repo/src/math/__sindf.c
+    ../ports/musl/repo/src/math/__cosdf.c
+    ../ports/musl/repo/src/math/__tandf.c
+    ../ports/musl/repo/src/math/__rem_pio2f.c
 )
 
 target_include_directories(musl PRIVATE musl_compat ../ports/musl/repo/src/internal ../ports/musl/repo/arch/generic)

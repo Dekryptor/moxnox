@@ -112,3 +112,7 @@ sin
 cos
 ceil
 floor
+sinf
+cosf
+tan
+tanf
