@@ -228,3 +228,5 @@ scalbn
 atan
 atanf
 atan2f
+sincos
+sincosf

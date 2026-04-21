@@ -129,3 +129,5 @@ sqrt
 sqrtf
 hypot
 hypotf
+sincos
+sincosf
