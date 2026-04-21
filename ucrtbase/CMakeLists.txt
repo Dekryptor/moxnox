@@ -7,6 +7,7 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 add_library(musl STATIC
     ../ports/musl/repo/src/math/floorf.c
+    ../ports/musl/repo/src/math/ceilf.c
 )
 
 target_include_directories(musl PRIVATE musl_compat ../ports/musl/repo/src/internal ../ports/musl/repo/arch/generic)
