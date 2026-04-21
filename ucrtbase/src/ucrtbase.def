@@ -108,6 +108,7 @@ setvbuf
 getenv_s = _getenv_s
 strncat = ntdll.strncat
 _hypot = hypot
+_hypotf = hypotf
 sin
 cos
 ceil
@@ -126,3 +127,5 @@ acos
 acosf
 sqrt
 sqrtf
+hypot
+hypotf

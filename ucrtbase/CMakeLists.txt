@@ -37,6 +37,8 @@ add_library(musl STATIC
     ../ports/musl/repo/src/math/sqrt_data.c
     ../ports/musl/repo/src/math/__math_invalid.c
     ../ports/musl/repo/src/math/__math_invalidf.c
+    ../ports/musl/repo/src/math/hypot.c
+    ../ports/musl/repo/src/math/hypotf.c
 )
 
 target_include_directories(musl PRIVATE musl_compat ../ports/musl/repo/src/include ../ports/musl/repo/src/internal ../ports/musl/repo/arch/generic)

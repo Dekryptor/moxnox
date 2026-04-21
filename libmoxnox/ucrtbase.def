@@ -201,6 +201,8 @@ frexp
 _gmtime64
 _hypot
 hypot
+_hypotf
+hypotf
 longjmp
 _setjmp
 _localtime64
