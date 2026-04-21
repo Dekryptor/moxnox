@@ -32,10 +32,15 @@ add_library(musl STATIC
     ../ports/musl/repo/src/math/atanf.c
     ../ports/musl/repo/src/math/acos.c
     ../ports/musl/repo/src/math/acosf.c
+    ../ports/musl/repo/src/math/sqrt.c
+    ../ports/musl/repo/src/math/sqrtf.c
+    ../ports/musl/repo/src/math/sqrt_data.c
+    ../ports/musl/repo/src/math/__math_invalid.c
+    ../ports/musl/repo/src/math/__math_invalidf.c
 )
 
-target_include_directories(musl PRIVATE musl_compat ../ports/musl/repo/src/internal ../ports/musl/repo/arch/generic)
-target_compile_definitions(musl PRIVATE hidden=)
+target_include_directories(musl PRIVATE musl_compat ../ports/musl/repo/src/include ../ports/musl/repo/src/internal ../ports/musl/repo/arch/generic)
+target_compile_options(musl PRIVATE -include ${CMAKE_CURRENT_SOURCE_DIR}/../ports/musl/repo/src/include/features.h)
 
 set(SRC_FILES src/ucrtbase.cpp
     src/stubs.S

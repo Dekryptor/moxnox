@@ -124,3 +124,5 @@ atan2f
 _setjmp
 acos
 acosf
+sqrt
+sqrtf
