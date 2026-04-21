@@ -159,7 +159,8 @@ mapping::~mapping() {
 
     // FIXME - send IPI to unmap on other CPUs by clearing TLB
 
-    unmap_proc_pages(proc, address, size >> PAGE_SHIFT);
+    if (in_address_space)
+        unmap_proc_pages(proc, address, size >> PAGE_SHIFT);
 
     visit([&](auto* ptr) {
         auto& cache = *ptr;

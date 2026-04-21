@@ -34,9 +34,10 @@ public:
 
     list_entry le;
     list_entry cache_le;
-    uint64_t address;
-    uint32_t size;
-    uint64_t offset;
+    uint64_t address = 0;
+    uint32_t size = 0;
+    uint64_t offset = 0;
+    bool in_address_space = false;
     process& proc;
     section& sect;
 

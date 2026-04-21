@@ -1156,6 +1156,8 @@ uintptr_t process::map_section(section& sect, uintptr_t address,
             return 0; // FIXME - return nt_status::INSUFFICIENT_RESOURCES
     }
 
+    m->in_address_space = true;
+
     return address;
 }
 
@@ -2190,6 +2192,8 @@ NTSTATUS process::allocate_vm(void** base_address, uintptr_t, size_t* region_siz
         }
         return nt_status::INSUFFICIENT_RESOURCES;
     }
+
+    m->in_address_space = true;
 
     *base_address = (void*)addr;
     *region_size = size;
