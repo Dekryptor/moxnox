@@ -110,3 +110,5 @@ strncat = ntdll.strncat
 _hypot = hypot
 sin
 cos
+ceil
+floor

@@ -14,6 +14,8 @@ add_library(musl STATIC
     ../ports/musl/repo/src/math/__cos.c
     ../ports/musl/repo/src/math/__rem_pio2.c
     ../ports/musl/repo/src/math/__rem_pio2_large.c
+    ../ports/musl/repo/src/math/ceil.c
+    ../ports/musl/repo/src/math/floor.c
 )
 
 target_include_directories(musl PRIVATE musl_compat ../ports/musl/repo/src/internal ../ports/musl/repo/arch/generic)
