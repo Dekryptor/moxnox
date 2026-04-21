@@ -50,6 +50,7 @@ set(SRC_FILES src/ucrtbase.cpp
     src/environ.cpp
     src/string.cpp
     src/except.cpp
+    src/setjmp.cpp
 )
 
 add_library(ucrtbase SHARED ${SRC_FILES})
