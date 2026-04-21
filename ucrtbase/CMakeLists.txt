@@ -41,6 +41,8 @@ add_library(musl STATIC
     ../ports/musl/repo/src/math/hypotf.c
     ../ports/musl/repo/src/math/sincos.c
     ../ports/musl/repo/src/math/sincosf.c
+    ../ports/musl/repo/src/math/trunc.c
+    ../ports/musl/repo/src/math/truncf.c
 )
 
 target_include_directories(musl PRIVATE musl_compat ../ports/musl/repo/src/include ../ports/musl/repo/src/internal ../ports/musl/repo/arch/generic)

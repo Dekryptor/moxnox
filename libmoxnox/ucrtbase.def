@@ -230,3 +230,5 @@ atanf
 atan2f
 sincos
 sincosf
+trunc
+truncf

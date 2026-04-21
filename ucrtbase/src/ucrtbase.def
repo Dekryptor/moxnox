@@ -131,3 +131,5 @@ hypot
 hypotf
 sincos
 sincosf
+trunc
+truncf
