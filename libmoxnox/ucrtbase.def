@@ -222,3 +222,6 @@ islower
 isprint
 isupper
 scalbn
+atan
+atanf
+atan2f

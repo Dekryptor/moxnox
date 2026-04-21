@@ -26,6 +26,10 @@ add_library(musl STATIC
     ../ports/musl/repo/src/math/__tandf.c
     ../ports/musl/repo/src/math/__rem_pio2f.c
     ../ports/musl/repo/src/math/scalbn.c
+    ../ports/musl/repo/src/math/atan2.c
+    ../ports/musl/repo/src/math/atan.c
+    ../ports/musl/repo/src/math/atan2f.c
+    ../ports/musl/repo/src/math/atanf.c
 )
 
 target_include_directories(musl PRIVATE musl_compat ../ports/musl/repo/src/internal ../ports/musl/repo/arch/generic)

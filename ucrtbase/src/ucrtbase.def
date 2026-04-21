@@ -117,3 +117,7 @@ cosf
 tan
 tanf
 scalbn
+atan
+atanf
+atan2
+atan2f
