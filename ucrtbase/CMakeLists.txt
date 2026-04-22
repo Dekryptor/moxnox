@@ -47,6 +47,7 @@ add_library(musl STATIC
 
 target_include_directories(musl PRIVATE musl_compat ../ports/musl/repo/src/include ../ports/musl/repo/src/internal ../ports/musl/repo/arch/generic)
 target_compile_options(musl PRIVATE -include ${CMAKE_CURRENT_SOURCE_DIR}/../ports/musl/repo/src/include/features.h)
+target_compile_options(musl PRIVATE -Wno-attributes)
 
 set(SRC_FILES src/ucrtbase.cpp
     src/stubs.S
