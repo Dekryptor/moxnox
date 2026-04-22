@@ -535,3 +535,16 @@ if (CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
 endif()
 
 install(TARGETS mouse-test DESTINATION ${CMAKE_INSTALL_PREFIX}/bin COMPONENT core)
+
+###
+
+add_executable(stat src/stat.cpp)
+
+target_compile_options(stat PRIVATE -fno-exceptions ${USERSPACE_CFLAGS})
+target_link_libraries(stat moxnox print errno)
+
+if (CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
+    target_link_options(stat PUBLIC -mcrtdll=ucrtbase)
+endif()
+
+install(TARGETS stat DESTINATION ${CMAKE_INSTALL_PREFIX}/bin COMPONENT core)
