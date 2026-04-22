@@ -18,6 +18,7 @@ import ntdll;
 import list;
 import ucrtbase;
 import kernelbase;
+import unique_handle;
 
 #undef errno
 import errno;
@@ -706,10 +707,91 @@ int setvbuf(FILE* /*stream*/, char* /*buffer*/, int /*mode*/, size_t /*size*/) {
     return 0;
 }
 
-extern "C"
-int _stat64i32(const char* /*path*/, struct _stat64i32* /*buf*/) {
-    print_stderr("FIXME - _stat64i32\n");
+static time_t win_to_unix_time(int64_t t) {
+    return (uint64_t)((t - 116444736000000000) / 10000000);
+}
 
-    *__errno() = EINVAL;
-    return -1;
+extern "C"
+int _stat64i32(const char* path, struct _stat64i32* st) {
+    auto peb = NtCurrentTeb()->ProcessEnvironmentBlock;
+    OBJECT_ATTRIBUTES oa;
+    UNICODE_STRING us;
+    IO_STATUS_BLOCK iosb;
+    HANDLE h;
+    FILE_BASIC_INFORMATION fbi;
+    FILE_STANDARD_INFORMATION fsi;
+    nt_status status;
+
+    if (!path || path[0] == 0) {
+        *__errno() = EINVAL;
+        return -1;
+    }
+
+    auto sv = string_view(path);
+
+    auto u16len = utf8_to_utf16_len(sv);
+
+    auto u16pathname = (char16_t*)malloc(u16len * sizeof(char16_t));
+    if (!u16pathname) {
+        *__errno() = ENOMEM;
+        return -1;
+    }
+
+    utf8_to_utf16(span(u16pathname, u16len), sv);
+
+    us.Length = us.MaximumLength = (uint16_t)(u16len * sizeof(char16_t));
+    us.Buffer = u16pathname;
+
+    memset(&oa, 0, sizeof(oa));
+    oa.Length = sizeof(OBJECT_ATTRIBUTES);
+    oa.ObjectName = &us;
+    oa.RootDirectory = peb->ProcessParameters->CurrentDirectory.Handle;
+
+    status = NtCreateFile(&h, FILE_READ_ATTRIBUTES, &oa, &iosb, nullptr,
+                          FILE_ATTRIBUTE_NORMAL, 0, FILE_OPEN, 0, nullptr, 0);
+    if (!success(status)) {
+        free(u16pathname);
+        *__errno() = nt_status_to_errno(status);
+        return -1;
+    }
+
+    free(u16pathname);
+
+    unique_handle f{h};
+
+    status = NtQueryInformationFile(f.get(), &iosb, &fbi, sizeof(fbi),
+                                    FILE_INFORMATION_CLASS::BasicInformation);
+    if (!success(status)) {
+        *__errno() = nt_status_to_errno(status);
+        return -1;
+    }
+
+    status = NtQueryInformationFile(f.get(), &iosb, &fsi, sizeof(fsi),
+                                    FILE_INFORMATION_CLASS::StandardInformation);
+    if (!success(status)) {
+        *__errno() = nt_status_to_errno(status);
+        return -1;
+    }
+
+    memset(st, 0, sizeof(*st));
+
+    static const uint32_t S_IFDIR = 040000;
+    static const uint32_t S_IFREG = 0100000;
+
+    if (fbi.FileAttributes & FILE_ATTRIBUTE_DIRECTORY)
+        st->st_mode = S_IFDIR | 0777;
+    else {
+        st->st_mode = S_IFREG | 0444;
+
+        if (!(fbi.FileAttributes & FILE_ATTRIBUTE_READONLY))
+            st->st_mode |= 0222;
+    }
+
+    st->st_nlink = (short)fsi.NumberOfLinks;
+    st->st_size = (_off_t)fsi.EndOfFile.QuadPart; // FIXME
+    st->st_atime = win_to_unix_time(fbi.LastAccessTime.QuadPart);
+    st->st_mtime = win_to_unix_time(fbi.LastWriteTime.QuadPart);
+    st->st_ctime = win_to_unix_time(fbi.ChangeTime.QuadPart);
+
+    return 0;
 }
