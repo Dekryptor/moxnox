@@ -9,6 +9,9 @@ concurrency:
 jobs:
   x86_64 Clang:
     runs-on: ubuntu-moxnox
+    container:
+      volumes:
+        - moxnox-cache:/cache
     steps:
       - name: Set short SHA
         run: echo "SHORT_SHA=${GITHUB_SHA::8}" >> $GITHUB_ENV
@@ -71,23 +74,18 @@ jobs:
 
       - name: Cache userspace
         if: github.ref == 'refs/heads/master'
-        uses: actions/cache/save@v3
-        with:
-          path: install/debug/
-          key: userspace-${{ github.run_id }}
+        run: cp -av install/debug/. /cache/userspace-${GITHUB_RUN_ID}/
 
   upload-initrd:
     needs: x86_64 Clang
     if: github.ref == 'refs/heads/master'
     runs-on: ubuntu-moxnox
+    container:
+      volumes:
+        - moxnox-cache:/cache
     concurrency:
       group: minio-upload
     steps:
-      - name: Restore userspace
-        uses: actions/cache/restore@v3
-        with:
-          path: install/debug/
-          key: userspace-${{ github.run_id }}
 
       - name: Download initrd
         run: |
@@ -103,7 +101,7 @@ jobs:
 
       - name: Copy files
         run: |
-          cp -av install/debug/. root/
+          cp -av /cache/userspace-${GITHUB_RUN_ID}/. root/
           rm root/boot
           rm root/initrd
 
@@ -118,3 +116,6 @@ jobs:
         env:
           AWS_ACCESS_KEY_ID: ${{secrets.S3_ACCESS_KEY}}
           AWS_SECRET_ACCESS_KEY: ${{secrets.S3_SECRET_KEY}}
+
+      - name: Clean up cache
+        run: rm -rf /cache/userspace-${GITHUB_RUN_ID}/
