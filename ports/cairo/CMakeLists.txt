@@ -148,7 +148,8 @@ add_library(cairo SHARED
 
 target_compile_definitions(cairo PRIVATE CAIRO_COMPILATION HAVE_CONFIG_H)
 
-target_compile_options(cairo PRIVATE ${GENERAL_CFLAGS} -include ${CMAKE_CURRENT_BINARY_DIR}/cairo-compiler-private.h)
+target_compile_options(cairo PRIVATE ${USERSPACE_CFLAGS} -include ${CMAKE_CURRENT_BINARY_DIR}/cairo-compiler-private.h)
+target_compile_options(cairo PRIVATE -Wno-float-conversion -Wno-enum-conversion -Wno-unused-parameter -Wno-sign-conversion -Wno-conversion -Wno-unused-but-set-variable -Wno-missing-field-initializers -Wno-unused-variable -Wno-unterminated-string-initialization -Wno-unused-function -Wno-return-type -Wno-array-bounds $<$<C_COMPILER_ID:GNU>:-Wno-maybe-uninitialized -Wno-alloc-size-larger-than -Wno-stringop-overflow>)
 
 target_include_directories(cairo PUBLIC repo/src)
 target_include_directories(cairo PUBLIC ${CMAKE_CURRENT_BINARY_DIR})
