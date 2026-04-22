@@ -23,6 +23,7 @@ add_library(ucrtbase_static STATIC
 target_include_directories(ucrtbase_static PRIVATE ${CMAKE_CURRENT_BINARY_DIR} repo/mingw-w64-headers/crt repo/mingw-w64-crt/include)
 target_compile_definitions(ucrtbase_static PRIVATE -D_CRTIMP=)
 target_compile_options(ucrtbase_static PRIVATE -ffreestanding)
+target_compile_options(ucrtbase_static PRIVATE -Wno-include-next-absolute-path)
 
 add_library(mingwex STATIC
     repo/mingw-w64-crt/crt/loadcfg.S
