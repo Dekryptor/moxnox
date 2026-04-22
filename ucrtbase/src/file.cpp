@@ -705,3 +705,11 @@ int setvbuf(FILE* /*stream*/, char* /*buffer*/, int /*mode*/, size_t /*size*/) {
 
     return 0;
 }
+
+extern "C"
+int _stat64i32(const char* /*path*/, struct _stat64i32* /*buf*/) {
+    print_stderr("FIXME - _stat64i32\n");
+
+    *__errno() = EINVAL;
+    return -1;
+}

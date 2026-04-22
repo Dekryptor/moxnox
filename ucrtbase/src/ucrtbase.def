@@ -133,3 +133,4 @@ sincos
 sincosf
 trunc
 truncf
+_stat64i32
