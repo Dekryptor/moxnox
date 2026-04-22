@@ -10,7 +10,8 @@ add_library(zlib SHARED
 )
 
 target_include_directories(zlib PUBLIC repo)
-target_compile_options(zlib PRIVATE ${GENERAL_CFLAGS} $<$<COMPILE_LANGUAGE:CXX>:-fno-exceptions -fno-rtti>)
+target_compile_options(zlib PRIVATE ${USERSPACE_CFLAGS} -fvisibility=default $<$<COMPILE_LANGUAGE:CXX>:-fno-exceptions -fno-rtti>)
+target_compile_options(zlib PRIVATE -Wno-sign-conversion -Wno-conversion)
 
 install(TARGETS zlib DESTINATION ${CMAKE_INSTALL_PREFIX}/lib
     ARCHIVE EXCLUDE_FROM_ALL
