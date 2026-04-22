@@ -4,6 +4,8 @@ on:
     paths-ignore:
       - 'docker/**'
       - 'ports/**'
+concurrency:
+  group: build-amd64
 jobs:
   x86_64 Clang:
     runs-on: ubuntu-moxnox

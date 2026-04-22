@@ -2,6 +2,8 @@ name: build-ports
 on:
   push:
     paths: ['ports/**']
+concurrency:
+  group: build-amd64
 jobs:
   compute-ports:
     runs-on: ubuntu-latest
