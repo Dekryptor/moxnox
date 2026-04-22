@@ -132,5 +132,12 @@ do_stub "isgraph"
 do_stub "islower"
 do_stub "isprint"
 do_stub "isupper"
+do_stub "_access"
+do_stub "_chdir"
+do_stub "_close"
+do_stub "_fstat64i32"
+do_stub "_getcwd"
+do_stub "_putenv"
+do_stub "_stat64i32"
 
 stubs_end

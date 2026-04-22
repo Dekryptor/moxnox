@@ -232,3 +232,13 @@ sincos
 sincosf
 trunc
 truncf
+_access
+_chdir
+_close
+_fstat64i32
+_getcwd
+_isatty
+_mkdir
+_open
+_putenv
+_stat64i32
