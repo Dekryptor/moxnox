@@ -135,8 +135,8 @@ int main() {
     cairo_surface_t* surface = cairo_image_surface_create_for_data(
         (unsigned char*)framebuffer.data(),
         CAIRO_FORMAT_RGB24,
-        fb_width,
-        fb_height,
+        (int)fb_width,
+        (int)fb_height,
         (int)(fb_pixels_per_scan_line * 4)
     );
 
