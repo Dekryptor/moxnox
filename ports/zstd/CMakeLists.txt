@@ -27,7 +27,8 @@ if(CMAKE_SYSTEM_PROCESSOR STREQUAL "amd64")
     target_sources(zstd PRIVATE repo/lib/decompress/huf_decompress_amd64.S)
 endif()
 
-target_compile_options(zstd PRIVATE ${GENERAL_CFLAGS} $<$<COMPILE_LANGUAGE:CXX>:-fno-exceptions -fno-rtti>)
+target_compile_options(zstd PRIVATE ${USERSPACE_CFLAGS} -fvisibility=default $<$<COMPILE_LANGUAGE:CXX>:-fno-exceptions -fno-rtti>)
+target_compile_options(zstd PRIVATE -Wno-sign-conversion -Wno-conversion)
 
 install(TARGETS zstd DESTINATION ${CMAKE_INSTALL_PREFIX}/lib
     ARCHIVE EXCLUDE_FROM_ALL
@@ -68,8 +69,9 @@ add_executable(zstdcli
 
 set_target_properties(zstdcli PROPERTIES OUTPUT_NAME zstd)
 
-target_compile_options(zstdcli PRIVATE ${GENERAL_CFLAGS}
-    -include ${CMAKE_CURRENT_SOURCE_DIR}/zstdshim.h)
+target_compile_options(zstdcli PRIVATE ${USERSPACE_CFLAGS} -include ${CMAKE_CURRENT_SOURCE_DIR}/zstdshim.h)
+target_compile_options(zstdcli PRIVATE -Wno-sign-conversion)
+
 target_include_directories(zstdcli PRIVATE ${ZSTD_PROG})
 target_compile_definitions(zstdcli PRIVATE -DZSTD_NOBENCH -DZSTD_NODICT -DZSTD_NOTRACE -DZSTD_LEGACY_SUPPORT=0)
 
