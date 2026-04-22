@@ -31,7 +31,9 @@ span<char> sp_strcpy(span<char> dest, string_view src) {
     return span(dest.data() + to_copy, dest.size() - to_copy);
 }
 
-span<char> sp_itoa(span<char> dest, uint64_t num, unsigned int padding = 0, bool zero_pad = false) {
+span<char> sp_itoa(span<char> dest, uint64_t num, unsigned int padding = 0,
+                   bool zero_pad = false, bool left_pad = false) {
+    unsigned int trailing_spaces = 0;
     bool first = true;
 
     if (dest.empty())
@@ -41,152 +43,211 @@ span<char> sp_itoa(span<char> dest, uint64_t num, unsigned int padding = 0, bool
         if (padding == 0) {
             dest[0] = '0';
             return span(dest.data() + 1, dest.size() - 1);
-        } else if (!zero_pad) {
+        } else {
             for (unsigned int i = 0; i < padding - 1; i++) {
-                dest[0] = ' ';
-                dest = span(dest.data() + 1, dest.size() - 1);
+                if (left_pad)
+                    trailing_spaces++;
+                else {
+                    dest[0] = zero_pad ? '0' : ' ';
+                    dest = span(dest.data() + 1, dest.size() - 1);
+                }
 
                 if (dest.empty())
                     return dest;
             }
 
             dest[0] = '0';
-            return span(dest.data() + 1, dest.size() - 1);
+            dest = span(dest.data() + 1, dest.size() - 1);
         }
-    }
-
-    uint64_t place = 10000000000000000000ull;
+    } else {
+        uint64_t place = 10000000000000000000ull;
 
 #ifndef __i386 // FIXME
-    for (unsigned int i = 0; i < 20; i++) {
-        if (!first || padding >= 20 - i || num >= place) {
-            uint64_t digit = num / place;
+        for (unsigned int i = 0; i < 20; i++) {
+            if (!first || padding >= 20 - i || num >= place) {
+                uint64_t digit = num / place;
 
-            if (digit == 0 && first && !zero_pad)
-                dest[0] = ' ';
-            else
-                dest[0] = (char)(digit + '0');
+                if (digit == 0 && first && !zero_pad) {
+                    if (left_pad)
+                        trailing_spaces++;
+                    else {
+                        dest[0] = ' ';
+                        dest = span(dest.data() + 1, dest.size() - 1);
+                    }
+                } else {
+                    dest[0] = (char)(digit + '0');
 
-            if (first && digit != 0)
-                first = false;
+                    if (first && digit != 0)
+                        first = false;
 
-            dest = span(dest.data() + 1, dest.size() - 1);
+                    dest = span(dest.data() + 1, dest.size() - 1);
+                }
 
-            if (dest.empty())
-                return dest;
+                if (dest.empty())
+                    return dest;
 
-            num %= place;
+                num %= place;
+            }
+
+            place /= 10;
         }
-
-        place /= 10;
-    }
 #endif
-
-    return dest;
-}
-
-span<char> sp_itoa_hex(span<char> dest, uint64_t num, unsigned int padding = 0, bool zero_pad = false) {
-    bool first = true;
-
-    if (dest.empty())
-        return dest;
-
-    if (num == 0) {
-        if (padding == 0) {
-            dest[0] = '0';
-            return span(dest.data() + 1, dest.size() - 1);
-        } else if (!zero_pad) {
-            for (unsigned int i = 0; i < padding - 1; i++) {
-                dest[0] = ' ';
-                dest = span(dest.data() + 1, dest.size() - 1);
-
-                if (dest.empty())
-                    return dest;
-            }
-
-            dest[0] = '0';
-            return span(dest.data() + 1, dest.size() - 1);
-        }
     }
 
-    for (unsigned int i = 0; i < 16; i++) {
-        if (!first || padding >= 16 - i || num & 0xf000000000000000) {
-            uint64_t n = num >> 60;
-
-            if (n == 0 && first && !zero_pad)
-                dest[0] = ' ';
-            else if (n <= 9)
-                dest[0] = (char)(n + '0');
-            else
-                dest[0] = (char)(n - 0xa + 'a');
-
-            if (first && n != 0)
-                first = false;
-
-            dest = span(dest.data() + 1, dest.size() - 1);
-
-            if (dest.empty())
-                return dest;
-        }
-
-        num <<= 4;
-    }
-
-    return dest;
-}
-
-span<char> sp_itoa_oct(span<char> dest, uint64_t num, unsigned int padding = 0, bool zero_pad = false) {
-    bool first = true;
-
-    if (dest.empty())
-        return dest;
-
-    if (num == 0) {
-        if (padding == 0) {
-            dest[0] = '0';
-            return span(dest.data() + 1, dest.size() - 1);
-        } else if (!zero_pad) {
-            for (unsigned int i = 0; i < padding - 1; i++) {
-                dest[0] = ' ';
-                dest = span(dest.data() + 1, dest.size() - 1);
-
-                if (dest.empty())
-                    return dest;
-            }
-
-            dest[0] = '0';
-            return span(dest.data() + 1, dest.size() - 1);
-        }
-    }
-
-    if (num & 0x8000000000000000) {
-        dest[0] = '1';
-        dest = span(dest.data() + 1, dest.size() - 1);
-        first = false;
-
+    for (unsigned int i = 0; i < trailing_spaces; i++) {
         if (dest.empty())
-            return dest;
+            break;
+
+        dest[0] = ' ';
+        dest = span(dest.data() + 1, dest.size() - 1);
     }
 
-    for (unsigned int i = 0; i < 21; i++) {
-        if (!first || padding >= 21 - i || num & 0x7000000000000000) {
-            uint64_t n = (num & 0x7000000000000000) >> 60;
+    return dest;
+}
 
-            if (n == 0 && first && !zero_pad)
-                dest[0] = ' ';
-            else
-                dest[0] = (char)(n + '0');
+span<char> sp_itoa_hex(span<char> dest, uint64_t num, unsigned int padding = 0,
+                       bool zero_pad = false, bool left_pad = false) {
+    unsigned int trailing_spaces = 0;
+    bool first = true;
 
-            if (first && n != 0)
-                first = false;
+    if (dest.empty())
+        return dest;
 
+    if (num == 0) {
+        if (padding == 0) {
+            dest[0] = '0';
+            return span(dest.data() + 1, dest.size() - 1);
+        } else {
+            for (unsigned int i = 0; i < padding - 1; i++) {
+                if (left_pad)
+                    trailing_spaces++;
+                else {
+                    dest[0] = zero_pad ? '0' : ' ';
+                    dest = span(dest.data() + 1, dest.size() - 1);
+                }
+
+                if (dest.empty())
+                    return dest;
+            }
+
+            dest[0] = '0';
             dest = span(dest.data() + 1, dest.size() - 1);
+        }
+    } else {
+        for (unsigned int i = 0; i < 16; i++) {
+            if (!first || padding >= 16 - i || num & 0xf000000000000000) {
+                uint64_t n = num >> 60;
+
+                if (n == 0 && first && !zero_pad) {
+                    if (left_pad)
+                        trailing_spaces++;
+                    else {
+                        dest[0] = ' ';
+                        dest = span(dest.data() + 1, dest.size() - 1);
+                    }
+                } else {
+                    if (n <= 9)
+                        dest[0] = (char)(n + '0');
+                    else
+                        dest[0] = (char)(n - 0xa + 'a');
+
+                    if (first && n != 0)
+                        first = false;
+
+                    dest = span(dest.data() + 1, dest.size() - 1);
+                }
+
+                if (dest.empty())
+                    return dest;
+            }
+
+            num <<= 4;
+        }
+    }
+
+    for (unsigned int i = 0; i < trailing_spaces; i++) {
+        if (dest.empty())
+            break;
+
+        dest[0] = ' ';
+        dest = span(dest.data() + 1, dest.size() - 1);
+    }
+
+    return dest;
+}
+
+span<char> sp_itoa_oct(span<char> dest, uint64_t num, unsigned int padding = 0,
+                       bool zero_pad = false, bool left_pad = false) {
+    unsigned int trailing_spaces = 0;
+    bool first = true;
+
+    if (dest.empty())
+        return dest;
+
+    if (num == 0) {
+        if (padding == 0) {
+            dest[0] = '0';
+            return span(dest.data() + 1, dest.size() - 1);
+        } else {
+            for (unsigned int i = 0; i < padding - 1; i++) {
+                if (left_pad)
+                    trailing_spaces++;
+                else {
+                    dest[0] = zero_pad ? '0' : ' ';
+                    dest = span(dest.data() + 1, dest.size() - 1);
+                }
+
+                if (dest.empty())
+                    return dest;
+            }
+
+            dest[0] = '0';
+            dest = span(dest.data() + 1, dest.size() - 1);
+        }
+    } else {
+        if (num & 0x8000000000000000) {
+            dest[0] = '1';
+            dest = span(dest.data() + 1, dest.size() - 1);
+            first = false;
 
             if (dest.empty())
                 return dest;
         }
 
-        num <<= 3;
+        for (unsigned int i = 0; i < 21; i++) {
+            if (!first || padding >= 21 - i || num & 0x7000000000000000) {
+                uint64_t n = (num & 0x7000000000000000) >> 60;
+
+                if (n == 0 && first && !zero_pad) {
+                    if (left_pad)
+                        trailing_spaces++;
+                    else {
+                        dest[0] = ' ';
+                        dest = span(dest.data() + 1, dest.size() - 1);
+                    }
+                } else {
+                    dest[0] = (char)(n + '0');
+
+                    if (first && n != 0)
+                        first = false;
+
+                    dest = span(dest.data() + 1, dest.size() - 1);
+                }
+
+                if (dest.empty())
+                    return dest;
+            }
+
+            num <<= 3;
+        }
+    }
+
+    for (unsigned int i = 0; i < trailing_spaces; i++) {
+        if (dest.empty())
+            break;
+
+        dest[0] = ' ';
+        dest = span(dest.data() + 1, dest.size() - 1);
     }
 
     return dest;
@@ -215,7 +276,7 @@ export span<char> do_format_arg(span<char> sp, string_view fmt, integral auto ar
     }
 
     unsigned int padding;
-    bool zero_pad = false;
+    bool zero_pad = false, left_pad = false;
 
     if (arg2.has_value())
         padding = (unsigned int)*arg2;
@@ -223,8 +284,15 @@ export span<char> do_format_arg(span<char> sp, string_view fmt, integral auto ar
         padding = 0;
 
         if (fmt.size() >= 2 && fmt.front() == ':') {
-            for (size_t i = 1; i < fmt.size(); i++) {
-                if (i == 1 && fmt[i] == '0')
+            fmt = string_view(fmt.data() + 1, fmt.size() - 1);
+
+            if (fmt[0] == '<') {
+                left_pad = true;
+                fmt = string_view(fmt.data() + 1, fmt.size() - 1);
+            }
+
+            for (size_t i = 0; i < fmt.size(); i++) {
+                if (i == 0 && fmt[i] == '0')
                     zero_pad = true;
 
                 padding *= 10;
@@ -237,29 +305,32 @@ export span<char> do_format_arg(span<char> sp, string_view fmt, integral auto ar
         if constexpr (is_signed_v<decltype(arg)>) {
             if (arg < 0) {
                 sp = sp_strcpy(sp, "-");
-                return sp_itoa_hex(sp, (uint64_t)-arg, padding > 0 ? (padding - 1) : 0, zero_pad);
+                return sp_itoa_hex(sp, (uint64_t)-arg, padding > 0 ? (padding - 1) : 0,
+                                   zero_pad, left_pad);
             }
         }
 
-        return sp_itoa_hex(sp, (uint64_t)arg, padding, zero_pad);
+        return sp_itoa_hex(sp, (uint64_t)arg, padding, zero_pad, left_pad);
     } else if (base == int_format_base::oct) {
         if constexpr (is_signed_v<decltype(arg)>) {
             if (arg < 0) {
                 sp = sp_strcpy(sp, "-");
-                return sp_itoa_oct(sp, (uint64_t)-arg, padding > 0 ? (padding - 1) : 0, zero_pad);
+                return sp_itoa_oct(sp, (uint64_t)-arg, padding > 0 ? (padding - 1) : 0,
+                                   zero_pad, left_pad);
             }
         }
 
-        return sp_itoa_oct(sp, (uint64_t)arg, padding, zero_pad);
+        return sp_itoa_oct(sp, (uint64_t)arg, padding, zero_pad, left_pad);
     } else {
         if constexpr (is_signed_v<decltype(arg)>) {
             if (arg < 0) {
                 sp = sp_strcpy(sp, "-");
-                return sp_itoa(sp, (uint64_t)-arg, padding > 0 ? (padding - 1) : 0, zero_pad);
+                return sp_itoa(sp, (uint64_t)-arg, padding > 0 ? (padding - 1) : 0,
+                               zero_pad, left_pad);
             }
         }
 
-        return sp_itoa(sp, (uint64_t)arg, padding, zero_pad);
+        return sp_itoa(sp, (uint64_t)arg, padding, zero_pad, left_pad);
     }
 }
 
@@ -270,13 +341,18 @@ consteval bool format_spec_valid(string_view fmt) {
         return true;
 
     if (fmt.size() >= 2 && fmt.front() == ':') {
+        fmt = string_view(fmt.data() + 1, fmt.size() - 1);
+
         if (fmt.back() == 'x' || fmt.back() == 'o')
             fmt = string_view(fmt.data(), fmt.size() - 1);
 
-        if (fmt.size() == 3 && fmt[1] == '{' && fmt[2] == '}')
+        if (fmt.size() > 1 && fmt.front() == '<')
+            fmt = string_view(fmt.data() + 1, fmt.size() - 1);
+
+        if (fmt.size() == 2 && fmt[0] == '{' && fmt[1] == '}')
             return true;
 
-        for (size_t i = 1; i < fmt.size(); i++) {
+        for (size_t i = 0; i < fmt.size(); i++) {
             if (fmt[i] < '0' || fmt[i] > '9')
                 return false;
         }
