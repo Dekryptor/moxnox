@@ -3,7 +3,7 @@ on:
   push:
     paths: ['ports/**']
 concurrency:
-  group: build-amd64
+  group: build-ports-amd64
 jobs:
   compute-ports:
     runs-on: ubuntu-latest
@@ -112,6 +112,7 @@ jobs:
       #     done
 
       - name: Upload artefacts
+        if: github.ref == 'refs/heads/master'
         run: |
           for port in $(echo '${{ needs.compute-ports.outputs.ports }}' | jq -r '.[]'); do
             FILE_SIZE=$(stat -c%s "$port.tar.gz")
@@ -139,8 +140,25 @@ jobs:
               "${ACTIONS_RUNTIME_URL}_apis/pipelines/workflows/${GITHUB_RUN_ID}/artifacts?api-version=6.0-preview&artifactName=$port"
           done
 
+  upload-initrd:
+    needs: [compute-ports, build-port]
+    if: github.ref == 'refs/heads/master'
+    runs-on: ubuntu-moxnox
+    concurrency:
+      group: minio-upload
+    steps:
+      - name: Download port tarballs
+        run: |
+          for port in $(echo '${{ needs.compute-ports.outputs.ports }}' | jq -r '.[]'); do
+            s3cmd --host=minio.burntcomma.com:443 \
+              --host-bucket=minio.burntcomma.com:443 \
+              get s3://moxnox-packages/amd64/$port.tar.gz .
+          done
+        env:
+          AWS_ACCESS_KEY_ID: ${{secrets.S3_ACCESS_KEY}}
+          AWS_SECRET_ACCESS_KEY: ${{secrets.S3_SECRET_KEY}}
+
       - name: Download initrd
-        if: github.ref == 'refs/heads/master'
         run: |
           s3cmd --host=minio.burntcomma.com:443 \
             --host-bucket=minio.burntcomma.com:443 \
@@ -150,12 +168,10 @@ jobs:
           AWS_SECRET_ACCESS_KEY: ${{secrets.S3_SECRET_KEY}}
 
       - name: Extract initrd
-        if: github.ref == 'refs/heads/master'
         run: |
           cpio -idm --no-absolute-filenames -D ${PWD}/root < ${PWD}/initrd
 
       - name: Copy ports
-        if: github.ref == 'refs/heads/master'
         run: |
           for port in $(echo '${{ needs.compute-ports.outputs.ports }}' | jq -r '.[]'); do
             mkdir -p root/share/pkg/$port
@@ -164,19 +180,17 @@ jobs:
               xargs -I{} rm -fv "root/{}" < root/share/pkg/$port/manifest
             fi
 
-            cp -av install/$port/. root/
+            tar -xzf $port.tar.gz -C root/
 
-            find install/$port -type f -printf '%P\n' > root/share/pkg/$port/manifest
+            tar -tzf $port.tar.gz | grep -v '/$' > root/share/pkg/$port/manifest
           done
 
       - name: Repack initrd
-        if: github.ref == 'refs/heads/master'
         run: |
           cd root && \
           find . -print0 | cpio --null --create --format=newc > ../initrd
 
       - name: Upload initrd
-        if: github.ref == 'refs/heads/master'
         run: |
           s3cmd --host=minio.burntcomma.com:443 \
             --host-bucket=minio.burntcomma.com:443 \
