@@ -1,4 +1,3 @@
-#include <cairo.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -13,6 +12,7 @@ import nt;
 import unique_handle;
 import print;
 import evdev;
+import cairo;
 
 static span<uint32_t> framebuffer;
 static unsigned int fb_width, fb_height, fb_pixels_per_scan_line;
