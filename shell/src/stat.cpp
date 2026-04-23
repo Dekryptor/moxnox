@@ -123,11 +123,11 @@ static string_view filetype(uint32_t mode) {
 }
 
 static void stat_file(const char* fn) {
-    struct stat st;
+    struct _stat64 st;
 
     static const uint32_t CHMOD_MODE_BITS = 07777;
 
-    auto ret = stat(fn, &st);
+    auto ret = _stat64(fn, &st);
     if (ret != 0) {
         print_stderr("stat returned {} (errno {})\n", ret,
                      errno_to_string_view(*_errno()));
