@@ -242,3 +242,4 @@ _mkdir
 _open
 _putenv
 _stat64i32
+_stat64

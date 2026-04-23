@@ -712,7 +712,7 @@ static time_t win_to_unix_time(int64_t t) {
 }
 
 extern "C"
-int _stat64i32(const char* path, struct _stat64i32* st) {
+int _stat64(const char* path, struct _stat64* st) {
     auto peb = NtCurrentTeb()->ProcessEnvironmentBlock;
     OBJECT_ATTRIBUTES oa;
     UNICODE_STRING us;
@@ -788,10 +788,33 @@ int _stat64i32(const char* path, struct _stat64i32* st) {
     }
 
     st->st_nlink = (short)fsi.NumberOfLinks;
-    st->st_size = (_off_t)fsi.EndOfFile.QuadPart; // FIXME
+    st->st_size = fsi.EndOfFile.QuadPart;
     st->st_atime = win_to_unix_time(fbi.LastAccessTime.QuadPart);
     st->st_mtime = win_to_unix_time(fbi.LastWriteTime.QuadPart);
     st->st_ctime = win_to_unix_time(fbi.ChangeTime.QuadPart);
+
+    return 0;
+}
+
+extern "C"
+int _stat64i32(const char* path, struct _stat64i32* st) {
+    struct _stat64 st2;
+
+    auto ret = _stat64(path, &st2);
+    if (ret)
+        return ret;
+
+    st->st_dev = st2.st_dev;
+    st->st_ino = st2.st_ino;
+    st->st_mode = st2.st_mode;
+    st->st_nlink = st2.st_nlink;
+    st->st_uid = st2.st_uid;
+    st->st_gid = st2.st_gid;
+    st->st_rdev = st2.st_rdev;
+    st->st_size = (int32_t)st2.st_size;
+    st->st_atime = st2.st_atime;
+    st->st_mtime = st2.st_mtime;
+    st->st_ctime = st2.st_ctime;
 
     return 0;
 }
