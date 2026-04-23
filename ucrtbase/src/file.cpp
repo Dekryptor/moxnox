@@ -708,7 +708,7 @@ int setvbuf(FILE* /*stream*/, char* /*buffer*/, int /*mode*/, size_t /*size*/) {
 }
 
 static time_t win_to_unix_time(int64_t t) {
-    return (uint64_t)((t - 116444736000000000) / 10000000);
+    return (time_t)((t - 116444736000000000) / 10000000);
 }
 
 extern "C"
