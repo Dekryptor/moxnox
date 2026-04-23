@@ -135,3 +135,4 @@ trunc
 truncf
 _stat64i32
 _stat64
+_stat32i64
