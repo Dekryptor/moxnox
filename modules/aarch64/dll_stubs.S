@@ -49,7 +49,7 @@
     .short DW_LANG_Mips_Assembler // language
 .endm
 
-.macro do_stub name
+.macro do_stub_no_export name
     .section .rdata
     \name\()_name:
     .asciz "\name"
@@ -86,11 +86,15 @@
     .seh_endproc
     \name\()_end:
 
-    .section .drectve
-    .ascii " -export:\"\name\""
-
     .section .debug_info, "dr"
     dwarf_func_asm \name
+.endm
+
+.macro do_stub name
+    do_stub_no_export \name
+
+    .section .drectve
+    .ascii " -export:\"\name\""
 .endm
 
 .macro stubs_end
