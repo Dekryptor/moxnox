@@ -86,11 +86,9 @@ _initialize_onexit_table
 _register_onexit_function
 _execute_onexit_table
 getenv
-fileno = _fileno
 write = _write
 fdopen = _fdopen
 read = _read
-strdup = _strdup
 _strdup
 wctob = _wctob
 btowc = _btowc

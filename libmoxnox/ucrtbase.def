@@ -63,7 +63,6 @@ fflush
 fgetpos
 _filelengthi64
 _fileno
-fileno
 fsetpos
 _fstat64
 getenv
@@ -106,7 +105,6 @@ towupper
 towlower
 _fpreset
 ___lc_codepage_func
-strdup
 _strdup
 _register_thread_local_exe_atexit_callback
 _configure_wide_argv
