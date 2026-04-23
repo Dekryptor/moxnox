@@ -245,3 +245,5 @@ _stat64i32
 _stat64
 _stat32i64
 _stat32
+atol
+atof

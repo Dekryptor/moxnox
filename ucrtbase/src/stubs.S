@@ -137,5 +137,7 @@ do_stub "_close"
 do_stub "_fstat64i32"
 do_stub "_getcwd"
 do_stub "_putenv"
+do_stub "atol"
+do_stub "atof"
 
 stubs_end
