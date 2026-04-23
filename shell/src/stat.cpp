@@ -34,12 +34,12 @@ consteval bool format_spec_valid<time_wrapper>(string_view fmt) {
     return fmt.empty();
 }
 
-static constexpr chrono::year_month_day system_time_to_ymd(uint64_t tm) noexcept {
+static constexpr chrono::year_month_day system_time_to_ymd(time_t tm) noexcept {
     signed long long j, e, f, g, h;
     uint8_t day, month;
     uint16_t year;
 
-    auto num = (int)(tm / (uint64_t)86400);
+    auto num = (int)(tm / (time_t)86400);
 
     j = num + 2440588;
 
@@ -61,8 +61,8 @@ static constexpr chrono::year_month_day system_time_to_ymd(uint64_t tm) noexcept
     return {chrono::year{year}, chrono::month{month}, chrono::day{day}};
 }
 
-static constexpr chrono::hh_mm_ss<chrono::seconds> system_time_to_hms(uint64_t tm) noexcept {
-    auto secs = tm % (uint64_t)86400;
+static constexpr chrono::hh_mm_ss<chrono::seconds> system_time_to_hms(time_t tm) noexcept {
+    auto secs = tm % (time_t)86400;
 
     return chrono::hh_mm_ss{chrono::seconds{secs}};
 }
@@ -134,7 +134,7 @@ static void stat_file(const char* fn) {
         return;
     }
 
-    auto blocks = ((st.st_size + DEV_BSIZE - 1) / DEV_BSIZE) * (DEV_BSIZE / SECTOR_SIZE);
+    auto blocks = (((size_t)st.st_size + DEV_BSIZE - 1) / DEV_BSIZE) * (DEV_BSIZE / SECTOR_SIZE);
 
     print("  File: {}\n", fn);
     print("  Size: {:<10}\tBlocks: {:<10} IO Block: {:<6} {}\n", st.st_size,
