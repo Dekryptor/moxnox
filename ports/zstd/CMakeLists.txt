@@ -40,23 +40,19 @@ set(ZSTD_PROG ${CMAKE_CURRENT_SOURCE_DIR}/repo/programs)
 set(ZSTD_GEN  ${CMAKE_CURRENT_BINARY_DIR}/programs)
 file(MAKE_DIRECTORY ${ZSTD_GEN})
 
-file(READ ${ZSTD_PROG}/fileio.c _src)
-string(REPLACE
-    "#elif defined(_MSC_VER) || defined(_WIN32)"
-    "#elif (defined(_MSC_VER) || defined(_WIN32)) && !defined(MOXNOX)"
-    _src "${_src}")
-file(WRITE ${ZSTD_GEN}/fileio.c "${_src}")
+add_custom_command(
+    OUTPUT ${ZSTD_GEN}/fileio.c
+    COMMAND sh -c "sed 's/#elif defined(_MSC_VER) || defined(_WIN32)/#elif (defined(_MSC_VER) || defined(_WIN32)) \\&\\& !defined(MOXNOX)/g' '${ZSTD_PROG}/fileio.c' > '${ZSTD_GEN}/fileio.c'"
+    DEPENDS ${ZSTD_PROG}/fileio.c
+    VERBATIM
+)
 
-file(READ ${ZSTD_PROG}/util.c _src)
-string(REPLACE
-    "#ifdef _WIN32"
-    "#if defined(_WIN32) && !defined(MOXNOX)"
-    _src "${_src}")
-string(REPLACE
-    "#if defined(_WIN32) || defined(WIN32)"
-    "#if (defined(_WIN32) || defined(WIN32)) && !defined(MOXNOX)"
-    _src "${_src}")
-file(WRITE ${ZSTD_GEN}/util.c "${_src}")
+add_custom_command(
+    OUTPUT ${ZSTD_GEN}/util.c
+    COMMAND sh -c "sed -e 's/#ifdef _WIN32/#if defined(_WIN32) \\&\\& !defined(MOXNOX)/g' -e 's/#if defined(_WIN32) || defined(WIN32)/#if (defined(_WIN32) || defined(WIN32)) \\&\\& !defined(MOXNOX)/g' '${ZSTD_PROG}/util.c' > '${ZSTD_GEN}/util.c'"
+    DEPENDS ${ZSTD_PROG}/util.c
+    VERBATIM
+)
 
 add_executable(zstdcli
     repo/lib/common/pool.c
