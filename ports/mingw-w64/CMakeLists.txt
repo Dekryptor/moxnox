@@ -373,11 +373,11 @@ if(CMAKE_C_COMPILER_ID MATCHES "Clang")
         OUTPUT_VARIABLE CLANG_RESOURCE_DIR
         OUTPUT_STRIP_TRAILING_WHITESPACE
     )
-    file(WRITE ${CMAKE_CURRENT_BINARY_DIR}/float.h
-        "#pragma once
-        #include \"${CLANG_RESOURCE_DIR}/include/float.h\"
-        #include \"${CMAKE_CURRENT_SOURCE_DIR}/repo/mingw-w64-headers/crt/float.h\"
-    ")
+    file(GENERATE OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/float.h CONTENT
+"#pragma once
+#include \"${CLANG_RESOURCE_DIR}/include/float.h\"
+#include \"${CMAKE_CURRENT_SOURCE_DIR}/repo/mingw-w64-headers/crt/float.h\"
+")
 endif()
 
 target_include_directories(mingwex PRIVATE ${CMAKE_CURRENT_BINARY_DIR} repo/mingw-w64-headers/crt repo/mingw-w64-crt/include)
