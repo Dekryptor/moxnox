@@ -311,6 +311,9 @@ size_t __fread_nolock(void* ptr, size_t size, size_t n, FILE* file) {
         return 0;
     }
 
+    if (iosb.Information < size * n)
+        f.eof = true;
+
     return iosb.Information;
 }
 
