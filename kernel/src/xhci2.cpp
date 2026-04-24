@@ -37,7 +37,6 @@ static const uint16_t EVENT_RING_SIZE = 64;
 static const uint16_t COMMAND_RING_SIZE = 64;
 static const uint16_t ENDPOINT_RING_SIZE = 64;
 
-static const uint64_t USB_TIMEOUT = 5 * SYSTEM_TIME_RESOLUTION; // 5 seconds
 
 struct xhci_request {
     xhci_trb_common trb;
@@ -1488,7 +1487,7 @@ xhci_queue* usb_device::configure_endpoint(const usb_endpoint_descriptor& ep_des
 
 bool xhci_queue::control_transfer(span<uint8_t> buf, uint8_t bmRequestType,
                                   enum usb_request bRequest, uint16_t wValue,
-                                  uint16_t wIndex) {
+                                  uint16_t wIndex, uint64_t timeout) {
     xhci_request req_setup, req_data, req_status;
     uint8_t* bounce = nullptr;
     uint64_t pa;
@@ -1561,7 +1560,7 @@ bool xhci_queue::control_transfer(span<uint8_t> buf, uint8_t bmRequestType,
         submit_holding_lock(req_status, true);
     }
 
-    auto status = wait_for_object(req_status.event.get(), false, USB_TIMEOUT);
+    auto status = wait_for_object(req_status.event.get(), false, timeout);
 
     if (!buf.empty()) {
         if (bmRequestType & USB_REQUEST_TYPE_DEVICE_TO_HOST)

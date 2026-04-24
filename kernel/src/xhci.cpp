@@ -16,12 +16,15 @@ import object_ref;
 import list;
 import spinlock;
 import page_cache;
+import config;
 
 using namespace std;
 
 export class usb_device;
 
 struct xhci_request;
+
+const uint64_t USB_TIMEOUT = 5 * SYSTEM_TIME_RESOLUTION; // 5 seconds
 
 export class xhci_queue {
 public:
@@ -33,7 +36,7 @@ public:
     void submit(xhci_request& req, bool ring_bell);
     bool control_transfer(span<uint8_t> buf, uint8_t bmRequestType,
                           enum usb_request bRequest, uint16_t wValue,
-                          uint16_t wIndex);
+                          uint16_t wIndex, uint64_t timeout = USB_TIMEOUT);
     size_t normal_transfer(span<uint8_t> buf);
     size_t normal_transfer_dio(pfn_iterator& it, uint64_t num_pages);
     void isr_transfer_event(const xhci_trb_transfer_event& ev);
