@@ -22,9 +22,6 @@ enum _crt_app_type {
     _crt_gui_app
 };
 
-const int _O_TEXT = 0x4000;
-const int _O_BINARY = 0x8000;
-
 using _PVFV = void (*)();
 using _PIFV = int (*)();
 
@@ -45,6 +42,33 @@ const int SIGFPE = 8;
 const int SIGSEGV = 11;
 const int SIGTERM = 15;
 const int SIGABRT = 22;
+
+const int _O_RDONLY = 0x0000;
+const int _O_WRONLY = 0x0001;
+const int _O_RDWR = 0x0002;
+const int _O_APPEND = 0x0008;
+const int _O_RANDOM = 0x0010;
+const int _O_SEQUENTIAL = 0x0020;
+const int _O_TEMPORARY = 0x0040;
+const int _O_NOINHERIT = 0x0080;
+const int _O_CREAT = 0x0100;
+const int _O_TRUNC = 0x0200;
+const int _O_EXCL = 0x0400;
+const int _O_SHORT_LIVED = 0x1000;
+const int _O_TEXT = 0x4000;
+const int _O_BINARY = 0x8000;
+const int _O_WTEXT = 0x10000;
+const int _O_U16TEXT = 0x20000;
+const int _O_U8TEXT = 0x40000;
+
+const int _S_IEXEC = 0100;
+const int _S_IWRITE = 0200;
+const int _S_IREAD = 0400;
+const int _S_IFIFO = 010000;
+const int _S_IFCHR = 020000;
+const int _S_IFDIR = 040000;
+const int _S_IFREG = 0100000;
+const int _S_IFMT = 0170000;
 
 extern "C" {
 
@@ -119,6 +143,7 @@ void* _aligned_malloc(size_t size, size_t alignment);
 void _aligned_free(void* ptr);
 __sighandler_t signal(int sig, __sighandler_t func);
 int setvbuf(FILE* stream, char* buffer, int mode, size_t size);
+int _open(const char* path, int flags, ...);
 
 }
 

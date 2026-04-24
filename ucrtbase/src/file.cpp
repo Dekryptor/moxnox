@@ -8,6 +8,7 @@ module;
 #include <stdlib.h>
 #include <string.h>
 #include <stdio.h>
+#include <stdarg.h>
 
 export module file;
 
@@ -37,8 +38,10 @@ struct _FILE {
     bool eof = false;
 };
 
+static array<HANDLE, 2048> fds;
+
 static uint8_t _stdin[sizeof(_FILE)], _stdout[sizeof(_FILE)], _stderr[sizeof(_FILE)];
-static RTL_CRITICAL_SECTION files_lock;
+static RTL_CRITICAL_SECTION files_lock, fds_lock;
 static list_entry files_list = { &files_list, &files_list };
 
 extern "C" int* __errno();
@@ -129,6 +132,7 @@ export void init_files() {
     auto peb = NtCurrentTeb()->ProcessEnvironmentBlock;
 
     RtlInitializeCriticalSection(&files_lock);
+    RtlInitializeCriticalSection(&fds_lock);
 
     auto f1 = new (_stdin) _FILE(peb->ProcessParameters->StandardInput);
     auto f2 = new (_stdout) _FILE(peb->ProcessParameters->StandardOutput);
@@ -137,6 +141,10 @@ export void init_files() {
     insert_tail_list(files_list, f1->le);
     insert_tail_list(files_list, f2->le);
     insert_tail_list(files_list, f3->le);
+
+    fds[0] = peb->ProcessParameters->StandardInput;
+    fds[1] = peb->ProcessParameters->StandardOutput;
+    fds[2] = peb->ProcessParameters->StandardError;
 }
 
 extern "C"
@@ -893,10 +901,151 @@ int feof(FILE* file) {
     return f.eof ? 1 : 0;
 }
 
+static int open2(const char* path, int flags, int pmode) {
+    auto peb = NtCurrentTeb()->ProcessEnvironmentBlock;
+    OBJECT_ATTRIBUTES oa;
+    UNICODE_STRING us;
+    IO_STATUS_BLOCK iosb;
+    HANDLE h;
+    ACCESS_MASK access = FILE_READ_ATTRIBUTES;
+    uint32_t file_attributes, create_disposition;
+    nt_status status;
+
+    if (flags & _O_TEMPORARY) {
+        print_stderr("FIXME - _open with _O_TEMPORARY\n");
+        flags &= ~_O_TEMPORARY;
+    }
+
+    if (flags & _O_NOINHERIT) {
+        print_stderr("FIXME - _open with _O_NOINHERIT\n");
+        flags &= ~_O_NOINHERIT;
+    }
+
+    if (flags & _O_SHORT_LIVED) {
+        print_stderr("FIXME - _open with _O_SHORT_LIVED\n");
+        flags &= ~_O_SHORT_LIVED;
+    }
+
+    if (flags & _O_WTEXT) {
+        print_stderr("FIXME - _open with _O_WTEXT\n");
+        flags &= ~_O_WTEXT;
+    }
+
+    if (flags & _O_U16TEXT) {
+        print_stderr("FIXME - _open with _O_U16TEXT\n");
+        flags &= ~_O_U16TEXT;
+    }
+
+    if (flags & _O_U8TEXT) {
+        print_stderr("FIXME - _open with _O_U8TEXT\n");
+        flags &= ~_O_U8TEXT;
+    }
+
+    if (flags & _O_U8TEXT) {
+        print_stderr("FIXME - _open with _O_U8TEXT\n");
+        flags &= ~_O_U8TEXT;
+    }
+
+    if (flags & _O_APPEND) {
+        print_stderr("FIXME - _open with _O_APPEND\n");
+        flags &= ~_O_APPEND;
+    }
+
+    // FIXME - do we need to treat _O_TEXT and _O_BINARY differently?
+    // FIXME - _O_RANDOM
+    // FIXME - _O_SEQUENTIAL
+
+    if (flags & _O_WRONLY)
+        access |= GENERIC_WRITE;
+    else if (flags & _O_RDWR)
+        access |= GENERIC_READ | GENERIC_WRITE;
+    else
+        access |= GENERIC_READ;
+
+    if (flags & _O_CREAT) {
+        if (flags & _O_EXCL)
+            create_disposition = FILE_CREATE;
+        else if (flags & _O_TRUNC)
+            create_disposition = FILE_OVERWRITE_IF;
+        else
+            create_disposition = FILE_OPEN_IF;
+    } else {
+        if (flags & _O_TRUNC)
+            create_disposition = FILE_OVERWRITE;
+        else
+            create_disposition = FILE_OPEN;
+    }
+
+    if (!(pmode & _S_IWRITE))
+        file_attributes = FILE_ATTRIBUTE_READONLY;
+    else
+        file_attributes = FILE_ATTRIBUTE_NORMAL;
+
+    auto sv = string_view(path);
+    auto u16len = utf8_to_utf16_len(sv);
+
+    auto u16pathname = (char16_t*)malloc(u16len * sizeof(char16_t));
+    if (!u16pathname) {
+        *__errno() = ENOMEM;
+        return -1;
+    }
+
+    utf8_to_utf16(span(u16pathname, u16len), sv);
+
+    us.Length = us.MaximumLength = (uint16_t)(u16len * sizeof(char16_t));
+    us.Buffer = u16pathname;
+
+    memset(&oa, 0, sizeof(oa));
+    oa.Length = sizeof(OBJECT_ATTRIBUTES);
+    oa.ObjectName = &us;
+    oa.RootDirectory = peb->ProcessParameters->CurrentDirectory.Handle;
+
+    status = NtCreateFile(&h, access, &oa, &iosb, nullptr, file_attributes,
+                          FILE_SHARE_READ | FILE_SHARE_WRITE, create_disposition,
+                          0, nullptr, 0);
+    if (!success(status)) {
+        free(u16pathname);
+        *_errno() = nt_status_to_errno(status);
+        return -1;
+    }
+
+    free(u16pathname);
+
+    optional<int> fd;
+
+    RtlEnterCriticalSection(&fds_lock);
+
+    for (size_t i = 0; i < fds.size(); i++) {
+        if (fds[i] == 0) {
+            fds[i] = h;
+            fd = i;
+            break;
+        }
+    }
+
+    RtlLeaveCriticalSection(&fds_lock);
+
+    if (!fd.has_value()) {
+        NtClose(h);
+        *_errno() = ENFILE;
+        return -1;
+    }
+
+    return fd.value();
+}
+
 extern "C"
 int _open(const char* path, int flags, ...) {
-    print_stderr("FIXME - _open: path = {}, flags = {:x}\n", path, flags);
+    va_list ap;
 
-    *__errno() = EINVAL;
-    return -1;
+    if (flags & _O_CREAT) {
+        int pmode;
+
+        va_start(ap, flags);
+        pmode = va_arg(ap, int);
+        va_end(ap);
+
+        return open2(path, flags, pmode);
+    } else
+        return open2(path, flags, 0);
 }
