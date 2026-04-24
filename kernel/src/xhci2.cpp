@@ -1484,6 +1484,53 @@ xhci_queue* usb_device::configure_endpoint(const usb_endpoint_descriptor& ep_des
     return &dep->queue;
 }
 
+void xhci_queue::reset_ep0() {
+    {
+        xhci_request req;
+
+        auto& s = *bit_cast<xhci_trb_reset_endpoint*>(&req.trb);
+
+        memset(&s, 0, sizeof(s));
+
+        s.trb_type = (uint16_t)xhci_trb_type::reset_endpoint_command;
+        s.endpoint_id = 1;
+        s.slot_id = dev->slot;
+
+        dev->controller.command_queue.submit(req, true);
+
+        wait_for_object(req.event.get(), false);
+
+        auto code = (TRB_CODE)req.comp.completion_code;
+
+        if (code != TRB_CODE::SUCCESS) {
+            print("xhci_queue::reset_ep0: reset endpoint returned {}\n", code);
+            return;
+        }
+    }
+
+    {
+        xhci_request req;
+
+        auto& s = *bit_cast<xhci_trb_set_tr_dequeue_pointer*>(&req.trb);
+
+        memset(&s, 0, sizeof(s));
+
+        s.trb_type = (uint16_t)xhci_trb_type::set_tr_dequeue_pointer_command;
+        s.endpoint_id = 1;
+        s.slot_id = dev->slot;
+        s.new_tr_dequeue_pointer = va_to_pa_phys(&ring[index]) | (cycle_bit ? 1 : 0);
+
+        dev->controller.command_queue.submit(req, true);
+
+        wait_for_object(req.event.get(), false);
+
+        auto code = (TRB_CODE)req.comp.completion_code;
+
+        if (code != TRB_CODE::SUCCESS)
+            print("xhci_queue::reset_ep0: set dequeue pointer returned {}\n", code);
+    }
+}
+
 void xhci_queue::recover_ep0_after_timeout() {
     if (!dev)
         return;
@@ -1511,27 +1558,7 @@ void xhci_queue::recover_ep0_after_timeout() {
         }
     }
 
-    {
-        xhci_request req;
-
-        auto& s = *bit_cast<xhci_trb_set_tr_dequeue_pointer*>(&req.trb);
-
-        memset(&s, 0, sizeof(s));
-
-        s.trb_type = (uint16_t)xhci_trb_type::set_tr_dequeue_pointer_command;
-        s.endpoint_id = 1;
-        s.slot_id = dev->slot;
-        s.new_tr_dequeue_pointer = va_to_pa_phys(&ring[index]) | (cycle_bit ? 1 : 0);
-
-        dev->controller.command_queue.submit(req, true);
-
-        wait_for_object(req.event.get(), false);
-
-        auto code = (TRB_CODE)req.comp.completion_code;
-
-        if (code != TRB_CODE::SUCCESS)
-            print("xhci_queue::recover_ep0_after_timeout: set dequeue pointer returned {}\n", code);
-    }
+    reset_ep0();
 }
 
 bool xhci_queue::control_transfer(span<uint8_t> buf, uint8_t bmRequestType,
@@ -1629,6 +1656,8 @@ bool xhci_queue::control_transfer(span<uint8_t> buf, uint8_t bmRequestType,
 
     if ((enum TRB_CODE)req_status.ev.completion_code != TRB_CODE::SUCCESS) {
         print("xhci_queue::control_transfer: controller returned error {}\n", (enum TRB_CODE)req_status.ev.completion_code);
+        if (dev && !dev->dead && (TRB_CODE)req_status.ev.completion_code == TRB_CODE::STALL_ERROR)
+            reset_ep0();
         return false;
     }
 

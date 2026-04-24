@@ -242,6 +242,18 @@ struct xhci_trb_stop_endpoint {
 
 static_assert(sizeof(xhci_trb_stop_endpoint) == sizeof(xhci_trb_common));
 
+struct xhci_trb_reset_endpoint {
+    uint32_t reserved1[3];
+    uint16_t cycle : 1;
+    uint16_t reserved2 : 9;
+    uint16_t trb_type : 6;
+    uint8_t endpoint_id : 5;
+    uint8_t reserved3 : 3;
+    uint8_t slot_id;
+} __attribute((packed));
+
+static_assert(sizeof(xhci_trb_reset_endpoint) == sizeof(xhci_trb_common));
+
 struct xhci_trb_set_tr_dequeue_pointer {
     uint64_t new_tr_dequeue_pointer;
     uint16_t stream_id;
@@ -632,6 +644,7 @@ public:
 private:
     void submit_holding_lock(xhci_request& req, bool ring_bell);
     void recover_ep0_after_timeout();
+    void reset_ep0();
 
     spinlock submit_lock;
     unsigned int index = 0;
