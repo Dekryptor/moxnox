@@ -892,3 +892,11 @@ int feof(FILE* file) {
 
     return f.eof ? 1 : 0;
 }
+
+extern "C"
+int _open(const char* path, int flags, ...) {
+    print_stderr("FIXME - _open: path = {}, flags = {:x}\n", path, flags);
+
+    *__errno() = EINVAL;
+    return -1;
+}

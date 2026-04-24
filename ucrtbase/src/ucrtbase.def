@@ -137,3 +137,4 @@ _stat32i64
 _stat32
 ferror
 feof
+_open

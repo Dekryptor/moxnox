@@ -108,6 +108,7 @@ _stat32i64
 _stat32
 ferror
 feof
+_open
 
 ; stubs
 __setusermatherr
@@ -206,7 +207,6 @@ perror
 getchar
 _time64
 _setmode
-_open
 _isatty
 _mkdir
 _chmod
