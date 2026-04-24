@@ -10,7 +10,6 @@ module;
 #include <span>
 #include <string.h>
 #include <stddef.h>
-#include "xhci.h"
 #include "assert.h"
 
 module xhci;
