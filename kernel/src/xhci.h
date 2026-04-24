@@ -204,6 +204,33 @@ enum class TRB_CODE {
     SPLIT_TRANSACTION_ERROR = 36,
 };
 
+struct xhci_trb_stop_endpoint {
+    uint32_t reserved1[3];
+    uint16_t cycle : 1;
+    uint16_t reserved2 : 9;
+    uint16_t trb_type : 6;
+    uint8_t endpoint_id : 5;
+    uint8_t sp : 1;
+    uint8_t reserved3 : 2;
+    uint8_t slot_id;
+} __attribute((packed));
+
+static_assert(sizeof(xhci_trb_stop_endpoint) == sizeof(xhci_trb_common));
+
+struct xhci_trb_set_tr_dequeue_pointer {
+    uint64_t new_tr_dequeue_pointer;
+    uint16_t stream_id;
+    uint16_t reserved1;
+    uint16_t cycle : 1;
+    uint16_t reserved2 : 9;
+    uint16_t trb_type : 6;
+    uint8_t endpoint_id : 5;
+    uint8_t reserved3 : 3;
+    uint8_t slot_id;
+} __attribute((packed));
+
+static_assert(sizeof(xhci_trb_set_tr_dequeue_pointer) == sizeof(xhci_trb_common));
+
 struct xhci_trb_link {
     uint64_t ring_segment_pointer;
     uint32_t reserved1 : 22;

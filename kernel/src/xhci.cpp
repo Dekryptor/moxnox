@@ -50,6 +50,7 @@ public:
 
 private:
     void submit_holding_lock(xhci_request& req, bool ring_bell);
+    void recover_ep0_after_timeout();
 
     spinlock submit_lock;
     unsigned int index = 0;

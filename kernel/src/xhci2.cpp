@@ -1485,6 +1485,56 @@ xhci_queue* usb_device::configure_endpoint(const usb_endpoint_descriptor& ep_des
     return &dep->queue;
 }
 
+void xhci_queue::recover_ep0_after_timeout() {
+    if (!dev)
+        return;
+
+    {
+        xhci_request req;
+
+        auto& s = *bit_cast<xhci_trb_stop_endpoint*>(&req.trb);
+
+        memset(&s, 0, sizeof(s));
+
+        s.trb_type = (uint16_t)xhci_trb_type::stop_endpoint_command;
+        s.endpoint_id = 1;
+        s.slot_id = dev->slot;
+
+        dev->controller.command_queue.submit(req, true);
+
+        wait_for_object(req.event.get(), false);
+
+        auto code = (TRB_CODE)req.comp.completion_code;
+
+        if (code != TRB_CODE::SUCCESS && code != TRB_CODE::CONTEXT_STATE_ERROR) {
+            print("xhci_queue::recover_ep0_after_timeout: stop endpoint returned {}\n", code);
+            return;
+        }
+    }
+
+    {
+        xhci_request req;
+
+        auto& s = *bit_cast<xhci_trb_set_tr_dequeue_pointer*>(&req.trb);
+
+        memset(&s, 0, sizeof(s));
+
+        s.trb_type = (uint16_t)xhci_trb_type::set_tr_dequeue_pointer_command;
+        s.endpoint_id = 1;
+        s.slot_id = dev->slot;
+        s.new_tr_dequeue_pointer = va_to_pa_phys(&ring[index]) | (cycle_bit ? 1 : 0);
+
+        dev->controller.command_queue.submit(req, true);
+
+        wait_for_object(req.event.get(), false);
+
+        auto code = (TRB_CODE)req.comp.completion_code;
+
+        if (code != TRB_CODE::SUCCESS)
+            print("xhci_queue::recover_ep0_after_timeout: set dequeue pointer returned {}\n", code);
+    }
+}
+
 bool xhci_queue::control_transfer(span<uint8_t> buf, uint8_t bmRequestType,
                                   enum usb_request bRequest, uint16_t wValue,
                                   uint16_t wIndex, uint64_t timeout) {
@@ -1574,6 +1624,7 @@ bool xhci_queue::control_transfer(span<uint8_t> buf, uint8_t bmRequestType,
 
     if (status == nt_status::TIMEOUT) {
         print("xhci_queue::control_transfer: request timed out ({})\n", (enum TRB_CODE)req_setup.ev.completion_code);
+        recover_ep0_after_timeout();
         return false;
     }
 
