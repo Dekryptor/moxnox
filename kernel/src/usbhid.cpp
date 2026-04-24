@@ -2850,10 +2850,8 @@ static bool found_usb_hid_device(usb_device& d, const usb_device_config& config,
 
     if (interface.desc.bInterfaceSubClass == 1) {
         // change to report protocol
-        if (!set_protocol(d, 1, interface.desc.bInterfaceNumber)) {
-            print("found_usb_hid_device: set_protocol failed\n");
-            return false;
-        }
+        if (!set_protocol(d, 1, interface.desc.bInterfaceNumber))
+            print("found_usb_hid_device: set_protocol failed, continuing\n");
     }
 
     auto queue = d.configure_endpoint(ep_desc->desc);
