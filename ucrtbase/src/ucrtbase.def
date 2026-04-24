@@ -138,3 +138,4 @@ _stat32
 ferror
 feof
 _open
+strerror = __strerror

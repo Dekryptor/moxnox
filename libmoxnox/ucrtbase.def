@@ -109,12 +109,12 @@ _stat32
 ferror
 feof
 _open
+strerror
 
 ; stubs
 __setusermatherr
 _configthreadlocale
 _exit
-strerror
 wcsnlen
 mbrlen
 strtoll
