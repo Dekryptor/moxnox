@@ -34,6 +34,7 @@ struct _FILE {
     list_entry le;
     optional<unsigned char> ungetc_char;
     bool error = false;
+    bool eof = false;
 };
 
 static uint8_t _stdin[sizeof(_FILE)], _stdout[sizeof(_FILE)], _stderr[sizeof(_FILE)];
@@ -302,7 +303,10 @@ size_t __fread_nolock(void* ptr, size_t size, size_t n, FILE* file) {
 
     auto status = NtReadFile(f.h, 0, nullptr, nullptr, &iosb, ptr,
                              (uint32_t)(size * n), nullptr, nullptr);
-    if (!success(status)) {
+    if (status == nt_status::END_OF_FILE) {
+        f.eof = true;
+        return 0;
+    } else if (!success(status)) {
         f.error = true;
         return 0;
     }
@@ -438,7 +442,8 @@ int __ungetc_nolock(int c, FILE* file) {
 
     f.ungetc_char = (unsigned char)c;
 
-    // FIXME - clear EOF flag
+    f.error = false;
+    f.eof = false;
 
     return c;
 }
@@ -568,6 +573,7 @@ int __fseeki64_nolock(FILE* file, int64_t offset, int whence) {
     }
 
     f.ungetc_char = nullopt;
+    f.eof = false;
 
     return 0;
 }
@@ -875,4 +881,11 @@ int ferror(FILE* file) {
     auto& f = *reinterpret_cast<_FILE*>(file);
 
     return f.error ? 1 : 0;
+}
+
+extern "C"
+int feof(FILE* file) {
+    auto& f = *reinterpret_cast<_FILE*>(file);
+
+    return f.eof ? 1 : 0;
 }

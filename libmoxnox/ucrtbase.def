@@ -107,6 +107,7 @@ _stat64
 _stat32i64
 _stat32
 ferror
+feof
 
 ; stubs
 __setusermatherr
@@ -202,7 +203,6 @@ __stdio_common_vswprintf
 qsort
 clock
 perror
-feof
 getchar
 _time64
 _setmode
