@@ -1049,3 +1049,11 @@ int _open(const char* path, int flags, ...) {
     } else
         return open2(path, flags, 0);
 }
+
+extern "C"
+FILE* _fdopen(int fd, const char* mode) {
+    print("FIXME - _fdopen\n");
+
+    *_errno() = EINVAL;
+    return nullptr;
+}

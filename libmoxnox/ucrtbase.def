@@ -110,6 +110,7 @@ ferror
 feof
 _open
 strerror
+_fdopen
 
 ; stubs
 __setusermatherr
@@ -140,7 +141,6 @@ exp
 rand_s
 _read
 ___mb_cur_max_func
-_fdopen
 _wfopen
 _write
 _get_osfhandle
