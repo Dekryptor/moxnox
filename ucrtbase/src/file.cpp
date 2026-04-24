@@ -33,6 +33,7 @@ struct _FILE {
     RTL_CRITICAL_SECTION cs;
     list_entry le;
     optional<unsigned char> ungetc_char;
+    bool error = false;
 };
 
 static uint8_t _stdin[sizeof(_FILE)], _stdout[sizeof(_FILE)], _stderr[sizeof(_FILE)];
@@ -301,8 +302,10 @@ size_t __fread_nolock(void* ptr, size_t size, size_t n, FILE* file) {
 
     auto status = NtReadFile(f.h, 0, nullptr, nullptr, &iosb, ptr,
                              (uint32_t)(size * n), nullptr, nullptr);
-    if (!success(status))
+    if (!success(status)) {
+        f.error = true;
         return 0;
+    }
 
     return iosb.Information;
 }
@@ -325,8 +328,10 @@ size_t __fwrite_nolock(const void* ptr, size_t size, size_t n, FILE* file) {
 
     auto status = NtWriteFile(f.h, 0, nullptr, nullptr, &iosb, ptr,
                               (uint32_t)(size * n), nullptr, nullptr);
-    if (!success(status))
+    if (!success(status)) {
+        f.error = true;
         return 0;
+    }
 
     return iosb.Information;
 }
@@ -863,4 +868,11 @@ int _stat32(const char* path, struct _stat32* st) {
     st->st_ctime = (__time32_t)st2.st_ctime;
 
     return 0;
+}
+
+extern "C"
+int ferror(FILE* file) {
+    auto& f = *reinterpret_cast<_FILE*>(file);
+
+    return f.error ? 1 : 0;
 }
