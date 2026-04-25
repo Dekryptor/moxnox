@@ -131,7 +131,7 @@ _FILE::~_FILE() {
     DeleteCriticalSection(&cs);
 
     RtlEnterCriticalSection(&fds_lock);
-    fds[fd] = 0;
+    fds[(size_t)fd] = 0;
     RtlLeaveCriticalSection(&fds_lock);
 }
 
@@ -313,7 +313,7 @@ FILE* __cdecl _fopen(const char* pathname, const char* mode) {
         free(u16pathname);
 
         RtlEnterCriticalSection(&fds_lock);
-        fds[*fd] = 0;
+        fds[(size_t)*fd] = 0;
         RtlLeaveCriticalSection(&fds_lock);
 
         NtClose(h);
@@ -931,7 +931,7 @@ int _fstat64(int fd, struct _stat64* st) {
     }
 
     RtlEnterCriticalSection(&fds_lock);
-    h = fds[fd];
+    h = fds[(size_t)fd];
     RtlLeaveCriticalSection(&fds_lock);
 
     if (!h) {
@@ -1186,7 +1186,7 @@ FILE* __fdopen(int fd, const char* /*mode*/) {
     }
 
     RtlEnterCriticalSection(&fds_lock);
-    h = fds[fd];
+    h = fds[(size_t)fd];
     RtlLeaveCriticalSection(&fds_lock);
 
     if (!h) {
