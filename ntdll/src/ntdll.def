@@ -65,3 +65,4 @@ RtlAcquireLoaderLock
 RtlReleaseLoaderLock
 LdrGetDllHandle
 RtlIsProcessorFeaturePresent
+RtlQueryPerformanceFrequency

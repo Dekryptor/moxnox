@@ -43,3 +43,12 @@ NTSTATUS NtQuerySystemTime(LARGE_INTEGER* SystemTime) {
         }
     } while (true);
 }
+
+extern "C"
+bool RtlQueryPerformanceFrequency(LARGE_INTEGER* freq) {
+    const auto& time_page = *(time_page_struct*)TIME_PAGE_BASE;
+
+    freq->QuadPart = time_page.tsc_freq;
+
+    return true;
+}
