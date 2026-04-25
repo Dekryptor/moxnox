@@ -8,5 +8,6 @@ do_stub_no_export "tcgetattr"
 do_stub_no_export "tcsetattr"
 do_stub_no_export "nanosleep64"
 do_stub_no_export "nanosleep"
+do_stub_no_export "sleep"
 
 stubs_end
