@@ -27,10 +27,11 @@ import errno;
 using namespace std;
 
 struct _FILE {
-    _FILE(HANDLE h);
+    _FILE(HANDLE h, int fd);
     ~_FILE();
 
     HANDLE h;
+    int fd;
     RTL_CRITICAL_SECTION cs;
     list_entry le;
     optional<unsigned char> ungetc_char;
@@ -120,7 +121,7 @@ int _fputc(int c, FILE* file) {
     return ret;
 }
 
-_FILE::_FILE(HANDLE h) : h(h) {
+_FILE::_FILE(HANDLE h, int fd) : h(h), fd(fd) {
     InitializeCriticalSection(&cs);
 }
 
@@ -134,9 +135,9 @@ export void init_files() {
     RtlInitializeCriticalSection(&files_lock);
     RtlInitializeCriticalSection(&fds_lock);
 
-    auto f1 = new (_stdin) _FILE(peb->ProcessParameters->StandardInput);
-    auto f2 = new (_stdout) _FILE(peb->ProcessParameters->StandardOutput);
-    auto f3 = new (_stderr) _FILE(peb->ProcessParameters->StandardError);
+    auto f1 = new (_stdin) _FILE(peb->ProcessParameters->StandardInput, 0);
+    auto f2 = new (_stdout) _FILE(peb->ProcessParameters->StandardOutput, 1);
+    auto f3 = new (_stderr) _FILE(peb->ProcessParameters->StandardError, 2);
 
     insert_tail_list(files_list, f1->le);
     insert_tail_list(files_list, f2->le);
@@ -281,10 +282,36 @@ FILE* __cdecl _fopen(const char* pathname, const char* mode) {
         return nullptr;
     }
 
-    auto f = new _FILE(h);
+    optional<int> fd;
+
+    RtlEnterCriticalSection(&fds_lock);
+
+    for (size_t i = 0; i < fds.size(); i++) {
+        if (fds[i] == 0) {
+            fds[i] = h;
+            fd = i;
+            break;
+        }
+    }
+
+    RtlLeaveCriticalSection(&fds_lock);
+
+    if (!fd.has_value()) {
+        NtClose(h);
+        *_errno() = EMFILE;
+        return nullptr;
+    }
+
+    auto f = new _FILE(h, *fd);
     if (!f) {
         free(u16pathname);
+
+        RtlEnterCriticalSection(&fds_lock);
+        fds[*fd] = 0;
+        RtlLeaveCriticalSection(&fds_lock);
+
         NtClose(h);
+
         *__errno() = ENOMEM;
         return nullptr;
     }
@@ -1068,7 +1095,7 @@ FILE* __fdopen(int fd, const char* /*mode*/) {
         return nullptr;
     }
 
-    auto f = new _FILE(h);
+    auto f = new _FILE(h, fd);
     if (!f) {
         *_errno() = ENOMEM;
         return nullptr;
@@ -1081,4 +1108,16 @@ FILE* __fdopen(int fd, const char* /*mode*/) {
     }
 
     return reinterpret_cast<FILE*>(f);
+}
+
+extern "C"
+int __fileno(FILE* file) {
+    if (!file) {
+        *_errno() = EINVAL;
+        return -1;
+    }
+
+    auto& f = *reinterpret_cast<_FILE*>(file);
+
+    return f.fd;
 }

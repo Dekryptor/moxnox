@@ -111,6 +111,7 @@ feof
 _open
 strerror
 _fdopen
+_fileno
 
 ; stubs
 __setusermatherr
@@ -122,7 +123,6 @@ strtoll
 strtoull
 fgetpos
 _filelengthi64
-_fileno
 fsetpos
 _fstat64
 getwc
