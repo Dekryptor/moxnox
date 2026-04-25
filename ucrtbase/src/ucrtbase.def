@@ -141,3 +141,4 @@ _open
 strerror = __strerror
 _fdopen = __fdopen
 _fileno = __fileno
+clock

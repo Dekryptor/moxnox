@@ -5,6 +5,7 @@ import nt;
 import ntdll;
 import print;
 import file;
+import time;
 
 extern "C"
 void* malloc(size_t size) {
@@ -51,6 +52,7 @@ int DllMainCRTStartup(HANDLE /*hinstDLL*/, uint32_t reason, void*) {
     switch (reason) {
         case DLL_PROCESS_ATTACH:
             init_files();
+            init_clock();
             break;
 
         case DLL_PROCESS_DETACH:

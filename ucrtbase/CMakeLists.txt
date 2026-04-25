@@ -68,7 +68,10 @@ set(SRC_FILES src/ucrtbase.cpp
 )
 
 add_library(ucrtbase SHARED ${SRC_FILES})
-target_sources(ucrtbase PUBLIC FILE_SET CXX_MODULES FILES src/file.cpp)
+target_sources(ucrtbase PUBLIC FILE_SET CXX_MODULES FILES
+    src/file.cpp
+    src/time.cpp
+)
 
 target_compile_options(ucrtbase PRIVATE -fno-exceptions ${USERSPACE_CFLAGS})
 target_link_options(ucrtbase PUBLIC -nostartfiles -nostdlib)

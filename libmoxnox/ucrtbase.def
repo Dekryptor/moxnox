@@ -112,6 +112,7 @@ _open
 strerror
 _fdopen
 _fileno
+clock
 
 ; stubs
 __setusermatherr
@@ -202,7 +203,6 @@ strerror_s
 wcrtomb_s
 __stdio_common_vswprintf
 qsort
-clock
 perror
 getchar
 _time64
