@@ -9,6 +9,7 @@ module;
 #include <string.h>
 #include <stdio.h>
 #include <stdarg.h>
+#include <sys/utime.h>
 
 export module file;
 
@@ -1225,4 +1226,21 @@ int _chmod(const char* /*path*/, int /*flags*/) {
     // FIXME - do something (at least check path is valid)
 
     return 0;
+}
+
+extern "C"
+int __utime64(const char* /*path*/, struct __utimbuf64* /*times*/) {
+    // FIXME - implement
+
+    return 0;
+}
+
+extern "C"
+int __utime32(const char* path, struct __utimbuf32* times) {
+    struct __utimbuf64 t;
+
+    t.actime = times->actime;
+    t.modtime = times->modtime;
+
+    return __utime64(path, &t);
 }
