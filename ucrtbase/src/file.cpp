@@ -1219,3 +1219,10 @@ int __fileno(FILE* file) {
 
     return f.fd;
 }
+
+extern "C"
+int _chmod(const char* /*path*/, int /*flags*/) {
+    // FIXME - do something (at least check path is valid)
+
+    return 0;
+}

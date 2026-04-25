@@ -119,6 +119,7 @@ _fstat32i64
 _fstat32
 _time32
 _time64
+_chmod
 
 ; stubs
 __setusermatherr
@@ -213,7 +214,6 @@ getchar
 _setmode
 _isatty
 _mkdir
-_chmod
 _utime64
 atoi
 bsearch

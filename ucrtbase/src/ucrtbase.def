@@ -148,3 +148,4 @@ _fstat32i64
 _fstat32
 _time32 = __time32
 _time64 = __time64
+_chmod
