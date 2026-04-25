@@ -1244,3 +1244,8 @@ int __utime32(const char* path, struct __utimbuf32* times) {
 
     return __utime64(path, &t);
 }
+
+extern "C"
+int getchar() {
+    return _fgetc((FILE*)&_stdin);
+}

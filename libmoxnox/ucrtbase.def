@@ -122,6 +122,7 @@ _time64
 _chmod
 _utime32
 _utime64
+getchar
 
 ; stubs
 __setusermatherr
@@ -212,7 +213,6 @@ wcrtomb_s
 __stdio_common_vswprintf
 qsort
 perror
-getchar
 _setmode
 _isatty
 _mkdir

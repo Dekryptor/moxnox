@@ -151,3 +151,4 @@ _time64 = __time64
 _chmod
 _utime32 = __utime32
 _utime64 = __utime64
+getchar
