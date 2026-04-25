@@ -780,6 +780,21 @@ NTSTATUS NtCreateFile(HANDLE* file_handle, ACCESS_MASK access_mask,
         if (drw)
             f->dentry = &drw->get();
 
+        if (access_mask & GENERIC_READ) {
+            access_mask &= ~GENERIC_READ;
+            access_mask |= FILE_GENERIC_READ;
+        }
+
+        if (access_mask & GENERIC_WRITE) {
+            access_mask &= ~GENERIC_WRITE;
+            access_mask |= FILE_GENERIC_WRITE;
+        }
+
+        if (access_mask & GENERIC_EXECUTE) {
+            access_mask &= ~GENERIC_EXECUTE;
+            access_mask |= FILE_GENERIC_EXECUTE;
+        }
+
         status = p->add_handle(*f, access_mask, shared_okay, h);
         if (!success(status)) {
             delete f;
@@ -793,6 +808,8 @@ NTSTATUS NtCreateFile(HANDLE* file_handle, ACCESS_MASK access_mask,
     } else {
         if (drw) // FIXME - shouldn't happen, as only inodes get dentries at the moment
             drw->get().release();
+
+        // FIXME - GENERIC_READ, GENERIC_WRITE, GENERIC_EXECUTE (different for each object type)
 
         status = p->add_handle(ino_ref.get(), access_mask, shared_okay, h);
         if (!success(status))
