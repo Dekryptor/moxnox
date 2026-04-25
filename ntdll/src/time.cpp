@@ -52,3 +52,14 @@ bool RtlQueryPerformanceFrequency(LARGE_INTEGER* freq) {
 
     return true;
 }
+
+extern "C"
+bool RtlQueryPerformanceCounter(LARGE_INTEGER* count) {
+#ifdef __x86_64__
+    count->QuadPart = __rdtsc();
+#elifdef __aarch64__
+    count->QuadPart = cntvct_el0_load();
+#endif
+
+    return true;
+}
