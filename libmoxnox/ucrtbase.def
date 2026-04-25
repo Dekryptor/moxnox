@@ -113,6 +113,10 @@ strerror
 _fdopen
 _fileno
 clock
+_fstat64
+_fstat64i32
+_fstat32i64
+_fstat32
 
 ; stubs
 __setusermatherr
@@ -125,7 +129,6 @@ strtoull
 fgetpos
 _filelengthi64
 fsetpos
-_fstat64
 getwc
 _lseeki64
 putc
@@ -239,7 +242,6 @@ isupper
 _access
 _chdir
 _close
-_fstat64i32
 _getcwd
 _isatty
 _mkdir

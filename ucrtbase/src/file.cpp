@@ -762,6 +762,49 @@ static time_t win_to_unix_time(int64_t t) {
     return (time_t)((t - 116444736000000000) / 10000000);
 }
 
+static int do_fstat(HANDLE h, struct _stat64* st) {
+    nt_status status;
+    IO_STATUS_BLOCK iosb;
+    FILE_BASIC_INFORMATION fbi;
+    FILE_STANDARD_INFORMATION fsi;
+
+    status = NtQueryInformationFile(h, &iosb, &fbi, sizeof(fbi),
+                                    FILE_INFORMATION_CLASS::BasicInformation);
+    if (!success(status)) {
+        *__errno() = nt_status_to_errno(status);
+        return -1;
+    }
+
+    status = NtQueryInformationFile(h, &iosb, &fsi, sizeof(fsi),
+                                    FILE_INFORMATION_CLASS::StandardInformation);
+    if (!success(status)) {
+        *__errno() = nt_status_to_errno(status);
+        return -1;
+    }
+
+    memset(st, 0, sizeof(*st));
+
+    static const uint32_t S_IFDIR = 040000;
+    static const uint32_t S_IFREG = 0100000;
+
+    if (fbi.FileAttributes & FILE_ATTRIBUTE_DIRECTORY)
+        st->st_mode = S_IFDIR | 0777;
+    else {
+        st->st_mode = S_IFREG | 0444;
+
+        if (!(fbi.FileAttributes & FILE_ATTRIBUTE_READONLY))
+            st->st_mode |= 0222;
+    }
+
+    st->st_nlink = (short)fsi.NumberOfLinks;
+    st->st_size = fsi.EndOfFile.QuadPart;
+    st->st_atime = win_to_unix_time(fbi.LastAccessTime.QuadPart);
+    st->st_mtime = win_to_unix_time(fbi.LastWriteTime.QuadPart);
+    st->st_ctime = win_to_unix_time(fbi.ChangeTime.QuadPart);
+
+    return 0;
+}
+
 extern "C"
 int _stat64(const char* path, struct _stat64* st) {
     auto peb = NtCurrentTeb()->ProcessEnvironmentBlock;
@@ -769,8 +812,6 @@ int _stat64(const char* path, struct _stat64* st) {
     UNICODE_STRING us;
     IO_STATUS_BLOCK iosb;
     HANDLE h;
-    FILE_BASIC_INFORMATION fbi;
-    FILE_STANDARD_INFORMATION fsi;
     nt_status status;
 
     if (!path || path[0] == 0) {
@@ -810,41 +851,7 @@ int _stat64(const char* path, struct _stat64* st) {
 
     unique_handle f{h};
 
-    status = NtQueryInformationFile(f.get(), &iosb, &fbi, sizeof(fbi),
-                                    FILE_INFORMATION_CLASS::BasicInformation);
-    if (!success(status)) {
-        *__errno() = nt_status_to_errno(status);
-        return -1;
-    }
-
-    status = NtQueryInformationFile(f.get(), &iosb, &fsi, sizeof(fsi),
-                                    FILE_INFORMATION_CLASS::StandardInformation);
-    if (!success(status)) {
-        *__errno() = nt_status_to_errno(status);
-        return -1;
-    }
-
-    memset(st, 0, sizeof(*st));
-
-    static const uint32_t S_IFDIR = 040000;
-    static const uint32_t S_IFREG = 0100000;
-
-    if (fbi.FileAttributes & FILE_ATTRIBUTE_DIRECTORY)
-        st->st_mode = S_IFDIR | 0777;
-    else {
-        st->st_mode = S_IFREG | 0444;
-
-        if (!(fbi.FileAttributes & FILE_ATTRIBUTE_READONLY))
-            st->st_mode |= 0222;
-    }
-
-    st->st_nlink = (short)fsi.NumberOfLinks;
-    st->st_size = fsi.EndOfFile.QuadPart;
-    st->st_atime = win_to_unix_time(fbi.LastAccessTime.QuadPart);
-    st->st_mtime = win_to_unix_time(fbi.LastWriteTime.QuadPart);
-    st->st_ctime = win_to_unix_time(fbi.ChangeTime.QuadPart);
-
-    return 0;
+    return do_fstat(f.get(), st);
 }
 
 extern "C"
@@ -898,6 +905,96 @@ int _stat32(const char* path, struct _stat32* st) {
     struct _stat64 st2;
 
     auto ret = _stat64(path, &st2);
+    if (ret)
+        return ret;
+
+    st->st_dev = st2.st_dev;
+    st->st_ino = st2.st_ino;
+    st->st_mode = st2.st_mode;
+    st->st_nlink = st2.st_nlink;
+    st->st_uid = st2.st_uid;
+    st->st_gid = st2.st_gid;
+    st->st_rdev = st2.st_rdev;
+    st->st_size = (int32_t)st2.st_size;
+    st->st_atime = (__time32_t)st2.st_atime;
+    st->st_mtime = (__time32_t)st2.st_mtime;
+    st->st_ctime = (__time32_t)st2.st_ctime;
+
+    return 0;
+}
+
+extern "C"
+int _fstat64(int fd, struct _stat64* st) {
+    HANDLE h;
+
+    if (fd < 0 || (size_t)fd >= fds.size()) {
+        *_errno() = EINVAL;
+        return -1;
+    }
+
+    RtlEnterCriticalSection(&fds_lock);
+    h = fds[fd];
+    RtlLeaveCriticalSection(&fds_lock);
+
+    if (!h) {
+        *_errno() = EINVAL;
+        return -1;
+    }
+
+    return do_fstat(h, st);
+}
+
+extern "C"
+int _fstat64i32(int fd, struct _stat64i32* st) {
+    struct _stat64 st2;
+
+    auto ret = _fstat64(fd, &st2);
+    if (ret)
+        return ret;
+
+    st->st_dev = st2.st_dev;
+    st->st_ino = st2.st_ino;
+    st->st_mode = st2.st_mode;
+    st->st_nlink = st2.st_nlink;
+    st->st_uid = st2.st_uid;
+    st->st_gid = st2.st_gid;
+    st->st_rdev = st2.st_rdev;
+    st->st_size = (int32_t)st2.st_size;
+    st->st_atime = st2.st_atime;
+    st->st_mtime = st2.st_mtime;
+    st->st_ctime = st2.st_ctime;
+
+    return 0;
+}
+
+extern "C"
+int _fstat32i64(int fd, struct _stat32i64* st) {
+    struct _stat64 st2;
+
+    auto ret = _fstat64(fd, &st2);
+    if (ret)
+        return ret;
+
+    st->st_dev = st2.st_dev;
+    st->st_ino = st2.st_ino;
+    st->st_mode = st2.st_mode;
+    st->st_nlink = st2.st_nlink;
+    st->st_uid = st2.st_uid;
+    st->st_gid = st2.st_gid;
+    st->st_rdev = st2.st_rdev;
+    st->st_size = st2.st_size;
+    st->st_atime = (__time32_t)st2.st_atime;
+    st->st_mtime = (__time32_t)st2.st_mtime;
+    st->st_ctime = (__time32_t)st2.st_ctime;
+
+    return 0;
+}
+
+extern "C"
+int _fstat32(int fd, struct _stat32* st) {
+    struct _stat64 st2;
+
+    auto ret = _fstat64(fd, &st2);
     if (ret)
         return ret;
 

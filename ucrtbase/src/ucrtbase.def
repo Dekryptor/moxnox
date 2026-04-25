@@ -142,3 +142,7 @@ strerror = __strerror
 _fdopen = __fdopen
 _fileno = __fileno
 clock
+_fstat64
+_fstat64i32
+_fstat32i64
+_fstat32
