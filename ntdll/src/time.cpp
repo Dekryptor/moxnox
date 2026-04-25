@@ -48,7 +48,7 @@ extern "C"
 bool RtlQueryPerformanceFrequency(LARGE_INTEGER* freq) {
     const auto& time_page = *(time_page_struct*)TIME_PAGE_BASE;
 
-    freq->QuadPart = time_page.tsc_freq;
+    freq->QuadPart = (int64_t)time_page.tsc_freq;
 
     return true;
 }
@@ -56,9 +56,9 @@ bool RtlQueryPerformanceFrequency(LARGE_INTEGER* freq) {
 extern "C"
 bool RtlQueryPerformanceCounter(LARGE_INTEGER* count) {
 #ifdef __x86_64__
-    count->QuadPart = __rdtsc();
+    count->QuadPart = (int64_t)__rdtsc();
 #elifdef __aarch64__
-    count->QuadPart = cntvct_el0_load();
+    count->QuadPart = (int64_t)cntvct_el0_load();
 #endif
 
     return true;
