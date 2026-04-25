@@ -139,4 +139,4 @@ ferror
 feof
 _open
 strerror = __strerror
-_fdopen
+_fdopen = __fdopen

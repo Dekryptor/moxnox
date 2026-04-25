@@ -289,8 +289,6 @@ FILE* __cdecl _fopen(const char* pathname, const char* mode) {
         return nullptr;
     }
 
-    f->h = h;
-
     free(u16pathname);
 
     {
@@ -1051,9 +1049,36 @@ int _open(const char* path, int flags, ...) {
 }
 
 extern "C"
-FILE* _fdopen(int fd, const char* mode) {
-    print("FIXME - _fdopen\n");
+FILE* __fdopen(int fd, const char* /*mode*/) {
+    HANDLE h;
 
-    *_errno() = EINVAL;
-    return nullptr;
+    // FIXME - do something or other with mode (read, write, append?)
+
+    if (fd < 0 || (size_t)fd >= fds.size()) {
+        *_errno() = EINVAL;
+        return nullptr;
+    }
+
+    RtlEnterCriticalSection(&fds_lock);
+    h = fds[fd];
+    RtlLeaveCriticalSection(&fds_lock);
+
+    if (!h) {
+        *_errno() = EINVAL;
+        return nullptr;
+    }
+
+    auto f = new _FILE(h);
+    if (!f) {
+        *_errno() = ENOMEM;
+        return nullptr;
+    }
+
+    {
+        RtlEnterCriticalSection(&files_lock);
+        insert_tail_list(files_list, f->le);
+        RtlLeaveCriticalSection(&files_lock);
+    }
+
+    return reinterpret_cast<FILE*>(f);
 }
