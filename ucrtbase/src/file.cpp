@@ -127,6 +127,10 @@ _FILE::_FILE(HANDLE h, int fd) : h(h), fd(fd) {
 
 _FILE::~_FILE() {
     DeleteCriticalSection(&cs);
+
+    RtlEnterCriticalSection(&fds_lock);
+    fds[fd] = 0;
+    RtlLeaveCriticalSection(&fds_lock);
 }
 
 export void init_files() {
