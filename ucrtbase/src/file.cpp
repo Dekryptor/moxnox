@@ -20,6 +20,7 @@ import list;
 import ucrtbase;
 import kernelbase;
 import unique_handle;
+import time;
 
 #undef errno
 import errno;
@@ -756,10 +757,6 @@ int setvbuf(FILE* /*stream*/, char* /*buffer*/, int /*mode*/, size_t /*size*/) {
     // FIXME - change buffering mode of stream?
 
     return 0;
-}
-
-static time_t win_to_unix_time(int64_t t) {
-    return (time_t)((t - 116444736000000000) / 10000000);
 }
 
 static int do_fstat(HANDLE h, struct _stat64* st) {

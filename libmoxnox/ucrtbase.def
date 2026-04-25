@@ -117,6 +117,8 @@ _fstat64
 _fstat64i32
 _fstat32i64
 _fstat32
+_time32
+_time64
 
 ; stubs
 __setusermatherr
@@ -208,7 +210,6 @@ __stdio_common_vswprintf
 qsort
 perror
 getchar
-_time64
 _setmode
 _isatty
 _mkdir
