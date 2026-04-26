@@ -2120,55 +2120,26 @@ static void handle_serial_stdin(span<const char> s, HANDLE proc,
 
 static int do_serial_console() {
     HANDLE h;
-    unique_handle server_handle, client_handle, proc;
+    unique_handle server_handle, client_handle, proc, ptyctl;
     OBJECT_ATTRIBUTES oa;
     UNICODE_STRING us;
     IO_STATUS_BLOCK iosb;
     NTSTATUS status;
-    PROCESS_BASIC_INFORMATION pbi;
-    char16_t pipename[50];
     auto teb = NtCurrentTeb();
     auto peb = teb->ProcessEnvironmentBlock;
+    MOXNOX_IOCTL_PTYCTL_CREATE_PTY ptyinfo;
 
+    static const u16string_view ptyctl_fn = u"\\dev\\ptyctl";
     static const char16_t exe[] = u"\\bin\\shell.exe";
 
-    // create pipe
-
-    status = NtQueryInformationProcess(NtCurrentProcess(),
-                                       PROCESSINFOCLASS::BasicInformation,
-                                       &pbi, sizeof(pbi), nullptr);
-    if (!success(status)) {
-        print("NtQueryInformationProcess returned {}\n", status);
-        return 1;
-    }
-
-    {
-        char s[50];
-        span sp(s, sizeof(s));
-
-        sp = format(sp, "\\dev\\userconpipe-{}", pbi.UniqueProcessId);
-
-        auto name = string_view(s, (size_t)(sp.data() - s));
-
-        utf8_to_utf16(pipename, name);
-
-        us.Length = us.MaximumLength = (uint16_t)(utf8_to_utf16_len(name) * sizeof(char16_t));
-        us.Buffer = pipename;
-    }
+    // open ptyctl
 
     memset(&oa, 0, sizeof(oa));
     oa.Length = sizeof(OBJECT_ATTRIBUTES);
     oa.ObjectName = &us;
 
-    status = NtCreateNamedPipeFile(&h, FILE_READ_DATA | FILE_WRITE_DATA, &oa,
-                                   &iosb, 0, FILE_CREATE, 0, 1, 0, 0, 0, 0, 0,
-                                   nullptr);
-    if (!success(status)) {
-        print("NtCreateNamedPipeFile returned {}\n", status);
-        return 1;
-    }
-
-    server_handle.reset(h);
+    us.Length = us.MaximumLength = (uint16_t)(ptyctl_fn.size() * sizeof(char16_t));
+    us.Buffer = (char16_t*)ptyctl_fn.data();
 
     status = NtOpenFile(&h, FILE_READ_DATA | FILE_WRITE_DATA, &oa, &iosb, 0, 0);
     if (!success(status)) {
@@ -2176,7 +2147,20 @@ static int do_serial_console() {
         return 1;
     }
 
-    client_handle.reset(h);
+    ptyctl.reset(h);
+
+    status = NtDeviceIoControlFile(ptyctl.get(), 0, nullptr, nullptr, &iosb,
+                                   IOCTL_MOXNOX_PTYCTL_CREATE_PTY, nullptr,
+                                   0, &ptyinfo, sizeof(ptyinfo));
+    if (!success(status)) {
+        print("IOCTL_MOXNOX_PTYCTL_CREATE_PTY returned {}\n", status);
+        return 1;
+    }
+
+    ptyctl.reset();
+
+    server_handle.reset(ptyinfo.server_handle);
+    client_handle.reset(ptyinfo.client_handle);
 
     serial_print(welcome_message1);
     serial_print(get_os_version());
