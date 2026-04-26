@@ -1,11 +1,17 @@
+#ifdef __x86_64__
+.intel_syntax noprefix
+#endif
+
 .macro underscore_func name
     .section ".text$\name"
     .global "\name"
     "\name":
 #ifdef __x86_64__
-    jmp "_\name"
+    jmp [rip+__imp__\name]
 #elif defined(__aarch64__)
-    b "_\name"
+    adrp x16, __imp__\name
+    ldr x16, [x16, :lo12:__imp__\name]
+    br x16
 #endif
 .endm
 
