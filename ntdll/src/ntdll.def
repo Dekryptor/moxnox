@@ -67,3 +67,4 @@ LdrGetDllHandle
 RtlIsProcessorFeaturePresent
 RtlQueryPerformanceFrequency
 RtlQueryPerformanceCounter
+strnlen
