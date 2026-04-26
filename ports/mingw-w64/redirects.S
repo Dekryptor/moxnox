@@ -39,3 +39,25 @@ underscore_func "write"
 underscore_func "fdopen"
 underscore_func "chmod"
 underscore_func "utime"
+
+.section ".text$fseeko64"
+.global fseeko64
+fseeko64:
+#ifdef __x86_64__
+    jmp [rip+__imp__fseeki64]
+#elif defined(__aarch64__)
+    adrp x16, __imp__fseeki64
+    ldr x16, [x16, :lo12:__imp__fseeki64]
+    br x16
+#endif
+
+.section ".text$ftello64"
+.global ftello64
+ftello64:
+#ifdef __x86_64__
+    jmp [rip+__imp__ftelli64]
+#elif defined(__aarch64__)
+    adrp x16, __imp__ftelli64
+    ldr x16, [x16, :lo12:__imp__ftelli64]
+    br x16
+#endif
