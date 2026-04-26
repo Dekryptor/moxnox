@@ -64,9 +64,6 @@ atan2
 sin
 ceil
 floor
-read
-fdopen
-write
 iswctype
 _fpreset
 _strdup
@@ -79,9 +76,7 @@ fseeko64
 _ftelli64
 ftello64
 _stat64
-chmod
 _utime
-utime
 getenv_s
 acos
 acosf
