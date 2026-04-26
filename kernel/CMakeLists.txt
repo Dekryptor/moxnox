@@ -64,6 +64,7 @@ set(GLOBAL_MODULES src/cmdline.cpp
     src/net.cpp
     src/unwind.cpp
     src/smbios_parser.cpp
+    src/pty.cpp
 )
 
 set(AMD64_MODULES ${GLOBAL_MODULES}

@@ -50,6 +50,7 @@ import visit;
 import evdev;
 import kernel_time_page;
 import smbios_parser;
+import pty;
 
 using namespace std;
 
@@ -272,6 +273,9 @@ void main_thread(void* ctx) {
 
     if (!init_vfsctl())
         bsod("init_vfsctl failed\n");
+
+    if (!create_dev_ptyctl())
+        print("create_dev_ptyctl failed\n");
 
     if (!init_net())
         bsod("init_net failed\n");
