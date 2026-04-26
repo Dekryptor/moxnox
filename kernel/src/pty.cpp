@@ -1,6 +1,7 @@
 module;
 
 #include <span>
+#include <mutex>
 #include <stdint.h>
 
 export module pty;
@@ -10,6 +11,12 @@ import print;
 import chardev;
 import handle;
 import object_ref;
+import moxnox_ioctls;
+import pipe;
+import spinlock;
+import scheduler;
+import thread;
+import objects;
 
 using namespace std;
 
@@ -24,6 +31,35 @@ public:
     nt_status write(span<const uint8_t>, uint64_t&) override {
         return nt_status::NOT_SUPPORTED;
     }
+
+    nt_status ioctl(uint32_t code, span<const uint8_t> inbuf,
+                    span<uint8_t> outbuf, uintptr_t& written) override;
+};
+
+class pty_client : public chardev {
+public:
+    pty_client(pipe& recv_pipe, pipe& send_pipe);
+    ~pty_client();
+    nt_status read(span<uint8_t> s, uint64_t& read_bytes) override;
+    nt_status write(span<const uint8_t> s, uint64_t& written_bytes) override;
+    sync_object& get_sync_object() override;
+    void server_disconnected();
+
+    pipe& recv_pipe;
+    pipe& send_pipe;
+    bool disconnected = false;
+};
+
+class pty_server : public chardev {
+public:
+    pty_server(pty_client& client);
+    ~pty_server();
+    nt_status read(span<uint8_t> s, uint64_t& read_bytes) override;
+    nt_status write(span<const uint8_t> s, uint64_t& written_bytes) override;
+    sync_object& get_sync_object() override;
+    void last_handle_closed() override;
+
+    pty_client& client;
 };
 
 export bool create_dev_ptyctl() {
@@ -42,4 +78,162 @@ export bool create_dev_ptyctl() {
     }
 
     return true;
+}
+
+static nt_status create_pty(span<uint8_t> outbuf, uintptr_t& written) {
+    auto& t = *get_current_thread();
+    nt_status status;
+
+    if (outbuf.size() < sizeof(MOXNOX_IOCTL_PTYCTL_CREATE_PTY))
+        return nt_status::INVALID_PARAMETER;
+
+    auto& out = *(MOXNOX_IOCTL_PTYCTL_CREATE_PTY*)outbuf.data();
+
+    auto pptr_recv = new pipe(1);
+    if (!pptr_recv) {
+        print("new failed\n");
+        return nt_status::INSUFFICIENT_RESOURCES;
+    }
+
+    auto obj = object_ref{*pptr_recv};
+
+    auto pptr_send = new pipe(1);
+    if (!pptr_send) {
+        print("new failed\n");
+        return nt_status::INSUFFICIENT_RESOURCES;
+    }
+
+    auto obj2 = object_ref{*pptr_send};
+
+    auto pptr_client = new pty_client(*pptr_recv, *pptr_send);
+    if (!pptr_client) {
+        print("new failed\n");
+        return nt_status::INSUFFICIENT_RESOURCES;
+    }
+
+    auto obj3 = object_ref{*pptr_client};
+
+    auto pptr_server = new pty_server(*pptr_client);
+
+    if (!pptr_server) {
+        print("new failed\n");
+        return nt_status::INSUFFICIENT_RESOURCES;
+    }
+
+    auto obj4 = object_ref{*pptr_server};
+
+    handle_t server_handle, client_handle;
+
+    status = t.proc->add_handle(*pptr_server, FILE_READ_DATA | FILE_WRITE_DATA,
+                                true, server_handle);
+    if (!success(status))
+        return status;
+
+    status = t.proc->add_handle(*pptr_client, FILE_READ_DATA | FILE_WRITE_DATA,
+                                true, client_handle);
+    if (!success(status)) {
+        t.proc->close_handle(server_handle);
+        return status;
+    }
+
+    out.server_handle = server_handle;
+    out.client_handle = client_handle;
+
+    written = sizeof(MOXNOX_IOCTL_PTYCTL_CREATE_PTY);
+
+    return nt_status::SUCCESS;
+}
+
+nt_status ptyctl::ioctl(uint32_t code, span<const uint8_t>,
+                        span<uint8_t> outbuf, uintptr_t& written) {
+    switch (code) {
+        case IOCTL_MOXNOX_PTYCTL_CREATE_PTY:
+            return create_pty(outbuf, written);
+
+        default:
+            return nt_status::NOT_SUPPORTED;
+    }
+}
+
+pty_client::pty_client(pipe& recv_pipe, pipe& send_pipe) : recv_pipe(recv_pipe), send_pipe(send_pipe) {
+    recv_pipe.acquire();
+    send_pipe.acquire();
+}
+
+pty_client::~pty_client() {
+    recv_pipe.release();
+    send_pipe.release();
+}
+
+nt_status pty_client::read(span<uint8_t> s, uint64_t& read_bytes) {
+    auto ret = recv_pipe.read(s, read_bytes);
+
+    if (disconnected && read_bytes == 0) {
+        lock_guard l(recv_pipe.lock);
+
+        if (recv_pipe.buf_unread == 0)
+            return nt_status::PIPE_DISCONNECTED;
+    }
+
+    return ret;
+}
+
+nt_status pty_client::write(span<const uint8_t> s, uint64_t& written_bytes) {
+    if (disconnected)
+        return nt_status::PIPE_DISCONNECTED;
+
+    auto ret = send_pipe.write(s, written_bytes);
+
+    if (disconnected)
+        return nt_status::PIPE_DISCONNECTED;
+
+    return ret;
+}
+
+sync_object& pty_client::get_sync_object() {
+    return recv_pipe;
+}
+
+void pty_client::server_disconnected() {
+    sync_lock sl;
+    lock_guard l(sl);
+
+    disconnected = true;
+
+    send_pipe.readonly = true;
+
+    if (!send_pipe.not_full_event.signalled)
+        send_pipe.not_full_event.set_holding_sync_lock();
+
+    if (!recv_pipe.signalled) {
+        recv_pipe.signalled = true;
+
+        wake_up_waiters(recv_pipe.waiters);
+    }
+}
+
+pty_server::pty_server(pty_client& client) : client(client) {
+    client.acquire();
+}
+
+pty_server::~pty_server() {
+    client.release();
+}
+
+nt_status pty_server::read(span<uint8_t> s, uint64_t& read_bytes) {
+    return client.send_pipe.read(s, read_bytes);
+}
+
+nt_status pty_server::write(span<const uint8_t> s, uint64_t& written_bytes) {
+    return client.recv_pipe.write(s, written_bytes);
+}
+
+sync_object& pty_server::get_sync_object() {
+    return client.send_pipe;
+}
+
+void pty_server::last_handle_closed() {
+    client.server_disconnected();
+
+    remove_object_name(client);
 }
