@@ -29,6 +29,7 @@ import harfbuzz;
 import freetype;
 import emoji;
 import kernelbase;
+import moxnox_ioctls;
 
 using namespace std;
 
@@ -1660,17 +1661,17 @@ static string_view get_os_version() {
 static void run_shell(const char16_t* exe, void (*recv_func)(string_view),
                       void (*flush_func)()) {
     HANDLE h;
-    unique_handle server_handle, client_handle, proc, kmsg, keyboard_pipe;
+    unique_handle server_handle, client_handle, proc, kmsg, ptyctl, keyboard_pipe;
     OBJECT_ATTRIBUTES oa;
     UNICODE_STRING us;
     IO_STATUS_BLOCK iosb;
     NTSTATUS status;
-    PROCESS_BASIC_INFORMATION pbi;
-    char16_t pipename[50];
+    MOXNOX_IOCTL_PTYCTL_CREATE_PTY ptyinfo;
 
     // open kmsg
 
     static const u16string_view kmsg_fn = u"\\dev\\kmsg";
+    static const u16string_view ptyctl_fn = u"\\dev\\ptyctl";
     static const u16string_view keyboard_pipe_fn = u"\\dev\\keyboard";
 
     us.Length = us.MaximumLength = (uint16_t)(kmsg_fn.size() * sizeof(char16_t));
@@ -1688,39 +1689,10 @@ static void run_shell(const char16_t* exe, void (*recv_func)(string_view),
 
     kmsg.reset(h);
 
-    // create pipe
+    // open ptyctl
 
-    status = NtQueryInformationProcess(NtCurrentProcess(),
-                                       PROCESSINFOCLASS::BasicInformation,
-                                       &pbi, sizeof(pbi), nullptr);
-    if (!success(status)) {
-        print("NtQueryInformationProcess returned {}\n", status);
-        return;
-    }
-
-    {
-        char s[50];
-        span sp(s, sizeof(s));
-
-        sp = format(sp, "\\dev\\userconpipe-{}", pbi.UniqueProcessId);
-
-        auto name = string_view(s, (size_t)(sp.data() - s));
-
-        utf8_to_utf16(pipename, name);
-
-        us.Length = us.MaximumLength = (uint16_t)(utf8_to_utf16_len(name) * sizeof(char16_t));
-        us.Buffer = pipename;
-    }
-
-    status = NtCreateNamedPipeFile(&h, FILE_READ_DATA | FILE_WRITE_DATA, &oa,
-                                   &iosb, 0, FILE_CREATE, 0, 1, 0, 0, 0, 0, 0,
-                                   nullptr);
-    if (!success(status)) {
-        print("NtCreateNamedPipeFile returned {}\n", status);
-        return;
-    }
-
-    server_handle.reset(h);
+    us.Length = us.MaximumLength = (uint16_t)(ptyctl_fn.size() * sizeof(char16_t));
+    us.Buffer = (char16_t*)ptyctl_fn.data();
 
     status = NtOpenFile(&h, FILE_READ_DATA | FILE_WRITE_DATA, &oa, &iosb, 0, 0);
     if (!success(status)) {
@@ -1728,7 +1700,24 @@ static void run_shell(const char16_t* exe, void (*recv_func)(string_view),
         return;
     }
 
-    client_handle.reset(h);
+    ptyctl.reset(h);
+
+    // create pty
+
+    status = NtDeviceIoControlFile(ptyctl.get(), 0, nullptr, nullptr, &iosb,
+                                   IOCTL_MOXNOX_PTYCTL_CREATE_PTY, nullptr,
+                                   0, &ptyinfo, sizeof(ptyinfo));
+    if (!success(status)) {
+        print("IOCTL_MOXNOX_PTYCTL_CREATE_PTY returned {}\n", status);
+        return;
+    }
+
+    ptyctl.reset();
+
+    server_handle.reset(ptyinfo.server_handle);
+    client_handle.reset(ptyinfo.client_handle);
+
+    // open keyboard pipe
 
     us.Length = us.MaximumLength = (uint16_t)(keyboard_pipe_fn.size() * sizeof(char16_t));
     us.Buffer = (char16_t*)keyboard_pipe_fn.data();
