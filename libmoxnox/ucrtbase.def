@@ -123,6 +123,7 @@ _chmod
 _utime32
 _utime64
 getchar
+_isatty
 
 ; stubs
 __setusermatherr
@@ -214,7 +215,6 @@ __stdio_common_vswprintf
 qsort
 perror
 _setmode
-_isatty
 _mkdir
 atoi
 bsearch

@@ -1249,3 +1249,12 @@ extern "C"
 int getchar() {
     return _fgetc((FILE*)&_stdin);
 }
+
+extern "C"
+int _isatty(int fd) {
+    print("FIXME - _isatty {}\n", fd);
+
+    // FIXME
+
+    return 0;
+}

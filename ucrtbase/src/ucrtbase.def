@@ -152,3 +152,4 @@ _chmod
 _utime32 = __utime32
 _utime64 = __utime64
 getchar
+_isatty
