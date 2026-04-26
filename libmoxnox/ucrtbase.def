@@ -72,9 +72,7 @@ _aligned_malloc
 _aligned_free
 __stdio_common_vsprintf
 _fseeki64
-fseeko64
 _ftelli64
-ftello64
 _stat64
 _utime
 getenv_s
