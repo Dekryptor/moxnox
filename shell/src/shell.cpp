@@ -36,6 +36,7 @@ static HANDLE ctrl_c_event = 0;
 static char* prompt_buf;
 static string_view prompt;
 
+#if 0
 struct suspended_process {
     list_entry le;
     unique_handle proc;
@@ -43,6 +44,7 @@ struct suspended_process {
 
 static list_entry suspended_processes = { &suspended_processes, &suspended_processes };
 static unsigned int num_suspended_processes = 0;
+#endif
 
 void* operator new(size_t count) {
     return malloc(count);
@@ -56,6 +58,7 @@ void operator delete(void* ptr, size_t) noexcept {
     free(ptr);
 }
 
+#if 0
 static bool forward_stdin(HANDLE h, string_view s, HANDLE proc) {
     auto write = [](HANDLE h, string_view s) {
         nt_status status;
@@ -93,20 +96,16 @@ static bool forward_stdin(HANDLE h, string_view s, HANDLE proc) {
 
     return true;
 }
+#endif
 
-static bool run_program(HANDLE server_handle, unique_handle& proc) {
-    auto teb = NtCurrentTeb();
-    auto peb = teb->ProcessEnvironmentBlock;
+static bool run_program(unique_handle& proc) {
     bool did_ctrl_c = false;
 
     do {
-        IO_STATUS_BLOCK iosb;
-        array<HANDLE, 4> objs;
+        array<HANDLE, 2> objs;
 
-        objs[0] = peb->ProcessParameters->StandardInput;
-        objs[1] = ctrl_c_event;
-        objs[2] = server_handle;
-        objs[3] = proc.get();
+        objs[0] = ctrl_c_event;
+        objs[1] = proc.get();
 
         auto status = NtWaitForMultipleObjects(objs.size(), objs.data(), true,
                                                true, nullptr);
@@ -121,40 +120,6 @@ static bool run_program(HANDLE server_handle, unique_handle& proc) {
 
         switch ((unsigned int)status - (unsigned int)nt_status::SUCCESS) {
             case 0: {
-                char s[PAGE_SIZE];
-
-                // forward stdin to process
-
-                status = NtReadFile(peb->ProcessParameters->StandardInput, 0,
-                                    nullptr, nullptr, &iosb, s, sizeof(s),
-                                    nullptr, nullptr);
-                if (status == nt_status::ALERTED)
-                    continue;
-                else if (!success(status)) {
-                    print_stderr("NtReadFile returned {}\n", status);
-                    continue;
-                }
-
-                if (iosb.Information == 0)
-                    break;
-
-                if (!forward_stdin(server_handle, string_view(s, iosb.Information),
-                                   proc.get())) {
-                    auto sp = new suspended_process;
-                    swap(sp->proc, proc);
-
-                    insert_tail_list(suspended_processes, sp->le);
-                    num_suspended_processes++;
-
-                    running_proc = 0;
-
-                    return false;
-                }
-
-                break;
-            }
-
-            case 1: {
                 // Ctrl+C
 
                 // FIXME - show error if this fails (but only if process not dead already)
@@ -164,30 +129,7 @@ static bool run_program(HANDLE server_handle, unique_handle& proc) {
                 break;
             }
 
-            case 2: {
-                char s[PAGE_SIZE];
-
-                // print pipe data
-
-                status = NtReadFile(server_handle, 0, nullptr, nullptr,
-                                    &iosb, s, sizeof(s), nullptr, nullptr);
-                if (status == nt_status::ALERTED)
-                    continue;
-                else if (!success(status)) {
-                    print_stderr("NtReadFile returned {}\n", status);
-                    continue;
-                }
-
-                status = NtWriteFile(peb->ProcessParameters->StandardOutput, 0,
-                                     nullptr, nullptr, &iosb, s,
-                                     (uint32_t)iosb.Information, nullptr, nullptr);
-                if (!success(status))
-                    print_stderr("NtWriteFile returned {}\n", status);
-
-                break;
-            }
-
-            case 3: {
+            case 1: {
                 // process finished
 
                 running_proc = 0;
@@ -310,8 +252,7 @@ static void __attribute__((noinline)) inline1() {
     __asm __volatile("nop");
 }
 
-static void try_run_program(string_view program, string_view cmdline,
-                            HANDLE server_handle, HANDLE client_handle) {
+static void try_run_program(string_view program, string_view cmdline) {
     auto u16cmdlinelen = utf8_to_utf16_len(cmdline);
     auto u16cmdline = (char16_t*)malloc((u16cmdlinelen + 1) * sizeof(char16_t));
     if (!u16cmdline) {
@@ -328,11 +269,6 @@ static void try_run_program(string_view program, string_view cmdline,
     memset(&si, 0, sizeof(si));
     si.cb = sizeof(si);
     memset(&pi, 0, sizeof(pi));
-
-    si.dwFlags = STARTF_USESTDHANDLES;
-    si.hStdInput = client_handle;
-    si.hStdOutput = client_handle;
-    si.hStdError = client_handle;
 
     auto proglen = utf8_to_utf16_len(program);
 
@@ -512,7 +448,7 @@ static void try_run_program(string_view program, string_view cmdline,
 
     NtClose(pi.hThread);
 
-    run_program(server_handle, proc);
+    run_program(proc);
 }
 
 static void int3() {
@@ -624,6 +560,7 @@ static void cursor() {
 }
 
 static void exit() {
+#if 0
     while (!is_list_empty(suspended_processes)) {
         auto& sp = containing_record<suspended_process>(suspended_processes.next);
 
@@ -635,10 +572,12 @@ static void exit() {
 
         delete &sp;
     }
+#endif
 
     NtTerminateProcess(NtCurrentProcess(), nt_status::SUCCESS);
 }
 
+#if 0
 static void fg(HANDLE server_handle) {
     // FIXME - job_spec
 
@@ -662,6 +601,7 @@ static void fg(HANDLE server_handle) {
     running_proc = proc.get();
     run_program(server_handle, proc);
 }
+#endif
 
 static void get_prompt() {
     nt_status status;
@@ -720,8 +660,7 @@ static void get_prompt() {
     prompt = string_view(prompt_buf, prefix.size() + pwdlen + suffix.size());
 }
 
-static void process_line(string_view sv, HANDLE server_handle,
-                         HANDLE client_handle) {
+static void process_line(string_view sv) {
     if (!sv.empty() && sv.back() == '\r')
         sv = string_view(sv.data(), sv.size() - 1);
 
@@ -778,22 +717,24 @@ static void process_line(string_view sv, HANDLE server_handle,
         scroll(param);
     else if (cmd == "cursor") // TESTING
         cursor();
+#if 0
     else if (cmd == "fg")
         fg(server_handle);
+#endif
     else if (cmd == "cd") {
         cd(param);
         get_prompt();
     } else
-        try_run_program(cmd, sv, server_handle, client_handle);
+        try_run_program(cmd, sv);
 }
 
-static void process_lines(HANDLE server_handle, HANDLE client_handle) {
+static void process_lines() {
     for (unsigned int i = cursor_pos; i < buflen; i++) {
         print("\x1b[C"); // right
     }
     print("\n");
 
-    process_line(string_view(buf, buflen), server_handle, client_handle);
+    process_line(string_view(buf, buflen));
 
     free(buf);
     buf = nullptr;
@@ -1079,8 +1020,7 @@ static void handle_backspace() {
     }
 }
 
-static void handle_input(string_view s, HANDLE server_handle,
-                         HANDLE client_handle) {
+static void handle_input(string_view s) {
     if (escape_buffer_len != 0) {
         if (escape_buffer_len == 1 && (s[0] != '[' && s[0] != 'O')) {
             handle_char(0x1b);
@@ -1179,7 +1119,7 @@ loop:
                 NtTerminateProcess(NtCurrentProcess(), nt_status::SUCCESS);
             }
         } else if (c == '\n') {
-            process_lines(server_handle, client_handle);
+            process_lines();
             print("{}", prompt);
         } else if (c == 0x1b) {
             if (s.size() == 1) {
@@ -1253,63 +1193,6 @@ loop:
     }
 }
 
-static nt_status create_pipe(unique_handle& server_handle,
-                             unique_handle& client_handle) {
-    nt_status status;
-    UNICODE_STRING us;
-    IO_STATUS_BLOCK iosb;
-    OBJECT_ATTRIBUTES oa;
-    PROCESS_BASIC_INFORMATION pbi;
-    char16_t pipename[50];
-    HANDLE h;
-
-    status = NtQueryInformationProcess(NtCurrentProcess(),
-                                       PROCESSINFOCLASS::BasicInformation,
-                                       &pbi, sizeof(pbi), nullptr);
-    if (!success(status)) {
-        print_stderr("NtQueryInformationProcess returned {}\n", status);
-        return status;
-    }
-
-    {
-        char s[50];
-        span sp(s, sizeof(s));
-
-        sp = format(sp, "\\dev\\shellpipe-{}", pbi.UniqueProcessId);
-
-        auto name = string_view(s, (size_t)(sp.data() - s));
-
-        utf8_to_utf16(pipename, name);
-
-        us.Length = us.MaximumLength = (uint16_t)(utf8_to_utf16_len(name) * sizeof(char16_t));
-        us.Buffer = pipename;
-    }
-
-    memset(&oa, 0, sizeof(oa));
-    oa.Length = sizeof(OBJECT_ATTRIBUTES);
-    oa.ObjectName = &us;
-
-    status = NtCreateNamedPipeFile(&h, FILE_READ_DATA | FILE_WRITE_DATA, &oa,
-                                   &iosb, 0, FILE_CREATE, 0, 1, 0, 0, 0, 0, 0,
-                                   nullptr);
-    if (!success(status)) {
-        print_stderr("NtCreateNamedPipeFile returned {}\n", status);
-        return status;
-    }
-
-    server_handle.reset(h);
-
-    status = NtOpenFile(&h, FILE_READ_DATA | FILE_WRITE_DATA, &oa, &iosb, 0, 0);
-    if (!success(status)) {
-        print_stderr("NtOpenFile returned {}\n", status);
-        return status;
-    }
-
-    client_handle.reset(h);
-
-    return nt_status::SUCCESS;
-}
-
 static bool ctrl_handler(uint32_t type) {
     if (type != CTRL_C_EVENT)
         return false;
@@ -1326,7 +1209,6 @@ static bool ctrl_handler(uint32_t type) {
 int main() {
     auto teb = NtCurrentTeb();
     auto peb = teb->ProcessEnvironmentBlock;
-    unique_handle server_handle, client_handle;
     nt_status status;
 
     status = NtCreateEvent(&ctrl_c_event, 0, nullptr,
@@ -1338,10 +1220,6 @@ int main() {
 
     if (!SetConsoleCtrlHandler(ctrl_handler, true))
         print_stderr("SetConsoleCtrlHandler failed\n");
-
-    status = create_pipe(server_handle, client_handle);
-    if (!success(status))
-        return 1;
 
     get_prompt();
     print("{}", prompt);
@@ -1388,14 +1266,13 @@ int main() {
 
                 buf = buf2;
 
-                handle_input(string_view(s, iosb.Information),
-                             server_handle.get(), client_handle.get());
+                handle_input(string_view(s, iosb.Information));
 
                 break;
             }
 
             case 1: // Ctrl+C
-                handle_input("\x03", server_handle.get(), client_handle.get());
+                handle_input("\x03");
                 break;
         }
     }
