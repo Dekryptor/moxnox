@@ -39,10 +39,8 @@ _fgetc_nolock = __fgetc_nolock
 _fseeki64_nolock = __fseeki64_nolock
 _fseeki64 = __fseeki64
 _fseek_nolock = __fseek_nolock
-fseeko64 = __fseeki64
 _ftelli64_nolock = __ftelli64_nolock
 _ftelli64 = __ftelli64
-ftello64 = __ftelli64
 _ftell_nolock = __ftell_nolock
 iswctype = ntdll.iswctype
 memchr = ntdll.memchr
@@ -86,9 +84,6 @@ _initialize_onexit_table
 _register_onexit_function
 _execute_onexit_table
 getenv
-write = _write
-fdopen = _fdopen
-read = _read
 _strdup
 wctob = _wctob
 btowc = _btowc
@@ -99,9 +94,7 @@ _aligned_malloc = __aligned_malloc
 _aligned_free = __aligned_free
 signal
 __stdio_common_vsprintf
-chmod = _chmod
-_utime = _utime64
-utime = _utime64
+_utime = __utime64
 setvbuf
 getenv_s = _getenv_s
 strncat = ntdll.strncat
