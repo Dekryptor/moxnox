@@ -117,6 +117,7 @@ static void prepare_environment() {
         u"PATH=/bin",
         u"HOME=/", // FIXME
         u"LD_LIBRARY_PATH=/lib:.",
+        u"TERM=xterm-16color", // FIXME - should be set by usercon
     };
 
     size_t len = 1;
