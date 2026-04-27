@@ -16,7 +16,9 @@ add_library(ucrtbase_static STATIC
     repo/mingw-w64-crt/stdio/ucrt_snprintf.c
     repo/mingw-w64-crt/stdio/ucrt_sscanf.c
     repo/mingw-w64-crt/stdio/ucrt_swprintf.c
+    repo/mingw-w64-crt/stdio/ucrt__vscprintf.c
     repo/mingw-w64-crt/stdio/ucrt_vsnprintf.c
+    repo/mingw-w64-crt/stdio/ucrt__vsnprintf.c
     repo/mingw-w64-crt/stdio/ucrt___local_stdio_printf_options.c
     repo/mingw-w64-crt/stdio/ucrt___local_stdio_scanf_options.c
     redirects.S
