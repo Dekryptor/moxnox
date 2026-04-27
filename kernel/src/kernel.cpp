@@ -257,7 +257,7 @@ void main_thread(void* ctx) {
     if (!init_smp()) {
         auto bsp_id = current_cpu_id();
 
-        cpu_ids = (decltype(bsp_id)*)malloc(1);
+        cpu_ids = (decltype(bsp_id)*)malloc(sizeof(bsp_id));
         if (!cpu_ids) {
             print("malloc failed\n");
             return;
