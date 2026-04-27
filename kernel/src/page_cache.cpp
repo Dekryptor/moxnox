@@ -558,7 +558,7 @@ nt_status read_and_pin(page_cache<T>& cache, uint64_t offset, uint64_t length) {
     // FIXME - use RB tree rather than linked list
     // FIXME - if create_new_page_cache_entry fails, we should be clearing existing cache
 
-    // FIXME - lock range
+    rangelock_req rlr(cache.rl, first_page, num_pages);
 
     auto status = cache.pin(first_page, num_pages, &first_unread);
     if (!success(status))
