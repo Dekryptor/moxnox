@@ -43,6 +43,9 @@ public:
     nt_status read(span<uint8_t> s, uint64_t& read_bytes) override;
     nt_status write(span<const uint8_t> s, uint64_t& written_bytes) override;
     sync_object& get_sync_object() override;
+    nt_status ioctl(uint32_t code, span<const uint8_t> inbuf,
+                    span<uint8_t> outbuf, uintptr_t& written) override;
+
     void server_disconnected();
 
     pipe& recv_pipe;
@@ -236,4 +239,16 @@ void pty_server::last_handle_closed() {
     client.server_disconnected();
 
     remove_object_name(client);
+}
+
+nt_status pty_client::ioctl(uint32_t code, span<const uint8_t> /*inbuf*/,
+                            span<uint8_t> /*outbuf*/, uintptr_t& written) {
+    switch (code) {
+        case IOCTL_MOXNOX_PTY_ISATTY:
+            written = 0;
+            return nt_status::SUCCESS;
+
+        default:
+            return nt_status::NOT_SUPPORTED;
+    }
 }
