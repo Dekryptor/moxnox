@@ -1251,6 +1251,27 @@ int getchar() {
 }
 
 extern "C"
+intptr_t _get_osfhandle(int fd) {
+    if (fd < 0 || (size_t)fd >= fds.size()) {
+        *_errno() = EBADF;
+        return -1;
+    }
+
+    HANDLE h;
+
+    RtlEnterCriticalSection(&fds_lock);
+    h = fds[(size_t)fd];
+    RtlLeaveCriticalSection(&fds_lock);
+
+    if (h == 0) {
+        *_errno() = EBADF;
+        return -1;
+    }
+
+    return (intptr_t)h;
+}
+
+extern "C"
 int _isatty(int fd) {
     print("FIXME - _isatty {}\n", fd);
 
