@@ -76,7 +76,7 @@ target_sources(ucrtbase PUBLIC FILE_SET CXX_MODULES FILES
 target_compile_options(ucrtbase PRIVATE -fno-exceptions ${USERSPACE_CFLAGS})
 target_link_options(ucrtbase PUBLIC -nostartfiles -nostdlib)
 
-target_link_libraries(ucrtbase PRIVATE format print unicode list errno unique_handle)
+target_link_libraries(ucrtbase PRIVATE format print unicode list errno unique_handle moxnox_ioctls)
 target_link_libraries(ucrtbase PRIVATE ntdll_mod ucrtbase_mod kernelbase_mod)
 target_link_libraries(ucrtbase PRIVATE -Wl,--whole-archive musl -Wl,--no-whole-archive)
 

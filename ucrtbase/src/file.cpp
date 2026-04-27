@@ -22,6 +22,7 @@ import ucrtbase;
 import kernelbase;
 import unique_handle;
 import time;
+import moxnox_ioctls;
 
 #undef errno
 import errno;
@@ -1273,9 +1274,17 @@ intptr_t _get_osfhandle(int fd) {
 
 extern "C"
 int _isatty(int fd) {
-    print("FIXME - _isatty {}\n", fd);
+    IO_STATUS_BLOCK iosb;
 
-    // FIXME
+    auto h = _get_osfhandle(fd);
+    if (h == -1)
+        return 0; // FIXME - is this right?
 
-    return 0;
+    auto status = NtDeviceIoControlFile((HANDLE)h, 0, nullptr, nullptr, &iosb,
+                                        IOCTL_MOXNOX_PTY_ISATTY, nullptr, 0,
+                                        nullptr, 0);
+    if (!success(status))
+        return 0;
+
+    return 1;
 }
