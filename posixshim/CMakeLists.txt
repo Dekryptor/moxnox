@@ -5,8 +5,12 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 enable_language(ASM)
 
-add_library(posixshim STATIC src/stubs.S)
+add_library(posixshim STATIC
+    src/stubs.S
+    src/termios.cpp
+)
 
 target_compile_options(posixshim PRIVATE -fno-exceptions ${USERSPACE_CFLAGS})
 
-target_link_libraries(kernelbase PRIVATE moxnox)
+target_link_libraries(posixshim PRIVATE print errno)
+target_link_libraries(posixshim PRIVATE moxnox)
