@@ -1309,8 +1309,18 @@ int _write(int fd, const void* buffer, unsigned int count) {
 
 extern "C"
 int _read(int fd, void* buffer, size_t count) {
-    print("FIXME - _read\n");
+    IO_STATUS_BLOCK iosb;
 
-    *_errno() = EINVAL;
-    return -1;
+    auto h = _get_osfhandle(fd);
+    if ((intptr_t)h < 0)
+        return -1;
+
+    auto status = NtReadFile(h, 0, nullptr, nullptr, &iosb, buffer,
+                             (uint32_t)count, nullptr, nullptr);
+    if (!success(status)) {
+        *_errno() = nt_status_to_errno(status);
+        return -1;
+    }
+
+    return (int)iosb.Information;
 }
