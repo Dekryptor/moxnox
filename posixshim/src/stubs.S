@@ -2,7 +2,6 @@
 
 stubs_start
 
-do_stub_no_export "cfgetospeed"
 do_stub_no_export "tcflush"
 do_stub_no_export "tcsetattr"
 do_stub_no_export "nanosleep64"
