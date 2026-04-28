@@ -1,4 +1,5 @@
 {
+    "binutils": ["zlib"],
     "cairo": ["freetype", "libpng", "pixman", "zlib"],
     "curl": ["openssl", "zlib", "zstd"],
     "freetype": ["libpng"],

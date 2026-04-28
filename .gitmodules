@@ -64,3 +64,6 @@
 [submodule "ports/python/repo"]
 	path = ports/python/repo
 	url = https://git.burntcomma.com/moxnox/cpython
+[submodule "ports/binutils/repo"]
+	path = ports/binutils/repo
+	url = https://git.burntcomma.com/moxnox/binutils-gdb
