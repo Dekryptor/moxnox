@@ -147,3 +147,4 @@ _utime64 = __utime64
 getchar
 _isatty
 _get_osfhandle
+_write

@@ -1288,3 +1288,11 @@ int _isatty(int fd) {
 
     return 1;
 }
+
+extern "C"
+int _write(int fd, const void* buffer, unsigned int count) {
+    print("FIXME - _write\n");
+
+    *_errno() = EINVAL;
+    return -1;
+}

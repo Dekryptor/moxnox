@@ -118,6 +118,7 @@ _utime64
 getchar
 _isatty
 _get_osfhandle
+_write
 
 ; stubs
 __setusermatherr
@@ -147,7 +148,6 @@ rand_s
 _read
 ___mb_cur_max_func
 _wfopen
-_write
 towupper
 towlower
 ___lc_codepage_func
