@@ -1296,3 +1296,11 @@ int _write(int fd, const void* buffer, unsigned int count) {
     *_errno() = EINVAL;
     return -1;
 }
+
+extern "C"
+int _read(int fd, void* buffer, size_t count) {
+    print("FIXME - _read\n");
+
+    *_errno() = EINVAL;
+    return -1;
+}

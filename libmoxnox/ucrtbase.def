@@ -119,6 +119,7 @@ getchar
 _isatty
 _get_osfhandle
 _write
+_read
 
 ; stubs
 __setusermatherr
@@ -145,7 +146,6 @@ wcsftime
 wcsxfrm
 exp
 rand_s
-_read
 ___mb_cur_max_func
 _wfopen
 towupper

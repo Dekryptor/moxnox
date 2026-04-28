@@ -148,3 +148,4 @@ getchar
 _isatty
 _get_osfhandle
 _write
+_read
