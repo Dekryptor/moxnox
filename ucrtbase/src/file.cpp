@@ -1291,10 +1291,20 @@ int _isatty(int fd) {
 
 extern "C"
 int _write(int fd, const void* buffer, unsigned int count) {
-    print("FIXME - _write\n");
+    IO_STATUS_BLOCK iosb;
 
-    *_errno() = EINVAL;
-    return -1;
+    auto h = _get_osfhandle(fd);
+    if ((intptr_t)h < 0)
+        return -1;
+
+    auto status = NtWriteFile(h, 0, nullptr, nullptr, &iosb, buffer,
+                              count, nullptr, nullptr);
+    if (!success(status)) {
+        *_errno() = nt_status_to_errno(status);
+        return -1;
+    }
+
+    return (int)iosb.Information;
 }
 
 extern "C"
