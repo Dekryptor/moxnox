@@ -127,5 +127,6 @@ do_stub "_mktemp"
 do_stub "_stricmp"
 do_stub "_strnicmp"
 do_stub "_wcsnicmp"
+do_stub "_unlink"
 
 stubs_end

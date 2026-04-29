@@ -43,6 +43,7 @@ underscore_func "getpid"
 underscore_func "stricmp"
 underscore_func "strnicmp"
 underscore_func "wcsnicmp"
+underscore_func "unlink"
 
 .section ".text$fseeko64"
 .global fseeko64

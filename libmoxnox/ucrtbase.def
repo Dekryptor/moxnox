@@ -249,3 +249,4 @@ _mktemp
 _stricmp
 _strnicmp
 _wcsnicmp
+_unlink
