@@ -245,3 +245,4 @@ _putenv
 atol
 atof
 _getpid
+_mktemp
