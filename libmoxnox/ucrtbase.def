@@ -247,3 +247,4 @@ atof
 _getpid
 _mktemp
 _stricmp
+_strnicmp
