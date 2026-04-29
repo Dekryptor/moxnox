@@ -248,3 +248,4 @@ _getpid
 _mktemp
 _stricmp
 _strnicmp
+_wcsnicmp

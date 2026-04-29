@@ -42,6 +42,7 @@ underscore_func "utime"
 underscore_func "getpid"
 underscore_func "stricmp"
 underscore_func "strnicmp"
+underscore_func "wcsnicmp"
 
 .section ".text$fseeko64"
 .global fseeko64
