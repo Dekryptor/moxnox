@@ -134,5 +134,6 @@ do_stub "strcspn"
 do_stub "_lseek"
 do_stub "_dup"
 do_stub "_rmdir"
+do_stub "mbstowcs"
 
 stubs_end
