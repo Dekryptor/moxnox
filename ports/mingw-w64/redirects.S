@@ -59,6 +59,8 @@ underscore_func "wcsnicmp"
 underscore_func "unlink"
 underscore_func "umask"
 underscore_func "lseek"
+underscore_func "dup"
+underscore_func "rmdir"
 
 redirect_name "_fseeki64", "fseeko64"
 redirect_name "_ftelli64", "ftello64"

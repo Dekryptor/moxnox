@@ -254,3 +254,5 @@ _umask
 strspn
 strcspn
 _lseek
+_dup
+_rmdir

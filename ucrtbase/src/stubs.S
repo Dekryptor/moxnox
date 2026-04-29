@@ -132,5 +132,7 @@ do_stub "_umask"
 do_stub "strspn"
 do_stub "strcspn"
 do_stub "_lseek"
+do_stub "_dup"
+do_stub "_rmdir"
 
 stubs_end
