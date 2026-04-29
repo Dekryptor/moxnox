@@ -1,11 +1,13 @@
 add_library(zlib SHARED
     repo/adler32.c
+    repo/compress.c
     repo/crc32.c
     repo/deflate.c
     repo/inffast.c
     repo/inflate.c
     repo/inftrees.c
     repo/trees.c
+    repo/uncompr.c
     repo/zutil.c
 )
 
