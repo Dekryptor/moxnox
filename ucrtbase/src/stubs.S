@@ -122,5 +122,6 @@ do_stub "_getcwd"
 do_stub "_putenv"
 do_stub "atol"
 do_stub "atof"
+do_stub "_getpid"
 
 stubs_end

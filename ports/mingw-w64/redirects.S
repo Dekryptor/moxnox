@@ -39,6 +39,7 @@ underscore_func "write"
 underscore_func "fdopen"
 underscore_func "chmod"
 underscore_func "utime"
+underscore_func "getpid"
 
 .section ".text$fseeko64"
 .global fseeko64

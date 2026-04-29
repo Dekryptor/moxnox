@@ -244,3 +244,4 @@ _open
 _putenv
 atol
 atof
+_getpid
