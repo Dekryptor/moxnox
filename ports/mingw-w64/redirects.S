@@ -57,6 +57,7 @@ underscore_func "stricmp"
 underscore_func "strnicmp"
 underscore_func "wcsnicmp"
 underscore_func "unlink"
+underscore_func "umask"
 
 redirect_name "_fseeki64", "fseeko64"
 redirect_name "_ftelli64", "ftello64"

@@ -128,5 +128,6 @@ do_stub "_stricmp"
 do_stub "_strnicmp"
 do_stub "_wcsnicmp"
 do_stub "_unlink"
+do_stub "_umask"
 
 stubs_end
