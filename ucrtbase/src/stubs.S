@@ -135,5 +135,6 @@ do_stub "_lseek"
 do_stub "_dup"
 do_stub "_rmdir"
 do_stub "mbstowcs"
+do_stub "rename"
 
 stubs_end

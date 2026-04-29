@@ -257,3 +257,4 @@ _lseek
 _dup
 _rmdir
 mbstowcs
+rename
