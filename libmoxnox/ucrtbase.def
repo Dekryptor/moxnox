@@ -253,3 +253,4 @@ _unlink
 _umask
 strspn
 strcspn
+_lseek

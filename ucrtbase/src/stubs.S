@@ -131,5 +131,6 @@ do_stub "_unlink"
 do_stub "_umask"
 do_stub "strspn"
 do_stub "strcspn"
+do_stub "_lseek"
 
 stubs_end
