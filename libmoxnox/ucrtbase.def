@@ -252,3 +252,4 @@ _wcsnicmp
 _unlink
 _umask
 strspn
+strcspn

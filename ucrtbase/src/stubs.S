@@ -130,5 +130,6 @@ do_stub "_wcsnicmp"
 do_stub "_unlink"
 do_stub "_umask"
 do_stub "strspn"
+do_stub "strcspn"
 
 stubs_end
