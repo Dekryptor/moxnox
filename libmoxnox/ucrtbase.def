@@ -258,3 +258,4 @@ _dup
 _rmdir
 mbstowcs
 rename
+strtok
