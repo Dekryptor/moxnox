@@ -246,3 +246,4 @@ atol
 atof
 _getpid
 _mktemp
+_stricmp

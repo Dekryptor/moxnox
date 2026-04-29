@@ -124,5 +124,6 @@ do_stub "atol"
 do_stub "atof"
 do_stub "_getpid"
 do_stub "_mktemp"
+do_stub "_stricmp"
 
 stubs_end
