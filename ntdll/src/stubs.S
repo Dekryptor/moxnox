@@ -10,5 +10,7 @@ do_stub "towupper"
 do_stub "RtlTryAcquireSRWLockExclusive"
 do_stub "RtlRestoreContext"
 do_stub "strncat"
+do_stub "wcscpy"
+do_stub "wcsncmp"
 
 stubs_end

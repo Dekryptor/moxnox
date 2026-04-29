@@ -149,3 +149,5 @@ _isatty
 _get_osfhandle
 _write
 _read
+wcscpy = ntdll.wcscpy
+wcsncmp = ntdll.wcsncmp

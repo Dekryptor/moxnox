@@ -471,3 +471,5 @@ RtlReleaseLoaderLock
 LdrGetDllHandle
 RtlIsProcessorFeaturePresent
 strncat
+wcscpy
+wcsncmp
