@@ -34,3 +34,6 @@
 [submodule "ncurses"]
 	path = ports/ncurses/repo
 	url = https://git.burntcomma.com/moxnox/ncurses
+[submodule "ports/nano/repo"]
+	path = ports/nano/repo
+	url = https://git.burntcomma.com/moxnox/nano

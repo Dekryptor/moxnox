@@ -3,6 +3,7 @@
     "freetype": ["libpng"],
     "harfbuzz": ["freetype"],
     "libpng": ["zlib"],
+    "nano": ["ncurses"],
     "ncurses": [],
     "pixman": [],
     "zlib": [],

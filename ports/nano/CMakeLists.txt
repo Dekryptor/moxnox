@@ -1,0 +1,48 @@
+project(nano VERSION 8.7.1)
+
+set(GEN ${CMAKE_CURRENT_BINARY_DIR}/gen)
+file(MAKE_DIRECTORY ${GEN})
+
+configure_file(config.h.in ${GEN}/config.h @ONLY)
+
+add_custom_command(
+    OUTPUT ${GEN}/history.c
+    COMMAND sh -c "sed 's/mkdir(\\([^,]*\\), [^)]*)/mkdir(\\1)/g' '${CMAKE_CURRENT_SOURCE_DIR}/repo/src/history.c' > '${GEN}/history.c'"
+    DEPENDS repo/src/history.c
+    VERBATIM
+)
+
+add_executable(nano
+    repo/src/browser.c
+    repo/src/chars.c
+    repo/src/color.c
+    repo/src/cut.c
+    repo/src/files.c
+    repo/src/global.c
+    repo/src/help.c
+    ${GEN}/history.c
+    repo/src/move.c
+    repo/src/nano.c
+    repo/src/prompt.c
+    repo/src/rcfile.c
+    repo/src/search.c
+    repo/src/text.c
+    repo/src/utils.c
+    repo/src/winio.c
+)
+
+target_compile_options(nano PRIVATE ${USERSPACE_CFLAGS} -Wno-sign-conversion -Wno-sign-compare -Wno-unused-parameter -Wno-missing-field-initializers -Wno-unused-variable -Wno-conversion -Wno-implicit-fallthrough $<$<CXX_COMPILER_ID:Clang>:-Wno-implicit-int-conversion -Wno-braced-scalar-init -Wno-shorten-64-to-32>)
+target_compile_definitions(nano PRIVATE HAVE_CONFIG_H)
+
+target_include_directories(nano PRIVATE
+    ${CMAKE_CURRENT_SOURCE_DIR}
+    ${GEN}
+    ${CMAKE_SOURCE_DIR}/include
+    repo/src
+)
+
+target_link_libraries(nano PRIVATE ncurses posixshim moxnox)
+
+install(TARGETS nano DESTINATION ${CMAKE_INSTALL_PREFIX}/bin
+    ARCHIVE EXCLUDE_FROM_ALL
+)
