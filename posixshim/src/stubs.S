@@ -12,5 +12,13 @@ do_stub_no_export "dlopen"
 do_stub_no_export "dlsym"
 do_stub_no_export "dlclose"
 do_stub_no_export "dlerror"
+do_stub_no_export "posix_spawn_file_actions_init"
+do_stub_no_export "posix_spawn_file_actions_adddup2"
+do_stub_no_export "posix_spawn_file_actions_addclose"
+do_stub_no_export "posix_spawnp"
+do_stub_no_export "posix_spawn"
+do_stub_no_export "posix_spawn_file_actions_destroy"
+do_stub_no_export "posix_spawnattr_destroy"
+do_stub_no_export "posix_spawnattr_init"
 
 stubs_end
