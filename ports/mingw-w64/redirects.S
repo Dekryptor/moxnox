@@ -61,6 +61,7 @@ underscore_func "umask"
 underscore_func "lseek"
 underscore_func "dup"
 underscore_func "rmdir"
+underscore_func "pipe"
 
 redirect_name "_fseeki64", "fseeko64"
 redirect_name "_ftelli64", "ftello64"

@@ -137,5 +137,6 @@ do_stub "_rmdir"
 do_stub "mbstowcs"
 do_stub "rename"
 do_stub "strtok"
+do_stub "_pipe"
 
 stubs_end

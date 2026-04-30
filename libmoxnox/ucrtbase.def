@@ -259,3 +259,4 @@ _rmdir
 mbstowcs
 rename
 strtok
+_pipe
