@@ -141,5 +141,12 @@ do_stub "_pipe"
 do_stub "_popen"
 do_stub "_pclose"
 do_stub "_dup2"
+do_stub "isblank"
+do_stub "ispunct"
+do_stub "_fullpath"
+do_stub "_findfirst64i32"
+do_stub "_findnext64i32"
+do_stub "_findclose"
+do_stub "_sopen"
 
 stubs_end
