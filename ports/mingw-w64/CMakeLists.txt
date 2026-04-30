@@ -164,7 +164,6 @@ add_library(mingwex STATIC
     repo/mingw-w64-crt/misc/delay-f.c
     repo/mingw-w64-crt/misc/delay-n.c
     repo/mingw-w64-crt/misc/delayimp.c
-    repo/mingw-w64-crt/misc/dirent.c
     repo/mingw-w64-crt/misc/feclearexcept.c
     repo/mingw-w64-crt/misc/fegetenv.c
     repo/mingw-w64-crt/misc/fegetexceptflag.c

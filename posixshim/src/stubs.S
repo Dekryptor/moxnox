@@ -40,5 +40,9 @@ do_stub_no_export "lstat"
 do_stub_no_export "futimens"
 do_stub_no_export "dirname"
 do_stub_no_export "basename"
+do_stub_no_export "opendir"
+do_stub_no_export "readdir"
+do_stub_no_export "closedir"
+do_stub_no_export "rewinddir"
 
 stubs_end
