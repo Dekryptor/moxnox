@@ -38,5 +38,7 @@ do_stub_no_export "getc_unlocked"
 do_stub_no_export "mkstemps"
 do_stub_no_export "lstat"
 do_stub_no_export "futimens"
+do_stub_no_export "dirname"
+do_stub_no_export "basename"
 
 stubs_end
