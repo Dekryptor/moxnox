@@ -140,5 +140,6 @@ do_stub "strtok"
 do_stub "_pipe"
 do_stub "_popen"
 do_stub "_pclose"
+do_stub "_dup2"
 
 stubs_end

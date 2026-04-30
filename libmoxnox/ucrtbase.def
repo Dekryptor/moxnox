@@ -262,3 +262,4 @@ strtok
 _pipe
 _popen
 _pclose
+_dup2
