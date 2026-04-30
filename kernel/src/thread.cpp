@@ -54,8 +54,7 @@ export enum class thread_status {
 export size_t XSAVE_SIZE = 576; // FIXME
 #endif
 
-export extern "C++"
-class thread : public sync_object {
+export class thread : public sync_object {
 public:
     thread() : sync_object(object_type::thread, false) { }
     ~thread();

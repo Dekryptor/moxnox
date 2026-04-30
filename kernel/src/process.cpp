@@ -28,7 +28,6 @@ import x86;
 using namespace std;
 
 extern "C++" class section;
-extern "C++" class thread;
 
 export class process : public sync_object {
 public:
@@ -81,7 +80,7 @@ public:
                       uint32_t* number_of_bytes_written);
     nt_status flush_vm(void** base_address, size_t* region_size);
     object_ref get_stderr();
-    nt_status get_next_thread(thread* threadptr, ACCESS_MASK desired_access,
+    nt_status get_next_thread(void* threadptr, ACCESS_MASK desired_access,
                               uint32_t handle_attributes, uint32_t flags,
                               HANDLE* new_thread_handle);
 

@@ -41,6 +41,7 @@ import cmdline;
 import chardev;
 import console;
 import timer;
+import thread;
 
 #ifdef __x86_64__
 import apic;
@@ -3511,9 +3512,10 @@ NTSTATUS NtFlushVirtualMemory(HANDLE proc_handle, void** base_address,
     return p->flush_vm(base_address, region_size);
 }
 
-nt_status process::get_next_thread(::thread* threadptr, ACCESS_MASK /*desired_access*/,
+nt_status process::get_next_thread(void* pthreadptr, ACCESS_MASK /*desired_access*/,
                                    uint32_t /*handle_attributes*/, uint32_t /*flags*/,
                                    HANDLE* new_thread_handle) {
+    auto threadptr = (::thread*)pthreadptr;
     object_ref obj;
     handle_t h;
 

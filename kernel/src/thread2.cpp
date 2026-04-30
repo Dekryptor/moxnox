@@ -143,7 +143,6 @@ void terminate_thread(::thread& t, bool remove_from_proc) {
     t.release();
 }
 
-extern "C++"
 ::thread::~thread() {
     if (kernel_stack) {
         auto va = (uintptr_t)kernel_stack + (KERNEL_GUARD_PAGES << PAGE_SHIFT);
