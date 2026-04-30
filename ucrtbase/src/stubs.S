@@ -138,5 +138,7 @@ do_stub "mbstowcs"
 do_stub "rename"
 do_stub "strtok"
 do_stub "_pipe"
+do_stub "_popen"
+do_stub "_pclose"
 
 stubs_end

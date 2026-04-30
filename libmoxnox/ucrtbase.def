@@ -260,3 +260,5 @@ mbstowcs
 rename
 strtok
 _pipe
+_popen
+_pclose
