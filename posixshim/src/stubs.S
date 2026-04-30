@@ -22,5 +22,6 @@ do_stub_no_export "posix_spawnattr_destroy"
 do_stub_no_export "posix_spawnattr_init"
 do_stub_no_export "fcntl"
 do_stub_no_export "kill"
+do_stub_no_export "wait"
 
 stubs_end
