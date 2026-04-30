@@ -118,6 +118,7 @@ set(SRC_FILES src/kernel.cpp
     src/object_ref2.cpp
     src/timer2.cpp
     src/console2.cpp
+    src/page_cache2.cpp
 )
 
 set(AMD64_SRC_FILES ${SRC_FILES}
