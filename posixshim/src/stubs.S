@@ -20,5 +20,6 @@ do_stub_no_export "posix_spawn"
 do_stub_no_export "posix_spawn_file_actions_destroy"
 do_stub_no_export "posix_spawnattr_destroy"
 do_stub_no_export "posix_spawnattr_init"
+do_stub_no_export "fcntl"
 
 stubs_end
