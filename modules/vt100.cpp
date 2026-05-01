@@ -4,6 +4,7 @@ module;
 #include <stdlib.h>
 #include <string_view>
 #include <span>
+#include <array>
 
 export module vt100;
 
@@ -13,6 +14,7 @@ enum class esc_state {
     normal,
     got_esc,
     in_csi,
+    in_designate,
 };
 
 uint8_t utf8_buf[5];
@@ -20,6 +22,7 @@ unsigned int utf8_chars = 0;
 char escape_buffer[50];
 size_t escape_buffer_len = 0;
 esc_state esc_state = esc_state::normal;
+bool using_acs = false;
 
 export template<typename T>
 concept vt100_console = requires(T t) {
@@ -36,6 +39,43 @@ concept vt100_console = requires(T t) {
     { t.enable_cursor(false) } -> same_as<void>;
     { t.erase_in_line((unsigned int)0) } -> same_as<void>;
     { t.erase_in_display((unsigned int)0) } -> same_as<void>;
+};
+
+const char32_t ACS_CODES_START = 0x5f;
+
+const array<char32_t, 32> acs_codes = {
+    0x00a0,
+    0x25c6,
+    0x2592,
+    0x2409,
+    0x240c,
+    0x240d,
+    0x240a,
+    0x00b0,
+    0x00b1,
+    0x2424,
+    0x240b,
+    0x2518,
+    0x2510,
+    0x250c,
+    0x2514,
+    0x253c,
+    0x23ba,
+    0x23bb,
+    0x2500,
+    0x23bc,
+    0x23bd,
+    0x251c,
+    0x2524,
+    0x2534,
+    0x252c,
+    0x2502,
+    0x2264,
+    0x2265,
+    0x03c0,
+    0x2260,
+    0x00a3,
+    0x00b7,
 };
 
 void print_chars(vt100_console auto& t, span<const char32_t> s) {
@@ -151,7 +191,11 @@ void do_print2(vt100_console auto& t, span<const char> s) {
             sp[0] = 0xfffd;
             sp = span(sp.data() + 1, sp.size() - 1);
         } else {
-            sp[0] = (char32_t)c;
+            if (using_acs && (char32_t)c >= ACS_CODES_START && (char32_t)c < ACS_CODES_START + acs_codes.size())
+                sp[0] = acs_codes[c - ACS_CODES_START];
+            else
+                sp[0] = (char32_t)c;
+
             sp = span(sp.data() + 1, sp.size() - 1);
         }
     }
@@ -484,6 +528,11 @@ export void do_print(vt100_console auto& t, string_view s) {
                         s = string_view(s.data() + 1, s.size() - 1);
                         break;
 
+                    case '(':
+                        esc_state = esc_state::in_designate;
+                        s = string_view(s.data() + 1, s.size() - 1);
+                        break;
+
                     default:
                         do_print2(t, string_view("\x1b", 1));
                         esc_state = esc_state::normal;
@@ -523,6 +572,21 @@ export void do_print(vt100_console auto& t, string_view s) {
                 esc_state = esc_state::normal;
                 break;
             }
+
+            case esc_state::in_designate:
+                switch (s.front()) {
+                    case '0':
+                        using_acs = true;
+                        break;
+
+                    case 'B':
+                        using_acs = false;
+                        break;
+                }
+
+                s = string_view(s.data() + 1, s.size() - 1);
+                esc_state = esc_state::normal;
+                break;
         }
     }
 
