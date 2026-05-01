@@ -442,10 +442,8 @@ nt_status read_and_pin(page_cache<T>& cache, uint64_t offset, uint64_t length) {
                     auto status = cache.dev.read_into_cache(page_num_start, pages_left,
                                                             read_pages);
 
-                    if (!success(status)) {
-                        print("read_into_cache returned {}\n", status);
+                    if (!success(status))
                         return status;
-                    }
 
                     page_num_start += read_pages;
                     pages_left -= read_pages;
