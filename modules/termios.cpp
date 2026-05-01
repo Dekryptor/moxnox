@@ -233,3 +233,56 @@ export constexpr tcflag_t ECHOKE = _ECHOKE;
 export constexpr tcflag_t FLUSHO = _FLUSHO;
 export constexpr tcflag_t PENDIN = _PENDIN;
 export constexpr tcflag_t IEXTEN = _IEXTEN;
+
+/* c_cc indices */
+constexpr size_t _VINTR = VINTR;
+constexpr size_t _VQUIT = VQUIT;
+constexpr size_t _VERASE = VERASE;
+constexpr size_t _VKILL = VKILL;
+constexpr size_t _VEOF = VEOF;
+constexpr size_t _VTIME = VTIME;
+constexpr size_t _VMIN = VMIN;
+constexpr size_t _VSWTC = VSWTC;
+constexpr size_t _VSTART = VSTART;
+constexpr size_t _VSTOP = VSTOP;
+constexpr size_t _VSUSP = VSUSP;
+constexpr size_t _VEOL = VEOL;
+constexpr size_t _VREPRINT = VREPRINT;
+constexpr size_t _VDISCARD = VDISCARD;
+constexpr size_t _VWERASE = VWERASE;
+constexpr size_t _VLNEXT = VLNEXT;
+constexpr size_t _VEOL2 = VEOL2;
+#undef VINTR
+#undef VQUIT
+#undef VERASE
+#undef VKILL
+#undef VEOF
+#undef VTIME
+#undef VMIN
+#undef VSWTC
+#undef VSTART
+#undef VSTOP
+#undef VSUSP
+#undef VEOL
+#undef VREPRINT
+#undef VDISCARD
+#undef VWERASE
+#undef VLNEXT
+#undef VEOL2
+export constexpr size_t VINTR = _VINTR;
+export constexpr size_t VQUIT = _VQUIT;
+export constexpr size_t VERASE = _VERASE;
+export constexpr size_t VKILL = _VKILL;
+export constexpr size_t VEOF = _VEOF;
+export constexpr size_t VTIME = _VTIME;
+export constexpr size_t VMIN = _VMIN;
+export constexpr size_t VSWTC = _VSWTC;
+export constexpr size_t VSTART = _VSTART;
+export constexpr size_t VSTOP = _VSTOP;
+export constexpr size_t VSUSP = _VSUSP;
+export constexpr size_t VEOL = _VEOL;
+export constexpr size_t VREPRINT = _VREPRINT;
+export constexpr size_t VDISCARD = _VDISCARD;
+export constexpr size_t VWERASE = _VWERASE;
+export constexpr size_t VLNEXT = _VLNEXT;
+export constexpr size_t VEOL2 = _VEOL2;
