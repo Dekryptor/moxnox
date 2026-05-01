@@ -1062,7 +1062,7 @@ static void print_chars2(console_fb& con, font_info& font,
     auto orig_cursor_x = con.cursor_x;
 
     if (curline->len == 0)
-        text_pos = 0;
+        text_pos = orig_cursor_x;
     else
         text_pos = find_text_pos(con.cursor_x);
 
@@ -1089,30 +1089,42 @@ static void print_chars2(console_fb& con, font_info& font,
             curline->atts[text_pos + i].bg_colour = bg_colour;
         }
     } else {
-        auto t = (char32_t*)malloc((curline->len + s.size()) * sizeof(char32_t));
+        auto new_len = max(text_pos + s.size(), curline->len);
+        auto t = (char32_t*)malloc(new_len * sizeof(char32_t));
         if (!t) {
             print("malloc failed\n");
             return;
         }
 
-        auto a = (text_attribute*)malloc((curline->len + s.size()) * sizeof(text_attribute));
+        auto a = (text_attribute*)malloc(new_len * sizeof(text_attribute));
         if (!a) {
             print("malloc failed\n");
             free(t);
             return;
         }
 
-        if (curline->len != 0) {
-            memcpy(t, curline->text, curline->len * sizeof(char32_t));
-            memcpy(a, curline->atts, curline->len * sizeof(text_attribute));
+        // preserve existing text before insertion point
+        if (curline->len > 0 && text_pos > 0) {
+            auto copy_len = min((size_t)text_pos, curline->len);
+
+            memcpy(t, curline->text, copy_len * sizeof(char32_t));
+            memcpy(a, curline->atts, copy_len * sizeof(text_attribute));
         }
 
-        memcpy(t + curline->len, s.data(), s.size() * sizeof(char32_t));
+        // fill any gap between end of existing content and insertion point with spaces
+        for (size_t i = curline->len; i < text_pos; i++) {
+            t[i] = U' ';
+            a[i].font = cur_font;
+            a[i].fg_colour = fg_colour;
+            a[i].bg_colour = bg_colour;
+        }
+
+        memcpy(t + text_pos, s.data(), s.size() * sizeof(char32_t));
 
         for (size_t i = 0; i < s.size(); i++) {
-            a[curline->len + i].font = cur_font;
-            a[curline->len + i].fg_colour = fg_colour;
-            a[curline->len + i].bg_colour = bg_colour;
+            a[text_pos + i].font = cur_font;
+            a[text_pos + i].fg_colour = fg_colour;
+            a[text_pos + i].bg_colour = bg_colour;
         }
 
         if (curline->text)
@@ -1120,7 +1132,7 @@ static void print_chars2(console_fb& con, font_info& font,
 
         curline->text = t;
         curline->atts = a;
-        curline->len += s.size();
+        curline->len = new_len;
     }
 
     // lay out using harfbuzz
@@ -1144,6 +1156,23 @@ static void print_chars2(console_fb& con, font_info& font,
         auto len = hb_buffer_get_length(buf.get());
         auto info = hb_buffer_get_glyph_infos(buf.get(), nullptr);
         auto pos = hb_buffer_get_glyph_positions(buf.get(), nullptr);
+
+        if (orig_cursor_x > curline->num_cells) {
+            auto space_glyph = FT_Get_Char_Index(cur_font->face, U' ');
+
+            for (auto i = curline->num_cells; i < orig_cursor_x; i++) {
+                auto& cell = curline->cells[i];
+
+                cell.pos = {};
+                cell.glyph = space_glyph;
+                cell.fg_colour = fg_colour;
+                cell.bg_colour = bg_colour;
+                cell.font = cur_font;
+                cell.ignore = false;
+            }
+
+            curline->num_cells = orig_cursor_x;
+        }
 
         auto curlen = curline->num_cells;
 
@@ -1246,7 +1275,7 @@ static void print_chars2(console_fb& con, font_info& font,
         orig_cursor_x = 0;
     } while (true);
 
-    con.cursor_x = curline->num_cells; // FIXME - what if not at end?
+    con.cursor_x = curline->num_cells;
 }
 
 void console_fb::print_chars(span<const char32_t> s) {
