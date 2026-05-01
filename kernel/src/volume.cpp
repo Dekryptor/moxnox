@@ -14,6 +14,7 @@ import page_cache;
 import rwsem;
 import objects;
 import spinlock;
+import mem;
 
 using namespace std;
 

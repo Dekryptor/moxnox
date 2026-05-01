@@ -1,6 +1,7 @@
 module;
 
 #include <mutex>
+#include <stddef.h>
 #include "assert.h"
 
 module page_cache;

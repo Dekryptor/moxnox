@@ -1,6 +1,10 @@
 module;
 
 #include <mutex>
+#include <string_view>
+#include <atomic>
+#include <charconv>
+#include <span>
 #include "assert.h"
 #include <stdint.h>
 
