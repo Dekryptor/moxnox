@@ -1,7 +1,10 @@
 module;
 
 #include <mutex>
+#include <span>
+#include <algorithm>
 #include <stddef.h>
+#include <string.h>
 #include "assert.h"
 
 module page_cache;
