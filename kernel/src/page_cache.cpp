@@ -58,6 +58,7 @@ public:
 
     spinlock cache_lock;
     rbtree_node<uint64_t>* root = nullptr;
+    rangelock rl;
 };
 
 export
@@ -110,7 +111,6 @@ public:
     nt_status flush(uint64_t page_num, uint64_t num_pages, bool clear_dirty);
 
     T& dev;
-    rangelock rl;
     spinlock mappings_lock;
     list_entry mappings = { &mappings, &mappings };
     page_cache_base base;
@@ -325,7 +325,7 @@ bool page_cache<T>::write_pages(uint64_t first_page, uint64_t num_pages,
     // copy pages and set as dirty
 
     {
-        rangelock_req rlr(rl, first_page, num_pages);
+        rangelock_req rlr(base.rl, first_page, num_pages);
 
         page_cache_entry* ent;
 
@@ -385,7 +385,7 @@ size_t page_cache<T>::write(span<const uint8_t> data, uint64_t offset) {
             return 0; // FIXME - return error
 
         {
-            rangelock_req rlr(rl, first_page, 1);
+            rangelock_req rlr(base.rl, first_page, 1);
 
             page_cache_entry* ent;
 
@@ -446,7 +446,7 @@ size_t page_cache<T>::write(span<const uint8_t> data, uint64_t offset) {
         return written;
 
     {
-        rangelock_req rlr(rl, first_page, 1);
+        rangelock_req rlr(base.rl, first_page, 1);
 
         page_cache_entry* ent;
 
@@ -491,7 +491,7 @@ nt_status read_and_pin(page_cache<T>& cache, uint64_t offset, uint64_t length) {
     // FIXME - use RB tree rather than linked list
     // FIXME - if create_new_page_cache_entry fails, we should be clearing existing cache
 
-    rangelock_req rlr(cache.rl, first_page, num_pages);
+    rangelock_req rlr(cache.base.rl, first_page, num_pages);
 
     auto status = cache.pin(first_page, num_pages, &first_unread);
     if (!success(status))
@@ -549,7 +549,7 @@ nt_status page_cache<T>::read_into_cache_and_pin(uint64_t first_page, uint64_t n
                                                  uint64_t& read_pages) {
     page_cache_entry* first_unread = nullptr;
 
-    rangelock_req rlr(rl, first_page, num_pages);
+    rangelock_req rlr(base.rl, first_page, num_pages);
 
     auto status = pin(first_page, num_pages, &first_unread);
     if (!success(status))
@@ -733,7 +733,7 @@ nt_status page_cache<T>::flush(uint64_t page_num, uint64_t num_pages,
                                bool clear_dirty) {
     static const uint64_t INVALID = 0xffffffffffffffff;
 
-    rangelock_req rlr(rl, page_num, num_pages);
+    rangelock_req rlr(base.rl, page_num, num_pages);
 
     page_cache_entry* p = nullptr;
     uint64_t range_start = INVALID, range_length = 0;

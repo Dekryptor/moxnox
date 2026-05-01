@@ -1430,7 +1430,7 @@ static bool handle_page_fault2(process& p, uintptr_t address) {
                 return false;
             }
 
-            rangelock_req rlr(cache.rl, sect_page_num, 1);
+            rangelock_req rlr(cache.base.rl, sect_page_num, 1);
 
             page_cache_entry* p;
 

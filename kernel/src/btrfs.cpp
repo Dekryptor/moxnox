@@ -829,7 +829,7 @@ nt_status btrfs_filesystem::read_into_cache(uint64_t page_num, uint64_t num_page
     }
 
     if (pages_read > prefix_pages + suffix_pages) {
-        rangelock_req rlr(vol->cache.rl, disk_read_start, pages_read);
+        rangelock_req rlr(vol->cache.base.rl, disk_read_start, pages_read);
 
         if (is_metadata) {
             uint64_t exp_addr = (page_num - prefix_pages) << PAGE_SHIFT;
@@ -998,7 +998,7 @@ bool btrfs_filesystem::flush_tree(const chunk& c, uint64_t addr) {
         uint64_t disk_addr = addr - c.offset + c.ci.stripe[i].offset;
         page_cache_entry* dest_p = nullptr;
 
-        rangelock_req rlr(vol->cache.rl, disk_addr >> PAGE_SHIFT, pages_per_tree);
+        rangelock_req rlr(vol->cache.base.rl, disk_addr >> PAGE_SHIFT, pages_per_tree);
 
         vol->cache.pin(disk_addr >> PAGE_SHIFT, pages_per_tree, nullptr);
 
@@ -1085,7 +1085,7 @@ nt_status btrfs_filesystem::flush_data(const chunk& c, uint64_t addr, uint64_t l
         page_cache_entry* dest_p = nullptr;
         uint64_t disk_addr = addr - c.offset + c.ci.stripe[i].offset;
 
-        rangelock_req rlr(vol->cache.rl, disk_addr >> PAGE_SHIFT, num_pages);
+        rangelock_req rlr(vol->cache.base.rl, disk_addr >> PAGE_SHIFT, num_pages);
 
         vol->cache.pin(disk_addr >> PAGE_SHIFT, num_pages, nullptr);
 
@@ -3491,7 +3491,7 @@ nt_status btrfs_inode::read_extent_into_cache(uint64_t page_num, uint64_t num_pa
         return status;
 
     {
-        rangelock_req rlr(fs.cache.rl, addr >> PAGE_SHIFT, num_pages);
+        rangelock_req rlr(fs.cache.base.rl, addr >> PAGE_SHIFT, num_pages);
 
         page_cache_entry* src_p;
         page_cache_entry* dest_p;
@@ -4103,7 +4103,7 @@ nt_status btrfs_inode::flush_cache(uint64_t page_num, uint64_t num_pages) {
         // reflink cache to filesystem cache and mark dirty
 
         {
-            rangelock_req rlr(fs.cache.rl, addr >> PAGE_SHIFT, num_pages);
+            rangelock_req rlr(fs.cache.base.rl, addr >> PAGE_SHIFT, num_pages);
             page_cache_entry* src_p;
             page_cache_entry* dest_p;
 

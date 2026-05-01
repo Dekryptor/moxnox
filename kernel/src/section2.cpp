@@ -1004,7 +1004,7 @@ nt_status image_section_cache::read_into_cache(uint64_t page_num, uint64_t num_p
             }
 
             if (to_copy == PAGE_SIZE) {
-                rangelock_req rlr(f.cache.rl, page_num + i, 1);
+                rangelock_req rlr(f.cache.base.rl, page_num + i, 1);
                 increase_page_refcount(src_p->pfn);
                 dest_p->pfn = src_p->pfn;
             } else {
@@ -1115,7 +1115,7 @@ nt_status image_section_cache::read_into_cache(uint64_t page_num, uint64_t num_p
                     uint64_t pfn;
 
                     {
-                        rangelock_req rlr(f.cache.rl, file_start_page, 1);
+                        rangelock_req rlr(f.cache.base.rl, file_start_page, 1);
                         increase_page_refcount(src_p->pfn);
                         pfn = src_p->pfn;
                     }
