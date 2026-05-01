@@ -360,8 +360,8 @@ add_library(ncurses SHARED
 
 target_compile_definitions(ncurses PRIVATE BUILDING_NCURSES)
 target_compile_options(ncurses PRIVATE ${USERSPACE_CFLAGS} -Wno-pointer-sign -Wno-conversion -Wno-unused-parameter -Wno-unused-but-set-variable)
-target_include_directories(ncurses PUBLIC ${GEN} ${CMAKE_CURRENT_SOURCE_DIR})
-target_include_directories(ncurses PRIVATE repo/ncurses repo/include)
+target_include_directories(ncurses PUBLIC ${GEN})
+target_include_directories(ncurses PRIVATE ${CMAKE_SOURCE_DIR}/include repo/ncurses repo/include)
 target_link_libraries(ncurses PRIVATE posixshim)
 
 add_custom_target(ncurses_generated_headers
@@ -424,7 +424,7 @@ add_library(form SHARED
 
 target_compile_definitions(form PRIVATE BUILDING_NCURSES BUILDING_FORM)
 target_compile_options(form PRIVATE ${USERSPACE_CFLAGS} -Wno-unused-parameter -Wno-unused-variable)
-target_include_directories(form PRIVATE repo/ncurses repo/include repo/form repo/menu)
+target_include_directories(form PRIVATE ${CMAKE_SOURCE_DIR}/include repo/ncurses repo/include repo/form repo/menu)
 target_link_libraries(form PRIVATE ncurses)
 
 # menu shared library
@@ -461,7 +461,7 @@ add_library(menu SHARED
 
 target_compile_definitions(menu PRIVATE BUILDING_NCURSES BUILDING_MENU)
 target_compile_options(menu PRIVATE ${USERSPACE_CFLAGS})
-target_include_directories(menu PRIVATE repo/ncurses repo/include repo/menu)
+target_include_directories(menu PRIVATE ${CMAKE_SOURCE_DIR}/include repo/ncurses repo/include repo/menu)
 target_link_libraries(menu PRIVATE ncurses)
 
 # panel shared library
@@ -486,7 +486,7 @@ add_library(panel SHARED
 
 target_compile_definitions(panel PRIVATE BUILDING_NCURSES BUILDING_PANEL)
 target_compile_options(panel PRIVATE ${USERSPACE_CFLAGS})
-target_include_directories(panel PRIVATE repo/ncurses repo/include)
+target_include_directories(panel PRIVATE ${CMAKE_SOURCE_DIR}/include repo/ncurses repo/include)
 target_link_libraries(panel PRIVATE ncurses)
 
 install(TARGETS ncurses form menu panel
