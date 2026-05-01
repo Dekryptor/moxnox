@@ -286,3 +286,39 @@ export constexpr size_t VDISCARD = _VDISCARD;
 export constexpr size_t VWERASE = _VWERASE;
 export constexpr size_t VLNEXT = _VLNEXT;
 export constexpr size_t VEOL2 = _VEOL2;
+
+/* tcsetattr actions */
+constexpr int _TCSANOW = TCSANOW;
+constexpr int _TCSADRAIN = TCSADRAIN;
+constexpr int _TCSAFLUSH = TCSAFLUSH;
+#undef TCSANOW
+#undef TCSADRAIN
+#undef TCSAFLUSH
+export constexpr int TCSANOW = _TCSANOW;
+export constexpr int TCSADRAIN = _TCSADRAIN;
+export constexpr int TCSAFLUSH = _TCSAFLUSH;
+
+/* tcflush queue selectors */
+constexpr int _TCIFLUSH = TCIFLUSH;
+constexpr int _TCOFLUSH = TCOFLUSH;
+constexpr int _TCIOFLUSH = TCIOFLUSH;
+#undef TCIFLUSH
+#undef TCOFLUSH
+#undef TCIOFLUSH
+export constexpr int TCIFLUSH = _TCIFLUSH;
+export constexpr int TCOFLUSH = _TCOFLUSH;
+export constexpr int TCIOFLUSH = _TCIOFLUSH;
+
+/* tcflow actions */
+constexpr int _TCOOFF = TCOOFF;
+constexpr int _TCOON = TCOON;
+constexpr int _TCIOFF = TCIOFF;
+constexpr int _TCION = TCION;
+#undef TCOOFF
+#undef TCOON
+#undef TCIOFF
+#undef TCION
+export constexpr int TCOOFF = _TCOOFF;
+export constexpr int TCOON = _TCOON;
+export constexpr int TCIOFF = _TCIOFF;
+export constexpr int TCION = _TCION;
