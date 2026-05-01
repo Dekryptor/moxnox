@@ -81,3 +81,11 @@ void* get_phys_address(const page_cache_entry& ent) {
 
     return phys_address(ent.pfn << PAGE_SHIFT);
 }
+
+page_cache_entry* page_cache_base::find_page_cache_entry(uint64_t page_num) {
+    auto tree = find_rbtree_node(root, page_num);
+    if (!tree)
+        return nullptr;
+
+    return &rbtree_containing_record<page_cache_entry>(tree);
+}
