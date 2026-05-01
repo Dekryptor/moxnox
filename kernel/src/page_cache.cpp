@@ -55,6 +55,8 @@ public:
     void copy_into_buffer_and_unpin(uint64_t first_page, uint64_t num_pages,
                                     span<uint8_t> data, uint64_t offset);
     void unpin(uint64_t first_page, uint64_t num_pages);
+    bool write_pages_and_unpin(uint64_t first_page, uint64_t num_pages,
+                               span<const uint8_t> data);
 
     spinlock cache_lock;
     rbtree_node<uint64_t>* root = nullptr;
@@ -324,41 +326,8 @@ bool page_cache<T>::write_pages(uint64_t first_page, uint64_t num_pages,
 
     // copy pages and set as dirty
 
-    {
-        rangelock_req rlr(base.rl, first_page, num_pages);
-
-        page_cache_entry* ent;
-
-        for (uint64_t i = 0; i < num_pages; i++) {
-            {
-                lock_guard lg(base.cache_lock);
-
-                if (i == 0)
-                    ent = base.find_page_cache_entry(first_page);
-                else
-                    ent = base.next_page_cache_entry(*ent);
-            }
-
-            // assert(ent->tree.key == first_page + i);
-
-            if (ent->pfn)
-                free_folio(ent->pfn << PAGE_SHIFT);
-
-            ent->pfn = (allocate_folio(0) >> PAGE_SHIFT) & 0xfffffffffffff;
-            if (!ent->pfn) {
-                // print("allocate_folio failed\n");
-                ent->refcount--;
-                return false;
-            }
-
-            auto ent_va = get_phys_address(*ent);
-
-            memcpy(ent_va, data.data() + (i << PAGE_SHIFT), PAGE_SIZE);
-
-            ent->dirty = 1;
-            ent->refcount--;
-        }
-    }
+    if (!base.write_pages_and_unpin(first_page, num_pages, data))
+        return false;
 
     mark_dirty();
 
