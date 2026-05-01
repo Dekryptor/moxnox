@@ -1311,7 +1311,7 @@ extern "C"
 int _read(int fd, void* buffer, size_t count) {
     IO_STATUS_BLOCK iosb;
 
-    auto h = _get_osfhandle(fd);
+    auto h = (HANDLE)_get_osfhandle(fd);
     if ((intptr_t)h < 0)
         return -1;
 
