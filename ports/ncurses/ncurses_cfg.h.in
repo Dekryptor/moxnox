@@ -25,7 +25,7 @@
 #define HAVE_GETCWD         1
 #define HAVE_GETTIMEOFDAY   0
 #define HAVE_ISASCII        1
-#define HAVE_NANOSLEEP      0
+#define HAVE_NANOSLEEP      1
 #define HAVE_PUTENV         1
 #define HAVE_REMOVE         1
 #define HAVE_SETENV         0
@@ -80,12 +80,14 @@
 #define USE_SCROLL_HINTS    1
 
 #include <ncurses_def.h>
+#include <direct.h>
+#include <sys/types.h>
 
 /* mkdir on Windows only takes one argument; ignore mode */
-#include <direct.h>
 #define mkdir(path, mode) _mkdir(path)
 
 unsigned int sleep(unsigned int seconds);
+int nanosleep(const struct timespec* duration, struct timespec* rem);
 
 #ifdef __cplusplus
 #undef const
