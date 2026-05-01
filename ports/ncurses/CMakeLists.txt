@@ -507,3 +507,14 @@ if (CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
 endif()
 
 install(TARGETS ncurses-test DESTINATION ${CMAKE_INSTALL_PREFIX}/bin)
+
+add_executable(firework repo/test/firework.c)
+target_compile_options(firework PRIVATE ${USERSPACE_CFLAGS} -Wno-unused-parameter -Wno-conversion)
+target_include_directories(firework PRIVATE ${CMAKE_SOURCE_DIR}/include repo/include repo/test)
+target_link_libraries(firework moxnox ncurses)
+
+if (CMAKE_C_COMPILER_ID STREQUAL "GNU")
+    target_link_options(firework PUBLIC -mcrtdll=ucrtbase)
+endif()
+
+install(TARGETS firework DESTINATION ${CMAKE_INSTALL_PREFIX}/bin)
