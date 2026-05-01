@@ -1293,7 +1293,7 @@ extern "C"
 int _write(int fd, const void* buffer, unsigned int count) {
     IO_STATUS_BLOCK iosb;
 
-    auto h = _get_osfhandle(fd);
+    auto h = (HANDLE)_get_osfhandle(fd);
     if ((intptr_t)h < 0)
         return -1;
 
