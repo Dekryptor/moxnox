@@ -64,7 +64,7 @@
 #define NCURSES_XNAMES      1
 #define PURE_TERMINFO       1
 #define USE_DATABASE        1
-#define USE_SP_FUNCS        1
+#define HAVE_TPUTS_SP       1
 
 /* Types */
 #define HAVE_SIGNAL_H       1
