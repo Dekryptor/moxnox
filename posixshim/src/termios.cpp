@@ -10,7 +10,7 @@ struct termios; // FIXME
 using speed_t = unsigned int;
 
 extern "C"
-int tcgetattr(int fd, termios* p) {
+int tcgetattr(int /*fd*/, termios* /*p*/) {
     print("FIXME - tcgetattr\n");
 
     *_errno() = EINVAL;
@@ -18,7 +18,7 @@ int tcgetattr(int fd, termios* p) {
 }
 
 extern "C"
-int tcsetattr(int fd, int optional_actions, const termios* p) {
+int tcsetattr(int /*fd*/, int /*optional_actions*/, const termios* /*p*/) {
     print("FIXME - tcsetattr\n");
 
     *_errno() = EINVAL;
@@ -26,7 +26,7 @@ int tcsetattr(int fd, int optional_actions, const termios* p) {
 }
 
 extern "C"
-speed_t cfgetospeed(const termios* p) {
+speed_t cfgetospeed(const termios* /*p*/) {
     print("FIXME - cfgetospeed\n");
 
     return 0; // FIXME
