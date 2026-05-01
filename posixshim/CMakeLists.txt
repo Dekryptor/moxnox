@@ -8,6 +8,7 @@ enable_language(ASM)
 add_library(posixshim STATIC
     src/stubs.S
     src/termios.cpp
+    src/sleep.cpp
 )
 
 target_compile_options(posixshim PRIVATE -fno-exceptions ${USERSPACE_CFLAGS})
