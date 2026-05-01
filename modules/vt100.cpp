@@ -23,6 +23,7 @@ char escape_buffer[50];
 size_t escape_buffer_len = 0;
 esc_state esc_state = esc_state::normal;
 bool using_acs = false;
+char32_t last_char = 0;
 
 export template<typename T>
 concept vt100_console = requires(T t) {
@@ -81,6 +82,8 @@ const array<char32_t, 32> acs_codes = {
 void print_chars(vt100_console auto& t, span<const char32_t> s) {
     t.print_chars(s);
     t.cursor_changed();
+
+    last_char = s.back();
 }
 
 void do_print2(vt100_console auto& t, span<const char> s) {
@@ -471,6 +474,31 @@ void erase_in_display(vt100_console auto& t, string_view s) {
     t.erase_in_display(param);
 }
 
+void do_repeat(vt100_console auto& t, string_view s) {
+    unsigned int param = 1;
+
+    if (!s.empty()) {
+        param = 0;
+
+        for (auto c : s) {
+            if (c < '0' || c > '9')
+                return;
+
+            param *= 10;
+            param += (unsigned int)(c - '0');
+        }
+    }
+
+    if (param == 0)
+        return;
+
+    for (unsigned int i = 0; i < param; i++) {
+        t.print_chars(span(&last_char, 1));
+    }
+
+    t.cursor_changed();
+}
+
 void handle_escape_sequence(vt100_console auto& t, string_view s) {
     if (s.size() >= 3 && s[0] == 0x1b && s[1] == '[') {
         s = string_view(s.data() + 2, s.size() - 2);
@@ -489,6 +517,8 @@ void handle_escape_sequence(vt100_console auto& t, string_view s) {
             scroll_down(t, string_view(s.data(), s.size() - 1));
         else if (s.back() == 'H' || s.back() == 'f')
             set_cursor_position(t, string_view(s.data(), s.size() - 1));
+        else if (s.back() == 'b')
+            do_repeat(t, string_view(s.data(), s.size() - 1));
         else if (s == "?25h") {
             t.cursor_changed();
             t.enable_cursor(true);
