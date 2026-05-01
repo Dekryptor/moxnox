@@ -74,8 +74,7 @@ class image_section_cache;
 using cache_variant = variant<page_cache<image_section_cache>*, page_cache<anon_section_cache>*,
                                    page_cache<custom_section_cache>*, page_cache<inode>*>;
 
-export extern "C++"
-class section : public object {
+export class section : public object {
 public:
     section() : object(object_type::section) { }
     ~section();

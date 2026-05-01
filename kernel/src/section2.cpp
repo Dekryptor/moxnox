@@ -106,7 +106,6 @@ nt_status create_section(const optional<reference_wrapper<file>>& file, bool ima
     return nt_status::SUCCESS;
 }
 
-extern "C++"
 section::~section() {
     if (file)
         file->get().release();
@@ -178,7 +177,6 @@ static span<char> get_section_name(const IMAGE_SECTION_HEADER& s, const IMAGE_FI
     return buf.subspan(end);
 }
 
-extern "C++"
 nt_status section::load_image() {
     if (!file) {
         print("file was NULL\n");
@@ -474,7 +472,6 @@ static uint64_t search_exports(span<uint8_t> dir, uint64_t offset, string_view n
     return funcs[*ord];
 }
 
-extern "C++"
 uint64_t section::find_export(string_view name) {
     if (type != section_type::image) {
         print("Not an image.\n");
@@ -842,7 +839,6 @@ NTSTATUS NtUnmapViewOfSection(HANDLE process_handle, void* base_address) {
     }
 }
 
-extern "C++"
 NTSTATUS section::query_info(enum SECTION_INFORMATION_CLASS section_information_class, span<uint8_t> buf,
                              size_t* return_length) {
     if (custom_cache) {
@@ -944,7 +940,6 @@ uint64_t get_image_size(void* image) {
         return 0;
 }
 
-extern "C++"
 cache_variant section::get_cache() {
     switch (type) {
         case section_type::image:
@@ -1215,7 +1210,6 @@ nt_status anon_section_cache::read_into_cache(uint64_t page_num, uint64_t num_pa
     return nt_status::SUCCESS;
 }
 
-extern "C++"
 nt_status section::flush(uint64_t page_num, uint64_t num_pages) {
     return visit([&](auto* ptr) {
         if constexpr (cacheable_flushable<typename remove_pointer_t<decltype(ptr)>::dev_type>)
@@ -1295,7 +1289,6 @@ NTSTATUS NtOpenSection(HANDLE* section_handle, ACCESS_MASK desired_access,
     return nt_status::SUCCESS;
 }
 
-extern "C++"
 nt_status section::ioctl(uint32_t code, span<const uint8_t> inbuf,
                          span<uint8_t> outbuf, uintptr_t& written) {
     return visit([&](auto* ptr) {

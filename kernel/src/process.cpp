@@ -18,6 +18,7 @@ import handle;
 import objects;
 import rangelock;
 import rwsem;
+import section;
 
 #ifdef __aarch64__
 import aarch64;
@@ -26,8 +27,6 @@ import x86;
 #endif
 
 using namespace std;
-
-extern "C++" class section;
 
 export class process : public sync_object {
 public:

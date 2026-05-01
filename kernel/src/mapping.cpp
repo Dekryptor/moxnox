@@ -7,10 +7,9 @@ export module mapping;
 import nt;
 import list;
 import process;
+import section;
 
 using namespace std;
-
-extern "C++" class section;
 
 export class mapping {
 public:
