@@ -317,6 +317,11 @@ add_library(smbios STATIC)
 target_sources(smbios PUBLIC FILE_SET CXX_MODULES FILES modules/smbios.cpp)
 target_compile_options(smbios PRIVATE ${KERNEL_CFLAGS})
 
+add_library(termios STATIC)
+target_sources(termios PUBLIC FILE_SET CXX_MODULES FILES modules/termios.cpp)
+target_compile_options(termios PRIVATE -fno-exceptions ${USERSPACE_CFLAGS})
+target_include_directories(termios PRIVATE ${CMAKE_SOURCE_DIR}/include)
+
 if(CMAKE_SYSTEM_PROCESSOR STREQUAL "aarch64")
     add_library(aarch64 STATIC)
     target_sources(aarch64 PUBLIC FILE_SET CXX_MODULES FILES modules/aarch64.cpp)

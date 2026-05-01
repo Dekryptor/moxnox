@@ -1,11 +1,10 @@
 import nt;
 import ucrtbase;
 import print;
+import termios;
 
 #undef errno
 import errno;
-
-struct termios; // FIXME
 
 using speed_t = unsigned int;
 
