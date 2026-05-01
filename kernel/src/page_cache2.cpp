@@ -217,3 +217,35 @@ bool page_cache_base::write_pages_and_unpin(uint64_t first_page, uint64_t num_pa
 
     return true;
 }
+
+bool page_cache_base::write_page(uint64_t first_page, uint64_t inpage_offset,
+                                 span<const uint8_t> data) {
+    rangelock_req rlr(rl, first_page, 1);
+
+    page_cache_entry* ent;
+
+    {
+        lock_guard lg(cache_lock);
+        ent = find_page_cache_entry(first_page);
+    }
+
+    assert(ent->tree.key == first_page);
+
+    auto pfn = cow_folio(ent->pfn << PAGE_SHIFT) >> PAGE_SHIFT;
+    if (!pfn) {
+        ent->refcount--; // unpin
+        return false;
+    }
+
+    ent->pfn = pfn & 0xfffffffffffff;
+
+    auto ent_va = get_phys_address(*ent);
+
+    memcpy((uint8_t*)ent_va + inpage_offset, data.data(),
+           min(data.size(), PAGE_SIZE - inpage_offset));
+
+    ent->dirty = 1;
+    ent->refcount--; // unpin
+
+    return true;
+}

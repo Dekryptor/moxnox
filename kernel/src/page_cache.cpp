@@ -7,8 +7,6 @@ module;
 
 export module page_cache;
 
-// import print;
-// import bsod;
 import mem;
 import config;
 import list;
@@ -57,6 +55,8 @@ public:
     void unpin(uint64_t first_page, uint64_t num_pages);
     bool write_pages_and_unpin(uint64_t first_page, uint64_t num_pages,
                                span<const uint8_t> data);
+    bool write_page(uint64_t first_page, uint64_t inpage_offset,
+                    span<const uint8_t> data);
 
     spinlock cache_lock;
     rbtree_node<uint64_t>* root = nullptr;
@@ -353,34 +353,8 @@ size_t page_cache<T>::write(span<const uint8_t> data, uint64_t offset) {
         if (!success(status) || read_pages == 0)
             return 0; // FIXME - return error
 
-        {
-            rangelock_req rlr(base.rl, first_page, 1);
-
-            page_cache_entry* ent;
-
-            {
-                lock_guard lg(base.cache_lock);
-                ent = base.find_page_cache_entry(first_page);
-            }
-
-            // assert(ent->tree.key == first_page);
-
-            auto pfn = cow_folio(ent->pfn << PAGE_SHIFT) >> PAGE_SHIFT;
-            if (!pfn) {
-                ent->refcount--; // unpin
-                return 0;
-            }
-
-            ent->pfn = pfn & 0xfffffffffffff;
-
-            auto ent_va = get_phys_address(*ent);
-
-            memcpy((uint8_t*)ent_va + inpage_offset, data.data(),
-                min(data.size(), PAGE_SIZE - inpage_offset));
-
-            ent->dirty = 1;
-            ent->refcount--; // unpin
-        }
+        if (!base.write_page(first_page, inpage_offset, data))
+            return 0;
 
         written = min(data.size(), PAGE_SIZE - inpage_offset);
 
@@ -414,33 +388,8 @@ size_t page_cache<T>::write(span<const uint8_t> data, uint64_t offset) {
     if (!success(status) || read_pages == 0)
         return written;
 
-    {
-        rangelock_req rlr(base.rl, first_page, 1);
-
-        page_cache_entry* ent;
-
-        {
-            lock_guard lg(base.cache_lock);
-            ent = base.find_page_cache_entry(first_page);
-        }
-
-        // assert(ent->tree.key == first_page);
-
-        auto pfn = cow_folio(ent->pfn << PAGE_SHIFT) >> PAGE_SHIFT;
-        if (!pfn) {
-            ent->refcount--; // unpin
-            return written;
-        }
-
-        ent->pfn = pfn & 0xfffffffffffff;
-
-        auto ent_va = get_phys_address(*ent);
-
-        memcpy(ent_va, data.data(), data.size());
-
-        ent->dirty = 1;
-        ent->refcount--; // unpin
-    }
+    if (!base.write_page(first_page, 0, data))
+        return written;
 
     written += data.size();
 
