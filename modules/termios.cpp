@@ -322,3 +322,62 @@ export constexpr int TCOOFF = _TCOOFF;
 export constexpr int TCOON = _TCOON;
 export constexpr int TCIOFF = _TCIOFF;
 export constexpr int TCION = _TCION;
+
+/* Baud rates */
+constexpr size_t _B0 = B0;
+constexpr size_t _B50 = B50;
+constexpr size_t _B75 = B75;
+constexpr size_t _B110 = B110;
+constexpr size_t _B134 = B134;
+constexpr size_t _B150 = B150;
+constexpr size_t _B200 = B200;
+constexpr size_t _B300 = B300;
+constexpr size_t _B600 = B600;
+constexpr size_t _B1200 = B1200;
+constexpr size_t _B1800 = B1800;
+constexpr size_t _B2400 = B2400;
+constexpr size_t _B4800 = B4800;
+constexpr size_t _B9600 = B9600;
+constexpr size_t _B19200 = B19200;
+constexpr size_t _B38400 = B38400;
+constexpr size_t _B57600 = B57600;
+constexpr size_t _B115200 = B115200;
+constexpr size_t _B230400 = B230400;
+#undef B0
+#undef B50
+#undef B75
+#undef B110
+#undef B134
+#undef B150
+#undef B200
+#undef B300
+#undef B600
+#undef B1200
+#undef B1800
+#undef B2400
+#undef B4800
+#undef B9600
+#undef B19200
+#undef B38400
+#undef B57600
+#undef B115200
+#undef B230400
+export constexpr speed_t B0 = _B0;
+export constexpr speed_t B50 = _B50;
+export constexpr speed_t B75 = _B75;
+export constexpr speed_t B110 = _B110;
+export constexpr speed_t B134 = _B134;
+export constexpr speed_t B150 = _B150;
+export constexpr speed_t B200 = _B200;
+export constexpr speed_t B300 = _B300;
+export constexpr speed_t B600 = _B600;
+export constexpr speed_t B1200 = _B1200;
+export constexpr speed_t B1800 = _B1800;
+export constexpr speed_t B2400 = _B2400;
+export constexpr speed_t B4800 = _B4800;
+export constexpr speed_t B9600 = _B9600;
+export constexpr speed_t B19200 = _B19200;
+export constexpr speed_t B38400 = _B38400;
+export constexpr speed_t B57600 = _B57600;
+export constexpr speed_t B115200 = _B115200;
+export constexpr speed_t B230400 = _B230400;
