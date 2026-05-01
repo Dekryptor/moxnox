@@ -197,7 +197,7 @@ bool mapping::map(uint32_t mapping_offset, uint64_t va) {
             rangelock_req rlr(cache.rl, sect_page_num, 1);
 
             {
-                lock_guard lg(cache.cache_lock);
+                lock_guard lg(cache.base.cache_lock);
                 p = cache.find_page_cache_entry(sect_page_num);
             }
 
@@ -260,7 +260,7 @@ bool mapping::copy_from(uint32_t offset, void* ks_addr, uint32_t size) {
                 }
 
                 {
-                    lock_guard lg(cache.cache_lock);
+                    lock_guard lg(cache.base.cache_lock);
                     p = cache.find_page_cache_entry(sect_page_num);
                 }
 
@@ -340,7 +340,7 @@ bool mapping::copy_to(uint32_t offset, const void* ks_addr, uint32_t size) {
                         }
 
                         {
-                            lock_guard lg(cache.cache_lock);
+                            lock_guard lg(cache.base.cache_lock);
                             p = cache.find_page_cache_entry(sect_page_num);
                         }
 
@@ -411,7 +411,7 @@ bool mapping::copy_to(uint32_t offset, const void* ks_addr, uint32_t size) {
                     cache.pin(sect_page_num, 1, nullptr);
 
                 {
-                    lock_guard lg(cache.cache_lock);
+                    lock_guard lg(cache.base.cache_lock);
                     p = cache.find_page_cache_entry(sect_page_num);
                 }
 

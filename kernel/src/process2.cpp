@@ -1435,7 +1435,7 @@ static bool handle_page_fault2(process& p, uintptr_t address) {
             page_cache_entry* p;
 
             {
-                lock_guard lg(cache.cache_lock);
+                lock_guard lg(cache.base.cache_lock);
 
                 p = cache.find_page_cache_entry(sect_page_num);
             }
@@ -1722,7 +1722,7 @@ nt_status time_page_cache::read_into_cache(uint64_t page_num, uint64_t num_pages
     page_cache_entry* p;
 
     {
-        lock_guard lg(cache.cache_lock);
+        lock_guard lg(cache.base.cache_lock);
         p = cache.find_page_cache_entry(page_num);
     }
 

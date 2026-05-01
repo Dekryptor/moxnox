@@ -51,6 +51,7 @@ public:
     page_cache_entry* find_page_cache_entry(uint64_t page_num);
     page_cache_entry* next_page_cache_entry(const page_cache_entry& ent);
 
+    spinlock cache_lock;
     rbtree_node<uint64_t>* root = nullptr;
 };
 
@@ -92,7 +93,6 @@ public:
     void mark_dirty();
     nt_status flush(uint64_t page_num, uint64_t num_pages, bool clear_dirty);
 
-    spinlock cache_lock;
     T& dev;
     rangelock rl;
     spinlock mappings_lock;
@@ -119,7 +119,7 @@ export
 template<typename T>
 struct page_cache_iterator : public pfn_iterator {
     page_cache_iterator(page_cache<T>& cache, uint64_t page_num) : cache(&cache) {
-        lock_guard lg(cache.cache_lock);
+        lock_guard lg(cache.base.cache_lock);
 
         p = cache.find_page_cache_entry(page_num);
     }
@@ -129,7 +129,7 @@ struct page_cache_iterator : public pfn_iterator {
     }
 
     page_cache_iterator& operator++() override {
-        lock_guard lg(cache->cache_lock);
+        lock_guard lg(cache->base.cache_lock);
 
         p = cache->base.next_page_cache_entry(*p);
 
@@ -160,7 +160,7 @@ void free_cache_entry(rbtree_node<uint64_t>* tree) {
 
 template<typename T>
 page_cache<T>::~page_cache() {
-    lock_guard lock(cache_lock);
+    lock_guard lock(base.cache_lock);
 
     if (base.root)
         free_cache_entry(base.root);
@@ -191,7 +191,7 @@ page_cache_entry* create_new_page_cache_entry(uint64_t page_num) {
 template<typename T>
 nt_status page_cache<T>::pin(uint64_t first_page, uint64_t num_pages,
                              page_cache_entry** first_unread) {
-    lock_guard lg(cache_lock);
+    lock_guard lg(base.cache_lock);
 
     page_cache_entry* ent;
     page_cache_entry* p;
@@ -244,7 +244,7 @@ export void* get_phys_address(const page_cache_entry& ent);
 template<typename T>
 void page_cache<T>::copy_into_buffer(uint64_t first_page, uint64_t num_pages,
                                      span<uint8_t> data, uint64_t offset) {
-    lock_guard lg(cache_lock);
+    lock_guard lg(base.cache_lock);
 
     page_cache_entry* ent;
 
@@ -276,7 +276,7 @@ void page_cache<T>::copy_into_buffer(uint64_t first_page, uint64_t num_pages,
 template<typename T>
 void page_cache<T>::copy_into_buffer_and_unpin(uint64_t first_page, uint64_t num_pages,
                                                span<uint8_t> data, uint64_t offset) {
-    lock_guard lg(cache_lock);
+    lock_guard lg(base.cache_lock);
 
     page_cache_entry* ent;
 
@@ -309,7 +309,7 @@ void page_cache<T>::copy_into_buffer_and_unpin(uint64_t first_page, uint64_t num
 
 template<typename T>
 void page_cache<T>::unpin(uint64_t first_page, uint64_t num_pages) {
-    lock_guard lg(cache_lock);
+    lock_guard lg(base.cache_lock);
 
     page_cache_entry* ent;
 
@@ -328,7 +328,7 @@ void page_cache<T>::unpin(uint64_t first_page, uint64_t num_pages) {
 template<typename T>
 void clean_pages(page_cache<T>& cache, page_cache_entry* range_start,
                  uint64_t range_length) {
-    lock_guard lg(cache.cache_lock);
+    lock_guard lg(cache.base.cache_lock);
 
     auto p = range_start;
     for (uint64_t i = 0; i < range_length; i++) {
@@ -344,7 +344,7 @@ bool find_unread_range(page_cache<T>& cache, page_cache_entry*& range_start,
                        page_cache_entry*& range_end,
                        uint64_t& range_length, page_cache_entry*& ent,
                        uint64_t first_page, uint64_t num_pages) {
-    lock_guard lg(cache.cache_lock);
+    lock_guard lg(cache.base.cache_lock);
 
     // find first contiguous unread range
 
@@ -399,7 +399,7 @@ bool page_cache<T>::write_pages(uint64_t first_page, uint64_t num_pages,
 
         for (uint64_t i = 0; i < num_pages; i++) {
             {
-                lock_guard lg(cache_lock);
+                lock_guard lg(base.cache_lock);
 
                 if (i == 0)
                     ent = base.find_page_cache_entry(first_page);
@@ -458,7 +458,7 @@ size_t page_cache<T>::write(span<const uint8_t> data, uint64_t offset) {
             page_cache_entry* ent;
 
             {
-                lock_guard lg(cache_lock);
+                lock_guard lg(base.cache_lock);
                 ent = base.find_page_cache_entry(first_page);
             }
 
@@ -519,7 +519,7 @@ size_t page_cache<T>::write(span<const uint8_t> data, uint64_t offset) {
         page_cache_entry* ent;
 
         {
-            lock_guard lg(cache_lock);
+            lock_guard lg(base.cache_lock);
             ent = base.find_page_cache_entry(first_page);
         }
 
@@ -700,7 +700,7 @@ nt_status page_cache<T>::read(span<uint8_t> data, uint64_t offset) {
 template<typename T>
 bool page_cache<T>::find_dirty_range(page_cache_entry*& range_start,
                                      uint64_t& range_length) {
-    lock_guard lg(cache_lock);
+    lock_guard lg(base.cache_lock);
 
     // find first contiguous dirty range
 
@@ -782,7 +782,7 @@ nt_status page_cache<T>::flush_range(uint64_t page_num, uint64_t num_pages) {
 
     for (uint64_t i = 0; i < num_pages; i++) {
         {
-            lock_guard lg(cache_lock);
+            lock_guard lg(base.cache_lock);
 
             if (i == 0)
                 p = base.find_page_cache_entry(page_num);
@@ -808,7 +808,7 @@ nt_status page_cache<T>::flush(uint64_t page_num, uint64_t num_pages,
 
     while (true) {
         {
-            lock_guard lg(cache_lock);
+            lock_guard lg(base.cache_lock);
 
             if (!p) {
                 p = find_page_cache_entry_or_earlier(page_num);
@@ -845,7 +845,7 @@ nt_status page_cache<T>::flush(uint64_t page_num, uint64_t num_pages,
 
 next:
         {
-            lock_guard lg(cache_lock);
+            lock_guard lg(base.cache_lock);
             p->refcount--;
         }
     }

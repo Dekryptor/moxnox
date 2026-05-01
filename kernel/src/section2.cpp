@@ -196,7 +196,7 @@ nt_status section::load_image() {
     }
 
     {
-        lock_guard lock(f.cache.cache_lock);
+        lock_guard lock(f.cache.base.cache_lock);
         src_p = f.cache.find_page_cache_entry(0);
     }
 
@@ -491,7 +491,7 @@ uint64_t section::find_export(string_view name) {
     }
 
     {
-        lock_guard lg(cache.cache_lock);
+        lock_guard lg(cache.base.cache_lock);
 
         p = cache.find_page_cache_entry(0);
     }
@@ -562,7 +562,7 @@ uint64_t section::find_export(string_view name) {
 
     for (unsigned int i = 0; i < exp_dir_pages; i++) {
         {
-            lock_guard lg(cache.cache_lock);
+            lock_guard lg(cache.base.cache_lock);
 
             if (i == 0)
                 p = cache.find_page_cache_entry(exp_dir_start >> PAGE_SHIFT);
@@ -986,7 +986,7 @@ nt_status image_section_cache::read_into_cache(uint64_t page_num, uint64_t num_p
                 to_copy = PAGE_SIZE;
 
             {
-                lock_guard lg(cache.cache_lock);
+                lock_guard lg(cache.base.cache_lock);
 
                 if (i == 0)
                     dest_p = cache.find_page_cache_entry(page_num);
@@ -995,7 +995,7 @@ nt_status image_section_cache::read_into_cache(uint64_t page_num, uint64_t num_p
             }
 
             {
-                lock_guard lg(f.cache.cache_lock);
+                lock_guard lg(f.cache.base.cache_lock);
 
                 if (i == 0)
                     src_p = f.cache.find_page_cache_entry(page_num);
@@ -1043,7 +1043,7 @@ nt_status image_section_cache::read_into_cache(uint64_t page_num, uint64_t num_p
 
     while (num_pages > 0) {
         {
-            lock_guard lg(cache.cache_lock);
+            lock_guard lg(cache.base.cache_lock);
 
             if (first)
                 dest_p = cache.find_page_cache_entry(page_num);
@@ -1108,7 +1108,7 @@ nt_status image_section_cache::read_into_cache(uint64_t page_num, uint64_t num_p
                 // if aligned nicely, reflink rather than copying
                 if (offset == 0 && to_copy == PAGE_SIZE) {
                     {
-                        lock_guard lock(f.cache.cache_lock);
+                        lock_guard lock(f.cache.base.cache_lock);
                         src_p = f.cache.find_page_cache_entry(file_start_page);
                     }
 
@@ -1185,7 +1185,7 @@ nt_status anon_section_cache::read_into_cache(uint64_t page_num, uint64_t num_pa
 
     for (uint64_t i = 0; i < num_pages; i++) {
         {
-            lock_guard lg(cache.cache_lock);
+            lock_guard lg(cache.base.cache_lock);
 
             if (i == 0)
                 p = cache.find_page_cache_entry(page_num);

@@ -841,7 +841,7 @@ nt_status btrfs_filesystem::read_into_cache(uint64_t page_num, uint64_t num_page
 
                 for (unsigned int j = 0; j < pages_per_tree; j++) {
                     {
-                        lock_guard lg(vol->cache.cache_lock);
+                        lock_guard lg(vol->cache.base.cache_lock);
 
                         if (!p)
                             p = vol->cache.find_page_cache_entry(disk_read_start);
@@ -902,7 +902,7 @@ nt_status btrfs_filesystem::read_into_cache(uint64_t page_num, uint64_t num_page
 
         for (uint64_t i = 0; i < pages_read - prefix_pages - suffix_pages; i++) {
             {
-                lock_guard lg(cache.cache_lock);
+                lock_guard lg(cache.base.cache_lock);
 
                 if (i == 0)
                     dest_p = cache.find_page_cache_entry(page_num);
@@ -911,7 +911,7 @@ nt_status btrfs_filesystem::read_into_cache(uint64_t page_num, uint64_t num_page
             }
 
             {
-                lock_guard lg(vol->cache.cache_lock);
+                lock_guard lg(vol->cache.base.cache_lock);
 
                 if (i == 0)
                     src_p = vol->cache.find_page_cache_entry(disk_read_start + prefix_pages);
@@ -958,7 +958,7 @@ bool btrfs_filesystem::flush_tree(const chunk& c, uint64_t addr) {
     page_cache_entry* first_page;
 
     {
-        lock_guard lock(cache.cache_lock);
+        lock_guard lock(cache.base.cache_lock);
         first_page = cache.find_page_cache_entry(addr >> PAGE_SHIFT);
     }
 
@@ -985,7 +985,7 @@ bool btrfs_filesystem::flush_tree(const chunk& c, uint64_t addr) {
             crc32 = calc_crc32c(crc32, sp);
 
             if (j != pages_per_tree - 1) {
-                lock_guard lock(cache.cache_lock);
+                lock_guard lock(cache.base.cache_lock);
                 ent = cache.next_page_cache_entry(*ent);
             }
         }
@@ -1007,7 +1007,7 @@ bool btrfs_filesystem::flush_tree(const chunk& c, uint64_t addr) {
 
             if (ent->dirty) {
                 {
-                    lock_guard lock(vol->cache.cache_lock);
+                    lock_guard lock(vol->cache.base.cache_lock);
 
                     if (!dest_p)
                         dest_p = vol->cache.find_page_cache_entry((disk_addr >> PAGE_SHIFT) + j);
@@ -1024,7 +1024,7 @@ bool btrfs_filesystem::flush_tree(const chunk& c, uint64_t addr) {
                 dest_p = nullptr;
 
             if (j != pages_per_tree - 1) {
-                lock_guard lock(cache.cache_lock);
+                lock_guard lock(cache.base.cache_lock);
                 ent = cache.next_page_cache_entry(*ent);
             }
 
@@ -1038,7 +1038,7 @@ bool btrfs_filesystem::flush_tree(const chunk& c, uint64_t addr) {
         ent->dirty = 0;
 
         if (j != pages_per_tree - 1) {
-            lock_guard lock(cache.cache_lock);
+            lock_guard lock(cache.base.cache_lock);
             ent = cache.next_page_cache_entry(*ent);
         }
     }
@@ -1076,7 +1076,7 @@ nt_status btrfs_filesystem::flush_data(const chunk& c, uint64_t addr, uint64_t l
     page_cache_entry* first_page;
 
     {
-        lock_guard lock(cache.cache_lock);
+        lock_guard lock(cache.base.cache_lock);
         first_page = cache.find_page_cache_entry(addr >> PAGE_SHIFT);
     }
 
@@ -1094,7 +1094,7 @@ nt_status btrfs_filesystem::flush_data(const chunk& c, uint64_t addr, uint64_t l
 
             if (ent->dirty) {
                 {
-                    lock_guard lock(vol->cache.cache_lock);
+                    lock_guard lock(vol->cache.base.cache_lock);
 
                     if (!dest_p)
                         dest_p = vol->cache.find_page_cache_entry((disk_addr >> PAGE_SHIFT) + j);
@@ -1111,7 +1111,7 @@ nt_status btrfs_filesystem::flush_data(const chunk& c, uint64_t addr, uint64_t l
                 dest_p = nullptr;
 
             if (j != num_pages - 1) {
-                lock_guard lock(cache.cache_lock);
+                lock_guard lock(cache.base.cache_lock);
                 ent = cache.next_page_cache_entry(*ent);
             }
         }
@@ -1124,7 +1124,7 @@ nt_status btrfs_filesystem::flush_data(const chunk& c, uint64_t addr, uint64_t l
         ent->dirty = 0;
 
         if (j != num_pages - 1) {
-            lock_guard lock(cache.cache_lock);
+            lock_guard lock(cache.base.cache_lock);
             ent = cache.next_page_cache_entry(*ent);
         }
     }
@@ -3255,7 +3255,7 @@ nt_status btrfs_inode::read_zeroes_into_cache(uint64_t page_num, uint64_t num_pa
 
     for (uint64_t i = 0; i < num_pages; i++) {
         {
-            lock_guard lg(cache.cache_lock);
+            lock_guard lg(cache.base.cache_lock);
 
             if (i == 0)
                 dest_p = cache.find_page_cache_entry(page_num);
@@ -3300,7 +3300,7 @@ nt_status btrfs_inode::read_inline_extent_into_cache(uint64_t page_num,
 
     for (uint64_t i = 0; i < num_pages; i++) {
         {
-            lock_guard lg(cache.cache_lock);
+            lock_guard lg(cache.base.cache_lock);
 
             if (i == 0)
                 dest_p = cache.find_page_cache_entry(page_num);
@@ -3434,7 +3434,7 @@ static nt_status check_csums(btrfs_inode& ino, uint64_t page_num, uint64_t addr,
 
         while (index < data.size() && num_pages > 0) {
             {
-                lock_guard lg(ino.cache.cache_lock);
+                lock_guard lg(ino.cache.base.cache_lock);
 
                 if (first) {
                     src_p = ino.cache.find_page_cache_entry(page_num);
@@ -3498,7 +3498,7 @@ nt_status btrfs_inode::read_extent_into_cache(uint64_t page_num, uint64_t num_pa
 
         for (uint64_t i = 0; i < pages_read; i++) {
             {
-                lock_guard lg(cache.cache_lock);
+                lock_guard lg(cache.base.cache_lock);
 
                 if (i == 0)
                     dest_p = cache.find_page_cache_entry(page_num);
@@ -3507,7 +3507,7 @@ nt_status btrfs_inode::read_extent_into_cache(uint64_t page_num, uint64_t num_pa
             }
 
             {
-                lock_guard lg(fs.cache.cache_lock);
+                lock_guard lg(fs.cache.base.cache_lock);
 
                 if (i == 0)
                     src_p = fs.cache.find_page_cache_entry(addr >> PAGE_SHIFT);
@@ -3963,7 +3963,7 @@ static nt_status add_csums2(btrfs_filesystem& fs, uint64_t addr, uint64_t sector
     for (uint64_t i = 0; i < sectors; i++) {
 
         {
-            lock_guard lock(fs.cache.cache_lock);
+            lock_guard lock(fs.cache.base.cache_lock);
 
             if (i == 0)
                 src_p = fs.cache.find_page_cache_entry(addr >> PAGE_SHIFT);
@@ -4034,7 +4034,7 @@ nt_status flush_inline_inode(btrfs_inode& ino) {
     ino.cache.pin(0, 1, nullptr);
 
     {
-        lock_guard lock(ino.cache.cache_lock);
+        lock_guard lock(ino.cache.base.cache_lock);
         src_p = ino.cache.find_page_cache_entry(0);
     }
 
@@ -4109,7 +4109,7 @@ nt_status btrfs_inode::flush_cache(uint64_t page_num, uint64_t num_pages) {
 
             for (uint64_t i = 0; i < num_pages; i++) {
                 {
-                    lock_guard lock(cache.cache_lock);
+                    lock_guard lock(cache.base.cache_lock);
 
                     if (i == 0)
                         src_p = cache.find_page_cache_entry(page_num);
@@ -4118,7 +4118,7 @@ nt_status btrfs_inode::flush_cache(uint64_t page_num, uint64_t num_pages) {
                 }
 
                 {
-                    lock_guard lock(fs.cache.cache_lock);
+                    lock_guard lock(fs.cache.base.cache_lock);
 
                     if (i == 0)
                         dest_p = fs.cache.find_page_cache_entry(addr >> PAGE_SHIFT);

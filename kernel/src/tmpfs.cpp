@@ -344,7 +344,7 @@ nt_status tmpfs_inode::read_into_cache(uint64_t page_num, uint64_t num_pages,
     page_cache_entry* ent;
 
     for (uint64_t i = 0; i < num_pages; i++) {
-        lock_guard lg(cache.cache_lock);
+        lock_guard lg(cache.base.cache_lock);
 
         if (i == 0)
             ent = cache.find_page_cache_entry(page_num);
