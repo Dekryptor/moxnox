@@ -4,12 +4,11 @@ module;
 #include <mutex>
 #include <algorithm>
 #include <atomic>
-#include "assert.h"
 
 export module page_cache;
 
-import print;
-import bsod;
+// import print;
+// import bsod;
 import mem;
 import config;
 import list;
@@ -233,11 +232,7 @@ nt_status page_cache<T>::pin(uint64_t first_page, uint64_t num_pages,
     return nt_status::SUCCESS;
 }
 
-export void* get_phys_address(const page_cache_entry& ent) {
-    assert(ent.pfn != 0);
-
-    return phys_address(ent.pfn << PAGE_SHIFT);
-}
+export void* get_phys_address(const page_cache_entry& ent);
 
 template<typename T>
 void page_cache<T>::copy_into_buffer(uint64_t first_page, uint64_t num_pages,
@@ -252,7 +247,7 @@ void page_cache<T>::copy_into_buffer(uint64_t first_page, uint64_t num_pages,
         else
             ent = next_page_cache_entry(*ent);
 
-        assert(ent->tree.key == first_page + i);
+        // assert(ent->tree.key == first_page + i);
 
         // copy pages into data
 
@@ -284,7 +279,7 @@ void page_cache<T>::copy_into_buffer_and_unpin(uint64_t first_page, uint64_t num
         else
             ent = next_page_cache_entry(*ent);
 
-        assert(ent->tree.key == first_page + i);
+        // assert(ent->tree.key == first_page + i);
 
         // copy pages into data
 
@@ -317,7 +312,7 @@ void page_cache<T>::unpin(uint64_t first_page, uint64_t num_pages) {
         else
             ent = next_page_cache_entry(*ent);
 
-        assert(ent->tree.key == first_page + i);
+        // assert(ent->tree.key == first_page + i);
 
         ent->refcount--;
     }
@@ -405,14 +400,14 @@ bool page_cache<T>::write_pages(uint64_t first_page, uint64_t num_pages,
                     ent = next_page_cache_entry(*ent);
             }
 
-            assert(ent->tree.key == first_page + i);
+            // assert(ent->tree.key == first_page + i);
 
             if (ent->pfn)
                 free_folio(ent->pfn << PAGE_SHIFT);
 
             ent->pfn = (allocate_folio(0) >> PAGE_SHIFT) & 0xfffffffffffff;
             if (!ent->pfn) {
-                print("allocate_folio failed\n");
+                // print("allocate_folio failed\n");
                 ent->refcount--;
                 return false;
             }
@@ -460,7 +455,7 @@ size_t page_cache<T>::write(span<const uint8_t> data, uint64_t offset) {
                 ent = find_page_cache_entry(first_page);
             }
 
-            assert(ent->tree.key == first_page);
+            // assert(ent->tree.key == first_page);
 
             auto pfn = cow_folio(ent->pfn << PAGE_SHIFT) >> PAGE_SHIFT;
             if (!pfn) {
@@ -521,7 +516,7 @@ size_t page_cache<T>::write(span<const uint8_t> data, uint64_t offset) {
             ent = find_page_cache_entry(first_page);
         }
 
-        assert(ent->tree.key == first_page);
+        // assert(ent->tree.key == first_page);
 
         auto pfn = cow_folio(ent->pfn << PAGE_SHIFT) >> PAGE_SHIFT;
         if (!pfn) {

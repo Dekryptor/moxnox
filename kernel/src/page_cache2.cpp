@@ -1,10 +1,13 @@
 module;
 
 #include <mutex>
+#include "assert.h"
 
 module page_cache;
 
+import bsod;
 import mapping;
+import print;
 
 using namespace std;
 
@@ -70,4 +73,10 @@ nt_status flush_mappings(list_entry& mappings, spinlock& mappings_lock, uint64_t
     }
 
     return nt_status::SUCCESS;
+}
+
+void* get_phys_address(const page_cache_entry& ent) {
+    assert(ent.pfn != 0);
+
+    return phys_address(ent.pfn << PAGE_SHIFT);
 }
