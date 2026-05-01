@@ -161,3 +161,20 @@ void page_cache_base::copy_into_buffer_and_unpin(uint64_t first_page, uint64_t n
         ent->refcount--;
     }
 }
+
+void page_cache_base::unpin(uint64_t first_page, uint64_t num_pages) {
+    lock_guard lg(cache_lock);
+
+    page_cache_entry* ent;
+
+    for (uint64_t i = 0; i < num_pages; i++) {
+        if (i == 0)
+            ent = find_page_cache_entry(first_page);
+        else
+            ent = next_page_cache_entry(*ent);
+
+        assert(ent->tree.key == first_page + i);
+
+        ent->refcount--;
+    }
+}

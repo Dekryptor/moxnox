@@ -54,6 +54,7 @@ public:
                           span<uint8_t> data, uint64_t offset);
     void copy_into_buffer_and_unpin(uint64_t first_page, uint64_t num_pages,
                                     span<uint8_t> data, uint64_t offset);
+    void unpin(uint64_t first_page, uint64_t num_pages);
 
     spinlock cache_lock;
     rbtree_node<uint64_t>* root = nullptr;
@@ -83,7 +84,11 @@ public:
 
     bool find_dirty_range(page_cache_entry*& range_start,
                           uint64_t& range_length);
-    void unpin(uint64_t first_page, uint64_t num_pages);
+
+    void unpin(uint64_t first_page, uint64_t num_pages) {
+        base.unpin(first_page, num_pages);
+    }
+
     bool write_pages(uint64_t first_page, uint64_t num_pages,
                      span<const uint8_t> data);
 
@@ -251,24 +256,6 @@ nt_status page_cache<T>::pin(uint64_t first_page, uint64_t num_pages,
 }
 
 export void* get_phys_address(const page_cache_entry& ent);
-
-template<typename T>
-void page_cache<T>::unpin(uint64_t first_page, uint64_t num_pages) {
-    lock_guard lg(base.cache_lock);
-
-    page_cache_entry* ent;
-
-    for (uint64_t i = 0; i < num_pages; i++) {
-        if (i == 0)
-            ent = base.find_page_cache_entry(first_page);
-        else
-            ent = base.next_page_cache_entry(*ent);
-
-        // assert(ent->tree.key == first_page + i);
-
-        ent->refcount--;
-    }
-}
 
 template<typename T>
 void clean_pages(page_cache<T>& cache, page_cache_entry* range_start,
