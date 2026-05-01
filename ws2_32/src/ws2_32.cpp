@@ -1,3 +1,5 @@
+#include "../../modules/lconv.h"
+
 import errno;
 import nt;
 import ucrtbase;

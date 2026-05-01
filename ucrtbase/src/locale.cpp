@@ -1,6 +1,7 @@
 #include <string_view>
 #include <limits.h>
 #include <wchar.h>
+#include "../../modules/lconv.h"
 
 import ucrtbase;
 import print;
