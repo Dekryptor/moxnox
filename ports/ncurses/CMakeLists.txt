@@ -518,3 +518,14 @@ if (CMAKE_C_COMPILER_ID STREQUAL "GNU")
 endif()
 
 install(TARGETS firework DESTINATION ${CMAKE_INSTALL_PREFIX}/bin)
+
+add_executable(rain repo/test/rain.c repo/test/popup_msg.c)
+target_compile_options(rain PRIVATE ${USERSPACE_CFLAGS} -Wno-unused-parameter -Wno-conversion)
+target_include_directories(rain PRIVATE ${CMAKE_SOURCE_DIR}/include repo/include repo/test)
+target_link_libraries(rain moxnox ncurses)
+
+if (CMAKE_C_COMPILER_ID STREQUAL "GNU")
+    target_link_options(rain PUBLIC -mcrtdll=ucrtbase)
+endif()
+
+install(TARGETS rain DESTINATION ${CMAKE_INSTALL_PREFIX}/bin)
