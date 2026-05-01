@@ -52,6 +52,8 @@ public:
     page_cache_entry* next_page_cache_entry(const page_cache_entry& ent);
     void copy_into_buffer(uint64_t first_page, uint64_t num_pages,
                           span<uint8_t> data, uint64_t offset);
+    void copy_into_buffer_and_unpin(uint64_t first_page, uint64_t num_pages,
+                                    span<uint8_t> data, uint64_t offset);
 
     spinlock cache_lock;
     rbtree_node<uint64_t>* root = nullptr;
@@ -75,7 +77,10 @@ public:
     }
 
     void copy_into_buffer_and_unpin(uint64_t first_page, uint64_t num_pages,
-                                    span<uint8_t> data, uint64_t offset);
+                                    span<uint8_t> data, uint64_t offset) {
+        base.copy_into_buffer_and_unpin(first_page, num_pages, data, offset);
+    }
+
     bool find_dirty_range(page_cache_entry*& range_start,
                           uint64_t& range_length);
     void unpin(uint64_t first_page, uint64_t num_pages);
@@ -246,40 +251,6 @@ nt_status page_cache<T>::pin(uint64_t first_page, uint64_t num_pages,
 }
 
 export void* get_phys_address(const page_cache_entry& ent);
-
-template<typename T>
-void page_cache<T>::copy_into_buffer_and_unpin(uint64_t first_page, uint64_t num_pages,
-                                               span<uint8_t> data, uint64_t offset) {
-    lock_guard lg(base.cache_lock);
-
-    page_cache_entry* ent;
-
-    for (uint64_t i = 0; i < num_pages; i++) {
-        if (i == 0)
-            ent = base.find_page_cache_entry(first_page);
-        else
-            ent = base.next_page_cache_entry(*ent);
-
-        // assert(ent->tree.key == first_page + i);
-
-        // copy pages into data
-
-        auto ent_va = get_phys_address(*ent);
-
-        if (i == 0 && offset & (PAGE_SIZE - 1)) {
-            size_t off = offset & (PAGE_SIZE - 1);
-
-            memcpy(data.data(), (uint8_t*)ent_va + off,
-                   min(data.size(), (size_t)PAGE_SIZE - off));
-            data = data.subspan(min(data.size(), (size_t)PAGE_SIZE - off));
-        } else {
-            memcpy(data.data(), ent_va, min(data.size(), (size_t)PAGE_SIZE));
-            data = data.subspan(min(data.size(), (size_t)PAGE_SIZE));
-        }
-
-        ent->refcount--;
-    }
-}
 
 template<typename T>
 void page_cache<T>::unpin(uint64_t first_page, uint64_t num_pages) {
