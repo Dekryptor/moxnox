@@ -9,10 +9,17 @@ export module vt100;
 
 using namespace std;
 
+enum class esc_state {
+    normal,
+    got_esc,
+    in_csi,
+};
+
 uint8_t utf8_buf[5];
 unsigned int utf8_chars = 0;
 char escape_buffer[50];
 size_t escape_buffer_len = 0;
+esc_state esc_state = esc_state::normal;
 
 export template<typename T>
 concept vt100_console = requires(T t) {
@@ -449,124 +456,72 @@ void handle_escape_sequence(vt100_console auto& t, string_view s) {
 }
 
 export void do_print(vt100_console auto& t, string_view s) {
-    if (escape_buffer_len != 0) {
-        if (escape_buffer_len == 1 && s[0] != '[') {
-            char buf[1];
-
-            buf[0] = 0x1b;
-
-            do_print2(t, span(buf, 1));
-            escape_buffer_len = 0;
-        } else {
-            if (escape_buffer_len == 1) {
-                escape_buffer[1] = '[';
-                escape_buffer_len++;
-
-                s = string_view(s.data() + 1, s.size() - 1);
-
-                if (s.empty())
-                    return;
-            }
-
-            while (!s.empty() && s.front() >= 0x30 && s.front() <= 0x3f) {
-                if (escape_buffer_len == sizeof(escape_buffer)) {
-                    do_print2(t, span(escape_buffer, escape_buffer_len));
-                    escape_buffer_len = 0;
-                    goto loop;
-                }
-
-                escape_buffer[escape_buffer_len] = s.front();
-                escape_buffer_len++;
-                s = string_view(s.data() + 1, s.size() - 1);
-            }
-
-            if (s.empty())
-                return;
-
-            if (s.front() >= 0x40 && s.front() <= 0x7e) {
-                escape_buffer[escape_buffer_len] = s.front();
-                escape_buffer_len++;
-
-                s = string_view(s.data() + 1, s.size() - 1);
-
-                // FIXME - print literally if not ENABLE_PROCESSED_OUTPUT
-                handle_escape_sequence(t, string_view(escape_buffer, escape_buffer_len));
-
-                escape_buffer_len = 0;
-
-                if (s.empty())
-                    return;
-            } else {
-                do_print2(t, span(escape_buffer, escape_buffer_len));
-                escape_buffer_len = 0;
-            }
-        }
-    }
-
-loop:
     while (!s.empty()) {
-        auto c = s.front();
+        switch (esc_state) {
+            case esc_state::normal: {
+                auto esc = s.find('\x1b');
 
-        if (c == 0x1b) {
-            if (s.size() == 1) {
-                escape_buffer[0] = 0x1b;
-                escape_buffer_len = 1;
-                return;
+                if (esc == string_view::npos) {
+                    do_print2(t, s);
+                    s = "";
+                } else {
+                    if (esc > 0)
+                        do_print2(t, string_view(s.data(), esc));
+
+                    s = string_view(s.data() + esc + 1, s.size() - esc - 1);
+                    esc_state = esc_state::got_esc;
+                }
+                break;
             }
 
-            if (s[1] == '[') {
-                unsigned int param_bytes = 0;
+            case esc_state::got_esc:
+                switch (s.front()) {
+                    case '[':
+                        escape_buffer[0] = '\x1b';
+                        escape_buffer[1] = '[';
+                        escape_buffer_len = 2;
+                        esc_state = esc_state::in_csi;
+                        s = string_view(s.data() + 1, s.size() - 1);
+                        break;
 
-                while (s.size() >= param_bytes + 2) {
-                    if (s[2 + param_bytes] >= 0x30 && s[2 + param_bytes] <= 0x3f)
-                        param_bytes++;
-                    else
+                    default:
+                        do_print2(t, string_view("\x1b", 1));
+                        esc_state = esc_state::normal;
                         break;
                 }
+            break;
 
-                if (s.size() == param_bytes + 2) {
-                    if (param_bytes + 2 > sizeof(escape_buffer)) {
-                        do_print2(t, span(escape_buffer, escape_buffer_len));
-                        escape_buffer_len = 0;
+            case esc_state::in_csi: {
+                size_t i = 0;
 
-                        do_print2(t, span(s.data(), s.size()));
-                    } else {
-                        memcpy(escape_buffer, s.data(), param_bytes + 2);
-                        escape_buffer_len = param_bytes + 2;
-                    }
-
-                    return;
+                while (i < s.size() && s[i] >= 0x30 && s[i] <= 0x3f) {
+                    i++;
                 }
 
-                if (s[param_bytes + 2] >= 0x40 && s[param_bytes + 2] <= 0x7e) {
-                    // cap mid-buffer escape sequences as sizeof(escape_buffer), for consistency
-                    if (param_bytes + 3 > sizeof(escape_buffer))
-                        do_print2(t, span(s.data(), param_bytes + 3));
-                    else {
-                        // FIXME - print literally if not ENABLE_PROCESSED_OUTPUT
-                        handle_escape_sequence(t, string_view(s.data(), param_bytes + 3));
-                    }
+                size_t room = sizeof(escape_buffer) - escape_buffer_len;
 
-                    s = string_view(s.data() + param_bytes + 3, s.size() - param_bytes - 3);
-                    continue;
+                memcpy(escape_buffer + escape_buffer_len, s.data(), min(i, room));
+
+                escape_buffer_len += min(i, room);
+
+                s = string_view(s.data() + i, s.size() - i);
+
+                if (s.empty())
+                    break;
+
+                auto c = s.front();
+                s = string_view(s.data() + 1, s.size() - 1);
+
+                if (c >= 0x40 && c <= 0x7e && escape_buffer_len < sizeof(escape_buffer)) {
+                    escape_buffer[escape_buffer_len] = c;
+                    escape_buffer_len++;
+
+                    handle_escape_sequence(t, string_view(escape_buffer, escape_buffer_len));
                 }
-            }
 
-            char buf[1];
-
-            buf[0] = c;
-
-            do_print2(t, span(buf, 1));
-            s = string_view(s.data() + 1, s.size() - 1);
-        } else {
-            auto esc = s.find_first_of(0x1b);
-
-            if (esc == string_view::npos) {
-                do_print2(t, s);
+                escape_buffer_len = 0;
+                esc_state = esc_state::normal;
                 break;
-            } else {
-                do_print2(t, string_view(s.data(), esc));
-                s = string_view(s.data() + esc, s.size() - esc);
             }
         }
     }
