@@ -49,6 +49,7 @@ concept cache_supports_writeback = cacheable_flushable<T> &&
 class page_cache_base {
 public:
     page_cache_entry* find_page_cache_entry(uint64_t page_num);
+    page_cache_entry* next_page_cache_entry(const page_cache_entry& ent);
 
     rbtree_node<uint64_t>* root = nullptr;
 };
@@ -83,7 +84,11 @@ public:
     nt_status read_into_cache_and_pin(uint64_t first_page, uint64_t num_pages,
                                       uint64_t& read_pages);
     nt_status read(span<uint8_t> data, uint64_t offset);
-    page_cache_entry* next_page_cache_entry(const page_cache_entry& ent);
+
+    page_cache_entry* next_page_cache_entry(const page_cache_entry& ent) {
+        return base.next_page_cache_entry(ent);
+    }
+
     void mark_dirty();
     nt_status flush(uint64_t page_num, uint64_t num_pages, bool clear_dirty);
 
@@ -92,11 +97,11 @@ public:
     rangelock rl;
     spinlock mappings_lock;
     list_entry mappings = { &mappings, &mappings };
+    page_cache_base base;
 
 private:
     nt_status flush_range(uint64_t page_num, uint64_t num_pages);
 
-    page_cache_base base;
     bool dirty = false;
 };
 
@@ -126,7 +131,7 @@ struct page_cache_iterator : public pfn_iterator {
     page_cache_iterator& operator++() override {
         lock_guard lg(cache->cache_lock);
 
-        p = cache->next_page_cache_entry(*p);
+        p = cache->base.next_page_cache_entry(*p);
 
         return *this;
     }
@@ -211,7 +216,7 @@ nt_status page_cache<T>::pin(uint64_t first_page, uint64_t num_pages,
     }
 
     for (uint64_t page_num = first_page + 1; page_num < first_page + num_pages; page_num++) {
-        ent = next_page_cache_entry(*p);
+        ent = base.next_page_cache_entry(*p);
 
         if (!ent || ent->tree.key != page_num) {
             p = create_new_page_cache_entry(page_num);
@@ -247,7 +252,7 @@ void page_cache<T>::copy_into_buffer(uint64_t first_page, uint64_t num_pages,
         if (i == 0)
             ent = base.find_page_cache_entry(first_page);
         else
-            ent = next_page_cache_entry(*ent);
+            ent = base.next_page_cache_entry(*ent);
 
         // assert(ent->tree.key == first_page + i);
 
@@ -279,7 +284,7 @@ void page_cache<T>::copy_into_buffer_and_unpin(uint64_t first_page, uint64_t num
         if (i == 0)
             ent = base.find_page_cache_entry(first_page);
         else
-            ent = next_page_cache_entry(*ent);
+            ent = base.next_page_cache_entry(*ent);
 
         // assert(ent->tree.key == first_page + i);
 
@@ -312,7 +317,7 @@ void page_cache<T>::unpin(uint64_t first_page, uint64_t num_pages) {
         if (i == 0)
             ent = base.find_page_cache_entry(first_page);
         else
-            ent = next_page_cache_entry(*ent);
+            ent = base.next_page_cache_entry(*ent);
 
         // assert(ent->tree.key == first_page + i);
 
@@ -330,7 +335,7 @@ void clean_pages(page_cache<T>& cache, page_cache_entry* range_start,
         // FIXME - assert that status is page_cache_status::allocated
 
         p->dirty = 0;
-        p = cache.next_page_cache_entry(*p);
+        p = cache.base.next_page_cache_entry(*p);
     }
 }
 
@@ -344,7 +349,7 @@ bool find_unread_range(page_cache<T>& cache, page_cache_entry*& range_start,
     // find first contiguous unread range
 
     while (ent->pfn) {
-        ent = cache.next_page_cache_entry(*ent);
+        ent = cache.base.next_page_cache_entry(*ent);
 
         if (!ent)
             return false;
@@ -360,7 +365,7 @@ bool find_unread_range(page_cache<T>& cache, page_cache_entry*& range_start,
         for (uint64_t i = 0; i < range_left; i++) {
             auto orig_ent = ent;
 
-            ent = cache.next_page_cache_entry(*ent);
+            ent = cache.base.next_page_cache_entry(*ent);
 
             if (!ent || ent->pfn) {
                 ent = orig_ent;
@@ -399,7 +404,7 @@ bool page_cache<T>::write_pages(uint64_t first_page, uint64_t num_pages,
                 if (i == 0)
                     ent = base.find_page_cache_entry(first_page);
                 else
-                    ent = next_page_cache_entry(*ent);
+                    ent = base.next_page_cache_entry(*ent);
             }
 
             // assert(ent->tree.key == first_page + i);
@@ -706,7 +711,7 @@ bool page_cache<T>::find_dirty_range(page_cache_entry*& range_start,
     auto ent = &rbtree_containing_record<page_cache_entry>(get_tree_minimum(base.root));
 
     while (!ent->dirty) {
-        ent = next_page_cache_entry(*ent);
+        ent = base.next_page_cache_entry(*ent);
 
         if (!ent)
             return false;
@@ -717,7 +722,7 @@ bool page_cache<T>::find_dirty_range(page_cache_entry*& range_start,
     range_length = 1;
 
     while (true) {
-        auto ent2 = next_page_cache_entry(*ent);
+        auto ent2 = base.next_page_cache_entry(*ent);
 
         if (!ent2)
             break;
@@ -733,15 +738,6 @@ bool page_cache<T>::find_dirty_range(page_cache_entry*& range_start,
     }
 
     return true;
-}
-
-template<typename T>
-page_cache_entry* page_cache<T>::next_page_cache_entry(const page_cache_entry& ent) {
-    auto ret = next_rbtree_node(ent.tree);
-    if (!ret)
-        return nullptr;
-
-    return &rbtree_containing_record<page_cache_entry>(ret);
 }
 
 template<typename T>
@@ -791,7 +787,7 @@ nt_status page_cache<T>::flush_range(uint64_t page_num, uint64_t num_pages) {
             if (i == 0)
                 p = base.find_page_cache_entry(page_num);
             else
-                p = next_page_cache_entry(*p);
+                p = base.next_page_cache_entry(*p);
         }
 
         p->dirty = 0;
@@ -820,12 +816,12 @@ nt_status page_cache<T>::flush(uint64_t page_num, uint64_t num_pages,
                     return nt_status::SUCCESS;
 
                 while (p->tree.key < page_num) {
-                    p = next_page_cache_entry(*p);
+                    p = base.next_page_cache_entry(*p);
                     if (!p || p->tree.key >= page_num + num_pages)
                         return nt_status::SUCCESS;
                 }
             } else {
-                p = next_page_cache_entry(*p);
+                p = base.next_page_cache_entry(*p);
                 if (!p || p->tree.key >= page_num + num_pages)
                     break;
             }

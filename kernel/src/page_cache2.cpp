@@ -89,3 +89,11 @@ page_cache_entry* page_cache_base::find_page_cache_entry(uint64_t page_num) {
 
     return &rbtree_containing_record<page_cache_entry>(tree);
 }
+
+page_cache_entry* page_cache_base::next_page_cache_entry(const page_cache_entry& ent) {
+    auto ret = next_rbtree_node(ent.tree);
+    if (!ret)
+        return nullptr;
+
+    return &rbtree_containing_record<page_cache_entry>(ret);
+}
