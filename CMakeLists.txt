@@ -146,6 +146,11 @@ if(CMAKE_SYSTEM_PROCESSOR STREQUAL "amd64")
     add_library(smbios_32bit STATIC)
     target_sources(smbios_32bit PUBLIC FILE_SET CXX_MODULES FILES modules/smbios.cpp)
     target_compile_options(smbios_32bit PRIVATE -march=i386 -m32 -fno-ident -fno-pic -fno-exceptions -fno-rtti)
+
+    add_library(termios_kernel STATIC)
+    target_sources(termios_kernel PUBLIC FILE_SET CXX_MODULES FILES modules/termios.cpp)
+    target_compile_options(termios_kernel PRIVATE -fno-exceptions ${KERNEL_CFLAGS})
+    target_include_directories(termios_kernel PRIVATE ${CMAKE_SOURCE_DIR}/include)
 endif()
 
 add_library(format STATIC)

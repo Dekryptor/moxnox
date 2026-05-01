@@ -143,7 +143,7 @@ if(CMAKE_SYSTEM_PROCESSOR STREQUAL aarch64)
 
     add_executable(kernel ${AARCH64_SRC_FILES} ${SRC_ASM_FILES})
     target_sources(kernel PUBLIC FILE_SET CXX_MODULES FILES ${AARCH64_MODULES})
-    target_link_libraries(kernel format dwarf list unicode rbtree vt100 cp437 evdev nt ntdll_mod loaderblock aarch64 crt pagesize timepage moxnox_ioctls ws2_32_mod ipv6 pe smbios)
+    target_link_libraries(kernel format dwarf list unicode rbtree vt100 cp437 evdev nt ntdll_mod loaderblock aarch64 crt pagesize timepage moxnox_ioctls ws2_32_mod ipv6 pe smbios termios)
 elseif(CMAKE_SYSTEM_PROCESSOR STREQUAL "amd64")
     set(SRC_ASM_FILES src/x86/ints.S
         src/x86/timer.S
@@ -156,7 +156,7 @@ elseif(CMAKE_SYSTEM_PROCESSOR STREQUAL "amd64")
 
     add_executable(kernel ${AMD64_SRC_FILES} ${SRC_ASM_FILES})
     target_sources(kernel PUBLIC FILE_SET CXX_MODULES FILES ${AMD64_MODULES})
-    target_link_libraries(kernel format_kernel dwarf_kernel list_kernel unicode_kernel rbtree_kernel vt100_kernel cp437_kernel evdev_kernel nt_kernel ntdll_kernel pe_kernel loaderblock crt_kernel x86 pagesize_kernel timepage_kernel moxnox_ioctls_kernel ws2_32_kernel ipv6_kernel smbios)
+    target_link_libraries(kernel format_kernel dwarf_kernel list_kernel unicode_kernel rbtree_kernel vt100_kernel cp437_kernel evdev_kernel nt_kernel ntdll_kernel pe_kernel loaderblock crt_kernel x86 pagesize_kernel timepage_kernel moxnox_ioctls_kernel ws2_32_kernel ipv6_kernel smbios termios_kernel)
 
     set_source_files_properties(src/x86/framebuffer_avx.cpp PROPERTIES COMPILE_OPTIONS "-mavx2")
     set_source_files_properties(src/x86/framebuffer_avx512.cpp PROPERTIES COMPILE_OPTIONS "-mavx512f")

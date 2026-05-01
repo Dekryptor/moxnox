@@ -3,6 +3,7 @@ module;
 #include <span>
 #include <mutex>
 #include <stdint.h>
+#include <string.h>
 
 export module pty;
 
@@ -17,6 +18,7 @@ import spinlock;
 import scheduler;
 import thread;
 import objects;
+import termios;
 
 using namespace std;
 
@@ -51,6 +53,10 @@ public:
     pipe& recv_pipe;
     pipe& send_pipe;
     bool disconnected = false;
+    termios settings;
+
+private:
+    nt_status tcgetattr(span<uint8_t> outbuf, uintptr_t& written);
 };
 
 class pty_server : public chardev {
@@ -113,6 +119,32 @@ static nt_status create_pty(span<uint8_t> outbuf, uintptr_t& written) {
         print("new failed\n");
         return nt_status::INSUFFICIENT_RESOURCES;
     }
+
+    auto& settings = pptr_client->settings;
+
+    memset(&settings, 0, sizeof(settings));
+
+    settings.c_iflag = ICRNL | IXON;
+    settings.c_oflag = OPOST | ONLCR;
+    settings.c_cflag = B38400 | CS8 | CREAD | HUPCL;
+    settings.c_lflag = ICANON | ECHO | ISIG | IEXTEN;
+
+    settings.c_cc[VINTR] = 'C' - 0x40;
+    settings.c_cc[VQUIT] = '\\' - 0x40;
+    settings.c_cc[VERASE] = 0x7f;
+    settings.c_cc[VKILL] = 'U' - 0x40;
+    settings.c_cc[VEOF] = 'D' - 0x40;
+    settings.c_cc[VSTART] = 'Q' - 0x40;
+    settings.c_cc[VSTOP] = 'S' - 0x40;
+    settings.c_cc[VSUSP] = 'Z' - 0x40;
+    settings.c_cc[VREPRINT] = 'R' - 0x40;
+    settings.c_cc[VDISCARD] = 'O' - 0x40;
+    settings.c_cc[VWERASE] = 'W' - 0x40;
+    settings.c_cc[VLNEXT] = 'V' - 0x40;
+    settings.c_cc[VMIN] = 1;
+
+    settings.c_ispeed = 38400;
+    settings.c_ospeed = 38400;
 
     auto obj3 = object_ref{*pptr_client};
 
@@ -242,13 +274,26 @@ void pty_server::last_handle_closed() {
 }
 
 nt_status pty_client::ioctl(uint32_t code, span<const uint8_t> /*inbuf*/,
-                            span<uint8_t> /*outbuf*/, uintptr_t& written) {
+                            span<uint8_t> outbuf, uintptr_t& written) {
     switch (code) {
         case IOCTL_MOXNOX_PTY_ISATTY:
             written = 0;
             return nt_status::SUCCESS;
 
+        case IOCTL_MOXNOX_PTY_TCGETATTR:
+            return tcgetattr(outbuf, written);
+
         default:
             return nt_status::NOT_SUPPORTED;
     }
+}
+
+nt_status pty_client::tcgetattr(span<uint8_t> outbuf, uintptr_t& written) {
+    if (outbuf.size() < sizeof(termios))
+        return nt_status::BUFFER_TOO_SMALL;
+
+    memcpy(outbuf.data(), &settings, sizeof(termios));
+    written = sizeof(termios);
+
+    return nt_status::SUCCESS;
 }
