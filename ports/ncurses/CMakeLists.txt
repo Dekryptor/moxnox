@@ -390,7 +390,7 @@ add_library(ncurses SHARED
     ${GEN}/comp_userdefs.c
 )
 
-target_compile_definitions(ncurses PRIVATE BUILDING_NCURSES)
+target_compile_definitions(ncurses PRIVATE BUILDING_NCURSES WIN_PTHREADS_TIME_H)
 target_compile_options(ncurses PRIVATE ${USERSPACE_CFLAGS} -Wno-pointer-sign -Wno-conversion -Wno-unused-parameter -Wno-unused-but-set-variable)
 target_include_directories(ncurses PUBLIC ${GEN})
 target_include_directories(ncurses PRIVATE ${CMAKE_SOURCE_DIR}/include repo/ncurses repo/include)
@@ -454,7 +454,7 @@ add_library(form SHARED
     repo/form/fty_regex.c
 )
 
-target_compile_definitions(form PRIVATE BUILDING_NCURSES BUILDING_FORM)
+target_compile_definitions(form PRIVATE BUILDING_NCURSES BUILDING_FORM WIN_PTHREADS_TIME_H)
 target_compile_options(form PRIVATE ${USERSPACE_CFLAGS} -Wno-unused-parameter -Wno-unused-variable)
 target_include_directories(form PRIVATE ${CMAKE_SOURCE_DIR}/include repo/ncurses repo/include repo/form repo/menu)
 target_link_libraries(form PRIVATE ncurses)
@@ -491,7 +491,7 @@ add_library(menu SHARED
     repo/menu/m_win.c
 )
 
-target_compile_definitions(menu PRIVATE BUILDING_NCURSES BUILDING_MENU)
+target_compile_definitions(menu PRIVATE BUILDING_NCURSES BUILDING_MENU WIN_PTHREADS_TIME_H)
 target_compile_options(menu PRIVATE ${USERSPACE_CFLAGS})
 target_include_directories(menu PRIVATE ${CMAKE_SOURCE_DIR}/include repo/ncurses repo/include repo/menu)
 target_link_libraries(menu PRIVATE ncurses)
@@ -516,7 +516,7 @@ add_library(panel SHARED
     repo/panel/panel.c
 )
 
-target_compile_definitions(panel PRIVATE BUILDING_NCURSES BUILDING_PANEL)
+target_compile_definitions(panel PRIVATE BUILDING_NCURSES BUILDING_PANEL WIN_PTHREADS_TIME_H)
 target_compile_options(panel PRIVATE ${USERSPACE_CFLAGS})
 target_include_directories(panel PRIVATE ${CMAKE_SOURCE_DIR}/include repo/ncurses repo/include)
 target_link_libraries(panel PRIVATE ncurses)
@@ -543,6 +543,7 @@ install(TARGETS ncurses-test DESTINATION ${CMAKE_INSTALL_PREFIX}/bin)
 function(add_ncurses_test name)
     add_executable(${name} ${ARGN})
     target_compile_options(${name} PRIVATE ${USERSPACE_CFLAGS})
+    target_compile_definitions(${name} PRIVATE WIN_PTHREADS_TIME_H)
     target_include_directories(${name} PRIVATE ${CMAKE_SOURCE_DIR}/include repo/include repo/test)
     target_link_libraries(${name} moxnox ncurses)
     if (CMAKE_C_COMPILER_ID STREQUAL "GNU")
