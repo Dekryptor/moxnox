@@ -14,6 +14,11 @@ int nanosleep(const timespec* duration, timespec* /*rem*/) {
 
     // FIXME - signals?
 
+    if (!duration || duration->tv_sec < 0 || duration->tv_nsec >= 1000000000) {
+        *_errno() = EINVAL;
+        return -1;
+    }
+
     // convert to units to 100ns
     units = (uint64_t)duration->tv_sec * 10000000;
     units += (uint64_t)duration->tv_nsec / 100;
