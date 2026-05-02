@@ -15,8 +15,8 @@ int nanosleep(const timespec* duration, timespec* /*rem*/) {
     // FIXME - signals?
 
     // convert to units to 100ns
-    units = duration->tv_sec * 10000000;
-    units += duration->tv_nsec / 100;
+    units = (uint64_t)duration->tv_sec * 10000000;
+    units += (uint64_t)duration->tv_nsec / 100;
 
     t.QuadPart = -(int64_t)units;
 
