@@ -57,6 +57,7 @@ public:
 
 private:
     nt_status tcgetattr(span<uint8_t> outbuf, uintptr_t& written);
+    nt_status tcsetattr(span<const uint8_t> inbuf, bool flush);
 };
 
 class pty_server : public chardev {
@@ -273,7 +274,7 @@ void pty_server::last_handle_closed() {
     remove_object_name(client);
 }
 
-nt_status pty_client::ioctl(uint32_t code, span<const uint8_t> /*inbuf*/,
+nt_status pty_client::ioctl(uint32_t code, span<const uint8_t> inbuf,
                             span<uint8_t> outbuf, uintptr_t& written) {
     switch (code) {
         case IOCTL_MOXNOX_PTY_ISATTY:
@@ -282,6 +283,12 @@ nt_status pty_client::ioctl(uint32_t code, span<const uint8_t> /*inbuf*/,
 
         case IOCTL_MOXNOX_PTY_TCGETATTR:
             return tcgetattr(outbuf, written);
+
+        case IOCTL_MOXNOX_PTY_TCSETATTR:
+            return tcsetattr(inbuf, false);
+
+        case IOCTL_MOXNOX_PTY_TCSETATTR_FLUSH:
+            return tcsetattr(inbuf, true);
 
         default:
             return nt_status::NOT_SUPPORTED;
@@ -294,6 +301,17 @@ nt_status pty_client::tcgetattr(span<uint8_t> outbuf, uintptr_t& written) {
 
     memcpy(outbuf.data(), &settings, sizeof(termios));
     written = sizeof(termios);
+
+    return nt_status::SUCCESS;
+}
+
+nt_status pty_client::tcsetattr(span<const uint8_t> inbuf, bool /*flush*/) {
+    if (inbuf.size() < sizeof(termios))
+        return nt_status::BUFFER_TOO_SMALL;
+
+    // FIXME - flush
+
+    memcpy(&settings, inbuf.data(), sizeof(termios));
 
     return nt_status::SUCCESS;
 }
