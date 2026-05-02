@@ -1172,8 +1172,11 @@ static void print_chars2(console_fb& con, font_info& font,
             curline->num_cells = orig_cursor_x;
         }
 
-        auto curlen = curline->num_cells;
+        auto cells_at_start = curline->num_cells;
+        if (orig_cursor_x < curline->num_cells)
+            curline->num_cells = orig_cursor_x;
 
+        auto curlen = curline->num_cells;
         auto c = &curline->cells[curline->num_cells];
         unsigned int hb_len_done = 0;
 
@@ -1227,6 +1230,9 @@ static void print_chars2(console_fb& con, font_info& font,
                 curline->num_cells++;
             }
         }
+
+        if (curline->num_cells < cells_at_start)
+            curline->num_cells = cells_at_start;
 
         curline->changed = true;
 
