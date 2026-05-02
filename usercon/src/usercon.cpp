@@ -4,6 +4,7 @@
 #include <memory>
 #include <array>
 #include <optional>
+#include <algorithm>
 #include <stdlib.h>
 #include <string.h>
 #include <stdint.h>
