@@ -195,7 +195,7 @@ void do_print2(vt100_console auto& t, span<const char> s) {
             sp = span(sp.data() + 1, sp.size() - 1);
         } else {
             if (using_acs && (char32_t)c >= ACS_CODES_START && (char32_t)c < ACS_CODES_START + acs_codes.size())
-                sp[0] = acs_codes[c - ACS_CODES_START];
+                sp[0] = acs_codes[(char32_t)c - ACS_CODES_START];
             else
                 sp[0] = (char32_t)c;
 
