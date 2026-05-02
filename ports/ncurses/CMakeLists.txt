@@ -529,3 +529,14 @@ if (CMAKE_C_COMPILER_ID STREQUAL "GNU")
 endif()
 
 install(TARGETS rain DESTINATION ${CMAKE_INSTALL_PREFIX}/bin)
+
+add_executable(worm repo/test/worm.c)
+target_compile_options(worm PRIVATE ${USERSPACE_CFLAGS})
+target_include_directories(worm PRIVATE ${CMAKE_SOURCE_DIR}/include repo/include repo/test)
+target_link_libraries(worm moxnox ncurses)
+
+if (CMAKE_C_COMPILER_ID STREQUAL "GNU")
+    target_link_options(worm PUBLIC -mcrtdll=ucrtbase)
+endif()
+
+install(TARGETS worm DESTINATION ${CMAKE_INSTALL_PREFIX}/bin)
