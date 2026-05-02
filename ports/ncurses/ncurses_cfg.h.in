@@ -91,6 +91,7 @@
 
 unsigned int sleep(unsigned int seconds);
 int nanosleep(const struct timespec* duration, struct timespec* rem);
+int getpid(void);
 
 #ifdef __cplusplus
 #undef const

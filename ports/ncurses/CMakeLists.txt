@@ -165,6 +165,36 @@ add_custom_command(
 )
 
 add_custom_command(
+    OUTPUT ${GEN}/keys.list
+    COMMAND sh -c "AWK=awk USE_SIGWINCH=0 sh '${CMAKE_CURRENT_SOURCE_DIR}/repo/ncurses/tinfo/MKkeys_list.sh' '${CMAKE_CURRENT_SOURCE_DIR}/repo/include/Caps' '${CMAKE_CURRENT_SOURCE_DIR}/repo/include/Caps-ncurses' | LC_ALL=C sort > '${GEN}/keys.list'"
+    DEPENDS
+        repo/ncurses/tinfo/MKkeys_list.sh
+        repo/include/Caps
+        repo/include/Caps-ncurses
+    VERBATIM
+)
+
+add_custom_command(
+    OUTPUT ${GEN}/lib_keyname.c
+    COMMAND sh -c "awk -f '${CMAKE_CURRENT_SOURCE_DIR}/repo/ncurses/base/MKkeyname.awk' use_sigwinch=0 bigstrings=0 '${GEN}/keys.list' > '${GEN}/lib_keyname.c'"
+    DEPENDS
+        repo/ncurses/base/MKkeyname.awk
+        ${GEN}/keys.list
+    VERBATIM
+)
+
+add_custom_command(
+    OUTPUT ${GEN}/lib_gen.c
+    COMMAND sh -c "FGREP=fgrep sh -e '${CMAKE_CURRENT_SOURCE_DIR}/repo/ncurses/base/MKlib_gen.sh' 'x86_64-w64-mingw32-gcc -E -I${GEN}' awk generated < '${GEN}/curses.h' > '${GEN}/lib_gen.c'"
+    DEPENDS
+        repo/ncurses/base/MKlib_gen.sh
+        ${GEN}/curses.h
+        ${GEN}/ncurses_cfg.h
+        ${GEN}/ncurses_dll.h
+    VERBATIM
+)
+
+add_custom_command(
     OUTPUT ${GEN}/comp_captab.c
     COMMAND sh -c "HASHTABSIZE=$(grep 'define CAPTABSIZE' '${GEN}/hashsize.h' | awk '{print $NF * 2}') && cat '${CMAKE_CURRENT_SOURCE_DIR}/comp_captab_head.c' > '${GEN}/comp_captab.c' && awk -v mode=info -v HASHTABSIZE=$HASHTABSIZE -f '${CMAKE_CURRENT_SOURCE_DIR}/MKhash.awk' '${CMAKE_CURRENT_SOURCE_DIR}/repo/include/Caps' '${CMAKE_CURRENT_SOURCE_DIR}/repo/include/Caps-ncurses' >> '${GEN}/comp_captab.c' && awk -v mode=cap -v HASHTABSIZE=$HASHTABSIZE -f '${CMAKE_CURRENT_SOURCE_DIR}/MKhash.awk' '${CMAKE_CURRENT_SOURCE_DIR}/repo/include/Caps' '${CMAKE_CURRENT_SOURCE_DIR}/repo/include/Caps-ncurses' >> '${GEN}/comp_captab.c' && awk -f '${CMAKE_CURRENT_SOURCE_DIR}/repo/ncurses/tinfo/MKcaptab.awk' bigstrings=0 tablename=capalias '${CMAKE_CURRENT_SOURCE_DIR}/repo/include/Caps' '${CMAKE_CURRENT_SOURCE_DIR}/repo/include/Caps-ncurses' >> '${GEN}/comp_captab.c' && awk -f '${CMAKE_CURRENT_SOURCE_DIR}/repo/ncurses/tinfo/MKcaptab.awk' bigstrings=0 tablename=infoalias '${CMAKE_CURRENT_SOURCE_DIR}/repo/include/Caps' '${CMAKE_CURRENT_SOURCE_DIR}/repo/include/Caps-ncurses' >> '${GEN}/comp_captab.c' && cat '${CMAKE_CURRENT_SOURCE_DIR}/comp_captab_tail.c' >> '${GEN}/comp_captab.c'"
     DEPENDS
@@ -353,6 +383,8 @@ add_library(ncurses SHARED
     ${GEN}/names.c
     ${GEN}/codes.c
     ${GEN}/lib_unctrl.c
+    ${GEN}/lib_keyname.c
+    ${GEN}/lib_gen.c
     fallback.c
     ${GEN}/comp_captab.c
     ${GEN}/comp_userdefs.c
@@ -522,3 +554,14 @@ endfunction()
 add_ncurses_test(firework repo/test/firework.c)
 add_ncurses_test(rain repo/test/rain.c repo/test/popup_msg.c)
 add_ncurses_test(worm repo/test/worm.c)
+add_ncurses_test(gdc repo/test/gdc.c)
+add_ncurses_test(hanoi repo/test/hanoi.c)
+add_ncurses_test(xmas repo/test/xmas.c)
+add_ncurses_test(newdemo repo/test/newdemo.c)
+add_ncurses_test(tclock repo/test/tclock.c)
+add_ncurses_test(knight repo/test/knight.c)
+add_ncurses_test(lrtest repo/test/lrtest.c)
+add_ncurses_test(insdelln repo/test/insdelln.c repo/test/popup_msg.c)
+add_ncurses_test(hashtest repo/test/hashtest.c)
+add_ncurses_test(firstlast repo/test/firstlast.c)
+add_ncurses_test(movewindow repo/test/movewindow.c repo/test/popup_msg.c)
