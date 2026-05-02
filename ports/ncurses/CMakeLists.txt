@@ -508,35 +508,17 @@ endif()
 
 install(TARGETS ncurses-test DESTINATION ${CMAKE_INSTALL_PREFIX}/bin)
 
-add_executable(firework repo/test/firework.c)
-target_compile_options(firework PRIVATE ${USERSPACE_CFLAGS})
-target_include_directories(firework PRIVATE ${CMAKE_SOURCE_DIR}/include repo/include repo/test)
-target_link_libraries(firework moxnox ncurses)
+function(add_ncurses_test name)
+    add_executable(${name} ${ARGN})
+    target_compile_options(${name} PRIVATE ${USERSPACE_CFLAGS})
+    target_include_directories(${name} PRIVATE ${CMAKE_SOURCE_DIR}/include repo/include repo/test)
+    target_link_libraries(${name} moxnox ncurses)
+    if (CMAKE_C_COMPILER_ID STREQUAL "GNU")
+        target_link_options(${name} PUBLIC -mcrtdll=ucrtbase)
+    endif()
+    install(TARGETS ${name} DESTINATION ${CMAKE_INSTALL_PREFIX}/bin)
+endfunction()
 
-if (CMAKE_C_COMPILER_ID STREQUAL "GNU")
-    target_link_options(firework PUBLIC -mcrtdll=ucrtbase)
-endif()
-
-install(TARGETS firework DESTINATION ${CMAKE_INSTALL_PREFIX}/bin)
-
-add_executable(rain repo/test/rain.c repo/test/popup_msg.c)
-target_compile_options(rain PRIVATE ${USERSPACE_CFLAGS})
-target_include_directories(rain PRIVATE ${CMAKE_SOURCE_DIR}/include repo/include repo/test)
-target_link_libraries(rain moxnox ncurses)
-
-if (CMAKE_C_COMPILER_ID STREQUAL "GNU")
-    target_link_options(rain PUBLIC -mcrtdll=ucrtbase)
-endif()
-
-install(TARGETS rain DESTINATION ${CMAKE_INSTALL_PREFIX}/bin)
-
-add_executable(worm repo/test/worm.c)
-target_compile_options(worm PRIVATE ${USERSPACE_CFLAGS})
-target_include_directories(worm PRIVATE ${CMAKE_SOURCE_DIR}/include repo/include repo/test)
-target_link_libraries(worm moxnox ncurses)
-
-if (CMAKE_C_COMPILER_ID STREQUAL "GNU")
-    target_link_options(worm PUBLIC -mcrtdll=ucrtbase)
-endif()
-
-install(TARGETS worm DESTINATION ${CMAKE_INSTALL_PREFIX}/bin)
+add_ncurses_test(firework repo/test/firework.c)
+add_ncurses_test(rain repo/test/rain.c repo/test/popup_msg.c)
+add_ncurses_test(worm repo/test/worm.c)
