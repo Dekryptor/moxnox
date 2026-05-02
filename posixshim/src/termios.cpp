@@ -31,11 +31,43 @@ int tcgetattr(int fd, termios* p) {
 }
 
 extern "C"
-int tcsetattr(int /*fd*/, int /*optional_actions*/, const termios* /*p*/) {
-    print("FIXME - tcsetattr\n");
+int tcsetattr(int fd, int optional_actions, const termios* p) {
+    IO_STATUS_BLOCK iosb;
 
-    *_errno() = EINVAL;
-    return -1;
+    if (!p) {
+        *_errno() = EINVAL;
+        return -1;
+    }
+
+    auto h = (HANDLE)_get_osfhandle(fd);
+    if ((intptr_t)h < 0)
+        return -1;
+
+    uint32_t code;
+
+    switch (optional_actions) {
+        case TCSANOW:
+        case TCSADRAIN:
+            code = IOCTL_MOXNOX_PTY_TCSETATTR;
+            break;
+
+        case TCSAFLUSH:
+            code = IOCTL_MOXNOX_PTY_TCSETATTR_FLUSH;
+            break;
+
+        default:
+            *_errno() = EINVAL;
+            return -1;
+    }
+
+    auto status = NtDeviceIoControlFile((HANDLE)h, 0, nullptr, nullptr, &iosb,
+                                        code, p, sizeof(termios), nullptr, 0);
+    if (!success(status)) {
+        *_errno() = nt_status_to_errno(status);
+        return -1;
+    }
+
+    return 0;
 }
 
 extern "C"
