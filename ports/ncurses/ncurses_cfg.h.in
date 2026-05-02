@@ -73,6 +73,9 @@
 /* Version string (normally set by autoconf) */
 #define NCURSES_VERSION_STRING "@NCURSES_MAJOR@.@NCURSES_MINOR@.@NCURSES_PATCH@"
 
+/* Compiler attributes */
+#define GCC_UNUSED __attribute__((unused))
+
 /* Miscellaneous */
 #define DECL_ERRNO          0
 #define HAVE_LONG_FILE_NAMES 1

@@ -509,7 +509,7 @@ endif()
 install(TARGETS ncurses-test DESTINATION ${CMAKE_INSTALL_PREFIX}/bin)
 
 add_executable(firework repo/test/firework.c)
-target_compile_options(firework PRIVATE ${USERSPACE_CFLAGS} -Wno-unused-parameter -Wno-conversion)
+target_compile_options(firework PRIVATE ${USERSPACE_CFLAGS})
 target_include_directories(firework PRIVATE ${CMAKE_SOURCE_DIR}/include repo/include repo/test)
 target_link_libraries(firework moxnox ncurses)
 
@@ -520,7 +520,7 @@ endif()
 install(TARGETS firework DESTINATION ${CMAKE_INSTALL_PREFIX}/bin)
 
 add_executable(rain repo/test/rain.c repo/test/popup_msg.c)
-target_compile_options(rain PRIVATE ${USERSPACE_CFLAGS} -Wno-unused-parameter -Wno-conversion)
+target_compile_options(rain PRIVATE ${USERSPACE_CFLAGS})
 target_include_directories(rain PRIVATE ${CMAKE_SOURCE_DIR}/include repo/include repo/test)
 target_link_libraries(rain moxnox ncurses)
 
