@@ -1138,6 +1138,7 @@ static void print_chars2(console_fb& con, font_info& font,
     // lay out using harfbuzz
 
     size_t s_offset = 0;
+    unsigned int final_cursor_x = con.cursor_x;
 
     do {
         // FIXME - keep HB buffer around?
@@ -1231,6 +1232,8 @@ static void print_chars2(console_fb& con, font_info& font,
             }
         }
 
+        final_cursor_x = curline->num_cells;
+
         if (curline->num_cells < cells_at_start)
             curline->num_cells = cells_at_start;
 
@@ -1279,7 +1282,7 @@ static void print_chars2(console_fb& con, font_info& font,
         orig_cursor_x = 0;
     } while (true);
 
-    con.cursor_x = curline->num_cells;
+    con.cursor_x = final_cursor_x;
 }
 
 void console_fb::print_chars(span<const char32_t> s) {
