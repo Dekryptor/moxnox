@@ -1115,8 +1115,8 @@ static void print_chars2(console_fb& con, font_info& font,
         for (size_t i = curline->len; i < text_pos; i++) {
             t[i] = U' ';
             a[i].font = cur_font;
-            a[i].fg_colour = fg_colour;
-            a[i].bg_colour = bg_colour;
+            a[i].fg_colour = curline->cells[i].fg_colour;
+            a[i].bg_colour = curline->cells[i].bg_colour;
         }
 
         memcpy(t + text_pos, s.data(), s.size() * sizeof(char32_t));
@@ -1165,8 +1165,6 @@ static void print_chars2(console_fb& con, font_info& font,
 
                 cell.pos = {};
                 cell.glyph = space_glyph;
-                cell.fg_colour = fg_colour;
-                cell.bg_colour = bg_colour;
                 cell.font = cur_font;
                 cell.ignore = false;
             }
