@@ -142,6 +142,17 @@ static bool run_program(unique_handle& proc) {
     if (did_ctrl_c)
         print("^C\n");
 
+    // FIXME - call tcsetattr
+
+    print("\e[?1049l" // disable alternative buffer
+        "\e[?25h" // re-enable cursor
+        "\e[0m" // reset colours and attributes
+        "\e[?1000l" // disable mouse tracking
+        "\e[?2004l" // disable bracketed paste mode
+        "\e>\e[?1l" // reset application keypad and cursor key modes
+        "\e7\e[r\e8" // reset scrolling region
+    );
+
     return true;
 }
 
