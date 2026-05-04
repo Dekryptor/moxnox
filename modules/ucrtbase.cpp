@@ -119,6 +119,7 @@ __sighandler_t signal(int sig, __sighandler_t func);
 int setvbuf(FILE* stream, char* buffer, int mode, size_t size);
 int _open(const char* path, int flags, ...);
 intptr_t _get_osfhandle(int fd);
+char* _getcwd(char *buffer, int maxlen);
 
 }
 
