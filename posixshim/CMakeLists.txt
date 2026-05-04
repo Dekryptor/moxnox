@@ -9,6 +9,7 @@ add_library(posixshim STATIC
     src/stubs.S
     src/termios.cpp
     src/sleep.cpp
+    src/signal.cpp
 )
 
 target_compile_options(posixshim PRIVATE -fno-exceptions ${USERSPACE_CFLAGS})
