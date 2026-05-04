@@ -203,6 +203,15 @@ void mn_signal(EXCEPTION_RECORD* exception, CONTEXT* context) {
         unreachable();
     }
 
+    print("\e[?1049l" // disable alternative buffer
+        "\e[?25h" // re-enable cursor
+        "\e[0m" // reset colours and attributes
+        "\e[?1000l" // disable mouse tracking
+        "\e[?2004l" // disable bracketed paste mode
+        "\e>\e[?1l" // reset application keypad and cursor key modes
+        "\e7\e[r\e8" // reset scrolling region
+    );
+
     if (status != nt_status::UNHANDLED_EXCEPTION) {
         sp = format(sp, "Error {} received while trying to handle exception\n", status);
         print("{}", string_view(s, (size_t)(sp.data() - s)));
