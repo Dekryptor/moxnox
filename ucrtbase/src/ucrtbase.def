@@ -155,3 +155,4 @@ setlocale
 _stricmp
 _access
 _getcwd
+isblank

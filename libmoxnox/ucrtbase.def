@@ -123,6 +123,7 @@ setlocale
 _stricmp
 _access
 _getcwd
+isblank
 
 ; stubs
 __setusermatherr
@@ -259,7 +260,6 @@ _pipe
 _popen
 _pclose
 _dup2
-isblank
 ispunct
 _fullpath
 _findfirst64i32
