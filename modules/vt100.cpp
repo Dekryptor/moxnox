@@ -25,6 +25,9 @@ esc_state esc_state = esc_state::normal;
 bool using_acs = false;
 char32_t last_char = 0;
 
+unsigned int saved_cursor_x, saved_cursor_y;
+bool saved_using_acs = false;
+
 export template<typename T>
 concept vt100_console = requires(T t) {
     requires unsigned_integral<decltype(t.cursor_x)>;
@@ -563,8 +566,25 @@ export void do_print(vt100_console auto& t, string_view s) {
                         s = string_view(s.data() + 1, s.size() - 1);
                         break;
 
-                    case '=':
-                    case '>':
+                    case '7': // DECSC
+                        saved_cursor_x = t.cursor_x;
+                        saved_cursor_y = t.cursor_y;
+                        // FIXME - should also be saving character attributes (bold, italic, colour, etc.)
+                        saved_using_acs = using_acs;
+                        s = string_view(s.data() + 1, s.size() - 1);
+                        break;
+
+                    case '8': // DECRC
+                        t.cursor_x = saved_cursor_x;
+                        t.cursor_y = saved_cursor_y;
+                        t.cursor_changed();
+
+                        using_acs = saved_using_acs;
+                        s = string_view(s.data() + 1, s.size() - 1);
+                        break;
+
+                    case '=': // DECKPAM
+                    case '>': // DECKPNM
                         // FIXME - support application keypad mode
                         esc_state = esc_state::normal;
                         s = string_view(s.data() + 1, s.size() - 1);
