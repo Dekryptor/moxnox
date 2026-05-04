@@ -122,6 +122,7 @@ _write
 _read
 setlocale
 _stricmp
+_access
 
 ; stubs
 __setusermatherr
@@ -235,7 +236,6 @@ isgraph
 islower
 isprint
 isupper
-_access
 _chdir
 _close
 _getcwd

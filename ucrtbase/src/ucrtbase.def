@@ -153,3 +153,4 @@ wcscpy = ntdll.wcscpy
 wcsncmp = ntdll.wcsncmp
 setlocale
 _stricmp
+_access

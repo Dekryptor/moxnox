@@ -1324,3 +1324,11 @@ int _read(int fd, void* buffer, size_t count) {
 
     return (int)iosb.Information;
 }
+
+extern "C"
+int _access(const char* path, int mode) {
+    print_stderr("FIXME - _access({}, {})\n", path ? path : "", mode);
+
+    *_errno() = EINVAL;
+    return -1;
+}
