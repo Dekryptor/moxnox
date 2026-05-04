@@ -36,7 +36,6 @@ static lconv posix_lconv = {
     .int_n_sep_by_space = CHAR_MAX,
     .int_p_sign_posn = CHAR_MAX,
     .int_n_sign_posn = CHAR_MAX
-
 };
 
 extern "C"
