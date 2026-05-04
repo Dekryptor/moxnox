@@ -96,7 +96,6 @@ sincosf
 trunc
 truncf
 _stat64i32
-_stat64
 _stat32i64
 _stat32
 ferror
@@ -239,9 +238,6 @@ isprint
 isupper
 _chdir
 _close
-_isatty
-_mkdir
-_open
 _putenv
 atol
 atof
