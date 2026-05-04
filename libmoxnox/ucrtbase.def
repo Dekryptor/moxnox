@@ -123,6 +123,7 @@ _read
 setlocale
 _stricmp
 _access
+_getcwd
 
 ; stubs
 __setusermatherr
@@ -238,7 +239,6 @@ isprint
 isupper
 _chdir
 _close
-_getcwd
 _isatty
 _mkdir
 _open

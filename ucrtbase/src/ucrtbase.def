@@ -154,3 +154,4 @@ wcsncmp = ntdll.wcsncmp
 setlocale
 _stricmp
 _access
+_getcwd
