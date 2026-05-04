@@ -563,6 +563,13 @@ export void do_print(vt100_console auto& t, string_view s) {
                         s = string_view(s.data() + 1, s.size() - 1);
                         break;
 
+                    case '=':
+                    case '>':
+                        // FIXME - support application keypad mode
+                        esc_state = esc_state::normal;
+                        s = string_view(s.data() + 1, s.size() - 1);
+                        break;
+
                     default:
                         do_print2(t, string_view("\x1b", 1));
                         esc_state = esc_state::normal;
