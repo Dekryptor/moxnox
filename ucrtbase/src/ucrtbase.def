@@ -156,3 +156,4 @@ _stricmp
 _access
 _getcwd
 isblank
+toupper

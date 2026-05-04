@@ -5,3 +5,13 @@ int isblank(int c) {
     else
         return 0;
 }
+
+extern "C"
+int toupper(int c) {
+    // FIXME - do this properly
+
+    if (c >= 'a' && c <= 'z')
+        return c - 'a' + 'A';
+    else
+        return c;
+}

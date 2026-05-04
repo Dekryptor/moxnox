@@ -124,6 +124,7 @@ _stricmp
 _access
 _getcwd
 isblank
+toupper
 
 ; stubs
 __setusermatherr
@@ -165,7 +166,6 @@ __timezone
 __tzname
 _tzset
 _beginthreadex
-toupper
 __pctype_func
 _strftime_l
 _free_locale
