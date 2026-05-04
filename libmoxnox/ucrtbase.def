@@ -121,6 +121,7 @@ _get_osfhandle
 _write
 _read
 setlocale
+_stricmp
 
 ; stubs
 __setusermatherr
@@ -246,7 +247,6 @@ atol
 atof
 _getpid
 _mktemp
-_stricmp
 _strnicmp
 _wcsnicmp
 _unlink
