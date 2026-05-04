@@ -88,3 +88,12 @@ wctype_t __wctype(const char* prop) {
 
     return 0;
 }
+
+extern "C"
+char* setlocale(int category, const char* locale) {
+    print("FIXME - setlocale ({}, {})\n", category, locale ? locale : "");
+
+    // FIXME
+
+    return nullptr;
+}

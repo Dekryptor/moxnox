@@ -120,6 +120,7 @@ _isatty
 _get_osfhandle
 _write
 _read
+setlocale
 
 ; stubs
 __setusermatherr
@@ -136,7 +137,6 @@ getwc
 _lseeki64
 putc
 putwc
-setlocale
 strcoll
 strftime
 strxfrm
