@@ -21,7 +21,7 @@ set(SRC_FILES src/kernelbase.def
 add_library(kernelbase SHARED ${SRC_FILES})
 
 target_compile_options(kernelbase PRIVATE -fno-exceptions ${USERSPACE_CFLAGS})
-target_link_options(kernelbase PUBLIC -nostartfiles -nostdlib)
+target_link_options(kernelbase PRIVATE -nostartfiles -nostdlib)
 
 target_link_libraries(kernelbase PRIVATE format print unique_handle pe pagesize unicode)
 target_link_libraries(kernelbase PRIVATE moxnox)
