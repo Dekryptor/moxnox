@@ -219,6 +219,10 @@ _difftime64
 fmod
 frexp
 _gmtime64
+_gmtime64_s
+freopen
+_localtime64_s
+_getch
 longjmp
 _localtime64
 _mktime64
@@ -266,3 +270,10 @@ _findfirst64i32
 _findnext64i32
 _findclose
 _sopen
+_execvp
+_execv
+_execl
+_execlp
+_execve
+system
+raise
