@@ -15,7 +15,7 @@ set(SRC_FILES src/kernel32.def
 add_library(kernel32 SHARED ${SRC_FILES})
 
 target_compile_options(kernel32 PRIVATE -fno-exceptions ${USERSPACE_CFLAGS})
-target_link_options(kernel32 PUBLIC -nostartfiles -nostdlib)
+target_link_options(kernel32 PRIVATE -nostartfiles -nostdlib)
 
 target_link_libraries(kernel32 PRIVATE moxnox)
 
