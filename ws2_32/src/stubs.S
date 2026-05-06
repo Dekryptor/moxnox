@@ -13,5 +13,6 @@ do_stub "getsockname"
 do_stub "getpeername"
 do_stub "gethostname"
 do_stub "select"
+do_stub "shutdown"
 
 stubs_end
