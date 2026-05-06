@@ -20,6 +20,7 @@ import pe;
 import kernelbase;
 import pagesize;
 import cd;
+import termios;
 
 static char* buf = nullptr;
 static unsigned int buflen = 0;
@@ -98,7 +99,7 @@ static bool forward_stdin(HANDLE h, string_view s, HANDLE proc) {
 }
 #endif
 
-static bool run_program(unique_handle& proc) {
+static bool run_program(unique_handle& proc, const termios* tc_settings) {
     bool did_ctrl_c = false;
 
     do {
@@ -139,10 +140,11 @@ static bool run_program(unique_handle& proc) {
         }
     } while (running_proc != 0);
 
+    if (tc_settings)
+        tcsetattr(STDOUT_FILENO, TCSANOW, tc_settings);
+
     if (did_ctrl_c)
         print("^C\n");
-
-    // FIXME - call tcsetattr
 
     print("\e[?25h" // re-enable cursor
         "\e[0m" // reset colours and attributes
@@ -263,6 +265,9 @@ static void __attribute__((noinline)) inline1() {
 }
 
 static void try_run_program(string_view program, string_view cmdline) {
+    termios tc_settings;
+    bool tc_settings_valid;
+
     auto u16cmdlinelen = utf8_to_utf16_len(cmdline);
     auto u16cmdline = (char16_t*)malloc((u16cmdlinelen + 1) * sizeof(char16_t));
     if (!u16cmdline) {
@@ -448,6 +453,9 @@ static void try_run_program(string_view program, string_view cmdline) {
 
     running_proc = proc.get();
 
+    if (!tcgetattr(STDOUT_FILENO, &tc_settings))
+        tc_settings_valid = true;
+
     auto status = NtResumeThread(pi.hThread, nullptr);
     if (!success(status)) {
         print_stderr("NtResumeThread returned {}\n", status);
@@ -458,7 +466,7 @@ static void try_run_program(string_view program, string_view cmdline) {
 
     NtClose(pi.hThread);
 
-    run_program(proc);
+    run_program(proc, tc_settings_valid ? &tc_settings : nullptr);
 }
 
 static void int3() {

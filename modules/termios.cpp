@@ -420,3 +420,8 @@ export constexpr size_t B2500000 = _B2500000;
 export constexpr size_t B3000000 = _B3000000;
 export constexpr size_t B3500000 = _B3500000;
 export constexpr size_t B4000000 = _B4000000;
+
+export extern "C" {
+    int tcgetattr(int fd, termios* p);
+    int tcsetattr(int fd, int optional_actions, const termios* p);
+};
