@@ -155,11 +155,95 @@ static uint32_t socket_thread(void* ctx) {
     if (u16home)
         free(u16home);
 
-    // FIXME - wait for objects (socket, client, process)
-    // FIXME - forward from pty to socket and vice versa
-
-    NtClose(pi.hProcess);
     NtClose(pi.hThread);
+
+    unique_handle proc{pi.hProcess};
+
+    bool program_running = true;
+
+    while (program_running) {
+        array<HANDLE, 3> objs;
+        nt_status status;
+        IO_STATUS_BLOCK iosb;
+        char s[4096];
+
+        objs[0] = server_handle.get();
+        objs[1] = proc.get();
+        objs[2] = sock.get();
+
+        status = NtWaitForMultipleObjects(objs.size(), objs.data(), true,
+                                          false, nullptr);
+        if (!success(status)) {
+            print_to_handle(sock.get(), "NtWaitForMultipleObjects returned {}\n", status);
+            break;
+        }
+
+        switch ((unsigned int)status - (unsigned int)nt_status::SUCCESS) {
+            case 0: { // program wrote to stdout or stderr, forward to socket
+                status = NtReadFile(server_handle.get(), 0, nullptr, nullptr, &iosb,
+                                    s, sizeof(s), nullptr, nullptr);
+
+                if (!success(status)) {
+                    print_to_handle(sock.get(), "NtReadFile returned {}\n", status);
+                    program_running = false;
+                    break;
+                }
+
+                if (iosb.Information == 0)
+                    continue;
+
+                auto sp = span(s, iosb.Information);
+
+                while (!sp.empty()) {
+                    status = NtWriteFile(sock.get(), 0, nullptr, nullptr,
+                                         &iosb, sp.data(), (uint32_t)sp.size(), nullptr, nullptr);
+                    if (!success(status)) {
+                        print_to_handle(sock.get(), "NtReadFile returned {}\n", status);
+                        program_running = false;
+                        break;
+                    }
+
+                    sp = span(sp.data() + iosb.Information, sp.size() - iosb.Information);
+                }
+
+                break;
+            }
+
+            case 1: // program finished
+                program_running = false;
+                break;
+
+            case 2: { // received data from socket, forward to program stdin
+                status = NtReadFile(sock.get(), 0, nullptr, nullptr, &iosb,
+                                    s, sizeof(s), nullptr, nullptr);
+
+                if (!success(status)) {
+                    print_to_handle(sock.get(), "NtReadFile returned {}\n", status);
+                    program_running = false;
+                    break;
+                }
+
+                if (iosb.Information == 0)
+                    continue;
+
+                auto sp = span(s, iosb.Information);
+
+                while (!sp.empty()) {
+                    status = NtWriteFile(server_handle.get(), 0, nullptr, nullptr,
+                                         &iosb, sp.data(), (uint32_t)sp.size(), nullptr, nullptr);
+                    if (!success(status)) {
+                        print_to_handle(sock.get(), "NtReadFile returned {}\n", status);
+                        program_running = false;
+                        break;
+                    }
+
+                    sp = span(sp.data() + iosb.Information, sp.size() - iosb.Information);
+                }
+
+                break;
+            }
+        }
+    }
 
     return 0;
 }
