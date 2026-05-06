@@ -1288,10 +1288,11 @@ static void print_chars2(console_fb& con, font_info& font,
 
 void console_fb::print_chars(span<const char32_t> s) {
     while (!s.empty()) {
-        if (s[0] == '\n') {
+        if (s[0] == '\r')
+            cursor_x = 0;
+        else if (s[0] == '\n') {
             console_overflow();
 
-            cursor_x = 0;
             cursor_y++;
 
             if (cursor_y == console_rows)

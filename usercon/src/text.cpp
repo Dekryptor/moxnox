@@ -239,8 +239,9 @@ void console_text::handle_sgr_part_num(unsigned int num) {
 
 void console_text::print_chars(span<const char32_t> s) {
     for (auto c : s) {
-        if (c == '\n') {
+        if (c == '\r')
             cursor_x = 0;
+        else if (c == '\n') {
             cursor_y++;
 
             if (cursor_y == console_rows) {
