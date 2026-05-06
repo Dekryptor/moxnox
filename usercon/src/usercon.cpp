@@ -1288,9 +1288,10 @@ static void print_chars2(console_fb& con, font_info& font,
 
 void console_fb::print_chars(span<const char32_t> s) {
     while (!s.empty()) {
-        if (s[0] == '\r')
+        if (s[0] == '\r') {
             cursor_x = 0;
-        else if (s[0] == '\n') {
+            s = span(s.data() + 1, s.size() - 1);
+        } else if (s[0] == '\n') {
             console_overflow();
 
             cursor_y++;
@@ -1707,6 +1708,25 @@ static void run_shell(const char16_t* exe, void (*recv_func)(string_view),
     NTSTATUS status;
     MOXNOX_IOCTL_PTYCTL_CREATE_PTY ptyinfo;
 
+    auto kmsg_recv_func = [recv_func](string_view msg) {
+        while (!msg.empty()) {
+            auto nl = msg.find('\n');
+
+            if (nl == string_view::npos) {
+                recv_func(msg);
+                break;
+            }
+
+            if (nl != 0) {
+                recv_func(string_view(msg.data(), nl));
+                msg = string_view(msg.data() + nl, msg.size() - nl);
+            }
+
+            recv_func("\r\n");
+            msg = string_view(msg.data() + 1, msg.size() - 1);
+        }
+    };
+
     // open kmsg
 
     static const u16string_view kmsg_fn = u"\\dev\\kmsg";
@@ -1797,7 +1817,7 @@ static void run_shell(const char16_t* exe, void (*recv_func)(string_view),
         }
 
         if (iosb.Information != 0)
-            recv_func(string_view(s, iosb.Information));
+            kmsg_recv_func(string_view(s, iosb.Information));
     }
 
     recv_func(welcome_message1);
@@ -1887,7 +1907,7 @@ static void run_shell(const char16_t* exe, void (*recv_func)(string_view),
                 }
 
                 if (iosb.Information != 0) {
-                    recv_func(string_view(s, iosb.Information));
+                    kmsg_recv_func(string_view(s, iosb.Information));
                     flush_func();
                 }
 
