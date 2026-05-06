@@ -7,6 +7,7 @@
 #include <utility>
 #include <span>
 #include <tuple>
+#include <optional>
 
 #undef errno
 import errno;
@@ -19,6 +20,7 @@ import unique_handle;
 import kernelbase;
 import format;
 import unicode;
+import moxnox_ioctls;
 
 using namespace std;
 
@@ -59,6 +61,49 @@ void print_to_handle(HANDLE h, type_identity_t<checker<type_identity_t<Args>...>
     print_to_handle2(h, sv);
 }
 
+static optional<pair<unique_handle, unique_handle>> create_pty(HANDLE out) {
+    OBJECT_ATTRIBUTES oa;
+    UNICODE_STRING us;
+    IO_STATUS_BLOCK iosb;
+    HANDLE h;
+    nt_status status;
+    MOXNOX_IOCTL_PTYCTL_CREATE_PTY ptyinfo;
+    unique_handle ptyctl;
+
+    static const u16string_view ptyctl_fn = u"/dev/ptyctl";
+
+    // open ptyctl
+
+    us.Length = us.MaximumLength = (uint16_t)(ptyctl_fn.size() * sizeof(char16_t));
+    us.Buffer = (char16_t*)ptyctl_fn.data();
+
+    memset(&oa, 0, sizeof(oa));
+    oa.Length = sizeof(OBJECT_ATTRIBUTES);
+    oa.ObjectName = &us;
+
+    status = NtOpenFile(&h, FILE_READ_DATA | FILE_WRITE_DATA, &oa, &iosb, 0, 0);
+    if (!success(status)) {
+        print_to_handle(out, "NtOpenFile returned {} for /dev/ptyctl\n", status);
+        return nullopt;
+    }
+
+    ptyctl.reset(h);
+
+    // create pty
+
+    status = NtDeviceIoControlFile(ptyctl.get(), 0, nullptr, nullptr, &iosb,
+                                   IOCTL_MOXNOX_PTYCTL_CREATE_PTY, nullptr,
+                                   0, &ptyinfo, sizeof(ptyinfo));
+    if (!success(status)) {
+        print_to_handle(out, "IOCTL_MOXNOX_PTYCTL_CREATE_PTY returned {}\n", status);
+        return nullopt;
+    }
+
+    ptyctl.reset();
+
+    return make_pair(unique_handle{ptyinfo.client_handle}, unique_handle{ptyinfo.server_handle});
+}
+
 static uint32_t socket_thread(void* ctx) {
     unique_handle sock{(HANDLE)(uintptr_t)ctx};
     STARTUPINFOW si;
@@ -67,14 +112,21 @@ static uint32_t socket_thread(void* ctx) {
 
     // FIXME - this isn't really telnet, telnet has an actual protocol
 
+    auto ptyinfo = create_pty(sock.get());
+    if (!ptyinfo.has_value())
+        return 1;
+
+    auto& client_handle = ptyinfo->first;
+    auto& server_handle = ptyinfo->second;
+
     memset(&si, 0, sizeof(si));
     si.cb = sizeof(si);
     memset(&pi, 0, sizeof(pi));
 
     si.dwFlags = STARTF_USESTDHANDLES;
-    si.hStdInput = sock.get();
-    si.hStdOutput = sock.get();
-    si.hStdError = sock.get();
+    si.hStdInput = client_handle.get();
+    si.hStdOutput = client_handle.get();
+    si.hStdError = client_handle.get();
 
     auto home = getenv("HOME");
     if (home && home[0]) {
@@ -102,6 +154,9 @@ static uint32_t socket_thread(void* ctx) {
 
     if (u16home)
         free(u16home);
+
+    // FIXME - wait for objects (socket, client, process)
+    // FIXME - forward from pty to socket and vice versa
 
     NtClose(pi.hProcess);
     NtClose(pi.hThread);
