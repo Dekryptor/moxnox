@@ -33,6 +33,7 @@ import unwind;
 import cpu_block;
 import mem;
 import version;
+import framebuffer;
 
 using namespace std;
 
@@ -157,6 +158,9 @@ void __attribute__((noreturn)) _bsod(string_view msg, source_location sl,
 
     // don't deadlock in malloc if we BSOD'd while holding pa_spinlock
     pa_spinlock.force_unlock();
+
+    // ditto for cursor_lock and framebuffer work
+    cursor_lock.force_unlock();
 
     if (console_chardev) {
         static const char header[] = "BSOD";

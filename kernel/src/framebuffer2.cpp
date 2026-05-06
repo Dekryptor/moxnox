@@ -23,7 +23,6 @@ import bsod;
 
 using namespace std;
 
-static spinlock cursor_lock;
 static uint32_t* cursor_buffer;
 static uint16_t cursor_width, cursor_height, cursor_hotspot_x, cursor_hotspot_y;
 static uint16_t cursor_x, cursor_y;
