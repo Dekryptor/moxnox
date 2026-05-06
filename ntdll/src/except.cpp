@@ -17,6 +17,7 @@ import kernelbase;
 import ntdll;
 import ntdll_private;
 import crt;
+import termios;
 
 using namespace std;
 
@@ -194,6 +195,7 @@ static nt_status handle_exception(EXCEPTION_RECORD* exception,
 
 extern "C"
 void mn_signal(EXCEPTION_RECORD* exception, CONTEXT* context) {
+    termios tc_settings;
     char s[1024];
     auto sp = span(s, sizeof(s));
 
@@ -202,6 +204,34 @@ void mn_signal(EXCEPTION_RECORD* exception, CONTEXT* context) {
         NtContinue(context, false); // doesn't return
         unreachable();
     }
+
+    // reset terminal settings
+
+    memset(&tc_settings, 0, sizeof(tc_settings));
+
+    tc_settings.c_iflag = ICRNL | IXON;
+    tc_settings.c_oflag = OPOST | ONLCR;
+    tc_settings.c_cflag = B38400 | CS8 | CREAD | HUPCL;
+    tc_settings.c_lflag = ICANON | ECHO | ISIG | IEXTEN;
+
+    tc_settings.c_cc[VINTR] = 'C' - 0x40;
+    tc_settings.c_cc[VQUIT] = '\\' - 0x40;
+    tc_settings.c_cc[VERASE] = 0x7f;
+    tc_settings.c_cc[VKILL] = 'U' - 0x40;
+    tc_settings.c_cc[VEOF] = 'D' - 0x40;
+    tc_settings.c_cc[VSTART] = 'Q' - 0x40;
+    tc_settings.c_cc[VSTOP] = 'S' - 0x40;
+    tc_settings.c_cc[VSUSP] = 'Z' - 0x40;
+    tc_settings.c_cc[VREPRINT] = 'R' - 0x40;
+    tc_settings.c_cc[VDISCARD] = 'O' - 0x40;
+    tc_settings.c_cc[VWERASE] = 'W' - 0x40;
+    tc_settings.c_cc[VLNEXT] = 'V' - 0x40;
+    tc_settings.c_cc[VMIN] = 1;
+
+    tc_settings.c_ispeed = 38400;
+    tc_settings.c_ospeed = 38400;
+
+    tcsetattr(STDOUT_FILENO, TCSANOW, &tc_settings);
 
     print("\e[?1049l" // disable alternative buffer
         "\e[?25h" // re-enable cursor
