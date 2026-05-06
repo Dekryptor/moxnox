@@ -14,5 +14,6 @@ do_stub "getpeername"
 do_stub "gethostname"
 do_stub "select"
 do_stub "shutdown"
+do_stub "getnameinfo"
 
 stubs_end

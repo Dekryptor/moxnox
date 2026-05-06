@@ -25,3 +25,4 @@ getpeername
 gethostname
 select
 shutdown
+getnameinfo
