@@ -214,16 +214,120 @@ nt_status pty_client::read(span<uint8_t> s, uint64_t& read_bytes) {
     return ret;
 }
 
+static size_t find_newline(span<const uint8_t> s) {
+    for (size_t i = 0; i < s.size(); i++) {
+        if (s[i] == '\n')
+            return i;
+    }
+
+    return string_view::npos;
+}
+
 nt_status pty_client::write(span<const uint8_t> s, uint64_t& written_bytes) {
-    if (disconnected)
-        return nt_status::PIPE_DISCONNECTED;
-
-    auto ret = send_pipe.write(s, written_bytes);
+    nt_status status;
 
     if (disconnected)
         return nt_status::PIPE_DISCONNECTED;
 
-    return ret;
+    // FIXME - other c_oflags?
+
+    if (settings.c_oflag & OPOST && settings.c_oflag & ONLCR) {
+        uint64_t w;
+
+        static const array<uint8_t, 2> crlf = { '\r', '\n' };
+
+        while (true) {
+            auto nl = find_newline(s);
+
+            if (nl == string_view::npos) {
+                uint64_t sent;
+
+                status = send_pipe.write(s, sent);
+
+                if (disconnected)
+                    return nt_status::PIPE_DISCONNECTED;
+
+                if (!success(status))
+                    return status;
+
+                w += sent;
+                written_bytes = w;
+                return nt_status::SUCCESS;
+            }
+
+            if (nl != 0) {
+                uint64_t sent;
+
+                status = send_pipe.write(span(s.data(), nl), sent);
+
+                if (disconnected)
+                    return nt_status::PIPE_DISCONNECTED;
+
+                if (!success(status)) {
+                    if (w == 0)
+                        return status;
+
+                    written_bytes = w;
+                    return nt_status::SUCCESS;
+                }
+
+                w += sent;
+                s = span(s.data() + sent, s.size() - sent);
+
+                if (sent < nl)
+                    continue;
+            }
+
+            if (s.empty()) {
+                written_bytes = w;
+                return nt_status::SUCCESS;
+            }
+
+            // send CRLF
+
+            {
+                uint64_t sent;
+
+                status = send_pipe.write(crlf, sent);
+
+                if (disconnected)
+                    return nt_status::PIPE_DISCONNECTED;
+
+                if (!success(status)) {
+                    if (w == 0)
+                        return status;
+
+                    written_bytes = w;
+                    return nt_status::SUCCESS;
+                }
+
+                if (sent == 1) { // only sent CR
+                    status = send_pipe.write(span(crlf.data() + 1, 1), sent);
+
+                    if (disconnected)
+                        return nt_status::PIPE_DISCONNECTED;
+
+                    if (!success(status)) {
+                        if (w == 0)
+                            return status;
+
+                        written_bytes = w;
+                        return nt_status::SUCCESS;
+                    }
+                }
+            }
+
+            s = span(s.data() + 1, s.size() - 1);
+            w++;
+        }
+    } else {
+        status = send_pipe.write(s, written_bytes);
+
+        if (disconnected)
+            return nt_status::PIPE_DISCONNECTED;
+
+        return status;
+    }
 }
 
 sync_object& pty_client::get_sync_object() {
