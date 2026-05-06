@@ -71,8 +71,6 @@ int tcsetattr(int fd, int optional_actions, const termios* p) {
 }
 
 extern "C"
-speed_t cfgetospeed(const termios* /*p*/) {
-    print("FIXME - cfgetospeed\n");
-
-    return 0; // FIXME
+speed_t cfgetospeed(const termios* p) {
+    return p->c_cflag & CBAUD;
 }
