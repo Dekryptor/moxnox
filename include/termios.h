@@ -80,6 +80,7 @@ struct termios {
 #define PARODD  0x0200
 #define HUPCL   0x0400
 #define CLOCAL  0x0800
+#define CBAUD   0x100f
 #define CRTSCTS 0x80000000
 
 /* c_lflag */
@@ -135,25 +136,37 @@ struct termios {
 #define TCION  3
 
 /* Baud rates */
-#define B0      0
-#define B50     50
-#define B75     75
-#define B110    110
-#define B134    134
-#define B150    150
-#define B200    200
-#define B300    300
-#define B600    600
-#define B1200   1200
-#define B1800   1800
-#define B2400   2400
-#define B4800   4800
-#define B9600   9600
-#define B19200  19200
-#define B38400  38400
-#define B57600  57600
-#define B115200 115200
-#define B230400 230400
+#define B0       0x00000000
+#define B50      0x00000001
+#define B75      0x00000002
+#define B110     0x00000003
+#define B134     0x00000004
+#define B150     0x00000005
+#define B200     0x00000006
+#define B300     0x00000007
+#define B600     0x00000008
+#define B1200    0x00000009
+#define B1800    0x0000000a
+#define B2400    0x0000000b
+#define B4800    0x0000000c
+#define B9600    0x0000000d
+#define B19200   0x0000000e
+#define B38400   0x0000000f
+#define B57600   0x00001001
+#define B115200  0x00001002
+#define B230400  0x00001003
+#define B460800  0x00001004
+#define B500000  0x00001005
+#define B576000  0x00001006
+#define B921600  0x00001007
+#define B1000000 0x00001008
+#define B1152000 0x00001009
+#define B1500000 0x0000100a
+#define B2000000 0x0000100b
+#define B2500000 0x0000100c
+#define B3000000 0x0000100d
+#define B3500000 0x0000100e
+#define B4000000 0x0000100f
 
 #ifdef __cplusplus
 extern "C" {

@@ -161,6 +161,7 @@ constexpr tcflag_t _PARENB = PARENB;
 constexpr tcflag_t _PARODD = PARODD;
 constexpr tcflag_t _HUPCL = HUPCL;
 constexpr tcflag_t _CLOCAL = CLOCAL;
+constexpr tcflag_t _CBAUD = CBAUD;
 constexpr tcflag_t _CRTSCTS = CRTSCTS;
 #undef CSIZE
 #undef CS5
@@ -173,6 +174,7 @@ constexpr tcflag_t _CRTSCTS = CRTSCTS;
 #undef PARODD
 #undef HUPCL
 #undef CLOCAL
+#undef CBAUD
 #undef CRTSCTS
 export constexpr tcflag_t CSIZE = _CSIZE;
 export constexpr tcflag_t CS5 = _CS5;
@@ -185,6 +187,7 @@ export constexpr tcflag_t PARENB = _PARENB;
 export constexpr tcflag_t PARODD = _PARODD;
 export constexpr tcflag_t HUPCL = _HUPCL;
 export constexpr tcflag_t CLOCAL = _CLOCAL;
+export constexpr tcflag_t CBAUD = _CBAUD;
 export constexpr tcflag_t CRTSCTS = _CRTSCTS;
 
 /* c_lflag */
@@ -343,6 +346,18 @@ constexpr size_t _B38400 = B38400;
 constexpr size_t _B57600 = B57600;
 constexpr size_t _B115200 = B115200;
 constexpr size_t _B230400 = B230400;
+constexpr size_t _B460800 = B460800;
+constexpr size_t _B500000 = B500000;
+constexpr size_t _B576000 = B576000;
+constexpr size_t _B921600 = B921600;
+constexpr size_t _B1000000 = B1000000;
+constexpr size_t _B1152000 = B1152000;
+constexpr size_t _B1500000 = B1500000;
+constexpr size_t _B2000000 = B2000000;
+constexpr size_t _B2500000 = B2500000;
+constexpr size_t _B3000000 = B3000000;
+constexpr size_t _B3500000 = B3500000;
+constexpr size_t _B4000000 = B4000000;
 #undef B0
 #undef B50
 #undef B75
@@ -362,6 +377,18 @@ constexpr size_t _B230400 = B230400;
 #undef B57600
 #undef B115200
 #undef B230400
+#undef B460800
+#undef B500000
+#undef B576000
+#undef B921600
+#undef B1000000
+#undef B1152000
+#undef B1500000
+#undef B2000000
+#undef B2500000
+#undef B3000000
+#undef B3500000
+#undef B4000000
 export constexpr speed_t B0 = _B0;
 export constexpr speed_t B50 = _B50;
 export constexpr speed_t B75 = _B75;
@@ -381,3 +408,15 @@ export constexpr speed_t B38400 = _B38400;
 export constexpr speed_t B57600 = _B57600;
 export constexpr speed_t B115200 = _B115200;
 export constexpr speed_t B230400 = _B230400;
+export constexpr size_t B460800 = _B460800;
+export constexpr size_t B500000 = _B500000;
+export constexpr size_t B576000 = _B576000;
+export constexpr size_t B921600 = _B921600;
+export constexpr size_t B1000000 = _B1000000;
+export constexpr size_t B1152000 = _B1152000;
+export constexpr size_t B1500000 = _B1500000;
+export constexpr size_t B2000000 = _B2000000;
+export constexpr size_t B2500000 = _B2500000;
+export constexpr size_t B3000000 = _B3000000;
+export constexpr size_t B3500000 = _B3500000;
+export constexpr size_t B4000000 = _B4000000;
