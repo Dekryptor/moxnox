@@ -10,6 +10,7 @@ extern "C" {
 
 char* ttyname(int fd);
 uid_t getuid(void);
+unsigned int alarm(unsigned int seconds);
 
 #ifdef __cplusplus
 }

@@ -1,0 +1,51 @@
+#include <termios.h>
+
+#define HAVE_ISASCII 1
+#define HAVE_ISXDIGIT 1
+#define HAVE_MEMMOVE 1
+#define HAVE_POLL 1
+#define HAVE_PUTENV 1
+#define HAVE_SETLOCALE 1
+#define HAVE_STRCASECMP 1
+#define HAVE_STRCOLL 1
+#define HAVE_STRPBRK 1
+#define HAVE_VSNPRINTF 1
+
+#define HAVE_STDLIB_H 1
+#define HAVE_STRING_H 1
+#define HAVE_STDARG_H 1
+#define HAVE_STDBOOL_H 1
+#define HAVE_LIMITS_H 1
+#define HAVE_LOCALE_H 1
+#define HAVE_MEMORY_H 1
+#define HAVE_UNISTD_H 1
+#define HAVE_FCNTL_H 1
+#define HAVE_SYS_TIME_H 1
+#define HAVE_WCHAR_H 1
+#define HAVE_WCTYPE_H 1
+
+#define HAVE_WCHAR_T 1
+#define HAVE_WCTYPE_T 1
+#define HAVE_WINT_T 1
+#define HAVE_ISWCTYPE 1
+#define HAVE_ISWLOWER 1
+#define HAVE_ISWUPPER 1
+#define HAVE_TOWLOWER 1
+#define HAVE_TOWUPPER 1
+#define HAVE_WCSCOLL 1
+#define HAVE_WCSLEN 1
+#define HAVE_WCSNLEN 1
+#define HAVE_WCRTOMB 1
+#define HAVE_MBSTATE_T 1
+#define HAVE_MBRLEN 1
+#define HAVE_MBRTOWC 1
+#define HAVE_MBSRTOWCS 1
+
+#define HAVE_DIRENT_H 1
+#define HAVE_TIMEVAL 1
+#define HAVE_GETTIMEOFDAY 1
+#define HAVE_TERMCAP_H 1
+
+#define BRACKETED_PASTE_DEFAULT 1
+#define PROTOTYPES 1
+#define __PROTOTYPES 1

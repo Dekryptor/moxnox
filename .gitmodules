@@ -40,3 +40,6 @@
 [submodule "ports/curl/repo"]
 	path = ports/curl/repo
 	url = https://git.burntcomma.com/moxnox/curl
+[submodule "ports/readline/repo"]
+	path = ports/readline/repo
+	url = https://git.burntcomma.com/moxnox/readline
