@@ -45,7 +45,7 @@ static const u8string_view codes[] = {
     u8"p", // KEY_P
     u8"[", // KEY_LEFTBRACE
     u8"]", // KEY_RIGHTBRACE
-    u8"\n", // KEY_ENTER
+    u8"\r", // KEY_ENTER
     u8"", // KEY_LEFTCTRL
     u8"a", // KEY_A
     u8"s", // KEY_S
@@ -275,7 +275,7 @@ static const u8string_view codes_ctrl[] = {
     u8"\x10", // KEY_P
     u8"\x1b", // KEY_LEFTBRACE
     u8"\x1d", // KEY_RIGHTBRACE
-    u8"\n", // KEY_ENTER
+    u8"\r", // KEY_ENTER
     u8"", // KEY_LEFTCTRL
     u8"\x01", // KEY_A
     u8"\x13", // KEY_S
