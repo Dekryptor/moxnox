@@ -211,6 +211,13 @@ nt_status pty_client::read(span<uint8_t> s, uint64_t& read_bytes) {
             return nt_status::PIPE_DISCONNECTED;
     }
 
+    if (success(ret) && settings.c_iflag & ICRNL) {
+        for (uint64_t i = 0; i < read_bytes; i++) {
+            if (s[i] == '\r')
+                s[i] = '\n';
+        }
+    }
+
     return ret;
 }
 
