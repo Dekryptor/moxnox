@@ -125,6 +125,7 @@ _access
 _getcwd
 isblank
 toupper
+putc
 
 ; stubs
 __setusermatherr
@@ -139,7 +140,6 @@ _filelengthi64
 fsetpos
 getwc
 _lseeki64
-putc
 putwc
 strcoll
 strftime

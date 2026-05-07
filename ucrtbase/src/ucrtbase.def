@@ -157,3 +157,4 @@ _access
 _getcwd
 isblank
 toupper
+putc

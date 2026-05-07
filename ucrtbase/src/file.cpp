@@ -1332,3 +1332,17 @@ int _access(const char* path, int mode) {
     *_errno() = EINVAL;
     return -1;
 }
+
+extern "C"
+int putc(int c, FILE* file) {
+    auto c2 = (char)c;
+
+    __lock_file(file);
+    auto ret = __fwrite_nolock(&c2, 1, 1, file);
+    __unlock_file(file);
+
+    if (ret != 1)
+        return EOF;
+    else
+        return 0;
+}
