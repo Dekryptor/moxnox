@@ -895,6 +895,8 @@ NTSTATUS NtWriteFile(HANDLE file_handle, HANDLE, PIO_APC_ROUTINE, void*,
         return status;
     }
 
+    assert(written <= length);
+
     io_status_block->Status = nt_status::SUCCESS;
     io_status_block->Information = written;
 
