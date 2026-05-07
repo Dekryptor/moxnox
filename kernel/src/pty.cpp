@@ -2,6 +2,7 @@ module;
 
 #include <span>
 #include <mutex>
+#include <string_view>
 #include <stdint.h>
 #include <string.h>
 
