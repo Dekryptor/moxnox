@@ -1292,7 +1292,6 @@ void console_fb::print_chars(span<const char32_t> s) {
             cursor_x = 0;
             s = span(s.data() + 1, s.size() - 1);
         } else if (s[0] == '\n') {
-
             cursor_y++;
 
             if (cursor_y == console_rows) {
