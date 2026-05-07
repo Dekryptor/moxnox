@@ -240,7 +240,7 @@ nt_status pty_client::write(span<const uint8_t> s, uint64_t& written_bytes) {
     // FIXME - other c_oflags?
 
     if (settings.c_oflag & OPOST && settings.c_oflag & ONLCR) {
-        uint64_t w;
+        uint64_t w = 0;
 
         static const array<uint8_t, 2> crlf = { '\r', '\n' };
 
