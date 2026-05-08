@@ -15,3 +15,12 @@ setsockopt
 getsockopt
 listen
 accept
+htons
+htonl
+ntohs
+ntohl
+ioctlsocket
+getsockname
+getpeername
+gethostname
+select
