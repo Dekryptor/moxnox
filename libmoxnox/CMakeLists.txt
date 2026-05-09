@@ -5,10 +5,13 @@ project(moxnox)
 set(CMAKE_CXX_STANDARD 23)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
-set(DLLS ntdll
+set(DLLS
+    ntdll
     kernelbase
     ucrtbase
-    ws2_32)
+    ws2_32
+    iphlpapi
+)
 
 add_library(moxnox STATIC IMPORTED GLOBAL)
 
