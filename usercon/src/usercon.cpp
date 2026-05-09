@@ -1297,7 +1297,30 @@ void console_fb::print_chars(span<const char32_t> s) {
             if (cursor_y == console_rows) {
                 console_overflow();
                 cursor_y = console_rows - 1;
-            }
+            } else if (curline->le.next == &lines) {
+                auto line_size = offsetof(console_line, cells) * (sizeof(console_cell) * console_cols);
+
+                auto nextline = (console_line*)malloc(line_size);
+                if (!nextline) {
+                    print("malloc failed\n");
+                    return;
+                }
+
+                new (nextline) console_line;
+
+                for (unsigned int i = 0; i < console_cols; i++) {
+                    nextline->cells[i].fg_colour = fg_colour;
+                    nextline->cells[i].bg_colour = bg_colour;
+                }
+
+                insert_tail_list(lines, nextline->le);
+
+                nextline->changed = true;
+                num_lines++;
+
+                curline = nextline;
+            } else
+                curline = &containing_record<console_line>(curline->le.next);
 
             s = span(s.data() + 1, s.size() - 1);
         } else if (s[0] == '\b') {
