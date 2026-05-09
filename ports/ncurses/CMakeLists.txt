@@ -546,6 +546,9 @@ endif()
 
 install(TARGETS tset DESTINATION ${CMAKE_INSTALL_PREFIX}/bin)
 
+# FIXME - do as symlink
+install(PROGRAMS $<TARGET_FILE:tset> DESTINATION ${CMAKE_INSTALL_PREFIX}/bin RENAME reset.exe)
+
 ####
 
 add_executable(ncurses-test ncurses-test.cpp)
