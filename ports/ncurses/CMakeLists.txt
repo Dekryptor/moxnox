@@ -526,6 +526,26 @@ install(TARGETS ncurses form menu panel
     ARCHIVE EXCLUDE_FROM_ALL
 )
 
+# tset / reset
+
+add_executable(tset
+    repo/progs/tset.c
+    repo/progs/reset_cmd.c
+    repo/progs/transform.c
+    repo/progs/tty_settings.c
+)
+
+target_compile_options(tset PRIVATE ${USERSPACE_CFLAGS})
+target_compile_definitions(tset PRIVATE WIN_PTHREADS_TIME_H)
+target_include_directories(tset PRIVATE ${CMAKE_SOURCE_DIR}/include repo/include repo/ncurses repo/progs ${CMAKE_CURRENT_SOURCE_DIR})
+target_link_libraries(tset PRIVATE moxnox ncurses posixshim)
+
+if (CMAKE_C_COMPILER_ID STREQUAL "GNU")
+    target_link_options(tset PUBLIC -mcrtdll=ucrtbase)
+endif()
+
+install(TARGETS tset DESTINATION ${CMAKE_INSTALL_PREFIX}/bin)
+
 ####
 
 add_executable(ncurses-test ncurses-test.cpp)
