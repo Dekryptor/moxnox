@@ -63,5 +63,6 @@ do_stub_no_export "statvfs"
 do_stub_no_export "sigfillset"
 do_stub_no_export "fork"
 do_stub_no_export "unsetenv"
+do_stub_no_export "ttyname"
 
 stubs_end
