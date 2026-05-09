@@ -63,6 +63,7 @@ underscore_func "dup"
 underscore_func "rmdir"
 underscore_func "pipe"
 underscore_func "dup2"
+underscore_func "fstat64"
 
 redirect_name "_fseeki64", "fseeko64"
 redirect_name "_ftelli64", "ftello64"
