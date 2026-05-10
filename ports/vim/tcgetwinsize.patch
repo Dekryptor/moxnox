@@ -1,0 +1,66 @@
+--- os_unix.c	2026-06-07 02:15:18.761416705 +0100
++++ os_unix.c	2026-06-07 02:20:16.583026229 +0100
+@@ -4429,7 +4429,24 @@
+      * Try using TIOCGWINSZ first, some systems that have it also define
+      * TIOCGSIZE but don't have a struct ttysize.
+      */
+-# ifdef TIOCGWINSZ
++# ifdef HAVE_TCGETWINSIZE
++    {
++	struct winsize	ws;
++	int fd = 1;
++
++	// When stdout is not a tty, use stdin for the ioctl().
++	if (!isatty(fd) && isatty(read_cmd_fd))
++	    fd = read_cmd_fd;
++	if (tcgetwinsize(fd, &ws) == 0)
++	{
++	    columns = ws.ws_col;
++	    rows = ws.ws_row;
++#  ifdef FEAT_EVAL
++	    ch_log(NULL, "Got size with tcgetwinsize: %ld x %ld", columns, rows);
++#  endif
++	}
++    }
++# elif defined(TIOCGWINSZ)
+     {
+ 	struct winsize	ws;
+ 	int fd = 1;
+@@ -4446,7 +4463,7 @@
+ #  endif
+ 	}
+     }
+-# else // TIOCGWINSZ
++# else
+ #  ifdef TIOCGSIZE
+     {
+ 	struct ttysize	ts;
+@@ -4465,7 +4482,7 @@
+ 	}
+     }
+ #  endif // TIOCGSIZE
+-# endif // TIOCGWINSZ
++# endif
+ 
+     /*
+      * 2. get size from environment
+@@ -4522,6 +4539,11 @@
+     void
+ mch_calc_cell_size(struct cellsize *cs_out)
+ {
++#ifdef HAVE_TCGETWINSIZE
++   // tcgetwinsize does not provide pixel dimensions
++   cs_out->cs_xpixel = -1;
++   cs_out->cs_ypixel = -1;
++#else
+    // get current tty size.
+    struct winsize ws;
+    int fd = 1;
+@@ -4550,6 +4572,7 @@
+ #ifdef FEAT_EVAL
+    ch_log(NULL, "Got cell pixel size with TIOCGWINSZ: %d x %d", x_cell_size, y_cell_size);
+ #endif
++#endif // HAVE_TCGETWINSIZE
+ }
+ 
+ #if defined(FEAT_TERMINAL) || defined(PROTO)

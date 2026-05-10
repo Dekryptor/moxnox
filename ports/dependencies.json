@@ -9,6 +9,7 @@
     "ncurses": [],
     "pixman": [],
     "readline": ["ncurses"],
+    "vim": ["ncurses"],
     "zlib": [],
     "zstd": []
 }
