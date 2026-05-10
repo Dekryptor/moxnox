@@ -536,7 +536,7 @@ add_executable(tset
 )
 
 target_compile_options(tset PRIVATE ${USERSPACE_CFLAGS})
-target_compile_definitions(tset PRIVATE WIN_PTHREADS_TIME_H)
+target_compile_definitions(tset PRIVATE WIN_PTHREADS_TIME_H _UCRT)
 target_include_directories(tset PRIVATE ${CMAKE_SOURCE_DIR}/include repo/include repo/ncurses repo/progs ${CMAKE_CURRENT_SOURCE_DIR})
 target_link_libraries(tset PRIVATE moxnox ncurses posixshim)
 
