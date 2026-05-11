@@ -15,3 +15,13 @@ int toupper(int c) {
     else
         return c;
 }
+
+extern "C"
+int isalpha(int c) {
+    if (c >= 'A' && c <= 'Z')
+        return 1;
+    else if (c >= 'a' && c <= 'z')
+        return 1;
+    else
+        return 0;
+}

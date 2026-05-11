@@ -126,6 +126,7 @@ _getcwd
 isblank
 toupper
 putc
+isalpha
 
 ; stubs
 __setusermatherr
@@ -235,7 +236,6 @@ tmpfile
 _setjmpex
 clearerr
 isalnum
-isalpha
 iscntrl
 isgraph
 islower
