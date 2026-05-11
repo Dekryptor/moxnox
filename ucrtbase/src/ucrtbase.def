@@ -160,3 +160,9 @@ toupper
 putc
 isalpha
 isupper
+isalnum
+iscntrl
+isgraph
+islower
+isprint
+ispunct

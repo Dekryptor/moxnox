@@ -128,6 +128,12 @@ toupper
 putc
 isalpha
 isupper
+isprint
+iscntrl
+ispunct
+isgraph
+isalnum
+islower
 
 ; stubs
 __setusermatherr
@@ -236,11 +242,6 @@ strpbrk
 tmpfile
 _setjmpex
 clearerr
-isalnum
-iscntrl
-isgraph
-islower
-isprint
 _chdir
 _close
 _putenv
@@ -264,7 +265,6 @@ _pipe
 _popen
 _pclose
 _dup2
-ispunct
 _fullpath
 _findfirst64i32
 _findnext64i32
