@@ -159,3 +159,4 @@ isblank
 toupper
 putc
 isalpha
+isupper

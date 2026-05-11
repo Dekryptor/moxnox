@@ -127,6 +127,7 @@ isblank
 toupper
 putc
 isalpha
+isupper
 
 ; stubs
 __setusermatherr
@@ -240,7 +241,6 @@ iscntrl
 isgraph
 islower
 isprint
-isupper
 _chdir
 _close
 _putenv
