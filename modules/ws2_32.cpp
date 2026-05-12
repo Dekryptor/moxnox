@@ -101,13 +101,19 @@ struct sockaddr_in6 {
     uint32_t sin6_scope_id;
 };
 
-const int AI_PASSIVE = 0x0001;
-const int AI_CANONNAME = 0x0002;
-const int AI_NUMERICHOST = 0x0004;
-const int AI_V4MAPPED = 0x0008;
-const int AI_ALL = 0x0010;
-const int AI_ADDRCONFIG = 0x0020;
-const int AI_NUMERICSERV = 0x0400;
+const int AI_PASSIVE = 0x00000001;
+const int AI_CANONNAME = 0x00000002;
+const int AI_NUMERICHOST = 0x00000004;
+const int AI_NUMERICSERV = 0x00000008;
+const int AI_ALL = 0x00000100;
+const int AI_ADDRCONFIG = 0x00000400;
+const int AI_V4MAPPED = 0x00000800;
+const int AI_NON_AUTHORITATIVE = 0x00004000;
+const int AI_SECURE = 0x00008000;
+const int AI_RETURN_PREFERRED_NAMES = 0x00010000;
+const int AI_FQDN = 0x00020000;
+const int AI_FILESERVER = 0x00040000;
+const int AI_DISABLE_IDN_ENCODING = 0x00080000;
 
 const int EAI_BADFLAGS = -1;
 const int EAI_NONAME = -2;
