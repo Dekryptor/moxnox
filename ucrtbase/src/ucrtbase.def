@@ -167,3 +167,4 @@ islower
 isprint
 ispunct
 bsearch
+_setmode

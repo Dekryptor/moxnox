@@ -135,6 +135,7 @@ isgraph
 isalnum
 islower
 bsearch
+_setmode
 
 ; stubs
 __setusermatherr
@@ -219,7 +220,6 @@ wcrtomb_s
 __stdio_common_vswprintf
 qsort
 perror
-_setmode
 _mkdir
 atoi
 _ctime64

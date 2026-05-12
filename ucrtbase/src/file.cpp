@@ -1346,3 +1346,10 @@ int putc(int c, FILE* file) {
     else
         return 0;
 }
+
+extern "C"
+int _setmode(int fd, int mode) {
+    print("FIXME - _setmode ({}, {})\n", fd, mode); // FIXME
+
+    return 0;
+}
