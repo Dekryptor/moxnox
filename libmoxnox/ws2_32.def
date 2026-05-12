@@ -11,10 +11,12 @@ connect
 getaddrinfo
 freeaddrinfo
 gai_strerror
-setsockopt
-getsockopt
 listen
 accept
+
+; stubs
+setsockopt
+getsockopt
 htons
 htonl
 ntohs
