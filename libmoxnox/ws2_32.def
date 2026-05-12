@@ -13,14 +13,14 @@ freeaddrinfo
 gai_strerror
 listen
 accept
-
-; stubs
-setsockopt
-getsockopt
 htons
 htonl
 ntohs
 ntohl
+
+; stubs
+setsockopt
+getsockopt
 ioctlsocket
 getsockname
 getpeername

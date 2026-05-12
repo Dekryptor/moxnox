@@ -13,3 +13,7 @@ freeaddrinfo
 gai_strerror
 listen
 accept
+htonl
+htons
+ntohl
+ntohs

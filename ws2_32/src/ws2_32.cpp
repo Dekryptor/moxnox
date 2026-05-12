@@ -1,16 +1,19 @@
-#include "../../modules/lconv.h"
+#include <stdint.h>
+#include <string.h>
+#include <bit>
 
-import errno;
 import nt;
 import ucrtbase;
 import ws2_32;
 import unique_handle;
 import moxnox_ioctls;
 
-#include <stdint.h>
-#include <string.h>
+#undef errno
+import errno;
 
 static const char16_t netctl_path[] = u"/dev/netctl";
+
+using namespace std;
 
 extern "C"
 SOCKET socket(int af, int type, int protocol) {
@@ -180,6 +183,26 @@ SOCKET accept(SOCKET s, sockaddr* addr, int* addrlen) {
     *addrlen = params_out.addrlen;
 
     return (SOCKET)params_out.sock;
+}
+
+extern "C"
+uint32_t htonl(uint32_t hostlong) {
+    return byteswap(hostlong);
+}
+
+extern "C"
+uint16_t htons(uint16_t hostshort) {
+    return byteswap(hostshort);
+}
+
+extern "C"
+uint32_t ntohl(uint32_t netlong) {
+    return byteswap(netlong);
+}
+
+extern "C"
+uint16_t ntohs(uint16_t netshort) {
+    return byteswap(netshort);
 }
 
 extern "C"
