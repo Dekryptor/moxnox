@@ -166,3 +166,4 @@ isgraph
 islower
 isprint
 ispunct
+bsearch

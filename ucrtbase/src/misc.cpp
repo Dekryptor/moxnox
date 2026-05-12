@@ -48,3 +48,28 @@ int rand() {
     // like glibc, top bit always clear
     return (int)((rand_seed >> 16) & 0x7fffffff);
 }
+
+extern "C"
+void* bsearch(const void* key, const void* base, size_t nmemb, size_t size,
+              int (*compar)(const void*, const void*)) {
+    size_t start = 0, end = nmemb - 1;
+
+    if (nmemb == 0)
+        return nullptr;
+
+    while (start <= end) {
+        size_t mid = (start + end) / 2;
+        auto ptr = (char*)base + (mid * size);
+
+        auto ret = compar(key, ptr);
+
+        if (ret == 0)
+            return ptr;
+        else if (ret < 0)
+            end = mid - 1;
+        else
+            start = mid + 1;
+    }
+
+    return nullptr;
+}

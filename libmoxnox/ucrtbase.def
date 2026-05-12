@@ -134,6 +134,7 @@ ispunct
 isgraph
 isalnum
 islower
+bsearch
 
 ; stubs
 __setusermatherr
@@ -221,7 +222,6 @@ perror
 _setmode
 _mkdir
 atoi
-bsearch
 _ctime64
 _difftime64
 fmod
