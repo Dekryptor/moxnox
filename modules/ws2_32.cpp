@@ -132,8 +132,8 @@ struct addrinfo {
     int ai_socktype;
     int ai_protocol;
     size_t ai_addrlen;
-    sockaddr* ai_addr; // Windows has this field and the next swapped
     char* ai_canonname;
+    sockaddr* ai_addr;
     addrinfo* ai_next;
 };
 
