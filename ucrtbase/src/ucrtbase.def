@@ -168,3 +168,4 @@ isprint
 ispunct
 bsearch
 _setmode
+strcspn

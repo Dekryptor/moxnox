@@ -1,4 +1,5 @@
 #include <stdlib.h>
+#include <string.h>
 #include <string_view>
 
 import ucrtbase;
@@ -46,4 +47,22 @@ int _stricmp(const char* s1, const char* s2) {
 
         i++;
     }
+}
+
+extern "C"
+size_t strcspn(const char* s, const char* reject) {
+    auto rl = strlen(reject);
+    size_t ret = 0;
+
+    while (*s) {
+        for (size_t i = 0; i < rl; i++) {
+            if (*s == reject[i])
+                return ret;
+        }
+
+        s++;
+        ret++;
+    }
+
+    return ret;
 }
