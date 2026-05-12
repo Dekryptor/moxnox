@@ -3,7 +3,6 @@
 stubs_start
 
 do_stub "getsockopt"
-do_stub "ioctlsocket"
 do_stub "getsockname"
 do_stub "getpeername"
 do_stub "gethostname"

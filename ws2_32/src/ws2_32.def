@@ -18,3 +18,4 @@ htons
 ntohl
 ntohs
 setsockopt
+ioctlsocket
