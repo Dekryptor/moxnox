@@ -17,3 +17,4 @@ htonl
 htons
 ntohl
 ntohs
+setsockopt

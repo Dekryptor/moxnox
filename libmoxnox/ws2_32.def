@@ -17,9 +17,9 @@ htons
 htonl
 ntohs
 ntohl
+setsockopt
 
 ; stubs
-setsockopt
 getsockopt
 ioctlsocket
 getsockname

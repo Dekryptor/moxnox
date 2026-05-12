@@ -2,7 +2,6 @@
 
 stubs_start
 
-do_stub "setsockopt"
 do_stub "getsockopt"
 do_stub "ioctlsocket"
 do_stub "getsockname"

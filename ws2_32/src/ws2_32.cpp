@@ -7,6 +7,7 @@ import ucrtbase;
 import ws2_32;
 import unique_handle;
 import moxnox_ioctls;
+import print;
 
 #undef errno
 import errno;
@@ -203,6 +204,15 @@ uint32_t ntohl(uint32_t netlong) {
 extern "C"
 uint16_t ntohs(uint16_t netshort) {
     return byteswap(netshort);
+}
+
+extern "C"
+int setsockopt(SOCKET s, int level, int optname, const char* optval,
+               int optlen) {
+    print("FIXME - setsockopt ({}, {}, {}, {:x}, {})\n", s, level, optname,
+          (uintptr_t)optval, optlen);
+
+    return 0;
 }
 
 extern "C"
