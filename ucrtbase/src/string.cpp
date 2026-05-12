@@ -66,3 +66,27 @@ size_t strcspn(const char* s, const char* reject) {
 
     return ret;
 }
+
+extern "C"
+size_t strspn(const char* s, const char* accept) {
+    auto al = strlen(accept);
+    size_t ret = 0;
+
+    while (*s) {
+        bool match = false;
+        for (size_t i = 0; i < al; i++) {
+            if (*s == accept[i]) {
+                match = true;
+                break;
+            }
+        }
+
+        if (!match)
+            return ret;
+
+        s++;
+        ret++;
+    }
+
+    return ret;
+}

@@ -137,6 +137,7 @@ islower
 bsearch
 _setmode
 strcspn
+strspn
 
 ; stubs
 __setusermatherr
@@ -254,7 +255,6 @@ _strnicmp
 _wcsnicmp
 _unlink
 _umask
-strspn
 _lseek
 _dup
 _rmdir
