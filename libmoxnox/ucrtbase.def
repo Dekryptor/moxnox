@@ -154,6 +154,8 @@ tanh
 tanhf
 asin
 asinf
+fmod
+fmodf
 
 ; stubs
 __setusermatherr
@@ -241,7 +243,6 @@ _mkdir
 atoi
 _ctime64
 _difftime64
-fmod
 frexp
 _gmtime64
 _gmtime64_s

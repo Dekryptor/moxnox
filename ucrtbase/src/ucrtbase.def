@@ -186,3 +186,5 @@ tanh
 tanhf
 asin
 asinf
+fmod
+fmodf
