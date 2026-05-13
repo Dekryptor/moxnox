@@ -184,3 +184,5 @@ cosh
 coshf
 tanh
 tanhf
+asin
+asinf

@@ -152,6 +152,8 @@ cosh
 coshf
 tanh
 tanhf
+asin
+asinf
 
 ; stubs
 __setusermatherr

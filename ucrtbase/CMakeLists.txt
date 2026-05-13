@@ -75,6 +75,8 @@ add_library(musl STATIC
     ../ports/musl/repo/src/math/coshf.c
     ../ports/musl/repo/src/math/tanh.c
     ../ports/musl/repo/src/math/tanhf.c
+    ../ports/musl/repo/src/math/asin.c
+    ../ports/musl/repo/src/math/asinf.c
 )
 
 target_include_directories(musl PRIVATE musl_compat ../ports/musl/repo/src/include ../ports/musl/repo/src/internal ../ports/musl/repo/arch/generic)
