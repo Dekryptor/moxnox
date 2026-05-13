@@ -81,6 +81,8 @@ add_library(musl STATIC
     ../ports/musl/repo/src/math/fmodf.c
     ../ports/musl/repo/src/math/frexp.c
     ../ports/musl/repo/src/math/frexpf.c
+    ../ports/musl/repo/src/math/modf.c
+    ../ports/musl/repo/src/math/modff.c
 )
 
 target_include_directories(musl PRIVATE musl_compat ../ports/musl/repo/src/include ../ports/musl/repo/src/internal ../ports/musl/repo/arch/generic)

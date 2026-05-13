@@ -158,6 +158,8 @@ fmod
 fmodf
 frexp
 frexpf
+modf
+modff
 
 ; stubs
 __setusermatherr
@@ -253,7 +255,6 @@ _getch
 longjmp
 _localtime64
 _mktime64
-modf
 putchar
 rewind
 strpbrk

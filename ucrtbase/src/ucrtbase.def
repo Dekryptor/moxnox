@@ -190,3 +190,5 @@ fmod
 fmodf
 frexp
 frexpf
+modf
+modff
