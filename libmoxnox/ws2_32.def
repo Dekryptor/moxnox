@@ -19,10 +19,10 @@ ntohs
 ntohl
 setsockopt
 ioctlsocket
+getsockname
 
 ; stubs
 getsockopt
-getsockname
 getpeername
 gethostname
 select

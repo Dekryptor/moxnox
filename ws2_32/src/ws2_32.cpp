@@ -223,6 +223,14 @@ int ioctlsocket(SOCKET s, int32_t cmd, uint32_t* argp) {
 }
 
 extern "C"
+int getsockname(SOCKET /*s*/, sockaddr* /*name*/, int* /*namelen*/) {
+    print("FIXME - getsockname\n");
+
+    *_errno() = EINVAL;
+    return SOCKET_ERROR;
+}
+
+extern "C"
 int DllMainCRTStartup(HANDLE /*hinstDLL*/, uint32_t /*dwReason*/,
                       void* /*lpvReserved*/) {
     return 1;
