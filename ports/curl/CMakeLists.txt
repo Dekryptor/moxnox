@@ -275,6 +275,10 @@ target_include_directories(libcurl PUBLIC repo/include)
 
 target_compile_definitions(libcurl PRIVATE BUILDING_LIBCURL HAVE_CONFIG_H)
 
+# force libcurl to use select in posixshim
+target_compile_definitions(libcurl PRIVATE __INSIDE_CYGWIN__)
+target_link_libraries(libcurl PRIVATE posixshim)
+
 target_compile_options(libcurl PRIVATE
     ${USERSPACE_CFLAGS}
     -Wno-sign-conversion
