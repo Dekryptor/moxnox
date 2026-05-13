@@ -11,6 +11,7 @@ add_library(posixshim STATIC
     src/sleep.cpp
     src/signal.cpp
     src/dirname.cpp
+    src/time.cpp
 )
 
 target_compile_options(posixshim PRIVATE -fno-exceptions ${USERSPACE_CFLAGS})
