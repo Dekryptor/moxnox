@@ -156,6 +156,8 @@ asin
 asinf
 fmod
 fmodf
+frexp
+frexpf
 
 ; stubs
 __setusermatherr
@@ -243,7 +245,6 @@ _mkdir
 atoi
 _ctime64
 _difftime64
-frexp
 _gmtime64
 _gmtime64_s
 freopen

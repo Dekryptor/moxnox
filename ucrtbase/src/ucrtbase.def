@@ -188,3 +188,5 @@ asin
 asinf
 fmod
 fmodf
+frexp
+frexpf
