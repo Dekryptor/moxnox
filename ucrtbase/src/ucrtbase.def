@@ -172,3 +172,5 @@ strcspn
 strspn
 exp
 expf
+pow
+powf

@@ -53,6 +53,10 @@ add_library(musl STATIC
     ../ports/musl/repo/src/math/__math_uflowf.c
     ../ports/musl/repo/src/math/__math_xflow.c
     ../ports/musl/repo/src/math/__math_xflowf.c
+    ../ports/musl/repo/src/math/pow.c
+    ../ports/musl/repo/src/math/powf.c
+    ../ports/musl/repo/src/math/pow_data.c
+    ../ports/musl/repo/src/math/powf_data.c
 )
 
 target_include_directories(musl PRIVATE musl_compat ../ports/musl/repo/src/include ../ports/musl/repo/src/internal ../ports/musl/repo/arch/generic)

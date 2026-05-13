@@ -140,6 +140,8 @@ strcspn
 strspn
 exp
 expf
+pow
+powf
 
 ; stubs
 __setusermatherr
@@ -238,7 +240,6 @@ longjmp
 _localtime64
 _mktime64
 modf
-pow
 putchar
 rewind
 strpbrk
