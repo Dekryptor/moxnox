@@ -174,3 +174,5 @@ exp
 expf
 pow
 powf
+log
+logf

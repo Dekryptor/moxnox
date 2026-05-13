@@ -142,6 +142,8 @@ exp
 expf
 pow
 powf
+log
+logf
 
 ; stubs
 __setusermatherr
