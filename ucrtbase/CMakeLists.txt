@@ -43,6 +43,16 @@ add_library(musl STATIC
     ../ports/musl/repo/src/math/sincosf.c
     ../ports/musl/repo/src/math/trunc.c
     ../ports/musl/repo/src/math/truncf.c
+    ../ports/musl/repo/src/math/exp.c
+    ../ports/musl/repo/src/math/expf.c
+    ../ports/musl/repo/src/math/exp_data.c
+    ../ports/musl/repo/src/math/exp2f_data.c
+    ../ports/musl/repo/src/math/__math_oflow.c
+    ../ports/musl/repo/src/math/__math_oflowf.c
+    ../ports/musl/repo/src/math/__math_uflow.c
+    ../ports/musl/repo/src/math/__math_uflowf.c
+    ../ports/musl/repo/src/math/__math_xflow.c
+    ../ports/musl/repo/src/math/__math_xflowf.c
 )
 
 target_include_directories(musl PRIVATE musl_compat ../ports/musl/repo/src/include ../ports/musl/repo/src/internal ../ports/musl/repo/arch/generic)

@@ -138,6 +138,8 @@ bsearch
 _setmode
 strcspn
 strspn
+exp
+expf
 
 ; stubs
 __setusermatherr
@@ -160,7 +162,6 @@ ungetwc
 wcscoll
 wcsftime
 wcsxfrm
-exp
 rand_s
 ___mb_cur_max_func
 _wfopen

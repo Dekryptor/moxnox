@@ -170,3 +170,5 @@ bsearch
 _setmode
 strcspn
 strspn
+exp
+expf
