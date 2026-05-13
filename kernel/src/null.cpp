@@ -18,7 +18,10 @@ using namespace std;
 
 class null_chardev : public chardev {
 public:
-    null_chardev() { }
+    null_chardev() {
+        exclusive = false;
+    }
+
     nt_status read(span<uint8_t> s, uint64_t& read_bytes) override;
     nt_status write(span<const uint8_t> s, uint64_t& written_bytes) override;
 };
