@@ -146,6 +146,8 @@ log
 logf
 log10
 log10f
+sinh
+sinhf
 
 ; stubs
 __setusermatherr

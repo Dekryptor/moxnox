@@ -65,6 +65,12 @@ add_library(musl STATIC
     ../ports/musl/repo/src/math/__math_divzerof.c
     ../ports/musl/repo/src/math/log10.c
     ../ports/musl/repo/src/math/log10f.c
+    ../ports/musl/repo/src/math/sinh.c
+    ../ports/musl/repo/src/math/sinhf.c
+    ../ports/musl/repo/src/math/expm1.c
+    ../ports/musl/repo/src/math/expm1f.c
+    ../ports/musl/repo/src/math/__expo2.c
+    ../ports/musl/repo/src/math/__expo2f.c
 )
 
 target_include_directories(musl PRIVATE musl_compat ../ports/musl/repo/src/include ../ports/musl/repo/src/internal ../ports/musl/repo/arch/generic)
