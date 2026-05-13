@@ -148,6 +148,8 @@ log10
 log10f
 sinh
 sinhf
+cosh
+coshf
 
 ; stubs
 __setusermatherr
