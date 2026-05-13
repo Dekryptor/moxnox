@@ -144,6 +144,8 @@ pow
 powf
 log
 logf
+log10
+log10f
 
 ; stubs
 __setusermatherr

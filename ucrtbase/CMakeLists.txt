@@ -63,6 +63,8 @@ add_library(musl STATIC
     ../ports/musl/repo/src/math/logf_data.c
     ../ports/musl/repo/src/math/__math_divzero.c
     ../ports/musl/repo/src/math/__math_divzerof.c
+    ../ports/musl/repo/src/math/log10.c
+    ../ports/musl/repo/src/math/log10f.c
 )
 
 target_include_directories(musl PRIVATE musl_compat ../ports/musl/repo/src/include ../ports/musl/repo/src/internal ../ports/musl/repo/arch/generic)
