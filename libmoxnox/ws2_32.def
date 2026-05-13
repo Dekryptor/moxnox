@@ -25,6 +25,5 @@ getsockname
 getsockopt
 getpeername
 gethostname
-select
 shutdown
 getnameinfo
