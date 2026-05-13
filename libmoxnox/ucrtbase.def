@@ -150,6 +150,8 @@ sinh
 sinhf
 cosh
 coshf
+tanh
+tanhf
 
 ; stubs
 __setusermatherr
