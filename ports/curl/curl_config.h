@@ -432,13 +432,13 @@
 /* #undef HAVE_EVENTFD */
 
 /* If you have poll */
-/* #undef HAVE_POLL */
+#define HAVE_POLL 1
 
 /* If you have realpath */
 /* #undef HAVE_REALPATH */
 
 /* Define to 1 if you have the <poll.h> header file. */
-/* #undef HAVE_POLL_H */
+#define HAVE_POLL_H 1
 
 /* Define to 1 if you have a working POSIX-style strerror_r function. */
 /* #undef HAVE_POSIX_STRERROR_R */
