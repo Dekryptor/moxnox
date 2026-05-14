@@ -195,3 +195,4 @@ modff
 _chdir
 atol
 atoi
+_strnicmp = __strnicmp

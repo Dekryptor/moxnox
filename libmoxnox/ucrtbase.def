@@ -163,6 +163,7 @@ modff
 _chdir
 atol
 atoi
+_strnicmp
 
 ; stubs
 __setusermatherr
@@ -268,7 +269,6 @@ _putenv
 atof
 _getpid
 _mktemp
-_strnicmp
 _wcsnicmp
 _unlink
 _umask
