@@ -21,8 +21,61 @@ import kernelbase;
 import format;
 import unicode;
 import moxnox_ioctls;
+import ucrtbase;
 
 using namespace std;
+
+class unique_fd {
+public:
+    unique_fd() : fd(-1) {
+    }
+
+    explicit unique_fd(int fd) : fd(fd) {
+    }
+
+    unique_fd(unique_fd&& that) noexcept {
+        fd = that.fd;
+        that.fd = -1;
+    }
+
+    unique_fd(const unique_fd&) = delete;
+    unique_fd& operator=(const unique_fd&) = delete;
+
+    unique_fd& operator=(unique_fd&& that) noexcept {
+        if (fd >= 0)
+            _close(fd);
+
+        fd = that.fd;
+        that.fd = -1;
+
+        return *this;
+    }
+
+    ~unique_fd() {
+        if (fd < 0)
+            return;
+
+        _close(fd);
+    }
+
+    explicit operator bool() const noexcept {
+        return fd != -1;
+    }
+
+    void reset(int new_fd = -1) noexcept {
+        if (fd >= 0)
+            _close(fd);
+
+        fd = new_fd;
+    }
+
+    int get() const noexcept {
+        return fd;
+    }
+
+private:
+    int fd;
+};
 
 static void print_to_handle2(HANDLE h, string_view msg) {
     auto msg2 = span(msg.data(), msg.size());
@@ -105,14 +158,18 @@ static optional<pair<unique_handle, unique_handle>> create_pty(HANDLE out) {
 }
 
 static uint32_t socket_thread(void* ctx) {
-    unique_handle sock{(HANDLE)(uintptr_t)ctx};
+    unique_fd sockfd{(int)(uintptr_t)ctx};
     STARTUPINFOW si;
     PROCESS_INFORMATION pi;
     char16_t* u16home = nullptr;
 
+    auto sockh = (HANDLE)_get_osfhandle(sockfd.get());
+    if ((intptr_t)sockh == -1)
+        return 1;
+
     // FIXME - this isn't really telnet, telnet has an actual protocol
 
-    auto ptyinfo = create_pty(sock.get());
+    auto ptyinfo = create_pty(sockh);
     if (!ptyinfo.has_value())
         return 1;
 
@@ -144,7 +201,7 @@ static uint32_t socket_thread(void* ctx) {
 
     if (!CreateProcessW(u"/bin/shell.exe", nullptr, nullptr, nullptr,
                         false, 0, nullptr, u16home, &si, &pi)) {
-        print_to_handle(sock.get(), "CreateProcessW failed (last error {})\n", GetLastError());
+        print_to_handle(sockh, "CreateProcessW failed (last error {})\n", GetLastError());
 
         if (u16home)
             free(u16home);
@@ -169,12 +226,12 @@ static uint32_t socket_thread(void* ctx) {
 
         objs[0] = server_handle.get();
         objs[1] = proc.get();
-        objs[2] = sock.get();
+        objs[2] = sockh;
 
         status = NtWaitForMultipleObjects(objs.size(), objs.data(), true,
                                           false, nullptr);
         if (!success(status)) {
-            print_to_handle(sock.get(), "NtWaitForMultipleObjects returned {}\n", status);
+            print_to_handle(sockh, "NtWaitForMultipleObjects returned {}\n", status);
             break;
         }
 
@@ -184,7 +241,7 @@ static uint32_t socket_thread(void* ctx) {
                                     s, sizeof(s), nullptr, nullptr);
 
                 if (!success(status)) {
-                    print_to_handle(sock.get(), "NtReadFile returned {}\n", status);
+                    print_to_handle(sockh, "NtReadFile returned {}\n", status);
                     program_running = false;
                     break;
                 }
@@ -195,10 +252,10 @@ static uint32_t socket_thread(void* ctx) {
                 auto sp = span(s, iosb.Information);
 
                 while (!sp.empty()) {
-                    status = NtWriteFile(sock.get(), 0, nullptr, nullptr,
+                    status = NtWriteFile(sockh, 0, nullptr, nullptr,
                                          &iosb, sp.data(), (uint32_t)sp.size(), nullptr, nullptr);
                     if (!success(status)) {
-                        print_to_handle(sock.get(), "NtReadFile returned {}\n", status);
+                        print_to_handle(sockh, "NtReadFile returned {}\n", status);
                         program_running = false;
                         break;
                     }
@@ -214,11 +271,11 @@ static uint32_t socket_thread(void* ctx) {
                 break;
 
             case 2: { // received data from socket, forward to program stdin
-                status = NtReadFile(sock.get(), 0, nullptr, nullptr, &iosb,
+                status = NtReadFile(sockh, 0, nullptr, nullptr, &iosb,
                                     s, sizeof(s), nullptr, nullptr);
 
                 if (!success(status)) {
-                    print_to_handle(sock.get(), "NtReadFile returned {}\n", status);
+                    print_to_handle(sockh, "NtReadFile returned {}\n", status);
                     program_running = false;
                     break;
                 }
@@ -232,7 +289,7 @@ static uint32_t socket_thread(void* ctx) {
                     status = NtWriteFile(server_handle.get(), 0, nullptr, nullptr,
                                          &iosb, sp.data(), (uint32_t)sp.size(), nullptr, nullptr);
                     if (!success(status)) {
-                        print_to_handle(sock.get(), "NtReadFile returned {}\n", status);
+                        print_to_handle(sockh, "NtReadFile returned {}\n", status);
                         program_running = false;
                         break;
                     }
