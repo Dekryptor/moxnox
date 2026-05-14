@@ -161,6 +161,8 @@ frexpf
 modf
 modff
 _chdir
+atol
+atoi
 
 ; stubs
 __setusermatherr
@@ -245,7 +247,6 @@ __stdio_common_vswprintf
 qsort
 perror
 _mkdir
-atoi
 _ctime64
 _difftime64
 _gmtime64
@@ -264,7 +265,6 @@ _setjmpex
 clearerr
 _close
 _putenv
-atol
 atof
 _getpid
 _mktemp

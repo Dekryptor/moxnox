@@ -193,3 +193,5 @@ frexpf
 modf
 modff
 _chdir
+atol
+atoi

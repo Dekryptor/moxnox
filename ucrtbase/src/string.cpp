@@ -90,3 +90,52 @@ size_t strspn(const char* s, const char* accept) {
 
     return ret;
 }
+
+template<signed_integral T>
+static T str_to_num(const char* str) {
+    bool negative = false;
+
+    if (!str)
+        return 0;
+
+    while (str[0] == ' ' || str[0] == '\t') {
+        str++;
+    }
+
+    if (str[0] == '-') {
+        negative = true;
+        str++;
+    } else if (str[0] == '+')
+        str++;
+
+    T ret = 0;
+
+    while (str[0] >= '0' && str[0] <= '9') {
+        int digit = str[0] - '0';
+
+        if (!negative && (ret > numeric_limits<T>::max() / 10 || (ret == numeric_limits<T>::max() / 10 && digit > numeric_limits<T>::max() % 10)))
+            return numeric_limits<T>::max();
+        else if (negative && (-ret < numeric_limits<T>::min() / 10 || (-ret == numeric_limits<T>::min() / 10 && -digit < numeric_limits<T>::min() % 10)))
+            return numeric_limits<T>::min();
+
+        ret *= 10;
+        ret += digit;
+
+        str++;
+    }
+
+    if (negative)
+        return -ret;
+    else
+        return ret;
+}
+
+extern "C"
+long atol(const char* str) {
+    return str_to_num<long>(str);
+}
+
+extern "C"
+int atoi(const char* str) {
+    return str_to_num<int>(str);
+}
