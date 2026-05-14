@@ -1381,3 +1381,26 @@ int _setmode(int fd, int mode) {
 
     return 0;
 }
+
+extern "C"
+int _close(int fd) {
+    if (fd < 0 || (size_t)fd >= fds.size()) {
+        *_errno() = EBADF;
+        return -1;
+    }
+
+    HANDLE h = 0;
+
+    RtlEnterCriticalSection(&fds_lock);
+    swap(fds[(size_t)fd], h);
+    RtlLeaveCriticalSection(&fds_lock);
+
+    if (h == 0) {
+        *_errno() = EINVAL;
+        return -1;
+    }
+
+    NtClose(h);
+
+    return 0;
+}

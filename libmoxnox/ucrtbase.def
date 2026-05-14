@@ -165,6 +165,7 @@ atol
 atoi
 _strnicmp
 _open_osfhandle
+_close
 
 ; stubs
 __setusermatherr
@@ -265,7 +266,6 @@ strpbrk
 tmpfile
 _setjmpex
 clearerr
-_close
 _putenv
 atof
 _getpid
