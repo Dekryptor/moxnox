@@ -55,7 +55,11 @@ SOCKET socket(int af, int type, int protocol) {
         return INVALID_SOCKET;
     }
 
-    return (SOCKET)h;
+    auto fd = _open_osfhandle(h, 0);
+    if (fd == -1)
+        return INVALID_SOCKET;
+
+    return (SOCKET)fd;
 }
 
 extern "C"
@@ -72,7 +76,11 @@ int recvfrom(SOCKET s, char* buf, int len, int flags, sockaddr* from,
     params.fromlen = fromlen;
     params.recv_bytes = &recv_bytes;
 
-    auto status = NtDeviceIoControlFile((HANDLE)s, 0, nullptr, nullptr, &iosb,
+    auto h = _get_osfhandle((int)s);
+    if (h == -1)
+        return SOCKET_ERROR;
+
+    auto status = NtDeviceIoControlFile((HANDLE)h, 0, nullptr, nullptr, &iosb,
                                         IOCTL_MOXNOX_SOCKET_RECVFROM, &params,
                                         (uint32_t)sizeof(params), nullptr, 0);
     if (!success(status)) {
@@ -102,7 +110,11 @@ int sendto(SOCKET s, const char* buf, int len, int flags, const sockaddr* to,
     params.tolen = tolen;
     params.sent_bytes = &sent_bytes;
 
-    auto status = NtDeviceIoControlFile((HANDLE)s, 0, nullptr, nullptr, &iosb,
+    auto h = _get_osfhandle((int)s);
+    if (h == -1)
+        return SOCKET_ERROR;
+
+    auto status = NtDeviceIoControlFile((HANDLE)h, 0, nullptr, nullptr, &iosb,
                                         IOCTL_MOXNOX_SOCKET_SENDTO, &params,
                                         (uint32_t)sizeof(params), nullptr, 0);
     if (!success(status)) {
@@ -122,7 +134,11 @@ extern "C"
 int bind(SOCKET s, const sockaddr* addr, int addrlen) {
     IO_STATUS_BLOCK iosb;
 
-    auto status = NtDeviceIoControlFile((HANDLE)s, 0, nullptr, nullptr, &iosb,
+    auto h = _get_osfhandle((int)s);
+    if (h == -1)
+        return SOCKET_ERROR;
+
+    auto status = NtDeviceIoControlFile((HANDLE)h, 0, nullptr, nullptr, &iosb,
                                         IOCTL_MOXNOX_SOCKET_BIND, addr,
                                         (uint32_t)addrlen, nullptr, 0);
     if (!success(status)) {
@@ -137,7 +153,11 @@ extern "C"
 int connect(SOCKET s, const sockaddr* addr, int addrlen) {
     IO_STATUS_BLOCK iosb;
 
-    auto status = NtDeviceIoControlFile((HANDLE)s, 0, nullptr, nullptr, &iosb,
+    auto h = _get_osfhandle((int)s);
+    if (h == -1)
+        return SOCKET_ERROR;
+
+    auto status = NtDeviceIoControlFile((HANDLE)h, 0, nullptr, nullptr, &iosb,
                                         IOCTL_MOXNOX_SOCKET_CONNECT, addr,
                                         (uint32_t)addrlen, nullptr, 0);
     if (!success(status)) {
@@ -152,7 +172,11 @@ extern "C"
 int listen(SOCKET s, int backlog) {
     IO_STATUS_BLOCK iosb;
 
-    auto status = NtDeviceIoControlFile((HANDLE)s, 0, nullptr, nullptr, &iosb,
+    auto h = _get_osfhandle((int)s);
+    if (h == -1)
+        return SOCKET_ERROR;
+
+    auto status = NtDeviceIoControlFile((HANDLE)h, 0, nullptr, nullptr, &iosb,
                                         IOCTL_MOXNOX_SOCKET_LISTEN, &backlog,
                                         (uint32_t)sizeof(backlog), nullptr, 0);
     if (!success(status)) {
@@ -172,7 +196,11 @@ SOCKET accept(SOCKET s, sockaddr* addr, int* addrlen) {
     params_in.addr = addr;
     params_in.addrlen = *addrlen;
 
-    auto status = NtDeviceIoControlFile((HANDLE)s, 0, nullptr, nullptr, &iosb,
+    auto h = _get_osfhandle((int)s);
+    if (h == -1)
+        return SOCKET_ERROR;
+
+    auto status = NtDeviceIoControlFile((HANDLE)h, 0, nullptr, nullptr, &iosb,
                                         IOCTL_MOXNOX_SOCKET_ACCEPT, &params_in,
                                         (uint32_t)sizeof(params_in),
                                         &params_out, (uint32_t)sizeof(params_out));
@@ -183,7 +211,13 @@ SOCKET accept(SOCKET s, sockaddr* addr, int* addrlen) {
 
     *addrlen = params_out.addrlen;
 
-    return (SOCKET)params_out.sock;
+    auto fd = _open_osfhandle(params_out.sock, 0);
+    if (fd == -1) {
+        NtClose(params_out.sock);
+        return INVALID_SOCKET;
+    }
+
+    return (SOCKET)fd;
 }
 
 extern "C"
@@ -228,6 +262,11 @@ int getsockname(SOCKET /*s*/, sockaddr* /*name*/, int* /*namelen*/) {
 
     *_errno() = EINVAL;
     return SOCKET_ERROR;
+}
+
+extern "C"
+int closesocket(SOCKET s) {
+    return _close((int)s);
 }
 
 extern "C"
