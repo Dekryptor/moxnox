@@ -1297,7 +1297,7 @@ void console_fb::print_chars(span<const char32_t> s) {
             if (cursor_y == console_rows) {
                 console_overflow();
                 cursor_y = console_rows - 1;
-            } else if (curline->le.next == &lines) {
+            } else if (cursor_y >= num_lines) {
                 auto line_size = offsetof(console_line, cells) * (sizeof(console_cell) * console_cols);
 
                 auto nextline = (console_line*)malloc(line_size);
@@ -1319,8 +1319,18 @@ void console_fb::print_chars(span<const char32_t> s) {
                 num_lines++;
 
                 curline = nextline;
-            } else
-                curline = &containing_record<console_line>(curline->le.next);
+            } else {
+                unsigned int i = 0;
+
+                for (auto le = lines.next; le != &lines; le = le->next) {
+                    if (i == cursor_y) {
+                        curline = &containing_record<console_line>(le);
+                        break;
+                    }
+
+                    i++;
+                }
+            }
 
             s = span(s.data() + 1, s.size() - 1);
         } else if (s[0] == '\b') {
