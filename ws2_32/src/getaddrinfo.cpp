@@ -12,6 +12,7 @@ import unique_handle;
 import ws2_32;
 import ipv6;
 import print;
+import ucrtbase;
 
 #undef errno
 import errno;
@@ -437,6 +438,13 @@ static int dns_lookup(string_view name, addrinfo** res, int socktype,
         return EAI_SYSTEM;
     }
 
+    auto sockh = (HANDLE)_get_osfhandle(sock);
+    if ((intptr_t)sockh == -1) {
+        free(pack);
+        closesocket(sock);
+        return EAI_SYSTEM;
+    }
+
     deadline = sent_time.QuadPart + (DNS_TIMEOUT * SYSTEM_TIME_RESOLUTION);
 
     while (true) {
@@ -459,7 +467,8 @@ static int dns_lookup(string_view name, addrinfo** res, int socktype,
 
         timeout.QuadPart = - (deadline - now.QuadPart);
 
-        status = NtWaitForSingleObject((HANDLE)sock, false, &timeout);
+        // FIXME - should be poll
+        status = NtWaitForSingleObject(sockh, false, &timeout);
 
         if (status == nt_status::TIMEOUT) {
             free(pack);
