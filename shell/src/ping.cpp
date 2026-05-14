@@ -11,6 +11,7 @@ import nt;
 import print;
 import ipv6;
 import ws2_32;
+import ucrtbase;
 
 #undef errno
 import errno;
@@ -188,7 +189,7 @@ static void handle_dest_unreachable(span<const char> data, const sockaddr_in6& a
                  message, reason);
 }
 
-static void do_ping(int sock, const addrinfo& ai) {
+static void do_ping(SOCKET sock, const addrinfo& ai) {
     icmpv6_echo echo;
     PROCESS_BASIC_INFORMATION pbi;
 
@@ -197,6 +198,12 @@ static void do_ping(int sock, const addrinfo& ai) {
                                             &pbi, sizeof(pbi), nullptr);
     if (!success(status)) {
         print_stderr("NtQueryInformationProcess returned {}\n", status);
+        return;
+    }
+
+    auto sockh = (HANDLE)_get_osfhandle(sock);
+    if ((intptr_t)sockh == -1) {
+        print_stderr("_get_osfhandle failed (errno {})\n", *_errno());
         return;
     }
 
@@ -241,7 +248,8 @@ static void do_ping(int sock, const addrinfo& ai) {
 
             timeout.QuadPart = - (deadline - now.QuadPart);
 
-            status = NtWaitForSingleObject((HANDLE)sock, false, &timeout);
+            // FIXME - should actually be poll
+            status = NtWaitForSingleObject(sockh, false, &timeout);
 
             if (status == nt_status::TIMEOUT)
                 break;
