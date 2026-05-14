@@ -523,8 +523,8 @@ void handle_escape_sequence(vt100_console auto& t, string_view s) {
         else if (s.back() == 'b')
             do_repeat(t, string_view(s.data(), s.size() - 1));
         else if (s == "?25h") {
-            t.cursor_changed();
             t.enable_cursor(true);
+            t.cursor_changed();
         } else if (s == "?25l") {
             t.cursor_changed();
             t.enable_cursor(false);
