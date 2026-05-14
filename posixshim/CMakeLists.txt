@@ -12,9 +12,12 @@ add_library(posixshim STATIC
     src/signal.cpp
     src/dirname.cpp
     src/time.cpp
+    src/security.cpp
 )
 
 target_compile_options(posixshim PRIVATE -fno-exceptions ${USERSPACE_CFLAGS})
+
+target_include_directories(posixshim PRIVATE ${CMAKE_SOURCE_DIR}/include)
 
 target_link_libraries(posixshim PRIVATE print errno termios)
 target_link_libraries(posixshim PRIVATE moxnox)
