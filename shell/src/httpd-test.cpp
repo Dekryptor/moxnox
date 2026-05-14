@@ -20,12 +20,12 @@ using namespace std;
 
 static uint32_t socket_thread(void* ctx) {
     auto sock = (SOCKET)(uintptr_t)ctx;
-    IO_STATUS_BLOCK iosb;
     char buf[4096];
     char* req = nullptr;
     size_t reqlen = 0;
 
     while (true) {
+#if 0
         auto status = NtReadFile((HANDLE)sock, 0, nullptr, nullptr, &iosb,
                                  buf, sizeof(buf), nullptr, nullptr);
         if (status == nt_status::END_OF_FILE) {
@@ -37,7 +37,9 @@ static uint32_t socket_thread(void* ctx) {
             return 1;
         }
 
-#if 0
+        auto bytes = iosb.Information;
+#endif
+
         auto bytes = recv(sock, buf, sizeof(buf), 0);
         if (bytes == 0) {
             closesocket(sock);
@@ -48,8 +50,6 @@ static uint32_t socket_thread(void* ctx) {
             closesocket(sock);
             return 1;
         }
-#endif
-        auto bytes = iosb.Information;
 
         req = (char*)realloc(req, reqlen + (size_t)bytes);
         memcpy(req + reqlen, buf, (size_t)bytes);
@@ -97,19 +97,10 @@ static uint32_t socket_thread(void* ctx) {
 
         print("Received: \"{}\", \"{}\"\n", verb, first_line);
 
-#if 0
-        auto bytes2 = send(sock, resp.data(), (int)resp.size(), 0);
-        if (bytes2 < 0) {
-            print_stderr("send returned {} (errno {})\n", bytes2,
-                         errno_to_string_view(*_errno()));
-            closesocket(sock);
-            return 1;
-        }
-#endif
-
         auto resp2 = span(resp.data(), resp.size());
 
         while (true) {
+#if 0
             status = NtWriteFile((HANDLE)sock, 0, nullptr, nullptr, &iosb, resp2.data(),
                                  (uint32_t)resp2.size(), nullptr, nullptr);
             if (status == nt_status::END_OF_FILE) {
@@ -126,6 +117,19 @@ static uint32_t socket_thread(void* ctx) {
 
             resp2 = span(resp2.data() + iosb.Information,
                          resp2.size() - iosb.Information);
+#endif
+            auto bytes2 = send(sock, resp2.data(), (int)resp2.size(), 0);
+            if (bytes2 < 0) {
+                print_stderr("send returned {} (errno {})\n", bytes2,
+                            errno_to_string_view(*_errno()));
+                closesocket(sock);
+                return 1;
+            }
+
+            if (bytes2 == resp2.size())
+                break;
+
+            resp2 = span(resp2.data() + bytes2, resp2.size() - bytes2);
         }
 
         break;
