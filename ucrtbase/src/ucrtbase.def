@@ -192,3 +192,4 @@ frexp
 frexpf
 modf
 modff
+_chdir

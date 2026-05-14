@@ -160,6 +160,7 @@ frexp
 frexpf
 modf
 modff
+_chdir
 
 ; stubs
 __setusermatherr
@@ -261,7 +262,6 @@ strpbrk
 tmpfile
 _setjmpex
 clearerr
-_chdir
 _close
 _putenv
 atol

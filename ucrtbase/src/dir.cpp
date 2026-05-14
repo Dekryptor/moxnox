@@ -6,6 +6,7 @@
 import nt;
 import ucrtbase;
 import unicode;
+import print;
 
 #undef errno
 import errno;
@@ -67,4 +68,12 @@ char* _getcwd(char* buffer, int maxlen) {
     free(fni2);
 
     return buffer;
+}
+
+extern "C"
+int _chdir(const char* path) {
+    print("FIXME - _chdir \"{}\"\n", path);
+
+    *_errno() = EINVAL;
+    return -1;
 }
