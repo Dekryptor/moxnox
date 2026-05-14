@@ -1,6 +1,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <string_view>
+#include <limits>
 
 import ucrtbase;
 
