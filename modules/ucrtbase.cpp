@@ -120,6 +120,7 @@ int setvbuf(FILE* stream, char* buffer, int mode, size_t size);
 int _open(const char* path, int flags, ...);
 intptr_t _get_osfhandle(int fd);
 char* _getcwd(char *buffer, int maxlen);
+int _open_osfhandle(intptr_t osfhandle, int flags);
 
 }
 

@@ -164,6 +164,7 @@ _chdir
 atol
 atoi
 _strnicmp
+_open_osfhandle
 
 ; stubs
 __setusermatherr

@@ -1273,6 +1273,34 @@ intptr_t _get_osfhandle(int fd) {
 }
 
 extern "C"
+int _open_osfhandle(intptr_t osfhandle, int /*flags*/) {
+    optional<int> fd;
+
+    // FIXME - flags?
+
+    // FIXME - record last fd used somewhere, before we resort to searching the whole array?
+
+    RtlEnterCriticalSection(&fds_lock);
+
+    for (size_t i = 0; i < fds.size(); i++) {
+        if (fds[i] == 0) {
+            fds[i] = osfhandle;
+            fd = i;
+            break;
+        }
+    }
+
+    RtlLeaveCriticalSection(&fds_lock);
+
+    if (!fd.has_value()) {
+        *_errno() = ENFILE;
+        return -1;
+    }
+
+    return *fd;
+}
+
+extern "C"
 int _isatty(int fd) {
     IO_STATUS_BLOCK iosb;
 

@@ -196,3 +196,4 @@ _chdir
 atol
 atoi
 _strnicmp = __strnicmp
+_open_osfhandle
