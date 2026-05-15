@@ -12,12 +12,13 @@ import unicode;
 using namespace std;
 
 extern "C" int* __errno();
+extern "C" char*** ___p__environ();
 
 extern "C"
 char* getenv(const char* name) {
     auto namesv = string_view(name);
 
-    auto env = *__p__environ();
+    auto env = *___p__environ();
     if (!env)
         return nullptr;
 
