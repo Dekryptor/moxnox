@@ -93,6 +93,7 @@ static const auto DEFAULT_FG_COLOUR_TEXT = console_colour::light_grey;
 static enum console_colour bg_colour_text = DEFAULT_BG_COLOUR_TEXT;
 static enum console_colour fg_colour_text = DEFAULT_FG_COLOUR_TEXT;
 static bool bg_bright = false, fg_bright = false, bold = false;
+static bool reverse_video = false;
 
 export void flush_text_console() {
     void* flush_addr = text_console.data();
@@ -115,6 +116,9 @@ static constexpr uint16_t text_console_val(uint8_t c, enum console_colour bg,
 static void text_console_putc(uint8_t x, uint8_t y, char32_t cp,
                               enum console_colour bg, enum console_colour fg) {
     auto c = cp437(cp);
+
+    if (reverse_video)
+        swap(bg, fg);
 
     text_console[(y * console_text_inst.console_cols) + x] = text_console_val((uint8_t)c, bg, fg);
 }
@@ -154,6 +158,7 @@ void console_text::handle_sgr_part_num(unsigned int num) {
             bg_colour_text = DEFAULT_BG_COLOUR_TEXT;
 
             bold = false;
+            reverse_video = false;
             break;
 
         case 1:
@@ -162,7 +167,10 @@ void console_text::handle_sgr_part_num(unsigned int num) {
             break;
 
         // FIXME - 5 - blink
-        // FIXME - 7 - reverse video
+
+        case 7:
+            reverse_video = true;
+            break;
 
         case 22:
             bold = false;
@@ -170,6 +178,10 @@ void console_text::handle_sgr_part_num(unsigned int num) {
             break;
 
         // FIXME - 25 - not blinking
+
+        case 27:
+            reverse_video = false;
+            break;
 
         case 30:
         case 31:
