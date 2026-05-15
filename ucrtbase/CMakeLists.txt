@@ -109,6 +109,16 @@ set(SRC_FILES src/ucrtbase.cpp
     src/ctype.cpp
 )
 
+# jump through some hoops so that ucrtbase doesn't try to link to itself
+
+if(CMAKE_CXX_COMPILER_ID STREQUAL "Clang")
+    set(UCRTBASE_ALIAS_FLAGS "-Wl,/alternatename:_errno=__errno -Wl,/alternatename:strerror=__strerror -Wl,/alternatename:_lock_file=__lock_file -Wl,/alternatename:_unlock_file=__unlock_file -Wl,/alternatename:fputc=_fputc -Wl,/alternatename:localeconv=_localeconv -Wl,/alternatename:mbrtowc=_mbrtowc -Wl,/alternatename:wcrtomb=_wcrtomb")
+else()
+    set(UCRTBASE_ALIAS_FLAGS "-Wl,--defsym,_errno=__errno -Wl,--defsym,strerror=__strerror -Wl,--defsym,_lock_file=__lock_file -Wl,--defsym,_unlock_file=__unlock_file -Wl,--defsym,fputc=_fputc -Wl,--defsym,localeconv=_localeconv -Wl,--defsym,mbrtowc=_mbrtowc -Wl,--defsym,wcrtomb=_wcrtomb")
+endif()
+
+set(CMAKE_CXX_CREATE_SHARED_LIBRARY "<CMAKE_CXX_COMPILER> <CMAKE_SHARED_LIBRARY_CXX_FLAGS> <LANGUAGE_COMPILE_FLAGS> <LINK_FLAGS> -o <TARGET> -Wl,--out-implib,<TARGET_IMPLIB> -Wl,--major-image-version,<TARGET_VERSION_MAJOR>,--minor-image-version,<TARGET_VERSION_MINOR> <OBJECTS> <LINK_LIBRARIES> ${LIBSTDCXX} -lmingw32 ports/mingw-w64/libucrtbase_static.a ${LIBEH} ${LIBGCC} -lmingw32 ${LIBSTDCXX} -lmingw32 ports/mingw-w64/libucrtbase_static.a ${LIBEH} ${LIBGCC} -lmingw32 ports/mingw-w64/libmingwex.a libmoxnox/libkernelbase.a libmoxnox/libntdll.a ${UCRTBASE_ALIAS_FLAGS}")
+
 add_library(ucrtbase SHARED ${SRC_FILES})
 target_sources(ucrtbase PUBLIC FILE_SET CXX_MODULES FILES
     src/file.cpp
