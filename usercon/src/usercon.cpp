@@ -175,6 +175,7 @@ static const uint32_t DEFAULT_FG_COLOUR = vt100_colours[DEFAULT_FG_COLOUR_INDEX]
 static uint32_t bg_colour_index = 0, fg_colour_index = 7;
 static bool bg_bright = false, fg_bright = false, bold = false, italic = false;
 static uint32_t bg_colour = DEFAULT_BG_COLOUR, fg_colour = DEFAULT_FG_COLOUR;
+static bool reverse_video = false;
 
 void* operator new(size_t count) {
     return malloc(count);
@@ -210,8 +211,8 @@ void console_fb::console_overflow(unsigned int rows) {
         new (nextline) console_line;
 
         for (unsigned int i = 0; i < console_fb_inst.console_cols; i++) {
-            nextline->cells[i].fg_colour = fg_colour;
-            nextline->cells[i].bg_colour = bg_colour;
+            nextline->cells[i].fg_colour = !reverse_video ? fg_colour : bg_colour;
+            nextline->cells[i].bg_colour = !reverse_video ? bg_colour : fg_colour;
         }
 
         insert_tail_list(lines, nextline->le);
@@ -261,6 +262,7 @@ void console_fb::handle_sgr_part_num(unsigned int num) {
 
             bold = false;
             italic = false;
+            reverse_video = false;
             break;
 
         case 1:
@@ -274,7 +276,11 @@ void console_fb::handle_sgr_part_num(unsigned int num) {
 
         // FIXME - 4 - underline
         // FIXME - 5 - blink
-        // FIXME - 7 - reverse video
+
+        case 7:
+            reverse_video = true;
+            break;
+
         // FIXME - 9 - strikethrough
         // FIXME - 21 - double underline
 
@@ -289,6 +295,10 @@ void console_fb::handle_sgr_part_num(unsigned int num) {
 
         // FIXME - 24 - not underlined
         // FIXME - 25 - not blinking
+
+        case 27:
+            reverse_video = false;
+            break;
 
         case 30:
         case 31:
@@ -393,8 +403,8 @@ void console_fb::scroll_down(unsigned int rows) {
         new (firstline) console_line;
 
         for (unsigned int i = 0; i < console_fb_inst.console_cols; i++) {
-            firstline->cells[i].fg_colour = fg_colour;
-            firstline->cells[i].bg_colour = bg_colour;
+            firstline->cells[i].fg_colour = !reverse_video ? fg_colour : bg_colour;
+            firstline->cells[i].bg_colour = !reverse_video ? bg_colour : fg_colour;
         }
 
         insert_head_list(lines, firstline->le);
@@ -513,8 +523,8 @@ static bool init_font(span<const uint8_t> buf, font_info& font,
         new (curline) console_line;
 
         for (unsigned int i = 0; i < console_fb_inst.console_cols; i++) {
-            curline->cells[i].fg_colour = fg_colour;
-            curline->cells[i].bg_colour = bg_colour;
+            curline->cells[i].fg_colour = !reverse_video ? fg_colour : bg_colour;
+            curline->cells[i].bg_colour = !reverse_video ? bg_colour : fg_colour;
         }
 
         insert_tail_list(lines, curline->le);
@@ -1079,6 +1089,9 @@ static void print_chars2(console_fb& con, font_info& font,
     } else
         cur_font = &font;
 
+    auto fgc = !reverse_video ? fg_colour : bg_colour;
+    auto bgc = !reverse_video ? bg_colour : fg_colour;
+
     // append to existing buffer
 
     if (text_pos + s.size() < curline->len) {
@@ -1086,8 +1099,8 @@ static void print_chars2(console_fb& con, font_info& font,
 
         for (size_t i = 0; i < s.size(); i++) {
             curline->atts[text_pos + i].font = cur_font;
-            curline->atts[text_pos + i].fg_colour = fg_colour;
-            curline->atts[text_pos + i].bg_colour = bg_colour;
+            curline->atts[text_pos + i].fg_colour = fgc;
+            curline->atts[text_pos + i].bg_colour = bgc;
         }
     } else {
         auto new_len = max(text_pos + s.size(), curline->len);
@@ -1124,8 +1137,8 @@ static void print_chars2(console_fb& con, font_info& font,
 
         for (size_t i = 0; i < s.size(); i++) {
             a[text_pos + i].font = cur_font;
-            a[text_pos + i].fg_colour = fg_colour;
-            a[text_pos + i].bg_colour = bg_colour;
+            a[text_pos + i].fg_colour = fgc;
+            a[text_pos + i].bg_colour = bgc;
         }
 
         if (curline->text)
@@ -1202,8 +1215,8 @@ static void print_chars2(console_fb& con, font_info& font,
             c->ignore = false;
 
             if (curline->num_cells >= orig_cursor_x) {
-                c->fg_colour = fg_colour;
-                c->bg_colour = bg_colour;
+                c->fg_colour = fgc;
+                c->bg_colour = bgc;
 
                 if (&font == &normal_font) {
                     if (bold && italic)
@@ -1224,8 +1237,8 @@ static void print_chars2(console_fb& con, font_info& font,
 
             if (wide) {
                 c->ignore = true;
-                c->fg_colour = fg_colour;
-                c->bg_colour = bg_colour;
+                c->fg_colour = fgc;
+                c->bg_colour = bgc;
                 c->font = &normal_font;
 
                 c++;
@@ -1309,8 +1322,8 @@ void console_fb::print_chars(span<const char32_t> s) {
                 new (nextline) console_line;
 
                 for (unsigned int i = 0; i < console_cols; i++) {
-                    nextline->cells[i].fg_colour = fg_colour;
-                    nextline->cells[i].bg_colour = bg_colour;
+                    nextline->cells[i].fg_colour = !reverse_video ? fg_colour : bg_colour;
+                    nextline->cells[i].bg_colour = !reverse_video ? bg_colour : fg_colour;
                 }
 
                 insert_tail_list(lines, nextline->le);
