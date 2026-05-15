@@ -1156,7 +1156,7 @@ static int open2(const char* path, int flags, int pmode) {
         return -1;
     }
 
-    return fd.value();
+    return *fd;
 }
 
 extern "C"
