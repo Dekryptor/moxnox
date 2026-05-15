@@ -11,6 +11,8 @@ import unicode;
 
 using namespace std;
 
+extern "C" int* __errno();
+
 extern "C"
 char* getenv(const char* name) {
     auto namesv = string_view(name);
@@ -41,31 +43,31 @@ char* getenv(const char* name) {
 extern "C"
 errno_t _getenv_s(size_t* len, char* value, rsize_t valuesz, const char* name) {
     if (!len) {
-        *_errno() = EINVAL;
+        *__errno() = EINVAL;
         return EINVAL;
     }
 
     if (!value && valuesz > 0) {
-        *_errno() = EINVAL;
+        *__errno() = EINVAL;
         return EINVAL;
     }
 
     if (!name) {
-        *_errno() = EINVAL;
+        *__errno() = EINVAL;
         return EINVAL;
     }
 
     auto var = getenv(name);
     if (!var) {
         *len = 0;
-        *_errno() = EINVAL;
+        *__errno() = EINVAL;
         return EINVAL;
     }
 
     *len = strlen(var) + 1;
 
     if (valuesz < *len) {
-        *_errno() = ERANGE;
+        *__errno() = ERANGE;
         return ERANGE;
     }
 

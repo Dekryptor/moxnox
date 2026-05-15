@@ -305,7 +305,7 @@ FILE* __cdecl _fopen(const char* pathname, const char* mode) {
 
     if (!fd.has_value()) {
         NtClose(h);
-        *_errno() = EMFILE;
+        *__errno() = EMFILE;
         return nullptr;
     }
 
@@ -537,7 +537,7 @@ int64_t __ftelli64_nolock(FILE* file) {
     auto status = NtQueryInformationFile(f.h, &iosb, &fpi, sizeof(fpi),
                                          FILE_INFORMATION_CLASS::PositionInformation);
     if (!success(status)) {
-        *_errno() = nt_status_to_errno(status);
+        *__errno() = nt_status_to_errno(status);
         return -1;
     }
 
@@ -598,11 +598,11 @@ int __fseeki64_nolock(FILE* file, int64_t offset, int whence) {
         case _SEEK_END:
             print("FIXME - _fseeki64_nolock SEEK_END\n");
             // FIXME - call NtQueryInformationFile with FileEndOfFileInformation
-            *_errno() = EINVAL;
+            *__errno() = EINVAL;
             return -1;
 
         default:
-            *_errno() = EINVAL;
+            *__errno() = EINVAL;
             return -1;
     }
 
@@ -611,7 +611,7 @@ int __fseeki64_nolock(FILE* file, int64_t offset, int whence) {
     auto status = NtSetInformationFile(f.h, &iosb, &fpi, sizeof(fpi),
                                        FILE_INFORMATION_CLASS::PositionInformation);
     if (!success(status)) {
-        *_errno() = nt_status_to_errno(status);
+        *__errno() = nt_status_to_errno(status);
         return -1;
     }
 
@@ -927,7 +927,7 @@ int _fstat64(int fd, struct _stat64* st) {
     HANDLE h;
 
     if (fd < 0 || (size_t)fd >= fds.size()) {
-        *_errno() = EINVAL;
+        *__errno() = EINVAL;
         return -1;
     }
 
@@ -936,7 +936,7 @@ int _fstat64(int fd, struct _stat64* st) {
     RtlLeaveCriticalSection(&fds_lock);
 
     if (!h) {
-        *_errno() = EINVAL;
+        *__errno() = EINVAL;
         return -1;
     }
 
@@ -1130,7 +1130,7 @@ static int open2(const char* path, int flags, int pmode) {
                           0, nullptr, 0);
     if (!success(status)) {
         free(u16pathname);
-        *_errno() = nt_status_to_errno(status);
+        *__errno() = nt_status_to_errno(status);
         return -1;
     }
 
@@ -1152,7 +1152,7 @@ static int open2(const char* path, int flags, int pmode) {
 
     if (!fd.has_value()) {
         NtClose(h);
-        *_errno() = ENFILE;
+        *__errno() = ENFILE;
         return -1;
     }
 
@@ -1182,7 +1182,7 @@ FILE* __fdopen(int fd, const char* /*mode*/) {
     // FIXME - do something or other with mode (read, write, append?)
 
     if (fd < 0 || (size_t)fd >= fds.size()) {
-        *_errno() = EINVAL;
+        *__errno() = EINVAL;
         return nullptr;
     }
 
@@ -1191,13 +1191,13 @@ FILE* __fdopen(int fd, const char* /*mode*/) {
     RtlLeaveCriticalSection(&fds_lock);
 
     if (!h) {
-        *_errno() = EINVAL;
+        *__errno() = EINVAL;
         return nullptr;
     }
 
     auto f = new _FILE(h, fd);
     if (!f) {
-        *_errno() = ENOMEM;
+        *__errno() = ENOMEM;
         return nullptr;
     }
 
@@ -1213,7 +1213,7 @@ FILE* __fdopen(int fd, const char* /*mode*/) {
 extern "C"
 int __fileno(FILE* file) {
     if (!file) {
-        *_errno() = EINVAL;
+        *__errno() = EINVAL;
         return -1;
     }
 
@@ -1254,7 +1254,7 @@ int getchar() {
 extern "C"
 intptr_t _get_osfhandle(int fd) {
     if (fd < 0 || (size_t)fd >= fds.size()) {
-        *_errno() = EBADF;
+        *__errno() = EBADF;
         return -1;
     }
 
@@ -1265,7 +1265,7 @@ intptr_t _get_osfhandle(int fd) {
     RtlLeaveCriticalSection(&fds_lock);
 
     if (h == 0) {
-        *_errno() = EBADF;
+        *__errno() = EBADF;
         return -1;
     }
 
@@ -1293,7 +1293,7 @@ int _open_osfhandle(intptr_t osfhandle, int /*flags*/) {
     RtlLeaveCriticalSection(&fds_lock);
 
     if (!fd.has_value()) {
-        *_errno() = ENFILE;
+        *__errno() = ENFILE;
         return -1;
     }
 
@@ -1328,7 +1328,7 @@ int _write(int fd, const void* buffer, unsigned int count) {
     auto status = NtWriteFile(h, 0, nullptr, nullptr, &iosb, buffer,
                               count, nullptr, nullptr);
     if (!success(status)) {
-        *_errno() = nt_status_to_errno(status);
+        *__errno() = nt_status_to_errno(status);
         return -1;
     }
 
@@ -1346,7 +1346,7 @@ int _read(int fd, void* buffer, size_t count) {
     auto status = NtReadFile(h, 0, nullptr, nullptr, &iosb, buffer,
                              (uint32_t)count, nullptr, nullptr);
     if (!success(status)) {
-        *_errno() = nt_status_to_errno(status);
+        *__errno() = nt_status_to_errno(status);
         return -1;
     }
 
@@ -1357,7 +1357,7 @@ extern "C"
 int _access(const char* path, int mode) {
     print_stderr("FIXME - _access({}, {})\n", path ? path : "", mode);
 
-    *_errno() = EINVAL;
+    *__errno() = EINVAL;
     return -1;
 }
 
@@ -1385,7 +1385,7 @@ int _setmode(int fd, int mode) {
 extern "C"
 int _close(int fd) {
     if (fd < 0 || (size_t)fd >= fds.size()) {
-        *_errno() = EBADF;
+        *__errno() = EBADF;
         return -1;
     }
 
@@ -1396,7 +1396,7 @@ int _close(int fd) {
     RtlLeaveCriticalSection(&fds_lock);
 
     if (h == 0) {
-        *_errno() = EINVAL;
+        *__errno() = EINVAL;
         return -1;
     }
 

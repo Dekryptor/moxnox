@@ -6,6 +6,7 @@ import print;
 
 #include <stddef.h>
 #include <stdint.h>
+extern "C" int* __errno();
 
 extern "C"
 size_t _mbrtowc(wchar_t* pwc, const char* s, size_t n, mbstate_t* /*ps*/) {
@@ -26,7 +27,7 @@ size_t _mbrtowc(wchar_t* pwc, const char* s, size_t n, mbstate_t* /*ps*/) {
 
     // FIXME - proper UTF-8 handling
 
-    *_errno() = EILSEQ;
+    *__errno() = EILSEQ;
     return (size_t)-1;
 }
 
@@ -42,6 +43,6 @@ size_t _wcrtomb(char* s, wchar_t wc, mbstate_t* /*ps*/) {
 
     // FIXME - proper UTF-16 handling
 
-    *_errno() = EILSEQ;
+    *__errno() = EILSEQ;
     return (size_t)-1;
 }

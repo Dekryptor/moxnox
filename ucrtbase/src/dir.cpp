@@ -13,6 +13,8 @@ import errno;
 
 using namespace std;
 
+extern "C" int* __errno();
+
 extern "C"
 char* _getcwd(char* buffer, int maxlen) {
     nt_status status;
@@ -23,7 +25,7 @@ char* _getcwd(char* buffer, int maxlen) {
     const auto& params = *peb.ProcessParameters;
 
     if (maxlen < 0) {
-        *_errno() = ERANGE;
+        *__errno() = ERANGE;
         return nullptr;
     }
 
@@ -31,7 +33,7 @@ char* _getcwd(char* buffer, int maxlen) {
                                     &fni, sizeof(fni),
                                     FILE_INFORMATION_CLASS::NameInformation);
     if (!success(status) && status != nt_status::BUFFER_OVERFLOW) {
-        *_errno() = nt_status_to_errno(status);
+        *__errno() = nt_status_to_errno(status);
         return nullptr;
     }
 
@@ -39,7 +41,7 @@ char* _getcwd(char* buffer, int maxlen) {
 
     auto fni2 = (FILE_NAME_INFORMATION*)malloc(len);
     if (!fni2) {
-        *_errno() = ENOMEM;
+        *__errno() = ENOMEM;
         return nullptr;
     }
 
@@ -48,7 +50,7 @@ char* _getcwd(char* buffer, int maxlen) {
                                     FILE_INFORMATION_CLASS::NameInformation);
     if (!success(status)) {
         free(fni2);
-        *_errno() = nt_status_to_errno(status);
+        *__errno() = nt_status_to_errno(status);
         return nullptr;
     }
 
@@ -58,7 +60,7 @@ char* _getcwd(char* buffer, int maxlen) {
 
     if ((size_t)maxlen < u8len + 1) {
         free(fni2);
-        *_errno() = ERANGE;
+        *__errno() = ERANGE;
         return nullptr;
     }
 
@@ -74,6 +76,6 @@ extern "C"
 int _chdir(const char* path) {
     print("FIXME - _chdir \"{}\"\n", path);
 
-    *_errno() = EINVAL;
+    *__errno() = EINVAL;
     return -1;
 }
