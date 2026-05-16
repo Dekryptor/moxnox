@@ -31,7 +31,7 @@ static const u8string_view codes[] = {
     u8"0", // KEY_0
     u8"-", // KEY_MINUS
     u8"=", // KEY_EQUAL
-    u8"\b", // KEY_BACKSPACE
+    u8"\x7f", // KEY_BACKSPACE
     u8"\t", // KEY_TAB
     u8"q", // KEY_Q
     u8"w", // KEY_W
@@ -146,7 +146,7 @@ static const u8string_view codes_shift[] = {
     u8")", // KEY_0
     u8"_", // KEY_MINUS
     u8"+", // KEY_EQUAL
-    u8"\b", // KEY_BACKSPACE
+    u8"\x7f", // KEY_BACKSPACE
     u8"", // KEY_TAB
     u8"Q", // KEY_Q
     u8"W", // KEY_W
@@ -261,7 +261,7 @@ static const u8string_view codes_ctrl[] = {
     u8"0", // KEY_0
     u8"-", // KEY_MINUS
     u8"=", // KEY_EQUAL
-    u8"\b", // KEY_BACKSPACE
+    u8"\x7f", // KEY_BACKSPACE
     u8"\t", // KEY_TAB
     u8"\x11", // KEY_Q
     u8"\x17", // KEY_W
