@@ -383,10 +383,11 @@ nt_status pty_client::canonical_write(span<const uint8_t> s, uint64_t& written_b
     nt_status status;
     size_t orig_size = s.size(), bytes;
     bool echo = settings.c_lflag & ECHO;
+    bool echonl = settings.c_lflag & ECHONL;
+    bool onlcr = settings.c_oflag & OPOST && settings.c_oflag & ONLCR;
 
     // FIXME - Ctrl+D
     // FIXME - backspace
-    // FIXME - echoing
 
     auto last_nl = string_view((char*)s.data(), s.size()).find_last_of('\r');
 
@@ -413,36 +414,60 @@ nt_status pty_client::canonical_write(span<const uint8_t> s, uint64_t& written_b
 
             // write s up to and including last \r
 
-            auto sp = span(s.data(), last_nl + 1);
-
             while (true) {
-                status = recv_pipe.write(sp, bytes);
-                if (!success(status))
-                    return status;
+                auto nl = string_view((char*)s.data(), s.size()).find('\r');
+
+                if (nl == string_view::npos)
+                    break;
+
+                auto sp = span(s.data(), nl + 1);
+
+                while (true) {
+                    status = recv_pipe.write(sp, bytes);
+                    if (!success(status))
+                        return status;
+
+                    if (bytes == sp.size())
+                        break;
+
+                    sp = span(sp.data() + bytes, sp.size() - bytes);
+                }
 
                 if (echo) {
-                    size_t bytes2;
-                    auto sp2 = span(sp.data(), bytes);
+                    sp = span(s.data(), nl);
 
                     while (true) {
-                        status = send_pipe.write(sp2, bytes2);
+                        status = send_pipe.write(sp, bytes);
                         if (!success(status))
                             return status;
 
-                        if (bytes2 == sp2.size())
+                        if (bytes == sp.size())
                             break;
 
-                        sp2 = span(sp2.data() + bytes2, sp2.size() - bytes2);
+                        sp = span(sp.data() + bytes, sp.size() - bytes);
                     }
                 }
 
-                if (bytes == sp.size())
-                    break;
+                if (echo || echonl) {
+                    if (onlcr) {
+                        status = send_pipe.write("\r\n", bytes);
+                        if (!success(status))
+                            return status;
 
-                sp = span(sp.data() + bytes, sp.size() - bytes);
+                        if (bytes == 1) {
+                            status = send_pipe.write("\n", bytes);
+                            if (!success(status))
+                                return status;
+                        }
+                    } else {
+                        status = send_pipe.write("\r", bytes);
+                        if (!success(status))
+                            return status;
+                    }
+                }
+
+                s = span(s.data() + nl + 1, s.size() - nl - 1);
             }
-
-            s = span(s.data() + last_nl + 1, s.size() - last_nl - 1);
         }
 
         // write partial line to input buffer
