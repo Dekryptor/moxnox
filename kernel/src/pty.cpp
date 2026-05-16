@@ -382,6 +382,7 @@ nt_status pty_server::read(span<uint8_t> s, uint64_t& read_bytes) {
 nt_status pty_client::canonical_write(span<const uint8_t> s, uint64_t& written_bytes) {
     nt_status status;
     size_t orig_size = s.size(), bytes;
+    bool echo = settings.c_lflag & ECHO;
 
     // FIXME - Ctrl+D
     // FIXME - backspace
@@ -419,6 +420,22 @@ nt_status pty_client::canonical_write(span<const uint8_t> s, uint64_t& written_b
                 if (!success(status))
                     return status;
 
+                if (echo) {
+                    size_t bytes2;
+                    auto sp2 = span(sp.data(), bytes);
+
+                    while (true) {
+                        status = send_pipe.write(sp2, bytes2);
+                        if (!success(status))
+                            return status;
+
+                        if (bytes2 == sp2.size())
+                            break;
+
+                        sp2 = span(sp2.data() + bytes2, sp2.size() - bytes2);
+                    }
+                }
+
                 if (bytes == sp.size())
                     break;
 
@@ -434,6 +451,21 @@ nt_status pty_client::canonical_write(span<const uint8_t> s, uint64_t& written_b
 
             memcpy(&input_buffer[input_buffer_valid], s.data(), to_copy);
             input_buffer_valid += to_copy;
+
+            if (echo) {
+                auto sp = span(s.data(), to_copy);
+
+                while (true) {
+                    status = send_pipe.write(sp, bytes);
+                    if (!success(status))
+                        return status;
+
+                    if (bytes == sp.size())
+                        break;
+
+                    sp = span(sp.data() + bytes, sp.size() - bytes);
+                }
+            }
         }
     }
 
