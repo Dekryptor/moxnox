@@ -2201,17 +2201,13 @@ static void handle_serial_stdin(span<const char> s, HANDLE proc,
     for (size_t i = 0; i < s.size(); i++) {
         auto c = s[i];
 
-        if (c == 0x7f || c == '\x03') {
+        if (c == '\x03') {
             if (last_run_start == -1)
                 func(s.subspan(0, (size_t)i));
             else
                 func(s.subspan((size_t)(last_run_start + 1), i - (size_t)(last_run_start + 1)));
 
-            if (c == 0x7f) {
-                c = '\b';
-                func(span(&c, 1));
-            } else if (c == '\x03')
-                send_ctrl_c(proc);
+            send_ctrl_c(proc);
 
             last_run_start = (int)i;
         }
