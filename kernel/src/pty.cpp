@@ -3,6 +3,7 @@ module;
 #include <span>
 #include <mutex>
 #include <string_view>
+#include <array>
 #include <stdint.h>
 #include <string.h>
 
@@ -20,6 +21,7 @@ import scheduler;
 import thread;
 import objects;
 import termios;
+import rwsem;
 
 using namespace std;
 
@@ -50,11 +52,16 @@ public:
                     span<uint8_t> outbuf, uintptr_t& written) override;
 
     void server_disconnected();
+    nt_status canonical_write(span<const uint8_t> s, uint64_t& written_bytes);
 
     pipe& recv_pipe;
     pipe& send_pipe;
     bool disconnected = false;
     termios settings;
+
+    rwsem input_buffer_lock;
+    array<char, 4096> input_buffer;
+    size_t input_buffer_valid = 0;
 
 private:
     nt_status tcgetattr(span<uint8_t> outbuf, uintptr_t& written);
@@ -372,8 +379,74 @@ nt_status pty_server::read(span<uint8_t> s, uint64_t& read_bytes) {
     return client.send_pipe.read(s, read_bytes);
 }
 
+nt_status pty_client::canonical_write(span<const uint8_t> s, uint64_t& written_bytes) {
+    nt_status status;
+    size_t orig_size = s.size(), bytes;
+
+    // FIXME - Ctrl+D
+    // FIXME - backspace
+    // FIXME - echoing
+
+    auto last_nl = string_view((char*)s.data(), s.size()).find_last_of('\r');
+
+    {
+        lock_guard lock(input_buffer_lock);
+
+        if (last_nl != string_view::npos) {
+            if (input_buffer_valid > 0) {
+                auto buf = span((uint8_t*)input_buffer.data(), input_buffer_valid);
+
+                while (true) {
+                    status = recv_pipe.write(buf, bytes);
+                    if (!success(status))
+                        return status;
+
+                    if (bytes == buf.size())
+                        break;
+
+                    buf = span(buf.data() + bytes, buf.size() - bytes);
+                }
+
+                input_buffer_valid = 0;
+            }
+
+            // write s up to and including last \r
+
+            auto sp = span(s.data(), last_nl + 1);
+
+            while (true) {
+                status = recv_pipe.write(sp, bytes);
+                if (!success(status))
+                    return status;
+
+                if (bytes == sp.size())
+                    break;
+
+                sp = span(sp.data() + bytes, sp.size() - bytes);
+            }
+
+            s = span(s.data() + last_nl + 1, s.size() - last_nl - 1);
+        }
+
+        // write partial line to input buffer
+        if (!s.empty() && input_buffer_valid < input_buffer.size()) {
+            size_t to_copy = min(s.size(), input_buffer.size() - input_buffer_valid);
+
+            memcpy(&input_buffer[input_buffer_valid], s.data(), to_copy);
+            input_buffer_valid += to_copy;
+        }
+    }
+
+    written_bytes = orig_size; // discard excess data rather than doing a partial write
+
+    return nt_status::SUCCESS;
+}
+
 nt_status pty_server::write(span<const uint8_t> s, uint64_t& written_bytes) {
-    return client.recv_pipe.write(s, written_bytes);
+    if (client.settings.c_lflag & ICANON) // FIXME - do we need a spinlock for this?
+        return client.canonical_write(s, written_bytes);
+    else
+        return client.recv_pipe.write(s, written_bytes);
 }
 
 sync_object& pty_server::get_sync_object() {
