@@ -465,6 +465,11 @@ nt_status pty_client::canonical_write(span<const uint8_t> s, uint64_t& written_b
             nt_status status;
             size_t bytes;
 
+            if (sp.empty()) {
+                recv_pipe.set_eof_pending();
+                return nt_status::SUCCESS;
+            }
+
             while (true) {
                 status = recv_pipe.write(sp, bytes);
                 if (!success(status))
