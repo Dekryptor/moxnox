@@ -136,7 +136,7 @@ static nt_status create_pty(span<uint8_t> outbuf, uintptr_t& written) {
     settings.c_iflag = ICRNL | IXON;
     settings.c_oflag = OPOST | ONLCR;
     settings.c_cflag = B38400 | CS8 | CREAD | HUPCL;
-    settings.c_lflag = ICANON | ECHO | ISIG | IEXTEN;
+    settings.c_lflag = ICANON | ECHO | ECHOE | ECHOK | ISIG | IEXTEN;
 
     settings.c_cc[VINTR] = 'C' - 0x40;
     settings.c_cc[VQUIT] = '\\' - 0x40;
