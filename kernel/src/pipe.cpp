@@ -40,6 +40,8 @@ public:
 
     void clear() override;
 
+    void set_eof_pending();
+
     uint8_t* buf;
     unsigned int buf_pages;
     size_t buf_unread = 0;
@@ -48,6 +50,7 @@ public:
     spinlock lock;
     event not_full_event;
     list_entry flushable_le;
+    bool eof_pending = false;
 };
 
 class named_duplex_pipe_client : public chardev {
@@ -261,6 +264,23 @@ nt_status pipe::write(span<const uint8_t> s, uint64_t& written_bytes) {
     return nt_status::SUCCESS;
 }
 
+void pipe::set_eof_pending() {
+    sync_lock sl;
+    lock_guard l(sl);
+    lock_guard l2(lock);
+
+    if (eof_pending)
+        return;
+
+    eof_pending = true;
+
+    if (!signalled) {
+        signalled = true;
+
+        wake_up_waiters(waiters);
+    }
+}
+
 NTSTATUS pipe::read(span<uint8_t> s, uint64_t& read_bytes) {
     size_t copied = 0;
 
@@ -295,6 +315,12 @@ NTSTATUS pipe::read(span<uint8_t> s, uint64_t& read_bytes) {
 
         if (buf_unread == 0) {
             read_bytes = 0;
+
+            if (eof_pending) {
+                eof_pending = false;
+                return nt_status::END_OF_FILE;
+            }
+
             return nt_status::SUCCESS;
         }
 
