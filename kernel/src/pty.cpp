@@ -66,6 +66,7 @@ public:
 private:
     nt_status tcgetattr(span<uint8_t> outbuf, uintptr_t& written);
     nt_status tcsetattr(span<const uint8_t> inbuf, bool flush);
+    nt_status tcflush(span<const uint8_t> inbuf);
     size_t process_canonical_input(span<const uint8_t> new_data, uint8_t* echo_buf,
                                    bool& found_eof);
 };
@@ -577,6 +578,9 @@ nt_status pty_client::ioctl(uint32_t code, span<const uint8_t> inbuf,
         case IOCTL_MOXNOX_PTY_TCSETATTR_FLUSH:
             return tcsetattr(inbuf, true);
 
+        case IOCTL_MOXNOX_PTY_TCFLUSH:
+            return tcflush(inbuf);
+
         default:
             return nt_status::NOT_SUPPORTED;
     }
@@ -606,6 +610,19 @@ nt_status pty_client::tcsetattr(span<const uint8_t> inbuf, bool flush) {
     }
 
     memcpy(&settings, inbuf.data(), sizeof(termios));
+
+    return nt_status::SUCCESS;
+}
+
+nt_status pty_client::tcflush(span<const uint8_t> inbuf) {
+    if (inbuf.size() < sizeof(int))
+        return nt_status::BUFFER_TOO_SMALL;
+
+    auto queue_selector = *(int*)inbuf.data();
+
+    print("FIXME - tcflush {}\n", queue_selector);
+
+    // FIXME
 
     return nt_status::SUCCESS;
 }
