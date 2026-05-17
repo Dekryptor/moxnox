@@ -379,6 +379,27 @@ nt_status pty_server::read(span<uint8_t> s, uint64_t& read_bytes) {
     return client.send_pipe.read(s, read_bytes);
 }
 
+static void process_backspaces(span<uint8_t>& buf, uint8_t bs) {
+    size_t j = 0;
+
+    for (size_t i = 0; i < buf.size(); i++) {
+        if (buf[i] == bs) {
+            if (j > 0) {
+                j--;
+
+                while (j > 0 && (buf[j] & 0xc0) == 0x80) {
+                    j--;
+                }
+            }
+        } else {
+            buf[j] = buf[i];
+            j++;
+        }
+    }
+
+    buf = span(buf.data(), j);
+}
+
 nt_status pty_client::canonical_write(span<const uint8_t> s, uint64_t& written_bytes) {
     nt_status status;
     size_t orig_size = s.size(), bytes;
@@ -454,18 +475,76 @@ nt_status pty_client::canonical_write(span<const uint8_t> s, uint64_t& written_b
         lock_guard lock(input_buffer_lock);
 
         if (last_nl != string_view::npos) {
-            if (input_buffer_valid > 0) {
-                auto buf = span((uint8_t*)input_buffer.data(), input_buffer_valid);
+            auto do_line = [this, bs](span<const uint8_t> sp) -> nt_status {
+                nt_status status;
+                size_t bytes;
+                uint8_t* buf = nullptr;
+                auto bspos = string_view((char*)sp.data(), sp.size()).find(bs);
+
+                if (bspos != string_view::npos) {
+                    buf = (uint8_t*)malloc(sp.size());
+                    if (!buf) {
+                        print("malloc failed\n");
+                        return nt_status::INSUFFICIENT_RESOURCES;
+                    }
+
+                    memcpy(buf, sp.data(), sp.size());
+
+                    auto sp2 = span(buf, sp.size());
+
+                    process_backspaces(sp2, bs);
+
+                    sp = span(buf, sp2.size());
+                }
 
                 while (true) {
-                    status = recv_pipe.write(buf, bytes);
-                    if (!success(status))
-                        return status;
+                    status = recv_pipe.write(sp, bytes);
+                    if (!success(status)) {
+                        if (buf)
+                            free(buf);
 
-                    if (bytes == buf.size())
+                        return status;
+                    }
+
+                    if (bytes == sp.size())
                         break;
 
-                    buf = span(buf.data() + bytes, buf.size() - bytes);
+                    sp = span(sp.data() + bytes, sp.size() - bytes);
+                }
+
+                if (buf)
+                    free(buf);
+
+                return nt_status::SUCCESS;
+            };
+
+            if (input_buffer_valid > 0) {
+                if (s[0] == '\r') {
+                    status = do_line(span((uint8_t*)input_buffer.data(), input_buffer_valid));
+                    if (!success(status))
+                        return status;
+                } else {
+                    auto nl = string_view((char*)s.data(), s.size()).find('\r');
+                    auto len = input_buffer_valid + nl;
+
+                    auto buf = (uint8_t*)malloc(len);
+                    if (!buf) {
+                        print("malloc failed\n");
+                        return nt_status::INSUFFICIENT_RESOURCES;
+                    }
+
+                    memcpy(buf, input_buffer.data(), input_buffer_valid);
+                    memcpy(buf + input_buffer_valid, s.data(), nl);
+
+                    status = do_line(span(buf, len));
+                    if (!success(status)) {
+                        free(buf);
+                        return status;
+                    }
+
+                    free(buf);
+
+                    s = span(s.data() + nl, s.size() - nl);
                 }
 
                 input_buffer_valid = 0;
@@ -479,18 +558,9 @@ nt_status pty_client::canonical_write(span<const uint8_t> s, uint64_t& written_b
                 if (nl == string_view::npos)
                     break;
 
-                auto sp = span(s.data(), nl + 1);
-
-                while (true) {
-                    status = recv_pipe.write(sp, bytes);
-                    if (!success(status))
-                        return status;
-
-                    if (bytes == sp.size())
-                        break;
-
-                    sp = span(sp.data() + bytes, sp.size() - bytes);
-                }
+                status = do_line(span(s.data(), nl + 1));
+                if (!success(status))
+                    return status;
 
                 if (echo) {
                     status = do_echo(span(s.data(), nl));
@@ -526,6 +596,12 @@ nt_status pty_client::canonical_write(span<const uint8_t> s, uint64_t& written_b
 
             memcpy(&input_buffer[input_buffer_valid], s.data(), to_copy);
             input_buffer_valid += to_copy;
+
+            auto sp = span((uint8_t*)input_buffer.data(), input_buffer_valid);
+
+            process_backspaces(sp, bs);
+
+            input_buffer_valid = sp.size();
 
             if (echo) {
                 status = do_echo(span(s.data(), to_copy));
