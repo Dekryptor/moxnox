@@ -620,9 +620,27 @@ nt_status pty_client::tcflush(span<const uint8_t> inbuf) {
 
     auto queue_selector = *(int*)inbuf.data();
 
-    print("FIXME - tcflush {}\n", queue_selector);
+    switch (queue_selector) {
+        case TCIFLUSH:
+        case TCOFLUSH:
+        case TCIOFLUSH:
+            break;
 
-    // FIXME
+        default:
+            return nt_status::INVALID_PARAMETER;
+    }
+
+    if (queue_selector == TCIFLUSH || queue_selector == TCIOFLUSH) {
+        {
+            lock_guard lock(input_buffer_lock);
+            input_buffer_valid = 0;
+        }
+
+        recv_pipe.clear();
+    }
+
+    if (queue_selector == TCOFLUSH || queue_selector == TCIOFLUSH)
+        send_pipe.clear();
 
     return nt_status::SUCCESS;
 }
