@@ -592,11 +592,18 @@ nt_status pty_client::tcgetattr(span<uint8_t> outbuf, uintptr_t& written) {
     return nt_status::SUCCESS;
 }
 
-nt_status pty_client::tcsetattr(span<const uint8_t> inbuf, bool /*flush*/) {
+nt_status pty_client::tcsetattr(span<const uint8_t> inbuf, bool flush) {
     if (inbuf.size() < sizeof(termios))
         return nt_status::BUFFER_TOO_SMALL;
 
-    // FIXME - flush
+    if (flush) {
+        {
+            lock_guard lock(input_buffer_lock);
+            input_buffer_valid = 0;
+        }
+
+        recv_pipe.clear();
+    }
 
     memcpy(&settings, inbuf.data(), sizeof(termios));
 
