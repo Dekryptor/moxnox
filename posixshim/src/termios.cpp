@@ -74,3 +74,22 @@ extern "C"
 speed_t cfgetospeed(const termios* p) {
     return p->c_cflag & CBAUD;
 }
+
+extern "C"
+int tcflush(int fd, int queue_selector) {
+    IO_STATUS_BLOCK iosb;
+
+    auto h = (HANDLE)_get_osfhandle(fd);
+    if ((intptr_t)h < 0)
+        return -1;
+
+    auto status = NtDeviceIoControlFile((HANDLE)h, 0, nullptr, nullptr, &iosb,
+                                        IOCTL_MOXNOX_PTY_TCFLUSH, &queue_selector,
+                                        sizeof(queue_selector), nullptr, 0);
+    if (!success(status)) {
+        *_errno() = nt_status_to_errno(status);
+        return -1;
+    }
+
+    return 0;
+}

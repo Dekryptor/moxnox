@@ -2,7 +2,6 @@
 
 stubs_start
 
-do_stub_no_export "tcflush"
 do_stub_no_export "sleep"
 do_stub_no_export "clock_gettime"
 do_stub_no_export "dlopen"
