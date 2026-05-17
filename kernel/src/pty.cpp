@@ -508,6 +508,12 @@ nt_status pty_client::canonical_write(span<const uint8_t> s, uint64_t& written_b
 
             input_buffer_valid = 0;
 
+            if (!echo && echonl) {
+                status = send_pipe.write("\r", bytes);
+                if (!success(status))
+                    return status;
+            }
+
             if ((echo || echonl) && onlcr) {
                 status = send_pipe.write("\n", bytes);
                 if (!success(status))
