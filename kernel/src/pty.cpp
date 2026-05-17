@@ -6,6 +6,7 @@ module;
 #include <array>
 #include <stdint.h>
 #include <string.h>
+#include <stdlib.h>
 
 export module pty;
 
