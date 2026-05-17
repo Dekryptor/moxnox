@@ -140,7 +140,7 @@ static nt_status create_pty(span<uint8_t> outbuf, uintptr_t& written) {
     settings.c_iflag = ICRNL | IXON;
     settings.c_oflag = OPOST | ONLCR;
     settings.c_cflag = B38400 | CS8 | CREAD | HUPCL;
-    settings.c_lflag = ICANON | ECHO | ECHOE | ECHOK | ISIG | IEXTEN;
+    settings.c_lflag = ICANON | ECHO | ECHOE | ECHOK | ECHOCTL | ISIG | IEXTEN;
 
     settings.c_cc[VINTR] = 'C' - 0x40;
     settings.c_cc[VQUIT] = '\\' - 0x40;
@@ -379,6 +379,7 @@ nt_status pty_server::read(span<uint8_t> s, uint64_t& read_bytes) {
 size_t pty_client::process_canonical_input(span<const uint8_t> new_data,
                                            uint8_t* echo_buf, bool& found_eof) {
     bool echoe = settings.c_lflag & ECHOE;
+    bool echoctl = settings.c_lflag & ECHOCTL;
     bool icrnl = settings.c_iflag & ICRNL;
     bool onlcr = settings.c_oflag & OPOST && settings.c_oflag & ONLCR;
     auto bs = settings.c_cc[VERASE];
@@ -424,6 +425,21 @@ size_t pty_client::process_canonical_input(span<const uint8_t> new_data,
 
             if (ptr) {
                 *ptr = '\n';
+                ptr++;
+            }
+        } else if (echoctl && (new_data[i] < 0x20 || new_data[i] == 0x7f) && new_data[i] != '\n' && new_data[i] != '\t') { // FIXME - also not START or STOP
+            if (input_buffer_valid < input_buffer.size()) {
+                input_buffer[input_buffer_valid] = new_data[i];
+                input_buffer_valid++;
+            }
+
+            if (ptr) {
+                *ptr = '^';
+                ptr++;
+            }
+
+            if (ptr) {
+                *ptr = new_data[i] ^ 0x40;
                 ptr++;
             }
         } else {
