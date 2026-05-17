@@ -66,7 +66,8 @@ public:
 private:
     nt_status tcgetattr(span<uint8_t> outbuf, uintptr_t& written);
     nt_status tcsetattr(span<const uint8_t> inbuf, bool flush);
-    size_t process_canonical_input(span<const uint8_t> new_data, uint8_t* echo_buf);
+    size_t process_canonical_input(span<const uint8_t> new_data, uint8_t* echo_buf,
+                                   bool& found_eof);
 };
 
 class pty_server : public chardev {
@@ -381,9 +382,10 @@ nt_status pty_server::read(span<uint8_t> s, uint64_t& read_bytes) {
 }
 
 size_t pty_client::process_canonical_input(span<const uint8_t> new_data,
-                                           uint8_t* echo_buf) {
+                                           uint8_t* echo_buf, bool& found_eof) {
     bool echoe = settings.c_lflag & ECHOE;
     auto bs = settings.c_cc[VERASE];
+    auto eof = settings.c_cc[VEOF];
     auto* ptr = echo_buf;
 
     for (size_t i = 0; i < new_data.size(); i++) {
@@ -409,6 +411,9 @@ size_t pty_client::process_canonical_input(span<const uint8_t> new_data,
                     }
                 }
             }
+        } else if (new_data[i] == eof) {
+            found_eof = true;
+            break;
         } else {
             if (input_buffer_valid < input_buffer.size()) {
                 input_buffer[input_buffer_valid] = new_data[i];
@@ -478,6 +483,7 @@ nt_status pty_client::canonical_write(span<const uint8_t> s, uint64_t& written_b
             uint8_t* echobuf = nullptr;
             auto nl = string_view((char*)s.data(), s.size()).find('\r');
             size_t linelen = nl == string_view::npos ? s.size() : (nl + 1);
+            bool found_eof = false;
 
             if (echo) {
                 echobuf = (uint8_t*)malloc(3 * linelen);
@@ -487,7 +493,8 @@ nt_status pty_client::canonical_write(span<const uint8_t> s, uint64_t& written_b
                 }
             }
 
-            auto echosize = process_canonical_input(span(s.data(), linelen), echobuf);
+            auto echosize = process_canonical_input(span(s.data(), linelen),
+                                                    echobuf, found_eof);
 
             if (echo) {
                 status = do_echo(span(echobuf, echosize));
@@ -499,7 +506,7 @@ nt_status pty_client::canonical_write(span<const uint8_t> s, uint64_t& written_b
                 free(echobuf);
             }
 
-            if (nl == string_view::npos)
+            if (nl == string_view::npos && !found_eof)
                 break;
 
             status = do_line(span((uint8_t*)input_buffer.data(), input_buffer_valid));
@@ -507,6 +514,9 @@ nt_status pty_client::canonical_write(span<const uint8_t> s, uint64_t& written_b
                 return status;
 
             input_buffer_valid = 0;
+
+            if (found_eof)
+                break;
 
             if (!echo && echonl) {
                 status = send_pipe.write("\r", bytes);
