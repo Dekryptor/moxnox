@@ -223,13 +223,6 @@ nt_status pty_client::read(span<uint8_t> s, uint64_t& read_bytes) {
             return nt_status::PIPE_DISCONNECTED;
     }
 
-    if (success(ret) && settings.c_iflag & ICRNL) {
-        for (uint64_t i = 0; i < read_bytes; i++) {
-            if (s[i] == '\r')
-                s[i] = '\n';
-        }
-    }
-
     return ret;
 }
 
@@ -386,6 +379,8 @@ nt_status pty_server::read(span<uint8_t> s, uint64_t& read_bytes) {
 size_t pty_client::process_canonical_input(span<const uint8_t> new_data,
                                            uint8_t* echo_buf, bool& found_eof) {
     bool echoe = settings.c_lflag & ECHOE;
+    bool icrnl = settings.c_iflag & ICRNL;
+    bool onlcr = settings.c_oflag & OPOST && settings.c_oflag & ONLCR;
     auto bs = settings.c_cc[VERASE];
     auto eof = settings.c_cc[VEOF];
     auto* ptr = echo_buf;
@@ -416,6 +411,21 @@ size_t pty_client::process_canonical_input(span<const uint8_t> new_data,
         } else if (new_data[i] == eof) {
             found_eof = true;
             break;
+        } else if (new_data[i] == '\r' && icrnl) {
+            if (input_buffer_valid < input_buffer.size()) {
+                input_buffer[input_buffer_valid] = '\n';
+                input_buffer_valid++;
+            }
+
+            if (ptr && onlcr) {
+                *ptr = '\r';
+                ptr++;
+            }
+
+            if (ptr) {
+                *ptr = '\n';
+                ptr++;
+            }
         } else {
             if (input_buffer_valid < input_buffer.size()) {
                 input_buffer[input_buffer_valid] = new_data[i];
@@ -529,12 +539,12 @@ nt_status pty_client::canonical_write(span<const uint8_t> s, uint64_t& written_b
                 status = send_pipe.write("\r", bytes);
                 if (!success(status))
                     return status;
-            }
 
-            if ((echo || echonl) && onlcr) {
-                status = send_pipe.write("\n", bytes);
-                if (!success(status))
-                    return status;
+                if (onlcr) {
+                    status = send_pipe.write("\n", bytes);
+                    if (!success(status))
+                        return status;
+                }
             }
 
             s = span(s.data() + nl + 1, s.size() - nl - 1);
