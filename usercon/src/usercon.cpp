@@ -1349,13 +1349,6 @@ void console_fb::print_chars(span<const char32_t> s) {
         } else if (s[0] == '\b') {
             if (cursor_x > 0)
                 cursor_x--;
-            else {
-                cursor_x = console_cols - 1;
-                cursor_y--;
-
-                if (cursor_x != console_cols - 1)
-                    cursor_x++;
-            }
 
             s = span(s.data() + 1, s.size() - 1);
         } else if (s[0] < ' ') {

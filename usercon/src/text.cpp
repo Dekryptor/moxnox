@@ -261,13 +261,8 @@ void console_text::print_chars(span<const char32_t> s) {
                 cursor_y = console_rows - 1;
             }
         } else if (c == '\b') {
-            if (cursor_x > 0) { // FIXME
+            if (cursor_x > 0)
                 cursor_x--;
-
-                // FIXME - only if console_output_mode & ENABLE_PROCESSED_OUTPUT
-                text_console_putc((uint8_t)cursor_x, (uint8_t)cursor_y, ' ',
-                                  bg_colour_text, fg_colour_text);
-            }
         } else {
             text_console_putc((uint8_t)cursor_x, (uint8_t)cursor_y, c,
                               bg_colour_text, fg_colour_text);
