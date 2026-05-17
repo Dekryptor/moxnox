@@ -384,10 +384,69 @@ nt_status pty_client::canonical_write(span<const uint8_t> s, uint64_t& written_b
     size_t orig_size = s.size(), bytes;
     bool echo = settings.c_lflag & ECHO;
     bool echonl = settings.c_lflag & ECHONL;
+    bool echoe = settings.c_lflag & ECHOE;
     bool onlcr = settings.c_oflag & OPOST && settings.c_oflag & ONLCR;
+    auto bs = settings.c_cc[VERASE];
 
     // FIXME - Ctrl+D
     // FIXME - backspace
+
+    auto do_echo = [this, echoe, bs](span<const uint8_t> sp) -> nt_status {
+        size_t bytes;
+
+        while (true) {
+            span<const uint8_t> sp2;
+
+            if (echoe) {
+                auto bspos = string_view((char*)sp.data(), sp.size()).find(bs);
+
+                if (bspos == string_view::npos)
+                    sp2 = sp;
+                else
+                    sp2 = span(sp.data(), bspos);
+            } else
+                sp2 = sp;
+
+            if (!sp2.empty()) {
+                while (true) {
+                    auto status = send_pipe.write(sp2, bytes);
+                    if (!success(status))
+                        return status;
+
+                    if (bytes == sp2.size())
+                        break;
+
+                    sp2 = span(sp2.data() + bytes, sp2.size() - bytes);
+                }
+            }
+
+            sp = span(sp.data() + sp2.size(), sp.size() - sp2.size());
+
+            if (sp.empty())
+                break;
+
+            if (sp[0] == bs) {
+                static const string_view bssv = "\b \b";
+
+                sp2 = span((uint8_t*)bssv.data(), bssv.size());
+
+                while (true) {
+                    auto status = send_pipe.write(sp2, bytes);
+                    if (!success(status))
+                        return status;
+
+                    if (bytes == sp2.size())
+                        break;
+
+                    sp2 = span(sp2.data() + bytes, sp2.size() - bytes);
+                }
+
+                sp = span(sp.data() + 1, sp.size() - 1);
+            }
+        }
+
+        return nt_status::SUCCESS;
+    };
 
     auto last_nl = string_view((char*)s.data(), s.size()).find_last_of('\r');
 
@@ -434,18 +493,9 @@ nt_status pty_client::canonical_write(span<const uint8_t> s, uint64_t& written_b
                 }
 
                 if (echo) {
-                    sp = span(s.data(), nl);
-
-                    while (true) {
-                        status = send_pipe.write(sp, bytes);
-                        if (!success(status))
-                            return status;
-
-                        if (bytes == sp.size())
-                            break;
-
-                        sp = span(sp.data() + bytes, sp.size() - bytes);
-                    }
+                    status = do_echo(span(s.data(), nl));
+                    if (!success(status))
+                        return status;
                 }
 
                 if (echo || echonl) {
@@ -478,18 +528,9 @@ nt_status pty_client::canonical_write(span<const uint8_t> s, uint64_t& written_b
             input_buffer_valid += to_copy;
 
             if (echo) {
-                auto sp = span(s.data(), to_copy);
-
-                while (true) {
-                    status = send_pipe.write(sp, bytes);
-                    if (!success(status))
-                        return status;
-
-                    if (bytes == sp.size())
-                        break;
-
-                    sp = span(sp.data() + bytes, sp.size() - bytes);
-                }
+                status = do_echo(span(s.data(), to_copy));
+                if (!success(status))
+                    return status;
             }
         }
     }
