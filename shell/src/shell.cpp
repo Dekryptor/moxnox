@@ -5,6 +5,7 @@
 #include <span>
 #include <charconv>
 #include <chrono>
+#include <utility>
 
 using namespace std;
 
@@ -1131,11 +1132,6 @@ loop:
 
             buflen = 0;
             cursor_pos = 0;
-        } else if (c == '\x04') { // Ctrl+D
-            if (buflen == 0) {
-                print("\n");
-                NtTerminateProcess(NtCurrentProcess(), nt_status::SUCCESS);
-            }
         } else if (c == '\n') {
             process_lines();
             print("{}", prompt);
@@ -1263,7 +1259,15 @@ int main() {
                                     nullptr, nullptr, &iosb, s, sizeof(s),
                                     nullptr, nullptr);
 
-                if (!success(status)) {
+                if (status == nt_status::END_OF_FILE) { // Ctrl+D
+                    if (buflen == 0) {
+                        print("\n");
+                        NtTerminateProcess(NtCurrentProcess(), nt_status::SUCCESS);
+                        unreachable();
+                    }
+
+                    continue;
+                } else if (!success(status)) {
                     print_stderr("NtReadFile returned {}\n", status);
                     break;
                 }
