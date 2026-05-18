@@ -1,5 +1,6 @@
 #pragma once
 
+#include <stdlib.h>
 #include <stddef.h>
 #include <winsock2.h>
 
