@@ -1505,7 +1505,7 @@ NTSTATUS NtCreateEvent(HANDLE* event_handle, ACCESS_MASK desired_access,
                        EVENT_TYPE event_type, bool initial_state);
 NTSTATUS NtSetEvent(HANDLE event_handle, int32_t* previous_state);
 NTSTATUS mn_poll(mn_poll_entry* entries, size_t num_entries,
-                 LARGE_INTEGER* timeout);
+                 const LARGE_INTEGER* timeout);
 
 };
 

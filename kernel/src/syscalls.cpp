@@ -1536,7 +1536,7 @@ NTSTATUS user_NtSetEvent(HANDLE event_handle, int32_t* us_previous_state) {
 
 extern "C"
 NTSTATUS user_mn_poll(mn_poll_entry* us_entries, size_t num_entries,
-                      LARGE_INTEGER* us_timeout) {
+                      const LARGE_INTEGER* us_timeout) {
     nt_status ret;
     LARGE_INTEGER timeout;
 
