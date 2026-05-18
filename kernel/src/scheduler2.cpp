@@ -822,3 +822,11 @@ void set_current_thread_waiting() {
 
     yield();
 }
+
+extern "C"
+NTSTATUS mn_poll(mn_poll_entry* /*entries*/, size_t /*num_entries*/,
+                 LARGE_INTEGER* /*timeout*/) {
+    print("FIXME - mn_poll\n"); // FIXME
+
+    return nt_status::NOT_IMPLEMENTED;
+}

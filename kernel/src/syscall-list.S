@@ -406,4 +406,4 @@ syscall_func "NtContinue", 2
 #else
 syscall_stub "NtContinue"
 #endif
-syscall_stub "mn_poll"
+syscall_func "mn_poll", 3
