@@ -5,6 +5,7 @@
 #include <stdlib.h>
 #include <stdint.h>
 #include <string.h>
+#include <poll.h>
 
 import nt;
 import moxnox_ioctls;
@@ -438,18 +439,12 @@ static int dns_lookup(string_view name, addrinfo** res, int socktype,
         return EAI_SYSTEM;
     }
 
-    auto sockh = (HANDLE)_get_osfhandle(sock);
-    if ((intptr_t)sockh == -1) {
-        free(pack);
-        closesocket(sock);
-        return EAI_SYSTEM;
-    }
-
     deadline = sent_time.QuadPart + (DNS_TIMEOUT * SYSTEM_TIME_RESOLUTION);
 
     while (true) {
         char resp[512]; // maximum size of DNS packet
-        LARGE_INTEGER now, timeout;
+        LARGE_INTEGER now;
+        pollfd pfd;
 
         status = NtQuerySystemTime(&now);
         if (!success(status)) {
@@ -465,17 +460,20 @@ static int dns_lookup(string_view name, addrinfo** res, int socktype,
             return EAI_AGAIN;
         }
 
-        timeout.QuadPart = - (deadline - now.QuadPart);
+        pfd.fd = sock;
+        pfd.events = POLLIN;
 
-        // FIXME - should be poll
-        status = NtWaitForSingleObject(sockh, false, &timeout);
+        if (deadline <= now.QuadPart)
+            ret = 0;
+        else
+            ret = poll(&pfd, 1, (int)((deadline - now.QuadPart) / 10000)); // convert units of 100ns to ms
 
-        if (status == nt_status::TIMEOUT) {
+        if (ret == 0) {
             free(pack);
             closesocket(sock);
             return EAI_AGAIN;
-        } else if (!success(status)) {
-            print_stderr("NtWaitForSingleObject returned {}\n", status);
+        } else if (ret < 0) {
+            print_stderr("poll failed (errno {})\n", errno_to_string_view(*_errno()));
             free(pack);
             closesocket(sock);
             return EAI_SYSTEM;
@@ -544,10 +542,10 @@ static int dns_lookup(string_view name, addrinfo** res, int socktype,
 
         *res = nullptr;
 
-        auto ret = parse_dns_response(sp, span((uint8_t*)resp, (size_t)bytes),
-                                      num_answers, suf.type,
-                                      span(pack + sizeof(dns_header), name_len),
-                                      res);
+        ret = parse_dns_response(sp, span((uint8_t*)resp, (size_t)bytes),
+                                 num_answers, suf.type,
+                                 span(pack + sizeof(dns_header), name_len),
+                                 res);
 
         if (ret) {
             while (*res) {
