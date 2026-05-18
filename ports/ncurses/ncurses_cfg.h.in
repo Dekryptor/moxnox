@@ -8,6 +8,7 @@
 #define HAVE_LIMITS_H       1
 #define HAVE_LOCALE_H       0
 #define HAVE_MALLOC_H       0
+#define HAVE_POLL_H         1
 #define HAVE_STDINT_H       1
 #define HAVE_STDLIB_H       1
 #define HAVE_STRING_H       1
@@ -40,10 +41,10 @@
 #define HAVE_TCGETATTR      1
 
 /* I/O multiplexing */
-#define HAVE_POLL           0
+#define HAVE_POLL           1
 #define HAVE_SELECT         0
-#define HAVE_WORKING_POLL   0
-#define USE_FUNC_POLL       0
+#define HAVE_WORKING_POLL   1
+#define USE_FUNC_POLL       1
 
 /* Signals */
 #define HAVE_SIGACTION      0
