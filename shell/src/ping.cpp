@@ -2,6 +2,7 @@
 #include <stdio.h>
 #include <string.h>
 #include <stdlib.h>
+#include <poll.h>
 #include <optional>
 #include <span>
 #include <bit>
@@ -201,12 +202,6 @@ static void do_ping(SOCKET sock, const addrinfo& ai) {
         return;
     }
 
-    auto sockh = (HANDLE)_get_osfhandle(sock);
-    if ((intptr_t)sockh == -1) {
-        print_stderr("_get_osfhandle failed (errno {})\n", *_errno());
-        return;
-    }
-
     echo.type = icmpv6_type::echo_request;
     echo.code = 0;
     echo.checksum = 0; // done by kernel
@@ -235,7 +230,8 @@ static void do_ping(SOCKET sock, const addrinfo& ai) {
         deadline = sent_time.QuadPart + SYSTEM_TIME_RESOLUTION; // add 1s
 
         while (true) {
-            LARGE_INTEGER now, timeout;
+            LARGE_INTEGER now;
+            pollfd pfd;
 
             status = NtQuerySystemTime(&now);
             if (!success(status)) {
@@ -246,15 +242,15 @@ static void do_ping(SOCKET sock, const addrinfo& ai) {
             if (now.QuadPart >= deadline)
                 break;
 
-            timeout.QuadPart = - (deadline - now.QuadPart);
+            pfd.fd = sock;
+            pfd.events = POLLIN;
 
-            // FIXME - should actually be poll
-            status = NtWaitForSingleObject(sockh, false, &timeout);
+            ret = poll(&pfd, 1, (int)((deadline - now.QuadPart) / 10000)); // convert units of 100ns to ms
 
-            if (status == nt_status::TIMEOUT)
+            if (ret == 0)
                 break;
-            else if (!success(status)) {
-                print_stderr("NtWaitForSingleObject returned {}\n", status);
+            else if (ret < 0) {
+                print_stderr("poll failed (errno {})\n", errno_to_string_view(*_errno()));
                 return;
             }
 
