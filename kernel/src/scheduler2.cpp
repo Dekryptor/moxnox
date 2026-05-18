@@ -4,6 +4,7 @@ module;
 #include <optional>
 #include <atomic>
 #include <stddef.h>
+#include <poll.h>
 #include "assert.h"
 #include "timer-asm.h"
 
@@ -824,9 +825,88 @@ void set_current_thread_waiting() {
 }
 
 extern "C"
-NTSTATUS mn_poll(mn_poll_entry* /*entries*/, size_t /*num_entries*/,
-                 const LARGE_INTEGER* /*timeout*/) {
-    print("FIXME - mn_poll\n"); // FIXME
+NTSTATUS mn_poll(mn_poll_entry* entries, size_t num_entries,
+                 const LARGE_INTEGER* timeout) {
+    nt_status status;
+    optional<uint64_t> t;
 
-    return nt_status::NOT_IMPLEMENTED;
+    if (timeout) {
+        if (timeout->QuadPart > 0)
+            return nt_status::INVALID_PARAMETER;
+
+        t = -timeout->QuadPart;
+    }
+
+    auto objs = (object**)malloc(sizeof(object*) * num_entries);
+    if (!objs) {
+        print("malloc failed\n");
+        return nt_status::INSUFFICIENT_RESOURCES;
+    }
+
+    size_t valid = 0;
+
+    // FIXME - entries might not have POLLIN set
+
+    for (size_t i = 0; i < num_entries; i++) {
+        // FIXME - check handles have SYNCHRONIZE access
+
+        auto objrw = deref_handle(entries[i].h);
+        if (!objrw) {
+            // entries[i].revents = POLLNVAL;
+            continue;
+        }
+
+        if (!object_is_sync_object(objrw.get())) { // FIXME - if valid
+            for (unsigned int j = 0; j < valid; j++) {
+                object_release(*objs[j]);
+            }
+
+            free(objs);
+
+            return nt_status::INVALID_PARAMETER;
+        }
+
+        objrw.get().acquire();
+        objs[valid] = &objrw.get();
+        valid++;
+    }
+
+    if (valid != num_entries) {
+        for (size_t i = 0; i < valid; i++) {
+            object_release(*objs[i]);
+        }
+
+        free(objs);
+
+        return nt_status::SUCCESS;
+    }
+
+    // FIXME - POLLOUT
+    // FIXME - POLLERR and POLLHUP
+
+    if (num_entries == 1)
+        status = wait_for_object(*objs[0], true, t);
+    else
+        status = wait_for_objects(span(objs, num_entries), true, t);
+
+    if ((unsigned int)status < (unsigned int)nt_status::SUCCESS ||
+        (unsigned int)status >= (unsigned int)nt_status::SUCCESS + num_entries) {
+        for (unsigned int i = 0; i < valid; i++) {
+            object_release(*objs[i]);
+        }
+
+        free(objs);
+
+        return status;
+    }
+
+    entries[(unsigned int)status - (unsigned int)nt_status::SUCCESS].revents = POLLIN;
+
+    for (unsigned int i = 0; i < valid; i++) {
+        object_release(*objs[i]);
+    }
+
+    free(objs);
+
+    return nt_status::SUCCESS;
 }
