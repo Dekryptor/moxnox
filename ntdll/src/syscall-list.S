@@ -400,3 +400,4 @@ do_syscall "NtWorkerFactoryWorkerReady", 0x118e
 #ifdef __aarch64__
 do_syscall "NtContinue", 0x118f
 #endif
+do_syscall "mn_poll", 0x1190

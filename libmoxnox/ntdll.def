@@ -473,3 +473,4 @@ RtlIsProcessorFeaturePresent
 strncat
 wcscpy
 wcsncmp
+mn_poll

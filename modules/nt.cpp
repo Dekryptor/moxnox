@@ -1380,6 +1380,12 @@ const uint32_t ENABLE_VIRTUAL_TERMINAL_PROCESSING = 0x4;
 const uint32_t DISABLE_NEWLINE_AUTO_RETURN = 0x8;
 const uint32_t ENABLE_LVB_GRID_WORLDWIDE = 0x10;
 
+struct mn_poll_entry {
+    HANDLE h;
+    uint16_t events;
+    uint16_t revents;
+};
+
 extern "C" {
 
 NTSTATUS NtDisplayString(const UNICODE_STRING* string);
@@ -1498,6 +1504,9 @@ NTSTATUS NtCreateEvent(HANDLE* event_handle, ACCESS_MASK desired_access,
                        const OBJECT_ATTRIBUTES* object_attributes,
                        EVENT_TYPE event_type, bool initial_state);
 NTSTATUS NtSetEvent(HANDLE event_handle, int32_t* previous_state);
+NTSTATUS mn_poll(mn_poll_entry* entries, size_t num_entries,
+                 LARGE_INTEGER* timeout);
+
 };
 
 };
