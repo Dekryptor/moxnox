@@ -666,7 +666,7 @@ nt_status wait_for_objects(span<object*> objects, bool wait_any,
     // do actual waiting
 
     size_t mwb_size = offsetof(multiple_wait_block, entries) + (objects.size() * sizeof(waiter_object_multiple));
-    auto mwb = (multiple_wait_block*)malloc(mwb_size);
+    auto mwb = (multiple_wait_block*)malloc(mwb_size); // FIXME - don't malloc with interrupts disabled!
     if (!mwb) {
         release_sync_lock();
         enable_interrupts();
@@ -852,11 +852,11 @@ NTSTATUS mn_poll(mn_poll_entry* entries, size_t num_entries,
 
         auto objrw = deref_handle(entries[i].h);
         if (!objrw) {
-            // entries[i].revents = POLLNVAL;
+            entries[i].revents = POLLNVAL;
             continue;
         }
 
-        if (!object_is_sync_object(objrw.get())) { // FIXME - if valid
+        if (!object_is_sync_object(objrw.get())) {
             for (unsigned int j = 0; j < valid; j++) {
                 object_release(*objs[j]);
             }
@@ -884,14 +884,131 @@ NTSTATUS mn_poll(mn_poll_entry* entries, size_t num_entries,
     // FIXME - POLLOUT
     // FIXME - POLLERR and POLLHUP
 
-    if (num_entries == 1)
-        status = wait_for_object(*objs[0], true, t);
-    else
-        status = wait_for_objects(span(objs, num_entries), true, t);
+    auto current_thread = get_current_thread();
 
-    if ((unsigned int)status < (unsigned int)nt_status::SUCCESS ||
-        (unsigned int)status >= (unsigned int)nt_status::SUCCESS + num_entries) {
-        for (unsigned int i = 0; i < valid; i++) {
+    disable_interrupts();
+    acquire_sync_lock();
+
+    if (current_thread->status == thread_status::dying) {
+        release_sync_lock();
+        enable_interrupts();
+
+        for (size_t i = 0; i < num_entries; i++) {
+            object_release(*objs[i]);
+        }
+
+        free(objs);
+
+        return nt_status::THREAD_IS_TERMINATING;
+    }
+
+    for (size_t i = 0; i < num_entries; i++) {
+        auto& obj = *objs[i];
+        auto& so = object_get_sync_object(obj);
+
+        if (so.signalled) {
+            object_on_wake(obj);
+            release_sync_lock();
+            enable_interrupts();
+
+            entries[i].revents = POLLIN;
+
+            for (size_t j = 0; j < num_entries; j++) {
+                object_release(*objs[j]);
+            }
+
+            free(objs);
+
+            return nt_status::SUCCESS;
+        }
+    }
+
+    if (t.has_value() && *t == 0) {
+        release_sync_lock();
+        enable_interrupts();
+
+        for (size_t i = 0; i < num_entries; i++) {
+            object_release(*objs[i]);
+        }
+
+        free(objs);
+
+        return nt_status::TIMEOUT;
+    }
+
+    // do actual waiting
+
+    size_t mwb_size = offsetof(multiple_wait_block, entries) + (num_entries * sizeof(waiter_object_multiple));
+    auto mwb = (multiple_wait_block*)malloc(mwb_size); // FIXME - don't malloc with interrupts disabled!
+    if (!mwb) {
+        release_sync_lock();
+        enable_interrupts();
+        free(objs);
+        return nt_status::INSUFFICIENT_RESOURCES;
+    }
+
+    mwb->t = current_thread;
+    mwb->left = 1;
+    mwb->num_entries = (unsigned int)num_entries;
+
+    size_t j = 0;
+    for (size_t i = 0; i < num_entries; i++) {
+        auto& so = object_get_sync_object(*objs[i]);
+
+        if (!so.signalled) {
+            auto ent = new (&mwb->entries[j]) waiter_object_multiple;
+
+            insert_tail_list(so.waiters, ent->wait_le);
+
+            ent->block = mwb;
+            j++;
+        }
+    }
+
+    current_thread->multwait = mwb;
+
+    auto& cb = *get_cpu_block();
+
+    current_thread->status = thread_status::waiting_multiple;
+    current_thread->current_cpu = 0xffffffff;
+    current_thread->wait_interruptible = true;
+
+    if (current_thread->proc)
+        current_thread->proc->running_cpus &= ~((uint64_t)1 << cb.cpu_no);
+
+    active_cpus.fetch_and(~((uint64_t)1 << cb.cpu_no), memory_order::relaxed);
+
+    if (!t.has_value())
+        current_thread->wait_timeout = 0;
+    else {
+        current_thread->wait_timeout = *t / (SYSTEM_TIME_RESOLUTION / TICK_RATE);
+
+        if (*t % (SYSTEM_TIME_RESOLUTION / TICK_RATE))
+            current_thread->wait_timeout++;
+
+        insert_tail_list(thread_list_timeout, current_thread->timeout_le);
+    }
+
+    yield(); // releases sync_lock
+
+    auto index = mwb->index;
+    free(mwb);
+
+    status = nt_status::SUCCESS;
+
+    if (current_thread->kill_on_wake) {
+        current_thread->kill_on_wake = false;
+        current_thread->status = thread_status::dying;
+        status = nt_status::THREAD_IS_TERMINATING;
+    } else if (current_thread->status == thread_status::dying)
+        status = nt_status::THREAD_IS_TERMINATING;
+    else if (current_thread->suspend_count.load() != 0)
+        status = nt_status::ALERTED;
+    else if (t.has_value() && current_thread->wait_timeout == 0)
+        status = nt_status::TIMEOUT;
+
+    if (status != nt_status::SUCCESS) {
+        for (size_t i = 0; i < num_entries; i++) {
             object_release(*objs[i]);
         }
 
@@ -900,9 +1017,9 @@ NTSTATUS mn_poll(mn_poll_entry* entries, size_t num_entries,
         return status;
     }
 
-    entries[(unsigned int)status - (unsigned int)nt_status::SUCCESS].revents = POLLIN;
+    entries[index].revents = POLLIN;
 
-    for (unsigned int i = 0; i < valid; i++) {
+    for (size_t i = 0; i < num_entries; i++) {
         object_release(*objs[i]);
     }
 
