@@ -845,8 +845,6 @@ NTSTATUS mn_poll(mn_poll_entry* entries, size_t num_entries,
 
     size_t valid = 0;
 
-    // FIXME - entries might not have POLLIN set
-
     for (size_t i = 0; i < num_entries; i++) {
         // FIXME - check handles have SYNCHRONIZE access
 
@@ -906,7 +904,7 @@ NTSTATUS mn_poll(mn_poll_entry* entries, size_t num_entries,
         auto& obj = *objs[i];
         auto& so = object_get_sync_object(obj);
 
-        if (so.signalled) {
+        if (so.signalled && entries[i].events & POLLIN) {
             object_on_wake(obj);
             release_sync_lock();
             enable_interrupts();
@@ -951,18 +949,16 @@ NTSTATUS mn_poll(mn_poll_entry* entries, size_t num_entries,
     mwb->left = 1;
     mwb->num_entries = (unsigned int)num_entries;
 
-    size_t j = 0;
     for (size_t i = 0; i < num_entries; i++) {
         auto& so = object_get_sync_object(*objs[i]);
+        auto ent = new (&mwb->entries[i]) waiter_object_multiple;
 
-        if (!so.signalled) {
-            auto ent = new (&mwb->entries[j]) waiter_object_multiple;
-
+        if (entries[i].events & POLLIN)
             insert_tail_list(so.waiters, ent->wait_le);
+        else
+            ent->wait_le.next = ent->wait_le.prev = &ent->wait_le;
 
-            ent->block = mwb;
-            j++;
-        }
+        ent->block = mwb;
     }
 
     current_thread->multwait = mwb;
