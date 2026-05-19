@@ -98,7 +98,7 @@ add_custom_command(
 configure_file(repo/include/MKterm.h.awk.in ${GEN}/MKterm.h.awk @ONLY)
 add_custom_command(
     OUTPUT ${GEN}/term.h
-    COMMAND sh -c "awk -f '${GEN}/MKterm.h.awk' '${CMAKE_CURRENT_SOURCE_DIR}/repo/include/Caps' '${CMAKE_CURRENT_SOURCE_DIR}/repo/include/Caps-ncurses' > '${GEN}/term.h'"
+    COMMAND sh -c "awk -f '${GEN}/MKterm.h.awk' '${CMAKE_CURRENT_SOURCE_DIR}/repo/include/Caps' '${CMAKE_CURRENT_SOURCE_DIR}/repo/include/Caps-ncurses' | sed '/cur_term/s/NCURSES_EXPORT_VAR/TINFO_EXPORT_VAR/' > '${GEN}/term.h'"
     DEPENDS
         ${GEN}/MKterm.h.awk
         repo/include/Caps
@@ -106,13 +106,18 @@ add_custom_command(
     VERBATIM
 )
 
-configure_file(repo/include/ncurses_dll.h.in ${GEN}/ncurses_dll.h @ONLY)
+add_custom_command(
+    OUTPUT ${GEN}/ncurses_dll.h
+    COMMAND sh -c "sed 's/@NCURSES_WRAP_PREFIX@/_nc_/;s/defined(BUILDING_NCURSES)/defined(BUILDING_NCURSES) || defined(BUILDING_TINFO)/' '${CMAKE_CURRENT_SOURCE_DIR}/repo/include/ncurses_dll.h.in' | sed '/^#define NCURSES_EXPORT_VAR/a #if defined(BUILDING_TINFO)\\n# define TINFO_EXPORT_VAR(type) NCURSES_EXPORT_GENERAL_EXPORT type\\n#elif defined(_WIN32) || defined(_WIN64)\\n# define TINFO_EXPORT_VAR(type) NCURSES_EXPORT_GENERAL_IMPORT type\\n#else\\n# define TINFO_EXPORT_VAR(type) type\\n#endif' > '${GEN}/ncurses_dll.h'"
+    DEPENDS repo/include/ncurses_dll.h.in
+    VERBATIM
+)
 
 configure_file(repo/include/curses.h.in ${GEN}/curses.h.in.generated @ONLY)
 
 add_custom_command(
     OUTPUT ${GEN}/curses.h
-    COMMAND sh -c "cat '${GEN}/curses.h.in.generated' > '${GEN}/curses.h' && AWK=awk sh '${CMAKE_CURRENT_SOURCE_DIR}/repo/include/MKkey_defs.sh' '${CMAKE_CURRENT_SOURCE_DIR}/repo/include/Caps' '${CMAKE_CURRENT_SOURCE_DIR}/repo/include/Caps-ncurses' >> '${GEN}/curses.h' && cat '${CMAKE_CURRENT_SOURCE_DIR}/repo/include/curses.tail' >> '${GEN}/curses.h'"
+    COMMAND sh -c "{ cat '${GEN}/curses.h.in.generated' && AWK=awk sh '${CMAKE_CURRENT_SOURCE_DIR}/repo/include/MKkey_defs.sh' '${CMAKE_CURRENT_SOURCE_DIR}/repo/include/Caps' '${CMAKE_CURRENT_SOURCE_DIR}/repo/include/Caps-ncurses' && cat '${CMAKE_CURRENT_SOURCE_DIR}/repo/include/curses.tail'; } | sed '/\\(acs_map\\|curscr\\|newscr\\|stdscr\\|COLS\\|LINES\\|TABSIZE\\)/s/NCURSES_EXPORT_VAR/TINFO_EXPORT_VAR/' > '${GEN}/curses.h'"
     DEPENDS
         ${GEN}/curses.h.in.generated
         repo/include/MKkey_defs.sh
@@ -210,8 +215,15 @@ add_custom_command(
 
 add_custom_command(
     OUTPUT ${GEN}/curses.priv.h
-    COMMAND sh -c "sed 's/#if (defined(_WIN32) || defined(_WIN64))/#if (defined(_WIN32) || defined(_WIN64)) \\&\\& !defined(MOXNOX)/' '${CMAKE_CURRENT_SOURCE_DIR}/repo/ncurses/curses.priv.h' > '${GEN}/curses.priv.h'"
+    COMMAND sh -c "sed 's/#if (defined(_WIN32) || defined(_WIN64))/#if (defined(_WIN32) || defined(_WIN64)) \\&\\& !defined(MOXNOX)/' '${CMAKE_CURRENT_SOURCE_DIR}/repo/ncurses/curses.priv.h' | sed '/\\(_nc_globals\\|_nc_prescreen\\|_nc_screen_chain\\| SP;\\)/s/NCURSES_EXPORT_VAR/TINFO_EXPORT_VAR/' > '${GEN}/curses.priv.h'"
     DEPENDS repo/ncurses/curses.priv.h
+    VERBATIM
+)
+
+add_custom_command(
+    OUTPUT ${GEN}/term.priv.h
+    COMMAND sh -c "sed '/\\(_nc_globals\\|_nc_prescreen\\)/s/NCURSES_EXPORT_VAR/TINFO_EXPORT_VAR/' '${CMAKE_CURRENT_SOURCE_DIR}/repo/ncurses/term.priv.h' > '${GEN}/term.priv.h'"
+    DEPENDS repo/ncurses/term.priv.h
     VERBATIM
 )
 
@@ -228,12 +240,84 @@ add_custom_command(
     VERBATIM
 )
 
+# tinfo shared library
+
+add_library(tinfo SHARED
+    repo/ncurses/tinfo/access.c
+    repo/ncurses/tinfo/add_tries.c
+    repo/ncurses/tinfo/alloc_entry.c
+    repo/ncurses/tinfo/alloc_ttype.c
+    repo/ncurses/tinfo/captoinfo.c
+    repo/ncurses/tinfo/comp_error.c
+    repo/ncurses/tinfo/comp_expand.c
+    repo/ncurses/tinfo/comp_hash.c
+    repo/ncurses/tinfo/comp_parse.c
+    repo/ncurses/tinfo/comp_scan.c
+    repo/ncurses/tinfo/db_iterator.c
+    repo/ncurses/tinfo/doalloc.c
+    repo/ncurses/tinfo/entries.c
+    repo/ncurses/tinfo/free_ttype.c
+    repo/ncurses/tinfo/getenv_num.c
+    repo/ncurses/tinfo/hashed_db.c
+    repo/ncurses/tinfo/home_terminfo.c
+    repo/ncurses/tinfo/init_keytry.c
+    repo/ncurses/tinfo/lib_acs.c
+    repo/ncurses/tinfo/lib_baudrate.c
+    repo/ncurses/tinfo/lib_cur_term.c
+    repo/ncurses/tinfo/lib_data.c
+    repo/ncurses/tinfo/lib_has_cap.c
+    repo/ncurses/tinfo/lib_kernel.c
+    repo/ncurses/tinfo/lib_longname.c
+    repo/ncurses/tinfo/lib_napms.c
+    repo/ncurses/tinfo/lib_options.c
+    repo/ncurses/tinfo/lib_raw.c
+    repo/ncurses/tinfo/lib_setup.c
+    repo/ncurses/tinfo/lib_termcap.c
+    repo/ncurses/tinfo/lib_termname.c
+    repo/ncurses/tinfo/lib_tgoto.c
+    repo/ncurses/tinfo/lib_ti.c
+    repo/ncurses/tinfo/lib_tparm.c
+    repo/ncurses/tinfo/lib_tputs.c
+    repo/ncurses/tinfo/lib_ttyflags.c
+    repo/ncurses/tinfo/lib_win32util.c
+    repo/ncurses/tinfo/name_match.c
+    repo/ncurses/tinfo/obsolete.c
+    repo/ncurses/tinfo/parse_entry.c
+    repo/ncurses/tinfo/read_entry.c
+    repo/ncurses/tinfo/read_termcap.c
+    repo/ncurses/tinfo/strings.c
+    repo/ncurses/tinfo/trim_sgr0.c
+    repo/ncurses/tinfo/write_entry.c
+    repo/ncurses/base/define_key.c
+    repo/ncurses/base/key_defined.c
+    repo/ncurses/base/keybound.c
+    repo/ncurses/base/tries.c
+    repo/ncurses/trace/lib_trace.c
+    repo/ncurses/trace/lib_traceatr.c
+    repo/ncurses/trace/lib_tracechr.c
+    repo/ncurses/trace/lib_tracebits.c
+    repo/ncurses/trace/trace_buf.c
+    repo/ncurses/trace/trace_tries.c
+    repo/ncurses/trace/visbuf.c
+    repo/ncurses/tty/lib_twait.c
+    ${GEN}/names.c
+    ${GEN}/codes.c
+    ${GEN}/comp_captab.c
+    ${GEN}/comp_userdefs.c
+    ${GEN}/lib_keyname.c
+    ${GEN}/lib_unctrl.c
+    fallback.c
+)
+
+target_compile_definitions(tinfo PRIVATE BUILDING_TINFO WIN_PTHREADS_TIME_H)
+target_compile_options(tinfo PRIVATE ${USERSPACE_CFLAGS} -Wno-pointer-sign -Wno-conversion -Wno-unused-parameter -Wno-unused-but-set-variable)
+target_include_directories(tinfo PUBLIC ${GEN})
+target_include_directories(tinfo PRIVATE ${CMAKE_SOURCE_DIR}/include repo/ncurses repo/include)
+target_link_libraries(tinfo PRIVATE posixshim)
+
 # ncurses shared library
 
 add_library(ncurses SHARED
-    repo/ncurses/base/define_key.c
-    repo/ncurses/base/keybound.c
-    repo/ncurses/base/key_defined.c
     repo/ncurses/base/keyok.c
     repo/ncurses/base/legacy_coding.c
     repo/ncurses/base/lib_addch.c
@@ -310,90 +394,30 @@ add_library(ncurses SHARED
     repo/ncurses/base/new_pair.c
     repo/ncurses/base/resizeterm.c
     repo/ncurses/base/safe_sprintf.c
-    repo/ncurses/base/tries.c
     repo/ncurses/base/use_window.c
     repo/ncurses/base/version.c
     repo/ncurses/base/vsscanf.c
     repo/ncurses/base/wresize.c
-    repo/ncurses/tinfo/access.c
-    repo/ncurses/tinfo/add_tries.c
-    repo/ncurses/tinfo/alloc_entry.c
-    repo/ncurses/tinfo/alloc_ttype.c
-    repo/ncurses/tinfo/captoinfo.c
-    repo/ncurses/tinfo/comp_error.c
-    repo/ncurses/tinfo/comp_expand.c
-    repo/ncurses/tinfo/comp_hash.c
-    repo/ncurses/tinfo/comp_parse.c
-    repo/ncurses/tinfo/comp_scan.c
-    repo/ncurses/tinfo/db_iterator.c
-    repo/ncurses/tinfo/doalloc.c
-    repo/ncurses/tinfo/entries.c
-    repo/ncurses/tinfo/free_ttype.c
-    repo/ncurses/tinfo/getenv_num.c
-    repo/ncurses/tinfo/hashed_db.c
-    repo/ncurses/tinfo/home_terminfo.c
-    repo/ncurses/tinfo/init_keytry.c
-    repo/ncurses/tinfo/lib_acs.c
-    repo/ncurses/tinfo/lib_baudrate.c
-    repo/ncurses/tinfo/lib_cur_term.c
-    repo/ncurses/tinfo/lib_data.c
-    repo/ncurses/tinfo/lib_has_cap.c
-    repo/ncurses/tinfo/lib_kernel.c
-    repo/ncurses/tinfo/lib_longname.c
-    repo/ncurses/tinfo/lib_napms.c
-    repo/ncurses/tinfo/lib_options.c
     repo/ncurses/tinfo/lib_print.c
-    repo/ncurses/tinfo/lib_raw.c
-    repo/ncurses/tinfo/lib_setup.c
-    repo/ncurses/tinfo/lib_termcap.c
-    repo/ncurses/tinfo/lib_termname.c
-    repo/ncurses/tinfo/lib_tgoto.c
-    repo/ncurses/tinfo/lib_ti.c
-    repo/ncurses/tinfo/lib_tparm.c
-    repo/ncurses/tinfo/lib_tputs.c
-    repo/ncurses/tinfo/lib_ttyflags.c
-    repo/ncurses/tinfo/lib_win32util.c
-    repo/ncurses/tinfo/name_match.c
-    repo/ncurses/tinfo/obsolete.c
-    repo/ncurses/tinfo/parse_entry.c
-    repo/ncurses/tinfo/read_entry.c
-    repo/ncurses/tinfo/read_termcap.c
-    repo/ncurses/tinfo/strings.c
-    repo/ncurses/tinfo/trim_sgr0.c
     repo/ncurses/tinfo/use_screen.c
-    repo/ncurses/tinfo/write_entry.c
-    repo/ncurses/trace/lib_trace.c
-    repo/ncurses/trace/lib_traceatr.c
-    repo/ncurses/trace/lib_tracebits.c
-    repo/ncurses/trace/lib_tracechr.c
     repo/ncurses/trace/lib_tracedmp.c
     repo/ncurses/trace/lib_tracemse.c
-    repo/ncurses/trace/trace_buf.c
-    repo/ncurses/trace/trace_tries.c
     repo/ncurses/trace/trace_xnames.c
     repo/ncurses/trace/varargs.c
-    repo/ncurses/trace/visbuf.c
     repo/ncurses/tty/hardscroll.c
     repo/ncurses/tty/hashmap.c
     repo/ncurses/tty/lib_mvcur.c
     repo/ncurses/tty/lib_tstp.c
-    repo/ncurses/tty/lib_twait.c
     repo/ncurses/tty/lib_vidattr.c
     repo/ncurses/tty/tty_update.c
-    ${GEN}/names.c
-    ${GEN}/codes.c
-    ${GEN}/lib_unctrl.c
-    ${GEN}/lib_keyname.c
     ${GEN}/lib_gen.c
-    fallback.c
-    ${GEN}/comp_captab.c
-    ${GEN}/comp_userdefs.c
 )
 
 target_compile_definitions(ncurses PRIVATE BUILDING_NCURSES WIN_PTHREADS_TIME_H)
 target_compile_options(ncurses PRIVATE ${USERSPACE_CFLAGS} -Wno-pointer-sign -Wno-conversion -Wno-unused-parameter -Wno-unused-but-set-variable)
 target_include_directories(ncurses PUBLIC ${GEN})
 target_include_directories(ncurses PRIVATE ${CMAKE_SOURCE_DIR}/include repo/ncurses repo/include)
+target_link_libraries(ncurses PUBLIC tinfo)
 target_link_libraries(ncurses PRIVATE posixshim)
 
 add_custom_target(ncurses_generated_headers
@@ -405,6 +429,8 @@ add_custom_target(ncurses_generated_headers
         ${GEN}/term.h
         ${GEN}/curses.h
         ${GEN}/curses.priv.h
+        ${GEN}/term.priv.h
+        ${GEN}/ncurses_dll.h
 )
 add_dependencies(ncurses ncurses_generated_headers)
 
@@ -521,7 +547,7 @@ target_compile_options(panel PRIVATE ${USERSPACE_CFLAGS})
 target_include_directories(panel PRIVATE ${CMAKE_SOURCE_DIR}/include repo/ncurses repo/include)
 target_link_libraries(panel PRIVATE ncurses)
 
-install(TARGETS ncurses form menu panel
+install(TARGETS tinfo ncurses form menu panel
     DESTINATION ${CMAKE_INSTALL_PREFIX}/lib
     ARCHIVE EXCLUDE_FROM_ALL
 )
