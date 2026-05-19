@@ -168,6 +168,13 @@ struct termios {
 #define B3500000 0x0000100e
 #define B4000000 0x0000100f
 
+struct winsize {
+    unsigned short ws_row;
+    unsigned short ws_col;
+    unsigned short ws_xpixel;
+    unsigned short ws_ypixel;
+};
+
 #ifdef __cplusplus
 extern "C" {
 #endif
