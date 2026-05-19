@@ -550,3 +550,16 @@ if (CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
 endif()
 
 install(TARGETS stat DESTINATION ${CMAKE_INSTALL_PREFIX}/bin COMPONENT core)
+
+###
+
+add_executable(readline-test src/readline-test.cpp)
+
+target_compile_options(readline-test PRIVATE -fno-exceptions ${USERSPACE_CFLAGS})
+target_link_libraries(readline-test moxnox readline)
+
+if (CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
+    target_link_options(readline-test PUBLIC -mcrtdll=ucrtbase)
+endif()
+
+install(TARGETS readline-test DESTINATION ${CMAKE_INSTALL_PREFIX}/bin COMPONENT core)
