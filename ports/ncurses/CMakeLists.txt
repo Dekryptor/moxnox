@@ -433,6 +433,7 @@ add_custom_target(ncurses_generated_headers
         ${GEN}/ncurses_dll.h
 )
 add_dependencies(ncurses ncurses_generated_headers)
+add_dependencies(tinfo ncurses_generated_headers)
 
 # form shared library
 
