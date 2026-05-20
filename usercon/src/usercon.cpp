@@ -1968,7 +1968,7 @@ static void run_shell(const char16_t* exe, void (*recv_func)(string_view),
                     return;
                 }
 
-                span<char> sp;
+                span<const char8_t> sp;
 
                 if (ev.ev.type == evdev_type::EV_KEY)
                     sp = handle_keyboard_event(ev, keyboard_pipe.get(), cad);

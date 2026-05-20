@@ -595,8 +595,8 @@ class keyboard_context {
 public:
     keyboard_context(uint32_t id) : id(id) { }
 
-    span<char> handle_keyboard_event(const input_event& ev, HANDLE pipe,
-                                     bool& cad);
+    span<const char8_t> handle_keyboard_event(const input_event& ev, HANDLE pipe,
+                                              bool& cad);
     void set_led(HANDLE pipe, evdev_led_code led, int32_t value);
 
     list_entry le;
@@ -611,8 +611,8 @@ private:
 
 static list_entry contexts = { &contexts, &contexts };
 
-span<char> keyboard_context::handle_keyboard_event(const input_event& ev,
-                                                   HANDLE pipe, bool& cad) {
+span<const char8_t> keyboard_context::handle_keyboard_event(const input_event& ev,
+                                                            HANDLE pipe, bool& cad) {
     auto idx = (unsigned int)ev.code;
     auto code = (evdev_key_code)ev.code;
 
@@ -721,7 +721,7 @@ span<char> keyboard_context::handle_keyboard_event(const input_event& ev,
         val = codes[idx];
     }
 
-    return span((char*)val.data(), val.size());
+    return span(val.data(), val.size());
 }
 
 void keyboard_context::set_led(HANDLE pipe, evdev_led_code led, int32_t value) {
@@ -741,8 +741,8 @@ void keyboard_context::set_led(HANDLE pipe, evdev_led_code led, int32_t value) {
     }
 }
 
-export span<char> handle_keyboard_event(const input_event_with_id& ev,
-                                        HANDLE pipe, bool& cad) {
+export span<const char8_t> handle_keyboard_event(const input_event_with_id& ev,
+                                                 HANDLE pipe, bool& cad) {
     for (auto le = contexts.next; le != &contexts; le = le->next) {
         auto& ctx = containing_record<keyboard_context>(le);
 
