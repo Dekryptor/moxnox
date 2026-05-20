@@ -21,5 +21,5 @@ target_compile_options(posixshim PRIVATE -fno-exceptions ${USERSPACE_CFLAGS})
 
 target_include_directories(posixshim PRIVATE ${CMAKE_SOURCE_DIR}/include)
 
-target_link_libraries(posixshim PRIVATE print errno termios)
+target_link_libraries(posixshim PRIVATE print errno termios unicode)
 target_link_libraries(posixshim PRIVATE moxnox)
