@@ -14,6 +14,64 @@ import errno;
 
 using namespace std;
 
+static int update_ucrt_env(string_view name, string_view value) {
+    // FIXME - lock?
+
+    auto ent = (char*)malloc(name.size() + 1 + value.size() + 1);
+    if (!ent) {
+        *_errno() = ENOMEM;
+        return -1;
+    }
+
+    memcpy(ent, name.data(), name.size());
+    ent[name.size()] = '=';
+    memcpy(ent + name.size() + 1, value.data(), value.size());
+    ent[name.size() + 1 + value.size()] = 0;
+
+    auto env = *__p__environ();
+    size_t num_entries = 0;
+
+    while (env[num_entries]) {
+        auto sv = string_view(env[num_entries]);
+
+        if (sv.size() < name.size()) {
+            num_entries++;
+            continue;
+        }
+
+        if (string_view(sv.data(), name.size()) != name) {
+            num_entries++;
+            continue;
+        }
+
+        if (sv.size() > name.size() && sv[name.size()] != '=') {
+            num_entries++;
+            continue;
+        }
+
+        swap(env[num_entries], ent);
+        free(ent);
+
+        return 0;
+    }
+
+    auto newenv = (char**)malloc((num_entries + 2) * sizeof(char*));
+    if (!newenv) {
+        free(ent);
+        *_errno() = ENOMEM;
+        return -1;
+    }
+
+    memcpy(newenv, env, num_entries * sizeof(char*));
+    newenv[num_entries] = ent;
+    newenv[num_entries + 1] = nullptr;
+
+    *__p__environ() = newenv;
+    free(env);
+
+    return 0;
+}
+
 extern "C"
 int setenv(const char* name, const char* value, int overwrite) {
     char16_t* u16value;
@@ -167,7 +225,5 @@ int setenv(const char* name, const char* value, int overwrite) {
     if (u16value)
         free(u16value);
 
-    // FIXME - update environ in ucrtbase (lock?)
-
-    return 0;
+    return update_ucrt_env(namesv, valuesv);
 }
