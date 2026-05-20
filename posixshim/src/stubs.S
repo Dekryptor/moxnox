@@ -61,6 +61,5 @@ do_stub_no_export "fork"
 do_stub_no_export "unsetenv"
 do_stub_no_export "ttyname"
 do_stub_no_export "select"
-do_stub_no_export "setenv"
 
 stubs_end
