@@ -4,7 +4,7 @@
 #define HAVE_ISXDIGIT 1
 #define HAVE_MEMMOVE 1
 #define HAVE_POLL 1
-#define HAVE_PUTENV 1
+#define HAVE_SETENV 1
 #define HAVE_SETLOCALE 1
 #define HAVE_STRCASECMP 1
 #define HAVE_STRCOLL 1
