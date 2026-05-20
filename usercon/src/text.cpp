@@ -77,6 +77,7 @@ struct console_text {
 
     unsigned int cursor_x = 0, cursor_y = 0;
     unsigned int console_rows, console_cols;
+    bool decckm = false;
     bool cursor_enabled = true;
     HANDLE section = 0;
 };

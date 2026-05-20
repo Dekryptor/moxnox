@@ -140,6 +140,7 @@ struct console_fb {
 
     unsigned int cursor_x, cursor_y;
     unsigned int console_rows, console_cols;
+    bool decckm = false;
     bool show_cursor = true;
 };
 
@@ -1739,7 +1740,7 @@ static string_view get_os_version() {
 }
 
 static void run_shell(const char16_t* exe, void (*recv_func)(string_view),
-                      void (*flush_func)()) {
+                      void (*flush_func)(), bool& decckm) {
     HANDLE h;
     unique_handle server_handle, client_handle, proc, kmsg, ptyctl, keyboard_pipe;
     OBJECT_ATTRIBUTES oa;
@@ -1971,7 +1972,7 @@ static void run_shell(const char16_t* exe, void (*recv_func)(string_view),
                 span<const char8_t> sp;
 
                 if (ev.ev.type == evdev_type::EV_KEY)
-                    sp = handle_keyboard_event(ev, keyboard_pipe.get(), cad);
+                    sp = handle_keyboard_event(ev, keyboard_pipe.get(), cad, decckm);
 
                 if (cad)
                     handle_ctrl_alt_delete(client_handle.get());
@@ -2067,7 +2068,8 @@ static int try_text_console() {
         return 1;
     }
 
-    run_shell(u"\\bin\\shell.exe", recv_data_text, flush_text_console);
+    run_shell(u"\\bin\\shell.exe", recv_data_text, flush_text_console,
+              console_text_inst.decckm);
 
     return 0;
 }
@@ -2157,7 +2159,7 @@ static int do_console() {
     rect(0, 0, fb_info.width, fb_info.height, 0x000000);
     flush_framebuffer();
 
-    run_shell(u"\\bin\\shell.exe", recv_data_fb, flush_framebuffer);
+    run_shell(u"\\bin\\shell.exe", recv_data_fb, flush_framebuffer, console_fb_inst.decckm);
 
     return 0;
 }

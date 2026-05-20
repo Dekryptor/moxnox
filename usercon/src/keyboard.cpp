@@ -3,6 +3,7 @@ module;
 #include <stdint.h>
 #include <string_view>
 #include <span>
+#include <utility>
 #include <string.h>
 
 import nt;
@@ -596,7 +597,7 @@ public:
     keyboard_context(uint32_t id) : id(id) { }
 
     span<const char8_t> handle_keyboard_event(const input_event& ev, HANDLE pipe,
-                                              bool& cad);
+                                              bool& cad, bool decckm);
     void set_led(HANDLE pipe, evdev_led_code led, int32_t value);
 
     list_entry le;
@@ -612,7 +613,8 @@ private:
 static list_entry contexts = { &contexts, &contexts };
 
 span<const char8_t> keyboard_context::handle_keyboard_event(const input_event& ev,
-                                                            HANDLE pipe, bool& cad) {
+                                                            HANDLE pipe, bool& cad,
+                                                            bool decckm) {
     auto idx = (unsigned int)ev.code;
     auto code = (evdev_key_code)ev.code;
 
@@ -721,6 +723,30 @@ span<const char8_t> keyboard_context::handle_keyboard_event(const input_event& e
         val = codes[idx];
     }
 
+    // return alternative forms for arrow keys in DECCKM mode
+    if (decckm && val.size() == 3 && val[0] == 0x1b && val[2] >= 'A' && val[2] <= 'D') {
+        switch (val[2]) {
+            case 'A':
+                val = u8"\x1bOA";
+                break;
+
+            case 'B':
+                val = u8"\x1bOB";
+                break;
+
+            case 'C':
+                val = u8"\x1bOC";
+                break;
+
+            case 'D':
+                val = u8"\x1bOD";
+                break;
+
+            default:
+                unreachable();
+        }
+    }
+
     return span(val.data(), val.size());
 }
 
@@ -742,12 +768,13 @@ void keyboard_context::set_led(HANDLE pipe, evdev_led_code led, int32_t value) {
 }
 
 export span<const char8_t> handle_keyboard_event(const input_event_with_id& ev,
-                                                 HANDLE pipe, bool& cad) {
+                                                 HANDLE pipe, bool& cad,
+                                                 bool decckm) {
     for (auto le = contexts.next; le != &contexts; le = le->next) {
         auto& ctx = containing_record<keyboard_context>(le);
 
         if (ctx.id == ev.id)
-            return ctx.handle_keyboard_event(ev.ev, pipe, cad);
+            return ctx.handle_keyboard_event(ev.ev, pipe, cad, decckm);
     }
 
     auto ctx = new keyboard_context(ev.id);
@@ -762,5 +789,5 @@ export span<const char8_t> handle_keyboard_event(const input_event_with_id& ev,
     ctx->set_led(pipe, evdev_led_code::LED_NUML, 0);
     ctx->set_led(pipe, evdev_led_code::LED_SCROLLL, 0);
 
-    return ctx->handle_keyboard_event(ev.ev, pipe, cad);
+    return ctx->handle_keyboard_event(ev.ev, pipe, cad, decckm);
 }

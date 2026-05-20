@@ -224,6 +224,7 @@ struct console_fb {
 
     unsigned int cursor_x, cursor_y;
     unsigned int console_rows, console_cols;
+    bool decckm = false;
 };
 
 static_assert(vt100_console<console_fb>);
@@ -245,6 +246,7 @@ struct console_text {
 
     unsigned int cursor_x, cursor_y;
     unsigned int console_rows, console_cols;
+    bool decckm = false;
 };
 
 static_assert(vt100_console<console_text>);
