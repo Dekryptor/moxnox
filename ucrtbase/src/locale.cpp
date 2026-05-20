@@ -90,10 +90,16 @@ wctype_t __wctype(const char* prop) {
 }
 
 extern "C"
-char* setlocale(int category, const char* locale) {
-    print("FIXME - setlocale ({}, {})\n", category, locale ? locale : "");
+char* setlocale(int /*category*/, const char* locale) {
+    // FIXME - do this properly
 
-    // FIXME
+    if (!locale)
+        return (char*)"C";
+
+    auto localesv = string_view(locale);
+
+    if (localesv == "" || localesv == "C")
+        return (char*)"C";
 
     return nullptr;
 }
