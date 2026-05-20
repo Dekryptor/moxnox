@@ -12,6 +12,13 @@ add_custom_command(
     VERBATIM
 )
 
+add_custom_command(
+    OUTPUT ${GEN}/nano.c
+    COMMAND sh -c "sed 's/putenv(\"TERM=vt220\")/setenv(\"TERM\", \"vt220\", 0)/g' '${CMAKE_CURRENT_SOURCE_DIR}/repo/src/nano.c' > '${GEN}/nano.c'"
+    DEPENDS repo/src/nano.c
+    VERBATIM
+)
+
 add_executable(nano
     repo/src/browser.c
     repo/src/chars.c
@@ -22,7 +29,7 @@ add_executable(nano
     repo/src/help.c
     ${GEN}/history.c
     repo/src/move.c
-    repo/src/nano.c
+    ${GEN}/nano.c
     repo/src/prompt.c
     repo/src/rcfile.c
     repo/src/search.c
