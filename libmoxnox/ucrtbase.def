@@ -266,7 +266,6 @@ strpbrk
 tmpfile
 _setjmpex
 clearerr
-_putenv
 atof
 _getpid
 _mktemp
