@@ -1418,3 +1418,11 @@ extern "C"
 int _mkdir(const char* path) {
     return mkdir(path, 0755);
 }
+
+extern "C"
+void clearerr(FILE* file) {
+    auto& f = *reinterpret_cast<_FILE*>(file);
+
+    f.error = false;
+    f.eof = false;
+}

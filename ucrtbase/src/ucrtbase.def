@@ -207,3 +207,4 @@ wcsnlen
 _exit
 mbrlen
 _mkdir
+clearerr

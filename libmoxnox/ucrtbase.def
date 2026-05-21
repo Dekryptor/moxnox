@@ -177,6 +177,7 @@ wcsnlen
 _exit
 mbrlen
 _mkdir
+clearerr
 
 ; stubs
 __setusermatherr
@@ -212,7 +213,6 @@ _mktime64
 rewind
 tmpfile
 _setjmpex
-clearerr
 atof
 _getpid
 _wcsnicmp
