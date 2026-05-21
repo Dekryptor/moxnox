@@ -1,11 +1,15 @@
 #include <stdlib.h>
 #include <string.h>
+#include <ctype.h>
 #include <string_view>
 #include <limits>
+#include <charconv>
 
 import ucrtbase;
 
 using namespace std;
+
+extern "C" int* __errno();
 
 extern "C"
 char* _strdup(const char* s) {
@@ -189,4 +193,50 @@ int _strcoll(const char* s1, const char* s2) {
     // FIXME - potentially different if locale not default
 
     return strcmp(s1, s2);
+}
+
+template<integral T>
+static T strto(const char* nptr, char** endptr, int base) {
+    while (isspace(*nptr)) {
+        nptr++;
+    }
+
+    if (*nptr == '+') {
+        nptr++;
+
+        if (*nptr == '-') {
+            *__errno() = EINVAL;
+            return 0;
+        }
+    }
+
+    T ret;
+
+    auto fcr = from_chars(nptr, nptr + strlen(nptr), ret, base);
+
+    if (endptr)
+        *endptr = (char*)fcr.ptr;
+
+    if (fcr.ec == errc::result_out_of_range) {
+        *__errno() = ERANGE;
+
+        if constexpr (is_signed_v<T>) {
+            if (*nptr == '-')
+                return numeric_limits<T>::min();
+        }
+
+        return numeric_limits<T>::max();
+    }
+
+    return ret;
+}
+
+extern "C"
+long long strtoll(const char* nptr, char** endptr, int base) {
+    return strto<long long>(nptr, endptr, base);
+}
+
+extern "C"
+unsigned long long strtoull(const char* nptr, char** endptr, int base) {
+    return strto<unsigned long long>(nptr, endptr, base);
 }

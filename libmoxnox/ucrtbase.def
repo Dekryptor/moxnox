@@ -169,6 +169,8 @@ _close
 strpbrk
 strcoll
 putchar
+strtoll
+strtoull
 
 ; stubs
 __setusermatherr
@@ -176,8 +178,6 @@ _configthreadlocale
 _exit
 wcsnlen
 mbrlen
-strtoll
-strtoull
 fgetpos
 _filelengthi64
 fsetpos

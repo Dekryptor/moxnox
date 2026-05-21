@@ -201,3 +201,5 @@ _close
 strpbrk
 strcoll = _strcoll
 putchar
+strtoll
+strtoull
