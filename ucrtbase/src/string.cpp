@@ -183,3 +183,10 @@ extern "C"
 int atoi(const char* str) {
     return str_to_num<int>(str);
 }
+
+extern "C"
+int _strcoll(const char* s1, const char* s2) {
+    // FIXME - potentially different if locale not default
+
+    return strcmp(s1, s2);
+}

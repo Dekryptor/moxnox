@@ -167,6 +167,7 @@ _strnicmp
 _open_osfhandle
 _close
 strpbrk
+strcoll
 
 ; stubs
 __setusermatherr
@@ -182,7 +183,6 @@ fsetpos
 getwc
 _lseeki64
 putwc
-strcoll
 strftime
 strxfrm
 ungetwc
