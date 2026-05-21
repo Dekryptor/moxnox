@@ -46,3 +46,10 @@ size_t _wcrtomb(char* s, wchar_t wc, mbstate_t* /*ps*/) {
     *__errno() = EILSEQ;
     return (size_t)-1;
 }
+
+extern "C"
+size_t mbrlen(const char* s, size_t n, mbstate_t* ps) {
+    static mbstate_t state;
+
+    return _mbrtowc(nullptr, s, n, ps ? ps : &state);
+}

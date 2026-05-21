@@ -175,11 +175,11 @@ strtol
 strtoul
 wcsnlen
 _exit
+mbrlen
 
 ; stubs
 __setusermatherr
 _configthreadlocale
-mbrlen
 _lseeki64
 strftime
 rand_s
