@@ -401,7 +401,21 @@ void console_text::erase_in_display(unsigned int param) const {
 }
 
 void console_text::delete_chars(unsigned int num) {
-    // FIXME
+    if (cursor_x >= console_cols)
+        return;
+
+    if (num > console_cols - cursor_x)
+        num = console_cols - cursor_x;
+
+    auto* row = &text_console[cursor_y * console_cols];
+
+    memmove(&row[cursor_x], &row[cursor_x + num],
+            (console_cols - cursor_x - num) * sizeof(uint16_t));
+
+    for (unsigned int x = console_cols - num; x < console_cols; x++) {
+        text_console_putc((uint8_t)x, (uint8_t)cursor_y, ' ',
+                          bg_colour_text, fg_colour_text);
+    }
 }
 
 export void recv_data_text(string_view s) {
