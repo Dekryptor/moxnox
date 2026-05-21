@@ -155,7 +155,7 @@ extern "C"
 size_t strnlen(const char* s, size_t maxlen) {
     size_t i = 0;
 
-    while (s[i] != 0 && i < maxlen) {
+    while (i < maxlen && s[i] != 0) {
         i++;
     }
 
