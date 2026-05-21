@@ -1,4 +1,5 @@
 #include <termios.h>
+#include <sys/stat.h>
 
 #define _POSIX_VERSION 200809L
 
@@ -8,7 +9,6 @@
 #define HAVE_POLL 1
 #define HAVE_SETENV 1
 #define HAVE_SETLOCALE 1
-#define HAVE_STRCASECMP 1
 #define HAVE_STRCOLL 1
 #define HAVE_STRPBRK 1
 #define HAVE_VSNPRINTF 1

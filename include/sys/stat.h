@@ -13,6 +13,7 @@
 #define write(fd, buf, count) _write(fd, buf, count)
 #define chdir(dir) _chdir(dir)
 #define getcwd(buf, size) _getcwd(buf, size)
+#define unlink(fn) _unlink(fn)
 
 #include_next <sys/stat.h>
 #include <sys/types.h>
