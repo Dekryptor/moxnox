@@ -11,6 +11,7 @@ extern "C" {
 char* ttyname(int fd);
 uid_t getuid(void);
 unsigned int alarm(unsigned int seconds);
+int dup2(int oldfd, int newfd);
 
 #ifdef __cplusplus
 }

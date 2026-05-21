@@ -14,6 +14,7 @@
 #define chdir(dir) _chdir(dir)
 #define getcwd(buf, size) _getcwd(buf, size)
 #define unlink(fn) _unlink(fn)
+#define chmod(fn, mode) _chmod(fn, mode)
 
 #include_next <sys/stat.h>
 #include <sys/types.h>

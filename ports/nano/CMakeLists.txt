@@ -6,13 +6,6 @@ file(MAKE_DIRECTORY ${GEN})
 configure_file(config.h.in ${GEN}/config.h @ONLY)
 
 add_custom_command(
-    OUTPUT ${GEN}/history.c
-    COMMAND sh -c "sed 's/mkdir(\\([^,]*\\), [^)]*)/mkdir(\\1)/g' '${CMAKE_CURRENT_SOURCE_DIR}/repo/src/history.c' > '${GEN}/history.c'"
-    DEPENDS repo/src/history.c
-    VERBATIM
-)
-
-add_custom_command(
     OUTPUT ${GEN}/nano.c
     COMMAND sh -c "sed 's/putenv(\"TERM=vt220\")/setenv(\"TERM\", \"vt220\", 0)/g' '${CMAKE_CURRENT_SOURCE_DIR}/repo/src/nano.c' > '${GEN}/nano.c'"
     DEPENDS repo/src/nano.c
@@ -27,7 +20,7 @@ add_executable(nano
     repo/src/files.c
     repo/src/global.c
     repo/src/help.c
-    ${GEN}/history.c
+    repo/src/history.c
     repo/src/move.c
     ${GEN}/nano.c
     repo/src/prompt.c
