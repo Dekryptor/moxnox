@@ -119,6 +119,22 @@ size_t strspn(const char* s, const char* accept) {
     return ret;
 }
 
+extern "C"
+char* strpbrk(const char* s, const char* accept) {
+    auto al = strlen(accept);
+
+    while (*s) {
+        for (size_t i = 0; i < al; i++) {
+            if (*s == accept[i])
+                return (char*)s;
+        }
+
+        s++;
+    }
+
+    return nullptr;
+}
+
 template<signed_integral T>
 static T str_to_num(const char* str) {
     bool negative = false;

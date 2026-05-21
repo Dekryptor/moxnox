@@ -166,6 +166,7 @@ atoi
 _strnicmp
 _open_osfhandle
 _close
+strpbrk
 
 ; stubs
 __setusermatherr
@@ -262,7 +263,6 @@ _localtime64
 _mktime64
 putchar
 rewind
-strpbrk
 tmpfile
 _setjmpex
 clearerr
