@@ -188,6 +188,7 @@ rand_s
 ___mb_cur_max_func
 _wfopen
 towlower
+towupper
 ___lc_codepage_func
 _beginthreadex
 strtof
