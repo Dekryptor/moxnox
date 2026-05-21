@@ -171,6 +171,8 @@ strcoll
 putchar
 strtoll
 strtoull
+strtol
+strtoul
 
 ; stubs
 __setusermatherr

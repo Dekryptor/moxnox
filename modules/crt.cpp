@@ -375,34 +375,6 @@ char* strchr(const char* s, int c) {
     return nullptr;
 }
 
-template<typename T>
-static __attribute__((always_inline)) T inline strto(const char* nptr, char** endptr, int base) {
-    while (*nptr == ' ' || *nptr == '\t') {
-        nptr++;
-    }
-
-    unsigned long ret;
-
-    auto fcr = from_chars(nptr, nptr + strlen(nptr), ret, base);
-
-    if (endptr)
-        *endptr = (char*)fcr.ptr;
-
-    return (T)ret;
-}
-
-export
-extern "C"
-long strtol(const char* nptr, char** endptr, int base) {
-    return strto<long>(nptr, endptr, base);
-}
-
-export
-extern "C"
-unsigned long strtoul(const char* nptr, char** endptr, int base) {
-    return strto<unsigned long>(nptr, endptr, base);
-}
-
 #ifdef __x86_64__
 export extern "C" void* memcpy(void* dest, const void* src, size_t n);
 #else

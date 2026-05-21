@@ -240,3 +240,13 @@ extern "C"
 unsigned long long strtoull(const char* nptr, char** endptr, int base) {
     return strto<unsigned long long>(nptr, endptr, base);
 }
+
+extern "C"
+long strtol(const char* nptr, char** endptr, int base) {
+    return strto<long>(nptr, endptr, base);
+}
+
+extern "C"
+unsigned long strtoul(const char* nptr, char** endptr, int base) {
+    return strto<unsigned long>(nptr, endptr, base);
+}

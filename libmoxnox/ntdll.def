@@ -18,9 +18,7 @@ strcmp
 strcpy
 strncmp
 strstr
-strtol
 strncpy
-strtoul
 strchr
 memcpy
 strcat
