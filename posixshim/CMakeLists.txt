@@ -15,6 +15,7 @@ add_library(posixshim STATIC
     src/security.cpp
     src/poll.cpp
     src/environ.cpp
+    src/file.cpp
 )
 
 target_compile_options(posixshim PRIVATE -fno-exceptions ${USERSPACE_CFLAGS})
