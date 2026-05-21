@@ -174,11 +174,11 @@ strtoull
 strtol
 strtoul
 wcsnlen
+_exit
 
 ; stubs
 __setusermatherr
 _configthreadlocale
-_exit
 mbrlen
 fgetpos
 _filelengthi64

@@ -204,3 +204,4 @@ putchar
 strtoll
 strtoull
 wcsnlen
+_exit

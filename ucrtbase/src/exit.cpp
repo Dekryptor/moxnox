@@ -46,6 +46,12 @@ void exit(int code) noexcept {
 }
 
 extern "C"
+void _exit(int code) {
+    RtlExitUserProcess((uint32_t)code);
+    unreachable();
+}
+
+extern "C"
 void _register_thread_local_exe_atexit_callback(_tls_callback_type callback) {
     tls_atexit_callback = callback;
 }

@@ -4,7 +4,6 @@ stubs_start
 
 do_stub "__setusermatherr"
 do_stub "_configthreadlocale"
-do_stub "_exit"
 do_stub "mbrlen"
 do_stub "___mb_cur_max_func"
 do_stub "_filelengthi64"
