@@ -206,3 +206,4 @@ strtoull
 wcsnlen
 _exit
 mbrlen
+_mkdir

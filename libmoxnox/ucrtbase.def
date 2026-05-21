@@ -176,6 +176,7 @@ strtoul
 wcsnlen
 _exit
 mbrlen
+_mkdir
 
 ; stubs
 __setusermatherr
@@ -199,7 +200,6 @@ strerror_s
 __stdio_common_vswprintf
 qsort
 perror
-_mkdir
 _ctime64
 _difftime64
 _gmtime64

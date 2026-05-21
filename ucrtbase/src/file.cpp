@@ -10,6 +10,7 @@ module;
 #include <stdio.h>
 #include <stdarg.h>
 #include <sys/utime.h>
+#include <sys/types.h>
 
 export module file;
 
@@ -47,6 +48,9 @@ static array<HANDLE, 2048> fds;
 static uint8_t _stdin[sizeof(_FILE)], _stdout[sizeof(_FILE)], _stderr[sizeof(_FILE)];
 static RTL_CRITICAL_SECTION files_lock, fds_lock;
 static list_entry files_list = { &files_list, &files_list };
+
+// FIXME - should be getting from sys/stat.h
+extern "C" int mkdir(const char* path, mode_t mode);
 
 extern "C" int* __errno();
 
@@ -1408,4 +1412,9 @@ int _close(int fd) {
     NtClose(h);
 
     return 0;
+}
+
+extern "C"
+int _mkdir(const char* path) {
+    return mkdir(path, 0755);
 }

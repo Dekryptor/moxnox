@@ -131,6 +131,7 @@ target_link_options(ucrtbase PRIVATE -nostartfiles -nostdlib)
 
 target_link_libraries(ucrtbase PRIVATE format print unicode list errno unique_handle moxnox_ioctls)
 target_link_libraries(ucrtbase PRIVATE ntdll_mod ucrtbase_mod kernelbase_mod)
+target_link_libraries(ucrtbase PRIVATE posixshim)
 target_link_libraries(ucrtbase PRIVATE -Wl,--whole-archive musl -Wl,--no-whole-archive)
 
 install(TARGETS ucrtbase
