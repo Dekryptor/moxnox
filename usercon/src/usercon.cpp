@@ -1688,7 +1688,23 @@ void console_fb::erase_in_display(unsigned int param) {
 }
 
 void console_fb::delete_chars(unsigned int num) {
-    // FIXME
+    if (curline->len == 0)
+        return;
+
+    auto text_start = find_text_pos(cursor_x);
+    if (text_start >= curline->len)
+        return;
+
+    auto text_end = find_text_pos(cursor_x + num);
+    auto count = text_end - text_start;
+
+    memmove(&curline->text[text_start], &curline->text[text_end],
+            (curline->len - text_end) * sizeof(char32_t));
+    memmove(&curline->atts[text_start], &curline->atts[text_end],
+            (curline->len - text_end) * sizeof(text_attribute));
+
+    curline->len -= count;
+    redo_line(*curline);
 }
 
 static void recv_data_fb(string_view s) {
