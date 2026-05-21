@@ -56,5 +56,10 @@ do_stub "_execlp"
 do_stub "_execve"
 do_stub "system"
 do_stub "raise"
+do_stub "_mktemp"
+do_stub "setbuf"
+do_stub "_popen"
+do_stub "_pclose"
+do_stub "mbstowcs"
 
 stubs_end

@@ -234,3 +234,8 @@ _execlp
 _execve
 system
 raise
+_mktemp
+setbuf
+_popen
+_pclose
+mbstowcs
