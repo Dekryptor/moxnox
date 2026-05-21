@@ -43,6 +43,8 @@
 #define HAVE_MBRTOWC 1
 #define HAVE_MBSRTOWCS 1
 
+#define HANDLE_MULTIBYTE 1
+
 #define HAVE_DIRENT_H 1
 #define HAVE_TIMEVAL 1
 #define HAVE_GETTIMEOFDAY 1
