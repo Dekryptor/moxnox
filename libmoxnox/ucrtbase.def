@@ -173,12 +173,12 @@ strtoll
 strtoull
 strtol
 strtoul
+wcsnlen
 
 ; stubs
 __setusermatherr
 _configthreadlocale
 _exit
-wcsnlen
 mbrlen
 fgetpos
 _filelengthi64

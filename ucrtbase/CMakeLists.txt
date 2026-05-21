@@ -107,6 +107,7 @@ set(SRC_FILES src/ucrtbase.cpp
     src/setjmp.cpp
     src/dir.cpp
     src/ctype.cpp
+    src/wcs.cpp
 )
 
 # jump through some hoops so that ucrtbase doesn't try to link to itself

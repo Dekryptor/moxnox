@@ -203,3 +203,4 @@ strcoll = _strcoll
 putchar
 strtoll
 strtoull
+wcsnlen
