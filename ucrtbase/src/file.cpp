@@ -1376,6 +1376,11 @@ int putc(int c, FILE* file) {
 }
 
 extern "C"
+int putchar(int c) {
+    return putc(c, reinterpret_cast<FILE*>(_stdout));
+}
+
+extern "C"
 int _setmode(int fd, int mode) {
     print("FIXME - _setmode ({}, {})\n", fd, mode); // FIXME
 

@@ -168,6 +168,7 @@ _open_osfhandle
 _close
 strpbrk
 strcoll
+putchar
 
 ; stubs
 __setusermatherr
@@ -261,7 +262,6 @@ _getch
 longjmp
 _localtime64
 _mktime64
-putchar
 rewind
 tmpfile
 _setjmpex

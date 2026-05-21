@@ -200,3 +200,4 @@ _open_osfhandle
 _close
 strpbrk
 strcoll = _strcoll
+putchar
