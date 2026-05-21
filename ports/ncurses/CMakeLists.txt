@@ -240,6 +240,13 @@ add_custom_command(
     VERBATIM
 )
 
+add_custom_command(
+    OUTPUT ${GEN}/write_entry.c
+    COMMAND sh -c "sed '/\\t    rc = mkdir(path/{N;N;N;N;s/\\t    rc = mkdir(path\\n#ifndef _NC_WINDOWS_NATIVE\\n\\t\\t       ,0777\\n#endif\\n\\t\\t)/\\t    rc = mkdir(path, 0777)/}' '${CMAKE_CURRENT_SOURCE_DIR}/repo/ncurses/tinfo/write_entry.c' > '${GEN}/write_entry.c'"
+    DEPENDS repo/ncurses/tinfo/write_entry.c
+    VERBATIM
+)
+
 # tinfo shared library
 
 add_library(tinfo SHARED
@@ -287,7 +294,7 @@ add_library(tinfo SHARED
     repo/ncurses/tinfo/read_termcap.c
     repo/ncurses/tinfo/strings.c
     repo/ncurses/tinfo/trim_sgr0.c
-    repo/ncurses/tinfo/write_entry.c
+    ${GEN}/write_entry.c
     repo/ncurses/base/define_key.c
     repo/ncurses/base/key_defined.c
     repo/ncurses/base/keybound.c
