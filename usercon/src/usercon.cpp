@@ -137,6 +137,7 @@ struct console_fb {
     void move_cursor() { }
     void erase_in_line(unsigned int param);
     void erase_in_display(unsigned int param);
+    void delete_chars(unsigned int num);
 
     unsigned int cursor_x, cursor_y;
     unsigned int console_rows, console_cols;
@@ -1684,6 +1685,10 @@ void console_fb::erase_in_display(unsigned int param) {
 
             break;
     }
+}
+
+void console_fb::delete_chars(unsigned int num) {
+    // FIXME
 }
 
 static void recv_data_fb(string_view s) {

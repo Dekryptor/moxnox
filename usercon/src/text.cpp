@@ -68,6 +68,7 @@ struct console_text {
     void move_cursor();
     void erase_in_line(unsigned int param) const;
     void erase_in_display(unsigned int param) const;
+    void delete_chars(unsigned int num);
 
     // FIXME - would need atexit
     // ~console_text() {
@@ -397,6 +398,10 @@ void console_text::erase_in_display(unsigned int param) const {
 
             break;
     }
+}
+
+void console_text::delete_chars(unsigned int num) {
+    // FIXME
 }
 
 export void recv_data_text(string_view s) {

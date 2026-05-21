@@ -44,6 +44,7 @@ concept vt100_console = requires(T t) {
     { t.enable_cursor(false) } -> same_as<void>;
     { t.erase_in_line((unsigned int)0) } -> same_as<void>;
     { t.erase_in_display((unsigned int)0) } -> same_as<void>;
+    { t.delete_chars((unsigned int)0) } -> same_as<void>;
 };
 
 const char32_t ACS_CODES_START = 0x5f;
@@ -503,6 +504,27 @@ void do_repeat(vt100_console auto& t, string_view s) {
     t.cursor_changed();
 }
 
+void delete_chars(vt100_console auto& t, string_view s) {
+    unsigned int num = 1;
+
+    if (!s.empty()) {
+        num = 0;
+
+        for (auto c : s) {
+            if (c < '0' || c > '9')
+                return;
+
+            num *= 10;
+            num += (unsigned int)(c - '0');
+        }
+
+        if (num == 0)
+            return;
+    }
+
+    t.delete_chars(num);
+}
+
 void handle_escape_sequence(vt100_console auto& t, string_view s) {
     if (s.size() >= 3 && s[0] == 0x1b && s[1] == '[') {
         s = string_view(s.data() + 2, s.size() - 2);
@@ -523,6 +545,8 @@ void handle_escape_sequence(vt100_console auto& t, string_view s) {
             set_cursor_position(t, string_view(s.data(), s.size() - 1));
         else if (s.back() == 'b')
             do_repeat(t, string_view(s.data(), s.size() - 1));
+        else if (s.back() == 'P')
+            delete_chars(t, string_view(s.data(), s.size() - 1));
         else if (s == "?25h") {
             t.enable_cursor(true);
             t.cursor_changed();
