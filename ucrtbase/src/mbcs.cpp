@@ -53,3 +53,10 @@ size_t mbrlen(const char* s, size_t n, mbstate_t* ps) {
 
     return _mbrtowc(nullptr, s, n, ps ? ps : &state);
 }
+
+extern "C"
+int ___mb_cur_max_func() {
+    // maximum bytes per code-point for UTF-8
+
+    return 4;
+}

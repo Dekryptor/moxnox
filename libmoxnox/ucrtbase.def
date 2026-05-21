@@ -178,6 +178,7 @@ _exit
 mbrlen
 _mkdir
 clearerr
+___mb_cur_max_func
 
 ; stubs
 __setusermatherr
@@ -185,7 +186,6 @@ _configthreadlocale
 _lseeki64
 strftime
 rand_s
-___mb_cur_max_func
 _wfopen
 towlower
 towupper

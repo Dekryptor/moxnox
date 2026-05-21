@@ -4,7 +4,6 @@ stubs_start
 
 do_stub "__setusermatherr"
 do_stub "_configthreadlocale"
-do_stub "___mb_cur_max_func"
 do_stub "_lseeki64"
 do_stub "_wfopen"
 do_stub "rand_s"
