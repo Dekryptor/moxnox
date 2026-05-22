@@ -60,6 +60,9 @@ public:
     bool disconnected = false;
     termios settings;
 
+    spinlock fg_proc_lock;
+    object_ref fg_proc;
+
     rwsem input_buffer_lock;
     array<char, 4096> input_buffer;
     size_t input_buffer_valid = 0;
@@ -68,6 +71,7 @@ private:
     nt_status tcgetattr(span<uint8_t> outbuf, uintptr_t& written);
     nt_status tcsetattr(span<const uint8_t> inbuf, bool flush);
     nt_status tcflush(span<const uint8_t> inbuf);
+    nt_status set_fg_proc(span<const uint8_t> inbuf);
     size_t process_canonical_input(span<const uint8_t> new_data, uint8_t* echo_buf,
                                    bool& found_eof);
 };
@@ -668,6 +672,9 @@ nt_status pty_client::ioctl(uint32_t code, span<const uint8_t> inbuf,
         case IOCTL_MOXNOX_PTY_TCFLUSH:
             return tcflush(inbuf);
 
+        case IOCTL_MOXNOX_PTY_SET_FOREGROUND_PROCESS:
+            return set_fg_proc(inbuf);
+
         default:
             return nt_status::NOT_SUPPORTED;
     }
@@ -728,6 +735,44 @@ nt_status pty_client::tcflush(span<const uint8_t> inbuf) {
 
     if (queue_selector == TCOFLUSH || queue_selector == TCIOFLUSH)
         send_pipe.clear();
+
+    return nt_status::SUCCESS;
+}
+
+nt_status pty_client::set_fg_proc(span<const uint8_t> inbuf) {
+    if (inbuf.empty()) {
+        object_ref r;
+
+        {
+            lock_guard lock(fg_proc_lock);
+            swap(r, fg_proc);
+        }
+
+        return nt_status::SUCCESS;
+    }
+
+    if (inbuf.size() < sizeof(HANDLE))
+        return nt_status::BUFFER_TOO_SMALL;
+
+    auto& t = *get_current_thread();
+    auto h = *(HANDLE*)inbuf.data();
+
+    auto objref = t.proc->deref_handle(h);
+
+    if (!objref)
+        return nt_status::INVALID_HANDLE;
+
+    // FIXME - check access mask
+
+    auto& obj = objref.get();
+
+    if (obj.type != object_type::process)
+        return nt_status::OBJECT_TYPE_MISMATCH;
+
+    {
+        lock_guard lock(fg_proc_lock);
+        swap(fg_proc, objref);
+    }
 
     return nt_status::SUCCESS;
 }
