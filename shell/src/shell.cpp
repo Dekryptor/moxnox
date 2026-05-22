@@ -101,51 +101,35 @@ static bool forward_stdin(HANDLE h, string_view s, HANDLE proc) {
 }
 #endif
 
-static bool run_program(unique_handle& proc, const termios* tc_settings) {
-    bool did_ctrl_c = false;
+static void run_program(unique_handle& proc, const termios* tc_settings) {
+    nt_status status;
 
     do {
-        array<HANDLE, 2> objs;
-
-        objs[0] = ctrl_c_event;
-        objs[1] = proc.get();
-
-        auto status = NtWaitForMultipleObjects(objs.size(), objs.data(), true,
-                                               true, nullptr);
+        status = NtWaitForSingleObject(proc.get(), true, nullptr);
 
         if (status == nt_status::ALERTED)
             continue;
 
         if (!success(status)) {
-            print_stderr("NtWaitForMultipleObjects returned {}\n", status);
-            return true;
+            print_stderr("NtWaitForSingleObject returned {}\n", status);
+            return;
         }
 
-        switch ((unsigned int)status - (unsigned int)nt_status::SUCCESS) {
-            case 0: {
-                // Ctrl+C
+        running_proc = 0;
 
-                // FIXME - show error if this fails (but only if process not dead already)
-                send_ctrl_c(proc.get());
-                did_ctrl_c = true;
-
-                break;
-            }
-
-            case 1: {
-                // process finished
-
-                running_proc = 0;
-
-                break;
-            }
-        }
+        break;
     } while (running_proc != 0);
 
     if (tc_settings)
         tcsetattr(STDOUT_FILENO, TCSANOW, tc_settings);
 
-    if (did_ctrl_c)
+    PROCESS_BASIC_INFORMATION pbi;
+
+    status = NtQueryInformationProcess(proc.get(), PROCESSINFOCLASS::BasicInformation,
+                                       &pbi, sizeof(pbi), nullptr);
+    if (!success(status))
+        print_stderr("NtQueryInformationProcess returned {}\n", status);
+    else if (pbi.ExitStatus == nt_status::CONTROL_C_EXIT)
         print("^C\n");
 
     print("\e[?25h" // re-enable cursor
@@ -155,8 +139,6 @@ static bool run_program(unique_handle& proc, const termios* tc_settings) {
         "\e>\e[?1l" // reset application keypad and cursor key modes
         "\e7\e[r\e8" // reset scrolling region
     );
-
-    return true;
 }
 
 static constexpr chrono::year_month_day system_time_to_ymd(int64_t system_time) noexcept {
