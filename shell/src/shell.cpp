@@ -34,7 +34,6 @@ static uint8_t utf8_buf[5];
 static unsigned int utf8_chars = 0;
 
 static HANDLE running_proc = 0;
-static HANDLE ctrl_c_event = 0;
 
 static char* prompt_buf;
 static string_view prompt;
@@ -101,7 +100,7 @@ static bool forward_stdin(HANDLE h, string_view s, HANDLE proc) {
 }
 #endif
 
-static void run_program(unique_handle& proc, const termios* tc_settings) {
+static void run_program(unique_handle& proc, termios* tc_settings) {
     nt_status status;
 
     do {
@@ -120,8 +119,10 @@ static void run_program(unique_handle& proc, const termios* tc_settings) {
         break;
     } while (running_proc != 0);
 
-    if (tc_settings)
+    if (tc_settings) {
+        tc_settings->c_lflag &= ~ISIG;
         tcsetattr(STDOUT_FILENO, TCSANOW, tc_settings);
+    }
 
     PROCESS_BASIC_INFORMATION pbi;
 
@@ -453,8 +454,12 @@ static void try_run_program(string_view program, string_view cmdline) {
 
     running_proc = proc.get();
 
-    if (!tcgetattr(STDOUT_FILENO, &tc_settings))
+    if (!tcgetattr(STDOUT_FILENO, &tc_settings)) {
         tc_settings_valid = true;
+        tc_settings.c_lflag |= ISIG;
+
+        tcsetattr(STDOUT_FILENO, TCSANOW, &tc_settings);
+    }
 
     set_pty_fg_proc(peb.ProcessParameters->StandardOutput, proc.get());
 
@@ -1120,18 +1125,7 @@ loop:
 
         if (c == '\b')
             handle_backspace();
-        else if (c == '\x03') { // Ctrl+C
-            print("^C\n");
-            print("{}", prompt);
-
-            if (buf) {
-                free(buf);
-                buf = nullptr;
-            }
-
-            buflen = 0;
-            cursor_pos = 0;
-        } else if (c == '\n') {
+        else if (c == '\n') {
             process_lines();
             print("{}", prompt);
         } else if (c == 0x1b) {
@@ -1206,89 +1200,60 @@ loop:
     }
 }
 
-static bool ctrl_handler(uint32_t type) {
-    if (type != CTRL_C_EVENT)
-        return false;
-
-    auto status = NtSetEvent(ctrl_c_event, nullptr);
-    if (!success(status)) {
-        print_stderr("NtSetEvent returned {}\n", status);
-        return false;
-    }
-
-    return true;
-}
-
 int main() {
     auto teb = NtCurrentTeb();
     auto peb = teb->ProcessEnvironmentBlock;
     nt_status status;
+    termios tc_settings;
 
-    status = NtCreateEvent(&ctrl_c_event, 0, nullptr,
-                           EVENT_TYPE::SynchronizationEvent, false);
-    if (!success(status)) {
-        print_stderr("NtCreateEvent returned {}\n", status);
-        return 1;
+    // disable ISIG
+    if (!tcgetattr(STDOUT_FILENO, &tc_settings)) {
+        tc_settings.c_lflag &= ~ISIG;
+
+        tcsetattr(STDOUT_FILENO, TCSANOW, &tc_settings);
     }
-
-    if (!SetConsoleCtrlHandler(ctrl_handler, true))
-        print_stderr("SetConsoleCtrlHandler failed\n");
 
     get_prompt();
     print("{}", prompt);
 
     while (true) {
-        array<HANDLE, 2> objs;
         IO_STATUS_BLOCK iosb;
         char s[10];
 
-        objs[0] = peb->ProcessParameters->StandardInput;
-        objs[1] = ctrl_c_event;
-
-        status = NtWaitForMultipleObjects(objs.size(), objs.data(), true,
-                                          false, nullptr);
+        status = NtWaitForSingleObject(peb->ProcessParameters->StandardInput,
+                                       false, nullptr);
         if (!success(status)) {
-            print_stderr("NtWaitForMultipleObjects returned {}\n", status);
+            print_stderr("NtWaitForSingleObject returned {}\n", status);
             break;
         }
 
-        switch ((unsigned int)status - (unsigned int)nt_status::SUCCESS) {
-            case 0: { // stdin
-                status = NtReadFile(peb->ProcessParameters->StandardInput, 0,
-                                    nullptr, nullptr, &iosb, s, sizeof(s),
-                                    nullptr, nullptr);
+        status = NtReadFile(peb->ProcessParameters->StandardInput, 0,
+                            nullptr, nullptr, &iosb, s, sizeof(s),
+                            nullptr, nullptr);
 
-                if (status == nt_status::END_OF_FILE) { // Ctrl+D
-                    if (buflen == 0) {
-                        print("\n");
-                        NtTerminateProcess(NtCurrentProcess(), nt_status::SUCCESS);
-                        unreachable();
-                    }
-
-                    continue;
-                } else if (!success(status)) {
-                    print_stderr("NtReadFile returned {}\n", status);
-                    break;
-                }
-
-                if (iosb.Information == 0)
-                    continue;
-
-                buf = (char*)realloc(buf, buflen + iosb.Information);
-                if (!buf) {
-                    print_stderr("out of memory\n");
-                    return 1;
-                }
-
-                handle_input(string_view(s, iosb.Information));
-
-                break;
+        if (status == nt_status::END_OF_FILE) { // Ctrl+D
+            if (buflen == 0) {
+                print("\n");
+                NtTerminateProcess(NtCurrentProcess(), nt_status::SUCCESS);
+                unreachable();
             }
 
-            case 1: // Ctrl+C
-                handle_input("\x03");
-                break;
+            continue;
+        } else if (!success(status)) {
+            print_stderr("NtReadFile returned {}\n", status);
+            continue;
         }
+
+        if (iosb.Information == 0)
+            continue;
+
+        buf = (char*)realloc(buf, buflen + iosb.Information);
+        if (!buf) {
+            print_stderr("out of memory\n");
+            return 1;
+        }
+
+        handle_input(string_view(s, iosb.Information));
     }
 
     return 0;
