@@ -173,12 +173,6 @@ target_sources(dwarf PUBLIC FILE_SET CXX_MODULES FILES modules/dwarf.cpp)
 target_compile_options(dwarf PRIVATE -fno-exceptions ${USERSPACE_CFLAGS})
 target_link_libraries(dwarf PRIVATE format list)
 
-add_library(signal STATIC)
-target_sources(signal PUBLIC FILE_SET CXX_MODULES FILES modules/signal.cpp)
-target_compile_options(signal PRIVATE -fno-exceptions ${USERSPACE_CFLAGS})
-target_link_libraries(signal PRIVATE unique_handle pe)
-target_link_libraries(signal PRIVATE moxnox)
-
 add_library(list STATIC)
 target_sources(list PUBLIC FILE_SET CXX_MODULES FILES modules/list.cpp)
 target_compile_options(list PRIVATE -fno-exceptions ${USERSPACE_CFLAGS})

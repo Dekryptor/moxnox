@@ -24,7 +24,7 @@ if(CMAKE_SYSTEM_PROCESSOR STREQUAL "amd64")
     target_compile_options(shell PRIVATE -masm=intel)
 endif()
 
-target_link_libraries(shell print unicode unique_handle signal list pagesize termios posixshim)
+target_link_libraries(shell print unicode unique_handle list pagesize termios posixshim)
 target_link_libraries(shell format)
 
 install(TARGETS shell DESTINATION ${CMAKE_INSTALL_PREFIX}/bin
