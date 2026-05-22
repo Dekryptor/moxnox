@@ -1998,11 +1998,7 @@ static void run_shell(const char16_t* exe, void (*recv_func)(string_view),
                 if (cad)
                     handle_ctrl_alt_delete(client_handle.get());
 
-                // FIXME - only look for Ctrl+C if ENABLE_PROCESSED_INPUT set
-
-                if (sp.size() == 1 && sp[0] == 0x03) // Ctrl+C
-                    send_ctrl_c(proc.get());
-                else if (!sp.empty()) {
+                if (!sp.empty()) {
                     IO_STATUS_BLOCK iosb;
 
                     while (!sp.empty()) {
