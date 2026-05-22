@@ -2221,32 +2221,6 @@ static void serial_print(string_view s) {
     }
 }
 
-static void handle_serial_stdin(span<const char> s, HANDLE proc,
-                                invocable<span<char>> auto& func) {
-    // FIXME - only look for Ctrl+C etc. if ENABLE_PROCESSED_INPUT set
-
-    // handle VT100 weirdness
-
-    int last_run_start = -1;
-
-    for (size_t i = 0; i < s.size(); i++) {
-        auto c = s[i];
-
-        if (c == '\x03') {
-            if (last_run_start == -1)
-                func(s.subspan(0, (size_t)i));
-            else
-                func(s.subspan((size_t)(last_run_start + 1), i - (size_t)(last_run_start + 1)));
-
-            send_ctrl_c(proc);
-
-            last_run_start = (int)i;
-        }
-    }
-
-    func(s.subspan((size_t)(last_run_start + 1), s.size() - (size_t)(last_run_start + 1)));
-}
-
 static int do_serial_console() {
     HANDLE h;
     unique_handle server_handle, client_handle, proc, ptyctl;
@@ -2339,6 +2313,9 @@ static int do_serial_console() {
         proc.reset(pi.hProcess);
         NtClose(pi.hThread);
 
+        if (!set_pty_fg_proc(client_handle.get(), proc.get()))
+            return false;
+
         return true;
     };
 
@@ -2404,7 +2381,7 @@ static int do_serial_console() {
                     }
                 };
 
-                handle_serial_stdin(read, proc.get(), do_write);
+                do_write(read);
 
                 break;
             }
