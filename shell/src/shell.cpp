@@ -877,13 +877,6 @@ static void handle_char2(char32_t c) {
     else
         return;
 
-    if (!buf) {
-        buf = (char*)malloc(cp_len);
-
-        if (!buf)
-            return;
-    }
-
     memmove(&buf[cursor_pos + cp_len], &buf[cursor_pos], buflen - cursor_pos);
 
     if (c < 0x80)
@@ -1281,18 +1274,11 @@ int main() {
                 if (iosb.Information == 0)
                     continue;
 
-                auto buf2 = (char*)malloc(buflen + iosb.Information);
-                if (!buf2) {
+                buf = (char*)realloc(buf, buflen + iosb.Information);
+                if (!buf) {
                     print_stderr("out of memory\n");
                     return 1;
                 }
-
-                if (buf) {
-                    memcpy(buf2, buf, buflen);
-                    free(buf);
-                }
-
-                buf = buf2;
 
                 handle_input(string_view(s, iosb.Information));
 
