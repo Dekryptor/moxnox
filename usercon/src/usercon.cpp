@@ -1760,6 +1760,21 @@ static string_view get_os_version() {
     return sv;
 }
 
+static bool set_pty_fg_proc(HANDLE client_handle, HANDLE proc) {
+    nt_status status;
+    IO_STATUS_BLOCK iosb;
+
+    status = NtDeviceIoControlFile(client_handle, 0, nullptr, nullptr, &iosb,
+                                   IOCTL_MOXNOX_PTY_SET_FOREGROUND_PROCESS,
+                                   &proc, sizeof(proc), nullptr, 0);
+    if (!success(status)) {
+        print_stderr("IOCTL_MOXNOX_PTY_SET_FOREGROUND_PROCESS returned {}\n", status);
+        return false;
+    }
+
+    return true;
+}
+
 static void run_shell(const char16_t* exe, void (*recv_func)(string_view),
                       void (*flush_func)(), bool& decckm) {
     HANDLE h;
@@ -1929,6 +1944,9 @@ static void run_shell(const char16_t* exe, void (*recv_func)(string_view),
         proc.reset(pi.hProcess);
         NtClose(pi.hThread);
 
+        if (!set_pty_fg_proc(client_handle.get(), proc.get()))
+            return false;
+
         return true;
     };
 
@@ -2071,8 +2089,6 @@ static void run_shell(const char16_t* exe, void (*recv_func)(string_view),
 
                 break;
             }
-
-
         }
     } while (true);
 }
