@@ -23,6 +23,7 @@ import thread;
 import objects;
 import termios;
 import rwsem;
+import process;
 
 using namespace std;
 
@@ -614,8 +615,21 @@ nt_status pty_server::write(span<const uint8_t> s, uint64_t& written_bytes) {
                     written_bytes += bytes;
                 }
 
-                // FIXME - handle Ctrl+C
-                print("FIXME - Ctrl+C\n");
+                process* proc = nullptr;
+
+                {
+                    lock_guard lock(client.fg_proc_lock);
+
+                    if (client.fg_proc) {
+                        proc = static_cast<process*>(&client.fg_proc.get());
+                        proc->acquire();
+                    }
+                }
+
+                if (proc) {
+                    proc->send_ctrl_c(); // FIXME - report errors?
+                    proc->release();
+                }
 
                 written_bytes++;
 

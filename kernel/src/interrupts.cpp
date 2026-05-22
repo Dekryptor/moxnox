@@ -16,7 +16,7 @@ export extern "C++" {
     atomic<uint32_t> tlb_cpus_left;
 }
 
-export uintptr_t mn_signal;
+export uintptr_t mn_signal, mn_ctrl_c;
 export bool msi_supported = false;
 
 export using irq_func_type = bool (*)(void*);

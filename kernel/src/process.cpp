@@ -82,6 +82,7 @@ public:
     nt_status get_next_thread(void* threadptr, ACCESS_MASK desired_access,
                               uint32_t handle_attributes, uint32_t flags,
                               HANDLE* new_thread_handle);
+    nt_status send_ctrl_c();
 
     optional<reference_wrapper<section>> img;
     spinlock mappings_lock;
