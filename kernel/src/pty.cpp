@@ -602,7 +602,8 @@ nt_status pty_server::write(span<const uint8_t> s, uint64_t& written_bytes) {
         bool again = false;
 
         for (size_t i = 0; i < s.size(); i++) {
-            if (s[i] == client.settings.c_cc[VINTR]) {
+            if (s[i] == client.settings.c_cc[VINTR] ||
+                s[i] == client.settings.c_cc[VSUSP]) {
                 if (i != 0) {
                     status = write2(span(s.data(), i), bytes);
                     if (!success(status)) {
@@ -627,7 +628,11 @@ nt_status pty_server::write(span<const uint8_t> s, uint64_t& written_bytes) {
                 }
 
                 if (proc) {
-                    proc->send_ctrl_c(); // FIXME - report errors?
+                    if (s[i] == client.settings.c_cc[VINTR])
+                        proc->send_ctrl_c(); // FIXME - report errors?
+                    else if (s[i] == client.settings.c_cc[VSUSP])
+                        proc->suspend();
+
                     proc->release();
                 }
 
