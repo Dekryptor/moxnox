@@ -22,6 +22,7 @@ import kernelbase;
 import pagesize;
 import cd;
 import termios;
+import moxnox_ioctls;
 
 static char* buf = nullptr;
 static unsigned int buflen = 0;
@@ -265,9 +266,25 @@ static void __attribute__((noinline)) inline1() {
     __asm __volatile("nop");
 }
 
+static bool set_pty_fg_proc(HANDLE client_handle, HANDLE proc) {
+    nt_status status;
+    IO_STATUS_BLOCK iosb;
+
+    status = NtDeviceIoControlFile(client_handle, 0, nullptr, nullptr, &iosb,
+                                   IOCTL_MOXNOX_PTY_SET_FOREGROUND_PROCESS,
+                                   &proc, sizeof(proc), nullptr, 0);
+    if (!success(status)) {
+        print_stderr("IOCTL_MOXNOX_PTY_SET_FOREGROUND_PROCESS returned {}\n", status);
+        return false;
+    }
+
+    return true;
+}
+
 static void try_run_program(string_view program, string_view cmdline) {
     termios tc_settings;
     bool tc_settings_valid;
+    auto& peb = *NtCurrentTeb()->ProcessEnvironmentBlock;
 
     auto u16cmdlinelen = utf8_to_utf16_len(cmdline);
     auto u16cmdline = (char16_t*)malloc((u16cmdlinelen + 1) * sizeof(char16_t));
@@ -457,17 +474,24 @@ static void try_run_program(string_view program, string_view cmdline) {
     if (!tcgetattr(STDOUT_FILENO, &tc_settings))
         tc_settings_valid = true;
 
+    set_pty_fg_proc(peb.ProcessParameters->StandardOutput, proc.get());
+
     auto status = NtResumeThread(pi.hThread, nullptr);
     if (!success(status)) {
         print_stderr("NtResumeThread returned {}\n", status);
         running_proc = 0;
         NtClose(pi.hThread);
+        set_pty_fg_proc(peb.ProcessParameters->StandardOutput,
+                        NtCurrentProcess());
         return;
     }
 
     NtClose(pi.hThread);
 
     run_program(proc, tc_settings_valid ? &tc_settings : nullptr);
+
+    set_pty_fg_proc(peb.ProcessParameters->StandardOutput,
+                    NtCurrentProcess());
 }
 
 static void int3() {
