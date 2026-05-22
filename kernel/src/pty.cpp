@@ -82,6 +82,9 @@ public:
     void last_handle_closed() override;
 
     pty_client& client;
+
+private:
+    nt_status write2(span<const uint8_t> s, uint64_t& written_bytes);
 };
 
 export bool create_dev_ptyctl() {
@@ -572,11 +575,68 @@ nt_status pty_client::canonical_write(span<const uint8_t> s, uint64_t& written_b
     return nt_status::SUCCESS;
 }
 
-nt_status pty_server::write(span<const uint8_t> s, uint64_t& written_bytes) {
+nt_status pty_server::write2(span<const uint8_t> s, uint64_t& written_bytes) {
     if (client.settings.c_lflag & ICANON) // FIXME - do we need a spinlock for this?
         return client.canonical_write(s, written_bytes);
     else
         return client.recv_pipe.write(s, written_bytes);
+}
+
+nt_status pty_server::write(span<const uint8_t> s, uint64_t& written_bytes) {
+    nt_status status;
+    uint64_t bytes;
+
+    if (!(client.settings.c_lflag & ISIG))
+        return write2(s, written_bytes);
+
+    // FIXME - VSUSP
+
+    written_bytes = 0;
+
+    while (!s.empty()) {
+        bool again = false;
+
+        for (size_t i = 0; i < s.size(); i++) {
+            if (s[i] == client.settings.c_cc[VINTR]) {
+                if (i != 0) {
+                    status = write2(span(s.data(), i), bytes);
+                    if (!success(status)) {
+                        if (written_bytes > 0)
+                            return nt_status::SUCCESS;
+                        else
+                            return status;
+                    }
+
+                    written_bytes += bytes;
+                }
+
+                // FIXME - handle Ctrl+C
+                print("FIXME - Ctrl+C\n");
+
+                written_bytes++;
+
+                s = span(s.data() + i + 1, s.size() - i - 1);
+                again = true;
+                break;
+            }
+        }
+
+        if (again)
+            continue;
+
+        status = write2(s, bytes);
+        if (!success(status)) {
+            if (written_bytes > 0)
+                return nt_status::SUCCESS;
+            else
+                return status;
+        }
+
+        written_bytes += bytes;
+        break;
+    }
+
+    return nt_status::SUCCESS;
 }
 
 sync_object& pty_server::get_sync_object() {
