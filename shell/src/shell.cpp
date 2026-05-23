@@ -36,15 +36,16 @@ static HANDLE running_proc = 0;
 static char* prompt_buf;
 static string_view prompt;
 
-#if 0
+static HANDLE info_stream = 0;
+
 struct suspended_process {
     list_entry le;
     unique_handle proc;
+    termios tcsettings;
 };
 
 static list_entry suspended_processes = { &suspended_processes, &suspended_processes };
 static unsigned int num_suspended_processes = 0;
-#endif
 
 void* operator new(size_t count) {
     return malloc(count);
@@ -58,63 +59,70 @@ void operator delete(void* ptr, size_t) noexcept {
     free(ptr);
 }
 
-#if 0
-static bool forward_stdin(HANDLE h, string_view s, HANDLE proc) {
-    auto write = [](HANDLE h, string_view s) {
-        nt_status status;
-        IO_STATUS_BLOCK iosb;
-
-        // FIXME - should loop until all sent
-        status = NtWriteFile(h, 0, nullptr, nullptr, &iosb, s.data(),
-                             (uint32_t)s.size(), nullptr, nullptr);
-        if (!success(status))
-            print_stderr("NtWriteFile returned {}\n", status);
-    };
-
-    size_t ctrlz;
-
-    do {
-        ctrlz = s.find_first_of('\x1a');
-        if (ctrlz == string_view::npos)
-            break;
-
-        if (ctrlz != 0)
-            write(h, string_view(s.data(), ctrlz));
-
-        auto status = NtSuspendProcess(proc);
-        if (!success(status))
-            print_stderr("NtSuspendProcess returned {}\n", status);
-
-        // FIXME - bash also prints command line
-        print("[{}]+  Stopped\n", num_suspended_processes + 1);
-
-        return false;
-    } while (true);
-
-    if (!s.empty())
-        write(h, s);
-
-    return true;
-}
-#endif
-
 static void run_program(unique_handle& proc, termios* tc_settings) {
     nt_status status;
+    bool done_suspend = false;
 
     do {
-        status = NtWaitForSingleObject(proc.get(), true, nullptr);
+        array<HANDLE, 2> objs;
+
+        objs[0] = proc.get();
+        objs[1] = info_stream;
+
+        status = NtWaitForMultipleObjects(objs.size(), objs.data(), true,
+                                          true, nullptr);
 
         if (status == nt_status::ALERTED)
             continue;
 
         if (!success(status)) {
-            print_stderr("NtWaitForSingleObject returned {}\n", status);
+            print_stderr("NtWaitForMultipleObjects returned {}\n", status);
             return;
         }
 
-        running_proc = 0;
+        switch ((unsigned int)status - (unsigned int)nt_status::SUCCESS) {
+            case 0: // process finished
+                running_proc = 0;
+                break;
 
-        break;
+            case 1: { // pty event
+                IO_STATUS_BLOCK iosb;
+                pty_info_event ev;
+
+                status = NtReadFile(info_stream, 0, nullptr, nullptr, &iosb,
+                                    &ev, sizeof(ev), nullptr, nullptr);
+
+                if (!success(status)) {
+                    print_stderr("NtReadFile returned {}\n", status);
+                    continue;
+                }
+
+                if (ev.type == pty_info_type::suspend) {
+                    print("^Z\n");
+                    // FIXME - bash also prints command line
+                    print("[{}]+  Stopped\n", num_suspended_processes + 1);
+
+                    auto sp = new suspended_process;
+                    if (!sp) {
+                        print("new failed\n");
+                        return;
+                    }
+
+                    swap(sp->proc, proc);
+
+                    if (tcgetattr(STDOUT_FILENO, &sp->tcsettings))
+                        print("tcgetattr failed\n");
+
+                    insert_tail_list(suspended_processes, sp->le);
+
+                    num_suspended_processes++;
+                    running_proc = 0;
+                    done_suspend = true;
+                }
+
+                break;
+            }
+        }
     } while (running_proc != 0);
 
     if (tc_settings) {
@@ -124,12 +132,14 @@ static void run_program(unique_handle& proc, termios* tc_settings) {
 
     PROCESS_BASIC_INFORMATION pbi;
 
-    status = NtQueryInformationProcess(proc.get(), PROCESSINFOCLASS::BasicInformation,
-                                       &pbi, sizeof(pbi), nullptr);
-    if (!success(status))
-        print_stderr("NtQueryInformationProcess returned {}\n", status);
-    else if (pbi.ExitStatus == nt_status::CONTROL_C_EXIT)
-        print("^C\n");
+    if (!done_suspend) {
+        status = NtQueryInformationProcess(proc.get(), PROCESSINFOCLASS::BasicInformation,
+                                        &pbi, sizeof(pbi), nullptr);
+        if (!success(status))
+            print_stderr("NtQueryInformationProcess returned {}\n", status);
+        else if (pbi.ExitStatus == nt_status::CONTROL_C_EXIT)
+            print("^C\n");
+    }
 
     print("\e[?25h" // re-enable cursor
         "\e[0m" // reset colours and attributes
@@ -588,7 +598,6 @@ static void cursor() {
 }
 
 static void exit() {
-#if 0
     while (!is_list_empty(suspended_processes)) {
         auto& sp = containing_record<suspended_process>(suspended_processes.next);
 
@@ -600,7 +609,6 @@ static void exit() {
 
         delete &sp;
     }
-#endif
 
     NtTerminateProcess(NtCurrentProcess(), nt_status::SUCCESS);
 }
@@ -1198,6 +1206,24 @@ loop:
     }
 }
 
+static bool get_pty_info_stream() {
+    auto teb = NtCurrentTeb();
+    auto peb = teb->ProcessEnvironmentBlock;
+    nt_status status;
+    IO_STATUS_BLOCK iosb;
+
+    status = NtDeviceIoControlFile(peb->ProcessParameters->StandardOutput, 0,
+                                   nullptr, nullptr, &iosb,
+                                   IOCTL_MOXNOX_PTY_GET_INFO_STREAM,
+                                   nullptr, 0, &info_stream, sizeof(info_stream));
+    if (!success(status)) {
+        print_stderr("IOCTL_MOXNOX_PTY_GET_INFO_STREAM returned {}\n", status);
+        return false;
+    }
+
+    return true;
+}
+
 int main() {
     auto teb = NtCurrentTeb();
     auto peb = teb->ProcessEnvironmentBlock;
@@ -1210,6 +1236,9 @@ int main() {
 
         tcsetattr(STDOUT_FILENO, TCSANOW, &tc_settings);
     }
+
+    if (!get_pty_info_stream())
+        return 1;
 
     get_prompt();
     print("{}", prompt);
