@@ -673,6 +673,7 @@ void pty_client::post_info_event(pty_info_type type) {
 nt_status pty_server::write(span<const uint8_t> s, uint64_t& written_bytes) {
     nt_status status;
     uint64_t bytes;
+    bool noflsh = client.settings.c_lflag & NOFLSH;
 
     if (!(client.settings.c_lflag & ISIG))
         return write2(s, written_bytes);
@@ -722,8 +723,15 @@ nt_status pty_server::write(span<const uint8_t> s, uint64_t& written_bytes) {
                 }
 
                 written_bytes++;
-
                 s = span(s.data() + i + 1, s.size() - i - 1);
+
+                if (!noflsh) {
+                    client.recv_pipe.clear();
+                    client.send_pipe.clear();
+                    written_bytes += s.size();
+                    return nt_status::SUCCESS;
+                }
+
                 again = true;
                 break;
             }
