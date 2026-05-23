@@ -24,6 +24,7 @@ import objects;
 import termios;
 import rwsem;
 import process;
+import list;
 
 using namespace std;
 
@@ -68,11 +69,15 @@ public:
     array<char, 4096> input_buffer;
     size_t input_buffer_valid = 0;
 
+    spinlock info_streams_lock;
+    list_entry info_streams = { &info_streams, &info_streams };
+
 private:
     nt_status tcgetattr(span<uint8_t> outbuf, uintptr_t& written);
     nt_status tcsetattr(span<const uint8_t> inbuf, bool flush);
     nt_status tcflush(span<const uint8_t> inbuf);
     nt_status set_fg_proc(span<const uint8_t> inbuf);
+    nt_status get_info_stream(span<uint8_t> outbuf);
     size_t process_canonical_input(span<const uint8_t> new_data, uint8_t* echo_buf,
                                    bool& found_eof);
 };
@@ -90,6 +95,33 @@ public:
 
 private:
     nt_status write2(span<const uint8_t> s, uint64_t& written_bytes);
+};
+
+class pty_info : public chardev {
+public:
+    pty_info(pty_client& parent) : parent(parent) {
+        parent.acquire();
+    }
+
+    ~pty_info() {
+        {
+            lock_guard lock(parent.info_streams_lock);
+            remove_entry_list(le);
+        }
+
+        parent.release();
+    }
+
+    nt_status read(span<uint8_t>, uint64_t&) override {
+        return nt_status::NOT_SUPPORTED;
+    }
+
+    nt_status write(span<const unsigned char>, uint64_t&) override {
+        return nt_status::NOT_SUPPORTED;
+    }
+
+    list_entry le;
+    pty_client& parent;
 };
 
 export bool create_dev_ptyctl() {
@@ -694,6 +726,9 @@ nt_status pty_client::ioctl(uint32_t code, span<const uint8_t> inbuf,
         case IOCTL_MOXNOX_PTY_SET_FOREGROUND_PROCESS:
             return set_fg_proc(inbuf);
 
+        case IOCTL_MOXNOX_PTY_GET_INFO_STREAM:
+            return get_info_stream(outbuf);
+
         default:
             return nt_status::NOT_SUPPORTED;
     }
@@ -792,6 +827,40 @@ nt_status pty_client::set_fg_proc(span<const uint8_t> inbuf) {
         lock_guard lock(fg_proc_lock);
         swap(fg_proc, objref);
     }
+
+    return nt_status::SUCCESS;
+}
+
+nt_status pty_client::get_info_stream(span<uint8_t> outbuf) {
+    auto& t = *get_current_thread();
+    nt_status status;
+
+    if (outbuf.size() < sizeof(HANDLE))
+        return nt_status::BUFFER_TOO_SMALL;
+
+    auto info = new pty_info(*this);
+    if (!info) {
+        print("new failed\n");
+        return nt_status::INSUFFICIENT_RESOURCES;
+    }
+
+    {
+        lock_guard lock(info_streams_lock);
+        insert_tail_list(info_streams, info->le);
+    }
+
+    handle_t h;
+
+    status = t.proc->add_handle(*info, FILE_READ_DATA | FILE_WRITE_DATA,
+                                true, h);
+    if (!success(status)) {
+        info->release();
+        return status;
+    }
+
+    info->release();
+
+    *(HANDLE*)outbuf.data() = h;
 
     return nt_status::SUCCESS;
 }
