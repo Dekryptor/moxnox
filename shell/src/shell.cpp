@@ -617,6 +617,7 @@ static void exit() {
 }
 
 static void fg() {
+    auto& peb = *NtCurrentTeb()->ProcessEnvironmentBlock;
     bool tc_settings_valid = false;
     termios tc_settings;
 
@@ -646,6 +647,8 @@ static void fg() {
     delete &sp;
 
     num_suspended_processes--;
+
+    set_pty_fg_proc(peb.ProcessParameters->StandardOutput, proc.get());
 
     NtResumeProcess(proc.get());
 
