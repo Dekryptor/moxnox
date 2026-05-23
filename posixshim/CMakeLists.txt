@@ -16,6 +16,7 @@ add_library(posixshim STATIC
     src/poll.cpp
     src/environ.cpp
     src/file.cpp
+    src/wcwidth.cpp
 )
 
 target_compile_options(posixshim PRIVATE -fno-exceptions ${USERSPACE_CFLAGS})
