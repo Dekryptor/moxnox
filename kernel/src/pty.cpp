@@ -525,16 +525,9 @@ nt_status pty_client::canonical_write(span<const uint8_t> s, uint64_t& written_b
         size_t bytes;
 
         if (!sp.empty()) {
-            while (true) {
-                auto status = send_pipe.write(sp, bytes);
-                if (!success(status))
-                    return status;
-
-                if (bytes == sp.size())
-                    break;
-
-                sp = span(sp.data() + bytes, sp.size() - bytes);
-            }
+            auto status = send_pipe.write_nonblock(sp, bytes);
+            if (!success(status))
+                return status;
         }
 
         return nt_status::SUCCESS;
@@ -606,12 +599,12 @@ nt_status pty_client::canonical_write(span<const uint8_t> s, uint64_t& written_b
                 break;
 
             if (!echo && echonl) {
-                status = send_pipe.write("\r", bytes);
+                status = send_pipe.write_nonblock("\r", bytes);
                 if (!success(status))
                     return status;
 
                 if (onlcr) {
-                    status = send_pipe.write("\n", bytes);
+                    status = send_pipe.write_nonblock("\n", bytes);
                     if (!success(status))
                         return status;
                 }

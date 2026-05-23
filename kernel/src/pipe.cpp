@@ -38,6 +38,12 @@ public:
         return write(span((uint8_t*)sv.data(), sv.length()), written_bytes);
     }
 
+    NTSTATUS write_nonblock(span<const uint8_t> s, uint64_t& written_bytes);
+
+    NTSTATUS write_nonblock(string_view sv, uint64_t& written_bytes) {
+        return write_nonblock(span((uint8_t*)sv.data(), sv.length()), written_bytes);
+    }
+
     void clear() override;
 
     void set_eof_pending();
@@ -258,6 +264,77 @@ nt_status pipe::write(span<const uint8_t> s, uint64_t& written_bytes) {
         if (readonly)
             break;
     } while (true);
+
+    written_bytes = (uint64_t)(s.data() - orig_s.data());
+
+    return nt_status::SUCCESS;
+}
+
+nt_status pipe::write_nonblock(span<const uint8_t> s, uint64_t& written_bytes) {
+    auto orig_s = s;
+
+    if (readonly) {
+        written_bytes = 0;
+        return nt_status::MEDIA_WRITE_PROTECTED;
+    }
+
+    if (server_closed) {
+        written_bytes = 0;
+        return nt_status::PIPE_DISCONNECTED;
+    }
+
+    if (s.empty()) {
+        written_bytes = 0;
+        return nt_status::SUCCESS;
+    }
+
+    size_t to_copy;
+
+    {
+        lock_guard l(lock);
+
+        size_t buf_left = (buf_pages << PAGE_SHIFT) - buf_unread;
+
+        to_copy = min(s.size(), buf_left);
+
+        if (to_copy > 0) {
+            if (buf_write_pos + to_copy > buf_pages << PAGE_SHIFT) {
+                auto first_bit = (buf_pages << PAGE_SHIFT) - buf_write_pos;
+
+                memcpy(&buf[buf_write_pos], s.data(), first_bit);
+
+                buf_write_pos = 0;
+                buf_unread += first_bit;
+                to_copy -= first_bit;
+                s = s.subspan(first_bit);
+            }
+
+            memcpy(&buf[buf_write_pos], s.data(), to_copy);
+            buf_write_pos += to_copy;
+            buf_unread += to_copy;
+            s = s.subspan(to_copy);
+        }
+    }
+
+    if (to_copy > 0) {
+        // wake up waiting thread
+
+        sync_lock sl;
+        lock_guard l(sl);
+
+        if (!signalled) {
+            signalled = true;
+
+            wake_up_waiters(waiters);
+        }
+
+        {
+            lock_guard l2(lock);
+
+            if (buf_unread == buf_pages << PAGE_SHIFT && !server_closed)
+                not_full_event.signalled = false;
+        }
+    }
 
     written_bytes = (uint64_t)(s.data() - orig_s.data());
 
