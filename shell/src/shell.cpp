@@ -22,6 +22,9 @@ import cd;
 import termios;
 import moxnox_ioctls;
 
+#undef errno
+import errno;
+
 static char* buf = nullptr;
 static unsigned int buflen = 0;
 static unsigned int cursor_pos = 0;
@@ -59,7 +62,7 @@ void operator delete(void* ptr, size_t) noexcept {
     free(ptr);
 }
 
-static void run_program(unique_handle& proc, termios* tc_settings) {
+static void run_program(unique_handle& proc, termios* prev_tc_settings) {
     nt_status status;
     bool done_suspend = false;
 
@@ -125,9 +128,9 @@ static void run_program(unique_handle& proc, termios* tc_settings) {
         }
     } while (running_proc != 0);
 
-    if (tc_settings) {
-        tc_settings->c_lflag &= ~ISIG;
-        tcsetattr(STDOUT_FILENO, TCSANOW, tc_settings);
+    if (prev_tc_settings) {
+        prev_tc_settings->c_lflag &= ~ISIG;
+        tcsetattr(STDOUT_FILENO, TCSANOW, prev_tc_settings);
     }
 
     PROCESS_BASIC_INFORMATION pbi;
@@ -613,9 +616,18 @@ static void exit() {
     NtTerminateProcess(NtCurrentProcess(), nt_status::SUCCESS);
 }
 
-#if 0
-static void fg(HANDLE server_handle) {
+static void fg() {
+    bool tc_settings_valid = false;
+    termios tc_settings;
+
     // FIXME - job_spec
+
+    if (!tcgetattr(STDOUT_FILENO, &tc_settings)) {
+        tc_settings_valid = true;
+        tc_settings.c_lflag |= ISIG;
+
+        tcsetattr(STDOUT_FILENO, TCSANOW, &tc_settings);
+    }
 
     if (is_list_empty(suspended_processes)) {
         print_stderr("fg: current: no such job\n");
@@ -627,6 +639,9 @@ static void fg(HANDLE server_handle) {
 
     swap(sp.proc, proc);
 
+    if (tcsetattr(STDOUT_FILENO, TCSANOW, &sp.tcsettings))
+        print_stderr("tcsetattr failed (errno {})\n", errno_to_string_view(*_errno()));
+
     remove_entry_list(sp.le);
     delete &sp;
 
@@ -635,9 +650,8 @@ static void fg(HANDLE server_handle) {
     NtResumeProcess(proc.get());
 
     running_proc = proc.get();
-    run_program(server_handle, proc);
+    run_program(proc, tc_settings_valid ? &tc_settings : nullptr);
 }
-#endif
 
 static void get_prompt() {
     nt_status status;
@@ -753,10 +767,8 @@ static void process_line(string_view sv) {
         scroll(param);
     else if (cmd == "cursor") // TESTING
         cursor();
-#if 0
     else if (cmd == "fg")
-        fg(server_handle);
-#endif
+        fg();
     else if (cmd == "cd") {
         cd(param);
         get_prompt();
