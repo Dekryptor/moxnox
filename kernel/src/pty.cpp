@@ -56,6 +56,7 @@ public:
 
     void server_disconnected();
     nt_status canonical_write(span<const uint8_t> s, uint64_t& written_bytes);
+    void post_info_event(pty_info_type type);
 
     pipe& recv_pipe;
     pipe& send_pipe;
@@ -71,6 +72,7 @@ public:
 
     spinlock info_streams_lock;
     list_entry info_streams = { &info_streams, &info_streams };
+    rwsem info_mutex;
 
 private:
     nt_status tcgetattr(span<uint8_t> outbuf, uintptr_t& written);
@@ -97,10 +99,17 @@ private:
     nt_status write2(span<const uint8_t> s, uint64_t& written_bytes);
 };
 
+struct pty_info_event2 {
+    list_entry le;
+    pty_info_event ev;
+};
+
 class pty_info : public chardev {
 public:
     pty_info(pty_client& parent) : parent(parent) {
         parent.acquire();
+
+        signalled = false;
     }
 
     ~pty_info() {
@@ -112,16 +121,21 @@ public:
         parent.release();
     }
 
-    nt_status read(span<uint8_t>, uint64_t&) override {
-        return nt_status::NOT_SUPPORTED;
-    }
+    nt_status read(span<uint8_t> s, uint64_t& read_bytes) override;
 
     nt_status write(span<const unsigned char>, uint64_t&) override {
         return nt_status::NOT_SUPPORTED;
     }
 
+    void post_info_event(pty_info_type type);
+
     list_entry le;
     pty_client& parent;
+    bool visited;
+
+    spinlock queue_lock;
+    list_entry queue = { &queue, &queue };
+    size_t queue_length = 0;
 };
 
 export bool create_dev_ptyctl() {
@@ -619,6 +633,50 @@ nt_status pty_server::write2(span<const uint8_t> s, uint64_t& written_bytes) {
         return client.recv_pipe.write(s, written_bytes);
 }
 
+void pty_client::post_info_event(pty_info_type type) {
+    lock_guard lg(info_mutex);
+
+    {
+        lock_guard lg2(info_streams_lock);
+
+        for (auto le = info_streams.next; le != &info_streams; le = le->next) {
+            auto& info = containing_record<pty_info>(le);
+
+            info.visited = false;
+        }
+
+        if (is_list_empty(info_streams))
+            return;
+    }
+
+    while (true) {
+        pty_info* info = nullptr;
+
+        {
+            lock_guard lg2(info_streams_lock);
+
+            for (auto le = info_streams.next; le != &info_streams; le = le->next) {
+                auto& info2 = containing_record<pty_info>(le);
+
+                if (!info2.visited) {
+                    info2.acquire();
+                    info = &info2;
+
+                    info2.visited = true;
+                    remove_entry_list(info2.le);
+                    insert_tail_list(info_streams, info2.le);
+                }
+            }
+        }
+
+        if (!info)
+            return;
+
+        info->post_info_event(type);
+        info->release();
+    }
+}
+
 nt_status pty_server::write(span<const uint8_t> s, uint64_t& written_bytes) {
     nt_status status;
     uint64_t bytes;
@@ -662,8 +720,10 @@ nt_status pty_server::write(span<const uint8_t> s, uint64_t& written_bytes) {
                 if (proc) {
                     if (s[i] == client.settings.c_cc[VINTR])
                         proc->send_ctrl_c(); // FIXME - report errors?
-                    else if (s[i] == client.settings.c_cc[VSUSP])
+                    else if (s[i] == client.settings.c_cc[VSUSP]) {
                         proc->suspend();
+                        client.post_info_event(pty_info_type::suspend); // FIXME - include pid or something?
+                    }
 
                     proc->release();
                 }
@@ -863,4 +923,77 @@ nt_status pty_client::get_info_stream(span<uint8_t> outbuf) {
     *(HANDLE*)outbuf.data() = h;
 
     return nt_status::SUCCESS;
+}
+
+void pty_info::post_info_event(pty_info_type type) {
+    static const size_t MAX_QUEUE_LENGTH = 10;
+
+    auto ev = new pty_info_event2;
+    if (!ev) {
+        print("new failed\n");
+        return;
+    }
+
+    ev->ev.type = type;
+
+    bool done = false;
+
+    {
+        sync_lock sl;
+        lock_guard lock(sl);
+        lock_guard lock2(queue_lock);
+
+        if (queue_length == 0) {
+            signalled = true;
+            wake_up_waiters(waiters);
+        }
+
+        if (queue_length < MAX_QUEUE_LENGTH) {
+            insert_tail_list(queue, ev->le);
+            queue_length++;
+            done = true;
+        }
+    }
+
+    if (!done) {
+        delete ev;
+        return;
+    }
+}
+
+nt_status pty_info::read(span<uint8_t> s, uint64_t& read_bytes) {
+    nt_status status;
+
+    if (s.size() < sizeof(pty_info_event))
+        return nt_status::BUFFER_TOO_SMALL;
+
+    while (true) {
+        status = wait_for_object(*this, true);
+        if (!success(status))
+            return status;
+
+        pty_info_event2* ev;
+
+        {
+            sync_lock sl;
+            lock_guard lock(sl);
+            lock_guard lock2(queue_lock);
+
+            if (is_list_empty(queue))
+                continue;
+
+            ev = &containing_record<pty_info_event2>(queue.next);
+
+            remove_entry_list(ev->le);
+            queue_length--;
+
+            if (queue_length == 0)
+                signalled = false;
+        }
+
+        memcpy(s.data(), &ev->ev, sizeof(pty_info_event));
+        read_bytes = sizeof(pty_info_event);
+
+        return nt_status::SUCCESS;
+    }
 }

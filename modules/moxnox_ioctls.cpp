@@ -171,3 +171,11 @@ export struct MOXNOX_IOCTL_PTYCTL_CREATE_PTY {
     HANDLE server_handle;
     HANDLE client_handle;
 };
+
+export enum pty_info_type {
+    suspend
+};
+
+export struct pty_info_event {
+    pty_info_type type;
+};
