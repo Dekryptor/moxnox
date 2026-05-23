@@ -6,29 +6,106 @@ import print;
 
 #include <stddef.h>
 #include <stdint.h>
+
 extern "C" int* __errno();
 
+struct mbstate {
+    uint16_t codepoint;
+    uint8_t left;
+    uint8_t total;
+};
+
+static_assert(sizeof(mbstate) <= sizeof(int));
+
 extern "C"
-size_t _mbrtowc(wchar_t* pwc, const char* s, size_t n, mbstate_t* /*ps*/) {
-    if (!s)
+size_t _mbrtowc(wchar_t* pwc, const char* s, size_t n, mbstate_t* ps) {
+    static mbstate_t static_state;
+
+    auto& st = *reinterpret_cast<mbstate*>(ps ? ps : &static_state);
+
+    if (!s) {
+        if (st.left > 0) {
+            st.left = 0;
+            *__errno() = EILSEQ;
+            return (size_t)-1;
+        }
+
         return 0;
+    }
 
     if (n == 0)
         return (size_t)-2;
 
-    auto c = (uint8_t)s[0];
+    size_t read = 0;
+    uint16_t cp;
+    uint8_t left, total;
 
-    if (c < 0x80) {
-        if (pwc)
-            *pwc = c;
+    if (st.left > 0) {
+        cp = st.codepoint;
+        left = st.left;
+        total = st.total;
+    } else {
+        auto c = (uint8_t)s[read];
+        read++;
 
-        return c == 0 ? 0 : 1;
+        if (c < 0x80) {
+            if (pwc)
+                *pwc = c;
+
+            return c == 0 ? 0 : 1;
+        }
+
+        if (c < 0xc2) {
+            *__errno() = EILSEQ;
+            return (size_t)-1;
+        } else if (c < 0xe0) {
+            cp = c & 0x1f;
+            left = 1;
+            total = 1;
+        } else if (c < 0xf0) {
+            cp = c & 0x0f;
+            left = 2;
+            total = 2;
+        } else {
+            *__errno() = EILSEQ;
+            return (size_t)-1;
+        }
     }
 
-    // FIXME - proper UTF-8 handling
+    while (left > 0) {
+        if (read >= n) {
+            st.codepoint = cp;
+            st.left = left;
+            st.total = total;
 
-    *__errno() = EILSEQ;
-    return (size_t)-1;
+            return (size_t)-2;
+        }
+
+        auto c = (uint8_t)s[read];
+        read++;
+
+        if (c < 0x80 || c > 0xbf) {
+            st.left = 0;
+            *__errno() = EILSEQ;
+            return (size_t)-1;
+        }
+
+        cp = (cp << 6) | (c & 0x3f);
+        left--;
+    }
+
+    if ((total == 2 && cp < 0x800) || (cp >= 0xd800 && cp <= 0xdfff)) {
+        st.left = 0;
+        *__errno() = EILSEQ;
+        return (size_t)-1;
+    }
+
+    st.left = 0;
+
+    if (pwc)
+        *pwc = (wchar_t)cp;
+
+    return read;
 }
 
 extern "C"
