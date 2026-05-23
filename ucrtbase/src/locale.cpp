@@ -91,15 +91,15 @@ wctype_t __wctype(const char* prop) {
 
 extern "C"
 char* setlocale(int /*category*/, const char* locale) {
-    // FIXME - do this properly
+    // FIXME - do this properly?
 
     if (!locale)
-        return (char*)"C";
+        return (char*)"C.utf8";
 
     auto localesv = string_view(locale);
 
-    if (localesv == "" || localesv == "C")
-        return (char*)"C";
+    if (localesv == "" || localesv == "C" || localesv == "C.utf8")
+        return (char*)"C.utf8";
 
     return nullptr;
 }
