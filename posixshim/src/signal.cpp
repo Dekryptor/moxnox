@@ -34,3 +34,10 @@ int sigaddset(sigset_t* set, int signum) {
 
     return 0;
 }
+
+extern "C"
+int sigprocmask(int /*how*/, const sigset_t* /*set*/, sigset_t* /*oldset*/) {
+    // FIXME
+
+    return 0;
+}
