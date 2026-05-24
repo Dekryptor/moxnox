@@ -60,6 +60,5 @@ do_stub_no_export "sigfillset"
 do_stub_no_export "fork"
 do_stub_no_export "unsetenv"
 do_stub_no_export "ttyname"
-do_stub_no_export "select"
 
 stubs_end

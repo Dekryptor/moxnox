@@ -1,4 +1,5 @@
 #include <poll.h>
+#include <sys/select.h>
 #include <stdint.h>
 #include <limits>
 
@@ -76,4 +77,98 @@ int poll(struct pollfd* fds, nfds_t nfds, int timeout) {
     free(entries);
 
     return ret;
+}
+
+extern "C"
+int select(int nfds, fd_set* readfds, fd_set* writefds, fd_set* exceptfds,
+           const timeval* timeout) {
+    pollfd* pfds = nullptr;
+    int npfds = 0;
+
+    if (nfds > 0) {
+        pfds = (pollfd*)malloc(sizeof(pollfd) * nfds);
+        if (!pfds) {
+            *_errno() = ENOMEM;
+            return -1;
+        }
+
+        for (int i = 0; i < nfds; i++) {
+            int16_t events = 0;
+
+            if (readfds && FD_ISSET(i, readfds))
+                events |= POLLIN;
+
+            if (writefds && FD_ISSET(i, writefds))
+                events |= POLLOUT;
+
+            if (exceptfds && FD_ISSET(i, exceptfds))
+                events |= POLLPRI;
+
+            if (events != 0) {
+                pfds[npfds].fd = i;
+                pfds[npfds].events = events;
+                pfds[npfds].revents = 0;
+                npfds++;
+            }
+        }
+    }
+
+    int poll_timeout;
+
+    if (!timeout)
+        poll_timeout = -1;
+    else {
+        uint64_t ms = ((uint64_t)timeout->tv_sec * 1000) + (timeout->tv_usec / 1000);
+
+        if (ms > INT_MAX)
+            ms = INT_MAX;
+
+        poll_timeout = (int)ms;
+    }
+
+    auto r = poll(pfds, npfds, poll_timeout);
+
+    if (r >= 0) {
+        if (readfds)
+            FD_ZERO(readfds);
+
+        if (writefds)
+            FD_ZERO(writefds);
+
+        if (exceptfds)
+            FD_ZERO(exceptfds);
+    }
+
+    if (r > 0) {
+        r = 0;
+
+        for (int i = 0; i < npfds; i++) {
+            auto rev = pfds[i].revents;
+
+            if (rev == 0)
+                continue;
+
+            auto fd = pfds[i].fd;
+
+            if (readfds && (pfds[i].events & POLLIN) && (rev & (POLLIN | POLLHUP | POLLERR))) {
+                FD_SET(fd, readfds);
+                r++;
+            }
+
+            if (writefds && (pfds[i].events & POLLOUT) && (rev & (POLLOUT | POLLERR))) {
+                FD_SET(fd, writefds);
+                r++;
+            }
+
+            if (exceptfds && (pfds[i].events & POLLPRI) && (rev & POLLPRI)) {
+                FD_SET(fd, exceptfds);
+                r++;
+            }
+        }
+    }
+
+    if (pfds)
+        free(pfds);
+
+    return r;
 }
