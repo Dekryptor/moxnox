@@ -1,5 +1,7 @@
 #include <termios.h>
 #include <sys/stat.h>
+#include <sys/select.h>
+#include <signal.h>
 
 #define _POSIX_VERSION 200809L
 
@@ -7,6 +9,9 @@
 #define HAVE_ISXDIGIT 1
 #define HAVE_MEMMOVE 1
 #define HAVE_POLL 1
+#define HAVE_SELECT 1
+#define HAVE_SYS_SELECT_H 1
+#define HAVE_POSIX_SIGNALS 1
 #define HAVE_SETENV 1
 #define HAVE_SETLOCALE 1
 #define HAVE_STRCOLL 1

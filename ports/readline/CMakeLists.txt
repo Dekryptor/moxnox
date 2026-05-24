@@ -59,7 +59,7 @@ add_library(readline SHARED
     repo/xmalloc.c
 )
 
-target_compile_definitions(readline PRIVATE HAVE_CONFIG_H READLINE_LIBRARY=)
+target_compile_definitions(readline PRIVATE HAVE_CONFIG_H RL_TIMEOUT_USE_SELECT READLINE_LIBRARY=)
 target_compile_options(readline PRIVATE
     ${USERSPACE_CFLAGS}
     -fvisibility=default
