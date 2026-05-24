@@ -7,12 +7,9 @@ import ucrtbase;
 import errno;
 
 extern "C"
-int sigaction(int signum, const struct sigaction* act, struct sigaction* oldact) {
-    print("FIXME - sigaction ({}, {:x}, {:x})\n", signum, (uintptr_t)act, (uintptr_t)oldact);
-
+int sigaction(int /*signum*/, const struct sigaction* /*act*/,
+              struct sigaction* /*oldact*/) {
     // FIXME
 
-    *_errno() = EINVAL;
-
-    return -1;
+    return 0;
 }
