@@ -18,6 +18,7 @@ extern "C" {
 #endif
 
 int sigaction(int sig, const struct sigaction *act, struct sigaction *oldact);
+int sigemptyset(sigset_t* set);
 
 #ifdef __cplusplus
 }

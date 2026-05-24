@@ -13,3 +13,10 @@ int sigaction(int /*signum*/, const struct sigaction* /*act*/,
 
     return 0;
 }
+
+extern "C"
+int sigemptyset(sigset_t* set) {
+    *set = 0;
+
+    return 0;
+}
