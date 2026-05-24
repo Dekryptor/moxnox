@@ -20,3 +20,10 @@ int sigemptyset(sigset_t* set) {
 
     return 0;
 }
+
+extern "C"
+int sigfillset(sigset_t* set) {
+    *set = ~(sigset_t)0;
+
+    return 0;
+}
