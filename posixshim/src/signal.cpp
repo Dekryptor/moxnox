@@ -27,3 +27,10 @@ int sigfillset(sigset_t* set) {
 
     return 0;
 }
+
+extern "C"
+int sigaddset(sigset_t* set, int signum) {
+    *set |= (sigset_t)1 << signum;
+
+    return 0;
+}
