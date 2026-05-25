@@ -26,4 +26,24 @@
 #define JUMP_BUFFER_XMM14 0xe0
 #define JUMP_BUFFER_XMM15 0xf0
 
+#elif defined(__aarch64__)
+
+#define JUMP_BUFFER_FRAME 0x0
+#define JUMP_BUFFER_X19 0x10
+#define JUMP_BUFFER_X20 0x18
+#define JUMP_BUFFER_X21 0x20
+#define JUMP_BUFFER_X22 0x28
+#define JUMP_BUFFER_X23 0x30
+#define JUMP_BUFFER_X24 0x38
+#define JUMP_BUFFER_X25 0x40
+#define JUMP_BUFFER_X26 0x48
+#define JUMP_BUFFER_X27 0x50
+#define JUMP_BUFFER_X28 0x58
+#define JUMP_BUFFER_FP 0x60
+#define JUMP_BUFFER_LR 0x68
+#define JUMP_BUFFER_SP 0x70
+#define JUMP_BUFFER_FPCR 0x78
+#define JUMP_BUFFER_FPSR 0x7c
+#define JUMP_BUFFER_D 0x80
+
 #endif

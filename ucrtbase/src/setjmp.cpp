@@ -35,16 +35,25 @@ static_assert(offsetof(_JUMP_BUFFER, Xmm13) == JUMP_BUFFER_XMM13);
 static_assert(offsetof(_JUMP_BUFFER, Xmm14) == JUMP_BUFFER_XMM14);
 static_assert(offsetof(_JUMP_BUFFER, Xmm15) == JUMP_BUFFER_XMM15);
 
-#endif
+#elifdef __aarch64__
 
-#ifndef __x86_64__
-
-extern "C"
-int _setjmp(jmp_buf /*env*/, void* /*frame*/) {
-    // print("FIXME - _setjmp\n");
-
-    return 0;
-}
+static_assert(offsetof(_JUMP_BUFFER, Frame) == JUMP_BUFFER_FRAME);
+static_assert(offsetof(_JUMP_BUFFER, X19) == JUMP_BUFFER_X19);
+static_assert(offsetof(_JUMP_BUFFER, X20) == JUMP_BUFFER_X20);
+static_assert(offsetof(_JUMP_BUFFER, X21) == JUMP_BUFFER_X21);
+static_assert(offsetof(_JUMP_BUFFER, X22) == JUMP_BUFFER_X22);
+static_assert(offsetof(_JUMP_BUFFER, X23) == JUMP_BUFFER_X23);
+static_assert(offsetof(_JUMP_BUFFER, X24) == JUMP_BUFFER_X24);
+static_assert(offsetof(_JUMP_BUFFER, X25) == JUMP_BUFFER_X25);
+static_assert(offsetof(_JUMP_BUFFER, X26) == JUMP_BUFFER_X26);
+static_assert(offsetof(_JUMP_BUFFER, X27) == JUMP_BUFFER_X27);
+static_assert(offsetof(_JUMP_BUFFER, X28) == JUMP_BUFFER_X28);
+static_assert(offsetof(_JUMP_BUFFER, Fp) == JUMP_BUFFER_FP);
+static_assert(offsetof(_JUMP_BUFFER, Lr) == JUMP_BUFFER_LR);
+static_assert(offsetof(_JUMP_BUFFER, Sp) == JUMP_BUFFER_SP);
+static_assert(offsetof(_JUMP_BUFFER, Fpcr) == JUMP_BUFFER_FPCR);
+static_assert(offsetof(_JUMP_BUFFER, Fpsr) == JUMP_BUFFER_FPSR);
+static_assert(offsetof(_JUMP_BUFFER, D) == JUMP_BUFFER_D);
 
 #endif
 
@@ -99,7 +108,7 @@ void longjmp(jmp_buf env, int value) {
 
 extern "C"
 void longjmp(jmp_buf env, int value) {
-    __asm("ud2");
+    // __asm("ud2");
 }
 
 #endif
