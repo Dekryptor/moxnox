@@ -3,7 +3,7 @@
 #endif
 
 .macro underscore_func name
-    .section ".text$\name"
+    .section ".text$\name","ax"
     .global "\name"
     "\name":
 #ifdef __x86_64__
@@ -16,7 +16,7 @@
 .endm
 
 .macro redirect_name new_name old_name
-    .section ".text$\old_name"
+    .section ".text$\old_name","ax"
     .global "\old_name"
     "\old_name":
 #ifdef __x86_64__
