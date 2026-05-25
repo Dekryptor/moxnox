@@ -583,7 +583,7 @@ nt_status evdev_multiplexer::write(span<const uint8_t> s, uint64_t& written_byte
 
     auto status = ctx->write(ev.ev);
 
-    if (!success(status))
+    if (success(status))
         written_bytes = sizeof(input_event_with_id);
 
     ctx->release();
