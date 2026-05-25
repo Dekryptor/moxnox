@@ -210,3 +210,4 @@ towlower
 towupper
 qsort
 iswctype = _iswctype
+longjmp

@@ -182,6 +182,7 @@ ___mb_cur_max_func
 towlower
 towupper
 qsort
+longjmp
 
 ; stubs
 __setusermatherr
@@ -208,7 +209,6 @@ _gmtime64
 _gmtime64_s
 freopen
 _localtime64_s
-longjmp
 _localtime64
 _mktime64
 rewind

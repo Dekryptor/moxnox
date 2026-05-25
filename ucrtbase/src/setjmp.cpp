@@ -3,7 +3,8 @@
 #include "setjmp_offsets.h"
 
 import ucrtbase;
-import print;
+import nt;
+import ntdll;
 
 #ifdef __x86_64__
 
@@ -40,6 +41,36 @@ int _setjmp(jmp_buf /*env*/, void* /*frame*/) {
     // print("FIXME - _setjmp\n");
 
     return 0;
+}
+
+#endif
+
+#ifdef __x86_64__
+
+extern "C"
+void longjmp(jmp_buf env, int value) {
+    auto jmp = (_JUMP_BUFFER*)env;
+
+    if (jmp->Frame == 0) {
+        // FIXME
+        __asm("ud2");
+    } else {
+        CONTEXT ctx;
+        auto ret = (uintptr_t)value;
+
+        if (ret == 0)
+            ret = 1;
+
+        RtlUnwindEx((void*)jmp->Frame, (void*)jmp->Rip, nullptr, (void*)ret,
+                    &ctx, nullptr);
+    }
+}
+
+#else
+
+extern "C"
+void longjmp(jmp_buf env, int value) {
+    __asm("ud2");
 }
 
 #endif
