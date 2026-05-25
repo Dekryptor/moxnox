@@ -42,7 +42,6 @@ _fseek_nolock = __fseek_nolock
 _ftelli64_nolock = __ftelli64_nolock
 _ftelli64 = __ftelli64
 _ftell_nolock = __ftell_nolock
-iswctype = ntdll.iswctype
 memchr = ntdll.memchr
 memcmp = ntdll.memcmp
 memmove = ntdll.memmove
@@ -209,3 +208,4 @@ clearerr
 ___mb_cur_max_func
 towlower
 qsort
+iswctype = _iswctype

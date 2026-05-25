@@ -85,7 +85,6 @@ add_library(mingwex STATIC
     repo/mingw-w64-crt/complex/ctan.c
     repo/mingw-w64-crt/complex/ctanf.c
     repo/mingw-w64-crt/complex/ctanl.c
-    repo/mingw-w64-crt/ctype/iswctype.c
     repo/mingw-w64-crt/gdtoa/arithchk.c
     repo/mingw-w64-crt/gdtoa/dmisc.c
     repo/mingw-w64-crt/gdtoa/dtoa.c

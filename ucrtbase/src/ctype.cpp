@@ -215,3 +215,11 @@ int isalnum(int c) {
 
     return types[c] & (_UPPER | _LOWER | _DIGIT);
 }
+
+extern "C"
+int _iswctype(wint_t c, wctype_t desc) {
+    if ((size_t)c >= types.size())
+        return 0;
+
+    return types[c] & desc;
+}
