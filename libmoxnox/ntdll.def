@@ -472,3 +472,4 @@ strncat
 wcscpy
 wcsncmp
 mn_poll
+NtContinue

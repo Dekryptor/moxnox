@@ -66,3 +66,4 @@ RtlIsProcessorFeaturePresent
 RtlQueryPerformanceFrequency
 RtlQueryPerformanceCounter
 strnlen
+NtContinue
