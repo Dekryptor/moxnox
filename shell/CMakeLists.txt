@@ -563,3 +563,15 @@ if (CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
 endif()
 
 install(TARGETS readline-test DESTINATION ${CMAKE_INSTALL_PREFIX}/bin COMPONENT core)
+
+###
+
+add_executable(setjmp-test src/setjmp-test.cpp)
+
+target_compile_options(setjmp-test PRIVATE -fno-exceptions ${USERSPACE_CFLAGS})
+
+if (CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
+    target_link_options(setjmp-test PUBLIC -mcrtdll=ucrtbase)
+endif()
+
+install(TARGETS setjmp-test DESTINATION ${CMAKE_INSTALL_PREFIX}/bin COMPONENT core)
