@@ -183,6 +183,7 @@ towlower
 towupper
 qsort
 longjmp
+_setjmpex
 
 ; stubs
 __setusermatherr
@@ -213,7 +214,6 @@ _localtime64
 _mktime64
 rewind
 tmpfile
-_setjmpex
 atof
 _getpid
 _wcsnicmp

@@ -111,6 +111,7 @@ atanf
 atan2
 atan2f
 _setjmp
+_setjmpex = _setjmp
 acos
 acosf
 sqrt
