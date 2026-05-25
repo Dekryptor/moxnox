@@ -15,7 +15,10 @@ using namespace std;
 
 struct _DIR {
     HANDLE h;
+    bool first;
 };
+
+static dirent de;
 
 extern "C"
 DIR* opendir(const char* name) {
@@ -69,6 +72,44 @@ DIR* opendir(const char* name) {
     }
 
     d->h = h;
+    d->first = true;
 
     return (DIR*)d;
+}
+
+extern "C"
+dirent* readdir(DIR* dir) {
+    auto& d = *reinterpret_cast<_DIR*>(dir);
+    IO_STATUS_BLOCK iosb;
+    char buf[4096];
+    nt_status status;
+
+    // FIXME - get multiple entries at once and cache them?
+
+    status = NtQueryDirectoryFile(d.h, 0, nullptr, nullptr, &iosb, buf, sizeof(buf),
+                                  FILE_INFORMATION_CLASS::DirectoryInformation,
+                                  true, nullptr, d.first);
+    if (status == nt_status::NO_MORE_FILES)
+        return nullptr;
+    else if (!success(status)) {
+        *_errno() = nt_status_to_errno(status);
+        return nullptr;
+    }
+
+    auto& fdi = *(FILE_DIRECTORY_INFORMATION*)buf;
+    auto u16sv = u16string_view(fdi.FileName, fdi.FileNameLength / sizeof(char16_t));
+    auto u16len = utf16_to_utf8_len(u16sv);
+
+    de.d_ino = 0; // FIXME!
+
+    utf16_to_utf8(span(de.d_name, sizeof(de.d_name) - 1), u16sv);
+
+    if (u16len < sizeof(de.d_name))
+        de.d_name[u16len] = 0;
+    else
+        de.d_name[sizeof(de.d_name) - 1] = 0;
+
+    d.first = false;
+
+    return &de;
 }
