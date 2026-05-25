@@ -110,6 +110,10 @@ set(SRC_FILES src/ucrtbase.cpp
     src/wcs.cpp
 )
 
+if(CMAKE_SYSTEM_PROCESSOR STREQUAL amd64)
+    list(APPEND SRC_FILES src/x86/setjmp.S)
+endif()
+
 # jump through some hoops so that ucrtbase doesn't try to link to itself
 
 if(CMAKE_CXX_COMPILER_ID STREQUAL "Clang")
