@@ -57,8 +57,6 @@ static_assert(offsetof(_JUMP_BUFFER, D) == JUMP_BUFFER_D);
 
 #endif
 
-#ifdef __x86_64__
-
 extern "C"
 void longjmp(jmp_buf env, int value) {
     CONTEXT ctx;
@@ -71,6 +69,7 @@ void longjmp(jmp_buf env, int value) {
     if (jmp->Frame == 0) {
         RtlCaptureContext(&ctx);
 
+#ifdef __x86_64__
         ctx.Rax = ret;
         ctx.Rbx = jmp->Rbx;
         ctx.Rsp = jmp->Rsp;
@@ -94,21 +93,43 @@ void longjmp(jmp_buf env, int value) {
         ctx.Xmm13 = *(M128A*)&jmp->Xmm13;
         ctx.Xmm14 = *(M128A*)&jmp->Xmm14;
         ctx.Xmm15 = *(M128A*)&jmp->Xmm15;
+#elifdef __aarch64__
+        ctx.X0 = ret;
+        ctx.X19 = jmp->X19;
+        ctx.X20 = jmp->X20;
+        ctx.X21 = jmp->X21;
+        ctx.X22 = jmp->X22;
+        ctx.X23 = jmp->X23;
+        ctx.X24 = jmp->X24;
+        ctx.X25 = jmp->X25;
+        ctx.X26 = jmp->X26;
+        ctx.X27 = jmp->X27;
+        ctx.X28 = jmp->X28;
+        ctx.Fp = jmp->Fp;
+        ctx.Pc = jmp->Lr;
+        ctx.Sp = jmp->Sp;
+        ctx.Fpcr = jmp->Fpcr;
+        ctx.Fpsr = jmp->Fpsr;
+        ctx.V[8].D[0] = jmp->D[0];
+        ctx.V[9].D[0] = jmp->D[1];
+        ctx.V[10].D[0] = jmp->D[2];
+        ctx.V[11].D[0] = jmp->D[3];
+        ctx.V[12].D[0] = jmp->D[4];
+        ctx.V[13].D[0] = jmp->D[5];
+        ctx.V[14].D[0] = jmp->D[6];
+        ctx.V[15].D[0] = jmp->D[7];
+#endif
 
         NtContinue(&ctx, false);
     } else {
+#ifdef __x86_64__
         RtlUnwindEx((void*)jmp->Frame, (void*)jmp->Rip, nullptr, (void*)ret,
                     &ctx, nullptr);
+#elifdef __aarch64__
+        RtlUnwindEx((void*)jmp->Frame, (void*)jmp->Lr, nullptr, (void*)ret,
+                    &ctx, nullptr);
+#endif
     }
 
     unreachable();
 }
-
-#else
-
-extern "C"
-void longjmp(jmp_buf env, int value) {
-    // __asm("ud2");
-}
-
-#endif
