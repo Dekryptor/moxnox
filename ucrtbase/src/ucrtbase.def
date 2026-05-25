@@ -207,5 +207,6 @@ _mkdir
 clearerr
 ___mb_cur_max_func
 towlower
+towupper
 qsort
 iswctype = _iswctype

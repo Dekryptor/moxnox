@@ -20,3 +20,13 @@ wint_t towlower(wint_t c) {
     else
         return c;
 }
+
+extern "C"
+wint_t towupper(wint_t c) {
+    // FIXME - other scripts etc.
+
+    if (c >= 'a' && c <= 'z')
+        return c - 'a' + 'A';
+    else
+        return c;
+}
