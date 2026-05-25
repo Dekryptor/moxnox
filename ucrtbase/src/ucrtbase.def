@@ -48,8 +48,6 @@ memcmp = ntdll.memcmp
 memmove = ntdll.memmove
 strchr = ntdll.strchr
 strcmp = ntdll.strcmp
-towlower = ntdll.towlower
-towupper = ntdll.towupper
 _cexit
 fflush = _fflush
 _set_app_type

@@ -5,8 +5,6 @@ stubs_start
 do_stub "RtlTryEnterCriticalSection"
 do_stub "RtlAddVectoredExceptionHandler"
 do_stub "iswctype"
-do_stub "towlower"
-do_stub "towupper"
 do_stub "RtlTryAcquireSRWLockExclusive"
 do_stub "RtlRestoreContext"
 do_stub "strncat"
