@@ -113,3 +113,15 @@ dirent* readdir(DIR* dir) {
 
     return &de;
 }
+
+extern "C"
+int closedir(DIR* dir) {
+    auto& d = *reinterpret_cast<_DIR*>(dir);
+
+    // FIXME - return errors from NtClose?
+
+    NtClose(d.h);
+    free(dir);
+
+    return 0;
+}
