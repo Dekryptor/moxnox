@@ -207,3 +207,4 @@ mbrlen
 _mkdir
 clearerr
 ___mb_cur_max_func
+towlower

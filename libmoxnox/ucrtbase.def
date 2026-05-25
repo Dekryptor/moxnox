@@ -179,6 +179,7 @@ mbrlen
 _mkdir
 clearerr
 ___mb_cur_max_func
+towlower
 
 ; stubs
 __setusermatherr
@@ -187,7 +188,6 @@ _lseeki64
 strftime
 rand_s
 _wfopen
-towlower
 towupper
 ___lc_codepage_func
 _beginthreadex
