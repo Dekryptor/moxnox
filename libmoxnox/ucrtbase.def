@@ -180,6 +180,7 @@ _mkdir
 clearerr
 ___mb_cur_max_func
 towlower
+qsort
 
 ; stubs
 __setusermatherr
@@ -200,7 +201,6 @@ wcstoull
 wcstod
 strerror_s
 __stdio_common_vswprintf
-qsort
 perror
 _ctime64
 _difftime64

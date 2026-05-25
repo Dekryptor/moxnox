@@ -1,6 +1,11 @@
+#include <utility>
+#include <algorithm>
 #include <stdint.h>
+#include <string.h>
 
 import ucrtbase;
+
+using namespace std;
 
 static uint64_t rand_seed;
 static bool rand_init_done = false;
@@ -72,4 +77,93 @@ void* bsearch(const void* key, const void* base, size_t nmemb, size_t size,
     }
 
     return nullptr;
+}
+
+using qsort_func = int (const void* a, const void* b);
+
+extern "C"
+void qsort(void* base, size_t nmemb, size_t size, qsort_func compar) {
+    if (nmemb <= 1)
+        return;
+
+    auto elem = [base, size](ptrdiff_t i) {
+        return (uint8_t*)base + (i * size);
+    };
+
+    auto swap_elems = [&](ptrdiff_t i, ptrdiff_t j) {
+        auto p = elem(i);
+        auto q = elem(j);
+        auto left = size;
+
+        while (left > 0) {
+            uint8_t buf[64];
+            auto n = min(left, sizeof(buf));
+
+            memcpy(buf, p, n);
+            memcpy(p, q, n);
+            memcpy(q, buf, n);
+
+            p += n;
+            q += n;
+
+            left -= n;
+        }
+    };
+
+    pair<ptrdiff_t, ptrdiff_t> stack[64];
+    size_t top = 0;
+    ptrdiff_t low = 0, high = (ptrdiff_t)nmemb - 1;
+
+    while (true) {
+        while (low < high) {
+            ptrdiff_t m = low + (high - low) / 2;
+
+            if (compar(elem(low), elem(m)) > 0)
+                swap_elems(low, m);
+
+            if (compar(elem(low), elem(high)) > 0)
+                swap_elems(low, high);
+
+            if (compar(elem(m), elem(high)) > 0)
+                swap_elems(m,  high);
+
+            swap_elems(m, high);
+
+            ptrdiff_t store = low;
+
+            for (ptrdiff_t i = low; i < high; i++) {
+                if (compar(elem(i), elem(high)) < 0) {
+                    swap_elems(store, i);
+                    store++;
+                }
+            }
+
+            swap_elems(store, high);
+
+            ptrdiff_t p = store;
+
+            if (p - low > high - p) {
+                if (p - 1 > low) {
+                    stack[top] = make_pair(low, p - 1);
+                    top++;
+                }
+
+                low = p + 1;
+            } else {
+                if (p + 1 < high) {
+                    stack[top] = make_pair(p + 1, high);
+                    top++;
+                }
+                high = p - 1;
+            }
+        }
+
+        if (top == 0)
+            break;
+
+        top--;
+
+        low = stack[top].first;
+        high = stack[top].second;
+    }
 }
