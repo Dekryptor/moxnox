@@ -1,4 +1,5 @@
 #include <stddef.h>
+#include <stdint.h>
 
 extern "C"
 size_t wcsnlen(const wchar_t* s, size_t maxlen) {
