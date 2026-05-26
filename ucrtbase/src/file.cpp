@@ -1426,3 +1426,79 @@ void clearerr(FILE* file) {
     f.error = false;
     f.eof = false;
 }
+
+extern "C"
+int rename(const char* oldpath, const char* newpath) {
+    auto peb = NtCurrentTeb()->ProcessEnvironmentBlock;
+    nt_status status;
+    OBJECT_ATTRIBUTES oa;
+    UNICODE_STRING us;
+    IO_STATUS_BLOCK iosb;
+    HANDLE h;
+    unique_handle file;
+
+    if (!oldpath || !newpath || oldpath[0] == 0 || newpath[0] == 0) {
+        *__errno() = EINVAL;
+        return -1;
+    }
+
+    auto oldsv = string_view(oldpath);
+    auto u16len = utf8_to_utf16_len(oldsv);
+
+    auto buf = (char16_t*)malloc(u16len * sizeof(char16_t));
+    if (!buf) {
+        *__errno() = ENOMEM;
+        return -1;
+    }
+
+    utf8_to_utf16(span(buf, u16len), oldsv);
+
+    us.Length = us.MaximumLength = (uint16_t)(u16len * sizeof(char16_t));
+    us.Buffer = (char16_t*)buf;
+
+    memset(&oa, 0, sizeof(oa));
+    oa.Length = sizeof(OBJECT_ATTRIBUTES);
+    oa.ObjectName = &us;
+    oa.RootDirectory = peb->ProcessParameters->CurrentDirectory.Handle;
+
+    status = NtCreateFile(&h, DELETE, &oa, &iosb, nullptr, 0, 0, FILE_OPEN,
+                          0, nullptr, 0);
+
+    free(buf);
+
+    if (!success(status)) {
+        *__errno() = nt_status_to_errno(status);
+        return -1;
+    }
+
+    file.reset(h);
+
+    auto newsv = string_view(newpath);
+    u16len = utf8_to_utf16_len(newsv);
+
+    size_t frilen = offsetof(FILE_RENAME_INFORMATION, FileName) + (u16len * sizeof(char16_t));
+
+    auto fri = (FILE_RENAME_INFORMATION*)malloc(frilen);
+    if (!fri) {
+        *__errno() = ENOMEM;
+        return -1;
+    }
+
+    fri->ReplaceIfExists = true; // FIXME? --interactive option
+    fri->RootDirectory = peb->ProcessParameters->CurrentDirectory.Handle;
+    fri->FileNameLength = (uint32_t)(u16len * sizeof(char16_t));
+    utf8_to_utf16(span(fri->FileName, fri->FileNameLength / sizeof(char16_t)),
+                  newsv);
+
+    status = NtSetInformationFile(file.get(), &iosb, fri, (uint32_t)frilen,
+                                  FILE_INFORMATION_CLASS::RenameInformation);
+
+    free(fri);
+
+    if (!success(status)) {
+        *__errno() = nt_status_to_errno(status);
+        return -1;
+    }
+
+    return 0;
+}

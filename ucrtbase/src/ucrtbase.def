@@ -213,3 +213,4 @@ qsort
 iswctype = _iswctype
 longjmp
 _getpid
+rename

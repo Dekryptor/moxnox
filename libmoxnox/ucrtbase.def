@@ -185,6 +185,7 @@ qsort
 longjmp
 _setjmpex
 _getpid
+rename
 
 ; stubs
 __setusermatherr
@@ -222,7 +223,6 @@ _umask
 _lseek
 _dup
 _rmdir
-rename
 strtok
 _pipe
 _dup2
