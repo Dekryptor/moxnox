@@ -160,6 +160,9 @@ export int nt_status_to_errno(nt_status status) {
         case nt_status::CONNECTION_REFUSED:
             return ECONNREFUSED;
 
+        case nt_status::NOT_SAME_DEVICE:
+            return EXDEV;
+
         default:
             return EINVAL;
     }
