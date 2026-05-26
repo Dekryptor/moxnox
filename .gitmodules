@@ -52,3 +52,6 @@
 [submodule "ports/vim/repo"]
 	path = ports/vim/repo
 	url = https://git.burntcomma.com/moxnox/vim
+[submodule "ports/less/repo"]
+	path = ports/less/repo
+	url = https://git.burntcomma.com/moxnox/less

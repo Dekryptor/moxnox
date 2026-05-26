@@ -1,0 +1,22 @@
+--- screen.c	2026-06-07 02:27:19.721902857 +0100
++++ screen.c	2026-06-07 02:29:18.272150615 +0100
+@@ -903,7 +903,18 @@
+ 		}
+ 	}
+ #else
+-#ifdef TIOCGWINSZ
++#ifdef HAVE_TCGETWINSIZE
++	{
++		struct winsize w;
++		if (tcgetwinsize(2, &w) == 0 || tcgetwinsize(1, &w) == 0)
++		{
++			if (w.ws_row > 0)
++				sys_height = w.ws_row;
++			if (w.ws_col > 0)
++				sys_width = w.ws_col;
++		}
++	}
++#elif defined(TIOCGWINSZ)
+ 	{
+ 		struct winsize w;
+ 		if (ioctl(2, TIOCGWINSZ, &w) == 0 || ioctl(1, TIOCGWINSZ, &w) == 0)
