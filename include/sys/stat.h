@@ -5,17 +5,6 @@
 #include <io.h>
 #undef NO_OLDNAMES
 
-#define isatty(fd) _isatty(fd)
-#define access(fn, mode) _access(fn, mode)
-#define open _open
-#define close(fd) _close(fd)
-#define read(fd, buf, count) _read(fd, buf, count)
-#define write(fd, buf, count) _write(fd, buf, count)
-#define chdir(dir) _chdir(dir)
-#define getcwd(buf, size) _getcwd(buf, size)
-#define unlink(fn) _unlink(fn)
-#define chmod(fn, mode) _chmod(fn, mode)
-
 #include_next <sys/stat.h>
 #include <sys/types.h>
 
