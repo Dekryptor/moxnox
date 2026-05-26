@@ -184,6 +184,7 @@ towupper
 qsort
 longjmp
 _setjmpex
+_getpid
 
 ; stubs
 __setusermatherr
@@ -215,7 +216,6 @@ _mktime64
 rewind
 tmpfile
 atof
-_getpid
 _wcsnicmp
 _unlink
 _umask

@@ -108,6 +108,7 @@ set(SRC_FILES src/ucrtbase.cpp
     src/dir.cpp
     src/ctype.cpp
     src/wcs.cpp
+    src/process.cpp
 )
 
 if(CMAKE_SYSTEM_PROCESSOR STREQUAL amd64)
