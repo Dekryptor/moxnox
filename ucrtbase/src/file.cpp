@@ -1502,3 +1502,64 @@ int rename(const char* oldpath, const char* newpath) {
 
     return 0;
 }
+
+extern "C"
+int __unlink(const char* path) {
+    OBJECT_ATTRIBUTES oa;
+    UNICODE_STRING us;
+    NTSTATUS status;
+    HANDLE h;
+    unique_handle file;
+    IO_STATUS_BLOCK iosb;
+    FILE_DISPOSITION_INFORMATION fdi;
+    auto peb = NtCurrentTeb()->ProcessEnvironmentBlock;
+
+    if (!path || path[0] == 0) {
+        *__errno() = EINVAL;
+        return -1;
+    }
+
+    auto sv = string_view(path);
+    auto u16len = utf8_to_utf16_len(sv);
+
+    auto buf = (char16_t*)malloc(u16len * sizeof(char16_t));
+    if (!buf) {
+        *__errno() = ENOMEM;
+        return -1;
+    }
+
+    utf8_to_utf16(span(buf, u16len), sv);
+
+    us.Length = us.MaximumLength = (uint16_t)(u16len * sizeof(char16_t));
+    us.Buffer = (char16_t*)buf;
+
+    memset(&oa, 0, sizeof(oa));
+    oa.Length = sizeof(OBJECT_ATTRIBUTES);
+    oa.ObjectName = &us;
+    oa.RootDirectory = peb->ProcessParameters->CurrentDirectory.Handle;
+
+    status = NtCreateFile(&h, DELETE, &oa, &iosb, nullptr, 0, 0,
+                          FILE_OPEN, FILE_NON_DIRECTORY_FILE, nullptr, 0);
+
+    free(buf);
+
+    if (!success(status)) {
+        *__errno() = nt_status_to_errno(status);
+        return -1;
+    }
+
+    file.reset(h);
+
+    // FIXME - should we be asking for POSIX-style deletes?
+
+    fdi.DeleteFile = true;
+
+    status = NtSetInformationFile(file.get(), &iosb, &fdi, sizeof(fdi),
+                                  FILE_INFORMATION_CLASS::DispositionInformation);
+    if (!success(status)) {
+        *__errno() = nt_status_to_errno(status);
+        return -1;
+    }
+
+    return 0;
+}

@@ -214,3 +214,4 @@ iswctype = _iswctype
 longjmp
 _getpid
 rename
+_unlink = __unlink

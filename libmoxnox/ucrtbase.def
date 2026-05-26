@@ -186,6 +186,7 @@ longjmp
 _setjmpex
 _getpid
 rename
+_unlink
 
 ; stubs
 __setusermatherr
@@ -218,7 +219,6 @@ rewind
 tmpfile
 atof
 _wcsnicmp
-_unlink
 _umask
 _lseek
 _dup
