@@ -529,12 +529,38 @@ NTSTATUS NtSetContextThread(HANDLE thread_handle, const CONTEXT* context) {
 #endif
 }
 
-extern "C"
-NTSTATUS NtQueueApcThread(HANDLE /*thread_handle*/, PS_APC_ROUTINE /*apc_routine*/,
-                          void* /*apc_arg1*/, void* /*apc_arg2*/, void* /*apc_arg3*/) {
-    print("FIXME - NtQueueApcThread\n");
+nt_status queue_apc(::thread& /*t*/, PS_APC_ROUTINE /*apc_routine*/, void* /*apc_arg1*/,
+                    void* /*apc_arg2*/, void* /*apc_arg3*/) {
+    print("FIXME - queue_apc\n");
 
     // FIXME
 
     return nt_status::NOT_SUPPORTED;
+}
+
+extern "C"
+NTSTATUS NtQueueApcThread(HANDLE thread_handle, PS_APC_ROUTINE apc_routine,
+                          void* apc_arg1, void* apc_arg2, void* apc_arg3) {
+    object_ref obj;
+
+    if (thread_handle == NtCurrentThread()) {
+        auto* t = get_current_thread();
+
+        t->acquire();
+
+        obj = object_ref{*t};
+    } else {
+        obj = deref_handle(thread_handle);
+        if (!obj)
+            return nt_status::INVALID_HANDLE;
+
+        if (obj.get().type != object_type::thread)
+            return nt_status::OBJECT_TYPE_MISMATCH;
+
+        // FIXME - check access rights
+    }
+
+    auto& t = static_cast<::thread&>(obj.get());
+
+    return queue_apc(t, apc_routine, apc_arg1, apc_arg2, apc_arg3);
 }
