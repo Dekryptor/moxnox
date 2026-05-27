@@ -187,6 +187,7 @@ _setjmpex
 _getpid
 rename
 _unlink
+raise
 
 ; stubs
 __setusermatherr
@@ -233,7 +234,6 @@ _execl
 _execlp
 _execve
 system
-raise
 _mktemp
 setbuf
 _popen
