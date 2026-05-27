@@ -1416,7 +1416,59 @@ int _close(int fd) {
 
 extern "C"
 int _mkdir(const char* path) {
-    return mkdir(path, 0755);
+    OBJECT_ATTRIBUTES oa;
+    UNICODE_STRING us;
+    NTSTATUS status;
+    HANDLE file;
+    IO_STATUS_BLOCK iosb;
+    auto peb = NtCurrentTeb()->ProcessEnvironmentBlock;
+
+    // FIXME - mode?
+
+    auto pathsv = string_view(path);
+
+    if (pathsv.empty()) {
+        *__errno() = EINVAL;
+        return -1;
+    }
+
+    auto u16len = utf8_to_utf16_len(pathsv);
+    auto u16 = (char16_t*)malloc(u16len * sizeof(char16_t));
+
+    if (!u16) {
+        *__errno() = ENOMEM;
+        return -1;
+    }
+
+    utf8_to_utf16(span(u16, u16len), pathsv);
+
+    us.Length = us.MaximumLength = (uint16_t)(u16len * sizeof(char16_t));
+    us.Buffer = (char16_t*)u16;
+
+    memset(&oa, 0, sizeof(oa));
+    oa.Length = sizeof(OBJECT_ATTRIBUTES);
+    oa.ObjectName = &us;
+    oa.RootDirectory = peb->ProcessParameters->CurrentDirectory.Handle;
+
+    status = NtCreateFile(&file, 0, &oa, &iosb, nullptr, FILE_ATTRIBUTE_DIRECTORY,
+                          0, FILE_CREATE, FILE_DIRECTORY_FILE, nullptr, 0);
+
+    free(u16);
+
+    if (status == nt_status::OBJECT_NAME_COLLISION) {
+        *__errno() = EEXIST;
+        return -1;
+    } else if (status == nt_status::OBJECT_PATH_NOT_FOUND) {
+        *__errno() = ENOENT;
+        return -1;
+    } else if (!success(status)) {
+        *__errno() = EINVAL;
+        return -1;
+    }
+
+    NtClose(file);
+
+    return 0;
 }
 
 extern "C"
