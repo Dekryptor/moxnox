@@ -1387,6 +1387,8 @@ struct mn_poll_entry {
     uint16_t revents;
 };
 
+using PS_APC_ROUTINE = void (*)(void*, void*, void*);
+
 extern "C" {
 
 NTSTATUS NtDisplayString(const UNICODE_STRING* string);
@@ -1505,6 +1507,8 @@ NTSTATUS NtCreateEvent(HANDLE* event_handle, ACCESS_MASK desired_access,
                        const OBJECT_ATTRIBUTES* object_attributes,
                        EVENT_TYPE event_type, bool initial_state);
 NTSTATUS NtSetEvent(HANDLE event_handle, int32_t* previous_state);
+NTSTATUS NtQueueApcThread(HANDLE thread_handle, PS_APC_ROUTINE apc_routine,
+                          void* apc_arg1, void* apc_arg2, void* apc_arg3);
 NTSTATUS mn_poll(mn_poll_entry* entries, size_t num_entries,
                  const LARGE_INTEGER* timeout);
 
