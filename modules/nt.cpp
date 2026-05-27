@@ -1040,6 +1040,12 @@ const ACCESS_MASK SECTION_ALL_ACCESS = DELETE | READ_CONTROL | WRITE_DAC | WRITE
                                        SECTION_MAP_WRITE | SECTION_MAP_READ | SECTION_MAP_EXECUTE |
                                        SECTION_EXTEND_SIZE;
 
+const ACCESS_MASK EVENT_QUERY_STATE = 0x00000001;
+const ACCESS_MASK EVENT_MODIFY_STATE = 0x00000002;
+const ACCESS_MASK EVENT_ALL_ACCESS = DELETE | READ_CONTROL | WRITE_DAC |
+                                     WRITE_OWNER | SYNCHRONIZE |
+                                     EVENT_QUERY_STATE | EVENT_MODIFY_STATE;
+
 enum class PROCESSINFOCLASS {
     BasicInformation,
     QuotaLimits,
