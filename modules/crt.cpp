@@ -456,3 +456,25 @@ char* strrchr(const char* s, int c) {
 
     return last;
 }
+
+template<typename T>
+static __attribute__((always_inline)) T inline strto(const char* nptr, char** endptr, int base) {
+    while (*nptr == ' ' || *nptr == '\t') {
+        nptr++;
+    }
+
+    unsigned long ret;
+
+    auto fcr = from_chars(nptr, nptr + strlen(nptr), ret, base);
+
+    if (endptr)
+        *endptr = (char*)fcr.ptr;
+
+    return (T)ret;
+}
+
+export
+extern "C"
+long strtol(const char* nptr, char** endptr, int base) {
+    return strto<long>(nptr, endptr, base);
+}
