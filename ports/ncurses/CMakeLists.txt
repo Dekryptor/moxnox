@@ -599,7 +599,7 @@ install(TARGETS ncurses-test DESTINATION ${CMAKE_INSTALL_PREFIX}/bin)
 
 function(add_ncurses_test name)
     add_executable(${name} ${ARGN})
-    target_compile_options(${name} PRIVATE ${USERSPACE_CFLAGS})
+    target_compile_options(${name} PRIVATE ${USERSPACE_CFLAGS} -Wno-implicit-fallthrough)
     target_compile_definitions(${name} PRIVATE WIN_PTHREADS_TIME_H)
     target_include_directories(${name} PRIVATE ${CMAKE_SOURCE_DIR}/include repo/include repo/test)
     target_link_libraries(${name} moxnox ncurses)
