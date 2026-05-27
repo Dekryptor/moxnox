@@ -55,7 +55,7 @@ SOCKET socket(int af, int type, int protocol) {
         return INVALID_SOCKET;
     }
 
-    auto fd = _open_osfhandle(h, 0);
+    auto fd = _open_osfhandle((intptr_t)h, 0);
     if (fd == -1)
         return INVALID_SOCKET;
 
@@ -211,7 +211,7 @@ SOCKET accept(SOCKET s, sockaddr* addr, int* addrlen) {
 
     *addrlen = params_out.addrlen;
 
-    auto fd = _open_osfhandle(params_out.sock, 0);
+    auto fd = _open_osfhandle((intptr_t)params_out.sock, 0);
     if (fd == -1) {
         NtClose(params_out.sock);
         return INVALID_SOCKET;
