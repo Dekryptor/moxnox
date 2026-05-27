@@ -528,3 +528,13 @@ NTSTATUS NtSetContextThread(HANDLE thread_handle, const CONTEXT* context) {
     return nt_status::SUCCESS;
 #endif
 }
+
+extern "C"
+NTSTATUS NtQueueApcThread(HANDLE /*thread_handle*/, PS_APC_ROUTINE /*apc_routine*/,
+                          void* /*apc_arg1*/, void* /*apc_arg2*/, void* /*apc_arg3*/) {
+    print("FIXME - NtQueueApcThread\n");
+
+    // FIXME
+
+    return nt_status::NOT_SUPPORTED;
+}

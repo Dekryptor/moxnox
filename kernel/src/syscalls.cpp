@@ -1535,6 +1535,16 @@ NTSTATUS user_NtSetEvent(HANDLE event_handle, int32_t* us_previous_state) {
 }
 
 extern "C"
+NTSTATUS user_NtQueueApcThread(HANDLE thread_handle, PS_APC_ROUTINE apc_routine,
+                               void* apc_arg1, void* apc_arg2, void* apc_arg3) {
+    if ((uintptr_t)apc_routine & 0xffff000000000000)
+        return nt_status::INVALID_PARAMETER;
+
+    return NtQueueApcThread(thread_handle, apc_routine, apc_arg1, apc_arg2,
+                            apc_arg3);
+}
+
+extern "C"
 NTSTATUS user_mn_poll(mn_poll_entry* us_entries, size_t num_entries,
                       const LARGE_INTEGER* us_timeout) {
     nt_status ret;
