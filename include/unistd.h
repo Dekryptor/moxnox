@@ -1,6 +1,6 @@
 #pragma once
 
-#include_next <unistd.h>
+#include <sys/types.h>
 
 typedef unsigned int uid_t;
 
@@ -14,6 +14,7 @@ unsigned int alarm(unsigned int seconds);
 int dup2(int oldfd, int newfd);
 unsigned int sleep(unsigned int seconds);
 int getpid(void);
+int ftruncate(int fd, off_t length);
 
 #ifdef __cplusplus
 }
