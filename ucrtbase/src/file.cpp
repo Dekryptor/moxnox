@@ -1288,7 +1288,7 @@ int _open_osfhandle(intptr_t osfhandle, int /*flags*/) {
 
     for (size_t i = 0; i < fds.size(); i++) {
         if (fds[i] == 0) {
-            fds[i] = osfhandle;
+            fds[i] = (HANDLE)osfhandle;
             fd = i;
             break;
         }

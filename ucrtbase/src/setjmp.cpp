@@ -58,7 +58,7 @@ static_assert(offsetof(_JUMP_BUFFER, D) == JUMP_BUFFER_D);
 #endif
 
 extern "C"
-void longjmp(jmp_buf env, int value) {
+void _longjmp(jmp_buf env, int value) {
     CONTEXT ctx;
     auto jmp = (_JUMP_BUFFER*)env;
     auto ret = (uintptr_t)value;

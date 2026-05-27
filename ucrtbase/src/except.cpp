@@ -4,6 +4,9 @@
 import ucrtbase;
 import print;
 
+#undef errno
+import errno;
+
 using namespace std;
 
 extern "C" int* __errno();

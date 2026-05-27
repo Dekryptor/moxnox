@@ -87,7 +87,7 @@ void qsort(void* base, size_t nmemb, size_t size, qsort_func compar) {
         return;
 
     auto elem = [base, size](ptrdiff_t i) {
-        return (uint8_t*)base + (i * size);
+        return (uint8_t*)base + ((size_t)i * size);
     };
 
     auto swap_elems = [&](ptrdiff_t i, ptrdiff_t j) {

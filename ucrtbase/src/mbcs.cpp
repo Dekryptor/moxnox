@@ -90,7 +90,7 @@ size_t _mbrtowc(wchar_t* pwc, const char* s, size_t n, mbstate_t* ps) {
             return (size_t)-1;
         }
 
-        cp = (cp << 6) | (c & 0x3f);
+        cp = (uint16_t)((cp << 6) | (c & 0x3f));
         left--;
     }
 
@@ -125,14 +125,14 @@ size_t _wcrtomb(char* s, wchar_t wc, mbstate_t* /*ps*/) {
 }
 
 extern "C"
-size_t mbrlen(const char* s, size_t n, mbstate_t* ps) {
+size_t _mbrlen(const char* s, size_t n, mbstate_t* ps) {
     static mbstate_t state;
 
     return _mbrtowc(nullptr, s, n, ps ? ps : &state);
 }
 
 extern "C"
-int ___mb_cur_max_func() {
+int ____mb_cur_max_func() {
     // maximum bytes per code-point for UTF-8
 
     return 4;

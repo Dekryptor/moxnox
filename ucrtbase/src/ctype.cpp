@@ -135,15 +135,15 @@ static const array types = {
 };
 
 extern "C"
-int isblank(int c) {
+int _isblank(int c) {
     if (c < 0 || (size_t)c >= types.size())
         return 0;
 
-    return types[c] & _BLANK;
+    return types[(size_t)c] & _BLANK;
 }
 
 extern "C"
-int toupper(int c) {
+int __toupper(int c) {
     // FIXME - do this properly
 
     if (c >= 'a' && c <= 'z')
@@ -153,67 +153,67 @@ int toupper(int c) {
 }
 
 extern "C"
-int isalpha(int c) {
+int _isalpha(int c) {
     if (c < 0 || (size_t)c >= types.size())
         return 0;
 
-    return types[c] & (_UPPER | _LOWER);
+    return types[(size_t)c] & (_UPPER | _LOWER);
 }
 
 extern "C"
-int isupper(int c) {
+int _isupper(int c) {
     if (c < 0 || (size_t)c >= types.size())
         return 0;
 
-    return types[c] & _UPPER;
+    return types[(size_t)c] & _UPPER;
 }
 
 extern "C"
-int islower(int c) {
+int _islower(int c) {
     if (c < 0 || (size_t)c >= types.size())
         return 0;
 
-    return types[c] & _LOWER;
+    return types[(size_t)c] & _LOWER;
 }
 
 extern "C"
-int isprint(int c) {
+int _isprint(int c) {
     if (c < 0 || (size_t)c >= types.size())
         return 0;
 
-    return c == ' ' || (types[c] & (_UPPER | _LOWER | _DIGIT | _PUNCT));
+    return c == ' ' || (types[(size_t)c] & (_UPPER | _LOWER | _DIGIT | _PUNCT));
 }
 
 extern "C"
-int iscntrl(int c) {
+int _iscntrl(int c) {
     if (c < 0 || (size_t)c >= types.size())
         return 0;
 
-    return types[c] & _CONTROL;
+    return types[(size_t)c] & _CONTROL;
 }
 
 extern "C"
-int ispunct(int c) {
+int _ispunct(int c) {
     if (c < 0 || (size_t)c >= types.size())
         return 0;
 
-    return types[c] & _PUNCT;
+    return types[(size_t)c] & _PUNCT;
 }
 
 extern "C"
-int isgraph(int c) {
+int _isgraph(int c) {
     if (c < 0 || (size_t)c >= types.size())
         return 0;
 
-    return types[c] & (_UPPER | _LOWER | _DIGIT | _PUNCT);
+    return types[(size_t)c] & (_UPPER | _LOWER | _DIGIT | _PUNCT);
 }
 
 extern "C"
-int isalnum(int c) {
+int _isalnum(int c) {
     if (c < 0 || (size_t)c >= types.size())
         return 0;
 
-    return types[c] & (_UPPER | _LOWER | _DIGIT);
+    return types[(size_t)c] & (_UPPER | _LOWER | _DIGIT);
 }
 
 extern "C"
@@ -221,5 +221,5 @@ int _iswctype(wint_t c, wctype_t desc) {
     if ((size_t)c >= types.size())
         return 0;
 
-    return types[c] & desc;
+    return types[(size_t)c] & desc;
 }

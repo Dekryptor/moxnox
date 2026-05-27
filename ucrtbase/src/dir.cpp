@@ -64,7 +64,7 @@ char* _getcwd(char* buffer, int maxlen) {
         return nullptr;
     }
 
-    utf16_to_utf8(span(buffer, maxlen), sv);
+    utf16_to_utf8(span(buffer, (size_t)maxlen), sv);
     buffer[u8len] = 0;
 
     free(fni2);

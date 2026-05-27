@@ -90,7 +90,7 @@ wctype_t __wctype(const char* prop) {
 }
 
 extern "C"
-char* setlocale(int /*category*/, const char* locale) {
+char* _setlocale(int /*category*/, const char* locale) {
     // FIXME - do this properly?
 
     if (!locale)

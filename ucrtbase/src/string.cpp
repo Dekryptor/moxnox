@@ -12,7 +12,7 @@ using namespace std;
 extern "C" int* __errno();
 
 extern "C"
-char* _strdup(const char* s) {
+char* __strdup(const char* s) {
     auto sv = string_view(s);
 
     auto ret = (char*)malloc(sv.size() + 1);
@@ -25,7 +25,7 @@ char* _strdup(const char* s) {
 }
 
 extern "C"
-int _stricmp(const char* s1, const char* s2) {
+int __stricmp(const char* s1, const char* s2) {
     size_t i = 0;
 
     // FIXME - Unicode?

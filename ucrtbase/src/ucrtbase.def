@@ -81,7 +81,7 @@ _initialize_onexit_table
 _register_onexit_function
 _execute_onexit_table
 getenv
-_strdup
+_strdup = __strdup
 wctob = _wctob
 btowc = _btowc
 wctype = __wctype
@@ -149,21 +149,21 @@ _write
 _read
 wcscpy = ntdll.wcscpy
 wcsncmp = ntdll.wcsncmp
-setlocale
-_stricmp
+setlocale = _setlocale
+_stricmp = __stricmp
 _access
 _getcwd
-isblank
-toupper
+isblank = _isblank
+toupper = __toupper
 putc
-isalpha
-isupper
-isalnum
-iscntrl
-isgraph
-islower
-isprint
-ispunct
+isalpha = _isalpha
+isupper = _isupper
+isalnum = _isalnum
+iscntrl = _iscntrl
+isgraph = _isgraph
+islower = _islower
+isprint = _isprint
+ispunct = _ispunct
 bsearch
 _setmode
 strcspn
@@ -203,15 +203,15 @@ strtoll
 strtoull
 wcsnlen
 _exit
-mbrlen
+mbrlen = _mbrlen
 _mkdir
 clearerr
-___mb_cur_max_func
+___mb_cur_max_func = ____mb_cur_max_func
 towlower
 towupper
 qsort
 iswctype = _iswctype
-longjmp
+longjmp = _longjmp
 _getpid
 rename
 _unlink = __unlink
