@@ -240,3 +240,4 @@ _popen
 _pclose
 mbstowcs
 _fullpath
+_creat
