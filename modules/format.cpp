@@ -451,6 +451,8 @@ span<char> do_format_arg(span<char> sp, string_view, nt_status arg) {
     switch (arg) {
         case nt_status::SUCCESS:
             return sp_strcpy(sp, "SUCCESS");
+        case nt_status::USER_APC:
+            return sp_strcpy(sp, "USER_APC");
         case nt_status::ALERTED:
             return sp_strcpy(sp, "ALERTED");
         case nt_status::TIMEOUT:

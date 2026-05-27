@@ -17,6 +17,8 @@ uint32_t RtlNtStatusToDosErrorNoTeb(nt_status status) {
 
         case SUCCESS:
             return ERROR_SUCCESS;
+        case USER_APC:
+            return ERROR_USER_APC;
         case ALERTED:
             return ERROR_ALERTED;
         case TIMEOUT:

@@ -9,6 +9,7 @@ export {
 
 enum class nt_status : uint32_t {
     SUCCESS = 0x00000000,
+    USER_APC = 0x000000c0,
     ALERTED = 0x00000101,
     TIMEOUT = 0x00000102,
     PENDING = 0x00000103,
