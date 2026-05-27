@@ -362,6 +362,7 @@ target_compile_definitions(curl_exe PRIVATE HAVE_CONFIG_H)
 target_compile_options(curl_exe PRIVATE
     ${USERSPACE_CFLAGS}
     -Wno-sign-conversion
+    -Wno-shorten-64-to-32
     "SHELL:-include ${CMAKE_SOURCE_DIR}/include/sys/select.h"
     "SHELL:-include ${CURL_GEN}/lib/setup-win32.h"
     "SHELL:-include ${CURL_GEN}/lib/curlx/version_win32.h"
