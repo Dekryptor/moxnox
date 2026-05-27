@@ -2,8 +2,6 @@
 
 #include <sys/types.h>
 
-typedef unsigned int uid_t;
-
 #ifdef __cplusplus
 extern "C" {
 #endif
