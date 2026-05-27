@@ -31,7 +31,7 @@ add_executable(nano
     repo/src/winio.c
 )
 
-target_compile_options(nano PRIVATE ${USERSPACE_CFLAGS} -Wno-sign-conversion -Wno-sign-compare -Wno-unused-parameter -Wno-missing-field-initializers -Wno-unused-variable -Wno-conversion -Wno-implicit-fallthrough $<$<CXX_COMPILER_ID:Clang>:-Wno-implicit-int-conversion -Wno-braced-scalar-init -Wno-shorten-64-to-32>)
+target_compile_options(nano PRIVATE ${USERSPACE_CFLAGS} -Wno-sign-conversion -Wno-sign-compare -Wno-unused-parameter -Wno-missing-field-initializers -Wno-unused-variable -Wno-conversion -Wno-implicit-fallthrough -Wno-format $<$<CXX_COMPILER_ID:Clang>:-Wno-implicit-int-conversion -Wno-braced-scalar-init -Wno-shorten-64-to-32>)
 target_compile_definitions(nano PRIVATE HAVE_CONFIG_H)
 
 target_include_directories(nano PRIVATE
