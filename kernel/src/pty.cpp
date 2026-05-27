@@ -483,7 +483,7 @@ size_t pty_client::process_canonical_input(span<const uint8_t> new_data,
             }
         } else if (echoctl && (new_data[i] < 0x20 || new_data[i] == 0x7f) && new_data[i] != '\n' && new_data[i] != '\t') { // FIXME - also not START or STOP
             if (input_buffer_valid < input_buffer.size()) {
-                input_buffer[input_buffer_valid] = new_data[i];
+                input_buffer[input_buffer_valid] = (char)new_data[i];
                 input_buffer_valid++;
             }
 
@@ -498,7 +498,7 @@ size_t pty_client::process_canonical_input(span<const uint8_t> new_data,
             }
         } else {
             if (input_buffer_valid < input_buffer.size()) {
-                input_buffer[input_buffer_valid] = new_data[i];
+                input_buffer[input_buffer_valid] = (char)new_data[i];
                 input_buffer_valid++;
             }
 
@@ -509,7 +509,7 @@ size_t pty_client::process_canonical_input(span<const uint8_t> new_data,
         }
     }
 
-    return echo_buf ? (ptr - echo_buf) : 0;
+    return echo_buf ? (size_t)(ptr - echo_buf) : 0;
 }
 
 nt_status pty_client::canonical_write(span<const uint8_t> s, uint64_t& written_bytes) {
