@@ -19,6 +19,7 @@ import object_ref;
 import objects;
 import list;
 import process;
+import spinlock;
 
 #ifdef __x86_64__
 import x86;
@@ -48,6 +49,14 @@ export enum class thread_status {
     waiting_multiple,
     dead,
     dying
+};
+
+struct pending_apc {
+    list_entry le;
+    PS_APC_ROUTINE routine;
+    uintptr_t arg1;
+    uintptr_t arg2;
+    uintptr_t arg3;
 };
 
 #ifdef __x86_64__
@@ -101,8 +110,10 @@ public:
     uint64_t wait_timeout;
     multiple_wait_block* multwait;
     bool kill_on_wake = false;
+    spinlock apc_lock;
+    list_entry pending_apcs = { &pending_apcs, &pending_apcs };
 #ifdef __x86_64__
-    xsave_area xsave;
+    xsave_area xsave; // must be last
 #endif
 } __attribute__ ((aligned (16)));
 

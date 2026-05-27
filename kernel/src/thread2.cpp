@@ -165,6 +165,24 @@ void terminate_thread(::thread& t, bool remove_from_proc) {
         free_va((uintptr_t)kernel_stack, KERNEL_STACK_PAGES + KERNEL_GUARD_PAGES);
     }
 
+    while (true) {
+        pending_apc* p = nullptr;
+
+        {
+            lock_guard lock(apc_lock);
+
+            if (!is_list_empty(pending_apcs)) {
+                p = &containing_record<pending_apc>(pending_apcs.next);
+                remove_entry_list(p->le);
+            }
+        }
+
+        if (!p)
+            break;
+
+        delete p;
+    }
+
     if (proc)
         proc->release();
 }
@@ -529,13 +547,26 @@ NTSTATUS NtSetContextThread(HANDLE thread_handle, const CONTEXT* context) {
 #endif
 }
 
-nt_status queue_apc(::thread& /*t*/, PS_APC_ROUTINE /*apc_routine*/, void* /*apc_arg1*/,
-                    void* /*apc_arg2*/, void* /*apc_arg3*/) {
-    print("FIXME - queue_apc\n");
+nt_status queue_apc(::thread& t, PS_APC_ROUTINE apc_routine, void* apc_arg1,
+                    void* apc_arg2, void* apc_arg3) {
+    auto p = new pending_apc;
+    if (!p) {
+        print("new failed\n");
+        return nt_status::INSUFFICIENT_RESOURCES;
+    }
 
-    // FIXME
+    p->routine = apc_routine;
+    p->arg1 = (uintptr_t)apc_arg1;
+    p->arg2 = (uintptr_t)apc_arg2;
+    p->arg3 = (uintptr_t)apc_arg3;
 
-    return nt_status::NOT_SUPPORTED;
+    {
+        lock_guard lock(t.apc_lock);
+
+        insert_tail_list(t.pending_apcs, p->le);
+    }
+
+    return nt_status::SUCCESS;
 }
 
 extern "C"
