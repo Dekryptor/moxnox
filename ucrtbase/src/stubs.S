@@ -52,5 +52,6 @@ do_stub "setbuf"
 do_stub "_popen"
 do_stub "_pclose"
 do_stub "mbstowcs"
+do_stub "_fullpath"
 
 stubs_end

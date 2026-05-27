@@ -239,3 +239,4 @@ setbuf
 _popen
 _pclose
 mbstowcs
+_fullpath
