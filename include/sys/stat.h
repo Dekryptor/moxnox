@@ -18,6 +18,7 @@ extern "C" {
 int lstat(const char *path, struct stat *buf);
 int futimens(int fd, const struct timespec times[2]);
 int mkdir(const char* path, mode_t mode);
+int chmod(const char* path, mode_t mode);
 
 #ifdef __cplusplus
 }
