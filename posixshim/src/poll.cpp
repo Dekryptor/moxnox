@@ -52,7 +52,7 @@ int poll(struct pollfd* fds, nfds_t nfds, int timeout) {
         } else
             entries[i].h = h;
 
-        entries[i].events = fds[i].events;
+        entries[i].events = (uint16_t)fds[i].events;
         entries[i].revents = 0;
     }
 
@@ -68,7 +68,7 @@ int poll(struct pollfd* fds, nfds_t nfds, int timeout) {
 
     int ret = 0;
     for (size_t i = 0; i < nfds; i++) {
-        fds[i].revents = entries[i].revents;
+        fds[i].revents = (int16_t)entries[i].revents;
 
         if (fds[i].revents != 0)
             ret++;
@@ -86,13 +86,13 @@ int select(int nfds, fd_set* readfds, fd_set* writefds, fd_set* exceptfds,
     int npfds = 0;
 
     if (nfds > 0) {
-        pfds = (pollfd*)malloc(sizeof(pollfd) * nfds);
+        pfds = (pollfd*)malloc(sizeof(pollfd) * (size_t)nfds);
         if (!pfds) {
             *_errno() = ENOMEM;
             return -1;
         }
 
-        for (int i = 0; i < nfds; i++) {
+        for (unsigned int i = 0; i < (unsigned int)nfds; i++) {
             int16_t events = 0;
 
             if (readfds && FD_ISSET(i, readfds))
@@ -118,7 +118,7 @@ int select(int nfds, fd_set* readfds, fd_set* writefds, fd_set* exceptfds,
     if (!timeout)
         poll_timeout = -1;
     else {
-        uint64_t ms = ((uint64_t)timeout->tv_sec * 1000) + (timeout->tv_usec / 1000);
+        uint64_t ms = ((uint64_t)timeout->tv_sec * 1000) + (uint64_t)(timeout->tv_usec / 1000);
 
         if (ms > INT_MAX)
             ms = INT_MAX;
@@ -126,7 +126,7 @@ int select(int nfds, fd_set* readfds, fd_set* writefds, fd_set* exceptfds,
         poll_timeout = (int)ms;
     }
 
-    auto r = poll(pfds, npfds, poll_timeout);
+    auto r = poll(pfds, (nfds_t)npfds, poll_timeout);
 
     if (r >= 0) {
         if (readfds)

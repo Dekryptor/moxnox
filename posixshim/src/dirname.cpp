@@ -109,7 +109,7 @@ char* realpath(const char* path, char* resolved_path) {
             p++;
         }
 
-        size_t comp_len = p - comp;
+        auto comp_len = (size_t)(p - comp);
 
         if (comp_len == 2 && comp[0] == '.' && comp[1] == '.') {
             char* last = ret + ret_len - 1;

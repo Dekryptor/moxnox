@@ -158,7 +158,7 @@ int setenv(const char* name, const char* value, int overwrite) {
                     return 0;
                 }
 
-                found = bitname.data() - (char16_t*)peb->ProcessParameters->Environment;
+                found = (size_t)(bitname.data() - (char16_t*)peb->ProcessParameters->Environment);
                 foundsize = bit.size() + 1;
                 break;
             }
