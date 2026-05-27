@@ -126,10 +126,10 @@ static uint32_t socket_thread(void* ctx) {
                 return 1;
             }
 
-            if (bytes2 == resp2.size())
+            if ((size_t)bytes2 == resp2.size())
                 break;
 
-            resp2 = span(resp2.data() + bytes2, resp2.size() - bytes2);
+            resp2 = span(resp2.data() + bytes2, resp2.size() - (size_t)bytes2);
         }
 
         break;
