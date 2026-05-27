@@ -92,16 +92,16 @@ int select(int nfds, fd_set* readfds, fd_set* writefds, fd_set* exceptfds,
             return -1;
         }
 
-        for (unsigned int i = 0; i < (unsigned int)nfds; i++) {
+        for (int i = 0; i < nfds; i++) {
             int16_t events = 0;
 
-            if (readfds && FD_ISSET(i, readfds))
+            if (readfds && FD_ISSET((size_t)i, readfds))
                 events |= POLLIN;
 
-            if (writefds && FD_ISSET(i, writefds))
+            if (writefds && FD_ISSET((size_t)i, writefds))
                 events |= POLLOUT;
 
-            if (exceptfds && FD_ISSET(i, exceptfds))
+            if (exceptfds && FD_ISSET((size_t)i, exceptfds))
                 events |= POLLPRI;
 
             if (events != 0) {
@@ -151,17 +151,17 @@ int select(int nfds, fd_set* readfds, fd_set* writefds, fd_set* exceptfds,
             auto fd = pfds[i].fd;
 
             if (readfds && (pfds[i].events & POLLIN) && (rev & (POLLIN | POLLHUP | POLLERR))) {
-                FD_SET(fd, readfds);
+                FD_SET((size_t)fd, readfds);
                 r++;
             }
 
             if (writefds && (pfds[i].events & POLLOUT) && (rev & (POLLOUT | POLLERR))) {
-                FD_SET(fd, writefds);
+                FD_SET((size_t)fd, writefds);
                 r++;
             }
 
             if (exceptfds && (pfds[i].events & POLLPRI) && (rev & POLLPRI)) {
-                FD_SET(fd, exceptfds);
+                FD_SET((size_t)fd, exceptfds);
                 r++;
             }
         }

@@ -242,7 +242,7 @@ static void do_ping(SOCKET sock, const addrinfo& ai) {
             if (now.QuadPart >= deadline)
                 break;
 
-            pfd.fd = sock;
+            pfd.fd = (int)sock;
             pfd.events = POLLIN;
 
             ret = poll(&pfd, 1, (int)((deadline - now.QuadPart) / 10000)); // convert units of 100ns to ms

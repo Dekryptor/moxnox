@@ -22,7 +22,7 @@ typedef size_t nfds_t;
 #define POLLNVAL 0x0004
 
 struct pollfd {
-    uintptr_t fd;
+    int fd;
     int16_t events;
     int16_t revents;
 };
