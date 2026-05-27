@@ -63,7 +63,7 @@ target_compile_definitions(freetype PRIVATE -DFT2_BUILD_LIBRARY -DFT_CONFIG_OPTI
 target_compile_definitions(freetype PRIVATE -DFT_CONFIG_MODULES_H=\"${CMAKE_CURRENT_SOURCE_DIR}/ftmodule.h\")
 target_compile_definitions(freetype PRIVATE -DFT_CONFIG_STANDARD_LIBRARY_H=\"${CMAKE_CURRENT_SOURCE_DIR}/ftstdlib.h\")
 target_compile_options(freetype PRIVATE -mno-stack-arg-probe ${USERSPACE_CFLAGS} -fvisibility=default $<$<COMPILE_LANGUAGE:CXX>:-fno-exceptions -fno-rtti>)
-target_compile_options(freetype PRIVATE -Wno-unused-function -Wno-conversion -Wno-unused-variable)
+target_compile_options(freetype PRIVATE -Wno-unused-function -Wno-conversion -Wno-unused-variable -Wno-unused-but-set-variable)
 target_include_directories(freetype PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
 target_include_directories(freetype PUBLIC repo/include)
 target_link_libraries(freetype PRIVATE libpng)
