@@ -73,7 +73,8 @@ target_compile_options(readline PRIVATE
     -Wno-type-limits
     -Wno-unused-but-set-variable
     -Wno-unused-label
-    -Wno-discarded-qualifiers
+    $<$<CXX_COMPILER_ID:Clang>:-Wno-incompatible-pointer-types-discards-qualifiers>
+    $<$<CXX_COMPILER_ID:GNU>:-Wno-discarded-qualifiers>
 )
 
 target_include_directories(readline PUBLIC ${CMAKE_CURRENT_BINARY_DIR})
