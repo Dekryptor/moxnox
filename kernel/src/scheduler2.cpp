@@ -568,7 +568,7 @@ uintptr_t init_cpu_block(unsigned int cpu_no) {
     return (uintptr_t)&cb;
 }
 
-extern "C" NTSTATUS NtWaitForSingleObject(HANDLE object_handle, bool /*alertable*/,
+extern "C" NTSTATUS NtWaitForSingleObject(HANDLE object_handle, bool alertable,
                                const LARGE_INTEGER* timeout) {
     auto objrw = deref_handle(object_handle);
     if (!objrw)
@@ -587,9 +587,7 @@ extern "C" NTSTATUS NtWaitForSingleObject(HANDLE object_handle, bool /*alertable
         t = -timeout->QuadPart;
     }
 
-    // FIXME - non-alertable waits
-
-    return wait_for_object(objrw.get(), true, t);
+    return wait_for_object(objrw.get(), alertable, t);
 }
 
 nt_status wait_for_objects(span<object*> objects, bool wait_any,
