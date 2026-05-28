@@ -86,9 +86,7 @@ public:
 
     list_entry le;
     CONTEXT context;
-#ifdef __x86_64__
     CONTEXT syscall_context;
-#endif
     enum thread_status status;
     uintptr_t tid;
     void* kernel_stack = nullptr;
@@ -125,11 +123,11 @@ static_assert(offsetof(::thread, syscall_stack) == THREAD_SYSCALL_STACK);
 static_assert(offsetof(::thread, kernel_mode) == THREAD_KERNEL_MODE);
 static_assert(offsetof(::thread, timeout_le) == THREAD_TIMEOUT_LE);
 static_assert(offsetof(::thread, wait_timeout) == THREAD_WAIT_TIMEOUT);
+static_assert(offsetof(::thread, syscall_context) == THREAD_SYSCALL_CONTEXT);
 
 #ifdef __aarch64__
 static_assert(offsetof(::thread, user_stack) == THREAD_USER_STACK);
 #elifdef __x86_64__
-static_assert(offsetof(::thread, syscall_context) == THREAD_SYSCALL_CONTEXT);
 static_assert(offsetof(::thread, xsave) == THREAD_XSAVE);
 static_assert(offsetof(::thread, status) == THREAD_STATUS);
 static_assert(offsetof(::thread, suspend_count) == THREAD_SUSPEND_COUNT);
