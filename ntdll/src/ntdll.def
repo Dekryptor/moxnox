@@ -67,3 +67,4 @@ RtlQueryPerformanceFrequency
 RtlQueryPerformanceCounter
 strnlen
 NtContinue
+mn_handle_apc
