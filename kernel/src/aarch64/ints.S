@@ -568,16 +568,27 @@ msr	spsr_el1, x18
 ldr	x18, [x19, #CONTEXT_SP]
 msr	sp_el0, x18
 
-// restore x18, x19, and lr
+// restore x18 and lr
 ldr	x18, [x19, #CONTEXT_X0 + 0x90]
 ldr	lr, [x19, #CONTEXT_X0 + 0xf0]
-ldr	x19, [x19, #CONTEXT_X0 + 0x98]
+
+sub	x0, x0, #STATUS_USER_APC
+cbnz	x0, 0f
+ldp	x0, x1, [x19, #CONTEXT_X0]
+ldp	x2, x3, [x19, #CONTEXT_X0 + 0x10]
+ldr	x4, [x19, #CONTEXT_X0 + 0x20]
+b	1f
+
+0:
+add	x0, x0, #STATUS_USER_APC
 
 // clear volatile regs to avoid leakage
 mov	x1, xzr
 mov	x2, xzr
 mov	x3, xzr
 mov	x4, xzr
+
+1:
 mov	x5, xzr
 mov	x6, xzr
 mov	x7, xzr
@@ -591,6 +602,8 @@ mov	x14, xzr
 mov	x15, xzr
 mov	x16, xzr
 mov	x17, xzr
+
+ldr	x19, [x19, #CONTEXT_X0 + 0x98]
 
 add	sp, sp, #0x10
 eret

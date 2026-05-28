@@ -607,12 +607,19 @@ extern "C" NTSTATUS NtWaitForSingleObject(HANDLE object_handle, bool alertable,
 
 #ifdef __x86_64__
         uintptr_t us_context = t.syscall_context.Rsp - sizeof(CONTEXT);
+#elifdef __aarch64__
+        uintptr_t us_context = t.syscall_context.Sp - sizeof(CONTEXT);
+#endif
 
         us_context &= ~(uint64_t)(alignof(CONTEXT) - 1);
 
         assert(!(us_context & (alignof(CONTEXT) - 1)));
 
+#ifdef __x86_64__
         t.syscall_context.Rax = (uintptr_t)nt_status::USER_APC;
+#elifdef __aarch64__
+        t.syscall_context.X0 = (uintptr_t)nt_status::USER_APC;
+#endif
 
         if (!t.proc->copy_to((void*)us_context, &t.syscall_context, sizeof(CONTEXT))) {
             print("Unable to copy thread context to stack.\n");
@@ -622,6 +629,7 @@ extern "C" NTSTATUS NtWaitForSingleObject(HANDLE object_handle, bool alertable,
             return nt_status::INSUFFICIENT_RESOURCES;
         }
 
+#ifdef __x86_64__
         auto us_arg3 = us_context - sizeof(uint64_t);
 
         us_arg3 -= sizeof(uint64_t); // add padding so stack is aligned correctly
@@ -642,7 +650,14 @@ extern "C" NTSTATUS NtWaitForSingleObject(HANDLE object_handle, bool alertable,
         t.syscall_context.R8 = p->arg1;
         t.syscall_context.R9 = p->arg2;
 #elifdef __aarch64__
-        // FIXME
+        t.syscall_context.Pc = t.proc->ntdll_addr + mn_handle_apc;
+        t.syscall_context.Sp = us_context;
+
+        t.syscall_context.X0 = us_context;
+        t.syscall_context.X1 = (uintptr_t)p->routine;
+        t.syscall_context.X2 = p->arg1;
+        t.syscall_context.X3 = p->arg2;
+        t.syscall_context.X4 = p->arg3;
 #endif
 
         free(p);
