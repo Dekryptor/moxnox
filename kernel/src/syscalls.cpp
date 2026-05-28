@@ -1544,6 +1544,18 @@ NTSTATUS user_NtQueueApcThread(HANDLE thread_handle, PS_APC_ROUTINE apc_routine,
                             apc_arg3);
 }
 
+#ifdef __aarch64__
+extern "C"
+NTSTATUS user_NtContinue(const CONTEXT* thread_context, bool raise_alert) {
+    CONTEXT ctx;
+
+    if (!copy_from_process(&ctx, thread_context, sizeof(CONTEXT)))
+        return nt_status::ACCESS_VIOLATION;
+
+    return NtContinue(&ctx, raise_alert);
+}
+#endif
+
 extern "C"
 NTSTATUS user_mn_poll(mn_poll_entry* us_entries, size_t num_entries,
                       const LARGE_INTEGER* us_timeout) {

@@ -51,7 +51,7 @@
 .asciz __FILE__ // name
 .short DW_LANG_Mips_Assembler // language
 
-dwarf_func_asm user_NtContinue
+dwarf_func_asm NtContinue
 dwarf_func_asm kernel_irq_entry_bsp
 dwarf_func_asm kernel_irq_entry_ap
 dwarf_func_asm user_irq_entry_bsp
@@ -1095,87 +1095,71 @@ user_irq_entry_ap:
 user_irq_entry 0
 user_irq_entry_ap_end:
 
-// NTSTATUS user_NtContinue(const CONTEXT* thread_context, bool raise_alert);
-user_NtContinue:
+// NTSTATUS NtContinue(const CONTEXT* thread_context, bool raise_alert);
+NtContinue:
 // FIXME - raise_alert
-
-sub	sp, sp, #CONTEXT_SIZEOF
-
-# extern "C" bool copy_from_process(void* ks_addr, const void* us_addr, size_t size) {
-mov	x2, #CONTEXT_SIZEOF
-mov	x1, x0 // us_addr
-mov	x0, sp // ks_addr
-bl	copy_from_process
-
-cbnz	x0, 0f
-// return STATUS_ACCESS_VIOLATION if copy_from_process returned false
-mov	w0, 5
-movk	w0, #0xc000, lsl 16
-add	sp, sp, #CONTEXT_SIZEOF
-ret
-
-0:
 msr	DAIFSet, #0xf // disable interrupts
 
-ldp	x2, x3, [sp, #CONTEXT_X0 + 0x10]
-ldp	x4, x5, [sp, #CONTEXT_X0 + 0x20]
-ldp	x6, x7, [sp, #CONTEXT_X0 + 0x30]
-ldp	x8, x9, [sp, #CONTEXT_X0 + 0x40]
-ldp	x10, x11, [sp, #CONTEXT_X0 + 0x50]
-ldp	x12, x13, [sp, #CONTEXT_X0 + 0x60]
-ldp	x14, x15, [sp, #CONTEXT_X0 + 0x70]
-ldp	x16, x17, [sp, #CONTEXT_X0 + 0x80]
-ldp	x18, x19, [sp, #CONTEXT_X0 + 0x90]
-ldp	x20, x21, [sp, #CONTEXT_X0 + 0xa0]
-ldp	x22, x23, [sp, #CONTEXT_X0 + 0xb0]
-ldp	x24, x25, [sp, #CONTEXT_X0 + 0xc0]
-ldp	x26, x27, [sp, #CONTEXT_X0 + 0xd0]
-ldp	x28, fp, [sp, #CONTEXT_X0 + 0xe0]
-ldr	lr, [sp, #CONTEXT_X0 + 0xf0]
+ldp	x2, x3, [x0, #CONTEXT_X0 + 0x10]
+ldp	x4, x5, [x0, #CONTEXT_X0 + 0x20]
+ldp	x6, x7, [x0, #CONTEXT_X0 + 0x30]
+ldp	x8, x9, [x0, #CONTEXT_X0 + 0x40]
+ldp	x10, x11, [x0, #CONTEXT_X0 + 0x50]
+ldp	x12, x13, [x0, #CONTEXT_X0 + 0x60]
+ldp	x14, x15, [x0, #CONTEXT_X0 + 0x70]
+ldp	x16, x17, [x0, #CONTEXT_X0 + 0x80]
+ldp	x18, x19, [x0, #CONTEXT_X0 + 0x90]
+ldp	x20, x21, [x0, #CONTEXT_X0 + 0xa0]
+ldp	x22, x23, [x0, #CONTEXT_X0 + 0xb0]
+ldp	x24, x25, [x0, #CONTEXT_X0 + 0xc0]
+ldp	x26, x27, [x0, #CONTEXT_X0 + 0xd0]
+ldp	x28, fp, [x0, #CONTEXT_X0 + 0xe0]
+ldr	lr, [x0, #CONTEXT_X0 + 0xf0]
 
-ldp	q0, q1, [sp, #CONTEXT_V0]
-ldp	q2, q3, [sp, #CONTEXT_V0 + 0x20]
-ldp	q4, q5, [sp, #CONTEXT_V0 + 0x40]
-ldp	q6, q7, [sp, #CONTEXT_V0 + 0x60]
-ldp	q8, q9, [sp, #CONTEXT_V0 + 0x80]
-ldp	q10, q11, [sp, #CONTEXT_V0 + 0xa0]
-ldp	q12, q13, [sp, #CONTEXT_V0 + 0xc0]
-ldp	q14, q15, [sp, #CONTEXT_V0 + 0xe0]
-ldp	q16, q17, [sp, #CONTEXT_V0 + 0x100]
-ldp	q18, q19, [sp, #CONTEXT_V0 + 0x120]
-ldp	q20, q21, [sp, #CONTEXT_V0 + 0x140]
-ldp	q22, q23, [sp, #CONTEXT_V0 + 0x160]
-ldp	q24, q25, [sp, #CONTEXT_V0 + 0x180]
-ldp	q26, q27, [sp, #CONTEXT_V0 + 0x1a0]
-ldp	q28, q29, [sp, #CONTEXT_V0 + 0x1c0]
-ldp	q30, q31, [sp, #CONTEXT_V0 + 0x1e0]
+ldp	q0, q1, [x0, #CONTEXT_V0]
+ldp	q2, q3, [x0, #CONTEXT_V0 + 0x20]
+ldp	q4, q5, [x0, #CONTEXT_V0 + 0x40]
+ldp	q6, q7, [x0, #CONTEXT_V0 + 0x60]
+ldp	q8, q9, [x0, #CONTEXT_V0 + 0x80]
+ldp	q10, q11, [x0, #CONTEXT_V0 + 0xa0]
+ldp	q12, q13, [x0, #CONTEXT_V0 + 0xc0]
+ldp	q14, q15, [x0, #CONTEXT_V0 + 0xe0]
+ldp	q16, q17, [x0, #CONTEXT_V0 + 0x100]
+ldp	q18, q19, [x0, #CONTEXT_V0 + 0x120]
+ldp	q20, q21, [x0, #CONTEXT_V0 + 0x140]
+ldp	q22, q23, [x0, #CONTEXT_V0 + 0x160]
+ldp	q24, q25, [x0, #CONTEXT_V0 + 0x180]
+ldp	q26, q27, [x0, #CONTEXT_V0 + 0x1a0]
+ldp	q28, q29, [x0, #CONTEXT_V0 + 0x1c0]
+ldp	q30, q31, [x0, #CONTEXT_V0 + 0x1e0]
 
-ldr	w1, [sp, #CONTEXT_FPCR]
+ldr	w1, [x0, #CONTEXT_FPCR]
 msr	fpcr, x1
 
-ldr	w1, [sp, #CONTEXT_FPSR]
+ldr	w1, [x0, #CONTEXT_FPSR]
 msr	fpsr, x1
 
 // FIXME - debug registers
 
-ldr	w1, [sp, #CONTEXT_CPSR]
+ldr	w1, [x0, #CONTEXT_CPSR]
 // only allow N, Z, C, V, Q, and GE flags (is this right?)
-mov	w0, #0xf80f0000
-and	w1, w1, w0
+mov	w2, #0xf80f0000
+and	w1, w1, w2
 msr	spsr_el1, x1
 
-ldr	x1, [sp, #CONTEXT_PC]
+ldr	x1, [x0, #CONTEXT_PC]
 msr	elr_el1, x1
 
-ldr	x1, [sp, #CONTEXT_SP]
+ldr	x1, [x0, #CONTEXT_SP]
 msr	sp_el0, x1
 
-ldp	x0, x1, [sp, #CONTEXT_X0]
+ldr	x2, [x0, #CONTEXT_X0 + 0x10]
+ldp	x0, x1, [x0, #CONTEXT_X0]
 
 // 0x10 from user_exception_entry
-add	sp, sp, #(CONTEXT_SIZEOF + 0x10)
+add	sp, sp, #0x10
 eret
-user_NtContinue_end:
+NtContinue_end:
 
 .text_end:
 
