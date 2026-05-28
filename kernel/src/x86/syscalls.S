@@ -212,15 +212,26 @@ Lafter_syscall:
     mov rcx, [rcx + PROCESS_CR3]
     mov cr3, rcx
 
-    swapgs
+    cmp eax, STATUS_USER_APC
+    jne 0f
+    mov rcx, [rdx + THREAD_SYSCALL_CONTEXT + CONTEXT_RCX]
+    mov r8, [rdx + THREAD_SYSCALL_CONTEXT + CONTEXT_R8]
+    mov r9, [rdx + THREAD_SYSCALL_CONTEXT + CONTEXT_R9]
+    mov rdx, [rdx + THREAD_SYSCALL_CONTEXT + CONTEXT_RDX]
+    jmp 1f
 
+0:
     # don't leak information to userspace
     xor rcx, rcx
     xor rdx, rdx
     xor r8, r8
     xor r9, r9
+
+1:
     xor r10, r10
     xor r11, r11
+
+    swapgs
 
     iretq
 

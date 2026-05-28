@@ -21,6 +21,7 @@ import disable_interrupts;
 import cpu_block;
 import crt;
 import power;
+import interrupts;
 
 using namespace std;
 
@@ -570,13 +571,15 @@ uintptr_t init_cpu_block(unsigned int cpu_no) {
 
 extern "C" NTSTATUS NtWaitForSingleObject(HANDLE object_handle, bool alertable,
                                const LARGE_INTEGER* timeout) {
+    nt_status status;
+
     auto objrw = deref_handle(object_handle);
     if (!objrw)
         return nt_status::INVALID_HANDLE;
 
     // FIXME - check handle has SYNCHRONIZE access
 
-    optional<uint64_t> t;
+    optional<uint64_t> tm;
 
     if (timeout) {
         if (timeout->QuadPart > 0) {
@@ -584,10 +587,68 @@ extern "C" NTSTATUS NtWaitForSingleObject(HANDLE object_handle, bool alertable,
             return nt_status::NOT_SUPPORTED;
         }
 
-        t = -timeout->QuadPart;
+        tm = -timeout->QuadPart;
     }
 
-    return wait_for_object(objrw.get(), alertable, t);
+    status = wait_for_object(objrw.get(), alertable, tm);
+
+    if (status == nt_status::USER_APC) {
+        auto& t = *get_current_thread();
+        pending_apc* p;
+
+        {
+            lock_guard lock(t.apc_lock);
+
+            assert(!is_list_empty(t.pending_apcs));
+
+            p = &containing_record<pending_apc>(t.pending_apcs.next);
+            remove_entry_list(p->le);
+        }
+
+#ifdef __x86_64__
+        uintptr_t us_context = t.syscall_context.Rsp - sizeof(CONTEXT);
+
+        us_context &= ~(uint64_t)(alignof(CONTEXT) - 1);
+
+        assert(!(us_context & (alignof(CONTEXT) - 1)));
+
+        t.syscall_context.Rax = (uintptr_t)nt_status::USER_APC;
+
+        if (!t.proc->copy_to((void*)us_context, &t.syscall_context, sizeof(CONTEXT))) {
+            print("Unable to copy thread context to stack.\n");
+            t.exit_status = nt_status::INSUFFICIENT_RESOURCES;
+            terminate_thread(t, true);
+            free(p);
+            return nt_status::INSUFFICIENT_RESOURCES;
+        }
+
+        auto us_arg3 = us_context - sizeof(uint64_t);
+
+        us_arg3 -= sizeof(uint64_t); // add padding so stack is aligned correctly
+
+        if (!t.proc->copy_to((void*)us_arg3, &p->arg3, sizeof(uint64_t))) {
+            print("Unable to copy thread context to stack.\n");
+            t.exit_status = nt_status::INSUFFICIENT_RESOURCES;
+            terminate_thread(t, true);
+            free(p);
+            return nt_status::INSUFFICIENT_RESOURCES;
+        }
+
+        t.syscall_context.Rip = t.proc->ntdll_addr + mn_handle_apc;
+        t.syscall_context.Rsp = us_arg3 - 0x20 - sizeof(uint64_t); // home space, plus (unused) return pointer
+
+        t.syscall_context.Rcx = us_context;
+        t.syscall_context.Rdx = (uintptr_t)p->routine;
+        t.syscall_context.R8 = p->arg1;
+        t.syscall_context.R9 = p->arg2;
+#elifdef __aarch64__
+        // FIXME
+#endif
+
+        free(p);
+    }
+
+    return status;
 }
 
 nt_status wait_for_objects(span<object*> objects, bool wait_any,

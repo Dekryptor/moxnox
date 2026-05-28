@@ -51,7 +51,7 @@ export enum class thread_status {
     dying
 };
 
-struct pending_apc {
+export struct pending_apc {
     list_entry le;
     PS_APC_ROUTINE routine;
     uintptr_t arg1;
