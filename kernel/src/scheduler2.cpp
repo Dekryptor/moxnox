@@ -729,6 +729,21 @@ nt_status wait_for_objects(span<object*> objects, bool wait_any,
         return nt_status::THREAD_IS_TERMINATING;
     }
 
+    {
+        bool has_apcs;
+
+        {
+            lock_guard lock(current_thread->apc_lock);
+            has_apcs = !is_list_empty(current_thread->pending_apcs);
+        }
+
+        if (has_apcs) {
+            release_sync_lock();
+            enable_interrupts();
+            return nt_status::USER_APC;
+        }
+    }
+
     if (wait_any) {
         for (unsigned int i = 0; i < objects.size(); i++) {
             auto& obj = *objects[i];
