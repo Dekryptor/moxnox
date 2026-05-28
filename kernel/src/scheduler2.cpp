@@ -266,6 +266,21 @@ nt_status wait_for_object(object& obj, bool interruptible,
         return nt_status::THREAD_IS_TERMINATING;
     }
 
+    if (interruptible) {
+        bool has_apcs;
+
+        {
+            lock_guard lock(current_thread->apc_lock);
+            has_apcs = !is_list_empty(current_thread->pending_apcs);
+        }
+
+        if (has_apcs) {
+            release_sync_lock();
+            enable_interrupts();
+            return nt_status::USER_APC;
+        }
+    }
+
     {
         if (!object_is_sync_object(obj)) {
             release_sync_lock();
