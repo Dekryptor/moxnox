@@ -413,6 +413,54 @@ static void test_signalled_object_priority() {
     print("Test 7 passed\n\n");
 }
 
+// --- Test 8: APC delivered to thread in alertable NtWaitForMultipleObjects ---
+
+static void test_alertable_wait_multiple() {
+    print("=== Test 8: APC delivered to alertable NtWaitForMultipleObjects ===\n");
+
+    atomic<bool> apc_ran = false;
+    auto wait_evt1 = make_event();
+    auto wait_evt2 = make_event();
+    auto ready_evt = make_event(EVENT_TYPE::NotificationEvent);
+
+    struct ctx { atomic<bool>* ran; HANDLE wait1; HANDLE wait2; HANDLE ready; };
+    ctx c = { &apc_ran, wait_evt1.get(), wait_evt2.get(), ready_evt.get() };
+
+    unique_handle thread{CreateThread(nullptr, 0, [](void* arg) -> uint32_t {
+        auto& c = *(ctx*)arg;
+        NtSetEvent(c.ready, nullptr);
+        HANDLE handles[] = { c.wait1, c.wait2 };
+        auto status = NtWaitForMultipleObjects(2, handles, true, true, nullptr);
+        if (status != nt_status::USER_APC) {
+            print("Test 8: expected nt_status::USER_APC, got {}\n", status);
+            NtTerminateProcess(NtCurrentProcess(), nt_status::INTERNAL_ERROR);
+            unreachable();
+        }
+        if (!c.ran->load()) {
+            print("Test 8: APC did not run\n");
+            NtTerminateProcess(NtCurrentProcess(), nt_status::INTERNAL_ERROR);
+            unreachable();
+        }
+        return 0;
+    }, &c, 0, nullptr)};
+
+    NtWaitForSingleObject(ready_evt.get(), false, nullptr);
+    Sleep(10); // let thread settle into wait
+
+    auto status = NtQueueApcThread(thread.get(), [](void* arg, void*, void*) {
+        ((atomic<bool>*)arg)->store(true);
+    }, &apc_ran, nullptr, nullptr);
+    if (!success(status)) {
+        print("Test 8: NtQueueApcThread returned {}\n", status);
+        NtTerminateProcess(NtCurrentProcess(), nt_status::INTERNAL_ERROR);
+        unreachable();
+    }
+
+    NtWaitForSingleObject(thread.get(), false, nullptr);
+
+    print("Test 8 passed\n\n");
+}
+
 int main() {
     print("=== APC test suite ===\n\n");
 
@@ -423,6 +471,7 @@ int main() {
     test_multiple_apc_fifo();
     test_argument_passing();
     test_signalled_object_priority();
+    test_alertable_wait_multiple();
 
     print("All tests passed\n");
 
