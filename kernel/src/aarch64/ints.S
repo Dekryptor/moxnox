@@ -446,32 +446,63 @@ sub	x1, x1, 0x1000
 cmp	x1, #NUM_SYSCALLS
 b.ge	unknown_syscall
 
-// save x18, x19, lr, elr_el1, and spsr_el1
-sub	sp, sp, #0x230
-stp	x18, x19, [sp]
-stp	lr, xzr, [sp, #0x10]
+// save context
 
-mrs	x18, elr_el1
-mrs	x19, spsr_el1
-stp	x18, x19, [sp, #0x20]
+mrs	x0, tpidr_el1
+add	x0, x0, #GS_CURRENT_THREAD
+ldr	x0, [x0]
+add	x0, x0, #THREAD_SYSCALL_CONTEXT
 
-stp	q0, q1, [sp, #0x30]
-stp	q2, q3, [sp, #0x50]
-stp	q4, q5, [sp, #0x70]
-stp	q6, q7, [sp, #0x90]
-stp	q8, q9, [sp, #0xb0]
-stp	q10, q11, [sp, #0xd0]
-stp	q12, q13, [sp, #0xf0]
-stp	q14, q15, [sp, #0x110]
-stp	q16, q17, [sp, #0x130]
-stp	q18, q19, [sp, #0x150]
-stp	q20, q21, [sp, #0x170]
-stp	q22, q23, [sp, #0x190]
-stp	q24, q25, [sp, #0x1b0]
-stp	q26, q27, [sp, #0x1d0]
-stp	q28, q29, [sp, #0x1f0]
-stp	q30, q31, [sp, #0x210]
+str	x1, [x0, #CONTEXT_X0 + 0x8]
+stp	x2, x3, [x0, #CONTEXT_X0 + 0x10]
+stp	x4, x5, [x0, #CONTEXT_X0 + 0x20]
+stp	x6, x7, [x0, #CONTEXT_X0 + 0x30]
+stp	x8, x9, [x0, #CONTEXT_X0 + 0x40]
+stp	x10, x11, [x0, #CONTEXT_X0 + 0x50]
+stp	x12, x13, [x0, #CONTEXT_X0 + 0x60]
+stp	x14, x15, [x0, #CONTEXT_X0 + 0x70]
+stp	x16, x17, [x0, #CONTEXT_X0 + 0x80]
+stp	x18, x19, [x0, #CONTEXT_X0 + 0x90]
+stp	x20, x21, [x0, #CONTEXT_X0 + 0xa0]
+stp	x22, x23, [x0, #CONTEXT_X0 + 0xb0]
+stp	x24, x25, [x0, #CONTEXT_X0 + 0xc0]
+stp	x26, x27, [x0, #CONTEXT_X0 + 0xd0]
+stp	x28, fp, [x0, #CONTEXT_X0 + 0xe0]
+str	lr, [x0, #CONTEXT_X0 + 0xf0]
 
+stp	q0, q1, [x0, #CONTEXT_V0]
+stp	q2, q3, [x0, #CONTEXT_V0 + 0x20]
+stp	q4, q5, [x0, #CONTEXT_V0 + 0x40]
+stp	q6, q7, [x0, #CONTEXT_V0 + 0x60]
+stp	q8, q9, [x0, #CONTEXT_V0 + 0x80]
+stp	q10, q11, [x0, #CONTEXT_V0 + 0xa0]
+stp	q12, q13, [x0, #CONTEXT_V0 + 0xc0]
+stp	q14, q15, [x0, #CONTEXT_V0 + 0xe0]
+stp	q16, q17, [x0, #CONTEXT_V0 + 0x100]
+stp	q18, q19, [x0, #CONTEXT_V0 + 0x120]
+stp	q20, q21, [x0, #CONTEXT_V0 + 0x140]
+stp	q22, q23, [x0, #CONTEXT_V0 + 0x160]
+stp	q24, q25, [x0, #CONTEXT_V0 + 0x180]
+stp	q26, q27, [x0, #CONTEXT_V0 + 0x1a0]
+stp	q28, q29, [x0, #CONTEXT_V0 + 0x1c0]
+stp	q30, q31, [x0, #CONTEXT_V0 + 0x1e0]
+
+mrs	x1, fpcr
+str	w1, [x0, #CONTEXT_FPCR]
+
+mrs	x1, fpsr
+str	w1, [x0, #CONTEXT_FPSR]
+
+mrs	x1, elr_el1
+str	x1, [x0, #CONTEXT_PC]
+
+mrs	x1, spsr_el1
+str	w1, [x0, #CONTEXT_CPSR]
+
+mrs	x1, sp_el0
+str	x1, [x0, #CONTEXT_SP]
+
+ldr	x1, [x0, #CONTEXT_X0 + 0x8]
 adrp	x0, syscalls
 add	x0, x0, :lo12:syscalls
 lsl	x1, x1, #3
@@ -490,8 +521,8 @@ strb	w1, [x0]
 msr	DAIFClr, #0xf // enable interrupts
 
 // load x0 and x1 again and call handler
-ldr	x0, [sp, #0x230]
-ldr	x1, [sp, #0x238]
+ldr	x0, [sp]
+ldr	x1, [sp, #0x8]
 blr	x19
 
 msr	DAIFSet, #0xf // disable interrupts
@@ -509,31 +540,38 @@ ldr	x19, [x19]
 add	x19, x19, #THREAD_KERNEL_MODE
 strb	wzr, [x19]
 
-// restore elr_e1 and spsr_el1
-ldp	x18, x19, [sp, #0x20]
+add	x19, x18, #GS_CURRENT_THREAD
+ldr	x19, [x19]
+add	x19, x19, #THREAD_SYSCALL_CONTEXT
+ldp	q30, q31, [x19, #CONTEXT_V0 + 0x1e0]
+ldp	q28, q29, [x19, #CONTEXT_V0 + 0x1c0]
+ldp	q26, q27, [x19, #CONTEXT_V0 + 0x1a0]
+ldp	q24, q25, [x19, #CONTEXT_V0 + 0x180]
+ldp	q22, q23, [x19, #CONTEXT_V0 + 0x160]
+ldp	q20, q21, [x19, #CONTEXT_V0 + 0x140]
+ldp	q18, q19, [x19, #CONTEXT_V0 + 0x120]
+ldp	q16, q17, [x19, #CONTEXT_V0 + 0x100]
+ldp	q14, q15, [x19, #CONTEXT_V0 + 0xe0]
+ldp	q12, q13, [x19, #CONTEXT_V0 + 0xc0]
+ldp	q10, q11, [x19, #CONTEXT_V0 + 0xa0]
+ldp	q8, q9, [x19, #CONTEXT_V0 + 0x80]
+ldp	q6, q7, [x19, #CONTEXT_V0 + 0x60]
+ldp	q4, q5, [x19, #CONTEXT_V0 + 0x40]
+ldp	q2, q3, [x19, #CONTEXT_V0 + 0x20]
+ldp	q0, q1, [x19, #CONTEXT_V0]
+
+// restore elr_e1, spsr_el1, and sp_el0
+ldr	x18, [x19, #CONTEXT_PC]
 msr	elr_el1, x18
-msr	spsr_el1, x19
+ldr	x18, [x19, #CONTEXT_CPSR]
+msr	spsr_el1, x18
+ldr	x18, [x19, #CONTEXT_SP]
+msr	sp_el0, x18
 
 // restore x18, x19, and lr
-ldp	x18, x19, [sp]
-ldp	lr, xzr, [sp, #0x10]
-
-ldp	q30, q31, [sp, #0x210]
-ldp	q28, q29, [sp, #0x1f0]
-ldp	q26, q27, [sp, #0x1d0]
-ldp	q24, q25, [sp, #0x1b0]
-ldp	q22, q23, [sp, #0x190]
-ldp	q20, q21, [sp, #0x170]
-ldp	q18, q19, [sp, #0x150]
-ldp	q16, q17, [sp, #0x130]
-ldp	q14, q15, [sp, #0x110]
-ldp	q12, q13, [sp, #0xf0]
-ldp	q10, q11, [sp, #0xd0]
-ldp	q8, q9, [sp, #0xb0]
-ldp	q6, q7, [sp, #0x90]
-ldp	q4, q5, [sp, #0x70]
-ldp	q2, q3, [sp, #0x50]
-ldp	q0, q1, [sp, #0x30]
+ldr	x18, [x19, #CONTEXT_X0 + 0x90]
+ldr	lr, [x19, #CONTEXT_X0 + 0xf0]
+ldr	x19, [x19, #CONTEXT_X0 + 0x98]
 
 // clear volatile regs to avoid leakage
 mov	x1, xzr
@@ -554,7 +592,7 @@ mov	x15, xzr
 mov	x16, xzr
 mov	x17, xzr
 
-add	sp, sp, #0x240
+add	sp, sp, #0x10
 eret
 
 unknown_syscall:
@@ -1121,8 +1159,8 @@ msr	sp_el0, x1
 
 ldp	x0, x1, [sp, #CONTEXT_X0]
 
-// 0x230 bytes from do_syscall, 0x10 from user_exception_entry
-add	sp, sp, #(CONTEXT_SIZEOF + 0x230 + 0x10)
+// 0x10 from user_exception_entry
+add	sp, sp, #(CONTEXT_SIZEOF + 0x10)
 eret
 user_NtContinue_end:
 
