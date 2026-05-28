@@ -3,6 +3,7 @@ module;
 #include <span>
 #include <optional>
 #include <atomic>
+#include <mutex>
 #include <stddef.h>
 #include <poll.h>
 #include "assert.h"
@@ -34,11 +35,11 @@ static atomic<uint64_t> cpu_block_va = 0xfffffa3000000000;
 
 extern "C" {
 #ifdef DEBUG
-    thread* sync_lock_thread = nullptr;
+    ::thread* sync_lock_thread = nullptr;
 #endif
 }
 
-static thread* pick_runnable_thread(thread* current) {
+static ::thread* pick_runnable_thread(::thread* current) {
     list_entry* le;
     auto cb = get_cpu_block();
     auto mask = (uint64_t)1 << cb->cpu_no; // FIXME - is the local APIC ID guaranteed to start at 0?
@@ -50,7 +51,7 @@ static thread* pick_runnable_thread(thread* current) {
     if (sdc != 0xffffffff && sdc != cb->cpu_no)
         return nullptr;
 
-    auto consider = [&](thread& t) -> thread* {
+    auto consider = [&](::thread& t) -> ::thread* {
         if (t.status != thread_status::runnable && t.status != thread_status::dying)
             return nullptr;
 
@@ -72,7 +73,7 @@ static thread* pick_runnable_thread(thread* current) {
         assert(current->status != thread_status::dead);
 
         for (auto le = current->le.next; le != &thread_list; le = le->next) {
-            auto& t = containing_record<thread>(le);
+            auto& t = containing_record<::thread>(le);
 
             auto ret = consider(t);
             if (ret) {
@@ -84,7 +85,7 @@ static thread* pick_runnable_thread(thread* current) {
 
     le = thread_list.next;
     while (le != &thread_list) {
-        auto& t = containing_record<thread>(le);
+        auto& t = containing_record<::thread>(le);
 
         auto ret = consider(t);
         if (ret) {
@@ -338,6 +339,18 @@ nt_status wait_for_object(object& obj, bool interruptible,
     if (interruptible && current_thread->suspend_count.load() != 0)
         return nt_status::ALERTED;
 
+    if (interruptible) {
+        bool has_apcs;
+
+        {
+            lock_guard lock(current_thread->apc_lock);
+            has_apcs = !is_list_empty(current_thread->pending_apcs);
+        }
+
+        if (has_apcs)
+            return nt_status::USER_APC;
+    }
+
     if (timeout.has_value() && current_thread->wait_timeout == 0)
         return nt_status::TIMEOUT;
 
@@ -354,7 +367,7 @@ unsigned int wake_up_waiters(list_entry& waiters) {
 
         switch (wo.type) {
             case waiter_object_type::thread: {
-                auto& t = *(thread*)((uint8_t*)&wo - offsetof(thread, wait_obj));
+                auto& t = *(::thread*)((uint8_t*)&wo - offsetof(::thread, wait_obj));
 
                 assert(t.status == thread_status::waiting || t.status == thread_status::dying);
 
@@ -404,7 +417,7 @@ unsigned int wake_up_waiters(list_entry& waiters) {
 }
 
 extern "C"
-void wait_timeout_expired(thread* tptr) {
+void wait_timeout_expired(::thread* tptr) {
     // interrupts disabled and sync_lock held
 
     auto& t = *tptr;
