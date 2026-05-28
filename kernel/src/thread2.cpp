@@ -566,6 +566,37 @@ nt_status queue_apc(::thread& t, PS_APC_ROUTINE apc_routine, void* apc_arg1,
         insert_tail_list(t.pending_apcs, p->le);
     }
 
+    {
+        sync_lock sl;
+        lock_guard lock1(sl);
+        lock_guard lock2(t.apc_lock);
+
+        if (is_list_empty(t.pending_apcs))
+            return nt_status::SUCCESS;
+
+        if ((t.status == thread_status::waiting || t.status == thread_status::waiting_multiple) && t.wait_interruptible) {
+            // break waits
+
+            if (t.wait_timeout != 0)
+                remove_entry_list(t.timeout_le);
+
+            if (t.status == thread_status::waiting)
+                remove_entry_list(t.wait_obj.wait_le);
+            else if (t.status == thread_status::waiting_multiple) {
+                auto& block = *t.multwait;
+
+                for (unsigned int i = 0; i < block.num_entries; i++) {
+                    if (!block.entries[i].done)
+                        remove_entry_list(block.entries[i].wait_le);
+                }
+
+                t.multwait = nullptr;
+            }
+
+            t.status = thread_status::runnable;
+        }
+    }
+
     return nt_status::SUCCESS;
 }
 
