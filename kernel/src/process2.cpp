@@ -1706,6 +1706,10 @@ void load_ntdll() {
     mn_ctrl_c = ntdll->find_export("mn_ctrl_c");
     if (!mn_ctrl_c)
         bsod("Could not find export mn_ctrl_c in ntdll.dll");
+
+    mn_handle_apc = ntdll->find_export("mn_handle_apc");
+    if (!mn_handle_apc)
+        bsod("Could not find export mn_handle_apc in ntdll.dll");
 }
 
 nt_status time_page_cache::read_into_cache(uint64_t page_num, uint64_t num_pages,
