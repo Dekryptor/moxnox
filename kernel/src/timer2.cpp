@@ -380,7 +380,12 @@ NTSTATUS NtDelayExecution(bool alertable, const LARGE_INTEGER* delay_interval) {
     if (!success(status))
         return status;
 
-    return wait_for_object(t, alertable);
+    status = wait_for_object(t, alertable);
+
+    if (status == nt_status::USER_APC)
+        return setup_user_apc();
+
+    return status;
 }
 
 void msleep(unsigned int ms) {
