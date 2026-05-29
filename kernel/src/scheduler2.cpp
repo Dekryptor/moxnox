@@ -843,6 +843,13 @@ nt_status wait_for_objects(span<object*> objects, bool wait_any,
 
     yield(); // releases sync_lock
 
+    {
+        lock_guard lock(current_thread->apc_lock);
+
+        if (!is_list_empty(current_thread->pending_apcs))
+            return nt_status::USER_APC;
+    }
+
     auto index = mwb->index;
     free(mwb);
 
@@ -923,6 +930,9 @@ extern "C" NTSTATUS NtWaitForMultipleObjects(uint32_t object_count, HANDLE* obje
     for (unsigned int i = 0; i < object_count; i++) {
         object_release(*objs[i]);
     }
+
+    if (ret == nt_status::USER_APC)
+        return setup_user_apc();
 
     return ret;
 }
