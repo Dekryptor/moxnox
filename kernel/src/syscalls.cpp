@@ -19,6 +19,7 @@ import cpu_block;
 import process;
 import list;
 import bsod;
+import scheduler;
 
 using namespace std;
 
@@ -1545,7 +1546,7 @@ NTSTATUS user_NtQueueApcThread(HANDLE thread_handle, PS_APC_ROUTINE apc_routine,
 }
 
 extern "C"
-NTSTATUS user_NtContinue(const CONTEXT* thread_context, bool /*raise_alert*/) {
+NTSTATUS user_NtContinue(const CONTEXT* thread_context, bool raise_alert) {
     auto& t = *get_current_thread();
     CONTEXT ctx;
 
@@ -1555,6 +1556,17 @@ NTSTATUS user_NtContinue(const CONTEXT* thread_context, bool /*raise_alert*/) {
         return nt_status::ACCESS_VIOLATION;
 
     memcpy(&t.syscall_context, &ctx, sizeof(CONTEXT));
+
+    if (raise_alert) {
+        {
+            lock_guard lock(t.apc_lock);
+
+            raise_alert = !is_list_empty(t.pending_apcs);
+        }
+    }
+
+    if (raise_alert)
+        return setup_user_apc();
 
     return nt_status::USER_APC; // means rax/x0 will get taken from syscall_context instead
 }
