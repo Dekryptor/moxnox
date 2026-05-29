@@ -71,8 +71,14 @@ dwarf_func_asm RtlRaiseException
 .global NtContinue
 NtContinue:
 .seh_endprologue
+    test rdx, rdx
+    jz 0f
+    mov r10, rcx
+    mov eax, 0x118f
+    syscall
+    ret
 
-    # FIXME - raise_alert
+0:
     # FIXME - debug registers
 
     mov ds, WORD PTR [rcx + CONTEXT_DS]
