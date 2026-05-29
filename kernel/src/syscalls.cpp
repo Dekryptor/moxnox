@@ -1544,7 +1544,6 @@ NTSTATUS user_NtQueueApcThread(HANDLE thread_handle, PS_APC_ROUTINE apc_routine,
                             apc_arg3);
 }
 
-#ifdef __aarch64__
 extern "C"
 NTSTATUS user_NtContinue(const CONTEXT* thread_context, bool /*raise_alert*/) {
     auto& t = *get_current_thread();
@@ -1557,9 +1556,8 @@ NTSTATUS user_NtContinue(const CONTEXT* thread_context, bool /*raise_alert*/) {
 
     memcpy(&t.syscall_context, &ctx, sizeof(CONTEXT));
 
-    return nt_status::USER_APC; // means x0 will get taken from syscall_context instead
+    return nt_status::USER_APC; // means rax/x0 will get taken from syscall_context instead
 }
-#endif
 
 extern "C"
 NTSTATUS user_mn_poll(mn_poll_entry* us_entries, size_t num_entries,

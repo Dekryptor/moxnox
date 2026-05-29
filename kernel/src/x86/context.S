@@ -150,6 +150,8 @@
     mov edx, 0xffffffff
     xsave [rcx + THREAD_XSAVE]
 
+    fxsave [rcx + THREAD_SYSCALL_CONTEXT + CONTEXT_FXSAVE]
+
     mov rdx, [rcx + THREAD_SYSCALL_CONTEXT + CONTEXT_RDX]
 .endm
 

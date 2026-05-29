@@ -214,10 +214,25 @@ Lafter_syscall:
 
     cmp eax, STATUS_USER_APC
     jne 0f
+
+    fxrstor [rdx + THREAD_SYSCALL_CONTEXT + CONTEXT_FXSAVE]
+
+    mov rax, [rdx + THREAD_SYSCALL_CONTEXT + CONTEXT_RAX]
     mov rcx, [rdx + THREAD_SYSCALL_CONTEXT + CONTEXT_RCX]
+    mov rbx, [rdx + THREAD_SYSCALL_CONTEXT + CONTEXT_RBX]
+    mov rbp, [rdx + THREAD_SYSCALL_CONTEXT + CONTEXT_RBP]
+    mov rsi, [rdx + THREAD_SYSCALL_CONTEXT + CONTEXT_RSI]
+    mov rdi, [rdx + THREAD_SYSCALL_CONTEXT + CONTEXT_RDI]
     mov r8, [rdx + THREAD_SYSCALL_CONTEXT + CONTEXT_R8]
     mov r9, [rdx + THREAD_SYSCALL_CONTEXT + CONTEXT_R9]
+    mov r10, [rdx + THREAD_SYSCALL_CONTEXT + CONTEXT_R10]
+    mov r11, [rdx + THREAD_SYSCALL_CONTEXT + CONTEXT_R11]
+    mov r12, [rdx + THREAD_SYSCALL_CONTEXT + CONTEXT_R12]
+    mov r13, [rdx + THREAD_SYSCALL_CONTEXT + CONTEXT_R13]
+    mov r14, [rdx + THREAD_SYSCALL_CONTEXT + CONTEXT_R14]
+    mov r15, [rdx + THREAD_SYSCALL_CONTEXT + CONTEXT_R15]
     mov rdx, [rdx + THREAD_SYSCALL_CONTEXT + CONTEXT_RDX]
+
     jmp 1f
 
 0:
@@ -226,11 +241,10 @@ Lafter_syscall:
     xor rdx, rdx
     xor r8, r8
     xor r9, r9
-
-1:
     xor r10, r10
     xor r11, r11
 
+1:
     swapgs
 
     iretq

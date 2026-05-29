@@ -401,9 +401,5 @@ syscall_stub "NtWaitForKeyedEvent"
 syscall_stub "NtWaitForMultipleObjects32"
 syscall_stub "NtWaitForWorkViaWorkerFactory"
 syscall_stub "NtWorkerFactoryWorkerReady"
-#ifdef __aarch64__
 syscall_func "NtContinue", 2
-#else
-syscall_stub "NtContinue"
-#endif
 syscall_func "mn_poll", 3
