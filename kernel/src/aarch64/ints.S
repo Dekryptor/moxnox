@@ -51,7 +51,6 @@
 .asciz __FILE__ // name
 .short DW_LANG_Mips_Assembler // language
 
-dwarf_func_asm NtContinue
 dwarf_func_asm kernel_irq_entry_bsp
 dwarf_func_asm kernel_irq_entry_ap
 dwarf_func_asm user_irq_entry_bsp
@@ -560,6 +559,11 @@ ldp	q4, q5, [x19, #CONTEXT_V0 + 0x40]
 ldp	q2, q3, [x19, #CONTEXT_V0 + 0x20]
 ldp	q0, q1, [x19, #CONTEXT_V0]
 
+ldr	w1, [x19, #CONTEXT_FPCR]
+msr	fpcr, x1
+ldr	w1, [x19, #CONTEXT_FPSR]
+msr	fpsr, x1
+
 // restore elr_e1, spsr_el1, and sp_el0
 ldr	x18, [x19, #CONTEXT_PC]
 msr	elr_el1, x18
@@ -574,34 +578,27 @@ ldr	lr, [x19, #CONTEXT_X0 + 0xf0]
 
 sub	x0, x0, #STATUS_USER_APC
 cbnz	x0, 0f
-ldp	x0, x1, [x19, #CONTEXT_X0]
-ldp	x2, x3, [x19, #CONTEXT_X0 + 0x10]
-ldr	x4, [x19, #CONTEXT_X0 + 0x20]
+ldr	x0, [x19, #CONTEXT_X0]
 b	1f
 
 0:
 add	x0, x0, #STATUS_USER_APC
 
-// clear volatile regs to avoid leakage
-mov	x1, xzr
-mov	x2, xzr
-mov	x3, xzr
-mov	x4, xzr
-
 1:
-mov	x5, xzr
-mov	x6, xzr
-mov	x7, xzr
-mov	x8, xzr
-mov	x9, xzr
-mov	x10, xzr
-mov	x11, xzr
-mov	x12, xzr
-mov	x13, xzr
-mov	x14, xzr
-mov	x15, xzr
-mov	x16, xzr
-mov	x17, xzr
+ldr	x1, [x19, #CONTEXT_X0 + 0x8]
+ldp	x2, x3, [x19, #CONTEXT_X0 + 0x10]
+ldp	x4, x5, [x19, #CONTEXT_X0 + 0x20]
+ldp	x6, x7, [x19, #CONTEXT_X0 + 0x30]
+ldp	x8, x9, [x19, #CONTEXT_X0 + 0x40]
+ldp	x10, x11, [x19, #CONTEXT_X0 + 0x50]
+ldp	x12, x13, [x19, #CONTEXT_X0 + 0x60]
+ldp	x14, x15, [x19, #CONTEXT_X0 + 0x70]
+ldp	x16, x17, [x19, #CONTEXT_X0 + 0x80]
+ldp	x20, x21, [x19, #CONTEXT_X0 + 0xa0]
+ldp	x22, x23, [x19, #CONTEXT_X0 + 0xb0]
+ldp	x24, x25, [x19, #CONTEXT_X0 + 0xc0]
+ldp	x26, x27, [x19, #CONTEXT_X0 + 0xd0]
+ldp	x28, fp, [x19, #CONTEXT_X0 + 0xe0]
 
 ldr	x19, [x19, #CONTEXT_X0 + 0x98]
 
@@ -1094,72 +1091,6 @@ user_irq_entry_bsp_end:
 user_irq_entry_ap:
 user_irq_entry 0
 user_irq_entry_ap_end:
-
-// NTSTATUS NtContinue(const CONTEXT* thread_context, bool raise_alert);
-NtContinue:
-// FIXME - raise_alert
-msr	DAIFSet, #0xf // disable interrupts
-
-ldp	x2, x3, [x0, #CONTEXT_X0 + 0x10]
-ldp	x4, x5, [x0, #CONTEXT_X0 + 0x20]
-ldp	x6, x7, [x0, #CONTEXT_X0 + 0x30]
-ldp	x8, x9, [x0, #CONTEXT_X0 + 0x40]
-ldp	x10, x11, [x0, #CONTEXT_X0 + 0x50]
-ldp	x12, x13, [x0, #CONTEXT_X0 + 0x60]
-ldp	x14, x15, [x0, #CONTEXT_X0 + 0x70]
-ldp	x16, x17, [x0, #CONTEXT_X0 + 0x80]
-ldp	x18, x19, [x0, #CONTEXT_X0 + 0x90]
-ldp	x20, x21, [x0, #CONTEXT_X0 + 0xa0]
-ldp	x22, x23, [x0, #CONTEXT_X0 + 0xb0]
-ldp	x24, x25, [x0, #CONTEXT_X0 + 0xc0]
-ldp	x26, x27, [x0, #CONTEXT_X0 + 0xd0]
-ldp	x28, fp, [x0, #CONTEXT_X0 + 0xe0]
-ldr	lr, [x0, #CONTEXT_X0 + 0xf0]
-
-ldp	q0, q1, [x0, #CONTEXT_V0]
-ldp	q2, q3, [x0, #CONTEXT_V0 + 0x20]
-ldp	q4, q5, [x0, #CONTEXT_V0 + 0x40]
-ldp	q6, q7, [x0, #CONTEXT_V0 + 0x60]
-ldp	q8, q9, [x0, #CONTEXT_V0 + 0x80]
-ldp	q10, q11, [x0, #CONTEXT_V0 + 0xa0]
-ldp	q12, q13, [x0, #CONTEXT_V0 + 0xc0]
-ldp	q14, q15, [x0, #CONTEXT_V0 + 0xe0]
-ldp	q16, q17, [x0, #CONTEXT_V0 + 0x100]
-ldp	q18, q19, [x0, #CONTEXT_V0 + 0x120]
-ldp	q20, q21, [x0, #CONTEXT_V0 + 0x140]
-ldp	q22, q23, [x0, #CONTEXT_V0 + 0x160]
-ldp	q24, q25, [x0, #CONTEXT_V0 + 0x180]
-ldp	q26, q27, [x0, #CONTEXT_V0 + 0x1a0]
-ldp	q28, q29, [x0, #CONTEXT_V0 + 0x1c0]
-ldp	q30, q31, [x0, #CONTEXT_V0 + 0x1e0]
-
-ldr	w1, [x0, #CONTEXT_FPCR]
-msr	fpcr, x1
-
-ldr	w1, [x0, #CONTEXT_FPSR]
-msr	fpsr, x1
-
-// FIXME - debug registers
-
-ldr	w1, [x0, #CONTEXT_CPSR]
-// only allow N, Z, C, V, Q, and GE flags (is this right?)
-mov	w2, #0xf80f0000
-and	w1, w1, w2
-msr	spsr_el1, x1
-
-ldr	x1, [x0, #CONTEXT_PC]
-msr	elr_el1, x1
-
-ldr	x1, [x0, #CONTEXT_SP]
-msr	sp_el0, x1
-
-ldr	x2, [x0, #CONTEXT_X0 + 0x10]
-ldp	x0, x1, [x0, #CONTEXT_X0]
-
-// 0x10 from user_exception_entry
-add	sp, sp, #0x10
-eret
-NtContinue_end:
 
 .text_end:
 
