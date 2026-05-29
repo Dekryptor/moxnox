@@ -682,7 +682,7 @@ extern "C" NTSTATUS NtWaitForSingleObject(HANDLE object_handle, bool alertable,
 }
 
 nt_status wait_for_objects(span<object*> objects, bool wait_any,
-                                  optional<uint64_t> timeout) {
+                           bool interruptible, optional<uint64_t> timeout) {
 #ifdef DEBUG
     if (interrupts_disabled())
         bsod("calling wait_for_objects with interrupts disabled");
@@ -718,7 +718,7 @@ nt_status wait_for_objects(span<object*> objects, bool wait_any,
     disable_interrupts();
     acquire_sync_lock();
 
-    if (current_thread->status == thread_status::dying) {
+    if (interruptible && current_thread->status == thread_status::dying) {
         release_sync_lock();
         enable_interrupts();
         return nt_status::THREAD_IS_TERMINATING;
@@ -759,7 +759,7 @@ nt_status wait_for_objects(span<object*> objects, bool wait_any,
         }
     }
 
-    {
+    if (interruptible) {
         bool has_apcs;
 
         {
@@ -818,7 +818,7 @@ nt_status wait_for_objects(span<object*> objects, bool wait_any,
 
     current_thread->status = thread_status::waiting_multiple;
     current_thread->current_cpu = 0xffffffff;
-    current_thread->wait_interruptible = true;
+    current_thread->wait_interruptible = interruptible;
 
     if (current_thread->proc)
         current_thread->proc->running_cpus &= ~((uint64_t)1 << cb.cpu_no);
@@ -838,17 +838,23 @@ nt_status wait_for_objects(span<object*> objects, bool wait_any,
 
     yield(); // releases sync_lock
 
-    {
-        lock_guard lock(current_thread->apc_lock);
+    if (interruptible) {
+        bool has_apcs;
 
-        if (!is_list_empty(current_thread->pending_apcs))
+        {
+            lock_guard lock(current_thread->apc_lock);
+
+            has_apcs = !is_list_empty(current_thread->pending_apcs);
+        }
+
+        if (has_apcs) {
+            free(mwb);
             return nt_status::USER_APC;
+        }
     }
 
     auto index = mwb->index;
     free(mwb);
-
-    // FIXME - non-alertable waits
 
     if (current_thread->kill_on_wake) {
         current_thread->kill_on_wake = false;
@@ -856,10 +862,10 @@ nt_status wait_for_objects(span<object*> objects, bool wait_any,
         return nt_status::THREAD_IS_TERMINATING;
     }
 
-    if (current_thread->status == thread_status::dying)
+    if (interruptible && current_thread->status == thread_status::dying)
         return nt_status::THREAD_IS_TERMINATING;
 
-    if (current_thread->suspend_count.load() != 0)
+    if (interruptible && current_thread->suspend_count.load() != 0)
         return nt_status::ALERTED;
 
     if (timeout.has_value() && current_thread->wait_timeout == 0)
@@ -920,7 +926,8 @@ extern "C" NTSTATUS NtWaitForMultipleObjects(uint32_t object_count, HANDLE* obje
         objs[i] = &objrw.get();
     }
 
-    auto ret = wait_for_objects(span(objs.data(), object_count), wait_any, t);
+    auto ret = wait_for_objects(span(objs.data(), object_count), wait_any,
+                                alertable, t);
 
     for (unsigned int i = 0; i < object_count; i++) {
         object_release(*objs[i]);

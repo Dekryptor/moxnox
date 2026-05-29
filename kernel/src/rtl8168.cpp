@@ -763,7 +763,7 @@ void rtl8168_netif::recv_thread() {
         objs[0] = &link_change_event.get();
         objs[1] = &receive_packet_event.get();
 
-        auto status = wait_for_objects(objs, true);
+        auto status = wait_for_objects(objs, true, true);
         if (!success(status)) {
             print("wait_for_objects returned {}\n", status);
             break;

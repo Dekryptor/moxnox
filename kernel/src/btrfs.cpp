@@ -5408,7 +5408,7 @@ void btrfs_filesystem::flush_thread() {
         objs[0] = &tim;
         objs[1] = &readonly_event.get();
 
-        status = wait_for_objects(objs, true);
+        status = wait_for_objects(objs, true, true);
 
         if ((unsigned int)status == (unsigned int)nt_status::SUCCESS + 1) // readonly event
             break;
