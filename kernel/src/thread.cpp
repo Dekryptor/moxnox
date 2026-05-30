@@ -116,6 +116,8 @@ public:
     bool kill_on_wake = false;
     spinlock apc_lock;
     list_entry pending_apcs = { &pending_apcs, &pending_apcs };
+    uint32_t pending_signals = 0;
+    uint32_t blocked_signals = 0;
 #ifdef __x86_64__
     xsave_area xsave; // must be last
 #endif

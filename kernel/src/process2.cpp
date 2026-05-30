@@ -1710,6 +1710,10 @@ void load_ntdll() {
     mn_handle_apc = ntdll->find_export("mn_handle_apc");
     if (!mn_handle_apc)
         bsod("Could not find export mn_handle_apc in ntdll.dll");
+
+    mn_posix_signal = ntdll->find_export("mn_posix_signal");
+    if (!mn_posix_signal)
+        bsod("Could not find export mn_posix_signal in ntdll.dll");
 }
 
 nt_status time_page_cache::read_into_cache(uint64_t page_num, uint64_t num_pages,

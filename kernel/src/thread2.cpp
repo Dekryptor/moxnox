@@ -18,6 +18,7 @@ import handle;
 import crt;
 import process;
 import scheduler;
+import interrupts;
 
 using std::lock_guard;
 using std::nullopt;
@@ -653,9 +654,26 @@ nt_status thread::set_pending_signal(span<const uint8_t> buffer) {
     if (sig <= 0 || sig > LAST_SIG)
         return nt_status::INVALID_PARAMETER;
 
-    print("FIXME - thread::set_pending_signal {}\n", sig);
+    // FIXME - SIGKILL and SIGSTOP aren't really signals
 
-    return nt_status::NOT_IMPLEMENTED;
+    auto mask = (uint32_t)1 << (sig - 1);
+
+    {
+        lock_guard lock(proc->signals_lock);
+
+        if (pending_signals & mask) // already pending
+            return nt_status::SUCCESS;
+
+        if (blocked_signals & mask) {
+            pending_signals |= mask;
+            return nt_status::SUCCESS;
+        }
+    }
+
+    // not blocked, not already pending
+
+    return queue_apc(*this, (PS_APC_ROUTINE)(proc->ntdll_addr + mn_posix_signal),
+                     (void*)(uintptr_t)sig, nullptr, nullptr);
 }
 
 extern "C"

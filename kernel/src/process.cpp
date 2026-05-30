@@ -110,6 +110,7 @@ public:
     rwsem terminating_lock;
     bool added_to_tree = false;
     bool dying = false;
+    spinlock signals_lock;
 };
 
 static_assert(is_sync_object<process>);
