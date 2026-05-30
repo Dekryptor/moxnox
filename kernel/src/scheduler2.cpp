@@ -208,6 +208,9 @@ void scheduler() {
 #endif
             cb.time_slice_left = time_slice;
 
+#if 0
+            // FIXME - what about AVX512 registers??
+
             if (t.proc && !t.kernel_mode) {
                 bool has_apcs;
 
@@ -228,6 +231,7 @@ void scheduler() {
                            sizeof(CONTEXT));
                 }
             }
+#endif
 
 #ifdef __aarch64__
             __asm("b scheduler_restore");
