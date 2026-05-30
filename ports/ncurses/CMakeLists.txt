@@ -319,7 +319,7 @@ add_library(tinfo SHARED
 target_compile_definitions(tinfo PRIVATE BUILDING_TINFO WIN_PTHREADS_TIME_H)
 target_compile_options(tinfo PRIVATE ${USERSPACE_CFLAGS} -Wno-pointer-sign -Wno-conversion -Wno-unused-parameter -Wno-unused-but-set-variable)
 target_include_directories(tinfo PUBLIC ${GEN})
-target_include_directories(tinfo PRIVATE ${CMAKE_SOURCE_DIR}/include repo/ncurses repo/include)
+target_include_directories(tinfo PRIVATE repo/ncurses repo/include)
 target_link_libraries(tinfo PRIVATE posixshim)
 
 # ncurses shared library
@@ -423,7 +423,7 @@ add_library(ncurses SHARED
 target_compile_definitions(ncurses PRIVATE BUILDING_NCURSES WIN_PTHREADS_TIME_H)
 target_compile_options(ncurses PRIVATE ${USERSPACE_CFLAGS} -Wno-pointer-sign -Wno-conversion -Wno-unused-parameter -Wno-unused-but-set-variable)
 target_include_directories(ncurses PUBLIC ${GEN})
-target_include_directories(ncurses PRIVATE ${CMAKE_SOURCE_DIR}/include repo/ncurses repo/include)
+target_include_directories(ncurses PRIVATE repo/ncurses repo/include)
 target_link_libraries(ncurses PUBLIC tinfo)
 target_link_libraries(ncurses PRIVATE posixshim)
 
@@ -490,7 +490,7 @@ add_library(form SHARED
 
 target_compile_definitions(form PRIVATE BUILDING_NCURSES BUILDING_FORM WIN_PTHREADS_TIME_H)
 target_compile_options(form PRIVATE ${USERSPACE_CFLAGS} -Wno-unused-parameter -Wno-unused-variable)
-target_include_directories(form PRIVATE ${CMAKE_SOURCE_DIR}/include repo/ncurses repo/include repo/form repo/menu)
+target_include_directories(form PRIVATE repo/ncurses repo/include repo/form repo/menu)
 target_link_libraries(form PRIVATE ncurses)
 
 # menu shared library
@@ -527,7 +527,7 @@ add_library(menu SHARED
 
 target_compile_definitions(menu PRIVATE BUILDING_NCURSES BUILDING_MENU WIN_PTHREADS_TIME_H)
 target_compile_options(menu PRIVATE ${USERSPACE_CFLAGS})
-target_include_directories(menu PRIVATE ${CMAKE_SOURCE_DIR}/include repo/ncurses repo/include repo/menu)
+target_include_directories(menu PRIVATE repo/ncurses repo/include repo/menu)
 target_link_libraries(menu PRIVATE ncurses)
 
 # panel shared library
@@ -552,7 +552,7 @@ add_library(panel SHARED
 
 target_compile_definitions(panel PRIVATE BUILDING_NCURSES BUILDING_PANEL WIN_PTHREADS_TIME_H)
 target_compile_options(panel PRIVATE ${USERSPACE_CFLAGS})
-target_include_directories(panel PRIVATE ${CMAKE_SOURCE_DIR}/include repo/ncurses repo/include)
+target_include_directories(panel PRIVATE repo/ncurses repo/include)
 target_link_libraries(panel PRIVATE ncurses)
 
 install(TARGETS tinfo ncurses form menu panel
@@ -571,7 +571,7 @@ add_executable(tset
 
 target_compile_options(tset PRIVATE ${USERSPACE_CFLAGS})
 target_compile_definitions(tset PRIVATE WIN_PTHREADS_TIME_H _UCRT)
-target_include_directories(tset PRIVATE ${CMAKE_SOURCE_DIR}/include repo/include repo/ncurses repo/progs ${CMAKE_CURRENT_SOURCE_DIR})
+target_include_directories(tset PRIVATE repo/include repo/ncurses repo/progs ${CMAKE_CURRENT_SOURCE_DIR})
 target_link_libraries(tset PRIVATE moxnox ncurses posixshim)
 
 if (CMAKE_C_COMPILER_ID STREQUAL "GNU")
@@ -601,7 +601,7 @@ function(add_ncurses_test name)
     add_executable(${name} ${ARGN})
     target_compile_options(${name} PRIVATE ${USERSPACE_CFLAGS} -Wno-implicit-fallthrough)
     target_compile_definitions(${name} PRIVATE WIN_PTHREADS_TIME_H)
-    target_include_directories(${name} PRIVATE ${CMAKE_SOURCE_DIR}/include repo/include repo/test)
+    target_include_directories(${name} PRIVATE repo/include repo/test)
     target_link_libraries(${name} moxnox ncurses)
     if (CMAKE_C_COMPILER_ID STREQUAL "GNU")
         target_link_options(${name} PUBLIC -mcrtdll=ucrtbase)

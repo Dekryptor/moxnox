@@ -15,7 +15,6 @@ target_sources(usercon PUBLIC FILE_SET CXX_MODULES FILES
     src/emoji.cpp)
 
 target_compile_options(usercon PRIVATE -fno-exceptions ${USERSPACE_CFLAGS})
-target_include_directories(usercon PRIVATE ${CMAKE_SOURCE_DIR}/include)
 
 target_link_libraries(usercon ${LIBGCC})
 target_link_libraries(usercon format rbtree unique_handle list vt100 unicode cp437 evdev pagesize timepage print)

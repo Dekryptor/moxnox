@@ -37,7 +37,6 @@ target_compile_definitions(nano PRIVATE HAVE_CONFIG_H)
 target_include_directories(nano PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}
     ${GEN}
-    ${CMAKE_SOURCE_DIR}/include
     repo/src
 )
 

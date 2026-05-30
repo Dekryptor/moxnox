@@ -10,6 +10,8 @@ set(CMAKE_CXX_VISIBILITY_PRESET "hidden")
 set(CMAKE_C_STANDARD_LIBRARIES "")
 set(CMAKE_CXX_STANDARD_LIBRARIES "")
 
+include_directories(BEFORE SYSTEM ${CMAKE_SOURCE_DIR}/include)
+
 option(USE_COMPILER_RT OFF)
 
 add_compile_definitions(_GLIBCXX_NO_ASSERTIONS)
@@ -150,7 +152,6 @@ if(CMAKE_SYSTEM_PROCESSOR STREQUAL "amd64")
     add_library(termios_kernel STATIC)
     target_sources(termios_kernel PUBLIC FILE_SET CXX_MODULES FILES modules/termios.cpp)
     target_compile_options(termios_kernel PRIVATE -fno-exceptions ${KERNEL_CFLAGS})
-    target_include_directories(termios_kernel PRIVATE ${CMAKE_SOURCE_DIR}/include)
 endif()
 
 add_library(format STATIC)
@@ -319,7 +320,6 @@ target_compile_options(smbios PRIVATE ${KERNEL_CFLAGS})
 add_library(termios STATIC)
 target_sources(termios PUBLIC FILE_SET CXX_MODULES FILES modules/termios.cpp)
 target_compile_options(termios PRIVATE -fno-exceptions ${USERSPACE_CFLAGS})
-target_include_directories(termios PRIVATE ${CMAKE_SOURCE_DIR}/include)
 
 if(CMAKE_SYSTEM_PROCESSOR STREQUAL "aarch64")
     add_library(aarch64 STATIC)

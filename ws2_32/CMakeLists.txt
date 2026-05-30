@@ -17,7 +17,6 @@ add_library(ws2_32 SHARED ${SRC_FILES})
 
 target_compile_options(ws2_32 PRIVATE -fno-exceptions ${USERSPACE_CFLAGS})
 target_link_options(ws2_32 PRIVATE -nostartfiles -nostdlib)
-target_include_directories(ws2_32 PRIVATE ${CMAKE_SOURCE_DIR}/include)
 
 target_link_libraries(ws2_32 PRIVATE unique_handle errno print)
 target_link_libraries(ws2_32 PRIVATE moxnox)

@@ -78,7 +78,7 @@ target_compile_options(readline PRIVATE
 )
 
 target_include_directories(readline PUBLIC ${CMAKE_CURRENT_BINARY_DIR})
-target_include_directories(readline PRIVATE repo ${CMAKE_SOURCE_DIR}/include ${CMAKE_CURRENT_SOURCE_DIR} ${GEN})
+target_include_directories(readline PRIVATE repo ${CMAKE_CURRENT_SOURCE_DIR} ${GEN})
 
 target_link_libraries(readline PRIVATE tinfo posixshim moxnox)
 

@@ -268,7 +268,6 @@ add_library(libcurl SHARED
 target_include_directories(libcurl PRIVATE
     repo/lib
     ${CMAKE_CURRENT_SOURCE_DIR}
-    ${CMAKE_SOURCE_DIR}/include
 )
 
 target_include_directories(libcurl PUBLIC repo/include)
@@ -354,7 +353,6 @@ target_include_directories(curl_exe PRIVATE
     repo/lib
     repo/src
     ${CMAKE_CURRENT_SOURCE_DIR}
-    ${CMAKE_SOURCE_DIR}/include
 )
 
 target_compile_definitions(curl_exe PRIVATE HAVE_CONFIG_H)

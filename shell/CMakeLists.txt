@@ -435,7 +435,6 @@ install(TARGETS ifconfig DESTINATION ${CMAKE_INSTALL_PREFIX}/bin COMPONENT core)
 add_executable(ping src/ping.cpp)
 
 target_compile_options(ping PRIVATE -fno-exceptions ${USERSPACE_CFLAGS})
-target_include_directories(ping PRIVATE ${CMAKE_SOURCE_DIR}/include)
 target_link_libraries(ping print unique_handle ipv6 errno)
 target_link_libraries(ping moxnox)
 target_link_libraries(ping posixshim)
@@ -528,7 +527,6 @@ install(TARGETS apc-test DESTINATION ${CMAKE_INSTALL_PREFIX}/bin COMPONENT core)
 add_executable(signal-test src/signal-test.cpp)
 
 target_compile_options(signal-test PRIVATE -fno-exceptions ${USERSPACE_CFLAGS})
-target_include_directories(signal-test PRIVATE ${CMAKE_SOURCE_DIR}/include)
 target_link_libraries(signal-test moxnox print unique_handle posixshim)
 
 if (CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
