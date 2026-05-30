@@ -1,6 +1,7 @@
 #include <stdint.h>
 #include <atomic>
 
+import nt;
 import ucrtbase;
 import print;
 
@@ -45,8 +46,26 @@ __sighandler_t signal(int sig, __sighandler_t func) {
 
 extern "C"
 int raise(int sig) {
-    print("FIXME - raise {}\n", sig);
+    nt_status status;
+    LARGE_INTEGER timeout;
 
-    *__errno() = EINVAL;
-    return 1;
+    status = NtSetInformationThread(NtCurrentThread(), THREADINFOCLASS::MoxnoxSetPendingSignal,
+                                    &sig, sizeof(sig));
+    if (!success(status)) {
+        *__errno() = nt_status_to_errno(status);
+        return 1;
+    }
+
+    // make it so APCs run
+
+    timeout.QuadPart = 0;
+
+    status = NtDelayExecution(true, &timeout);
+
+    if (!success(status) && status != nt_status::TIMEOUT) {
+        *__errno() = nt_status_to_errno(status);
+        return 1;
+    }
+
+    return 0;
 }
