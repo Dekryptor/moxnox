@@ -525,6 +525,18 @@ endif()
 
 install(TARGETS apc-test DESTINATION ${CMAKE_INSTALL_PREFIX}/bin COMPONENT core)
 
+add_executable(signal-test src/signal-test.cpp)
+
+target_compile_options(signal-test PRIVATE -fno-exceptions ${USERSPACE_CFLAGS})
+target_include_directories(signal-test PRIVATE ${CMAKE_SOURCE_DIR}/include)
+target_link_libraries(signal-test moxnox print unique_handle posixshim)
+
+if (CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
+    target_link_options(signal-test PUBLIC -mcrtdll=ucrtbase)
+endif()
+
+install(TARGETS signal-test DESTINATION ${CMAKE_INSTALL_PREFIX}/bin COMPONENT core)
+
 ###
 
 add_executable(keyboard-test src/keyboard-test.cpp)
