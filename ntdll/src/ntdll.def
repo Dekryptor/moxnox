@@ -68,3 +68,4 @@ RtlQueryPerformanceCounter
 strnlen
 NtContinue
 mn_handle_apc
+mn_posix_signal
