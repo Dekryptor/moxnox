@@ -143,7 +143,7 @@ if(CMAKE_SYSTEM_PROCESSOR STREQUAL aarch64)
 
     add_executable(kernel ${AARCH64_SRC_FILES} ${SRC_ASM_FILES})
     target_sources(kernel PUBLIC FILE_SET CXX_MODULES FILES ${AARCH64_MODULES})
-    target_link_libraries(kernel format dwarf list unicode rbtree vt100 cp437 evdev nt ntdll_mod loaderblock aarch64 crt pagesize timepage moxnox_ioctls ws2_32_mod ipv6 pe smbios termios)
+    target_link_libraries(kernel format dwarf list unicode rbtree vt100 cp437 evdev nt ntdll_kernel loaderblock aarch64 crt pagesize timepage moxnox_ioctls ws2_32_mod ipv6 pe smbios termios)
 elseif(CMAKE_SYSTEM_PROCESSOR STREQUAL "amd64")
     set(SRC_ASM_FILES src/x86/ints.S
         src/x86/timer.S

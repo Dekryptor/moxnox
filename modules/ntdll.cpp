@@ -473,6 +473,7 @@ __inline void* GetProcessHeap() {
     return (void*)NtCurrentTeb()->ProcessEnvironmentBlock->ProcessHeap;
 }
 
+#ifndef KERNEL
 struct mn_peb_lock {
     void lock() {
         RtlAcquirePebLock();
@@ -492,5 +493,6 @@ struct mn_loader_lock {
         RtlReleaseLoaderLock();
     }
 };
+#endif
 
 };
