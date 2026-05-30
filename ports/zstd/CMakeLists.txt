@@ -42,7 +42,7 @@ file(MAKE_DIRECTORY ${ZSTD_GEN})
 
 add_custom_command(
     OUTPUT ${ZSTD_GEN}/fileio.c
-    COMMAND sh -c "sed 's/#elif defined(_MSC_VER) || defined(_WIN32)/#elif (defined(_MSC_VER) || defined(_WIN32)) \\&\\& !defined(MOXNOX)/g' '${ZSTD_PROG}/fileio.c' > '${ZSTD_GEN}/fileio.c'"
+    COMMAND sh -c "sed -e 's/#elif defined(_MSC_VER) || defined(_WIN32)/#elif (defined(_MSC_VER) || defined(_WIN32)) \\&\\& !defined(MOXNOX)/g' -e 's/#if defined(_WIN32)/#if defined(_WIN32) \\&\\& !defined(MOXNOX)/g' '${ZSTD_PROG}/fileio.c' > '${ZSTD_GEN}/fileio.c'"
     DEPENDS ${ZSTD_PROG}/fileio.c
     VERBATIM
 )
