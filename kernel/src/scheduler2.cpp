@@ -200,11 +200,34 @@ void scheduler() {
         release_sync_lock();
 
         if (cb.current_thread) {
-            memcpy(&cb.thread_context, &cb.current_thread->context, sizeof(CONTEXT));
+            auto& t = *cb.current_thread;
+
+            memcpy(&cb.thread_context, &t.context, sizeof(CONTEXT));
 #ifdef __x86_64__
-            memcpy(&cb.xsave, &cb.current_thread->xsave, XSAVE_SIZE);
+            memcpy(&cb.xsave, &t.xsave, XSAVE_SIZE);
 #endif
             cb.time_slice_left = time_slice;
+
+            if (t.proc && !t.kernel_mode) {
+                bool has_apcs;
+
+                {
+                    lock_guard lock(t.apc_lock);
+                    has_apcs = !is_list_empty(t.pending_apcs);
+                }
+
+                if (has_apcs) {
+                    memcpy(&t.syscall_context, &cb.thread_context,
+                           sizeof(CONTEXT));
+
+                    enable_interrupts();
+                    setup_user_apc();
+                    disable_interrupts();
+
+                    memcpy(&cb.thread_context, &t.syscall_context,
+                           sizeof(CONTEXT));
+                }
+            }
 
 #ifdef __aarch64__
             __asm("b scheduler_restore");
