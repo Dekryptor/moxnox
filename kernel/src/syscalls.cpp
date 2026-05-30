@@ -1623,6 +1623,33 @@ NTSTATUS user_mn_poll(mn_poll_entry* us_entries, size_t num_entries,
     return ret;
 }
 
+extern "C"
+NTSTATUS user_NtSetInformationThread(HANDLE thread_handle, THREADINFOCLASS info_class,
+                                     void* us_buffer, uint32_t buffer_size) {
+    void* buffer = nullptr;
+
+    buffer_size = min(buffer_size, (uint32_t)PAGE_SIZE);
+
+    if (buffer_size > 0) {
+        buffer = malloc(buffer_size);
+        if (!buffer)
+            return nt_status::INSUFFICIENT_RESOURCES;
+
+        if (!copy_from_process(buffer, us_buffer, buffer_size)) {
+            free(buffer);
+            return nt_status::ACCESS_VIOLATION;
+        }
+    }
+
+    auto ret = NtSetInformationThread(thread_handle, info_class, buffer,
+                                      buffer_size);
+
+    if (buffer)
+        free(buffer);
+
+    return ret;
+}
+
 #ifdef __aarch64__
 extern "C"
 void maybe_yield()

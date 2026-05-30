@@ -626,3 +626,13 @@ NTSTATUS NtQueueApcThread(HANDLE thread_handle, PS_APC_ROUTINE apc_routine,
 
     return queue_apc(t, apc_routine, apc_arg1, apc_arg2, apc_arg3);
 }
+
+extern "C"
+NTSTATUS NtSetInformationThread(HANDLE /*thread_handle*/, THREADINFOCLASS /*info_class*/,
+                                void* /*us_buffer*/, uint32_t /*buffer_size*/) {
+    print("FIXME - NtSetInformationThread\n");
+
+    // FIXME
+
+    return nt_status::NOT_IMPLEMENTED;
+}
