@@ -25,7 +25,9 @@ import spinlock;
 import x86;
 #endif
 
-using namespace std;
+using std::atomic;
+using std::span;
+using std::align_val_t;
 
 export struct multiple_wait_block;
 
