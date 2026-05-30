@@ -1166,6 +1166,8 @@ NTSTATUS user_NtSetInformationFile(HANDLE file_handle, IO_STATUS_BLOCK* us_iosb,
     auto ret = NtSetInformationFile(file_handle, &iosb, buffer, buffer_size,
                                     file_information_class);
 
+    free(buffer);
+
     if (success(ret)) {
         if (!copy_to_process(us_iosb, &iosb, sizeof(IO_STATUS_BLOCK)))
             ret = nt_status::ACCESS_VIOLATION;
