@@ -88,6 +88,7 @@ public:
 
     nt_status set_information(THREADINFOCLASS info_class,
                               span<const uint8_t> buffer);
+    nt_status set_pending_signal(span<const uint8_t> buffer);
 
     list_entry le;
     CONTEXT context;

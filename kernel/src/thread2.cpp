@@ -3,6 +3,7 @@ module;
 #include <optional>
 #include <mutex>
 #include <new>
+#include <signal.h>
 #include "timer-asm.h"
 
 module thread;
@@ -25,6 +26,8 @@ using std::nullopt;
 static const uint16_t kernel_CS = 0x8;
 static const uint16_t kernel_DS = 0x10;
 #endif
+
+static const int LAST_SIG = SIGTTOU;
 
 thread* get_current_thread() {
     disable_preempt();
@@ -628,11 +631,29 @@ NTSTATUS NtQueueApcThread(HANDLE thread_handle, PS_APC_ROUTINE apc_routine,
     return queue_apc(t, apc_routine, apc_arg1, apc_arg2, apc_arg3);
 }
 
-nt_status thread::set_information(THREADINFOCLASS /*info_class*/,
-                                  span<const uint8_t> /*buffer*/) {
-    print("FIXME - thread::set_information\n");
+nt_status thread::set_information(THREADINFOCLASS info_class,
+                                  span<const uint8_t> buffer) {
+    switch (info_class) {
+        using enum THREADINFOCLASS;
 
-    // FIXME
+        case MoxnoxSetPendingSignal:
+            return set_pending_signal(buffer);
+
+        default:
+            return nt_status::NOT_IMPLEMENTED;
+    }
+}
+
+nt_status thread::set_pending_signal(span<const uint8_t> buffer) {
+    if (buffer.size() != sizeof(int))
+        return nt_status::INVALID_PARAMETER;
+
+    auto sig = *(int*)buffer.data();
+
+    if (sig <= 0 || sig > LAST_SIG)
+        return nt_status::INVALID_PARAMETER;
+
+    print("FIXME - thread::set_pending_signal {}\n", sig);
 
     return nt_status::NOT_IMPLEMENTED;
 }

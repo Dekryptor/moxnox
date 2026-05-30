@@ -929,6 +929,7 @@ enum class THREADINFOCLASS {
     UmsInformation,
     CounterProfiling,
     IdealProcessorEx,
+    MoxnoxSetPendingSignal,
     MaxThreadInfoClass
 };
 
