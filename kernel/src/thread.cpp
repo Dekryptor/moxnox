@@ -86,6 +86,9 @@ public:
             delete this;
     }
 
+    nt_status set_information(THREADINFOCLASS info_class,
+                              span<const uint8_t> buffer);
+
     list_entry le;
     CONTEXT context;
     CONTEXT syscall_context;

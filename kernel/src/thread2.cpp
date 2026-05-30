@@ -628,12 +628,38 @@ NTSTATUS NtQueueApcThread(HANDLE thread_handle, PS_APC_ROUTINE apc_routine,
     return queue_apc(t, apc_routine, apc_arg1, apc_arg2, apc_arg3);
 }
 
-extern "C"
-NTSTATUS NtSetInformationThread(HANDLE /*thread_handle*/, THREADINFOCLASS /*info_class*/,
-                                void* /*us_buffer*/, uint32_t /*buffer_size*/) {
-    print("FIXME - NtSetInformationThread\n");
+nt_status thread::set_information(THREADINFOCLASS /*info_class*/,
+                                  span<const uint8_t> /*buffer*/) {
+    print("FIXME - thread::set_information\n");
 
     // FIXME
 
     return nt_status::NOT_IMPLEMENTED;
+}
+
+extern "C"
+NTSTATUS NtSetInformationThread(HANDLE thread_handle, THREADINFOCLASS info_class,
+                                void* buffer, uint32_t buffer_size) {
+    object_ref obj;
+
+    if (thread_handle == NtCurrentThread()) {
+        auto* t = get_current_thread();
+
+        t->acquire();
+
+        obj = object_ref{*t};
+    } else {
+        obj = deref_handle(thread_handle);
+        if (!obj)
+            return nt_status::INVALID_HANDLE;
+
+        if (obj.get().type != object_type::thread)
+            return nt_status::OBJECT_TYPE_MISMATCH;
+
+        // FIXME - check access rights
+    }
+
+    auto& t = static_cast<thread&>(obj.get());
+
+    return t.set_information(info_class, span((uint8_t*)buffer, buffer_size));
 }
