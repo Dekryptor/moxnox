@@ -932,6 +932,7 @@ enum class THREADINFOCLASS {
     MoxnoxSetPendingSignal,
     MoxnoxBlockSignals,
     MoxnoxUnblockSignals,
+    MoxnoxSetSignalsMask,
     MaxThreadInfoClass
 };
 

@@ -91,6 +91,7 @@ public:
     nt_status set_pending_signal(span<const uint8_t> buffer);
     nt_status block_signals(span<const uint8_t> buffer);
     nt_status unblock_signals(span<const uint8_t> buffer);
+    nt_status set_signals_mask(span<const uint8_t> buffer);
 
     list_entry le;
     CONTEXT context;
