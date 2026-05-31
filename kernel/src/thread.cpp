@@ -89,6 +89,7 @@ public:
     nt_status set_information(THREADINFOCLASS info_class,
                               span<const uint8_t> buffer);
     nt_status set_pending_signal(span<const uint8_t> buffer);
+    nt_status block_signals(span<const uint8_t> buffer);
 
     list_entry le;
     CONTEXT context;
@@ -116,8 +117,8 @@ public:
     bool kill_on_wake = false;
     spinlock apc_lock;
     list_entry pending_apcs = { &pending_apcs, &pending_apcs };
-    uint32_t pending_signals = 0;
-    uint32_t blocked_signals = 0;
+    uint64_t pending_signals = 0;
+    uint64_t blocked_signals = 0;
 #ifdef __x86_64__
     xsave_area xsave; // must be last
 #endif
