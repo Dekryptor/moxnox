@@ -48,7 +48,15 @@ int sigprocmask(int how, const sigset_t* set, sigset_t* oldset) {
     nt_status status;
 
     if (oldset) {
-        // FIXME - oldset
+        uint32_t retlen;
+
+        status = NtQueryInformationThread(NtCurrentThread(),
+                                          THREAD_INFORMATION_CLASS::MoxnoxSignalsMask,
+                                          oldset, sizeof(*oldset), &retlen);
+        if (!success(status)) {
+            *_errno() = nt_status_to_errno(status);
+            return -1;
+        }
     }
 
     if (set) {
