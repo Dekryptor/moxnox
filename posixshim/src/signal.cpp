@@ -88,7 +88,30 @@ int sigprocmask(int how, const sigset_t* set, sigset_t* oldset) {
                 break;
             }
 
-            // FIXME - SIG_SETMASK
+            case SIG_SETMASK: {
+                LARGE_INTEGER timeout;
+
+                status = NtSetInformationThread(NtCurrentThread(),
+                                                THREADINFOCLASS::MoxnoxSetSignalsMask,
+                                                set, sizeof(*set));
+                if (!success(status)) {
+                    *_errno() = nt_status_to_errno(status);
+                    return -1;
+                }
+
+                // run APCs
+
+                timeout.QuadPart = 0;
+
+                status = NtDelayExecution(true, &timeout);
+
+                if (!success(status) && status != nt_status::TIMEOUT) {
+                    *_errno() = nt_status_to_errno(status);
+                    return -1;
+                }
+
+                break;
+            }
 
             default:
                 *_errno() = EINVAL;
