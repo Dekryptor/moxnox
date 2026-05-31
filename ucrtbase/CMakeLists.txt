@@ -140,6 +140,12 @@ target_link_libraries(ucrtbase PRIVATE format print unicode list errno unique_ha
 target_link_libraries(ucrtbase PRIVATE ntdll_mod ucrtbase_mod kernelbase_mod)
 target_link_libraries(ucrtbase PRIVATE -Wl,--whole-archive musl -Wl,--no-whole-archive)
 
+add_custom_command(TARGET ucrtbase POST_BUILD
+    COMMAND sh -c "! \"${CMAKE_OBJDUMP}\" -p \"$1\" | grep -q 'DLL Name: ucrtbase' || { echo 'Error: ucrtbase.dll imports itself' >&2; exit 1; }" -- "$<TARGET_FILE:ucrtbase>"
+    VERBATIM
+    COMMENT "Checking ucrtbase.dll does not import itself"
+)
+
 install(TARGETS ucrtbase
     COMPONENT core
     RUNTIME DESTINATION ${CMAKE_INSTALL_PREFIX}/lib
