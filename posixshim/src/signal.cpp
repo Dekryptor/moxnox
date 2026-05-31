@@ -6,6 +6,8 @@ import ucrtbase;
 #undef errno
 import errno;
 
+static const int LAST_SIG = SIGTTOU;
+
 extern "C"
 int sigaction(int /*signum*/, const struct sigaction* /*act*/,
               struct sigaction* /*oldact*/) {
@@ -30,7 +32,12 @@ int sigfillset(sigset_t* set) {
 
 extern "C"
 int sigaddset(sigset_t* set, int signum) {
-    *set |= (sigset_t)1 << signum;
+    if (signum == 0 || signum > LAST_SIG) {
+        *_errno() = EINVAL;
+        return -1;
+    }
+
+    *set |= (sigset_t)1 << (signum - 1);
 
     return 0;
 }
