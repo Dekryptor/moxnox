@@ -643,6 +643,9 @@ nt_status thread::set_information(THREADINFOCLASS info_class,
         case MoxnoxBlockSignals:
             return block_signals(buffer);
 
+        case MoxnoxUnblockSignals:
+            return unblock_signals(buffer);
+
         default:
             return nt_status::NOT_IMPLEMENTED;
     }
@@ -691,6 +694,41 @@ nt_status thread::block_signals(span<const uint8_t> buffer) {
         lock_guard lock(proc->signals_lock);
 
         blocked_signals |= set;
+    }
+
+    return nt_status::SUCCESS;
+}
+
+nt_status thread::unblock_signals(span<const uint8_t> buffer) {
+    nt_status status;
+
+    if (buffer.size() != sizeof(sigset_t))
+        return nt_status::INVALID_PARAMETER;
+
+    auto set = *(sigset_t*)buffer.data();
+
+    set &= ((sigset_t)1 << LAST_SIG) - 1;
+
+    sigset_t to_dispatch;
+
+    {
+        lock_guard lock(proc->signals_lock);
+
+        blocked_signals &= ~set;
+
+        to_dispatch = pending_signals & ~blocked_signals;
+        pending_signals &= ~to_dispatch;
+    }
+
+    if (to_dispatch != 0) {
+        for (int i = 1; i <= LAST_SIG; i++) {
+            if (to_dispatch & ((sigset_t)1 << (i - 1))) {
+                status = queue_apc(*this, (PS_APC_ROUTINE)(proc->ntdll_addr + mn_posix_signal),
+                                   (void*)(uintptr_t)i, nullptr, nullptr);
+                if (!success(status))
+                    return status;
+            }
+        }
     }
 
     return nt_status::SUCCESS;
