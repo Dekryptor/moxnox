@@ -646,7 +646,7 @@ nt_status thread::set_information(THREAD_INFORMATION_CLASS info_class,
         case MoxnoxUnblockSignals:
             return unblock_signals(buffer);
 
-        case MoxnoxSetSignalsMask:
+        case MoxnoxSignalsMask:
             return set_signals_mask(buffer);
 
         default:

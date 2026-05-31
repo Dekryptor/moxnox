@@ -92,7 +92,7 @@ int sigprocmask(int how, const sigset_t* set, sigset_t* oldset) {
                 LARGE_INTEGER timeout;
 
                 status = NtSetInformationThread(NtCurrentThread(),
-                                                THREAD_INFORMATION_CLASS::MoxnoxSetSignalsMask,
+                                                THREAD_INFORMATION_CLASS::MoxnoxSignalsMask,
                                                 set, sizeof(*set));
                 if (!success(status)) {
                     *_errno() = nt_status_to_errno(status);
