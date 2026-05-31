@@ -33,7 +33,8 @@ int raise(int sig) {
     nt_status status;
     LARGE_INTEGER timeout;
 
-    status = NtSetInformationThread(NtCurrentThread(), THREADINFOCLASS::MoxnoxSetPendingSignal,
+    status = NtSetInformationThread(NtCurrentThread(),
+                                    THREAD_INFORMATION_CLASS::MoxnoxSetPendingSignal,
                                     &sig, sizeof(sig));
     if (!success(status)) {
         *__errno() = nt_status_to_errno(status);

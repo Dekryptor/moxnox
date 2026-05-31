@@ -55,7 +55,7 @@ int sigprocmask(int how, const sigset_t* set, sigset_t* oldset) {
         switch (how) {
             case SIG_BLOCK:
                 status = NtSetInformationThread(NtCurrentThread(),
-                                                THREADINFOCLASS::MoxnoxBlockSignals,
+                                                THREAD_INFORMATION_CLASS::MoxnoxBlockSignals,
                                                 set, sizeof(*set));
                 if (!success(status)) {
                     *_errno() = nt_status_to_errno(status);
@@ -67,7 +67,7 @@ int sigprocmask(int how, const sigset_t* set, sigset_t* oldset) {
                 LARGE_INTEGER timeout;
 
                 status = NtSetInformationThread(NtCurrentThread(),
-                                                THREADINFOCLASS::MoxnoxUnblockSignals,
+                                                THREAD_INFORMATION_CLASS::MoxnoxUnblockSignals,
                                                 set, sizeof(*set));
                 if (!success(status)) {
                     *_errno() = nt_status_to_errno(status);
@@ -92,7 +92,7 @@ int sigprocmask(int how, const sigset_t* set, sigset_t* oldset) {
                 LARGE_INTEGER timeout;
 
                 status = NtSetInformationThread(NtCurrentThread(),
-                                                THREADINFOCLASS::MoxnoxSetSignalsMask,
+                                                THREAD_INFORMATION_CLASS::MoxnoxSetSignalsMask,
                                                 set, sizeof(*set));
                 if (!success(status)) {
                     *_errno() = nt_status_to_errno(status);

@@ -1624,7 +1624,7 @@ NTSTATUS user_mn_poll(mn_poll_entry* us_entries, size_t num_entries,
 }
 
 extern "C"
-NTSTATUS user_NtSetInformationThread(HANDLE thread_handle, THREADINFOCLASS info_class,
+NTSTATUS user_NtSetInformationThread(HANDLE thread_handle, THREAD_INFORMATION_CLASS info_class,
                                      const void* us_buffer, uint32_t buffer_size) {
     void* buffer = nullptr;
 

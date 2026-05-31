@@ -86,7 +86,7 @@ public:
             delete this;
     }
 
-    nt_status set_information(THREADINFOCLASS info_class,
+    nt_status set_information(THREAD_INFORMATION_CLASS info_class,
                               span<const uint8_t> buffer);
     nt_status set_pending_signal(span<const uint8_t> buffer);
     nt_status block_signals(span<const uint8_t> buffer);

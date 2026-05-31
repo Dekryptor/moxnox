@@ -894,48 +894,6 @@ enum class FILE_INFORMATION_CLASS {
     MaximumInformation
 };
 
-enum class THREADINFOCLASS {
-    BasicInformation,
-    Times,
-    Priority,
-    BasePriority,
-    AffinityMask,
-    ImpersonationToken,
-    DescriptorTableEntry,
-    EnableAlignmentFaultFixup,
-    EventPair_Reusable,
-    QuerySetWin32StartAddress,
-    ZeroTlsCell,
-    PerformanceCount,
-    AmILastThread,
-    IdealProcessor,
-    PriorityBoost,
-    SetTlsArrayAddress,
-    IsIoPending,
-    HideFromDebugger,
-    BreakOnTermination,
-    SwitchLegacyState,
-    IsTerminated,
-    LastSystemCall,
-    IoPriority,
-    CycleTime,
-    PagePriority,
-    ActualBasePriority,
-    TebInformation,
-    CSwitchMon,
-    CSwitchPmu,
-    Wow64Context,
-    GroupInformation,
-    UmsInformation,
-    CounterProfiling,
-    IdealProcessorEx,
-    MoxnoxSetPendingSignal,
-    MoxnoxBlockSignals,
-    MoxnoxUnblockSignals,
-    MoxnoxSetSignalsMask,
-    MaxThreadInfoClass
-};
-
 struct FILE_DIRECTORY_INFORMATION {
     uint32_t NextEntryOffset;
     uint32_t FileIndex;
@@ -1282,7 +1240,11 @@ enum class THREAD_INFORMATION_CLASS {
     AttachContainer,
     ManageWritesToExecutableMemory,
     PowerThrottlingState,
-    WorkloadClass
+    WorkloadClass,
+    MoxnoxSetPendingSignal,
+    MoxnoxBlockSignals,
+    MoxnoxUnblockSignals,
+    MoxnoxSetSignalsMask
 };
 
 const ACCESS_MASK TIMER_QUERY_STATE = 0x0001;
@@ -1559,7 +1521,7 @@ NTSTATUS NtQueueApcThread(HANDLE thread_handle, PS_APC_ROUTINE apc_routine,
                           void* apc_arg1, void* apc_arg2, void* apc_arg3);
 NTSTATUS mn_poll(mn_poll_entry* entries, size_t num_entries,
                  const LARGE_INTEGER* timeout);
-NTSTATUS NtSetInformationThread(HANDLE thread_handle, THREADINFOCLASS info_class,
+NTSTATUS NtSetInformationThread(HANDLE thread_handle, THREAD_INFORMATION_CLASS info_class,
                                 const void* buffer, uint32_t buffer_size);
 
 };

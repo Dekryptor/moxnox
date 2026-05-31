@@ -632,10 +632,10 @@ NTSTATUS NtQueueApcThread(HANDLE thread_handle, PS_APC_ROUTINE apc_routine,
     return queue_apc(t, apc_routine, apc_arg1, apc_arg2, apc_arg3);
 }
 
-nt_status thread::set_information(THREADINFOCLASS info_class,
+nt_status thread::set_information(THREAD_INFORMATION_CLASS info_class,
                                   span<const uint8_t> buffer) {
     switch (info_class) {
-        using enum THREADINFOCLASS;
+        using enum THREAD_INFORMATION_CLASS;
 
         case MoxnoxSetPendingSignal:
             return set_pending_signal(buffer);
@@ -773,7 +773,7 @@ nt_status thread::set_signals_mask(span<const uint8_t> buffer) {
 }
 
 extern "C"
-NTSTATUS NtSetInformationThread(HANDLE thread_handle, THREADINFOCLASS info_class,
+NTSTATUS NtSetInformationThread(HANDLE thread_handle, THREAD_INFORMATION_CLASS info_class,
                                 const void* buffer, uint32_t buffer_size) {
     object_ref obj;
 
