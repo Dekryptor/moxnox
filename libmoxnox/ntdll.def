@@ -473,3 +473,4 @@ wcscpy
 wcsncmp
 mn_poll
 NtContinue
+mn_signal_dispatch DATA

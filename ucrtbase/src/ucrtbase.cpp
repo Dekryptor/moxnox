@@ -7,6 +7,12 @@ import print;
 import file;
 import time;
 
+// ntdll
+extern "C" void (*mn_signal_dispatch)(int sig) __declspec(dllimport);
+
+// except.cpp
+void signal_dispatch(int sig);
+
 extern "C"
 void* malloc(size_t size) {
     return RtlAllocateHeap(GetProcessHeap(), 0, size);
@@ -53,6 +59,7 @@ int DllMainCRTStartup(HANDLE /*hinstDLL*/, uint32_t reason, void*) {
         case DLL_PROCESS_ATTACH:
             init_files();
             init_clock();
+            mn_signal_dispatch = signal_dispatch;
             break;
 
         case DLL_PROCESS_DETACH:

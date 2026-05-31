@@ -69,3 +69,4 @@ strnlen
 NtContinue
 mn_handle_apc
 mn_posix_signal
+mn_signal_dispatch DATA

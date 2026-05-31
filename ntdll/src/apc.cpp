@@ -1,5 +1,13 @@
+#include <utility>
+
 import nt;
 import print;
+
+using namespace std;
+
+extern "C" {
+    void (*mn_signal_dispatch)(int sig) = nullptr;
+}
 
 extern "C"
 void mn_handle_apc(CONTEXT* ctx, PS_APC_ROUTINE apc_routine, void* apc_arg1,
@@ -10,5 +18,12 @@ void mn_handle_apc(CONTEXT* ctx, PS_APC_ROUTINE apc_routine, void* apc_arg1,
 
 extern "C"
 void mn_posix_signal(int sig) {
-    print("FIXME - mn_posix_signal {}\n", sig);
+    // FIXME - would this happen? If yes, maybe just hardcode the defaults here
+    if (!mn_signal_dispatch) {
+        print("mn_posix_signal: mn_signal_dispatch not set\n");
+        NtTerminateProcess(NtCurrentProcess(), nt_status::INTERNAL_ERROR);
+        unreachable();
+    }
+
+    mn_signal_dispatch(sig);
 }

@@ -51,3 +51,9 @@ int raise(int sig) {
 
     return 0;
 }
+
+void signal_dispatch(int sig) {
+    print("FIXME - signal_dispatch {}\n", sig);
+
+    // FIXME
+}
