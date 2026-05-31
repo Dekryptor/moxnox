@@ -9,6 +9,7 @@ module;
 #include <mutex>
 #include <stdint.h>
 #include <stddef.h>
+#include <signal.h>
 #include "context_offsets.h"
 
 export module thread;
@@ -94,6 +95,7 @@ public:
     nt_status block_signals(span<const uint8_t> buffer);
     nt_status unblock_signals(span<const uint8_t> buffer);
     nt_status set_signals_mask(span<const uint8_t> buffer);
+    nt_status query_signals_mask(span<uint8_t> buffer, uint32_t& return_length);
 
     list_entry le;
     CONTEXT context;
@@ -121,8 +123,8 @@ public:
     bool kill_on_wake = false;
     spinlock apc_lock;
     list_entry pending_apcs = { &pending_apcs, &pending_apcs };
-    uint64_t pending_signals = 0;
-    uint64_t blocked_signals = 0;
+    sigset_t pending_signals = 0;
+    sigset_t blocked_signals = 0;
 #ifdef __x86_64__
     xsave_area xsave; // must be last
 #endif

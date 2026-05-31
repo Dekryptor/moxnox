@@ -340,11 +340,33 @@ NTSTATUS NtQueryInformationThread(HANDLE thread_handle,
                                *return_length);
 }
 
-nt_status thread::query_information(THREAD_INFORMATION_CLASS /*info_class*/,
-                                    span<uint8_t> /*buffer*/, uint32_t& /*return_length*/) {
-    print("FIXME - thread::query_information\n");
+nt_status thread::query_information(THREAD_INFORMATION_CLASS info_class,
+                                    span<uint8_t> buffer, uint32_t& return_length) {
+    switch (info_class) {
+        using enum THREAD_INFORMATION_CLASS;
 
-    return nt_status::NOT_IMPLEMENTED;
+        case MoxnoxSignalsMask:
+            return query_signals_mask(buffer, return_length);
+
+        default:
+            return nt_status::NOT_IMPLEMENTED;
+    }
+}
+
+nt_status thread::query_signals_mask(span<uint8_t> buffer, uint32_t& return_length) {
+    if (buffer.size() != sizeof(sigset_t))
+        return nt_status::INTERNAL_ERROR;
+
+    auto& set = *(sigset_t*)buffer.data();
+
+    {
+        lock_guard lock(proc->signals_lock);
+        set = blocked_signals;
+    }
+
+    return_length = sizeof(sigset_t);
+
+    return nt_status::SUCCESS;
 }
 
 static void kernel_thread_start(void (*func)(void*, void*), void* param1, void* param2) {
