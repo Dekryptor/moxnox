@@ -678,7 +678,7 @@ nt_status thread::set_pending_signal(span<const uint8_t> buffer) {
 
 extern "C"
 NTSTATUS NtSetInformationThread(HANDLE thread_handle, THREADINFOCLASS info_class,
-                                void* buffer, uint32_t buffer_size) {
+                                const void* buffer, uint32_t buffer_size) {
     object_ref obj;
 
     if (thread_handle == NtCurrentThread()) {

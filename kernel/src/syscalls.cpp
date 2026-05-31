@@ -1625,7 +1625,7 @@ NTSTATUS user_mn_poll(mn_poll_entry* us_entries, size_t num_entries,
 
 extern "C"
 NTSTATUS user_NtSetInformationThread(HANDLE thread_handle, THREADINFOCLASS info_class,
-                                     void* us_buffer, uint32_t buffer_size) {
+                                     const void* us_buffer, uint32_t buffer_size) {
     void* buffer = nullptr;
 
     buffer_size = min(buffer_size, (uint32_t)PAGE_SIZE);

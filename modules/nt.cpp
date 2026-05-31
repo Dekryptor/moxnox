@@ -1557,7 +1557,7 @@ NTSTATUS NtQueueApcThread(HANDLE thread_handle, PS_APC_ROUTINE apc_routine,
 NTSTATUS mn_poll(mn_poll_entry* entries, size_t num_entries,
                  const LARGE_INTEGER* timeout);
 NTSTATUS NtSetInformationThread(HANDLE thread_handle, THREADINFOCLASS info_class,
-                                void* buffer, uint32_t buffer_size);
+                                const void* buffer, uint32_t buffer_size);
 
 };
 
