@@ -1,5 +1,6 @@
 #include <signal.h>
 
+import nt;
 import print;
 import ucrtbase;
 
@@ -43,8 +44,32 @@ int sigaddset(sigset_t* set, int signum) {
 }
 
 extern "C"
-int sigprocmask(int /*how*/, const sigset_t* /*set*/, sigset_t* /*oldset*/) {
-    // FIXME
+int sigprocmask(int how, const sigset_t* set, sigset_t* oldset) {
+    nt_status status;
+
+    if (oldset) {
+        // FIXME - oldset
+    }
+
+    if (set) {
+        switch (how) {
+            case SIG_BLOCK:
+                status = NtSetInformationThread(NtCurrentThread(),
+                                                THREADINFOCLASS::MoxnoxBlockSignals,
+                                                set, sizeof(*set));
+                if (!success(status)) {
+                    *_errno() = nt_status_to_errno(status);
+                    return -1;
+                }
+            break;
+
+            // FIXME - SIG_UNLOCK, SIG_SETMASK
+
+            default:
+                *_errno() = EINVAL;
+                return -1;
+        }
+    }
 
     return 0;
 }
