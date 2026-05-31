@@ -129,3 +129,13 @@ int sigprocmask(int how, const sigset_t* set, sigset_t* oldset) {
 
     return 0;
 }
+
+extern "C"
+int kill(pid_t pid, int sig) {
+    print("FIXME - kill {}, {}\n", pid, sig);
+
+    // FIXME
+
+    *_errno() = EINVAL;
+    return -1;
+}
