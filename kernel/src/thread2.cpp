@@ -311,10 +311,38 @@ NTSTATUS NtResumeThread(HANDLE thread_handle, uint32_t* suspend_count) {
 }
 
 extern "C"
-NTSTATUS NtQueryInformationThread(HANDLE /*thread_handle*/, enum THREAD_INFORMATION_CLASS /*thread_information_class*/,
-                                  void* /*thread_information*/, uint32_t /*thread_information_length*/,
-                                  uint32_t* /*return_length*/) {
-    print("FIXME - NtQueryInformationThread\n");
+NTSTATUS NtQueryInformationThread(HANDLE thread_handle,
+                                  THREAD_INFORMATION_CLASS info_class,
+                                  void* buffer, uint32_t buffer_size,
+                                  uint32_t* return_length) {
+    object_ref obj;
+
+    if (thread_handle == NtCurrentThread()) {
+        auto* t = get_current_thread();
+
+        t->acquire();
+
+        obj = object_ref{*t};
+    } else {
+        obj = deref_handle(thread_handle);
+        if (!obj)
+            return nt_status::INVALID_HANDLE;
+
+        if (obj.get().type != object_type::thread)
+            return nt_status::OBJECT_TYPE_MISMATCH;
+
+        // FIXME - check access rights
+    }
+
+    auto& t = static_cast<thread&>(obj.get());
+
+    return t.query_information(info_class, span((uint8_t*)buffer, buffer_size),
+                               *return_length);
+}
+
+nt_status thread::query_information(THREAD_INFORMATION_CLASS /*info_class*/,
+                                    span<uint8_t> /*buffer*/, uint32_t& /*return_length*/) {
+    print("FIXME - thread::query_information\n");
 
     return nt_status::NOT_IMPLEMENTED;
 }
