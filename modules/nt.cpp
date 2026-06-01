@@ -1247,6 +1247,60 @@ enum class THREAD_INFORMATION_CLASS {
     MoxnoxSignalsMask
 };
 
+enum class PROCESS_INFORMATION_CLASS {
+    BasicInformation,
+    QuotaLimits,
+    IoCounters,
+    VmCounters,
+    Times,
+    BasePriority,
+    RaisePriority,
+    DebugPort,
+    ExceptionPort,
+    AccessToken,
+    LdtInformation,
+    LdtSize,
+    DefaultHardErrorMode,
+    IoPortHandlers,
+    PooledUsageAndLimits,
+    WorkingSetWatch,
+    UserModeIOPL,
+    EnableAlignmentFaultFixup,
+    PriorityClass,
+    Wx86Information,
+    HandleCount,
+    AffinityMask,
+    PriorityBoost,
+    DeviceMap,
+    SessionInformation,
+    ForegroundInformation,
+    Wow64Information,
+    ImageFileName,
+    LUIDDeviceMapsEnabled,
+    BreakOnTermination,
+    DebugObjectHandle,
+    DebugFlags,
+    HandleTracing,
+    IoPriority,
+    ExecuteFlags,
+    TlsInformation,
+    Cookie,
+    ImageInformation,
+    CycleTime,
+    PagePriority,
+    InstrumentationCallback,
+    ThreadStackAllocation,
+    WorkingSetWatchEx,
+    ImageFileNameWin32,
+    ImageFileMapping,
+    AffinityUpdateMode,
+    MemoryAllocationMode,
+    GroupInformation,
+    TokenVirtualizationEnabled,
+    ConsoleHostProcess,
+    WindowInformation
+};
+
 const ACCESS_MASK TIMER_QUERY_STATE = 0x0001;
 const ACCESS_MASK TIMER_MODIFY_STATE = 0x0002;
 
@@ -1523,7 +1577,8 @@ NTSTATUS mn_poll(mn_poll_entry* entries, size_t num_entries,
                  const LARGE_INTEGER* timeout);
 NTSTATUS NtSetInformationThread(HANDLE thread_handle, THREAD_INFORMATION_CLASS info_class,
                                 const void* buffer, uint32_t buffer_size);
-
+NTSTATUS NtSetInformationProcess(HANDLE process_handle, PROCESS_INFORMATION_CLASS info_class,
+                                 const void* buffer, uint32_t buffer_size);
 };
 
 };

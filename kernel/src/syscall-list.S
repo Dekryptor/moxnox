@@ -164,7 +164,7 @@ syscall_stub "NtSetHighWaitLowEventPair"
 syscall_func "NtSetInformationFile", 5
 syscall_stub "NtSetInformationKey"
 syscall_stub "NtSetInformationObject"
-syscall_stub "NtSetInformationProcess"
+syscall_func "NtSetInformationProcess", 4
 syscall_func "NtSetInformationThread", 4
 syscall_stub "NtSetInformationToken"
 syscall_stub "NtSetIntervalProfile"

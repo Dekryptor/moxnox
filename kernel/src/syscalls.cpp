@@ -1650,6 +1650,33 @@ NTSTATUS user_NtSetInformationThread(HANDLE thread_handle, THREAD_INFORMATION_CL
     return ret;
 }
 
+extern "C"
+NTSTATUS user_NtSetInformationProcess(HANDLE process_handle, PROCESS_INFORMATION_CLASS info_class,
+                                      const void* us_buffer, uint32_t buffer_size) {
+    void* buffer = nullptr;
+
+    buffer_size = min(buffer_size, (uint32_t)PAGE_SIZE);
+
+    if (buffer_size > 0) {
+        buffer = malloc(buffer_size);
+        if (!buffer)
+            return nt_status::INSUFFICIENT_RESOURCES;
+
+        if (!copy_from_process(buffer, us_buffer, buffer_size)) {
+            free(buffer);
+            return nt_status::ACCESS_VIOLATION;
+        }
+    }
+
+    auto ret = NtSetInformationProcess(process_handle, info_class, buffer,
+                                       buffer_size);
+
+    if (buffer)
+        free(buffer);
+
+    return ret;
+}
+
 #ifdef __aarch64__
 extern "C"
 void maybe_yield()

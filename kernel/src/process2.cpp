@@ -3918,3 +3918,13 @@ nt_status process::send_ctrl_c() {
 
     return nt_status::SUCCESS;
 }
+
+extern "C"
+NTSTATUS NtSetInformationProcess(HANDLE /*process_handle*/, PROCESS_INFORMATION_CLASS /*info_class*/,
+                                 const void* /*us_buffer*/, uint32_t /*buffer_size*/) {
+    print("FIXME - NtSetInformationProcess\n");
+
+    // FIXME
+
+    return nt_status::NOT_IMPLEMENTED;
+}
