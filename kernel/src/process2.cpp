@@ -9,6 +9,7 @@ module;
 #include <algorithm>
 #include <variant>
 #include <stdint.h>
+#include <signal.h>
 #include "assert.h"
 
 module process;
@@ -79,6 +80,8 @@ static atomic<uintptr_t> next_pid = 1;
 
 static spinlock process_list_lock;
 static rbtree_node<uintptr_t>* process_tree = nullptr;
+
+static const int LAST_SIG = SIGTTOU;
 
 #ifdef __x86_64__
 union page_fault_error_code {
@@ -3946,11 +3949,57 @@ NTSTATUS NtSetInformationProcess(HANDLE process_handle, PROCESS_INFORMATION_CLAS
     return p.set_information(info_class, span((uint8_t*)buffer, buffer_size));
 }
 
-nt_status process::set_information(PROCESS_INFORMATION_CLASS /*info_class*/,
-                                   span<const uint8_t> /*buffer*/) {
-    print("FIXME - process::set_information\n");
+nt_status process::set_information(PROCESS_INFORMATION_CLASS info_class,
+                                   span<const uint8_t> buffer) {
+    switch (info_class) {
+        using enum PROCESS_INFORMATION_CLASS;
 
-    // FIXME
+        case MoxnoxSetPendingSignal:
+            return set_pending_signal(buffer);
 
-    return nt_status::NOT_IMPLEMENTED;
+        default:
+            return nt_status::NOT_IMPLEMENTED;
+    }
+}
+
+nt_status process::set_pending_signal(span<const uint8_t> buffer) {
+    if (buffer.size() != sizeof(int))
+        return nt_status::INVALID_PARAMETER;
+
+    auto sig = *(int*)buffer.data();
+
+    if (sig <= 0 || sig > LAST_SIG)
+        return nt_status::INVALID_PARAMETER;
+
+    // FIXME - SIGKILL and SIGSTOP
+
+    auto mask = (uint64_t)1 << (sig - 1);
+    object_ref victim;
+
+    {
+        lock_guard lock(signals_lock);
+        lock_guard lock2(threads_lock);
+
+        for (auto le = threads.next; le != &threads; le = le->next) {
+            auto& t = *(::thread*)((uint8_t*)le - offsetof(::thread, process_le));
+
+            if (!(t.blocked_signals & mask)) {
+                t.acquire();
+                victim = t;
+
+                break;
+            }
+        }
+    }
+
+    if (victim) {
+        auto& t = static_cast<::thread&>(victim.get());
+
+        return t.queue_apc((PS_APC_ROUTINE)(ntdll_addr + mn_posix_signal),
+                           (void*)(uintptr_t)sig, nullptr, nullptr);
+    }
+
+    // FIXME - if no thread found, set as pending for process
+
+    return nt_status::INTERNAL_ERROR;
 }
