@@ -1,8 +1,10 @@
 #include <signal.h>
+#include <string.h>
 
 import nt;
 import print;
 import ucrtbase;
+import unique_handle;
 
 #undef errno
 import errno;
@@ -132,10 +134,44 @@ int sigprocmask(int how, const sigset_t* set, sigset_t* oldset) {
 
 extern "C"
 int kill(pid_t pid, int sig) {
-    print("FIXME - kill {}, {}\n", pid, sig);
+    CLIENT_ID client_id;
+    OBJECT_ATTRIBUTES oa;
+    HANDLE h;
+    unique_handle proc;
+    nt_status status;
 
-    // FIXME
+    // FIXME - pid 0 means all processes in this process group
+    // FIXME - pid -1 means all processes
+    // FIXME - pid < -1 means to process group -pid
 
-    *_errno() = EINVAL;
-    return -1;
+    if (pid <= 0) {
+        *_errno() = EINVAL;
+        return -1;
+    }
+
+    client_id.UniqueProcess = pid;
+    client_id.UniqueThread = 0;
+
+    memset(&oa, 0, sizeof(oa));
+    oa.Length = sizeof(OBJECT_ATTRIBUTES);
+
+    status = NtOpenProcess(&h, PROCESS_TERMINATE, &oa, &client_id);
+    if (status == nt_status::INVALID_CID) {
+        *_errno() = ESRCH;
+        return -1;
+    } else if (!success(status)) {
+        *_errno() = nt_status_to_errno(status);
+        return -1;
+    }
+
+    proc.reset(h);
+
+    status = NtSetInformationProcess(proc.get(), PROCESS_INFORMATION_CLASS::MoxnoxSetPendingSignal,
+                                     &sig, sizeof(sig));
+    if (!success(status)) {
+        *_errno() = nt_status_to_errno(status);
+        return -1;
+    }
+
+    return 0;
 }
