@@ -1706,10 +1706,6 @@ void load_ntdll() {
     if (!mn_signal)
         bsod("Could not find export mn_signal in ntdll.dll");
 
-    mn_ctrl_c = ntdll->find_export("mn_ctrl_c");
-    if (!mn_ctrl_c)
-        bsod("Could not find export mn_ctrl_c in ntdll.dll");
-
     mn_handle_apc = ntdll->find_export("mn_handle_apc");
     if (!mn_handle_apc)
         bsod("Could not find export mn_handle_apc in ntdll.dll");
@@ -3897,54 +3893,6 @@ object_ref create_init_process() {
         bsod_format("process:write_vm returned {}", status);
 
     return ref;
-}
-
-nt_status process::send_ctrl_c() {
-    nt_status status;
-    uintptr_t addr;
-    INITIAL_TEB initial_teb;
-    CONTEXT context;
-    CLIENT_ID client_id;
-
-    addr = ntdll_addr + mn_ctrl_c;
-
-    memset(&initial_teb, 0, sizeof(initial_teb));
-
-    void* stack = nullptr;
-    size_t stack_size = 0x100000; // FIXME - should come from PE header?
-
-    status = allocate_vm(&stack, 0, &stack_size, MEM_COMMIT | MEM_RESERVE,
-                         mapping_type::read_write);
-    if (!success(status)) {
-        print("process::allocate_vm returned {}\n", status);
-        return status;
-    }
-
-    initial_teb.OldStackBase = nullptr;
-    initial_teb.OldStackLimit = nullptr;
-    initial_teb.StackBase = (uint8_t*)stack + stack_size;
-    initial_teb.StackLimit = (uint8_t*)stack + stack_size;
-    initial_teb.StackAllocationBase = stack;
-
-    memset(&context, 0, sizeof(context));
-#ifdef __aarch64__
-    context.Pc = (uintptr_t)addr;
-    context.Sp = (uintptr_t)initial_teb.StackBase - 0x10;
-#elifdef __x86_64__
-    context.Rip = (uintptr_t)addr;
-    context.Rsp = (uintptr_t)initial_teb.StackBase - 0x20 - sizeof(uint64_t); // home space, plus (unused) return pointer
-    context.EFlags = 0x200;
-    context.ContextFlags = CONTEXT_CONTROL | CONTEXT_INTEGER | CONTEXT_SEGMENTS;
-#endif
-
-    status = create_thread(nullopt, 0, nullptr, client_id, context, initial_teb,
-                           false);
-    if (!success(status)) {
-        print("process::create_thread returned {}\n", status);
-        return status;
-    }
-
-    return nt_status::SUCCESS;
 }
 
 extern "C"

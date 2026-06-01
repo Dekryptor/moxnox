@@ -82,7 +82,6 @@ public:
     nt_status get_next_thread(void* threadptr, ACCESS_MASK desired_access,
                               uint32_t handle_attributes, uint32_t flags,
                               HANDLE* new_thread_handle);
-    nt_status send_ctrl_c();
     nt_status set_information(PROCESS_INFORMATION_CLASS info_class,
                               span<const uint8_t> buffer);
     nt_status set_pending_signal(span<const uint8_t> buffer);
