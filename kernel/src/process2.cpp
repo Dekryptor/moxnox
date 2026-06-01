@@ -3417,6 +3417,12 @@ NTSTATUS process::create_thread(optional<reference_wrapper<handle_t>> thread_han
     t.proc = this;
     this->acquire();
 
+    auto& current_thread = *get_current_thread();
+    if (current_thread.proc == this) {
+        lock_guard lock(signals_lock);
+        t.blocked_signals = current_thread.blocked_signals;
+    }
+
     bool proc_dying = false;
 
     {
