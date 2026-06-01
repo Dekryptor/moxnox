@@ -20,7 +20,15 @@ static void child_sigint_handler(int) {
 
 static void run_child() {
     signal(SIGINT, child_sigint_handler);
-    while (!child_got_signal) {}
+
+    while (!child_got_signal) {
+        LARGE_INTEGER timeout;
+
+        timeout.QuadPart = 0;
+
+        NtDelayExecution(true, &timeout);
+    }
+
     exit(42);
 }
 
