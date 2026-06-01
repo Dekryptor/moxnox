@@ -1,7 +1,6 @@
 LIBRARY "kernelbase.dll"
 EXPORTS
 Sleep
-SetConsoleCtrlHandler
 DeleteCriticalSection
 EnterCriticalSection
 InitializeCriticalSection
