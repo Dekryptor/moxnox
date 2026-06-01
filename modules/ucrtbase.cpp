@@ -80,7 +80,6 @@ int _initialize_narrow_environment();
 int _configure_narrow_argv(int mode);
 int _set_new_mode(int new_mode);
 int _crt_atexit(_PVFV function);
-void exit(int code) noexcept;
 int puts(const char* s);
 FILE*  __attribute__((__dllimport__)) __acrt_iob_func(unsigned int idx);
 void _lock_file(FILE* file);
