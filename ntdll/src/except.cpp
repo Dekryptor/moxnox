@@ -366,44 +366,6 @@ void mn_signal(EXCEPTION_RECORD* exception, CONTEXT* context) {
 }
 
 extern "C"
-void mn_ctrl_c() {
-    void* kernelbase;
-    ANSI_STRING ansiname;
-    nt_status status;
-    UNICODE_STRING us;
-    uint32_t (*func)(void*);
-
-    static const u16string_view dll = u"kernelbase.dll";
-    static const string_view name = "CtrlRoutine";
-
-    us.Buffer = (char16_t*)dll.data();
-    us.Length = us.MaximumLength = (uint16_t)(dll.size() * sizeof(char16_t));
-
-    status = LdrGetDllHandle(nullptr, nullptr, &us, &kernelbase);
-    if (!success(status)) {
-        print("LdrGetDllHandle returned {} while looking for kernelbase.dll\n",
-              status);
-        NtTerminateThread(NtCurrentThread(), nt_status::CONTROL_C_EXIT);
-        return;
-    }
-
-    ansiname.Buffer = (char*)name.data();
-    ansiname.Length = ansiname.MaximumLength = (uint16_t)name.size();
-
-    status = LdrGetProcedureAddress(kernelbase, &ansiname, 0, (void**)&func);
-    if (!success(status)) {
-        print("LdrGetProcedureAddress returned {} looking for {} in kernelbase\n",
-              status, name);
-        NtTerminateThread(NtCurrentThread(), nt_status::CONTROL_C_EXIT);
-        return;
-    }
-
-    func((void*)CTRL_C_EVENT);
-
-    RtlExitUserThread(nt_status::CONTROL_C_EXIT);
-}
-
-extern "C"
 EXCEPTION_DISPOSITION __C_specific_handler(EXCEPTION_RECORD* rec, void* frame,
                                            CONTEXT* context_record,
                                            DISPATCHER_CONTEXT* dispatcher_context) {
