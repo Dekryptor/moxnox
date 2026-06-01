@@ -3993,10 +3993,8 @@ nt_status process::set_pending_signal(span<const uint8_t> buffer) {
 
     auto sig = *(int*)buffer.data();
 
-    if (sig <= 0 || sig > LAST_SIG)
+    if (sig <= 0 || sig > LAST_SIG || sig == SIGKILL || sig == SIGSTOP)
         return nt_status::INVALID_PARAMETER;
-
-    // FIXME - SIGKILL and SIGSTOP
 
     auto mask = (uint64_t)1 << (sig - 1);
     object_ref victim;
