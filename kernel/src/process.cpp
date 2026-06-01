@@ -83,6 +83,8 @@ public:
                               uint32_t handle_attributes, uint32_t flags,
                               HANDLE* new_thread_handle);
     nt_status send_ctrl_c();
+    nt_status set_information(PROCESS_INFORMATION_CLASS info_class,
+                              span<const uint8_t> buffer);
 
     optional<reference_wrapper<section>> img;
     spinlock mappings_lock;

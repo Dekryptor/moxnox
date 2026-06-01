@@ -3920,9 +3920,35 @@ nt_status process::send_ctrl_c() {
 }
 
 extern "C"
-NTSTATUS NtSetInformationProcess(HANDLE /*process_handle*/, PROCESS_INFORMATION_CLASS /*info_class*/,
-                                 const void* /*us_buffer*/, uint32_t /*buffer_size*/) {
-    print("FIXME - NtSetInformationProcess\n");
+NTSTATUS NtSetInformationProcess(HANDLE process_handle, PROCESS_INFORMATION_CLASS info_class,
+                                 const void* buffer, uint32_t buffer_size) {
+    object_ref obj;
+
+    if (process_handle == NtCurrentProcess()) {
+        auto* p = get_current_thread()->proc;
+
+        p->acquire();
+
+        obj = object_ref{*p};
+    } else {
+        obj = deref_handle(process_handle);
+        if (!obj)
+            return nt_status::INVALID_HANDLE;
+
+        if (obj.get().type != object_type::process)
+            return nt_status::OBJECT_TYPE_MISMATCH;
+
+        // FIXME - check access rights
+    }
+
+    auto& p = static_cast<process&>(obj.get());
+
+    return p.set_information(info_class, span((uint8_t*)buffer, buffer_size));
+}
+
+nt_status process::set_information(PROCESS_INFORMATION_CLASS /*info_class*/,
+                                   span<const uint8_t> /*buffer*/) {
+    print("FIXME - process::set_information\n");
 
     // FIXME
 
