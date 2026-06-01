@@ -12,23 +12,6 @@ struct ctrl_handler {
 static ctrl_handler* handlers = nullptr;
 
 extern "C"
-uint32_t CtrlRoutine(void* arg) {
-    auto param = (uint32_t)(uintptr_t)arg;
-
-    auto h = handlers;
-    while (h) {
-        if (h->func(param))
-            return 0;
-
-        h = h->next;
-    }
-
-    RtlExitUserProcess((uint32_t)nt_status::CONTROL_C_EXIT);
-
-    return 0;
-}
-
-extern "C"
 bool SetConsoleCtrlHandler(HANDLER_ROUTINE func, bool add) {
     // FIXME - critical section
 

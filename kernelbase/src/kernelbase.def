@@ -32,7 +32,6 @@ RaiseException
 IsProcessorFeaturePresent = ntdll.RtlIsProcessorFeaturePresent
 GetCurrentProcess
 TerminateProcess
-CtrlRoutine
 SetConsoleCtrlHandler
 SetUnhandledExceptionFilter
 Sleep
