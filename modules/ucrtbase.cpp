@@ -31,18 +31,6 @@ const int EOF = -1;
 using _onexit_t = int (*)(void);
 using _tls_callback_type = void (*)(void* dll_base, uint32_t reason,
                                     void* reserved);
-using __sighandler_t = void (*)(int sig);
-
-const __sighandler_t SIG_DFL = (__sighandler_t)0;
-const __sighandler_t SIG_IGN = (__sighandler_t)1;
-const __sighandler_t SIG_ERR = (__sighandler_t)-1;
-
-const int SIGINT = 2;
-const int SIGILL = 4;
-const int SIGFPE = 8;
-const int SIGSEGV = 11;
-const int SIGTERM = 15;
-const int SIGABRT = 22;
 
 const int _O_RDONLY = 0x0000;
 const int _O_WRONLY = 0x0001;
@@ -110,7 +98,6 @@ char* _strdup(const char* s);
 void _register_thread_local_exe_atexit_callback(_tls_callback_type callback);
 void* _aligned_malloc(size_t size, size_t alignment);
 void _aligned_free(void* ptr);
-__sighandler_t signal(int sig, __sighandler_t func);
 int setvbuf(FILE* stream, char* buffer, int mode, size_t size);
 int _open(const char* path, int flags, ...);
 intptr_t _get_osfhandle(int fd);
