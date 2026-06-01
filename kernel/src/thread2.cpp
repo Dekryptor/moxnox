@@ -602,8 +602,8 @@ NTSTATUS NtSetContextThread(HANDLE thread_handle, const CONTEXT* context) {
 #endif
 }
 
-nt_status queue_apc(thread& t, PS_APC_ROUTINE apc_routine, void* apc_arg1,
-                    void* apc_arg2, void* apc_arg3) {
+nt_status thread::queue_apc(PS_APC_ROUTINE apc_routine, void* apc_arg1,
+                            void* apc_arg2, void* apc_arg3) {
     auto p = new pending_apc;
     if (!p) {
         print("new failed\n");
@@ -616,39 +616,39 @@ nt_status queue_apc(thread& t, PS_APC_ROUTINE apc_routine, void* apc_arg1,
     p->arg3 = (uintptr_t)apc_arg3;
 
     {
-        lock_guard lock(t.apc_lock);
+        lock_guard lock(apc_lock);
 
-        insert_tail_list(t.pending_apcs, p->le);
+        insert_tail_list(pending_apcs, p->le);
     }
 
     {
         sync_lock sl;
         lock_guard lock1(sl);
-        lock_guard lock2(t.apc_lock);
+        lock_guard lock2(apc_lock);
 
-        if (is_list_empty(t.pending_apcs))
+        if (is_list_empty(pending_apcs))
             return nt_status::SUCCESS;
 
-        if ((t.status == thread_status::waiting || t.status == thread_status::waiting_multiple) && t.wait_interruptible) {
+        if ((status == thread_status::waiting || status == thread_status::waiting_multiple) && wait_interruptible) {
             // break waits
 
-            if (t.wait_timeout != 0)
-                remove_entry_list(t.timeout_le);
+            if (wait_timeout != 0)
+                remove_entry_list(timeout_le);
 
-            if (t.status == thread_status::waiting)
-                remove_entry_list(t.wait_obj.wait_le);
-            else if (t.status == thread_status::waiting_multiple) {
-                auto& block = *t.multwait;
+            if (status == thread_status::waiting)
+                remove_entry_list(wait_obj.wait_le);
+            else if (status == thread_status::waiting_multiple) {
+                auto& block = *multwait;
 
                 for (unsigned int i = 0; i < block.num_entries; i++) {
                     if (!block.entries[i].done)
                         remove_entry_list(block.entries[i].wait_le);
                 }
 
-                t.multwait = nullptr;
+                multwait = nullptr;
             }
 
-            t.status = thread_status::runnable;
+            status = thread_status::runnable;
         }
     }
 
@@ -679,7 +679,7 @@ NTSTATUS NtQueueApcThread(HANDLE thread_handle, PS_APC_ROUTINE apc_routine,
 
     auto& t = static_cast<thread&>(obj.get());
 
-    return queue_apc(t, apc_routine, apc_arg1, apc_arg2, apc_arg3);
+    return t.queue_apc(apc_routine, apc_arg1, apc_arg2, apc_arg3);
 }
 
 nt_status thread::set_information(THREAD_INFORMATION_CLASS info_class,
@@ -731,7 +731,7 @@ nt_status thread::set_pending_signal(span<const uint8_t> buffer) {
 
     // not blocked, not already pending
 
-    return queue_apc(*this, (PS_APC_ROUTINE)(proc->ntdll_addr + mn_posix_signal),
+    return queue_apc((PS_APC_ROUTINE)(proc->ntdll_addr + mn_posix_signal),
                      (void*)(uintptr_t)sig, nullptr, nullptr);
 }
 
@@ -776,7 +776,7 @@ nt_status thread::unblock_signals(span<const uint8_t> buffer) {
     if (to_dispatch != 0) {
         for (int i = 1; i <= LAST_SIG; i++) {
             if (to_dispatch & ((sigset_t)1 << (i - 1))) {
-                status = queue_apc(*this, (PS_APC_ROUTINE)(proc->ntdll_addr + mn_posix_signal),
+                status = queue_apc((PS_APC_ROUTINE)(proc->ntdll_addr + mn_posix_signal),
                                    (void*)(uintptr_t)i, nullptr, nullptr);
                 if (!success(status))
                     return status;
@@ -811,7 +811,7 @@ nt_status thread::set_signals_mask(span<const uint8_t> buffer) {
     if (to_dispatch != 0) {
         for (int i = 1; i <= LAST_SIG; i++) {
             if (to_dispatch & ((sigset_t)1 << (i - 1))) {
-                status = queue_apc(*this, (PS_APC_ROUTINE)(proc->ntdll_addr + mn_posix_signal),
+                status = queue_apc((PS_APC_ROUTINE)(proc->ntdll_addr + mn_posix_signal),
                                    (void*)(uintptr_t)i, nullptr, nullptr);
                 if (!success(status))
                     return status;

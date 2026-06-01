@@ -96,6 +96,8 @@ public:
     nt_status unblock_signals(span<const uint8_t> buffer);
     nt_status set_signals_mask(span<const uint8_t> buffer);
     nt_status query_signals_mask(span<uint8_t> buffer, uint32_t& return_length);
+    nt_status queue_apc(PS_APC_ROUTINE apc_routine, void* apc_arg1,
+                        void* apc_arg2, void* apc_arg3);
 
     list_entry le;
     CONTEXT context;
