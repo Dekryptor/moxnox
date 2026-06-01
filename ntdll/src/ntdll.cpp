@@ -1377,7 +1377,7 @@ void mn_start_thread(mn_image_info* ntdll_info, mn_image_info* img_info, CONTEXT
         InsertTailList(&tls_list, &NtCurrentTeb()->TlsLinks);
     }
 
-    NtContinue(context, false);
+    NtContinue(context, true);
 }
 
 extern "C"
