@@ -1241,7 +1241,7 @@ enum class THREAD_INFORMATION_CLASS {
     ManageWritesToExecutableMemory,
     PowerThrottlingState,
     WorkloadClass,
-    MoxnoxSetPendingSignal,
+    MoxnoxSetPendingSignal = 0x1000,
     MoxnoxBlockSignals,
     MoxnoxUnblockSignals,
     MoxnoxSignalsMask
@@ -1299,7 +1299,7 @@ enum class PROCESS_INFORMATION_CLASS {
     TokenVirtualizationEnabled,
     ConsoleHostProcess,
     WindowInformation,
-    MoxnoxSetPendingSignal
+    MoxnoxSetPendingSignal = 0x1000
 };
 
 const ACCESS_MASK TIMER_QUERY_STATE = 0x0001;
