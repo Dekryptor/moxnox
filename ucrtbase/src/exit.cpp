@@ -1,7 +1,9 @@
 #include <utility>
 #include <array>
 #include <stdint.h>
+#include <signal.h>
 
+import nt;
 import ucrtbase;
 import ntdll;
 import print;
@@ -41,7 +43,11 @@ extern "C"
 void exit(int code) noexcept {
     _cexit();
 
-    RtlExitUserProcess((uint32_t)code);
+    if (code == SIGINT)
+        RtlExitUserProcess((uint32_t)nt_status::CONTROL_C_EXIT);
+    else
+        RtlExitUserProcess((uint32_t)code);
+
     unreachable();
 }
 
