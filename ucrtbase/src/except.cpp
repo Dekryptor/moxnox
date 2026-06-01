@@ -33,6 +33,14 @@ int raise(int sig) {
     nt_status status;
     LARGE_INTEGER timeout;
 
+    if (sig == SIGKILL) {
+        NtTerminateProcess(NtCurrentProcess(), (nt_status)SIGKILL);
+        unreachable();
+    } else if (sig == SIGSTOP) {
+        NtSuspendProcess(NtCurrentProcess());
+        return 0;
+    }
+
     status = NtSetInformationThread(NtCurrentThread(),
                                     THREAD_INFORMATION_CLASS::MoxnoxSetPendingSignal,
                                     &sig, sizeof(sig));
