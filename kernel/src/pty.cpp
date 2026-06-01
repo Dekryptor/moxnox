@@ -7,6 +7,7 @@ module;
 #include <stdint.h>
 #include <string.h>
 #include <stdlib.h>
+#include <signal.h>
 
 export module pty;
 
@@ -712,9 +713,13 @@ nt_status pty_server::write(span<const uint8_t> s, uint64_t& written_bytes) {
                 }
 
                 if (proc) {
-                    if (s[i] == client.settings.c_cc[VINTR])
-                        proc->send_ctrl_c(); // FIXME - report errors?
-                    else if (s[i] == client.settings.c_cc[VSUSP]) {
+                    if (s[i] == client.settings.c_cc[VINTR]) {
+                        int sig = SIGINT;
+
+                        status = proc->set_pending_signal(span((uint8_t*)&sig, sizeof(sig)));
+                        if (!success(status))
+                            print("proc->set_pending_signal returned {}\n", status);
+                    } else if (s[i] == client.settings.c_cc[VSUSP]) {
                         proc->suspend();
                         client.post_info_event(pty_info_type::suspend); // FIXME - include pid or something?
                     }
