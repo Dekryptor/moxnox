@@ -166,8 +166,15 @@ int kill(pid_t pid, int sig) {
 
     proc.reset(h);
 
-    status = NtSetInformationProcess(proc.get(), PROCESS_INFORMATION_CLASS::MoxnoxSetPendingSignal,
-                                     &sig, sizeof(sig));
+    if (sig == SIGKILL)
+        status = NtTerminateProcess(proc.get(), (nt_status)SIGKILL);
+    else if (sig == SIGSTOP)
+        status = NtSuspendProcess(proc.get());
+    else {
+        status = NtSetInformationProcess(proc.get(), PROCESS_INFORMATION_CLASS::MoxnoxSetPendingSignal,
+                                        &sig, sizeof(sig));
+    }
+
     if (!success(status)) {
         *_errno() = nt_status_to_errno(status);
         return -1;
