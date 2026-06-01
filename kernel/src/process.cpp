@@ -114,6 +114,7 @@ public:
     bool added_to_tree = false;
     bool dying = false;
     spinlock signals_lock;
+    uint64_t pending_signals = 0;
 };
 
 static_assert(is_sync_object<process>);

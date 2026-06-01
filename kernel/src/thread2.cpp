@@ -771,6 +771,10 @@ nt_status thread::unblock_signals(span<const uint8_t> buffer) {
 
         to_dispatch = pending_signals & ~blocked_signals;
         pending_signals &= ~to_dispatch;
+
+        auto from_proc = proc->pending_signals & ~blocked_signals;
+        to_dispatch |= from_proc;
+        proc->pending_signals &= ~from_proc;
     }
 
     if (to_dispatch != 0) {
@@ -806,6 +810,10 @@ nt_status thread::set_signals_mask(span<const uint8_t> buffer) {
 
         to_dispatch = pending_signals & ~blocked_signals;
         pending_signals &= ~to_dispatch;
+
+        auto from_proc = proc->pending_signals & ~blocked_signals;
+        to_dispatch |= from_proc;
+        proc->pending_signals &= ~from_proc;
     }
 
     if (to_dispatch != 0) {

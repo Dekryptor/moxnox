@@ -3978,18 +3978,25 @@ nt_status process::set_pending_signal(span<const uint8_t> buffer) {
 
     {
         lock_guard lock(signals_lock);
-        lock_guard lock2(threads_lock);
 
-        for (auto le = threads.next; le != &threads; le = le->next) {
-            auto& t = *(::thread*)((uint8_t*)le - offsetof(::thread, process_le));
+        {
+            lock_guard lock2(threads_lock);
 
-            if (!(t.blocked_signals & mask)) {
-                t.acquire();
-                victim = t;
+            for (auto le = threads.next; le != &threads; le = le->next) {
+                auto& t = *(::thread*)((uint8_t*)le - offsetof(::thread, process_le));
 
-                break;
+                if (!(t.blocked_signals & mask)) {
+                    t.acquire();
+                    victim = t;
+
+                    break;
+                }
             }
         }
+
+        // if no thread found, set as pending for process
+        if (!victim)
+            pending_signals |= mask;
     }
 
     if (victim) {
@@ -3999,7 +4006,5 @@ nt_status process::set_pending_signal(span<const uint8_t> buffer) {
                            (void*)(uintptr_t)sig, nullptr, nullptr);
     }
 
-    // FIXME - if no thread found, set as pending for process
-
-    return nt_status::INTERNAL_ERROR;
+    return nt_status::SUCCESS;
 }
