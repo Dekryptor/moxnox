@@ -12,7 +12,6 @@ import print;
 import evdev;
 import unique_handle;
 import moxnox_ioctls;
-import kernelbase;
 
 using namespace std;
 
@@ -185,14 +184,6 @@ static void clear_cursor(HANDLE fb) {
     }
 }
 
-static bool ctrl_handler(uint32_t type) {
-    if (type != CTRL_C_EVENT)
-        return false;
-
-    exit(0);
-    unreachable();
-}
-
 int main() {
     auto peb = NtCurrentTeb()->ProcessEnvironmentBlock;
     OBJECT_ATTRIBUTES oa;
@@ -203,9 +194,6 @@ int main() {
     MN_SECTION_FRAMEBUFFER_INFORMATION fb_info;
     void* addr;
     size_t size, return_length;
-
-    if (!SetConsoleCtrlHandler(ctrl_handler, true))
-        print_stderr("SetConsoleCtrlHandler failed\n");
 
     static const u16string_view fn = u"/dev/mice";
     static const u16string_view fb = u"/dev/framebuffer";
@@ -280,6 +268,9 @@ int main() {
 
     while (true) {
         input_event_with_id ev;
+        LARGE_INTEGER timeout;
+
+        // FIXME - do async read and alertable wait
 
         status = NtReadFile(mouse_pipe.get(), 0, nullptr, nullptr,
                             &iosb, &ev, sizeof(ev), nullptr, nullptr);
@@ -292,6 +283,10 @@ int main() {
         }
 
         handle_mouse_event(mouse_pipe.get(), sect.get(), ev);
+
+        // check for APCs
+        timeout.QuadPart = 0;
+        NtDelayExecution(true, &timeout);
 
 #if 0
         print("tv_sec = {}, tv_usec = {}, type = {}, code = ",
