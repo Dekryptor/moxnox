@@ -3423,6 +3423,25 @@ NTSTATUS process::create_thread(optional<reference_wrapper<handle_t>> thread_han
         t.blocked_signals = current_thread.blocked_signals;
     }
 
+    sigset_t dispatch_signals;
+
+    {
+        lock_guard lock(signals_lock);
+
+        auto from_proc = pending_signals & ~t.blocked_signals;
+        dispatch_signals = from_proc;
+        pending_signals &= ~from_proc;
+    }
+
+    if (dispatch_signals != 0) {
+        for (int i = 1; i <= LAST_SIG; i++) {
+            if (dispatch_signals & ((sigset_t)1 << (i - 1))) {
+                t.queue_apc((PS_APC_ROUTINE)(ntdll_addr + mn_posix_signal),
+                            (void*)(uintptr_t)i, nullptr, nullptr);
+            }
+        }
+    }
+
     bool proc_dying = false;
 
     {
