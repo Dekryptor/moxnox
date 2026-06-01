@@ -710,10 +710,8 @@ nt_status thread::set_pending_signal(span<const uint8_t> buffer) {
 
     auto sig = *(int*)buffer.data();
 
-    if (sig <= 0 || sig > LAST_SIG)
+    if (sig <= 0 || sig > LAST_SIG || sig == SIGKILL || sig == SIGSTOP)
         return nt_status::INVALID_PARAMETER;
-
-    // FIXME - SIGKILL and SIGSTOP aren't really signals
 
     auto mask = (uint32_t)1 << (sig - 1);
 
