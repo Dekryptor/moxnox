@@ -171,7 +171,7 @@ static void signal_dispatch(int sig) {
 
     sa = sig_handlers[(size_t)(sig - 1)];
 
-    if (sa.sa_flags & SA_RESETHAND)
+    if (sa.sa_flags & (int)SA_RESETHAND)
         memset(&sig_handlers[(size_t)(sig - 1)], 0, sizeof(struct sigaction));
 
     RtlLeaveCriticalSection(&sig_handlers_lock);
