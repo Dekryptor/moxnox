@@ -6,14 +6,40 @@
 typedef uint64_t sigset_t;
 typedef int sig_atomic_t;
 
-#define SA_RESETHAND  0x80000000
+#define SA_NOCLDSTOP    0x00000001
+#define SA_NOCLDWAIT    0x00000002
+#define SA_SIGINFO      0x00000004
+#define SA_ONSTACK      0x08000000
+#define SA_RESTART      0x10000000
+#define SA_NODEFER      0x40000000
+#define SA_RESETHAND    0x80000000
 
 #define SIG_BLOCK 0
 #define SIG_UNBLOCK 1
 #define SIG_SETMASK 2
 
+union sigval {
+    int sival_int;
+    void* sival_ptr;
+};
+
+typedef struct {
+    int si_signo;
+    int si_errno;
+    int si_code;
+    pid_t si_pid;
+    uid_t si_uid;
+    int si_status;
+    union sigval si_value;
+    void* si_addr;
+    long si_band;
+} siginfo_t;
+
 struct sigaction {
-    void (*sa_handler)(int);
+    union {
+        void (*sa_handler)(int);
+        void (*sa_sigaction)(int, siginfo_t*, void*);
+    };
     sigset_t sa_mask;
     int sa_flags;
 };
@@ -53,9 +79,10 @@ struct sigaction {
 
 typedef void (*__sighandler_t)(int sig);
 
+#define SIG_ERR (__sighandler_t)-1
 #define SIG_DFL (__sighandler_t)0
 #define SIG_IGN (__sighandler_t)1
-#define SIG_ERR (__sighandler_t)-1
+#define SIG_HOLD (__sighandler_t)2
 
 #ifdef __cplusplus
 extern "C" {
