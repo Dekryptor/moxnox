@@ -1,11 +1,13 @@
 #include <span>
 #include <string_view>
 #include <string.h>
+#include <signal.h>
 
-import nt;
-import ntdll;
 import print;
-import unique_handle;
+import ucrtbase;
+
+#undef errno
+import errno;
 
 using namespace std;
 
@@ -19,10 +21,6 @@ int main(int argc, char** argv) {
         auto arg = string_view(argv[i]);
         bool valid = true;
         uintptr_t pid = 0;
-        OBJECT_ATTRIBUTES oa;
-        HANDLE h;
-        CLIENT_ID client_id;
-        unique_handle proc;
 
         if (arg.empty())
             valid = false;
@@ -46,26 +44,19 @@ int main(int argc, char** argv) {
             continue;
         }
 
-        client_id.UniqueProcess = pid;
-        client_id.UniqueThread = 0;
+        // FIXME - allow other signals
 
-        memset(&oa, 0, sizeof(oa));
-        oa.Length = sizeof(OBJECT_ATTRIBUTES);
+        if (kill((pid_t)pid, SIGINT) == -1) {
+            switch (*_errno()) {
+                case ENOENT:
+                    print_stderr("kill: ({}) - no such process\n", pid);
+                    break;
 
-        auto status = NtOpenProcess(&h, PROCESS_TERMINATE, &oa, &client_id);
-        if (status == nt_status::INVALID_CID) {
-            print_stderr("kill: ({}) - no such process\n", pid);
-            continue;
-        } else if (!success(status)) {
-            print_stderr("NtOpenProcess returned {}\n", status);
-            continue;
+                default:
+                    print_stderr("kill returned {}\n", errno_to_string_view(*_errno()));
+                    continue;
+            }
         }
-
-        proc.reset(h);
-
-        status = NtTerminateProcess(proc.get(), nt_status::CONTROL_C_EXIT);
-        if (!success(status))
-            print_stderr("NtTerminateProcess returned {}\n", status);
     }
 
     // FIXME - different status if we fail?

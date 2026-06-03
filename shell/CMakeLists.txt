@@ -217,7 +217,7 @@ add_executable(kill src/kill.cpp)
 
 target_compile_options(kill PRIVATE -fno-exceptions ${USERSPACE_CFLAGS})
 
-target_link_libraries(kill print format unique_handle)
+target_link_libraries(kill posixshim)
 target_link_libraries(kill moxnox)
 
 install(TARGETS kill DESTINATION ${CMAKE_INSTALL_PREFIX}/bin COMPONENT core)
