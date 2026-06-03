@@ -7,6 +7,7 @@ module;
 #include <atomic>
 #include <array>
 #include <utility>
+#include <optional>
 
 export module except;
 
@@ -173,10 +174,63 @@ static void signal_dispatch(int sig) {
     if (sa.sa_handler == SIG_IGN)
         return;
 
+    auto mask = sa.sa_mask;
+    optional<sigset_t> oldset;
+
+    if (!(sa.sa_flags & SA_NODEFER))
+        mask |= (sigset_t)1 << (sig - 1);
+
+    if (mask != 0) {
+        nt_status status;
+        uint32_t retlen;
+        sigset_t set;
+
+        status = NtQueryInformationThread(NtCurrentThread(),
+                                          THREAD_INFORMATION_CLASS::MoxnoxSignalsMask,
+                                          &set, sizeof(set), &retlen);
+        if (!success(status)) {
+            print_stderr("NtQueryInformationThread for MoxnoxSignalsMask returned {}\n", status);
+            NtTerminateProcess(NtCurrentProcess(), nt_status::INTERNAL_ERROR);
+            unreachable();
+        }
+
+        oldset = set;
+
+        status = NtSetInformationThread(NtCurrentThread(),
+                                        THREAD_INFORMATION_CLASS::MoxnoxBlockSignals,
+                                        &mask, sizeof(mask));
+        if (!success(status)) {
+            print_stderr("NtSetInformationThread for MoxnoxBlockSignals returned {}\n", status);
+            NtTerminateProcess(NtCurrentProcess(), nt_status::INTERNAL_ERROR);
+            unreachable();
+        }
+    }
+
     if (sa.sa_handler == SIG_DFL)
         default_signal_handler(sig);
     else
         sa.sa_handler(sig);
+
+    if (oldset.has_value()) {
+        nt_status status;
+        LARGE_INTEGER timeout;
+        sigset_t set = *oldset;
+
+        status = NtSetInformationThread(NtCurrentThread(),
+                                        THREAD_INFORMATION_CLASS::MoxnoxSignalsMask,
+                                        &set, sizeof(set));
+        if (!success(status)) {
+            print_stderr("NtSetInformationThread for MoxnoxSignalsMask returned {}\n", status);
+            NtTerminateProcess(NtCurrentProcess(), nt_status::INTERNAL_ERROR);
+            unreachable();
+        }
+
+        // run APCs
+
+        timeout.QuadPart = 0;
+
+        NtDelayExecution(true, &timeout);
+    }
 }
 
 export void init_signals() {
