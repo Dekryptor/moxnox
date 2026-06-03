@@ -633,6 +633,11 @@ mrs	x18, tpidr_el1
 mrs	x0, esr_el1
 bl	handle_user_exception
 
+msr	DAIFSet, #0xf // disable interrupts
+bl	acquire_sync_lock
+bl	maybe_yield_after_interrupt
+bl	release_sync_lock
+
 1:
 restore_user_context
 add	sp, sp, #0x10
