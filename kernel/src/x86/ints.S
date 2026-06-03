@@ -178,7 +178,7 @@ page_fault_user_isr:
 page_fault_user_no_exception:
     call acquire_sync_lock
     sub rsp, 0x20
-    call maybe_yield
+    call maybe_yield_after_interrupt
     add rsp, 0x20
     call release_sync_lock
 

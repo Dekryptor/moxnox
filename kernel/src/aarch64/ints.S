@@ -529,7 +529,8 @@ msr	DAIFSet, #0xf // disable interrupts
 mov	x19, x0
 bl	acquire_sync_lock
 
-bl	maybe_yield
+mov	x0, x19
+bl	maybe_yield_after_syscall
 
 bl	release_sync_lock
 mov	x0, x19

@@ -1677,19 +1677,13 @@ NTSTATUS user_NtSetInformationProcess(HANDLE process_handle, PROCESS_INFORMATION
     return ret;
 }
 
-#ifdef __aarch64__
 extern "C"
-void maybe_yield()
-#elifdef __x86_64__
-extern "C"
-void maybe_yield(uint64_t syscall_ret)
-#endif
-{
+void maybe_yield_after_syscall(uint64_t syscall_ret) {
     // interrupts are disabled and sync_lock held
 
 #ifdef DEBUG
     if (!interrupts_disabled())
-        bsod("calling maybe_yield with interrupts enabled");
+        bsod("calling maybe_yield_after_syscall with interrupts enabled");
 #endif
 
     auto& cb = *get_cpu_block();
@@ -1698,11 +1692,81 @@ void maybe_yield(uint64_t syscall_ret)
     if (t.status != thread_status::dying && t.suspend_count == 0)
         return;
 
-#ifdef __x86_64__
     memcpy(&cb.thread_context, &t.syscall_context, sizeof(CONTEXT));
+
+#ifdef __x86_64__
     memcpy(&cb.xsave, &t.xsave, XSAVE_SIZE);
     cb.thread_context.Rax = syscall_ret;
+#elifdef __aarch64__
+    cb.thread_context.X0 = syscall_ret;
 #endif
+
+    t.kernel_mode = false;
+
+    if (t.status == thread_status::dying) {
+        bool terminate_proc = false;
+
+        if (t.proc) {
+            lock_guard lock(t.proc->threads_lock);
+
+            if (!t.proc->dying) {
+                remove_entry_list(t.process_le);
+                terminate_proc = is_list_empty(t.proc->threads);
+            }
+        }
+
+        release_sync_lock();
+        enable_interrupts();
+
+        if (terminate_proc) {
+            t.proc->exit_status = t.exit_status;
+            t.proc->terminate();
+        } else {
+            size_t region_size = 0;
+
+            t.proc->free_vm((void**)&t.teb, &region_size, MEM_RELEASE);
+            // FIXME - free userspace stack
+        }
+
+        disable_interrupts();
+        acquire_sync_lock();
+
+        thread_died(t, nullptr, false);
+    }
+
+#ifdef __aarch64__
+    __asm __volatile ( // doesn't return, releases sync_lock
+        "add x0, x18, #%0\n\t"
+        "ldr x0, [x0]\n\t"
+        "mov sp, x0\n\t"
+        "b scheduler"
+        :
+        : "i" (offsetof(cpu_block, scheduler_stack))
+    );
+#elifdef __x86_64__
+    __asm __volatile ( // doesn't return, releases sync_lock
+        "mov rsp, gs:%0\n"
+        "jmp scheduler\n"
+        :
+        : "i" (offsetof(cpu_block, scheduler_stack))
+    );
+#endif
+}
+
+extern "C"
+void maybe_yield_after_interrupt() {
+    // interrupts are disabled and sync_lock held
+
+#ifdef DEBUG
+    if (!interrupts_disabled())
+        bsod("calling maybe_yield_after_interrupt with interrupts enabled");
+#endif
+
+    auto& cb = *get_cpu_block();
+    auto& t = *cb.current_thread;
+
+    if (t.status != thread_status::dying && t.suspend_count == 0)
+        return;
 
     t.kernel_mode = false;
 

@@ -190,7 +190,7 @@ Lafter_syscall:
     call acquire_sync_lock
 
     mov rcx, [rsp]
-    call maybe_yield
+    call maybe_yield_after_syscall
 
     call release_sync_lock
     pop rax
