@@ -383,7 +383,7 @@ NTSTATUS NtDelayExecution(bool alertable, const LARGE_INTEGER* delay_interval) {
     status = wait_for_object(t, alertable);
 
     if (status == nt_status::USER_APC)
-        return setup_user_apc();
+        return setup_user_apc((uint64_t)nt_status::USER_APC);
 
     return status;
 }

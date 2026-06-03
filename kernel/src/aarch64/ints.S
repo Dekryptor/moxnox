@@ -531,6 +531,7 @@ bl	acquire_sync_lock
 
 mov	x0, x19
 bl	maybe_yield_after_syscall
+mov	x19, x0
 
 bl	release_sync_lock
 mov	x0, x19

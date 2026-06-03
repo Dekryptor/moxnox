@@ -191,6 +191,7 @@ Lafter_syscall:
 
     mov rcx, [rsp]
     call maybe_yield_after_syscall
+    mov [rsp], rax
 
     call release_sync_lock
     pop rax

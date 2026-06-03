@@ -606,7 +606,7 @@ uintptr_t init_cpu_block(unsigned int cpu_no) {
     return (uintptr_t)&cb;
 }
 
-nt_status setup_user_apc() {
+nt_status setup_user_apc(uint64_t return_value) {
     auto& t = *get_current_thread();
     pending_apc* p;
 
@@ -630,9 +630,9 @@ nt_status setup_user_apc() {
     assert(!(us_context & (alignof(CONTEXT) - 1)));
 
 #ifdef __x86_64__
-    t.syscall_context.Rax = (uintptr_t)nt_status::USER_APC;
+    t.syscall_context.Rax = return_value;
 #elifdef __aarch64__
-    t.syscall_context.X0 = (uintptr_t)nt_status::USER_APC;
+    t.syscall_context.X0 = return_value;
 #endif
 
     if (!t.proc->copy_to((void*)us_context, &t.syscall_context, sizeof(CONTEXT))) {
@@ -703,7 +703,7 @@ extern "C" NTSTATUS NtWaitForSingleObject(HANDLE object_handle, bool alertable,
     status = wait_for_object(objrw.get(), alertable, tm);
 
     if (status == nt_status::USER_APC)
-        return setup_user_apc();
+        return setup_user_apc((uint64_t)nt_status::USER_APC);
 
     return status;
 }
@@ -961,7 +961,7 @@ extern "C" NTSTATUS NtWaitForMultipleObjects(uint32_t object_count, HANDLE* obje
     }
 
     if (ret == nt_status::USER_APC)
-        return setup_user_apc();
+        return setup_user_apc((uint64_t)nt_status::USER_APC);
 
     return ret;
 }

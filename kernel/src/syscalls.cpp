@@ -3,6 +3,7 @@
 #include <atomic>
 #include <optional>
 #include <functional>
+#include <utility>
 #include <mutex>
 #include "timer-asm.h"
 
@@ -1577,7 +1578,7 @@ NTSTATUS user_NtContinue(const CONTEXT* thread_context, bool raise_alert) {
     }
 
     if (raise_alert)
-        return setup_user_apc();
+        return setup_user_apc((uint64_t)nt_status::USER_APC);
 
     return nt_status::USER_APC; // means rax/x0 will get taken from syscall_context instead
 }
@@ -1678,7 +1679,7 @@ NTSTATUS user_NtSetInformationProcess(HANDLE process_handle, PROCESS_INFORMATION
 }
 
 extern "C"
-void maybe_yield_after_syscall(uint64_t syscall_ret) {
+uint64_t maybe_yield_after_syscall(uint64_t syscall_ret) {
     // interrupts are disabled and sync_lock held
 
 #ifdef DEBUG
@@ -1689,8 +1690,30 @@ void maybe_yield_after_syscall(uint64_t syscall_ret) {
     auto& cb = *get_cpu_block();
     auto& t = *cb.current_thread;
 
-    if (t.status != thread_status::dying && t.suspend_count == 0)
-        return;
+    if (t.status != thread_status::dying && t.suspend_count == 0) {
+        bool has_apcs;
+
+        {
+            lock_guard lock(t.apc_lock);
+            has_apcs = !is_list_empty(t.pending_apcs);
+        }
+
+        if (has_apcs) {
+            nt_status ret;
+
+            release_sync_lock();
+            enable_interrupts();
+
+            ret = setup_user_apc(syscall_ret);
+
+            disable_interrupts();
+            acquire_sync_lock();
+
+            return (uint64_t)ret;
+        }
+
+        return syscall_ret;
+    }
 
     memcpy(&cb.thread_context, &t.syscall_context, sizeof(CONTEXT));
 
@@ -1751,6 +1774,8 @@ void maybe_yield_after_syscall(uint64_t syscall_ret) {
         : "i" (offsetof(cpu_block, scheduler_stack))
     );
 #endif
+
+    unreachable();
 }
 
 extern "C"
