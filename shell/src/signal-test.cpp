@@ -367,7 +367,7 @@ static void test_sa_resethand() {
 
     struct sigaction act = {};
     act.sa_handler = test9_handler;
-    act.sa_flags = SA_RESETHAND;
+    act.sa_flags = (int)SA_RESETHAND;
     sigaction(SIGINT, &act, nullptr);
 
     raise(SIGINT);
