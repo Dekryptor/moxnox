@@ -11,12 +11,14 @@ import errno;
 
 static const int LAST_SIG = SIGTTOU;
 
-extern "C"
-int sigaction(int /*signum*/, const struct sigaction* /*act*/,
-              struct sigaction* /*oldact*/) {
-    // FIXME
+// ucrtbase
+extern "C" int mn_sigaction(int signum, const struct sigaction* act,
+                            struct sigaction* oldact);
 
-    return 0;
+extern "C"
+int sigaction(int signum, const struct sigaction* act,
+              struct sigaction* oldact) {
+    return mn_sigaction(signum, act, oldact);
 }
 
 extern "C"

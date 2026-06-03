@@ -216,3 +216,4 @@ _getpid
 rename
 _unlink = __unlink
 raise
+mn_sigaction

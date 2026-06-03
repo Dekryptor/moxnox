@@ -241,3 +241,4 @@ _pclose
 mbstowcs
 _fullpath
 _creat
+mn_sigaction

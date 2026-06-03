@@ -21,6 +21,14 @@ static const int LAST_SIG = SIGTTOU;
 static array<atomic<__sighandler_t>, LAST_SIG> sig_handlers;
 
 extern "C"
+int mn_sigaction(int /*signum*/, const struct sigaction* /*act*/,
+                 struct sigaction* /*oldact*/) {
+    // FIXME
+
+    return 0;
+}
+
+extern "C"
 __sighandler_t signal(int sig, __sighandler_t func) {
     if (sig <= 0 || sig > LAST_SIG)
         return SIG_ERR;
