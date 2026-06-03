@@ -213,7 +213,24 @@ static void signal_dispatch(int sig) {
 
     if (sa.sa_handler == SIG_DFL)
         default_signal_handler(sig);
-    else
+    else if (sa.sa_flags & SA_SIGINFO) {
+        siginfo_t info;
+
+        memset(&info, 0, sizeof(info));
+
+        info.si_signo = sig;
+        // FIXME - si_errno
+        // FIXME - si_code
+        // FIXME - si_pid
+        // FIXME - si_uid
+        // FIXME - si_status
+        // FIXME - si_value
+        // FIXME - si_addr
+        // FIXME - si_band
+
+        // FIXME - context
+        sa.sa_sigaction(sig, &info, nullptr);
+    } else
         sa.sa_handler(sig);
 
     if (oldset.has_value()) {
