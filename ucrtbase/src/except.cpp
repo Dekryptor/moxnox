@@ -29,7 +29,7 @@ extern "C" int* __errno();
 static const int LAST_SIG = SIGTTOU;
 
 static RTL_CRITICAL_SECTION sig_handlers_lock;
-static array<struct sigaction, LAST_SIG> sig_handlers;
+static array<struct ::sigaction, LAST_SIG> sig_handlers;
 
 extern "C"
 int mn_sigaction(int sig, const struct sigaction* act,
