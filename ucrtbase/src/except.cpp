@@ -3,6 +3,7 @@ module;
 #include <stdint.h>
 #include <signal.h>
 #include <stdlib.h>
+#include <string.h>
 #include <atomic>
 #include <array>
 #include <utility>
@@ -30,31 +31,44 @@ extern "C" int* __errno();
 static const int LAST_SIG = SIGTTOU;
 
 static RTL_CRITICAL_SECTION sig_handlers_lock;
-static array<__sighandler_t, LAST_SIG> sig_handlers;
+static array<struct sigaction, LAST_SIG> sig_handlers;
 
 extern "C"
-int mn_sigaction(int /*signum*/, const struct sigaction* /*act*/,
-                 struct sigaction* /*oldact*/) {
-    // FIXME
+int mn_sigaction(int sig, const struct sigaction* act,
+                 struct sigaction* oldact) {
+    if (sig <= 0 || sig > LAST_SIG) {
+        *__errno() = EINVAL;
+        return -1;
+    }
+
+    RtlEnterCriticalSection(&sig_handlers_lock);
+
+    if (oldact)
+        *oldact = sig_handlers[(size_t)(sig - 1)];
+
+    if (act)
+        sig_handlers[(size_t)(sig - 1)] = *act;
+
+    RtlLeaveCriticalSection(&sig_handlers_lock);
 
     return 0;
 }
 
 extern "C"
 __sighandler_t signal(int sig, __sighandler_t func) {
+    struct sigaction sa, old;
+
     if (sig <= 0 || sig > LAST_SIG)
         return SIG_ERR;
 
-    __sighandler_t old;
+    memset(&sa, 0, sizeof(sa));
+    sa.sa_handler = func;
+    sa.sa_flags = SA_RESTART;
 
-    RtlEnterCriticalSection(&sig_handlers_lock);
+    if (mn_sigaction(sig, &sa, &old) != 0)
+        return SIG_ERR;
 
-    old = sig_handlers[(size_t)(sig - 1)];
-    sig_handlers[(size_t)(sig - 1)] = func;
-
-    RtlLeaveCriticalSection(&sig_handlers_lock);
-
-    return old;
+    return old.sa_handler;
 }
 
 extern "C"
@@ -153,19 +167,19 @@ void signal_dispatch(int sig) {
         unreachable();
     }
 
-    __sighandler_t handler;
+    struct sigaction sa;
 
     RtlEnterCriticalSection(&sig_handlers_lock);
-    handler = sig_handlers[(size_t)(sig - 1)];
+    sa = sig_handlers[(size_t)(sig - 1)];
     RtlLeaveCriticalSection(&sig_handlers_lock);
 
-    if (handler == SIG_IGN)
+    if (sa.sa_handler == SIG_IGN)
         return;
 
-    if (handler == SIG_DFL)
-        handler = default_signal_handler;
-
-    handler(sig);
+    if (sa.sa_handler == SIG_DFL)
+        default_signal_handler(sig);
+    else
+        sa.sa_handler(sig);
 }
 
 export void init_signals() {
