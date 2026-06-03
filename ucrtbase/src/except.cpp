@@ -1,3 +1,5 @@
+module;
+
 #include <stdint.h>
 #include <signal.h>
 #include <stdlib.h>
@@ -5,7 +7,10 @@
 #include <array>
 #include <utility>
 
+export module except;
+
 import nt;
+import ntdll;
 import ucrtbase;
 import print;
 
@@ -14,11 +19,18 @@ import errno;
 
 using namespace std;
 
+// ntdll
+extern "C" void (*mn_signal_dispatch)(int sig) __declspec(dllimport);
+
+// except.cpp
+void signal_dispatch(int sig);
+
 extern "C" int* __errno();
 
 static const int LAST_SIG = SIGTTOU;
 
-static array<atomic<__sighandler_t>, LAST_SIG> sig_handlers;
+static RTL_CRITICAL_SECTION sig_handlers_lock;
+static array<__sighandler_t, LAST_SIG> sig_handlers;
 
 extern "C"
 int mn_sigaction(int /*signum*/, const struct sigaction* /*act*/,
@@ -33,7 +45,16 @@ __sighandler_t signal(int sig, __sighandler_t func) {
     if (sig <= 0 || sig > LAST_SIG)
         return SIG_ERR;
 
-    return sig_handlers[(size_t)(sig - 1)].exchange(func);
+    __sighandler_t old;
+
+    RtlEnterCriticalSection(&sig_handlers_lock);
+
+    old = sig_handlers[(size_t)(sig - 1)];
+    sig_handlers[(size_t)(sig - 1)] = func;
+
+    RtlLeaveCriticalSection(&sig_handlers_lock);
+
+    return old;
 }
 
 extern "C"
@@ -132,7 +153,11 @@ void signal_dispatch(int sig) {
         unreachable();
     }
 
-    auto handler = sig_handlers[(size_t)(sig - 1)].load();
+    __sighandler_t handler;
+
+    RtlEnterCriticalSection(&sig_handlers_lock);
+    handler = sig_handlers[(size_t)(sig - 1)];
+    RtlLeaveCriticalSection(&sig_handlers_lock);
 
     if (handler == SIG_IGN)
         return;
@@ -141,4 +166,10 @@ void signal_dispatch(int sig) {
         handler = default_signal_handler;
 
     handler(sig);
+}
+
+export void init_signals() {
+    mn_signal_dispatch = signal_dispatch;
+
+    RtlInitializeCriticalSection(&sig_handlers_lock);
 }

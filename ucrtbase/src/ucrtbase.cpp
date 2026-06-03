@@ -6,12 +6,7 @@ import ntdll;
 import print;
 import file;
 import time;
-
-// ntdll
-extern "C" void (*mn_signal_dispatch)(int sig) __declspec(dllimport);
-
-// except.cpp
-void signal_dispatch(int sig);
+import except;
 
 extern "C"
 void* malloc(size_t size) {
@@ -59,7 +54,7 @@ int DllMainCRTStartup(HANDLE /*hinstDLL*/, uint32_t reason, void*) {
         case DLL_PROCESS_ATTACH:
             init_files();
             init_clock();
-            mn_signal_dispatch = signal_dispatch;
+            init_signals();
             break;
 
         case DLL_PROCESS_DETACH:
