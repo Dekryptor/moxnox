@@ -151,7 +151,7 @@ int kill(pid_t pid, int sig) {
         return -1;
     }
 
-    client_id.UniqueProcess = pid;
+    client_id.UniqueProcess = (HANDLE)pid;
     client_id.UniqueThread = 0;
 
     memset(&oa, 0, sizeof(oa));
