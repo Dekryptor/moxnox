@@ -168,7 +168,12 @@ static void signal_dispatch(int sig) {
     struct sigaction sa;
 
     RtlEnterCriticalSection(&sig_handlers_lock);
+
     sa = sig_handlers[(size_t)(sig - 1)];
+
+    if (sa.sa_flags & SA_RESETHAND)
+        memset(&sig_handlers[(size_t)(sig - 1)], 0, sizeof(struct sigaction));
+
     RtlLeaveCriticalSection(&sig_handlers_lock);
 
     if (sa.sa_handler == SIG_IGN)
