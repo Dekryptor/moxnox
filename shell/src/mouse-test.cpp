@@ -268,7 +268,6 @@ int main() {
 
     while (true) {
         input_event_with_id ev;
-        LARGE_INTEGER timeout;
 
         // FIXME - do async read and alertable wait
 
@@ -283,10 +282,6 @@ int main() {
         }
 
         handle_mouse_event(mouse_pipe.get(), sect.get(), ev);
-
-        // check for APCs
-        timeout.QuadPart = 0;
-        NtDelayExecution(true, &timeout);
 
 #if 0
         print("tv_sec = {}, tv_usec = {}, type = {}, code = ",
