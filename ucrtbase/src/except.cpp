@@ -23,9 +23,6 @@ using namespace std;
 // ntdll
 extern "C" void (*mn_signal_dispatch)(int sig) __declspec(dllimport);
 
-// except.cpp
-void signal_dispatch(int sig);
-
 extern "C" int* __errno();
 
 static const int LAST_SIG = SIGTTOU;
@@ -160,7 +157,7 @@ static void default_signal_handler(int sig) {
     unreachable();
 }
 
-void signal_dispatch(int sig) {
+static void signal_dispatch(int sig) {
     if (sig <= 0 || sig > LAST_SIG) {
         print("signal_dispatch: invalid signal number {}\n", sig);
         NtTerminateProcess(NtCurrentProcess(), nt_status::INTERNAL_ERROR);
