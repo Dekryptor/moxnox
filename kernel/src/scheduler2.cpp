@@ -953,9 +953,6 @@ extern "C" NTSTATUS NtWaitForMultipleObjects(uint32_t object_count, HANDLE* obje
         object_release(*objs[i]);
     }
 
-    if (ret == nt_status::USER_APC)
-        return setup_user_apc((uint64_t)nt_status::USER_APC);
-
     return ret;
 }
 
