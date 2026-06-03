@@ -3,12 +3,16 @@
 #include <string.h>
 #include <stdint.h>
 #include <stdlib.h>
+#include <signal.h>
 
 import nt;
 import ntdll;
 import print;
 import unique_handle;
 import unicode;
+
+#undef errno
+import errno;
 
 using namespace std;
 
@@ -112,12 +116,22 @@ int main(int argc, char** argv) {
 
         for (int i = 0; i < argc - 1; i++) {
             if (arr[i] == name) {
-                auto status = NtTerminateProcess(proc.get(),
-                                                 nt_status::CONTROL_C_EXIT);
-                if (!success(status))
-                    print_stderr("{}: NtTerminateProcess returned {}\n", name, status);
+                PROCESS_BASIC_INFORMATION pbi;
 
                 done[i] = true;
+
+                auto status = NtQueryInformationProcess(proc.get(), PROCESSINFOCLASS::BasicInformation,
+                                                        &pbi, sizeof(pbi), &retlen);
+                if (!success(status)) {
+                    print_stderr("{}: NtQueryInformationProcess returned {}\n", name, status);
+                    break;
+                }
+
+                // FIXME - allow other signals
+
+                if (kill((pid_t)pbi.UniqueProcessId, SIGINT) == -1)
+                    print_stderr("kill failed (errno {})\n", errno_to_string_view(*_errno()));
+
                 break;
             }
         }

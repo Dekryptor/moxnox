@@ -228,7 +228,7 @@ add_executable(killall src/killall.cpp)
 
 target_compile_options(killall PRIVATE -fno-exceptions ${USERSPACE_CFLAGS})
 
-target_link_libraries(killall print format unique_handle unicode)
+target_link_libraries(killall print format unique_handle unicode errno posixshim)
 target_link_libraries(killall moxnox)
 
 install(TARGETS killall DESTINATION ${CMAKE_INSTALL_PREFIX}/bin COMPONENT core)
