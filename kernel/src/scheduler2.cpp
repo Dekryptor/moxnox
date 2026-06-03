@@ -681,8 +681,6 @@ nt_status setup_user_apc(uint64_t return_value) {
 
 extern "C" NTSTATUS NtWaitForSingleObject(HANDLE object_handle, bool alertable,
                                const LARGE_INTEGER* timeout) {
-    nt_status status;
-
     auto objrw = deref_handle(object_handle);
     if (!objrw)
         return nt_status::INVALID_HANDLE;
@@ -700,12 +698,7 @@ extern "C" NTSTATUS NtWaitForSingleObject(HANDLE object_handle, bool alertable,
         tm = -timeout->QuadPart;
     }
 
-    status = wait_for_object(objrw.get(), alertable, tm);
-
-    if (status == nt_status::USER_APC)
-        return setup_user_apc((uint64_t)nt_status::USER_APC);
-
-    return status;
+    return wait_for_object(objrw.get(), alertable, tm);
 }
 
 nt_status wait_for_objects(span<object*> objects, bool wait_any,
