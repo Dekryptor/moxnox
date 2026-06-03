@@ -2032,71 +2032,89 @@ static inline __attribute((always_inline)) uint64_t allocate_va_no_lock(uint32_t
         mask = (((uint64_t)1 << num_pages) - 1) << (uint64_t)(64 - num_pages);
 
     // start from where we left off last time, to reduce TLB caching issues
-
     static uint64_t last_i = 0, last_j = 0;
 
-    for (uint64_t i = last_i; i < mb.size(); i++) {
-        if (mb[i] & 0x8000000000000000 && last_j == 0) {
-            if (run_length == 0)
-                run_start = i * 64;
+    bool wrapped = false;
 
-            run_length += (uint64_t)countl_one(mb[i]);
+    while (true) {
+        for (uint64_t i = last_i; i < mb.size(); i++) {
+            if (mb[i] & 0x8000000000000000 && last_j == 0) {
+                if (run_length == 0)
+                    run_start = i * 64;
 
-            if (run_length >= num_pages) {
-                mark_vamem_as_used(run_start, num_pages);
+                run_length += (uint64_t)countl_one(mb[i]);
 
-                uint64_t run_end = run_start + num_pages;
+                if (run_length >= num_pages) {
+                    mark_vamem_as_used(run_start, num_pages);
 
-                last_i = run_end / 64;
-                last_j = run_end % 64;
+                    uint64_t run_end = run_start + num_pages;
 
-                return (uintptr_t)vablock + (run_start << PAGE_SHIFT);
-            }
-        } else
-            run_length = 0;
+                    last_i = run_end / 64;
+                    last_j = run_end % 64;
 
-        if (num_pages < 64) {
-            auto m = mask;
-            for (uint64_t j = 0; j < 64 - num_pages; j++) {
-                if (j >= last_j && (mb[i] & m) == m) {
-                    mb[i] &= ~m;
-                    last_i = i;
-                    last_j = j + num_pages;
-                    return (uintptr_t)vablock + (((i * 64) + j) << PAGE_SHIFT);
+                    return (uintptr_t)vablock + (run_start << PAGE_SHIFT);
                 }
+            } else
+                run_length = 0;
 
-                m >>= 1;
+            if (num_pages < 64) {
+                auto m = mask;
+                for (uint64_t j = 0; j < 64 - num_pages; j++) {
+                    if (j >= last_j && (mb[i] & m) == m) {
+                        mb[i] &= ~m;
+                        last_i = i;
+                        last_j = j + num_pages;
+                        return (uintptr_t)vablock + (((i * 64) + j) << PAGE_SHIFT);
+                    }
+
+                    m >>= 1;
+                }
             }
+
+            auto val = mb[i];
+
+            if (i == last_i && last_j != 0) { // clear first last_j bits
+                auto mask = (uint64_t)1 << last_j;
+
+                mask--;
+                mask <<= 64 - last_j;
+                val &= ~mask;
+            }
+
+            last_j = 0;
+
+            if (val == 0xffffffffffffffff)
+                continue;
+
+            auto t1 = (uint64_t)countr_one(val);
+            run_length = t1;
+            run_start = ((i + 1) * 64) - t1;
         }
 
-        auto val = mb[i];
+        if (run_length >= num_pages) {
+            mark_vamem_as_used(run_start, num_pages);
 
-        if (i == last_i && last_j != 0) { // clear first last_j bits
-            auto mask = (uint64_t)1 << last_j;
+            uint64_t run_end = run_start + num_pages;
 
-            mask--;
-            mask <<= 64 - last_j;
-            val &= ~mask;
+            last_i = run_end / 64;
+            last_j = run_end % 64;
+
+            return (uintptr_t)vablock + (run_start << PAGE_SHIFT);
         }
 
-        last_j = 0;
+        // FIXME - issue IPIs to clear TLBs on other CPUs before reusing freed VA space
 
-        if (val == 0xffffffffffffffff)
+        if (!wrapped && (last_i != 0 || last_j != 0)) {
+            wrapped = true;
+            last_i = 0;
+            last_j = 0;
+            run_start = 0;
+            run_length = 0;
             continue;
+        }
 
-        auto t1 = (uint64_t)countr_one(val);
-        run_length = t1;
-        run_start = ((i + 1) * 64) - t1;
+        return 0;
     }
-
-    // FIXME - if we reach the end, issue IPIs to clear TLBs on other CPUs, and start again from beginning
-
-    if (run_length >= num_pages) {
-        mark_vamem_as_used(run_start, num_pages);
-        return (uintptr_t)vablock + (run_start << PAGE_SHIFT);
-    }
-
-    return 0;
 }
 
 template<bool no_lock>
