@@ -16,7 +16,6 @@ import ntdll;
 import format;
 import rbtree;
 import unique_handle;
-import list;
 import vt100;
 import print;
 import unicode;
@@ -101,7 +100,6 @@ struct console_line {
             free(atts);
     }
 
-    list_entry le;
     char32_t* text = nullptr;
     text_attribute* atts = nullptr;
     size_t len = 0;
@@ -116,8 +114,7 @@ static MN_SECTION_FRAMEBUFFER_INFORMATION fb_info;
 static span<uint32_t> framebuffer;
 static unsigned int font_width, font_height, font_descender;
 static console_line* curline = nullptr;
-static list_entry lines = { &lines, &lines };
-static unsigned int num_lines = 0;
+static console_line** lines = nullptr;
 
 static array<char32_t, 32> prev_emoji_cps;
 static size_t prev_emoji_cp_len = 0;
@@ -202,44 +199,41 @@ void do_print(string_view s) {
                 (uint32_t)s.size(), nullptr, nullptr);
 }
 
+static void reset_line(console_line& line) {
+    if (line.text)
+        free(line.text);
+
+    if (line.atts)
+        free(line.atts);
+
+    line.text = nullptr;
+    line.atts = nullptr;
+    line.len = 0;
+    line.num_cells = 0;
+
+    for (unsigned int i = 0; i < console_fb_inst.console_cols; i++) {
+        line.cells[i].fg_colour = !reverse_video ? fg_colour : bg_colour;
+        line.cells[i].bg_colour = !reverse_video ? bg_colour : fg_colour;
+    }
+
+    line.changed = true;
+}
+
 void console_fb::console_overflow(unsigned int rows) {
-    auto line_size = offsetof(console_line, cells) + (sizeof(console_cell) * console_fb_inst.console_cols);
+    rows = min(rows, console_rows);
 
     for (unsigned int i = 0; i < rows; i++) {
-        auto nextline = (console_line*)malloc(line_size);
-        if (!nextline) {
-            print("malloc failed\n");
-            return;
-        }
-
-        new (nextline) console_line;
-
-        for (unsigned int i = 0; i < console_fb_inst.console_cols; i++) {
-            nextline->cells[i].fg_colour = !reverse_video ? fg_colour : bg_colour;
-            nextline->cells[i].bg_colour = !reverse_video ? bg_colour : fg_colour;
-        }
-
-        insert_tail_list(lines, nextline->le);
-        nextline->changed = true;
-        num_lines++;
+        auto* recycled = lines[0];
+        memmove(&lines[0], &lines[1], console_rows * sizeof(console_line*));
+        lines[console_rows - 1] = recycled;
+        reset_line(*recycled);
     }
 
-    while (num_lines > console_fb_inst.console_rows) {
-        auto& first = containing_record<console_line>(lines.next);
-
-        remove_entry_list(first.le);
-        delete &first;
-
-        num_lines--;
+    for (unsigned int i = 0; i < console_rows; i++) {
+        lines[i]->changed = true;
     }
 
-    for (auto le = lines.next; le != &lines; le = le->next) {
-        auto& l = containing_record<console_line>(le);
-
-        l.changed = true;
-    }
-
-    curline = &containing_record<console_line>(lines.prev);
+    curline = lines[console_rows - 1];
 }
 
 static void recalc_colours(bool fg) {
@@ -378,65 +372,27 @@ void console_fb::cursor_changed() {
     if (show_cursor)
         curline->changed = true;
 
-    unsigned int i = 0;
-    for (auto le = lines.next; le != &lines; le = le->next) {
-        if (i == cursor_y) {
-            auto& l = containing_record<console_line>(le);
-
-            curline = &l;
-            break;
-        }
-
-        i++;
-    }
+    curline = lines[cursor_y];
 
     if (show_cursor)
         curline->changed = true;
 }
 
 void console_fb::scroll_down(unsigned int rows) {
-    auto line_size = offsetof(console_line, cells) + (sizeof(console_cell) * console_fb_inst.console_cols);
+    rows = min(console_rows, rows);
 
-    while (rows > 0) {
-        auto firstline = (console_line*)malloc(line_size);
-        if (!firstline) {
-            print("malloc failed\n");
-            return;
-        }
-
-        new (firstline) console_line;
-
-        for (unsigned int i = 0; i < console_fb_inst.console_cols; i++) {
-            firstline->cells[i].fg_colour = !reverse_video ? fg_colour : bg_colour;
-            firstline->cells[i].bg_colour = !reverse_video ? bg_colour : fg_colour;
-        }
-
-        insert_head_list(lines, firstline->le);
-        firstline->changed = true;
-        num_lines++;
-        cursor_y++;
-        rows--;
+    for (unsigned int i = 0; i < rows; i++) {
+        auto* recycled = lines[console_rows - 1];
+        memmove(&lines[1], &lines[0], console_rows * sizeof(console_line*));
+        lines[0] = recycled;
+        reset_line(*recycled);
     }
 
-    while (num_lines > console_fb_inst.console_rows) {
-        auto& first = containing_record<console_line>(lines.prev);
-
-        remove_entry_list(first.le);
-        delete &first;
-
-        num_lines--;
+    for (unsigned int i = 0; i < console_rows; i++) {
+        lines[i]->changed = true;
     }
 
-    if (cursor_y >= num_lines)
-        cursor_y = num_lines - 1;
-
-    for (auto le = lines.next; le != &lines; le = le->next) {
-        auto& l = containing_record<console_line>(le);
-
-        l.changed = true;
-    }
-
-    curline = &containing_record<console_line>(lines.prev);
+    curline = lines[cursor_y];
 }
 
 void console_fb::enable_cursor(bool enable) {
@@ -517,23 +473,34 @@ static bool init_font(span<const uint8_t> buf, font_info& font,
 
         auto line_size = offsetof(console_line, cells) + (sizeof(console_cell) * console_fb_inst.console_cols);
 
-        curline = (console_line*)malloc(line_size);
-        if (!curline) {
+        lines = (console_line**)malloc(console_fb_inst.console_rows * sizeof(console_line*));
+        if (!lines) {
             print("malloc failed\n");
             FT_Done_Face(font.face);
             FT_Done_FreeType(ft);
             return false;
         }
 
-        new (curline) console_line;
+        for (unsigned int i = 0; i < console_fb_inst.console_rows; i++) {
+            auto* line = (console_line*)malloc(line_size);
+            if (!line) {
+                print("malloc failed\n");
+                FT_Done_Face(font.face);
+                FT_Done_FreeType(ft);
+                return false;
+            }
 
-        for (unsigned int i = 0; i < console_fb_inst.console_cols; i++) {
-            curline->cells[i].fg_colour = !reverse_video ? fg_colour : bg_colour;
-            curline->cells[i].bg_colour = !reverse_video ? bg_colour : fg_colour;
+            new (line) console_line;
+
+            for (unsigned int j = 0; j < console_fb_inst.console_cols; j++) {
+                line->cells[j].fg_colour = !reverse_video ? fg_colour : bg_colour;
+                line->cells[j].bg_colour = !reverse_video ? bg_colour : fg_colour;
+            }
+
+            lines[i] = line;
         }
 
-        insert_tail_list(lines, curline->le);
-        num_lines++;
+        curline = lines[0];
     }
 
     return true;
@@ -1315,40 +1282,8 @@ void console_fb::print_chars(span<const char32_t> s) {
             if (cursor_y == console_rows) {
                 console_overflow();
                 cursor_y = console_rows - 1;
-            } else if (cursor_y >= num_lines) {
-                auto line_size = offsetof(console_line, cells) + (sizeof(console_cell) * console_cols);
-
-                auto nextline = (console_line*)malloc(line_size);
-                if (!nextline) {
-                    print("malloc failed\n");
-                    return;
-                }
-
-                new (nextline) console_line;
-
-                for (unsigned int i = 0; i < console_cols; i++) {
-                    nextline->cells[i].fg_colour = !reverse_video ? fg_colour : bg_colour;
-                    nextline->cells[i].bg_colour = !reverse_video ? bg_colour : fg_colour;
-                }
-
-                insert_tail_list(lines, nextline->le);
-
-                nextline->changed = true;
-                num_lines++;
-
-                curline = nextline;
-            } else {
-                unsigned int i = 0;
-
-                for (auto le = lines.next; le != &lines; le = le->next) {
-                    if (i == cursor_y) {
-                        curline = &containing_record<console_line>(le);
-                        break;
-                    }
-
-                    i++;
-                }
-            }
+            } else
+                curline = lines[cursor_y];
 
             s = span(s.data() + 1, s.size() - 1);
         } else if (s[0] == '\b') {
@@ -1665,8 +1600,8 @@ void console_fb::erase_in_display(unsigned int param) {
         case 0: // clear from cursor to end of screen
             erase_in_line(0);
 
-            for (auto le = curline->le.next; le != &lines; le = le->next) {
-                auto& l = containing_record<console_line>(le);
+            for (unsigned int i = cursor_y + 1; i < console_rows; i++) {
+                auto& l = *lines[i];
 
                 if (l.text)
                     free(l.text);
@@ -1686,8 +1621,8 @@ void console_fb::erase_in_display(unsigned int param) {
         case 1: // clear from beginning of screen to cursor
             erase_in_line(1);
 
-            for (auto le = lines.next; le != &curline->le; le = le->next) {
-                auto& l = containing_record<console_line>(le);
+            for (unsigned int i = 0; i < cursor_y; i++) {
+                auto& l = *lines[i];
 
                 if (l.text)
                     free(l.text);
@@ -1706,8 +1641,8 @@ void console_fb::erase_in_display(unsigned int param) {
 
         case 2: // clear entire screen
         case 3:
-            for (auto le = lines.next; le != &lines; le = le->next) {
-                auto& l = containing_record<console_line>(le);
+            for (unsigned int i = 0; i < console_rows; i++) {
+                auto& l = *lines[i];
 
                 if (l.text)
                     free(l.text);
@@ -1831,17 +1766,13 @@ static void recv_data_fb(string_view s) {
 
     // print to FB
 
-    unsigned int y = 0;
-
-    for (auto le = lines.next; le != &lines; le = le->next) {
-        auto& l = containing_record<console_line>(le);
+    for (unsigned int y = 0; y < console_fb_inst.console_rows; y++) {
+        auto& l = *lines[y];
 
         if (l.changed) {
             print_line(l, y);
             l.changed = false;
         }
-
-        y++;
     }
 }
 
