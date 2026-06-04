@@ -136,6 +136,7 @@ struct console_fb {
     void erase_chars(unsigned int num);
     void insert_chars(unsigned int num);
     void insert_lines(unsigned int) { }
+    void delete_lines(unsigned int) { }
 
     unsigned int cursor_x, cursor_y;
     unsigned int console_rows, console_cols;

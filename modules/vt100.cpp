@@ -50,6 +50,7 @@ concept vt100_console = requires(T t) {
     { t.erase_chars((unsigned int)0) } -> same_as<void>;
     { t.insert_chars((unsigned int)0) } -> same_as<void>;
     { t.insert_lines((unsigned int)0) } -> same_as<void>;
+    { t.delete_lines((unsigned int)0) } -> same_as<void>;
 };
 
 const char32_t ACS_CODES_START = 0x5f;
@@ -667,6 +668,33 @@ void insert_lines(vt100_console auto& t, string_view s) {
     t.cursor_changed();
 }
 
+void delete_lines(vt100_console auto& t, string_view s) {
+    unsigned int rows = 1;
+
+    if (!s.empty()) {
+        rows = 0;
+
+        for (auto c : s) {
+            if (c < '0' || c > '9')
+                return;
+
+            rows *= 10;
+            rows += (unsigned int)(c - '0');
+        }
+
+        if (rows == 0)
+            return;
+    }
+
+    if (t.cursor_y < t.scroll_top || t.cursor_y > t.scroll_bottom)
+        return;
+
+    t.cursor_changed();
+    t.cursor_x = 0;
+    t.delete_lines(rows);
+    t.cursor_changed();
+}
+
 void handle_escape_sequence(vt100_console auto& t, string_view s) {
     if (s.size() >= 3 && s[0] == 0x1b && s[1] == '[') {
         s = string_view(s.data() + 2, s.size() - 2);
@@ -695,6 +723,8 @@ void handle_escape_sequence(vt100_console auto& t, string_view s) {
             erase_chars(t, string_view(s.data(), s.size() - 1));
         else if (s.back() == 'L')
             insert_lines(t, string_view(s.data(), s.size() - 1));
+        else if (s.back() == 'M')
+            delete_lines(t, string_view(s.data(), s.size() - 1));
         else if (s.back() == 'r')
             set_scroll_region(t, string_view(s.data(), s.size() - 1));
         else if (s == "?25h") {
