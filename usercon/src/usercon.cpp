@@ -115,6 +115,8 @@ static span<uint32_t> framebuffer;
 static unsigned int font_width, font_height, font_descender;
 static console_line* curline = nullptr;
 static console_line** lines = nullptr;
+static console_line** normal_lines = nullptr;
+static console_line** alt_lines = nullptr;
 
 static array<char32_t, 32> prev_emoji_cps;
 static size_t prev_emoji_cp_len = 0;
@@ -137,15 +139,18 @@ struct console_fb {
     void insert_chars(unsigned int num);
     void insert_lines(unsigned int num);
     void delete_lines(unsigned int num);
-    void enter_alt_screen() { }
-    void exit_alt_screen() { }
+    void enter_alt_screen();
+    void exit_alt_screen();
 
     unsigned int cursor_x, cursor_y;
     unsigned int console_rows, console_cols;
     unsigned int scroll_top = 0, scroll_bottom;
+    unsigned int normal_cursor_x = 0, normal_cursor_y = 0;
+    unsigned int normal_scroll_top = 0, normal_scroll_bottom = 0;
     bool decckm = false;
     bool auto_wrap = true;
     bool insert_mode = false;
+    bool alt_screen_active = false;
     bool show_cursor = true;
 };
 
@@ -481,18 +486,37 @@ static bool init_font(span<const uint8_t> buf, font_info& font,
 
         auto line_size = offsetof(console_line, cells) + (sizeof(console_cell) * console_fb_inst.console_cols);
 
-        lines = (console_line**)malloc(console_fb_inst.console_rows * sizeof(console_line*));
-        if (!lines) {
+        auto rows = console_fb_inst.console_rows;
+
+        normal_lines = (console_line**)malloc(rows * sizeof(console_line*));
+        if (!normal_lines) {
             print("malloc failed\n");
             FT_Done_Face(font.face);
             FT_Done_FreeType(ft);
             return false;
         }
 
-        for (unsigned int i = 0; i < console_fb_inst.console_rows; i++) {
+        alt_lines = (console_line**)malloc(rows * sizeof(console_line*));
+        if (!alt_lines) {
+            print("malloc failed\n");
+            free(normal_lines);
+            FT_Done_Face(font.face);
+            FT_Done_FreeType(ft);
+            return false;
+        }
+
+        for (unsigned int i = 0; i < rows; i++) {
             auto* line = (console_line*)malloc(line_size);
             if (!line) {
                 print("malloc failed\n");
+
+                for (unsigned int j = 0; j < i; j++) {
+                    free(normal_lines[j]);
+                }
+
+                free(normal_lines);
+                free(alt_lines);
+
                 FT_Done_Face(font.face);
                 FT_Done_FreeType(ft);
                 return false;
@@ -505,9 +529,41 @@ static bool init_font(span<const uint8_t> buf, font_info& font,
                 line->cells[j].bg_colour = !reverse_video ? bg_colour : fg_colour;
             }
 
-            lines[i] = line;
+            normal_lines[i] = line;
         }
 
+        for (unsigned int i = 0; i < rows; i++) {
+            auto* line = (console_line*)malloc(line_size);
+            if (!line) {
+                print("malloc failed\n");
+
+                for (unsigned int j = 0; j < rows; j++) {
+                    free(normal_lines[j]);
+                }
+
+                for (unsigned int j = 0; j < i; j++) {
+                    free(alt_lines[j]);
+                }
+
+                free(normal_lines);
+                free(alt_lines);
+
+                FT_Done_Face(font.face);
+                FT_Done_FreeType(ft);
+                return false;
+            }
+
+            new (line) console_line;
+
+            for (unsigned int j = 0; j < console_fb_inst.console_cols; j++) {
+                line->cells[j].fg_colour = !reverse_video ? fg_colour : bg_colour;
+                line->cells[j].bg_colour = !reverse_video ? bg_colour : fg_colour;
+            }
+
+            alt_lines[i] = line;
+        }
+
+        lines = normal_lines;
         curline = lines[0];
     }
 
@@ -1824,6 +1880,49 @@ void console_fb::delete_lines(unsigned int num) {
         lines[i]->changed = true;
 
     curline = lines[cursor_y];
+}
+
+void console_fb::enter_alt_screen() {
+    if (alt_screen_active)
+        return;
+
+    normal_cursor_x = cursor_x;
+    normal_cursor_y = cursor_y;
+    normal_scroll_top = scroll_top;
+    normal_scroll_bottom = scroll_bottom;
+
+    lines = alt_lines;
+
+    for (unsigned int i = 0; i < console_rows; i++) {
+        reset_line(*lines[i]);
+    }
+
+    cursor_x = 0;
+    cursor_y = 0;
+    scroll_top = 0;
+    scroll_bottom = console_rows - 1;
+
+    curline = lines[0];
+    alt_screen_active = true;
+}
+
+void console_fb::exit_alt_screen() {
+    if (!alt_screen_active)
+        return;
+
+    cursor_x = normal_cursor_x;
+    cursor_y = normal_cursor_y;
+    scroll_top = normal_scroll_top;
+    scroll_bottom = normal_scroll_bottom;
+
+    lines = normal_lines;
+
+    for (unsigned int i = 0; i < console_rows; i++) {
+        lines[i]->changed = true;
+    }
+
+    curline = lines[cursor_y];
+    alt_screen_active = false;
 }
 
 static void recv_data_fb(string_view s) {
