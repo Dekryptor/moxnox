@@ -227,6 +227,7 @@ struct console_fb {
 
     unsigned int cursor_x, cursor_y;
     unsigned int console_rows, console_cols;
+    unsigned int scroll_top = 0, scroll_bottom;
     bool decckm = false;
 };
 
@@ -252,6 +253,7 @@ struct console_text {
 
     unsigned int cursor_x, cursor_y;
     unsigned int console_rows, console_cols;
+    unsigned int scroll_top = 0, scroll_bottom;
     bool decckm = false;
 };
 
@@ -1352,6 +1354,7 @@ bool init_console(const loader_block_framebuffer& fb)
 #ifdef __x86_64__
         console_text_inst.console_cols = 80; // FIXME
         console_text_inst.console_rows = 25; // FIXME
+        console_text_inst.scroll_bottom = console_text_inst.console_rows - 1;
         console_cols = console_text_inst.console_cols;
 #else
         console_cols = 80;
@@ -1371,6 +1374,7 @@ bool init_console(const loader_block_framebuffer& fb)
     if (console_type == console_type::text) {
         console_text_inst.console_cols = tc.cols;
         console_text_inst.console_rows = tc.rows;
+        console_text_inst.scroll_bottom = console_text_inst.console_rows - 1;
         console_cols = console_text_inst.console_cols;
 
         text_console = span((uint16_t*)phys_address(tc.phys_address),
@@ -1612,6 +1616,7 @@ bool init_fb_console() {
 
     console_fb_inst.console_cols = shadow_fb_width / font_width;
     console_fb_inst.console_rows = shadow_fb_height / font_height;
+    console_fb_inst.scroll_bottom = console_fb_inst.console_rows - 1;
     console_cols = console_fb_inst.console_cols;
 
     console_fb_inst.cursor_x = 0;

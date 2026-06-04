@@ -141,6 +141,7 @@ struct console_fb {
 
     unsigned int cursor_x, cursor_y;
     unsigned int console_rows, console_cols;
+    unsigned int scroll_top = 0, scroll_bottom;
     bool decckm = false;
     bool show_cursor = true;
 };
@@ -512,6 +513,7 @@ static bool init_font(span<const uint8_t> buf, font_info& font,
 
         console_fb_inst.console_cols = fb_info.width / font_width;
         console_fb_inst.console_rows = fb_info.height / font_height;
+        console_fb_inst.scroll_bottom = console_fb_inst.console_rows - 1;
 
         auto line_size = offsetof(console_line, cells) + (sizeof(console_cell) * console_fb_inst.console_cols);
 

@@ -34,6 +34,8 @@ concept vt100_console = requires(T t) {
     requires unsigned_integral<decltype(t.cursor_y)>;
     requires unsigned_integral<decltype(t.console_rows)>;
     requires unsigned_integral<decltype(t.console_cols)>;
+    requires unsigned_integral<decltype(t.scroll_top)>;
+    requires unsigned_integral<decltype(t.scroll_bottom)>;
     requires same_as<decltype(t.decckm), bool>;
     { t.console_overflow((unsigned int)0) } -> same_as<void>;
     { t.scroll_down((unsigned int)0) } -> same_as<void>;

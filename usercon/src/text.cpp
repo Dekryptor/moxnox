@@ -80,6 +80,7 @@ struct console_text {
 
     unsigned int cursor_x = 0, cursor_y = 0;
     unsigned int console_rows, console_cols;
+    unsigned int scroll_top = 0, scroll_bottom;
     bool decckm = false;
     bool cursor_enabled = true;
     HANDLE section = 0;
@@ -491,6 +492,7 @@ export span<uint16_t> init_text_console() {
 
     console_text_inst.console_cols = tc_info.cols;
     console_text_inst.console_rows = tc_info.rows;
+    console_text_inst.scroll_bottom = console_text_inst.console_rows - 1;
 
     addr = nullptr;
     size = 0;
