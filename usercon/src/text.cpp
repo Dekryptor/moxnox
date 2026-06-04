@@ -69,6 +69,7 @@ struct console_text {
     void erase_in_line(unsigned int param) const;
     void erase_in_display(unsigned int param) const;
     void delete_chars(unsigned int num);
+    void erase_chars(unsigned int) { }
 
     // FIXME - would need atexit
     // ~console_text() {

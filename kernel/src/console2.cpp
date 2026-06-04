@@ -222,6 +222,7 @@ struct console_fb {
     void erase_in_line(unsigned int param);
     void erase_in_display(unsigned int param);
     void delete_chars(unsigned int) { }
+    void erase_chars(unsigned int) { }
 
     unsigned int cursor_x, cursor_y;
     unsigned int console_rows, console_cols;
@@ -245,6 +246,7 @@ struct console_text {
     void erase_in_line(unsigned int param) const;
     void erase_in_display(unsigned int param) const;
     void delete_chars(unsigned int) { }
+    void erase_chars(unsigned int) { }
 
     unsigned int cursor_x, cursor_y;
     unsigned int console_rows, console_cols;
