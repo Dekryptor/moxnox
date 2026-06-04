@@ -1554,9 +1554,22 @@ void console_fb::erase_in_line(unsigned int param) {
         }
 
         case 1: { // clear from beginning of line to cursor
-            auto newlen = cursor_x + (curline->len - text_pos);
+            auto newlen = cursor_x + (text_pos < curline->len ? curline->len - text_pos : 1);
             char32_t* t = nullptr;
             text_attribute* a = nullptr;
+
+            font_info* def_font;
+            if (bold && italic)
+                def_font = &bold_italic_font;
+            else if (bold)
+                def_font = &bold_font;
+            else if (italic)
+                def_font = &italic_font;
+            else
+                def_font = &normal_font;
+
+            auto def_fg = !reverse_video ? fg_colour : bg_colour;
+            auto def_bg = !reverse_video ? bg_colour : fg_colour;
 
             if (newlen > 0) {
                 t = (char32_t*)malloc(newlen * sizeof(char32_t));
@@ -1575,9 +1588,15 @@ void console_fb::erase_in_line(unsigned int param) {
                 for (unsigned int i = 0; i <= cursor_x; i++) {
                     t[i] = U' ';
 
-                    a[i].font = curline->atts[i].font;
-                    a[i].fg_colour = curline->atts[i].fg_colour;
-                    a[i].bg_colour = curline->atts[i].bg_colour;
+                    if (curline->atts && i < curline->len) {
+                        a[i].font = curline->atts[i].font;
+                        a[i].fg_colour = curline->atts[i].fg_colour;
+                        a[i].bg_colour = curline->atts[i].bg_colour;
+                    } else {
+                        a[i].font = def_font;
+                        a[i].fg_colour = def_fg;
+                        a[i].bg_colour = def_bg;
+                    }
                 }
 
                 if (text_pos < curline->len) {
