@@ -1510,6 +1510,11 @@ void console_fb::erase_in_line(unsigned int param) {
 
             curline->num_cells = min(cursor_x, curline->num_cells);
 
+            for (unsigned int i = cursor_x; i < console_cols; i++) {
+                curline->cells[i].bg_colour = !reverse_video ? bg_colour : fg_colour;
+                curline->cells[i].fg_colour = !reverse_video ? fg_colour : bg_colour;
+            }
+
             break;
         }
 
@@ -1606,6 +1611,11 @@ void console_fb::erase_in_line(unsigned int param) {
             curline->atts = nullptr;
             curline->len = 0;
             curline->num_cells = 0;
+
+            for (unsigned int i = 0; i < console_cols; i++) {
+                curline->cells[i].bg_colour = !reverse_video ? bg_colour : fg_colour;
+                curline->cells[i].fg_colour = !reverse_video ? fg_colour : bg_colour;
+            }
 
             break;
         }
