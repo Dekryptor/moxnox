@@ -1233,6 +1233,11 @@ static void print_chars2(console_fb& con, font_info& font,
         if (hb_len_done == len)
             break;
 
+        if (!con.auto_wrap) {
+            final_cursor_x = console_fb_inst.console_cols - 1;
+            break;
+        }
+
         auto trunc = curlen + info[hb_len_done].cluster;
         char32_t* t = nullptr;
         text_attribute* a = nullptr;
