@@ -70,7 +70,7 @@ struct console_text {
     void erase_in_display(unsigned int param) const;
     void delete_chars(unsigned int num);
     void erase_chars(unsigned int num);
-    void insert_chars(unsigned int num) { }
+    void insert_chars(unsigned int num);
 
     // FIXME - would need atexit
     // ~console_text() {
@@ -410,6 +410,24 @@ void console_text::erase_chars(unsigned int num) {
 
     if (num > console_cols - cursor_x)
         num = console_cols - cursor_x;
+
+    for (unsigned int x = cursor_x; x < cursor_x + num; x++) {
+        text_console_putc((uint8_t)x, (uint8_t)cursor_y, ' ',
+                          bg_colour_text, fg_colour_text);
+    }
+}
+
+void console_text::insert_chars(unsigned int num) {
+    if (cursor_x >= console_cols)
+        return;
+
+    if (num > console_cols - cursor_x)
+        num = console_cols - cursor_x;
+
+    auto* row = &text_console[cursor_y * console_cols];
+
+    memmove(&row[cursor_x + num], &row[cursor_x],
+            (console_cols - cursor_x - num) * sizeof(uint16_t));
 
     for (unsigned int x = cursor_x; x < cursor_x + num; x++) {
         text_console_putc((uint8_t)x, (uint8_t)cursor_y, ' ',
