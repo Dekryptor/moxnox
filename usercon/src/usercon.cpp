@@ -200,7 +200,7 @@ void do_print(string_view s) {
 }
 
 void console_fb::console_overflow(unsigned int rows) {
-    auto line_size = offsetof(console_line, cells) * (sizeof(console_cell) * console_fb_inst.console_cols);
+    auto line_size = offsetof(console_line, cells) + (sizeof(console_cell) * console_fb_inst.console_cols);
 
     for (unsigned int i = 0; i < rows; i++) {
         auto nextline = (console_line*)malloc(line_size);
@@ -392,7 +392,7 @@ void console_fb::cursor_changed() {
 }
 
 void console_fb::scroll_down(unsigned int rows) {
-    auto line_size = offsetof(console_line, cells) * (sizeof(console_cell) * console_fb_inst.console_cols);
+    auto line_size = offsetof(console_line, cells) + (sizeof(console_cell) * console_fb_inst.console_cols);
 
     while (rows > 0) {
         auto firstline = (console_line*)malloc(line_size);
@@ -511,7 +511,7 @@ static bool init_font(span<const uint8_t> buf, font_info& font,
         console_fb_inst.console_cols = fb_info.width / font_width;
         console_fb_inst.console_rows = fb_info.height / font_height;
 
-        auto line_size = offsetof(console_line, cells) * (sizeof(console_cell) * console_fb_inst.console_cols);
+        auto line_size = offsetof(console_line, cells) + (sizeof(console_cell) * console_fb_inst.console_cols);
 
         curline = (console_line*)malloc(line_size);
         if (!curline) {
@@ -1312,7 +1312,7 @@ void console_fb::print_chars(span<const char32_t> s) {
                 console_overflow();
                 cursor_y = console_rows - 1;
             } else if (cursor_y >= num_lines) {
-                auto line_size = offsetof(console_line, cells) * (sizeof(console_cell) * console_cols);
+                auto line_size = offsetof(console_line, cells) + (sizeof(console_cell) * console_cols);
 
                 auto nextline = (console_line*)malloc(line_size);
                 if (!nextline) {
