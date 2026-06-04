@@ -304,12 +304,27 @@ void console_text::print_chars(span<const char32_t> s) {
 }
 
 void console_text::scroll_down(unsigned int rows) {
-    memmove(&text_console[console_cols * rows], text_console.data(),
-            (console_rows - rows) * console_cols * sizeof(uint16_t));
+    auto region_size = scroll_bottom - scroll_top + 1;
 
-    for (uint8_t y = 0; y < rows; y++) {
-        for (uint8_t x = 0; x < console_cols; x++) {
-            text_console_putc(x, y, ' ', bg_colour_text, fg_colour_text);
+    if (rows >= region_size) {
+        for (unsigned int y = scroll_top; y <= scroll_bottom; y++) {
+            for (unsigned int x = 0; x < console_cols; x++) {
+                text_console_putc((uint8_t)x, (uint8_t)y, ' ',
+                                  bg_colour_text, fg_colour_text);
+            }
+        }
+
+        return;
+    }
+
+    memmove(&text_console[(scroll_top + rows) * console_cols],
+            &text_console[scroll_top * console_cols],
+            (region_size - rows) * console_cols * sizeof(uint16_t));
+
+    for (unsigned int y = scroll_top; y < scroll_top + rows; y++) {
+        for (unsigned int x = 0; x < console_cols; x++) {
+            text_console_putc((uint8_t)x, (uint8_t)y, ' ',
+                              bg_colour_text, fg_colour_text);
         }
     }
 }
