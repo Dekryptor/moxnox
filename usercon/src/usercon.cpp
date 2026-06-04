@@ -380,16 +380,17 @@ void console_fb::cursor_changed() {
 }
 
 void console_fb::scroll_down(unsigned int rows) {
-    rows = min(console_rows, rows);
+    rows = min(scroll_bottom - scroll_top + 1, rows);
 
     for (unsigned int i = 0; i < rows; i++) {
-        auto* recycled = lines[console_rows - 1];
-        memmove(&lines[1], &lines[0], console_rows * sizeof(console_line*));
-        lines[0] = recycled;
+        auto* recycled = lines[scroll_bottom];
+        memmove(&lines[scroll_top + 1], &lines[scroll_top],
+                (scroll_bottom - scroll_top) * sizeof(console_line*));
+        lines[scroll_top] = recycled;
         reset_line(*recycled);
     }
 
-    for (unsigned int i = 0; i < console_rows; i++) {
+    for (unsigned int i = scroll_top; i <= scroll_bottom; i++) {
         lines[i]->changed = true;
     }
 
