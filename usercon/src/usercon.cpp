@@ -142,6 +142,7 @@ struct console_fb {
     unsigned int console_rows, console_cols;
     unsigned int scroll_top = 0, scroll_bottom;
     bool decckm = false;
+    bool auto_wrap = true;
     bool show_cursor = true;
 };
 
