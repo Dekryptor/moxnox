@@ -1552,6 +1552,8 @@ void console_fb::erase_in_line(unsigned int param) {
                 curline->len = text_pos;
             }
 
+            curline->num_cells = min(cursor_x, curline->num_cells);
+
             break;
         }
 
@@ -1619,6 +1621,21 @@ void console_fb::erase_in_line(unsigned int param) {
             curline->atts = a;
             curline->len = newlen;
 
+            {
+                auto space_glyph = FT_Get_Char_Index(def_font->face, U' ');
+
+                for (unsigned int i = 0; i <= cursor_x; i++) {
+                    curline->cells[i].pos = {};
+                    curline->cells[i].glyph = space_glyph;
+                    curline->cells[i].font = def_font;
+                    curline->cells[i].ignore = false;
+                    curline->cells[i].fg_colour = def_fg;
+                    curline->cells[i].bg_colour = def_bg;
+                }
+            }
+
+            curline->num_cells = max(cursor_x + 1, curline->num_cells);
+
             break;
         }
 
@@ -1632,12 +1649,13 @@ void console_fb::erase_in_line(unsigned int param) {
             curline->text = nullptr;
             curline->atts = nullptr;
             curline->len = 0;
+            curline->num_cells = 0;
 
             break;
         }
     }
 
-    redo_line(*curline);
+    curline->changed = true;
 }
 
 void console_fb::erase_in_display(unsigned int param) {
