@@ -631,6 +631,31 @@ void set_scroll_region(vt100_console auto& t, string_view s) {
     t.cursor_changed();
 }
 
+void terminal_reset(vt100_console auto& t) {
+    esc_state = esc_state::normal;
+    utf8_chars = 0;
+    escape_buffer_len = 0;
+    using_acs = false;
+    last_char = 0;
+    saved_cursor_x = 0;
+    saved_cursor_y = 0;
+    saved_using_acs = false;
+
+    t.exit_alt_screen();
+
+    t.decckm = false;
+    t.auto_wrap = true;
+    t.insert_mode = false;
+    t.scroll_top = 0;
+    t.scroll_bottom = t.console_rows - 1;
+    t.cursor_x = 0;
+    t.cursor_y = 0;
+
+    t.handle_sgr_part_num(0);
+    t.erase_in_display(2);
+    t.cursor_changed();
+}
+
 void reverse_index(vt100_console auto& t) {
     if (t.cursor_y == t.scroll_top)
         t.scroll_down(1);
@@ -816,6 +841,11 @@ export void do_print(vt100_console auto& t, string_view s) {
 
                     case 'M':
                         reverse_index(t);
+                        s = string_view(s.data() + 1, s.size() - 1);
+                        break;
+
+                    case 'c': // RIS
+                        terminal_reset(t);
                         s = string_view(s.data() + 1, s.size() - 1);
                         break;
 
