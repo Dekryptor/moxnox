@@ -47,7 +47,7 @@
 #define USE_FUNC_POLL       1
 
 /* Signals */
-#define HAVE_SIGACTION      0
+#define HAVE_SIGACTION      1
 #define HAVE_SIGVEC         0
 #define NCURSES_SIGWINCH    0
 
