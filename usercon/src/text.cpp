@@ -83,6 +83,9 @@ struct console_text {
     unsigned int cursor_x = 0, cursor_y = 0;
     unsigned int console_rows, console_cols;
     unsigned int scroll_top = 0, scroll_bottom;
+    void enter_alt_screen() { }
+    void exit_alt_screen() { }
+
     bool decckm = false;
     bool auto_wrap = true;
     bool insert_mode = false;

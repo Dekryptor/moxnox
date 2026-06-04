@@ -226,6 +226,8 @@ struct console_fb {
     void insert_chars(unsigned int) { }
     void insert_lines(unsigned int) { }
     void delete_lines(unsigned int) { }
+    void enter_alt_screen() { }
+    void exit_alt_screen() { }
 
     unsigned int cursor_x, cursor_y;
     unsigned int console_rows, console_cols;
@@ -256,6 +258,8 @@ struct console_text {
     void insert_chars(unsigned int) { }
     void insert_lines(unsigned int) { }
     void delete_lines(unsigned int) { }
+    void enter_alt_screen() { }
+    void exit_alt_screen() { }
 
     unsigned int cursor_x, cursor_y;
     unsigned int console_rows, console_cols;

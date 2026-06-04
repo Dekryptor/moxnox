@@ -53,6 +53,8 @@ concept vt100_console = requires(T t) {
     { t.insert_chars((unsigned int)0) } -> same_as<void>;
     { t.insert_lines((unsigned int)0) } -> same_as<void>;
     { t.delete_lines((unsigned int)0) } -> same_as<void>;
+    { t.enter_alt_screen() } -> same_as<void>;
+    { t.exit_alt_screen() } -> same_as<void>;
 };
 
 const char32_t ACS_CODES_START = 0x5f;
@@ -743,6 +745,10 @@ void handle_escape_sequence(vt100_console auto& t, string_view s) {
             t.auto_wrap = true;
         else if (s == "?7l")
             t.auto_wrap = false;
+        else if (s == "?1049h")
+            t.enter_alt_screen();
+        else if (s == "?1049l")
+            t.exit_alt_screen();
         else if (s == "4h")
             t.insert_mode = true;
         else if (s == "4l")

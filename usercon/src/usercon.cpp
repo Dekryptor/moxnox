@@ -137,6 +137,8 @@ struct console_fb {
     void insert_chars(unsigned int num);
     void insert_lines(unsigned int num);
     void delete_lines(unsigned int num);
+    void enter_alt_screen() { }
+    void exit_alt_screen() { }
 
     unsigned int cursor_x, cursor_y;
     unsigned int console_rows, console_cols;
