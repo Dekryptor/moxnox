@@ -135,7 +135,7 @@ struct console_fb {
     void delete_chars(unsigned int num);
     void erase_chars(unsigned int num);
     void insert_chars(unsigned int num);
-    void insert_lines(unsigned int) { }
+    void insert_lines(unsigned int num);
     void delete_lines(unsigned int) { }
 
     unsigned int cursor_x, cursor_y;
@@ -1763,6 +1763,23 @@ void console_fb::insert_chars(unsigned int num) {
     }
 
     curline->changed = true;
+}
+
+void console_fb::insert_lines(unsigned int num) {
+    num = min(num, scroll_bottom - cursor_y + 1);
+
+    for (unsigned int i = 0; i < num; i++) {
+        auto* recycled = lines[scroll_bottom];
+        memmove(&lines[cursor_y + 1], &lines[cursor_y],
+                (scroll_bottom - cursor_y) * sizeof(console_line*));
+        lines[cursor_y] = recycled;
+        reset_line(*recycled);
+    }
+
+    for (unsigned int i = cursor_y; i <= scroll_bottom; i++)
+        lines[i]->changed = true;
+
+    curline = lines[cursor_y];
 }
 
 static void recv_data_fb(string_view s) {
