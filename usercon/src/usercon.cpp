@@ -220,20 +220,21 @@ static void reset_line(console_line& line) {
 }
 
 void console_fb::console_overflow(unsigned int rows) {
-    rows = min(rows, console_rows);
+    rows = min(rows, scroll_bottom - scroll_top + 1);
 
     for (unsigned int i = 0; i < rows; i++) {
-        auto* recycled = lines[0];
-        memmove(&lines[0], &lines[1], console_rows * sizeof(console_line*));
-        lines[console_rows - 1] = recycled;
+        auto* recycled = lines[scroll_top];
+        memmove(&lines[scroll_top], &lines[scroll_top + 1],
+                (scroll_bottom - scroll_top) * sizeof(console_line*));
+        lines[scroll_bottom] = recycled;
         reset_line(*recycled);
     }
 
-    for (unsigned int i = 0; i < console_rows; i++) {
+    for (unsigned int i = scroll_top; i <= scroll_bottom; i++) {
         lines[i]->changed = true;
     }
 
-    curline = lines[console_rows - 1];
+    curline = lines[scroll_bottom];
 }
 
 static void recalc_colours(bool fg) {
@@ -1279,9 +1280,9 @@ void console_fb::print_chars(span<const char32_t> s) {
         } else if (s[0] == '\n') {
             cursor_y++;
 
-            if (cursor_y == console_rows) {
+            if (cursor_y == scroll_bottom + 1) {
                 console_overflow();
-                cursor_y = console_rows - 1;
+                cursor_y = scroll_bottom;
             } else
                 curline = lines[cursor_y];
 
