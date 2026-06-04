@@ -294,13 +294,16 @@ void console_text::print_chars(span<const char32_t> s) {
             cursor_x++;
 
             if (cursor_x == console_cols) {
-                cursor_x = 0;
-                cursor_y++;
+                if (auto_wrap) {
+                    cursor_x = 0;
+                    cursor_y++;
 
-                if (cursor_y == console_rows) {
-                    console_overflow();
-                    cursor_y = console_rows - 1;
-                }
+                    if (cursor_y == console_rows) {
+                        console_overflow();
+                        cursor_y = console_rows - 1;
+                    }
+                } else
+                    cursor_x = console_cols - 1;
             }
         }
     }
