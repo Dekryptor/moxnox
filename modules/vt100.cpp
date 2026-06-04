@@ -350,10 +350,6 @@ void scroll_up(vt100_console auto& t, string_view s) {
         rows = t.console_rows;
 
     t.console_overflow(rows);
-
-    t.cursor_y += rows;
-    if (t.cursor_y >= t.console_rows)
-        t.cursor_y = t.console_rows - 1;
 }
 
 void set_cursor_position(vt100_console auto& t, string_view s) {
