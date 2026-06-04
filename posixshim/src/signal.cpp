@@ -48,6 +48,14 @@ int sigaddset(sigset_t* set, int signum) {
 }
 
 extern "C"
+int sigismember(const sigset_t* set, int signo) {
+    if (signo == 0 || signo > LAST_SIG)
+        return 0;
+
+    return (*set & (sigset_t)1 << (signo - 1)) ? 1 : 0;
+}
+
+extern "C"
 int sigprocmask(int how, const sigset_t* set, sigset_t* oldset) {
     nt_status status;
 

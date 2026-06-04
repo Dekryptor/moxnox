@@ -96,6 +96,7 @@ int sigaddset(sigset_t* set, int signum);
 int sigprocmask(int how, const sigset_t* set, sigset_t* oldset);
 __sighandler_t signal(int sig, __sighandler_t func);
 int raise(int sig);
+int sigismember(const sigset_t* set, int signo);
 
 #ifdef __cplusplus
 }
