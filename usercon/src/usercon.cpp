@@ -1340,6 +1340,14 @@ void console_fb::print_chars(span<const char32_t> s) {
                 }
             }
 
+            // FIXME - insert mode breaks emoji ZWJs?
+
+            if (insert_mode && sp.size() > 1)
+                sp = sp.subspan(0, 1);
+
+            if (insert_mode)
+                insert_chars(1);
+
             // save emoji state for potential future backtracking
             if (font == &emoji_font) {
                 prev_emoji_cursor_x = cursor_x;
