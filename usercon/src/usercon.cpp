@@ -136,7 +136,7 @@ struct console_fb {
     void erase_in_line(unsigned int param);
     void erase_in_display(unsigned int param);
     void delete_chars(unsigned int num);
-    void erase_chars(unsigned int) { }
+    void erase_chars(unsigned int num);
 
     unsigned int cursor_x, cursor_y;
     unsigned int console_rows, console_cols;
@@ -1723,6 +1723,42 @@ void console_fb::delete_chars(unsigned int num) {
 
     curline->len -= count;
     redo_line(*curline);
+}
+
+void console_fb::erase_chars(unsigned int num) {
+    if (cursor_x >= console_cols || num == 0)
+        return;
+
+    auto end_x = min(cursor_x + num, console_cols);
+
+    font_info* def_font;
+    if (bold && italic)
+        def_font = &bold_italic_font;
+    else if (bold)
+        def_font = &bold_font;
+    else if (italic)
+        def_font = &italic_font;
+    else
+        def_font = &normal_font;
+
+    auto fgc = !reverse_video ? fg_colour : bg_colour;
+    auto bgc = !reverse_video ? bg_colour : fg_colour;
+
+    auto space_glyph = FT_Get_Char_Index(def_font->face, U' ');
+
+    for (unsigned int i = cursor_x; i < end_x; i++) {
+        curline->cells[i].pos = {};
+        curline->cells[i].glyph = space_glyph;
+        curline->cells[i].font = def_font;
+        curline->cells[i].ignore = false;
+        curline->cells[i].fg_colour = fgc;
+        curline->cells[i].bg_colour = bgc;
+    }
+
+    if (end_x > curline->num_cells)
+        curline->num_cells = end_x;
+
+    curline->changed = true;
 }
 
 static void recv_data_fb(string_view s) {
