@@ -129,12 +129,26 @@ static void text_console_putc(uint8_t x, uint8_t y, char32_t cp,
 }
 
 void console_text::console_overflow(unsigned int rows) {
-    memcpy(text_console.data(), &text_console[console_cols * rows],
-           (console_rows - rows) * console_cols * sizeof(uint16_t));
+    auto region_size = scroll_bottom - scroll_top + 1;
 
-    for (uint8_t y = 0; y < rows; y++) {
-        for (uint8_t x = 0; x < console_cols; x++) {
-            text_console_putc(x, (uint8_t)(console_rows - rows + y), ' ',
+    if (rows >= region_size) {
+        for (unsigned int y = scroll_top; y <= scroll_bottom; y++) {
+            for (unsigned int x = 0; x < console_cols; x++) {
+                text_console_putc((uint8_t)x, (uint8_t)y, ' ',
+                                  bg_colour_text, fg_colour_text);
+            }
+        }
+
+        return;
+    }
+
+    memmove(&text_console[scroll_top * console_cols],
+            &text_console[(scroll_top + rows) * console_cols],
+            (region_size - rows) * console_cols * sizeof(uint16_t));
+
+    for (unsigned int y = scroll_bottom - rows + 1; y <= scroll_bottom; y++) {
+        for (unsigned int x = 0; x < console_cols; x++) {
+            text_console_putc((uint8_t)x, (uint8_t)y, ' ',
                               bg_colour_text, fg_colour_text);
         }
     }
@@ -261,9 +275,9 @@ void console_text::print_chars(span<const char32_t> s) {
         else if (c == '\n') {
             cursor_y++;
 
-            if (cursor_y == console_rows) {
+            if (cursor_y == scroll_bottom + 1) {
                 console_overflow();
-                cursor_y = console_rows - 1;
+                cursor_y = scroll_bottom;
             }
         } else if (c == '\b') {
             if (cursor_x > 0)
