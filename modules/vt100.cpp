@@ -571,6 +571,64 @@ void erase_chars(vt100_console auto& t, string_view s) {
     t.erase_chars(num);
 }
 
+void set_scroll_region(vt100_console auto& t, string_view s) {
+    unsigned int top = 1, bottom = t.console_rows;
+
+    if (!s.empty()) {
+        top = 0;
+
+        while (!s.empty()) {
+            if (s.front() == ';')
+                break;
+
+            if (s.front() < '0' || s.front() > '9')
+                return;
+
+            top *= 10;
+            top += (unsigned int)(s.front() - '0');
+
+            s = string_view(s.data() + 1, s.size() - 1);
+        }
+
+        if (!s.empty()) {
+            if (s.front() == ';')
+                s = string_view(s.data() + 1, s.size() - 1);
+
+            if (!s.empty()) {
+                bottom = 0;
+
+                while (!s.empty()) {
+                    if (s.front() < '0' || s.front() > '9')
+                        return;
+
+                    bottom *= 10;
+                    bottom += (unsigned int)(s.front() - '0');
+
+                    s = string_view(s.data() + 1, s.size() - 1);
+                }
+            }
+        }
+    }
+
+    top = min(max((unsigned int)1, top), t.console_rows);
+    bottom = min(max((unsigned int)1, bottom), t.console_rows);
+
+    if (bottom < top)
+        bottom = top;
+
+    t.scroll_top = top - 1;
+    t.scroll_bottom = bottom - 1;
+
+    // old position
+    t.cursor_changed();
+
+    t.cursor_x = 0;
+    t.cursor_y = 0;
+
+    // new position
+    t.cursor_changed();
+}
+
 void handle_escape_sequence(vt100_console auto& t, string_view s) {
     if (s.size() >= 3 && s[0] == 0x1b && s[1] == '[') {
         s = string_view(s.data() + 2, s.size() - 2);
@@ -597,6 +655,8 @@ void handle_escape_sequence(vt100_console auto& t, string_view s) {
             delete_chars(t, string_view(s.data(), s.size() - 1));
         else if (s.back() == 'X')
             erase_chars(t, string_view(s.data(), s.size() - 1));
+        else if (s.back() == 'r')
+            set_scroll_region(t, string_view(s.data(), s.size() - 1));
         else if (s == "?25h") {
             t.enable_cursor(true);
             t.cursor_changed();
