@@ -71,6 +71,7 @@ struct console_text {
     void delete_chars(unsigned int num);
     void erase_chars(unsigned int num);
     void insert_chars(unsigned int num);
+    void insert_lines(unsigned int) { }
 
     // FIXME - would need atexit
     // ~console_text() {
