@@ -85,6 +85,7 @@ struct console_text {
     unsigned int scroll_top = 0, scroll_bottom;
     bool decckm = false;
     bool auto_wrap = true;
+    bool insert_mode = false;
     bool cursor_enabled = true;
     HANDLE section = 0;
 };

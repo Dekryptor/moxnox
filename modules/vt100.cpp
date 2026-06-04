@@ -38,6 +38,7 @@ concept vt100_console = requires(T t) {
     requires unsigned_integral<decltype(t.scroll_bottom)>;
     requires same_as<decltype(t.decckm), bool>;
     requires same_as<decltype(t.auto_wrap), bool>;
+    requires same_as<decltype(t.insert_mode), bool>;
     { t.console_overflow((unsigned int)0) } -> same_as<void>;
     { t.scroll_down((unsigned int)0) } -> same_as<void>;
     { t.handle_sgr_part_num((unsigned int)0) } -> same_as<void>;
@@ -742,6 +743,10 @@ void handle_escape_sequence(vt100_console auto& t, string_view s) {
             t.auto_wrap = true;
         else if (s == "?7l")
             t.auto_wrap = false;
+        else if (s == "4h")
+            t.insert_mode = true;
+        else if (s == "4l")
+            t.insert_mode = false;
     }
 }
 
