@@ -629,6 +629,20 @@ void set_scroll_region(vt100_console auto& t, string_view s) {
     t.cursor_changed();
 }
 
+void reverse_index(vt100_console auto& t) {
+    if (t.cursor_y == t.scroll_top)
+        t.scroll_down(1);
+    else {
+        // old position
+        t.cursor_changed();
+
+        t.cursor_y--;
+
+        // new position
+        t.cursor_changed();
+    }
+}
+
 void handle_escape_sequence(vt100_console auto& t, string_view s) {
     if (s.size() >= 3 && s[0] == 0x1b && s[1] == '[') {
         s = string_view(s.data() + 2, s.size() - 2);
@@ -725,6 +739,11 @@ export void do_print(vt100_console auto& t, string_view s) {
                     case '>': // DECKPNM
                         // FIXME - support application keypad mode
                         esc_state = esc_state::normal;
+                        s = string_view(s.data() + 1, s.size() - 1);
+                        break;
+
+                    case 'M':
+                        reverse_index(t);
                         s = string_view(s.data() + 1, s.size() - 1);
                         break;
 
