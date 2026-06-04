@@ -46,6 +46,7 @@ concept vt100_console = requires(T t) {
     { t.erase_in_display((unsigned int)0) } -> same_as<void>;
     { t.delete_chars((unsigned int)0) } -> same_as<void>;
     { t.erase_chars((unsigned int)0) } -> same_as<void>;
+    { t.insert_chars((unsigned int)0) } -> same_as<void>;
 };
 
 const char32_t ACS_CODES_START = 0x5f;
@@ -526,6 +527,27 @@ void delete_chars(vt100_console auto& t, string_view s) {
     t.delete_chars(num);
 }
 
+void insert_chars(vt100_console auto& t, string_view s) {
+    unsigned int num = 1;
+
+    if (!s.empty()) {
+        num = 0;
+
+        for (auto c : s) {
+            if (c < '0' || c > '9')
+                return;
+
+            num *= 10;
+            num += (unsigned int)(c - '0');
+        }
+
+        if (num == 0)
+            return;
+    }
+
+    t.insert_chars(num);
+}
+
 void erase_chars(vt100_console auto& t, string_view s) {
     unsigned int num = 1;
 
@@ -567,6 +589,8 @@ void handle_escape_sequence(vt100_console auto& t, string_view s) {
             set_cursor_position(t, string_view(s.data(), s.size() - 1));
         else if (s.back() == 'b')
             do_repeat(t, string_view(s.data(), s.size() - 1));
+        else if (s.back() == '@')
+            insert_chars(t, string_view(s.data(), s.size() - 1));
         else if (s.back() == 'P')
             delete_chars(t, string_view(s.data(), s.size() - 1));
         else if (s.back() == 'X')
