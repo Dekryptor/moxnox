@@ -4,6 +4,7 @@ module;
 #include <span>
 #include <string_view>
 #include <string.h>
+#include <stdlib.h>
 
 export module text;
 
@@ -73,18 +74,24 @@ struct console_text {
     void insert_chars(unsigned int num);
     void insert_lines(unsigned int num);
     void delete_lines(unsigned int num);
+    void enter_alt_screen();
+    void exit_alt_screen();
 
     // FIXME - would need atexit
     // ~console_text() {
     //     if (section != 0)
     //         NtClose(section);
+    //
+    //     if (normal_text_backup)
+    //         free(normal_text_backup);
     // }
 
     unsigned int cursor_x = 0, cursor_y = 0;
     unsigned int console_rows, console_cols;
     unsigned int scroll_top = 0, scroll_bottom;
-    void enter_alt_screen() { }
-    void exit_alt_screen() { }
+    unsigned int normal_cursor_x = 0, normal_cursor_y = 0;
+    unsigned int normal_scroll_top = 0, normal_scroll_bottom = 0;
+    uint16_t* normal_text_backup = nullptr;
 
     bool decckm = false;
     bool auto_wrap = true;
@@ -512,6 +519,54 @@ void console_text::delete_lines(unsigned int num) {
                               bg_colour_text, fg_colour_text);
         }
     }
+}
+
+void console_text::enter_alt_screen() {
+    if (normal_text_backup)
+        return;
+
+    normal_text_backup = (uint16_t*)malloc(console_rows * console_cols * sizeof(uint16_t));
+    if (!normal_text_backup)
+        return;
+
+    memcpy(normal_text_backup, text_console.data(),
+           console_rows * console_cols * sizeof(uint16_t));
+
+    normal_cursor_x = cursor_x;
+    normal_cursor_y = cursor_y;
+    normal_scroll_top = scroll_top;
+    normal_scroll_bottom = scroll_bottom;
+
+    for (unsigned int i = 0; i < console_rows * console_cols; i++) {
+        text_console[i] = text_console_val(' ', bg_colour_text, fg_colour_text);
+    }
+
+    cursor_x = 0;
+    cursor_y = 0;
+    scroll_top = 0;
+    scroll_bottom = console_rows - 1;
+
+    flush_text_console();
+    move_cursor();
+}
+
+void console_text::exit_alt_screen() {
+    if (!normal_text_backup)
+        return;
+
+    memcpy(text_console.data(), normal_text_backup,
+           console_rows * console_cols * sizeof(uint16_t));
+
+    free(normal_text_backup);
+    normal_text_backup = nullptr;
+
+    cursor_x = normal_cursor_x;
+    cursor_y = normal_cursor_y;
+    scroll_top = normal_scroll_top;
+    scroll_bottom = normal_scroll_bottom;
+
+    flush_text_console();
+    move_cursor();
 }
 
 void console_text::delete_chars(unsigned int num) {
