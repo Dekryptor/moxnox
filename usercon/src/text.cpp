@@ -71,7 +71,7 @@ struct console_text {
     void delete_chars(unsigned int num);
     void erase_chars(unsigned int num);
     void insert_chars(unsigned int num);
-    void insert_lines(unsigned int) { }
+    void insert_lines(unsigned int num);
     void delete_lines(unsigned int) { }
 
     // FIXME - would need atexit
@@ -464,6 +464,24 @@ void console_text::insert_chars(unsigned int num) {
     for (unsigned int x = cursor_x; x < cursor_x + num; x++) {
         text_console_putc((uint8_t)x, (uint8_t)cursor_y, ' ',
                           bg_colour_text, fg_colour_text);
+    }
+}
+
+void console_text::insert_lines(unsigned int num) {
+    auto region_size = scroll_bottom - cursor_y + 1;
+
+    if (num > region_size)
+        num = region_size;
+
+    memmove(&text_console[(cursor_y + num) * console_cols],
+            &text_console[cursor_y * console_cols],
+            (region_size - num) * console_cols * sizeof(uint16_t));
+
+    for (unsigned int y = cursor_y; y < cursor_y + num; y++) {
+        for (unsigned int x = 0; x < console_cols; x++) {
+            text_console_putc((uint8_t)x, (uint8_t)y, ' ',
+                              bg_colour_text, fg_colour_text);
+        }
     }
 }
 
