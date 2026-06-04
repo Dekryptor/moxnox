@@ -289,6 +289,9 @@ void console_text::print_chars(span<const char32_t> s) {
         } else if (c == '\a') {
             // FIXME - handle bell
         } else {
+            if (insert_mode)
+                insert_chars(1);
+
             text_console_putc((uint8_t)cursor_x, (uint8_t)cursor_y, c,
                               bg_colour_text, fg_colour_text);
 
