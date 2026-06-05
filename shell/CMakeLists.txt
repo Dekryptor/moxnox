@@ -202,6 +202,19 @@ install(TARGETS crt-test DESTINATION ${CMAKE_INSTALL_PREFIX}/bin COMPONENT core)
 
 ###
 
+add_executable(regex-test src/regex-test.cpp)
+
+target_compile_options(regex-test PRIVATE -fno-exceptions ${USERSPACE_CFLAGS})
+target_link_libraries(regex-test posixshim)
+
+if (CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
+    target_link_options(regex-test PUBLIC -mcrtdll=ucrtbase)
+endif()
+
+install(TARGETS regex-test DESTINATION ${CMAKE_INSTALL_PREFIX}/bin COMPONENT core)
+
+###
+
 add_executable(ps src/ps.cpp)
 
 target_compile_options(ps PRIVATE -fno-exceptions ${USERSPACE_CFLAGS})
