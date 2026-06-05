@@ -147,6 +147,8 @@ struct console_fb {
     unsigned int scroll_top = 0, scroll_bottom;
     unsigned int normal_cursor_x = 0, normal_cursor_y = 0;
     unsigned int normal_scroll_top = 0, normal_scroll_bottom = 0;
+    bool* tab_stops;
+    unsigned int tab_stops_count;
     bool decckm = false;
     bool auto_wrap = true;
     bool insert_mode = false;
@@ -154,7 +156,7 @@ struct console_fb {
     bool show_cursor = true;
 };
 
-static_assert(vt100_console<console_fb>);
+static_assert(vt100_console_with_tab_stops<console_fb>);
 
 static console_fb console_fb_inst;
 
@@ -484,6 +486,20 @@ static bool init_font(span<const uint8_t> buf, font_info& font,
         console_fb_inst.console_rows = fb_info.height / font_height;
         console_fb_inst.scroll_bottom = console_fb_inst.console_rows - 1;
 
+        console_fb_inst.tab_stops = (bool*)malloc(console_fb_inst.console_cols * sizeof(bool));
+        if (!console_fb_inst.tab_stops) {
+            print("malloc failed\n");
+            FT_Done_Face(font.face);
+            FT_Done_FreeType(ft);
+            return false;
+        }
+
+        console_fb_inst.tab_stops_count = console_fb_inst.console_cols;
+
+        for (unsigned int i = 0; i < console_fb_inst.console_cols; i++) {
+            console_fb_inst.tab_stops[i] = i > 0 && i % 8 == 0;
+        }
+
         auto line_size = offsetof(console_line, cells) + (sizeof(console_cell) * console_fb_inst.console_cols);
 
         auto rows = console_fb_inst.console_rows;
@@ -491,6 +507,7 @@ static bool init_font(span<const uint8_t> buf, font_info& font,
         normal_lines = (console_line**)malloc(rows * sizeof(console_line*));
         if (!normal_lines) {
             print("malloc failed\n");
+            free(console_fb_inst.tab_stops);
             FT_Done_Face(font.face);
             FT_Done_FreeType(ft);
             return false;
@@ -499,6 +516,7 @@ static bool init_font(span<const uint8_t> buf, font_info& font,
         alt_lines = (console_line**)malloc(rows * sizeof(console_line*));
         if (!alt_lines) {
             print("malloc failed\n");
+            free(console_fb_inst.tab_stops);
             free(normal_lines);
             FT_Done_Face(font.face);
             FT_Done_FreeType(ft);
@@ -514,6 +532,7 @@ static bool init_font(span<const uint8_t> buf, font_info& font,
                     free(normal_lines[j]);
                 }
 
+                free(console_fb_inst.tab_stops);
                 free(normal_lines);
                 free(alt_lines);
 
@@ -545,6 +564,7 @@ static bool init_font(span<const uint8_t> buf, font_info& font,
                     free(alt_lines[j]);
                 }
 
+                free(console_fb_inst.tab_stops);
                 free(normal_lines);
                 free(alt_lines);
 

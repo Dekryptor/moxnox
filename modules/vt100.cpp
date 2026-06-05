@@ -57,6 +57,13 @@ concept vt100_console = requires(T t) {
     { t.exit_alt_screen() } -> same_as<void>;
 };
 
+export template<typename T>
+concept vt100_console_with_tab_stops = requires(T& t) {
+    requires vt100_console<T>;
+    requires same_as<decltype(t.tab_stops), bool*>;
+    requires unsigned_integral<decltype(t.tab_stops_count)>;
+};
+
 const char32_t ACS_CODES_START = 0x5f;
 
 const array<char32_t, 32> acs_codes = {

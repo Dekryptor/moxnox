@@ -84,6 +84,8 @@ struct console_text {
     //
     //     if (normal_text_backup)
     //         free(normal_text_backup);
+    //
+    //     free(tab_stops);
     // }
 
     unsigned int cursor_x = 0, cursor_y = 0;
@@ -92,6 +94,8 @@ struct console_text {
     unsigned int normal_cursor_x = 0, normal_cursor_y = 0;
     unsigned int normal_scroll_top = 0, normal_scroll_bottom = 0;
     uint16_t* normal_text_backup = nullptr;
+    bool* tab_stops;
+    unsigned int tab_stops_count;
 
     bool decckm = false;
     bool auto_wrap = true;
@@ -100,7 +104,7 @@ struct console_text {
     HANDLE section = 0;
 };
 
-static_assert(vt100_console<console_text>);
+static_assert(vt100_console_with_tab_stops<console_text>);
 
 export console_text console_text_inst;
 
@@ -642,6 +646,19 @@ export span<uint16_t> init_text_console() {
     // FIXME - unmap this at end of program
 
     console_text_inst.section = sect;
+
+    console_text_inst.tab_stops = (bool*)malloc(console_text_inst.console_cols * sizeof(bool));
+    if (!console_text_inst.tab_stops) {
+        print("malloc failed\n");
+        NtClose(sect);
+        return {};
+    }
+
+    console_text_inst.tab_stops_count = console_text_inst.console_cols;
+
+    for (unsigned int i = 0; i < console_text_inst.console_cols; i++) {
+        console_text_inst.tab_stops[i] = i > 0 && i % 8 == 0;
+    }
 
     return span((uint16_t*)addr, size / sizeof(uint16_t));
 }
