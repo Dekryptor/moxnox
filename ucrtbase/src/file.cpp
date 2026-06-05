@@ -1358,11 +1358,51 @@ int _read(int fd, void* buffer, size_t count) {
 }
 
 extern "C"
-int _access(const char* path, int mode) {
-    print_stderr("FIXME - _access({}, {})\n", path ? path : "", mode);
+int _access(const char* path, int /*mode*/) {
+    auto peb = NtCurrentTeb()->ProcessEnvironmentBlock;
+    OBJECT_ATTRIBUTES oa;
+    UNICODE_STRING us;
+    IO_STATUS_BLOCK iosb;
+    HANDLE h;
+    nt_status status;
 
-    *__errno() = EINVAL;
-    return -1;
+    if (!path || path[0] == 0) {
+        *__errno() = EINVAL;
+        return -1;
+    }
+
+    auto sv = string_view(path);
+    auto u16len = utf8_to_utf16_len(sv);
+
+    auto u16pathname = (char16_t*)malloc(u16len * sizeof(char16_t));
+    if (!u16pathname) {
+        *__errno() = ENOMEM;
+        return -1;
+    }
+
+    utf8_to_utf16(span(u16pathname, u16len), sv);
+
+    us.Length = us.MaximumLength = (uint16_t)(u16len * sizeof(char16_t));
+    us.Buffer = u16pathname;
+
+    memset(&oa, 0, sizeof(oa));
+    oa.Length = sizeof(OBJECT_ATTRIBUTES);
+    oa.ObjectName = &us;
+    oa.RootDirectory = peb->ProcessParameters->CurrentDirectory.Handle;
+
+    // FIXME - translate mode into access mask
+    status = NtCreateFile(&h, FILE_READ_DATA, &oa, &iosb, nullptr,
+                          FILE_ATTRIBUTE_NORMAL, FILE_SHARE_READ, FILE_OPEN,
+                          0, nullptr, 0);
+    if (!success(status)) {
+        free(u16pathname);
+        *__errno() = nt_status_to_errno(status);
+        return -1;
+    }
+
+    free(u16pathname);
+
+    return 0;
 }
 
 extern "C"
