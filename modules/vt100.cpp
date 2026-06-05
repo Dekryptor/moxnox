@@ -6,6 +6,7 @@ module;
 #include <span>
 #include <array>
 #include <type_traits>
+#include <algorithm>
 
 export module vt100;
 
