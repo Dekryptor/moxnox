@@ -360,6 +360,38 @@ void move_cursor(vt100_console auto& t, string_view s) {
     t.cursor_changed();
 }
 
+void cursor_backward_tab(vt100_console_with_tab_stops auto& t, string_view s) {
+    unsigned int n = 0;
+
+    if (!s.empty()) {
+        for (auto c : s) {
+            if (c < '0' || c > '9')
+                break;
+
+            n *= 10;
+            n += (unsigned int)(c - '0');
+        }
+    }
+
+    if (n == 0)
+        n = 1;
+
+    for (unsigned int i = 0; i < n; i++) {
+        if (t.cursor_x == 0)
+            break;
+
+        unsigned int x = t.cursor_x - 1;
+
+        while (x > 0 && !t.tab_stops[x]) {
+            x--;
+        }
+
+        t.cursor_x = x;
+    }
+
+    t.cursor_changed();
+}
+
 void scroll_up(vt100_console auto& t, string_view s) {
     unsigned int rows = 1;
 
@@ -780,7 +812,10 @@ void handle_escape_sequence(vt100_console auto& t, string_view s) {
             insert_lines(t, string_view(s.data(), s.size() - 1));
         else if (s.back() == 'M')
             delete_lines(t, string_view(s.data(), s.size() - 1));
-        else if (s.back() == 'r')
+        else if (s.back() == 'Z') {
+            if constexpr (vt100_console_with_tab_stops<remove_reference_t<decltype(t)>>)
+                cursor_backward_tab(t, string_view(s.data(), s.size() - 1));
+        } else if (s.back() == 'r')
             set_scroll_region(t, string_view(s.data(), s.size() - 1));
         else if (s == "?25h") {
             t.enable_cursor(true);
