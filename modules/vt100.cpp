@@ -392,6 +392,27 @@ void cursor_backward_tab(vt100_console_with_tab_stops auto& t, string_view s) {
     t.cursor_changed();
 }
 
+void clear_all_tabs(vt100_console_with_tab_stops auto& t, string_view s) {
+    unsigned int param = 0;
+
+    for (auto c : s) {
+        if (c < '0' || c > '9')
+            break;
+
+        param *= 10;
+        param += (unsigned int)(c - '0');
+    }
+
+    if (param == 3) {
+        for (unsigned int i = 0; i < t.tab_stops_count; i++) {
+            t.tab_stops[i] = false;
+        }
+    } else {
+        if (t.cursor_x < t.tab_stops_count)
+            t.tab_stops[t.cursor_x] = false;
+    }
+}
+
 void scroll_up(vt100_console auto& t, string_view s) {
     unsigned int rows = 1;
 
@@ -815,6 +836,9 @@ void handle_escape_sequence(vt100_console auto& t, string_view s) {
         else if (s.back() == 'Z') {
             if constexpr (vt100_console_with_tab_stops<remove_reference_t<decltype(t)>>)
                 cursor_backward_tab(t, string_view(s.data(), s.size() - 1));
+        } else if (s.back() == 'g') {
+            if constexpr (vt100_console_with_tab_stops<remove_reference_t<decltype(t)>>)
+                clear_all_tabs(t, string_view(s.data(), s.size() - 1));
         } else if (s.back() == 'r')
             set_scroll_region(t, string_view(s.data(), s.size() - 1));
         else if (s == "?25h") {
