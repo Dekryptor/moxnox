@@ -43,3 +43,6 @@
 [submodule "ports/readline/repo"]
 	path = ports/readline/repo
 	url = https://git.burntcomma.com/moxnox/readline
+[submodule "ports/tre/repo"]
+	path = ports/tre/repo
+	url = https://git.burntcomma.com/moxnox/tre

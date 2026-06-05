@@ -6,6 +6,7 @@ typedef int regoff_t;
 
 typedef struct {
     size_t re_nsub;
+    void *value;
 } regex_t;
 
 typedef struct {
