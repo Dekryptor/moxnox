@@ -242,3 +242,5 @@ _pclose
 mbstowcs
 _fullpath
 _creat
+wcsncpy
+wcsrtombs
