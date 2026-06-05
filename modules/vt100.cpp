@@ -5,6 +5,7 @@ module;
 #include <string_view>
 #include <span>
 #include <array>
+#include <type_traits>
 
 export module vt100;
 
@@ -215,6 +216,24 @@ void do_print2(vt100_console auto& t, span<const char> s) {
         } else if (c & 0x80) {
             sp[0] = 0xfffd;
             sp = span(sp.data() + 1, sp.size() - 1);
+        } else if (c == '\t') {
+            auto filled = (sizeof(buf) / sizeof(buf[0])) - sp.size();
+
+            if (filled > 0) {
+                print_chars(t, span(buf, filled));
+                sp = span(buf, sizeof(buf) / sizeof(buf[0]));
+            }
+
+            if constexpr (vt100_console_with_tab_stops<remove_reference_t<decltype(t)>>) {
+                auto new_x = t.cursor_x + 1;
+
+                while (new_x < t.console_cols && !t.tab_stops[new_x]) {
+                    new_x++;
+                }
+
+                t.cursor_x = min(new_x, t.console_cols - 1);
+                t.cursor_changed();
+            }
         } else {
             if (using_acs && (char32_t)c >= ACS_CODES_START && (char32_t)c < ACS_CODES_START + acs_codes.size())
                 sp[0] = acs_codes[(char32_t)c - ACS_CODES_START];
