@@ -188,6 +188,7 @@ _getpid
 rename
 _unlink
 raise
+mn_sigaction
 
 ; stubs
 __setusermatherr
@@ -241,4 +242,3 @@ _pclose
 mbstowcs
 _fullpath
 _creat
-mn_sigaction
