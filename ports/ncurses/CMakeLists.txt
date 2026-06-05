@@ -560,6 +560,25 @@ install(TARGETS tinfo ncurses form menu panel
     ARCHIVE EXCLUDE_FROM_ALL
 )
 
+# clear
+
+add_executable(clear
+    repo/progs/clear.c
+    repo/progs/clear_cmd.c
+    repo/progs/tty_settings.c
+)
+
+target_compile_options(clear PRIVATE ${USERSPACE_CFLAGS})
+target_compile_definitions(clear PRIVATE WIN_PTHREADS_TIME_H _UCRT)
+target_include_directories(clear PRIVATE repo/include repo/ncurses repo/progs ${CMAKE_CURRENT_SOURCE_DIR})
+target_link_libraries(clear PRIVATE moxnox ncurses posixshim)
+
+if (CMAKE_C_COMPILER_ID STREQUAL "GNU")
+    target_link_options(clear PUBLIC -mcrtdll=ucrtbase)
+endif()
+
+install(TARGETS clear DESTINATION ${CMAKE_INSTALL_PREFIX}/bin)
+
 # tset / reset
 
 add_executable(tset
