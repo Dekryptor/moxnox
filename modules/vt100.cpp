@@ -730,6 +730,12 @@ void terminal_reset(vt100_console auto& t) {
     t.cursor_x = 0;
     t.cursor_y = 0;
 
+    if constexpr (vt100_console_with_tab_stops<remove_reference_t<decltype(t)>>) {
+        for (unsigned int i = 0; i < t.tab_stops_count; i++) {
+            t.tab_stops[i] = i > 0 && i % 8 == 0;
+        }
+    }
+
     t.handle_sgr_part_num(0);
     t.erase_in_display(2);
     t.cursor_changed();
