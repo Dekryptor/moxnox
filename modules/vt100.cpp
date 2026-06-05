@@ -741,6 +741,19 @@ void terminal_reset(vt100_console auto& t) {
     t.cursor_changed();
 }
 
+void next_line(vt100_console auto& t) {
+    t.cursor_changed();
+
+    t.cursor_x = 0;
+
+    if (t.cursor_y == t.scroll_bottom)
+        t.console_overflow(1);
+    else
+        t.cursor_y++;
+
+    t.cursor_changed();
+}
+
 void reverse_index(vt100_console auto& t) {
     if (t.cursor_y == t.scroll_top)
         t.scroll_down(1);
@@ -927,6 +940,11 @@ export void do_print(vt100_console auto& t, string_view s) {
                     case '>': // DECKPNM
                         // FIXME - support application keypad mode
                         esc_state = esc_state::normal;
+                        s = string_view(s.data() + 1, s.size() - 1);
+                        break;
+
+                    case 'E':
+                        next_line(t);
                         s = string_view(s.data() + 1, s.size() - 1);
                         break;
 
