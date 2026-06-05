@@ -935,6 +935,14 @@ export void do_print(vt100_console auto& t, string_view s) {
                         s = string_view(s.data() + 1, s.size() - 1);
                         break;
 
+                    case 'H': // horizontal tab set
+                        if constexpr (vt100_console_with_tab_stops<remove_reference_t<decltype(t)>>) {
+                            if (t.cursor_x < t.tab_stops_count)
+                                t.tab_stops[t.cursor_x] = true;
+                        }
+                        s = string_view(s.data() + 1, s.size() - 1);
+                        break;
+
                     case 'c': // RIS
                         terminal_reset(t);
                         s = string_view(s.data() + 1, s.size() - 1);
