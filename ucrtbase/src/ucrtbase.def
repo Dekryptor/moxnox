@@ -221,3 +221,4 @@ wcsncpy
 wcsrtombs = _wcsrtombs
 _sopen
 mbtowc = _mbtowc
+strtok = _strtok

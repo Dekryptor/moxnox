@@ -193,6 +193,7 @@ wcsncpy
 wcsrtombs
 _sopen
 mbtowc
+strtok
 
 ; stubs
 __setusermatherr
@@ -229,7 +230,6 @@ _umask
 _lseek
 _dup
 _rmdir
-strtok
 _pipe
 _dup2
 _execvp

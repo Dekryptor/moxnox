@@ -250,3 +250,51 @@ extern "C"
 unsigned long strtoul(const char* nptr, char** endptr, int base) {
     return strto<unsigned long>(nptr, endptr, base);
 }
+
+extern "C"
+char* _strtok(char* str, const char* delim) {
+    static char* s;
+
+    if (str)
+        s = str;
+
+    auto delimlen = strlen(delim);
+
+    // skip leading delimiters
+
+    while (true) {
+        if (s[0] == 0)
+            return nullptr;
+
+        bool found = false;
+        for (size_t i = 0; i < delimlen; i++) {
+            if (s[0] == delim[i]) {
+                found = true;
+                break;
+            }
+        }
+
+        if (!found)
+            break;
+
+        s++;
+    }
+
+    auto ret = s;
+
+    while (true) {
+        if (s[0] == 0)
+            return ret;
+
+        for (size_t i = 0; i < delimlen; i++) {
+            if (s[0] == delim[i]) {
+                s[0] = 0;
+                s++;
+
+                return ret;
+            }
+        }
+
+        s++;
+    }
+}
