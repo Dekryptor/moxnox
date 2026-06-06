@@ -5,6 +5,17 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 enable_language(ASM)
 
+add_library(musl_glob STATIC
+    ../ports/musl/repo/src/regex/fnmatch.c
+    ../ports/musl/repo/src/regex/glob.c
+    ../ports/musl/repo/src/string/strchrnul.c
+)
+
+target_include_directories(musl_glob PRIVATE glob_compat)
+target_compile_options(musl_glob PRIVATE -include ${CMAKE_CURRENT_SOURCE_DIR}/glob_compat/glob_compat.h)
+
+target_link_libraries(musl_glob PRIVATE posixshim)
+
 add_library(tre STATIC
     ../ports/tre/repo/lib/regcomp.c
     ../ports/tre/repo/lib/regexec.c
@@ -41,4 +52,4 @@ target_compile_options(posixshim PRIVATE -fno-exceptions ${USERSPACE_CFLAGS})
 
 target_link_libraries(posixshim PRIVATE print errno termios unicode unique_handle)
 target_link_libraries(posixshim PRIVATE moxnox)
-target_link_libraries(posixshim PRIVATE tre)
+target_link_libraries(posixshim PRIVATE musl_glob tre)

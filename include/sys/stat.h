@@ -1,5 +1,7 @@
 #pragma once
 
+#include <sys/types.h>
+
 #define NO_OLDNAMES
 #include <direct.h>
 #include <io.h>
