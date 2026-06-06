@@ -154,7 +154,7 @@ int ____mb_cur_max_func() {
 }
 
 extern "C"
-size_t wcsrtombs(char* dest, const wchar_t** src, size_t dsize, mbstate_t* ps) {
+size_t _wcsrtombs(char* dest, const wchar_t** src, size_t dsize, mbstate_t* ps) {
     size_t total = 0;
 
     while (true) {
