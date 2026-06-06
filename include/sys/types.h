@@ -3,4 +3,5 @@
 #include_next <sys/types.h>
 
 typedef unsigned int uid_t;
+typedef unsigned int gid_t;
 typedef long long ssize_t;
