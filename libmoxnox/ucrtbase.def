@@ -195,6 +195,7 @@ _sopen
 mbtowc
 strtok
 _dup2
+_dup
 
 ; stubs
 __setusermatherr
@@ -229,7 +230,6 @@ atof
 _wcsnicmp
 _umask
 _lseek
-_dup
 _rmdir
 _pipe
 _execvp

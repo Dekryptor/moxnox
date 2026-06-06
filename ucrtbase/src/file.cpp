@@ -1720,3 +1720,48 @@ int _dup2(int oldfd, int newfd) {
 
     return newfd;
 }
+
+extern "C"
+int _dup(int oldfd) {
+    if (oldfd < 0 || (size_t)oldfd >= fds.size()) {
+        *__errno() = EBADF;
+        return -1;
+    }
+
+    RtlEnterCriticalSection(&fds_lock);
+
+    auto oldh = fds[(size_t)oldfd];
+
+    if (!oldh) {
+        RtlLeaveCriticalSection(&fds_lock);
+        *__errno() = EBADF;
+        return -1;
+    }
+
+    HANDLE newh;
+
+    auto status = NtDuplicateObject(NtCurrentProcess(), oldh, NtCurrentProcess(),
+                                    &newh, 0, 0,
+                                    DUPLICATE_SAME_ATTRIBUTES | DUPLICATE_SAME_ACCESS);
+    if (!success(status)) {
+        RtlLeaveCriticalSection(&fds_lock);
+        *__errno() = nt_status_to_errno(status);
+        return -1;
+    }
+
+    for (size_t i = 0; i < fds.size(); i++) {
+        if (fds[i] == 0) {
+            fds[i] = newh;
+            RtlLeaveCriticalSection(&fds_lock);
+            return (int)i;
+        }
+    }
+
+    RtlLeaveCriticalSection(&fds_lock);
+
+    NtClose(newh);
+
+    *__errno() = EMFILE;
+
+    return -1;
+}
