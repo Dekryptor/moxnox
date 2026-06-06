@@ -119,10 +119,24 @@ size_t _wcrtomb(char* s, wchar_t wc, mbstate_t* /*ps*/) {
         return 1;
     }
 
-    // FIXME - proper UTF-16 handling
+    if (wc < 0x800) {
+        s[0] = (char)(0xc0 | (wc >> 6));
+        s[1] = (char)(0x80 | (wc & 0x3f));
 
-    *__errno() = EILSEQ;
-    return (size_t)-1;
+        return 2;
+    }
+
+    // FIXME?
+    if (wc >= 0xd800 && wc <= 0xdfff) {
+        *__errno() = EILSEQ;
+        return (size_t)-1;
+    }
+
+    s[0] = (char)(0xe0 | (wc >> 12));
+    s[1] = (char)(0x80 | ((wc >> 6) & 0x3f));
+    s[2] = (char)(0x80 | (wc & 0x3f));
+
+    return 3;
 }
 
 extern "C"
