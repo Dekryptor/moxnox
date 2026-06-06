@@ -102,6 +102,13 @@ dirent* readdir(DIR* dir) {
 
     de.d_ino = 0; // FIXME!
 
+    if (fdi.FileAttributes & FILE_ATTRIBUTE_REPARSE_POINT)
+        de.d_type = DT_LNK;
+    else if (fdi.FileAttributes & FILE_ATTRIBUTE_DIRECTORY)
+        de.d_type = DT_DIR;
+    else
+        de.d_type = DT_REG;
+
     utf16_to_utf8(span(de.d_name, sizeof(de.d_name) - 1), u16sv);
 
     if (u16len < sizeof(de.d_name))
