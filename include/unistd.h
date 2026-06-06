@@ -28,6 +28,7 @@ int execvp(const char* file, char* const argv[]);
 int execve(const char* file, char* const argv[], char* const envp[]);
 int execlp(const char* file, const char* arg, ...);
 int execl(const char* path, const char* arg, ...);
+int getentropy(void *buf, size_t buflen);
 
 #ifdef __cplusplus
 }
