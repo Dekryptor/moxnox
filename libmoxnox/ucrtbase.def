@@ -191,6 +191,7 @@ raise
 mn_sigaction
 wcsncpy
 wcsrtombs
+_sopen
 
 ; stubs
 __setusermatherr
@@ -230,7 +231,6 @@ _rmdir
 strtok
 _pipe
 _dup2
-_sopen
 _execvp
 _execv
 _execl

@@ -219,3 +219,4 @@ raise
 mn_sigaction
 wcsncpy
 wcsrtombs
+_sopen

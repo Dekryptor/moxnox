@@ -1179,6 +1179,28 @@ int _open(const char* path, int flags, ...) {
         return open2(path, flags, 0);
 }
 
+static int sopen2(const char* path, int oflags, int /*shflags*/, int pmode) {
+    // FIXME - shflags
+
+    return open2(path, oflags, pmode);
+}
+
+extern "C"
+int _sopen(const char* path, int oflags, int shflags, ...) {
+    va_list ap;
+
+    if (oflags & _O_CREAT) {
+        int pmode;
+
+        va_start(ap, shflags);
+        pmode = va_arg(ap, int);
+        va_end(ap);
+
+        return sopen2(path, oflags, shflags, pmode);
+    } else
+        return sopen2(path, oflags, shflags, 0);
+}
+
 extern "C"
 FILE* __fdopen(int fd, const char* /*mode*/) {
     HANDLE h;
