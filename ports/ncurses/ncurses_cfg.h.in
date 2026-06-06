@@ -39,6 +39,8 @@
 /* Terminal control */
 #define HAVE_CFMAKERAW      0
 #define HAVE_TCGETATTR      1
+#define HAVE_TCGETWINSIZE   1
+#define HAVE_SIZECHANGE     1
 
 /* I/O multiplexing */
 #define HAVE_POLL           1

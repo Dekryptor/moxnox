@@ -247,6 +247,16 @@ add_custom_command(
     VERBATIM
 )
 
+add_custom_command(
+    OUTPUT ${GEN}/lib_setup.c ${GEN}/reset_cmd.c
+    COMMAND sh -c "cp '${CMAKE_CURRENT_SOURCE_DIR}/repo/ncurses/tinfo/lib_setup.c' '${GEN}/lib_setup.c' && cp '${CMAKE_CURRENT_SOURCE_DIR}/repo/progs/reset_cmd.c' '${GEN}/reset_cmd.c' && patch -p0 -d '${GEN}' < '${CMAKE_CURRENT_SOURCE_DIR}/tcgetwinsize.patch'"
+    DEPENDS
+        repo/ncurses/tinfo/lib_setup.c
+        repo/progs/reset_cmd.c
+        tcgetwinsize.patch
+    VERBATIM
+)
+
 # tinfo shared library
 
 add_library(tinfo SHARED
@@ -278,7 +288,7 @@ add_library(tinfo SHARED
     repo/ncurses/tinfo/lib_napms.c
     repo/ncurses/tinfo/lib_options.c
     repo/ncurses/tinfo/lib_raw.c
-    repo/ncurses/tinfo/lib_setup.c
+    ${GEN}/lib_setup.c
     repo/ncurses/tinfo/lib_termcap.c
     repo/ncurses/tinfo/lib_termname.c
     repo/ncurses/tinfo/lib_tgoto.c
@@ -583,7 +593,7 @@ install(TARGETS clear DESTINATION ${CMAKE_INSTALL_PREFIX}/bin)
 
 add_executable(tset
     repo/progs/tset.c
-    repo/progs/reset_cmd.c
+    ${GEN}/reset_cmd.c
     repo/progs/transform.c
     repo/progs/tty_settings.c
 )

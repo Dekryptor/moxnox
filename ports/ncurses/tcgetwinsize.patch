@@ -1,0 +1,97 @@
+--- lib_setup.c
++++ lib_setup.c
+@@ -81,18 +81,20 @@
+  * SCO defines TIOCGSIZE and the corresponding struct.  Other systems (SunOS,
+  * Solaris, IRIX) define TIOCGWINSZ and struct winsize.
+  */
+-#ifdef TIOCGSIZE
++#if HAVE_TCGETWINSIZE
++# define STRUCT_WINSIZE struct winsize
++# define WINSIZE_ROWS(n) (int)n.ws_row
++# define WINSIZE_COLS(n) (int)n.ws_col
++#elif defined(TIOCGSIZE)
+ # define IOCTL_WINSIZE TIOCGSIZE
+ # define STRUCT_WINSIZE struct ttysize
+ # define WINSIZE_ROWS(n) (int)n.ts_lines
+ # define WINSIZE_COLS(n) (int)n.ts_cols
+-#else
+-# ifdef TIOCGWINSZ
+-#  define IOCTL_WINSIZE TIOCGWINSZ
+-#  define STRUCT_WINSIZE struct winsize
+-#  define WINSIZE_ROWS(n) (int)n.ws_row
+-#  define WINSIZE_COLS(n) (int)n.ws_col
+-# endif
++#elif defined(TIOCGWINSZ)
++# define IOCTL_WINSIZE TIOCGWINSZ
++# define STRUCT_WINSIZE struct winsize
++# define WINSIZE_ROWS(n) (int)n.ws_row
++# define WINSIZE_COLS(n) (int)n.ws_col
+ #endif
+ 
+ /*
+@@ -532,7 +534,11 @@
+ 
+ 	    errno = 0;
+ 	    do {
++#if HAVE_TCGETWINSIZE
++		if (tcgetwinsize(cur_term->Filedes, &size) >= 0) {
++#else
+ 		if (ioctl(cur_term->Filedes, IOCTL_WINSIZE, &size) >= 0) {
++#endif
+ 		    *linep = ((sp != NULL && sp->_filtered)
+ 			      ? 1
+ 			      : WINSIZE_ROWS(size));
+--- reset_cmd.c
++++ reset_cmd.c
+@@ -59,20 +59,22 @@
+  * SCO defines TIOCGSIZE and the corresponding struct.  Other systems (SunOS,
+  * Solaris, IRIX) define TIOCGWINSZ and struct winsize.
+  */
+-#ifdef TIOCGSIZE
++#if HAVE_TCGETWINSIZE
++# define STRUCT_WINSIZE struct winsize
++# define WINSIZE_ROWS(n) n.ws_row
++# define WINSIZE_COLS(n) n.ws_col
++#elif defined(TIOCGSIZE)
+ # define IOCTL_GET_WINSIZE TIOCGSIZE
+ # define IOCTL_SET_WINSIZE TIOCSSIZE
+ # define STRUCT_WINSIZE struct ttysize
+ # define WINSIZE_ROWS(n) n.ts_lines
+ # define WINSIZE_COLS(n) n.ts_cols
+-#else
+-# ifdef TIOCGWINSZ
+-#  define IOCTL_GET_WINSIZE TIOCGWINSZ
+-#  define IOCTL_SET_WINSIZE TIOCSWINSZ
+-#  define STRUCT_WINSIZE struct winsize
+-#  define WINSIZE_ROWS(n) n.ws_row
+-#  define WINSIZE_COLS(n) n.ws_col
+-# endif
++#elif defined(TIOCGWINSZ)
++# define IOCTL_GET_WINSIZE TIOCGWINSZ
++# define IOCTL_SET_WINSIZE TIOCSWINSZ
++# define STRUCT_WINSIZE struct winsize
++# define WINSIZE_ROWS(n) n.ws_row
++# define WINSIZE_COLS(n) n.ws_col
+ #endif
+ 
+ #define set_flags(target, mask)    target |= mask
+@@ -680,13 +682,19 @@
+ set_window_size(int fd, NCURSES_INT2 *high, NCURSES_INT2 *wide)
+ {
+     STRUCT_WINSIZE win;
++#if HAVE_TCGETWINSIZE
++    (void) tcgetwinsize(fd, &win);
++#else
+     (void) ioctl(fd, IOCTL_GET_WINSIZE, &win);
++#endif
+     if (WINSIZE_ROWS(win) == 0 &&
+ 	WINSIZE_COLS(win) == 0) {
+ 	if (*high > 0 && *wide > 0) {
+ 	    WINSIZE_ROWS(win) = (unsigned short) *high;
+ 	    WINSIZE_COLS(win) = (unsigned short) *wide;
++#if !HAVE_TCGETWINSIZE
+ 	    (void) ioctl(fd, IOCTL_SET_WINSIZE, &win);
++#endif
+ 	}
+     } else if (WINSIZE_ROWS(win) > 0 &&
+ 	       WINSIZE_COLS(win) > 0) {
