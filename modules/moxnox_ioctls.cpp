@@ -167,7 +167,12 @@ export struct MOXNOX_IOCTL_FB_MOVE_CURSOR {
     uint16_t y;
 };
 
-export struct MOXNOX_IOCTL_PTYCTL_CREATE_PTY {
+export struct MOXNOX_IOCTL_PTYCTL_CREATE_PTY_IN {
+    uint16_t cols;
+    uint16_t rows;
+};
+
+export struct MOXNOX_IOCTL_PTYCTL_CREATE_PTY_OUT {
     HANDLE server_handle;
     HANDLE client_handle;
 };

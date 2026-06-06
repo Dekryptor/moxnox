@@ -120,7 +120,8 @@ static optional<pair<unique_handle, unique_handle>> create_pty(HANDLE out) {
     IO_STATUS_BLOCK iosb;
     HANDLE h;
     nt_status status;
-    MOXNOX_IOCTL_PTYCTL_CREATE_PTY ptyinfo;
+    MOXNOX_IOCTL_PTYCTL_CREATE_PTY_IN ptyparams;
+    MOXNOX_IOCTL_PTYCTL_CREATE_PTY_OUT ptyinfo;
     unique_handle ptyctl;
 
     static const u16string_view ptyctl_fn = u"/dev/ptyctl";
@@ -144,9 +145,12 @@ static optional<pair<unique_handle, unique_handle>> create_pty(HANDLE out) {
 
     // create pty
 
+    ptyparams.cols = 80;
+    ptyparams.rows = 25;
+
     status = NtDeviceIoControlFile(ptyctl.get(), 0, nullptr, nullptr, &iosb,
-                                   IOCTL_MOXNOX_PTYCTL_CREATE_PTY, nullptr,
-                                   0, &ptyinfo, sizeof(ptyinfo));
+                                   IOCTL_MOXNOX_PTYCTL_CREATE_PTY, &ptyparams,
+                                   sizeof(ptyparams), &ptyinfo, sizeof(ptyinfo));
     if (!success(status)) {
         print_to_handle(out, "IOCTL_MOXNOX_PTYCTL_CREATE_PTY returned {}\n", status);
         return nullopt;

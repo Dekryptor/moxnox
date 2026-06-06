@@ -47,7 +47,7 @@ public:
 
 class pty_client : public chardev {
 public:
-    pty_client(pipe& recv_pipe, pipe& send_pipe);
+    pty_client(pipe& recv_pipe, pipe& send_pipe, uint16_t cols, uint16_t rows);
     ~pty_client();
     nt_status read(span<uint8_t> s, uint64_t& read_bytes) override;
     nt_status write(span<const uint8_t> s, uint64_t& written_bytes) override;
@@ -61,6 +61,8 @@ public:
 
     pipe& recv_pipe;
     pipe& send_pipe;
+    uint16_t cols;
+    uint16_t rows;
     bool disconnected = false;
     termios settings;
 
@@ -157,14 +159,19 @@ export bool create_dev_ptyctl() {
     return true;
 }
 
-static nt_status create_pty(span<uint8_t> outbuf, uintptr_t& written) {
+static nt_status create_pty(span<const uint8_t> inbuf, span<uint8_t> outbuf,
+                            uintptr_t& written) {
     auto& t = *get_current_thread();
     nt_status status;
 
-    if (outbuf.size() < sizeof(MOXNOX_IOCTL_PTYCTL_CREATE_PTY))
+    if (inbuf.size() < sizeof(MOXNOX_IOCTL_PTYCTL_CREATE_PTY_IN))
         return nt_status::INVALID_PARAMETER;
 
-    auto& out = *(MOXNOX_IOCTL_PTYCTL_CREATE_PTY*)outbuf.data();
+    if (outbuf.size() < sizeof(MOXNOX_IOCTL_PTYCTL_CREATE_PTY_OUT))
+        return nt_status::INVALID_PARAMETER;
+
+    auto& in = *(MOXNOX_IOCTL_PTYCTL_CREATE_PTY_IN*)inbuf.data();
+    auto& out = *(MOXNOX_IOCTL_PTYCTL_CREATE_PTY_OUT*)outbuf.data();
 
     auto pptr_recv = new pipe(1);
     if (!pptr_recv) {
@@ -182,7 +189,7 @@ static nt_status create_pty(span<uint8_t> outbuf, uintptr_t& written) {
 
     auto obj2 = object_ref{*pptr_send};
 
-    auto pptr_client = new pty_client(*pptr_recv, *pptr_send);
+    auto pptr_client = new pty_client(*pptr_recv, *pptr_send, in.cols, in.rows);
     if (!pptr_client) {
         print("new failed\n");
         return nt_status::INSUFFICIENT_RESOURCES;
@@ -242,23 +249,26 @@ static nt_status create_pty(span<uint8_t> outbuf, uintptr_t& written) {
     out.server_handle = server_handle;
     out.client_handle = client_handle;
 
-    written = sizeof(MOXNOX_IOCTL_PTYCTL_CREATE_PTY);
+    written = sizeof(MOXNOX_IOCTL_PTYCTL_CREATE_PTY_OUT);
 
     return nt_status::SUCCESS;
 }
 
-nt_status ptyctl::ioctl(uint32_t code, span<const uint8_t>,
+nt_status ptyctl::ioctl(uint32_t code, span<const uint8_t> inbuf,
                         span<uint8_t> outbuf, uintptr_t& written) {
     switch (code) {
         case IOCTL_MOXNOX_PTYCTL_CREATE_PTY:
-            return create_pty(outbuf, written);
+            return create_pty(inbuf, outbuf, written);
 
         default:
             return nt_status::NOT_SUPPORTED;
     }
 }
 
-pty_client::pty_client(pipe& recv_pipe, pipe& send_pipe) : recv_pipe(recv_pipe), send_pipe(send_pipe) {
+pty_client::pty_client(pipe& recv_pipe, pipe& send_pipe, uint16_t cols, uint16_t rows) : recv_pipe(recv_pipe), send_pipe(send_pipe) {
+    this->cols = cols;
+    this->rows = rows;
+
     recv_pipe.acquire();
     send_pipe.acquire();
 }

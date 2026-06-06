@@ -2017,7 +2017,8 @@ static void run_shell(const char16_t* exe, void (*recv_func)(string_view),
     UNICODE_STRING us;
     IO_STATUS_BLOCK iosb;
     NTSTATUS status;
-    MOXNOX_IOCTL_PTYCTL_CREATE_PTY ptyinfo;
+    MOXNOX_IOCTL_PTYCTL_CREATE_PTY_IN ptyparams;
+    MOXNOX_IOCTL_PTYCTL_CREATE_PTY_OUT ptyinfo;
 
     auto kmsg_recv_func = [recv_func](string_view msg) {
         while (!msg.empty()) {
@@ -2074,9 +2075,12 @@ static void run_shell(const char16_t* exe, void (*recv_func)(string_view),
 
     // create pty
 
+    ptyparams.cols = 80; // FIXME
+    ptyparams.rows = 25; // FIXME
+
     status = NtDeviceIoControlFile(ptyctl.get(), 0, nullptr, nullptr, &iosb,
-                                   IOCTL_MOXNOX_PTYCTL_CREATE_PTY, nullptr,
-                                   0, &ptyinfo, sizeof(ptyinfo));
+                                   IOCTL_MOXNOX_PTYCTL_CREATE_PTY, &ptyparams,
+                                   sizeof(ptyparams), &ptyinfo, sizeof(ptyinfo));
     if (!success(status)) {
         print("IOCTL_MOXNOX_PTYCTL_CREATE_PTY returned {}\n", status);
         return;
@@ -2464,7 +2468,8 @@ static int do_serial_console() {
     NTSTATUS status;
     auto teb = NtCurrentTeb();
     auto peb = teb->ProcessEnvironmentBlock;
-    MOXNOX_IOCTL_PTYCTL_CREATE_PTY ptyinfo;
+    MOXNOX_IOCTL_PTYCTL_CREATE_PTY_IN ptyparams;
+    MOXNOX_IOCTL_PTYCTL_CREATE_PTY_OUT ptyinfo;
 
     static const u16string_view ptyctl_fn = u"\\dev\\ptyctl";
     static const char16_t exe[] = u"\\bin\\shell.exe";
@@ -2488,9 +2493,12 @@ static int do_serial_console() {
 
     ptyctl.reset(h);
 
+    ptyparams.cols = 80;
+    ptyparams.rows = 25;
+
     status = NtDeviceIoControlFile(ptyctl.get(), 0, nullptr, nullptr, &iosb,
-                                   IOCTL_MOXNOX_PTYCTL_CREATE_PTY, nullptr,
-                                   0, &ptyinfo, sizeof(ptyinfo));
+                                   IOCTL_MOXNOX_PTYCTL_CREATE_PTY, &ptyparams,
+                                   sizeof(ptyparams), &ptyinfo, sizeof(ptyinfo));
     if (!success(status)) {
         print("IOCTL_MOXNOX_PTYCTL_CREATE_PTY returned {}\n", status);
         return 1;
