@@ -188,6 +188,7 @@ speed_t cfgetispeed(const struct termios* t);
 speed_t cfgetospeed(const struct termios* t);
 int cfsetispeed(struct termios* t, speed_t speed);
 int cfsetospeed(struct termios* t, speed_t speed);
+int tcgetwinsize(int fd, struct winsize* winsize_p);
 
 #ifdef __cplusplus
 }
