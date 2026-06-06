@@ -1252,7 +1252,7 @@ static void print_chars2(console_fb& con, font_info& font,
         unsigned int hb_len_done = 0;
 
         for (unsigned int i = 0; i < len; i++) {
-            if (curline->num_cells == console_fb_inst.console_cols - 1)
+            if (curline->num_cells == console_fb_inst.console_cols)
                 break;
 
             auto clus = hb_clus(s_rem, span(info, len), i);
