@@ -218,3 +218,4 @@ _unlink = __unlink
 raise
 mn_sigaction
 wcsncpy
+wcsrtombs

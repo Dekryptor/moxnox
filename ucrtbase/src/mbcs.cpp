@@ -6,6 +6,7 @@ import print;
 
 #include <stddef.h>
 #include <stdint.h>
+#include <string.h>
 
 extern "C" int* __errno();
 
@@ -136,4 +137,39 @@ int ____mb_cur_max_func() {
     // maximum bytes per code-point for UTF-8
 
     return 4;
+}
+
+extern "C"
+size_t wcsrtombs(char* dest, const wchar_t** src, size_t dsize, mbstate_t* ps) {
+    size_t total = 0;
+
+    while (true) {
+        char buf[4];
+
+        size_t n = _wcrtomb(buf, **src, ps);
+
+        if (n == (size_t)-1)
+            return (size_t)-1;
+
+        if (**src == 0) {
+            if (dest) {
+                *dest = 0;
+                *src = nullptr;
+            }
+
+            return total;
+        }
+
+        if (dest) {
+            if (n > dsize)
+                return total;
+
+            memcpy(dest, buf, n);
+            dest += n;
+            dsize -= n;
+        }
+
+        total += n;
+        (*src)++;
+    }
 }
