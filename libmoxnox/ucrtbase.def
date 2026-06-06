@@ -189,6 +189,7 @@ rename
 _unlink
 raise
 mn_sigaction
+wcsncpy
 
 ; stubs
 __setusermatherr
@@ -242,5 +243,4 @@ _pclose
 mbstowcs
 _fullpath
 _creat
-wcsncpy
 wcsrtombs

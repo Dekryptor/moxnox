@@ -31,3 +31,26 @@ wint_t towupper(wint_t c) {
     else
         return c;
 }
+
+extern "C"
+wchar_t* wcsncpy(wchar_t* dest, const wchar_t* src, size_t n) {
+    auto orig_dest = dest;
+
+    while (n > 0) {
+        if (*src == 0)
+            break;
+
+        *dest = *src;
+        dest++;
+        src++;
+        n--;
+    }
+
+    while (n > 0) {
+        *dest = 0;
+        dest++;
+        n--;
+    }
+
+    return orig_dest;
+}
