@@ -2010,7 +2010,8 @@ static bool set_pty_fg_proc(HANDLE client_handle, HANDLE proc) {
 }
 
 static void run_shell(const char16_t* exe, void (*recv_func)(string_view),
-                      void (*flush_func)(), bool& decckm) {
+                      void (*flush_func)(), bool& decckm, uint16_t cols,
+                      uint16_t rows) {
     HANDLE h;
     unique_handle server_handle, client_handle, proc, kmsg, ptyctl, keyboard_pipe;
     OBJECT_ATTRIBUTES oa;
@@ -2075,8 +2076,8 @@ static void run_shell(const char16_t* exe, void (*recv_func)(string_view),
 
     // create pty
 
-    ptyparams.cols = 80; // FIXME
-    ptyparams.rows = 25; // FIXME
+    ptyparams.cols = cols;
+    ptyparams.rows = rows;
 
     status = NtDeviceIoControlFile(ptyctl.get(), 0, nullptr, nullptr, &iosb,
                                    IOCTL_MOXNOX_PTYCTL_CREATE_PTY, &ptyparams,
@@ -2340,7 +2341,8 @@ static int try_text_console() {
     }
 
     run_shell(u"\\bin\\shell.exe", recv_data_text, flush_text_console,
-              console_text_inst.decckm);
+              console_text_inst.decckm, (uint16_t)console_text_inst.console_cols,
+              (uint16_t)console_text_inst.console_rows);
 
     return 0;
 }
@@ -2430,7 +2432,9 @@ static int do_console() {
     rect(0, 0, fb_info.width, fb_info.height, 0x000000);
     flush_framebuffer();
 
-    run_shell(u"\\bin\\shell.exe", recv_data_fb, flush_framebuffer, console_fb_inst.decckm);
+    run_shell(u"\\bin\\shell.exe", recv_data_fb, flush_framebuffer,
+              console_fb_inst.decckm, (uint16_t)console_fb_inst.console_cols,
+              (uint16_t)console_fb_inst.console_rows);
 
     return 0;
 }
