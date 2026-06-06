@@ -196,13 +196,13 @@ mbtowc
 strtok
 _dup2
 _dup
+rand_s
 
 ; stubs
 __setusermatherr
 _configthreadlocale
 _lseeki64
 strftime
-rand_s
 _wfopen
 ___lc_codepage_func
 _beginthreadex

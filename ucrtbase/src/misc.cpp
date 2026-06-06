@@ -5,7 +5,12 @@
 
 import ucrtbase;
 
+#undef errno
+import errno;
+
 using namespace std;
+
+extern "C" int* __errno();
 
 static uint64_t rand_seed;
 static bool rand_init_done = false;
@@ -52,6 +57,19 @@ int rand() {
 
     // like glibc, top bit always clear
     return (int)((rand_seed >> 16) & 0x7fffffff);
+}
+
+extern "C"
+errno_t rand_s(unsigned int* val) {
+    if (!val) {
+        *__errno() = EINVAL;
+        return EINVAL;
+    }
+
+    // FIXME - should be wrapper round getentropy
+
+    *val = (unsigned int)rand();
+    return 0;
 }
 
 extern "C"

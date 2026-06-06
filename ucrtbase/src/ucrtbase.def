@@ -224,3 +224,4 @@ mbtowc = _mbtowc
 strtok = _strtok
 _dup2
 _dup
+rand_s
