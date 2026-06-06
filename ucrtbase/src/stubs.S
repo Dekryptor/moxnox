@@ -2,7 +2,6 @@
 
 stubs_start
 
-do_stub "_configthreadlocale"
 do_stub "_lseeki64"
 do_stub "_wfopen"
 do_stub "strftime"

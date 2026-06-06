@@ -103,3 +103,10 @@ char* _setlocale(int /*category*/, const char* locale) {
 
     return nullptr;
 }
+
+extern "C"
+int __configthreadlocale(int) {
+    // FIXME
+
+    return 0;
+}

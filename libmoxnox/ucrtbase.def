@@ -198,9 +198,9 @@ _dup2
 _dup
 rand_s
 __setusermatherr
+_configthreadlocale
 
 ; stubs
-_configthreadlocale
 _lseeki64
 strftime
 _wfopen

@@ -226,3 +226,4 @@ _dup2
 _dup
 rand_s
 __setusermatherr = ___setusermatherr
+_configthreadlocale = __configthreadlocale
