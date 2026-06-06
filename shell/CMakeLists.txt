@@ -215,6 +215,19 @@ install(TARGETS regex-test DESTINATION ${CMAKE_INSTALL_PREFIX}/bin COMPONENT cor
 
 ###
 
+add_executable(glob-test src/glob-test.cpp)
+
+target_compile_options(glob-test PRIVATE -fno-exceptions ${USERSPACE_CFLAGS})
+target_link_libraries(glob-test posixshim)
+
+if (CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
+    target_link_options(glob-test PUBLIC -mcrtdll=ucrtbase)
+endif()
+
+install(TARGETS glob-test DESTINATION ${CMAKE_INSTALL_PREFIX}/bin COMPONENT core)
+
+###
+
 add_executable(ps src/ps.cpp)
 
 target_compile_options(ps PRIVATE -fno-exceptions ${USERSPACE_CFLAGS})
