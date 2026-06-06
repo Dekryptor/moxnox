@@ -110,6 +110,23 @@ size_t _mbrtowc(wchar_t* pwc, const char* s, size_t n, mbstate_t* ps) {
 }
 
 extern "C"
+int _mbtowc(wchar_t* pwc, const char* s, size_t n) {
+    static mbstate_t state;
+
+    if (!s) {
+        memset(&state, 0, sizeof(state));
+        return 0;
+    }
+
+    auto ret = _mbrtowc(pwc, s, n, &state);
+
+    if ((ssize_t)ret < 0)
+        return -1;
+    else
+        return (int)ret;
+}
+
+extern "C"
 size_t _wcrtomb(char* s, wchar_t wc, mbstate_t* /*ps*/) {
     if (!s)
         return 1;

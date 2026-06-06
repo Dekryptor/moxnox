@@ -220,3 +220,4 @@ mn_sigaction
 wcsncpy
 wcsrtombs = _wcsrtombs
 _sopen
+mbtowc = _mbtowc
