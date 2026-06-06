@@ -1,5 +1,12 @@
 project(nano VERSION 8.7.1)
 
+add_library(gnulib STATIC
+    ../gnulib/repo/lib/strcasestr.c
+)
+
+target_include_directories(gnulib PRIVATE ../gnulib)
+target_compile_definitions(gnulib PRIVATE HAVE_CONFIG_H)
+
 set(GEN ${CMAKE_CURRENT_BINARY_DIR}/gen)
 file(MAKE_DIRECTORY ${GEN})
 
@@ -40,7 +47,7 @@ target_include_directories(nano PRIVATE
     repo/src
 )
 
-target_link_libraries(nano PRIVATE ncurses posixshim moxnox)
+target_link_libraries(nano PRIVATE ncurses posixshim gnulib moxnox)
 
 install(TARGETS nano DESTINATION ${CMAKE_INSTALL_PREFIX}/bin
     ARCHIVE EXCLUDE_FROM_ALL

@@ -46,3 +46,6 @@
 [submodule "ports/tre/repo"]
 	path = ports/tre/repo
 	url = https://git.burntcomma.com/moxnox/tre
+[submodule "ports/gnulib/repo"]
+	path = ports/gnulib/repo
+	url = https://git.burntcomma.com/moxnox/gnulib
