@@ -37,11 +37,12 @@ jobs:
           path: ${{ env.SHORT_SHA }}
           fetch-depth: 1
 
-      - name: Checkout mingw and musl
+      - name: Checkout mingw musl, and tre
         working-directory: ${{ env.SHORT_SHA }}
         run: |
           git submodule update --init --depth 1 ports/mingw-w64/repo
           git submodule update --init --depth 1 ports/musl/repo
+          git submodule update --init --depth 1 ports/tre/repo
 
       - name: Checkout submodules
         working-directory: ${{ env.SHORT_SHA }}
