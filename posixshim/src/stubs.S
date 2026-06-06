@@ -49,6 +49,5 @@ do_stub_no_export "ttyname"
 do_stub_no_export "getpwnam_r"
 do_stub_no_export "getpwuid_r"
 do_stub_no_export "getentropy"
-do_stub_no_export "tcgetwinsize"
 
 stubs_end

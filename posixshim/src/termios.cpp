@@ -1,4 +1,5 @@
 #include <stdint.h>
+#include <termios.h>
 
 import nt;
 import ucrtbase;
@@ -90,6 +91,29 @@ int tcflush(int fd, int queue_selector) {
         *_errno() = nt_status_to_errno(status);
         return -1;
     }
+
+    return 0;
+}
+
+extern "C"
+int tcgetwinsize(int fd, struct winsize* p) {
+    MOXNOX_IOCTL_PTY_GET_SIZE size;
+    IO_STATUS_BLOCK iosb;
+
+    auto h = (HANDLE)_get_osfhandle(fd);
+    if ((intptr_t)h < 0)
+        return -1;
+
+    auto status = NtDeviceIoControlFile((HANDLE)h, 0, nullptr, nullptr, &iosb,
+                                        IOCTL_MOXNOX_PTY_GET_SIZE, nullptr, 0,
+                                        &size, sizeof(size));
+    if (!success(status)) {
+        *_errno() = nt_status_to_errno(status);
+        return -1;
+    }
+
+    p->ws_col = size.cols;
+    p->ws_row = size.rows;
 
     return 0;
 }
