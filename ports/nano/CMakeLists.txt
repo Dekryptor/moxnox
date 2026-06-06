@@ -2,9 +2,12 @@ project(nano VERSION 8.7.1)
 
 add_library(gnulib STATIC
     ../gnulib/repo/lib/strcasestr.c
+    ../gnulib/repo/lib/mkstemps.c
+    ../gnulib/repo/lib/tempname.c
+    ../gnulib/getrandom.c
 )
 
-target_include_directories(gnulib PRIVATE ../gnulib)
+target_include_directories(gnulib PRIVATE ../gnulib ../gnulib/repo/lib)
 target_compile_definitions(gnulib PRIVATE HAVE_CONFIG_H)
 
 set(GEN ${CMAKE_CURRENT_BINARY_DIR}/gen)
