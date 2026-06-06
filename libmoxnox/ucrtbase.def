@@ -244,3 +244,4 @@ _pclose
 mbstowcs
 _fullpath
 _creat
+mbtowc
