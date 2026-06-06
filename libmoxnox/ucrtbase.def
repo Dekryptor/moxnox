@@ -197,9 +197,9 @@ strtok
 _dup2
 _dup
 rand_s
+__setusermatherr
 
 ; stubs
-__setusermatherr
 _configthreadlocale
 _lseeki64
 strftime

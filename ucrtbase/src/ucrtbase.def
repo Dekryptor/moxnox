@@ -225,3 +225,4 @@ strtok = _strtok
 _dup2
 _dup
 rand_s
+__setusermatherr = ___setusermatherr
