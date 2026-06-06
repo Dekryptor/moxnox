@@ -1677,3 +1677,46 @@ int __unlink(const char* path) {
 
     return 0;
 }
+
+extern "C"
+int _dup2(int oldfd, int newfd) {
+    if (oldfd < 0 || (size_t)oldfd >= fds.size() || newfd < 0 || (size_t)newfd >= fds.size()) {
+        *__errno() = EBADF;
+        return -1;
+    }
+
+    RtlEnterCriticalSection(&fds_lock);
+
+    auto oldh = fds[(size_t)oldfd];
+
+    if (!oldh) {
+        RtlLeaveCriticalSection(&fds_lock);
+        *__errno() = EBADF;
+        return -1;
+    }
+
+    if (oldfd == newfd) {
+        RtlLeaveCriticalSection(&fds_lock);
+        return newfd;
+    }
+
+    HANDLE newh;
+
+    auto status = NtDuplicateObject(NtCurrentProcess(), oldh, NtCurrentProcess(),
+                                    &newh, 0, 0,
+                                    DUPLICATE_SAME_ATTRIBUTES | DUPLICATE_SAME_ACCESS);
+    if (!success(status)) {
+        RtlLeaveCriticalSection(&fds_lock);
+        *__errno() = nt_status_to_errno(status);
+        return -1;
+    }
+
+    if (fds[(size_t)newfd] != 0)
+        NtClose(fds[(size_t)newfd]);
+
+    fds[(size_t)newfd] = newh;
+
+    RtlLeaveCriticalSection(&fds_lock);
+
+    return newfd;
+}

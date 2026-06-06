@@ -194,6 +194,7 @@ wcsrtombs
 _sopen
 mbtowc
 strtok
+_dup2
 
 ; stubs
 __setusermatherr
@@ -231,7 +232,6 @@ _lseek
 _dup
 _rmdir
 _pipe
-_dup2
 _execvp
 _execv
 _execl
