@@ -76,3 +76,10 @@ ssize_t getline(char** lineptr, size_t* pn, FILE* stream) {
 
     return (ssize_t)read;
 }
+
+extern "C"
+int lstat(const char* path, struct stat* statbuf) {
+    // FIXME - symlinks
+
+    return stat(path, statbuf);
+}
