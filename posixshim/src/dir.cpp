@@ -132,3 +132,10 @@ int closedir(DIR* dir) {
 
     return 0;
 }
+
+extern "C"
+void rewinddir(DIR* dir) {
+    auto& d = *reinterpret_cast<_DIR*>(dir);
+
+    d.first = true;
+}
