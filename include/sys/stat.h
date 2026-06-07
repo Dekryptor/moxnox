@@ -13,6 +13,9 @@
 #define S_IFLNK  0120000
 #define S_ISLNK(m) (((m) & 0170000) == S_IFLNK)
 
+#define UTIME_NOW  ((1L << 30) - 1)
+#define UTIME_OMIT ((1L << 30) - 2)
+
 #ifdef __cplusplus
 extern "C" {
 #endif
