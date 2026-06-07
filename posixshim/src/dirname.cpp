@@ -44,6 +44,29 @@ char* dirname(char* path) {
 }
 
 extern "C"
+char* basename(char* path) {
+    if (!path || *path == '\0')
+        return dot;
+
+    size_t len = strlen(path);
+
+    while (len > 1 && path[len - 1] == '/') {
+        len--;
+        path[len] = '\0';
+    }
+
+    if (len == 1 && path[0] == '/')
+        return path;
+
+    char* last_slash = strrchr(path, '/');
+
+    if (!last_slash)
+        return path;
+
+    return last_slash + 1;
+}
+
+extern "C"
 char* realpath(const char* path, char* resolved_path) {
     char tmp[PATH_MAX];
     char* ret;
