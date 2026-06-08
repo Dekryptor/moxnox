@@ -26,6 +26,7 @@ endif()
 
 target_link_libraries(shell print unicode unique_handle list pagesize termios posixshim)
 target_link_libraries(shell format)
+target_link_libraries(shell readline)
 
 install(TARGETS shell DESTINATION ${CMAKE_INSTALL_PREFIX}/bin
     COMPONENT core

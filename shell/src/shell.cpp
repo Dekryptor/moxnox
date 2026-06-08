@@ -1,7 +1,10 @@
 #include <stdint.h>
 #include <stdlib.h>
 #include <string.h>
+#include <stdio.h>
 #include <winerror.h>
+#include <readline/readline.h>
+#include <readline/history.h>
 #include <span>
 #include <charconv>
 #include <chrono>
@@ -24,15 +27,6 @@ import moxnox_ioctls;
 
 #undef errno
 import errno;
-
-static char* buf = nullptr;
-static unsigned int buflen = 0;
-static unsigned int cursor_pos = 0;
-
-static char escape_buffer[50];
-static size_t escape_buffer_len = 0;
-static uint8_t utf8_buf[5];
-static unsigned int utf8_chars = 0;
 
 static HANDLE running_proc = 0;
 
@@ -695,7 +689,7 @@ static void get_prompt() {
     auto u16sv = u16string_view(fni2->FileName, fni2->FileNameLength / sizeof(char16_t));
     auto pwdlen = utf16_to_utf8_len(u16sv);
 
-    auto buf = (char*)malloc(prefix.size() + pwdlen + suffix.size());
+    auto buf = (char*)malloc(prefix.size() + pwdlen + suffix.size() + 1);
     if (!buf) {
         print_stderr("malloc failed\n");
         free(fni2);
@@ -705,6 +699,7 @@ static void get_prompt() {
 
     memcpy(buf, prefix.data(), prefix.size());
     memcpy(&buf[prefix.size() + pwdlen], suffix.data(), suffix.size());
+    buf[prefix.size() + pwdlen + suffix.size()] = 0;
 
     if (prompt_buf)
         free(prompt_buf);
@@ -779,448 +774,6 @@ static void process_line(string_view sv) {
         try_run_program(cmd, sv);
 }
 
-static void process_lines() {
-    for (unsigned int i = cursor_pos; i < buflen; i++) {
-        print("\x1b[C"); // right
-    }
-    print("\n");
-
-    process_line(string_view(buf, buflen));
-
-    free(buf);
-    buf = nullptr;
-
-    buflen = 0;
-
-    cursor_pos = 0;
-}
-
-static void handle_delete() {
-    unsigned int cp_size;
-
-    if (cursor_pos == buflen)
-        return;
-
-    if (!(buf[cursor_pos] & 0x80))
-        cp_size = 1;
-    else if ((buf[cursor_pos] & 0xe0) == 0xc0)
-        cp_size = 2;
-    else if ((buf[cursor_pos] & 0xf0) == 0xe0)
-        cp_size = 3;
-    else if ((buf[cursor_pos] & 0xf8) == 0xf0)
-        cp_size = 4;
-    else
-        return;
-
-    if (cp_size == 0)
-        return;
-
-    memmove(&buf[cursor_pos], &buf[cursor_pos + cp_size],
-            buflen - cursor_pos - cp_size);
-
-    buflen -= cp_size;
-
-    print("\x1b[K"); // erase rest of line
-
-    auto sv = string_view(&buf[cursor_pos], buflen - cursor_pos);
-
-    print("{}", sv);
-
-    for (auto c : sv) {
-        // skip if not start of code point
-        if ((c & 0xc0) == 0x80)
-            continue;
-
-        print("\x1b[D"); // left
-    }
-}
-
-static void handle_escape_sequence(string_view s) {
-    if (s == "\x1b[D") { // left
-        if (cursor_pos == 0)
-            return;
-
-        // find start of UTF-8 sequence
-        while ((buf[cursor_pos - 1] & 0xc0) == 0x80 && cursor_pos >= 2) {
-            cursor_pos--;
-        }
-
-        cursor_pos--;
-        print("\x1b[D");
-    } else if (s == "\x1b[C") { // right
-        if (cursor_pos == buflen)
-            return;
-
-        if (!(buf[cursor_pos] & 0x80))
-            cursor_pos++;
-        else if ((buf[cursor_pos] & 0xe0) == 0xc0 && cursor_pos < buflen - 1)
-            cursor_pos += 2;
-        else if ((buf[cursor_pos] & 0xf0) == 0xe0 && cursor_pos < buflen - 2)
-            cursor_pos += 3;
-        else if ((buf[cursor_pos] & 0xf8) == 0xf0 && cursor_pos < buflen - 3)
-            cursor_pos += 4;
-
-        print("\x1b[C");
-    } else if (s == "\x1b[H") { // home
-        if (cursor_pos == 0)
-            return;
-
-        for (size_t i = 0; i < cursor_pos; i++) {
-            if ((buf[i] & 0xc0) == 0x80)
-                continue;
-
-            print("\x1b[D"); // left
-        }
-
-        cursor_pos = 0;
-    } else if (s == "\x1b[F") { // end
-        for (size_t i = cursor_pos; i < buflen; i++) {
-            if ((buf[i] & 0xc0) == 0x80)
-                continue;
-
-            print("\x1b[C"); // right
-        }
-
-        cursor_pos = buflen;
-    } else if (s == "\x1b[3~") // delete
-        handle_delete();
-}
-
-static void handle_char2(char32_t c) {
-    if (c < 0x20)
-        return;
-
-    unsigned int cp_len = 1;
-
-    if (c < 0x80)
-        cp_len = 1;
-    else if (c < 0x800)
-        cp_len = 2;
-    else if (c < 0x10000)
-        cp_len = 3;
-    else if (c < 0x110000)
-        cp_len = 4;
-    else
-        return;
-
-    memmove(&buf[cursor_pos + cp_len], &buf[cursor_pos], buflen - cursor_pos);
-
-    if (c < 0x80)
-        buf[cursor_pos] = (char)c;
-    else if (c < 0x800) {
-        buf[cursor_pos] = (char)(0xc0 | ((c & 0x7c0) >> 6));
-        buf[cursor_pos + 1] = (char)(0x80 | (c & 0x3f));
-    } else if (c < 0x10000) {
-        buf[cursor_pos] = (char)(0xe0 | ((c & 0xf000) >> 12));
-        buf[cursor_pos + 1] = (char)(0x80 | ((c & 0xfc0) >> 6));
-        buf[cursor_pos + 2] = (char)(0x80 | (c & 0x3f));
-    } else if (c < 0x110000) {
-        buf[cursor_pos] = (char)(0xf0 | ((c & 0xe0000) >> 18));
-        buf[cursor_pos + 1] = (char)(0x80 | ((c & 0x3f000) >> 12));
-        buf[cursor_pos + 2] = (char)(0x80 | ((c & 0xfc0) >> 6));
-        buf[cursor_pos + 3] = (char)(0x80 | (c & 0x3f));
-    }
-
-    buflen += cp_len;
-
-    print("\x1b[K"); // erase rest of line
-    print("{}", string_view(buf + cursor_pos, buflen - cursor_pos));
-
-    cursor_pos += cp_len;
-
-    for (unsigned int i = cursor_pos; i < buflen; i++) {
-        // skip if not start of code point
-        if ((buf[i] & 0xc0) == 0x80)
-            continue;
-
-        print("\x1b[D");
-    }
-}
-
-static void handle_char(char c) {
-    if (utf8_chars != 0) {
-        if (!(c & 0x80) || utf8_chars == sizeof(utf8_buf)) {
-            handle_char2(0xfffd);
-            handle_char2((uint8_t)c);
-            utf8_chars = 0;
-            return;
-        }
-
-        utf8_buf[utf8_chars] = (uint8_t)c;
-        utf8_chars++;
-
-        if ((utf8_buf[0] & 0xe0) == 0xc0 && utf8_chars == 2) {
-            if ((utf8_buf[1] & 0xc0) != 0x80) {
-                handle_char2(0xfffd);
-                utf8_chars = 0;
-                return;
-            }
-
-            auto c = (char32_t)((utf8_buf[0] & 0x1f) << 6) | (char32_t)(utf8_buf[1] & 0x3f);
-
-            handle_char2(c);
-            utf8_chars = 0;
-            return;
-        } else if ((utf8_buf[0] & 0xf0) == 0xe0) {
-            if (utf8_chars == 2) {
-                if ((utf8_buf[1] & 0xc0) != 0x80) {
-                    handle_char2(0xfffd);
-                    utf8_chars = 0;
-                }
-            } else {
-                if ((utf8_buf[2] & 0xc0) != 0x80) {
-                    handle_char2(0xfffd);
-                    utf8_chars = 0;
-                    return;
-                }
-
-                auto c = (char32_t)((utf8_buf[0] & 0xf) << 12) | (char32_t)((utf8_buf[1] & 0x3f) << 6) | (char32_t)(utf8_buf[2] & 0x3f);
-
-                handle_char2(c);
-                utf8_chars = 0;
-            }
-
-            return;
-        } else if ((utf8_buf[0] & 0xf8) == 0xf0) {
-            if (utf8_chars == 2) {
-                if ((utf8_buf[1] & 0xc0) != 0x80) {
-                    handle_char2(0xfffd);
-                    utf8_chars = 0;
-                }
-            } else if (utf8_chars == 3) {
-                if ((utf8_buf[2] & 0xc0) != 0x80) {
-                    handle_char2(0xfffd);
-                    utf8_chars = 0;
-                }
-            } else {
-                if ((utf8_buf[3] & 0xc0) != 0x80) {
-                    handle_char2(0xfffd);
-                    utf8_chars = 0;
-                    return;
-                }
-
-                auto c = (char32_t)((utf8_buf[0] & 0x7) << 18) | (char32_t)((utf8_buf[1] & 0x3f) << 12) | (char32_t)((utf8_buf[2] & 0x3f) << 6) | (char32_t)(utf8_buf[3] & 0x3f);
-
-                handle_char2(c);
-                utf8_chars = 0;
-            }
-
-            return;
-        }
-    }
-
-    if ((c & 0xc0) == 0xc0) { // first character of UTF-8 sequence
-        utf8_buf[0] = (uint8_t)c;
-        utf8_chars = 1;
-        return;
-    } else if (c & 0x80) {
-        handle_char2(0xfffd);
-        return;
-    }
-
-    handle_char2((char32_t)c);
-}
-
-static void handle_backspace() {
-    unsigned int cp_size = 0;
-
-    if (cursor_pos == 0)
-        return;
-
-    if (cursor_pos >= 1 && !(buf[cursor_pos - 1] & 0x80))
-        cp_size = 1;
-    else if (cursor_pos >= 2 && (buf[cursor_pos - 1] & 0xc0) == 0x80) {
-        if ((buf[cursor_pos - 2] & 0xe0) == 0xc0)
-            cp_size = 2;
-        else if (cursor_pos >= 3 && (buf[cursor_pos - 2] & 0xc0) == 0x80) {
-            if ((buf[cursor_pos - 3] & 0xf0) == 0xe0)
-                cp_size = 3;
-            else if (cursor_pos >= 4 && (buf[cursor_pos - 3] & 0xc0) == 0x80 && (buf[cursor_pos - 4] & 0xf8) == 0xf0)
-                cp_size = 4;
-        }
-    }
-
-    if (cp_size == 0)
-        return;
-
-    memmove(&buf[cursor_pos - cp_size], &buf[cursor_pos], buflen - cursor_pos);
-
-    buflen -= cp_size;
-    cursor_pos -= cp_size;
-
-    print("\b");
-    print("\x1b[K"); // erase rest of line
-
-    auto sv = string_view(&buf[cursor_pos], buflen - cursor_pos);
-
-    print("{}", sv);
-
-    for (auto c : sv) {
-        // skip if not start of code point
-        if ((c & 0xc0) == 0x80)
-            continue;
-
-        print("\x1b[D"); // left
-    }
-}
-
-static void handle_input(string_view s) {
-    if (escape_buffer_len != 0) {
-        if (escape_buffer_len == 1 && (s[0] != '[' && s[0] != 'O')) {
-            handle_char(0x1b);
-            escape_buffer_len = 0;
-        } else {
-            if (escape_buffer_len == 1) {
-                escape_buffer[1] = s[0];
-                escape_buffer_len++;
-
-                s = string_view(s.data() + 1, s.size() - 1);
-
-                if (s.empty())
-                    return;
-            }
-
-            if (escape_buffer[1] == '[') {
-                while (!s.empty() && s.front() >= 0x30 && s.front() <= 0x3f) {
-                    if (escape_buffer_len == sizeof(escape_buffer)) {
-                        for (size_t i = 0; i < escape_buffer_len; i++) {
-                            handle_char(escape_buffer[i]);
-                        }
-
-                        escape_buffer_len = 0;
-                        goto loop;
-                    }
-
-                    escape_buffer[escape_buffer_len] = s.front();
-                    escape_buffer_len++;
-                    s = string_view(s.data() + 1, s.size() - 1);
-                }
-
-                if (s.empty())
-                    return;
-
-                if (s.front() >= 0x40 && s.front() <= 0x7e) {
-                    escape_buffer[escape_buffer_len] = s.front();
-                    escape_buffer_len++;
-
-                    s = string_view(s.data() + 1, s.size() - 1);
-
-                    handle_escape_sequence(string_view(escape_buffer, escape_buffer_len));
-                    escape_buffer_len = 0;
-
-                    if (s.empty())
-                        return;
-                } else {
-                    for (size_t i = 0; i < escape_buffer_len; i++) {
-                        handle_char(escape_buffer[i]);
-                    }
-
-                    escape_buffer_len = 0;
-                }
-            } else if (escape_buffer[1] == 'O') {
-                if (s.front() >= 'A' && s.front() <= 'Z') {
-                    escape_buffer[escape_buffer_len] = s.front();
-                    escape_buffer_len++;
-                    s = string_view(s.data() + 1, s.size() - 1);
-
-                    handle_escape_sequence(string_view(escape_buffer, escape_buffer_len));
-                } else {
-                    for (size_t i = 0; i < escape_buffer_len; i++) {
-                        handle_char(escape_buffer[i]);
-                    }
-                }
-
-                escape_buffer_len = 0;
-
-                if (s.empty())
-                    return;
-
-                goto loop;
-            }
-        }
-    }
-
-loop:
-    for (; !s.empty(); s = string_view(s.data() + 1, s.size() - 1)) {
-        auto c = s.front();
-
-        if (c == '\b')
-            handle_backspace();
-        else if (c == '\n') {
-            process_lines();
-            print("{}", prompt);
-        } else if (c == 0x1b) {
-            if (s.size() == 1) {
-                escape_buffer[0] = 0x1b;
-                escape_buffer_len = 1;
-                break;
-            }
-
-            if (s[1] == '[') {
-                unsigned int param_bytes = 0;
-
-                while (s.size() >= param_bytes + 2) {
-                    if (s[2 + param_bytes] >= 0x30 && s[2 + param_bytes] <= 0x3f)
-                        param_bytes++;
-                    else
-                        break;
-                }
-
-                if (s.size() == param_bytes + 2) {
-                    if (param_bytes + 2 > sizeof(escape_buffer)) {
-                        for (size_t i = 0; i < escape_buffer_len; i++) {
-                            handle_char(escape_buffer[i]);
-                        }
-                        escape_buffer_len = 0;
-
-                        for (size_t i = 0; i < s.size(); i++) {
-                            handle_char(s[i]);
-                        }
-
-                        break;
-                    }
-
-                    memcpy(escape_buffer, s.data(), param_bytes + 2);
-                    escape_buffer_len = param_bytes + 2;
-                    break;
-                }
-
-                if (s[param_bytes + 2] >= 0x40 && s[param_bytes + 2] <= 0x7e) {
-                    // cap mid-buffer escape sequences as sizeof(escape_buffer), for consistency
-                    if (param_bytes + 3 > sizeof(escape_buffer)) {
-                        for (size_t i = 0; i < param_bytes + 3; i++) {
-                            handle_char(s[i]);
-                        }
-                    } else
-                        handle_escape_sequence(string_view(s.data(), param_bytes + 3));
-
-                    s = string_view(s.data() + param_bytes + 2, s.size() - param_bytes - 2);
-                    continue;
-                }
-            } else if (s[1] == 'O') {
-                if (s.size() == 2) {
-                    escape_buffer[0] = 0x1b;
-                    escape_buffer[1] = s[1];
-                    escape_buffer_len = 2;
-                    return;
-                }
-
-                if (s[2] >= 'A' && s[2] <= 'Z')
-                    handle_escape_sequence(string_view(s.data(), 3));
-                else {
-                    for (size_t i = 0; i < 3; i++) {
-                        handle_char(s[i]);
-                    }
-                }
-
-                s = string_view(s.data() + 2, s.size() - 2);
-                continue;
-            }
-        } else
-            handle_char(c);
-    }
-}
-
 static bool get_pty_info_stream() {
     auto teb = NtCurrentTeb();
     auto peb = teb->ProcessEnvironmentBlock;
@@ -1240,9 +793,6 @@ static bool get_pty_info_stream() {
 }
 
 int main() {
-    auto teb = NtCurrentTeb();
-    auto peb = teb->ProcessEnvironmentBlock;
-    nt_status status;
     termios tc_settings;
 
     // disable ISIG
@@ -1256,46 +806,18 @@ int main() {
         return 1;
 
     get_prompt();
-    print("{}", prompt);
 
     while (true) {
-        IO_STATUS_BLOCK iosb;
-        char s[10];
+        auto line = readline(prompt.data());
 
-        status = NtWaitForSingleObject(peb->ProcessParameters->StandardInput,
-                                       false, nullptr);
-        if (!success(status)) {
-            print_stderr("NtWaitForSingleObject returned {}\n", status);
+        if (!line)
             break;
-        }
 
-        status = NtReadFile(peb->ProcessParameters->StandardInput, 0,
-                            nullptr, nullptr, &iosb, s, sizeof(s),
-                            nullptr, nullptr);
+        if (*line)
+            add_history(line);
 
-        if (status == nt_status::END_OF_FILE) { // Ctrl+D
-            if (buflen == 0) {
-                print("\n");
-                NtTerminateProcess(NtCurrentProcess(), nt_status::SUCCESS);
-                unreachable();
-            }
-
-            continue;
-        } else if (!success(status)) {
-            print_stderr("NtReadFile returned {}\n", status);
-            continue;
-        }
-
-        if (iosb.Information == 0)
-            continue;
-
-        buf = (char*)realloc(buf, buflen + iosb.Information);
-        if (!buf) {
-            print_stderr("out of memory\n");
-            return 1;
-        }
-
-        handle_input(string_view(s, iosb.Information));
+        process_line(line);
+        free(line);
     }
 
     return 0;
