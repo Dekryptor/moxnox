@@ -4009,9 +4009,74 @@ nt_status NtQueryVirtualMemory(HANDLE process_handle, const void* base_address,
                       *return_length);
 }
 
-nt_status process::query_vm(const void* /*base_address*/, MEMORY_INFORMATION_CLASS /*info_class*/,
-                            span<uint8_t> /*buffer*/, size_t& /*return_length*/) {
-    print("FIXME - process::query_vm\n");
+nt_status process::query_vm(const void* base_address, MEMORY_INFORMATION_CLASS info_class,
+                            span<uint8_t> buffer, size_t& return_length) {
+    switch (info_class) {
+        using enum MEMORY_INFORMATION_CLASS;
 
-    return nt_status::NOT_IMPLEMENTED;
+        case BasicInformation:
+            return query_vm_basic_info(base_address, buffer, return_length);
+
+        default:
+            return nt_status::NOT_SUPPORTED;
+    }
+}
+
+static nt_status query_mapping_basic_info(uint64_t va, process& proc, mapping& m,
+                                          MEMORY_BASIC_INFORMATION& mbi) {
+    va &= ~(PAGE_SIZE - 1);
+
+    mbi.AllocationBase = (void*)m.address;
+    mbi.AllocationProtect = 0; // FIXME - return original protection
+    mbi.PartitionId = 0;
+    mbi.Protect = get_page_protection(proc, va);
+
+    uint64_t base_address = va;
+
+    while (base_address > m.address && get_page_protection(proc, base_address - PAGE_SIZE) == mbi.Protect) {
+        base_address -= PAGE_SIZE;
+    }
+
+    mbi.BaseAddress = (void*)base_address;
+
+    uint64_t end_region = va;
+
+    while (end_region + PAGE_SIZE < m.address + m.size && get_page_protection(proc, end_region + PAGE_SIZE) == mbi.Protect) {
+        end_region += PAGE_SIZE;
+    }
+
+    mbi.RegionSize = end_region - base_address + PAGE_SIZE;
+
+    mbi.State = MEM_COMMIT; // FIXME - MEM_FREE(?), MEM_RESERVE
+
+    if (m.sect.type == section_type::image)
+        mbi.Type = MEM_IMAGE;
+    else if (m.sect.type == section_type::file)
+        mbi.Type = MEM_MAPPED;
+    else
+        mbi.Type = MEM_PRIVATE;
+
+    return nt_status::SUCCESS;
+}
+
+nt_status process::query_vm_basic_info(const void* base_address, span<uint8_t> buffer,
+                                       size_t& return_length) {
+    if (buffer.size() < sizeof(MEMORY_BASIC_INFORMATION))
+        return nt_status::BUFFER_TOO_SMALL;
+
+    auto& mbi = *(MEMORY_BASIC_INFORMATION*)buffer.data();
+
+    auto* m = find_mapping(*this, (uintptr_t)base_address);
+
+    if (!m)
+        return nt_status::NO_MEMORY;
+
+    auto ret = query_mapping_basic_info((uint64_t)base_address, *this, *m, mbi);
+
+    if (success(ret))
+        return_length = sizeof(MEMORY_BASIC_INFORMATION);
+
+    m->release();
+
+    return ret;
 }
