@@ -3981,12 +3981,37 @@ nt_status process::set_pending_signal(span<const uint8_t> buffer) {
 }
 
 extern "C"
-nt_status NtQueryVirtualMemory(HANDLE /*process_handle*/, const void* /*base_address*/,
-                               MEMORY_INFORMATION_CLASS /*info_class*/, void* /*buffer*/,
-                               size_t /*buffer_size*/, size_t* /*return_length*/) {
-    print("FIXME - NtQueryVirtualMemory\n");
+nt_status NtQueryVirtualMemory(HANDLE process_handle, const void* base_address,
+                               MEMORY_INFORMATION_CLASS info_class, void* buffer,
+                               size_t buffer_size, size_t* return_length) {
+    object_ref obj;
 
-    // FIXME
+    if (process_handle == NtCurrentProcess()) {
+        auto* p = get_current_thread()->proc;
+
+        p->acquire();
+
+        obj = object_ref{*p};
+    } else {
+        obj = deref_handle(process_handle);
+        if (!obj)
+            return nt_status::INVALID_HANDLE;
+
+        if (obj.get().type != object_type::process)
+            return nt_status::OBJECT_TYPE_MISMATCH;
+
+        // FIXME - check access rights
+    }
+
+    auto& p = static_cast<process&>(obj.get());
+
+    return p.query_vm(base_address, info_class, span((uint8_t*)buffer, buffer_size),
+                      *return_length);
+}
+
+nt_status process::query_vm(const void* /*base_address*/, MEMORY_INFORMATION_CLASS /*info_class*/,
+                            span<uint8_t> /*buffer*/, size_t& /*return_length*/) {
+    print("FIXME - process::query_vm\n");
 
     return nt_status::NOT_IMPLEMENTED;
 }

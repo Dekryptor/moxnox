@@ -85,6 +85,8 @@ public:
     nt_status set_information(PROCESS_INFORMATION_CLASS info_class,
                               span<const uint8_t> buffer);
     nt_status set_pending_signal(span<const uint8_t> buffer);
+    nt_status query_vm(const void* base_address, MEMORY_INFORMATION_CLASS info_class,
+                       span<uint8_t> buffer, size_t& return_length);
 
     optional<reference_wrapper<section>> img;
     spinlock mappings_lock;
