@@ -16,6 +16,7 @@
 #define HAVE_SETLOCALE 1
 #define HAVE_STRCOLL 1
 #define HAVE_STRPBRK 1
+#define HAVE_TCGETWINSIZE 1
 #define HAVE_VSNPRINTF 1
 
 #define HAVE_STDLIB_H 1
