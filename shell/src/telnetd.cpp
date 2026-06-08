@@ -2,6 +2,8 @@
 #include <string.h>
 #include <stdlib.h>
 #include <errno.h>
+#include <pwd.h>
+#include <unistd.h>
 #include <string_view>
 #include <bit>
 #include <utility>
@@ -165,7 +167,8 @@ static uint32_t socket_thread(void* ctx) {
     unique_fd sockfd{(int)(uintptr_t)ctx};
     STARTUPINFOW si;
     PROCESS_INFORMATION pi;
-    char16_t* u16home = nullptr;
+    struct passwd pwd, *pwdres;
+    char pwdbuf[1024];
 
     auto sockh = (HANDLE)_get_osfhandle(sockfd.get());
     if ((intptr_t)sockh == -1)
@@ -189,32 +192,55 @@ static uint32_t socket_thread(void* ctx) {
     si.hStdOutput = client_handle.get();
     si.hStdError = client_handle.get();
 
-    auto home = getenv("HOME");
-    if (home && home[0]) {
-        auto len = utf8_to_utf16_len(home);
-
-        u16home = (char16_t*)malloc((len + 1) * sizeof(char16_t));
-        if (!u16home) {
-            print_stderr("malloc failed\n");
-            return 1;
-        }
-
-        utf8_to_utf16(span(u16home, len), home);
-        u16home[len] = 0;
+    if (getpwuid_r(getuid(), &pwd, pwdbuf, sizeof(pwdbuf), &pwdres) != 0 || !pwdres) {
+        print_stderr("getpwuid_r failed\n");
+        return 1;
     }
 
-    if (!CreateProcessW(u"/bin/shell.exe", nullptr, nullptr, nullptr,
-                        false, 0, nullptr, u16home, &si, &pi)) {
+    if (!pwdres->pw_shell[0]) {
+        print_stderr("shell not set\n");
+        return 1;
+    }
+
+    if (!pwdres->pw_dir[0]) {
+        print_stderr("home directory not set\n");
+        return 1;
+    }
+
+    auto u16shelllen = utf8_to_utf16_len(pwdres->pw_shell);
+    auto u16homelen = utf8_to_utf16_len(pwdres->pw_dir);
+
+    auto u16shell = (char16_t*)malloc((u16shelllen + 1) * sizeof(char16_t));
+    if (!u16shell) {
+        print_stderr("malloc failed\n");
+        return 1;
+    }
+
+    auto u16home = (char16_t*)malloc((u16homelen + 1) * sizeof(char16_t));
+    if (!u16home) {
+        print_stderr("malloc failed\n");
+        free(u16shell);
+        return 1;
+    }
+
+    utf8_to_utf16(span(u16shell, u16shelllen), pwdres->pw_shell);
+    u16shell[u16shelllen] = 0;
+
+    utf8_to_utf16(span(u16home, u16homelen), pwdres->pw_dir);
+    u16home[u16homelen] = 0;
+
+    if (!CreateProcessW(u16shell, nullptr, nullptr, nullptr, false, 0, nullptr,
+                        u16home, &si, &pi)) {
         print_to_handle(sockh, "CreateProcessW failed (last error {})\n", GetLastError());
 
-        if (u16home)
-            free(u16home);
+        free(u16home);
+        free(u16shell);
 
         return 1;
     }
 
-    if (u16home)
-        free(u16home);
+    free(u16home);
+    free(u16shell);
 
     NtClose(pi.hThread);
 
