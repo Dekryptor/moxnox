@@ -9,6 +9,7 @@
 #include <string.h>
 #include <stdint.h>
 #include <stdlib.h>
+#include <pwd.h>
 #include <cmath>
 
 import nt;
@@ -2333,14 +2334,14 @@ static void run_shell(const char16_t* exe, void (*recv_func)(string_view),
 }
 
 #ifdef __x86_64__
-static int try_text_console() {
+static int try_text_console(const char16_t* shell) {
     text_console = init_text_console();
     if (text_console.empty()) {
         print("init_text_console failed\n");
         return 1;
     }
 
-    run_shell(u"\\bin\\shell.exe", recv_data_text, flush_text_console,
+    run_shell(shell, recv_data_text, flush_text_console,
               console_text_inst.decckm, (uint16_t)console_text_inst.console_cols,
               (uint16_t)console_text_inst.console_rows);
 
@@ -2348,7 +2349,7 @@ static int try_text_console() {
 }
 #endif
 
-static int do_console() {
+static int do_console(const char16_t* shell) {
     bool no_framebuffer = false;
 
     setenv("TERM", "xterm-16color", 1);
@@ -2356,7 +2357,7 @@ static int do_console() {
     framebuffer = init_framebuffer(no_framebuffer);
 #ifdef __x86_64__
     if (no_framebuffer)
-        return try_text_console();
+        return try_text_console(shell);
     else if (framebuffer.empty()) {
         print("init_framebuffer failed\n");
         return 1;
@@ -2432,7 +2433,7 @@ static int do_console() {
     rect(0, 0, fb_info.width, fb_info.height, 0x000000);
     flush_framebuffer();
 
-    run_shell(u"\\bin\\shell.exe", recv_data_fb, flush_framebuffer,
+    run_shell(shell, recv_data_fb, flush_framebuffer,
               console_fb_inst.decckm, (uint16_t)console_fb_inst.console_cols,
               (uint16_t)console_fb_inst.console_rows);
 
@@ -2463,7 +2464,7 @@ static void serial_print(string_view s) {
     }
 }
 
-static int do_serial_console() {
+static int do_serial_console(const char16_t* exe) {
     HANDLE h;
     unique_handle server_handle, client_handle, proc, ptyctl;
     OBJECT_ATTRIBUTES oa;
@@ -2476,7 +2477,6 @@ static int do_serial_console() {
     MOXNOX_IOCTL_PTYCTL_CREATE_PTY_OUT ptyinfo;
 
     static const u16string_view ptyctl_fn = u"\\dev\\ptyctl";
-    static const char16_t exe[] = u"\\bin\\shell.exe";
 
     setenv("TERM", "xterm-16color", 1);
 
@@ -2517,7 +2517,7 @@ static int do_serial_console() {
     serial_print(get_os_version());
     serial_print(welcome_message2);
 
-    auto do_run_shell = [&proc, &client_handle]() -> bool {
+    auto do_run_shell = [&proc, &client_handle, &exe]() -> bool {
         STARTUPINFOW si;
         PROCESS_INFORMATION pi;
         char16_t* u16home = nullptr;
@@ -2665,7 +2665,10 @@ static int do_serial_console() {
 }
 
 int main(int argc, char** argv) {
+    struct passwd pwd, *pwdres;
+    char pwdbuf[1024];
     bool serial_mode = false;
+    int ret;
 
     for (int i = 1; i < argc; i++) {
         auto arg = string_view(argv[i]);
@@ -2678,8 +2681,33 @@ int main(int argc, char** argv) {
         }
     }
 
+    if (getpwuid_r(0, &pwd, pwdbuf, sizeof(pwdbuf), &pwdres) != 0 || !pwdres) {
+        print_stderr("getpwuid_r failed for root\n");
+        return 1;
+    }
+
+    if (!pwdres->pw_shell[0]) {
+        print_stderr("shell not set for root\n");
+        return 1;
+    }
+
+    auto u16shelllen = utf8_to_utf16_len(pwdres->pw_shell);
+
+    auto shell = (char16_t*)malloc((u16shelllen + 1) * sizeof(char16_t));
+    if (!shell) {
+        print_stderr("malloc failed\n");
+        return 1;
+    }
+
+    utf8_to_utf16(span(shell, u16shelllen), pwdres->pw_shell);
+    shell[u16shelllen] = 0;
+
     if (serial_mode)
-        return do_serial_console();
+        ret = do_serial_console(shell);
     else
-        return do_console();
+        ret = do_console(shell);
+
+    free(shell);
+
+    return ret;
 }
