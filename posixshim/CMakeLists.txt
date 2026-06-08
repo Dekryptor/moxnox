@@ -47,6 +47,7 @@ add_library(posixshim STATIC
     src/wcwidth.cpp
     src/dir.cpp
     src/pwd.cpp
+    src/rand.cpp
 )
 
 target_compile_options(posixshim PRIVATE -fno-exceptions ${USERSPACE_CFLAGS})

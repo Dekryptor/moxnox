@@ -39,7 +39,6 @@ do_stub_no_export "statvfs"
 do_stub_no_export "fork"
 do_stub_no_export "unsetenv"
 do_stub_no_export "ttyname"
-do_stub_no_export "getentropy"
 do_stub_no_export "tcsetwinsize"
 
 stubs_end
