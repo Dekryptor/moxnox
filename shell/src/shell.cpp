@@ -4,6 +4,7 @@
 #include <stdio.h>
 #include <signal.h>
 #include <setjmp.h>
+#include <dirent.h>
 #include <winerror.h>
 #include <readline/readline.h>
 #include <readline/history.h>
@@ -768,6 +769,124 @@ static void process_line(string_view sv) {
         try_run_program(cmd, sv);
 }
 
+static const char* const builtins[] = {
+    "exit",
+    "time",
+    "timer",
+    "segfault",
+    "inline",
+    "int3",
+    "ill",
+    "div",
+#ifdef __x86_64__
+    "int1",
+    "gpf",
+#endif
+    "scroll",
+    "cursor",
+    "fg",
+    "cd",
+    nullptr
+};
+
+static char* command_generator(const char* text, int state) {
+    static unsigned int builtin_idx;
+    static char* path_copy;
+    static char* path_pos;
+    static DIR* dir;
+    static char dir_path[4096];
+
+    size_t textlen = strlen(text);
+
+    if (state == 0) {
+        builtin_idx = 0;
+
+        free(path_copy);
+        path_copy = nullptr;
+        path_pos = nullptr;
+
+        if (dir) {
+            closedir(dir);
+            dir = nullptr;
+        }
+
+        auto path = getenv("PATH");
+
+        if (path && path[0]) {
+            path_copy = strdup(path);
+            path_pos = path_copy;
+        }
+    }
+
+    while (builtins[builtin_idx]) {
+        auto name = builtins[builtin_idx];
+        builtin_idx++;
+
+        if (strncmp(name, text, textlen) == 0)
+            return strdup(name);
+    }
+
+    while (true) {
+        if (dir) {
+            struct dirent* ent;
+
+            while ((ent = readdir(dir)) != nullptr) {
+                if (ent->d_type != DT_REG && ent->d_type != DT_UNKNOWN)
+                    continue;
+
+                string_view name(ent->d_name);
+
+                if (name.size() > 4 && name.substr(name.size() - 4) == ".exe")
+                    name = name.substr(0, name.size() - 4);
+
+                if (name.size() < textlen || strncmp(name.data(), text, textlen) != 0)
+                    continue;
+
+                auto result = (char*)malloc(name.size() + 1);
+                if (!result)
+                    return nullptr;
+
+                memcpy(result, name.data(), name.size());
+                result[name.size()] = '\0';
+
+                return result;
+            }
+
+            closedir(dir);
+            dir = nullptr;
+        }
+
+        if (!path_pos || !*path_pos)
+            break;
+
+        auto col = strchr(path_pos, ':');
+        size_t dirlen;
+
+        if (col) {
+            dirlen = (size_t)(col - path_pos);
+            memcpy(dir_path, path_pos, dirlen);
+            dir_path[dirlen] = '\0';
+            path_pos = col + 1;
+        } else {
+            dirlen = strlen(path_pos);
+            memcpy(dir_path, path_pos, dirlen);
+            dir_path[dirlen] = '\0';
+            path_pos += dirlen;
+        }
+
+        if (dirlen == 0 || dirlen >= sizeof(dir_path))
+            continue;
+
+        dir = opendir(dir_path);
+    }
+
+    free(path_copy);
+    path_copy = nullptr;
+    path_pos = nullptr;
+
+    return nullptr;
+}
+
 static bool get_pty_info_stream() {
     auto teb = NtCurrentTeb();
     auto peb = teb->ProcessEnvironmentBlock;
@@ -808,6 +927,13 @@ int main() {
     }
 
     rl_catch_signals = 0;
+
+    rl_attempted_completion_function = [](const char* text, int start, int /*end*/) -> char** {
+        if (start == 0)
+            return rl_completion_matches(text, command_generator);
+
+        return nullptr;
+    };
 
     while (true) {
         if (sigsetjmp(sigint_jmpbuf, 1) == 1) {
