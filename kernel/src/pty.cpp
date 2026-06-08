@@ -61,6 +61,7 @@ public:
 
     pipe& recv_pipe;
     pipe& send_pipe;
+    spinlock size_lock;
     uint16_t cols;
     uint16_t rows;
     bool disconnected = false;
@@ -84,6 +85,7 @@ private:
     nt_status set_fg_proc(span<const uint8_t> inbuf);
     nt_status get_info_stream(span<uint8_t> outbuf);
     nt_status get_size(span<uint8_t> outbuf, uintptr_t& written);
+    nt_status set_size(span<const uint8_t> inbuf);
     size_t process_canonical_input(span<const uint8_t> new_data, uint8_t* echo_buf,
                                    bool& found_eof);
 };
@@ -787,10 +789,32 @@ nt_status pty_client::get_size(span<uint8_t> outbuf, uintptr_t& written) {
 
     auto& out = *(MOXNOX_IOCTL_PTY_GET_SIZE*)outbuf.data();
 
-    out.cols = cols;
-    out.rows = rows;
+    {
+        lock_guard lock(size_lock);
+
+        out.cols = cols;
+        out.rows = rows;
+    }
 
     written = sizeof(MOXNOX_IOCTL_PTY_GET_SIZE);
+
+    return nt_status::SUCCESS;
+}
+
+nt_status pty_client::set_size(span<const uint8_t> inbuf) {
+    if (inbuf.size() < sizeof(MOXNOX_IOCTL_PTY_GET_SIZE))
+        return nt_status::INVALID_PARAMETER;
+
+    auto& in = *(MOXNOX_IOCTL_PTY_GET_SIZE*)inbuf.data();
+
+    // FIXME - send SIGWINCH if size is different
+
+    {
+        lock_guard lock(size_lock);
+
+        cols = in.cols;
+        rows = in.rows;
+    }
 
     return nt_status::SUCCESS;
 }
@@ -822,6 +846,9 @@ nt_status pty_client::ioctl(uint32_t code, span<const uint8_t> inbuf,
 
         case IOCTL_MOXNOX_PTY_GET_SIZE:
             return get_size(outbuf, written);
+
+        case IOCTL_MOXNOX_PTY_SET_SIZE:
+            return set_size(inbuf);
 
         default:
             return nt_status::NOT_SUPPORTED;
