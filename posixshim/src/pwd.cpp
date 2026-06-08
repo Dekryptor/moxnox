@@ -46,3 +46,14 @@ struct passwd* getpwuid(uid_t uid) {
 
     return result;
 }
+
+extern "C"
+int getpwnam_r(const char* name, struct passwd* pwd, char* buf, size_t size,
+               struct passwd** result) {
+    if (strcmp(name, "root")) {
+        *result = nullptr;
+        return 0;
+    }
+
+    return getpwuid_r(0, pwd, buf, size, result);
+}
