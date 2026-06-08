@@ -3979,3 +3979,14 @@ nt_status process::set_pending_signal(span<const uint8_t> buffer) {
 
     return nt_status::SUCCESS;
 }
+
+extern "C"
+nt_status NtQueryVirtualMemory(HANDLE /*process_handle*/, const void* /*base_address*/,
+                               MEMORY_INFORMATION_CLASS /*info_class*/, void* /*buffer*/,
+                               size_t /*buffer_size*/, size_t* /*return_length*/) {
+    print("FIXME - NtQueryVirtualMemory\n");
+
+    // FIXME
+
+    return nt_status::NOT_IMPLEMENTED;
+}

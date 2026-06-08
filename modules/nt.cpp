@@ -1465,6 +1465,21 @@ struct MEMORY_BASIC_INFORMATION {
     uint32_t Type;
 };
 
+enum class MEMORY_INFORMATION_CLASS {
+    BasicInformation,
+    WorkingSetInformation,
+    MappedFilenameInformation,
+    RegionInformation,
+    WorkingSetExInformation,
+    SharedCommitInformation,
+    ImageInformation,
+    RegionInformationEx,
+    PrivilegedBasicInformation,
+    EnclaveImageInformation,
+    BasicInformationCapped,
+    PhysicalContiguityInformation,
+};
+
 extern "C" {
 
 NTSTATUS NtDisplayString(const UNICODE_STRING* string);
@@ -1591,6 +1606,10 @@ NTSTATUS NtSetInformationThread(HANDLE thread_handle, THREAD_INFORMATION_CLASS i
                                 const void* buffer, uint32_t buffer_size);
 NTSTATUS NtSetInformationProcess(HANDLE process_handle, PROCESS_INFORMATION_CLASS info_class,
                                  const void* buffer, uint32_t buffer_size);
+NTSTATUS NtQueryVirtualMemory(HANDLE process_handle, const void* base_address,
+                              MEMORY_INFORMATION_CLASS info_class, void* buffer,
+                              size_t buffer_size, size_t* return_length);
+
 };
 
 };

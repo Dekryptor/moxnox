@@ -1670,6 +1670,40 @@ NTSTATUS user_NtSetInformationProcess(HANDLE process_handle, PROCESS_INFORMATION
 }
 
 extern "C"
+nt_status user_NtQueryVirtualMemory(HANDLE process_handle, const void* base_address,
+                                    MEMORY_INFORMATION_CLASS info_class,
+                                    void* us_buffer, size_t buffer_size,
+                                    size_t* us_return_length) {
+    size_t return_length;
+
+    if (!us_buffer || !us_return_length || buffer_size > PAGE_SIZE)
+        return nt_status::INVALID_PARAMETER;
+
+    auto buf = malloc(buffer_size);
+    if (!buf)
+        return nt_status::INSUFFICIENT_RESOURCES;
+
+    auto ret = NtQueryVirtualMemory(process_handle, base_address, info_class,
+                                    buf, buffer_size, &return_length);
+
+    if (success(ret)) {
+        if (return_length > 0 && !copy_to_process(us_buffer, buf, return_length)) {
+            free(buf);
+            return nt_status::ACCESS_VIOLATION;
+        }
+    }
+
+    free(buf);
+
+    if (success(ret)) {
+        if (!copy_to_process(us_return_length, &return_length, sizeof(size_t)))
+            return nt_status::ACCESS_VIOLATION;
+    }
+
+    return ret;
+}
+
+extern "C"
 uint64_t maybe_yield_after_syscall(uint64_t syscall_ret) {
     // interrupts are disabled and sync_lock held
 
