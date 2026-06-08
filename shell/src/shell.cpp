@@ -2,6 +2,8 @@
 #include <stdlib.h>
 #include <string.h>
 #include <stdio.h>
+#include <signal.h>
+#include <setjmp.h>
 #include <winerror.h>
 #include <readline/readline.h>
 #include <readline/history.h>
@@ -34,6 +36,8 @@ static char* prompt_buf;
 static string_view prompt;
 
 static HANDLE info_stream = 0;
+
+static sigjmp_buf sigint_jmpbuf;
 
 struct suspended_process {
     list_entry le;
@@ -122,10 +126,8 @@ static void run_program(unique_handle& proc, termios* prev_tc_settings) {
         }
     } while (running_proc != 0);
 
-    if (prev_tc_settings) {
-        prev_tc_settings->c_lflag &= ~ISIG;
+    if (prev_tc_settings)
         tcsetattr(STDOUT_FILENO, TCSANOW, prev_tc_settings);
-    }
 
     PROCESS_BASIC_INFORMATION pbi;
 
@@ -459,12 +461,8 @@ static void try_run_program(string_view program, string_view cmdline) {
 
     running_proc = proc.get();
 
-    if (!tcgetattr(STDOUT_FILENO, &tc_settings)) {
+    if (!tcgetattr(STDOUT_FILENO, &tc_settings))
         tc_settings_valid = true;
-        tc_settings.c_lflag |= ISIG;
-
-        tcsetattr(STDOUT_FILENO, TCSANOW, &tc_settings);
-    }
 
     set_pty_fg_proc(peb.ProcessParameters->StandardOutput, proc.get());
 
@@ -617,12 +615,8 @@ static void fg() {
 
     // FIXME - job_spec
 
-    if (!tcgetattr(STDOUT_FILENO, &tc_settings)) {
+    if (!tcgetattr(STDOUT_FILENO, &tc_settings))
         tc_settings_valid = true;
-        tc_settings.c_lflag |= ISIG;
-
-        tcsetattr(STDOUT_FILENO, TCSANOW, &tc_settings);
-    }
 
     if (is_list_empty(suspended_processes)) {
         print_stderr("fg: current: no such job\n");
@@ -792,22 +786,37 @@ static bool get_pty_info_stream() {
     return true;
 }
 
+static void sigint_handler(int) {
+    if (running_proc == 0)
+        siglongjmp(sigint_jmpbuf, 1);
+}
+
 int main() {
-    termios tc_settings;
-
-    // disable ISIG
-    if (!tcgetattr(STDOUT_FILENO, &tc_settings)) {
-        tc_settings.c_lflag &= ~ISIG;
-
-        tcsetattr(STDOUT_FILENO, TCSANOW, &tc_settings);
-    }
+    struct sigaction act;
 
     if (!get_pty_info_stream())
         return 1;
 
     get_prompt();
 
+    memset(&act, 0, sizeof(act));
+    act.sa_handler = sigint_handler;
+
+    if (sigaction(SIGINT, &act, nullptr) == -1) {
+        print_stderr("sigaction failed (errno {})\n", *_errno());
+        return 1;
+    }
+
+    rl_catch_signals = 0;
+
     while (true) {
+        if (sigsetjmp(sigint_jmpbuf, 1) == 1) {
+            print("^C\n");
+
+            rl_free_line_state();
+            rl_cleanup_after_signal();
+        }
+
         auto line = readline(prompt.data());
 
         if (!line)
