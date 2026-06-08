@@ -12,8 +12,8 @@ typedef struct {
 typedef _sigjmp_buf sigjmp_buf[1];
 
 #define sigsetjmp(env, savesigs) \
-    ((savesigs) ? (sigprocmask(SIG_BLOCK, nullptr, &(env)->sig), setjmp((env)->jmp)) \
-                  : ((env)->sig |= (sigset_t)1 << 63, setjmp((env)->jmp)))
+    ((savesigs) ? (sigprocmask(SIG_BLOCK, nullptr, &(env)->sig), _setjmp((env)->jmp, NULL)) \
+                  : ((env)->sig |= (sigset_t)1 << 63, _setjmp((env)->jmp, NULL)))
 
 #ifdef __cplusplus
 extern "C" {
