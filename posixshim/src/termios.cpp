@@ -117,3 +117,26 @@ int tcgetwinsize(int fd, struct winsize* p) {
 
     return 0;
 }
+
+extern "C"
+int tcsetwinsize(int fd, const struct winsize* p) {
+    MOXNOX_IOCTL_PTY_GET_SIZE size;
+    IO_STATUS_BLOCK iosb;
+
+    auto h = (HANDLE)_get_osfhandle(fd);
+    if ((intptr_t)h < 0)
+        return -1;
+
+    size.cols = p->ws_col;
+    size.rows = p->ws_row;
+
+    auto status = NtDeviceIoControlFile((HANDLE)h, 0, nullptr, nullptr, &iosb,
+                                        IOCTL_MOXNOX_PTY_SET_SIZE, &size,
+                                        sizeof(size), nullptr, 0);
+    if (!success(status)) {
+        *_errno() = nt_status_to_errno(status);
+        return -1;
+    }
+
+    return 0;
+}
