@@ -1,6 +1,7 @@
 #include <stdint.h>
 #include <stdlib.h>
 #include <string.h>
+#include <pwd.h>
 #include <span>
 #include <string_view>
 #include <utility>
@@ -13,6 +14,7 @@ import unique_handle;
 import moxnox_ioctls;
 import kernelbase;
 import evdev;
+import unicode;
 
 static span<char16_t> environment;
 
@@ -112,18 +114,32 @@ static uint32_t do_serial(void*) {
 }
 
 static void prepare_environment() {
+    struct passwd pwd, *pwdres;
+    char pwdbuf[1024];
+
     // FIXME - better way of doing this
     static const u16string_view vars[] = {
         u"PATH=/bin",
-        u"HOME=/", // FIXME
         u"LD_LIBRARY_PATH=/lib:.",
     };
+
+    static const u16string_view home_prefix = u"HOME=";
+
+    if (getpwuid_r(0, &pwd, pwdbuf, sizeof(pwdbuf), &pwdres) != 0 || !pwdres) {
+        print_stderr("getpwuid_r failed for root\n");
+        NtTerminateProcess(NtCurrentProcess(), nt_status::INTERNAL_ERROR);
+        unreachable();
+    }
+
+    auto u16homelen = utf8_to_utf16_len(pwdres->pw_dir);
 
     size_t len = 1;
 
     for (auto v : vars) {
         len += v.size() + 1;
     }
+
+    len += home_prefix.size() + u16homelen + 1;
 
     auto env = (char16_t*)malloc(len * sizeof(char16_t));
     if (!env) {
@@ -139,6 +155,13 @@ static void prepare_environment() {
         *ptr = 0;
         ptr++;
     }
+
+    memcpy(ptr, home_prefix.data(), home_prefix.size() * sizeof(char16_t));
+    ptr += home_prefix.size();
+    utf8_to_utf16(span(ptr, u16homelen), pwdres->pw_dir);
+    ptr += u16homelen;
+    *ptr = 0;
+    ptr++;
 
     *ptr = 0;
 
