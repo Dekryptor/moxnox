@@ -297,10 +297,10 @@
 /* #undef HAVE_IF_NAMETOINDEX */
 
 /* Define to 1 if you have the `getpwuid' function. */
-/* #undef HAVE_GETPWUID */
+#define HAVE_GETPWUID 1
 
 /* Define to 1 if you have the `getpwuid_r' function. */
-/* #undef HAVE_GETPWUID_R */
+#define HAVE_GETPWUID_R 1
 
 /* Define to 1 if you have the `getrlimit' function. */
 /* #undef HAVE_GETRLIMIT */
