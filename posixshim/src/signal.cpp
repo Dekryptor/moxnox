@@ -1,5 +1,6 @@
 #include <signal.h>
 #include <string.h>
+#include <setjmp.h>
 
 import nt;
 import print;
@@ -191,4 +192,12 @@ int kill(pid_t pid, int sig) {
     }
 
     return 0;
+}
+
+extern "C"
+[[noreturn]] void siglongjmp(sigjmp_buf env, int val) {
+    if (!(env->sig & (sigset_t)1 << 63))
+        sigprocmask(SIG_SETMASK, &env->sig, nullptr);
+
+    longjmp(env->jmp, val);
 }

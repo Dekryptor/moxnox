@@ -7,7 +7,20 @@
 typedef struct {
     jmp_buf jmp;
     sigset_t sig;
-} sigjmp_buf;
+} _sigjmp_buf;
 
-int sigsetjmp(sigjmp_buf env, int savesigs);
+typedef _sigjmp_buf sigjmp_buf[1];
+
+#define sigsetjmp(env, savesigs) \
+    ((savesigs) ? (sigprocmask(SIG_BLOCK, nullptr, &(env)->sig), setjmp((env)->jmp)) \
+                  : ((env)->sig |= (sigset_t)1 << 63, setjmp((env)->jmp)))
+
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 [[noreturn]] void siglongjmp(sigjmp_buf env, int val);
+
+#ifdef __cplusplus
+}
+#endif
