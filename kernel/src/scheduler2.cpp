@@ -1138,6 +1138,22 @@ NTSTATUS mn_poll(mn_poll_entry* entries, size_t num_entries,
 
     yield(); // releases sync_lock
 
+    {
+        lock_guard lock(current_thread->apc_lock);
+
+        if (!is_list_empty(current_thread->pending_apcs)) {
+            free(mwb);
+
+            for (size_t i = 0; i < num_entries; i++) {
+                object_release(*objs[i]);
+            }
+
+            free(objs);
+
+            return nt_status::USER_APC;
+        }
+    }
+
     auto index = mwb->index;
     free(mwb);
 
