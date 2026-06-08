@@ -42,7 +42,6 @@ do_stub_no_export "fork"
 do_stub_no_export "unsetenv"
 do_stub_no_export "ttyname"
 do_stub_no_export "getpwnam_r"
-do_stub_no_export "getpwuid_r"
 do_stub_no_export "getentropy"
 do_stub_no_export "tcsetwinsize"
 
