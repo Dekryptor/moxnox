@@ -5,6 +5,7 @@
 import errno;
 
 static char static_buf[1024];
+static char static_buf2[1024];
 
 extern "C"
 int getpwuid_r(uid_t uid, struct passwd* pwd, char* buf, size_t size,
@@ -56,4 +57,15 @@ int getpwnam_r(const char* name, struct passwd* pwd, char* buf, size_t size,
     }
 
     return getpwuid_r(0, pwd, buf, size, result);
+}
+
+extern "C"
+struct passwd* getpwnam(const char* name) {
+    static struct passwd pwd;
+    struct passwd* result;
+
+    if (getpwnam_r(name, &pwd, static_buf2, sizeof(static_buf2), &result) != 0)
+        return nullptr;
+
+    return result;
 }
