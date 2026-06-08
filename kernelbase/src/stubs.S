@@ -2,7 +2,6 @@
 
 stubs_start
 
-do_stub "VirtualProtect"
 do_stub "FormatMessageA"
 do_stub "LocalFree"
 do_stub "SleepConditionVariableCS"

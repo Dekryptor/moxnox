@@ -145,6 +145,8 @@ void AcquireSRWLockExclusive(RTL_SRWLOCK* lock);
 void ReleaseSRWLockExclusive(RTL_SRWLOCK* lock);
 size_t VirtualQuery(const void* addr, MEMORY_BASIC_INFORMATION* info,
                     size_t len);
+bool VirtualProtect(void* addr, size_t size, uint32_t new_prot,
+                    uint32_t* old_prot);
 
 }
 

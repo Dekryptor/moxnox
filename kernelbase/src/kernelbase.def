@@ -46,3 +46,4 @@ GetModuleHandleW
 FreeLibrary
 GetProcAddress
 VirtualQuery
+VirtualProtect

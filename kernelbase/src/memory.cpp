@@ -1,4 +1,5 @@
 #include <stddef.h>
+#include <stdint.h>
 
 import nt;
 import ntdll;
@@ -17,4 +18,16 @@ size_t VirtualQuery(const void* addr, MEMORY_BASIC_INFORMATION* info, size_t len
     }
 
     return ret;
+}
+
+extern "C"
+bool VirtualProtect(void* addr, size_t size, uint32_t new_prot, uint32_t* old_prot) {
+    auto status = NtProtectVirtualMemory(NtCurrentProcess(), &addr, &size,
+                                         new_prot, old_prot);
+    if (!success(status)) {
+        SetLastError(RtlNtStatusToDosError(status));
+        return false;
+    }
+
+    return true;
 }
