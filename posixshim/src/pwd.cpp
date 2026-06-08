@@ -4,6 +4,8 @@
 #undef errno
 import errno;
 
+static char static_buf[1024];
+
 extern "C"
 int getpwuid_r(uid_t uid, struct passwd* pwd, char* buf, size_t size,
                struct passwd** result) {
@@ -32,4 +34,15 @@ int getpwuid_r(uid_t uid, struct passwd* pwd, char* buf, size_t size,
     *result = pwd;
 
     return 0;
+}
+
+extern "C"
+struct passwd* getpwuid(uid_t uid) {
+    static struct passwd pwd;
+    struct passwd* result;
+
+    if (getpwuid_r(uid, &pwd, static_buf, sizeof(static_buf), &result) != 0)
+        return nullptr;
+
+    return result;
 }
