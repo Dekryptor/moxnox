@@ -1454,6 +1454,17 @@ struct mn_poll_entry {
 
 using PS_APC_ROUTINE = void (*)(void*, void*, void*);
 
+struct MEMORY_BASIC_INFORMATION {
+    void* BaseAddress;
+    void* AllocationBase;
+    uint32_t AllocationProtect;
+    uint16_t PartitionId;
+    size_t RegionSize;
+    uint32_t State;
+    uint32_t Protect;
+    uint32_t Type;
+};
+
 extern "C" {
 
 NTSTATUS NtDisplayString(const UNICODE_STRING* string);

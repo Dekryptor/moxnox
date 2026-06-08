@@ -45,3 +45,4 @@ GetModuleHandleExW
 GetModuleHandleW
 FreeLibrary
 GetProcAddress
+VirtualQuery

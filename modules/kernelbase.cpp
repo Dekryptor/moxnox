@@ -143,6 +143,8 @@ bool IsProcessorFeaturePresent(uint32_t processor_feature);
 void* GetProcAddress(HMODULE mod, const char* function);
 void AcquireSRWLockExclusive(RTL_SRWLOCK* lock);
 void ReleaseSRWLockExclusive(RTL_SRWLOCK* lock);
+size_t VirtualQuery(const void* addr, MEMORY_BASIC_INFORMATION* info,
+                    size_t len);
 
 }
 
