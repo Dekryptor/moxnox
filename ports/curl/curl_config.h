@@ -498,7 +498,7 @@
 #define HAVE_SIGNAL 1
 
 /* Define to 1 if you have the sigsetjmp function or macro. */
-/* #undef HAVE_SIGSETJMP */
+#define HAVE_SIGSETJMP 1
 
 /* Define to 1 if you have the `snprintf' function. */
 /* #undef HAVE_SNPRINTF */
