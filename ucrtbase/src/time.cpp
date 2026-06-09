@@ -601,7 +601,20 @@ size_t strftime(char* s, size_t max, const char* format, const struct tm* tm) {
                     return 0;
             break;
 
-            // FIXME - z (TZ offset)
+            case 'z': { // timezone offset
+                static const string_view TZOFF = "+0000";
+
+                // FIXME - get from extended struct tm
+
+                if (sp.size() < TZOFF.size())
+                    return 0;
+
+                memcpy(sp.data(), TZOFF.data(), TZOFF.size());
+                sp = span(sp.data() + TZOFF.size(), sp.size() - TZOFF.size());
+
+                break;
+            }
+
             // FIXME - Z (TZ name or abbreviation)
 
             case '%':
