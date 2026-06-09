@@ -370,7 +370,28 @@ size_t strftime(char* s, size_t max, const char* format, const struct tm* tm) {
                 sp = span(sp.data() + 1, sp.size() - 1);
             break;
 
-            // FIXME - T (%H:%M:%S)
+            case 'T': // %H:%M:%S
+                if (!strftime_number<2>(sp, tm->tm_hour))
+                    return 0;
+
+                if (sp.empty())
+                    return 0;
+
+                sp[0] = ':';
+                sp = span(sp.data() + 1, sp.size() - 1);
+
+                if (!strftime_number<2>(sp, tm->tm_min))
+                    return 0;
+
+                if (sp.empty())
+                    return 0;
+
+                sp[0] = ':';
+                sp = span(sp.data() + 1, sp.size() - 1);
+
+                if (!strftime_number<2>(sp, tm->tm_sec))
+                    return 0;
+            break;
 
             case 'u': // weekday as decimal number, 1 = Monday, 7 = Sunday
                 if (!strftime_number<1>(sp, tm->tm_wday == 0 ? 7 : tm->tm_wday))
