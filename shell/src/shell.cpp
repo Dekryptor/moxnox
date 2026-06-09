@@ -6,12 +6,15 @@
 #include <setjmp.h>
 #include <dirent.h>
 #include <winerror.h>
+#include <pwd.h>
+#include <unistd.h>
 #include <readline/readline.h>
 #include <readline/history.h>
 #include <span>
 #include <charconv>
 #include <chrono>
 #include <utility>
+#include <string>
 
 using namespace std;
 
@@ -39,6 +42,8 @@ static string_view prompt;
 static HANDLE info_stream = 0;
 
 static sigjmp_buf sigint_jmpbuf;
+
+static char* history_file;
 
 struct suspended_process {
     list_entry le;
@@ -887,6 +892,35 @@ static bool get_pty_info_stream() {
     return true;
 }
 
+static void init_history() {
+    struct passwd pwd, *pwdres;
+    char pwdbuf[1024];
+
+    static const string_view suffix = "/.shell_history";
+
+    if (getpwuid_r(getuid(), &pwd, pwdbuf, sizeof(pwdbuf), &pwdres) != 0 || !pwdres) {
+        print_stderr("getpwuid_r failed\n");
+        return;
+    }
+
+    if (!pwdres->pw_dir[0])
+        return;
+
+    auto home = string_view(pwdres->pw_dir);
+
+    history_file = (char*)malloc(home.size() + suffix.size() + 1);
+    if (!history_file) {
+        print_stderr("malloc failed\n");
+        return;
+    }
+
+    memcpy(history_file, home.data(), home.size());
+    memcpy(history_file + home.size(), suffix.data(), suffix.size());
+    history_file[home.size() + suffix.size()] = 0;
+
+    read_history(history_file);
+}
+
 static void sigint_handler(int) {
     if (running_proc == 0)
         siglongjmp(sigint_jmpbuf, 1);
@@ -899,6 +933,7 @@ int main() {
         return 1;
 
     get_prompt();
+    init_history();
 
     memset(&act, 0, sizeof(act));
     act.sa_handler = sigint_handler;
@@ -940,6 +975,11 @@ int main() {
 
         process_line(line);
         free(line);
+    }
+
+    if (history_file) {
+        write_history(history_file);
+        free(history_file);
     }
 
     while (!is_list_empty(suspended_processes)) {
