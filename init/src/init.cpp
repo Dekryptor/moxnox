@@ -123,7 +123,10 @@ static void prepare_environment() {
         u"LD_LIBRARY_PATH=/lib:.",
     };
 
+    // FIXME - USER environment variable
+
     static const u16string_view home_prefix = u"HOME=";
+    static const u16string_view shell_prefix = u"SHELL=";
 
     if (getpwuid_r(0, &pwd, pwdbuf, sizeof(pwdbuf), &pwdres) != 0 || !pwdres) {
         print_stderr("getpwuid_r failed for root\n");
@@ -132,6 +135,7 @@ static void prepare_environment() {
     }
 
     auto u16homelen = utf8_to_utf16_len(pwdres->pw_dir);
+    auto u16shelllen = utf8_to_utf16_len(pwdres->pw_shell);
 
     size_t len = 1;
 
@@ -140,6 +144,7 @@ static void prepare_environment() {
     }
 
     len += home_prefix.size() + u16homelen + 1;
+    len += shell_prefix.size() + u16shelllen + 1;
 
     auto env = (char16_t*)malloc(len * sizeof(char16_t));
     if (!env) {
@@ -160,6 +165,13 @@ static void prepare_environment() {
     ptr += home_prefix.size();
     utf8_to_utf16(span(ptr, u16homelen), pwdres->pw_dir);
     ptr += u16homelen;
+    *ptr = 0;
+    ptr++;
+
+    memcpy(ptr, shell_prefix.data(), shell_prefix.size() * sizeof(char16_t));
+    ptr += shell_prefix.size();
+    utf8_to_utf16(span(ptr, u16shelllen), pwdres->pw_shell);
+    ptr += u16shelllen;
     *ptr = 0;
     ptr++;
 
