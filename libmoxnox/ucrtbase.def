@@ -205,6 +205,8 @@ rewind
 _gmtime64
 _gmtime64_s
 strftime
+_localtime64_s
+_localtime64
 
 ; stubs
 _wfopen
@@ -223,8 +225,6 @@ perror
 _ctime64
 _difftime64
 freopen
-_localtime64_s
-_localtime64
 _mktime64
 tmpfile
 atof

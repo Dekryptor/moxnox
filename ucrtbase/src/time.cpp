@@ -682,3 +682,21 @@ size_t _strftime(char* s, size_t max, const char* format, const struct tm* tm) {
 
     return sp.data() - s;
 }
+
+extern "C"
+errno_t __localtime64_s(struct tm* tm, const __time64_t* t) {
+    // FIXME - get and parse timezone
+
+    return __gmtime64_s(tm, t);
+}
+
+extern "C"
+struct tm* __localtime64(const __time64_t* t) {
+    static struct tm tm;
+
+    auto ret = __localtime64_s(&tm, t);
+    if (ret != 0)
+        return nullptr;
+
+    return &tm;
+}

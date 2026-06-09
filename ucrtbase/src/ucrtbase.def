@@ -233,3 +233,5 @@ rewind
 _gmtime64 = __gmtime64
 _gmtime64_s = __gmtime64_s
 strftime = _strftime
+_localtime64 = __localtime64
+_localtime64_s = __localtime64_s
