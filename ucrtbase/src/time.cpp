@@ -324,7 +324,18 @@ size_t strftime(char* s, size_t max, const char* format, const struct tm* tm) {
                     return 0;
             break;
 
-            // FIXME - e (day of month as decimal number, space-padded)
+            case 'e': // day of month as decimal number, space-padded
+                if (tm->tm_mday < 10) {
+                    if (sp.empty())
+                        return 0;
+
+                    sp[0] = ' ';
+                    sp = span(sp.data() + 1, sp.size() - 1);
+                }
+
+                if (!strftime_number<1>(sp, tm->tm_mday))
+                    return 0;
+            break;
 
             case 'F': // %Y-%m-%d
                 if (!strftime_number<4>(sp, tm->tm_year + 1900))
