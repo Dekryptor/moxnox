@@ -202,6 +202,8 @@ _configthreadlocale
 _lseeki64
 _lseek
 rewind
+_gmtime64
+_gmtime64_s
 
 ; stubs
 strftime
@@ -220,8 +222,6 @@ __stdio_common_vswprintf
 perror
 _ctime64
 _difftime64
-_gmtime64
-_gmtime64_s
 freopen
 _localtime64_s
 _localtime64

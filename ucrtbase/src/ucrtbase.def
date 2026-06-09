@@ -230,3 +230,5 @@ _configthreadlocale = __configthreadlocale
 _lseek
 _lseeki64
 rewind
+_gmtime64 = __gmtime64
+_gmtime64_s = __gmtime64_s
