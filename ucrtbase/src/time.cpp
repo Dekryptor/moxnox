@@ -4,6 +4,7 @@ module;
 #include <stdint.h>
 #include <span>
 #include <string_view>
+#include <charconv>
 
 export module time;
 
@@ -179,6 +180,63 @@ static bool strftime_month_name(span<char>& sp, int mon) {
     return strftime_index(sp, mon, str);
 }
 
+template<unsigned int N>
+bool strftime_number(span<char>& sp, int num) {
+    if (num < 0) { // FIXME - can have negative years?
+        if (sp.empty())
+            return false;
+
+        sp[0] = '?';
+        sp = span(sp.data() + 1, sp.size() - 1);
+
+        return true;
+    }
+
+    if (num == 0) {
+        if (sp.size() < N)
+            return false;
+
+        for (unsigned int i = 0; i < N; i++) {
+            sp[i] = '0';
+        }
+
+        sp = span(sp.data() + N, sp.size() - N);
+        return true;
+    }
+
+    if (N > 1) {
+        unsigned int limit = 1;
+
+        for (unsigned int i = 1; i < N; i++) {
+            limit *= 10;
+        }
+
+        while ((unsigned int)num < limit) {
+            if (sp.empty())
+                return false;
+
+            sp[0] = '0';
+            sp = span(sp.data() + 1, sp.size() - 1);
+
+            if (limit == 10)
+                break;
+
+            limit /= 10;
+        }
+    }
+
+    auto tcr = to_chars(sp.data(), sp.data() + sp.size(), num);
+
+    if (tcr.ec != errc{})
+        return false;
+
+    size_t written = tcr.ptr - sp.data();
+
+    sp = span(sp.data() + written, sp.size() - written);
+
+    return true;
+}
+
 extern "C"
 size_t strftime(char* s, size_t max, const char* format, const struct tm* tm) {
     auto fmt = string_view(format);
@@ -232,18 +290,47 @@ size_t strftime(char* s, size_t max, const char* format, const struct tm* tm) {
             break;
 
             // FIXME - c ("locale's appropriate date and time representation")
-            // FIXME - C (year / 100)
-            // FIXME - d (day of month as decimal number)
+
+            case 'C': // year / 100
+                if (!strftime_number<2>(sp, (tm->tm_year + 1900) / 100))
+                    return 0;
+            break;
+
+            case 'd': // day of month as decimal number
+                if (!strftime_number<2>(sp, tm->tm_mday))
+                    return 0;
+            break;
+
             // FIXME - D (%m/%d/%y)
             // FIXME - e (day of month as decimal number, space-padded)
             // FIXME - F (%Y-%m-%d)
             // FIXME - g (last 2 digits of week-based year)
             // FIXME - G (week-based year)
-            // FIXME - H (hour in 24-hour clock)
-            // FIXME - I (hour in 12-hour clock)
-            // FIXME - j (day of year as decimal number)
-            // FIXME - m (month as decimal number)
-            // FIXME - M (minute as decimal number)
+
+            case 'H': // hour in 24-hour clock
+                if (!strftime_number<2>(sp, tm->tm_hour))
+                    return 0;
+            break;
+
+            case 'I': // hour in 12-hour clock
+                if (!strftime_number<2>(sp, ((tm->tm_hour + 11) % 12) + 1))
+                    return 0;
+            break;
+
+            case 'j': // day of year as decimal number
+                if (!strftime_number<3>(sp, tm->tm_yday + 1))
+                    return 0;
+            break;
+
+            case 'm': // month as decimal number
+                if (!strftime_number<2>(sp, tm->tm_mon + 1))
+                    return 0;
+            break;
+
+            case 'M': // minute as decimal number
+                if (!strftime_number<2>(sp, tm->tm_min))
+                    return 0;
+            break;
 
             case 'n':
                 if (sp.empty())
@@ -256,7 +343,11 @@ size_t strftime(char* s, size_t max, const char* format, const struct tm* tm) {
             // FIXME - p (a.m. or p.m.)
             // FIXME - r (%I:%M:%S %p)
             // FIXME - R (%H:%M)
-            // FIXME - S (second as decimal number)
+
+            case 'S': // second as decimal number
+                if (!strftime_number<2>(sp, tm->tm_sec))
+                    return 0;
+            break;
 
             case 't':
                 if (sp.empty())
@@ -267,15 +358,34 @@ size_t strftime(char* s, size_t max, const char* format, const struct tm* tm) {
             break;
 
             // FIXME - T (%H:%M:%S)
-            // FIXME - u (weekday as decimal number, 1-based)
+
+            case 'u': // weekday as decimal number, 1 = Monday, 7 = Sunday
+                if (!strftime_number<1>(sp, tm->tm_wday == 0 ? 7 : tm->tm_wday))
+                    return 0;
+            break;
+
             // FIXME - U (week number of year as decimal number)
             // FIXME - V (week number of year as decimal number, mark 2)
-            // FIXME - w (weekday as decimal number, 0-based)
+
+            case 'w': // weekday as decimal number, 0 = Sunday, 6 = Saturday
+                if (!strftime_number<1>(sp, tm->tm_wday))
+                    return 0;
+            break;
+
             // FIXME - W (week number of year as decimal number, mark 3)
             // FIXME - x ("locale's appropriate date representation")
             // FIXME - X ("locale's appropriate time representation")
-            // FIXME - y (year % 100)
-            // FIXME - Y (year)
+
+            case 'y': // year % 100
+                if (!strftime_number<2>(sp, tm->tm_year % 100))
+                    return 0;
+            break;
+
+            case 'Y': // year
+                if (!strftime_number<4>(sp, tm->tm_year + 1900))
+                    return 0;
+            break;
+
             // FIXME - z (TZ offset)
             // FIXME - Z (TZ name or abbreviation)
 
