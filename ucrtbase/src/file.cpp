@@ -773,7 +773,7 @@ int setvbuf(FILE* /*stream*/, char* /*buffer*/, int /*mode*/, size_t /*size*/) {
     return 0;
 }
 
-static int do_fstat(HANDLE h, struct _stat64* st) {
+static int do_fstat(HANDLE h, struct ::_stat64* st) {
     nt_status status;
     IO_STATUS_BLOCK iosb;
     FILE_BASIC_INFORMATION fbi;
