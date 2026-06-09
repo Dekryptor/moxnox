@@ -8,6 +8,7 @@
 #include <winerror.h>
 #include <pwd.h>
 #include <unistd.h>
+#include <getopt.h>
 #include <readline/readline.h>
 #include <readline/history.h>
 #include <span>
@@ -926,11 +927,58 @@ static void sigint_handler(int) {
         siglongjmp(sigint_jmpbuf, 1);
 }
 
-int main() {
+int main(int argc, char** argv) {
     struct sigaction act;
+    char* command = nullptr;
 
-    if (!get_pty_info_stream())
+    static const option options[] = {
+        { "", required_argument, nullptr, 'c' },
+        { nullptr, 0, nullptr, 0 }
+    };
+
+    while (true) {
+        int index;
+        auto c = getopt_long(argc, argv, "c:", options, &index);
+
+        if (c == -1)
+            break;
+
+        switch (c) {
+            case 'c':
+                command = strdup(optarg);
+                if (!command) {
+                    print_stderr("strdup failed\n");
+                    return 1;
+                }
+
+                break;
+
+            case '?':
+                return 1;
+        }
+    }
+
+    if (argc != optind) {
+        print_stderr("shell: bad usage\n");
+
+        if (command)
+            free(command);
+
         return 1;
+    }
+
+    if (!get_pty_info_stream()) {
+        if (command)
+            free(command);
+        return 1;
+    }
+
+    if (command) {
+        process_line(command);
+        free(command);
+        // FIXME - return value?
+        return 0;
+    }
 
     get_prompt();
     init_history();
