@@ -424,7 +424,37 @@ size_t strftime(char* s, size_t max, const char* format, const struct tm* tm) {
                     return 0;
             break;
 
-            // FIXME - r (%I:%M:%S %p)
+            case 'r': // %I:%M:%S %p
+                if (!strftime_number<2>(sp, ((tm->tm_hour + 11) % 12) + 1))
+                    return 0;
+
+                if (sp.empty())
+                    return 0;
+
+                sp[0] = ':';
+                sp = span(sp.data() + 1, sp.size() - 1);
+
+                if (!strftime_number<2>(sp, tm->tm_min))
+                    return 0;
+
+                if (sp.empty())
+                    return 0;
+
+                sp[0] = ':';
+                sp = span(sp.data() + 1, sp.size() - 1);
+
+                if (!strftime_number<2>(sp, tm->tm_sec))
+                    return 0;
+
+                if (sp.empty())
+                    return 0;
+
+                sp[0] = ' ';
+                sp = span(sp.data() + 1, sp.size() - 1);
+
+                if (!strftime_ampm(sp, tm->tm_hour))
+                    return 0;
+            break;
 
             case 'R': // %H:%M
                 if (!strftime_number<2>(sp, tm->tm_hour))
