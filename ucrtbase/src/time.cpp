@@ -132,6 +132,53 @@ struct tm* __gmtime64(const __time64_t* t) {
     return &tm;
 }
 
+template<size_t N>
+bool strftime_index(span<char>& sp, int num, const array<string_view, N>& str) {
+    if (num < 0 || (size_t)num >= str.size()) {
+        if (sp.empty())
+            return false;
+
+        sp[0] = '?';
+        sp = span(sp.data() + 1, sp.size() - 1);
+
+        return true;
+    }
+
+    auto s = str[num];
+
+    if (sp.size() < s.size())
+        return false;
+
+    memcpy(sp.data(), s.data(), s.size());
+    sp = span(sp.data() + s.size(), sp.size() - s.size());
+
+    return true;
+}
+
+static bool strftime_abbrev_weekday(span<char>& sp, int wday) {
+    static const array<string_view, 7> str = { "Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat" };
+
+    return strftime_index(sp, wday, str);
+}
+
+static bool strftime_weekday(span<char>& sp, int wday) {
+    static const array<string_view, 7> str = { "Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday" };
+
+    return strftime_index(sp, wday, str);
+}
+
+static bool strftime_abbrev_month_name(span<char>& sp, int mon) {
+    static const array<string_view, 12> str = { "Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec" };
+
+    return strftime_index(sp, mon, str);
+}
+
+static bool strftime_month_name(span<char>& sp, int mon) {
+    static const array<string_view, 12> str = { "January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December" };
+
+    return strftime_index(sp, mon, str);
+}
+
 extern "C"
 size_t strftime(char* s, size_t max, const char* format, const struct tm* tm) {
     auto fmt = string_view(format);
@@ -163,10 +210,27 @@ size_t strftime(char* s, size_t max, const char* format, const struct tm* tm) {
             break;
 
         switch (fmt[0]) {
-            // FIXME - a (abbreviated weekday)
-            // FIXME - A (full weekday)
-            // FIXME - b (abbreviated month name)
-            // FIXME - B (full month name)
+            case 'a': // abbreviated weekday
+                if (!strftime_abbrev_weekday(sp, tm->tm_wday))
+                    return 0;
+            break;
+
+            case 'A': // weekday
+                if (!strftime_weekday(sp, tm->tm_wday))
+                    return 0;
+            break;
+
+            case 'b': // abbreviated month name
+            case 'h':
+                if (!strftime_abbrev_month_name(sp, tm->tm_mon))
+                    return 0;
+            break;
+
+            case 'B': // month name
+                if (!strftime_month_name(sp, tm->tm_mon))
+                    return 0;
+            break;
+
             // FIXME - c ("locale's appropriate date and time representation")
             // FIXME - C (year / 100)
             // FIXME - d (day of month as decimal number)
@@ -175,7 +239,6 @@ size_t strftime(char* s, size_t max, const char* format, const struct tm* tm) {
             // FIXME - F (%Y-%m-%d)
             // FIXME - g (last 2 digits of week-based year)
             // FIXME - G (week-based year)
-            // FIXME - h (same as b)
             // FIXME - H (hour in 24-hour clock)
             // FIXME - I (hour in 12-hour clock)
             // FIXME - j (day of year as decimal number)
