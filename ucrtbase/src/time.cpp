@@ -394,7 +394,23 @@ size_t strftime(char* s, size_t max, const char* format, const struct tm* tm) {
                     return 0;
             break;
 
-            // FIXME - g (last 2 digits of week-based year)
+            case 'g': { // last 2 digits of week-based year
+                int wday_mon = (tm->tm_wday + 6) % 7;
+                int thu_yday = tm->tm_yday - wday_mon + 3;
+                int year;
+
+                if (thu_yday < 0) // Thursday is in previous year - use last ISO week of prev year
+                    year = tm->tm_year - 1;
+                else if ((unsigned int)thu_yday >= days_in_year(tm->tm_year + 1900)) // Thursday is in next year - this is week 1 of next year
+                    year = tm->tm_year + 1;
+                else
+                    year = tm->tm_year;
+
+                if (!strftime_number<2>(sp, year % 100))
+                    return 0;
+
+                break;
+            }
 
             case 'G': { // week-based year
                 int wday_mon = (tm->tm_wday + 6) % 7;
