@@ -272,7 +272,7 @@ static constexpr unsigned int days_in_year(int year) {
 }
 
 extern "C"
-size_t strftime(char* s, size_t max, const char* format, const struct tm* tm) {
+size_t _strftime(char* s, size_t max, const char* format, const struct tm* tm) {
     auto fmt = string_view(format);
     auto sp = span(s, max);
 
@@ -323,7 +323,16 @@ size_t strftime(char* s, size_t max, const char* format, const struct tm* tm) {
                     return 0;
             break;
 
-            // FIXME - c ("locale's appropriate date and time representation")
+            case 'c': { // "locale's appropriate date and time representation"
+                auto ret = _strftime(sp.data(), sp.size(), "%a %b %e %H:%M:%S %Y", tm);
+
+                if (ret == 0)
+                    return 0;
+
+                sp = span(sp.data() + ret, sp.size() - ret);
+
+                break;
+            }
 
             case 'C': // year / 100
                 if (!strftime_number<2>(sp, (tm->tm_year + 1900) / 100))
@@ -588,8 +597,27 @@ size_t strftime(char* s, size_t max, const char* format, const struct tm* tm) {
                     return 0;
             break;
 
-            // FIXME - x ("locale's appropriate date representation")
-            // FIXME - X ("locale's appropriate time representation")
+            case 'x': { // "locale's appropriate date representation"
+                auto ret = _strftime(sp.data(), sp.size(), "%d/%m/%Y", tm);
+
+                if (ret == 0)
+                    return 0;
+
+                sp = span(sp.data() + ret, sp.size() - ret);
+
+                break;
+            }
+
+            case 'X': { // "locale's appropriate time representation"
+                auto ret = _strftime(sp.data(), sp.size(), "%H:%M:%S", tm);
+
+                if (ret == 0)
+                    return 0;
+
+                sp = span(sp.data() + ret, sp.size() - ret);
+
+                break;
+            }
 
             case 'y': // year % 100
                 if (!strftime_number<2>(sp, tm->tm_year % 100))
