@@ -582,6 +582,7 @@ int __fseeki64_nolock(FILE* file, int64_t offset, int whence) {
     int64_t start;
     FILE_POSITION_INFORMATION fpi;
     IO_STATUS_BLOCK iosb;
+    nt_status status;
 
     switch (whence) {
         case SEEK_SET:
@@ -595,11 +596,19 @@ int __fseeki64_nolock(FILE* file, int64_t offset, int whence) {
                 return -1;
             break;
 
-        case SEEK_END:
-            print("FIXME - _fseeki64_nolock SEEK_END\n");
-            // FIXME - call NtQueryInformationFile with FileEndOfFileInformation
-            *__errno() = EINVAL;
-            return -1;
+        case SEEK_END: {
+            FILE_STANDARD_INFORMATION fsi;
+
+            status = NtQueryInformationFile(f.h, &iosb, &fsi, sizeof(fsi),
+                                            FILE_INFORMATION_CLASS::StandardInformation);
+            if (!success(status)) {
+                *__errno() = nt_status_to_errno(status);
+                return -1;
+            }
+
+            start = fsi.EndOfFile.QuadPart;
+            break;
+        }
 
         default:
             *__errno() = EINVAL;
@@ -608,8 +617,8 @@ int __fseeki64_nolock(FILE* file, int64_t offset, int whence) {
 
     fpi.CurrentByteOffset.QuadPart = start + offset;
 
-    auto status = NtSetInformationFile(f.h, &iosb, &fpi, sizeof(fpi),
-                                       FILE_INFORMATION_CLASS::PositionInformation);
+    status = NtSetInformationFile(f.h, &iosb, &fpi, sizeof(fpi),
+                                  FILE_INFORMATION_CLASS::PositionInformation);
     if (!success(status)) {
         *__errno() = nt_status_to_errno(status);
         return -1;
