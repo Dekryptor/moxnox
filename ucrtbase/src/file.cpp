@@ -50,6 +50,8 @@ static uint8_t _stdin[sizeof(_FILE)], _stdout[sizeof(_FILE)], _stderr[sizeof(_FI
 static RTL_CRITICAL_SECTION files_lock, fds_lock;
 static list_entry files_list = { &files_list, &files_list };
 
+static int umask_value = S_IRUSR | S_IWUSR | S_IRGRP | S_IWGRP | S_IROTH | S_IWOTH;
+
 // FIXME - should be getting from sys/stat.h
 extern "C" int mkdir(const char* path, mode_t mode);
 
@@ -1856,4 +1858,13 @@ void rewind(FILE* file) {
     f.eof = false;
 
     __unlock_file(file);
+}
+
+extern "C"
+int __umask(int pmode) {
+    // FIXME - actually use this when creating files or directories
+
+    swap(pmode, umask_value);
+
+    return pmode;
 }

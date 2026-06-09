@@ -207,6 +207,7 @@ _gmtime64_s
 strftime
 _localtime64_s
 _localtime64
+_umask
 
 ; stubs
 _wfopen
@@ -229,7 +230,6 @@ _mktime64
 tmpfile
 atof
 _wcsnicmp
-_umask
 _rmdir
 _pipe
 _execvp

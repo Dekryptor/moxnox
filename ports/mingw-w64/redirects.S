@@ -58,10 +58,10 @@ underscore_func "lseek"
 underscore_func "dup"
 underscore_func "dup2"
 underscore_func "fstat64"
+underscore_func "umask"
 
 # stubs
 underscore_func "wcsnicmp"
-underscore_func "umask"
 underscore_func "rmdir"
 underscore_func "pipe"
 underscore_func "execvp"
