@@ -204,9 +204,9 @@ _lseek
 rewind
 _gmtime64
 _gmtime64_s
+strftime
 
 ; stubs
-strftime
 _wfopen
 ___lc_codepage_func
 _beginthreadex

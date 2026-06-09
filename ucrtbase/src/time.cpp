@@ -2,11 +2,15 @@ module;
 
 #include <time.h>
 #include <stdint.h>
+#include <span>
+#include <string_view>
 
 export module time;
 
 import nt;
 import ucrtbase;
+
+using namespace std;
 
 static const unsigned int SYSTEM_TIME_RESOLUTION = 10000000; // 100ns
 
@@ -126,4 +130,114 @@ struct tm* __gmtime64(const __time64_t* t) {
         return nullptr;
 
     return &tm;
+}
+
+extern "C"
+size_t strftime(char* s, size_t max, const char* format, const struct tm* tm) {
+    auto fmt = string_view(format);
+    auto sp = span(s, max);
+
+    while (true) {
+        auto pc = fmt.find('%');
+
+        if (pc == string_view::npos)
+            pc = fmt.size();
+
+        if (pc > 0) {
+            if (sp.size() < pc)
+                return 0;
+
+            memcpy(sp.data(), fmt.data(), pc);
+
+            sp = span(sp.data() + pc, sp.size() - pc);
+            fmt = string_view(fmt.data() + pc, fmt.size() - pc);
+
+            if (fmt.empty())
+                break;
+        }
+
+        // skip %
+        fmt = string_view(fmt.data() + 1, fmt.size() - 1);
+
+        if (fmt.empty())
+            break;
+
+        switch (fmt[0]) {
+            // FIXME - a (abbreviated weekday)
+            // FIXME - A (full weekday)
+            // FIXME - b (abbreviated month name)
+            // FIXME - B (full month name)
+            // FIXME - c ("locale's appropriate date and time representation")
+            // FIXME - C (year / 100)
+            // FIXME - d (day of month as decimal number)
+            // FIXME - D (%m/%d/%y)
+            // FIXME - e (day of month as decimal number, space-padded)
+            // FIXME - F (%Y-%m-%d)
+            // FIXME - g (last 2 digits of week-based year)
+            // FIXME - G (week-based year)
+            // FIXME - h (same as b)
+            // FIXME - H (hour in 24-hour clock)
+            // FIXME - I (hour in 12-hour clock)
+            // FIXME - j (day of year as decimal number)
+            // FIXME - m (month as decimal number)
+            // FIXME - M (minute as decimal number)
+
+            case 'n':
+                if (sp.empty())
+                    return 0;
+
+                sp[0] = '\n';
+                sp = span(sp.data() + 1, sp.size() - 1);
+            break;
+
+            // FIXME - p (a.m. or p.m.)
+            // FIXME - r (%I:%M:%S %p)
+            // FIXME - R (%H:%M)
+            // FIXME - S (second as decimal number)
+
+            case 't':
+                if (sp.empty())
+                    return 0;
+
+                sp[0] = '\t';
+                sp = span(sp.data() + 1, sp.size() - 1);
+            break;
+
+            // FIXME - T (%H:%M:%S)
+            // FIXME - u (weekday as decimal number, 1-based)
+            // FIXME - U (week number of year as decimal number)
+            // FIXME - V (week number of year as decimal number, mark 2)
+            // FIXME - w (weekday as decimal number, 0-based)
+            // FIXME - W (week number of year as decimal number, mark 3)
+            // FIXME - x ("locale's appropriate date representation")
+            // FIXME - X ("locale's appropriate time representation")
+            // FIXME - y (year % 100)
+            // FIXME - Y (year)
+            // FIXME - z (TZ offset)
+            // FIXME - Z (TZ name or abbreviation)
+
+            case '%':
+                if (sp.empty())
+                    return 0;
+
+                sp[0] = '%';
+                sp = span(sp.data() + 1, sp.size() - 1);
+            break;
+        }
+
+        fmt = string_view(fmt.data() + 1, fmt.size() - 1);
+
+        if (fmt.empty())
+            break;
+
+        if (sp.empty())
+            return 0;
+    }
+
+    if (sp.empty())
+        return 0;
+
+    sp[0] = 0;
+
+    return sp.data() - s;
 }
