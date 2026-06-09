@@ -21,6 +21,7 @@ add_custom_command(
 )
 
 add_library(readline SHARED
+    readline.def
     repo/bind.c
     repo/callback.c
     repo/colors.c
@@ -81,6 +82,7 @@ target_include_directories(readline PUBLIC ${CMAKE_CURRENT_BINARY_DIR})
 target_include_directories(readline PRIVATE repo ${CMAKE_CURRENT_SOURCE_DIR} ${GEN})
 
 target_link_libraries(readline PRIVATE tinfo posixshim moxnox)
+# target_link_options(readline PRIVATE -Wl,--exclude-libs,ALL)
 
 install(TARGETS readline
     DESTINATION ${CMAKE_INSTALL_PREFIX}/lib
