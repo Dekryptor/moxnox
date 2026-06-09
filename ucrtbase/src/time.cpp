@@ -260,6 +260,17 @@ static bool strftime_ampm(span<char>& sp, int hour) {
     }
 }
 
+static constexpr unsigned int days_in_year(int year) {
+    if (year % 4)
+        return 365;
+    else if (!(year % 400))
+        return 366;
+    else if (!(year % 100))
+        return 365;
+    else
+        return 366;
+}
+
 extern "C"
 size_t strftime(char* s, size_t max, const char* format, const struct tm* tm) {
     auto fmt = string_view(format);
@@ -516,7 +527,23 @@ size_t strftime(char* s, size_t max, const char* format, const struct tm* tm) {
                     return 0;
             break;
 
-            // FIXME - V (week number of year as decimal number, mark 2)
+            case 'V': { // week number of year according to ISO 8601
+                int wday_mon = (tm->tm_wday + 6) % 7;
+                int thu_yday = tm->tm_yday - wday_mon + 3;
+                int week;
+
+                if (thu_yday < 0) // Thursday is in previous year - use last ISO week of prev year
+                    week = ((thu_yday + days_in_year(tm->tm_year + 1900 - 1)) / 7) + 1;
+                else if ((unsigned int)thu_yday >= days_in_year(tm->tm_year + 1900)) // Thursday is in next year - this is week 1 of next year
+                    week = 1;
+                else
+                    week = (thu_yday / 7) + 1;
+
+                if (!strftime_number<2>(sp, week))
+                    return 0;
+
+                break;
+            }
 
             case 'w': // weekday as decimal number, 0 = Sunday, 6 = Saturday
                 if (!strftime_number<1>(sp, tm->tm_wday))
