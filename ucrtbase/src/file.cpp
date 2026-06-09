@@ -11,6 +11,7 @@ module;
 #include <stdarg.h>
 #include <sys/utime.h>
 #include <sys/types.h>
+#include <sys/stat.h>
 
 export module file;
 
@@ -770,7 +771,7 @@ int setvbuf(FILE* /*stream*/, char* /*buffer*/, int /*mode*/, size_t /*size*/) {
     return 0;
 }
 
-static int do_fstat(HANDLE h, _stat64* st) {
+static int do_fstat(HANDLE h, struct _stat64* st) {
     nt_status status;
     IO_STATUS_BLOCK iosb;
     FILE_BASIC_INFORMATION fbi;
@@ -792,9 +793,6 @@ static int do_fstat(HANDLE h, _stat64* st) {
 
     memset(st, 0, sizeof(*st));
 
-    static const uint32_t S_IFDIR = 040000;
-    static const uint32_t S_IFREG = 0100000;
-
     if (fbi.FileAttributes & FILE_ATTRIBUTE_DIRECTORY)
         st->st_mode = S_IFDIR | 0777;
     else {
@@ -814,7 +812,7 @@ static int do_fstat(HANDLE h, _stat64* st) {
 }
 
 extern "C"
-int _stat64(const char* path, struct _stat64* st) {
+int ___stat64(const char* path, struct _stat64* st) {
     auto peb = NtCurrentTeb()->ProcessEnvironmentBlock;
     OBJECT_ATTRIBUTES oa;
     UNICODE_STRING us;
@@ -863,10 +861,10 @@ int _stat64(const char* path, struct _stat64* st) {
 }
 
 extern "C"
-int _stat64i32(const char* path, struct _stat64i32* st) {
+int __stat64i32(const char* path, struct _stat64i32* st) {
     struct _stat64 st2;
 
-    auto ret = _stat64(path, &st2);
+    auto ret = ___stat64(path, &st2);
     if (ret)
         return ret;
 
@@ -886,10 +884,10 @@ int _stat64i32(const char* path, struct _stat64i32* st) {
 }
 
 extern "C"
-int _stat32i64(const char* path, struct _stat32i64* st) {
+int __stat32i64(const char* path, struct _stat32i64* st) {
     struct _stat64 st2;
 
-    auto ret = _stat64(path, &st2);
+    auto ret = ___stat64(path, &st2);
     if (ret)
         return ret;
 
@@ -909,10 +907,10 @@ int _stat32i64(const char* path, struct _stat32i64* st) {
 }
 
 extern "C"
-int _stat32(const char* path, struct _stat32* st) {
+int __stat32(const char* path, struct _stat32* st) {
     struct _stat64 st2;
 
-    auto ret = _stat64(path, &st2);
+    auto ret = ___stat64(path, &st2);
     if (ret)
         return ret;
 
@@ -932,7 +930,7 @@ int _stat32(const char* path, struct _stat32* st) {
 }
 
 extern "C"
-int _fstat64(int fd, struct _stat64* st) {
+int __fstat64(int fd, struct _stat64* st) {
     HANDLE h;
 
     if (fd < 0 || (size_t)fd >= fds.size()) {
@@ -953,10 +951,10 @@ int _fstat64(int fd, struct _stat64* st) {
 }
 
 extern "C"
-int _fstat64i32(int fd, struct _stat64i32* st) {
+int __fstat64i32(int fd, struct _stat64i32* st) {
     struct _stat64 st2;
 
-    auto ret = _fstat64(fd, &st2);
+    auto ret = __fstat64(fd, &st2);
     if (ret)
         return ret;
 
@@ -976,10 +974,10 @@ int _fstat64i32(int fd, struct _stat64i32* st) {
 }
 
 extern "C"
-int _fstat32i64(int fd, struct _stat32i64* st) {
+int __fstat32i64(int fd, struct _stat32i64* st) {
     struct _stat64 st2;
 
-    auto ret = _fstat64(fd, &st2);
+    auto ret = __fstat64(fd, &st2);
     if (ret)
         return ret;
 
@@ -999,10 +997,10 @@ int _fstat32i64(int fd, struct _stat32i64* st) {
 }
 
 extern "C"
-int _fstat32(int fd, struct _stat32* st) {
+int __fstat32(int fd, struct _stat32* st) {
     struct _stat64 st2;
 
-    auto ret = _fstat64(fd, &st2);
+    auto ret = __fstat64(fd, &st2);
     if (ret)
         return ret;
 
@@ -1169,7 +1167,7 @@ static int open2(const char* path, int flags, int pmode) {
 }
 
 extern "C"
-int _open(const char* path, int flags, ...) {
+int __open(const char* path, int flags, ...) {
     va_list ap;
 
     if (flags & _O_CREAT) {
@@ -1191,7 +1189,7 @@ static int sopen2(const char* path, int oflags, int /*shflags*/, int pmode) {
 }
 
 extern "C"
-int _sopen(const char* path, int oflags, int shflags, ...) {
+int __sopen(const char* path, int oflags, int shflags, ...) {
     va_list ap;
 
     if (oflags & _O_CREAT) {
@@ -1254,7 +1252,7 @@ int __fileno(FILE* file) {
 }
 
 extern "C"
-int _chmod(const char* /*path*/, int /*flags*/) {
+int __chmod(const char* /*path*/, int /*flags*/) {
     // FIXME - do something (at least check path is valid)
 
     return 0;
@@ -1283,7 +1281,7 @@ int getchar() {
 }
 
 extern "C"
-intptr_t _get_osfhandle(int fd) {
+intptr_t __get_osfhandle(int fd) {
     if (fd < 0 || (size_t)fd >= fds.size()) {
         *__errno() = EBADF;
         return -1;
@@ -1304,7 +1302,7 @@ intptr_t _get_osfhandle(int fd) {
 }
 
 extern "C"
-int _open_osfhandle(intptr_t osfhandle, int /*flags*/) {
+int __open_osfhandle(intptr_t osfhandle, int /*flags*/) {
     optional<int> fd;
 
     // FIXME - flags?
@@ -1332,10 +1330,10 @@ int _open_osfhandle(intptr_t osfhandle, int /*flags*/) {
 }
 
 extern "C"
-int _isatty(int fd) {
+int __isatty(int fd) {
     IO_STATUS_BLOCK iosb;
 
-    auto h = _get_osfhandle(fd);
+    auto h = __get_osfhandle(fd);
     if (h == -1)
         return 0; // FIXME - is this right?
 
@@ -1349,10 +1347,10 @@ int _isatty(int fd) {
 }
 
 extern "C"
-int _write(int fd, const void* buffer, unsigned int count) {
+int __write(int fd, const void* buffer, unsigned int count) {
     IO_STATUS_BLOCK iosb;
 
-    auto h = (HANDLE)_get_osfhandle(fd);
+    auto h = (HANDLE)__get_osfhandle(fd);
     if ((intptr_t)h < 0)
         return -1;
 
@@ -1367,10 +1365,10 @@ int _write(int fd, const void* buffer, unsigned int count) {
 }
 
 extern "C"
-int _read(int fd, void* buffer, size_t count) {
+int __read(int fd, void* buffer, size_t count) {
     IO_STATUS_BLOCK iosb;
 
-    auto h = (HANDLE)_get_osfhandle(fd);
+    auto h = (HANDLE)__get_osfhandle(fd);
     if ((intptr_t)h < 0)
         return -1;
 
@@ -1385,7 +1383,7 @@ int _read(int fd, void* buffer, size_t count) {
 }
 
 extern "C"
-int _access(const char* path, int /*mode*/) {
+int __access(const char* path, int /*mode*/) {
     auto peb = NtCurrentTeb()->ProcessEnvironmentBlock;
     OBJECT_ATTRIBUTES oa;
     UNICODE_STRING us;
@@ -1452,14 +1450,14 @@ int putchar(int c) {
 }
 
 extern "C"
-int _setmode(int fd, int mode) {
+int __setmode(int fd, int mode) {
     print("FIXME - _setmode ({}, {})\n", fd, mode); // FIXME
 
     return 0;
 }
 
 extern "C"
-int _close(int fd) {
+int __close(int fd) {
     if (fd < 0 || (size_t)fd >= fds.size()) {
         *__errno() = EBADF;
         return -1;
@@ -1482,7 +1480,7 @@ int _close(int fd) {
 }
 
 extern "C"
-int _mkdir(const char* path) {
+int __mkdir(const char* path) {
     OBJECT_ATTRIBUTES oa;
     UNICODE_STRING us;
     NTSTATUS status;
@@ -1684,7 +1682,7 @@ int __unlink(const char* path) {
 }
 
 extern "C"
-int _dup2(int oldfd, int newfd) {
+int __dup2(int oldfd, int newfd) {
     if (oldfd < 0 || (size_t)oldfd >= fds.size() || newfd < 0 || (size_t)newfd >= fds.size()) {
         *__errno() = EBADF;
         return -1;
@@ -1727,7 +1725,7 @@ int _dup2(int oldfd, int newfd) {
 }
 
 extern "C"
-int _dup(int oldfd) {
+int __dup(int oldfd) {
     if (oldfd < 0 || (size_t)oldfd >= fds.size()) {
         *__errno() = EBADF;
         return -1;
@@ -1778,7 +1776,7 @@ int64_t _lseeki64(int fd, int64_t offset, int whence) {
     IO_STATUS_BLOCK iosb;
     nt_status status;
 
-    auto h = (HANDLE)_get_osfhandle(fd);
+    auto h = (HANDLE)__get_osfhandle(fd);
     if (h == (HANDLE)-1)
         return -1;
 
@@ -1830,7 +1828,7 @@ int64_t _lseeki64(int fd, int64_t offset, int whence) {
 }
 
 extern "C"
-long _lseek(int fd, long offset, int whence) {
+long __lseek(int fd, long offset, int whence) {
     return (long)_lseeki64(fd, (int64_t)offset, whence);
 }
 

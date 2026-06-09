@@ -122,36 +122,36 @@ sincos
 sincosf
 trunc
 truncf
-_stat64i32
-_stat64
-_stat32i64
-_stat32
+_stat64i32 = __stat64i32
+_stat64 = ___stat64
+_stat32i64 = __stat32i64
+_stat32 = __stat32
 ferror
 feof
-_open
+_open = __open
 strerror = __strerror
 _fdopen = __fdopen
 _fileno = __fileno
 clock
-_fstat64
-_fstat64i32
-_fstat32i64
-_fstat32
+_fstat64 = __fstat64
+_fstat64i32 = __fstat64i32
+_fstat32i64 = __fstat32i64
+_fstat32 = __fstat32
 _time32 = __time32
 _time64 = __time64
-_chmod
+_chmod = __chmod
 _utime32 = __utime32
 _utime64 = __utime64
 getchar
-_isatty
-_get_osfhandle
-_write
-_read
+_isatty = __isatty
+_get_osfhandle = __get_osfhandle
+_write = __write
+_read = __read
 wcscpy = ntdll.wcscpy
 wcsncmp = ntdll.wcsncmp
 setlocale = _setlocale
 _stricmp = __stricmp
-_access
+_access = __access
 _getcwd
 isblank = _isblank
 toupper = __toupper
@@ -165,7 +165,7 @@ islower = _islower
 isprint = _isprint
 ispunct = _ispunct
 bsearch
-_setmode
+_setmode = __setmode
 strcspn
 strspn
 exp
@@ -194,8 +194,8 @@ _chdir
 atol
 atoi
 _strnicmp = __strnicmp
-_open_osfhandle
-_close
+_open_osfhandle = __open_osfhandle
+_close = __close
 strpbrk
 strcoll = _strcoll
 putchar
@@ -204,7 +204,7 @@ strtoull
 wcsnlen
 _exit
 mbrlen = _mbrlen
-_mkdir
+_mkdir = __mkdir
 clearerr
 ___mb_cur_max_func = ____mb_cur_max_func
 towlower
@@ -219,15 +219,15 @@ raise
 mn_sigaction
 wcsncpy
 wcsrtombs = _wcsrtombs
-_sopen
+_sopen = __sopen
 mbtowc = _mbtowc
 strtok = _strtok
-_dup2
-_dup
+_dup2 = __dup2
+_dup = __dup
 rand_s
 __setusermatherr = ___setusermatherr
 _configthreadlocale = __configthreadlocale
-_lseek
+_lseek = __lseek
 _lseeki64
 rewind
 _gmtime64 = __gmtime64
