@@ -593,22 +593,6 @@ static void cursor() {
     NtClose(h);
 }
 
-static void exit() {
-    while (!is_list_empty(suspended_processes)) {
-        auto& sp = containing_record<suspended_process>(suspended_processes.next);
-
-        remove_entry_list(sp.le);
-
-        auto status = NtTerminateProcess(sp.proc.get(), nt_status::CONTROL_C_EXIT);
-        if (!success(status))
-            print_stderr("NtTerminateProcess returned {}\n", status);
-
-        delete &sp;
-    }
-
-    NtTerminateProcess(NtCurrentProcess(), nt_status::SUCCESS);
-}
-
 static void fg() {
     auto& peb = *NtCurrentTeb()->ProcessEnvironmentBlock;
     bool tc_settings_valid = false;
@@ -734,9 +718,7 @@ static void process_line(string_view sv) {
     if (cmd.empty())
         return;
 
-    if (cmd == "exit")
-        exit();
-    else if (cmd == "time")
+    if (cmd == "time")
         time();
     else if (cmd == "timer")
         timer();
@@ -951,8 +933,25 @@ int main() {
         if (*line)
             add_history(line);
 
+        if (!strcmp(line, "exit")) {
+            free(line);
+            break;
+        }
+
         process_line(line);
         free(line);
+    }
+
+    while (!is_list_empty(suspended_processes)) {
+        auto& sp = containing_record<suspended_process>(suspended_processes.next);
+
+        remove_entry_list(sp.le);
+
+        auto status = NtTerminateProcess(sp.proc.get(), nt_status::CONTROL_C_EXIT);
+        if (!success(status))
+            print_stderr("NtTerminateProcess returned {}\n", status);
+
+        delete &sp;
     }
 
     return 0;
