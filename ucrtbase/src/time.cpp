@@ -615,7 +615,19 @@ size_t strftime(char* s, size_t max, const char* format, const struct tm* tm) {
                 break;
             }
 
-            // FIXME - Z (TZ name or abbreviation)
+            case 'Z': { // timezone name
+                static const string_view TZNAME = "UTC";
+
+                // FIXME - get from extended struct tm
+
+                if (sp.size() < TZNAME.size())
+                    return 0;
+
+                memcpy(sp.data(), TZNAME.data(), TZNAME.size());
+                sp = span(sp.data() + TZNAME.size(), sp.size() - TZNAME.size());
+
+                break;
+            }
 
             case '%':
                 if (sp.empty())
