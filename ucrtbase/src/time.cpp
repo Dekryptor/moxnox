@@ -511,7 +511,11 @@ size_t strftime(char* s, size_t max, const char* format, const struct tm* tm) {
                     return 0;
             break;
 
-            // FIXME - U (week number of year as decimal number)
+            case 'U': // week number of year as decimal number, Sunday start
+                if (!strftime_number<2>(sp, (tm->tm_yday + 7 - tm->tm_wday) / 7))
+                    return 0;
+            break;
+
             // FIXME - V (week number of year as decimal number, mark 2)
 
             case 'w': // weekday as decimal number, 0 = Sunday, 6 = Saturday
@@ -519,7 +523,11 @@ size_t strftime(char* s, size_t max, const char* format, const struct tm* tm) {
                     return 0;
             break;
 
-            // FIXME - W (week number of year as decimal number, mark 3)
+            case 'W': // week number of year as decimal number, Monday start
+                if (!strftime_number<2>(sp, (tm->tm_yday + 7 - (tm->tm_wday + 6) % 7) / 7))
+                    return 0;
+            break;
+
             // FIXME - x ("locale's appropriate date representation")
             // FIXME - X ("locale's appropriate time representation")
 
