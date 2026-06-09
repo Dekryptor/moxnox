@@ -237,6 +237,29 @@ bool strftime_number(span<char>& sp, int num) {
     return true;
 }
 
+static bool strftime_ampm(span<char>& sp, int hour) {
+    static const string_view AM = "am";
+    static const string_view PM = "pm";
+
+    if (hour < 12) {
+        if (sp.size() < AM.size())
+            return false;
+
+        memcpy(sp.data(), AM.data(), AM.size());
+        sp = span(sp.data() + AM.size(), sp.size() - AM.size());
+
+        return true;
+    } else {
+        if (sp.size() < PM.size())
+            return false;
+
+        memcpy(sp.data(), PM.data(), PM.size());
+        sp = span(sp.data() + PM.size(), sp.size() - PM.size());
+
+        return true;
+    }
+}
+
 extern "C"
 size_t strftime(char* s, size_t max, const char* format, const struct tm* tm) {
     auto fmt = string_view(format);
@@ -396,7 +419,11 @@ size_t strftime(char* s, size_t max, const char* format, const struct tm* tm) {
                 sp = span(sp.data() + 1, sp.size() - 1);
             break;
 
-            // FIXME - p (a.m. or p.m.)
+            case 'p': // am or pm
+                if (!strftime_ampm(sp, tm->tm_hour))
+                    return 0;
+            break;
+
             // FIXME - r (%I:%M:%S %p)
 
             case 'R': // %H:%M
