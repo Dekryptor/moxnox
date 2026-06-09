@@ -583,23 +583,19 @@ int __fseeki64_nolock(FILE* file, int64_t offset, int whence) {
     FILE_POSITION_INFORMATION fpi;
     IO_STATUS_BLOCK iosb;
 
-    static const int _SEEK_SET = 0;
-    static const int _SEEK_CUR = 1;
-    static const int _SEEK_END = 2;
-
     switch (whence) {
-        case _SEEK_SET:
+        case SEEK_SET:
             start = 0;
             break;
 
-        case _SEEK_CUR:
+        case SEEK_CUR:
             start = __ftelli64_nolock(file);
 
             if (start == -1)
                 return -1;
             break;
 
-        case _SEEK_END:
+        case SEEK_END:
             print("FIXME - _fseeki64_nolock SEEK_END\n");
             // FIXME - call NtQueryInformationFile with FileEndOfFileInformation
             *__errno() = EINVAL;
@@ -1764,4 +1760,67 @@ int _dup(int oldfd) {
     *__errno() = EMFILE;
 
     return -1;
+}
+
+extern "C"
+int64_t _lseeki64(int fd, int64_t offset, int whence) {
+    int64_t start;
+    FILE_POSITION_INFORMATION fpi;
+    IO_STATUS_BLOCK iosb;
+    nt_status status;
+
+    auto h = (HANDLE)_get_osfhandle(fd);
+    if (h == (HANDLE)-1)
+        return -1;
+
+    switch (whence) {
+        case SEEK_SET:
+            start = 0;
+            break;
+
+        case SEEK_CUR:
+            status = NtQueryInformationFile(h, &iosb, &fpi, sizeof(fpi),
+                                            FILE_INFORMATION_CLASS::PositionInformation);
+            if (!success(status)) {
+                *__errno() = nt_status_to_errno(status);
+                return -1;
+            }
+
+            start = fpi.CurrentByteOffset.QuadPart;
+            break;
+
+        case SEEK_END: {
+            FILE_STANDARD_INFORMATION fsi;
+
+            status = NtQueryInformationFile(h, &iosb, &fsi, sizeof(fsi),
+                                            FILE_INFORMATION_CLASS::StandardInformation);
+            if (!success(status)) {
+                *__errno() = nt_status_to_errno(status);
+                return -1;
+            }
+
+            start = fsi.EndOfFile.QuadPart;
+            break;
+        }
+
+        default:
+            *__errno() = EINVAL;
+            return -1;
+    }
+
+    fpi.CurrentByteOffset.QuadPart = start + offset;
+
+    status = NtSetInformationFile(h, &iosb, &fpi, sizeof(fpi),
+                                  FILE_INFORMATION_CLASS::PositionInformation);
+    if (!success(status)) {
+        *__errno() = nt_status_to_errno(status);
+        return -1;
+    }
+
+    return start + offset;
+}
+
+extern "C"
+long _lseek(int fd, long offset, int whence) {
+    return (long)_lseeki64(fd, (int64_t)offset, whence);
 }

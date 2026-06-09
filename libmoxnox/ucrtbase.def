@@ -199,9 +199,10 @@ _dup
 rand_s
 __setusermatherr
 _configthreadlocale
+_lseeki64
+_lseek
 
 ; stubs
-_lseeki64
 strftime
 _wfopen
 ___lc_codepage_func
@@ -229,7 +230,6 @@ tmpfile
 atof
 _wcsnicmp
 _umask
-_lseek
 _rmdir
 _pipe
 _execvp

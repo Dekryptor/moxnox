@@ -2,7 +2,6 @@
 
 stubs_start
 
-do_stub "_lseeki64"
 do_stub "_wfopen"
 do_stub "strftime"
 do_stub "__stdio_common_vfscanf"
@@ -28,7 +27,6 @@ do_stub "tmpfile"
 do_stub "atof"
 do_stub "_wcsnicmp"
 do_stub "_umask"
-do_stub "_lseek"
 do_stub "_rmdir"
 do_stub "_pipe"
 do_stub "_gmtime64_s"
