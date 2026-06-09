@@ -1833,3 +1833,29 @@ extern "C"
 long _lseek(int fd, long offset, int whence) {
     return (long)_lseeki64(fd, (int64_t)offset, whence);
 }
+
+extern "C"
+void rewind(FILE* file) {
+    FILE_POSITION_INFORMATION fpi;
+    IO_STATUS_BLOCK iosb;
+    nt_status status;
+
+    __lock_file(file);
+
+    auto& f = *reinterpret_cast<_FILE*>(file);
+
+    fpi.CurrentByteOffset.QuadPart = 0;
+
+    status = NtSetInformationFile(f.h, &iosb, &fpi, sizeof(fpi),
+                                  FILE_INFORMATION_CLASS::PositionInformation);
+    if (!success(status)) {
+        __unlock_file(file);
+        return;
+    }
+
+    f.ungetc_char = nullopt;
+    f.error = false;
+    f.eof = false;
+
+    __unlock_file(file);
+}

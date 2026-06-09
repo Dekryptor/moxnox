@@ -229,3 +229,4 @@ __setusermatherr = ___setusermatherr
 _configthreadlocale = __configthreadlocale
 _lseek
 _lseeki64
+rewind

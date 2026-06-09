@@ -201,6 +201,7 @@ __setusermatherr
 _configthreadlocale
 _lseeki64
 _lseek
+rewind
 
 ; stubs
 strftime
@@ -225,7 +226,6 @@ freopen
 _localtime64_s
 _localtime64
 _mktime64
-rewind
 tmpfile
 atof
 _wcsnicmp
