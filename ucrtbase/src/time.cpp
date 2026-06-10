@@ -146,7 +146,7 @@ bool strftime_index(span<char>& sp, int num, const array<string_view, N>& str) {
         return true;
     }
 
-    auto s = str[num];
+    auto s = str[(size_t)num];
 
     if (sp.size() < s.size())
         return false;
@@ -231,7 +231,7 @@ bool strftime_number(span<char>& sp, int num) {
     if (tcr.ec != errc{})
         return false;
 
-    size_t written = tcr.ptr - sp.data();
+    auto written = (size_t)(tcr.ptr - sp.data());
 
     sp = span(sp.data() + written, sp.size() - written);
 
@@ -576,7 +576,7 @@ size_t _strftime(char* s, size_t max, const char* format, const struct tm* tm) {
                 int week;
 
                 if (thu_yday < 0) // Thursday is in previous year - use last ISO week of prev year
-                    week = ((thu_yday + days_in_year(tm->tm_year + 1900 - 1)) / 7) + 1;
+                    week = ((thu_yday + (int)days_in_year(tm->tm_year + 1900 - 1)) / 7) + 1;
                 else if ((unsigned int)thu_yday >= days_in_year(tm->tm_year + 1900)) // Thursday is in next year - this is week 1 of next year
                     week = 1;
                 else
@@ -681,7 +681,7 @@ size_t _strftime(char* s, size_t max, const char* format, const struct tm* tm) {
 
     sp[0] = 0;
 
-    return sp.data() - s;
+    return (size_t)(sp.data() - s);
 }
 
 extern "C"
