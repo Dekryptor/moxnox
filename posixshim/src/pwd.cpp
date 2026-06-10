@@ -1,4 +1,5 @@
 #include <pwd.h>
+#include <grp.h>
 #include <string.h>
 
 #undef errno
@@ -65,6 +66,72 @@ struct passwd* getpwnam(const char* name) {
     struct passwd* result;
 
     if (getpwnam_r(name, &pwd, static_buf2, sizeof(static_buf2), &result) != 0)
+        return nullptr;
+
+    return result;
+}
+
+extern "C"
+int getgrgid_r(gid_t gid, struct group* grp, char* buf, size_t size,
+               struct group** result) {
+    static const char NAME[] = "root";
+    static const char MEMBER[] = "root";
+
+    if (gid != 0) {
+        *result = nullptr;
+        return 0;
+    }
+
+    // FIXME - gr_mem array ought to be aligned
+
+    if (size < sizeof(NAME) + sizeof(MEMBER) + (2 * sizeof(char*)))
+        return ERANGE;
+
+    memcpy(buf, NAME, sizeof(NAME));
+    memcpy(buf + sizeof(NAME), MEMBER, sizeof(MEMBER));
+
+    grp->gr_name = buf;
+    grp->gr_gid = gid;
+    grp->gr_mem = (char**)(buf + sizeof(NAME) + sizeof(MEMBER));
+
+    grp->gr_mem[0] = buf + sizeof(NAME);
+    grp->gr_mem[1] = nullptr;
+
+    *result = grp;
+
+    return 0;
+}
+
+extern "C"
+int getgrnam_r(const char* name, struct group* grp, char* buf, size_t size,
+               struct group** result) {
+    if (strcmp(name, "root")) {
+        *result = nullptr;
+        return 0;
+    }
+
+    return getgrgid_r(0, grp, buf, size, result);
+}
+
+extern "C"
+struct group* getgrgid(gid_t gid) {
+    static struct group grp;
+    static char buf[1024];
+    struct group* result;
+
+    if (getgrgid_r(gid, &grp, buf, sizeof(buf), &result) != 0)
+        return nullptr;
+
+    return result;
+}
+
+extern "C"
+struct group* getgrnam(const char* name) {
+    static struct group grp;
+    static char buf[1024];
+    struct group* result;
+
+    if (getgrnam_r(name, &grp, buf, sizeof(buf), &result) != 0)
         return nullptr;
 
     return result;
