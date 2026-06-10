@@ -75,13 +75,10 @@ errno_t rand_s(unsigned int* val) {
 extern "C"
 void* bsearch(const void* key, const void* base, size_t nmemb, size_t size,
               int (*compar)(const void*, const void*)) {
-    size_t start = 0, end = nmemb - 1;
+    size_t start = 0, end = nmemb;
 
-    if (nmemb == 0)
-        return nullptr;
-
-    while (start <= end) {
-        size_t mid = (start + end) / 2;
+    while (start < end) {
+        size_t mid = start + (end - start) / 2;
         auto ptr = (char*)base + (mid * size);
 
         auto ret = compar(key, ptr);
@@ -89,7 +86,7 @@ void* bsearch(const void* key, const void* base, size_t nmemb, size_t size,
         if (ret == 0)
             return ptr;
         else if (ret < 0)
-            end = mid - 1;
+            end = mid;
         else
             start = mid + 1;
     }
