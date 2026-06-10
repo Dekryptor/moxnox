@@ -8,6 +8,7 @@ extern "C" {
 
 char* ttyname(int fd);
 uid_t getuid(void);
+gid_t getgid(void);
 int isatty(int fd);
 int access(const char* path, int mode);
 int close(int fd);
@@ -29,6 +30,7 @@ int execve(const char* file, char* const argv[], char* const envp[]);
 int execlp(const char* file, const char* arg, ...);
 int execl(const char* path, const char* arg, ...);
 int getentropy(void *buf, size_t buflen);
+int gethostname(char* name, int namelen); // FIXME - POSIX says size_t, but winsock2.h has int
 
 #ifdef __cplusplus
 }
