@@ -5,6 +5,7 @@ module;
 #include <span>
 #include <string_view>
 #include <charconv>
+#include <array>
 
 export module time;
 
