@@ -1,6 +1,7 @@
 #include <stdint.h>
 #include <string.h>
 #include <bit>
+#include <string_view>
 
 import nt;
 import ucrtbase;
@@ -267,6 +268,28 @@ int getsockname(SOCKET /*s*/, sockaddr* /*name*/, int* /*namelen*/) {
 extern "C"
 int closesocket(SOCKET s) {
     return _close((int)s);
+}
+
+extern "C"
+int gethostname(char* name, int namelen) {
+    static const string_view HOSTNAME = "localhost";
+
+    // FIXME - do this properly
+
+    if (namelen < 0) {
+        *_errno() = EINVAL;
+        return -1;
+    }
+
+    if ((size_t)namelen < HOSTNAME.size() + 1) {
+        *_errno() = ENAMETOOLONG;
+        return -1;
+    }
+
+    memcpy(name, HOSTNAME.data(), HOSTNAME.size());
+    name[HOSTNAME.size()] = 0;
+
+    return 0;
 }
 
 extern "C"

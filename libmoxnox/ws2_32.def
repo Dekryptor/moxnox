@@ -20,10 +20,10 @@ ntohl
 setsockopt
 ioctlsocket
 getsockname
+gethostname
 
 ; stubs
 getsockopt
 getpeername
-gethostname
 shutdown
 getnameinfo

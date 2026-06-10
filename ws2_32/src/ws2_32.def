@@ -20,3 +20,4 @@ ntohs
 setsockopt
 ioctlsocket
 getsockname
+gethostname
