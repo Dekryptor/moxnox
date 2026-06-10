@@ -209,6 +209,7 @@ _localtime64_s
 _localtime64
 _umask
 _rmdir
+system
 
 ; stubs
 _wfopen
@@ -237,7 +238,6 @@ _execv
 _execl
 _execlp
 _execve
-system
 _mktemp
 setbuf
 _popen

@@ -237,3 +237,4 @@ _localtime64 = __localtime64
 _localtime64_s = __localtime64_s
 _umask = __umask
 _rmdir = __rmdir
+system
