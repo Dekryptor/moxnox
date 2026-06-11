@@ -46,6 +46,8 @@ add_library(musl STATIC
     ../ports/musl/repo/src/math/exp.c
     ../ports/musl/repo/src/math/expf.c
     ../ports/musl/repo/src/math/exp_data.c
+    ../ports/musl/repo/src/math/exp2.c
+    ../ports/musl/repo/src/math/exp2f.c
     ../ports/musl/repo/src/math/exp2f_data.c
     ../ports/musl/repo/src/math/__math_oflow.c
     ../ports/musl/repo/src/math/__math_oflowf.c

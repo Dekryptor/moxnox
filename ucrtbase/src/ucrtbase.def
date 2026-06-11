@@ -238,3 +238,5 @@ _localtime64_s = __localtime64_s
 _umask = __umask
 _rmdir = __rmdir
 system
+exp2
+exp2f

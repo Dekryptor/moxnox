@@ -210,6 +210,8 @@ _localtime64
 _umask
 _rmdir
 system
+exp2
+exp2f
 
 ; stubs
 _wfopen
