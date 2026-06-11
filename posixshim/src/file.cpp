@@ -135,3 +135,26 @@ int futimens(int fd, const timespec* times) {
 
     return 0;
 }
+
+extern "C"
+int ftruncate(int fd, off_t length) {
+    FILE_END_OF_FILE_INFORMATION eof;
+    IO_STATUS_BLOCK iosb;
+
+    auto h = (HANDLE)_get_osfhandle(fd);
+    if (h == (HANDLE)-1) {
+        *_errno() = EBADF;
+        return -1;
+    }
+
+    eof.EndOfFile.QuadPart = length;
+
+    auto status = NtSetInformationFile(h, &iosb, &eof, sizeof(eof),
+                                       FILE_INFORMATION_CLASS::EndOfFileInformation);
+    if (!success(status)) {
+        *_errno() = nt_status_to_errno(status);
+        return -1;
+    }
+
+    return 0;
+}

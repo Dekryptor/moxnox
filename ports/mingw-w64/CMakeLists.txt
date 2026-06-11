@@ -240,7 +240,6 @@ add_library(mingwex STATIC
     repo/mingw-w64-crt/stdio/strtok_r.c
     repo/mingw-w64-crt/stdio/_Exit.c
     repo/mingw-w64-crt/stdio/asprintf.c
-    repo/mingw-w64-crt/stdio/mingw_ftruncate64.c
     repo/mingw-w64-crt/stdio/lltoa.c
     repo/mingw-w64-crt/stdio/lltow.c
     repo/mingw-w64-crt/stdio/__mingw_fix_stat_finish.c

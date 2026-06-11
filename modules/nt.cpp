@@ -1428,6 +1428,10 @@ struct FILE_POSITION_INFORMATION {
     LARGE_INTEGER CurrentByteOffset;
 };
 
+struct FILE_END_OF_FILE_INFORMATION {
+    LARGE_INTEGER EndOfFile;
+};
+
 const uint32_t MAXIMUM_WAIT_OBJECTS = 64;
 
 enum class EVENT_TYPE {
