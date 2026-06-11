@@ -234,7 +234,6 @@ atof
 _wcsnicmp
 _pipe
 _execvp
-_execv
 _execl
 _execlp
 _execve
