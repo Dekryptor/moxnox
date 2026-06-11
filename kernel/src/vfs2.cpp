@@ -1337,16 +1337,36 @@ NTSTATUS file::rename(span<const uint8_t> buf) {
     return status;
 }
 
+nt_status file::set_eof(span<const uint8_t> buffer) {
+    if (buffer.size() != sizeof(FILE_END_OF_FILE_INFORMATION))
+        return nt_status::INVALID_PARAMETER;
+
+    auto& feofi = *(FILE_END_OF_FILE_INFORMATION*)buffer.data();
+    auto& i = static_cast<inode&>(ino);
+
+    {
+        lock_guard lock(i.inode_lock);
+
+        i.file_size = feofi.EndOfFile.QuadPart;
+    }
+
+    i.cache.mark_dirty();
+
+    return nt_status::SUCCESS;
+}
+
 NTSTATUS file::set_information(void* buffer, uint32_t buffer_size,
                                FILE_INFORMATION_CLASS file_information_class) {
     if (ino.type != object_type::inode)
         return nt_status::INVALID_PARAMETER;
 
     switch (file_information_class) {
-        case FILE_INFORMATION_CLASS::RenameInformation:
+        using enum FILE_INFORMATION_CLASS;
+
+        case RenameInformation:
             return rename(span((uint8_t*)buffer, buffer_size));
 
-        case FILE_INFORMATION_CLASS::PositionInformation: {
+        case PositionInformation: {
             if (buffer_size < sizeof(FILE_POSITION_INFORMATION))
                 return nt_status::BUFFER_TOO_SMALL;
 
@@ -1362,6 +1382,9 @@ NTSTATUS file::set_information(void* buffer, uint32_t buffer_size,
 
             return nt_status::SUCCESS;
         }
+
+        case EndOfFileInformation:
+            return set_eof(span((uint8_t*)buffer, buffer_size));
 
         default:
             return static_cast<inode&>(ino).set_information(span((uint8_t*)buffer, buffer_size),

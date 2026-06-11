@@ -231,6 +231,9 @@ public:
                                FILE_INFORMATION_CLASS file_information_class,
                                uint64_t& retlen);
     void last_handle_closed();
+
+private:
+    nt_status set_eof(span<const uint8_t> buf);
 };
 
 static_assert(is_readable_object_without_offset<file>);
