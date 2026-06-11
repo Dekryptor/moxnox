@@ -5222,6 +5222,20 @@ static nt_status do_writeback_inode(btrfs_filesystem& fs, btrfs_inode& ino) {
     }
 
     if (ino.file_size != ino.ii.size) {
+        if (ino.file_size < ino.ii.size) {
+            auto old_num_sectors = (ino.ii.size + fs.sb->sectorsize - 1) / fs.sb->sectorsize;
+            auto new_num_sectors = (ino.file_size + fs.sb->sectorsize - 1) / fs.sb->sectorsize;
+
+            if (new_num_sectors < old_num_sectors) {
+                status = punch_hole(ino, new_num_sectors * fs.sb->sectorsize,
+                                    (old_num_sectors - new_num_sectors) * fs.sb->sectorsize);
+                if (!success(status)) {
+                    print("punch_hole returned {}\n", status);
+                    return status;
+                }
+            }
+        }
+
         btrfs_path p(fs.sb->nodesize);
 
         ino.ii.size = ino.file_size;
