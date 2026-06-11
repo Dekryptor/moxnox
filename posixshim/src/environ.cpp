@@ -214,10 +214,15 @@ int setenv(const char* name, const char* value, int overwrite) {
 
         peb->ProcessParameters->EnvironmentSize = newlen * sizeof(char16_t);
 
+        static bool allocated_peb_env = false;
+
         auto oldenv = peb->ProcessParameters->Environment;
         peb->ProcessParameters->Environment = newenv;
 
-        free(oldenv);
+        if (allocated_peb_env)
+            free(oldenv);
+
+        allocated_peb_env = true;
     }
 
     free(u16name);
