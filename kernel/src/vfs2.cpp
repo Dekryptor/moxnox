@@ -1344,10 +1344,13 @@ nt_status file::set_eof(span<const uint8_t> buffer) {
     auto& feofi = *(FILE_END_OF_FILE_INFORMATION*)buffer.data();
     auto& i = static_cast<inode&>(ino);
 
+    if (feofi.EndOfFile.QuadPart < 0)
+        return nt_status::INVALID_PARAMETER;
+
     {
         lock_guard lock(i.inode_lock);
 
-        i.file_size = feofi.EndOfFile.QuadPart;
+        i.file_size = (uint64_t)feofi.EndOfFile.QuadPart;
     }
 
     i.cache.mark_dirty();
