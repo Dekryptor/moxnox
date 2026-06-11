@@ -232,16 +232,9 @@ bool sata_device::identify() {
         port.ci = 1 << slot;
     }
 
-    auto status = wait_for_object(events[slot].get(), true);
+    wait_for_object(events[slot].get(), false);
 
     dma_finish_read(sp, bounce);
-
-    if (!success(status)) {
-        print("sata_device::identify: wait_for_object returned {}\n", status);
-        pending_slots &= ~((uint32_t)1 << slot);
-        release_slot(slot);
-        return false;
-    }
 
     pending_slots &= ~((uint32_t)1 << slot);
 
