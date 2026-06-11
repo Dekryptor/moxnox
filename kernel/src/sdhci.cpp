@@ -949,7 +949,7 @@ bool sdhci_slot::set_clock(unsigned int freq) {
                 break;
             }
 
-            wait_for_object(tim, true); // wait 1ms
+            wait_for_object(tim, false); // wait 1ms
         }
 
         if (!done) {
