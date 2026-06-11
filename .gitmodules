@@ -55,3 +55,6 @@
 [submodule "ports/less/repo"]
 	path = ports/less/repo
 	url = https://git.burntcomma.com/moxnox/less
+[submodule "ports/openssl/repo"]
+	path = ports/openssl/repo
+	url = https://git.burntcomma.com/moxnox/openssl

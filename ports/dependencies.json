@@ -8,6 +8,7 @@
     "libpng": ["zlib"],
     "nano": ["gnulib", "ncurses"],
     "ncurses": [],
+    "openssl": [],
     "pixman": [],
     "readline": ["ncurses"],
     "vim": ["ncurses"],
