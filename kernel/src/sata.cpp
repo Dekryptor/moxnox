@@ -70,8 +70,6 @@ nt_status sata_device::dio_read(uint64_t page_num, uint64_t num_pages,
     // FIXME - proper error handling
     // FIXME - asynchronous mode
 
-    port.is = 0xffffffff; // clear interrupt bits
-
     uint8_t slot = get_slot();
 
     auto& cmd = *(HBA_CMD_HEADER*)(clb + (slot * sizeof(HBA_CMD_HEADER)));
@@ -140,7 +138,16 @@ nt_status sata_device::dio_read(uint64_t page_num, uint64_t num_pages,
 
     wait_for_object(events[slot].get(), false);
 
-    if (port.is & HBA_PxIS_TFES) {
+    bool failed;
+
+    {
+        lock_guard lg(pending_lock);
+
+        failed = (error_slots & (1 << slot)) != 0;
+        error_slots &= ~((uint32_t)1 << slot);
+    }
+
+    if (failed) {
         print("Error reading disk\n");
         release_slot(slot);
         return nt_status::INTERNAL_ERROR; // FIXME - translate into nt_status properly
@@ -199,8 +206,6 @@ bool sata_device::identify() {
         return false;
     }
 
-    port.is = 0xffffffff; // clear interrupt bits
-
     auto slot = get_slot();
 
     auto& cmd = *(HBA_CMD_HEADER*)(clb + (slot * sizeof(HBA_CMD_HEADER)));
@@ -236,9 +241,16 @@ bool sata_device::identify() {
 
     dma_finish_read(sp, bounce);
 
-    pending_slots &= ~((uint32_t)1 << slot);
+    bool failed;
 
-    if (port.is & HBA_PxIS_TFES) {
+    {
+        lock_guard lg(pending_lock);
+
+        failed = (error_slots & (1 << slot)) != 0;
+        error_slots &= ~((uint32_t)1 << slot);
+    }
+
+    if (failed) {
         print("Error sending IDENTIFY DEVICE command to disk\n");
         release_slot(slot);
         return false;
@@ -523,22 +535,30 @@ void sata_device::isr() {
 
     port.is = is;
 
-    if (!(is & SATA_IS_DHRS) && !(is & SATA_IS_PSS))
+    if (!(is & SATA_IS_DHRS) && !(is & SATA_IS_PSS) && !(is & SATA_IS_TFES))
         return;
-
-    // D2H FIS received
 
     {
         lock_guard lg(pending_lock);
 
-        auto ci = port.ci;
-        auto signalled = pending_slots & ~ci;
+        uint32_t signalled;
+
+        if (is & SATA_IS_TFES) {
+            // disk stops processing commands when one fails
+            // FIXME - restart port and retry commands which didn't error
+
+            error_slots |= pending_slots;
+            signalled = pending_slots;
+        } else {
+            // D2H FIS received
+            signalled = pending_slots & ~port.ci;
+        }
+
+        pending_slots &= ~signalled;
 
         for (unsigned int i = 0; i < SATA_NUM_CMD_TABLES; i++) {
-            if (signalled & (1 << i)) {
+            if (signalled & (1 << i))
                 set_event(static_cast<event&>(events[i].get()));
-                pending_slots &= ~((uint32_t)1 << i);
-            }
         }
     }
 }
@@ -722,8 +742,6 @@ nt_status sata_device::dio_write(uint64_t page_num, uint64_t num_pages,
     {
         shared_lock lock(flush_sem);
 
-        port.is = 0xffffffff; // clear interrupt bits
-
         uint8_t slot = get_slot();
 
         auto& cmd = *(HBA_CMD_HEADER*)(clb + (slot * sizeof(HBA_CMD_HEADER)));
@@ -792,7 +810,16 @@ nt_status sata_device::dio_write(uint64_t page_num, uint64_t num_pages,
 
         wait_for_object(events[slot].get(), false);
 
-        if (port.is & HBA_PxIS_TFES) {
+        bool failed;
+
+        {
+            lock_guard lg(pending_lock);
+
+            failed = (error_slots & (1 << slot)) != 0;
+            error_slots &= ~((uint32_t)1 << slot);
+        }
+
+        if (failed) {
             print("Error writing to disk\n");
             release_slot(slot);
             return nt_status::INTERNAL_ERROR; // FIXME - translate to nt_status properly
@@ -831,8 +858,6 @@ nt_status sata_device::flush() {
     // FIXME - proper error handling
     // FIXME - asynchronous mode
 
-    port.is = 0xffffffff; // clear interrupt bits
-
     uint8_t slot = get_slot();
 
     auto& cmd = *(HBA_CMD_HEADER*)(clb + (slot * sizeof(HBA_CMD_HEADER)));
@@ -862,7 +887,16 @@ nt_status sata_device::flush() {
 
     wait_for_object(events[slot].get(), false);
 
-    if (port.is & HBA_PxIS_TFES) {
+    bool failed;
+
+    {
+        lock_guard lg(pending_lock);
+
+        failed = (error_slots & (1 << slot)) != 0;
+        error_slots &= ~((uint32_t)1 << slot);
+    }
+
+    if (failed) {
         print("Error flushing disk\n");
         release_slot(slot);
         // FIXME - translate into nt_status properly
