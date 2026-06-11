@@ -12,11 +12,21 @@ import pagesize;
 
 using namespace std;
 
+struct alloc_header {
+    uint32_t size : 31;
+    uint32_t free : 1;
+    uint8_t _pad[12];
+};
+
+static_assert(sizeof(alloc_header) == 16);
+
+struct free_block : alloc_header {
+    list_entry le;
+};
+
 class subheap {
 public:
-    subheap(size_t reserve_size, size_t commit_size);
-
-    void* allocate(uint32_t flags, size_t size);
+    subheap(size_t reserve_size, size_t commit_size, list_entry& free_list);
 
     list_entry le;
     size_t reserve_size;
@@ -35,24 +45,23 @@ public:
 
     list_entry subheaps = { &subheaps, &subheaps };
     RTL_CRITICAL_SECTION cs;
+    list_entry free_blocks = { &free_blocks, &free_blocks };
 };
 
-struct alloc_header {
-    uint32_t size : 31;
-    uint32_t free : 1;
-    uint8_t _pad[12];
-};
-
-static_assert(sizeof(alloc_header) == 16);
-
-subheap::subheap(size_t reserve_size, size_t commit_size) : reserve_size(reserve_size), commit_size(commit_size) {
-    auto& ah = *(alloc_header*)data;
+subheap::subheap(size_t reserve_size, size_t commit_size, list_entry& free_list) : reserve_size(reserve_size), commit_size(commit_size) {
+    auto& fb = *(free_block*)data;
 
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wconversion"
-    ah.size = (uint32_t)(commit_size - offsetof(subheap, data) - sizeof(alloc_header));
+    fb.size = (uint32_t)(commit_size - offsetof(subheap, data) - sizeof(alloc_header));
+    fb.size -= sizeof(alloc_header); // for sentinel
 #pragma GCC diagnostic pop
-    ah.free = 1;
+    fb.free = 1;
+    insert_tail_list(free_list, fb.le);
+
+    auto& sentinel = *(alloc_header*)((uint8_t*)&fb + sizeof(alloc_header) + fb.size);
+    sentinel.size = 0;
+    sentinel.free = 0;
 }
 
 heap::heap(size_t reserve_size, size_t commit_size) {
@@ -76,7 +85,7 @@ heap::heap(size_t reserve_size, size_t commit_size) {
         return;
     }
 
-    auto sh = new (addr) subheap(reserve_size, commit_size);
+    auto sh = new (addr) subheap(reserve_size, commit_size, free_blocks);
 
     insert_tail_list(subheaps, sh->le);
 
@@ -100,113 +109,28 @@ heap::~heap() {
     }
 }
 
-void* subheap::allocate(uint32_t flags, size_t size) {
-    alloc_header* ah = nullptr;
+static void mark_block_allocated(free_block& fb, size_t size,
+                                 list_entry& free_blocks) {
+    if (fb.size >= size + sizeof(free_block)) {
+        auto& nh = *(free_block*)((uint8_t*)&fb + sizeof(alloc_header) + size);
 
-    // allocate from existing pages if possible
-
-    auto h = (alloc_header*)data;
-    alloc_header* last = nullptr;
-
-    do {
-        if (h->free) {
-            if (last && last->free) { // merge adjacent free entries
+        nh.free = 1;
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wconversion"
-                last->size += h->size + sizeof(alloc_header);
-#pragma GCC diagnostic pop
-                h = last;
-            }
-
-            if (h->size == size) {
-                h->free = 0;
-
-                auto ret = (uint8_t*)h + sizeof(alloc_header);
-
-                if (flags & HEAP_ZERO_MEMORY)
-                    memset(ret, 0, size);
-
-                return ret;
-            }
-
-            if (h->size > size) {
-                auto nh = (alloc_header*)((uint8_t*)h + sizeof(alloc_header) + size);
-
-                if (nh < (void*)((uint8_t*)this + commit_size)) {
-                    nh->free = 1;
-#pragma GCC diagnostic push
-#pragma GCC diagnostic ignored "-Wconversion"
-                    nh->size = h->size - size - sizeof(alloc_header);
-#pragma GCC diagnostic pop
-                }
-
-                h->free = 0;
-#pragma GCC diagnostic push
-#pragma GCC diagnostic ignored "-Wconversion"
-                h->size = size;
+        nh.size = fb.size - size - sizeof(alloc_header);
 #pragma GCC diagnostic pop
 
-                auto ret = (uint8_t*)h + sizeof(alloc_header);
-
-                if (flags & HEAP_ZERO_MEMORY)
-                    memset(ret, 0, size);
-
-                return ret;
-            }
-        }
-
-        last = h;
-        h = (alloc_header*)((uint8_t*)h + sizeof(alloc_header) + h->size);
-    } while (h < (void*)((uint8_t*)this + commit_size));
-
-    if (last && last->free)
-        ah = last;
-
-    // allocate new pages
-
-    unsigned int new_pages = bytes_to_pages(sizeof(alloc_header) + size);
-
-    if (new_pages << PAGE_SHIFT > reserve_size - commit_size)
-        return nullptr;
-
-    void* addr = (uint8_t*)this + commit_size;
-    size_t new_commit_size = new_pages << PAGE_SHIFT;
-
-    auto ret = NtAllocateVirtualMemory(NtCurrentProcess(), &addr, 0, &new_commit_size,
-                                       MEM_COMMIT, PAGE_READWRITE);
-
-    if (!success(ret)) {
-        print("NtAllocateVirtualMemory returned {}\n", ret);
-        return nullptr;
+        insert_tail_list(free_blocks, nh.le);
     }
 
-    if (!ah) {
-        ah = (alloc_header*)((uint8_t*)this + commit_size);
-        ah->free = 1;
-    }
+    fb.free = 0;
 
-    commit_size += new_commit_size;
+    remove_entry_list(fb.le);
 
-    auto ptr = (uint8_t*)ah + sizeof(alloc_header);
-    ah->free = 0;
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wconversion"
-    ah->size = size;
+    fb.size = size;
 #pragma GCC diagnostic pop
-
-    auto ah2 = (alloc_header*)((uint8_t*)ptr + size);
-
-    if ((uintptr_t)ah2 & (PAGE_SIZE - 1)) {
-        ah2->free = 1;
-#pragma GCC diagnostic push
-#pragma GCC diagnostic ignored "-Wconversion"
-        ah2->size = (uint32_t)(((uintptr_t)this + commit_size) - (uintptr_t)ah2 - sizeof(alloc_header));
-#pragma GCC diagnostic pop
-    }
-
-    // NtAllocateVirtualMemory guarantees initialized to 0
-
-    return ptr;
 }
 
 void* heap::allocate(uint32_t flags, size_t size) {
@@ -221,38 +145,55 @@ void* heap::allocate(uint32_t flags, size_t size) {
 
     RtlEnterCriticalSection(&cs);
 
-    for (auto le = subheaps.next; le != &subheaps; le = le->next) {
-        auto& sh = containing_record<subheap>(le);
+    for (auto le = free_blocks.next; le != &free_blocks; le = le->next) {
+        auto& fb = containing_record<free_block>(le);
 
-        auto ret = sh.allocate(flags, size);
-        if (ret) {
-            RtlLeaveCriticalSection(&cs);
-            return ret;
-        }
+        if (fb.size < size)
+            continue;
+
+        mark_block_allocated(fb, size, free_blocks);
+
+        auto ret = (uint8_t*)&fb + sizeof(alloc_header);
+
+        if (flags & HEAP_ZERO_MEMORY)
+            memset(ret, 0, size);
+
+        RtlLeaveCriticalSection(&cs);
+
+        return ret;
     }
 
     // FIXME - return nullptr if heap not growable
     // FIXME - separate logic if "large" allocation?
 
     void* sh_addr = nullptr;
-    size_t subheap_size = offsetof(subheap, data) + sizeof(alloc_header) + size;
+    size_t subheap_size = offsetof(subheap, data) + sizeof(alloc_header) +
+                          size + sizeof(alloc_header);
 
-    auto ret = NtAllocateVirtualMemory(NtCurrentProcess(), &sh_addr, 0, &subheap_size,
-                                       MEM_RESERVE | MEM_COMMIT, PAGE_READWRITE);
+    auto status = NtAllocateVirtualMemory(NtCurrentProcess(), &sh_addr, 0, &subheap_size,
+                                          MEM_RESERVE | MEM_COMMIT, PAGE_READWRITE);
 
-    if (!success(ret)) {
-        print("NtAllocateVirtualMemory returned {}\n", ret);
+    if (!success(status)) {
+        print("NtAllocateVirtualMemory returned {}\n", status);
         RtlLeaveCriticalSection(&cs);
         return nullptr;
     }
 
-    auto sh = new (sh_addr) subheap(subheap_size, subheap_size);
+    auto sh = new (sh_addr) subheap(subheap_size, subheap_size, free_blocks);
 
     insert_tail_list(subheaps, sh->le);
 
-    auto ptr = sh->allocate(flags, size);
+    auto& shfb = *(free_block*)sh->data;
+
+    mark_block_allocated(shfb, size, free_blocks);
+
+    auto ret = (uint8_t*)&shfb + sizeof(alloc_header);
+
+    if (flags & HEAP_ZERO_MEMORY)
+        memset(ret, 0, size);
+
     RtlLeaveCriticalSection(&cs);
-    return ptr;
+    return ret;
 }
 
 void* heap::reallocate(uint32_t flags, void* ptr, size_t size) {
@@ -297,9 +238,10 @@ bool heap::free(uint32_t, void* base_address) {
 
     RtlEnterCriticalSection(&cs);
 
-    auto ah = (alloc_header*)((uint8_t*)base_address - sizeof(alloc_header));
+    auto& fb = *(free_block*)((uint8_t*)base_address - sizeof(alloc_header));
 
-    ah->free = 1;
+    fb.free = 1;
+    insert_tail_list(free_blocks, fb.le);
 
     // FIXME - decommit part of heap if last page(s) now clear?
 
