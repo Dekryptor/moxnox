@@ -778,10 +778,10 @@ nt_status btrfs_filesystem::read_into_cache(uint64_t page_num, uint64_t num_page
         print("RAID10 not supported\n");
         return nt_status::NOT_SUPPORTED;
     } else if (c.ci.type & BTRFS_BLOCK_GROUP_RAID5) {
-        print("RAID10 not supported\n");
+        print("RAID5 not supported\n");
         return nt_status::NOT_SUPPORTED;
     } else if (c.ci.type & BTRFS_BLOCK_GROUP_RAID6) {
-        print("RAID10 not supported\n");
+        print("RAID6 not supported\n");
         return nt_status::NOT_SUPPORTED;
     }
 
