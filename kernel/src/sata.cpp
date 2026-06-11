@@ -238,8 +238,6 @@ bool sata_device::identify() {
 
     pending_slots &= ~((uint32_t)1 << slot);
 
-    reset_event(static_cast<event&>(events[slot].get()));
-
     if (port.is & HBA_PxIS_TFES) {
         print("Error sending IDENTIFY DEVICE command to disk\n");
         release_slot(slot);
