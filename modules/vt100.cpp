@@ -10,6 +10,8 @@ module;
 
 export module vt100;
 
+import format;
+
 using namespace std;
 
 enum class esc_state {
@@ -886,6 +888,14 @@ void handle_escape_sequence(vt100_console auto& t, string_view s) {
             t.insert_mode = false;
         else if (s == ">c" || s == ">0c") // DA2
             t.write_input_data("\x1b[>0;0;1c");
+        else if (s == "6n") { // CPR
+            char buf[50];
+            span sp(buf, sizeof(buf));
+
+            sp = format(sp, "\x1b[{};{}R", t.cursor_y + 1, t.cursor_x + 1);
+
+            t.write_input_data(string_view(buf, (size_t)(sp.data() - buf)));
+        }
     }
 }
 
