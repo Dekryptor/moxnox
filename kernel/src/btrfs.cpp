@@ -5340,12 +5340,14 @@ nt_status btrfs_filesystem::flush(bool make_readonly) {
         r.is_dirty = false;
     }
 
-    status = do_ref_changes(*this);
-    if (!success(status)) {
-        print("do_ref_changes returned {}, going readonly\n", status);
-        go_readonly();
-        return status;
-    }
+    do {
+        status = do_ref_changes(*this);
+        if (!success(status)) {
+            print("do_ref_changes returned {}, going readonly\n", status);
+            go_readonly();
+            return status;
+        }
+    } while (ref_changes);
 
     // loop through cache, and call flush_cache for dirty ranges
 
