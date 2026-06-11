@@ -142,7 +142,7 @@ struct console_fb {
     void delete_lines(unsigned int num);
     void enter_alt_screen();
     void exit_alt_screen();
-    void write_input_data(string_view) { }
+    void write_input_data(string_view s);
 
     unsigned int cursor_x, cursor_y;
     unsigned int console_rows, console_cols;
@@ -156,6 +156,7 @@ struct console_fb {
     bool insert_mode = false;
     bool alt_screen_active = false;
     bool show_cursor = true;
+    HANDLE server_handle = 0;
 };
 
 static_assert(vt100_console_with_tab_stops<console_fb>);
@@ -1947,6 +1948,31 @@ void console_fb::exit_alt_screen() {
     alt_screen_active = false;
 }
 
+void console_fb::write_input_data(string_view s) {
+    IO_STATUS_BLOCK iosb;
+
+    if (server_handle == 0)
+        return;
+
+    while (!s.empty()) {
+        auto status = NtWriteFile(server_handle, 0, nullptr, nullptr, &iosb,
+                                  s.data(), (uint32_t)s.size(), nullptr,
+                                  nullptr);
+        if (status == nt_status::ALERTED)
+            continue;
+        else if (!success(status)) {
+            print_stderr("NtWriteFile returned {}\n", status);
+            return;
+        }
+
+        if (iosb.Information >= s.size())
+            break;
+
+        s = string_view(s.data() + iosb.Information,
+                        s.size() - iosb.Information);
+    }
+}
+
 static void recv_data_fb(string_view s) {
     do_print(console_fb_inst, s);
 
@@ -2013,7 +2039,7 @@ static bool set_pty_fg_proc(HANDLE client_handle, HANDLE proc) {
 
 static void run_shell(const char16_t* exe, void (*recv_func)(string_view),
                       void (*flush_func)(), bool& decckm, uint16_t cols,
-                      uint16_t rows) {
+                      uint16_t rows, HANDLE& console_server_handle) {
     HANDLE h;
     unique_handle server_handle, client_handle, proc, kmsg, ptyctl, keyboard_pipe;
     OBJECT_ATTRIBUTES oa;
@@ -2194,6 +2220,8 @@ static void run_shell(const char16_t* exe, void (*recv_func)(string_view),
     if (!do_run_shell())
         return;
 
+    console_server_handle = server_handle.get();
+
     do {
         array<HANDLE, 4> objs;
 
@@ -2332,6 +2360,8 @@ static void run_shell(const char16_t* exe, void (*recv_func)(string_view),
             }
         }
     } while (true);
+
+    console_server_handle = 0;
 }
 
 #ifdef __x86_64__
@@ -2344,7 +2374,8 @@ static int try_text_console(const char16_t* shell) {
 
     run_shell(shell, recv_data_text, flush_text_console,
               console_text_inst.decckm, (uint16_t)console_text_inst.console_cols,
-              (uint16_t)console_text_inst.console_rows);
+              (uint16_t)console_text_inst.console_rows,
+              console_text_inst.server_handle);
 
     return 0;
 }
@@ -2436,7 +2467,8 @@ static int do_console(const char16_t* shell) {
 
     run_shell(shell, recv_data_fb, flush_framebuffer,
               console_fb_inst.decckm, (uint16_t)console_fb_inst.console_cols,
-              (uint16_t)console_fb_inst.console_rows);
+              (uint16_t)console_fb_inst.console_rows,
+              console_fb_inst.server_handle);
 
     return 0;
 }

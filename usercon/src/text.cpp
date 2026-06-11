@@ -76,7 +76,7 @@ struct console_text {
     void delete_lines(unsigned int num);
     void enter_alt_screen();
     void exit_alt_screen();
-    void write_input_data(string_view) { }
+    void write_input_data(string_view);
 
     // FIXME - would need atexit
     // ~console_text() {
@@ -103,6 +103,7 @@ struct console_text {
     bool insert_mode = false;
     bool cursor_enabled = true;
     HANDLE section = 0;
+    HANDLE server_handle = 0;
 };
 
 static_assert(vt100_console_with_tab_stops<console_text>);
@@ -572,6 +573,31 @@ void console_text::exit_alt_screen() {
 
     flush_text_console();
     move_cursor();
+}
+
+void console_text::write_input_data(string_view s) {
+    IO_STATUS_BLOCK iosb;
+
+    if (server_handle == 0)
+        return;
+
+    while (!s.empty()) {
+        auto status = NtWriteFile(server_handle, 0, nullptr, nullptr, &iosb,
+                                  s.data(), (uint32_t)s.size(), nullptr,
+                                  nullptr);
+        if (status == nt_status::ALERTED)
+            continue;
+        else if (!success(status)) {
+            print_stderr("NtWriteFile returned {}\n", status);
+            return;
+        }
+
+        if (iosb.Information >= s.size())
+            break;
+
+        s = string_view(s.data() + iosb.Information,
+                        s.size() - iosb.Information);
+    }
 }
 
 void console_text::delete_chars(unsigned int num) {
