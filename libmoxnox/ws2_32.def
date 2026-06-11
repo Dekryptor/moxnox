@@ -27,3 +27,5 @@ getsockopt
 getpeername
 shutdown
 getnameinfo
+gethostbyname
+getservbyname
