@@ -612,7 +612,7 @@ static bool wait_until(unsigned int ms, const invocable auto& func) {
         if (func())
             return true;
 
-        wait_for_object(tim, true); // wait 1ms
+        wait_for_object(tim, false); // wait 1ms
     }
 
     return false;
