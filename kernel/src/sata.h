@@ -560,6 +560,8 @@ public:
     std::string_view model_number;
     object_ref slot_semaphore;
     spinlock slot_lock;
+
+    spinlock pending_lock;
     std::atomic<uint32_t> allocated_slots = 0;
     std::atomic<uint32_t> pending_slots = 0;
     unsigned int dev_num;

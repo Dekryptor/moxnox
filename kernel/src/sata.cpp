@@ -131,8 +131,12 @@ nt_status sata_device::dio_read(uint64_t page_num, uint64_t num_pages,
     cmdfis.countl = (uint8_t)num_sectors;
     cmdfis.counth = (uint8_t)(num_sectors >> 8);
 
-    pending_slots |= 1 << slot;
-    port.ci = 1 << slot;
+    {
+        lock_guard lg(pending_lock);
+
+        pending_slots |= 1 << slot;
+        port.ci = 1 << slot;
+    }
 
     auto status = wait_for_object(events[slot].get(), false);
 
@@ -227,8 +231,12 @@ bool sata_device::identify() {
     cmdfis.c = 1; // command
     cmdfis.command = ata_command::IDENTIFY;
 
-    pending_slots |= 1 << slot;
-    port.ci = 1 << slot;
+    {
+        lock_guard lg(pending_lock);
+
+        pending_slots |= 1 << slot;
+        port.ci = 1 << slot;
+    }
 
     auto status = wait_for_object(events[slot].get(), true);
 
@@ -534,13 +542,18 @@ void sata_device::isr() {
         return;
 
     // D2H FIS received
-    auto ci = port.ci;
-    auto signalled = pending_slots & ~ci;
 
-    for (unsigned int i = 0; i < SATA_NUM_CMD_TABLES; i++) {
-        if (signalled & (1 << i)) {
-            set_event(static_cast<event&>(events[i].get()));
-            pending_slots &= ~((uint32_t)1 << i);
+    {
+        lock_guard lg(pending_lock);
+
+        auto ci = port.ci;
+        auto signalled = pending_slots & ~ci;
+
+        for (unsigned int i = 0; i < SATA_NUM_CMD_TABLES; i++) {
+            if (signalled & (1 << i)) {
+                set_event(static_cast<event&>(events[i].get()));
+                pending_slots &= ~((uint32_t)1 << i);
+            }
         }
     }
 }
@@ -785,8 +798,12 @@ nt_status sata_device::dio_write(uint64_t page_num, uint64_t num_pages,
         cmdfis.countl = (uint8_t)num_sectors;
         cmdfis.counth = (uint8_t)(num_sectors >> 8);
 
-        pending_slots |= 1 << slot;
-        port.ci = 1 << slot;
+        {
+            lock_guard lg(pending_lock);
+
+            pending_slots |= 1 << slot;
+            port.ci = 1 << slot;
+        }
 
         wait_for_object(events[slot].get(), false);
 
@@ -851,8 +868,12 @@ nt_status sata_device::flush() {
 
     cmdfis.device = 0;
 
-    pending_slots |= 1 << slot;
-    port.ci = 1 << slot;
+    {
+        lock_guard lg(pending_lock);
+
+        pending_slots |= 1 << slot;
+        port.ci = 1 << slot;
+    }
 
     wait_for_object(events[slot].get(), false);
 
