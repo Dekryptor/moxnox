@@ -76,6 +76,7 @@ struct console_text {
     void delete_lines(unsigned int num);
     void enter_alt_screen();
     void exit_alt_screen();
+    void write_input_data(string_view) { }
 
     // FIXME - would need atexit
     // ~console_text() {

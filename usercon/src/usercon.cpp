@@ -142,6 +142,7 @@ struct console_fb {
     void delete_lines(unsigned int num);
     void enter_alt_screen();
     void exit_alt_screen();
+    void write_input_data(string_view) { }
 
     unsigned int cursor_x, cursor_y;
     unsigned int console_rows, console_cols;
