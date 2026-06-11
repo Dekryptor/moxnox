@@ -19,6 +19,7 @@ enum class esc_state {
     got_esc,
     in_csi,
     in_designate,
+    in_osc,
 };
 
 uint8_t utf8_buf[5];
@@ -60,6 +61,7 @@ concept vt100_console = requires(T t) {
     { t.enter_alt_screen() } -> same_as<void>;
     { t.exit_alt_screen() } -> same_as<void>;
     { t.write_input_data("") } -> same_as<void>;
+    { t.get_bg_colour() } -> same_as<uint32_t>;
 };
 
 export template<typename T>
@@ -826,6 +828,21 @@ void delete_lines(vt100_console auto& t, string_view s) {
     t.cursor_changed();
 }
 
+void handle_osc_sequence(vt100_console auto& t, string_view s) {
+    if (s == "\x1b]11;?") { // OSC11
+        char buf[50];
+        span sp(buf, sizeof(buf));
+        uint32_t bg_colour = t.get_bg_colour();
+
+        sp = format(sp, "\x1b]11;rgb:{:02x}{:02x}/{:02x}{:02x}/{:02x}{:02x}\a",
+                    (bg_colour >> 16) & 0xff, (bg_colour >> 16) & 0xff,
+                    (bg_colour >> 8) & 0xff, (bg_colour >> 8) & 0xff,
+                    bg_colour & 0xff, bg_colour & 0xff);
+
+        t.write_input_data(string_view(buf, (size_t)(sp.data() - buf)));
+    }
+}
+
 void handle_escape_sequence(vt100_console auto& t, string_view s) {
     if (s.size() >= 3 && s[0] == 0x1b && s[1] == '[') {
         s = string_view(s.data() + 2, s.size() - 2);
@@ -925,6 +942,14 @@ export void do_print(vt100_console auto& t, string_view s) {
                         escape_buffer[1] = '[';
                         escape_buffer_len = 2;
                         esc_state = esc_state::in_csi;
+                        s = string_view(s.data() + 1, s.size() - 1);
+                        break;
+
+                    case ']':
+                        escape_buffer[0] = '\x1b';
+                        escape_buffer[1] = ']';
+                        escape_buffer_len = 2;
+                        esc_state = esc_state::in_osc;
                         s = string_view(s.data() + 1, s.size() - 1);
                         break;
 
@@ -1034,6 +1059,41 @@ export void do_print(vt100_console auto& t, string_view s) {
                 s = string_view(s.data() + 1, s.size() - 1);
                 esc_state = esc_state::normal;
                 break;
+
+            case esc_state::in_osc: {
+                size_t i = 0;
+
+                while (i < s.size() && s[i] != '\a' && s[i] != '\x1b') {
+                    i++;
+                }
+
+                size_t room = sizeof(escape_buffer) - escape_buffer_len;
+
+                memcpy(escape_buffer + escape_buffer_len, s.data(), min(i, room));
+                escape_buffer_len += min(i, room);
+                s = string_view(s.data() + i, s.size() - i);
+
+                if (s.empty())
+                    break;
+
+                if (s.front() != '\a' && (s.size() < 2 || s[1] != '\\')) {
+                    esc_state = esc_state::got_esc;
+                    s = string_view(s.data() + 1, s.size() - 1);
+                    escape_buffer_len = 0;
+                    break;
+                }
+
+                if (s.front() == '\a')
+                    s = string_view(s.data() + 1, s.size() - 1);
+                else
+                    s = string_view(s.data() + 2, s.size() - 2);
+
+                handle_osc_sequence(t, string_view(escape_buffer, escape_buffer_len));
+                esc_state = esc_state::normal;
+                escape_buffer_len = 0;
+
+                break;
+            }
         }
     }
 

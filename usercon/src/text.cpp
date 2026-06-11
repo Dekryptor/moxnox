@@ -77,6 +77,7 @@ struct console_text {
     void enter_alt_screen();
     void exit_alt_screen();
     void write_input_data(string_view);
+    static uint32_t get_bg_colour() { return 0x000000; }
 
     // FIXME - would need atexit
     // ~console_text() {

@@ -143,6 +143,7 @@ struct console_fb {
     void enter_alt_screen();
     void exit_alt_screen();
     void write_input_data(string_view s);
+    static uint32_t get_bg_colour() { return 0x000000; }
 
     unsigned int cursor_x, cursor_y;
     unsigned int console_rows, console_cols;
