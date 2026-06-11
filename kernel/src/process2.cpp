@@ -1806,24 +1806,26 @@ void process::terminate() {
 
     // close open handles
 
+    rbtree_node<handle_t>* handles2 = nullptr;
+
     {
         lock_guard lock(handle_lock);
+        swap(handles, handles2);
+    }
 
-        if (handles) {
-            auto n = get_tree_minimum(handles);
+    if (handles2) {
+        auto n = get_tree_minimum(handles2);
 
-            while (n) {
-                auto& ho = rbtree_containing_record<handle_obj>(n);
+        while (n) {
+            auto& ho = rbtree_containing_record<handle_obj>(n);
 
-                handle_closed(*ho.obj);
-                object_release(*ho.obj);
+            handle_closed(*ho.obj);
+            object_release(*ho.obj);
 
-                n = next_rbtree_node(*n);
-            }
-
-            free_handle(handles);
-            handles = nullptr;
+            n = next_rbtree_node(*n);
         }
+
+        free_handle(handles2);
     }
 }
 
