@@ -14,7 +14,15 @@ add_library(ucrtbase_static STATIC
     repo/mingw-w64-crt/stdio/ucrt_fprintf.c
     repo/mingw-w64-crt/stdio/ucrt_vfprintf.c
     repo/mingw-w64-crt/stdio/ucrt_snprintf.c
+    repo/mingw-w64-crt/stdio/ucrt_sprintf.c
+    repo/mingw-w64-crt/stdio/ucrt_vsprintf.c
+    repo/mingw-w64-crt/stdio/ucrt_vprintf.c
     repo/mingw-w64-crt/stdio/ucrt_sscanf.c
+    repo/mingw-w64-crt/stdio/ucrt_fscanf.c
+    repo/mingw-w64-crt/stdio/ucrt_scanf.c
+    repo/mingw-w64-crt/stdio/ucrt_vfscanf.c
+    repo/mingw-w64-crt/stdio/ucrt_vscanf.c
+    repo/mingw-w64-crt/stdio/ucrt_vsscanf.c
     repo/mingw-w64-crt/stdio/ucrt_swprintf.c
     repo/mingw-w64-crt/stdio/ucrt__vscprintf.c
     repo/mingw-w64-crt/stdio/ucrt_vsnprintf.c

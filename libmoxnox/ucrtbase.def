@@ -16,6 +16,8 @@ __p__commode
 __p__environ
 __p__fmode
 __stdio_common_vfprintf
+__stdio_common_vfscanf
+__stdio_common_vsscanf
 _cexit
 _configure_narrow_argv
 _crt_atexit
@@ -184,6 +186,7 @@ towupper
 qsort
 longjmp
 _setjmpex
+__intrinsic_setjmpex
 _getpid
 rename
 _unlink

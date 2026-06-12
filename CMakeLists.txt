@@ -15,6 +15,10 @@ include_directories(BEFORE SYSTEM ${CMAKE_SOURCE_DIR}/include)
 option(USE_COMPILER_RT OFF)
 
 add_compile_definitions(_GLIBCXX_NO_ASSERTIONS)
+
+# set _UCRT everywhere, but avoiding undisablable duplicate definition warnings in ucrtbase_static
+add_compile_definitions("$<$<NOT:$<STREQUAL:$<TARGET_PROPERTY:NAME>,ucrtbase_static>>:_UCRT>")
+
 add_compile_options(-U_FORTIFY_SOURCE)
 
 enable_language(ASM)

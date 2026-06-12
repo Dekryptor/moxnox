@@ -3,7 +3,6 @@
 stubs_start
 
 do_stub "_wfopen"
-do_stub "__stdio_common_vfscanf"
 do_stub "___lc_codepage_func"
 do_stub "_beginthreadex"
 do_stub "strtof"

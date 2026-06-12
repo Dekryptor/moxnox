@@ -72,6 +72,7 @@ underscore_func "creat"
 
 redirect_name "_fseeki64", "fseeko64"
 redirect_name "_ftelli64", "ftello64"
+redirect_name "_lseeki64", "lseek64"
 redirect_name "_stricmp", "strcasecmp"
 redirect_name "_strnicmp", "strncasecmp"
 redirect_name "_stat64", "stat"

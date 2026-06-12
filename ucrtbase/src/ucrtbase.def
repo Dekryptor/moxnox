@@ -91,6 +91,8 @@ _aligned_malloc = __aligned_malloc
 _aligned_free = __aligned_free
 signal
 __stdio_common_vsprintf
+__stdio_common_vfscanf
+__stdio_common_vsscanf
 _utime = __utime64
 setvbuf
 getenv_s = _getenv_s
@@ -112,6 +114,7 @@ atan2
 atan2f
 _setjmp
 _setjmpex = _setjmp
+__intrinsic_setjmpex = _setjmp
 acos
 acosf
 sqrt
