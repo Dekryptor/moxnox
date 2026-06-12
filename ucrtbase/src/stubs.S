@@ -17,5 +17,12 @@ do_stub "_execve"
 do_stub "_mktemp"
 do_stub "mbstowcs"
 do_stub "fputwc"
+do_stub "wcschr"
+do_stub "wcsrchr"
+do_stub "wcstok"
+do_stub "wcstombs"
+do_stub "_tzset"
+do_stub "lldiv"
+do_stub "__timezone"
 
 stubs_end

@@ -261,3 +261,10 @@ _execve
 _mktemp
 mbstowcs
 fputwc
+wcschr
+wcsrchr
+wcstok
+wcstombs
+_tzset
+lldiv
+__timezone
