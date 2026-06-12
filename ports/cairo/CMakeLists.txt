@@ -14,6 +14,10 @@ string(REPLACE
     "#ifdef _WIN32\n    return _cairo_win32_tmpfile ();"
     "#if defined(_WIN32) && !defined(MOXNOX)\n    return _cairo_win32_tmpfile ();"
     CAIRO_MISC_SRC "${CAIRO_MISC_SRC}")
+string(REPLACE
+    "#ifdef _WIN32 /* also defined on x86_64 */"
+    "#if defined(_WIN32) && !defined(MOXNOX) /* also defined on x86_64 */"
+    CAIRO_MISC_SRC "${CAIRO_MISC_SRC}")
 file(CONFIGURE OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/cairo-misc.c CONTENT "${CAIRO_MISC_SRC}" @ONLY)
 
 add_library(cairo SHARED
