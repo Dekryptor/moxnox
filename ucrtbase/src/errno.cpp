@@ -185,3 +185,13 @@ char* __strerror(int errnum) {
 
     return strerror_buf;
 }
+
+extern "C"
+void perror(const char* message) {
+    auto err = __strerror(*__errno());
+
+    if (message && message[0])
+        print_stderr("{}: {}\n", message, err);
+    else
+        print_stderr("{}\n", err);
+}

@@ -212,6 +212,7 @@ _rmdir
 system
 exp2
 exp2f
+perror
 
 ; stubs
 _wfopen
@@ -226,7 +227,6 @@ wcstoull
 wcstod
 strerror_s
 __stdio_common_vswprintf
-perror
 _ctime64
 _difftime64
 freopen
