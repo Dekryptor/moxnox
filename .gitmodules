@@ -61,3 +61,6 @@
 [submodule "ports/libarchive/repo"]
 	path = ports/libarchive/repo
 	url = https://git.burntcomma.com/moxnox/libarchive
+[submodule "ports/python/repo"]
+	path = ports/python/repo
+	url = https://git.burntcomma.com/moxnox/cpython

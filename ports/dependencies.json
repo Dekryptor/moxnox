@@ -11,6 +11,7 @@
     "ncurses": [],
     "openssl": [],
     "pixman": [],
+    "python": ["ncurses", "openssl", "readline", "zlib"],
     "readline": ["ncurses"],
     "vim": ["ncurses"],
     "zlib": [],
