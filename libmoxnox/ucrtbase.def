@@ -249,3 +249,5 @@ _pclose
 mbstowcs
 _fullpath
 _creat
+strtoimax
+strtoumax
