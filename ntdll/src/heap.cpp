@@ -45,6 +45,7 @@ public:
 
     list_entry subheaps = { &subheaps, &subheaps };
     RTL_CRITICAL_SECTION cs;
+    size_t reserve_size, commit_size;
     list_entry free_blocks = { &free_blocks, &free_blocks };
 };
 
@@ -64,7 +65,7 @@ subheap::subheap(size_t reserve_size, size_t commit_size, list_entry& free_list)
     sentinel.free = 0;
 }
 
-heap::heap(size_t reserve_size, size_t commit_size) {
+heap::heap(size_t reserve_size, size_t commit_size) : reserve_size(reserve_size), commit_size(commit_size) {
     void* addr = nullptr;
 
     auto ret = NtAllocateVirtualMemory(NtCurrentProcess(), &addr, 0, &reserve_size,
@@ -169,9 +170,11 @@ void* heap::allocate(uint32_t flags, size_t size) {
     void* sh_addr = nullptr;
     size_t subheap_size = offsetof(subheap, data) + sizeof(alloc_header) +
                           size + sizeof(alloc_header);
+    size_t sh_reserve = max(reserve_size, subheap_size);
+    size_t sh_commit  = max(commit_size, subheap_size);
 
-    auto status = NtAllocateVirtualMemory(NtCurrentProcess(), &sh_addr, 0, &subheap_size,
-                                          MEM_RESERVE | MEM_COMMIT, PAGE_READWRITE);
+    auto status = NtAllocateVirtualMemory(NtCurrentProcess(), &sh_addr, 0, &sh_reserve,
+                                          MEM_RESERVE, PAGE_READWRITE);
 
     if (!success(status)) {
         print("NtAllocateVirtualMemory returned {}\n", status);
@@ -179,7 +182,15 @@ void* heap::allocate(uint32_t flags, size_t size) {
         return nullptr;
     }
 
-    auto sh = new (sh_addr) subheap(subheap_size, subheap_size, free_blocks);
+    status = NtAllocateVirtualMemory(NtCurrentProcess(), &sh_addr, 0, &sh_commit,
+                                     MEM_COMMIT, PAGE_READWRITE);
+    if (!success(status)) {
+        print("NtAllocateVirtualMemory returned {}\n", status);
+        RtlLeaveCriticalSection(&cs);
+        return nullptr;
+    }
+
+    auto sh = new (sh_addr) subheap(sh_reserve, sh_commit, free_blocks);
 
     insert_tail_list(subheaps, sh->le);
 
