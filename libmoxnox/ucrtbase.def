@@ -218,7 +218,6 @@ exp2f
 perror
 
 ; stubs
-_wfopen
 ___lc_codepage_func
 _beginthreadex
 strtof
