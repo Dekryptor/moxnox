@@ -93,14 +93,14 @@ extern "C"
 void __lock_file(FILE* file) {
     auto& f = *reinterpret_cast<_FILE*>(file);
 
-    EnterCriticalSection(&f.cs);
+    RtlEnterCriticalSection(&f.cs);
 }
 
 extern "C"
 void __unlock_file(FILE* file) {
     auto& f = *reinterpret_cast<_FILE*>(file);
 
-    LeaveCriticalSection(&f.cs);
+    RtlLeaveCriticalSection(&f.cs);
 }
 
 extern "C"
@@ -132,11 +132,11 @@ int _fputc(int c, FILE* file) {
 }
 
 _FILE::_FILE(HANDLE h, int fd) : h(h), fd(fd) {
-    InitializeCriticalSection(&cs);
+    RtlInitializeCriticalSection(&cs);
 }
 
 _FILE::~_FILE() {
-    DeleteCriticalSection(&cs);
+    RtlDeleteCriticalSection(&cs);
 
     RtlEnterCriticalSection(&fds_lock);
     fds[(size_t)fd] = 0;
