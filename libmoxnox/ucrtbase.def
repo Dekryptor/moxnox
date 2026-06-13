@@ -230,6 +230,12 @@ strtod
 atof
 _ctime64
 freopen
+ldexp
+ldexpf
+scalbn
+scalbnf
+scalbln
+scalblnf
 
 ; stubs
 ___lc_codepage_func

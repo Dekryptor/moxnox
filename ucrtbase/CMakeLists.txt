@@ -89,6 +89,12 @@ add_library(musl STATIC
     ../ports/musl/repo/src/math/copysignf.c
     ../ports/musl/repo/src/math/round.c
     ../ports/musl/repo/src/math/roundf.c
+    ../ports/musl/repo/src/math/ldexp.c
+    ../ports/musl/repo/src/math/ldexpf.c
+    ../ports/musl/repo/src/math/scalbn.c
+    ../ports/musl/repo/src/math/scalbnf.c
+    ../ports/musl/repo/src/math/scalbln.c
+    ../ports/musl/repo/src/math/scalblnf.c
 )
 
 target_include_directories(musl PRIVATE musl_compat ../ports/musl/repo/src/include ../ports/musl/repo/src/internal ../ports/musl/repo/arch/generic)

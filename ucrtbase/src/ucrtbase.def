@@ -258,3 +258,9 @@ strtod
 atof
 _ctime64 = __ctime64
 freopen
+ldexp
+ldexpf
+scalbn
+scalbnf
+scalbln
+scalblnf
