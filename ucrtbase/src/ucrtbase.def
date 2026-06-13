@@ -257,3 +257,4 @@ strtof
 strtod
 atof
 _ctime64 = __ctime64
+freopen

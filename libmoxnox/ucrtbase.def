@@ -229,6 +229,7 @@ strtof
 strtod
 atof
 _ctime64
+freopen
 
 ; stubs
 ___lc_codepage_func
@@ -238,7 +239,6 @@ wcstoul
 wcstoll
 wcstoull
 wcstod
-freopen
 tmpfile
 _wcsnicmp
 _pipe

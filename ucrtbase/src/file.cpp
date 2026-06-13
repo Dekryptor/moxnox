@@ -162,8 +162,7 @@ export void init_files() {
     fds[2] = peb->ProcessParameters->StandardError;
 }
 
-extern "C"
-FILE* __cdecl _fopen(const char* pathname, const char* mode) {
+static bool do_open(const char* pathname, const char* mode, HANDLE& h, int& fd) {
     enum class mode_type {
         r,
         rplus,
@@ -177,14 +176,13 @@ FILE* __cdecl _fopen(const char* pathname, const char* mode) {
     enum mode_type type;
     ACCESS_MASK perms;
     unsigned int create_options;
-    HANDLE h;
     OBJECT_ATTRIBUTES oa;
     UNICODE_STRING us;
     IO_STATUS_BLOCK iosb;
 
     if (!mode || !pathname || pathname[0] == 0) {
         *__errno() = EINVAL;
-        return nullptr;
+        return false;
     }
 
     switch (mode[0]) {
@@ -220,7 +218,7 @@ FILE* __cdecl _fopen(const char* pathname, const char* mode) {
 
         default:
             *__errno() = EINVAL;
-            return nullptr;
+            return false;
     }
 
     // FIXME - implement MS' extensions?
@@ -228,7 +226,7 @@ FILE* __cdecl _fopen(const char* pathname, const char* mode) {
     while (*mode != 0) {
         if (*mode != 't' && *mode != 'b') {
             *__errno() = EINVAL;
-            return nullptr;
+            return false;
         }
 
         mode++;
@@ -274,7 +272,7 @@ FILE* __cdecl _fopen(const char* pathname, const char* mode) {
     auto u16pathname = (char16_t*)malloc(u16len * sizeof(char16_t));
     if (!u16pathname) {
         *__errno() = ENOMEM;
-        return nullptr;
+        return false;
     }
 
     utf8_to_utf16(span(u16pathname, u16len), sv);
@@ -293,35 +291,48 @@ FILE* __cdecl _fopen(const char* pathname, const char* mode) {
     if (!success(status)) {
         free(u16pathname);
         *__errno() = nt_status_to_errno(status);
-        return nullptr;
+        return false;
     }
 
-    optional<int> fd;
+    free(u16pathname);
+
+    optional<int> optfd;
 
     RtlEnterCriticalSection(&fds_lock);
 
     for (size_t i = 0; i < fds.size(); i++) {
         if (fds[i] == 0) {
             fds[i] = h;
-            fd = i;
+            optfd = i;
             break;
         }
     }
 
     RtlLeaveCriticalSection(&fds_lock);
 
-    if (!fd.has_value()) {
+    if (!optfd.has_value()) {
         NtClose(h);
         *__errno() = EMFILE;
-        return nullptr;
+        return false;
     }
 
-    auto f = new _FILE(h, *fd);
-    if (!f) {
-        free(u16pathname);
+    fd = *optfd;
 
+    return true;
+}
+
+extern "C"
+FILE* _fopen(const char* pathname, const char* mode) {
+    HANDLE h;
+    int fd;
+
+    if (!do_open(pathname, mode, h, fd))
+        return nullptr;
+
+    auto f = new _FILE(h, fd);
+    if (!f) {
         RtlEnterCriticalSection(&fds_lock);
-        fds[(size_t)*fd] = 0;
+        fds[(size_t)fd] = 0;
         RtlLeaveCriticalSection(&fds_lock);
 
         NtClose(h);
@@ -329,8 +340,6 @@ FILE* __cdecl _fopen(const char* pathname, const char* mode) {
         *__errno() = ENOMEM;
         return nullptr;
     }
-
-    free(u16pathname);
 
     {
         RtlEnterCriticalSection(&files_lock);
@@ -1945,4 +1954,40 @@ int __creat(const char* path, int mode) {
     // FIXME - mode should actually be mode_t rather than int
 
     return __open(path, _O_CREAT | _O_WRONLY | _O_TRUNC, mode);
+}
+
+extern "C"
+FILE* freopen(const char* path, const char* mode, FILE* file) {
+    if (!file || !mode) {
+        *__errno() = EINVAL;
+        return nullptr;
+    }
+
+    auto& f = *reinterpret_cast<_FILE*>(file);
+    HANDLE h;
+    int fd;
+
+    if (!path)
+        return file; // FIXME - should also be changing mode
+
+    if (!do_open(path, mode, h, fd))
+        return nullptr;
+
+    __lock_file(file);
+
+    RtlEnterCriticalSection(&fds_lock);
+    fds[(size_t)f.fd] = 0;
+    RtlLeaveCriticalSection(&fds_lock);
+
+    NtClose(f.h);
+
+    f.h = h;
+    f.fd = fd;
+    f.ungetc_char.reset();
+    f.error = false;
+    f.eof = false;
+
+    __unlock_file(file);
+
+    return file;
 }
