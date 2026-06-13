@@ -12,6 +12,7 @@ add_library(ucrtbase_static STATIC
     repo/mingw-w64-crt/misc/__initenv.c
     repo/mingw-w64-crt/misc/_onexit.c
     repo/mingw-w64-crt/stdio/ucrt_fprintf.c
+    repo/mingw-w64-crt/stdio/ucrt_ms_fwprintf.c
     repo/mingw-w64-crt/stdio/ucrt_vfprintf.c
     repo/mingw-w64-crt/stdio/ucrt_snprintf.c
     repo/mingw-w64-crt/stdio/ucrt_sprintf.c

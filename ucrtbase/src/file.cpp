@@ -767,6 +767,16 @@ int __stdio_common_vsprintf(uint64_t /*options*/, char* str, size_t len,
 }
 
 extern "C"
+int __stdio_common_vfwprintf(uint64_t /*options*/, FILE* file,
+                             const wchar_t* format, _locale_t /*locale*/,
+                             va_list valist) {
+    // FIXME - options
+    // FIXME - locale
+
+    return __mingw_vfwprintf(file, format, valist);
+}
+
+extern "C"
 int setvbuf(FILE* /*stream*/, char* /*buffer*/, int /*mode*/, size_t /*size*/) {
     // FIXME - change buffering mode of stream?
 

@@ -2,6 +2,9 @@
 #include <stdint.h>
 
 extern "C"
+int __mingw_vswprintf(wchar_t* buf, const wchar_t* format, va_list args);
+
+extern "C"
 size_t wcsnlen(const wchar_t* s, size_t maxlen) {
     size_t i = 0;
 
@@ -53,4 +56,15 @@ wchar_t* wcsncpy(wchar_t* dest, const wchar_t* src, size_t n) {
     }
 
     return orig_dest;
+}
+
+extern "C"
+int __stdio_common_vswprintf(uint64_t /*options*/, wchar_t* buffer,
+                             size_t /*buffer_count*/, const wchar_t* format,
+                             _locale_t /*locale*/, va_list valist) {
+    // FIXME - options
+    // FIXME - locale
+    // FIXME - buffer_count
+
+    return __mingw_vswprintf(buffer, format, valist);
 }
