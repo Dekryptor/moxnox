@@ -77,8 +77,8 @@ static void run_program(unique_handle& proc, termios* prev_tc_settings) {
         objs[0] = proc.get();
         objs[1] = info_stream;
 
-        status = NtWaitForMultipleObjects(objs.size(), objs.data(), true,
-                                          true, nullptr);
+        status = NtWaitForMultipleObjects(info_stream == 0 ? 1 : 2,
+                                          objs.data(), true, true, nullptr);
 
         if (status == nt_status::ALERTED)
             continue;
@@ -471,15 +471,20 @@ static void try_run_program(string_view program, string_view cmdline) {
     if (!tcgetattr(STDOUT_FILENO, &tc_settings))
         tc_settings_valid = true;
 
-    set_pty_fg_proc(peb.ProcessParameters->StandardOutput, proc.get());
+    auto is_tty = isatty(STDOUT_FILENO);
+
+    if (is_tty)
+        set_pty_fg_proc(peb.ProcessParameters->StandardOutput, proc.get());
 
     auto status = NtResumeThread(pi.hThread, nullptr);
     if (!success(status)) {
         print_stderr("NtResumeThread returned {}\n", status);
         running_proc = 0;
         NtClose(pi.hThread);
-        set_pty_fg_proc(peb.ProcessParameters->StandardOutput,
-                        NtCurrentProcess());
+
+        if (is_tty)
+            set_pty_fg_proc(peb.ProcessParameters->StandardOutput, NtCurrentProcess());
+
         return;
     }
 
@@ -487,8 +492,8 @@ static void try_run_program(string_view program, string_view cmdline) {
 
     run_program(proc, tc_settings_valid ? &tc_settings : nullptr);
 
-    set_pty_fg_proc(peb.ProcessParameters->StandardOutput,
-                    NtCurrentProcess());
+    if (is_tty)
+        set_pty_fg_proc(peb.ProcessParameters->StandardOutput, NtCurrentProcess());
 }
 
 static void int3() {
@@ -875,7 +880,7 @@ static char* command_generator(const char* text, int state) {
     return nullptr;
 }
 
-static bool get_pty_info_stream() {
+static void get_pty_info_stream() {
     auto teb = NtCurrentTeb();
     auto peb = teb->ProcessEnvironmentBlock;
     nt_status status;
@@ -885,12 +890,9 @@ static bool get_pty_info_stream() {
                                    nullptr, nullptr, &iosb,
                                    IOCTL_MOXNOX_PTY_GET_INFO_STREAM,
                                    nullptr, 0, &info_stream, sizeof(info_stream));
-    if (!success(status)) {
-        print_stderr("IOCTL_MOXNOX_PTY_GET_INFO_STREAM returned {}\n", status);
-        return false;
-    }
 
-    return true;
+    if (!success(status))
+        print_stderr("IOCTL_MOXNOX_PTY_GET_INFO_STREAM returned {}\n", status);
 }
 
 static void init_history() {
@@ -967,11 +969,8 @@ int main(int argc, char** argv) {
         return 1;
     }
 
-    if (!get_pty_info_stream()) {
-        if (command)
-            free(command);
-        return 1;
-    }
+    if (isatty(STDOUT_FILENO))
+        get_pty_info_stream();
 
     if (command) {
         process_line(command);
