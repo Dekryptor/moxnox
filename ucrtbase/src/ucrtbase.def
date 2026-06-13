@@ -247,3 +247,5 @@ perror
 _creat = __creat
 copysign
 copysignf
+round
+roundf

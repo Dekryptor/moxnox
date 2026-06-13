@@ -87,6 +87,8 @@ add_library(musl STATIC
     ../ports/musl/repo/src/math/modff.c
     ../ports/musl/repo/src/math/copysign.c
     ../ports/musl/repo/src/math/copysignf.c
+    ../ports/musl/repo/src/math/round.c
+    ../ports/musl/repo/src/math/roundf.c
 )
 
 target_include_directories(musl PRIVATE musl_compat ../ports/musl/repo/src/include ../ports/musl/repo/src/internal ../ports/musl/repo/arch/generic)

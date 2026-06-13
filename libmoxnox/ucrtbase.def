@@ -219,6 +219,8 @@ perror
 _creat
 copysign
 copysignf
+round
+roundf
 
 ; stubs
 ___lc_codepage_func
