@@ -228,7 +228,6 @@ wcstoul
 wcstoll
 wcstoull
 wcstod
-strerror_s
 __stdio_common_vswprintf
 _ctime64
 _difftime64
