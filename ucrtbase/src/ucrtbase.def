@@ -245,3 +245,5 @@ exp2
 exp2f
 perror
 _creat = __creat
+copysign
+copysignf

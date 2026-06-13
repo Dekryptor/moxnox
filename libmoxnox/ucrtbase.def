@@ -217,6 +217,8 @@ exp2
 exp2f
 perror
 _creat
+copysign
+copysignf
 
 ; stubs
 ___lc_codepage_func
