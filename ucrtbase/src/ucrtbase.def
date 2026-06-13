@@ -267,3 +267,4 @@ scalblnf
 tmpfile
 _pipe = __pipe
 _popen = __popen
+_pclose = __pclose

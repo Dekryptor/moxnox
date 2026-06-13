@@ -44,6 +44,7 @@ struct _FILE {
     RTL_CRITICAL_SECTION cs;
     list_entry le;
     optional<unsigned char> ungetc_char;
+    HANDLE proc = 0;
     bool error = false;
     bool eof = false;
 };
@@ -2272,8 +2273,6 @@ FILE* __popen(const char* command, const char* type) {
 
     NtClose(pi.hThread);
 
-    // FIXME - stick pi.hProcess in FILE
-
     // create FILE
 
     auto fd = write_mode ? pipefds[1] : pipefds[0];
@@ -2287,6 +2286,8 @@ FILE* __popen(const char* command, const char* type) {
         return nullptr;
     }
 
+    f->proc = pi.hProcess;
+
     {
         RtlEnterCriticalSection(&files_lock);
         insert_tail_list(files_list, f->le);
@@ -2294,4 +2295,58 @@ FILE* __popen(const char* command, const char* type) {
     }
 
     return reinterpret_cast<FILE*>(f);
+}
+
+extern "C"
+int __pclose(FILE* file) {
+    nt_status status;
+    PROCESS_BASIC_INFORMATION pbi;
+    auto& f = *reinterpret_cast<_FILE*>(file);
+    bool fail = false;
+
+    if (f.proc == 0) {
+        *__errno() = EBADF;
+        return -1;
+    }
+
+    // close stream
+
+    NtClose(f.h);
+    f.h = 0;
+
+    // wait for process
+
+    while (true) {
+        status = NtWaitForSingleObject(f.proc, true, nullptr);
+        if (status == nt_status::USER_APC || status == nt_status::ALERTED)
+            continue;
+
+        if (success(status))
+            break;
+
+        *__errno() = nt_status_to_errno(status);
+        fail = true;
+        break;
+    }
+
+    if (!fail) {
+        // get exit status
+
+        status = NtQueryInformationProcess(f.proc, PROCESSINFOCLASS::BasicInformation,
+                                        &pbi, sizeof(pbi), nullptr);
+        if (!success(status)) {
+            *__errno() = nt_status_to_errno(status);
+            fail = true;
+        }
+    }
+
+    NtClose(f.proc);
+
+    RtlEnterCriticalSection(&files_lock);
+    remove_entry_list(f.le);
+    RtlLeaveCriticalSection(&files_lock);
+
+    delete &f;
+
+    return fail ? -1 : (int)pbi.ExitStatus;
 }

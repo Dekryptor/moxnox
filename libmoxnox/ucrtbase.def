@@ -239,6 +239,7 @@ scalblnf
 tmpfile
 _pipe
 _popen
+_pclose
 
 ; stubs
 ___lc_codepage_func
@@ -255,7 +256,6 @@ _execlp
 _execve
 _mktemp
 setbuf
-_pclose
 mbstowcs
 _fullpath
 strtoimax
