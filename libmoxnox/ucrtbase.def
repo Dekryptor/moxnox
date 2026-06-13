@@ -228,6 +228,7 @@ __stdio_common_vfwprintf
 strtof
 strtod
 atof
+_ctime64
 
 ; stubs
 ___lc_codepage_func
@@ -237,7 +238,6 @@ wcstoul
 wcstoll
 wcstoull
 wcstod
-_ctime64
 freopen
 tmpfile
 _wcsnicmp

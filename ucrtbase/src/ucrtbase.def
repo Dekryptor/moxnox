@@ -256,3 +256,4 @@ __stdio_common_vfwprintf
 strtof
 strtod
 atof
+_ctime64 = __ctime64

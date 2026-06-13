@@ -785,3 +785,16 @@ extern "C"
 double __difftime64(__time64_t end, __time64_t start) {
     return (double)(end - start);
 }
+
+extern "C"
+char* __ctime64(const __time64_t* t) {
+    static char buf[26];
+    struct tm tm;
+
+    __localtime64_s(&tm, t);
+
+    if (_strftime(buf, sizeof(buf), "%a %b %e %H:%M:%S %Y\n", &tm) == 0)
+        return nullptr;
+
+    return buf;
+}
