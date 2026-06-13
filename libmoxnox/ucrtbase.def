@@ -247,7 +247,6 @@ wcstoll
 wcstoull
 wcstod
 _wcsnicmp
-_pipe
 _execvp
 _execl
 _execlp

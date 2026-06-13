@@ -64,7 +64,6 @@ underscore_func "creat"
 
 # stubs
 underscore_func "wcsnicmp"
-underscore_func "pipe"
 underscore_func "execvp"
 underscore_func "execl"
 underscore_func "execlp"
