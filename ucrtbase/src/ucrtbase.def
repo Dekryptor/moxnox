@@ -249,3 +249,4 @@ copysign
 copysignf
 round
 roundf
+_mktime64 = __mktime64

@@ -701,3 +701,82 @@ struct tm* __localtime64(const __time64_t* t) {
 
     return &tm;
 }
+
+static constexpr __time64_t do_mktime(tm* tm) {
+    auto& t = *tm;
+    struct tm tm2;
+    __time64_t ret;
+
+    int year = t.tm_year + 1900;
+    auto mon = t.tm_mon;
+
+    // normalize month
+    if (mon < 0 || mon >= 12) {
+        if (mon < 0) {
+            year += (mon / 12) - 1;
+            mon = (mon % 12) + 12;
+        } else {
+            year += (mon / 12);
+            mon %= 12;
+        }
+    }
+
+    // shift so year starts on March 1
+    if (mon < 2) {
+        mon += 12;
+        year--;
+    }
+
+    int era = (year >= 0 ? year : (year - 399)) / 400;
+    auto year_of_era = (unsigned int)(year - (era * 400));
+    auto day_of_year = (unsigned int)((((153 * (mon - 2)) + 2) / 5) + t.tm_mday - 1);
+    unsigned int day_of_era = (year_of_era * 365) + (year_of_era / 4) - (year_of_era / 100) + day_of_year;
+
+    int days_since_epoch = (era * 146097) + (int)day_of_era - 719468;
+
+    ret = (days_since_epoch * 86400) + (t.tm_hour * 3600) + (t.tm_min * 60) + t.tm_sec;
+
+    // normalize fields
+
+    __gmtime64_s(&tm2, &ret);
+
+    t.tm_hour = tm2.tm_hour;
+    t.tm_min = tm2.tm_min;
+    t.tm_sec = tm2.tm_sec;
+    t.tm_wday = tm2.tm_wday;
+    t.tm_yday = tm2.tm_yday;
+    t.tm_year = tm2.tm_year;
+    t.tm_mon = tm2.tm_mon;
+    t.tm_mday = tm2.tm_mday;
+
+    t.tm_isdst = 0; // FIXME?
+
+    return ret;
+}
+
+extern "C"
+__time64_t __mktime64(struct tm* tm) {
+    return do_mktime(tm);
+}
+
+static constexpr __time64_t test_mktime(int year, int mon, int day, int hour,
+                                        int min, int sec) {
+    struct tm tm;
+
+    tm.tm_year = year - 1900;
+    tm.tm_mon = mon - 1;
+    tm.tm_mday = day;
+    tm.tm_hour = hour;
+    tm.tm_min = min;
+    tm.tm_sec = sec;
+
+    return do_mktime(&tm);
+}
+
+static_assert(test_mktime(1969, 12, 31, 0, 0, 0) == -86400);
+static_assert(test_mktime(1969, 12, 31, 23, 59, 59) == -1);
+static_assert(test_mktime(1970, 1, 1, 0, 0, 0) == 0);
+static_assert(test_mktime(1970, 1, 1, 12, 34, 56) == 45296);
+static_assert(test_mktime(2026, 6, 9, 17, 48, 7) == 1781027287);
+static_assert(test_mktime(2024, 6, 9, 17, 48, 7) == 1717955287);
+static_assert(test_mktime(2024, 2, 28, 17, 48, 7) == 1709142487);
