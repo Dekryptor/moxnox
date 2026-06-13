@@ -222,6 +222,7 @@ copysignf
 round
 roundf
 _mktime64
+_difftime64
 
 ; stubs
 ___lc_codepage_func
@@ -235,7 +236,6 @@ wcstoull
 wcstod
 __stdio_common_vswprintf
 _ctime64
-_difftime64
 freopen
 tmpfile
 atof

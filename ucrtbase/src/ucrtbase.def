@@ -250,3 +250,4 @@ copysignf
 round
 roundf
 _mktime64 = __mktime64
+_difftime64 = __difftime64

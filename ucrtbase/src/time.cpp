@@ -780,3 +780,8 @@ static_assert(test_mktime(1970, 1, 1, 12, 34, 56) == 45296);
 static_assert(test_mktime(2026, 6, 9, 17, 48, 7) == 1781027287);
 static_assert(test_mktime(2024, 6, 9, 17, 48, 7) == 1717955287);
 static_assert(test_mktime(2024, 2, 28, 17, 48, 7) == 1709142487);
+
+extern "C"
+double __difftime64(__time64_t end, __time64_t start) {
+    return (double)(end - start);
+}
