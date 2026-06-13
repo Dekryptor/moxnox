@@ -238,6 +238,7 @@ scalbln
 scalblnf
 tmpfile
 _pipe
+_popen
 
 ; stubs
 ___lc_codepage_func
@@ -254,7 +255,6 @@ _execlp
 _execve
 _mktemp
 setbuf
-_popen
 _pclose
 mbstowcs
 _fullpath
