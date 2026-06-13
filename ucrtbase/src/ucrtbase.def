@@ -265,3 +265,4 @@ scalbnf
 scalbln
 scalblnf
 tmpfile
+_pipe = __pipe

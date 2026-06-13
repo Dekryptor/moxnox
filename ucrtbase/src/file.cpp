@@ -2061,3 +2061,12 @@ FILE* tmpfile() {
 
     return reinterpret_cast<FILE*>(f);
 }
+
+extern "C"
+int __pipe(int* pfds, unsigned int /*psize*/, int /*textmode*/) {
+    // FIXME - psize
+    // FIXME - textmode
+
+    *__errno() = EINVAL;
+    return -1;
+}

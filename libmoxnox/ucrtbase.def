@@ -237,6 +237,7 @@ scalbnf
 scalbln
 scalblnf
 tmpfile
+_pipe
 
 ; stubs
 ___lc_codepage_func

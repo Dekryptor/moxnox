@@ -158,3 +158,8 @@ int ftruncate(int fd, off_t length) {
 
     return 0;
 }
+
+extern "C"
+int pipe(int* pfds) {
+    return _pipe(pfds, 0, 0);
+}

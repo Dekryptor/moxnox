@@ -35,6 +35,5 @@ do_stub_no_export "fork"
 do_stub_no_export "unsetenv"
 do_stub_no_export "ttyname"
 do_stub_no_export "getpagesize"
-do_stub_no_export "pipe"
 
 stubs_end
