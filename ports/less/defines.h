@@ -75,7 +75,7 @@
 #define HAVE_STAT           1
 #define HAVE_STAT_INO       0
 #define HAVE_FILENO         1
-#define HAVE_POPEN          0
+#define HAVE_POPEN          1
 #define HAVE_REALPATH       1
 #define HAVE_NANOSLEEP      1
 #define HAVE_STRERROR       1
