@@ -111,6 +111,8 @@ public:
         if (!send_pipe.not_full_event.signalled)
             send_pipe.not_full_event.set_holding_sync_lock();
 
+        recv_pipe.server_closed = true;
+
         if (!recv_pipe.signalled) {
             recv_pipe.signalled = true;
 
