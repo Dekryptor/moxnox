@@ -83,6 +83,11 @@ string(REPLACE "#ifdef _WIN32
     else {" _src "${_src}")
 file(CONFIGURE OUTPUT "${CURL_GEN}/src/tool_parsecfg.c" CONTENT "${_src}")
 
+file(READ ${CMAKE_CURRENT_SOURCE_DIR}/repo/lib/curlx/strerr.c _src)
+string(REPLACE "#ifdef _WIN32"
+               "#if defined(_WIN32) && !defined(MOXNOX)" _src "${_src}")
+file(CONFIGURE OUTPUT "${CURL_GEN}/lib/curlx/strerr.c" CONTENT "${_src}")
+
 add_library(libcurl SHARED
     repo/lib/curlx/base64.c
     repo/lib/curlx/basename.c
@@ -94,7 +99,7 @@ add_library(libcurl SHARED
     repo/lib/curlx/snprintf.c
     repo/lib/curlx/strcopy.c
     repo/lib/curlx/strdup.c
-    repo/lib/curlx/strerr.c
+    ${CURL_GEN}/lib/curlx/strerr.c
     repo/lib/curlx/strparse.c
     repo/lib/curlx/timediff.c
     repo/lib/curlx/timeval.c
@@ -340,7 +345,7 @@ add_executable(curl_exe
     repo/lib/curlx/nonblock.c
     repo/lib/curlx/strcopy.c
     repo/lib/curlx/strdup.c
-    repo/lib/curlx/strerr.c
+    ${CURL_GEN}/lib/curlx/strerr.c
     repo/lib/curlx/strparse.c
     repo/lib/curlx/timeval.c
     repo/lib/curlx/wait.c
