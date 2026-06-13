@@ -4,11 +4,14 @@ module;
 #include <string_view>
 #include <span>
 #include <optional>
+#include <atomic>
 #include <stdint.h>
 #include <stdlib.h>
 #include <string.h>
 #include <stdio.h>
 #include <stdarg.h>
+#include <limits.h>
+#include <unistd.h>
 #include <sys/utime.h>
 #include <sys/types.h>
 #include <sys/stat.h>
@@ -25,6 +28,7 @@ import kernelbase;
 import unique_handle;
 import time;
 import moxnox_ioctls;
+import format;
 
 #undef errno
 import errno;
@@ -54,6 +58,8 @@ static int umask_value = S_IRUSR | S_IWUSR | S_IRGRP | S_IWGRP | S_IROTH | S_IWO
 
 // FIXME - should be getting from sys/stat.h
 extern "C" int mkdir(const char* path, mode_t mode);
+
+extern "C" int _getpid();
 
 extern "C" int* __errno();
 
@@ -162,7 +168,8 @@ export void init_files() {
     fds[2] = peb->ProcessParameters->StandardError;
 }
 
-static bool do_open(const char* pathname, const char* mode, HANDLE& h, int& fd) {
+static bool do_open(const char* pathname, const char* mode, HANDLE& h, int& fd,
+                    bool for_delete) {
     enum class mode_type {
         r,
         rplus,
@@ -266,6 +273,9 @@ static bool do_open(const char* pathname, const char* mode, HANDLE& h, int& fd) 
             break;
     }
 
+    if (for_delete)
+        perms |= DELETE;
+
     auto sv = string_view(pathname);
     auto u16len = utf8_to_utf16_len(sv);
 
@@ -326,7 +336,7 @@ FILE* _fopen(const char* pathname, const char* mode) {
     HANDLE h;
     int fd;
 
-    if (!do_open(pathname, mode, h, fd))
+    if (!do_open(pathname, mode, h, fd, false))
         return nullptr;
 
     auto f = new _FILE(h, fd);
@@ -1970,7 +1980,7 @@ FILE* freopen(const char* path, const char* mode, FILE* file) {
     if (!path)
         return file; // FIXME - should also be changing mode
 
-    if (!do_open(path, mode, h, fd))
+    if (!do_open(path, mode, h, fd, false))
         return nullptr;
 
     __lock_file(file);
@@ -1990,4 +2000,64 @@ FILE* freopen(const char* path, const char* mode, FILE* file) {
     __unlock_file(file);
 
     return file;
+}
+
+extern "C"
+FILE* tmpfile() {
+    nt_status status;
+    FILE_DISPOSITION_INFORMATION fdi;
+    IO_STATUS_BLOCK iosb;
+    static atomic<unsigned int> counter = 1;
+    char path[PATH_MAX];
+    span sp(path, sizeof(path));
+    HANDLE h;
+    int fd;
+
+    // create file
+
+    sp = format(sp, "/tmp/tmpfile_{}_{}", _getpid(), counter.fetch_add(1));
+    sp[0] = 0;
+
+    if (!do_open(path, "w+", h, fd, true))
+        return nullptr;
+
+    // unlink file
+
+    fdi.DeleteFile = true;
+
+    status = NtSetInformationFile(h, &iosb, &fdi, sizeof(fdi),
+                                  FILE_INFORMATION_CLASS::DispositionInformation);
+    if (!success(status)) {
+        *__errno() = nt_status_to_errno(status);
+
+        RtlEnterCriticalSection(&fds_lock);
+        fds[(size_t)fd] = 0;
+        RtlLeaveCriticalSection(&fds_lock);
+
+        NtClose(h);
+
+        return nullptr;
+    }
+
+    // create FILE
+
+    auto f = new _FILE(h, fd);
+    if (!f) {
+        RtlEnterCriticalSection(&fds_lock);
+        fds[(size_t)fd] = 0;
+        RtlLeaveCriticalSection(&fds_lock);
+
+        NtClose(h);
+
+        *__errno() = ENOMEM;
+        return nullptr;
+    }
+
+    {
+        RtlEnterCriticalSection(&files_lock);
+        insert_tail_list(files_list, f->le);
+        RtlLeaveCriticalSection(&files_lock);
+    }
+
+    return reinterpret_cast<FILE*>(f);
 }

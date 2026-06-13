@@ -236,6 +236,7 @@ scalbn
 scalbnf
 scalbln
 scalblnf
+tmpfile
 
 ; stubs
 ___lc_codepage_func
@@ -245,7 +246,6 @@ wcstoul
 wcstoll
 wcstoull
 wcstod
-tmpfile
 _wcsnicmp
 _pipe
 _execvp
