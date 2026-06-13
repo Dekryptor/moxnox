@@ -60,6 +60,7 @@ underscore_func "dup2"
 underscore_func "fstat64"
 underscore_func "umask"
 underscore_func "rmdir"
+underscore_func "creat"
 
 # stubs
 underscore_func "wcsnicmp"
@@ -68,7 +69,6 @@ underscore_func "execvp"
 underscore_func "execl"
 underscore_func "execlp"
 underscore_func "execve"
-underscore_func "creat"
 
 redirect_name "_fseeki64", "fseeko64"
 redirect_name "_ftelli64", "ftello64"

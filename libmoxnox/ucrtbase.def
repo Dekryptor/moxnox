@@ -216,6 +216,7 @@ system
 exp2
 exp2f
 perror
+_creat
 
 ; stubs
 ___lc_codepage_func
@@ -247,6 +248,5 @@ _popen
 _pclose
 mbstowcs
 _fullpath
-_creat
 strtoimax
 strtoumax

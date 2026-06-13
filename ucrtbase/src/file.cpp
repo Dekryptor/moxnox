@@ -1929,3 +1929,10 @@ int __rmdir(const char* path) {
 
     return 0;
 }
+
+extern "C"
+int __creat(const char* path, int mode) {
+    // FIXME - mode should actually be mode_t rather than int
+
+    return __open(path, _O_CREAT | _O_WRONLY | _O_TRUNC, mode);
+}

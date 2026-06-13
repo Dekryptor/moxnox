@@ -31,7 +31,6 @@ do_stub "_popen"
 do_stub "_pclose"
 do_stub "mbstowcs"
 do_stub "_fullpath"
-do_stub "_creat"
 do_stub "strtoimax"
 do_stub "strtoumax"
 
