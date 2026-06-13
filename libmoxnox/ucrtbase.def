@@ -225,12 +225,13 @@ _mktime64
 _difftime64
 __stdio_common_vswprintf
 __stdio_common_vfwprintf
+strtof
+strtod
+atof
 
 ; stubs
 ___lc_codepage_func
 _beginthreadex
-strtof
-strtod
 wcstol
 wcstoul
 wcstoll
@@ -239,7 +240,6 @@ wcstod
 _ctime64
 freopen
 tmpfile
-atof
 _wcsnicmp
 _pipe
 _execvp

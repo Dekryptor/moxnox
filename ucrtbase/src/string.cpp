@@ -1,4 +1,6 @@
+#define _CRTBLD
 #include <stdlib.h>
+
 #include <string.h>
 #include <ctype.h>
 #include <string_view>
@@ -186,6 +188,24 @@ long atol(const char* str) {
 extern "C"
 int atoi(const char* str) {
     return str_to_num<int>(str);
+}
+
+extern "C" double __mingw_strtod(const char* nptr, char** endptr);
+extern "C" float __mingw_strtof(const char* nptr, char** endptr);
+
+extern "C"
+double strtod(const char* nptr, char** endptr) {
+    return __mingw_strtod(nptr, endptr);
+}
+
+extern "C"
+float strtof(const char* nptr, char** endptr) {
+    return __mingw_strtof(nptr, endptr);
+}
+
+extern "C"
+double atof(const char* str) {
+    return __mingw_strtod(str, nullptr);
 }
 
 extern "C"

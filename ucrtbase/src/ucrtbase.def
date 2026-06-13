@@ -253,3 +253,6 @@ _mktime64 = __mktime64
 _difftime64 = __difftime64
 __stdio_common_vswprintf
 __stdio_common_vfwprintf
+strtof
+strtod
+atof
