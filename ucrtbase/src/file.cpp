@@ -1409,7 +1409,9 @@ int __read(int fd, void* buffer, size_t count) {
 
     auto status = NtReadFile(h, 0, nullptr, nullptr, &iosb, buffer,
                              (uint32_t)count, nullptr, nullptr);
-    if (!success(status)) {
+    if (status == nt_status::END_OF_FILE)
+        return 0;
+    else if (!success(status)) {
         *__errno() = nt_status_to_errno(status);
         return -1;
     }
