@@ -129,7 +129,7 @@ int main(int argc, char** argv) {
 
                 // FIXME - allow other signals
 
-                if (kill((pid_t)pbi.UniqueProcessId, SIGINT) == -1)
+                if (kill((pid_t)pbi.UniqueProcessId, SIGTERM) == -1)
                     print_stderr("kill failed (errno {})\n", errno_to_string_view(*_errno()));
 
                 break;
