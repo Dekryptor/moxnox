@@ -46,7 +46,7 @@ int main(int argc, char** argv) {
 
         // FIXME - allow other signals
 
-        if (kill((pid_t)pid, SIGINT) == -1) {
+        if (kill((pid_t)pid, SIGTERM) == -1) {
             switch (*_errno()) {
                 case ENOENT:
                     print_stderr("kill: ({}) - no such process\n", pid);
