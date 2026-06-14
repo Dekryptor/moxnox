@@ -1005,16 +1005,6 @@ NTSTATUS mn_poll(mn_poll_entry* entries, size_t num_entries,
             continue;
         }
 
-        if (!object_is_sync_object(objrw.get())) {
-            for (unsigned int j = 0; j < valid; j++) {
-                object_release(*objs[j]);
-            }
-
-            free(objs);
-
-            return nt_status::INVALID_PARAMETER;
-        }
-
         objrw.get().acquire();
         objs[valid] = &objrw.get();
         valid++;
@@ -1052,10 +1042,18 @@ NTSTATUS mn_poll(mn_poll_entry* entries, size_t num_entries,
     }
 
     for (size_t i = 0; i < num_entries; i++) {
-        auto& obj = *objs[i];
-        auto& so = object_get_sync_object(obj);
+        bool signalled;
 
-        if (so.signalled && entries[i].events & POLLIN) {
+        auto& obj = *objs[i];
+
+        if (object_is_sync_object(obj)) {
+            auto& so = object_get_sync_object(obj);
+
+            signalled = so.signalled;
+        } else
+            signalled = true;
+
+        if (signalled && entries[i].events & POLLIN) {
             object_on_wake(obj);
             release_sync_lock();
             enable_interrupts();
