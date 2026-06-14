@@ -783,7 +783,10 @@ int __stdio_common_vsprintf(uint64_t /*options*/, char* str, size_t len,
     // FIXME - options
     // FIXME - locale
 
-    return __mingw_vsnprintf(str, len, format, valist);
+    if (len == (size_t)-1)
+        return __mingw_vsprintf(str, format, valist);
+    else
+        return __mingw_vsnprintf(str, len, format, valist);
 }
 
 extern "C"
