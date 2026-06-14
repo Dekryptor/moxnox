@@ -120,7 +120,7 @@ syscall_stub "NtQueryIoCompletion"
 syscall_stub "NtQueryKey"
 syscall_stub "NtQueryMultipleValueKey"
 syscall_stub "NtQueryMutant"
-syscall_stub "NtQueryObject"
+syscall_func "NtQueryObject", 5
 syscall_stub "NtQueryPerformanceCounter"
 syscall_func "NtQuerySection", 5
 syscall_stub "NtQuerySecurityObject"

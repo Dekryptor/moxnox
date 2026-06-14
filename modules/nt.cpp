@@ -1490,6 +1490,14 @@ enum class MEMORY_INFORMATION_CLASS {
     PhysicalContiguityInformation,
 };
 
+enum class OBJECT_INFORMATION_CLASS {
+    BasicInformation,
+    NameInformation,
+    TypeInformation,
+    TypesInformation,
+    DataInformation,
+};
+
 extern "C" {
 
 NTSTATUS NtDisplayString(const UNICODE_STRING* string);
@@ -1619,6 +1627,9 @@ NTSTATUS NtSetInformationProcess(HANDLE process_handle, PROCESS_INFORMATION_CLAS
 NTSTATUS NtQueryVirtualMemory(HANDLE process_handle, const void* base_address,
                               MEMORY_INFORMATION_CLASS info_class, void* buffer,
                               size_t buffer_size, size_t* return_length);
+NTSTATUS NtQueryObject(HANDLE handle, OBJECT_INFORMATION_CLASS info_class,
+                       void* buffer, uint32_t buffer_size,
+                       uint32_t* return_length);
 
 };
 

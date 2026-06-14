@@ -129,3 +129,12 @@ void handle_closed(object& obj) {
     if (obj.name && !obj.persistent && new_handle_count == 0)
         remove_object_name(obj);
 }
+
+extern "C"
+nt_status NtQueryObject(HANDLE /*handle*/, OBJECT_INFORMATION_CLASS /*info_class*/,
+                        void* /*us_buffer*/, uint32_t /*buffer_size*/,
+                        uint32_t* /*us_return_length*/) {
+    print("FIXME - NtQueryObject\n");
+
+    return nt_status::NOT_IMPLEMENTED;
+}
