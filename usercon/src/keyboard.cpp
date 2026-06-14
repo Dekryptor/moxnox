@@ -723,8 +723,9 @@ span<const char8_t> keyboard_context::handle_keyboard_event(const input_event& e
         val = codes[idx];
     }
 
-    // return alternative forms for arrow keys in DECCKM mode
-    if (decckm && val.size() == 3 && val[0] == 0x1b && val[2] >= 'A' && val[2] <= 'D') {
+    // return alternative forms for arrow keys, Home, and End in DECCKM mode
+    if (decckm && val.size() == 3 && val[0] == 0x1b && val[1] == '[' &&
+        ((val[2] >= 'A' && val[2] <= 'D') || val[2] == 'F' || val[2] == 'H')) {
         switch (val[2]) {
             case 'A':
                 val = u8"\x1bOA";
@@ -740,6 +741,14 @@ span<const char8_t> keyboard_context::handle_keyboard_event(const input_event& e
 
             case 'D':
                 val = u8"\x1bOD";
+                break;
+
+            case 'F':
+                val = u8"\x1bOF";
+                break;
+
+            case 'H':
+                val = u8"\x1bOH";
                 break;
 
             default:
