@@ -130,7 +130,7 @@ static void default_signal_handler(int sig) {
         case SIGUSR1:
         case SIGUSR2:
         case SIGBREAK:
-            exit(sig);
+            _exit(sig);
             break;
 
         // ignore
