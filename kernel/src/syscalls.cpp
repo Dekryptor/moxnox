@@ -1676,7 +1676,7 @@ nt_status user_NtQueryVirtualMemory(HANDLE process_handle, const void* base_addr
                                     size_t* us_return_length) {
     size_t return_length;
 
-    if (!us_buffer || !us_return_length || buffer_size > PAGE_SIZE)
+    if (!us_buffer || !us_return_length || buffer_size == 0 || buffer_size > PAGE_SIZE)
         return nt_status::INVALID_PARAMETER;
 
     auto buf = malloc(buffer_size);
