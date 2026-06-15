@@ -4,6 +4,7 @@ module;
 #include <mutex>
 #include <string_view>
 #include <array>
+#include <atomic>
 #include <stdint.h>
 #include <string.h>
 #include <stdlib.h>
@@ -13,6 +14,7 @@ export module pty;
 
 import nt;
 import print;
+import format;
 import chardev;
 import handle;
 import object_ref;
@@ -167,6 +169,8 @@ static nt_status create_pty(span<const uint8_t> inbuf, span<uint8_t> outbuf,
     auto& t = *get_current_thread();
     nt_status status;
 
+    static atomic<unsigned int> pty_num = 0;
+
     if (inbuf.size() < sizeof(MOXNOX_IOCTL_PTYCTL_CREATE_PTY_IN))
         return nt_status::INVALID_PARAMETER;
 
@@ -234,6 +238,19 @@ static nt_status create_pty(span<const uint8_t> inbuf, span<uint8_t> outbuf,
     }
 
     auto obj4 = object_ref{*pptr_server};
+
+    {
+        char s[10];
+        span sp(s, sizeof(s));
+
+        sp = format(sp, "pty{}", pty_num.fetch_add(1));
+
+        status = name_object(obj3.get(), string_view(s, (size_t)(sp.data() - s)));
+        if (!success(status)) {
+            print("name_object reutrned {}\n", status);
+            return status;
+        }
+    }
 
     handle_t server_handle, client_handle;
 
