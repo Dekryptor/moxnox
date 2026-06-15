@@ -133,10 +133,7 @@ public:
     nt_status accept(HANDLE& sock, void* addr, int& addrlen) override;
     nt_status read(span<uint8_t> s, uint64_t& read_bytes) override;
     nt_status write(span<const uint8_t> s, uint64_t& written_bytes) override;
-
-    nt_status getsockname(span<uint8_t>, size_t&) override {
-        return nt_status::NOT_SUPPORTED;
-    }
+    nt_status getsockname(span<uint8_t>, size_t&) override;
 
     void received_packet(packet& pack, netif& ni, const mac_address& src_mac);
 
@@ -145,7 +142,7 @@ public:
     object_ref state_change_event;
     bool bind_done = false;
     uint16_t bound_port, connected_port;
-    uint32_t connected_scope;
+    uint32_t connected_scope = 0;
     ipv6_address bound_address, connected_address;
     tcp_state state = tcp_state::CLOSED;
     netif* pni = nullptr;
@@ -2330,4 +2327,30 @@ nt_status ipv6_tcp_socket::write(span<const uint8_t> s, uint64_t& written_bytes)
     written_bytes = done;
 
     return status;
+}
+
+nt_status ipv6_tcp_socket::getsockname(span<uint8_t> buf, size_t& len) {
+    if (buf.size() < sizeof(sockaddr_in6))
+        return nt_status::BUFFER_TOO_SMALL;
+
+    auto& addr = *(sockaddr_in6*)buf.data();
+
+    memset(&addr, 0, sizeof(sockaddr_in6));
+
+    addr.sin6_family = AF_INET6;
+
+    {
+        lock_guard lock(state_lock);
+
+        if (bind_done) {
+            addr.sin6_port = bound_port;
+            *(ipv6_address*)addr.sin6_addr = bound_address;
+        }
+
+        addr.sin6_scope_id = connected_scope;
+    }
+
+    len = sizeof(sockaddr_in6);
+
+    return nt_status::SUCCESS;
 }
