@@ -1043,6 +1043,7 @@ NTSTATUS mn_poll(mn_poll_entry* entries, size_t num_entries,
 
     for (size_t i = 0; i < num_entries; i++) {
         bool signalled;
+        uint16_t revents = 0;
 
         auto& obj = *objs[i];
 
@@ -1053,12 +1054,18 @@ NTSTATUS mn_poll(mn_poll_entry* entries, size_t num_entries,
         } else
             signalled = true;
 
-        if (signalled && entries[i].events & POLLIN) {
+        if (signalled && entries[i].events & POLLIN)
+            revents |= POLLIN;
+
+        if (entries[i].events & POLLOUT) // FIXME
+            revents |= POLLOUT;
+
+        if (revents != 0) {
             object_on_wake(obj);
             release_sync_lock();
             enable_interrupts();
 
-            entries[i].revents = POLLIN;
+            entries[i].revents = revents;
 
             for (size_t j = 0; j < num_entries; j++) {
                 object_release(*objs[j]);
