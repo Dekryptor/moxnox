@@ -170,6 +170,29 @@ enum class sockopt_socket {
     PROTOCOL_INFOW = 0x2005,
 };
 
+enum class sockopt_tcp {
+    OFFLOAD_NO_PREFERENCE = 0,
+    OFFLOAD_NOT_PREFERRED = 1,
+    OFFLOAD_PREFERRED = 2,
+    KEEPALIVE = 3,
+    MAXSEG = 4,
+    MAXRT = 5,
+    STDURG = 6,
+    NOURG = 7,
+    ATMARK = 8,
+    NOSYNRETRIES = 9,
+    TIMESTAMPS = 10,
+    OFFLOAD_PREFERENCE = 11,
+    CONGESTION_ALGORITHM = 12,
+    DELAY_FIN_ACK = 13,
+    MAXRTMS = 14,
+    FASTOPEN = 15,
+    KEEPCNT = 16,
+    KEEPINTVL = 17,
+    FAIL_CONNECT_ON_ICMP_ERROR = 18,
+    ICMP_ERROR_INFO = 19,
+};
+
 template<>
 consteval bool format_spec_valid<sockopt_socket>(string_view fmt) {
     return fmt.empty();
@@ -223,6 +246,62 @@ span<char> do_format_arg(span<char> sp, string_view, sockopt_socket o) {
             return do_format_arg(sp, "", "PROTOCOL_INFOA");
         case PROTOCOL_INFOW:
             return do_format_arg(sp, "", "PROTOCOL_INFOW");
+        default:
+            return do_format_arg(sp, "", (unsigned int)o);
+    }
+
+    return sp;
+}
+
+template<>
+consteval bool format_spec_valid<sockopt_tcp>(string_view fmt) {
+    return fmt.empty();
+}
+
+span<char> do_format_arg(span<char> sp, string_view, sockopt_tcp o) {
+    switch (o) {
+        using enum sockopt_tcp;
+
+        case OFFLOAD_NO_PREFERENCE:
+            return do_format_arg(sp, "", "OFFLOAD_NO_PREFERENCE");
+        case OFFLOAD_NOT_PREFERRED:
+            return do_format_arg(sp, "", "OFFLOAD_NOT_PREFERRED");
+        case OFFLOAD_PREFERRED:
+            return do_format_arg(sp, "", "OFFLOAD_PREFERRED");
+        case KEEPALIVE:
+            return do_format_arg(sp, "", "KEEPALIVE");
+        case MAXSEG:
+            return do_format_arg(sp, "", "MAXSEG");
+        case MAXRT:
+            return do_format_arg(sp, "", "MAXRT");
+        case STDURG:
+            return do_format_arg(sp, "", "STDURG");
+        case NOURG:
+            return do_format_arg(sp, "", "NOURG");
+        case ATMARK:
+            return do_format_arg(sp, "", "ATMARK");
+        case NOSYNRETRIES:
+            return do_format_arg(sp, "", "NOSYNRETRIES");
+        case TIMESTAMPS:
+            return do_format_arg(sp, "", "TIMESTAMPS");
+        case OFFLOAD_PREFERENCE:
+            return do_format_arg(sp, "", "OFFLOAD_PREFERENCE");
+        case CONGESTION_ALGORITHM:
+            return do_format_arg(sp, "", "CONGESTION_ALGORITHM");
+        case DELAY_FIN_ACK:
+            return do_format_arg(sp, "", "DELAY_FIN_ACK");
+        case MAXRTMS:
+            return do_format_arg(sp, "", "MAXRTMS");
+        case FASTOPEN:
+            return do_format_arg(sp, "", "FASTOPEN");
+        case KEEPCNT:
+            return do_format_arg(sp, "", "KEEPCNT");
+        case KEEPINTVL:
+            return do_format_arg(sp, "", "KEEPINTVL");
+        case FAIL_CONNECT_ON_ICMP_ERROR:
+            return do_format_arg(sp, "", "FAIL_CONNECT_ON_ICMP_ERROR");
+        case ICMP_ERROR_INFO:
+            return do_format_arg(sp, "", "ICMP_ERROR_INFO");
         default:
             return do_format_arg(sp, "", (unsigned int)o);
     }
