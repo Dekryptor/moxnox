@@ -637,3 +637,16 @@ if (CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
 endif()
 
 install(TARGETS popen-test DESTINATION ${CMAKE_INSTALL_PREFIX}/bin COMPONENT core)
+
+###
+
+add_executable(ntqo-test src/ntqo-test.cpp)
+
+target_compile_options(ntqo-test PRIVATE -fno-exceptions ${USERSPACE_CFLAGS})
+target_link_libraries(ntqo-test moxnox print)
+
+if (CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
+    target_link_options(ntqo-test PUBLIC -mcrtdll=ucrtbase)
+endif()
+
+install(TARGETS ntqo-test DESTINATION ${CMAKE_INSTALL_PREFIX}/bin COMPONENT core)
