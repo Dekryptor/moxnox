@@ -287,7 +287,6 @@ add_library(mingwex STATIC
     repo/mingw-w64-crt/stdio/mingw_swformat.c
     repo/mingw-w64-crt/stdio/snprintf.c
     repo/mingw-w64-crt/stdio/snwprintf.c
-    repo/mingw-w64-crt/stdio/truncate.c
     repo/mingw-w64-crt/stdio/truncate64.c
     repo/mingw-w64-crt/stdio/ulltoa.c
     repo/mingw-w64-crt/stdio/ulltow.c

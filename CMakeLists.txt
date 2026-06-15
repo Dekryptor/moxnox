@@ -18,6 +18,7 @@ add_compile_definitions(_GLIBCXX_NO_ASSERTIONS)
 
 # set _UCRT everywhere, but avoiding undisablable duplicate definition warnings in ucrtbase_static
 add_compile_definitions("$<$<NOT:$<STREQUAL:$<TARGET_PROPERTY:NAME>,ucrtbase_static>>:_UCRT>")
+add_compile_definitions(_FILE_OFFSET_BITS=64)
 
 add_compile_options(-U_FORTIFY_SOURCE)
 
