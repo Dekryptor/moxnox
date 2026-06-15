@@ -2,8 +2,14 @@ module;
 
 #include <stdint.h>
 #include <stddef.h>
+#include <span>
+#include <string_view>
 
 export module ws2_32;
+
+import format;
+
+using namespace std;
 
 export {
 
@@ -136,6 +142,93 @@ struct addrinfo {
     sockaddr* ai_addr;
     addrinfo* ai_next;
 };
+
+// FIXME - get these constants from the header files
+
+enum class sockopt_socket {
+    DEBUG = 0x0001,
+    ACCEPTCONN = 0x0002,
+    REUSEADDR = 0x0004,
+    KEEPALIVE = 0x0008,
+    DONTROUTE = 0x0010,
+    BROADCAST = 0x0020,
+    USELOOPBACK = 0x0040,
+    LINGER = 0x0080,
+    OOBINLINE = 0x0100,
+    SNDBUF = 0x1001,
+    RCVBUF = 0x1002,
+    SNDLOWAT = 0x1003,
+    RCVLOWAT = 0x1004,
+    SNDTIMEO = 0x1005,
+    RCVTIMEO = 0x1006,
+    ERROR = 0x1007,
+    TYPE = 0x1008,
+    GROUP_ID = 0x2001,
+    GROUP_PRIORITY = 0x2002,
+    MAX_MSG_SIZE = 0x2003,
+    PROTOCOL_INFOA = 0x2004,
+    PROTOCOL_INFOW = 0x2005,
+};
+
+template<>
+consteval bool format_spec_valid<sockopt_socket>(string_view fmt) {
+    return fmt.empty();
+}
+
+span<char> do_format_arg(span<char> sp, string_view, sockopt_socket o) {
+    switch (o) {
+        using enum sockopt_socket;
+
+        case DEBUG:
+            return do_format_arg(sp, "", "DEBUG");
+        case ACCEPTCONN:
+            return do_format_arg(sp, "", "ACCEPTCONN");
+        case REUSEADDR:
+            return do_format_arg(sp, "", "REUSEADDR");
+        case KEEPALIVE:
+            return do_format_arg(sp, "", "KEEPALIVE");
+        case DONTROUTE:
+            return do_format_arg(sp, "", "DONTROUTE");
+        case BROADCAST:
+            return do_format_arg(sp, "", "BROADCAST");
+        case USELOOPBACK:
+            return do_format_arg(sp, "", "USELOOPBACK");
+        case LINGER:
+            return do_format_arg(sp, "", "LINGER");
+        case OOBINLINE:
+            return do_format_arg(sp, "", "OOBINLINE");
+        case SNDBUF:
+            return do_format_arg(sp, "", "SNDBUF");
+        case RCVBUF:
+            return do_format_arg(sp, "", "RCVBUF");
+        case SNDLOWAT:
+            return do_format_arg(sp, "", "SNDLOWAT");
+        case RCVLOWAT:
+            return do_format_arg(sp, "", "RCVLOWAT");
+        case SNDTIMEO:
+            return do_format_arg(sp, "", "SNDTIMEO");
+        case RCVTIMEO:
+            return do_format_arg(sp, "", "RCVTIMEO");
+        case ERROR:
+            return do_format_arg(sp, "", "ERROR");
+        case TYPE:
+            return do_format_arg(sp, "", "TYPE");
+        case GROUP_ID:
+            return do_format_arg(sp, "", "GROUP_ID");
+        case GROUP_PRIORITY:
+            return do_format_arg(sp, "", "GROUP_PRIORITY");
+        case MAX_MSG_SIZE:
+            return do_format_arg(sp, "", "MAX_MSG_SIZE");
+        case PROTOCOL_INFOA:
+            return do_format_arg(sp, "", "PROTOCOL_INFOA");
+        case PROTOCOL_INFOW:
+            return do_format_arg(sp, "", "PROTOCOL_INFOW");
+        default:
+            return do_format_arg(sp, "", (unsigned int)o);
+    }
+
+    return sp;
+}
 
 extern "C" {
 
