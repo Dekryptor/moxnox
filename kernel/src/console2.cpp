@@ -947,9 +947,6 @@ void console_fb::erase_in_display(unsigned int param) {
 
         case 2: // clear entire screen
         case 3:
-            cursor_x = 0;
-            cursor_y = 0;
-
             for (unsigned int y = 0; y < console_rows; y++) {
                 for (unsigned int x = 0; x < console_cols; x++) {
                     auto& p = console[(y * console_cols) + x];
