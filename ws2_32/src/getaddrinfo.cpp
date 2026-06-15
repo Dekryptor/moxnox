@@ -333,6 +333,7 @@ static int parse_dns_response(span<uint8_t> sp, span<uint8_t> resp,
             sock->sin6_flowinfo = 0;
             *(ipv6_address*)sock->sin6_addr = addr;
             sock->sin6_scope_id = 0;
+            sock->sin6_port = 0;
 
             ai->ai_flags = 0;
             ai->ai_family = AF_INET6;
@@ -559,11 +560,11 @@ static int dns_lookup(string_view name, addrinfo** res, int socktype,
         }
 
         if (*res) {
-            auto* ai = *res;
-
-            ((sockaddr_in6*)ai->ai_addr)->sin6_port = byteswap(port);
-            ai->ai_socktype = socktype;
-            ai->ai_protocol = protocol;
+            for (auto* ai = *res; ai; ai = ai->ai_next) {
+                ((sockaddr_in6*)ai->ai_addr)->sin6_port = byteswap(port);
+                ai->ai_socktype = socktype;
+                ai->ai_protocol = protocol;
+            }
 
             free(pack);
             closesocket(sock);
