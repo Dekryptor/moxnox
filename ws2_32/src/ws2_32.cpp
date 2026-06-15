@@ -270,11 +270,31 @@ int ioctlsocket(SOCKET s, int32_t cmd, uint32_t* argp) {
 }
 
 extern "C"
-int getsockname(SOCKET /*s*/, sockaddr* /*name*/, int* /*namelen*/) {
-    print("FIXME - getsockname\n");
+int getsockname(SOCKET s, sockaddr* name, int* namelen) {
+    IO_STATUS_BLOCK iosb;
+    MOXNOX_SOCKET_GETSOCKNAME params;
 
-    *_errno() = EINVAL;
-    return SOCKET_ERROR;
+    if (*namelen < 0) {
+        *_errno() = EINVAL;
+        return SOCKET_ERROR;
+    }
+
+    auto h = _get_osfhandle((int)s);
+    if (h == -1)
+        return SOCKET_ERROR;
+
+    params.addr = name;
+    params.addrlen = (size_t)*namelen;
+
+    auto status = NtDeviceIoControlFile((HANDLE)h, 0, nullptr, nullptr, &iosb,
+                                        IOCTL_MOXNOX_SOCKET_GETSOCKNAME, &params,
+                                        sizeof(params), namelen, sizeof(*namelen));
+    if (!success(status)) {
+        *_errno() = nt_status_to_errno(status);
+        return SOCKET_ERROR;
+    }
+
+    return 0;
 }
 
 extern "C"
