@@ -47,9 +47,7 @@ public:
         return nt_status::NOT_SUPPORTED;
     }
 
-    nt_status getsockname(span<uint8_t>, size_t&) override {
-        return nt_status::NOT_SUPPORTED;
-    }
+    nt_status getsockname(span<uint8_t> buf, size_t& len) override;
 
     spinlock buffer_lock;
     list_entry buffer = { &buffer, &buffer };
@@ -57,7 +55,7 @@ public:
     spinlock bind_lock;
     bool bind_done = false, connect_done = false;
     uint16_t bound_port, connected_port;
-    uint32_t connected_scope;
+    uint32_t connected_scope = 0;
     ipv6_address bound_address, connected_address;
     nt_status pending_error = nt_status::SUCCESS;
     bool dead = false;
@@ -767,6 +765,31 @@ nt_status create_new_ipv6_udp_socket(object_ref& ref) {
     }
 
     ref = object_ref{*s};
+
+    return nt_status::SUCCESS;
+}
+
+nt_status ipv6_udp_socket::getsockname(span<uint8_t> buf, size_t& len) {
+    if (buf.size() < sizeof(sockaddr_in6))
+        return nt_status::BUFFER_TOO_SMALL;
+
+    auto& addr = *(sockaddr_in6*)buf.data();
+
+    memset(&addr, 0, sizeof(sockaddr_in6));
+
+    addr.sin6_family = AF_INET6;
+
+    {
+        lock_guard lock(bind_lock);
+
+        if (bind_done) {
+            addr.sin6_port = bound_port;
+            *(ipv6_address*)addr.sin6_addr = bound_address;
+            addr.sin6_scope_id = connected_scope;
+        }
+    }
+
+    len = sizeof(sockaddr_in6);
 
     return nt_status::SUCCESS;
 }
