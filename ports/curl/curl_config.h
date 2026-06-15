@@ -489,7 +489,7 @@
 /* #undef HAVE_SETSOCKOPT_SO_NONBLOCK */
 
 /* Define to 1 if you have the sigaction function. */
-/* #undef HAVE_SIGACTION */
+#define HAVE_SIGACTION 1
 
 /* Define to 1 if you have the siginterrupt function. */
 /* #undef HAVE_SIGINTERRUPT */
