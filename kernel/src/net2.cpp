@@ -67,9 +67,7 @@ public:
         return nt_status::NOT_SUPPORTED;
     }
 
-    nt_status getsockname(span<uint8_t>, size_t&) override {
-        return nt_status::NOT_SUPPORTED;
-    }
+    nt_status getsockname(span<uint8_t> buf, size_t& len) override;
 
     list_entry le;
     int protocol;
@@ -3236,6 +3234,28 @@ nt_status ipv6_raw_socket::bind(const sockaddr* addr, size_t addrlen) {
 
         bind_done = true;
     }
+
+    return nt_status::SUCCESS;
+}
+
+nt_status ipv6_raw_socket::getsockname(span<uint8_t> buf, size_t& len) {
+    if (buf.size() < sizeof(sockaddr_in6))
+        return nt_status::BUFFER_TOO_SMALL;
+
+    auto& addr = *(sockaddr_in6*)buf.data();
+
+    memset(&addr, 0, sizeof(sockaddr_in6));
+
+    addr.sin6_family = AF_INET6;
+
+    {
+        lock_guard lock(bind_lock);
+
+        if (bind_done)
+            *(ipv6_address*)addr.sin6_addr = bound_address;
+    }
+
+    len = sizeof(sockaddr_in6);
 
     return nt_status::SUCCESS;
 }
