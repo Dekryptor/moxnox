@@ -7,6 +7,7 @@ extern "C" {
 #endif
 
 char* ttyname(int fd);
+int ttyname_r(int fd, char* name, size_t namesize);
 uid_t getuid(void);
 gid_t getgid(void);
 int isatty(int fd);
