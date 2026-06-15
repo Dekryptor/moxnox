@@ -82,7 +82,7 @@
 #define HAVE_SYSTEM         1
 #define HAVE_SETTABLE_ERRNO 1
 #define HAVE_UPPER_LOWER    1
-#define HAVE_TTYNAME        0
+#define HAVE_TTYNAME        1
 #define HAVE_FCHMOD         0
 #define HAVE_FSYNC          0
 #define HAVE_USLEEP         0
