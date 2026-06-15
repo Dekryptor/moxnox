@@ -91,6 +91,8 @@ const int IPPROTO_SCTP = 132;
 const int IPPROTO_RAW = 255;
 const int IPPROTO_MAX = 256;
 
+const int SOL_SOCKET = 0xffff;
+
 const int INVALID_SOCKET = -1;
 const int SOCKET_ERROR = -1;
 

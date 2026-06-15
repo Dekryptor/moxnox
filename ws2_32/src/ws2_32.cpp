@@ -244,8 +244,20 @@ uint16_t ntohs(uint16_t netshort) {
 extern "C"
 int setsockopt(SOCKET s, int level, int optname, const char* optval,
                int optlen) {
-    print("FIXME - setsockopt ({}, {}, {}, {:x}, {})\n", s, level, optname,
-          (uintptr_t)optval, optlen);
+    if (level == SOL_SOCKET) {
+        auto opt = (sockopt_socket)optname;
+
+        print("FIXME - setsockopt ({}, SOL_SOCKET, {}, {:x}, {})\n", s, opt,
+              (uintptr_t)optval, optlen);
+    } else if (level == IPPROTO_TCP) {
+        auto opt = (sockopt_tcp)optname;
+
+        print("FIXME - setsockopt ({}, IPPROTO_TCP, {}, {:x}, {})\n", s, opt,
+              (uintptr_t)optval, optlen);
+    } else {
+        print("FIXME - setsockopt ({}, {}, {}, {:x}, {})\n", s, level, optname,
+              (uintptr_t)optval, optlen);
+    }
 
     return 0;
 }
