@@ -1498,6 +1498,10 @@ enum class OBJECT_INFORMATION_CLASS {
     DataInformation,
 };
 
+struct OBJECT_NAME_INFORMATION {
+    UNICODE_STRING Name;
+};
+
 extern "C" {
 
 NTSTATUS NtDisplayString(const UNICODE_STRING* string);

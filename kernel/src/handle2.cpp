@@ -3,6 +3,7 @@ module;
 #include <optional>
 #include <mutex>
 #include <string_view>
+#include <span>
 
 module handle;
 
@@ -10,6 +11,8 @@ import print;
 import visit;
 import mem;
 import kernel_time_page;
+import thread;
+import unicode;
 
 using namespace std;
 
@@ -130,11 +133,66 @@ void handle_closed(object& obj) {
         remove_object_name(obj);
 }
 
-extern "C"
-nt_status NtQueryObject(HANDLE /*handle*/, OBJECT_INFORMATION_CLASS /*info_class*/,
-                        void* /*us_buffer*/, uint32_t /*buffer_size*/,
-                        uint32_t* /*us_return_length*/) {
-    print("FIXME - NtQueryObject\n");
+static nt_status query_object_name_info(object& obj, span<uint8_t> buffer,
+                                        uint32_t& written) {
+    static const u16string_view prefix = u"/dev/";
 
-    return nt_status::NOT_IMPLEMENTED;
+    // FIXME - files should be name of block device followed by path
+
+    if (buffer.size() < sizeof(OBJECT_NAME_INFORMATION))
+        return nt_status::BUFFER_TOO_SMALL;
+
+    auto& oni = *(OBJECT_NAME_INFORMATION*)buffer.data();
+
+    {
+        lock_guard lock(name_lock);
+
+        // FIXME - is it right to return empty string and SUCCESS if no name?
+        if (!obj.name) {
+            oni.Name.Buffer = nullptr;
+            oni.Name.Length = oni.Name.MaximumLength = 0;
+            written = sizeof(OBJECT_NAME_INFORMATION);
+            return nt_status::SUCCESS;
+        }
+
+        auto name = string_view(obj.name->name, obj.name->name_len);
+
+        auto u16len = prefix.size() + utf8_to_utf16_len(name);
+
+        if (buffer.size() < sizeof(OBJECT_NAME_INFORMATION) + (u16len * sizeof(char16_t)))
+            return nt_status::BUFFER_TOO_SMALL;
+
+        oni.Name.Length = oni.Name.MaximumLength = (uint16_t)(u16len * sizeof(char16_t));
+        oni.Name.Buffer = (char16_t*)((uint8_t*)&oni + sizeof(OBJECT_NAME_INFORMATION));
+
+        memcpy(oni.Name.Buffer, prefix.data(), prefix.size() * sizeof(char16_t));
+
+        utf8_to_utf16(span(oni.Name.Buffer + prefix.size(), u16len - prefix.size()), name);
+
+        written = (uint32_t)(sizeof(OBJECT_NAME_INFORMATION) + (u16len * sizeof(char16_t)));
+    }
+
+    return nt_status::SUCCESS;
+}
+
+extern "C"
+nt_status NtQueryObject(HANDLE handle, OBJECT_INFORMATION_CLASS info_class,
+                        void* buffer, uint32_t buffer_size,
+                        uint32_t* return_length) {
+    auto objrw = deref_handle(handle);
+    if (!objrw)
+        return nt_status::INVALID_HANDLE;
+
+    auto& obj = objrw.get();
+
+    switch (info_class) {
+        using enum OBJECT_INFORMATION_CLASS;
+
+        case NameInformation:
+            return query_object_name_info(obj, span((uint8_t*)buffer, buffer_size),
+                                          *return_length);
+
+        default:
+            return nt_status::NOT_SUPPORTED;
+    }
 }

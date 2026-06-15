@@ -1720,6 +1720,13 @@ nt_status user_NtQueryObject(HANDLE handle, OBJECT_INFORMATION_CLASS info_class,
                              &return_length);
 
     if (success(ret)) {
+        if (info_class == OBJECT_INFORMATION_CLASS::NameInformation) {
+            auto& oni = *(OBJECT_NAME_INFORMATION*)buf;
+
+            if (oni.Name.Buffer)
+                oni.Name.Buffer = (char16_t*)((uintptr_t)us_buffer + (uintptr_t)oni.Name.Buffer - (uintptr_t)buf);
+        }
+
         if (return_length > 0 && !copy_to_process(us_buffer, buf, return_length)) {
             free(buf);
             return nt_status::ACCESS_VIOLATION;
