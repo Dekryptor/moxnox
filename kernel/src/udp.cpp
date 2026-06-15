@@ -47,6 +47,10 @@ public:
         return nt_status::NOT_SUPPORTED;
     }
 
+    nt_status getsockname(span<uint8_t>, size_t&) override {
+        return nt_status::NOT_SUPPORTED;
+    }
+
     spinlock buffer_lock;
     list_entry buffer = { &buffer, &buffer };
     size_t buffer_size = 0;
