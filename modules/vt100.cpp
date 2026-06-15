@@ -1015,7 +1015,13 @@ export void do_print(vt100_console auto& t, string_view s) {
             case esc_state::in_csi: {
                 size_t i = 0;
 
+                // parameters
                 while (i < s.size() && s[i] >= 0x30 && s[i] <= 0x3f) {
+                    i++;
+                }
+
+                // intermediates
+                while (i < s.size() && s[i] >= 0x20 && s[i] <= 0x2f) {
                     i++;
                 }
 
