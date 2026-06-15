@@ -80,9 +80,27 @@ ssize_t getline(char** lineptr, size_t* pn, FILE* stream) {
 
 extern "C"
 int lstat(const char* path, struct stat* statbuf) {
+    struct _stat64 st;
+
     // FIXME - symlinks
 
-    return stat(path, statbuf);
+    auto ret = _stat64(path, &st);
+    if (ret)
+        return ret;
+
+    statbuf->st_dev = st.st_dev;
+    statbuf->st_ino = st.st_ino;
+    statbuf->st_mode = st.st_mode;
+    statbuf->st_nlink = st.st_nlink;
+    statbuf->st_uid = st.st_uid;
+    statbuf->st_gid = st.st_gid;
+    statbuf->st_rdev = st.st_rdev;
+    statbuf->st_size = st.st_size;
+    statbuf->st_atime = st.st_atime;
+    statbuf->st_mtime = st.st_mtime;
+    statbuf->st_ctime = st.st_ctime;
+
+    return 0;
 }
 
 extern "C"
