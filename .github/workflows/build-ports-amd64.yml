@@ -156,7 +156,7 @@ jobs:
 
             tar -xzf $port.tar.gz -C root/
 
-            tar -tzf $port.tar.gz | grep -v '/$' > root/share/pkg/$port/manifest
+            tar -tzf $port.tar.gz | { grep -v '/$' || true; } > root/share/pkg/$port/manifest
           done
 
       - name: Repack initrd
