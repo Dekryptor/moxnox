@@ -22,6 +22,8 @@ import cpu_block;
 import crt;
 import power;
 import interrupts;
+import vfs;
+import object_ref;
 
 using namespace std;
 
@@ -925,6 +927,16 @@ extern "C" NTSTATUS NtWaitForMultipleObjects(uint32_t object_count, HANDLE* obje
                 object_release(*objs[j]);
             }
             return nt_status::INVALID_HANDLE;
+        }
+
+        if (objrw.get().type == object_type::file) {
+            auto& f = static_cast<file&>(objrw.get());
+
+            f.ino.acquire();
+
+            object_ref objrw2{f.ino};
+
+            swap(objrw, objrw2);
         }
 
         if (!object_is_sync_object(objrw.get())) {
