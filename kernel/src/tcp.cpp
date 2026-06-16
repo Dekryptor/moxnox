@@ -664,6 +664,11 @@ void ipv6_tcp_socket::last_handle_closed() {
         }
 
         if (!s.parent) {
+            wait_for_object(s.retransmission_thread_quit_event.get(), false,
+                            60 * SYSTEM_TIME_RESOLUTION);
+        }
+
+        if (!s.parent) {
             lock_guard lock(tcp_ports_lock);
             lock_guard lock2(s.state_lock);
 
