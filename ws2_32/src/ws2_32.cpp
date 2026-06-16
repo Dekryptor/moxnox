@@ -329,6 +329,14 @@ int getsockopt(int s, int level, int optname, char* optval, socklen_t* optlen) {
     if (level == SOL_SOCKET) {
         auto opt = (sockopt_socket)optname;
 
+        if (opt == sockopt_socket::ERROR) {
+            // FIXME - should be asking the kernel
+
+            *optval = 0;
+            *optlen = 1;
+            return 0;
+        }
+
         print("FIXME - getsockopt({}, SOL_SOCKET, {}, {:x}, {:x})\n",
               s, opt, (uintptr_t)optval, (uintptr_t)optlen);
     } else if (level == IPPROTO_TCP) {
