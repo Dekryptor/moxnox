@@ -36,7 +36,7 @@ static void test_resolve_hostname() {
 
         struct sockaddr_in6* addr6 = (struct sockaddr_in6*)rp->ai_addr;
 
-        print("  Result {}: [{}]:{}\n", count, *(ipv6_address*)addr6->sin6_addr, byteswap(addr6->sin6_port));
+        print("  Result {}: [{}]:{}\n", count, *(ipv6_address*)&addr6->sin6_addr, byteswap(addr6->sin6_port));
         print("    Family: {}\n", rp->ai_family == AF_INET6 ? "AF_INET6" : "?");
         print("    Type: {}\n", rp->ai_socktype == SOCK_STREAM ? "SOCK_STREAM" : "SOCK_DGRAM");
         print("    Protocol: {}\n", rp->ai_protocol);
@@ -74,9 +74,9 @@ static void test_numeric_ipv6() {
 
     struct sockaddr_in6* addr6 = (struct sockaddr_in6*)result->ai_addr;
 
-    print("  Address: [{}]:{}\n", *(ipv6_address*)addr6->sin6_addr, byteswap(addr6->sin6_port));
+    print("  Address: [{}]:{}\n", *(ipv6_address*)&addr6->sin6_addr, byteswap(addr6->sin6_port));
 
-    if (*(ipv6_address*)addr6->sin6_addr == parse_ipv6_address("2001:4860:4860::8888"))
+    if (*(ipv6_address*)&addr6->sin6_addr == parse_ipv6_address("2001:4860:4860::8888"))
         print("  ✓ Address parsed correctly\n");
     else
         print("  FAIL: Address not parsed correctly\n");
@@ -141,12 +141,12 @@ static void test_ai_passive() {
 
     struct sockaddr_in6* addr6 = (struct sockaddr_in6*)result->ai_addr;
 
-    if (*(ipv6_address*)addr6->sin6_addr == parse_ipv6_address("::") && byteswap(addr6->sin6_port) == 8080)
+    if (*(ipv6_address*)&addr6->sin6_addr == parse_ipv6_address("::") && byteswap(addr6->sin6_port) == 8080)
         print("  ✓ AI_PASSIVE returned [::]:8080\n");
     else {
-        print("  Got [{}]:{}\n", *(ipv6_address*)addr6->sin6_addr, byteswap(addr6->sin6_port));
+        print("  Got [{}]:{}\n", *(ipv6_address*)&addr6->sin6_addr, byteswap(addr6->sin6_port));
 
-        if (*(ipv6_address*)addr6->sin6_addr != parse_ipv6_address("::"))
+        if (*(ipv6_address*)&addr6->sin6_addr != parse_ipv6_address("::"))
             print("  FAIL: Expected :: (any address)\n");
 
         if (byteswap(addr6->sin6_port) != 8080)
@@ -178,7 +178,7 @@ static void test_scope_id() {
 
     struct sockaddr_in6* addr6 = (struct sockaddr_in6*)result->ai_addr;
 
-    print("  Address: [{}]%{}\n", *(ipv6_address*)addr6->sin6_addr, addr6->sin6_scope_id);
+    print("  Address: [{}]%{}\n", *(ipv6_address*)&addr6->sin6_addr, addr6->sin6_scope_id);
 
     if (addr6->sin6_scope_id == 2)
         print("  ✓ Scope ID parsed correctly\n");
@@ -305,7 +305,7 @@ static void test_connection() {
 
         struct sockaddr_in6* addr6 = (struct sockaddr_in6*)rp->ai_addr;
 
-        print("  Trying [{}]:80...\n", *(ipv6_address*)addr6->sin6_addr);
+        print("  Trying [{}]:80...\n", *(ipv6_address*)&addr6->sin6_addr);
 
         if (connect(sock, rp->ai_addr, (int)rp->ai_addrlen) == 0) {
             print("  ✓ Connected successfully!\n");
@@ -372,7 +372,7 @@ static void test_edge_cases() {
     if (ret == 0) {
         struct sockaddr_in6* addr6 = (struct sockaddr_in6*)result->ai_addr;
 
-        if (*(ipv6_address*)addr6->sin6_addr == parse_ipv6_address("::1"))
+        if (*(ipv6_address*)&addr6->sin6_addr == parse_ipv6_address("::1"))
             print("✓ ::1\n");
         else
             print("✗ Not ::1\n");

@@ -331,7 +331,7 @@ static int parse_dns_response(span<uint8_t> sp, span<uint8_t> resp,
 
             sock->sin6_family = AF_INET6;
             sock->sin6_flowinfo = 0;
-            *(ipv6_address*)sock->sin6_addr = addr;
+            *(ipv6_address*)&sock->sin6_addr = addr;
             sock->sin6_scope_id = 0;
             sock->sin6_port = 0;
 
@@ -631,7 +631,7 @@ int getaddrinfo(const char* node, const char* service, const addrinfo* hints,
         sock->sin6_family = AF_INET6;
         sock->sin6_port = byteswap(port);
         sock->sin6_flowinfo = 0;
-        *(ipv6_address*)sock->sin6_addr = addr;
+        *(ipv6_address*)&sock->sin6_addr = addr;
         sock->sin6_scope_id = scope;
 
         ret->ai_flags = 0;

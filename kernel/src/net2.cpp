@@ -2402,7 +2402,7 @@ nt_status ipv6_raw_socket::recvfrom(char* us_buf, size_t len, int flags,
             addr.sin6_family = AF_INET6;
             addr.sin6_port = 0;
             addr.sin6_flowinfo = 0; // FIXME? Allowed by RFC3493, but not necessarily what Linux does
-            memcpy(addr.sin6_addr, ip.src.v.data(), sizeof(ipv6_address));
+            memcpy(&addr.sin6_addr, ip.src.v.data(), sizeof(ipv6_address));
             addr.sin6_scope_id = sp->scope_id;
 
             status = t.proc->write_vm(us_from, &addr,
@@ -3038,7 +3038,7 @@ nt_status ipv6_raw_socket::sendto(const char* buf, size_t len, int flags,
             src = parse_ipv6_address("::");
     }
 
-    auto& dst = *(ipv6_address*)to6.sin6_addr;
+    auto& dst = *(ipv6_address*)&to6.sin6_addr;
 
     netif* pni;
 
@@ -3217,7 +3217,7 @@ nt_status ipv6_raw_socket::bind(const sockaddr* addr, size_t addrlen) {
 
     auto& b = *(sockaddr_in6*)addr;
 
-    auto ip = *(ipv6_address*)b.sin6_addr;
+    auto ip = *(ipv6_address*)&b.sin6_addr;
 
     if (ip != parse_ipv6_address("::")) {
         if (!is_our_ip(ip))
@@ -3252,7 +3252,7 @@ nt_status ipv6_raw_socket::getsockname(span<uint8_t> buf, size_t& len) {
         lock_guard lock(bind_lock);
 
         if (bind_done)
-            *(ipv6_address*)addr.sin6_addr = bound_address;
+            *(ipv6_address*)&addr.sin6_addr = bound_address;
     }
 
     len = sizeof(sockaddr_in6);

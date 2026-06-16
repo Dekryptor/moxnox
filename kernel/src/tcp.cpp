@@ -372,7 +372,7 @@ static uint16_t find_ephemeral_tcp_port() {
 nt_status ipv6_tcp_socket::send_syn(const sockaddr_in6& c, ipv6_address& src) {
     nt_status status;
 
-    auto& dst = *(ipv6_address*)c.sin6_addr;
+    auto& dst = *(ipv6_address*)&c.sin6_addr;
 
     {
         netif* newni;
@@ -538,7 +538,7 @@ nt_status ipv6_tcp_socket::connect(const sockaddr* addr, size_t addrlen) {
         state = tcp_state::SYN_SENT;
 
         connected_port = c.sin6_port;
-        connected_address = *(ipv6_address*)c.sin6_addr;
+        connected_address = *(ipv6_address*)&c.sin6_addr;
         connected_scope = c.sin6_scope_id;
 
         src = bound_address;
@@ -1676,7 +1676,7 @@ nt_status ipv6_tcp_socket::recvfrom(char* buf, size_t len, int flags,
             addr.sin6_family = AF_INET6;
             addr.sin6_port = connected_port;
             addr.sin6_flowinfo = 0; // FIXME? Allowed by RFC3493, but not necessarily what Linux does
-            *(ipv6_address*)addr.sin6_addr = connected_address;
+            *(ipv6_address*)&addr.sin6_addr = connected_address;
             addr.sin6_scope_id = connected_scope;
 
             status = t.proc->write_vm(from, &addr,
@@ -1710,7 +1710,7 @@ nt_status ipv6_tcp_socket::bind(const sockaddr* addr, size_t addrlen) {
 
     auto& b = *(sockaddr_in6*)addr;
 
-    auto ip = *(ipv6_address*)b.sin6_addr;
+    auto ip = *(ipv6_address*)&b.sin6_addr;
 
     if (ip != parse_ipv6_address("::")) {
         if (!is_our_ip(ip))
@@ -1849,7 +1849,7 @@ nt_status ipv6_tcp_socket::accept(HANDLE& sock, void* us_addr, int& addrlen) {
         addr.sin6_family = AF_INET6;
         addr.sin6_port = c->connected_port;
         addr.sin6_flowinfo = 0; // FIXME? Allowed by RFC3493, but not necessarily what Linux does
-        *(ipv6_address*)addr.sin6_addr = c->connected_address;
+        *(ipv6_address*)&addr.sin6_addr = c->connected_address;
         addr.sin6_scope_id = c->connected_scope;
 
         status = t.proc->write_vm(us_addr, &addr, (uint32_t)sizeof(addr),
@@ -2344,7 +2344,7 @@ nt_status ipv6_tcp_socket::getsockname(span<uint8_t> buf, size_t& len) {
 
         if (bind_done) {
             addr.sin6_port = bound_port;
-            *(ipv6_address*)addr.sin6_addr = bound_address;
+            *(ipv6_address*)&addr.sin6_addr = bound_address;
         }
 
         addr.sin6_scope_id = connected_scope;

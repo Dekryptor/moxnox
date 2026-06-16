@@ -24,7 +24,7 @@ static void test(sockaddr_in6& s) {
     struct sockaddr_in6 addr = {};
     addr.sin6_family = AF_INET6;
     addr.sin6_port = byteswap((uint16_t)80);
-    *(ipv6_address*)addr.sin6_addr = *(ipv6_address*)s.sin6_addr;
+    *(ipv6_address*)&addr.sin6_addr = *(ipv6_address*)&s.sin6_addr;
 
     print("Connecting...\n");
     int ret = connect(sock, (sockaddr*)&addr, sizeof(addr));
@@ -84,7 +84,7 @@ int main() {
 
         auto& s = *((sockaddr_in6*)ai->ai_addr);
 
-        print("found IP address {}\n", *(ipv6_address*)s.sin6_addr);
+        print("found IP address {}\n", *(ipv6_address*)&s.sin6_addr);
 
         test(s);
         done = true;

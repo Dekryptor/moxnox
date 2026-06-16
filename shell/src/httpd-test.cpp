@@ -192,7 +192,7 @@ int main() {
             return 1;
         }
 
-        print("Connected from [{}]:{}, socket {}\n", *(ipv6_address*)client_addr.sin6_addr,
+        print("Connected from [{}]:{}, socket {}\n", *(ipv6_address*)&client_addr.sin6_addr,
               byteswap(client_addr.sin6_port), (uintptr_t)client_sock);
 
         auto h = CreateThread(nullptr, 0, socket_thread, (void*)(uintptr_t)client_sock,

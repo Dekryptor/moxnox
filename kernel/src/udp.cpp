@@ -321,7 +321,7 @@ nt_status ipv6_udp_socket::recvfrom(char* us_buf, size_t len, int flags,
             addr.sin6_family = AF_INET6;
             addr.sin6_port = udp.srcport;
             addr.sin6_flowinfo = 0; // FIXME? Allowed by RFC3493, but not necessarily what Linux does
-            memcpy(addr.sin6_addr, ip.src.v.data(), sizeof(ipv6_address));
+            memcpy(&addr.sin6_addr, ip.src.v.data(), sizeof(ipv6_address));
             addr.sin6_scope_id = sp->scope_id;
 
             status = t.proc->write_vm(us_from, &addr,
@@ -452,7 +452,7 @@ nt_status ipv6_udp_socket::sendto(const char* buf, size_t len, int flags,
     if (!t.proc)
         return nt_status::INTERNAL_ERROR;
 
-    auto& dst = *(ipv6_address*)to6.sin6_addr;
+    auto& dst = *(ipv6_address*)&to6.sin6_addr;
 
     netif* pni;
 
@@ -553,7 +553,7 @@ nt_status ipv6_udp_socket::bind(const sockaddr* addr, size_t addrlen) {
 
     auto& b = *(sockaddr_in6*)addr;
 
-    auto ip = *(ipv6_address*)b.sin6_addr;
+    auto ip = *(ipv6_address*)&b.sin6_addr;
 
     if (ip != parse_ipv6_address("::")) {
         if (!is_our_ip(ip))
@@ -625,7 +625,7 @@ nt_status ipv6_udp_socket::connect(const sockaddr* addr, size_t addrlen) {
             return nt_status::INVALID_PARAMETER;
 
         connected_port = c.sin6_port;
-        connected_address = *(ipv6_address*)c.sin6_addr;
+        connected_address = *(ipv6_address*)&c.sin6_addr;
         connected_scope = c.sin6_scope_id;
         connect_done = true;
     }
@@ -784,7 +784,7 @@ nt_status ipv6_udp_socket::getsockname(span<uint8_t> buf, size_t& len) {
 
         if (bind_done) {
             addr.sin6_port = bound_port;
-            *(ipv6_address*)addr.sin6_addr = bound_address;
+            *(ipv6_address*)&addr.sin6_addr = bound_address;
             addr.sin6_scope_id = connected_scope;
         }
     }
