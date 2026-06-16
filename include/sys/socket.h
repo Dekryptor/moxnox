@@ -14,6 +14,11 @@ struct sockaddr_storage {
    struct sockaddr sa;
 };
 
+struct linger {
+   int l_onoff;
+   int l_linger;
+};
+
 #define AF_UNSPEC 0
 #define AF_UNIX 1
 #define AF_INET 2
@@ -83,6 +88,17 @@ struct sockaddr_storage {
 #define SO_ERROR 0x1007
 #define SO_TYPE 0x1008
 
+#define MSG_OOB (1 << 0)
+#define MSG_PEEK (1 << 1)
+#define MSG_DONTROUTE (1 << 2)
+#define MSG_CTRUNC (1 << 3)
+#define MSG_TRUNC (1 << 4)
+#define MSG_EOR (1 << 5)
+#define MSG_WAITALL (1 << 6)
+#define MSG_NOSIGNAL (1 << 7)
+#define MSG_CMSG_CLOEXEC (1 << 8)
+#define MSG_CMSG_CLOFORK (1 << 9)
+
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -103,6 +119,7 @@ int sendto(int s, const char* buf, int len, int flags, const struct sockaddr* to
 int setsockopt(int s, int level, int optname, const char* optval,
                socklen_t optlen);
 int socket(int af, int type, int protocol);
+int shutdown(int s, int how);
 
 #ifdef __cplusplus
 }
