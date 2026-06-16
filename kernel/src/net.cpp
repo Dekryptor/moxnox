@@ -162,6 +162,7 @@ public:
     virtual nt_status read(span<uint8_t> s, uint64_t& read_bytes) = 0;
     virtual nt_status write(span<const uint8_t> s, uint64_t& written_bytes) = 0;
     virtual nt_status getsockname(span<uint8_t> addr, size_t& len) = 0;
+    virtual nt_status read_nonblock(span<uint8_t> s, uint64_t& read_bytes) = 0;
 
 private:
     nt_status do_recvfrom(span<const uint8_t> inbuf);
@@ -180,6 +181,7 @@ static_assert(is_sync_object<class socket>);
 static_assert(has_last_handle_closed<class socket>);
 static_assert(is_readable_object_without_offset<class socket>);
 static_assert(is_writable_object_without_offset<class socket>);
+static_assert(is_nonblocking_readable_object<class socket>);
 
 class netctl : public chardev {
 public:

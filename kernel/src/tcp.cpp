@@ -136,6 +136,10 @@ public:
     nt_status write(span<const uint8_t> s, uint64_t& written_bytes) override;
     nt_status getsockname(span<uint8_t>, size_t&) override;
 
+    nt_status read_nonblock(span<uint8_t>, uint64_t&) override {
+        return nt_status::NOT_SUPPORTED;
+    }
+
     void received_packet(packet& pack, netif& ni, const mac_address& src_mac);
 
     bool init = false;
