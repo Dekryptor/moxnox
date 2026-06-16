@@ -1608,6 +1608,11 @@ nt_status get_dentry_path(dentry& dr, char*& path, size_t& path_len) {
 }
 
 void file::last_handle_closed() {
+    if (!dentry) {
+        object_last_handle_closed(ino);
+        return;
+    }
+
     {
         lock_guard lg(dentry->lock);
 
