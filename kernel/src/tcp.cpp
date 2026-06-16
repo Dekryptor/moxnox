@@ -18,6 +18,7 @@ import scheduler;
 import kernel_time_page;
 import list;
 import config;
+import vfs;
 
 using namespace std;
 
@@ -1873,8 +1874,25 @@ nt_status ipv6_tcp_socket::accept(HANDLE& sock, void* us_addr, int& addrlen) {
         c->on_accepted_list = true;
     }
 
-    status = t.proc->add_handle(*c, FILE_READ_DATA | FILE_WRITE_DATA, true,
-                                sock);
+    auto f = new file(*c, 0);
+    if (!f) {
+        print("new failed\n");
+
+        {
+            lock_guard lock(tcp_ports_lock);
+            remove_entry_list(c->accepted_le);
+            c->on_accepted_list = false;
+        }
+
+        c->release();
+
+        return nt_status::INSUFFICIENT_RESOURCES;
+    }
+
+    object_ref ref{*f};
+
+    status = t.proc->add_handle(ref.get(), FILE_READ_DATA | FILE_WRITE_DATA,
+                                true, sock);
     if (!success(status)) {
         {
             lock_guard lock(tcp_ports_lock);
@@ -1883,6 +1901,7 @@ nt_status ipv6_tcp_socket::accept(HANDLE& sock, void* us_addr, int& addrlen) {
         }
 
         c->release();
+
         return status;
     }
 
