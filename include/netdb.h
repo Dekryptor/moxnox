@@ -14,6 +14,21 @@ struct addrinfo {
     struct addrinfo* ai_next;
 };
 
+struct servent {
+    char* s_name;
+    char** s_aliases;
+    char* s_proto;
+    int s_port;
+};
+
+struct hostent {
+    char* h_name;
+    char** h_aliases;
+    int h_addrtype;
+    int h_length;
+    char** h_addr_list;
+};
+
 #define EAI_BADFLAGS -1
 #define EAI_NONAME -2
 #define EAI_AGAIN -3
@@ -39,6 +54,16 @@ struct addrinfo {
 #define AI_FILESERVER 0x00040000
 #define AI_DISABLE_IDN_ENCODING 0x00080000
 
+#define NI_NOFQDN (1 << 0)
+#define NI_NUMERICHOST (1 << 1)
+#define NI_NAMEREQD (1 << 2)
+#define NI_NUMERICSERV (1 << 3)
+#define NI_NUMERICSCOPE (1 << 4)
+#define NI_DGRAM (1 << 5)
+
+#define NI_MAXHOST 1025
+#define NI_MAXSERV 32
+
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -47,6 +72,10 @@ void freeaddrinfo(struct addrinfo* res);
 const char* gai_strerror(int errcode);
 int getaddrinfo(const char* node, const char* service,
                 const struct addrinfo* hints, struct addrinfo** res);
+int getnameinfo(const struct sockaddr* addr, socklen_t addrlen, char* host,
+                socklen_t hostlen, char* serv, socklen_t servlen, int flags);
+struct servent* getservbyname(const char* name, const char* proto);
+struct hostent* gethostbyname(const char* name);
 
 #ifdef __cplusplus
 }
