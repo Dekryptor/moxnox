@@ -24,6 +24,7 @@ import event;
 import kernel_time_page;
 import timer;
 import format;
+import vfs;
 
 using namespace std;
 
@@ -1751,7 +1752,15 @@ static nt_status netctl_socket(span<const uint8_t> buf) {
 
             HANDLE h;
 
-            auto status = t->proc->add_handle(ref.get(), FILE_READ_DATA | FILE_WRITE_DATA,
+            auto f = new file(ref.get(), 0);
+            if (!f) {
+                print("new failed\n");
+                return nt_status::INSUFFICIENT_RESOURCES;
+            }
+
+            object_ref ref2{*f};
+
+            auto status = t->proc->add_handle(ref2.get(), FILE_READ_DATA | FILE_WRITE_DATA,
                                               true, h);
             if (!success(status))
                 return status;
