@@ -1,4 +1,5 @@
 #include <fcntl.h>
+#include <stdarg.h>
 
 import print;
 import ucrtbase;
@@ -6,8 +7,22 @@ import ucrtbase;
 #undef errno
 import errno;
 
+static int getfl(int fd) {
+    print("FIXME - F_GETFL({})\n", fd);
+
+    return 0;
+}
+
+static int setfl(int fd, int arg) {
+    print("FIXME - F_SETFL({}, {:x})\n", fd, arg);
+
+    return 0;
+}
+
 extern "C"
-int fcntl(int /*fd*/, int op, ...) {
+int fcntl(int fd, int op, ...) {
+    va_list ap;
+
     switch (op) {
         case F_DUPFD:
             print("FIXME - fcntl with F_DUPFD\n");
@@ -22,12 +37,15 @@ int fcntl(int /*fd*/, int op, ...) {
         break;
 
         case F_GETFL:
-            print("FIXME - fcntl with F_GETFL\n");
-        break;
+            return getfl(fd);
 
-        case F_SETFL:
-            print("FIXME - fcntl with F_SETFL\n");
-        break;
+        case F_SETFL: {
+            va_start(ap, op);
+            auto arg = va_arg(ap, int);
+            va_end(ap);
+
+            return setfl(fd, arg);
+        }
 
         default:
             print("FIXME - fcntl with unknown op {}\n", op);
