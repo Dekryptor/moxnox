@@ -1027,6 +1027,16 @@ NTSTATUS mn_poll(mn_poll_entry* entries, size_t num_entries,
             continue;
         }
 
+        if (objrw.get().type == object_type::file) {
+            auto& f = static_cast<file&>(objrw.get());
+
+            f.ino.acquire();
+
+            object_ref objrw2{f.ino};
+
+            swap(objrw, objrw2);
+        }
+
         objrw.get().acquire();
         objs[valid] = &objrw.get();
         valid++;
