@@ -201,13 +201,20 @@ SOCKET accept(SOCKET s, sockaddr* addr, int* addrlen) {
     if (h == -1)
         return SOCKET_ERROR;
 
-    auto status = NtDeviceIoControlFile((HANDLE)h, 0, nullptr, nullptr, &iosb,
-                                        IOCTL_MOXNOX_SOCKET_ACCEPT, &params_in,
-                                        (uint32_t)sizeof(params_in),
-                                        &params_out, (uint32_t)sizeof(params_out));
-    if (!success(status)) {
-        *_errno() = nt_status_to_errno(status);
-        return SOCKET_ERROR;
+    while (true) {
+        auto status = NtDeviceIoControlFile((HANDLE)h, 0, nullptr, nullptr, &iosb,
+                                            IOCTL_MOXNOX_SOCKET_ACCEPT, &params_in,
+                                            (uint32_t)sizeof(params_in),
+                                            &params_out, (uint32_t)sizeof(params_out));
+        if (status == nt_status::USER_APC)
+            continue;
+
+        if (!success(status)) {
+            *_errno() = nt_status_to_errno(status);
+            return SOCKET_ERROR;
+        }
+
+        break;
     }
 
     *addrlen = params_out.addrlen;
