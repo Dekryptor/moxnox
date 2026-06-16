@@ -663,7 +663,7 @@ void ipv6_tcp_socket::last_handle_closed() {
             s2->release();
         }
 
-        if (!s.parent) {
+        if (do_fin && !s.parent) {
             wait_for_object(s.retransmission_thread_quit_event.get(), false,
                             60 * SYSTEM_TIME_RESOLUTION);
         }
