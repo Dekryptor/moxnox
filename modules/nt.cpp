@@ -897,7 +897,7 @@ enum class FILE_INFORMATION_CLASS {
     LinkInformationExBypassAccessCheck,
     StorageReserveIdInformation,
     CaseSensitiveInformationForceAccessCheck,
-    MaximumInformation
+    MoxnoxPosixNonBlock = 0x1000,
 };
 
 struct FILE_DIRECTORY_INFORMATION {

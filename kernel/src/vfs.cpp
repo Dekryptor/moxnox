@@ -213,6 +213,7 @@ public:
     uint64_t query_dir_index = 0;
     dentry* dentry = nullptr;
     uint32_t create_options;
+    atomic<bool> nonblock = false;
 
     NTSTATUS read(span<uint8_t> s, uint64_t& read_bytes);
     NTSTATUS read(span<uint8_t> s, uint64_t offset, uint64_t& read_bytes);
@@ -234,6 +235,7 @@ public:
 
 private:
     nt_status set_eof(span<const uint8_t> buf);
+    nt_status set_non_block(span<const uint8_t> buffer);
 };
 
 static_assert(is_readable_object_without_offset<file>);

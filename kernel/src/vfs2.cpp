@@ -1358,6 +1358,15 @@ nt_status file::set_eof(span<const uint8_t> buffer) {
     return nt_status::SUCCESS;
 }
 
+nt_status file::set_non_block(span<const uint8_t> buffer) {
+    if (buffer.empty())
+        return nt_status::INVALID_PARAMETER;
+
+    nonblock = buffer[0] != 0;
+
+    return nt_status::SUCCESS;
+}
+
 NTSTATUS file::set_information(void* buffer, uint32_t buffer_size,
                                FILE_INFORMATION_CLASS file_information_class) {
     if (ino.type != object_type::inode)
@@ -1388,6 +1397,9 @@ NTSTATUS file::set_information(void* buffer, uint32_t buffer_size,
 
         case EndOfFileInformation:
             return set_eof(span((uint8_t*)buffer, buffer_size));
+
+        case MoxnoxPosixNonBlock:
+            return set_non_block(span((uint8_t*)buffer, buffer_size));
 
         default:
             return static_cast<inode&>(ino).set_information(span((uint8_t*)buffer, buffer_size),
