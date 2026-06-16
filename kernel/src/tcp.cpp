@@ -132,12 +132,16 @@ public:
     nt_status connect(const sockaddr* addr, size_t addrlen) override;
     nt_status listen(int backlog) override;
     nt_status accept(HANDLE& sock, void* addr, int& addrlen) override;
-    nt_status read(span<uint8_t> s, uint64_t& read_bytes) override;
+
+    nt_status read(span<uint8_t> s, uint64_t& read_bytes) override {
+        return do_read<false>(s, read_bytes);
+    }
+
     nt_status write(span<const uint8_t> s, uint64_t& written_bytes) override;
     nt_status getsockname(span<uint8_t>, size_t&) override;
 
-    nt_status read_nonblock(span<uint8_t>, uint64_t&) override {
-        return nt_status::NOT_SUPPORTED;
+    nt_status read_nonblock(span<uint8_t> s, uint64_t& read_bytes) override {
+        return do_read<true>(s, read_bytes);
     }
 
     void received_packet(packet& pack, netif& ni, const mac_address& src_mac);
@@ -192,6 +196,9 @@ private:
     void received_listen_packet(packet& pack, netif& ni,
                                 const mac_address& src_mac);
     nt_status send_syn_ack(const mac_address& mac);
+
+    template<bool NONBLOCK>
+    nt_status do_read(span<uint8_t> s, uint64_t& read_bytes);
 };
 
 static spinlock tcp_ports_lock;
@@ -2107,7 +2114,8 @@ void ipv6_tcp_socket::received_listen_packet(packet& pack, netif& ni,
     // FIXME - increase backlog value when child goes away
 }
 
-nt_status ipv6_tcp_socket::read(span<uint8_t> s, uint64_t& read_bytes) {
+template<bool NONBLOCK>
+nt_status ipv6_tcp_socket::do_read(span<uint8_t> s, uint64_t& read_bytes) {
     // FIXME - merge into recvfrom once NtReadFile is zero-copy
 
     nt_status status;
@@ -2117,12 +2125,32 @@ nt_status ipv6_tcp_socket::read(span<uint8_t> s, uint64_t& read_bytes) {
     acquire();
 
     while (true) {
-        lock_guard lock(us_read_mutex);
+        if constexpr (NONBLOCK) {
+            if (!us_read_mutex.try_lock()) {
+                release();
+                return read_bytes == 0 ? nt_status::CANT_WAIT : nt_status::SUCCESS;
+            }
+        } else
+            us_read_mutex.lock();
 
-        status = wait_for_object(*this, true);
-        if (!success(status)) {
-            release();
-            return status;
+        lock_guard lock(us_read_mutex, adopt_lock_t{});
+
+        if constexpr (NONBLOCK) {
+            status = wait_for_object(*this, true, 0);
+
+            if (status == nt_status::TIMEOUT) {
+                release();
+                return read_bytes == 0 ? nt_status::CANT_WAIT : nt_status::SUCCESS;
+            } else if (!success(status)) {
+                release();
+                return status;
+            }
+        } else {
+            status = wait_for_object(*this, true);
+            if (!success(status)) {
+                release();
+                return status;
+            }
         }
 
         if (dead)
@@ -2184,6 +2212,8 @@ nt_status ipv6_tcp_socket::read(span<uint8_t> s, uint64_t& read_bytes) {
 
             bool opening = false;
             tcp_seq ack;
+
+            // FIXME - can we make io_mutex a spinlock?
 
             {
                 lock_guard lock(io_mutex);
