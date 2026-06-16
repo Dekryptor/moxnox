@@ -325,6 +325,29 @@ int gethostname(char* name, int namelen) {
 }
 
 extern "C"
+int getsockopt(int s, int level, int optname, char* optval, socklen_t* optlen) {
+    if (level == SOL_SOCKET) {
+        auto opt = (sockopt_socket)optname;
+
+        print("FIXME - getsockopt({}, SOL_SOCKET, {}, {:x}, {:x})\n",
+              s, opt, (uintptr_t)optval, (uintptr_t)optlen);
+    } else if (level == IPPROTO_TCP) {
+        auto opt = (sockopt_tcp)optname;
+
+        print("FIXME - getsockopt({}, IPPROTO_TCP, {}, {:x}, {:x})\n",
+              s, opt, (uintptr_t)optval, (uintptr_t)optlen);
+    } else {
+        print("FIXME - getsockopt({}, {}, {}, {:x}, {:x})\n",
+              s, level, optname, (uintptr_t)optval, (uintptr_t)optlen);
+    }
+
+    // FIXME
+
+    *_errno() = EINVAL;
+    return -1;
+}
+
+extern "C"
 int DllMainCRTStartup(HANDLE /*hinstDLL*/, uint32_t /*dwReason*/,
                       void* /*lpvReserved*/) {
     return 1;

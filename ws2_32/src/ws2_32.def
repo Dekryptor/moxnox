@@ -21,3 +21,4 @@ setsockopt
 ioctlsocket
 getsockname
 gethostname
+getsockopt

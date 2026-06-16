@@ -21,9 +21,9 @@ setsockopt
 ioctlsocket
 getsockname
 gethostname
+getsockopt
 
 ; stubs
-getsockopt
 getpeername
 shutdown
 getnameinfo
