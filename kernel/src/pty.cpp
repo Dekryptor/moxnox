@@ -28,6 +28,7 @@ import termios;
 import rwsem;
 import process;
 import list;
+import vfs;
 
 using namespace std;
 
@@ -254,12 +255,29 @@ static nt_status create_pty(span<const uint8_t> inbuf, span<uint8_t> outbuf,
 
     handle_t server_handle, client_handle;
 
-    status = t.proc->add_handle(*pptr_server, FILE_READ_DATA | FILE_WRITE_DATA,
+    auto server_file = new file(*pptr_server, 0);
+    if (!server_file) {
+        print("new failed\n");
+        return nt_status::INSUFFICIENT_RESOURCES;
+    }
+
+    auto obj5 = object_ref{*server_file};
+
+    status = t.proc->add_handle(*server_file, FILE_READ_DATA | FILE_WRITE_DATA,
                                 true, server_handle);
     if (!success(status))
         return status;
 
-    status = t.proc->add_handle(*pptr_client, FILE_READ_DATA | FILE_WRITE_DATA,
+    auto client_file = new file(*pptr_client, 0);
+    if (!client_file) {
+        print("new failed\n");
+        t.proc->close_handle(server_handle);
+        return nt_status::INSUFFICIENT_RESOURCES;
+    }
+
+    auto obj6 = object_ref{*client_file};
+
+    status = t.proc->add_handle(*client_file, FILE_READ_DATA | FILE_WRITE_DATA,
                                 true, client_handle);
     if (!success(status)) {
         t.proc->close_handle(server_handle);
