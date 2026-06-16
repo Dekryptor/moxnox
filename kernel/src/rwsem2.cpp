@@ -33,6 +33,26 @@ void rwsem::lock() { // exclusive
     set_current_thread_waiting();
 }
 
+bool rwsem::try_lock() { // exclusive
+    bool ret;
+
+    // FIXME - assert that interrupts enabled and cr8 == 0
+
+    disable_interrupts();
+    acquire_sync_lock();
+
+    if (!exclusive && shared_count == 0) {
+        exclusive = true;
+        ret = true;
+    } else
+        ret = false;
+
+    release_sync_lock();
+    enable_interrupts();
+
+    return ret;
+}
+
 static void wake_up_exclusive_thread(rwsem& sem) {
     list_entry tmp = { &tmp, &tmp };
 

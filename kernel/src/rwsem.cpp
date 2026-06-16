@@ -8,6 +8,7 @@ public:
     void unlock();
     void lock_shared();
     void unlock_shared();
+    bool try_lock();
 
     int shared_count = 0;
     bool exclusive = false;
