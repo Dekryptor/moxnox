@@ -764,8 +764,6 @@ NTSTATUS NtCreateFile(HANDLE* file_handle, ACCESS_MASK access_mask,
     if (drw)
         drw->get().release();
 
-    // FIXME - should non-inodes also be encapsulated in file?
-
     if (ino_ref.get().type == object_type::inode) {
         const auto& ino = static_cast<inode&>(ino_ref.get());
 
@@ -811,9 +809,16 @@ NTSTATUS NtCreateFile(HANDLE* file_handle, ACCESS_MASK access_mask,
         if (drw) // FIXME - shouldn't happen, as only inodes get dentries at the moment
             drw->get().release();
 
+        auto f = new file(ino_ref.get(), 0);
+
+        if (!f)
+            return nt_status::INSUFFICIENT_RESOURCES;
+
+        object_ref ref{*f};
+
         // FIXME - GENERIC_READ, GENERIC_WRITE, GENERIC_EXECUTE (different for each object type)
 
-        status = p->add_handle(ino_ref.get(), access_mask, shared_okay, h);
+        status = p->add_handle(*f, access_mask, shared_okay, h);
         if (!success(status))
             return status;
     }
