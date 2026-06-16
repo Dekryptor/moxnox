@@ -1145,6 +1145,9 @@ NTSTATUS NtSetInformationFile(HANDLE file_handle, IO_STATUS_BLOCK* iosb, void* b
 }
 
 NTSTATUS file::rename(span<const uint8_t> buf) {
+    if (ino.type != object_type::inode)
+        return nt_status::INVALID_PARAMETER;
+
     if (buf.size() < offsetof(FILE_RENAME_INFORMATION, FileName))
         return nt_status::BUFFER_TOO_SMALL;
 
@@ -1369,9 +1372,6 @@ nt_status file::set_non_block(span<const uint8_t> buffer) {
 
 NTSTATUS file::set_information(void* buffer, uint32_t buffer_size,
                                FILE_INFORMATION_CLASS file_information_class) {
-    if (ino.type != object_type::inode)
-        return nt_status::INVALID_PARAMETER;
-
     switch (file_information_class) {
         using enum FILE_INFORMATION_CLASS;
 
@@ -1379,6 +1379,9 @@ NTSTATUS file::set_information(void* buffer, uint32_t buffer_size,
             return rename(span((uint8_t*)buffer, buffer_size));
 
         case PositionInformation: {
+            if (ino.type != object_type::inode)
+                return nt_status::INVALID_PARAMETER;
+
             if (buffer_size < sizeof(FILE_POSITION_INFORMATION))
                 return nt_status::BUFFER_TOO_SMALL;
 
@@ -1396,12 +1399,18 @@ NTSTATUS file::set_information(void* buffer, uint32_t buffer_size,
         }
 
         case EndOfFileInformation:
+            if (ino.type != object_type::inode)
+                return nt_status::INVALID_PARAMETER;
+
             return set_eof(span((uint8_t*)buffer, buffer_size));
 
         case MoxnoxPosixNonBlock:
             return set_non_block(span((uint8_t*)buffer, buffer_size));
 
         default:
+            if (ino.type != object_type::inode)
+                return nt_status::INVALID_PARAMETER;
+
             return static_cast<inode&>(ino).set_information(span((uint8_t*)buffer, buffer_size),
                                                             *dentry,
                                                             file_information_class);
