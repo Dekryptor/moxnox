@@ -1,98 +1,85 @@
 set(CURL_GEN ${CMAKE_CURRENT_BINARY_DIR}/gen)
 file(MAKE_DIRECTORY ${CURL_GEN}/lib/curlx)
 
-file(READ ${CMAKE_CURRENT_SOURCE_DIR}/repo/lib/rand.c _src)
-string(REPLACE "#ifndef CURL_WINDOWS_UWP"
-"#if !defined(CURL_WINDOWS_UWP) && !defined(MOXNOX)" _src "${_src}")
-file(CONFIGURE OUTPUT "${CURL_GEN}/lib/rand.c" CONTENT "${_src}")
+function(curl_patch relpath)
+    add_custom_command(
+        OUTPUT ${CURL_GEN}/${relpath}
+        COMMAND ${CMAKE_COMMAND} -E copy
+                ${CMAKE_CURRENT_SOURCE_DIR}/repo/${relpath} ${CURL_GEN}/${relpath}
+        COMMAND sed -z -i ${ARGN} ${CURL_GEN}/${relpath}
+        DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/repo/${relpath}
+        VERBATIM
+    )
+endfunction()
 
-file(READ ${CMAKE_CURRENT_SOURCE_DIR}/repo/lib/getenv.c _src)
-string(REPLACE "#elif defined(_WIN32)"
-"#elif defined(_WIN32) && !defined(MOXNOX)" _src "${_src}")
-file(CONFIGURE OUTPUT "${CURL_GEN}/lib/getenv.c" CONTENT "${_src}")
+curl_patch(lib/rand.c
+    -e [[s|#ifndef CURL_WINDOWS_UWP|#if !defined(CURL_WINDOWS_UWP) \&\& !defined(MOXNOX)|g]])
 
-file(READ ${CMAKE_CURRENT_SOURCE_DIR}/repo/lib/curlx/fopen.c _src)
-string(REPLACE "#ifdef _WIN32"
-"#if defined(_WIN32) && !defined(MOXNOX)" _src "${_src}")
-file(CONFIGURE OUTPUT "${CURL_GEN}/lib/curlx/fopen.c" CONTENT "${_src}")
+curl_patch(lib/getenv.c
+    -e [[s|#elif defined(_WIN32)|#elif defined(_WIN32) \&\& !defined(MOXNOX)|g]])
 
-file(READ ${CMAKE_CURRENT_SOURCE_DIR}/repo/lib/setup-win32.h _src)
-string(REPLACE "#  define USE_WINSOCK 2\n#  include <winsock2.h>\n#  include <ws2tcpip.h>"
-               "#  if defined(MOXNOX)\n#    define _WINSOCKAPI_\n#    define SOCKET int\n#    include <sys/socket.h>\n#    include <netinet/in.h>\n#    include <netdb.h>\n#  else\n#    define USE_WINSOCK 2\n#    include <winsock2.h>\n#    include <ws2tcpip.h>\n#  endif" _src "${_src}")
-file(CONFIGURE OUTPUT "${CURL_GEN}/lib/setup-win32.h" CONTENT "${_src}")
+curl_patch(lib/curlx/fopen.c
+    -e [[s|#ifdef _WIN32|#if defined(_WIN32) \&\& !defined(MOXNOX)|g]])
 
-file(READ ${CMAKE_CURRENT_SOURCE_DIR}/repo/lib/curlx/version_win32.h _src)
-string(REPLACE "#ifdef CURL_WINDOWS_UWP"
-               "#if defined(CURL_WINDOWS_UWP) || defined(MOXNOX)" _src "${_src}")
-file(CONFIGURE OUTPUT "${CURL_GEN}/lib/curlx/version_win32.h" CONTENT "${_src}")
+curl_patch(lib/setup-win32.h
+    -e [[s|#  define USE_WINSOCK 2\n#  include <winsock2.h>\n#  include <ws2tcpip.h>|#  if defined(MOXNOX)\n#    define _WINSOCKAPI_\n#    define SOCKET int\n#    include <sys/socket.h>\n#    include <netinet/in.h>\n#    include <netdb.h>\n#  else\n#    define USE_WINSOCK 2\n#    include <winsock2.h>\n#    include <ws2tcpip.h>\n#  endif|g]])
 
-file(COPY ${CMAKE_CURRENT_SOURCE_DIR}/repo/include/curl DESTINATION ${CURL_GEN}/include)
-file(READ ${CMAKE_CURRENT_SOURCE_DIR}/repo/include/curl/curl.h _src)
-string(REPLACE "#if defined(_WIN32) && !defined(__LWIP_OPT_H__) && !defined(LWIP_HDR_OPT_H)"
-               "#if defined(_WIN32) && !defined(MOXNOX) && !defined(__LWIP_OPT_H__) && !defined(LWIP_HDR_OPT_H)" _src "${_src}")
-file(CONFIGURE OUTPUT "${CURL_GEN}/include/curl/curl.h" CONTENT "${_src}")
+curl_patch(lib/curlx/version_win32.h
+    -e [[s@#ifdef CURL_WINDOWS_UWP@#if defined(CURL_WINDOWS_UWP) || defined(MOXNOX)@g]])
+
+add_custom_command(
+    OUTPUT ${CURL_GEN}/include/curl/curl.h
+    COMMAND ${CMAKE_COMMAND} -E copy_directory
+            ${CMAKE_CURRENT_SOURCE_DIR}/repo/include/curl ${CURL_GEN}/include/curl
+    COMMAND sed -z -i
+            -e [[s|#if defined(_WIN32) \&\& !defined(__LWIP_OPT_H__) \&\& !defined(LWIP_HDR_OPT_H)|#if defined(_WIN32) \&\& !defined(MOXNOX) \&\& !defined(__LWIP_OPT_H__) \&\& !defined(LWIP_HDR_OPT_H)|g]]
+            ${CURL_GEN}/include/curl/curl.h
+    DEPENDS repo/include/curl/curl.h
+            repo/include/curl/curlver.h
+            repo/include/curl/easy.h
+            repo/include/curl/header.h
+            repo/include/curl/mprintf.h
+            repo/include/curl/multi.h
+            repo/include/curl/options.h
+            repo/include/curl/stdcheaders.h
+            repo/include/curl/system.h
+            repo/include/curl/typecheck-gcc.h
+            repo/include/curl/urlapi.h
+            repo/include/curl/websockets.h
+    VERBATIM
+)
 
 file(MAKE_DIRECTORY "${CURL_GEN}/src")
-file(READ ${CMAKE_CURRENT_SOURCE_DIR}/repo/src/tool_filetime.c _src)
-string(REPLACE "#if defined(_WIN32) && !defined(CURL_WINDOWS_UWP)"
-               "#if defined(_WIN32) && !defined(CURL_WINDOWS_UWP) && !defined(MOXNOX)" _src "${_src}")
-file(CONFIGURE OUTPUT "${CURL_GEN}/src/tool_filetime.c" CONTENT "${_src}")
+curl_patch(src/tool_filetime.c
+    -e [[s|#if defined(_WIN32) \&\& !defined(CURL_WINDOWS_UWP)|#if defined(_WIN32) \&\& !defined(CURL_WINDOWS_UWP) \&\& !defined(MOXNOX)|g]])
 
-file(READ ${CMAKE_CURRENT_SOURCE_DIR}/repo/src/terminal.c _src)
-string(REPLACE "#elif defined(_WIN32) && !defined(CURL_WINDOWS_UWP)"
-               "#elif defined(_WIN32) && !defined(CURL_WINDOWS_UWP) && !defined(MOXNOX)" _src "${_src}")
-file(CONFIGURE OUTPUT "${CURL_GEN}/src/terminal.c" CONTENT "${_src}")
+curl_patch(src/terminal.c
+    -e [[s|#elif defined(_WIN32) \&\& !defined(CURL_WINDOWS_UWP)|#elif defined(_WIN32) \&\& !defined(CURL_WINDOWS_UWP) \&\& !defined(MOXNOX)|g]])
 
-file(READ ${CMAKE_CURRENT_SOURCE_DIR}/repo/src/tool_cb_wrt.c _src)
-string(REPLACE "#ifdef _WIN32
-static size_t win_console("
-               "#if defined(_WIN32) && !defined(MOXNOX)
-static size_t win_console(" _src "${_src}")
-string(REPLACE "#ifdef _WIN32
-  CONSOLE_SCREEN_BUFFER_INFO"
-               "#if defined(_WIN32) && !defined(MOXNOX)
-  CONSOLE_SCREEN_BUFFER_INFO" _src "${_src}")
-string(REPLACE "#ifdef _WIN32
-  fhnd = _get_osfhandle("
-               "#if defined(_WIN32) && !defined(MOXNOX)
-  fhnd = _get_osfhandle(" _src "${_src}")
-file(CONFIGURE OUTPUT "${CURL_GEN}/src/tool_cb_wrt.c" CONTENT "${_src}")
+curl_patch(src/tool_cb_wrt.c
+    -e [[s|#ifdef _WIN32\nstatic size_t win_console(|#if defined(_WIN32) \&\& !defined(MOXNOX)\nstatic size_t win_console(|g]]
+    -e [[s|#ifdef _WIN32\n  CONSOLE_SCREEN_BUFFER_INFO|#if defined(_WIN32) \&\& !defined(MOXNOX)\n  CONSOLE_SCREEN_BUFFER_INFO|g]]
+    -e [[s|#ifdef _WIN32\n  fhnd = _get_osfhandle(|#if defined(_WIN32) \&\& !defined(MOXNOX)\n  fhnd = _get_osfhandle(|g]])
 
-file(READ ${CMAKE_CURRENT_SOURCE_DIR}/repo/src/tool_doswin.c _src)
-string(REPLACE "!defined(CURL_CA_SEARCH_SAFE)"
-               "!defined(CURL_CA_SEARCH_SAFE) && !defined(MOXNOX)" _src "${_src}")
-string(REPLACE "#ifndef CURL_WINDOWS_UWP"
-               "#if !defined(CURL_WINDOWS_UWP) && !defined(MOXNOX)" _src "${_src}")
-string(REPLACE "#endif /* !CURL_WINDOWS_UWP */"
-               "#endif /* !CURL_WINDOWS_UWP && !MOXNOX */" _src "${_src}")
-file(CONFIGURE OUTPUT "${CURL_GEN}/src/tool_doswin.c" CONTENT "${_src}")
+curl_patch(src/tool_doswin.c
+    -e [[s|!defined(CURL_CA_SEARCH_SAFE)|!defined(CURL_CA_SEARCH_SAFE) \&\& !defined(MOXNOX)|g]]
+    -e [[s|#ifndef CURL_WINDOWS_UWP|#if !defined(CURL_WINDOWS_UWP) \&\& !defined(MOXNOX)|g]]
+    -e [[s|#endif /\* !CURL_WINDOWS_UWP \*/|#endif /* !CURL_WINDOWS_UWP \&\& !MOXNOX */|g]])
 
-file(READ ${CMAKE_CURRENT_SOURCE_DIR}/repo/src/tool_util.c _src)
-string(REPLACE "#ifdef _WIN32"
-               "#if defined(_WIN32) && !defined(MOXNOX)" _src "${_src}")
-file(CONFIGURE OUTPUT "${CURL_GEN}/src/tool_util.c" CONTENT "${_src}")
+curl_patch(src/tool_util.c
+    -e [[s|#ifdef _WIN32|#if defined(_WIN32) \&\& !defined(MOXNOX)|g]])
 
-file(READ ${CMAKE_CURRENT_SOURCE_DIR}/repo/src/tool_getpass.c _src)
-string(REPLACE "#ifdef _WIN32"
-               "#if defined(_WIN32) && !defined(MOXNOX)" _src "${_src}")
-file(CONFIGURE OUTPUT "${CURL_GEN}/src/tool_getpass.c" CONTENT "${_src}")
+curl_patch(src/tool_getpass.c
+    -e [[s|#ifdef _WIN32|#if defined(_WIN32) \&\& !defined(MOXNOX)|g]])
 
-file(READ ${CMAKE_CURRENT_SOURCE_DIR}/repo/src/tool_operate.c _src)
-string(REPLACE "#elif !defined(CURL_WINDOWS_UWP) && !defined(CURL_DISABLE_CA_SEARCH)"
-               "#elif !defined(CURL_WINDOWS_UWP) && !defined(CURL_DISABLE_CA_SEARCH) && !defined(MOXNOX)" _src "${_src}")
-file(CONFIGURE OUTPUT "${CURL_GEN}/src/tool_operate.c" CONTENT "${_src}")
+curl_patch(src/tool_operate.c
+    -e [[s|#elif !defined(CURL_WINDOWS_UWP) \&\& !defined(CURL_DISABLE_CA_SEARCH)|#elif !defined(CURL_WINDOWS_UWP) \&\& !defined(CURL_DISABLE_CA_SEARCH) \&\& !defined(MOXNOX)|g]])
 
-file(READ ${CMAKE_CURRENT_SOURCE_DIR}/repo/src/tool_parsecfg.c _src)
-string(REPLACE "#ifdef _WIN32
-    else {"
-               "#if defined(_WIN32) && !defined(MOXNOX)
-    else {" _src "${_src}")
-file(CONFIGURE OUTPUT "${CURL_GEN}/src/tool_parsecfg.c" CONTENT "${_src}")
+curl_patch(src/tool_parsecfg.c
+    -e [[s|#ifdef _WIN32\n    else {|#if defined(_WIN32) \&\& !defined(MOXNOX)\n    else {|g]])
 
-file(READ ${CMAKE_CURRENT_SOURCE_DIR}/repo/lib/curlx/strerr.c _src)
-string(REPLACE "#ifdef _WIN32"
-               "#if defined(_WIN32) && !defined(MOXNOX)" _src "${_src}")
-file(CONFIGURE OUTPUT "${CURL_GEN}/lib/curlx/strerr.c" CONTENT "${_src}")
+curl_patch(lib/curlx/strerr.c
+    -e [[s|#ifdef _WIN32|#if defined(_WIN32) \&\& !defined(MOXNOX)|g]])
 
 add_library(libcurl SHARED
     repo/lib/curlx/base64.c
@@ -382,3 +369,10 @@ set_target_properties(curl_exe PROPERTIES OUTPUT_NAME curl)
 target_link_libraries(curl_exe PRIVATE libcurl posixshim moxnox)
 
 install(TARGETS curl_exe DESTINATION ${CMAKE_INSTALL_PREFIX}/bin)
+
+add_custom_target(curl_gen_headers DEPENDS
+    ${CURL_GEN}/lib/setup-win32.h
+    ${CURL_GEN}/lib/curlx/version_win32.h
+    ${CURL_GEN}/include/curl/curl.h)
+add_dependencies(libcurl curl_gen_headers)
+add_dependencies(curl_exe curl_gen_headers)
