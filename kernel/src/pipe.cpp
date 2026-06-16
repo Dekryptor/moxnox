@@ -22,6 +22,7 @@ import spinlock;
 import handle;
 import object_ref;
 import scheduler;
+import vfs;
 
 using namespace std;
 
@@ -614,7 +615,15 @@ NTSTATUS NtCreateNamedPipeFile(HANDLE* file_handle, ACCESS_MASK desired_access,
 
     handle_t h;
 
-    status = t->proc->add_handle(*pptr_server, desired_access, true, h);
+    auto f = new file(*pptr_server, 0);
+    if (!f) {
+        print("new failed\n");
+        return nt_status::INSUFFICIENT_RESOURCES;
+    }
+
+    auto obj5 = object_ref{*f};
+
+    status = t->proc->add_handle(*f, desired_access, true, h);
     if (!success(status))
         return status;
 
