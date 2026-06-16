@@ -1,6 +1,7 @@
 #include <fcntl.h>
 #include <stdarg.h>
 
+import nt;
 import print;
 import ucrtbase;
 
@@ -14,7 +15,22 @@ static int getfl(int fd) {
 }
 
 static int setfl(int fd, int arg) {
-    print("FIXME - F_SETFL({}, {:x})\n", fd, arg);
+    IO_STATUS_BLOCK iosb;
+
+    auto h = (HANDLE)_get_osfhandle(fd);
+    if ((intptr_t)h < 0)
+        return -1;
+
+    // FIXME - O_APPEND
+
+    bool nonblock = !!(arg & O_NONBLOCK);
+
+    auto status = NtSetInformationFile(h, &iosb, &nonblock, sizeof(nonblock),
+                                       FILE_INFORMATION_CLASS::MoxnoxPosixNonBlock);
+    if (!success(status)) {
+        *_errno() = nt_status_to_errno(status);
+        return -1;
+    }
 
     return 0;
 }
