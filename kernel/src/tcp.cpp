@@ -1816,7 +1816,7 @@ nt_status ipv6_tcp_socket::accept(HANDLE& sock, void* us_addr, int& addrlen) {
 
     while (true) {
         status = wait_for_object(accept_queue_event.get(), true);
-        if (!success(status))
+        if (!success(status) || status == nt_status::USER_APC)
             return status;
 
         if (dead)
