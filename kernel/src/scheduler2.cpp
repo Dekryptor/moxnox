@@ -689,6 +689,16 @@ extern "C" NTSTATUS NtWaitForSingleObject(HANDLE object_handle, bool alertable,
 
     // FIXME - check handle has SYNCHRONIZE access
 
+    if (objrw.get().type == object_type::file) {
+        auto& f = static_cast<file&>(objrw.get());
+
+        f.ino.acquire();
+
+        object_ref objrw2{f.ino};
+
+        swap(objrw, objrw2);
+    }
+
     optional<uint64_t> tm;
 
     if (timeout) {
