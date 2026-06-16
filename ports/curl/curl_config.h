@@ -222,7 +222,7 @@
 /* #undef HAVE_CLOCK_GETTIME_MONOTONIC_RAW */
 
 /* Define to 1 if you have the `closesocket' function. */
-#define HAVE_CLOSESOCKET 1
+/* #undef HAVE_CLOSESOCKET */
 
 /* Define to 1 if you have the `CloseSocket' function. */
 /* #undef HAVE_CLOSESOCKET_CAMEL */
@@ -240,7 +240,7 @@
 #define HAVE_FCNTL_H 1
 
 /* Define to 1 if you have a working fcntl O_NONBLOCK function. */
-/* #undef HAVE_FCNTL_O_NONBLOCK */
+#define HAVE_FCNTL_O_NONBLOCK 1
 
 /* Define to 1 if you have the freeaddrinfo function. */
 #define HAVE_FREEADDRINFO 1
@@ -402,16 +402,16 @@
 /* #undef HAVE_SUSECONDS_T */
 
 /* Define to 1 if you have the <netdb.h> header file. */
-/* #undef HAVE_NETDB_H */
+#define HAVE_NETDB_H 1
 
 /* Define to 1 if you have the <netinet/in.h> header file. */
-/* #undef HAVE_NETINET_IN_H */
+#define HAVE_NETINET_IN_H 1
 
 /* Define to 1 if you have the <netinet/in6.h> header file. */
 /* #undef HAVE_NETINET_IN6_H */
 
 /* Define to 1 if you have the <netinet/tcp.h> header file. */
-/* #undef HAVE_NETINET_TCP_H */
+#define HAVE_NETINET_TCP_H 1
 
 /* Define to 1 if you have the <netinet/udp.h> header file. */
 /* #undef HAVE_NETINET_UDP_H */
@@ -447,7 +447,7 @@
 /* #undef HAVE_PTHREAD_H */
 
 /* Define to 1 if you have the <pwd.h> header file. */
-/* #undef HAVE_PWD_H */
+#define HAVE_PWD_H 1
 
 /* Define to 1 if OpenSSL has the `SSL_set0_wbio` function. */
 /* #undef HAVE_SSL_SET0_WBIO */
@@ -624,7 +624,7 @@
 #define SIZEOF_CURL_OFF_T 8
 
 /* The size of `curl_socket_t', as computed by sizeof. */
-#define SIZEOF_CURL_SOCKET_T 8
+#define SIZEOF_CURL_SOCKET_T 4
 
 /* The size of `size_t', as computed by sizeof. */
 #define SIZEOF_SIZE_T 8

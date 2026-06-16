@@ -17,14 +17,20 @@ string(REPLACE "#ifdef _WIN32"
 file(CONFIGURE OUTPUT "${CURL_GEN}/lib/curlx/fopen.c" CONTENT "${_src}")
 
 file(READ ${CMAKE_CURRENT_SOURCE_DIR}/repo/lib/setup-win32.h _src)
-string(REPLACE "#  define USE_WINSOCK 2"
-               "#  if !defined(MOXNOX)\n#    define USE_WINSOCK 2\n#  endif" _src "${_src}")
+string(REPLACE "#  define USE_WINSOCK 2\n#  include <winsock2.h>\n#  include <ws2tcpip.h>"
+               "#  if defined(MOXNOX)\n#    define _WINSOCKAPI_\n#    define SOCKET int\n#    include <sys/socket.h>\n#    include <netinet/in.h>\n#    include <netdb.h>\n#  else\n#    define USE_WINSOCK 2\n#    include <winsock2.h>\n#    include <ws2tcpip.h>\n#  endif" _src "${_src}")
 file(CONFIGURE OUTPUT "${CURL_GEN}/lib/setup-win32.h" CONTENT "${_src}")
 
 file(READ ${CMAKE_CURRENT_SOURCE_DIR}/repo/lib/curlx/version_win32.h _src)
 string(REPLACE "#ifdef CURL_WINDOWS_UWP"
                "#if defined(CURL_WINDOWS_UWP) || defined(MOXNOX)" _src "${_src}")
 file(CONFIGURE OUTPUT "${CURL_GEN}/lib/curlx/version_win32.h" CONTENT "${_src}")
+
+file(COPY ${CMAKE_CURRENT_SOURCE_DIR}/repo/include/curl DESTINATION ${CURL_GEN}/include)
+file(READ ${CMAKE_CURRENT_SOURCE_DIR}/repo/include/curl/curl.h _src)
+string(REPLACE "#if defined(_WIN32) && !defined(__LWIP_OPT_H__) && !defined(LWIP_HDR_OPT_H)"
+               "#if defined(_WIN32) && !defined(MOXNOX) && !defined(__LWIP_OPT_H__) && !defined(LWIP_HDR_OPT_H)" _src "${_src}")
+file(CONFIGURE OUTPUT "${CURL_GEN}/include/curl/curl.h" CONTENT "${_src}")
 
 file(MAKE_DIRECTORY "${CURL_GEN}/src")
 file(READ ${CMAKE_CURRENT_SOURCE_DIR}/repo/src/tool_filetime.c _src)
@@ -275,7 +281,7 @@ target_include_directories(libcurl PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}
 )
 
-target_include_directories(libcurl PUBLIC repo/include)
+target_include_directories(libcurl PUBLIC ${CURL_GEN}/include repo/include)
 
 target_compile_definitions(libcurl PRIVATE BUILDING_LIBCURL HAVE_CONFIG_H)
 
