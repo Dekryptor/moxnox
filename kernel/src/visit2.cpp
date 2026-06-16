@@ -184,6 +184,20 @@ nt_status object_read_without_offset(object& obj, span<uint8_t> s,
     return status;
 }
 
+nt_status object_read_nonblock(object& obj, span<uint8_t> s,
+                               uint64_t& read_bytes) {
+    nt_status status;
+
+    visit_obj(obj, [&](auto&& o) {
+        if constexpr (is_nonblocking_readable_object<remove_reference_t<decltype(o)>>)
+            status = o.read_nonblock(s, read_bytes);
+        else
+            status = nt_status::NOT_SUPPORTED;
+    });
+
+    return status;
+}
+
 bool object_is_exclusive(object& obj) {
     bool ret;
 

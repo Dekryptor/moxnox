@@ -990,6 +990,12 @@ file::~file() {
 NTSTATUS file::read(span<uint8_t> s, uint64_t& read_bytes) {
     NTSTATUS status;
 
+    if (nonblock) {
+        status = object_read_nonblock(ino, s, read_bytes);
+        if (status != nt_status::NOT_SUPPORTED)
+            return status;
+    }
+
     status = object_read_without_offset(ino, s, read_bytes);
     if (status != nt_status::NOT_SUPPORTED)
         return status;

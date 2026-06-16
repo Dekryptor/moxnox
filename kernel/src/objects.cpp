@@ -168,3 +168,9 @@ template<typename T>
 concept has_last_handle_closed = requires(T t) {
     { t.last_handle_closed() };
 };
+
+export
+template<typename T>
+concept is_nonblocking_readable_object = requires(T t, span<uint8_t> s, uint64_t& read_bytes) {
+    { t.read_nonblock(s, read_bytes) } -> convertible_to<NTSTATUS>;
+};
