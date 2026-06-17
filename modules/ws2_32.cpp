@@ -204,6 +204,10 @@ constexpr int _MSG_NOSIGNAL = MSG_NOSIGNAL;
 constexpr int _MSG_CMSG_CLOEXEC = MSG_CMSG_CLOEXEC;
 constexpr int _MSG_CMSG_CLOFORK = MSG_CMSG_CLOFORK;
 
+constexpr in_addr_t _INADDR_ANY = INADDR_ANY;
+constexpr in_addr_t _INADDR_BROADCAST = INADDR_BROADCAST;
+constexpr in_addr_t _INADDR_LOOPBACK = INADDR_LOOPBACK;
+
 export {
 
 using SOCKET = int;
@@ -489,6 +493,14 @@ constexpr int MSG_WAITALL = _MSG_WAITALL;
 constexpr int MSG_NOSIGNAL = _MSG_NOSIGNAL;
 constexpr int MSG_CMSG_CLOEXEC = _MSG_CMSG_CLOEXEC;
 constexpr int MSG_CMSG_CLOFORK = _MSG_CMSG_CLOFORK;
+
+#undef INADDR_ANY
+#undef INADDR_BROADCAST
+#undef INADDR_LOOPBACK
+
+constexpr in_addr_t INADDR_ANY = _INADDR_ANY;
+constexpr in_addr_t INADDR_BROADCAST = _INADDR_BROADCAST;
+constexpr in_addr_t INADDR_LOOPBACK = _INADDR_LOOPBACK;
 
 enum class sockopt_socket {
     DEBUG = SO_DEBUG,
