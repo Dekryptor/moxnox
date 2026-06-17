@@ -125,7 +125,10 @@ public:
     void last_handle_closed() override;
 
     nt_status recvfrom(char* buf, size_t len, int flags, sockaddr* from,
-                       int* fromlen, size_t& recv_bytes) override;
+                       int* fromlen, size_t& recv_bytes) override {
+        return do_recvfrom<false>(buf, len, flags, from, fromlen, recv_bytes);
+    }
+
     nt_status sendto(const char* buf, size_t len, int flags, sockaddr* to,
                      int tolen, size_t& sent_bytes) override;
     nt_status bind(const sockaddr* addr, size_t addrlen) override;
@@ -146,7 +149,7 @@ public:
 
     nt_status recvfrom_nonblock(char* buf, size_t len, int flags,
                                 sockaddr* from, int* fromlen, size_t& recv_bytes) override {
-        return nt_status::NOT_SUPPORTED;
+        return do_recvfrom<true>(buf, len, flags, from, fromlen, recv_bytes);
     }
 
     void received_packet(packet& pack, netif& ni, const mac_address& src_mac);
@@ -204,6 +207,10 @@ private:
 
     template<bool NONBLOCK>
     nt_status do_read(span<uint8_t> s, uint64_t& read_bytes);
+
+    template<bool NONBLOCK>
+    nt_status do_recvfrom(char* buf, size_t len, int flags, sockaddr* from,
+                          int* fromlen, size_t& recv_bytes);
 };
 
 static spinlock tcp_ports_lock;
@@ -1575,9 +1582,10 @@ void ipv6_tcp_socket::do_retransmissions() {
     free(arr);
 }
 
-nt_status ipv6_tcp_socket::recvfrom(char* buf, size_t len, int flags,
-                                    sockaddr* from, int* fromlen,
-                                    size_t& recv_bytes) {
+template<bool NONBLOCK>
+nt_status ipv6_tcp_socket::do_recvfrom(char* buf, size_t len, int flags,
+                                       sockaddr* from, int* fromlen,
+                                       size_t& recv_bytes) {
     nt_status status;
 
     if (flags != 0)
@@ -1590,12 +1598,32 @@ nt_status ipv6_tcp_socket::recvfrom(char* buf, size_t len, int flags,
     acquire();
 
     while (true) {
-        lock_guard lock(us_read_mutex);
+        if constexpr (NONBLOCK) {
+            if (!us_read_mutex.try_lock()) {
+                release();
+                return recv_bytes == 0 ? nt_status::CANT_WAIT : nt_status::SUCCESS;
+            }
+        } else
+            us_read_mutex.lock();
 
-        status = wait_for_object(*this, true);
-        if (!success(status)) {
-            release();
-            return status;
+        lock_guard lock(us_read_mutex, adopt_lock_t{});
+
+        if constexpr (NONBLOCK) {
+            status = wait_for_object(*this, true, 0);
+
+            if (status == nt_status::TIMEOUT) {
+                release();
+                return recv_bytes == 0 ? nt_status::CANT_WAIT : nt_status::SUCCESS;
+            } else if (!success(status)) {
+                release();
+                return status;
+            }
+        } else {
+            status = wait_for_object(*this, true);
+            if (!success(status)) {
+                release();
+                return status;
+            }
         }
 
         if (dead)
@@ -1670,6 +1698,8 @@ nt_status ipv6_tcp_socket::recvfrom(char* buf, size_t len, int flags,
 
             bool opening = false;
             tcp_seq ack;
+
+            // FIXME - can we make io_mutex a spinlock?
 
             {
                 lock_guard lock(io_mutex);
