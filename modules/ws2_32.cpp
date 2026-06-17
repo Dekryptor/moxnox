@@ -7,6 +7,7 @@ module;
 #include <netinet/in.h>
 #include <sys/socket.h>
 #include <netdb.h>
+#include <arpa/inet.h>
 
 export module ws2_32;
 
@@ -14,12 +15,14 @@ import format;
 
 using namespace std;
 
+// netinet/in.h
 export using ::in_addr;
 export using ::sockaddr_in;
 export using ::in6_addr;
 export using ::sockaddr_in6;
 export using ::in_addr_t;
 
+// sys/socket.h
 export using ::sa_family_t;
 export using ::socklen_t;
 export using ::sockaddr;
@@ -38,10 +41,21 @@ export using ::sendto;
 export using ::setsockopt;
 export using ::socket;
 
+// netdb.h
 export using ::addrinfo;
 export using ::freeaddrinfo;
 export using ::gai_strerror;
 export using ::getaddrinfo;
+
+// arpa/inet.h
+export using ::htonl;
+export using ::htons;
+export using ::ntohl;
+export using ::ntohs;
+export using ::inet_addr;
+export using ::inet_ntoa;
+export using ::inet_ntop;
+export using ::inet_pton;
 
 constexpr uint16_t _AF_UNSPEC = AF_UNSPEC;
 constexpr uint16_t _AF_UNIX = AF_UNIX;
