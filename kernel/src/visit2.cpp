@@ -143,12 +143,19 @@ nt_status object_ioctl(object& obj, uint32_t control_code, span<const uint8_t> i
         if constexpr (has_ioctls<decltype(o)>)
             ret = o.ioctl(control_code, inbuf, outbuf, iosb.Information);
         else if constexpr (is_same_v<remove_reference_t<decltype(o)>, file>) {
-            visit_obj(o.ino, [&](auto&& o) {
-                if constexpr (has_ioctls<decltype(o)>)
-                    ret = o.ioctl(control_code, inbuf, outbuf, iosb.Information);
-                else
-                    ret = nt_status::NOT_SUPPORTED;
-            });
+            if (o.nonblock && o.ino.type == object_type::socket) {
+                auto& s = static_cast<socket&>(o.ino);
+
+                ret = s.ioctl(control_code, inbuf, outbuf, iosb.Information,
+                              true);
+            } else {
+                visit_obj(o.ino, [&](auto&& o) {
+                    if constexpr (has_ioctls<decltype(o)>)
+                        ret = o.ioctl(control_code, inbuf, outbuf, iosb.Information);
+                    else
+                        ret = nt_status::NOT_SUPPORTED;
+                });
+            }
         } else
             ret = nt_status::NOT_SUPPORTED;
     });

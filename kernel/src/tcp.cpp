@@ -144,6 +144,11 @@ public:
         return do_read<true>(s, read_bytes);
     }
 
+    nt_status recvfrom_nonblock(char* buf, size_t len, int flags,
+                                sockaddr* from, int* fromlen, size_t& recv_bytes) override {
+        return nt_status::NOT_SUPPORTED;
+    }
+
     void received_packet(packet& pack, netif& ni, const mac_address& src_mac);
 
     bool init = false;

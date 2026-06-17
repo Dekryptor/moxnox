@@ -74,6 +74,11 @@ public:
         return nt_status::NOT_SUPPORTED;
     }
 
+    nt_status recvfrom_nonblock(char* buf, size_t len, int flags,
+                                sockaddr* from, int* fromlen, size_t& recv_bytes) override {
+        return nt_status::NOT_SUPPORTED;
+    }
+
     list_entry le;
     int protocol;
     bool added_to_list = false;
@@ -2088,7 +2093,7 @@ ipv6_raw_socket::~ipv6_raw_socket() {
     }
 }
 
-nt_status socket::do_recvfrom(span<const uint8_t> inbuf) {
+nt_status socket::do_recvfrom(span<const uint8_t> inbuf, bool nonblock) {
     nt_status status;
 
     if (inbuf.size() < sizeof(MOXNOX_SOCKET_RECVFROM))
@@ -2120,10 +2125,18 @@ nt_status socket::do_recvfrom(span<const uint8_t> inbuf) {
             return nt_status::INVALID_PARAMETER;
     }
 
-    status = this->recvfrom(params.buf, (size_t)params.len, params.flags,
-                            (sockaddr*)params.from,
-                            fromlen != 0 ? &fromlen : nullptr,
-                            recv_bytes);
+    if (nonblock) {
+        status = this->recvfrom_nonblock(params.buf, (size_t)params.len,
+                                         params.flags, (sockaddr*)params.from,
+                                         fromlen != 0 ? &fromlen : nullptr,
+                                         recv_bytes);
+    } else {
+        status = this->recvfrom(params.buf, (size_t)params.len, params.flags,
+                                (sockaddr*)params.from,
+                                fromlen != 0 ? &fromlen : nullptr,
+                                recv_bytes);
+    }
+
     if (!success(status))
         return status;
 
@@ -2309,10 +2322,11 @@ nt_status socket::do_getsockname(span<const uint8_t> inbuf, span<uint8_t> outbuf
 }
 
 nt_status socket::ioctl(uint32_t code, span<const uint8_t> inbuf,
-                        span<uint8_t> outbuf, uintptr_t& written_bytes) {
+                        span<uint8_t> outbuf, uintptr_t& written_bytes,
+                        bool nonblock) {
     switch (code) {
         case IOCTL_MOXNOX_SOCKET_RECVFROM:
-            return do_recvfrom(inbuf);
+            return do_recvfrom(inbuf, nonblock);
 
         case IOCTL_MOXNOX_SOCKET_SENDTO:
             return do_sendto(inbuf);

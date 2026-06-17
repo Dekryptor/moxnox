@@ -148,7 +148,8 @@ public:
     }
 
     nt_status ioctl(uint32_t code, span<const uint8_t> inbuf,
-                    span<uint8_t> outbuf, uintptr_t& written);
+                    span<uint8_t> outbuf, uintptr_t& written,
+                    bool nonblock = false);
     virtual void last_handle_closed() = 0;
 
     virtual nt_status recvfrom(char* buf, size_t len, int flags, sockaddr* from,
@@ -163,9 +164,12 @@ public:
     virtual nt_status write(span<const uint8_t> s, uint64_t& written_bytes) = 0;
     virtual nt_status getsockname(span<uint8_t> addr, size_t& len) = 0;
     virtual nt_status read_nonblock(span<uint8_t> s, uint64_t& read_bytes) = 0;
+    virtual nt_status recvfrom_nonblock(char* buf, size_t len, int flags,
+                                        sockaddr* from, int* fromlen,
+                                        size_t& recv_bytes) = 0;
 
 private:
-    nt_status do_recvfrom(span<const uint8_t> inbuf);
+    nt_status do_recvfrom(span<const uint8_t> inbuf, bool nonblock);
     nt_status do_sendto(span<const uint8_t> inbuf);
     nt_status do_bind(span<const uint8_t> inbuf);
     nt_status do_connect(span<const uint8_t> inbuf);

@@ -53,6 +53,12 @@ public:
         return nt_status::NOT_SUPPORTED;
     }
 
+    nt_status recvfrom_nonblock(char* buf, size_t len, int flags,
+                                sockaddr* from, int* fromlen,
+                                size_t& recv_bytes) override {
+        return nt_status::NOT_SUPPORTED;
+    }
+
     spinlock buffer_lock;
     list_entry buffer = { &buffer, &buffer };
     size_t buffer_size = 0;
