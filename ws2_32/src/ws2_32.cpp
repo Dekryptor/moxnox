@@ -270,13 +270,6 @@ int setsockopt(SOCKET s, int level, int optname, const char* optval,
 }
 
 extern "C"
-int ioctlsocket(SOCKET s, int32_t cmd, uint32_t* argp) {
-    print("FIXME - ioctlsocket ({}, {}, {:x})\n", s, cmd, (uintptr_t)argp);
-
-    return 0;
-}
-
-extern "C"
 int getsockname(SOCKET s, sockaddr* name, int* namelen) {
     IO_STATUS_BLOCK iosb;
     MOXNOX_SOCKET_GETSOCKNAME params;

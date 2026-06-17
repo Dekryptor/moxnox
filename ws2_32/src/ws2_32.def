@@ -18,7 +18,6 @@ htons
 ntohl
 ntohs
 setsockopt
-ioctlsocket
 getsockname
 gethostname
 getsockopt
