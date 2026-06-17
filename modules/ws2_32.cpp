@@ -40,6 +40,8 @@ export using ::send;
 export using ::sendto;
 export using ::setsockopt;
 export using ::socket;
+export using ::linger;
+export using ::shutdown;
 
 // netdb.h
 export using ::addrinfo;
@@ -190,6 +192,17 @@ constexpr int _NI_NUMERICSCOPE = NI_NUMERICSCOPE;
 constexpr int _NI_DGRAM = NI_DGRAM;
 constexpr size_t _NI_MAXHOST = NI_MAXHOST;
 constexpr size_t _NI_MAXSERV = NI_MAXSERV;
+
+constexpr int _MSG_OOB = MSG_OOB;
+constexpr int _MSG_PEEK = MSG_PEEK;
+constexpr int _MSG_DONTROUTE = MSG_DONTROUTE;
+constexpr int _MSG_CTRUNC = MSG_CTRUNC;
+constexpr int _MSG_TRUNC = MSG_TRUNC;
+constexpr int _MSG_EOR = MSG_EOR;
+constexpr int _MSG_WAITALL = MSG_WAITALL;
+constexpr int _MSG_NOSIGNAL = MSG_NOSIGNAL;
+constexpr int _MSG_CMSG_CLOEXEC = MSG_CMSG_CLOEXEC;
+constexpr int _MSG_CMSG_CLOFORK = MSG_CMSG_CLOFORK;
 
 export {
 
@@ -454,6 +467,28 @@ constexpr int NI_NUMERICSCOPE = _NI_NUMERICSCOPE;
 constexpr int NI_DGRAM = _NI_DGRAM;
 constexpr size_t NI_MAXHOST = _NI_MAXHOST;
 constexpr size_t NI_MAXSERV = _NI_MAXSERV;
+
+#undef MSG_OOB
+#undef MSG_PEEK
+#undef MSG_DONTROUTE
+#undef MSG_CTRUNC
+#undef MSG_TRUNC
+#undef MSG_EOR
+#undef MSG_WAITALL
+#undef MSG_NOSIGNAL
+#undef MSG_CMSG_CLOEXEC
+#undef MSG_CMSG_CLOFORK
+
+constexpr int MSG_OOB = _MSG_OOB;
+constexpr int MSG_PEEK = _MSG_PEEK;
+constexpr int MSG_DONTROUTE = _MSG_DONTROUTE;
+constexpr int MSG_CTRUNC = _MSG_CTRUNC;
+constexpr int MSG_TRUNC = _MSG_TRUNC;
+constexpr int MSG_EOR = _MSG_EOR;
+constexpr int MSG_WAITALL = _MSG_WAITALL;
+constexpr int MSG_NOSIGNAL = _MSG_NOSIGNAL;
+constexpr int MSG_CMSG_CLOEXEC = _MSG_CMSG_CLOEXEC;
+constexpr int MSG_CMSG_CLOFORK = _MSG_CMSG_CLOFORK;
 
 enum class sockopt_socket {
     DEBUG = SO_DEBUG,
