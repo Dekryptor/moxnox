@@ -46,6 +46,11 @@ export using ::addrinfo;
 export using ::freeaddrinfo;
 export using ::gai_strerror;
 export using ::getaddrinfo;
+export using ::servent;
+export using ::hostent;
+export using ::getnameinfo;
+export using ::getservbyname;
+export using ::gethostbyname;
 
 // arpa/inet.h
 export using ::htonl;
@@ -176,6 +181,15 @@ constexpr int _EAI_SERVICE = EAI_SERVICE;
 constexpr int _EAI_MEMORY = EAI_MEMORY;
 constexpr int _EAI_SYSTEM = EAI_SYSTEM;
 constexpr int _EAI_OVERFLOW = EAI_OVERFLOW;
+
+constexpr int _NI_NOFQDN = NI_NOFQDN;
+constexpr int _NI_NUMERICHOST = NI_NUMERICHOST;
+constexpr int _NI_NAMEREQD = NI_NAMEREQD;
+constexpr int _NI_NUMERICSERV = NI_NUMERICSERV;
+constexpr int _NI_NUMERICSCOPE = NI_NUMERICSCOPE;
+constexpr int _NI_DGRAM = NI_DGRAM;
+constexpr size_t _NI_MAXHOST = NI_MAXHOST;
+constexpr size_t _NI_MAXSERV = NI_MAXSERV;
 
 export {
 
@@ -422,6 +436,24 @@ constexpr int SO_SNDTIMEO = _SO_SNDTIMEO;
 constexpr int SO_RCVTIMEO = _SO_RCVTIMEO;
 constexpr int SO_ERROR = _SO_ERROR;
 constexpr int SO_TYPE = _SO_TYPE;
+
+#undef NI_NOFQDN
+#undef NI_NUMERICHOST
+#undef NI_NAMEREQD
+#undef NI_NUMERICSERV
+#undef NI_NUMERICSCOPE
+#undef NI_DGRAM
+#undef NI_MAXHOST
+#undef NI_MAXSERV
+
+constexpr int NI_NOFQDN = _NI_NOFQDN;
+constexpr int NI_NUMERICHOST = _NI_NUMERICHOST;
+constexpr int NI_NAMEREQD = _NI_NAMEREQD;
+constexpr int NI_NUMERICSERV = _NI_NUMERICSERV;
+constexpr int NI_NUMERICSCOPE = _NI_NUMERICSCOPE;
+constexpr int NI_DGRAM = _NI_DGRAM;
+constexpr size_t NI_MAXHOST = _NI_MAXHOST;
+constexpr size_t NI_MAXSERV = _NI_MAXSERV;
 
 enum class sockopt_socket {
     DEBUG = SO_DEBUG,
