@@ -8,6 +8,7 @@ module;
 #include <sys/socket.h>
 #include <netdb.h>
 #include <arpa/inet.h>
+#include <netinet/tcp.h>
 
 export module ws2_32;
 
@@ -207,6 +208,8 @@ constexpr int _MSG_CMSG_CLOFORK = MSG_CMSG_CLOFORK;
 constexpr in_addr_t _INADDR_ANY = INADDR_ANY;
 constexpr in_addr_t _INADDR_BROADCAST = INADDR_BROADCAST;
 constexpr in_addr_t _INADDR_LOOPBACK = INADDR_LOOPBACK;
+
+constexpr int _TCP_NODELAY = TCP_NODELAY;
 
 export {
 
@@ -501,6 +504,10 @@ constexpr int MSG_CMSG_CLOFORK = _MSG_CMSG_CLOFORK;
 constexpr in_addr_t INADDR_ANY = _INADDR_ANY;
 constexpr in_addr_t INADDR_BROADCAST = _INADDR_BROADCAST;
 constexpr in_addr_t INADDR_LOOPBACK = _INADDR_LOOPBACK;
+
+#undef TCP_NODELAY
+
+constexpr int TCP_NODELAY = _TCP_NODELAY;
 
 enum class sockopt_socket {
     DEBUG = SO_DEBUG,
