@@ -39,6 +39,10 @@ struct in_addr {
     in_addr_t s_addr;
 };
 
+#define INADDR_ANY ((in_addr_t)0x00000000)
+#define INADDR_BROADCAST ((in_addr_t)0xffffffff)
+#define INADDR_LOOPBACK ((in_addr_t)0x7f000001) // 127.0.0.1
+
 struct sockaddr_in {
     uint16_t sin_family;
     uint16_t sin_port;
