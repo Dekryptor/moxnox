@@ -37,6 +37,7 @@ QueryPerformanceCounter
 QueryPerformanceFrequency
 GetProcAddress
 GetModuleHandleW
+SleepEx
 
 ; stubs
 FormatMessageA
@@ -56,4 +57,3 @@ SwitchToThread
 FlsAlloc
 FlsGetValue
 FlsSetValue
-SleepEx

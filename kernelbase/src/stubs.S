@@ -19,6 +19,5 @@ do_stub "SwitchToThread"
 do_stub "FlsAlloc"
 do_stub "FlsGetValue"
 do_stub "FlsSetValue"
-do_stub "SleepEx"
 
 stubs_end
