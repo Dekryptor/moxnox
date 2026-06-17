@@ -43,7 +43,10 @@ public:
     void last_handle_closed() override;
 
     nt_status recvfrom(char* buf, size_t len, int flags, sockaddr* from,
-                       int* fromlen, size_t& recv_bytes) override;
+                       int* fromlen, size_t& recv_bytes) override {
+        return do_recvfrom<false>(buf, len, flags, from, fromlen, recv_bytes);
+    }
+
     nt_status sendto(const char* buf, size_t len, int flags, sockaddr* to,
                      int tolen, size_t& sent_bytes) override;
     nt_status bind(const sockaddr* addr, size_t addrlen) override;
@@ -76,7 +79,7 @@ public:
 
     nt_status recvfrom_nonblock(char* buf, size_t len, int flags,
                                 sockaddr* from, int* fromlen, size_t& recv_bytes) override {
-        return nt_status::NOT_SUPPORTED;
+        return do_recvfrom<true>(buf, len, flags, from, fromlen, recv_bytes);
     }
 
     list_entry le;
@@ -90,6 +93,11 @@ public:
     ipv6_address bound_address;
     nt_status pending_error = nt_status::SUCCESS;
     bool dead = false;
+
+private:
+    template<bool NONBLOCK>
+    nt_status do_recvfrom(char* buf, size_t len, int flags, sockaddr* from,
+                          int* fromlen, size_t& recv_bytes);
 };
 
 enum class neighbour_cache_status {
@@ -2351,9 +2359,10 @@ nt_status socket::ioctl(uint32_t code, span<const uint8_t> inbuf,
     }
 }
 
-nt_status ipv6_raw_socket::recvfrom(char* us_buf, size_t len, int flags,
-                                    sockaddr* us_from, int* fromlen,
-                                    size_t& recv_bytes) {
+template<bool NONBLOCK>
+nt_status ipv6_raw_socket::do_recvfrom(char* us_buf, size_t len, int flags,
+                                       sockaddr* us_from, int* fromlen,
+                                       size_t& recv_bytes) {
     // FIXME - MSG_TRUNC
     if (flags != 0)
         return nt_status::INVALID_PARAMETER;
@@ -2363,10 +2372,24 @@ nt_status ipv6_raw_socket::recvfrom(char* us_buf, size_t len, int flags,
     acquire();
 
     while (true) {
-        auto status = wait_for_object(*this, true);
-        if (!success(status)) {
-            release();
-            return status;
+        nt_status status;
+
+        if constexpr (NONBLOCK) {
+            status = wait_for_object(*this, true, 0);
+
+            if (status == nt_status::TIMEOUT) {
+                release();
+                return nt_status::CANT_WAIT;
+            } else if (!success(status)) {
+                release();
+                return status;
+            }
+        } else {
+            status = wait_for_object(*this, true);
+            if (!success(status)) {
+                release();
+                return status;
+            }
         }
 
         if (dead) {
