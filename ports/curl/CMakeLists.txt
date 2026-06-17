@@ -98,7 +98,6 @@ add_library(libcurl SHARED
     repo/lib/curlx/timeval.c
     repo/lib/curlx/wait.c
     repo/lib/curlx/warnless.c
-    repo/lib/curlx/winapi.c
     repo/lib/vauth/cleartext.c
     repo/lib/vauth/cram.c
     repo/lib/vauth/digest.c
@@ -343,7 +342,6 @@ add_executable(curl_exe
     repo/lib/curlx/timeval.c
     repo/lib/curlx/wait.c
     repo/lib/curlx/warnless.c
-    repo/lib/curlx/winapi.c
     ${CMAKE_CURRENT_SOURCE_DIR}/moxnox_fopen_compat.c
 )
 
