@@ -342,7 +342,7 @@
 /* #undef HAVE_SA_FAMILY_T */
 
 /* Define to 1 if you have the ioctlsocket function. */
-#define HAVE_IOCTLSOCKET 1
+/* #undef HAVE_IOCTLSOCKET */
 
 /* Define to 1 if you have the IoctlSocket camel case function. */
 /* #undef HAVE_IOCTLSOCKET_CAMEL */
@@ -351,7 +351,7 @@
 /* #undef HAVE_IOCTLSOCKET_CAMEL_FIONBIO */
 
 /* Define to 1 if you have a working ioctlsocket FIONBIO function. */
-#define HAVE_IOCTLSOCKET_FIONBIO 1
+/* #undef HAVE_IOCTLSOCKET_FIONBIO */
 
 /* Define to 1 if you have a working ioctl FIONBIO function. */
 /* #undef HAVE_IOCTL_FIONBIO */
