@@ -2461,6 +2461,56 @@ nt_status socket::do_getsockopt(span<const uint8_t> inbuf) {
     return status;
 }
 
+nt_status socket::setsockopt(int level, int optname, span<const uint8_t> buf) {
+    if (level == SOL_SOCKET) {
+        auto opt = (sockopt_socket)optname;
+
+        print("FIXME - setsockopt(SOL_SOCKET, {}, {})\n", opt, buf.size());
+    } else if (level == IPPROTO_TCP) {
+        auto opt = (sockopt_tcp)optname;
+
+        print("FIXME - setsockopt(IPPROTO_TCP, {}, {})\n", opt, buf.size());
+    } else
+        print("FIXME - setsockopt({}, {}, {})\n", level, optname, buf.size());
+
+    return nt_status::NOT_SUPPORTED;
+}
+
+nt_status socket::do_setsockopt(span<const uint8_t> inbuf) {
+    auto& t = *get_current_thread();
+    nt_status status;
+
+    if (inbuf.size() < sizeof(MOXNOX_SOCKET_SETSOCKOPT))
+        return nt_status::BUFFER_TOO_SMALL;
+
+    auto& params = *(MOXNOX_SOCKET_SETSOCKOPT*)inbuf.data();
+
+    if (!params.optval || !params.optlen)
+        return nt_status::INVALID_PARAMETER;
+
+    if (params.optlen <= 0 || (size_t)params.optlen > PAGE_SIZE)
+        return nt_status::INVALID_PARAMETER;
+
+    auto len = (size_t)params.optlen;
+
+    auto buf = (uint8_t*)malloc(len);
+    if (!buf) {
+        print("malloc failed\n");
+        return nt_status::INSUFFICIENT_RESOURCES;
+    }
+
+    if (!t.proc->copy_from(buf, params.optval, len)) {
+        free(buf);
+        return nt_status::ACCESS_VIOLATION;
+    }
+
+    status = this->setsockopt(params.level, params.optname, span(buf, len));
+
+    free(buf);
+
+    return status;
+}
+
 nt_status socket::ioctl(uint32_t code, span<const uint8_t> inbuf,
                         span<uint8_t> outbuf, uintptr_t& written_bytes,
                         bool nonblock) {
@@ -2491,6 +2541,9 @@ nt_status socket::ioctl(uint32_t code, span<const uint8_t> inbuf,
 
         case IOCTL_MOXNOX_SOCKET_GETSOCKOPT:
             return do_getsockopt(inbuf);
+
+        case IOCTL_MOXNOX_SOCKET_SETSOCKOPT:
+            return do_setsockopt(inbuf);
 
         default:
             return nt_status::INVALID_PARAMETER;

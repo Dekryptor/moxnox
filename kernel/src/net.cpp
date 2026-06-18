@@ -185,6 +185,8 @@ private:
     nt_status getsockopt(int level, int optname, span<uint8_t> buf,
                          socklen_t& retlen);
     nt_status getsockopt_error(span<uint8_t> buf, socklen_t& retlen);
+    nt_status do_setsockopt(span<const uint8_t> inbuf);
+    nt_status setsockopt(int level, int optname, span<const uint8_t> buf);
 };
 
 static_assert(has_ioctls<class socket>);
