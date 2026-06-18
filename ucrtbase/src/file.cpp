@@ -1504,8 +1504,8 @@ int putchar(int c) {
 }
 
 extern "C"
-int __setmode(int fd, int mode) {
-    print("FIXME - _setmode ({}, {})\n", fd, mode); // FIXME
+int __setmode(int /*fd*/, int /*mode*/) {
+    // FIXME - actually do this?
 
     return 0;
 }
