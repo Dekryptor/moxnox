@@ -14,6 +14,7 @@ import ws2_32;
 import ipv6;
 import print;
 import ucrtbase;
+import format;
 
 #undef errno
 import errno;
@@ -743,12 +744,85 @@ const char* gai_strerror(int errcode) {
     }
 }
 
-extern "C"
-int getnameinfo(const sockaddr* /*addr*/, socklen_t /*addrlen*/, char* /*host*/,
-                socklen_t /*hostlen*/, char* /*serv*/, socklen_t /*servlen*/,
-                int flags) {
-    print("FIXME - getnameinfo (flags {:x})\n", flags);
+static int getnameinfo_ipv6(const sockaddr* addr, socklen_t addrlen,
+                            char* host, socklen_t hostlen,
+                            char* serv, socklen_t servlen, int flags) {
+    static const int understood_flags = NI_NUMERICHOST | NI_NUMERICSERV;
 
-    *_errno() = EINVAL;
-    return -1;
+    // FIXME - NI_NOFQDN, NI_NAMEREQD, NI_NUMERICSCOPE, NI_DGRAM
+
+    if (flags & ~understood_flags)
+        return EAI_BADFLAGS;
+
+    if ((size_t)addrlen < sizeof(sockaddr_in6))
+        return EAI_FAMILY;
+
+    if (!host && !serv)
+        return EAI_NONAME;
+
+    auto& a = *(sockaddr_in6*)addr;
+
+    if (host) {
+        if (hostlen < 0)
+            return EAI_OVERFLOW;
+
+        if (!(flags & NI_NUMERICHOST)) {
+            print_stderr("FIXME - getnameinfo reverse DNS\n");
+            *_errno() = EINVAL;
+            return EAI_SYSTEM;
+        }
+
+        char s[39];
+        span sp(s, sizeof(s));
+
+        auto& ip = *(ipv6_address*)&a.sin6_addr;
+
+        sp = format(sp, "{}", ip);
+
+        auto sv = string_view(s, (size_t)(sp.data() - s));
+
+        if (sv.size() + 1 > (size_t)hostlen)
+            return EAI_OVERFLOW;
+
+        memcpy(host, sv.data(), sv.size());
+        host[sv.size()] = 0;
+    }
+
+    if (serv) {
+        if (!(flags & NI_NUMERICSERV)) {
+            print_stderr("FIXME - resolve service name\n");
+            *_errno() = EINVAL;
+            return EAI_SYSTEM;
+        }
+
+        char s[5];
+        span sp(s, sizeof(s));
+
+        sp = format(sp, "{}", byteswap(a.sin6_port));
+
+        auto sv = string_view(s, (size_t)(sp.data() - s));
+
+        if (sv.size() + 1 > (size_t)servlen)
+            return EAI_OVERFLOW;
+
+        memcpy(serv, sv.data(), sv.size());
+        serv[sv.size()] = 0;
+    }
+
+    return 0;
+}
+
+extern "C"
+int getnameinfo(const sockaddr* addr, socklen_t addrlen, char* host,
+                socklen_t hostlen, char* serv, socklen_t servlen,
+                int flags) {
+    if ((size_t)addrlen < sizeof(sockaddr))
+        return EAI_FAMILY;
+
+    // FIXME - IPv4
+
+    if (addr->sa_family != AF_INET6)
+        return EAI_FAMILY;
+
+    return getnameinfo_ipv6(addr, addrlen, host, hostlen, serv, servlen, flags);
 }
