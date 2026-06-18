@@ -73,6 +73,10 @@ public:
 
     nt_status getsockname(span<uint8_t> buf, size_t& len) override;
 
+    nt_status getpeername(span<uint8_t>, size_t&) override {
+        return nt_status::CONNECTION_DISCONNECTED;
+    }
+
     nt_status read_nonblock(span<uint8_t>, uint64_t&) override {
         return nt_status::NOT_SUPPORTED;
     }
@@ -2329,6 +2333,50 @@ nt_status socket::do_getsockname(span<const uint8_t> inbuf, span<uint8_t> outbuf
     return status;
 }
 
+nt_status socket::do_getpeername(span<const uint8_t> inbuf, span<uint8_t> outbuf,
+                                 uintptr_t& written_bytes) {
+    auto& t = *get_current_thread();
+    size_t len;
+
+    // FIXME - should be socklen_t rather than int
+
+    if (inbuf.size() < sizeof(MOXNOX_SOCKET_GETSOCKNAME))
+        return nt_status::INVALID_PARAMETER;
+
+    if (outbuf.size() < sizeof(int))
+        return nt_status::INVALID_PARAMETER;
+
+    auto& p = *(MOXNOX_SOCKET_GETSOCKNAME*)inbuf.data();
+
+    if (!p.addr || p.addrlen == 0 || p.addrlen > PAGE_SIZE)
+        return nt_status::INVALID_PARAMETER;
+
+    auto buf = (uint8_t*)malloc(p.addrlen);
+    if (!buf) {
+        print("malloc failed\n");
+        return nt_status::INSUFFICIENT_RESOURCES;
+    }
+
+    auto status = this->getpeername(span(buf, p.addrlen), len);
+
+    if (!success(status)) {
+        free(buf);
+        return status;
+    }
+
+    if (!t.proc->copy_to(p.addr, buf, len)) {
+        free(buf);
+        return nt_status::ACCESS_VIOLATION;
+    }
+
+    free(buf);
+
+    *(int*)outbuf.data() = (int)len;
+    written_bytes = sizeof(int);
+
+    return status;
+}
+
 nt_status socket::ioctl(uint32_t code, span<const uint8_t> inbuf,
                         span<uint8_t> outbuf, uintptr_t& written_bytes,
                         bool nonblock) {
@@ -2353,6 +2401,9 @@ nt_status socket::ioctl(uint32_t code, span<const uint8_t> inbuf,
 
         case IOCTL_MOXNOX_SOCKET_GETSOCKNAME:
             return do_getsockname(inbuf, outbuf, written_bytes);
+
+        case IOCTL_MOXNOX_SOCKET_GETPEERNAME:
+            return do_getpeername(inbuf, outbuf, written_bytes);
 
         default:
             return nt_status::INVALID_PARAMETER;

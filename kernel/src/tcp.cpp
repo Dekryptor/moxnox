@@ -143,6 +143,12 @@ public:
     nt_status write(span<const uint8_t> s, uint64_t& written_bytes) override;
     nt_status getsockname(span<uint8_t>, size_t&) override;
 
+    nt_status getpeername(span<uint8_t> buf, size_t& len) override {
+        // FIXME
+
+        return nt_status::NOT_SUPPORTED;
+    }
+
     nt_status read_nonblock(span<uint8_t> s, uint64_t& read_bytes) override {
         return do_read<true>(s, read_bytes);
     }

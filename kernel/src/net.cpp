@@ -163,6 +163,7 @@ public:
     virtual nt_status read(span<uint8_t> s, uint64_t& read_bytes) = 0;
     virtual nt_status write(span<const uint8_t> s, uint64_t& written_bytes) = 0;
     virtual nt_status getsockname(span<uint8_t> addr, size_t& len) = 0;
+    virtual nt_status getpeername(span<uint8_t> addr, size_t& len) = 0;
     virtual nt_status read_nonblock(span<uint8_t> s, uint64_t& read_bytes) = 0;
     virtual nt_status recvfrom_nonblock(char* buf, size_t len, int flags,
                                         sockaddr* from, int* fromlen,
@@ -177,6 +178,8 @@ private:
     nt_status do_accept(span<const uint8_t> inbuf, span<uint8_t> outbuf,
                         uintptr_t& written_bytes);
     nt_status do_getsockname(span<const uint8_t> inbuf, span<uint8_t> outbuf,
+                             uintptr_t& written_bytes);
+    nt_status do_getpeername(span<const uint8_t> inbuf, span<uint8_t> outbuf,
                              uintptr_t& written_bytes);
 };
 
