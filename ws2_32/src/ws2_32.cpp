@@ -298,6 +298,34 @@ int getsockname(SOCKET s, sockaddr* name, int* namelen) {
 }
 
 extern "C"
+int getpeername(SOCKET s, sockaddr* name, int* namelen) {
+    IO_STATUS_BLOCK iosb;
+    MOXNOX_SOCKET_GETSOCKNAME params;
+
+    if (*namelen < 0) {
+        *_errno() = EINVAL;
+        return SOCKET_ERROR;
+    }
+
+    auto h = _get_osfhandle((int)s);
+    if (h == -1)
+        return SOCKET_ERROR;
+
+    params.addr = name;
+    params.addrlen = (size_t)*namelen;
+
+    auto status = NtDeviceIoControlFile((HANDLE)h, 0, nullptr, nullptr, &iosb,
+                                        IOCTL_MOXNOX_SOCKET_GETPEERNAME, &params,
+                                        sizeof(params), namelen, sizeof(*namelen));
+    if (!success(status)) {
+        *_errno() = nt_status_to_errno(status);
+        return SOCKET_ERROR;
+    }
+
+    return 0;
+}
+
+extern "C"
 int closesocket(SOCKET s) {
     return _close((int)s);
 }

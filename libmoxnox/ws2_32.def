@@ -22,9 +22,9 @@ getsockname
 gethostname
 getsockopt
 getnameinfo
+getpeername
 
 ; stubs
-getpeername
 shutdown
 gethostbyname
 getservbyname

@@ -22,3 +22,4 @@ getsockname
 gethostname
 getsockopt
 getnameinfo
+getpeername
