@@ -384,7 +384,7 @@
 /* #undef HAVE_IDN2_H */
 
 /* if zlib is available */
-/* #undef HAVE_LIBZ */
+#define HAVE_LIBZ 1
 
 /* if brotli is available */
 /* #undef HAVE_BROTLI */

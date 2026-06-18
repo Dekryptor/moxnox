@@ -272,7 +272,7 @@ target_include_directories(libcurl PUBLIC ${CURL_GEN}/include repo/include)
 target_compile_definitions(libcurl PRIVATE BUILDING_LIBCURL HAVE_CONFIG_H)
 
 # force libcurl to use select in posixshim
-target_link_libraries(libcurl PRIVATE posixshim)
+target_link_libraries(libcurl PRIVATE posixshim zlib)
 
 target_compile_options(libcurl PRIVATE
     ${USERSPACE_CFLAGS}

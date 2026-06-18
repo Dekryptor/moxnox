@@ -1,6 +1,6 @@
 {
     "cairo": ["freetype", "libpng", "pixman", "zlib"],
-    "curl": [],
+    "curl": ["zlib"],
     "freetype": ["libpng"],
     "gnulib": [],
     "harfbuzz": ["freetype"],
