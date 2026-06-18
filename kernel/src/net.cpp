@@ -181,6 +181,9 @@ private:
                              uintptr_t& written_bytes);
     nt_status do_getpeername(span<const uint8_t> inbuf, span<uint8_t> outbuf,
                              uintptr_t& written_bytes);
+    nt_status do_getsockopt(span<const uint8_t> inbuf);
+    nt_status getsockopt(int level, int optname, span<uint8_t> buf,
+                         socklen_t& retlen);
 };
 
 static_assert(has_ioctls<class socket>);

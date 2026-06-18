@@ -2377,6 +2377,67 @@ nt_status socket::do_getpeername(span<const uint8_t> inbuf, span<uint8_t> outbuf
     return status;
 }
 
+nt_status socket::getsockopt(int level, int optname, span<uint8_t> /*buf*/,
+                             socklen_t& /*retlen*/) {
+    if (level == SOL_SOCKET) {
+        auto opt = (sockopt_socket)optname;
+
+        print("FIXME - getsockopt(SOL_SOCKET, {})\n", opt);
+    } else if (level == IPPROTO_TCP) {
+        auto opt = (sockopt_tcp)optname;
+
+        print("FIXME - getsockopt(IPPROTO_TCP, {})\n", opt);
+    } else
+        print("FIXME - getsockopt({}, {})\n", level, optname);
+
+    return nt_status::NOT_SUPPORTED;
+}
+
+nt_status socket::do_getsockopt(span<const uint8_t> inbuf) {
+    auto& t = *get_current_thread();
+    nt_status status;
+    socklen_t len, retlen;
+
+    if (inbuf.size() < sizeof(MOXNOX_SOCKET_GETSOCKOPT))
+        return nt_status::BUFFER_TOO_SMALL;
+
+    auto& params = *(MOXNOX_SOCKET_GETSOCKOPT*)inbuf.data();
+
+    if (!params.optval || !params.optlen)
+        return nt_status::INVALID_PARAMETER;
+
+    if (!t.proc->copy_from(&len, params.optlen, sizeof(len)))
+        return nt_status::ACCESS_VIOLATION;
+
+    if (len <= 0 || (size_t)len > PAGE_SIZE)
+        return nt_status::INVALID_PARAMETER;
+
+    auto buf = (uint8_t*)malloc(len);
+    if (!buf) {
+        print("malloc failed\n");
+        return nt_status::INSUFFICIENT_RESOURCES;
+    }
+
+    status = this->getsockopt(params.level, params.optname, span(buf, len),
+                              retlen);
+    if (!success(status)) {
+        free(buf);
+        return status;
+    }
+
+    if (!t.proc->copy_to(params.optval, buf, retlen)) {
+        free(buf);
+        return nt_status::ACCESS_VIOLATION;
+    }
+
+    free(buf);
+
+    if (!t.proc->copy_to(params.optlen, &retlen, sizeof(retlen)))
+        return nt_status::ACCESS_VIOLATION;
+
+    return status;
+}
+
 nt_status socket::ioctl(uint32_t code, span<const uint8_t> inbuf,
                         span<uint8_t> outbuf, uintptr_t& written_bytes,
                         bool nonblock) {
@@ -2404,6 +2465,9 @@ nt_status socket::ioctl(uint32_t code, span<const uint8_t> inbuf,
 
         case IOCTL_MOXNOX_SOCKET_GETPEERNAME:
             return do_getpeername(inbuf, outbuf, written_bytes);
+
+        case IOCTL_MOXNOX_SOCKET_GETSOCKOPT:
+            return do_getsockopt(inbuf);
 
         default:
             return nt_status::INVALID_PARAMETER;
