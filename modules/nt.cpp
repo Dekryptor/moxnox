@@ -1502,6 +1502,20 @@ struct OBJECT_NAME_INFORMATION {
     UNICODE_STRING Name;
 };
 
+struct OBJECT_BASIC_INFORMATION {
+    uint32_t Attributes;
+    ACCESS_MASK GrantedAccess;
+    uint32_t HandleCount;
+    uint32_t PointerCount;
+    uint32_t PagedPoolCharge;
+    uint32_t NonPagedPoolCharge;
+    uint32_t Reserved[3];
+    uint32_t NameInfoSize;
+    uint32_t TypeInfoSize;
+    uint32_t SecurityDescriptorSize;
+    LARGE_INTEGER CreationTime;
+};
+
 extern "C" {
 
 NTSTATUS NtDisplayString(const UNICODE_STRING* string);

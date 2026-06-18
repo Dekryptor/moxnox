@@ -4,6 +4,7 @@ module;
 #include <mutex>
 #include <string_view>
 #include <span>
+#include <string.h>
 
 module handle;
 
@@ -175,11 +176,40 @@ static nt_status query_object_name_info(object& obj, span<uint8_t> buffer,
     return nt_status::SUCCESS;
 }
 
+static nt_status query_object_basic_info(ACCESS_MASK access_mask,
+                                         span<uint8_t> buffer,
+                                         uint32_t& return_length) {
+    if (buffer.size() < sizeof(OBJECT_BASIC_INFORMATION))
+        return nt_status::BUFFER_TOO_SMALL;
+
+    auto& obi = *(OBJECT_BASIC_INFORMATION*)buffer.data();
+
+    memset(&obi, 0, sizeof(OBJECT_BASIC_INFORMATION));
+
+    obi.GrantedAccess = access_mask;
+
+    // FIXME - Attributes
+    // FIXME - HandleCount
+    // FIXME - PointerCount
+    // FIXME - PagedPoolCharge
+    // FIXME - NonPagedPoolCharge
+    // FIXME - NameInfoSize
+    // FIXME - TypeInfoSize
+    // FIXME - SecurityDescriptorSize
+    // FIXME - CreationTime
+
+    return_length = sizeof(OBJECT_BASIC_INFORMATION);
+
+    return nt_status::SUCCESS;
+}
+
 extern "C"
 nt_status NtQueryObject(HANDLE handle, OBJECT_INFORMATION_CLASS info_class,
                         void* buffer, uint32_t buffer_size,
                         uint32_t* return_length) {
-    auto objrw = deref_handle(handle);
+    ACCESS_MASK access_mask;
+
+    auto objrw = deref_handle(handle, access_mask);
     if (!objrw)
         return nt_status::INVALID_HANDLE;
 
@@ -187,6 +217,11 @@ nt_status NtQueryObject(HANDLE handle, OBJECT_INFORMATION_CLASS info_class,
 
     switch (info_class) {
         using enum OBJECT_INFORMATION_CLASS;
+
+        case BasicInformation:
+            return query_object_basic_info(access_mask,
+                                           span((uint8_t*)buffer, buffer_size),
+                                           *return_length);
 
         case NameInformation:
             return query_object_name_info(obj, span((uint8_t*)buffer, buffer_size),
