@@ -1114,21 +1114,23 @@ static int open2(const char* path, int flags, int pmode) {
         flags &= ~_O_U8TEXT;
     }
 
-    if (flags & _O_APPEND) {
-        print_stderr("FIXME - _open with _O_APPEND\n");
-        flags &= ~_O_APPEND;
-    }
-
     // FIXME - do we need to treat _O_TEXT and _O_BINARY differently?
     // FIXME - _O_RANDOM
     // FIXME - _O_SEQUENTIAL
 
     if (flags & _O_WRONLY)
-        access |= GENERIC_WRITE;
+        access |= FILE_GENERIC_WRITE;
     else if (flags & _O_RDWR)
-        access |= GENERIC_READ | GENERIC_WRITE;
+        access |= FILE_GENERIC_READ | FILE_GENERIC_WRITE;
     else
-        access |= GENERIC_READ;
+        access |= FILE_GENERIC_READ;
+
+    if (flags & (_O_WRONLY | _O_RDWR)) {
+        if (flags & _O_APPEND)
+            access &= ~FILE_WRITE_DATA;
+        else
+            access &= ~FILE_APPEND_DATA;
+    }
 
     if (flags & _O_CREAT) {
         if (flags & _O_EXCL)
