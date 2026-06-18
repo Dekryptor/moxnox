@@ -1526,12 +1526,6 @@ bool init_console(const loader_block_framebuffer& fb)
         }
 
         console_chardev = object_ref{*pptr};
-
-        auto status = name_object(console_chardev.get(), "tty");
-        if (!success(status)) {
-            print("name_object returned {}\n", status);
-            return false;
-        }
     }
 
     if (!create_kmsg())
