@@ -57,12 +57,15 @@ static const ipv6_address DNS_SERVER = parse_ipv6_address("fd14:7420:2b17::1"); 
 static const uint16_t DNS_PORT = 53;
 
 static constexpr auto DNS_CNAME = byteswap((uint16_t)5);
+static constexpr auto DNS_PTR = byteswap((uint16_t)12);
 static constexpr auto DNS_AAAA = byteswap((uint16_t)28);
 
 static constexpr auto DNS_IN = byteswap((uint16_t)1);
 
 static const unsigned int SYSTEM_TIME_RESOLUTION = 10000000; // 100ns
 static const unsigned int DNS_TIMEOUT = 5; // secs
+
+static constexpr size_t REVERSE_IPV6_LEN = 74;
 
 static constexpr pair<uint16_t, string_view> services[] = {
     { 21, "ftp" },
@@ -428,8 +431,6 @@ static int dns_lookup(string_view name, addrinfo** res, int socktype,
         return EAI_SYSTEM;
     }
 
-    // FIXME - timeouts
-
     // FIXME - handling CNAMEs?
 
     // FIXME - can have larger packets with EDNS0
@@ -746,12 +747,309 @@ const char* gai_strerror(int errcode) {
     }
 }
 
+static uint8_t hex_digit(uint8_t c) {
+    if (c <= 9)
+        return c + '0';
+    else
+        return c + 'a' - 10;
+}
+
+static void ipv6_ptr_name(const ipv6_address& addr, uint8_t* buf) {
+    for (size_t i = 0; i < 16; i++) {
+        auto b = addr.v[16 - i - 1];
+
+        buf[0] = 1;
+        buf[1] = hex_digit(b & 0xf);
+        buf[2] = 1;
+        buf[3] = hex_digit((b & 0xf0) >> 4);
+
+        buf += 4;
+    }
+
+    buf[0] = 3;
+    buf[1] = 'i';
+    buf[2] = 'p';
+    buf[3] = '6';
+
+    buf[4] = 4;
+    buf[5] = 'a';
+    buf[6] = 'r';
+    buf[7] = 'p';
+    buf[8] = 'a';
+
+    buf[9] = 0;
+}
+
+static int parse_dns_ptr_response(span<uint8_t> sp, span<uint8_t> resp,
+                                  uint16_t num_answers, span<const char> name,
+                                  span<char> buf) {
+    for (uint16_t i = 0; i < num_answers; i++) {
+        if (sp.empty())
+            break;
+
+        auto name2 = get_dns_name(sp, resp);
+        if (name2.empty())
+            break;
+
+        if (sp.size() < sizeof(dns_resource_record))
+            break;
+
+        auto& rr = *(dns_resource_record*)sp.data();
+
+        sp = span(sp.data() + sizeof(rr), sp.size() - sizeof(rr));
+
+        if (sp.size() < byteswap(rr.rdlength))
+            break;
+
+        auto payload = span(sp.data(), byteswap(rr.rdlength));
+
+        sp = span(sp.data() + payload.size(), sp.size() - payload.size());
+
+        if (rr.dns_class != DNS_IN)
+            continue;
+
+        if (name2.size() != name.size() || memcmp(name2.data(), name.data(), name.size()))
+            continue;
+
+        if (rr.type != DNS_PTR)
+            continue;
+
+        bool first = true;
+
+        while (!payload.empty()) {
+            auto len = payload[0];
+
+            if (len == 0) {
+                if (buf.empty())
+                    return EAI_OVERFLOW;
+
+                buf[0] = 0;
+
+                return 0;
+            }
+
+            if (!first) {
+                if (buf.empty())
+                    return EAI_OVERFLOW;
+
+                buf[0] = '.';
+                buf = span(buf.data() + 1, buf.size() - 1);
+            }
+
+            payload = span(payload.data() + 1, payload.size() - 1);
+
+            if (payload.size() < len) // malformed
+                break;
+
+            if (buf.size() < len)
+                return EAI_OVERFLOW;
+
+            memcpy(buf.data(), payload.data(), len);
+
+            buf = span(buf.data() + len, buf.size() - len);
+            payload = span(payload.data() + len, payload.size() - len);
+
+            first = false;
+        }
+    }
+
+    return EAI_NONAME;
+}
+
+static int reverse_dns_lookup(const ipv6_address& addr, span<char> buf) {
+    LARGE_INTEGER sent_time;
+    int64_t deadline;
+    nt_status status;
+
+    int sock = socket(AF_INET6, SOCK_DGRAM, 0);
+    if (sock < 0) {
+        print_stderr("socket returned {} (errno {})\n", sock, errno_to_string_view(*_errno()));
+        return EAI_SYSTEM;
+    }
+
+    struct sockaddr_in6 dest;
+
+    memset(&dest, 0, sizeof(dest));
+
+    dest.sin6_family = AF_INET6;
+    dest.sin6_port = byteswap(DNS_PORT);
+    *(ipv6_address*)&dest.sin6_addr = DNS_SERVER;
+
+    int ret = connect(sock, (struct sockaddr*)&dest, sizeof(dest));
+    if (ret < 0) {
+        print_stderr("connect returned {} (errno {})\n", ret, errno_to_string_view(*_errno()));
+        _close(sock);
+        return EAI_SYSTEM;
+    }
+
+    size_t question_len = REVERSE_IPV6_LEN + sizeof(dns_question_suffix);
+
+    size_t packlen = sizeof(dns_header) + question_len;
+    auto pack = (char*)malloc(packlen);
+    if (!pack) {
+        print("malloc failed\n");
+        _close(sock);
+        return EAI_MEMORY;
+    }
+
+    auto& h = *(dns_header*)pack;
+    memset(&h, 0, sizeof(h));
+
+    h.id = (uint16_t)rand();
+    h.recursion_desired = 1;
+    h.opcode = 0;
+    h.response = 0;
+    h.qdcount = byteswap((uint16_t)1);
+
+    ipv6_ptr_name(addr, (uint8_t*)pack + sizeof(dns_header));
+
+    auto& suf = *(dns_question_suffix*)(pack + sizeof(dns_header) + REVERSE_IPV6_LEN);
+    suf.type = DNS_PTR;
+    suf.dns_class = DNS_IN;
+
+    auto sent = send(sock, pack, (int)packlen, 0);
+    if (sent < 0) {
+        print_stderr("send returned {} (errno {})\n", sent, errno_to_string_view(*_errno()));
+        free(pack);
+        _close(sock);
+        return EAI_SYSTEM;
+    }
+
+    // FIXME - can have larger packets with EDNS0
+    // FIXME - TCP packets
+
+    status = NtQuerySystemTime(&sent_time);
+    if (!success(status)) {
+        print_stderr("NtQuerySystemTime returned {}\n", status);
+        free(pack);
+        _close(sock);
+        return EAI_SYSTEM;
+    }
+
+    deadline = sent_time.QuadPart + (DNS_TIMEOUT * SYSTEM_TIME_RESOLUTION);
+
+    while (true) {
+        char resp[512]; // maximum size of DNS packet
+        LARGE_INTEGER now;
+        pollfd pfd;
+
+        status = NtQuerySystemTime(&now);
+        if (!success(status)) {
+            print_stderr("NtQuerySystemTime returned {}\n", status);
+            free(pack);
+            _close(sock);
+            return EAI_SYSTEM;
+        }
+
+        if (now.QuadPart >= deadline) {
+            free(pack);
+            _close(sock);
+            return EAI_AGAIN;
+        }
+
+        pfd.fd = sock;
+        pfd.events = POLLIN;
+
+        if (deadline <= now.QuadPart)
+            ret = 0;
+        else
+            ret = poll(&pfd, 1, (int)((deadline - now.QuadPart) / 10000)); // convert units of 100ns to ms
+
+        if (ret == 0) {
+            free(pack);
+            _close(sock);
+            return EAI_AGAIN;
+        } else if (ret < 0) {
+            print_stderr("poll failed (errno {})\n", errno_to_string_view(*_errno()));
+            free(pack);
+            _close(sock);
+            return EAI_SYSTEM;
+        }
+
+        auto bytes = recv(sock, resp, sizeof(resp), 0);
+        if (bytes < 0) {
+            print_stderr("recv returned {} (errno {})\n", bytes, errno_to_string_view(*_errno()));
+            free(pack);
+            _close(sock);
+            return EAI_SYSTEM;
+        }
+
+        if ((size_t)bytes < sizeof(dns_header))
+            continue;
+
+        auto& h2 = *(dns_header*)resp;
+
+        // check transaction ID matches
+        if (h2.id != h.id)
+            continue;
+
+        if (!h2.response) { // FIXME - wait and retry?
+            free(pack);
+            _close(sock);
+            return EAI_SYSTEM;
+        }
+
+        if (h2.qdcount != h.qdcount) { // FIXME - wait and retry?
+            print_stderr("DNS server returned unexpected QDCOUNT {}\n", byteswap(h2.qdcount));
+            free(pack);
+            _close(sock);
+            return EAI_SYSTEM;
+        }
+
+        span sp((uint8_t*)resp + sizeof(dns_header), (size_t)bytes - sizeof(dns_header));
+
+        if (sp.size() < question_len || memcmp(sp.data(), pack + sizeof(dns_header), question_len)) { // FIXME - wait and retry?
+            print_stderr("DNS server did not return question\n");
+            free(pack);
+            _close(sock);
+            return EAI_SYSTEM;
+        }
+
+        if (h2.rcode == 3) { // no such name
+            free(pack);
+            _close(sock);
+            return EAI_NONAME;
+        } else if (h2.rcode != 0) { // FIXME - wait and retry (depending on error)?
+            print_stderr("DNS server returned RCODE {}\n", +h2.rcode);
+            free(pack);
+            _close(sock);
+            return EAI_SYSTEM;
+        }
+
+        if (h2.ancount == 0) { // no matching records
+            free(pack);
+            _close(sock);
+            // Linux returns non-standard EAI_ADDRFAMILY here
+            return EAI_NONAME;
+        }
+
+        sp = span(sp.data() + question_len, sp.size() - question_len);
+
+        auto num_answers = byteswap(h2.ancount);
+
+        ret = parse_dns_ptr_response(sp, span((uint8_t*)resp, (size_t)bytes),
+                                     num_answers,
+                                     span(pack + sizeof(dns_header), REVERSE_IPV6_LEN),
+                                     buf);
+        free(pack);
+        _close(sock);
+
+        return ret;
+    }
+
+    free(pack);
+    _close(sock);
+
+    return EAI_NONAME;
+}
+
 static int getnameinfo_ipv6(const sockaddr* addr, socklen_t addrlen,
                             char* host, socklen_t hostlen,
                             char* serv, socklen_t servlen, int flags) {
-    static const int understood_flags = NI_NUMERICHOST | NI_NUMERICSERV;
+    static const int understood_flags = NI_NUMERICHOST | NI_NUMERICSERV |
+                                        NI_NAMEREQD;
 
-    // FIXME - NI_NOFQDN, NI_NAMEREQD, NI_NUMERICSCOPE, NI_DGRAM
+    // FIXME - NI_NOFQDN, NI_NUMERICSCOPE, NI_DGRAM
 
     if (flags & ~understood_flags)
         return EAI_BADFLAGS;
@@ -765,29 +1063,36 @@ static int getnameinfo_ipv6(const sockaddr* addr, socklen_t addrlen,
     auto& a = *(sockaddr_in6*)addr;
 
     if (host) {
+        bool done = false;
+
         if (hostlen < 0)
             return EAI_OVERFLOW;
 
-        if (!(flags & NI_NUMERICHOST)) {
-            print_stderr("FIXME - getnameinfo reverse DNS\n");
-            *_errno() = EINVAL;
-            return EAI_SYSTEM;
-        }
-
-        char s[39];
-        span sp(s, sizeof(s));
-
         auto& ip = *(ipv6_address*)&a.sin6_addr;
 
-        sp = format(sp, "{}", ip);
+        if (!(flags & NI_NUMERICHOST)) {
+            auto ret = reverse_dns_lookup(ip, span(host, hostlen));
 
-        auto sv = string_view(s, (size_t)(sp.data() - s));
+            if (ret && (ret != EAI_NONAME || flags & NI_NAMEREQD))
+                return ret;
 
-        if (sv.size() + 1 > (size_t)hostlen)
-            return EAI_OVERFLOW;
+            done = true;
+        }
 
-        memcpy(host, sv.data(), sv.size());
-        host[sv.size()] = 0;
+        if (!done) {
+            char s[39];
+            span sp(s, sizeof(s));
+
+            sp = format(sp, "{}", ip);
+
+            auto sv = string_view(s, (size_t)(sp.data() - s));
+
+            if (sv.size() + 1 > (size_t)hostlen)
+                return EAI_OVERFLOW;
+
+            memcpy(host, sv.data(), sv.size());
+            host[sv.size()] = 0;
+        }
     }
 
     if (serv) {
