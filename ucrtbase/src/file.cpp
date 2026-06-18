@@ -15,6 +15,7 @@ module;
 #include <sys/utime.h>
 #include <sys/types.h>
 #include <sys/stat.h>
+#include <fcntl.h>
 
 export module file;
 
@@ -1177,6 +1178,20 @@ static int open2(const char* path, int flags, int pmode) {
     }
 
     free(u16pathname);
+
+    if (flags & O_NONBLOCK) {
+        bool nonblock = true;
+
+        // FIXME - behaviour is different for FIFOs (means open itself should not block)
+
+        auto status = NtSetInformationFile(h, &iosb, &nonblock, sizeof(nonblock),
+                                        FILE_INFORMATION_CLASS::MoxnoxPosixNonBlock);
+        if (!success(status)) {
+            *__errno() = nt_status_to_errno(status);
+            NtClose(h);
+            return -1;
+        }
+    }
 
     optional<int> fd;
 
