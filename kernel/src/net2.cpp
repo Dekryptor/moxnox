@@ -2465,7 +2465,22 @@ nt_status socket::setsockopt(int level, int optname, span<const uint8_t> buf) {
     if (level == SOL_SOCKET) {
         auto opt = (sockopt_socket)optname;
 
-        print("FIXME - setsockopt(SOL_SOCKET, {}, {})\n", opt, buf.size());
+        switch (opt) {
+            using enum sockopt_socket;
+
+            case KEEPALIVE:
+                if (buf.size() < sizeof(int))
+                    return nt_status::INVALID_PARAMETER;
+
+                // FIXME - actually doing keep-alives
+
+                return nt_status::SUCCESS;
+
+            default:
+                print("FIXME - setsockopt(SOL_SOCKET, {}, {})\n", opt, buf.size());
+                return nt_status::NOT_SUPPORTED;
+        }
+
     } else if (level == IPPROTO_TCP)
         return setsockopt_tcp((sockopt_tcp)optname, buf);
     else
