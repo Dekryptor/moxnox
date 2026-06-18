@@ -190,9 +190,14 @@ static void handle_dest_unreachable(span<const char> data, const sockaddr_in6& a
                  message, reason);
 }
 
-static void do_ping(SOCKET sock, const addrinfo& ai) {
+static void do_ping(SOCKET sock, const addrinfo& ai, string_view arg) {
     icmpv6_echo echo;
     PROCESS_BASIC_INFORMATION pbi;
+
+    auto& sa = *(sockaddr_in6*)ai.ai_addr;
+    auto& dest = *(ipv6_address*)&sa.sin6_addr;
+
+    print("PING {} ({}) 0 data bytes\n", arg, dest);
 
     auto status = NtQueryInformationProcess(NtCurrentProcess(),
                                             PROCESSINFOCLASS::BasicInformation,
@@ -325,7 +330,7 @@ int main(int argc, char** argv) {
             return 1;
         }
 
-        do_ping(sock, *rp);
+        do_ping(sock, *rp, argv[1]);
 
         closesocket(sock);
 
