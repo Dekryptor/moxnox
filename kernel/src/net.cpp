@@ -169,6 +169,10 @@ public:
                                         sockaddr* from, int* fromlen,
                                         size_t& recv_bytes) = 0;
 
+    virtual nt_status setsockopt_tcp(sockopt_tcp, span<const uint8_t>) {
+        return nt_status::NOT_SUPPORTED;
+    }
+
 private:
     nt_status do_recvfrom(span<const uint8_t> inbuf, bool nonblock);
     nt_status do_sendto(span<const uint8_t> inbuf);

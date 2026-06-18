@@ -153,6 +153,8 @@ public:
         return do_recvfrom<true>(buf, len, flags, from, fromlen, recv_bytes);
     }
 
+    nt_status setsockopt_tcp(sockopt_tcp opt, span<const uint8_t> buf) override;
+
     void received_packet(packet& pack, netif& ni, const mac_address& src_mac);
 
     bool init = false;
@@ -2473,4 +2475,22 @@ nt_status ipv6_tcp_socket::getpeername(span<uint8_t> buf, size_t& len) {
     len = sizeof(sockaddr_in6);
 
     return nt_status::SUCCESS;
+}
+
+nt_status ipv6_tcp_socket::setsockopt_tcp(sockopt_tcp opt, span<const uint8_t> buf) {
+    switch (opt) {
+        using enum sockopt_tcp;
+
+        case NODELAY:
+            if (buf.size() < sizeof(int))
+                return nt_status::INVALID_PARAMETER;
+
+            // FIXME - enabling and disabling Nagle's algorithm
+
+            return nt_status::SUCCESS;
+
+        default:
+            print("FIXME - setsockopt(IPPROTO_TCP, {}, {})\n", opt, buf.size());
+            return nt_status::NOT_SUPPORTED;
+    }
 }
