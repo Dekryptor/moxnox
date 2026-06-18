@@ -1496,11 +1496,13 @@ static nt_status query_name(dentry& dentry, span<uint8_t> buf, uint64_t& retlen)
 NTSTATUS file::query_information(void* buffer, uint32_t buffer_size,
                                  FILE_INFORMATION_CLASS file_information_class,
                                  uint64_t& retlen) {
-    if (ino.type != object_type::inode)
-        return nt_status::INVALID_PARAMETER;
-
     switch (file_information_class) {
-        case FILE_INFORMATION_CLASS::NameInformation: {
+        using enum FILE_INFORMATION_CLASS;
+
+        case NameInformation: {
+            if (ino.type != object_type::inode)
+                return nt_status::INVALID_PARAMETER;
+
             ::dentry* d;
 
             {
@@ -1517,7 +1519,7 @@ NTSTATUS file::query_information(void* buffer, uint32_t buffer_size,
             return ret;
         }
 
-        case FILE_INFORMATION_CLASS::PositionInformation: {
+        case PositionInformation: {
             if (buffer_size < sizeof(FILE_POSITION_INFORMATION))
                 return nt_status::BUFFER_TOO_SMALL;
 
@@ -1533,7 +1535,20 @@ NTSTATUS file::query_information(void* buffer, uint32_t buffer_size,
             return nt_status::SUCCESS;
         }
 
+        case MoxnoxPosixNonBlock:
+            if (buffer_size < sizeof(bool))
+                return nt_status::BUFFER_TOO_SMALL;
+
+            *(bool*)buffer = nonblock ? 1 : 0;
+
+            retlen = sizeof(bool);
+
+            return nt_status::SUCCESS;
+
         default:
+            if (ino.type != object_type::inode)
+                return nt_status::INVALID_PARAMETER;
+
             return static_cast<inode&>(ino).query_information(span((uint8_t*)buffer, buffer_size),
                                                               file_information_class,
                                                               retlen);
