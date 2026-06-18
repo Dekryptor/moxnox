@@ -251,19 +251,24 @@ uint16_t ntohs(uint16_t netshort) {
 extern "C"
 int setsockopt(SOCKET s, int level, int optname, const char* optval,
                int optlen) {
-    if (level == SOL_SOCKET) {
-        auto opt = (sockopt_socket)optname;
+    IO_STATUS_BLOCK iosb;
+    MOXNOX_SOCKET_SETSOCKOPT params;
 
-        print("FIXME - setsockopt ({}, SOL_SOCKET, {}, {:x}, {})\n", s, opt,
-              (uintptr_t)optval, optlen);
-    } else if (level == IPPROTO_TCP) {
-        auto opt = (sockopt_tcp)optname;
+    auto h = _get_osfhandle(s);
+    if (h == -1)
+        return -1;
 
-        print("FIXME - setsockopt ({}, IPPROTO_TCP, {}, {:x}, {})\n", s, opt,
-              (uintptr_t)optval, optlen);
-    } else {
-        print("FIXME - setsockopt ({}, {}, {}, {:x}, {})\n", s, level, optname,
-              (uintptr_t)optval, optlen);
+    params.level = level;
+    params.optname = optname;
+    params.optval = optval;
+    params.optlen = optlen;
+
+    auto status = NtDeviceIoControlFile((HANDLE)h, 0, nullptr, nullptr, &iosb,
+                                        IOCTL_MOXNOX_SOCKET_SETSOCKOPT, &params,
+                                        sizeof(params), nullptr, 0);
+    if (!success(status)) {
+        *_errno() = nt_status_to_errno(status);
+        return SOCKET_ERROR;
     }
 
     return 0;
