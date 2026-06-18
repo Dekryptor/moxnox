@@ -1,5 +1,6 @@
 #include <stdint.h>
 #include <stdio.h>
+#include <string.h>
 #include <bit>
 
 import print;
@@ -383,6 +384,204 @@ static void test_edge_cases() {
 }
 
 //=============================================================================
+// Test 10: getnameinfo numeric host and service
+//=============================================================================
+static void test_getnameinfo_numeric() {
+    print("\nTest 10: getnameinfo numeric host/service\n");
+    print("==========================================\n");
+
+    struct sockaddr_in6 addr6 = {};
+    addr6.sin6_family = AF_INET6;
+    addr6.sin6_port = byteswap((uint16_t)443);
+    *(ipv6_address*)&addr6.sin6_addr = parse_ipv6_address("2001:4860:4860::8888");
+
+    char host[NI_MAXHOST];
+    char serv[NI_MAXSERV];
+
+    int ret = getnameinfo((struct sockaddr*)&addr6, sizeof(addr6),
+                          host, sizeof(host), serv, sizeof(serv),
+                          NI_NUMERICHOST | NI_NUMERICSERV);
+
+    if (ret != 0) {
+        print("  FAIL: getnameinfo returned error: {}\n", gai_strerror(ret));
+        return;
+    }
+
+    print("  host = [{}], serv = {}\n", host, serv);
+
+    if (strcmp(host, "2001:4860:4860::8888") == 0)
+        print("  ✓ Numeric host correct\n");
+    else
+        print("  FAIL: expected 2001:4860:4860::8888\n");
+
+    if (strcmp(serv, "443") == 0)
+        print("  ✓ Numeric service correct\n");
+    else
+        print("  FAIL: expected 443\n");
+}
+
+//=============================================================================
+// Test 11: getaddrinfo -> getnameinfo round-trip
+//=============================================================================
+static void test_getnameinfo_roundtrip() {
+    print("\nTest 11: getaddrinfo -> getnameinfo round-trip\n");
+    print("==============================================\n");
+
+    struct addrinfo hints = {};
+    hints.ai_family = AF_INET6;
+    hints.ai_flags = AI_NUMERICHOST;
+
+    struct addrinfo* result;
+    int ret = getaddrinfo("::1", "80", &hints, &result);
+
+    if (ret != 0) {
+        print("  FAIL: getaddrinfo: {}\n", gai_strerror(ret));
+        return;
+    }
+
+    char host[NI_MAXHOST];
+    char serv[NI_MAXSERV];
+
+    ret = getnameinfo(result->ai_addr, (socklen_t)result->ai_addrlen,
+                      host, sizeof(host), serv, sizeof(serv),
+                      NI_NUMERICHOST | NI_NUMERICSERV);
+
+    if (ret != 0) {
+        print("  FAIL: getnameinfo: {}\n", gai_strerror(ret));
+        freeaddrinfo(result);
+        return;
+    }
+
+    print("  [{}]:{} -> [{}]:{}\n", "::1", "80", host, serv);
+
+    if (strcmp(host, "::1") == 0 && strcmp(serv, "80") == 0)
+        print("  ✓ Round-trip matches\n");
+    else
+        print("  FAIL: expected [::1]:80\n");
+
+    freeaddrinfo(result);
+}
+
+//=============================================================================
+// Test 12: getnameinfo service name lookup
+//=============================================================================
+static void test_getnameinfo_service_name() {
+    print("\nTest 12: getnameinfo service name\n");
+    print("=================================\n");
+
+    struct sockaddr_in6 addr6 = {};
+    addr6.sin6_family = AF_INET6;
+    addr6.sin6_port = byteswap((uint16_t)80);
+    *(ipv6_address*)&addr6.sin6_addr = parse_ipv6_address("::1");
+
+    char serv[NI_MAXSERV];
+
+    // without NI_NUMERICSERV: port 80 should resolve to "http"
+    int ret = getnameinfo((struct sockaddr*)&addr6, sizeof(addr6),
+                          nullptr, 0, serv, sizeof(serv), NI_NUMERICHOST);
+
+    if (ret != 0)
+        print("  named: FAIL: {}\n", gai_strerror(ret));
+    else if (strcmp(serv, "http") == 0)
+        print("  named: 80 → {} ✓\n", serv);
+    else
+        print("  named: 80 → {} (expected http) ✗\n", serv);
+
+    // with NI_NUMERICSERV: port 80 should stay "80"
+    ret = getnameinfo((struct sockaddr*)&addr6, sizeof(addr6),
+                      nullptr, 0, serv, sizeof(serv),
+                      NI_NUMERICHOST | NI_NUMERICSERV);
+
+    if (ret != 0)
+        print("  numeric: FAIL: {}\n", gai_strerror(ret));
+    else if (strcmp(serv, "80") == 0)
+        print("  numeric: 80 → {} ✓\n", serv);
+    else
+        print("  numeric: 80 → {} (expected 80) ✗\n", serv);
+}
+
+//=============================================================================
+// Test 13: getnameinfo reverse DNS (PTR lookup)
+//=============================================================================
+static void test_getnameinfo_reverse_dns() {
+    print("\nTest 13: getnameinfo reverse DNS\n");
+    print("================================\n");
+
+    struct sockaddr_in6 addr6 = {};
+    addr6.sin6_family = AF_INET6;
+    addr6.sin6_port = byteswap((uint16_t)443);
+    *(ipv6_address*)&addr6.sin6_addr = parse_ipv6_address("2001:4860:4860::8888");
+
+    char host[NI_MAXHOST];
+
+    int ret = getnameinfo((struct sockaddr*)&addr6, sizeof(addr6),
+                          host, sizeof(host), nullptr, 0, 0);
+
+    if (ret != 0) {
+        print("  FAIL: getnameinfo: {}\n", gai_strerror(ret));
+        return;
+    }
+
+    print("  2001:4860:4860::8888 → {}\n", host);
+
+    // a real PTR lookup returns a name, not the numeric address back
+    if (strcmp(host, "2001:4860:4860::8888") != 0)
+        print("  ✓ Got a hostname\n");
+    else
+        print("  FAIL: no PTR resolution (got numeric back)\n");
+}
+
+//=============================================================================
+// Test 14: getnameinfo error cases
+//=============================================================================
+static void test_getnameinfo_errors() {
+    print("\nTest 14: getnameinfo error cases\n");
+    print("================================\n");
+
+    struct sockaddr_in6 addr6 = {};
+    addr6.sin6_family = AF_INET6;
+    addr6.sin6_port = byteswap((uint16_t)80);
+    *(ipv6_address*)&addr6.sin6_addr = parse_ipv6_address("2001:4860:4860::8888");
+
+    char host[NI_MAXHOST];
+
+    // Host buffer too small for the numeric string -> EAI_OVERFLOW
+    print("  Small buffer: ");
+    char tiny[4];
+    int ret = getnameinfo((struct sockaddr*)&addr6, sizeof(addr6),
+                          tiny, sizeof(tiny), nullptr, 0, NI_NUMERICHOST);
+
+    if (ret == EAI_OVERFLOW)
+        print("✓ EAI_OVERFLOW\n");
+    else if (ret != 0)
+        print("✓ Error: {}\n", gai_strerror(ret));
+    else
+        print("✗ Should have failed (got [{}])\n", tiny);
+
+    // Both host and serv NULL -> nothing to do, should error
+    print("  Both NULL: ");
+    ret = getnameinfo((struct sockaddr*)&addr6, sizeof(addr6),
+                      nullptr, 0, nullptr, 0, NI_NUMERICHOST | NI_NUMERICSERV);
+
+    if (ret != 0)
+        print("✓ Error: {}\n", gai_strerror(ret));
+    else
+        print("✗ Should have failed\n");
+
+    // NI_NAMEREQD on an address with no PTR record -> EAI_NONAME
+    // 2001:db8::/32 is the documentation prefix and is never resolvable
+    print("  NI_NAMEREQD unresolvable: ");
+    *(ipv6_address*)&addr6.sin6_addr = parse_ipv6_address("2001:db8::1");
+    ret = getnameinfo((struct sockaddr*)&addr6, sizeof(addr6),
+                      host, sizeof(host), nullptr, 0, NI_NAMEREQD);
+
+    if (ret != 0)
+        print("✓ Error: {}\n", gai_strerror(ret));
+    else
+        print("✗ Should have failed (got [{}])\n", host);
+}
+
+//=============================================================================
 // Main
 //=============================================================================
 int main() {
@@ -398,6 +597,11 @@ int main() {
     test_error_cases();
     test_connection();
     test_edge_cases();
+    test_getnameinfo_numeric();
+    test_getnameinfo_roundtrip();
+    test_getnameinfo_service_name();
+    test_getnameinfo_reverse_dns();
+    test_getnameinfo_errors();
 
     print("\n========================\n");
     print("Tests complete!\n");
