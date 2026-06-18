@@ -72,7 +72,7 @@ int recvfrom(SOCKET s, char* buf, int len, int flags, sockaddr* from,
 
     params.buf = buf;
     params.len = len;
-    params.flags = flags;
+    params.flags = flags & ~MSG_NOSIGNAL;
     params.from = from;
     params.fromlen = fromlen;
     params.recv_bytes = &recv_bytes;
@@ -106,7 +106,7 @@ int sendto(SOCKET s, const char* buf, int len, int flags, const sockaddr* to,
 
     params.buf = buf;
     params.len = len;
-    params.flags = flags;
+    params.flags = flags & ~MSG_NOSIGNAL;
     params.to = to;
     params.tolen = tolen;
     params.sent_bytes = &sent_bytes;
