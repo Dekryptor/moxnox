@@ -2489,6 +2489,16 @@ nt_status ipv6_tcp_socket::setsockopt_tcp(sockopt_tcp opt, span<const uint8_t> b
 
             return nt_status::SUCCESS;
 
+        case KEEPIDLE:
+        case KEEPINTVL:
+        case KEEPCNT:
+            if (buf.size() < sizeof(int))
+                return nt_status::INVALID_PARAMETER;
+
+            // FIXME - TCP keep-alives
+
+            return nt_status::SUCCESS;
+
         default:
             print("FIXME - setsockopt(IPPROTO_TCP, {}, {})\n", opt, buf.size());
             return nt_status::NOT_SUPPORTED;
