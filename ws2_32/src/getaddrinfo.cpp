@@ -64,6 +64,14 @@ static constexpr auto DNS_IN = byteswap((uint16_t)1);
 static const unsigned int SYSTEM_TIME_RESOLUTION = 10000000; // 100ns
 static const unsigned int DNS_TIMEOUT = 5; // secs
 
+static constexpr pair<uint16_t, string_view> services[] = {
+    { 21, "ftp" },
+    { 22, "ssh" },
+    { 53, "dns" },
+    { 80, "http" },
+    { 443, "https" },
+};
+
 static unique_handle open_netctl() {
     OBJECT_ATTRIBUTES oa;
     UNICODE_STRING us;
@@ -163,16 +171,10 @@ static optional<uint16_t> parse_service(string_view n) {
     if (numeric)
         return ret;
 
-    if (n == "http")
-        return 80;
-    else if (n == "https")
-        return 443;
-    else if (n == "ssh")
-        return 22;
-    else if (n == "dns")
-        return 53;
-    else if (n == "ftp")
-        return 21;
+    for (auto [port, serv] : services) {
+        if (serv == n)
+            return port;
+    }
 
     return nullopt;
 }
@@ -789,24 +791,37 @@ static int getnameinfo_ipv6(const sockaddr* addr, socklen_t addrlen,
     }
 
     if (serv) {
+        bool done = false;
+
         if (!(flags & NI_NUMERICSERV)) {
-            print_stderr("FIXME - resolve service name\n");
-            *_errno() = EINVAL;
-            return EAI_SYSTEM;
+            for (auto [port, sv] : services) {
+                if (port == byteswap(a.sin6_port)) {
+                    if (sv.size() + 1 > (size_t)servlen)
+                        return EAI_OVERFLOW;
+
+                    memcpy(serv, sv.data(), sv.size());
+                    serv[sv.size()] = 0;
+
+                    done = true;
+                    break;
+                }
+            }
         }
 
-        char s[5];
-        span sp(s, sizeof(s));
+        if (!done) {
+            char s[5];
+            span sp(s, sizeof(s));
 
-        sp = format(sp, "{}", byteswap(a.sin6_port));
+            sp = format(sp, "{}", byteswap(a.sin6_port));
 
-        auto sv = string_view(s, (size_t)(sp.data() - s));
+            auto sv = string_view(s, (size_t)(sp.data() - s));
 
-        if (sv.size() + 1 > (size_t)servlen)
-            return EAI_OVERFLOW;
+            if (sv.size() + 1 > (size_t)servlen)
+                return EAI_OVERFLOW;
 
-        memcpy(serv, sv.data(), sv.size());
-        serv[sv.size()] = 0;
+            memcpy(serv, sv.data(), sv.size());
+            serv[sv.size()] = 0;
+        }
     }
 
     return 0;
