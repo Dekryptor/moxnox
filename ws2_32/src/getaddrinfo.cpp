@@ -742,3 +742,13 @@ const char* gai_strerror(int errcode) {
             return "?";
     }
 }
+
+extern "C"
+int getnameinfo(const sockaddr* /*addr*/, socklen_t /*addrlen*/, char* /*host*/,
+                socklen_t /*hostlen*/, char* /*serv*/, socklen_t /*servlen*/,
+                int flags) {
+    print("FIXME - getnameinfo (flags {:x})\n", flags);
+
+    *_errno() = EINVAL;
+    return -1;
+}

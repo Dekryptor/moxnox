@@ -21,10 +21,10 @@ setsockopt
 getsockname
 gethostname
 getsockopt
+getnameinfo
 
 ; stubs
 getpeername
 shutdown
-getnameinfo
 gethostbyname
 getservbyname

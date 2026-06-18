@@ -21,3 +21,4 @@ setsockopt
 getsockname
 gethostname
 getsockopt
+getnameinfo
