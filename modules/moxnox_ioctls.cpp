@@ -6,6 +6,7 @@ export module moxnox_ioctls;
 
 import nt;
 import ipv6;
+import ws2_32;
 
 enum class IOCTL_METHOD : uint8_t {
     BUFFERED = 0,

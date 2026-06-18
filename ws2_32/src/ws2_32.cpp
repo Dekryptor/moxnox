@@ -354,33 +354,32 @@ int gethostname(char* name, int namelen) {
 
 extern "C"
 int getsockopt(int s, int level, int optname, char* optval, socklen_t* optlen) {
-    if (level == SOL_SOCKET) {
-        auto opt = (sockopt_socket)optname;
+    IO_STATUS_BLOCK iosb;
+    MOXNOX_SOCKET_GETSOCKOPT params;
 
-        if (opt == sockopt_socket::ERROR) {
-            // FIXME - should be asking the kernel
-
-            *optval = 0;
-            *optlen = 1;
-            return 0;
-        }
-
-        print("FIXME - getsockopt({}, SOL_SOCKET, {}, {:x}, {:x})\n",
-              s, opt, (uintptr_t)optval, (uintptr_t)optlen);
-    } else if (level == IPPROTO_TCP) {
-        auto opt = (sockopt_tcp)optname;
-
-        print("FIXME - getsockopt({}, IPPROTO_TCP, {}, {:x}, {:x})\n",
-              s, opt, (uintptr_t)optval, (uintptr_t)optlen);
-    } else {
-        print("FIXME - getsockopt({}, {}, {}, {:x}, {:x})\n",
-              s, level, optname, (uintptr_t)optval, (uintptr_t)optlen);
+    if (*optlen < 0) {
+        *_errno() = EINVAL;
+        return -1;
     }
 
-    // FIXME
+    auto h = _get_osfhandle(s);
+    if (h == -1)
+        return -1;
 
-    *_errno() = EINVAL;
-    return -1;
+    params.level = level;
+    params.optname = optname;
+    params.optval = optval;
+    params.optlen = optlen;
+
+    auto status = NtDeviceIoControlFile((HANDLE)h, 0, nullptr, nullptr, &iosb,
+                                        IOCTL_MOXNOX_SOCKET_GETSOCKOPT, &params,
+                                        sizeof(params), nullptr, 0);
+    if (!success(status)) {
+        *_errno() = nt_status_to_errno(status);
+        return SOCKET_ERROR;
+    }
+
+    return 0;
 }
 
 extern "C"
