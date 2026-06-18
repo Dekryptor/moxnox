@@ -210,6 +210,42 @@ constexpr in_addr_t _INADDR_BROADCAST = INADDR_BROADCAST;
 constexpr in_addr_t _INADDR_LOOPBACK = INADDR_LOOPBACK;
 
 constexpr int _TCP_NODELAY = TCP_NODELAY;
+constexpr int _TCP_MAXSEG = TCP_MAXSEG;
+constexpr int _TCP_CORK = TCP_CORK;
+constexpr int _TCP_KEEPIDLE = TCP_KEEPIDLE;
+constexpr int _TCP_KEEPINTVL = TCP_KEEPINTVL;
+constexpr int _TCP_KEEPCNT = TCP_KEEPCNT;
+constexpr int _TCP_SYNCNT = TCP_SYNCNT;
+constexpr int _TCP_LINGER2 = TCP_LINGER2;
+constexpr int _TCP_DEFER_ACCEPT = TCP_DEFER_ACCEPT;
+constexpr int _TCP_WINDOW_CLAMP = TCP_WINDOW_CLAMP;
+constexpr int _TCP_INFO = TCP_INFO;
+constexpr int _TCP_QUICKACK = TCP_QUICKACK;
+constexpr int _TCP_CONGESTION = TCP_CONGESTION;
+constexpr int _TCP_MD5SIG = TCP_MD5SIG;
+constexpr int _TCP_COOKIE_TRANSACTIONS = TCP_COOKIE_TRANSACTIONS;
+constexpr int _TCP_THIN_LINEAR_TIMEOUTS = TCP_THIN_LINEAR_TIMEOUTS;
+constexpr int _TCP_THIN_DUPACK = TCP_THIN_DUPACK;
+constexpr int _TCP_USER_TIMEOUT = TCP_USER_TIMEOUT;
+constexpr int _TCP_REPAIR = TCP_REPAIR;
+constexpr int _TCP_REPAIR_QUEUE = TCP_REPAIR_QUEUE;
+constexpr int _TCP_QUEUE_SEQ = TCP_QUEUE_SEQ;
+constexpr int _TCP_REPAIR_OPTIONS = TCP_REPAIR_OPTIONS;
+constexpr int _TCP_FASTOPEN = TCP_FASTOPEN;
+constexpr int _TCP_TIMESTAMP = TCP_TIMESTAMP;
+constexpr int _TCP_NOTSENT_LOWAT = TCP_NOTSENT_LOWAT;
+constexpr int _TCP_CC_INFO = TCP_CC_INFO;
+constexpr int _TCP_SAVE_SYN = TCP_SAVE_SYN;
+constexpr int _TCP_SAVED_SYN = TCP_SAVED_SYN;
+constexpr int _TCP_REPAIR_WINDOW = TCP_REPAIR_WINDOW;
+constexpr int _TCP_FASTOPEN_CONNECT = TCP_FASTOPEN_CONNECT;
+constexpr int _TCP_ULP = TCP_ULP;
+constexpr int _TCP_MD5SIG_EXT = TCP_MD5SIG_EXT;
+constexpr int _TCP_FASTOPEN_KEY = TCP_FASTOPEN_KEY;
+constexpr int _TCP_FASTOPEN_NO_COOKIE = TCP_FASTOPEN_NO_COOKIE;
+constexpr int _TCP_ZEROCOPY_RECEIVE = TCP_ZEROCOPY_RECEIVE;
+constexpr int _TCP_INQ = TCP_INQ;
+constexpr int _TCP_TX_DELAY = TCP_TX_DELAY;
 
 export {
 
@@ -506,8 +542,80 @@ constexpr in_addr_t INADDR_BROADCAST = _INADDR_BROADCAST;
 constexpr in_addr_t INADDR_LOOPBACK = _INADDR_LOOPBACK;
 
 #undef TCP_NODELAY
+#undef TCP_MAXSEG
+#undef TCP_CORK
+#undef TCP_KEEPIDLE
+#undef TCP_KEEPINTVL
+#undef TCP_KEEPCNT
+#undef TCP_SYNCNT
+#undef TCP_LINGER2
+#undef TCP_DEFER_ACCEPT
+#undef TCP_WINDOW_CLAMP
+#undef TCP_INFO
+#undef TCP_QUICKACK
+#undef TCP_CONGESTION
+#undef TCP_MD5SIG
+#undef TCP_COOKIE_TRANSACTIONS
+#undef TCP_THIN_LINEAR_TIMEOUTS
+#undef TCP_THIN_DUPACK
+#undef TCP_USER_TIMEOUT
+#undef TCP_REPAIR
+#undef TCP_REPAIR_QUEUE
+#undef TCP_QUEUE_SEQ
+#undef TCP_REPAIR_OPTIONS
+#undef TCP_FASTOPEN
+#undef TCP_TIMESTAMP
+#undef TCP_NOTSENT_LOWAT
+#undef TCP_CC_INFO
+#undef TCP_SAVE_SYN
+#undef TCP_SAVED_SYN
+#undef TCP_REPAIR_WINDOW
+#undef TCP_FASTOPEN_CONNECT
+#undef TCP_ULP
+#undef TCP_MD5SIG_EXT
+#undef TCP_FASTOPEN_KEY
+#undef TCP_FASTOPEN_NO_COOKIE
+#undef TCP_ZEROCOPY_RECEIVE
+#undef TCP_INQ
+#undef TCP_TX_DELAY
 
 constexpr int TCP_NODELAY = _TCP_NODELAY;
+constexpr int TCP_MAXSEG = _TCP_MAXSEG;
+constexpr int TCP_CORK = _TCP_CORK;
+constexpr int TCP_KEEPIDLE = _TCP_KEEPIDLE;
+constexpr int TCP_KEEPINTVL = _TCP_KEEPINTVL;
+constexpr int TCP_KEEPCNT = _TCP_KEEPCNT;
+constexpr int TCP_SYNCNT = _TCP_SYNCNT;
+constexpr int TCP_LINGER2 = _TCP_LINGER2;
+constexpr int TCP_DEFER_ACCEPT = _TCP_DEFER_ACCEPT;
+constexpr int TCP_WINDOW_CLAMP = _TCP_WINDOW_CLAMP;
+constexpr int TCP_INFO = _TCP_INFO;
+constexpr int TCP_QUICKACK = _TCP_QUICKACK;
+constexpr int TCP_CONGESTION = _TCP_CONGESTION;
+constexpr int TCP_MD5SIG = _TCP_MD5SIG;
+constexpr int TCP_COOKIE_TRANSACTIONS = _TCP_COOKIE_TRANSACTIONS;
+constexpr int TCP_THIN_LINEAR_TIMEOUTS = _TCP_THIN_LINEAR_TIMEOUTS;
+constexpr int TCP_THIN_DUPACK = _TCP_THIN_DUPACK;
+constexpr int TCP_USER_TIMEOUT = _TCP_USER_TIMEOUT;
+constexpr int TCP_REPAIR = _TCP_REPAIR;
+constexpr int TCP_REPAIR_QUEUE = _TCP_REPAIR_QUEUE;
+constexpr int TCP_QUEUE_SEQ = _TCP_QUEUE_SEQ;
+constexpr int TCP_REPAIR_OPTIONS = _TCP_REPAIR_OPTIONS;
+constexpr int TCP_FASTOPEN = _TCP_FASTOPEN;
+constexpr int TCP_TIMESTAMP = _TCP_TIMESTAMP;
+constexpr int TCP_NOTSENT_LOWAT = _TCP_NOTSENT_LOWAT;
+constexpr int TCP_CC_INFO = _TCP_CC_INFO;
+constexpr int TCP_SAVE_SYN = _TCP_SAVE_SYN;
+constexpr int TCP_SAVED_SYN = _TCP_SAVED_SYN;
+constexpr int TCP_REPAIR_WINDOW = _TCP_REPAIR_WINDOW;
+constexpr int TCP_FASTOPEN_CONNECT = _TCP_FASTOPEN_CONNECT;
+constexpr int TCP_ULP = _TCP_ULP;
+constexpr int TCP_MD5SIG_EXT = _TCP_MD5SIG_EXT;
+constexpr int TCP_FASTOPEN_KEY = _TCP_FASTOPEN_KEY;
+constexpr int TCP_FASTOPEN_NO_COOKIE = _TCP_FASTOPEN_NO_COOKIE;
+constexpr int TCP_ZEROCOPY_RECEIVE = _TCP_ZEROCOPY_RECEIVE;
+constexpr int TCP_INQ = _TCP_INQ;
+constexpr int TCP_TX_DELAY = _TCP_TX_DELAY;
 
 enum class sockopt_socket {
     DEBUG = SO_DEBUG,
@@ -530,26 +638,43 @@ enum class sockopt_socket {
 };
 
 enum class sockopt_tcp {
-    OFFLOAD_NO_PREFERENCE = 0,
-    OFFLOAD_NOT_PREFERRED = 1,
-    OFFLOAD_PREFERRED = 2,
-    KEEPALIVE = 3,
-    MAXSEG = 4,
-    MAXRT = 5,
-    STDURG = 6,
-    NOURG = 7,
-    ATMARK = 8,
-    NOSYNRETRIES = 9,
-    TIMESTAMPS = 10,
-    OFFLOAD_PREFERENCE = 11,
-    CONGESTION_ALGORITHM = 12,
-    DELAY_FIN_ACK = 13,
-    MAXRTMS = 14,
-    FASTOPEN = 15,
-    KEEPCNT = 16,
-    KEEPINTVL = 17,
-    FAIL_CONNECT_ON_ICMP_ERROR = 18,
-    ICMP_ERROR_INFO = 19,
+    NODELAY = TCP_NODELAY,
+    MAXSEG = TCP_MAXSEG,
+    CORK = TCP_CORK,
+    KEEPIDLE = TCP_KEEPIDLE,
+    KEEPINTVL = TCP_KEEPINTVL,
+    KEEPCNT = TCP_KEEPCNT,
+    SYNCNT = TCP_SYNCNT,
+    LINGER2 = TCP_LINGER2,
+    DEFER_ACCEPT = TCP_DEFER_ACCEPT,
+    WINDOW_CLAMP = TCP_WINDOW_CLAMP,
+    INFO = TCP_INFO,
+    QUICKACK = TCP_QUICKACK,
+    CONGESTION = TCP_CONGESTION,
+    MD5SIG = TCP_MD5SIG,
+    COOKIE_TRANSACTIONS = TCP_COOKIE_TRANSACTIONS,
+    THIN_LINEAR_TIMEOUTS = TCP_THIN_LINEAR_TIMEOUTS,
+    THIN_DUPACK = TCP_THIN_DUPACK,
+    USER_TIMEOUT = TCP_USER_TIMEOUT,
+    REPAIR = TCP_REPAIR,
+    REPAIR_QUEUE = TCP_REPAIR_QUEUE,
+    QUEUE_SEQ = TCP_QUEUE_SEQ,
+    REPAIR_OPTIONS = TCP_REPAIR_OPTIONS,
+    FASTOPEN = TCP_FASTOPEN,
+    TIMESTAMP = TCP_TIMESTAMP,
+    NOTSENT_LOWAT = TCP_NOTSENT_LOWAT,
+    CC_INFO = TCP_CC_INFO,
+    SAVE_SYN = TCP_SAVE_SYN,
+    SAVED_SYN = TCP_SAVED_SYN,
+    REPAIR_WINDOW = TCP_REPAIR_WINDOW,
+    FASTOPEN_CONNECT = TCP_FASTOPEN_CONNECT,
+    ULP = TCP_ULP,
+    MD5SIG_EXT = TCP_MD5SIG_EXT,
+    FASTOPEN_KEY = TCP_FASTOPEN_KEY,
+    FASTOPEN_NO_COOKIE = TCP_FASTOPEN_NO_COOKIE,
+    ZEROCOPY_RECEIVE = TCP_ZEROCOPY_RECEIVE,
+    INQ = TCP_INQ,
+    TX_DELAY = TCP_TX_DELAY,
 };
 
 template<>
@@ -611,46 +736,80 @@ span<char> do_format_arg(span<char> sp, string_view, sockopt_tcp o) {
     switch (o) {
         using enum sockopt_tcp;
 
-        case OFFLOAD_NO_PREFERENCE:
-            return do_format_arg(sp, "", "OFFLOAD_NO_PREFERENCE");
-        case OFFLOAD_NOT_PREFERRED:
-            return do_format_arg(sp, "", "OFFLOAD_NOT_PREFERRED");
-        case OFFLOAD_PREFERRED:
-            return do_format_arg(sp, "", "OFFLOAD_PREFERRED");
-        case KEEPALIVE:
-            return do_format_arg(sp, "", "KEEPALIVE");
+        case NODELAY:
+            return do_format_arg(sp, "", "NODELAY");
         case MAXSEG:
             return do_format_arg(sp, "", "MAXSEG");
-        case MAXRT:
-            return do_format_arg(sp, "", "MAXRT");
-        case STDURG:
-            return do_format_arg(sp, "", "STDURG");
-        case NOURG:
-            return do_format_arg(sp, "", "NOURG");
-        case ATMARK:
-            return do_format_arg(sp, "", "ATMARK");
-        case NOSYNRETRIES:
-            return do_format_arg(sp, "", "NOSYNRETRIES");
-        case TIMESTAMPS:
-            return do_format_arg(sp, "", "TIMESTAMPS");
-        case OFFLOAD_PREFERENCE:
-            return do_format_arg(sp, "", "OFFLOAD_PREFERENCE");
-        case CONGESTION_ALGORITHM:
-            return do_format_arg(sp, "", "CONGESTION_ALGORITHM");
-        case DELAY_FIN_ACK:
-            return do_format_arg(sp, "", "DELAY_FIN_ACK");
-        case MAXRTMS:
-            return do_format_arg(sp, "", "MAXRTMS");
-        case FASTOPEN:
-            return do_format_arg(sp, "", "FASTOPEN");
-        case KEEPCNT:
-            return do_format_arg(sp, "", "KEEPCNT");
+        case CORK:
+            return do_format_arg(sp, "", "CORK");
+        case KEEPIDLE:
+            return do_format_arg(sp, "", "KEEPIDLE");
         case KEEPINTVL:
             return do_format_arg(sp, "", "KEEPINTVL");
-        case FAIL_CONNECT_ON_ICMP_ERROR:
-            return do_format_arg(sp, "", "FAIL_CONNECT_ON_ICMP_ERROR");
-        case ICMP_ERROR_INFO:
-            return do_format_arg(sp, "", "ICMP_ERROR_INFO");
+        case KEEPCNT:
+            return do_format_arg(sp, "", "KEEPCNT");
+        case SYNCNT:
+            return do_format_arg(sp, "", "SYNCNT");
+        case LINGER2:
+            return do_format_arg(sp, "", "LINGER2");
+        case DEFER_ACCEPT:
+            return do_format_arg(sp, "", "DEFER_ACCEPT");
+        case WINDOW_CLAMP:
+            return do_format_arg(sp, "", "WINDOW_CLAMP");
+        case INFO:
+            return do_format_arg(sp, "", "INFO");
+        case QUICKACK:
+            return do_format_arg(sp, "", "QUICKACK");
+        case CONGESTION:
+            return do_format_arg(sp, "", "CONGESTION");
+        case MD5SIG:
+            return do_format_arg(sp, "", "MD5SIG");
+        case COOKIE_TRANSACTIONS:
+            return do_format_arg(sp, "", "COOKIE_TRANSACTIONS");
+        case THIN_LINEAR_TIMEOUTS:
+            return do_format_arg(sp, "", "THIN_LINEAR_TIMEOUTS");
+        case THIN_DUPACK:
+            return do_format_arg(sp, "", "THIN_DUPACK");
+        case USER_TIMEOUT:
+            return do_format_arg(sp, "", "USER_TIMEOUT");
+        case REPAIR:
+            return do_format_arg(sp, "", "REPAIR");
+        case REPAIR_QUEUE:
+            return do_format_arg(sp, "", "REPAIR_QUEUE");
+        case QUEUE_SEQ:
+            return do_format_arg(sp, "", "QUEUE_SEQ");
+        case REPAIR_OPTIONS:
+            return do_format_arg(sp, "", "REPAIR_OPTIONS");
+        case FASTOPEN:
+            return do_format_arg(sp, "", "FASTOPEN");
+        case TIMESTAMP:
+            return do_format_arg(sp, "", "TIMESTAMP");
+        case NOTSENT_LOWAT:
+            return do_format_arg(sp, "", "NOTSENT_LOWAT");
+        case CC_INFO:
+            return do_format_arg(sp, "", "CC_INFO");
+        case SAVE_SYN:
+            return do_format_arg(sp, "", "SAVE_SYN");
+        case SAVED_SYN:
+            return do_format_arg(sp, "", "SAVED_SYN");
+        case REPAIR_WINDOW:
+            return do_format_arg(sp, "", "REPAIR_WINDOW");
+        case FASTOPEN_CONNECT:
+            return do_format_arg(sp, "", "FASTOPEN_CONNECT");
+        case ULP:
+            return do_format_arg(sp, "", "ULP");
+        case MD5SIG_EXT:
+            return do_format_arg(sp, "", "MD5SIG_EXT");
+        case FASTOPEN_KEY:
+            return do_format_arg(sp, "", "FASTOPEN_KEY");
+        case FASTOPEN_NO_COOKIE:
+            return do_format_arg(sp, "", "FASTOPEN_NO_COOKIE");
+        case ZEROCOPY_RECEIVE:
+            return do_format_arg(sp, "", "ZEROCOPY_RECEIVE");
+        case INQ:
+            return do_format_arg(sp, "", "INQ");
+        case TX_DELAY:
+            return do_format_arg(sp, "", "TX_DELAY");
         default:
             return do_format_arg(sp, "", (unsigned int)o);
     }
