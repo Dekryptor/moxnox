@@ -2377,12 +2377,35 @@ nt_status socket::do_getpeername(span<const uint8_t> inbuf, span<uint8_t> outbuf
     return status;
 }
 
-nt_status socket::getsockopt(int level, int optname, span<uint8_t> /*buf*/,
-                             socklen_t& /*retlen*/) {
+nt_status socket::getsockopt_error(span<uint8_t> buf, socklen_t& retlen) {
+    // FIXME - do this properly
+
+    if (buf.size() < sizeof(int))
+        return nt_status::BUFFER_TOO_SMALL;
+
+    // FIXME - resets error when called
+    // FIXME - error should be an errno value (return nt_status, and get ws2_32 translating?)
+
+    *(int*)buf.data() = 0;
+
+    retlen = sizeof(int);
+
+    return nt_status::SUCCESS;
+}
+
+nt_status socket::getsockopt(int level, int optname, span<uint8_t> buf,
+                             socklen_t& retlen) {
     if (level == SOL_SOCKET) {
         auto opt = (sockopt_socket)optname;
 
-        print("FIXME - getsockopt(SOL_SOCKET, {})\n", opt);
+        switch (opt) {
+            case sockopt_socket::ERROR:
+                return getsockopt_error(buf, retlen);
+
+            default:
+                print("FIXME - getsockopt(SOL_SOCKET, {})\n", opt);
+                return nt_status::NOT_SUPPORTED;
+        }
     } else if (level == IPPROTO_TCP) {
         auto opt = (sockopt_tcp)optname;
 
