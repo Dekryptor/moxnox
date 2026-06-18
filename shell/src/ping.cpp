@@ -23,7 +23,7 @@ static const unsigned int SYSTEM_TIME_RESOLUTION = 10000000; // 100ns
 
 static void handle_echo_reply(span<const char> data, int64_t sent_time,
                               const sockaddr_in6& addr, uint16_t identifier) {
-    char s[10];
+    char s[10], host[NI_MAXHOST];
     nt_status status;
     LARGE_INTEGER now;
 
@@ -53,9 +53,20 @@ static void handle_echo_reply(span<const char> data, int64_t sent_time,
 
     sprintf(s, "%.3g", ms);
 
+    auto ret = getnameinfo((sockaddr*)&addr, sizeof(sockaddr_in6), host, sizeof(host),
+                           nullptr, 0, NI_NAMEREQD);
+
     // FIXME - add float support to print
     // FIXME - need higher-quality timer?
-    print("{} bytes from {}: icmp_seq={} time={} ms\n", data.size(), *(ipv6_address*)&addr.sin6_addr, byteswap(resp.sequence), string_view(s));
+    if (!ret) {
+        print("{} bytes from {} ({}): icmp_seq={} time={} ms\n", data.size(),
+              host, *(ipv6_address*)&addr.sin6_addr, byteswap(resp.sequence),
+              string_view(s));
+    } else {
+        print("{} bytes from {}: icmp_seq={} time={} ms\n", data.size(),
+              *(ipv6_address*)&addr.sin6_addr, byteswap(resp.sequence),
+              string_view(s));
+    }
 }
 
 static void handle_dest_unreachable(span<const char> data, const sockaddr_in6& addr,
