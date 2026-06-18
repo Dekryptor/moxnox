@@ -1,5 +1,6 @@
 #include <fcntl.h>
 #include <stdarg.h>
+#include <stdint.h>
 
 import nt;
 import print;
@@ -9,9 +10,48 @@ import ucrtbase;
 import errno;
 
 static int getfl(int fd) {
-    print("FIXME - F_GETFL({})\n", fd);
+    IO_STATUS_BLOCK iosb;
+    OBJECT_BASIC_INFORMATION obi;
+    nt_status status;
+    uint32_t retlen;
+    bool nonblock;
+    int ret = 0;
 
-    return 0;
+    auto h = (HANDLE)_get_osfhandle(fd);
+    if ((intptr_t)h < 0)
+        return -1;
+
+    status = NtQueryObject(h, OBJECT_INFORMATION_CLASS::BasicInformation,
+                           &obi, sizeof(obi), &retlen);
+    if (!success(status)) {
+        *_errno() = nt_status_to_errno(status);
+        return -1;
+    }
+
+    bool can_read = obi.GrantedAccess & FILE_READ_DATA;
+    bool can_write = obi.GrantedAccess & (FILE_WRITE_DATA | FILE_APPEND_DATA);
+
+    if (can_read && can_write)
+        ret |= O_RDWR;
+    else if (can_read)
+        ret |= O_RDONLY;
+    else if (can_write)
+        ret |= O_WRONLY;
+
+    if (obi.GrantedAccess & FILE_APPEND_DATA)
+        ret |= O_APPEND;
+
+    status = NtQueryInformationFile(h, &iosb, &nonblock, sizeof(nonblock),
+                                    FILE_INFORMATION_CLASS::MoxnoxPosixNonBlock);
+    if (!success(status)) {
+        *_errno() = nt_status_to_errno(status);
+        return -1;
+    }
+
+    if (nonblock)
+        ret |= O_NONBLOCK;
+
+    return ret;
 }
 
 static int setfl(int fd, int arg) {
