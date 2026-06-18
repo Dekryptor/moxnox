@@ -1102,7 +1102,7 @@ void checker_failure();
 template<typename T, typename... Args>
 consteval void check_specs(span<string_view, sizeof...(Args) + 1> sp,
                            tuple<T, Args...>*) {
-    if (!format_spec_valid<remove_cvref_t<T>>(sp[0]))
+    if (!format_spec_valid<decay_t<T>>(sp[0]))
         checker_failure();
 
     if constexpr (sizeof...(Args) > 0)
