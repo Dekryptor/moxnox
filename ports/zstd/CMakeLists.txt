@@ -29,6 +29,7 @@ endif()
 
 target_compile_options(zstd PRIVATE ${USERSPACE_CFLAGS} -fvisibility=default $<$<COMPILE_LANGUAGE:CXX>:-fno-exceptions -fno-rtti>)
 target_compile_options(zstd PRIVATE -Wno-sign-conversion -Wno-conversion)
+target_include_directories(zstd PUBLIC repo/lib)
 
 install(TARGETS zstd DESTINATION ${CMAKE_INSTALL_PREFIX}/lib
     ARCHIVE EXCLUDE_FROM_ALL
@@ -37,7 +38,7 @@ install(TARGETS zstd DESTINATION ${CMAKE_INSTALL_PREFIX}/lib
 # FIXME - zlib dependency?
 
 set(ZSTD_PROG ${CMAKE_CURRENT_SOURCE_DIR}/repo/programs)
-set(ZSTD_GEN  ${CMAKE_CURRENT_BINARY_DIR}/programs)
+set(ZSTD_GEN ${CMAKE_CURRENT_BINARY_DIR}/programs)
 file(MAKE_DIRECTORY ${ZSTD_GEN})
 
 add_custom_command(
