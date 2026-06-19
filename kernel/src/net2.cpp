@@ -216,6 +216,7 @@ enum class ndp_option_type : uint8_t {
     prefix_info = 3,
     redirected_header = 4,
     mtu = 5,
+    rdnss = 25,
 };
 
 struct ndp_option {
@@ -246,6 +247,20 @@ struct ndp_option_prefix_info : ndp_option  {
 
 static_assert(sizeof(ndp_option_prefix_info) == 32);
 
+struct ndp_option_rdnss : ndp_option {
+    uint16_t reserved;
+    uint32_t lifetime;
+    ipv6_address servers[1];
+} __attribute__((packed));
+
+static_assert(offsetof(ndp_option_rdnss, servers) == 8);
+
+struct dns_server {
+    list_entry le;
+    uint32_t ttl;
+    ipv6_address address;
+};
+
 class loopback_netif : public netif {
 public:
     nt_status send_packet(const mac_address& dst_mac, ethertype type,
@@ -254,6 +269,8 @@ public:
 
 static spinlock ipv6_routes_lock;
 static list_entry ipv6_routes = { &ipv6_routes, &ipv6_routes };
+static spinlock dns_servers_lock;
+static list_entry dns_servers = { &dns_servers, &dns_servers };
 
 static void handle_ipv6_packet(netif& ni, packet& pack, const mac_address& src_mac,
                                bool skip_checksum);
@@ -901,6 +918,55 @@ static ipv6_address zero_right_bits(const ipv6_address& addr, uint8_t n) {
     return ret;
 }
 
+static void add_dns_server(const ipv6_address& address, uint32_t ttl) {
+    {
+        lock_guard lock(dns_servers_lock);
+
+        for (auto le = dns_servers.next; le != &dns_servers; le = le->next) {
+            auto& d = containing_record<dns_server>(le);
+
+            if (d.address == address) {
+                d.ttl = ttl;
+                return;
+            }
+        }
+    }
+
+    if (ttl == 0)
+        return;
+
+    auto d2 = (dns_server*)malloc(sizeof(dns_server));
+    if (!d2) {
+        print("malloc failed\n");
+        return;
+    }
+
+    d2->address = address;
+    d2->ttl = ttl;
+
+    bool already_done = false;
+
+    {
+        lock_guard lock(dns_servers_lock);
+
+        for (auto le = dns_servers.next; le != &dns_servers; le = le->next) {
+            auto& d = containing_record<dns_server>(le);
+
+            if (d.address == address) {
+                d.ttl = ttl;
+                already_done = true;
+                break;
+            }
+        }
+
+        if (!already_done)
+            insert_tail_list(dns_servers, d2->le);
+    }
+
+    if (already_done)
+        free(d2);
+}
+
 static void handle_router_advertisement(netif& ni, packet& pack) {
     if (pack.size < sizeof(ipv6_header) + sizeof(icmpv6_router_advertisement)) {
         print("handle_router_advertisement: buffer length was {}, expected at least {}\n",
@@ -977,7 +1043,24 @@ static void handle_router_advertisement(netif& ni, packet& pack) {
             }
 
             // FIXME - MTU
-            // FIXME - DNS server
+
+            case ndp_option_type::rdnss: {
+                if (opt.length * 8 < offsetof(ndp_option_rdnss, servers)) {
+                    print("handle_router_advertisement: RDNSS info was {} bytes, expected at least {}\n",
+                          opt.length * 8, offsetof(ndp_option_rdnss, servers));
+                    break;
+                }
+
+                auto& rdnss = *(ndp_option_rdnss*)&opt;
+
+                size_t num_servers = ((opt.length * 8) - offsetof(ndp_option_rdnss, servers)) / sizeof(ipv6_address);
+
+                for (size_t i = 0; i < num_servers; i++) {
+                    add_dns_server(rdnss.servers[i], byteswap(rdnss.lifetime));
+                }
+
+                break;
+            }
 
             default:
                 break;
@@ -1617,12 +1700,39 @@ static void router_lifetime_tick() {
     }
 }
 
+static void reap_dns_servers() {
+    list_entry free_list = { &free_list, &free_list };
+
+    {
+        lock_guard lock(dns_servers_lock);
+
+        for (auto le = dns_servers.next; le != &dns_servers; le = le->next) {
+            auto& d = containing_record<dns_server>(le);
+
+            if (d.ttl == 0) {
+                le = le->prev;
+                remove_entry_list(d.le);
+                insert_tail_list(free_list, d.le);
+            } else
+                d.ttl--;
+        }
+    }
+
+    while (!is_list_empty(free_list)) {
+        auto& d = containing_record<dns_server>(free_list.next);
+
+        remove_entry_list(d.le);
+        free(&d);
+    }
+}
+
 static void network_housekeeping() {
     // once a second
 
     send_router_solicitations();
     router_lifetime_tick();
     reap_neighbour_cache();
+    reap_dns_servers();
 }
 
 static void network_thread() {
