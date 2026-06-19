@@ -2,6 +2,7 @@
 #include <optional>
 #include <bit>
 #include <span>
+#include <array>
 #include <stdlib.h>
 #include <stdint.h>
 #include <string.h>
@@ -61,6 +62,12 @@ static constexpr auto DNS_PTR = byteswap((uint16_t)12);
 static constexpr auto DNS_AAAA = byteswap((uint16_t)28);
 
 static constexpr auto DNS_IN = byteswap((uint16_t)1);
+
+static constexpr uint16_t DNS_FORMERR = 1;
+static constexpr uint16_t DNS_SERVFAIL = 2;
+static constexpr uint16_t DNS_NXDOMAIN = 3;
+static constexpr uint16_t DNS_NOTIMP = 4;
+static constexpr uint16_t DNS_REFUSED = 5;
 
 static const unsigned int SYSTEM_TIME_RESOLUTION = 10000000; // 100ns
 static const unsigned int DNS_TIMEOUT = 5; // secs
@@ -368,34 +375,21 @@ static int parse_dns_response(span<uint8_t> sp, span<uint8_t> resp,
     return 0;
 }
 
-static int dns_lookup(string_view name, addrinfo** res, int socktype,
-                      int protocol, uint16_t port) {
+static int dns_lookup2(int sock, const ipv6_address& server, string_view name,
+                       addrinfo** res, int socktype, int protocol, uint16_t port) {
     LARGE_INTEGER sent_time;
     int64_t deadline;
     nt_status status;
-
-    int sock = socket(AF_INET6, SOCK_DGRAM, 0);
-    if (sock < 0) {
-        print_stderr("socket returned {} (errno {})\n", sock, errno_to_string_view(*_errno()));
-        return EAI_SYSTEM;
-    }
+    struct sockaddr_in6 dest;
+    int ret;
 
     // FIXME - querying for A exclusively, querying for both A and AAAA
-
-    struct sockaddr_in6 dest;
 
     memset(&dest, 0, sizeof(dest));
 
     dest.sin6_family = AF_INET6;
     dest.sin6_port = byteswap(DNS_PORT);
-    *(ipv6_address*)&dest.sin6_addr = DNS_SERVER;
-
-    int ret = connect(sock, (struct sockaddr*)&dest, sizeof(dest));
-    if (ret < 0) {
-        print_stderr("connect returned {} (errno {})\n", ret, errno_to_string_view(*_errno()));
-        closesocket(sock);
-        return EAI_SYSTEM;
-    }
+    *(ipv6_address*)&dest.sin6_addr = server;
 
     auto name_len = get_encoded_name_len(name);
     size_t question_len = name_len + sizeof(dns_question_suffix);
@@ -404,7 +398,6 @@ static int dns_lookup(string_view name, addrinfo** res, int socktype,
     auto pack = (char*)malloc(packlen);
     if (!pack) {
         print("malloc failed\n");
-        closesocket(sock);
         return EAI_MEMORY;
     }
 
@@ -423,15 +416,15 @@ static int dns_lookup(string_view name, addrinfo** res, int socktype,
     suf.type = DNS_AAAA;
     suf.dns_class = DNS_IN;
 
-    auto sent = send(sock, pack, (int)packlen, 0);
+    // FIXME - connect, so we get ICMP errors? (Will need to implement connect with AF_UNSPEC to disconnect.)
+
+    auto sent = sendto(sock, pack, (int)packlen, 0, (struct sockaddr*)&dest,
+                       sizeof(dest));
     if (sent < 0) {
-        print_stderr("send returned {} (errno {})\n", sent, errno_to_string_view(*_errno()));
+        print_stderr("sendto returned {} (errno {})\n", sent, errno_to_string_view(*_errno()));
         free(pack);
-        closesocket(sock);
         return EAI_SYSTEM;
     }
-
-    // FIXME - handling CNAMEs?
 
     // FIXME - can have larger packets with EDNS0
     // FIXME - TCP packets
@@ -440,7 +433,6 @@ static int dns_lookup(string_view name, addrinfo** res, int socktype,
     if (!success(status)) {
         print_stderr("NtQuerySystemTime returned {}\n", status);
         free(pack);
-        closesocket(sock);
         return EAI_SYSTEM;
     }
 
@@ -450,19 +442,19 @@ static int dns_lookup(string_view name, addrinfo** res, int socktype,
         char resp[512]; // maximum size of DNS packet
         LARGE_INTEGER now;
         pollfd pfd;
+        sockaddr_in6 src;
+        socklen_t srclen;
 
         status = NtQuerySystemTime(&now);
         if (!success(status)) {
             print_stderr("NtQuerySystemTime returned {}\n", status);
-            free(pack);
-            closesocket(sock);
-            return EAI_SYSTEM;
+            ret = EAI_SYSTEM;
+            break;
         }
 
         if (now.QuadPart >= deadline) {
-            free(pack);
-            closesocket(sock);
-            return EAI_AGAIN;
+            ret = EAI_AGAIN;
+            break;
         }
 
         pfd.fd = sock;
@@ -474,23 +466,34 @@ static int dns_lookup(string_view name, addrinfo** res, int socktype,
             ret = poll(&pfd, 1, (int)((deadline - now.QuadPart) / 10000)); // convert units of 100ns to ms
 
         if (ret == 0) {
-            free(pack);
-            closesocket(sock);
-            return EAI_AGAIN;
+            ret = EAI_AGAIN;
+            break;
         } else if (ret < 0) {
             print_stderr("poll failed (errno {})\n", errno_to_string_view(*_errno()));
-            free(pack);
-            closesocket(sock);
-            return EAI_SYSTEM;
+            ret = EAI_SYSTEM;
+            break;
         }
 
-        auto bytes = recv(sock, resp, sizeof(resp), 0);
+        srclen = sizeof(src);
+
+        auto bytes = recvfrom(sock, resp, sizeof(resp), 0, (sockaddr*)&src, &srclen);
         if (bytes < 0) {
-            print_stderr("recv returned {} (errno {})\n", bytes, errno_to_string_view(*_errno()));
-            free(pack);
-            closesocket(sock);
-            return EAI_SYSTEM;
+            print_stderr("recvfrom returned {} (errno {})\n", bytes, errno_to_string_view(*_errno()));
+            ret = EAI_SYSTEM;
+            break;
         }
+
+        // FIXME - handle case when reply comes through from previous server we tried?
+        // FIXME - move duff servers to end of the list
+
+        if (src.sin6_family != AF_INET6)
+            continue;
+
+        if (*(ipv6_address*)&src.sin6_addr != *(ipv6_address*)&dest.sin6_addr)
+            continue;
+
+        if (src.sin6_port != dest.sin6_port)
+            continue;
 
         if ((size_t)bytes < sizeof(dns_header))
             continue;
@@ -502,43 +505,39 @@ static int dns_lookup(string_view name, addrinfo** res, int socktype,
             continue;
 
         if (!h2.response) { // FIXME - wait and retry?
-            free(pack);
-            closesocket(sock);
-            return EAI_SYSTEM;
+            ret = EAI_FAIL;
+            break;
         }
 
         if (h2.qdcount != h.qdcount) { // FIXME - wait and retry?
             print_stderr("DNS server returned unexpected QDCOUNT {}\n", byteswap(h2.qdcount));
-            free(pack);
-            closesocket(sock);
-            return EAI_SYSTEM;
+            ret = EAI_FAIL;
+            break;
         }
 
         span sp((uint8_t*)resp + sizeof(dns_header), (size_t)bytes - sizeof(dns_header));
 
         if (sp.size() < question_len || memcmp(sp.data(), pack + sizeof(dns_header), question_len)) { // FIXME - wait and retry?
             print_stderr("DNS server did not return question\n");
-            free(pack);
-            closesocket(sock);
-            return EAI_SYSTEM;
+            ret = EAI_FAIL;
+            break;
         }
 
-        if (h2.rcode == 3) { // no such name
-            free(pack);
-            closesocket(sock);
-            return EAI_NONAME;
-        } else if (h2.rcode != 0) { // FIXME - wait and retry (depending on error)?
-            print_stderr("DNS server returned RCODE {}\n", +h2.rcode);
-            free(pack);
-            closesocket(sock);
-            return EAI_SYSTEM;
+        if (h2.rcode == DNS_NXDOMAIN) {
+            ret = EAI_NONAME;
+            break;
+        } else if (h2.rcode == DNS_FORMERR || h2.rcode == DNS_NOTIMP || h2.rcode > DNS_REFUSED) {
+            ret = EAI_FAIL;
+            break;
+        } else if (h2.rcode == DNS_SERVFAIL || h2.rcode == DNS_REFUSED) {
+            ret = EAI_AGAIN;
+            break;
         }
 
         if (h2.ancount == 0) { // no matching records
-            free(pack);
-            closesocket(sock);
             // Linux returns non-standard EAI_ADDRFAMILY here
-            return EAI_NONAME;
+            ret = EAI_NONAME;
+            break;
         }
 
         sp = span(sp.data() + question_len, sp.size() - question_len);
@@ -560,7 +559,7 @@ static int dns_lookup(string_view name, addrinfo** res, int socktype,
                 free(*res);
                 *res = next;
             }
-            return ret;
+            break;
         }
 
         if (*res) {
@@ -570,16 +569,71 @@ static int dns_lookup(string_view name, addrinfo** res, int socktype,
                 ai->ai_protocol = protocol;
             }
 
-            free(pack);
-            closesocket(sock);
-            return 0;
+            ret = 0;
+            break;
         }
     }
 
     free(pack);
+
+    return ret;
+}
+
+static int dns_lookup(string_view name, addrinfo** res, int socktype,
+                      int protocol, uint16_t port) {
+    nt_status status;
+    array<ipv6_address, 8> dns_servers;
+    IO_STATUS_BLOCK iosb;
+
+    auto netctl = open_netctl();
+    if (!netctl) {
+        *_errno() = ENOENT;
+        return EAI_SYSTEM;
+    }
+
+    status = NtDeviceIoControlFile(netctl.get(), 0, nullptr, nullptr, &iosb,
+                                   IOCTL_MOXNOX_NETCTL_GET_DNS_SERVERS, nullptr,
+                                   0, dns_servers.data(),
+                                   (uint32_t)(dns_servers.size() * sizeof(ipv6_address)));
+    if (!success(status)) {
+        print_stderr("IOCTL_MOXNOX_NETCTL_GET_DNS_SERVERS returned {}\n", status);
+        *_errno() = nt_status_to_errno(status);
+        return EAI_SYSTEM;
+    }
+
+    size_t num_servers = iosb.Information / sizeof(ipv6_address);
+
+    if (num_servers == 0)
+        return EAI_AGAIN;
+
+    int sock = socket(AF_INET6, SOCK_DGRAM, 0);
+    if (sock < 0) {
+        print_stderr("socket returned {} (errno {})\n", sock, errno_to_string_view(*_errno()));
+        return EAI_SYSTEM;
+    }
+
+    bool all_eai_again = true;
+
+    for (size_t i = 0; i < num_servers; i++) {
+        auto ret = dns_lookup2(sock, dns_servers[i], name, res, socktype,
+                               protocol, port);
+        if (ret != EAI_AGAIN)
+            all_eai_again = false;
+
+        if (ret != EAI_NONAME && ret != 0 && ret != EAI_MEMORY && ret != EAI_SYSTEM)
+            continue;
+
+        closesocket(sock);
+
+        return ret;
+    }
+
     closesocket(sock);
 
-    return EAI_NONAME;
+    if (all_eai_again)
+        return EAI_AGAIN;
+    else
+        return EAI_FAIL;
 }
 
 extern "C"
