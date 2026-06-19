@@ -2,7 +2,6 @@
 
 stubs_start
 
-do_stub "shutdown"
 do_stub "gethostbyname"
 do_stub "getservbyname"
 

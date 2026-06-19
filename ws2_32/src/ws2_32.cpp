@@ -388,6 +388,25 @@ int getsockopt(int s, int level, int optname, char* optval, socklen_t* optlen) {
 }
 
 extern "C"
+int shutdown(int s, int how) {
+    IO_STATUS_BLOCK iosb;
+
+    auto h = _get_osfhandle(s);
+    if (h == -1)
+        return -1;
+
+    auto status = NtDeviceIoControlFile((HANDLE)h, 0, nullptr, nullptr, &iosb,
+                                        IOCTL_MOXNOX_SOCKET_SHUTDOWN, &how,
+                                        sizeof(how), nullptr, 0);
+    if (!success(status)) {
+        *_errno() = nt_status_to_errno(status);
+        return SOCKET_ERROR;
+    }
+
+    return 0;
+}
+
+extern "C"
 int DllMainCRTStartup(HANDLE /*hinstDLL*/, uint32_t /*dwReason*/,
                       void* /*lpvReserved*/) {
     return 1;

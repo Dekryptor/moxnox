@@ -23,8 +23,8 @@ gethostname
 getsockopt
 getnameinfo
 getpeername
+shutdown
 
 ; stubs
-shutdown
 gethostbyname
 getservbyname
