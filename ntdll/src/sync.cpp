@@ -156,11 +156,30 @@ void RtlWakeAddressAll(const void* addr) {
 }
 
 extern "C"
-void RtlAcquireSRWLockExclusive(RTL_SRWLOCK* /*lock*/) {
-    print_stderr("FIXME - RtlAcquireSRWLockExclusive\n");
+void RtlAcquireSRWLockExclusive(RTL_SRWLOCK* lock) {
+    atomic_ref<uintptr_t> l(*(uintptr_t*)&lock->Ptr);
+
+    while (true) {
+        if (l.load(memory_order_relaxed) == 0) {
+            uintptr_t expected = 0;
+
+            if (l.compare_exchange_weak(expected, 1, memory_order_acquire,
+                                        memory_order_relaxed)) {
+                return;
+            }
+        }
+
+        // FIXME - NtYieldExecution?
+
+#ifdef __x86_64__
+        __asm __volatile ("pause");
+#endif
+    }
 }
 
 extern "C"
-void RtlReleaseSRWLockExclusive(RTL_SRWLOCK* /*lock*/) {
-    print_stderr("FIXME - RtlReleaseSRWLockExclusive\n");
+void RtlReleaseSRWLockExclusive(RTL_SRWLOCK* lock) {
+    atomic_ref<uintptr_t> l(*(uintptr_t*)&lock->Ptr);
+
+    l.store(0, memory_order_release);
 }
