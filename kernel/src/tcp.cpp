@@ -154,10 +154,7 @@ public:
     }
 
     nt_status setsockopt_tcp(sockopt_tcp opt, span<const uint8_t> buf) override;
-
-    nt_status shutdown(int) override {
-        return nt_status::NOT_SUPPORTED;
-    }
+    nt_status shutdown(int how) override;
 
     void received_packet(packet& pack, netif& ni, const mac_address& src_mac);
 
@@ -199,7 +196,7 @@ public:
     bool added_to_list = false;
     list_entry accepted_le;
     bool on_accepted_list = false;
-    bool dead = false;
+    atomic<bool> dead = false, shutdown_write = false;
 
 private:
     nt_status send_syn(const sockaddr_in6& c, ipv6_address& src);
@@ -2318,8 +2315,8 @@ nt_status ipv6_tcp_socket::write(span<const uint8_t> s, uint64_t& written_bytes)
         if (!success(status))
             break;
 
-        if (dead) {
-            status = nt_status::CONNECTION_DISCONNECTED;
+        if (dead || shutdown_write) {
+            status = nt_status::CONNECTION_ABORTED;
             break;
         }
 
@@ -2507,4 +2504,37 @@ nt_status ipv6_tcp_socket::setsockopt_tcp(sockopt_tcp opt, span<const uint8_t> b
             print("FIXME - setsockopt(IPPROTO_TCP, {}, {})\n", opt, buf.size());
             return nt_status::NOT_SUPPORTED;
     }
+}
+
+nt_status ipv6_tcp_socket::shutdown(int how) {
+    bool do_fin = false;
+
+    if (how != SHUT_RD && how != SHUT_WR && how != SHUT_RDWR)
+        return nt_status::INVALID_PARAMETER;
+
+    // FIXME - SHUT_RD
+
+    {
+        lock_guard lock(state_lock);
+
+        if ((how == SHUT_WR || how == SHUT_RDWR) && !shutdown_write) {
+            if (state == tcp_state::ESTABLISHED)
+                state = tcp_state::FIN_WAIT_1;
+            else if (state == tcp_state::CLOSE_WAIT)
+                state = tcp_state::LAST_ACK;
+            else
+                return nt_status::CONNECTION_DISCONNECTED;
+
+            do_fin = true;
+            shutdown_write = true;
+        }
+    }
+
+    if (do_fin)
+        send_fin();
+
+    if (how == SHUT_WR || how == SHUT_RDWR)
+        set_event(static_cast<event&>(send_window_open_event.get()));
+
+    return nt_status::SUCCESS;
 }
