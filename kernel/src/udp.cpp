@@ -5,6 +5,7 @@ module;
 #include <algorithm>
 #include <span>
 #include <bit>
+#include <atomic>
 
 module net;
 
@@ -63,9 +64,7 @@ public:
         return do_recvfrom<true>(buf, len, flags, from, fromlen, recv_bytes);
     }
 
-    nt_status shutdown(int) override {
-        return nt_status::NOT_SUPPORTED;
-    }
+    nt_status shutdown(int how) override;
 
     spinlock buffer_lock;
     list_entry buffer = { &buffer, &buffer };
@@ -76,7 +75,7 @@ public:
     uint32_t connected_scope = 0;
     ipv6_address bound_address, connected_address;
     nt_status pending_error = nt_status::SUCCESS;
-    bool dead = false;
+    atomic<bool> dead = false, shutdown_read = false, shutdown_write = false;
 
 private:
     template<bool NONBLOCK>
@@ -273,6 +272,8 @@ nt_status ipv6_udp_socket::do_recvfrom(char* us_buf, size_t len, int flags,
 
     auto& t = *get_current_thread();
 
+    recv_bytes = 0;
+
     acquire();
 
     while (true) {
@@ -299,7 +300,8 @@ nt_status ipv6_udp_socket::do_recvfrom(char* us_buf, size_t len, int flags,
         if (dead) {
             release();
             return nt_status::CONNECTION_DISCONNECTED;
-        }
+        } else if (shutdown_read)
+            break;
 
         ipv6_socket_packet* sp = nullptr;
         nt_status error = nt_status::SUCCESS;
@@ -430,6 +432,9 @@ nt_status ipv6_udp_socket::sendto(const char* buf, size_t len, int flags,
 
     if (!connected && (!to || tolen < 0 || (size_t)tolen < sizeof(sockaddr_in6)))
         return nt_status::INVALID_PARAMETER;
+
+    if (shutdown_write)
+        return nt_status::CONNECTION_ABORTED;
 
     if (flags != 0)
         return nt_status::INVALID_PARAMETER;
@@ -854,6 +859,37 @@ nt_status ipv6_udp_socket::getpeername(span<uint8_t> buf, size_t& len) {
     }
 
     len = sizeof(sockaddr_in6);
+
+    return nt_status::SUCCESS;
+}
+
+nt_status ipv6_udp_socket::shutdown(int how) {
+    if (how != SHUT_RD && how != SHUT_WR && how != SHUT_RDWR)
+        return nt_status::INVALID_PARAMETER;
+
+    {
+        lock_guard lock(bind_lock);
+
+        if (!connect_done)
+            return nt_status::CONNECTION_DISCONNECTED;
+    }
+
+    if (how == SHUT_RD || how == SHUT_RDWR) {
+        shutdown_read = true;
+
+        {
+            sync_lock sl;
+            lock_guard lock(sl);
+
+            if (!signalled) {
+                wake_up_waiters(waiters);
+                signalled = true;
+            }
+        }
+    }
+
+    if (how == SHUT_WR || how == SHUT_RDWR)
+        shutdown_write = true;
 
     return nt_status::SUCCESS;
 }
