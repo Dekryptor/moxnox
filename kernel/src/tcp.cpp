@@ -1098,7 +1098,7 @@ void ipv6_tcp_socket::received_packet(packet& pack, netif& ni,
             if (seq > recv_next) {
                 auto data_len = (uint32_t)(pack.size - header_length - sizeof(ipv6_header));
 
-                if (data_len <= recv_window) {
+                if (data_len <= recv_window && !shutdown_read) {
                     recv_window -= (uint16_t)data_len;
 
                     insert_tail_list(ooo_buffer, p->le);
@@ -1108,7 +1108,7 @@ void ipv6_tcp_socket::received_packet(packet& pack, netif& ni,
                 // send ACK for packet we've already received
                 ack = recv_next;
             } else {
-                if (pack.size > header_length + sizeof(ipv6_header)) {
+                if (pack.size > header_length + sizeof(ipv6_header) && !shutdown_read) {
                     insert_tail_list(buffer, p->le);
                     added = true;
                 }
@@ -1155,7 +1155,11 @@ void ipv6_tcp_socket::received_packet(packet& pack, netif& ni,
                             break;
                         } else {
                             remove_entry_list(p2.le);
-                            insert_tail_list(buffer, p2.le);
+
+                            if (!shutdown_read)
+                                insert_tail_list(buffer, p2.le);
+                            else
+                                delete &p2;
                         }
                     }
                 }
@@ -1164,11 +1168,13 @@ void ipv6_tcp_socket::received_packet(packet& pack, netif& ni,
                     data_len = recv_window;
 
                 ack = recv_next;
-                recv_window -= (uint16_t)data_len;
+
+                if (!shutdown_read)
+                    recv_window -= (uint16_t)data_len;
             }
         }
 
-        if (clear_ooo) {
+        if (clear_ooo || shutdown_read) {
             while (true) {
                 ipv6_socket_packet* p;
 
