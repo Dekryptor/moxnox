@@ -63,6 +63,10 @@ public:
         return do_recvfrom<true>(buf, len, flags, from, fromlen, recv_bytes);
     }
 
+    nt_status shutdown(int) override {
+        return nt_status::NOT_SUPPORTED;
+    }
+
     spinlock buffer_lock;
     list_entry buffer = { &buffer, &buffer };
     size_t buffer_size = 0;

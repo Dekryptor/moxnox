@@ -86,6 +86,10 @@ public:
         return do_recvfrom<true>(buf, len, flags, from, fromlen, recv_bytes);
     }
 
+    nt_status shutdown(int) override {
+        return nt_status::NOT_SUPPORTED;
+    }
+
     list_entry le;
     int protocol;
     bool added_to_list = false;
@@ -2667,6 +2671,15 @@ nt_status socket::do_setsockopt(span<const uint8_t> inbuf) {
     return status;
 }
 
+nt_status socket::do_shutdown(span<const uint8_t> inbuf) {
+    if (inbuf.size() < sizeof(int))
+        return nt_status::BUFFER_TOO_SMALL;
+
+    auto how = *(int*)inbuf.data();
+
+    return this->shutdown(how);
+}
+
 nt_status socket::ioctl(uint32_t code, span<const uint8_t> inbuf,
                         span<uint8_t> outbuf, uintptr_t& written_bytes,
                         bool nonblock) {
@@ -2700,6 +2713,9 @@ nt_status socket::ioctl(uint32_t code, span<const uint8_t> inbuf,
 
         case IOCTL_MOXNOX_SOCKET_SETSOCKOPT:
             return do_setsockopt(inbuf);
+
+        case IOCTL_MOXNOX_SOCKET_SHUTDOWN:
+            return do_shutdown(inbuf);
 
         default:
             return nt_status::INVALID_PARAMETER;

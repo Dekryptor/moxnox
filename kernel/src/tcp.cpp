@@ -155,6 +155,10 @@ public:
 
     nt_status setsockopt_tcp(sockopt_tcp opt, span<const uint8_t> buf) override;
 
+    nt_status shutdown(int) override {
+        return nt_status::NOT_SUPPORTED;
+    }
+
     void received_packet(packet& pack, netif& ni, const mac_address& src_mac);
 
     bool init = false;

@@ -168,6 +168,7 @@ public:
     virtual nt_status recvfrom_nonblock(char* buf, size_t len, int flags,
                                         sockaddr* from, int* fromlen,
                                         size_t& recv_bytes) = 0;
+    virtual nt_status shutdown(int how) = 0;
 
     virtual nt_status setsockopt_tcp(sockopt_tcp, span<const uint8_t>) {
         return nt_status::NOT_SUPPORTED;
@@ -191,6 +192,7 @@ private:
     nt_status getsockopt_error(span<uint8_t> buf, socklen_t& retlen);
     nt_status do_setsockopt(span<const uint8_t> inbuf);
     nt_status setsockopt(int level, int optname, span<const uint8_t> buf);
+    nt_status do_shutdown(span<const uint8_t> inbuf);
 };
 
 static_assert(has_ioctls<class socket>);
