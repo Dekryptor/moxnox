@@ -952,9 +952,9 @@ static void handle_router_advertisement(netif& ni, packet& pack) {
             }
 
             case ndp_option_type::prefix_info: {
-                if (opts.size() * 8 < sizeof(ndp_option_prefix_info)) {
+                if (opt.length * 8 < sizeof(ndp_option_prefix_info)) {
                     print("handle_router_advertisement: prefix info was {} bytes, expected {}\n",
-                          opts.size() * 8, sizeof(ndp_option_prefix_info));
+                          opt.length * 8, sizeof(ndp_option_prefix_info));
                     break;
                 }
 
