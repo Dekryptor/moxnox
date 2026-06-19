@@ -99,6 +99,10 @@ struct linger {
 #define MSG_CMSG_CLOEXEC (1 << 8)
 #define MSG_CMSG_CLOFORK (1 << 9)
 
+#define SHUT_RD 0
+#define SHUT_WR 1
+#define SHUT_RDWR 2
+
 #ifdef __cplusplus
 extern "C" {
 #endif

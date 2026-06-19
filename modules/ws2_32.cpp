@@ -247,6 +247,10 @@ constexpr int _TCP_ZEROCOPY_RECEIVE = TCP_ZEROCOPY_RECEIVE;
 constexpr int _TCP_INQ = TCP_INQ;
 constexpr int _TCP_TX_DELAY = TCP_TX_DELAY;
 
+constexpr int _SHUT_RD = SHUT_RD;
+constexpr int _SHUT_WR = SHUT_WR;
+constexpr int _SHUT_RDWR = SHUT_RDWR;
+
 export {
 
 using SOCKET = int;
@@ -616,6 +620,14 @@ constexpr int TCP_FASTOPEN_NO_COOKIE = _TCP_FASTOPEN_NO_COOKIE;
 constexpr int TCP_ZEROCOPY_RECEIVE = _TCP_ZEROCOPY_RECEIVE;
 constexpr int TCP_INQ = _TCP_INQ;
 constexpr int TCP_TX_DELAY = _TCP_TX_DELAY;
+
+#undef SHUT_RD
+#undef SHUT_WR
+#undef SHUT_RDWR
+
+constexpr int SHUT_RD = _SHUT_RD;
+constexpr int SHUT_WR = _SHUT_WR;
+constexpr int SHUT_RDWR = _SHUT_RDWR;
 
 enum class sockopt_socket {
     DEBUG = SO_DEBUG,
