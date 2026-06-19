@@ -9,6 +9,7 @@
 #include <pwd.h>
 #include <unistd.h>
 #include <getopt.h>
+#include <glob.h>
 #include <readline/readline.h>
 #include <readline/history.h>
 #include <span>
@@ -278,20 +279,193 @@ static bool set_pty_fg_proc(HANDLE client_handle, HANDLE proc) {
     return true;
 }
 
+static bool munge_cmdline(string_view cmdline, char16_t*& retptr) {
+    bool bs = false, quote = false;
+    size_t param_start = 0;
+    size_t num_params = 0;
+    string_view* params = nullptr;
+
+    for (size_t i = 0; i < cmdline.size(); i++) {
+        auto c = cmdline[i];
+
+        if (bs)
+            bs = false;
+        else if (c == '\\') {
+            bs = true;
+            continue;
+        } else if (c == '"') {
+            if (quote) {
+                num_params++;
+                params = (string_view*)realloc(params, num_params * sizeof(string_view));
+                if (!params) {
+                    print_stderr("realloc failed\n");
+                    return false;
+                }
+
+                params[num_params - 1] = string_view(cmdline.data() + param_start,
+                                                     i - param_start + 1);
+
+                quote = false;
+                param_start = i + 1;
+            } else {
+                quote = true;
+                param_start = i;
+            }
+        } else if (c == ' ' && !quote) {
+            if (i != param_start) {
+                num_params++;
+                params = (string_view*)realloc(params, num_params * sizeof(string_view));
+                if (!params) {
+                    print_stderr("realloc failed\n");
+                    return false;
+                }
+
+                params[num_params - 1] = string_view(cmdline.data() + param_start,
+                                                     i - param_start);
+            }
+
+            param_start = i + 1;
+        }
+    }
+
+    if (quote) {
+        print_stderr("error: unterminated quote\n");
+
+        // FIXME - bash lets you carry on typing here
+
+        if (params)
+            free(params);
+
+        return false;
+    }
+
+    if (param_start != cmdline.size()) {
+        num_params++;
+        params = (string_view*)realloc(params, num_params * sizeof(string_view));
+        if (!params) {
+            print_stderr("realloc failed\n");
+            return false;
+        }
+
+        params[num_params - 1] = string_view(cmdline.data() + param_start,
+                                             cmdline.size() - param_start);
+    }
+
+    char16_t* u16cmdline = nullptr;
+    size_t u16len = 0;
+
+    for (size_t i = 0; i < num_params; i++) {
+        int ret;
+        glob_t g;
+
+        if (i != 0 && params[i][0] != '"') {
+            auto s = (char*)malloc(params[i].size() + 1);
+            if (!s) {
+                print_stderr("malloc failed\n");
+                free(params);
+
+                if (u16cmdline)
+                    free(u16cmdline);
+
+                return false;
+            }
+
+            memcpy(s, params[i].data(), params[i].size());
+            s[params[i].size()] = 0;
+
+            ret = glob(s, 0, nullptr, &g);
+
+            free(s);
+        } else
+            ret = GLOB_NOMATCH;
+
+        if (ret != 0 && ret != GLOB_NOMATCH) {
+            print_stderr("glob returned {}\n", ret);
+            free(params);
+
+            if (u16cmdline)
+                free(u16cmdline);
+
+            return false;
+        }
+
+        auto add_param = [&u16cmdline, &u16len](string_view param) {
+            auto param_len = utf8_to_utf16_len(param);
+
+            auto newlen = u16len + param_len;
+
+            if (u16len != 0)
+                newlen++;
+
+            u16cmdline = (char16_t*)realloc(u16cmdline, newlen * sizeof(char16_t));
+            if (!u16cmdline) {
+                print_stderr("realloc failed\n");
+                return false;
+            }
+
+            if (u16len != 0) {
+                u16cmdline[u16len] = ' ';
+                u16len++;
+            }
+
+            utf8_to_utf16(span(u16cmdline + u16len, param_len), param);
+            u16len = newlen;
+
+            return true;
+        };
+
+        if (!ret) {
+            // FIXME - will need to put name in quotes if it contains a space
+            // FIXME - what if it contains a double quote - escape it?
+            for (size_t i = 0; i < g.gl_pathc; i++) {
+                if (!add_param(g.gl_pathv[i])) {
+                    globfree(&g);
+                    free(params);
+
+                    if (u16cmdline)
+                        free(u16cmdline);
+
+                    return false;
+                }
+            }
+
+            globfree(&g);
+        } else {
+            if (!add_param(params[i])) {
+                free(params);
+
+                if (u16cmdline)
+                    free(u16cmdline);
+
+                return false;
+            }
+        }
+    }
+
+    if (params)
+        free(params);
+
+    u16cmdline = (char16_t*)realloc(u16cmdline, (u16len + 1) * sizeof(char16_t));
+    if (!u16cmdline) {
+        print_stderr("realloc failed\n");
+        return false;
+    }
+
+    u16cmdline[u16len] = 0;
+
+    retptr = u16cmdline;
+
+    return true;
+}
+
 static void try_run_program(string_view program, string_view cmdline) {
     termios tc_settings;
     bool tc_settings_valid;
+    char16_t* u16cmdline;
     auto& peb = *NtCurrentTeb()->ProcessEnvironmentBlock;
 
-    auto u16cmdlinelen = utf8_to_utf16_len(cmdline);
-    auto u16cmdline = (char16_t*)malloc((u16cmdlinelen + 1) * sizeof(char16_t));
-    if (!u16cmdline) {
-        print_stderr("malloc failed\n");
+    if (!munge_cmdline(cmdline, u16cmdline))
         return;
-    }
-
-    utf8_to_utf16(span(u16cmdline, u16cmdlinelen), cmdline);
-    u16cmdline[u16cmdlinelen] = 0;
 
     STARTUPINFOW si;
     PROCESS_INFORMATION pi;
