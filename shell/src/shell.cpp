@@ -650,8 +650,8 @@ static void get_prompt() {
     // FIXME - parse PS1 environment variable
     // FIXME - prompt_buf not freed on exit
 
-    static const string_view prefix = "\e[01;34m";
-    static const string_view suffix = " $ \e[0m";
+    static const string_view prefix = "\x01\e[01;34m\x02";
+    static const string_view suffix = " $ \x01\e[0m\x02";
 
     status = NtQueryInformationFile(cwd, &iosb, &fni, sizeof(fni),
                                     FILE_INFORMATION_CLASS::NameInformation);
