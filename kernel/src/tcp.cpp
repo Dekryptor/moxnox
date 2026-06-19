@@ -196,7 +196,7 @@ public:
     bool added_to_list = false;
     list_entry accepted_le;
     bool on_accepted_list = false;
-    atomic<bool> dead = false, shutdown_write = false;
+    atomic<bool> dead = false, shutdown_write = false, shutdown_read = false;
 
 private:
     nt_status send_syn(const sockaddr_in6& c, ipv6_address& src);
@@ -1630,7 +1630,7 @@ nt_status ipv6_tcp_socket::do_recvfrom(char* buf, size_t len, int flags,
             }
         }
 
-        if (dead)
+        if (dead || shutdown_read)
             break;
 
         size_t removed_bytes = 0;
@@ -1752,7 +1752,7 @@ nt_status ipv6_tcp_socket::do_recvfrom(char* buf, size_t len, int flags,
     release();
 
     if (dead)
-        return nt_status::CONNECTION_DISCONNECTED;
+        return nt_status::CONNECTION_ABORTED;
 
     return nt_status::SUCCESS;
 }
@@ -2512,8 +2512,6 @@ nt_status ipv6_tcp_socket::shutdown(int how) {
     if (how != SHUT_RD && how != SHUT_WR && how != SHUT_RDWR)
         return nt_status::INVALID_PARAMETER;
 
-    // FIXME - SHUT_RD
-
     {
         lock_guard lock(state_lock);
 
@@ -2528,6 +2526,9 @@ nt_status ipv6_tcp_socket::shutdown(int how) {
             do_fin = true;
             shutdown_write = true;
         }
+
+        if ((how == SHUT_RD || how == SHUT_RDWR) && !shutdown_read)
+            shutdown_read = true;
     }
 
     if (do_fin)
@@ -2535,6 +2536,16 @@ nt_status ipv6_tcp_socket::shutdown(int how) {
 
     if (how == SHUT_WR || how == SHUT_RDWR)
         set_event(static_cast<event&>(send_window_open_event.get()));
+
+    if (how == SHUT_RD || how == SHUT_RDWR) {
+        sync_lock sl;
+        lock_guard lock(sl);
+
+        if (!signalled) {
+            wake_up_waiters(waiters);
+            signalled = true;
+        }
+    }
 
     return nt_status::SUCCESS;
 }
