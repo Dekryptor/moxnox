@@ -179,10 +179,16 @@ openssl_patch(crypto/o_fopen.c
 )
 
 openssl_patch(providers/implementations/rands/seeding/rand_win.c
-    -e [[s|#ifdef USE_BCRYPTGENRANDOM\n#include <bcrypt.h>|#if defined(MOXNOX)\n#include <unistd.h>\n#elif defined(USE_BCRYPTGENRANDOM)\n#include <bcrypt.h>|g]]
+    -e [[s|#ifdef USE_BCRYPTGENRANDOM\n#include <bcrypt.h>|#if defined(MOXNOX)\n#include <unistd.h>\n#include <time.h>\n#elif defined(USE_BCRYPTGENRANDOM)\n#include <bcrypt.h>|g]]
     -e [[s|#ifndef USE_BCRYPTGENRANDOM\n    HCRYPTPROV hProvider\;\n#endif|#if !defined(USE_BCRYPTGENRANDOM) \&\& !defined(MOXNOX)\n    HCRYPTPROV hProvider\;\n#endif|g]]
     -e [[s|#ifdef USE_BCRYPTGENRANDOM\n    bytes_needed|#if defined(MOXNOX)\n    bytes_needed = ossl_rand_pool_bytes_needed(pool, 1 /*entropy_factor*/)\;\n    buffer = ossl_rand_pool_add_begin(pool, bytes_needed)\;\n    if (buffer != NULL) {\n        size_t bytes = 0\;\n\n        while (bytes < bytes_needed) {\n            size_t chunk = bytes_needed - bytes\;\n\n            if (chunk > 256)\n                chunk = 256\;\n\n            if (getentropy(buffer + bytes, chunk) != 0)\n                break\;\n\n            bytes += chunk\;\n        }\n\n        ossl_rand_pool_add_end(pool, bytes, 8 * bytes)\;\n        entropy_available = ossl_rand_pool_entropy_available(pool)\;\n    }\n    if (entropy_available > 0)\n        return entropy_available\;\n#elif defined(USE_BCRYPTGENRANDOM)\n    bytes_needed|g]]
     -e [[s|    data.pid = GetCurrentProcessId()\;|#ifdef MOXNOX\n    data.pid = (DWORD)getpid()\;\n#else\n    data.pid = GetCurrentProcessId()\;\n#endif|g]]
+    -e [[s|    GetSystemTimeAsFileTime(&data.time)\;|#ifdef MOXNOX\n    {\n        struct timespec ts\;\n        clock_gettime(CLOCK_MONOTONIC, \&ts)\;\n        data.time.dwLowDateTime = (DWORD)ts.tv_nsec\;\n        data.time.dwHighDateTime = (DWORD)ts.tv_sec\;\n    }\n#else\n    GetSystemTimeAsFileTime(\&data.time)\;\n#endif|g]]
+)
+
+# avoid WideCharToMultiByte
+openssl_patch(crypto/rand/randfile.c
+    -e [[s|#if defined(_WIN32) && defined(CP_UTF8) && !defined(_WIN32_WCE)|#if defined(_WIN32) \&\& defined(CP_UTF8) \&\& !defined(_WIN32_WCE) \&\& !defined(MOXNOX)|g]]
 )
 
 add_library(libcrypto SHARED
@@ -758,7 +764,7 @@ add_library(libcrypto SHARED
     repo/crypto/rand/rand_meth.c
     repo/crypto/rand/rand_pool.c
     repo/crypto/rand/rand_uniform.c
-    repo/crypto/rand/randfile.c
+    ${GEN}/crypto/rand/randfile.c
     repo/crypto/rc2/rc2_cbc.c
     repo/crypto/rc2/rc2_ecb.c
     repo/crypto/rc2/rc2_skey.c
