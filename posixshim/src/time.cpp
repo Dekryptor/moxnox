@@ -4,6 +4,7 @@
 import errno;
 
 import nt;
+import ntdll;
 import ucrtbase;
 
 extern "C"
@@ -32,4 +33,42 @@ int gettimeofday(struct timeval* tv, void* /*tz*/) {
     tv->tv_usec = (long)(t % 1000000);
 
     return 0;
+}
+
+static int clock_gettime_monotonic(timespec& tp) {
+    LARGE_INTEGER count, freq;
+
+    if (!RtlQueryPerformanceCounter(&count)) {
+        *_errno() = EINVAL;
+        return -1;
+    }
+
+    if (!RtlQueryPerformanceFrequency(&freq)) {
+        *_errno() = EINVAL;
+        return -1;
+    }
+
+    tp.tv_sec = count.QuadPart / freq.QuadPart;
+
+    auto frac = (uint64_t)(count.QuadPart % freq.QuadPart);
+
+    tp.tv_nsec = (long)((frac * 1000000000) / freq.QuadPart);
+
+    return 0;
+}
+
+extern "C"
+int clock_gettime(clockid_t clockid, timespec* tp) {
+    switch (clockid) {
+        case CLOCK_MONOTONIC:
+            return clock_gettime_monotonic(*tp);
+
+        // FIXME - CLOCK_REALTIME
+        // FIXME - CLOCK_PROCESS_CPUTIME_ID
+        // FIXME - CLOCK_THREAD_CPUTIME_ID
+
+        default:
+            *_errno() = EINVAL;
+            return -1;
+    }
 }
