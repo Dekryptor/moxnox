@@ -7,6 +7,7 @@ extern "C" {
 #endif
 
 char* strcasestr(const char* haystack, const char* needle);
+char* strdup(const char* s);
 
 #ifdef __cplusplus
 }
