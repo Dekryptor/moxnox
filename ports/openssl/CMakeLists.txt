@@ -1487,3 +1487,5 @@ add_custom_target(openssl_gen_headers DEPENDS
 add_dependencies(libcrypto openssl_gen_headers openssl_generate)
 add_dependencies(libssl openssl_gen_headers openssl_generate)
 add_dependencies(openssl_exe openssl_gen_headers openssl_generate)
+
+install(FILES cert.pem DESTINATION ${CMAKE_INSTALL_PREFIX}/etc/ssl)
