@@ -58,3 +58,6 @@
 [submodule "ports/openssl/repo"]
 	path = ports/openssl/repo
 	url = https://git.burntcomma.com/moxnox/openssl
+[submodule "ports/libarchive/repo"]
+	path = ports/libarchive/repo
+	url = https://git.burntcomma.com/moxnox/libarchive

@@ -5,6 +5,7 @@
     "gnulib": [],
     "harfbuzz": ["freetype"],
     "less": ["ncurses"],
+    "libarchive": ["zlib", "zstd"],
     "libpng": ["zlib"],
     "nano": ["gnulib", "ncurses"],
     "ncurses": [],
