@@ -240,6 +240,7 @@ tmpfile
 _pipe
 _popen
 _pclose
+setbuf
 
 ; stubs
 ___lc_codepage_func
@@ -255,7 +256,6 @@ _execl
 _execlp
 _execve
 _mktemp
-setbuf
 mbstowcs
 _fullpath
 strtoimax

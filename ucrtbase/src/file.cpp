@@ -807,6 +807,11 @@ int setvbuf(FILE* /*stream*/, char* /*buffer*/, int /*mode*/, size_t /*size*/) {
     return 0;
 }
 
+extern "C"
+void setbuf(FILE* file, char* buf) {
+    setvbuf(file, buf, buf ? _IOFBF : _IONBF, BUFSIZ);
+}
+
 static int do_fstat(HANDLE h, struct ::_stat64* st) {
     nt_status status;
     IO_STATUS_BLOCK iosb;
