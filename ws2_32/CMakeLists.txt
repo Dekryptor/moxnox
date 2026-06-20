@@ -9,7 +9,6 @@ enable_language(ASM)
 
 set(SRC_FILES src/ws2_32.def
     src/ws2_32.cpp
-    src/stubs.S
     src/getaddrinfo.cpp
 )
 

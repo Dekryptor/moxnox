@@ -52,8 +52,6 @@ export using ::getaddrinfo;
 export using ::servent;
 export using ::hostent;
 export using ::getnameinfo;
-export using ::getservbyname;
-export using ::gethostbyname;
 
 // arpa/inet.h
 export using ::htonl;

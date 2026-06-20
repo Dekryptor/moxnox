@@ -24,7 +24,3 @@ getsockopt
 getnameinfo
 getpeername
 shutdown
-
-; stubs
-gethostbyname
-getservbyname
