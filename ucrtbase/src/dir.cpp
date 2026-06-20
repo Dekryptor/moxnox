@@ -1,6 +1,7 @@
 #include <stdint.h>
 #include <stdlib.h>
 #include <string.h>
+#include <limits.h>
 #include <string_view>
 #include <span>
 #include <mutex>
@@ -182,4 +183,114 @@ int _chdir(const char* path) {
     }
 
     return 0;
+}
+
+extern "C"
+char* __fullpath(char* abs_path, const char* rel_path, size_t size) {
+    char tmp[PATH_MAX], canon[PATH_MAX];
+    size_t canon_len = 1;
+
+    if (!rel_path || rel_path[0] == 0) {
+        if (!_getcwd(tmp, PATH_MAX))
+            return nullptr;
+    } else if (rel_path[0] == '/') {
+        if (strlen(rel_path) >= PATH_MAX) {
+            *__errno() = ERANGE;
+            return nullptr;
+        }
+
+        strcpy(tmp, rel_path);
+    } else {
+        if (!_getcwd(tmp, PATH_MAX))
+            return nullptr;
+
+        auto cwd_len = strlen(tmp);
+
+        if (cwd_len + 1 + strlen(rel_path) >= PATH_MAX) {
+            *__errno() = ERANGE;
+            return nullptr;
+        }
+
+        tmp[cwd_len] = '/';
+        strcpy(tmp + cwd_len + 1, rel_path);
+    }
+
+    canon[0] = '/';
+    canon[1] = 0;
+
+    char* p = tmp;
+
+    if (*p == '/')
+        p++;
+
+    while (*p) {
+        while (*p == '/') {
+            p++;
+        }
+
+        if (!*p)
+            break;
+
+        char* comp = p;
+        while (*p && *p != '/') {
+            p++;
+        }
+
+        auto comp_len = (size_t)(p - comp);
+
+        if (comp_len == 2 && comp[0] == '.' && comp[1] == '.') {
+            char* last = canon + canon_len - 1;
+
+            while (last > canon && *last != '/') {
+                last--;
+            }
+
+            if (last == canon)
+                canon_len = 1;
+            else
+                canon_len = (size_t)(last - canon);
+
+            canon[canon_len] = '\0';
+        } else if (comp_len != 1 || comp[0] != '.') {
+            size_t need = canon_len + comp_len + 1;
+
+            if (canon_len > 1)
+                need++;
+
+            if (need > PATH_MAX) {
+                *__errno() = ERANGE;
+                return nullptr;
+            }
+
+            if (canon_len > 1) {
+                canon[canon_len] = '/';
+                canon_len++;
+            }
+
+            memcpy(canon + canon_len, comp, comp_len);
+            canon_len += comp_len;
+            canon[canon_len] = '\0';
+        }
+    }
+
+    char* ret;
+
+    if (abs_path) {
+        if (canon_len + 1 > size) {
+            *__errno() = ERANGE;
+            return nullptr;
+        }
+
+        ret = abs_path;
+    } else {
+        ret = (char*)malloc(canon_len + 1);
+        if (!ret) {
+            *__errno() = ENOMEM;
+            return nullptr;
+        }
+    }
+
+    memcpy(ret, canon, canon_len + 1);
+
+    return ret;
 }

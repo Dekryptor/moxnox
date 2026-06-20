@@ -16,7 +16,6 @@ do_stub "_execlp"
 do_stub "_execve"
 do_stub "_mktemp"
 do_stub "mbstowcs"
-do_stub "_fullpath"
 do_stub "fputwc"
 
 stubs_end

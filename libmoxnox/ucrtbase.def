@@ -243,6 +243,7 @@ _pclose
 setbuf
 strtoimax
 strtoumax
+_fullpath
 
 ; stubs
 ___lc_codepage_func
@@ -259,5 +260,4 @@ _execlp
 _execve
 _mktemp
 mbstowcs
-_fullpath
 fputwc

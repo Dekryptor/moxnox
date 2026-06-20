@@ -271,3 +271,4 @@ _pclose = __pclose
 setbuf
 strtoimax
 strtoumax
+_fullpath = __fullpath
