@@ -23,7 +23,7 @@
  ***************************************************************************/
 
 /* Location of default ca bundle */
-/* #undef CURL_CA_BUNDLE */
+#define CURL_CA_BUNDLE "/etc/ssl/cert.pem"
 
 /* define "1" to use built-in ca store of TLS backend */
 /* #undef CURL_CA_FALLBACK */
