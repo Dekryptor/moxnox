@@ -672,7 +672,7 @@
 /* #undef USE_OPENLDAP */
 
 /* if OpenSSL is in use */
-/* #undef USE_OPENSSL */
+#define USE_OPENSSL 1
 
 /* if AmiSSL is in use */
 /* #undef USE_AMISSL */

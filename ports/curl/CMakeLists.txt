@@ -271,7 +271,7 @@ target_include_directories(libcurl PUBLIC ${CURL_GEN}/include repo/include)
 
 target_compile_definitions(libcurl PRIVATE BUILDING_LIBCURL HAVE_CONFIG_H)
 
-target_link_libraries(libcurl PRIVATE posixshim zlib zstd)
+target_link_libraries(libcurl PRIVATE posixshim zlib zstd libssl libcrypto)
 
 target_compile_options(libcurl PRIVATE
     ${USERSPACE_CFLAGS}
