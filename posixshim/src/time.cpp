@@ -57,13 +57,34 @@ static int clock_gettime_monotonic(timespec& tp) {
     return 0;
 }
 
+static int clock_gettime_realtime(timespec& tp) {
+    LARGE_INTEGER li;
+
+    auto status = NtQuerySystemTime(&li);
+    if (!success(status)) {
+        *_errno() = nt_status_to_errno(status);
+        return -1;
+    }
+
+    auto t = (uint64_t)li.QuadPart; // units of 100ns
+
+    t -= 116444736000000000; // change from NT to Unix epoch
+
+    tp.tv_sec = t / 10000000;
+    tp.tv_nsec = (long)((t % 10000000) * 100);
+
+    return 0;
+}
+
 extern "C"
 int clock_gettime(clockid_t clockid, timespec* tp) {
     switch (clockid) {
         case CLOCK_MONOTONIC:
             return clock_gettime_monotonic(*tp);
 
-        // FIXME - CLOCK_REALTIME
+        case CLOCK_REALTIME:
+            return clock_gettime_realtime(*tp);
+
         // FIXME - CLOCK_PROCESS_CPUTIME_ID
         // FIXME - CLOCK_THREAD_CPUTIME_ID
 

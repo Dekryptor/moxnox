@@ -12,6 +12,7 @@
 typedef int32_t clockid_t;
 
 #define CLOCK_MONOTONIC 1
+#define CLOCK_REALTIME 2
 
 #ifdef __cplusplus
 extern "C" {
