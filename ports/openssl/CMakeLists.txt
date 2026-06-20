@@ -16,8 +16,8 @@ add_custom_command(
             no-asm no-async no-engine no-module no-dso
             no-threads no-thread-pool no-default-thread-pool
             no-tests no-docs no-quic no-ui-console
-            no-winstore no-secure-memory
-            --prefix=/usr --openssldir=/etc/ssl
+            no-winstore no-secure-memory no-deprecated
+            --prefix=/usr --openssldir=/etc/ssl --api=1.1.0
     DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/repo/Configure
     WORKING_DIRECTORY ${GEN}
     VERBATIM
@@ -311,7 +311,6 @@ add_library(libcrypto SHARED
     repo/crypto/bn/bn_const.c
     repo/crypto/bn/bn_conv.c
     repo/crypto/bn/bn_ctx.c
-    repo/crypto/bn/bn_depr.c
     repo/crypto/bn/bn_dh.c
     repo/crypto/bn/bn_div.c
     repo/crypto/bn/bn_err.c
@@ -448,7 +447,6 @@ add_library(libcrypto SHARED
     repo/crypto/dh/dh_asn1.c
     repo/crypto/dh/dh_backend.c
     repo/crypto/dh/dh_check.c
-    repo/crypto/dh/dh_depr.c
     repo/crypto/dh/dh_err.c
     repo/crypto/dh/dh_gen.c
     repo/crypto/dh/dh_group_params.c
@@ -459,12 +457,10 @@ add_library(libcrypto SHARED
     repo/crypto/dh/dh_pmeth.c
     repo/crypto/dh/dh_prn.c
     repo/crypto/dh/dh_rfc5114.c
-    repo/crypto/dllmain.c
     repo/crypto/dsa/dsa_ameth.c
     repo/crypto/dsa/dsa_asn1.c
     repo/crypto/dsa/dsa_backend.c
     repo/crypto/dsa/dsa_check.c
-    repo/crypto/dsa/dsa_depr.c
     repo/crypto/dsa/dsa_err.c
     repo/crypto/dsa/dsa_gen.c
     repo/crypto/dsa/dsa_key.c
@@ -564,7 +560,6 @@ add_library(libcrypto SHARED
     repo/crypto/evp/e_des3.c
     repo/crypto/evp/e_idea.c
     repo/crypto/evp/e_null.c
-    repo/crypto/evp/e_old.c
     repo/crypto/evp/e_rc2.c
     repo/crypto/evp/e_rc4.c
     repo/crypto/evp/e_rc4_hmac_md5.c
@@ -779,7 +774,6 @@ add_library(libcrypto SHARED
     repo/crypto/rsa/rsa_backend.c
     repo/crypto/rsa/rsa_chk.c
     repo/crypto/rsa/rsa_crpt.c
-    repo/crypto/rsa/rsa_depr.c
     repo/crypto/rsa/rsa_err.c
     repo/crypto/rsa/rsa_gen.c
     repo/crypto/rsa/rsa_lib.c
