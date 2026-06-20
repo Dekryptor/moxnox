@@ -241,6 +241,8 @@ _pipe
 _popen
 _pclose
 setbuf
+strtoimax
+strtoumax
 
 ; stubs
 ___lc_codepage_func
@@ -258,6 +260,4 @@ _execve
 _mktemp
 mbstowcs
 _fullpath
-strtoimax
-strtoumax
 fputwc

@@ -2,6 +2,7 @@
 #include <stdlib.h>
 
 #include <string.h>
+#include <stdint.h>
 #include <ctype.h>
 #include <string_view>
 #include <limits>
@@ -269,6 +270,16 @@ long strtol(const char* nptr, char** endptr, int base) {
 extern "C"
 unsigned long strtoul(const char* nptr, char** endptr, int base) {
     return strto<unsigned long>(nptr, endptr, base);
+}
+
+extern "C"
+intmax_t strtoimax(const char* nptr, char** endptr, int base) {
+    return strto<intmax_t>(nptr, endptr, base);
+}
+
+extern "C"
+uintmax_t strtoumax(const char* nptr, char** endptr, int base) {
+    return strto<uintmax_t>(nptr, endptr, base);
 }
 
 extern "C"
