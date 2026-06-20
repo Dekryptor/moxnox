@@ -13,6 +13,10 @@
 #define S_IFLNK  0120000
 #define S_ISLNK(m) (((m) & 0170000) == S_IFLNK)
 
+#define S_ISUID 04000
+#define S_ISGID 02000
+#define S_ISVTX 01000
+
 #define UTIME_NOW  ((1L << 30) - 1)
 #define UTIME_OMIT ((1L << 30) - 2)
 
@@ -25,6 +29,7 @@ int futimens(int fd, const struct timespec times[2]);
 int mkdir(const char* path, mode_t mode);
 int chmod(const char* path, mode_t mode);
 mode_t umask(mode_t mask);
+int fchmod(int fd, mode_t mode);
 
 #ifdef __cplusplus
 }
