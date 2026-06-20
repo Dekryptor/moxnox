@@ -155,6 +155,12 @@ openssl_patch(crypto/bio/bio_sock.c
     -e [[s|#ifdef __DJGPP__\n    i = ioctlsocket(fd, type, (char \*)arg)\;\n#else|#if defined(MOXNOX)\n    (void)fd\;\n    (void)type\;\n    (void)arg\;\n    errno = ENOSYS\;\n    i = -1\;\n#elif defined(__DJGPP__)\n    i = ioctlsocket(fd, type, (char *)arg)\;\n#else|g]]
 )
 
+# fix Clang's broken dead-code elimination still trying to bring in gethostbyname and getservbyname
+openssl_patch(crypto/bio/bio_addr.c
+    -e [[s|            he = gethostbyname(host)\;|#ifdef AI_PASSIVE\n            he = NULL\;\n#else\n            he = gethostbyname(host)\;\n#endif|g]]
+    -e [[s|                se = getservbyname(service, proto)\;|#ifdef AI_PASSIVE\n                se = NULL\;\n#else\n                se = getservbyname(service, proto)\;\n#endif|g]]
+)
+
 openssl_patch(crypto/cryptlib.c
     -e [[s|#if defined(_WIN32) && !defined(OPENSSL_SYS_UEFI)\n#include <tchar.h>|#if defined(_WIN32) \&\& !defined(OPENSSL_SYS_UEFI) \&\& !defined(MOXNOX)\n#include <tchar.h>|g]]
     -e [[s@#if !defined(_WIN32) || defined(OPENSSL_SYS_UEFI)\n    abort()\;@#if !defined(_WIN32) || defined(OPENSSL_SYS_UEFI) || defined(MOXNOX)\n    abort()\;@g]]
@@ -283,7 +289,7 @@ add_library(libcrypto SHARED
     repo/crypto/bio/bf_null.c
     repo/crypto/bio/bf_prefix.c
     repo/crypto/bio/bf_readbuff.c
-    repo/crypto/bio/bio_addr.c
+    ${GEN}/crypto/bio/bio_addr.c
     repo/crypto/bio/bio_cb.c
     repo/crypto/bio/bio_dump.c
     repo/crypto/bio/bio_err.c
