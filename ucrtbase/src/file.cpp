@@ -1574,6 +1574,10 @@ int __mkdir(const char* path) {
 
     auto pathsv = string_view(path);
 
+    while (pathsv.size() > 1 && (pathsv.back() == '/' || pathsv.back() == '\\')) {
+        pathsv = string_view(pathsv.data(), pathsv.size() - 1);
+    }
+
     if (pathsv.empty()) {
         *__errno() = EINVAL;
         return -1;
