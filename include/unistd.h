@@ -2,6 +2,14 @@
 
 #include <sys/types.h>
 
+#define _POSIX_THREADS 202405L
+
+#define _SC_OPEN_MAX 4
+
+#define STDIN_FILENO 0
+#define STDOUT_FILENO 1
+#define STDERR_FILENO 2
+
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -9,6 +17,7 @@ extern "C" {
 char* ttyname(int fd);
 int ttyname_r(int fd, char* name, size_t namesize);
 uid_t getuid(void);
+uid_t geteuid(void);
 gid_t getgid(void);
 int isatty(int fd);
 int access(const char* path, int mode);
@@ -32,6 +41,12 @@ int execlp(const char* file, const char* arg, ...);
 int execl(const char* path, const char* arg, ...);
 int getentropy(void *buf, size_t buflen);
 int gethostname(char* name, int namelen); // FIXME - POSIX says size_t, but winsock2.h has int
+int pause(void);
+long sysconf(int name);
+int pipe(int pipefd[2]);
+int fsync(int fd);
+int fchdir(int fd);
+int symlink(const char* path1, const char* path2);
 
 #ifdef __cplusplus
 }
