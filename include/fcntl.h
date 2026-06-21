@@ -11,6 +11,7 @@
 #define O_TRUNC     0x0200
 #define O_EXCL      0x0400
 #define O_NONBLOCK  0x0800
+#define O_NOFOLLOW  0x1000
 
 #define F_DUPFD     0
 #define F_GETFD     1
