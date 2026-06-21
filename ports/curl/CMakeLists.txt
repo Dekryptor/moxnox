@@ -33,6 +33,8 @@ add_custom_command(
             ${CMAKE_CURRENT_SOURCE_DIR}/repo/include/curl ${CURL_GEN}/include/curl
     COMMAND sed -z -i
             -e [[s|#if defined(_WIN32) \&\& !defined(__LWIP_OPT_H__) \&\& !defined(LWIP_HDR_OPT_H)|#if defined(_WIN32) \&\& !defined(MOXNOX) \&\& !defined(__LWIP_OPT_H__) \&\& !defined(LWIP_HDR_OPT_H)|g]]
+            -e [[s|#if defined(_WIN32) \&\& !defined(_WIN32_WCE) \&\& !defined(__CYGWIN__)|#if defined(_WIN32) \&\& !defined(_WIN32_WCE) \&\& !defined(__CYGWIN__) \&\& !defined(MOXNOX)|g]]
+            -e [[s@#ifndef _WIN32\n#include <sys/socket.h>@#if !defined(_WIN32) || defined(MOXNOX)\n#ifdef MOXNOX\n#include <sys/select.h>\n#endif\n#include <sys/socket.h>@g]]
             ${CURL_GEN}/include/curl/curl.h
     DEPENDS repo/include/curl/curl.h
             repo/include/curl/curlver.h
