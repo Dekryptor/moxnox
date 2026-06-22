@@ -6366,6 +6366,10 @@ nt_status btrfs_inode::get_reparse_point(span<uint8_t> outbuf, uint32_t& retlen)
 
         auto sv = string_view((char*)&ie.ed.disk_bytenr, ie.ed.ram_bytes);
 
+        // mkfs.btrfs can create symlinks with the target one character too long
+        if (auto nul = sv.find('\0'); nul != string_view::npos)
+            sv = string_view(sv.data(), nul);
+
         u16len = utf8_to_utf16_len(sv);
 
         if (outbuf.size() < offsetof(REPARSE_DATA_BUFFER, SymbolicLinkReparseBuffer.PathBuffer) + (u16len * sizeof(char16_t)))
