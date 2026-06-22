@@ -208,6 +208,8 @@ install(TARGETS vim DESTINATION ${CMAKE_INSTALL_PREFIX}/bin
     ARCHIVE EXCLUDE_FROM_ALL
 )
 
+install(CODE "file(CREATE_LINK vim.exe \"\$ENV{DESTDIR}${CMAKE_INSTALL_PREFIX}/bin/vi.exe\" SYMBOLIC)")
+
 install(DIRECTORY repo/runtime/
     DESTINATION ${CMAKE_INSTALL_PREFIX}/share/vim/vim91
 )
