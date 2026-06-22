@@ -163,6 +163,8 @@ uint32_t RtlNtStatusToDosErrorNoTeb(nt_status status) {
             return ERROR_CONNECTION_ABORTED;
         case ILLEGAL_DLL_RELOCATION:
             return ERROR_ILLEGAL_DLL_RELOCATION;
+        case NOT_A_REPARSE_POINT:
+            return ERROR_NOT_A_REPARSE_POINT;
         case DEVICE_REMOVED:
             return ERROR_DEVICE_REMOVED;
         case SYSTEM_SHUTDOWN:
