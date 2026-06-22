@@ -1081,7 +1081,7 @@ static int open2(const char* path, int flags, int pmode) {
     IO_STATUS_BLOCK iosb;
     HANDLE h;
     ACCESS_MASK access = FILE_READ_ATTRIBUTES;
-    uint32_t file_attributes, create_disposition;
+    uint32_t file_attributes, create_disposition, create_options;
     nt_status status;
 
     if (flags & _O_TEMPORARY) {
@@ -1151,6 +1151,11 @@ static int open2(const char* path, int flags, int pmode) {
             create_disposition = FILE_OPEN;
     }
 
+    create_options = 0;
+
+    if (flags & O_NOFOLLOW)
+        create_options = FILE_OPEN_REPARSE_POINT;
+
     if (!(pmode & _S_IWRITE))
         file_attributes = FILE_ATTRIBUTE_READONLY;
     else
@@ -1177,7 +1182,7 @@ static int open2(const char* path, int flags, int pmode) {
 
     status = NtCreateFile(&h, access, &oa, &iosb, nullptr, file_attributes,
                           FILE_SHARE_READ | FILE_SHARE_WRITE, create_disposition,
-                          0, nullptr, 0);
+                          create_options, nullptr, 0);
     if (!success(status)) {
         free(u16pathname);
         *__errno() = nt_status_to_errno(status);
@@ -1185,6 +1190,26 @@ static int open2(const char* path, int flags, int pmode) {
     }
 
     free(u16pathname);
+
+    if (flags & O_NOFOLLOW) {
+        // check if reparse point
+
+        FILE_BASIC_INFORMATION fbi;
+
+        status = NtQueryInformationFile(h, &iosb, &fbi, sizeof(fbi),
+                                        FILE_INFORMATION_CLASS::BasicInformation);
+        if (!success(status)) {
+            *__errno() = nt_status_to_errno(status);
+            NtClose(h);
+            return -1;
+        }
+
+        if (fbi.FileAttributes & FILE_ATTRIBUTE_REPARSE_POINT) {
+            *__errno() = ELOOP;
+            NtClose(h);
+            return -1;
+        }
+    }
 
     if (flags & O_NONBLOCK) {
         bool nonblock = true;
