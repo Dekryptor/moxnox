@@ -657,6 +657,12 @@ nt_status open_inode(string_view fn, dentry& root_dir,
         if (!obj_ref || obj_ref.get().type != object_type::inode) {
             rwd.get().release();
             obj_ref.reset();
+
+            if (dentry.has_value()) {
+                dentry->get().release();
+                dentry = nullopt;
+            }
+
             return nt_status::INTERNAL_ERROR;
         }
 
@@ -668,6 +674,10 @@ nt_status open_inode(string_view fn, dentry& root_dir,
                 print("new failed\n");
                 rwd.get().release();
                 obj_ref.reset();
+
+                dentry->get().release();
+                dentry = nullopt;
+
                 return nt_status::INSUFFICIENT_RESOURCES;
             }
         }
@@ -677,12 +687,20 @@ nt_status open_inode(string_view fn, dentry& root_dir,
         if (!success(status)) {
             rwd.get().release();
             obj_ref.reset();
+
+            dentry->get().release();
+            dentry = nullopt;
+
             return status;
         }
 
         if (buf->header.ReparseTag != IO_REPARSE_TAG_SYMLINK) {
             rwd.get().release();
             obj_ref.reset();
+
+            dentry->get().release();
+            dentry = nullopt;
+
             return nt_status::REPARSE_POINT_NOT_RESOLVED;
         }
 
@@ -692,6 +710,10 @@ nt_status open_inode(string_view fn, dentry& root_dir,
         if (u16sv.empty()) {
             rwd.get().release();
             obj_ref.reset();
+
+            dentry->get().release();
+            dentry = nullopt;
+
             return nt_status::REPARSE_POINT_NOT_RESOLVED;
         }
 
@@ -704,6 +726,9 @@ nt_status open_inode(string_view fn, dentry& root_dir,
 
                 rwd.get().release();
                 obj_ref.reset();
+
+                dentry->get().release();
+                dentry = nullopt;
 
                 return nt_status::INSUFFICIENT_RESOURCES;
             }
@@ -718,6 +743,9 @@ nt_status open_inode(string_view fn, dentry& root_dir,
 
                 rwd.get().release();
                 obj_ref.reset();
+
+                dentry->get().release();
+                dentry = nullopt;
 
                 return nt_status::INSUFFICIENT_RESOURCES;
             }
@@ -735,6 +763,9 @@ nt_status open_inode(string_view fn, dentry& root_dir,
 
         rwd = *dentry->get().parent;
         rwd.get().acquire();
+
+        dentry->get().release();
+        dentry = nullopt;
 
         obj_ref.reset();
     }
