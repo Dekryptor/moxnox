@@ -1742,7 +1742,8 @@ int __unlink(const char* path) {
     oa.RootDirectory = peb->ProcessParameters->CurrentDirectory.Handle;
 
     status = NtCreateFile(&h, DELETE, &oa, &iosb, nullptr, 0, 0,
-                          FILE_OPEN, FILE_NON_DIRECTORY_FILE, nullptr, 0);
+                          FILE_OPEN, FILE_NON_DIRECTORY_FILE | FILE_OPEN_REPARSE_POINT,
+                          nullptr, 0);
 
     free(buf);
 
