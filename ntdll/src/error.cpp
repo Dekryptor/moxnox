@@ -25,6 +25,8 @@ uint32_t RtlNtStatusToDosErrorNoTeb(nt_status status) {
             return ERROR_TIMEOUT;
         case PENDING:
             return ERROR_IO_PENDING;
+        case REPARSE:
+            return ERROR_REPARSE;
         case BREAKPOINT:
             return (uint32_t)nt_status::BREAKPOINT;
         case SINGLE_STEP:
