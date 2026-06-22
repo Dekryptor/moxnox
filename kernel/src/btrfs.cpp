@@ -184,7 +184,7 @@ private:
     nt_status add_file_extent(uint64_t extent_address, uint64_t extent_length,
                               uint64_t extent_offset, uint64_t file_offset,
                               uint64_t length);
-    nt_status remove_orphan();
+    nt_status remove_orphan(bool no_orphan_item);
     nt_status get_reparse_point(span<uint8_t> outbuf, uint32_t& retlen);
     nt_status set_reparse_point(span<const uint8_t> inbuf, dentry& dentry);
 };
@@ -6034,11 +6034,11 @@ void btrfs_inode::last_handle_closed() {
     {
         lock_guard lg(fs.trans_lock);
 
-        remove_orphan(); // FIXME - what if it fails?
+        remove_orphan(false); // FIXME - what if it fails?
     }
 }
 
-nt_status btrfs_inode::remove_orphan() {
+nt_status btrfs_inode::remove_orphan(bool no_orphan_item) {
     nt_status status;
     uint64_t len;
     uint32_t sectorsize = fs.sb->sectorsize;
@@ -6106,10 +6106,12 @@ nt_status btrfs_inode::remove_orphan() {
         }
     }
 
-    status = fs.remove_item(*r, {BTRFS_ORPHAN_OBJECTID, key_type::ORPHAN_INODE, inode});
-    if (!success(status)) {
-        print("btrfs_inode::remove_orphan: remove_item returned {}\n", status);
-        return status;
+    if (!no_orphan_item) {
+        status = fs.remove_item(*r, {BTRFS_ORPHAN_OBJECTID, key_type::ORPHAN_INODE, inode});
+        if (!success(status)) {
+            print("btrfs_inode::remove_orphan: remove_item returned {}\n", status);
+            return status;
+        }
     }
 
     {
@@ -6232,16 +6234,17 @@ nt_status btrfs_inode::rename(::dentry& dentry, ::dentry& dest_dir,
             }
 
             if (orphaned) {
-                status = insert_item(fs, *r,
-                                    {BTRFS_ORPHAN_OBJECTID, key_type::ORPHAN_INODE, victim_ino.inode},
-                                    span<const uint8_t>());
-                if (!success(status)) {
-                    print("insert_item returned {}\n", status);
-                    return status;
-                }
-
                 if (no_open_handles)
-                    victim_ino.remove_orphan();
+                    victim_ino.remove_orphan(true);
+                else {
+                    status = insert_item(fs, *r,
+                                        {BTRFS_ORPHAN_OBJECTID, key_type::ORPHAN_INODE, victim_ino.inode},
+                                        span<const uint8_t>());
+                    if (!success(status)) {
+                        print("insert_item returned {}\n", status);
+                        return status;
+                    }
+                }
             }
 
             status = remove_dir_item(fs, *r, dir_item_key.objectid,
