@@ -3,6 +3,7 @@
 #include <optional>
 #include <string_view>
 #include <mutex>
+#include <memory>
 #include "assert.h"
 
 import nt;
@@ -66,6 +67,11 @@ public:
     unsigned int nlink = 1;
     spinlock child_lock;
     list_entry children = { &children, &children };
+    unique_ptr<char[]> symlink;
+    size_t symlink_len;
+
+private:
+    nt_status set_reparse_point(span<const uint8_t> inbuf);
 };
 
 struct tmpfs_dentry {
@@ -784,10 +790,64 @@ nt_status tmpfs_inode::rename(::dentry& dentry, ::dentry& dest_dir,
     return nt_status::SUCCESS;
 }
 
-nt_status tmpfs_inode::fs_control(uint32_t /*code*/, span<const uint8_t> /*inbuf*/,
+nt_status tmpfs_inode::fs_control(uint32_t code, span<const uint8_t> inbuf,
                                   span<uint8_t> /*outbuf*/, uint32_t& /*retlen*/,
                                   dentry* /*dentry*/) {
-    print("FIXME - tmpfs_inode::fs_control\n");
+    switch (code) {
+        case FSCTL_SET_REPARSE_POINT:
+            return set_reparse_point(inbuf);
 
-    return nt_status::NOT_IMPLEMENTED;
+        default:
+            return nt_status::NOT_SUPPORTED;
+    }
+}
+
+nt_status tmpfs_inode::set_reparse_point(span<const uint8_t> inbuf) {
+    unique_ptr<char[]> u8;
+
+    if (inbuf.size() < offsetof(REPARSE_DATA_BUFFER, SymbolicLinkReparseBuffer.PathBuffer))
+        return nt_status::BUFFER_TOO_SMALL;
+
+    auto& rdb = *(REPARSE_DATA_BUFFER*)inbuf.data();
+
+    if (rdb.ReparseTag != IO_REPARSE_TAG_SYMLINK)
+        return nt_status::INVALID_PARAMETER;
+
+    size_t buflen = inbuf.size() - offsetof(REPARSE_DATA_BUFFER, SymbolicLinkReparseBuffer.PathBuffer);
+
+    if (rdb.SymbolicLinkReparseBuffer.SubstituteNameLength == 0)
+        return nt_status::INVALID_PARAMETER;
+
+    if (rdb.SymbolicLinkReparseBuffer.SubstituteNameOffset >= buflen)
+        return nt_status::INVALID_PARAMETER;
+
+    if (rdb.SymbolicLinkReparseBuffer.SubstituteNameOffset + rdb.SymbolicLinkReparseBuffer.SubstituteNameLength > buflen)
+        return nt_status::INVALID_PARAMETER;
+
+    auto u16sv = u16string_view(rdb.SymbolicLinkReparseBuffer.PathBuffer + (rdb.SymbolicLinkReparseBuffer.SubstituteNameOffset / sizeof(char16_t)),
+                                rdb.SymbolicLinkReparseBuffer.SubstituteNameLength / sizeof(char16_t));
+
+    auto u8len = utf16_to_utf8_len(u16sv);
+
+    u8.reset(new char[u8len]);
+    if (!u8) {
+        print("new failed\n");
+        return nt_status::INSUFFICIENT_RESOURCES;
+    }
+
+    utf16_to_utf8(span(u8.get(), u8len), u16sv);
+
+    {
+        lock_guard lock(inode_lock);
+
+        if (inode_type != inode_type::file)
+            return nt_status::INVALID_PARAMETER;
+
+        inode_type = inode_type::symlink;
+
+        swap(symlink, u8);
+        symlink_len = u8len;
+    }
+
+    return nt_status::SUCCESS;
 }
