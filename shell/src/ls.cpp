@@ -159,10 +159,15 @@ static void print_file_list(list_entry& list, unsigned int num_entries) {
 
         bool changed = true;
 
+        // FIXME - include destination for symlinks
+        // FIXME - broken symlinks should be rendered differently
+
         if (fdi.FileAttributes & FILE_ATTRIBUTE_DIRECTORY)
             print("\e[01;34m"); // bold, blue FG
         else if (fdi.FileAttributes & FILE_ATTRIBUTE_DEVICE)
             print("\e[40;33;01m"); // black BG, yellow FG, bold
+        else if (fdi.FileAttributes & FILE_ATTRIBUTE_REPARSE_POINT)
+            print("\e[01;36m"); // bold, cyan FG
         else
             changed = false;
 
