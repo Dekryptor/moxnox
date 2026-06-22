@@ -71,6 +71,7 @@ public:
     size_t symlink_len;
 
 private:
+    nt_status get_reparse_point(span<uint8_t> outbuf, uint32_t& retlen);
     nt_status set_reparse_point(span<const uint8_t> inbuf);
 };
 
@@ -817,15 +818,61 @@ nt_status tmpfs_inode::rename(::dentry& dentry, ::dentry& dest_dir,
 }
 
 nt_status tmpfs_inode::fs_control(uint32_t code, span<const uint8_t> inbuf,
-                                  span<uint8_t> /*outbuf*/, uint32_t& /*retlen*/,
+                                  span<uint8_t> outbuf, uint32_t& retlen,
                                   dentry* /*dentry*/) {
     switch (code) {
+        case FSCTL_GET_REPARSE_POINT:
+            return get_reparse_point(outbuf, retlen);
+
         case FSCTL_SET_REPARSE_POINT:
             return set_reparse_point(inbuf);
 
         default:
             return nt_status::NOT_SUPPORTED;
     }
+}
+
+nt_status tmpfs_inode::get_reparse_point(span<uint8_t> outbuf, uint32_t& retlen) {
+    if (outbuf.size() < offsetof(REPARSE_DATA_BUFFER, SymbolicLinkReparseBuffer.PathBuffer))
+        return nt_status::BUFFER_TOO_SMALL;
+
+    auto& rdb = *(REPARSE_DATA_BUFFER*)outbuf.data();
+    size_t u16len, rdblen;
+
+    {
+        lock_guard lg(inode_lock);
+
+        if (inode_type != inode_type::symlink)
+            return nt_status::NOT_A_REPARSE_POINT;
+
+        if (!symlink)
+            return nt_status::INTERNAL_ERROR;
+
+        auto sv = string_view(symlink.get(), symlink_len);
+
+        u16len = utf8_to_utf16_len(sv);
+
+        rdblen = offsetof(REPARSE_DATA_BUFFER, SymbolicLinkReparseBuffer.PathBuffer) + (u16len * sizeof(char16_t));
+
+        if (outbuf.size() < rdblen)
+            return nt_status::BUFFER_TOO_SMALL;
+
+        utf8_to_utf16(span(rdb.SymbolicLinkReparseBuffer.PathBuffer, u16len), sv);
+    }
+
+    rdb.ReparseTag = IO_REPARSE_TAG_SYMLINK;
+    rdb.ReparseDataLength = (uint16_t)(rdblen - offsetof(REPARSE_DATA_BUFFER, SymbolicLinkReparseBuffer));
+    rdb.Reserved = 0;
+
+    rdb.SymbolicLinkReparseBuffer.SubstituteNameOffset = 0;
+    rdb.SymbolicLinkReparseBuffer.SubstituteNameLength = (uint16_t)(u16len * sizeof(char16_t));
+    rdb.SymbolicLinkReparseBuffer.PrintNameOffset = 0; // FIXME?
+    rdb.SymbolicLinkReparseBuffer.PrintNameLength = 0; // FIXME?
+    rdb.SymbolicLinkReparseBuffer.Flags = 0; // FIXME?
+
+    retlen = (uint32_t)rdblen;
+
+    return nt_status::SUCCESS;
 }
 
 nt_status tmpfs_inode::set_reparse_point(span<const uint8_t> inbuf) {
