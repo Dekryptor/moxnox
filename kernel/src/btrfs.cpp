@@ -6379,12 +6379,12 @@ nt_status btrfs_inode::get_reparse_point(span<uint8_t> outbuf, uint32_t& retlen)
     rdb.Reserved = 0;
 
     rdb.SymbolicLinkReparseBuffer.SubstituteNameOffset = 0;
-    rdb.SymbolicLinkReparseBuffer.SubstituteNameLength = u16len * sizeof(char16_t);
+    rdb.SymbolicLinkReparseBuffer.SubstituteNameLength = (uint16_t)(u16len * sizeof(char16_t));
     rdb.SymbolicLinkReparseBuffer.PrintNameOffset = 0; // FIXME?
     rdb.SymbolicLinkReparseBuffer.PrintNameLength = 0; // FIXME?
     rdb.SymbolicLinkReparseBuffer.Flags = 0; // FIXME?
 
-    retlen = offsetof(REPARSE_DATA_BUFFER, SymbolicLinkReparseBuffer.PathBuffer) + (u16len * sizeof(char16_t));
+    retlen = (uint32_t)(offsetof(REPARSE_DATA_BUFFER, SymbolicLinkReparseBuffer.PathBuffer) + (u16len * sizeof(char16_t)));
 
     return nt_status::SUCCESS;
 }
