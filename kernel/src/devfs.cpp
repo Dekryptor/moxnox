@@ -56,6 +56,11 @@ public:
     nt_status query_standard_information(span<uint8_t> buffer, uint64_t& retlen);
     void last_handle_closed() override { }
 
+    nt_status fs_control(uint32_t, span<const uint8_t>, span<uint8_t>,
+                         uint32_t&) override {
+        return nt_status::NOT_SUPPORTED;
+    }
+
     devfs_filesystem& fs; // FIXME - use reference in ::inode
     list_entry le;
     uint64_t mtime, ctime, otime, atime;

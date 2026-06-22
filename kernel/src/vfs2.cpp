@@ -2333,13 +2333,41 @@ void remove_partitions(volume& v) {
     }
 }
 
-extern "C"
-NTSTATUS NtFsControlFile(HANDLE /*file_handle*/, HANDLE /*event*/,
-                         PIO_APC_ROUTINE /*apc_routine*/, void* /*apc_context*/,
-                         IO_STATUS_BLOCK* /*iosb*/, uint32_t /*code*/,
-                         void* /*input_buffer*/, uint32_t /*input_buffer_length*/,
-                         void* /*output_buffer*/, uint32_t /*output_buffer_length*/) {
-    print("FIXME - NtFsControlFile\n");
+nt_status file::fs_control(uint32_t code, span<const uint8_t> inbuf,
+                           span<uint8_t> outbuf, uint32_t& retlen) {
+    if (ino.type != object_type::inode)
+        return nt_status::INVALID_PARAMETER;
 
-    return nt_status::NOT_IMPLEMENTED;
+    auto& i = static_cast<inode&>(ino);
+
+    return i.fs_control(code, inbuf, outbuf, retlen);
+}
+
+extern "C"
+NTSTATUS NtFsControlFile(HANDLE file_handle, HANDLE /*event*/,
+                         PIO_APC_ROUTINE /*apc_routine*/, void* /*apc_context*/,
+                         IO_STATUS_BLOCK* iosb, uint32_t code,
+                         void* input_buffer, uint32_t input_buffer_length,
+                         void* output_buffer, uint32_t output_buffer_length) {
+    uint32_t retlen;
+
+    auto objrw = deref_handle(file_handle);
+    if (!objrw)
+        return nt_status::INVALID_HANDLE;
+
+    auto& obj = objrw.get();
+
+    if (obj.type != object_type::file)
+        return nt_status::INVALID_HANDLE;
+
+    auto& f = static_cast<file&>(obj);
+
+    auto ret = f.fs_control(code, span((uint8_t*)input_buffer, input_buffer_length),
+                            span((uint8_t*)output_buffer, output_buffer_length),
+                            retlen);
+
+    if (success(ret))
+        iosb->Information = retlen;
+
+    return ret;
 }

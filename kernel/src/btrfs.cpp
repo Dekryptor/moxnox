@@ -158,6 +158,8 @@ public:
     nt_status flush_inode_item(btrfs_path& p);
     nt_status get_last_dir_index(uint64_t& ret);
     void last_handle_closed() override;
+    nt_status fs_control(uint32_t code, span<const uint8_t> inbuf,
+                         span<uint8_t> outbuf, uint32_t& retlen) override;
 
     root* r;
     btrfs_filesystem& fs; // FIXME - use reference in ::inode
@@ -6327,4 +6329,11 @@ nt_status btrfs_inode::rename(::dentry& dentry, ::dentry& dest_dir,
     }
 
     return nt_status::SUCCESS;
+}
+
+nt_status btrfs_inode::fs_control(uint32_t /*code*/, span<const uint8_t> /*inbuf*/,
+                                  span<uint8_t> /*outbuf*/, uint32_t& /*retlen*/) {
+    print("FIXME - btrfs_inode::fs_control\n");
+
+    return nt_status::NOT_IMPLEMENTED;
 }
