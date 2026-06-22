@@ -250,3 +250,81 @@ extern "C"
 int pipe(int* pfds) {
     return _pipe(pfds, 0, 0);
 }
+
+extern "C"
+ssize_t readlink(const char* path, char* buf, size_t bufsiz) {
+    auto peb = NtCurrentTeb()->ProcessEnvironmentBlock;
+    nt_status status;
+    OBJECT_ATTRIBUTES oa;
+    UNICODE_STRING us;
+    IO_STATUS_BLOCK iosb;
+    HANDLE h;
+
+    struct {
+        REPARSE_DATA_BUFFER header;
+        char16_t buffer[255];
+    } rdb;
+
+    if (!path || path[0] == 0) {
+        *_errno() = EINVAL;
+        return -1;
+    }
+
+    auto sv = string_view(path);
+
+    auto u16len = utf8_to_utf16_len(sv);
+
+    auto u16pathname = (char16_t*)malloc(u16len * sizeof(char16_t));
+    if (!u16pathname) {
+        *_errno() = ENOMEM;
+        return -1;
+    }
+
+    utf8_to_utf16(span(u16pathname, u16len), sv);
+
+    us.Length = us.MaximumLength = (uint16_t)(u16len * sizeof(char16_t));
+    us.Buffer = u16pathname;
+
+    memset(&oa, 0, sizeof(oa));
+    oa.Length = sizeof(OBJECT_ATTRIBUTES);
+    oa.ObjectName = &us;
+    oa.RootDirectory = peb->ProcessParameters->CurrentDirectory.Handle;
+
+    status = NtCreateFile(&h, FILE_READ_ATTRIBUTES, &oa, &iosb, nullptr,
+                          FILE_ATTRIBUTE_NORMAL, 0, FILE_OPEN,
+                          FILE_OPEN_REPARSE_POINT, nullptr, 0);
+    if (!success(status)) {
+        free(u16pathname);
+        *_errno() = nt_status_to_errno(status);
+        return -1;
+    }
+
+    free(u16pathname);
+
+    unique_handle f{h};
+
+    status = NtFsControlFile(f.get(), 0, nullptr, nullptr, &iosb,
+                             FSCTL_GET_REPARSE_POINT, nullptr, 0,
+                             &rdb, sizeof(rdb));
+    if (!success(status)) {
+        if (status == nt_status::NOT_A_REPARSE_POINT)
+            *_errno() = EINVAL;
+        else
+            *_errno() = nt_status_to_errno(status);
+        return -1;
+    }
+
+    if (rdb.header.ReparseTag != IO_REPARSE_TAG_SYMLINK) {
+        *_errno() = EINVAL;
+        return -1;
+    }
+
+    auto u16sv = u16string_view(rdb.header.SymbolicLinkReparseBuffer.PathBuffer + (rdb.header.SymbolicLinkReparseBuffer.SubstituteNameOffset / sizeof(char16_t)),
+                                rdb.header.SymbolicLinkReparseBuffer.SubstituteNameLength / sizeof(char16_t));
+
+    auto u8len = utf16_to_utf8_len(u16sv);
+
+    utf16_to_utf8(span(buf, bufsiz), u16sv);
+
+    return min(u8len, bufsiz);
+}
