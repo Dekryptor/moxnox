@@ -650,3 +650,17 @@ if (CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
 endif()
 
 install(TARGETS ntqo-test DESTINATION ${CMAKE_INSTALL_PREFIX}/bin COMPONENT core)
+
+###
+
+add_executable(ln src/ln.cpp)
+
+target_compile_options(ln PRIVATE -fno-exceptions ${USERSPACE_CFLAGS})
+
+target_link_libraries(ln print unicode unique_handle)
+target_link_libraries(ln moxnox)
+
+install(TARGETS ln DESTINATION ${CMAKE_INSTALL_PREFIX}/bin
+    COMPONENT core
+    CXX_MODULES_BMI EXCLUDE_FROM_ALL
+)
