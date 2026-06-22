@@ -244,6 +244,7 @@ setbuf
 strtoimax
 strtoumax
 _fullpath
+_fgetc_nolock
 
 ; stubs
 ___lc_codepage_func
