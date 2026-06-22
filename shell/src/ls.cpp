@@ -5,6 +5,7 @@
 #include <utility>
 #include <string.h>
 #include <getopt.h>
+#include <unistd.h>
 
 using namespace std;
 
@@ -14,6 +15,9 @@ import format;
 import print;
 import list;
 import unicode;
+
+#undef errno
+import errno;
 
 static bool long_mode = false;
 static bool directory_flag = false;
@@ -87,7 +91,8 @@ struct ls_entry {
     FILE_DIRECTORY_INFORMATION fdi;
 };
 
-static void print_file_list(list_entry& list, unsigned int num_entries) {
+static void print_file_list(list_entry& list, unsigned int num_entries,
+                            u16string_view fn) {
     uint64_t max_size = 0;
 
     for (auto le = list.next; le != &list; le = le->next) {
@@ -159,9 +164,6 @@ static void print_file_list(list_entry& list, unsigned int num_entries) {
 
         bool changed = true;
 
-        // FIXME - include destination for symlinks
-        // FIXME - broken symlinks should be rendered differently
-
         if (fdi.FileAttributes & FILE_ATTRIBUTE_DIRECTORY)
             print("\e[01;34m"); // bold, blue FG
         else if (fdi.FileAttributes & FILE_ATTRIBUTE_DEVICE)
@@ -176,13 +178,32 @@ static void print_file_list(list_entry& list, unsigned int num_entries) {
         if (changed)
             print("\e[0m");
 
+        if (long_mode && fdi.FileAttributes & FILE_ATTRIBUTE_REPARSE_POINT) {
+            char s[PATH_MAX], dest[PATH_MAX];
+            span sp(s, sizeof(s) - 1);
+
+            sp = format(sp, "{}/{}", fn, u16sv);
+
+            s[(size_t)(sp.data() - s)] = 0;
+
+            auto ret = readlink(s, dest, sizeof(dest) - 1);
+
+            // FIXME - target should be in blue if directory (etc.)?
+            // FIXME - broken symlinks should be rendered differently
+
+            if (ret == -1)
+                print_stderr("readlink failed (errno {})\n", errno_to_string_view(*_errno()));
+            else
+                print(" -> {}", string_view(dest, (size_t)ret));
+        }
+
         print("\n");
     }
 
     RtlFreeHeap(GetProcessHeap(), 0, arr);
 }
 
-static void ls_dir(HANDLE h) {
+static void ls_dir(HANDLE h, u16string_view fn) {
     IO_STATUS_BLOCK iosb;
     char buf[4096];
     unsigned int num_entries = 0;
@@ -228,7 +249,7 @@ static void ls_dir(HANDLE h) {
     if (is_list_empty(list))
         return;
 
-    print_file_list(list, num_entries);
+    print_file_list(list, num_entries, fn);
 
     while (!is_list_empty(list)) {
         auto& e = containing_record<ls_entry>(list.next);
@@ -356,7 +377,7 @@ static void ls(span<u16string_view> argv) {
         dir_list.next->next == &dir_list) {
         auto& e = containing_record<dir_entry>(dir_list.next);
 
-        ls_dir(e.h);
+        ls_dir(e.h, e.fn);
         NtClose(e.h);
 
         free(&e);
@@ -366,7 +387,7 @@ static void ls(span<u16string_view> argv) {
     bool first = true;
 
     if (!is_list_empty(file_list)) {
-        print_file_list(file_list, num_file_entries);
+        print_file_list(file_list, num_file_entries, u".");
         first = false;
     }
 
@@ -384,7 +405,7 @@ static void ls(span<u16string_view> argv) {
             print("\n");
 
         print("{}:\n", e.fn);
-        ls_dir(e.h);
+        ls_dir(e.h, e.fn);
 
         NtClose(e.h);
         remove_entry_list(e.le);

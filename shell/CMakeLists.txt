@@ -51,8 +51,8 @@ add_executable(ls src/ls.cpp)
 target_compile_options(ls PRIVATE -fno-exceptions ${USERSPACE_CFLAGS})
 
 target_link_libraries(ls print)
-target_link_libraries(ls format list unicode)
-target_link_libraries(ls moxnox)
+target_link_libraries(ls format list unicode errno)
+target_link_libraries(ls moxnox posixshim)
 
 install(TARGETS ls DESTINATION ${CMAKE_INSTALL_PREFIX}/bin COMPONENT core)
 
