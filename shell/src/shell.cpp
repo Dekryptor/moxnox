@@ -998,7 +998,7 @@ static char* command_generator(const char* text, int state) {
             struct dirent* ent;
 
             while ((ent = readdir(dir)) != nullptr) {
-                if (ent->d_type != DT_REG && ent->d_type != DT_UNKNOWN)
+                if (ent->d_type != DT_REG && ent->d_type != DT_UNKNOWN && ent->d_type != DT_LNK)
                     continue;
 
                 string_view name(ent->d_name);
