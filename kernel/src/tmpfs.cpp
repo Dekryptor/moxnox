@@ -295,7 +295,20 @@ static nt_status query_directory_dirent(string_view name, tmpfs_inode& ino,
                 fdi.ChangeTime.QuadPart = (int64_t)ino.ctime;
                 fdi.EndOfFile.QuadPart = (int64_t)ino.file_size;
                 fdi.AllocationSize.QuadPart = 0; // FIXME
-                fdi.FileAttributes = ino.inode_type == inode_type::directory ? FILE_ATTRIBUTE_DIRECTORY : 0;
+
+                switch (ino.inode_type) {
+                    case inode_type::directory:
+                        fdi.FileAttributes = FILE_ATTRIBUTE_DIRECTORY;
+                        break;
+
+                    case inode_type::symlink:
+                        fdi.FileAttributes = FILE_ATTRIBUTE_REPARSE_POINT;
+                        break;
+
+                    default:
+                        fdi.FileAttributes = 0;
+                        break;
+                }
             }
 
             fdi.FileNameLength = (uint32_t)(utf16len * sizeof(char16_t));
