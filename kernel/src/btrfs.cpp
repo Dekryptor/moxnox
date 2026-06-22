@@ -4182,7 +4182,7 @@ static btrfs_timespec win_to_unix_time(int64_t t) {
 }
 
 static NTSTATUS query_directory_dirent(btrfs_filesystem& fs, root& r, const btrfs_key& k,
-                                       string_view sv, bool is_dir,
+                                       string_view sv, btrfs_inode_type di_type,
                                        span<uint8_t> buf, FILE_INFORMATION_CLASS file_information_class) {
     switch (file_information_class) {
         case FILE_INFORMATION_CLASS::DirectoryInformation: {
@@ -4284,7 +4284,21 @@ static NTSTATUS query_directory_dirent(btrfs_filesystem& fs, root& r, const btrf
             fdi.NextEntryOffset = 0;
             fdi.FileIndex = 0;
             fdi.AllocationSize.QuadPart = 0; // FIXME
-            fdi.FileAttributes = is_dir ? FILE_ATTRIBUTE_DIRECTORY : 0; // FIXME
+
+            switch (di_type) {
+                case btrfs_inode_type::directory:
+                    fdi.FileAttributes = FILE_ATTRIBUTE_DIRECTORY;
+                    break;
+
+                case btrfs_inode_type::symlink:
+                    fdi.FileAttributes = FILE_ATTRIBUTE_REPARSE_POINT;
+                    break;
+
+                default:
+                    fdi.FileAttributes = 0;
+                    break;
+            }
+
             fdi.FileNameLength = (uint32_t)(utf16len * sizeof(char16_t));
             utf8_to_utf16(span(fdi.FileName, utf16len), sv);
 
@@ -4302,9 +4316,24 @@ static NTSTATUS query_directory_dirent(btrfs_filesystem& fs, root& r, const btrf
 
 nt_status btrfs_inode::query_directory_inode(string_view name, span<uint8_t> buf,
                                              FILE_INFORMATION_CLASS file_information_class) {
+    btrfs_inode_type di_type;
+
+    switch (inode_type) {
+        case inode_type::directory:
+            di_type = btrfs_inode_type::directory;
+            break;
+
+        case inode_type::symlink:
+            di_type = btrfs_inode_type::symlink;
+            break;
+
+        default:
+            di_type = btrfs_inode_type::file;
+            break;
+    }
+
     return query_directory_dirent(fs, *r, {inode, key_type::INODE_ITEM, 0 },
-                                  name, inode_type == inode_type::directory,
-                                  buf, file_information_class);
+                                  name, di_type, buf, file_information_class);
 }
 
 NTSTATUS btrfs_inode::query_directory(span<uint8_t> buf, FILE_INFORMATION_CLASS file_information_class,
@@ -4359,8 +4388,7 @@ NTSTATUS btrfs_inode::query_directory(span<uint8_t> buf, FILE_INFORMATION_CLASS 
 
     auto ret = query_directory_dirent(fs, *r, di.location,
                                       string_view(name, name_len),
-                                      di.type == btrfs_inode_type::directory,
-                                      buf, file_information_class);
+                                      di.type, buf, file_information_class);
 
     index = found_key.offset + 1;
 
