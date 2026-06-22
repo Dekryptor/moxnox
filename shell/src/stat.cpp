@@ -2,6 +2,7 @@
 #include <string_view>
 #include <chrono>
 #include <sys/stat.h>
+#include <unistd.h>
 
 import nt;
 import ntdll;
@@ -138,7 +139,20 @@ static void stat_file(const char* fn) {
 
     auto blocks = (((size_t)st.st_size + DEV_BSIZE - 1) / DEV_BSIZE) * (DEV_BSIZE / SECTOR_SIZE);
 
-    print("  File: {}\n", fn);
+    if (S_ISLNK(st.st_mode)) {
+        char s[255];
+
+        auto ret = readlink(fn, s, sizeof(s));
+        if (ret == -1) {
+            print_stderr("readlink failed (errno {})\n",
+                         errno_to_string_view(*_errno()));
+            return;
+        }
+
+        print("  File: {} -> {}\n", fn, string_view(s, (size_t)ret));
+    } else
+        print("  File: {}\n", fn);
+
     print("  Size: {:<10}\tBlocks: {:<10} IO Block: {:<6} {}\n", st.st_size,
           blocks, DEV_BSIZE, filetype(st.st_mode));
     print("Device: {}\tInode: {:<10}  Links: {}\n", st.st_dev, st.st_ino,
