@@ -149,6 +149,7 @@ static ::filesystem* do_mount_root(string_view cmdline_root,
 static const uint64_t __S_IFMT = 0170000;
 static const uint64_t __S_IFDIR = 0040000;
 static const uint64_t __S_IFREG = 0100000;
+static const uint64_t __S_IFLNK = 0120000;
 
 static constexpr bool S_ISDIR(uint64_t mode) {
     return (mode & __S_IFMT) == __S_IFDIR;
@@ -158,6 +159,10 @@ static constexpr bool S_ISREG(uint64_t mode) {
     return (mode & __S_IFMT) == __S_IFREG;
 }
 
+static constexpr bool S_ISLNK(uint64_t mode) {
+    return (mode & __S_IFMT) == __S_IFLNK;
+}
+
 static uint64_t unix_to_system_time(uint64_t t) {
     return (t * 10000000) + 116444736000000000;
 }
@@ -165,8 +170,7 @@ static uint64_t unix_to_system_time(uint64_t t) {
 static nt_status extract_initrd_file(string_view path, uint64_t mode,
                                      span<const uint8_t> contents,
                                      uint64_t mtime) {
-    // FIXME - support symlinks as well at least
-    if (!S_ISDIR(mode) && !S_ISREG(mode))
+    if (!S_ISDIR(mode) && !S_ISREG(mode) && !S_ISLNK(mode))
         return nt_status::SUCCESS;
 
     // ignore root directory
@@ -176,6 +180,7 @@ static nt_status extract_initrd_file(string_view path, uint64_t mode,
     object_ref inorw;
     optional<reference_wrapper<dentry>> drw;
     unsigned int create_result;
+    unique_ptr<char[]> rdbbuf;
 
     auto status = open_inode(path, *root_dentry, inorw, drw, FILE_CREATE,
                              S_ISDIR(mode) ? FILE_DIRECTORY_FILE : 0,
@@ -196,22 +201,52 @@ static nt_status extract_initrd_file(string_view path, uint64_t mode,
     if (drw)
         drw->get().release();
 
-
     if (!success(status))
         return status;
 
-    if (!S_ISREG(mode))
-        return nt_status::SUCCESS;
+    if (S_ISREG(mode)) {
+        uint64_t offset = 0, written;
 
-    uint64_t offset = 0, written;
+        while (!contents.empty()) {
+            status = ino.write(contents, offset, written);
+            if (!success(status))
+                return status;
 
-    while (!contents.empty()) {
-        status = ino.write(contents, offset, written);
-        if (!success(status))
+            contents = span(contents.data() + written, contents.size() - written);
+            offset += written;
+        }
+    } else if (S_ISLNK(mode)) {
+        auto u16targetlen = utf8_to_utf16_len(string_view((char*)contents.data(), contents.size()));
+        size_t rdblen = offsetof(REPARSE_DATA_BUFFER, SymbolicLinkReparseBuffer.PathBuffer) + (u16targetlen * sizeof(char16_t));
+
+        rdbbuf.reset(new char[rdblen]);
+        if (!rdbbuf) {
+            print("malloc failed\n");
+            return nt_status::INSUFFICIENT_RESOURCES;
+        }
+
+        auto& rdb = *(REPARSE_DATA_BUFFER*)rdbbuf.get();
+
+        rdb.ReparseTag = IO_REPARSE_TAG_SYMLINK;
+        rdb.ReparseDataLength = 0;
+        rdb.Reserved = 0;
+        rdb.SymbolicLinkReparseBuffer.SubstituteNameOffset = 0;
+        rdb.SymbolicLinkReparseBuffer.SubstituteNameLength = (uint16_t)(u16targetlen * sizeof(char16_t));
+        rdb.SymbolicLinkReparseBuffer.PrintNameOffset = 0;
+        rdb.SymbolicLinkReparseBuffer.PrintNameLength = 0;
+        rdb.SymbolicLinkReparseBuffer.Flags = 0;
+
+        utf8_to_utf16(span(rdb.SymbolicLinkReparseBuffer.PathBuffer, u16targetlen),
+                      string_view((char*)contents.data(), contents.size()));
+
+        uint32_t retlen;
+
+        status = ino.fs_control(FSCTL_SET_REPARSE_POINT, span((uint8_t*)&rdb, rdblen),
+                                span<uint8_t>(), retlen, nullptr);
+        if (!success(status)) {
+            print("FSCTL_SET_REPARSE_POINT returned {}\n", status);
             return status;
-
-        contents = span(contents.data() + written, contents.size() - written);
-        offset += written;
+        }
     }
 
     return nt_status::SUCCESS;
