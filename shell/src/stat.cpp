@@ -118,16 +118,18 @@ static string_view filetype(uint32_t mode) {
 
     if (S_ISDIR(mode))
         return "directory";
+    else if (S_ISLNK(mode))
+        return "symbolic link";
     else
         return "regular file";
 }
 
 static void stat_file(const char* fn) {
-    struct _stat64 st;
+    struct stat st;
 
     static const uint32_t CHMOD_MODE_BITS = 07777;
 
-    auto ret = _stat64(fn, &st);
+    auto ret = lstat(fn, &st);
     if (ret != 0) {
         print_stderr("stat returned {} (errno {})\n", ret,
                      errno_to_string_view(*_errno()));
