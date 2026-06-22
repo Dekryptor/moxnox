@@ -639,7 +639,7 @@ nt_status open_inode(string_view fn, dentry& root_dir,
     static const unsigned int MAX_SYMLINK_LOOPS = 40;
 
     nt_status status;
-    rdb_buf* buf = nullptr;
+    unique_ptr<rdb_buf> buf;
     unique_ptr<char[]> fnbuf;
     reference_wrapper<::dentry> rwd = root_dir;
     uint32_t retlen;
@@ -651,57 +651,38 @@ nt_status open_inode(string_view fn, dentry& root_dir,
                              create_options, create_result, parent);
         if (status != nt_status::REPARSE) {
             rwd.get().release();
-
-            if (buf)
-                free(buf);
-
             return status;
         }
 
         if (!obj_ref || obj_ref.get().type != object_type::inode) {
             rwd.get().release();
-
-            if (buf)
-                free(buf);
-
             obj_ref.reset();
-
             return nt_status::INTERNAL_ERROR;
         }
 
         auto& ino = static_cast<inode&>(obj_ref.get());
 
         if (!buf) {
-            buf = (rdb_buf*)malloc(sizeof(rdb_buf));
+            buf.reset(new rdb_buf);
             if (!buf) {
-                print("malloc failed\n");
-                obj_ref.reset();
-
+                print("new failed\n");
                 rwd.get().release();
-
+                obj_ref.reset();
                 return nt_status::INSUFFICIENT_RESOURCES;
             }
         }
 
         status = ino.fs_control(FSCTL_GET_REPARSE_POINT, span<uint8_t>(),
-                                span((uint8_t*)buf, sizeof(*buf)), retlen);
+                                span((uint8_t*)buf.get(), sizeof(*buf)), retlen);
         if (!success(status)) {
-            obj_ref.reset();
-
             rwd.get().release();
-
-            free(buf);
-
+            obj_ref.reset();
             return status;
         }
 
         if (buf->header.ReparseTag != IO_REPARSE_TAG_SYMLINK) {
-            obj_ref.reset();
-
             rwd.get().release();
-
-            free(buf);
-
+            obj_ref.reset();
             return nt_status::REPARSE_POINT_NOT_RESOLVED;
         }
 
@@ -709,12 +690,8 @@ nt_status open_inode(string_view fn, dentry& root_dir,
                                     buf->header.SymbolicLinkReparseBuffer.SubstituteNameLength / sizeof(char16_t));
 
         if (u16sv.empty()) {
-            obj_ref.reset();
-
             rwd.get().release();
-
-            free(buf);
-
+            obj_ref.reset();
             return nt_status::REPARSE_POINT_NOT_RESOLVED;
         }
 
@@ -725,11 +702,8 @@ nt_status open_inode(string_view fn, dentry& root_dir,
             if (!fnbuf) {
                 print("new failed\n");
 
-                obj_ref.reset();
-
                 rwd.get().release();
-
-                free(buf);
+                obj_ref.reset();
 
                 return nt_status::INSUFFICIENT_RESOURCES;
             }
@@ -742,11 +716,8 @@ nt_status open_inode(string_view fn, dentry& root_dir,
             if (!fnbuf2) {
                 print("new failed\n");
 
-                obj_ref.reset();
-
                 rwd.get().release();
-
-                free(buf);
+                obj_ref.reset();
 
                 return nt_status::INSUFFICIENT_RESOURCES;
             }
