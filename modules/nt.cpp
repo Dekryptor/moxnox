@@ -1517,6 +1517,36 @@ struct OBJECT_BASIC_INFORMATION {
     LARGE_INTEGER CreationTime;
 };
 
+constexpr uint32_t FSCTL_GET_REPARSE_POINT = 0x900a8;
+
+constexpr uint32_t IO_REPARSE_TAG_SYMLINK = 0xa000000c;
+
+struct REPARSE_DATA_BUFFER {
+    uint32_t ReparseTag;
+    uint16_t ReparseDataLength;
+    uint16_t Reserved;
+    union {
+        struct {
+            uint16_t SubstituteNameOffset;
+            uint16_t SubstituteNameLength;
+            uint16_t PrintNameOffset;
+            uint16_t PrintNameLength;
+            uint32_t Flags;
+            char16_t PathBuffer[1];
+        } SymbolicLinkReparseBuffer;
+        struct {
+            uint16_t SubstituteNameOffset;
+            uint16_t SubstituteNameLength;
+            uint16_t PrintNameOffset;
+            uint16_t PrintNameLength;
+            char16_t PathBuffer[1];
+        } MountPointReparseBuffer;
+        struct {
+            uint8_t DataBuffer[1];
+        } GenericReparseBuffer;
+    };
+};
+
 extern "C" {
 
 NTSTATUS NtDisplayString(const UNICODE_STRING* string);

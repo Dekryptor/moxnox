@@ -182,6 +182,7 @@ private:
                               uint64_t extent_offset, uint64_t file_offset,
                               uint64_t length);
     nt_status remove_orphan();
+    nt_status get_reparse_point(span<uint8_t> outbuf, uint32_t& retlen);
 };
 
 class btrfs_filesystem : public ::filesystem {
@@ -6331,9 +6332,59 @@ nt_status btrfs_inode::rename(::dentry& dentry, ::dentry& dest_dir,
     return nt_status::SUCCESS;
 }
 
-nt_status btrfs_inode::fs_control(uint32_t /*code*/, span<const uint8_t> /*inbuf*/,
-                                  span<uint8_t> /*outbuf*/, uint32_t& /*retlen*/) {
-    print("FIXME - btrfs_inode::fs_control\n");
+nt_status btrfs_inode::fs_control(uint32_t code, span<const uint8_t> /*inbuf*/,
+                                  span<uint8_t> outbuf, uint32_t& retlen) {
+    switch (code) {
+        case FSCTL_GET_REPARSE_POINT:
+            return get_reparse_point(outbuf, retlen);
 
-    return nt_status::NOT_IMPLEMENTED;
+        default:
+            return nt_status::NOT_SUPPORTED;
+    }
+}
+
+nt_status btrfs_inode::get_reparse_point(span<uint8_t> outbuf, uint32_t& retlen) {
+    if (outbuf.size() < offsetof(REPARSE_DATA_BUFFER, SymbolicLinkReparseBuffer.PathBuffer))
+        return nt_status::BUFFER_TOO_SMALL;
+
+    auto& rdb = *(REPARSE_DATA_BUFFER*)outbuf.data();
+    size_t u16len;
+
+    {
+        lock_guard lg(inode_lock);
+
+        if (inode_type != inode_type::symlink)
+            return nt_status::NOT_A_REPARSE_POINT;
+
+        if (is_list_empty(extents))
+            return nt_status::INVALID_PARAMETER;
+
+        auto& ie = containing_record<inode_extent>(extents.next);
+
+        if (ie.offset != 0 || ie.ed.type != btrfs_extent_type::inline_extent)
+            return nt_status::INVALID_PARAMETER;
+
+        auto sv = string_view((char*)&ie.ed.disk_bytenr, ie.ed.ram_bytes);
+
+        u16len = utf8_to_utf16_len(sv);
+
+        if (outbuf.size() < offsetof(REPARSE_DATA_BUFFER, SymbolicLinkReparseBuffer.PathBuffer) + (u16len * sizeof(char16_t)))
+            return nt_status::BUFFER_TOO_SMALL;
+
+        utf8_to_utf16(span(rdb.SymbolicLinkReparseBuffer.PathBuffer, u16len), sv);
+    }
+
+    rdb.ReparseTag = IO_REPARSE_TAG_SYMLINK;
+    rdb.ReparseDataLength = 0;
+    rdb.Reserved = 0;
+
+    rdb.SymbolicLinkReparseBuffer.SubstituteNameOffset = 0;
+    rdb.SymbolicLinkReparseBuffer.SubstituteNameLength = u16len * sizeof(char16_t);
+    rdb.SymbolicLinkReparseBuffer.PrintNameOffset = 0; // FIXME?
+    rdb.SymbolicLinkReparseBuffer.PrintNameLength = 0; // FIXME?
+    rdb.SymbolicLinkReparseBuffer.Flags = 0; // FIXME?
+
+    retlen = offsetof(REPARSE_DATA_BUFFER, SymbolicLinkReparseBuffer.PathBuffer) + (u16len * sizeof(char16_t));
+
+    return nt_status::SUCCESS;
 }

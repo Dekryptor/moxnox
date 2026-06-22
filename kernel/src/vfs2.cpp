@@ -2349,7 +2349,7 @@ NTSTATUS NtFsControlFile(HANDLE file_handle, HANDLE /*event*/,
                          IO_STATUS_BLOCK* iosb, uint32_t code,
                          void* input_buffer, uint32_t input_buffer_length,
                          void* output_buffer, uint32_t output_buffer_length) {
-    uint32_t retlen;
+    uint32_t retlen = 0;
 
     auto objrw = deref_handle(file_handle);
     if (!objrw)
