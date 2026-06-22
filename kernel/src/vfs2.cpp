@@ -970,6 +970,9 @@ nt_status inode::write(span<const uint8_t> s, uint64_t offset, uint64_t& written
     {
         lock_guard lock(inode_lock);
 
+        if (inode_type != inode_type::file)
+            return nt_status::INVALID_PARAMETER;
+
         if (file_size < offset + s.size())
             file_size = offset + s.size();
     }
