@@ -405,10 +405,10 @@ void search_dentry_cache(dentry& dir, string_view name,
     }
 };
 
-nt_status open_inode(string_view fn, dentry& root_dir,
-                     object_ref& obj_ref, optional<reference_wrapper<dentry>>& dentry,
-                     uint32_t create_disposition, uint32_t create_options,
-                     unsigned int& create_result, bool parent) {
+static nt_status open_inode2(string_view& fn, dentry& root_dir,
+                             object_ref& obj_ref, optional<reference_wrapper<dentry>>& dentry,
+                             uint32_t create_disposition, uint32_t create_options,
+                             unsigned int& create_result, bool parent) {
     bool root = false;
 
     while (!fn.empty() && fn.front() == '/') {
@@ -596,6 +596,23 @@ nt_status open_inode(string_view fn, dentry& root_dir,
 
         dir.release();
 
+        if (d.inode->type == object_type::inode && (!last_bit || !(create_options & FILE_OPEN_REPARSE_POINT))) {
+            auto& ino = static_cast<inode&>(*d.inode);
+
+            if (ino.inode_type == inode_type::symlink) {
+                if (last_bit)
+                    fn = string_view();
+                else
+                    fn = string_view(fn.data() + sl + 1, fn.size() - sl - 1);
+
+                d.inode->acquire();
+                obj_ref = *d.inode;
+                dentry = d;
+
+                return nt_status::REPARSE;
+            }
+        }
+
         if (last_bit) {
             d.inode->acquire();
             obj_ref = *d.inode;
@@ -607,6 +624,177 @@ nt_status open_inode(string_view fn, dentry& root_dir,
         fn = string_view(fn.data() + sl + 1, fn.size() - sl - 1);
         dirrw = d;
     }
+}
+
+nt_status open_inode(string_view fn, dentry& root_dir,
+                     object_ref& obj_ref, optional<reference_wrapper<dentry>>& dentry,
+                     uint32_t create_disposition, uint32_t create_options,
+                     unsigned int& create_result, bool parent) {
+    struct rdb_buf {
+        REPARSE_DATA_BUFFER header;
+        char16_t buffer[PATH_MAX - 1];
+    };
+
+    static const unsigned int MAX_SYMLINK_LOOPS = 40;
+
+    nt_status status;
+    rdb_buf* buf = nullptr;
+    char* fnbuf = nullptr;
+    reference_wrapper<::dentry> rwd = root_dir;
+    uint32_t retlen;
+
+    root_dir.acquire();
+
+    for (unsigned int i = 0; i < MAX_SYMLINK_LOOPS; i++) {
+        status = open_inode2(fn, rwd, obj_ref, dentry, create_disposition,
+                             create_options, create_result, parent);
+        if (status != nt_status::REPARSE) {
+            rwd.get().release();
+
+            if (buf)
+                free(buf);
+
+            if (fnbuf)
+                free(fnbuf);
+
+            return status;
+        }
+
+        if (!obj_ref || obj_ref.get().type != object_type::inode) {
+            rwd.get().release();
+
+            if (buf)
+                free(buf);
+
+            if (fnbuf)
+                free(fnbuf);
+
+            obj_ref.reset();
+
+            return nt_status::INTERNAL_ERROR;
+        }
+
+        auto& ino = static_cast<inode&>(obj_ref.get());
+
+        if (!buf) {
+            buf = (rdb_buf*)malloc(sizeof(rdb_buf));
+            if (!buf) {
+                print("malloc failed\n");
+                obj_ref.reset();
+
+                rwd.get().release();
+
+                if (fnbuf)
+                    free(fnbuf);
+
+                return nt_status::INSUFFICIENT_RESOURCES;
+            }
+        }
+
+        status = ino.fs_control(FSCTL_GET_REPARSE_POINT, span<uint8_t>(),
+                                span((uint8_t*)buf, sizeof(*buf)), retlen);
+        if (!success(status)) {
+            obj_ref.reset();
+
+            rwd.get().release();
+
+            free(buf);
+
+            if (fnbuf)
+                free(fnbuf);
+
+            return status;
+        }
+
+        if (buf->header.ReparseTag != IO_REPARSE_TAG_SYMLINK) {
+            obj_ref.reset();
+
+            rwd.get().release();
+
+            free(buf);
+
+            if (fnbuf)
+                free(fnbuf);
+
+            return nt_status::REPARSE_POINT_NOT_RESOLVED;
+        }
+
+        auto u16sv = u16string_view(buf->header.SymbolicLinkReparseBuffer.PathBuffer + (buf->header.SymbolicLinkReparseBuffer.SubstituteNameOffset / sizeof(char16_t)),
+                                    buf->header.SymbolicLinkReparseBuffer.SubstituteNameLength / sizeof(char16_t));
+
+        if (u16sv.empty()) {
+            obj_ref.reset();
+
+            rwd.get().release();
+
+            free(buf);
+
+            if (fnbuf)
+                free(fnbuf);
+
+            return nt_status::REPARSE_POINT_NOT_RESOLVED;
+        }
+
+        auto u8len = utf16_to_utf8_len(u16sv);
+
+        if (fn.empty()) {
+            if (fnbuf)
+                free(fnbuf);
+
+            fnbuf = (char*)malloc(u8len);
+            if (!fnbuf) {
+                print("malloc failed\n");
+
+                obj_ref.reset();
+
+                rwd.get().release();
+
+                free(buf);
+
+                return nt_status::INSUFFICIENT_RESOURCES;
+            }
+
+            utf16_to_utf8(span(fnbuf, u8len), u16sv);
+
+            fn = string_view(fnbuf, u8len);
+        } else {
+            auto fnbuf2 = (char*)malloc(u8len + 1 + fn.size());
+            if (!fnbuf2) {
+                print("malloc failed\n");
+
+                obj_ref.reset();
+
+                rwd.get().release();
+
+                free(buf);
+
+                if (fnbuf)
+                    free(fnbuf);
+
+                return nt_status::INSUFFICIENT_RESOURCES;
+            }
+
+            utf16_to_utf8(span(fnbuf2, u8len), u16sv);
+            fnbuf2[u8len] = '/';
+            memcpy(fnbuf2 + u8len + 1, fn.data(), fn.size());
+
+            if (fnbuf)
+                free(fnbuf);
+
+            fnbuf = fnbuf2;
+
+            fn = string_view(fnbuf, u8len + 1 + fn.size());
+        }
+
+        rwd.get().release();
+
+        rwd = *dentry->get().parent;
+        rwd.get().acquire();
+
+        obj_ref.reset();
+    }
+
+    return nt_status::REPARSE_POINT_NOT_RESOLVED;
 }
 
 extern "C"
