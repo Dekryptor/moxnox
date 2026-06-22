@@ -436,3 +436,13 @@ int symlink(const char* target, const char* linkpath) {
 
     return 0;
 }
+
+extern "C"
+void flockfile(FILE* f) {
+    _lock_file(f);
+}
+
+extern "C"
+void funlockfile(FILE* f) {
+    _unlock_file(f);
+}
