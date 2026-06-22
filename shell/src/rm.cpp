@@ -30,7 +30,8 @@ static void rm_file(u16string_view fn) {
 
     // FIXME - or FILE_DELETE_ON_CLOSE?
     status = NtCreateFile(&file, DELETE, &oa, &iosb, nullptr, 0, 0,
-                          FILE_OPEN, FILE_NON_DIRECTORY_FILE, nullptr, 0);
+                          FILE_OPEN, FILE_NON_DIRECTORY_FILE | FILE_OPEN_REPARSE_POINT,
+                          nullptr, 0);
 
     if (status == nt_status::OBJECT_NAME_NOT_FOUND) {
         print_stderr("rm: cannot remove {}: No such file or directory\n", fn);
