@@ -1096,11 +1096,6 @@ static int open2(const char* path, int flags, int pmode) {
         flags &= ~_O_NOINHERIT;
     }
 
-    if (flags & _O_SHORT_LIVED) {
-        print_stderr("FIXME - _open with _O_SHORT_LIVED\n");
-        flags &= ~_O_SHORT_LIVED;
-    }
-
     if (flags & _O_WTEXT) {
         print_stderr("FIXME - _open with _O_WTEXT\n");
         flags &= ~_O_WTEXT;
@@ -1124,6 +1119,7 @@ static int open2(const char* path, int flags, int pmode) {
     // FIXME - do we need to treat _O_TEXT and _O_BINARY differently?
     // FIXME - _O_RANDOM
     // FIXME - _O_SEQUENTIAL
+    // FIXME - _O_SHORT_LIVED?
 
     if (flags & _O_WRONLY)
         access |= FILE_GENERIC_WRITE;
