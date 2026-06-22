@@ -6188,7 +6188,7 @@ nt_status btrfs_inode::rename(::dentry& dentry, ::dentry& dest_dir,
             assert(victim.get().type == object_type::inode);
 
             auto& victim_ino = static_cast<btrfs_inode&>(victim.get());
-            bool orphaned;
+            bool orphaned, no_open_handles;
 
             {
                 lock_guard lg2(victim_ino.inode_lock);
@@ -6210,9 +6210,21 @@ nt_status btrfs_inode::rename(::dentry& dentry, ::dentry& dest_dir,
                 victim_ino.ii.ctime = cur_time;
 
                 orphaned = victim_ino.ii.nlink == 0;
+            }
 
-                // pretend we have an open handle
-                victim_ino.handle_count++;
+            if (orphaned) {
+                optional<reference_wrapper<::dentry>> victim_dentry;
+
+                {
+                    shared_lock lg(dest_dir.child_lock);
+                    search_dentry_cache(dest_dir, name, victim_dentry);
+                }
+
+                if (victim_dentry) {
+                    no_open_handles = victim_dentry->get().open_file_count == 0;
+                    victim_dentry->get().release();
+                } else
+                    no_open_handles = true;
             }
 
             status = victim_ino.flush_inode_item(p);
@@ -6223,12 +6235,15 @@ nt_status btrfs_inode::rename(::dentry& dentry, ::dentry& dest_dir,
 
             if (orphaned) {
                 status = insert_item(fs, *r,
-                                     {BTRFS_ORPHAN_OBJECTID, key_type::ORPHAN_INODE, victim_ino.inode},
-                                     span<const uint8_t>());
+                                    {BTRFS_ORPHAN_OBJECTID, key_type::ORPHAN_INODE, victim_ino.inode},
+                                    span<const uint8_t>());
                 if (!success(status)) {
                     print("insert_item returned {}\n", status);
                     return status;
                 }
+
+                if (no_open_handles)
+                    victim_ino.remove_orphan();
             }
 
             status = remove_dir_item(fs, *r, dir_item_key.objectid,
