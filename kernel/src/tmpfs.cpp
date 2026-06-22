@@ -451,7 +451,20 @@ nt_status tmpfs_inode::query_basic_information(span<uint8_t> buffer,
         fbi.LastAccessTime.QuadPart = (int64_t)atime;
         fbi.LastWriteTime.QuadPart = (int64_t)mtime;
         fbi.ChangeTime.QuadPart = (int64_t)ctime;
-        fbi.FileAttributes = inode_type == inode_type::directory ? FILE_ATTRIBUTE_DIRECTORY : 0; // FIXME
+
+        switch (inode_type) {
+            case inode_type::directory:
+                fbi.FileAttributes = FILE_ATTRIBUTE_DIRECTORY;
+            break;
+
+            case inode_type::symlink:
+                fbi.FileAttributes = FILE_ATTRIBUTE_REPARSE_POINT;
+            break;
+
+            default:
+                fbi.FileAttributes = 0;
+            break;
+        }
     }
 
     retlen = sizeof(fbi);
