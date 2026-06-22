@@ -13,3 +13,10 @@ gid_t getgid() {
 
     return 0;
 }
+
+extern "C"
+uid_t geteuid() {
+    // FIXME
+
+    return 0;
+}
