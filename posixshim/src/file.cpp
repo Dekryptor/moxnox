@@ -5,6 +5,7 @@
 #include <sys/stat.h>
 #include <string_view>
 #include <span>
+#include <memory>
 
 import nt;
 import unicode;
@@ -327,4 +328,111 @@ ssize_t readlink(const char* path, char* buf, size_t bufsiz) {
     utf16_to_utf8(span(buf, bufsiz), u16sv);
 
     return min(u8len, bufsiz);
+}
+
+extern "C"
+int symlink(const char* target, const char* linkpath) {
+    auto peb = NtCurrentTeb()->ProcessEnvironmentBlock;
+    nt_status status;
+    OBJECT_ATTRIBUTES oa;
+    UNICODE_STRING us;
+    IO_STATUS_BLOCK iosb;
+    HANDLE h;
+    unique_handle f;
+
+    if (!linkpath || !linkpath[0]) {
+        *_errno() = EINVAL;
+        return -1;
+    }
+
+    if (!target || !target[0]) {
+        *_errno() = EINVAL;
+        return -1;
+    }
+
+    auto linkpathsv = string_view(linkpath);
+    auto targetsv = string_view(target);
+
+    auto u16len = utf8_to_utf16_len(linkpathsv);
+    auto u16 = (char16_t*)malloc(u16len * sizeof(char16_t));
+    if (!u16) {
+        *_errno() = ENOMEM;
+        return -1;
+    }
+
+    utf8_to_utf16(span(u16, u16len), linkpathsv);
+
+    // try to create symlink
+
+    us.Length = us.MaximumLength = (uint16_t)(u16len * sizeof(char16_t));
+    us.Buffer = u16;
+
+    memset(&oa, 0, sizeof(oa));
+    oa.Length = sizeof(OBJECT_ATTRIBUTES);
+    oa.ObjectName = &us;
+    oa.RootDirectory = peb->ProcessParameters->CurrentDirectory.Handle;
+
+    status = NtCreateFile(&h, FILE_READ_ATTRIBUTES | DELETE, &oa, &iosb, nullptr,
+                          0, 0, FILE_CREATE, FILE_NON_DIRECTORY_FILE, nullptr, 0);
+
+    free(u16);
+
+    if (status == nt_status::OBJECT_NAME_COLLISION) {
+        *_errno() = EEXIST;
+        return -1;
+    } else if (!success(status)) {
+        *_errno() = nt_status_to_errno(status);
+        return -1;
+    } else
+        f.reset(h);
+
+    auto u16targetlen = utf8_to_utf16_len(targetsv);
+
+    size_t rdblen = offsetof(REPARSE_DATA_BUFFER, SymbolicLinkReparseBuffer.PathBuffer) + (u16targetlen * sizeof(char16_t));
+
+    auto rdbbuf = malloc(rdblen);
+    if (!rdbbuf) {
+        FILE_DISPOSITION_INFORMATION fdi;
+
+        fdi.DeleteFile = true;
+
+        NtSetInformationFile(f.get(), &iosb, &fdi, sizeof(fdi),
+                             FILE_INFORMATION_CLASS::DispositionInformation);
+
+        *_errno() = ENOMEM;
+        return -1;
+    }
+
+    auto& rdb = *(REPARSE_DATA_BUFFER*)rdbbuf;
+
+    rdb.ReparseTag = IO_REPARSE_TAG_SYMLINK;
+    rdb.ReparseDataLength = (uint16_t)(rdblen - offsetof(REPARSE_DATA_BUFFER, SymbolicLinkReparseBuffer));
+    rdb.Reserved = 0;
+    rdb.SymbolicLinkReparseBuffer.SubstituteNameOffset = 0;
+    rdb.SymbolicLinkReparseBuffer.SubstituteNameLength = (uint16_t)(u16targetlen * sizeof(char16_t));
+    rdb.SymbolicLinkReparseBuffer.PrintNameOffset = 0;
+    rdb.SymbolicLinkReparseBuffer.PrintNameLength = 0;
+    rdb.SymbolicLinkReparseBuffer.Flags = 0;
+
+    utf8_to_utf16(span(rdb.SymbolicLinkReparseBuffer.PathBuffer, u16targetlen), targetsv);
+
+    status = NtFsControlFile(f.get(), 0, nullptr, nullptr, &iosb,
+                             FSCTL_SET_REPARSE_POINT, &rdb, (uint32_t)rdblen,
+                             nullptr, 0);
+
+    free(rdbbuf);
+
+    if (!success(status)) {
+        FILE_DISPOSITION_INFORMATION fdi;
+
+        fdi.DeleteFile = true;
+
+        NtSetInformationFile(f.get(), &iosb, &fdi, sizeof(fdi),
+                             FILE_INFORMATION_CLASS::DispositionInformation);
+
+        *_errno() = nt_status_to_errno(status);
+        return -1;
+    }
+
+    return 0;
 }
