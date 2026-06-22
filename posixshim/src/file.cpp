@@ -446,3 +446,8 @@ extern "C"
 void funlockfile(FILE* f) {
     _unlock_file(f);
 }
+
+extern "C"
+int getc_unlocked(FILE* f) {
+    return _fgetc_nolock(f);
+}
