@@ -683,7 +683,8 @@ nt_status open_inode(string_view fn, dentry& root_dir,
         }
 
         status = ino.fs_control(FSCTL_GET_REPARSE_POINT, span<uint8_t>(),
-                                span((uint8_t*)buf.get(), sizeof(*buf)), retlen);
+                                span((uint8_t*)buf.get(), sizeof(*buf)), retlen,
+                                nullptr);
         if (!success(status)) {
             rwd.get().release();
             obj_ref.reset();
@@ -2512,7 +2513,7 @@ nt_status file::fs_control(uint32_t code, span<const uint8_t> inbuf,
 
     auto& i = static_cast<inode&>(ino);
 
-    return i.fs_control(code, inbuf, outbuf, retlen);
+    return i.fs_control(code, inbuf, outbuf, retlen, dentry);
 }
 
 extern "C"

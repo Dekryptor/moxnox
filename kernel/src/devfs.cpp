@@ -57,7 +57,7 @@ public:
     void last_handle_closed() override { }
 
     nt_status fs_control(uint32_t, span<const uint8_t>, span<uint8_t>,
-                         uint32_t&) override {
+                         uint32_t&, dentry*) override {
         return nt_status::NOT_SUPPORTED;
     }
 

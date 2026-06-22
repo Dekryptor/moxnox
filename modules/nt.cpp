@@ -1519,6 +1519,7 @@ struct OBJECT_BASIC_INFORMATION {
     LARGE_INTEGER CreationTime;
 };
 
+constexpr uint32_t FSCTL_SET_REPARSE_POINT = 0x900a4;
 constexpr uint32_t FSCTL_GET_REPARSE_POINT = 0x900a8;
 
 constexpr uint32_t IO_REPARSE_TAG_SYMLINK = 0xa000000c;

@@ -122,7 +122,8 @@ public:
     virtual nt_status rename(::dentry& dentry, ::dentry& dest_dir, string_view name,
                              bool replace_if_exists, object_ref& victim) = 0;
     virtual nt_status fs_control(uint32_t code, span<const uint8_t> inbuf,
-                                 span<uint8_t> outbuf, uint32_t& retlen) = 0;
+                                 span<uint8_t> outbuf, uint32_t& retlen,
+                                 dentry* dentry) = 0;
     virtual void last_handle_closed() = 0;
 
     virtual nt_status read_into_cache(uint64_t page_num, uint64_t num_pages,

@@ -4,6 +4,7 @@
 #include <optional>
 #include <string_view>
 #include <mutex>
+#include <memory>
 #include "assert.h"
 #include "btrfs.h"
 
@@ -39,6 +40,7 @@ using namespace std;
 static const size_t MAX_INLINE = 2048; // FIXME - should be mount option
 
 static const uint32_t S_IFREG = 0100000;
+static const uint32_t S_IFLNK = 0120000;
 static const uint32_t S_IFDIR = 0040000;
 
 static const uint64_t superblock_addrs[] = { 0x10000, 0x4000000, 0x4000000000, 0x4000000000000 };
@@ -159,7 +161,8 @@ public:
     nt_status get_last_dir_index(uint64_t& ret);
     void last_handle_closed() override;
     nt_status fs_control(uint32_t code, span<const uint8_t> inbuf,
-                         span<uint8_t> outbuf, uint32_t& retlen) override;
+                         span<uint8_t> outbuf, uint32_t& retlen,
+                         dentry* dentry) override;
 
     root* r;
     btrfs_filesystem& fs; // FIXME - use reference in ::inode
@@ -183,6 +186,7 @@ private:
                               uint64_t length);
     nt_status remove_orphan();
     nt_status get_reparse_point(span<uint8_t> outbuf, uint32_t& retlen);
+    nt_status set_reparse_point(span<const uint8_t> inbuf, dentry& dentry);
 };
 
 class btrfs_filesystem : public ::filesystem {
@@ -4066,7 +4070,7 @@ nt_status btrfs_inode::flush_cache(uint64_t page_num, uint64_t num_pages) {
         return status;
     }
 
-    if (file_size <= MAX_INLINE) {
+    if (file_size <= MAX_INLINE || inode_type == inode_type::symlink) {
         status = flush_inline_inode(*this);
         if (!success(status)) {
             print("flush_inline_inode returned {}\n", status);
@@ -6332,11 +6336,18 @@ nt_status btrfs_inode::rename(::dentry& dentry, ::dentry& dest_dir,
     return nt_status::SUCCESS;
 }
 
-nt_status btrfs_inode::fs_control(uint32_t code, span<const uint8_t> /*inbuf*/,
-                                  span<uint8_t> outbuf, uint32_t& retlen) {
+nt_status btrfs_inode::fs_control(uint32_t code, span<const uint8_t> inbuf,
+                                  span<uint8_t> outbuf, uint32_t& retlen,
+                                  dentry* dentry) {
     switch (code) {
         case FSCTL_GET_REPARSE_POINT:
             return get_reparse_point(outbuf, retlen);
+
+        case FSCTL_SET_REPARSE_POINT:
+            if (!dentry)
+                return nt_status::INVALID_PARAMETER;
+
+            return set_reparse_point(inbuf, *dentry);
 
         default:
             return nt_status::NOT_SUPPORTED;
@@ -6389,6 +6400,265 @@ nt_status btrfs_inode::get_reparse_point(span<uint8_t> outbuf, uint32_t& retlen)
     rdb.SymbolicLinkReparseBuffer.Flags = 0; // FIXME?
 
     retlen = (uint32_t)(offsetof(REPARSE_DATA_BUFFER, SymbolicLinkReparseBuffer.PathBuffer) + (u16len * sizeof(char16_t)));
+
+    return nt_status::SUCCESS;
+}
+
+static nt_status change_dir_item_type(btrfs_filesystem& fs, btrfs_path& p, root& r,
+                                      btrfs_inode& parent, string_view name,
+                                      enum btrfs_inode_type type) {
+    nt_status status;
+
+    auto hash = calc_crc32c(0xfffffffe, name);
+
+    btrfs_key key{parent.inode, key_type::DIR_ITEM, hash};
+
+    // look for DIR_ITEM
+
+    status = fs.find_item(r, key, p, true);
+    if (!success(status))
+        return status;
+
+    auto& th = *(btrfs_header*)p.data[0];
+    auto items = span((btrfs_item*)((uint8_t*)&th + sizeof(btrfs_header)), th.nritems);
+
+    if (p.slots[0] == th.nritems)
+        return nt_status::DISK_CORRUPT_ERROR;
+
+    const auto& it = items[p.slots[0]];
+
+    if (it.key != key)
+        return nt_status::DISK_CORRUPT_ERROR;
+
+    auto data = span((const uint8_t*)&th + sizeof(btrfs_header) + it.offset, it.size);
+
+    while (data.size() > offsetof(btrfs_dir_item, name)) {
+        auto& di = *(btrfs_dir_item*)data.data();
+
+        if (data.size() < offsetof(btrfs_dir_item, name) + di.name_len)
+            return nt_status::DISK_CORRUPT_ERROR;
+
+        if (di.data_len != 0)
+            return nt_status::DISK_CORRUPT_ERROR;
+
+        if (di.name_len == name.size() && !memcmp(di.name, name.data(), name.size())) {
+            di.type = type;
+
+            if (!fs.cache.write(span(p.data[0], fs.sb->nodesize), th.bytenr)) // FIXME - return status
+                return nt_status::INTERNAL_ERROR;
+
+            return nt_status::SUCCESS;
+        }
+
+        data = span(data.data() + offsetof(btrfs_dir_item, name) + di.name_len,
+                    data.size() - offsetof(btrfs_dir_item, name) - di.name_len);
+    }
+
+    return nt_status::DISK_CORRUPT_ERROR;
+}
+
+static nt_status change_dir_index_type(btrfs_filesystem& fs, btrfs_path& p, root& r,
+                                       btrfs_inode& parent, string_view name,
+                                       uint64_t inode, enum btrfs_inode_type type) {
+    nt_status status;
+    optional<uint64_t> index;
+
+    // lookup INODE_REF to get the index
+
+    {
+        auto k = btrfs_key{inode, key_type::INODE_REF, parent.inode};
+
+        status = fs.find_item(r, k, p, false);
+        if (!success(status))
+            return status;
+
+        auto& th = *(btrfs_header*)p.data[0];
+        auto items = span((btrfs_item*)((uint8_t*)&th + sizeof(btrfs_header)), th.nritems);
+
+        if (p.slots[0] == th.nritems) {
+            print("change_dir_index_type: could not find {}\n", k);
+            return nt_status::DISK_CORRUPT_ERROR;
+        }
+
+        const auto& it = items[p.slots[0]];
+        const auto& found_key = it.key;
+
+        if (found_key != k) {
+            print("change_dir_index_type: could not find {}\n", k);
+            return nt_status::DISK_CORRUPT_ERROR;
+        }
+
+        auto data = span((const uint8_t*)&th + sizeof(btrfs_header) + it.offset, it.size);
+
+        while (data.size() >= offsetof(btrfs_inode_ref, name)) {
+            const auto& ir = *(btrfs_inode_ref*)data.data();
+            size_t len = offsetof(btrfs_inode_ref, name) + ir.name_len;
+
+            if (data.size() < len)
+                return nt_status::DISK_CORRUPT_ERROR;
+
+            if (string_view(ir.name, ir.name_len) != name) {
+                data = span(data.data() + len, data.size() - len);
+                continue;
+            }
+
+            index = ir.index;
+            break;
+        }
+    }
+
+    // FIXME - INODE_EXTREF (getting index, removing) (if incompat flag set)
+
+    if (!index.has_value()) {
+        print("change_dir_index_type: could not get index for {} in {:x}\n",
+              name, parent.inode);
+        return nt_status::DISK_CORRUPT_ERROR;
+    }
+
+    btrfs_key key{parent.inode, key_type::DIR_INDEX, *index};
+
+    // look for DIR_INDEX
+
+    status = fs.find_item(r, key, p, true);
+    if (!success(status))
+        return status;
+
+    auto& th = *(btrfs_header*)p.data[0];
+    auto items = span((btrfs_item*)((uint8_t*)&th + sizeof(btrfs_header)), th.nritems);
+
+    if (p.slots[0] == th.nritems)
+        return nt_status::DISK_CORRUPT_ERROR;
+
+    const auto& it = items[p.slots[0]];
+
+    if (it.key != key)
+        return nt_status::DISK_CORRUPT_ERROR;
+
+    auto data = span((const uint8_t*)&th + sizeof(btrfs_header) + it.offset, it.size);
+
+    if (data.size() < offsetof(btrfs_dir_item, name))
+        return nt_status::DISK_CORRUPT_ERROR;
+
+    auto& di = *(btrfs_dir_item*)data.data();
+
+    if (data.size() < offsetof(btrfs_dir_item, name) + di.name_len)
+        return nt_status::DISK_CORRUPT_ERROR;
+
+    if (di.data_len != 0)
+        return nt_status::DISK_CORRUPT_ERROR;
+
+    if (di.name_len != name.size() || memcmp(di.name, name.data(), name.size()))
+        return nt_status::DISK_CORRUPT_ERROR;
+
+    di.type = type;
+
+    if (!fs.cache.write(span(p.data[0], fs.sb->nodesize), th.bytenr)) // FIXME - return status
+        return nt_status::INTERNAL_ERROR;
+
+    return nt_status::SUCCESS;
+}
+
+nt_status btrfs_inode::set_reparse_point(span<const uint8_t> inbuf,
+                                         dentry& dentry) {
+    auto& sb = *fs.sb;
+    nt_status status;
+    unique_ptr<char[]> u8;
+
+    if (inbuf.size() < offsetof(REPARSE_DATA_BUFFER, SymbolicLinkReparseBuffer.PathBuffer))
+        return nt_status::BUFFER_TOO_SMALL;
+
+    auto& rdb = *(REPARSE_DATA_BUFFER*)inbuf.data();
+
+    if (rdb.ReparseTag != IO_REPARSE_TAG_SYMLINK)
+        return nt_status::INVALID_PARAMETER;
+
+    size_t buflen = inbuf.size() - offsetof(REPARSE_DATA_BUFFER, SymbolicLinkReparseBuffer.PathBuffer);
+
+    if (rdb.SymbolicLinkReparseBuffer.SubstituteNameLength == 0)
+        return nt_status::INVALID_PARAMETER;
+
+    if (rdb.SymbolicLinkReparseBuffer.SubstituteNameOffset >= buflen)
+        return nt_status::INVALID_PARAMETER;
+
+    if (rdb.SymbolicLinkReparseBuffer.SubstituteNameOffset + rdb.SymbolicLinkReparseBuffer.SubstituteNameLength > buflen)
+        return nt_status::INVALID_PARAMETER;
+
+    auto u16sv = u16string_view(rdb.SymbolicLinkReparseBuffer.PathBuffer + (rdb.SymbolicLinkReparseBuffer.SubstituteNameOffset / sizeof(char16_t)),
+                                rdb.SymbolicLinkReparseBuffer.SubstituteNameLength / sizeof(char16_t));
+
+    auto u8len = utf16_to_utf8_len(u16sv);
+
+    if (u8len > sb.sectorsize)
+        return nt_status::INVALID_PARAMETER;
+
+    u8.reset(new char[u8len]);
+    if (!u8) {
+        print("new failed\n");
+        return nt_status::INSUFFICIENT_RESOURCES;
+    }
+
+    utf16_to_utf8(span(u8.get(), u8len), u16sv);
+
+    auto u8sv = string_view(u8.get(), u8len);
+
+    {
+        lock_guard lock(fs.trans_lock);
+        btrfs_path p(sb.nodesize);
+
+        // FIXME - rollback if this fails halfway through
+
+        {
+            lock_guard lock2(inode_lock);
+
+            if (inode_type != inode_type::file)
+                return nt_status::INVALID_PARAMETER;
+
+            if (file_size != 0)
+                return nt_status::INVALID_PARAMETER;
+
+            if (ii.nlink != 1)
+                return nt_status::INVALID_PARAMETER;
+
+            inode_type = inode_type::symlink;
+
+            // FIXME - change perms to 777?
+
+            ii.mode &= ~S_IFREG;
+            ii.mode |= S_IFLNK;
+
+            file_size = ii.size = ii.nbytes = u8sv.size();
+        }
+
+        status = flush_inode_item(p);
+        if (!success(status)) {
+            print("btrfs_inode::flush_inode_item returned {}\n", status);
+            return status;
+        }
+
+        auto& parent = static_cast<btrfs_inode&>(*dentry.parent->inode);
+
+        status = change_dir_item_type(fs, p, *r, parent, dentry.name,
+                                      btrfs_inode_type::symlink);
+        if (!success(status)) {
+            print("change_dir_item returned {}\n", status);
+            return status;
+        }
+
+        status = change_dir_index_type(fs, p, *r, parent, dentry.name,
+                                       inode, btrfs_inode_type::symlink);
+        if (!success(status)) {
+            print("change_dir_index returned {}\n", status);
+            return status;
+        }
+
+        cache.write(span((uint8_t*)u8sv.data(), u8sv.size()), 0);
+    }
+
+    status = flush_cache(0, bytes_to_pages(sb.sectorsize));
+    if (!success(status)) {
+        print("flush_cache returned {}\n", status);
+        return status;
+    }
 
     return nt_status::SUCCESS;
 }

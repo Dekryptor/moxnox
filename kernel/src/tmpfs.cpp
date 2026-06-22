@@ -58,7 +58,8 @@ public:
     nt_status set_disposition_information(span<const uint8_t> buffer,
                                           dentry& dentry);
     nt_status fs_control(uint32_t code, span<const uint8_t> inbuf,
-                         span<uint8_t> outbuf, uint32_t& retlen) override;
+                         span<uint8_t> outbuf, uint32_t& retlen,
+                         dentry* dentry) override;
 
     tmpfs_filesystem& fs; // FIXME - use reference in ::inode
     uint64_t mtime, ctime, otime, atime;
@@ -784,7 +785,8 @@ nt_status tmpfs_inode::rename(::dentry& dentry, ::dentry& dest_dir,
 }
 
 nt_status tmpfs_inode::fs_control(uint32_t /*code*/, span<const uint8_t> /*inbuf*/,
-                                  span<uint8_t> /*outbuf*/, uint32_t& /*retlen*/) {
+                                  span<uint8_t> /*outbuf*/, uint32_t& /*retlen*/,
+                                  dentry* /*dentry*/) {
     print("FIXME - tmpfs_inode::fs_control\n");
 
     return nt_status::NOT_IMPLEMENTED;
