@@ -293,7 +293,8 @@ static void ls(span<u16string_view> argv) {
         status = NtCreateFile(&h, FILE_LIST_DIRECTORY | FILE_READ_ATTRIBUTES | SYNCHRONIZE,
                               &oa, &iosb, nullptr, 0,
                               FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE,
-                              FILE_OPEN, FILE_SYNCHRONOUS_IO_ALERT, nullptr, 0);
+                              FILE_OPEN, FILE_SYNCHRONOUS_IO_ALERT | FILE_OPEN_REPARSE_POINT,
+                              nullptr, 0);
 
         if (status == nt_status::OBJECT_NAME_NOT_FOUND ||
             status == nt_status::OBJECT_PATH_NOT_FOUND) {
