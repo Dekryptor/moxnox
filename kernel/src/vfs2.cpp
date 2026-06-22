@@ -770,6 +770,8 @@ nt_status open_inode(string_view fn, dentry& root_dir,
         obj_ref.reset();
     }
 
+    rwd.get().release();
+
     return nt_status::REPARSE_POINT_NOT_RESOLVED;
 }
 
