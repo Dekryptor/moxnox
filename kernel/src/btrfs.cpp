@@ -6359,7 +6359,7 @@ nt_status btrfs_inode::get_reparse_point(span<uint8_t> outbuf, uint32_t& retlen)
         return nt_status::BUFFER_TOO_SMALL;
 
     auto& rdb = *(REPARSE_DATA_BUFFER*)outbuf.data();
-    size_t u16len;
+    size_t u16len, rdblen;
     unique_ptr<char[]> data;
 
     {
@@ -6385,14 +6385,16 @@ nt_status btrfs_inode::get_reparse_point(span<uint8_t> outbuf, uint32_t& retlen)
 
         u16len = utf8_to_utf16_len(sv);
 
-        if (outbuf.size() < offsetof(REPARSE_DATA_BUFFER, SymbolicLinkReparseBuffer.PathBuffer) + (u16len * sizeof(char16_t)))
+        rdblen = offsetof(REPARSE_DATA_BUFFER, SymbolicLinkReparseBuffer.PathBuffer) + (u16len * sizeof(char16_t));
+
+        if (outbuf.size() < rdblen)
             return nt_status::BUFFER_TOO_SMALL;
 
         utf8_to_utf16(span(rdb.SymbolicLinkReparseBuffer.PathBuffer, u16len), sv);
     }
 
     rdb.ReparseTag = IO_REPARSE_TAG_SYMLINK;
-    rdb.ReparseDataLength = 0;
+    rdb.ReparseDataLength = (uint16_t)(rdblen - offsetof(REPARSE_DATA_BUFFER, SymbolicLinkReparseBuffer));
     rdb.Reserved = 0;
 
     rdb.SymbolicLinkReparseBuffer.SubstituteNameOffset = 0;
@@ -6401,7 +6403,7 @@ nt_status btrfs_inode::get_reparse_point(span<uint8_t> outbuf, uint32_t& retlen)
     rdb.SymbolicLinkReparseBuffer.PrintNameLength = 0; // FIXME?
     rdb.SymbolicLinkReparseBuffer.Flags = 0; // FIXME?
 
-    retlen = (uint32_t)(offsetof(REPARSE_DATA_BUFFER, SymbolicLinkReparseBuffer.PathBuffer) + (u16len * sizeof(char16_t)));
+    retlen = (uint32_t)rdblen;
 
     return nt_status::SUCCESS;
 }
