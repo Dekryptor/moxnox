@@ -601,6 +601,8 @@ span<char> do_format_arg(span<char> sp, string_view, nt_status arg) {
             return sp_strcpy(sp, "ILLEGAL_DLL_RELOCATION");
         case nt_status::NOT_A_REPARSE_POINT:
             return sp_strcpy(sp, "NOT_A_REPARSE_POINT");
+        case nt_status::REPARSE_POINT_NOT_RESOLVED:
+            return sp_strcpy(sp, "REPARSE_POINT_NOT_RESOLVED");
         case nt_status::DEVICE_REMOVED:
             return sp_strcpy(sp, "DEVICE_REMOVED");
         case nt_status::SYSTEM_SHUTDOWN:
