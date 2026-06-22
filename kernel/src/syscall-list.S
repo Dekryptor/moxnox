@@ -66,7 +66,7 @@ syscall_stub "NtFlushInstructionCache"
 syscall_stub "NtFlushKey"
 syscall_func "NtFlushVirtualMemory", 4
 syscall_stub "NtFlushWriteBuffer"
-syscall_stub "NtFsControlFile"
+syscall_func "NtFsControlFile", 10
 syscall_func "NtGetContextThread", 2
 syscall_stub "NtImpersonateClientOfPort"
 syscall_stub "NtImpersonateThread"

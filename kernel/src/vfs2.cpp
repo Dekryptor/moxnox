@@ -2332,3 +2332,14 @@ void remove_partitions(volume& v) {
         delete &p;
     }
 }
+
+extern "C"
+NTSTATUS NtFsControlFile(HANDLE /*file_handle*/, HANDLE /*event*/,
+                         PIO_APC_ROUTINE /*apc_routine*/, void* /*apc_context*/,
+                         IO_STATUS_BLOCK* /*iosb*/, uint32_t /*code*/,
+                         void* /*input_buffer*/, uint32_t /*input_buffer_length*/,
+                         void* /*output_buffer*/, uint32_t /*output_buffer_length*/) {
+    print("FIXME - NtFsControlFile\n");
+
+    return nt_status::NOT_IMPLEMENTED;
+}

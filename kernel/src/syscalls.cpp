@@ -1744,6 +1744,84 @@ nt_status user_NtQueryObject(HANDLE handle, OBJECT_INFORMATION_CLASS info_class,
 }
 
 extern "C"
+NTSTATUS user_NtFsControlFile(HANDLE file_handle, HANDLE event,
+                              PIO_APC_ROUTINE apc_routine, void* apc_context,
+                              IO_STATUS_BLOCK* us_iosb, uint32_t code,
+                              void* us_input_buffer, uint32_t input_buffer_length,
+                              void* us_output_buffer, uint32_t output_buffer_length) {
+    IO_STATUS_BLOCK iosb;
+    uint8_t* input_buffer;
+    uint8_t* output_buffer;
+
+    if (!us_iosb)
+        return nt_status::INVALID_PARAMETER;
+
+    if (us_input_buffer && input_buffer_length > 0) {
+        if (input_buffer_length > PAGE_SIZE)
+            return nt_status::INVALID_PARAMETER;
+
+        input_buffer = (uint8_t*)malloc(input_buffer_length);
+        if (!input_buffer) {
+            print("malloc failed\n");
+            return nt_status::INSUFFICIENT_RESOURCES;
+        }
+
+        if (!copy_from_process(input_buffer, us_input_buffer, input_buffer_length)) {
+            free(input_buffer);
+            return nt_status::ACCESS_VIOLATION;
+        }
+    } else {
+        input_buffer = nullptr;
+        input_buffer_length = 0;
+    }
+
+    if (us_output_buffer && output_buffer_length > 0) {
+        if (output_buffer_length > PAGE_SIZE) {
+            if (input_buffer)
+                free(input_buffer);
+
+            return nt_status::INVALID_PARAMETER;
+        }
+
+        output_buffer = (uint8_t*)malloc(output_buffer_length);
+        if (!output_buffer) {
+            print("malloc failed\n");
+
+            if (input_buffer)
+                free(input_buffer);
+
+            return nt_status::INSUFFICIENT_RESOURCES;
+        }
+    } else {
+        output_buffer = nullptr;
+        output_buffer_length = 0;
+    }
+
+    auto ret = NtFsControlFile(file_handle, event, apc_routine, apc_context,
+                               &iosb, code, input_buffer, input_buffer_length,
+                               output_buffer, output_buffer_length);
+
+    if (input_buffer)
+        free(input_buffer);
+
+    if (success(ret)) {
+        if (output_buffer) {
+            if (!copy_to_process(us_output_buffer, output_buffer, iosb.Information)) {
+                free(output_buffer);
+                return nt_status::ACCESS_VIOLATION;
+            }
+
+            free(output_buffer);
+        }
+
+        if (!copy_to_process(us_iosb, &iosb, sizeof(IO_STATUS_BLOCK)))
+            return nt_status::ACCESS_VIOLATION;
+    }
+
+    return ret;
+}
+
+extern "C"
 uint64_t maybe_yield_after_syscall(uint64_t syscall_ret) {
     // interrupts are disabled and sync_lock held
 
