@@ -609,8 +609,7 @@ endif()
 
 install(TARGETS tset DESTINATION ${CMAKE_INSTALL_PREFIX}/bin)
 
-# FIXME - do as symlink
-install(PROGRAMS $<TARGET_FILE:tset> DESTINATION ${CMAKE_INSTALL_PREFIX}/bin RENAME reset.exe)
+install(CODE "file(CREATE_LINK tset.exe \"\$ENV{DESTDIR}${CMAKE_INSTALL_PREFIX}/bin/reset.exe\" SYMBOLIC)")
 
 ####
 
