@@ -935,6 +935,9 @@ nt_status inode::read(span<uint8_t> s, uint64_t offset, uint64_t& read_bytes) {
     {
         shared_lock lock(inode_lock);
         size = file_size;
+
+        if (inode_type != inode_type::file)
+            return nt_status::INVALID_PARAMETER;
     }
 
     if (offset >= size)
