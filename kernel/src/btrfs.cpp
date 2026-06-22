@@ -6031,13 +6031,20 @@ void btrfs_inode::last_handle_closed() {
 
     // FIXME - we can put this in a worker rather than doing it straightaway
 
-    remove_orphan(); // FIXME - what if it fails?
+    {
+        lock_guard lg(fs.trans_lock);
+
+        remove_orphan(); // FIXME - what if it fails?
+    }
 }
 
 nt_status btrfs_inode::remove_orphan() {
     nt_status status;
     uint64_t len;
     uint32_t sectorsize = fs.sb->sectorsize;
+    btrfs_path p(fs.sb->nodesize);
+
+    // needs trans_lock held
 
     {
         shared_lock lg(inode_lock);
@@ -6047,76 +6054,67 @@ nt_status btrfs_inode::remove_orphan() {
     if (len % sectorsize)
         len += sectorsize - (len % sectorsize);
 
-    {
-        lock_guard lg(fs.trans_lock);
+    // FIXME - do in multiple transactions if particularly large?
 
-        // FIXME - do in multiple transactions if particularly large?
+    status = punch_hole(*this, 0, len);
+    if (!success(status)) {
+        print("btrfs_inode::remove_orphan: punch_hole returned {}\n", status);
+        return status;
+    }
 
-        status = punch_hole(*this, 0, len);
+    status = fs.find_item(*r, {inode, key_type::INODE_ITEM, 0}, p, true);
+    if (!success(status)) {
+        print("btrfs_inode::remove_orphan: find_item returned {}\n", status);
+        return status;
+    }
+
+    while (true) {
+        auto& th = *(btrfs_header*)p.data[0];
+        auto items = span((btrfs_item*)((uint8_t*)&th + sizeof(btrfs_header)),
+                            th.nritems);
+
+        if (p.slots[0] >= th.nritems)
+            break;
+
+        const auto& it = items[p.slots[0]];
+        const auto& k = it.key;
+
+        if (k.objectid > inode)
+            break;
+
+        assert(k.type != key_type::DIR_INDEX);
+        assert(k.type != key_type::DIR_ITEM);
+        assert(k.type != key_type::INODE_REF);
+        assert(k.type != key_type::INODE_EXTREF);
+
+        status = fs.remove_item2(p);
         if (!success(status)) {
-            print("btrfs_inode::remove_orphan: punch_hole returned {}\n", status);
+            print("btrfs_inode::remove_orphan: remove_item2 returned {}\n",
+                    status);
             return status;
+        }
+
+        if (p.slots[0] >= leaf_nritems(p)) {
+            status = next_leaf(fs, p);
+            if (status == nt_status::NOT_FOUND)
+                break;
+            else if (!success(status)) {
+                print("btrfs_inode::remove_orphan: next_leaf returned {}\n",
+                        status);
+                return status;
+            }
         }
     }
 
+    status = fs.remove_item(*r, {BTRFS_ORPHAN_OBJECTID, key_type::ORPHAN_INODE, inode});
+    if (!success(status)) {
+        print("btrfs_inode::remove_orphan: remove_item returned {}\n", status);
+        return status;
+    }
+
     {
-        btrfs_path p(fs.sb->nodesize);
-        lock_guard lg(fs.trans_lock);
-
-        status = fs.find_item(*r, {inode, key_type::INODE_ITEM, 0}, p, true);
-        if (!success(status)) {
-            print("btrfs_inode::remove_orphan: find_item returned {}\n", status);
-            return status;
-        }
-
-        while (true) {
-            auto& th = *(btrfs_header*)p.data[0];
-            auto items = span((btrfs_item*)((uint8_t*)&th + sizeof(btrfs_header)),
-                              th.nritems);
-
-            if (p.slots[0] >= th.nritems)
-                break;
-
-            const auto& it = items[p.slots[0]];
-            const auto& k = it.key;
-
-            if (k.objectid > inode)
-                break;
-
-            assert(k.type != key_type::DIR_INDEX);
-            assert(k.type != key_type::DIR_ITEM);
-            assert(k.type != key_type::INODE_REF);
-            assert(k.type != key_type::INODE_EXTREF);
-
-            status = fs.remove_item2(p);
-            if (!success(status)) {
-                print("btrfs_inode::remove_orphan: remove_item2 returned {}\n",
-                      status);
-                return status;
-            }
-
-            if (p.slots[0] >= leaf_nritems(p)) {
-                status = next_leaf(fs, p);
-                if (status == nt_status::NOT_FOUND)
-                    break;
-                else if (!success(status)) {
-                    print("btrfs_inode::remove_orphan: next_leaf returned {}\n",
-                          status);
-                    return status;
-                }
-            }
-        }
-
-        status = fs.remove_item(*r, {BTRFS_ORPHAN_OBJECTID, key_type::ORPHAN_INODE, inode});
-        if (!success(status)) {
-            print("btrfs_inode::remove_orphan: remove_item returned {}\n", status);
-            return status;
-        }
-
-        {
-            lock_guard lg2(inode_lock);
-            dead = true;
-        }
+        lock_guard lg2(inode_lock);
+        dead = true;
     }
 
     return nt_status::SUCCESS;
