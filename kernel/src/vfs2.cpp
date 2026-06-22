@@ -6,6 +6,7 @@ module;
 #include <string_view>
 #include <mutex>
 #include <atomic>
+#include <memory>
 #include <stdint.h>
 #include "assert.h"
 
@@ -639,7 +640,7 @@ nt_status open_inode(string_view fn, dentry& root_dir,
 
     nt_status status;
     rdb_buf* buf = nullptr;
-    char* fnbuf = nullptr;
+    unique_ptr<char[]> fnbuf;
     reference_wrapper<::dentry> rwd = root_dir;
     uint32_t retlen;
 
@@ -654,9 +655,6 @@ nt_status open_inode(string_view fn, dentry& root_dir,
             if (buf)
                 free(buf);
 
-            if (fnbuf)
-                free(fnbuf);
-
             return status;
         }
 
@@ -665,9 +663,6 @@ nt_status open_inode(string_view fn, dentry& root_dir,
 
             if (buf)
                 free(buf);
-
-            if (fnbuf)
-                free(fnbuf);
 
             obj_ref.reset();
 
@@ -684,9 +679,6 @@ nt_status open_inode(string_view fn, dentry& root_dir,
 
                 rwd.get().release();
 
-                if (fnbuf)
-                    free(fnbuf);
-
                 return nt_status::INSUFFICIENT_RESOURCES;
             }
         }
@@ -700,9 +692,6 @@ nt_status open_inode(string_view fn, dentry& root_dir,
 
             free(buf);
 
-            if (fnbuf)
-                free(fnbuf);
-
             return status;
         }
 
@@ -712,9 +701,6 @@ nt_status open_inode(string_view fn, dentry& root_dir,
             rwd.get().release();
 
             free(buf);
-
-            if (fnbuf)
-                free(fnbuf);
 
             return nt_status::REPARSE_POINT_NOT_RESOLVED;
         }
@@ -729,21 +715,15 @@ nt_status open_inode(string_view fn, dentry& root_dir,
 
             free(buf);
 
-            if (fnbuf)
-                free(fnbuf);
-
             return nt_status::REPARSE_POINT_NOT_RESOLVED;
         }
 
         auto u8len = utf16_to_utf8_len(u16sv);
 
         if (fn.empty()) {
-            if (fnbuf)
-                free(fnbuf);
-
-            fnbuf = (char*)malloc(u8len);
+            fnbuf.reset(new char[u8len]);
             if (!fnbuf) {
-                print("malloc failed\n");
+                print("new failed\n");
 
                 obj_ref.reset();
 
@@ -754,22 +734,19 @@ nt_status open_inode(string_view fn, dentry& root_dir,
                 return nt_status::INSUFFICIENT_RESOURCES;
             }
 
-            utf16_to_utf8(span(fnbuf, u8len), u16sv);
+            utf16_to_utf8(span(fnbuf.get(), u8len), u16sv);
 
-            fn = string_view(fnbuf, u8len);
+            fn = string_view(fnbuf.get(), u8len);
         } else {
-            auto fnbuf2 = (char*)malloc(u8len + 1 + fn.size());
+            auto fnbuf2 = new char[u8len + 1 + fn.size()];
             if (!fnbuf2) {
-                print("malloc failed\n");
+                print("new failed\n");
 
                 obj_ref.reset();
 
                 rwd.get().release();
 
                 free(buf);
-
-                if (fnbuf)
-                    free(fnbuf);
 
                 return nt_status::INSUFFICIENT_RESOURCES;
             }
@@ -778,12 +755,9 @@ nt_status open_inode(string_view fn, dentry& root_dir,
             fnbuf2[u8len] = '/';
             memcpy(fnbuf2 + u8len + 1, fn.data(), fn.size());
 
-            if (fnbuf)
-                free(fnbuf);
+            fnbuf.reset(fnbuf2);
 
-            fnbuf = fnbuf2;
-
-            fn = string_view(fnbuf, u8len + 1 + fn.size());
+            fn = string_view(fnbuf.get(), u8len + 1 + fn.size());
         }
 
         rwd.get().release();
