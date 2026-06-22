@@ -6360,6 +6360,7 @@ nt_status btrfs_inode::get_reparse_point(span<uint8_t> outbuf, uint32_t& retlen)
 
     auto& rdb = *(REPARSE_DATA_BUFFER*)outbuf.data();
     size_t u16len;
+    unique_ptr<char[]> data;
 
     {
         lock_guard lg(inode_lock);
@@ -6367,19 +6368,20 @@ nt_status btrfs_inode::get_reparse_point(span<uint8_t> outbuf, uint32_t& retlen)
         if (inode_type != inode_type::symlink)
             return nt_status::NOT_A_REPARSE_POINT;
 
-        if (is_list_empty(extents))
+        if (file_size == 0 || file_size > PAGE_SIZE)
             return nt_status::INVALID_PARAMETER;
 
-        auto& ie = containing_record<inode_extent>(extents.next);
+        data.reset(new char[file_size]);
+        if (!data) {
+            print("new failed\n");
+            return nt_status::INSUFFICIENT_RESOURCES;
+        }
 
-        if (ie.offset != 0 || ie.ed.type != btrfs_extent_type::inline_extent)
-            return nt_status::INVALID_PARAMETER;
+        auto status = cache.read(span((uint8_t*)data.get(), file_size), 0);
+        if (!success(status))
+            return status;
 
-        auto sv = string_view((char*)&ie.ed.disk_bytenr, ie.ed.ram_bytes);
-
-        // mkfs.btrfs can create symlinks with the target one character too long
-        if (auto nul = sv.find('\0'); nul != string_view::npos)
-            sv = string_view(sv.data(), nul);
+        auto sv = string_view(data.get(), file_size);
 
         u16len = utf8_to_utf16_len(sv);
 
