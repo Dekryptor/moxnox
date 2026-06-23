@@ -1308,7 +1308,8 @@ enum class PROCESS_INFORMATION_CLASS {
     TokenVirtualizationEnabled,
     ConsoleHostProcess,
     WindowInformation,
-    MoxnoxSetPendingSignal = 0x1000
+    MoxnoxSetPendingSignal = 0x1000,
+    MoxnoxExec,
 };
 
 const ACCESS_MASK TIMER_QUERY_STATE = 0x0001;

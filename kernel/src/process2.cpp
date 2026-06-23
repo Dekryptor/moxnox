@@ -1870,6 +1870,37 @@ static nt_status terminate_other_threads(nt_status exit_status) {
     return nt_status::SUCCESS;
 }
 
+static void do_terminate(process& p, nt_status exit_status) {
+    {
+        lock_guard lock(p.threads_lock);
+
+        if (p.dying)
+            return;
+
+        p.dying = true;
+    }
+
+    while (true) {
+        ::thread* t;
+
+        {
+            lock_guard lock(p.threads_lock);
+
+            if (is_list_empty(p.threads))
+                break;
+
+            t = (::thread*)((uint8_t*)p.threads.next - offsetof(::thread, process_le));
+
+            t->exit_status = exit_status;
+            terminate_thread(*t, false);
+            remove_entry_list(t->process_le);
+        }
+    }
+
+    p.exit_status = exit_status;
+    p.terminate();
+}
+
 extern "C"
 NTSTATUS NtTerminateProcess(HANDLE process_handle, NTSTATUS exit_status) {
     object_ref obj;
@@ -1901,34 +1932,7 @@ NTSTATUS NtTerminateProcess(HANDLE process_handle, NTSTATUS exit_status) {
 
     auto& p = static_cast<process&>(obj.get());
 
-    {
-        lock_guard lock(p.threads_lock);
-
-        if (p.dying)
-            return nt_status::SUCCESS;
-
-        p.dying = true;
-    }
-
-    while (true) {
-        ::thread* t;
-
-        {
-            lock_guard lock(p.threads_lock);
-
-            if (is_list_empty(p.threads))
-                break;
-
-            t = (::thread*)((uint8_t*)p.threads.next - offsetof(::thread, process_le));
-
-            t->exit_status = exit_status;
-            terminate_thread(*t, false);
-            remove_entry_list(t->process_le);
-        }
-    }
-
-    p.exit_status = exit_status;
-    p.terminate();
+    do_terminate(p, exit_status);
 
     return nt_status::SUCCESS;
 }
@@ -3931,6 +3935,9 @@ nt_status process::set_information(PROCESS_INFORMATION_CLASS info_class,
         case MoxnoxSetPendingSignal:
             return set_pending_signal(buffer);
 
+        case MoxnoxExec:
+            return do_exec(buffer);
+
         default:
             return nt_status::NOT_IMPLEMENTED;
     }
@@ -3977,6 +3984,38 @@ nt_status process::set_pending_signal(span<const uint8_t> buffer) {
         return t.queue_apc((PS_APC_ROUTINE)(ntdll_addr + mn_posix_signal),
                            (void*)(uintptr_t)sig, nullptr, nullptr);
     }
+
+    return nt_status::SUCCESS;
+}
+
+nt_status process::do_exec(span<const uint8_t> buffer) {
+    auto& t = *get_current_thread();
+
+    if (buffer.size() != sizeof(HANDLE))
+        return nt_status::INVALID_PARAMETER;
+
+    auto h = *(HANDLE*)buffer.data();
+
+    auto threadobj = deref_handle(h);
+    if (!threadobj)
+        return nt_status::INVALID_HANDLE;
+
+    if (threadobj.get().type != object_type::thread)
+        return nt_status::OBJECT_TYPE_MISMATCH;
+
+    auto& newthread = static_cast<::thread&>(threadobj.get());
+
+    if (t.proc == newthread.proc)
+        return nt_status::INVALID_PARAMETER;
+
+    if (newthread.suspend_count == 0)
+        return nt_status::INVALID_PARAMETER;
+
+    // FIXME - swap PIDs
+
+    newthread.suspend_count.fetch_sub(1);
+
+    do_terminate(*t.proc, nt_status::SUCCESS);
 
     return nt_status::SUCCESS;
 }
