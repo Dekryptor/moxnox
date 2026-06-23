@@ -50,7 +50,12 @@ struct _FILE {
     bool eof = false;
 };
 
-static array<HANDLE, 2048> fds;
+struct fd {
+    HANDLE h;
+    bool cloexec;
+};
+
+static array<fd, 2048> fds;
 
 static uint8_t _stdin[sizeof(_FILE)], _stdout[sizeof(_FILE)], _stderr[sizeof(_FILE)];
 static RTL_CRITICAL_SECTION files_lock, fds_lock;
@@ -147,7 +152,7 @@ _FILE::~_FILE() {
     RtlDeleteCriticalSection(&cs);
 
     RtlEnterCriticalSection(&fds_lock);
-    fds[(size_t)fd] = 0;
+    fds[(size_t)fd].h = 0;
     RtlLeaveCriticalSection(&fds_lock);
 }
 
@@ -165,13 +170,16 @@ export void init_files() {
     insert_tail_list(files_list, f2->le);
     insert_tail_list(files_list, f3->le);
 
-    fds[0] = peb->ProcessParameters->StandardInput;
-    fds[1] = peb->ProcessParameters->StandardOutput;
-    fds[2] = peb->ProcessParameters->StandardError;
+    fds[0].h = peb->ProcessParameters->StandardInput;
+    fds[0].cloexec = false;
+    fds[1].h = peb->ProcessParameters->StandardOutput;
+    fds[1].cloexec = false;
+    fds[2].h = peb->ProcessParameters->StandardError;
+    fds[2].cloexec = false;
 }
 
 static bool do_open(const char* pathname, const char* mode, HANDLE& h, int& fd,
-                    bool for_delete) {
+                    bool for_delete, bool cloexec) {
     enum class mode_type {
         r,
         rplus,
@@ -313,8 +321,9 @@ static bool do_open(const char* pathname, const char* mode, HANDLE& h, int& fd,
     RtlEnterCriticalSection(&fds_lock);
 
     for (size_t i = 0; i < fds.size(); i++) {
-        if (fds[i] == 0) {
-            fds[i] = h;
+        if (fds[i].h == 0) {
+            fds[i].h = h;
+            fds[i].cloexec = cloexec;
             optfd = i;
             break;
         }
@@ -338,13 +347,15 @@ FILE* _fopen(const char* pathname, const char* mode) {
     HANDLE h;
     int fd;
 
-    if (!do_open(pathname, mode, h, fd, false))
+    // FIXME - cloexec if "e" is in mode
+
+    if (!do_open(pathname, mode, h, fd, false, false))
         return nullptr;
 
     auto f = new _FILE(h, fd);
     if (!f) {
         RtlEnterCriticalSection(&fds_lock);
-        fds[(size_t)fd] = 0;
+        fds[(size_t)fd].h = 0;
         RtlLeaveCriticalSection(&fds_lock);
 
         NtClose(h);
@@ -982,7 +993,7 @@ int __fstat64(int fd, struct _stat64* st) {
     }
 
     RtlEnterCriticalSection(&fds_lock);
-    h = fds[(size_t)fd];
+    h = fds[(size_t)fd].h;
     RtlLeaveCriticalSection(&fds_lock);
 
     if (!h) {
@@ -1228,8 +1239,9 @@ static int open2(const char* path, int flags, int pmode) {
     RtlEnterCriticalSection(&fds_lock);
 
     for (size_t i = 0; i < fds.size(); i++) {
-        if (fds[i] == 0) {
-            fds[i] = h;
+        if (fds[i].h == 0) {
+            fds[i].h = h;
+            fds[i].cloexec = !!(flags & O_CLOEXEC);
             fd = i;
             break;
         }
@@ -1296,7 +1308,7 @@ FILE* __fdopen(int fd, const char* /*mode*/) {
     }
 
     RtlEnterCriticalSection(&fds_lock);
-    h = fds[(size_t)fd];
+    h = fds[(size_t)fd].h;
     RtlLeaveCriticalSection(&fds_lock);
 
     if (!h) {
@@ -1370,7 +1382,7 @@ intptr_t __get_osfhandle(int fd) {
     HANDLE h;
 
     RtlEnterCriticalSection(&fds_lock);
-    h = fds[(size_t)fd];
+    h = fds[(size_t)fd].h;
     RtlLeaveCriticalSection(&fds_lock);
 
     if (h == 0) {
@@ -1392,8 +1404,9 @@ int __open_osfhandle(intptr_t osfhandle, int /*flags*/) {
     RtlEnterCriticalSection(&fds_lock);
 
     for (size_t i = 0; i < fds.size(); i++) {
-        if (fds[i] == 0) {
-            fds[i] = (HANDLE)osfhandle;
+        if (fds[i].h == 0) {
+            fds[i].h = (HANDLE)osfhandle;
+            fds[i].cloexec = false;
             fd = i;
             break;
         }
@@ -1548,7 +1561,7 @@ int __close(int fd) {
     HANDLE h = 0;
 
     RtlEnterCriticalSection(&fds_lock);
-    swap(fds[(size_t)fd], h);
+    swap(fds[(size_t)fd].h, h);
     RtlLeaveCriticalSection(&fds_lock);
 
     if (h == 0) {
@@ -1777,7 +1790,7 @@ int __dup2(int oldfd, int newfd) {
 
     RtlEnterCriticalSection(&fds_lock);
 
-    auto oldh = fds[(size_t)oldfd];
+    auto oldh = fds[(size_t)oldfd].h;
 
     if (!oldh) {
         RtlLeaveCriticalSection(&fds_lock);
@@ -1801,10 +1814,11 @@ int __dup2(int oldfd, int newfd) {
         return -1;
     }
 
-    if (fds[(size_t)newfd] != 0)
-        NtClose(fds[(size_t)newfd]);
+    if (fds[(size_t)newfd].h != 0)
+        NtClose(fds[(size_t)newfd].h);
 
-    fds[(size_t)newfd] = newh;
+    fds[(size_t)newfd].h = newh;
+    fds[(size_t)newfd].cloexec = false;
 
     RtlLeaveCriticalSection(&fds_lock);
 
@@ -1820,7 +1834,7 @@ int __dup(int oldfd) {
 
     RtlEnterCriticalSection(&fds_lock);
 
-    auto oldh = fds[(size_t)oldfd];
+    auto oldh = fds[(size_t)oldfd].h;
 
     if (!oldh) {
         RtlLeaveCriticalSection(&fds_lock);
@@ -1840,8 +1854,9 @@ int __dup(int oldfd) {
     }
 
     for (size_t i = 0; i < fds.size(); i++) {
-        if (fds[i] == 0) {
-            fds[i] = newh;
+        if (fds[i].h == 0) {
+            fds[i].h = newh;
+            fds[i].cloexec = false;
             RtlLeaveCriticalSection(&fds_lock);
             return (int)i;
         }
@@ -2036,13 +2051,14 @@ FILE* freopen(const char* path, const char* mode, FILE* file) {
     if (!path)
         return file; // FIXME - should also be changing mode
 
-    if (!do_open(path, mode, h, fd, false))
+    // FIXME - cloexec if "e" flag set
+    if (!do_open(path, mode, h, fd, false, false))
         return nullptr;
 
     __lock_file(file);
 
     RtlEnterCriticalSection(&fds_lock);
-    fds[(size_t)f.fd] = 0;
+    fds[(size_t)f.fd].h = 0;
     RtlLeaveCriticalSection(&fds_lock);
 
     NtClose(f.h);
@@ -2074,7 +2090,7 @@ FILE* tmpfile() {
     sp = format(sp, "/tmp/tmpfile_{}_{}", _getpid(), counter.fetch_add(1));
     sp[0] = 0;
 
-    if (!do_open(path, "w+", h, fd, true))
+    if (!do_open(path, "w+", h, fd, true, false))
         return nullptr;
 
     // unlink file
@@ -2087,7 +2103,7 @@ FILE* tmpfile() {
         *__errno() = nt_status_to_errno(status);
 
         RtlEnterCriticalSection(&fds_lock);
-        fds[(size_t)fd] = 0;
+        fds[(size_t)fd].h = 0;
         RtlLeaveCriticalSection(&fds_lock);
 
         NtClose(h);
@@ -2100,7 +2116,7 @@ FILE* tmpfile() {
     auto f = new _FILE(h, fd);
     if (!f) {
         RtlEnterCriticalSection(&fds_lock);
-        fds[(size_t)fd] = 0;
+        fds[(size_t)fd].h = 0;
         RtlLeaveCriticalSection(&fds_lock);
 
         NtClose(h);
@@ -2171,21 +2187,23 @@ int __pipe(int* pfds, unsigned int /*psize*/, int /*textmode*/) {
     RtlEnterCriticalSection(&fds_lock);
 
     for (size_t i = 0; i < fds.size(); i++) {
-        if (fds[i] != 0)
+        if (fds[i].h != 0)
             continue;
 
         if (!client_fd.has_value()) {
-            fds[i] = client_handle;
+            fds[i].h = client_handle;
+            fds[i].cloexec = false;
             client_fd = i;
         } else {
-            fds[i] = server_handle;
+            fds[i].h = server_handle;
+            fds[i].cloexec = false;
             server_fd = i;
             break;
         }
     }
 
     if (client_fd.has_value() && !server_fd.has_value())
-        fds[(size_t)*client_fd] = 0;
+        fds[(size_t)*client_fd].h = 0;
 
     RtlLeaveCriticalSection(&fds_lock);
 
