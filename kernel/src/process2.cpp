@@ -3172,76 +3172,84 @@ NTSTATUS NtWriteVirtualMemory(HANDLE process_handle, void* base_address, const v
     return p->write_vm(base_address, buffer, buffer_size, number_of_bytes_written);
 }
 
+nt_status process::query_basic_info(span<uint8_t> buf, uint32_t* return_length) {
+    if (buf.size() < sizeof(PROCESS_BASIC_INFORMATION))
+        return nt_status::INFO_LENGTH_MISMATCH;
+
+    auto& pbi = *(PROCESS_BASIC_INFORMATION*)buf.data();
+
+    pbi.ExitStatus = exit_status;
+    pbi.PebBaseAddress = peb;
+    pbi.AffinityMask = 0xffffffff; // FIXME
+    pbi.BasePriority = 0; // FIXME
+    pbi.UniqueProcessId = tree.key;
+
+    {
+        lock_guard lock(process_list_lock);
+
+        if (parent_process)
+            pbi.InheritedFromUniqueProcessId = parent_process->tree.key;
+        else
+            pbi.InheritedFromUniqueProcessId = 0;
+    }
+
+    if (return_length)
+        *return_length = sizeof(PROCESS_BASIC_INFORMATION);
+
+    return nt_status::SUCCESS;
+}
+
+nt_status process::query_image_file_name(span<uint8_t> buf, uint32_t* return_length) {
+    RTL_USER_PROCESS_PARAMETERS* params;
+    UNICODE_STRING path_name;
+
+    auto status = read_vm(&peb->ProcessParameters, &params, sizeof(params), nullptr);
+    if (!success(status))
+        return status;
+
+    status = read_vm(&params->ImagePathName, &path_name, sizeof(path_name),
+                        nullptr);
+    if (!success(status))
+        return status;
+
+    auto len = (uint32_t)(sizeof(UNICODE_STRING) + path_name.Length + sizeof(char16_t));
+
+    if (buf.size() < len) {
+        if (return_length)
+            *return_length = len;
+
+        return nt_status::INFO_LENGTH_MISMATCH;
+    }
+
+    auto& us = *(UNICODE_STRING*)buf.data();
+
+    memset(&us, 0, sizeof(us));
+    us.Length = path_name.Length;
+    us.MaximumLength = us.Length + sizeof(char16_t);
+    us.Buffer = (char16_t*)(buf.data() + sizeof(UNICODE_STRING));
+
+    status = read_vm(path_name.Buffer, us.Buffer, us.Length, nullptr);
+    if (!success(status))
+        return status;
+
+    us.Buffer[us.Length / sizeof(char16_t)] = 0;
+
+    if (return_length)
+        *return_length = len;
+
+    return nt_status::SUCCESS;
+}
+
 NTSTATUS process::query_info(enum PROCESS_INFORMATION_CLASS process_information_class, span<uint8_t> buf,
                              uint32_t* return_length) {
     switch (process_information_class) {
-        case PROCESS_INFORMATION_CLASS::BasicInformation: {
-            if (buf.size() < sizeof(PROCESS_BASIC_INFORMATION))
-                return nt_status::INFO_LENGTH_MISMATCH;
+        using enum PROCESS_INFORMATION_CLASS;
 
-            auto& pbi = *(PROCESS_BASIC_INFORMATION*)buf.data();
+        case BasicInformation:
+            return query_basic_info(buf, return_length);
 
-            pbi.ExitStatus = exit_status;
-            pbi.PebBaseAddress = peb;
-            pbi.AffinityMask = 0xffffffff; // FIXME
-            pbi.BasePriority = 0; // FIXME
-            pbi.UniqueProcessId = tree.key;
-
-            {
-                lock_guard lock(process_list_lock);
-
-                if (parent_process)
-                    pbi.InheritedFromUniqueProcessId = parent_process->tree.key;
-                else
-                    pbi.InheritedFromUniqueProcessId = 0;
-            }
-
-            if (return_length)
-                *return_length = sizeof(PROCESS_BASIC_INFORMATION);
-
-            return nt_status::SUCCESS;
-        }
-
-        case PROCESS_INFORMATION_CLASS::ImageFileName: {
-            RTL_USER_PROCESS_PARAMETERS* params;
-            UNICODE_STRING path_name;
-
-            auto status = read_vm(&peb->ProcessParameters, &params, sizeof(params), nullptr);
-            if (!success(status))
-                return status;
-
-            status = read_vm(&params->ImagePathName, &path_name, sizeof(path_name),
-                             nullptr);
-            if (!success(status))
-                return status;
-
-            auto len = (uint32_t)(sizeof(UNICODE_STRING) + path_name.Length + sizeof(char16_t));
-
-            if (buf.size() < len) {
-                if (return_length)
-                    *return_length = len;
-
-                return nt_status::INFO_LENGTH_MISMATCH;
-            }
-
-            auto& us = *(UNICODE_STRING*)buf.data();
-
-            memset(&us, 0, sizeof(us));
-            us.Length = path_name.Length;
-            us.MaximumLength = us.Length + sizeof(char16_t);
-            us.Buffer = (char16_t*)(buf.data() + sizeof(UNICODE_STRING));
-
-            status = read_vm(path_name.Buffer, us.Buffer, us.Length, nullptr);
-            if (!success(status))
-                return status;
-
-            us.Buffer[us.Length / sizeof(char16_t)] = 0;
-
-            if (return_length)
-                *return_length = len;
-
-            return nt_status::SUCCESS;
-        }
+        case ImageFileName:
+            return query_image_file_name(buf, return_length);
 
         default:
             print("process::query_info: unhandled info class {:x}\n",
