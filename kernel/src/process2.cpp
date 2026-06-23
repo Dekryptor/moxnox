@@ -188,13 +188,12 @@ static bool allocate_proc_params(process& proc, HANDLE stdinh, HANDLE stdouth,
     // FIXME - also include space for environment, etc.
 
     auto curdir_len = dos_path_len(curdir);
-    auto fn_len = dos_path_len(fn);
 
     size_t size;
 
     size = sizeof(RTL_USER_PROCESS_PARAMETERS);
     size += MAX_PATH * sizeof(char16_t);
-    size += (fn_len + 1) * sizeof(char16_t);
+    size += fn.size() * sizeof(char16_t);
     size += (cmdline.size() + 1) * sizeof(char16_t);
 
     if (auto status = proc.allocate_vm((void**)&proc.proc_params, 0, &size, MEM_COMMIT | MEM_RESERVE, mapping_type::read_write); !success(status)) {
@@ -230,7 +229,7 @@ static bool allocate_proc_params(process& proc, HANDLE stdinh, HANDLE stdouth,
     ks_proc_params->CurrentDirectory.DosPath.MaximumLength = MAX_PATH * sizeof(char16_t);
     ks_proc_params->CurrentDirectory.DosPath.Buffer = (char16_t*)((uint8_t*)proc.proc_params + sizeof(RTL_USER_PROCESS_PARAMETERS));
 
-    ks_proc_params->ImagePathName.Length = (uint16_t)(fn_len * sizeof(char16_t));
+    ks_proc_params->ImagePathName.Length = (uint16_t)(fn.size() * sizeof(char16_t));
     ks_proc_params->ImagePathName.MaximumLength = ks_proc_params->ImagePathName.Length + sizeof(char16_t);
     ks_proc_params->ImagePathName.Buffer = ks_proc_params->CurrentDirectory.DosPath.Buffer +
         (ks_proc_params->CurrentDirectory.DosPath.MaximumLength / sizeof(char16_t));
@@ -269,7 +268,7 @@ static bool allocate_proc_params(process& proc, HANDLE stdinh, HANDLE stdouth,
         return false;
     }
 
-    create_dos_path(span(fn_path, ks_proc_params->ImagePathName.MaximumLength / sizeof(char16_t)), fn);
+    utf8_to_utf16(span(fn_path, ks_proc_params->ImagePathName.MaximumLength / sizeof(char16_t)), fn);
 
     if (!m.copy_to((uint32_t)((uintptr_t)ks_proc_params->ImagePathName.Buffer - m.address),
                    fn_path, ks_proc_params->ImagePathName.Length)) {
