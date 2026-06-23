@@ -11,5 +11,13 @@
 #define WNOHANG 1
 #define WUNTRACED 2
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 pid_t waitpid(pid_t pid, int* status, int options);
 pid_t wait(int* status);
+
+#ifdef __cplusplus
+}
+#endif
