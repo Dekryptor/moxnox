@@ -211,7 +211,7 @@ static void do_ping(SOCKET sock, const addrinfo& ai, string_view arg) {
     print("PING {} ({}) 0 data bytes\n", arg, dest);
 
     auto status = NtQueryInformationProcess(NtCurrentProcess(),
-                                            PROCESSINFOCLASS::BasicInformation,
+                                            PROCESS_INFORMATION_CLASS::BasicInformation,
                                             &pbi, sizeof(pbi), nullptr);
     if (!success(status)) {
         print_stderr("NtQueryInformationProcess returned {}\n", status);

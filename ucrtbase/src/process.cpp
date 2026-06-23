@@ -23,7 +23,7 @@ int _getpid() {
     PROCESS_BASIC_INFORMATION pbi;
 
     auto status = NtQueryInformationProcess(NtCurrentProcess(),
-                                            PROCESSINFOCLASS::BasicInformation,
+                                            PROCESS_INFORMATION_CLASS::BasicInformation,
                                             &pbi, sizeof(pbi), nullptr);
     if (!success(status))
         return 0;
@@ -120,7 +120,7 @@ int system(const char* command) {
             break;
     }
 
-    status = NtQueryInformationProcess(proc.get(), PROCESSINFOCLASS::BasicInformation,
+    status = NtQueryInformationProcess(proc.get(), PROCESS_INFORMATION_CLASS::BasicInformation,
                                        &pbi, sizeof(pbi), nullptr);
     if (!success(status)) {
         *__errno() = nt_status_to_errno(status);

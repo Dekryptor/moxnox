@@ -879,7 +879,7 @@ NTSTATUS user_NtWriteVirtualMemory(HANDLE process_handle, void* base_address,
 }
 
 extern "C"
-NTSTATUS user_NtQueryInformationProcess(HANDLE process_handle, enum PROCESSINFOCLASS process_information_class,
+NTSTATUS user_NtQueryInformationProcess(HANDLE process_handle, enum PROCESS_INFORMATION_CLASS process_information_class,
                                         void* process_information, uint32_t process_information_length,
                                         uint32_t* return_length) {
     NTSTATUS status;
@@ -901,7 +901,7 @@ NTSTATUS user_NtQueryInformationProcess(HANDLE process_handle, enum PROCESSINFOC
 
     if (success(status)) {
         if (retlen > 0) {
-            if (process_information_class == PROCESSINFOCLASS::ImageFileName) {
+            if (process_information_class == PROCESS_INFORMATION_CLASS::ImageFileName) {
                 auto& us = *(UNICODE_STRING*)buf;
 
                 us.Buffer = (char16_t*)((uint8_t*)us.Buffer - (uint8_t*)buf +

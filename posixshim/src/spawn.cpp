@@ -108,7 +108,7 @@ pid_t waitpid(pid_t pid, int* wstatus, int options) {
             if (status == nt_status::USER_APC)
                 continue;
 
-            auto status2 = NtQueryInformationProcess(proc.get(), PROCESSINFOCLASS::BasicInformation,
+            auto status2 = NtQueryInformationProcess(proc.get(), PROCESS_INFORMATION_CLASS::BasicInformation,
                                                      &pbi, sizeof(pbi), nullptr);
             if (!success(status2)) {
                 *_errno() = nt_status_to_errno(status2);
@@ -152,7 +152,7 @@ int getppid() {
     PROCESS_BASIC_INFORMATION pbi;
 
     auto status = NtQueryInformationProcess(NtCurrentProcess(),
-                                            PROCESSINFOCLASS::BasicInformation,
+                                            PROCESS_INFORMATION_CLASS::BasicInformation,
                                             &pbi, sizeof(pbi), nullptr);
     if (!success(status))
         return 0;

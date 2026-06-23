@@ -3168,10 +3168,10 @@ NTSTATUS NtWriteVirtualMemory(HANDLE process_handle, void* base_address, const v
     return p->write_vm(base_address, buffer, buffer_size, number_of_bytes_written);
 }
 
-NTSTATUS process::query_info(enum PROCESSINFOCLASS process_information_class, span<uint8_t> buf,
+NTSTATUS process::query_info(enum PROCESS_INFORMATION_CLASS process_information_class, span<uint8_t> buf,
                              uint32_t* return_length) {
     switch (process_information_class) {
-        case PROCESSINFOCLASS::BasicInformation: {
+        case PROCESS_INFORMATION_CLASS::BasicInformation: {
             if (buf.size() < sizeof(PROCESS_BASIC_INFORMATION))
                 return nt_status::INFO_LENGTH_MISMATCH;
 
@@ -3190,7 +3190,7 @@ NTSTATUS process::query_info(enum PROCESSINFOCLASS process_information_class, sp
             return nt_status::SUCCESS;
         }
 
-        case PROCESSINFOCLASS::ImageFileName: {
+        case PROCESS_INFORMATION_CLASS::ImageFileName: {
             RTL_USER_PROCESS_PARAMETERS* params;
             UNICODE_STRING path_name;
 
@@ -3239,7 +3239,7 @@ NTSTATUS process::query_info(enum PROCESSINFOCLASS process_information_class, sp
 }
 
 extern "C"
-NTSTATUS NtQueryInformationProcess(HANDLE process_handle, enum PROCESSINFOCLASS process_information_class,
+NTSTATUS NtQueryInformationProcess(HANDLE process_handle, enum PROCESS_INFORMATION_CLASS process_information_class,
                                    void* process_information, uint32_t process_information_length,
                                    uint32_t* return_length) {
     object_ref objrw;

@@ -2387,7 +2387,7 @@ int __pclose(FILE* file) {
     if (!fail) {
         // get exit status
 
-        status = NtQueryInformationProcess(f.proc, PROCESSINFOCLASS::BasicInformation,
+        status = NtQueryInformationProcess(f.proc, PROCESS_INFORMATION_CLASS::BasicInformation,
                                         &pbi, sizeof(pbi), nullptr);
         if (!success(status)) {
             *__errno() = nt_status_to_errno(status);

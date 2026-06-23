@@ -180,7 +180,7 @@ static void test_kill_cross_process() {
     NtWaitForSingleObject(proc.get(), false, nullptr);
 
     PROCESS_BASIC_INFORMATION pbi;
-    NtQueryInformationProcess(proc.get(), PROCESSINFOCLASS::BasicInformation,
+    NtQueryInformationProcess(proc.get(), PROCESS_INFORMATION_CLASS::BasicInformation,
                               &pbi, sizeof(pbi), nullptr);
 
     if ((uint32_t)pbi.ExitStatus != 42) {

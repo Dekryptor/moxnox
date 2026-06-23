@@ -140,7 +140,7 @@ static void run_program(unique_handle& proc, termios* prev_tc_settings) {
     PROCESS_BASIC_INFORMATION pbi;
 
     if (!done_suspend) {
-        status = NtQueryInformationProcess(proc.get(), PROCESSINFOCLASS::BasicInformation,
+        status = NtQueryInformationProcess(proc.get(), PROCESS_INFORMATION_CLASS::BasicInformation,
                                         &pbi, sizeof(pbi), nullptr);
         if (!success(status))
             print_stderr("NtQueryInformationProcess returned {}\n", status);

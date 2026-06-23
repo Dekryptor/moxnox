@@ -184,7 +184,7 @@ export int do_exec(const char* path, char* const* argv, char* const* envp,
 
     // take copy of PEB
 
-    status = NtQueryInformationProcess(proc.get(), PROCESSINFOCLASS::BasicInformation,
+    status = NtQueryInformationProcess(proc.get(), PROCESS_INFORMATION_CLASS::BasicInformation,
                                        &pbi, sizeof(pbi), nullptr);
     if (!success(status))
         return nt_status_to_errno(status);

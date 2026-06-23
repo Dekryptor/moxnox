@@ -280,7 +280,7 @@ bool CreateProcessW(const char16_t* application_name, char16_t* command_line,
 
     // take copy of PEB
 
-    status = NtQueryInformationProcess(proc.get(), PROCESSINFOCLASS::BasicInformation,
+    status = NtQueryInformationProcess(proc.get(), PROCESS_INFORMATION_CLASS::BasicInformation,
                                        &pbi, sizeof(pbi), nullptr);
     if (!success(status)) {
         print_stderr("NtQueryInformationProcess returned {}\n", status);

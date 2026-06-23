@@ -1055,7 +1055,7 @@ const ACCESS_MASK EVENT_ALL_ACCESS = DELETE | READ_CONTROL | WRITE_DAC |
                                      WRITE_OWNER | SYNCHRONIZE |
                                      EVENT_QUERY_STATE | EVENT_MODIFY_STATE;
 
-enum class PROCESSINFOCLASS {
+enum class PROCESS_INFORMATION_CLASS {
     BasicInformation,
     QuotaLimits,
     IoCounters,
@@ -1129,7 +1129,9 @@ enum class PROCESSINFOCLASS {
     RaiseUMExceptionOnInvalidHandleClose,
     SubsystemInformation = 75,
     Win32kSyscallFilterInformation = 79,
-    EnergyTrackingState = 82
+    EnergyTrackingState = 82,
+    MoxnoxSetPendingSignal = 0x1000,
+    MoxnoxExec,
 };
 
 struct PROCESS_BASIC_INFORMATION {
@@ -1254,62 +1256,6 @@ enum class THREAD_INFORMATION_CLASS {
     MoxnoxBlockSignals,
     MoxnoxUnblockSignals,
     MoxnoxSignalsMask
-};
-
-enum class PROCESS_INFORMATION_CLASS {
-    BasicInformation,
-    QuotaLimits,
-    IoCounters,
-    VmCounters,
-    Times,
-    BasePriority,
-    RaisePriority,
-    DebugPort,
-    ExceptionPort,
-    AccessToken,
-    LdtInformation,
-    LdtSize,
-    DefaultHardErrorMode,
-    IoPortHandlers,
-    PooledUsageAndLimits,
-    WorkingSetWatch,
-    UserModeIOPL,
-    EnableAlignmentFaultFixup,
-    PriorityClass,
-    Wx86Information,
-    HandleCount,
-    AffinityMask,
-    PriorityBoost,
-    DeviceMap,
-    SessionInformation,
-    ForegroundInformation,
-    Wow64Information,
-    ImageFileName,
-    LUIDDeviceMapsEnabled,
-    BreakOnTermination,
-    DebugObjectHandle,
-    DebugFlags,
-    HandleTracing,
-    IoPriority,
-    ExecuteFlags,
-    TlsInformation,
-    Cookie,
-    ImageInformation,
-    CycleTime,
-    PagePriority,
-    InstrumentationCallback,
-    ThreadStackAllocation,
-    WorkingSetWatchEx,
-    ImageFileNameWin32,
-    ImageFileMapping,
-    AffinityUpdateMode,
-    MemoryAllocationMode,
-    GroupInformation,
-    TokenVirtualizationEnabled,
-    ConsoleHostProcess,
-    WindowInformation,
-    MoxnoxSetPendingSignal = 0x1000,
-    MoxnoxExec,
 };
 
 const ACCESS_MASK TIMER_QUERY_STATE = 0x0001;
@@ -1604,7 +1550,7 @@ NTSTATUS NtReadVirtualMemory(HANDLE process_handle, void* base_address, void* bu
                              uint32_t* number_of_bytes_read);
 NTSTATUS NtWriteVirtualMemory(HANDLE process_handle, void* base_address, const void* buffer, uint32_t buffer_size,
                               uint32_t* number_of_bytes_written);
-NTSTATUS NtQueryInformationProcess(HANDLE process_handle, enum PROCESSINFOCLASS process_information_class,
+NTSTATUS NtQueryInformationProcess(HANDLE process_handle, enum PROCESS_INFORMATION_CLASS process_information_class,
                                    void* process_information, uint32_t process_information_length,
                                    uint32_t* return_length);
 NTSTATUS NtQuerySection(HANDLE section_handle, enum SECTION_INFORMATION_CLASS section_information_class,

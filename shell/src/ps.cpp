@@ -109,7 +109,7 @@ int main() {
         proc.reset(h);
 
         status = NtQueryInformationProcess(proc.get(),
-                                           PROCESSINFOCLASS::BasicInformation,
+                                           PROCESS_INFORMATION_CLASS::BasicInformation,
                                            &pbi, sizeof(pbi), nullptr);
         if (!success(status)) {
             print_stderr("NtQueryInformationProcess returned {}\n", status);

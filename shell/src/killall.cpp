@@ -80,7 +80,7 @@ int main(int argc, char** argv) {
 
         proc.reset(h);
 
-        status = NtQueryInformationProcess(proc.get(), PROCESSINFOCLASS::ImageFileName,
+        status = NtQueryInformationProcess(proc.get(), PROCESS_INFORMATION_CLASS::ImageFileName,
                                            &us, sizeof(us), &retlen);
         if (!success(status) && status != nt_status::INFO_LENGTH_MISMATCH) {
             print_stderr("NtQueryInformationProcess returned {}\n", status);
@@ -95,7 +95,7 @@ int main(int argc, char** argv) {
             goto end;
         }
 
-        status = NtQueryInformationProcess(proc.get(), PROCESSINFOCLASS::ImageFileName,
+        status = NtQueryInformationProcess(proc.get(), PROCESS_INFORMATION_CLASS::ImageFileName,
                                            buffer, retlen, &retlen);
         if (!success(status)) {
             print_stderr("NtQueryInformationProcess returned {}\n", status);
@@ -120,7 +120,7 @@ int main(int argc, char** argv) {
 
                 done[i] = true;
 
-                auto status = NtQueryInformationProcess(proc.get(), PROCESSINFOCLASS::BasicInformation,
+                auto status = NtQueryInformationProcess(proc.get(), PROCESS_INFORMATION_CLASS::BasicInformation,
                                                         &pbi, sizeof(pbi), &retlen);
                 if (!success(status)) {
                     print_stderr("{}: NtQueryInformationProcess returned {}\n", name, status);
