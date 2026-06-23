@@ -10,6 +10,7 @@ char* realpath(const char* path, char* resolved);
 int mkstemps(char* tmpl, int suffixlen);
 int setenv(const char* name, const char* value, int overwrite);
 int unsetenv(const char* name);
+char* mktemp(char* tmpl);
 
 #ifdef __cplusplus
 }
