@@ -135,3 +135,16 @@ pid_t waitpid(pid_t pid, int* wstatus, int options) {
 
     return pid;
 }
+
+extern "C"
+int getppid() {
+    PROCESS_BASIC_INFORMATION pbi;
+
+    auto status = NtQueryInformationProcess(NtCurrentProcess(),
+                                            PROCESSINFOCLASS::BasicInformation,
+                                            &pbi, sizeof(pbi), nullptr);
+    if (!success(status))
+        return 0;
+
+    return (int)pbi.InheritedFromUniqueProcessId;
+}
