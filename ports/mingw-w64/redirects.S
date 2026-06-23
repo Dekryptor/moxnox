@@ -69,6 +69,7 @@ underscore_func "execl"
 underscore_func "execlp"
 underscore_func "execve"
 underscore_func "tzset"
+underscore_func "mktemp"
 
 redirect_name "_fseeki64", "fseeko64"
 redirect_name "_ftelli64", "ftello64"
