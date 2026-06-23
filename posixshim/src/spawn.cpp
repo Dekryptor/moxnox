@@ -84,45 +84,56 @@ pid_t waitpid(pid_t pid, int* wstatus, int options) {
     client_id.UniqueProcess = (HANDLE)pid;
     client_id.UniqueThread = 0;
 
-    // FIXME - check pid again after wait, in case it has been exec'd
-
-    status = NtOpenProcess(&h, SYNCHRONIZE, &oa, &client_id);
-    if (status == nt_status::INVALID_CID) {
-        *_errno() = ECHILD;
-        return -1;
-    } else if (!success(status)) {
-        *_errno() = nt_status_to_errno(status);
-        return -1;
-    }
-
-    // FIXME - return ECHILD if not our child
-
-    proc.reset(h);
-
-    timeout.QuadPart = 0;
-
     while (true) {
-        status = NtWaitForSingleObject(proc.get(), true,
-                                       options & WNOHANG ? &timeout : nullptr);
-        if (status == nt_status::USER_APC)
-            continue;
+        bool pid_changed = false;
 
-        if (status == nt_status::TIMEOUT)
-            return 0;
-
-        if (!success(status)) {
+        status = NtOpenProcess(&h, SYNCHRONIZE, &oa, &client_id);
+        if (status == nt_status::INVALID_CID) {
+            *_errno() = ECHILD;
+            return -1;
+        } else if (!success(status)) {
             *_errno() = nt_status_to_errno(status);
             return -1;
         }
 
-        break;
-    }
+        // FIXME - return ECHILD if not our child
 
-    status = NtQueryInformationProcess(proc.get(), PROCESSINFOCLASS::BasicInformation,
-                                       &pbi, sizeof(pbi), nullptr);
-    if (!success(status)) {
-        *_errno() = nt_status_to_errno(status);
-        return -1;
+        proc.reset(h);
+
+        timeout.QuadPart = 0;
+
+        while (true) {
+            status = NtWaitForSingleObject(proc.get(), true,
+                                           options & WNOHANG ? &timeout : nullptr);
+            if (status == nt_status::USER_APC)
+                continue;
+
+            auto status2 = NtQueryInformationProcess(proc.get(), PROCESSINFOCLASS::BasicInformation,
+                                                     &pbi, sizeof(pbi), nullptr);
+            if (!success(status2)) {
+                *_errno() = nt_status_to_errno(status2);
+                return -1;
+            }
+
+            // pid changed because of exec - do the whole thing again
+            if ((pid_t)pbi.UniqueProcessId != pid) {
+                pid_changed = true;
+                break;
+            }
+
+            if (status == nt_status::TIMEOUT)
+                return 0;
+
+            if (!success(status)) {
+                *_errno() = nt_status_to_errno(status);
+                return -1;
+            }
+
+            break;
+        }
+
+        if (!pid_changed)
+            break;
     }
 
     if (wstatus) {
