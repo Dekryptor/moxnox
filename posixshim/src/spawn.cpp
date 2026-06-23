@@ -328,3 +328,11 @@ int posix_spawn(pid_t* pid, const char* path,
 
     return 0;
 }
+
+extern "C"
+pid_t waitpid(pid_t pid, int* wstatus, int options) {
+    print("FIXME - waitpid ({}, {:x}, {})\n", pid, (uintptr_t)wstatus, options);
+
+    *_errno() = EINVAL;
+    return -1;
+}
