@@ -128,6 +128,7 @@ public:
 private:
     nt_status query_basic_info(span<uint8_t> buf, uint32_t* return_length);
     nt_status query_image_file_name(span<uint8_t> buf, uint32_t* return_length);
+    nt_status query_find_ntdll(span<uint8_t> buf, uint32_t* return_length);
 };
 
 static_assert(is_sync_object<process>);

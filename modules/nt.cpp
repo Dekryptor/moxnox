@@ -1133,6 +1133,7 @@ enum class PROCESS_INFORMATION_CLASS {
     MoxnoxSetPendingSignal = 0x1000,
     MoxnoxExec,
     MoxnoxReapZombie,
+    MoxnoxFindNtdll,
 };
 
 struct PROCESS_BASIC_INFORMATION {

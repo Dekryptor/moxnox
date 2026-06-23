@@ -3240,6 +3240,18 @@ nt_status process::query_image_file_name(span<uint8_t> buf, uint32_t* return_len
     return nt_status::SUCCESS;
 }
 
+nt_status process::query_find_ntdll(span<uint8_t> buf, uint32_t* return_length) {
+    if (buf.size() < sizeof(uintptr_t))
+        return nt_status::BUFFER_TOO_SMALL;
+
+    *(uintptr_t*)buf.data() = ntdll_addr;
+
+    if (return_length)
+        *return_length = sizeof(uintptr_t);
+
+    return nt_status::SUCCESS;
+}
+
 NTSTATUS process::query_info(enum PROCESS_INFORMATION_CLASS process_information_class, span<uint8_t> buf,
                              uint32_t* return_length) {
     switch (process_information_class) {
@@ -3250,6 +3262,9 @@ NTSTATUS process::query_info(enum PROCESS_INFORMATION_CLASS process_information_
 
         case ImageFileName:
             return query_image_file_name(buf, return_length);
+
+        case MoxnoxFindNtdll:
+            return query_find_ntdll(buf, return_length);
 
         default:
             print("process::query_info: unhandled info class {:x}\n",
