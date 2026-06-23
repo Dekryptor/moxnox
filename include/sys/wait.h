@@ -7,5 +7,9 @@
 #define WEXITSTATUS(s) (((s) >> 8) & 0xff)
 #define WTERMSIG(s) ((s) & 0x7f)
 
+#define WCONTINUED 0
+#define WNOHANG 1
+#define WUNTRACED 2
+
 pid_t waitpid(pid_t pid, int* status, int options);
 pid_t wait(int* status);
