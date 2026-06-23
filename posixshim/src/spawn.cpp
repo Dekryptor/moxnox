@@ -1,4 +1,5 @@
 #include <spawn.h>
+#include <sys/wait.h>
 #include <stdlib.h>
 #include <string.h>
 #include <string_view>
@@ -331,8 +332,86 @@ int posix_spawn(pid_t* pid, const char* path,
 
 extern "C"
 pid_t waitpid(pid_t pid, int* wstatus, int options) {
-    print("FIXME - waitpid ({}, {:x}, {})\n", pid, (uintptr_t)wstatus, options);
+    nt_status status;
+    HANDLE h;
+    OBJECT_ATTRIBUTES oa;
+    CLIENT_ID client_id;
+    LARGE_INTEGER timeout;
+    PROCESS_BASIC_INFORMATION pbi;
+    unique_handle proc;
 
-    *_errno() = EINVAL;
-    return -1;
+    if (pid <= 0) {
+        print("FIXME - waitpid {}\n", pid); // FIXME
+        *_errno() = EINVAL;
+        return -1;
+    }
+
+    if (options & WCONTINUED) {
+        print("FIXME - waitpid with WCONTINUED\n");
+        *_errno() = EINVAL;
+        return -1;
+    }
+
+    if (options & WUNTRACED) {
+        print("FIXME - waitpid with WUNTRACED\n");
+        *_errno() = EINVAL;
+        return -1;
+    }
+
+    memset(&oa, 0, sizeof(oa));
+    oa.Length = sizeof(OBJECT_ATTRIBUTES);
+
+    client_id.UniqueProcess = (HANDLE)pid;
+    client_id.UniqueThread = 0;
+
+    // FIXME - check pid again after wait, in case it has been exec'd
+
+    status = NtOpenProcess(&h, SYNCHRONIZE, &oa, &client_id);
+    if (status == nt_status::INVALID_CID) {
+        *_errno() = ECHILD;
+        return -1;
+    } else if (!success(status)) {
+        *_errno() = nt_status_to_errno(status);
+        return -1;
+    }
+
+    // FIXME - return ECHILD if not our child
+
+    proc.reset(h);
+
+    timeout.QuadPart = 0;
+
+    while (true) {
+        status = NtWaitForSingleObject(proc.get(), true,
+                                       options & WNOHANG ? &timeout : nullptr);
+        if (status == nt_status::USER_APC)
+            continue;
+
+        if (status == nt_status::TIMEOUT)
+            return 0;
+
+        if (!success(status)) {
+            *_errno() = nt_status_to_errno(status);
+            return -1;
+        }
+
+        break;
+    }
+
+    status = NtQueryInformationProcess(proc.get(), PROCESSINFOCLASS::BasicInformation,
+                                       &pbi, sizeof(pbi), nullptr);
+    if (!success(status)) {
+        *_errno() = nt_status_to_errno(status);
+        return -1;
+    }
+
+    if (wstatus) {
+        auto exit_code = (uint8_t)pbi.ExitStatus;
+
+        *wstatus = exit_code << 8;
+    }
+
+    // FIXME - remove process from zombies list
+
+    return pid;
 }
