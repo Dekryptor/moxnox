@@ -272,3 +272,4 @@ setbuf
 strtoimax
 strtoumax
 _fullpath = __fullpath
+_execve

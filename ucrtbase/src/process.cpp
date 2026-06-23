@@ -1,12 +1,15 @@
 #include <stdlib.h>
 #include <string.h>
 #include <string_view>
+#include <utility>
 #include <span>
 
 import nt;
 import kernelbase;
 import unique_handle;
 import unicode;
+import print;
+import exec;
 
 #undef errno
 import errno;
@@ -125,4 +128,34 @@ int system(const char* command) {
     }
 
     return (int)pbi.ExitStatus;
+}
+
+extern "C"
+int _execve(const char* path, char* const* argv, char* const* envp) {
+    unique_handle proc, thread;
+    nt_status status;
+    CLIENT_ID client_id;
+
+    // Linux allows argv and envp to be NULL here, against the spec
+
+    if (!path || path[0] == 0 || !argv || !envp)
+        return EINVAL;
+
+    auto ret = do_exec(path, argv, envp, proc, thread, client_id);
+    if (ret)
+        return ret;
+
+    // start thread
+
+    status = NtResumeThread(thread.get(), nullptr);
+    if (!success(status)) {
+        NtTerminateProcess(proc.get(), status);
+        return nt_status_to_errno(status);
+    }
+
+    // FIXME - mark process as child
+    // FIXME - swap pids with child
+
+    NtTerminateProcess(NtCurrentProcess(), nt_status::SUCCESS);
+    unreachable();
 }
