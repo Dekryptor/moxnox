@@ -9,6 +9,7 @@ module;
 export module exec;
 
 import nt;
+import ntdll;
 import unique_handle;
 import unicode;
 import pagesize;
@@ -102,6 +103,12 @@ export int do_exec(const char* path, char* const* argv, char* const* envp,
     CONTEXT context;
     nt_status status;
     HANDLE stdinh, stdouth, stderrh, curdirh;
+    uintptr_t our_ntdll, their_ntdll;
+    ANSI_STRING as;
+    void* our_mn_exec;
+    uintptr_t their_mn_exec;
+
+    static const string_view mn_exec = "mn_exec";
 
     string_view pathsv = path;
     auto u16pathlen = utf8_to_utf16_len(pathsv);
@@ -271,6 +278,29 @@ export int do_exec(const char* path, char* const* argv, char* const* envp,
     if (!success(status))
         return nt_status_to_errno(status);
 
+    // find their ntdll
+
+    status = NtQueryInformationProcess(proc.get(), PROCESS_INFORMATION_CLASS::MoxnoxFindNtdll,
+                                       &their_ntdll, sizeof(their_ntdll), nullptr);
+    if (!success(status))
+        return nt_status_to_errno(status);
+
+    // find our ntdll
+
+    status = NtQueryInformationProcess(NtCurrentProcess(), PROCESS_INFORMATION_CLASS::MoxnoxFindNtdll,
+                                       &our_ntdll, sizeof(our_ntdll), nullptr);
+    if (!success(status))
+        return nt_status_to_errno(status);
+
+    as.Buffer = (char*)mn_exec.data();
+    as.Length = as.MaximumLength = (uint16_t)mn_exec.size();
+
+    status = LdrGetProcedureAddress((void*)our_ntdll, &as, 0, &our_mn_exec);
+    if (!success(status))
+        return nt_status_to_errno(status);
+
+    their_mn_exec = (uintptr_t)our_mn_exec - our_ntdll + their_ntdll;
+
     // create thread
 
     memset(&initial_teb, 0, sizeof(initial_teb));
@@ -291,10 +321,12 @@ export int do_exec(const char* path, char* const* argv, char* const* envp,
 
     memset(&context, 0, sizeof(context));
 #ifdef __aarch64__
-    context.Pc = (uintptr_t)sii.TransferAddress;
+    context.Pc = their_mn_exec;
+    context.X0 = (uintptr_t)sii.TransferAddress;
     context.Sp = (uintptr_t)initial_teb.StackBase - 0x10;
 #elifdef __x86_64__
-    context.Rip = (uintptr_t)sii.TransferAddress;
+    context.Rip = their_mn_exec;
+    context.Rcx = (uintptr_t)sii.TransferAddress;
     context.Rsp = (uintptr_t)initial_teb.StackBase - 0x28; // 0x20 bytes for MS ABI, 0x8 for return pointer
     context.EFlags = 0x200;
 #endif
