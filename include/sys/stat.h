@@ -10,8 +10,11 @@
 #include_next <sys/stat.h>
 #include <sys/types.h>
 
-#define S_IFLNK  0120000
+#define S_IFLNK 0120000
+#define S_IFSOCK 0140000
+
 #define S_ISLNK(m) (((m) & 0170000) == S_IFLNK)
+#define S_ISSOCK(m) (((m) & 0170000) == S_IFSOCK)
 
 #define S_ISUID 04000
 #define S_ISGID 02000
