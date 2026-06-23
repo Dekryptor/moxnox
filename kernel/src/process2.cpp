@@ -4079,10 +4079,14 @@ nt_status process::do_exec(span<const uint8_t> buffer) {
     if (newthread.suspend_count == 0)
         return nt_status::INVALID_PARAMETER;
 
-    // swap PIDs
-
     {
         lock_guard lock(process_list_lock);
+
+        // only allow if we created new process
+        if (newthread.proc->parent_process != t.proc)
+            return nt_status::INVALID_PARAMETER;
+
+        // swap PIDs
 
         remove_from_rbtree(process_tree, t.proc->tree);
         remove_from_rbtree(process_tree, newthread.proc->tree);
@@ -4091,6 +4095,47 @@ nt_status process::do_exec(span<const uint8_t> buffer) {
 
         insert_into_rbtree(process_tree, t.proc->tree);
         insert_into_rbtree(process_tree, newthread.proc->tree);
+
+        // swap parents
+
+        {
+            lock_guard lock(t.proc->children_lock);
+            remove_entry_list(newthread.proc->child_le);
+        }
+
+        newthread.proc->parent_process = t.proc->parent_process;
+
+        if (t.proc->parent_process) {
+            {
+                lock_guard lock(t.proc->parent_process->children_lock);
+                insert_tail_list(t.proc->parent_process->children, newthread.proc->child_le);
+                remove_entry_list(t.proc->child_le);
+            }
+
+            t.proc->parent_process = nullptr;
+            t.proc->release();
+        } else
+            newthread.proc->release();
+
+        // move children
+
+        auto& first_proc = t.proc->tree.key < newthread.proc->tree.key ? *t.proc : *newthread.proc;
+        auto& second_proc = t.proc->tree.key < newthread.proc->tree.key ? *newthread.proc : *t.proc;
+
+        {
+            lock_guard lock1(first_proc.children_lock);
+            lock_guard lock2(second_proc.children_lock);
+
+            while (!is_list_empty(t.proc->children)) {
+                auto le = t.proc->children.next;
+                auto& c = *(process*)((uint8_t*)le - offsetof(process, child_le));
+
+                remove_entry_list(*le);
+                insert_tail_list(newthread.proc->children, *le);
+
+                c.parent_process = newthread.proc;
+            }
+        }
     }
 
     // resume new thread and terminate old one
