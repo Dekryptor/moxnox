@@ -50,6 +50,7 @@ add_library(posixshim STATIC
     src/rand.cpp
     src/ttyname.cpp
     src/fcntl.cpp
+    src/spawn.cpp
 )
 
 target_compile_options(posixshim PRIVATE -fno-exceptions ${USERSPACE_CFLAGS})
