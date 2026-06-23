@@ -1629,19 +1629,19 @@ bool RtlIsProcessorFeaturePresent(uint32_t processor_feature) {
 }
 
 extern "C"
-void mn_exec(uintptr_t entry_point) {
+void mn_exec(uintptr_t entry_point, uintptr_t stack_pointer) {
     CONTEXT context;
 
     print("hello from mn_exec (entry_point = {:x})\n", entry_point);
 
     RtlCaptureContext(&context);
 
-    // FIXME - restore stack pointer
-
 #ifdef __x86_64__
     context.Rip = entry_point;
+    context.Rsp = stack_pointer;
 #elifdef __aarch64__
     context.Pc = entry_point;
+    context.Sp = stack_pointer;
 #endif
 
     NtContinue(&context, false);

@@ -324,10 +324,12 @@ export int do_exec(const char* path, char* const* argv, char* const* envp,
     context.Pc = their_mn_exec;
     context.X0 = (uintptr_t)sii.TransferAddress;
     context.Sp = (uintptr_t)initial_teb.StackBase - 0x10;
+    context.X1 = context.Sp;
 #elifdef __x86_64__
     context.Rip = their_mn_exec;
     context.Rcx = (uintptr_t)sii.TransferAddress;
     context.Rsp = (uintptr_t)initial_teb.StackBase - 0x28; // 0x20 bytes for MS ABI, 0x8 for return pointer
+    context.Rdx = context.Rsp;
     context.EFlags = 0x200;
 #endif
     context.ContextFlags = CONTEXT_CONTROL | CONTEXT_INTEGER | CONTEXT_SEGMENTS;
