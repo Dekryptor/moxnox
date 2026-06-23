@@ -770,7 +770,11 @@ process::~process() {
         auto& c = *(process*)((uint8_t*)children2.next - offsetof(process, child_le));
 
         remove_entry_list(c.child_le);
-        c.parent_pid = 0;
+
+        {
+            lock_guard lock(process_list_lock);
+            c.parent_process = nullptr;
+        }
 
         c.release();
     }
@@ -2922,7 +2926,7 @@ NTSTATUS NtCreateProcess(HANDLE* process_handle, ACCESS_MASK, const OBJECT_ATTRI
 
     {
         lock_guard lock(process_list_lock);
-        p.parent_pid = pp.tree.key;
+        p.parent_process = &pp;
     }
 
     p.acquire(); // for children list
@@ -3989,6 +3993,9 @@ nt_status process::set_information(PROCESS_INFORMATION_CLASS info_class,
         case MoxnoxExec:
             return do_exec(buffer);
 
+        case MoxnoxReapZombie:
+            return reap_zombie();
+
         default:
             return nt_status::NOT_IMPLEMENTED;
     }
@@ -4083,6 +4090,36 @@ nt_status process::do_exec(span<const uint8_t> buffer) {
     newthread.suspend_count.fetch_sub(1);
 
     do_terminate(*t.proc, nt_status::SUCCESS);
+
+    return nt_status::SUCCESS;
+}
+
+nt_status process::reap_zombie() {
+    // check actually dead
+
+    {
+        sync_lock sl;
+        lock_guard lock(sl);
+
+        if (!signalled)
+            return nt_status::INVALID_PARAMETER;
+    }
+
+    {
+        lock_guard lock(process_list_lock);
+
+        if (!parent_process)
+            return nt_status::SUCCESS; // already done
+
+        {
+            lock_guard lock(parent_process->children_lock);
+            remove_entry_list(child_le);
+        }
+
+        parent_process = nullptr;
+    }
+
+    release();
 
     return nt_status::SUCCESS;
 }

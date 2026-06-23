@@ -86,6 +86,7 @@ public:
                               span<const uint8_t> buffer);
     nt_status set_pending_signal(span<const uint8_t> buffer);
     nt_status do_exec(span<const uint8_t> buffer);
+    nt_status reap_zombie();
     nt_status query_vm(const void* base_address, MEMORY_INFORMATION_CLASS info_class,
                        span<uint8_t> buffer, size_t& return_length);
     nt_status query_vm_basic_info(const void* base_address, span<uint8_t> buffer,
@@ -122,7 +123,7 @@ public:
     spinlock children_lock;
     list_entry children = { &children, &children };
     list_entry child_le;
-    uintptr_t parent_pid = 0;
+    process* parent_process = nullptr;
 };
 
 static_assert(is_sync_object<process>);
