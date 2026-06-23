@@ -55,6 +55,6 @@ add_library(posixshim STATIC
 
 target_compile_options(posixshim PRIVATE -fno-exceptions ${USERSPACE_CFLAGS})
 
-target_link_libraries(posixshim PRIVATE print errno termios unicode unique_handle)
+target_link_libraries(posixshim PRIVATE print errno termios unicode unique_handle pagesize)
 target_link_libraries(posixshim PRIVATE moxnox)
 target_link_libraries(posixshim PRIVATE musl_glob tre)
