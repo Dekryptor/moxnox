@@ -1,5 +1,5 @@
 /*
- * spawn-test - process primitives: posix_spawn, waitpid, and exec.
+ * spawn-test - process primitives: posix_spawn, waitpid, exec, fd inheritance.
  *
  * Re-spawns itself in a "child mode" to create children with known behaviour,
  * then exercises the wait path: exit-status plumbing, pid matching, WNOHANG
@@ -7,9 +7,11 @@
  *
  * M1 adds exec: a spawned child execve()s itself into a second mode, and we
  * check the pid is preserved across the exec - the original pid reaps the
- * exec'd image, which still sees its own pid and its parent unchanged. Nothing
- * is asserted about fd inheritance yet (that is M2), though stage2 does print a
- * diagnostic line and so leans on the standard streams surviving.
+ * exec'd image, which still sees its own pid and its parent unchanged.
+ *
+ * M2 adds fd inheritance: a pipe's read end is handed to a child by fd number,
+ * and we check it is inherited across posix_spawn and across exec, and that
+ * setting FD_CLOEXEC suppresses it in both cases.
  *
  * Child modes are dispatched on argv before any driver work, so the same binary
  * serves as the test driver, the thing being spawned, and the thing exec'd into.
@@ -27,6 +29,7 @@
 #include <sys/types.h>
 #include <sys/wait.h>
 #include <unistd.h>
+#include <fcntl.h>
 #include <spawn.h>
 
 import nt;
@@ -42,6 +45,12 @@ static unsigned int failures = 0;
 // outside the 0..3 range the exec success path uses so the driver can tell the
 // two apart.
 static constexpr int exec_failed_marker = 99;
+
+// M2 fd-inheritance markers. The parent writes fd_known_byte into a pipe; a child
+// that inherits the read end exits with that byte, while a child that does not
+// (FD_CLOEXEC, or no inheritance) sees the read fail and exits fd_read_closed_marker.
+static constexpr int fd_known_byte = 0x42;
+static constexpr int fd_read_closed_marker = 200;
 
 // Forwards to print(). The format string is taken as print's own consteval
 // `checker` type (wrapped in type_identity_t so Args deduce from the trailing
@@ -206,6 +215,121 @@ static void test_exec_pid_preserved(const char* self) {
     check((code & 2) != 0, "getppid() preserved across exec");
 }
 
+// Child mode: read one byte from the given fd. Exit code is the byte read, or
+// fd_read_closed_marker if the fd is not open (read failed) - which is what a
+// non-inherited / closed-on-exec fd should look like.
+static int do_fd_read(const char* fd_str) {
+    int fd = atoi(fd_str);
+    unsigned char c = 0;
+
+    if (read(fd, &c, 1) != 1)
+        return fd_read_closed_marker;
+
+    return c;
+}
+
+// Child mode: optionally mark the fd close-on-exec, then exec into --fd-read so
+// the read happens in a freshly exec'd image. This checks the fd survives (or is
+// correctly dropped) across exec, on top of the spawn that got us here.
+static int do_exec_read(const char* fd_str, const char* set_cloexec) {
+    const char* self = self_path();
+    if (!self)
+        return exec_failed_marker;
+
+    if (atoi(set_cloexec))
+        fcntl(atoi(fd_str), F_SETFD, FD_CLOEXEC);
+
+    char* eargv[] = { (char*)self, (char*)"--fd-read", (char*)fd_str, nullptr };
+    char* env[] = { (char*)"PATH=/bin", nullptr };
+
+    execve(self, eargv, env);
+
+    return exec_failed_marker;
+}
+
+// Set up a pipe, write the known byte into it, and spawn the child in `mode` with
+// the read-end fd number (plus an optional extra arg). Returns the child's exit
+// code, or a negative value if the harness itself (pipe/spawn) failed. When
+// set_cloexec is true, FD_CLOEXEC is set on the read end before spawning.
+static int run_fd_scenario(const char* self, const char* mode,
+                           const char* extra, bool set_cloexec) {
+    int pf[2];
+    if (pipe(pf) != 0)
+        return -1;
+
+    if (set_cloexec)
+        fcntl(pf[0], F_SETFD, FD_CLOEXEC);
+
+    unsigned char b = fd_known_byte;
+    write(pf[1], &b, 1);
+
+    char fd_str[16];
+    snprintf(fd_str, sizeof(fd_str), "%d", pf[0]);
+
+    char* cargv[5];
+    cargv[0] = (char*)self;
+    cargv[1] = (char*)mode;
+    cargv[2] = fd_str;
+    if (extra) {
+        cargv[3] = (char*)extra;
+        cargv[4] = nullptr;
+    } else {
+        cargv[3] = nullptr;
+    }
+
+    pid_t pid = -1;
+    int err = spawn_self(self, cargv, &pid);
+    if (err != 0) {
+        close(pf[0]);
+        close(pf[1]);
+        return -1000 - err;
+    }
+
+    int status = 0;
+    waitpid(pid, &status, 0);
+
+    close(pf[0]);
+    close(pf[1]);
+
+    if (!WIFEXITED(status))
+        return -2000;
+
+    return WEXITSTATUS(status);
+}
+
+// A plain (non-CLOEXEC) read fd must be inherited by a posix_spawn'd child.
+static void test_fd_inherit_spawn(const char* self) {
+    int code = run_fd_scenario(self, "--fd-read", nullptr, false);
+    check(code == fd_known_byte,
+          "fd inherited across posix_spawn (child read {}, expected {})",
+          code, fd_known_byte);
+}
+
+// FD_CLOEXEC on the read fd must stop it being inherited by the spawned child.
+static void test_fd_cloexec_spawn(const char* self) {
+    int code = run_fd_scenario(self, "--fd-read", nullptr, true);
+    check(code == fd_read_closed_marker,
+          "FD_CLOEXEC fd not inherited across posix_spawn (child got {}, expected {})",
+          code, fd_read_closed_marker);
+}
+
+// A plain read fd must survive both the spawn and a subsequent exec.
+static void test_fd_inherit_exec(const char* self) {
+    int code = run_fd_scenario(self, "--fd-exec-read", "0", false);
+    check(code == fd_known_byte,
+          "fd survives posix_spawn then exec (child read {}, expected {})",
+          code, fd_known_byte);
+}
+
+// An fd inherited by the child but marked FD_CLOEXEC before it execs must be
+// dropped at that exec.
+static void test_fd_cloexec_exec(const char* self) {
+    int code = run_fd_scenario(self, "--fd-exec-read", "1", false);
+    check(code == fd_read_closed_marker,
+          "FD_CLOEXEC fd dropped across exec (child got {}, expected {})",
+          code, fd_read_closed_marker);
+}
+
 int main(int argc, char** argv) {
     // --- Child modes (keep first and minimal) ---
     if (argc >= 3 && !strcmp(argv[1], "--exit"))
@@ -222,6 +346,12 @@ int main(int argc, char** argv) {
     if (argc >= 4 && !strcmp(argv[1], "--exec-stage2"))
         return do_exec_stage2(argv[2], argv[3]);
 
+    if (argc >= 3 && !strcmp(argv[1], "--fd-read"))
+        return do_fd_read(argv[2]);
+
+    if (argc >= 4 && !strcmp(argv[1], "--fd-exec-read"))
+        return do_exec_read(argv[2], argv[3]);
+
     // --- Driver ---
     const char* self = self_path();
     if (!self) {
@@ -233,6 +363,10 @@ int main(int argc, char** argv) {
     test_exit_status(self);
     test_wnohang(self);
     test_exec_pid_preserved(self);
+    test_fd_inherit_spawn(self);
+    test_fd_cloexec_spawn(self);
+    test_fd_inherit_exec(self);
+    test_fd_cloexec_exec(self);
 
     print("\n{} ({} failure{})\n", failures ? "FAILED" : "OK",
           failures, failures == 1 ? "" : "s");
