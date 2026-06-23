@@ -4008,10 +4008,26 @@ nt_status process::do_exec(span<const uint8_t> buffer) {
     if (t.proc == newthread.proc)
         return nt_status::INVALID_PARAMETER;
 
+    // check new thread is suspended
+
     if (newthread.suspend_count == 0)
         return nt_status::INVALID_PARAMETER;
 
-    // FIXME - swap PIDs
+    // swap PIDs
+
+    {
+        lock_guard lock(process_list_lock);
+
+        remove_from_rbtree(process_tree, t.proc->tree);
+        remove_from_rbtree(process_tree, newthread.proc->tree);
+
+        swap(t.proc->tree.key, newthread.proc->tree.key);
+
+        insert_into_rbtree(process_tree, t.proc->tree);
+        insert_into_rbtree(process_tree, newthread.proc->tree);
+    }
+
+    // resume new thread and terminate old one
 
     newthread.suspend_count.fetch_sub(1);
 
