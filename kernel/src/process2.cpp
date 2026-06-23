@@ -4111,6 +4111,10 @@ nt_status process::reap_zombie() {
         if (!parent_process)
             return nt_status::SUCCESS; // already done
 
+        // we can only reap our own children
+        if (parent_process != get_current_thread()->proc)
+            return nt_status::INVALID_PARAMETER;
+
         {
             lock_guard lock(parent_process->children_lock);
             remove_entry_list(child_le);
