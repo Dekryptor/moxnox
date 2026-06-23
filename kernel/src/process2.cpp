@@ -753,6 +753,28 @@ process::~process() {
         remove_from_rbtree(process_tree, tree);
     }
 
+    list_entry children2 = { &children2, &children2 };
+
+    {
+        lock_guard lock(children_lock);
+
+        while (!is_list_empty(children)) {
+            auto le = children.next;
+
+            remove_entry_list(*le);
+            insert_tail_list(children2, *le);
+        }
+    }
+
+    while (!is_list_empty(children2)) {
+        auto& c = *(process*)((uint8_t*)children2.next - offsetof(process, child_le));
+
+        remove_entry_list(c.child_le);
+        c.parent_pid = 0;
+
+        c.release();
+    }
+
     while (true) {
         mapping* m;
 
