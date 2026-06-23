@@ -2731,17 +2731,17 @@ NTSTATUS process::unmap_view_of_section(void* base_address) {
 
 extern "C"
 NTSTATUS NtCreateProcess(HANDLE* process_handle, ACCESS_MASK, const OBJECT_ATTRIBUTES*,
-                         HANDLE, bool, HANDLE section_handle, HANDLE, HANDLE) {
-    object_ref sect;
+                         HANDLE parent_process, bool, HANDLE section_handle,
+                         HANDLE, HANDLE) {
+    object_ref parent;
 
     // FIXME - desired_access
     // FIXME - object_attributes
-    // FIXME - parent_process
     // FIXME - inherit_object_table
     // FIXME - debug_port
     // FIXME - exception_port
 
-    sect = deref_handle(section_handle);
+    auto sect = deref_handle(section_handle);
     if (!sect)
         return nt_status::INVALID_HANDLE;
 
@@ -2752,6 +2752,21 @@ NTSTATUS NtCreateProcess(HANDLE* process_handle, ACCESS_MASK, const OBJECT_ATTRI
 
     if (img.type != section_type::image)
         return nt_status::INVALID_PARAMETER;
+
+    if (parent_process == NtCurrentProcess()) {
+        auto& t = *get_current_thread();
+
+        t.proc->acquire();
+
+        parent = object_ref{*t.proc};
+    } else {
+        parent = deref_handle(parent_process);
+        if (!parent)
+            return nt_status::INVALID_HANDLE;
+
+        if (parent.get().type != object_type::process)
+            return nt_status::OBJECT_TYPE_MISMATCH;
+    }
 
     auto pptr = new process;
     if (!pptr)
@@ -2879,6 +2894,20 @@ NTSTATUS NtCreateProcess(HANDLE* process_handle, ACCESS_MASK, const OBJECT_ATTRI
     if (!success(status)) {
         p.release();
         return status;
+    }
+
+    auto& pp = static_cast<process&>(parent.get());
+
+    {
+        lock_guard lock(process_list_lock);
+        p.parent_pid = pp.tree.key;
+    }
+
+    p.acquire(); // for children list
+
+    {
+        lock_guard lock(pp.children_lock);
+        insert_tail_list(pp.children, p.child_le);
     }
 
     p.release(); // add_handle increases refcount

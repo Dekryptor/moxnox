@@ -119,6 +119,10 @@ public:
     bool dying = false;
     spinlock signals_lock;
     uint64_t pending_signals = 0;
+    spinlock children_lock;
+    list_entry children = { &children, &children };
+    list_entry child_le;
+    uintptr_t parent_pid = 0;
 };
 
 static_assert(is_sync_object<process>);
