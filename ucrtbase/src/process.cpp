@@ -135,6 +135,7 @@ int _execve(const char* path, char* const* argv, char* const* envp) {
     unique_handle proc, thread;
     nt_status status;
     CLIENT_ID client_id;
+    HANDLE h;
 
     // Linux allows argv and envp to be NULL here, against the spec
 
@@ -145,17 +146,13 @@ int _execve(const char* path, char* const* argv, char* const* envp) {
     if (ret)
         return ret;
 
-    // start thread
+    h = thread.get();
 
-    status = NtResumeThread(thread.get(), nullptr);
-    if (!success(status)) {
-        NtTerminateProcess(proc.get(), status);
+    status = NtSetInformationProcess(NtCurrentProcess(),
+                                     PROCESS_INFORMATION_CLASS::MoxnoxExec,
+                                     &h, sizeof(h));
+    if (!success(status))
         return nt_status_to_errno(status);
-    }
 
-    // FIXME - mark process as child
-    // FIXME - swap pids with child
-
-    NtTerminateProcess(NtCurrentProcess(), nt_status::SUCCESS);
     unreachable();
 }
