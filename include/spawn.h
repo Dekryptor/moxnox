@@ -5,6 +5,10 @@
 typedef void* posix_spawn_file_actions_t; // FIXME
 typedef void* posix_spawnattr_t; // FIXME
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 int posix_spawn(pid_t* pid, const char* path,
                 const posix_spawn_file_actions_t* file_actions,
                 const posix_spawnattr_t* attrp,
@@ -26,3 +30,7 @@ int posix_spawn_file_actions_addchdir(posix_spawn_file_actions_t* file_actions,
                                       const char* path);
 int posix_spawnattr_init(posix_spawnattr_t* attr);
 int posix_spawnattr_destroy(posix_spawnattr_t* attr);
+
+#ifdef __cplusplus
+}
+#endif
