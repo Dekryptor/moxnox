@@ -3186,7 +3186,15 @@ NTSTATUS process::query_info(enum PROCESS_INFORMATION_CLASS process_information_
             pbi.AffinityMask = 0xffffffff; // FIXME
             pbi.BasePriority = 0; // FIXME
             pbi.UniqueProcessId = tree.key;
-            pbi.InheritedFromUniqueProcessId = 0; // FIXME
+
+            {
+                lock_guard lock(process_list_lock);
+
+                if (parent_process)
+                    pbi.InheritedFromUniqueProcessId = parent_process->tree.key;
+                else
+                    pbi.InheritedFromUniqueProcessId = 0;
+            }
 
             if (return_length)
                 *return_length = sizeof(PROCESS_BASIC_INFORMATION);
