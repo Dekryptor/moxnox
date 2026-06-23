@@ -1627,3 +1627,10 @@ bool RtlIsProcessorFeaturePresent(uint32_t processor_feature) {
 
     return false;
 }
+
+extern "C"
+void mn_exec(uintptr_t entry_point) {
+    print("hello from mn_exec (entry_point = {:x})\n", entry_point);
+
+    NtTerminateProcess(NtCurrentProcess(), nt_status::SUCCESS);
+}
