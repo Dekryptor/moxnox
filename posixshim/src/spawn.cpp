@@ -142,7 +142,8 @@ pid_t waitpid(pid_t pid, int* wstatus, int options) {
         *wstatus = exit_code << 8;
     }
 
-    // FIXME - remove process from zombies list
+    NtSetInformationProcess(proc.get(), PROCESS_INFORMATION_CLASS::MoxnoxReapZombie,
+                            nullptr, 0);
 
     return pid;
 }
