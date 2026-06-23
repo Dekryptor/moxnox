@@ -7,9 +7,9 @@
 #define WEXITSTATUS(s) (((s) >> 8) & 0xff)
 #define WTERMSIG(s) ((s) & 0x7f)
 
-#define WCONTINUED 0
-#define WNOHANG 1
-#define WUNTRACED 2
+#define WCONTINUED 1
+#define WNOHANG 2
+#define WUNTRACED 4
 
 #ifdef __cplusplus
 extern "C" {
