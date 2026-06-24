@@ -10,6 +10,11 @@
 #define STDOUT_FILENO 1
 #define STDERR_FILENO 2
 
+#define F_OK 1
+#define R_OK 2
+#define W_OK 4
+#define X_OK 8
+
 #ifdef __cplusplus
 extern "C" {
 #endif
