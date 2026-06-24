@@ -20,6 +20,10 @@
  * PATH search for a missing name fails with ENOENT and that a name with a slash
  * bypasses the search.
  *
+ * M4 covers waitpid edge cases: waitpid(-1) reaping any of several children and
+ * then ECHILD once none remain, ECHILD for a wait on a pid that is not our
+ * child, and a child killed by a signal being reported via WIFSIGNALED/WTERMSIG.
+ *
  * Child modes are dispatched on argv before any driver work, so the same binary
  * serves as the test driver, the thing being spawned, and the thing exec'd into.
  */
@@ -37,6 +41,7 @@
 #include <sys/wait.h>
 #include <unistd.h>
 #include <fcntl.h>
+#include <signal.h>
 #include <spawn.h>
 
 import nt;
@@ -62,6 +67,10 @@ static constexpr int fd_read_closed_marker = 200;
 // M3 marker: do_m3_notfound returns this when execvp of a missing name fails
 // with ENOENT, as POSIX requires.
 static constexpr int m3_notfound_ok = 50;
+
+// M4 marker: do_raise returns this if raise() came back, i.e. the signal did not
+// terminate the child.
+static constexpr int raise_returned_marker = 77;
 
 // Forwards to print(). The format string is taken as print's own consteval
 // `checker` type (wrapped in type_identity_t so Args deduce from the trailing
@@ -517,6 +526,110 @@ static void test_m3_slashed(const char* self) {
           WIFEXITED(status) ? WEXITSTATUS(status) : -1);
 }
 
+// Child mode: raise a signal on ourselves. A default-fatal signal should
+// terminate us; if raise() returns, the signal did not kill us, so report that.
+static int do_raise(const char* sig_str) {
+    raise(atoi(sig_str));
+    return raise_returned_marker;
+}
+
+// waitpid(-1) must reap any child: spawn several with distinct exit codes, reap
+// them all without naming pids and check each status, then ECHILD once none
+// remain.
+static void test_waitpid_any(const char* self) {
+    const int codes[] = { 11, 22, 33 };
+    const unsigned int n = 3;
+
+    pid_t pids[n];
+    int exp_code[n];
+    bool reaped[n];
+    unsigned int spawned = 0;
+
+    for (unsigned int i = 0; i < n; i++) {
+        char code_str[16];
+        snprintf(code_str, sizeof(code_str), "%d", codes[i]);
+
+        char* cargv[] = { (char*)self, (char*)"--exit", code_str, nullptr };
+        pid_t pid = -1;
+        if (spawn_self(self, cargv, &pid) != 0)
+            continue;
+
+        pids[spawned] = pid;
+        exp_code[spawned] = codes[i];
+        reaped[spawned] = false;
+        spawned++;
+    }
+
+    check(spawned == n, "spawned {} children for waitpid(-1) (got {})", n, spawned);
+
+    unsigned int got = 0;
+    bool all_match = true;
+
+    for (unsigned int i = 0; i < spawned; i++) {
+        int status = 0;
+        pid_t w = waitpid(-1, &status, 0);
+
+        bool found = false;
+        for (unsigned int k = 0; k < spawned; k++) {
+            if (pids[k] == w && !reaped[k]) {
+                reaped[k] = true;
+                found = true;
+                if (!WIFEXITED(status) || WEXITSTATUS(status) != exp_code[k])
+                    all_match = false;
+                break;
+            }
+        }
+
+        if (found)
+            got++;
+        else
+            all_match = false;
+    }
+
+    check(got == spawned, "waitpid(-1) reaped all {} children (got {})", spawned, got);
+    check(all_match, "each child's exit status came back correctly via waitpid(-1)");
+
+    errno = 0;
+    int status = 0;
+    pid_t w = waitpid(-1, &status, 0);
+    check(w == -1 && errno == ECHILD,
+          "waitpid(-1) with no children gives ECHILD (got {}, errno {})",
+          (int)w, errno);
+}
+
+// waitpid on a pid that exists but is not our child must give ECHILD. We use our
+// own pid (a process is not its own child); WNOHANG keeps this from blocking if
+// the not-our-child check isn't in place yet.
+static void test_waitpid_nonchild() {
+    errno = 0;
+    int status = 0;
+    pid_t w = waitpid(getpid(), &status, WNOHANG);
+    check(w == -1 && errno == ECHILD,
+          "waitpid on a non-child pid gives ECHILD (got {}, errno {})", (int)w, errno);
+}
+
+// A child killed by a signal must be reported via WIFSIGNALED/WTERMSIG, not as a
+// normal exit.
+static void test_waitpid_signal(const char* self) {
+    char sig_str[16];
+    snprintf(sig_str, sizeof(sig_str), "%d", SIGTERM);
+
+    char* cargv[] = { (char*)self, (char*)"--raise", sig_str, nullptr };
+    pid_t pid = -1;
+    int err = spawn_self(self, cargv, &pid);
+    check(err == 0, "posix_spawn (raise) returned {}", err);
+    if (err != 0)
+        return;
+
+    int status = 0;
+    pid_t w = waitpid(pid, &status, 0);
+    check(w == pid, "waitpid (raise) returned child (got {})", (int)w);
+    check(WIFSIGNALED(status), "child reported as killed by a signal");
+    check(WIFSIGNALED(status) && WTERMSIG(status) == SIGTERM,
+          "WTERMSIG is SIGTERM (got {})", WIFSIGNALED(status) ? WTERMSIG(status) : -1);
+    check(!WIFEXITED(status), "signal death not reported as a normal exit");
+}
+
 int main(int argc, char** argv) {
     // --- Child modes (keep first and minimal) ---
     if (argc >= 3 && !strcmp(argv[1], "--exit"))
@@ -551,6 +664,9 @@ int main(int argc, char** argv) {
     if (argc >= 2 && !strcmp(argv[1], "--m3-slashed"))
         return do_m3_slashed();
 
+    if (argc >= 3 && !strcmp(argv[1], "--raise"))
+        return do_raise(argv[2]);
+
     // --- Driver ---
     const char* self = self_path();
     if (!self) {
@@ -574,6 +690,9 @@ int main(int argc, char** argv) {
     test_m3_variant(self, "lp");
     test_m3_notfound(self);
     test_m3_slashed(self);
+    test_waitpid_any(self);
+    test_waitpid_nonchild();
+    test_waitpid_signal(self);
 
     print("\n{} ({} failure{})\n", failures ? "FAILED" : "OK",
           failures, failures == 1 ? "" : "s");
