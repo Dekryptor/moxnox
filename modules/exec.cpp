@@ -19,6 +19,11 @@ import errno;
 
 using namespace std;
 
+export struct exec_info {
+    HANDLE h;
+    int fd;
+};
+
 static constexpr uint32_t bytes_to_pages(size_t bytes) {
     return (uint32_t)((bytes + PAGE_SIZE - 1) / PAGE_SIZE);
 }

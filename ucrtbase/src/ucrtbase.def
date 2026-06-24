@@ -273,3 +273,4 @@ strtoimax
 strtoumax
 _fullpath = __fullpath
 _execve
+mn_prepare_exec_block

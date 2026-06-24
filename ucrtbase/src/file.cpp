@@ -30,6 +30,7 @@ import unique_handle;
 import time;
 import moxnox_ioctls;
 import format;
+import exec;
 
 #undef errno
 import errno;
@@ -2422,4 +2423,68 @@ int __pclose(FILE* file) {
     delete &f;
 
     return fail ? -1 : (int)pbi.ExitStatus;
+}
+
+extern "C"
+nt_status mn_prepare_exec_block(HANDLE proc, exec_info** exec_block,
+                                size_t* num_exec_block_entries) {
+    unsigned int num_entries = 0;
+    nt_status status;
+
+    RtlEnterCriticalSection(&fds_lock);
+
+    for (size_t i = STDERR_FILENO + 1; i < fds.size(); i++) {
+        if (fds[i].h == 0)
+            continue;
+
+        if (fds[i].cloexec)
+            continue;
+
+        num_entries++;
+    }
+
+    if (num_entries == 0) {
+        RtlLeaveCriticalSection(&fds_lock);
+        *exec_block = nullptr;
+        *num_exec_block_entries = 0;
+        return nt_status::SUCCESS;
+    }
+
+    auto entries = (exec_info*)malloc(sizeof(exec_info) * num_entries);
+    if (!entries) {
+        print_stderr("malloc failed\n");
+        RtlLeaveCriticalSection(&fds_lock);
+        return nt_status::INSUFFICIENT_RESOURCES;
+    }
+
+    auto e = entries;
+
+    for (size_t i = STDERR_FILENO + 1; i < fds.size(); i++) {
+        if (fds[i].h == 0)
+            continue;
+
+        if (fds[i].cloexec)
+            continue;
+
+        status = NtDuplicateObject(NtCurrentProcess(), fds[i].h, proc,
+                                   &e->h, 0, 0,
+                                   DUPLICATE_SAME_ATTRIBUTES | DUPLICATE_SAME_ACCESS);
+        if (!success(status)) {
+            print_stderr("NtDuplicateObject returned {}\n", status);
+            free(entries);
+            RtlLeaveCriticalSection(&fds_lock);
+            return status;
+        }
+
+        e->fd = (int)i;
+
+        e++;
+    }
+
+    RtlLeaveCriticalSection(&fds_lock);
+
+    *exec_block = entries;
+    *num_exec_block_entries = num_entries;
+
+    return nt_status::SUCCESS;
 }
