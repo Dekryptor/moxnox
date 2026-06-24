@@ -13,6 +13,13 @@
  * and we check it is inherited across posix_spawn and across exec, and that
  * setting FD_CLOEXEC suppresses it in both cases.
  *
+ * M3 exercises the exec* family (execv/execve/execl/execle/execvp/execlp): each
+ * variant execs into a probe that checks argv marshalling, the environment
+ * (inherited for the non-e forms, explicit for the e forms), and that an
+ * argument containing a space survives the command line. It also checks that a
+ * PATH search for a missing name fails with ENOENT and that a name with a slash
+ * bypasses the search.
+ *
  * Child modes are dispatched on argv before any driver work, so the same binary
  * serves as the test driver, the thing being spawned, and the thing exec'd into.
  */
@@ -51,6 +58,10 @@ static constexpr int exec_failed_marker = 99;
 // (FD_CLOEXEC, or no inheritance) sees the read fail and exits fd_read_closed_marker.
 static constexpr int fd_known_byte = 0x42;
 static constexpr int fd_read_closed_marker = 200;
+
+// M3 marker: do_m3_notfound returns this when execvp of a missing name fails
+// with ENOENT, as POSIX requires.
+static constexpr int m3_notfound_ok = 50;
 
 // Forwards to print(). The format string is taken as print's own consteval
 // `checker` type (wrapped in type_identity_t so Args deduce from the trailing
@@ -330,6 +341,182 @@ static void test_fd_cloexec_exec(const char* self) {
           code, fd_read_closed_marker);
 }
 
+static const char* base_name(const char* path) {
+    const char* base = path;
+    for (const char* p = path; *p; p++) {
+        if (*p == '/' || *p == '\\')
+            base = p + 1;
+    }
+    return base;
+}
+
+// Child mode: the image every M3 variant execs into. argv is expected to be
+//   <name> --m3-probe <env-value> ALPHA GAMMA "two words"
+// Reports through the exit code: bit 0 = the space-free args arrived intact,
+// bit 1 = M3VAR matches the expected value, bit 2 = the arg containing a space
+// survived command-line quoting. The spacey arg is last so a botched quote
+// (which splits it) shifts only the tail and leaves the earlier checks valid.
+static int do_m3_probe(int argc, char** argv) {
+    if (argc < 6)
+        return 0;
+
+    int result = 0;
+
+    if (!strcmp(argv[3], "ALPHA") && !strcmp(argv[4], "GAMMA"))
+        result |= 1;
+
+    const char* env = getenv("M3VAR");
+    if (env && !strcmp(env, argv[2]))
+        result |= 2;
+
+    if (argc == 6 && !strcmp(argv[5], "two words"))
+        result |= 4;
+
+    return result;
+}
+
+// Child mode: perform one exec* variant, landing in --m3-probe. The non-e forms
+// inherit our environment (we put M3VAR there with setenv), so the probe expects
+// "envval"; the e forms pass an explicit environment with a different value, so
+// the probe expects "explicitval" - which also proves the explicit env won out
+// over the inherited one. The p forms are given the bare image name so they
+// exercise the PATH search.
+static int do_m3_exec(const char* variant) {
+    const char* self = self_path();
+    if (!self)
+        return exec_failed_marker;
+
+    setenv("M3VAR", "envval", 1);
+
+    char* explicit_env[] = { (char*)"M3VAR=explicitval", (char*)"PATH=/bin",
+                             nullptr };
+
+    auto base = base_name(self);
+
+    if (!strcmp(variant, "v")) {
+        char* a[] = { (char*)self, (char*)"--m3-probe", (char*)"envval",
+                      (char*)"ALPHA", (char*)"GAMMA", (char*)"two words",
+                      nullptr };
+        execv(self, a);
+    } else if (!strcmp(variant, "ve")) {
+        char* a[] = { (char*)self, (char*)"--m3-probe", (char*)"explicitval",
+                      (char*)"ALPHA", (char*)"GAMMA", (char*)"two words",
+                      nullptr };
+        execve(self, a, explicit_env);
+    } else if (!strcmp(variant, "l")) {
+        execl(self, self, "--m3-probe", "envval",
+              "ALPHA", "GAMMA", "two words", (char*)nullptr);
+    } else if (!strcmp(variant, "le")) {
+        execle(self, self, "--m3-probe", "explicitval",
+               "ALPHA", "GAMMA", "two words", (char*)nullptr, explicit_env);
+    } else if (!strcmp(variant, "vp")) {
+        char* a[] = { (char*)base, (char*)"--m3-probe", (char*)"envval",
+                      (char*)"ALPHA", (char*)"GAMMA", (char*)"two words",
+                      nullptr };
+        execvp(base, a);
+    } else if (!strcmp(variant, "lp")) {
+        execlp(base, base, "--m3-probe", "envval",
+               "ALPHA", "GAMMA", "two words", (char*)nullptr);
+    }
+
+    // A successful exec never returns.
+    return exec_failed_marker;
+}
+
+// Child mode: execvp a name that is not on PATH; it must fail with ENOENT rather
+// than succeeding or failing some other way.
+static int do_m3_notfound() {
+    char* a[] = { (char*)"no-such-program-xyzzy", (char*)"--m3-probe", nullptr };
+
+    errno = 0;
+    execvp("no-such-program-xyzzy", a);
+
+    // execvp returned, so it failed - as it should.
+    return errno == ENOENT ? m3_notfound_ok : 0;
+}
+
+// Child mode: execvp a name with a slash while PATH is deliberately useless.
+// Because the name contains a slash the search must be skipped and the name used
+// directly, so the exec should still succeed. The path is built as /bin/<self>
+// to guarantee a slash regardless of how the image path is spelt.
+static int do_m3_slashed() {
+    const char* self = self_path();
+    if (!self)
+        return exec_failed_marker;
+
+    char path[512];
+    snprintf(path, sizeof(path), "/bin/%s", base_name(self));
+
+    setenv("M3VAR", "envval", 1);
+    setenv("PATH", "/no-such-dir", 1);
+
+    char* a[] = { path, (char*)"--m3-probe", (char*)"envval",
+                  (char*)"ALPHA", (char*)"GAMMA", (char*)"two words",
+                  nullptr };
+    execvp(path, a);
+
+    return exec_failed_marker;
+}
+
+// Run one exec* variant: spawn a child that performs it, landing in the probe,
+// and check argv marshalling, environment, and space-quoting via the exit code.
+static void test_m3_variant(const char* self, const char* variant) {
+    char* cargv[] = { (char*)self, (char*)"--m3-exec", (char*)variant, nullptr };
+    pid_t pid = -1;
+    int err = spawn_self(self, cargv, &pid);
+    check(err == 0, "posix_spawn (exec{}) returned {}", variant, err);
+    if (err != 0)
+        return;
+
+    int status = 0;
+    pid_t w = waitpid(pid, &status, 0);
+    check(w == pid, "exec{}: waitpid returned child", variant);
+    check(WIFEXITED(status), "exec{}: child exited normally", variant);
+    if (w != pid || !WIFEXITED(status))
+        return;
+
+    int code = WEXITSTATUS(status);
+    if (code == exec_failed_marker) {
+        check(false, "exec{} failed (exec returned)", variant);
+        return;
+    }
+
+    check((code & 1) != 0, "exec{}: space-free args passed through", variant);
+    check((code & 2) != 0, "exec{}: environment passed through", variant);
+    check((code & 4) != 0, "exec{}: arg with a space survived quoting", variant);
+}
+
+static void test_m3_notfound(const char* self) {
+    char* cargv[] = { (char*)self, (char*)"--m3-notfound", nullptr };
+    pid_t pid = -1;
+    int err = spawn_self(self, cargv, &pid);
+    check(err == 0, "posix_spawn (m3-notfound) returned {}", err);
+    if (err != 0)
+        return;
+
+    int status = 0;
+    pid_t w = waitpid(pid, &status, 0);
+    check(w == pid && WIFEXITED(status) && WEXITSTATUS(status) == m3_notfound_ok,
+          "execvp of missing name fails with ENOENT (status {})",
+          WIFEXITED(status) ? WEXITSTATUS(status) : -1);
+}
+
+static void test_m3_slashed(const char* self) {
+    char* cargv[] = { (char*)self, (char*)"--m3-slashed", nullptr };
+    pid_t pid = -1;
+    int err = spawn_self(self, cargv, &pid);
+    check(err == 0, "posix_spawn (m3-slashed) returned {}", err);
+    if (err != 0)
+        return;
+
+    int status = 0;
+    pid_t w = waitpid(pid, &status, 0);
+    check(w == pid && WIFEXITED(status) && WEXITSTATUS(status) != exec_failed_marker
+              && (WEXITSTATUS(status) & 1),
+          "execvp with a slashed path skips PATH and runs (status {})",
+          WIFEXITED(status) ? WEXITSTATUS(status) : -1);
+}
+
 int main(int argc, char** argv) {
     // --- Child modes (keep first and minimal) ---
     if (argc >= 3 && !strcmp(argv[1], "--exit"))
@@ -352,6 +539,18 @@ int main(int argc, char** argv) {
     if (argc >= 4 && !strcmp(argv[1], "--fd-exec-read"))
         return do_exec_read(argv[2], argv[3]);
 
+    if (argc >= 3 && !strcmp(argv[1], "--m3-exec"))
+        return do_m3_exec(argv[2]);
+
+    if (argc >= 2 && !strcmp(argv[1], "--m3-probe"))
+        return do_m3_probe(argc, argv);
+
+    if (argc >= 2 && !strcmp(argv[1], "--m3-notfound"))
+        return do_m3_notfound();
+
+    if (argc >= 2 && !strcmp(argv[1], "--m3-slashed"))
+        return do_m3_slashed();
+
     // --- Driver ---
     const char* self = self_path();
     if (!self) {
@@ -367,6 +566,14 @@ int main(int argc, char** argv) {
     test_fd_cloexec_spawn(self);
     test_fd_inherit_exec(self);
     test_fd_cloexec_exec(self);
+    test_m3_variant(self, "v");
+    test_m3_variant(self, "ve");
+    test_m3_variant(self, "l");
+    test_m3_variant(self, "le");
+    test_m3_variant(self, "vp");
+    test_m3_variant(self, "lp");
+    test_m3_notfound(self);
+    test_m3_slashed(self);
 
     print("\n{} ({} failure{})\n", failures ? "FAILED" : "OK",
           failures, failures == 1 ? "" : "s");
