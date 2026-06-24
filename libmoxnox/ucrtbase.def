@@ -248,6 +248,7 @@ _fgetc_nolock
 mn_prepare_exec_block
 mn_get_cloexec
 mn_set_cloexec
+_execve
 
 ; stubs
 ___lc_codepage_func
@@ -261,7 +262,6 @@ _wcsnicmp
 _execvp
 _execl
 _execlp
-_execve
 _mktemp
 mbstowcs
 fputwc

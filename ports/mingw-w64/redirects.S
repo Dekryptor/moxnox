@@ -61,13 +61,13 @@ underscore_func "fstat64"
 underscore_func "umask"
 underscore_func "rmdir"
 underscore_func "creat"
+underscore_func "execve"
 
 # stubs
 underscore_func "wcsnicmp"
 underscore_func "execvp"
 underscore_func "execl"
 underscore_func "execlp"
-underscore_func "execve"
 underscore_func "tzset"
 underscore_func "mktemp"
 
