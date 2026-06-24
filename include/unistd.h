@@ -35,10 +35,12 @@ int getpid(void);
 off_t lseek(int fd, off_t offset, int whence);
 int ftruncate(int fd, off_t length);
 int rmdir(const char* path);
+int execv(const char* path, char* const argv[]);
 int execvp(const char* file, char* const argv[]);
 int execve(const char* file, char* const argv[], char* const envp[]);
 int execlp(const char* file, const char* arg, ...);
 int execl(const char* path, const char* arg, ...);
+int execle(const char* path, const char* arg, ...);
 int getentropy(void *buf, size_t buflen);
 int gethostname(char* name, int namelen); // FIXME - POSIX says size_t, but winsock2.h has int
 int pause(void);
