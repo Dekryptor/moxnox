@@ -303,7 +303,7 @@ int _execl(const char* path, const char* arg, ...) {
         *a = nullptr;
     }
 
-    auto ret =_execve(path, argv, *___p__environ());
+    auto ret = _execve(path, argv, *___p__environ());
 
     free(argv);
 
@@ -366,7 +366,7 @@ int _execle(const char* path, const char* arg, ...) {
         *a = nullptr;
     }
 
-    auto ret =_execve(path, argv, envp);
+    auto ret = _execve(path, argv, envp);
 
     free(argv);
 
