@@ -365,17 +365,15 @@ export int do_exec(const char* path, char* const* argv, char* const* envp,
 #ifdef __aarch64__
     context.Pc = their_mn_exec;
     context.X0 = (uintptr_t)sii.TransferAddress;
+    context.X1 = (uintptr_t)their_exec_block;
+    context.X2 = num_exec_block_entries;
     context.Sp = (uintptr_t)initial_teb.StackBase - 0x10;
-    context.X1 = context.Sp;
-    context.X2 = (uintptr_t)their_exec_block;
-    context.X3 = num_exec_block_entries;
 #elifdef __x86_64__
     context.Rip = their_mn_exec;
     context.Rcx = (uintptr_t)sii.TransferAddress;
+    context.Rdx = (uintptr_t)their_exec_block;
+    context.R8 = num_exec_block_entries;
     context.Rsp = (uintptr_t)initial_teb.StackBase - 0x28; // 0x20 bytes for MS ABI, 0x8 for return pointer
-    context.Rdx = context.Rsp;
-    context.R8 = (uintptr_t)their_exec_block;
-    context.R9 = num_exec_block_entries;
     context.EFlags = 0x200;
 #endif
     context.ContextFlags = CONTEXT_CONTROL | CONTEXT_INTEGER | CONTEXT_SEGMENTS;

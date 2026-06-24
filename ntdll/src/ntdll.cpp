@@ -1634,9 +1634,8 @@ bool RtlIsProcessorFeaturePresent(uint32_t processor_feature) {
 }
 
 extern "C"
-void mn_exec(uintptr_t entry_point, uintptr_t stack_pointer,
-             exec_info* exec_block, size_t num_exec_block_entries) {
-    CONTEXT context;
+void mn_exec(void (*entry_point)(), exec_info* exec_block,
+             size_t num_exec_block_entries) {
     nt_status status;
 
     if (num_exec_block_entries > 0) {
@@ -1662,15 +1661,5 @@ void mn_exec(uintptr_t entry_point, uintptr_t stack_pointer,
             print_stderr("NtFreeVirtualMemory returned {}\n", status);
     }
 
-    RtlCaptureContext(&context);
-
-#ifdef __x86_64__
-    context.Rip = entry_point;
-    context.Rsp = stack_pointer;
-#elifdef __aarch64__
-    context.Pc = entry_point;
-    context.Sp = stack_pointer;
-#endif
-
-    NtContinue(&context, false);
+    entry_point();
 }
