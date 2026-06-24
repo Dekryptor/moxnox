@@ -1,4 +1,5 @@
 #include <spawn.h>
+#include <signal.h>
 #include <sys/wait.h>
 #include <stdlib.h>
 #include <string.h>
@@ -50,6 +51,29 @@ int posix_spawn(pid_t* pid, const char* path,
     return 0;
 }
 
+static int exit_code_to_status(uint32_t exit_code) {
+    if ((exit_code & 0xc0000000) == 0xc0000000) {
+        switch ((nt_status)exit_code) {
+            case nt_status::ACCESS_VIOLATION:
+                return SIGSEGV;
+
+            case nt_status::INTEGER_DIVIDE_BY_ZERO:
+                return SIGFPE; // sic
+
+            case nt_status::ILLEGAL_INSTRUCTION:
+                return SIGILL;
+
+            default:
+                break;
+        }
+    }
+
+    if (exit_code & 0x80000000) // killed by signal
+        return exit_code & 0x7f;
+    else
+        return (uint8_t)exit_code << 8;
+}
+
 static pid_t wait_for_any_child(int* wstatus, int options) {
     nt_status status;
     HANDLE h;
@@ -87,11 +111,8 @@ static pid_t wait_for_any_child(int* wstatus, int options) {
         return -1;
     }
 
-    if (wstatus) {
-        auto exit_code = (uint8_t)pbi.ExitStatus;
-
-        *wstatus = exit_code << 8;
-    }
+    if (wstatus)
+        *wstatus = exit_code_to_status((uint32_t)pbi.ExitStatus);
 
     return (pid_t)pbi.UniqueProcessId;
 }
@@ -189,11 +210,8 @@ pid_t waitpid(pid_t pid, int* wstatus, int options) {
             break;
     }
 
-    if (wstatus) {
-        auto exit_code = (uint8_t)pbi.ExitStatus;
-
-        *wstatus = exit_code << 8;
-    }
+    if (wstatus)
+        *wstatus = exit_code_to_status((uint32_t)pbi.ExitStatus);
 
     NtSetInformationProcess(proc.get(), PROCESS_INFORMATION_CLASS::MoxnoxReapZombie,
                             nullptr, 0);
