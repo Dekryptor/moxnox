@@ -188,7 +188,7 @@ int main() {
         if (!e.image_path_sv.empty()) {
             auto sv = e.image_path_sv;
 
-            if (auto bs = sv.find_last_of(u'\\'); bs != u16string_view::npos)
+            if (auto bs = sv.find_last_of(u'/'); bs != u16string_view::npos)
                 sv = u16string_view(sv.data() + bs + 1, sv.size() - bs - 1);
 
             if (auto dot = sv.find_last_of(u'.'); dot != u16string_view::npos)
