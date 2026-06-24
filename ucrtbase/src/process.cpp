@@ -237,8 +237,63 @@ int _execl(const char* path, const char* arg, ...) {
 
 extern "C"
 int _execle(const char* path, const char* arg, ...) {
-    print("FIXME - execle\n");
+    va_list ap;
+    size_t num_args;
+    char** envp;
 
-    *__errno() = EINVAL;
-    return -1;
+    if (arg) {
+        num_args = 2;
+
+        va_start(ap, arg);
+
+        while (true) {
+            if (!va_arg(ap, char*))
+                break;
+
+            num_args++;
+        }
+
+        envp = va_arg(ap, char**);
+
+        va_end(ap);
+    } else {
+        num_args = 1;
+
+        va_start(ap, arg);
+        envp = va_arg(ap, char**);
+        va_end(ap);
+    }
+
+    auto argv = (char**)malloc(sizeof(char*) * num_args);
+    if (!argv) {
+        *__errno() = ENOMEM;
+        return -1;
+    }
+
+    argv[0] = (char*)arg;
+
+    if (arg) {
+        auto* a = &argv[1];
+
+        va_start(ap, arg);
+
+        while (true) {
+            auto s = va_arg(ap, char*);
+            if (!s)
+                break;
+
+            *a = s;
+            a++;
+        }
+
+        va_end(ap);
+
+        *a = nullptr;
+    }
+
+    auto ret =_execve(path, argv, envp);
+
+    free(argv);
+
+    return ret;
 }
