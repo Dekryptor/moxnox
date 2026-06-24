@@ -2497,5 +2497,20 @@ nt_status mn_prepare_exec_block(HANDLE proc, exec_info** exec_block,
 }
 
 static void handle_exec_info(exec_info* info) {
-    print("handle_exec_info: fd {}, HANDLE {}\n", info->fd, info->h);
+    if (info->fd < 0 || (size_t)info->fd >= fds.size()) {
+        print_stderr("handle_exec_info: fd {} out of range\n", info->fd);
+        return;
+    }
+
+    RtlEnterCriticalSection(&fds_lock);
+
+    auto& f = fds[(size_t)info->fd];
+
+    if (f.h)
+        NtClose(f.h);
+
+    f.h = info->h;
+    f.cloexec = false;
+
+    RtlLeaveCriticalSection(&fds_lock);
 }
