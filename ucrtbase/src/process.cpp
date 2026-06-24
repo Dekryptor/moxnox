@@ -1,4 +1,5 @@
 #include <stdlib.h>
+#include <stdarg.h>
 #include <string.h>
 #include <string_view>
 #include <utility>
@@ -181,10 +182,57 @@ int _execlp(const char* file, const char* arg, ...) {
 
 extern "C"
 int _execl(const char* path, const char* arg, ...) {
-    print("FIXME - execl\n");
+    va_list ap;
+    size_t num_args;
 
-    *__errno() = EINVAL;
-    return -1;
+    if (arg) {
+        num_args = 2;
+
+        va_start(ap, arg);
+
+        while (true) {
+            if (!va_arg(ap, char*))
+                break;
+
+            num_args++;
+        }
+
+        va_end(ap);
+    } else
+        num_args = 1;
+
+    auto argv = (char**)malloc(sizeof(char*) * num_args);
+    if (!argv) {
+        *__errno() = ENOMEM;
+        return -1;
+    }
+
+    argv[0] = (char*)arg;
+
+    if (arg) {
+        auto* a = &argv[1];
+
+        va_start(ap, arg);
+
+        while (true) {
+            auto s = va_arg(ap, char*);
+            if (!s)
+                break;
+
+            *a = s;
+            a++;
+        }
+
+        va_end(ap);
+
+        *a = nullptr;
+    }
+
+    auto ret =_execve(path, argv, *___p__environ());
+
+    free(argv);
+
+    return ret;
 }
 
 extern "C"
