@@ -1643,9 +1643,11 @@ void mn_exec(uintptr_t entry_point, uintptr_t stack_pointer,
         void* addr;
         size_t region_size;
 
-        if (!mn_handle_exec_info)
-            print_stderr("mn_exec: mn_handle_exec_info is NULL\n");
-        else {
+        if (!mn_handle_exec_info) {
+            for (size_t i = 0; i < num_exec_block_entries; i++) {
+                NtClose(exec_block[i].h);
+            }
+        } else {
             for (size_t i = 0; i < num_exec_block_entries; i++) {
                 mn_handle_exec_info(&exec_block[i]);
             }
