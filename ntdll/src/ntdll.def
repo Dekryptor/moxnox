@@ -70,3 +70,4 @@ mn_handle_apc
 mn_posix_signal
 mn_signal_dispatch DATA
 mn_exec
+mn_handle_exec_info DATA

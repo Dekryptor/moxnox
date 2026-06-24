@@ -56,6 +56,11 @@ struct fd {
     bool cloexec;
 };
 
+// ntdll
+extern "C" void (*mn_handle_exec_info)(exec_info* info) __declspec(dllimport);
+
+static void handle_exec_info(exec_info* info);
+
 static array<fd, 2048> fds;
 
 static uint8_t _stdin[sizeof(_FILE)], _stdout[sizeof(_FILE)], _stderr[sizeof(_FILE)];
@@ -177,6 +182,8 @@ export void init_files() {
     fds[1].cloexec = false;
     fds[2].h = peb->ProcessParameters->StandardError;
     fds[2].cloexec = false;
+
+    mn_handle_exec_info = handle_exec_info;
 }
 
 static bool do_open(const char* pathname, const char* mode, HANDLE& h, int& fd,
@@ -2487,4 +2494,8 @@ nt_status mn_prepare_exec_block(HANDLE proc, exec_info** exec_block,
     *num_exec_block_entries = num_entries;
 
     return nt_status::SUCCESS;
+}
+
+static void handle_exec_info(exec_info* info) {
+    print("handle_exec_info: fd {}, HANDLE {}\n", info->fd, info->h);
 }

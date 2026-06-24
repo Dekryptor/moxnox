@@ -37,6 +37,10 @@ static LIST_ENTRY tls_list = { &tls_list, &tls_list };
 
 static ldr_entry* load_dll(string_view name);
 
+extern "C" {
+    void (*mn_handle_exec_info)(exec_info* info) = nullptr;
+}
+
 extern "C"
 bool DllMainCRTStartup(uintptr_t, uint32_t, void*) {
     return true;
@@ -1635,15 +1639,16 @@ void mn_exec(uintptr_t entry_point, uintptr_t stack_pointer,
     CONTEXT context;
     nt_status status;
 
-    print("hello from mn_exec (entry_point = {:x})\n", entry_point);
-
     if (num_exec_block_entries > 0) {
         void* addr;
         size_t region_size;
 
-        for (size_t i = 0; i < num_exec_block_entries; i++) {
-            print("mn_exec: fd {}, HANDLE {}\n", exec_block[i].fd, exec_block[i].h);
-            // FIXME
+        if (!mn_handle_exec_info)
+            print_stderr("mn_exec: mn_handle_exec_info is NULL\n");
+        else {
+            for (size_t i = 0; i < num_exec_block_entries; i++) {
+                mn_handle_exec_info(&exec_block[i]);
+            }
         }
 
         addr = exec_block;
