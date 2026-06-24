@@ -28,6 +28,8 @@ int posix_spawn_file_actions_adddup2(posix_spawn_file_actions_t* file_actions,
                                      int fd, int newfd);
 int posix_spawn_file_actions_addchdir(posix_spawn_file_actions_t* file_actions,
                                       const char* path);
+int posix_spawn_file_actions_addfchdir(posix_spawn_file_actions_t* file_actions,
+                                       int fd);
 int posix_spawnattr_init(posix_spawnattr_t* attr);
 int posix_spawnattr_destroy(posix_spawnattr_t* attr);
 
