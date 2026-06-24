@@ -124,6 +124,7 @@ public:
     list_entry children = { &children, &children };
     list_entry child_le;
     process* parent_process = nullptr;
+    object_ref unreaped_children_event;
 
 private:
     nt_status query_basic_info(span<uint8_t> buf, uint32_t* return_length);

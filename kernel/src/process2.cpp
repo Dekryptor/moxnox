@@ -43,6 +43,7 @@ import chardev;
 import console;
 import timer;
 import thread;
+import event;
 
 #ifdef __x86_64__
 import apic;
@@ -669,6 +670,12 @@ process::process() : sync_object(object_type::process, false) {
     }
 
     vm_sect = *s;
+
+    unreaped_children_event = create_event(false);
+    if (!unreaped_children_event) {
+        print("create_event failed\n");
+        return;
+    }
 
     initialized = true;
 }
@@ -1827,6 +1834,16 @@ void process::terminate() {
         signalled = true;
 
         wake_up_waiters(waiters);
+
+        {
+            lock_guard lock2(process_list_lock);
+
+            if (parent_process) {
+                auto& e = static_cast<event&>(parent_process->unreaped_children_event.get());
+
+                e.set_holding_sync_lock();
+            }
+        }
     }
 
     // close open handles
@@ -4171,6 +4188,8 @@ nt_status process::do_exec(span<const uint8_t> buffer) {
 }
 
 nt_status process::reap_zombie() {
+    bool clear_event = false;
+
     // check actually dead
 
     {
@@ -4179,24 +4198,41 @@ nt_status process::reap_zombie() {
 
         if (!signalled)
             return nt_status::INVALID_PARAMETER;
-    }
-
-    {
-        lock_guard lock(process_list_lock);
-
-        if (!parent_process)
-            return nt_status::SUCCESS; // already done
-
-        // we can only reap our own children
-        if (parent_process != get_current_thread()->proc)
-            return nt_status::INVALID_PARAMETER;
 
         {
-            lock_guard lock(parent_process->children_lock);
-            remove_entry_list(child_le);
-        }
+            lock_guard lock2(process_list_lock);
 
-        parent_process = nullptr;
+            if (!parent_process)
+                return nt_status::SUCCESS; // already done
+
+            // we can only reap our own children
+            if (parent_process != get_current_thread()->proc)
+                return nt_status::INVALID_PARAMETER;
+
+            {
+                lock_guard lock(parent_process->children_lock);
+                remove_entry_list(child_le);
+
+                clear_event = true;
+
+                for (auto le = parent_process->children.next; le != &parent_process->children; le = le->next) {
+                    auto& c = *(process*)((uint8_t*)le - offsetof(process, child_le));
+
+                    if (c.signalled) {
+                        clear_event = false;
+                        break;
+                    }
+                }
+            }
+
+            if (clear_event) {
+                auto& e = static_cast<event&>(parent_process->unreaped_children_event.get());
+
+                e.signalled = false;
+            }
+
+            parent_process = nullptr;
+        }
     }
 
     release();
