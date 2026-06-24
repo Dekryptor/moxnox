@@ -156,3 +156,43 @@ int _execve(const char* path, char* const* argv, char* const* envp) {
 
     unreachable();
 }
+
+extern "C"
+int _execv(const char* path, char* const argv[]) {
+    print("FIXME - execv\n");
+
+    *__errno() = EINVAL;
+    return -1;
+}
+
+extern "C"
+int _execvp(const char* file, char* const argv[]) {
+    print("FIXME - execvp\n");
+
+    *__errno() = EINVAL;
+    return -1;
+}
+
+extern "C"
+int _execlp(const char* file, const char* arg, ...) {
+    print("FIXME - execlp\n");
+
+    *__errno() = EINVAL;
+    return -1;
+}
+
+extern "C"
+int _execl(const char* path, const char* arg, ...) {
+    print("FIXME - execl\n");
+
+    *__errno() = EINVAL;
+    return -1;
+}
+
+extern "C"
+int _execle(const char* path, const char* arg, ...) {
+    print("FIXME - execle\n");
+
+    *__errno() = EINVAL;
+    return -1;
+}

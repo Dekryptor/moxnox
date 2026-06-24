@@ -249,6 +249,11 @@ mn_prepare_exec_block
 mn_get_cloexec
 mn_set_cloexec
 _execve
+_execvp
+_execl
+_execlp
+_execv
+_execle
 
 ; stubs
 ___lc_codepage_func
@@ -259,11 +264,6 @@ wcstoll
 wcstoull
 wcstod
 _wcsnicmp
-_execvp
-_execl
-_execlp
-_execv
-_execle
 _mktemp
 mbstowcs
 fputwc
