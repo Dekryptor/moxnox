@@ -24,6 +24,10 @@ export struct exec_info {
     int fd;
 };
 
+// ucrtbase
+extern "C" nt_status mn_prepare_exec_block(HANDLE proc, exec_info** exec_block,
+                                           size_t* num_exec_block_entries);
+
 static constexpr uint32_t bytes_to_pages(size_t bytes) {
     return (uint32_t)((bytes + PAGE_SIZE - 1) / PAGE_SIZE);
 }
@@ -112,6 +116,9 @@ export int do_exec(const char* path, char* const* argv, char* const* envp,
     ANSI_STRING as;
     void* our_mn_exec;
     uintptr_t their_mn_exec;
+    exec_info* our_exec_block;
+    size_t num_exec_block_entries;
+    void* their_exec_block;
 
     static const string_view mn_exec = "mn_exec";
 
@@ -212,6 +219,36 @@ export int do_exec(const char* path, char* const* argv, char* const* envp,
                                  sizeof(params), nullptr);
     if (!success(status))
         return nt_status_to_errno(status);
+
+    // do exec block
+
+    status = mn_prepare_exec_block(proc.get(), &our_exec_block,
+                                   &num_exec_block_entries);
+    if (!success(status))
+        return nt_status_to_errno(status);
+
+    if (num_exec_block_entries > 0) {
+        size_t exec_block_size = bytes_to_pages(num_exec_block_entries * sizeof(exec_info)) << PAGE_SHIFT;
+
+        status = NtAllocateVirtualMemory(proc.get(), &their_exec_block, 0,
+                                         &exec_block_size,
+                                         MEM_COMMIT | MEM_RESERVE, PAGE_READWRITE);
+        if (!success(status)) {
+            free(our_exec_block);
+            return nt_status_to_errno(status);
+        }
+
+        status = NtWriteVirtualMemory(proc.get(), their_exec_block, our_exec_block,
+                                      (uint32_t)(num_exec_block_entries * sizeof(exec_info)),
+                                      nullptr);
+        if (!success(status)) {
+            free(our_exec_block);
+            return nt_status_to_errno(status);
+        }
+
+        free(our_exec_block);
+    } else
+        their_exec_block = 0;
 
     // change handles and current directory in PEB
 
@@ -330,11 +367,15 @@ export int do_exec(const char* path, char* const* argv, char* const* envp,
     context.X0 = (uintptr_t)sii.TransferAddress;
     context.Sp = (uintptr_t)initial_teb.StackBase - 0x10;
     context.X1 = context.Sp;
+    context.X2 = (uintptr_t)their_exec_block;
+    context.X3 = num_exec_block_entries;
 #elifdef __x86_64__
     context.Rip = their_mn_exec;
     context.Rcx = (uintptr_t)sii.TransferAddress;
     context.Rsp = (uintptr_t)initial_teb.StackBase - 0x28; // 0x20 bytes for MS ABI, 0x8 for return pointer
     context.Rdx = context.Rsp;
+    context.R8 = (uintptr_t)their_exec_block;
+    context.R9 = num_exec_block_entries;
     context.EFlags = 0x200;
 #endif
     context.ContextFlags = CONTEXT_CONTROL | CONTEXT_INTEGER | CONTEXT_SEGMENTS;
