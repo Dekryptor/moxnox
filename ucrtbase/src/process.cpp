@@ -17,6 +17,7 @@ import errno;
 using namespace std;
 
 extern "C" int* __errno();
+extern "C" char*** ___p__environ();
 
 extern "C"
 int _getpid() {
@@ -159,10 +160,7 @@ int _execve(const char* path, char* const* argv, char* const* envp) {
 
 extern "C"
 int _execv(const char* path, char* const argv[]) {
-    print("FIXME - execv\n");
-
-    *__errno() = EINVAL;
-    return -1;
+    return _execve(path, argv, *___p__environ());
 }
 
 extern "C"
