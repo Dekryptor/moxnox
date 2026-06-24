@@ -132,6 +132,7 @@ private:
     nt_status query_find_ntdll(span<uint8_t> buf, uint32_t* return_length);
     nt_status query_wait_for_child(span<uint8_t> buf, uint32_t* return_length,
                                    bool no_hang);
+    nt_status query_is_our_child(uint32_t* return_length);
 };
 
 static_assert(is_sync_object<process>);

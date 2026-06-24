@@ -3356,6 +3356,27 @@ nt_status process::query_wait_for_child(span<uint8_t> buf, uint32_t* return_leng
     } while (true);
 }
 
+nt_status process::query_is_our_child(uint32_t* return_length) {
+    auto& t = *get_current_thread();
+
+    {
+        lock_guard lock(t.proc->children_lock);
+
+        for (auto le = t.proc->children.next; le != &t.proc->children; le = le->next) {
+            auto& c = *(process*)((uint8_t*)le - offsetof(process, child_le));
+
+            if (&c == this) {
+                if (return_length)
+                    *return_length = 0;
+
+                return nt_status::SUCCESS;
+            }
+        }
+    }
+
+    return nt_status::NOT_FOUND;
+}
+
 NTSTATUS process::query_info(enum PROCESS_INFORMATION_CLASS process_information_class, span<uint8_t> buf,
                              uint32_t* return_length) {
     switch (process_information_class) {
@@ -3375,6 +3396,9 @@ NTSTATUS process::query_info(enum PROCESS_INFORMATION_CLASS process_information_
 
         case MoxnoxWaitForChildNoHang:
             return query_wait_for_child(buf, return_length, true);
+
+        case MoxnoxIsOurChild:
+            return query_is_our_child(return_length);
 
         default:
             print("process::query_info: unhandled info class {:x}\n",
