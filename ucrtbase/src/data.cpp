@@ -78,31 +78,78 @@ int _initialize_narrow_environment() {
 
 static unsigned int count_cmdline_args(u16string_view cmdline) {
     unsigned int argc = 0;
+    size_t pos = 0;
+    size_t len = cmdline.size();
 
-    while (!cmdline.empty()) {
-        while (cmdline.front() == ' ' || cmdline.front() == '\t') {
-            cmdline = u16string_view(cmdline.data() + 1, cmdline.size() - 1);
+    auto skip_whitespace = [&]() {
+        while (pos < len && (cmdline[pos] == u' ' || cmdline[pos] == u'\t')) {
+            pos++;
+        }
+    };
+
+    skip_whitespace();
+
+    // argv[0]: quotes group, but backslashes are literal
+    if (pos < len) {
+        if (cmdline[pos] == u'"') {
+            pos++;
+
+            while (pos < len && cmdline[pos] != u'"') {
+                pos++;
+            }
+
+            if (pos < len)
+                pos++; // closing quote
+        } else {
+            while (pos < len && cmdline[pos] != u' ' && cmdline[pos] != u'\t') {
+                pos++;
+            }
         }
 
-        if (cmdline.empty())
+        argc++;
+    }
+
+    // remaining arguments use the general quoting rules
+    while (true) {
+        skip_whitespace();
+
+        if (pos >= len)
             break;
 
-        size_t end = cmdline.size();
+        bool in_quotes = false;
 
-        if (cmdline.front() == u'"') {
-            if (auto q = cmdline.find(u'"', 1); q != string_view::npos && q < end) {
-                end = q - 1;
-                cmdline = u16string_view(cmdline.data() + end + 2, cmdline.size() - end - 2);
-            } else
-                cmdline = u"";
-        } else {
-            if (auto sp = cmdline.find(u' '); sp != string_view::npos && sp < end)
-                end = sp;
+        while (pos < len) {
+            auto c = cmdline[pos];
 
-            if (auto tab = cmdline.find(u'\t'); tab != string_view::npos && tab < end)
-                end = tab;
+            if ((c == u' ' || c == u'\t') && !in_quotes)
+                break;
 
-            cmdline = u16string_view(cmdline.data() + end, cmdline.size() - end);
+            if (c == u'\\') {
+                size_t nbs = 0;
+
+                while (pos < len && cmdline[pos] == u'\\') {
+                    nbs++;
+                    pos++;
+                }
+
+                if (pos < len && cmdline[pos] == u'"' && nbs & 1)
+                    pos++; // odd run escapes the quote, consuming it here
+
+                continue;
+            }
+
+            if (c == u'"') {
+                if (in_quotes && pos + 1 < len && cmdline[pos + 1] == u'"')
+                    pos += 2; // doubled quote inside quotes is a literal quote
+                else {
+                    in_quotes = !in_quotes;
+                    pos++;
+                }
+
+                continue;
+            }
+
+            pos++;
         }
 
         argc++;
@@ -111,42 +158,122 @@ static unsigned int count_cmdline_args(u16string_view cmdline) {
     return argc;
 }
 
-static void parse_cmdline(u16string_view cmdline, span<u16string_view> argv) {
-    // FIXME - escaping quotes with backslashes
+static void parse_cmdline(u16string_view cmdline, span<u16string_view> argv,
+                          char16_t* scratch) {
+    auto out = scratch;
+    size_t argc = 0;
+    size_t pos = 0;
+    size_t len = cmdline.size();
 
-    while (!cmdline.empty() && !argv.empty()) {
-        auto& arg = argv.front();
+    auto skip_whitespace = [&]() {
+        while (pos < len && (cmdline[pos] == u' ' || cmdline[pos] == u'\t')) {
+            pos++;
+        }
+    };
 
-        while (cmdline.front() == ' ' || cmdline.front() == '\t') {
-            cmdline = u16string_view(cmdline.data() + 1, cmdline.size() - 1);
+    skip_whitespace();
+
+    // argv[0]: quotes group, but backslashes are literal
+    if (pos < len) {
+        char16_t* start = out;
+
+        if (cmdline[pos] == u'"') {
+            pos++;
+
+            while (pos < len && cmdline[pos] != u'"') {
+                *out = cmdline[pos];
+                out++;
+                pos++;
+            }
+
+            if (pos < len)
+                pos++; // closing quote
+        } else {
+            while (pos < len && cmdline[pos] != u' ' && cmdline[pos] != u'\t') {
+                *out = cmdline[pos];
+                out++;
+                pos++;
+            }
         }
 
-        if (cmdline.empty())
+        argv[argc] = u16string_view(start, out - start);
+        argc++;
+    }
+
+    // remaining arguments use the general quoting rules
+    while (true) {
+        skip_whitespace();
+
+        if (pos >= len)
             break;
 
-        size_t end = cmdline.size();
+        if (argc >= argv.size())
+            break;
 
-        if (cmdline.front() == u'"') {
-            if (auto q = cmdline.find(u'"', 1); q != string_view::npos && q < end) {
-                end = q - 1;
-                arg = u16string_view(cmdline.data() + 1, end);
-                cmdline = u16string_view(cmdline.data() + end + 2, cmdline.size() - end - 2);
-            } else {
-                arg = u16string_view(cmdline.data() + 1, end - 1);
-                cmdline = u"";
+        char16_t* start = out;
+        bool in_quotes = false;
+
+        while (pos < len) {
+            auto c = cmdline[pos];
+
+            if ((c == u' ' || c == u'\t') && !in_quotes)
+                break;
+
+            if (c == u'\\') {
+                size_t nbs = 0;
+
+                while (pos < len && cmdline[pos] == u'\\') {
+                    nbs++;
+                    pos++;
+                }
+
+                if (pos < len && cmdline[pos] == u'"') {
+                    // backslashes immediately before a quote: each pair becomes one literal backslash
+                    for (size_t i = 0; i < nbs / 2; i++) {
+                        *out = u'\\';
+                        out++;
+                    }
+
+                    if (nbs & 1) {
+                        // odd: the last backslash escapes the quote into a literal
+                        *out = u'"';
+                        out++;
+                        pos++;
+                    }
+
+                    // even: leave the quote for the next iteration to treat as a delimiter
+                } else {
+                    // not before a quote: backslashes are literal
+                    for (size_t i = 0; i < nbs; i++) {
+                        *out = u'\\';
+                        out++;
+                    }
+                }
+
+                continue;
             }
-        } else {
-            if (auto sp = cmdline.find(u' '); sp != string_view::npos && sp < end)
-                end = sp;
 
-            if (auto tab = cmdline.find(u'\t'); tab != string_view::npos && tab < end)
-                end = tab;
+            if (c == u'"') {
+                if (in_quotes && pos + 1 < len && cmdline[pos + 1] == u'"') {
+                    // doubled quote inside quotes is a literal quote
+                    *out = u'"';
+                    out++;
+                    pos += 2;
+                } else {
+                    in_quotes = !in_quotes;
+                    pos++;
+                }
 
-            arg = u16string_view(cmdline.data(), end);
-            cmdline = u16string_view(cmdline.data() + end, cmdline.size() - end);
+                continue;
+            }
+
+            *out = c;
+            out++;
+            pos++;
         }
 
-        argv = argv.subspan(1);
+        argv[argc] = u16string_view(start, out - start);
+        argc++;
     }
 }
 
@@ -177,8 +304,15 @@ static void do_cmdline() {
         unreachable();
     }
 
+    auto scratch = (char16_t*)malloc(cmdline.size() * sizeof(char16_t));
+    if (!scratch) {
+        print_stderr("malloc failed\n");
+        NtTerminateThread(NtCurrentThread(), nt_status::INSUFFICIENT_RESOURCES);
+        unreachable();
+    }
+
     u16argv = span(buf, (unsigned int)argc);
-    parse_cmdline(cmdline, u16argv);
+    parse_cmdline(cmdline, u16argv, scratch);
 
     for (unsigned int i = 0; i < (unsigned int)argc; i++) {
         auto arg = u16argv[i];
@@ -196,6 +330,7 @@ static void do_cmdline() {
     }
 
     free(buf);
+    free(scratch);
 }
 
 static void do_env() {
