@@ -234,7 +234,7 @@
 /* #undef HAVE_OPENDIR */
 
 /* Define to 1 if you have the fcntl function. */
-/* #undef HAVE_FCNTL */
+#define HAVE_FCNTL 1
 
 /* Define to 1 if you have the <fcntl.h> header file. */
 #define HAVE_FCNTL_H 1
