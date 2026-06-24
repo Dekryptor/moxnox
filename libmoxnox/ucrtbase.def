@@ -262,6 +262,8 @@ _wcsnicmp
 _execvp
 _execl
 _execlp
+_execv
+_execle
 _mktemp
 mbstowcs
 fputwc
