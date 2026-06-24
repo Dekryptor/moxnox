@@ -9,6 +9,9 @@ import ucrtbase;
 #undef errno
 import errno;
 
+// ucrtbase
+extern "C" bool mn_set_cloexec(int fd, bool cloexec);
+
 static int getfl(int fd) {
     IO_STATUS_BLOCK iosb;
     OBJECT_BASIC_INFORMATION obi;
@@ -75,6 +78,20 @@ static int setfl(int fd, int arg) {
     return 0;
 }
 
+static int setfd(int fd, int arg) {
+    if (arg & ~FD_CLOEXEC) {
+        *_errno() = EINVAL;
+        return -1;
+    }
+
+    if (!mn_set_cloexec(fd, arg & FD_CLOEXEC)) {
+        *_errno() = EBADF;
+        return -1;
+    }
+
+    return 0;
+}
+
 extern "C"
 int fcntl(int fd, int op, ...) {
     va_list ap;
@@ -88,9 +105,13 @@ int fcntl(int fd, int op, ...) {
             print("FIXME - fcntl with F_GETFD\n");
         break;
 
-        case F_SETFD:
-            print("FIXME - fcntl with F_SETFD\n");
-        break;
+        case F_SETFD: {
+            va_start(ap, op);
+            auto arg = va_arg(ap, int);
+            va_end(ap);
+
+            return setfd(fd, arg);
+        }
 
         case F_GETFL:
             return getfl(fd);
