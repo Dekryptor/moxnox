@@ -24,6 +24,10 @@
  * then ECHILD once none remain, ECHILD for a wait on a pid that is not our
  * child, and a child killed by a signal being reported via WIFSIGNALED/WTERMSIG.
  *
+ * M5 covers the rest of posix_spawn: file actions (addopen/addclose/adddup2/
+ * addchdir/addfchdir) applied to the child before it runs, and posix_spawnp
+ * finding the program via PATH.
+ *
  * Child modes are dispatched on argv before any driver work, so the same binary
  * serves as the test driver, the thing being spawned, and the thing exec'd into.
  */
@@ -72,6 +76,9 @@ static constexpr int m3_notfound_ok = 50;
 // terminate the child.
 static constexpr int raise_returned_marker = 77;
 
+// M5 marker: do_getcwd_check returns this if getcwd() itself failed.
+static constexpr int getcwd_fail_marker = 88;
+
 // Forwards to print(). The format string is taken as print's own consteval
 // `checker` type (wrapped in type_identity_t so Args deduce from the trailing
 // arguments, not the format), so the compile-time format check still happens at
@@ -114,6 +121,13 @@ static int spawn_self(const char* self, char* const argv[], pid_t* pid) {
     // (separately-tested) `environ` machinery.
     char* env[] = { (char*)"PATH=/bin", nullptr };
     return posix_spawn(pid, self, nullptr, nullptr, argv, env);
+}
+
+// As spawn_self, but with a set of file actions applied to the child.
+static int spawn_self_fa(const char* self, char* const argv[], pid_t* pid,
+                         const posix_spawn_file_actions_t* fa) {
+    char* env[] = { (char*)"PATH=/bin", nullptr };
+    return posix_spawn(pid, self, fa, nullptr, argv, env);
 }
 
 // Spawn a child that exits 99: waitpid must report exactly that, and once it's
@@ -630,6 +644,224 @@ static void test_waitpid_signal(const char* self) {
     check(!WIFEXITED(status), "signal death not reported as a normal exit");
 }
 
+// Child mode: exit 0 if our cwd matches expected, 1 if not, or getcwd_fail_marker
+// if getcwd itself fails. Used to observe addchdir/addfchdir.
+static int do_getcwd_check(const char* expected) {
+    char buf[4096];
+
+    if (!getcwd(buf, sizeof(buf)))
+        return getcwd_fail_marker;
+
+    return strcmp(buf, expected) == 0 ? 0 : 1;
+}
+
+// addopen: open a file as a chosen fd in the child; the child reads it back.
+static void test_fa_addopen(const char* self) {
+    char path[64];
+    snprintf(path, sizeof(path), "/tmp/spawn-test-fa-%d", getpid());
+
+    int wfd = open(path, O_WRONLY | O_CREAT | O_TRUNC, 0600);
+    if (wfd < 0) {
+        check(false, "addopen: could not create temp file (errno {})", errno);
+        return;
+    }
+    unsigned char b = fd_known_byte;
+    write(wfd, &b, 1);
+    close(wfd);
+
+    posix_spawn_file_actions_t fa;
+    int r = posix_spawn_file_actions_init(&fa);
+    check(r == 0, "file_actions_init (addopen) returned {}", r);
+    if (r != 0) {
+        unlink(path);
+        return;
+    }
+
+    int target_fd = STDERR_FILENO + 1;
+    posix_spawn_file_actions_addopen(&fa, target_fd, path, O_RDONLY, 0);
+
+    char fd_str[16];
+    snprintf(fd_str, sizeof(fd_str), "%d", target_fd);
+    char* cargv[] = { (char*)self, (char*)"--fd-read", fd_str, nullptr };
+
+    pid_t pid = -1;
+    int err = spawn_self_fa(self, cargv, &pid, &fa);
+    check(err == 0, "posix_spawn (addopen) returned {}", err);
+    if (err == 0) {
+        int status = 0;
+        pid_t w = waitpid(pid, &status, 0);
+        check(w == pid && WIFEXITED(status) && WEXITSTATUS(status) == fd_known_byte,
+              "addopen: child read {} from the opened fd (expected {})",
+              WIFEXITED(status) ? WEXITSTATUS(status) : -1, fd_known_byte);
+    }
+
+    posix_spawn_file_actions_destroy(&fa);
+    unlink(path);
+}
+
+// addclose: a normally-inherited fd is closed in the child, so the read fails.
+static void test_fa_addclose(const char* self) {
+    int pf[2];
+    if (pipe(pf) != 0) {
+        check(false, "addclose: pipe failed");
+        return;
+    }
+    unsigned char b = fd_known_byte;
+    write(pf[1], &b, 1);
+
+    posix_spawn_file_actions_t fa;
+    int r = posix_spawn_file_actions_init(&fa);
+    check(r == 0, "file_actions_init (addclose) returned {}", r);
+    if (r != 0) {
+        close(pf[0]);
+        close(pf[1]);
+        return;
+    }
+
+    posix_spawn_file_actions_addclose(&fa, pf[0]);
+
+    char fd_str[16];
+    snprintf(fd_str, sizeof(fd_str), "%d", pf[0]);
+    char* cargv[] = { (char*)self, (char*)"--fd-read", fd_str, nullptr };
+
+    pid_t pid = -1;
+    int err = spawn_self_fa(self, cargv, &pid, &fa);
+    check(err == 0, "posix_spawn (addclose) returned {}", err);
+    if (err == 0) {
+        int status = 0;
+        pid_t w = waitpid(pid, &status, 0);
+        check(w == pid && WIFEXITED(status) && WEXITSTATUS(status) == fd_read_closed_marker,
+              "addclose: closed fd not readable in child (got {})",
+              WIFEXITED(status) ? WEXITSTATUS(status) : -1);
+    }
+
+    posix_spawn_file_actions_destroy(&fa);
+    close(pf[0]);
+    close(pf[1]);
+}
+
+// adddup2: the pipe's read end is duped to a fresh fd, which the child reads.
+static void test_fa_adddup2(const char* self) {
+    int pf[2];
+    if (pipe(pf) != 0) {
+        check(false, "adddup2: pipe failed");
+        return;
+    }
+    unsigned char b = fd_known_byte;
+    write(pf[1], &b, 1);
+
+    posix_spawn_file_actions_t fa;
+    int r = posix_spawn_file_actions_init(&fa);
+    check(r == 0, "file_actions_init (adddup2) returned {}", r);
+    if (r != 0) {
+        close(pf[0]);
+        close(pf[1]);
+        return;
+    }
+
+    int target_fd = 7;
+    posix_spawn_file_actions_adddup2(&fa, pf[0], target_fd);
+
+    char fd_str[16];
+    snprintf(fd_str, sizeof(fd_str), "%d", target_fd);
+    char* cargv[] = { (char*)self, (char*)"--fd-read", fd_str, nullptr };
+
+    pid_t pid = -1;
+    int err = spawn_self_fa(self, cargv, &pid, &fa);
+    check(err == 0, "posix_spawn (adddup2) returned {}", err);
+    if (err == 0) {
+        int status = 0;
+        pid_t w = waitpid(pid, &status, 0);
+        check(w == pid && WIFEXITED(status) && WEXITSTATUS(status) == fd_known_byte,
+              "adddup2: dup target reads {} (expected {})",
+              WIFEXITED(status) ? WEXITSTATUS(status) : -1, fd_known_byte);
+    }
+
+    posix_spawn_file_actions_destroy(&fa);
+    close(pf[0]);
+    close(pf[1]);
+}
+
+// addchdir: the child's cwd is changed to a path, observed via getcwd.
+static void test_fa_addchdir(const char* self) {
+    posix_spawn_file_actions_t fa;
+    int r = posix_spawn_file_actions_init(&fa);
+    check(r == 0, "file_actions_init (addchdir) returned {}", r);
+    if (r != 0)
+        return;
+
+    posix_spawn_file_actions_addchdir(&fa, "/bin");
+
+    char* cargv[] = { (char*)self, (char*)"--getcwd-check", (char*)"/bin", nullptr };
+
+    pid_t pid = -1;
+    int err = spawn_self_fa(self, cargv, &pid, &fa);
+    check(err == 0, "posix_spawn (addchdir) returned {}", err);
+    if (err == 0) {
+        int status = 0;
+        pid_t w = waitpid(pid, &status, 0);
+        check(w == pid && WIFEXITED(status) && WEXITSTATUS(status) == 0,
+              "addchdir: child cwd is /bin (status {})",
+              WIFEXITED(status) ? WEXITSTATUS(status) : -1);
+    }
+
+    posix_spawn_file_actions_destroy(&fa);
+}
+
+// addfchdir: the child's cwd is changed via an inherited directory fd.
+static void test_fa_addfchdir(const char* self) {
+    int dirfd = open("/bin", O_RDONLY);
+    if (dirfd < 0) {
+        check(false, "addfchdir: could not open directory (errno {})", errno);
+        return;
+    }
+
+    posix_spawn_file_actions_t fa;
+    int r = posix_spawn_file_actions_init(&fa);
+    check(r == 0, "file_actions_init (addfchdir) returned {}", r);
+    if (r != 0) {
+        close(dirfd);
+        return;
+    }
+
+    posix_spawn_file_actions_addfchdir(&fa, dirfd);
+
+    char* cargv[] = { (char*)self, (char*)"--getcwd-check", (char*)"/bin", nullptr };
+
+    pid_t pid = -1;
+    int err = spawn_self_fa(self, cargv, &pid, &fa);
+    check(err == 0, "posix_spawn (addfchdir) returned {}", err);
+    if (err == 0) {
+        int status = 0;
+        pid_t w = waitpid(pid, &status, 0);
+        check(w == pid && WIFEXITED(status) && WEXITSTATUS(status) == 0,
+              "addfchdir: child cwd is /bin via dir fd (status {})",
+              WIFEXITED(status) ? WEXITSTATUS(status) : -1);
+    }
+
+    posix_spawn_file_actions_destroy(&fa);
+    close(dirfd);
+}
+
+// posix_spawnp: find and run the program by bare name via PATH=/bin.
+static void test_spawnp(const char* self) {
+    auto base = base_name(self);
+    char* cargv[] = { (char*)base, (char*)"--exit", (char*)"55", nullptr };
+    char* env[] = { (char*)"PATH=/bin", nullptr };
+
+    pid_t pid = -1;
+    int err = posix_spawnp(&pid, base, nullptr, nullptr, cargv, env);
+    check(err == 0, "posix_spawnp (bare name) returned {}", err);
+    if (err != 0)
+        return;
+
+    int status = 0;
+    pid_t w = waitpid(pid, &status, 0);
+    check(w == pid && WIFEXITED(status) && WEXITSTATUS(status) == 55,
+          "posix_spawnp found and ran the program via PATH (status {})",
+          WIFEXITED(status) ? WEXITSTATUS(status) : -1);
+}
+
 int main(int argc, char** argv) {
     // --- Child modes (keep first and minimal) ---
     if (argc >= 3 && !strcmp(argv[1], "--exit"))
@@ -667,6 +899,9 @@ int main(int argc, char** argv) {
     if (argc >= 3 && !strcmp(argv[1], "--raise"))
         return do_raise(argv[2]);
 
+    if (argc >= 3 && !strcmp(argv[1], "--getcwd-check"))
+        return do_getcwd_check(argv[2]);
+
     // --- Driver ---
     const char* self = self_path();
     if (!self) {
@@ -693,6 +928,12 @@ int main(int argc, char** argv) {
     test_waitpid_any(self);
     test_waitpid_nonchild();
     test_waitpid_signal(self);
+    test_fa_addopen(self);
+    test_fa_addclose(self);
+    test_fa_adddup2(self);
+    test_fa_addchdir(self);
+    test_fa_addfchdir(self);
+    test_spawnp(self);
 
     print("\n{} ({} failure{})\n", failures ? "FAILED" : "OK",
           failures, failures == 1 ? "" : "s");
