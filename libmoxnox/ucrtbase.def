@@ -246,6 +246,7 @@ strtoumax
 _fullpath
 _fgetc_nolock
 mn_prepare_exec_block
+mn_set_cloexec
 
 ; stubs
 ___lc_codepage_func

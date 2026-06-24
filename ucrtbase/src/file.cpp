@@ -2514,3 +2514,21 @@ static void handle_exec_info(exec_info* info) {
 
     RtlLeaveCriticalSection(&fds_lock);
 }
+
+extern "C"
+bool mn_set_cloexec(int fd, bool cloexec) {
+    if (fd < 0 || (size_t)fd >= fds.size())
+        return false;
+
+    RtlEnterCriticalSection(&fds_lock);
+
+    if (fds[(size_t)fd].h == 0) {
+        RtlLeaveCriticalSection(&fds_lock);
+        return false;
+    }
+
+    fds[(size_t)fd].cloexec = cloexec;
+    RtlLeaveCriticalSection(&fds_lock);
+
+    return true;
+}
