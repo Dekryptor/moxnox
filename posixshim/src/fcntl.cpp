@@ -10,6 +10,7 @@ import ucrtbase;
 import errno;
 
 // ucrtbase
+extern "C" bool mn_get_cloexec(int fd, bool* cloexec);
 extern "C" bool mn_set_cloexec(int fd, bool cloexec);
 
 static int getfl(int fd) {
@@ -78,6 +79,17 @@ static int setfl(int fd, int arg) {
     return 0;
 }
 
+static int getfd(int fd) {
+    bool cloexec;
+
+    if (!mn_get_cloexec(fd, &cloexec)) {
+        *_errno() = EBADF;
+        return -1;
+    }
+
+    return cloexec ? FD_CLOEXEC : 0;
+}
+
 static int setfd(int fd, int arg) {
     if (arg & ~FD_CLOEXEC) {
         *_errno() = EINVAL;
@@ -102,8 +114,7 @@ int fcntl(int fd, int op, ...) {
         break;
 
         case F_GETFD:
-            print("FIXME - fcntl with F_GETFD\n");
-        break;
+            return getfd(fd);
 
         case F_SETFD: {
             va_start(ap, op);
