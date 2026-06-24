@@ -2516,6 +2516,24 @@ static void handle_exec_info(exec_info* info) {
 }
 
 extern "C"
+bool mn_get_cloexec(int fd, bool* cloexec) {
+    if (fd < 0 || (size_t)fd >= fds.size())
+        return false;
+
+    RtlEnterCriticalSection(&fds_lock);
+
+    if (fds[(size_t)fd].h == 0) {
+        RtlLeaveCriticalSection(&fds_lock);
+        return false;
+    }
+
+    *cloexec = fds[(size_t)fd].cloexec;
+    RtlLeaveCriticalSection(&fds_lock);
+
+    return true;
+}
+
+extern "C"
 bool mn_set_cloexec(int fd, bool cloexec) {
     if (fd < 0 || (size_t)fd >= fds.size())
         return false;

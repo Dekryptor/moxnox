@@ -274,4 +274,5 @@ strtoumax
 _fullpath = __fullpath
 _execve
 mn_prepare_exec_block
+mn_get_cloexec
 mn_set_cloexec
