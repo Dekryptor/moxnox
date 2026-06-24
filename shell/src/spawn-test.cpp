@@ -71,9 +71,9 @@ template<typename... Args>
 static void check(bool ok, type_identity_t<checker<type_identity_t<Args>...>> fmt,
                   Args&&... args) {
     if (ok)
-        print("PASS: ");
+        print("\x1b[32mPASS\x1b[0m: ");
     else {
-        print("FAIL: ");
+        print("\x1b[31mFAIL\x1b[0m: ");
         failures++;
     }
     print(fmt, forward<Args>(args)...);
@@ -554,7 +554,7 @@ int main(int argc, char** argv) {
     // --- Driver ---
     const char* self = self_path();
     if (!self) {
-        print("FAIL: could not determine own path\n");
+        print("\x1b[31mFAIL\x1b[0m: could not determine own path\n");
         return 1;
     }
     print("self: {}\n", self);
