@@ -3351,7 +3351,7 @@ nt_status process::query_wait_for_child(span<uint8_t> buf, uint32_t* return_leng
             return nt_status::TIMEOUT;
 
         status = wait_for_object(unreaped_children_event.get(), true);
-        if (!success(status))
+        if (status == nt_status::USER_APC || !success(status))
             return status;
     } while (true);
 }
