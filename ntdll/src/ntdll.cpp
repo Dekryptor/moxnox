@@ -17,6 +17,7 @@ import ntdll;
 import ntdll_private;
 import crt;
 import unique_handle;
+import exec;
 
 extern uint8_t __image_base__;
 
@@ -1629,10 +1630,30 @@ bool RtlIsProcessorFeaturePresent(uint32_t processor_feature) {
 }
 
 extern "C"
-void mn_exec(uintptr_t entry_point, uintptr_t stack_pointer) {
+void mn_exec(uintptr_t entry_point, uintptr_t stack_pointer,
+             exec_info* exec_block, size_t num_exec_block_entries) {
     CONTEXT context;
+    nt_status status;
 
     print("hello from mn_exec (entry_point = {:x})\n", entry_point);
+
+    if (num_exec_block_entries > 0) {
+        void* addr;
+        size_t region_size;
+
+        for (size_t i = 0; i < num_exec_block_entries; i++) {
+            print("mn_exec: fd {}, HANDLE {}\n", exec_block[i].fd, exec_block[i].h);
+            // FIXME
+        }
+
+        addr = exec_block;
+        region_size = 0;
+
+        status = NtFreeVirtualMemory(NtCurrentProcess(), &addr, &region_size,
+                                     MEM_RELEASE);
+        if (!success(status))
+            print_stderr("NtFreeVirtualMemory returned {}\n", status);
+    }
 
     RtlCaptureContext(&context);
 
