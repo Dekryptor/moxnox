@@ -53,7 +53,7 @@ void exit(int code) noexcept {
 
 extern "C"
 void _exit(int code) {
-    RtlExitUserProcess((uint32_t)code);
+    RtlExitUserProcess((uint8_t)code);
     unreachable();
 }
 
