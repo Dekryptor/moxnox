@@ -756,7 +756,7 @@ RUNTIME_FUNCTION* RtlLookupFunctionEntry(uintptr_t pc, uintptr_t* base,
 
     for (auto& f : rt_funcs) {
 #ifdef __x86_64__
-        if (pc >= f.BeginAddress && pc <= f.EndAddress)
+        if (pc >= f.BeginAddress && pc < f.EndAddress)
             return &f;
 
         if (f.BeginAddress > pc) // stored in order
