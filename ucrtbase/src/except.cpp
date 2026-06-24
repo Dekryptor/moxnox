@@ -130,8 +130,8 @@ static void default_signal_handler(int sig) {
         case SIGUSR1:
         case SIGUSR2:
         case SIGBREAK:
-            _exit(sig);
-            break;
+            NtTerminateProcess(NtCurrentProcess(), (nt_status)(0x80000000 | sig));
+            unreachable();
 
         // ignore
         case SIGCHLD:
@@ -150,8 +150,8 @@ static void default_signal_handler(int sig) {
 
         default:
             print("default_signal_handler: unexpected signal {}, terminating\n", sig);
-            _exit(sig);
-            break;
+            NtTerminateProcess(NtCurrentProcess(), (nt_status)(0x80000000 | sig));
+            unreachable();
     }
 
     NtTerminateProcess(NtCurrentProcess(), nt_status::INTERNAL_ERROR);
