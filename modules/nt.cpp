@@ -1134,6 +1134,8 @@ enum class PROCESS_INFORMATION_CLASS {
     MoxnoxExec,
     MoxnoxReapZombie,
     MoxnoxFindNtdll,
+    MoxnoxWaitForChild,
+    MoxnoxWaitForChildNoHang,
 };
 
 struct PROCESS_BASIC_INFORMATION {

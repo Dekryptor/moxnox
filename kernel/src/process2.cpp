@@ -3269,6 +3269,93 @@ nt_status process::query_find_ntdll(span<uint8_t> buf, uint32_t* return_length) 
     return nt_status::SUCCESS;
 }
 
+nt_status process::query_wait_for_child(span<uint8_t> buf, uint32_t* return_length,
+                                        bool no_hang) {
+    auto& t = *get_current_thread();
+    nt_status status;
+
+    if (buf.size() < sizeof(HANDLE))
+        return nt_status::BUFFER_TOO_SMALL;
+
+    do {
+        process* child = nullptr;
+
+        {
+            sync_lock sl;
+            lock_guard lock(sl);
+
+            {
+                lock_guard lock2(process_list_lock);
+
+                {
+                    lock_guard lock3(children_lock);
+
+                    if (is_list_empty(children))
+                        return nt_status::NOT_FOUND;
+
+                    for (auto le = children.next; le != &children; le = le->next) {
+                        auto& c = *(process*)((uint8_t*)le - offsetof(process, child_le));
+
+                        if (c.signalled) {
+                            remove_entry_list(c.child_le);
+                            child = &c;
+                            break;
+                        }
+                    }
+
+                    if (child) {
+                        bool clear_event = true;
+
+                        for (auto le = children.next; le != &children; le = le->next) {
+                            auto& c = *(process*)((uint8_t*)le - offsetof(process, child_le));
+
+                            if (c.signalled) {
+                                clear_event = false;
+                                break;
+                            }
+                        }
+
+                        if (clear_event) {
+                            auto& e = static_cast<event&>(unreaped_children_event.get());
+
+                            e.signalled = false;
+                        }
+                    }
+                }
+
+                if (child)
+                    child->parent_process = nullptr;
+            }
+        }
+
+        if (child) {
+            handle_t h;
+
+            status = t.proc->add_handle(*child, 0, true, h); // FIXME - access mask?
+            if (!success(status)) {
+                child->release();
+                return status;
+            }
+
+            *(HANDLE*)buf.data() = h;
+
+            if (return_length)
+                *return_length = sizeof(HANDLE);
+
+            child->release();
+
+            return nt_status::SUCCESS;
+        }
+
+        if (no_hang)
+            return nt_status::TIMEOUT;
+
+        status = wait_for_object(unreaped_children_event.get(), true);
+        if (!success(status))
+            return status;
+    } while (true);
+}
+
 NTSTATUS process::query_info(enum PROCESS_INFORMATION_CLASS process_information_class, span<uint8_t> buf,
                              uint32_t* return_length) {
     switch (process_information_class) {
@@ -3282,6 +3369,12 @@ NTSTATUS process::query_info(enum PROCESS_INFORMATION_CLASS process_information_
 
         case MoxnoxFindNtdll:
             return query_find_ntdll(buf, return_length);
+
+        case MoxnoxWaitForChild:
+            return query_wait_for_child(buf, return_length, false);
+
+        case MoxnoxWaitForChildNoHang:
+            return query_wait_for_child(buf, return_length, true);
 
         default:
             print("process::query_info: unhandled info class {:x}\n",
