@@ -32,39 +32,174 @@ static constexpr uint32_t bytes_to_pages(size_t bytes) {
     return (uint32_t)((bytes + PAGE_SIZE - 1) / PAGE_SIZE);
 }
 
+static bool arg_needs_quotes(string_view s) {
+    if (s.empty())
+        return true;
+
+    for (auto c : s) {
+        if (c == ' ' || c == '\t' || c == '"')
+            return true;
+    }
+
+    return false;
+}
+
 static size_t get_cmdline_len(char* const* argv) {
     size_t ret = 0;
 
-    // FIXME - quotes?
-
     for (size_t i = 0; argv[i]; i++) {
         if (i != 0)
-            ret++;
+            ret++; // separating space
 
-        ret += utf8_to_utf16_len(argv[i]);
+        auto s = string_view(argv[i]);
+
+        if (i == 0) {
+            // program name: quoted only if it contains whitespace, no escaping
+            bool quote = s.find(' ') != string_view::npos ||
+                         s.find('\t') != string_view::npos;
+
+            ret += utf8_to_utf16_len(s) + (quote ? 2 : 0);
+            continue;
+        }
+
+        if (!arg_needs_quotes(s)) {
+            ret += utf8_to_utf16_len(s);
+            continue;
+        }
+
+        ret += 2; // surrounding quotes
+
+        size_t j = 0;
+        while (j < s.size()) {
+            if (s[j] == '\\') {
+                size_t nbs = 0;
+
+                while (j < s.size() && s[j] == '\\') {
+                    nbs++;
+                    j++;
+                }
+
+                if (j == s.size())
+                    ret += 2 * nbs; // trailing backslashes are doubled
+                else if (s[j] == '"') {
+                    ret += (2 * nbs) + 2; // doubled backslashes plus the escaped quote
+                    j++;
+                } else
+                    ret += nbs; // literal backslashes
+            } else if (s[j] == '"') {
+                ret += 2; // escaped quote
+                j++;
+            } else {
+                size_t start = j;
+
+                while (j < s.size() && s[j] != '\\' && s[j] != '"') {
+                    j++;
+                }
+
+                ret += utf8_to_utf16_len(string_view(s.data() + start, j - start));
+            }
+        }
     }
 
     return ret;
 }
 
-static void do_cmdline(span<char16_t> buf, char* const* argv) {
-    // FIXME - quotes?
+static void do_cmdline(char16_t* buf, char* const* argv) {
+    auto out = buf;
+
+    auto emit_utf16 = [&](string_view s) {
+        auto len = utf8_to_utf16_len(s);
+
+        utf8_to_utf16(span(out, len), s);
+        out += len;
+    };
 
     for (size_t i = 0; argv[i]; i++) {
         if (i != 0) {
-            buf[0] = u' ';
-            buf = span(buf.data() + 1, buf.size() - 1);
+            *out = u' ';
+            out++;
         }
 
-        auto sv = string_view(argv[i]);
-        auto len = utf8_to_utf16_len(sv);
+        auto s = string_view(argv[i]);
 
-        utf8_to_utf16(buf, sv);
+        if (i == 0) {
+            bool quote = s.find(' ') != string_view::npos ||
+                         s.find('\t') != string_view::npos;
 
-        buf = span(buf.data() + len, buf.size() - len);
+            if (quote) {
+                *out = u'"';
+                out++;
+            }
+
+            emit_utf16(s);
+
+            if (quote) {
+                *out = u'"';
+                out++;
+            }
+
+            continue;
+        }
+
+        if (!arg_needs_quotes(s)) {
+            emit_utf16(s);
+            continue;
+        }
+
+        *out = u'"';
+        out++;
+
+        size_t j = 0;
+        while (j < s.size()) {
+            if (s[j] == '\\') {
+                size_t nbs = 0;
+
+                while (j < s.size() && s[j] == '\\') {
+                    nbs++;
+                    j++;
+                }
+
+                size_t count;
+
+                if (j == s.size())
+                    count = 2 * nbs; // trailing backslashes doubled
+                else if (s[j] == '"')
+                    count = 2 * nbs + 1; // doubled, plus one to escape the quote
+                else
+                    count = nbs; // literal
+
+                for (size_t k = 0; k < count; k++) {
+                    *out = u'\\';
+                    out++;
+                }
+
+                if (j < s.size() && s[j] == '"') {
+                    *out = u'"';
+                    out++;
+                    j++;
+                }
+            } else if (s[j] == '"') {
+                *out = u'\\';
+                out++;
+                *out = u'"';
+                out++;
+                j++;
+            } else {
+                size_t start = j;
+
+                while (j < s.size() && s[j] != '\\' && s[j] != '"') {
+                    j++;
+                }
+
+                emit_utf16(string_view(s.data() + start, j - start));
+            }
+        }
+
+        *out = u'"';
+        out++;
     }
 
-    buf[0] = 0;
+    *out = 0;
 }
 
 static size_t get_environ_len(char* const* envp) {
@@ -288,7 +423,7 @@ export int do_exec(const char* path, char* const* argv, char* const* envp,
 
     span sp = span((char16_t*)misc_block, misc_block_size / sizeof(char16_t));
 
-    do_cmdline(sp, argv);
+    do_cmdline(sp.data(), argv);
 
     params.CommandLine.Length = (uint16_t)(cmdline_len * sizeof(char16_t));
     params.CommandLine.MaximumLength = (uint16_t)((cmdline_len + 1) * sizeof(char16_t));
