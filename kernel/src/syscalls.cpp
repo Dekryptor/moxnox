@@ -887,7 +887,7 @@ NTSTATUS user_NtQueryInformationProcess(HANDLE process_handle, enum PROCESS_INFO
     uint32_t retlen;
 
     if (!process_information)
-        return nt_status::INVALID_PARAMETER;
+        process_information_length = 0;
 
     if (process_information_length > 0) {
         buf = malloc(process_information_length);
