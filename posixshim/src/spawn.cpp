@@ -144,9 +144,14 @@ pid_t waitpid(pid_t pid, int* wstatus, int options) {
             return -1;
         }
 
-        // FIXME - return ECHILD if not our child
-
         proc.reset(h);
+
+        status = NtQueryInformationProcess(proc.get(), PROCESS_INFORMATION_CLASS::MoxnoxIsOurChild,
+                                           nullptr, 0, nullptr);
+        if (status == nt_status::NOT_FOUND) {
+            *_errno() = ECHILD;
+            return -1;
+        }
 
         timeout.QuadPart = 0;
 
