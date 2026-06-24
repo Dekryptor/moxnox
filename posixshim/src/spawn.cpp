@@ -50,6 +50,52 @@ int posix_spawn(pid_t* pid, const char* path,
     return 0;
 }
 
+static pid_t wait_for_any_child(int* wstatus, int options) {
+    nt_status status;
+    HANDLE h;
+    uint32_t retlen;
+    PROCESS_INFORMATION_CLASS pic;
+    PROCESS_BASIC_INFORMATION pbi;
+    unique_handle proc;
+
+    if (options & WNOHANG)
+        pic = PROCESS_INFORMATION_CLASS::MoxnoxWaitForChildNoHang;
+    else
+        pic = PROCESS_INFORMATION_CLASS::MoxnoxWaitForChild;
+
+    while (true) {
+        status = NtQueryInformationProcess(NtCurrentProcess(), pic, &h,
+                                           sizeof(HANDLE), &retlen);
+        if (status == nt_status::USER_APC)
+            continue;
+
+        break;
+    }
+
+    if (status == nt_status::NOT_FOUND) {
+        *_errno() = ECHILD;
+        return -1;
+    } else if (status == nt_status::TIMEOUT)
+        return 0;
+
+    proc.reset(h);
+
+    status = NtQueryInformationProcess(proc.get(), PROCESS_INFORMATION_CLASS::BasicInformation,
+                                        &pbi, sizeof(pbi), nullptr);
+    if (!success(status)) {
+        *_errno() = nt_status_to_errno(status);
+        return -1;
+    }
+
+    if (wstatus) {
+        auto exit_code = (uint8_t)pbi.ExitStatus;
+
+        *wstatus = exit_code << 8;
+    }
+
+    return (pid_t)pbi.UniqueProcessId;
+}
+
 extern "C"
 pid_t waitpid(pid_t pid, int* wstatus, int options) {
     nt_status status;
@@ -60,12 +106,6 @@ pid_t waitpid(pid_t pid, int* wstatus, int options) {
     PROCESS_BASIC_INFORMATION pbi;
     unique_handle proc;
 
-    if (pid <= 0) {
-        print("FIXME - waitpid {}\n", pid); // FIXME
-        *_errno() = EINVAL;
-        return -1;
-    }
-
     if (options & WCONTINUED) {
         print("FIXME - waitpid with WCONTINUED\n");
         *_errno() = EINVAL;
@@ -74,6 +114,14 @@ pid_t waitpid(pid_t pid, int* wstatus, int options) {
 
     if (options & WUNTRACED) {
         print("FIXME - waitpid with WUNTRACED\n");
+        *_errno() = EINVAL;
+        return -1;
+    }
+
+    if (pid == -1)
+        return wait_for_any_child(wstatus, options);
+    else if (pid <= 0) {
+        print("FIXME - waitpid {}\n", pid); // FIXME
         *_errno() = EINVAL;
         return -1;
     }
