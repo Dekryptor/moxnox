@@ -5,6 +5,14 @@
 
 #define PTHREAD_MUTEX_INITIALIZER ((pthread_mutex_t)0)
 
+#define PTHREAD_MUTEX_NORMAL 0
+#define PTHREAD_MUTEX_ERRORCHECK 1
+#define PTHREAD_MUTEX_RECURSIVE 2
+#define PTHREAD_MUTEX_DEFAULT PTHREAD_MUTEX_NORMAL
+
+#define PTHREAD_CANCEL_ENABLE 0
+#define PTHREAD_CANCEL_DISABLE 1
+
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -20,6 +28,7 @@ int pthread_cond_wait(pthread_cond_t* cond, pthread_mutex_t* mutex);
 int pthread_cond_timedwait(pthread_cond_t* cond, pthread_mutex_t* mutex,
                            const struct timespec* abstime);
 int pthread_cond_signal(pthread_cond_t* cond);
+int pthread_cond_broadcast(pthread_cond_t* cond);
 int pthread_create(pthread_t* thread, const pthread_attr_t* attr,
                    void* (*start_routine)(void*), void* arg);
 int pthread_detach(pthread_t thread);
@@ -30,6 +39,11 @@ int pthread_key_create(pthread_key_t* key, void (*destructor)(void*));
 int pthread_key_delete(pthread_key_t key);
 void* pthread_getspecific(pthread_key_t key);
 int pthread_setspecific(pthread_key_t key, const void* value);
+int pthread_mutexattr_init(pthread_mutexattr_t* attr);
+int pthread_mutexattr_destroy(pthread_mutexattr_t* attr);
+int pthread_mutexattr_settype(pthread_mutexattr_t* attr, int type);
+int pthread_setcancelstate(int state, int* oldstate);
+int pthread_equal(pthread_t t1, pthread_t t2);
 
 #ifdef __cplusplus
 }
