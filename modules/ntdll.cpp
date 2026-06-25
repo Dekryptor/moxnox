@@ -449,6 +449,7 @@ void* RtlPcToFileHeader(const void* pc, void** address);
 nt_status LdrAddRefDll(uint32_t flags, HMODULE mod);
 nt_status LdrUnloadDll(HMODULE mod);
 void RtlAcquireSRWLockExclusive(RTL_SRWLOCK* lock);
+void RtlReleaseSRWLockExclusive(RTL_SRWLOCK* lock);
 void RtlUnwindEx(void* target_frame, void* target_ip,
                  EXCEPTION_RECORD* exception_record, void* return_value,
                  CONTEXT* original_context,
