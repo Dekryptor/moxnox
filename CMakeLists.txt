@@ -340,7 +340,7 @@ target_compile_options(termios PRIVATE -fno-exceptions ${USERSPACE_CFLAGS})
 add_library(exec STATIC)
 target_sources(exec PUBLIC FILE_SET CXX_MODULES FILES modules/exec.cpp)
 target_compile_options(exec PRIVATE -fno-exceptions ${USERSPACE_CFLAGS})
-target_link_libraries(exec PRIVATE nt unique_handle errno unicode pagesize ntdll_mod)
+target_link_libraries(exec PRIVATE nt unique_handle errno unicode pagesize ntdll_mod list)
 
 if(CMAKE_SYSTEM_PROCESSOR STREQUAL "aarch64")
     add_library(aarch64 STATIC)

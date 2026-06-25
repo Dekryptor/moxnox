@@ -2521,6 +2521,10 @@ static void handle_exec_info(exec_info* info) {
 
             break;
         }
+
+        case open:
+            print("FIXME - handle_exec_info with open\n");
+            break;
     }
 
 }

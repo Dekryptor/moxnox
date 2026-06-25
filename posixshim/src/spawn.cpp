@@ -253,3 +253,34 @@ int posix_spawn_file_actions_destroy(posix_spawn_file_actions_t* /*file_actions*
 
     return 0;
 }
+
+extern "C"
+int posix_spawn_file_actions_addopen(posix_spawn_file_actions_t* file_actions,
+                                     int fd, const char* path, int oflag,
+                                     mode_t mode) {
+    auto& fa = *reinterpret_cast<file_actions_list*>(file_actions);
+
+    auto newpath = strdup(path);
+    if (!newpath) {
+        *_errno() = ENOMEM;
+        return -1;
+    }
+
+    auto e = new exec_info_list;
+    if (!e) {
+        free(newpath);
+        *_errno() = ENOMEM;
+        return -1;
+    }
+
+    e->ei.type = exec_info_type::open;
+    e->ei.open.fd = fd;
+    e->ei.open.path = newpath;
+    e->ei.open.oflag = oflag;
+    e->ei.open.mode = mode;
+
+    insert_tail_list(fa.list, e->le);
+
+    *_errno() = EINVAL;
+    return -1;
+}

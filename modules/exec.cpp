@@ -5,6 +5,7 @@ module;
 #include <stdint.h>
 #include <string.h>
 #include <stdlib.h>
+#include <sys/types.h>
 
 export module exec;
 
@@ -13,6 +14,7 @@ import ntdll;
 import unique_handle;
 import unicode;
 import pagesize;
+import list;
 
 #undef errno
 import errno;
@@ -21,6 +23,7 @@ using namespace std;
 
 export enum class exec_info_type {
     inherited_fd,
+    open,
 };
 
 export struct exec_info {
@@ -31,7 +34,18 @@ export struct exec_info {
             HANDLE h;
             int fd;
         } inherited_fd;
+        struct {
+            int fd;
+            char* path;
+            int oflag;
+            mode_t mode;
+        } open;
     };
+};
+
+export struct exec_info_list {
+    list_entry le;
+    exec_info ei;
 };
 
 // ucrtbase
