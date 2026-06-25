@@ -52,6 +52,17 @@ int posix_spawn(pid_t* pid, const char* path,
     return 0;
 }
 
+extern "C"
+int posix_spawnp(pid_t* pid, const char* path,
+                 const posix_spawn_file_actions_t* file_actions,
+                 const posix_spawnattr_t* attrp,
+                 char* const* argv, char* const* envp) {
+    print("FIXME - posix_spawnp\n");
+
+    *_errno() = EINVAL;
+    return -1;
+}
+
 static int exit_code_to_status(uint32_t exit_code) {
     if ((exit_code & 0xc0000000) == 0xc0000000) {
         switch ((nt_status)exit_code) {
