@@ -28,5 +28,12 @@ do_stub_no_export "pthread_exit"
 do_stub_no_export "pthread_self"
 do_stub_no_export "dirfd"
 do_stub_no_export "fchmod"
+do_stub_no_export "pthread_sigmask"
+do_stub_no_export "pthread_setcancelstate"
+do_stub_no_export "pthread_equal"
+do_stub_no_export "pthread_mutexattr_init"
+do_stub_no_export "pthread_mutexattr_destroy"
+do_stub_no_export "pthread_mutexattr_settype"
+do_stub_no_export "pthread_cond_broadcast"
 
 stubs_end
