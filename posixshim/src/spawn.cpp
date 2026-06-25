@@ -393,3 +393,17 @@ int posix_spawn_file_actions_addfchdir(posix_spawn_file_actions_t* file_actions,
 
     return 0;
 }
+
+extern "C"
+int posix_spawnattr_init(posix_spawnattr_t* /*attr*/) {
+    // nop
+
+    return 0;
+}
+
+extern "C"
+int posix_spawnattr_destroy(posix_spawnattr_t* /*attr*/) {
+    // nop
+
+    return 0;
+}
