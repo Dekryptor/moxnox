@@ -3,6 +3,7 @@
 #include <sys/wait.h>
 #include <stdlib.h>
 #include <string.h>
+#include <unistd.h>
 #include <string_view>
 #include <span>
 
@@ -53,14 +54,24 @@ int posix_spawn(pid_t* pid, const char* path,
 }
 
 extern "C"
-int posix_spawnp(pid_t* pid, const char* path,
+int posix_spawnp(pid_t* pid, const char* file,
                  const posix_spawn_file_actions_t* file_actions,
                  const posix_spawnattr_t* attrp,
                  char* const* argv, char* const* envp) {
-    print("FIXME - posix_spawnp\n");
+    auto check_access = [](const char* exe) -> int {
+        if (!access(exe, X_OK))
+            return 0;
+        else
+            return *_errno();
+    };
 
-    *_errno() = EINVAL;
-    return -1;
+    auto ret = search_path(file, [&](const char* exe) -> int {
+        // FIXME - if found but not a valid executable, should be running shell with file
+
+        return posix_spawn(pid, exe, file_actions, attrp, argv, envp);
+    }, check_access);
+
+    return ret;
 }
 
 static int exit_code_to_status(uint32_t exit_code) {

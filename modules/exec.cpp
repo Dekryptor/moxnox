@@ -627,3 +627,79 @@ export int do_exec(const char* path, char* const* argv, char* const* envp,
 
     return 0;
 }
+
+export int search_path(const char* file, invocable<const char*> auto func,
+                       invocable<const char*> auto check_access) {
+    auto path = getenv("PATH");
+    auto env_path = string_view(path ? path : "");
+    auto program = string_view(file);
+    bool found_eacces = false;
+
+    if (program.find('/') != string_view::npos)
+        env_path = "";
+
+    if (program.empty())
+        return EINVAL;
+
+    while (true) {
+        auto col = env_path.find(':');
+        string_view dir;
+
+        if (col == string_view::npos)
+            dir = env_path;
+        else
+            dir = string_view(env_path.data(), col);
+
+        if (dir.empty() && program.front() != '/')
+            dir = ".";
+
+        for (unsigned int i = 0; i < 2; i++) {
+            if (i == 1 && program.ends_with(".exe"))
+                break;
+
+            static const string_view suffix = ".exe";
+
+            bool add_suffix = i == 1;
+
+            auto exe = (char*)malloc(dir.size() + 1 + program.size() + (add_suffix ? suffix.size() : 0) + 1);
+            if (!exe)
+                return ENOMEM;
+
+            memcpy(exe, dir.data(), dir.size());
+            exe[dir.size()] = '/';
+            memcpy(exe + dir.size() + 1, program.data(), program.size());
+
+            if (add_suffix) {
+                memcpy(exe + dir.size() + 1 + program.size(), suffix.data(),
+                       suffix.size());
+                exe[dir.size() + 1 + program.size() + suffix.size()] = 0;
+            } else
+                exe[dir.size() + 1 + program.size()] = 0;
+
+            auto acc = check_access(exe);
+
+            if (!acc) {
+                auto ret = func(exe);
+
+                free(exe);
+
+                return ret;
+            } else {
+                free(exe);
+
+                if (acc == EACCES)
+                    found_eacces = true;
+                else if (acc != ENOENT)
+                    return acc;
+            }
+        }
+
+        if (col == string_view::npos)
+            break;
+
+        env_path = string_view(env_path.data() + col + 1,
+                               env_path.size() - col - 1);
+    }
+
+    return found_eacces ? EACCES : ENOENT;
+}

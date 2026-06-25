@@ -168,83 +168,28 @@ int _execv(const char* path, char* const argv[]) {
 
 extern "C"
 int _execvp(const char* file, char* const argv[]) {
-    auto path = getenv("PATH");
-    auto env_path = string_view(path ? path : "");
-    auto program = string_view(file);
-    bool found_eacces = false;
+    auto check_access = [](const char* exe) -> int {
+        if (!__access(exe, X_OK))
+            return 0;
+        else
+            return *__errno();
+    };
 
-    if (program.find('/') != string_view::npos)
-        env_path = "";
+    auto ret = search_path(file, [&](const char* exe) -> int {
+        // FIXME - if found but not a valid executable, should be running shell with file
 
-    if (program.empty()) {
-        *__errno() = EINVAL;
+        if (_execv(exe, argv) == -1)
+            return *__errno();
+        else
+            return 0;
+    }, check_access);
+
+    if (ret) {
+        *__errno() = ret;
         return -1;
     }
 
-    while (true) {
-        auto col = env_path.find(':');
-        string_view dir;
-
-        if (col == string_view::npos)
-            dir = env_path;
-        else
-            dir = string_view(env_path.data(), col);
-
-        if (dir.empty() && program.front() != '/')
-            dir = ".";
-
-        for (unsigned int i = 0; i < 2; i++) {
-            if (i == 1 && program.ends_with(".exe"))
-                break;
-
-            static const string_view suffix = ".exe";
-
-            bool add_suffix = i == 1;
-
-            auto exe = (char*)malloc(dir.size() + 1 + program.size() + (add_suffix ? suffix.size() : 0) + 1);
-            if (!exe) {
-                *__errno() = ENOMEM;
-                return -1;
-            }
-
-            memcpy(exe, dir.data(), dir.size());
-            exe[dir.size()] = '/';
-            memcpy(exe + dir.size() + 1, program.data(), program.size());
-
-            if (add_suffix) {
-                memcpy(exe + dir.size() + 1 + program.size(), suffix.data(),
-                       suffix.size());
-                exe[dir.size() + 1 + program.size() + suffix.size()] = 0;
-            } else
-                exe[dir.size() + 1 + program.size()] = 0;
-
-            if (!__access(exe, X_OK)) {
-                auto ret = _execv(exe, argv);
-
-                // FIXME - if found but not a valid executable, should be running shell with file
-
-                free(exe);
-
-                return ret;
-            } else {
-                free(exe);
-
-                if (*__errno() == EACCES)
-                    found_eacces = true;
-                else if (*__errno() != ENOENT)
-                    return -1;
-            }
-        }
-
-        if (col == string_view::npos)
-            break;
-
-        env_path = string_view(env_path.data() + col + 1,
-                               env_path.size() - col - 1);
-    }
-
-    *__errno() = found_eacces ? EACCES : ENOENT;
-    return -1;
+    return 0;
 }
 
 extern "C"
