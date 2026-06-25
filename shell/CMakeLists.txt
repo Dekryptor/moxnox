@@ -654,6 +654,20 @@ install(TARGETS spawn-test DESTINATION ${CMAKE_INSTALL_PREFIX}/bin COMPONENT cor
 
 ###
 
+add_executable(pthread-test src/pthread-test.cpp)
+
+target_compile_options(pthread-test PRIVATE -fno-exceptions ${USERSPACE_CFLAGS})
+
+if (CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
+    target_link_options(pthread-test PUBLIC -mcrtdll=ucrtbase)
+endif()
+
+target_link_libraries(pthread-test moxnox print posixshim unicode)
+
+install(TARGETS pthread-test DESTINATION ${CMAKE_INSTALL_PREFIX}/bin COMPONENT core)
+
+###
+
 add_executable(ntqo-test src/ntqo-test.cpp)
 
 target_compile_options(ntqo-test PRIVATE -fno-exceptions ${USERSPACE_CFLAGS})
