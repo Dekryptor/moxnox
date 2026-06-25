@@ -47,10 +47,22 @@ int pthread_key_create(pthread_key_t* key, void (*dtor)(void*)) {
 }
 
 extern "C"
-int pthread_key_delete(pthread_key_t /*key*/) {
-    print("FIXME - pthread_key_delete\n");
+int pthread_key_delete(pthread_key_t key) {
+    if (key >= PTHREAD_KEYS_MAX)
+        return EINVAL;
 
-    return EINVAL;
+    RtlAcquireSRWLockExclusive(&key_lock);
+
+    if (!keys[key].used) {
+        RtlReleaseSRWLockExclusive(&key_lock);
+        return EINVAL;
+    }
+
+    keys[key].used = false;
+
+    RtlReleaseSRWLockExclusive(&key_lock);
+
+    return 0;
 }
 
 extern "C"
