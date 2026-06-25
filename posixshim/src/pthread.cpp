@@ -190,8 +190,26 @@ int pthread_create(pthread_t* thread, const pthread_attr_t* /*attr*/,
 }
 
 extern "C"
-int pthread_join(pthread_t /*thread*/, void** /*retval*/) {
-    print("FIXME - pthread_join\n");
+int pthread_join(pthread_t thread, void** retval) {
+    nt_status status;
+    auto& p = *(_pthread*)thread;
 
-    return EINVAL;
+    while (true) {
+        status = NtWaitForSingleObject(p.h, true, nullptr);
+
+        if (status == nt_status::USER_APC)
+            continue;
+        else if (!success(status))
+            return nt_status_to_errno(status);
+
+        break;
+    }
+
+    if (retval)
+        *retval = p.return_value;
+
+    NtClose(p.h);
+    free(&p);
+
+    return 0;
 }
