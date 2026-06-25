@@ -2522,10 +2522,28 @@ static void handle_exec_info(exec_info* info) {
             break;
         }
 
-        case open:
-            print("FIXME - handle_exec_info with open ({}, \"{}\", {}, {})\n",
-                  info->open.fd, info->open.path, info->open.oflag, info->open.mode);
+        case open: {
+            auto fd = open2(info->open.path, info->open.oflag, info->open.mode);
+            if (fd == -1) {
+                print_stderr("_open2(\"{}\", {}, {}) failed (errno {})\n",
+                             info->open.path, info->open.oflag, info->open.mode,
+                             errno_to_string_view(*__errno()));
+                _exit(127);
+            }
+
+            if (fd != info->open.fd) {
+                auto ret = __dup2(fd, info->open.fd);
+                if (ret == -1) {
+                    print_stderr("_dup2 failed (errno {})\n",
+                                 errno_to_string_view(*__errno()));
+                    _exit(127);
+                }
+
+                __close(fd);
+            }
+
             break;
+        }
     }
 
 }

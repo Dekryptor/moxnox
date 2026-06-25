@@ -285,6 +285,5 @@ int posix_spawn_file_actions_addopen(posix_spawn_file_actions_t* file_actions,
 
     insert_tail_list(fa.list, e->le);
 
-    *_errno() = EINVAL;
-    return -1;
+    return 0;
 }
