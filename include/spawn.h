@@ -3,6 +3,8 @@
 #include <sys/types.h>
 
 struct _posix_spawn_file_actions_t {
+    void* _ptr1;
+    void* _ptr2;
 };
 
 typedef struct _posix_spawn_file_actions_t posix_spawn_file_actions_t;

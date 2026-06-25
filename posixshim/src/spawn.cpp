@@ -10,11 +10,19 @@ import nt;
 import print;
 import unique_handle;
 import exec;
+import list;
 
 #undef errno
 import errno;
 
 using namespace std;
+
+struct file_actions_list {
+    list_entry list = { &list, &list };
+};
+
+static_assert(sizeof(file_actions_list) == sizeof(posix_spawn_file_actions_t));
+static_assert(alignof(file_actions_list) == alignof(posix_spawn_file_actions_t));
 
 extern "C"
 int posix_spawn(pid_t* pid, const char* path,
@@ -233,8 +241,8 @@ int getppid() {
 }
 
 extern "C"
-int posix_spawn_file_actions_init(posix_spawn_file_actions_t* /*file_actions*/) {
-    // nop
+int posix_spawn_file_actions_init(posix_spawn_file_actions_t* file_actions) {
+    new (file_actions) file_actions_list;
 
     return 0;
 }
