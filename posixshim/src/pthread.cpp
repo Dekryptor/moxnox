@@ -15,11 +15,34 @@ struct _pthread {
     void* return_value;
 };
 
-extern "C"
-int pthread_key_create(pthread_key_t* /*key*/, void (*/*destructor*/)(void*)) {
-    print("FIXME - pthread_key_create\n");
+struct key_slot {
+    bool used;
+    void (*dtor)(void*);
+};
 
-    return EINVAL;
+static constexpr size_t PTHREAD_KEYS_MAX = 128;
+
+static RTL_SRWLOCK key_lock;
+static key_slot keys[PTHREAD_KEYS_MAX];
+
+extern "C"
+int pthread_key_create(pthread_key_t* key, void (*dtor)(void*)) {
+    RtlAcquireSRWLockExclusive(&key_lock);
+
+    for (size_t i = 0; i < PTHREAD_KEYS_MAX; i++) {
+        if (!keys[i].used) {
+            keys[i].used = true;
+            keys[i].dtor = dtor;
+            *key = i;
+
+            RtlReleaseSRWLockExclusive(&key_lock);
+            return 0;
+        }
+    }
+
+    RtlReleaseSRWLockExclusive(&key_lock);
+
+    return EAGAIN;
 }
 
 extern "C"
