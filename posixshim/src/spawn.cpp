@@ -232,7 +232,7 @@ pid_t waitpid(pid_t pid, int* wstatus, int options) {
 }
 
 extern "C"
-int getppid() {
+pid_t getppid() {
     PROCESS_BASIC_INFORMATION pbi;
 
     auto status = NtQueryInformationProcess(NtCurrentProcess(),
@@ -241,7 +241,7 @@ int getppid() {
     if (!success(status))
         return 0;
 
-    return (int)pbi.InheritedFromUniqueProcessId;
+    return (pid_t)pbi.InheritedFromUniqueProcessId;
 }
 
 extern "C"
