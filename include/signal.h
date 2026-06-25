@@ -97,6 +97,8 @@ int sigprocmask(int how, const sigset_t* set, sigset_t* oldset);
 __sighandler_t signal(int sig, __sighandler_t func);
 int raise(int sig);
 int sigismember(const sigset_t* set, int signo);
+int pthread_sigmask(int how, const sigset_t* set,
+                    sigset_t* oset);
 
 #ifdef __cplusplus
 }
