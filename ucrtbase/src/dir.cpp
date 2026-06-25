@@ -76,7 +76,7 @@ char* _getcwd(char* buffer, int maxlen) {
     return buffer;
 }
 
-static bool get_dos_path(HANDLE h, UNICODE_STRING& us) {
+bool get_dos_path(HANDLE h, UNICODE_STRING& us) {
     nt_status status;
     IO_STATUS_BLOCK iosb;
     FILE_NAME_INFORMATION fni;

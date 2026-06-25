@@ -5,6 +5,7 @@ module;
 #include <span>
 #include <optional>
 #include <atomic>
+#include <mutex>
 #include <stdint.h>
 #include <stdlib.h>
 #include <string.h>
@@ -76,7 +77,9 @@ extern "C" int _getpid();
 
 extern "C" int* __errno();
 
+// dir.cpp
 extern "C" int __chdir(const char* path);
+extern "C++" bool get_dos_path(HANDLE h, UNICODE_STRING& us);
 
 extern "C++"
 void* operator new(size_t count) {
@@ -2587,9 +2590,43 @@ static void handle_exec_info(exec_info* info) {
             break;
         }
 
-        case fchdir:
-            print_stderr("FIXME - fchdir {}\n", info->fchdir.fd);
+        case fchdir: {
+            auto& peb = *NtCurrentTeb()->ProcessEnvironmentBlock;
+            HANDLE h2;
+            nt_status status;
+
+            auto h = (HANDLE)__get_osfhandle(info->fchdir.fd);
+            if (h == (HANDLE)-1) {
+                print_stderr("_get_osfhandle({}) failed (errno {})\n",
+                             info->fchdir.fd, errno_to_string_view(*__errno()));
+                _exit(127);
+            }
+
+            status = NtDuplicateObject(NtCurrentProcess(), h, NtCurrentProcess(),
+                                       &h2, 0, 0, DUPLICATE_SAME_ATTRIBUTES | DUPLICATE_SAME_ACCESS);
+            if (!success(status)) {
+                print_stderr("NtDuplicateObject returned {}\n", status);
+                _exit(127);
+            }
+
+            {
+                mn_peb_lock lock;
+                lock_guard lg(lock);
+
+                if (!get_dos_path(h, peb.ProcessParameters->CurrentDirectory.DosPath)) {
+                    NtClose(h2);
+                    print_stderr("get_dos_path failed\n");
+                    _exit(127);
+                }
+
+                if (peb.ProcessParameters->CurrentDirectory.Handle != 0)
+                    NtClose(peb.ProcessParameters->CurrentDirectory.Handle);
+
+                peb.ProcessParameters->CurrentDirectory.Handle = h2;
+            }
+
             break;
+        }
     }
 
 }
