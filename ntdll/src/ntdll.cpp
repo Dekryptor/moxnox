@@ -1644,7 +1644,8 @@ void mn_exec(void (*entry_point)(), exec_info* exec_block,
 
         if (!mn_handle_exec_info) {
             for (size_t i = 0; i < num_exec_block_entries; i++) {
-                NtClose(exec_block[i].h);
+                if (exec_block[i].type == exec_info_type::inherited_fd)
+                    NtClose(exec_block[i].inherited_fd.h);
             }
         } else {
             for (size_t i = 0; i < num_exec_block_entries; i++) {

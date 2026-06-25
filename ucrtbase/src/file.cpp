@@ -2474,7 +2474,7 @@ nt_status mn_prepare_exec_block(HANDLE proc, exec_info** exec_block,
             continue;
 
         status = NtDuplicateObject(NtCurrentProcess(), fds[i].h, proc,
-                                   &e->h, 0, 0,
+                                   &e->inherited_fd.h, 0, 0,
                                    DUPLICATE_SAME_ATTRIBUTES | DUPLICATE_SAME_ACCESS);
         if (!success(status)) {
             print_stderr("NtDuplicateObject returned {}\n", status);
@@ -2483,7 +2483,8 @@ nt_status mn_prepare_exec_block(HANDLE proc, exec_info** exec_block,
             return status;
         }
 
-        e->fd = (int)i;
+        e->type = exec_info_type::inherited_fd;
+        e->inherited_fd.fd = (int)i;
 
         e++;
     }
@@ -2497,22 +2498,31 @@ nt_status mn_prepare_exec_block(HANDLE proc, exec_info** exec_block,
 }
 
 static void handle_exec_info(exec_info* info) {
-    if (info->fd < 0 || (size_t)info->fd >= fds.size()) {
-        print_stderr("handle_exec_info: fd {} out of range\n", info->fd);
-        return;
+    switch (info->type) {
+        using enum exec_info_type;
+
+        case inherited_fd: {
+            if (info->inherited_fd.fd < 0 || (size_t)info->inherited_fd.fd >= fds.size()) {
+                print_stderr("handle_exec_info: fd {} out of range\n", info->inherited_fd.fd);
+                return;
+            }
+
+            RtlEnterCriticalSection(&fds_lock);
+
+            auto& f = fds[(size_t)info->inherited_fd.fd];
+
+            if (f.h)
+                NtClose(f.h);
+
+            f.h = info->inherited_fd.h;
+            f.cloexec = false;
+
+            RtlLeaveCriticalSection(&fds_lock);
+
+            break;
+        }
     }
 
-    RtlEnterCriticalSection(&fds_lock);
-
-    auto& f = fds[(size_t)info->fd];
-
-    if (f.h)
-        NtClose(f.h);
-
-    f.h = info->h;
-    f.cloexec = false;
-
-    RtlLeaveCriticalSection(&fds_lock);
 }
 
 extern "C"

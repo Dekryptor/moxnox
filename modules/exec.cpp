@@ -19,9 +19,19 @@ import errno;
 
 using namespace std;
 
+export enum class exec_info_type {
+    inherited_fd,
+};
+
 export struct exec_info {
-    HANDLE h;
-    int fd;
+    enum exec_info_type type;
+
+    union {
+        struct {
+            HANDLE h;
+            int fd;
+        } inherited_fd;
+    };
 };
 
 // ucrtbase
