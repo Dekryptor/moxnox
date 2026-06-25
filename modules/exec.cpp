@@ -26,6 +26,7 @@ export enum class exec_info_type {
     inherited_fd,
     open,
     close,
+    dup2,
 };
 
 export struct exec_info {
@@ -45,6 +46,10 @@ export struct exec_info {
         struct {
             int fd;
         } close;
+        struct {
+            int fd;
+            int newfd;
+        } dup2;
     };
 };
 

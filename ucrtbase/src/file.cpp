@@ -2559,6 +2559,20 @@ static void handle_exec_info(exec_info* info) {
 
             break;
         }
+
+        case dup2: {
+            // FIXME - if stdin, stdout, or stderr, also update PEB
+
+            auto ret = __dup2(info->dup2.fd, info->dup2.newfd);
+            if (ret == -1) {
+                print_stderr("_dup2({}, {}) failed (errno {})\n",
+                             info->dup2.fd, info->dup2.newfd,
+                             errno_to_string_view(*__errno()));
+                _exit(127);
+            }
+
+            break;
+        }
     }
 
 }
