@@ -35,7 +35,7 @@ uint32_t TlsAlloc() {
         }
     }
 
-    SetLastError(ERROR_NO_MORE_ITEMS);
+    RtlSetLastWin32Error(ERROR_NO_MORE_ITEMS);
     return 0xffffffff;
 }
 
@@ -53,12 +53,12 @@ bool TlsFree(uint32_t tls_index) {
 
         // FIXME - TlsExpansion
         if (tls_index >= sizeof(teb.TlsSlots) / sizeof(*teb.TlsSlots)) {
-            SetLastError(ERROR_INVALID_PARAMETER);
+            RtlSetLastWin32Error(ERROR_INVALID_PARAMETER);
             return false;
         }
 
         if (!(bitmap & 1 << tls_index)) {
-            SetLastError(ERROR_INVALID_PARAMETER);
+            RtlSetLastWin32Error(ERROR_INVALID_PARAMETER);
             return false;
         }
 
@@ -81,11 +81,11 @@ void* TlsGetValue(uint32_t tls_index) {
 
     // FIXME - TlsExpansion
     if (tls_index >= sizeof(teb.TlsSlots) / sizeof(*teb.TlsSlots)) {
-        SetLastError(ERROR_INVALID_PARAMETER);
+        RtlSetLastWin32Error(ERROR_INVALID_PARAMETER);
         return nullptr;
     }
 
-    SetLastError(ERROR_SUCCESS);
+    RtlSetLastWin32Error(ERROR_SUCCESS);
 
     return teb.TlsSlots[tls_index];
 }
@@ -96,7 +96,7 @@ bool TlsSetValue(uint32_t tls_index, void* tls_value) {
 
     // FIXME - TlsExpansion
     if (tls_index >= sizeof(teb.TlsSlots) / sizeof(*teb.TlsSlots)) {
-        SetLastError(ERROR_INVALID_PARAMETER);
+        RtlSetLastWin32Error(ERROR_INVALID_PARAMETER);
         return false;
     }
 
@@ -126,20 +126,20 @@ HANDLE CreateThread(SECURITY_ATTRIBUTES* sa, size_t stack_size,
 
     if (sa) {
         print_stderr("FIXME - non-NULL SECURITY_ATTRIBUTES passed to CreateThread\n");
-        SetLastError(ERROR_CALL_NOT_IMPLEMENTED);
+        RtlSetLastWin32Error(ERROR_CALL_NOT_IMPLEMENTED);
         return 0;
     }
 
     if (id) {
         print_stderr("FIXME - non-NULL id pointer passed to CreateThread\n");
-        SetLastError(ERROR_CALL_NOT_IMPLEMENTED);
+        RtlSetLastWin32Error(ERROR_CALL_NOT_IMPLEMENTED);
         return 0;
     }
 
     if (flags & ~supported_flags) {
         print_stderr("FIXME - unsupported CreateThread flags {:x}\n",
                      flags & ~supported_flags);
-        SetLastError(ERROR_CALL_NOT_IMPLEMENTED);
+        RtlSetLastWin32Error(ERROR_CALL_NOT_IMPLEMENTED);
         return 0;
     }
 
@@ -154,7 +154,7 @@ HANDLE CreateThread(SECURITY_ATTRIBUTES* sa, size_t stack_size,
                                      MEM_COMMIT | MEM_RESERVE, PAGE_READWRITE);
     if (!success(status)) {
         print_stderr("NtAllocateVirtualMemory returned {}\n", status);
-        SetLastError(RtlNtStatusToDosError(status));
+        RtlSetLastWin32Error(RtlNtStatusToDosError(status));
         return 0;
     }
 
@@ -184,7 +184,7 @@ HANDLE CreateThread(SECURITY_ATTRIBUTES* sa, size_t stack_size,
 
     if (!success(status)) {
         print_stderr("NtCreateThread returned {}\n", status);
-        SetLastError(RtlNtStatusToDosError(status));
+        RtlSetLastWin32Error(RtlNtStatusToDosError(status));
         return 0;
     }
 
@@ -192,7 +192,7 @@ HANDLE CreateThread(SECURITY_ATTRIBUTES* sa, size_t stack_size,
         status = NtResumeThread(h, nullptr);
         if (!success(status)) {
             print_stderr("NtResumeThread returned {}\n", status);
-            SetLastError(RtlNtStatusToDosError(status));
+            RtlSetLastWin32Error(RtlNtStatusToDosError(status));
             return 0;
         }
     }

@@ -18,14 +18,14 @@ bool GetModuleHandleExW(uint32_t flags, const char16_t* name, HMODULE* mod) {
         print_stderr("GetModuleHandleExW: unsupported flags {:x}\n",
                      flags & ~supported_flags);
         *mod = nullptr;
-        SetLastError(ERROR_CALL_NOT_IMPLEMENTED);
+        RtlSetLastWin32Error(ERROR_CALL_NOT_IMPLEMENTED);
         return false;
     }
 
     if (!(flags & GET_MODULE_HANDLE_EX_FLAG_FROM_ADDRESS)) {
         print("FIXME - GetModuleHandleExW with flags {:x}\n", flags);
         *mod = nullptr;
-        SetLastError(ERROR_CALL_NOT_IMPLEMENTED);
+        RtlSetLastWin32Error(ERROR_CALL_NOT_IMPLEMENTED);
         return false;
     }
 
@@ -33,7 +33,7 @@ bool GetModuleHandleExW(uint32_t flags, const char16_t* name, HMODULE* mod) {
 
     if (name) {
         if (!RtlPcToFileHeader(name, &base)) {
-            SetLastError(ERROR_DLL_NOT_FOUND);
+            RtlSetLastWin32Error(ERROR_DLL_NOT_FOUND);
             return false;
         }
     } else
@@ -42,7 +42,7 @@ bool GetModuleHandleExW(uint32_t flags, const char16_t* name, HMODULE* mod) {
     if (!(flags & GET_MODULE_HANDLE_EX_FLAG_UNCHANGED_REFCOUNT)) {
         if (auto status = LdrAddRefDll(0, base); !success(status)) {
             *mod = nullptr;
-            SetLastError(RtlNtStatusToDosError(status));
+            RtlSetLastWin32Error(RtlNtStatusToDosError(status));
             return false;
         }
     }
@@ -66,7 +66,7 @@ bool FreeLibrary(HMODULE mod) {
     auto status = LdrUnloadDll(mod);
 
     if (!success(status)) {
-        SetLastError(RtlNtStatusToDosError(status));
+        RtlSetLastWin32Error(RtlNtStatusToDosError(status));
         return false;
     }
 
@@ -77,6 +77,6 @@ extern "C"
 void* GetProcAddress(HMODULE mod, const char* function) {
     print_stderr("FIXME - GetProcAddress {:x}, \"{}\"\n", (uintptr_t)mod, string_view(function));
 
-    SetLastError(ERROR_PROC_NOT_FOUND);
+    RtlSetLastWin32Error(ERROR_PROC_NOT_FOUND);
     return nullptr;
 }

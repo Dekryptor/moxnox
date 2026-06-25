@@ -13,7 +13,7 @@ size_t VirtualQuery(const void* addr, MEMORY_BASIC_INFORMATION* info, size_t len
                                        MEMORY_INFORMATION_CLASS::BasicInformation,
                                        info, len, &ret);
     if (!success(status)) {
-        SetLastError(RtlNtStatusToDosError(status));
+        RtlSetLastWin32Error(RtlNtStatusToDosError(status));
         return 0;
     }
 
@@ -25,7 +25,7 @@ bool VirtualProtect(void* addr, size_t size, uint32_t new_prot, uint32_t* old_pr
     auto status = NtProtectVirtualMemory(NtCurrentProcess(), &addr, &size,
                                          new_prot, old_prot);
     if (!success(status)) {
-        SetLastError(RtlNtStatusToDosError(status));
+        RtlSetLastWin32Error(RtlNtStatusToDosError(status));
         return false;
     }
 
