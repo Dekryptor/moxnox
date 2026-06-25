@@ -32,3 +32,9 @@ install(TARGETS kernelbase
     CXX_MODULES_BMI EXCLUDE_FROM_ALL
     ARCHIVE EXCLUDE_FROM_ALL
 )
+
+add_custom_command(TARGET kernelbase POST_BUILD
+    COMMAND sh -c "! \"${CMAKE_OBJDUMP}\" -p \"$1\" | grep -q 'DLL Name: kernelbase' || { echo 'Error: kernelbase.dll imports itself' >&2; exit 1; }" -- "$<TARGET_FILE:kernelbase>"
+    VERBATIM
+    COMMENT "Checking kernelbase.dll does not import itself"
+)
