@@ -146,7 +146,7 @@ int _execve(const char* path, char* const* argv, char* const* envp) {
     if (!path || path[0] == 0 || !argv || !envp)
         return EINVAL;
 
-    auto ret = do_exec(path, argv, envp, proc, thread, client_id);
+    auto ret = do_exec(path, argv, envp, proc, thread, client_id, nullptr);
     if (ret)
         return ret;
 

@@ -6,6 +6,7 @@ module;
 #include <string.h>
 #include <stdlib.h>
 #include <sys/types.h>
+#include <spawn.h>
 
 export module exec;
 
@@ -47,6 +48,13 @@ export struct exec_info_list {
     list_entry le;
     exec_info ei;
 };
+
+export struct file_actions_list {
+    list_entry list = { &list, &list };
+};
+
+static_assert(sizeof(file_actions_list) == sizeof(posix_spawn_file_actions_t));
+static_assert(alignof(file_actions_list) == alignof(posix_spawn_file_actions_t));
 
 // ucrtbase
 extern "C" nt_status mn_prepare_exec_block(HANDLE proc, exec_info** exec_block,
@@ -256,7 +264,7 @@ static void do_environ(span<char16_t> buf, char* const* envp) {
 
 export int do_exec(const char* path, char* const* argv, char* const* envp,
                    unique_handle& proc, unique_handle& thread,
-                   CLIENT_ID& client_id) {
+                   CLIENT_ID& client_id, file_actions_list* file_actions) {
     auto& peb = *NtCurrentTeb()->ProcessEnvironmentBlock;
     OBJECT_ATTRIBUTES oa;
     UNICODE_STRING us;
@@ -277,7 +285,8 @@ export int do_exec(const char* path, char* const* argv, char* const* envp,
     uintptr_t their_mn_exec;
     exec_info* our_exec_block;
     size_t num_exec_block_entries;
-    void* their_exec_block;
+    void* their_exec_block = nullptr;
+    size_t exec_block_extra = 0;
 
     static const string_view mn_exec = "mn_exec";
 
@@ -386,8 +395,48 @@ export int do_exec(const char* path, char* const* argv, char* const* envp,
     if (!success(status))
         return nt_status_to_errno(status);
 
+    if (file_actions) {
+        size_t new_entries = 0;
+
+        for (auto le = file_actions->list.next; le != &file_actions->list; le = le->next) {
+            auto& eil = containing_record<exec_info_list>(le);
+
+            if (eil.ei.type == exec_info_type::open)
+                exec_block_extra += strlen(eil.ei.open.path) + 1;
+
+            new_entries++;
+        }
+
+        if (new_entries > 0) {
+            our_exec_block = (exec_info*)realloc(our_exec_block, ((num_exec_block_entries + new_entries) * sizeof(exec_info)) + exec_block_extra);
+            if (!our_exec_block)
+                return ENOMEM;
+
+            auto p = &our_exec_block[num_exec_block_entries];
+            auto extra = (char*)&our_exec_block[num_exec_block_entries + new_entries];
+
+            for (auto le = file_actions->list.next; le != &file_actions->list; le = le->next) {
+                auto& eil = containing_record<exec_info_list>(le);
+
+                memcpy(p, &eil.ei, sizeof(exec_info));
+
+                if (eil.ei.type == exec_info_type::open) {
+                    auto len = strlen(eil.ei.open.path);
+
+                    memcpy(extra, eil.ei.open.path, len + 1);
+                    p->open.path = extra;
+                    extra += len + 1;
+                }
+
+                p++;
+            }
+
+            num_exec_block_entries += new_entries;
+        }
+    }
+
     if (num_exec_block_entries > 0) {
-        size_t exec_block_size = bytes_to_pages(num_exec_block_entries * sizeof(exec_info)) << PAGE_SHIFT;
+        size_t exec_block_size = bytes_to_pages((num_exec_block_entries * sizeof(exec_info)) + exec_block_extra) << PAGE_SHIFT;
 
         status = NtAllocateVirtualMemory(proc.get(), &their_exec_block, 0,
                                          &exec_block_size,
@@ -397,8 +446,13 @@ export int do_exec(const char* path, char* const* argv, char* const* envp,
             return nt_status_to_errno(status);
         }
 
+        for (size_t i = 0; i < num_exec_block_entries; i++) {
+            if (our_exec_block[i].type == exec_info_type::open)
+                our_exec_block[i].open.path = our_exec_block[i].open.path - (char*)our_exec_block + (char*)their_exec_block;
+        }
+
         status = NtWriteVirtualMemory(proc.get(), their_exec_block, our_exec_block,
-                                      (uint32_t)(num_exec_block_entries * sizeof(exec_info)),
+                                      (uint32_t)((num_exec_block_entries * sizeof(exec_info)) + exec_block_extra),
                                       nullptr);
         if (!success(status)) {
             free(our_exec_block);

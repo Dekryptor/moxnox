@@ -2523,7 +2523,8 @@ static void handle_exec_info(exec_info* info) {
         }
 
         case open:
-            print("FIXME - handle_exec_info with open\n");
+            print("FIXME - handle_exec_info with open ({}, \"{}\", {}, {})\n",
+                  info->open.fd, info->open.path, info->open.oflag, info->open.mode);
             break;
     }
 

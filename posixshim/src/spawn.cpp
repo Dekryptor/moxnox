@@ -17,29 +17,22 @@ import errno;
 
 using namespace std;
 
-struct file_actions_list {
-    list_entry list = { &list, &list };
-};
-
-static_assert(sizeof(file_actions_list) == sizeof(posix_spawn_file_actions_t));
-static_assert(alignof(file_actions_list) == alignof(posix_spawn_file_actions_t));
-
 extern "C"
 int posix_spawn(pid_t* pid, const char* path,
-                const posix_spawn_file_actions_t* /*file_actions*/,
+                const posix_spawn_file_actions_t* file_actions,
                 const posix_spawnattr_t* /*attrp*/,
                 char* const* argv, char* const* envp) {
     unique_handle proc, thread;
     nt_status status;
     CLIENT_ID client_id;
 
-    // FIXME - file_actions
     // FIXME - attrp
 
     if (!path || path[0] == 0)
         return EINVAL;
 
-    auto ret = do_exec(path, argv, envp, proc, thread, client_id);
+    auto ret = do_exec(path, argv, envp, proc, thread, client_id,
+                       (file_actions_list*)file_actions);
     if (ret)
         return ret;
 
