@@ -726,6 +726,11 @@ static void init_ldr_data(mn_image_info& ntdll_info, mn_image_info& img_info) {
     img.size_debug_line = img_info.size_debug_line;
     img.offset_debug_line_str = img_info.offset_debug_line_str;
     img.size_debug_line_str = img_info.size_debug_line_str;
+
+    InsertTailList(&ldr_data.InInitializationOrderModuleList,
+                   &ntdll.ldr.InInitializationOrderLinks);
+    InsertTailList(&ldr_data.InInitializationOrderModuleList,
+                   &img.ldr.InInitializationOrderLinks);
 }
 
 static span<char> get_section_name(const IMAGE_SECTION_HEADER& s, const IMAGE_FILE_HEADER& file_header,
