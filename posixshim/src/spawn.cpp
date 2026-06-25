@@ -241,8 +241,19 @@ int posix_spawn_file_actions_init(posix_spawn_file_actions_t* file_actions) {
 }
 
 extern "C"
-int posix_spawn_file_actions_destroy(posix_spawn_file_actions_t* /*file_actions*/) {
-    // nop
+int posix_spawn_file_actions_destroy(posix_spawn_file_actions_t* file_actions) {
+    auto& fa = *reinterpret_cast<file_actions_list*>(file_actions);
+
+    while (!is_list_empty(fa.list)) {
+        auto& eil = containing_record<exec_info_list>(fa.list.next);
+
+        remove_entry_list(eil.le);
+
+        if (eil.ei.type == exec_info_type::open)
+            free(eil.ei.open.path);
+
+        free(&eil);
+    }
 
     return 0;
 }
