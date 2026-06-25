@@ -24,6 +24,7 @@ static constexpr size_t PTHREAD_KEYS_MAX = 128;
 
 static RTL_SRWLOCK key_lock;
 static key_slot keys[PTHREAD_KEYS_MAX];
+static thread_local void* thread_specific_data[PTHREAD_KEYS_MAX];
 
 extern "C"
 int pthread_key_create(pthread_key_t* key, void (*dtor)(void*)) {
@@ -53,17 +54,21 @@ int pthread_key_delete(pthread_key_t /*key*/) {
 }
 
 extern "C"
-void* pthread_getspecific(pthread_key_t /*key*/) {
-    print("FIXME - pthread_getspecific\n");
+void* pthread_getspecific(pthread_key_t key) {
+    if (key >= PTHREAD_KEYS_MAX)
+        return nullptr;
 
-    return nullptr;
+    return thread_specific_data[key];
 }
 
 extern "C"
-int pthread_setspecific(pthread_key_t /*key*/, const void* /*value*/) {
-    print("FIXME - pthread_setspecific\n");
+int pthread_setspecific(pthread_key_t key, const void* value) {
+    if (key >= PTHREAD_KEYS_MAX)
+        return EINVAL;
 
-    return EINVAL;
+    thread_specific_data[key] = (void*)value;
+
+    return 0;
 }
 
 extern "C"
