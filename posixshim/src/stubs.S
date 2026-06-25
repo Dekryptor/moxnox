@@ -42,7 +42,6 @@ do_stub_no_export "pthread_key_create"
 do_stub_no_export "pthread_key_delete"
 do_stub_no_export "pthread_getspecific"
 do_stub_no_export "pthread_setspecific"
-do_stub_no_export "fchdir"
 do_stub_no_export "dirfd"
 do_stub_no_export "fchmod"
 

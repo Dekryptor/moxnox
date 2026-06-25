@@ -6,8 +6,10 @@
 #include <string_view>
 #include <span>
 #include <memory>
+#include <mutex>
 
 import nt;
+import ntdll;
 import unicode;
 import unique_handle;
 
@@ -450,4 +452,85 @@ void funlockfile(FILE* f) {
 extern "C"
 int getc_unlocked(FILE* f) {
     return _fgetc_nolock(f);
+}
+
+static bool get_dos_path(HANDLE h, UNICODE_STRING& us) {
+    nt_status status;
+    IO_STATUS_BLOCK iosb;
+    FILE_NAME_INFORMATION fni;
+
+    status = NtQueryInformationFile(h, &iosb, &fni, sizeof(fni),
+                                    FILE_INFORMATION_CLASS::NameInformation);
+    if (!success(status) && status != nt_status::BUFFER_OVERFLOW) {
+        *_errno() = nt_status_to_errno(status);
+        return false;
+    }
+
+    size_t len = offsetof(FILE_NAME_INFORMATION, FileName) + fni.FileNameLength;
+
+    auto fni2 = (FILE_NAME_INFORMATION*)malloc(len);
+    if (!fni2) {
+        *_errno() = ENOMEM;
+        return false;
+    }
+
+    status = NtQueryInformationFile(h, &iosb, fni2, (uint32_t)len,
+                                    FILE_INFORMATION_CLASS::NameInformation);
+    if (!success(status)) {
+        *_errno() = nt_status_to_errno(status);
+        free(fni2);
+        return false;
+    }
+
+    auto sv = u16string_view(fni2->FileName, fni2->FileNameLength / sizeof(char16_t));
+
+    static const u16string_view prefix = u"C:";
+
+    us.Length = min(us.MaximumLength, (uint16_t)((sv.size() + prefix.size()) * sizeof(char16_t)));
+    memcpy(us.Buffer, prefix.data(), prefix.size() * sizeof(char16_t));
+    memcpy(us.Buffer + prefix.size(), sv.data(), us.Length - (prefix.size() * sizeof(char16_t)));
+
+    for (size_t i = prefix.size(); i < us.Length / sizeof(char16_t); i++) {
+        if (us.Buffer[i] == u'/')
+            us.Buffer[i] = u'\\';
+    }
+
+    free(fni2);
+
+    return true;
+}
+
+extern "C"
+int fchdir(int fd) {
+    auto& peb = *NtCurrentTeb()->ProcessEnvironmentBlock;
+    HANDLE h2;
+    nt_status status;
+
+    auto h = (HANDLE)_get_osfhandle(fd);
+    if (h == (HANDLE)-1)
+        return -1;
+
+    status = NtDuplicateObject(NtCurrentProcess(), h, NtCurrentProcess(), &h2,
+                               0, 0, DUPLICATE_SAME_ATTRIBUTES | DUPLICATE_SAME_ACCESS);
+    if (!success(status)) {
+        *_errno() = nt_status_to_errno(status);
+        return -1;
+    }
+
+    {
+        mn_peb_lock lock;
+        lock_guard lg(lock);
+
+        if (!get_dos_path(h, peb.ProcessParameters->CurrentDirectory.DosPath)) {
+            NtClose(h2);
+            return -1;
+        }
+
+        if (peb.ProcessParameters->CurrentDirectory.Handle != 0)
+            NtClose(peb.ProcessParameters->CurrentDirectory.Handle);
+
+        peb.ProcessParameters->CurrentDirectory.Handle = h2;
+    }
+
+    return 0;
 }
