@@ -2,7 +2,10 @@
 
 #include <sys/types.h>
 
-typedef void* posix_spawn_file_actions_t; // FIXME
+struct _posix_spawn_file_actions_t {
+};
+
+typedef struct _posix_spawn_file_actions_t posix_spawn_file_actions_t;
 typedef void* posix_spawnattr_t; // FIXME
 
 #ifdef __cplusplus
