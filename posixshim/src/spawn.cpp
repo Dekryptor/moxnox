@@ -326,3 +326,29 @@ int posix_spawn_file_actions_adddup2(posix_spawn_file_actions_t* file_actions,
 
     return 0;
 }
+
+extern "C"
+int posix_spawn_file_actions_addchdir(posix_spawn_file_actions_t* file_actions,
+                                      const char* path) {
+    auto& fa = *reinterpret_cast<file_actions_list*>(file_actions);
+
+    auto newpath = strdup(path);
+    if (!newpath) {
+        *_errno() = ENOMEM;
+        return -1;
+    }
+
+    auto e = new exec_info_list;
+    if (!e) {
+        free(newpath);
+        *_errno() = ENOMEM;
+        return -1;
+    }
+
+    e->ei.type = exec_info_type::chdir;
+    e->ei.chdir.path = newpath;
+
+    insert_tail_list(fa.list, e->le);
+
+    return 0;
+}

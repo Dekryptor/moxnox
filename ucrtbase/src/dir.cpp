@@ -123,7 +123,7 @@ static bool get_dos_path(HANDLE h, UNICODE_STRING& us) {
 }
 
 extern "C"
-int _chdir(const char* path) {
+int __chdir(const char* path) {
     const auto& teb = *NtCurrentTeb();
     const auto& peb = *teb.ProcessEnvironmentBlock;
     OBJECT_ATTRIBUTES oa;

@@ -27,6 +27,7 @@ export enum class exec_info_type {
     open,
     close,
     dup2,
+    chdir,
 };
 
 export struct exec_info {
@@ -50,6 +51,9 @@ export struct exec_info {
             int fd;
             int newfd;
         } dup2;
+        struct {
+            char* path;
+        } chdir;
     };
 };
 
@@ -412,6 +416,8 @@ export int do_exec(const char* path, char* const* argv, char* const* envp,
 
             if (eil.ei.type == exec_info_type::open)
                 exec_block_extra += strlen(eil.ei.open.path) + 1;
+            else if (eil.ei.type == exec_info_type::chdir)
+                exec_block_extra += strlen(eil.ei.chdir.path) + 1;
 
             new_entries++;
         }
@@ -434,6 +440,12 @@ export int do_exec(const char* path, char* const* argv, char* const* envp,
 
                     memcpy(extra, eil.ei.open.path, len + 1);
                     p->open.path = extra;
+                    extra += len + 1;
+                } else if (eil.ei.type == exec_info_type::chdir) {
+                    auto len = strlen(eil.ei.chdir.path);
+
+                    memcpy(extra, eil.ei.chdir.path, len + 1);
+                    p->chdir.path = extra;
                     extra += len + 1;
                 }
 
@@ -458,6 +470,8 @@ export int do_exec(const char* path, char* const* argv, char* const* envp,
         for (size_t i = 0; i < num_exec_block_entries; i++) {
             if (our_exec_block[i].type == exec_info_type::open)
                 our_exec_block[i].open.path = our_exec_block[i].open.path - (char*)our_exec_block + (char*)their_exec_block;
+            else if (our_exec_block[i].type == exec_info_type::chdir)
+                our_exec_block[i].chdir.path = our_exec_block[i].chdir.path - (char*)our_exec_block + (char*)their_exec_block;
         }
 
         status = NtWriteVirtualMemory(proc.get(), their_exec_block, our_exec_block,

@@ -193,7 +193,7 @@ frexp
 frexpf
 modf
 modff
-_chdir
+_chdir = __chdir
 atol
 atoi
 _strnicmp = __strnicmp

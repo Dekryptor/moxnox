@@ -76,6 +76,8 @@ extern "C" int _getpid();
 
 extern "C" int* __errno();
 
+extern "C" int __chdir(const char* path);
+
 extern "C++"
 void* operator new(size_t count) {
     return malloc(count);
@@ -2568,6 +2570,17 @@ static void handle_exec_info(exec_info* info) {
                 print_stderr("_dup2({}, {}) failed (errno {})\n",
                              info->dup2.fd, info->dup2.newfd,
                              errno_to_string_view(*__errno()));
+                _exit(127);
+            }
+
+            break;
+        }
+
+        case chdir: {
+            auto ret = __chdir(info->chdir.path);
+            if (ret == -1) {
+                print_stderr("_chdir(\"{}\") failed (errno {})\n",
+                             info->chdir.path, errno_to_string_view(*__errno()));
                 _exit(127);
             }
 
