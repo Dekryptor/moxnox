@@ -2531,6 +2531,8 @@ static void handle_exec_info(exec_info* info) {
                 _exit(127);
             }
 
+            // FIXME - if stdin, stdout, or stderr, also update PEB
+
             if (fd != info->open.fd) {
                 auto ret = __dup2(fd, info->open.fd);
                 if (ret == -1) {
@@ -2540,6 +2542,19 @@ static void handle_exec_info(exec_info* info) {
                 }
 
                 __close(fd);
+            }
+
+            break;
+        }
+
+        case close: {
+            // FIXME - if stdin, stdout, or stderr, also update PEB
+
+            auto ret = __close(info->close.fd);
+            if (ret == -1) {
+                print_stderr("_close({}) failed (errno {})\n",
+                             info->close.fd, errno_to_string_view(*__errno()));
+                _exit(127);
             }
 
             break;

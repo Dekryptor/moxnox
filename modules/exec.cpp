@@ -25,6 +25,7 @@ using namespace std;
 export enum class exec_info_type {
     inherited_fd,
     open,
+    close,
 };
 
 export struct exec_info {
@@ -41,6 +42,9 @@ export struct exec_info {
             int oflag;
             mode_t mode;
         } open;
+        struct {
+            int fd;
+        } close;
     };
 };
 

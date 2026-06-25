@@ -287,3 +287,22 @@ int posix_spawn_file_actions_addopen(posix_spawn_file_actions_t* file_actions,
 
     return 0;
 }
+
+extern "C"
+int posix_spawn_file_actions_addclose(posix_spawn_file_actions_t* file_actions,
+                                      int fd) {
+    auto& fa = *reinterpret_cast<file_actions_list*>(file_actions);
+
+    auto e = new exec_info_list;
+    if (!e) {
+        *_errno() = ENOMEM;
+        return -1;
+    }
+
+    e->ei.type = exec_info_type::close;
+    e->ei.close.fd = fd;
+
+    insert_tail_list(fa.list, e->le);
+
+    return 0;
+}
