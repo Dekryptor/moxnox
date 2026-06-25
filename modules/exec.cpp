@@ -28,6 +28,7 @@ export enum class exec_info_type {
     close,
     dup2,
     chdir,
+    fchdir,
 };
 
 export struct exec_info {
@@ -54,6 +55,9 @@ export struct exec_info {
         struct {
             char* path;
         } chdir;
+        struct {
+            int fd;
+        } fchdir;
     };
 };
 

@@ -2586,6 +2586,10 @@ static void handle_exec_info(exec_info* info) {
 
             break;
         }
+
+        case fchdir:
+            print_stderr("FIXME - fchdir {}\n", info->fchdir.fd);
+            break;
     }
 
 }
