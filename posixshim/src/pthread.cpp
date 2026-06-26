@@ -191,10 +191,10 @@ int pthread_cond_wait(pthread_cond_t* /*cond*/, pthread_mutex_t* /*mutex*/) {
 }
 
 extern "C"
-int pthread_cond_signal(pthread_cond_t* /*cond*/) {
-    print("FIXME - pthread_cond_signal\n");
+int pthread_cond_signal(pthread_cond_t* cond) {
+    RtlWakeConditionVariable((RTL_CONDITION_VARIABLE*)cond);
 
-    return EINVAL;
+    return 0;
 }
 
 static void thread_start(pthread_t thread, void* (*func)(void*), void* arg) {
