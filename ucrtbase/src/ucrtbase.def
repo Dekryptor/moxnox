@@ -290,3 +290,4 @@ wcsrchr
 wcstombs
 _wcsnicmp
 wcscpy
+mbstowcs

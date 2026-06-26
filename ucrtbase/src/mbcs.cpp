@@ -10,6 +10,8 @@ import print;
 
 extern "C" int* __errno();
 
+static const size_t MB_CUR_MAX = 4;
+
 struct mbstate {
     uint16_t codepoint;
     uint8_t left;
@@ -213,4 +215,37 @@ size_t wcstombs(char* dest, const wchar_t* src, size_t dsize) {
     state = mbstate_t{};
 
     return _wcsrtombs(dest, &src_ptr, dsize, &state);
+}
+
+extern "C"
+size_t mbstowcs(wchar_t* pwcs, const char* s, size_t n) {
+    mbstate_t state;
+    size_t count = 0;
+
+    memset(&state, 0, sizeof(state));
+
+    while (!pwcs || count < n) {
+        wchar_t wc;
+
+        auto res = _mbrtowc(pwcs ? &wc : nullptr, s, MB_CUR_MAX, &state);
+
+        if (res == 0) {
+            if (pwcs)
+                pwcs[count] = L'\0';
+
+            return count;
+        }
+
+        if (res == (size_t)-1 || res == (size_t)-2)
+            return (size_t)-1;
+
+        if (pwcs)
+            pwcs[count] = wc;
+
+        s += res;
+
+        count++;
+    }
+
+    return count;
 }

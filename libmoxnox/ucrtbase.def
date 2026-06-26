@@ -264,13 +264,13 @@ wcsrchr
 wcstombs
 _wcsnicmp
 wcscpy
+mbstowcs
 
 ; stubs
 ___lc_codepage_func
 _beginthreadex
 wcstod
 _mktemp
-mbstowcs
 fputwc
 wcstok
 _tzset
