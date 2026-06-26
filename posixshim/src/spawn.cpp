@@ -48,7 +48,7 @@ int posix_spawn(pid_t* pid, const char* path,
     // FIXME - mark process as child
 
     if (pid)
-        *pid = client_id.UniqueProcess;
+        *pid = (pid_t)client_id.UniqueProcess;
 
     return 0;
 }
