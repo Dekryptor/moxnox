@@ -256,3 +256,18 @@ int _wcsnicmp(const wchar_t* s1, const wchar_t* s2, size_t n) {
 
     return 0;
 }
+
+extern "C"
+wchar_t* wcscpy(wchar_t* dest, const wchar_t* src) {
+    auto orig_dest = dest;
+
+    while (*src != 0) {
+        *dest = *src;
+        src++;
+        dest++;
+    }
+
+    *dest = 0;
+
+    return orig_dest;
+}
