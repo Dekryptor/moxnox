@@ -157,6 +157,7 @@ public:
                                           dentry& dentry);
     nt_status query_basic_information(span<uint8_t> buffer, uint64_t& retlen);
     nt_status query_standard_information(span<uint8_t> buffer, uint64_t& retlen);
+    nt_status query_internal_information(span<uint8_t> buffer, uint64_t& retlen);
     nt_status flush_inode_item(btrfs_path& p);
     nt_status get_last_dir_index(uint64_t& ret);
     void last_handle_closed() override;
@@ -6004,15 +6005,33 @@ nt_status btrfs_inode::query_standard_information(span<uint8_t> buffer, uint64_t
     return nt_status::SUCCESS;
 }
 
+nt_status btrfs_inode::query_internal_information(span<uint8_t> buffer, uint64_t& retlen) {
+    if (buffer.size() < sizeof(FILE_INTERNAL_INFORMATION))
+        return nt_status::BUFFER_TOO_SMALL;
+
+    auto& fii = *(FILE_INTERNAL_INFORMATION*)buffer.data();
+
+    fii.IndexNumber.QuadPart = inode;
+
+    retlen = sizeof(fii);
+
+    return nt_status::SUCCESS;
+}
+
 NTSTATUS btrfs_inode::query_information(span<uint8_t> buffer,
                                         FILE_INFORMATION_CLASS file_information_class,
                                         uint64_t& retlen) {
     switch (file_information_class) {
-        case FILE_INFORMATION_CLASS::BasicInformation:
+        using enum FILE_INFORMATION_CLASS;
+
+        case BasicInformation:
             return query_basic_information(buffer, retlen);
 
-        case FILE_INFORMATION_CLASS::StandardInformation:
+        case StandardInformation:
             return query_standard_information(buffer, retlen);
+
+        case InternalInformation:
+            return query_internal_information(buffer, retlen);
 
         default:
             print("btrfs_inode::query_information: unhandled file information class {}\n",
