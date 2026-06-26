@@ -184,10 +184,15 @@ int pthread_cond_destroy(pthread_cond_t* /*cond*/) {
 }
 
 extern "C"
-int pthread_cond_wait(pthread_cond_t* /*cond*/, pthread_mutex_t* /*mutex*/) {
-    print("FIXME - pthread_cond_wait\n");
+int pthread_cond_wait(pthread_cond_t* cond, pthread_mutex_t* mutex) {
+    auto srw = (RTL_SRWLOCK*)*mutex;
 
-    return EINVAL;
+    auto status = RtlSleepConditionVariableSRW((RTL_CONDITION_VARIABLE*)cond, srw,
+                                               nullptr, 0);
+    if (!success(status))
+        return nt_status_to_errno(status);
+
+    return 0;
 }
 
 extern "C"
