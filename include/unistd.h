@@ -59,7 +59,6 @@ pid_t getpgid(pid_t pid);
 int tcgetpgrp(int fd);
 int link(const char* oldpath, const char* newpath);
 int readlink(const char* path, char* buf, size_t bufsiz);
-pid_t fork(void);
 
 #ifdef __cplusplus
 }
