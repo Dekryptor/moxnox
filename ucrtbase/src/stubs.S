@@ -4,10 +4,6 @@ stubs_start
 
 do_stub "___lc_codepage_func"
 do_stub "_beginthreadex"
-do_stub "wcstol"
-do_stub "wcstoul"
-do_stub "wcstoll"
-do_stub "wcstoull"
 do_stub "wcstod"
 do_stub "_wcsnicmp"
 do_stub "_mktemp"

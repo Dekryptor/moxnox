@@ -254,15 +254,15 @@ _execl
 _execlp
 _execv
 _execle
+wcstol
+wcstoul
+wcstoll
+wcstoull
 iswspace
 
 ; stubs
 ___lc_codepage_func
 _beginthreadex
-wcstol
-wcstoul
-wcstoll
-wcstoull
 wcstod
 _wcsnicmp
 _mktemp

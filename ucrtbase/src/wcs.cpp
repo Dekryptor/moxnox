@@ -1,8 +1,15 @@
 #include <stddef.h>
 #include <stdint.h>
+#include <errno.h>
+#include <concepts>
+#include <algorithm>
+
+using namespace std;
 
 extern "C"
 int __mingw_vswprintf(wchar_t* buf, const wchar_t* format, va_list args);
+
+extern "C" int* __errno();
 
 extern "C"
 size_t wcsnlen(const wchar_t* s, size_t maxlen) {
@@ -83,4 +90,113 @@ int iswspace(wint_t ch) {
         default:
             return 0;
     }
+}
+
+template<integral T>
+static T wcsto(const wchar_t* nptr, wchar_t** endptr, int base) {
+    bool negative = false;
+    bool empty = true;
+    bool overflow = false;
+    T ret = 0;
+
+    if(endptr)
+        *endptr = (wchar_t*)nptr;
+
+    while (iswspace(*nptr)) {
+        nptr++;
+    }
+
+    if (*nptr == '-') {
+        negative = true;
+        nptr++;
+    } else if(*nptr == '+')
+        nptr++;
+
+    if ((base == 0 || base == 16) && nptr[0] == '0' && (nptr[1] == 'x' || nptr[1] == 'X')) {
+        base = 16;
+        nptr += 2;
+    }
+
+    if(base == 0) {
+        if (*nptr == '0')
+            base = 8;
+        else
+            base = 10;
+    }
+
+    while (*nptr) {
+        int digit;
+
+        if (*nptr >= '0' && *nptr <= min((char)('0' + base - 1), '9'))
+            digit = *nptr - '0';
+        else if (base > 10 && *nptr >= 'A' && *nptr <= min((char)('A' + base - 11), 'Z'))
+            digit = *nptr - 'A' + 10;
+        else if (base > 10 && *nptr >= 'a' && *nptr <= min((char)('a' + base - 11), 'z'))
+            digit = *nptr - 'a' + 10;
+        else
+            break;
+
+        if constexpr (is_signed_v<T>) {
+            if (negative)
+                digit = -digit;
+        }
+
+        nptr++;
+        empty = false;
+
+        if constexpr (is_signed_v<T>) {
+            if (!negative && (ret > numeric_limits<T>::max() / base || ret * base > numeric_limits<T>::max() - digit)) {
+                ret = numeric_limits<T>::max();
+                overflow = true;
+                break;
+            } else if (negative && (ret < numeric_limits<T>::min() / base || ret * base < numeric_limits<T>::min() - digit)) {
+                ret = numeric_limits<T>::min();
+                overflow = true;
+                break;
+            }
+        } else {
+            if (ret > numeric_limits<T>::max() / base || ret * base > numeric_limits<T>::max() - digit) {
+                ret = numeric_limits<T>::max();
+                overflow = true;
+                break;
+            }
+        }
+
+        ret = (ret * base) + digit;
+    }
+
+    if(endptr && !empty)
+        *endptr = (wchar_t*)nptr;
+
+    if (overflow)
+        *__errno() = ERANGE;
+
+    if constexpr (is_signed_v<T>)
+        return ret;
+    else {
+        if (overflow)
+            return ret;
+        else
+            return negative ? -ret : ret;
+    }
+}
+
+extern "C"
+long wcstol(const wchar_t* str, wchar_t** str_end, int base) {
+    return wcsto<long>(str, str_end, base);
+}
+
+extern "C"
+long long wcstoll(const wchar_t* str, wchar_t** str_end, int base) {
+    return wcsto<long long>(str, str_end, base);
+}
+
+extern "C"
+unsigned long wcstoul(const wchar_t* str, wchar_t** str_end, int base) {
+    return wcsto<unsigned long>(str, str_end, base);
+}
+
+extern "C"
+unsigned long long wcstoull(const wchar_t* str, wchar_t** str_end, int base) {
+    return wcsto<unsigned long long>(str, str_end, base);
 }

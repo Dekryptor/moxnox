@@ -281,4 +281,8 @@ _execl
 _execlp
 _execv
 _execle
+wcstol
+wcstoul
+wcstoll
+wcstoull
 iswspace
