@@ -28,6 +28,7 @@ static constexpr size_t PTHREAD_KEYS_MAX = 128;
 static RTL_SRWLOCK key_lock;
 static key_slot keys[PTHREAD_KEYS_MAX];
 static thread_local void* thread_specific_data[PTHREAD_KEYS_MAX];
+static thread_local pthread_t self_pthread;
 
 extern "C"
 int pthread_key_create(pthread_key_t* key, void (*dtor)(void*)) {
@@ -172,6 +173,8 @@ int pthread_cond_signal(pthread_cond_t* /*cond*/) {
 static void thread_start(pthread_t thread, void* (*func)(void*), void* arg) {
     auto& p = *(_pthread*)thread;
 
+    self_pthread = thread;
+
     auto ret = func(arg);
 
     p.return_value = ret;
@@ -282,6 +285,32 @@ int pthread_join(pthread_t thread, void** retval) {
     free(&p);
 
     return 0;
+}
+
+extern "C"
+pthread_t pthread_self() {
+    if (!self_pthread) {
+        nt_status status;
+
+        auto p = (_pthread*)malloc(sizeof(_pthread));
+        if (!p) {
+            print_stderr("malloc failed\n");
+            // pthread_self is supposed to always succeed
+            NtTerminateProcess(NtCurrentProcess(), nt_status::INSUFFICIENT_RESOURCES);
+            unreachable();
+        }
+
+        status = NtDuplicateObject(NtCurrentProcess(), NtCurrentThread(),
+                                   NtCurrentProcess(), &p->h, 0, 0,
+                                   DUPLICATE_SAME_ATTRIBUTES | DUPLICATE_SAME_ACCESS);
+        if (!success(status)) {
+            print_stderr("NtDuplicateObject returned {}\n", status);
+            NtTerminateProcess(NtCurrentProcess(), status);
+            unreachable();
+        }
+    }
+
+    return (pthread_t)self_pthread;
 }
 
 __attribute__((section (".CRT$XLD"), used)) void(*__xl_d2)() = run_dtors;
