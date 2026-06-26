@@ -2582,20 +2582,20 @@ nt_status socket::do_getsockopt(span<const uint8_t> inbuf) {
     if (len <= 0 || (size_t)len > PAGE_SIZE)
         return nt_status::INVALID_PARAMETER;
 
-    auto buf = (uint8_t*)malloc(len);
+    auto buf = (uint8_t*)malloc((size_t)len);
     if (!buf) {
         print("malloc failed\n");
         return nt_status::INSUFFICIENT_RESOURCES;
     }
 
-    status = this->getsockopt(params.level, params.optname, span(buf, len),
+    status = this->getsockopt(params.level, params.optname, span(buf, (size_t)len),
                               retlen);
     if (!success(status)) {
         free(buf);
         return status;
     }
 
-    if (!t.proc->copy_to(params.optval, buf, retlen)) {
+    if (!t.proc->copy_to(params.optval, buf, (size_t)retlen)) {
         free(buf);
         return nt_status::ACCESS_VIOLATION;
     }
