@@ -133,10 +133,12 @@ int pthread_mutex_init(pthread_mutex_t* mutex,
 }
 
 extern "C"
-int pthread_mutex_destroy(pthread_mutex_t* /*mutex*/) {
-    print("FIXME - pthread_mutex_destroy\n");
+int pthread_mutex_destroy(pthread_mutex_t* mutex) {
+    auto* srw = (RTL_SRWLOCK*)*mutex;
 
-    return EINVAL;
+    free(srw);
+
+    return 0;
 }
 
 extern "C"
