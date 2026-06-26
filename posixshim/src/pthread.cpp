@@ -178,9 +178,9 @@ int pthread_cond_init(pthread_cond_t* cond, const pthread_condattr_t* /*attr*/) 
 
 extern "C"
 int pthread_cond_destroy(pthread_cond_t* /*cond*/) {
-    print("FIXME - pthread_cond_destroy\n");
+    // nop
 
-    return EINVAL;
+    return 0;
 }
 
 extern "C"
