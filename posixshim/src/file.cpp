@@ -341,7 +341,7 @@ ssize_t readlink(const char* path, char* buf, size_t bufsiz) {
 
     utf16_to_utf8(span(buf, bufsiz), u16sv);
 
-    return min(u8len, bufsiz);
+    return (ssize_t)min(u8len, bufsiz);
 }
 
 extern "C"
