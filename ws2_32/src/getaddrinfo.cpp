@@ -1171,7 +1171,7 @@ static int getnameinfo_ipv6(const sockaddr* addr, socklen_t addrlen,
         auto& ip = *(ipv6_address*)&a.sin6_addr;
 
         if (!(flags & NI_NUMERICHOST)) {
-            auto ret = reverse_dns_lookup(ip, span(host, hostlen));
+            auto ret = reverse_dns_lookup(ip, span(host, (size_t)hostlen));
 
             if (ret && (ret != EAI_NONAME || flags & NI_NAMEREQD))
                 return ret;
