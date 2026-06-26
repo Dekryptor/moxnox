@@ -2,6 +2,7 @@
 #include <stdlib.h>
 #include <errno.h>
 #include <string.h>
+#include <utility>
 
 import nt;
 import ntdll;
@@ -9,6 +10,8 @@ import print;
 
 #undef errno
 import errno;
+
+using namespace std;
 
 struct _pthread {
     HANDLE h;
@@ -63,6 +66,33 @@ int pthread_key_delete(pthread_key_t key) {
     RtlReleaseSRWLockExclusive(&key_lock);
 
     return 0;
+}
+
+static void run_dtors() {
+    for (unsigned int i = 0; i < 4; i++) {
+        bool ran_dtor = false;
+
+        for (size_t j = 0; j < PTHREAD_KEYS_MAX; j++) {
+            if (!thread_specific_data[j])
+                continue;
+
+            if (!keys[j].used)
+                continue;
+
+            if (!keys[j].dtor)
+                continue;
+
+            void* v = nullptr;
+
+            swap(v, thread_specific_data[j]);
+            keys[j].dtor(v);
+
+            ran_dtor = true;
+        }
+
+        if (!ran_dtor)
+            break;
+    }
 }
 
 extern "C"
@@ -253,3 +283,5 @@ int pthread_join(pthread_t thread, void** retval) {
 
     return 0;
 }
+
+__attribute__((section (".CRT$XLD"), used)) void(*__xl_d2)() = run_dtors;
