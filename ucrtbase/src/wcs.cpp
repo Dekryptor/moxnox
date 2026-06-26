@@ -220,9 +220,12 @@ extern "C"
 wchar_t* wcsrchr(const wchar_t* s, wchar_t c) {
     wchar_t* last = nullptr;
 
-    while (*s) {
+    while (true) {
         if (*s == c)
             last = (wchar_t*)s;
+
+        if (*s == L'\0')
+            break;
 
         s++;
     }
