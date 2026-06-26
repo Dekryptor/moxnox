@@ -215,3 +215,17 @@ wchar_t* wcschr(const wchar_t* s, wchar_t c) {
 
     return nullptr;
 }
+
+extern "C"
+wchar_t* wcsrchr(const wchar_t* s, wchar_t c) {
+    wchar_t* last = nullptr;
+
+    while (*s) {
+        if (*s == c)
+            last = (wchar_t*)s;
+
+        s++;
+    }
+
+    return last;
+}
