@@ -4,8 +4,6 @@
 
 #define _POSIX_THREADS 202405L
 
-#define _SC_OPEN_MAX 4
-
 #define STDIN_FILENO 0
 #define STDOUT_FILENO 1
 #define STDERR_FILENO 2
