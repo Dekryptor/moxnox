@@ -4,6 +4,7 @@
 #include <string_view>
 #include <mutex>
 #include <memory>
+#include <atomic>
 #include "assert.h"
 
 import nt;
@@ -26,6 +27,7 @@ import module_init;
 using namespace std;
 
 static const size_t NAME_MAX_LEN = 255;
+static atomic<uint64_t> last_inode_number = 0;
 
 class tmpfs_filesystem;
 
@@ -55,6 +57,7 @@ public:
     nt_status set_basic_information(span<const uint8_t> buffer);
     nt_status query_basic_information(span<uint8_t> buffer, uint64_t& retlen);
     nt_status query_standard_information(span<uint8_t> buffer, uint64_t& retlen);
+    nt_status query_internal_information(span<uint8_t> buffer, uint64_t& retlen);
     void last_handle_closed() override { }
     nt_status set_disposition_information(span<const uint8_t> buffer,
                                           dentry& dentry);
@@ -69,6 +72,7 @@ public:
     list_entry children = { &children, &children };
     unique_ptr<char[]> symlink;
     size_t symlink_len;
+    uint64_t inode;
 
 private:
     nt_status get_reparse_point(span<uint8_t> outbuf, uint32_t& retlen);
@@ -152,7 +156,7 @@ static bool validate_name(string_view name) {
 }
 
 nt_status tmpfs_inode::create_child(string_view name, uint32_t create_options,
-                                    optional<reference_wrapper<inode>>& obj) {
+                                    optional<reference_wrapper<::inode>>& obj) {
     if (fs.readonly)
         return nt_status::MEDIA_WRITE_PROTECTED;
 
@@ -246,8 +250,9 @@ void tmpfs_inode::release() {
     delete this;
 }
 
-tmpfs_inode::tmpfs_inode(tmpfs_filesystem& fs, enum inode_type inode_type) : inode(fs), fs(fs) {
+tmpfs_inode::tmpfs_inode(tmpfs_filesystem& fs, enum inode_type inode_type) : ::inode(fs), fs(fs) {
     this->inode_type = inode_type;
+    this->inode = last_inode_number.fetch_add(1) + 1;
 }
 
 tmpfs_inode::~tmpfs_inode() {
@@ -495,15 +500,34 @@ nt_status tmpfs_inode::query_standard_information(span<uint8_t> buffer,
     return nt_status::SUCCESS;
 }
 
+nt_status tmpfs_inode::query_internal_information(span<uint8_t> buffer,
+                                                  uint64_t& retlen) {
+    if (buffer.size() < sizeof(FILE_INTERNAL_INFORMATION))
+        return nt_status::BUFFER_TOO_SMALL;
+
+    auto& fii = *(FILE_INTERNAL_INFORMATION*)buffer.data();
+
+    fii.IndexNumber.QuadPart = inode;
+
+    retlen = sizeof(fii);
+
+    return nt_status::SUCCESS;
+}
+
 NTSTATUS tmpfs_inode::query_information(span<uint8_t> buffer,
                                         FILE_INFORMATION_CLASS file_information_class,
                                         uint64_t& retlen) {
     switch (file_information_class) {
-        case FILE_INFORMATION_CLASS::BasicInformation:
+        using enum FILE_INFORMATION_CLASS;
+
+        case BasicInformation:
             return query_basic_information(buffer, retlen);
 
-        case FILE_INFORMATION_CLASS::StandardInformation:
+        case StandardInformation:
             return query_standard_information(buffer, retlen);
+
+        case InternalInformation:
+            return query_internal_information(buffer, retlen);
 
         default:
             print("tmpfs_inode::query_information: unhandled file information class {}\n",
