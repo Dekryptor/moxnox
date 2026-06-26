@@ -68,3 +68,19 @@ int __stdio_common_vswprintf(uint64_t /*options*/, wchar_t* buffer,
 
     return __mingw_vswprintf(buffer, format, valist);
 }
+
+extern "C"
+int iswspace(wint_t ch) {
+    switch (ch) {
+        case ' ':
+        case '\f':
+        case '\n':
+        case '\r':
+        case '\t':
+        case '\v':
+            return 1;
+
+        default:
+            return 0;
+    }
+}

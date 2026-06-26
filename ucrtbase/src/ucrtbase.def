@@ -281,3 +281,4 @@ _execl
 _execlp
 _execv
 _execle
+iswspace
