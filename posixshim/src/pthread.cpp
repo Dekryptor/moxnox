@@ -197,6 +197,13 @@ int pthread_cond_signal(pthread_cond_t* cond) {
     return 0;
 }
 
+extern "C"
+int pthread_cond_broadcast(pthread_cond_t* cond) {
+    RtlWakeAllConditionVariable((RTL_CONDITION_VARIABLE*)cond);
+
+    return 0;
+}
+
 static void thread_start(pthread_t thread, void* (*func)(void*), void* arg) {
     auto& p = *(_pthread*)thread;
 

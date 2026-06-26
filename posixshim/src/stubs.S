@@ -31,6 +31,5 @@ do_stub_no_export "pthread_equal"
 do_stub_no_export "pthread_mutexattr_init"
 do_stub_no_export "pthread_mutexattr_destroy"
 do_stub_no_export "pthread_mutexattr_settype"
-do_stub_no_export "pthread_cond_broadcast"
 
 stubs_end
