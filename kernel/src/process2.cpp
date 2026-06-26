@@ -2967,6 +2967,7 @@ NTSTATUS NtDuplicateObject(HANDLE source_process_handle, HANDLE source_handle, H
     process* srcproc;
     process* destproc;
     ACCESS_MASK current_access;
+    object_ref objrw;
 
     // FIXME - handle_attributes
     // FIXME - options (DUPLICATE_SAME_ATTRIBUTES, DUPLICATE_CLOSE_SOURCE)
@@ -3021,12 +3022,27 @@ NTSTATUS NtDuplicateObject(HANDLE source_process_handle, HANDLE source_handle, H
         destproc = static_cast<process*>(&obj);
     }
 
-    // FIXME - source_handle of NtCurrentProcess() or NtCurrentThread() (what if source_process_handle points to different process?)
+    if (source_handle == NtCurrentProcess()) {
+        auto& t = *get_current_thread();
 
-    auto objrw = srcproc->deref_handle(source_handle, current_access);
+        if (!t.proc)
+            return nt_status::INVALID_PARAMETER;
 
-    if (!objrw)
-        return nt_status::INVALID_HANDLE;
+        t.proc->acquire();
+
+        objrw = object_ref{*t.proc};
+    } else if (source_handle == NtCurrentThread()) {
+        auto& t = *get_current_thread();
+
+        t.acquire();
+
+        objrw = object_ref{t};
+    } else {
+        objrw = srcproc->deref_handle(source_handle, current_access);
+
+        if (!objrw)
+            return nt_status::INVALID_HANDLE;
+    }
 
     if (options & DUPLICATE_SAME_ACCESS)
         desired_access = current_access;
