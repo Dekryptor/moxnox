@@ -57,6 +57,23 @@ nt_status RtlSleepConditionVariableCS(RTL_CONDITION_VARIABLE* var,
 }
 
 extern "C"
+nt_status RtlSleepConditionVariableSRW(RTL_CONDITION_VARIABLE* var,
+                                       RTL_SRWLOCK* lock,
+                                       const LARGE_INTEGER* timeout,
+                                       uint32_t /*flags*/) {
+    atomic_ref<uintptr_t> ptr_ref(*(uintptr_t*)&var->Ptr);
+    auto val = ptr_ref.load(memory_order_acquire);
+
+    // FIXME - RTL_CONDITION_VARIABLE_LOCKMODE_SHARED
+
+    RtlReleaseSRWLockExclusive(lock);
+    auto ret = RtlWaitOnAddress(&var->Ptr, &val, sizeof(val), timeout);
+    RtlAcquireSRWLockExclusive(lock);
+
+    return ret;
+}
+
+extern "C"
 nt_status RtlWaitOnAddress(const void* addr, const void* cmp,
                            size_t size, const LARGE_INTEGER* timeout) {
     nt_status status;

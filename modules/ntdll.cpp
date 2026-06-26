@@ -439,6 +439,10 @@ void RtlReleaseLoaderLock();
 nt_status RtlSleepConditionVariableCS(RTL_CONDITION_VARIABLE* variable,
                                       RTL_CRITICAL_SECTION* crit,
                                       const LARGE_INTEGER* timeout);
+nt_status RtlSleepConditionVariableSRW(RTL_CONDITION_VARIABLE* var,
+                                       RTL_SRWLOCK* lock,
+                                       const LARGE_INTEGER* timeout,
+                                       uint32_t flags);
 void RtlWakeConditionVariable(RTL_CONDITION_VARIABLE* variable);
 nt_status RtlWaitOnAddress(const void* addr, const void* cmp, size_t size,
                            const LARGE_INTEGER* timeout);
