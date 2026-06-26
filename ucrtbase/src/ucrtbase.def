@@ -292,3 +292,4 @@ _wcsnicmp
 wcscpy
 mbstowcs
 _tzset
+__timezone = ____timezone

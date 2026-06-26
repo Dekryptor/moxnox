@@ -9,6 +9,5 @@ do_stub "_mktemp"
 do_stub "fputwc"
 do_stub "wcstok"
 do_stub "lldiv"
-do_stub "__timezone"
 
 stubs_end
