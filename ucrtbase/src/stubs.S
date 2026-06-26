@@ -12,5 +12,6 @@ do_stub "wcstok"
 do_stub "_tzset"
 do_stub "lldiv"
 do_stub "__timezone"
+do_stub "wcscpy"
 
 stubs_end
