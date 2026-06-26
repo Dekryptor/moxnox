@@ -146,24 +146,24 @@ static T wcsto(const wchar_t* nptr, wchar_t** endptr, int base) {
         empty = false;
 
         if constexpr (is_signed_v<T>) {
-            if (!negative && (ret > numeric_limits<T>::max() / base || ret * base > numeric_limits<T>::max() - digit)) {
+            if (!negative && (ret > numeric_limits<T>::max() / (T)base || ret * (T)base > numeric_limits<T>::max() - (T)digit)) {
                 ret = numeric_limits<T>::max();
                 overflow = true;
                 break;
-            } else if (negative && (ret < numeric_limits<T>::min() / base || ret * base < numeric_limits<T>::min() - digit)) {
+            } else if (negative && (ret < numeric_limits<T>::min() / (T)base || ret * (T)base < numeric_limits<T>::min() - (T)digit)) {
                 ret = numeric_limits<T>::min();
                 overflow = true;
                 break;
             }
         } else {
-            if (ret > numeric_limits<T>::max() / base || ret * base > numeric_limits<T>::max() - digit) {
+            if (ret > numeric_limits<T>::max() / (T)base || ret * (T)base > numeric_limits<T>::max() - (T)digit) {
                 ret = numeric_limits<T>::max();
                 overflow = true;
                 break;
             }
         }
 
-        ret = (ret * base) + digit;
+        ret = (ret * (T)base) + (T)digit;
     }
 
     if(endptr && !empty)
