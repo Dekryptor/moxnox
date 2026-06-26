@@ -287,9 +287,9 @@ wcstoull
 iswspace
 wcschr
 wcsrchr
-wcstombs
+wcstombs = _wcstombs
 _wcsnicmp
 wcscpy
-mbstowcs
+mbstowcs = _mbstowcs
 _tzset
 __timezone = ____timezone

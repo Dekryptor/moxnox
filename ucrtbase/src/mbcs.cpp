@@ -208,7 +208,7 @@ size_t _wcsrtombs(char* dest, const wchar_t** src, size_t dsize, mbstate_t* ps) 
 }
 
 extern "C"
-size_t wcstombs(char* dest, const wchar_t* src, size_t dsize) {
+size_t _wcstombs(char* dest, const wchar_t* src, size_t dsize) {
     static mbstate_t state;
     const wchar_t* src_ptr = src;
 
@@ -218,7 +218,7 @@ size_t wcstombs(char* dest, const wchar_t* src, size_t dsize) {
 }
 
 extern "C"
-size_t mbstowcs(wchar_t* pwcs, const char* s, size_t n) {
+size_t _mbstowcs(wchar_t* pwcs, const char* s, size_t n) {
     mbstate_t state;
     size_t count = 0;
 
