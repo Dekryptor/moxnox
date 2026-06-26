@@ -14,6 +14,8 @@ import errno;
 
 using namespace std;
 
+static bool allocated_peb_env = false;
+
 static int update_ucrt_env(string_view name, string_view value) {
     // FIXME - lock?
 
@@ -214,8 +216,6 @@ int setenv(const char* name, const char* value, int overwrite) {
 
         peb->ProcessParameters->EnvironmentSize = newlen * sizeof(char16_t);
 
-        static bool allocated_peb_env = false;
-
         auto oldenv = peb->ProcessParameters->Environment;
         peb->ProcessParameters->Environment = newenv;
 
@@ -231,4 +231,148 @@ int setenv(const char* name, const char* value, int overwrite) {
         free(u16value);
 
     return update_ucrt_env(namesv, valuesv);
+}
+
+static int update_ucrt_env_remove(string_view name) {
+    // FIXME - lock?
+
+    auto env = *__p__environ();
+    size_t num_entries = 0;
+
+    while (env[num_entries]) {
+        num_entries++;
+    }
+
+    for (size_t i = 0; i < num_entries; i++) {
+        auto sv = string_view(env[i]);
+
+        if (sv.size() < name.size())
+            continue;
+
+        if (string_view(sv.data(), name.size()) != name)
+            continue;
+
+        if (sv.size() > name.size() && sv[name.size()] != '=')
+            continue;
+
+        if (i != num_entries - 1)
+            swap(env[num_entries - 1], env[i]);
+
+        free(env[num_entries - 1]);
+        env[num_entries - 1] = nullptr;
+        num_entries--;
+    }
+
+    return 0;
+}
+
+extern "C"
+int unsetenv(const char* name) {
+    auto peb = NtCurrentTeb()->ProcessEnvironmentBlock;
+
+    if (!name) {
+        *_errno() = EINVAL;
+        return -1;
+    }
+
+    auto namesv = string_view(name);
+    if (namesv.empty() || namesv.find('=') != string_view::npos) {
+        *_errno() = EINVAL;
+        return -1;
+    }
+
+    auto u16namelen = utf8_to_utf16_len(namesv);
+
+    auto u16name = (char16_t*)malloc(u16namelen * sizeof(char16_t));
+    if (!u16name) {
+        *_errno() = ENOMEM;
+        return -1;
+    }
+
+    utf8_to_utf16(span(u16name, u16namelen), namesv);
+
+    auto u16namesv = u16string_view(u16name, u16namelen);
+
+    {
+        mn_peb_lock peb_lock;
+        lock_guard lock(peb_lock);
+        size_t found = u16string_view::npos, foundsize = 0;
+
+        auto env = u16string_view((char16_t*)peb->ProcessParameters->Environment,
+                                  peb->ProcessParameters->EnvironmentSize / sizeof(char16_t));
+
+        while (true) {
+            if (env.empty() || env[0] == 0)
+                break;
+
+            auto zero = env.find(u'\0');
+
+            u16string_view bit;
+
+            if (zero == u16string_view::npos)
+                bit = env;
+            else
+                bit = u16string_view(env.data(), zero);
+
+            auto eq = bit.find(u'=');
+
+            u16string_view bitname;
+
+            if (eq == u16string_view::npos)
+                bitname = bit;
+            else
+                bitname = u16string_view(bit.data(), eq);
+
+            if (bitname == u16namesv) {
+                found = (size_t)(bitname.data() - (char16_t*)peb->ProcessParameters->Environment);
+                foundsize = bit.size() + 1;
+                break;
+            }
+
+            if (zero != u16string_view::npos)
+                env = u16string_view(env.data() + zero + 1, env.size() - zero - 1);
+            else
+                break;
+        }
+
+        if (found == u16string_view::npos) {
+            free(u16name);
+            return 0;
+        }
+
+        size_t newlen = peb->ProcessParameters->EnvironmentSize / sizeof(char16_t);
+
+        newlen -= foundsize;
+
+        auto newenv = (char16_t*)malloc(newlen * sizeof(char16_t));
+        if (!newenv) {
+            free(u16name);
+            *_errno() = ENOMEM;
+            return -1;
+        }
+
+        memcpy(newenv, peb->ProcessParameters->Environment,
+               found * sizeof(char16_t));
+        memcpy(newenv + found, (char16_t*)peb->ProcessParameters->Environment + found + foundsize,
+               peb->ProcessParameters->EnvironmentSize - ((found + foundsize) * sizeof(char16_t)));
+
+        auto ptr = newenv + newlen - 1;
+
+        *ptr = 0;
+        ptr++;
+
+        peb->ProcessParameters->EnvironmentSize = newlen * sizeof(char16_t);
+
+        auto oldenv = peb->ProcessParameters->Environment;
+        peb->ProcessParameters->Environment = newenv;
+
+        if (allocated_peb_env)
+            free(oldenv);
+
+        allocated_peb_env = true;
+    }
+
+    free(u16name);
+
+    return update_ucrt_env_remove(namesv);
 }
