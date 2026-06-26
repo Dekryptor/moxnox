@@ -170,10 +170,10 @@ int pthread_mutex_trylock(pthread_mutex_t* mutex) {
 }
 
 extern "C"
-int pthread_cond_init(pthread_cond_t* /*cond*/, const pthread_condattr_t* /*attr*/) {
-    print("FIXME - pthread_cond_init\n");
+int pthread_cond_init(pthread_cond_t* cond, const pthread_condattr_t* /*attr*/) {
+    RtlInitializeConditionVariable((RTL_CONDITION_VARIABLE*)cond);
 
-    return EINVAL;
+    return 0;
 }
 
 extern "C"
