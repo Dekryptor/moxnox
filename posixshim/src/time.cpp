@@ -52,7 +52,7 @@ static int clock_gettime_monotonic(timespec& tp) {
 
     auto frac = (uint64_t)(count.QuadPart % freq.QuadPart);
 
-    tp.tv_nsec = (long)((frac * 1000000000) / freq.QuadPart);
+    tp.tv_nsec = (long)((frac * 1000000000) / (uint64_t)freq.QuadPart);
 
     return 0;
 }
