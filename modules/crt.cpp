@@ -364,9 +364,12 @@ int strncmp(const char* s1, const char* s2, size_t n) {
 export
 extern "C"
 char* strchr(const char* s, int c) {
-    while (*s) {
+    while (true) {
         if (*s == c)
             return (char*)s;
+
+        if (*s == 0)
+            break;
 
         s++;
     }
