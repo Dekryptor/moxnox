@@ -200,3 +200,18 @@ extern "C"
 unsigned long long wcstoull(const wchar_t* str, wchar_t** str_end, int base) {
     return wcsto<unsigned long long>(str, str_end, base);
 }
+
+extern "C"
+wchar_t* wcschr(const wchar_t* s, wchar_t c) {
+    do {
+        if (*s == c)
+            return (wchar_t*)s;
+
+        if (*s == 0)
+            break;
+
+        s++;
+    } while (true);
+
+    return nullptr;
+}

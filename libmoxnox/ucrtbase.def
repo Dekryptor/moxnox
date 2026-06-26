@@ -259,6 +259,7 @@ wcstoul
 wcstoll
 wcstoull
 iswspace
+wcschr
 
 ; stubs
 ___lc_codepage_func
@@ -268,7 +269,6 @@ _wcsnicmp
 _mktemp
 mbstowcs
 fputwc
-wcschr
 wcsrchr
 wcstok
 wcstombs

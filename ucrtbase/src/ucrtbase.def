@@ -286,3 +286,4 @@ wcstoul
 wcstoll
 wcstoull
 iswspace
+wcschr
