@@ -430,12 +430,10 @@ RtlDeleteCriticalSection
 RtlEnterCriticalSection
 RtlInitializeCriticalSection
 RtlLeaveCriticalSection
-RtlTryEnterCriticalSection
 RtlSetLastWin32Error
 RtlInitializeConditionVariable
 RtlWakeAllConditionVariable
 RtlWakeConditionVariable
-RtlAddVectoredExceptionHandler
 RtlExitUserProcess
 isdigit
 strnlen
@@ -462,17 +460,21 @@ RtlAcquireSRWLockExclusive
 RtlReleaseSRWLockExclusive
 RtlQueryPerformanceCounter
 RtlQueryPerformanceFrequency
-RtlRestoreContext
 LdrFindEntryForAddress
 RtlAcquireLoaderLock
 RtlReleaseLoaderLock
 LdrGetDllHandle
 RtlIsProcessorFeaturePresent
-strncat
-wcscpy
-wcsncmp
 mn_poll
 NtContinue
 mn_signal_dispatch DATA
 mn_handle_exec_info DATA
 RtlSleepConditionVariableSRW
+
+; stubs
+RtlTryEnterCriticalSection
+RtlAddVectoredExceptionHandler
+RtlRestoreContext
+strncat
+wcscpy
+wcsncmp
