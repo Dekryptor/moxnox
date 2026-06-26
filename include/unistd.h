@@ -47,7 +47,6 @@ int execle(const char* path, const char* arg, ...);
 int getentropy(void *buf, size_t buflen);
 int gethostname(char* name, int namelen); // FIXME - POSIX says size_t, but winsock2.h has int
 int pause(void);
-long sysconf(int name);
 int pipe(int pipefd[2]);
 int fsync(int fd);
 int fchdir(int fd);
