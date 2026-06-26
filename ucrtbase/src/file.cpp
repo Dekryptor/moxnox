@@ -841,6 +841,7 @@ static int do_fstat(HANDLE h, struct ::_stat64* st) {
     IO_STATUS_BLOCK iosb;
     FILE_BASIC_INFORMATION fbi;
     FILE_STANDARD_INFORMATION fsi;
+    FILE_INTERNAL_INFORMATION fii;
 
     status = NtQueryInformationFile(h, &iosb, &fbi, sizeof(fbi),
                                     FILE_INFORMATION_CLASS::BasicInformation);
@@ -856,12 +857,23 @@ static int do_fstat(HANDLE h, struct ::_stat64* st) {
         return -1;
     }
 
+    status = NtQueryInformationFile(h, &iosb, &fii, sizeof(fii),
+                                    FILE_INFORMATION_CLASS::InternalInformation);
+    if (!success(status)) {
+        *__errno() = nt_status_to_errno(status);
+        return -1;
+    }
+
     memset(st, 0, sizeof(*st));
+
+    // FIXME - inode number only 16 bits on mingw(???)
+
+    st->st_ino = (_ino_t)fii.IndexNumber.QuadPart;
 
     if (fbi.FileAttributes & FILE_ATTRIBUTE_DIRECTORY)
         st->st_mode = S_IFDIR | 0777;
     else if (fbi.FileAttributes & FILE_ATTRIBUTE_REPARSE_POINT)
-            st->st_mode = S_IFLNK | 0777;
+        st->st_mode = S_IFLNK | 0777;
     else {
         st->st_mode = S_IFREG | 0444;
 
