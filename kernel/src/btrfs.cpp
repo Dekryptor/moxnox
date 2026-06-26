@@ -6011,7 +6011,7 @@ nt_status btrfs_inode::query_internal_information(span<uint8_t> buffer, uint64_t
 
     auto& fii = *(FILE_INTERNAL_INFORMATION*)buffer.data();
 
-    fii.IndexNumber.QuadPart = inode;
+    fii.IndexNumber.QuadPart = (int64_t)inode;
 
     retlen = sizeof(fii);
 
