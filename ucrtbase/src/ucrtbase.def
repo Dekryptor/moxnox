@@ -288,3 +288,4 @@ wcstoull
 iswspace
 wcschr
 wcsrchr
+wcstombs

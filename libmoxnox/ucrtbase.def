@@ -261,6 +261,7 @@ wcstoull
 iswspace
 wcschr
 wcsrchr
+wcstombs
 
 ; stubs
 ___lc_codepage_func
@@ -271,7 +272,6 @@ _mktemp
 mbstowcs
 fputwc
 wcstok
-wcstombs
 _tzset
 lldiv
 __timezone

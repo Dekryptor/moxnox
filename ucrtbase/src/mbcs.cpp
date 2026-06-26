@@ -204,3 +204,13 @@ size_t _wcsrtombs(char* dest, const wchar_t** src, size_t dsize, mbstate_t* ps) 
         (*src)++;
     }
 }
+
+extern "C"
+size_t wcstombs(char* dest, const wchar_t* src, size_t dsize) {
+    static mbstate_t state;
+    const wchar_t* src_ptr = src;
+
+    state = mbstate_t{};
+
+    return _wcsrtombs(dest, &src_ptr, dsize, &state);
+}
