@@ -115,10 +115,21 @@ int pthread_setspecific(pthread_key_t key, const void* value) {
 }
 
 extern "C"
-int pthread_mutex_init(pthread_mutex_t* /*mutex*/, const pthread_mutexattr_t* /*attr*/) {
-    print("FIXME - pthread_mutex_init\n");
+int pthread_mutex_init(pthread_mutex_t* mutex,
+                       const pthread_mutexattr_t* /*attr*/) {
+    // FIXME - attr
 
-    return EINVAL;
+    // FIXME - SRW_LOCKs aren't recursive, will need to account for PTHREAD_MUTEX_RECURSIVE
+
+    auto srw = (RTL_SRWLOCK*)malloc(sizeof(RTL_SRWLOCK));
+    if (!srw)
+        return ENOMEM;
+
+    srw->Ptr = nullptr;
+
+    *mutex = (pthread_mutex_t)srw;
+
+    return 0;
 }
 
 extern "C"
