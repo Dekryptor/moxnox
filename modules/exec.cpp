@@ -654,10 +654,10 @@ export int search_path(const char* file, invocable<const char*> auto func,
             dir = ".";
 
         for (unsigned int i = 0; i < 2; i++) {
-            if (i == 1 && program.ends_with(".exe"))
-                break;
-
             static const string_view suffix = ".exe";
+
+            if (i == 1 && program.size() >= suffix.size() && string_view(program.data() + program.size() - suffix.size(), suffix.size()) == suffix)
+                break;
 
             bool add_suffix = i == 1;
 
