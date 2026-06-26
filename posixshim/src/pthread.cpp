@@ -391,4 +391,9 @@ extern "C"
     RtlExitUserThread(nt_status::SUCCESS);
 }
 
+extern "C"
+int pthread_equal(pthread_t t1, pthread_t t2) {
+    return t1 == t2 ? 0 : 1;
+}
+
 __attribute__((section (".CRT$XLD"), used)) void(*__xl_d2)() = run_dtors;
