@@ -1360,6 +1360,10 @@ struct FILE_STANDARD_INFORMATION {
     uint8_t Directory;
 };
 
+struct FILE_INTERNAL_INFORMATION {
+  LARGE_INTEGER IndexNumber;
+};
+
 struct FILE_DISPOSITION_INFORMATION {
     BOOLEAN DeleteFile;
 };
