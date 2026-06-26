@@ -446,9 +446,12 @@ extern "C"
 char* strrchr(const char* s, int c) {
     char* last = nullptr;
 
-    while (*s) {
+    while (true) {
         if (*s == c)
             last = (char*)s;
+
+        if (*s == 0)
+            break;
 
         s++;
     }
