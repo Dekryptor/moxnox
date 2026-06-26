@@ -92,7 +92,7 @@ static void check(bool ok, type_identity_t<checker<type_identity_t<Args>...>> fm
         print("\x1b[31mFAIL\x1b[0m: ");
         failures++;
     }
-    print(fmt, forward<Args>(args)...);
+    print(fmt, std::forward<Args>(args)...);
     print("\n");
 }
 
