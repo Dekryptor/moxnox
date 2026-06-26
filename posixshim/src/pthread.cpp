@@ -208,12 +208,12 @@ int pthread_cond_timedwait(pthread_cond_t* cond, pthread_mutex_t* mutex,
     auto t = (uint64_t)abstime->tv_sec * 10000000; // units of 100 ns
 
     t += 116444736000000000; // change from Unix to NT epoch
-    t += abstime->tv_nsec / 100;
+    t += (uint64_t)abstime->tv_nsec / 100;
 
     if (t <= (uint64_t)now.QuadPart)
         return ETIMEDOUT;
 
-    wait.QuadPart = now.QuadPart - t;
+    wait.QuadPart = now.QuadPart - (int64_t)t;
 
     status = RtlSleepConditionVariableSRW((RTL_CONDITION_VARIABLE*)cond, srw,
                                           &wait, 0);
