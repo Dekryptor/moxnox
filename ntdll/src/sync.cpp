@@ -183,3 +183,13 @@ void RtlReleaseSRWLockExclusive(RTL_SRWLOCK* lock) {
 
     l.store(0, memory_order_release);
 }
+
+extern "C"
+bool RtlTryAcquireSRWLockExclusive(RTL_SRWLOCK* lock) {
+    atomic_ref<uintptr_t> l(*(uintptr_t*)&lock->Ptr);
+
+    uintptr_t expected = 0;
+
+    return l.compare_exchange_strong(expected, 1, memory_order_acquire,
+                                     memory_order_relaxed);
+}
