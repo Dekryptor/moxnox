@@ -99,6 +99,7 @@ int lstat(const char* path, struct stat* st) {
     IO_STATUS_BLOCK iosb;
     FILE_BASIC_INFORMATION fbi;
     FILE_STANDARD_INFORMATION fsi;
+    FILE_INTERNAL_INFORMATION fii;
     HANDLE h;
 
     if (!path || path[0] == 0) {
@@ -153,7 +154,18 @@ int lstat(const char* path, struct stat* st) {
         return -1;
     }
 
+    status = NtQueryInformationFile(h, &iosb, &fii, sizeof(fii),
+                                    FILE_INFORMATION_CLASS::InternalInformation);
+    if (!success(status)) {
+        *_errno() = nt_status_to_errno(status);
+        return -1;
+    }
+
     memset(st, 0, sizeof(*st));
+
+    // FIXME - inode number only 16 bits on mingw(???)
+
+    st->st_ino = (_ino_t)fii.IndexNumber.QuadPart;
 
     if (fbi.FileAttributes & FILE_ATTRIBUTE_DIRECTORY)
         st->st_mode = S_IFDIR | 0777;
