@@ -340,4 +340,13 @@ pthread_t pthread_self() {
     return (pthread_t)self_pthread;
 }
 
+extern "C"
+[[noreturn]] void pthread_exit(void* retval) {
+    auto& p = *(_pthread*)pthread_self();
+
+    p.return_value = retval;
+
+    RtlExitUserThread(nt_status::SUCCESS);
+}
+
 __attribute__((section (".CRT$XLD"), used)) void(*__xl_d2)() = run_dtors;
