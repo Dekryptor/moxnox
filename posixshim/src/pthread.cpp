@@ -160,6 +160,16 @@ int pthread_mutex_unlock(pthread_mutex_t* mutex) {
 }
 
 extern "C"
+int pthread_mutex_trylock(pthread_mutex_t* mutex) {
+    auto srw = (RTL_SRWLOCK*)*mutex;
+
+    if (RtlTryAcquireSRWLockExclusive(srw))
+        return 0;
+    else
+        return EBUSY;
+}
+
+extern "C"
 int pthread_cond_init(pthread_cond_t* /*cond*/, const pthread_condattr_t* /*attr*/) {
     print("FIXME - pthread_cond_init\n");
 
