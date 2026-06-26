@@ -68,9 +68,9 @@ underscore_func "execlp"
 underscore_func "execv"
 underscore_func "execle"
 underscore_func "wcsnicmp"
+underscore_func "tzset"
 
 # stubs
-underscore_func "tzset"
 underscore_func "mktemp"
 
 redirect_name "_fseeki64", "fseeko64"

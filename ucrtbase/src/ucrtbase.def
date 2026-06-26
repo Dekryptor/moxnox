@@ -291,3 +291,4 @@ wcstombs
 _wcsnicmp
 wcscpy
 mbstowcs
+_tzset

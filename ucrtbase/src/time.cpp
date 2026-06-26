@@ -798,3 +798,8 @@ char* __ctime64(const __time64_t* t) {
 
     return buf;
 }
+
+extern "C"
+void _tzset() {
+    // FIXME
+}

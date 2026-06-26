@@ -265,6 +265,7 @@ wcstombs
 _wcsnicmp
 wcscpy
 mbstowcs
+_tzset
 
 ; stubs
 ___lc_codepage_func
@@ -273,6 +274,5 @@ wcstod
 _mktemp
 fputwc
 wcstok
-_tzset
 lldiv
 __timezone

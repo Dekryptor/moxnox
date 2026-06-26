@@ -8,7 +8,6 @@ do_stub "wcstod"
 do_stub "_mktemp"
 do_stub "fputwc"
 do_stub "wcstok"
-do_stub "_tzset"
 do_stub "lldiv"
 do_stub "__timezone"
 
