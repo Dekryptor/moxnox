@@ -196,6 +196,36 @@ int pthread_cond_wait(pthread_cond_t* cond, pthread_mutex_t* mutex) {
 }
 
 extern "C"
+int pthread_cond_timedwait(pthread_cond_t* cond, pthread_mutex_t* mutex,
+                           const timespec* abstime) {
+    LARGE_INTEGER now, wait;
+    auto srw = (RTL_SRWLOCK*)*mutex;
+
+    auto status = NtQuerySystemTime(&now);
+    if (!success(status))
+        return nt_status_to_errno(status);
+
+    auto t = (uint64_t)abstime->tv_sec * 10000000; // units of 100 ns
+
+    t += 116444736000000000; // change from Unix to NT epoch
+    t += abstime->tv_nsec / 100;
+
+    if (t <= (uint64_t)now.QuadPart)
+        return ETIMEDOUT;
+
+    wait.QuadPart = now.QuadPart - t;
+
+    status = RtlSleepConditionVariableSRW((RTL_CONDITION_VARIABLE*)cond, srw,
+                                          &wait, 0);
+    if (status == nt_status::TIMEOUT)
+        return ETIMEDOUT;
+    else if (!success(status))
+        return nt_status_to_errno(status);
+
+    return 0;
+}
+
+extern "C"
 int pthread_cond_signal(pthread_cond_t* cond) {
     RtlWakeConditionVariable((RTL_CONDITION_VARIABLE*)cond);
 
