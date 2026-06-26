@@ -196,7 +196,7 @@ static void parse_cmdline(u16string_view cmdline, span<u16string_view> argv,
             }
         }
 
-        argv[argc] = u16string_view(start, out - start);
+        argv[argc] = u16string_view(start, (size_t)(out - start));
         argc++;
     }
 
@@ -272,7 +272,7 @@ static void parse_cmdline(u16string_view cmdline, span<u16string_view> argv,
             pos++;
         }
 
-        argv[argc] = u16string_view(start, out - start);
+        argv[argc] = u16string_view(start, (size_t)(out - start));
         argc++;
     }
 }
