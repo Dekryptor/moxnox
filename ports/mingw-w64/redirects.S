@@ -67,9 +67,9 @@ underscore_func "execl"
 underscore_func "execlp"
 underscore_func "execv"
 underscore_func "execle"
+underscore_func "wcsnicmp"
 
 # stubs
-underscore_func "wcsnicmp"
 underscore_func "tzset"
 underscore_func "mktemp"
 

@@ -289,3 +289,4 @@ iswspace
 wcschr
 wcsrchr
 wcstombs
+_wcsnicmp

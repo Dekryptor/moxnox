@@ -229,3 +229,30 @@ wchar_t* wcsrchr(const wchar_t* s, wchar_t c) {
 
     return last;
 }
+
+extern "C"
+int _wcsnicmp(const wchar_t* s1, const wchar_t* s2, size_t n) {
+    for (size_t i = 0; i < n; i++) {
+        auto c1 = *s1;
+        auto c2 = *s2;
+
+        if (c1 >= 'A' && c1 <= 'Z')
+            c1 = c1 - 'A' + 'a';
+
+        if (c2 >= 'A' && c2 <= 'Z')
+            c2 = c2 - 'A' + 'a';
+
+        if (c1 < c2)
+            return -1;
+        else if (c2 < c1)
+            return 1;
+
+        if (c1 == 0)
+            break;
+
+        s1++;
+        s2++;
+    }
+
+    return 0;
+}

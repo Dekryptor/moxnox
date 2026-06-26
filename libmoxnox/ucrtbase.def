@@ -262,12 +262,12 @@ iswspace
 wcschr
 wcsrchr
 wcstombs
+_wcsnicmp
 
 ; stubs
 ___lc_codepage_func
 _beginthreadex
 wcstod
-_wcsnicmp
 _mktemp
 mbstowcs
 fputwc
