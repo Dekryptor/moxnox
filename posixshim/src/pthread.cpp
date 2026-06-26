@@ -140,17 +140,21 @@ int pthread_mutex_destroy(pthread_mutex_t* /*mutex*/) {
 }
 
 extern "C"
-int pthread_mutex_lock(pthread_mutex_t* /*mutex*/) {
-    print("FIXME - pthread_mutex_lock\n");
+int pthread_mutex_lock(pthread_mutex_t* mutex) {
+    auto* srw = (RTL_SRWLOCK*)*mutex;
 
-    return EINVAL;
+    RtlAcquireSRWLockExclusive(srw);
+
+    return 0;
 }
 
 extern "C"
-int pthread_mutex_unlock(pthread_mutex_t* /*mutex*/) {
-    print("FIXME - pthread_mutex_unlock\n");
+int pthread_mutex_unlock(pthread_mutex_t* mutex) {
+    auto srw = (RTL_SRWLOCK*)*mutex;
 
-    return EINVAL;
+    RtlReleaseSRWLockExclusive(srw);
+
+    return 0;
 }
 
 extern "C"
