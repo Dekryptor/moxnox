@@ -127,6 +127,7 @@ public:
     list_entry pending_apcs = { &pending_apcs, &pending_apcs };
     sigset_t pending_signals = 0;
     sigset_t blocked_signals = 0;
+    void* user_stack_base = nullptr;
 #ifdef __x86_64__
     xsave_area xsave; // must be last
 #endif

@@ -3500,6 +3500,8 @@ NTSTATUS process::create_thread(optional<reference_wrapper<handle_t>> thread_han
     t.teb = nullptr;
     size_t teb_size = sizeof(TEB);
 
+    t.user_stack_base = initial_teb.StackAllocationBase;
+
     if (!success(allocate_vm((void**)&t.teb, 0, &teb_size, MEM_COMMIT | MEM_RESERVE, mapping_type::read_write))) {
         delete &t;
         return nt_status::INSUFFICIENT_RESOURCES;

@@ -139,10 +139,17 @@ void terminate_thread(thread& t, bool remove_from_proc) {
         t.proc->exit_status = t.exit_status;
         t.proc->terminate();
     } else {
-        size_t region_size = 0;
+        size_t region_size;
+
+        if (t.user_stack_base) {
+            region_size = 0;
+
+            t.proc->free_vm(&t.user_stack_base, &region_size, MEM_RELEASE);
+        }
+
+        region_size = 0;
 
         t.proc->free_vm((void**)&t.teb, &region_size, MEM_RELEASE);
-        // FIXME - free userspace stack
     }
 
     t.release();
