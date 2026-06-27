@@ -188,6 +188,7 @@ int cfsetispeed(struct termios* t, speed_t speed);
 int cfsetospeed(struct termios* t, speed_t speed);
 int tcgetwinsize(int fd, struct winsize* winsize_p);
 int tcsetwinsize(int fd, const struct winsize* winsize_p);
+int tcsendbreak(int fd, int duration);
 
 #ifdef __cplusplus
 }
