@@ -6252,6 +6252,13 @@ nt_status btrfs_inode::rename(::dentry& dentry, ::dentry& dest_dir,
                 return status;
             }
 
+            status = remove_dir_item(fs, *r, dir_item_key.objectid,
+                                     name, dst_parent_ino.inode);
+            if (!success(status)) {
+                print("remove_dir_item returned {}\n", status);
+                return status;
+            }
+
             if (orphaned) {
                 if (no_open_handles)
                     victim_ino.remove_orphan(true);
@@ -6264,13 +6271,6 @@ nt_status btrfs_inode::rename(::dentry& dentry, ::dentry& dest_dir,
                         return status;
                     }
                 }
-            }
-
-            status = remove_dir_item(fs, *r, dir_item_key.objectid,
-                                     name, dst_parent_ino.inode);
-            if (!success(status)) {
-                print("remove_dir_item returned {}\n", status);
-                return status;
             }
 
             done_overwrite = true;
