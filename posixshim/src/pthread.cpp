@@ -16,6 +16,9 @@ using namespace std;
 struct _pthread {
     HANDLE h;
     void* return_value;
+    RTL_SRWLOCK lock;
+    bool detached;
+    bool dead;
 };
 
 struct key_slot {
@@ -248,6 +251,17 @@ static void thread_start(pthread_t thread, void* (*func)(void*), void* arg) {
 
     p.return_value = ret;
 
+    RtlAcquireSRWLockExclusive(&p.lock);
+
+    if (p.detached) { // if detached, reclaim
+        NtClose(p.h);
+        RtlReleaseSRWLockExclusive(&p.lock);
+        free(&p);
+    } else {
+        p.dead = true;
+        RtlReleaseSRWLockExclusive(&p.lock);
+    }
+
     RtlExitUserThread(nt_status::SUCCESS);
 }
 
@@ -313,7 +327,10 @@ int pthread_create(pthread_t* thread, const pthread_attr_t* /*attr*/,
         return nt_status_to_errno(status);
     }
 
+    p->lock.Ptr = nullptr;
     p->h = h;
+    p->detached = false;
+    p->dead = false;
 
     status = NtResumeThread(h, nullptr);
     if (!success(status)) {
@@ -357,6 +374,24 @@ int pthread_join(pthread_t thread, void** retval) {
 }
 
 extern "C"
+int pthread_detach(pthread_t thread) {
+    auto& p = *(_pthread*)thread;
+
+    RtlAcquireSRWLockExclusive(&p.lock);
+
+    if (p.dead) { // already dead, reclaim
+        NtClose(p.h);
+        RtlReleaseSRWLockExclusive(&p.lock);
+        free(&p);
+    } else {
+        p.detached = true;
+        RtlReleaseSRWLockExclusive(&p.lock);
+    }
+
+    return 0;
+}
+
+extern "C"
 pthread_t pthread_self() {
     if (!self_pthread) {
         nt_status status;
@@ -377,6 +412,10 @@ pthread_t pthread_self() {
             NtTerminateProcess(NtCurrentProcess(), status);
             unreachable();
         }
+
+        p->lock.Ptr = nullptr;
+        p->detached = false;
+        p->dead = false;
     }
 
     return (pthread_t)self_pthread;
