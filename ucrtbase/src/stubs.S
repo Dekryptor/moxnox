@@ -8,5 +8,6 @@ do_stub "wcstod"
 do_stub "_mktemp"
 do_stub "fputwc"
 do_stub "lldiv"
+do_stub "wcsncmp"
 
 stubs_end

@@ -476,4 +476,3 @@ RtlTryEnterCriticalSection
 RtlAddVectoredExceptionHandler
 RtlRestoreContext
 strncat
-wcsncmp

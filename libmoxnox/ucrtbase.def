@@ -276,3 +276,4 @@ wcstod
 _mktemp
 fputwc
 lldiv
+wcsncmp
