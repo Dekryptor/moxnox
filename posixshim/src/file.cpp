@@ -546,3 +546,10 @@ int fchdir(int fd) {
 
     return 0;
 }
+
+extern "C"
+int fchmod(int /*fd*/, mode_t /*mode*/) {
+    // FIXME - actually do something
+
+    return 0;
+}
