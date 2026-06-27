@@ -267,6 +267,7 @@ wcscpy
 mbstowcs
 _tzset
 __timezone
+wcstok
 
 ; stubs
 ___lc_codepage_func
@@ -274,5 +275,4 @@ _beginthreadex
 wcstod
 _mktemp
 fputwc
-wcstok
 lldiv

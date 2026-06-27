@@ -293,3 +293,4 @@ wcscpy
 mbstowcs = _mbstowcs
 _tzset
 __timezone = ____timezone
+wcstok = __wcstok

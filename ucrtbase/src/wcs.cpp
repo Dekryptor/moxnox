@@ -277,3 +277,54 @@ wchar_t* wcscpy(wchar_t* dest, const wchar_t* src) {
 
     return orig_dest;
 }
+
+extern "C"
+wchar_t* __wcstok(wchar_t* str, const wchar_t* delim, wchar_t** ptr) {
+    wchar_t* s = str ? str : *ptr;
+
+    auto delimlen = wcslen(delim);
+
+    // skip leading delimiters
+
+    while (true) {
+        if (s[0] == 0) {
+            *ptr = s;
+            return nullptr;
+        }
+
+        bool found = false;
+        for (size_t i = 0; i < delimlen; i++) {
+            if (s[0] == delim[i]) {
+                found = true;
+                break;
+            }
+        }
+
+        if (!found)
+            break;
+
+        s++;
+    }
+
+    auto ret = s;
+
+    while (true) {
+        if (s[0] == 0) {
+            *ptr = s;
+            return ret;
+        }
+
+        for (size_t i = 0; i < delimlen; i++) {
+            if (s[0] == delim[i]) {
+                s[0] = 0;
+                s++;
+
+                *ptr = s;
+
+                return ret;
+            }
+        }
+
+        s++;
+    }
+}
