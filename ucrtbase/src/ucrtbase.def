@@ -297,3 +297,4 @@ strncat
 div
 ldiv
 lldiv
+_mktemp = __mktemp

@@ -273,10 +273,10 @@ strncat
 div
 ldiv
 lldiv
+_mktemp
 
 ; stubs
 ___lc_codepage_func
 _beginthreadex
 wcstod
-_mktemp
 fputwc

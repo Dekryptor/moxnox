@@ -2678,3 +2678,82 @@ bool mn_set_cloexec(int fd, bool cloexec) {
 
     return true;
 }
+
+static char mktemp_char(unsigned int i) {
+    if (i < 10)
+        return (char)('0' + i);
+    else
+        return (char)('a' + i - 10);
+}
+
+extern "C"
+char* __mktemp(char* templ) {
+    auto peb = NtCurrentTeb()->ProcessEnvironmentBlock;
+    auto len = strlen(templ);
+
+    if (len < 6)
+        return nullptr;
+
+    auto sp = span(templ + len - 6, 6);
+
+    for (auto c : sp) {
+        if (c != 'X')
+            return nullptr;
+    }
+
+    while (true) {
+        UNICODE_STRING us;
+        OBJECT_ATTRIBUTES oa;
+        IO_STATUS_BLOCK iosb;
+        HANDLE h;
+
+        auto r = rand();
+
+        sp[0] = mktemp_char(r % 36);
+        r /= 36;
+        sp[1] = mktemp_char(r % 36);
+        r /= 36;
+        sp[2] = mktemp_char(r % 36);
+        r /= 36;
+        sp[3] = mktemp_char(r % 36);
+        r /= 36;
+        sp[4] = mktemp_char(r % 36);
+        r /= 36;
+        sp[5] = mktemp_char(r % 36);
+
+        auto sv = string_view(templ, len);
+        auto u16len = utf8_to_utf16_len(sv);
+
+        auto u16pathname = (char16_t*)malloc(u16len * sizeof(char16_t));
+        if (!u16pathname)
+            return nullptr;
+
+        utf8_to_utf16(span(u16pathname, u16len), sv);
+
+        us.Length = us.MaximumLength = (uint16_t)(u16len * sizeof(char16_t));
+        us.Buffer = u16pathname;
+
+        memset(&oa, 0, sizeof(oa));
+        oa.Length = sizeof(OBJECT_ATTRIBUTES);
+        oa.ObjectName = &us;
+        oa.RootDirectory = peb->ProcessParameters->CurrentDirectory.Handle;
+
+        auto status = NtCreateFile(&h, MAXIMUM_ALLOWED, &oa, &iosb, nullptr,
+                                   FILE_ATTRIBUTE_NORMAL, 0, FILE_OPEN,
+                                   0, nullptr, 0);
+
+        free(u16pathname);
+
+        if (success(status)) { // already exists, try again
+            NtClose(h);
+            continue;
+        }
+
+        if (status != nt_status::OBJECT_NAME_NOT_FOUND)
+            return nullptr;
+
+        break;
+    }
+
+    return templ;
+}
