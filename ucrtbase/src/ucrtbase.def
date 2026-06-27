@@ -294,3 +294,6 @@ __timezone = ____timezone
 wcstok = __wcstok
 wcsncmp
 strncat
+div
+ldiv
+lldiv

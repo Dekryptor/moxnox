@@ -270,6 +270,9 @@ __timezone
 wcstok
 wcsncmp
 strncat
+div
+ldiv
+lldiv
 
 ; stubs
 ___lc_codepage_func
@@ -277,4 +280,3 @@ _beginthreadex
 wcstod
 _mktemp
 fputwc
-lldiv

@@ -7,6 +7,5 @@ do_stub "_beginthreadex"
 do_stub "wcstod"
 do_stub "_mktemp"
 do_stub "fputwc"
-do_stub "lldiv"
 
 stubs_end
