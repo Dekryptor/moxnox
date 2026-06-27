@@ -4,11 +4,9 @@
 #include <concepts>
 #include <algorithm>
 #include <limits>
+#include <wchar.h>
 
 using namespace std;
-
-extern "C"
-int __mingw_vswprintf(wchar_t* buf, const wchar_t* format, va_list args);
 
 extern "C" int* __errno();
 
@@ -68,13 +66,17 @@ wchar_t* wcsncpy(wchar_t* dest, const wchar_t* src, size_t n) {
 
 extern "C"
 int __stdio_common_vswprintf(uint64_t /*options*/, wchar_t* buffer,
-                             size_t /*buffer_count*/, const wchar_t* format,
+                             [[maybe_unused]] size_t buffer_count,
+                             const wchar_t* format,
                              _locale_t /*locale*/, va_list valist) {
     // FIXME - options
     // FIXME - locale
-    // FIXME - buffer_count
 
+#if __MINGW64_VERSION_MAJOR >= 13
+    return __mingw_vswprintf(buffer, buffer_count, format, valist);
+#else
     return __mingw_vswprintf(buffer, format, valist);
+#endif
 }
 
 extern "C"
