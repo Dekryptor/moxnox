@@ -209,8 +209,8 @@ mbrlen = _mbrlen
 _mkdir = __mkdir
 clearerr
 ___mb_cur_max_func = ____mb_cur_max_func
-towlower
-towupper
+towlower = _towlower
+towupper = _towupper
 qsort
 iswctype = _iswctype
 longjmp = _longjmp
@@ -284,11 +284,11 @@ wcstol
 wcstoul
 wcstoll
 wcstoull
-iswspace
+iswspace = _iswspace
 wcschr
 wcsrchr
 wcstombs = _wcstombs
-_wcsnicmp
+_wcsnicmp = __wcsnicmp
 wcscpy
 mbstowcs = _mbstowcs
 _tzset

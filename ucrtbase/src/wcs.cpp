@@ -22,7 +22,7 @@ size_t wcsnlen(const wchar_t* s, size_t maxlen) {
 }
 
 extern "C"
-wint_t towlower(wint_t c) {
+wint_t _towlower(wint_t c) {
     // FIXME - other scripts etc.
 
     if (c >= 'A' && c <= 'Z')
@@ -32,7 +32,7 @@ wint_t towlower(wint_t c) {
 }
 
 extern "C"
-wint_t towupper(wint_t c) {
+wint_t _towupper(wint_t c) {
     // FIXME - other scripts etc.
 
     if (c >= 'a' && c <= 'z')
@@ -80,7 +80,7 @@ int __stdio_common_vswprintf(uint64_t /*options*/, wchar_t* buffer,
 }
 
 extern "C"
-int iswspace(wint_t ch) {
+int _iswspace(wint_t ch) {
     switch (ch) {
         case ' ':
         case '\f':
@@ -105,7 +105,7 @@ static T wcsto(const wchar_t* nptr, wchar_t** endptr, int base) {
     if(endptr)
         *endptr = (wchar_t*)nptr;
 
-    while (iswspace(*nptr)) {
+    while (_iswspace(*nptr)) {
         nptr++;
     }
 
@@ -237,7 +237,7 @@ wchar_t* wcsrchr(const wchar_t* s, wchar_t c) {
 }
 
 extern "C"
-int _wcsnicmp(const wchar_t* s1, const wchar_t* s2, size_t n) {
+int __wcsnicmp(const wchar_t* s1, const wchar_t* s2, size_t n) {
     for (size_t i = 0; i < n; i++) {
         auto c1 = *s1;
         auto c2 = *s2;
