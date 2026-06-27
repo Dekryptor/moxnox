@@ -96,7 +96,6 @@ __stdio_common_vsscanf
 _utime = __utime64
 setvbuf
 getenv_s = _getenv_s
-strncat = ntdll.strncat
 _hypot = hypot
 _hypotf = hypotf
 sin

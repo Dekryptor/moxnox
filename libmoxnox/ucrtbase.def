@@ -277,3 +277,4 @@ wcstod
 _mktemp
 fputwc
 lldiv
+strncat

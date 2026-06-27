@@ -475,4 +475,3 @@ RtlSleepConditionVariableSRW
 RtlTryEnterCriticalSection
 RtlAddVectoredExceptionHandler
 RtlRestoreContext
-strncat
