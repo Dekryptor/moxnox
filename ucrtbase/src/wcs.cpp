@@ -328,3 +328,23 @@ wchar_t* __wcstok(wchar_t* str, const wchar_t* delim, wchar_t** ptr) {
         s++;
     }
 }
+
+extern "C"
+int wcsncmp(const wchar_t* s1, const wchar_t* s2, size_t n) {
+    for (size_t i = 0; i < n; i++) {
+        wchar_t c1 = s1[i];
+        wchar_t c2 = s2[i];
+
+        if (c1 == 0 && c2 == 0)
+            return 0;
+        else if (c1 == 0)
+            return -1;
+        else if (c2 == 0)
+            return 1;
+
+        if (c1 != c2)
+            return c1 > c2 ? 1 : -1;
+    }
+
+    return 0;
+}
