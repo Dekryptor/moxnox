@@ -1720,7 +1720,25 @@ static nt_status query_information_non_inode_basic(span<uint8_t> buffer,
     return nt_status::SUCCESS;
 }
 
-static nt_status query_information_non_inode(file& /*f*/, span<uint8_t> buf,
+static nt_status query_information_non_inode_standard(span<uint8_t> buffer,
+                                                      uint64_t& retlen) {
+    if (buffer.size() < sizeof(FILE_STANDARD_INFORMATION))
+        return nt_status::BUFFER_TOO_SMALL;
+
+    auto& fsi = *(FILE_STANDARD_INFORMATION*)buffer.data();
+
+    fsi.AllocationSize.QuadPart = 0;
+    fsi.EndOfFile.QuadPart = 0;
+    fsi.NumberOfLinks = 1;
+    fsi.DeletePending = 0;
+    fsi.Directory = 0;
+
+    retlen = sizeof(fsi);
+
+    return nt_status::SUCCESS;
+}
+
+static nt_status query_information_non_inode(span<uint8_t> buf,
                                              FILE_INFORMATION_CLASS file_information_class,
                                              uint64_t& retlen) {
     switch (file_information_class) {
@@ -1728,6 +1746,9 @@ static nt_status query_information_non_inode(file& /*f*/, span<uint8_t> buf,
 
         case BasicInformation:
             return query_information_non_inode_basic(buf, retlen);
+
+        case StandardInformation:
+            return query_information_non_inode_standard(buf, retlen);
 
         default:
             return nt_status::NOT_SUPPORTED;
@@ -1790,7 +1811,7 @@ NTSTATUS file::query_information(void* buffer, uint32_t buffer_size,
             auto buf = span((uint8_t*)buffer, buffer_size);
 
             if (ino.type != object_type::inode) {
-                return query_information_non_inode(*this, buf, file_information_class,
+                return query_information_non_inode(buf, file_information_class,
                                                    retlen);
             } else {
                 return static_cast<inode&>(ino).query_information(buf, file_information_class,
