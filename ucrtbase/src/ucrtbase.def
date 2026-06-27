@@ -293,3 +293,4 @@ _tzset
 __timezone = ____timezone
 wcstok = __wcstok
 wcsncmp
+strncat

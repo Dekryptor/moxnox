@@ -269,6 +269,7 @@ _tzset
 __timezone
 wcstok
 wcsncmp
+strncat
 
 ; stubs
 ___lc_codepage_func
@@ -277,4 +278,3 @@ wcstod
 _mktemp
 fputwc
 lldiv
-strncat

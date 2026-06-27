@@ -329,3 +329,26 @@ char* _strtok(char* str, const char* delim) {
         s++;
     }
 }
+
+extern "C"
+char* strncat(char* dest, const char* src, size_t n) {
+    size_t len;
+    auto orig_dest = dest;
+
+    while (dest[0] != 0) {
+        dest++;
+    }
+
+    len = 0;
+    for (size_t i = 0; i < n; i++) {
+        if (src[i] == 0)
+            break;
+
+        len++;
+    }
+
+    memcpy(dest, src, len);
+    dest[len] = 0;
+
+    return orig_dest;
+}
