@@ -25,5 +25,11 @@ do_stub_no_export "pthread_setcancelstate"
 do_stub_no_export "pthread_mutexattr_init"
 do_stub_no_export "pthread_mutexattr_destroy"
 do_stub_no_export "pthread_mutexattr_settype"
+do_stub_no_export "cfgetispeed"
+do_stub_no_export "cfsetispeed"
+do_stub_no_export "cfsetospeed"
+do_stub_no_export "tcsendbreak"
+do_stub_no_export "tcdrain"
+do_stub_no_export "tcflow"
 
 stubs_end
