@@ -1701,6 +1701,39 @@ static nt_status query_name(dentry& dentry, span<uint8_t> buf, uint64_t& retlen)
     }
 }
 
+static nt_status query_information_non_inode_basic(span<uint8_t> buffer,
+                                                   uint64_t& retlen) {
+    if (buffer.size() < sizeof(FILE_BASIC_INFORMATION))
+        return nt_status::BUFFER_TOO_SMALL;
+
+    auto& fbi = *(FILE_BASIC_INFORMATION*)buffer.data();
+
+    // FIXME - should populate with time that object was created?
+    fbi.CreationTime.QuadPart = 0;
+    fbi.LastAccessTime.QuadPart = 0;
+    fbi.LastWriteTime.QuadPart = 0;
+    fbi.ChangeTime.QuadPart = 0;
+    fbi.FileAttributes = FILE_ATTRIBUTE_SYSTEM;
+
+    retlen = sizeof(fbi);
+
+    return nt_status::SUCCESS;
+}
+
+static nt_status query_information_non_inode(file& /*f*/, span<uint8_t> buf,
+                                             FILE_INFORMATION_CLASS file_information_class,
+                                             uint64_t& retlen) {
+    switch (file_information_class) {
+        using enum FILE_INFORMATION_CLASS;
+
+        case BasicInformation:
+            return query_information_non_inode_basic(buf, retlen);
+
+        default:
+            return nt_status::NOT_SUPPORTED;
+    }
+}
+
 NTSTATUS file::query_information(void* buffer, uint32_t buffer_size,
                                  FILE_INFORMATION_CLASS file_information_class,
                                  uint64_t& retlen) {
@@ -1753,13 +1786,17 @@ NTSTATUS file::query_information(void* buffer, uint32_t buffer_size,
 
             return nt_status::SUCCESS;
 
-        default:
-            if (ino.type != object_type::inode)
-                return nt_status::INVALID_PARAMETER;
+        default: {
+            auto buf = span((uint8_t*)buffer, buffer_size);
 
-            return static_cast<inode&>(ino).query_information(span((uint8_t*)buffer, buffer_size),
-                                                              file_information_class,
-                                                              retlen);
+            if (ino.type != object_type::inode) {
+                return query_information_non_inode(*this, buf, file_information_class,
+                                                   retlen);
+            } else {
+                return static_cast<inode&>(ino).query_information(buf, file_information_class,
+                                                                  retlen);
+            }
+        }
     }
 }
 
