@@ -35,6 +35,9 @@ typedef uint32_t in_addr_t;
 #define IPPROTO_SCTP 132
 #define IPPROTO_RAW 255
 
+#define INET_ADDRSTRLEN 16
+#define INET6_ADDRSTRLEN 46
+
 struct in_addr {
     in_addr_t s_addr;
 };
