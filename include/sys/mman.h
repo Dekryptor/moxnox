@@ -13,5 +13,10 @@
 
 #define MAP_FAILED      ((void*)-1)
 
+#define MS_ASYNC        1
+#define MS_INVALIDATE   2
+#define MS_SYNC         4
+
 void* mmap(void* addr, size_t len, int prot, int flags, int fd, off_t off);
 int munmap(void* addr, size_t len);
+int msync(void* addr, size_t len, int flags);
