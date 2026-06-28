@@ -77,6 +77,27 @@ speed_t cfgetospeed(const termios* p) {
 }
 
 extern "C"
+int cfsetospeed(termios* p, speed_t speed) {
+    p->c_cflag &= ~CBAUD;
+    p->c_cflag |= speed & CBAUD;
+
+    return 0;
+}
+
+extern "C"
+speed_t cfgetispeed(const termios* p) {
+    return p->c_cflag & CBAUD;
+}
+
+extern "C"
+int cfsetispeed(termios* p, speed_t speed) {
+    p->c_cflag &= ~CBAUD;
+    p->c_cflag |= speed & CBAUD;
+
+    return 0;
+}
+
+extern "C"
 int tcflush(int fd, int queue_selector) {
     IO_STATUS_BLOCK iosb;
 
@@ -151,27 +172,6 @@ int tcdrain(int /*fd*/) {
 extern "C"
 int tcflow(int /*fd*/, int /*action*/) {
     print("FIXME - tcflow\n");
-
-    return 0;
-}
-
-extern "C"
-speed_t cfgetispeed(const termios* /*t*/) {
-    print("FIXME - cfgetispeed\n");
-
-    return 0;
-}
-
-extern "C"
-int cfsetispeed(termios* /*t*/, speed_t /*speed*/) {
-    print("FIXME - cfsetispeed\n");
-
-    return 0;
-}
-
-extern "C"
-int cfsetospeed(termios* /*t*/, speed_t /*speed*/) {
-    print("FIXME - cfsetospeed\n");
 
     return 0;
 }
