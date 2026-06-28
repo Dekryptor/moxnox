@@ -274,6 +274,29 @@ div
 ldiv
 lldiv
 _mktemp
+log1p
+log1pf
+asinh
+asinhf
+acosh
+acoshf
+atanh
+atanhf
+log2
+log2f
+fabs
+fabsf
+nextafter
+nextafterf
+expm1
+expm1f
+erf
+erff
+erfc
+erfcf
+cbrt
+cbrtf
+fmaf
 
 ; stubs
 ___lc_codepage_func

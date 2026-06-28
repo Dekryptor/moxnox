@@ -95,6 +95,29 @@ add_library(musl STATIC
     ../ports/musl/repo/src/math/scalbnf.c
     ../ports/musl/repo/src/math/scalbln.c
     ../ports/musl/repo/src/math/scalblnf.c
+    ../ports/musl/repo/src/math/log1p.c
+    ../ports/musl/repo/src/math/log1pf.c
+    ../ports/musl/repo/src/math/asinh.c
+    ../ports/musl/repo/src/math/asinhf.c
+    ../ports/musl/repo/src/math/acosh.c
+    ../ports/musl/repo/src/math/acoshf.c
+    ../ports/musl/repo/src/math/atanh.c
+    ../ports/musl/repo/src/math/atanhf.c
+    ../ports/musl/repo/src/math/log2.c
+    ../ports/musl/repo/src/math/log2_data.c
+    ../ports/musl/repo/src/math/log2f.c
+    ../ports/musl/repo/src/math/log2f_data.c
+    ../ports/musl/repo/src/math/fabs.c
+    ../ports/musl/repo/src/math/fabsf.c
+    ../ports/musl/repo/src/math/nextafter.c
+    ../ports/musl/repo/src/math/nextafterf.c
+    ../ports/musl/repo/src/math/expm1.c
+    ../ports/musl/repo/src/math/expm1f.c
+    ../ports/musl/repo/src/math/erf.c
+    ../ports/musl/repo/src/math/erff.c
+    ../ports/musl/repo/src/math/cbrt.c
+    ../ports/musl/repo/src/math/cbrtf.c
+    ../ports/musl/repo/src/math/fmaf.c
 )
 
 target_include_directories(musl PRIVATE musl_compat ../ports/musl/repo/src/include ../ports/musl/repo/src/internal ../ports/musl/repo/arch/generic)
