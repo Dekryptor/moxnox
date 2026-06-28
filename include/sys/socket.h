@@ -103,6 +103,8 @@ struct linger {
 #define SHUT_WR 1
 #define SHUT_RDWR 2
 
+#define SOMAXCONN 128
+
 #ifdef __cplusplus
 extern "C" {
 #endif
