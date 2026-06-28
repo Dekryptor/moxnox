@@ -57,7 +57,7 @@ int sigismember(const sigset_t* set, int signo) {
 }
 
 extern "C"
-int sigprocmask(int how, const sigset_t* set, sigset_t* oldset) {
+int pthread_sigmask(int how, const sigset_t* set, sigset_t* oldset) {
     nt_status status;
 
     if (oldset) {
@@ -66,10 +66,8 @@ int sigprocmask(int how, const sigset_t* set, sigset_t* oldset) {
         status = NtQueryInformationThread(NtCurrentThread(),
                                           THREAD_INFORMATION_CLASS::MoxnoxSignalsMask,
                                           oldset, sizeof(*oldset), &retlen);
-        if (!success(status)) {
-            *_errno() = nt_status_to_errno(status);
-            return -1;
-        }
+        if (!success(status))
+            return nt_status_to_errno(status);
     }
 
     if (set) {
@@ -78,10 +76,8 @@ int sigprocmask(int how, const sigset_t* set, sigset_t* oldset) {
                 status = NtSetInformationThread(NtCurrentThread(),
                                                 THREAD_INFORMATION_CLASS::MoxnoxBlockSignals,
                                                 set, sizeof(*set));
-                if (!success(status)) {
-                    *_errno() = nt_status_to_errno(status);
-                    return -1;
-                }
+                if (!success(status))
+                    return nt_status_to_errno(status);
             break;
 
             case SIG_UNBLOCK: {
@@ -90,10 +86,8 @@ int sigprocmask(int how, const sigset_t* set, sigset_t* oldset) {
                 status = NtSetInformationThread(NtCurrentThread(),
                                                 THREAD_INFORMATION_CLASS::MoxnoxUnblockSignals,
                                                 set, sizeof(*set));
-                if (!success(status)) {
-                    *_errno() = nt_status_to_errno(status);
-                    return -1;
-                }
+                if (!success(status))
+                    return nt_status_to_errno(status);
 
                 // run APCs
 
@@ -101,10 +95,8 @@ int sigprocmask(int how, const sigset_t* set, sigset_t* oldset) {
 
                 status = NtDelayExecution(true, &timeout);
 
-                if (!success(status) && status != nt_status::TIMEOUT) {
-                    *_errno() = nt_status_to_errno(status);
-                    return -1;
-                }
+                if (!success(status) && status != nt_status::TIMEOUT)
+                    return nt_status_to_errno(status);
 
                 break;
             }
@@ -115,10 +107,8 @@ int sigprocmask(int how, const sigset_t* set, sigset_t* oldset) {
                 status = NtSetInformationThread(NtCurrentThread(),
                                                 THREAD_INFORMATION_CLASS::MoxnoxSignalsMask,
                                                 set, sizeof(*set));
-                if (!success(status)) {
-                    *_errno() = nt_status_to_errno(status);
-                    return -1;
-                }
+                if (!success(status))
+                    return nt_status_to_errno(status);
 
                 // run APCs
 
@@ -126,21 +116,29 @@ int sigprocmask(int how, const sigset_t* set, sigset_t* oldset) {
 
                 status = NtDelayExecution(true, &timeout);
 
-                if (!success(status) && status != nt_status::TIMEOUT) {
-                    *_errno() = nt_status_to_errno(status);
-                    return -1;
-                }
+                if (!success(status) && status != nt_status::TIMEOUT)
+                    return nt_status_to_errno(status);
 
                 break;
             }
 
             default:
-                *_errno() = EINVAL;
-                return -1;
+                return EINVAL;
         }
     }
 
     return 0;
+}
+
+extern "C"
+int sigprocmask(int how, const sigset_t* set, sigset_t* oldset) {
+    auto ret = pthread_sigmask(how, set, oldset);
+
+    if (!ret)
+        return 0;
+
+    *_errno() = ret;
+    return -1;
 }
 
 extern "C"
