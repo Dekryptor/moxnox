@@ -117,6 +117,7 @@ add_library(musl STATIC
     ../ports/musl/repo/src/math/erff.c
     ../ports/musl/repo/src/math/cbrt.c
     ../ports/musl/repo/src/math/cbrtf.c
+    ../ports/musl/repo/src/math/fma.c
     ../ports/musl/repo/src/math/fmaf.c
 )
 

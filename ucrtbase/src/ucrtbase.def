@@ -321,3 +321,4 @@ erfcf
 cbrt
 cbrtf
 fmaf
+fma

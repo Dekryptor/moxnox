@@ -297,6 +297,7 @@ erfcf
 cbrt
 cbrtf
 fmaf
+fma
 
 ; stubs
 ___lc_codepage_func
