@@ -10,6 +10,7 @@ enable_language(ASM)
 set(SRC_FILES src/ws2_32.def
     src/ws2_32.cpp
     src/getaddrinfo.cpp
+    src/stubs.S
 )
 
 add_library(ws2_32 SHARED ${SRC_FILES})

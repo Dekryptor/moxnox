@@ -24,3 +24,7 @@ getsockopt
 getnameinfo
 getpeername
 shutdown
+
+; stubs
+inet_ntop
+inet_addr
