@@ -52,6 +52,7 @@ add_library(posixshim STATIC
     src/fcntl.cpp
     src/spawn.cpp
     src/pthread.cpp
+    src/mmap.cpp
 )
 
 target_compile_options(posixshim PRIVATE -fno-exceptions ${USERSPACE_CFLAGS})
