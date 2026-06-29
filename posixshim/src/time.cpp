@@ -93,3 +93,56 @@ int clock_gettime(clockid_t clockid, timespec* tp) {
             return -1;
     }
 }
+
+static int clock_getres_monotonic(timespec& res) {
+    LARGE_INTEGER freq;
+    uint64_t val;
+
+    if (!RtlQueryPerformanceFrequency(&freq)) {
+        *_errno() = EINVAL;
+        return -1;
+    }
+
+    val = 1000000000 / freq.QuadPart;
+
+    res.tv_sec = val / 1000000000;
+    res.tv_nsec = (long)(val % 1000000000);
+
+    return 0;
+}
+
+static int clock_getres_realtime(timespec& res) {
+    // FIXME - derive frm kernel TICK_RATE
+
+    res.tv_sec = 0;
+    res.tv_nsec = 1000000; // 1 ms
+
+    return 0;
+}
+
+extern "C"
+int clock_getres(clockid_t clockid, timespec* res) {
+    if (!res) { // surprisingly valid
+        switch (clockid) {
+            case CLOCK_MONOTONIC:
+            case CLOCK_REALTIME:
+                return 0;
+
+            default:
+                *_errno() = EINVAL;
+                return -1;
+        }
+    }
+
+    switch (clockid) {
+        case CLOCK_MONOTONIC:
+            return clock_getres_monotonic(*res);
+
+        case CLOCK_REALTIME:
+            return clock_getres_realtime(*res);
+
+        default:
+            *_errno() = EINVAL;
+            return -1;
+    }
+}

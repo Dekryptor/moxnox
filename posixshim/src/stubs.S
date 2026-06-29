@@ -14,7 +14,6 @@ do_stub_no_export "getpgid"
 do_stub_no_export "tcgetpgrp"
 do_stub_no_export "getpass"
 do_stub_no_export "statvfs"
-do_stub_no_export "clock_getres"
 do_stub_no_export "times"
 
 stubs_end
