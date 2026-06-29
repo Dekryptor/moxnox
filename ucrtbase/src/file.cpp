@@ -1808,6 +1808,8 @@ int __unlink(const char* path) {
 
 extern "C"
 int __dup2(int oldfd, int newfd) {
+    auto& peb = *NtCurrentTeb()->ProcessEnvironmentBlock;
+
     if (oldfd < 0 || (size_t)oldfd >= fds.size() || newfd < 0 || (size_t)newfd >= fds.size()) {
         *__errno() = EBADF;
         return -1;
@@ -1846,6 +1848,13 @@ int __dup2(int oldfd, int newfd) {
     fds[(size_t)newfd].cloexec = false;
 
     RtlLeaveCriticalSection(&fds_lock);
+
+    if (newfd == 0)
+        peb.ProcessParameters->StandardInput = newh;
+    else if (newfd == 1)
+        peb.ProcessParameters->StandardOutput = newh;
+    else if (newfd == 2)
+        peb.ProcessParameters->StandardError = newh;
 
     return newfd;
 }
