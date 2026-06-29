@@ -546,6 +546,8 @@ pthread_t pthread_self() {
         p->lock.Ptr = nullptr;
         p->detached = false;
         p->dead = false;
+
+        self_pthread = (pthread_t)p;
     }
 
     return (pthread_t)self_pthread;
