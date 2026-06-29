@@ -30,6 +30,13 @@ struct _pthread_attr {
 static_assert(sizeof(_pthread_attr) == sizeof(pthread_attr_t));
 static_assert(alignof(_pthread_attr) == alignof(pthread_attr_t));
 
+struct _pthread_mutex {
+    RTL_SRWLOCK lock;
+};
+
+static_assert(sizeof(_pthread_mutex) == sizeof(pthread_mutex_t));
+static_assert(alignof(_pthread_mutex) == alignof(pthread_mutex_t));
+
 struct key_slot {
     bool used;
     void (*dtor)(void*);
@@ -133,49 +140,43 @@ int pthread_mutex_init(pthread_mutex_t* mutex,
 
     // FIXME - SRW_LOCKs aren't recursive, will need to account for PTHREAD_MUTEX_RECURSIVE
 
-    auto srw = (RTL_SRWLOCK*)malloc(sizeof(RTL_SRWLOCK));
-    if (!srw)
-        return ENOMEM;
+    auto m = (_pthread_mutex*)mutex;
 
-    srw->Ptr = nullptr;
-
-    *mutex = (pthread_mutex_t)srw;
+    m->lock.Ptr = nullptr;
 
     return 0;
 }
 
 extern "C"
-int pthread_mutex_destroy(pthread_mutex_t* mutex) {
-    auto* srw = (RTL_SRWLOCK*)*mutex;
-
-    free(srw);
+int pthread_mutex_destroy(pthread_mutex_t* /*mutex*/) {
+    // nop
 
     return 0;
 }
 
 extern "C"
 int pthread_mutex_lock(pthread_mutex_t* mutex) {
-    auto* srw = (RTL_SRWLOCK*)*mutex;
+    auto& m = *(_pthread_mutex*)mutex;
 
-    RtlAcquireSRWLockExclusive(srw);
+    RtlAcquireSRWLockExclusive(&m.lock);
 
     return 0;
 }
 
 extern "C"
 int pthread_mutex_unlock(pthread_mutex_t* mutex) {
-    auto srw = (RTL_SRWLOCK*)*mutex;
+    auto& m = *(_pthread_mutex*)mutex;
 
-    RtlReleaseSRWLockExclusive(srw);
+    RtlReleaseSRWLockExclusive(&m.lock);
 
     return 0;
 }
 
 extern "C"
 int pthread_mutex_trylock(pthread_mutex_t* mutex) {
-    auto srw = (RTL_SRWLOCK*)*mutex;
+    auto& m = *(_pthread_mutex*)mutex;
 
-    if (RtlTryAcquireSRWLockExclusive(srw))
+    if (RtlTryAcquireSRWLockExclusive(&m.lock))
         return 0;
     else
         return EBUSY;
@@ -197,10 +198,10 @@ int pthread_cond_destroy(pthread_cond_t* /*cond*/) {
 
 extern "C"
 int pthread_cond_wait(pthread_cond_t* cond, pthread_mutex_t* mutex) {
-    auto srw = (RTL_SRWLOCK*)*mutex;
+    auto& m = *(_pthread_mutex*)mutex;
 
-    auto status = RtlSleepConditionVariableSRW((RTL_CONDITION_VARIABLE*)cond, srw,
-                                               nullptr, 0);
+    auto status = RtlSleepConditionVariableSRW((RTL_CONDITION_VARIABLE*)cond,
+                                               &m.lock, nullptr, 0);
     if (!success(status))
         return nt_status_to_errno(status);
 
@@ -211,7 +212,7 @@ extern "C"
 int pthread_cond_timedwait(pthread_cond_t* cond, pthread_mutex_t* mutex,
                            const timespec* abstime) {
     LARGE_INTEGER now, wait;
-    auto srw = (RTL_SRWLOCK*)*mutex;
+    auto& m = *(_pthread_mutex*)mutex;
 
     auto status = NtQuerySystemTime(&now);
     if (!success(status))
@@ -227,7 +228,7 @@ int pthread_cond_timedwait(pthread_cond_t* cond, pthread_mutex_t* mutex,
 
     wait.QuadPart = now.QuadPart - (int64_t)t;
 
-    status = RtlSleepConditionVariableSRW((RTL_CONDITION_VARIABLE*)cond, srw,
+    status = RtlSleepConditionVariableSRW((RTL_CONDITION_VARIABLE*)cond, &m.lock,
                                           &wait, 0);
     if (status == nt_status::TIMEOUT)
         return ETIMEDOUT;
