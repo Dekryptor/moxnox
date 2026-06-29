@@ -73,3 +73,4 @@ mn_exec
 mn_handle_exec_info DATA
 RtlTryAcquireSRWLockExclusive
 RtlSleepConditionVariableSRW
+RtlWakeAddressAll
