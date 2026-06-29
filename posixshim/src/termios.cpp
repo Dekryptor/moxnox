@@ -168,10 +168,18 @@ int tcdrain(int /*fd*/) {
 }
 
 extern "C"
-int tcflow(int /*fd*/, int /*action*/) {
-    print("FIXME - tcflow\n");
+int tcflow(int /*fd*/, int action) {
+    switch (action) {
+        case TCOOFF:
+        case TCOON:
+        case TCIOFF:
+        case TCION:
+            return 0;
 
-    return 0;
+        default:
+            *_errno() = EINVAL;
+            return -1;
+    }
 }
 
 extern "C"
