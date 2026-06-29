@@ -1578,6 +1578,8 @@ int __setmode(int /*fd*/, int /*mode*/) {
 
 extern "C"
 int __close(int fd) {
+    auto& peb = *NtCurrentTeb()->ProcessEnvironmentBlock;
+
     if (fd < 0 || (size_t)fd >= fds.size()) {
         *__errno() = EBADF;
         return -1;
@@ -1595,6 +1597,14 @@ int __close(int fd) {
     }
 
     NtClose(h);
+
+    // FIXME - should be HANDLE to /dev/null maybe?
+    if (fd == 0)
+        peb.ProcessParameters->StandardInput = 0;
+    else if (fd == 1)
+        peb.ProcessParameters->StandardOutput = 0;
+    else if (fd == 2)
+        peb.ProcessParameters->StandardError = 0;
 
     return 0;
 }
