@@ -3,7 +3,7 @@
 #include <sys/types.h>
 #include <time.h>
 
-#define PTHREAD_MUTEX_INITIALIZER ((pthread_mutex_t)0)
+#define PTHREAD_MUTEX_INITIALIZER {0}
 
 #define PTHREAD_ONCE_INIT ((pthread_once_t)0)
 

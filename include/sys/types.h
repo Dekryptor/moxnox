@@ -9,7 +9,7 @@ typedef unsigned int gid_t;
 typedef unsigned int id_t;
 typedef long long ssize_t;
 typedef uintptr_t pthread_t;
-typedef uintptr_t pthread_mutex_t;
+typedef struct { uintptr_t _x[4]; } pthread_mutex_t;
 typedef size_t pthread_key_t;
 typedef uintptr_t pthread_cond_t;
 typedef uintptr_t pthread_condattr_t; // FIXME?

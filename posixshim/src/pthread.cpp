@@ -30,8 +30,25 @@ struct _pthread_attr {
 static_assert(sizeof(_pthread_attr) == sizeof(pthread_attr_t));
 static_assert(alignof(_pthread_attr) == alignof(pthread_attr_t));
 
+enum class mutex_type : uintptr_t {
+    normal = 0,
+    recursive = 1,
+    errorcheck = 2
+};
+
+struct _pthread_mutex_attr {
+    mutex_type type : 2;
+    uintptr_t : 62;
+};
+
+static_assert(sizeof(_pthread_mutex_attr) == sizeof(pthread_mutexattr_t));
+static_assert(alignof(_pthread_mutex_attr) == alignof(pthread_mutexattr_t));
+
 struct _pthread_mutex {
     RTL_SRWLOCK lock;
+    mutex_type type;
+    atomic<uintptr_t> owner;
+    unsigned int recursion_count;
 };
 
 static_assert(sizeof(_pthread_mutex) == sizeof(pthread_mutex_t));
@@ -135,14 +152,23 @@ int pthread_setspecific(pthread_key_t key, const void* value) {
 
 extern "C"
 int pthread_mutex_init(pthread_mutex_t* mutex,
-                       const pthread_mutexattr_t* /*attr*/) {
+                       const pthread_mutexattr_t* attr) {
     // FIXME - attr
 
     // FIXME - SRW_LOCKs aren't recursive, will need to account for PTHREAD_MUTEX_RECURSIVE
 
-    auto m = (_pthread_mutex*)mutex;
+    auto& m = *(_pthread_mutex*)mutex;
 
-    m->lock.Ptr = nullptr;
+    m.lock.Ptr = nullptr;
+    m.type = mutex_type::normal;
+    m.owner = 0;
+    m.recursion_count = 0;
+
+    if (attr) {
+        auto& a = *(_pthread_mutex_attr*)attr;
+
+        m.type = a.type;
+    }
 
     return 0;
 }
@@ -158,7 +184,33 @@ extern "C"
 int pthread_mutex_lock(pthread_mutex_t* mutex) {
     auto& m = *(_pthread_mutex*)mutex;
 
-    RtlAcquireSRWLockExclusive(&m.lock);
+    switch (m.type) {
+        case mutex_type::normal:
+            RtlAcquireSRWLockExclusive(&m.lock);
+            break;
+
+        case mutex_type::errorcheck:
+            if (m.owner == NtCurrentTeb()->ClientId.UniqueThread)
+                return EDEADLK;
+            else {
+                RtlAcquireSRWLockExclusive(&m.lock);
+
+                m.owner = NtCurrentTeb()->ClientId.UniqueThread;
+            }
+            break;
+
+        case mutex_type::recursive:
+            if (m.owner == NtCurrentTeb()->ClientId.UniqueThread) {
+                m.recursion_count++;
+                return 0;
+            } else {
+                RtlAcquireSRWLockExclusive(&m.lock);
+
+                m.owner = NtCurrentTeb()->ClientId.UniqueThread;
+                m.recursion_count = 1;
+            }
+            break;
+    }
 
     return 0;
 }
@@ -167,7 +219,33 @@ extern "C"
 int pthread_mutex_unlock(pthread_mutex_t* mutex) {
     auto& m = *(_pthread_mutex*)mutex;
 
-    RtlReleaseSRWLockExclusive(&m.lock);
+    switch (m.type) {
+        case mutex_type::normal:
+            RtlReleaseSRWLockExclusive(&m.lock);
+            break;
+
+        case mutex_type::errorcheck:
+            if (m.owner != NtCurrentTeb()->ClientId.UniqueThread)
+                return EPERM;
+            else {
+                m.owner = 0;
+                RtlReleaseSRWLockExclusive(&m.lock);
+            }
+            break;
+
+        case mutex_type::recursive:
+            if (m.owner != NtCurrentTeb()->ClientId.UniqueThread)
+                return EPERM;
+
+            m.recursion_count--;
+
+            if (m.recursion_count == 0) {
+                m.owner = 0;
+                RtlReleaseSRWLockExclusive(&m.lock);
+            }
+
+            break;
+    }
 
     return 0;
 }
@@ -176,10 +254,40 @@ extern "C"
 int pthread_mutex_trylock(pthread_mutex_t* mutex) {
     auto& m = *(_pthread_mutex*)mutex;
 
-    if (RtlTryAcquireSRWLockExclusive(&m.lock))
-        return 0;
-    else
-        return EBUSY;
+    switch (m.type) {
+        case mutex_type::normal:
+            if (RtlTryAcquireSRWLockExclusive(&m.lock))
+                return 0;
+            else
+                return EBUSY;
+
+        case mutex_type::errorcheck:
+            if (m.owner == NtCurrentTeb()->ClientId.UniqueThread)
+                return EBUSY;
+            else {
+                if (RtlTryAcquireSRWLockExclusive(&m.lock)) {
+                    m.owner = NtCurrentTeb()->ClientId.UniqueThread;
+                    return 0;
+                } else
+                    return EBUSY;
+            }
+
+        case mutex_type::recursive:
+            if (m.owner == NtCurrentTeb()->ClientId.UniqueThread) {
+                m.recursion_count++;
+                return 0;
+            } else {
+                if (RtlTryAcquireSRWLockExclusive(&m.lock)) {
+                    m.owner = NtCurrentTeb()->ClientId.UniqueThread;
+                    m.recursion_count = 1;
+                    return 0;
+                } else
+                    return EBUSY;
+            }
+
+        default:
+            unreachable();
+    }
 }
 
 extern "C"
@@ -202,6 +310,10 @@ int pthread_cond_wait(pthread_cond_t* cond, pthread_mutex_t* mutex) {
 
     auto status = RtlSleepConditionVariableSRW((RTL_CONDITION_VARIABLE*)cond,
                                                &m.lock, nullptr, 0);
+
+    m.owner = NtCurrentTeb()->ClientId.UniqueThread;
+    m.recursion_count = 1;
+
     if (!success(status))
         return nt_status_to_errno(status);
 
@@ -230,6 +342,10 @@ int pthread_cond_timedwait(pthread_cond_t* cond, pthread_mutex_t* mutex,
 
     status = RtlSleepConditionVariableSRW((RTL_CONDITION_VARIABLE*)cond, &m.lock,
                                           &wait, 0);
+
+    m.owner = NtCurrentTeb()->ClientId.UniqueThread;
+    m.recursion_count = 1;
+
     if (status == nt_status::TIMEOUT)
         return ETIMEDOUT;
     else if (!success(status))
@@ -496,6 +612,46 @@ int pthread_attr_setdetachstate(pthread_attr_t* attr, int detachstate) {
         a.detached = 1;
     else
         a.detached = 0;
+
+    return 0;
+}
+
+extern "C"
+int pthread_mutexattr_init(pthread_mutexattr_t* attr) {
+    *attr = 0;
+
+    return 0;
+}
+
+extern "C"
+int pthread_mutexattr_destroy(pthread_mutexattr_t* /*attr*/) {
+    // nop
+
+    return 0;
+}
+
+extern "C"
+int pthread_mutexattr_settype(pthread_mutexattr_t* attr, int type) {
+    if (type != PTHREAD_MUTEX_NORMAL && type != PTHREAD_MUTEX_ERRORCHECK &&
+        type != PTHREAD_MUTEX_RECURSIVE) {
+        return EINVAL;
+    }
+
+    auto& a = *(_pthread_mutex_attr*)attr;
+
+    switch (type) {
+        case PTHREAD_MUTEX_NORMAL:
+            a.type = mutex_type::normal;
+            break;
+
+        case PTHREAD_MUTEX_ERRORCHECK:
+            a.type = mutex_type::errorcheck;
+            break;
+
+        case PTHREAD_MUTEX_RECURSIVE:
+            a.type = mutex_type::recursive;
+            break;
+    }
 
     return 0;
 }
