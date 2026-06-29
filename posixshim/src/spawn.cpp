@@ -243,6 +243,11 @@ pid_t waitpid(pid_t pid, int* wstatus, int options) {
 }
 
 extern "C"
+pid_t wait(int* wstatus) {
+    return waitpid(-1, wstatus, 0);
+}
+
+extern "C"
 pid_t getppid() {
     PROCESS_BASIC_INFORMATION pbi;
 
