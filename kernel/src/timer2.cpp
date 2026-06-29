@@ -363,24 +363,18 @@ NTSTATUS NtCancelTimer(HANDLE timer_handle, bool* current_state) {
 
 extern "C"
 NTSTATUS NtDelayExecution(bool alertable, const LARGE_INTEGER* delay_interval) {
-    if (!delay_interval) {
-        print("FIXME - NtDelayExecution with NULL interval\n");
-        // FIXME - should wait forever?
-        return nt_status::INTERNAL_ERROR;
+    optional<uint64_t> tm;
+
+    if (delay_interval) {
+        if (delay_interval->QuadPart > 0) {
+            print("FIXME - NtDelayExecution positive delay_interval\n");
+            return nt_status::NOT_SUPPORTED;
+        }
+
+        tm = -delay_interval->QuadPart;
     }
 
-    // FIXME - alertable
-
-    auto obj = create_timer(false);
-
-    auto& t = static_cast<timer&>(obj.get());
-
-    auto status = t.set(delay_interval->QuadPart, nullptr, nullptr, false,
-                        0, nullptr);
-    if (!success(status))
-        return status;
-
-    return wait_for_object(t, alertable);
+    return wait_no_object(alertable, tm);
 }
 
 void msleep(unsigned int ms) {

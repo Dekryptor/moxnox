@@ -462,7 +462,7 @@ void wait_timeout_expired(::thread* tptr) {
 
     auto& t = *tptr;
 
-    assert(t.status == thread_status::waiting || t.status == thread_status::waiting_multiple);
+    assert(t.status == thread_status::waiting || t.status == thread_status::waiting_multiple || t.status == thread_status::waiting_no_object);
 
     remove_entry_list(t.timeout_le);
 
@@ -1224,6 +1224,130 @@ NTSTATUS mn_poll(mn_poll_entry* entries, size_t num_entries,
     }
 
     free(objs);
+
+    return nt_status::SUCCESS;
+}
+
+nt_status wait_no_object(bool interruptible, optional<uint64_t> timeout) {
+#ifdef DEBUG
+    if (interrupts_disabled())
+        bsod("calling wait_no_object with interrupts disabled");
+
+#ifdef __aarch64__
+    {
+        disable_interrupts();
+
+        auto current_priority = get_interrupt_priority();
+
+        enable_interrupts();
+
+        if ((current_priority & 0xf0) != 0xf0)
+            bsod_format("calling wait_no_object with GICC_PMR of {:x}\n", current_priority);
+    }
+#elifdef __x86_64__
+    uint64_t cr8 = 0;
+
+    __asm __volatile(
+        "mov rax, cr8\n"
+        "mov %0, rax\n"
+        : "=m" (cr8)
+        :
+        : "rax"
+    );
+
+    if (cr8)
+        bsod("calling wait_no_object when cr8 != 0");
+#endif
+#endif
+    auto current_thread = get_current_thread();
+
+    disable_interrupts();
+    acquire_sync_lock();
+
+    if (interruptible && current_thread->status == thread_status::dying) {
+        release_sync_lock();
+        enable_interrupts();
+        return nt_status::THREAD_IS_TERMINATING;
+    }
+
+    {
+        if (interruptible) {
+            bool has_apcs;
+
+            {
+                lock_guard lock(current_thread->apc_lock);
+                has_apcs = !is_list_empty(current_thread->pending_apcs);
+            }
+
+            if (has_apcs) {
+                release_sync_lock();
+                enable_interrupts();
+                return nt_status::USER_APC;
+            }
+        }
+
+        if (timeout.has_value() && *timeout == 0) {
+            release_sync_lock();
+            enable_interrupts();
+            return nt_status::TIMEOUT;
+        }
+
+        auto& cb = *get_cpu_block();
+
+        current_thread->status = thread_status::waiting_no_object;
+        current_thread->current_cpu = 0xffffffff;
+        current_thread->wait_interruptible = interruptible;
+
+        if (current_thread->proc)
+            current_thread->proc->running_cpus &= ~((uint64_t)1 << cb.cpu_no);
+
+        active_cpus.fetch_and(~((uint64_t)1 << cb.cpu_no), memory_order::relaxed);
+
+        if (!timeout.has_value())
+            current_thread->wait_timeout = 0;
+        else {
+            current_thread->wait_timeout = *timeout / (SYSTEM_TIME_RESOLUTION / TICK_RATE);
+
+            if (*timeout % (SYSTEM_TIME_RESOLUTION / TICK_RATE))
+                current_thread->wait_timeout++;
+
+            insert_tail_list(thread_list_timeout, current_thread->timeout_le);
+        }
+    }
+
+#ifdef __aarch64__
+    __asm __volatile (
+        "mov x0, lr"
+        "\n\tbl yield"
+        :
+        :
+        : "x0", "x1"
+    );
+#elifdef __x86_64__
+    yield(); // releases sync_lock
+#endif
+
+    if (current_thread->kill_on_wake) {
+        current_thread->kill_on_wake = false;
+        current_thread->status = thread_status::dying;
+        return nt_status::THREAD_IS_TERMINATING;
+    }
+
+    if (interruptible && current_thread->status == thread_status::dying)
+        return nt_status::THREAD_IS_TERMINATING;
+
+    if (interruptible && current_thread->suspend_count.load() != 0)
+        return nt_status::ALERTED;
+
+    if (interruptible) {
+        lock_guard lock(current_thread->apc_lock);
+
+        if (!is_list_empty(current_thread->pending_apcs))
+            return nt_status::USER_APC;
+    }
+
+    if (timeout.has_value() && current_thread->wait_timeout == 0)
+        return nt_status::TIMEOUT;
 
     return nt_status::SUCCESS;
 }

@@ -91,15 +91,21 @@ static void terminate_thread2(thread& t, bool* last_thread,
                     break;
                 }
 
+                case thread_status::waiting_no_object: {
+                    if (t.wait_timeout != 0)
+                        remove_entry_list(t.timeout_le);
+                    break;
+                }
+
                 default:
                     break;
             }
 
-            if (t.current_cpu == 0xffffffff && (t.status == thread_status::waiting || t.status == thread_status::waiting_multiple)) {
+            if (t.current_cpu == 0xffffffff && (t.status == thread_status::waiting || t.status == thread_status::waiting_multiple || t.status == thread_status::waiting_no_object)) {
                 t.status = thread_status::dying;
                 return;
             }
-        } else if (t.status == thread_status::waiting || t.status == thread_status::waiting_multiple) {
+        } else if (t.status == thread_status::waiting || t.status == thread_status::waiting_multiple || t.status == thread_status::waiting_no_object) {
             t.kill_on_wake = true;
             return;
         }
@@ -636,7 +642,7 @@ nt_status thread::queue_apc(PS_APC_ROUTINE apc_routine, void* apc_arg1,
         if (is_list_empty(pending_apcs))
             return nt_status::SUCCESS;
 
-        if ((status == thread_status::waiting || status == thread_status::waiting_multiple) && wait_interruptible) {
+        if ((status == thread_status::waiting || status == thread_status::waiting_multiple || status == thread_status::waiting_no_object) && wait_interruptible) {
             // break waits
 
             if (wait_timeout != 0)

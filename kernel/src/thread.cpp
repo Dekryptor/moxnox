@@ -50,6 +50,7 @@ export enum class thread_status {
     running,
     waiting,
     waiting_multiple,
+    waiting_no_object,
     dead,
     dying
 };
