@@ -3,6 +3,8 @@
 #include <bit>
 #include <span>
 #include <string_view>
+#include <charconv>
+#include <utility>
 
 import nt;
 import ucrtbase;
@@ -466,6 +468,61 @@ const char* inet_ntop(int af, const void* src, char* dst, socklen_t size) {
             *_errno() = EAFNOSUPPORT;
             return nullptr;
     }
+}
+
+extern "C"
+in_addr_t inet_addr(const char* cp) {
+    string_view sv(cp);
+    uint32_t values[4];
+    size_t num_parts = 0;
+
+    // FIXME - in theory should be parsing hex or octal too
+
+    for (size_t i = 0; i < 4; i++) {
+        auto dot = sv.find('.');
+
+        if (dot == 0)
+            return (in_addr_t)-1;
+
+        if (dot == string_view::npos)
+            dot = sv.size();
+
+        auto [ptr, ec] = from_chars(sv.data(), sv.data() + dot, values[i]);
+
+        if (ec != errc() || ptr != sv.data() + dot)
+            return (in_addr_t)-1;
+
+        num_parts++;
+
+        sv = string_view(sv.data() + dot + 1, sv.size() - dot - 1);
+        if (sv.empty())
+            break;
+    }
+
+    if (!sv.empty())
+        return (in_addr_t)-1;
+
+    if (num_parts == 1)
+        return byteswap(values[0]);
+    else if (num_parts == 2) {
+        if (values[0] > 0xff || values[1] > 0xffffff)
+            return (in_addr_t)-1;
+
+        return byteswap(values[1]) | values[0];
+    } else if (num_parts == 3) {
+        if (values[0] > 0xff || values[1] > 0xff || values[2] > 0xffff)
+            return (in_addr_t)-1;
+
+        return byteswap(values[2]) | (values[1] << 8) | values[0];
+    } else if (num_parts == 4) {
+        for (auto v : values) {
+            if (v > 0xff)
+                return (in_addr_t)-1;
+        }
+
+        return (values[3] << 24) | (values[2] << 16) | (values[1] << 8) | values[0];
+    } else
+        unreachable();
 }
 
 extern "C"

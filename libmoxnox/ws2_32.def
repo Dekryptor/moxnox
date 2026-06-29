@@ -25,6 +25,4 @@ getnameinfo
 getpeername
 shutdown
 inet_ntop
-
-; stubs
 inet_addr
