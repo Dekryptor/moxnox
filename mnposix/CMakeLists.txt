@@ -67,3 +67,9 @@ install(TARGETS mnposix
     CXX_MODULES_BMI EXCLUDE_FROM_ALL
     ARCHIVE EXCLUDE_FROM_ALL
 )
+
+add_custom_command(TARGET mnposix POST_BUILD
+    COMMAND sh -c "! \"${CMAKE_OBJDUMP}\" -p \"$1\" | grep -q 'DLL Name: mnposix' || { echo 'Error: mnposix.dll imports itself' >&2; exit 1; }" -- "$<TARGET_FILE:mnposix>"
+    VERBATIM
+    COMMENT "Checking mnposix.dll does not import itself"
+)
