@@ -101,3 +101,25 @@ extern "C"
 int getpagesize() {
     return PAGE_SIZE;
 }
+
+extern "C"
+int msync(void* addr, size_t length, int flags) {
+    IO_STATUS_BLOCK iosb;
+
+    if ((flags & ~MS_INVALIDATE) != MS_SYNC && (flags & ~MS_INVALIDATE) != MS_ASYNC) {
+        *_errno() = EINVAL;
+        return -1;
+    }
+
+    if (flags & MS_ASYNC) // nop
+        return 0;
+
+    auto status = NtFlushVirtualMemory(NtCurrentProcess(), &addr, &length,
+                                       &iosb);
+    if (!success(status)) {
+        *_errno() = nt_status_to_errno(status);
+        return -1;
+    }
+
+    return 0;
+}

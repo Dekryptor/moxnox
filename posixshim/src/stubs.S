@@ -17,6 +17,5 @@ do_stub_no_export "statvfs"
 do_stub_no_export "pause"
 do_stub_no_export "clock_getres"
 do_stub_no_export "times"
-do_stub_no_export "msync"
 
 stubs_end
