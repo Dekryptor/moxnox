@@ -26,7 +26,6 @@ do_stub_no_export "pthread_once"
 do_stub_no_export "pthread_attr_init"
 do_stub_no_export "pthread_attr_destroy"
 do_stub_no_export "pthread_attr_setdetachstate"
-do_stub_no_export "munmap"
 do_stub_no_export "msync"
 
 stubs_end

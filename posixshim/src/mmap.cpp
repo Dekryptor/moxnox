@@ -80,3 +80,18 @@ void* mmap(void* /*addr*/, size_t len, int prot, int flags, int fd, off_t off) {
 
     return base_address;
 }
+
+extern "C"
+int munmap(void* addr, size_t /*len*/) {
+    // FIXME - partial unmapping
+
+    auto status = NtUnmapViewOfSection(NtCurrentProcess(), addr);
+
+    // if map not there, POSIX says we should return 0
+    if (!success(status) && status != nt_status::NO_MEMORY) {
+        *_errno() = nt_status_to_errno(status);
+        return -1;
+    }
+
+    return 0;
+}
