@@ -14,7 +14,7 @@ add_custom_command(
     COMMAND perl ${CMAKE_CURRENT_SOURCE_DIR}/repo/Configure mingw64
             --cross-compile-prefix=x86_64-w64-mingw32-
             no-asm no-async no-engine no-module no-dso
-            no-threads no-thread-pool no-default-thread-pool
+            no-thread-pool no-default-thread-pool
             no-tests no-docs no-quic no-ui-console
             no-winstore no-secure-memory no-deprecated
             --prefix=/usr --openssldir=/etc/ssl --api=1.1.0
@@ -86,6 +86,7 @@ add_custom_command(
     COMMAND make -C ${GEN} build_all_generated libcrypto.def libssl.def
     COMMAND sed -i [[s|^LIBRARY .*|LIBRARY         "libcrypto"|]] ${GEN}/libcrypto.def
     COMMAND sed -i [[s|^LIBRARY .*|LIBRARY         "libssl"|]] ${GEN}/libssl.def
+    COMMAND sed -z -i [[s|#if defined(OPENSSL_THREADS) && !defined(CRYPTO_TDEBUG)\n#if defined(_WIN32)|#if defined(OPENSSL_THREADS) \&\& !defined(CRYPTO_TDEBUG)\n#if defined(_WIN32) \&\& !defined(MOXNOX)|g]] ${GEN}/include/openssl/crypto.h
     DEPENDS ${GEN}/configdata.pm
     VERBATIM
 )
@@ -195,6 +196,21 @@ openssl_patch(providers/implementations/rands/seeding/rand_win.c
 # avoid WideCharToMultiByte
 openssl_patch(crypto/rand/randfile.c
     -e [[s|#if defined(_WIN32) && defined(CP_UTF8) && !defined(_WIN32_WCE)|#if defined(_WIN32) \&\& defined(CP_UTF8) \&\& !defined(_WIN32_WCE) \&\& !defined(MOXNOX)|g]]
+)
+
+openssl_patch(crypto/threads_pthread.c
+    -e [[s|#if defined(OPENSSL_THREADS) && !defined(CRYPTO_TDEBUG) && !defined(OPENSSL_SYS_WINDOWS)|#if defined(OPENSSL_THREADS) \&\& !defined(CRYPTO_TDEBUG) \&\& (!defined(OPENSSL_SYS_WINDOWS) \|\| defined(MOXNOX))|g]]
+    -e [[s|#if defined(OPENSSL_SYS_UNIX)|#if defined(OPENSSL_SYS_UNIX) \|\| defined(MOXNOX)|g]]
+)
+openssl_patch(crypto/threads_win.c
+    -e [[s|#if defined(OPENSSL_THREADS) && !defined(CRYPTO_TDEBUG) && defined(OPENSSL_SYS_WINDOWS)|#if defined(OPENSSL_THREADS) \&\& !defined(CRYPTO_TDEBUG) \&\& defined(OPENSSL_SYS_WINDOWS) \&\& !defined(MOXNOX)|g]]
+)
+
+openssl_patch(crypto/thread/arch/thread_win.c
+    -e [[s|#if defined(OPENSSL_THREADS_WINNT)|#if defined(OPENSSL_THREADS_WINNT) \&\& !defined(MOXNOX)|g]]
+)
+openssl_patch(crypto/thread/arch/thread_posix.c
+    -e [[s|#if defined(OPENSSL_THREADS_POSIX)|#if defined(OPENSSL_THREADS_POSIX) \|\| defined(MOXNOX)|g]]
 )
 
 add_library(libcrypto SHARED
@@ -844,11 +860,12 @@ add_library(libcrypto SHARED
     repo/crypto/store/store_result.c
     repo/crypto/store/store_strings.c
     repo/crypto/thread/api.c
-    repo/crypto/thread/arch/thread_win.c
+    ${GEN}/crypto/thread/arch/thread_posix.c
+    ${GEN}/crypto/thread/arch/thread_win.c
     repo/crypto/threads_lib.c
     repo/crypto/threads_none.c
-    repo/crypto/threads_pthread.c
-    repo/crypto/threads_win.c
+    ${GEN}/crypto/threads_pthread.c
+    ${GEN}/crypto/threads_win.c
     ${GEN}/crypto/time.c
     repo/crypto/trace.c
     repo/crypto/ts/ts_asn1.c
