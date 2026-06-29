@@ -50,7 +50,7 @@ target_include_directories(nano PRIVATE
     repo/src
 )
 
-target_link_libraries(nano PRIVATE ncurses posixshim gnulib moxnox)
+target_link_libraries(nano PRIVATE ncurses mnposix gnulib moxnox)
 
 install(TARGETS nano DESTINATION ${CMAKE_INSTALL_PREFIX}/bin
     ARCHIVE EXCLUDE_FROM_ALL

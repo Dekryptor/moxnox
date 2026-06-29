@@ -37,7 +37,7 @@ target_sources(ntdll PUBLIC FILE_SET CXX_MODULES FILES
 
 target_compile_options(ntdll PRIVATE -fno-exceptions ${USERSPACE_CFLAGS})
 target_link_options(ntdll PRIVATE -nostartfiles -nostdlib)
-target_link_libraries(ntdll PRIVATE format dwarf list unicode nt ntdll_mod pe kernelbase_mod crt pagesize timepage unique_handle print termios posixshim)
+target_link_libraries(ntdll PRIVATE format dwarf list unicode nt ntdll_mod pe kernelbase_mod crt pagesize timepage unique_handle print termios exec mnposix)
 
 if(CMAKE_SYSTEM_PROCESSOR STREQUAL "aarch64")
     target_link_libraries(ntdll PRIVATE aarch64)

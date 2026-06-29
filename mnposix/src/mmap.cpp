@@ -9,6 +9,21 @@ import pagesize;
 #undef errno
 import errno;
 
+extern "C++"
+void* operator new(size_t count) {
+    return malloc(count);
+}
+
+extern "C++"
+void operator delete(void* ptr) noexcept {
+    free(ptr);
+}
+
+extern "C++"
+void operator delete(void* ptr, size_t) noexcept {
+    free(ptr);
+}
+
 extern "C"
 void* mmap(void* /*addr*/, size_t len, int prot, int flags, int fd, off_t off) {
     nt_status status;

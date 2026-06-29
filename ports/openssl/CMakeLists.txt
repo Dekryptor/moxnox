@@ -1240,7 +1240,7 @@ set_target_properties(libcrypto PROPERTIES
     OUTPUT_NAME "libcrypto"
 )
 
-target_link_libraries(libcrypto PRIVATE posixshim moxnox)
+target_link_libraries(libcrypto PRIVATE mnposix moxnox)
 
 install(TARGETS libcrypto DESTINATION ${CMAKE_INSTALL_PREFIX}/lib
     ARCHIVE EXCLUDE_FROM_ALL
@@ -1336,7 +1336,7 @@ set_target_properties(libssl PROPERTIES
     IMPORT_PREFIX ""
 )
 
-target_link_libraries(libssl PRIVATE libcrypto posixshim moxnox)
+target_link_libraries(libssl PRIVATE libcrypto mnposix moxnox)
 
 install(TARGETS libssl DESTINATION ${CMAKE_INSTALL_PREFIX}/lib
     ARCHIVE EXCLUDE_FROM_ALL
@@ -1489,7 +1489,7 @@ target_compile_options(openssl_exe PRIVATE
 
 set_target_properties(openssl_exe PROPERTIES OUTPUT_NAME openssl)
 
-target_link_libraries(openssl_exe PRIVATE libssl libcrypto posixshim moxnox)
+target_link_libraries(openssl_exe PRIVATE libssl libcrypto mnposix moxnox)
 
 install(TARGETS openssl_exe DESTINATION ${CMAKE_INSTALL_PREFIX}/bin)
 

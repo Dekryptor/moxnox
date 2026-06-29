@@ -14,8 +14,6 @@ add_library(musl_glob STATIC
 target_include_directories(musl_glob PRIVATE glob_compat)
 target_compile_options(musl_glob PRIVATE -include ${CMAKE_CURRENT_SOURCE_DIR}/glob_compat/glob_compat.h)
 
-target_link_libraries(musl_glob PRIVATE posixshim)
-
 add_library(tre STATIC
     ../ports/tre/repo/lib/regcomp.c
     ../ports/tre/repo/lib/regexec.c
@@ -33,7 +31,7 @@ target_include_directories(tre PRIVATE ../ports/tre)
 target_compile_definitions(tre PRIVATE HAVE_CONFIG_H)
 target_compile_options(tre PRIVATE -include ../ports/tre/tre-internal-fix.h)
 
-add_library(posixshim STATIC
+add_library(mnposix SHARED
     src/stubs.S
     src/termios.cpp
     src/sleep.cpp
@@ -55,8 +53,17 @@ add_library(posixshim STATIC
     src/mmap.cpp
 )
 
-target_compile_options(posixshim PRIVATE -fno-exceptions ${USERSPACE_CFLAGS})
+target_compile_options(mnposix PRIVATE -fno-exceptions ${USERSPACE_CFLAGS})
 
-target_link_libraries(posixshim PRIVATE print errno termios unicode unique_handle exec list)
-target_link_libraries(posixshim PRIVATE moxnox)
-target_link_libraries(posixshim PRIVATE musl_glob tre)
+target_link_libraries(mnposix PRIVATE print errno termios unicode unique_handle exec list)
+target_link_libraries(mnposix PRIVATE moxnox)
+
+target_link_libraries(mnposix PRIVATE -Wl,--whole-archive musl_glob -Wl,--no-whole-archive)
+target_link_libraries(mnposix PRIVATE -Wl,--whole-archive tre -Wl,--no-whole-archive)
+
+install(TARGETS mnposix
+    COMPONENT core
+    RUNTIME DESTINATION ${CMAKE_INSTALL_PREFIX}/lib
+    CXX_MODULES_BMI EXCLUDE_FROM_ALL
+    ARCHIVE EXCLUDE_FROM_ALL
+)

@@ -330,7 +330,7 @@ target_compile_definitions(tinfo PRIVATE BUILDING_TINFO WIN_PTHREADS_TIME_H)
 target_compile_options(tinfo PRIVATE ${USERSPACE_CFLAGS} -Wno-pointer-sign -Wno-conversion -Wno-unused-parameter -Wno-unused-but-set-variable)
 target_include_directories(tinfo PUBLIC ${GEN})
 target_include_directories(tinfo PRIVATE repo/ncurses repo/include)
-target_link_libraries(tinfo PRIVATE posixshim)
+target_link_libraries(tinfo PRIVATE mnposix)
 
 # ncurses shared library
 
@@ -435,7 +435,7 @@ target_compile_options(ncurses PRIVATE ${USERSPACE_CFLAGS} -Wno-pointer-sign -Wn
 target_include_directories(ncurses PUBLIC ${GEN})
 target_include_directories(ncurses PRIVATE repo/ncurses repo/include)
 target_link_libraries(ncurses PUBLIC tinfo)
-target_link_libraries(ncurses PRIVATE posixshim)
+target_link_libraries(ncurses PRIVATE mnposix)
 
 add_custom_target(ncurses_generated_headers
     DEPENDS
@@ -581,7 +581,7 @@ add_executable(clear
 target_compile_options(clear PRIVATE ${USERSPACE_CFLAGS})
 target_compile_definitions(clear PRIVATE WIN_PTHREADS_TIME_H _UCRT)
 target_include_directories(clear PRIVATE repo/include repo/ncurses repo/progs ${CMAKE_CURRENT_SOURCE_DIR})
-target_link_libraries(clear PRIVATE moxnox ncurses posixshim)
+target_link_libraries(clear PRIVATE moxnox ncurses mnposix)
 
 if (CMAKE_C_COMPILER_ID STREQUAL "GNU")
     target_link_options(clear PUBLIC -mcrtdll=ucrtbase)
@@ -601,7 +601,7 @@ add_executable(tset
 target_compile_options(tset PRIVATE ${USERSPACE_CFLAGS})
 target_compile_definitions(tset PRIVATE WIN_PTHREADS_TIME_H _UCRT)
 target_include_directories(tset PRIVATE repo/include repo/ncurses repo/progs ${CMAKE_CURRENT_SOURCE_DIR})
-target_link_libraries(tset PRIVATE moxnox ncurses posixshim)
+target_link_libraries(tset PRIVATE moxnox ncurses mnposix)
 
 if (CMAKE_C_COMPILER_ID STREQUAL "GNU")
     target_link_options(tset PUBLIC -mcrtdll=ucrtbase)

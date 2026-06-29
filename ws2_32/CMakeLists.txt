@@ -19,7 +19,7 @@ target_link_options(ws2_32 PRIVATE -nostartfiles -nostdlib)
 
 target_link_libraries(ws2_32 PRIVATE unique_handle errno print)
 target_link_libraries(ws2_32 PRIVATE moxnox)
-target_link_libraries(ws2_32 PRIVATE posixshim)
+target_link_libraries(ws2_32 PRIVATE mnposix)
 
 install(TARGETS ws2_32
     COMPONENT core

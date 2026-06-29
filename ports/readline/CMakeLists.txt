@@ -81,7 +81,7 @@ target_compile_options(readline PRIVATE
 target_include_directories(readline PUBLIC ${CMAKE_CURRENT_BINARY_DIR})
 target_include_directories(readline PRIVATE repo ${CMAKE_CURRENT_SOURCE_DIR} ${GEN})
 
-target_link_libraries(readline PRIVATE tinfo posixshim moxnox)
+target_link_libraries(readline PRIVATE tinfo mnposix moxnox)
 # target_link_options(readline PRIVATE -Wl,--exclude-libs,ALL)
 
 install(TARGETS readline
