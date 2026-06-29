@@ -2,16 +2,16 @@
 
 stubs_start
 
-do_stub_no_export "dlopen"
-do_stub_no_export "dlsym"
-do_stub_no_export "dlclose"
-do_stub_no_export "dlerror"
-do_stub_no_export "link"
-do_stub_no_export "uname"
-do_stub_no_export "getpgid"
-do_stub_no_export "tcgetpgrp"
-do_stub_no_export "getpass"
-do_stub_no_export "statvfs"
-do_stub_no_export "times"
+do_stub "dlopen"
+do_stub "dlsym"
+do_stub "dlclose"
+do_stub "dlerror"
+do_stub "link"
+do_stub "uname"
+do_stub "getpgid"
+do_stub "tcgetpgrp"
+do_stub "getpass"
+do_stub "statvfs"
+do_stub "times"
 
 stubs_end

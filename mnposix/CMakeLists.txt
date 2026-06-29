@@ -32,6 +32,7 @@ target_compile_definitions(tre PRIVATE HAVE_CONFIG_H)
 target_compile_options(tre PRIVATE -include ../ports/tre/tre-internal-fix.h)
 
 add_library(mnposix SHARED
+    src/mnposix.def
     src/stubs.S
     src/termios.cpp
     src/sleep.cpp
@@ -55,8 +56,7 @@ add_library(mnposix SHARED
 
 target_compile_options(mnposix PRIVATE -fno-exceptions ${USERSPACE_CFLAGS})
 
-target_link_libraries(mnposix PRIVATE print errno termios unicode unique_handle exec list)
-target_link_libraries(mnposix PRIVATE moxnox)
+target_link_libraries(mnposix PRIVATE print errno termios unicode unique_handle exec list ucrtbase_mod moxnox_ioctls)
 
 target_link_libraries(mnposix PRIVATE -Wl,--whole-archive musl_glob -Wl,--no-whole-archive)
 target_link_libraries(mnposix PRIVATE -Wl,--whole-archive tre -Wl,--no-whole-archive)
