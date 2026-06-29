@@ -5,6 +5,8 @@
 
 #define PTHREAD_MUTEX_INITIALIZER ((pthread_mutex_t)0)
 
+#define PTHREAD_ONCE_INIT ((pthread_once_t)0)
+
 #define PTHREAD_MUTEX_NORMAL 0
 #define PTHREAD_MUTEX_ERRORCHECK 1
 #define PTHREAD_MUTEX_RECURSIVE 2
@@ -44,6 +46,7 @@ int pthread_mutexattr_destroy(pthread_mutexattr_t* attr);
 int pthread_mutexattr_settype(pthread_mutexattr_t* attr, int type);
 int pthread_setcancelstate(int state, int* oldstate);
 int pthread_equal(pthread_t t1, pthread_t t2);
+int pthread_once(pthread_once_t* once_control, void (*init_routine)(void));
 
 #ifdef __cplusplus
 }

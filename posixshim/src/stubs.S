@@ -22,6 +22,7 @@ do_stub_no_export "pthread_setcancelstate"
 do_stub_no_export "pthread_mutexattr_init"
 do_stub_no_export "pthread_mutexattr_destroy"
 do_stub_no_export "pthread_mutexattr_settype"
+do_stub_no_export "pthread_once"
 do_stub_no_export "munmap"
 do_stub_no_export "msync"
 
