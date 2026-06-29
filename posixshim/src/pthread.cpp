@@ -3,6 +3,7 @@
 #include <errno.h>
 #include <string.h>
 #include <utility>
+#include <atomic>
 
 import nt;
 import ntdll;
@@ -433,6 +434,28 @@ extern "C"
 extern "C"
 int pthread_equal(pthread_t t1, pthread_t t2) {
     return t1 == t2 ? 0 : 1;
+}
+
+extern "C"
+int pthread_once(pthread_once_t* once_control, void (*init_routine)(void)) {
+    atomic_ref<uintptr_t> r(*once_control);
+    uintptr_t expected = 0;
+
+    if (r.compare_exchange_strong(expected, 1, memory_order_acquire,
+                                  memory_order_acquire)) {
+        init_routine();
+        r.store(2, memory_order_release);
+        RtlWakeAddressAll(once_control);
+    } else {
+        while (expected != 2) {
+            uintptr_t val = 1;
+
+            RtlWaitOnAddress(once_control, &val, sizeof(val), nullptr);
+            expected = r.load(memory_order_acquire);
+        }
+    }
+
+    return 0;
 }
 
 __attribute__((section (".CRT$XLD"), used)) void(*__xl_d2)() = run_dtors;

@@ -15,6 +15,6 @@ typedef uintptr_t pthread_cond_t;
 typedef uintptr_t pthread_condattr_t; // FIXME?
 typedef uintptr_t pthread_mutexattr_t; // FIXME?
 typedef uintptr_t pthread_attr_t; // FIXME?
-typedef uintptr_t pthread_once_t; // FIXME?
+typedef uintptr_t pthread_once_t;
 typedef uint64_t fsblkcnt_t;
 typedef uint64_t fsfilcnt_t;
