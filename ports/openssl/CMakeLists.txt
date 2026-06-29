@@ -17,7 +17,7 @@ add_custom_command(
             no-thread-pool no-default-thread-pool
             no-tests no-docs no-quic no-ui-console
             no-winstore no-secure-memory no-deprecated
-            --prefix=/usr --openssldir=/etc/ssl --api=1.1.0
+            --prefix=/usr --openssldir=/etc/ssl --api=1.1.1
     DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/repo/Configure
     WORKING_DIRECTORY ${GEN}
     VERBATIM
