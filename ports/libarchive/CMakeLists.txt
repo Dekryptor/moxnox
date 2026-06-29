@@ -313,7 +313,7 @@ target_compile_options(archive PRIVATE
     "SHELL:-include ${GEN}/libarchive/archive_private.h"
 )
 
-target_link_libraries(archive PRIVATE zlib zstd mnposix)
+target_link_libraries(archive PRIVATE zlib zstd)
 
 install(TARGETS archive DESTINATION ${CMAKE_INSTALL_PREFIX}/lib
     ARCHIVE EXCLUDE_FROM_ALL
@@ -358,7 +358,7 @@ target_compile_options(bsdtar PRIVATE
 install(CODE "file(MAKE_DIRECTORY \"\$ENV{DESTDIR}${CMAKE_INSTALL_PREFIX}/bin\")")
 install(CODE "file(CREATE_LINK bsdtar.exe \"\$ENV{DESTDIR}${CMAKE_INSTALL_PREFIX}/bin/tar.exe\" SYMBOLIC)")
 
-target_link_libraries(bsdtar PRIVATE archive mnposix moxnox)
+target_link_libraries(bsdtar PRIVATE archive moxnox)
 
 install(TARGETS bsdtar DESTINATION ${CMAKE_INSTALL_PREFIX}/bin)
 
@@ -382,7 +382,7 @@ target_compile_definitions(bsdcat PRIVATE HAVE_CONFIG_H MOXNOX)
 
 target_compile_options(bsdcat PRIVATE ${USERSPACE_CFLAGS})
 
-target_link_libraries(bsdcat PRIVATE archive mnposix moxnox)
+target_link_libraries(bsdcat PRIVATE archive moxnox)
 
 install(TARGETS bsdcat DESTINATION ${CMAKE_INSTALL_PREFIX}/bin)
 
@@ -413,7 +413,7 @@ target_compile_options(bsdcpio PRIVATE
     "SHELL:-include ${GEN}/cpio/cpio_platform.h"
 )
 
-target_link_libraries(bsdcpio PRIVATE archive mnposix moxnox)
+target_link_libraries(bsdcpio PRIVATE archive moxnox)
 
 install(TARGETS bsdcpio DESTINATION ${CMAKE_INSTALL_PREFIX}/bin)
 
@@ -444,6 +444,6 @@ target_compile_options(bsdunzip PRIVATE
     -Wno-unused-function
 )
 
-target_link_libraries(bsdunzip PRIVATE archive mnposix moxnox)
+target_link_libraries(bsdunzip PRIVATE archive moxnox)
 
 install(TARGETS bsdunzip DESTINATION ${CMAKE_INSTALL_PREFIX}/bin)

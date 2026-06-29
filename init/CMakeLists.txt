@@ -14,7 +14,7 @@ add_compile_definitions(_GLIBCXX_NO_ASSERTIONS)
 target_compile_options(init PRIVATE -fno-exceptions ${USERSPACE_CFLAGS})
 
 target_link_libraries(init format unique_handle print evdev unicode)
-target_link_libraries(init moxnox mnposix)
+target_link_libraries(init moxnox)
 
 install(TARGETS init DESTINATION ${CMAKE_INSTALL_PREFIX}/bin
     COMPONENT core

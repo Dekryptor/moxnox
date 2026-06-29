@@ -76,6 +76,6 @@ target_compile_options(less PRIVATE
     -Wno-type-limits
 )
 
-target_link_libraries(less PRIVATE ncurses mnposix moxnox)
+target_link_libraries(less PRIVATE ncurses moxnox)
 
 install(TARGETS less DESTINATION ${CMAKE_INSTALL_PREFIX}/bin)

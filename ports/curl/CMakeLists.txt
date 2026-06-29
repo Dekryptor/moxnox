@@ -273,7 +273,7 @@ target_include_directories(libcurl PUBLIC ${CURL_GEN}/include repo/include)
 
 target_compile_definitions(libcurl PRIVATE BUILDING_LIBCURL HAVE_CONFIG_H)
 
-target_link_libraries(libcurl PRIVATE mnposix zlib zstd libssl libcrypto)
+target_link_libraries(libcurl PRIVATE zlib zstd libssl libcrypto)
 
 target_compile_options(libcurl PRIVATE
     ${USERSPACE_CFLAGS}
@@ -364,7 +364,7 @@ target_compile_options(curl_exe PRIVATE
 
 set_target_properties(curl_exe PROPERTIES OUTPUT_NAME curl)
 
-target_link_libraries(curl_exe PRIVATE libcurl mnposix moxnox)
+target_link_libraries(curl_exe PRIVATE libcurl moxnox)
 
 install(TARGETS curl_exe DESTINATION ${CMAKE_INSTALL_PREFIX}/bin)
 

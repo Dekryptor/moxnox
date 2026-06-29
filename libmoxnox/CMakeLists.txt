@@ -11,6 +11,7 @@ set(DLLS
     ucrtbase
     ws2_32
     iphlpapi
+    mnposix
 )
 
 add_library(moxnox STATIC IMPORTED GLOBAL)

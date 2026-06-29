@@ -24,7 +24,7 @@ if(CMAKE_SYSTEM_PROCESSOR STREQUAL "amd64")
     target_compile_options(shell PRIVATE -masm=intel)
 endif()
 
-target_link_libraries(shell moxnox print unicode unique_handle list pagesize termios mnposix errno)
+target_link_libraries(shell moxnox print unicode unique_handle list pagesize termios errno)
 target_link_libraries(shell format)
 target_link_libraries(shell readline)
 
@@ -52,7 +52,7 @@ target_compile_options(ls PRIVATE -fno-exceptions ${USERSPACE_CFLAGS})
 
 target_link_libraries(ls print)
 target_link_libraries(ls format list unicode errno)
-target_link_libraries(ls moxnox mnposix)
+target_link_libraries(ls moxnox)
 
 install(TARGETS ls DESTINATION ${CMAKE_INSTALL_PREFIX}/bin COMPONENT core)
 
@@ -206,7 +206,6 @@ install(TARGETS crt-test DESTINATION ${CMAKE_INSTALL_PREFIX}/bin COMPONENT core)
 add_executable(regex-test src/regex-test.cpp)
 
 target_compile_options(regex-test PRIVATE -fno-exceptions ${USERSPACE_CFLAGS})
-target_link_libraries(regex-test mnposix)
 
 if (CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
     target_link_options(regex-test PUBLIC -mcrtdll=ucrtbase)
@@ -219,7 +218,6 @@ install(TARGETS regex-test DESTINATION ${CMAKE_INSTALL_PREFIX}/bin COMPONENT cor
 add_executable(glob-test src/glob-test.cpp)
 
 target_compile_options(glob-test PRIVATE -fno-exceptions ${USERSPACE_CFLAGS})
-target_link_libraries(glob-test mnposix)
 
 if (CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
     target_link_options(glob-test PUBLIC -mcrtdll=ucrtbase)
@@ -244,7 +242,6 @@ add_executable(kill src/kill.cpp)
 
 target_compile_options(kill PRIVATE -fno-exceptions ${USERSPACE_CFLAGS})
 
-target_link_libraries(kill mnposix)
 target_link_libraries(kill moxnox print errno)
 
 install(TARGETS kill DESTINATION ${CMAKE_INSTALL_PREFIX}/bin COMPONENT core)
@@ -255,7 +252,7 @@ add_executable(killall src/killall.cpp)
 
 target_compile_options(killall PRIVATE -fno-exceptions ${USERSPACE_CFLAGS})
 
-target_link_libraries(killall print format unique_handle unicode errno mnposix)
+target_link_libraries(killall print format unique_handle unicode errno)
 target_link_libraries(killall moxnox)
 
 install(TARGETS killall DESTINATION ${CMAKE_INSTALL_PREFIX}/bin COMPONENT core)
@@ -464,7 +461,6 @@ add_executable(ping src/ping.cpp)
 target_compile_options(ping PRIVATE -fno-exceptions ${USERSPACE_CFLAGS})
 target_link_libraries(ping print unique_handle ipv6 errno)
 target_link_libraries(ping moxnox)
-target_link_libraries(ping mnposix)
 
 if (CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
     target_link_options(ping PUBLIC -mcrtdll=ucrtbase)
@@ -477,7 +473,7 @@ install(TARGETS ping DESTINATION ${CMAKE_INSTALL_PREFIX}/bin COMPONENT core)
 add_executable(telnetd src/telnetd.cpp)
 
 target_compile_options(telnetd PRIVATE -fno-exceptions ${USERSPACE_CFLAGS})
-target_link_libraries(telnetd moxnox print errno unique_handle unicode mnposix)
+target_link_libraries(telnetd moxnox print errno unique_handle unicode)
 
 if (CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
     target_link_options(telnetd PUBLIC -mcrtdll=ucrtbase)
@@ -554,7 +550,7 @@ install(TARGETS apc-test DESTINATION ${CMAKE_INSTALL_PREFIX}/bin COMPONENT core)
 add_executable(signal-test src/signal-test.cpp)
 
 target_compile_options(signal-test PRIVATE -fno-exceptions ${USERSPACE_CFLAGS})
-target_link_libraries(signal-test moxnox print unique_handle mnposix)
+target_link_libraries(signal-test moxnox print unique_handle)
 
 if (CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
     target_link_options(signal-test PUBLIC -mcrtdll=ucrtbase)
@@ -593,7 +589,7 @@ install(TARGETS mouse-test DESTINATION ${CMAKE_INSTALL_PREFIX}/bin COMPONENT cor
 add_executable(stat src/stat.cpp)
 
 target_compile_options(stat PRIVATE -fno-exceptions ${USERSPACE_CFLAGS})
-target_link_libraries(stat moxnox print errno mnposix)
+target_link_libraries(stat moxnox print errno)
 
 if (CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
     target_link_options(stat PUBLIC -mcrtdll=ucrtbase)
@@ -648,7 +644,7 @@ if (CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
     target_link_options(spawn-test PUBLIC -mcrtdll=ucrtbase)
 endif()
 
-target_link_libraries(spawn-test moxnox print mnposix unicode)
+target_link_libraries(spawn-test moxnox print unicode)
 
 install(TARGETS spawn-test DESTINATION ${CMAKE_INSTALL_PREFIX}/bin COMPONENT core)
 
@@ -662,7 +658,7 @@ if (CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
     target_link_options(pthread-test PUBLIC -mcrtdll=ucrtbase)
 endif()
 
-target_link_libraries(pthread-test moxnox print mnposix unicode)
+target_link_libraries(pthread-test moxnox print unicode)
 
 install(TARGETS pthread-test DESTINATION ${CMAKE_INSTALL_PREFIX}/bin COMPONENT core)
 
