@@ -164,8 +164,6 @@ int tcsetwinsize(int fd, const struct winsize* p) {
 
 extern "C"
 int tcdrain(int /*fd*/) {
-    print("FIXME - tcdrain\n");
-
     return 0;
 }
 
