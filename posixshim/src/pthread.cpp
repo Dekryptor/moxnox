@@ -22,6 +22,14 @@ struct _pthread {
     bool dead;
 };
 
+struct _pthread_attr {
+    uintptr_t detached : 1;
+    uintptr_t : 63;
+};
+
+static_assert(sizeof(_pthread_attr) == sizeof(pthread_attr_t));
+static_assert(alignof(_pthread_attr) == alignof(pthread_attr_t));
+
 struct key_slot {
     bool used;
     void (*dtor)(void*);
@@ -267,7 +275,7 @@ static void thread_start(pthread_t thread, void* (*func)(void*), void* arg) {
 }
 
 extern "C"
-int pthread_create(pthread_t* thread, const pthread_attr_t* /*attr*/,
+int pthread_create(pthread_t* thread, const pthread_attr_t* attr,
                    void* (*start_routine)(void*), void* arg) {
     nt_status status;
     HANDLE h;
@@ -280,8 +288,6 @@ int pthread_create(pthread_t* thread, const pthread_attr_t* /*attr*/,
     auto p = (_pthread*)malloc(sizeof(_pthread));
     if (!p)
         return ENOMEM;
-
-    // FIXME - attr
 
     memset(&initial_teb, 0, sizeof(initial_teb));
 
@@ -332,6 +338,12 @@ int pthread_create(pthread_t* thread, const pthread_attr_t* /*attr*/,
     p->h = h;
     p->detached = false;
     p->dead = false;
+
+    if (attr) {
+        auto& a = *(_pthread_attr*)attr;
+
+        p->detached = a.detached;
+    }
 
     status = NtResumeThread(h, nullptr);
     if (!success(status)) {
@@ -454,6 +466,35 @@ int pthread_once(pthread_once_t* once_control, void (*init_routine)(void)) {
             expected = r.load(memory_order_acquire);
         }
     }
+
+    return 0;
+}
+
+extern "C"
+int pthread_attr_init(pthread_attr_t* attr) {
+    *attr = 0;
+
+    return 0;
+}
+
+extern "C"
+int pthread_attr_destroy(pthread_attr_t* /*attr*/) {
+    // nop
+
+    return 0;
+}
+
+extern "C"
+int pthread_attr_setdetachstate(pthread_attr_t* attr, int detachstate) {
+    if (detachstate != PTHREAD_CREATE_JOINABLE && detachstate != PTHREAD_CREATE_DETACHED)
+        return EINVAL;
+
+    auto& a = *(_pthread_attr*)attr;
+
+    if (detachstate == PTHREAD_CREATE_DETACHED)
+        a.detached = 1;
+    else
+        a.detached = 0;
 
     return 0;
 }
