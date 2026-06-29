@@ -553,3 +553,10 @@ int fchmod(int /*fd*/, mode_t /*mode*/) {
 
     return 0;
 }
+
+extern "C"
+int fsync(int /*fd*/) {
+    // FIXME - do this properly
+
+    return 0;
+}
