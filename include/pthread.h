@@ -15,6 +15,8 @@
 #define PTHREAD_CANCEL_ENABLE 0
 #define PTHREAD_CANCEL_DISABLE 1
 
+#define PTHREAD_CREATE_DETACHED 1
+
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -47,6 +49,9 @@ int pthread_mutexattr_settype(pthread_mutexattr_t* attr, int type);
 int pthread_setcancelstate(int state, int* oldstate);
 int pthread_equal(pthread_t t1, pthread_t t2);
 int pthread_once(pthread_once_t* once_control, void (*init_routine)(void));
+int pthread_attr_init(pthread_attr_t* attr);
+int pthread_attr_destroy(pthread_attr_t* attr);
+int pthread_attr_setdetachstate(pthread_attr_t* attr, int detachstate);
 
 #ifdef __cplusplus
 }
