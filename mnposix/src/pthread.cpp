@@ -564,7 +564,7 @@ extern "C"
 
 extern "C"
 int pthread_equal(pthread_t t1, pthread_t t2) {
-    return t1 == t2 ? 0 : 1;
+    return t1 == t2 ? 1 : 0;
 }
 
 extern "C"
