@@ -233,6 +233,9 @@ static T strto(const char* nptr, char** endptr, int base) {
 
     T ret;
 
+    if (base == 0)
+        base = 10;
+
     auto fcr = from_chars(nptr, nptr + strlen(nptr), ret, base);
 
     if (endptr)
