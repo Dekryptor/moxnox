@@ -4,6 +4,7 @@
 import nt;
 import unique_handle;
 import ucrtbase;
+import pagesize;
 
 #undef errno
 import errno;
@@ -94,4 +95,9 @@ int munmap(void* addr, size_t /*len*/) {
     }
 
     return 0;
+}
+
+extern "C"
+int getpagesize() {
+    return PAGE_SIZE;
 }
