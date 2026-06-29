@@ -1,6 +1,7 @@
 #include <stdint.h>
 #include <string.h>
 #include <bit>
+#include <span>
 #include <string_view>
 
 import nt;
@@ -9,6 +10,8 @@ import ws2_32;
 import unique_handle;
 import moxnox_ioctls;
 import print;
+import format;
+import ipv6;
 
 #undef errno
 import errno;
@@ -404,6 +407,65 @@ int shutdown(int s, int how) {
     }
 
     return 0;
+}
+
+static const char* inet_ntop_v4(const in_addr_t& src, char* dst,
+                                socklen_t size) {
+    if (size < 0) {
+        *_errno() = ENOSPC;
+        return nullptr;
+    }
+
+    span sp(dst, size);
+
+    sp = format(sp, "{}.{}.{}.{}", (uint8_t)(src & 0xff),
+                (uint8_t)((src >> 8) & 0xff), (uint8_t)((src >> 16) & 0xff),
+                (uint8_t)(src >> 24));
+
+    if (sp.empty()) {
+        *_errno() = ENOSPC;
+        return nullptr;
+    }
+
+    sp[0] = 0;
+
+    return dst;
+}
+
+static const char* inet_ntop_v6(const ipv6_address& src, char* dst,
+                                socklen_t size) {
+    if (size < 0) {
+        *_errno() = ENOSPC;
+        return nullptr;
+    }
+
+    span sp(dst, size);
+
+    sp = format(sp, "{}", src);
+
+    if (sp.empty()) {
+        *_errno() = ENOSPC;
+        return nullptr;
+    }
+
+    sp[0] = 0;
+
+    return dst;
+}
+
+extern "C"
+const char* inet_ntop(int af, const void* src, char* dst, socklen_t size) {
+    switch (af) {
+        case AF_INET:
+            return inet_ntop_v4(*(in_addr_t*)src, dst, size);
+
+        case AF_INET6:
+            return inet_ntop_v6(*(ipv6_address*)src, dst, size);
+
+        default:
+            *_errno() = EAFNOSUPPORT;
+            return nullptr;
+    }
 }
 
 extern "C"
