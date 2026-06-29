@@ -103,6 +103,7 @@ intptr_t _get_osfhandle(int fd);
 char* _getcwd(char *buffer, int maxlen);
 int _open_osfhandle(intptr_t osfhandle, int flags);
 int _close(int fd);
+unsigned int mn_handled_signal_count();
 
 }
 

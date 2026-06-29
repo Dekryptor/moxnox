@@ -31,6 +31,8 @@ static const int LAST_SIG = SIGTTOU;
 static RTL_CRITICAL_SECTION sig_handlers_lock;
 static array<struct ::sigaction, LAST_SIG> sig_handlers;
 
+static thread_local unsigned int handled_signal_count = 0;
+
 extern "C"
 int mn_sigaction(int sig, const struct sigaction* act,
                  struct sigaction* oldact) {
@@ -179,6 +181,8 @@ static void signal_dispatch(int sig) {
     if (sa.sa_handler == SIG_IGN)
         return;
 
+    handled_signal_count++;
+
     auto mask = sa.sa_mask;
     optional<sigset_t> oldset;
 
@@ -259,4 +263,9 @@ export void init_signals() {
     mn_signal_dispatch = signal_dispatch;
 
     RtlInitializeCriticalSection(&sig_handlers_lock);
+}
+
+extern "C"
+unsigned int mn_handled_signal_count() {
+    return handled_signal_count;
 }

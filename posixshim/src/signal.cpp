@@ -199,3 +199,15 @@ extern "C"
 
     longjmp(env->jmp, val);
 }
+
+extern "C"
+int pause() {
+    auto count = mn_handled_signal_count();
+
+    while (count == mn_handled_signal_count()) {
+        NtDelayExecution(true, nullptr);
+    }
+
+    *_errno() = EINTR;
+    return -1;
+}

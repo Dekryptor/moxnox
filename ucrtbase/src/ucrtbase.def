@@ -322,3 +322,4 @@ cbrt
 cbrtf
 fmaf
 fma
+mn_handled_signal_count

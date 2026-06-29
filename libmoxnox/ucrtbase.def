@@ -298,6 +298,7 @@ cbrt
 cbrtf
 fmaf
 fma
+mn_handled_signal_count
 
 ; stubs
 ___lc_codepage_func
