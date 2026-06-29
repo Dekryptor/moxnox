@@ -178,7 +178,5 @@ int tcflow(int /*fd*/, int /*action*/) {
 
 extern "C"
 int tcsendbreak(int /*fd*/, int /*duration*/) {
-    print("FIXME - tcsendbreak\n");
-
     return 0;
 }
