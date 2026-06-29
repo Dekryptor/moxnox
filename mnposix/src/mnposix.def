@@ -120,3 +120,4 @@ regexec
 regfree
 regcomp
 fnmatch
+uname

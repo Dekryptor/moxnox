@@ -120,6 +120,7 @@ regexec
 regfree
 regcomp
 fnmatch
+uname
 
 ; stubs
 dlopen
@@ -127,7 +128,6 @@ dlsym
 dlclose
 dlerror
 link
-uname
 getpgid
 tcgetpgrp
 getpass
