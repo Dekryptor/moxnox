@@ -3273,6 +3273,43 @@ nt_status process::query_image_file_name(span<uint8_t> buf, uint32_t* return_len
     return nt_status::SUCCESS;
 }
 
+nt_status process::query_times(span<uint8_t> buf, uint32_t* return_length) {
+    uint64_t time_running = 0, time_running_in_userspace = 0;
+
+    if (buf.size() < sizeof(KERNEL_USER_TIMES))
+        return nt_status::BUFFER_TOO_SMALL;
+
+    auto& kut = *(KERNEL_USER_TIMES*)buf.data();
+
+    kut.CreateTime.QuadPart = 0; // FIXME
+    kut.ExitTime.QuadPart = 0; // FIXME
+
+    {
+        lock_guard lock(threads_lock);
+
+        for (auto le = threads.next; le != &threads; le = le->next) {
+            auto& t = *(::thread*)((uint8_t*)le - offsetof(::thread, process_le));
+
+            time_running += t.time_running;
+            time_running_in_userspace += t.time_running_in_userspace;
+        }
+
+        time_running += dead_threads_time_running;
+        time_running_in_userspace += dead_threads_time_running_in_userspace;
+    }
+
+    auto freq = kernel_time_page.tsc_freq;
+
+    // units of 100ns
+    kut.UserTime.QuadPart = (int64_t)((unsigned __int128)time_running_in_userspace * 10000000 / freq);
+    kut.KernelTime.QuadPart = (int64_t)((unsigned __int128)(time_running - time_running_in_userspace) * 10000000 / freq);
+
+    if (return_length)
+        *return_length = sizeof(KERNEL_USER_TIMES);
+
+    return nt_status::SUCCESS;
+}
+
 nt_status process::query_find_ntdll(span<uint8_t> buf, uint32_t* return_length) {
     if (buf.size() < sizeof(uintptr_t))
         return nt_status::BUFFER_TOO_SMALL;
@@ -3403,6 +3440,9 @@ NTSTATUS process::query_info(enum PROCESS_INFORMATION_CLASS process_information_
 
         case ImageFileName:
             return query_image_file_name(buf, return_length);
+
+        case Times:
+            return query_times(buf, return_length);
 
         case MoxnoxFindNtdll:
             return query_find_ntdll(buf, return_length);

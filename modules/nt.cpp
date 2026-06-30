@@ -1148,6 +1148,13 @@ struct PROCESS_BASIC_INFORMATION {
     uintptr_t InheritedFromUniqueProcessId;
 };
 
+struct KERNEL_USER_TIMES {
+    LARGE_INTEGER CreateTime;
+    LARGE_INTEGER ExitTime;
+    LARGE_INTEGER KernelTime;
+    LARGE_INTEGER UserTime;
+};
+
 enum class SECTION_INFORMATION_CLASS {
     BasicInformation,
     ImageInformation,
