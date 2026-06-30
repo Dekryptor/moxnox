@@ -517,6 +517,21 @@ add	x0, x0, #THREAD_KERNEL_MODE
 mov	x1, #1
 strb	w1, [x0]
 
+// update time_running_in_userspace
+add	x0, x18, #GS_CURRENT_THREAD
+ldr	x0, [x0]
+ldr	x0, [x0, #THREAD_LAST_USERSPACE_TRANSITION]
+mrs	x1, cntvct_el0
+sub	x1, x1, x0
+add	x0, x18, #GS_CURRENT_THREAD
+ldr	x0, [x0]
+ldr	x0, [x0, #THREAD_TIME_RUNNING_IN_USERSPACE]
+add	x1, x1, x0
+add	x0, x18, #GS_CURRENT_THREAD
+ldr	x0, [x0]
+add	x0, x0, #THREAD_TIME_RUNNING_IN_USERSPACE
+str	x1, [x0]
+
 msr	DAIFClr, #0xf // enable interrupts
 
 // load x0 and x1 again and call handler
@@ -540,6 +555,13 @@ add	x19, x18, #GS_CURRENT_THREAD
 ldr	x19, [x19]
 add	x19, x19, #THREAD_KERNEL_MODE
 strb	wzr, [x19]
+
+// update last_userspace_transition
+add	x19, x18, #GS_CURRENT_THREAD
+ldr	x19, [x19]
+add	x19, x19, #THREAD_LAST_USERSPACE_TRANSITION
+mrs	x1, cntvct_el0
+str	x1, [x19]
 
 add	x19, x18, #GS_CURRENT_THREAD
 ldr	x19, [x19]
