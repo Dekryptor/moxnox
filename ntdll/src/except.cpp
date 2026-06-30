@@ -18,6 +18,7 @@ import ntdll;
 import ntdll_private;
 import crt;
 import termios;
+import moxnox_ioctls;
 
 using namespace std;
 
@@ -193,6 +194,18 @@ static nt_status handle_exception(EXCEPTION_RECORD* exception,
     return nt_status::UNHANDLED_EXCEPTION;
 }
 
+static bool stdout_is_tty() {
+    auto& peb = *NtCurrentTeb()->ProcessEnvironmentBlock;
+    IO_STATUS_BLOCK iosb;
+
+    auto status = NtDeviceIoControlFile(peb.ProcessParameters->StandardOutput,
+                                        0, nullptr, nullptr, &iosb,
+                                        IOCTL_MOXNOX_PTY_ISATTY, nullptr, 0,
+                                        nullptr, 0);
+    return success(status);
+}
+
+
 extern "C"
 void mn_signal(EXCEPTION_RECORD* exception, CONTEXT* context) {
     termios tc_settings;
@@ -233,14 +246,16 @@ void mn_signal(EXCEPTION_RECORD* exception, CONTEXT* context) {
 
     tcsetattr(STDOUT_FILENO, TCSANOW, &tc_settings);
 
-    print("\e[?1049l" // disable alternative buffer
-        "\e[?25h" // re-enable cursor
-        "\e[0m" // reset colours and attributes
-        "\e[?1000l" // disable mouse tracking
-        "\e[?2004l" // disable bracketed paste mode
-        "\e>\e[?1l" // reset application keypad and cursor key modes
-        "\e7\e[r\e8" // reset scrolling region
-    );
+    if (stdout_is_tty()) {
+        print("\e[?1049l" // disable alternative buffer
+              "\e[?25h" // re-enable cursor
+              "\e[0m" // reset colours and attributes
+              "\e[?1000l" // disable mouse tracking
+              "\e[?2004l" // disable bracketed paste mode
+              "\e>\e[?1l" // reset application keypad and cursor key modes
+              "\e7\e[r\e8" // reset scrolling region
+        );
+    }
 
     if (status != nt_status::UNHANDLED_EXCEPTION) {
         sp = format(sp, "Error {} received while trying to handle exception\n", status);
