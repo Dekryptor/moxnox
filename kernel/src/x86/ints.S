@@ -309,8 +309,15 @@ page_fault_isr_end:
     push rax
 
     # mark thread as in kernel mode
-    mov rax, gs:GS_CURRENT_THREAD
-    mov BYTE PTR [rax + THREAD_KERNEL_MODE], 1
+    mov rcx, gs:GS_CURRENT_THREAD
+    mov BYTE PTR [rcx + THREAD_KERNEL_MODE], 1
+
+    # update time_running_in_userspace
+    rdtsc
+    shl rdx, 32
+    or rdx, rax
+    sub rdx, [rcx + THREAD_LAST_USERSPACE_TRANSITION]
+    add [rcx + THREAD_TIME_RUNNING_IN_USERSPACE], rdx
 
     sub rsp, 0x20
     call \name\()_user
@@ -328,8 +335,14 @@ page_fault_isr_end:
     mov [rsp+0x68], rax
 
     # mark thread as not in kernel mode
-    mov rax, gs:GS_CURRENT_THREAD
-    mov BYTE PTR [rax + THREAD_KERNEL_MODE], 0
+    mov rcx, gs:GS_CURRENT_THREAD
+    mov BYTE PTR [rcx + THREAD_KERNEL_MODE], 0
+
+    # update last_userspace_transition
+    rdtsc
+    shl rdx, 32
+    or rdx, rax
+    mov [rcx + THREAD_LAST_USERSPACE_TRANSITION], rdx
 
     pop rcx
     pop rdx
