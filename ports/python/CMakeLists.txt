@@ -62,8 +62,6 @@ add_custom_target(python_patched_headers DEPENDS
 
 include(ExternalProject)
 
-find_package(Python3 COMPONENTS Interpreter REQUIRED)
-
 set(PYTHON_FREEZE_HOST_DIR ${CMAKE_CURRENT_BINARY_DIR}/freeze-host)
 set(PYTHON_FREEZE_MODULE ${PYTHON_FREEZE_HOST_DIR}/Programs/_freeze_module)
 
@@ -91,29 +89,50 @@ ExternalProject_Add(python_freeze_host
     USES_TERMINAL_BUILD ON
 )
 
-set(PYTHON_FROZEN_NAMES
-    importlib._bootstrap importlib._bootstrap_external zipimport
-    abc codecs io
-    _collections_abc _sitebuiltins genericpath ntpath posixpath os site stat
-    importlib.util importlib.machinery runpy
-    __hello__ __phello__ __phello__.ham __phello__.ham.eggs __phello__.spam
-    frozen_only
-    getpath
+set(PYTHON_FROZEN_MODULES
+    "importlib._bootstrap|Lib/importlib/_bootstrap.py"
+    "importlib._bootstrap_external|Lib/importlib/_bootstrap_external.py"
+    "zipimport|Lib/zipimport.py"
+    "abc|Lib/abc.py"
+    "codecs|Lib/codecs.py"
+    "io|Lib/io.py"
+    "_collections_abc|Lib/_collections_abc.py"
+    "_sitebuiltins|Lib/_sitebuiltins.py"
+    "genericpath|Lib/genericpath.py"
+    "ntpath|Lib/ntpath.py"
+    "posixpath|Lib/posixpath.py"
+    "os|Lib/os.py"
+    "site|Lib/site.py"
+    "stat|Lib/stat.py"
+    "importlib.util|Lib/importlib/util.py"
+    "importlib.machinery|Lib/importlib/machinery.py"
+    "runpy|Lib/runpy.py"
+    "__hello__|Lib/__hello__.py"
+    "__phello__|Lib/__phello__/__init__.py"
+    "__phello__.ham|Lib/__phello__/ham/__init__.py"
+    "__phello__.ham.eggs|Lib/__phello__/ham/eggs.py"
+    "__phello__.spam|Lib/__phello__/spam.py"
+    "frozen_only|Tools/freeze/flag.py"
+    "getpath|Modules/getpath.py"
 )
-set(PYTHON_FROZEN_HEADERS)
-foreach(_name ${PYTHON_FROZEN_NAMES})
-    list(APPEND PYTHON_FROZEN_HEADERS ${GEN}/Python/frozen_modules/${_name}.h)
-endforeach()
 
-add_custom_command(
-    OUTPUT ${PYTHON_FROZEN_HEADERS}
-    COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/freeze.py
-            ${CMAKE_CURRENT_SOURCE_DIR}/repo ${GEN} ${PYTHON_FREEZE_MODULE}
-    DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/freeze.py
-            repo/Tools/build/freeze_modules.py
-            ${PYTHON_FREEZE_MODULE}
-    VERBATIM
-)
+set(PYTHON_FROZEN_HEADERS)
+foreach(_entry ${PYTHON_FROZEN_MODULES})
+    string(REPLACE "|" ";" _parts "${_entry}")
+    list(GET _parts 0 _name)
+    list(GET _parts 1 _src)
+    set(_out ${GEN}/Python/frozen_modules/${_name}.h)
+    add_custom_command(
+        OUTPUT ${_out}
+        COMMAND ${CMAKE_COMMAND} -E make_directory ${GEN}/Python/frozen_modules
+        COMMAND ${PYTHON_FREEZE_MODULE} ${_name}
+                ${CMAKE_CURRENT_SOURCE_DIR}/repo/${_src} ${_out}
+        DEPENDS ${PYTHON_FREEZE_MODULE}
+                ${CMAKE_CURRENT_SOURCE_DIR}/repo/${_src}
+        VERBATIM
+    )
+    list(APPEND PYTHON_FROZEN_HEADERS ${_out})
+endforeach()
 add_custom_target(python_frozen DEPENDS ${PYTHON_FROZEN_HEADERS})
 
 set(PYTHON_CORE_SOURCES
