@@ -105,6 +105,8 @@ public:
     list_entry threads = { &threads, &threads };
     uint64_t dead_threads_time_running = 0;
     uint64_t dead_threads_time_running_in_userspace = 0;
+    uint64_t children_time_running = 0;
+    uint64_t children_time_running_in_userspace = 0;
 
     enum nt_status exit_status = nt_status::PENDING;
     atomic<unsigned int> suspend_count;

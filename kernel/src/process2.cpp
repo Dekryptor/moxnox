@@ -3395,6 +3395,13 @@ nt_status process::query_wait_for_child(span<uint8_t> buf, uint32_t* return_leng
             if (return_length)
                 *return_length = sizeof(HANDLE);
 
+            {
+                lock_guard lock(threads_lock);
+
+                children_time_running += child->dead_threads_time_running + child->children_time_running;
+                children_time_running_in_userspace += child->dead_threads_time_running_in_userspace + child->children_time_running_in_userspace;
+            }
+
             child->release();
 
             return nt_status::SUCCESS;
