@@ -92,7 +92,7 @@ static void print_rip(uint64_t rip) {
     } else
         sp = format(sp, "{:016x}\n", rip);
 
-    print("{}", string_view(s, (size_t)(sp.data() - s)));
+    print_stderr("{}", string_view(s, (size_t)(sp.data() - s)));
 }
 
 optional<uint64_t> read_uint64_t(uint64_t addr) {
@@ -259,15 +259,13 @@ void mn_signal(EXCEPTION_RECORD* exception, CONTEXT* context) {
 
     if (status != nt_status::UNHANDLED_EXCEPTION) {
         sp = format(sp, "Error {} received while trying to handle exception\n", status);
-        print("{}", string_view(s, (size_t)(sp.data() - s)));
+        print_stderr("{}", string_view(s, (size_t)(sp.data() - s)));
     }
 
     // FIXME - print EXE name
 
-    // FIXME - everything here should be printing to stderr
-
     if ((NTSTATUS)exception->ExceptionCode == nt_status::CONTROL_C_EXIT) {
-        print("\nTerminated\n");
+        print_stderr("\nTerminated\n");
         NtTerminateProcess(NtCurrentProcess(), (NTSTATUS)exception->ExceptionCode);
         unreachable();
     }
@@ -275,7 +273,7 @@ void mn_signal(EXCEPTION_RECORD* exception, CONTEXT* context) {
     if (exception->ExceptionCode == MOXNOX_STUB_FUNCTION) {
         auto func = string_view((char*)exception->ExceptionInformation[0]);
 
-        print("Call to unimplemented function {}\n", func);
+        print_stderr("Call to unimplemented function {}\n", func);
     } else {
         switch ((NTSTATUS)exception->ExceptionCode) {
             case nt_status::ACCESS_VIOLATION:
@@ -331,9 +329,9 @@ void mn_signal(EXCEPTION_RECORD* exception, CONTEXT* context) {
     }
 
     sp = format(sp, "{}", *context);
-    print("{}", string_view(s, (size_t)(sp.data() - s)));
+    print_stderr("{}", string_view(s, (size_t)(sp.data() - s)));
 
-    print("\n");
+    print_stderr("\n");
 
     UNWIND_HISTORY_TABLE history_table;
 
