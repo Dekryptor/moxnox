@@ -129,6 +129,8 @@ public:
     sigset_t pending_signals = 0;
     sigset_t blocked_signals = 0;
     void* user_stack_base = nullptr;
+    uint64_t last_scheduled_tsc;
+    uint64_t time_running = 0;
 #ifdef __x86_64__
     xsave_area xsave; // must be last
 #endif

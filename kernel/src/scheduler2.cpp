@@ -9,6 +9,10 @@ module;
 #include "assert.h"
 #include "timer-asm.h"
 
+#ifdef __x86_64__
+#include <x86intrin.h>
+#endif
+
 module scheduler;
 
 import bsod;
@@ -24,6 +28,10 @@ import power;
 import interrupts;
 import vfs;
 import object_ref;
+
+#ifdef __aarch64__
+import aarch64;
+#endif
 
 using namespace std;
 
@@ -166,6 +174,12 @@ void scheduler() {
 
         active_cpus.fetch_and(~((uint64_t)1 << cb.cpu_no), memory_order::relaxed);
 
+#ifdef __x86_64__
+        t.time_running += __rdtsc() - t.last_scheduled_tsc;
+#elifdef __aarch64__
+        t.time_running += cntvct_el0_load() - t.last_scheduled_tsc;
+#endif
+
         if (t.kernel_mode && t.status == thread_status::dying && !t.proc) // kernel thread died
             thread_died(t, nullptr, false);
 
@@ -233,6 +247,12 @@ void scheduler() {
                            sizeof(CONTEXT));
                 }
             }
+#endif
+
+#ifdef __x86_64__
+            t.last_scheduled_tsc = __rdtsc();
+#elifdef __aarch64__
+            t.last_scheduled_tsc = cntvct_el0_load();
 #endif
 
 #ifdef __aarch64__
