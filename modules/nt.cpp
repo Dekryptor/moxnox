@@ -1391,6 +1391,13 @@ struct FILE_END_OF_FILE_INFORMATION {
     LARGE_INTEGER EndOfFile;
 };
 
+struct FILE_LINK_INFORMATION {
+    bool ReplaceIfExists;
+    HANDLE RootDirectory;
+    uint32_t FileNameLength;
+    char16_t FileName[1];
+};
+
 const uint32_t MAXIMUM_WAIT_OBJECTS = 64;
 
 enum class EVENT_TYPE {
