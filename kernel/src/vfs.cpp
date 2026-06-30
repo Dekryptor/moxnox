@@ -121,6 +121,8 @@ public:
                                             FILE_INFORMATION_CLASS file_information_class) = 0;
     virtual nt_status rename(::dentry& dentry, ::dentry& dest_dir, string_view name,
                              bool replace_if_exists, object_ref& victim) = 0;
+    virtual nt_status hardlink(::dentry& dentry, ::dentry& dest_dir, string_view name,
+                               bool replace_if_exists, object_ref& victim) = 0;
     virtual nt_status fs_control(uint32_t code, span<const uint8_t> inbuf,
                                  span<uint8_t> outbuf, uint32_t& retlen,
                                  dentry* dentry) = 0;
@@ -229,6 +231,7 @@ public:
                              FILE_INFORMATION_CLASS file_information_class, bool return_single_entry,
                              const UNICODE_STRING* file_name, bool restart_scan);
     NTSTATUS rename(span<const uint8_t> buf);
+    NTSTATUS hardlink(span<const uint8_t> buf);
     NTSTATUS set_information(void* buffer, uint32_t buffer_size,
                              FILE_INFORMATION_CLASS file_information_class);
     NTSTATUS query_information(void* buffer, uint32_t buffer_size,

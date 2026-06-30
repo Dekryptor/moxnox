@@ -1559,6 +1559,158 @@ NTSTATUS file::rename(span<const uint8_t> buf) {
     return status;
 }
 
+NTSTATUS file::hardlink(span<const uint8_t> buf) {
+    if (ino.type != object_type::inode)
+        return nt_status::INVALID_PARAMETER;
+
+    if (buf.size() < offsetof(FILE_LINK_INFORMATION, FileName))
+        return nt_status::BUFFER_TOO_SMALL;
+
+    auto& fli = *(FILE_LINK_INFORMATION*)buf.data();
+
+    if (buf.size() < offsetof(FILE_LINK_INFORMATION, FileName) + fli.FileNameLength)
+        return nt_status::BUFFER_TOO_SMALL;
+
+    object_ref rootdir, destdir;
+    unsigned int create_result;
+    optional<reference_wrapper<::dentry>> drw;
+
+    if (fli.RootDirectory != 0) {
+        rootdir = deref_handle(fli.RootDirectory);
+        if (!rootdir)
+            return nt_status::INVALID_HANDLE;
+
+        if (rootdir.get().type != object_type::file)
+            return nt_status::INVALID_HANDLE;
+
+        auto& f = static_cast<file&>(rootdir.get());
+
+        if (f.ino.type != object_type::inode)
+            return nt_status::INVALID_HANDLE;
+
+        if (static_cast<inode&>(f.ino).inode_type != inode_type::directory)
+            return nt_status::INVALID_HANDLE;
+    }
+
+    // don't allow if source is directory
+    auto& inode = static_cast<::inode&>(ino);
+    if (inode.inode_type == inode_type::directory)
+        return nt_status::INVALID_PARAMETER;
+
+    // file name to utf-8
+
+    auto u16name = u16string_view(fli.FileName, fli.FileNameLength / sizeof(char16_t));
+
+    // remove trailing slashes
+    while (!u16name.empty() && u16name.back() == '/') {
+        u16name = u16string_view(u16name.data(), u16name.size() - 1);
+    }
+
+    auto namelen = utf16_to_utf8_len(u16name);
+    if (namelen == 0)
+        return nt_status::INVALID_PARAMETER;
+
+    auto name = (char*)malloc(namelen);
+    if (!name)
+        return nt_status::INSUFFICIENT_RESOURCES;
+
+    utf16_to_utf8(span(name, namelen), u16name);
+
+    auto fn = string_view(name, namelen);
+
+    auto& root_dir_dentry = rootdir ? *static_cast<file&>(rootdir.get()).dentry : *root_dentry;
+
+    // open parent of destination
+
+    auto status = open_inode(fn, root_dir_dentry, destdir, drw, FILE_OPEN,
+                             FILE_DIRECTORY_FILE, create_result, true);
+
+    if (status == nt_status::OBJECT_NAME_NOT_FOUND) {
+        free(name);
+        return nt_status::OBJECT_PATH_NOT_FOUND;
+    } else if (!success(status)) {
+        free(name);
+        return status;
+    }
+
+    assert(destdir);
+    assert(destdir.get().type == object_type::inode);
+    assert(drw);
+
+    auto& dest_dir_inode = static_cast<::inode&>(destdir.get());
+
+    if (&dest_dir_inode.fs != &inode.fs) {
+        drw->get().release();
+        free(name);
+        return nt_status::NOT_SAME_DEVICE;
+    }
+
+    string_view namepart;
+    object_ref victim;
+
+    if (auto sl = fn.find_last_of('/'); sl != string_view::npos)
+        namepart = string_view(fn.data() + sl + 1, fn.size() - sl - 1);
+    else
+        namepart = fn;
+
+    status = inode.hardlink(*dentry, drw->get(), namepart, fli.ReplaceIfExists,
+                            victim);
+
+    if (victim) {
+        assert(victim.get().type == object_type::inode);
+
+        if (success(status)) {
+            optional<reference_wrapper<::dentry>> vdrw;
+
+            {
+                lock_guard lg(drw->get().child_lock);
+
+                search_dentry_cache(drw->get(), namepart, vdrw);
+            }
+
+            if (vdrw.has_value()) {
+                bool already_done = false;
+
+                auto& victim_dentry = vdrw->get();
+
+                {
+                    lock_guard lg(victim_dentry.lock);
+
+                    if (victim_dentry.status == dentry_status::valid)
+                        victim_dentry.status = dentry_status::going_away;
+                    else
+                        already_done = true;
+                }
+
+                if (!already_done) {
+                    {
+                        lock_guard lg(victim_dentry.parent->child_lock);
+                        remove_entry_list(victim_dentry.le);
+                    }
+
+                    {
+                        lock_guard lg(victim_dentry.lock);
+                        victim_dentry.status = dentry_status::invalid;
+                    }
+
+                    // because removed from parent
+                    victim_dentry.release();
+                }
+
+                // because of search_dentry_cache
+                victim_dentry.release();
+            }
+        }
+
+        handle_closed(victim.get());
+    }
+
+    drw->get().release();
+    free(name);
+
+    return status;
+}
+
 nt_status file::set_eof(span<const uint8_t> buffer) {
     if (buffer.size() != sizeof(FILE_END_OF_FILE_INFORMATION))
         return nt_status::INVALID_PARAMETER;
@@ -1596,6 +1748,9 @@ NTSTATUS file::set_information(void* buffer, uint32_t buffer_size,
 
         case RenameInformation:
             return rename(span((uint8_t*)buffer, buffer_size));
+
+        case LinkInformation:
+            return hardlink(span((uint8_t*)buffer, buffer_size));
 
         case PositionInformation: {
             if (ino.type != object_type::inode)

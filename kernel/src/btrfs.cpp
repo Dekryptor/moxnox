@@ -149,6 +149,8 @@ public:
                                uint64_t& retlen) override;
     nt_status rename(::dentry& dentry, ::dentry& dest_dir, string_view name,
                      bool replace_if_exists, object_ref& victim) override;
+    nt_status hardlink(::dentry& dentry, ::dentry& dest_dir, string_view name,
+                       bool replace_if_exists, object_ref& victim) override;
     nt_status read_into_cache(uint64_t page_num, uint64_t num_pages,
                               uint64_t& read_pages) override;
     nt_status flush_cache(uint64_t page_num, uint64_t num_pages) override;
@@ -6385,6 +6387,198 @@ nt_status btrfs_inode::rename(::dentry& dentry, ::dentry& dest_dir,
                 print("btrfs_inode::flush_inode_item returned {}\n", status);
                 return status;
             }
+        }
+
+        // adjust root_item
+
+        r->ri.ctime = cur_time;
+        r->ri.ctransid = fs.sb->generation;
+    }
+
+    return nt_status::SUCCESS;
+}
+
+nt_status btrfs_inode::hardlink(::dentry& dentry, ::dentry& dest_dir,
+                                string_view name, bool replace_if_exists,
+                                object_ref& victim) {
+    nt_status status;
+
+    assert(dentry.parent);
+    assert(dentry.parent->inode);
+
+    if (!validate_name(name))
+        return nt_status::OBJECT_NAME_INVALID;
+
+    if (fs.readonly)
+        return nt_status::MEDIA_WRITE_PROTECTED;
+
+    auto& src_parent_ino = static_cast<btrfs_inode&>(*dentry.parent->inode);
+    auto& dst_parent_ino = static_cast<btrfs_inode&>(*dest_dir.inode);
+    auto cur_name = string_view(dentry.name, dentry.name_len);
+    btrfs_path p(fs.sb->nodesize);
+
+    // early return if trying to replace file with itself
+    // FIXME - what does NT do here? Does it depend on replace_if_exists?
+    if (&src_parent_ino == &dst_parent_ino && name == cur_name)
+        return nt_status::SUCCESS;
+
+    auto hash = calc_crc32c(0xfffffffe, name);
+
+    // FIXME - lock inode to prevent simultaneous renames?
+
+    uint64_t index;
+    btrfs_key dir_item_key;
+    bool done_overwrite = false;
+    auto cur_time = get_btrfs_time();
+    auto type = inode_type_to_btrfs_inode_type(inode_type);
+
+    if (src_parent_ino.r != dst_parent_ino.r)
+        return nt_status::NOT_SAME_DEVICE;
+
+    {
+        lock_guard lg(fs.trans_lock);
+
+        status = search_dir_item(fs, *r, dst_parent_ino.inode, hash,
+                                 name, dir_item_key);
+        if (!success(status) && status != nt_status::OBJECT_NAME_NOT_FOUND) {
+            print("search_dir_item returned {}\n", status);
+            return status;
+        }
+
+        if (success(status)) {
+            if (!replace_if_exists)
+                return nt_status::OBJECT_NAME_COLLISION;
+
+
+            status = fs.open_inode(r->id, dir_item_key.objectid, victim);
+            if (!success(status)) {
+                print("open_inode returned {}\n", status);
+                return status;
+            }
+
+            assert(victim.get().type == object_type::inode);
+
+            auto& victim_ino = static_cast<btrfs_inode&>(victim.get());
+
+            // don't allow if victim is directory
+            if (victim_ino.inode_type == inode_type::directory)
+                return nt_status::ACCESS_DENIED;
+
+            bool orphaned, no_open_handles;
+
+            {
+                lock_guard lg2(victim_ino.inode_lock);
+
+                if (victim_ino.inode_type == inode_type::directory)
+                    return nt_status::ACCESS_DENIED;
+
+                victim_ino.ii.transid = fs.sb->generation;
+                victim_ino.ii.nlink--;
+                victim_ino.ii.sequence++;
+                victim_ino.ii.ctime = cur_time;
+
+                orphaned = victim_ino.ii.nlink == 0;
+            }
+
+            if (orphaned) {
+                optional<reference_wrapper<::dentry>> victim_dentry;
+
+                {
+                    shared_lock lg(dest_dir.child_lock);
+                    search_dentry_cache(dest_dir, name, victim_dentry);
+                }
+
+                if (victim_dentry) {
+                    no_open_handles = victim_dentry->get().open_file_count == 0;
+                    victim_dentry->get().release();
+                } else
+                    no_open_handles = true;
+            }
+
+            status = victim_ino.flush_inode_item(p);
+            if (!success(status)) {
+                print("btrfs_inode::flush_inode_item returned {}\n", status);
+                return status;
+            }
+
+            status = remove_dir_item(fs, *r, dir_item_key.objectid,
+                                     name, dst_parent_ino.inode);
+            if (!success(status)) {
+                print("remove_dir_item returned {}\n", status);
+                return status;
+            }
+
+            if (orphaned) {
+                if (no_open_handles)
+                    victim_ino.remove_orphan(true);
+                else {
+                    status = insert_item(fs, *r,
+                                        {BTRFS_ORPHAN_OBJECTID, key_type::ORPHAN_INODE, victim_ino.inode},
+                                        span<const uint8_t>());
+                    if (!success(status)) {
+                        print("insert_item returned {}\n", status);
+                        return status;
+                    }
+                }
+            }
+
+            done_overwrite = true;
+        }
+
+        status = add_dir_item(fs, *r, dst_parent_ino, name, inode,
+                              type, index);
+        if (!success(status)) {
+            print("add_dir_item returned {}\n", status);
+            return status;
+        }
+
+        // create INODE_REF
+
+        status = add_inode_ref(fs, *r, name, index, inode,
+                               dst_parent_ino.inode);
+        if (!success(status)) {
+            print("add_inode_ref returned {}\n", status);
+            return status;
+        }
+
+        // update inode item
+
+        {
+            lock_guard lg(inode_lock);
+
+            ii.transid = fs.sb->generation;
+            ii.sequence++;
+            ii.ctime = cur_time;
+            ii.nlink++;
+        }
+
+        // FIXME - unorphan if orphaned?
+
+        status = flush_inode_item(p);
+        if (!success(status)) {
+            print("btrfs_inode::flush_inode_item returned {}\n", status);
+            return status;
+        }
+
+        // adjust size etc. of parent directories
+
+        {
+            lock_guard lg(dst_parent_ino.inode_lock);
+
+            dst_parent_ino.ii.transid = fs.sb->generation;
+
+            if (!done_overwrite)
+                dst_parent_ino.ii.size += name.size() * 2;
+
+            dst_parent_ino.ii.sequence++;
+            dst_parent_ino.ii.ctime = cur_time;
+            dst_parent_ino.ii.mtime = cur_time;
+        }
+
+        status = dst_parent_ino.flush_inode_item(p);
+        if (!success(status)) {
+            print("btrfs_inode::flush_inode_item returned {}\n", status);
+            return status;
         }
 
         // adjust root_item
