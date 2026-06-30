@@ -57,6 +57,7 @@ int tcgetpgrp(int fd);
 int link(const char* oldpath, const char* newpath);
 int readlink(const char* path, char* buf, size_t bufsiz);
 int getpagesize(void);
+long sysconf(int name);
 
 #ifdef __cplusplus
 }

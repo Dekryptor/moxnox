@@ -133,3 +133,4 @@ getpgid
 tcgetpgrp
 getpass
 statvfs
+sysconf
