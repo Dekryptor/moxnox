@@ -4417,6 +4417,15 @@ nt_status process::reap_zombie() {
         }
     }
 
+    {
+        auto& p = *get_current_thread()->proc;
+
+        lock_guard lock(p.threads_lock);
+
+        p.children_time_running += dead_threads_time_running + children_time_running;
+        p.children_time_running_in_userspace += dead_threads_time_running_in_userspace + children_time_running_in_userspace;
+    }
+
     release();
 
     return nt_status::SUCCESS;
