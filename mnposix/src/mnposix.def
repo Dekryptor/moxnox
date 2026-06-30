@@ -121,3 +121,4 @@ regfree
 regcomp
 fnmatch
 uname
+link

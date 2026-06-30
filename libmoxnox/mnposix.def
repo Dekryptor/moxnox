@@ -121,13 +121,13 @@ regfree
 regcomp
 fnmatch
 uname
+link
 
 ; stubs
 dlopen
 dlsym
 dlclose
 dlerror
-link
 getpgid
 tcgetpgrp
 getpass

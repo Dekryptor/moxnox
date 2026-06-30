@@ -560,3 +560,76 @@ int fsync(int /*fd*/) {
 
     return 0;
 }
+
+extern "C"
+int link(const char* oldpath, const char* newpath) {
+    auto peb = NtCurrentTeb()->ProcessEnvironmentBlock;
+    nt_status status;
+    OBJECT_ATTRIBUTES oa;
+    UNICODE_STRING us;
+    IO_STATUS_BLOCK iosb;
+    unique_ptr<char16_t[]> u16;
+    HANDLE h;
+    unique_handle f;
+    unique_ptr<char[]> flibuf;
+    string_view src(oldpath), dest(newpath);
+
+    if (!oldpath || oldpath[0] == 0 || !newpath || newpath[0] == 0) {
+        *_errno() = EINVAL;
+        return -1;
+    }
+
+    auto u16len = utf8_to_utf16_len(src);
+    u16.reset(new char16_t[u16len]);
+    if (!u16) {
+        *_errno() = ENOMEM;
+        return -1;
+    }
+
+    utf8_to_utf16(span(u16.get(), u16len), src);
+
+    us.Length = us.MaximumLength = (uint16_t)(u16len * sizeof(char16_t));
+    us.Buffer = u16.get();
+
+    memset(&oa, 0, sizeof(oa));
+    oa.Length = sizeof(OBJECT_ATTRIBUTES);
+    oa.ObjectName = &us;
+    oa.RootDirectory = peb->ProcessParameters->CurrentDirectory.Handle;
+
+    status = NtCreateFile(&h, FILE_READ_ATTRIBUTES, &oa, &iosb, nullptr,
+                          0, 0, FILE_OPEN, FILE_NON_DIRECTORY_FILE | FILE_OPEN_REPARSE_POINT,
+                          nullptr, 0);
+    if (!success(status)) {
+        *_errno() = nt_status_to_errno(status);
+        return -1;
+    } else
+        f.reset(h);
+
+    auto u16destlen = utf8_to_utf16_len(dest);
+
+    size_t flilen = offsetof(FILE_LINK_INFORMATION, FileName) + (u16destlen * sizeof(char16_t));
+
+    flibuf.reset(new char[flilen]);
+    if (!flibuf) {
+        *_errno() = ENOMEM;
+        return -1;
+    }
+
+    auto& fli = *(FILE_LINK_INFORMATION*)flibuf.get();
+
+    fli.ReplaceIfExists = false;
+    fli.RootDirectory = peb->ProcessParameters->CurrentDirectory.Handle;
+    fli.FileNameLength = (uint32_t)(u16destlen * sizeof(char16_t));
+
+    utf8_to_utf16(span(fli.FileName, u16destlen), dest);
+
+    status = NtSetInformationFile(f.get(), &iosb, &fli, (uint32_t)flilen,
+                                  FILE_INFORMATION_CLASS::LinkInformation);
+
+    if (!success(status)) {
+        *_errno() = nt_status_to_errno(status);
+        return -1;
+    }
+
+    return 0;
+}
