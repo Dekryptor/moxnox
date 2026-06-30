@@ -176,7 +176,7 @@ static int mv(u16string_view src, u16string_view dest) {
     us.Buffer = (char16_t*)src.data();
 
     status = NtCreateFile(&h, DELETE, &oa, &iosb, nullptr, 0, 0, FILE_OPEN,
-                          0, nullptr, 0);
+                          FILE_OPEN_REPARSE_POINT, nullptr, 0);
     if (status == nt_status::OBJECT_NAME_NOT_FOUND ||
         status == nt_status::OBJECT_PATH_NOT_FOUND) {
         print_stderr("mv: '{}': No such file or directory\n", src);
@@ -260,7 +260,8 @@ static int mv_multiple(span<u16string_view> srcs, u16string_view dest) {
     oa.RootDirectory = peb->ProcessParameters->CurrentDirectory.Handle;
 
     status = NtCreateFile(&h, FILE_READ_ATTRIBUTES, &oa, &iosb, nullptr, 0, 0,
-                          FILE_OPEN, FILE_DIRECTORY_FILE, nullptr, 0);
+                          FILE_OPEN, FILE_DIRECTORY_FILE | FILE_OPEN_REPARSE_POINT,
+                          nullptr, 0);
     if (status == nt_status::NOT_A_DIRECTORY) {
         print_stderr("mv: target '{}': Not a directory\n", dest);
         return 1;
@@ -286,7 +287,7 @@ static int mv_multiple(span<u16string_view> srcs, u16string_view dest) {
         us.Buffer = (char16_t*)src.data();
 
         status = NtCreateFile(&h, DELETE, &oa, &iosb, nullptr, 0, 0, FILE_OPEN,
-                              0, nullptr, 0);
+                              FILE_OPEN_REPARSE_POINT, nullptr, 0);
         if (status == nt_status::OBJECT_NAME_NOT_FOUND ||
             status == nt_status::OBJECT_PATH_NOT_FOUND) {
             print_stderr("mv: '{}': No such file or directory\n", src);
