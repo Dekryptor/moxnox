@@ -3310,6 +3310,36 @@ nt_status process::query_times(span<uint8_t> buf, uint32_t* return_length) {
     return nt_status::SUCCESS;
 }
 
+nt_status process::query_children_times(span<uint8_t> buf, uint32_t* return_length) {
+    uint64_t time_running = 0, time_running_in_userspace = 0;
+
+    if (buf.size() < sizeof(KERNEL_USER_TIMES))
+        return nt_status::BUFFER_TOO_SMALL;
+
+    auto& kut = *(KERNEL_USER_TIMES*)buf.data();
+
+    kut.CreateTime.QuadPart = 0;
+    kut.ExitTime.QuadPart = 0;
+
+    {
+        lock_guard lock(threads_lock);
+
+        time_running = children_time_running;
+        time_running_in_userspace = children_time_running_in_userspace;
+    }
+
+    auto freq = kernel_time_page.tsc_freq;
+
+    // units of 100ns
+    kut.UserTime.QuadPart = (int64_t)((unsigned __int128)time_running_in_userspace * 10000000 / freq);
+    kut.KernelTime.QuadPart = (int64_t)((unsigned __int128)(time_running - time_running_in_userspace) * 10000000 / freq);
+
+    if (return_length)
+        *return_length = sizeof(KERNEL_USER_TIMES);
+
+    return nt_status::SUCCESS;
+}
+
 nt_status process::query_find_ntdll(span<uint8_t> buf, uint32_t* return_length) {
     if (buf.size() < sizeof(uintptr_t))
         return nt_status::BUFFER_TOO_SMALL;
@@ -3462,6 +3492,9 @@ NTSTATUS process::query_info(enum PROCESS_INFORMATION_CLASS process_information_
 
         case MoxnoxIsOurChild:
             return query_is_our_child(return_length);
+
+        case MoxnoxChildrenTimes:
+            return query_children_times(buf, return_length);
 
         default:
             print("process::query_info: unhandled info class {:x}\n",

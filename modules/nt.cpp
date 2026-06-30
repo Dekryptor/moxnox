@@ -1137,6 +1137,7 @@ enum class PROCESS_INFORMATION_CLASS {
     MoxnoxWaitForChild,
     MoxnoxWaitForChildNoHang,
     MoxnoxIsOurChild,
+    MoxnoxChildrenTimes,
 };
 
 struct PROCESS_BASIC_INFORMATION {
