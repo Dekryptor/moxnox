@@ -122,6 +122,7 @@ regcomp
 fnmatch
 uname
 link
+times
 
 ; stubs
 dlopen
@@ -132,4 +133,3 @@ getpgid
 tcgetpgrp
 getpass
 statvfs
-times

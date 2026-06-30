@@ -1,13 +1,16 @@
 #include <spawn.h>
 #include <signal.h>
 #include <sys/wait.h>
+#include <time.h>
 #include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
+#include <sys/times.h>
 #include <string_view>
 #include <span>
 
 import nt;
+import ntdll;
 import print;
 import unique_handle;
 import exec;
@@ -411,4 +414,46 @@ int posix_spawnattr_destroy(posix_spawnattr_t* /*attr*/) {
     // nop
 
     return 0;
+}
+
+extern "C"
+clock_t times(tms* buffer) {
+    LARGE_INTEGER now, freq;
+    nt_status status;
+    KERNEL_USER_TIMES kut, kut2;
+    uint32_t retlen;
+
+    /* FIXME - mingw clock_t is only 32 bits, so we report in units of
+     * milliseconds. Fix this once we've got our own headers. */
+
+    auto nt_to_posix_ticks = [](int64_t t) -> clock_t {
+        // convert units of 100ns to milliseconds
+        return (clock_t)(t / 10000);
+    };
+
+    RtlQueryPerformanceCounter(&now);
+    RtlQueryPerformanceFrequency(&freq);
+
+    status = NtQueryInformationProcess(NtCurrentProcess(),
+                                       PROCESS_INFORMATION_CLASS::Times,
+                                       &kut, sizeof(kut), &retlen);
+    if (!success(status)) {
+        *_errno() = nt_status_to_errno(status);
+        return -1;
+    }
+
+    status = NtQueryInformationProcess(NtCurrentProcess(),
+                                       PROCESS_INFORMATION_CLASS::MoxnoxChildrenTimes,
+                                       &kut2, sizeof(kut2), &retlen);
+    if (!success(status)) {
+        *_errno() = nt_status_to_errno(status);
+        return -1;
+    }
+
+    buffer->tms_utime = nt_to_posix_ticks(kut.UserTime.QuadPart);
+    buffer->tms_stime = nt_to_posix_ticks(kut.KernelTime.QuadPart);
+    buffer->tms_cutime = nt_to_posix_ticks(kut2.UserTime.QuadPart);
+    buffer->tms_cstime = nt_to_posix_ticks(kut2.KernelTime.QuadPart);
+
+    return (clock_t)(now.QuadPart * 1000 / freq.QuadPart); // milliseconds
 }
