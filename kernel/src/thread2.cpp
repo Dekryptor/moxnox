@@ -6,6 +6,10 @@ module;
 #include <signal.h>
 #include "timer-asm.h"
 
+#ifdef __x86_64__
+#include <x86intrin.h>
+#endif
+
 module thread;
 
 import print;
@@ -19,6 +23,10 @@ import crt;
 import process;
 import scheduler;
 import interrupts;
+
+#ifdef __aarch64__
+import aarch64;
+#endif
 
 using std::lock_guard;
 using std::nullopt;
@@ -139,6 +147,23 @@ void terminate_thread(thread& t, bool remove_from_proc) {
     if (!t.proc || !thread_is_dead) {
         t.release();
         return;
+    }
+
+    if (&t == get_current_thread()) {
+#ifdef __x86_64__
+        auto tsc = __rdtsc();
+#elifdef __aarch64__
+        auto tsc = cntvct_el0_load();
+#endif
+
+        t.time_running += tsc - t.last_scheduled_tsc;
+    }
+
+    {
+        lock_guard lock(t.proc->threads_lock);
+
+        t.proc->dead_threads_time_running += t.time_running;
+        t.proc->dead_threads_time_running_in_userspace += t.time_running_in_userspace;
     }
 
     if (last_thread) {
