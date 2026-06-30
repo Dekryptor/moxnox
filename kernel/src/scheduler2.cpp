@@ -175,10 +175,15 @@ void scheduler() {
         active_cpus.fetch_and(~((uint64_t)1 << cb.cpu_no), memory_order::relaxed);
 
 #ifdef __x86_64__
-        t.time_running += __rdtsc() - t.last_scheduled_tsc;
+        auto tsc = __rdtsc();
 #elifdef __aarch64__
-        t.time_running += cntvct_el0_load() - t.last_scheduled_tsc;
+        auto tsc = cntvct_el0_load();
 #endif
+
+        t.time_running += tsc - t.last_scheduled_tsc;
+
+        if (!t.kernel_mode)
+            t.time_running_in_userspace += tsc - t.last_userspace_transition;
 
         if (t.kernel_mode && t.status == thread_status::dying && !t.proc) // kernel thread died
             thread_died(t, nullptr, false);
@@ -250,10 +255,15 @@ void scheduler() {
 #endif
 
 #ifdef __x86_64__
-            t.last_scheduled_tsc = __rdtsc();
+            auto tsc = __rdtsc();
 #elifdef __aarch64__
-            t.last_scheduled_tsc = cntvct_el0_load();
+            auto tsc = cntvct_el0_load();
 #endif
+
+            t.last_scheduled_tsc = tsc;
+
+            if (!t.kernel_mode)
+                t.last_userspace_transition = tsc;
 
 #ifdef __aarch64__
             __asm("b scheduler_restore");

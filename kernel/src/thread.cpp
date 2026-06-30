@@ -131,6 +131,8 @@ public:
     void* user_stack_base = nullptr;
     uint64_t last_scheduled_tsc;
     uint64_t time_running = 0;
+    uint64_t last_userspace_transition;
+    uint64_t time_running_in_userspace = 0;
 #ifdef __x86_64__
     xsave_area xsave; // must be last
 #endif
