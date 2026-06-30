@@ -157,11 +157,20 @@ syscall_handler:
     save_syscall_context
 
     # change to kernel stack
-    mov rax, gs:GS_CURRENT_THREAD
-    mov rsp, [rax + THREAD_SYSCALL_STACK]
+    mov rcx, gs:GS_CURRENT_THREAD
+    mov rsp, [rcx + THREAD_SYSCALL_STACK]
 
     # mark thread as running kernel code
-    mov BYTE PTR [rax + THREAD_KERNEL_MODE], 1
+    mov BYTE PTR [rcx + THREAD_KERNEL_MODE], 1
+
+    # update time_running_in_userspace
+    push rdx
+    rdtsc
+    shl rdx, 32
+    or rdx, rax
+    sub rdx, [rcx + THREAD_LAST_USERSPACE_TRANSITION]
+    add [rcx + THREAD_TIME_RUNNING_IN_USERSPACE], rdx
+    pop rdx
 
     # load kernel cr3
     mov rax, gs:GS_KERNEL_CR3
@@ -196,12 +205,21 @@ Lafter_syscall:
     call release_sync_lock
     pop rax
 
+    # update last_userspace_transition
+    mov rcx, gs:GS_CURRENT_THREAD
+    push rax
+    rdtsc
+    shl rdx, 32
+    or rdx, rax
+    pop rax
+    mov [rcx + THREAD_LAST_USERSPACE_TRANSITION], rdx
+
     # mark thread as running user code
-    mov rdx, gs:GS_CURRENT_THREAD
-    mov BYTE PTR [rdx + THREAD_KERNEL_MODE], 0
+    mov BYTE PTR [rcx + THREAD_KERNEL_MODE], 0
 
     mov rcx, 0x33 # ss
     push rcx
+    mov rdx, gs:GS_CURRENT_THREAD
     push [rdx + THREAD_SYSCALL_CONTEXT + CONTEXT_RSP]
     push [rdx + THREAD_SYSCALL_CONTEXT + CONTEXT_EFLAGS]
     mov rcx, 0x3b # cs

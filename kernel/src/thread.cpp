@@ -147,6 +147,8 @@ static_assert(offsetof(::thread, kernel_mode) == THREAD_KERNEL_MODE);
 static_assert(offsetof(::thread, timeout_le) == THREAD_TIMEOUT_LE);
 static_assert(offsetof(::thread, wait_timeout) == THREAD_WAIT_TIMEOUT);
 static_assert(offsetof(::thread, syscall_context) == THREAD_SYSCALL_CONTEXT);
+static_assert(offsetof(::thread, last_userspace_transition) == THREAD_LAST_USERSPACE_TRANSITION);
+static_assert(offsetof(::thread, time_running_in_userspace) == THREAD_TIME_RUNNING_IN_USERSPACE);
 
 #ifdef __aarch64__
 static_assert(offsetof(::thread, user_stack) == THREAD_USER_STACK);
