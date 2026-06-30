@@ -6543,16 +6543,28 @@ nt_status btrfs_inode::hardlink(::dentry& dentry, ::dentry& dest_dir,
 
         // update inode item
 
+        bool orphaned = false;
+
         {
             lock_guard lg(inode_lock);
 
             ii.transid = fs.sb->generation;
             ii.sequence++;
             ii.ctime = cur_time;
+
+            if (ii.nlink == 0)
+                orphaned = true;
+
             ii.nlink++;
         }
 
-        // FIXME - unorphan if orphaned?
+        if (orphaned) { // unorphan
+            status = fs.remove_item(*r, {BTRFS_ORPHAN_OBJECTID, key_type::ORPHAN_INODE, inode});
+            if (!success(status)) {
+                print("btrfs_inode::hardlink: remove_item returned {}\n", status);
+                return status;
+            }
+        }
 
         status = flush_inode_item(p);
         if (!success(status)) {
