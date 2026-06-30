@@ -1977,7 +1977,9 @@ void handle_user_exception(uint64_t esr_value) {
 
     memcpy(&ctx, &get_cpu_block()->thread_context, sizeof(CONTEXT));
     ctx.Sp = t.user_stack;
+
     t.kernel_mode = true;
+    t.time_running_in_userspace += cntvct_el0_load() - t.last_userspace_transition;
 
     enable_interrupts();
 
@@ -2009,7 +2011,9 @@ void handle_user_exception(uint64_t esr_value) {
 
     memcpy(&get_cpu_block()->thread_context, &ctx, sizeof(CONTEXT));
     t.user_stack = ctx.Sp;
+
     t.kernel_mode = false;
+    t.last_userspace_transition = cntvct_el0_load();
 }
 
 void __attribute__((noreturn)) halt_isr() {
