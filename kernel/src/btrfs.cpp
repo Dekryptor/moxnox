@@ -2850,9 +2850,9 @@ static bool validate_name(string_view name) {
     return true;
 }
 
-nt_status add_dir_item(btrfs_filesystem& fs, root& r, btrfs_inode& parent,
-                       string_view name, uint64_t inode, bool is_dir,
-                       uint64_t& index) {
+static nt_status add_dir_item(btrfs_filesystem& fs, root& r, btrfs_inode& parent,
+                              string_view name, uint64_t inode,
+                              btrfs_inode_type type, uint64_t& index) {
     nt_status status;
     btrfs_path p(fs.sb->nodesize);
 
@@ -2877,7 +2877,7 @@ nt_status add_dir_item(btrfs_filesystem& fs, root& r, btrfs_inode& parent,
     di->transid = fs.sb->generation;
     di->data_len = 0;
     di->name_len = (uint16_t)name.size();
-    di->type = is_dir ? btrfs_inode_type::directory : btrfs_inode_type::file;
+    di->type = type;
     memcpy(di->name, name.data(), name.size());
 
     bool found = false;
@@ -3070,7 +3070,9 @@ nt_status btrfs_inode::create_child(string_view name, uint32_t create_options,
 
         uint64_t index;
 
-        status = add_dir_item(fs, *r, *this, name, new_inode, is_dir, index);
+        status = add_dir_item(fs, *r, *this, name, new_inode,
+                              is_dir ? btrfs_inode_type::directory : btrfs_inode_type::file,
+                              index);
         if (!success(status)) {
             print("add_dir_item returned {}\n", status);
             return status;
@@ -6141,6 +6143,31 @@ nt_status btrfs_inode::remove_orphan(bool no_orphan_item) {
     return nt_status::SUCCESS;
 }
 
+static btrfs_inode_type inode_type_to_btrfs_inode_type(inode_type t) {
+    switch (t) {
+        using enum inode_type;
+
+        case file:
+            return btrfs_inode_type::file;
+        case directory:
+            return btrfs_inode_type::directory;
+        case chardev:
+            return btrfs_inode_type::chardev;
+        case blockdev:
+            return btrfs_inode_type::blockdev;
+        case fifo:
+            return btrfs_inode_type::fifo;
+        case socket:
+            return btrfs_inode_type::socket;
+        case symlink:
+            return btrfs_inode_type::symlink;
+        case ea:
+            return btrfs_inode_type::ea;
+        default:
+            return btrfs_inode_type::unknown;
+    }
+}
+
 nt_status btrfs_inode::rename(::dentry& dentry, ::dentry& dest_dir,
                               string_view name, bool replace_if_exists,
                               object_ref& victim) {
@@ -6166,8 +6193,7 @@ nt_status btrfs_inode::rename(::dentry& dentry, ::dentry& dest_dir,
         return nt_status::SUCCESS;
 
     auto hash = calc_crc32c(0xfffffffe, name);
-    bool is_dir = inode_type == inode_type::directory;
-    // FIXME - other inode types (symlink etc.)
+    auto type = inode_type_to_btrfs_inode_type(inode_type);
 
     // FIXME - lock inode to prevent simultaneous renames?
 
@@ -6276,8 +6302,7 @@ nt_status btrfs_inode::rename(::dentry& dentry, ::dentry& dest_dir,
             done_overwrite = true;
         }
 
-        status = add_dir_item(fs, *r, dst_parent_ino, name, inode,
-                              is_dir, index);
+        status = add_dir_item(fs, *r, dst_parent_ino, name, inode, type, index);
         if (!success(status)) {
             print("add_dir_item returned {}\n", status);
             return status;
