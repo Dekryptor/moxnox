@@ -60,31 +60,36 @@ add_custom_target(python_patched_headers DEPENDS
     ${GEN}/Include/Python.h
 )
 
-find_package(Python3 3.13...<3.14 COMPONENTS Interpreter REQUIRED)
+include(ExternalProject)
 
-file(STRINGS "repo/Lib/importlib/_bootstrap_external.py" _magic_line
-    REGEX "^MAGIC_NUMBER = ")
-string(REGEX MATCH "[0-9]+" PYTHON_EXPECTED_MAGIC "${_magic_line}")
-if(NOT PYTHON_EXPECTED_MAGIC)
-    message(FATAL_ERROR "python: could not parse MAGIC_NUMBER from the repo")
+find_package(Python3 COMPONENTS Interpreter REQUIRED)
+
+set(PYTHON_FREEZE_HOST_DIR ${CMAKE_CURRENT_BINARY_DIR}/freeze-host)
+set(PYTHON_FREEZE_MODULE ${PYTHON_FREEZE_HOST_DIR}/Programs/_freeze_module)
+
+include(ProcessorCount)
+ProcessorCount(PYTHON_FREEZE_JOBS)
+if(PYTHON_FREEZE_JOBS EQUAL 0)
+    set(PYTHON_FREEZE_JOBS 1)
 endif()
 
-execute_process(
-    COMMAND ${Python3_EXECUTABLE} -c
-        "import importlib.util as u; print(int.from_bytes(u.MAGIC_NUMBER[:2], 'little'))"
-    OUTPUT_VARIABLE PYTHON_HOST_MAGIC
-    OUTPUT_STRIP_TRAILING_WHITESPACE
-    RESULT_VARIABLE _magic_res)
-if(NOT _magic_res EQUAL 0)
-    message(FATAL_ERROR "python: could not query host CPython bytecode magic number")
-endif()
-
-if(NOT PYTHON_HOST_MAGIC STREQUAL PYTHON_EXPECTED_MAGIC)
-    message(FATAL_ERROR
-        "python: host CPython bytecode magic ${PYTHON_HOST_MAGIC} (${Python3_EXECUTABLE}) "
-        "does not match the repo's ${PYTHON_EXPECTED_MAGIC}; the frozen modules would be "
-        "silently corrupt. Use a CPython 3.13 whose bytecode magic matches.")
-endif()
+ExternalProject_Add(python_freeze_host
+    SOURCE_DIR        ${CMAKE_CURRENT_SOURCE_DIR}/repo
+    BINARY_DIR        ${PYTHON_FREEZE_HOST_DIR}
+    BUILD_IN_SOURCE   OFF
+    CONFIGURE_COMMAND ${CMAKE_COMMAND} -E env
+                          --unset=CFLAGS --unset=CPPFLAGS --unset=LDFLAGS
+                          CC=cc CXX=c++
+                          ${CMAKE_CURRENT_SOURCE_DIR}/repo/configure
+                          --without-ensurepip --disable-test-modules
+    BUILD_COMMAND     ${CMAKE_COMMAND} -E env
+                          --unset=CFLAGS --unset=CPPFLAGS --unset=LDFLAGS
+                          CC=cc CXX=c++
+                          make -j${PYTHON_FREEZE_JOBS} Programs/_freeze_module
+    BUILD_BYPRODUCTS  ${PYTHON_FREEZE_MODULE}
+    INSTALL_COMMAND   ""
+    USES_TERMINAL_BUILD ON
+)
 
 set(PYTHON_FROZEN_NAMES
     importlib._bootstrap importlib._bootstrap_external zipimport
@@ -103,9 +108,10 @@ endforeach()
 add_custom_command(
     OUTPUT ${PYTHON_FROZEN_HEADERS}
     COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/freeze.py
-            ${CMAKE_CURRENT_SOURCE_DIR}/repo ${GEN}
+            ${CMAKE_CURRENT_SOURCE_DIR}/repo ${GEN} ${PYTHON_FREEZE_MODULE}
     DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/freeze.py
             repo/Tools/build/freeze_modules.py
+            ${PYTHON_FREEZE_MODULE}
     VERBATIM
 )
 add_custom_target(python_frozen DEPENDS ${PYTHON_FROZEN_HEADERS})
