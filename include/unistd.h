@@ -13,6 +13,8 @@
 #define W_OK 4
 #define X_OK 8
 
+#define _SC_CLK_TCK 1
+
 #ifdef __cplusplus
 extern "C" {
 #endif

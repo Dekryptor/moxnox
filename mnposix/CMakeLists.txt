@@ -53,6 +53,7 @@ add_library(mnposix SHARED
     src/pthread.cpp
     src/mmap.cpp
     src/uname.cpp
+    src/sysconf.cpp
 )
 
 target_compile_options(mnposix PRIVATE -fno-exceptions ${USERSPACE_CFLAGS})

@@ -123,6 +123,7 @@ fnmatch
 uname
 link
 times
+sysconf
 
 ; stubs
 dlopen
@@ -133,4 +134,3 @@ getpgid
 tcgetpgrp
 getpass
 statvfs
-sysconf
