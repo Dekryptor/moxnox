@@ -418,7 +418,7 @@ static const char* inet_ntop_v4(const in_addr_t& src, char* dst,
         return nullptr;
     }
 
-    span sp(dst, size);
+    span sp(dst, (size_t)size);
 
     sp = format(sp, "{}.{}.{}.{}", (uint8_t)(src & 0xff),
                 (uint8_t)((src >> 8) & 0xff), (uint8_t)((src >> 16) & 0xff),
@@ -441,7 +441,7 @@ static const char* inet_ntop_v6(const ipv6_address& src, char* dst,
         return nullptr;
     }
 
-    span sp(dst, size);
+    span sp(dst, (size_t)size);
 
     sp = format(sp, "{}", src);
 
