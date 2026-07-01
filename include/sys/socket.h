@@ -114,7 +114,7 @@ int bind(int s, const struct sockaddr* addr, socklen_t addrlen);
 int connect(int s, const struct sockaddr* addr, socklen_t addrlen);
 int getpeername(int s, struct sockaddr* name, socklen_t* namelen);
 int getsockname(int s, struct sockaddr* name, socklen_t* namelen);
-int getsockopt(int s, int level, int optname, char* optval, socklen_t* optlen);
+int getsockopt(int s, int level, int optname, void* optval, socklen_t* optlen);
 int listen(int s, int backlog);
 int recv(int s, char* buf, int len, int flags);
 int recvfrom(int s, char* buf, int len, int flags, struct sockaddr* from,
@@ -122,7 +122,7 @@ int recvfrom(int s, char* buf, int len, int flags, struct sockaddr* from,
 int send(int s, const char* buf, int len, int flags);
 int sendto(int s, const char* buf, int len, int flags, const struct sockaddr* to,
            socklen_t tolen);
-int setsockopt(int s, int level, int optname, const char* optval,
+int setsockopt(int s, int level, int optname, const void* optval,
                socklen_t optlen);
 int socket(int af, int type, int protocol);
 int shutdown(int s, int how);

@@ -207,13 +207,13 @@ export struct MOXNOX_SOCKET_GETSOCKNAME {
 export struct MOXNOX_SOCKET_GETSOCKOPT {
     int level;
     int optname;
-    char* optval;
+    void* optval;
     socklen_t* optlen;
 };
 
 export struct MOXNOX_SOCKET_SETSOCKOPT {
     int level;
     int optname;
-    const char* optval;
+    const void* optval;
     socklen_t optlen;
 };

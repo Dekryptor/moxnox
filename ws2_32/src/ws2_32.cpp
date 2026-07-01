@@ -254,7 +254,7 @@ uint16_t ntohs(uint16_t netshort) {
 }
 
 extern "C"
-int setsockopt(SOCKET s, int level, int optname, const char* optval,
+int setsockopt(SOCKET s, int level, int optname, const void* optval,
                int optlen) {
     IO_STATUS_BLOCK iosb;
     MOXNOX_SOCKET_SETSOCKOPT params;
@@ -363,7 +363,7 @@ int gethostname(char* name, int namelen) {
 }
 
 extern "C"
-int getsockopt(int s, int level, int optname, char* optval, socklen_t* optlen) {
+int getsockopt(int s, int level, int optname, void* optval, socklen_t* optlen) {
     IO_STATUS_BLOCK iosb;
     MOXNOX_SOCKET_GETSOCKOPT params;
 
