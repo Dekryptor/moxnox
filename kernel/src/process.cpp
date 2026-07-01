@@ -53,9 +53,7 @@ public:
         sess.acquire();
     }
 
-    ~process_group() {
-        sess.release();
-    }
+    ~process_group();
 
     void acquire() {
         refcount++;
@@ -66,7 +64,8 @@ public:
             delete this;
     }
 
-    uintptr_t pid;
+    rbtree_node<uintptr_t> tree;
+    bool inserted = false;
     session& sess;
 
     spinlock procs_lock;

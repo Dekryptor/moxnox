@@ -84,6 +84,9 @@ static atomic<uintptr_t> next_pid = 1;
 static spinlock process_list_lock;
 static rbtree_node<uintptr_t>* process_tree = nullptr;
 
+static spinlock pg_tree_lock;
+static rbtree_node<uintptr_t>* pg_tree = nullptr;
+
 static const int LAST_SIG = SIGTTOU;
 
 #ifdef __x86_64__
@@ -467,7 +470,14 @@ object_ref create_process(string_view fn, string_view curdir,
 
     sess->release();
 
-    pg->pid = pid;
+    pg->tree.key = pid;
+
+    {
+        lock_guard lock(pg_tree_lock);
+        insert_into_rbtree(pg_tree, pg->tree);
+    }
+
+    pg->inserted = true;
 
     auto pptr = new process(*pg);
     if (!pptr) {
@@ -3534,7 +3544,7 @@ nt_status process::query_process_group(span<uint8_t> buf,
     {
         lock_guard lock(pg_lock);
 
-        *(uintptr_t*)buf.data() = pg->pid;
+        *(uintptr_t*)buf.data() = pg->tree.key;
     }
 
     if (return_length)
@@ -4344,22 +4354,37 @@ nt_status process::new_session() {
     sess2->release();
 
     bool fail = false;
+    uintptr_t pid;
 
     {
         lock_guard lock(process_list_lock);
+        pid = tree.key;
+    }
 
-        auto pid = tree.key;
+    sess2->pid = pid;
+    pg2->tree.key = pid;
 
-        sess2->pid = pid;
-        pg2->pid = pid;
+    {
+        lock_guard lock(pg_lock);
 
-        {
-            lock_guard lock2(pg_lock);
+        if (pg->tree.key == pid) // process group leader
+            fail = true;
+        else {
+            bool already_there = false;
 
-            if (pg->sess.pid == pid) // session leader
-                fail = true;
-            else {
-                lock_guard lock3(pg->procs_lock);
+            {
+                lock_guard lock2(pg_tree_lock);
+
+                if (find_rbtree_node(pg_tree, pid))
+                    already_there = true;
+                else {
+                    insert_into_rbtree(pg_tree, pg2->tree);
+                    pg2->inserted = true;
+                }
+            }
+
+            if (!already_there) {
+                lock_guard lock2(pg->procs_lock);
 
                 remove_entry_list(this->pg_le);
 
@@ -4467,6 +4492,14 @@ nt_status process::set_process_group(span<const uint8_t> buffer) {
     if (&obj.get() == this) {
         session* sess;
 
+        uintptr_t pid;
+        bool already_there = false;
+
+        {
+            lock_guard lock(process_list_lock);
+            pid = tree.key;
+        }
+
         {
             lock_guard lock(pg_lock);
 
@@ -4484,11 +4517,17 @@ nt_status process::set_process_group(span<const uint8_t> buffer) {
         sess->release();
 
         {
-            lock_guard lock(process_list_lock);
-            pg2->pid = tree.key;
+            lock_guard lock2(pg_tree_lock);
+
+            if (find_rbtree_node(pg_tree, pid))
+                already_there = true;
+            else {
+                insert_into_rbtree(pg_tree, pg2->tree);
+                pg2->inserted = true;
+            }
         }
 
-        {
+        if (!already_there) {
             lock_guard lock(pg_lock);
             lock_guard lock2(pg->procs_lock);
 
@@ -4520,8 +4559,8 @@ nt_status process::set_process_group(span<const uint8_t> buffer) {
                 if (pg != pg2) {
                     swap(pg, pg2);
 
-                    auto& first_pg = pg->pid < pg2->pid ? *pg : *pg2;
-                    auto& second_pg = pg->pid < pg2->pid ? *pg2 : *pg;
+                    auto& first_pg = pg->tree.key < pg2->tree.key ? *pg : *pg2;
+                    auto& second_pg = pg->tree.key < pg2->tree.key ? *pg2 : *pg;
 
                     {
                         lock_guard lock2(first_pg.procs_lock);
@@ -4871,4 +4910,13 @@ nt_status process::query_vm_basic_info(const void* base_address, span<uint8_t> b
     m->release();
 
     return ret;
+}
+
+process_group::~process_group() {
+    if (inserted) {
+        lock_guard lock(pg_tree_lock);
+        remove_from_rbtree(pg_tree, tree);
+    }
+
+    sess.release();
 }
