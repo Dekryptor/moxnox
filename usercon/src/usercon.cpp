@@ -2175,6 +2175,7 @@ static void run_shell(const char16_t* exe, void (*recv_func)(string_view),
         STARTUPINFOW si;
         PROCESS_INFORMATION pi;
         char16_t* u16home = nullptr;
+        nt_status status;
 
         auto home = getenv("HOME");
         if (home && home[0]) {
@@ -2183,7 +2184,7 @@ static void run_shell(const char16_t* exe, void (*recv_func)(string_view),
             u16home = (char16_t*)malloc((len + 1) * sizeof(char16_t));
             if (!u16home) {
                 print_stderr("malloc failed\n");
-                return 1;
+                return false;
             }
 
             utf8_to_utf16(span(u16home, len), home);
@@ -2199,8 +2200,8 @@ static void run_shell(const char16_t* exe, void (*recv_func)(string_view),
         si.hStdOutput = client_handle.get();
         si.hStdError = client_handle.get();
 
-        if (!CreateProcessW(exe, nullptr, nullptr, nullptr, false, 0, nullptr,
-                            u16home, &si, &pi)) {
+        if (!CreateProcessW(exe, nullptr, nullptr, nullptr, false, CREATE_SUSPENDED,
+                            nullptr, u16home, &si, &pi)) {
             if (u16home)
                 free(u16home);
 
@@ -2211,10 +2212,37 @@ static void run_shell(const char16_t* exe, void (*recv_func)(string_view),
             free(u16home);
 
         proc.reset(pi.hProcess);
-        NtClose(pi.hThread);
+        unique_handle thread{pi.hThread};
 
-        if (!set_pty_fg_proc(client_handle.get(), proc.get()))
+        status = NtSetInformationProcess(proc.get(), PROCESS_INFORMATION_CLASS::MoxnoxNewSession,
+                                         nullptr, 0);
+        if (!success(status)) {
+            print_stderr("NtSetInformationProcess returned {} for MoxnoxNewSession\n", status);
+            NtTerminateProcess(proc.get(), status);
             return false;
+        }
+
+        HANDLE pty = client_handle.get();
+
+        status = NtSetInformationProcess(proc.get(), PROCESS_INFORMATION_CLASS::MoxnoxSetControllingTerminal,
+                                         &pty, sizeof(pty));
+        if (!success(status)) {
+            print_stderr("NtSetInformationProcess returned {} for MoxnoxSetControllingTerminal\n", status);
+            NtTerminateProcess(proc.get(), status);
+            return false;
+        }
+
+        if (!set_pty_fg_proc(client_handle.get(), proc.get())) {
+            NtTerminateProcess(proc.get(), status);
+            return false;
+        }
+
+        status = NtResumeThread(thread.get(), nullptr);
+        if (!success(status)) {
+            print_stderr("NtResumeThread returned {}\n", status);
+            NtTerminateProcess(proc.get(), status);
+            return false;
+        }
 
         return true;
     };
@@ -2556,6 +2584,7 @@ static int do_serial_console(const char16_t* exe) {
         STARTUPINFOW si;
         PROCESS_INFORMATION pi;
         char16_t* u16home = nullptr;
+        nt_status status;
 
         auto home = getenv("HOME");
         if (home && home[0]) {
@@ -2580,8 +2609,8 @@ static int do_serial_console(const char16_t* exe) {
         si.hStdOutput = client_handle.get();
         si.hStdError = client_handle.get();
 
-        if (!CreateProcessW(exe, nullptr, nullptr, nullptr, false, 0, nullptr,
-                            u16home, &si, &pi)) {
+        if (!CreateProcessW(exe, nullptr, nullptr, nullptr, false, CREATE_SUSPENDED,
+                            nullptr, u16home, &si, &pi)) {
             if (u16home)
                 free(u16home);
 
@@ -2592,10 +2621,37 @@ static int do_serial_console(const char16_t* exe) {
             free(u16home);
 
         proc.reset(pi.hProcess);
-        NtClose(pi.hThread);
+        unique_handle thread{pi.hThread};
 
-        if (!set_pty_fg_proc(client_handle.get(), proc.get()))
+        status = NtSetInformationProcess(proc.get(), PROCESS_INFORMATION_CLASS::MoxnoxNewSession,
+                                         nullptr, 0);
+        if (!success(status)) {
+            print_stderr("NtSetInformationProcess returned {} for MoxnoxNewSession\n", status);
+            NtTerminateProcess(proc.get(), status);
             return false;
+        }
+
+        HANDLE pty = client_handle.get();
+
+        status = NtSetInformationProcess(proc.get(), PROCESS_INFORMATION_CLASS::MoxnoxSetControllingTerminal,
+                                         &pty, sizeof(pty));
+        if (!success(status)) {
+            print_stderr("NtSetInformationProcess returned {} for MoxnoxSetControllingTerminal\n", status);
+            NtTerminateProcess(proc.get(), status);
+            return false;
+        }
+
+        if (!set_pty_fg_proc(client_handle.get(), proc.get())) {
+            NtTerminateProcess(proc.get(), status);
+            return false;
+        }
+
+        status = NtResumeThread(thread.get(), nullptr);
+        if (!success(status)) {
+            print_stderr("NtResumeThread returned {}\n", status);
+            NtTerminateProcess(proc.get(), status);
+            return false;
+        }
 
         return true;
     };
