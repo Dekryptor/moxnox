@@ -1,6 +1,7 @@
 #include <signal.h>
 #include <string.h>
 #include <setjmp.h>
+#include <unistd.h>
 
 import nt;
 import print;
@@ -143,50 +144,67 @@ int sigprocmask(int how, const sigset_t* set, sigset_t* oldset) {
 
 extern "C"
 int kill(pid_t pid, int sig) {
-    CLIENT_ID client_id;
-    OBJECT_ATTRIBUTES oa;
-    HANDLE h;
-    unique_handle proc;
     nt_status status;
 
-    // FIXME - pid 0 means all processes in this process group
-    // FIXME - pid -1 means all processes
-    // FIXME - pid < -1 means to process group -pid
+    // FIXME - sig == 0 means check validity of pid
 
-    if (pid <= 0) {
+    if (pid == -1) {
+        // FIXME - all processes
         *_errno() = EINVAL;
         return -1;
     }
 
-    client_id.UniqueProcess = (HANDLE)pid;
-    client_id.UniqueThread = 0;
+    if (pid <= 0) {
+        MN_PENDING_SIGNAL_PROCESS_GROUP params;
 
-    memset(&oa, 0, sizeof(oa));
-    oa.Length = sizeof(OBJECT_ATTRIBUTES);
+        params.sig = sig;
 
-    status = NtOpenProcess(&h, PROCESS_TERMINATE, &oa, &client_id);
-    if (status == nt_status::INVALID_CID) {
-        *_errno() = ESRCH;
-        return -1;
-    } else if (!success(status)) {
-        *_errno() = nt_status_to_errno(status);
-        return -1;
-    }
+        if (pid == 0) { // all processes in this process group
+            auto pgid = getpgid(0);
 
-    proc.reset(h);
+            if (pgid == -1)
+                return -1;
 
-    if (sig == SIGKILL)
-        status = NtTerminateProcess(proc.get(), (nt_status)SIGKILL);
-    else if (sig == SIGSTOP)
-        status = NtSuspendProcess(proc.get());
-    else {
+            params.pgid = (uintptr_t)pgid;
+        } else
+            params.pgid = (uintptr_t)-pid;
+
+        status = NtSetInformationProcess(NtCurrentProcess(),
+                                         PROCESS_INFORMATION_CLASS::MoxnoxSetPendingSignalProcessGroup,
+                                         &params, sizeof(params));
+        if (!success(status)) {
+            *_errno() = nt_status_to_errno(status);
+            return -1;
+        }
+    } else {
+        CLIENT_ID client_id;
+        OBJECT_ATTRIBUTES oa;
+        HANDLE h;
+        unique_handle proc;
+
+        client_id.UniqueProcess = (HANDLE)pid;
+        client_id.UniqueThread = 0;
+
+        memset(&oa, 0, sizeof(oa));
+        oa.Length = sizeof(OBJECT_ATTRIBUTES);
+
+        status = NtOpenProcess(&h, PROCESS_TERMINATE, &oa, &client_id);
+        if (status == nt_status::INVALID_CID) {
+            *_errno() = ESRCH;
+            return -1;
+        } else if (!success(status)) {
+            *_errno() = nt_status_to_errno(status);
+            return -1;
+        }
+
+        proc.reset(h);
+
         status = NtSetInformationProcess(proc.get(), PROCESS_INFORMATION_CLASS::MoxnoxSetPendingSignal,
                                         &sig, sizeof(sig));
-    }
-
-    if (!success(status)) {
-        *_errno() = nt_status_to_errno(status);
-        return -1;
+        if (!success(status)) {
+            *_errno() = nt_status_to_errno(status);
+            return -1;
+        }
     }
 
     return 0;
