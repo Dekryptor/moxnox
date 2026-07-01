@@ -390,23 +390,36 @@ extern "C"
 size_t __fread_nolock(void* ptr, size_t size, size_t n, FILE* file) {
     auto& f = *reinterpret_cast<_FILE*>(file);
     IO_STATUS_BLOCK iosb;
+    size_t bytes = size * n, ungetc_bytes = 0;
 
     // FIXME - buffering
 
-    auto status = NtReadFile(f.h, 0, nullptr, nullptr, &iosb, ptr,
-                             (uint32_t)(size * n), nullptr, nullptr);
-    if (status == nt_status::END_OF_FILE) {
-        f.eof = true;
+    if (bytes == 0)
         return 0;
-    } else if (!success(status)) {
-        f.error = true;
-        return 0;
+
+    if (f.ungetc_char.has_value()) {
+        *(uint8_t*)ptr = *f.ungetc_char;
+        f.ungetc_char = nullopt;
+
+        ptr = (uint8_t*)ptr + 1;
+        bytes--;
+        ungetc_bytes = 1;
     }
 
-    if (iosb.Information < size * n)
+    auto status = NtReadFile(f.h, 0, nullptr, nullptr, &iosb, ptr,
+                             (uint32_t)bytes, nullptr, nullptr);
+    if (status == nt_status::END_OF_FILE) {
+        f.eof = true;
+        return ungetc_bytes;
+    } else if (!success(status)) {
+        f.error = true;
+        return ungetc_bytes;
+    }
+
+    if (iosb.Information < bytes)
         f.eof = true;
 
-    return iosb.Information;
+    return iosb.Information + ungetc_bytes;
 }
 
 extern "C"
