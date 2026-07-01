@@ -71,11 +71,11 @@ pid_t setsid() {
 
 extern "C"
 int setpgid(pid_t pid, pid_t pgid) {
+    auto& teb = *NtCurrentTeb();
     nt_status status;
-    HANDLE proc, pgproc;
-    unique_handle uh, uh2;
-
-    // FIXME - the process with PID pgid might not be in process group pgid
+    HANDLE proc;
+    unique_handle uh;
+    uintptr_t pgid2;
 
     if (pgid < 0) {
         *_errno() = EINVAL;
@@ -107,33 +107,16 @@ int setpgid(pid_t pid, pid_t pgid) {
         uh.reset(proc);
     }
 
-    if (pgid == 0)
-        pgproc = proc;
-    else {
-        OBJECT_ATTRIBUTES oa;
-        CLIENT_ID client_id;
-
-        memset(&oa, 0, sizeof(oa));
-        oa.Length = sizeof(OBJECT_ATTRIBUTES);
-
-        client_id.UniqueProcess = (HANDLE)pgid;
-        client_id.UniqueThread = 0;
-
-        status = NtOpenProcess(&pgproc, PROCESS_QUERY_INFORMATION, &oa,
-                               &client_id);
-        if (status == nt_status::INVALID_CID) {
-            *_errno() = ESRCH;
-            return -1;
-        } else if (!success(status)) {
-            *_errno() = nt_status_to_errno(status);
-            return -1;
-        }
-
-        uh2.reset(pgproc);
-    }
+    if (pgid == 0) {
+        if (pid == 0)
+            pgid2 = teb.ClientId.UniqueProcess;
+        else
+            pgid2 = (uintptr_t)pid;
+    } else
+        pgid2 = (uintptr_t)pgid;
 
     status = NtSetInformationProcess(proc, PROCESS_INFORMATION_CLASS::MoxnoxSetProcessGroup,
-                                     &pgproc, sizeof(pgproc));
+                                     &pgid2, sizeof(pgid2));
     if (!success(status)) {
         *_errno() = nt_status_to_errno(status);
         return -1;
