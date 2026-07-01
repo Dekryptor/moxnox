@@ -59,10 +59,7 @@ public:
         refcount++;
     }
 
-    void release() {
-        if (--refcount == 0)
-            delete this;
-    }
+    void release();
 
     rbtree_node<uintptr_t> tree;
     bool inserted = false;

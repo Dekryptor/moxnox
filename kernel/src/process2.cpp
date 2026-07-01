@@ -4463,35 +4463,37 @@ nt_status process::set_controlling_terminal(span<const uint8_t> buffer) {
 }
 
 nt_status process::set_process_group(span<const uint8_t> buffer) {
-    auto& calling_proc = *get_current_thread()->proc;
-    object_ref obj;
-
-    if (buffer.size() != sizeof(HANDLE))
+    if (buffer.size() != sizeof(uintptr_t))
         return nt_status::INVALID_PARAMETER;
 
-    auto h = *(HANDLE*)buffer.data();
-
-    if (h == NtCurrentProcess()) {
-        calling_proc.acquire();
-
-        obj = object_ref{calling_proc};
-    } else {
-        obj = calling_proc.deref_handle(h);
-        if (!obj)
-            return nt_status::INVALID_HANDLE;
-
-        if (obj.get().type != object_type::process)
-            return nt_status::OBJECT_TYPE_MISMATCH;
-
-        // FIXME - check access rights
-    }
+    auto pgid = *(uintptr_t*)buffer.data();
 
     // FIXME - check not session leader
     // FIXME - process must be caller or child of caller
 
-    if (&obj.get() == this) {
-        session* sess;
+    process_group* pg2 = nullptr;
 
+    {
+        lock_guard lock(pg_tree_lock);
+
+        auto* tree = find_rbtree_node(pg_tree, pgid);
+        if (tree) {
+            pg2 = &rbtree_containing_record<process_group>(tree);
+            pg2->acquire();
+        }
+    }
+
+    {
+        lock_guard lock(pg_lock);
+
+        if (pg2 == pg) { // no change
+            pg2->release();
+            return nt_status::SUCCESS;
+        }
+    }
+
+    if (!pg2) { // not found
+        session* sess;
         uintptr_t pid;
         bool already_there = false;
 
@@ -4500,6 +4502,11 @@ nt_status process::set_process_group(span<const uint8_t> buffer) {
             pid = tree.key;
         }
 
+        if (pgid != pid)
+            return nt_status::ACCESS_DENIED;
+
+        // add to new process group
+
         {
             lock_guard lock(pg_lock);
 
@@ -4507,7 +4514,7 @@ nt_status process::set_process_group(span<const uint8_t> buffer) {
             sess->acquire();
         }
 
-        auto pg2 = new process_group(*sess);
+        pg2 = new process_group(*sess);
         if (!pg2) {
             print("new failed\n");
             sess->release();
@@ -4539,18 +4546,8 @@ nt_status process::set_process_group(span<const uint8_t> buffer) {
         }
 
         pg2->release();
-    } else {
-        process_group* pg2;
+    } else { // found, add to existing group
         bool fail = false;
-
-        auto& other_proc = static_cast<process&>(obj.get());
-
-        {
-            lock_guard lock(other_proc.pg_lock);
-
-            pg2 = other_proc.pg;
-            pg2->acquire();
-        }
 
         {
             lock_guard lock(pg_lock);
@@ -4913,10 +4910,19 @@ nt_status process::query_vm_basic_info(const void* base_address, span<uint8_t> b
 }
 
 process_group::~process_group() {
-    if (inserted) {
+    sess.release();
+}
+
+void process_group::release() {
+    {
         lock_guard lock(pg_tree_lock);
-        remove_from_rbtree(pg_tree, tree);
+
+        if (--refcount != 0)
+            return;
+
+        if (inserted)
+            remove_from_rbtree(pg_tree, tree);
     }
 
-    sess.release();
+    delete this;
 }
