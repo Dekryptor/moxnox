@@ -1144,6 +1144,7 @@ enum class PROCESS_INFORMATION_CLASS {
     MoxnoxGetProcessGroup,
     MoxnoxSetProcessGroup,
     MoxnoxSetPendingSignalProcessGroup,
+    MoxnoxWaitForChildProcessGroup,
 };
 
 struct PROCESS_BASIC_INFORMATION {
@@ -1165,6 +1166,12 @@ struct KERNEL_USER_TIMES {
 struct MN_PENDING_SIGNAL_PROCESS_GROUP {
     int sig;
     uintptr_t pgid;
+};
+
+struct MN_WAIT_FOR_CHILD_PROCESS_GROUP {
+    uintptr_t pgid;
+    bool no_hang;
+    HANDLE* h;
 };
 
 enum class SECTION_INFORMATION_CLASS {

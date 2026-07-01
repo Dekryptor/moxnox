@@ -11,6 +11,7 @@ module;
 #include <stdint.h>
 #include <signal.h>
 #include "assert.h"
+#include "timer-asm.h"
 
 module process;
 
@@ -1893,6 +1894,8 @@ void process::terminate() {
                 auto& e = static_cast<event&>(parent_process->unreaped_children_event.get());
 
                 e.set_holding_sync_lock();
+
+                wake_up_waiters(parent_process->wait_child_waiters);
             }
         }
     }
@@ -3499,6 +3502,124 @@ nt_status process::query_wait_for_child(span<uint8_t> buf, uint32_t* return_leng
     } while (true);
 }
 
+nt_status process::set_wait_for_child_process_group(span<const uint8_t> buf) {
+    auto& t = *get_current_thread();
+    nt_status status;
+
+    if (buf.size() < sizeof(MN_WAIT_FOR_CHILD_PROCESS_GROUP))
+        return nt_status::BUFFER_TOO_SMALL;
+
+    auto& params = *(MN_WAIT_FOR_CHILD_PROCESS_GROUP*)buf.data();
+
+    if (!params.h)
+        return nt_status::INVALID_PARAMETER;
+
+    do {
+        process* child = nullptr;
+        bool not_found = false;
+
+        {
+            disable_interrupts();
+            acquire_sync_lock();
+
+            {
+                lock_guard lock2(process_list_lock);
+
+                {
+                    lock_guard lock3(children_lock);
+
+                    bool filter_matched = false;
+
+                    for (auto le = children.next; le != &children; le = le->next) {
+                        auto& c = *(process*)((uint8_t*)le - offsetof(process, child_le));
+
+                        {
+                            lock_guard lock(c.pg_lock);
+
+                            if (c.pg->tree.key != params.pgid)
+                                continue;
+                        }
+
+                        filter_matched = true;
+
+                        if (c.signalled) {
+                            remove_entry_list(c.child_le);
+                            child = &c;
+                            break;
+                        }
+                    }
+
+                    if (!filter_matched)
+                        not_found = true;
+                    else if (child) {
+                        bool clear_event = true;
+
+                        for (auto le = children.next; le != &children; le = le->next) {
+                            auto& c = *(process*)((uint8_t*)le - offsetof(process, child_le));
+
+                            if (c.signalled) {
+                                clear_event = false;
+                                break;
+                            }
+                        }
+
+                        if (clear_event) {
+                            auto& e = static_cast<event&>(unreaped_children_event.get());
+
+                            e.signalled = false;
+                        }
+                    }
+                }
+
+                if (child)
+                    child->parent_process = nullptr;
+            }
+
+            if (child || params.no_hang || not_found) {
+                release_sync_lock();
+                enable_interrupts();
+
+                if (not_found)
+                    return nt_status::NOT_FOUND;
+            } else {
+                insert_tail_list(wait_child_waiters, t.wait_obj.wait_le);
+
+                set_current_thread_waiting();
+            }
+        }
+
+        if (child) {
+            handle_t h;
+
+            status = t.proc->add_handle(*child, 0, true, h); // FIXME - access mask?
+            if (!success(status)) {
+                child->release();
+                return status;
+            }
+
+            if (!t.proc->copy_to(params.h, &h, sizeof(HANDLE))) {
+                t.proc->close_handle(h);
+                child->release();
+                return nt_status::ACCESS_VIOLATION;
+            }
+
+            {
+                lock_guard lock(threads_lock);
+
+                children_time_running += child->dead_threads_time_running + child->children_time_running;
+                children_time_running_in_userspace += child->dead_threads_time_running_in_userspace + child->children_time_running_in_userspace;
+            }
+
+            child->release();
+
+            return nt_status::SUCCESS;
+        }
+
+        if (params.no_hang)
+            return nt_status::TIMEOUT;
+    } while (true);
+}
+
 nt_status process::query_is_our_child(uint32_t* return_length) {
     auto& t = *get_current_thread();
 
@@ -4605,6 +4726,9 @@ nt_status process::set_information(PROCESS_INFORMATION_CLASS info_class,
 
         case MoxnoxSetPendingSignalProcessGroup:
             return set_pending_signal_process_group(buffer);
+
+        case MoxnoxWaitForChildProcessGroup:
+            return set_wait_for_child_process_group(buffer);
 
         default:
             return nt_status::NOT_IMPLEMENTED;

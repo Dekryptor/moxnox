@@ -179,6 +179,7 @@ public:
     list_entry child_le;
     process* parent_process = nullptr;
     object_ref unreaped_children_event;
+    list_entry wait_child_waiters = { &wait_child_waiters, &wait_child_waiters };
 
     spinlock pg_lock;
     process_group* pg;
@@ -195,6 +196,7 @@ private:
                                    bool no_hang);
     nt_status query_is_our_child(uint32_t* return_length);
     nt_status query_process_group(span<uint8_t> buf, uint32_t* return_length);
+    nt_status set_wait_for_child_process_group(span<const uint8_t> buf);
 };
 
 static_assert(is_sync_object<process>);
