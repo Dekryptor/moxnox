@@ -1143,6 +1143,7 @@ enum class PROCESS_INFORMATION_CLASS {
     MoxnoxSetControllingTerminal,
     MoxnoxGetProcessGroup,
     MoxnoxSetProcessGroup,
+    MoxnoxSetPendingSignalProcessGroup,
 };
 
 struct PROCESS_BASIC_INFORMATION {
@@ -1159,6 +1160,11 @@ struct KERNEL_USER_TIMES {
     LARGE_INTEGER ExitTime;
     LARGE_INTEGER KernelTime;
     LARGE_INTEGER UserTime;
+};
+
+struct MN_PENDING_SIGNAL_PROCESS_GROUP {
+    int sig;
+    uintptr_t pgid;
 };
 
 enum class SECTION_INFORMATION_CLASS {

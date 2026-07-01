@@ -4603,30 +4603,33 @@ nt_status process::set_information(PROCESS_INFORMATION_CLASS info_class,
         case MoxnoxSetProcessGroup:
             return set_process_group(buffer);
 
+        case MoxnoxSetPendingSignalProcessGroup:
+            return set_pending_signal_process_group(buffer);
+
         default:
             return nt_status::NOT_IMPLEMENTED;
     }
 }
 
-nt_status process::set_pending_signal(span<const uint8_t> buffer) {
-    if (buffer.size() != sizeof(int))
-        return nt_status::INVALID_PARAMETER;
-
-    auto sig = *(int*)buffer.data();
-
-    if (sig <= 0 || sig > LAST_SIG || sig == SIGKILL || sig == SIGSTOP)
-        return nt_status::INVALID_PARAMETER;
-
-    auto mask = (uint64_t)1 << (sig - 1);
+static nt_status set_pending_signal2(process& proc, int sig) {
     object_ref victim;
+    auto mask = (uint64_t)1 << (sig - 1);
+
+    if (sig == SIGKILL) {
+        do_terminate(proc, (nt_status)SIGKILL);
+        return nt_status::SUCCESS;
+    } else if (sig == SIGSTOP) {
+        proc.suspend();
+        return nt_status::SUCCESS;
+    }
 
     {
-        lock_guard lock(signals_lock);
+        lock_guard lock(proc.signals_lock);
 
         {
-            lock_guard lock2(threads_lock);
+            lock_guard lock2(proc.threads_lock);
 
-            for (auto le = threads.next; le != &threads; le = le->next) {
+            for (auto le = proc.threads.next; le != &proc.threads; le = le->next) {
                 auto& t = *(::thread*)((uint8_t*)le - offsetof(::thread, process_le));
 
                 if (!(t.blocked_signals & mask)) {
@@ -4640,17 +4643,111 @@ nt_status process::set_pending_signal(span<const uint8_t> buffer) {
 
         // if no thread found, set as pending for process
         if (!victim)
-            pending_signals |= mask;
+            proc.pending_signals |= mask;
     }
 
     if (victim) {
         auto& t = static_cast<::thread&>(victim.get());
 
-        return t.queue_apc((PS_APC_ROUTINE)(ntdll_addr + mn_posix_signal),
+        return t.queue_apc((PS_APC_ROUTINE)(proc.ntdll_addr + mn_posix_signal),
                            (void*)(uintptr_t)sig, nullptr, nullptr);
     }
 
     return nt_status::SUCCESS;
+}
+
+nt_status process::set_pending_signal(span<const uint8_t> buffer) {
+    if (buffer.size() != sizeof(int))
+        return nt_status::INVALID_PARAMETER;
+
+    auto sig = *(int*)buffer.data();
+
+    if (sig <= 0 || sig > LAST_SIG)
+        return nt_status::INVALID_PARAMETER;
+
+    return set_pending_signal2(*this, sig);
+}
+
+nt_status process::set_pending_signal_process_group(span<const uint8_t> buffer) {
+    process_group* pg2 = nullptr;
+    size_t max_count = 0, count = 0;
+    unique_ptr<process*[]> procs;
+
+    if (buffer.size() != sizeof(MN_PENDING_SIGNAL_PROCESS_GROUP))
+        return nt_status::INVALID_PARAMETER;
+
+    auto& param = *(MN_PENDING_SIGNAL_PROCESS_GROUP*)buffer.data();
+
+    if (param.sig <= 0 || param.sig > LAST_SIG)
+        return nt_status::INVALID_PARAMETER;
+
+    {
+        lock_guard lock(pg_tree_lock);
+
+        auto* tree = find_rbtree_node(pg_tree, param.pgid);
+        if (tree) {
+            pg2 = &rbtree_containing_record<process_group>(tree);
+            pg2->acquire();
+        }
+    }
+
+    if (!pg2)
+        return nt_status::INVALID_CID;
+
+    {
+        lock_guard lock(pg2->procs_lock);
+
+        for (auto le = pg2->procs.next; le != &pg2->procs; le = le->next) {
+            max_count++;
+        }
+    }
+
+    if (max_count == 0) {
+        pg2->release();
+        return nt_status::SUCCESS;
+    }
+
+    procs.reset(new process*[max_count]);
+    if (!procs) {
+        print("new failed\n");
+        pg2->release();
+        return nt_status::INSUFFICIENT_RESOURCES;
+    }
+
+    {
+        lock_guard lock(pg2->procs_lock);
+
+        for (auto le = pg2->procs.next; le != &pg2->procs; le = le->next) {
+            auto& p = *(process*)((uint8_t*)le - offsetof(process, pg_le));
+
+            auto old = p.refcount.load();
+
+            while (old != 0 && !p.refcount.compare_exchange_weak(old, old + 1)) {
+            }
+
+            if (old == 0)
+                continue; // dying
+
+            procs[count] = &p;
+            count++;
+
+            if (count == max_count)
+                break;
+        }
+    }
+
+    pg2->release();
+
+    auto status = nt_status::SUCCESS;
+
+    for (size_t i = 0; i < count; i++) {
+        if (auto status2 = set_pending_signal2(*procs[i], param.sig); !success(status2))
+            status = status2;
+
+        procs[i]->release();
+    }
+
+    return status;
 }
 
 nt_status process::do_exec(span<const uint8_t> buffer) {
