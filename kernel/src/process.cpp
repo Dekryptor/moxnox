@@ -69,6 +69,9 @@ public:
     uintptr_t pid;
     session& sess;
 
+    spinlock procs_lock;
+    list_entry procs = { &procs, &procs };
+
 private:
     atomic<unsigned int> refcount = 1;
 };
@@ -182,6 +185,7 @@ public:
 
     spinlock pg_lock;
     process_group* pg;
+    list_entry pg_le;
 
 private:
     nt_status query_basic_info(span<uint8_t> buf, uint32_t* return_length);

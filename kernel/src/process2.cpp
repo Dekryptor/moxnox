@@ -680,6 +680,11 @@ process::process(process_group& pg) : sync_object(object_type::process, false) {
     this->pg = &pg;
     pg.acquire();
 
+    {
+        lock_guard lock(pg.procs_lock);
+        insert_tail_list(pg.procs, this->pg_le);
+    }
+
     auto s = new section;
     if (!s) {
         print("new failed\n");
@@ -836,6 +841,11 @@ process::~process() {
         img->get().release();
 
     free_page_tables(*this);
+
+    {
+        lock_guard lock(pg->procs_lock);
+        remove_entry_list(this->pg_le);
+    }
 
     pg->release();
 }
@@ -4348,8 +4358,15 @@ nt_status process::new_session() {
 
             if (pg->sess.pid == pid) // session leader
                 fail = true;
-            else
+            else {
+                lock_guard lock3(pg->procs_lock);
+
+                remove_entry_list(this->pg_le);
+
                 swap(pg, pg2);
+
+                insert_tail_list(pg->procs, this->pg_le);
+            }
         }
     }
 
@@ -4473,8 +4490,13 @@ nt_status process::set_process_group(span<const uint8_t> buffer) {
 
         {
             lock_guard lock(pg_lock);
+            lock_guard lock2(pg->procs_lock);
+
+            remove_entry_list(this->pg_le);
 
             swap(pg, pg2);
+
+            insert_tail_list(pg->procs, this->pg_le);
         }
 
         pg2->release();
@@ -4494,9 +4516,22 @@ nt_status process::set_process_group(span<const uint8_t> buffer) {
         {
             lock_guard lock(pg_lock);
 
-            if (&pg2->sess == &pg->sess)
-                swap(pg, pg2);
-            else
+            if (&pg2->sess == &pg->sess) {
+                if (pg != pg2) {
+                    swap(pg, pg2);
+
+                    auto& first_pg = pg->pid < pg2->pid ? *pg : *pg2;
+                    auto& second_pg = pg->pid < pg2->pid ? *pg2 : *pg;
+
+                    {
+                        lock_guard lock2(first_pg.procs_lock);
+                        lock_guard lock3(second_pg.procs_lock);
+
+                        remove_entry_list(this->pg_le);
+                        insert_tail_list(pg->procs, this->pg_le);
+                    }
+                }
+            } else
                 fail = true;
         }
 
