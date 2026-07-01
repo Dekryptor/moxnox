@@ -30,8 +30,6 @@ using namespace std;
 
 class session {
 public:
-    session(uintptr_t pid) : pid(pid) { }
-
     void acquire() {
         refcount++;
     }
@@ -107,6 +105,7 @@ public:
     nt_status set_pending_signal(span<const uint8_t> buffer);
     nt_status do_exec(span<const uint8_t> buffer);
     nt_status reap_zombie();
+    nt_status new_session();
     nt_status query_vm(const void* base_address, MEMORY_INFORMATION_CLASS info_class,
                        span<uint8_t> buffer, size_t& return_length);
     nt_status query_vm_basic_info(const void* base_address, span<uint8_t> buffer,
@@ -151,6 +150,8 @@ public:
     list_entry child_le;
     process* parent_process = nullptr;
     object_ref unreaped_children_event;
+
+    spinlock session_lock;
     session* sess;
 
 private:

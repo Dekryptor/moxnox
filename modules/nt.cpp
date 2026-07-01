@@ -1139,6 +1139,7 @@ enum class PROCESS_INFORMATION_CLASS {
     MoxnoxIsOurChild,
     MoxnoxChildrenTimes,
     MoxnoxGetSessionId,
+    MoxnoxNewSession,
 };
 
 struct PROCESS_BASIC_INFORMATION {

@@ -448,7 +448,9 @@ object_ref create_process(string_view fn, string_view curdir,
 
     auto pid = next_pid.fetch_add(1);
 
-    auto sess = new session(pid);
+    auto sess = new session;
+
+    sess->pid = pid;
 
     auto pptr = new process(*sess);
     if (!pptr) {
@@ -3485,7 +3487,11 @@ nt_status process::query_session_id(span<uint8_t> buf, uint32_t* return_length) 
     if (buf.size() < sizeof(uintptr_t))
         return nt_status::BUFFER_TOO_SMALL;
 
-    *(uintptr_t*)buf.data() = sess->pid;
+    {
+        lock_guard lock(session_lock);
+
+        *(uintptr_t*)buf.data() = sess->pid;
+    }
 
     if (return_length)
         *return_length = sizeof(uintptr_t);
@@ -4274,6 +4280,37 @@ NTSTATUS NtSetInformationProcess(HANDLE process_handle, PROCESS_INFORMATION_CLAS
     return p.set_information(info_class, span((uint8_t*)buffer, buffer_size));
 }
 
+nt_status process::new_session() {
+    auto sess2 = new session;
+    if (!sess2) {
+        print("new failed\n");
+        return nt_status::INSUFFICIENT_RESOURCES;
+    }
+
+    bool fail = false;
+
+    {
+        lock_guard lock(process_list_lock);
+
+        auto pid = tree.key;
+
+        sess2->pid = pid;
+
+        {
+            lock_guard lock2(session_lock);
+
+            if (sess->pid == pid) // session leader
+                fail = true;
+            else
+                swap(sess, sess2);
+        }
+    }
+
+    sess2->release();
+
+    return fail ? nt_status::INVALID_PARAMETER : nt_status::SUCCESS;
+}
+
 nt_status process::set_information(PROCESS_INFORMATION_CLASS info_class,
                                    span<const uint8_t> buffer) {
     switch (info_class) {
@@ -4287,6 +4324,9 @@ nt_status process::set_information(PROCESS_INFORMATION_CLASS info_class,
 
         case MoxnoxReapZombie:
             return reap_zombie();
+
+        case MoxnoxNewSession:
+            return new_session();
 
         default:
             return nt_status::NOT_IMPLEMENTED;
