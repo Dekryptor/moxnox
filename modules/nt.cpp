@@ -1141,6 +1141,7 @@ enum class PROCESS_INFORMATION_CLASS {
     MoxnoxGetSessionId,
     MoxnoxNewSession,
     MoxnoxSetControllingTerminal,
+    MoxnoxGetProcessGroup,
     MoxnoxSetProcessGroup,
 };
 

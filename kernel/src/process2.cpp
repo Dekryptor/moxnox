@@ -3516,6 +3516,23 @@ nt_status process::query_session_id(span<uint8_t> buf, uint32_t* return_length) 
     return nt_status::SUCCESS;
 }
 
+nt_status process::query_process_group(span<uint8_t> buf,
+                                       uint32_t* return_length) {
+    if (buf.size() < sizeof(uintptr_t))
+        return nt_status::BUFFER_TOO_SMALL;
+
+    {
+        lock_guard lock(pg_lock);
+
+        *(uintptr_t*)buf.data() = pg->pid;
+    }
+
+    if (return_length)
+        *return_length = sizeof(uintptr_t);
+
+    return nt_status::SUCCESS;
+}
+
 NTSTATUS process::query_info(enum PROCESS_INFORMATION_CLASS process_information_class, span<uint8_t> buf,
                              uint32_t* return_length) {
     switch (process_information_class) {
@@ -3547,6 +3564,9 @@ NTSTATUS process::query_info(enum PROCESS_INFORMATION_CLASS process_information_
 
         case MoxnoxGetSessionId:
             return query_session_id(buf, return_length);
+
+        case MoxnoxGetProcessGroup:
+            return query_process_group(buf, return_length);
 
         default:
             print("process::query_info: unhandled info class {:x}\n",
