@@ -4400,6 +4400,95 @@ nt_status process::set_controlling_terminal(span<const uint8_t> buffer) {
     return nt_status::SUCCESS;
 }
 
+nt_status process::set_process_group(span<const uint8_t> buffer) {
+    auto& calling_proc = *get_current_thread()->proc;
+    object_ref obj;
+
+    if (buffer.size() != sizeof(HANDLE))
+        return nt_status::INVALID_PARAMETER;
+
+    auto h = *(HANDLE*)buffer.data();
+
+    if (h == NtCurrentProcess()) {
+        calling_proc.acquire();
+
+        obj = object_ref{calling_proc};
+    } else {
+        obj = calling_proc.deref_handle(h);
+        if (!obj)
+            return nt_status::INVALID_HANDLE;
+
+        if (obj.get().type != object_type::process)
+            return nt_status::OBJECT_TYPE_MISMATCH;
+
+        // FIXME - check access rights
+    }
+
+    // FIXME - check not session leader
+    // FIXME - process must be caller or child of caller
+
+    if (&obj.get() == this) {
+        session* sess;
+
+        {
+            lock_guard lock(pg_lock);
+
+            sess = &pg->sess;
+            sess->acquire();
+        }
+
+        auto pg2 = new process_group(*sess);
+        if (!pg2) {
+            print("new failed\n");
+            sess->release();
+            return nt_status::INSUFFICIENT_RESOURCES;
+        }
+
+        sess->release();
+
+        {
+            lock_guard lock(process_list_lock);
+            pg2->pid = tree.key;
+        }
+
+        {
+            lock_guard lock(pg_lock);
+
+            swap(pg, pg2);
+        }
+
+        pg2->release();
+    } else {
+        process_group* pg2;
+        bool fail = false;
+
+        auto& other_proc = static_cast<process&>(obj.get());
+
+        {
+            lock_guard lock(other_proc.pg_lock);
+
+            pg2 = other_proc.pg;
+            pg2->acquire();
+        }
+
+        {
+            lock_guard lock(pg_lock);
+
+            if (&pg2->sess == &pg->sess)
+                swap(pg, pg2);
+            else
+                fail = true;
+        }
+
+        pg2->release();
+
+        if (fail)
+            return nt_status::ACCESS_DENIED;
+    }
+
+    return nt_status::SUCCESS;
+}
+
 nt_status process::set_information(PROCESS_INFORMATION_CLASS info_class,
                                    span<const uint8_t> buffer) {
     switch (info_class) {
@@ -4419,6 +4508,9 @@ nt_status process::set_information(PROCESS_INFORMATION_CLASS info_class,
 
         case MoxnoxSetControllingTerminal:
             return set_controlling_terminal(buffer);
+
+        case MoxnoxSetProcessGroup:
+            return set_process_group(buffer);
 
         default:
             return nt_status::NOT_IMPLEMENTED;
