@@ -91,7 +91,7 @@ speed_t cfgetispeed(const termios* p) {
 
 extern "C"
 int cfsetispeed(termios* p, speed_t speed) {
-    p->c_cflag &= ~CBAUD;
+    p->c_cflag &= (tcflag_t)~CBAUD;
     p->c_cflag |= speed & CBAUD;
 
     return 0;
