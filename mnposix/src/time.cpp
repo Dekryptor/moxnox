@@ -96,14 +96,13 @@ int clock_gettime(clockid_t clockid, timespec* tp) {
 
 static int clock_getres_monotonic(timespec& res) {
     LARGE_INTEGER freq;
-    uint64_t val;
 
     if (!RtlQueryPerformanceFrequency(&freq)) {
         *_errno() = EINVAL;
         return -1;
     }
 
-    val = 1000000000 / freq.QuadPart;
+    auto val = (uint64_t)(1000000000 / freq.QuadPart);
 
     res.tv_sec = val / 1000000000;
     res.tv_nsec = (long)(val % 1000000000);
