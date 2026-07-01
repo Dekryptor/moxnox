@@ -446,11 +446,16 @@ object_ref create_process(string_view fn, string_view curdir,
         curdir_ref = object_ref{*curdir_file};
     }
 
-    auto pptr = new process;
+    auto sess = new session;
+
+    auto pptr = new process(*sess);
     if (!pptr) {
         print("new failed\n");
+        sess->release();
         return {};
     }
+
+    sess->release();
 
     if (!pptr->initialized) {
         print("process::process failed\n");
@@ -650,7 +655,10 @@ object_ref create_process(string_view fn, string_view curdir,
     return p;
 }
 
-process::process() : sync_object(object_type::process, false) {
+process::process(session& sess) : sync_object(object_type::process, false) {
+    this->sess = &sess;
+    sess.acquire();
+
     auto s = new section;
     if (!s) {
         print("new failed\n");
@@ -807,6 +815,8 @@ process::~process() {
         img->get().release();
 
     free_page_tables(*this);
+
+    sess->release();
 }
 
 #ifdef __aarch64__
@@ -2811,7 +2821,9 @@ NTSTATUS NtCreateProcess(HANDLE* process_handle, ACCESS_MASK, const OBJECT_ATTRI
             return nt_status::OBJECT_TYPE_MISMATCH;
     }
 
-    auto pptr = new process;
+    auto sess = static_cast<process&>(parent.get()).sess;
+
+    auto pptr = new process(*sess);
     if (!pptr)
         return nt_status::INSUFFICIENT_RESOURCES;
 

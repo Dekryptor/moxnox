@@ -28,9 +28,25 @@ import x86;
 
 using namespace std;
 
+class session {
+public:
+    void acquire() {
+        refcount++;
+    }
+
+    void release() {
+        if (--refcount == 0)
+            delete this;
+    }
+
+private:
+    atomic<unsigned int> refcount = 1;
+};
+
+
 export class process : public sync_object {
 public:
-    process();
+    process(session& sess);
     ~process();
 
     void release() {
@@ -131,6 +147,7 @@ public:
     list_entry child_le;
     process* parent_process = nullptr;
     object_ref unreaped_children_event;
+    session* sess;
 
 private:
     nt_status query_basic_info(span<uint8_t> buf, uint32_t* return_length);
