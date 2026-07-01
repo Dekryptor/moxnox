@@ -79,7 +79,7 @@ void* mmap(void* /*addr*/, size_t len, int prot, int flags, int fd, off_t off) {
         allocation_attributes = SEC_COMMIT;
     }
 
-    lisize.QuadPart = len + off;
+    lisize.QuadPart = (int64_t)len + (int64_t)off;
 
     // FIXME - access mask
     status = NtCreateSection(&h, 0, nullptr, &lisize, page_protection,
