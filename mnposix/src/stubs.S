@@ -8,7 +8,6 @@ do_stub "dlclose"
 do_stub "dlerror"
 do_stub "getpgid"
 do_stub "tcgetpgrp"
-do_stub "getpass"
 do_stub "statvfs"
 
 stubs_end

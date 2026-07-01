@@ -134,5 +134,4 @@ dlclose
 dlerror
 getpgid
 tcgetpgrp
-getpass
 statvfs
