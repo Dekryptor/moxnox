@@ -134,3 +134,5 @@ getpgid
 tcgetpgrp
 getpass
 statvfs
+getsid
+setsid

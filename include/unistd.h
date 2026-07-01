@@ -60,6 +60,8 @@ int link(const char* oldpath, const char* newpath);
 int readlink(const char* path, char* buf, size_t bufsiz);
 int getpagesize(void);
 long sysconf(int name);
+pid_t getsid(pid_t pid);
+pid_t setsid(void);
 
 #ifdef __cplusplus
 }
