@@ -30,6 +30,8 @@ using namespace std;
 
 class session {
 public:
+    session(uintptr_t pid) : pid(pid) { }
+
     void acquire() {
         refcount++;
     }
@@ -38,6 +40,8 @@ public:
         if (--refcount == 0)
             delete this;
     }
+
+    uintptr_t pid;
 
 private:
     atomic<unsigned int> refcount = 1;
@@ -154,6 +158,7 @@ private:
     nt_status query_image_file_name(span<uint8_t> buf, uint32_t* return_length);
     nt_status query_times(span<uint8_t> buf, uint32_t* return_length);
     nt_status query_children_times(span<uint8_t> buf, uint32_t* return_length);
+    nt_status query_session_id(span<uint8_t> buf, uint32_t* return_length);
     nt_status query_find_ntdll(span<uint8_t> buf, uint32_t* return_length);
     nt_status query_wait_for_child(span<uint8_t> buf, uint32_t* return_length,
                                    bool no_hang);

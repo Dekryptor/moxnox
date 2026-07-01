@@ -446,7 +446,9 @@ object_ref create_process(string_view fn, string_view curdir,
         curdir_ref = object_ref{*curdir_file};
     }
 
-    auto sess = new session;
+    auto pid = next_pid.fetch_add(1);
+
+    auto sess = new session(pid);
 
     auto pptr = new process(*sess);
     if (!pptr) {
@@ -465,7 +467,7 @@ object_ref create_process(string_view fn, string_view curdir,
 
     auto& p = *pptr;
 
-    p.tree.key = next_pid.fetch_add(1);
+    p.tree.key = pid;
 
     // create section for image
 
@@ -3479,6 +3481,18 @@ nt_status process::query_is_our_child(uint32_t* return_length) {
     return nt_status::NOT_FOUND;
 }
 
+nt_status process::query_session_id(span<uint8_t> buf, uint32_t* return_length) {
+    if (buf.size() < sizeof(uintptr_t))
+        return nt_status::BUFFER_TOO_SMALL;
+
+    *(uintptr_t*)buf.data() = sess->pid;
+
+    if (return_length)
+        *return_length = sizeof(uintptr_t);
+
+    return nt_status::SUCCESS;
+}
+
 NTSTATUS process::query_info(enum PROCESS_INFORMATION_CLASS process_information_class, span<uint8_t> buf,
                              uint32_t* return_length) {
     switch (process_information_class) {
@@ -3507,6 +3521,9 @@ NTSTATUS process::query_info(enum PROCESS_INFORMATION_CLASS process_information_
 
         case MoxnoxChildrenTimes:
             return query_children_times(buf, return_length);
+
+        case MoxnoxGetSessionId:
+            return query_session_id(buf, return_length);
 
         default:
             print("process::query_info: unhandled info class {:x}\n",
