@@ -28,7 +28,7 @@ import x86;
 
 using namespace std;
 
-class session {
+export class session {
 public:
     void acquire() {
         refcount++;

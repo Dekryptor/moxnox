@@ -29,6 +29,7 @@ import chardev;
 import evdev;
 import unicode;
 import null;
+import tty;
 import vfs;
 import section;
 import image;
@@ -270,6 +271,9 @@ void main_thread(void* ctx) {
 
     if (!create_dev_null())
         print("create_dev_null failed\n");
+
+    if (!create_dev_tty())
+        print("create_dev_tty failed\n");
 
     if (!init_vfsctl())
         bsod("init_vfsctl failed\n");
