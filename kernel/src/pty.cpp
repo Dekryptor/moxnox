@@ -48,7 +48,7 @@ public:
                     span<uint8_t> outbuf, uintptr_t& written) override;
 };
 
-class pty_client : public chardev {
+export class pty_client : public chardev {
 public:
     pty_client(pipe& recv_pipe, pipe& send_pipe, uint16_t cols, uint16_t rows);
     ~pty_client();

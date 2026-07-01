@@ -40,6 +40,8 @@ public:
     }
 
     uintptr_t pid;
+    spinlock lock;
+    object_ref terminal;
 
 private:
     atomic<unsigned int> refcount = 1;
@@ -106,6 +108,7 @@ public:
     nt_status do_exec(span<const uint8_t> buffer);
     nt_status reap_zombie();
     nt_status new_session();
+    nt_status set_controlling_terminal(span<const uint8_t> buffer);
     nt_status query_vm(const void* base_address, MEMORY_INFORMATION_CLASS info_class,
                        span<uint8_t> buffer, size_t& return_length);
     nt_status query_vm_basic_info(const void* base_address, span<uint8_t> buffer,

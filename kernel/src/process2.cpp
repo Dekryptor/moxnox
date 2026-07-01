@@ -44,6 +44,8 @@ import console;
 import timer;
 import thread;
 import event;
+import moxnox_ioctls;
+import pty;
 
 #ifdef __x86_64__
 import apic;
@@ -4311,6 +4313,68 @@ nt_status process::new_session() {
     return fail ? nt_status::INVALID_PARAMETER : nt_status::SUCCESS;
 }
 
+nt_status process::set_controlling_terminal(span<const uint8_t> buffer) {
+    uintptr_t written;
+
+    // get object
+
+    if (buffer.size() != sizeof(HANDLE))
+        return nt_status::INVALID_PARAMETER;
+
+    auto h = *(HANDLE*)buffer.data();
+
+    auto obj = get_current_thread()->proc->deref_handle(h);
+    if (!obj)
+        return nt_status::INVALID_HANDLE;
+
+    // make sure is pty
+
+    if (obj.get().type == object_type::file) {
+        auto& f = static_cast<file&>(obj.get());
+
+        f.ino.acquire();
+        obj.reset();
+        obj = f.ino;
+    }
+
+    if (obj.get().type != object_type::chardev)
+        return nt_status::OBJECT_TYPE_MISMATCH;
+
+    auto& c = static_cast<chardev&>(obj.get());
+
+    auto status = c.ioctl(IOCTL_MOXNOX_PTY_ISATTY, span<uint8_t>(),
+                          span<uint8_t>(), written);
+    if (!success(status))
+        return status;
+
+    {
+        lock_guard lock(process_list_lock);
+
+        auto pid = tree.key;
+
+        {
+            lock_guard lock2(session_lock);
+
+            if (sess->pid != pid) // not session leader
+                return nt_status::INVALID_PARAMETER;
+
+            {
+                lock_guard lock3(sess->lock);
+
+                if (sess->terminal)
+                    return nt_status::INVALID_PARAMETER;
+
+                c.acquire();
+                sess->terminal = c;
+            }
+        }
+    }
+
+    // FIXME - check pty not another session's controlling terminal?
+
+    return nt_status::SUCCESS;
+}
+
 nt_status process::set_information(PROCESS_INFORMATION_CLASS info_class,
                                    span<const uint8_t> buffer) {
     switch (info_class) {
@@ -4327,6 +4391,9 @@ nt_status process::set_information(PROCESS_INFORMATION_CLASS info_class,
 
         case MoxnoxNewSession:
             return new_session();
+
+        case MoxnoxSetControllingTerminal:
+            return set_controlling_terminal(buffer);
 
         default:
             return nt_status::NOT_IMPLEMENTED;
