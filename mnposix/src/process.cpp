@@ -50,3 +50,21 @@ pid_t getsid(pid_t pid) {
 
     return (pid_t)sess;
 }
+
+extern "C"
+pid_t setsid() {
+    auto& teb = *NtCurrentTeb();
+
+    auto status = NtSetInformationProcess(NtCurrentProcess(),
+                                          PROCESS_INFORMATION_CLASS::MoxnoxNewSession,
+                                          nullptr, 0);
+    if (status == nt_status::INVALID_PARAMETER) {
+        *_errno() = EPERM;
+        return -1;
+    } else if (!success(status)) {
+        *_errno() = nt_status_to_errno(status);
+        return -1;
+    }
+
+    return teb.ClientId.UniqueProcess;
+}
