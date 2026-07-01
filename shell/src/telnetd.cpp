@@ -168,6 +168,7 @@ static uint32_t socket_thread(void* ctx) {
     STARTUPINFOW si;
     PROCESS_INFORMATION pi;
     struct passwd pwd, *pwdres;
+    nt_status status;
     char pwdbuf[1024];
 
     auto sockh = (HANDLE)_get_osfhandle(sockfd.get());
@@ -229,8 +230,8 @@ static uint32_t socket_thread(void* ctx) {
     utf8_to_utf16(span(u16home, u16homelen), pwdres->pw_dir);
     u16home[u16homelen] = 0;
 
-    if (!CreateProcessW(u16shell, nullptr, nullptr, nullptr, false, 0, nullptr,
-                        u16home, &si, &pi)) {
+    if (!CreateProcessW(u16shell, nullptr, nullptr, nullptr, false, CREATE_SUSPENDED,
+                        nullptr, u16home, &si, &pi)) {
         print_to_handle(sockh, "CreateProcessW failed (last error {})\n", GetLastError());
 
         free(u16home);
@@ -242,9 +243,33 @@ static uint32_t socket_thread(void* ctx) {
     free(u16home);
     free(u16shell);
 
-    NtClose(pi.hThread);
-
+    unique_handle thread{pi.hThread};
     unique_handle proc{pi.hProcess};
+
+    status = NtSetInformationProcess(proc.get(), PROCESS_INFORMATION_CLASS::MoxnoxNewSession,
+                                     nullptr, 0);
+    if (!success(status)) {
+        print_stderr("NtSetInformationProcess returned {} for MoxnoxNewSession\n", status);
+        NtTerminateProcess(proc.get(), status);
+        return 1;
+    }
+
+    HANDLE pty = client_handle.get();
+
+    status = NtSetInformationProcess(proc.get(), PROCESS_INFORMATION_CLASS::MoxnoxSetControllingTerminal,
+                                     &pty, sizeof(pty));
+    if (!success(status)) {
+        print_stderr("NtSetInformationProcess returned {} for MoxnoxSetControllingTerminal\n", status);
+        NtTerminateProcess(proc.get(), status);
+        return 1;
+    }
+
+    status = NtResumeThread(thread.get(), nullptr);
+    if (!success(status)) {
+        print_stderr("NtResumeThread returned {}\n", status);
+        NtTerminateProcess(proc.get(), status);
+        return 1;
+    }
 
     bool program_running = true;
 
