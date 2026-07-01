@@ -2741,17 +2741,17 @@ char* __mktemp(char* templ) {
 
         auto r = rand();
 
-        sp[0] = mktemp_char(r % 36);
+        sp[0] = mktemp_char((unsigned int)(r % 36));
         r /= 36;
-        sp[1] = mktemp_char(r % 36);
+        sp[1] = mktemp_char((unsigned int)(r % 36));
         r /= 36;
-        sp[2] = mktemp_char(r % 36);
+        sp[2] = mktemp_char((unsigned int)(r % 36));
         r /= 36;
-        sp[3] = mktemp_char(r % 36);
+        sp[3] = mktemp_char((unsigned int)(r % 36));
         r /= 36;
-        sp[4] = mktemp_char(r % 36);
+        sp[4] = mktemp_char((unsigned int)(r % 36));
         r /= 36;
-        sp[5] = mktemp_char(r % 36);
+        sp[5] = mktemp_char((unsigned int)(r % 36));
 
         auto sv = string_view(templ, len);
         auto u16len = utf8_to_utf16_len(sv);
