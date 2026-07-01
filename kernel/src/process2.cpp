@@ -451,17 +451,32 @@ object_ref create_process(string_view fn, string_view curdir,
     auto pid = next_pid.fetch_add(1);
 
     auto sess = new session;
+    if (!sess) {
+        print("new failed\n");
+        return {};
+    }
 
     sess->pid = pid;
 
-    auto pptr = new process(*sess);
-    if (!pptr) {
+    auto pg = new process_group(*sess);
+    if (!pg) {
         print("new failed\n");
         sess->release();
         return {};
     }
 
     sess->release();
+
+    pg->pid = pid;
+
+    auto pptr = new process(*pg);
+    if (!pptr) {
+        print("new failed\n");
+        pg->release();
+        return {};
+    }
+
+    pg->release();
 
     if (!pptr->initialized) {
         print("process::process failed\n");
@@ -661,9 +676,9 @@ object_ref create_process(string_view fn, string_view curdir,
     return p;
 }
 
-process::process(session& sess) : sync_object(object_type::process, false) {
-    this->sess = &sess;
-    sess.acquire();
+process::process(process_group& pg) : sync_object(object_type::process, false) {
+    this->pg = &pg;
+    pg.acquire();
 
     auto s = new section;
     if (!s) {
@@ -822,7 +837,7 @@ process::~process() {
 
     free_page_tables(*this);
 
-    sess->release();
+    pg->release();
 }
 
 #ifdef __aarch64__
@@ -2827,9 +2842,9 @@ NTSTATUS NtCreateProcess(HANDLE* process_handle, ACCESS_MASK, const OBJECT_ATTRI
             return nt_status::OBJECT_TYPE_MISMATCH;
     }
 
-    auto sess = static_cast<process&>(parent.get()).sess;
+    auto* pg = static_cast<process&>(parent.get()).pg;
 
-    auto pptr = new process(*sess);
+    auto pptr = new process(*pg);
     if (!pptr)
         return nt_status::INSUFFICIENT_RESOURCES;
 
@@ -3490,9 +3505,9 @@ nt_status process::query_session_id(span<uint8_t> buf, uint32_t* return_length) 
         return nt_status::BUFFER_TOO_SMALL;
 
     {
-        lock_guard lock(session_lock);
+        lock_guard lock(pg_lock);
 
-        *(uintptr_t*)buf.data() = sess->pid;
+        *(uintptr_t*)buf.data() = pg->sess.pid;
     }
 
     if (return_length)
@@ -4289,6 +4304,15 @@ nt_status process::new_session() {
         return nt_status::INSUFFICIENT_RESOURCES;
     }
 
+    auto pg2 = new process_group(*sess2);
+    if (!pg2) {
+        print("new failed\n");
+        sess2->release();
+        return nt_status::INSUFFICIENT_RESOURCES;
+    }
+
+    sess2->release();
+
     bool fail = false;
 
     {
@@ -4297,18 +4321,19 @@ nt_status process::new_session() {
         auto pid = tree.key;
 
         sess2->pid = pid;
+        pg2->pid = pid;
 
         {
-            lock_guard lock2(session_lock);
+            lock_guard lock2(pg_lock);
 
-            if (sess->pid == pid) // session leader
+            if (pg->sess.pid == pid) // session leader
                 fail = true;
             else
-                swap(sess, sess2);
+                swap(pg, pg2);
         }
     }
 
-    sess2->release();
+    pg2->release();
 
     return fail ? nt_status::INVALID_PARAMETER : nt_status::SUCCESS;
 }
@@ -4353,19 +4378,19 @@ nt_status process::set_controlling_terminal(span<const uint8_t> buffer) {
         auto pid = tree.key;
 
         {
-            lock_guard lock2(session_lock);
+            lock_guard lock2(pg_lock);
 
-            if (sess->pid != pid) // not session leader
+            if (pg->sess.pid != pid) // not session leader
                 return nt_status::INVALID_PARAMETER;
 
             {
-                lock_guard lock3(sess->lock);
+                lock_guard lock3(pg->sess.lock);
 
-                if (sess->terminal)
+                if (pg->sess.terminal)
                     return nt_status::INVALID_PARAMETER;
 
                 c.acquire();
-                sess->terminal = c;
+                pg->sess.terminal = c;
             }
         }
     }

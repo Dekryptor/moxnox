@@ -56,13 +56,13 @@ nt_status tty_chardev::userspace_open(object_ref& objref) {
     object* terminal;
 
     {
-        lock_guard lock(t.proc->session_lock);
-        lock_guard lock2(t.proc->sess->lock);
+        lock_guard lock(t.proc->pg_lock);
+        lock_guard lock2(t.proc->pg->sess.lock);
 
-        if (!t.proc->sess->terminal)
+        if (!t.proc->pg->sess.terminal)
             return nt_status::INVALID_PARAMETER;
 
-        terminal = &t.proc->sess->terminal.get();
+        terminal = &t.proc->pg->sess.terminal.get();
         terminal->acquire();
     }
 

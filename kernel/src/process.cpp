@@ -47,10 +47,35 @@ private:
     atomic<unsigned int> refcount = 1;
 };
 
+export class process_group {
+public:
+    process_group(session& sess) : sess(sess) {
+        sess.acquire();
+    }
+
+    ~process_group() {
+        sess.release();
+    }
+
+    void acquire() {
+        refcount++;
+    }
+
+    void release() {
+        if (--refcount == 0)
+            delete this;
+    }
+
+    uintptr_t pid;
+    session& sess;
+
+private:
+    atomic<unsigned int> refcount = 1;
+};
 
 export class process : public sync_object {
 public:
-    process(session& sess);
+    process(process_group& pg);
     ~process();
 
     void release() {
@@ -154,8 +179,8 @@ public:
     process* parent_process = nullptr;
     object_ref unreaped_children_event;
 
-    spinlock session_lock;
-    session* sess;
+    spinlock pg_lock;
+    process_group* pg;
 
 private:
     nt_status query_basic_info(span<uint8_t> buf, uint32_t* return_length);
