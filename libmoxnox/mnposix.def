@@ -127,12 +127,12 @@ sysconf
 getsid
 setsid
 setpgid
+getpgid
 
 ; stubs
 dlopen
 dlsym
 dlclose
 dlerror
-getpgid
 tcgetpgrp
 statvfs

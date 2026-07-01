@@ -127,3 +127,4 @@ sysconf
 getsid
 setsid
 setpgid
+getpgid
