@@ -126,6 +126,7 @@ times
 sysconf
 getsid
 setsid
+setpgid
 
 ; stubs
 dlopen

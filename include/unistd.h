@@ -62,6 +62,7 @@ int getpagesize(void);
 long sysconf(int name);
 pid_t getsid(pid_t pid);
 pid_t setsid(void);
+int setpgid(pid_t pid, pid_t pgid);
 
 #ifdef __cplusplus
 }

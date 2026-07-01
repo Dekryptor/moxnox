@@ -126,3 +126,4 @@ times
 sysconf
 getsid
 setsid
+setpgid
