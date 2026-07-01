@@ -54,6 +54,7 @@ add_library(mnposix SHARED
     src/mmap.cpp
     src/uname.cpp
     src/sysconf.cpp
+    src/process.cpp
 )
 
 target_compile_options(mnposix PRIVATE -fno-exceptions ${USERSPACE_CFLAGS})

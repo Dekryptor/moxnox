@@ -124,6 +124,7 @@ uname
 link
 times
 sysconf
+getsid
 
 ; stubs
 dlopen
@@ -134,5 +135,4 @@ getpgid
 tcgetpgrp
 getpass
 statvfs
-getsid
 setsid

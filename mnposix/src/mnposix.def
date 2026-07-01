@@ -124,3 +124,4 @@ uname
 link
 times
 sysconf
+getsid

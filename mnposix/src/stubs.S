@@ -10,7 +10,6 @@ do_stub "getpgid"
 do_stub "tcgetpgrp"
 do_stub "getpass"
 do_stub "statvfs"
-do_stub "getsid"
 do_stub "setsid"
 
 stubs_end
