@@ -981,42 +981,18 @@ nt_status pty_client::set_fg_pg(span<const uint8_t> inbuf) {
     if (inbuf.size() < sizeof(uintptr_t))
         return nt_status::BUFFER_TOO_SMALL;
 
-    auto& t = *get_current_thread();
-
-    // check this is the controlling terminal for the session
-
-    session* sess;
-
-    {
-        lock_guard lock(t.proc->pg_lock);
-        sess = &t.proc->pg->sess;
-        sess->acquire();
-    }
-
-    bool fail = false;
-
-    {
-        lock_guard lock(sess->lock);
-
-        if (!sess->terminal || &sess->terminal.get() != this)
-            fail = true;
-    }
-
-    sess->release();
-
-    if (fail)
-        return nt_status::INVALID_PARAMETER;
-
     auto pgid = *(uintptr_t*)inbuf.data();
 
     auto pg = get_process_group(pgid);
     if (!pg)
         return nt_status::INVALID_PARAMETER;
 
-    {
-        lock_guard lock(t.proc->pg_lock);
+    bool fail = false;
 
-        if (&t.proc->pg->sess != &pg->sess)
+    {
+        lock_guard lock(pg->sess.lock);
+
+        if (!pg->sess.terminal || &pg->sess.terminal.get() != this)
             fail = true;
     }
 
