@@ -82,7 +82,7 @@ void rangelock_req::lock() {
 
     insert_tail_list(rl.waiting, le);
 
-    set_current_thread_waiting();
+    set_current_thread_waiting(false);
 }
 
 void rangelock_req::unlock() {

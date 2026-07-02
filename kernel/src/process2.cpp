@@ -3584,7 +3584,20 @@ nt_status process::set_wait_for_child_process_group(span<const uint8_t> buf) {
             } else {
                 insert_tail_list(wait_child_waiters, t.wait_obj.wait_le);
 
-                set_current_thread_waiting();
+                set_current_thread_waiting(true);
+
+                if (t.status == thread_status::dying)
+                    return nt_status::THREAD_IS_TERMINATING;
+
+                if (t.suspend_count.load() != 0)
+                    return nt_status::ALERTED;
+
+                {
+                    lock_guard lock(t.apc_lock);
+
+                    if (!is_list_empty(t.pending_apcs))
+                        return nt_status::USER_APC;
+                }
             }
         }
 

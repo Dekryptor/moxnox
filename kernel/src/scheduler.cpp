@@ -24,6 +24,6 @@ export uintptr_t init_cpu_block(unsigned int cpu_no);
 export nt_status wait_for_objects(span<object*> objects, bool wait_any,
                                   bool interruptible,
                                   optional<uint64_t> timeout = nullopt);
-export void set_current_thread_waiting();
+export void set_current_thread_waiting(bool interruptible);
 export nt_status setup_user_apc(uint64_t return_value);
 export nt_status wait_no_object(bool interruptible, optional<uint64_t> timeout);

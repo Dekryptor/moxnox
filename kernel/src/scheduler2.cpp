@@ -1008,7 +1008,7 @@ extern "C" NTSTATUS NtWaitForMultipleObjects(uint32_t object_count, HANDLE* obje
     return ret;
 }
 
-void set_current_thread_waiting() {
+void set_current_thread_waiting(bool interruptible) {
     // must have synclock held
 
     auto& cb = *get_cpu_block();
@@ -1016,7 +1016,7 @@ void set_current_thread_waiting() {
 
     t->status = thread_status::waiting;
     t->current_cpu = 0xffffffff;
-    t->wait_interruptible = false;
+    t->wait_interruptible = interruptible;
     t->wait_timeout = 0;
 
     if (t->proc)

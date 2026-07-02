@@ -30,7 +30,7 @@ void rwsem::lock() { // exclusive
 
     insert_tail_list(wait_list_exclusive, t.wait_obj.wait_le);
 
-    set_current_thread_waiting();
+    set_current_thread_waiting(false);
 }
 
 bool rwsem::try_lock() { // exclusive
@@ -110,7 +110,7 @@ void rwsem::lock_shared() {
 
     insert_tail_list(wait_list_shared, t.wait_obj.wait_le);
 
-    set_current_thread_waiting();
+    set_current_thread_waiting(false);
 }
 
 void rwsem::unlock_shared() {
