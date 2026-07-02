@@ -163,9 +163,16 @@ static pid_t wait_for_child_process_group(pid_t pid, int* wstatus, int options) 
     params.h = &h;
     params.no_hang = !!(options & WNOHANG);
 
-    status = NtSetInformationProcess(NtCurrentProcess(),
-                                     PROCESS_INFORMATION_CLASS::MoxnoxWaitForChildProcessGroup,
-                                     &params, sizeof(params));
+    while (true) {
+        status = NtSetInformationProcess(NtCurrentProcess(),
+                                        PROCESS_INFORMATION_CLASS::MoxnoxWaitForChildProcessGroup,
+                                        &params, sizeof(params));
+        if (status == nt_status::USER_APC)
+            continue;
+
+        break;
+    }
+
     if (status == nt_status::NOT_FOUND) {
         *_errno() = ECHILD;
         return -1;
