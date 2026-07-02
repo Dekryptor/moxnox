@@ -688,3 +688,16 @@ install(TARGETS ln DESTINATION ${CMAKE_INSTALL_PREFIX}/bin
     COMPONENT core
     CXX_MODULES_BMI EXCLUDE_FROM_ALL
 )
+
+###
+
+add_executable(dl-test src/dl-test.cpp)
+
+target_compile_options(dl-test PRIVATE -fno-exceptions ${USERSPACE_CFLAGS})
+target_link_libraries(dl-test moxnox print)
+
+if (CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
+    target_link_options(dl-test PUBLIC -mcrtdll=ucrtbase)
+endif()
+
+install(TARGETS dl-test DESTINATION ${CMAKE_INSTALL_PREFIX}/bin COMPONENT core)
