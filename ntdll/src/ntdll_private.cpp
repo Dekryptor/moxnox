@@ -83,5 +83,7 @@ using DLL_ENTRY_PROC = bool (*)(void*, uint32_t, void*);
 
 // ntdll.cpp
 extern "C++" void call_tls_callbacks(const LDR_DATA_TABLE_ENTRY& ent, uint32_t reason);
+extern "C++" void call_process_detach_img(LDR_DATA_TABLE_ENTRY& ent,
+                                          bool process_exit);
 
 }

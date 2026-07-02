@@ -75,6 +75,16 @@ void call_tls_callbacks(const LDR_DATA_TABLE_ENTRY& ent, uint32_t reason) {
     }
 }
 
+void call_process_detach_img(LDR_DATA_TABLE_ENTRY& ent, bool process_exit) {
+    auto dll_main = (DLL_ENTRY_PROC)ent.EntryPoint;
+
+    dll_main(ent.DllBase, DLL_PROCESS_DETACH,
+             process_exit ? (void*)1 : nullptr);
+    ent.ProcessAttachCalled = 0;
+
+    call_tls_callbacks(ent, DLL_PROCESS_DETACH);
+}
+
 static void call_process_detach() {
     while (true) {
         bool changed = false;
@@ -87,14 +97,8 @@ static void call_process_detach() {
                 auto& ent = *CONTAINING_RECORD(le, LDR_DATA_TABLE_ENTRY, InInitializationOrderLinks);
 
                 if (ent.ProcessAttachCalled && ent.ImageDll) {
-                    auto dll_main = (DLL_ENTRY_PROC)ent.EntryPoint;
-
-                    dll_main(ent.DllBase, DLL_PROCESS_DETACH, (void*)1);
-                    ent.ProcessAttachCalled = 0;
+                    call_process_detach_img(ent, true);
                     changed = true;
-
-                    call_tls_callbacks(ent, DLL_PROCESS_DETACH);
-
                     break;
                 }
             }

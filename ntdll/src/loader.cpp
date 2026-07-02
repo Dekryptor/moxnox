@@ -1366,8 +1366,10 @@ nt_status LdrLoadDll(const char16_t* /*dll_path*/, uint32_t* /*dll_characteristi
                     RemoveEntryList(&de2.ent->ldr.InLoadOrderLinks);
                     RemoveEntryList(&de2.ent->ldr.InMemoryOrderLinks);
 
-                    if (de2.ent->ldr.ProcessAttachCalled)
+                    if (de2.ent->ldr.ProcessAttachCalled) {
+                        call_process_detach_img(de2.ent->ldr, false);
                         RemoveEntryList(&de2.ent->ldr.InInitializationOrderLinks);
+                    }
 
                     free(de2.ent);
                 } else
