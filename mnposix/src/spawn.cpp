@@ -143,6 +143,54 @@ static pid_t wait_for_any_child(int* wstatus, int options) {
     return (pid_t)pbi.UniqueProcessId;
 }
 
+static pid_t wait_for_child_process_group(pid_t pid, int* wstatus, int options) {
+    MN_WAIT_FOR_CHILD_PROCESS_GROUP params;
+    PROCESS_BASIC_INFORMATION pbi;
+    HANDLE h;
+    unique_handle proc;
+    nt_status status;
+
+    if (pid == 0) { // all processes in this process group
+        auto pgid = getpgid(0);
+
+        if (pgid == -1)
+            return -1;
+
+        params.pgid = (uintptr_t)pgid;
+    } else
+        params.pgid = (uintptr_t)-pid;
+
+    params.h = &h;
+    params.no_hang = !!(options & WNOHANG);
+
+    status = NtSetInformationProcess(NtCurrentProcess(),
+                                     PROCESS_INFORMATION_CLASS::MoxnoxWaitForChildProcessGroup,
+                                     &params, sizeof(params));
+    if (status == nt_status::NOT_FOUND) {
+        *_errno() = ECHILD;
+        return -1;
+    } else if (status == nt_status::TIMEOUT)
+        return 0;
+    else if (!success(status)) {
+        *_errno() = nt_status_to_errno(status);
+        return -1;
+    }
+
+    proc.reset(h);
+
+    status = NtQueryInformationProcess(proc.get(), PROCESS_INFORMATION_CLASS::BasicInformation,
+                                       &pbi, sizeof(pbi), nullptr);
+    if (!success(status)) {
+        *_errno() = nt_status_to_errno(status);
+        return -1;
+    }
+
+    if (wstatus)
+        *wstatus = exit_code_to_status((uint32_t)pbi.ExitStatus);
+
+    return (pid_t)pbi.UniqueProcessId;
+}
+
 extern "C"
 pid_t waitpid(pid_t pid, int* wstatus, int options) {
     nt_status status;
@@ -167,11 +215,8 @@ pid_t waitpid(pid_t pid, int* wstatus, int options) {
 
     if (pid == -1)
         return wait_for_any_child(wstatus, options);
-    else if (pid <= 0) {
-        print("FIXME - waitpid {}\n", pid); // FIXME
-        *_errno() = EINVAL;
-        return -1;
-    }
+    else if (pid <= 0)
+        return wait_for_child_process_group(pid, wstatus, options);
 
     memset(&oa, 0, sizeof(oa));
     oa.Length = sizeof(OBJECT_ATTRIBUTES);
