@@ -193,6 +193,8 @@ int tcsetpgrp(int fd, pid_t pgid) {
     IO_STATUS_BLOCK iosb;
     auto pgid2 = (uintptr_t)pgid;
 
+    // FIXME - should fail if caller not in same session as PG
+
     auto h = (HANDLE)_get_osfhandle(fd);
     if ((intptr_t)h < 0)
         return -1;
