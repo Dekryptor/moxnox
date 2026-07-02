@@ -80,6 +80,11 @@ void* GetProcAddress(HMODULE mod, const char* function) {
     void* addr;
     ANSI_STRING as;
 
+    if (!mod) {
+        RtlSetLastWin32Error(ERROR_INVALID_PARAMETER);
+        return nullptr;
+    }
+
     // FIXME - resolving by ordinal
 
     as.Buffer = (char*)function;
