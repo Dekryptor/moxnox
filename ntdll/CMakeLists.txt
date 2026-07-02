@@ -33,6 +33,7 @@ add_library(ntdll SHARED ${SRC_FILES})
 
 target_sources(ntdll PUBLIC FILE_SET CXX_MODULES FILES
     src/ntdll_private.cpp
+    src/loader.cpp
 )
 
 target_compile_options(ntdll PRIVATE -fno-exceptions ${USERSPACE_CFLAGS})
