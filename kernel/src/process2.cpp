@@ -4657,6 +4657,8 @@ nt_status process::set_process_group(span<const uint8_t> buffer) {
 
         sess->release();
 
+        pg2->tree.key = pid;
+
         {
             lock_guard lock2(pg_tree_lock);
 
