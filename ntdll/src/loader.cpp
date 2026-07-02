@@ -54,7 +54,7 @@ nt_status LdrAddRefDll(uint32_t flags, HMODULE mod) {
     // FIXME - LDR_ADDREF_DLL_PIN
 
     if (flags != 0) {
-        print("FIXME - LdrAddRefDll {:x}\n", flags);
+        print_stderr("FIXME - LdrAddRefDll {:x}\n", flags);
         return nt_status::NOT_IMPLEMENTED;
     }
 
@@ -89,7 +89,7 @@ nt_status LdrUnloadDll(HMODULE mod) {
 
             if (mod2.DllBase == mod) {
                 if (mod2.LoadCount == 1) { // FIXME
-                    print("FIXME - actually unloading in LdrUnloadDll\n");
+                    print_stderr("FIXME - actually unloading in LdrUnloadDll\n");
                     // FIXME - remove from list, call DLL_PROCESS_DETACH, TLS, etc.
                     return nt_status::SUCCESS;
                 }
@@ -246,7 +246,7 @@ static ldr_entry& add_ldr_entry(void* base, u16string_view full_name, u16string_
     auto ptr = RtlAllocateHeap((void*)peb.ProcessHeap, HEAP_ZERO_MEMORY, size);
 
     if (!ptr) {
-        print("RtlAllocateHeap failed.\n");
+        print_stderr("RtlAllocateHeap failed.\n");
         NtTerminateProcess(NtCurrentProcess(), nt_status::INSUFFICIENT_RESOURCES);
         unreachable();
     }
@@ -544,13 +544,13 @@ export void load_dlls_img(LDR_DATA_TABLE_ENTRY& ent) {
         auto name = string_view((char*)ent.DllBase + iid.Name);
 
         if (name.empty()) {
-            print("DLL with empty name.\n");
+            print_stderr("DLL with empty name.\n");
             NtTerminateProcess(NtCurrentProcess(), nt_status::DLL_NOT_FOUND);
             unreachable();
         }
 
         if (!load_dll(name)) {
-            print("Could not load {}.\n", name);
+            print_stderr("Could not load {}.\n", name);
             NtTerminateProcess(NtCurrentProcess(), nt_status::DLL_NOT_FOUND);
             unreachable();
         }
@@ -589,14 +589,14 @@ NTSTATUS LdrGetProcedureAddress(void* dll_handle, const ANSI_STRING* procedure_n
 
     if (nt_header.OptionalHeader32.Magic == IMAGE_NT_OPTIONAL_HDR64_MAGIC) {
         if (nt_header.OptionalHeader64.NumberOfRvaAndSizes <= IMAGE_DIRECTORY_ENTRY_EXPORT) {
-            print("image has no export directory\n");
+            print_stderr("image has no export directory\n");
             return nt_status::PROCEDURE_NOT_FOUND;
         }
 
         dir_addr = dos_header.e_lfanew + offsetof(IMAGE_NT_HEADERS, OptionalHeader64.DataDirectory);
     } else {
         if (nt_header.OptionalHeader32.NumberOfRvaAndSizes <= IMAGE_DIRECTORY_ENTRY_EXPORT) {
-            print("image has no export directory\n");
+            print_stderr("image has no export directory\n");
             return nt_status::PROCEDURE_NOT_FOUND;
         }
 
@@ -608,7 +608,7 @@ NTSTATUS LdrGetProcedureAddress(void* dll_handle, const ANSI_STRING* procedure_n
     auto& data_dir = *(IMAGE_DATA_DIRECTORY*)((uint8_t*)dll_handle + dir_addr);
 
     if (data_dir.VirtualAddress == 0 || data_dir.Size == 0) {
-        print("image has no export directory\n");
+        print_stderr("image has no export directory\n");
         return nt_status::PROCEDURE_NOT_FOUND;
     }
 
@@ -617,7 +617,7 @@ NTSTATUS LdrGetProcedureAddress(void* dll_handle, const ANSI_STRING* procedure_n
     const auto& ied = *(IMAGE_EXPORT_DIRECTORY*)((uint8_t*)dll_handle + data_dir.VirtualAddress);
 
     if (ied.NumberOfNames == 0) {
-        print("image has no exports\n");
+        print_stderr("image has no exports\n");
         return nt_status::PROCEDURE_NOT_FOUND;
     }
 
@@ -625,7 +625,7 @@ NTSTATUS LdrGetProcedureAddress(void* dll_handle, const ANSI_STRING* procedure_n
                       ied.NumberOfNames);
 
     if ((uint8_t*)names.data() + names.size_bytes() > (uint8_t*)&ied + data_dir.Size) {
-        print("invalid export directory\n");
+        print_stderr("invalid export directory\n");
         return nt_status::INTERNAL_ERROR;
     }
 
@@ -633,7 +633,7 @@ NTSTATUS LdrGetProcedureAddress(void* dll_handle, const ANSI_STRING* procedure_n
                               ied.NumberOfNames);
 
     if ((uint8_t*)name_ordinals.data() + name_ordinals.size_bytes() > (uint8_t*)&ied + data_dir.Size) {
-        print("invalid export directory\n");
+        print_stderr("invalid export directory\n");
         return nt_status::INTERNAL_ERROR;
     }
 
@@ -641,7 +641,7 @@ NTSTATUS LdrGetProcedureAddress(void* dll_handle, const ANSI_STRING* procedure_n
                       ied.NumberOfFunctions);
 
     if ((uint8_t*)funcs.data() + funcs.size_bytes() > (uint8_t*)&ied + data_dir.Size) {
-        print("invalid export directory\n");
+        print_stderr("invalid export directory\n");
         return nt_status::INTERNAL_ERROR;
     }
 
@@ -651,7 +651,7 @@ NTSTATUS LdrGetProcedureAddress(void* dll_handle, const ANSI_STRING* procedure_n
         auto n = names[i];
 
         if (n - data_dir.VirtualAddress > data_dir.Size) {
-            print("invalid export directory\n");
+            print_stderr("invalid export directory\n");
             return nt_status::INTERNAL_ERROR;
         }
 
@@ -670,19 +670,19 @@ NTSTATUS LdrGetProcedureAddress(void* dll_handle, const ANSI_STRING* procedure_n
     }
 
     if (!ord) {
-        print("could not find export {}\n", name);
+        print_stderr("could not find export {}\n", name);
         return nt_status::PROCEDURE_NOT_FOUND;
     }
 
     if (*ord >= ied.NumberOfFunctions) {
-        print("function ordinal out of range\n");
+        print_stderr("function ordinal out of range\n");
         return nt_status::PROCEDURE_NOT_FOUND;
     }
 
     auto rva = funcs[*ord];
 
     if (rva >= data_dir.VirtualAddress && rva < data_dir.VirtualAddress + data_dir.Size) {
-        print("FIXME - resolving forwards in LdrGetProcedureAddress\n"); // FIXME
+        print_stderr("FIXME - resolving forwards in LdrGetProcedureAddress\n"); // FIXME
         return nt_status::INTERNAL_ERROR;
     }
 
@@ -698,7 +698,7 @@ static T resolve_dll_forward(string_view fwd) {
     static const string_view suffix = ".dll";
 
     if (auto dot = fwd.find("."); dot == string_view::npos) {
-        print("could not resolve DLL forward \"{}\"\n", fwd);
+        print_stderr("could not resolve DLL forward \"{}\"\n", fwd);
         NtTerminateProcess(NtCurrentProcess(), nt_status::PROCEDURE_NOT_FOUND);
         unreachable();
     } else {
@@ -707,14 +707,14 @@ static T resolve_dll_forward(string_view fwd) {
     }
 
     if (!name.empty() && name.front() == '#') {
-        print("resolve_dll_forward: FIXME - resolving DLL forwards by ordinal\n"); // FIXME
+        print_stderr("resolve_dll_forward: FIXME - resolving DLL forwards by ordinal\n"); // FIXME
         NtTerminateProcess(NtCurrentProcess(), nt_status::INTERNAL_ERROR);
         unreachable();
     }
 
     auto dll2 = (char*)malloc(dll.size() + suffix.size());
     if (!dll2) {
-        print("resolve_dll_forward: malloc failed\n");
+        print_stderr("resolve_dll_forward: malloc failed\n");
         NtTerminateProcess(NtCurrentProcess(), nt_status::INSUFFICIENT_RESOURCES);
         unreachable();
     }
@@ -727,7 +727,7 @@ static T resolve_dll_forward(string_view fwd) {
     auto pent = load_dll(dllsv);
     if (!pent) {
         free(dll2);
-        print("resolve_dll_forward: could not load DLL {}\n", dll);
+        print_stderr("resolve_dll_forward: could not load DLL {}\n", dll);
         NtTerminateProcess(NtCurrentProcess(), nt_status::PROCEDURE_NOT_FOUND);
         unreachable();
     }
@@ -743,8 +743,8 @@ static T resolve_dll_forward(string_view fwd) {
 
     auto status = LdrGetProcedureAddress(ent.ldr.DllBase, &procname, 0, &addr);
     if (!success(status)) {
-        print("resolve_dll_forward: LdrGetProcedureAddress returned {} for {} in {}\n",
-              status, name, dll);
+        print_stderr("resolve_dll_forward: LdrGetProcedureAddress returned {} for {} in {}\n",
+                     status, name, dll);
         NtTerminateProcess(NtCurrentProcess(), status);
         unreachable();
     }
@@ -776,13 +776,13 @@ static void resolve_imports_dll(void* base, void* dll_base, string_view name, T*
     }
 
     if (!found || exp_dir.VirtualAddress == 0) {
-        print("no export directory in {}\n", name);
+        print_stderr("no export directory in {}\n", name);
         NtTerminateProcess(NtCurrentProcess(), nt_status::PROCEDURE_NOT_FOUND);
         unreachable();
     }
 
     if (exp_dir.Size < sizeof(IMAGE_EXPORT_DIRECTORY)) {
-        print("invalid export directory in {}\n", name);
+        print_stderr("invalid export directory in {}\n", name);
         NtTerminateProcess(NtCurrentProcess(), nt_status::PROCEDURE_NOT_FOUND);
         unreachable();
     }
@@ -790,7 +790,7 @@ static void resolve_imports_dll(void* base, void* dll_base, string_view name, T*
     const auto& ied = *(IMAGE_EXPORT_DIRECTORY*)((uint8_t*)dll_base + exp_dir.VirtualAddress);
 
     if (ied.NumberOfFunctions == 0) {
-        print("no exports in {}\n", name);
+        print_stderr("no exports in {}\n", name);
         NtTerminateProcess(NtCurrentProcess(), nt_status::PROCEDURE_NOT_FOUND);
         unreachable();
     }
@@ -808,7 +808,7 @@ static void resolve_imports_dll(void* base, void* dll_base, string_view name, T*
             auto ord = (uint16_t)(v & 0xffff);
 
             if (ord < ied.Base || ord >= ied.Base + ied.NumberOfFunctions || funcs[ord - ied.Base] == 0) {
-                print("Ordinal {} in {} not found.\n", ord, name);
+                print_stderr("Ordinal {} in {} not found.\n", ord, name);
                 NtTerminateProcess(NtCurrentProcess(), nt_status::ORDINAL_NOT_FOUND);
                 unreachable();
             }
@@ -843,7 +843,7 @@ static void resolve_imports_dll(void* base, void* dll_base, string_view name, T*
         }
 
         if (!ord || funcs[*ord] == 0) {
-            print("Could not resolve {} in {}.\n", func, name);
+            print_stderr("Could not resolve {} in {}.\n", func, name);
             NtTerminateProcess(NtCurrentProcess(), nt_status::PROCEDURE_NOT_FOUND);
             unreachable();
         }
@@ -895,7 +895,7 @@ static void resolve_imports_img(void* base) {
         auto u16len = utf8_to_utf16_len(name);
 
         if (u16len == 0) {
-            print("DLL name is empty.\n");
+            print_stderr("DLL name is empty.\n");
             NtTerminateProcess(NtCurrentProcess(), nt_status::DLL_NOT_FOUND);
             unreachable();
         }
@@ -930,7 +930,7 @@ static void resolve_imports_img(void* base) {
         free(u16buf);
 
         if (!ent) {
-            print("{} not loaded.\n", name);
+            print_stderr("{} not loaded.\n", name);
             NtTerminateProcess(NtCurrentProcess(), nt_status::DLL_NOT_FOUND);
             unreachable();
         }
@@ -1025,7 +1025,7 @@ static void resolve_relocations_img(void* base) {
                 }
 
                 default:
-                    print("Unsupported relocation type {:x}.\n", type);
+                    print_stderr("Unsupported relocation type {:x}.\n", type);
                     NtTerminateProcess(NtCurrentProcess(), nt_status::ILLEGAL_DLL_RELOCATION);
                     unreachable();
             }
@@ -1087,7 +1087,7 @@ static void toggle_protections_img(void* base, bool enable) {
         auto ret = NtProtectVirtualMemory(NtCurrentProcess(), &addr, &size, new_prot, &old_prot);
 
         if (!success(ret)) {
-            print("NtProtectVirtualMemory returned {}.\n", ret);
+            print_stderr("NtProtectVirtualMemory returned {}.\n", ret);
             NtTerminateProcess(NtCurrentProcess(), ret);
             unreachable();
         }
