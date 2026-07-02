@@ -89,6 +89,7 @@ private:
     nt_status get_info_stream(span<uint8_t> outbuf);
     nt_status get_size(span<uint8_t> outbuf, uintptr_t& written);
     nt_status set_size(span<const uint8_t> inbuf);
+    nt_status get_fg_pg(span<uint8_t> outbuf, uintptr_t& written);
     size_t process_canonical_input(span<const uint8_t> new_data, uint8_t* echo_buf,
                                    bool& found_eof);
 };
@@ -858,6 +859,26 @@ nt_status pty_client::set_size(span<const uint8_t> inbuf) {
     return nt_status::SUCCESS;
 }
 
+nt_status pty_client::get_fg_pg(span<uint8_t> outbuf, uintptr_t& written) {
+    if (outbuf.size() < sizeof(uintptr_t))
+        return nt_status::INVALID_PARAMETER;
+
+    auto& out = *(uintptr_t*)outbuf.data();
+
+    {
+        lock_guard lock(fg_pg_lock);
+
+        if (!fg_pg)
+            return nt_status::INVALID_PARAMETER;
+
+        out = fg_pg->tree.key;
+    }
+
+    written = sizeof(uintptr_t);
+
+    return nt_status::SUCCESS;
+}
+
 nt_status pty_client::ioctl(uint32_t code, span<const uint8_t> inbuf,
                             span<uint8_t> outbuf, uintptr_t& written) {
     switch (code) {
@@ -888,6 +909,9 @@ nt_status pty_client::ioctl(uint32_t code, span<const uint8_t> inbuf,
 
         case IOCTL_MOXNOX_PTY_SET_SIZE:
             return set_size(inbuf);
+
+        case IOCTL_MOXNOX_PTY_GET_FOREGROUND_PROCESS_GROUP:
+            return get_fg_pg(outbuf, written);
 
         default:
             return nt_status::NOT_SUPPORTED;
