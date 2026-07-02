@@ -5,6 +5,7 @@ module;
 #include <utility>
 #include <string_view>
 #include <optional>
+#include <memory>
 #include <string.h>
 #include <stdlib.h>
 
