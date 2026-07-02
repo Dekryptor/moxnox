@@ -1,4 +1,5 @@
 #include <stdint.h>
+#include <stdlib.h>
 #include <math.h>
 
 using maths_err_func = int (*)(struct _exception*);
