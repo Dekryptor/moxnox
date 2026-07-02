@@ -482,7 +482,7 @@ static ldr_entry* load_dll_u16(u16string_view_ci u16sv) {
     return nullptr;
 }
 
-export ldr_entry* load_dll(string_view name) {
+static ldr_entry* load_dll(string_view name) {
     auto u16len = utf8_to_utf16_len(name);
 
     if (u16len == 0)

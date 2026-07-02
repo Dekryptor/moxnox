@@ -287,13 +287,6 @@ void mn_start_thread(mn_image_info* ntdll_info, mn_image_info* img_info, CONTEXT
 
         init_ldr_data(*ntdll_info, *img_info);
 
-        // map kernelbase into every process
-        if (!load_dll("kernelbase.dll")) {
-            print("Could not load kernelbase.dll\n");
-            NtTerminateProcess(NtCurrentProcess(), nt_status::DLL_NOT_FOUND);
-            unreachable();
-        }
-
         load_dlls();
 
         toggle_protections(false);
