@@ -18,10 +18,17 @@ import unicode;
 import unique_handle;
 import pe;
 import format;
+import list;
 
 using namespace std;
 
 export PEB_LDR_DATA ldr_data; // zero-initialized
+
+struct dll_entry {
+    list_entry le;
+    ldr_entry* ent;
+    bool new_entry;
+};
 
 extern "C"
 void* RtlPcToFileHeader(const void* pc, void** address) {
@@ -1206,25 +1213,34 @@ export void init_ldr_data(mn_image_info& ntdll_info, mn_image_info& img_info) {
                    &img.ldr.InInitializationOrderLinks);
 }
 
+static nt_status do_process_attach(LDR_DATA_TABLE_ENTRY& ent) {
+    if (ent.LoadInProgress || ent.ProcessAttachCalled)
+        return nt_status::SUCCESS;
+
+    call_tls_callbacks(ent, DLL_PROCESS_ATTACH);
+
+    ent.LoadInProgress = 1;
+
+    auto dll_main = (DLL_ENTRY_PROC)ent.EntryPoint;
+
+    if (!dll_main(ent.DllBase, DLL_PROCESS_ATTACH, (void*)1))
+        return nt_status::DLL_INIT_FAILED;
+
+    InsertTailList(&ldr_data.InInitializationOrderModuleList,
+                    &ent.InInitializationOrderLinks);
+
+    ent.ProcessAttachCalled = 1;
+
+    return nt_status::SUCCESS;
+}
+
 static nt_status call_process_attach_holding_lock() {
     for (auto le = ldr_data.InLoadOrderModuleList.Flink; le != &ldr_data.InLoadOrderModuleList; le = le->Flink) {
         auto& ent = *CONTAINING_RECORD(le, LDR_DATA_TABLE_ENTRY, InLoadOrderLinks);
 
-        if (!ent.LoadInProgress && !ent.ProcessAttachCalled) {
-            call_tls_callbacks(ent, DLL_PROCESS_ATTACH);
-
-            ent.LoadInProgress = 1;
-
-            auto dll_main = (DLL_ENTRY_PROC)ent.EntryPoint;
-
-            if (!dll_main(ent.DllBase, DLL_PROCESS_ATTACH, (void*)1))
-                return nt_status::DLL_INIT_FAILED;
-
-            InsertTailList(&ldr_data.InInitializationOrderModuleList,
-                           &ent.InInitializationOrderLinks);
-
-            ent.ProcessAttachCalled = 1;
-        }
+        auto status = do_process_attach(ent);
+        if (!success(status))
+            return status;
     }
 
     return nt_status::SUCCESS;
@@ -1237,11 +1253,81 @@ export nt_status call_process_attach() {
     return call_process_attach_holding_lock();
 }
 
+static nt_status add_imports_to_list(dll_entry& de, list_entry& dlls) {
+    auto& ent = de.ent->ldr;
+    auto& dos_header = *(IMAGE_DOS_HEADER*)ent.DllBase;
+    auto& nt_header = *(IMAGE_NT_HEADERS*)((uint8_t*)ent.DllBase + dos_header.e_lfanew);
+
+    IMAGE_DATA_DIRECTORY exp_dir;
+    bool found = false;
+
+    if (nt_header.OptionalHeader32.Magic == IMAGE_NT_OPTIONAL_HDR64_MAGIC) {
+        if (nt_header.OptionalHeader64.NumberOfRvaAndSizes > IMAGE_DIRECTORY_ENTRY_IMPORT) {
+            exp_dir = nt_header.OptionalHeader64.DataDirectory[IMAGE_DIRECTORY_ENTRY_IMPORT];
+            found = true;
+        }
+    } else {
+        if (nt_header.OptionalHeader32.NumberOfRvaAndSizes > IMAGE_DIRECTORY_ENTRY_IMPORT) {
+            exp_dir = nt_header.OptionalHeader32.DataDirectory[IMAGE_DIRECTORY_ENTRY_IMPORT];
+            found = true;
+        }
+    }
+
+    if (!found || exp_dir.VirtualAddress == 0 || exp_dir.Size < sizeof(IMAGE_IMPORT_DESCRIPTOR))
+        return nt_status::SUCCESS;
+
+    auto iids = span((IMAGE_IMPORT_DESCRIPTOR*)((uint8_t*)ent.DllBase + exp_dir.VirtualAddress),
+                     exp_dir.Size / sizeof(IMAGE_IMPORT_DESCRIPTOR));
+
+    for (auto& iid : iids) {
+        if (iid.Characteristics == 0)
+            break;
+
+        auto name = string_view((char*)ent.DllBase + iid.Name);
+
+        if (name.empty()) {
+            print_stderr("DLL with empty name.\n");
+            return nt_status::DLL_NOT_FOUND;
+        }
+
+        auto* ent2 = load_dll(name);
+        if (!ent2) {
+            print_stderr("Could not load {}.\n", name);
+            return nt_status::DLL_NOT_FOUND;
+        }
+
+        bool already_there = false;
+
+        for (auto le = dlls.next; le != &dlls; le = le->next) {
+            auto& de2 = containing_record<dll_entry>(le);
+
+            if (de2.ent == ent2) {
+                already_there = true;
+                break;
+            }
+        }
+
+        if (!already_there) {
+            auto de = new dll_entry;
+            if (!de)
+                return nt_status::INSUFFICIENT_RESOURCES; // FIXME - cleanup
+
+            de->ent = ent2;
+            de->new_entry = ent2->ldr.LoadCount == 1;
+            insert_tail_list(dlls, de->le);
+        }
+    }
+
+    return nt_status::SUCCESS;
+}
+
 extern "C"
 nt_status LdrLoadDll(const char16_t* /*dll_path*/, uint32_t* /*dll_characteristics*/,
                      const UNICODE_STRING* dll_name, void** dll_handle) {
     nt_status status;
     auto name = u16string_view_ci(dll_name->Buffer, dll_name->Length / sizeof(char16_t));
+
+    list_entry dlls = { &dlls, &dlls };
 
     // FIXME - dll_path
     // FIXME - dll_characteristics(?)
@@ -1260,53 +1346,102 @@ nt_status LdrLoadDll(const char16_t* /*dll_path*/, uint32_t* /*dll_characteristi
             return nt_status::SUCCESS;
         }
 
-        status = toggle_protections_img(ent->ldr.DllBase, false);
-        if (!success(status)) {
-            NtUnmapViewOfSection(NtCurrentProcess(), ent->ldr.DllBase);
-            RemoveEntryList(&ent->ldr.InLoadOrderLinks);
-            RemoveEntryList(&ent->ldr.InMemoryOrderLinks);
-            free(ent);
-            return status;
+        auto de = new dll_entry;
+        if (!de)
+            return nt_status::INSUFFICIENT_RESOURCES;
+
+        de->ent = ent;
+        de->new_entry = true;
+
+        insert_tail_list(dlls, de->le);
+
+        auto failure = [&]() {
+            while (!is_list_empty(dlls)) {
+                auto& de2 = containing_record<dll_entry>(dlls.next);
+
+                remove_entry_list(de2.le);
+
+                if (de2.new_entry) {
+                    NtUnmapViewOfSection(NtCurrentProcess(), de2.ent->ldr.DllBase);
+                    RemoveEntryList(&de2.ent->ldr.InLoadOrderLinks);
+                    RemoveEntryList(&de2.ent->ldr.InMemoryOrderLinks);
+
+                    if (de2.ent->ldr.ProcessAttachCalled)
+                        RemoveEntryList(&de2.ent->ldr.InInitializationOrderLinks);
+
+                    free(de2.ent);
+                } else
+                    de2.ent->ldr.LoadCount--;
+
+                delete &de2;
+            }
+        };
+
+        for (auto le = dlls.next; le != &dlls; le = le->next) {
+            auto& de2 = containing_record<dll_entry>(le);
+
+            if (!de2.new_entry)
+                continue;
+
+            status = toggle_protections_img(de2.ent->ldr.DllBase, false);
+            if (!success(status)) {
+                failure();
+                return status;
+            }
+
+            status = resolve_relocations_img(de2.ent->ldr.DllBase);
+            if (!success(status)) {
+                failure();
+                return status;
+            }
+
+            status = add_imports_to_list(de2, dlls);
+            if (!success(status)) {
+                failure();
+                return status;
+            }
         }
 
-        status = resolve_relocations_img(ent->ldr.DllBase);
-        if (!success(status)) {
-            NtUnmapViewOfSection(NtCurrentProcess(), ent->ldr.DllBase);
-            RemoveEntryList(&ent->ldr.InLoadOrderLinks);
-            RemoveEntryList(&ent->ldr.InMemoryOrderLinks);
-            free(ent);
-            return status;
-        }
+        for (auto le = dlls.next; le != &dlls; le = le->next) {
+            auto& de2 = containing_record<dll_entry>(le);
 
-        // FIXME - load dependencies recursively
+            if (!de2.new_entry)
+                continue;
 
-        status = resolve_imports_img(ent->ldr.DllBase);
-        if (!success(status)) {
-            NtUnmapViewOfSection(NtCurrentProcess(), ent->ldr.DllBase);
-            RemoveEntryList(&ent->ldr.InLoadOrderLinks);
-            RemoveEntryList(&ent->ldr.InMemoryOrderLinks);
-            free(ent);
-            return status;
-        }
+            status = resolve_imports_img(de2.ent->ldr.DllBase);
+            if (!success(status)) {
+                failure();
+                return status;
+            }
 
-        status = toggle_protections_img(ent->ldr.DllBase, true);
-        if (!success(status)) {
-            NtUnmapViewOfSection(NtCurrentProcess(), ent->ldr.DllBase);
-            RemoveEntryList(&ent->ldr.InLoadOrderLinks);
-            RemoveEntryList(&ent->ldr.InMemoryOrderLinks);
-            free(ent);
-            return status;
+            status = toggle_protections_img(de2.ent->ldr.DllBase, true);
+            if (!success(status)) {
+                failure();
+                return status;
+            }
         }
 
         // FIXME - do TLS
 
-        status = call_process_attach_holding_lock();
-        if (!success(status)) {
-            NtUnmapViewOfSection(NtCurrentProcess(), ent->ldr.DllBase);
-            RemoveEntryList(&ent->ldr.InLoadOrderLinks);
-            RemoveEntryList(&ent->ldr.InMemoryOrderLinks);
-            free(ent);
-            return status;
+        for (auto le = dlls.prev; le != &dlls; le = le->prev) {
+            auto& de2 = containing_record<dll_entry>(le);
+
+            if (!de2.new_entry)
+                continue;
+
+            status = do_process_attach(de2.ent->ldr);
+            if (!success(status)) {
+                failure();
+                return status;
+            }
+        }
+
+        while (!is_list_empty(dlls)) {
+            auto& de2 = containing_record<dll_entry>(dlls.next);
+
+            remove_entry_list(de2.le);
+
+            delete &de2;
         }
 
         *dll_handle = ent->ldr.DllBase;
