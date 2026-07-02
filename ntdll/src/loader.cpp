@@ -1311,8 +1311,17 @@ static nt_status add_imports_to_list(dll_entry& de, list_entry& dlls) {
 
         if (!already_there) {
             auto de = new dll_entry;
-            if (!de)
-                return nt_status::INSUFFICIENT_RESOURCES; // FIXME - cleanup
+            if (!de) {
+                if (ent2->ldr.LoadCount == 1) {
+                    NtUnmapViewOfSection(NtCurrentProcess(), ent2->ldr.DllBase);
+                    RemoveEntryList(&ent2->ldr.InLoadOrderLinks);
+                    RemoveEntryList(&ent2->ldr.InMemoryOrderLinks);
+                    free(ent2);
+                } else
+                    ent2->ldr.LoadCount--;
+
+                return nt_status::INSUFFICIENT_RESOURCES;
+            }
 
             de->ent = ent2;
             de->refs = 1;
