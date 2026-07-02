@@ -1168,3 +1168,11 @@ export void init_ldr_data(mn_image_info& ntdll_info, mn_image_info& img_info) {
     InsertTailList(&ldr_data.InInitializationOrderModuleList,
                    &img.ldr.InInitializationOrderLinks);
 }
+
+extern "C"
+nt_status LdrLoadDll(const char16_t* /*dll_path*/, uint32_t* /*dll_characteristics*/,
+                     const UNICODE_STRING* /*dll_name*/, void** /*dll_handle*/) {
+    print("FIXME - LdrLoadDll\n");
+
+    return nt_status::NOT_IMPLEMENTED;
+}

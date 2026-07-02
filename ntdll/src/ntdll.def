@@ -74,3 +74,4 @@ mn_handle_exec_info DATA
 RtlTryAcquireSRWLockExclusive
 RtlSleepConditionVariableSRW
 RtlWakeAddressAll
+LdrLoadDll

@@ -472,6 +472,8 @@ nt_status LdrGetDllHandle(const char16_t* dll_path, uint32_t* dll_characteristic
 bool RtlIsProcessorFeaturePresent(uint32_t processor_feature);
 bool RtlQueryPerformanceFrequency(LARGE_INTEGER* freq);
 bool RtlQueryPerformanceCounter(LARGE_INTEGER* count);
+nt_status LdrLoadDll(const char16_t* dll_path, uint32_t* dll_characteristics,
+                     const UNICODE_STRING* dll_name, void** dll_handle);
 
 }
 
