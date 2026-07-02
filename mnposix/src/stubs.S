@@ -6,7 +6,6 @@ do_stub "dlopen"
 do_stub "dlsym"
 do_stub "dlclose"
 do_stub "dlerror"
-do_stub "tcgetpgrp"
 do_stub "statvfs"
 
 stubs_end

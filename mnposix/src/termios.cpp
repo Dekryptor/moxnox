@@ -207,3 +207,27 @@ int tcsetpgrp(int fd, pid_t pgid) {
 
     return 0;
 }
+
+extern "C"
+int tcgetpgrp(int fd) {
+    uintptr_t pgid;
+    IO_STATUS_BLOCK iosb;
+
+    auto h = (HANDLE)_get_osfhandle(fd);
+    if ((intptr_t)h < 0)
+        return -1;
+
+    /* FIXME: "If there is no foreground process group, tcgetpgrp() shall return
+               a value greater than 1 that does not match the process group ID
+               of any existing process group." */
+
+    auto status = NtDeviceIoControlFile(h, 0, nullptr, nullptr, &iosb,
+                                        IOCTL_MOXNOX_PTY_GET_FOREGROUND_PROCESS_GROUP,
+                                        nullptr, 0, &pgid, sizeof(pgid));
+    if (!success(status)) {
+        *_errno() = nt_status_to_errno(status);
+        return -1;
+    }
+
+    return (int)pgid;
+}

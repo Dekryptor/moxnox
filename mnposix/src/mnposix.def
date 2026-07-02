@@ -129,3 +129,4 @@ setsid
 setpgid
 getpgid
 tcsetpgrp
+tcgetpgrp
