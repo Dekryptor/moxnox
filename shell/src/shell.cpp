@@ -462,6 +462,8 @@ static void try_run_program(string_view program, string_view cmdline) {
     termios tc_settings;
     bool tc_settings_valid;
     char16_t* u16cmdline;
+    uintptr_t pid;
+    nt_status status;
     auto& peb = *NtCurrentTeb()->ProcessEnvironmentBlock;
 
     if (!munge_cmdline(cmdline, u16cmdline))
@@ -519,6 +521,7 @@ static void try_run_program(string_view program, string_view cmdline) {
             return;
         }
 
+        pid = pi.dwProcessId;
         proc.reset(pi.hProcess);
 
         free(exe);
@@ -613,6 +616,7 @@ static void try_run_program(string_view program, string_view cmdline) {
                         return;
                     }
                 } else {
+                    pid = pi.dwProcessId;
                     proc.reset(pi.hProcess);
                     break;
                 }
@@ -650,7 +654,21 @@ static void try_run_program(string_view program, string_view cmdline) {
     if (is_tty)
         set_pty_fg_proc(peb.ProcessParameters->StandardOutput, proc.get());
 
-    auto status = NtResumeThread(pi.hThread, nullptr);
+    status = NtSetInformationProcess(proc.get(), PROCESS_INFORMATION_CLASS::MoxnoxSetProcessGroup,
+                                     &pid, sizeof(pid));
+    if (!success(status)) {
+        print_stderr("NtSetInformationProcess returned {} for MoxnoxSetProcessGroup\n", status);
+        running_proc = 0;
+        NtClose(pi.hThread);
+        NtTerminateProcess(proc.get(), nt_status::SUCCESS);
+
+        if (is_tty)
+            set_pty_fg_proc(peb.ProcessParameters->StandardOutput, NtCurrentProcess());
+
+        return;
+    }
+
+    status = NtResumeThread(pi.hThread, nullptr);
     if (!success(status)) {
         print_stderr("NtResumeThread returned {}\n", status);
         running_proc = 0;
