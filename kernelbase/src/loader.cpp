@@ -12,6 +12,8 @@ using namespace std;
 
 extern "C"
 bool GetModuleHandleExW(uint32_t flags, const char16_t* name, HMODULE* mod) {
+    nt_status status;
+
     static const uint32_t supported_flags = GET_MODULE_HANDLE_EX_FLAG_FROM_ADDRESS |
                                             GET_MODULE_HANDLE_EX_FLAG_UNCHANGED_REFCOUNT;
 
@@ -23,25 +25,34 @@ bool GetModuleHandleExW(uint32_t flags, const char16_t* name, HMODULE* mod) {
         return false;
     }
 
-    if (!(flags & GET_MODULE_HANDLE_EX_FLAG_FROM_ADDRESS)) {
-        print("FIXME - GetModuleHandleExW with flags {:x}\n", flags);
-        *mod = nullptr;
-        RtlSetLastWin32Error(ERROR_CALL_NOT_IMPLEMENTED);
-        return false;
-    }
-
     void* base;
 
-    if (name) {
+    if (flags & GET_MODULE_HANDLE_EX_FLAG_FROM_ADDRESS) {
         if (!RtlPcToFileHeader(name, &base)) {
             RtlSetLastWin32Error(ERROR_DLL_NOT_FOUND);
+            *mod = nullptr;
             return false;
         }
-    } else
+    } else if (!name)
         base = NtCurrentTeb()->ProcessEnvironmentBlock->ImageBaseAddress;
+    else {
+        u16string_view u16sv(name);
+        UNICODE_STRING us;
+
+        us.Buffer = (char16_t*)u16sv.data();
+        us.Length = us.MaximumLength = (uint16_t)(u16sv.size() * sizeof(char16_t));
+
+        status = LdrGetDllHandle(nullptr, nullptr, &us, &base);
+        if (!success(status)) {
+            RtlSetLastWin32Error(RtlNtStatusToDosError(status));
+            *mod = nullptr;
+            return false;
+        }
+    }
 
     if (!(flags & GET_MODULE_HANDLE_EX_FLAG_UNCHANGED_REFCOUNT)) {
-        if (auto status = LdrAddRefDll(0, base); !success(status)) {
+        status = LdrAddRefDll(0, base);
+        if (!success(status)) {
             *mod = nullptr;
             RtlSetLastWin32Error(RtlNtStatusToDosError(status));
             return false;
