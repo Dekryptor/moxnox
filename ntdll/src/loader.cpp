@@ -435,6 +435,53 @@ static ldr_entry* try_load_dll(u16string_view dir, u16string_view name) {
     return &ent;
 }
 
+static ldr_entry* load_dll_u16(u16string_view_ci u16sv) {
+    {
+        auto le = ldr_data.InLoadOrderModuleList.Flink;
+
+        while (le != &ldr_data.InLoadOrderModuleList) {
+            auto& ent = *CONTAINING_RECORD(le, LDR_DATA_TABLE_ENTRY, InLoadOrderLinks);
+            auto base_name = u16string_view_ci(ent.BaseDllName.Buffer, ent.BaseDllName.Length / sizeof(char16_t));
+
+            if (base_name == u16sv) {
+                ent.LoadCount++;
+                return CONTAINING_RECORD(&ent, ldr_entry, ldr);
+            }
+
+            le = le->Flink;
+        }
+    }
+
+    // FIXME - what if DLL name contains slashes?
+
+    auto path = get_env(u"LD_LIBRARY_PATH");
+
+    if (path.empty()) { // FIXME - is this right?
+        if (auto ret = try_load_dll(u"/lib", u16string_view(u16sv.data(), u16sv.size())); ret)
+            return ret;
+    } else {
+        while (true) {
+            u16string_view bit;
+            auto col = path.find(u':');
+
+            if (col != u16string_view::npos)
+                bit = u16string_view(path.data(), col);
+            else
+                bit = path;
+
+            if (auto ret = try_load_dll(bit, u16string_view(u16sv.data(), u16sv.size())); ret)
+                return ret;
+
+            if (col == u16string_view::npos)
+                break;
+
+            path = u16string_view(path.data() + col + 1, path.size() - col - 1);
+        }
+    }
+
+    return nullptr;
+}
+
 export ldr_entry* load_dll(string_view name) {
     auto u16len = utf8_to_utf16_len(name);
 
@@ -458,56 +505,11 @@ export ldr_entry* load_dll(string_view name) {
 
     auto u16sv = u16string_view_ci(u16buf, u16len);
 
-    {
-        auto le = ldr_data.InLoadOrderModuleList.Flink;
-
-        while (le != &ldr_data.InLoadOrderModuleList) {
-            auto& ent = *CONTAINING_RECORD(le, LDR_DATA_TABLE_ENTRY, InLoadOrderLinks);
-            auto base_name = u16string_view_ci(ent.BaseDllName.Buffer, ent.BaseDllName.Length / sizeof(char16_t));
-
-            if (base_name == u16sv) {
-                free(u16buf);
-                return CONTAINING_RECORD(&ent, ldr_entry, ldr);
-            }
-
-            le = le->Flink;
-        }
-    }
-
-    // FIXME - what if DLL name contains slashes?
-
-    auto path = get_env(u"LD_LIBRARY_PATH");
-
-    if (path.empty()) { // FIXME - is this right?
-        if (auto ret = try_load_dll(u"/lib", u16string_view(u16sv.data(), u16sv.size())); ret) {
-            free(u16buf);
-            return ret;
-        }
-    } else {
-        while (true) {
-            u16string_view bit;
-            auto col = path.find(u':');
-
-            if (col != u16string_view::npos)
-                bit = u16string_view(path.data(), col);
-            else
-                bit = path;
-
-            if (auto ret = try_load_dll(bit, u16string_view(u16sv.data(), u16sv.size())); ret) {
-                free(u16buf);
-                return ret;
-            }
-
-            if (col == u16string_view::npos)
-                break;
-
-            path = u16string_view(path.data() + col + 1, path.size() - col - 1);
-        }
-    }
+    auto ret = load_dll_u16(u16sv);
 
     free(u16buf);
 
-    return nullptr;
+    return ret;
 }
 
 export void load_dlls_img(LDR_DATA_TABLE_ENTRY& ent) {
@@ -1169,10 +1171,75 @@ export void init_ldr_data(mn_image_info& ntdll_info, mn_image_info& img_info) {
                    &img.ldr.InInitializationOrderLinks);
 }
 
+static void call_process_attach_holding_lock() {
+    for (auto le = ldr_data.InLoadOrderModuleList.Flink; le != &ldr_data.InLoadOrderModuleList; le = le->Flink) {
+        auto& ent = *CONTAINING_RECORD(le, LDR_DATA_TABLE_ENTRY, InLoadOrderLinks);
+
+        if (!ent.LoadInProgress && !ent.ProcessAttachCalled) {
+            call_tls_callbacks(ent, DLL_PROCESS_ATTACH);
+
+            ent.LoadInProgress = 1;
+
+            auto dll_main = (DLL_ENTRY_PROC)ent.EntryPoint;
+
+            if (!dll_main(ent.DllBase, DLL_PROCESS_ATTACH, (void*)1)) {
+                NtTerminateProcess(NtCurrentProcess(), nt_status::DLL_INIT_FAILED);
+                unreachable();
+            }
+
+            InsertTailList(&ldr_data.InInitializationOrderModuleList,
+                           &ent.InInitializationOrderLinks);
+
+            ent.ProcessAttachCalled = 1;
+        }
+    }
+}
+
+export void call_process_attach() {
+    mn_loader_lock lock;
+    lock_guard lg(lock);
+
+    call_process_attach_holding_lock();
+}
+
 extern "C"
 nt_status LdrLoadDll(const char16_t* /*dll_path*/, uint32_t* /*dll_characteristics*/,
-                     const UNICODE_STRING* /*dll_name*/, void** /*dll_handle*/) {
-    print("FIXME - LdrLoadDll\n");
+                     const UNICODE_STRING* dll_name, void** dll_handle) {
+    auto name = u16string_view_ci(dll_name->Buffer, dll_name->Length / sizeof(char16_t));
 
-    return nt_status::NOT_IMPLEMENTED;
+    // FIXME - dll_path
+    // FIXME - dll_characteristics(?)
+
+    {
+        mn_loader_lock lock;
+        lock_guard lg(lock);
+
+        auto ent = load_dll_u16(name);
+
+        if (!ent)
+            return nt_status::DLL_NOT_FOUND;
+
+        if (ent->ldr.LoadCount > 1) { // already loaded
+            *dll_handle = ent->ldr.DllBase;
+            return nt_status::SUCCESS;
+        }
+
+        toggle_protections_img(ent->ldr.DllBase, false);
+
+        resolve_relocations_img(ent->ldr.DllBase);
+
+        // FIXME - load dependencies recursively
+
+        resolve_imports_img(ent->ldr.DllBase);
+
+        toggle_protections_img(ent->ldr.DllBase, true);
+
+        // FIXME - do TLS
+
+        call_process_attach_holding_lock();
+
+        *dll_handle = ent->ldr.DllBase;
+    }
+
+    return nt_status::SUCCESS;
 }

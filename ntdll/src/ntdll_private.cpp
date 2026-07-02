@@ -79,4 +79,9 @@ struct ldr_entry {
     uint64_t size_debug_line_str;
 };
 
+using DLL_ENTRY_PROC = bool (*)(void*, uint32_t, void*);
+
+// ntdll.cpp
+extern "C++" void call_tls_callbacks(const LDR_DATA_TABLE_ENTRY& ent, uint32_t reason);
+
 }

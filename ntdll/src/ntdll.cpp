@@ -25,8 +25,6 @@ extern uint8_t __image_base__;
 static_assert(sizeof(PEB_LDR_DATA) == 0x58);
 static_assert(sizeof(LDR_DATA_TABLE_ENTRY) == 0x88);
 
-using DLL_ENTRY_PROC = bool (*)(void*, uint32_t, void*);
-
 static RTL_CRITICAL_SECTION peb_lock, loader_lock;
 static uint64_t tls_bitmap; // FIXME - should be RTL_BITMAP
 static bool initialized = false;
@@ -54,7 +52,7 @@ void do_print(string_view s) {
                 (uint32_t)s.size(), nullptr, nullptr);
 }
 
-static void call_tls_callbacks(const LDR_DATA_TABLE_ENTRY& ent, uint32_t reason) {
+void call_tls_callbacks(const LDR_DATA_TABLE_ENTRY& ent, uint32_t reason) {
     using IMAGE_TLS_CALLBACK = void (*)(void* dll_handle, uint32_t reason,
                                         void* reserved);
 
@@ -74,33 +72,6 @@ static void call_tls_callbacks(const LDR_DATA_TABLE_ENTRY& ent, uint32_t reason)
         func(ent.DllBase, reason, nullptr);
 
         ptr++;
-    }
-}
-
-static void call_process_attach() {
-    mn_loader_lock lock;
-    lock_guard lg(lock);
-
-    for (auto le = ldr_data.InLoadOrderModuleList.Flink; le != &ldr_data.InLoadOrderModuleList; le = le->Flink) {
-        auto& ent = *CONTAINING_RECORD(le, LDR_DATA_TABLE_ENTRY, InLoadOrderLinks);
-
-        if (!ent.LoadInProgress && !ent.ProcessAttachCalled) {
-            call_tls_callbacks(ent, DLL_PROCESS_ATTACH);
-
-            ent.LoadInProgress = 1;
-
-            auto dll_main = (DLL_ENTRY_PROC)ent.EntryPoint;
-
-            if (!dll_main(ent.DllBase, DLL_PROCESS_ATTACH, (void*)1)) {
-                NtTerminateProcess(NtCurrentProcess(), nt_status::DLL_INIT_FAILED);
-                unreachable();
-            }
-
-            InsertTailList(&ldr_data.InInitializationOrderModuleList,
-                           &ent.InInitializationOrderLinks);
-
-            ent.ProcessAttachCalled = 1;
-        }
     }
 }
 
