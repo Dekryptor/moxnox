@@ -186,3 +186,24 @@ extern "C"
 int tcsendbreak(int /*fd*/, int /*duration*/) {
     return 0;
 }
+
+extern "C"
+int tcsetpgrp(int fd, pid_t pgid) {
+    nt_status status;
+    IO_STATUS_BLOCK iosb;
+    auto pgid2 = (uintptr_t)pgid;
+
+    auto h = (HANDLE)_get_osfhandle(fd);
+    if ((intptr_t)h < 0)
+        return -1;
+
+    status = NtDeviceIoControlFile(h, 0, nullptr, nullptr, &iosb,
+                                   IOCTL_MOXNOX_PTY_SET_FOREGROUND_PROCESS_GROUP,
+                                   &pgid2, sizeof(pgid2), nullptr, 0);
+    if (!success(status)) {
+        *_errno() = nt_status_to_errno(status);
+        return -1;
+    }
+
+    return 0;
+}

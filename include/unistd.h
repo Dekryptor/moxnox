@@ -56,6 +56,7 @@ int symlink(const char* path1, const char* path2);
 pid_t getppid(void);
 pid_t getpgid(pid_t pid);
 int tcgetpgrp(int fd);
+int tcsetpgrp(int fd, pid_t pgid);
 int link(const char* oldpath, const char* newpath);
 int readlink(const char* path, char* buf, size_t bufsiz);
 int getpagesize(void);
