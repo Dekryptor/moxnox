@@ -29,6 +29,8 @@ struct dll_entry {
     ldr_entry* ent;
     bool new_entry;
     unsigned int refs;
+    size_t num_deps = 0;
+    unique_ptr<dll_entry*[]> deps;
 };
 
 extern "C"
@@ -1215,12 +1217,7 @@ export void init_ldr_data(mn_image_info& ntdll_info, mn_image_info& img_info) {
 }
 
 static nt_status do_process_attach(LDR_DATA_TABLE_ENTRY& ent) {
-    if (ent.LoadInProgress || ent.ProcessAttachCalled)
-        return nt_status::SUCCESS;
-
     call_tls_callbacks(ent, DLL_PROCESS_ATTACH);
-
-    ent.LoadInProgress = 1;
 
     auto dll_main = (DLL_ENTRY_PROC)ent.EntryPoint;
 
@@ -1228,7 +1225,7 @@ static nt_status do_process_attach(LDR_DATA_TABLE_ENTRY& ent) {
         return nt_status::DLL_INIT_FAILED;
 
     InsertTailList(&ldr_data.InInitializationOrderModuleList,
-                    &ent.InInitializationOrderLinks);
+                   &ent.InInitializationOrderLinks);
 
     ent.ProcessAttachCalled = 1;
 
@@ -1239,9 +1236,13 @@ static nt_status call_process_attach_holding_lock() {
     for (auto le = ldr_data.InLoadOrderModuleList.Flink; le != &ldr_data.InLoadOrderModuleList; le = le->Flink) {
         auto& ent = *CONTAINING_RECORD(le, LDR_DATA_TABLE_ENTRY, InLoadOrderLinks);
 
-        auto status = do_process_attach(ent);
-        if (!success(status))
-            return status;
+        if (!ent.LoadInProgress && !ent.ProcessAttachCalled) {
+            ent.LoadInProgress = 1;
+
+            auto status = do_process_attach(ent);
+            if (!success(status))
+                return status;
+        }
     }
 
     return nt_status::SUCCESS;
@@ -1284,6 +1285,22 @@ static nt_status add_imports_to_list(dll_entry& de, list_entry& dlls) {
         if (iid.Characteristics == 0)
             break;
 
+        de.num_deps++;
+    }
+
+    if (de.num_deps == 0)
+        return nt_status::SUCCESS;
+
+    de.deps.reset(new dll_entry*[de.num_deps]);
+    if (!de.deps)
+        return nt_status::INSUFFICIENT_RESOURCES;
+
+    size_t i = 0;
+
+    for (auto& iid : iids) {
+        if (iid.Characteristics == 0)
+            break;
+
         auto name = string_view((char*)ent.DllBase + iid.Name);
 
         if (name.empty()) {
@@ -1305,13 +1322,17 @@ static nt_status add_imports_to_list(dll_entry& de, list_entry& dlls) {
             if (de2.ent == ent2) {
                 de2.refs++;
                 already_there = true;
+
+                de.deps[i] = &de2;
+                i++;
+
                 break;
             }
         }
 
         if (!already_there) {
-            auto de = new dll_entry;
-            if (!de) {
+            auto de2 = new dll_entry;
+            if (!de2) {
                 if (ent2->ldr.LoadCount == 1) {
                     NtUnmapViewOfSection(NtCurrentProcess(), ent2->ldr.DllBase);
                     RemoveEntryList(&ent2->ldr.InLoadOrderLinks);
@@ -1323,12 +1344,36 @@ static nt_status add_imports_to_list(dll_entry& de, list_entry& dlls) {
                 return nt_status::INSUFFICIENT_RESOURCES;
             }
 
-            de->ent = ent2;
-            de->refs = 1;
-            de->new_entry = ent2->ldr.LoadCount == 1;
-            insert_tail_list(dlls, de->le);
+            de2->ent = ent2;
+            de2->refs = 1;
+            de2->new_entry = ent2->ldr.LoadCount == 1;
+            insert_tail_list(dlls, de2->le);
+
+            de.deps[i] = de2;
+            i++;
         }
     }
+
+    return nt_status::SUCCESS;
+}
+
+static nt_status dll_entry_attach(dll_entry& de) {
+    nt_status status;
+
+    if (de.ent->ldr.LoadInProgress || de.ent->ldr.ProcessAttachCalled)
+        return nt_status::SUCCESS;
+
+    de.ent->ldr.LoadInProgress = 1;
+
+    for (size_t i = 0; i < de.num_deps; i++) {
+        status = dll_entry_attach(*de.deps[i]);
+        if (!success(status))
+            return status;
+    }
+
+    status = do_process_attach(de.ent->ldr);
+    if (!success(status))
+        return status;
 
     return nt_status::SUCCESS;
 }
@@ -1438,17 +1483,10 @@ nt_status LdrLoadDll(const char16_t* /*dll_path*/, uint32_t* /*dll_characteristi
 
         // FIXME - do TLS
 
-        for (auto le = dlls.prev; le != &dlls; le = le->prev) {
-            auto& de2 = containing_record<dll_entry>(le);
-
-            if (!de2.new_entry)
-                continue;
-
-            status = do_process_attach(de2.ent->ldr);
-            if (!success(status)) {
-                failure();
-                return status;
-            }
+        status = dll_entry_attach(*de);
+        if (!success(status)) {
+            failure();
+            return status;
         }
 
         while (!is_list_empty(dlls)) {
