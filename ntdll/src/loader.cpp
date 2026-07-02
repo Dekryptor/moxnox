@@ -1378,6 +1378,18 @@ static nt_status dll_entry_attach(dll_entry& de) {
     return nt_status::SUCCESS;
 }
 
+static void dll_entry_detach(LIST_ENTRY* last_init_order_entry) {
+    while (ldr_data.InInitializationOrderModuleList.Blink != last_init_order_entry) {
+        auto& ent = *CONTAINING_RECORD(ldr_data.InInitializationOrderModuleList.Blink,
+                                       LDR_DATA_TABLE_ENTRY, InInitializationOrderLinks);
+
+        if (ent.ProcessAttachCalled)
+            call_process_detach_img(ent, false);
+
+        RemoveEntryList(&ent.InInitializationOrderLinks);
+    }
+}
+
 extern "C"
 nt_status LdrLoadDll(const char16_t* /*dll_path*/, uint32_t* /*dll_characteristics*/,
                      const UNICODE_STRING* dll_name, void** dll_handle) {
@@ -1392,6 +1404,8 @@ nt_status LdrLoadDll(const char16_t* /*dll_path*/, uint32_t* /*dll_characteristi
     {
         mn_loader_lock lock;
         lock_guard lg(lock);
+
+        auto last_init_order_entry = ldr_data.InInitializationOrderModuleList.Blink;
 
         auto ent = load_dll_u16(name);
 
@@ -1414,6 +1428,8 @@ nt_status LdrLoadDll(const char16_t* /*dll_path*/, uint32_t* /*dll_characteristi
         insert_tail_list(dlls, de->le);
 
         auto failure = [&]() {
+            dll_entry_detach(last_init_order_entry);
+
             while (!is_list_empty(dlls)) {
                 auto& de2 = containing_record<dll_entry>(dlls.next);
 
@@ -1423,11 +1439,6 @@ nt_status LdrLoadDll(const char16_t* /*dll_path*/, uint32_t* /*dll_characteristi
                     NtUnmapViewOfSection(NtCurrentProcess(), de2.ent->ldr.DllBase);
                     RemoveEntryList(&de2.ent->ldr.InLoadOrderLinks);
                     RemoveEntryList(&de2.ent->ldr.InMemoryOrderLinks);
-
-                    if (de2.ent->ldr.ProcessAttachCalled) {
-                        call_process_detach_img(de2.ent->ldr, false);
-                        RemoveEntryList(&de2.ent->ldr.InInitializationOrderLinks);
-                    }
 
                     free(de2.ent);
                 } else
