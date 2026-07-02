@@ -31,6 +31,7 @@ jobs:
             -DCMAKE_CXX_FLAGS="-isystem /usr/lib/llvm-21/include/c++/v1 -isystem /usr/share/mingw-w64/include" \
             -DCMAKE_C_FLAGS="-isystem /usr/share/mingw-w64/include" \
             -DCMAKE_CXX_LINK_FLAGS="-L/root/llvm-mingw/aarch64-w64-mingw32/lib -L/root/llvm-mingw/lib/clang/20/lib/windows" \
+            -DCMAKE_C_LINK_FLAGS="-L/root/llvm-mingw/aarch64-w64-mingw32/lib -L/root/llvm-mingw/lib/clang/20/lib/windows" \
             -DCMAKE_SHARED_LINKER_FLAGS="-nodefaultlibs -L/root/llvm-mingw/aarch64-w64-mingw32/lib -L/root/llvm-mingw/lib/clang/20/lib/windows" \
             -DUSE_COMPILER_RT=ON \
             -S ${SHORT_SHA} -B debug-work
@@ -50,6 +51,7 @@ jobs:
             -DCMAKE_CXX_FLAGS="-isystem /usr/lib/llvm-21/include/c++/v1 -isystem /usr/share/mingw-w64/include" \
             -DCMAKE_C_FLAGS="-isystem /usr/share/mingw-w64/include" \
             -DCMAKE_CXX_LINK_FLAGS="-L/root/llvm-mingw/aarch64-w64-mingw32/lib -L/root/llvm-mingw/lib/clang/20/lib/windows" \
+            -DCMAKE_C_LINK_FLAGS="-L/root/llvm-mingw/aarch64-w64-mingw32/lib -L/root/llvm-mingw/lib/clang/20/lib/windows" \
             -DCMAKE_SHARED_LINKER_FLAGS="-nodefaultlibs -L/root/llvm-mingw/aarch64-w64-mingw32/lib -L/root/llvm-mingw/lib/clang/20/lib/windows" \
             -DUSE_COMPILER_RT=ON \
             -S ${SHORT_SHA} -B release-work
