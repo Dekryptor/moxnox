@@ -362,3 +362,27 @@ extern "C"
 void free(void* ptr) {
     RtlFreeHeap((void*)NtCurrentTeb()->ProcessEnvironmentBlock->ProcessHeap, 0, ptr);
 }
+
+void* operator new(size_t count) {
+    return malloc(count);
+}
+
+void operator delete(void* ptr) noexcept {
+    free(ptr);
+}
+
+void operator delete(void* ptr, size_t) noexcept {
+    free(ptr);
+}
+
+void* operator new[](size_t count) {
+    return malloc(count);
+}
+
+void operator delete[](void* ptr) noexcept {
+    free(ptr);
+}
+
+void operator delete[](void* ptr, size_t) noexcept {
+    free(ptr);
+}
