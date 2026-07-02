@@ -264,15 +264,15 @@ static void __attribute__((noinline)) inline1() {
     __asm __volatile("nop");
 }
 
-static bool set_pty_fg_proc(HANDLE client_handle, HANDLE proc) {
+static bool set_pty_fg_proc(HANDLE client_handle, uintptr_t pgid) {
     nt_status status;
     IO_STATUS_BLOCK iosb;
 
     status = NtDeviceIoControlFile(client_handle, 0, nullptr, nullptr, &iosb,
-                                   IOCTL_MOXNOX_PTY_SET_FOREGROUND_PROCESS,
-                                   &proc, sizeof(proc), nullptr, 0);
+                                   IOCTL_MOXNOX_PTY_SET_FOREGROUND_PROCESS_GROUP,
+                                   &pgid, sizeof(pgid), nullptr, 0);
     if (!success(status)) {
-        print_stderr("IOCTL_MOXNOX_PTY_SET_FOREGROUND_PROCESS returned {}\n", status);
+        print_stderr("IOCTL_MOXNOX_PTY_SET_FOREGROUND_PROCESS_GROUP returned {}\n", status);
         return false;
     }
 
@@ -649,11 +649,6 @@ static void try_run_program(string_view program, string_view cmdline) {
     if (!tcgetattr(STDOUT_FILENO, &tc_settings))
         tc_settings_valid = true;
 
-    auto is_tty = isatty(STDOUT_FILENO);
-
-    if (is_tty)
-        set_pty_fg_proc(peb.ProcessParameters->StandardOutput, proc.get());
-
     status = NtSetInformationProcess(proc.get(), PROCESS_INFORMATION_CLASS::MoxnoxSetProcessGroup,
                                      &pid, sizeof(pid));
     if (!success(status)) {
@@ -661,12 +656,13 @@ static void try_run_program(string_view program, string_view cmdline) {
         running_proc = 0;
         NtClose(pi.hThread);
         NtTerminateProcess(proc.get(), nt_status::SUCCESS);
-
-        if (is_tty)
-            set_pty_fg_proc(peb.ProcessParameters->StandardOutput, NtCurrentProcess());
-
         return;
     }
+
+    auto is_tty = isatty(STDOUT_FILENO);
+
+    if (is_tty)
+        set_pty_fg_proc(peb.ProcessParameters->StandardOutput, pid);
 
     status = NtResumeThread(pi.hThread, nullptr);
     if (!success(status)) {
@@ -675,7 +671,7 @@ static void try_run_program(string_view program, string_view cmdline) {
         NtClose(pi.hThread);
 
         if (is_tty)
-            set_pty_fg_proc(peb.ProcessParameters->StandardOutput, NtCurrentProcess());
+            set_pty_fg_proc(peb.ProcessParameters->StandardOutput, getpgid(0));
 
         return;
     }
@@ -685,7 +681,7 @@ static void try_run_program(string_view program, string_view cmdline) {
     run_program(proc, tc_settings_valid ? &tc_settings : nullptr);
 
     if (is_tty)
-        set_pty_fg_proc(peb.ProcessParameters->StandardOutput, NtCurrentProcess());
+        set_pty_fg_proc(peb.ProcessParameters->StandardOutput, getpgid(0));
 }
 
 static void int3() {
@@ -800,6 +796,9 @@ static void fg() {
     auto& peb = *NtCurrentTeb()->ProcessEnvironmentBlock;
     bool tc_settings_valid = false;
     termios tc_settings;
+    nt_status status;
+    uintptr_t pgid;
+    uint32_t retlen;
 
     // FIXME - job_spec
 
@@ -824,7 +823,12 @@ static void fg() {
 
     num_suspended_processes--;
 
-    set_pty_fg_proc(peb.ProcessParameters->StandardOutput, proc.get());
+    status = NtQueryInformationProcess(proc.get(), PROCESS_INFORMATION_CLASS::MoxnoxGetProcessGroup,
+                                       &pgid, sizeof(pgid), &retlen);
+    if (!success(status))
+        print_stderr("NtQueryInformationProcess returned {} for MoxnoxGetProcessGroup\n", status);
+    else
+        set_pty_fg_proc(peb.ProcessParameters->StandardOutput, pgid);
 
     NtResumeProcess(proc.get());
 
