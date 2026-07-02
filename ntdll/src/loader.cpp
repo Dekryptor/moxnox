@@ -239,17 +239,17 @@ static span<char> get_section_name(const IMAGE_SECTION_HEADER& s, const IMAGE_FI
     return buf.subspan(end);
 }
 
-static ldr_entry& add_ldr_entry(void* base, u16string_view full_name, u16string_view base_name,
+static ldr_entry* add_ldr_entry(void* base, u16string_view full_name, u16string_view base_name,
                                 bool no_dll_main, bool is_dll) {
-    auto& peb = *NtCurrentTeb()->ProcessEnvironmentBlock;
     auto size = sizeof(ldr_entry) + ((full_name.size() + 1) * sizeof(char16_t)) + ((base_name.size() + 1) * sizeof(char16_t));
-    auto ptr = RtlAllocateHeap((void*)peb.ProcessHeap, HEAP_ZERO_MEMORY, size);
 
+    auto ptr = malloc(size);
     if (!ptr) {
-        print_stderr("RtlAllocateHeap failed.\n");
-        NtTerminateProcess(NtCurrentProcess(), nt_status::INSUFFICIENT_RESOURCES);
-        unreachable();
+        print_stderr("malloc failed.\n");
+        return nullptr;
     }
+
+    memset(ptr, 0, size);
 
     auto& ent = *(ldr_entry*)ptr;
     auto& ldr = ent.ldr;
@@ -312,7 +312,7 @@ static ldr_entry& add_ldr_entry(void* base, u16string_view full_name, u16string_
             InsertTailList(&ldr_data.InMemoryOrderModuleList, &ldr.InMemoryOrderLinks);
     }
 
-    return ent;
+    return &ent;
 }
 
 static ldr_entry* try_load_dll(u16string_view dir, u16string_view name) {
@@ -387,8 +387,14 @@ static ldr_entry* try_load_dll(u16string_view dir, u16string_view name) {
         return nullptr;
     }
 
-    auto& ent = add_ldr_entry(addr, u16string_view(us.Buffer, us.Length / sizeof(char16_t)),
-                              name, false, true);
+    auto* pent = add_ldr_entry(addr, u16string_view(us.Buffer, us.Length / sizeof(char16_t)),
+                               name, false, true);
+    if (!pent) {
+        NtUnmapViewOfSection(NtCurrentProcess(), addr);
+        return nullptr;
+    }
+
+    auto& ent = *pent;
 
     span<IMAGE_SECTION_HEADER> sections;
 
@@ -569,7 +575,6 @@ export void load_dlls() {
     }
 }
 
-
 extern "C"
 NTSTATUS LdrGetProcedureAddress(void* dll_handle, const ANSI_STRING* procedure_name,
                                 uint32_t /*procedure_number*/, void** procedure_address) {
@@ -692,15 +697,14 @@ NTSTATUS LdrGetProcedureAddress(void* dll_handle, const ANSI_STRING* procedure_n
 }
 
 template<typename T>
-static T resolve_dll_forward(string_view fwd) {
+static nt_status resolve_dll_forward(string_view fwd, T& val) {
     string_view dll, name;
 
     static const string_view suffix = ".dll";
 
     if (auto dot = fwd.find("."); dot == string_view::npos) {
         print_stderr("could not resolve DLL forward \"{}\"\n", fwd);
-        NtTerminateProcess(NtCurrentProcess(), nt_status::PROCEDURE_NOT_FOUND);
-        unreachable();
+        return nt_status::PROCEDURE_NOT_FOUND;
     } else {
         dll = string_view(fwd.data(), dot);
         name = string_view(fwd.data() + dot + 1, fwd.size() - dot - 1);
@@ -708,15 +712,13 @@ static T resolve_dll_forward(string_view fwd) {
 
     if (!name.empty() && name.front() == '#') {
         print_stderr("resolve_dll_forward: FIXME - resolving DLL forwards by ordinal\n"); // FIXME
-        NtTerminateProcess(NtCurrentProcess(), nt_status::INTERNAL_ERROR);
-        unreachable();
+        return nt_status::INTERNAL_ERROR;
     }
 
     auto dll2 = (char*)malloc(dll.size() + suffix.size());
     if (!dll2) {
         print_stderr("resolve_dll_forward: malloc failed\n");
-        NtTerminateProcess(NtCurrentProcess(), nt_status::INSUFFICIENT_RESOURCES);
-        unreachable();
+        return nt_status::INSUFFICIENT_RESOURCES;
     }
 
     memcpy(dll2, dll.data(), dll.size());
@@ -728,8 +730,7 @@ static T resolve_dll_forward(string_view fwd) {
     if (!pent) {
         free(dll2);
         print_stderr("resolve_dll_forward: could not load DLL {}\n", dll);
-        NtTerminateProcess(NtCurrentProcess(), nt_status::PROCEDURE_NOT_FOUND);
-        unreachable();
+        return nt_status::PROCEDURE_NOT_FOUND;
     }
 
     free(dll2);
@@ -745,20 +746,21 @@ static T resolve_dll_forward(string_view fwd) {
     if (!success(status)) {
         print_stderr("resolve_dll_forward: LdrGetProcedureAddress returned {} for {} in {}\n",
                      status, name, dll);
-        NtTerminateProcess(NtCurrentProcess(), status);
-        unreachable();
+        return status;
     }
 
-    return (T)(uintptr_t)addr;
+    val = (T)(uintptr_t)addr;
+
+    return nt_status::SUCCESS;
 }
 
 template<typename T>
-static void resolve_imports_dll(void* base, void* dll_base, string_view name, T* lookup_table, T* thunks) {
+static nt_status resolve_imports_dll(void* base, void* dll_base, string_view name, T* lookup_table, T* thunks) {
     IMAGE_DATA_DIRECTORY exp_dir;
     bool found = false;
 
     if (!*lookup_table)
-        return;
+        return nt_status::SUCCESS;
 
     const auto& dos_header = *(IMAGE_DOS_HEADER*)dll_base;
     const auto& nt_header = *(IMAGE_NT_HEADERS*)((uint8_t*)dll_base + dos_header.e_lfanew);
@@ -777,22 +779,19 @@ static void resolve_imports_dll(void* base, void* dll_base, string_view name, T*
 
     if (!found || exp_dir.VirtualAddress == 0) {
         print_stderr("no export directory in {}\n", name);
-        NtTerminateProcess(NtCurrentProcess(), nt_status::PROCEDURE_NOT_FOUND);
-        unreachable();
+        return nt_status::PROCEDURE_NOT_FOUND;
     }
 
     if (exp_dir.Size < sizeof(IMAGE_EXPORT_DIRECTORY)) {
         print_stderr("invalid export directory in {}\n", name);
-        NtTerminateProcess(NtCurrentProcess(), nt_status::PROCEDURE_NOT_FOUND);
-        unreachable();
+        return nt_status::PROCEDURE_NOT_FOUND;
     }
 
     const auto& ied = *(IMAGE_EXPORT_DIRECTORY*)((uint8_t*)dll_base + exp_dir.VirtualAddress);
 
     if (ied.NumberOfFunctions == 0) {
         print_stderr("no exports in {}\n", name);
-        NtTerminateProcess(NtCurrentProcess(), nt_status::PROCEDURE_NOT_FOUND);
-        unreachable();
+        return nt_status::PROCEDURE_NOT_FOUND;
     }
 
     auto names = span((uint32_t*)((uint8_t*)dll_base + ied.AddressOfNames), ied.NumberOfNames);
@@ -809,15 +808,16 @@ static void resolve_imports_dll(void* base, void* dll_base, string_view name, T*
 
             if (ord < ied.Base || ord >= ied.Base + ied.NumberOfFunctions || funcs[ord - ied.Base] == 0) {
                 print_stderr("Ordinal {} in {} not found.\n", ord, name);
-                NtTerminateProcess(NtCurrentProcess(), nt_status::ORDINAL_NOT_FOUND);
-                unreachable();
+                return nt_status::ORDINAL_NOT_FOUND;
             }
 
             auto addr = funcs[ord - ied.Base];
 
-            if (addr >= exp_dir.VirtualAddress && addr < exp_dir.VirtualAddress + exp_dir.Size)
-                *thunks = resolve_dll_forward<T>(string_view((char*)((uintptr_t)dll_base + addr)));
-            else
+            if (addr >= exp_dir.VirtualAddress && addr < exp_dir.VirtualAddress + exp_dir.Size) {
+                auto status = resolve_dll_forward<T>(string_view((char*)((uintptr_t)dll_base + addr)), *thunks);
+                if (!success(status))
+                    return status;
+            } else
                 *thunks = (T)((uintptr_t)dll_base + addr);
 
             lookup_table++;
@@ -844,23 +844,27 @@ static void resolve_imports_dll(void* base, void* dll_base, string_view name, T*
 
         if (!ord || funcs[*ord] == 0) {
             print_stderr("Could not resolve {} in {}.\n", func, name);
-            NtTerminateProcess(NtCurrentProcess(), nt_status::PROCEDURE_NOT_FOUND);
-            unreachable();
+            return nt_status::PROCEDURE_NOT_FOUND;
         }
 
         auto addr = funcs[*ord];
 
-        if (addr >= exp_dir.VirtualAddress && addr < exp_dir.VirtualAddress + exp_dir.Size)
-            *thunks = resolve_dll_forward<T>(string_view((char*)((uintptr_t)dll_base + addr)));
-        else
+        if (addr >= exp_dir.VirtualAddress && addr < exp_dir.VirtualAddress + exp_dir.Size) {
+            auto status = resolve_dll_forward<T>(string_view((char*)((uintptr_t)dll_base + addr)), *thunks);
+            if (!success(status))
+                return status;
+        } else
             *thunks = (T)((uintptr_t)dll_base + addr);
 
         lookup_table++;
         thunks++;
     }
+
+    return nt_status::SUCCESS;
 }
 
-static void resolve_imports_img(void* base) {
+static nt_status resolve_imports_img(void* base) {
+    nt_status status;
     auto& dos_header = *(IMAGE_DOS_HEADER*)base;
     auto& nt_header = *(IMAGE_NT_HEADERS*)((uint8_t*)base + dos_header.e_lfanew);
 
@@ -880,7 +884,7 @@ static void resolve_imports_img(void* base) {
     }
 
     if (!found || exp_dir.VirtualAddress == 0 || exp_dir.Size < sizeof(IMAGE_IMPORT_DESCRIPTOR))
-        return;
+        return nt_status::SUCCESS;
 
     auto iids = span((IMAGE_IMPORT_DESCRIPTOR*)((uint8_t*)base + exp_dir.VirtualAddress),
                      exp_dir.Size / sizeof(IMAGE_IMPORT_DESCRIPTOR));
@@ -896,16 +900,13 @@ static void resolve_imports_img(void* base) {
 
         if (u16len == 0) {
             print_stderr("DLL name is empty.\n");
-            NtTerminateProcess(NtCurrentProcess(), nt_status::DLL_NOT_FOUND);
-            unreachable();
+            return nt_status::DLL_NOT_FOUND;
         }
 
         auto u16buf = (char16_t*)malloc(u16len * sizeof(char16_t));
 
-        if (!u16buf) {
-            NtTerminateProcess(NtCurrentProcess(), nt_status::INSUFFICIENT_RESOURCES);
-            unreachable();
-        }
+        if (!u16buf)
+            return nt_status::INSUFFICIENT_RESOURCES;
 
         utf8_to_utf16(span(u16buf, u16len), name);
 
@@ -931,35 +932,44 @@ static void resolve_imports_img(void* base) {
 
         if (!ent) {
             print_stderr("{} not loaded.\n", name);
-            NtTerminateProcess(NtCurrentProcess(), nt_status::DLL_NOT_FOUND);
-            unreachable();
+            return nt_status::DLL_NOT_FOUND;
         }
 
         if (nt_header.OptionalHeader32.Magic == IMAGE_NT_OPTIONAL_HDR64_MAGIC) {
-            resolve_imports_dll(base, ent->DllBase, name,
-                                (uint64_t*)((uint8_t*)base + iid.Characteristics),
-                                (uint64_t*)((uint8_t*)base + iid.FirstThunk));
+            status = resolve_imports_dll(base, ent->DllBase, name,
+                                         (uint64_t*)((uint8_t*)base + iid.Characteristics),
+                                         (uint64_t*)((uint8_t*)base + iid.FirstThunk));
         } else {
-            resolve_imports_dll(base, ent->DllBase, name,
-                                (uint32_t*)((uint8_t*)base + iid.Characteristics),
-                                (uint32_t*)((uint8_t*)base + iid.FirstThunk));
+            status = resolve_imports_dll(base, ent->DllBase, name,
+                                         (uint32_t*)((uint8_t*)base + iid.Characteristics),
+                                         (uint32_t*)((uint8_t*)base + iid.FirstThunk));
         }
+
+        if (!success(status))
+            return status;
     }
+
+    return nt_status::SUCCESS;
 }
 
-export void resolve_imports() {
+export nt_status resolve_imports() {
+    nt_status status;
     auto le = ldr_data.InLoadOrderModuleList.Flink;
 
     while (le != &ldr_data.InLoadOrderModuleList) {
         auto& ent = *CONTAINING_RECORD(le, LDR_DATA_TABLE_ENTRY, InLoadOrderLinks);
 
-        resolve_imports_img(ent.DllBase);
+        status = resolve_imports_img(ent.DllBase);
+        if (!success(status))
+            return status;
 
         le = le->Flink;
     }
+
+    return nt_status::SUCCESS;
 }
 
-static void resolve_relocations_img(void* base) {
+static nt_status resolve_relocations_img(void* base) {
     auto& dos_header = *(IMAGE_DOS_HEADER*)base;
     auto& nt_header = *(IMAGE_NT_HEADERS*)((uint8_t*)base + dos_header.e_lfanew);
 
@@ -970,7 +980,7 @@ static void resolve_relocations_img(void* base) {
         if (nt_header.OptionalHeader64.NumberOfRvaAndSizes <= IMAGE_DIRECTORY_ENTRY_BASERELOC ||
             nt_header.OptionalHeader64.DataDirectory[IMAGE_DIRECTORY_ENTRY_BASERELOC].VirtualAddress == 0 ||
             nt_header.OptionalHeader64.DataDirectory[IMAGE_DIRECTORY_ENTRY_BASERELOC].Size < sizeof(IMAGE_BASE_RELOCATION)) {
-            return;
+            return nt_status::SUCCESS;
         }
 
         dir = span((uint8_t*)base + nt_header.OptionalHeader64.DataDirectory[IMAGE_DIRECTORY_ENTRY_BASERELOC].VirtualAddress,
@@ -981,7 +991,7 @@ static void resolve_relocations_img(void* base) {
         if (nt_header.OptionalHeader32.NumberOfRvaAndSizes <= IMAGE_DIRECTORY_ENTRY_BASERELOC ||
             nt_header.OptionalHeader32.DataDirectory[IMAGE_DIRECTORY_ENTRY_BASERELOC].VirtualAddress == 0 ||
             nt_header.OptionalHeader32.DataDirectory[IMAGE_DIRECTORY_ENTRY_BASERELOC].Size < sizeof(IMAGE_BASE_RELOCATION)) {
-            return;
+            return nt_status::SUCCESS;
         }
 
         dir = span((uint8_t*)base + nt_header.OptionalHeader32.DataDirectory[IMAGE_DIRECTORY_ENTRY_BASERELOC].VirtualAddress,
@@ -991,7 +1001,7 @@ static void resolve_relocations_img(void* base) {
     }
 
     if ((uintptr_t)base == header_base) // not relocated
-        return;
+        return nt_status::SUCCESS;
 
     do {
         auto& reloc = *(IMAGE_BASE_RELOCATION*)dir.data();
@@ -1026,8 +1036,7 @@ static void resolve_relocations_img(void* base) {
 
                 default:
                     print_stderr("Unsupported relocation type {:x}.\n", type);
-                    NtTerminateProcess(NtCurrentProcess(), nt_status::ILLEGAL_DLL_RELOCATION);
-                    unreachable();
+                    return nt_status::ILLEGAL_DLL_RELOCATION;
             }
         }
 
@@ -1038,21 +1047,28 @@ static void resolve_relocations_img(void* base) {
     } while (true);
 
     // FIXME - do we need to update the base in the header?
+
+    return nt_status::SUCCESS;
 }
 
-export void resolve_relocations() {
+export nt_status resolve_relocations() {
+    nt_status status;
     auto le = ldr_data.InLoadOrderModuleList.Flink;
 
     while (le != &ldr_data.InLoadOrderModuleList) {
         auto& ent = *CONTAINING_RECORD(le, LDR_DATA_TABLE_ENTRY, InLoadOrderLinks);
 
-        resolve_relocations_img(ent.DllBase);
+        status = resolve_relocations_img(ent.DllBase);
+        if (!success(status))
+            return status;
 
         le = le->Flink;
     }
+
+    return nt_status::SUCCESS;
 }
 
-static void toggle_protections_img(void* base, bool enable) {
+static nt_status toggle_protections_img(void* base, bool enable) {
     auto& dos_header = *(IMAGE_DOS_HEADER*)base;
     auto& nt_header = *(IMAGE_NT_HEADERS*)((uint8_t*)base + dos_header.e_lfanew);
     span<IMAGE_SECTION_HEADER> sections;
@@ -1088,22 +1104,28 @@ static void toggle_protections_img(void* base, bool enable) {
 
         if (!success(ret)) {
             print_stderr("NtProtectVirtualMemory returned {}.\n", ret);
-            NtTerminateProcess(NtCurrentProcess(), ret);
-            unreachable();
+            return ret;
         }
     }
+
+    return nt_status::SUCCESS;
 }
 
-export void toggle_protections(bool enable) {
+export nt_status toggle_protections(bool enable) {
+    nt_status status;
     auto le = ldr_data.InLoadOrderModuleList.Flink;
 
     while (le != &ldr_data.InLoadOrderModuleList) {
         auto& ent = *CONTAINING_RECORD(le, LDR_DATA_TABLE_ENTRY, InLoadOrderLinks);
 
-        toggle_protections_img(ent.DllBase, enable);
+        status = toggle_protections_img(ent.DllBase, enable);
+        if (!success(status))
+            return status;
 
         le = le->Flink;
     }
+
+    return nt_status::SUCCESS;
 }
 
 export void init_ldr_data(mn_image_info& ntdll_info, mn_image_info& img_info) {
@@ -1126,8 +1148,14 @@ export void init_ldr_data(mn_image_info& ntdll_info, mn_image_info& img_info) {
     if (auto pos = base_name.find_last_of('/'); pos != u16string_view::npos)
         base_name = u16string_view(base_name.data() + pos + 1, base_name.size() - pos - 1);
 
-    auto& ntdll = add_ldr_entry(ntdll_info.base, u"\\lib\\ntdll.dll", u"ntdll.dll",
-                                true, true); // FIXME - name and path
+    auto* pntdll = add_ldr_entry(ntdll_info.base, u"\\lib\\ntdll.dll", u"ntdll.dll",
+                                 true, true); // FIXME - name and path
+    if (!pntdll) {
+        NtTerminateProcess(NtCurrentProcess(), nt_status::INSUFFICIENT_RESOURCES);
+        unreachable();
+    }
+
+    auto& ntdll = *pntdll;
 
     ntdll.offset_debug_info = ntdll_info.offset_debug_info;
     ntdll.size_debug_info = ntdll_info.size_debug_info;
@@ -1146,7 +1174,14 @@ export void init_ldr_data(mn_image_info& ntdll_info, mn_image_info& img_info) {
     ntdll.offset_debug_line_str = ntdll_info.offset_debug_line_str;
     ntdll.size_debug_line_str = ntdll_info.size_debug_line_str;
 
-    auto& img = add_ldr_entry(img_info.base, image_path, base_name, true, false);
+    auto* pimg = add_ldr_entry(img_info.base, image_path, base_name, true, false);
+
+    if (!pimg) {
+        NtTerminateProcess(NtCurrentProcess(), nt_status::INSUFFICIENT_RESOURCES);
+        unreachable();
+    }
+
+    auto& img = *pimg;
 
     img.offset_debug_info = img_info.offset_debug_info;
     img.size_debug_info = img_info.size_debug_info;
@@ -1171,7 +1206,7 @@ export void init_ldr_data(mn_image_info& ntdll_info, mn_image_info& img_info) {
                    &img.ldr.InInitializationOrderLinks);
 }
 
-static void call_process_attach_holding_lock() {
+static nt_status call_process_attach_holding_lock() {
     for (auto le = ldr_data.InLoadOrderModuleList.Flink; le != &ldr_data.InLoadOrderModuleList; le = le->Flink) {
         auto& ent = *CONTAINING_RECORD(le, LDR_DATA_TABLE_ENTRY, InLoadOrderLinks);
 
@@ -1182,10 +1217,8 @@ static void call_process_attach_holding_lock() {
 
             auto dll_main = (DLL_ENTRY_PROC)ent.EntryPoint;
 
-            if (!dll_main(ent.DllBase, DLL_PROCESS_ATTACH, (void*)1)) {
-                NtTerminateProcess(NtCurrentProcess(), nt_status::DLL_INIT_FAILED);
-                unreachable();
-            }
+            if (!dll_main(ent.DllBase, DLL_PROCESS_ATTACH, (void*)1))
+                return nt_status::DLL_INIT_FAILED;
 
             InsertTailList(&ldr_data.InInitializationOrderModuleList,
                            &ent.InInitializationOrderLinks);
@@ -1193,18 +1226,21 @@ static void call_process_attach_holding_lock() {
             ent.ProcessAttachCalled = 1;
         }
     }
+
+    return nt_status::SUCCESS;
 }
 
-export void call_process_attach() {
+export nt_status call_process_attach() {
     mn_loader_lock lock;
     lock_guard lg(lock);
 
-    call_process_attach_holding_lock();
+    return call_process_attach_holding_lock();
 }
 
 extern "C"
 nt_status LdrLoadDll(const char16_t* /*dll_path*/, uint32_t* /*dll_characteristics*/,
                      const UNICODE_STRING* dll_name, void** dll_handle) {
+    nt_status status;
     auto name = u16string_view_ci(dll_name->Buffer, dll_name->Length / sizeof(char16_t));
 
     // FIXME - dll_path
@@ -1224,19 +1260,54 @@ nt_status LdrLoadDll(const char16_t* /*dll_path*/, uint32_t* /*dll_characteristi
             return nt_status::SUCCESS;
         }
 
-        toggle_protections_img(ent->ldr.DllBase, false);
+        status = toggle_protections_img(ent->ldr.DllBase, false);
+        if (!success(status)) {
+            NtUnmapViewOfSection(NtCurrentProcess(), ent->ldr.DllBase);
+            RemoveEntryList(&ent->ldr.InLoadOrderLinks);
+            RemoveEntryList(&ent->ldr.InMemoryOrderLinks);
+            free(ent);
+            return status;
+        }
 
-        resolve_relocations_img(ent->ldr.DllBase);
+        status = resolve_relocations_img(ent->ldr.DllBase);
+        if (!success(status)) {
+            NtUnmapViewOfSection(NtCurrentProcess(), ent->ldr.DllBase);
+            RemoveEntryList(&ent->ldr.InLoadOrderLinks);
+            RemoveEntryList(&ent->ldr.InMemoryOrderLinks);
+            free(ent);
+            return status;
+        }
 
         // FIXME - load dependencies recursively
 
-        resolve_imports_img(ent->ldr.DllBase);
+        status = resolve_imports_img(ent->ldr.DllBase);
+        if (!success(status)) {
+            NtUnmapViewOfSection(NtCurrentProcess(), ent->ldr.DllBase);
+            RemoveEntryList(&ent->ldr.InLoadOrderLinks);
+            RemoveEntryList(&ent->ldr.InMemoryOrderLinks);
+            free(ent);
+            return status;
+        }
 
-        toggle_protections_img(ent->ldr.DllBase, true);
+        status = toggle_protections_img(ent->ldr.DllBase, true);
+        if (!success(status)) {
+            NtUnmapViewOfSection(NtCurrentProcess(), ent->ldr.DllBase);
+            RemoveEntryList(&ent->ldr.InLoadOrderLinks);
+            RemoveEntryList(&ent->ldr.InMemoryOrderLinks);
+            free(ent);
+            return status;
+        }
 
         // FIXME - do TLS
 
-        call_process_attach_holding_lock();
+        status = call_process_attach_holding_lock();
+        if (!success(status)) {
+            NtUnmapViewOfSection(NtCurrentProcess(), ent->ldr.DllBase);
+            RemoveEntryList(&ent->ldr.InLoadOrderLinks);
+            RemoveEntryList(&ent->ldr.InMemoryOrderLinks);
+            free(ent);
+            return status;
+        }
 
         *dll_handle = ent->ldr.DllBase;
     }

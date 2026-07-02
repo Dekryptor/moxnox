@@ -289,13 +289,29 @@ void mn_start_thread(mn_image_info* ntdll_info, mn_image_info* img_info, CONTEXT
 
         load_dlls();
 
-        toggle_protections(false);
+        status = toggle_protections(false);
+        if (!success(status)) {
+            NtTerminateProcess(NtCurrentProcess(), status);
+            unreachable();
+        }
 
-        resolve_relocations();
+        status = resolve_relocations();
+        if (!success(status)) {
+            NtTerminateProcess(NtCurrentProcess(), status);
+            unreachable();
+        }
 
-        resolve_imports();
+        status = resolve_imports();
+        if (!success(status)) {
+            NtTerminateProcess(NtCurrentProcess(), status);
+            unreachable();
+        }
 
-        toggle_protections(true);
+        status = toggle_protections(true);
+        if (!success(status)) {
+            NtTerminateProcess(NtCurrentProcess(), status);
+            unreachable();
+        }
 
         status = alloc_thread_tls();
         if (!success(status)) {
@@ -311,7 +327,11 @@ void mn_start_thread(mn_image_info* ntdll_info, mn_image_info* img_info, CONTEXT
             unreachable();
         }
 
-        call_process_attach();
+        status = call_process_attach();
+        if (!success(status)) {
+            NtTerminateProcess(NtCurrentProcess(), status);
+            unreachable();
+        }
 
         initialized = true;
     } else {
