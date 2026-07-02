@@ -169,6 +169,7 @@ static uint32_t socket_thread(void* ctx) {
     PROCESS_INFORMATION pi;
     struct passwd pwd, *pwdres;
     nt_status status;
+    IO_STATUS_BLOCK iosb;
     char pwdbuf[1024];
 
     auto sockh = (HANDLE)_get_osfhandle(sockfd.get());
@@ -262,6 +263,17 @@ static uint32_t socket_thread(void* ctx) {
         print_stderr("NtSetInformationProcess returned {} for MoxnoxSetControllingTerminal\n", status);
         NtTerminateProcess(proc.get(), status);
         return 1;
+    }
+
+    auto pgid = (uintptr_t)pi.dwProcessId;
+
+    status = NtDeviceIoControlFile(pty, 0, nullptr, nullptr, &iosb,
+                                   IOCTL_MOXNOX_PTY_SET_FOREGROUND_PROCESS_GROUP,
+                                   &pgid, sizeof(pgid), nullptr, 0);
+    if (!success(status)) {
+        print_stderr("IOCTL_MOXNOX_PTY_SET_FOREGROUND_PROCESS_GROUP returned {}\n", status);
+        NtTerminateProcess(proc.get(), status);
+        return false;
     }
 
     status = NtResumeThread(thread.get(), nullptr);
