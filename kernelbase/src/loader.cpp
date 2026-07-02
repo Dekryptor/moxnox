@@ -1,5 +1,6 @@
 #include <stdint.h>
 #include <winerror.h>
+#include <string.h>
 #include <string_view>
 
 import nt;
@@ -75,8 +76,20 @@ bool FreeLibrary(HMODULE mod) {
 
 extern "C"
 void* GetProcAddress(HMODULE mod, const char* function) {
-    print_stderr("FIXME - GetProcAddress {:x}, \"{}\"\n", (uintptr_t)mod, string_view(function));
+    nt_status status;
+    void* addr;
+    ANSI_STRING as;
 
-    RtlSetLastWin32Error(ERROR_PROC_NOT_FOUND);
-    return nullptr;
+    // FIXME - resolving by ordinal
+
+    as.Buffer = (char*)function;
+    as.Length = as.MaximumLength = (uint16_t)strlen(function);
+
+    status = LdrGetProcedureAddress(mod, &as, 0, &addr);
+    if (!success(status)) {
+        RtlSetLastWin32Error(RtlNtStatusToDosError(status));
+        return nullptr;
+    }
+
+    return addr;
 }
