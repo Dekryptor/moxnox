@@ -28,6 +28,7 @@ struct dll_entry {
     list_entry le;
     ldr_entry* ent;
     bool new_entry;
+    unsigned int refs;
 };
 
 extern "C"
@@ -1302,6 +1303,7 @@ static nt_status add_imports_to_list(dll_entry& de, list_entry& dlls) {
             auto& de2 = containing_record<dll_entry>(le);
 
             if (de2.ent == ent2) {
+                de2.refs++;
                 already_there = true;
                 break;
             }
@@ -1313,6 +1315,7 @@ static nt_status add_imports_to_list(dll_entry& de, list_entry& dlls) {
                 return nt_status::INSUFFICIENT_RESOURCES; // FIXME - cleanup
 
             de->ent = ent2;
+            de->refs = 1;
             de->new_entry = ent2->ldr.LoadCount == 1;
             insert_tail_list(dlls, de->le);
         }
@@ -1351,6 +1354,7 @@ nt_status LdrLoadDll(const char16_t* /*dll_path*/, uint32_t* /*dll_characteristi
             return nt_status::INSUFFICIENT_RESOURCES;
 
         de->ent = ent;
+        de->refs = 1;
         de->new_entry = true;
 
         insert_tail_list(dlls, de->le);
@@ -1373,7 +1377,7 @@ nt_status LdrLoadDll(const char16_t* /*dll_path*/, uint32_t* /*dll_characteristi
 
                     free(de2.ent);
                 } else
-                    de2.ent->ldr.LoadCount--;
+                    de2.ent->ldr.LoadCount -= (uint16_t)de2.refs;
 
                 delete &de2;
             }
