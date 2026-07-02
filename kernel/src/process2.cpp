@@ -4807,10 +4807,63 @@ nt_status process::set_pending_signal(span<const uint8_t> buffer) {
     return set_pending_signal2(*this, sig);
 }
 
+nt_status send_signal_to_process_group(process_group& pg, int sig) {
+    unique_ptr<process*[]> procs;
+    size_t max_count = 0, count = 0;
+
+    {
+        lock_guard lock(pg.procs_lock);
+
+        for (auto le = pg.procs.next; le != &pg.procs; le = le->next) {
+            max_count++;
+        }
+    }
+
+    if (max_count == 0)
+        return nt_status::SUCCESS;
+
+    procs.reset(new process*[max_count]);
+    if (!procs) {
+        print("new failed\n");
+        return nt_status::INSUFFICIENT_RESOURCES;
+    }
+
+    {
+        lock_guard lock(pg.procs_lock);
+
+        for (auto le = pg.procs.next; le != &pg.procs; le = le->next) {
+            auto& p = *(process*)((uint8_t*)le - offsetof(process, pg_le));
+
+            auto old = p.refcount.load();
+
+            while (old != 0 && !p.refcount.compare_exchange_weak(old, old + 1)) {
+            }
+
+            if (old == 0)
+                continue; // dying
+
+            procs[count] = &p;
+            count++;
+
+            if (count == max_count)
+                break;
+        }
+    }
+
+    auto status = nt_status::SUCCESS;
+
+    for (size_t i = 0; i < count; i++) {
+        if (auto status2 = set_pending_signal2(*procs[i], sig); !success(status2))
+            status = status2;
+
+        procs[i]->release();
+    }
+
+    return status;
+}
+
 nt_status process::set_pending_signal_process_group(span<const uint8_t> buffer) {
     process_group* pg2 = nullptr;
-    size_t max_count = 0, count = 0;
-    unique_ptr<process*[]> procs;
 
     if (buffer.size() != sizeof(MN_PENDING_SIGNAL_PROCESS_GROUP))
         return nt_status::INVALID_PARAMETER;
@@ -4833,58 +4886,9 @@ nt_status process::set_pending_signal_process_group(span<const uint8_t> buffer) 
     if (!pg2)
         return nt_status::INVALID_CID;
 
-    {
-        lock_guard lock(pg2->procs_lock);
-
-        for (auto le = pg2->procs.next; le != &pg2->procs; le = le->next) {
-            max_count++;
-        }
-    }
-
-    if (max_count == 0) {
-        pg2->release();
-        return nt_status::SUCCESS;
-    }
-
-    procs.reset(new process*[max_count]);
-    if (!procs) {
-        print("new failed\n");
-        pg2->release();
-        return nt_status::INSUFFICIENT_RESOURCES;
-    }
-
-    {
-        lock_guard lock(pg2->procs_lock);
-
-        for (auto le = pg2->procs.next; le != &pg2->procs; le = le->next) {
-            auto& p = *(process*)((uint8_t*)le - offsetof(process, pg_le));
-
-            auto old = p.refcount.load();
-
-            while (old != 0 && !p.refcount.compare_exchange_weak(old, old + 1)) {
-            }
-
-            if (old == 0)
-                continue; // dying
-
-            procs[count] = &p;
-            count++;
-
-            if (count == max_count)
-                break;
-        }
-    }
+    auto status = send_signal_to_process_group(*pg2, param.sig);
 
     pg2->release();
-
-    auto status = nt_status::SUCCESS;
-
-    for (size_t i = 0; i < count; i++) {
-        if (auto status2 = set_pending_signal2(*procs[i], param.sig); !success(status2))
-            status = status2;
-
-        procs[i]->release();
-    }
 
     return status;
 }
@@ -5161,4 +5165,20 @@ void process_group::release() {
     }
 
     delete this;
+}
+
+process_group* get_process_group(uintptr_t pgid) {
+    {
+        lock_guard lock(pg_tree_lock);
+
+        auto* tree = find_rbtree_node(pg_tree, pgid);
+        if (tree) {
+            auto pg = &rbtree_containing_record<process_group>(tree);
+            pg->acquire();
+
+            return pg;
+        }
+    }
+
+    return nullptr;
 }

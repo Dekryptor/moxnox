@@ -70,8 +70,8 @@ public:
     bool disconnected = false;
     termios settings;
 
-    spinlock fg_proc_lock;
-    object_ref fg_proc;
+    spinlock fg_pg_lock;
+    process_group* fg_pg = nullptr;
 
     rwsem input_buffer_lock;
     array<char, 4096> input_buffer;
@@ -85,7 +85,7 @@ private:
     nt_status tcgetattr(span<uint8_t> outbuf, uintptr_t& written);
     nt_status tcsetattr(span<const uint8_t> inbuf, bool flush);
     nt_status tcflush(span<const uint8_t> inbuf);
-    nt_status set_fg_proc(span<const uint8_t> inbuf);
+    nt_status set_fg_pg(span<const uint8_t> inbuf);
     nt_status get_info_stream(span<uint8_t> outbuf);
     nt_status get_size(span<uint8_t> outbuf, uintptr_t& written);
     nt_status set_size(span<const uint8_t> inbuf);
@@ -314,6 +314,9 @@ pty_client::pty_client(pipe& recv_pipe, pipe& send_pipe, uint16_t cols, uint16_t
 pty_client::~pty_client() {
     recv_pipe.release();
     send_pipe.release();
+
+    if (fg_pg)
+        fg_pg->release();
 }
 
 nt_status pty_client::read(span<uint8_t> s, uint64_t& read_bytes) {
@@ -749,30 +752,31 @@ nt_status pty_server::write(span<const uint8_t> s, uint64_t& written_bytes) {
                     written_bytes += bytes;
                 }
 
-                process* proc = nullptr;
+                process_group* pg = nullptr;
 
                 {
-                    lock_guard lock(client.fg_proc_lock);
+                    lock_guard lock(client.fg_pg_lock);
 
-                    if (client.fg_proc) {
-                        proc = static_cast<process*>(&client.fg_proc.get());
-                        proc->acquire();
+                    if (client.fg_pg) {
+                        pg = client.fg_pg;
+                        pg->acquire();
                     }
                 }
 
-                if (proc) {
+                if (pg) {
                     if (s[i] == client.settings.c_cc[VINTR]) {
-                        int sig = SIGINT;
-
-                        status = proc->set_pending_signal(span((uint8_t*)&sig, sizeof(sig)));
+                        status = send_signal_to_process_group(*pg, SIGINT);
                         if (!success(status))
-                            print("proc->set_pending_signal returned {}\n", status);
+                            print("send_signal_to_process_group returned {}\n", status);
                     } else if (s[i] == client.settings.c_cc[VSUSP]) {
-                        proc->suspend();
+                        status = send_signal_to_process_group(*pg, SIGTSTP);
+                        if (!success(status))
+                            print("send_signal_to_process_group returned {}\n", status);
+
                         client.post_info_event(pty_info_type::suspend); // FIXME - include pid or something?
                     }
 
-                    proc->release();
+                    pg->release();
                 }
 
                 written_bytes++;
@@ -873,8 +877,8 @@ nt_status pty_client::ioctl(uint32_t code, span<const uint8_t> inbuf,
         case IOCTL_MOXNOX_PTY_TCFLUSH:
             return tcflush(inbuf);
 
-        case IOCTL_MOXNOX_PTY_SET_FOREGROUND_PROCESS:
-            return set_fg_proc(inbuf);
+        case IOCTL_MOXNOX_PTY_SET_FOREGROUND_PROCESS_GROUP:
+            return set_fg_pg(inbuf);
 
         case IOCTL_MOXNOX_PTY_GET_INFO_STREAM:
             return get_info_stream(outbuf);
@@ -949,40 +953,62 @@ nt_status pty_client::tcflush(span<const uint8_t> inbuf) {
     return nt_status::SUCCESS;
 }
 
-nt_status pty_client::set_fg_proc(span<const uint8_t> inbuf) {
-    if (inbuf.empty()) {
-        object_ref r;
-
-        {
-            lock_guard lock(fg_proc_lock);
-            swap(r, fg_proc);
-        }
-
-        return nt_status::SUCCESS;
-    }
-
-    if (inbuf.size() < sizeof(HANDLE))
+nt_status pty_client::set_fg_pg(span<const uint8_t> inbuf) {
+    if (inbuf.size() < sizeof(uintptr_t))
         return nt_status::BUFFER_TOO_SMALL;
 
     auto& t = *get_current_thread();
-    auto h = *(HANDLE*)inbuf.data();
 
-    auto objref = t.proc->deref_handle(h);
+    // check this is the controlling terminal for the session
 
-    if (!objref)
-        return nt_status::INVALID_HANDLE;
-
-    // FIXME - check access mask
-
-    auto& obj = objref.get();
-
-    if (obj.type != object_type::process)
-        return nt_status::OBJECT_TYPE_MISMATCH;
+    session* sess;
 
     {
-        lock_guard lock(fg_proc_lock);
-        swap(fg_proc, objref);
+        lock_guard lock(t.proc->pg_lock);
+        sess = &t.proc->pg->sess;
+        sess->acquire();
     }
+
+    bool fail = false;
+
+    {
+        lock_guard lock(sess->lock);
+
+        if (!sess->terminal || &sess->terminal.get() != this)
+            fail = true;
+    }
+
+    sess->release();
+
+    if (fail)
+        return nt_status::INVALID_PARAMETER;
+
+    auto pgid = *(uintptr_t*)inbuf.data();
+
+    auto pg = get_process_group(pgid);
+    if (!pg)
+        return nt_status::INVALID_PARAMETER;
+
+    {
+        lock_guard lock(t.proc->pg_lock);
+
+        if (&t.proc->pg->sess != &pg->sess)
+            fail = true;
+    }
+
+    if (fail) {
+        pg->release();
+        return nt_status::ACCESS_DENIED;
+    }
+
+    {
+        lock_guard lock(fg_pg_lock);
+
+        swap(fg_pg, pg);
+    }
+
+    if (pg)
+        pg->release();
 
     return nt_status::SUCCESS;
 }

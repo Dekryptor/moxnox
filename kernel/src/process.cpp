@@ -214,6 +214,8 @@ export void load_ntdll();
 export void create_time_page();
 export void send_page_tlb_ipi(process& proc, uint64_t va, uint64_t num_pages);
 export object_ref create_init_process();
+export process_group* get_process_group(uintptr_t pgid);
+export nt_status send_signal_to_process_group(process_group& pg, int sig);
 
 #ifdef __aarch64__
 export ARM64_HARDWARE_PTE* find_pte(process& proc, uintptr_t va);
