@@ -2024,21 +2024,6 @@ static string_view get_os_version() {
     return sv;
 }
 
-static bool set_pty_fg_proc(HANDLE client_handle, HANDLE proc) {
-    nt_status status;
-    IO_STATUS_BLOCK iosb;
-
-    status = NtDeviceIoControlFile(client_handle, 0, nullptr, nullptr, &iosb,
-                                   IOCTL_MOXNOX_PTY_SET_FOREGROUND_PROCESS,
-                                   &proc, sizeof(proc), nullptr, 0);
-    if (!success(status)) {
-        print_stderr("IOCTL_MOXNOX_PTY_SET_FOREGROUND_PROCESS returned {}\n", status);
-        return false;
-    }
-
-    return true;
-}
-
 static void run_shell(const char16_t* exe, void (*recv_func)(string_view),
                       void (*flush_func)(), bool& decckm, uint16_t cols,
                       uint16_t rows, HANDLE& console_server_handle) {
@@ -2228,11 +2213,6 @@ static void run_shell(const char16_t* exe, void (*recv_func)(string_view),
                                          &pty, sizeof(pty));
         if (!success(status)) {
             print_stderr("NtSetInformationProcess returned {} for MoxnoxSetControllingTerminal\n", status);
-            NtTerminateProcess(proc.get(), status);
-            return false;
-        }
-
-        if (!set_pty_fg_proc(client_handle.get(), proc.get())) {
             NtTerminateProcess(proc.get(), status);
             return false;
         }
@@ -2637,11 +2617,6 @@ static int do_serial_console(const char16_t* exe) {
                                          &pty, sizeof(pty));
         if (!success(status)) {
             print_stderr("NtSetInformationProcess returned {} for MoxnoxSetControllingTerminal\n", status);
-            NtTerminateProcess(proc.get(), status);
-            return false;
-        }
-
-        if (!set_pty_fg_proc(client_handle.get(), proc.get())) {
             NtTerminateProcess(proc.get(), status);
             return false;
         }
