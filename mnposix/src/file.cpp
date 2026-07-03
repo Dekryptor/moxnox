@@ -638,9 +638,66 @@ int link(const char* oldpath, const char* newpath) {
 
 extern "C"
 int statvfs(const char* path, struct statvfs* buf) {
-    print("FIXME - statvfs\n");
+    auto peb = NtCurrentTeb()->ProcessEnvironmentBlock;
+    nt_status status;
+    OBJECT_ATTRIBUTES oa;
+    UNICODE_STRING us;
+    IO_STATUS_BLOCK iosb;
+    unique_ptr<char16_t[]> u16;
+    HANDLE h;
+    unique_handle f;
+    FILE_FS_SIZE_INFORMATION fsinfo;
 
-    *_errno() = EINVAL;
+    if (!path || path[0] == 0) {
+        *_errno() = EINVAL;
+        return -1;
+    }
 
-    return -1;
+    auto fn = string_view(path);
+
+    auto u16len = utf8_to_utf16_len(fn);
+    u16.reset(new char16_t[u16len]);
+    if (!u16) {
+        *_errno() = ENOMEM;
+        return -1;
+    }
+
+    utf8_to_utf16(span(u16.get(), u16len), fn);
+
+    us.Length = us.MaximumLength = (uint16_t)(u16len * sizeof(char16_t));
+    us.Buffer = u16.get();
+
+    memset(&oa, 0, sizeof(oa));
+    oa.Length = sizeof(OBJECT_ATTRIBUTES);
+    oa.ObjectName = &us;
+    oa.RootDirectory = peb->ProcessParameters->CurrentDirectory.Handle;
+
+    status = NtCreateFile(&h, FILE_READ_ATTRIBUTES, &oa, &iosb, nullptr,
+                          0, 0, FILE_OPEN, 0, nullptr, 0);
+    if (!success(status)) {
+        *_errno() = nt_status_to_errno(status);
+        return -1;
+    } else
+        f.reset(h);
+
+    status = NtQueryVolumeInformationFile(f.get(), &iosb, &fsinfo, sizeof(fsinfo),
+                                          FS_INFORMATION_CLASS::SizeInformation);
+    if (!success(status)) {
+        *_errno() = nt_status_to_errno(status);
+        return -1;
+    }
+
+    buf->f_bsize = fsinfo.BytesPerSector * fsinfo.SectorsPerAllocationUnit;
+    buf->f_frsize = buf->f_bsize;
+    buf->f_blocks = (uint64_t)fsinfo.TotalAllocationUnits.QuadPart;
+    buf->f_bfree = (uint64_t)fsinfo.AvailableAllocationUnits.QuadPart;
+    buf->f_bavail = buf->f_bfree;
+    buf->f_files = 0; // FIXME?
+    buf->f_ffree = 0; // FIXME?
+    buf->f_favail = 0; // FIXME?
+    buf->f_fsid = 0; // FIXME?
+    buf->f_flag = 0; // FIXME - get readonly flag etc. from FS (ST_RDONLY)
+    buf->f_namemax = 255; // same as Linux
+
+    return 0;
 }
