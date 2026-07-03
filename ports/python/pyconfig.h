@@ -232,15 +232,15 @@
 
 /* Define to 1 if you have the declaration of `RTLD_GLOBAL', and to 0 if you
    don't. */
-/* #undef HAVE_DECL_RTLD_GLOBAL (moxnox) */
+#define HAVE_DECL_RTLD_GLOBAL 1
 
 /* Define to 1 if you have the declaration of `RTLD_LAZY', and to 0 if you
    don't. */
-/* #undef HAVE_DECL_RTLD_LAZY (moxnox) */
+#define HAVE_DECL_RTLD_LAZY 1
 
 /* Define to 1 if you have the declaration of `RTLD_LOCAL', and to 0 if you
    don't. */
-/* #undef HAVE_DECL_RTLD_LOCAL (moxnox) */
+#define HAVE_DECL_RTLD_LOCAL 1
 
 /* Define to 1 if you have the declaration of `RTLD_MEMBER', and to 0 if you
    don't. */
@@ -256,7 +256,7 @@
 
 /* Define to 1 if you have the declaration of `RTLD_NOW', and to 0 if you
    don't. */
-/* #undef HAVE_DECL_RTLD_NOW (moxnox) */
+#define HAVE_DECL_RTLD_NOW 1
 
 /* Define to 1 if you have the declaration of `tzname', and to 0 if you don't.
    */
