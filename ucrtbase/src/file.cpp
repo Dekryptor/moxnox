@@ -1874,12 +1874,16 @@ int __dup2(int oldfd, int newfd) {
 
     RtlLeaveCriticalSection(&fds_lock);
 
-    if (newfd == 0)
+    if (newfd == 0) {
         peb.ProcessParameters->StandardInput = newh;
-    else if (newfd == 1)
+        reinterpret_cast<_FILE*>(&_stdin)->h = newh;
+    } else if (newfd == 1) {
         peb.ProcessParameters->StandardOutput = newh;
-    else if (newfd == 2)
+        reinterpret_cast<_FILE*>(&_stdout)->h = newh;
+    } else if (newfd == 2) {
         peb.ProcessParameters->StandardError = newh;
+        reinterpret_cast<_FILE*>(&_stderr)->h = newh;
+    }
 
     return newfd;
 }
