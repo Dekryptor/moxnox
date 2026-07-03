@@ -3,6 +3,7 @@
 #include <stdint.h>
 #include <sys/types.h>
 #include <sys/stat.h>
+#include <sys/statvfs.h>
 #include <string_view>
 #include <span>
 #include <memory>
@@ -12,6 +13,7 @@ import nt;
 import ntdll;
 import unicode;
 import unique_handle;
+import print;
 
 #undef errno
 import errno;
@@ -632,4 +634,13 @@ int link(const char* oldpath, const char* newpath) {
     }
 
     return 0;
+}
+
+extern "C"
+int statvfs(const char* path, struct statvfs* buf) {
+    print("FIXME - statvfs\n");
+
+    *_errno() = EINVAL;
+
+    return -1;
 }

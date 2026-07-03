@@ -134,3 +134,4 @@ dlopen
 dlclose
 dlerror
 dlsym
+statvfs

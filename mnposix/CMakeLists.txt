@@ -33,7 +33,6 @@ target_compile_options(tre PRIVATE -include ../ports/tre/tre-internal-fix.h)
 
 add_library(mnposix SHARED
     src/mnposix.def
-    src/stubs.S
     src/termios.cpp
     src/sleep.cpp
     src/signal.cpp
