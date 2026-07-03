@@ -1822,6 +1822,42 @@ NTSTATUS user_NtFsControlFile(HANDLE file_handle, HANDLE event,
 }
 
 extern "C"
+NTSTATUS user_NtQueryVolumeInformationFile(HANDLE file_handle,
+                                           IO_STATUS_BLOCK* us_iosb,
+                                           void* us_fs_information, uint32_t length,
+                                           FS_INFORMATION_CLASS fs_information_class) {
+    IO_STATUS_BLOCK iosb;
+
+    if (!us_iosb || !us_fs_information || length == 0)
+        return nt_status::INVALID_PARAMETER;
+
+    if (length > PAGE_SIZE)
+        length = PAGE_SIZE;
+
+    auto buf = malloc(length);
+    if (!buf) {
+        print("malloc failed\n");
+        return nt_status::INSUFFICIENT_RESOURCES;
+    }
+
+    auto ret = NtQueryVolumeInformationFile(file_handle, &iosb, buf, length,
+                                            fs_information_class);
+    if (success(ret)) {
+        if (!copy_to_process(us_fs_information, buf, iosb.Information)) {
+            free(buf);
+            return nt_status::ACCESS_VIOLATION;
+        }
+
+        free(buf);
+
+        if (!copy_to_process(us_iosb, &iosb, sizeof(IO_STATUS_BLOCK)))
+            return nt_status::ACCESS_VIOLATION;
+    }
+
+    return ret;
+}
+
+extern "C"
 uint64_t maybe_yield_after_syscall(uint64_t syscall_ret) {
     // interrupts are disabled and sync_lock held
 

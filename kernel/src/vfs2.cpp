@@ -2818,3 +2818,14 @@ NTSTATUS NtFsControlFile(HANDLE file_handle, HANDLE /*event*/,
 
     return ret;
 }
+
+extern "C"
+NTSTATUS NtQueryVolumeInformationFile(HANDLE /*file_handle*/, IO_STATUS_BLOCK* /*iosb*/,
+                                      void* /*fs_information*/, uint32_t /*length*/,
+                                      FS_INFORMATION_CLASS /*fs_information_class*/) {
+    print("FIXME - NtQueryVolumeInformationFile\n");
+
+    // FIXME
+
+    return nt_status::NOT_IMPLEMENTED;
+}

@@ -133,7 +133,7 @@ syscall_stub "NtQueryTimer"
 syscall_stub "NtQueryTimerResolution"
 syscall_stub "NtQueryValueKey"
 syscall_func "NtQueryVirtualMemory", 6
-syscall_stub "NtQueryVolumeInformationFile"
+syscall_func "NtQueryVolumeInformationFile", 5
 syscall_func "NtQueueApcThread", 5
 syscall_stub "NtRaiseException"
 syscall_stub "NtRaiseHardError"
