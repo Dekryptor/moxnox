@@ -783,33 +783,47 @@ consteval bool format_spec_valid<FILE_INFORMATION_CLASS>(string_view fmt) {
 
 export span<char> do_format_arg(span<char> sp, string_view fmt, string_view arg,
                                 optional<uint64_t> arg2 = nullopt) {
-    size_t padding;
+    size_t padding = 0;
+    bool right_pad = false;
 
-    if (arg2.has_value())
-        padding = (size_t)*arg2;
-    else {
-        padding = 0;
+    if (fmt.size() >= 2 && fmt.front() == ':') {
+        fmt = string_view(fmt.data() + 1, fmt.size() - 1);
 
-        if (fmt.size() >= 2 && fmt.front() == ':') {
+        if (fmt.size() > 1 && fmt.front() == '>') {
+            right_pad = true;
             fmt = string_view(fmt.data() + 1, fmt.size() - 1);
+        }
 
+        if (arg2.has_value())
+            padding = (size_t)*arg2;
+        else {
             for (size_t i = 0; i < fmt.size(); i++) {
                 padding *= 10;
                 padding += (size_t)(fmt[i] - '0');
             }
         }
-    }
+    } else if (arg2.has_value())
+        padding = (size_t)*arg2;
 
     if (padding > arg.size())
         padding -= arg.size();
     else
         padding = 0;
 
+    if (right_pad) {
+        while (padding > 0) {
+            sp = sp_strcpy(sp, " ");
+            padding--;
+        }
+    }
+
     sp = sp_strcpy(sp, arg);
 
-    while (padding > 0) {
-        sp = sp_strcpy(sp, " ");
-        padding--;
+    if (!right_pad) {
+        while (padding > 0) {
+            sp = sp_strcpy(sp, " ");
+            padding--;
+        }
     }
 
     return sp;
@@ -819,6 +833,9 @@ template<>
 consteval bool format_spec_valid<string_view>(string_view fmt) {
     if (fmt.size() >= 2 && fmt.front() == ':') {
         fmt = string_view(fmt.data() + 1, fmt.size() - 1);
+
+        if (fmt.size() > 1 && fmt.front() == '>')
+            fmt = string_view(fmt.data() + 1, fmt.size() - 1);
 
         if (fmt.size() == 2 && fmt[0] == '{' && fmt[1] == '}')
             return true;
@@ -1149,11 +1166,41 @@ consteval bool format_spec_valid<chrono::hh_mm_ss<chrono::seconds>>(string_view 
 
 void checker_failure();
 
+template<typename T>
+concept supports_arg2 = requires(T t) {
+    { do_format_arg(span<char>(), string_view{}, t, optional<uint64_t>(nullopt)) };
+};
+
+static_assert(supports_arg2<unsigned int>);
+static_assert(supports_arg2<string_view>);
+
+template<size_t N, typename... Args>
+auto tuple_drop_n(tuple<Args...>&& t) {
+    if constexpr (N >= sizeof...(Args))
+        return tuple<>();
+    else {
+        return []<size_t... Is>(auto&& tuple, index_sequence<Is...>) {
+            return forward_as_tuple(get<Is + N>(std::forward<decltype(tuple)>(tuple))...);
+        }(std::forward<tuple<Args...>>(t), make_index_sequence<sizeof...(Args) - N>{});
+    }
+}
+
 template<typename T, typename... Args>
 consteval void check_specs(span<string_view, sizeof...(Args) + 1> sp,
                            tuple<T, Args...>*) {
-    if (!format_spec_valid<decay_t<T>>(sp[0]))
+    using type = decay_t<T>;
+
+    if (!format_spec_valid<type>(sp[0]))
         checker_failure();
+
+    if constexpr (sizeof...(Args) > 1 && supports_arg2<type>) {
+        if (sp[0].size() >= 2 && sp[0][sp[0].size() - 2] == '{' && sp[0][sp[0].size() - 1] == '}') {
+            using left_type = decltype(tuple_drop_n<2>(declval<tuple<T, Args...>>()));
+
+            check_specs(span<string_view, sizeof...(Args) - 1>(sp.data() + 2, sp.size() - 2), (left_type*)nullptr);
+            return;
+        }
+    }
 
     if constexpr (sizeof...(Args) > 0)
         check_specs(span<string_view, sizeof...(Args)>(sp.data() + 1, sp.size() - 1), (tuple<Args...>*)nullptr);
@@ -1226,6 +1273,9 @@ struct checker {
 
                 spec[pos] = s.substr(1, end - 1);
 
+                if (spec[pos].size() >= 2 && spec[pos][spec[pos].size() - 1] == '}' && spec[pos][spec[pos].size() - 2] == '{')
+                    pos++;
+
                 s = s.substr(end + 1);
                 pos++;
                 continue;
@@ -1240,25 +1290,6 @@ struct checker {
 
     string_view sv;
 };
-
-template<size_t N, typename... Args>
-auto tuple_drop_n(tuple<Args...>&& t) {
-    if constexpr (N >= sizeof...(Args))
-        return tuple<>();
-    else {
-        return []<size_t... Is>(auto&& tuple, index_sequence<Is...>) {
-            return forward_as_tuple(get<Is + N>(std::forward<decltype(tuple)>(tuple))...);
-        }(std::forward<tuple<Args...>>(t), make_index_sequence<sizeof...(Args) - N>{});
-    }
-}
-
-template<typename T>
-concept supports_arg2 = requires(T t) {
-    { do_format_arg(span<char>(), string_view{}, t, optional<uint64_t>(nullopt)) };
-};
-
-static_assert(supports_arg2<unsigned int>);
-static_assert(supports_arg2<string_view>);
 
 export
 template<typename... Args>
