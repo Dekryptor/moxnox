@@ -463,6 +463,7 @@ target_include_directories(libgit PUBLIC
     ${CMAKE_CURRENT_SOURCE_DIR}/repo
     ${CMAKE_CURRENT_SOURCE_DIR}/repo/compat
     ${CMAKE_CURRENT_SOURCE_DIR}/repo/compat/regex
+    ${CMAKE_CURRENT_SOURCE_DIR}/generated
 )
 
 target_compile_definitions(libgit PUBLIC
