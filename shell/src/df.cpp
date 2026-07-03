@@ -6,6 +6,7 @@
 #include <getopt.h>
 #include <utility>
 #include <memory>
+#include <algorithm>
 
 import nt;
 import ntdll;
