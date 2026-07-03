@@ -6,6 +6,7 @@ module;
 #include <string_view>
 #include <optional>
 #include <memory>
+#include <span>
 #include <string.h>
 #include <stdlib.h>
 
