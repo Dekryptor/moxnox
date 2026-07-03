@@ -831,28 +831,6 @@ process::~process() {
         c.release();
     }
 
-    while (true) {
-        mapping* m;
-
-        {
-            lock_guard lock(mappings_lock);
-
-            if (is_list_empty(mappings))
-                break;
-
-            m = &containing_record<mapping>(mappings.next);
-
-            remove_entry_list(m->le);
-        }
-
-        m->release();
-    }
-
-    if (img)
-        img->get().release();
-
-    free_page_tables(*this);
-
     {
         lock_guard lock(pg->procs_lock);
         remove_entry_list(this->pg_le);
@@ -1923,6 +1901,28 @@ void process::terminate() {
 
         free_handle(handles2);
     }
+
+    while (true) {
+        mapping* m;
+
+        {
+            lock_guard lock(mappings_lock);
+
+            if (is_list_empty(mappings))
+                break;
+
+            m = &containing_record<mapping>(mappings.next);
+
+            remove_entry_list(m->le);
+        }
+
+        m->release();
+    }
+
+    if (img)
+        img->get().release();
+
+    free_page_tables(*this);
 }
 
 static nt_status terminate_other_threads(nt_status exit_status) {
