@@ -3,7 +3,6 @@
 stubs_start
 
 do_stub "dlsym"
-do_stub "dlclose"
 do_stub "dlerror"
 do_stub "statvfs"
 

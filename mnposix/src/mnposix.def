@@ -131,3 +131,4 @@ getpgid
 tcsetpgrp
 tcgetpgrp
 dlopen
+dlclose

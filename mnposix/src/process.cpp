@@ -229,3 +229,14 @@ void* dlopen(const char* file, int flags) {
 
     return dll;
 }
+
+extern "C"
+int dlclose(void* handle) {
+    auto status = LdrUnloadDll(handle);
+    if (!success(status)) {
+        // FIXME - store error
+        return 1;
+    }
+
+    return 0;
+}

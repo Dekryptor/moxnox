@@ -131,9 +131,9 @@ getpgid
 tcsetpgrp
 tcgetpgrp
 dlopen
+dlclose
 
 ; stubs
 dlsym
-dlclose
 dlerror
 statvfs
