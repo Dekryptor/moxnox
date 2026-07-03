@@ -25,6 +25,8 @@ public:
     devfs_filesystem();
 
     nt_status flush(bool make_readonly) override;
+    nt_status query_volume(FS_INFORMATION_CLASS fs_information_class,
+                           span<uint8_t> buf, uint32_t& retlen) override;
 
     spinlock inode_lock;
     list_entry inode_list = { &inode_list, &inode_list };
@@ -326,4 +328,13 @@ nt_status devfs_inode::hardlink(::dentry& /*dentry*/, ::dentry& /*dest_dir*/,
                                 string_view /*name*/, bool /*replace_if_exists*/,
                                 object_ref& /*victim*/) {
     return nt_status::NOT_SUPPORTED;
+}
+
+nt_status devfs_filesystem::query_volume(FS_INFORMATION_CLASS /*fs_information_class*/,
+                                         span<uint8_t> /*buf*/, uint32_t& /*retlen*/) {
+    print("FIXME - devfs_filesystem::query_volume\n");
+
+    // FIXME
+
+    return nt_status::NOT_IMPLEMENTED;
 }

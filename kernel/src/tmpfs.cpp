@@ -94,6 +94,8 @@ public:
     tmpfs_filesystem();
 
     nt_status flush(bool make_readonly) override;
+    nt_status query_volume(FS_INFORMATION_CLASS fs_information_class,
+                           span<uint8_t> buf, uint32_t& retlen) override;
 
     bool readonly = false;
 };
@@ -1094,4 +1096,13 @@ nt_status tmpfs_inode::hardlink(::dentry& dentry, ::dentry& dest_dir,
     }
 
     return nt_status::SUCCESS;
+}
+
+nt_status tmpfs_filesystem::query_volume(FS_INFORMATION_CLASS fs_information_class,
+                                         span<uint8_t> buf, uint32_t& retlen) {
+    print("FIXME - tmpfs_filesystem::query_volume\n");
+
+    // FIXME
+
+    return nt_status::NOT_IMPLEMENTED;
 }

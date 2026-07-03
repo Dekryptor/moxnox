@@ -223,6 +223,8 @@ public:
     nt_status read_into_cache(uint64_t page_num, uint64_t num_pages,
                               uint64_t& read_pages);
     nt_status flush_cache(uint64_t page_num, uint64_t num_pages);
+    nt_status query_volume(FS_INFORMATION_CLASS fs_information_class,
+                           span<uint8_t> buf, uint32_t& retlen) override;
 
     btrfs_super_block* sb = nullptr;
     bool valid = false;
@@ -6931,4 +6933,13 @@ nt_status btrfs_inode::set_reparse_point(span<const uint8_t> inbuf,
     }
 
     return nt_status::SUCCESS;
+}
+
+nt_status btrfs_filesystem::query_volume(FS_INFORMATION_CLASS /*fs_information_class*/,
+                                         span<uint8_t> /*buf*/, uint32_t& /*retlen*/) {
+    print("FIXME - btrfs_filesystem::query_volume\n");
+
+    // FIXME
+
+    return nt_status::NOT_IMPLEMENTED;
 }

@@ -74,6 +74,8 @@ public:
     filesystem(volume* vol) : vol(vol) { }
     virtual ~filesystem() { }
     virtual nt_status flush(bool make_readonly) = 0;
+    virtual nt_status query_volume(FS_INFORMATION_CLASS fs_information_class,
+                                   span<uint8_t> buf, uint32_t& retlen) = 0;
 
     void acquire() {
         refcount++;

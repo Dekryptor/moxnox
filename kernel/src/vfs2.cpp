@@ -2819,13 +2819,15 @@ NTSTATUS NtFsControlFile(HANDLE file_handle, HANDLE /*event*/,
     return ret;
 }
 
-nt_status file::query_volume(FS_INFORMATION_CLASS /*fs_information_class*/,
-                             span<uint8_t> /*buf*/, uint32_t& /*retlen*/) {
-    print("FIXME - file::query_volume\n");
+nt_status file::query_volume(FS_INFORMATION_CLASS fs_information_class,
+                             span<uint8_t> buf, uint32_t& retlen) {
+    // FIXME - should work for entries in devfs too?
+    if (ino.type != object_type::inode)
+        return nt_status::INVALID_PARAMETER;
 
-    // FIXME
+    auto& i = static_cast<inode&>(ino);
 
-    return nt_status::NOT_IMPLEMENTED;
+    return i.fs.query_volume(fs_information_class, buf, retlen);
 }
 
 extern "C"
