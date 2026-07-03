@@ -239,6 +239,8 @@ public:
                                uint64_t& retlen);
     nt_status fs_control(uint32_t code, span<const uint8_t> inbuf,
                          span<uint8_t> outbuf, uint32_t& retlen);
+    nt_status query_volume(FS_INFORMATION_CLASS fs_information_class,
+                           span<uint8_t> buf, uint32_t& retlen);
     void last_handle_closed();
 
 private:

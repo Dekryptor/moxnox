@@ -2819,13 +2819,37 @@ NTSTATUS NtFsControlFile(HANDLE file_handle, HANDLE /*event*/,
     return ret;
 }
 
-extern "C"
-NTSTATUS NtQueryVolumeInformationFile(HANDLE /*file_handle*/, IO_STATUS_BLOCK* /*iosb*/,
-                                      void* /*fs_information*/, uint32_t /*length*/,
-                                      FS_INFORMATION_CLASS /*fs_information_class*/) {
-    print("FIXME - NtQueryVolumeInformationFile\n");
+nt_status file::query_volume(FS_INFORMATION_CLASS /*fs_information_class*/,
+                             span<uint8_t> /*buf*/, uint32_t& /*retlen*/) {
+    print("FIXME - file::query_volume\n");
 
     // FIXME
 
     return nt_status::NOT_IMPLEMENTED;
+}
+
+extern "C"
+NTSTATUS NtQueryVolumeInformationFile(HANDLE file_handle, IO_STATUS_BLOCK* iosb,
+                                      void* fs_information, uint32_t length,
+                                      FS_INFORMATION_CLASS fs_information_class) {
+    uint32_t retlen = 0;
+
+    auto objrw = deref_handle(file_handle);
+    if (!objrw)
+        return nt_status::INVALID_HANDLE;
+
+    auto& obj = objrw.get();
+
+    if (obj.type != object_type::file)
+        return nt_status::INVALID_HANDLE;
+
+    auto& f = static_cast<file&>(obj);
+
+    auto ret = f.query_volume(fs_information_class,
+                              span((uint8_t*)fs_information, length), retlen);
+
+    if (success(ret))
+        iosb->Information = retlen;
+
+    return ret;
 }
