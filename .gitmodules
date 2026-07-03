@@ -66,7 +66,7 @@
 	url = https://git.burntcomma.com/moxnox/cpython
 [submodule "ports/binutils/repo"]
 	path = ports/binutils/repo
-	url = https://git.burntcomma.com/moxnox/binutils-gdb
+	url = https://git.burntcomma.com/moxnox/binutils-cc
 [submodule "ports/git/repo"]
 	path = ports/git/repo
 	url = https://git.burntcomma.com/moxnox/git
