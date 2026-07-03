@@ -17,6 +17,8 @@ import objects;
 import unicode;
 import module_init;
 import visit;
+import config;
+import mem;
 
 using namespace std;
 
@@ -30,6 +32,9 @@ public:
 
     spinlock inode_lock;
     list_entry inode_list = { &inode_list, &inode_list };
+
+private:
+    nt_status query_volume_size_info(span<uint8_t> buf, uint32_t& retlen);
 };
 
 class devfs_inode : public inode {
@@ -330,11 +335,32 @@ nt_status devfs_inode::hardlink(::dentry& /*dentry*/, ::dentry& /*dest_dir*/,
     return nt_status::NOT_SUPPORTED;
 }
 
-nt_status devfs_filesystem::query_volume(FS_INFORMATION_CLASS /*fs_information_class*/,
-                                         span<uint8_t> /*buf*/, uint32_t& /*retlen*/) {
-    print("FIXME - devfs_filesystem::query_volume\n");
+nt_status devfs_filesystem::query_volume(FS_INFORMATION_CLASS fs_information_class,
+                                         span<uint8_t> buf, uint32_t& retlen) {
+    switch (fs_information_class) {
+        using enum FS_INFORMATION_CLASS;
 
-    // FIXME
+        case SizeInformation:
+            return query_volume_size_info(buf, retlen);
 
-    return nt_status::NOT_IMPLEMENTED;
+        default:
+            return nt_status::NOT_SUPPORTED;
+    }
+}
+
+nt_status devfs_filesystem::query_volume_size_info(span<uint8_t> buf,
+                                                   uint32_t& retlen) {
+    if (buf.size() < sizeof(FILE_FS_SIZE_INFORMATION))
+        return nt_status::INVALID_PARAMETER;
+
+    auto& info = *(FILE_FS_SIZE_INFORMATION*)buf.data();
+
+    info.TotalAllocationUnits.QuadPart = num_ram_pages;
+    info.AvailableAllocationUnits.QuadPart = info.TotalAllocationUnits.QuadPart;
+    info.SectorsPerAllocationUnit = 1;
+    info.BytesPerSector = PAGE_SIZE;
+
+    retlen = sizeof(FILE_FS_SIZE_INFORMATION);
+
+    return nt_status::SUCCESS;
 }
