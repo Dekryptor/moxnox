@@ -396,7 +396,7 @@ set_source_files_properties(${PYTHON_DECIMAL_SOURCES} PROPERTIES
     COMPILE_DEFINITIONS "CONFIG_64;${PYTHON_MPD_ASM}"
     COMPILE_OPTIONS "-I${CMAKE_CURRENT_SOURCE_DIR}/repo/Modules/_decimal/libmpdec")
 
-add_library(libpython STATIC
+add_library(libpython SHARED
     ${PYTHON_CORE_SOURCES}
     ${PYTHON_DECIMAL_SOURCES}
     config.c
@@ -475,6 +475,10 @@ target_compile_options(libpython PRIVATE
 )
 
 target_link_libraries(libpython PRIVATE moxnox ncurses zlib readline libssl libcrypto)
+
+install(TARGETS libpython DESTINATION ${CMAKE_INSTALL_PREFIX}/lib)
+
+###
 
 add_executable(python_exe repo/Programs/python.c)
 
