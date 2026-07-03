@@ -401,6 +401,7 @@ add_library(libpython SHARED
     ${PYTHON_DECIMAL_SOURCES}
     config.c
     repo/Modules/getpath.c
+    libpython.def
 )
 
 add_dependencies(libpython python_frozen python_patched_headers)
