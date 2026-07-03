@@ -513,7 +513,7 @@ target_compile_definitions(libgit PUBLIC
     "ETC_GITCONFIG=\"etc/gitconfig\""
     "ETC_GITATTRIBUTES=\"etc/gitattributes\""
     "GIT_HOST_CPU=\"x86_64\""
-    "PAGER_ENV=\"\""
+    "PAGER_ENV=\"LESS=FRX LV=-c\""
     "DEFAULT_GIT_TEMPLATE_DIR=\"share/git-core/templates\""
 )
 
