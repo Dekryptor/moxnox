@@ -35,7 +35,8 @@ struct mount_info {
     string_view directory;
 };
 
-static void get_mount_info(HANDLE vfsctl, uint64_t num, mount_info& mi) {
+static void get_mount_info(HANDLE vfsctl, uint64_t num, mount_info& mi,
+                           bool human_readable) {
     IO_STATUS_BLOCK iosb;
     nt_status status;
     OBJECT_ATTRIBUTES oa;
@@ -117,9 +118,17 @@ static void get_mount_info(HANDLE vfsctl, uint64_t num, mount_info& mi) {
     span directory_span = span(mi.directory_buf, sizeof(mi.directory_buf));
 
     source_span = format(source_span, "{}", source);
-    total_span = format(total_span, "{}", total_size / 1024);
-    used_span = format(used_span, "{}", used_size / 1024);
-    available_span = format(available_span, "{}", (total_size - used_size) / 1024);
+
+    if (human_readable) {
+        total_span = format(total_span, "{}", byte_size(total_size));
+        used_span = format(used_span, "{}", byte_size(used_size));
+        available_span = format(available_span, "{}", byte_size(total_size - used_size));
+    } else {
+        total_span = format(total_span, "{}", total_size / 1024);
+        used_span = format(used_span, "{}", used_size / 1024);
+        available_span = format(available_span, "{}", (total_size - used_size) / 1024);
+    }
+
     usedpc_span = format(usedpc_span, " {:2}%", used_size * 100 / total_size);
     directory_span = format(directory_span, "{}", directory);
 
@@ -194,7 +203,7 @@ static int list_all(bool human_readable) {
     }
 
     for (unsigned int i = 0; i < lm2->num; i++) {
-        get_mount_info(vfsctl.get(), lm2->ids[i], info[i + 1]);
+        get_mount_info(vfsctl.get(), lm2->ids[i], info[i + 1], human_readable);
     }
 
     info[0].source = "Filesystem";
@@ -244,7 +253,7 @@ int main(int argc, char** argv) {
             break;
 
         switch (c) {
-            case 't':
+            case 'h':
                 human_readable = true;
                 break;
 
