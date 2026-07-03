@@ -1546,6 +1546,23 @@ struct REPARSE_DATA_BUFFER {
     };
 };
 
+enum class FS_INFORMATION_CLASS {
+    VolumeInformation = 1,
+    LabelInformation,
+    SizeInformation,
+    DeviceInformation,
+    AttributeInformation,
+    ControlInformation,
+    FullSizeInformation,
+    ObjectIdInformation,
+    DriverPathInformation,
+    VolumeFlagsInformation,
+    SectorSizeInformation,
+    DataCopyInformation,
+    MetadataSizeInformation,
+    FullSizeInformationEx,
+};
+
 extern "C" {
 
 NTSTATUS NtDisplayString(const UNICODE_STRING* string);
@@ -1683,6 +1700,10 @@ NTSTATUS NtFsControlFile(HANDLE file_handle, HANDLE event,
                          IO_STATUS_BLOCK* iosb, uint32_t code,
                          void* input_buffer, uint32_t input_buffer_length,
                          void* output_buffer, uint32_t output_buffer_length);
+NTSTATUS NtQueryVolumeInformationFile(HANDLE file_handle,
+                                      IO_STATUS_BLOCK* io_status_block,
+                                      void* fs_information, uint32_t length,
+                                      FS_INFORMATION_CLASS fs_information_class);
 
 };
 
