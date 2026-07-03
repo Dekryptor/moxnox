@@ -2,7 +2,6 @@
 
 stubs_start
 
-do_stub "dlopen"
 do_stub "dlsym"
 do_stub "dlclose"
 do_stub "dlerror"

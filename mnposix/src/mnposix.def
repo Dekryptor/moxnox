@@ -130,3 +130,4 @@ setpgid
 getpgid
 tcsetpgrp
 tcgetpgrp
+dlopen

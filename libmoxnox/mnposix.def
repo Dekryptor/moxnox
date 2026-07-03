@@ -130,9 +130,9 @@ setpgid
 getpgid
 tcsetpgrp
 tcgetpgrp
+dlopen
 
 ; stubs
-dlopen
 dlsym
 dlclose
 dlerror

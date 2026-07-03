@@ -1,12 +1,20 @@
 #include <unistd.h>
 #include <string.h>
 #include <errno.h>
+#include <dlfcn.h>
+#include <memory>
+#include <string_view>
+#include <span>
 
 import nt;
+import ntdll;
 import unique_handle;
+import unicode;
 
 #undef errno
 import errno;
+
+using namespace std;
 
 extern "C"
 pid_t getsid(pid_t pid) {
@@ -166,4 +174,58 @@ pid_t getpgid(pid_t pid) {
     }
 
     return (pid_t)ret;
+}
+
+extern "C"
+void* dlopen(const char* file, int flags) {
+    nt_status status;
+    UNICODE_STRING us;
+    void* dll;
+    unique_ptr<char16_t[]> u16buf;
+
+    static const int supported_flags = RTLD_LAZY | RTLD_NOW | RTLD_GLOBAL | RTLD_LOCAL;
+
+    // FIXME - if filename contains slash, treat as path (LdrLoadDll should handle this)
+
+    // ignoring RTLD_LAZY and RTLD_NOW
+
+    // FIXME - RTLD_GLOBAL and RTLD_LOCAL?
+
+    if (flags & ~supported_flags) {
+        // FIXME - store error
+        return nullptr;
+    }
+
+    if (!file) {
+        // FIXME - should return address of main program
+        return nullptr;
+    }
+
+    auto sv = string_view(file);
+
+    if (sv.empty()) {
+        // FIXME - store error
+        return nullptr;
+    }
+
+    auto u16len = utf8_to_utf16_len(sv);
+
+    u16buf.reset(new char16_t[u16len]);
+    if (!u16buf) {
+        // FIXME - store error
+        return nullptr;
+    }
+
+    utf8_to_utf16(span(u16buf.get(), u16len), sv);
+
+    us.Buffer = u16buf.get();
+    us.Length = us.MaximumLength = (uint16_t)(u16len * sizeof(char16_t));
+
+    status = LdrLoadDll(nullptr, nullptr, &us, &dll);
+    if (!success(status)) {
+        // FIXME - store error
+        return nullptr;
+    }
+
+    return dll;
 }
