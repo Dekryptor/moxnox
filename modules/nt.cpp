@@ -1424,6 +1424,13 @@ struct FILE_LINK_INFORMATION {
     char16_t FileName[1];
 };
 
+struct FILE_FS_SIZE_INFORMATION {
+    LARGE_INTEGER TotalAllocationUnits;
+    LARGE_INTEGER AvailableAllocationUnits;
+    uint32_t SectorsPerAllocationUnit;
+    uint32_t BytesPerSector;
+};
+
 const uint32_t MAXIMUM_WAIT_OBJECTS = 64;
 
 enum class EVENT_TYPE {
