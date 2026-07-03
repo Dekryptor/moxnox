@@ -1906,9 +1906,9 @@ static nt_status query_information_non_inode_internal(file& f, span<uint8_t> buf
         lock_guard lock(name_lock);
 
         if (!obj.name)
-            return nt_status::NOT_SUPPORTED;
-
-        fii.IndexNumber.QuadPart = obj.name->index;
+            fii.IndexNumber.QuadPart = 0;
+        else
+            fii.IndexNumber.QuadPart = obj.name->index;
     }
 
     retlen = sizeof(fii);
