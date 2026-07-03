@@ -34,6 +34,8 @@ struct dll_entry {
     unique_ptr<dll_entry*[]> deps;
 };
 
+static void unload_dll_holding_lock(ldr_entry& ent);
+
 extern "C"
 void* RtlPcToFileHeader(const void* pc, void** address) {
     auto& teb = *NtCurrentTeb();
@@ -86,10 +88,102 @@ nt_status LdrAddRefDll(uint32_t flags, HMODULE mod) {
     return nt_status::INVALID_PARAMETER;
 }
 
+static void unload_imports(LDR_DATA_TABLE_ENTRY& ent) {
+    auto& peb = *NtCurrentTeb()->ProcessEnvironmentBlock;
+    auto& dos_header = *(IMAGE_DOS_HEADER*)ent.DllBase;
+    auto& nt_header = *(IMAGE_NT_HEADERS*)((uint8_t*)ent.DllBase + dos_header.e_lfanew);
+
+    IMAGE_DATA_DIRECTORY exp_dir;
+    bool found = false;
+
+    if (nt_header.OptionalHeader32.Magic == IMAGE_NT_OPTIONAL_HDR64_MAGIC) {
+        if (nt_header.OptionalHeader64.NumberOfRvaAndSizes > IMAGE_DIRECTORY_ENTRY_IMPORT) {
+            exp_dir = nt_header.OptionalHeader64.DataDirectory[IMAGE_DIRECTORY_ENTRY_IMPORT];
+            found = true;
+        }
+    } else {
+        if (nt_header.OptionalHeader32.NumberOfRvaAndSizes > IMAGE_DIRECTORY_ENTRY_IMPORT) {
+            exp_dir = nt_header.OptionalHeader32.DataDirectory[IMAGE_DIRECTORY_ENTRY_IMPORT];
+            found = true;
+        }
+    }
+
+    if (!found || exp_dir.VirtualAddress == 0 || exp_dir.Size < sizeof(IMAGE_IMPORT_DESCRIPTOR))
+        return;
+
+    auto iids = span((IMAGE_IMPORT_DESCRIPTOR*)((uint8_t*)ent.DllBase + exp_dir.VirtualAddress),
+                     exp_dir.Size / sizeof(IMAGE_IMPORT_DESCRIPTOR));
+
+    for (auto& iid : iids) {
+        if (iid.Characteristics == 0)
+            break;
+
+        auto name = string_view((char*)ent.DllBase + iid.Name);
+
+        if (name.empty())
+            continue;
+
+        auto u16len = utf8_to_utf16_len(name);
+
+        // FIXME - it would be nice if we could avoid an allocation here (have function to compare UTF-8 with UTF-16?)
+        unique_ptr<char16_t[]> u16buf{new char16_t[u16len]};
+
+        if (!u16buf) {
+            print("new failed\n");
+            return;
+        }
+
+        utf8_to_utf16(span(u16buf.get(), u16len), name);
+
+        for (auto& c : span(u16buf.get(), u16len)) {
+            if (c >= u'A' && c <= u'Z')
+                c = c - u'A' + u'a';
+        }
+
+        auto u16sv = u16string_view_ci(u16buf.get(), u16len);
+
+        bool done = false;
+
+        for (auto le = peb.Ldr->InMemoryOrderModuleList.Flink; le != &peb.Ldr->InMemoryOrderModuleList; le = le->Flink) {
+            auto& mod2 = *CONTAINING_RECORD(le, LDR_DATA_TABLE_ENTRY, InMemoryOrderLinks);
+
+            auto u16sv2 = u16string_view_ci(mod2.BaseDllName.Buffer, mod2.BaseDllName.Length / sizeof(char16_t));
+
+            if (u16sv == u16sv2) {
+                unload_dll_holding_lock(*CONTAINING_RECORD(&mod2, ldr_entry, ldr));
+                done = true;
+                break;
+            }
+        }
+
+        if (!done)
+            print_stderr("unload_imports: {} not found\n", name);
+    }
+}
+
+static void unload_dll_holding_lock(ldr_entry& ent) {
+    if (ent.ldr.LoadCount > 1) {
+        ent.ldr.LoadCount--;
+        return;
+    }
+
+    if (ent.ldr.ProcessAttachCalled)
+        call_process_detach_img(ent.ldr, false);
+
+    RemoveEntryList(&ent.ldr.InInitializationOrderLinks);
+    RemoveEntryList(&ent.ldr.InLoadOrderLinks);
+    RemoveEntryList(&ent.ldr.InMemoryOrderLinks);
+
+    unload_imports(ent.ldr);
+
+    NtUnmapViewOfSection(NtCurrentProcess(), ent.ldr.DllBase);
+
+    free(&ent);
+}
+
 extern "C"
 nt_status LdrUnloadDll(HMODULE mod) {
-    auto& teb = *NtCurrentTeb();
-    auto& peb = *teb.ProcessEnvironmentBlock;
+    auto& peb = *NtCurrentTeb()->ProcessEnvironmentBlock;
 
     {
         mn_loader_lock lock;
@@ -98,16 +192,12 @@ nt_status LdrUnloadDll(HMODULE mod) {
         for (auto le = peb.Ldr->InMemoryOrderModuleList.Flink; le != &peb.Ldr->InMemoryOrderModuleList; le = le->Flink) {
             auto& mod2 = *CONTAINING_RECORD(le, LDR_DATA_TABLE_ENTRY, InMemoryOrderLinks);
 
-            if (mod2.DllBase == mod) {
-                if (mod2.LoadCount == 1) { // FIXME
-                    print_stderr("FIXME - actually unloading in LdrUnloadDll\n");
-                    // FIXME - remove from list, call DLL_PROCESS_DETACH, TLS, etc.
-                    return nt_status::SUCCESS;
-                }
+            if (mod2.DllBase != mod)
+                continue;
 
-                mod2.LoadCount--;
-                return nt_status::SUCCESS;
-            }
+            unload_dll_holding_lock(*CONTAINING_RECORD(&mod2, ldr_entry, ldr));
+
+            return nt_status::SUCCESS;
         }
     }
 
