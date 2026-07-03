@@ -133,3 +133,4 @@ tcgetpgrp
 dlopen
 dlclose
 dlerror
+dlsym

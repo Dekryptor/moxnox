@@ -2,7 +2,6 @@
 
 stubs_start
 
-do_stub "dlsym"
 do_stub "statvfs"
 
 stubs_end

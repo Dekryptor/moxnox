@@ -133,7 +133,7 @@ tcgetpgrp
 dlopen
 dlclose
 dlerror
+dlsym
 
 ; stubs
-dlsym
 statvfs

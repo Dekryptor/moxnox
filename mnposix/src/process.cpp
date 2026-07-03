@@ -265,3 +265,24 @@ char* dlerror() {
 
     return dl_error_string;
 }
+
+extern "C"
+void* dlsym(void* handle, const char* symbol) {
+    nt_status status;
+    ANSI_STRING as;
+    void* addr;
+
+    as.Buffer = (char*)symbol;
+    as.Length = as.MaximumLength = (uint16_t)strlen(symbol);
+
+    status = LdrGetProcedureAddress(handle, &as, 0, &addr);
+    if (status == nt_status::PROCEDURE_NOT_FOUND) {
+        set_dl_error_string("procedure {} not found in image", symbol);
+        return nullptr;
+    } else if (!success(status)) {
+        set_dl_error_string("LdrGetProcedureAddress returned {}", status);
+        return nullptr;
+    }
+
+    return addr;
+}
