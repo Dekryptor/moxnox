@@ -10,11 +10,15 @@ import nt;
 import ntdll;
 import unique_handle;
 import unicode;
+import format;
 
 #undef errno
 import errno;
 
 using namespace std;
+
+static thread_local char dl_error_string[255];
+static thread_local bool dl_error_pending;
 
 extern "C"
 pid_t getsid(pid_t pid) {
@@ -176,6 +180,16 @@ pid_t getpgid(pid_t pid) {
     return (pid_t)ret;
 }
 
+template<typename... Args>
+static void set_dl_error_string(type_identity_t<checker<type_identity_t<Args>...>> fmt, Args&&... args) {
+    auto sp = span(dl_error_string, sizeof(dl_error_string) - 1);
+
+    sp = format_to(sp, fmt.sv, forward_as_tuple(std::forward<Args>(args)...));
+
+    dl_error_string[sp.data() - dl_error_string] = 0;
+    dl_error_pending = true;
+}
+
 extern "C"
 void* dlopen(const char* file, int flags) {
     nt_status status;
@@ -192,19 +206,20 @@ void* dlopen(const char* file, int flags) {
     // FIXME - RTLD_GLOBAL and RTLD_LOCAL?
 
     if (flags & ~supported_flags) {
-        // FIXME - store error
+        set_dl_error_string("unsupported dlopen flags {:x}",
+                            flags & ~supported_flags);
         return nullptr;
     }
 
     if (!file) {
-        // FIXME - should return address of main program
+        set_dl_error_string("FIXME - returning address of main program in dlopen");
         return nullptr;
     }
 
     auto sv = string_view(file);
 
     if (sv.empty()) {
-        // FIXME - store error
+        set_dl_error_string("filename was empty");
         return nullptr;
     }
 
@@ -212,7 +227,7 @@ void* dlopen(const char* file, int flags) {
 
     u16buf.reset(new char16_t[u16len]);
     if (!u16buf) {
-        // FIXME - store error
+        set_dl_error_string("allocation failed");
         return nullptr;
     }
 
@@ -223,7 +238,7 @@ void* dlopen(const char* file, int flags) {
 
     status = LdrLoadDll(nullptr, nullptr, &us, &dll);
     if (!success(status)) {
-        // FIXME - store error
+        set_dl_error_string("LdrLoadDll returned {}", status);
         return nullptr;
     }
 
@@ -234,9 +249,19 @@ extern "C"
 int dlclose(void* handle) {
     auto status = LdrUnloadDll(handle);
     if (!success(status)) {
-        // FIXME - store error
+        set_dl_error_string("LdrUnloadDll returned {}", status);
         return 1;
     }
 
     return 0;
+}
+
+extern "C"
+char* dlerror() {
+    if (!dl_error_pending)
+        return nullptr;
+
+    dl_error_pending = false;
+
+    return dl_error_string;
 }

@@ -132,3 +132,4 @@ tcsetpgrp
 tcgetpgrp
 dlopen
 dlclose
+dlerror

@@ -132,8 +132,8 @@ tcsetpgrp
 tcgetpgrp
 dlopen
 dlclose
+dlerror
 
 ; stubs
 dlsym
-dlerror
 statvfs
