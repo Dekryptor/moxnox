@@ -14,12 +14,28 @@ import crt;
 import unique_handle;
 import unicode;
 import moxnox_ioctls;
+import format;
 
 using namespace std;
 
 static const char16_t vfsctl_path[] = u"/dev/vfsctl";
 
-static void get_mount_info(HANDLE vfsctl, uint64_t num) {
+struct mount_info {
+    char source_buf[PATH_MAX];
+    char total_buf[50];
+    char used_buf[50];
+    char available_buf[50];
+    char usedpc_buf[5];
+    char directory_buf[PATH_MAX];
+    string_view source;
+    string_view total;
+    string_view used;
+    string_view available;
+    string_view usedpc;
+    string_view directory;
+};
+
+static void get_mount_info(HANDLE vfsctl, uint64_t num, mount_info& mi) {
     IO_STATUS_BLOCK iosb;
     nt_status status;
     OBJECT_ATTRIBUTES oa;
@@ -93,9 +109,26 @@ static void get_mount_info(HANDLE vfsctl, uint64_t num) {
     uint64_t total_size = (uint64_t)fs_info.TotalAllocationUnits.QuadPart * cluster_size;
     uint64_t used_size = ((uint64_t)fs_info.TotalAllocationUnits.QuadPart - (uint64_t)fs_info.AvailableAllocationUnits.QuadPart) * cluster_size;
 
-    print("{}\t{}\t{}\t{}\t{}%\t{}\n",
-          source, total_size / 1024, used_size / 1024, (total_size - used_size) / 1024,
-          used_size * 100 / total_size, directory);
+    span source_span = span(mi.source_buf, sizeof(mi.source_buf));
+    span total_span = span(mi.total_buf, sizeof(mi.total_buf));
+    span used_span = span(mi.used_buf, sizeof(mi.used_buf));
+    span available_span = span(mi.available_buf, sizeof(mi.available_buf));
+    span usedpc_span = span(mi.usedpc_buf, sizeof(mi.usedpc_buf));
+    span directory_span = span(mi.directory_buf, sizeof(mi.directory_buf));
+
+    source_span = format(source_span, "{}", source);
+    total_span = format(total_span, "{}", total_size / 1024);
+    used_span = format(used_span, "{}", used_size / 1024);
+    available_span = format(available_span, "{}", (total_size - used_size) / 1024);
+    usedpc_span = format(usedpc_span, " {:2}%", used_size * 100 / total_size);
+    directory_span = format(directory_span, "{}", directory);
+
+    mi.source = string_view(mi.source_buf, (size_t)(source_span.data() - mi.source_buf));
+    mi.total = string_view(mi.total_buf, (size_t)(total_span.data() - mi.total_buf));
+    mi.used = string_view(mi.used_buf, (size_t)(used_span.data() - mi.used_buf));
+    mi.available = string_view(mi.available_buf, (size_t)(available_span.data() - mi.available_buf));
+    mi.usedpc = string_view(mi.usedpc_buf, (size_t)(usedpc_span.data() - mi.usedpc_buf));
+    mi.directory = string_view(mi.directory_buf, (size_t)(directory_span.data() - mi.directory_buf));
 }
 
 static int list_all(bool human_readable) {
@@ -105,6 +138,7 @@ static int list_all(bool human_readable) {
     nt_status status;
     HANDLE h;
     unique_handle vfsctl;
+    unique_ptr<mount_info[]> info;
 
     // open /dev/vfsctl
 
@@ -152,12 +186,41 @@ static int list_all(bool human_readable) {
         return 1;
     }
 
-    // FIXME - proper alignment
-
-    print("Filesystem\t1K-blocks\tUsed\tAvailable\tUse%\tMounted on\n");
+    info.reset(new mount_info[lm2->num + 1]);
+    if (!info) {
+        print_stderr("new failed\n");
+        free(lm2);
+        return 1;
+    }
 
     for (unsigned int i = 0; i < lm2->num; i++) {
-        get_mount_info(vfsctl.get(), lm2->ids[i]);
+        get_mount_info(vfsctl.get(), lm2->ids[i], info[i + 1]);
+    }
+
+    info[0].source = "Filesystem";
+    info[0].total = "1K-blocks";
+    info[0].used = "Used";
+    info[0].available = "Available";
+    info[0].usedpc = "Use%";
+    info[0].directory = "Mounted on";
+
+    size_t source_len = 0, total_len = 0, used_len = 0, available_len = 0;
+    for (unsigned int i = 0; i < lm2->num + 1; i++) {
+        source_len = max(source_len, info[i].source.size());
+        total_len = max(total_len, info[i].total.size());
+        used_len = max(used_len, info[i].used.size());
+        available_len = max(available_len, info[i].available.size());
+    }
+
+    // FIXME - numbers should be right-aligned
+
+    for (unsigned int i = 0; i < lm2->num + 1; i++) {
+        auto& mi = info[i];
+
+        print("{:{}} {:{}} {:{}} {:{}} {} {}\n",
+              mi.source, source_len, mi.total, total_len,
+              mi.used, used_len, mi.available, available_len,
+              mi.usedpc, mi.directory);
     }
 
     free(lm2);
