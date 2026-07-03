@@ -58,40 +58,6 @@ extern PyObject* PyInit__struct(void);
 extern PyObject* PyInit__symtable(void);
 extern PyObject* PyInit_pwd(void);
 
-extern PyObject* PyInit_array(void);
-extern PyObject* PyInit_binascii(void);
-extern PyObject* PyInit__bisect(void);
-extern PyObject* PyInit_cmath(void);
-extern PyObject* PyInit__contextvars(void);
-extern PyObject* PyInit__csv(void);
-extern PyObject* PyInit__datetime(void);
-extern PyObject* PyInit__decimal(void);
-extern PyObject* PyInit__heapq(void);
-extern PyObject* PyInit__json(void);
-extern PyObject* PyInit_math(void);
-extern PyObject* PyInit_mmap(void);
-extern PyObject* PyInit__pickle(void);
-extern PyObject* PyInit__queue(void);
-extern PyObject* PyInit__random(void);
-extern PyObject* PyInit__statistics(void);
-extern PyObject* PyInit__zoneinfo(void);
-extern PyObject* PyInit_zlib(void);
-extern PyObject* PyInit_readline(void);
-extern PyObject* PyInit__multibytecodec(void);
-extern PyObject* PyInit__codecs_cn(void);
-extern PyObject* PyInit__codecs_hk(void);
-extern PyObject* PyInit__codecs_iso2022(void);
-extern PyObject* PyInit__codecs_jp(void);
-extern PyObject* PyInit__codecs_kr(void);
-extern PyObject* PyInit__codecs_tw(void);
-extern PyObject* PyInit__md5(void);
-extern PyObject* PyInit__sha1(void);
-extern PyObject* PyInit__sha2(void);
-extern PyObject* PyInit__sha3(void);
-extern PyObject* PyInit__blake2(void);
-extern PyObject* PyInit_pyexpat(void);
-extern PyObject* PyInit__elementtree(void);
-
 /* -- ADDMODULE MARKER 1 -- */
 
 extern PyObject* PyMarshal_Init(void);
@@ -138,40 +104,6 @@ struct _inittab _PyImport_Inittab[] = {
     {"_struct", PyInit__struct},
     {"_symtable", PyInit__symtable},
     {"pwd", PyInit_pwd},
-
-    {"array", PyInit_array},
-    {"binascii", PyInit_binascii},
-    {"_bisect", PyInit__bisect},
-    {"cmath", PyInit_cmath},
-    {"_contextvars", PyInit__contextvars},
-    {"_csv", PyInit__csv},
-    {"_datetime", PyInit__datetime},
-    {"_decimal", PyInit__decimal},
-    {"_heapq", PyInit__heapq},
-    {"_json", PyInit__json},
-    {"math", PyInit_math},
-    {"mmap", PyInit_mmap},
-    {"_pickle", PyInit__pickle},
-    {"_queue", PyInit__queue},
-    {"_random", PyInit__random},
-    {"_statistics", PyInit__statistics},
-    {"_zoneinfo", PyInit__zoneinfo},
-    {"zlib", PyInit_zlib},
-    {"readline", PyInit_readline},
-    {"_multibytecodec", PyInit__multibytecodec},
-    {"_codecs_cn", PyInit__codecs_cn},
-    {"_codecs_hk", PyInit__codecs_hk},
-    {"_codecs_iso2022", PyInit__codecs_iso2022},
-    {"_codecs_jp", PyInit__codecs_jp},
-    {"_codecs_kr", PyInit__codecs_kr},
-    {"_codecs_tw", PyInit__codecs_tw},
-    {"_md5", PyInit__md5},
-    {"_sha1", PyInit__sha1},
-    {"_sha2", PyInit__sha2},
-    {"_sha3", PyInit__sha3},
-    {"_blake2", PyInit__blake2},
-    {"pyexpat", PyInit_pyexpat},
-    {"_elementtree", PyInit__elementtree},
 
 /* -- ADDMODULE MARKER 2 -- */
 

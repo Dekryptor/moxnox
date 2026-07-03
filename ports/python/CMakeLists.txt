@@ -47,10 +47,6 @@ python_patch(Modules/fcntlmodule.c
     -e [[s|    return PyLong_FromLong((long)ret)\;\n#undef IOCTL_BUFSZ|    return PyLong_FromLong((long)ret)\;\n#endif\n#undef IOCTL_BUFSZ|g]]
 )
 
-python_patch(Modules/expat/xmlparse.c
-    -e [[s|#ifdef _WIN32\n#  define getpid GetCurrentProcessId|#if defined(_WIN32) \&\& !defined(MOXNOX)\n#  define getpid GetCurrentProcessId|g]]
-)
-
 python_patch(Modules/socketmodule.c
     -e [[s|    name = sock_decode_hostname(hbuf)\;|    name = PyUnicode_DecodeFSDefault(hbuf)\;|g]]
 )
@@ -140,89 +136,10 @@ endforeach()
 add_custom_target(python_frozen DEPENDS ${PYTHON_FROZEN_HEADERS})
 
 set(PYTHON_CORE_SOURCES
-    repo/Modules/_abc.c
-    repo/Modules/atexitmodule.c
-    repo/Modules/_codecsmodule.c
-    repo/Modules/_collectionsmodule.c
-    repo/Modules/errnomodule.c
-    ${GEN}/Modules/faulthandler.c
-    repo/Modules/_functoolsmodule.c
     repo/Modules/gcmodule.c
     repo/Modules/getbuildinfo.c
-    repo/Modules/_io/bufferedio.c
-    repo/Modules/_io/bytesio.c
-    repo/Modules/_io/fileio.c
-    repo/Modules/_io/iobase.c
-    repo/Modules/_io/_iomodule.c
-    repo/Modules/_io/stringio.c
-    repo/Modules/_io/textio.c
-    repo/Modules/arraymodule.c
-    repo/Modules/binascii.c
-    repo/Modules/_bisectmodule.c
-    repo/Modules/cmathmodule.c
-    repo/Modules/_contextvarsmodule.c
-    repo/Modules/_csv.c
-    repo/Modules/_datetimemodule.c
-    repo/Modules/_heapqmodule.c
-    repo/Modules/_json.c
-    repo/Modules/mathmodule.c
-    repo/Modules/mmapmodule.c
-    repo/Modules/_pickle.c
-    repo/Modules/_queuemodule.c
-    repo/Modules/_randommodule.c
-    repo/Modules/_statisticsmodule.c
-    repo/Modules/_zoneinfo.c
-    repo/Modules/zlibmodule.c
-    repo/Modules/readline.c
-    repo/Modules/cjkcodecs/multibytecodec.c
-    repo/Modules/cjkcodecs/_codecs_cn.c
-    repo/Modules/cjkcodecs/_codecs_hk.c
-    repo/Modules/cjkcodecs/_codecs_iso2022.c
-    repo/Modules/cjkcodecs/_codecs_jp.c
-    repo/Modules/cjkcodecs/_codecs_kr.c
-    repo/Modules/cjkcodecs/_codecs_tw.c
-    repo/Modules/md5module.c
-    repo/Modules/sha1module.c
-    repo/Modules/sha2module.c
-    repo/Modules/sha3module.c
-    repo/Modules/_hacl/Hacl_Hash_MD5.c
-    repo/Modules/_hacl/Hacl_Hash_SHA1.c
-    repo/Modules/_hacl/Hacl_Hash_SHA2.c
-    repo/Modules/_hacl/Hacl_Hash_SHA3.c
-    repo/Modules/_blake2/blake2module.c
-    repo/Modules/_blake2/blake2b_impl.c
-    repo/Modules/_blake2/blake2s_impl.c
-    repo/Modules/pyexpat.c
-    repo/Modules/_elementtree.c
-    ${GEN}/Modules/expat/xmlparse.c
-    repo/Modules/expat/xmlrole.c
-    repo/Modules/expat/xmltok.c
-    repo/Modules/_cursesmodule.c
-    ${GEN}/Modules/fcntlmodule.c
-    repo/Modules/itertoolsmodule.c
-    repo/Modules/_localemodule.c
     repo/Modules/main.c
-    repo/Modules/_opcode.c
-    repo/Modules/_operator.c
-    repo/Modules/posixmodule.c
-    repo/Modules/pwdmodule.c
-    repo/Modules/selectmodule.c
-    ${GEN}/Modules/socketmodule.c
-    repo/Modules/_ssl.c
     repo/Modules/_hashopenssl.c
-    repo/Modules/signalmodule.c
-    repo/Modules/_sre/sre.c
-    repo/Modules/_stat.c
-    repo/Modules/_struct.c
-    repo/Modules/_suggestions.c
-    repo/Modules/symtablemodule.c
-    repo/Modules/_threadmodule.c
-    ${GEN}/Modules/termios.c
-    repo/Modules/timemodule.c
-    repo/Modules/_tracemalloc.c
-    repo/Modules/_typingmodule.c
-    repo/Modules/unicodedata.c
-    repo/Modules/_weakref.c
     repo/Objects/abstract.c
     repo/Objects/boolobject.c
     repo/Objects/bytearrayobject.c
@@ -365,8 +282,49 @@ set(PYTHON_CORE_SOURCES
     repo/Python/perf_trampoline.c
     repo/Python/perf_jit_trampoline.c
     repo/Python/preconfig.c
-    repo/Modules/_sysconfig.c
     repo/Python/frozen.c
+)
+
+set(PYTHON_BUILTIN_MODULES
+    repo/Modules/_abc.c
+    repo/Modules/atexitmodule.c
+    repo/Modules/_codecsmodule.c
+    repo/Modules/_collectionsmodule.c
+    repo/Modules/errnomodule.c
+    ${GEN}/Modules/faulthandler.c
+    repo/Modules/_functoolsmodule.c
+    repo/Modules/_io/bufferedio.c
+    repo/Modules/_io/bytesio.c
+    repo/Modules/_io/fileio.c
+    repo/Modules/_io/iobase.c
+    repo/Modules/_io/_iomodule.c
+    repo/Modules/_io/stringio.c
+    repo/Modules/_io/textio.c
+    repo/Modules/_cursesmodule.c
+    ${GEN}/Modules/fcntlmodule.c
+    repo/Modules/itertoolsmodule.c
+    repo/Modules/_localemodule.c
+    repo/Modules/_opcode.c
+    repo/Modules/_operator.c
+    repo/Modules/posixmodule.c
+    repo/Modules/pwdmodule.c
+    repo/Modules/selectmodule.c
+    ${GEN}/Modules/socketmodule.c
+    repo/Modules/_ssl.c
+    repo/Modules/signalmodule.c
+    repo/Modules/_sre/sre.c
+    repo/Modules/_stat.c
+    repo/Modules/_struct.c
+    repo/Modules/_suggestions.c
+    repo/Modules/symtablemodule.c
+    repo/Modules/_threadmodule.c
+    ${GEN}/Modules/termios.c
+    repo/Modules/timemodule.c
+    repo/Modules/_tracemalloc.c
+    repo/Modules/_typingmodule.c
+    repo/Modules/unicodedata.c
+    repo/Modules/_weakref.c
+    repo/Modules/_sysconfig.c
 )
 
 if(CMAKE_SYSTEM_PROCESSOR STREQUAL "aarch64")
@@ -374,31 +332,10 @@ if(CMAKE_SYSTEM_PROCESSOR STREQUAL "aarch64")
 else()
     set(PYTHON_MPD_ASM "ASM")
 endif()
-set(PYTHON_DECIMAL_SOURCES
-    repo/Modules/_decimal/_decimal.c
-    repo/Modules/_decimal/libmpdec/basearith.c
-    repo/Modules/_decimal/libmpdec/constants.c
-    repo/Modules/_decimal/libmpdec/context.c
-    repo/Modules/_decimal/libmpdec/convolute.c
-    repo/Modules/_decimal/libmpdec/crt.c
-    repo/Modules/_decimal/libmpdec/difradix2.c
-    repo/Modules/_decimal/libmpdec/fnt.c
-    repo/Modules/_decimal/libmpdec/fourstep.c
-    repo/Modules/_decimal/libmpdec/io.c
-    repo/Modules/_decimal/libmpdec/mpalloc.c
-    repo/Modules/_decimal/libmpdec/mpdecimal.c
-    repo/Modules/_decimal/libmpdec/mpsignal.c
-    repo/Modules/_decimal/libmpdec/numbertheory.c
-    repo/Modules/_decimal/libmpdec/sixstep.c
-    repo/Modules/_decimal/libmpdec/transpose.c
-)
-set_source_files_properties(${PYTHON_DECIMAL_SOURCES} PROPERTIES
-    COMPILE_DEFINITIONS "CONFIG_64;${PYTHON_MPD_ASM}"
-    COMPILE_OPTIONS "-I${CMAKE_CURRENT_SOURCE_DIR}/repo/Modules/_decimal/libmpdec")
 
 add_library(libpython SHARED
     ${PYTHON_CORE_SOURCES}
-    ${PYTHON_DECIMAL_SOURCES}
+    ${PYTHON_BUILTIN_MODULES}
     config.c
     repo/Modules/getpath.c
     libpython.def
@@ -432,25 +369,6 @@ target_include_directories(libpython PRIVATE
     repo/Modules/_hacl/include
 )
 
-set_source_files_properties(
-    repo/Modules/_blake2/blake2module.c
-    repo/Modules/_blake2/blake2b_impl.c
-    repo/Modules/_blake2/blake2s_impl.c
-    PROPERTIES COMPILE_OPTIONS "-I${CMAKE_CURRENT_SOURCE_DIR}/repo/Modules/_blake2/impl")
-
-set_source_files_properties(
-    repo/Modules/pyexpat.c
-    repo/Modules/_elementtree.c
-    ${GEN}/Modules/expat/xmlparse.c
-    repo/Modules/expat/xmlrole.c
-    repo/Modules/expat/xmltok.c
-    PROPERTIES
-        COMPILE_DEFINITIONS "XML_STATIC"
-        COMPILE_OPTIONS "-I${CMAKE_CURRENT_SOURCE_DIR}/repo/Modules/expat")
-
-set_source_files_properties(repo/Modules/mmapmodule.c PROPERTIES
-    COMPILE_DEFINITIONS "my_getallocationgranularity=my_getpagesize")
-
 target_include_directories(libpython PUBLIC
     ${CMAKE_CURRENT_SOURCE_DIR}
     ${GEN}/Include
@@ -475,7 +393,7 @@ target_compile_options(libpython PRIVATE
     -Wno-format
 )
 
-target_link_libraries(libpython PRIVATE moxnox ncurses zlib readline libssl libcrypto)
+target_link_libraries(libpython PRIVATE moxnox ncurses libssl libcrypto)
 
 install(TARGETS libpython DESTINATION ${CMAKE_INSTALL_PREFIX}/lib)
 
@@ -502,3 +420,130 @@ install(DIRECTORY repo/Lib/
     PATTERN "tests" EXCLUDE)
 
 install(DIRECTORY DESTINATION ${CMAKE_INSTALL_PREFIX}/lib/python3.13/lib-dynload)
+
+###
+
+function(add_python_module name)
+    add_library(python_${name} SHARED ${ARGN})
+
+    target_link_libraries(python_${name} PRIVATE libpython)
+
+    target_include_directories(python_${name} PUBLIC
+        repo/Include/internal
+        ${GEN}
+        ${GEN}/Python
+        repo
+        repo/Modules/_hacl/include
+    )
+
+    target_compile_definitions(python_${name} PRIVATE
+        Py_BUILD_CORE
+        PLATFORM="moxnox"
+    )
+
+    install(TARGETS python_${name}
+        DESTINATION ${CMAKE_INSTALL_PREFIX}/lib/python3.13/lib-dynload
+        ARCHIVE EXCLUDE_FROM_ALL
+    )
+
+    set_target_properties(python_${name} PROPERTIES OUTPUT_NAME ${name})
+endfunction()
+
+add_python_module(array repo/Modules/arraymodule.c)
+add_python_module(binascii repo/Modules/binascii.c)
+add_python_module(_bisect repo/Modules/_bisectmodule.c)
+add_python_module(cmath repo/Modules/cmathmodule.c)
+add_python_module(_contextvars repo/Modules/_contextvarsmodule.c)
+add_python_module(_csv repo/Modules/_csv.c)
+add_python_module(_datetime repo/Modules/_datetimemodule.c)
+add_python_module(_heapq repo/Modules/_heapqmodule.c)
+add_python_module(_json repo/Modules/_json.c)
+add_python_module(math repo/Modules/mathmodule.c)
+
+add_python_module(mmap repo/Modules/mmapmodule.c)
+
+set_source_files_properties(repo/Modules/mmapmodule.c PROPERTIES
+    COMPILE_DEFINITIONS "my_getallocationgranularity=my_getpagesize")
+
+
+add_python_module(_pickle repo/Modules/_pickle.c)
+add_python_module(_queue repo/Modules/_queuemodule.c)
+add_python_module(_random repo/Modules/_randommodule.c)
+add_python_module(_statistics repo/Modules/_statisticsmodule.c)
+add_python_module(_zoneinfo repo/Modules/_zoneinfo.c)
+
+add_python_module(zlib repo/Modules/zlibmodule.c)
+target_link_libraries(python_zlib PRIVATE zlib)
+
+add_python_module(readline repo/Modules/readline.c)
+target_link_libraries(python_readline PRIVATE readline)
+
+add_python_module(_multibytecodec repo/Modules/cjkcodecs/multibytecodec.c)
+add_python_module(_codecs_cn repo/Modules/cjkcodecs/_codecs_cn.c)
+add_python_module(_codecs_hk repo/Modules/cjkcodecs/_codecs_hk.c)
+add_python_module(_codecs_iso2022 repo/Modules/cjkcodecs/_codecs_iso2022.c)
+add_python_module(_codecs_jp repo/Modules/cjkcodecs/_codecs_jp.c)
+add_python_module(_codecs_kr repo/Modules/cjkcodecs/_codecs_kr.c)
+add_python_module(_codecs_tw repo/Modules/cjkcodecs/_codecs_tw.c)
+add_python_module(_md5 repo/Modules/md5module.c repo/Modules/_hacl/Hacl_Hash_MD5.c)
+add_python_module(_sha1 repo/Modules/sha1module.c repo/Modules/_hacl/Hacl_Hash_SHA1.c)
+add_python_module(_sha2 repo/Modules/sha2module.c repo/Modules/_hacl/Hacl_Hash_SHA2.c)
+add_python_module(_sha3 repo/Modules/sha3module.c repo/Modules/_hacl/Hacl_Hash_SHA3.c)
+add_python_module(_elementtree repo/Modules/_elementtree.c)
+
+python_patch(Modules/expat/xmlparse.c
+    -e [[s|#ifdef _WIN32\n#  define getpid GetCurrentProcessId|#if defined(_WIN32) \&\& !defined(MOXNOX)\n#  define getpid GetCurrentProcessId|g]]
+)
+
+add_python_module(pyexpat
+    repo/Modules/pyexpat.c
+    ${GEN}/Modules/expat/xmlparse.c
+    repo/Modules/expat/xmlrole.c
+    repo/Modules/expat/xmltok.c
+)
+
+set_source_files_properties(
+    repo/Modules/pyexpat.c
+    repo/Modules/_elementtree.c
+    ${GEN}/Modules/expat/xmlparse.c
+    repo/Modules/expat/xmlrole.c
+    repo/Modules/expat/xmltok.c
+    PROPERTIES
+    COMPILE_DEFINITIONS "XML_STATIC"
+    COMPILE_OPTIONS "-I${CMAKE_CURRENT_SOURCE_DIR}/repo/Modules/expat")
+
+add_python_module(_blake2
+    repo/Modules/_blake2/blake2module.c
+    repo/Modules/_blake2/blake2b_impl.c
+    repo/Modules/_blake2/blake2s_impl.c
+)
+
+set_source_files_properties(
+    repo/Modules/_blake2/blake2module.c
+    repo/Modules/_blake2/blake2b_impl.c
+    repo/Modules/_blake2/blake2s_impl.c
+    PROPERTIES COMPILE_OPTIONS "-I${CMAKE_CURRENT_SOURCE_DIR}/repo/Modules/_blake2/impl")
+
+set(PYTHON_DECIMAL_SOURCES
+    repo/Modules/_decimal/_decimal.c
+    repo/Modules/_decimal/libmpdec/basearith.c
+    repo/Modules/_decimal/libmpdec/constants.c
+    repo/Modules/_decimal/libmpdec/context.c
+    repo/Modules/_decimal/libmpdec/convolute.c
+    repo/Modules/_decimal/libmpdec/crt.c
+    repo/Modules/_decimal/libmpdec/difradix2.c
+    repo/Modules/_decimal/libmpdec/fnt.c
+    repo/Modules/_decimal/libmpdec/fourstep.c
+    repo/Modules/_decimal/libmpdec/io.c
+    repo/Modules/_decimal/libmpdec/mpalloc.c
+    repo/Modules/_decimal/libmpdec/mpdecimal.c
+    repo/Modules/_decimal/libmpdec/mpsignal.c
+    repo/Modules/_decimal/libmpdec/numbertheory.c
+    repo/Modules/_decimal/libmpdec/sixstep.c
+    repo/Modules/_decimal/libmpdec/transpose.c
+)
+set_source_files_properties(${PYTHON_DECIMAL_SOURCES} PROPERTIES
+    COMPILE_DEFINITIONS "CONFIG_64;${PYTHON_MPD_ASM}"
+    COMPILE_OPTIONS "-I${CMAKE_CURRENT_SOURCE_DIR}/repo/Modules/_decimal/libmpdec")
+
+add_python_module(_decimal ${PYTHON_DECIMAL_SOURCES})
