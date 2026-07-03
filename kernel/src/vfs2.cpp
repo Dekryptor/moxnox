@@ -1868,7 +1868,7 @@ static nt_status query_information_non_inode_basic(span<uint8_t> buffer,
     fbi.LastAccessTime.QuadPart = 0;
     fbi.LastWriteTime.QuadPart = 0;
     fbi.ChangeTime.QuadPart = 0;
-    fbi.FileAttributes = FILE_ATTRIBUTE_SYSTEM;
+    fbi.FileAttributes = FILE_ATTRIBUTE_DEVICE;
 
     retlen = sizeof(fbi);
 
