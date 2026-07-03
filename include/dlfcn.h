@@ -1,6 +1,9 @@
 #pragma once
 
-#define RTLD_NOW 1
+#define RTLD_NOW    1
+#define RTLD_LAZY   2
+#define RTLD_GLOBAL 4
+#define RTLD_LOCAL  8
 
 #ifdef __cplusplus
 extern "C" {
