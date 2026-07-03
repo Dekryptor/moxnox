@@ -701,3 +701,15 @@ if (CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
 endif()
 
 install(TARGETS dl-test DESTINATION ${CMAKE_INSTALL_PREFIX}/bin COMPONENT core)
+
+###
+
+add_executable(df src/df.cpp)
+
+target_compile_options(df PRIVATE -fno-exceptions ${USERSPACE_CFLAGS})
+
+target_link_libraries(df print)
+target_link_libraries(df format crt unique_handle unicode)
+target_link_libraries(df moxnox)
+
+install(TARGETS df DESTINATION ${CMAKE_INSTALL_PREFIX}/bin COMPONENT core)
