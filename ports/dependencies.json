@@ -3,6 +3,7 @@
     "cairo": ["freetype", "libpng", "pixman", "zlib"],
     "curl": ["openssl", "zlib", "zstd"],
     "freetype": ["libpng"],
+    "gcc": ["gmp", "libiconv", "mpc", "mpfr"],
     "git": ["curl", "zlib"],
     "gnulib": [],
     "harfbuzz": ["freetype"],

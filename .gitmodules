@@ -85,3 +85,6 @@
 [submodule "ports/libiconv/repo"]
 	path = ports/libiconv/repo
 	url = https://git.burntcomma.com/moxnox/libiconv
+[submodule "ports/gcc/repo"]
+	path = ports/gcc/repo
+	url = https://git.burntcomma.com/moxnox/gcc-cc
