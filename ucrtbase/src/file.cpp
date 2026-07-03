@@ -887,6 +887,8 @@ static int do_fstat(HANDLE h, struct ::_stat64* st) {
         st->st_mode = S_IFDIR | 0777;
     else if (fbi.FileAttributes & FILE_ATTRIBUTE_REPARSE_POINT)
         st->st_mode = S_IFLNK | 0777;
+    else if (fbi.FileAttributes & FILE_ATTRIBUTE_DEVICE)
+        st->st_mode = S_IFCHR | 0666; // FIXME - better than nothing
     else {
         st->st_mode = S_IFREG | 0444;
 
