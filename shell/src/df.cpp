@@ -129,7 +129,7 @@ static void get_mount_info(HANDLE vfsctl, uint64_t num, mount_info& mi,
         available_span = format(available_span, "{}", (total_size - used_size) / 1024);
     }
 
-    usedpc_span = format(usedpc_span, " {:2}%", used_size * 100 / total_size);
+    usedpc_span = format(usedpc_span, "{}%", used_size * 100 / total_size);
     directory_span = format(directory_span, "{}", directory);
 
     mi.source = string_view(mi.source_buf, (size_t)(source_span.data() - mi.source_buf));
@@ -213,12 +213,13 @@ static int list_all(bool human_readable) {
     info[0].usedpc = "Use%";
     info[0].directory = "Mounted on";
 
-    size_t source_len = 0, total_len = 0, used_len = 0, available_len = 0;
+    size_t source_len = 0, total_len = 0, used_len = 0, available_len = 0, usedpc_len = 0;
     for (unsigned int i = 0; i < lm2->num + 1; i++) {
         source_len = max(source_len, info[i].source.size());
         total_len = max(total_len, info[i].total.size());
         used_len = max(used_len, info[i].used.size());
         available_len = max(available_len, info[i].available.size());
+        usedpc_len = max(usedpc_len, info[i].usedpc.size());
     }
 
     // FIXME - numbers should be right-aligned
@@ -226,10 +227,10 @@ static int list_all(bool human_readable) {
     for (unsigned int i = 0; i < lm2->num + 1; i++) {
         auto& mi = info[i];
 
-        print("{:{}} {:{}} {:{}} {:{}} {} {}\n",
+        print("{:{}} {:>{}} {:>{}} {:>{}} {:>{}} {}\n",
               mi.source, source_len, mi.total, total_len,
               mi.used, used_len, mi.available, available_len,
-              mi.usedpc, mi.directory);
+              mi.usedpc, usedpc_len, mi.directory);
     }
 
     free(lm2);
