@@ -257,6 +257,7 @@ private:
     void free_chunk_list();
     void free_root_list();
     void go_readonly();
+    nt_status query_volume_size_info(span<uint8_t> buf, uint32_t& retlen);
 };
 
 static_assert(cacheable_flushable<btrfs_filesystem>);
@@ -6935,11 +6936,34 @@ nt_status btrfs_inode::set_reparse_point(span<const uint8_t> inbuf,
     return nt_status::SUCCESS;
 }
 
-nt_status btrfs_filesystem::query_volume(FS_INFORMATION_CLASS /*fs_information_class*/,
-                                         span<uint8_t> /*buf*/, uint32_t& /*retlen*/) {
-    print("FIXME - btrfs_filesystem::query_volume\n");
+nt_status btrfs_filesystem::query_volume(FS_INFORMATION_CLASS fs_information_class,
+                                         span<uint8_t> buf, uint32_t& retlen) {
+    switch (fs_information_class) {
+        using enum FS_INFORMATION_CLASS;
 
-    // FIXME
+        case SizeInformation:
+            return query_volume_size_info(buf, retlen);
 
-    return nt_status::NOT_IMPLEMENTED;
+        default:
+            return nt_status::NOT_SUPPORTED;
+    }
+}
+
+nt_status btrfs_filesystem::query_volume_size_info(span<uint8_t> buf,
+                                                   uint32_t& retlen) {
+    if (buf.size() < sizeof(FILE_FS_SIZE_INFORMATION))
+        return nt_status::INVALID_PARAMETER;
+
+    auto& info = *(FILE_FS_SIZE_INFORMATION*)buf.data();
+
+    // FIXME - total_bytes and bytes_used should be divided by divisor for DATA RAID profile
+
+    info.TotalAllocationUnits.QuadPart = sb->total_bytes / sb->sectorsize;
+    info.AvailableAllocationUnits.QuadPart = (sb->total_bytes - sb->bytes_used) / sb->sectorsize;
+    info.SectorsPerAllocationUnit = 1;
+    info.BytesPerSector = sb->sectorsize;
+
+    retlen = sizeof(FILE_FS_SIZE_INFORMATION);
+
+    return nt_status::SUCCESS;
 }
