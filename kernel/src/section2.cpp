@@ -178,10 +178,8 @@ static span<char> get_section_name(const IMAGE_SECTION_HEADER& s, const IMAGE_FI
 }
 
 nt_status section::load_image() {
-    if (!file) {
-        print("file was NULL\n");
+    if (!file)
         return nt_status::INVALID_PARAMETER;
-    }
 
     auto& f = static_cast<inode&>(file->get().ino);
     uint32_t section_alignment;
@@ -189,11 +187,8 @@ nt_status section::load_image() {
     uint64_t read_pages;
 
     auto status = f.cache.read_into_cache_and_pin(0, 1, read_pages);
-
-    if (!success(status)) {
-        print("section::load_image: read_into_cache_and_pin returned {}\n", status);
+    if (!success(status))
         return status;
-    }
 
     {
         lock_guard lock(f.cache.base.cache_lock);
@@ -201,7 +196,6 @@ nt_status section::load_image() {
     }
 
     if (!src_p) {
-        print("cache::find_page_cache_entry failed\n");
         f.cache.unpin(0, 1);
         return nt_status::INTERNAL_ERROR;
     }
@@ -209,7 +203,6 @@ nt_status section::load_image() {
     auto& dos_header = *(IMAGE_DOS_HEADER*)get_phys_address(*src_p);
 
     if (dos_header.e_magic != IMAGE_DOS_SIGNATURE) {
-        print("invalid image header\n");
         f.cache.unpin(0, 1);
         return nt_status::INVALID_IMAGE_FORMAT;
     }
@@ -217,7 +210,6 @@ nt_status section::load_image() {
     // FIXME - make sure we don't read past end of pagae
 
     if (dos_header.e_lfanew < sizeof(IMAGE_DOS_HEADER) || dos_header.e_lfanew > PAGE_SIZE - sizeof(IMAGE_NT_HEADERS)) {
-        print("invalid e_lfanew value\n");
         f.cache.unpin(0, 1);
         return nt_status::INVALID_IMAGE_FORMAT;
     }
@@ -225,7 +217,6 @@ nt_status section::load_image() {
     auto& nt_header = *(IMAGE_NT_HEADERS*)((uint8_t*)get_phys_address(*src_p) + dos_header.e_lfanew);
 
     if (nt_header.Signature != IMAGE_NT_SIGNATURE) {
-        print("incorrect PE signature\n");
         f.cache.unpin(0, 1);
         return nt_status::INVALID_IMAGE_FORMAT;
     }
@@ -235,7 +226,6 @@ nt_status section::load_image() {
 
     if (nt_header.OptionalHeader32.Magic != IMAGE_NT_OPTIONAL_HDR32_MAGIC &&
         nt_header.OptionalHeader32.Magic != IMAGE_NT_OPTIONAL_HDR64_MAGIC) {
-        print("unrecognized optional header signature\n");
         f.cache.unpin(0, 1);
         return nt_status::INVALID_IMAGE_FORMAT;
     }
@@ -246,7 +236,6 @@ nt_status section::load_image() {
 
     if (nt_header.OptionalHeader32.Magic == IMAGE_NT_OPTIONAL_HDR64_MAGIC) {
         if (nt_header.FileHeader.SizeOfOptionalHeader < sizeof(IMAGE_OPTIONAL_HEADER64)) {
-            print("SizeOfOptionalHeader was smaller than expected\n");
             f.cache.unpin(0, 1);
             return nt_status::INVALID_IMAGE_FORMAT;
         }
@@ -259,7 +248,6 @@ nt_status section::load_image() {
         section_alignment = nt_header.OptionalHeader64.SectionAlignment;
     } else {
         if (nt_header.FileHeader.SizeOfOptionalHeader < sizeof(IMAGE_OPTIONAL_HEADER32)) {
-            print("SizeOfOptionalHeader was smaller than expected\n");
             f.cache.unpin(0, 1);
             return nt_status::INVALID_IMAGE_FORMAT;
         }
@@ -273,13 +261,11 @@ nt_status section::load_image() {
     }
 
     if (size == 0) {
-        print("size of image was 0\n");
         f.cache.unpin(0, 1);
         return nt_status::INVALID_IMAGE_FORMAT;
     }
 
     if (size_of_headers > size) {
-        print("SizeOfHeaders was more than SizeOfImage\n");
         f.cache.unpin(0, 1);
         return nt_status::INVALID_IMAGE_FORMAT;
     }
@@ -292,7 +278,6 @@ nt_status section::load_image() {
 
     // FIXME - does this happen in the real world?
     if (section_alignment % PAGE_SIZE) {
-        print("SectionAlignment was not a multiple of PAGE_SIZE\n");
         f.cache.unpin(0, 1);
         return nt_status::INVALID_IMAGE_FORMAT;
     }
@@ -304,7 +289,6 @@ nt_status section::load_image() {
 
     status = cache.pin(0, num_pages, nullptr);
     if (!success(status)) {
-        print("page_cache::pin returned {}\n", status);
         f.cache.unpin(0, 1);
         return status;
     }
@@ -358,42 +342,40 @@ nt_status section::load_image() {
         }
 
         if (sect.VirtualAddress % section_alignment) {
-            print("section aligned incorrectly\n");
             cache.unpin(0, num_pages);
             return nt_status::INVALID_IMAGE_FORMAT;
         }
 
+        // check for section overlap
         if (i != 0 && sections[i].VirtualAddress < sections[i - 1].VirtualAddress + sections[i - 1].VirtualSize) {
-            print("section overlap\n");
             cache.unpin(0, num_pages);
             return nt_status::INVALID_IMAGE_FORMAT;
         }
 
+        // check for sections out of order (FIXME - is this an issue?)
         if (i != 0 && sections[i].VirtualAddress < sections[i - 1].VirtualAddress) {
-            print("sections out of order\n");
             cache.unpin(0, num_pages);
             return nt_status::INVALID_IMAGE_FORMAT;
         }
 
+        // check for section overflow
         if (sect.VirtualAddress + section_size > size) {
-            print("section overflow\n");
             cache.unpin(0, num_pages);
             return nt_status::INVALID_IMAGE_FORMAT;
         }
 
+        // check section not out of bounds of file
         if (sect.SizeOfRawData != 0) {
             if (sect.PointerToRawData >= f.file_size ||
                 sect.PointerToRawData + sect.SizeOfRawData > f.file_size) {
-                print("section runs outside of bounds of file\n");
                 cache.unpin(0, num_pages);
                 return nt_status::INVALID_IMAGE_FORMAT;
             }
         }
     }
 
-    // don't confuse malloc
+    // don't confuse malloc by allowing too many sections
     if (sizeof(IMAGE_SECTION_HEADER) * num_pe_sections > PAGE_SIZE) {
-        print("too many sections\n");
         cache.unpin(0, num_pages);
         return nt_status::INVALID_IMAGE_FORMAT;
     }
