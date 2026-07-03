@@ -289,10 +289,10 @@
 /* #undef HAVE_DIRFD (moxnox) */
 
 /* Define to 1 if you have the <dlfcn.h> header file. */
-/* #undef HAVE_DLFCN_H (moxnox) */
+#define HAVE_DLFCN_H 1
 
 /* Define to 1 if you have the `dlopen' function. */
-/* #undef HAVE_DLOPEN (moxnox) */
+#define HAVE_DLOPEN 1
 
 /* Define to 1 if you have the `dup' function. */
 #define HAVE_DUP 1
@@ -307,7 +307,7 @@
 /* #undef HAVE_DYLD_SHARED_CACHE_CONTAINS_PATH */
 
 /* Defined when any dynamic module loading is enabled. */
-/* #undef HAVE_DYNAMIC_LOADING (moxnox) */
+#define HAVE_DYNAMIC_LOADING 1
 
 /* Define to 1 if you have the <editline/readline.h> header file. */
 /* #undef HAVE_EDITLINE_READLINE_H */

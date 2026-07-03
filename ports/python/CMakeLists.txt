@@ -55,6 +55,10 @@ python_patch(Modules/socketmodule.c
     -e [[s|    name = sock_decode_hostname(hbuf)\;|    name = PyUnicode_DecodeFSDefault(hbuf)\;|g]]
 )
 
+python_patch(Python/dynload_shlib.c
+    -e [[s|#ifdef __CYGWIN__|#if defined(__CYGWIN__) \|\| defined(MOXNOX)|g]]
+)
+
 add_custom_target(python_patched_headers DEPENDS
     ${GEN}/Include/pythread.h
     ${GEN}/Include/Python.h
@@ -295,7 +299,7 @@ set(PYTHON_CORE_SOURCES
     repo/Python/crossinterp.c
     repo/Python/dtoa.c
     repo/Python/dynamic_annotations.c
-    repo/Python/dynload_stub.c
+    ${GEN}/Python/dynload_shlib.c
     repo/Python/errors.c
     repo/Python/fileutils.c
     repo/Python/flowgraph.c
