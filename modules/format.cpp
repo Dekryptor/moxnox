@@ -781,12 +781,56 @@ consteval bool format_spec_valid<FILE_INFORMATION_CLASS>(string_view fmt) {
     return fmt.empty();
 }
 
-export span<char> do_format_arg(span<char> sp, string_view, string_view arg) {
-    return sp_strcpy(sp, arg);
+export span<char> do_format_arg(span<char> sp, string_view fmt, string_view arg,
+                                optional<uint64_t> arg2 = nullopt) {
+    size_t padding;
+
+    if (arg2.has_value())
+        padding = (size_t)*arg2;
+    else {
+        padding = 0;
+
+        if (fmt.size() >= 2 && fmt.front() == ':') {
+            fmt = string_view(fmt.data() + 1, fmt.size() - 1);
+
+            for (size_t i = 0; i < fmt.size(); i++) {
+                padding *= 10;
+                padding += (size_t)(fmt[i] - '0');
+            }
+        }
+    }
+
+    if (padding > arg.size())
+        padding -= arg.size();
+    else
+        padding = 0;
+
+    sp = sp_strcpy(sp, arg);
+
+    while (padding > 0) {
+        sp = sp_strcpy(sp, " ");
+        padding--;
+    }
+
+    return sp;
 }
 
 template<>
 consteval bool format_spec_valid<string_view>(string_view fmt) {
+    if (fmt.size() >= 2 && fmt.front() == ':') {
+        fmt = string_view(fmt.data() + 1, fmt.size() - 1);
+
+        if (fmt.size() == 2 && fmt[0] == '{' && fmt[1] == '}')
+            return true;
+
+        for (size_t i = 0; i < fmt.size(); i++) {
+            if (fmt[i] < '0' || fmt[i] > '9')
+                return false;
+        }
+
+        return true;
+    }
+
     return fmt.empty();
 }
 
@@ -1208,6 +1252,14 @@ auto tuple_drop_n(tuple<Args...>&& t) {
     }
 }
 
+template<typename T>
+concept supports_arg2 = requires(T t) {
+    { do_format_arg(span<char>(), string_view{}, t, optional<uint64_t>(nullopt)) };
+};
+
+static_assert(supports_arg2<unsigned int>);
+static_assert(supports_arg2<string_view>);
+
 export
 template<typename... Args>
 span<char> format_to(span<char> sp, string_view fmt, tuple<Args...>&& args) {
@@ -1249,7 +1301,10 @@ span<char> format_to(span<char> sp, string_view fmt, tuple<Args...>&& args) {
             return sp;
 
         if constexpr (num_args >= 2) {
-            if constexpr (is_integral_v<remove_cvref_t<tuple_element_t<0, remove_cvref_t<decltype(args)>>>> && is_integral_v<remove_cvref_t<tuple_element_t<1, remove_cvref_t<decltype(args)>>>>) {
+            using arg1_type = remove_cvref_t<tuple_element_t<0, remove_cvref_t<decltype(args)>>>;
+            using arg2_type = remove_cvref_t<tuple_element_t<1, remove_cvref_t<decltype(args)>>>;
+
+            if constexpr (supports_arg2<arg1_type> && is_integral_v<arg2_type>) {
                 if (nested)
                     sp = do_format_arg(sp, string_view(fmt.data() + 1, close - 1), get<0>(args), get<1>(args));
                 else
