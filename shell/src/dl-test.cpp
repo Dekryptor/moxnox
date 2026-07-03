@@ -46,7 +46,11 @@ int main() {
     auto ret = func();
     print("{} returned \"{}\"\n", funcname, ret);
 
-    // FIXME - LdrUnloadDll
+    status = LdrUnloadDll(dll);
+    if (!success(status)) {
+        print("LdrUnloadDll returned {}\n", status);
+        return 1;
+    }
 
     return 0;
 }
