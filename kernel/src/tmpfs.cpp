@@ -98,6 +98,9 @@ public:
                            span<uint8_t> buf, uint32_t& retlen) override;
 
     bool readonly = false;
+
+private:
+    nt_status query_volume_size_info(span<uint8_t> buf, uint32_t& retlen);
 };
 
 tmpfs_filesystem::tmpfs_filesystem() : filesystem(nullptr) {
@@ -1100,9 +1103,30 @@ nt_status tmpfs_inode::hardlink(::dentry& dentry, ::dentry& dest_dir,
 
 nt_status tmpfs_filesystem::query_volume(FS_INFORMATION_CLASS fs_information_class,
                                          span<uint8_t> buf, uint32_t& retlen) {
-    print("FIXME - tmpfs_filesystem::query_volume\n");
+    switch (fs_information_class) {
+        using enum FS_INFORMATION_CLASS;
 
-    // FIXME
+        case SizeInformation:
+            return query_volume_size_info(buf, retlen);
 
-    return nt_status::NOT_IMPLEMENTED;
+        default:
+            return nt_status::NOT_SUPPORTED;
+    }
+}
+
+nt_status tmpfs_filesystem::query_volume_size_info(span<uint8_t> buf,
+                                                   uint32_t& retlen) {
+    if (buf.size() < sizeof(FILE_FS_SIZE_INFORMATION))
+        return nt_status::INVALID_PARAMETER;
+
+    auto& info = *(FILE_FS_SIZE_INFORMATION*)buf.data();
+
+    info.TotalAllocationUnits.QuadPart = num_ram_pages;
+    info.AvailableAllocationUnits.QuadPart = info.TotalAllocationUnits.QuadPart;
+    info.SectorsPerAllocationUnit = 1;
+    info.BytesPerSector = PAGE_SIZE;
+
+    retlen = sizeof(FILE_FS_SIZE_INFORMATION);
+
+    return nt_status::SUCCESS;
 }
