@@ -196,9 +196,10 @@ static nt_status alloc_thread_tls_mod(LDR_DATA_TABLE_ENTRY& ent) {
         return nt_status::SUCCESS;
     }
 
-    tls_dirs = (IMAGE_TLS_DIRECTORY64**)realloc(tls_dirs, sizeof(IMAGE_TLS_DIRECTORY64*) * (num_tls_dirs + 1));
+    tls_dirs = (IMAGE_TLS_DIRECTORY64**)RtlReAllocateHeap(GetProcessHeap(), 0, tls_dirs,
+                                                          sizeof(IMAGE_TLS_DIRECTORY64*) * (num_tls_dirs + 1));
     if (!tls_dirs) {
-        print_stderr("realloc failed\n");
+        print_stderr("RtlReAllocateHeap failed\n");
         return nt_status::INSUFFICIENT_RESOURCES;
     }
 
