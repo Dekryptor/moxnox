@@ -215,7 +215,7 @@ add_custom_command(
 
 add_custom_command(
     OUTPUT ${GEN}/curses.priv.h
-    COMMAND sh -c "sed 's/#if (defined(_WIN32) || defined(_WIN64))/#if (defined(_WIN32) || defined(_WIN64)) \\&\\& !defined(MOXNOX)/' '${CMAKE_CURRENT_SOURCE_DIR}/repo/ncurses/curses.priv.h' | sed '/\\(_nc_globals\\|_nc_prescreen\\|_nc_screen_chain\\| SP;\\)/s/NCURSES_EXPORT_VAR/TINFO_EXPORT_VAR/' > '${GEN}/curses.priv.h'"
+    COMMAND sh -c "sed 's/#if (defined(_WIN32) || defined(_WIN64))/#if (defined(_WIN32) || defined(_WIN64)) \\&\\& !defined(MOXNOX)/' '${CMAKE_CURRENT_SOURCE_DIR}/repo/ncurses/curses.priv.h' | sed '/\\(_nc_globals\\|_nc_prescreen\\|_nc_screen_chain\\| SP;\\)/s/NCURSES_EXPORT_VAR/TINFO_EXPORT_VAR/' | sed '/#include <tchar.h>/{n;s|#include <io.h>|#define NO_OLDNAMES\\n#include <io.h>\\n#undef NO_OLDNAMES|}' > '${GEN}/curses.priv.h'"
     DEPENDS repo/ncurses/curses.priv.h
     VERBATIM
 )
@@ -498,7 +498,7 @@ add_library(form SHARED
 
 target_compile_definitions(form PRIVATE BUILDING_NCURSES BUILDING_FORM WIN_PTHREADS_TIME_H)
 target_compile_options(form PRIVATE ${USERSPACE_CFLAGS} -Wno-unused-parameter -Wno-unused-variable)
-target_include_directories(form PRIVATE repo/ncurses repo/include repo/form repo/menu)
+target_include_directories(form PRIVATE ${GEN} repo/ncurses repo/include repo/form repo/menu)
 target_link_libraries(form PRIVATE ncurses)
 
 # menu shared library
@@ -535,7 +535,7 @@ add_library(menu SHARED
 
 target_compile_definitions(menu PRIVATE BUILDING_NCURSES BUILDING_MENU WIN_PTHREADS_TIME_H)
 target_compile_options(menu PRIVATE ${USERSPACE_CFLAGS})
-target_include_directories(menu PRIVATE repo/ncurses repo/include repo/menu)
+target_include_directories(menu PRIVATE ${GEN} repo/ncurses repo/include repo/menu)
 target_link_libraries(menu PRIVATE ncurses)
 
 # panel shared library
@@ -560,7 +560,7 @@ add_library(panel SHARED
 
 target_compile_definitions(panel PRIVATE BUILDING_NCURSES BUILDING_PANEL WIN_PTHREADS_TIME_H)
 target_compile_options(panel PRIVATE ${USERSPACE_CFLAGS})
-target_include_directories(panel PRIVATE repo/ncurses repo/include)
+target_include_directories(panel PRIVATE ${GEN} repo/ncurses repo/include)
 target_link_libraries(panel PRIVATE ncurses)
 
 install(TARGETS tinfo ncurses form menu panel
@@ -578,7 +578,7 @@ add_executable(clear
 
 target_compile_options(clear PRIVATE ${USERSPACE_CFLAGS})
 target_compile_definitions(clear PRIVATE WIN_PTHREADS_TIME_H _UCRT)
-target_include_directories(clear PRIVATE repo/include repo/ncurses repo/progs ${CMAKE_CURRENT_SOURCE_DIR})
+target_include_directories(clear PRIVATE ${GEN} repo/include repo/ncurses repo/progs ${CMAKE_CURRENT_SOURCE_DIR})
 target_link_libraries(clear PRIVATE moxnox ncurses)
 
 if (CMAKE_C_COMPILER_ID STREQUAL "GNU")
@@ -598,7 +598,7 @@ add_executable(tset
 
 target_compile_options(tset PRIVATE ${USERSPACE_CFLAGS})
 target_compile_definitions(tset PRIVATE WIN_PTHREADS_TIME_H _UCRT)
-target_include_directories(tset PRIVATE repo/include repo/ncurses repo/progs ${CMAKE_CURRENT_SOURCE_DIR})
+target_include_directories(tset PRIVATE ${GEN} repo/include repo/ncurses repo/progs ${CMAKE_CURRENT_SOURCE_DIR})
 target_link_libraries(tset PRIVATE moxnox ncurses)
 
 if (CMAKE_C_COMPILER_ID STREQUAL "GNU")
