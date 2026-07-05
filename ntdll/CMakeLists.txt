@@ -50,3 +50,9 @@ install(TARGETS ntdll
     CXX_MODULES_BMI EXCLUDE_FROM_ALL
     ARCHIVE EXCLUDE_FROM_ALL
 )
+
+add_custom_command(TARGET ntdll POST_BUILD
+    COMMAND sh -c "! \"${CMAKE_OBJDUMP}\" -p \"$1\" | grep -q 'DLL Name' || { echo 'Error: ntdll has imports' >&2; exit 1; }" -- "$<TARGET_FILE:ntdll>"
+    VERBATIM
+    COMMENT "Checking ntdll has no imports"
+)
