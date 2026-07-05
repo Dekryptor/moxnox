@@ -1126,6 +1126,7 @@ static void sigint_handler(int) {
 }
 
 int main(int argc, char** argv) {
+    auto& peb = *NtCurrentTeb()->ProcessEnvironmentBlock;
     struct sigaction act;
     char* command = nullptr;
 
@@ -1165,8 +1166,10 @@ int main(int argc, char** argv) {
         return 1;
     }
 
-    if (isatty(STDOUT_FILENO))
+    if (isatty(STDOUT_FILENO)) {
         get_pty_info_stream();
+        set_pty_fg_proc(peb.ProcessParameters->StandardOutput, getpgid(0));
+    }
 
     if (command) {
         process_line(command);
