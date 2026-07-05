@@ -386,3 +386,16 @@ void operator delete[](void* ptr) noexcept {
 void operator delete[](void* ptr, size_t) noexcept {
     free(ptr);
 }
+
+extern "C"
+void* RtlSecureZeroMemory(void* ptr, size_t count) {
+    auto p = (volatile uint8_t*)ptr;
+
+    while (count > 0) {
+        *p = 0;
+        p++;
+        count--;
+    }
+
+    return ptr;
+}

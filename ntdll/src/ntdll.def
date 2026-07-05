@@ -75,3 +75,4 @@ RtlTryAcquireSRWLockExclusive
 RtlSleepConditionVariableSRW
 RtlWakeAddressAll
 LdrLoadDll
+RtlSecureZeroMemory

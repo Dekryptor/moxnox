@@ -5,6 +5,5 @@ stubs_start
 do_stub "RtlTryEnterCriticalSection"
 do_stub "RtlAddVectoredExceptionHandler"
 do_stub "RtlRestoreContext"
-do_stub "RtlSecureZeroMemory"
 
 stubs_end
