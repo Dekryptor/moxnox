@@ -66,8 +66,7 @@ __time32_t __time32(__time32_t* t) {
     return ret;
 }
 
-extern "C"
-constexpr errno_t __gmtime64_s(struct tm* tm, const __time64_t* t) {
+constexpr errno_t constexpr__gmtime64_s(tm* tm, const __time64_t* t) {
     auto v = *t;
 
     tm->tm_isdst = 0;
@@ -108,11 +107,16 @@ constexpr errno_t __gmtime64_s(struct tm* tm, const __time64_t* t) {
     return 0;
 }
 
+extern "C"
+errno_t __gmtime64_s(struct tm* tm, const __time64_t* t) {
+    return constexpr__gmtime64_s(tm, t);
+}
+
 static constexpr bool test_gmtime(int64_t v, int exp_wday, int exp_mday,
                                   int exp_mon, int exp_year, int exp_yday) {
     struct tm tm;
 
-    __gmtime64_s(&tm, &v);
+    constexpr__gmtime64_s(&tm, &v);
 
     return tm.tm_wday == exp_wday && tm.tm_mday == exp_mday &&
            tm.tm_mon == exp_mon && tm.tm_year == exp_year &&
@@ -740,7 +744,7 @@ static constexpr __time64_t do_mktime(tm* tm) {
 
     // normalize fields
 
-    __gmtime64_s(&tm2, &ret);
+    constexpr__gmtime64_s(&tm2, &ret);
 
     t.tm_hour = tm2.tm_hour;
     t.tm_min = tm2.tm_min;
