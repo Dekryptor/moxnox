@@ -363,6 +363,19 @@ void free(void* ptr) {
     RtlFreeHeap((void*)NtCurrentTeb()->ProcessEnvironmentBlock->ProcessHeap, 0, ptr);
 }
 
+extern "C"
+void* calloc(size_t nmemb, size_t size) {
+    // FIXME - should test for overflow of nmemb * size
+
+    auto ptr = malloc(nmemb * size);
+    if (!ptr)
+        return nullptr;
+
+    memset(ptr, 0, nmemb * size);
+
+    return ptr;
+}
+
 void* operator new(size_t count) {
     return malloc(count);
 }
