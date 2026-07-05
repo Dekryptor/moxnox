@@ -205,10 +205,11 @@ static bool stdout_is_tty() {
     return success(status);
 }
 
-
 extern "C"
 void mn_signal(EXCEPTION_RECORD* exception, CONTEXT* context) {
+    auto& peb = *NtCurrentTeb()->ProcessEnvironmentBlock;
     termios tc_settings;
+    IO_STATUS_BLOCK iosb;
     char s[1024];
     auto sp = span(s, sizeof(s));
 
@@ -244,7 +245,10 @@ void mn_signal(EXCEPTION_RECORD* exception, CONTEXT* context) {
     tc_settings.c_ispeed = 38400;
     tc_settings.c_ospeed = 38400;
 
-    tcsetattr(STDOUT_FILENO, TCSANOW, &tc_settings);
+    NtDeviceIoControlFile(peb.ProcessParameters->StandardOutput, 0,
+                          nullptr, nullptr, &iosb,
+                          IOCTL_MOXNOX_PTY_TCSETATTR, &tc_settings,
+                          sizeof(termios), nullptr, 0);
 
     if (stdout_is_tty()) {
         print("\e[?1049l" // disable alternative buffer
