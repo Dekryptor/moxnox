@@ -21,6 +21,14 @@ curl_patch(lib/getenv.c
 curl_patch(lib/curlx/fopen.c
     -e [[s|#ifdef _WIN32|#if defined(_WIN32) \&\& !defined(MOXNOX)|g]])
 
+curl_patch(lib/curlx/fopen.h
+    -e [[s|#ifdef _WIN32\n#include <sys/stat.h>|#if defined(_WIN32) \&\& !defined(MOXNOX)\n#include <sys/stat.h>|g]])
+
+curl_patch(lib/curl_setup.h
+    -e [[s|#ifdef _WIN32\n#  ifdef HAVE_IO_H|#if defined(_WIN32) \&\& !defined(MOXNOX)\n#  ifdef HAVE_IO_H|g]]
+    -e [[s|#ifdef _WIN32\n#  undef read|#if defined(_WIN32) \&\& !defined(MOXNOX)\n#  undef read|g]]
+    -e [[s@#elif defined(_WIN32) || defined(__CYGWIN__)@#elif (defined(_WIN32) || defined(__CYGWIN__)) \&\& !defined(MOXNOX)@g]])
+
 curl_patch(lib/setup-win32.h
     -e [[s|#  define USE_WINSOCK 2\n#  include <winsock2.h>\n#  include <ws2tcpip.h>|#  if defined(MOXNOX)\n#    define _WINSOCKAPI_\n#    define SOCKET int\n#    include <sys/socket.h>\n#    include <netinet/in.h>\n#    include <netdb.h>\n#  else\n#    define USE_WINSOCK 2\n#    include <winsock2.h>\n#    include <ws2tcpip.h>\n#  endif|g]])
 
@@ -52,6 +60,9 @@ add_custom_command(
 )
 
 file(MAKE_DIRECTORY "${CURL_GEN}/src")
+curl_patch(src/tool_dirhie.c
+    -e [[s|#ifdef _WIN32\n#  include <direct.h>|#if defined(_WIN32) \&\& !defined(MOXNOX)\n#  include <direct.h>|g]])
+
 curl_patch(src/tool_filetime.c
     -e [[s|#if defined(_WIN32) \&\& !defined(CURL_WINDOWS_UWP)|#if defined(_WIN32) \&\& !defined(CURL_WINDOWS_UWP) \&\& !defined(MOXNOX)|g]])
 
@@ -281,8 +292,10 @@ target_compile_options(libcurl PRIVATE
     -Wno-conversion
     -Wno-type-limits
     "SHELL:-include ${CMAKE_SOURCE_DIR}/include/sys/select.h"
+    "SHELL:-include ${CURL_GEN}/lib/curl_setup.h"
     "SHELL:-include ${CURL_GEN}/lib/setup-win32.h"
     "SHELL:-include ${CURL_GEN}/lib/curlx/version_win32.h"
+    "SHELL:-include ${CURL_GEN}/lib/curlx/fopen.h"
 )
 
 install(TARGETS libcurl DESTINATION ${CMAKE_INSTALL_PREFIX}/lib
@@ -301,7 +314,7 @@ add_executable(curl_exe
     repo/src/tool_cb_soc.c
     ${CURL_GEN}/src/tool_cb_wrt.c
     repo/src/tool_cfgable.c
-    repo/src/tool_dirhie.c
+    ${CURL_GEN}/src/tool_dirhie.c
     ${CURL_GEN}/src/tool_doswin.c
     repo/src/tool_easysrc.c
     ${CURL_GEN}/src/tool_filetime.c
@@ -358,8 +371,10 @@ target_compile_options(curl_exe PRIVATE
     -Wno-sign-conversion
     -Wno-shorten-64-to-32
     "SHELL:-include ${CMAKE_SOURCE_DIR}/include/sys/select.h"
+    "SHELL:-include ${CURL_GEN}/lib/curl_setup.h"
     "SHELL:-include ${CURL_GEN}/lib/setup-win32.h"
     "SHELL:-include ${CURL_GEN}/lib/curlx/version_win32.h"
+    "SHELL:-include ${CURL_GEN}/lib/curlx/fopen.h"
 )
 
 set_target_properties(curl_exe PROPERTIES OUTPUT_NAME curl)
@@ -371,6 +386,8 @@ install(TARGETS curl_exe DESTINATION ${CMAKE_INSTALL_PREFIX}/bin)
 add_custom_target(curl_gen_headers DEPENDS
     ${CURL_GEN}/lib/setup-win32.h
     ${CURL_GEN}/lib/curlx/version_win32.h
+    ${CURL_GEN}/lib/curl_setup.h
+    ${CURL_GEN}/lib/curlx/fopen.h
     ${CURL_GEN}/include/curl/curl.h)
 add_dependencies(libcurl curl_gen_headers)
 add_dependencies(curl_exe curl_gen_headers)
