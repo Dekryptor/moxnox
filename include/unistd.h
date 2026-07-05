@@ -3,6 +3,9 @@
 #include <sys/types.h>
 
 #define _POSIX_THREADS 202405L
+#define _POSIX_TIMERS 202405L
+#define _POSIX_VERSION 202405L
+#define _POSIX2_VERSION 202405L
 
 #define STDIN_FILENO 0
 #define STDOUT_FILENO 1
@@ -14,6 +17,12 @@
 #define X_OK 8
 
 #define _SC_CLK_TCK 1
+#define _SC_NPROCESSORS_ONLN 2
+#define _SC_PAGESIZE 3
+
+#define _PC_PATH_MAX 0
+
+#define _CS_PATH 0
 
 #ifdef __cplusplus
 extern "C" {
@@ -24,6 +33,7 @@ int ttyname_r(int fd, char* name, size_t namesize);
 uid_t getuid(void);
 uid_t geteuid(void);
 gid_t getgid(void);
+gid_t getegid(void);
 int isatty(int fd);
 int access(const char* path, int mode);
 int close(int fd);
@@ -64,6 +74,22 @@ long sysconf(int name);
 pid_t getsid(pid_t pid);
 pid_t setsid(void);
 int setpgid(pid_t pid, pid_t pgid);
+pid_t getpgrp(void);
+int fchown(int fd, uid_t owner, gid_t group);
+int chown(const char* path, uid_t owner, gid_t group);
+long gethostid(void);
+int setresuid(uid_t ruid, uid_t euid, uid_t suid);
+int setresgid(gid_t rgid, gid_t egid, gid_t sgid);
+int setgid(gid_t gid);
+int setuid(uid_t uid);
+int lchown(const char* path, uid_t owner, gid_t group);
+int getgroups(int gidsetsize, gid_t* grouplist);
+int truncate(const char* path, off_t length);
+long pathconf(const char* path, int name);
+int unlinkat(int fd, const char* path, int flag);
+char* getlogin(void);
+int getlogin_r(char* name, size_t namesize);
+size_t confstr(int name, char* buf, size_t len);
 
 #ifdef __cplusplus
 }
