@@ -68,6 +68,7 @@ underscore_func "execv"
 underscore_func "execle"
 underscore_func "wcsnicmp"
 underscore_func "tzset"
+underscore_func "hypotf"
 
 # stubs
 underscore_func "mktemp"

@@ -84,7 +84,6 @@ cosf
 _hypot
 hypot
 _hypotf
-hypotf
 _setjmp
 sinf
 tan

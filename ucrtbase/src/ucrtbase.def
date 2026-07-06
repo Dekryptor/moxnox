@@ -118,7 +118,6 @@ acosf
 sqrt
 sqrtf
 hypot
-hypotf
 sincos
 sincosf
 trunc
