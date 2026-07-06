@@ -181,22 +181,15 @@ bool CreateProcessW(const char16_t* application_name, char16_t* command_line,
         return false;
     }
 
-#ifdef __aarch64__
-    static const uint16_t this_arch = IMAGE_FILE_MACHINE_ARM64;
-#elifdef __x86_64__
-    static const uint16_t this_arch = IMAGE_FILE_MACHINE_AMD64;
-#endif
-
-    if (sii.Machine != this_arch) {
-        RtlSetLastWin32Error(ERROR_EXE_MACHINE_TYPE_MISMATCH);
-        return false;
-    }
-
     // create process
 
     status = NtCreateProcess(&h, MAXIMUM_ALLOWED, nullptr, NtCurrentProcess(),
                              false, sect.get(), 0, 0);
-    if (!success(status)) {
+
+    if (status == nt_status::IMAGE_MACHINE_TYPE_MISMATCH_EXE) {
+        RtlSetLastWin32Error(ERROR_EXE_MACHINE_TYPE_MISMATCH);
+        return false;
+    } else if (!success(status)) {
         print_stderr("NtCreateProcess returned {}\n", status);
         RtlSetLastWin32Error(RtlNtStatusToDosError(status));
         return false;
