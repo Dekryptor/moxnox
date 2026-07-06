@@ -177,6 +177,7 @@ public:
     list_entry children = { &children, &children };
     list_entry child_le;
     process* parent_process = nullptr;
+    bool marked_as_child = false;
     object_ref unreaped_children_event;
     list_entry wait_child_waiters = { &wait_child_waiters, &wait_child_waiters };
     bool is_init = false;
@@ -200,6 +201,7 @@ private:
     nt_status query_is_our_child(uint32_t* return_length);
     nt_status query_process_group(span<uint8_t> buf, uint32_t* return_length);
     nt_status set_wait_for_child_process_group(span<const uint8_t> buf);
+    nt_status mark_as_child();
 };
 
 static_assert(is_sync_object<process>);

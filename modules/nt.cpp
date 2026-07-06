@@ -1145,6 +1145,7 @@ enum class PROCESS_INFORMATION_CLASS {
     MoxnoxSetProcessGroup,
     MoxnoxSetPendingSignalProcessGroup,
     MoxnoxWaitForChildProcessGroup,
+    MoxnoxMarkAsChild,
 };
 
 struct PROCESS_BASIC_INFORMATION {

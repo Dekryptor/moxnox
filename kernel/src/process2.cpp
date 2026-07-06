@@ -1859,6 +1859,8 @@ static void free_handle(rbtree_node<handle_t>* tree) {
 }
 
 void process::terminate() {
+    bool removed_from_list = false;
+
     // wake up threads waiting for process to terminate
 
     {
@@ -1873,11 +1875,18 @@ void process::terminate() {
             lock_guard lock2(process_list_lock);
 
             if (parent_process) {
-                auto& e = static_cast<event&>(parent_process->unreaped_children_event.get());
+                lock_guard lock3(parent_process->children_lock);
 
-                e.set_holding_sync_lock();
+                if (marked_as_child) {
+                    auto& e = static_cast<event&>(parent_process->unreaped_children_event.get());
 
-                wake_up_waiters(parent_process->wait_child_waiters);
+                    e.set_holding_sync_lock();
+
+                    wake_up_waiters(parent_process->wait_child_waiters);
+                } else {
+                    remove_entry_list(child_le);
+                    removed_from_list = true;
+                }
             }
 
             if (do_process_shutdown_ratchet && !is_init && this != process_shutdown_ignore) {
@@ -1944,6 +1953,9 @@ void process::terminate() {
         lock_guard lock(vm_sect_lock);
         swap(vm_sect_obj, vm_sect);
     }
+
+    if (removed_from_list)
+        release();
 }
 
 static nt_status terminate_other_threads(nt_status exit_status) {
@@ -4752,6 +4764,18 @@ nt_status process::set_process_group(span<const uint8_t> buffer) {
     return nt_status::SUCCESS;
 }
 
+nt_status process::mark_as_child() {
+    if (!parent_process)
+        return nt_status::INVALID_PARAMETER;
+
+    {
+        lock_guard lock(parent_process->children_lock);
+        marked_as_child = true;
+    }
+
+    return nt_status::SUCCESS;
+}
+
 nt_status process::set_information(PROCESS_INFORMATION_CLASS info_class,
                                    span<const uint8_t> buffer) {
     switch (info_class) {
@@ -4780,6 +4804,9 @@ nt_status process::set_information(PROCESS_INFORMATION_CLASS info_class,
 
         case MoxnoxWaitForChildProcessGroup:
             return set_wait_for_child_process_group(buffer);
+
+        case MoxnoxMarkAsChild:
+            return mark_as_child();
 
         default:
             return nt_status::NOT_IMPLEMENTED;
@@ -5067,6 +5094,7 @@ nt_status process::reap_zombie() {
             }
 
             parent_process = nullptr;
+            marked_as_child = false;
         }
     }
 
