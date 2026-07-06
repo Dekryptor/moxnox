@@ -2877,6 +2877,12 @@ NTSTATUS NtCreateProcess(HANDLE* process_handle, ACCESS_MASK, const OBJECT_ATTRI
                          HANDLE, HANDLE) {
     object_ref parent;
 
+#ifdef __aarch64__
+    static const uint16_t this_arch = IMAGE_FILE_MACHINE_ARM64;
+#elifdef __x86_64__
+    static const uint16_t this_arch = IMAGE_FILE_MACHINE_AMD64;
+#endif
+
     // FIXME - desired_access
     // FIXME - object_attributes
     // FIXME - inherit_object_table
@@ -2897,6 +2903,9 @@ NTSTATUS NtCreateProcess(HANDLE* process_handle, ACCESS_MASK, const OBJECT_ATTRI
 
     if (img.type != section_type::image)
         return nt_status::INVALID_PARAMETER;
+
+    if (img.machine != this_arch)
+        return nt_status::IMAGE_MACHINE_TYPE_MISMATCH_EXE;
 
     if (parent_process == NtCurrentProcess()) {
         auto& t = *get_current_thread();
