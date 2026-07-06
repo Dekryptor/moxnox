@@ -297,11 +297,13 @@ void main_thread(void* ctx) {
 
     userspace_started = true;
 
-    static_cast<process&>(init.get()).resume();
+    auto& init_process = static_cast<process&>(init.get());
+
+    init_process.is_init = true;
+
+    init_process.resume();
 
     wait_for_object(init.get(), false);
-
-    auto& init_process = static_cast<process&>(init.get());
 
     bsod_format("init process died (exit code {})", init_process.exit_status);
 }

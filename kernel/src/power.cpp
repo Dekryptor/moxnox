@@ -17,6 +17,7 @@ import acpica;
 import gnu_efi;
 import scheduler;
 import cpu_block;
+import process;
 
 using namespace std;
 
@@ -49,6 +50,10 @@ static NTSTATUS _NtShutdownSystem(enum SHUTDOWN_ACTION action) {
 
     if (action != SHUTDOWN_ACTION::ShutdownPowerOff && action != SHUTDOWN_ACTION::ShutdownReboot)
         return nt_status::INVALID_PARAMETER;
+
+    broadcast_sigterm();
+
+    // FIXME - wait a few seconds for everybody to finish up
 
     // flush filesystems and make readonly
     auto status = flush_filesystems(true);

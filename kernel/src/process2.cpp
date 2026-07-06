@@ -5201,3 +5201,65 @@ process_group* get_process_group(uintptr_t pgid) {
 
     return nullptr;
 }
+
+void broadcast_sigterm() {
+    auto& t = *get_current_thread();
+
+    object_ref obj;
+
+    {
+        lock_guard lock(process_list_lock);
+
+        auto n = get_tree_minimum(process_tree);
+
+        while (n) {
+            auto& p = rbtree_containing_record<process>(n);
+            auto old = p.refcount.load();
+
+            while (old != 0 && !p.refcount.compare_exchange_weak(old, old + 1)) { }
+
+            if (old != 0) {
+                obj = object_ref{p};
+                break;
+            }
+
+            n = next_rbtree_node(p.tree);
+        }
+
+        if (!n)
+            return;
+    }
+
+    while (true) {
+        object_ref obj2;
+        auto& proc = static_cast<process&>(obj.get());
+
+        if (!proc.is_init && &proc != t.proc)
+            set_pending_signal2(proc, SIGTERM);
+
+        {
+            lock_guard lock(process_list_lock);
+
+            auto n = next_rbtree_node(proc.tree);
+
+            while (n) {
+                auto& p2 = rbtree_containing_record<process>(n);
+                auto old = p2.refcount.load();
+
+                while (old != 0 && !p2.refcount.compare_exchange_weak(old, old + 1)) { }
+
+                if (old != 0) {
+                    obj2 = object_ref{p2};
+                    break;
+                }
+
+                n = next_rbtree_node(p2.tree);
+            }
+
+            if (!n)
+                return;
+        }
+
+        swap(obj, obj2);
+    }
+}
