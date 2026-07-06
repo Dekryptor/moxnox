@@ -1923,6 +1923,13 @@ void process::terminate() {
         img->get().release();
 
     free_page_tables(*this);
+
+    object_ref vm_sect_obj;
+
+    {
+        lock_guard lock(vm_sect_lock);
+        swap(vm_sect_obj, vm_sect);
+    }
 }
 
 static nt_status terminate_other_threads(nt_status exit_status) {
@@ -2237,7 +2244,19 @@ NTSTATUS process::allocate_vm(void** base_address, uintptr_t, size_t* region_siz
         return nt_status::NO_MEMORY;
     }
 
-    auto& sect = static_cast<section&>(vm_sect.get());
+    object_ref vm_sect_obj;
+
+    {
+        lock_guard lock(vm_sect_lock);
+
+        if (!vm_sect)
+            return nt_status::PROCESS_IS_TERMINATING;
+
+        vm_sect_obj = object_ref{vm_sect.get()};
+        vm_sect_obj.get().acquire();
+    }
+
+    auto& sect = static_cast<section&>(vm_sect_obj.get());
 
     auto m = new mapping(*this, sect);
     if (!m) {

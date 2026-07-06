@@ -164,7 +164,6 @@ public:
     PEB* peb = nullptr;
     RTL_USER_PROCESS_PARAMETERS* proc_params = nullptr;
     uintptr_t ntdll_addr, img_addr;
-    object_ref vm_sect;
     bool initialized = false;
     rangelock rl;
     atomic<uint64_t> running_cpus = 0;
@@ -180,6 +179,9 @@ public:
     process* parent_process = nullptr;
     object_ref unreaped_children_event;
     list_entry wait_child_waiters = { &wait_child_waiters, &wait_child_waiters };
+
+    spinlock vm_sect_lock;
+    object_ref vm_sect;
 
     spinlock pg_lock;
     process_group* pg;
