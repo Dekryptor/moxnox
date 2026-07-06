@@ -1143,6 +1143,7 @@ int main(int argc, char** argv) {
     HANDLE h;
     struct sigaction act;
     char* command = nullptr;
+    bool added_to_history = false;
 
     static const option options[] = {
         { "", required_argument, nullptr, 'c' },
@@ -1243,8 +1244,10 @@ int main(int argc, char** argv) {
         if (!line)
             break;
 
-        if (*line)
+        if (*line) {
             add_history(line);
+            added_to_history = true;
+        }
 
         if (!strcmp(line, "exit")) {
             free(line);
@@ -1256,7 +1259,11 @@ int main(int argc, char** argv) {
     }
 
     if (history_file) {
-        write_history(history_file);
+        // FIXME - write_history can race with other shells running (use cross-process mutex?)
+
+        if (added_to_history)
+            write_history(history_file);
+
         free(history_file);
     }
 
