@@ -220,6 +220,8 @@ export object_ref create_init_process();
 export process_group* get_process_group(uintptr_t pgid);
 export nt_status send_signal_to_process_group(process_group& pg, int sig);
 export void broadcast_sigterm();
+export void wait_for_processes_to_finish(uint64_t timeout);
+export atomic<bool> disallow_new_processes = false;
 
 #ifdef __aarch64__
 export ARM64_HARDWARE_PTE* find_pte(process& proc, uintptr_t va);

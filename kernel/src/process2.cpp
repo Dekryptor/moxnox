@@ -84,6 +84,10 @@ static atomic<uintptr_t> next_pid = 1;
 
 static spinlock process_list_lock;
 static rbtree_node<uintptr_t>* process_tree = nullptr;
+static size_t process_shutdown_ratchet;
+static process* process_shutdown_ignore;
+static bool do_process_shutdown_ratchet;
+static object_ref process_shutdown_event;
 
 static spinlock pg_tree_lock;
 static rbtree_node<uintptr_t>* pg_tree = nullptr;
@@ -1875,6 +1879,16 @@ void process::terminate() {
 
                 wake_up_waiters(parent_process->wait_child_waiters);
             }
+
+            if (do_process_shutdown_ratchet && !is_init && this != process_shutdown_ignore) {
+                process_shutdown_ratchet--;
+
+                if (process_shutdown_ratchet == 0) {
+                    auto& e = static_cast<event&>(process_shutdown_event.get());
+
+                    e.set_holding_sync_lock();
+                }
+            }
         }
     }
 
@@ -2856,6 +2870,9 @@ NTSTATUS NtCreateProcess(HANDLE* process_handle, ACCESS_MASK, const OBJECT_ATTRI
     // FIXME - inherit_object_table
     // FIXME - debug_port
     // FIXME - exception_port
+
+    if (disallow_new_processes)
+        return nt_status::SYSTEM_SHUTDOWN;
 
     auto sect = deref_handle(section_handle);
     if (!sect)
@@ -5262,4 +5279,37 @@ void broadcast_sigterm() {
 
         swap(obj, obj2);
     }
+}
+
+void wait_for_processes_to_finish(uint64_t timeout) {
+    auto& this_proc = *get_current_thread()->proc;
+    size_t count = 0;
+
+    process_shutdown_event = create_event(false);
+
+    {
+        sync_lock sl;
+        lock_guard lock(sl);
+        lock_guard lock2(process_list_lock);
+
+        auto n = get_tree_minimum(process_tree);
+        if (!n)
+            return;
+
+        while (n) {
+            auto& p = rbtree_containing_record<process>(n);
+
+            if (!p.is_init && &p != &this_proc && !p.signalled)
+                count++;
+
+            n = next_rbtree_node(*n);
+        }
+
+        process_shutdown_ratchet = count;
+        process_shutdown_ignore = &this_proc;
+        do_process_shutdown_ratchet = true;
+    }
+
+    if (count != 0)
+        wait_for_object(process_shutdown_event.get(), false, timeout);
 }

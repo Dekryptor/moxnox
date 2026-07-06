@@ -18,10 +18,13 @@ import gnu_efi;
 import scheduler;
 import cpu_block;
 import process;
+import config;
 
 using namespace std;
 
 export atomic<uint32_t> shutting_down_cpu = 0xffffffff;
+
+static const uint64_t SIGTERM_TIMEOUT = 5 * SYSTEM_TIME_RESOLUTION;
 
 static void reboot() {
     AcpiReset();
@@ -51,9 +54,13 @@ static NTSTATUS _NtShutdownSystem(enum SHUTDOWN_ACTION action) {
     if (action != SHUTDOWN_ACTION::ShutdownPowerOff && action != SHUTDOWN_ACTION::ShutdownReboot)
         return nt_status::INVALID_PARAMETER;
 
+    // FIXME - race if thread already in the middle of NtCreateProcess?
+
+    disallow_new_processes = true;
+
     broadcast_sigterm();
 
-    // FIXME - wait a few seconds for everybody to finish up
+    wait_for_processes_to_finish(SIGTERM_TIMEOUT);
 
     // flush filesystems and make readonly
     auto status = flush_filesystems(true);
