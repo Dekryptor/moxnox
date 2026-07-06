@@ -56,6 +56,9 @@ struct suspended_process {
 static list_entry suspended_processes = { &suspended_processes, &suspended_processes };
 static unsigned int num_suspended_processes = 0;
 
+static unique_handle sigterm_event;
+static bool received_sigterm;
+
 void* operator new(size_t count) {
     return malloc(count);
 }
@@ -73,15 +76,16 @@ static void run_program(unique_handle& proc, termios* prev_tc_settings) {
     bool done_suspend = false;
 
     do {
-        array<HANDLE, 2> objs;
+        array<HANDLE, 3> objs;
 
-        objs[0] = proc.get();
-        objs[1] = info_stream;
+        objs[0] = sigterm_event.get();
+        objs[1] = proc.get();
+        objs[2] = info_stream;
 
-        status = NtWaitForMultipleObjects(info_stream == 0 ? 1 : 2,
+        status = NtWaitForMultipleObjects(info_stream == 0 ? 2 : 3,
                                           objs.data(), true, true, nullptr);
 
-        if (status == nt_status::ALERTED)
+        if (status == nt_status::ALERTED || status == nt_status::USER_APC)
             continue;
 
         if (!success(status)) {
@@ -90,11 +94,12 @@ static void run_program(unique_handle& proc, termios* prev_tc_settings) {
         }
 
         switch ((unsigned int)status - (unsigned int)nt_status::SUCCESS) {
-            case 0: // process finished
+            case 0: // shell received SIGTERM
+            case 1: // process finished
                 running_proc = 0;
                 break;
 
-            case 1: { // pty event
+            case 2: { // pty event
                 IO_STATUS_BLOCK iosb;
                 pty_info_event ev;
 
@@ -1126,11 +1131,16 @@ static void sigint_handler(int) {
 }
 
 static void sigterm_handler(int) {
-    // readline will get interrupt and return NULL, and we will exit
+    // if currently in readline, it will get interrupt and return NULL, and we will exit
+
+    NtSetEvent(sigterm_event.get(), nullptr);
+    received_sigterm = true;
 }
 
 int main(int argc, char** argv) {
     auto& peb = *NtCurrentTeb()->ProcessEnvironmentBlock;
+    nt_status status;
+    HANDLE h;
     struct sigaction act;
     char* command = nullptr;
 
@@ -1185,6 +1195,14 @@ int main(int argc, char** argv) {
     get_prompt();
     init_history();
 
+    status = NtCreateEvent(&h, 0, nullptr, EVENT_TYPE::NotificationEvent, false);
+    if (!success(status)) {
+        print_stderr("NtCreateEvent returned {}\n", status);
+        return 1;
+    }
+
+    sigterm_event.reset(h);
+
     memset(&act, 0, sizeof(act));
     act.sa_handler = sigint_handler;
 
@@ -1210,6 +1228,9 @@ int main(int argc, char** argv) {
     };
 
     while (true) {
+        if (received_sigterm)
+            break;
+
         if (sigsetjmp(sigint_jmpbuf, 1) == 1) {
             print("^C\n");
 
