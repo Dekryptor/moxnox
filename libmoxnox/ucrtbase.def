@@ -76,7 +76,6 @@ __stdio_common_vsprintf
 _fseeki64
 _ftelli64
 _stat64
-_utime
 getenv_s
 acos
 acosf
