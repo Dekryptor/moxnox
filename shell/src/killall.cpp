@@ -108,7 +108,7 @@ int main(int argc, char** argv) {
 
         u16string_view name(us.Buffer, us.Length / sizeof(char16_t));
 
-        if (auto bs = name.find_last_of(u'\\'); bs != u16string_view::npos)
+        if (auto bs = name.find_last_of(u'/'); bs != u16string_view::npos)
             name = u16string_view(name.data() + bs + 1, name.size() - bs - 1);
 
         if (auto dot = name.find_last_of(u'.'); dot != u16string_view::npos)
