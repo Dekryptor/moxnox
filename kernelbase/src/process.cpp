@@ -144,11 +144,6 @@ bool CreateProcessW(const char16_t* application_name, char16_t* command_line,
     status = NtOpenFile(&h, FILE_READ_DATA, &oa, &iosb, 0,
                         FILE_NON_DIRECTORY_FILE);
     if (!success(status)) {
-        if (status != nt_status::OBJECT_NAME_NOT_FOUND &&
-            status != nt_status::OBJECT_PATH_NOT_FOUND) {
-            print_stderr("NtOpenFile returned {}\n", status);
-        }
-
         RtlSetLastWin32Error(RtlNtStatusToDosError(status));
         return false;
     }
@@ -160,7 +155,6 @@ bool CreateProcessW(const char16_t* application_name, char16_t* command_line,
     status = NtCreateSection(&h, 0, nullptr, nullptr, PAGE_READONLY, SEC_IMAGE,
                              file.get());
     if (!success(status)) {
-        print_stderr("NtCreateSection returned {}\n", status);
         RtlSetLastWin32Error(RtlNtStatusToDosError(status));
         return false;
     }
@@ -171,7 +165,6 @@ bool CreateProcessW(const char16_t* application_name, char16_t* command_line,
                             &sii, sizeof(SECTION_IMAGE_INFORMATION), nullptr);
 
     if (!success(status)) {
-        print_stderr("NtQuerySection returned {}\n", status);
         RtlSetLastWin32Error(RtlNtStatusToDosError(status));
         return false;
     }
@@ -190,7 +183,6 @@ bool CreateProcessW(const char16_t* application_name, char16_t* command_line,
         RtlSetLastWin32Error(ERROR_EXE_MACHINE_TYPE_MISMATCH);
         return false;
     } else if (!success(status)) {
-        print_stderr("NtCreateProcess returned {}\n", status);
         RtlSetLastWin32Error(RtlNtStatusToDosError(status));
         return false;
     }
@@ -213,7 +205,6 @@ bool CreateProcessW(const char16_t* application_name, char16_t* command_line,
                                proc.get(), &stdinh, FILE_READ_DATA, 0,
                                DUPLICATE_SAME_ATTRIBUTES);
     if (!success(status)) {
-        print_stderr("NtDuplicateObject returned {}\n", status);
         RtlSetLastWin32Error(RtlNtStatusToDosError(status));
         return false;
     }
@@ -222,7 +213,6 @@ bool CreateProcessW(const char16_t* application_name, char16_t* command_line,
                                proc.get(), &stdouth, FILE_WRITE_DATA, 0,
                                DUPLICATE_SAME_ATTRIBUTES);
     if (!success(status)) {
-        print_stderr("NtDuplicateObject returned {}\n", status);
         RtlSetLastWin32Error(RtlNtStatusToDosError(status));
         return false;
     }
@@ -231,7 +221,6 @@ bool CreateProcessW(const char16_t* application_name, char16_t* command_line,
                                proc.get(), &stderrh, FILE_WRITE_DATA, 0,
                                DUPLICATE_SAME_ATTRIBUTES);
     if (!success(status)) {
-        print_stderr("NtDuplicateObject returned {}\n", status);
         RtlSetLastWin32Error(RtlNtStatusToDosError(status));
         return false;
     }
@@ -246,7 +235,6 @@ bool CreateProcessW(const char16_t* application_name, char16_t* command_line,
                                    FILE_ATTRIBUTE_NORMAL, 0, FILE_OPEN,
                                    FILE_DIRECTORY_FILE, nullptr, 0);
         if (!success(status)) {
-            print_stderr("NtCreateFile returned {}\n", status);
             RtlSetLastWin32Error(RtlNtStatusToDosError(status));
             return false;
         } else
@@ -256,7 +244,6 @@ bool CreateProcessW(const char16_t* application_name, char16_t* command_line,
                                    proc.get(), &curdirh, 0, 0,
                                    DUPLICATE_SAME_ATTRIBUTES | DUPLICATE_SAME_ACCESS);
         if (!success(status)) {
-            print_stderr("NtDuplicateObject returned {}\n", status);
             RtlSetLastWin32Error(RtlNtStatusToDosError(status));
             return false;
         }
@@ -265,7 +252,6 @@ bool CreateProcessW(const char16_t* application_name, char16_t* command_line,
                                    proc.get(), &curdirh, 0, 0,
                                    DUPLICATE_SAME_ATTRIBUTES | DUPLICATE_SAME_ACCESS);
         if (!success(status)) {
-            print_stderr("NtDuplicateObject returned {}\n", status);
             RtlSetLastWin32Error(RtlNtStatusToDosError(status));
             return false;
         }
@@ -276,7 +262,6 @@ bool CreateProcessW(const char16_t* application_name, char16_t* command_line,
     status = NtQueryInformationProcess(proc.get(), PROCESS_INFORMATION_CLASS::BasicInformation,
                                        &pbi, sizeof(pbi), nullptr);
     if (!success(status)) {
-        print_stderr("NtQueryInformationProcess returned {}\n", status);
         RtlSetLastWin32Error(RtlNtStatusToDosError(status));
         return false;
     }
@@ -284,7 +269,6 @@ bool CreateProcessW(const char16_t* application_name, char16_t* command_line,
     status = NtReadVirtualMemory(proc.get(), pbi.PebBaseAddress, &newpeb,
                                  sizeof(PEB), nullptr);
     if (!success(status)) {
-        print_stderr("NtReadVirtualMemory returned {}\n", status);
         RtlSetLastWin32Error(RtlNtStatusToDosError(status));
         return false;
     }
@@ -294,7 +278,6 @@ bool CreateProcessW(const char16_t* application_name, char16_t* command_line,
     status = NtReadVirtualMemory(proc.get(), newpeb.ProcessParameters, &params,
                                  sizeof(params), nullptr);
     if (!success(status)) {
-        print_stderr("NtReadVirtualMemory returned {}\n", status);
         RtlSetLastWin32Error(RtlNtStatusToDosError(status));
         return false;
     }
@@ -321,7 +304,6 @@ bool CreateProcessW(const char16_t* application_name, char16_t* command_line,
         status = NtQueryInformationFile(curdir.get(), &iosb, &fni, sizeof(fni),
                                         FILE_INFORMATION_CLASS::NameInformation);
         if (!success(status) && status != nt_status::BUFFER_OVERFLOW) {
-            print_stderr("NtQueryInformationFile returned {}\n", status);
             RtlSetLastWin32Error(RtlNtStatusToDosError(status));
             return false;
         }
@@ -338,7 +320,6 @@ bool CreateProcessW(const char16_t* application_name, char16_t* command_line,
         status = NtQueryInformationFile(curdir.get(), &iosb, fni2, (uint32_t)len,
                                         FILE_INFORMATION_CLASS::NameInformation);
         if (!success(status)) {
-            print_stderr("NtQueryInformationFile returned {}\n", status);
             free(fni2);
             RtlSetLastWin32Error(RtlNtStatusToDosError(status));
             return false;
@@ -357,7 +338,6 @@ bool CreateProcessW(const char16_t* application_name, char16_t* command_line,
                                       prefix.data(), (uint32_t)(prefix.size() * sizeof(char16_t)),
                                       nullptr);
         if (!success(status)) {
-            print_stderr("NtWriteVirtualMemory returned {}\n", status);
             RtlSetLastWin32Error(RtlNtStatusToDosError(status));
             return false;
         }
@@ -367,7 +347,6 @@ bool CreateProcessW(const char16_t* application_name, char16_t* command_line,
                                       (uint32_t)min(sv.size() * sizeof(char16_t), (size_t)params.CurrentDirectory.DosPath.MaximumLength - (prefix.size() * sizeof(char16_t))),
                                       nullptr);
         if (!success(status)) {
-            print_stderr("NtWriteVirtualMemory returned {}\n", status);
             RtlSetLastWin32Error(RtlNtStatusToDosError(status));
             return false;
         }
@@ -388,7 +367,6 @@ bool CreateProcessW(const char16_t* application_name, char16_t* command_line,
                                       peb->ProcessParameters->CurrentDirectory.DosPath.Buffer,
                                       params.CurrentDirectory.DosPath.Length, nullptr);
         if (!success(status)) {
-            print_stderr("NtWriteVirtualMemory returned {}\n", status);
             RtlSetLastWin32Error(RtlNtStatusToDosError(status));
             return false;
         }
@@ -436,7 +414,6 @@ bool CreateProcessW(const char16_t* application_name, char16_t* command_line,
                                         &proc_misc_block_size,
                                         MEM_COMMIT | MEM_RESERVE, PAGE_READWRITE);
         if (!success(status)) {
-            print_stderr("NtAllocateVirtualMemory returned {}\n", status);
             free(misc_block);
             RtlSetLastWin32Error(RtlNtStatusToDosError(status));
             return false;
@@ -491,7 +468,6 @@ bool CreateProcessW(const char16_t* application_name, char16_t* command_line,
     status = NtWriteVirtualMemory(proc.get(), proc_misc_block, misc_block,
                                   (uint32_t)misc_block_size, nullptr);
     if (!success(status)) {
-        print_stderr("NtWriteVirtualMemory returned {}\n", status);
         free(misc_block);
         RtlSetLastWin32Error(RtlNtStatusToDosError(status));
         return false;
@@ -504,7 +480,6 @@ bool CreateProcessW(const char16_t* application_name, char16_t* command_line,
     status = NtWriteVirtualMemory(proc.get(), newpeb.ProcessParameters, &params,
                                   sizeof(params), nullptr);
     if (!success(status)) {
-        print_stderr("NtWriteVirtualMemory returned {}\n", status);
         RtlSetLastWin32Error(RtlNtStatusToDosError(status));
         return false;
     }
@@ -519,7 +494,6 @@ bool CreateProcessW(const char16_t* application_name, char16_t* command_line,
     status = NtAllocateVirtualMemory(proc.get(), &stack, 0, &stack_size,
                                      MEM_COMMIT | MEM_RESERVE, PAGE_READWRITE);
     if (!success(status)) {
-        print_stderr("NtAllocateVirtualMemory returned {}\n", status);
         RtlSetLastWin32Error(RtlNtStatusToDosError(status));
         return false;
     }
@@ -544,7 +518,6 @@ bool CreateProcessW(const char16_t* application_name, char16_t* command_line,
     status = NtCreateThread(&h, THREAD_ALL_ACCESS, nullptr, proc.get(),
                             &client_id, &context, &initial_teb, true);
     if (!success(status)) {
-        print_stderr("NtCreateThread returned {}\n", status);
         RtlSetLastWin32Error(RtlNtStatusToDosError(status));
         return false;
     }
@@ -554,7 +527,6 @@ bool CreateProcessW(const char16_t* application_name, char16_t* command_line,
     if (!(creation_flags & CREATE_SUSPENDED)) {
         status = NtResumeThread(thread.get(), nullptr);
         if (!success(status)) {
-            print_stderr("NtResumeThread returned {}\n", status);
             RtlSetLastWin32Error(RtlNtStatusToDosError(status));
             return false;
         }
