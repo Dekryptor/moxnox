@@ -146,7 +146,7 @@ static void default_signal_handler(int sig) {
         case SIGTTIN:
         case SIGTTOU:
             NtSuspendProcess(NtCurrentProcess());
-            break;
+            return;
 
         // no SIGKILL or SIGSTOP
 
