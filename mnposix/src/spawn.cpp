@@ -40,6 +40,15 @@ int posix_spawn(pid_t* pid, const char* path,
     if (ret)
         return ret;
 
+    // mark as child
+
+    status = NtSetInformationProcess(proc.get(), PROCESS_INFORMATION_CLASS::MoxnoxMarkAsChild,
+                                     nullptr, 0);
+    if (!success(status)) {
+        NtTerminateProcess(proc.get(), status);
+        return nt_status_to_errno(status);
+    }
+
     // start thread
 
     status = NtResumeThread(thread.get(), nullptr);
@@ -47,8 +56,6 @@ int posix_spawn(pid_t* pid, const char* path,
         NtTerminateProcess(proc.get(), status);
         return nt_status_to_errno(status);
     }
-
-    // FIXME - mark process as child
 
     if (pid)
         *pid = (pid_t)client_id.UniqueProcess;
