@@ -1125,6 +1125,10 @@ static void sigint_handler(int) {
         siglongjmp(sigint_jmpbuf, 1);
 }
 
+static void sigterm_handler(int) {
+    // readline will get interrupt and return NULL, and we will exit
+}
+
 int main(int argc, char** argv) {
     auto& peb = *NtCurrentTeb()->ProcessEnvironmentBlock;
     struct sigaction act;
@@ -1185,6 +1189,13 @@ int main(int argc, char** argv) {
     act.sa_handler = sigint_handler;
 
     if (sigaction(SIGINT, &act, nullptr) == -1) {
+        print_stderr("sigaction failed (errno {})\n", *_errno());
+        return 1;
+    }
+
+    act.sa_handler = sigterm_handler;
+
+    if (sigaction(SIGTERM, &act, nullptr) == -1) {
         print_stderr("sigaction failed (errno {})\n", *_errno());
         return 1;
     }
