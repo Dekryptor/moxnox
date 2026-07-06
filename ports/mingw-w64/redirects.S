@@ -69,8 +69,6 @@ underscore_func "execle"
 underscore_func "wcsnicmp"
 underscore_func "tzset"
 underscore_func "hypotf"
-
-# stubs
 underscore_func "mktemp"
 
 redirect_name "_fseeki64", "fseeko64"
