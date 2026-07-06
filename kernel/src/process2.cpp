@@ -2907,6 +2907,9 @@ NTSTATUS NtCreateProcess(HANDLE* process_handle, ACCESS_MASK, const OBJECT_ATTRI
     if (img.machine != this_arch)
         return nt_status::IMAGE_MACHINE_TYPE_MISMATCH_EXE;
 
+    if (img.characteristics & IMAGE_FILE_DLL)
+        return nt_status::INVALID_IMAGE_FORMAT;
+
     if (parent_process == NtCurrentProcess()) {
         auto& t = *get_current_thread();
 
