@@ -27,6 +27,8 @@ uint32_t RtlNtStatusToDosErrorNoTeb(nt_status status) {
             return ERROR_IO_PENDING;
         case REPARSE:
             return ERROR_REPARSE;
+        case IMAGE_MACHINE_TYPE_MISMATCH_EXE:
+            return ERROR_IMAGE_MACHINE_TYPE_MISMATCH_EXE;
         case BREAKPOINT:
             return (uint32_t)nt_status::BREAKPOINT;
         case SINGLE_STEP:

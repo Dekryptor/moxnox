@@ -461,6 +461,8 @@ span<char> do_format_arg(span<char> sp, string_view, nt_status arg) {
             return sp_strcpy(sp, "PENDING");
         case nt_status::REPARSE:
             return sp_strcpy(sp, "REPARSE");
+        case nt_status::IMAGE_MACHINE_TYPE_MISMATCH_EXE:
+            return sp_strcpy(sp, "IMAGE_MACHINE_TYPE_MISMATCH_EXE");
         case nt_status::BREAKPOINT:
             return sp_strcpy(sp, "BREAKPOINT");
         case nt_status::SINGLE_STEP:
