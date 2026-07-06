@@ -169,11 +169,6 @@ bool CreateProcessW(const char16_t* application_name, char16_t* command_line,
         return false;
     }
 
-    if (sii.ImageCharacteristics & IMAGE_FILE_DLL) {
-        RtlSetLastWin32Error(ERROR_BAD_EXE_FORMAT);
-        return false;
-    }
-
     // create process
 
     status = NtCreateProcess(&h, MAXIMUM_ALLOWED, nullptr, NtCurrentProcess(),
