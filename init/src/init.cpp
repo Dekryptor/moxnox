@@ -5,6 +5,7 @@
 #include <span>
 #include <string_view>
 #include <utility>
+#include <winerror.h>
 
 using namespace std;
 
@@ -81,6 +82,12 @@ static uint32_t do_serial(void*) {
         if (!CreateProcessW(u"/bin/usercon.exe", cmdline,
                             nullptr, nullptr, false, CREATE_UNICODE_ENVIRONMENT,
                             environment.data(), nullptr, &si, &pi)) {
+            if (GetLastError() == ERROR_SYSTEM_SHUTDOWN) {
+                while (true) {
+                    NtDelayExecution(false, nullptr);
+                }
+            }
+
             print_stderr("CreateProcessW failed (last error {})\n",
                          GetLastError());
             free(cmdline);
@@ -381,6 +388,12 @@ int main(int argc, char** argv) {
         if (!CreateProcessW(u"/bin/usercon.exe", cmdline,
                             nullptr, nullptr, false, CREATE_UNICODE_ENVIRONMENT,
                             environment.data(), nullptr, &si, &pi)) {
+            if (GetLastError() == ERROR_SYSTEM_SHUTDOWN) {
+                while (true) {
+                    NtDelayExecution(false, nullptr);
+                }
+            }
+
             print_stderr("CreateProcessW failed (last error {})\n",
                             GetLastError());
 
