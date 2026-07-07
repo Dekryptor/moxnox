@@ -31,8 +31,10 @@ export struct ipv6_address {
 export struct ipv6_header {
     uint32_t traffic_class1 : 4;
     uint32_t version : 4;
+    uint32_t flow_label_high : 4;
     uint32_t traffic_class2 : 4;
-    uint32_t flow_label : 20;
+    uint32_t flow_label_medium : 8;
+    uint32_t flow_label_low : 8;
     uint16_t payload_length;
     uint8_t next_header;
     uint8_t hop_limit;

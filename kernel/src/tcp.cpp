@@ -268,7 +268,9 @@ static void send_tcp_port_closed(packet& pack, netif& ni,
     ip.traffic_class1 = 0;
     ip.version = 6;
     ip.traffic_class2 = 0;
-    ip.flow_label = 0;
+    ip.flow_label_high = 0;
+    ip.flow_label_medium = 0;
+    ip.flow_label_low = 0;
     ip.payload_length = byteswap((uint16_t)sizeof(tcp_header));
     ip.next_header = IPPROTO_TCP;
     ip.hop_limit = DEFAULT_HOP_LIMIT;
@@ -447,7 +449,9 @@ nt_status ipv6_tcp_socket::send_syn(const sockaddr_in6& c, ipv6_address& src) {
     ip.traffic_class1 = 0;
     ip.version = 6;
     ip.traffic_class2 = 0;
-    ip.flow_label = 0;
+    ip.flow_label_high = 0;
+    ip.flow_label_medium = 0;
+    ip.flow_label_low = 0;
     ip.payload_length = byteswap((uint16_t)sizeof(tcp_header));
     ip.next_header = IPPROTO_TCP;
     ip.hop_limit = DEFAULT_HOP_LIMIT;
@@ -609,7 +613,9 @@ static void reset_child_socket(ipv6_tcp_socket& s) {
     ip.traffic_class1 = 0;
     ip.version = 6;
     ip.traffic_class2 = 0;
-    ip.flow_label = 0;
+    ip.flow_label_high = 0;
+    ip.flow_label_medium = 0;
+    ip.flow_label_low = 0;
     ip.payload_length = byteswap((uint16_t)sizeof(tcp_header));
     ip.next_header = IPPROTO_TCP;
     ip.hop_limit = DEFAULT_HOP_LIMIT;
@@ -744,7 +750,9 @@ void ipv6_tcp_socket::send_ack(bool first, tcp_seq ack) {
     ip.traffic_class1 = 0;
     ip.version = 6;
     ip.traffic_class2 = 0;
-    ip.flow_label = 0;
+    ip.flow_label_high = 0;
+    ip.flow_label_medium = 0;
+    ip.flow_label_low = 0;
     ip.payload_length = byteswap((uint16_t)sizeof(tcp_header));
     ip.next_header = IPPROTO_TCP;
     ip.hop_limit = DEFAULT_HOP_LIMIT;
@@ -818,7 +826,9 @@ void ipv6_tcp_socket::send_fin() {
     ip.traffic_class1 = 0;
     ip.version = 6;
     ip.traffic_class2 = 0;
-    ip.flow_label = 0;
+    ip.flow_label_high = 0;
+    ip.flow_label_medium = 0;
+    ip.flow_label_low = 0;
     ip.payload_length = byteswap((uint16_t)sizeof(tcp_header));
     ip.next_header = IPPROTO_TCP;
     ip.hop_limit = DEFAULT_HOP_LIMIT;
@@ -1321,7 +1331,9 @@ nt_status ipv6_tcp_socket::sendto(const char* buf, size_t len, int flags,
             ip.traffic_class1 = 0;
             ip.version = 6;
             ip.traffic_class2 = 0;
-            ip.flow_label = 0;
+            ip.flow_label_high = 0;
+            ip.flow_label_medium = 0;
+            ip.flow_label_low = 0;
             ip.payload_length = byteswap((uint16_t)(sizeof(tcp_header) + size));
             ip.next_header = IPPROTO_TCP;
             ip.hop_limit = DEFAULT_HOP_LIMIT;
@@ -1995,7 +2007,9 @@ nt_status ipv6_tcp_socket::send_syn_ack(const mac_address& mac) {
     ip.traffic_class1 = 0;
     ip.version = 6;
     ip.traffic_class2 = 0;
-    ip.flow_label = 0;
+    ip.flow_label_high = 0;
+    ip.flow_label_medium = 0;
+    ip.flow_label_low = 0;
     ip.payload_length = byteswap((uint16_t)sizeof(tcp_header));
     ip.next_header = IPPROTO_TCP;
     ip.hop_limit = DEFAULT_HOP_LIMIT;
@@ -2372,7 +2386,9 @@ nt_status ipv6_tcp_socket::write(span<const uint8_t> s, uint64_t& written_bytes)
             ip.traffic_class1 = 0;
             ip.version = 6;
             ip.traffic_class2 = 0;
-            ip.flow_label = 0;
+            ip.flow_label_high = 0;
+            ip.flow_label_medium = 0;
+            ip.flow_label_low = 0;
             ip.payload_length = byteswap((uint16_t)(sizeof(tcp_header) + size));
             ip.next_header = IPPROTO_TCP;
             ip.hop_limit = DEFAULT_HOP_LIMIT;

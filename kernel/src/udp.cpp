@@ -117,7 +117,9 @@ static void send_port_unreachable(netif& ni, const packet& pack,
     ip.traffic_class1 = 0;
     ip.version = 6;
     ip.traffic_class2 = 0;
-    ip.flow_label = 0;
+    ip.flow_label_high = 0;
+    ip.flow_label_medium = 0;
+    ip.flow_label_low = 0;
     ip.payload_length = byteswap((uint16_t)(offsetof(icmpv6_error, header) + payload_size));
     ip.next_header = IPPROTO_ICMPV6;
     ip.hop_limit = DEFAULT_HOP_LIMIT;
@@ -529,7 +531,9 @@ nt_status ipv6_udp_socket::sendto(const char* buf, size_t len, int flags,
     ip.traffic_class1 = 0;
     ip.version = 6;
     ip.traffic_class2 = 0;
-    ip.flow_label = 0;
+    ip.flow_label_high = 0;
+    ip.flow_label_medium = 0;
+    ip.flow_label_low = 0;
     ip.payload_length = byteswap((uint16_t)(sizeof(udp_header) + us_buf.size()));
     ip.next_header = IPPROTO_UDP;
     ip.hop_limit = DEFAULT_HOP_LIMIT;
