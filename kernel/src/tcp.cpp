@@ -1267,7 +1267,7 @@ nt_status ipv6_tcp_socket::sendto(const char* buf, size_t len, int flags,
         size_t size;
 
         status = wait_for_object(send_window_open_event.get(), true);
-        if (!success(status))
+        if (!success(status) || status == nt_status::USER_APC)
             break;
 
         if (dead) {
