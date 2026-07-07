@@ -1624,13 +1624,13 @@ nt_status ipv6_tcp_socket::do_recvfrom(char* buf, size_t len, int flags,
             if (status == nt_status::TIMEOUT) {
                 release();
                 return recv_bytes == 0 ? nt_status::CANT_WAIT : nt_status::SUCCESS;
-            } else if (!success(status)) {
+            } else if (!success(status) || status == nt_status::USER_APC) {
                 release();
                 return status;
             }
         } else {
             status = wait_for_object(*this, true);
-            if (!success(status)) {
+            if (!success(status) || status == nt_status::USER_APC) {
                 release();
                 return status;
             }
