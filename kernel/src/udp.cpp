@@ -207,7 +207,7 @@ void received_ipv6_udp_packet(netif& ni, packet& pack,
         }
     }
 
-    auto p = new ipv6_socket_packet(pack);
+    auto p = new socket_packet(pack);
     if (!p) {
         print("new failed\n");
         sock->release();
@@ -243,7 +243,7 @@ void received_ipv6_udp_packet(netif& ni, packet& pack,
 
 ipv6_udp_socket::~ipv6_udp_socket() {
     while (true) {
-        ipv6_socket_packet* pp = nullptr;
+        socket_packet* pp = nullptr;
 
         {
             lock_guard lg(buffer_lock);
@@ -251,7 +251,7 @@ ipv6_udp_socket::~ipv6_udp_socket() {
             if (is_list_empty(buffer))
                 break;
 
-            auto& p = containing_record<ipv6_socket_packet>(buffer.next);
+            auto& p = containing_record<socket_packet>(buffer.next);
 
             remove_entry_list(p.le);
             pp = &p;
@@ -305,7 +305,7 @@ nt_status ipv6_udp_socket::do_recvfrom(char* us_buf, size_t len, int flags,
         } else if (shutdown_read)
             break;
 
-        ipv6_socket_packet* sp = nullptr;
+        socket_packet* sp = nullptr;
         nt_status error = nt_status::SUCCESS;
 
         {
@@ -322,7 +322,7 @@ nt_status ipv6_udp_socket::do_recvfrom(char* us_buf, size_t len, int flags,
             }
 
             if (!is_list_empty(buffer)) {
-                sp = &containing_record<ipv6_socket_packet>(buffer.next);
+                sp = &containing_record<socket_packet>(buffer.next);
                 remove_entry_list(sp->le);
 
                 if (is_list_empty(buffer))

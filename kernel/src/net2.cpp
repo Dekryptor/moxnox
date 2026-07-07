@@ -36,10 +36,29 @@ static spinlock ipv6_raw_sockets_lock;
 static list_entry ipv6_raw_sockets = { &ipv6_raw_sockets, &ipv6_raw_sockets };
 static size_t num_ipv6_raw_sockets = 0;
 
-class ipv6_raw_socket : public socket {
+static spinlock ipv4_raw_sockets_lock;
+static list_entry ipv4_raw_sockets = { &ipv4_raw_sockets, &ipv4_raw_sockets };
+static size_t num_ipv4_raw_sockets = 0;
+
+struct ipv4 {
+    using header = ipv4_header;
+};
+
+struct ipv6 {
+    using header = ipv6_header;
+};
+
+template<typename T>
+concept socket_family = is_same_v<T, ipv4> || is_same_v<T, ipv6>;
+
+static_assert(socket_family<ipv4>);
+static_assert(socket_family<ipv6>);
+
+template<socket_family FAMILY>
+class raw_socket : public socket {
 public:
-    ipv6_raw_socket(int protocol) : protocol(protocol) { }
-    ~ipv6_raw_socket() override;
+    raw_socket(int protocol) : protocol(protocol) { }
+    ~raw_socket() override;
     void last_handle_closed() override;
 
     nt_status recvfrom(char* buf, size_t len, int flags, sockaddr* from,
@@ -1217,7 +1236,7 @@ static void handle_icmpv6_packet(netif& ni, packet& pack,
     }
 }
 
-static void send_to_raw_sockets(uint32_t netif_num, packet& pack) {
+static void send_to_raw_ipv6_sockets(uint32_t netif_num, packet& pack) {
     auto& ip = *(ipv6_header*)pack.data;
     size_t num_sockets;
 
@@ -1229,7 +1248,7 @@ static void send_to_raw_sockets(uint32_t netif_num, packet& pack) {
     if (num_sockets == 0)
         return;
 
-    auto arr = (ipv6_raw_socket**)malloc(sizeof(ipv6_raw_socket*) * num_sockets);
+    auto arr = (raw_socket<ipv6>**)malloc(sizeof(raw_socket<ipv6>*) * num_sockets);
     if (!arr) {
         print("malloc failed\n");
         return;
@@ -1241,7 +1260,7 @@ static void send_to_raw_sockets(uint32_t netif_num, packet& pack) {
         lock_guard lock(ipv6_raw_sockets_lock);
 
         for (auto le = ipv6_raw_sockets.next; le != &ipv6_raw_sockets; le = le->next) {
-            auto& s = containing_record<ipv6_raw_socket>(le);
+            auto& s = containing_record<raw_socket<ipv6>>(le);
 
             arr[num] = &s;
             s.acquire();
@@ -1265,7 +1284,7 @@ static void send_to_raw_sockets(uint32_t netif_num, packet& pack) {
             continue;
         }
 
-        auto p = new ipv6_socket_packet(pack);
+        auto p = new socket_packet(pack);
         if (!p) {
             print("new failed\n");
             s.release();
@@ -1305,8 +1324,8 @@ static void send_to_raw_sockets(uint32_t netif_num, packet& pack) {
     free(arr);
 }
 
-static void send_to_sockets(netif& ni, packet& pack,
-                            const mac_address& src_mac, bool skip_checksum) {
+static void send_to_ipv6_sockets(netif& ni, packet& pack,
+                                 const mac_address& src_mac, bool skip_checksum) {
     auto& ip = *(ipv6_header*)pack.data;
 
     if (ip.next_header == IPPROTO_UDP)
@@ -1314,7 +1333,103 @@ static void send_to_sockets(netif& ni, packet& pack,
     else if (ip.next_header == IPPROTO_TCP)
         received_ipv6_tcp_packet(ni, pack, src_mac, skip_checksum);
 
-    send_to_raw_sockets(ni.num, pack);
+    send_to_raw_ipv6_sockets(ni.num, pack);
+}
+
+static void send_to_raw_ipv4_sockets(uint32_t netif_num, packet& pack) {
+    auto& ip = *(ipv4_header*)pack.data;
+    size_t num_sockets;
+
+    {
+        lock_guard lock(ipv4_raw_sockets_lock);
+        num_sockets = num_ipv4_raw_sockets;
+    }
+
+    if (num_sockets == 0)
+        return;
+
+    auto arr = (raw_socket<ipv4>**)malloc(sizeof(raw_socket<ipv4>*) * num_sockets);
+    if (!arr) {
+        print("malloc failed\n");
+        return;
+    }
+
+    size_t num = 0;
+
+    {
+        lock_guard lock(ipv4_raw_sockets_lock);
+
+        for (auto le = ipv4_raw_sockets.next; le != &ipv4_raw_sockets; le = le->next) {
+            auto& s = containing_record<raw_socket<ipv4>>(le);
+
+            arr[num] = &s;
+            s.acquire();
+
+            num++;
+            if (num == num_sockets)
+                break;
+        }
+    }
+
+    if (num == 0) {
+        free(arr);
+        return;
+    }
+
+    for (size_t i = 0; i < num; i++) {
+        auto& s = *arr[i];
+
+        if (s.protocol != ip.protocol) {
+            s.release();
+            continue;
+        }
+
+        auto p = new socket_packet(pack);
+        if (!p) {
+            print("new failed\n");
+            s.release();
+            continue;
+        }
+
+        p->scope_id = netif_num;
+
+        bool done = false;
+
+        {
+            sync_lock sl;
+            lock_guard lock(sl);
+            lock_guard lock2(s.buffer_lock);
+
+            if (s.buffer_size + pack.size <= MAX_BUFFER_SIZE) {
+                insert_tail_list(s.buffer, p->le);
+                s.buffer_size += pack.size;
+                done = true;
+            }
+
+            if (!s.signalled) {
+                wake_up_waiters(s.waiters);
+                s.signalled = true;
+            }
+        }
+
+        if (!done) {
+            delete p;
+            s.release();
+            continue;
+        }
+
+        s.release();
+    }
+
+    free(arr);
+}
+
+static void send_to_ipv4_sockets(netif& ni, packet& pack,
+                                 const mac_address& /*src_mac*/, bool /*skip_checksum*/) {
+    // FIXME - UDP
+    // FIXME - TCP
+
+    send_to_raw_ipv4_sockets(ni.num, pack);
 }
 
 static bool should_accept_multicast(netif& ni, const ipv6_address& dst) {
@@ -1392,7 +1507,7 @@ static void handle_ipv6_packet(netif& ni, packet& pack, const mac_address& src_m
             break;
     }
 
-    send_to_sockets(ni, pack, src_mac, skip_checksum);
+    send_to_ipv6_sockets(ni, pack, src_mac, skip_checksum);
 
     {
         lock_guard lock(ni.neighbour_lock);
@@ -1408,6 +1523,31 @@ static void handle_ipv6_packet(netif& ni, packet& pack, const mac_address& src_m
             }
         }
     }
+}
+
+static void handle_ipv4_packet(netif& ni, packet& pack, const mac_address& src_mac,
+                               bool skip_checksum) {
+    if (pack.size < sizeof(ipv4_header)) {
+        print("handle_ipv4_packet: buffer length was {}, expected at least {}\n",
+              pack.size, sizeof(ipv4_header));
+        return;
+    }
+
+#if 0
+    const auto& ip = *(ipv4_header*)pack.data;
+
+    print("ipv4: version = {}, ihl = {}, dscp = {}, ecn = {}, total_length = {}, identification = {}, fragment_offset1 = {}, flags = {}, fragment_offset2 = {}, ttl = {}, protocol = {}, header_checksum = {:x}, src = {}, dst = {}\n",
+          ip.version, ip.ihl, ip.dscp, ip.ecn, byteswap((uint16_t)ip.total_length),
+          ip.identification, ip.fragment_offset1, ip.flags, ip.fragment_offset2,
+          ip.ttl, ip.protocol, byteswap((uint16_t)ip.header_checksum), ip.src, ip.dst);
+#endif
+
+    // FIXME - check if multicast
+    // FIXME - check if for us
+
+    // FIXME - ARP
+
+    send_to_ipv4_sockets(ni, pack, src_mac, skip_checksum);
 }
 
 bool drop_packet(const mac_address& dst, const mac_address& us) {
@@ -1840,6 +1980,65 @@ static nt_status netctl_socket(span<const uint8_t> buf) {
         return nt_status::INTERNAL_ERROR;
 
     switch (params.af) {
+        case AF_INET: {
+            object_ref ref;
+
+            switch (params.type) {
+                case SOCK_RAW: {
+                    if (params.protocol == 0)
+                        return nt_status::INVALID_PARAMETER;
+
+                    auto s = new raw_socket<ipv4>(params.protocol);
+                    if (!s) {
+                        print("new failed\n");
+                        return nt_status::INSUFFICIENT_RESOURCES;
+                    }
+
+                    ref = object_ref{*s};
+
+                    break;
+                }
+
+                // FIXME - SOCK_DGRAM
+                // FIXME - SOCK_STREAM
+
+                default:
+                    return nt_status::INVALID_PARAMETER;
+            }
+
+            HANDLE h;
+
+            auto f = new file(ref.get(), 0);
+            if (!f) {
+                print("new failed\n");
+                return nt_status::INSUFFICIENT_RESOURCES;
+            }
+
+            object_ref ref2{*f};
+
+            auto status = t->proc->add_handle(ref2.get(), FILE_READ_DATA | FILE_WRITE_DATA,
+                                              true, h);
+            if (!success(status))
+                return status;
+
+            status = t->proc->write_vm(params.h, &h, sizeof(h), nullptr);
+            if (!success(status)) {
+                // FIXME - close handle
+                return status;
+            }
+
+            if (params.type == SOCK_RAW) {
+                auto& s = static_cast<raw_socket<ipv4>&>(ref.get());
+
+                lock_guard lg(ipv4_raw_sockets_lock);
+                insert_tail_list(ipv4_raw_sockets, s.le);
+                num_ipv4_raw_sockets++;
+                s.added_to_list = true;
+            }
+
+            break;
+        }
+
         case AF_INET6: {
             object_ref ref;
 
@@ -1848,7 +2047,7 @@ static nt_status netctl_socket(span<const uint8_t> buf) {
                     if (params.protocol == 0)
                         return nt_status::INVALID_PARAMETER;
 
-                    auto s = new ipv6_raw_socket(params.protocol);
+                    auto s = new raw_socket<ipv6>(params.protocol);
                     if (!s) {
                         print("new failed\n");
                         return nt_status::INSUFFICIENT_RESOURCES;
@@ -1907,7 +2106,7 @@ static nt_status netctl_socket(span<const uint8_t> buf) {
             }
 
             if (params.type == SOCK_RAW) {
-                auto& s = static_cast<ipv6_raw_socket&>(ref.get());
+                auto& s = static_cast<raw_socket<ipv6>&>(ref.get());
 
                 lock_guard lg(ipv6_raw_sockets_lock);
                 insert_tail_list(ipv6_raw_sockets, s.le);
@@ -2220,8 +2419,16 @@ nt_status netctl::ioctl(uint32_t code, span<const uint8_t> inbuf,
     }
 }
 
-ipv6_raw_socket::~ipv6_raw_socket() {
-    {
+template<socket_family FAMILY>
+raw_socket<FAMILY>::~raw_socket() {
+    if constexpr (is_same_v<FAMILY, ipv4>) {
+        lock_guard lg(ipv4_raw_sockets_lock);
+
+        if (added_to_list) {
+            remove_entry_list(le);
+            num_ipv4_raw_sockets--;
+        }
+    } else if constexpr (is_same_v<FAMILY, ipv6>) {
         lock_guard lg(ipv6_raw_sockets_lock);
 
         if (added_to_list) {
@@ -2231,7 +2438,7 @@ ipv6_raw_socket::~ipv6_raw_socket() {
     }
 
     while (true) {
-        ipv6_socket_packet* pp = nullptr;
+        socket_packet* pp = nullptr;
 
         {
             lock_guard lg(buffer_lock);
@@ -2239,7 +2446,7 @@ ipv6_raw_socket::~ipv6_raw_socket() {
             if (is_list_empty(buffer))
                 break;
 
-            auto& p = containing_record<ipv6_socket_packet>(buffer.next);
+            auto& p = containing_record<socket_packet>(buffer.next);
 
             remove_entry_list(p.le);
             pp = &p;
@@ -2722,10 +2929,11 @@ nt_status socket::ioctl(uint32_t code, span<const uint8_t> inbuf,
     }
 }
 
+template<socket_family FAMILY>
 template<bool NONBLOCK>
-nt_status ipv6_raw_socket::do_recvfrom(char* us_buf, size_t len, int flags,
-                                       sockaddr* us_from, int* fromlen,
-                                       size_t& recv_bytes) {
+nt_status raw_socket<FAMILY>::do_recvfrom(char* us_buf, size_t len, int flags,
+                                          sockaddr* us_from, int* fromlen,
+                                          size_t& recv_bytes) {
     // FIXME - MSG_TRUNC
     if (flags != 0)
         return nt_status::INVALID_PARAMETER;
@@ -2760,7 +2968,7 @@ nt_status ipv6_raw_socket::do_recvfrom(char* us_buf, size_t len, int flags,
             return nt_status::CONNECTION_DISCONNECTED;
         }
 
-        ipv6_socket_packet* sp = nullptr;
+        socket_packet* sp = nullptr;
         nt_status error = nt_status::SUCCESS;
 
         {
@@ -2777,7 +2985,7 @@ nt_status ipv6_raw_socket::do_recvfrom(char* us_buf, size_t len, int flags,
             }
 
             if (!is_list_empty(buffer)) {
-                sp = &containing_record<ipv6_socket_packet>(buffer.next);
+                sp = &containing_record<socket_packet>(buffer.next);
                 remove_entry_list(sp->le);
 
                 if (is_list_empty(buffer))
@@ -2793,9 +3001,17 @@ nt_status ipv6_raw_socket::do_recvfrom(char* us_buf, size_t len, int flags,
         if (!sp)
             continue;
 
-        auto to_copy = (uint32_t)min(sp->pack.size - sizeof(ipv6_header), len);
+        size_t header_len;
 
-        status = t.proc->write_vm(us_buf, sp->pack.data + sizeof(ipv6_header),
+        // header gets stripped for IPv6 but not IPv4
+        if constexpr (is_same_v<FAMILY, ipv6>)
+            header_len = sizeof(typename FAMILY::header);
+        else
+            header_len = 0;
+
+        auto to_copy = (uint32_t)min(sp->pack.size - header_len, len);
+
+        status = t.proc->write_vm(us_buf, sp->pack.data + header_len,
                                   to_copy, nullptr);
         if (!success(status)) {
             delete sp;
@@ -2806,28 +3022,51 @@ nt_status ipv6_raw_socket::do_recvfrom(char* us_buf, size_t len, int flags,
         recv_bytes = to_copy;
 
         if (us_from && fromlen && *fromlen > 0) {
-            sockaddr_in6 addr;
+            if constexpr (is_same_v<FAMILY, ipv4>) {
+                sockaddr_in addr;
 
-            auto& ip = *(ipv6_header*)sp->pack.data;
+                auto& ip = *(ipv4_header*)sp->pack.data;
 
-            memset(&addr, 0, sizeof(addr));
+                memset(&addr, 0, sizeof(addr));
 
-            addr.sin6_family = AF_INET6;
-            addr.sin6_port = 0;
-            addr.sin6_flowinfo = 0; // FIXME? Allowed by RFC3493, but not necessarily what Linux does
-            memcpy(&addr.sin6_addr, ip.src.v.data(), sizeof(ipv6_address));
-            addr.sin6_scope_id = sp->scope_id;
+                addr.sin_family = AF_INET;
+                addr.sin_port = 0;
+                memcpy(&addr.sin_addr, ip.src.v.data(), sizeof(ipv4_address));
 
-            status = t.proc->write_vm(us_from, &addr,
-                                      (uint32_t)min((size_t)*fromlen, sizeof(addr)),
-                                      nullptr);
-            if (!success(status)) {
-                delete sp;
-                release();
-                return status;
+                status = t.proc->write_vm(us_from, &addr,
+                                          (uint32_t)min((size_t)*fromlen, sizeof(addr)),
+                                          nullptr);
+                if (!success(status)) {
+                    delete sp;
+                    release();
+                    return status;
+                }
+
+                *fromlen = sizeof(addr);
+            } else if constexpr (is_same_v<FAMILY, ipv6>) {
+                sockaddr_in6 addr;
+
+                auto& ip = *(ipv6_header*)sp->pack.data;
+
+                memset(&addr, 0, sizeof(addr));
+
+                addr.sin6_family = AF_INET6;
+                addr.sin6_port = 0;
+                addr.sin6_flowinfo = 0; // FIXME? Allowed by RFC3493, but not necessarily what Linux does
+                memcpy(&addr.sin6_addr, ip.src.v.data(), sizeof(ipv6_address));
+                addr.sin6_scope_id = sp->scope_id;
+
+                status = t.proc->write_vm(us_from, &addr,
+                                          (uint32_t)min((size_t)*fromlen, sizeof(addr)),
+                                          nullptr);
+                if (!success(status)) {
+                    delete sp;
+                    release();
+                    return status;
+                }
+
+                *fromlen = sizeof(addr);
             }
-
-            *fromlen = sizeof(addr);
         }
 
         delete sp;
@@ -3425,11 +3664,14 @@ nt_status dispatch_packet(netif& ni, packet& pack, const mac_address& dst_mac) {
     return nt_status::SUCCESS;
 }
 
-nt_status ipv6_raw_socket::sendto(const char* buf, size_t len, int flags,
-                                  sockaddr* to, int tolen, size_t& sent_bytes) {
+template<socket_family FAMILY>
+nt_status raw_socket<FAMILY>::sendto(const char* buf, size_t len, int flags,
+                                     sockaddr* to, int tolen, size_t& sent_bytes) {
     nt_status status;
     uint32_t read_bytes;
     ipv6_address src;
+
+    // FIXME - IPv4
 
     if (!to || tolen < 0 || (size_t)tolen < sizeof(sockaddr_in6))
         return nt_status::INVALID_PARAMETER;
@@ -3625,7 +3867,10 @@ bool is_our_ip(const ipv6_address& ip) {
     return false;
 }
 
-nt_status ipv6_raw_socket::bind(const sockaddr* addr, size_t addrlen) {
+template<socket_family FAMILY>
+nt_status raw_socket<FAMILY>::bind(const sockaddr* addr, size_t addrlen) {
+    // FIXME - IPv4
+
     if (addr->sa_family != AF_INET6)
         return nt_status::INVALID_PARAMETER;
 
@@ -3655,7 +3900,10 @@ nt_status ipv6_raw_socket::bind(const sockaddr* addr, size_t addrlen) {
     return nt_status::SUCCESS;
 }
 
-nt_status ipv6_raw_socket::getsockname(span<uint8_t> buf, size_t& len) {
+template<socket_family FAMILY>
+nt_status raw_socket<FAMILY>::getsockname(span<uint8_t> buf, size_t& len) {
+    // FIXME - IPv4
+
     if (buf.size() < sizeof(sockaddr_in6))
         return nt_status::BUFFER_TOO_SMALL;
 
@@ -3677,7 +3925,8 @@ nt_status ipv6_raw_socket::getsockname(span<uint8_t> buf, size_t& len) {
     return nt_status::SUCCESS;
 }
 
-void ipv6_raw_socket::last_handle_closed() {
+template<socket_family FAMILY>
+void raw_socket<FAMILY>::last_handle_closed() {
     dead = true;
 
     {
@@ -3716,6 +3965,8 @@ ipv6_address find_ll_address(const mac_address& m) {
 
 void received_packet(netif& ni, packet& pack, const mac_address& src_mac,
                      ethertype type, bool skip_csumming) {
-    if (type == ethertype::ipv6)
+    if (type == ethertype::ipv4)
+        handle_ipv4_packet(ni, pack, src_mac, skip_csumming);
+    else if (type == ethertype::ipv6)
         handle_ipv6_packet(ni, pack, src_mac, skip_csumming);
 }

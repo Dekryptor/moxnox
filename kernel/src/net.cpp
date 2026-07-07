@@ -17,6 +17,7 @@ import spinlock;
 import objects;
 import chardev;
 import ws2_32;
+import ipv4;
 import ipv6;
 import object_ref;
 import rwsem;
@@ -83,12 +84,12 @@ export struct packet {
     uint8_t data[MTU];
 };
 
-struct ipv6_socket_packet {
-    ipv6_socket_packet(packet& pack) : pack(pack) {
+struct socket_packet {
+    socket_packet(packet& pack) : pack(pack) {
         pack.acquire();
     }
 
-    ~ipv6_socket_packet() {
+    ~socket_packet() {
         pack.release();
     }
 

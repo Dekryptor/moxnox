@@ -1087,7 +1087,7 @@ void ipv6_tcp_socket::received_packet(packet& pack, netif& ni,
     }
 
     if (pack.size > header_length + sizeof(ipv6_header) || tcp.FIN) { // data or FIN
-        auto p = new ipv6_socket_packet(pack);
+        auto p = new socket_packet(pack);
         if (!p) {
             print("new failed\n");
             return;
@@ -1142,7 +1142,7 @@ void ipv6_tcp_socket::received_packet(packet& pack, netif& ni,
                         if (is_list_empty(ooo_buffer))
                             break;
 
-                        auto& p2 = containing_record<ipv6_socket_packet>(ooo_buffer.next);
+                        auto& p2 = containing_record<socket_packet>(ooo_buffer.next);
                         auto& tcp2 = *(tcp_header*)(p2.pack.data + sizeof(ipv6_header));
                         size_t header_length2 = tcp2.header_length * sizeof(uint32_t);
 
@@ -1186,13 +1186,13 @@ void ipv6_tcp_socket::received_packet(packet& pack, netif& ni,
 
         if (clear_ooo || shutdown_read) {
             while (true) {
-                ipv6_socket_packet* p;
+                socket_packet* p;
 
                 {
                     lock_guard lock(state_lock);
 
                     if (!is_list_empty(ooo_buffer))
-                        p = &containing_record<ipv6_socket_packet>(ooo_buffer.next);
+                        p = &containing_record<socket_packet>(ooo_buffer.next);
                     else
                         break;
 
@@ -1467,15 +1467,15 @@ ipv6_tcp_socket::~ipv6_tcp_socket() {
     }
 
     while (true) {
-        ipv6_socket_packet* p;
+        socket_packet* p;
 
         {
             lock_guard lock(state_lock);
 
             if (!is_list_empty(buffer))
-                p = &containing_record<ipv6_socket_packet>(buffer.next);
+                p = &containing_record<socket_packet>(buffer.next);
             else if (!is_list_empty(ooo_buffer))
-                p = &containing_record<ipv6_socket_packet>(ooo_buffer.next);
+                p = &containing_record<socket_packet>(ooo_buffer.next);
             else
                 break;
 
@@ -1654,7 +1654,7 @@ nt_status ipv6_tcp_socket::do_recvfrom(char* buf, size_t len, int flags,
         size_t removed_bytes = 0;
 
         while (true) {
-            ipv6_socket_packet* r;
+            socket_packet* r;
 
             {
                 lock_guard lock(state_lock);
@@ -1662,7 +1662,7 @@ nt_status ipv6_tcp_socket::do_recvfrom(char* buf, size_t len, int flags,
                 if (is_list_empty(buffer))
                     break;
 
-                r = &containing_record<ipv6_socket_packet>(buffer.next);
+                r = &containing_record<socket_packet>(buffer.next);
             }
 
             auto& tcp = *(tcp_header*)(r->pack.data + sizeof(ipv6_header));
@@ -2218,7 +2218,7 @@ nt_status ipv6_tcp_socket::do_read(span<uint8_t> s, uint64_t& read_bytes) {
         size_t removed_bytes = 0;
 
         while (true) {
-            ipv6_socket_packet* r;
+            socket_packet* r;
 
             {
                 lock_guard lock(state_lock);
@@ -2226,7 +2226,7 @@ nt_status ipv6_tcp_socket::do_read(span<uint8_t> s, uint64_t& read_bytes) {
                 if (is_list_empty(buffer))
                     break;
 
-                r = &containing_record<ipv6_socket_packet>(buffer.next);
+                r = &containing_record<socket_packet>(buffer.next);
             }
 
             auto& tcp = *(tcp_header*)(r->pack.data + sizeof(ipv6_header));

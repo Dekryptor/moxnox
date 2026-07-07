@@ -153,6 +153,11 @@ if(CMAKE_SYSTEM_PROCESSOR STREQUAL "amd64")
     target_compile_options(ipv6_kernel PRIVATE ${KERNEL_CFLAGS})
     target_link_libraries(ipv6_kernel PRIVATE format_kernel ws2_32_kernel)
 
+    add_library(ipv4_kernel STATIC)
+    target_sources(ipv4_kernel PUBLIC FILE_SET CXX_MODULES FILES modules/ipv4.cpp)
+    target_compile_options(ipv4_kernel PRIVATE ${KERNEL_CFLAGS})
+    target_link_libraries(ipv4_kernel PRIVATE format_kernel)
+
     add_library(smbios_32bit STATIC)
     target_sources(smbios_32bit PUBLIC FILE_SET CXX_MODULES FILES modules/smbios.cpp)
     target_compile_options(smbios_32bit PRIVATE -march=i386 -m32 -fno-ident -fno-pic -fno-exceptions -fno-rtti)
@@ -292,6 +297,11 @@ add_library(ipv6 STATIC)
 target_sources(ipv6 PUBLIC FILE_SET CXX_MODULES FILES modules/ipv6.cpp)
 target_compile_options(ipv6 PRIVATE -fno-exceptions ${USERSPACE_CFLAGS})
 target_link_libraries(ipv6 format ws2_32_mod)
+
+add_library(ipv4 STATIC)
+target_sources(ipv4 PUBLIC FILE_SET CXX_MODULES FILES modules/ipv4.cpp)
+target_compile_options(ipv4 PRIVATE -fno-exceptions ${USERSPACE_CFLAGS})
+target_link_libraries(ipv4 format)
 
 add_library(print STATIC)
 target_sources(print PUBLIC FILE_SET CXX_MODULES FILES modules/print.cpp)
