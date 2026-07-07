@@ -285,13 +285,13 @@ nt_status ipv6_udp_socket::do_recvfrom(char* us_buf, size_t len, int flags,
             if (status == nt_status::TIMEOUT) {
                 release();
                 return nt_status::CANT_WAIT;
-            } else if (!success(status)) {
+            } else if (!success(status) || status == nt_status::USER_APC) {
                 release();
                 return status;
             }
         } else {
             status = wait_for_object(*this, true);
-            if (!success(status)) {
+            if (!success(status) || status == nt_status::USER_APC) {
                 release();
                 return status;
             }
