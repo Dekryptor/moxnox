@@ -7,6 +7,7 @@ module;
 #include <atomic>
 #include <optional>
 #include <utility>
+#include <variant>
 #include <string_view>
 #include <stdint.h>
 
@@ -454,7 +455,7 @@ static void handle_neighbour_solicitation(netif& ni, packet& pack,
         for (auto le = ni.addrs.next; le != &ni.addrs; le = le->next) {
             auto& a = containing_record<ip_addr>(le);
 
-            if (a.addr == ns.target) {
+            if (holds_alternative<ipv6_address>(a.addr) && get<ipv6_address>(a.addr) == ns.target) {
                 found = true;
                 break;
             }
@@ -770,10 +771,13 @@ static void add_ipv6_prefix(netif& ni, const ipv6_address& prefix,
                     for (auto le = ni.addrs.next; le != &ni.addrs; le = le->next) {
                         auto& a = containing_record<ip_addr>(le);
 
+                        if (!holds_alternative<ipv6_address>(a.addr))
+                            continue;
+
                         if (!a.slaac)
                             continue;
 
-                        if (!memcmp(a.addr.v.data(), prefix.v.data(), 8)) {
+                        if (!memcmp(get<ipv6_address>(a.addr).v.data(), prefix.v.data(), 8)) {
                             remove_entry_list(a.le);
                             dead_addr = &a;
                             break;
@@ -784,7 +788,7 @@ static void add_ipv6_prefix(netif& ni, const ipv6_address& prefix,
                 if (!dead_addr)
                     break;
 
-                print("{}: removing IPv6 address {}\n", ni, dead_addr->addr);
+                print("{}: removing IPv6 address {}\n", ni, get<ipv6_address>(dead_addr->addr));
                 delete dead_addr;
             }
         }
@@ -843,7 +847,10 @@ static void add_ipv6_prefix(netif& ni, const ipv6_address& prefix,
                 for (auto le = ni.addrs.next; le != &ni.addrs; le = le->next) {
                     auto& a = containing_record<ip_addr>(le);
 
-                    if (a.addr == slaac) {
+                    if (!holds_alternative<ipv6_address>(a.addr))
+                        continue;
+
+                    if (get<ipv6_address>(a.addr) == slaac) {
                         already_exists = true;
                         break;
                     }
@@ -864,7 +871,10 @@ static void add_ipv6_prefix(netif& ni, const ipv6_address& prefix,
                         for (auto le = ni.addrs.next; le != &ni.addrs; le = le->next) {
                             auto& a2 = containing_record<ip_addr>(le);
 
-                            if (a2.addr == slaac) {
+                            if (!holds_alternative<ipv6_address>(a2.addr))
+                                continue;
+
+                            if (get<ipv6_address>(a2.addr) == slaac) {
                                 already_exists = true;
                                 break;
                             }
@@ -892,10 +902,13 @@ static void add_ipv6_prefix(netif& ni, const ipv6_address& prefix,
                     for (auto le = ni.addrs.next; le != &ni.addrs; le = le->next) {
                         auto& a = containing_record<ip_addr>(le);
 
+                        if (!holds_alternative<ipv6_address>(a.addr))
+                            continue;
+
                         if (!a.slaac)
                             continue;
 
-                        if (!memcmp(a.addr.v.data(), prefix.v.data(), 8)) {
+                        if (!memcmp(get<ipv6_address>(a.addr).v.data(), prefix.v.data(), 8)) {
                             remove_entry_list(a.le);
                             dead_addr = &a;
                             break;
@@ -906,7 +919,7 @@ static void add_ipv6_prefix(netif& ni, const ipv6_address& prefix,
                 if (!dead_addr)
                     break;
 
-                print("{}: removing IPv6 address {}\n", ni, dead_addr->addr);
+                print("{}: removing IPv6 address {}\n", ni, get<ipv6_address>(dead_addr->addr));
                 delete dead_addr;
             }
         }
@@ -1445,8 +1458,13 @@ static bool should_accept_multicast(netif& ni, const ipv6_address& dst) {
         for (auto le = ni.addrs.next; le != &ni.addrs; le = le->next) {
             auto& a = containing_record<ip_addr>(le);
 
-            if (a.addr.v[13] == dst.v[13] && a.addr.v[14] == dst.v[14] &&
-                a.addr.v[15] == dst.v[15]) {
+            if (!holds_alternative<ipv6_address>(a.addr))
+                continue;
+
+            auto& ipaddr = get<ipv6_address>(a.addr);
+
+            if (ipaddr.v[13] == dst.v[13] && ipaddr.v[14] == dst.v[14] &&
+                ipaddr.v[15] == dst.v[15]) {
                 return true;
             }
         }
@@ -1487,7 +1505,10 @@ static void handle_ipv6_packet(netif& ni, packet& pack, const mac_address& src_m
             for (auto le = ni.addrs.next; le != &ni.addrs; le = le->next) {
                 auto& a = containing_record<ip_addr>(le);
 
-                if (a.addr == dst) {
+                if (!holds_alternative<ipv6_address>(a.addr))
+                    continue;
+
+                if (get<ipv6_address>(a.addr) == dst) {
                     found = true;
                     break;
                 }
@@ -1800,10 +1821,13 @@ static void netif_prefixes_tick(netif& ni) {
                     for (auto le = ni.addrs.next; le != &ni.addrs; le = le->next) {
                         auto& a = containing_record<ip_addr>(le);
 
+                        if (!holds_alternative<ipv6_address>(a.addr))
+                            continue;
+
                         if (!a.slaac)
                             continue;
 
-                        if (!memcmp(a.addr.v.data(), dead_prefix->prefix.v.data(), 8)) {
+                        if (!memcmp(get<ipv6_address>(a.addr).v.data(), dead_prefix->prefix.v.data(), 8)) {
                             remove_entry_list(a.le);
                             dead_addr = &a;
                             break;
@@ -1814,7 +1838,7 @@ static void netif_prefixes_tick(netif& ni) {
                 if (!dead_addr)
                     break;
 
-                print("{}: removing IPv6 address {}\n", ni, dead_addr->addr);
+                print("{}: removing IPv6 address {}\n", ni, get<ipv6_address>(dead_addr->addr));
                 delete dead_addr;
             }
         }
@@ -2329,18 +2353,23 @@ static nt_status netctl_get_netif_ips(span<const uint8_t> inbuf,
     uint32_t num = 0;
     nt_status ret = nt_status::SUCCESS;
 
+    // FIXME - IPv4 addresses
+
     {
         lock_guard lock(ni->addr_lock);
 
         for (auto le = ni->addrs.next; le != &ni->addrs; le = le->next) {
             auto& a = containing_record<ip_addr>(le);
 
+            if (!holds_alternative<ipv6_address>(a.addr))
+                continue;
+
             if (left == 0) {
                 ret = nt_status::BUFFER_TOO_SMALL;
                 break;
             }
 
-            out.ip[num] = a.addr;
+            out.ip[num] = get<ipv6_address>(a.addr);
             num++;
             left--;
         }
@@ -3153,7 +3182,10 @@ nt_status ipv6_choose_interface(const ipv6_address& dst, uint32_t scope_id,
                 for (auto le2 = ni2.addrs.next; le2 != &ni2.addrs; le2 = le2->next) {
                     auto& a = containing_record<ip_addr>(le2);
 
-                    if (a.addr == src) {
+                    if (!holds_alternative<ipv6_address>(a.addr))
+                        continue;
+
+                    if (get<ipv6_address>(a.addr) == src) {
                         ni2.acquire();
 
                         ni = &ni2;
@@ -3180,7 +3212,10 @@ nt_status ipv6_choose_interface(const ipv6_address& dst, uint32_t scope_id,
                 for (auto le2 = ni2.addrs.next; le2 != &ni2.addrs; le2 = le2->next) {
                     auto& a = containing_record<ip_addr>(le2);
 
-                    if (a.addr == dst) {
+                    if (!holds_alternative<ipv6_address>(a.addr))
+                        continue;
+
+                    if (get<ipv6_address>(a.addr) == dst) {
                         ni2.acquire();
 
                         ni = &ni2;
@@ -3245,7 +3280,11 @@ nt_status ipv6_choose_interface(const ipv6_address& dst, uint32_t scope_id,
 
         for (auto le = n.addrs.next; le != &n.addrs; le = le->next) {
             auto& a = containing_record<ip_addr>(le);
-            auto match_len = ipv6_match_len(dst, a.addr);
+
+            if (!holds_alternative<ipv6_address>(a.addr))
+                continue;
+
+            auto match_len = ipv6_match_len(dst, get<ipv6_address>(a.addr));
 
             if (!best || match_len > best_match_len) {
                 best = &a;
@@ -3258,7 +3297,7 @@ nt_status ipv6_choose_interface(const ipv6_address& dst, uint32_t scope_id,
             return nt_status::NETWORK_UNREACHABLE;
         }
 
-        src = best->addr;
+        src = get<ipv6_address>(best->addr);
         return nt_status::SUCCESS;
     }
 }
@@ -3858,7 +3897,10 @@ bool is_our_ip(const ipv6_address& ip) {
             for (auto le2 = ni.addrs.next; le2 != &ni.addrs; le2 = le2->next) {
                 auto& a = containing_record<ip_addr>(le2);
 
-                if (a.addr == ip)
+                if (!holds_alternative<ipv6_address>(a.addr))
+                    continue;
+
+                if (get<ipv6_address>(a.addr) == ip)
                     return true;
             }
         }

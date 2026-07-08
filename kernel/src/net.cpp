@@ -5,6 +5,7 @@ module;
 #include <bit>
 #include <algorithm>
 #include <atomic>
+#include <variant>
 #include <stdint.h>
 
 export module net;
@@ -65,7 +66,7 @@ export enum class ip_proto : uint8_t {
 
 export struct ip_addr {
     list_entry le;
-    ipv6_address addr;
+    variant<ipv4_address, ipv6_address> addr;
     bool slaac = false;
 };
 
