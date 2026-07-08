@@ -2353,15 +2353,13 @@ static nt_status netctl_get_netif_ips(span<const uint8_t> inbuf,
     uint32_t num = 0;
     nt_status ret = nt_status::SUCCESS;
 
-    // FIXME - IPv4 addresses
-
     {
         lock_guard lock(ni->addr_lock);
 
         for (auto le = ni->addrs.next; le != &ni->addrs; le = le->next) {
             auto& a = containing_record<ip_addr>(le);
 
-            if (!holds_alternative<ipv6_address>(a.addr))
+            if (!holds_alternative<ipv4_address>(a.addr) && !holds_alternative<ipv6_address>(a.addr))
                 continue;
 
             if (left == 0) {
@@ -2369,7 +2367,18 @@ static nt_status netctl_get_netif_ips(span<const uint8_t> inbuf,
                 break;
             }
 
-            out.ip[num] = get<ipv6_address>(a.addr);
+            if (holds_alternative<ipv4_address>(a.addr)) {
+                auto& addr = get<ipv4_address>(a.addr);
+
+                out.ip[num] = parse_ipv6_address("::ffff:0:0");
+
+                out.ip[num].v[12] = addr.v[0];
+                out.ip[num].v[13] = addr.v[1];
+                out.ip[num].v[14] = addr.v[2];
+                out.ip[num].v[15] = addr.v[3];
+            } else if (holds_alternative<ipv6_address>(a.addr))
+                out.ip[num] = get<ipv6_address>(a.addr);
+
             num++;
             left--;
         }
