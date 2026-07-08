@@ -171,12 +171,7 @@ static void test_ipv6_address_printing() {
 
 static void add_test_ipv4_address(netif& ni) {
     bool already_exists = false;
-    ipv4_address address;
-
-    address.v[0] = 10;
-    address.v[1] = 0;
-    address.v[2] = 0;
-    address.v[3] = 198;
+    auto address = parse_ipv4_address("10.0.0.198");
 
     auto a = new ip_addr;
     if (!a) {
