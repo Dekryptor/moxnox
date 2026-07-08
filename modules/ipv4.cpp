@@ -46,6 +46,20 @@ export struct ipv4_header {
 
 static_assert(sizeof(ipv4_header) == 20);
 
+export struct arp_header {
+    uint16_t htype;
+    uint16_t ptype;
+    uint8_t hlen;
+    uint8_t plen;
+    uint16_t opcode;
+    uint8_t sender_mac_address[6];
+    ipv4_address sender_ip_address;
+    uint8_t target_mac_address[6];
+    ipv4_address target_ip_address;
+} __attribute((packed));
+
+static_assert(sizeof(arp_header) == 28);
+
 template<>
 consteval bool format_spec_valid<ipv4_address>(string_view fmt) {
     return fmt.empty();

@@ -1566,8 +1566,6 @@ static void handle_ipv4_packet(netif& ni, packet& pack, const mac_address& src_m
     // FIXME - check if multicast
     // FIXME - check if for us
 
-    // FIXME - ARP
-
     send_to_ipv4_sockets(ni, pack, src_mac, skip_checksum);
 }
 
@@ -4014,10 +4012,100 @@ ipv6_address find_ll_address(const mac_address& m) {
     return ret;
 }
 
+static void send_arp_reply(netif& ni, const ipv4_address& src_ip,
+                           const ipv4_address& dst_ip,
+                           const mac_address& dst_mac) {
+    auto pack = new packet;
+    if (!pack) {
+        print("new failed\n");
+        return;
+    }
+
+    pack->size = sizeof(arp_header);
+    auto& arp = *(arp_header*)pack->data;
+
+    memset(&arp, 0, sizeof(arp));
+
+    arp.htype = byteswap((uint16_t)1); // Ethernet
+    arp.ptype = (uint16_t)ethertype::ipv4;
+    arp.hlen = sizeof(mac_address);
+    arp.plen = sizeof(ipv4_address);
+    arp.opcode = (uint16_t)arp_opcode::reply;
+    *(mac_address*)arp.sender_mac_address = ni.mac;
+    arp.sender_ip_address = src_ip;
+    *(mac_address*)arp.target_mac_address = dst_mac;
+    arp.target_ip_address = dst_ip;
+
+    auto status = ni.send_packet(dst_mac, ethertype::arp, *pack);
+    if (!success(status))
+        print("send_packet returned {}\n", status);
+
+    pack->release();
+}
+
+static void handle_arp_packet(netif& ni, packet& pack) {
+    if (pack.size < sizeof(arp_header))
+        return;
+
+    const auto& arp = *(arp_header*)pack.data;
+
+    if (arp.hlen != sizeof(mac_address) || arp.plen != sizeof(ipv4_address))
+        return;
+
+    if (byteswap(arp.htype) != 1) // not Ethernet
+        return;
+
+    if ((ethertype)arp.ptype != ethertype::ipv4)
+        return;
+
+#if 0
+    print("arp: htype = {}, ptype = {}, hlen = {}, plen = {}, opcode = {}, sender_mac_address = {}, sender_ip_address = {}, target_mac_address = {}, target_ip_address = {}\n",
+          byteswap(arp.htype), (ethertype)arp.ptype, arp.hlen, arp.plen, byteswap(arp.opcode),
+          *(mac_address*)arp.sender_mac_address, arp.sender_ip_address,
+          *(mac_address*)arp.target_mac_address, arp.target_ip_address);
+#endif
+
+    if ((arp_opcode)arp.opcode == arp_opcode::request) {
+        bool found = false;
+
+        {
+            lock_guard lock(ni.addr_lock);
+
+            for (auto le = ni.addrs.next; le != &ni.addrs; le = le->next) {
+                auto& a = containing_record<ip_addr>(le);
+
+                if (holds_alternative<ipv4_address>(a.addr) && get<ipv4_address>(a.addr) == arp.target_ip_address) {
+                    found = true;
+                    break;
+                }
+            }
+        }
+
+        if (!found)
+            return;
+
+        // FIXME - put sender in ARP cache?
+
+        send_arp_reply(ni, arp.target_ip_address, arp.sender_ip_address,
+                       *(mac_address*)arp.sender_mac_address);
+    }
+}
+
 void received_packet(netif& ni, packet& pack, const mac_address& src_mac,
                      ethertype type, bool skip_csumming) {
-    if (type == ethertype::ipv4)
-        handle_ipv4_packet(ni, pack, src_mac, skip_csumming);
-    else if (type == ethertype::ipv6)
-        handle_ipv6_packet(ni, pack, src_mac, skip_csumming);
+    switch (type) {
+        using enum ethertype;
+
+        case ipv4:
+            handle_ipv4_packet(ni, pack, src_mac, skip_csumming);
+            break;
+
+        case ipv6:
+            handle_ipv6_packet(ni, pack, src_mac, skip_csumming);
+            break;
+
+        case arp:
+            handle_arp_packet(ni, pack);
+            break;
+    }
 }

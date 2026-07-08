@@ -49,6 +49,11 @@ export enum class ethertype : uint16_t { // bytes flipped
     ipv6 = 0xdd86,
 };
 
+enum class arp_opcode : uint16_t { // bytes flipped
+    request = 0x0100,
+    reply = 0x0200,
+};
+
 export struct ethernet_header {
     mac_address dst_mac;
     mac_address src_mac;
