@@ -9,6 +9,7 @@ import nt;
 import print;
 import unique_handle;
 import moxnox_ioctls;
+import ipv4;
 import ipv6;
 
 using namespace std;
@@ -113,8 +114,20 @@ static void get_netif_ips(unique_handle& netctl, uint32_t id) {
         return;
     }
 
+    static const uint8_t MAPPED_IPV4[] = { 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0xff, 0xff };
+
     for (uint32_t i = 0; i < ips->count; i++) {
-        print("IPv6 address: {}\n", ips->ip[i]);
+        if (!memcmp(ips->ip[i].v.data(), MAPPED_IPV4, sizeof(MAPPED_IPV4))) {
+            ipv4_address addr;
+
+            addr.v[0] = ips->ip[i].v[12];
+            addr.v[1] = ips->ip[i].v[13];
+            addr.v[2] = ips->ip[i].v[14];
+            addr.v[3] = ips->ip[i].v[15];
+
+            print("IPv4 address: {}\n", addr);
+        } else
+            print("IPv6 address: {}\n", ips->ip[i]);
     }
 
     free(ips);
