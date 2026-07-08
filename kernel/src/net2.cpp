@@ -2328,7 +2328,7 @@ static nt_status netctl_get_netif_ips(span<const uint8_t> inbuf,
     if (outbuf.size() < offsetof(MOXNOX_NETCTL_GET_NETIF_IPS, ip))
         return nt_status::BUFFER_TOO_SMALL;
 
-    size_t left = (outbuf.size() - offsetof(MOXNOX_NETCTL_GET_NETIF_IPS, ip)) / sizeof(uint32_t);
+    size_t left = (outbuf.size() - offsetof(MOXNOX_NETCTL_GET_NETIF_IPS, ip)) / sizeof(ipv6_address);
 
     auto& out = *(MOXNOX_NETCTL_GET_NETIF_IPS*)outbuf.data();
     netif* ni = nullptr;
@@ -2390,7 +2390,7 @@ static nt_status netctl_get_netif_ips(span<const uint8_t> inbuf,
         return ret;
 
     out.count = num;
-    written = offsetof(MOXNOX_NETCTL_GET_NETIF_IPS, ip) + (num * sizeof(uint32_t));
+    written = offsetof(MOXNOX_NETCTL_GET_NETIF_IPS, ip) + (num * sizeof(ipv6_address));
 
     return ret;
 }
