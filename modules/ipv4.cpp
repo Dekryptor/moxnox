@@ -60,6 +60,37 @@ export struct arp_header {
 
 static_assert(sizeof(arp_header) == 28);
 
+export enum class icmpv4_type : uint8_t {
+    echo_reply = 0,
+    destination_unreachable = 3,
+    source_quench = 4,
+    redirect_message = 5,
+    echo_request = 8,
+    router_advertisement = 9,
+    router_solicitation = 10,
+    time_exceeded = 11,
+    bad_ip_header = 12,
+    timestamp = 13,
+    timestamp_reply = 14,
+    extended_echo_request = 42,
+    extended_echo_reply = 43,
+};
+
+export struct icmpv4_header {
+    icmpv4_type type;
+    uint8_t code;
+    uint16_t checksum;
+} __attribute((packed));
+
+static_assert(sizeof(icmpv4_header) == 4);
+
+export struct icmpv4_echo : icmpv4_header {
+    uint16_t identifier;
+    uint16_t sequence;
+} __attribute((packed));
+
+static_assert(sizeof(icmpv4_echo) == 8);
+
 template<>
 consteval bool format_spec_valid<ipv4_address>(string_view fmt) {
     return fmt.empty();

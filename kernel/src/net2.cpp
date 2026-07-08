@@ -296,6 +296,8 @@ static list_entry ipv6_routes = { &ipv6_routes, &ipv6_routes };
 static spinlock dns_servers_lock;
 static list_entry dns_servers = { &dns_servers, &dns_servers };
 
+static void handle_ipv4_packet(netif& ni, packet& pack, const mac_address& src_mac,
+                               bool skip_checksum);
 static void handle_ipv6_packet(netif& ni, packet& pack, const mac_address& src_mac,
                                bool skip_checksum);
 
@@ -1546,6 +1548,112 @@ static void handle_ipv6_packet(netif& ni, packet& pack, const mac_address& src_m
     }
 }
 
+uint16_t calc_ipv4_checksum(span<const uint8_t> data) {
+    uint32_t sum = 0;
+
+    for (auto s : span((uint16_t*)data.data(), data.size() / sizeof(uint16_t))) {
+        sum += byteswap(s);
+    }
+
+    if (data.size() & 1)
+        sum += (uint16_t)(data[data.size() - 1] << 8);
+
+    while (sum & 0xffff0000) {
+        sum = (sum >> 16) + (sum & 0xffff);
+    }
+
+    return byteswap((uint16_t)(~(uint16_t)sum));
+}
+
+static void handle_v4_echo_request(netif& ni, packet& pack,
+                                   const mac_address& src_mac, bool skip_checksum) {
+    const auto& orig_ip = *(ipv4_header*)pack.data;
+    size_t ip_header_size = orig_ip.ihl * sizeof(uint32_t);
+
+    if (pack.size < ip_header_size + sizeof(icmpv4_echo)) {
+        print("handle_v4_echo_request: buffer length was {}, expected at least {}\n",
+              pack.size, ip_header_size + sizeof(icmpv4_echo));
+        return;
+    }
+
+    if (!skip_checksum) {
+        if (calc_ipv4_checksum(span(pack.data + ip_header_size, pack.size - ip_header_size)) != 0)
+            return;
+    }
+
+    auto pack2 = new packet;
+    if (!pack2) {
+        print("new failed\n");
+        return;
+    }
+
+    // take copy
+
+    pack2->size = pack.size;
+    memcpy(pack2->data, pack.data, pack.size);
+
+    // switch IP addresses
+
+    auto& ip = *(ipv4_header*)pack2->data;
+    swap(ip.src, ip.dst);
+
+    // FIXME
+    // if (is_multicast_address(ip.src))
+    //     ip.src = ni.ll_addr;
+
+    ip.ttl = DEFAULT_HOP_LIMIT;
+
+    ip.header_checksum = 0;
+    ip.header_checksum = calc_ipv4_checksum(span(pack2->data, ip_header_size));
+
+    // change type to reply
+
+    auto& header = *(icmpv4_header*)(pack2->data + ip_header_size);
+    header.type = icmpv4_type::echo_reply;
+
+    header.checksum = 0;
+    header.checksum = calc_ipv4_checksum(span(pack2->data + ip_header_size,
+                                              pack2->size - ip_header_size));
+
+    if (ip.src == ip.dst) // pinging ourselves
+        handle_ipv4_packet(ni, *pack2, ni.mac, true);
+    else {
+        auto status = ni.send_packet(src_mac, ethertype::ipv4, *pack2);
+        if (!success(status))
+            print("send_packet returned {}\n", status);
+    }
+
+    pack2->release();
+}
+
+static void handle_icmpv4_packet(netif& ni, packet& pack, const mac_address& src_mac,
+                                 bool skip_checksum) {
+    const auto& ip = *(ipv4_header*)pack.data;
+    size_t ip_header_size = ip.ihl * sizeof(uint32_t);
+
+    if (pack.size < ip_header_size + sizeof(icmpv4_header)) {
+        print("handle_icmpv4_packet: buffer length was {}, expected at least {}\n",
+              pack.size, ip_header_size + sizeof(icmpv4_header));
+        return;
+    }
+
+    auto& header = *(icmpv4_header*)(pack.data + ip_header_size);
+
+#if 0
+    print("icmpv4: type = {}, code = {:02x}, checksum = {:04x}\n",
+          (uint8_t)header.type, header.code, byteswap(header.checksum));
+#endif
+
+    switch (header.type) {
+        case icmpv4_type::echo_request:
+            handle_v4_echo_request(ni, pack, src_mac, skip_checksum);
+            break;
+
+        default:
+            break;
+    }
+}
+
 static void handle_ipv4_packet(netif& ni, packet& pack, const mac_address& src_mac,
                                bool skip_checksum) {
     if (pack.size < sizeof(ipv4_header)) {
@@ -1554,9 +1662,22 @@ static void handle_ipv4_packet(netif& ni, packet& pack, const mac_address& src_m
         return;
     }
 
-#if 0
     const auto& ip = *(ipv4_header*)pack.data;
+    size_t ip_header_size = ip.ihl * sizeof(uint32_t);
 
+    if (ip_header_size < sizeof(ipv4_header)) {
+        print("handle_ipv4_packet: ip_header_size was {}, expected at least {}\n",
+              ip_header_size, sizeof(ipv4_header));
+        return;
+    }
+
+    if (pack.size < ip_header_size) {
+        print("handle_ipv4_packet: buffer length was {}, expected at least {}\n",
+              pack.size, ip_header_size);
+        return;
+    }
+
+#if 0
     print("ipv4: version = {}, ihl = {}, dscp = {}, ecn = {}, total_length = {}, identification = {}, fragment_offset1 = {}, flags = {}, fragment_offset2 = {}, ttl = {}, protocol = {}, header_checksum = {:x}, src = {}, dst = {}\n",
           ip.version, ip.ihl, ip.dscp, ip.ecn, byteswap((uint16_t)ip.total_length),
           ip.identification, ip.fragment_offset1, ip.flags, ip.fragment_offset2,
@@ -1565,6 +1686,20 @@ static void handle_ipv4_packet(netif& ni, packet& pack, const mac_address& src_m
 
     // FIXME - check if multicast
     // FIXME - check if for us
+
+    if (!skip_checksum) {
+        if (calc_ipv4_checksum(span(pack.data, ip_header_size)) != 0)
+            return;
+    }
+
+    switch ((ip_proto)ip.protocol) {
+        case ip_proto::icmpv4:
+            handle_icmpv4_packet(ni, pack, src_mac, skip_checksum);
+            break;
+
+        default:
+            break;
+    }
 
     send_to_ipv4_sockets(ni, pack, src_mac, skip_checksum);
 }
