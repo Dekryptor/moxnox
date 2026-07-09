@@ -180,6 +180,11 @@ pid_t getpgid(pid_t pid) {
     return (pid_t)ret;
 }
 
+extern "C"
+pid_t getpgrp() {
+    return getpgid(0);
+}
+
 template<typename... Args>
 static void set_dl_error_string(type_identity_t<checker<type_identity_t<Args>...>> fmt, Args&&... args) {
     auto sp = span(dl_error_string, sizeof(dl_error_string) - 1);
