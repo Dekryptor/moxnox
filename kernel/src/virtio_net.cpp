@@ -180,7 +180,8 @@ static void add_test_ipv4_address(netif& ni) {
     }
 
     a->addr = address;
-    a->slaac = true;
+    a->slaac = false;
+    a->prefix = 24;
 
     {
         lock_guard lock(ni.addr_lock);

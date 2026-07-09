@@ -1565,8 +1565,8 @@ uint16_t calc_ipv4_checksum(span<const uint8_t> data) {
     return byteswap((uint16_t)(~(uint16_t)sum));
 }
 
-static void handle_v4_echo_request(netif& ni, packet& pack,
-                                   const mac_address& src_mac, bool skip_checksum) {
+static void handle_v4_echo_request(netif& ni, packet& pack, const mac_address& src_mac,
+                                   const ipv4_address& our_ip, bool skip_checksum) {
     const auto& orig_ip = *(ipv4_header*)pack.data;
     size_t ip_header_size = orig_ip.ihl * sizeof(uint32_t);
 
@@ -1595,11 +1595,8 @@ static void handle_v4_echo_request(netif& ni, packet& pack,
     // switch IP addresses
 
     auto& ip = *(ipv4_header*)pack2->data;
-    swap(ip.src, ip.dst);
-
-    // FIXME
-    // if (is_multicast_address(ip.src))
-    //     ip.src = ni.ll_addr;
+    ip.dst = ip.src;
+    ip.src = our_ip;
 
     ip.ttl = DEFAULT_HOP_LIMIT;
 
@@ -1627,7 +1624,7 @@ static void handle_v4_echo_request(netif& ni, packet& pack,
 }
 
 static void handle_icmpv4_packet(netif& ni, packet& pack, const mac_address& src_mac,
-                                 bool skip_checksum) {
+                                 const ipv4_address& our_ip, bool skip_checksum) {
     const auto& ip = *(ipv4_header*)pack.data;
     size_t ip_header_size = ip.ihl * sizeof(uint32_t);
 
@@ -1646,12 +1643,39 @@ static void handle_icmpv4_packet(netif& ni, packet& pack, const mac_address& src
 
     switch (header.type) {
         case icmpv4_type::echo_request:
-            handle_v4_echo_request(ni, pack, src_mac, skip_checksum);
+            handle_v4_echo_request(ni, pack, src_mac, our_ip, skip_checksum);
             break;
 
         default:
             break;
     }
+}
+
+static uint8_t calc_matching_prefix(const ipv4_address& a1, const ipv4_address& a2) {
+    uint32_t v1 = (a1.v[0] << 24) | (a1.v[1] << 16) | (a1.v[2] << 8) | a1.v[3];
+    uint32_t v2 = (a2.v[0] << 24) | (a2.v[1] << 16) | (a2.v[2] << 8) | a2.v[3];
+
+    return (uint8_t)countl_one(~(v1 ^ v2));
+}
+
+static ipv4_address calculate_broadcast_address(const ipv4_address& addr, uint8_t prefix) {
+    uint32_t v = (addr.v[0] << 24) | (addr.v[1] << 16) | (addr.v[2] << 8) | addr.v[3];
+    uint32_t mask;
+    ipv4_address ret;
+
+    if (prefix == 0)
+        mask = 0;
+    else
+        mask = 0xffffffff << (32 - prefix);
+
+    v = (v & mask) | ~mask;
+
+    ret.v[0] = (uint8_t)(v >> 24);
+    ret.v[1] = (v >> 16) & 0xff;
+    ret.v[2] = (v >> 8) & 0xff;
+    ret.v[3] = v & 0xff;
+
+    return ret;
 }
 
 static void handle_ipv4_packet(netif& ni, packet& pack, const mac_address& src_mac,
@@ -1684,8 +1708,52 @@ static void handle_ipv4_packet(netif& ni, packet& pack, const mac_address& src_m
           ip.ttl, ip.protocol, byteswap((uint16_t)ip.header_checksum), ip.src, ip.dst);
 #endif
 
-    // FIXME - check if multicast
-    // FIXME - check if for us
+    if (ip.src == parse_ipv4_address("255.255.255.255"))
+        return;
+
+    optional<ipv4_address> our_ip;
+
+    {
+        uint8_t matching_prefix;
+
+        lock_guard lock(ni.addr_lock);
+
+        for (auto le = ni.addrs.next; le != &ni.addrs; le = le->next) {
+            auto& a = containing_record<ip_addr>(le);
+
+            if (!holds_alternative<ipv4_address>(a.addr))
+                continue;
+
+            auto& addr = get<ipv4_address>(a.addr);
+
+            if (ip.dst == parse_ipv4_address("255.255.255.255")) {
+                if (!our_ip.has_value()) {
+                    our_ip = addr;
+                    matching_prefix = calc_matching_prefix(addr, ip.src);
+                } else {
+                    uint8_t pref = calc_matching_prefix(addr, ip.src);
+
+                    if (pref > matching_prefix) {
+                        our_ip = addr;
+                        matching_prefix = pref;
+                    }
+                }
+            } else {
+                if (ip.dst == addr) {
+                    our_ip = addr;
+                    break;
+                }
+
+                if (ip.dst == calculate_broadcast_address(addr, a.prefix)) {
+                    our_ip = addr;
+                    break;
+                }
+            }
+        }
+    }
+
+    if (!our_ip.has_value())
+        return;
 
     if (!skip_checksum) {
         if (calc_ipv4_checksum(span(pack.data, ip_header_size)) != 0)
@@ -1694,7 +1762,7 @@ static void handle_ipv4_packet(netif& ni, packet& pack, const mac_address& src_m
 
     switch ((ip_proto)ip.protocol) {
         case ip_proto::icmpv4:
-            handle_icmpv4_packet(ni, pack, src_mac, skip_checksum);
+            handle_icmpv4_packet(ni, pack, src_mac, *our_ip, skip_checksum);
             break;
 
         default:

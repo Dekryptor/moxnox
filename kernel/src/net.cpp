@@ -73,6 +73,7 @@ export struct ip_addr {
     list_entry le;
     variant<ipv4_address, ipv6_address> addr;
     bool slaac = false;
+    uint8_t prefix;
 };
 
 export struct packet {
