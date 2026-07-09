@@ -313,3 +313,16 @@ iswpunct
 iswupper
 iswxdigit
 iswalnum
+getwc
+putwc
+strxfrm
+ungetwc
+wcscoll
+wcsftime
+wcsxfrm
+asctime
+fgetpos
+fsetpos
+mbsrtowcs
+wcscat
+atoll
