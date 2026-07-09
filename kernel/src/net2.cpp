@@ -610,7 +610,7 @@ bool is_multicast_address(const ipv6_address& addr) {
 }
 
 static void handle_v6_echo_request(netif& ni, packet& pack,
-                                   const mac_address& src_mac) {
+                                   const mac_address& src_mac, bool skip_checksum) {
     if (pack.size < sizeof(ipv6_header) + sizeof(icmpv6_echo)) {
         print("handle_v6_echo_request: buffer length was {}, expected at least {}\n",
               pack.size, sizeof(ipv6_header) + sizeof(icmpv6_echo));
@@ -620,8 +620,10 @@ static void handle_v6_echo_request(netif& ni, packet& pack,
     const auto& orig_ip = *(ipv6_header*)pack.data;
     const auto& icmp = *(icmpv6_header*)(pack.data + sizeof(ipv6_header));
 
-    if (calc_ipv6_checksum(orig_ip, span((uint8_t*)&icmp, pack.size - sizeof(ipv6_header)), IPPROTO_ICMPV6) != 0)
-        return;
+    if (!skip_checksum) {
+        if (calc_ipv6_checksum(orig_ip, span((uint8_t*)&icmp, pack.size - sizeof(ipv6_header)), IPPROTO_ICMPV6) != 0)
+            return;
+    }
 
     auto pack2 = new packet;
     if (!pack2) {
@@ -1208,7 +1210,8 @@ static void handle_icmpv6_error(packet& pack) {
 }
 
 static void handle_icmpv6_packet(netif& ni, packet& pack,
-                                 const mac_address& src_mac) {
+                                 const mac_address& src_mac,
+                                 bool skip_checksum) {
     if (pack.size < sizeof(ipv6_header) + sizeof(icmpv6_header)) {
         print("handle_icmpv6_packet: buffer length was {}, expected at least {}\n",
               pack.size, sizeof(ipv6_header) + sizeof(icmpv6_header));
@@ -1231,7 +1234,7 @@ static void handle_icmpv6_packet(netif& ni, packet& pack,
             break;
 
         case icmpv6_type::echo_request:
-            handle_v6_echo_request(ni, pack, src_mac);
+            handle_v6_echo_request(ni, pack, src_mac, skip_checksum);
             break;
 
         case icmpv6_type::router_advertisement:
@@ -1523,7 +1526,7 @@ static void handle_ipv6_packet(netif& ni, packet& pack, const mac_address& src_m
 
     switch ((ip_proto)ip.next_header) {
         case ip_proto::icmpv6:
-            handle_icmpv6_packet(ni, pack, src_mac);
+            handle_icmpv6_packet(ni, pack, src_mac, skip_checksum);
             break;
 
         default:
