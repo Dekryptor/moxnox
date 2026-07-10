@@ -88,3 +88,6 @@
 [submodule "ports/gcc/repo"]
 	path = ports/gcc/repo
 	url = https://git.burntcomma.com/moxnox/gcc-cc
+[submodule "ports/llvm/repo"]
+	path = ports/llvm/repo
+	url = https://git.burntcomma.com/moxnox/llvm-cc
