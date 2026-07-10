@@ -93,12 +93,15 @@ int sigaction(int sig, const struct sigaction *act, struct sigaction *oldact);
 int sigemptyset(sigset_t* set);
 int sigfillset(sigset_t* set);
 int sigaddset(sigset_t* set, int signum);
+int sigdelset(sigset_t* set, int signum);
 int sigprocmask(int how, const sigset_t* set, sigset_t* oldset);
+int sigsuspend(const sigset_t* mask);
 __sighandler_t signal(int sig, __sighandler_t func);
 int raise(int sig);
 int sigismember(const sigset_t* set, int signo);
-int pthread_sigmask(int how, const sigset_t* set,
-                    sigset_t* oset);
+int pthread_sigmask(int how, const sigset_t* set, sigset_t* oset);
+int sigwait(const sigset_t* set, int* sig);
+int sigpending(sigset_t* set);
 
 #ifdef __cplusplus
 }
