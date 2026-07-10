@@ -3,8 +3,6 @@
 #include <sys/select.h>
 #include <signal.h>
 
-#define _POSIX_VERSION 200809L
-
 #define HAVE_ISASCII 1
 #define HAVE_ISXDIGIT 1
 #define HAVE_MEMMOVE 1
