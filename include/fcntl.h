@@ -13,6 +13,8 @@
 #define O_NONBLOCK  0x0800
 #define O_NOFOLLOW  0x1000
 #define O_CLOEXEC   0x2000
+#define O_NOCTTY    0x80000
+#define O_DIRECTORY 0x100000
 
 #define F_DUPFD     0
 #define F_GETFD     1
@@ -37,6 +39,11 @@
 #define _O_TRUNC    O_TRUNC
 #define _O_EXCL     O_EXCL
 
+#define AT_FDCWD    -1
+
+#define AT_REMOVEDIR        1
+#define AT_SYMLINK_NOFOLLOW 2
+
 struct flock {
     short l_type;
     short l_whence;
@@ -52,6 +59,7 @@ extern "C" {
 int open(const char* path, int flags, ...);
 int creat(const char* path, mode_t mode);
 int fcntl(int fd, int cmd, ...);
+int openat(int fd, const char* path, int oflag, ...);
 
 #ifdef __cplusplus
 }
