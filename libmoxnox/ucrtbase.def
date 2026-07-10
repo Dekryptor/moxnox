@@ -87,6 +87,7 @@ _hypotf
 _setjmp
 sinf
 tan
+tanf
 scalbn
 atan
 atanf
