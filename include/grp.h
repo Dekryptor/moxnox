@@ -18,6 +18,9 @@ int getgrgid_r(gid_t gid, struct group* grp, char* buf, size_t size,
                struct group** result);
 int getgrnam_r(const char* name, struct group* grp, char* buf, size_t size,
                struct group** result);
+void endgrent(void);
+struct group* getgrent(void);
+void setgrent(void);
 
 #ifdef __cplusplus
 }
