@@ -196,7 +196,6 @@ add_library(mingwex STATIC
     repo/mingw-w64-crt/misc/ftime32.c
     # repo/mingw-w64-crt/misc/ftime64.c
     repo/mingw-w64-crt/misc/memalignment.c
-    repo/mingw-w64-crt/misc/mempcpy.c
     repo/mingw-w64-crt/misc/mingw-aligned-malloc.c
     repo/mingw-w64-crt/misc/mingw_matherr.c
     repo/mingw-w64-crt/misc/mingw_mbwc_convert.c
@@ -225,7 +224,6 @@ add_library(mingwex STATIC
     repo/mingw-w64-crt/misc/wmemcmp.c
     repo/mingw-w64-crt/misc/wmemcpy.c
     repo/mingw-w64-crt/misc/wmemmove.c
-    repo/mingw-w64-crt/misc/wmempcpy.c
     repo/mingw-w64-crt/misc/wmemset.c
     repo/mingw-w64-crt/misc/mingw-access.c
     repo/mingw-w64-crt/misc/ftw32.c
