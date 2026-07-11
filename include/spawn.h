@@ -1,6 +1,7 @@
 #pragma once
 
 #include <sys/types.h>
+#include <signal.h>
 
 struct _posix_spawn_file_actions_t {
     void* _ptr1;
@@ -9,6 +10,11 @@ struct _posix_spawn_file_actions_t {
 
 typedef struct _posix_spawn_file_actions_t posix_spawn_file_actions_t;
 typedef void* posix_spawnattr_t; // FIXME
+
+#define POSIX_SPAWN_RESETIDS	1
+#define POSIX_SPAWN_SETPGROUP	2
+#define POSIX_SPAWN_SETSIGDEF	3
+#define POSIX_SPAWN_SETSIGMASK	4
 
 #ifdef __cplusplus
 extern "C" {
@@ -37,6 +43,11 @@ int posix_spawn_file_actions_addfchdir(posix_spawn_file_actions_t* file_actions,
                                        int fd);
 int posix_spawnattr_init(posix_spawnattr_t* attr);
 int posix_spawnattr_destroy(posix_spawnattr_t* attr);
+int posix_spawnattr_setflags(posix_spawnattr_t* attr, short flags);
+int posix_spawnattr_setsigdefault(posix_spawnattr_t* attr,
+                                  const sigset_t* sigdefault);
+int posix_spawnattr_setsigmask(posix_spawnattr_t* attr,
+                               const sigset_t* restrict);
 
 #ifdef __cplusplus
 }
