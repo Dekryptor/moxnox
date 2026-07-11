@@ -38,6 +38,10 @@ import errno;
 
 using namespace std;
 
+#undef st_atime
+#undef st_mtime
+#undef st_ctime
+
 struct _FILE {
     _FILE(HANDLE h, int fd);
     ~_FILE();
