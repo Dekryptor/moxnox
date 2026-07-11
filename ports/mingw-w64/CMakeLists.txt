@@ -190,7 +190,6 @@ add_library(mingwex STATIC
     repo/mingw-w64-crt/misc/mingw_setfp.c
     repo/mingw-w64-crt/misc/feupdateenv.c
     repo/mingw-w64-crt/misc/fwide.c
-    repo/mingw-w64-crt/misc/getlogin.c
     repo/mingw-w64-crt/misc/getopt.c
     repo/mingw-w64-crt/misc/__mingw_has_sse.c
     repo/mingw-w64-crt/misc/ftime32.c
