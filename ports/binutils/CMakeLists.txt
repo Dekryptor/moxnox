@@ -17,7 +17,6 @@ add_custom_command(
 # libiberty
 
 add_library(libiberty STATIC
-    ${REPO}/libiberty/regex.c
     ${REPO}/libiberty/cplus-dem.c
     ${REPO}/libiberty/cp-demangle.c
     ${REPO}/libiberty/md5.c
@@ -51,6 +50,7 @@ add_library(libiberty STATIC
     ${LIBIBERTY_GEN_DIR}/lrealpath.c
     ${REPO}/libiberty/make-relative-prefix.c
     ${LIBIBERTY_GEN_DIR}/make-temp-file.c
+    ${REPO}/libiberty/mempcpy.c
     ${REPO}/libiberty/objalloc.c
     ${REPO}/libiberty/obstack.c
     ${REPO}/libiberty/partition.c
