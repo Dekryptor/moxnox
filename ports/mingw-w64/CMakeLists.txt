@@ -386,5 +386,5 @@ endif()
 
 target_include_directories(mingwex PRIVATE ${CMAKE_CURRENT_BINARY_DIR} repo/mingw-w64-headers/crt repo/mingw-w64-crt/include)
 
-target_compile_definitions(mingwex PRIVATE -D_CRTIMP= -D_UCRT)
+target_compile_definitions(mingwex PRIVATE -D_CRTIMP= -D_UCRT -D_CRTBLD)
 target_compile_options(mingwex PRIVATE -ffreestanding -mno-stack-arg-probe $<$<CXX_COMPILER_ID:Clang>:-Wno-pragma-pack -Wno-include-next-absolute-path>)
