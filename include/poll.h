@@ -3,6 +3,7 @@
 #include <stdlib.h>
 #include <stddef.h>
 #include <stdint.h>
+#include <signal.h>
 
 typedef size_t nfds_t;
 
@@ -34,6 +35,8 @@ extern "C" {
 #endif
 
 int poll(struct pollfd* fds, nfds_t nfds, int timeout);
+int ppoll(struct pollfd* fds, nfds_t nfds, const struct timespec* timeout,
+          const sigset_t* sigmask);
 
 #ifdef __cplusplus
 }
