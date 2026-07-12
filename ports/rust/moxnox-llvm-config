@@ -1,0 +1,120 @@
+#!/bin/bash
+# Host-runnable llvm-config for a Moxnox sysroot LLVM package, for the rust
+# bootstrap: the package's own llvm-config is a PE executable, so the
+# queries rustc_llvm/build.rs and bootstrap make are answered here from the
+# package's LLVMConfig.cmake instead. Invoked as <triple>-llvm-config (the
+# triple is taken from the program name), e.g. via the symlinks next to
+# this script.
+
+set -e
+
+triple=${0##*/}
+triple=${triple%-llvm-config}
+
+prefix=/usr/${triple}/usr/lib/llvm/22
+config=${prefix}/lib/cmake/llvm/LLVMConfig.cmake
+
+if [[ ! -r ${config} ]]; then
+	echo "${0##*/}: no LLVMConfig.cmake under ${prefix}" >&2
+	exit 1
+fi
+
+config_var() {
+	sed -n "s/^set(${1} \(.*\))\$/\1/p" "${config}"
+}
+
+version=$(config_var LLVM_PACKAGE_VERSION)
+targets=$(config_var LLVM_TARGETS_TO_BUILD)
+
+# semicolon-separated, dependency-first
+available_libs=$(config_var LLVM_AVAILABLE_LIBS)
+
+components() {
+	local IFS=';'
+	for lib in ${available_libs}; do
+		echo "${lib#LLVM}" | tr '[:upper:]' '[:lower:]'
+	done
+	# umbrella component names for the built targets (e.g. "x86")
+	local IFS=';'
+	for t in ${targets}; do
+		echo "${t}" | tr '[:upper:]' '[:lower:]'
+	done
+}
+
+# dependents first for a single-pass linker: reverse of the config order.
+# The entries without the LLVM prefix (LTO, Remarks) are the C API shim
+# DLLs, present only as import libraries; linking them would add runtime
+# DLL dependencies for functionality the static LLVMLTO already provides.
+libs() {
+	local IFS=';'
+	local reversed=()
+	for lib in ${available_libs}; do
+		if [[ ${lib} == LLVM* ]]; then
+			reversed=("-l${lib}" "${reversed[@]}")
+		fi
+	done
+	echo "${reversed[@]}"
+}
+
+for arg in "$@"; do
+	case ${arg} in
+	--version)
+		echo "${version}"
+		;;
+	--host-target)
+		echo "${triple}"
+		;;
+	--targets-built)
+		echo "${targets}" | tr ';' ' '
+		;;
+	--components)
+		components
+		;;
+	--libs)
+		libs
+		;;
+	--system-libs)
+		# the package is built without zlib/zstd/libxml2/libedit, and the
+		# remaining system dependencies live in the default-linked umbrella
+		echo ""
+		;;
+	--cxxflags)
+		echo "-I${prefix}/include -std=c++17"
+		;;
+	--ldflags)
+		echo "-L${prefix}/lib"
+		;;
+	--prefix)
+		echo "${prefix}"
+		;;
+	--bindir)
+		echo "${prefix}/bin"
+		;;
+	--libdir)
+		echo "${prefix}/lib"
+		;;
+	--includedir)
+		echo "${prefix}/include"
+		;;
+	--cmakedir)
+		echo "${prefix}/lib/cmake/llvm"
+		;;
+	--shared-mode)
+		echo "static"
+		;;
+	--assertion-mode)
+		echo "OFF"
+		;;
+	--link-static)
+		# mode selector for --libs/--ldflags; static is all we have
+		;;
+	--*)
+		echo "${0##*/}: unhandled query ${arg}" >&2
+		exit 1
+		;;
+	*)
+		# component arguments to --libs: the full static set is returned
+		# regardless, and the linker takes what it needs
+		;;
+	esac
+done

@@ -1,0 +1,38 @@
+# Configured into the build tree by ports/rust/CMakeLists.txt.
+change-id = "ignore"
+
+[build]
+host = ["@RUST_TARGET@"]
+build-dir = "@RUSTC_BUILD_DIR@"
+rustc = "@RUSTC_STAGE0@"
+cargo = "@CARGO_STAGE0@"
+# stage0 is the same version as this tree
+local-rebuild = true
+
+[llvm]
+download-ci-llvm = false
+# the build machine's system LLVM ships shared libraries only
+link-shared = true
+
+[rust]
+channel = "dev"
+# no ELF rpath on PE targets
+rpath = false
+# the sysroot LLVM package ships no tools for bootstrap to copy
+llvm-tools = false
+# path-substituted crates lose --cap-lints=allow, so warnings from
+# vendored upstream sources must not be fatal
+deny-warnings = false
+
+[target.@RUST_BUILD_TRIPLE@]
+llvm-config = "@RUST_HOST_LLVM_CONFIG@"
+
+[target.@RUST_TARGET@]
+linker = "@RUST_TARGET@-clang"
+cc = "@RUST_TARGET@-clang"
+cxx = "@RUST_TARGET@-clang++"
+llvm-config = "@CMAKE_CURRENT_SOURCE_DIR@/@RUST_TARGET@-llvm-config"
+# the target spec passes -static-libgcc too, but with local-rebuild the
+# stage0 compiler is the installed one, whose spec may predate that;
+# this keeps the gcc runtime static regardless of stage0's vintage
+rustflags = ["-Clink-arg=-static-libgcc"]

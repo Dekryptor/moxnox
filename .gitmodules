@@ -94,3 +94,42 @@
 [submodule "ports/make/repo"]
 	path = ports/make/repo
 	url = https://git.burntcomma.com/moxnox/make
+[submodule "ports/rust/repo"]
+	path = ports/rust/repo
+	url = https://git.burntcomma.com/moxnox/rust-cc
+[submodule "ports/rust/libc"]
+	path = ports/rust/libc
+	url = https://git.burntcomma.com/moxnox/rust-libc-cc
+[submodule "ports/rust/rustix"]
+	path = ports/rust/rustix
+	url = https://git.burntcomma.com/moxnox/rustix
+[submodule "ports/rust/nix"]
+	path = ports/rust/nix
+	url = https://git.burntcomma.com/moxnox/nix
+[submodule "ports/rust/errno"]
+	path = ports/rust/errno
+	url = https://git.burntcomma.com/moxnox/rust-errno
+[submodule "ports/rust/jobserver"]
+	path = ports/rust/jobserver
+	url = https://git.burntcomma.com/moxnox/jobserver-rs
+[submodule "ports/rust/termize"]
+	path = ports/rust/termize
+	url = https://git.burntcomma.com/moxnox/termize
+[submodule "ports/rust/rand"]
+	path = ports/rust/rand
+	url = https://git.burntcomma.com/moxnox/rand
+[submodule "ports/rust/libloading"]
+	path = ports/rust/libloading
+	url = https://git.burntcomma.com/moxnox/rust_libloading
+[submodule "ports/rust/libloading-0.9"]
+	path = ports/rust/libloading-0.9
+	url = https://git.burntcomma.com/moxnox/rust_libloading
+[submodule "ports/rust/getrandom"]
+	path = ports/rust/getrandom
+	url = https://git.burntcomma.com/moxnox/getrandom
+[submodule "ports/rust/getrandom-0.2"]
+	path = ports/rust/getrandom-0.2
+	url = https://git.burntcomma.com/moxnox/getrandom
+[submodule "ports/rust/stacker"]
+	path = ports/rust/stacker
+	url = https://git.burntcomma.com/moxnox/stacker
