@@ -159,8 +159,8 @@ openssl_patch(crypto/bio/bio_sock.c
 
 # fix Clang's broken dead-code elimination still trying to bring in gethostbyname and getservbyname
 openssl_patch(crypto/bio/bio_addr.c
-    -e [[s|            he = gethostbyname(host)\;|#ifdef AI_PASSIVE\n            he = NULL\;\n#else\n            he = gethostbyname(host)\;\n#endif|g]]
-    -e [[s|                se = getservbyname(service, proto)\;|#ifdef AI_PASSIVE\n                se = NULL\;\n#else\n                se = getservbyname(service, proto)\;\n#endif|g]]
+    -e [[s|#endif\n        const struct hostent \*he\;|#endif\n#if 0\n        const struct hostent \*he\;|g]]
+    -e [[s|    err:\n        CRYPTO_THREAD_unlock(bio_lookup_lock)\;\n|    err:\n        CRYPTO_THREAD_unlock(bio_lookup_lock)\;\n#endif\n|g]]
 )
 
 openssl_patch(crypto/cryptlib.c
