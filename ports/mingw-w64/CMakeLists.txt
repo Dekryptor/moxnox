@@ -237,7 +237,7 @@ add_library(mingwex STATIC
     repo/mingw-w64-crt/ssp/mempcpy_chk.c
     repo/mingw-w64-crt/ssp/memset_chk.c
     stack_chk_fail.cpp
-    repo/mingw-w64-crt/ssp/stack_chk_guard.c
+    stack_chk_guard.cpp
     repo/mingw-w64-crt/ssp/strcat_chk.c
     repo/mingw-w64-crt/ssp/stpcpy_chk.c
     repo/mingw-w64-crt/ssp/strcpy_chk.c
