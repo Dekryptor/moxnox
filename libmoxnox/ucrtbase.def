@@ -303,3 +303,13 @@ ___lc_codepage_func
 _beginthreadex
 wcstod
 fputwc
+iswalpha
+iswblank
+iswcntrl
+iswdigit
+iswlower
+iswprint
+iswpunct
+iswupper
+iswxdigit
+iswalnum
