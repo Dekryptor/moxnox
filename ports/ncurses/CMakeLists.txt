@@ -296,7 +296,6 @@ add_library(tinfo SHARED
     repo/ncurses/tinfo/lib_tparm.c
     repo/ncurses/tinfo/lib_tputs.c
     repo/ncurses/tinfo/lib_ttyflags.c
-    repo/ncurses/tinfo/lib_win32util.c
     repo/ncurses/tinfo/name_match.c
     repo/ncurses/tinfo/obsolete.c
     repo/ncurses/tinfo/parse_entry.c
