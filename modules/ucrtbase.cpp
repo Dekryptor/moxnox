@@ -5,6 +5,7 @@ module;
 #include <stdio.h>
 #include <wchar.h>
 #include <wctype.h>
+#include <sys/stat.h>
 #include "lconv.h"
 
 export module ucrtbase;
@@ -75,21 +76,22 @@ const int _O_WTEXT = 0x10000;
 const int _O_U16TEXT = 0x20000;
 const int _O_U8TEXT = 0x40000;
 
-const int _S_IEXEC = 0100;
-const int _S_IWRITE = 0200;
-const int _S_IREAD = 0400;
-const int _S_IFIFO = 010000;
-const int _S_IFCHR = 020000;
-const int _S_IFDIR = 040000;
-const int _S_IFREG = 0100000;
-const int _S_IFMT = 0170000;
-
 extern "C" {
 
 struct _onexit_table_t {
     _PVFV* _first;
     _PVFV* _last;
     _PVFV* _end;
+};
+
+struct __utimbuf32 {
+    __time32_t actime;
+    __time32_t modtime;
+};
+
+struct __utimbuf64 {
+    __time64_t actime;
+    __time64_t modtime;
 };
 
 _invalid_parameter_handler _set_invalid_parameter_handler(_invalid_parameter_handler handler);
