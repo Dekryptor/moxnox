@@ -126,6 +126,7 @@ int setsockopt(int s, int level, int optname, const void* optval,
                socklen_t optlen);
 int socket(int af, int type, int protocol);
 int shutdown(int s, int how);
+int socketpair(int domain, int type, int protocol, int* socket_vector);
 
 #ifdef __cplusplus
 }
