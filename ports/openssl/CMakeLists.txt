@@ -1344,8 +1344,8 @@ install(TARGETS libssl DESTINATION ${CMAKE_INSTALL_PREFIX}/lib
     ARCHIVE EXCLUDE_FROM_ALL
 )
 
-openssl_patch(apps/lib/win32_init.c
-    -e [[s|#if defined(CP_UTF8)|#if defined(CP_UTF8) \&\& !defined(MOXNOX)|g]]
+openssl_patch(apps/openssl.c
+    -e [[s|    win32_utf8argv(&argc, &argv)\;|#ifndef MOXNOX\n    win32_utf8argv(\&argc, \&argv)\;\n#endif|g]]
 )
 
 openssl_patch(apps/lib/apps.c
@@ -1425,12 +1425,11 @@ set(OPENSSL_APPS_SOURCES
     repo/apps/lib/s_cb.c
     repo/apps/lib/s_socket.c
     repo/apps/lib/tlssrp_depr.c
-    ${GEN}/apps/lib/win32_init.c
     repo/apps/list.c
     repo/apps/mac.c
     repo/apps/nseq.c
     repo/apps/ocsp.c
-    repo/apps/openssl.c
+    ${GEN}/apps/openssl.c
     repo/apps/passwd.c
     repo/apps/pkcs12.c
     repo/apps/pkcs7.c
@@ -1476,6 +1475,7 @@ target_compile_definitions(openssl_exe PRIVATE
     OPENSSLDIR="/etc/ssl"
     ENGINESDIR="/usr/lib/engines-3"
     MODULESDIR="/usr/lib/ossl-modules"
+    HAVE_FORK=0
 )
 
 target_compile_options(openssl_exe PRIVATE
