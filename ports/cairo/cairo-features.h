@@ -21,3 +21,5 @@
 
 /* utility */
 #define CAIRO_HAS_PNG_FUNCTIONS     1
+
+#define CAIRO_HAS_PTHREAD           1
