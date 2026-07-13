@@ -136,6 +136,9 @@ dlerror
 dlsym
 statvfs
 getpgrp
+daylight DATA
+timezone DATA
+tzname DATA
 
 ; stubs
 fchown

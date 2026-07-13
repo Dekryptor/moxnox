@@ -49,6 +49,10 @@ typedef int clockid_t;
 extern "C" {
 #endif
 
+extern __declspec(dllimport) int daylight;
+extern __declspec(dllimport) long timezone;
+extern __declspec(dllimport) char* tzname[2];
+
 clock_t clock(void);
 size_t strftime(char* s, size_t maxsize, const char* format,
                 const struct tm* timeptr);

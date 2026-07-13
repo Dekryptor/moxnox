@@ -814,6 +814,7 @@ char* __ctime64(const __time64_t* t) {
 extern "C"
 void _tzset() {
     // FIXME - populate _timezone etc.
+    // FIXME - copy over _daylight, _timezone, and _tzname to mnposix counterparts
 }
 
 extern "C"
