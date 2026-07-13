@@ -34,7 +34,12 @@ add_library(ucrtbase_static STATIC
     redirects.S
 )
 target_include_directories(ucrtbase_static PRIVATE ${CMAKE_CURRENT_BINARY_DIR} repo/mingw-w64-headers/crt repo/mingw-w64-crt/include)
-target_compile_definitions(ucrtbase_static PRIVATE -D_CRTIMP=)
+
+if(MINGW_HEADERS)
+    target_include_directories(ucrtbase_static PRIVATE ${MINGW_HEADERS})
+endif()
+
+target_compile_definitions(ucrtbase_static PRIVATE -D_CRTIMP= -D_WIN32 -D_WIN64)
 target_compile_options(ucrtbase_static PRIVATE -ffreestanding)
 target_compile_options(ucrtbase_static PRIVATE -Wno-include-next-absolute-path)
 
@@ -385,7 +390,11 @@ endif()
 
 target_include_directories(mingwex PRIVATE ${CMAKE_CURRENT_BINARY_DIR} repo/mingw-w64-headers/crt repo/mingw-w64-crt/include)
 
-target_compile_definitions(mingwex PRIVATE -D_CRTIMP= -D_UCRT -D_CRTBLD)
+if(MINGW_HEADERS)
+    target_include_directories(mingwex PRIVATE ${MINGW_HEADERS})
+endif()
+
+target_compile_definitions(mingwex PRIVATE -D_CRTIMP= -D_UCRT -D_CRTBLD -D_WIN32 -D_WIN64 -D__MINGW32__)
 target_compile_options(mingwex PRIVATE ${USERSPACE_CFLAGS} $<$<COMPILE_LANGUAGE:CXX>:-fno-rtti -fno-exceptions> -mno-stack-arg-probe $<$<CXX_COMPILER_ID:Clang>:-Wno-pragma-pack -Wno-include-next-absolute-path>)
 target_compile_options(mingwex PRIVATE -Wno-shorten-64-to-32 -Wno-missing-declarations -Wno-sign-conversion -Wno-implicit-int-conversion -Wno-unused-variable -Wno-gnu-pointer-arith -Wno-implicit-float-conversion -Wno-float-conversion -Wno-conversion -Wno-pointer-arith $<$<CXX_COMPILER_ID:GNU>:-Wno-use-after-free -Wno-missing-attributes>)
 target_link_libraries(mingwex PRIVATE ntdll_mod)
