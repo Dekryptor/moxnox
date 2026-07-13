@@ -611,6 +611,8 @@ span<char> do_format_arg(span<char> sp, string_view, nt_status arg) {
             return sp_strcpy(sp, "DEVICE_REMOVED");
         case nt_status::SYSTEM_SHUTDOWN:
             return sp_strcpy(sp, "SYSTEM_SHUTDOWN");
+        case nt_status::STACK_BUFFER_OVERRUN:
+            return sp_strcpy(sp, "STACK_BUFFER_OVERRUN");
         default:
             return do_format_arg(sp, ":08x", (uint32_t)arg);
     }

@@ -87,7 +87,8 @@ enum class nt_status : uint32_t {
     NOT_A_REPARSE_POINT = 0xc0000275,
     REPARSE_POINT_NOT_RESOLVED = 0xc0000280,
     DEVICE_REMOVED = 0xc00002b6,
-    SYSTEM_SHUTDOWN = 0xc00002eb
+    SYSTEM_SHUTDOWN = 0xc00002eb,
+    STACK_BUFFER_OVERRUN = 0xc0000409,
 };
 
 using NTSTATUS = enum nt_status;

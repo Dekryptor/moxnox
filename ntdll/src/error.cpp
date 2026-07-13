@@ -175,6 +175,8 @@ uint32_t RtlNtStatusToDosErrorNoTeb(nt_status status) {
             return ERROR_DEVICE_REMOVED;
         case SYSTEM_SHUTDOWN:
             return ERROR_SYSTEM_SHUTDOWN;
+        case STACK_BUFFER_OVERRUN:
+            return ERROR_STACK_BUFFER_OVERRUN;
     }
 
     return ERROR_MR_MID_NOT_FOUND;

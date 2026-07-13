@@ -68,6 +68,7 @@ export constexpr uint32_t ERROR_NETWORK_UNREACHABLE = 1231;
 export constexpr uint32_t ERROR_HOST_UNREACHABLE = 1232;
 export constexpr uint32_t ERROR_PROTOCOL_UNREACHABLE = 1233;
 export constexpr uint32_t ERROR_CONNECTION_ABORTED = 1236;
+export constexpr uint32_t ERROR_STACK_BUFFER_OVERRUN = 1282;
 export constexpr uint32_t ERROR_INTERNAL_ERROR = 1359;
 export constexpr uint32_t ERROR_DISK_CORRUPT = 1393;
 export constexpr uint32_t ERROR_NO_SYSTEM_RESOURCES = 1450;
