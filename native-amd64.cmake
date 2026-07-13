@@ -1,0 +1,25 @@
+set(CMAKE_SYSTEM_NAME Moxnox)
+set(CMAKE_SYSTEM_PROCESSOR amd64)
+
+set(CMAKE_C_COMPILER x86_64-pc-moxnox-gcc)
+set(CMAKE_CXX_COMPILER x86_64-pc-moxnox-g++)
+set(CMAKE_RC_COMPILER x86_64-pc-moxnox-windres)
+set(DLLTOOL x86_64-pc-moxnox-dlltool)
+set(AR x86_64-pc-moxnox-ar)
+
+set(CMAKE_EXE_LINKER_FLAGS "-static -nodefaultlibs")
+set(CMAKE_SHARED_LINKER_FLAGS "-nodefaultlibs")
+
+set(CMAKE_FIND_ROOT_PATH /usr/x86_64-pc-moxnox)
+
+set(CMAKE_FIND_ROOT_PATH_MODE_PROGRAM NEVER)
+set(CMAKE_FIND_ROOT_PATH_MODE_LIBRARY ONLY)
+set(CMAKE_FIND_ROOT_PATH_MODE_INCLUDE ONLY)
+
+set(CMAKE_USER_MAKE_RULES_OVERRIDE "${CMAKE_CURRENT_LIST_DIR}/toolchain.cmake" CACHE STRING "" FORCE)
+
+set(CMAKE_ASM_FLAGS_INIT "${CMAKE_ASM_FLAGS_INIT} -I${CMAKE_SOURCE_DIR}/modules/amd64")
+
+set(CMAKE_TRY_COMPILE_TARGET_TYPE STATIC_LIBRARY)
+
+add_compile_options(-DMOXNOX)
