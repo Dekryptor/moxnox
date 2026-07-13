@@ -207,4 +207,4 @@ add_custom_target(ucrtbase_mnposix_target ALL DEPENDS libmnposix.a)
 
 add_dependencies(ucrtbase ucrtbase_mnposix_target)
 
-target_link_options(ucrtbase PRIVATE -Wl,--gc-sections)
+target_link_options(ucrtbase PRIVATE -Wl,--gc-sections -Wl,-u,_tls_used)
