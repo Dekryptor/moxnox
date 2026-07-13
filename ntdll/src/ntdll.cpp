@@ -511,3 +511,14 @@ void mn_exec(void (*entry_point)(), exec_info* exec_block,
 
     entry_point();
 }
+
+extern "C"
+uint32_t RtlRandom(uint32_t* seed) {
+    auto v = (uint64_t)*seed;
+
+    v = v * (uint64_t)1103515245 + 12345; // from Knuth
+
+    *seed = (uint32_t)v;
+
+    return (uint32_t)v;
+}

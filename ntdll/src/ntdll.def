@@ -76,3 +76,4 @@ RtlSleepConditionVariableSRW
 RtlWakeAddressAll
 LdrLoadDll
 RtlSecureZeroMemory
+RtlRandom

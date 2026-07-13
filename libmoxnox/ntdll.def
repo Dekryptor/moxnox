@@ -472,6 +472,7 @@ mn_handle_exec_info DATA
 RtlSleepConditionVariableSRW
 LdrLoadDll
 RtlSecureZeroMemory
+RtlRandom
 
 ; stubs
 RtlTryEnterCriticalSection
