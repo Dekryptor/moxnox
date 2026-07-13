@@ -162,7 +162,7 @@ else()
     set(UCRTBASE_ALIAS_FLAGS "-Wl,--defsym,_errno=__errno -Wl,--defsym,strerror=__strerror -Wl,--defsym,_lock_file=__lock_file -Wl,--defsym,_unlock_file=__unlock_file -Wl,--defsym,fputc=_fputc -Wl,--defsym,localeconv=_localeconv -Wl,--defsym,mbrtowc=_mbrtowc -Wl,--defsym,wcrtomb=_wcrtomb -Wl,--defsym,getc=_fgetc -Wl,--defsym,ungetc=_ungetc -Wl,--defsym,mbrlen=_mbrlen")
 endif()
 
-set(CMAKE_CXX_CREATE_SHARED_LIBRARY "<CMAKE_CXX_COMPILER> <CMAKE_SHARED_LIBRARY_CXX_FLAGS> <LANGUAGE_COMPILE_FLAGS> <LINK_FLAGS> -shared -o <TARGET> -Wl,--out-implib,<TARGET_IMPLIB> -Wl,--major-image-version,<TARGET_VERSION_MAJOR>,--minor-image-version,<TARGET_VERSION_MINOR> <OBJECTS> <LINK_LIBRARIES> ${LIBSTDCXX} -lmingw32 ports/mingw-w64/libucrtbase_static.a ${LIBEH} ${LIBGCC} -lmingw32 ${LIBSTDCXX} -lmingw32 ports/mingw-w64/libucrtbase_static.a ${LIBEH} ${LIBGCC} -lmingw32 ports/mingw-w64/libmingwex.a ports/mingw-w64/libucrtbase_static.a libmoxnox/libkernelbase.a libmoxnox/libntdll.a ${UCRTBASE_ALIAS_FLAGS}")
+set(CMAKE_CXX_CREATE_SHARED_LIBRARY "<CMAKE_CXX_COMPILER> <CMAKE_SHARED_LIBRARY_CXX_FLAGS> <LANGUAGE_COMPILE_FLAGS> <LINK_FLAGS> -shared -o <TARGET> -Wl,--out-implib,<TARGET_IMPLIB> -Wl,--major-image-version,<TARGET_VERSION_MAJOR>,--minor-image-version,<TARGET_VERSION_MINOR> <OBJECTS> <LINK_LIBRARIES> ${LIBSTDCXX} -lmingw32 ports/mingw-w64/libucrtbase_static.a ${LIBEH} ${LIBGCC} -lmingw32 ${LIBSTDCXX} -lmingw32 ports/mingw-w64/libucrtbase_static.a ${LIBEH} ${LIBGCC} -lmingw32 ports/mingw-w64/libmingwex.a ports/mingw-w64/libucrtbase_static.a libmoxnox/libkernelbase.a libmoxnox/libntdll.a ${UCRTBASE_ALIAS_FLAGS} ${CMAKE_CURRENT_BINARY_DIR}/libmnposix.a")
 
 add_library(ucrtbase SHARED ${SRC_FILES})
 target_sources(ucrtbase PUBLIC FILE_SET CXX_MODULES FILES
@@ -190,3 +190,21 @@ install(TARGETS ucrtbase
     CXX_MODULES_BMI EXCLUDE_FROM_ALL
     ARCHIVE EXCLUDE_FROM_ALL
 )
+
+if(CMAKE_SYSTEM_PROCESSOR STREQUAL aarch64)
+    set(ARCH arm64)
+elseif(CMAKE_SYSTEM_PROCESSOR STREQUAL "amd64")
+    set(ARCH "i386:x86-64")
+endif()
+
+add_custom_command(
+    OUTPUT libmnposix.a
+    COMMAND ${DLLTOOL} -d ${CMAKE_CURRENT_SOURCE_DIR}/../libmoxnox/mnposix.def -l ${CMAKE_CURRENT_BINARY_DIR}/libmnposix.a -m ${ARCH}
+    DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/../libmoxnox/mnposix.def
+)
+
+add_custom_target(ucrtbase_mnposix_target ALL DEPENDS libmnposix.a)
+
+add_dependencies(ucrtbase ucrtbase_mnposix_target)
+
+target_link_options(ucrtbase PRIVATE -Wl,--gc-sections)
