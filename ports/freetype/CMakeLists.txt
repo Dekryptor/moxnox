@@ -37,7 +37,7 @@ target_sources(freetype_kernel PUBLIC FILE_SET CXX_MODULES FILES freetype.cpp)
 target_compile_definitions(freetype_kernel PRIVATE -DFT2_BUILD_LIBRARY -DFT_CONFIG_OPTION_DISABLE_STREAM_SUPPORT)
 target_compile_definitions(freetype_kernel PRIVATE -DFT_CONFIG_MODULES_H=\"${CMAKE_CURRENT_SOURCE_DIR}/ftmodule.h\")
 target_compile_definitions(freetype_kernel PRIVATE -DFT_CONFIG_STANDARD_LIBRARY_H=\"${CMAKE_CURRENT_SOURCE_DIR}/ftstdlib.h\")
-target_compile_options(freetype_kernel PRIVATE -mno-stack-arg-probe ${GENERAL_CFLAGS} $<$<COMPILE_LANGUAGE:CXX>:-fno-exceptions -fno-rtti>)
+target_compile_options(freetype_kernel PRIVATE -mno-stack-arg-probe ${KERNEL_CFLAGS} -Wno-sign-conversion -Wno-unused-function -Wno-conversion -Wno-attributes -Wno-unused-variable -Wno-unused-but-set-variable)
 target_include_directories(freetype_kernel PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
 target_include_directories(freetype_kernel PRIVATE repo/include)
 
