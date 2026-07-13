@@ -6,6 +6,7 @@
 #include <string.h>
 #include <getopt.h>
 #include <unistd.h>
+#include <limits.h>
 
 using namespace std;
 
