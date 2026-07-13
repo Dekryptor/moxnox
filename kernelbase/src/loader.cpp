@@ -1,5 +1,4 @@
 #include <stdint.h>
-#include <winerror.h>
 #include <string.h>
 #include <string_view>
 
@@ -7,6 +6,7 @@ import nt;
 import ntdll;
 import kernelbase;
 import print;
+import win32error;
 
 using namespace std;
 

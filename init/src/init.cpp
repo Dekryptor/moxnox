@@ -5,7 +5,6 @@
 #include <span>
 #include <string_view>
 #include <utility>
-#include <winerror.h>
 
 using namespace std;
 
@@ -16,6 +15,7 @@ import moxnox_ioctls;
 import kernelbase;
 import evdev;
 import unicode;
+import win32error;
 
 static span<char16_t> environment;
 

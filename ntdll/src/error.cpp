@@ -1,9 +1,9 @@
 #include <stdint.h>
-#include <winerror.h>
 
 import nt;
 import ntdll;
 import print;
+import win32error;
 
 extern "C"
 void RtlSetLastWin32Error(uint32_t err_code) {

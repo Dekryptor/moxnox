@@ -5,7 +5,6 @@
 #include <signal.h>
 #include <setjmp.h>
 #include <dirent.h>
-#include <winerror.h>
 #include <pwd.h>
 #include <unistd.h>
 #include <getopt.h>
@@ -32,6 +31,7 @@ import pagesize;
 import cd;
 import termios;
 import moxnox_ioctls;
+import win32error;
 
 #undef errno
 import errno;

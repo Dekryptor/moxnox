@@ -352,6 +352,10 @@ target_sources(exec PUBLIC FILE_SET CXX_MODULES FILES modules/exec.cpp)
 target_compile_options(exec PRIVATE -fno-exceptions ${USERSPACE_CFLAGS} -ffunction-sections)
 target_link_libraries(exec PRIVATE nt unique_handle errno unicode pagesize ntdll_mod list)
 
+add_library(win32error STATIC)
+target_sources(win32error PUBLIC FILE_SET CXX_MODULES FILES modules/win32error.cpp)
+target_compile_options(win32error PRIVATE -fno-exceptions ${USERSPACE_CFLAGS})
+
 if(CMAKE_SYSTEM_PROCESSOR STREQUAL "aarch64")
     add_library(aarch64 STATIC)
     target_sources(aarch64 PUBLIC FILE_SET CXX_MODULES FILES modules/aarch64.cpp)

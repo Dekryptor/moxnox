@@ -24,7 +24,7 @@ if(CMAKE_SYSTEM_PROCESSOR STREQUAL "amd64")
     target_compile_options(shell PRIVATE -masm=intel)
 endif()
 
-target_link_libraries(shell moxnox print unicode unique_handle list pagesize termios errno)
+target_link_libraries(shell moxnox print unicode unique_handle list pagesize termios errno win32error)
 target_link_libraries(shell format)
 target_link_libraries(shell readline)
 

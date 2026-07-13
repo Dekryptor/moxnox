@@ -1,7 +1,6 @@
 #include <stdint.h>
 #include <string.h>
 #include <stdlib.h>
-#include <winerror.h>
 #include <string_view>
 #include <span>
 #include <mutex>
@@ -14,6 +13,7 @@ import unique_handle;
 import pe;
 import pagesize;
 import unicode;
+import win32error;
 
 using namespace std;
 

@@ -1,6 +1,5 @@
 #include <stdint.h>
 #include <string.h>
-#include <winerror.h>
 #include <utility>
 #include <mutex>
 
@@ -8,6 +7,7 @@ import nt;
 import ntdll;
 import kernelbase;
 import print;
+import win32error;
 
 using namespace std;
 
