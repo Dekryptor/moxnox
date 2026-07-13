@@ -16,6 +16,7 @@ endfunction()
 git_patch(compat/posix.h
     -e [[s|#if defined(WIN32) && !defined(__CYGWIN__)|#if defined(WIN32) \&\& !defined(__CYGWIN__) \&\& !defined(MOXNOX)|g]]
     -e [[s|#include <utime.h>|#include <utime.h>\n#ifdef MOXNOX\n#include <arpa/inet.h>\n#endif|g]]
+    -e [[s|#include <sys/ioctl.h>|#ifndef __moxnox__\n#include <sys/ioctl.h>\n#endif|g]]
 )
 
 git_patch(git-compat-util.h
