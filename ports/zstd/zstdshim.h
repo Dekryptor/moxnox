@@ -1,7 +1,12 @@
 // skip platform.h - we provide everything it would give us here
 #define PLATFORM_H_MODULE
 
+#ifdef _WIN32 // FIXME
 #define PLATFORM_POSIX_VERSION 0
+#else
+#define PLATFORM_POSIX_VERSION 202405L
+#endif
+
 #define IS_CONSOLE(stream) 0
 
 // FIXME HACK
