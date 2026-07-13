@@ -21,7 +21,7 @@ configure_file(${CMAKE_CURRENT_SOURCE_DIR}/payload.s.in ${CMAKE_CURRENT_BINARY_D
 
 add_library(efistub SHARED ../efi.cpp)
 
-target_compile_options(efistub PRIVATE -Wall -Wextra -Wno-address-of-packed-member -Wconversion -Wno-unknown-pragmas -Werror=pointer-arith -fno-exceptions -fno-rtti -masm=intel -mno-red-zone -fcheck-new -Wno-invalid-offsetof -mno-stack-arg-probe -mno-sse -fno-threadsafe-statics -fvisibility=hidden -fno-asynchronous-unwind-tables -fno-zero-initialized-in-bss)
+target_compile_options(efistub PRIVATE -Wall -Wextra -Wno-address-of-packed-member -Wconversion -Wno-unknown-pragmas -Werror=pointer-arith -fno-exceptions -fno-rtti -masm=intel -mno-red-zone -fcheck-new -Wno-invalid-offsetof -mno-stack-arg-probe -mno-sse -fno-threadsafe-statics -fvisibility=hidden -fno-asynchronous-unwind-tables -fno-zero-initialized-in-bss -fno-stack-protector)
 target_link_options(efistub PUBLIC -nostartfiles -nostdlib -Wl,--image-base=0 -Wl,--exclude-all-symbols -e efi_main)
 target_link_libraries(efistub format_kernel pe_kernel loaderblock crt_kernel unicode_kernel x86 gnu-efi smbios)
 
@@ -47,7 +47,7 @@ add_executable(boot ${SRC_FILES})
 add_dependencies(boot kernel efistub)
 add_dependencies(boot always_check_git)
 
-target_compile_options(boot PUBLIC -march=i386 -m32 -fno-ident -fno-pic -fno-exceptions -fno-rtti -masm=intel)
+target_compile_options(boot PUBLIC -march=i386 -m32 -fno-ident -fno-pic -fno-exceptions -fno-rtti -masm=intel -fno-stack-protector)
 target_include_directories(boot PUBLIC ${CMAKE_BINARY_DIR}/git)
 target_link_options(boot PUBLIC -Wl,-T ${CMAKE_SOURCE_DIR}/bootloader/x86/boot.ld -nostartfiles -nostdlib ${CMAKE_CURRENT_BINARY_DIR}/efi.cpp.obj)
 target_link_libraries(boot pe_32bit loaderblock_32bit crt_32bit x86_32bit pagesize_32bit smbios_32bit)

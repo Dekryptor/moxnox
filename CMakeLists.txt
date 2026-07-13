@@ -115,7 +115,7 @@ if(CMAKE_SYSTEM_PROCESSOR STREQUAL "amd64")
 
     add_library(crt_32bit STATIC)
     target_sources(crt_32bit PUBLIC FILE_SET CXX_MODULES FILES modules/crt.cpp)
-    target_compile_options(crt_32bit PRIVATE -march=i386 -m32 -fno-ident -fno-pic -fno-exceptions -fno-rtti)
+    target_compile_options(crt_32bit PRIVATE -march=i386 -m32 -fno-ident -fno-pic -fno-exceptions -fno-rtti -fno-stack-protector)
 
     add_library(x86 STATIC)
     target_sources(x86 PUBLIC FILE_SET CXX_MODULES FILES modules/x86.cpp)
