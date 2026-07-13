@@ -12,6 +12,7 @@ add_library(musl_glob STATIC
 )
 
 target_include_directories(musl_glob PRIVATE glob_compat)
+target_compile_options(musl_glob PRIVATE -fno-exceptions ${USERSPACE_CFLAGS})
 target_compile_options(musl_glob PRIVATE -include ${CMAKE_CURRENT_SOURCE_DIR}/glob_compat/glob_compat.h)
 
 add_library(tre STATIC
@@ -29,6 +30,7 @@ add_library(tre STATIC
 
 target_include_directories(tre PRIVATE ../ports/tre)
 target_compile_definitions(tre PRIVATE HAVE_CONFIG_H)
+target_compile_options(tre PRIVATE -fno-exceptions ${USERSPACE_CFLAGS})
 target_compile_options(tre PRIVATE -include ../ports/tre/tre-internal-fix.h)
 
 add_library(mnposix SHARED
