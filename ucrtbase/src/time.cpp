@@ -19,7 +19,12 @@ static const unsigned int SYSTEM_TIME_RESOLUTION = 10000000; // 100ns
 
 static uint64_t init_time;
 
-static long ___timezone = 0;
+extern "C" {
+    int _daylight;
+    int _dstbias;
+    long _timezone;
+    char* _tzname[2];
+}
 
 export void init_clock() {
     LARGE_INTEGER now;
@@ -808,10 +813,10 @@ char* __ctime64(const __time64_t* t) {
 
 extern "C"
 void _tzset() {
-    // FIXME - populate ___timezone etc.
+    // FIXME - populate _timezone etc.
 }
 
 extern "C"
 long* ____timezone() {
-    return &___timezone;
+    return &_timezone;
 }
