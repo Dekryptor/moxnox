@@ -236,7 +236,7 @@ add_library(mingwex STATIC
     repo/mingw-w64-crt/ssp/memmove_chk.c
     repo/mingw-w64-crt/ssp/mempcpy_chk.c
     repo/mingw-w64-crt/ssp/memset_chk.c
-    repo/mingw-w64-crt/ssp/stack_chk_fail.c
+    stack_chk_fail.cpp
     repo/mingw-w64-crt/ssp/stack_chk_guard.c
     repo/mingw-w64-crt/ssp/strcat_chk.c
     repo/mingw-w64-crt/ssp/stpcpy_chk.c
@@ -386,4 +386,5 @@ endif()
 target_include_directories(mingwex PRIVATE ${CMAKE_CURRENT_BINARY_DIR} repo/mingw-w64-headers/crt repo/mingw-w64-crt/include)
 
 target_compile_definitions(mingwex PRIVATE -D_CRTIMP= -D_UCRT -D_CRTBLD)
-target_compile_options(mingwex PRIVATE -ffreestanding -mno-stack-arg-probe $<$<CXX_COMPILER_ID:Clang>:-Wno-pragma-pack -Wno-include-next-absolute-path>)
+target_compile_options(mingwex PRIVATE -ffreestanding $<$<COMPILE_LANGUAGE:CXX>:-fno-rtti -fno-exceptions> -mno-stack-arg-probe $<$<CXX_COMPILER_ID:Clang>:-Wno-pragma-pack -Wno-include-next-absolute-path>)
+target_link_libraries(mingwex PRIVATE ntdll_mod)
