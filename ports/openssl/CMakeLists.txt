@@ -118,6 +118,7 @@ openssl_patch(include/internal/e_winsock.h
 openssl_patch(include/internal/sockets.h
     -e [[s|#if defined(OPENSSL_SYS_WINDOWS)\n#undef get_last_socket_error|#if defined(OPENSSL_SYS_WINDOWS)\n#ifndef MOXNOX\n#undef get_last_socket_error|g]]
     -e [[s|#define get_last_socket_error_is_eintr() (get_last_socket_error() == WSAEINTR)\n#define readsocket|#define get_last_socket_error_is_eintr() (get_last_socket_error() == WSAEINTR)\n#else\n#undef gai_strerror\nconst char *gai_strerror(int)\;\n#undef IN6_IS_ADDR_V4MAPPED\n#define IN6_IS_ADDR_V4MAPPED(a) ((a)->s6_addr[0] == 0 \&\& (a)->s6_addr[1] == 0 \&\& (a)->s6_addr[2] == 0 \&\& (a)->s6_addr[3] == 0 \&\& (a)->s6_addr[4] == 0 \&\& (a)->s6_addr[5] == 0 \&\& (a)->s6_addr[6] == 0 \&\& (a)->s6_addr[7] == 0 \&\& (a)->s6_addr[8] == 0 \&\& (a)->s6_addr[9] == 0 \&\& (a)->s6_addr[10] == 0xff \&\& (a)->s6_addr[11] == 0xff)\n#define closesocket(s) close(s)\n#ifndef INVALID_SOCKET\n#define INVALID_SOCKET (-1)\n#endif\n#endif\n#define readsocket|g]]
+    -e [[s|#ifndef VMS\n#include <sys/ioctl.h>\n|#if defined(MOXNOX)\n#elif !defined(VMS)\n#include <sys/ioctl.h>\n|g]]
 )
 
 openssl_patch(include/openssl/e_os2.h
