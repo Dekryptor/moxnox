@@ -7,7 +7,6 @@
 typedef unsigned int uid_t;
 typedef unsigned int gid_t;
 typedef unsigned int id_t;
-typedef long long ssize_t;
 typedef uintptr_t pthread_t;
 typedef struct { uintptr_t _x[4]; } pthread_mutex_t;
 typedef size_t pthread_key_t;
@@ -20,3 +19,9 @@ typedef uintptr_t pthread_rwlock_t; // FIXME?
 typedef uintptr_t pthread_rwlockattr_t; // FIXME?
 typedef uint64_t fsblkcnt_t;
 typedef uint64_t fsfilcnt_t;
+
+#if __SIZEOF_POINTER__ == 8
+typedef long long ssize_t;
+#else
+typedef int ssize_t;
+#endif
