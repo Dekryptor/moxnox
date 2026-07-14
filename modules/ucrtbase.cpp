@@ -11,6 +11,9 @@ export module ucrtbase;
 
 export using ::mbstate_t;
 
+export using errno_t = int;
+export using rsize_t = size_t;
+
 export {
 
 extern "C++" using _invalid_parameter_handler = void (*)(const wchar_t*,
