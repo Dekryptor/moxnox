@@ -2,6 +2,7 @@
 #include <atomic>
 #include <optional>
 #include <string_view>
+#include <stddef.h>
 #include <stdint.h>
 
 import nt;

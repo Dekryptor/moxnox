@@ -6,6 +6,7 @@ module;
 #include <algorithm>
 #include <atomic>
 #include <variant>
+#include <stddef.h>
 #include <stdint.h>
 
 export module net;

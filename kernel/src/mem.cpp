@@ -4,6 +4,7 @@ module;
 #include <span>
 #include <bit>
 #include <new>
+#include <stddef.h>
 #include <stdint.h>
 
 export module mem;

@@ -3,6 +3,7 @@ module;
 #include <optional>
 #include <functional>
 #include <span>
+#include <stddef.h>
 #include <stdint.h>
 #include <variant>
 #include <string_view>

@@ -1,6 +1,7 @@
 #include <span>
 #include <string_view>
 #include <bit>
+#include <stddef.h>
 #include <stdint.h>
 #include <mutex>
 #include <variant>

@@ -3,6 +3,7 @@ module;
 #include <span>
 #include <string_view>
 #include <optional>
+#include <stddef.h>
 #include <stdint.h>
 
 export module unwind;

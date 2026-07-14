@@ -8,6 +8,7 @@ module;
 #include <new>
 #include <algorithm>
 #include <variant>
+#include <stddef.h>
 #include <stdint.h>
 #include <signal.h>
 #include "assert.h"

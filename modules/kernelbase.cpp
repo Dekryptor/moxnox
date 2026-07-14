@@ -1,5 +1,6 @@
 module;
 
+#include <stddef.h>
 #include <stdint.h>
 
 export module kernelbase;

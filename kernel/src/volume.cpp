@@ -3,6 +3,7 @@ module;
 #include <span>
 #include <optional>
 #include <atomic>
+#include <stddef.h>
 #include <stdint.h>
 
 export module volume;

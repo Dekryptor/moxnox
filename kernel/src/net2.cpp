@@ -9,6 +9,7 @@ module;
 #include <utility>
 #include <variant>
 #include <string_view>
+#include <stddef.h>
 #include <stdint.h>
 
 module net;

@@ -5,6 +5,7 @@ module;
 #include <source_location>
 #include <chrono>
 #include <optional>
+#include <stddef.h>
 #include <stdint.h>
 
 export module format;

@@ -7,6 +7,7 @@ module;
 #include <mutex>
 #include <atomic>
 #include <memory>
+#include <stddef.h>
 #include <stdint.h>
 #include "assert.h"
 

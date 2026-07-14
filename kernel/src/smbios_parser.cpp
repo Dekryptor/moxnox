@@ -2,6 +2,7 @@ module;
 
 #include <string_view>
 #include <span>
+#include <stddef.h>
 #include <stdint.h>
 
 export module smbios_parser;

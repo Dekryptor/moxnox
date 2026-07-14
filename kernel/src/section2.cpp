@@ -7,6 +7,7 @@ module;
 #include <algorithm>
 #include <variant>
 #include <string_view>
+#include <stddef.h>
 #include <stdint.h>
 
 module section;

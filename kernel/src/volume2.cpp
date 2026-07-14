@@ -6,6 +6,7 @@ module;
 #include <charconv>
 #include <span>
 #include "assert.h"
+#include <stddef.h>
 #include <stdint.h>
 
 module volume;

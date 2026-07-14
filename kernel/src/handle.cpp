@@ -1,6 +1,7 @@
 module;
 
 #include <string_view>
+#include <stddef.h>
 #include <stdint.h>
 
 export module handle;

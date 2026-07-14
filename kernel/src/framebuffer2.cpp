@@ -3,6 +3,7 @@ module;
 #include <span>
 #include <mutex>
 #include <algorithm>
+#include <stddef.h>
 #include <stdint.h>
 
 module framebuffer;

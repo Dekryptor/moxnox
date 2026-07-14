@@ -2,6 +2,7 @@ module;
 
 #include <span>
 #include <chrono>
+#include <stddef.h>
 #include <stdint.h>
 
 export module efi;

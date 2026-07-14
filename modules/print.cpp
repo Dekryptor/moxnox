@@ -3,6 +3,7 @@ module;
 #include <string_view>
 #include <tuple>
 #include <span>
+#include <stddef.h>
 #include <stdint.h>
 
 export module print;

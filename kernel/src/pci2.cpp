@@ -5,6 +5,7 @@ module;
 #include <optional>
 #include <algorithm>
 #include <string_view>
+#include <stddef.h>
 #include <stdint.h>
 
 module pci;
