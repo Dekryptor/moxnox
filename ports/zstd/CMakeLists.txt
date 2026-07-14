@@ -50,7 +50,7 @@ add_custom_command(
 
 add_custom_command(
     OUTPUT ${ZSTD_GEN}/util.c
-    COMMAND sh -c "sed -e 's/#ifdef _WIN32/#if defined(_WIN32) \\&\\& !defined(MOXNOX)/g' -e 's/#if defined(_WIN32) || defined(WIN32)/#if (defined(_WIN32) || defined(WIN32)) \\&\\& !defined(MOXNOX)/g' '${ZSTD_PROG}/util.c' > '${ZSTD_GEN}/util.c'"
+    COMMAND sh -c "sed -e 's/#ifdef _WIN32/#if defined(_WIN32) \\&\\& !defined(MOXNOX)/g' -e 's/#if defined(_WIN32)$/#if defined(_WIN32) \\&\\& !defined(MOXNOX)/' -e 's/#if defined(_WIN32) || defined(WIN32)/#if (defined(_WIN32) || defined(WIN32)) \\&\\& !defined(MOXNOX)/g' -e 's/#if defined(_MSC_VER) || defined(__MINGW32__) || defined (__MSVCRT__)/#if (defined(_MSC_VER) || defined(__MINGW32__) || defined (__MSVCRT__)) \\&\\& !defined(MOXNOX)/g' -e '/include <sys.stat.h>.*utimensat/a #undef st_mtime /* stat_t here is struct __stat64, whose st_mtime member the POSIX macro would shadow */' '${ZSTD_PROG}/util.c' > '${ZSTD_GEN}/util.c'"
     DEPENDS ${ZSTD_PROG}/util.c
     VERBATIM
 )
