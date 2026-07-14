@@ -196,6 +196,7 @@ openssl_patch(providers/implementations/rands/seeding/rand_win.c
 # avoid WideCharToMultiByte
 openssl_patch(crypto/rand/randfile.c
     -e [[s|#if defined(_WIN32) && defined(CP_UTF8) && !defined(_WIN32_WCE)|#if defined(_WIN32) \&\& defined(CP_UTF8) \&\& !defined(_WIN32_WCE) \&\& !defined(MOXNOX)|g]]
+    -e [[s|#define fileno _fileno|//#define fileno _fileno|g]]
 )
 
 openssl_patch(crypto/threads_pthread.c
