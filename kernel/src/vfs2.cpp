@@ -4,6 +4,7 @@ module;
 #include <span>
 #include <optional>
 #include <string_view>
+#include <limits.h>
 #include <mutex>
 #include <atomic>
 #include <memory>

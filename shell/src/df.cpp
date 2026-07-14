@@ -2,6 +2,7 @@
 #include <string_view>
 #include <string.h>
 #include <stdint.h>
+#include <limits.h>
 #include <stdlib.h>
 #include <getopt.h>
 #include <utility>

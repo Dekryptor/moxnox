@@ -2,6 +2,7 @@
 #include <sys/select.h>
 #include <stddef.h>
 #include <stdint.h>
+#include <limits.h>
 #include <limits>
 
 import nt;
