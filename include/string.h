@@ -54,6 +54,7 @@ int _stricmp(const char* s1, const char* s2); // FIXME
 char* strcasestr(const char* haystack, const char* needle);
 void* memmem(const void* haystack, size_t haystacklen, const void* needle,
              size_t needlelen);
+int _wcsicmp(const wchar_t* s1, const wchar_t* s2);
 
 #ifdef __cplusplus
 }
