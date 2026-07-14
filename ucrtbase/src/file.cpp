@@ -1,5 +1,6 @@
 module;
 
+#include <stdio.h>
 #include <wchar.h>
 #include <string_view>
 #include <span>
@@ -9,7 +10,6 @@ module;
 #include <stdint.h>
 #include <stdlib.h>
 #include <string.h>
-#include <stdio.h>
 #include <stdarg.h>
 #include <limits.h>
 #include <unistd.h>

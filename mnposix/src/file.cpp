@@ -14,6 +14,7 @@ import ntdll;
 import unicode;
 import unique_handle;
 import print;
+import ucrtbase;
 
 #undef errno
 import errno;

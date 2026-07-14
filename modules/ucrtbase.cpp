@@ -2,6 +2,7 @@ module;
 
 #define _CRT_ERRNO_DEFINED
 #include <stdint.h>
+#include <stdio.h>
 #include <wchar.h>
 #include <wctype.h>
 #include "lconv.h"
@@ -26,6 +27,7 @@ enum _crt_app_type {
 using _PVFV = void (*)();
 using _PIFV = int (*)();
 
+#undef EOF
 const int EOF = -1;
 
 using _onexit_t = int (*)(void);
