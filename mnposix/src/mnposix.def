@@ -107,7 +107,7 @@ tcsetwinsize
 tcdrain
 tcflow
 tcsendbreak
-gettimeofday
+gettimeofday = _gettimeofday
 clock_gettime
 clock_getres
 ttyname_r

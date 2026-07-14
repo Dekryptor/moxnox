@@ -8,7 +8,7 @@ import ntdll;
 import ucrtbase;
 
 extern "C"
-int gettimeofday(struct timeval* tv, void* /*tz*/) {
+int _gettimeofday(struct timeval* tv, struct timezone* /*tz*/) {
     LARGE_INTEGER li;
 
     // FIXME - tz generally ignored?
