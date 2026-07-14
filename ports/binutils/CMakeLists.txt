@@ -756,9 +756,16 @@ add_custom_command(
     DEPENDS ${REPO}/binutils/winduni.c
 )
 
+add_custom_command(
+    OUTPUT ${WINDRES_GEN_DIR}/resrc.c
+    COMMAND sh -c "sed -e 's@#if defined (_WIN32) && ! defined (__CYGWIN__)@#if defined (_WIN32) \\&\\& ! defined (__CYGWIN__) \\&\\& ! defined (MOXNOX)@g' '${REPO}/binutils/resrc.c' > '${WINDRES_GEN_DIR}/resrc.c'"
+    VERBATIM
+    DEPENDS ${REPO}/binutils/resrc.c
+)
+
 add_executable(windres
     ${REPO}/binutils/windres.c
-    ${REPO}/binutils/resrc.c
+    ${WINDRES_GEN_DIR}/resrc.c
     ${REPO}/binutils/rescoff.c
     ${REPO}/binutils/resbin.c
     ${BISON_rcparse_OUTPUTS}
