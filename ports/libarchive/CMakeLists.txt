@@ -74,6 +74,7 @@ set(LA_WIN32_PATCHED
     tar/write.c
     tar/util.c
     libarchive_fe/passphrase.c
+    tar/bsdtar.c
     cpio/cpio_platform.h
 )
 
@@ -322,7 +323,7 @@ install(TARGETS archive DESTINATION ${CMAKE_INSTALL_PREFIX}/lib
 ###
 
 add_executable(bsdtar
-    repo/tar/bsdtar.c
+    ${GEN}/tar/bsdtar.c
     ${GEN}/tar/cmdline.c
     ${GEN}/tar/creation_set.c
     ${GEN}/tar/read.c
