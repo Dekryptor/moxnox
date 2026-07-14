@@ -896,7 +896,7 @@ typedef uint64_t uintmax_t;
 #define HAVE_MEMMOVE 1
 
 /* Define to 1 if you have the <memory.h> header file. */
-#define HAVE_MEMORY_H 1
+/* #undef HAVE_MEMORY_H */
 
 /* Define to 1 if you have the `mkdir' function. */
 #define HAVE_MKDIR 1
