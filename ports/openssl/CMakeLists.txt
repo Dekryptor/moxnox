@@ -215,6 +215,10 @@ openssl_patch(crypto/thread/arch/thread_posix.c
     -e [[s|#if defined(OPENSSL_THREADS_POSIX)|#if defined(OPENSSL_THREADS_POSIX) \|\| defined(MOXNOX)|g]]
 )
 
+openssl_patch(crypto/bn/bn_exp.c
+    -e [[s|#ifdef _WIN32|#if defined(_WIN32) \&\& !defined(MOXNOX)|g]]
+)
+
 add_library(libcrypto SHARED
     repo/crypto/aes/aes_cbc.c
     repo/crypto/aes/aes_cfb.c
@@ -338,7 +342,7 @@ add_library(libcrypto SHARED
     repo/crypto/bn/bn_dh.c
     repo/crypto/bn/bn_div.c
     repo/crypto/bn/bn_err.c
-    repo/crypto/bn/bn_exp.c
+    ${GEN}/crypto/bn/bn_exp.c
     repo/crypto/bn/bn_exp2.c
     repo/crypto/bn/bn_gcd.c
     repo/crypto/bn/bn_gf2m.c
@@ -1207,6 +1211,7 @@ target_include_directories(libcrypto PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}/repo/providers/common/include
     ${CMAKE_CURRENT_SOURCE_DIR}/repo/providers/implementations/include
     ${CMAKE_CURRENT_SOURCE_DIR}/repo/providers/fips/include
+    ${CMAKE_CURRENT_SOURCE_DIR}/repo/crypto/bn
 )
 
 target_include_directories(libcrypto PUBLIC
