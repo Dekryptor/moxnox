@@ -70,8 +70,6 @@ int clock_gettime(clockid_t clock_id, struct timespec* tp);
 int clock_getres(clockid_t clock_id, struct timespec* res);
 int nanosleep(const struct timespec* duration, struct timespec* rem);
 
-long* __timezone(void);
-
 extern long _timezone;
 
 #ifdef __cplusplus
