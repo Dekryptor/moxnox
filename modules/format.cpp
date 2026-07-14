@@ -6,6 +6,7 @@ module;
 #include <chrono>
 #include <optional>
 #include <stddef.h>
+#include <string.h>
 #include <stdint.h>
 
 export module format;

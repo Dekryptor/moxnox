@@ -1,3 +1,4 @@
+#include <string.h>
 #include <span>
 #include <optional>
 #include <string_view>

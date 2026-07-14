@@ -2,6 +2,7 @@ module;
 
 #include <time.h>
 #include <stdint.h>
+#include <string.h>
 #include <span>
 #include <string_view>
 #include <charconv>

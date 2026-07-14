@@ -1,5 +1,6 @@
 module;
 
+#include <string.h>
 #include <mutex>
 #include <variant>
 #include <span>

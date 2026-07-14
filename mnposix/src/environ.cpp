@@ -12,6 +12,8 @@ import ntdll;
 #undef errno
 import errno;
 
+#include <string.h>
+
 using namespace std;
 
 static bool allocated_peb_env = false;

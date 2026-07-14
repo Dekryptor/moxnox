@@ -1,5 +1,6 @@
 module;
 
+#include <string.h>
 #include <span>
 #include <atomic>
 #include <mutex>

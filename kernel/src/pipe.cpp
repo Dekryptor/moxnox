@@ -1,5 +1,6 @@
 module;
 
+#include <string.h>
 #include <span>
 #include <optional>
 #include <atomic>

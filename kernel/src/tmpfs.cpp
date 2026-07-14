@@ -1,3 +1,4 @@
+#include <string.h>
 #include <shared_mutex>
 #include <span>
 #include <optional>
