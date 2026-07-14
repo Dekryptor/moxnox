@@ -198,6 +198,7 @@ openssl_patch(providers/implementations/rands/seeding/rand_win.c
 openssl_patch(crypto/rand/randfile.c
     -e [[s|#if defined(_WIN32) && defined(CP_UTF8) && !defined(_WIN32_WCE)|#if defined(_WIN32) \&\& defined(CP_UTF8) \&\& !defined(_WIN32_WCE) \&\& !defined(MOXNOX)|g]]
     -e [[s|#define fileno _fileno|//#define fileno _fileno|g]]
+    -e [[s|#include <io.h>|#define NO_OLDNAMES\n#include <io.h>\n#undef NO_OLDNAMES|g]]
 )
 
 openssl_patch(crypto/threads_pthread.c
@@ -1353,7 +1354,12 @@ openssl_patch(apps/openssl.c
     -e [[s|    win32_utf8argv(&argc, &argv)\;|#ifndef MOXNOX\n    win32_utf8argv(\&argc, \&argv)\;\n#endif|g]]
 )
 
+openssl_patch(apps/cmp.c
+    -e [[s|#if defined(_WIN32) && !defined(__BORLANDC__)\n#define access _access|#if defined(MOXNOX)\n#include <unistd.h>\n#elif defined(_WIN32) \&\& !defined(__BORLANDC__)\n#define access _access|g]]
+)
+
 openssl_patch(apps/lib/apps.c
+    -e [[s|#include <sys/stat.h>|#include <sys/stat.h>\nint _access(const char *, int)\;|g]]
     -e [[s|#ifdef _WIN32\nstatic int WIN32_rename|#if defined(_WIN32) \&\& !defined(MOXNOX)\nstatic int WIN32_rename|g]]
     -e [[s@#if defined(OPENSSL_SYS_WINDOWS) || defined(OPENSSL_SYS_MSDOS)\n#include <conio.h>@#if (defined(OPENSSL_SYS_WINDOWS) || defined(OPENSSL_SYS_MSDOS)) \&\& !defined(MOXNOX)\n#include <conio.h>@g]]
     -e [[s|#if defined(_WIN32)\n#ifdef fileno|#if defined(_WIN32) \&\& !defined(MOXNOX)\n#ifdef fileno|g]]
@@ -1392,7 +1398,7 @@ set(OPENSSL_APPS_SOURCES
     repo/apps/asn1parse.c
     repo/apps/ca.c
     repo/apps/ciphers.c
-    repo/apps/cmp.c
+    ${GEN}/apps/cmp.c
     repo/apps/cms.c
     repo/apps/crl.c
     repo/apps/crl2pkcs7.c
