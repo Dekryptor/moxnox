@@ -1,6 +1,8 @@
 #include <array>
 #include <wchar.h>
 
+import ucrtbase;
+
 using namespace std;
 
 static const array types = {

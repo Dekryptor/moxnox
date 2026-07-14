@@ -30,6 +30,26 @@ using _PIFV = int (*)();
 #undef EOF
 const int EOF = -1;
 
+#undef _UPPER
+#undef _LOWER
+#undef _DIGIT
+#undef _SPACE
+#undef _PUNCT
+#undef _CONTROL
+#undef _BLANK
+#undef _HEX
+#undef _ALPHA
+
+const int _UPPER = 0x1;
+const int _LOWER = 0x2;
+const int _DIGIT = 0x4;
+const int _SPACE = 0x8;
+const int _PUNCT = 0x10;
+const int _CONTROL = 0x20;
+const int _BLANK = 0x40;
+const int _HEX = 0x80;
+const int _ALPHA = (0x0100 | _UPPER | _LOWER);
+
 using _onexit_t = int (*)(void);
 using _tls_callback_type = void (*)(void* dll_base, uint32_t reason,
                                     void* reserved);
