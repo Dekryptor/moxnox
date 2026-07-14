@@ -881,7 +881,7 @@ static int do_fstat(HANDLE h, struct ::_stat64* st) {
 
     // FIXME - inode number only 16 bits on mingw(???)
 
-    st->st_ino = (_ino_t)fii.IndexNumber.QuadPart;
+    st->st_ino = (ino_t)fii.IndexNumber.QuadPart;
 
     if (fbi.FileAttributes & FILE_ATTRIBUTE_DIRECTORY)
         st->st_mode = S_IFDIR | 0777;
