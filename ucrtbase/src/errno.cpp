@@ -1,7 +1,10 @@
 #include <string.h>
+#include <errno.h>
 
 import print;
 import ucrtbase;
+
+#undef errno
 import errno;
 
 static thread_local int errno = 0;
