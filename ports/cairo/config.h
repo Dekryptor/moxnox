@@ -4,6 +4,7 @@
 #define HAVE_C11_ATOMIC_PRIMITIVES 1
 
 /* Standard headers available */
+#define HAVE_ALLOCA_H    1
 #define HAVE_STDINT_H    1
 #define HAVE_INTTYPES_H  1
 #define HAVE_SIGNAL_H    1
