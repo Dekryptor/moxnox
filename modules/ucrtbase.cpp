@@ -6,7 +6,6 @@ module;
 #include <wchar.h>
 #include <wctype.h>
 #include <sys/stat.h>
-#include "lconv.h"
 
 export module ucrtbase;
 

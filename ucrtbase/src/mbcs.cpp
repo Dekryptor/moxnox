@@ -1,13 +1,12 @@
-#include "../../modules/lconv.h"
-
-import errno;
-import ucrtbase;
-import print;
-
 #include <stddef.h>
 #include <sys/types.h>
 #include <stdint.h>
 #include <string.h>
+#include <locale.h>
+
+import errno;
+import ucrtbase;
+import print;
 
 extern "C" int* __errno();
 
