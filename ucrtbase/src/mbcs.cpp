@@ -5,6 +5,7 @@ import ucrtbase;
 import print;
 
 #include <stddef.h>
+#include <sys/types.h>
 #include <stdint.h>
 #include <string.h>
 
