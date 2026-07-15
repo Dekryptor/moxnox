@@ -312,7 +312,7 @@
 /* #undef HAVE_GLIBC_STRERROR_R */
 
 /* Define to 1 if you have a working gmtime_r function. */
-/* #undef HAVE_GMTIME_R */
+#define HAVE_GMTIME_R 1
 
 /* if you have the gssapi libraries */
 /* #undef HAVE_GSSAPI */
@@ -396,7 +396,7 @@
 #define HAVE_LOCALE_H 1
 
 /* Define to 1 if you have a working localtime_r function. */
-/* #undef HAVE_LOCALTIME_R */
+#define HAVE_LOCALTIME_R 1
 
 /* Define to 1 if you have the 'suseconds_t' data type. */
 /* #undef HAVE_SUSECONDS_T */
