@@ -1223,16 +1223,16 @@ typedef uint64_t uintmax_t;
 /* #undef HAVE_UNSIGNED_LONG_LONG_INT */
 
 /* Define to 1 if you have the `utime' function. */
-#define HAVE_UTIME 1
+/* #undef HAVE_UTIME */
 
 /* Define to 1 if you have the `utimensat' function. */
-/* #undef HAVE_UTIMENSAT */
+#define HAVE_UTIMENSAT 1
 
 /* Define to 1 if you have the `utimes' function. */
 /* #undef HAVE_UTIMES */
 
 /* Define to 1 if you have the <utime.h> header file. */
-#define HAVE_UTIME_H 1
+/* #undef HAVE_UTIME_H */
 
 /* Define to 1 if you have the `vfork' function. */
 /* #undef HAVE_VFORK */
