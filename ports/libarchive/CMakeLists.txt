@@ -302,6 +302,10 @@ target_include_directories(archive PRIVATE
 target_include_directories(archive PUBLIC repo/libarchive)
 
 target_compile_definitions(archive PRIVATE HAVE_CONFIG_H __LIBARCHIVE_BUILD MOXNOX)
+# TRANSITIONAL: archive.h's _WIN32 branch is reached via relative
+# includes that bypass the gen patching; mingw's headers used to
+# define __int64 for GCC and Clang.
+target_compile_definitions(archive PUBLIC "__int64=long long")
 
 target_compile_options(archive PRIVATE
     ${USERSPACE_CFLAGS}
