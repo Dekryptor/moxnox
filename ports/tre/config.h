@@ -2,7 +2,6 @@
 #define HAVE_ISWCTYPE 1
 #define HAVE_ISWLOWER 1
 #define HAVE_ISWUPPER 1
-#define HAVE_MALLOC_H 1
 #define HAVE_MBRTOWC 1
 #define HAVE_MBSTATE_T 1
 #define HAVE_MBTOWC 1
