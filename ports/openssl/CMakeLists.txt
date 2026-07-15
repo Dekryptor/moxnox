@@ -1229,6 +1229,7 @@ target_compile_definitions(libcrypto PRIVATE
     ENGINESDIR="/lib/engines-3"
     MODULESDIR="/lib/ossl-modules"
     NO_SYSLOG
+    NO_SYS_PARAM_H
 )
 
 target_compile_options(libcrypto PRIVATE
@@ -1327,6 +1328,7 @@ target_compile_definitions(libssl PRIVATE
     ENGINESDIR="/lib/engines-3"
     MODULESDIR="/lib/ossl-modules"
     RIO_POLL_METHOD=RIO_POLL_METHOD_POLL
+    NO_SYS_PARAM_H
 )
 
 target_compile_options(libssl PRIVATE
@@ -1487,6 +1489,7 @@ target_compile_definitions(openssl_exe PRIVATE
     ENGINESDIR="/usr/lib/engines-3"
     MODULESDIR="/usr/lib/ossl-modules"
     HAVE_FORK=0
+    NO_SYS_PARAM_H
 )
 
 target_compile_options(openssl_exe PRIVATE
