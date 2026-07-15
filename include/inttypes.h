@@ -35,12 +35,21 @@
 #define PRIxPTR "x"
 #endif
 
+typedef struct {
+    intmax_t quot;
+    intmax_t rem;
+} imaxdiv_t;
+
 #ifdef __cplusplus
 extern "C" {
 #endif
 
+intmax_t imaxabs(intmax_t j);
+imaxdiv_t imaxdiv(intmax_t numer, intmax_t denom);
 intmax_t strtoimax(const char* nptr, char** endptr, int base);
 uintmax_t strtoumax(const char* nptr, char** endptr, int base);
+intmax_t wcstoimax(const wchar_t* nptr, wchar_t** endptr, int base);
+uintmax_t wcstoumax(const wchar_t* nptr, wchar_t** endptr, int base);
 
 #ifdef __cplusplus
 }
