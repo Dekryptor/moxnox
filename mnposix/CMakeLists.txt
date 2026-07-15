@@ -12,7 +12,7 @@ add_library(musl_glob STATIC
 )
 
 target_include_directories(musl_glob PRIVATE glob_compat)
-target_compile_options(musl_glob PRIVATE -fno-exceptions ${USERSPACE_CFLAGS})
+target_compile_options(musl_glob PRIVATE -fno-exceptions ${USERSPACE_CFLAGS} -Wno-sign-conversion -Wno-parentheses -Wno-unused-parameter -Wno-conversion -Wno-sign-compare)
 target_compile_options(musl_glob PRIVATE -include ${CMAKE_CURRENT_SOURCE_DIR}/glob_compat/glob_compat.h)
 
 add_library(tre STATIC
