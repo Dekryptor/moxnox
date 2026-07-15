@@ -3,6 +3,7 @@
 #include <stdio.h>
 #include <stdarg.h>
 #include <stddef.h>
+#include <stdint.h>
 
 typedef unsigned short wint_t;
 typedef unsigned short wctype_t;
