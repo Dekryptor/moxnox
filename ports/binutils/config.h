@@ -48,6 +48,7 @@
 #define HAVE_STRTOUL          1
 #define HAVE_STRTOULL         1
 #define HAVE_TMPNAM           1
+#define HAVE_UTIMENSAT        1
 #define HAVE_VASPRINTF        1
 #define HAVE_VFPRINTF         1
 #define HAVE_VPRINTF          1
@@ -147,5 +148,5 @@
 #define DEFAULT_FOR_FOLLOW_LINKS 1
 #define DEFAULT_STRINGS_ALL      1
 #define DEFAULT_AR_DETERMINISTIC 0
-#define HAVE_GOOD_UTIME_H     1
+#define HAVE_GOOD_UTIME_H     0
 #define HAVE_REALPATH         1
