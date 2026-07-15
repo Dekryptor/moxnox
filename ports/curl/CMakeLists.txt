@@ -1,5 +1,6 @@
 set(CURL_GEN ${CMAKE_CURRENT_BINARY_DIR}/gen)
 file(MAKE_DIRECTORY ${CURL_GEN}/lib/curlx)
+file(MAKE_DIRECTORY ${CURL_GEN}/src/toolx)
 
 function(curl_patch relpath)
     add_custom_command(
@@ -31,6 +32,12 @@ curl_patch(lib/curl_setup.h
 
 curl_patch(lib/setup-win32.h
     -e [[s|#  define USE_WINSOCK 2\n#  include <winsock2.h>\n#  include <ws2tcpip.h>|#  if defined(MOXNOX)\n#    define _WINSOCKAPI_\n#    define SOCKET int\n#    include <sys/socket.h>\n#    include <netinet/in.h>\n#    include <netdb.h>\n#  else\n#    define USE_WINSOCK 2\n#    include <winsock2.h>\n#    include <ws2tcpip.h>\n#  endif|g]])
+
+curl_patch(lib/curlx/timeval.c
+    -e [[s|{\n#ifdef _WIN32\n  if(gmtime_s|{\n#if defined(_WIN32) \&\& !defined(MOXNOX)\n  if(gmtime_s|g]])
+
+curl_patch(src/toolx/tool_time.c
+    -e [[s|{\n#ifdef _WIN32\n  if(localtime_s|{\n#if defined(_WIN32) \&\& !defined(MOXNOX)\n  if(localtime_s|g]])
 
 curl_patch(lib/curlx/version_win32.h
     -e [[s@#ifdef CURL_WINDOWS_UWP@#if defined(CURL_WINDOWS_UWP) || defined(MOXNOX)@g]])
@@ -108,7 +115,7 @@ add_library(libcurl SHARED
     ${CURL_GEN}/lib/curlx/strerr.c
     repo/lib/curlx/strparse.c
     repo/lib/curlx/timediff.c
-    repo/lib/curlx/timeval.c
+    ${CURL_GEN}/lib/curlx/timeval.c
     repo/lib/curlx/wait.c
     repo/lib/curlx/warnless.c
     repo/lib/vauth/cleartext.c
@@ -342,7 +349,7 @@ add_executable(curl_exe
     repo/src/tool_writeout.c
     repo/src/tool_writeout_json.c
     repo/src/var.c
-    repo/src/toolx/tool_time.c
+    ${CURL_GEN}/src/toolx/tool_time.c
     repo/lib/curlx/base64.c
     repo/lib/curlx/basename.c
     repo/lib/curlx/dynbuf.c
@@ -352,7 +359,7 @@ add_executable(curl_exe
     repo/lib/curlx/strdup.c
     ${CURL_GEN}/lib/curlx/strerr.c
     repo/lib/curlx/strparse.c
-    repo/lib/curlx/timeval.c
+    ${CURL_GEN}/lib/curlx/timeval.c
     repo/lib/curlx/wait.c
     repo/lib/curlx/warnless.c
     ${CMAKE_CURRENT_SOURCE_DIR}/moxnox_fopen_compat.c
