@@ -30,7 +30,7 @@ add_library(tre STATIC
 
 target_include_directories(tre PRIVATE ../ports/tre)
 target_compile_definitions(tre PRIVATE HAVE_CONFIG_H)
-target_compile_options(tre PRIVATE -fno-exceptions ${USERSPACE_CFLAGS})
+target_compile_options(tre PRIVATE -fno-exceptions ${USERSPACE_CFLAGS} -Wno-sign-conversion -Wno-conversion)
 target_compile_options(tre PRIVATE -include ../ports/tre/tre-internal-fix.h)
 
 add_library(mnposix SHARED
