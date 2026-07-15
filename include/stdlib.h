@@ -149,6 +149,7 @@ int mkstemp(char* tmpl);
 int mkstemps(char* tmpl, int suffixlen);
 char* mktemp(char* tmpl);
 const char* getprogname(void);
+char* mkdtemp(char* templ);
 
 #ifndef _WIN32 // FIXME
 int putenv(char* string);
