@@ -120,57 +120,10 @@ add_library(mingwex STATIC
     repo/mingw-w64-crt/gdtoa/strtopx.c
     repo/mingw-w64-crt/gdtoa/sum.c
     repo/mingw-w64-crt/gdtoa/ulp.c
-    repo/mingw-w64-crt/math/acospi.c
-    repo/mingw-w64-crt/math/acospif.c
-    repo/mingw-w64-crt/math/acospil.c
-    repo/mingw-w64-crt/math/asinpi.c
-    repo/mingw-w64-crt/math/asinpif.c
-    repo/mingw-w64-crt/math/asinpil.c
-    repo/mingw-w64-crt/math/atan2pi.c
-    repo/mingw-w64-crt/math/atan2pif.c
-    repo/mingw-w64-crt/math/atan2pil.c
-    repo/mingw-w64-crt/math/atanpi.c
-    repo/mingw-w64-crt/math/atanpif.c
-    repo/mingw-w64-crt/math/atanpil.c
-    repo/mingw-w64-crt/math/coshl.c
-    repo/mingw-w64-crt/math/cospi.c
-    repo/mingw-w64-crt/math/cospif.c
-    repo/mingw-w64-crt/math/cospil.c
-    repo/mingw-w64-crt/math/fabsl.c
-    repo/mingw-w64-crt/math/fp_consts.c
-    repo/mingw-w64-crt/math/fp_constsf.c
-    repo/mingw-w64-crt/math/fp_constsl.c
     repo/mingw-w64-crt/math/fpclassify.c
-    repo/mingw-w64-crt/math/fpclassifyf.c
     repo/mingw-w64-crt/math/fpclassifyl.c
-    repo/mingw-w64-crt/math/frexpf.c
-    repo/mingw-w64-crt/math/frexpl.c
-    repo/mingw-w64-crt/math/hypotf.c
-    repo/mingw-w64-crt/math/hypotl.c
     repo/mingw-w64-crt/math/isnan.c
-    repo/mingw-w64-crt/math/isnanf.c
     repo/mingw-w64-crt/math/isnanl.c
-    repo/mingw-w64-crt/math/ldexpf.c
-    repo/mingw-w64-crt/math/lgamma.c
-    repo/mingw-w64-crt/math/lgammaf.c
-    repo/mingw-w64-crt/math/lgammal.c
-    repo/mingw-w64-crt/math/modfl.c
-    repo/mingw-w64-crt/math/powi.c
-    repo/mingw-w64-crt/math/powif.c
-    repo/mingw-w64-crt/math/powil.c
-    repo/mingw-w64-crt/math/signbit.c
-    repo/mingw-w64-crt/math/signbitf.c
-    repo/mingw-w64-crt/math/signbitl.c
-    repo/mingw-w64-crt/math/signgam.c
-    repo/mingw-w64-crt/math/sinhl.c
-    repo/mingw-w64-crt/math/sinpi.c
-    repo/mingw-w64-crt/math/sinpif.c
-    repo/mingw-w64-crt/math/sinpil.c
-    repo/mingw-w64-crt/math/sqrtl.c
-    repo/mingw-w64-crt/math/tanhl.c
-    repo/mingw-w64-crt/math/tanpi.c
-    repo/mingw-w64-crt/math/tanpif.c
-    repo/mingw-w64-crt/math/tanpil.c
     # repo/mingw-w64-crt/misc/_assert.c
     repo/mingw-w64-crt/misc/mingw_longjmp.S
     repo/mingw-w64-crt/misc/mingw_getsp.S
@@ -301,78 +254,7 @@ add_library(mingwex STATIC
 )
 
 if(CMAKE_SYSTEM_PROCESSOR STREQUAL "amd64")
-    target_sources(mingwex PRIVATE
-        repo/mingw-w64-crt/math/cbrtl.c
-        repo/mingw-w64-crt/math/erfl.c
-        repo/mingw-w64-crt/math/fdiml.c
-        repo/mingw-w64-crt/math/fmal.c
-        repo/mingw-w64-crt/math/fmaxl.c
-        repo/mingw-w64-crt/math/fminl.c
-        repo/mingw-w64-crt/math/llrintl.c
-        repo/mingw-w64-crt/math/llroundl.c
-        repo/mingw-w64-crt/math/lrintl.c
-        repo/mingw-w64-crt/math/lroundl.c
-        repo/mingw-w64-crt/math/rintl.c
-        repo/mingw-w64-crt/math/roundl.c
-        repo/mingw-w64-crt/math/tgammal.c
-        repo/mingw-w64-crt/math/truncl.c
-        repo/mingw-w64-crt/math/x86/_chgsignl.S
-        repo/mingw-w64-crt/math/x86/acosh.def.h
-        repo/mingw-w64-crt/math/x86/acoshl.c
-        repo/mingw-w64-crt/math/x86/acosl.c
-        repo/mingw-w64-crt/math/x86/asinhl.c
-        repo/mingw-w64-crt/math/x86/asinl.c
-        repo/mingw-w64-crt/math/x86/atan2l.c
-        repo/mingw-w64-crt/math/x86/atanhl.c
-        repo/mingw-w64-crt/math/x86/atanl.c
-        repo/mingw-w64-crt/math/x86/ceill.S
-        repo/mingw-w64-crt/math/x86/copysignl.S
-        repo/mingw-w64-crt/math/x86/cos.def.h
-        repo/mingw-w64-crt/math/x86/cosl.c
-        repo/mingw-w64-crt/math/x86/cosl_internal.S
-        repo/mingw-w64-crt/math/x86/cossinl.c
-        repo/mingw-w64-crt/math/x86/exp2l.S
-        repo/mingw-w64-crt/math/x86/exp.def.h
-        repo/mingw-w64-crt/math/x86/expl.c
-        repo/mingw-w64-crt/math/x86/expm1.def.h
-        repo/mingw-w64-crt/math/x86/expm1l.c
-        repo/mingw-w64-crt/math/x86/fastmath.h
-        repo/mingw-w64-crt/math/x86/floorl.S
-        repo/mingw-w64-crt/math/x86/fmodl.c
-        repo/mingw-w64-crt/math/x86/fucom.c
-        repo/mingw-w64-crt/math/x86/ilogbl.S
-        repo/mingw-w64-crt/math/x86/internal_logl.S
-        repo/mingw-w64-crt/math/x86/ldexp.c
-        repo/mingw-w64-crt/math/x86/ldexpl.c
-        repo/mingw-w64-crt/math/x86/log.def.h
-        repo/mingw-w64-crt/math/x86/log10l.S
-        repo/mingw-w64-crt/math/x86/log1pl.S
-        repo/mingw-w64-crt/math/x86/log2l.S
-        repo/mingw-w64-crt/math/x86/logbl.c
-        repo/mingw-w64-crt/math/x86/logl.c
-        repo/mingw-w64-crt/math/x86/nearbyintl.S
-        repo/mingw-w64-crt/math/x86/pow.def.h
-        repo/mingw-w64-crt/math/x86/powl.c
-        repo/mingw-w64-crt/math/x86/remainderl.S
-        repo/mingw-w64-crt/math/x86/remquol.S
-        repo/mingw-w64-crt/math/x86/scalbn.S
-        repo/mingw-w64-crt/math/x86/scalbnf.S
-        repo/mingw-w64-crt/math/x86/scalbnl.S
-        repo/mingw-w64-crt/math/x86/sin.def.h
-        repo/mingw-w64-crt/math/x86/sinl.c
-        repo/mingw-w64-crt/math/x86/sinl_internal.S
-        repo/mingw-w64-crt/math/x86/tanl.S
-        repo/mingw-w64-crt/cfguard/guard_dispatch.S
-    )
-elseif(CMAKE_SYSTEM_PROCESSOR STREQUAL "aarch64")
-    target_sources(mingwex PRIVATE
-        repo/mingw-w64-crt/math/sincos.c
-        repo/mingw-w64-crt/math/sincosf.c
-        repo/mingw-w64-crt/math/arm-common/sincosl.c
-        repo/mingw-w64-crt/math/arm64/rint.c
-        repo/mingw-w64-crt/math/arm64/rintf.c
-        repo/mingw-w64-crt/math/arm-common/ldexpl.c
-    )
+    target_sources(mingwex PRIVATE repo/mingw-w64-crt/cfguard/guard_dispatch.S)
 endif()
 
 if(CMAKE_C_COMPILER_ID MATCHES "Clang")
