@@ -1,5 +1,6 @@
 #include <stdint.h>
 #include <sys/types.h>
+#include <time.h>
 
 import nt;
 import ucrtbase;

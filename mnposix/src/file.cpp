@@ -3,6 +3,11 @@
 #include <stdint.h>
 #include <sys/types.h>
 #include <sys/stat.h>
+#include <string.h>
+#define NO_OLDNAMES
+#include <io.h>
+#include <direct.h>
+#undef NO_OLDNAMES
 #include <sys/statvfs.h>
 #include <string_view>
 #include <span>
