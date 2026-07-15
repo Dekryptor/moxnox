@@ -5,7 +5,6 @@
 #define HAVE_CONFIG_H 1
 
 #define HAVE_LIMITS_H 1
-#define HAVE_SYS_PARAM_H 1
 #define HAVE_TERMIOS_H 1
 #define HAVE_LIBINTL_H 1
 
