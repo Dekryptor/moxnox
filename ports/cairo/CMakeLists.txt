@@ -161,7 +161,7 @@ target_sources(cairo PUBLIC FILE_SET CXX_MODULES FILES cairo.cpp)
 target_compile_definitions(cairo PRIVATE CAIRO_COMPILATION HAVE_CONFIG_H)
 
 target_compile_options(cairo PRIVATE ${USERSPACE_CFLAGS} $<$<COMPILE_LANGUAGE:C>:-include ${CMAKE_CURRENT_BINARY_DIR}/cairo-compiler-private.h>)
-target_compile_options(cairo PRIVATE -Wno-float-conversion -Wno-enum-conversion -Wno-unused-parameter -Wno-sign-conversion -Wno-conversion -Wno-unused-but-set-variable -Wno-missing-field-initializers -Wno-unused-variable $<$<COMPILE_LANGUAGE:C>:-Wno-unterminated-string-initialization> -Wno-unused-function -Wno-return-type -Wno-array-bounds $<$<C_COMPILER_ID:GNU>:-Wno-maybe-uninitialized -Wno-alloc-size-larger-than -Wno-stringop-overflow>)
+target_compile_options(cairo PRIVATE -Wno-float-conversion -Wno-enum-conversion -Wno-unused-parameter -Wno-sign-conversion -Wno-conversion -Wno-unused-but-set-variable -Wno-missing-field-initializers -Wno-unused-variable $<$<COMPILE_LANGUAGE:C>:-Wno-unterminated-string-initialization> -Wno-unused-function -Wno-return-type -Wno-array-bounds $<$<C_COMPILER_ID:GNU>:-Wno-maybe-uninitialized -Wno-alloc-size-larger-than -Wno-stringop-overflow> -Wno-missing-braces)
 target_compile_options(cairo PRIVATE $<$<COMPILE_LANGUAGE:CXX>:-fno-exceptions>)
 
 target_include_directories(cairo PUBLIC repo/src)
