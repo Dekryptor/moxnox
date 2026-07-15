@@ -215,5 +215,5 @@
     add rsp, 0x58
     iretq
     .seh_endproc
-"dynamic_isr_\num" "_end":
+"dynamic_isr_\num\()_end":
 .endm
