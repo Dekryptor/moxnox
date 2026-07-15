@@ -42,7 +42,7 @@ target_sources(harfbuzz PUBLIC FILE_SET CXX_MODULES FILES harfbuzz.cpp)
 
 target_compile_definitions(harfbuzz PRIVATE -DHAVE_FREETYPE -DHB_LEAN -DHB_NO_AAT -DHB_NO_MT)
 target_compile_options(harfbuzz PRIVATE -mno-stack-arg-probe -Wa,-mbig-obj -fno-exceptions -fno-rtti ${USERSPACE_CFLAGS})
-target_compile_options(harfbuzz PRIVATE -Wno-float-conversion)
+target_compile_options(harfbuzz PRIVATE -Wno-float-conversion -Wno-attributes)
 target_compile_options(harfbuzz PRIVATE -include ${CMAKE_CURRENT_SOURCE_DIR}/hbshim.h)
 target_include_directories(harfbuzz PRIVATE repo/src)
 target_link_libraries(harfbuzz PRIVATE freetype)
