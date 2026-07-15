@@ -58,5 +58,7 @@ do_stub "pthread_rwlock_unlock"
 do_stub "pthread_rwlock_rdlock"
 do_stub "pthread_rwlock_destroy"
 do_stub "pthread_rwlock_init"
+do_stub "gmtime_r"
+do_stub "localtime_r"
 
 stubs_end
