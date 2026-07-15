@@ -23,7 +23,7 @@ file(CONFIGURE OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/cairo-misc.c CONTENT "${CAIRO_
 file(READ repo/src/cairo-colr-glyph-render.c CAIRO_COLR_GLYPH_RENDER_SRC)
 string(REPLACE
     "#ifdef _MSC_VER\n#include <malloc.h>"
-    "#if defined(_MSC_VER) || defined(_WIN32) || defined(__moxnox__)\n#include <malloc.h>"
+    "#if defined(_MSC_VER) || defined(_WIN32)\n#include <malloc.h>"
     CAIRO_COLR_GLYPH_RENDER_SRC "${CAIRO_COLR_GLYPH_RENDER_SRC}")
 file(CONFIGURE OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/cairo-colr-glyph-render.c CONTENT "${CAIRO_COLR_GLYPH_RENDER_SRC}" @ONLY)
 
