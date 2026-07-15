@@ -72,11 +72,7 @@ int __stdio_common_vswprintf(uint64_t /*options*/, wchar_t* buffer,
     // FIXME - options
     // FIXME - locale
 
-#if __MINGW64_VERSION_MAJOR >= 13
     return __mingw_vswprintf(buffer, buffer_count, format, valist);
-#else
-    return __mingw_vswprintf(buffer, format, valist);
-#endif
 }
 
 extern "C"
