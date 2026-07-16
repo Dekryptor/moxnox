@@ -25,8 +25,6 @@
 .equ MM_TEXT, 0
 .equ MM_DIRECT, 6
 
-#define MOXNOX_VERSION_STRING "Moxnox " GIT_HASH
-
 .section ".boot", "a"
 
 .set	section_align, 0x1000
@@ -790,7 +788,8 @@ jmp     enter_protected_mode
 .section .rdata
 .global kernel_version
 kernel_version:
-.asciz	MOXNOX_VERSION_STRING
+.ascii	"Moxnox "
+.asciz	GIT_HASH
 
 gdt:
 # null descriptor
@@ -879,4 +878,5 @@ vbe_best_mode_mul:
 .long	0
 
 .section .efi_version
-.asciz	MOXNOX_VERSION_STRING
+.ascii	"Moxnox "
+.asciz	GIT_HASH
