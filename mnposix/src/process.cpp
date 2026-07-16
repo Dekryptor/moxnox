@@ -78,7 +78,7 @@ pid_t setsid() {
         return -1;
     }
 
-    return teb.ClientId.UniqueProcess;
+    return (pid_t)teb.ClientId.UniqueProcess;
 }
 
 extern "C"
