@@ -10,6 +10,10 @@ struct timezone {
 };
 #endif
 
+#define timercmp(tvp, uvp, cmp) \
+    ((tvp)->tv_sec cmp(uvp)->tv_sec || \
+     ((tvp)->tv_sec == (uvp)->tv_sec && (tvp)->tv_usec cmp(uvp)->tv_usec))
+
 #ifdef __cplusplus
 extern "C" {
 #endif
