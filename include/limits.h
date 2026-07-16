@@ -30,3 +30,5 @@
 #define SSIZE_MAX LLONG_MAX
 
 #define GETENTROPY_MAX 256
+
+#define MB_LEN_MAX 5
