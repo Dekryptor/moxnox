@@ -486,7 +486,7 @@ install(TARGETS telnetd DESTINATION ${CMAKE_INSTALL_PREFIX}/bin COMPONENT core)
 add_executable(rtti-test src/rtti-test.cpp)
 
 target_compile_options(rtti-test PRIVATE -fno-exceptions ${USERSPACE_CFLAGS} -frtti)
-target_link_libraries(rtti-test print-rtti)
+target_link_libraries(rtti-test moxnox print-rtti)
 target_link_options(rtti-test PRIVATE -Wl,--allow-multiple-definition) # FIXME
 
 if (CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
