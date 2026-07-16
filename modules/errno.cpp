@@ -9,6 +9,8 @@ import nt;
 
 using namespace std;
 
+// FIXME - should be re-exporting these from errno.h
+
 export {
     const int EPERM = 1;
     const int ENOENT = 2;
@@ -90,6 +92,8 @@ export {
     const int ETIMEDOUT = 138;
     const int ETXTBSY = 139;
     const int EWOULDBLOCK = 140;
+    const int ESTALE = 141;
+    const int EDQUOT = 142;
 };
 
 export int nt_status_to_errno(nt_status status) {
@@ -330,6 +334,10 @@ export string_view errno_to_string_view(int err) {
             return "ETXTBSY";
         case EWOULDBLOCK:
             return "EWOULDBLOCK";
+        case ESTALE:
+            return "ESTALE";
+        case EDQUOT:
+            return "EDQUOT";
         default:
             return "?";
     }

@@ -74,6 +74,8 @@
 #define ETIMEDOUT 138
 #define ETXTBSY 139
 #define EWOULDBLOCK 140
+#define ESTALE 141
+#define EDQUOT 142
 
 #ifdef __cplusplus
 extern "C" {
