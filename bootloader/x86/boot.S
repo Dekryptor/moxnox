@@ -236,8 +236,11 @@ movzx	esp, dx
 sti
 
 push	ds
-push	OFFSET 1f
-lret
+
+# push OFFSET 1f
+.byte	0x68
+.long	1f
+retf
 
 1:
 detect_memory:
