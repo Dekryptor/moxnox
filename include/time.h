@@ -27,7 +27,7 @@ struct tm {
 #ifndef _TIMEVAL_DEFINED // FIXME
 #define _TIMEVAL_DEFINED
 struct timeval {
-    long tv_sec;
+    time_t tv_sec;
     long tv_usec;
 };
 #endif
