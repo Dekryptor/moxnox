@@ -8,7 +8,7 @@ export module loaderblock;
 
 import format;
 
-#ifndef _X86_
+#ifndef __i386__
 import gnu_efi;
 #endif
 
@@ -79,7 +79,7 @@ struct loader_block_framebuffer {
     uint32_t pixels_per_scan_line;
 } __attribute__((packed));
 
-#if defined(__x86_64__) || defined(_X86_)
+#if defined(__x86_64__) || defined(__i386__)
 struct loader_block_text_console {
     uint16_t cols;
     uint16_t rows;
@@ -96,12 +96,12 @@ struct loader_block {
     uint64_t rsdp_pa;
     uint64_t smbios_address;
     uint64_t smbios_length;
-#if defined(__x86_64__) || defined(_X86_)
+#if defined(__x86_64__) || defined(__i386__)
     bool text_mode;
 #endif
     union {
         loader_block_framebuffer framebuffer;
-#if defined(__x86_64__) || defined(_X86_)
+#if defined(__x86_64__) || defined(__i386__)
         loader_block_text_console text_console;
 #endif
     };
@@ -126,7 +126,7 @@ struct loader_block {
     uint64_t debug_line_str_ptr;
     uint64_t debug_line_str_size;
     char version[32];
-#ifdef _X86_ // avoid bringing in gnu-efi
+#ifdef __i386__ // avoid bringing in gnu-efi
     uint64_t GetTime;
     uint64_t SetVirtualAddressMap;
     uint64_t ResetSystem;
