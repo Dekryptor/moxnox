@@ -1,4 +1,5 @@
 #include <utility>
+#include <algorithm>
 #include <stdlib.h>
 #include <stdint.h>
 
@@ -17,6 +18,8 @@ int _set_new_mode(int mode) {
 
 extern "C"
 void* __aligned_malloc(size_t size, size_t alignment) {
+    alignment = max(alignment, sizeof(uint32_t));
+
     auto m = (uint8_t*)malloc(sizeof(uint32_t) + size + alignment - 1);
     if (!m)
         return nullptr;
