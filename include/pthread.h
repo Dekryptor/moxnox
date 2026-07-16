@@ -65,6 +65,7 @@ int pthread_cancel(pthread_t thread);
 int pthread_rwlock_init(pthread_rwlock_t* rwlock,
                         const pthread_rwlockattr_t* attr);
 int pthread_rwlock_destroy(pthread_rwlock_t* rwlock);
+int pthread_condattr_setclock(pthread_condattr_t* attr, clockid_t clock_id);
 
 #ifdef __cplusplus
 }
