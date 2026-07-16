@@ -298,6 +298,7 @@ target_compile_options(libcurl PRIVATE
     -Wno-sign-conversion
     -Wno-conversion
     -Wno-type-limits
+    -Wno-unused-parameter
     "SHELL:-include ${CMAKE_SOURCE_DIR}/include/sys/select.h"
     "SHELL:-include ${CURL_GEN}/lib/curl_setup.h"
     "SHELL:-include ${CURL_GEN}/lib/setup-win32.h"
