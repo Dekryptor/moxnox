@@ -331,3 +331,4 @@ fsetpos
 mbsrtowcs
 wcscat
 atoll
+iswgraph
