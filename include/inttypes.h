@@ -27,6 +27,7 @@
 #define PRIx32 "x"
 
 #define SCNu64 PRIu64
+#define SCNx64 PRIx64
 
 #define SCNuMAX PRIu64
 
