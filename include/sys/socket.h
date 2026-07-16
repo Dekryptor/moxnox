@@ -11,8 +11,9 @@ struct sockaddr {
 };
 
 struct sockaddr_storage {
-   struct sockaddr sa;
-};
+   sa_family_t ss_family;
+   uint8_t padding[128 - sizeof(sa_family_t)];
+} __attribute__ ((aligned (8)));
 
 struct linger {
    int l_onoff;
