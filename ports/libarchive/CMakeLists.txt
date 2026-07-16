@@ -42,7 +42,6 @@ function(la_win32_patch relpath)
 endfunction()
 
 set(LA_WIN32_PATCHED
-    libarchive/archive.h
     libarchive/archive_private.h
     libarchive/archive_platform_stat.h
     libarchive/archive_match.c
@@ -85,6 +84,29 @@ foreach(f ${LA_WIN32_PATCHED})
     la_win32_patch(${f})
     list(APPEND LA_GEN_OUTPUTS ${GEN}/${f})
 endforeach()
+
+add_custom_command(
+    OUTPUT ${GEN}/libarchive/archive.h
+    COMMAND ${CMAKE_COMMAND} -E copy ${CMAKE_CURRENT_SOURCE_DIR}/repo/libarchive/archive.h ${GEN}/libarchive/archive.h
+    COMMAND sed -i
+        -e [[s@#if ((defined __WIN32__) || (defined _WIN32) || defined(__CYGWIN__)) && (!defined LIBARCHIVE_STATIC)@#if ((defined __WIN32__) || (defined _WIN32) || defined(__CYGWIN__) || defined(__moxnox__)) \&\& (!defined LIBARCHIVE_STATIC)@g]]
+        -e [[s@#if defined(_WIN32) && !defined(__CYGWIN__)@#if defined(_WIN32) \&\& !defined(__CYGWIN__) \&\& !defined(MOXNOX)@g]]
+        ${GEN}/libarchive/archive.h
+    DEPENDS repo/libarchive/archive.h
+    VERBATIM
+)
+list(APPEND LA_GEN_OUTPUTS ${GEN}/libarchive/archive.h)
+
+add_custom_command(
+    OUTPUT ${GEN}/libarchive/archive_entry.h
+    COMMAND ${CMAKE_COMMAND} -E copy ${CMAKE_CURRENT_SOURCE_DIR}/repo/libarchive/archive_entry.h ${GEN}/libarchive/archive_entry.h
+    COMMAND sed -i
+        -e [[s@#if ((defined __WIN32__) || (defined _WIN32) || defined(__CYGWIN__)) && (!defined LIBARCHIVE_STATIC)@#if ((defined __WIN32__) || (defined _WIN32) || defined(__CYGWIN__) || defined(__moxnox__)) \&\& (!defined LIBARCHIVE_STATIC)@g]]
+        ${GEN}/libarchive/archive_entry.h
+    DEPENDS repo/libarchive/archive_entry.h
+    VERBATIM
+)
+list(APPEND LA_GEN_OUTPUTS ${GEN}/libarchive/archive_entry.h)
 
 la_win32_patch(cpio/cpio.c
     -e [[s@archive_write_add_filter_bzip2(cpio->archive)@(ARCHIVE_FATAL)@g]]
@@ -315,6 +337,7 @@ target_compile_options(archive PRIVATE
     -Wno-unused-variable
     "SHELL:-include ${GEN}/libarchive/archive_platform.h"
     "SHELL:-include ${GEN}/libarchive/archive.h"
+    "SHELL:-include ${GEN}/libarchive/archive_entry.h"
     "SHELL:-include ${GEN}/libarchive/archive_private.h"
 )
 
