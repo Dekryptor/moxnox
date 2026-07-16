@@ -8,6 +8,7 @@
 #define PRIo64 "llo"
 #define PRIu64 "llu"
 #define PRIx64 "llx"
+#define PRIX64 "llX"
 
 #define PRId16 "d"
 #define PRId32 "d"
@@ -31,8 +32,18 @@
 
 #if __SIZEOF_POINTER__ == 8
 #define PRIxPTR PRIx64
+#define PRIdPTR PRId64
+#define PRIiPTR PRIi64
+#define PRIoPTR PRIo64
+#define PRIuPTR PRIu64
+#define PRIXPTR PRIX64
 #else
 #define PRIxPTR "x"
+#define PRIdPTR "d"
+#define PRIiPTR "i"
+#define PRIoPTR "o"
+#define PRIuPTR "u"
+#define PRIXPTR "X"
 #endif
 
 typedef struct {
