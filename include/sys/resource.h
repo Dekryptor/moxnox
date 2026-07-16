@@ -15,6 +15,9 @@ struct rlimit {
 
 #define RLIM_INFINITY 0
 
+#define RLIM_SAVED_MAX  RLIM_INFINITY
+#define RLIM_SAVED_CUR  RLIM_INFINITY
+
 #define PRIO_PROCESS  0
 
 #ifdef __cplusplus
