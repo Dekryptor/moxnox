@@ -155,6 +155,7 @@ int fchmod(int fd, mode_t mode);
 int utimensat(int fd, const char* path, const struct timespec* times,
               int flag);
 int fchmodat(int fd, const char* path, mode_t mode, int flag);
+int fstatat(int fd, const char* path, struct stat* buf, int flag);
 
 #ifdef __cplusplus
 }
