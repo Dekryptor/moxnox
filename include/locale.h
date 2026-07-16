@@ -1,5 +1,7 @@
 #pragma once
 
+typedef unsigned int locale_t;
+
 #define LC_ALL 0
 #define LC_COLLATE 1
 #define LC_CTYPE 2
