@@ -86,6 +86,9 @@ int vwscanf(const wchar_t* format, va_list arg);
 int wcsnicmp(const wchar_t* s1, const wchar_t* s2, size_t n);
 int wcwidth(wchar_t wc);
 wchar_t* wcsdup(const wchar_t* string);
+size_t wcsnrtombs(char* dst, const wchar_t** src, size_t nwc, size_t len,
+                  mbstate_t* ps);
+
 
 #ifdef __cplusplus
 }
