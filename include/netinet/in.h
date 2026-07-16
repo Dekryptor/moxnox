@@ -64,3 +64,15 @@ struct sockaddr_in6 {
     struct in6_addr sin6_addr;
     uint32_t sin6_scope_id;
 };
+
+#define IPV6_MULTICAST_IF   9
+#define IPV6_MULTICAST_HOPS 10
+#define IPV6_MULTICAST_LOOP 11
+#define IPV6_JOIN_GROUP     12
+#define IPV6_LEAVE_GROUP    13
+#define IPV6_V6ONLY         27
+
+struct ipv6_mreq {
+    struct in6_addr ipv6mr_multiaddr;
+    unsigned int ipv6mr_interface;
+};
