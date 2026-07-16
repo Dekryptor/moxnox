@@ -60,5 +60,6 @@ do_stub "pthread_rwlock_destroy"
 do_stub "pthread_rwlock_init"
 do_stub "gmtime_r"
 do_stub "localtime_r"
+do_stub "fstatat"
 
 stubs_end

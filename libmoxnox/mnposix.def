@@ -199,3 +199,4 @@ pthread_rwlock_destroy
 pthread_rwlock_init
 gmtime_r
 localtime_r
+fstatat
