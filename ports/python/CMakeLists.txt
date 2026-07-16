@@ -25,7 +25,6 @@ add_custom_command(
 
 python_patch(Python/pytime.c
     -e [[s|#ifdef MS_WINDOWS\n// Convert PyTime_t to long.\n// Return 0 on success. Return -1 and clamp the value on overflow.|#if defined(MS_WINDOWS) \|\| defined(MOXNOX)\n// Convert PyTime_t to long.\n// Return 0 on success. Return -1 and clamp the value on overflow.|g]]
-    -e [[s|#ifdef MS_WINDOWS\n    // On Windows, timeval.tv_sec type is long\n    res2 = _PyTime_AsCLong(tv_sec, &tv->tv_sec)\;|#if defined(MS_WINDOWS) \|\| defined(MOXNOX)\n    // On Windows, timeval.tv_sec type is long\n    res2 = _PyTime_AsCLong(tv_sec, \&tv->tv_sec)\;|g]]
 )
 
 python_patch(Modules/faulthandler.c
