@@ -24,6 +24,8 @@ typedef long long fpos_t;
 #define _IOLBF 0x0040
 #define _IONBF 0x0004
 
+#define FILENAME_MAX 260
+
 typedef struct localeinfo_struct* _locale_t;
 
 #ifdef __cplusplus
