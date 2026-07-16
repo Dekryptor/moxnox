@@ -14,12 +14,7 @@ struct timezone {
 extern "C" {
 #endif
 
-#ifdef __MINGW32__ // FIXME
 int gettimeofday(struct timeval* tv, void* tz);
-#else
-int gettimeofday(struct timeval* tv, struct timezone* tz);
-#endif
-
 int utimes(const char* path, const struct timeval* times);
 
 #ifdef __cplusplus
