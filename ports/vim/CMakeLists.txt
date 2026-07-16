@@ -19,6 +19,12 @@ string(REPLACE
     "#ifndef EXTERN\n# define EXTERN extern\n# define INIT(x)\n# define INIT2(a, b)\n# define INIT3(a, b, c)\n# define INIT4(a, b, c, d)\n# define INIT5(a, b, c, d, e)\n# define INIT6(a, b, c, d, e, f)\n#else\n# ifndef INIT\n#  define INIT(x) x\n#  define INIT2(a, b) = {a, b}\n#  define INIT3(a, b, c) = {a, b, c}\n#  define INIT4(a, b, c, d) = {a, b, c, d}\n#  define INIT5(a, b, c, d, e) = {a, b, c, d, e}\n#  define INIT6(a, b, c, d, e, f) = {a, b, c, d, e, f}\n#  define DO_INIT\n# endif\n#endif"
     "#ifdef VIM_MAIN_C\n# define EXTERN\n# define INIT(x) x\n# define INIT2(a, b) = {a, b}\n# define INIT3(a, b, c) = {a, b, c}\n# define INIT4(a, b, c, d) = {a, b, c, d}\n# define INIT5(a, b, c, d, e) = {a, b, c, d, e}\n# define INIT6(a, b, c, d, e, f) = {a, b, c, d, e, f}\n# define DO_INIT\n#elif !defined(EXTERN)\n# define EXTERN extern\n# define INIT(x)\n# define INIT2(a, b)\n# define INIT3(a, b, c)\n# define INIT4(a, b, c, d)\n# define INIT5(a, b, c, d, e)\n# define INIT6(a, b, c, d, e, f)\n#else\n# ifndef INIT\n#  define INIT(x) x\n#  define INIT2(a, b) = {a, b}\n#  define INIT3(a, b, c) = {a, b, c}\n#  define INIT4(a, b, c, d) = {a, b, c, d}\n#  define INIT5(a, b, c, d, e) = {a, b, c, d, e}\n#  define INIT6(a, b, c, d, e, f) = {a, b, c, d, e, f}\n#  define DO_INIT\n# endif\n#endif"
     _src "${_src}")
+
+# use uintptr_t rather than unsigned long
+string(REPLACE
+    "#ifdef _WIN64\ntypedef unsigned __int64\tlong_u;\ntypedef\t\t __int64\tlong_i;\n# define SCANF_HEX_LONG_U       \"%llx\"\n# define SCANF_DECIMAL_LONG_U   \"%llu\"\n# define PRINTF_HEX_LONG_U      \"0x%llx\"\n#else\ntypedef unsigned long\t\tlong_u;\ntypedef\t\t long\t\tlong_i;\n# define SCANF_HEX_LONG_U       \"%lx\"\n# define SCANF_DECIMAL_LONG_U   \"%lu\"\n# define PRINTF_HEX_LONG_U      \"0x%lx\"\n#endif"
+    "#include <stdint.h>\ntypedef uintptr_t\tlong_u;\ntypedef intptr_t\tlong_i;\n# define SCANF_HEX_LONG_U       \"%llx\"\n# define SCANF_DECIMAL_LONG_U   \"%llu\"\n# define PRINTF_HEX_LONG_U      \"0x%llx\""
+    _src "${_src}")
 file(CONFIGURE OUTPUT "${GEN}/vim.h" CONTENT "${_src}")
 
 add_custom_command(
