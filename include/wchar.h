@@ -5,8 +5,11 @@
 #include <stddef.h>
 #include <stdint.h>
 
+#ifndef _WCTYPE_T_DEFINED
+#define _WCTYPE_T_DEFINED
 typedef unsigned short wint_t;
 typedef unsigned short wctype_t;
+#endif
 
 typedef int mbstate_t;
 
