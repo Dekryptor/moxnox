@@ -76,3 +76,15 @@ struct ipv6_mreq {
     struct in6_addr ipv6mr_multiaddr;
     unsigned int ipv6mr_interface;
 };
+
+#define IP_TT               4
+#define IP_MULTICAST_IF     9
+#define IP_MULTICAST_TTL    10
+#define IP_MULTICAST_LOOP   11
+#define IP_ADD_MEMBERSHIP   12
+#define IP_DROP_MEMBERSHIP  13
+
+struct ip_mreq {
+    struct in_addr imr_multiaddr;
+    struct in_addr imr_interface;
+};
