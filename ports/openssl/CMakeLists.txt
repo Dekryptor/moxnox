@@ -1240,6 +1240,8 @@ target_compile_options(libcrypto PRIVATE
     -Wno-unused-parameter
     -Wno-unused-variable
     -Wno-missing-field-initializers
+    -Wno-unused-but-set-variable
+    -Wno-unused-function
     $<$<CXX_COMPILER_ID:GNU>:-Wno-discarded-qualifiers>
     -Wno-incompatible-pointer-types-discards-qualifiers
 )
