@@ -176,7 +176,6 @@ target_link_libraries(kernel acpica)
 target_link_libraries(kernel freetype_kernel)
 
 target_compile_definitions(kernel PUBLIC "$<$<CONFIG:DEBUG>:DEBUG>")
-target_compile_definitions(kernel PUBLIC -D_LIBCPP_VERBOSE_ABORT=)
 
 add_custom_command(TARGET kernel POST_BUILD
     COMMAND sh -c "! \"${CMAKE_OBJDUMP}\" -p \"$1\" | grep -q 'DLL Name' || { echo 'Error: kernel has imports' >&2; exit 1; }" -- "$<TARGET_FILE:kernel>"

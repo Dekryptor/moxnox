@@ -12,9 +12,16 @@ set(CMAKE_CXX_STANDARD_LIBRARIES "")
 
 include_directories(BEFORE SYSTEM ${CMAKE_SOURCE_DIR}/include)
 
+if(LIBCXX_HEADERS)
+    set(CMAKE_NO_SYSTEM_FROM_IMPORTED ON)
+    list(REMOVE_ITEM CMAKE_CXX_IMPLICIT_INCLUDE_DIRECTORIES "${LIBCXX_HEADERS}")
+    include_directories(BEFORE SYSTEM ${LIBCXX_HEADERS})
+endif()
+
 option(USE_COMPILER_RT OFF)
 
 add_compile_definitions(_GLIBCXX_NO_ASSERTIONS)
+add_compile_definitions(-D_LIBCPP_VERBOSE_ABORT=)
 
 # set _UCRT everywhere, but avoiding undisablable duplicate definition warnings in ucrtbase_static
 add_compile_definitions("$<$<NOT:$<STREQUAL:$<TARGET_PROPERTY:NAME>,ucrtbase_static>>:_UCRT>")
