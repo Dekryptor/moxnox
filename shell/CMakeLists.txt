@@ -433,7 +433,7 @@ install(TARGETS httpd-test DESTINATION ${CMAKE_INSTALL_PREFIX}/bin COMPONENT cor
 add_executable(exc-test src/exc-test.cpp)
 
 target_compile_options(exc-test PRIVATE ${USERSPACE_CFLAGS})
-target_link_libraries(exc-test print-exc)
+target_link_libraries(exc-test moxnox print-exc)
 
 if (CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
     target_link_options(exc-test PUBLIC -mcrtdll=ucrtbase)
