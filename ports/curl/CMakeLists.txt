@@ -361,6 +361,7 @@ add_executable(curl_exe
     repo/lib/curlx/strdup.c
     ${CURL_GEN}/lib/curlx/strerr.c
     repo/lib/curlx/strparse.c
+    repo/lib/curlx/timediff.c
     ${CURL_GEN}/lib/curlx/timeval.c
     repo/lib/curlx/wait.c
     repo/lib/curlx/warnless.c
