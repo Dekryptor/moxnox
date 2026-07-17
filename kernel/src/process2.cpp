@@ -1326,17 +1326,6 @@ HARDWARE_PTE* find_pte(process& proc, uintptr_t va) {
 }
 #endif
 
-#ifdef __llvm__ // work around Clang *really* wanting exceptions to be enabled
-extern "C++"
-exception::~exception() {
-}
-
-extern "C++"
-const char* exception::what() const noexcept {
-    return nullptr;
-}
-#endif
-
 #ifdef __x86_64__
 static void send_tlb_ipi(uint8_t cpu_no) {
     tlb_cpus_left++;
