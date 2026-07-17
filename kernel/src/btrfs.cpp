@@ -6958,8 +6958,8 @@ nt_status btrfs_filesystem::query_volume_size_info(span<uint8_t> buf,
 
     // FIXME - total_bytes and bytes_used should be divided by divisor for DATA RAID profile
 
-    info.TotalAllocationUnits.QuadPart = sb->total_bytes / sb->sectorsize;
-    info.AvailableAllocationUnits.QuadPart = (sb->total_bytes - sb->bytes_used) / sb->sectorsize;
+    info.TotalAllocationUnits.QuadPart = (int64_t)(sb->total_bytes / sb->sectorsize);
+    info.AvailableAllocationUnits.QuadPart = (int64_t)((sb->total_bytes - sb->bytes_used) / sb->sectorsize);
     info.SectorsPerAllocationUnit = 1;
     info.BytesPerSector = sb->sectorsize;
 
