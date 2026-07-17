@@ -1467,13 +1467,13 @@ static bool should_accept_multicast(netif& ni, const ipv6_address& dst) {
         for (auto le = ni.addrs.next; le != &ni.addrs; le = le->next) {
             auto& a = containing_record<ip_addr>(le);
 
-            if (!holds_alternative<ipv6_address>(a.addr))
+            auto* ipaddr = get_if<ipv6_address>(&a.addr);
+
+            if (!ipaddr)
                 continue;
 
-            auto& ipaddr = get<ipv6_address>(a.addr);
-
-            if (ipaddr.v[13] == dst.v[13] && ipaddr.v[14] == dst.v[14] &&
-                ipaddr.v[15] == dst.v[15]) {
+            if (ipaddr->v[13] == dst.v[13] && ipaddr->v[14] == dst.v[14] &&
+                ipaddr->v[15] == dst.v[15]) {
                 return true;
             }
         }
