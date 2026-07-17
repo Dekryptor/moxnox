@@ -135,6 +135,8 @@ set(AARCH64_SRC_FILES ${SRC_FILES}
     src/aarch64/pl011.cpp
 )
 
+string(REPLACE "${LIBSTDCXX_EXE}" "${LIBSTDCXX}" CMAKE_CXX_LINK_EXECUTABLE "${CMAKE_CXX_LINK_EXECUTABLE}")
+
 if(CMAKE_SYSTEM_PROCESSOR STREQUAL aarch64)
     set(SRC_ASM_FILES src/aarch64/ints.S
         src/aarch64/timer.S
