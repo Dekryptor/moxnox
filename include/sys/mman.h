@@ -35,6 +35,8 @@ int munmap(void* addr, size_t len);
 int msync(void* addr, size_t len, int flags);
 int mprotect(void* addr, size_t len, int prot);
 int posix_madvise(void* addr, size_t len, int advice);
+int mlock(const void* addr, size_t len);
+int munlock(const void* addr, size_t len);
 
 #ifdef __cplusplus
 }
