@@ -3398,10 +3398,12 @@ nt_status ipv6_choose_interface(const ipv6_address& dst, uint32_t scope_id,
                 for (auto le2 = ni2.addrs.next; le2 != &ni2.addrs; le2 = le2->next) {
                     auto& a = containing_record<ip_addr>(le2);
 
-                    if (!holds_alternative<ipv6_address>(a.addr))
+                    auto* addr = get_if<ipv6_address>(&a.addr);
+
+                    if (!addr)
                         continue;
 
-                    if (get<ipv6_address>(a.addr) == src) {
+                    if (*addr == src) {
                         ni2.acquire();
 
                         ni = &ni2;
@@ -3428,10 +3430,12 @@ nt_status ipv6_choose_interface(const ipv6_address& dst, uint32_t scope_id,
                 for (auto le2 = ni2.addrs.next; le2 != &ni2.addrs; le2 = le2->next) {
                     auto& a = containing_record<ip_addr>(le2);
 
-                    if (!holds_alternative<ipv6_address>(a.addr))
+                    auto* addr = get_if<ipv6_address>(&a.addr);
+
+                    if (!addr)
                         continue;
 
-                    if (get<ipv6_address>(a.addr) == dst) {
+                    if (*addr == dst) {
                         ni2.acquire();
 
                         ni = &ni2;
@@ -3497,10 +3501,12 @@ nt_status ipv6_choose_interface(const ipv6_address& dst, uint32_t scope_id,
         for (auto le = n.addrs.next; le != &n.addrs; le = le->next) {
             auto& a = containing_record<ip_addr>(le);
 
-            if (!holds_alternative<ipv6_address>(a.addr))
+            auto* addr = get_if<ipv6_address>(&a.addr);
+
+            if (!addr)
                 continue;
 
-            auto match_len = ipv6_match_len(dst, get<ipv6_address>(a.addr));
+            auto match_len = ipv6_match_len(dst, *addr);
 
             if (!best || match_len > best_match_len) {
                 best = &a;
