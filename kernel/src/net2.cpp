@@ -1727,31 +1727,31 @@ static void handle_ipv4_packet(netif& ni, packet& pack, const mac_address& src_m
         for (auto le = ni.addrs.next; le != &ni.addrs; le = le->next) {
             auto& a = containing_record<ip_addr>(le);
 
-            if (!holds_alternative<ipv4_address>(a.addr))
-                continue;
+            auto* addr = get_if<ipv4_address>(&a.addr);
 
-            auto& addr = get<ipv4_address>(a.addr);
+            if (!addr)
+                continue;
 
             if (ip.dst == parse_ipv4_address("255.255.255.255")) {
                 if (!our_ip.has_value()) {
-                    our_ip = addr;
-                    matching_prefix = calc_matching_prefix(addr, ip.src);
+                    our_ip = *addr;
+                    matching_prefix = calc_matching_prefix(*addr, ip.src);
                 } else {
-                    uint8_t pref = calc_matching_prefix(addr, ip.src);
+                    uint8_t pref = calc_matching_prefix(*addr, ip.src);
 
                     if (pref > matching_prefix) {
-                        our_ip = addr;
+                        our_ip = *addr;
                         matching_prefix = pref;
                     }
                 }
             } else {
-                if (ip.dst == addr) {
-                    our_ip = addr;
+                if (ip.dst == *addr) {
+                    our_ip = *addr;
                     break;
                 }
 
-                if (ip.dst == calculate_broadcast_address(addr, a.prefix)) {
-                    our_ip = addr;
+                if (ip.dst == calculate_broadcast_address(*addr, a.prefix)) {
+                    our_ip = *addr;
                     break;
                 }
             }
