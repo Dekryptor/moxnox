@@ -2565,7 +2565,10 @@ static nt_status netctl_get_netif_ips(span<const uint8_t> inbuf,
         for (auto le = ni->addrs.next; le != &ni->addrs; le = le->next) {
             auto& a = containing_record<ip_addr>(le);
 
-            if (!holds_alternative<ipv4_address>(a.addr) && !holds_alternative<ipv6_address>(a.addr))
+            auto* addrv4 = get_if<ipv4_address>(&a.addr);
+            auto* addrv6 = get_if<ipv6_address>(&a.addr);
+
+            if (!addrv4 && !addrv6)
                 continue;
 
             if (left == 0) {
@@ -2573,17 +2576,15 @@ static nt_status netctl_get_netif_ips(span<const uint8_t> inbuf,
                 break;
             }
 
-            if (holds_alternative<ipv4_address>(a.addr)) {
-                auto& addr = get<ipv4_address>(a.addr);
-
+            if (addrv4) {
                 out.ip[num] = parse_ipv6_address("::ffff:0:0");
 
-                out.ip[num].v[12] = addr.v[0];
-                out.ip[num].v[13] = addr.v[1];
-                out.ip[num].v[14] = addr.v[2];
-                out.ip[num].v[15] = addr.v[3];
-            } else if (holds_alternative<ipv6_address>(a.addr))
-                out.ip[num] = get<ipv6_address>(a.addr);
+                out.ip[num].v[12] = addrv4->v[0];
+                out.ip[num].v[13] = addrv4->v[1];
+                out.ip[num].v[14] = addrv4->v[2];
+                out.ip[num].v[15] = addrv4->v[3];
+            } else if (addrv6)
+                out.ip[num] = *addrv6;
 
             num++;
             left--;
