@@ -356,7 +356,7 @@ nt_status devfs_filesystem::query_volume_size_info(span<uint8_t> buf,
 
     auto& info = *(FILE_FS_SIZE_INFORMATION*)buf.data();
 
-    info.TotalAllocationUnits.QuadPart = num_ram_pages;
+    info.TotalAllocationUnits.QuadPart = (int64_t)num_ram_pages;
     info.AvailableAllocationUnits.QuadPart = info.TotalAllocationUnits.QuadPart;
     info.SectorsPerAllocationUnit = 1;
     info.BytesPerSector = PAGE_SIZE;
