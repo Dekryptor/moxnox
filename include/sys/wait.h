@@ -6,6 +6,9 @@
 #define WIFSIGNALED(s) (((s) & 0x7f) != 0 && ((s) & 0x7f) != 0x7f)
 #define WEXITSTATUS(s) (((s) >> 8) & 0xff)
 #define WTERMSIG(s) ((s) & 0x7f)
+#define WIFSTOPPED(s) ((s & 0xff) == 0x7f)
+#define WSTOPSIG(s) ((s >> 8) & 0xff)
+#define WIFCONTINUED(s) (s == 0xffff)
 
 #define WCONTINUED 1
 #define WNOHANG 2
