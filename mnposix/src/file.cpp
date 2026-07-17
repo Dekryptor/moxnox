@@ -182,7 +182,7 @@ int lstat(const char* path, struct stat* st) {
             st->st_mode |= 0222;
     }
 
-    st->st_nlink = (short)fsi.NumberOfLinks;
+    st->st_nlink = (nlink_t)fsi.NumberOfLinks;
     st->st_size = fsi.EndOfFile.QuadPart;
     st->st_atime = win_to_unix_time(fbi.LastAccessTime.QuadPart);
     st->st_mtime = win_to_unix_time(fbi.LastWriteTime.QuadPart);
