@@ -458,9 +458,11 @@ static void handle_neighbour_solicitation(netif& ni, packet& pack,
         for (auto le = ni.addrs.next; le != &ni.addrs; le = le->next) {
             auto& a = containing_record<ip_addr>(le);
 
-            if (holds_alternative<ipv6_address>(a.addr) && get<ipv6_address>(a.addr) == ns.target) {
-                found = true;
-                break;
+            if (auto* addr = get_if<ipv6_address>(&a.addr)) {
+                if (*addr == ns.target) {
+                    found = true;
+                    break;
+                }
             }
         }
     }
