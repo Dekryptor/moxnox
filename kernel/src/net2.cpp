@@ -2028,13 +2028,14 @@ static void netif_prefixes_tick(netif& ni) {
                     for (auto le = ni.addrs.next; le != &ni.addrs; le = le->next) {
                         auto& a = containing_record<ip_addr>(le);
 
-                        if (!holds_alternative<ipv6_address>(a.addr))
+                        auto* addr = get_if<ipv6_address>(&a.addr);
+                        if (!addr)
                             continue;
 
                         if (!a.slaac)
                             continue;
 
-                        if (!memcmp(get<ipv6_address>(a.addr).v.data(), dead_prefix->prefix.v.data(), 8)) {
+                        if (!memcmp(addr->v.data(), dead_prefix->prefix.v.data(), 8)) {
                             remove_entry_list(a.le);
                             dead_addr = &a;
                             break;
