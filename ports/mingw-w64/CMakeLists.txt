@@ -43,6 +43,8 @@ target_compile_definitions(ucrtbase_static PRIVATE -D_CRTIMP= -D_WIN32 -D_WIN64)
 target_compile_options(ucrtbase_static PRIVATE -ffreestanding)
 target_compile_options(ucrtbase_static PRIVATE -Wno-include-next-absolute-path)
 
+###
+
 add_library(mingwex STATIC
     repo/mingw-w64-crt/crt/loadcfg.S
     repo/mingw-w64-crt/cfguard/mingw_cfguard_support.c
@@ -280,3 +282,45 @@ target_compile_definitions(mingwex PRIVATE -D_CRTIMP= -D_UCRT -D_CRTBLD -D_WIN32
 target_compile_options(mingwex PRIVATE ${USERSPACE_CFLAGS} $<$<COMPILE_LANGUAGE:CXX>:-fno-rtti -fno-exceptions> -mno-stack-arg-probe $<$<CXX_COMPILER_ID:Clang>:-Wno-pragma-pack -Wno-include-next-absolute-path>)
 target_compile_options(mingwex PRIVATE -Wno-shorten-64-to-32 -Wno-missing-declarations -Wno-sign-conversion -Wno-implicit-int-conversion -Wno-unused-variable -Wno-gnu-pointer-arith -Wno-implicit-float-conversion -Wno-float-conversion -Wno-conversion -Wno-pointer-arith $<$<CXX_COMPILER_ID:GNU>:-Wno-use-after-free -Wno-missing-attributes>)
 target_link_libraries(mingwex PRIVATE ntdll_mod)
+
+###
+
+add_library(mingw32 STATIC
+    repo/mingw-w64-crt/crt/crtexewin.c
+    repo/mingw-w64-crt/crt/dll_argv.c
+    repo/mingw-w64-crt/crt/gccmain.c
+    repo/mingw-w64-crt/crt/natstart.c
+    repo/mingw-w64-crt/crt/pseudo-reloc-list.c
+    repo/mingw-w64-crt/crt/wildcard.c
+    repo/mingw-w64-crt/crt/charmax.c
+    repo/mingw-w64-crt/crt/ucrtexewin.c
+    repo/mingw-w64-crt/crt/dllargv.c
+    repo/mingw-w64-crt/crt/_newmode.c
+    repo/mingw-w64-crt/crt/tlssup.c
+    repo/mingw-w64-crt/crt/xncommod.c
+    repo/mingw-w64-crt/crt/cinitexe.c
+    repo/mingw-w64-crt/crt/merr.c
+    repo/mingw-w64-crt/crt/pesect.c
+    repo/mingw-w64-crt/crt/udllargc.c
+    repo/mingw-w64-crt/crt/xthdloc.c
+    repo/mingw-w64-crt/crt/mingw_custom.c
+    repo/mingw-w64-crt/crt/mingw_helpers.c
+    repo/mingw-w64-crt/crt/pseudo-reloc.c
+    repo/mingw-w64-crt/crt/udll_argv.c
+    repo/mingw-w64-crt/crt/usermatherr.c
+    repo/mingw-w64-crt/crt/xtxtmode.c
+    repo/mingw-w64-crt/crt/crt_handler.c
+    repo/mingw-w64-crt/crt/tlsthrd.c
+    repo/mingw-w64-crt/crt/tlsmthread.c
+    repo/mingw-w64-crt/crt/tlsmcrt.c
+    repo/mingw-w64-crt/crt/cxa_atexit.c
+    repo/mingw-w64-crt/crt/cxa_thread_atexit.c
+    repo/mingw-w64-crt/crt/tls_atexit.c
+)
+
+if(MINGW_HEADERS)
+    target_include_directories(mingw32 PRIVATE ${MINGW_HEADERS})
+endif()
+
+target_compile_definitions(mingw32 PRIVATE -D_CRTIMP= -D_UCRT -D_CRTBLD -D_WIN32 -D_WIN64 -D__MINGW32__)
+target_include_directories(mingw32 PRIVATE repo/mingw-w64-headers/crt repo/mingw-w64-crt/include)
