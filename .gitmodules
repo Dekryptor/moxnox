@@ -133,3 +133,9 @@
 [submodule "ports/rust/stacker"]
 	path = ports/rust/stacker
 	url = https://git.burntcomma.com/moxnox/stacker
+[submodule "ports/ripgrep/repo"]
+	path = ports/ripgrep/repo
+	url = https://git.burntcomma.com/moxnox/ripgrep
+[submodule "ports/ripgrep/memmap2"]
+	path = ports/ripgrep/memmap2
+	url = https://git.burntcomma.com/moxnox/memmap2-rs

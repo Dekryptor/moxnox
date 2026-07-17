@@ -20,6 +20,7 @@
     "pixman": [],
     "python": ["ncurses", "openssl", "readline", "zlib"],
     "readline": ["ncurses"],
+    "ripgrep": [],
     "rust": [],
     "vim": ["ncurses"],
     "zlib": [],

@@ -1,38 +1,19 @@
-set(rust_crate_submodules
-    errno
-    getrandom
-    getrandom-0.2
-    jobserver
-    libc
-    libloading
-    libloading-0.9
-    nix
-    rand
-    rustix
-    stacker
-    termize
+include(${CMAKE_SOURCE_DIR}/rust-port.cmake)
+
+init_rust_crate_submodules(
+    ports/rust/errno
+    ports/rust/getrandom
+    ports/rust/getrandom-0.2
+    ports/rust/jobserver
+    ports/rust/libc
+    ports/rust/libloading
+    ports/rust/libloading-0.9
+    ports/rust/nix
+    ports/rust/rand
+    ports/rust/rustix
+    ports/rust/stacker
+    ports/rust/termize
 )
-
-set(rust_uninit_submodules "")
-
-foreach(crate ${rust_crate_submodules})
-    if(NOT EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/${crate}/.git)
-        list(APPEND rust_uninit_submodules ports/rust/${crate})
-    endif()
-endforeach()
-
-if(rust_uninit_submodules)
-    execute_process(
-        COMMAND git -C ${CMAKE_SOURCE_DIR} submodule update --init -- ${rust_uninit_submodules}
-        RESULT_VARIABLE rust_submodule_result
-    )
-
-    if(NOT rust_submodule_result EQUAL 0)
-        message(FATAL_ERROR "git submodule update --init failed for the Rust crate forks")
-    endif()
-endif()
-
-set_property(GLOBAL APPEND PROPERTY JOB_POOLS cargo_pool=1)
 
 if(CMAKE_SYSTEM_PROCESSOR STREQUAL "amd64")
     set(RUST_TARGET x86_64-pc-moxnox)
