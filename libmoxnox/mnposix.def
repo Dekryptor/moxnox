@@ -214,3 +214,5 @@ pthread_condattr_destroy
 pthread_condattr_setclock
 dirfd
 posix_madvise
+mlock
+munlock

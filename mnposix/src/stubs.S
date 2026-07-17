@@ -75,5 +75,7 @@ do_stub "pthread_condattr_destroy"
 do_stub "pthread_condattr_setclock"
 do_stub "dirfd"
 do_stub "posix_madvise"
+do_stub "mlock"
+do_stub "munlock"
 
 stubs_end
