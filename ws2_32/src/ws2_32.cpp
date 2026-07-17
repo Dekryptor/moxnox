@@ -478,7 +478,7 @@ in_addr_t inet_addr(const char* cp) {
     if (!addr.has_value())
         return (in_addr_t)-1;
 
-    return (addr->v[0] << 24) | (addr->v[1] << 16) | (addr->v[2] << 8) | addr->v[3];
+    return (uint32_t)(addr->v[0] << 24) | (uint32_t)(addr->v[1] << 16) | (uint32_t)(addr->v[2] << 8) | (uint32_t)addr->v[3];
 }
 
 extern "C"
