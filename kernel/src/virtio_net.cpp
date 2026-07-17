@@ -190,12 +190,11 @@ static void add_test_ipv4_address(netif& ni) {
         for (auto le = ni.addrs.next; le != &ni.addrs; le = le->next) {
             auto& a2 = containing_record<ip_addr>(le);
 
-            if (!holds_alternative<ipv4_address>(a2.addr))
-                continue;
-
-            if (get<ipv4_address>(a2.addr) == address) {
-                already_exists = true;
-                break;
+            if (auto* addr = get_if<ipv4_address>(&a2.addr)) {
+                if (*addr == address) {
+                    already_exists = true;
+                    break;
+                }
             }
         }
 
