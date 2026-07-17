@@ -1514,12 +1514,11 @@ static void handle_ipv6_packet(netif& ni, packet& pack, const mac_address& src_m
             for (auto le = ni.addrs.next; le != &ni.addrs; le = le->next) {
                 auto& a = containing_record<ip_addr>(le);
 
-                if (!holds_alternative<ipv6_address>(a.addr))
-                    continue;
-
-                if (get<ipv6_address>(a.addr) == dst) {
-                    found = true;
-                    break;
+                if (auto* addr = get_if<ipv6_address>(&a.addr)) {
+                    if (*addr == dst) {
+                        found = true;
+                        break;
+                    }
                 }
             }
         }
