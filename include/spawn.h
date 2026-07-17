@@ -48,6 +48,7 @@ int posix_spawnattr_setsigdefault(posix_spawnattr_t* attr,
                                   const sigset_t* sigdefault);
 int posix_spawnattr_setsigmask(posix_spawnattr_t* attr,
                                const sigset_t* restrict);
+int posix_spawnattr_setpgroup(posix_spawnattr_t* attr, pid_t pgroup);
 
 #ifdef __cplusplus
 }
