@@ -4291,7 +4291,9 @@ static void handle_arp_packet(netif& ni, packet& pack) {
             for (auto le = ni.addrs.next; le != &ni.addrs; le = le->next) {
                 auto& a = containing_record<ip_addr>(le);
 
-                if (holds_alternative<ipv4_address>(a.addr) && get<ipv4_address>(a.addr) == arp.target_ip_address) {
+                auto* addr = get_if<ipv4_address>(&a.addr);
+
+                if (addr && *addr == arp.target_ip_address) {
                     found = true;
                     break;
                 }
