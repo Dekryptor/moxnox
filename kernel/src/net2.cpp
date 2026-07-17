@@ -4119,10 +4119,12 @@ bool is_our_ip(const ipv6_address& ip) {
             for (auto le2 = ni.addrs.next; le2 != &ni.addrs; le2 = le2->next) {
                 auto& a = containing_record<ip_addr>(le2);
 
-                if (!holds_alternative<ipv6_address>(a.addr))
+                auto* addr = get_if<ipv6_address>(&a.addr);
+
+                if (!addr)
                     continue;
 
-                if (get<ipv6_address>(a.addr) == ip)
+                if (*addr == ip)
                     return true;
             }
         }
