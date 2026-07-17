@@ -9,6 +9,10 @@ __attribute__((noreturn)) void _assert(const char* message, const char* file,
 }
 #endif
 
+#ifndef __cplusplus
+#define static_assert _Static_assert
+#endif
+
 #ifdef NDEBUG
 #define assert(expr) ((void)0)
 #else
