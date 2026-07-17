@@ -32,3 +32,5 @@
 #define GETENTROPY_MAX 256
 
 #define MB_LEN_MAX 5
+
+#define PTHREAD_STACK_MIN 4096
