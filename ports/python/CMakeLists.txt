@@ -390,6 +390,7 @@ target_compile_options(libpython PRIVATE
     -Wno-type-limits
     -Wno-sign-compare
     -Wno-format
+    -Wno-tautological-constant-out-of-range-compare
 )
 
 target_link_libraries(libpython PRIVATE moxnox ncurses libssl libcrypto)
