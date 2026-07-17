@@ -676,7 +676,7 @@ static void try_run_program(string_view program, string_view cmdline) {
         NtClose(pi.hThread);
 
         if (is_tty)
-            set_pty_fg_proc(peb.ProcessParameters->StandardOutput, getpgid(0));
+            set_pty_fg_proc(peb.ProcessParameters->StandardOutput, (uintptr_t)getpgid(0));
 
         return;
     }
@@ -686,7 +686,7 @@ static void try_run_program(string_view program, string_view cmdline) {
     run_program(proc, tc_settings_valid ? &tc_settings : nullptr);
 
     if (is_tty)
-        set_pty_fg_proc(peb.ProcessParameters->StandardOutput, getpgid(0));
+        set_pty_fg_proc(peb.ProcessParameters->StandardOutput, (uintptr_t)getpgid(0));
 }
 
 static void int3() {
@@ -1183,7 +1183,7 @@ int main(int argc, char** argv) {
 
     if (isatty(STDOUT_FILENO)) {
         get_pty_info_stream();
-        set_pty_fg_proc(peb.ProcessParameters->StandardOutput, getpgid(0));
+        set_pty_fg_proc(peb.ProcessParameters->StandardOutput, (uintptr_t)getpgid(0));
     }
 
     if (command) {
