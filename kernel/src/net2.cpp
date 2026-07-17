@@ -1656,14 +1656,14 @@ static void handle_icmpv4_packet(netif& ni, packet& pack, const mac_address& src
 }
 
 static uint8_t calc_matching_prefix(const ipv4_address& a1, const ipv4_address& a2) {
-    uint32_t v1 = (a1.v[0] << 24) | (a1.v[1] << 16) | (a1.v[2] << 8) | a1.v[3];
-    uint32_t v2 = (a2.v[0] << 24) | (a2.v[1] << 16) | (a2.v[2] << 8) | a2.v[3];
+    uint32_t v1 = (uint32_t)(a1.v[0] << 24) | (uint32_t)(a1.v[1] << 16) | (uint32_t)(a1.v[2] << 8) | (uint32_t)a1.v[3];
+    uint32_t v2 = (uint32_t)(a2.v[0] << 24) | (uint32_t)(a2.v[1] << 16) | (uint32_t)(a2.v[2] << 8) | (uint32_t)a2.v[3];
 
     return (uint8_t)countl_one(~(v1 ^ v2));
 }
 
 static ipv4_address calculate_broadcast_address(const ipv4_address& addr, uint8_t prefix) {
-    uint32_t v = (addr.v[0] << 24) | (addr.v[1] << 16) | (addr.v[2] << 8) | addr.v[3];
+    uint32_t v = (uint32_t)(addr.v[0] << 24) | (uint32_t)(addr.v[1] << 16) | (uint32_t)(addr.v[2] << 8) | (uint32_t)addr.v[3];
     uint32_t mask;
     ipv4_address ret;
 
