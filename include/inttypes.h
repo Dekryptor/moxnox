@@ -3,31 +3,56 @@
 #include <stddef.h>
 #include <stdint.h>
 
+#define PRIx64 "llx"
 #define PRId64 "lld"
 #define PRIi64 "lli"
 #define PRIo64 "llo"
 #define PRIu64 "llu"
-#define PRIx64 "llx"
 #define PRIX64 "llX"
 
-#define PRId16 "d"
-#define PRId32 "d"
-
-#define PRIdMAX PRId64
-
-#define PRIo32 "o"
-
-#define PRIoMAX PRIo64
-
-#define PRIu8 "u"
-#define PRIu32 "u"
-
-#define PRIuMAX PRIu64
-
 #define PRIx32 "x"
+#define PRId32 "d"
+#define PRIi32 "i"
+#define PRIo32 "o"
+#define PRIu32 "u"
+#define PRIX32 "X"
 
+#define PRIx16 "x"
+#define PRId16 "d"
+#define PRIi16 "i"
+#define PRIo16 "o"
+#define PRIu16 "u"
+#define PRIX16 "X"
+
+#define PRIx8 "x"
+#define PRId8 "d"
+#define PRIi8 "i"
+#define PRIo8 "o"
+#define PRIu8 "u"
+#define PRIX8 "X"
+
+#define PRIxMAX PRIx64
+#define PRIdMAX PRId64
+#define PRIiMAX PRIi64
+#define PRIoMAX PRIo64
+#define PRIuMAX PRIu64
+#define PRIXMAX PRIX64
+
+#define SCNo64 PRIo64
 #define SCNu64 PRIu64
 #define SCNx64 PRIx64
+
+#define SCNo32 PRIo32
+#define SCNu32 PRIu32
+#define SCNx32 PRIx32
+
+#define SCNo16 "ho"
+#define SCNu16 "hu"
+#define SCNx16 "hx"
+
+#define SCNo8 "hho"
+#define SCNu8 "hhu"
+#define SCNx8 "hhx"
 
 #define SCNuMAX PRIu64
 
