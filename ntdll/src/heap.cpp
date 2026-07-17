@@ -16,7 +16,8 @@ using namespace std;
 struct alloc_header {
     uint32_t size : 31;
     uint32_t free : 1;
-    uint8_t _pad[12];
+    uint32_t align_shift;
+    uint8_t _pad[8];
 };
 
 static_assert(sizeof(alloc_header) == 16);
@@ -42,6 +43,7 @@ public:
 
     void* allocate(uint32_t flags, size_t size);
     void* reallocate(uint32_t flags, void* ptr, size_t size);
+    void* allocate_aligned(size_t alignment, size_t size);
     bool free(uint32_t flags, void* base_address);
 
     list_entry subheaps = { &subheaps, &subheaps };
@@ -64,6 +66,7 @@ subheap::subheap(size_t reserve_size, size_t commit_size, list_entry& free_list)
     auto& sentinel = *(alloc_header*)((uint8_t*)&fb + sizeof(alloc_header) + fb.size);
     sentinel.size = 0;
     sentinel.free = 0;
+    sentinel.align_shift = 0;
 }
 
 heap::heap(size_t reserve_size, size_t commit_size) : reserve_size(reserve_size), commit_size(commit_size) {
@@ -126,6 +129,7 @@ static void mark_block_allocated(free_block& fb, size_t size,
     }
 
     fb.free = 0;
+    fb.align_shift = 0;
 
     remove_entry_list(fb.le);
 
@@ -219,14 +223,20 @@ void* heap::reallocate(uint32_t flags, void* ptr, size_t size) {
         return nullptr;
     }
 
+    // reallocating an aligned allocation doesn't preserve the alignment
+
     // round to multiple of 16, same as allocate
     size_t rounded_size = size;
     if (rounded_size & 15)
         rounded_size = ((rounded_size >> 4) + 1) << 4;
 
+    auto ah = (alloc_header*)((uint8_t*)ptr - sizeof(alloc_header));
+
+    if (ah->align_shift != 0)
+        ah = (alloc_header*)((uint8_t*)ah - ah->align_shift);
+
     RtlEnterCriticalSection(&cs);
 
-    auto ah = (alloc_header*)((uint8_t*)ptr - sizeof(alloc_header));
     auto old_size = (size_t)ah->size;
 
     RtlLeaveCriticalSection(&cs);
@@ -248,12 +258,15 @@ void* heap::reallocate(uint32_t flags, void* ptr, size_t size) {
 bool heap::free(uint32_t, void* base_address) {
     // FIXME - flags
 
+    auto* fb = (free_block*)((uint8_t*)base_address - sizeof(alloc_header));
+
+    if (fb->align_shift != 0)
+        fb = (free_block*)((uint8_t*)fb - fb->align_shift);
+
     RtlEnterCriticalSection(&cs);
 
-    auto& fb = *(free_block*)((uint8_t*)base_address - sizeof(alloc_header));
-
-    fb.free = 1;
-    insert_tail_list(free_blocks, fb.le);
+    fb->free = 1;
+    insert_tail_list(free_blocks, fb->le);
 
     // FIXME - decommit part of heap if last page(s) now clear?
 
@@ -412,4 +425,34 @@ void* RtlSecureZeroMemory(void* ptr, size_t count) {
     }
 
     return ptr;
+}
+
+extern "C"
+void* mn_allocate_aligned(void* heap_handle, size_t alignment, size_t size) {
+    auto& h = *reinterpret_cast<heap*>(heap_handle);
+
+    return h.allocate_aligned(alignment, size);
+}
+
+void* heap::allocate_aligned(size_t alignment, size_t size) {
+    alignment = max(alignment, sizeof(alloc_header));
+
+    auto m = (uint8_t*)this->allocate(0, sizeof(alloc_header) + size + alignment - 1);
+    if (!m)
+        return nullptr;
+
+    auto ret = m;
+
+    if ((uintptr_t)ret % alignment)
+        ret += alignment - ((uintptr_t)ret % alignment);
+
+    if ((size_t)(ret - m) < sizeof(alloc_header))
+        ret += alignment;
+
+    auto& ah = *(alloc_header*)(ret - sizeof(alloc_header));
+
+    ah.free = 0;
+    ah.align_shift = (uint32_t)(ret - m);
+
+    return ret;
 }

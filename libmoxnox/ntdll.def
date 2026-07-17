@@ -473,6 +473,7 @@ RtlSleepConditionVariableSRW
 LdrLoadDll
 RtlSecureZeroMemory
 RtlRandom
+mn_allocate_aligned
 
 ; stubs
 RtlTryEnterCriticalSection

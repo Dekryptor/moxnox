@@ -77,3 +77,4 @@ RtlWakeAddressAll
 LdrLoadDll
 RtlSecureZeroMemory
 RtlRandom
+mn_allocate_aligned

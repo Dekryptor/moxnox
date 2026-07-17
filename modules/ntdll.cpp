@@ -477,6 +477,7 @@ nt_status LdrLoadDll(const char16_t* dll_path, uint32_t* dll_characteristics,
                      const UNICODE_STRING* dll_name, void** dll_handle);
 void* RtlSecureZeroMemory(void* ptr, size_t count);
 uint32_t RtlRandom(uint32_t* seed);
+void* mn_allocate_aligned(void* heap_handle, size_t alignment, size_t size);
 
 }
 

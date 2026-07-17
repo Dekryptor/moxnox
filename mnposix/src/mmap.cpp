@@ -2,6 +2,7 @@
 #include <errno.h>
 
 import nt;
+import ntdll;
 import unique_handle;
 import ucrtbase;
 import pagesize;
@@ -146,4 +147,9 @@ int msync(void* addr, size_t length, int flags) {
     }
 
     return 0;
+}
+
+extern "C"
+void* aligned_alloc(size_t alignment, size_t size) {
+    return mn_allocate_aligned(GetProcessHeap(), alignment, size);
 }
