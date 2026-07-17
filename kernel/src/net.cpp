@@ -71,6 +71,9 @@ export enum class ip_proto : uint8_t {
 };
 
 export struct ip_addr {
+    ip_addr(const ipv4_address addr) : addr(addr) { }
+    ip_addr(const ipv6_address addr) : addr(addr) { }
+
     list_entry le;
     variant<ipv4_address, ipv6_address> addr;
     bool slaac = false;

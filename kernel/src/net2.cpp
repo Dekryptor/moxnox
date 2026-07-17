@@ -863,11 +863,10 @@ static void add_ipv6_prefix(netif& ni, const ipv6_address& prefix,
             }
 
             if (!already_exists) {
-                auto a = new ip_addr;
+                auto a = new ip_addr(slaac);
                 if (!a)
                     print("new failed\n");
                 else {
-                    a->addr = slaac;
                     a->slaac = true;
 
                     {
@@ -2161,7 +2160,7 @@ bool init_net() {
         return false;
     }
 
-    auto lo_addr = new ip_addr;
+    auto lo_addr = new ip_addr(parse_ipv6_address("::1"));
     if (!lo_addr) {
         print("new failed\n");
         delete lo;
@@ -2177,8 +2176,6 @@ bool init_net() {
     memset(lo->ll_addr.v.data(), 0, lo->ll_addr.v.size());
     lo->rs_needed = false;
     lo->mtu = MTU;
-
-    lo_addr->addr = parse_ipv6_address("::1");
 
     {
         lock_guard lg(lo->addr_lock);

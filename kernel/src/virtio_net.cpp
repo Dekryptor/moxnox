@@ -174,13 +174,12 @@ static void add_test_ipv4_address(netif& ni) {
     bool already_exists = false;
     auto address = parse_ipv4_address("10.0.0.198");
 
-    auto a = new ip_addr;
+    auto a = new ip_addr(address);
     if (!a) {
         print("new failed\n");
         return;
     }
 
-    a->addr = address;
     a->slaac = false;
     a->prefix = 24;
 
@@ -229,13 +228,11 @@ void virtio_net<T>::init(const virtio_net_config& cfg) {
 
     ll_addr = find_ll_address(mac);
 
-    auto a = new ip_addr;
+    auto a = new ip_addr(ll_addr);
     if (!a) {
         print("new failed\n");
         return;
     }
-
-    a->addr = ll_addr;
 
     {
         lock_guard lg(addr_lock);

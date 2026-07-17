@@ -697,14 +697,12 @@ static void found_rtl8168(pci_device& dev, bool is_8125) {
 
     c.ll_addr = find_ll_address(mac);
 
-    auto a = new ip_addr;
+    auto a = new ip_addr(c.ll_addr);
     if (!a) {
         print("new failed\n");
         delete pc;
         return;
     }
-
-    a->addr = c.ll_addr;
 
     {
         lock_guard lg(c.addr_lock);
