@@ -20,6 +20,12 @@
 #define MS_INVALIDATE   2
 #define MS_SYNC         4
 
+#define POSIX_MADV_NORMAL 0
+#define POSIX_MADV_RANDOM 1
+#define POSIX_MADV_SEQUENTIAL 2
+#define POSIX_MADV_WILLNEED 3
+#define POSIX_MADV_DONTNEED 4
+
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -28,6 +34,7 @@ void* mmap(void* addr, size_t len, int prot, int flags, int fd, off_t off);
 int munmap(void* addr, size_t len);
 int msync(void* addr, size_t len, int flags);
 int mprotect(void* addr, size_t len, int prot);
+int posix_madvise(void* addr, size_t len, int advice);
 
 #ifdef __cplusplus
 }
