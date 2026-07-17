@@ -67,6 +67,8 @@ int pthread_rwlock_init(pthread_rwlock_t* rwlock,
 int pthread_rwlock_destroy(pthread_rwlock_t* rwlock);
 int pthread_condattr_setclock(pthread_condattr_t* attr, clockid_t clock_id);
 int pthread_attr_setstacksize(pthread_attr_t* attr, size_t stacksize);
+int pthread_condattr_destroy(pthread_condattr_t* attr);
+int pthread_condattr_init(pthread_condattr_t* attr);
 
 #ifdef __cplusplus
 }
