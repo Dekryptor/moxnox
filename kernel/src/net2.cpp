@@ -3519,7 +3519,7 @@ nt_status ipv6_choose_interface(const ipv6_address& dst, uint32_t scope_id,
             return nt_status::NETWORK_UNREACHABLE;
         }
 
-        src = get<ipv6_address>(best->addr);
+        src = *get_if<ipv6_address>(&best->addr);
         return nt_status::SUCCESS;
     }
 }
