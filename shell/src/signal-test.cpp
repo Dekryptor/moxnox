@@ -171,7 +171,7 @@ static void test_kill_cross_process() {
 
     Sleep(100);
 
-    if (kill(pi.dwProcessId, SIGINT) != 0) {
+    if (kill((pid_t)pi.dwProcessId, SIGINT) != 0) {
         print("Test 4: kill() failed\n");
         NtTerminateProcess(NtCurrentProcess(), nt_status::INTERNAL_ERROR);
         unreachable();
