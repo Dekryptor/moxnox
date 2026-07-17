@@ -61,5 +61,13 @@ do_stub "pthread_rwlock_init"
 do_stub "gmtime_r"
 do_stub "localtime_r"
 do_stub "fstatat"
+do_stub "pread"
+do_stub "pwrite"
+do_stub "readv"
+do_stub "writev"
+do_stub "pthread_attr_setstacksize"
+do_stub "posix_spawnattr_setpgroup"
+do_stub "mkfifo"
+do_stub "posix_spawnattr_setsigmask"
 
 stubs_end

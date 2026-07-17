@@ -200,3 +200,11 @@ pthread_rwlock_init
 gmtime_r
 localtime_r
 fstatat
+pread
+pwrite
+readv
+writev
+pthread_attr_setstacksize
+posix_spawnattr_setpgroup
+mkfifo
+posix_spawnattr_setsigmask
