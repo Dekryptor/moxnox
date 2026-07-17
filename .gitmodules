@@ -139,3 +139,9 @@
 [submodule "ports/ripgrep/memmap2"]
 	path = ports/ripgrep/memmap2
 	url = https://git.burntcomma.com/moxnox/memmap2-rs
+[submodule "ports/hexyl/repo"]
+	path = ports/hexyl/repo
+	url = https://git.burntcomma.com/moxnox/hexyl
+[submodule "ports/hexyl/terminal_size"]
+	path = ports/hexyl/terminal_size
+	url = https://git.burntcomma.com/moxnox/terminal-size
