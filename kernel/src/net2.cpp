@@ -2046,7 +2046,7 @@ static void netif_prefixes_tick(netif& ni) {
                 if (!dead_addr)
                     break;
 
-                print("{}: removing IPv6 address {}\n", ni, get<ipv6_address>(dead_addr->addr));
+                print("{}: removing IPv6 address {}\n", ni, *get_if<ipv6_address>(&dead_addr->addr));
                 delete dead_addr;
             }
         }
