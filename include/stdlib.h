@@ -150,6 +150,7 @@ int mkstemps(char* tmpl, int suffixlen);
 char* mktemp(char* tmpl);
 const char* getprogname(void);
 char* mkdtemp(char* templ);
+int posix_memalign(void** memptr, size_t alignment, size_t size);
 
 #ifndef _WIN32 // FIXME
 int putenv(char* string);
