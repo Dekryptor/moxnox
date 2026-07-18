@@ -675,5 +675,31 @@ int pthread_rwlock_destroy(pthread_rwlock_t* /*rwlock*/) {
     return 0;
 }
 
+extern "C"
+int pthread_rwlock_rdlock(pthread_rwlock_t* /*rwlock*/) {
+    print_stderr("FIXME - pthread_rwlock_rdlock\n");
+
+    // FIXME
+
+    return 0;
+}
+
+extern "C"
+int pthread_rwlock_wrlock(pthread_rwlock_t* /*rwlock*/) {
+    print_stderr("FIXME - pthread_rwlock_wrlock\n");
+
+    // FIXME
+
+    return 0;
+}
+
+extern "C"
+int pthread_rwlock_unlock(pthread_rwlock_t* /*rwlock*/) {
+    print_stderr("FIXME - pthread_rwlock_unlock\n");
+
+    // FIXME
+
+    return 0;
+}
 
 __attribute__((section (".CRT$XLD"), used)) void(*__xl_d2)() = run_dtors;

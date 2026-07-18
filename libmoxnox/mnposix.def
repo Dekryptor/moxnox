@@ -141,6 +141,9 @@ timezone DATA
 tzname DATA
 pthread_rwlock_init
 pthread_rwlock_destroy
+pthread_rwlock_rdlock
+pthread_rwlock_wrlock
+pthread_rwlock_unlock
 
 ; stubs
 fchown
@@ -194,9 +197,6 @@ sigwait
 mprotect
 setrlimit
 socketpair
-pthread_rwlock_wrlock
-pthread_rwlock_unlock
-pthread_rwlock_rdlock
 gmtime_r
 localtime_r
 fstatat
