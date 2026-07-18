@@ -79,3 +79,6 @@
 [submodule "ports/mpc/repo"]
 	path = ports/mpc/repo
 	url = https://git.burntcomma.com/moxnox/mpc
+[submodule "ports/gmp/repo"]
+	path = ports/gmp/repo
+	url = https://git.burntcomma.com/moxnox/gmp
