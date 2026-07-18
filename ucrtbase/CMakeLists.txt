@@ -119,6 +119,10 @@ add_library(musl STATIC
     ../ports/musl/repo/src/math/cbrtf.c
     ../ports/musl/repo/src/math/fma.c
     ../ports/musl/repo/src/math/fmaf.c
+    ../ports/musl/repo/src/math/lrint.c
+    ../ports/musl/repo/src/math/lrintf.c
+    ../ports/musl/repo/src/math/rint.c
+    ../ports/musl/repo/src/math/rintf.c
 )
 
 target_include_directories(musl PRIVATE musl_compat ../ports/musl/repo/src/include ../ports/musl/repo/src/internal ../ports/musl/repo/arch/generic)

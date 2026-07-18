@@ -38,8 +38,6 @@ do_stub "llround"
 do_stub "lround"
 do_stub "fmaxf"
 do_stub "fminf"
-do_stub "lrint"
 do_stub "llrint"
-do_stub "lrintf"
 
 stubs_end

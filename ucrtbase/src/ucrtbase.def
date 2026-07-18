@@ -326,3 +326,7 @@ _dstbias DATA
 _timezone DATA
 _tzname DATA
 mn_allocate_aligned
+lrint
+lrintf
+rint
+rintf

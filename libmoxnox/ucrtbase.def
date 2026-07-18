@@ -302,6 +302,10 @@ _daylight DATA
 _dstbias DATA
 _timezone DATA
 _tzname DATA
+lrint
+lrintf
+rint
+rintf
 
 ; stubs
 ___lc_codepage_func
@@ -340,6 +344,4 @@ llround
 lround
 fmaxf
 fminf
-lrint
 llrint
-lrintf
