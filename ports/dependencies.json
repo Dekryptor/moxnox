@@ -9,6 +9,7 @@
     "less": ["ncurses"],
     "libarchive": ["zlib", "zstd"],
     "libpng": ["zlib"],
+    "mesa": ["zlib"],
     "nano": ["gnulib", "ncurses"],
     "ncurses": [],
     "openssl": [],
