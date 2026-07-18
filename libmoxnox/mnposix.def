@@ -216,3 +216,7 @@ dirfd
 posix_madvise
 mlock
 munlock
+open_memstream
+posix_memalign
+strndup
+pthread_mutex_timedlock
