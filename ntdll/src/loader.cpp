@@ -136,19 +136,14 @@ static void unload_imports(LDR_DATA_TABLE_ENTRY& ent) {
 
         utf8_to_utf16(span(u16buf.get(), u16len), name);
 
-        for (auto& c : span(u16buf.get(), u16len)) {
-            if (c >= u'A' && c <= u'Z')
-                c = c - u'A' + u'a';
-        }
-
-        auto u16sv = u16string_view_ci(u16buf.get(), u16len);
+        auto u16sv = u16string_view(u16buf.get(), u16len);
 
         bool done = false;
 
         for (auto le = peb.Ldr->InMemoryOrderModuleList.Flink; le != &peb.Ldr->InMemoryOrderModuleList; le = le->Flink) {
             auto& mod2 = *CONTAINING_RECORD(le, LDR_DATA_TABLE_ENTRY, InMemoryOrderLinks);
 
-            auto u16sv2 = u16string_view_ci(mod2.BaseDllName.Buffer, mod2.BaseDllName.Length / sizeof(char16_t));
+            auto u16sv2 = u16string_view(mod2.BaseDllName.Buffer, mod2.BaseDllName.Length / sizeof(char16_t));
 
             if (u16sv == u16sv2) {
                 unload_dll_holding_lock(*CONTAINING_RECORD(&mod2, ldr_entry, ldr));
@@ -543,13 +538,13 @@ static ldr_entry* try_load_dll(u16string_view dir, u16string_view name) {
     return &ent;
 }
 
-static ldr_entry* load_dll_u16(u16string_view_ci u16sv) {
+static ldr_entry* load_dll_u16(u16string_view u16sv) {
     {
         auto le = ldr_data.InLoadOrderModuleList.Flink;
 
         while (le != &ldr_data.InLoadOrderModuleList) {
             auto& ent = *CONTAINING_RECORD(le, LDR_DATA_TABLE_ENTRY, InLoadOrderLinks);
-            auto base_name = u16string_view_ci(ent.BaseDllName.Buffer, ent.BaseDllName.Length / sizeof(char16_t));
+            auto base_name = u16string_view(ent.BaseDllName.Buffer, ent.BaseDllName.Length / sizeof(char16_t));
 
             if (base_name == u16sv) {
                 ent.LoadCount++;
@@ -565,7 +560,7 @@ static ldr_entry* load_dll_u16(u16string_view_ci u16sv) {
     auto path = get_env(u"LD_LIBRARY_PATH");
 
     if (path.empty()) { // FIXME - is this right?
-        if (auto ret = try_load_dll(u"/lib", u16string_view(u16sv.data(), u16sv.size())); ret)
+        if (auto ret = try_load_dll(u"/lib", u16sv); ret)
             return ret;
     } else {
         while (true) {
@@ -577,7 +572,7 @@ static ldr_entry* load_dll_u16(u16string_view_ci u16sv) {
             else
                 bit = path;
 
-            if (auto ret = try_load_dll(bit, u16string_view(u16sv.data(), u16sv.size())); ret)
+            if (auto ret = try_load_dll(bit, u16sv); ret)
                 return ret;
 
             if (col == u16string_view::npos)
@@ -605,13 +600,9 @@ static ldr_entry* load_dll(string_view name) {
 
     utf8_to_utf16(span(u16buf, u16len), name);
 
-    // FIXME - add case-insensitive mode to NtCreateFile instead?
-    for (auto& c : span(u16buf, u16len)) {
-        if (c >= u'A' && c <= u'Z')
-            c = c - u'A' + u'a';
-    }
+    // FIXME - should be case-insensitive?
 
-    auto u16sv = u16string_view_ci(u16buf, u16len);
+    auto u16sv = u16string_view(u16buf, u16len);
 
     auto ret = load_dll_u16(u16sv);
 
@@ -1012,14 +1003,14 @@ static nt_status resolve_imports_img(void* base) {
 
         utf8_to_utf16(span(u16buf, u16len), name);
 
-        auto u16sv = u16string_view_ci(u16buf, u16len);
+        auto u16sv = u16string_view(u16buf, u16len);
 
         {
             auto le = ldr_data.InLoadOrderModuleList.Flink;
 
             while (le != &ldr_data.InLoadOrderModuleList) {
                 auto& ent2 = *CONTAINING_RECORD(le, LDR_DATA_TABLE_ENTRY, InLoadOrderLinks);
-                auto base_name = u16string_view_ci(ent2.BaseDllName.Buffer, ent2.BaseDllName.Length / sizeof(char16_t));
+                auto base_name = u16string_view(ent2.BaseDllName.Buffer, ent2.BaseDllName.Length / sizeof(char16_t));
 
                 if (base_name == u16sv) {
                     ent = &ent2;
@@ -1486,7 +1477,7 @@ extern "C"
 nt_status LdrLoadDll(const char16_t* /*dll_path*/, uint32_t* /*dll_characteristics*/,
                      const UNICODE_STRING* dll_name, void** dll_handle) {
     nt_status status;
-    auto name = u16string_view_ci(dll_name->Buffer, dll_name->Length / sizeof(char16_t));
+    auto name = u16string_view(dll_name->Buffer, dll_name->Length / sizeof(char16_t));
 
     list_entry dlls = { &dlls, &dlls };
 
