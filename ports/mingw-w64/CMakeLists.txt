@@ -279,7 +279,7 @@ if(MINGW_HEADERS)
 endif()
 
 target_compile_definitions(mingwex PRIVATE -D_CRTIMP= -D_UCRT -D_CRTBLD -D_WIN32 -D_WIN64 -D__MINGW32__)
-target_compile_options(mingwex PRIVATE ${USERSPACE_CFLAGS} $<$<COMPILE_LANGUAGE:CXX>:-fno-rtti -fno-exceptions> -mno-stack-arg-probe $<$<CXX_COMPILER_ID:Clang>:-Wno-pragma-pack -Wno-include-next-absolute-path>)
+target_compile_options(mingwex PRIVATE ${USERSPACE_CFLAGS} $<$<COMPILE_LANGUAGE:CXX>:-fno-rtti -fno-exceptions> -mno-stack-arg-probe -fno-stack-protector $<$<CXX_COMPILER_ID:Clang>:-Wno-pragma-pack -Wno-include-next-absolute-path>)
 target_compile_options(mingwex PRIVATE -Wno-shorten-64-to-32 -Wno-missing-declarations -Wno-sign-conversion -Wno-implicit-int-conversion -Wno-unused-variable -Wno-gnu-pointer-arith -Wno-implicit-float-conversion -Wno-float-conversion -Wno-conversion -Wno-pointer-arith $<$<CXX_COMPILER_ID:GNU>:-Wno-use-after-free -Wno-missing-attributes>)
 target_link_libraries(mingwex PRIVATE ntdll_mod)
 
@@ -324,3 +324,4 @@ endif()
 
 target_compile_definitions(mingw32 PRIVATE -D_CRTIMP= -D_UCRT -D_CRTBLD -D_WIN32 -D_WIN64 -D__MINGW32__)
 target_include_directories(mingw32 PRIVATE repo/mingw-w64-headers/crt repo/mingw-w64-crt/include)
+target_compile_options(mingw32 PRIVATE -fno-stack-protector)
