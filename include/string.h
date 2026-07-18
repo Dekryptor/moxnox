@@ -56,6 +56,8 @@ char* strcasestr(const char* haystack, const char* needle);
 void* memmem(const void* haystack, size_t haystacklen, const void* needle,
              size_t needlelen);
 int _wcsicmp(const wchar_t* s1, const wchar_t* s2);
+char* strndup(const char* s, size_t size);
+char* strtok_r(char* s, const char* sep, char** state);
 
 #ifdef __cplusplus
 }
