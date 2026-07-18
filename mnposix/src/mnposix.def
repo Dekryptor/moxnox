@@ -140,3 +140,5 @@ daylight DATA
 timezone DATA
 tzname DATA
 aligned_alloc
+pthread_rwlock_init
+pthread_rwlock_destroy

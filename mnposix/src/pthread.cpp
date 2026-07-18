@@ -658,4 +658,22 @@ int pthread_mutexattr_settype(pthread_mutexattr_t* attr, int type) {
     return 0;
 }
 
+extern "C"
+int pthread_rwlock_init(pthread_rwlock_t* /*rwlock*/,
+                        const pthread_rwlockattr_t* /*attr*/) {
+    print_stderr("FIXME - pthread_rwlock_init\n");
+
+    // FIXME
+
+    return 0;
+}
+
+extern "C"
+int pthread_rwlock_destroy(pthread_rwlock_t* /*rwlock*/) {
+    // FIXME
+
+    return 0;
+}
+
+
 __attribute__((section (".CRT$XLD"), used)) void(*__xl_d2)() = run_dtors;
