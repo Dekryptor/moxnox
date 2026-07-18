@@ -145,3 +145,4 @@ pthread_rwlock_destroy
 pthread_rwlock_rdlock
 pthread_rwlock_wrlock
 pthread_rwlock_unlock
+posix_memalign

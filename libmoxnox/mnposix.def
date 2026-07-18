@@ -144,6 +144,7 @@ pthread_rwlock_destroy
 pthread_rwlock_rdlock
 pthread_rwlock_wrlock
 pthread_rwlock_unlock
+posix_memalign
 
 ; stubs
 fchown
@@ -217,6 +218,5 @@ posix_madvise
 mlock
 munlock
 open_memstream
-posix_memalign
 strndup
 pthread_mutex_timedlock

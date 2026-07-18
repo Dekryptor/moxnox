@@ -153,3 +153,15 @@ extern "C"
 void* aligned_alloc(size_t alignment, size_t size) {
     return mn_allocate_aligned(GetProcessHeap(), alignment, size);
 }
+
+extern "C"
+int posix_memalign(void** memptr, size_t alignment, size_t size) {
+    auto ptr = aligned_alloc(alignment, size);
+
+    if (!ptr)
+        return ENOMEM;
+
+    *memptr = ptr;
+
+    return 0;
+}
