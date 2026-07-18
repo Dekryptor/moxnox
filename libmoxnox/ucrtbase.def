@@ -332,3 +332,14 @@ mbsrtowcs
 wcscat
 atoll
 iswgraph
+fmin
+fmax
+lroundf
+llrintf
+llround
+lround
+fmaxf
+fminf
+lrint
+llrint
+lrintf
