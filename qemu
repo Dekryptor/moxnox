@@ -1,6 +1,6 @@
 #!/bin/bash
 
-qemu-system-x86_64 -M q35 -enable-kvm -cpu host \
+qemu-system-x86_64 -M q35 -enable-kvm -cpu host -m 1024 \
 -smp cores=4,threads=1 \
 -kernel build/bootloader/x86/boot \
 -append "root=/dev/sda keywait" \
