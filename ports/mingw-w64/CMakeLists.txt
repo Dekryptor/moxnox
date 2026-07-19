@@ -183,3 +183,173 @@ foreach(crtobj crt2 dllcrt2 gcrt2 crtbegin crtend)
 
     add_custom_target(${crtobj} ALL DEPENDS ${CMAKE_CURRENT_BINARY_DIR}/${crtobj}.o)
 endforeach()
+
+###
+
+set(MINGW_COMPAT_CRT
+    _bsd_types.h
+    corecrt.h
+    crtdefs.h
+    excpt.h
+    _mingw_mac.h
+    _mingw_secapi.h
+    _mingw_unicode.h
+    sec_api/stralign_s.h
+    _timeval.h
+    vadefs.h
+)
+
+set(MINGW_COMPAT_INCLUDE
+    apisetcconv.h
+    apiset.h
+    basetsd.h
+    bcrypt.h
+    bemapiset.h
+    cderr.h
+    cguid.h
+    combaseapi.h
+    commdlg.h
+    concurrencysal.h
+    consoleapi2.h
+    consoleapi3.h
+    consoleapi.h
+    datetimeapi.h
+    dde.h
+    ddeml.h
+    debugapi.h
+    dlgs.h
+    dpapi.h
+    driverspecs.h
+    errhandlingapi.h
+    fibersapi.h
+    fileapi.h
+    fltwinerror.h
+    guiddef.h
+    handleapi.h
+    heapapi.h
+    imm.h
+    inaddr.h
+    interlockedapi.h
+    ioapiset.h
+    jobapi.h
+    joystickapi.h
+    ktmtypes.h
+    libloaderapi.h
+    lzexpand.h
+    mciapi.h
+    mcx.h
+    memoryapi.h
+    minwinbase.h
+    minwindef.h
+    mmeapi.h
+    mmiscapi2.h
+    mmiscapi.h
+    mmsyscom.h
+    mmsystem.h
+    msxml.h
+    namedpipeapi.h
+    namespaceapi.h
+    nb30.h
+    ncrypt.h
+    oaidl.h
+    objbase.h
+    objidlbase.h
+    objidl.h
+    ole2.h
+    oleauto.h
+    oleidl.h
+    playsoundapi.h
+    poppack.h
+    processenv.h
+    processthreadsapi.h
+    processtopologyapi.h
+    profileapi.h
+    propidl.h
+    prsht.h
+    psdk_inc/_fd_types.h
+    psdk_inc/intrin-impl.h
+    psdk_inc/_ip_mreq1.h
+    psdk_inc/_ip_types.h
+    psdk_inc/_socket_types.h
+    psdk_inc/_wsadata.h
+    psdk_inc/_wsa_errnos.h
+    psdk_inc/_xmitfile.h
+    pshpack1.h
+    pshpack2.h
+    pshpack4.h
+    pshpack8.h
+    realtimeapiset.h
+    reason.h
+    rpcasync.h
+    rpcdce.h
+    rpcdcep.h
+    rpc.h
+    rpcndr.h
+    rpcnsi.h
+    rpcnsip.h
+    rpcnterr.h
+    rpcsal.h
+    sal.h
+    sdkddkver.h
+    securityappcontainer.h
+    securitybaseapi.h
+    servprov.h
+    shellapi.h
+    specstrings.h
+    stralign.h
+    stringapiset.h
+    synchapi.h
+    sysinfoapi.h
+    systemtopologyapi.h
+    threadpoolapiset.h
+    threadpoollegacyapiset.h
+    timeapi.h
+    timezoneapi.h
+    tvout.h
+    unknwnbase.h
+    unknwn.h
+    urlmon.h
+    utilapiset.h
+    virtdisk.h
+    winapifamily.h
+    winbase.h
+    wincon.h
+    wincontypes.h
+    wincrypt.h
+    windef.h
+    windows.h
+    winefs.h
+    winerror.h
+    wingdi.h
+    winioctl.h
+    winnetwk.h
+    winnls.h
+    winnt.h
+    winperf.h
+    winreg.h
+    winscard.h
+    winsmcrd.h
+    winsock.h
+    winspool.h
+    winsvc.h
+    winuser.h
+    winver.h
+    wnnc.h
+    wow64apiset.h
+    wtypesbase.h
+    wtypes.h
+)
+
+foreach(f ${MINGW_COMPAT_CRT})
+    cmake_path(GET f PARENT_PATH subdir)
+    file(MAKE_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/mingw-compat/include/${subdir})
+    file(COPY_FILE repo/mingw-w64-headers/crt/${f} ${CMAKE_CURRENT_BINARY_DIR}/mingw-compat/include/${f} ONLY_IF_DIFFERENT)
+endforeach()
+
+foreach(f ${MINGW_COMPAT_INCLUDE})
+    cmake_path(GET f PARENT_PATH subdir)
+    file(MAKE_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/mingw-compat/include/${subdir})
+    file(COPY_FILE repo/mingw-w64-headers/include/${f} ${CMAKE_CURRENT_BINARY_DIR}/mingw-compat/include/${f} ONLY_IF_DIFFERENT)
+endforeach()
+
+file(COPY_FILE ${CMAKE_CURRENT_BINARY_DIR}/_mingw.h ${CMAKE_CURRENT_BINARY_DIR}/mingw-compat/include/_mingw.h ONLY_IF_DIFFERENT)
