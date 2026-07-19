@@ -82,3 +82,6 @@
 [submodule "ports/gmp/repo"]
 	path = ports/gmp/repo
 	url = https://git.burntcomma.com/moxnox/gmp
+[submodule "ports/libiconv/repo"]
+	path = ports/libiconv/repo
+	url = https://git.burntcomma.com/moxnox/libiconv

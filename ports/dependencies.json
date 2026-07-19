@@ -8,6 +8,7 @@
     "harfbuzz": ["freetype"],
     "less": ["ncurses"],
     "libarchive": ["zlib", "zstd"],
+    "libiconv": [],
     "libpng": ["zlib"],
     "mesa": ["zlib"],
     "nano": ["gnulib", "ncurses"],
