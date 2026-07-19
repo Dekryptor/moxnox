@@ -313,3 +313,28 @@ add_library(mingw32 STATIC
 target_compile_definitions(mingw32 PRIVATE -D_CRTIMP= -D_UCRT -D_CRTBLD -D_WIN32 -D_WIN64 -D__MINGW32__)
 target_include_directories(mingw32 PRIVATE ${CMAKE_CURRENT_BINARY_DIR} repo/mingw-w64-headers/crt repo/mingw-w64-crt/include repo/mingw-w64-headers/include)
 target_compile_options(mingw32 PRIVATE -fno-stack-protector)
+
+###
+
+set(crt2_src repo/mingw-w64-crt/crt/crtexe.c)
+set(dllcrt2_src repo/mingw-w64-crt/crt/crtdll.c)
+set(gcrt2_src repo/mingw-w64-crt/profile/gcrt0.c)
+set(crtbegin_src repo/mingw-w64-crt/crt/crtbegin.c)
+set(crtend_src repo/mingw-w64-crt/crt/crtend.c)
+
+foreach(crtobj crt2 dllcrt2 gcrt2 crtbegin crtend)
+    add_library(${crtobj}_obj OBJECT ${${crtobj}_src})
+
+    target_compile_definitions(${crtobj}_obj PRIVATE -D_CRTIMP= -D_UCRT -D_CRTBLD -D_WIN32 -D_WIN64 -D__MINGW32__)
+    target_include_directories(${crtobj}_obj PRIVATE ${CMAKE_CURRENT_BINARY_DIR} repo/mingw-w64-headers/crt repo/mingw-w64-crt/include repo/mingw-w64-headers/include)
+    target_compile_options(${crtobj}_obj PRIVATE -fno-stack-protector)
+
+    add_custom_command(
+        OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/${crtobj}.o
+        COMMAND ${CMAKE_COMMAND} -E copy_if_different $<TARGET_OBJECTS:${crtobj}_obj> ${CMAKE_CURRENT_BINARY_DIR}/${crtobj}.o
+        DEPENDS ${crtobj}_obj $<TARGET_OBJECTS:${crtobj}_obj>
+        VERBATIM
+    )
+
+    add_custom_target(${crtobj} DEPENDS ${CMAKE_CURRENT_BINARY_DIR}/${crtobj}.o)
+endforeach()
