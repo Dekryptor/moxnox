@@ -33,11 +33,7 @@ add_library(ucrtbase_static STATIC
     repo/mingw-w64-crt/stdio/ucrt_printf.c
     redirects.S
 )
-target_include_directories(ucrtbase_static PRIVATE ${CMAKE_CURRENT_BINARY_DIR} repo/mingw-w64-headers/crt repo/mingw-w64-crt/include)
-
-if(MINGW_HEADERS)
-    target_include_directories(ucrtbase_static PRIVATE ${MINGW_HEADERS})
-endif()
+target_include_directories(ucrtbase_static PRIVATE ${CMAKE_CURRENT_BINARY_DIR} repo/mingw-w64-headers/crt repo/mingw-w64-crt/include repo/mingw-w64-headers/include)
 
 target_compile_definitions(ucrtbase_static PRIVATE -D_CRTIMP= -D_WIN32 -D_WIN64)
 target_compile_options(ucrtbase_static PRIVATE -ffreestanding)
@@ -272,11 +268,7 @@ if(CMAKE_C_COMPILER_ID MATCHES "Clang")
 ")
 endif()
 
-target_include_directories(mingwex PRIVATE ${CMAKE_CURRENT_BINARY_DIR} repo/mingw-w64-headers/crt repo/mingw-w64-crt/include)
-
-if(MINGW_HEADERS)
-    target_include_directories(mingwex PRIVATE ${MINGW_HEADERS})
-endif()
+target_include_directories(mingwex PRIVATE ${CMAKE_CURRENT_BINARY_DIR} repo/mingw-w64-headers/crt repo/mingw-w64-crt/include repo/mingw-w64-headers/include)
 
 target_compile_definitions(mingwex PRIVATE -D_CRTIMP= -D_UCRT -D_CRTBLD -D_WIN32 -D_WIN64 -D__MINGW32__)
 target_compile_options(mingwex PRIVATE ${USERSPACE_CFLAGS} $<$<COMPILE_LANGUAGE:CXX>:-fno-rtti -fno-exceptions> -mno-stack-arg-probe -fno-stack-protector $<$<CXX_COMPILER_ID:Clang>:-Wno-pragma-pack -Wno-include-next-absolute-path>)
@@ -318,10 +310,6 @@ add_library(mingw32 STATIC
     repo/mingw-w64-crt/crt/tls_atexit.c
 )
 
-if(MINGW_HEADERS)
-    target_include_directories(mingw32 PRIVATE ${MINGW_HEADERS})
-endif()
-
 target_compile_definitions(mingw32 PRIVATE -D_CRTIMP= -D_UCRT -D_CRTBLD -D_WIN32 -D_WIN64 -D__MINGW32__)
-target_include_directories(mingw32 PRIVATE repo/mingw-w64-headers/crt repo/mingw-w64-crt/include)
+target_include_directories(mingw32 PRIVATE ${CMAKE_CURRENT_BINARY_DIR} repo/mingw-w64-headers/crt repo/mingw-w64-crt/include repo/mingw-w64-headers/include)
 target_compile_options(mingw32 PRIVATE -fno-stack-protector)
