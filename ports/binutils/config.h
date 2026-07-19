@@ -40,6 +40,7 @@
 #define HAVE_STRNCASECMP      1
 #define HAVE_STRNLEN          1
 #define HAVE_STRRCHR          1
+#define HAVE_STRSIGNAL        1
 #define HAVE_STRSTR           1
 #define HAVE_STRTOD           1
 #define HAVE_STRTOL           1
