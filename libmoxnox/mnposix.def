@@ -145,6 +145,7 @@ pthread_rwlock_rdlock
 pthread_rwlock_wrlock
 pthread_rwlock_unlock
 posix_memalign
+getrlimit
 
 ; stubs
 fchown
@@ -177,7 +178,6 @@ setresgid
 memmem
 lchown
 getgroups
-getrlimit
 strerror_r
 posix_spawnattr_setflags
 posix_spawnattr_setsigdefault
