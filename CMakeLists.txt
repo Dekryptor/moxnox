@@ -420,6 +420,26 @@ endfunction()
 
 add_moxnox_deps(${CMAKE_SOURCE_DIR})
 
+set(MOXNOX_CORE_LIBRARIES
+    ${CMAKE_BINARY_DIR}/libmoxnox/libiphlpapi.a
+    ${CMAKE_BINARY_DIR}/libmoxnox/libkernelbase.a
+    $<TARGET_FILE:mingw32>
+    $<TARGET_FILE:mingwex>
+    ${CMAKE_BINARY_DIR}/libmoxnox/libmnposix.a
+    ${CMAKE_BINARY_DIR}/libmoxnox/libmoxnox.a
+    ${CMAKE_BINARY_DIR}/libmoxnox/libntdll.a
+    ${CMAKE_BINARY_DIR}/libmoxnox/libucrtbase.a
+    $<TARGET_FILE:ucrtbase_static>
+    ${CMAKE_BINARY_DIR}/libmoxnox/libws2_32.a
+    ${CMAKE_BINARY_DIR}/ports/mingw-w64/crt2.o
+    ${CMAKE_BINARY_DIR}/ports/mingw-w64/dllcrt2.o
+    ${CMAKE_BINARY_DIR}/ports/mingw-w64/gcrt2.o
+    ${CMAKE_BINARY_DIR}/ports/mingw-w64/crtbegin.o
+    ${CMAKE_BINARY_DIR}/ports/mingw-w64/crtend.o
+)
+
+install(FILES ${MOXNOX_CORE_LIBRARIES} DESTINATION lib COMPONENT core)
+
 install(DIRECTORY ${CMAKE_SOURCE_DIR}/include/ DESTINATION include COMPONENT core)
 
 install(SCRIPT initrd.cmake COMPONENT core)
