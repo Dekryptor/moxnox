@@ -332,3 +332,5 @@ rint
 rintf
 ilogb
 ilogbf
+logb
+logbf
