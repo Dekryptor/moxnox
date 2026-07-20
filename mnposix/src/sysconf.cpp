@@ -12,6 +12,10 @@ long sysconf(int name) {
         case _SC_CLK_TCK:
             return 1000;
 
+        case _SC_ARG_MAX:
+            // 65535 bytes maximum for UNICODE_STRING, divided by sizeof(char16_t)
+            return 32767;
+
         case _SC_PHYS_PAGES: {
             SYSTEM_BASIC_INFORMATION sbi;
 
