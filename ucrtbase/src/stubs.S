@@ -30,7 +30,5 @@ do_stub "fsetpos"
 do_stub "mbsrtowcs"
 do_stub "wcscat"
 do_stub "atoll"
-do_stub "llrintf"
-do_stub "llrint"
 
 stubs_end

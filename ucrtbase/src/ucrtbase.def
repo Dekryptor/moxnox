@@ -342,3 +342,5 @@ lround
 lroundf
 llround
 llroundf
+llrint
+llrintf

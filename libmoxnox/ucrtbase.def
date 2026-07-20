@@ -318,6 +318,8 @@ lround
 lroundf
 llround
 llroundf
+llrint
+llrintf
 
 ; stubs
 ___lc_codepage_func
@@ -348,5 +350,3 @@ mbsrtowcs
 wcscat
 atoll
 iswgraph
-llrintf
-llrint
