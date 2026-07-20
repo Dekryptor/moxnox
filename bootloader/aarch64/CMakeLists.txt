@@ -32,7 +32,7 @@ target_link_options(efistub PRIVATE -Wl,/merge:.buildid=.debug_str)
 add_custom_command(
     TARGET efistub
     POST_BUILD
-    COMMAND objcopy -S -K efi_main -O pe-aarch64-little --section-alignment 0x1000 "${CMAKE_CURRENT_BINARY_DIR}/efistub.dll" "${CMAKE_CURRENT_BINARY_DIR}/efi.cpp.obj"
+    COMMAND ${CMAKE_OBJCOPY} -S -K efi_main -O pe-aarch64-little --section-alignment 0x1000 "${CMAKE_CURRENT_BINARY_DIR}/efistub.dll" "${CMAKE_CURRENT_BINARY_DIR}/efi.cpp.obj"
     BYPRODUCTS "${CMAKE_CURRENT_BINARY_DIR}/efi.cpp.obj"
 )
 
