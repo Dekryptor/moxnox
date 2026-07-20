@@ -6,7 +6,7 @@ concurrency:
   group: build-ports-amd64
 jobs:
   compute-ports:
-    runs-on: ubuntu-latest
+    runs-on: moxnox-ci-amd64
     outputs:
       ports: ${{ steps.compute.outputs.ports }}
       checkout: ${{ steps.compute.outputs.checkout }}
@@ -28,7 +28,7 @@ jobs:
   build-port:
     needs: compute-ports
     if: ${{ needs.compute-ports.outputs.ports != '[]' }}
-    runs-on: ubuntu-moxnox
+    runs-on: moxnox-ci-amd64
     steps:
       - name: Set short SHA
         run: echo "SHORT_SHA=${GITHUB_SHA::8}" >> $GITHUB_ENV
@@ -55,7 +55,7 @@ jobs:
 
       - name: Configure
         run: |
-          cmake -DCMAKE_TOOLCHAIN_FILE=clang-amd64.cmake \
+          cmake -DCMAKE_TOOLCHAIN_FILE=native-amd64.cmake \
             -GNinja \
             -DCMAKE_BUILD_TYPE=RelWithDebInfo \
             -DCMAKE_INSTALL_PREFIX= \
@@ -117,7 +117,7 @@ jobs:
   upload-initrd:
     needs: [compute-ports, build-port]
     if: github.ref == 'refs/heads/master'
-    runs-on: ubuntu-moxnox
+    runs-on: moxnox-ci-amd64
     concurrency:
       group: minio-upload
     steps:
