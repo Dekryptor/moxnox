@@ -27,6 +27,8 @@
 
 #define PATH_MAX 260
 
+#define _POSIX_ARG_MAX 4096
+
 #define SSIZE_MAX LLONG_MAX
 
 #define GETENTROPY_MAX 256
