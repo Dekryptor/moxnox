@@ -44,6 +44,7 @@ size_t strlen(const char* s);
 size_t strnlen(const char* s, size_t maxlen);
 char* strerror(int errnum);
 int strerror_r(int errnum, char* strerrbuf, size_t buflen);
+char* strsignal(int sig);
 
 typedef struct localeinfo_struct* _locale_t;
 
