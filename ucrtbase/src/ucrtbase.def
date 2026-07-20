@@ -336,3 +336,5 @@ logb
 logbf
 fmin
 fminf
+fmax
+fmaxf

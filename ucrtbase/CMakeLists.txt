@@ -129,6 +129,8 @@ add_library(musl STATIC
     ../ports/musl/repo/src/math/logbf.c
     ../ports/musl/repo/src/math/fmin.c
     ../ports/musl/repo/src/math/fminf.c
+    ../ports/musl/repo/src/math/fmax.c
+    ../ports/musl/repo/src/math/fmaxf.c
 )
 
 target_include_directories(musl PRIVATE musl_compat ../ports/musl/repo/src/include ../ports/musl/repo/src/internal ../ports/musl/repo/arch/generic)
