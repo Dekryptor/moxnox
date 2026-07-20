@@ -336,5 +336,5 @@ foreach(crtobj crt2 dllcrt2 gcrt2 crtbegin crtend)
         VERBATIM
     )
 
-    add_custom_target(${crtobj} DEPENDS ${CMAKE_CURRENT_BINARY_DIR}/${crtobj}.o)
+    add_custom_target(${crtobj} ALL DEPENDS ${CMAKE_CURRENT_BINARY_DIR}/${crtobj}.o)
 endforeach()
