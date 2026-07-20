@@ -7,8 +7,8 @@ on:
 concurrency:
   group: build-amd64
 jobs:
-  x86_64 Clang:
-    runs-on: ubuntu-moxnox
+  x86_64 GCC:
+    runs-on: moxnox-ci-amd64
     container:
       volumes:
         - moxnox-cache:/cache
@@ -29,7 +29,7 @@ jobs:
 
       - name: Configure Debug
         run: |
-          cmake -DCMAKE_TOOLCHAIN_FILE=clang-amd64.cmake \
+          cmake -DCMAKE_TOOLCHAIN_FILE=native-amd64.cmake \
             -GNinja \
             -DCMAKE_BUILD_TYPE=Debug \
             -DCMAKE_INSTALL_PREFIX=${PWD}/install/debug \
@@ -43,7 +43,7 @@ jobs:
 
       - name: Configure RelWithDebInfo
         run: |
-          cmake -DCMAKE_TOOLCHAIN_FILE=clang-amd64.cmake \
+          cmake -DCMAKE_TOOLCHAIN_FILE=native-amd64.cmake \
             -GNinja \
             -DCMAKE_BUILD_TYPE=RelWithDebInfo \
             -DCMAKE_INSTALL_PREFIX=${PWD}/install/release \
@@ -77,9 +77,9 @@ jobs:
         run: cp -av install/debug/. /cache/userspace-${GITHUB_RUN_ID}/
 
   upload-initrd:
-    needs: x86_64 Clang
+    needs: x86_64 GCC
     if: github.ref == 'refs/heads/master'
-    runs-on: ubuntu-moxnox
+    runs-on: moxnox-ci-amd64
     container:
       volumes:
         - moxnox-cache:/cache
