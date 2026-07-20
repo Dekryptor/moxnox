@@ -12,6 +12,9 @@
 #define FP_ZERO 0x4000
 #define FP_SUBNORMAL (FP_NORMAL | FP_ZERO)
 
+#define FP_ILOGB0 ((int)0x80000000)
+#define FP_ILOGBNAN ((int)0x7fffffff)
+
 #define isfinite(x) (__builtin_isfinite(x))
 #define isinf(x) (__builtin_isinf_sign(x) != 0)
 #define isnan(x) (__builtin_isnan(x))
