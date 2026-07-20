@@ -6,6 +6,7 @@ set(CMAKE_CXX_COMPILER x86_64-pc-moxnox-g++)
 set(CMAKE_RC_COMPILER x86_64-pc-moxnox-windres)
 set(DLLTOOL x86_64-pc-moxnox-dlltool)
 set(AR x86_64-pc-moxnox-ar)
+set(CMAKE_OBJCOPY x86_64-pc-moxnox-objcopy)
 
 set(CMAKE_EXE_LINKER_FLAGS "-static -nodefaultlibs")
 set(CMAKE_SHARED_LINKER_FLAGS "-nodefaultlibs")
