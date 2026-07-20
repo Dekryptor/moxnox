@@ -413,6 +413,8 @@ endfunction()
 
 add_moxnox_deps(${CMAKE_SOURCE_DIR})
 
+install(DIRECTORY ${CMAKE_SOURCE_DIR}/include/ DESTINATION include COMPONENT core)
+
 install(SCRIPT initrd.cmake COMPONENT core)
 
 configure_file(${CMAKE_CURRENT_SOURCE_DIR}/gdbinit.in ${CMAKE_CURRENT_BINARY_DIR}/.gdbinit)
