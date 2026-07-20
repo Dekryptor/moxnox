@@ -133,6 +133,8 @@ add_library(musl STATIC
     ../ports/musl/repo/src/math/fmaxf.c
     ../ports/musl/repo/src/math/lround.c
     ../ports/musl/repo/src/math/lroundf.c
+    ../ports/musl/repo/src/math/llround.c
+    ../ports/musl/repo/src/math/llroundf.c
 )
 
 target_include_directories(musl PRIVATE musl_compat ../ports/musl/repo/src/include ../ports/musl/repo/src/internal ../ports/musl/repo/arch/generic)

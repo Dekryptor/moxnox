@@ -340,3 +340,5 @@ fmax
 fmaxf
 lround
 lroundf
+llround
+llroundf
