@@ -334,3 +334,5 @@ ilogb
 ilogbf
 logb
 logbf
+fmin
+fminf

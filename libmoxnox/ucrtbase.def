@@ -310,6 +310,8 @@ ilogb
 ilogbf
 logb
 logbf
+fmin
+fminf
 
 ; stubs
 ___lc_codepage_func
@@ -340,12 +342,10 @@ mbsrtowcs
 wcscat
 atoll
 iswgraph
-fmin
 fmax
 lroundf
 llrintf
 llround
 lround
 fmaxf
-fminf
 llrint
