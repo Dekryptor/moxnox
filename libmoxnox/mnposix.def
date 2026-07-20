@@ -179,6 +179,8 @@ memmem
 lchown
 getgroups
 strerror_r
+strsignal
+fstatvfs
 posix_spawnattr_setflags
 posix_spawnattr_setsigdefault
 wcsnrtombs
