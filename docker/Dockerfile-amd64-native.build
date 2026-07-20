@@ -15,4 +15,15 @@ RUN echo "cross-x86_64-pc-moxnox/gcc -openmp -fortran" >> /etc/portage/package.u
 RUN crossdev -t x86_64-pc-moxnox
 RUN echo "dev-build/moxnox-cmake-platform" >> /etc/portage/package.accept_keywords/moxnox
 RUN emerge dev-build/moxnox-cmake-platform
+RUN echo "sys-devel/binutils multitarget" >> /etc/portage/package.use/moxnox
+RUN emerge sys-devel/binutils
+
+# FIXME - remove these USE flag overrides once Portage has been updated
+RUN echo "net-misc/s3cmd python_targets_python3_13" >> /etc/portage/package.use/moxnox
+RUN echo "dev-python/six python_targets_python3_13" >> /etc/portage/package.use/moxnox
+RUN echo "dev-python/python-dateutil python_targets_python3_13" >> /etc/portage/package.use/moxnox
+RUN echo "sys-apps/file python python_targets_python3_13" >> /etc/portage/package.use/moxnox
+RUN emerge net-misc/s3cmd
+RUN emerge app-arch/cpio app-misc/jq dev-util/xxd net-libs/nodejs
+
 RUN rm -rf /var/cache/distfiles

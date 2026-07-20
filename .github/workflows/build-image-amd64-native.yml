@@ -11,10 +11,10 @@ jobs:
       - uses: actions/checkout@v4
       - name: Build and push
         run: |
-          docker build \
+          docker build --no-cache --pull \
             -f docker/Dockerfile-amd64-native.build \
-            -t registry.burntcomma.com/ubuntu-moxnox-amd64-native:latest \
-            -t registry.burntcomma.com/ubuntu-moxnox-amd64-native:${{ github.sha }} \
+            -t registry.burntcomma.com/moxnox-ci-amd64:latest \
+            -t registry.burntcomma.com/moxnox-ci-amd64:${{ github.sha }} \
             docker/
-          docker push registry.burntcomma.com/ubuntu-moxnox-amd64-native:latest
-          docker push registry.burntcomma.com/ubuntu-moxnox-amd64-native:${{ github.sha }}
+          docker push registry.burntcomma.com/moxnox-ci-amd64:latest
+          docker push registry.burntcomma.com/moxnox-ci-amd64:${{ github.sha }}
