@@ -330,3 +330,5 @@ lrint
 lrintf
 rint
 rintf
+ilogb
+ilogbf

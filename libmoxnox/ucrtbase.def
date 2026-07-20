@@ -306,6 +306,8 @@ lrint
 lrintf
 rint
 rintf
+ilogb
+ilogbf
 
 ; stubs
 ___lc_codepage_func
