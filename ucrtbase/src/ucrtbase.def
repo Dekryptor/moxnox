@@ -338,3 +338,5 @@ fmin
 fminf
 fmax
 fmaxf
+lround
+lroundf

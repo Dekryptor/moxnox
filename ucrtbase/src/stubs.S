@@ -30,10 +30,8 @@ do_stub "fsetpos"
 do_stub "mbsrtowcs"
 do_stub "wcscat"
 do_stub "atoll"
-do_stub "lroundf"
 do_stub "llrintf"
 do_stub "llround"
-do_stub "lround"
 do_stub "llrint"
 
 stubs_end

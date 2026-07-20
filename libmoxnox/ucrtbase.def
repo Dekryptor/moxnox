@@ -314,6 +314,8 @@ fmin
 fminf
 fmax
 fmaxf
+lround
+lroundf
 
 ; stubs
 ___lc_codepage_func
@@ -344,8 +346,6 @@ mbsrtowcs
 wcscat
 atoll
 iswgraph
-lroundf
 llrintf
 llround
-lround
 llrint
