@@ -21,6 +21,7 @@ extern "C" {
 #endif
 
 int statvfs(const char* path, struct statvfs* buf);
+int fstatvfs(int fd, struct statvfs* buf);
 
 #ifdef __cplusplus
 }
