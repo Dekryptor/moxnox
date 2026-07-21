@@ -49,7 +49,7 @@ add_library(libiberty STATIC
     ${REPO}/libiberty/ldirname.c
     ${LIBIBERTY_GEN_DIR}/lrealpath.c
     ${REPO}/libiberty/make-relative-prefix.c
-    ${LIBIBERTY_GEN_DIR}/make-temp-file.c
+    ${REPO}/libiberty/make-temp-file.c
     ${REPO}/libiberty/mempcpy.c
     ${REPO}/libiberty/objalloc.c
     ${REPO}/libiberty/obstack.c
@@ -126,20 +126,6 @@ target_compile_definitions(libiberty PRIVATE _CRTIMP= HAVE_CONFIG_H)
 set(BFD_GEN_DIR ${CMAKE_CURRENT_BINARY_DIR}/bfd-gen)
 file(MAKE_DIRECTORY ${BFD_GEN_DIR})
 
-add_custom_command(
-    OUTPUT ${BFD_GEN_DIR}/bfdio.c
-    COMMAND sh -c "sed 's|^#elif defined (_WIN32)$|#elif defined (_WIN32) \\&\\& !defined (MOXNOX)|' '${REPO}/bfd/bfdio.c' > '${BFD_GEN_DIR}/bfdio.c'"
-    VERBATIM
-    DEPENDS ${REPO}/bfd/bfdio.c
-)
-
-add_custom_command(
-    OUTPUT ${LIBIBERTY_GEN_DIR}/make-temp-file.c
-    COMMAND sh -c "sed 's@^#if !defined(_WIN32) || defined(__CYGWIN__)$@#if !defined(_WIN32) || defined(__CYGWIN__) || defined(MOXNOX)@g' '${REPO}/libiberty/make-temp-file.c' > '${LIBIBERTY_GEN_DIR}/make-temp-file.c'"
-    VERBATIM
-    DEPENDS ${REPO}/libiberty/make-temp-file.c
-)
-
 # bfd.h - generated from bfd-in2.h
 set(wordsize 64)
 set(bfd_default_target_size 64)
@@ -200,7 +186,7 @@ add_library(bfd STATIC
     ${REPO}/bfd/archive.c
     ${REPO}/bfd/archures.c
     ${REPO}/bfd/bfd.c
-    ${BFD_GEN_DIR}/bfdio.c
+    ${REPO}/bfd/bfdio.c
     ${REPO}/bfd/cache.c
     ${REPO}/bfd/coff-bfd.c
     ${REPO}/bfd/compress.c
@@ -357,15 +343,8 @@ flex_target(arlex
 )
 add_flex_bison_dependency(arlex arparse)
 
-add_custom_command(
-    OUTPUT ${BINUTILS_GEN_DIR}/bucomm.c
-    COMMAND sh -c "sed 's/^#if defined (_WIN32) && !defined (__CYGWIN32__)$/#if defined (_WIN32) \\&\\& !defined (__CYGWIN32__) \\&\\& !defined (MOXNOX)/' '${REPO}/binutils/bucomm.c' > '${BINUTILS_GEN_DIR}/bucomm.c'"
-    DEPENDS ${REPO}/binutils/bucomm.c
-    VERBATIM
-)
-
 set(BULIBS
-    ${BINUTILS_GEN_DIR}/bucomm.c
+    ${REPO}/binutils/bucomm.c
     ${REPO}/binutils/version.c
     ${REPO}/binutils/filemode.c
 )
@@ -641,13 +620,6 @@ add_custom_command(
         ${REPO}/ld/scripttempl/pe.sc
 )
 
-add_custom_command(
-    OUTPUT ${LD_GEN_DIR}/ldbuildid.c
-    COMMAND sh -c "sed 's@^#ifndef __MINGW32__$@#if !defined(__MINGW32__) || defined(MOXNOX)@' '${REPO}/ld/ldbuildid.c' > '${LD_GEN_DIR}/ldbuildid.c'"
-    VERBATIM
-    DEPENDS ${REPO}/ld/ldbuildid.c
-)
-
 add_executable(ld
     ${BISON_ldgram_OUTPUTS}
     ${FLEX_ldlex_OUTPUTS}
@@ -665,7 +637,7 @@ add_executable(ld
     ${REPO}/ld/ldfile.c
     ${REPO}/ld/ldcref.c
     ${REPO}/ld/plugin.c
-    ${LD_GEN_DIR}/ldbuildid.c
+    ${REPO}/ld/ldbuildid.c
     ${REPO}/ld/ldelf.c
     ${REPO}/ld/ldelfgen.c
     ${LD_GEN_DIR}/ei386pep.c
@@ -749,28 +721,14 @@ bison_target(rcparse
     OPTIONS -Wno-conflicts-sr -Wno-conflicts-rr
 )
 
-add_custom_command(
-    OUTPUT ${WINDRES_GEN_DIR}/winduni.c
-    COMMAND sh -c "sed -e 's@^#if defined (_WIN32) || defined (__CYGWIN__)@#if (defined (_WIN32) || defined (__CYGWIN__)) \\&\\& !defined (MOXNOX)@g' -e 's@^#if !defined (_WIN32) && !defined (__CYGWIN__)@#if !defined (_WIN32) \\&\\& !defined (__CYGWIN__) || defined (MOXNOX)@g' '${REPO}/binutils/winduni.c' > '${WINDRES_GEN_DIR}/winduni.c'"
-    VERBATIM
-    DEPENDS ${REPO}/binutils/winduni.c
-)
-
-add_custom_command(
-    OUTPUT ${WINDRES_GEN_DIR}/resrc.c
-    COMMAND sh -c "sed -e 's@#if defined (_WIN32) && ! defined (__CYGWIN__)@#if defined (_WIN32) \\&\\& ! defined (__CYGWIN__) \\&\\& ! defined (MOXNOX)@g' '${REPO}/binutils/resrc.c' > '${WINDRES_GEN_DIR}/resrc.c'"
-    VERBATIM
-    DEPENDS ${REPO}/binutils/resrc.c
-)
-
 add_executable(windres
     ${REPO}/binutils/windres.c
-    ${WINDRES_GEN_DIR}/resrc.c
+    ${REPO}/binutils/resrc.c
     ${REPO}/binutils/rescoff.c
     ${REPO}/binutils/resbin.c
     ${BISON_rcparse_OUTPUTS}
     ${REPO}/binutils/rclex.c
-    ${WINDRES_GEN_DIR}/winduni.c
+    ${REPO}/binutils/winduni.c
     ${REPO}/binutils/resres.c
     ${BULIBS}
 )
@@ -791,18 +749,11 @@ bison_target(mcparse
     OPTIONS -Wno-conflicts-sr
 )
 
-add_custom_command(
-    OUTPUT ${WINDMC_GEN_DIR}/winduni.c
-    COMMAND sh -c "sed -e 's@^#if defined (_WIN32) || defined (__CYGWIN__)@#if (defined (_WIN32) || defined (__CYGWIN__)) \\&\\& !defined (MOXNOX)@g' -e 's@^#if !defined (_WIN32) && !defined (__CYGWIN__)@#if !defined (_WIN32) \\&\\& !defined (__CYGWIN__) || defined (MOXNOX)@g' '${REPO}/binutils/winduni.c' > '${WINDMC_GEN_DIR}/winduni.c'"
-    VERBATIM
-    DEPENDS ${REPO}/binutils/winduni.c
-)
-
 add_executable(windmc
     ${REPO}/binutils/windmc.c
     ${BISON_mcparse_OUTPUTS}
     ${REPO}/binutils/mclex.c
-    ${WINDMC_GEN_DIR}/winduni.c
+    ${REPO}/binutils/winduni.c
     ${BULIBS}
 )
 add_binutils_exe(windmc)
