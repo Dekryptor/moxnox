@@ -10,13 +10,6 @@ add_custom_command(
     VERBATIM
 )
 
-add_custom_command(
-    OUTPUT "${GEN}/main.c"
-    COMMAND sh -c "sed 's/#ifdef WIN32/#if defined(WIN32) \\&\\& !defined(MOXNOX)/g' '${CMAKE_CURRENT_SOURCE_DIR}/repo/main.c' > '${GEN}/main.c'"
-    DEPENDS repo/main.c
-    VERBATIM
-)
-
 add_executable(less
     repo/brac.c
     repo/ch.c
@@ -35,7 +28,7 @@ add_executable(less
     repo/line.c
     repo/linenum.c
     repo/lsystem.c
-    ${GEN}/main.c
+    repo/main.c
     repo/mark.c
     repo/optfunc.c
     repo/option.c
@@ -63,7 +56,6 @@ target_include_directories(less PRIVATE
 )
 
 target_compile_definitions(less PRIVATE _CRTIMP=)
-target_compile_options(less PRIVATE -U__MINGW32__)
 
 target_compile_options(less PRIVATE
     ${USERSPACE_CFLAGS}
