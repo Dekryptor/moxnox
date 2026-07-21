@@ -6,7 +6,7 @@ on:
       - 'ports/**'
 jobs:
   aarch64 Clang:
-    runs-on: ubuntu-moxnox-aarch64
+    runs-on: moxnox-ci-aarch64
     steps:
       - name: Set short SHA
         run: echo "SHORT_SHA=${GITHUB_SHA::8}" >> $GITHUB_ENV
@@ -24,15 +24,10 @@ jobs:
 
       - name: Configure Debug
         run: |
-          cmake -DCMAKE_TOOLCHAIN_FILE=clang-aarch64.cmake \
+          cmake -DCMAKE_TOOLCHAIN_FILE=clang-aarch64-native.cmake \
             -GNinja \
             -DCMAKE_BUILD_TYPE=Debug \
             -DCMAKE_INSTALL_PREFIX=${PWD}/install/debug \
-            -DCMAKE_CXX_FLAGS="-isystem /usr/lib/llvm-21/include/c++/v1 -isystem /usr/share/mingw-w64/include" \
-            -DCMAKE_C_FLAGS="-isystem /usr/share/mingw-w64/include" \
-            -DCMAKE_CXX_LINK_FLAGS="-L/root/llvm-mingw/aarch64-w64-mingw32/lib -L/root/llvm-mingw/lib/clang/20/lib/windows" \
-            -DCMAKE_C_LINK_FLAGS="-L/root/llvm-mingw/aarch64-w64-mingw32/lib -L/root/llvm-mingw/lib/clang/20/lib/windows" \
-            -DCMAKE_SHARED_LINKER_FLAGS="-nodefaultlibs -L/root/llvm-mingw/aarch64-w64-mingw32/lib -L/root/llvm-mingw/lib/clang/20/lib/windows" \
             -DUSE_COMPILER_RT=ON \
             -S ${SHORT_SHA} -B debug-work
 
@@ -44,15 +39,10 @@ jobs:
 
       - name: Configure RelWithDebInfo
         run: |
-          cmake -DCMAKE_TOOLCHAIN_FILE=clang-aarch64.cmake \
+          cmake -DCMAKE_TOOLCHAIN_FILE=clang-aarch64-native.cmake \
             -GNinja \
             -DCMAKE_BUILD_TYPE=RelWithDebInfo \
             -DCMAKE_INSTALL_PREFIX=${PWD}/install/release \
-            -DCMAKE_CXX_FLAGS="-isystem /usr/lib/llvm-21/include/c++/v1 -isystem /usr/share/mingw-w64/include" \
-            -DCMAKE_C_FLAGS="-isystem /usr/share/mingw-w64/include" \
-            -DCMAKE_CXX_LINK_FLAGS="-L/root/llvm-mingw/aarch64-w64-mingw32/lib -L/root/llvm-mingw/lib/clang/20/lib/windows" \
-            -DCMAKE_C_LINK_FLAGS="-L/root/llvm-mingw/aarch64-w64-mingw32/lib -L/root/llvm-mingw/lib/clang/20/lib/windows" \
-            -DCMAKE_SHARED_LINKER_FLAGS="-nodefaultlibs -L/root/llvm-mingw/aarch64-w64-mingw32/lib -L/root/llvm-mingw/lib/clang/20/lib/windows" \
             -DUSE_COMPILER_RT=ON \
             -S ${SHORT_SHA} -B release-work
 
