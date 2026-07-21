@@ -1,122 +1,31 @@
 set(CURL_GEN ${CMAKE_CURRENT_BINARY_DIR}/gen)
-file(MAKE_DIRECTORY ${CURL_GEN}/lib/curlx)
-file(MAKE_DIRECTORY ${CURL_GEN}/src/toolx)
-
-function(curl_patch relpath)
-    add_custom_command(
-        OUTPUT ${CURL_GEN}/${relpath}
-        COMMAND ${CMAKE_COMMAND} -E copy
-                ${CMAKE_CURRENT_SOURCE_DIR}/repo/${relpath} ${CURL_GEN}/${relpath}
-        COMMAND sed -z -i ${ARGN} ${CURL_GEN}/${relpath}
-        DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/repo/${relpath}
-        VERBATIM
-    )
-endfunction()
-
-curl_patch(lib/rand.c
-    -e [[s|#ifndef CURL_WINDOWS_UWP|#if !defined(CURL_WINDOWS_UWP) \&\& !defined(MOXNOX)|g]])
-
-curl_patch(lib/getenv.c
-    -e [[s|#elif defined(_WIN32)|#elif defined(_WIN32) \&\& !defined(MOXNOX)|g]])
-
-curl_patch(lib/curlx/fopen.c
-    -e [[s|#ifdef _WIN32|#if defined(_WIN32) \&\& !defined(MOXNOX)|g]])
-
-curl_patch(lib/curlx/fopen.h
-    -e [[s|#ifdef _WIN32\n#include <sys/stat.h>|#if defined(_WIN32) \&\& !defined(MOXNOX)\n#include <sys/stat.h>|g]])
-
-curl_patch(lib/curl_setup.h
-    -e [[s|#ifdef _WIN32\n#  ifdef HAVE_IO_H|#if defined(_WIN32) \&\& !defined(MOXNOX)\n#  ifdef HAVE_IO_H|g]]
-    -e [[s|#ifdef _WIN32\n#  undef read|#if defined(_WIN32) \&\& !defined(MOXNOX)\n#  undef read|g]]
-    -e [[s@#elif defined(_WIN32) || defined(__CYGWIN__)@#elif (defined(_WIN32) || defined(__CYGWIN__)) \&\& !defined(MOXNOX)@g]])
-
-curl_patch(lib/setup-win32.h
-    -e [[s|#  define USE_WINSOCK 2\n#  include <winsock2.h>\n#  include <ws2tcpip.h>|#  if defined(MOXNOX)\n#    define _WINSOCKAPI_\n#    define SOCKET int\n#    include <sys/socket.h>\n#    include <netinet/in.h>\n#    include <netdb.h>\n#  else\n#    define USE_WINSOCK 2\n#    include <winsock2.h>\n#    include <ws2tcpip.h>\n#  endif|g]])
-
-curl_patch(lib/curlx/timeval.c
-    -e [[s|{\n#ifdef _WIN32\n  if(gmtime_s|{\n#if defined(_WIN32) \&\& !defined(MOXNOX)\n  if(gmtime_s|g]])
-
-curl_patch(src/toolx/tool_time.c
-    -e [[s|{\n#ifdef _WIN32\n  if(localtime_s|{\n#if defined(_WIN32) \&\& !defined(MOXNOX)\n  if(localtime_s|g]])
-
-curl_patch(lib/curlx/version_win32.h
-    -e [[s@#ifdef CURL_WINDOWS_UWP@#if defined(CURL_WINDOWS_UWP) || defined(MOXNOX)@g]])
 
 add_custom_command(
     OUTPUT ${CURL_GEN}/include/curl/curl.h
     COMMAND ${CMAKE_COMMAND} -E copy_directory
             ${CMAKE_CURRENT_SOURCE_DIR}/repo/include/curl ${CURL_GEN}/include/curl
     COMMAND sed -z -i
-            -e [[s|#if defined(_WIN32) \&\& !defined(__LWIP_OPT_H__) \&\& !defined(LWIP_HDR_OPT_H)|#if defined(_WIN32) \&\& !defined(MOXNOX) \&\& !defined(__LWIP_OPT_H__) \&\& !defined(LWIP_HDR_OPT_H)|g]]
-            -e [[s|#if defined(_WIN32) \&\& !defined(_WIN32_WCE) \&\& !defined(__CYGWIN__)|#if defined(_WIN32) \&\& !defined(_WIN32_WCE) \&\& !defined(__CYGWIN__) \&\& !defined(MOXNOX)|g]]
-            -e [[s@#ifndef _WIN32\n#include <sys/socket.h>@#if !defined(_WIN32) || defined(MOXNOX)\n#ifdef MOXNOX\n#include <sys/select.h>\n#endif\n#include <sys/socket.h>@g]]
             -e [[s@#elif defined(_WIN32) || \\\n     (CURL_HAS_DECLSPEC_ATTRIBUTE(dllexport) && \\\n      CURL_HAS_DECLSPEC_ATTRIBUTE(dllimport))@#elif defined(_WIN32) || defined(__moxnox__) || \\\n     (CURL_HAS_DECLSPEC_ATTRIBUTE(dllexport) \&\& \\\n      CURL_HAS_DECLSPEC_ATTRIBUTE(dllimport))@g]]
             ${CURL_GEN}/include/curl/curl.h
     DEPENDS repo/include/curl/curl.h
-            repo/include/curl/curlver.h
-            repo/include/curl/easy.h
-            repo/include/curl/header.h
-            repo/include/curl/mprintf.h
-            repo/include/curl/multi.h
-            repo/include/curl/options.h
-            repo/include/curl/stdcheaders.h
-            repo/include/curl/system.h
-            repo/include/curl/typecheck-gcc.h
-            repo/include/curl/urlapi.h
-            repo/include/curl/websockets.h
     VERBATIM
 )
-
-file(MAKE_DIRECTORY "${CURL_GEN}/src")
-curl_patch(src/tool_dirhie.c
-    -e [[s|#ifdef _WIN32\n#  include <direct.h>|#if defined(_WIN32) \&\& !defined(MOXNOX)\n#  include <direct.h>|g]])
-
-curl_patch(src/tool_filetime.c
-    -e [[s|#if defined(_WIN32) \&\& !defined(CURL_WINDOWS_UWP)|#if defined(_WIN32) \&\& !defined(CURL_WINDOWS_UWP) \&\& !defined(MOXNOX)|g]])
-
-curl_patch(src/terminal.c
-    -e [[s|#elif defined(_WIN32) \&\& !defined(CURL_WINDOWS_UWP)|#elif defined(_WIN32) \&\& !defined(CURL_WINDOWS_UWP) \&\& !defined(MOXNOX)|g]])
-
-curl_patch(src/tool_cb_wrt.c
-    -e [[s|#ifdef _WIN32\nstatic size_t win_console(|#if defined(_WIN32) \&\& !defined(MOXNOX)\nstatic size_t win_console(|g]]
-    -e [[s|#ifdef _WIN32\n  CONSOLE_SCREEN_BUFFER_INFO|#if defined(_WIN32) \&\& !defined(MOXNOX)\n  CONSOLE_SCREEN_BUFFER_INFO|g]]
-    -e [[s|#ifdef _WIN32\n  fhnd = _get_osfhandle(|#if defined(_WIN32) \&\& !defined(MOXNOX)\n  fhnd = _get_osfhandle(|g]])
-
-curl_patch(src/tool_doswin.c
-    -e [[s|!defined(CURL_CA_SEARCH_SAFE)|!defined(CURL_CA_SEARCH_SAFE) \&\& !defined(MOXNOX)|g]]
-    -e [[s|#ifndef CURL_WINDOWS_UWP|#if !defined(CURL_WINDOWS_UWP) \&\& !defined(MOXNOX)|g]]
-    -e [[s|#endif /\* !CURL_WINDOWS_UWP \*/|#endif /* !CURL_WINDOWS_UWP \&\& !MOXNOX */|g]])
-
-curl_patch(src/tool_util.c
-    -e [[s|#ifdef _WIN32|#if defined(_WIN32) \&\& !defined(MOXNOX)|g]])
-
-curl_patch(src/tool_getpass.c
-    -e [[s|#ifdef _WIN32|#if defined(_WIN32) \&\& !defined(MOXNOX)|g]])
-
-curl_patch(src/tool_operate.c
-    -e [[s|#elif !defined(CURL_WINDOWS_UWP) \&\& !defined(CURL_DISABLE_CA_SEARCH)|#elif !defined(CURL_WINDOWS_UWP) \&\& !defined(CURL_DISABLE_CA_SEARCH) \&\& !defined(MOXNOX)|g]])
-
-curl_patch(src/tool_parsecfg.c
-    -e [[s|#ifdef _WIN32\n    else {|#if defined(_WIN32) \&\& !defined(MOXNOX)\n    else {|g]])
-
-curl_patch(lib/curlx/strerr.c
-    -e [[s|#ifdef _WIN32|#if defined(_WIN32) \&\& !defined(MOXNOX)|g]])
 
 add_library(libcurl SHARED
     repo/lib/curlx/base64.c
     repo/lib/curlx/basename.c
     repo/lib/curlx/dynbuf.c
-    ${CURL_GEN}/lib/curlx/fopen.c
+    repo/lib/curlx/fopen.c
     repo/lib/curlx/inet_ntop.c
     repo/lib/curlx/inet_pton.c
     repo/lib/curlx/nonblock.c
     repo/lib/curlx/snprintf.c
     repo/lib/curlx/strcopy.c
     repo/lib/curlx/strdup.c
-    ${CURL_GEN}/lib/curlx/strerr.c
+    repo/lib/curlx/strerr.c
     repo/lib/curlx/strparse.c
     repo/lib/curlx/timediff.c
-    ${CURL_GEN}/lib/curlx/timeval.c
+    repo/lib/curlx/timeval.c
     repo/lib/curlx/wait.c
     repo/lib/curlx/warnless.c
     repo/lib/vauth/cleartext.c
@@ -205,7 +114,7 @@ add_library(libcurl SHARED
     repo/lib/formdata.c
     repo/lib/ftp.c
     repo/lib/ftplistparser.c
-    ${CURL_GEN}/lib/getenv.c
+    repo/lib/getenv.c
     repo/lib/getinfo.c
     repo/lib/gopher.c
     repo/lib/hash.c
@@ -248,7 +157,7 @@ add_library(libcurl SHARED
     repo/lib/pop3.c
     repo/lib/progress.c
     repo/lib/psl.c
-    ${CURL_GEN}/lib/rand.c
+    repo/lib/rand.c
     repo/lib/ratelimit.c
     repo/lib/request.c
     repo/lib/rtsp.c
@@ -301,10 +210,6 @@ target_compile_options(libcurl PRIVATE
     -Wno-type-limits
     -Wno-unused-parameter
     "SHELL:-include ${CMAKE_SOURCE_DIR}/include/sys/select.h"
-    "SHELL:-include ${CURL_GEN}/lib/curl_setup.h"
-    "SHELL:-include ${CURL_GEN}/lib/setup-win32.h"
-    "SHELL:-include ${CURL_GEN}/lib/curlx/version_win32.h"
-    "SHELL:-include ${CURL_GEN}/lib/curlx/fopen.h"
 )
 
 install(TARGETS libcurl DESTINATION ${CMAKE_INSTALL_PREFIX}/lib
@@ -314,23 +219,23 @@ install(TARGETS libcurl DESTINATION ${CMAKE_INSTALL_PREFIX}/lib
 add_executable(curl_exe
     repo/src/config2setopts.c
     repo/src/slist_wc.c
-    ${CURL_GEN}/src/terminal.c
+    repo/src/terminal.c
     repo/src/tool_cb_dbg.c
     repo/src/tool_cb_hdr.c
     repo/src/tool_cb_prg.c
     repo/src/tool_cb_rea.c
     repo/src/tool_cb_see.c
     repo/src/tool_cb_soc.c
-    ${CURL_GEN}/src/tool_cb_wrt.c
+    repo/src/tool_cb_wrt.c
     repo/src/tool_cfgable.c
-    ${CURL_GEN}/src/tool_dirhie.c
-    ${CURL_GEN}/src/tool_doswin.c
+    repo/src/tool_dirhie.c
+    repo/src/tool_doswin.c
     repo/src/tool_easysrc.c
-    ${CURL_GEN}/src/tool_filetime.c
+    repo/src/tool_filetime.c
     repo/src/tool_findfile.c
     repo/src/tool_formparse.c
     repo/src/tool_getparam.c
-    ${CURL_GEN}/src/tool_getpass.c
+    repo/src/tool_getpass.c
     repo/src/tool_help.c
     repo/src/tool_helpers.c
     repo/src/tool_ipfs.c
@@ -338,31 +243,31 @@ add_executable(curl_exe
     repo/src/tool_listhelp.c
     repo/src/tool_main.c
     repo/src/tool_msgs.c
-    ${CURL_GEN}/src/tool_operate.c
+    repo/src/tool_operate.c
     repo/src/tool_operhlp.c
     repo/src/tool_paramhlp.c
-    ${CURL_GEN}/src/tool_parsecfg.c
+    repo/src/tool_parsecfg.c
     repo/src/tool_progress.c
     repo/src/tool_setopt.c
     repo/src/tool_ssls.c
     repo/src/tool_stderr.c
     repo/src/tool_urlglob.c
-    ${CURL_GEN}/src/tool_util.c
+    repo/src/tool_util.c
     repo/src/tool_writeout.c
     repo/src/tool_writeout_json.c
     repo/src/var.c
-    ${CURL_GEN}/src/toolx/tool_time.c
+    repo/src/toolx/tool_time.c
     repo/lib/curlx/base64.c
     repo/lib/curlx/basename.c
     repo/lib/curlx/dynbuf.c
-    ${CURL_GEN}/lib/curlx/fopen.c
+    repo/lib/curlx/fopen.c
     repo/lib/curlx/nonblock.c
     repo/lib/curlx/strcopy.c
     repo/lib/curlx/strdup.c
-    ${CURL_GEN}/lib/curlx/strerr.c
+    repo/lib/curlx/strerr.c
     repo/lib/curlx/strparse.c
     repo/lib/curlx/timediff.c
-    ${CURL_GEN}/lib/curlx/timeval.c
+    repo/lib/curlx/timeval.c
     repo/lib/curlx/wait.c
     repo/lib/curlx/warnless.c
     ${CMAKE_CURRENT_SOURCE_DIR}/moxnox_fopen_compat.c
@@ -381,10 +286,6 @@ target_compile_options(curl_exe PRIVATE
     -Wno-sign-conversion
     -Wno-shorten-64-to-32
     "SHELL:-include ${CMAKE_SOURCE_DIR}/include/sys/select.h"
-    "SHELL:-include ${CURL_GEN}/lib/curl_setup.h"
-    "SHELL:-include ${CURL_GEN}/lib/setup-win32.h"
-    "SHELL:-include ${CURL_GEN}/lib/curlx/version_win32.h"
-    "SHELL:-include ${CURL_GEN}/lib/curlx/fopen.h"
 )
 
 set_target_properties(curl_exe PROPERTIES OUTPUT_NAME curl)
@@ -394,10 +295,6 @@ target_link_libraries(curl_exe PRIVATE libcurl moxnox)
 install(TARGETS curl_exe DESTINATION ${CMAKE_INSTALL_PREFIX}/bin)
 
 add_custom_target(curl_gen_headers DEPENDS
-    ${CURL_GEN}/lib/setup-win32.h
-    ${CURL_GEN}/lib/curlx/version_win32.h
-    ${CURL_GEN}/lib/curl_setup.h
-    ${CURL_GEN}/lib/curlx/fopen.h
     ${CURL_GEN}/include/curl/curl.h)
 add_dependencies(libcurl curl_gen_headers)
 add_dependencies(curl_exe curl_gen_headers)
