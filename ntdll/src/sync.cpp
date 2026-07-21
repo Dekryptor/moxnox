@@ -232,3 +232,10 @@ void RtlAcquireSRWLockShared(RTL_SRWLOCK* lock) {
 #endif
     }
 }
+
+extern "C"
+void RtlReleaseSRWLockShared(RTL_SRWLOCK* lock) {
+    atomic_ref<uintptr_t> l(*(uintptr_t*)&lock->Ptr);
+
+    l.fetch_sub(2, memory_order_release);
+}

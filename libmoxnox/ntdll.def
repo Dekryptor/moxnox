@@ -475,10 +475,10 @@ RtlSecureZeroMemory
 RtlRandom
 mn_allocate_aligned
 RtlAcquireSRWLockShared
+RtlReleaseSRWLockShared
 
 ; stubs
 RtlTryEnterCriticalSection
 RtlAddVectoredExceptionHandler
 RtlRestoreContext
-RtlReleaseSRWLockShared
 RtlTryAcquireSRWLockShared
