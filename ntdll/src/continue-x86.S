@@ -197,6 +197,7 @@ RtlRaiseException:
     # FIXME - different if Peb->BeingDebugged set?
 
     call mn_signal
+    nop
 RtlRaiseException_end:
 .seh_endproc
 
