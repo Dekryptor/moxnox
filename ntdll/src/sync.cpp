@@ -210,3 +210,25 @@ bool RtlTryAcquireSRWLockExclusive(RTL_SRWLOCK* lock) {
     return l.compare_exchange_strong(expected, 1, memory_order_acquire,
                                      memory_order_relaxed);
 }
+
+extern "C"
+void RtlAcquireSRWLockShared(RTL_SRWLOCK* lock) {
+    atomic_ref<uintptr_t> l(*(uintptr_t*)&lock->Ptr);
+
+    while (true) {
+        uintptr_t val = l.load(memory_order_relaxed);
+
+        if (!(val & 1)) {
+            if (l.compare_exchange_weak(val, val + 2, memory_order_acquire,
+                                        memory_order_relaxed)) {
+                return;
+            }
+        }
+
+        // FIXME - NtYieldExecution?
+
+#ifdef __x86_64__
+        __asm __volatile ("pause");
+#endif
+    }
+}

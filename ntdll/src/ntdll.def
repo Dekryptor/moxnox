@@ -78,3 +78,4 @@ LdrLoadDll
 RtlSecureZeroMemory
 RtlRandom
 mn_allocate_aligned
+RtlAcquireSRWLockShared
