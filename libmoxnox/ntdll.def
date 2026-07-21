@@ -479,3 +479,6 @@ mn_allocate_aligned
 RtlTryEnterCriticalSection
 RtlAddVectoredExceptionHandler
 RtlRestoreContext
+RtlAcquireSRWLockShared
+RtlReleaseSRWLockShared
+RtlTryAcquireSRWLockShared

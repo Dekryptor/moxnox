@@ -478,6 +478,9 @@ nt_status LdrLoadDll(const char16_t* dll_path, uint32_t* dll_characteristics,
 void* RtlSecureZeroMemory(void* ptr, size_t count);
 uint32_t RtlRandom(uint32_t* seed);
 void* mn_allocate_aligned(void* heap_handle, size_t alignment, size_t size);
+void RtlAcquireSRWLockShared(RTL_SRWLOCK* lock);
+void RtlReleaseSRWLockShared(RTL_SRWLOCK* lock);
+bool RtlTryAcquireSRWLockShared(RTL_SRWLOCK* lock);
 
 }
 
