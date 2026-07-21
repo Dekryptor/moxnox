@@ -1,32 +1,3 @@
-file(READ repo/src/cairo-compiler-private.h CAIRO_COMPILER_PRIVATE_SRC)
-string(REPLACE
-    "#if (defined(__WIN32__) && !defined(__WINE__)) || defined(_MSC_VER)"
-    "#if (defined(__WIN32__) && !defined(__WINE__) && !defined(MOXNOX)) || defined(_MSC_VER)"
-    CAIRO_COMPILER_PRIVATE_SRC "${CAIRO_COMPILER_PRIVATE_SRC}")
-file(CONFIGURE OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/cairo-compiler-private.h CONTENT "${CAIRO_COMPILER_PRIVATE_SRC}" @ONLY)
-
-file(READ repo/src/cairo-misc.c CAIRO_MISC_SRC)
-string(REPLACE
-    "#ifdef _WIN32\n#include <windows.h>"
-    "#if defined(_WIN32) && !defined(MOXNOX)\n#include <windows.h>"
-    CAIRO_MISC_SRC "${CAIRO_MISC_SRC}")
-string(REPLACE
-    "#ifdef _WIN32\n    return _cairo_win32_tmpfile ();"
-    "#if defined(_WIN32) && !defined(MOXNOX)\n    return _cairo_win32_tmpfile ();"
-    CAIRO_MISC_SRC "${CAIRO_MISC_SRC}")
-string(REPLACE
-    "#ifdef _WIN32 /* also defined on x86_64 */"
-    "#if defined(_WIN32) && !defined(MOXNOX) /* also defined on x86_64 */"
-    CAIRO_MISC_SRC "${CAIRO_MISC_SRC}")
-file(CONFIGURE OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/cairo-misc.c CONTENT "${CAIRO_MISC_SRC}" @ONLY)
-
-file(READ repo/src/cairo-colr-glyph-render.c CAIRO_COLR_GLYPH_RENDER_SRC)
-string(REPLACE
-    "#ifdef _MSC_VER\n#include <malloc.h>"
-    "#if defined(_MSC_VER) || defined(_WIN32)\n#include <malloc.h>"
-    CAIRO_COLR_GLYPH_RENDER_SRC "${CAIRO_COLR_GLYPH_RENDER_SRC}")
-file(CONFIGURE OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/cairo-colr-glyph-render.c CONTENT "${CAIRO_COLR_GLYPH_RENDER_SRC}" @ONLY)
-
 add_library(cairo SHARED
     repo/src/cairo-analysis-surface.c
     repo/src/cairo-arc.c
@@ -77,7 +48,7 @@ add_library(cairo SHARED
     repo/src/cairo-matrix.c
     repo/src/cairo-mempool.c
     repo/src/cairo-mesh-pattern-rasterizer.c
-    ${CMAKE_CURRENT_BINARY_DIR}/cairo-misc.c
+    repo/src/cairo-misc.c
     repo/src/cairo-mono-scan-converter.c
     repo/src/cairo-mutex.c
     repo/src/cairo-no-compositor.c
@@ -147,7 +118,7 @@ add_library(cairo SHARED
     repo/src/cairo-deflate-stream.c
     repo/src/cairo-png.c
     repo/src/cairo-ft-font.c
-    ${CMAKE_CURRENT_BINARY_DIR}/cairo-colr-glyph-render.c
+    repo/src/cairo-colr-glyph-render.c
     repo/src/cairo-svg-glyph-render.c
     repo/src/cairo-ps-surface.c
     repo/src/cairo-pdf-surface.c
@@ -160,7 +131,7 @@ target_sources(cairo PUBLIC FILE_SET CXX_MODULES FILES cairo.cpp)
 
 target_compile_definitions(cairo PRIVATE CAIRO_COMPILATION HAVE_CONFIG_H)
 
-target_compile_options(cairo PRIVATE ${USERSPACE_CFLAGS} $<$<COMPILE_LANGUAGE:C>:-include ${CMAKE_CURRENT_BINARY_DIR}/cairo-compiler-private.h>)
+target_compile_options(cairo PRIVATE ${USERSPACE_CFLAGS})
 target_compile_options(cairo PRIVATE -Wno-float-conversion -Wno-enum-conversion -Wno-unused-parameter -Wno-sign-conversion -Wno-conversion -Wno-unused-but-set-variable -Wno-missing-field-initializers -Wno-unused-variable $<$<COMPILE_LANGUAGE:C>:-Wno-unterminated-string-initialization> -Wno-unused-function -Wno-return-type -Wno-array-bounds $<$<C_COMPILER_ID:GNU>:-Wno-maybe-uninitialized -Wno-alloc-size-larger-than -Wno-stringop-overflow> -Wno-missing-braces)
 target_compile_options(cairo PRIVATE $<$<COMPILE_LANGUAGE:CXX>:-fno-exceptions>)
 
