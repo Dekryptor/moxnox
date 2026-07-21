@@ -184,7 +184,9 @@ static mapping* find_mapping(process& proc, uint64_t address) {
         auto& m = containing_record<mapping>(le);
 
         if (m.address <= address && m.address + m.size > address) {
-            m.acquire();
+            if (!m.try_acquire())
+                continue;
+
             return &m;
         } else if (m.address > address)
             break;
