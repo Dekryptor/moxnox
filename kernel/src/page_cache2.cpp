@@ -39,14 +39,17 @@ nt_status flush_mappings(list_entry& mappings, spinlock& mappings_lock, uint64_t
             if (mapping_last_page < page_num || mapping_first_page >= page_num + num_pages)
                 continue;
 
+            if (!m.try_acquire())
+                continue;
+
             auto ml = new mapping_list;
             if (!ml) {
                 print("new failed\n");
+                m.release();
                 return nt_status::INSUFFICIENT_RESOURCES;
             }
 
             ml->m = &m;
-            m.acquire();
 
             insert_tail_list(list, ml->le);
         }

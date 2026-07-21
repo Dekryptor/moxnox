@@ -5,6 +5,7 @@ module;
 #include <variant>
 #include <span>
 #include <algorithm>
+#include <atomic>
 
 module mapping;
 
@@ -575,4 +576,18 @@ void mapping::clear_write_bit(uint64_t page_num, uint64_t num_pages) {
 
     // send IPIs to invalidate TLBs on other processors
     send_page_tlb_ipi(proc, va, num_pages);
+}
+
+bool mapping::try_acquire() {
+    auto expected = refcount.load(memory_order_relaxed);
+
+    while (expected != 0) {
+        if (refcount.compare_exchange_weak(expected, expected + 1,
+                                           memory_order_acquire,
+                                           memory_order_relaxed)) {
+            return true;
+        }
+    }
+
+    return false;
 }
