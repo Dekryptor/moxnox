@@ -147,3 +147,4 @@ pthread_rwlock_wrlock
 pthread_rwlock_unlock
 posix_memalign
 getrlimit
+strsignal

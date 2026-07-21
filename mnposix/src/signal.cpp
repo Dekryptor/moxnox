@@ -13,6 +13,8 @@ import errno;
 
 static const int LAST_SIG = SIGTTOU;
 
+static char signal_string[10];
+
 // ucrtbase
 extern "C" int mn_sigaction(int signum, const struct sigaction* act,
                             struct sigaction* oldact);
@@ -228,4 +230,111 @@ int pause() {
 
     *_errno() = EINTR;
     return -1;
+}
+
+extern "C"
+char* strsignal(int sig) {
+    switch (sig) {
+        case SIGHUP:
+            strcpy(signal_string, "SIGHUP");
+            break;
+        case SIGINT:
+            strcpy(signal_string, "SIGINT");
+            break;
+        case SIGQUIT:
+            strcpy(signal_string, "SIGQUIT");
+            break;
+        case SIGILL:
+            strcpy(signal_string, "SIGILL");
+            break;
+        case SIGTRAP:
+            strcpy(signal_string, "SIGTRAP");
+            break;
+        case SIGIOT:
+            strcpy(signal_string, "SIGIOT");
+            break;
+        case SIGEMT:
+            strcpy(signal_string, "SIGEMT");
+            break;
+        case SIGFPE:
+            strcpy(signal_string, "SIGFPE");
+            break;
+        case SIGKILL:
+            strcpy(signal_string, "SIGKILL");
+            break;
+        case SIGBUS:
+            strcpy(signal_string, "SIGBUS");
+            break;
+        case SIGSEGV:
+            strcpy(signal_string, "SIGSEGV");
+            break;
+        case SIGSYS:
+            strcpy(signal_string, "SIGSYS");
+            break;
+        case SIGPIPE:
+            strcpy(signal_string, "SIGPIPE");
+            break;
+        case SIGALRM:
+            strcpy(signal_string, "SIGALRM");
+            break;
+        case SIGTERM:
+            strcpy(signal_string, "SIGTERM");
+            break;
+        case SIGPOLL:
+            strcpy(signal_string, "SIGPOLL");
+            break;
+        case SIGCHLD:
+            strcpy(signal_string, "SIGCHLD");
+            break;
+        case SIGCONT:
+            strcpy(signal_string, "SIGCONT");
+            break;
+        case SIGSTOP:
+            strcpy(signal_string, "SIGSTOP");
+            break;
+        case SIGTSTP:
+            strcpy(signal_string, "SIGTSTP");
+            break;
+        case SIGBREAK:
+            strcpy(signal_string, "SIGBREAK");
+            break;
+        case SIGABRT:
+            strcpy(signal_string, "SIGABRT");
+            break;
+        case SIGURG:
+            strcpy(signal_string, "SIGURG");
+            break;
+        case SIGXCPU:
+            strcpy(signal_string, "SIGXCPU");
+            break;
+        case SIGXFSZ:
+            strcpy(signal_string, "SIGXFSZ");
+            break;
+        case SIGVTALRM:
+            strcpy(signal_string, "SIGVTALRM");
+            break;
+        case SIGPROF:
+            strcpy(signal_string, "SIGPROF");
+            break;
+        case SIGWINCH:
+            strcpy(signal_string, "SIGWINCH");
+            break;
+        case SIGUSR1:
+            strcpy(signal_string, "SIGUSR1");
+            break;
+        case SIGUSR2:
+            strcpy(signal_string, "SIGUSR2");
+            break;
+        case SIGTTIN:
+            strcpy(signal_string, "SIGTTIN");
+            break;
+        case SIGTTOU:
+            strcpy(signal_string, "SIGTTOU");
+            break;
+        default:
+            strcpy(signal_string, "?");
+            break;
+    }
+
+    return signal_string;
 }

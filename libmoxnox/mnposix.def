@@ -147,6 +147,7 @@ pthread_rwlock_unlock
 posix_memalign
 getrlimit
 aligned_alloc
+strsignal
 
 ; stubs
 fchown
@@ -180,7 +181,6 @@ memmem
 lchown
 getgroups
 strerror_r
-strsignal
 fstatvfs
 posix_spawnattr_setflags
 posix_spawnattr_setsigdefault
