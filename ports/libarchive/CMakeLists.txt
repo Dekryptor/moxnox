@@ -2,95 +2,10 @@ set(GEN ${CMAKE_CURRENT_BINARY_DIR}/gen)
 file(MAKE_DIRECTORY ${GEN}/libarchive ${GEN}/tar ${GEN}/libarchive_fe ${GEN}/cpio)
 
 add_custom_command(
-    OUTPUT ${GEN}/libarchive/archive_platform.h
-    COMMAND ${CMAKE_COMMAND} -E copy
-            ${CMAKE_CURRENT_SOURCE_DIR}/repo/libarchive/archive_platform.h ${GEN}/libarchive/archive_platform.h
-    COMMAND sed -i
-            -e [[s@(defined(__WIN32__) || defined(_WIN32) || defined(__WIN32)) \&\& !defined(__CYGWIN__)@(defined(__WIN32__) || defined(_WIN32) || defined(__WIN32)) \&\& !defined(__CYGWIN__) \&\& !defined(MOXNOX)@g]]
-            -e [[s@#include "config.h"@#include "config.h"\n#ifdef MOXNOX\n#include <unistd.h>\n#endif@]]
-            ${GEN}/libarchive/archive_platform.h
-    DEPENDS repo/libarchive/archive_platform.h
-    VERBATIM
-)
-
-add_custom_command(
-    OUTPUT ${GEN}/tar/bsdtar_platform.h
-    COMMAND ${CMAKE_COMMAND} -E copy
-            ${CMAKE_CURRENT_SOURCE_DIR}/repo/tar/bsdtar_platform.h ${GEN}/tar/bsdtar_platform.h
-    COMMAND sed -i [[s@defined(_WIN32) \&\& !defined(__CYGWIN__)@defined(_WIN32) \&\& !defined(__CYGWIN__) \&\& !defined(MOXNOX)@g]]
-            ${GEN}/tar/bsdtar_platform.h
-    DEPENDS repo/tar/bsdtar_platform.h
-    VERBATIM
-)
-
-function(la_win32_patch relpath)
-    add_custom_command(
-        OUTPUT ${GEN}/${relpath}
-        COMMAND ${CMAKE_COMMAND} -E copy ${CMAKE_CURRENT_SOURCE_DIR}/repo/${relpath} ${GEN}/${relpath}
-        COMMAND sed -i
-            -e [[s@if defined(_WIN32) && !defined(__CYGWIN__)@if defined(_WIN32) \&\& !defined(__CYGWIN__) \&\& !defined(MOXNOX)@g]]
-            -e [[s@if defined(_WIN32) || defined(__CYGWIN__)@if (defined(_WIN32) || defined(__CYGWIN__)) \&\& !defined(MOXNOX)@g]]
-            -e [[s@if defined(__CYGWIN__) || defined(_WIN32)@if (defined(__CYGWIN__) || defined(_WIN32)) \&\& !defined(MOXNOX)@g]]
-            -e [[s@!defined(_WIN32) || defined(__CYGWIN__)@!defined(_WIN32) || defined(__CYGWIN__) || defined(MOXNOX)@g]]
-            -e [[s@!defined(_WIN32) && !defined(__CYGWIN__)@(!defined(_WIN32) \&\& !defined(__CYGWIN__)) || defined(MOXNOX)@g]]
-            -e [[s@!defined(__CYGWIN__) && defined(_WIN32_WINNT)@!defined(__CYGWIN__) \&\& !defined(MOXNOX) \&\& defined(_WIN32_WINNT)@g]]
-            ${ARGN}
-            ${GEN}/${relpath}
-        DEPENDS repo/${relpath}
-        VERBATIM
-    )
-endfunction()
-
-set(LA_WIN32_PATCHED
-    libarchive/archive_private.h
-    libarchive/archive_platform_stat.h
-    libarchive/archive_match.c
-    libarchive/archive_read_disk_entry_from_file.c
-    libarchive/archive_read_disk_posix.c
-    libarchive/archive_write_set_format_7zip.c
-    libarchive/archive_write_disk_posix.c
-    libarchive/archive_string.c
-    libarchive/archive_write_add_filter_zstd.c
-    libarchive/archive_write_set_format_warc.c
-    libarchive/archive_random.c
-    libarchive/archive_read_open_fd.c
-    libarchive/archive_read_open_file.c
-    libarchive/archive_read_open_filename.c
-    libarchive/archive_read_support_format_mtree.c
-    libarchive/archive_util.c
-    libarchive/archive_write_open_fd.c
-    libarchive/archive_write_open_filename.c
-    libarchive/archive_write_set_format_cpio_binary.c
-    libarchive/archive_write_set_format_cpio_newc.c
-    libarchive/archive_write_set_format_cpio_odc.c
-    libarchive/archive_write_set_format_gnutar.c
-    libarchive/archive_write_set_format_iso9660.c
-    libarchive/archive_write_set_format_pax.c
-    libarchive/archive_write_set_format_ustar.c
-    libarchive/archive_write_set_format_v7tar.c
-    libarchive/archive_write_set_format_zip.c
-    tar/read.c
-    tar/write.c
-    tar/util.c
-    libarchive_fe/passphrase.c
-    tar/bsdtar.c
-    cpio/cpio_platform.h
-)
-
-set(LA_GEN_OUTPUTS
-    ${GEN}/libarchive/archive_platform.h
-    ${GEN}/tar/bsdtar_platform.h)
-foreach(f ${LA_WIN32_PATCHED})
-    la_win32_patch(${f})
-    list(APPEND LA_GEN_OUTPUTS ${GEN}/${f})
-endforeach()
-
-add_custom_command(
     OUTPUT ${GEN}/libarchive/archive.h
     COMMAND ${CMAKE_COMMAND} -E copy ${CMAKE_CURRENT_SOURCE_DIR}/repo/libarchive/archive.h ${GEN}/libarchive/archive.h
     COMMAND sed -i
         -e [[s@#if ((defined __WIN32__) || (defined _WIN32) || defined(__CYGWIN__)) && (!defined LIBARCHIVE_STATIC)@#if ((defined __WIN32__) || (defined _WIN32) || defined(__CYGWIN__) || defined(__moxnox__)) \&\& (!defined LIBARCHIVE_STATIC)@g]]
-        -e [[s@#if defined(_WIN32) && !defined(__CYGWIN__)@#if defined(_WIN32) \&\& !defined(__CYGWIN__) \&\& !defined(MOXNOX)@g]]
         ${GEN}/libarchive/archive.h
     DEPENDS repo/libarchive/archive.h
     VERBATIM
@@ -108,13 +23,20 @@ add_custom_command(
 )
 list(APPEND LA_GEN_OUTPUTS ${GEN}/libarchive/archive_entry.h)
 
-la_win32_patch(cpio/cpio.c
-    -e [[s@archive_write_add_filter_bzip2(cpio->archive)@(ARCHIVE_FATAL)@g]]
-    -e [[s@archive_write_add_filter_lz4(cpio->archive)@(ARCHIVE_FATAL)@g]]
-    -e [[s@archive_write_add_filter_lzop(cpio->archive)@(ARCHIVE_FATAL)@g]]
-    -e [[s@archive_write_add_filter_lrzip(cpio->archive)@(ARCHIVE_FATAL)@g]]
-    -e [[s@archive_write_add_filter_grzip(cpio->archive)@(ARCHIVE_FATAL)@g]]
+add_custom_command(
+    OUTPUT ${GEN}/cpio/cpio.c
+    COMMAND ${CMAKE_COMMAND} -E copy ${CMAKE_CURRENT_SOURCE_DIR}/repo/cpio/cpio.c ${GEN}/cpio/cpio.c
+    COMMAND sed -i
+        -e [[s@archive_write_add_filter_bzip2(cpio->archive)@(ARCHIVE_FATAL)@g]]
+        -e [[s@archive_write_add_filter_lz4(cpio->archive)@(ARCHIVE_FATAL)@g]]
+        -e [[s@archive_write_add_filter_lzop(cpio->archive)@(ARCHIVE_FATAL)@g]]
+        -e [[s@archive_write_add_filter_lrzip(cpio->archive)@(ARCHIVE_FATAL)@g]]
+        -e [[s@archive_write_add_filter_grzip(cpio->archive)@(ARCHIVE_FATAL)@g]]
+        ${GEN}/cpio/cpio.c
+    DEPENDS repo/cpio/cpio.c
+    VERBATIM
 )
+
 list(APPEND LA_GEN_OUTPUTS ${GEN}/cpio/cpio.c)
 
 add_custom_command(
@@ -220,26 +142,26 @@ add_library(archive SHARED
     repo/libarchive/archive_entry_strmode.c
     repo/libarchive/archive_entry_xattr.c
     repo/libarchive/archive_hmac.c
-    ${GEN}/libarchive/archive_match.c
+    repo/libarchive/archive_match.c
     repo/libarchive/archive_options.c
     repo/libarchive/archive_pack_dev.c
     repo/libarchive/archive_parse_date.c
     repo/libarchive/archive_pathmatch.c
     repo/libarchive/archive_ppmd7.c
     repo/libarchive/archive_ppmd8.c
-    ${GEN}/libarchive/archive_random.c
+    repo/libarchive/archive_random.c
     repo/libarchive/archive_rb.c
     repo/libarchive/archive_read_add_passphrase.c
     repo/libarchive/archive_read.c
     repo/libarchive/archive_read_data_into_fd.c
-    ${GEN}/libarchive/archive_read_disk_entry_from_file.c
-    ${GEN}/libarchive/archive_read_disk_posix.c
+    repo/libarchive/archive_read_disk_entry_from_file.c
+    repo/libarchive/archive_read_disk_posix.c
     repo/libarchive/archive_read_disk_set_standard_lookup.c
     repo/libarchive/archive_read_extract2.c
     repo/libarchive/archive_read_extract.c
-    ${GEN}/libarchive/archive_read_open_fd.c
-    ${GEN}/libarchive/archive_read_open_file.c
-    ${GEN}/libarchive/archive_read_open_filename.c
+    repo/libarchive/archive_read_open_fd.c
+    repo/libarchive/archive_read_open_file.c
+    repo/libarchive/archive_read_open_filename.c
     repo/libarchive/archive_read_open_memory.c
     repo/libarchive/archive_read_set_format.c
     repo/libarchive/archive_read_set_options.c
@@ -260,7 +182,7 @@ add_library(archive SHARED
     repo/libarchive/archive_read_support_format_empty.c
     repo/libarchive/archive_read_support_format_iso9660.c
     repo/libarchive/archive_read_support_format_lha.c
-    ${GEN}/libarchive/archive_read_support_format_mtree.c
+    repo/libarchive/archive_read_support_format_mtree.c
     repo/libarchive/archive_read_support_format_rar5.c
     repo/libarchive/archive_read_support_format_rar.c
     repo/libarchive/archive_read_support_format_raw.c
@@ -268,10 +190,10 @@ add_library(archive SHARED
     repo/libarchive/archive_read_support_format_warc.c
     repo/libarchive/archive_read_support_format_xar.c
     repo/libarchive/archive_read_support_format_zip.c
-    ${GEN}/libarchive/archive_string.c
+    repo/libarchive/archive_string.c
     repo/libarchive/archive_string_sprintf.c
     repo/libarchive/archive_time.c
-    ${GEN}/libarchive/archive_util.c
+    repo/libarchive/archive_util.c
     repo/libarchive/archive_version_details.c
     repo/libarchive/archive_virtual.c
     repo/libarchive/archive_write_add_filter_b64encode.c
@@ -282,34 +204,34 @@ add_library(archive SHARED
     repo/libarchive/archive_write_add_filter_none.c
     repo/libarchive/archive_write_add_filter_uuencode.c
     repo/libarchive/archive_write_add_filter_xz.c
-    ${GEN}/libarchive/archive_write_add_filter_zstd.c
+    repo/libarchive/archive_write_add_filter_zstd.c
     repo/libarchive/archive_write.c
-    ${GEN}/libarchive/archive_write_disk_posix.c
+    repo/libarchive/archive_write_disk_posix.c
     repo/libarchive/archive_write_disk_set_standard_lookup.c
-    ${GEN}/libarchive/archive_write_open_fd.c
+    repo/libarchive/archive_write_open_fd.c
     repo/libarchive/archive_write_open_file.c
-    ${GEN}/libarchive/archive_write_open_filename.c
+    repo/libarchive/archive_write_open_filename.c
     repo/libarchive/archive_write_open_memory.c
-    ${GEN}/libarchive/archive_write_set_format_7zip.c
+    repo/libarchive/archive_write_set_format_7zip.c
     repo/libarchive/archive_write_set_format_ar.c
     repo/libarchive/archive_write_set_format_by_name.c
     repo/libarchive/archive_write_set_format.c
-    ${GEN}/libarchive/archive_write_set_format_cpio_binary.c
+    repo/libarchive/archive_write_set_format_cpio_binary.c
     repo/libarchive/archive_write_set_format_cpio.c
-    ${GEN}/libarchive/archive_write_set_format_cpio_newc.c
-    ${GEN}/libarchive/archive_write_set_format_cpio_odc.c
+    repo/libarchive/archive_write_set_format_cpio_newc.c
+    repo/libarchive/archive_write_set_format_cpio_odc.c
     ${GEN}/libarchive/archive_write_set_format_filter_by_ext.c
-    ${GEN}/libarchive/archive_write_set_format_gnutar.c
-    ${GEN}/libarchive/archive_write_set_format_iso9660.c
+    repo/libarchive/archive_write_set_format_gnutar.c
+    repo/libarchive/archive_write_set_format_iso9660.c
     repo/libarchive/archive_write_set_format_mtree.c
-    ${GEN}/libarchive/archive_write_set_format_pax.c
+    repo/libarchive/archive_write_set_format_pax.c
     repo/libarchive/archive_write_set_format_raw.c
     repo/libarchive/archive_write_set_format_shar.c
-    ${GEN}/libarchive/archive_write_set_format_ustar.c
-    ${GEN}/libarchive/archive_write_set_format_v7tar.c
-    ${GEN}/libarchive/archive_write_set_format_warc.c
+    repo/libarchive/archive_write_set_format_ustar.c
+    repo/libarchive/archive_write_set_format_v7tar.c
+    repo/libarchive/archive_write_set_format_warc.c
     repo/libarchive/archive_write_set_format_xar.c
-    ${GEN}/libarchive/archive_write_set_format_zip.c
+    repo/libarchive/archive_write_set_format_zip.c
     repo/libarchive/archive_write_set_options.c
     repo/libarchive/archive_write_set_passphrase.c
     repo/libarchive/xxhash.c
@@ -324,10 +246,6 @@ target_include_directories(archive PRIVATE
 target_include_directories(archive PUBLIC repo/libarchive)
 
 target_compile_definitions(archive PRIVATE HAVE_CONFIG_H __LIBARCHIVE_BUILD MOXNOX)
-# TRANSITIONAL: archive.h's _WIN32 branch is reached via relative
-# includes that bypass the gen patching; mingw's headers used to
-# define __int64 for GCC and Clang.
-target_compile_definitions(archive PUBLIC "__int64=long long")
 
 target_compile_options(archive PRIVATE
     ${USERSPACE_CFLAGS}
@@ -335,10 +253,8 @@ target_compile_options(archive PRIVATE
     -Wno-conversion
     -Wno-unused-function
     -Wno-unused-variable
-    "SHELL:-include ${GEN}/libarchive/archive_platform.h"
     "SHELL:-include ${GEN}/libarchive/archive.h"
     "SHELL:-include ${GEN}/libarchive/archive_entry.h"
-    "SHELL:-include ${GEN}/libarchive/archive_private.h"
 )
 
 target_link_libraries(archive PRIVATE zlib zstd)
@@ -350,16 +266,16 @@ install(TARGETS archive DESTINATION ${CMAKE_INSTALL_PREFIX}/lib
 ###
 
 add_executable(bsdtar
-    ${GEN}/tar/bsdtar.c
+    repo/tar/bsdtar.c
     ${GEN}/tar/cmdline.c
     ${GEN}/tar/creation_set.c
-    ${GEN}/tar/read.c
+    repo/tar/read.c
     repo/tar/subst.c
-    ${GEN}/tar/util.c
-    ${GEN}/tar/write.c
+    repo/tar/util.c
+    repo/tar/write.c
     repo/libarchive_fe/lafe_err.c
     repo/libarchive_fe/line_reader.c
-    ${GEN}/libarchive_fe/passphrase.c
+    repo/libarchive_fe/passphrase.c
 )
 add_dependencies(bsdtar libarchive_gen)
 
@@ -377,10 +293,7 @@ target_compile_options(bsdtar PRIVATE
     -Wno-sign-conversion
     -Wno-conversion
     -Wno-unused-parameter
-    "SHELL:-include ${GEN}/libarchive/archive_platform.h"
     "SHELL:-include ${GEN}/libarchive/archive.h"
-    "SHELL:-include ${GEN}/libarchive/archive_private.h"
-    "SHELL:-include ${GEN}/tar/bsdtar_platform.h"
 )
 
 install(CODE "file(MAKE_DIRECTORY \"\$ENV{DESTDIR}${CMAKE_INSTALL_PREFIX}/bin\")")
@@ -422,7 +335,7 @@ add_executable(bsdcpio
     repo/libarchive_fe/lafe_err.c
     repo/libarchive_fe/lafe_getline.c
     repo/libarchive_fe/line_reader.c
-    ${GEN}/libarchive_fe/passphrase.c
+    repo/libarchive_fe/passphrase.c
 )
 add_dependencies(bsdcpio libarchive_gen)
 
@@ -438,7 +351,6 @@ target_compile_definitions(bsdcpio PRIVATE HAVE_CONFIG_H MOXNOX)
 target_compile_options(bsdcpio PRIVATE
     ${USERSPACE_CFLAGS}
     -Wno-conversion
-    "SHELL:-include ${GEN}/cpio/cpio_platform.h"
 )
 
 target_link_libraries(bsdcpio PRIVATE archive moxnox)
@@ -452,7 +364,7 @@ add_executable(bsdunzip
     repo/unzip/cmdline.c
     repo/libarchive_fe/lafe_err.c
     repo/libarchive_fe/lafe_getline.c
-    ${GEN}/libarchive_fe/passphrase.c
+    repo/libarchive_fe/passphrase.c
 )
 add_dependencies(bsdunzip libarchive_gen)
 
