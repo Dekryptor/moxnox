@@ -149,6 +149,7 @@ getrlimit
 aligned_alloc
 strsignal
 getegid
+gmtime_r
 
 ; stubs
 fchown
@@ -201,7 +202,6 @@ sigwait
 mprotect
 setrlimit
 socketpair
-gmtime_r
 localtime_r
 fstatat
 pread

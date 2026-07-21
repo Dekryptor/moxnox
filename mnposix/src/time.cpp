@@ -152,3 +152,15 @@ int clock_getres(clockid_t clockid, timespec* res) {
             return -1;
     }
 }
+
+extern "C"
+struct tm* gmtime_r(const time_t* t, struct tm* tm) {
+    auto ret = _gmtime64_s(tm, t);
+
+    if (ret) {
+        *_errno() = ret;
+        return nullptr;
+    }
+
+    return tm;
+}

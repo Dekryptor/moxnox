@@ -132,6 +132,7 @@ int _close(int fd);
 unsigned int mn_handled_signal_count();
 int _mkdir(const char* path);
 int _pipe(int* pfds, unsigned int size, int textmode);
+errno_t _gmtime64_s(struct tm* tm, const __time64_t* t);
 
 }
 

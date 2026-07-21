@@ -149,3 +149,4 @@ posix_memalign
 getrlimit
 strsignal
 getegid
+gmtime_r
