@@ -148,3 +148,4 @@ pthread_rwlock_unlock
 posix_memalign
 getrlimit
 strsignal
+getegid

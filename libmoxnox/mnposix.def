@@ -148,6 +148,7 @@ posix_memalign
 getrlimit
 aligned_alloc
 strsignal
+getegid
 
 ; stubs
 fchown
@@ -163,7 +164,6 @@ sigsuspend
 openlog
 syslog
 closelog
-getegid
 utimes
 getlocalename_l
 getpriority

@@ -20,3 +20,10 @@ uid_t geteuid() {
 
     return 0;
 }
+
+extern "C"
+gid_t getegid() {
+    // FIXME
+
+    return 0;
+}
