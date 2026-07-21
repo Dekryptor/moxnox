@@ -476,9 +476,9 @@ RtlRandom
 mn_allocate_aligned
 RtlAcquireSRWLockShared
 RtlReleaseSRWLockShared
+RtlTryAcquireSRWLockShared
 
 ; stubs
 RtlTryEnterCriticalSection
 RtlAddVectoredExceptionHandler
 RtlRestoreContext
-RtlTryAcquireSRWLockShared

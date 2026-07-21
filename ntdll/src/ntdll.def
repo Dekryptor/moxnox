@@ -80,3 +80,4 @@ RtlRandom
 mn_allocate_aligned
 RtlAcquireSRWLockShared
 RtlReleaseSRWLockShared
+RtlTryAcquireSRWLockShared

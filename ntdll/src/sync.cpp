@@ -239,3 +239,20 @@ void RtlReleaseSRWLockShared(RTL_SRWLOCK* lock) {
 
     l.fetch_sub(2, memory_order_release);
 }
+
+extern "C"
+bool RtlTryAcquireSRWLockShared(RTL_SRWLOCK* lock) {
+    atomic_ref<uintptr_t> l(*(uintptr_t*)&lock->Ptr);
+
+    while (true) {
+        uintptr_t val = l.load(memory_order_relaxed);
+
+        if (val & 1)
+            return false;
+
+        if (l.compare_exchange_weak(val, val + 2, memory_order_acquire,
+                                    memory_order_relaxed)) {
+            return true;
+        }
+    }
+}
