@@ -194,6 +194,10 @@ openssl_patch(providers/implementations/rands/seeding/rand_win.c
     -e [[s|    GetSystemTimeAsFileTime(&data.time)\;|#ifdef MOXNOX\n    {\n        struct timespec ts\;\n        clock_gettime(CLOCK_MONOTONIC, \&ts)\;\n        data.time.dwLowDateTime = (DWORD)ts.tv_nsec\;\n        data.time.dwHighDateTime = (DWORD)ts.tv_sec\;\n    }\n#else\n    GetSystemTimeAsFileTime(\&data.time)\;\n#endif|g]]
 )
 
+openssl_patch(providers/implementations/rands/seeding/rand_unix.c
+    -e [[s|static ssize_t syscall_random(void \*buf, size_t buflen)\n{|static ssize_t syscall_random(void *buf, size_t buflen)\n{\n#ifdef MOXNOX\n    {\n        size_t bytes = 0\;\n\n        while (bytes < buflen) {\n            size_t chunk = buflen - bytes\;\n\n            if (chunk > 256)\n                chunk = 256\;\n\n            if (getentropy((unsigned char *)buf + bytes, chunk) != 0)\n                return -1\;\n\n            bytes += chunk\;\n        }\n\n        return (ssize_t)buflen\;\n    }\n#endif|g]]
+)
+
 # avoid WideCharToMultiByte
 openssl_patch(crypto/rand/randfile.c
     -e [[s|#if defined(_WIN32) && defined(CP_UTF8) && !defined(_WIN32_WCE)|#if defined(_WIN32) \&\& defined(CP_UTF8) \&\& !defined(_WIN32_WCE) \&\& !defined(MOXNOX)|g]]
@@ -1171,7 +1175,7 @@ add_library(libcrypto SHARED
     repo/providers/implementations/rands/seed_src_jitter.c
     repo/providers/implementations/rands/seeding/rand_cpu_x86.c
     repo/providers/implementations/rands/seeding/rand_tsc.c
-    repo/providers/implementations/rands/seeding/rand_unix.c
+    ${GEN}/providers/implementations/rands/seeding/rand_unix.c
     ${GEN}/providers/implementations/rands/seeding/rand_win.c
     repo/providers/implementations/rands/test_rng.c
     repo/providers/implementations/signature/dsa_sig.c
