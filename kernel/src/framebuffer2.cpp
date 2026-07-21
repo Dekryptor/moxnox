@@ -42,6 +42,7 @@ public:
 private:
     nt_status ioctl_set_cursor(span<const uint8_t> inbuf);
     nt_status ioctl_move_cursor(span<const uint8_t> inbuf);
+    nt_status ioctl_create_framebuffer(span<uint8_t> outbuf, uintptr_t& written);
     void flush_scanlines(int16_t top, int16_t bottom);
 };
 
@@ -417,14 +418,63 @@ void create_other_framebuffer_section() {
 }
 
 template<bool BOOT>
+nt_status framebuffer_cache<BOOT>::ioctl_create_framebuffer(span<uint8_t> outbuf,
+                                                            uintptr_t& written) {
+    auto& t = *get_current_thread();
+    nt_status status;
+    handle_t h;
+
+    if (outbuf.size() < sizeof(HANDLE))
+        return nt_status::BUFFER_TOO_SMALL;
+
+    auto s = new section;
+    if (!s) {
+        print("new failed\n");
+        return nt_status::INSUFFICIENT_RESOURCES;
+
+    }
+
+    s->type = section_type::anonymous;
+
+    if constexpr (BOOT)
+        s->size = (uint32_t)shadow_framebuffer.size_bytes();
+    else
+        s->size = (uint32_t)framebuffer.size_bytes();
+
+    s->num_pages = bytes_to_pages(s->size);
+    s->page_protection = PAGE_READWRITE;
+
+    s->custom_cache = new framebuffer_cache<BOOT>;
+    if (!s->custom_cache) {
+        print("new failed\n");
+        s->release();
+        return nt_status::INSUFFICIENT_RESOURCES;
+    }
+
+    status = t.proc->add_handle(*s, 0, true, h);
+    if (!success(status)) {
+        s->release();
+        return status;
+    }
+
+    *(HANDLE*)outbuf.data() = h;
+    written = sizeof(HANDLE);
+
+    return nt_status::SUCCESS;
+}
+
+template<bool BOOT>
 nt_status framebuffer_cache<BOOT>::ioctl(uint32_t code, span<const uint8_t> inbuf,
-                                         span<uint8_t> /*outbuf*/, uintptr_t& /*written*/) {
+                                         span<uint8_t> outbuf, uintptr_t& written) {
     switch (code) {
         case IOCTL_MOXNOX_FB_SET_CURSOR:
             return ioctl_set_cursor(inbuf);
 
         case IOCTL_MOXNOX_FB_MOVE_CURSOR:
             return ioctl_move_cursor(inbuf);
+
+        case IOCTL_MOXNOX_FB_CREATE_FRAMEBUFFER:
+            return ioctl_create_framebuffer(outbuf, written);
 
         default:
             return nt_status::NOT_SUPPORTED;
