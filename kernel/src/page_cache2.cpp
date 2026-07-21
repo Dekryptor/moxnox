@@ -59,6 +59,16 @@ nt_status flush_mappings(list_entry& mappings, spinlock& mappings_lock, uint64_t
 
     if (m2) { // new failed
         m2->release();
+
+        while (!is_list_empty(list)) {
+            auto& ml = containing_record<mapping_list>(list.next);
+
+            remove_entry_list(ml.le);
+            ml.m->release();
+
+            delete &ml;
+        }
+
         return nt_status::INSUFFICIENT_RESOURCES;
     }
 
