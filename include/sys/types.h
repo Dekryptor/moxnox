@@ -31,7 +31,7 @@ typedef uintptr_t pthread_condattr_t; // FIXME?
 typedef uintptr_t pthread_mutexattr_t; // FIXME?
 typedef uintptr_t pthread_attr_t; // FIXME?
 typedef uintptr_t pthread_once_t;
-typedef uintptr_t pthread_rwlock_t; // FIXME?
+typedef uintptr_t pthread_rwlock_t;
 typedef uintptr_t pthread_rwlockattr_t; // FIXME?
 typedef uintptr_t pthread_barrier_t; // FIXME?
 typedef uint64_t fsblkcnt_t;

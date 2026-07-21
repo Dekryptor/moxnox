@@ -659,45 +659,47 @@ int pthread_mutexattr_settype(pthread_mutexattr_t* attr, int type) {
 }
 
 extern "C"
-int pthread_rwlock_init(pthread_rwlock_t* /*rwlock*/,
+int pthread_rwlock_init(pthread_rwlock_t* rwlock,
                         const pthread_rwlockattr_t* /*attr*/) {
-    print_stderr("FIXME - pthread_rwlock_init\n");
-
-    // FIXME
+    *rwlock = 0;
 
     return 0;
 }
 
 extern "C"
 int pthread_rwlock_destroy(pthread_rwlock_t* /*rwlock*/) {
-    // FIXME
+    // nop
 
     return 0;
 }
 
 extern "C"
-int pthread_rwlock_rdlock(pthread_rwlock_t* /*rwlock*/) {
-    print_stderr("FIXME - pthread_rwlock_rdlock\n");
+int pthread_rwlock_rdlock(pthread_rwlock_t* rwlock) {
+    auto& lock = *reinterpret_cast<RTL_SRWLOCK*>(rwlock);
 
-    // FIXME
-
-    return 0;
-}
-
-extern "C"
-int pthread_rwlock_wrlock(pthread_rwlock_t* /*rwlock*/) {
-    print_stderr("FIXME - pthread_rwlock_wrlock\n");
-
-    // FIXME
+    RtlAcquireSRWLockShared(&lock);
 
     return 0;
 }
 
 extern "C"
-int pthread_rwlock_unlock(pthread_rwlock_t* /*rwlock*/) {
-    print_stderr("FIXME - pthread_rwlock_unlock\n");
+int pthread_rwlock_wrlock(pthread_rwlock_t* rwlock) {
+    auto& lock = *reinterpret_cast<RTL_SRWLOCK*>(rwlock);
 
-    // FIXME
+    RtlAcquireSRWLockExclusive(&lock);
+
+    return 0;
+}
+
+extern "C"
+int pthread_rwlock_unlock(pthread_rwlock_t* rwlock) {
+    auto& lock = *reinterpret_cast<RTL_SRWLOCK*>(rwlock);
+    atomic_ref<uintptr_t> l(*(uintptr_t*)&lock.Ptr);
+
+    if (l.load(memory_order_relaxed) & 1) // exclusive
+        l.store(0, memory_order_release);
+    else // shared
+        l.fetch_sub(2, memory_order_release);
 
     return 0;
 }
