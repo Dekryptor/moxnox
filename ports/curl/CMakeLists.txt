@@ -189,7 +189,6 @@ add_library(libcurl SHARED
     repo/lib/version.c
     repo/lib/ws.c
     repo/lib/dllmain.c
-    ${CMAKE_CURRENT_SOURCE_DIR}/moxnox_fopen_compat.c
 )
 
 target_include_directories(libcurl PRIVATE
@@ -270,7 +269,6 @@ add_executable(curl_exe
     repo/lib/curlx/timeval.c
     repo/lib/curlx/wait.c
     repo/lib/curlx/warnless.c
-    ${CMAKE_CURRENT_SOURCE_DIR}/moxnox_fopen_compat.c
 )
 
 target_include_directories(curl_exe PRIVATE
