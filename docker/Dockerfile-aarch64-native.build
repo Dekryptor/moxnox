@@ -1,0 +1,64 @@
+FROM gentoo/stage3:latest
+
+RUN emerge --sync
+
+RUN mkdir -p /etc/portage/patches/sys-devel/crossdev && cd /etc/portage/patches/sys-devel/crossdev && wget https://moxnox.dev/crossdev-moxnox.patch https://moxnox.dev/crossdev-moxnox-clang-cfg.patch
+RUN mkdir -p /etc/portage/patches/llvm-core/llvm && cd /etc/portage/patches/llvm-core/llvm && wget https://moxnox.dev/llvm-moxnox.tar.gz && tar -xzf llvm-moxnox.tar.gz && rm llvm-moxnox.tar.gz
+RUN mkdir -p /etc/portage/patches/llvm-core/clang && cd /etc/portage/patches/llvm-core/clang && wget https://moxnox.dev/clang-moxnox.tar.gz && tar -xzf clang-moxnox.tar.gz && rm clang-moxnox.tar.gz
+RUN mkdir -p /etc/portage/patches/cross_llvm-aarch64-pc-moxnox/compiler-rt && cd /etc/portage/patches/cross_llvm-aarch64-pc-moxnox/compiler-rt && wget https://moxnox.dev/compiler-rt-moxnox.patch
+RUN mkdir -p /etc/portage/patches/cross_llvm-aarch64-pc-moxnox/libcxx && cd /etc/portage/patches/cross_llvm-aarch64-pc-moxnox/libcxx && wget https://moxnox.dev/libcxx-moxnox.tar.gz && tar -xzf libcxx-moxnox.tar.gz && rm libcxx-moxnox.tar.gz
+RUN mkdir -p /etc/portage/patches/cross_llvm-aarch64-pc-moxnox/libcxxabi && cp /etc/portage/patches/cross_llvm-aarch64-pc-moxnox/libcxx/*.patch /etc/portage/patches/cross_llvm-aarch64-pc-moxnox/libcxxabi/
+
+RUN emerge app-eselect/eselect-repository sys-devel/crossdev dev-vcs/git
+RUN eselect repository create crossdev
+RUN printf '[moxnox]\nlocation = /var/db/repos/moxnox\nsync-type = git\nsync-uri = https://git.burntcomma.com/moxnox/portage\nauto-sync = yes\n' > /etc/portage/repos.conf/moxnox.conf
+RUN emerge --sync moxnox
+RUN sed -i 's|masters = gentoo|masters = gentoo moxnox|g' /var/db/repos/crossdev/metadata/layout.conf
+RUN echo ACCEPT_LICENSE="\"*\"" >> /etc/portage/make.conf
+RUN echo LLVM_TARGETS="\"AArch64 X86\"" >> /etc/portage/make.conf
+
+RUN printf 'llvm-core/*\nllvm-runtimes/*\ncross_llvm-aarch64-pc-moxnox/clang-crossdev-wrappers:22 **\n' >> /etc/portage/package.accept_keywords/moxnox
+RUN printf 'llvm-core/clang-linker-config default-lld\n' >> /etc/portage/package.use/moxnox
+RUN printf 'llvm-core/clang-common default-compiler-rt default-libcxx default-lld llvm-libunwind\n' >> /etc/portage/package.use/moxnox
+RUN printf 'llvm-runtimes/libunwind static-libs\n' >> /etc/portage/package.use/moxnox
+RUN printf 'llvm-runtimes/clang-runtime default-libcxx default-compiler-rt llvm-libunwind default-lld\n' >> /etc/portage/package.use/moxnox
+RUN printf 'llvm-runtimes/clang-rtlib-config default-compiler-rt\n' >> /etc/portage/package.use/moxnox
+RUN printf 'llvm-runtimes/clang-unwindlib-config default-compiler-rt llvm-libunwind\n' >> /etc/portage/package.use/moxnox
+RUN printf 'llvm-runtimes/clang-stdlib-config default-libcxx\n' >> /etc/portage/package.use/moxnox
+RUN emerge llvm-core/clang llvm-core/lld llvm-core/clang-linker-config llvm-core/clang-common
+
+RUN mkdir -p /usr/aarch64-pc-moxnox/etc && printf "set(CMAKE_SYSTEM_NAME Moxnox)\nset(CMAKE_SYSTEM_PROCESSOR aarch64)\nset(CMAKE_SYSROOT /usr/aarch64-pc-moxnox)\nset(CMAKE_C_COMPILER aarch64-pc-moxnox-clang)\nset(CMAKE_CXX_COMPILER aarch64-pc-moxnox-clang++)\nset(CMAKE_ASM_COMPILER aarch64-pc-moxnox-clang)\nset(CMAKE_AR llvm-ar CACHE FILEPATH \"\" FORCE)\nset(CMAKE_RANLIB llvm-ranlib CACHE FILEPATH \"\" FORCE)\nset(CMAKE_TRY_COMPILE_TARGET_TYPE STATIC_LIBRARY)\nset(LIBUNWIND_HAS_C_LIB OFF CACHE BOOL \"\")\nset(LIBUNWIND_HAS_PTHREAD_LIB OFF CACHE BOOL \"\")\nset(LIBCXXABI_HAS_C_LIB OFF CACHE BOOL \"\")\nset(LIBCXXABI_HAS_PTHREAD_LIB OFF CACHE BOOL \"\")\nset(LIBCXX_HAS_PTHREAD_LIB OFF CACHE BOOL \"\")\nset(LIBCXX_HAS_ATOMIC_LIB OFF CACHE BOOL \"\")\nset(LIBCXX_HAS_RT_LIB OFF CACHE BOOL \"\")\n" > /usr/aarch64-pc-moxnox/etc/moxnox-toolchain.cmake
+
+RUN mkdir -p /etc/portage/package.env && printf 'cross_llvm-aarch64-pc-moxnox/compiler-rt moxnox-compiler-rt.conf\n' >> /etc/portage/package.env/moxnox
+RUN mkdir -p /etc/portage/env && printf 'MYCMAKEARGS="-DCOMPILER_RT_BUILD_CRT=OFF"\nFEATURES=\"\${FEATURES} nostrip\"\n' >> /etc/portage/env/moxnox-compiler-rt.conf
+
+RUN printf 'cross_llvm-aarch64-pc-moxnox/libunwind moxnox-libunwind.conf\n' >> /etc/portage/package.env/moxnox
+RUN printf 'MYCMAKEARGS="\${MYCMAKEARGS} -DCMAKE_TOOLCHAIN_FILE=/usr/aarch64-pc-moxnox/etc/moxnox-toolchain.cmake -DLIBUNWIND_ENABLE_SHARED=OFF -DLIBUNWIND_HIDE_SYMBOLS=ON"\nCC=aarch64-pc-moxnox-clang\nCXX=aarch64-pc-moxnox-clang++\nCFLAGS=\"\${CFLAGS} -D_WIN32 -D_WIN64 -D__MINGW32__ -D__MINGW64__ -D__MSVCRT__ -D__STRALIGN_H_ -idirafter/usr/aarch64-pc-moxnox/mingw-compat/include\"\nCXXFLAGS=\"\${CXXFLAGS} -D_WIN32 -D_WIN64 -D__MINGW32__ -D__MINGW64__ -D__MSVCRT__ -D__STRALIGN_H_ -idirafter/usr/aarch64-pc-moxnox/mingw-compat/include\"\nLIBDIR_amd64=\"lib\"\nFEATURES=\"\${FEATURES} nostrip\"\n' >> /etc/portage/env/moxnox-libunwind.conf
+
+RUN printf 'cross_llvm-aarch64-pc-moxnox/libcxxabi moxnox-libcxxabi.conf\n' >> /etc/portage/package.env/moxnox
+RUN printf "MYCMAKEARGS=\"\${MYCMAKEARGS} -DCMAKE_TOOLCHAIN_FILE=/usr/aarch64-pc-moxnox/etc/moxnox-toolchain.cmake -DLIBCXXABI_HERMETIC_STATIC_LIBRARY=ON -DCMAKE_BUILD_WITH_INSTALL_RPATH=ON\"\nLDFLAGS=\"\${LDFLAGS} -nostdlib++\"\nCC=aarch64-pc-moxnox-clang\nCXX=aarch64-pc-moxnox-clang++\nLIBDIR_amd64=\"lib\"\nFEATURES=\"\${FEATURES} nostrip\"\n" > /etc/portage/env/moxnox-libcxxabi.conf
+
+RUN printf 'cross_llvm-aarch64-pc-moxnox/libcxx moxnox-libcxx.conf\n' >> /etc/portage/package.env/moxnox
+RUN printf "MYCMAKEARGS=\"\${MYCMAKEARGS} -DCMAKE_TOOLCHAIN_FILE=/usr/aarch64-pc-moxnox/etc/moxnox-toolchain.cmake -DLIBCXXABI_HERMETIC_STATIC_LIBRARY=ON -DCMAKE_BUILD_WITH_INSTALL_RPATH=ON\"\nLDFLAGS=\"\${LDFLAGS} -nostdlib++\"\nCC=aarch64-pc-moxnox-clang\nCXX=aarch64-pc-moxnox-clang++\nLIBDIR_amd64=\"lib\"\nFEATURES=\"\${FEATURES} nostrip\"\n" > /etc/portage/env/moxnox-libcxx.conf
+
+RUN echo "dev-build/moxnox-cmake-platform" >> /etc/portage/package.accept_keywords/moxnox
+RUN emerge dev-build/moxnox-cmake-platform
+
+RUN mkdir -p /var/db/repos/crossdev/cross_llvm-aarch64-pc-moxnox && ln -s /var/db/repos/moxnox/llvm-runtimes/libcxx /var/db/repos/crossdev/cross_llvm-aarch64-pc-moxnox/libcxx
+RUN crossdev --llvm -t aarch64-pc-moxnox
+
+RUN echo "sys-devel/binutils multitarget" >> /etc/portage/package.use/moxnox
+RUN emerge sys-devel/binutils
+
+# FIXME - remove these USE flag overrides once Portage has been updated
+RUN echo "net-misc/s3cmd python_targets_python3_13" >> /etc/portage/package.use/moxnox
+RUN echo "dev-python/six python_targets_python3_13" >> /etc/portage/package.use/moxnox
+RUN echo "dev-python/python-dateutil python_targets_python3_13" >> /etc/portage/package.use/moxnox
+RUN echo "sys-apps/file python python_targets_python3_13" >> /etc/portage/package.use/moxnox
+RUN emerge net-misc/s3cmd
+RUN emerge app-arch/cpio app-misc/jq dev-util/xxd net-libs/nodejs
+
+RUN rm -rf /var/cache/distfiles
+RUN env-update
+
+ENV PATH="/usr/lib/llvm/22/bin:${PATH}"
