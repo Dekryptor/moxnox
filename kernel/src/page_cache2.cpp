@@ -27,6 +27,8 @@ nt_status flush_mappings(list_entry& mappings, spinlock& mappings_lock, uint64_t
 
     list_entry list = { &list, &list };
 
+    mapping* m2 = nullptr;
+
     {
         lock_guard lg(mappings_lock);
 
@@ -45,14 +47,19 @@ nt_status flush_mappings(list_entry& mappings, spinlock& mappings_lock, uint64_t
             auto ml = new mapping_list;
             if (!ml) {
                 print("new failed\n");
-                m.release();
-                return nt_status::INSUFFICIENT_RESOURCES;
+                m2 = &m;
+                break;
             }
 
             ml->m = &m;
 
             insert_tail_list(list, ml->le);
         }
+    }
+
+    if (m2) { // new failed
+        m2->release();
+        return nt_status::INSUFFICIENT_RESOURCES;
     }
 
     while (!is_list_empty(list)) {
