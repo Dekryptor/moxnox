@@ -101,7 +101,7 @@ RtlCaptureContext:
 	str	w1, [x0, #CONTEXT_FPSR]
 
 	mrs	x1, nzcv
-	str	w8, [x0, #CONTEXT_CPSR]
+	str	w1, [x0, #CONTEXT_CPSR]
 
 	mov	x1, sp
 	str	x1, [x0, #CONTEXT_SP]
