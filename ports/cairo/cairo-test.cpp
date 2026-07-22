@@ -13,6 +13,7 @@ import unique_handle;
 import print;
 import evdev;
 import cairo;
+import moxnox_ioctls;
 
 static span<uint32_t> framebuffer;
 static unsigned int fb_width, fb_height, fb_pixels_per_scan_line;
@@ -90,6 +91,7 @@ int main() {
     MN_SECTION_FRAMEBUFFER_INFORMATION fb_info;
     void* addr = nullptr;
     size_t size, return_length;
+    IO_STATUS_BLOCK iosb;
 
     static const u16string_view fb = u"/dev/framebuffer";
 
@@ -106,6 +108,16 @@ int main() {
     status = NtOpenSection(&h, SECTION_MAP_READ, &oa);
     if (!success(status)) {
         print_stderr("NtOpenSection returned {}\n", status);
+        return 1;
+    }
+
+    sect.reset(h);
+
+    status = NtDeviceIoControlFile(sect.get(), 0, nullptr, nullptr, &iosb,
+                                   IOCTL_MOXNOX_FB_CREATE_FRAMEBUFFER,
+                                   nullptr, 0, &h, sizeof(h));
+    if (!success(status)) {
+        print_stderr("IOCTL_MOXNOX_FB_CREATE_FRAMEBUFFER returned {}\n", status);
         return 1;
     }
 
