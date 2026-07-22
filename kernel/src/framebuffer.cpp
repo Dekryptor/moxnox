@@ -36,6 +36,8 @@ export nt_status (*new_framebuffer_created)(span<uint32_t> buffer,
                                             unsigned int width,
                                             unsigned int height, void*& ctx);
 export void (*framebuffer_deleted)(void* ctx);
+export nt_status (*framebuffer_set_active)(void* ctx, unsigned int width,
+                                           unsigned int height);
 export void (*move_cursor)(uint32_t x, uint32_t y);
 export void (*set_cursor)(uint32_t x, uint32_t y, span<const uint32_t> buf,
                           uint32_t hot_x, uint32_t hot_y);

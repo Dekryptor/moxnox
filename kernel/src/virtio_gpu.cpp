@@ -1057,6 +1057,27 @@ static nt_status virtio_gpu_new_framebuffer_created(span<uint32_t> buffer,
     }, flush_framebuffer_device);
 }
 
+static nt_status virtio_gpu_framebuffer_set_active(void* ctx, unsigned int width,
+                                                   unsigned int height) {
+    auto resource = ctx ? (uint32_t)(uintptr_t)ctx : flush_framebuffer_resource;
+
+    return visit([&](auto&& v) -> nt_status {
+        virtio_gpu_rect r;
+
+        r.x = 0;
+        r.y = 0;
+        r.width = width;
+        r.height = height;
+
+        if (!v->set_scanout(r, 0, resource)) {
+            print("virtio_gpu::set_scanout failed\n");
+            return nt_status::INTERNAL_ERROR;
+        }
+
+        return nt_status::SUCCESS;
+    }, flush_framebuffer_device);
+}
+
 static void virtio_gpu_framebuffer_deleted(void* ctx) {
     auto resource = (uint32_t)(uintptr_t)ctx;
 
@@ -1255,6 +1276,7 @@ void virtio_gpu<T>::start() {
     flush_framebuffer_resource = *res;
     flush_framebuffer = virtio_gpu_flush_framebuffer;
     new_framebuffer_created = virtio_gpu_new_framebuffer_created;
+    framebuffer_set_active = virtio_gpu_framebuffer_set_active;
     framebuffer_deleted = virtio_gpu_framebuffer_deleted;
     ::move_cursor = virtio_gpu_move_cursor;
     set_cursor = virtio_gpu_set_cursor;

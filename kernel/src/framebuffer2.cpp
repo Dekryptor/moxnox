@@ -55,7 +55,7 @@ private:
     nt_status ioctl_set_active();
     void flush_scanlines(int16_t top, int16_t bottom);
     span<uint32_t> buffer;
-    void* gpu_ctx;
+    void* gpu_ctx = nullptr;
 };
 
 template<bool BOOT>
@@ -531,6 +531,12 @@ nt_status framebuffer_cache<BOOT>::ioctl_set_active() {
             return nt_status::SUCCESS;
 
         active_fb = c;
+
+        if (framebuffer_set_active) {
+            auto status = framebuffer_set_active(gpu_ctx, fb_width, fb_height);
+            if (!success(status))
+                return status;
+        }
     }
 
     flush_cache(0, bytes_to_pages(buffer.size_bytes()));
@@ -758,6 +764,9 @@ framebuffer_cache<BOOT>::~framebuffer_cache() {
         if (active_fb == c) {
             active_fb = master_fb.custom_cache;
             changed_active = true;
+
+            if (framebuffer_set_active)
+                framebuffer_set_active(nullptr, fb_width, fb_height);
         }
     }
 
