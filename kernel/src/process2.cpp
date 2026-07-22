@@ -3975,6 +3975,11 @@ NTSTATUS process::create_thread(optional<reference_wrapper<handle_t>> thread_han
     memset(&t.syscall_context, 0, sizeof(CONTEXT));
     memset(&t.xsave, 0, XSAVE_SIZE);
 
+    t.context.MxCsr = t.context.FltSave.MxCsr = 0x1f80;
+    t.context.FltSave.MxCsr_Mask = 0x2ffff;
+    ((XSAVE_FORMAT*)&t.xsave)->MxCsr = t.context.MxCsr;
+    ((XSAVE_FORMAT*)&t.xsave)->MxCsr_Mask = t.context.FltSave.MxCsr_Mask;
+
     t.context.EFlags |= 0x202; // IF, reserved flag
     t.context.SegCs = user_CS;
     t.context.SegSs = user_DS;
