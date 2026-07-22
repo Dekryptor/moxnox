@@ -152,6 +152,8 @@ const char* getprogname(void);
 char* mkdtemp(char* templ);
 int posix_memalign(void** memptr, size_t alignment, size_t size);
 void* aligned_alloc(size_t alignment, size_t size);
+__attribute__((noreturn)) void quick_exit(int status);
+int at_quick_exit(void (*func)(void));
 
 #ifndef _WIN32 // FIXME
 int putenv(char* string);
