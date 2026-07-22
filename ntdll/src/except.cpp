@@ -319,6 +319,11 @@ void mn_signal(EXCEPTION_RECORD* exception, CONTEXT* context) {
                 sp = format(sp, "Stack alignment error\n");
             break;
 
+            case nt_status::FLOAT_MULTIPLE_FAULTS:
+            case nt_status::FLOAT_MULTIPLE_TRAPS:
+                sp = format(sp, "SIMD exception\n");
+            break;
+
 #ifdef __aarch64__
             case nt_status::UNHANDLED_EXCEPTION: {
                 union ARM64_ESR {
