@@ -35,7 +35,7 @@ public:
 
     ~framebuffer_cache() {
         if (buffer.data())
-            vfree(buffer.data(), buffer.size());
+            vfree(buffer.data(), bytes_to_pages(buffer.size()) << PAGE_SHIFT);
     }
 
     NTSTATUS read_into_cache(uint64_t page_num, uint64_t num_pages,
@@ -441,15 +441,17 @@ nt_status framebuffer_cache<BOOT>::ioctl_create_framebuffer(span<uint8_t> outbuf
     else
         s->size = (uint32_t)framebuffer.size_bytes();
 
-    auto buf = (uint32_t*)vmalloc(s->size);
+    s->num_pages = bytes_to_pages(s->size);
+    s->page_protection = PAGE_READWRITE;
+
+    auto buf = (uint32_t*)vmalloc(s->num_pages << PAGE_SHIFT);
     if (!buf) {
         print("vmalloc failed\n");
         s->release();
         return nt_status::INSUFFICIENT_RESOURCES;
     }
 
-    s->num_pages = bytes_to_pages(s->size);
-    s->page_protection = PAGE_READWRITE;
+    memset(buf, 0, s->num_pages << PAGE_SHIFT);
 
     s->custom_cache = new framebuffer_cache<BOOT>(span<uint32_t>(buf, s->size / sizeof(uint32_t)));
     if (!s->custom_cache) {
