@@ -27,6 +27,7 @@ using namespace std;
 static uint32_t* cursor_buffer;
 static uint16_t cursor_width, cursor_height, cursor_hotspot_x, cursor_hotspot_y;
 static uint16_t cursor_x, cursor_y;
+static spinlock active_fb_lock;
 
 template<bool BOOT>
 class framebuffer_cache : public custom_section_cache {
@@ -45,6 +46,8 @@ public:
                         span<uint8_t> buf, size_t* return_length) override;
     nt_status ioctl(uint32_t code, span<const uint8_t> inbuf,
                     span<uint8_t> outbuf, uintptr_t& written) override;
+
+    bool active;
 
 private:
     nt_status ioctl_set_cursor(span<const uint8_t> inbuf);
@@ -292,6 +295,13 @@ NTSTATUS framebuffer_cache<BOOT>::flush_cache(uint64_t page_num, uint64_t num_pa
             return nt_status::SUCCESS;
     }
 
+    {
+        lock_guard lock(active_fb_lock);
+
+        if (!active)
+            return nt_status::SUCCESS;
+    }
+
     if constexpr (BOOT) {
         lock_guard lock(cursor_lock);
 
@@ -383,6 +393,8 @@ void create_boot_framebuffer_section() {
         return;
     }
 
+    ((framebuffer_cache<true>*)s->custom_cache)->active = true;
+
     status = name_object(*s, "framebuffer", true);
     if (!success(status)) {
         print("name_object returned {}\n", status);
@@ -411,6 +423,8 @@ void create_other_framebuffer_section() {
         s->release();
         return;
     }
+
+    ((framebuffer_cache<false>*)s->custom_cache)->active = true;
 
     status = name_object(*s, "framebuffer", true);
     if (!success(status)) {
@@ -462,6 +476,8 @@ nt_status framebuffer_cache<BOOT>::ioctl_create_framebuffer(span<uint8_t> outbuf
         s->release();
         return nt_status::INSUFFICIENT_RESOURCES;
     }
+
+    ((framebuffer_cache<BOOT>*)s->custom_cache)->active = false;
 
     status = t.proc->add_handle(*s, 0, true, h);
     if (!success(status)) {
