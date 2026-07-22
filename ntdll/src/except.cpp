@@ -112,6 +112,7 @@ static nt_status handle_exception(EXCEPTION_RECORD* exception,
                                   CONTEXT& orig_context) {
     CONTEXT context = orig_context;
     DISPATCHER_CONTEXT dispatcher_context;
+    bool first_frame = true;
 
     while (true) {
         uint64_t image_base, frame;
@@ -122,7 +123,19 @@ static nt_status handle_exception(EXCEPTION_RECORD* exception,
         auto control_pc = context.Pc;
 #endif
 
-        auto function_entry = RtlLookupFunctionEntry(control_pc, &image_base,
+        auto lookup_pc = control_pc;
+
+        if (!first_frame) {
+#ifdef __x86_64__
+            lookup_pc--;
+#elifdef __aarch64__
+            lookup_pc -= sizeof(uint32_t);
+#endif
+        }
+
+        first_frame = false;
+
+        auto function_entry = RtlLookupFunctionEntry(lookup_pc, &image_base,
                                                      nullptr);
         if (!function_entry) { // leaf function
 #ifdef __x86_64__
@@ -163,7 +176,7 @@ static nt_status handle_exception(EXCEPTION_RECORD* exception,
         dispatcher_context.LanguageHandler = handler;
         dispatcher_context.HandlerData = handler_data;
 #ifdef __aarch64__
-        dispatcher_context.ControlPcIsUnwound = false;
+        dispatcher_context.ControlPcIsUnwound = lookup_pc != control_pc;
         dispatcher_context.NonVolatileRegisters = nullptr; // FIXME?
 #endif
 
@@ -338,6 +351,7 @@ void mn_signal(EXCEPTION_RECORD* exception, CONTEXT* context) {
     print_stderr("\n");
 
     UNWIND_HISTORY_TABLE history_table;
+    bool first_frame = true;
 
     do {
         uint64_t image_base;
@@ -352,7 +366,19 @@ void mn_signal(EXCEPTION_RECORD* exception, CONTEXT* context) {
         if (rip == 0)
             break;
 
-        auto func = RtlLookupFunctionEntry(rip, &image_base, &history_table);
+        auto lookup_pc = rip;
+
+        if (!first_frame) {
+#ifdef __x86_64__
+            lookup_pc--;
+#elifdef __aarch64__
+            lookup_pc -= sizeof(uint32_t);
+#endif
+        }
+
+        first_frame = false;
+
+        auto func = RtlLookupFunctionEntry(lookup_pc, &image_base, &history_table);
 
         if (!func) {
 #ifdef __aarch64__
@@ -618,17 +644,28 @@ void RtlUnwindEx(void* target_frame, void* target_ip,
     frame = context->Sp;
 #endif
 
+    bool first_frame = true;
+
     while (true) {
         uint64_t image_base;
         void* data = nullptr;
 
 #ifdef __x86_64__
-        auto function_entry = RtlLookupFunctionEntry(context->Rip, &image_base,
-                                                     history_table);
+        auto lookup_pc = context->Rip;
+
+        if (!first_frame)
+            lookup_pc--;
 #elifdef __aarch64__
-        auto function_entry = RtlLookupFunctionEntry(context->Pc, &image_base,
-                                                     history_table);
+        auto lookup_pc = context->Pc;
+
+        if (!first_frame)
+            lookup_pc -= sizeof(uint32_t);
 #endif
+
+        first_frame = false;
+
+        auto function_entry = RtlLookupFunctionEntry(lookup_pc, &image_base,
+                                                     history_table);
         if (!function_entry) {
 #ifdef __x86_64__
             frame = new_context.Rsp;
@@ -689,7 +726,7 @@ void RtlUnwindEx(void* target_frame, void* target_ip,
             dispatcher_context.HistoryTable = history_table;
             dispatcher_context.ScopeIndex = 0;
 #ifdef __aarch64__
-            dispatcher_context.ControlPcIsUnwound = false;
+            dispatcher_context.ControlPcIsUnwound = lookup_pc != control_pc;
             dispatcher_context.NonVolatileRegisters = nullptr; // FIXME?
 #endif
 
