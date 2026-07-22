@@ -45,6 +45,8 @@ typedef int clockid_t;
 #define CLOCK_MONOTONIC 1
 #define CLOCK_REALTIME 2
 
+#define TIME_UTC 1
+
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -72,6 +74,7 @@ struct tm* localtime_r(const time_t* timer, struct tm* result);
 int clock_gettime(clockid_t clock_id, struct timespec* tp);
 int clock_getres(clockid_t clock_id, struct timespec* res);
 int nanosleep(const struct timespec* duration, struct timespec* rem);
+int timespec_get(struct timespec* ts, int base);
 
 extern long _timezone;
 
