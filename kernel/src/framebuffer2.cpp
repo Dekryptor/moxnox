@@ -485,6 +485,8 @@ nt_status framebuffer_cache<BOOT>::ioctl_create_framebuffer(span<uint8_t> outbuf
         return status;
     }
 
+    s->release();
+
     *(HANDLE*)outbuf.data() = h;
     written = sizeof(HANDLE);
 
