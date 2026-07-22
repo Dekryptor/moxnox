@@ -99,14 +99,15 @@ void copy_scanline_mirrored_slow(uint32_t* dst, const uint32_t* src,
     }
 }
 
-static void flush_scanline(uint16_t y, uint32_t* fb_line) {
+static void flush_scanline(span<const uint32_t> source, uint16_t y,
+                           uint32_t* fb_line) {
     auto cursor_top = (int16_t)((int16_t)cursor_y - (int16_t)cursor_hotspot_y);
     auto cursor_bottom = (int16_t)(cursor_top + cursor_height);
     auto cursor_left = (int16_t)((int16_t)cursor_x - (int16_t)cursor_hotspot_x);
     auto draw_x_start = (uint16_t)max((int16_t)0, cursor_left);
     auto draw_x_end = (uint16_t)min((int16_t)fb_width, (int16_t)(cursor_left + cursor_width));
 
-    auto shadow_line = &shadow_framebuffer[y * shadow_fb_pixels_per_scan_line];
+    auto shadow_line = &source[y * shadow_fb_pixels_per_scan_line];
 
     if (y >= cursor_top && y < cursor_bottom && !in_bsod) {
         auto cursor_line = &cursor_buffer[((int16_t)y - cursor_top) * cursor_width];
@@ -161,14 +162,15 @@ static void flush_scanline(uint16_t y, uint32_t* fb_line) {
         copy_scanline(fb_line, shadow_line, fb_pixels_per_scan_line * sizeof(uint32_t));
 }
 
-static void flush_scanline_mirrored(uint16_t y, uint32_t* fb_line) {
+static void flush_scanline_mirrored(span<const uint32_t> source, uint16_t y,
+                                    uint32_t* fb_line) {
     auto cursor_top = (int16_t)((int16_t)cursor_y - (int16_t)cursor_hotspot_y);
     auto cursor_bottom = (int16_t)(cursor_top + cursor_height);
     auto cursor_left = (int16_t)((int16_t)cursor_x - (int16_t)cursor_hotspot_x);
     auto draw_x_start = (uint16_t)max((int16_t)0, cursor_left);
     auto draw_x_end = (uint16_t)min((int16_t)fb_width, (int16_t)(cursor_left + cursor_width));
 
-    auto shadow_line = &shadow_framebuffer[y * shadow_fb_pixels_per_scan_line];
+    auto shadow_line = &source[y * shadow_fb_pixels_per_scan_line];
 
     if (y >= cursor_top && y < cursor_bottom && !in_bsod) {
         auto cursor_line = &cursor_buffer[((int16_t)y - cursor_top) * cursor_width];
@@ -297,9 +299,9 @@ NTSTATUS framebuffer_cache<BOOT>::flush_cache(uint64_t page_num, uint64_t num_pa
         auto max_y = min((uint16_t)(((page_num + num_pages + 1) << PAGE_SHIFT) / (shadow_fb_pixels_per_scan_line * sizeof(uint32_t))), (uint16_t)(shadow_fb_height - 1));
 
         if (fb_transform == fb_transform::rotated90)
-            flush_scanlines_rotated90(min_y, max_y);
+            flush_scanlines_rotated90(min_y, max_y); // FIXME
         else if (fb_transform == fb_transform::rotated270)
-            flush_scanlines_rotated270(min_y, max_y);
+            flush_scanlines_rotated270(min_y, max_y); // FIXME
         else {
             for (uint16_t y = min_y; y <= max_y; y++) {
                 uint32_t* fb_line;
@@ -310,9 +312,9 @@ NTSTATUS framebuffer_cache<BOOT>::flush_cache(uint64_t page_num, uint64_t num_pa
                     fb_line = &framebuffer[y * fb_pixels_per_scan_line];
 
                 if (fb_transform == fb_transform::mirrored || fb_transform == fb_transform::rotated180)
-                    flush_scanline_mirrored(y, fb_line);
+                    flush_scanline_mirrored(buffer, y, fb_line);
                 else
-                    flush_scanline(y, fb_line);
+                    flush_scanline(buffer, y, fb_line);
             }
         }
     } else {
