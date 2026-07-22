@@ -686,17 +686,13 @@ NTSTATUS LdrGetProcedureAddress(void* dll_handle, const ANSI_STRING* procedure_n
         return nt_status::INVALID_PARAMETER;
 
     if (nt_header.OptionalHeader32.Magic == IMAGE_NT_OPTIONAL_HDR64_MAGIC) {
-        if (nt_header.OptionalHeader64.NumberOfRvaAndSizes <= IMAGE_DIRECTORY_ENTRY_EXPORT) {
-            print_stderr("image has no export directory\n");
+        if (nt_header.OptionalHeader64.NumberOfRvaAndSizes <= IMAGE_DIRECTORY_ENTRY_EXPORT)
             return nt_status::PROCEDURE_NOT_FOUND;
-        }
 
         dir_addr = dos_header.e_lfanew + offsetof(IMAGE_NT_HEADERS, OptionalHeader64.DataDirectory);
     } else {
-        if (nt_header.OptionalHeader32.NumberOfRvaAndSizes <= IMAGE_DIRECTORY_ENTRY_EXPORT) {
-            print_stderr("image has no export directory\n");
+        if (nt_header.OptionalHeader32.NumberOfRvaAndSizes <= IMAGE_DIRECTORY_ENTRY_EXPORT)
             return nt_status::PROCEDURE_NOT_FOUND;
-        }
 
         dir_addr = dos_header.e_lfanew + offsetof(IMAGE_NT_HEADERS, OptionalHeader32.DataDirectory);
     }
@@ -705,53 +701,41 @@ NTSTATUS LdrGetProcedureAddress(void* dll_handle, const ANSI_STRING* procedure_n
 
     auto& data_dir = *(IMAGE_DATA_DIRECTORY*)((uint8_t*)dll_handle + dir_addr);
 
-    if (data_dir.VirtualAddress == 0 || data_dir.Size == 0) {
-        print_stderr("image has no export directory\n");
+    if (data_dir.VirtualAddress == 0 || data_dir.Size == 0)
         return nt_status::PROCEDURE_NOT_FOUND;
-    }
 
     // search export directory
 
     const auto& ied = *(IMAGE_EXPORT_DIRECTORY*)((uint8_t*)dll_handle + data_dir.VirtualAddress);
 
-    if (ied.NumberOfNames == 0) {
-        print_stderr("image has no exports\n");
+    if (ied.NumberOfNames == 0)
         return nt_status::PROCEDURE_NOT_FOUND;
-    }
 
     auto names = span((uint32_t*)((uint8_t*)&ied + ied.AddressOfNames - data_dir.VirtualAddress),
                       ied.NumberOfNames);
 
-    if ((uint8_t*)names.data() + names.size_bytes() > (uint8_t*)&ied + data_dir.Size) {
-        print_stderr("invalid export directory\n");
+    if ((uint8_t*)names.data() + names.size_bytes() > (uint8_t*)&ied + data_dir.Size)
         return nt_status::INTERNAL_ERROR;
-    }
 
     auto name_ordinals = span((uint16_t*)((uint8_t*)&ied + ied.AddressOfNameOrdinals - data_dir.VirtualAddress),
                               ied.NumberOfNames);
 
-    if ((uint8_t*)name_ordinals.data() + name_ordinals.size_bytes() > (uint8_t*)&ied + data_dir.Size) {
-        print_stderr("invalid export directory\n");
+    if ((uint8_t*)name_ordinals.data() + name_ordinals.size_bytes() > (uint8_t*)&ied + data_dir.Size)
         return nt_status::INTERNAL_ERROR;
-    }
 
     auto funcs = span((uint32_t*)((uint8_t*)&ied + ied.AddressOfFunctions - data_dir.VirtualAddress),
                       ied.NumberOfFunctions);
 
-    if ((uint8_t*)funcs.data() + funcs.size_bytes() > (uint8_t*)&ied + data_dir.Size) {
-        print_stderr("invalid export directory\n");
+    if ((uint8_t*)funcs.data() + funcs.size_bytes() > (uint8_t*)&ied + data_dir.Size)
         return nt_status::INTERNAL_ERROR;
-    }
 
     optional<uint16_t> ord;
 
     for (unsigned int i = 0; i < names.size(); i++) {
         auto n = names[i];
 
-        if (n - data_dir.VirtualAddress > data_dir.Size) {
-            print_stderr("invalid export directory\n");
+        if (n - data_dir.VirtualAddress > data_dir.Size)
             return nt_status::INTERNAL_ERROR;
-        }
 
         auto sv = string_view((char*)(uint8_t*)&ied + n - data_dir.VirtualAddress,
                               data_dir.Size + data_dir.VirtualAddress - n);
@@ -767,15 +751,12 @@ NTSTATUS LdrGetProcedureAddress(void* dll_handle, const ANSI_STRING* procedure_n
         }
     }
 
-    if (!ord) {
-        print_stderr("could not find export {}\n", name);
+    if (!ord)
         return nt_status::PROCEDURE_NOT_FOUND;
-    }
 
-    if (*ord >= ied.NumberOfFunctions) {
-        print_stderr("function ordinal out of range\n");
+    // ordinal out of range
+    if (*ord >= ied.NumberOfFunctions)
         return nt_status::PROCEDURE_NOT_FOUND;
-    }
 
     auto rva = funcs[*ord];
 
