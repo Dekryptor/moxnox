@@ -42,7 +42,7 @@ void* mmap(void* /*addr*/, size_t len, int prot, int flags, int fd, off_t off) {
     nt_status status;
     LARGE_INTEGER lisize, lioff;
     HANDLE file, h;
-    uint32_t allocation_attributes, page_protection;
+    uint32_t allocation_attributes, page_protection, ceiling;
     size_t view_size;
     void* base_address;
 
@@ -85,8 +85,13 @@ void* mmap(void* /*addr*/, size_t len, int prot, int flags, int fd, off_t off) {
 
     lisize.QuadPart = (int64_t)len + (int64_t)off;
 
+    if (flags & MAP_ANONYMOUS)
+        ceiling = PAGE_EXECUTE_READWRITE;
+    else
+        ceiling = page_protection;
+
     // FIXME - access mask
-    status = NtCreateSection(&h, 0, nullptr, &lisize, page_protection,
+    status = NtCreateSection(&h, 0, nullptr, &lisize, ceiling,
                              allocation_attributes, file);
     if (!success(status)) {
         *_errno() = nt_status_to_errno(status);
