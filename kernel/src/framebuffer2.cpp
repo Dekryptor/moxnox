@@ -31,6 +31,13 @@ static uint16_t cursor_x, cursor_y;
 template<bool BOOT>
 class framebuffer_cache : public custom_section_cache {
 public:
+    framebuffer_cache(span<uint32_t> buffer) : buffer(buffer) { }
+
+    ~framebuffer_cache() {
+        if (buffer.data())
+            vfree(buffer.data(), buffer.size());
+    }
+
     NTSTATUS read_into_cache(uint64_t page_num, uint64_t num_pages,
                              uint64_t& read_pages) override;
     NTSTATUS flush_cache(uint64_t page_num, uint64_t num_pages) override;
@@ -44,6 +51,7 @@ private:
     nt_status ioctl_move_cursor(span<const uint8_t> inbuf);
     nt_status ioctl_create_framebuffer(span<uint8_t> outbuf, uintptr_t& written);
     void flush_scanlines(int16_t top, int16_t bottom);
+    span<uint32_t> buffer;
 };
 
 template<bool BOOT>
@@ -54,13 +62,6 @@ nt_status framebuffer_cache<BOOT>::read_into_cache(uint64_t page_num, uint64_t n
         print("page_cache::pin returned {}\n", status);
         return status;
     }
-
-    span<uint32_t> fb;
-
-    if constexpr (BOOT)
-        fb = shadow_framebuffer;
-    else
-        fb = framebuffer;
 
     page_cache_entry* p;
 
@@ -77,7 +78,7 @@ nt_status framebuffer_cache<BOOT>::read_into_cache(uint64_t page_num, uint64_t n
         if (p->pfn)
             continue;
 
-        auto va = (uintptr_t)((uint8_t*)fb.data() + ((page_num + i) << PAGE_SHIFT));
+        auto va = (uintptr_t)((uint8_t*)buffer.data() + ((page_num + i) << PAGE_SHIFT));
 
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wconversion"
@@ -373,7 +374,7 @@ void create_boot_framebuffer_section() {
     s->num_pages = bytes_to_pages(s->size);
     s->page_protection = PAGE_READWRITE;
 
-    s->custom_cache = new framebuffer_cache<true>;
+    s->custom_cache = new framebuffer_cache<true>(shadow_framebuffer);
     if (!s->custom_cache) {
         print("new failed\n");
         s->release();
@@ -402,7 +403,7 @@ void create_other_framebuffer_section() {
     s->num_pages = bytes_to_pages(s->size);
     s->page_protection = PAGE_READWRITE;
 
-    s->custom_cache = new framebuffer_cache<false>;
+    s->custom_cache = new framebuffer_cache<false>(framebuffer);
     if (!s->custom_cache) {
         print("new failed\n");
         s->release();
@@ -431,7 +432,6 @@ nt_status framebuffer_cache<BOOT>::ioctl_create_framebuffer(span<uint8_t> outbuf
     if (!s) {
         print("new failed\n");
         return nt_status::INSUFFICIENT_RESOURCES;
-
     }
 
     s->type = section_type::anonymous;
@@ -441,12 +441,20 @@ nt_status framebuffer_cache<BOOT>::ioctl_create_framebuffer(span<uint8_t> outbuf
     else
         s->size = (uint32_t)framebuffer.size_bytes();
 
+    auto buf = (uint32_t*)vmalloc(s->size);
+    if (!buf) {
+        print("vmalloc failed\n");
+        s->release();
+        return nt_status::INSUFFICIENT_RESOURCES;
+    }
+
     s->num_pages = bytes_to_pages(s->size);
     s->page_protection = PAGE_READWRITE;
 
-    s->custom_cache = new framebuffer_cache<BOOT>;
+    s->custom_cache = new framebuffer_cache<BOOT>(span<uint32_t>(buf, s->size / sizeof(uint32_t)));
     if (!s->custom_cache) {
         print("new failed\n");
+        vfree(buf, s->size);
         s->release();
         return nt_status::INSUFFICIENT_RESOURCES;
     }
