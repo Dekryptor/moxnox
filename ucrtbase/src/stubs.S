@@ -30,5 +30,7 @@ do_stub "fsetpos"
 do_stub "mbsrtowcs"
 do_stub "wcscat"
 do_stub "atoll"
+do_stub "_crt_at_quick_exit"
+do_stub "quick_exit"
 
 stubs_end

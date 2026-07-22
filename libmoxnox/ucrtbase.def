@@ -350,3 +350,5 @@ mbsrtowcs
 wcscat
 atoll
 iswgraph
+_crt_at_quick_exit
+quick_exit
