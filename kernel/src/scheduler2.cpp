@@ -369,6 +369,9 @@ nt_status wait_for_object(object& obj, bool interruptible,
 
         auto& cb = *get_cpu_block();
 
+        if (current_thread->status == thread_status::dying)
+            current_thread->kill_on_wake = true;
+
         current_thread->status = thread_status::waiting;
         current_thread->current_cpu = 0xffffffff;
         current_thread->wait_interruptible = interruptible;
@@ -878,6 +881,9 @@ nt_status wait_for_objects(span<object*> objects, bool wait_any,
 
     auto& cb = *get_cpu_block();
 
+    if (current_thread->status == thread_status::dying)
+        current_thread->kill_on_wake = true;
+
     current_thread->status = thread_status::waiting_multiple;
     current_thread->current_cpu = 0xffffffff;
     current_thread->wait_interruptible = interruptible;
@@ -1013,6 +1019,9 @@ void set_current_thread_waiting(bool interruptible) {
 
     auto& cb = *get_cpu_block();
     auto t = cb.current_thread;
+
+    if (t->status == thread_status::dying)
+        t->kill_on_wake = true;
 
     t->status = thread_status::waiting;
     t->current_cpu = 0xffffffff;
@@ -1183,6 +1192,9 @@ NTSTATUS mn_poll(mn_poll_entry* entries, size_t num_entries,
 
     auto& cb = *get_cpu_block();
 
+    if (current_thread->status == thread_status::dying)
+        current_thread->kill_on_wake = true;
+
     current_thread->status = thread_status::waiting_multiple;
     current_thread->current_cpu = 0xffffffff;
     current_thread->wait_interruptible = true;
@@ -1323,6 +1335,9 @@ nt_status wait_no_object(bool interruptible, optional<uint64_t> timeout) {
         }
 
         auto& cb = *get_cpu_block();
+
+        if (current_thread->status == thread_status::dying)
+            current_thread->kill_on_wake = true;
 
         current_thread->status = thread_status::waiting_no_object;
         current_thread->current_cpu = 0xffffffff;
