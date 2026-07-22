@@ -36,7 +36,7 @@ public:
 
     ~framebuffer_cache() {
         if (buffer.data())
-            vfree(buffer.data(), bytes_to_pages(buffer.size()) << PAGE_SHIFT);
+            vfree(buffer.data(), bytes_to_pages(buffer.size_bytes()) << PAGE_SHIFT);
     }
 
     NTSTATUS read_into_cache(uint64_t page_num, uint64_t num_pages,
