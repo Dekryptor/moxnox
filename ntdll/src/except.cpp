@@ -1168,7 +1168,7 @@ EXCEPTION_ROUTINE RtlVirtualUnwind(uint32_t type, uint64_t image_base,
 
                 // alloc_m
 
-                auto x = (uint16_t)(((codes[i] & 3) << 8) | codes[i + 1]);
+                auto x = (uint16_t)(((codes[i] & 7) << 8) | codes[i + 1]);
 
                 context->Sp += x * 16;
 
