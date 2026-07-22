@@ -123,6 +123,14 @@ int main() {
 
     sect.reset(h);
 
+    status = NtDeviceIoControlFile(sect.get(), 0, nullptr, nullptr, &iosb,
+                                   IOCTL_MOXNOX_FB_SET_ACTIVE, nullptr, 0,
+                                   nullptr, 0);
+    if (!success(status)) {
+        print_stderr("IOCTL_MOXNOX_FB_SET_ACTIVE returned {}\n", status);
+        return 1;
+    }
+
     status = NtQuerySection(sect.get(), SECTION_INFORMATION_CLASS::MoxnoxFramebufferInformation,
                             &fb_info, sizeof(fb_info), &return_length);
     if (!success(status)) {
