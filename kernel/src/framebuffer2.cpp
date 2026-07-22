@@ -314,7 +314,7 @@ NTSTATUS framebuffer_cache<BOOT>::flush_cache(uint64_t page_num, uint64_t num_pa
                     uint32_t* fb_line;
 
                     if (fb_transform == fb_transform::flipped || fb_transform == fb_transform::rotated180)
-                        fb_line = &framebuffer[(fb_height - y) * fb_pixels_per_scan_line];
+                        fb_line = &framebuffer[(fb_height - 1 - y) * fb_pixels_per_scan_line];
                     else
                         fb_line = &framebuffer[y * fb_pixels_per_scan_line];
 
