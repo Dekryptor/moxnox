@@ -181,6 +181,10 @@ extern "C"
 nt_status LdrUnloadDll(HMODULE mod) {
     auto& peb = *NtCurrentTeb()->ProcessEnvironmentBlock;
 
+    // don't allow unloading of main image
+    if (mod == peb.ImageBaseAddress)
+        return nt_status::SUCCESS;
+
     {
         mn_loader_lock lock;
         lock_guard lg(lock);
