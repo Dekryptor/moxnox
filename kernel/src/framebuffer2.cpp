@@ -23,6 +23,8 @@ import spinlock;
 import disable_interrupts;
 import bsod;
 import rwsem;
+import rbtree;
+import console;
 
 using namespace std;
 
@@ -36,11 +38,7 @@ template<bool BOOT>
 class framebuffer_cache : public custom_section_cache {
 public:
     framebuffer_cache(span<uint32_t> buffer) : buffer(buffer) { }
-
-    ~framebuffer_cache() {
-        if (buffer.data())
-            vfree(buffer.data(), bytes_to_pages(buffer.size_bytes()) << PAGE_SHIFT);
-    }
+    ~framebuffer_cache();
 
     NTSTATUS read_into_cache(uint64_t page_num, uint64_t num_pages,
                              uint64_t& read_pages) override;
@@ -705,4 +703,47 @@ nt_status framebuffer_cache<BOOT>::ioctl_move_cursor(span<const uint8_t> inbuf) 
     }
 
     return nt_status::SUCCESS;
+}
+
+static void zero_cache_entry(rbtree_node<uint64_t>* tree) {
+    auto& r = rbtree_containing_record<page_cache_entry>(tree);
+
+    if (tree->left)
+        zero_cache_entry(tree->left);
+
+    if (tree->right)
+        zero_cache_entry(tree->right);
+
+    r.pfn = 0;
+}
+
+template<bool BOOT>
+framebuffer_cache<BOOT>::~framebuffer_cache() {
+    auto* c = static_cast<custom_section_cache*>(this);
+    auto& master_fb = static_cast<section&>(framebuffer_section.get());
+    bool changed_active = false;
+
+    {
+        lock_guard lock(active_fb_lock);
+
+        if (active_fb == c) {
+            active_fb = master_fb.custom_cache;
+            changed_active = true;
+        }
+    }
+
+    if (changed_active)
+        master_fb.custom_cache->flush_cache(0, bytes_to_pages(buffer.size_bytes()));
+
+    if (buffer.data())
+        vfree(buffer.data(), bytes_to_pages(buffer.size_bytes()) << PAGE_SHIFT);
+
+    // make sure page cache doesn't double-free our pages
+
+    {
+        lock_guard lock(cache.base.cache_lock);
+
+        if (cache.base.root)
+            zero_cache_entry(cache.base.root);
+    }
 }

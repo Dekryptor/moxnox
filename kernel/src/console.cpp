@@ -18,6 +18,7 @@ export object_ref console_chardev;
 export object_ref com1_pipe_handle;
 export unsigned int console_cols; // FIXME
 export bool userspace_started = false;
+export object_ref framebuffer_section;
 
 export enum class console_type {
 #ifdef __x86_64__

@@ -76,8 +76,6 @@ spinlock early_print_lock;
 char early_print_buf[65536];
 size_t early_print_buf_size = 0;
 
-static object_ref framebuffer_section;
-
 static uint32_t console_output_mode = ENABLE_PROCESSED_OUTPUT;
 
 // font.S
