@@ -297,12 +297,7 @@ NTSTATUS framebuffer_cache<BOOT>::flush_cache(uint64_t page_num, uint64_t num_pa
             return nt_status::SUCCESS;
     }
 
-    {
-        shared_lock lock(active_fb_lock);
-
-        if (active_fb != static_cast<custom_section_cache*>(this))
-            return nt_status::SUCCESS;
-
+    auto do_flush = [&]() {
         if constexpr (BOOT) {
             lock_guard lock(cursor_lock);
 
@@ -334,6 +329,17 @@ NTSTATUS framebuffer_cache<BOOT>::flush_cache(uint64_t page_num, uint64_t num_pa
 
             flush_framebuffer(0, y1, fb_width, min(fb_height - y1, y2 - y1 + 1));
         }
+    };
+
+    if (in_bsod)
+        do_flush();
+    else {
+        shared_lock lock(active_fb_lock);
+
+        if (active_fb != static_cast<custom_section_cache*>(this))
+            return nt_status::SUCCESS;
+
+        do_flush();
     }
 
     return nt_status::SUCCESS;
