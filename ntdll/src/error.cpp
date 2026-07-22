@@ -171,6 +171,10 @@ uint32_t RtlNtStatusToDosErrorNoTeb(nt_status status) {
             return ERROR_NOT_A_REPARSE_POINT;
         case REPARSE_POINT_NOT_RESOLVED:
             return ERROR_CANT_RESOLVE_FILENAME;
+        case FLOAT_MULTIPLE_FAULTS:
+            return ERROR_FLOAT_MULTIPLE_FAULTS;
+        case FLOAT_MULTIPLE_TRAPS:
+            return ERROR_FLOAT_MULTIPLE_TRAPS;
         case DEVICE_REMOVED:
             return ERROR_DEVICE_REMOVED;
         case SYSTEM_SHUTDOWN:
