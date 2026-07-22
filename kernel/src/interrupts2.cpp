@@ -622,7 +622,7 @@ static bool setup_idt() {
     // FIXME - int 10 (x87 exception)
     // FIXME - int 11 (alignment check)
     // FIXME - int 12 (machine check)
-    // FIXME - int 13 (SIMD exception)
+    add_idt_entry(0x13, (void*)simd_exception_isr, false, 0, false);
     // FIXME - int 14 (virtualization exception)
     // FIXME - int 15 (control protection exception)
 
@@ -1618,6 +1618,56 @@ void single_step_user() {
     er.NumberParameters = 0;
 
     send_signal(er, ctx, nt_status::SINGLE_STEP);
+}
+
+extern "C"
+void simd_exception_kernel() {
+    auto& cb = *get_cpu_block();
+    auto current_thread = cb.current_thread;
+
+    char s[1024];
+    auto sp = span(s, sizeof(s));
+
+    sp = format(sp, "SIMD exception in kernel mode, ");
+
+    if (!current_thread)
+        sp = format(sp, "not in thread");
+    else
+        sp = format(sp, "thread {:x}", (uintptr_t)current_thread);
+
+    sp = format(sp, ", CPU {}\n", cb.cpu_no);
+    sp = format(sp, "{}", cb.thread_context);
+
+    bsod(string_view(s, (size_t)(sp.data() - s)), source_location::current(),
+         &cb.thread_context);
+}
+
+extern "C"
+void simd_exception_user() {
+    CONTEXT ctx;
+    nt_status code;
+
+    memcpy(&ctx, &get_cpu_block()->thread_context, sizeof(CONTEXT));
+    memcpy(&ctx.FltSave, &get_cpu_block()->xsave, sizeof(ctx.FltSave));
+
+    auto flags = (ctx.FltSave.MxCsr & 0x3f) & ~((ctx.FltSave.MxCsr >> 7) & 0x3f);
+
+    if (flags & 0x7) // IE, DE, ZE
+        code = nt_status::FLOAT_MULTIPLE_FAULTS;
+    else // OE, UE, PE
+        code = nt_status::FLOAT_MULTIPLE_TRAPS;
+
+    enable_interrupts();
+
+    EXCEPTION_RECORD er;
+
+    er.ExceptionCode = (uint32_t)code;
+    er.ExceptionFlags = 0;
+    er.ExceptionRecord = nullptr;
+    er.ExceptionAddress = (void*)ctx.Rip;
+    er.NumberParameters = 0;
+
+    send_signal(er, ctx, code);
 }
 
 #elifdef __aarch64__

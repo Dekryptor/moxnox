@@ -19,6 +19,7 @@ extern "C" void yield_isr();
 extern "C" void breakpoint_isr();
 extern "C" void single_step_isr();
 extern "C" void nmi_isr();
+extern "C" void simd_exception_isr();
 extern volatile uint32_t processors_left_to_halt;
 
 #endif

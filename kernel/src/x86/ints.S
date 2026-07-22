@@ -384,6 +384,7 @@ exception_isr "invalid_opcode"
 exception_isr "breakpoint"
 exception_isr "single_step"
 exception_isr "divide_by_zero"
+exception_isr "simd_exception"
 
 .seh_proc double_fault_isr
 .global double_fault_isr
