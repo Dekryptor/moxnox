@@ -30,7 +30,7 @@ export span<uint32_t> framebuffer, shadow_framebuffer;
 export uint32_t fb_width, fb_height, fb_dpi;
 export uint32_t shadow_fb_width, shadow_fb_height, shadow_fb_pixels_per_scan_line;
 export spinlock cursor_lock;
-export void (*flush_framebuffer)(unsigned int x, unsigned int y,
+export void (*flush_framebuffer)(void* ctx, unsigned int x, unsigned int y,
                                  unsigned int width, unsigned int height);
 export nt_status (*new_framebuffer_created)(span<uint32_t> buffer,
                                             unsigned int width,

@@ -986,8 +986,10 @@ bool virtio_gpu<T>::update_cursor(uint32_t scanout, uint32_t x, uint32_t y,
     return true;
 }
 
-static void virtio_gpu_flush_framebuffer(unsigned int x, unsigned int y,
+static void virtio_gpu_flush_framebuffer(void* ctx, unsigned int x, unsigned int y,
                                          unsigned int width, unsigned int height) {
+    auto resource = ctx ? (uint32_t)(uintptr_t)ctx : flush_framebuffer_resource;
+
     auto sp = span((uint8_t*)(framebuffer.data() + (y * fb_width)),
                    height * fb_width * sizeof(uint32_t));
     flush_cache(sp, false);
@@ -1001,12 +1003,12 @@ static void virtio_gpu_flush_framebuffer(unsigned int x, unsigned int y,
         r.height = height;
 
         if (!v->transfer_to_host(r, ((r.y * fb_width) + r.x) * sizeof(uint32_t),
-                                 flush_framebuffer_resource)) {
+                                 resource)) {
             print("virtio_gpu::transfer_to_host failed\n");
             return;
         }
 
-        if (!v->resource_flush(r, flush_framebuffer_resource)) {
+        if (!v->resource_flush(r, resource)) {
             print("virtio_gpu::resource_flush failed\n");
             return;
         }
