@@ -1059,8 +1059,7 @@ static nt_status virtio_gpu_new_framebuffer_created(span<uint32_t> buffer,
     }, flush_framebuffer_device);
 }
 
-static nt_status virtio_gpu_framebuffer_set_active(void* ctx, unsigned int width,
-                                                   unsigned int height) {
+static nt_status virtio_gpu_framebuffer_set_active(void* ctx) {
     auto resource = ctx ? (uint32_t)(uintptr_t)ctx : flush_framebuffer_resource;
 
     return visit([&](auto&& v) -> nt_status {
@@ -1068,8 +1067,8 @@ static nt_status virtio_gpu_framebuffer_set_active(void* ctx, unsigned int width
 
         r.x = 0;
         r.y = 0;
-        r.width = width;
-        r.height = height;
+        r.width = fb_width;
+        r.height = fb_height;
 
         if (!v->set_scanout(r, 0, resource)) {
             print("virtio_gpu::set_scanout failed\n");

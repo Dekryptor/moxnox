@@ -533,7 +533,7 @@ nt_status framebuffer_cache<BOOT>::ioctl_set_active() {
         active_fb = c;
 
         if (framebuffer_set_active) {
-            auto status = framebuffer_set_active(gpu_ctx, fb_width, fb_height);
+            auto status = framebuffer_set_active(gpu_ctx);
             if (!success(status))
                 return status;
         }
@@ -766,7 +766,7 @@ framebuffer_cache<BOOT>::~framebuffer_cache() {
             changed_active = true;
 
             if (framebuffer_set_active)
-                framebuffer_set_active(nullptr, fb_width, fb_height);
+                framebuffer_set_active(nullptr);
         }
     }
 
