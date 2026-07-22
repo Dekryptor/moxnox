@@ -2,6 +2,7 @@ module;
 
 #include <span>
 #include <mutex>
+#include <shared_mutex>
 #include <algorithm>
 #include <stddef.h>
 #include <stdint.h>
@@ -21,13 +22,15 @@ import thread;
 import spinlock;
 import disable_interrupts;
 import bsod;
+import rwsem;
 
 using namespace std;
 
 static uint32_t* cursor_buffer;
 static uint16_t cursor_width, cursor_height, cursor_hotspot_x, cursor_hotspot_y;
 static uint16_t cursor_x, cursor_y;
-static spinlock active_fb_lock;
+static rwsem active_fb_lock;
+static custom_section_cache* active_fb;
 
 template<bool BOOT>
 class framebuffer_cache : public custom_section_cache {
@@ -47,12 +50,11 @@ public:
     nt_status ioctl(uint32_t code, span<const uint8_t> inbuf,
                     span<uint8_t> outbuf, uintptr_t& written) override;
 
-    bool active;
-
 private:
     nt_status ioctl_set_cursor(span<const uint8_t> inbuf);
     nt_status ioctl_move_cursor(span<const uint8_t> inbuf);
     nt_status ioctl_create_framebuffer(span<uint8_t> outbuf, uintptr_t& written);
+    nt_status ioctl_set_active();
     void flush_scanlines(int16_t top, int16_t bottom);
     span<uint32_t> buffer;
 };
@@ -296,42 +298,42 @@ NTSTATUS framebuffer_cache<BOOT>::flush_cache(uint64_t page_num, uint64_t num_pa
     }
 
     {
-        lock_guard lock(active_fb_lock);
+        shared_lock lock(active_fb_lock);
 
-        if (!active)
+        if (active_fb != static_cast<custom_section_cache*>(this))
             return nt_status::SUCCESS;
-    }
 
-    if constexpr (BOOT) {
-        lock_guard lock(cursor_lock);
+        if constexpr (BOOT) {
+            lock_guard lock(cursor_lock);
 
-        auto min_y = (uint16_t)((page_num << PAGE_SHIFT) / (shadow_fb_pixels_per_scan_line * sizeof(uint32_t)));
-        auto max_y = min((uint16_t)(((page_num + num_pages + 1) << PAGE_SHIFT) / (shadow_fb_pixels_per_scan_line * sizeof(uint32_t))), (uint16_t)(shadow_fb_height - 1));
+            auto min_y = (uint16_t)((page_num << PAGE_SHIFT) / (shadow_fb_pixels_per_scan_line * sizeof(uint32_t)));
+            auto max_y = min((uint16_t)(((page_num + num_pages + 1) << PAGE_SHIFT) / (shadow_fb_pixels_per_scan_line * sizeof(uint32_t))), (uint16_t)(shadow_fb_height - 1));
 
-        if (fb_transform == fb_transform::rotated90)
-            flush_scanlines_rotated90(min_y, max_y); // FIXME
-        else if (fb_transform == fb_transform::rotated270)
-            flush_scanlines_rotated270(min_y, max_y); // FIXME
-        else {
-            for (uint16_t y = min_y; y <= max_y; y++) {
-                uint32_t* fb_line;
+            if (fb_transform == fb_transform::rotated90)
+                flush_scanlines_rotated90(min_y, max_y); // FIXME
+            else if (fb_transform == fb_transform::rotated270)
+                flush_scanlines_rotated270(min_y, max_y); // FIXME
+            else {
+                for (uint16_t y = min_y; y <= max_y; y++) {
+                    uint32_t* fb_line;
 
-                if (fb_transform == fb_transform::flipped || fb_transform == fb_transform::rotated180)
-                    fb_line = &framebuffer[(fb_height - y) * fb_pixels_per_scan_line];
-                else
-                    fb_line = &framebuffer[y * fb_pixels_per_scan_line];
+                    if (fb_transform == fb_transform::flipped || fb_transform == fb_transform::rotated180)
+                        fb_line = &framebuffer[(fb_height - y) * fb_pixels_per_scan_line];
+                    else
+                        fb_line = &framebuffer[y * fb_pixels_per_scan_line];
 
-                if (fb_transform == fb_transform::mirrored || fb_transform == fb_transform::rotated180)
-                    flush_scanline_mirrored(buffer, y, fb_line);
-                else
-                    flush_scanline(buffer, y, fb_line);
+                    if (fb_transform == fb_transform::mirrored || fb_transform == fb_transform::rotated180)
+                        flush_scanline_mirrored(buffer, y, fb_line);
+                    else
+                        flush_scanline(buffer, y, fb_line);
+                }
             }
-        }
-    } else {
-        auto y1 = (unsigned int)(((page_num << PAGE_SHIFT) / sizeof(uint32_t)) / fb_width);
-        auto y2 = (unsigned int)((((page_num + num_pages) << PAGE_SHIFT) / sizeof(uint32_t)) / fb_width);
+        } else {
+            auto y1 = (unsigned int)(((page_num << PAGE_SHIFT) / sizeof(uint32_t)) / fb_width);
+            auto y2 = (unsigned int)((((page_num + num_pages) << PAGE_SHIFT) / sizeof(uint32_t)) / fb_width);
 
-        flush_framebuffer(0, y1, fb_width, min(fb_height - y1, y2 - y1 + 1));
+            flush_framebuffer(0, y1, fb_width, min(fb_height - y1, y2 - y1 + 1));
+        }
     }
 
     return nt_status::SUCCESS;
@@ -393,7 +395,7 @@ void create_boot_framebuffer_section() {
         return;
     }
 
-    ((framebuffer_cache<true>*)s->custom_cache)->active = true;
+    active_fb = s->custom_cache;
 
     status = name_object(*s, "framebuffer", true);
     if (!success(status)) {
@@ -424,7 +426,7 @@ void create_other_framebuffer_section() {
         return;
     }
 
-    ((framebuffer_cache<false>*)s->custom_cache)->active = true;
+    active_fb = s->custom_cache;
 
     status = name_object(*s, "framebuffer", true);
     if (!success(status)) {
@@ -477,8 +479,6 @@ nt_status framebuffer_cache<BOOT>::ioctl_create_framebuffer(span<uint8_t> outbuf
         return nt_status::INSUFFICIENT_RESOURCES;
     }
 
-    ((framebuffer_cache<BOOT>*)s->custom_cache)->active = false;
-
     status = t.proc->add_handle(*s, 0, true, h);
     if (!success(status)) {
         s->release();
@@ -487,6 +487,24 @@ nt_status framebuffer_cache<BOOT>::ioctl_create_framebuffer(span<uint8_t> outbuf
 
     *(HANDLE*)outbuf.data() = h;
     written = sizeof(HANDLE);
+
+    return nt_status::SUCCESS;
+}
+
+template<bool BOOT>
+nt_status framebuffer_cache<BOOT>::ioctl_set_active() {
+    auto* c = static_cast<custom_section_cache*>(this);
+
+    {
+        lock_guard lock(active_fb_lock);
+
+        if (active_fb == c)
+            return nt_status::SUCCESS;
+
+        active_fb = c;
+    }
+
+    flush_cache(0, bytes_to_pages(buffer.size_bytes()));
 
     return nt_status::SUCCESS;
 }
@@ -503,6 +521,9 @@ nt_status framebuffer_cache<BOOT>::ioctl(uint32_t code, span<const uint8_t> inbu
 
         case IOCTL_MOXNOX_FB_CREATE_FRAMEBUFFER:
             return ioctl_create_framebuffer(outbuf, written);
+
+        case IOCTL_MOXNOX_FB_SET_ACTIVE:
+            return ioctl_set_active();
 
         default:
             return nt_status::NOT_SUPPORTED;
