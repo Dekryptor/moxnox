@@ -229,7 +229,8 @@ static void flush_scanline_mirrored(span<const uint32_t> source, uint16_t y,
         copy_scanline_mirrored(fb_line, shadow_line, 0, fb_pixels_per_scan_line);
 }
 
-void flush_scanlines_rotated90_slow(uint32_t min_y, uint32_t max_y) {
+void flush_scanlines_rotated90_slow(uint32_t* buffer, uint32_t min_y,
+                                    uint32_t max_y) {
     static const size_t BLOCK = 16;
 
     min_y &= (uint32_t)~(BLOCK - 1);
@@ -241,7 +242,7 @@ void flush_scanlines_rotated90_slow(uint32_t min_y, uint32_t max_y) {
             uint32_t bw = (bx + BLOCK <= shadow_fb_width) ? BLOCK : (shadow_fb_width - bx);
 
             for (uint32_t y = 0; y < bh; y++) {
-                auto shadow_line = &shadow_framebuffer[(by + y) * shadow_fb_pixels_per_scan_line];
+                auto shadow_line = &buffer[(by + y) * shadow_fb_pixels_per_scan_line];
 
                 for (uint32_t x = 0; x < bw; x++) {
                     uint32_t dest_y = bx + x;
@@ -256,7 +257,8 @@ void flush_scanlines_rotated90_slow(uint32_t min_y, uint32_t max_y) {
     }
 }
 
-void flush_scanlines_rotated270_slow(uint32_t min_y, uint32_t max_y) {
+void flush_scanlines_rotated270_slow(uint32_t* buffer, uint32_t min_y,
+                                     uint32_t max_y) {
     static const size_t BLOCK = 16;
 
     min_y &= (uint32_t)~(BLOCK - 1);
@@ -268,7 +270,7 @@ void flush_scanlines_rotated270_slow(uint32_t min_y, uint32_t max_y) {
             uint32_t bw = (bx + BLOCK <= shadow_fb_width) ? BLOCK : (shadow_fb_width - bx);
 
             for (uint32_t y = 0; y < bh; y++) {
-                auto shadow_line = &shadow_framebuffer[(by + y) * shadow_fb_pixels_per_scan_line];
+                auto shadow_line = &buffer[(by + y) * shadow_fb_pixels_per_scan_line];
 
                 for (uint32_t x = 0; x < bw; x++) {
                     uint32_t dest_y = shadow_fb_width - 1 - (bx + x);
@@ -308,9 +310,9 @@ NTSTATUS framebuffer_cache<BOOT>::flush_cache(uint64_t page_num, uint64_t num_pa
             auto max_y = min((uint16_t)(((page_num + num_pages + 1) << PAGE_SHIFT) / (shadow_fb_pixels_per_scan_line * sizeof(uint32_t))), (uint16_t)(shadow_fb_height - 1));
 
             if (fb_transform == fb_transform::rotated90)
-                flush_scanlines_rotated90(min_y, max_y); // FIXME
+                flush_scanlines_rotated90(buffer.data(), min_y, max_y);
             else if (fb_transform == fb_transform::rotated270)
-                flush_scanlines_rotated270(min_y, max_y); // FIXME
+                flush_scanlines_rotated270(buffer.data(), min_y, max_y);
             else {
                 for (uint16_t y = min_y; y <= max_y; y++) {
                     uint32_t* fb_line;

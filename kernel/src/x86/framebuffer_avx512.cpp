@@ -137,7 +137,8 @@ static void transpose_16x16_avx512(__m512i* rows_out, const __m512i* rows_in,
     }
 }
 
-void flush_scanlines_rotated90_avx512(uint32_t min_y, uint32_t max_y) {
+void flush_scanlines_rotated90_avx512(uint32_t* buffer, uint32_t min_y,
+                                      uint32_t max_y) {
     min_y &= (uint32_t)~15;
     max_y = min(shadow_fb_height - 1, (uint32_t)((max_y + 15) & (uint32_t)~15));
 
@@ -148,7 +149,7 @@ void flush_scanlines_rotated90_avx512(uint32_t min_y, uint32_t max_y) {
             for (unsigned int i = 0; i < 16; i++) {
                 uint32_t src_y = block_y + i;
 
-                auto shadow_line = &shadow_framebuffer[src_y * shadow_fb_pixels_per_scan_line];
+                auto shadow_line = &buffer[src_y * shadow_fb_pixels_per_scan_line];
 
                 rows_in[i] = _mm512_loadu_si512((__m512i*)&shadow_line[block_x]);
             }
@@ -172,7 +173,8 @@ void flush_scanlines_rotated90_avx512(uint32_t min_y, uint32_t max_y) {
     }
 }
 
-void flush_scanlines_rotated270_avx512(uint32_t min_y, uint32_t max_y) {
+void flush_scanlines_rotated270_avx512(uint32_t* buffer, uint32_t min_y,
+                                       uint32_t max_y) {
     min_y &= (uint32_t)~15;
     max_y = min(shadow_fb_height - 1, (uint32_t)((max_y + 15) & (uint32_t)~15));
 
@@ -183,7 +185,7 @@ void flush_scanlines_rotated270_avx512(uint32_t min_y, uint32_t max_y) {
             for (unsigned int i = 0; i < 16; i++) {
                 uint32_t src_y = block_y + i;
 
-                auto shadow_line = &shadow_framebuffer[src_y * shadow_fb_pixels_per_scan_line];
+                auto shadow_line = &buffer[src_y * shadow_fb_pixels_per_scan_line];
 
                 rows_in[i] = _mm512_loadu_si512((__m512i*)&shadow_line[block_x]);
             }
