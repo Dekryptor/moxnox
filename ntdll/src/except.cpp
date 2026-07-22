@@ -1068,7 +1068,7 @@ static void unwind_context_packed(CONTEXT& context, const RUNTIME_FUNCTION& rf) 
     if (rf.RegI > 0) { // step 2
         for (unsigned int i = 0; i < rf.RegI; i++) {
             // ldr x(19 + i), [sp, #savsz + (i * 8)]
-            if (auto ret = read_uint64_t(context.Sp + savsz + (i * 8)); ret.has_value())
+            if (auto ret = read_uint64_t(context.Sp + (i * 8)); ret.has_value())
                 context.X[19 + i] = *ret;
             else
                 return;
