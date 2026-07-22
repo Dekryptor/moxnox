@@ -1,7 +1,7 @@
 FROM gentoo/stage3:latest
 
 RUN emerge --sync
-RUN mkdir -p /etc/portage/patches/sys-devel/crossdev && cd /etc/portage/patches/sys-devel/crossdev && wget https://moxnox.dev/crossdev-moxnox.patch
+RUN mkdir -p /etc/portage/patches/sys-devel/crossdev && cd /etc/portage/patches/sys-devel/crossdev && wget https://moxnox.dev/crossdev-moxnox.patch https://moxnox.dev/crossdev-moxnox-clang-cfg.patch
 RUN mkdir -p /etc/portage/patches/cross-x86_64-pc-moxnox/binutils && cd /etc/portage/patches/cross-x86_64-pc-moxnox/binutils && wget https://moxnox.dev/binutils-moxnox.patch
 RUN mkdir -p /etc/portage/patches/cross-x86_64-pc-moxnox/gcc && cd /etc/portage/patches/cross-x86_64-pc-moxnox/gcc && wget https://moxnox.dev/gcc-moxnox.tar.gz && tar -xzf gcc-moxnox.tar.gz && rm gcc-moxnox.tar.gz
 RUN mkdir -p /etc/portage/patches/sys-devel/gnuconfig && cd /etc/portage/patches/sys-devel/gnuconfig && wget https://moxnox.dev/gnuconfig-moxnox.patch
@@ -25,5 +25,18 @@ RUN echo "dev-python/python-dateutil python_targets_python3_13" >> /etc/portage/
 RUN echo "sys-apps/file python python_targets_python3_13" >> /etc/portage/package.use/moxnox
 RUN emerge net-misc/s3cmd
 RUN emerge app-arch/cpio app-misc/jq dev-util/xxd net-libs/nodejs
+
+RUN mkdir -p /etc/portage/patches/llvm-core/llvm && cd /etc/portage/patches/llvm-core/llvm && wget https://moxnox.dev/llvm-moxnox.tar.gz && tar -xzf llvm-moxnox.tar.gz && rm llvm-moxnox.tar.gz
+RUN mkdir -p /etc/portage/patches/llvm-core/clang && cd /etc/portage/patches/llvm-core/clang && wget https://moxnox.dev/clang-moxnox.tar.gz && tar -xzf clang-moxnox.tar.gz && rm clang-moxnox.tar.gz
+RUN mkdir -p /etc/portage/patches/dev-lang/rust && cd /etc/portage/patches/dev-lang/rust && wget https://moxnox.dev/rust-moxnox.tar.gz && tar -xzf rust-moxnox.tar.gz && rm rust-moxnox.tar.gz
+RUN mkdir -p /etc/portage/env/dev-lang && printf "I_KNOW_WHAT_I_AM_DOING_CROSS=1\nRUST_CROSS_TARGETS=(\n\tX86:x86_64-pc-moxnox:x86_64-pc-moxnox\n)\n" > /etc/portage/env/dev-lang/rust
+RUN echo "dev-lang/rust::moxnox **" >> /etc/portage/package.accept_keywords/moxnox
+RUN emerge llvm-core/clang
+RUN mkdir -p /var/db/repos/crossdev/cross_llvm-x86_64-pc-moxnox && ln -s /var/db/repos/gentoo/sys-devel/clang-crossdev-wrappers /var/db/repos/crossdev/cross_llvm-x86_64-pc-moxnox/clang-crossdev-wrappers
+RUN echo "cross_llvm-x86_64-pc-moxnox/clang-crossdev-wrappers:22 **" >> /etc/portage/package.accept_keywords/moxnox
+RUN echo cross_llvm-x86_64-pc-moxnox >> /var/db/repos/crossdev/profiles/categories
+RUN emerge cross_llvm-x86_64-pc-moxnox/clang-crossdev-wrappers:22
+RUN mkdir -p /etc/clang/cross && printf -- "--sysroot=/usr/x86_64-pc-moxnox\n--target=x86_64-pc-moxnox\n@../gentoo-runtimes.cfg\n" > /etc/clang/cross/x86_64-pc-moxnox.cfg
+RUN emerge dev-lang/rust
 
 RUN rm -rf /var/cache/distfiles
