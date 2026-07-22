@@ -1,5 +1,6 @@
 #include <sys/mman.h>
 #include <errno.h>
+#include <utility>
 
 import nt;
 import ntdll;
@@ -9,6 +10,8 @@ import pagesize;
 
 #undef errno
 import errno;
+
+using namespace std;
 
 void* operator new(size_t count) {
     return malloc(count);
@@ -162,6 +165,66 @@ int posix_memalign(void** memptr, size_t alignment, size_t size) {
         return ENOMEM;
 
     *memptr = ptr;
+
+    return 0;
+}
+
+extern "C"
+int mprotect(void* addr, size_t size, int prot) {
+    nt_status status;
+    uint32_t type, old_type;
+
+    if (prot != PROT_NONE && prot & ~(PROT_READ | PROT_WRITE | PROT_EXEC)) {
+        *_errno() = ENOTSUP;
+        return -1;
+    }
+
+    if (prot == PROT_NONE)
+        type = PAGE_NOACCESS;
+    else {
+        switch (prot) {
+            case PROT_READ:
+                type = PAGE_READONLY;
+                break;
+
+            case PROT_WRITE:
+            case PROT_READ | PROT_WRITE:
+                type = PAGE_READWRITE;
+                break;
+
+            case PROT_EXEC:
+            case PROT_READ | PROT_EXEC:
+                type = PAGE_EXECUTE_READ;
+                break;
+
+            case PROT_WRITE | PROT_EXEC:
+            case PROT_READ | PROT_WRITE | PROT_EXEC:
+                type = PAGE_EXECUTE_READWRITE;
+                break;
+
+            default:
+                unreachable();
+        }
+    }
+
+    status = NtProtectVirtualMemory(NtCurrentProcess(), &addr, &size, type,
+                                    &old_type);
+
+    // if we failed, try again with COW versions
+    if (status == nt_status::ACCESS_DENIED && (type == PAGE_READWRITE || type == PAGE_EXECUTE_READWRITE)) {
+        if (type == PAGE_READWRITE)
+            type = PAGE_WRITECOPY;
+        else
+            type = PAGE_EXECUTE_WRITECOPY;
+
+        status = NtProtectVirtualMemory(NtCurrentProcess(), &addr, &size, type,
+                                        &old_type);
+    }
+
+    if (!success(status)) {
+        *_errno() = nt_status_to_errno(status);
+        return -1;
+    }
 
     return 0;
 }

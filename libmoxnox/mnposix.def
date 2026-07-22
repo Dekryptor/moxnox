@@ -150,6 +150,7 @@ aligned_alloc
 strsignal
 getegid
 gmtime_r
+mprotect
 
 ; stubs
 fchown
@@ -199,7 +200,6 @@ getlogin_r
 confstr
 sched_yield
 sigwait
-mprotect
 setrlimit
 socketpair
 localtime_r
