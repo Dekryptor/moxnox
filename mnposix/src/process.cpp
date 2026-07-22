@@ -216,10 +216,8 @@ void* dlopen(const char* file, int flags) {
         return nullptr;
     }
 
-    if (!file) {
-        set_dl_error_string("FIXME - returning address of main program in dlopen");
-        return nullptr;
-    }
+    if (!file)
+        return NtCurrentTeb()->ProcessEnvironmentBlock->ImageBaseAddress;
 
     auto sv = string_view(file);
 
