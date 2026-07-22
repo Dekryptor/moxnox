@@ -6,6 +6,7 @@ module;
 
 export module framebuffer;
 
+import nt;
 import spinlock;
 
 using namespace std;
@@ -31,6 +32,10 @@ export uint32_t shadow_fb_width, shadow_fb_height, shadow_fb_pixels_per_scan_lin
 export spinlock cursor_lock;
 export void (*flush_framebuffer)(unsigned int x, unsigned int y,
                                  unsigned int width, unsigned int height);
+export nt_status (*new_framebuffer_created)(span<uint32_t> buffer,
+                                            unsigned int width,
+                                            unsigned int height, void*& ctx);
+export void (*framebuffer_deleted)(void* ctx);
 export void (*move_cursor)(uint32_t x, uint32_t y);
 export void (*set_cursor)(uint32_t x, uint32_t y, span<const uint32_t> buf,
                           uint32_t hot_x, uint32_t hot_y);

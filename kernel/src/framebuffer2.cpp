@@ -55,6 +55,7 @@ private:
     nt_status ioctl_set_active();
     void flush_scanlines(int16_t top, int16_t bottom);
     span<uint32_t> buffer;
+    void* gpu_ctx;
 };
 
 template<bool BOOT>
@@ -477,13 +478,33 @@ nt_status framebuffer_cache<BOOT>::ioctl_create_framebuffer(span<uint8_t> outbuf
 
     memset(buf, 0, s->num_pages << PAGE_SHIFT);
 
-    s->custom_cache = new framebuffer_cache<BOOT>(span<uint32_t>(buf, s->size / sizeof(uint32_t)));
+    void* new_ctx;
+
+    if (new_framebuffer_created) {
+        status = new_framebuffer_created(span(buf, s->size / sizeof(uint32_t)),
+                                         fb_width, fb_height, new_ctx);
+        if (!success(status)) {
+            vfree(buf, s->size);
+            s->release();
+            return status;
+        }
+    }
+
+    auto c = new framebuffer_cache<BOOT>(span(buf, s->size / sizeof(uint32_t)));
+
+    s->custom_cache = c;
     if (!s->custom_cache) {
         print("new failed\n");
+
+        if (framebuffer_deleted)
+            framebuffer_deleted(new_ctx);
+
         vfree(buf, s->size);
         s->release();
         return nt_status::INSUFFICIENT_RESOURCES;
     }
+
+    c->gpu_ctx = new_ctx;
 
     status = t.proc->add_handle(*s, 0, true, h);
     if (!success(status)) {
@@ -742,6 +763,9 @@ framebuffer_cache<BOOT>::~framebuffer_cache() {
 
     if (changed_active)
         master_fb.custom_cache->flush_cache(0, bytes_to_pages(buffer.size_bytes()));
+
+    if (framebuffer_deleted)
+        framebuffer_deleted(gpu_ctx);
 
     if (buffer.data())
         vfree(buffer.data(), bytes_to_pages(buffer.size_bytes()) << PAGE_SHIFT);

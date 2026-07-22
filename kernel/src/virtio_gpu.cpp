@@ -1013,6 +1013,58 @@ static void virtio_gpu_flush_framebuffer(unsigned int x, unsigned int y,
     }, flush_framebuffer_device);
 }
 
+static nt_status virtio_gpu_new_framebuffer_created(span<uint32_t> buffer,
+                                                    unsigned int width,
+                                                    unsigned int height,
+                                                    void*& ctx) {
+    return visit([&](auto&& v) -> nt_status {
+        optional<uint64_t> fence_num;
+        uint32_t resource = 0;
+
+        auto opt_res = v->create_resource(VIRTIO_GPU_FORMAT::B8G8R8A8_UNORM,
+                                          width, height);
+        if (!opt_res.has_value()) {
+            print("virtio_gpu::create_resource failed\n");
+            return nt_status::INTERNAL_ERROR;
+        }
+
+        resource = *opt_res;
+
+        if (!v->attach_backing(resource, span((uint8_t*)buffer.data(), buffer.size_bytes()))) {
+            print("virtio_gpu::attach_backing failed\n");
+            v->unref_resource(resource);
+            return nt_status::INTERNAL_ERROR;
+        }
+
+        virtio_gpu_rect r;
+
+        r.x = 0;
+        r.y = 0;
+        r.width = width;
+        r.height = height;
+
+        fence_num = v->fence.fetch_add(1);
+
+        if (!v->transfer_to_host(r, 0, resource, fence_num)) {
+            print("virtio_gpu::transfer_to_host failed\n");
+            v->unref_resource(resource);
+            return nt_status::INTERNAL_ERROR;
+        }
+
+        ctx = (void*)(uintptr_t)resource;
+
+        return nt_status::SUCCESS;
+    }, flush_framebuffer_device);
+}
+
+static void virtio_gpu_framebuffer_deleted(void* ctx) {
+    auto resource = (uint32_t)(uintptr_t)ctx;
+
+    visit([&](auto&& v) {
+        v->unref_resource(resource);
+    }, flush_framebuffer_device);
+}
+
 static void virtio_gpu_move_cursor(uint32_t x, uint32_t y) {
     visit([&](auto&& v) {
         if (!v->move_cursor(0, x, y)) {
@@ -1202,6 +1254,8 @@ void virtio_gpu<T>::start() {
     flush_framebuffer_device = decltype(flush_framebuffer_device)(this);
     flush_framebuffer_resource = *res;
     flush_framebuffer = virtio_gpu_flush_framebuffer;
+    new_framebuffer_created = virtio_gpu_new_framebuffer_created;
+    framebuffer_deleted = virtio_gpu_framebuffer_deleted;
     ::move_cursor = virtio_gpu_move_cursor;
     set_cursor = virtio_gpu_set_cursor;
 
