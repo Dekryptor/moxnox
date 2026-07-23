@@ -152,6 +152,7 @@ getegid
 gmtime_r
 mprotect
 sigdelset
+strerror_r
 
 ; stubs
 fchown
@@ -182,7 +183,6 @@ setresgid
 memmem
 lchown
 getgroups
-strerror_r
 fstatvfs
 posix_spawnattr_setflags
 posix_spawnattr_setsigdefault

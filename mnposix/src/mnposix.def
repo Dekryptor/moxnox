@@ -152,3 +152,4 @@ getegid
 gmtime_r
 mprotect
 sigdelset
+strerror_r
