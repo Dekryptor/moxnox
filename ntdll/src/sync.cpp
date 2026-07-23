@@ -113,14 +113,12 @@ nt_status RtlWaitOnAddress(const void* addr, const void* cmp,
 
     status = NtWaitForSingleObject(event.get(), false, timeout);
 
-    if (!entry.removed) {
-        RtlEnterCriticalSection(&waiters_lock);
+    RtlEnterCriticalSection(&waiters_lock);
 
-        if (!entry.removed)
-            remove_entry_list(entry.le);
+    if (!entry.removed)
+        remove_entry_list(entry.le);
 
-        RtlLeaveCriticalSection(&waiters_lock);
-    }
+    RtlLeaveCriticalSection(&waiters_lock);
 
     return status;
 }
