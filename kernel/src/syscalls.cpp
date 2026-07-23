@@ -1848,9 +1848,11 @@ NTSTATUS user_NtQueryVolumeInformationFile(HANDLE file_handle,
             free(buf);
             return nt_status::ACCESS_VIOLATION;
         }
+    }
 
-        free(buf);
+    free(buf);
 
+    if (success(ret)) {
         if (!copy_to_process(us_iosb, &iosb, sizeof(IO_STATUS_BLOCK)))
             return nt_status::ACCESS_VIOLATION;
     }
