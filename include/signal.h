@@ -76,6 +76,7 @@ struct sigaction {
 #define SIGUSR2 30
 #define SIGTTIN 31
 #define SIGTTOU 32
+#define NSIG (SIGTTOU + 1)
 
 typedef void (*__sighandler_t)(int sig);
 
