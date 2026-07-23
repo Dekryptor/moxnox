@@ -22,6 +22,7 @@
 #define _SC_GETPW_R_SIZE_MAX 4
 #define _SC_HOST_NAME_MAX 5
 #define _SC_ARG_MAX 6
+#define _SC_PHYS_PAGES 7
 
 #define _PC_PATH_MAX 0
 
