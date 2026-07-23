@@ -1861,6 +1861,57 @@ NTSTATUS user_NtQueryVolumeInformationFile(HANDLE file_handle,
 }
 
 extern "C"
+NTSTATUS NtQuerySystemInformation(SYSTEM_INFORMATION_CLASS info_class,
+                                  void* us_info, uint32_t info_length,
+                                  uint32_t* us_return_length) {
+    print("FIXME - NtQuerySystemInformation\n");
+
+    return nt_status::NOT_IMPLEMENTED;
+}
+
+extern "C"
+NTSTATUS user_NtQuerySystemInformation(SYSTEM_INFORMATION_CLASS info_class,
+                                       void* us_info, uint32_t info_length,
+                                       uint32_t* us_return_length) {
+    void* buf;
+    uint32_t retlen;
+
+    if (!us_info && info_length > 0)
+        return nt_status::ACCESS_VIOLATION;
+
+    if (info_length > PAGE_SIZE)
+        info_length = PAGE_SIZE;
+
+    if (info_length > 0) {
+        buf = malloc(info_length);
+        if (!buf) {
+            print("malloc failed\n");
+            return nt_status::INSUFFICIENT_RESOURCES;
+        }
+    } else
+        buf = nullptr;
+
+    auto ret = NtQuerySystemInformation(info_class, buf, info_length, &retlen);
+
+    if (success(ret) && buf) {
+        if (!copy_to_process(us_info, buf, retlen)) {
+            free(buf);
+            return nt_status::ACCESS_VIOLATION;
+        }
+    }
+
+    if (buf)
+        free(buf);
+
+    if (success(ret) && us_return_length) {
+        if (!copy_to_process(us_return_length, &retlen, sizeof(retlen)))
+            return nt_status::ACCESS_VIOLATION;
+    }
+
+    return ret;
+}
+
+extern "C"
 uint64_t maybe_yield_after_syscall(uint64_t syscall_ret) {
     // interrupts are disabled and sync_lock held
 

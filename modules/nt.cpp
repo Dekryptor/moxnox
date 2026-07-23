@@ -1568,6 +1568,23 @@ enum class FS_INFORMATION_CLASS {
     FullSizeInformationEx,
 };
 
+enum class SYSTEM_INFORMATION_CLASS {
+    BasicInformation,
+    ProcessorInformation,
+    PerformanceInformation,
+    TimeOfDayInformation,
+    ProcessInformation = 5,
+    ProcessorPerformanceInformation = 8,
+    HandleInformation = 16,
+    PagefileInformation = 18,
+    InterruptInformation = 23,
+    ExceptionInformation = 33,
+    RegistryQuotaInformation = 37,
+    LookasideInformation = 45,
+    CodeIntegrityInformation = 103,
+    PolicyInformation = 134
+};
+
 extern "C" {
 
 NTSTATUS NtDisplayString(const UNICODE_STRING* string);
@@ -1709,6 +1726,9 @@ NTSTATUS NtQueryVolumeInformationFile(HANDLE file_handle,
                                       IO_STATUS_BLOCK* io_status_block,
                                       void* fs_information, uint32_t length,
                                       FS_INFORMATION_CLASS fs_information_class);
+NTSTATUS NtQuerySystemInformation(SYSTEM_INFORMATION_CLASS info_class,
+                                  void* info, uint32_t info_length,
+                                  uint32_t* return_length);
 
 };
 
