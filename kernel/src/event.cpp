@@ -56,11 +56,23 @@ export object_ref create_event(bool autoreset) {
 void event::set_holding_sync_lock() {
     // signal waiting threads
 
-    auto waiter_count = wake_up_waiters(waiters);
+    if (autoreset) {
+        if (is_list_empty(waiters))
+            signalled = true; // if autoreset, only signal if nothing waiting when fired
+        else {
+            list_entry tmp = { &tmp, &tmp };
 
-    // if autoreset, only signal if nothing waiting when fired
-    if (!autoreset || waiter_count == 0)
+            auto le = waiters.next;
+
+            remove_entry_list(*le);
+            insert_tail_list(tmp, *le);
+            wake_up_waiters(tmp);
+        }
+    } else {
+        wake_up_waiters(waiters);
+
         signalled = true;
+    }
 }
 
 export void set_event(event& e) {
