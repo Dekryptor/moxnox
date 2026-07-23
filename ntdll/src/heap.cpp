@@ -2,6 +2,7 @@
 #include <stdint.h>
 #include <new>
 #include <algorithm>
+#include <array>
 
 import nt;
 import print;
@@ -28,7 +29,8 @@ struct free_block : alloc_header {
 
 class subheap {
 public:
-    subheap(size_t reserve_size, size_t commit_size, list_entry& free_list);
+    subheap(size_t reserve_size, size_t commit_size,
+            array<list_entry, 65>& free_bins);
 
     list_entry le;
     size_t reserve_size;
@@ -49,10 +51,17 @@ public:
     list_entry subheaps = { &subheaps, &subheaps };
     RTL_CRITICAL_SECTION cs;
     size_t reserve_size, commit_size;
-    list_entry free_blocks = { &free_blocks, &free_blocks };
+    array<list_entry, 65> free_bins;
 };
 
-subheap::subheap(size_t reserve_size, size_t commit_size, list_entry& free_list) : reserve_size(reserve_size), commit_size(commit_size) {
+static size_t get_bin_number(size_t size) {
+    if (size > 1024)
+        return 64;
+
+    return (size - 1) / 16;
+}
+
+subheap::subheap(size_t reserve_size, size_t commit_size, array<list_entry, 65>& free_bins) : reserve_size(reserve_size), commit_size(commit_size) {
     auto& fb = *(free_block*)data;
 
 #pragma GCC diagnostic push
@@ -61,7 +70,7 @@ subheap::subheap(size_t reserve_size, size_t commit_size, list_entry& free_list)
     fb.size -= sizeof(alloc_header); // for sentinel
 #pragma GCC diagnostic pop
     fb.free = 1;
-    insert_tail_list(free_list, fb.le);
+    insert_tail_list(free_bins[get_bin_number(fb.size)], fb.le);
 
     auto& sentinel = *(alloc_header*)((uint8_t*)&fb + sizeof(alloc_header) + fb.size);
     sentinel.size = 0;
@@ -71,6 +80,11 @@ subheap::subheap(size_t reserve_size, size_t commit_size, list_entry& free_list)
 
 heap::heap(size_t reserve_size, size_t commit_size) : reserve_size(reserve_size), commit_size(commit_size) {
     void* addr = nullptr;
+
+    for (auto& b : free_bins) {
+        b.next = &b;
+        b.prev = &b;
+    }
 
     auto ret = NtAllocateVirtualMemory(NtCurrentProcess(), &addr, 0, &reserve_size,
                                        MEM_RESERVE, PAGE_READWRITE);
@@ -90,7 +104,7 @@ heap::heap(size_t reserve_size, size_t commit_size) : reserve_size(reserve_size)
         return;
     }
 
-    auto sh = new (addr) subheap(reserve_size, commit_size, free_blocks);
+    auto sh = new (addr) subheap(reserve_size, commit_size, free_bins);
 
     insert_tail_list(subheaps, sh->le);
 
@@ -115,7 +129,7 @@ heap::~heap() {
 }
 
 static void mark_block_allocated(free_block& fb, size_t size,
-                                 list_entry& free_blocks) {
+                                 array<list_entry, 65>& free_bins) {
     if (fb.size >= size + sizeof(free_block)) {
         auto& nh = *(free_block*)((uint8_t*)&fb + sizeof(alloc_header) + size);
 
@@ -125,7 +139,7 @@ static void mark_block_allocated(free_block& fb, size_t size,
         nh.size = fb.size - size - sizeof(alloc_header);
 #pragma GCC diagnostic pop
 
-        insert_tail_list(free_blocks, nh.le);
+        insert_tail_list(free_bins[get_bin_number(nh.size)], nh.le);
     }
 
     fb.free = 0;
@@ -146,27 +160,33 @@ void* heap::allocate(uint32_t flags, size_t size) {
     if (size & 15)
         size = ((size >> 4) + 1) << 4;
 
+    auto bin = get_bin_number(size);
+
     if (size == 0 || size >= 0x80000000)
         return nullptr;
 
     RtlEnterCriticalSection(&cs);
 
-    for (auto le = free_blocks.next; le != &free_blocks; le = le->next) {
-        auto& fb = containing_record<free_block>(le);
+    while (bin < free_bins.size()) {
+        for (auto le = free_bins[bin].next; le != &free_bins[bin]; le = le->next) {
+            auto& fb = containing_record<free_block>(le);
 
-        if (fb.size < size)
-            continue;
+            if (fb.size < size)
+                continue;
 
-        mark_block_allocated(fb, size, free_blocks);
+            mark_block_allocated(fb, size, free_bins);
 
-        auto ret = (uint8_t*)&fb + sizeof(alloc_header);
+            auto ret = (uint8_t*)&fb + sizeof(alloc_header);
 
-        if (flags & HEAP_ZERO_MEMORY)
-            memset(ret, 0, size);
+            if (flags & HEAP_ZERO_MEMORY)
+                memset(ret, 0, size);
 
-        RtlLeaveCriticalSection(&cs);
+            RtlLeaveCriticalSection(&cs);
 
-        return ret;
+            return ret;
+        }
+
+        bin++;
     }
 
     // FIXME - return nullptr if heap not growable
@@ -195,13 +215,13 @@ void* heap::allocate(uint32_t flags, size_t size) {
         return nullptr;
     }
 
-    auto sh = new (sh_addr) subheap(sh_reserve, sh_commit, free_blocks);
+    auto sh = new (sh_addr) subheap(sh_reserve, sh_commit, free_bins);
 
     insert_tail_list(subheaps, sh->le);
 
     auto& shfb = *(free_block*)sh->data;
 
-    mark_block_allocated(shfb, size, free_blocks);
+    mark_block_allocated(shfb, size, free_bins);
 
     auto ret = (uint8_t*)&shfb + sizeof(alloc_header);
 
@@ -263,10 +283,12 @@ bool heap::free(uint32_t, void* base_address) {
     if (fb->align_shift != 0)
         fb = (free_block*)((uint8_t*)fb - fb->align_shift);
 
+    auto bin = get_bin_number(fb->size);
+
     RtlEnterCriticalSection(&cs);
 
     fb->free = 1;
-    insert_tail_list(free_blocks, fb->le);
+    insert_tail_list(free_bins[bin], fb->le);
 
     // FIXME - decommit part of heap if last page(s) now clear?
 
