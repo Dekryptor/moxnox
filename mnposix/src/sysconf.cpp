@@ -25,6 +25,20 @@ long sysconf(int name) {
             return sbi.NumberOfPhysicalPages;
         }
 
+        case _SC_NPROCESSORS_ONLN:
+        case _SC_NPROCESSORS_CONF: {
+            SYSTEM_BASIC_INFORMATION sbi;
+
+            auto status = NtQuerySystemInformation(SYSTEM_INFORMATION_CLASS::BasicInformation,
+                                                   &sbi, sizeof(sbi), nullptr);
+            if (!success(status)) {
+                *_errno() = nt_status_to_errno(status);
+                return -1;
+            }
+
+            return sbi.NumberOfProcessors;
+        }
+
         default:
             *_errno() = EINVAL;
             return -1;
