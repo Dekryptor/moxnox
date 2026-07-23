@@ -1,5 +1,6 @@
 #include <string.h>
 #include <errno.h>
+#include <string_view>
 
 import print;
 import ucrtbase;
@@ -7,8 +8,9 @@ import ucrtbase;
 #undef errno
 import errno;
 
+using namespace std;
+
 static thread_local int errno = 0;
-static thread_local char strerror_buf[256];
 
 extern "C"
 _invalid_parameter_handler _set_invalid_parameter_handler(_invalid_parameter_handler /*handler*/) {
@@ -23,168 +25,188 @@ int* __errno() {
 }
 
 extern "C"
-char* __strerror(int errnum) {
+errno_t strerror_s(char* buffer, size_t size, int errnum) {
+    string_view sv;
+
     switch (errnum) {
         case 0:
-            strcpy(strerror_buf, "Success");
+            sv = "Success";
             break;
 
         case EPERM:
-            strcpy(strerror_buf, "Operation not permitted");
+            sv = "Operation not permitted";
             break;
 
         case ENOENT:
-            strcpy(strerror_buf, "No such file or directory");
+            sv = "No such file or directory";
             break;
 
         case ESRCH:
-            strcpy(strerror_buf, "No such process");
+            sv = "No such process";
             break;
 
         case EINTR:
-            strcpy(strerror_buf, "Interrupted system call");
+            sv = "Interrupted system call";
             break;
 
         case EIO:
-            strcpy(strerror_buf, "Input/output error");
+            sv = "Input/output error";
             break;
 
         case ENXIO:
-            strcpy(strerror_buf, "No such device or address");
+            sv = "No such device or address";
             break;
 
         case E2BIG:
-            strcpy(strerror_buf, "Argument list too long");
+            sv = "Argument list too long";
             break;
 
         case ENOEXEC:
-            strcpy(strerror_buf, "Exec format error");
+            sv = "Exec format error";
             break;
 
         case EBADF:
-            strcpy(strerror_buf, "Bad file descriptor");
+            sv = "Bad file descriptor";
             break;
 
         case ECHILD:
-            strcpy(strerror_buf, "No child processes");
+            sv = "No child processes";
             break;
 
         case EAGAIN:
-            strcpy(strerror_buf, "Resource temporarily unavailable");
+            sv = "Resource temporarily unavailable";
             break;
 
         case ENOMEM:
-            strcpy(strerror_buf, "Cannot allocate memory");
+            sv = "Cannot allocate memory";
             break;
 
         case EACCES:
-            strcpy(strerror_buf, "Permission denied");
+            sv = "Permission denied";
             break;
 
         case EFAULT:
-            strcpy(strerror_buf, "Bad address");
+            sv = "Bad address";
             break;
 
         case EBUSY:
-            strcpy(strerror_buf, "Device or resource busy");
+            sv = "Device or resource busy";
             break;
 
         case EEXIST:
-            strcpy(strerror_buf, "File exists");
+            sv = "File exists";
             break;
 
         case EXDEV:
-            strcpy(strerror_buf, "Invalid cross-device link");
+            sv = "Invalid cross-device link";
             break;
 
         case ENODEV:
-            strcpy(strerror_buf, "No such device");
+            sv = "No such device";
             break;
 
         case ENOTDIR:
-            strcpy(strerror_buf, "Not a directory");
+            sv = "Not a directory";
             break;
 
         case EISDIR:
-            strcpy(strerror_buf, "Is a directory");
+            sv = "Is a directory";
             break;
 
         case EINVAL:
-            strcpy(strerror_buf, "Invalid argument");
+            sv = "Invalid argument";
             break;
 
         case ENFILE:
-            strcpy(strerror_buf, "Too many open files in system");
+            sv = "Too many open files in system";
             break;
 
         case EMFILE:
-            strcpy(strerror_buf, "Too many open files");
+            sv = "Too many open files";
             break;
 
         case ENOTTY:
-            strcpy(strerror_buf, "Inappropriate ioctl for device");
+            sv = "Inappropriate ioctl for device";
             break;
 
         case EFBIG:
-            strcpy(strerror_buf, "File too large");
+            sv = "File too large";
             break;
 
         case ENOSPC:
-            strcpy(strerror_buf, "No space left on device");
+            sv = "No space left on device";
             break;
 
         case ESPIPE:
-            strcpy(strerror_buf, "Illegal seek");
+            sv = "Illegal seek";
             break;
 
         case EROFS:
-            strcpy(strerror_buf, "Read-only file system");
+            sv = "Read-only file system";
             break;
 
         case EMLINK:
-            strcpy(strerror_buf, "Too many links");
+            sv = "Too many links";
             break;
 
         case EPIPE:
-            strcpy(strerror_buf, "Broken pipe");
+            sv = "Broken pipe";
             break;
 
         case EDOM:
-            strcpy(strerror_buf, "Numerical argument out of domain");
+            sv = "Numerical argument out of domain";
             break;
 
         case ERANGE:
-            strcpy(strerror_buf, "Numerical result out of range");
+            sv = "Numerical result out of range";
             break;
 
         case EDEADLK:
-            strcpy(strerror_buf, "Resource deadlock avoided");
+            sv = "Resource deadlock avoided";
             break;
 
         case ENAMETOOLONG:
-            strcpy(strerror_buf, "File name too long");
+            sv = "File name too long";
             break;
 
         case ENOLCK:
-            strcpy(strerror_buf, "No locks available");
+            sv = "No locks available";
             break;
 
         case ENOSYS:
-            strcpy(strerror_buf, "Function not implemented");
+            sv = "Function not implemented";
             break;
 
         case ENOTEMPTY:
-            strcpy(strerror_buf, "Directory not empty");
+            sv = "Directory not empty";
             break;
 
         case EILSEQ:
-            strcpy(strerror_buf, "Invalid or incomplete multibyte or wide character");
+            sv = "Invalid or incomplete multibyte or wide character";
             break;
 
         default:
-            strcpy(strerror_buf, "Unknown error");
+            sv = "Unknown error";
             break;
     }
+
+    if (size < sv.size() + 1) {
+        memcpy(buffer, sv.data(), size - 1);
+        buffer[size - 1] = 0;
+        return ERANGE;
+    }
+
+    memcpy(buffer, sv.data(), sv.size());
+    buffer[sv.size()] = 0;
+
+    return 0;
+}
+
+extern "C"
+char* __strerror(int errnum) {
+    static char strerror_buf[256];
+
+    strerror_s(strerror_buf, sizeof(strerror_buf), errnum);
 
     return strerror_buf;
 }

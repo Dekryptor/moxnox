@@ -344,3 +344,4 @@ llround
 llroundf
 llrint
 llrintf
+strerror_s

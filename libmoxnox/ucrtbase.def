@@ -320,6 +320,7 @@ llround
 llroundf
 llrint
 llrintf
+strerror_s
 
 ; stubs
 ___lc_codepage_func
