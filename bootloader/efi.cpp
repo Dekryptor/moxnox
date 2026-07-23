@@ -1616,6 +1616,8 @@ static void start_kernel(uint64_t entry_point, loader_block* lb) {
         sctlr.SA0 = 1; // stack alignment in user mode
         sctlr.I = 1; // enable instruction caching
         sctlr.WXN = 0; // write permissions doesn't imply no-execute
+        sctlr.UCT = 1; // allow EL0 reads of CTR_EL0
+        sctlr.UCI = 1; // allow EL0 cache maintenance
 
         __asm __volatile (
             "msr sctlr_el1, %x[res]"

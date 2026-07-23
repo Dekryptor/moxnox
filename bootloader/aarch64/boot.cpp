@@ -745,6 +745,8 @@ static bool do_paging() {
 
         sctlr.M = 1; // enable paging
         sctlr.A = 0; // disable alignment checking
+        sctlr.UCT = 1; // allow EL0 reads of CTR_EL0
+        sctlr.UCI = 1; // allow EL0 cache maintenance
 
         sctlr_el1_store(sctlr.value);
     }
