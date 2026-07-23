@@ -19,6 +19,7 @@
 #define _SC_CLK_TCK 1
 #define _SC_NPROCESSORS_ONLN 2
 #define _SC_PAGESIZE 3
+#define _SC_PAGE_SIZE _SC_PAGESIZE
 #define _SC_GETPW_R_SIZE_MAX 4
 #define _SC_HOST_NAME_MAX 5
 #define _SC_ARG_MAX 6

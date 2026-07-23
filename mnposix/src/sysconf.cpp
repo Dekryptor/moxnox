@@ -39,6 +39,19 @@ long sysconf(int name) {
             return sbi.NumberOfProcessors;
         }
 
+        case _SC_PAGESIZE: {
+            SYSTEM_BASIC_INFORMATION sbi;
+
+            auto status = NtQuerySystemInformation(SYSTEM_INFORMATION_CLASS::BasicInformation,
+                                                   &sbi, sizeof(sbi), nullptr);
+            if (!success(status)) {
+                *_errno() = nt_status_to_errno(status);
+                return -1;
+            }
+
+            return sbi.PageSize;
+        }
+
         default:
             *_errno() = EINVAL;
             return -1;
