@@ -1585,6 +1585,20 @@ enum class SYSTEM_INFORMATION_CLASS {
     PolicyInformation = 134
 };
 
+struct SYSTEM_BASIC_INFORMATION {
+    uint32_t Reserved;
+    uint32_t TimerResolution;
+    uint32_t PageSize;
+    uint32_t NumberOfPhysicalPages;
+    uint32_t LowestPhysicalPageNumber;
+    uint32_t HighestPhysicalPageNumber;
+    uint32_t AllocationGranularity;
+    uintptr_t MinimumUserModeAddress;
+    uintptr_t MaximumUserModeAddress;
+    uintptr_t ActiveProcessorsAffinityMask;
+    uint8_t NumberOfProcessors;
+};
+
 extern "C" {
 
 NTSTATUS NtDisplayString(const UNICODE_STRING* string);

@@ -48,7 +48,6 @@ struct page {
 static_assert(sizeof(struct page) == 24);
 
 page* pages = (page*)0xfffffa0000000000;
-static uint64_t total_pages, first_pfn;
 
 static uint64_t* const vablock = (uint64_t*)0xfffffa4000000000;
 uint64_t vablock_size;

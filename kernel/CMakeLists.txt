@@ -121,6 +121,7 @@ set(SRC_FILES src/kernel.cpp
     src/console2.cpp
     src/page_cache2.cpp
     src/volume2.cpp
+    src/sysinfo.cpp
 )
 
 set(AMD64_SRC_FILES ${SRC_FILES}

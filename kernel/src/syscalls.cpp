@@ -1861,15 +1861,6 @@ NTSTATUS user_NtQueryVolumeInformationFile(HANDLE file_handle,
 }
 
 extern "C"
-NTSTATUS NtQuerySystemInformation(SYSTEM_INFORMATION_CLASS info_class,
-                                  void* us_info, uint32_t info_length,
-                                  uint32_t* us_return_length) {
-    print("FIXME - NtQuerySystemInformation\n");
-
-    return nt_status::NOT_IMPLEMENTED;
-}
-
-extern "C"
 NTSTATUS user_NtQuerySystemInformation(SYSTEM_INFORMATION_CLASS info_class,
                                        void* us_info, uint32_t info_length,
                                        uint32_t* us_return_length) {

@@ -70,6 +70,7 @@ export uintptr_t cache_line_shift = 6; // 64 bytes
 
 export uint64_t zero_pfn;
 export uint64_t num_ram_pages = 0;
+export uint64_t total_pages, first_pfn;
 
 export struct init_map_entry {
     list_entry le;
