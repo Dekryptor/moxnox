@@ -52,6 +52,18 @@ int sigaddset(sigset_t* set, int signum) {
 }
 
 extern "C"
+int sigdelset(sigset_t* set, int signum) {
+    if (signum == 0 || signum > LAST_SIG) {
+        *_errno() = EINVAL;
+        return -1;
+    }
+
+    *set &= ~((sigset_t)1 << (signum - 1));
+
+    return 0;
+}
+
+extern "C"
 int sigismember(const sigset_t* set, int signo) {
     if (signo == 0 || signo > LAST_SIG)
         return 0;

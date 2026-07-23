@@ -151,3 +151,4 @@ strsignal
 getegid
 gmtime_r
 mprotect
+sigdelset

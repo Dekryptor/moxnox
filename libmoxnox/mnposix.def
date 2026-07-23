@@ -151,6 +151,7 @@ strsignal
 getegid
 gmtime_r
 mprotect
+sigdelset
 
 ; stubs
 fchown
@@ -176,7 +177,6 @@ setuid
 endgrent
 getgrent
 setgrent
-sigdelset
 setpriority
 setresgid
 memmem
