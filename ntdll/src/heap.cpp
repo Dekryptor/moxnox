@@ -159,10 +159,12 @@ void* heap::allocate(uint32_t flags, size_t size) {
     // round to multiple of 16
     if (size & 15)
         size = ((size >> 4) + 1) << 4;
+    else if (size == 0)
+        size = 16;
 
     auto bin = get_bin_number(size);
 
-    if (size == 0 || size >= 0x80000000)
+    if (size >= 0x80000000)
         return nullptr;
 
     RtlEnterCriticalSection(&cs);
