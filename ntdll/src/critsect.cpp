@@ -138,7 +138,7 @@ nt_status RtlLeaveCriticalSection(RTL_CRITICAL_SECTION* critical_section) {
 
     cs.OwningThread = 0;
 
-    if (lock_count.fetch_sub(1, memory_order_release) >= 0)
+    if (lock_count.fetch_sub(1, memory_order_release) > 0)
         return NtSetEvent(cs.LockSemaphore, nullptr);
 
     return nt_status::SUCCESS;
