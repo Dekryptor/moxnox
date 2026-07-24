@@ -67,6 +67,7 @@ int gethostname(char* name, int namelen); // FIXME - POSIX says size_t, but wins
 int pause(void);
 int pipe(int pipefd[2]);
 int fsync(int fd);
+int faccessat(int fd, const char* path, int amode, int flag);
 int fchdir(int fd);
 int symlink(const char* path1, const char* path2);
 pid_t getppid(void);
