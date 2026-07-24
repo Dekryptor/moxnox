@@ -96,6 +96,8 @@ long pathconf(const char* path, int name);
 int unlinkat(int fd, const char* path, int flag);
 int fchownat(int fd, const char* path, uid_t owner, gid_t group, int flag);
 int linkat(int fd1, const char* path1, int fd2, const char* path2, int flag);
+int symlinkat(const char* path1, int fd, const char* path2);
+ssize_t readlinkat(int fd, const char* path, char* buf, size_t bufsize);
 char* getlogin(void);
 int getlogin_r(char* name, size_t namesize);
 size_t confstr(int name, char* buf, size_t len);
