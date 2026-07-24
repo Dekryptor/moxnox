@@ -149,6 +149,7 @@ int _fstat64(int fd, struct _stat64* buf);
 int lstat(const char* path, struct stat* buf);
 int futimens(int fd, const struct timespec times[2]);
 int mkdir(const char* path, mode_t mode);
+int mkdirat(int fd, const char* path, mode_t mode);
 int chmod(const char* path, mode_t mode);
 mode_t umask(mode_t mask);
 int fchmod(int fd, mode_t mode);
