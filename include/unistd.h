@@ -94,6 +94,7 @@ int getgroups(int gidsetsize, gid_t* grouplist);
 int truncate(const char* path, off_t length);
 long pathconf(const char* path, int name);
 int unlinkat(int fd, const char* path, int flag);
+int fchownat(int fd, const char* path, uid_t owner, gid_t group, int flag);
 int linkat(int fd1, const char* path1, int fd2, const char* path2, int flag);
 char* getlogin(void);
 int getlogin_r(char* name, size_t namesize);
