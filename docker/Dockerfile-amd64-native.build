@@ -39,4 +39,15 @@ RUN emerge cross_llvm-x86_64-pc-moxnox/clang-crossdev-wrappers:22
 RUN mkdir -p /etc/clang/cross && printf -- "--sysroot=/usr/x86_64-pc-moxnox\n--target=x86_64-pc-moxnox\n@../gentoo-runtimes.cfg\n" > /etc/clang/cross/x86_64-pc-moxnox.cfg
 RUN emerge dev-lang/rust
 
+RUN printf 'if [[ ${CATEGORY}/${PN} == llvm-core/llvm ]]; then\n\tcheck_distribution_components() { :; }\n\tmultilib_prepare_wrappers() { :; }\n\tmultilib_install_wrappers() { :; }\nfi\n' >> /usr/x86_64-pc-moxnox/etc/portage/bashrc
+RUN printf 'USE_EXPAND_VALUES_KERNEL="Darwin Hurd linux SunOS Winnt Moxnox"\nUSE_EXPAND_VALUES_ELIBC="bionic Darwin glibc mingw musl SunOS moxnox"\n' >> /usr/x86_64-pc-moxnox/etc/portage/profile/make.defaults
+RUN echo LLVM_TARGETS="\"X86\"" >> /usr/x86_64-pc-moxnox/etc/portage/make.conf
+RUN mkdir -p /usr/x86_64-pc-moxnox/etc/portage/package.accept_keywords && printf 'llvm-core/llvm:22 ~amd64\n' >> /usr/x86_64-pc-moxnox/etc/portage/package.accept_keywords/llvm
+RUN mkdir -p /usr/x86_64-pc-moxnox/etc/portage/package.use && printf 'llvm-core/llvm -binutils-plugin -libffi\n' >> /usr/x86_64-pc-moxnox/etc/portage/package.use/llvm
+RUN mkdir -p /usr/x86_64-pc-moxnox/etc/portage/package.env && printf 'llvm-core/llvm moxnox-llvm\n' >> /usr/x86_64-pc-moxnox/etc/portage/package.env/llvm
+RUN mkdir -p /usr/x86_64-pc-moxnox/etc/portage/env && printf 'MYCMAKEARGS="${MYCMAKEARGS} -DLLVM_BUILD_LLVM_DYLIB=OFF -DLLVM_LINK_LLVM_DYLIB=OFF -DLLVM_ENABLE_ZLIB=OFF -DCMAKE_BUILD_TYPE=Release -DHAVE_LIBPTHREAD=0 -DHAVE_LIBRT=0 -DHAVE_LIBDL=0 -DLLVM_DISTRIBUTION_COMPONENTS=\\\"llvm-libraries;llvm-headers;cmake-exports;llvm-config\\\""\nFEATURES=\"${FEATURES} nostrip\"\n' >> /usr/x86_64-pc-moxnox/etc/portage/env/moxnox-llvm
+RUN mkdir -p /usr/x86_64-pc-moxnox/etc/portage/patches/llvm-core/llvm && cd /usr/x86_64-pc-moxnox/etc/portage/patches/llvm-core/llvm && wget https://moxnox.dev/llvm-moxnox.tar.gz && tar -xzf llvm-moxnox.tar.gz && rm llvm-moxnox.tar.gz
+RUN emerge dev-python/mako dev-python/pyaml
+RUN x86_64-pc-moxnox-emerge --nodeps llvm-core/llvm # --nodeps because Gentoo pulls in zlib despite the fact we've disabled it
+
 RUN rm -rf /var/cache/distfiles
