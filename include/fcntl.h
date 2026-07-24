@@ -15,6 +15,8 @@
 #define O_CLOEXEC   0x2000
 #define O_NOCTTY    0x80000
 #define O_DIRECTORY 0x100000
+#define O_DSYNC     0x200000
+#define O_SYNC      (0x400000 | O_DSYNC)
 
 #define F_DUPFD         0
 #define F_GETFD         1
