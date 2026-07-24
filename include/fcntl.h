@@ -47,6 +47,13 @@
 #define AT_EACCESS          4
 #define AT_SYMLINK_FOLLOW   8
 
+#define POSIX_FADV_NORMAL     0
+#define POSIX_FADV_RANDOM     1
+#define POSIX_FADV_SEQUENTIAL 2
+#define POSIX_FADV_WILLNEED   3
+#define POSIX_FADV_DONTNEED   4
+#define POSIX_FADV_NOREUSE    5
+
 struct flock {
     short l_type;
     short l_whence;
@@ -63,6 +70,7 @@ int open(const char* path, int flags, ...);
 int creat(const char* path, mode_t mode);
 int fcntl(int fd, int cmd, ...);
 int openat(int fd, const char* path, int oflag, ...);
+int posix_fadvise(int fd, off_t offset, off_t len, int advice);
 
 #ifdef __cplusplus
 }
