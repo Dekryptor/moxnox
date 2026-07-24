@@ -66,6 +66,7 @@ int ferror(FILE* stream);
 void perror(const char* s);
 int remove(const char* filename);
 int rename(const char* oldname, const char* newname);
+int renameat(int fromfd, const char* from, int tofd, const char* to);
 FILE* tmpfile(void);
 char* tmpnam(char* s);
 int printf(const char* format, ...);
