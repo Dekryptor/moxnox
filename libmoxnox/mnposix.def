@@ -222,3 +222,17 @@ munlock
 open_memstream
 strndup
 pthread_mutex_timedlock
+pthread_kill
+posix_fadvise
+faccessat
+linkat
+mkdirat
+fchownat
+renameat
+symlinkat
+readlinkat
+sem_init
+sem_destroy
+sem_wait
+sem_trywait
+sem_post
