@@ -13,8 +13,6 @@ string(REPLACE "#  include \"../auto/config.h\""
 file(CONFIGURE OUTPUT "${GEN}/xdiff/xinclude.h" CONTENT "${_src}")
 
 file(READ ${CMAKE_CURRENT_SOURCE_DIR}/repo/src/vim.h _src)
-string(REPLACE "#if defined(WIN32) || defined(_WIN32)"
-               "#if (defined(WIN32) || defined(_WIN32)) && !defined(MOXNOX)" _src "${_src}")
 string(REPLACE
     "#ifndef EXTERN\n# define EXTERN extern\n# define INIT(x)\n# define INIT2(a, b)\n# define INIT3(a, b, c)\n# define INIT4(a, b, c, d)\n# define INIT5(a, b, c, d, e)\n# define INIT6(a, b, c, d, e, f)\n#else\n# ifndef INIT\n#  define INIT(x) x\n#  define INIT2(a, b) = {a, b}\n#  define INIT3(a, b, c) = {a, b, c}\n#  define INIT4(a, b, c, d) = {a, b, c, d}\n#  define INIT5(a, b, c, d, e) = {a, b, c, d, e}\n#  define INIT6(a, b, c, d, e, f) = {a, b, c, d, e, f}\n#  define DO_INIT\n# endif\n#endif"
     "#ifdef VIM_MAIN_C\n# define EXTERN\n# define INIT(x) x\n# define INIT2(a, b) = {a, b}\n# define INIT3(a, b, c) = {a, b, c}\n# define INIT4(a, b, c, d) = {a, b, c, d}\n# define INIT5(a, b, c, d, e) = {a, b, c, d, e}\n# define INIT6(a, b, c, d, e, f) = {a, b, c, d, e, f}\n# define DO_INIT\n#elif !defined(EXTERN)\n# define EXTERN extern\n# define INIT(x)\n# define INIT2(a, b)\n# define INIT3(a, b, c)\n# define INIT4(a, b, c, d)\n# define INIT5(a, b, c, d, e)\n# define INIT6(a, b, c, d, e, f)\n#else\n# ifndef INIT\n#  define INIT(x) x\n#  define INIT2(a, b) = {a, b}\n#  define INIT3(a, b, c) = {a, b, c}\n#  define INIT4(a, b, c, d) = {a, b, c, d}\n#  define INIT5(a, b, c, d, e) = {a, b, c, d, e}\n#  define INIT6(a, b, c, d, e, f) = {a, b, c, d, e, f}\n#  define DO_INIT\n# endif\n#endif"
