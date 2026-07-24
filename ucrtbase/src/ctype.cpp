@@ -225,3 +225,91 @@ int _iswctype(wint_t c, wctype_t desc) {
 
     return types[(size_t)c] & desc;
 }
+
+extern "C"
+int iswalnum(wint_t c) {
+    if ((size_t)c >= types.size())
+        return 0;
+
+    return types[(size_t)c] & (_UPPER | _LOWER | _DIGIT);
+}
+
+extern "C"
+int iswalpha(wint_t c) {
+    if ((size_t)c >= types.size())
+        return 0;
+
+    return types[(size_t)c] & (_UPPER | _LOWER);
+}
+
+extern "C"
+int iswblank(wint_t c) {
+    if ((size_t)c >= types.size())
+        return 0;
+
+    return types[(size_t)c] & _BLANK;
+}
+
+extern "C"
+int iswcntrl(wint_t c) {
+    if ((size_t)c >= types.size())
+        return 0;
+
+    return types[(size_t)c] & _CONTROL;
+}
+
+extern "C"
+int iswdigit(wint_t c) {
+    if ((size_t)c >= types.size())
+        return 0;
+
+    return types[(size_t)c] & _DIGIT;
+}
+
+extern "C"
+int iswgraph(wint_t c) {
+    if ((size_t)c >= types.size())
+        return 0;
+
+    return types[(size_t)c] & (_UPPER | _LOWER | _DIGIT | _PUNCT);
+}
+
+extern "C"
+int iswlower(wint_t c) {
+    if ((size_t)c >= types.size())
+        return 0;
+
+    return types[(size_t)c] & _LOWER;
+}
+
+extern "C"
+int iswprint(wint_t c) {
+    if ((size_t)c >= types.size())
+        return 0;
+
+    return c == ' ' || (types[(size_t)c] & (_UPPER | _LOWER | _DIGIT | _PUNCT));
+}
+
+extern "C"
+int iswpunct(wint_t c) {
+    if ((size_t)c >= types.size())
+        return 0;
+
+    return types[(size_t)c] & _PUNCT;
+}
+
+extern "C"
+int iswupper(wint_t c) {
+    if ((size_t)c >= types.size())
+        return 0;
+
+    return types[(size_t)c] & _UPPER;
+}
+
+extern "C"
+int iswxdigit(wint_t c) {
+    if ((size_t)c >= types.size())
+        return 0;
+
+    return types[(size_t)c] & _HEX;
+}

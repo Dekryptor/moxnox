@@ -345,3 +345,14 @@ llroundf
 llrint
 llrintf
 strerror_s
+iswalnum
+iswalpha
+iswblank
+iswcntrl
+iswgraph
+iswlower
+iswprint
+iswpunct
+iswupper
+iswdigit
+iswxdigit

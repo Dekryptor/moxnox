@@ -321,22 +321,23 @@ llroundf
 llrint
 llrintf
 strerror_s
+iswalnum
+iswalpha
+iswblank
+iswcntrl
+iswdigit
+iswgraph
+iswlower
+iswprint
+iswpunct
+iswupper
+iswxdigit
 
 ; stubs
 ___lc_codepage_func
 _beginthreadex
 wcstod
 fputwc
-iswalpha
-iswblank
-iswcntrl
-iswdigit
-iswlower
-iswprint
-iswpunct
-iswupper
-iswxdigit
-iswalnum
 getwc
 putwc
 strxfrm
@@ -350,7 +351,6 @@ fsetpos
 mbsrtowcs
 wcscat
 atoll
-iswgraph
 _crt_at_quick_exit
 quick_exit
 _timespec64_get
