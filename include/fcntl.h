@@ -44,6 +44,8 @@
 
 #define AT_REMOVEDIR        1
 #define AT_SYMLINK_NOFOLLOW 2
+#define AT_EACCESS          4
+#define AT_SYMLINK_FOLLOW   8
 
 struct flock {
     short l_type;
