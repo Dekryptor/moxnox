@@ -40,7 +40,7 @@
 #define _O_TRUNC    O_TRUNC
 #define _O_EXCL     O_EXCL
 
-#define AT_FDCWD    -1
+#define AT_FDCWD    -100
 
 #define AT_REMOVEDIR        1
 #define AT_SYMLINK_NOFOLLOW 2
