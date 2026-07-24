@@ -2,6 +2,9 @@
 
 #include <sys/types.h>
 
+#define ST_RDONLY 1
+#define ST_NOSUID 2
+
 struct statvfs {
     unsigned long f_bsize;
     unsigned long f_frsize;
