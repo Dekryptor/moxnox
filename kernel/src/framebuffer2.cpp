@@ -152,18 +152,20 @@ static void flush_scanline(span<const uint32_t> source, uint16_t y,
             }
         }
 
-        size_t fast_pixels_end = ((draw_x_end + scanline_x_granularity) / scanline_x_granularity) * scanline_x_granularity;
+        size_t fast_pixels_end = ((draw_x_end + scanline_x_granularity - 1) / scanline_x_granularity) * scanline_x_granularity;
 
-        if (fast_pixels_end < fb_pixels_per_scan_line) {
+        if (fast_pixels_end < shadow_fb_pixels_per_scan_line) {
             copy_scanline(fb_line + fast_pixels_end,
                             shadow_line + fast_pixels_end,
-                            (fb_pixels_per_scan_line - fast_pixels_end) * sizeof(uint32_t));
+                            (shadow_fb_pixels_per_scan_line - fast_pixels_end) * sizeof(uint32_t));
         }
 
         memcpy(fb_line + draw_x_end, shadow_line + draw_x_end,
                (fast_pixels_end - draw_x_end) * sizeof(uint32_t));
-    } else
-        copy_scanline(fb_line, shadow_line, fb_pixels_per_scan_line * sizeof(uint32_t));
+    } else {
+        copy_scanline(fb_line, shadow_line,
+                      shadow_fb_pixels_per_scan_line * sizeof(uint32_t));
+    }
 }
 
 static void flush_scanline_mirrored(span<const uint32_t> source, uint16_t y,
@@ -216,18 +218,20 @@ static void flush_scanline_mirrored(span<const uint32_t> source, uint16_t y,
             }
         }
 
-        size_t fast_pixels_end = ((draw_x_end + scanline_x_granularity) / scanline_x_granularity) * scanline_x_granularity;
+        size_t fast_pixels_end = ((draw_x_end + scanline_x_granularity - 1) / scanline_x_granularity) * scanline_x_granularity;
 
-        if (fast_pixels_end < fb_pixels_per_scan_line) {
+        if (fast_pixels_end < shadow_fb_pixels_per_scan_line) {
             copy_scanline_mirrored(fb_line, shadow_line, (unsigned int)fast_pixels_end,
-                                   (unsigned int)(fb_pixels_per_scan_line - fast_pixels_end));
+                                   (unsigned int)(shadow_fb_pixels_per_scan_line - fast_pixels_end));
         }
 
         for (unsigned int x = draw_x_end; x < fast_pixels_end; x++) {
             fb_line[fb_pixels_per_scan_line - x - 1] = shadow_line[x];
         }
-    } else
-        copy_scanline_mirrored(fb_line, shadow_line, 0, fb_pixels_per_scan_line);
+    } else {
+        copy_scanline_mirrored(fb_line, shadow_line, 0,
+                               shadow_fb_pixels_per_scan_line);
+    }
 }
 
 void flush_scanlines_rotated90_slow(uint32_t* buffer, uint32_t min_y,
