@@ -2,7 +2,7 @@
 
 #include <stdint.h>
 
-typedef uintptr_t sem_t;
+typedef struct { uint64_t _x[2]; } sem_t;
 
 #ifdef __cplusplus
 extern "C" {
