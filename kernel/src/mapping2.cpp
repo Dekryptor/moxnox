@@ -157,8 +157,6 @@ static void unmap_proc_pages(process& proc, uint64_t va, uint64_t num_pages) {
 #endif
 
 mapping::~mapping() {
-    sect.release();
-
     // FIXME - send IPI to unmap on other CPUs by clearing TLB
 
     if (in_address_space)
@@ -172,6 +170,8 @@ mapping::~mapping() {
             remove_entry_list(cache_le);
         }
     }, sect.get_cache());
+
+    sect.release();
 }
 
 bool mapping::map(uint32_t mapping_offset, uint64_t va) {
