@@ -66,7 +66,7 @@ set(gcc_configure_args
     --enable-checking=release
     --enable-obsolete
     --enable-lto
-    --enable-shared
+    --enable-shared=libgcc
     --enable-threads=posix
     --disable-libstdcxx-pch
     --enable-libstdcxx-time
