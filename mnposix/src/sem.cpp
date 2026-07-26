@@ -15,3 +15,13 @@ int sem_init(sem_t* /*sem*/, int /*pshared*/, unsigned int /*value*/) {
     *_errno() = EINVAL;
     return -1;
 }
+
+extern "C"
+int sem_destroy(sem_t* /*sem*/) {
+    print_stderr("FIXME - sem_destroy\n");
+
+    // FIXME
+
+    *_errno() = EINVAL;
+    return -1;
+}
