@@ -25,3 +25,13 @@ int sem_destroy(sem_t* /*sem*/) {
     *_errno() = EINVAL;
     return -1;
 }
+
+extern "C"
+int sem_wait(sem_t* /*sem*/) {
+    print_stderr("FIXME - sem_wait\n");
+
+    // FIXME
+
+    *_errno() = EINVAL;
+    return -1;
+}
