@@ -116,13 +116,15 @@ void* mmap(void* /*addr*/, size_t len, int prot, int flags, int fd, off_t off) {
 }
 
 extern "C"
-int munmap(void* addr, size_t /*len*/) {
-    // FIXME - partial unmapping
+int munmap(void* addr, size_t len) {
+    MN_MEMORY_UNMAP params;
 
-    auto status = NtUnmapViewOfSection(NtCurrentProcess(), addr);
+    params.addr = addr;
+    params.length = len;
 
-    // if map not there, POSIX says we should return 0
-    if (!success(status) && status != nt_status::NO_MEMORY) {
+    auto status = NtSetInformationProcess(NtCurrentProcess(), PROCESS_INFORMATION_CLASS::MoxnoxMemoryUnmap,
+                                          &params, sizeof(params));
+    if (!success(status)) {
         *_errno() = nt_status_to_errno(status);
         return -1;
     }
