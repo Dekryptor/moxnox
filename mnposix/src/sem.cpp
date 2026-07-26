@@ -35,3 +35,13 @@ int sem_wait(sem_t* /*sem*/) {
     *_errno() = EINVAL;
     return -1;
 }
+
+extern "C"
+int sem_trywait(sem_t* /*sem*/) {
+    print_stderr("FIXME - sem_trywait\n");
+
+    // FIXME
+
+    *_errno() = EINVAL;
+    return -1;
+}

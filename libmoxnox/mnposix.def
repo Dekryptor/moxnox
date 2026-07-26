@@ -156,6 +156,7 @@ strerror_r
 sem_init
 sem_destroy
 sem_wait
+sem_trywait
 
 ; stubs
 fchown
@@ -234,5 +235,4 @@ fchownat
 renameat
 symlinkat
 readlinkat
-sem_trywait
 sem_post
