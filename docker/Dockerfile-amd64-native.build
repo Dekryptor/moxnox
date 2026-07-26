@@ -50,4 +50,7 @@ RUN mkdir -p /usr/x86_64-pc-moxnox/etc/portage/patches/llvm-core/llvm && cd /usr
 RUN emerge dev-python/mako dev-python/pyaml
 RUN x86_64-pc-moxnox-emerge --nodeps llvm-core/llvm # --nodeps because Gentoo pulls in zlib despite the fact we've disabled it
 
+RUN echo "ac_cv_c_bigendian=no" >> /usr/x86_64-pc-moxnox/etc/portage/config.site
+RUN echo "CONFIG_SITE=\"/usr/x86_64-pc-moxnox/etc/portage/config.site\"" >> /usr/x86_64-pc-moxnox/etc/portage/make.conf
+
 RUN rm -rf /var/cache/distfiles
