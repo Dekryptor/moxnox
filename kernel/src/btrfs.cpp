@@ -5,6 +5,7 @@
 #include <string_view>
 #include <mutex>
 #include <memory>
+#include <algorithm>
 #include "assert.h"
 #include "btrfs.h"
 
@@ -103,6 +104,7 @@ struct chunk {
     uint64_t offset;
     list_entry space_list = { &space_list, &space_list };
     list_entry pending_space_list = { &pending_space_list, &pending_space_list };
+    rwsem space_loading_lock;
     bool space_loaded = false;
     bool changed = false;
     list_entry changed_le;
@@ -1594,7 +1596,75 @@ root* btrfs_filesystem::find_root(uint64_t root_num) {
     return nullptr;
 }
 
+static nt_status remove_from_space_list(chunk& c, uint64_t addr, uint64_t size) {
+    for (auto le = c.space_list.next; le != &c.space_list; le = le->next) {
+        auto& s = containing_record<chunk_space>(le);
+
+        if (s.offset + s.length <= addr)
+            continue;
+
+        if (s.offset >= addr + size)
+            break;
+
+        if (addr <= s.offset && addr + size >= s.offset + s.length) { // remove whole thing
+            auto prev = le->prev;
+
+            remove_entry_list(s.le);
+
+            if (addr + size == s.offset + s.length) {
+                delete &s;
+                break;
+            }
+
+            size -= s.offset + s.length - addr;
+            addr = s.offset + s.length;
+
+            delete &s;
+
+            le = prev;
+            continue;
+        } else if (addr <= s.offset) { // remove start
+            s.length = s.offset + s.length - addr - size;
+            s.offset = addr + size;
+
+            break;
+        } else if (addr + size >= s.offset + s.length) { // remove end
+            auto end = s.offset + s.length;
+
+            s.length = addr - s.offset;
+
+            size -= end - addr;
+            addr = end;
+
+            if (size == 0)
+                break;
+        } else { // poke a hole
+            auto cs = new chunk_space;
+            if (!cs) {
+                print("new failed\n");
+                return nt_status::INSUFFICIENT_RESOURCES;
+            }
+
+            cs->offset = addr + size;
+            cs->length = s.offset + s.length - addr - size;
+
+            s.length = addr - s.offset;
+
+            insert_head_list(s.le, cs->le);
+
+            break;
+        }
+    }
+
+    return nt_status::SUCCESS;
+}
+
 static nt_status load_space(btrfs_filesystem& fs, chunk& c) {
+    lock_guard lock(c.space_loading_lock);
+
+    if (c.space_loaded)
+        return nt_status::SUCCESS;
+
     auto& r = *fs.free_space_root;
     auto search_key = btrfs_key{c.offset, key_type::FREE_SPACE_INFO, c.ci.length};
     btrfs_path p(fs.sb->nodesize);
@@ -1656,6 +1726,21 @@ static nt_status load_space(btrfs_filesystem& fs, chunk& c) {
                 break;
         }
     } while (true);
+
+    for (auto addr : superblock_addrs) {
+        for (uint16_t i = 0; i < c.ci.num_stripes; i++) {
+            auto& s = c.ci.stripe[i];
+
+            if (s.offset <= addr + 0x10000 && s.offset + c.ci.length >= addr) {
+                uint64_t start = max(addr, s.offset) - s.offset + c.offset;
+                uint64_t end = min(addr + 0x10000, s.offset + c.ci.length) - s.offset + c.offset;
+
+                status = remove_from_space_list(c, start, end - start);
+                if (!success(status))
+                    return status;
+            }
+        }
+    }
 
     c.space_loaded = true;
 
