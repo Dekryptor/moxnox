@@ -45,7 +45,7 @@ mapping::mapping(process& proc, section& sect) : proc(proc), sect(sect) {
 }
 
 #ifdef __x86_64__
-static void unmap_proc_pages(process& proc, uint64_t va, uint64_t num_pages) {
+void unmap_proc_pages(process& proc, uint64_t va, uint64_t num_pages) {
     span<HARDWARE_PTE> pt[4];
     uint16_t index[4];
 
@@ -100,7 +100,7 @@ static void unmap_proc_pages(process& proc, uint64_t va, uint64_t num_pages) {
     }
 }
 #elifdef __aarch64__
-static void unmap_proc_pages(process& proc, uint64_t va, uint64_t num_pages) {
+void unmap_proc_pages(process& proc, uint64_t va, uint64_t num_pages) {
     span<ARM64_HARDWARE_PTE> pt[4];
     uint16_t index[4];
 

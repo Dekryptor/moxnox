@@ -4832,27 +4832,64 @@ nt_status process::memory_unmap(span<const uint8_t> buf) {
             if (!m2)
                 break;
 
-            if (addr <= m2->address && addr + length >= m2->address + m2->size) {
+            auto orig_address = m2->address;
+            auto orig_size = m2->size;
+
+            if (addr <= m2->address && addr + length >= m2->address + m2->size) { // remove whole thing
                 {
                     lock_guard lock(mappings_lock);
                     remove_entry_list(m2->le);
                 }
 
                 m2->release();
-            } else {
-                print("FIXME - partial unmapping {:x}, {:x} ({:x}, {:x})\n", m2->address, m2->size, addr, length);
-                // FIXME
-            }
+            } else if (addr <= m2->address) { // remove start
+                m2->size = (uint32_t)(m2->address + m2->size - addr - length);
+                m2->address = addr + length;
+                m2->offset += m2->address - orig_address;
 
-            if (addr + length <= m2->address + m2->size) {
+                unmap_proc_pages(*this, orig_address, (addr + length - orig_address) >> PAGE_SHIFT);
+
+                m2->release();
+                break;
+            } else if (addr + length >= m2->address + m2->size) { // remove end
+                m2->size = (uint32_t)(addr - m2->address);
+
+                unmap_proc_pages(*this, addr, (orig_address + orig_size - addr) >> PAGE_SHIFT);
+
+                length -= orig_address + orig_size - addr;
+                addr = orig_address + orig_size;
+            } else { // poke a hole
+                auto m = new mapping(*this, m2->sect);
+                if (!m) {
+                    print("new failed\n");
+                    return nt_status::INSUFFICIENT_RESOURCES;
+                }
+
+                m->address = addr + length;
+                m->size = (uint32_t)(m2->address + m2->size - addr - length);
+                m->offset = m->address - m2->address + m2->offset;
+
+                m2->size = (uint32_t)(addr - m2->address);
+
+                insert_head_list(m2->le, m->le);
+                m->in_address_space = true;
+
+                unmap_proc_pages(*this, addr, length >> PAGE_SHIFT);
+
                 m2->release();
                 break;
             }
 
-            length -= m2->address + m2->size - addr;
-            addr = m2->address + m2->size;
-
             m2->release();
+
+            if (addr + length > orig_address + orig_size) {
+                length -= orig_address + orig_size - addr;
+                addr = orig_address + orig_size;
+            } else
+                break;
+
+            if (length == 0)
+                break;
         }
     }
 

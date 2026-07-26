@@ -45,3 +45,4 @@ private:
     atomic<unsigned int> refcount = 1;
 };
 
+export void unmap_proc_pages(process& proc, uint64_t va, uint64_t num_pages);
