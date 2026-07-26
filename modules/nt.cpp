@@ -1150,6 +1150,7 @@ enum class PROCESS_INFORMATION_CLASS {
     MoxnoxSetPendingSignalProcessGroup,
     MoxnoxWaitForChildProcessGroup,
     MoxnoxMarkAsChild,
+    MoxnoxMemoryUnmap,
 };
 
 struct PROCESS_BASIC_INFORMATION {
@@ -1177,6 +1178,11 @@ struct MN_WAIT_FOR_CHILD_PROCESS_GROUP {
     uintptr_t pgid;
     bool no_hang;
     HANDLE* h;
+};
+
+struct MN_MEMORY_UNMAP {
+    void* addr;
+    size_t length;
 };
 
 enum class SECTION_INFORMATION_CLASS {

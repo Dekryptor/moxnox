@@ -202,6 +202,7 @@ private:
     nt_status query_process_group(span<uint8_t> buf, uint32_t* return_length);
     nt_status set_wait_for_child_process_group(span<const uint8_t> buf);
     nt_status mark_as_child();
+    nt_status memory_unmap(span<const uint8_t> buf);
 };
 
 static_assert(is_sync_object<process>);

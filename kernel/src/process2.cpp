@@ -4785,6 +4785,80 @@ nt_status process::mark_as_child() {
     return nt_status::SUCCESS;
 }
 
+nt_status process::memory_unmap(span<const uint8_t> buf) {
+    static const uintptr_t MAX_USERSPACE_ADDRESS = 0x7fffffffffff;
+
+    if (buf.size() < sizeof(MN_MEMORY_UNMAP))
+        return nt_status::BUFFER_TOO_SMALL;
+
+    auto& params = *(MN_MEMORY_UNMAP*)buf.data();
+
+    if (params.length == 0)
+        return nt_status::INVALID_PARAMETER;
+
+    auto addr = (uintptr_t)params.addr;
+    auto length = (size_t)(bytes_to_pages(params.length) << PAGE_SHIFT);
+
+    if (addr & (PAGE_SIZE - 1))
+        return nt_status::INVALID_PARAMETER;
+
+    if (addr > MAX_USERSPACE_ADDRESS || addr + length - 1 > MAX_USERSPACE_ADDRESS)
+        return nt_status::INVALID_PARAMETER;
+
+    {
+        rangelock_req rlr(rl, addr >> PAGE_SHIFT, length >> PAGE_SHIFT);
+
+        while (true) {
+            mapping* m2 = nullptr;
+
+            {
+                lock_guard lock(mappings_lock);
+
+                for (auto le = mappings.next; le != &mappings; le = le->next) {
+                    auto& m = containing_record<mapping>(le);
+
+                    if (m.address + m.size <= addr)
+                        continue;
+
+                    if (m.address >= addr + length)
+                        break;
+
+                    m2 = &m;
+                    m.acquire();
+                    break;
+                }
+            }
+
+            if (!m2)
+                break;
+
+            if (addr <= m2->address && addr + length >= m2->address + m2->size) {
+                {
+                    lock_guard lock(mappings_lock);
+                    remove_entry_list(m2->le);
+                }
+
+                m2->release();
+            } else {
+                print("FIXME - partial unmapping {:x}, {:x} ({:x}, {:x})\n", m2->address, m2->size, addr, length);
+                // FIXME
+            }
+
+            if (addr + length <= m2->address + m2->size) {
+                m2->release();
+                break;
+            }
+
+            length -= m2->address + m2->size - addr;
+            addr = m2->address + m2->size;
+
+            m2->release();
+        }
+    }
+
+    return nt_status::SUCCESS;
+}
+
 nt_status process::set_information(PROCESS_INFORMATION_CLASS info_class,
                                    span<const uint8_t> buffer) {
     switch (info_class) {
@@ -4816,6 +4890,9 @@ nt_status process::set_information(PROCESS_INFORMATION_CLASS info_class,
 
         case MoxnoxMarkAsChild:
             return mark_as_child();
+
+        case MoxnoxMemoryUnmap:
+            return memory_unmap(buffer);
 
         default:
             return nt_status::NOT_IMPLEMENTED;
