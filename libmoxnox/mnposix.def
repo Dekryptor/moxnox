@@ -153,6 +153,7 @@ gmtime_r
 mprotect
 sigdelset
 strerror_r
+sem_init
 
 ; stubs
 fchown
@@ -231,7 +232,6 @@ fchownat
 renameat
 symlinkat
 readlinkat
-sem_init
 sem_destroy
 sem_wait
 sem_trywait

@@ -153,3 +153,4 @@ gmtime_r
 mprotect
 sigdelset
 strerror_r
+sem_init
