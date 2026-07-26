@@ -507,7 +507,6 @@ static nt_status open_inode2(string_view& fn, dentry& root_dir,
             }
 
             parent->acquire();
-            dir.release();
 
             drw = *parent;
         } else {
