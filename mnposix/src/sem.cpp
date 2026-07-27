@@ -139,12 +139,32 @@ int sem_wait(sem_t* sem) {
 }
 
 extern "C"
-int sem_trywait(sem_t* /*sem*/) {
-    print_stderr("FIXME - sem_trywait\n");
+int sem_trywait(sem_t* sem) {
+    atomic_ref<uint64_t> r(sem->_x[0]);
+    atomic_ref<HANDLE> ev(sem->_x[1]);
 
-    // FIXME
+    while (true) {
+        uint64_t v = r.load(memory_order_relaxed);
 
-    *_errno() = EINVAL;
+        if (extract_count(v) > 0) {
+            uint64_t newval = create_value(extract_count(v) - 1,
+                                           extract_waiters(v));
+
+            if (!r.compare_exchange_weak(v, newval, memory_order_acquire,
+                                         memory_order_relaxed)) {
+                continue;
+            }
+
+            if (extract_count(v) > 1 && extract_waiters(v) > 0)
+                NtSetEvent(ev.load(), nullptr);
+
+            return 0;
+        }
+
+        break;
+    }
+
+    *_errno() = EAGAIN;
     return -1;
 }
 
