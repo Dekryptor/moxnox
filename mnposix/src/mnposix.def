@@ -165,3 +165,4 @@ pthread_attr_setstacksize
 truncate
 dirfd
 openat
+fdopendir

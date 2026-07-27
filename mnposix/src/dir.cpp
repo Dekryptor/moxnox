@@ -163,3 +163,22 @@ int dirfd(DIR* dir) {
 
     return d.fd;
 }
+
+extern "C"
+DIR* fdopendir(int fd) {
+    auto h = (HANDLE)_get_osfhandle(fd);
+    if (h == (HANDLE)-1)
+        return nullptr;
+
+    auto d = new _DIR;
+    if (!d) {
+        *_errno() = ENOMEM;
+        return nullptr;
+    }
+
+    d->h = h;
+    d->first = true;
+    d->fd = fd;
+
+    return (DIR*)d;
+}

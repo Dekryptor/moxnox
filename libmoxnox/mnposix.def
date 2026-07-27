@@ -165,6 +165,7 @@ pthread_attr_setstacksize
 truncate
 dirfd
 openat
+fdopendir
 
 ; stubs
 fchown
@@ -202,7 +203,6 @@ wcsnrtombs
 mbsnrtowcs
 unlinkat
 pathconf
-fdopendir
 fchmodat
 utimensat
 getlogin
