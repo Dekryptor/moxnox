@@ -1,18 +1,5 @@
 #pragma once
 
-/* TRANSITIONAL: the MS __int64 keyword, defined away to the real
- * type as mingw's headers always did for GCC and Clang. */
-#ifndef __int64
-#define __int64 long long
-#endif
-
-/* TRANSITIONAL: the prebuilt gcc runtime's win32 gthr layer needs
- * this to enable condition variables; mingw's _mingw.h used to
- * default it. */
-#ifndef _WIN32_WINNT
-#define _WIN32_WINNT 0x0603
-#endif
-
 #include <stddef.h>
 #include <strings.h>
 
