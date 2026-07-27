@@ -1437,7 +1437,7 @@ intptr_t __get_osfhandle(int fd) {
 }
 
 extern "C"
-int __open_osfhandle(intptr_t osfhandle, int /*flags*/) {
+int __open_osfhandle(intptr_t osfhandle, int flags) {
     optional<int> fd;
 
     // FIXME - flags?
@@ -1449,7 +1449,7 @@ int __open_osfhandle(intptr_t osfhandle, int /*flags*/) {
     for (size_t i = 0; i < fds.size(); i++) {
         if (fds[i].h == 0) {
             fds[i].h = (HANDLE)osfhandle;
-            fds[i].cloexec = false;
+            fds[i].cloexec = !!(flags & O_CLOEXEC);
             fd = i;
             break;
         }
