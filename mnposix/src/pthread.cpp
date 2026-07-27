@@ -2,6 +2,7 @@
 #include <stdlib.h>
 #include <errno.h>
 #include <string.h>
+#include <signal.h>
 #include <utility>
 #include <atomic>
 #include <limits>
@@ -821,6 +822,33 @@ int pthread_attr_setstacksize(pthread_attr_t* attr, size_t stack_size) {
     }
 
     a.stack_size = stack_size & ((1 << 30) - 1);
+
+    return 0;
+}
+
+extern "C"
+int pthread_kill(pthread_t thread, int sig) {
+    auto& t = *(_pthread*)thread;
+    nt_status status;
+
+    if (sig == SIGKILL) {
+        status = NtTerminateProcess(NtCurrentProcess(), (nt_status)SIGKILL);
+        if (!success(status))
+            return nt_status_to_errno(status);
+
+        unreachable();
+    } else if (sig == SIGSTOP) {
+        status = NtSuspendProcess(NtCurrentProcess());
+        if (!success(status))
+            return nt_status_to_errno(status);
+
+        return 0;
+    }
+
+    status = NtSetInformationThread(t.h, THREAD_INFORMATION_CLASS::MoxnoxSetPendingSignal,
+                                    &sig, sizeof(sig));
+    if (!success(status))
+        return nt_status_to_errno(status);
 
     return 0;
 }

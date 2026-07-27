@@ -167,3 +167,4 @@ dirfd
 openat
 fdopendir
 unlinkat
+pthread_kill

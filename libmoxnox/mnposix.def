@@ -167,6 +167,7 @@ dirfd
 openat
 fdopendir
 unlinkat
+pthread_kill
 
 ; stubs
 fchown
@@ -227,7 +228,6 @@ munlock
 open_memstream
 strndup
 pthread_mutex_timedlock
-pthread_kill
 posix_fadvise
 faccessat
 linkat
