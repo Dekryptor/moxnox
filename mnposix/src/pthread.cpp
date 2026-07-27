@@ -9,6 +9,7 @@
 import nt;
 import ntdll;
 import print;
+import pagesize;
 
 #undef errno
 import errno;
@@ -25,7 +26,8 @@ struct _pthread {
 
 struct _pthread_attr {
     uintptr_t detached : 1;
-    uintptr_t : 63;
+    uintptr_t stack_size : 30;
+    uintptr_t : 33;
 };
 
 static_assert(sizeof(_pthread_attr) == sizeof(pthread_attr_t));
@@ -467,7 +469,7 @@ int pthread_create(pthread_t* thread, const pthread_attr_t* attr,
     CLIENT_ID client_id;
     CONTEXT context;
     INITIAL_TEB initial_teb;
-    size_t stack_size;
+    size_t stack_size = 0;
     void* stack = nullptr;
 
     auto p = (_pthread*)malloc(sizeof(_pthread));
@@ -476,7 +478,14 @@ int pthread_create(pthread_t* thread, const pthread_attr_t* attr,
 
     memset(&initial_teb, 0, sizeof(initial_teb));
 
-    stack_size = 0x100000; // FIXME - should this come from PE header?
+    if (attr) {
+        auto& a = *(_pthread_attr*)attr;
+
+        stack_size = a.stack_size;
+    }
+
+    if (stack_size == 0)
+        stack_size = 0x100000; // FIXME - should this come from PE header?
 
     status = NtAllocateVirtualMemory(NtCurrentProcess(), &stack, 0, &stack_size,
                                      MEM_COMMIT | MEM_RESERVE, PAGE_READWRITE);
@@ -803,10 +812,15 @@ int pthread_condattr_setclock(pthread_condattr_t* attr, clockid_t clock_id) {
 }
 
 extern "C"
-int pthread_attr_setstacksize(pthread_attr_t* /*attr*/, size_t /*stacksize*/) {
-    print_stderr("FIXME - pthread_attr_setstacksize\n");
+int pthread_attr_setstacksize(pthread_attr_t* attr, size_t stack_size) {
+    auto& a = *(_pthread_attr*)attr;
 
-    // FIXME
+    if (stack_size < PAGE_SIZE || stack_size >= 1 << 30) {
+        *_errno() = EINVAL;
+        return -1;
+    }
+
+    a.stack_size = stack_size & ((1 << 30) - 1);
 
     return 0;
 }
