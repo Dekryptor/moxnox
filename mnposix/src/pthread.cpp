@@ -704,4 +704,18 @@ int pthread_rwlock_unlock(pthread_rwlock_t* rwlock) {
     return 0;
 }
 
+extern "C"
+int pthread_condattr_init(pthread_condattr_t* attr) {
+    *attr = 0;
+
+    return 0;
+}
+
+extern "C"
+int pthread_condattr_destroy(pthread_condattr_t*) {
+    // nop
+
+    return 0;
+}
+
 __attribute__((section (".CRT$XLD"), used)) void(*__xl_d2)() = run_dtors;

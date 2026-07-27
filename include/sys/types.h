@@ -29,7 +29,7 @@ typedef size_t pthread_key_t;
 typedef uintptr_t pthread_cond_t;
 typedef uintptr_t pthread_condattr_t; // FIXME?
 typedef uintptr_t pthread_mutexattr_t; // FIXME?
-typedef uintptr_t pthread_attr_t; // FIXME?
+typedef uintptr_t pthread_attr_t;
 typedef uintptr_t pthread_once_t;
 typedef uintptr_t pthread_rwlock_t;
 typedef uintptr_t pthread_rwlockattr_t; // FIXME?

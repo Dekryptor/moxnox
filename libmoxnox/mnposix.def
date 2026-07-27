@@ -158,6 +158,8 @@ sem_destroy
 sem_wait
 sem_trywait
 sem_post
+pthread_condattr_init
+pthread_condattr_destroy
 
 ; stubs
 fchown
@@ -217,8 +219,6 @@ pthread_attr_setstacksize
 posix_spawnattr_setpgroup
 mkfifo
 posix_spawnattr_setsigmask
-pthread_condattr_init
-pthread_condattr_destroy
 pthread_condattr_setclock
 dirfd
 posix_madvise
