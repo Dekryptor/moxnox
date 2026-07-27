@@ -266,6 +266,66 @@ int ftruncate(int fd, off_t length) {
 }
 
 extern "C"
+int truncate(const char* path, off_t length) {
+    auto& peb = *NtCurrentTeb()->ProcessEnvironmentBlock;
+    nt_status status;
+    OBJECT_ATTRIBUTES oa;
+    UNICODE_STRING us;
+    IO_STATUS_BLOCK iosb;
+    FILE_END_OF_FILE_INFORMATION eof;
+    HANDLE h;
+
+    if (!path || path[0] == 0) {
+        *_errno() = EINVAL;
+        return -1;
+    }
+
+    auto sv = string_view(path);
+
+    auto u16len = utf8_to_utf16_len(sv);
+
+    auto u16pathname = (char16_t*)malloc(u16len * sizeof(char16_t));
+    if (!u16pathname) {
+        *_errno() = ENOMEM;
+        return -1;
+    }
+
+    utf8_to_utf16(span(u16pathname, u16len), sv);
+
+    us.Length = us.MaximumLength = (uint16_t)(u16len * sizeof(char16_t));
+    us.Buffer = u16pathname;
+
+    memset(&oa, 0, sizeof(oa));
+    oa.Length = sizeof(OBJECT_ATTRIBUTES);
+    oa.ObjectName = &us;
+    oa.RootDirectory = peb.ProcessParameters->CurrentDirectory.Handle;
+
+    status = NtCreateFile(&h, FILE_WRITE_DATA, &oa, &iosb, nullptr,
+                          FILE_ATTRIBUTE_NORMAL, 0, FILE_OPEN,
+                          FILE_NON_DIRECTORY_FILE, nullptr, 0);
+    if (!success(status)) {
+        free(u16pathname);
+        *_errno() = nt_status_to_errno(status);
+        return -1;
+    }
+
+    free(u16pathname);
+
+    unique_handle f{h};
+
+    eof.EndOfFile.QuadPart = length;
+
+    status = NtSetInformationFile(f.get(), &iosb, &eof, sizeof(eof),
+                                  FILE_INFORMATION_CLASS::EndOfFileInformation);
+    if (!success(status)) {
+        *_errno() = nt_status_to_errno(status);
+        return -1;
+    }
+
+    return 0;
+}
+
+extern "C"
 int pipe(int* pfds) {
     return _pipe(pfds, 0, 0);
 }

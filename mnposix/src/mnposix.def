@@ -162,3 +162,4 @@ pthread_condattr_init
 pthread_condattr_destroy
 pthread_condattr_setclock
 pthread_attr_setstacksize
+truncate
