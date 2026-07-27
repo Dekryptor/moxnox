@@ -164,3 +164,4 @@ pthread_condattr_setclock
 pthread_attr_setstacksize
 truncate
 dirfd
+openat

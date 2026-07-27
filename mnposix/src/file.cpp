@@ -5,6 +5,7 @@
 #include <sys/stat.h>
 #include <string.h>
 #include <sys/statvfs.h>
+#include <fcntl.h>
 #include <string_view>
 #include <span>
 #include <memory>
@@ -762,4 +763,184 @@ int statvfs(const char* path, struct statvfs* buf) {
     buf->f_namemax = 255; // same as Linux
 
     return 0;
+}
+
+static int openat2(int dirfd, const char* path, int flags, int pmode) {
+    auto peb = NtCurrentTeb()->ProcessEnvironmentBlock;
+    OBJECT_ATTRIBUTES oa;
+    UNICODE_STRING us;
+    IO_STATUS_BLOCK iosb;
+    HANDLE h, dirh;
+    ACCESS_MASK access = FILE_READ_ATTRIBUTES;
+    uint32_t file_attributes, create_disposition, create_options;
+    nt_status status;
+
+    // FIXME - merge this with open2 in ucrtbase?
+
+    if (flags & _O_TEMPORARY) {
+        print_stderr("FIXME - openat with _O_TEMPORARY\n");
+        flags &= ~_O_TEMPORARY;
+    }
+
+    if (flags & _O_NOINHERIT) {
+        print_stderr("FIXME - openat with _O_NOINHERIT\n");
+        flags &= ~_O_NOINHERIT;
+    }
+
+    if (flags & _O_WTEXT) {
+        print_stderr("FIXME - openat with _O_WTEXT\n");
+        flags &= ~_O_WTEXT;
+    }
+
+    if (flags & _O_U16TEXT) {
+        print_stderr("FIXME - openat with _O_U16TEXT\n");
+        flags &= ~_O_U16TEXT;
+    }
+
+    if (flags & _O_U8TEXT) {
+        print_stderr("FIXME - openat with _O_U8TEXT\n");
+        flags &= ~_O_U8TEXT;
+    }
+
+    // FIXME - do we need to treat _O_TEXT and _O_BINARY differently?
+    // FIXME - _O_RANDOM
+    // FIXME - _O_SEQUENTIAL
+    // FIXME - _O_SHORT_LIVED?
+
+    if (flags & _O_WRONLY)
+        access |= FILE_GENERIC_WRITE;
+    else if (flags & _O_RDWR)
+        access |= FILE_GENERIC_READ | FILE_GENERIC_WRITE;
+    else
+        access |= FILE_GENERIC_READ;
+
+    if (flags & (_O_WRONLY | _O_RDWR)) {
+        if (flags & _O_APPEND)
+            access &= ~FILE_WRITE_DATA;
+        else
+            access &= ~FILE_APPEND_DATA;
+    }
+
+    if (flags & _O_CREAT) {
+        if (flags & _O_EXCL)
+            create_disposition = FILE_CREATE;
+        else if (flags & _O_TRUNC)
+            create_disposition = FILE_OVERWRITE_IF;
+        else
+            create_disposition = FILE_OPEN_IF;
+    } else {
+        if (flags & _O_TRUNC)
+            create_disposition = FILE_OVERWRITE;
+        else
+            create_disposition = FILE_OPEN;
+    }
+
+    create_options = 0;
+
+    if (flags & O_NOFOLLOW)
+        create_options = FILE_OPEN_REPARSE_POINT;
+
+    if (!(pmode & _S_IWRITE))
+        file_attributes = FILE_ATTRIBUTE_READONLY;
+    else
+        file_attributes = FILE_ATTRIBUTE_NORMAL;
+
+    auto sv = string_view(path);
+    auto u16len = utf8_to_utf16_len(sv);
+
+    auto u16pathname = (char16_t*)malloc(u16len * sizeof(char16_t));
+    if (!u16pathname) {
+        *_errno() = ENOMEM;
+        return -1;
+    }
+
+    utf8_to_utf16(span(u16pathname, u16len), sv);
+
+    us.Length = us.MaximumLength = (uint16_t)(u16len * sizeof(char16_t));
+    us.Buffer = u16pathname;
+
+    if (dirfd == AT_FDCWD)
+        dirh = peb->ProcessParameters->CurrentDirectory.Handle;
+    else {
+        dirh = (HANDLE)_get_osfhandle(dirfd);
+        if (dirh == (HANDLE)-1) {
+            free(u16pathname);
+            return -1;
+        }
+    }
+
+    memset(&oa, 0, sizeof(oa));
+    oa.Length = sizeof(OBJECT_ATTRIBUTES);
+    oa.ObjectName = &us;
+    oa.RootDirectory = dirh;
+
+    status = NtCreateFile(&h, access, &oa, &iosb, nullptr, file_attributes,
+                          FILE_SHARE_READ | FILE_SHARE_WRITE, create_disposition,
+                          create_options, nullptr, 0);
+    if (!success(status)) {
+        free(u16pathname);
+        *_errno() = nt_status_to_errno(status);
+        return -1;
+    }
+
+    free(u16pathname);
+
+    if (flags & O_NOFOLLOW) {
+        // check if reparse point
+
+        FILE_BASIC_INFORMATION fbi;
+
+        status = NtQueryInformationFile(h, &iosb, &fbi, sizeof(fbi),
+                                        FILE_INFORMATION_CLASS::BasicInformation);
+        if (!success(status)) {
+            *_errno() = nt_status_to_errno(status);
+            NtClose(h);
+            return -1;
+        }
+
+        if (fbi.FileAttributes & FILE_ATTRIBUTE_REPARSE_POINT) {
+            *_errno() = ELOOP;
+            NtClose(h);
+            return -1;
+        }
+    }
+
+    if (flags & O_NONBLOCK) {
+        bool nonblock = true;
+
+        // FIXME - behaviour is different for FIFOs (means open itself should not block)
+
+        auto status = NtSetInformationFile(h, &iosb, &nonblock, sizeof(nonblock),
+                                           FILE_INFORMATION_CLASS::MoxnoxPosixNonBlock);
+        if (!success(status)) {
+            *_errno() = nt_status_to_errno(status);
+            NtClose(h);
+            return -1;
+        }
+    }
+
+    auto fd = _open_osfhandle(h, flags & O_CLOEXEC);
+
+    if (fd == -1) {
+        NtClose(h);
+        return -1;
+    }
+
+    return fd;
+}
+
+extern "C"
+int openat(int dirfd, const char *path, int flags, ...) {
+    va_list ap;
+
+    if (flags & _O_CREAT) {
+        int pmode;
+
+        va_start(ap, flags);
+        pmode = va_arg(ap, int);
+        va_end(ap);
+
+        return openat2(dirfd, path, flags, pmode);
+    } else
+        return openat2(dirfd, path, flags, 0);
 }
