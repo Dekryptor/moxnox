@@ -174,3 +174,4 @@ pwrite
 mkdirat
 readlinkat
 symlinkat
+renameat

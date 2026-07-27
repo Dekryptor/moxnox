@@ -174,6 +174,7 @@ pwrite
 mkdirat
 readlinkat
 symlinkat
+renameat
 
 ; stubs
 fchown
@@ -235,4 +236,3 @@ posix_fadvise
 faccessat
 linkat
 fchownat
-renameat
