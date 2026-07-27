@@ -1165,11 +1165,6 @@ static int open2(const char* path, int flags, int pmode) {
         flags &= ~_O_U8TEXT;
     }
 
-    if (flags & _O_U8TEXT) {
-        print_stderr("FIXME - _open with _O_U8TEXT\n");
-        flags &= ~_O_U8TEXT;
-    }
-
     // FIXME - do we need to treat _O_TEXT and _O_BINARY differently?
     // FIXME - _O_RANDOM
     // FIXME - _O_SEQUENTIAL
