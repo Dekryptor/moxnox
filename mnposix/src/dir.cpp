@@ -2,11 +2,14 @@
 #include <stdlib.h>
 #include <stdint.h>
 #include <string.h>
+#include <unistd.h>
 #include <string_view>
 #include <span>
+#include <atomic>
 
 import nt;
 import unicode;
+import ucrtbase;
 
 #undef errno
 import errno;
@@ -16,6 +19,7 @@ using namespace std;
 struct _DIR {
     HANDLE h;
     bool first;
+    int fd = -1;
 };
 
 static dirent de;
@@ -53,8 +57,9 @@ DIR* opendir(const char* name) {
     oa.ObjectName = &us;
     oa.RootDirectory = peb.ProcessParameters->CurrentDirectory.Handle;
 
-    status = NtCreateFile(&h, FILE_LIST_DIRECTORY, &oa, &iosb, nullptr,
-                          FILE_ATTRIBUTE_NORMAL, FILE_SHARE_READ | FILE_SHARE_WRITE,
+    status = NtCreateFile(&h, FILE_LIST_DIRECTORY | FILE_READ_ATTRIBUTES | FILE_TRAVERSE | SYNCHRONIZE,
+                          &oa, &iosb, nullptr, FILE_ATTRIBUTE_NORMAL,
+                          FILE_SHARE_READ | FILE_SHARE_WRITE,
                           FILE_OPEN, FILE_DIRECTORY_FILE, nullptr, 0);
     if (!success(status)) {
         free(u16pathname);
@@ -64,7 +69,7 @@ DIR* opendir(const char* name) {
 
     free(u16pathname);
 
-    auto d = (_DIR*)malloc(sizeof(_DIR));
+    auto d = new _DIR;
     if (!d) {
         NtClose(h);
         *_errno() = ENOMEM;
@@ -127,8 +132,12 @@ int closedir(DIR* dir) {
 
     // FIXME - return errors from NtClose?
 
-    NtClose(d.h);
-    free(dir);
+    if (d.fd == -1)
+        NtClose(d.h);
+    else
+        close(d.fd);
+
+    delete &d;
 
     return 0;
 }
@@ -138,4 +147,19 @@ void rewinddir(DIR* dir) {
     auto& d = *reinterpret_cast<_DIR*>(dir);
 
     d.first = true;
+}
+
+extern "C"
+int dirfd(DIR* dir) {
+    auto& d = *reinterpret_cast<_DIR*>(dir);
+
+    if (d.fd == -1) {
+        auto fd = _open_osfhandle(d.h, 0);
+        if (fd == -1)
+            return -1;
+
+        d.fd = fd;
+    }
+
+    return d.fd;
 }

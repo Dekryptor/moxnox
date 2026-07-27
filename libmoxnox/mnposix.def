@@ -163,6 +163,7 @@ pthread_condattr_destroy
 pthread_condattr_setclock
 pthread_attr_setstacksize
 truncate
+dirfd
 
 ; stubs
 fchown
@@ -220,7 +221,6 @@ writev
 posix_spawnattr_setpgroup
 mkfifo
 posix_spawnattr_setsigmask
-dirfd
 posix_madvise
 mlock
 munlock
