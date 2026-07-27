@@ -176,3 +176,4 @@ readlinkat
 symlinkat
 renameat
 stat
+fstat

@@ -1366,3 +1366,12 @@ int stat(const char* path, struct stat* st) {
 
     return do_fstat(f.get(), st);
 }
+
+extern "C"
+int fstat(int fd, struct stat* st) {
+    auto h = (HANDLE)_get_osfhandle(fd);
+    if (h == (HANDLE)-1)
+        return -1;
+
+    return do_fstat(h, st);
+}

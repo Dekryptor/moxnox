@@ -176,6 +176,7 @@ readlinkat
 symlinkat
 renameat
 stat
+fstat
 
 ; stubs
 fchown
