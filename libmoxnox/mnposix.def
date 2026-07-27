@@ -171,6 +171,7 @@ pthread_kill
 sched_yield
 pread
 pwrite
+mkdirat
 
 ; stubs
 fchown
@@ -231,7 +232,6 @@ pthread_mutex_timedlock
 posix_fadvise
 faccessat
 linkat
-mkdirat
 fchownat
 renameat
 symlinkat

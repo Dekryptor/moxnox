@@ -1075,3 +1075,72 @@ ssize_t pwrite(int fd, const void* buf, size_t count, off_t offset) {
 
     return (int)iosb.Information;
 }
+
+extern "C"
+int mkdirat(int dirfd, const char* path, mode_t /*mode*/) {
+    OBJECT_ATTRIBUTES oa;
+    UNICODE_STRING us;
+    NTSTATUS status;
+    HANDLE file, dirh;
+    IO_STATUS_BLOCK iosb;
+    auto peb = NtCurrentTeb()->ProcessEnvironmentBlock;
+
+    // FIXME - mode?
+
+    if (dirfd == AT_FDCWD)
+        dirh = peb->ProcessParameters->CurrentDirectory.Handle;
+    else {
+        dirh = (HANDLE)_get_osfhandle(dirfd);
+        if (dirh == (HANDLE)-1)
+            return -1;
+    }
+
+    auto pathsv = string_view(path);
+
+    while (pathsv.size() > 1 && (pathsv.back() == '/' || pathsv.back() == '\\')) {
+        pathsv = string_view(pathsv.data(), pathsv.size() - 1);
+    }
+
+    if (pathsv.empty()) {
+        *_errno() = EINVAL;
+        return -1;
+    }
+
+    auto u16len = utf8_to_utf16_len(pathsv);
+    auto u16 = (char16_t*)malloc(u16len * sizeof(char16_t));
+
+    if (!u16) {
+        *_errno() = ENOMEM;
+        return -1;
+    }
+
+    utf8_to_utf16(span(u16, u16len), pathsv);
+
+    us.Length = us.MaximumLength = (uint16_t)(u16len * sizeof(char16_t));
+    us.Buffer = (char16_t*)u16;
+
+    memset(&oa, 0, sizeof(oa));
+    oa.Length = sizeof(OBJECT_ATTRIBUTES);
+    oa.ObjectName = &us;
+    oa.RootDirectory = dirh;
+
+    status = NtCreateFile(&file, 0, &oa, &iosb, nullptr, FILE_ATTRIBUTE_DIRECTORY,
+                          0, FILE_CREATE, FILE_DIRECTORY_FILE, nullptr, 0);
+
+    free(u16);
+
+    if (status == nt_status::OBJECT_NAME_COLLISION) {
+        *_errno() = EEXIST;
+        return -1;
+    } else if (status == nt_status::OBJECT_PATH_NOT_FOUND) {
+        *_errno() = ENOENT;
+        return -1;
+    } else if (!success(status)) {
+        *_errno() = nt_status_to_errno(status);
+        return -1;
+    }
+
+    NtClose(file);
+
+    return 0;
+}
