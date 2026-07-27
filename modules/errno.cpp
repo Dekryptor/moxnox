@@ -167,6 +167,12 @@ export int nt_status_to_errno(nt_status status) {
         case nt_status::NOT_SAME_DEVICE:
             return EXDEV;
 
+        case nt_status::NOT_A_DIRECTORY:
+            return ENOTDIR;
+
+        case nt_status::FILE_IS_A_DIRECTORY:
+            return EISDIR;
+
         default:
             return EINVAL;
     }
