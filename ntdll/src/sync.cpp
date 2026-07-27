@@ -117,6 +117,8 @@ nt_status RtlWaitOnAddress(const void* addr, const void* cmp,
 
     if (!entry.removed)
         remove_entry_list(entry.le);
+    else if (status == nt_status::TIMEOUT)
+        status = nt_status::SUCCESS; // someone has woken us up
 
     RtlLeaveCriticalSection(&waiters_lock);
 
