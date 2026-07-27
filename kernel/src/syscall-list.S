@@ -201,7 +201,7 @@ syscall_stub "NtWaitLowEventPair"
 syscall_stub "NtWriteFileGather"
 syscall_stub "NtWriteRequestData"
 syscall_func "NtWriteVirtualMemory", 5
-syscall_stub "NtYieldExecution"
+syscall_func "NtYieldExecution", 0
 syscall_stub "NtAccessCheckByType"
 syscall_stub "NtAccessCheckByTypeAndAuditAlarm"
 syscall_stub "NtAccessCheckByTypeResultList"

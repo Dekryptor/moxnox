@@ -1903,6 +1903,11 @@ NTSTATUS user_NtQuerySystemInformation(SYSTEM_INFORMATION_CLASS info_class,
 }
 
 extern "C"
+NTSTATUS user_NtYieldExecution() {
+    return NtYieldExecution();
+}
+
+extern "C"
 uint64_t maybe_yield_after_syscall(uint64_t syscall_ret) {
     // interrupts are disabled and sync_lock held
 

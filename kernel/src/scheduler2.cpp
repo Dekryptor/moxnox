@@ -1396,3 +1396,21 @@ nt_status wait_no_object(bool interruptible, optional<uint64_t> timeout) {
 
     return nt_status::SUCCESS;
 }
+
+extern "C"
+NTSTATUS NtYieldExecution() {
+    disable_interrupts();
+    acquire_sync_lock();
+
+    auto& cb = *get_cpu_block();
+    auto t = cb.current_thread;
+
+    if (t->proc)
+        t->proc->running_cpus &= ~((uint64_t)1 << cb.cpu_no);
+
+    active_cpus.fetch_and(~((uint64_t)1 << cb.cpu_no), memory_order::relaxed);
+
+    yield(); // releases sync_lock
+
+    return nt_status::SUCCESS;
+}

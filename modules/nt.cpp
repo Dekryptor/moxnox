@@ -1749,6 +1749,7 @@ NTSTATUS NtQueryVolumeInformationFile(HANDLE file_handle,
 NTSTATUS NtQuerySystemInformation(SYSTEM_INFORMATION_CLASS info_class,
                                   void* info, uint32_t info_length,
                                   uint32_t* return_length);
+NTSTATUS NtYieldExecution();
 
 };
 
