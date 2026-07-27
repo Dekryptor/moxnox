@@ -7014,7 +7014,7 @@ nt_status btrfs_inode::set_reparse_point(span<const uint8_t> inbuf,
         status = change_dir_item_type(fs, p, *r, parent, dentry.name,
                                       btrfs_inode_type::symlink);
         if (!success(status)) {
-            print("change_dir_item returned {}\n", status);
+            print("change_dir_item_type returned {}\n", status);
             return status;
         }
 
