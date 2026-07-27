@@ -1,5 +1,6 @@
 #include <string.h>
 #include <stdint.h>
+#include <signal.h>
 
 import nt;
 import ntdll;
@@ -38,7 +39,7 @@ void* realloc(void* ptr, size_t size) {
 
 extern "C"
 void abort() {
-    NtTerminateProcess(NtCurrentProcess(), (NTSTATUS)0xffffffff);
+    NtTerminateProcess(NtCurrentProcess(), (NTSTATUS)SIGABRT);
     __builtin_unreachable();
 }
 
