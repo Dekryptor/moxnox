@@ -67,6 +67,14 @@ struct _pthread_condattr_t {
 static_assert(sizeof(_pthread_condattr_t) == sizeof(pthread_condattr_t));
 static_assert(alignof(_pthread_condattr_t) == alignof(pthread_condattr_t));
 
+struct _pthread_cond_t {
+    RTL_CONDITION_VARIABLE cv;
+    _pthread_condattr_t attr;
+};
+
+static_assert(sizeof(_pthread_cond_t) == sizeof(pthread_cond_t));
+static_assert(alignof(_pthread_cond_t) == alignof(pthread_cond_t));
+
 static constexpr size_t PTHREAD_KEYS_MAX = 128;
 
 static RTL_SRWLOCK key_lock;
@@ -299,8 +307,22 @@ int pthread_mutex_trylock(pthread_mutex_t* mutex) {
 }
 
 extern "C"
-int pthread_cond_init(pthread_cond_t* cond, const pthread_condattr_t* /*attr*/) {
-    RtlInitializeConditionVariable((RTL_CONDITION_VARIABLE*)cond);
+int pthread_cond_init(pthread_cond_t* cond, const pthread_condattr_t* attr) {
+    auto& c = *(_pthread_cond_t*)cond;
+
+    RtlInitializeConditionVariable(&c.cv);
+
+    if (attr) {
+        auto& a = *(_pthread_condattr_t*)attr;
+
+        if (a.clock_id != CLOCK_REALTIME && a.clock_id != CLOCK_MONOTONIC) {
+            *_errno() = EINVAL;
+            return -1;
+        }
+
+        c.attr.clock_id = a.clock_id;
+    } else
+        c.attr.clock_id = CLOCK_REALTIME;
 
     return 0;
 }
@@ -314,10 +336,10 @@ int pthread_cond_destroy(pthread_cond_t* /*cond*/) {
 
 extern "C"
 int pthread_cond_wait(pthread_cond_t* cond, pthread_mutex_t* mutex) {
+    auto& c = *(_pthread_cond_t*)cond;
     auto& m = *(_pthread_mutex*)mutex;
 
-    auto status = RtlSleepConditionVariableSRW((RTL_CONDITION_VARIABLE*)cond,
-                                               &m.lock, nullptr, 0);
+    auto status = RtlSleepConditionVariableSRW(&c.cv, &m.lock, nullptr, 0);
 
     m.owner = NtCurrentTeb()->ClientId.UniqueThread;
     m.recursion_count = 1;
@@ -332,6 +354,7 @@ extern "C"
 int pthread_cond_timedwait(pthread_cond_t* cond, pthread_mutex_t* mutex,
                            const timespec* abstime) {
     LARGE_INTEGER now, wait;
+    auto& c = *(_pthread_cond_t*)cond;
     auto& m = *(_pthread_mutex*)mutex;
 
     auto status = NtQuerySystemTime(&now);
@@ -348,8 +371,7 @@ int pthread_cond_timedwait(pthread_cond_t* cond, pthread_mutex_t* mutex,
 
     wait.QuadPart = now.QuadPart - (int64_t)t;
 
-    status = RtlSleepConditionVariableSRW((RTL_CONDITION_VARIABLE*)cond, &m.lock,
-                                          &wait, 0);
+    status = RtlSleepConditionVariableSRW(&c.cv, &m.lock, &wait, 0);
 
     m.owner = NtCurrentTeb()->ClientId.UniqueThread;
     m.recursion_count = 1;
@@ -364,14 +386,18 @@ int pthread_cond_timedwait(pthread_cond_t* cond, pthread_mutex_t* mutex,
 
 extern "C"
 int pthread_cond_signal(pthread_cond_t* cond) {
-    RtlWakeConditionVariable((RTL_CONDITION_VARIABLE*)cond);
+    auto& c = *(_pthread_cond_t*)cond;
+
+    RtlWakeConditionVariable(&c.cv);
 
     return 0;
 }
 
 extern "C"
 int pthread_cond_broadcast(pthread_cond_t* cond) {
-    RtlWakeAllConditionVariable((RTL_CONDITION_VARIABLE*)cond);
+    auto& c = *(_pthread_cond_t*)cond;
+
+    RtlWakeAllConditionVariable(&c.cv);
 
     return 0;
 }
@@ -714,7 +740,9 @@ int pthread_rwlock_unlock(pthread_rwlock_t* rwlock) {
 
 extern "C"
 int pthread_condattr_init(pthread_condattr_t* attr) {
-    *attr = 0;
+    auto& a = *(_pthread_condattr_t*)attr;
+
+    a.clock_id = CLOCK_REALTIME;
 
     return 0;
 }
