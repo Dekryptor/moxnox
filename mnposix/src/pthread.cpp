@@ -362,6 +362,9 @@ int pthread_cond_timedwait(pthread_cond_t* cond, pthread_mutex_t* mutex,
 
     static const uint64_t EPOCH_OFFSET = 116444736000000000;
 
+    if (abstime->tv_sec < 0)
+        return ETIMEDOUT;
+
     auto t = (uint64_t)abstime->tv_sec * 10000000; // units of 100 ns
     t += (uint64_t)abstime->tv_nsec / 100;
 
