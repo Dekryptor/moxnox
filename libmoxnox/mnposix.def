@@ -172,6 +172,7 @@ sched_yield
 pread
 pwrite
 mkdirat
+readlinkat
 
 ; stubs
 fchown
@@ -235,4 +236,3 @@ linkat
 fchownat
 renameat
 symlinkat
-readlinkat

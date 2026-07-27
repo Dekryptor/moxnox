@@ -332,18 +332,26 @@ int pipe(int* pfds) {
 }
 
 extern "C"
-ssize_t readlink(const char* path, char* buf, size_t bufsiz) {
+ssize_t readlinkat(int dirfd, const char* path, char* buf, size_t bufsiz) {
     auto peb = NtCurrentTeb()->ProcessEnvironmentBlock;
     nt_status status;
     OBJECT_ATTRIBUTES oa;
     UNICODE_STRING us;
     IO_STATUS_BLOCK iosb;
-    HANDLE h;
+    HANDLE h, dirh;
 
     struct {
         REPARSE_DATA_BUFFER header;
         char16_t buffer[255];
     } rdb;
+
+    if (dirfd == AT_FDCWD)
+        dirh = peb->ProcessParameters->CurrentDirectory.Handle;
+    else {
+        dirh = (HANDLE)_get_osfhandle(dirfd);
+        if (dirh == (HANDLE)-1)
+            return -1;
+    }
 
     if (!path || path[0] == 0) {
         *_errno() = EINVAL;
@@ -368,7 +376,7 @@ ssize_t readlink(const char* path, char* buf, size_t bufsiz) {
     memset(&oa, 0, sizeof(oa));
     oa.Length = sizeof(OBJECT_ATTRIBUTES);
     oa.ObjectName = &us;
-    oa.RootDirectory = peb->ProcessParameters->CurrentDirectory.Handle;
+    oa.RootDirectory = dirh;
 
     status = NtCreateFile(&h, FILE_READ_ATTRIBUTES, &oa, &iosb, nullptr,
                           FILE_ATTRIBUTE_NORMAL, 0, FILE_OPEN,
@@ -407,6 +415,11 @@ ssize_t readlink(const char* path, char* buf, size_t bufsiz) {
     utf16_to_utf8(span(buf, bufsiz), u16sv);
 
     return (ssize_t)min(u8len, bufsiz);
+}
+
+extern "C"
+ssize_t readlink(const char* path, char* buf, size_t bufsiz) {
+    return readlinkat(AT_FDCWD, path, buf, bufsiz);
 }
 
 extern "C"

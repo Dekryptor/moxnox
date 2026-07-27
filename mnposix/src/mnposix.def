@@ -172,3 +172,4 @@ sched_yield
 pread
 pwrite
 mkdirat
+readlinkat

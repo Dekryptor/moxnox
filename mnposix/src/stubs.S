@@ -63,6 +63,5 @@ do_stub "linkat"
 do_stub "fchownat"
 do_stub "renameat"
 do_stub "symlinkat"
-do_stub "readlinkat"
 
 stubs_end
