@@ -4801,6 +4801,14 @@ static nt_status adjust_chunk_usage(btrfs_filesystem& fs, chunk& c, int64_t delt
 
 static nt_status do_ref_change_metadata(btrfs_filesystem& fs, const ref_change& rc,
                                         chunk& c) {
+    if (!c.space_loaded) {
+        auto status = load_space(fs, c);
+        if (!success(status)) {
+            print("load_space returned {}\n", status);
+            return status;
+        }
+    }
+
     if (rc.metadata.count == -1) {
         // FIXME - snapshotted metadata
 
@@ -4991,6 +4999,14 @@ static nt_status do_ref_change_data(btrfs_filesystem& fs, const ref_change& rc,
     btrfs_path p(fs.sb->nodesize);
     btrfs_key key;
     nt_status status;
+
+    if (!c.space_loaded) {
+        status = load_space(fs, c);
+        if (!success(status)) {
+            print("load_space returned {}\n", status);
+            return status;
+        }
+    }
 
     key = {rc.tree.key, key_type::EXTENT_ITEM, rc.data.extent_length};
 
