@@ -802,4 +802,13 @@ int pthread_condattr_setclock(pthread_condattr_t* attr, clockid_t clock_id) {
     return 0;
 }
 
+extern "C"
+int pthread_attr_setstacksize(pthread_attr_t* /*attr*/, size_t /*stacksize*/) {
+    print_stderr("FIXME - pthread_attr_setstacksize\n");
+
+    // FIXME
+
+    return 0;
+}
+
 __attribute__((section (".CRT$XLD"), used)) void(*__xl_d2)() = run_dtors;
