@@ -41,13 +41,14 @@ int sem_init(sem_t* sem, int pshared, unsigned int count) {
 }
 
 extern "C"
-int sem_destroy(sem_t* /*sem*/) {
-    print_stderr("FIXME - sem_destroy\n");
+int sem_destroy(sem_t* sem) {
+    atomic_ref<HANDLE> ev(sem->_x[1]);
+    auto h = ev.load();
 
-    // FIXME
+    if (h)
+        NtClose(h);
 
-    *_errno() = EINVAL;
-    return -1;
+    return 0;
 }
 
 extern "C"
