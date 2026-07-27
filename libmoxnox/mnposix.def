@@ -170,6 +170,7 @@ unlinkat
 pthread_kill
 sched_yield
 pread
+pwrite
 
 ; stubs
 fchown
@@ -216,7 +217,6 @@ setrlimit
 socketpair
 localtime_r
 fstatat
-pwrite
 readv
 writev
 posix_spawnattr_setpgroup

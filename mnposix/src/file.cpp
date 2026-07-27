@@ -1054,3 +1054,24 @@ ssize_t pread(int fd, void* buf, size_t count, off_t offset) {
 
     return (int)iosb.Information;
 }
+
+extern "C"
+ssize_t pwrite(int fd, const void* buf, size_t count, off_t offset) {
+    IO_STATUS_BLOCK iosb;
+    LARGE_INTEGER off;
+
+    auto h = (HANDLE)_get_osfhandle(fd);
+    if ((intptr_t)h < 0)
+        return -1;
+
+    off.QuadPart = offset;
+
+    auto status = NtWriteFile(h, 0, nullptr, nullptr, &iosb, buf,
+                              (uint32_t)count, &off, nullptr);
+    if (!success(status)) {
+        *_errno() = nt_status_to_errno(status);
+        return -1;
+    }
+
+    return (int)iosb.Information;
+}
