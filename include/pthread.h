@@ -19,7 +19,7 @@
 #define PTHREAD_CREATE_JOINABLE 0
 #define PTHREAD_CREATE_DETACHED 1
 
-#define PTHREAD_COND_INITIALIZER 0
+#define PTHREAD_COND_INITIALIZER {0}
 
 #ifdef __cplusplus
 extern "C" {

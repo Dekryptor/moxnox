@@ -26,7 +26,7 @@ typedef uint32_t id_t;
 typedef uintptr_t pthread_t;
 typedef struct { uintptr_t _x[4]; } pthread_mutex_t;
 typedef size_t pthread_key_t;
-typedef uintptr_t pthread_cond_t;
+typedef struct { uintptr_t _x[2]; } pthread_cond_t;
 typedef uintptr_t pthread_condattr_t; // FIXME?
 typedef uintptr_t pthread_mutexattr_t; // FIXME?
 typedef uintptr_t pthread_attr_t;
