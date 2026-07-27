@@ -169,6 +169,7 @@ fdopendir
 unlinkat
 pthread_kill
 sched_yield
+pread
 
 ; stubs
 fchown
@@ -215,7 +216,6 @@ setrlimit
 socketpair
 localtime_r
 fstatat
-pread
 pwrite
 readv
 writev

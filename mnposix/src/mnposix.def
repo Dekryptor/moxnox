@@ -169,3 +169,4 @@ fdopendir
 unlinkat
 pthread_kill
 sched_yield
+pread
