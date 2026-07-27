@@ -160,3 +160,4 @@ sem_trywait
 sem_post
 pthread_condattr_init
 pthread_condattr_destroy
+pthread_condattr_setclock

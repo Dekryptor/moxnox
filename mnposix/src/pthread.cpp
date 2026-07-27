@@ -59,6 +59,14 @@ struct key_slot {
     void (*dtor)(void*);
 };
 
+struct _pthread_condattr_t {
+    uintptr_t clock_id : 32;
+    uintptr_t : 32;
+};
+
+static_assert(sizeof(_pthread_condattr_t) == sizeof(pthread_condattr_t));
+static_assert(alignof(_pthread_condattr_t) == alignof(pthread_condattr_t));
+
 static constexpr size_t PTHREAD_KEYS_MAX = 128;
 
 static RTL_SRWLOCK key_lock;
@@ -714,6 +722,20 @@ int pthread_condattr_init(pthread_condattr_t* attr) {
 extern "C"
 int pthread_condattr_destroy(pthread_condattr_t*) {
     // nop
+
+    return 0;
+}
+
+extern "C"
+int pthread_condattr_setclock(pthread_condattr_t* attr, clockid_t clock_id) {
+    auto& a = *(_pthread_condattr_t*)attr;
+
+    if (clock_id != CLOCK_REALTIME && clock_id != CLOCK_MONOTONIC) {
+        *_errno() = EINVAL;
+        return -1;
+    }
+
+    a.clock_id = (uintptr_t)clock_id;
 
     return 0;
 }
