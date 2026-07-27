@@ -7011,14 +7011,14 @@ nt_status btrfs_inode::set_reparse_point(span<const uint8_t> inbuf,
 
         auto& parent = static_cast<btrfs_inode&>(*dentry.parent->inode);
 
-        status = change_dir_item_type(fs, p, *r, parent, dentry.name,
+        status = change_dir_item_type(fs, p, *r, parent, string_view(dentry.name, dentry.name_len),
                                       btrfs_inode_type::symlink);
         if (!success(status)) {
             print("change_dir_item_type returned {}\n", status);
             return status;
         }
 
-        status = change_dir_index_type(fs, p, *r, parent, dentry.name,
+        status = change_dir_index_type(fs, p, *r, parent, string_view(dentry.name, dentry.name_len),
                                        inode, btrfs_inode_type::symlink);
         if (!success(status)) {
             print("change_dir_index returned {}\n", status);
