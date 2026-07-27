@@ -173,6 +173,7 @@ pread
 pwrite
 mkdirat
 readlinkat
+symlinkat
 
 ; stubs
 fchown
@@ -235,4 +236,3 @@ faccessat
 linkat
 fchownat
 renameat
-symlinkat

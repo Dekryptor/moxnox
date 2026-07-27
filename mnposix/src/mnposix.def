@@ -173,3 +173,4 @@ pread
 pwrite
 mkdirat
 readlinkat
+symlinkat

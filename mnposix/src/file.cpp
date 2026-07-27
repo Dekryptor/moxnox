@@ -423,14 +423,22 @@ ssize_t readlink(const char* path, char* buf, size_t bufsiz) {
 }
 
 extern "C"
-int symlink(const char* target, const char* linkpath) {
+int symlinkat(const char* target, int newdirfd, const char* linkpath) {
     auto peb = NtCurrentTeb()->ProcessEnvironmentBlock;
     nt_status status;
     OBJECT_ATTRIBUTES oa;
     UNICODE_STRING us;
     IO_STATUS_BLOCK iosb;
-    HANDLE h;
+    HANDLE h, dirh;
     unique_handle f;
+
+    if (newdirfd == AT_FDCWD)
+        dirh = peb->ProcessParameters->CurrentDirectory.Handle;
+    else {
+        dirh = (HANDLE)_get_osfhandle(newdirfd);
+        if (dirh == (HANDLE)-1)
+            return -1;
+    }
 
     if (!linkpath || !linkpath[0]) {
         *_errno() = EINVAL;
@@ -462,7 +470,7 @@ int symlink(const char* target, const char* linkpath) {
     memset(&oa, 0, sizeof(oa));
     oa.Length = sizeof(OBJECT_ATTRIBUTES);
     oa.ObjectName = &us;
-    oa.RootDirectory = peb->ProcessParameters->CurrentDirectory.Handle;
+    oa.RootDirectory = dirh;
 
     status = NtCreateFile(&h, FILE_READ_ATTRIBUTES | DELETE, &oa, &iosb, nullptr,
                           0, 0, FILE_CREATE, FILE_NON_DIRECTORY_FILE, nullptr, 0);
@@ -527,6 +535,11 @@ int symlink(const char* target, const char* linkpath) {
     }
 
     return 0;
+}
+
+extern "C"
+int symlink(const char* target, const char* linkpath) {
+    return symlinkat(target, AT_FDCWD, linkpath);
 }
 
 extern "C"
