@@ -149,11 +149,14 @@ int sem_trywait(sem_t* /*sem*/) {
 }
 
 extern "C"
-int sem_post(sem_t* /*sem*/) {
-    print_stderr("FIXME - sem_post\n");
+int sem_post(sem_t* sem) {
+    atomic_ref<uint64_t> r(sem->_x[0]);
+    atomic_ref<HANDLE> ev(sem->_x[1]);
 
-    // FIXME
+    auto v = r.fetch_add(create_value(1, 0), memory_order_release);
 
-    *_errno() = EINVAL;
-    return -1;
+    if (extract_waiters(v) > 0)
+        NtSetEvent(ev.load(), nullptr);
+
+    return 0;
 }
