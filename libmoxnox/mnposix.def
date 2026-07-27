@@ -166,6 +166,7 @@ truncate
 dirfd
 openat
 fdopendir
+unlinkat
 
 ; stubs
 fchown
@@ -201,7 +202,6 @@ posix_spawnattr_setflags
 posix_spawnattr_setsigdefault
 wcsnrtombs
 mbsnrtowcs
-unlinkat
 pathconf
 fchmodat
 utimensat

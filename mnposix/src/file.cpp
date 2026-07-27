@@ -947,3 +947,87 @@ int openat(int dirfd, const char *path, int flags, ...) {
     } else
         return openat2(dirfd, path, flags, 0);
 }
+
+extern "C"
+int unlinkat(int dirfd, const char* path, int flags) {
+    OBJECT_ATTRIBUTES oa;
+    UNICODE_STRING us;
+    NTSTATUS status;
+    HANDLE h, dirh;
+    unique_handle file;
+    IO_STATUS_BLOCK iosb;
+    FILE_DISPOSITION_INFORMATION fdi;
+    auto peb = NtCurrentTeb()->ProcessEnvironmentBlock;
+    uint32_t create_options;
+
+    if (flags & ~AT_REMOVEDIR) {
+        *_errno() = EINVAL;
+        return -1;
+    }
+
+    if (!path || path[0] == 0) {
+        *_errno() = EINVAL;
+        return -1;
+    }
+
+    auto sv = string_view(path);
+    auto u16len = utf8_to_utf16_len(sv);
+
+    auto buf = (char16_t*)malloc(u16len * sizeof(char16_t));
+    if (!buf) {
+        *_errno() = ENOMEM;
+        return -1;
+    }
+
+    utf8_to_utf16(span(buf, u16len), sv);
+
+    us.Length = us.MaximumLength = (uint16_t)(u16len * sizeof(char16_t));
+    us.Buffer = (char16_t*)buf;
+
+    if (dirfd == AT_FDCWD)
+        dirh = peb->ProcessParameters->CurrentDirectory.Handle;
+    else {
+        dirh = (HANDLE)_get_osfhandle(dirfd);
+        if (dirh == (HANDLE)-1) {
+            free(buf);
+            return -1;
+        }
+    }
+
+    memset(&oa, 0, sizeof(oa));
+    oa.Length = sizeof(OBJECT_ATTRIBUTES);
+    oa.ObjectName = &us;
+    oa.RootDirectory = dirh;
+
+    create_options = FILE_OPEN_REPARSE_POINT;
+
+    if (flags & AT_REMOVEDIR)
+        create_options |= FILE_DIRECTORY_FILE;
+    else
+        create_options |= FILE_NON_DIRECTORY_FILE;
+
+    status = NtCreateFile(&h, DELETE, &oa, &iosb, nullptr, 0, 0, FILE_OPEN,
+                          create_options, nullptr, 0);
+
+    free(buf);
+
+    if (!success(status)) {
+        *_errno() = nt_status_to_errno(status);
+        return -1;
+    }
+
+    file.reset(h);
+
+    // FIXME - should we be asking for POSIX-style deletes?
+
+    fdi.DeleteFile = true;
+
+    status = NtSetInformationFile(file.get(), &iosb, &fdi, sizeof(fdi),
+                                  FILE_INFORMATION_CLASS::DispositionInformation);
+    if (!success(status)) {
+        *_errno() = nt_status_to_errno(status);
+        return -1;
+    }
+
+    return 0;
+}

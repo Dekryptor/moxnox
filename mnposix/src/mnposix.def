@@ -166,3 +166,4 @@ truncate
 dirfd
 openat
 fdopendir
+unlinkat
