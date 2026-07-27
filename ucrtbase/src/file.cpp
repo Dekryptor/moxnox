@@ -1200,8 +1200,11 @@ static int open2(const char* path, int flags, int pmode) {
 
     create_options = 0;
 
+    if (flags & O_DIRECTORY)
+        create_options |= FILE_DIRECTORY_FILE;
+
     if (flags & O_NOFOLLOW)
-        create_options = FILE_OPEN_REPARSE_POINT;
+        create_options |= FILE_OPEN_REPARSE_POINT;
 
     if (!(pmode & _S_IWRITE))
         file_attributes = FILE_ATTRIBUTE_READONLY;
