@@ -175,6 +175,7 @@ mkdirat
 readlinkat
 symlinkat
 renameat
+stat
 
 ; stubs
 fchown

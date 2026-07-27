@@ -175,3 +175,4 @@ mkdirat
 readlinkat
 symlinkat
 renameat
+stat
