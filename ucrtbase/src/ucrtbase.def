@@ -356,3 +356,4 @@ iswpunct
 iswupper
 iswdigit
 iswxdigit
+atoll

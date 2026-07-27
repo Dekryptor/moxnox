@@ -187,6 +187,11 @@ long atol(const char* str) {
 }
 
 extern "C"
+long long atoll(const char* str) {
+    return str_to_num<long long>(str);
+}
+
+extern "C"
 int atoi(const char* str) {
     return str_to_num<int>(str);
 }

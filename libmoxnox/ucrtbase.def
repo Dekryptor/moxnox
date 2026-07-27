@@ -332,6 +332,7 @@ iswprint
 iswpunct
 iswupper
 iswxdigit
+atoll
 
 ; stubs
 ___lc_codepage_func
@@ -350,7 +351,6 @@ fgetpos
 fsetpos
 mbsrtowcs
 wcscat
-atoll
 _crt_at_quick_exit
 quick_exit
 _timespec64_get
