@@ -1447,11 +1447,27 @@ static bool handle_page_fault2(process& p, uintptr_t address) {
         return false;
 
 #ifdef __aarch64__
-    if (pte->AP != ARM64_PTE_AP_EL0RO)
-        return false;
+    if (pte->AP != ARM64_PTE_AP_EL0RO) {
+        __asm __volatile (
+            "tlbi vae1, %x[res]\n"
+            "dsb ish\n"
+            "isb\n"
+            :
+            : [res] "r" (address >> PAGE_SHIFT)
+        );
+
+        return true;
+    }
 #elifdef __x86_64__
-    if (pte->w)
-        return false;
+    if (pte->w) {
+        __asm __volatile (
+            "invlpg [%0]\n"
+            :
+            : "r" (address)
+        );
+
+        return true;
+    }
 #endif
 
     // mark cache as dirty
