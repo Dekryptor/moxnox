@@ -353,23 +353,41 @@ int pthread_cond_wait(pthread_cond_t* cond, pthread_mutex_t* mutex) {
 extern "C"
 int pthread_cond_timedwait(pthread_cond_t* cond, pthread_mutex_t* mutex,
                            const timespec* abstime) {
-    LARGE_INTEGER now, wait;
+    LARGE_INTEGER wait;
+    nt_status status;
     auto& c = *(_pthread_cond_t*)cond;
     auto& m = *(_pthread_mutex*)mutex;
 
-    auto status = NtQuerySystemTime(&now);
-    if (!success(status))
-        return nt_status_to_errno(status);
-
     auto t = (uint64_t)abstime->tv_sec * 10000000; // units of 100 ns
-
-    t += 116444736000000000; // change from Unix to NT epoch
     t += (uint64_t)abstime->tv_nsec / 100;
 
-    if (t <= (uint64_t)now.QuadPart)
-        return ETIMEDOUT;
+    if (c.attr.clock_id == 0 || c.attr.clock_id == CLOCK_REALTIME) {
+        LARGE_INTEGER now;
 
-    wait.QuadPart = now.QuadPart - (int64_t)t;
+        status = NtQuerySystemTime(&now);
+        if (!success(status))
+            return nt_status_to_errno(status);
+
+        t += 116444736000000000; // change from Unix to NT epoch
+
+        if (t <= (uint64_t)now.QuadPart)
+            return ETIMEDOUT;
+
+        wait.QuadPart = now.QuadPart - (int64_t)t;
+    } else { // CLOCK_MONOTONIC
+        timespec now;
+
+        if (clock_gettime(CLOCK_MONOTONIC, &now))
+            return *_errno();
+
+        auto now2 = (uint64_t)now.tv_sec * 10000000; // units of 100 ns
+        now2 += (uint64_t)now.tv_nsec / 100;
+
+        if (t <= now2)
+            return ETIMEDOUT;
+
+        wait.QuadPart = (int64_t)now2 - (int64_t)t;
+    }
 
     status = RtlSleepConditionVariableSRW(&c.cv, &m.lock, &wait, 0);
 
