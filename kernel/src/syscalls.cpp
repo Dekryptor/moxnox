@@ -7,6 +7,7 @@
 #include <utility>
 #include <mutex>
 #include "timer-asm.h"
+#include "trace.h"
 
 import nt;
 import format;
@@ -22,6 +23,7 @@ import process;
 import list;
 import bsod;
 import scheduler;
+import trace;
 
 using namespace std;
 
@@ -437,6 +439,10 @@ NTSTATUS user_NtCreateFile(HANDLE* file_handle, ACCESS_MASK desired_access,
     OBJECT_ATTRIBUTES oa;
     UNICODE_STRING us;
     NTSTATUS ret;
+
+    TRACE11("user_NtCreateFile", file_handle, desired_access, object_attributes,
+            io_status_block, allocation_size, file_attributes, share_access,
+            create_disposition, create_options, ea_buffer, ea_length);
 
     if (!file_handle || !io_status_block)
         return nt_status::INVALID_PARAMETER;

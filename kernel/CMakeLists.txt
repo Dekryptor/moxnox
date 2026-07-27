@@ -66,6 +66,7 @@ set(GLOBAL_MODULES src/cmdline.cpp
     src/smbios_parser.cpp
     src/pty.cpp
     src/tty.cpp
+    src/trace.cpp
 )
 
 set(AMD64_MODULES ${GLOBAL_MODULES}
