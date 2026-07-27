@@ -60,6 +60,7 @@ add_library(mnposix SHARED
     src/resource.cpp
     src/error.cpp
     src/sem.cpp
+    src/sched.cpp
 )
 
 target_compile_options(mnposix PRIVATE -fno-exceptions ${USERSPACE_CFLAGS})

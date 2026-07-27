@@ -168,6 +168,7 @@ openat
 fdopendir
 unlinkat
 pthread_kill
+sched_yield
 
 ; stubs
 fchown
@@ -209,7 +210,6 @@ utimensat
 getlogin
 getlogin_r
 confstr
-sched_yield
 sigwait
 setrlimit
 socketpair
