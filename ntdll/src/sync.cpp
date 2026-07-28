@@ -27,6 +27,9 @@ struct wait_entry {
     list_entry le;
 };
 
+static constexpr uintptr_t SRW_LOCKED_EXCLUSIVE = 1;
+static constexpr uintptr_t SRW_CONTENDED = 2;
+
 static list_entry waiters = { &waiters, &waiters };
 
 extern "C"
@@ -176,21 +179,34 @@ extern "C"
 void RtlAcquireSRWLockExclusive(RTL_SRWLOCK* lock) {
     atomic_ref<uintptr_t> l(*(uintptr_t*)&lock->Ptr);
 
-    while (true) {
-        if (l.load(memory_order_relaxed) == 0) {
-            uintptr_t expected = 0;
+    if (l.load(memory_order_relaxed) == 0) {
+        uintptr_t expected = 0;
 
-            if (l.compare_exchange_weak(expected, 1, memory_order_acquire,
-                                        memory_order_relaxed)) {
+        if (l.compare_exchange_weak(expected, SRW_LOCKED_EXCLUSIVE,
+                                    memory_order_acquire, memory_order_relaxed)) {
+            return;
+        }
+    }
+
+    while (true) {
+        auto val = l.load(memory_order_relaxed);
+        if ((val & ~SRW_CONTENDED) == 0) {
+            uintptr_t expected = val;
+
+            if (l.compare_exchange_strong(expected, SRW_LOCKED_EXCLUSIVE | SRW_CONTENDED,
+                                          memory_order_acquire, memory_order_relaxed)) {
                 return;
             }
         }
 
-        // FIXME - NtYieldExecution?
+        auto old = l.fetch_or(SRW_CONTENDED);
 
-#ifdef __x86_64__
-        __asm __volatile ("pause");
-#endif
+        if ((old & ~SRW_CONTENDED) == 0)
+            continue;
+
+        auto expected = old | SRW_CONTENDED;
+
+        RtlWaitOnAddress(&lock->Ptr, &expected, sizeof(uintptr_t), nullptr);
     }
 }
 
@@ -198,17 +214,31 @@ extern "C"
 void RtlReleaseSRWLockExclusive(RTL_SRWLOCK* lock) {
     atomic_ref<uintptr_t> l(*(uintptr_t*)&lock->Ptr);
 
-    l.store(0, memory_order_release);
+    auto old = l.exchange(0, memory_order_release);
+
+    if (old & SRW_CONTENDED)
+        RtlWakeAddressAll(&lock->Ptr);
 }
 
 extern "C"
 bool RtlTryAcquireSRWLockExclusive(RTL_SRWLOCK* lock) {
     atomic_ref<uintptr_t> l(*(uintptr_t*)&lock->Ptr);
 
-    uintptr_t expected = 0;
+    while (true) {
+        auto val = l.load(memory_order_relaxed);
 
-    return l.compare_exchange_strong(expected, 1, memory_order_acquire,
-                                     memory_order_relaxed);
+        if ((val & ~SRW_CONTENDED) == 0) {
+            uintptr_t expected = val;
+
+            if (l.compare_exchange_strong(expected, SRW_LOCKED_EXCLUSIVE | (val & SRW_CONTENDED),
+                                          memory_order_acquire, memory_order_relaxed)) {
+                return true;
+            } else
+                continue;
+        }
+
+        return false;
+    }
 }
 
 extern "C"
@@ -218,18 +248,20 @@ void RtlAcquireSRWLockShared(RTL_SRWLOCK* lock) {
     while (true) {
         uintptr_t val = l.load(memory_order_relaxed);
 
-        if (!(val & 1)) {
-            if (l.compare_exchange_weak(val, val + 2, memory_order_acquire,
+        if (!(val & SRW_LOCKED_EXCLUSIVE)) {
+            if (l.compare_exchange_weak(val, val + 4, memory_order_acquire,
                                         memory_order_relaxed)) {
                 return;
             }
         }
 
-        // FIXME - NtYieldExecution?
+        auto old = l.fetch_or(SRW_CONTENDED);
+        if (!(old & SRW_LOCKED_EXCLUSIVE))
+            continue;
 
-#ifdef __x86_64__
-        __asm __volatile ("pause");
-#endif
+        auto expected = old | SRW_CONTENDED;
+
+        RtlWaitOnAddress(&lock->Ptr, &expected, sizeof(uintptr_t), nullptr);
     }
 }
 
@@ -237,7 +269,9 @@ extern "C"
 void RtlReleaseSRWLockShared(RTL_SRWLOCK* lock) {
     atomic_ref<uintptr_t> l(*(uintptr_t*)&lock->Ptr);
 
-    l.fetch_sub(2, memory_order_release);
+    auto old = l.fetch_sub(4, memory_order_release);
+    if (old == (4 | SRW_CONTENDED))
+        RtlWakeAddressAll(&lock->Ptr);
 }
 
 extern "C"
@@ -250,7 +284,7 @@ bool RtlTryAcquireSRWLockShared(RTL_SRWLOCK* lock) {
         if (val & 1)
             return false;
 
-        if (l.compare_exchange_weak(val, val + 2, memory_order_acquire,
+        if (l.compare_exchange_weak(val, val + 4, memory_order_acquire,
                                     memory_order_relaxed)) {
             return true;
         }
