@@ -86,6 +86,9 @@ static key_slot keys[PTHREAD_KEYS_MAX];
 static thread_local void* thread_specific_data[PTHREAD_KEYS_MAX];
 static thread_local pthread_t self_pthread;
 
+static constexpr uintptr_t SRW_LOCKED_EXCLUSIVE = 1;
+static constexpr uintptr_t SRW_CONTENDED = 2;
+
 extern "C"
 int pthread_key_create(pthread_key_t* key, void (*dtor)(void*)) {
     RtlAcquireSRWLockExclusive(&key_lock);
@@ -873,19 +876,32 @@ static bool srw_lock_acquire_with_timeout(RTL_SRWLOCK& lock,
     t += (uint64_t)abstime.tv_nsec / 100;
     t += EPOCH_OFFSET; // change from Unix to NT epoch
 
+    if (l.load(memory_order_relaxed) == 0) {
+        uintptr_t expected = 0;
+
+        if (l.compare_exchange_weak(expected, SRW_LOCKED_EXCLUSIVE,
+                                    memory_order_acquire, memory_order_relaxed)) {
+            return true;
+        }
+    }
+
     while (true) {
         LARGE_INTEGER now, timeout;
 
         auto val = l.load(memory_order_relaxed);
+        if ((val & ~SRW_CONTENDED) == 0) {
+            uintptr_t expected = val;
 
-        if (val == 0) {
-            uintptr_t expected = 0;
-
-            if (l.compare_exchange_strong(expected, 1, memory_order_acquire,
-                                          memory_order_relaxed)) {
+            if (l.compare_exchange_strong(expected, SRW_LOCKED_EXCLUSIVE | SRW_CONTENDED,
+                                        memory_order_acquire, memory_order_relaxed)) {
                 return true;
             }
         }
+
+        auto old = l.fetch_or(SRW_CONTENDED);
+
+        if ((old & ~SRW_CONTENDED) == 0)
+            continue;
 
         NtQuerySystemTime(&now);
 
@@ -894,7 +910,9 @@ static bool srw_lock_acquire_with_timeout(RTL_SRWLOCK& lock,
 
         timeout.QuadPart = now.QuadPart - (int64_t)t;
 
-        if (RtlWaitOnAddress(&lock.Ptr, &val, sizeof(val), wait_forever ? nullptr : &timeout) == nt_status::TIMEOUT)
+        auto expected = old | SRW_CONTENDED;
+
+        if (RtlWaitOnAddress(&lock.Ptr, &expected, sizeof(expected), wait_forever ? nullptr : &timeout) == nt_status::TIMEOUT)
             return false;
     }
 }
