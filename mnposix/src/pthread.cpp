@@ -245,7 +245,6 @@ int pthread_mutex_unlock(pthread_mutex_t* mutex) {
     switch (m.type) {
         case mutex_type::normal:
             RtlReleaseSRWLockExclusive(&m.lock);
-            RtlWakeAddressSingle(&m.lock);
             break;
 
         case mutex_type::errorcheck:
@@ -254,7 +253,6 @@ int pthread_mutex_unlock(pthread_mutex_t* mutex) {
             else {
                 m.owner = 0;
                 RtlReleaseSRWLockExclusive(&m.lock);
-                RtlWakeAddressSingle(&m.lock);
             }
             break;
 
@@ -267,7 +265,6 @@ int pthread_mutex_unlock(pthread_mutex_t* mutex) {
             if (m.recursion_count == 0) {
                 m.owner = 0;
                 RtlReleaseSRWLockExclusive(&m.lock);
-                RtlWakeAddressSingle(&m.lock);
             }
 
             break;
