@@ -191,6 +191,7 @@ fstatat
 linkat
 strndup
 posix_spawnattr_setflags
+posix_spawnattr_setsigmask
 
 ; stubs
 mbsinit
@@ -231,7 +232,6 @@ readv
 writev
 posix_spawnattr_setpgroup
 mkfifo
-posix_spawnattr_setsigmask
 posix_madvise
 mlock
 munlock

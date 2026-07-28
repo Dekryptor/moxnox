@@ -23,18 +23,18 @@ using namespace std;
 
 struct _posix_spawnattr_t {
     short flags;
+    sigset_t sigmask;
 };
 
 extern "C"
 int posix_spawn(pid_t* pid, const char* path,
                 const posix_spawn_file_actions_t* file_actions,
-                const posix_spawnattr_t* /*attrp*/,
+                const posix_spawnattr_t* attrp,
                 char* const* argv, char* const* envp) {
     unique_handle proc, thread;
     nt_status status;
     CLIENT_ID client_id;
-
-    // FIXME - attrp
+    auto attr = attrp ? (_posix_spawnattr_t*)*attrp : nullptr;
 
     if (!path || path[0] == 0)
         return EINVAL;
@@ -43,6 +43,16 @@ int posix_spawn(pid_t* pid, const char* path,
                        (file_actions_list*)file_actions);
     if (ret)
         return ret;
+
+    if (attr && attr->flags & POSIX_SPAWN_SETSIGMASK) {
+        status = NtSetInformationThread(thread.get(),
+                                        THREAD_INFORMATION_CLASS::MoxnoxSignalsMask,
+                                        &attr->sigmask, sizeof(attr->sigmask));
+        if (!success(status)) {
+            NtTerminateProcess(proc.get(), status);
+            return nt_status_to_errno(status);
+        }
+    }
 
     // mark as child
 
@@ -541,6 +551,15 @@ int posix_spawnattr_setflags(posix_spawnattr_t* attr, short flags) {
     }
 
     a.flags = flags;
+
+    return 0;
+}
+
+extern "C"
+int posix_spawnattr_setsigmask(posix_spawnattr_t* attr, const sigset_t* sigmask) {
+    auto& a = *(_posix_spawnattr_t*)*attr;
+
+    a.sigmask = *sigmask;
 
     return 0;
 }
