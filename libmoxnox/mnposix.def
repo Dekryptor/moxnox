@@ -184,6 +184,7 @@ fchownat
 fchown
 chown
 lchown
+fstatvfs
 
 ; stubs
 mbsinit
@@ -210,7 +211,6 @@ setpriority
 setresgid
 memmem
 getgroups
-fstatvfs
 posix_spawnattr_setflags
 posix_spawnattr_setsigdefault
 wcsnrtombs

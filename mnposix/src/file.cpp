@@ -847,6 +847,33 @@ int link(const char* oldpath, const char* newpath) {
     return 0;
 }
 
+static int do_statvfs(HANDLE h, struct statvfs& buf) {
+    IO_STATUS_BLOCK iosb;
+    FILE_FS_SIZE_INFORMATION fsinfo;
+    nt_status status;
+
+    status = NtQueryVolumeInformationFile(h, &iosb, &fsinfo, sizeof(fsinfo),
+                                          FS_INFORMATION_CLASS::SizeInformation);
+    if (!success(status)) {
+        *_errno() = nt_status_to_errno(status);
+        return -1;
+    }
+
+    buf.f_bsize = fsinfo.BytesPerSector * fsinfo.SectorsPerAllocationUnit;
+    buf.f_frsize = buf.f_bsize;
+    buf.f_blocks = (uint64_t)fsinfo.TotalAllocationUnits.QuadPart;
+    buf.f_bfree = (uint64_t)fsinfo.AvailableAllocationUnits.QuadPart;
+    buf.f_bavail = buf.f_bfree;
+    buf.f_files = 0; // FIXME?
+    buf.f_ffree = 0; // FIXME?
+    buf.f_favail = 0; // FIXME?
+    buf.f_fsid = 0; // FIXME?
+    buf.f_flag = 0; // FIXME - get readonly flag etc. from FS (ST_RDONLY)
+    buf.f_namemax = 255; // same as Linux
+
+    return 0;
+}
+
 extern "C"
 int statvfs(const char* path, struct statvfs* buf) {
     auto peb = NtCurrentTeb()->ProcessEnvironmentBlock;
@@ -857,7 +884,6 @@ int statvfs(const char* path, struct statvfs* buf) {
     unique_ptr<char16_t[]> u16;
     HANDLE h;
     unique_handle f;
-    FILE_FS_SIZE_INFORMATION fsinfo;
 
     if (!path || path[0] == 0) {
         *_errno() = EINVAL;
@@ -891,26 +917,16 @@ int statvfs(const char* path, struct statvfs* buf) {
     } else
         f.reset(h);
 
-    status = NtQueryVolumeInformationFile(f.get(), &iosb, &fsinfo, sizeof(fsinfo),
-                                          FS_INFORMATION_CLASS::SizeInformation);
-    if (!success(status)) {
-        *_errno() = nt_status_to_errno(status);
+    return do_statvfs(f.get(), *buf);
+}
+
+extern "C"
+int fstatvfs(int fd, struct statvfs* buf) {
+    auto h = (HANDLE)_get_osfhandle(fd);
+    if (h == (HANDLE)-1)
         return -1;
-    }
 
-    buf->f_bsize = fsinfo.BytesPerSector * fsinfo.SectorsPerAllocationUnit;
-    buf->f_frsize = buf->f_bsize;
-    buf->f_blocks = (uint64_t)fsinfo.TotalAllocationUnits.QuadPart;
-    buf->f_bfree = (uint64_t)fsinfo.AvailableAllocationUnits.QuadPart;
-    buf->f_bavail = buf->f_bfree;
-    buf->f_files = 0; // FIXME?
-    buf->f_ffree = 0; // FIXME?
-    buf->f_favail = 0; // FIXME?
-    buf->f_fsid = 0; // FIXME?
-    buf->f_flag = 0; // FIXME - get readonly flag etc. from FS (ST_RDONLY)
-    buf->f_namemax = 255; // same as Linux
-
-    return 0;
+    return do_statvfs(h, *buf);
 }
 
 static int openat2(int dirfd, const char* path, int flags, int pmode) {
