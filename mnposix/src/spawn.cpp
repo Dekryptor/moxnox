@@ -25,6 +25,7 @@ struct _posix_spawnattr_t {
     short flags;
     sigset_t sigmask;
     sigset_t sigdefault;
+    pid_t pgroup;
 };
 
 extern "C"
@@ -56,6 +57,17 @@ int posix_spawn(pid_t* pid, const char* path,
     }
 
     // FIXME - POSIX_SPAWN_SETSIGDEFAULT (SIG_IGN markings ought to carry over to child otherwise)
+
+    if (attr && attr->flags & POSIX_SPAWN_SETPGROUP) {
+        auto pgid = attr->pgroup ? (uintptr_t)attr->pgroup : (uintptr_t)client_id.UniqueProcess;
+
+        status = NtSetInformationProcess(proc.get(), PROCESS_INFORMATION_CLASS::MoxnoxSetProcessGroup,
+                                         &pgid, sizeof(pgid));
+        if (!success(status)) {
+            NtTerminateProcess(proc.get(), status);
+            return nt_status_to_errno(status);
+        }
+    }
 
     // mark as child
 
@@ -573,6 +585,15 @@ int posix_spawnattr_setsigdefault(posix_spawnattr_t* attr,
     auto& a = *(_posix_spawnattr_t*)*attr;
 
     a.sigdefault = *sigdefault;
+
+    return 0;
+}
+
+extern "C"
+int posix_spawnattr_setpgroup(posix_spawnattr_t* attr, pid_t pgroup) {
+    auto& a = *(_posix_spawnattr_t*)*attr;
+
+    a.pgroup = pgroup;
 
     return 0;
 }

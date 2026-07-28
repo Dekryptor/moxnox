@@ -193,6 +193,7 @@ strndup
 posix_spawnattr_setflags
 posix_spawnattr_setsigmask
 posix_spawnattr_setsigdefault
+posix_spawnattr_setpgroup
 
 ; stubs
 mbsinit
@@ -230,7 +231,6 @@ setrlimit
 socketpair
 readv
 writev
-posix_spawnattr_setpgroup
 mkfifo
 posix_madvise
 mlock
