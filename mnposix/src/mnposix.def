@@ -183,3 +183,4 @@ localtime_r
 fchownat
 fchown
 chown
+lchown

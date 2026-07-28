@@ -183,6 +183,7 @@ localtime_r
 fchownat
 fchown
 chown
+lchown
 
 ; stubs
 mbsinit
@@ -208,7 +209,6 @@ setgrent
 setpriority
 setresgid
 memmem
-lchown
 getgroups
 fstatvfs
 posix_spawnattr_setflags
