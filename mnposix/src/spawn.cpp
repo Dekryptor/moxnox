@@ -21,6 +21,10 @@ import errno;
 
 using namespace std;
 
+struct _posix_spawnattr_t {
+    short flags;
+};
+
 extern "C"
 int posix_spawn(pid_t* pid, const char* path,
                 const posix_spawn_file_actions_t* file_actions,
@@ -462,15 +466,23 @@ int posix_spawn_file_actions_addfchdir(posix_spawn_file_actions_t* file_actions,
 }
 
 extern "C"
-int posix_spawnattr_init(posix_spawnattr_t* /*attr*/) {
-    // nop
+int posix_spawnattr_init(posix_spawnattr_t* attr) {
+    auto a = new _posix_spawnattr_t;
+    if (!a)
+        return ENOMEM;
+
+    memset(a, 0, sizeof(*a));
+
+    *attr = a;
 
     return 0;
 }
 
 extern "C"
-int posix_spawnattr_destroy(posix_spawnattr_t* /*attr*/) {
-    // nop
+int posix_spawnattr_destroy(posix_spawnattr_t* attr) {
+    auto& a = *(_posix_spawnattr_t*)*attr;
+
+    delete &a;
 
     return 0;
 }
@@ -515,4 +527,20 @@ clock_t times(tms* buffer) {
     buffer->tms_cstime = nt_to_posix_ticks(kut2.KernelTime.QuadPart);
 
     return (clock_t)(now.QuadPart * 1000 / freq.QuadPart); // milliseconds
+}
+
+extern "C"
+int posix_spawnattr_setflags(posix_spawnattr_t* attr, short flags) {
+    auto& a = *(_posix_spawnattr_t*)*attr;
+
+    if (flags & ~(POSIX_SPAWN_RESETIDS | POSIX_SPAWN_SETPGROUP |
+                  POSIX_SPAWN_SETSCHEDPARAM | POSIX_SPAWN_SETSCHEDULER |
+                  POSIX_SPAWN_SETSID | POSIX_SPAWN_SETSIGDEF |
+                  POSIX_SPAWN_SETSIGMASK)) {
+        return EINVAL;
+    }
+
+    a.flags = flags;
+
+    return 0;
 }

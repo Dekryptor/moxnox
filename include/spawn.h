@@ -9,7 +9,7 @@ struct _posix_spawn_file_actions_t {
 };
 
 typedef struct _posix_spawn_file_actions_t posix_spawn_file_actions_t;
-typedef void* posix_spawnattr_t; // FIXME
+typedef void* posix_spawnattr_t;
 
 #define POSIX_SPAWN_RESETIDS      0x01
 #define POSIX_SPAWN_SETPGROUP     0x02

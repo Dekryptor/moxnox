@@ -190,3 +190,4 @@ fchmodat
 fstatat
 linkat
 strndup
+posix_spawnattr_setflags

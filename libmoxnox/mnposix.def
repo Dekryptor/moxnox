@@ -190,6 +190,7 @@ fchmodat
 fstatat
 linkat
 strndup
+posix_spawnattr_setflags
 
 ; stubs
 mbsinit
@@ -216,7 +217,6 @@ setpriority
 setresgid
 memmem
 getgroups
-posix_spawnattr_setflags
 posix_spawnattr_setsigdefault
 wcsnrtombs
 mbsnrtowcs
