@@ -44,11 +44,7 @@ extern "C"
 void exit(int code) noexcept {
     _cexit();
 
-    if (code == SIGINT)
-        RtlExitUserProcess((uint32_t)nt_status::CONTROL_C_EXIT);
-    else
-        RtlExitUserProcess((uint32_t)code);
-
+    RtlExitUserProcess((uint32_t)code);
     unreachable();
 }
 
