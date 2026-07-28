@@ -464,8 +464,6 @@ extern "C"
 int _fclose(FILE* file) {
     auto& f = *reinterpret_cast<_FILE*>(file);
 
-    // FIXME - do we need to make sure this isn't stdin, stdout, or stderr?
-
     {
         RtlEnterCriticalSection(&files_lock);
         remove_entry_list(f.le);
@@ -473,7 +471,9 @@ int _fclose(FILE* file) {
     }
 
     NtClose(f.h);
-    delete &f;
+
+    if (file != (FILE*)_stdin && file != (FILE*)_stdout && file != (FILE*)_stderr)
+        delete &f;
 
     return 0;
 }
