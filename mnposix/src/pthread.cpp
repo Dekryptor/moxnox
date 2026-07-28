@@ -902,7 +902,7 @@ static bool srw_lock_acquire_with_timeout(RTL_SRWLOCK& lock,
 
         NtQuerySystemTime(&now);
 
-        if (t <= (uint64_t)now.QuadPart)
+        if (!wait_forever && t <= (uint64_t)now.QuadPart)
             return false;
 
         timeout.QuadPart = now.QuadPart - (int64_t)t;
