@@ -11,10 +11,13 @@ struct _posix_spawn_file_actions_t {
 typedef struct _posix_spawn_file_actions_t posix_spawn_file_actions_t;
 typedef void* posix_spawnattr_t; // FIXME
 
-#define POSIX_SPAWN_RESETIDS	1
-#define POSIX_SPAWN_SETPGROUP	2
-#define POSIX_SPAWN_SETSIGDEF	3
-#define POSIX_SPAWN_SETSIGMASK	4
+#define POSIX_SPAWN_RESETIDS      0x01
+#define POSIX_SPAWN_SETPGROUP     0x02
+#define POSIX_SPAWN_SETSIGDEF     0x04
+#define POSIX_SPAWN_SETSIGMASK    0x08
+#define POSIX_SPAWN_SETSCHEDPARAM 0x10
+#define POSIX_SPAWN_SETSCHEDULER  0x20
+#define POSIX_SPAWN_SETSID        0x80
 
 #ifdef __cplusplus
 extern "C" {
