@@ -46,7 +46,6 @@ do_stub "posix_madvise"
 do_stub "mlock"
 do_stub "munlock"
 do_stub "open_memstream"
-do_stub "strndup"
 do_stub "pthread_mutex_timedlock"
 do_stub "posix_fadvise"
 

@@ -189,3 +189,4 @@ faccessat
 fchmodat
 fstatat
 linkat
+strndup

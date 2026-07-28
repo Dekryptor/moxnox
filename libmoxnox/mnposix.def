@@ -189,6 +189,7 @@ faccessat
 fchmodat
 fstatat
 linkat
+strndup
 
 ; stubs
 mbsinit
@@ -235,6 +236,5 @@ posix_madvise
 mlock
 munlock
 open_memstream
-strndup
 pthread_mutex_timedlock
 posix_fadvise
