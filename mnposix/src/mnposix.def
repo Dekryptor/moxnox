@@ -182,3 +182,4 @@ utimes
 localtime_r
 fchownat
 fchown
+chown

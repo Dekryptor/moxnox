@@ -182,10 +182,10 @@ utimes
 localtime_r
 fchownat
 fchown
+chown
 
 ; stubs
 mbsinit
-chown
 __freading
 __fwriting
 __fpending

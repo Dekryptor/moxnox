@@ -3,7 +3,6 @@
 stubs_start
 
 do_stub "mbsinit"
-do_stub "chown"
 do_stub "__freading"
 do_stub "__fwriting"
 do_stub "__fpurge"

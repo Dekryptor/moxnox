@@ -1581,3 +1581,8 @@ int fchown(int fd, uid_t owner, gid_t group) {
 
     return do_fchown(h, owner, group);
 }
+
+extern "C"
+int chown(const char* path, uid_t owner, gid_t group) {
+    return fchownat(AT_FDCWD, path, owner, group, 0);
+}
