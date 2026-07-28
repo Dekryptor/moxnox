@@ -187,3 +187,4 @@ lchown
 fstatvfs
 faccessat
 fchmodat
+fstatat

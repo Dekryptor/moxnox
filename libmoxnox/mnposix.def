@@ -187,6 +187,7 @@ lchown
 fstatvfs
 faccessat
 fchmodat
+fstatat
 
 ; stubs
 mbsinit
@@ -224,7 +225,6 @@ confstr
 sigwait
 setrlimit
 socketpair
-fstatat
 readv
 writev
 posix_spawnattr_setpgroup
