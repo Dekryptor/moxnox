@@ -192,3 +192,4 @@ linkat
 strndup
 posix_spawnattr_setflags
 posix_spawnattr_setsigmask
+posix_spawnattr_setsigdefault

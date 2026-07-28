@@ -24,6 +24,7 @@ using namespace std;
 struct _posix_spawnattr_t {
     short flags;
     sigset_t sigmask;
+    sigset_t sigdefault;
 };
 
 extern "C"
@@ -53,6 +54,8 @@ int posix_spawn(pid_t* pid, const char* path,
             return nt_status_to_errno(status);
         }
     }
+
+    // FIXME - POSIX_SPAWN_SETSIGDEFAULT (SIG_IGN markings ought to carry over to child otherwise)
 
     // mark as child
 
@@ -560,6 +563,16 @@ int posix_spawnattr_setsigmask(posix_spawnattr_t* attr, const sigset_t* sigmask)
     auto& a = *(_posix_spawnattr_t*)*attr;
 
     a.sigmask = *sigmask;
+
+    return 0;
+}
+
+extern "C"
+int posix_spawnattr_setsigdefault(posix_spawnattr_t* attr,
+                                  const sigset_t* sigdefault) {
+    auto& a = *(_posix_spawnattr_t*)*attr;
+
+    a.sigdefault = *sigdefault;
 
     return 0;
 }
