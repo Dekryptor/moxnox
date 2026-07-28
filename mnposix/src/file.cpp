@@ -244,6 +244,113 @@ int futimens(int fd, const timespec* times) {
 }
 
 extern "C"
+int utimensat(int dirfd, const char* path, const timespec* times, int flags) {
+    auto peb = NtCurrentTeb()->ProcessEnvironmentBlock;
+    nt_status status;
+    OBJECT_ATTRIBUTES oa;
+    UNICODE_STRING us;
+    IO_STATUS_BLOCK iosb;
+    HANDLE h, dirh;
+    FILE_BASIC_INFORMATION fbi;
+    LARGE_INTEGER now;
+    uint32_t options;
+
+    if (dirfd == AT_FDCWD)
+        dirh = peb->ProcessParameters->CurrentDirectory.Handle;
+    else {
+        dirh = (HANDLE)_get_osfhandle(dirfd);
+        if (dirh == (HANDLE)-1)
+            return -1;
+    }
+
+    if (!path || path[0] == 0) {
+        *_errno() = EINVAL;
+        return -1;
+    }
+
+    if (flags & ~AT_SYMLINK_NOFOLLOW) {
+        *_errno() = EINVAL;
+        return -1;
+    }
+
+    auto sv = string_view(path);
+
+    auto u16len = utf8_to_utf16_len(sv);
+
+    auto u16pathname = (char16_t*)malloc(u16len * sizeof(char16_t));
+    if (!u16pathname) {
+        *_errno() = ENOMEM;
+        return -1;
+    }
+
+    utf8_to_utf16(span(u16pathname, u16len), sv);
+
+    us.Length = us.MaximumLength = (uint16_t)(u16len * sizeof(char16_t));
+    us.Buffer = u16pathname;
+
+    memset(&oa, 0, sizeof(oa));
+    oa.Length = sizeof(OBJECT_ATTRIBUTES);
+    oa.ObjectName = &us;
+    oa.RootDirectory = dirh;
+
+    options = 0;
+
+    if (flags & AT_SYMLINK_NOFOLLOW)
+        options |= FILE_OPEN_REPARSE_POINT;
+
+    status = NtCreateFile(&h, FILE_WRITE_ATTRIBUTES, &oa, &iosb, nullptr,
+                          FILE_ATTRIBUTE_NORMAL, 0, FILE_OPEN, options,
+                          nullptr, 0);
+    if (!success(status)) {
+        free(u16pathname);
+        *_errno() = nt_status_to_errno(status);
+        return -1;
+    }
+
+    free(u16pathname);
+
+    unique_handle f{h};
+
+    auto timespec_to_filetime = [](const struct timespec& ts) {
+        return (int64_t)((uint64_t)116444736000000000 + ((uint64_t)ts.tv_sec * 10000000) + ((uint64_t)ts.tv_nsec / 100));
+    };
+
+    fbi.CreationTime.QuadPart = 0;
+    fbi.ChangeTime.QuadPart = 0;
+    fbi.FileAttributes = 0;
+
+    NtQuerySystemTime(&now);
+
+    if (!times) {
+        fbi.LastAccessTime.QuadPart = now.QuadPart;
+        fbi.LastWriteTime.QuadPart = now.QuadPart;
+    } else {
+        if (times[0].tv_nsec == UTIME_NOW)
+            fbi.LastAccessTime.QuadPart = now.QuadPart;
+        else if (times[0].tv_nsec == UTIME_OMIT)
+            fbi.LastAccessTime.QuadPart = 0;
+        else
+            fbi.LastAccessTime.QuadPart = timespec_to_filetime(times[0]);
+
+        if (times[1].tv_nsec == UTIME_NOW)
+            fbi.LastWriteTime.QuadPart = now.QuadPart;
+        else if (times[1].tv_nsec == UTIME_OMIT)
+            fbi.LastWriteTime.QuadPart = 0;
+        else
+            fbi.LastWriteTime.QuadPart = timespec_to_filetime(times[1]);
+    }
+
+    status = NtSetInformationFile(f.get(), &iosb, &fbi, sizeof(fbi),
+                                  FILE_INFORMATION_CLASS::BasicInformation);
+    if (!success(status)) {
+        *_errno() = nt_status_to_errno(status);
+        return -1;
+    }
+
+    return 0;
+}
+
+extern "C"
 int ftruncate(int fd, off_t length) {
     FILE_END_OF_FILE_INFORMATION eof;
     IO_STATUS_BLOCK iosb;

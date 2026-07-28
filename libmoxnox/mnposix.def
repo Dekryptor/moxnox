@@ -177,6 +177,7 @@ symlinkat
 renameat
 stat
 fstat
+utimensat
 
 ; stubs
 fchown
@@ -214,7 +215,6 @@ wcsnrtombs
 mbsnrtowcs
 pathconf
 fchmodat
-utimensat
 getlogin
 getlogin_r
 confstr
