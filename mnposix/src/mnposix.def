@@ -185,3 +185,4 @@ fchown
 chown
 lchown
 fstatvfs
+faccessat

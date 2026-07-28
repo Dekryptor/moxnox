@@ -185,6 +185,7 @@ fchown
 chown
 lchown
 fstatvfs
+faccessat
 
 ; stubs
 mbsinit
@@ -236,5 +237,4 @@ open_memstream
 strndup
 pthread_mutex_timedlock
 posix_fadvise
-faccessat
 linkat
