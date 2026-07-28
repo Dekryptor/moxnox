@@ -1,0 +1,82 @@
+--- a/src/main.c	2026-07-28 01:22:37.955187075 +0100
++++ b/src/main.c	2026-07-28 01:22:37.959187065 +0100
+@@ -2767,10 +2767,21 @@
+           /* If we didn't set the restarts variable yet, add it.  */
+           if (restarts)
+             {
++#ifdef __moxnox__
++              /* putenv() is deliberately unsupported on moxnox: it
++                 splices the caller's buffer into the environment, and
++                 here that buffer is on the stack.  setenv() copies,
++                 which is the correct behaviour anyway.  */
++              char b[40];
++              sprintf (b, "%s%u",
++                       OUTPUT_IS_TRACED () ? "-" : "", restarts);
++              setenv ("MAKE_RESTARTS", b, 1);
++#else
+               char *b = alloca (40);
+               sprintf (b, "MAKE_RESTARTS=%s%u",
+                        OUTPUT_IS_TRACED () ? "-" : "", restarts);
+               putenv (b);
++#endif
+             }
+ 
+           fflush (stdout);
+--- a/src/commands.c	2026-07-28 01:22:37.955187075 +0100
++++ b/src/commands.c	2026-07-28 01:22:37.961226021 +0100
+@@ -531,7 +531,6 @@
+ 
+   temp_stdin_unlink ();
+   osync_clear ();
+-  jobserver_clear ();
+ 
+   /* A termination signal won't be sent to the entire
+      process group, but it means we want to kill the children.  */
+@@ -577,6 +576,8 @@
+     while (job_slots_used > 0)
+       reap_children (1, 1);
+ 
++  jobserver_clear ();
++
+   /* Delete any non-precious intermediate files that were made.  */
+ 
+   remove_intermediates (1);
+--- a/src/getopt.c	2026-07-28 01:22:37.956187072 +0100
++++ b/src/getopt.c	2026-07-28 01:22:37.960638791 +0100
+@@ -202,7 +202,7 @@
+    whose names are inconsistent.  */
+ 
+ #ifndef getenv
+-extern char *getenv ();
++extern char *getenv (const char*);
+ #endif
+ 
+ static char *
+--- a/src/getopt.h	2026-07-28 01:22:37.957187070 +0100
++++ b/src/getopt.h	2026-07-28 01:22:37.960739029 +0100
+@@ -96,14 +96,7 @@
+ #define optional_argument	2
+ 
+ #if defined (__STDC__) && __STDC__
+-#ifdef __GNU_LIBRARY__
+-/* Many other libraries have conflicting prototypes for getopt, with
+-   differences in the consts, in stdlib.h.  To avoid compilation
+-   errors, only prototype getopt for the GNU C library.  */
+ extern int getopt (int argc, char *const *argv, const char *shortopts);
+-#else /* not __GNU_LIBRARY__ */
+-extern int getopt ();
+-#endif /* __GNU_LIBRARY__ */
+ extern int getopt_long (int argc, char *const *argv, const char *shortopts,
+ 		        const struct option *longopts, int *longind);
+ extern int getopt_long_only (int argc, char *const *argv,
+--- a/lib/fnmatch.c	2026-07-28 01:20:48.481861939 +0100
++++ b/lib/fnmatch.c	2026-07-28 01:20:48.483861934 +0100
+@@ -121,7 +121,7 @@
+    whose names are inconsistent.  */
+ 
+ # if !defined _LIBC && !defined getenv
+-extern char *getenv ();
++extern char *getenv (const char*);
+ # endif
+ 
+ # ifndef errno

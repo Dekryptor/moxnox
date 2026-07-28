@@ -12,6 +12,7 @@
     "libiconv": [],
     "libpng": ["zlib"],
     "llvm": [],
+    "make": ["gnulib"],
     "mesa": ["zlib"],
     "nano": ["gnulib", "ncurses"],
     "ncurses": [],
