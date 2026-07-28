@@ -50,7 +50,7 @@ int posix_spawnattr_setflags(posix_spawnattr_t* attr, short flags);
 int posix_spawnattr_setsigdefault(posix_spawnattr_t* attr,
                                   const sigset_t* sigdefault);
 int posix_spawnattr_setsigmask(posix_spawnattr_t* attr,
-                               const sigset_t* restrict);
+                               const sigset_t* sigmask);
 int posix_spawnattr_setpgroup(posix_spawnattr_t* attr, pid_t pgroup);
 
 #ifdef __cplusplus
