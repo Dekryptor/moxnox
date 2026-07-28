@@ -49,6 +49,5 @@ do_stub "open_memstream"
 do_stub "strndup"
 do_stub "pthread_mutex_timedlock"
 do_stub "posix_fadvise"
-do_stub "linkat"
 
 stubs_end

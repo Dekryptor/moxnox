@@ -751,21 +751,44 @@ int fsync(int /*fd*/) {
 }
 
 extern "C"
-int link(const char* oldpath, const char* newpath) {
+int linkat(int olddirfd, const char* oldpath, int newdirfd, const char* newpath,
+           int flags) {
     auto peb = NtCurrentTeb()->ProcessEnvironmentBlock;
     nt_status status;
     OBJECT_ATTRIBUTES oa;
     UNICODE_STRING us;
     IO_STATUS_BLOCK iosb;
     unique_ptr<char16_t[]> u16;
-    HANDLE h;
+    HANDLE h, olddirh, newdirh;
     unique_handle f;
     unique_ptr<char[]> flibuf;
+    uint32_t options;
     string_view src(oldpath), dest(newpath);
 
     if (!oldpath || oldpath[0] == 0 || !newpath || newpath[0] == 0) {
         *_errno() = EINVAL;
         return -1;
+    }
+
+    if (flags & ~AT_SYMLINK_FOLLOW) {
+        *_errno() = EINVAL;
+        return -1;
+    }
+
+    if (olddirfd == AT_FDCWD)
+        olddirh = peb->ProcessParameters->CurrentDirectory.Handle;
+    else {
+        olddirh = (HANDLE)_get_osfhandle(olddirfd);
+        if (olddirh == (HANDLE)-1)
+            return -1;
+    }
+
+    if (newdirfd == AT_FDCWD)
+        newdirh = peb->ProcessParameters->CurrentDirectory.Handle;
+    else {
+        newdirh = (HANDLE)_get_osfhandle(newdirfd);
+        if (newdirh == (HANDLE)-1)
+            return -1;
     }
 
     auto u16len = utf8_to_utf16_len(src);
@@ -783,11 +806,14 @@ int link(const char* oldpath, const char* newpath) {
     memset(&oa, 0, sizeof(oa));
     oa.Length = sizeof(OBJECT_ATTRIBUTES);
     oa.ObjectName = &us;
-    oa.RootDirectory = peb->ProcessParameters->CurrentDirectory.Handle;
+    oa.RootDirectory = olddirh;
+
+    options = FILE_NON_DIRECTORY_FILE;
+    if (!(flags & AT_SYMLINK_FOLLOW))
+        options |= FILE_OPEN_REPARSE_POINT;
 
     status = NtCreateFile(&h, FILE_READ_ATTRIBUTES, &oa, &iosb, nullptr,
-                          0, 0, FILE_OPEN, FILE_NON_DIRECTORY_FILE | FILE_OPEN_REPARSE_POINT,
-                          nullptr, 0);
+                          0, 0, FILE_OPEN, options, nullptr, 0);
     if (!success(status)) {
         *_errno() = nt_status_to_errno(status);
         return -1;
@@ -807,7 +833,7 @@ int link(const char* oldpath, const char* newpath) {
     auto& fli = *(FILE_LINK_INFORMATION*)flibuf.get();
 
     fli.ReplaceIfExists = false;
-    fli.RootDirectory = peb->ProcessParameters->CurrentDirectory.Handle;
+    fli.RootDirectory = newdirh;
     fli.FileNameLength = (uint32_t)(u16destlen * sizeof(char16_t));
 
     utf8_to_utf16(span(fli.FileName, u16destlen), dest);
@@ -821,6 +847,11 @@ int link(const char* oldpath, const char* newpath) {
     }
 
     return 0;
+}
+
+extern "C"
+int link(const char* oldpath, const char* newpath) {
+    return linkat(AT_FDCWD, oldpath, AT_FDCWD, newpath, 0);
 }
 
 static int do_statvfs(HANDLE h, struct statvfs& buf) {

@@ -188,3 +188,4 @@ fstatvfs
 faccessat
 fchmodat
 fstatat
+linkat
