@@ -242,6 +242,7 @@ int pthread_mutex_unlock(pthread_mutex_t* mutex) {
     switch (m.type) {
         case mutex_type::normal:
             RtlReleaseSRWLockExclusive(&m.lock);
+            RtlWakeAddressSingle(&m.lock);
             break;
 
         case mutex_type::errorcheck:
@@ -250,6 +251,7 @@ int pthread_mutex_unlock(pthread_mutex_t* mutex) {
             else {
                 m.owner = 0;
                 RtlReleaseSRWLockExclusive(&m.lock);
+                RtlWakeAddressSingle(&m.lock);
             }
             break;
 
@@ -262,6 +264,7 @@ int pthread_mutex_unlock(pthread_mutex_t* mutex) {
             if (m.recursion_count == 0) {
                 m.owner = 0;
                 RtlReleaseSRWLockExclusive(&m.lock);
+                RtlWakeAddressSingle(&m.lock);
             }
 
             break;
@@ -849,6 +852,85 @@ int pthread_kill(pthread_t thread, int sig) {
                                     &sig, sizeof(sig));
     if (!success(status))
         return nt_status_to_errno(status);
+
+    return 0;
+}
+
+static bool srw_lock_acquire_with_timeout(RTL_SRWLOCK& lock,
+                                          const timespec& abstime) {
+    atomic_ref<uintptr_t> l(*(uintptr_t*)&lock.Ptr);
+    bool wait_forever = false;
+
+    static const uint64_t EPOCH_OFFSET = 116444736000000000;
+
+    if (abstime.tv_sec < 0)
+        return false;
+
+    if (abstime.tv_sec >= (int64_t)((numeric_limits<int64_t>::max() - EPOCH_OFFSET) / 10000000))
+        wait_forever = true;
+
+    auto t = (uint64_t)abstime.tv_sec * 10000000; // units of 100 ns
+    t += (uint64_t)abstime.tv_nsec / 100;
+    t += EPOCH_OFFSET; // change from Unix to NT epoch
+
+    while (true) {
+        LARGE_INTEGER now, timeout;
+
+        auto val = l.load(memory_order_relaxed);
+
+        if (val == 0) {
+            uintptr_t expected = 0;
+
+            if (l.compare_exchange_strong(expected, 1, memory_order_acquire,
+                                          memory_order_relaxed)) {
+                return true;
+            }
+        }
+
+        NtQuerySystemTime(&now);
+
+        if (t <= (uint64_t)now.QuadPart)
+            return false;
+
+        timeout.QuadPart = now.QuadPart - (int64_t)t;
+
+        if (RtlWaitOnAddress(&lock.Ptr, &val, sizeof(val), wait_forever ? nullptr : &timeout) == nt_status::TIMEOUT)
+            return false;
+    }
+}
+
+extern "C"
+int pthread_mutex_timedlock(pthread_mutex_t* mutex, const timespec* abstime) {
+    auto& m = *(_pthread_mutex*)mutex;
+
+    if (pthread_mutex_trylock(mutex) == 0)
+        return 0;
+
+    switch (m.type) {
+        case mutex_type::normal:
+            if (!srw_lock_acquire_with_timeout(m.lock, *abstime))
+                return ETIMEDOUT;
+            break;
+
+        case mutex_type::errorcheck:
+            if (m.owner == NtCurrentTeb()->ClientId.UniqueThread)
+                return EDEADLK;
+            else {
+                if (!srw_lock_acquire_with_timeout(m.lock, *abstime))
+                    return ETIMEDOUT;
+
+                m.owner = NtCurrentTeb()->ClientId.UniqueThread;
+            }
+            break;
+
+        case mutex_type::recursive:
+            if (!srw_lock_acquire_with_timeout(m.lock, *abstime))
+                return ETIMEDOUT;
+
+            m.owner = NtCurrentTeb()->ClientId.UniqueThread;
+            m.recursion_count = 1;
+            break;
+    }
 
     return 0;
 }
