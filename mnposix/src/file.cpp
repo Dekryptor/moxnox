@@ -351,6 +351,21 @@ int utimensat(int dirfd, const char* path, const timespec* times, int flags) {
 }
 
 extern "C"
+int utimes(const char* path, const timeval* times) {
+    timespec ts[2];
+
+    if (!times)
+        return utimensat(AT_FDCWD, path, nullptr, 0);
+
+    ts[0].tv_sec = times[0].tv_sec;
+    ts[0].tv_nsec = times[0].tv_usec * 1000;
+    ts[1].tv_sec = times[1].tv_sec;
+    ts[1].tv_nsec = times[1].tv_usec * 1000;
+
+    return utimensat(AT_FDCWD, path, ts, 0);
+}
+
+extern "C"
 int ftruncate(int fd, off_t length) {
     FILE_END_OF_FILE_INFORMATION eof;
     IO_STATUS_BLOCK iosb;

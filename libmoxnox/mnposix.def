@@ -178,6 +178,7 @@ renameat
 stat
 fstat
 utimensat
+utimes
 
 ; stubs
 fchown
@@ -193,7 +194,6 @@ sigsuspend
 openlog
 syslog
 closelog
-utimes
 getlocalename_l
 getpriority
 gethostid

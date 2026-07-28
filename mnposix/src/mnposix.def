@@ -178,3 +178,4 @@ renameat
 stat
 fstat
 utimensat
+utimes
