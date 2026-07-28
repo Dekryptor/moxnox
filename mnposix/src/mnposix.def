@@ -186,3 +186,4 @@ chown
 lchown
 fstatvfs
 faccessat
+fchmodat

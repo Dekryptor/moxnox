@@ -760,11 +760,84 @@ int fchdir(int fd) {
     return 0;
 }
 
-extern "C"
-int fchmod(int /*fd*/, mode_t /*mode*/) {
+static int do_fchmod(HANDLE /*h*/, mode_t /*mode*/) {
     // FIXME - actually do something
 
     return 0;
+}
+
+extern "C"
+int fchmodat(int dirfd, const char* path, mode_t mode, int flags) {
+    auto peb = NtCurrentTeb()->ProcessEnvironmentBlock;
+    nt_status status;
+    OBJECT_ATTRIBUTES oa;
+    UNICODE_STRING us;
+    IO_STATUS_BLOCK iosb;
+    HANDLE h, dirh;
+    uint32_t options;
+    unique_handle f;
+
+    if (dirfd == AT_FDCWD)
+        dirh = peb->ProcessParameters->CurrentDirectory.Handle;
+    else {
+        dirh = (HANDLE)_get_osfhandle(dirfd);
+        if (dirh == (HANDLE)-1)
+            return -1;
+    }
+
+    if (!path || path[0] == 0) {
+        *_errno() = EINVAL;
+        return -1;
+    }
+
+    if (flags & ~AT_SYMLINK_NOFOLLOW) {
+        *_errno() = EINVAL;
+        return -1;
+    }
+
+    auto sv = string_view(path);
+
+    auto u16len = utf8_to_utf16_len(sv);
+
+    auto u16pathname = (char16_t*)malloc(u16len * sizeof(char16_t));
+    if (!u16pathname) {
+        *_errno() = ENOMEM;
+        return -1;
+    }
+
+    utf8_to_utf16(span(u16pathname, u16len), sv);
+
+    us.Length = us.MaximumLength = (uint16_t)(u16len * sizeof(char16_t));
+    us.Buffer = u16pathname;
+
+    memset(&oa, 0, sizeof(oa));
+    oa.Length = sizeof(OBJECT_ATTRIBUTES);
+    oa.ObjectName = &us;
+    oa.RootDirectory = dirh;
+
+    options = 0;
+
+    if (flags & AT_SYMLINK_NOFOLLOW)
+        options |= FILE_OPEN_REPARSE_POINT;
+
+    status = NtCreateFile(&h, FILE_WRITE_ATTRIBUTES, &oa, &iosb, nullptr,
+                          0, 0, FILE_OPEN, options, nullptr, 0);
+    if (!success(status)) {
+        *_errno() = nt_status_to_errno(status);
+        return -1;
+    } else
+        f.reset(h);
+
+    return do_fchmod(f.get(), mode);
+}
+
+extern "C"
+int fchmod(int fd, mode_t mode) {
+    auto h = (HANDLE)_get_osfhandle(fd);
+    if (h == (HANDLE)-1)
+        return -1;
+
+    return do_fchmod(h, mode);
 }
 
 extern "C"

@@ -186,6 +186,7 @@ chown
 lchown
 fstatvfs
 faccessat
+fchmodat
 
 ; stubs
 mbsinit
@@ -217,7 +218,6 @@ posix_spawnattr_setsigdefault
 wcsnrtombs
 mbsnrtowcs
 pathconf
-fchmodat
 getlogin
 getlogin_r
 confstr
