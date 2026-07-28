@@ -778,9 +778,9 @@ int pthread_rwlock_unlock(pthread_rwlock_t* rwlock) {
     atomic_ref<uintptr_t> l(*(uintptr_t*)&lock.Ptr);
 
     if (l.load(memory_order_relaxed) & 1) // exclusive
-        l.store(0, memory_order_release);
+        RtlReleaseSRWLockExclusive(&lock);
     else // shared
-        l.fetch_sub(2, memory_order_release);
+        RtlReleaseSRWLockShared(&lock);
 
     return 0;
 }
