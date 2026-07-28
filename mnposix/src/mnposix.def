@@ -180,3 +180,4 @@ fstat
 utimensat
 utimes
 localtime_r
+fchownat

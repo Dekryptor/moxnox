@@ -57,6 +57,5 @@ do_stub "pthread_mutex_timedlock"
 do_stub "posix_fadvise"
 do_stub "faccessat"
 do_stub "linkat"
-do_stub "fchownat"
 
 stubs_end

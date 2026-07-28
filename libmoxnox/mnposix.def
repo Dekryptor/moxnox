@@ -180,6 +180,7 @@ fstat
 utimensat
 utimes
 localtime_r
+fchownat
 
 ; stubs
 fchown
@@ -237,4 +238,3 @@ pthread_mutex_timedlock
 posix_fadvise
 faccessat
 linkat
-fchownat
