@@ -208,20 +208,31 @@ void timer_expired(timer* tptr) {
 
     // signal waiting threads
 
-    auto waiter_count = wake_up_waiters(t.waiters);
+    if (t.autoreset) {
+        if (is_list_empty(t.waiters))
+            t.signalled = true; // if autoreset, only signal if nothing waiting when fired
+        else {
+            list_entry tmp = { &tmp, &tmp };
 
-    // if autoreset, only signal if nothing waiting when fired
-    if (!t.autoreset || waiter_count == 0)
+            auto le = t.waiters.next;
+
+            remove_entry_list(*le);
+            insert_tail_list(tmp, *le);
+            wake_up_waiters(tmp);
+        }
+    } else {
+        wake_up_waiters(t.waiters);
+
         t.signalled = true;
+    }
 
     if (!t.periodic) {
         t.active = false;
         remove_entry_list(t.le);
-        return;
+    } else {
+        t.ticks_left = t.orig_ticks;
+        t.signalled = false;
     }
-
-    t.ticks_left = t.orig_ticks;
-    t.signalled = false;
 }
 
 void timer::on_wake() {
