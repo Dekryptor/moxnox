@@ -181,9 +181,9 @@ utimensat
 utimes
 localtime_r
 fchownat
+fchown
 
 ; stubs
-fchown
 mbsinit
 chown
 __freading

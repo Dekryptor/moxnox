@@ -2,7 +2,6 @@
 
 stubs_start
 
-do_stub "fchown"
 do_stub "mbsinit"
 do_stub "chown"
 do_stub "__freading"

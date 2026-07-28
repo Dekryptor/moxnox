@@ -1498,6 +1498,12 @@ int fstat(int fd, struct stat* st) {
     return do_fstat(h, st);
 }
 
+static int do_fchown(HANDLE /*h*/, uid_t /*owner*/, gid_t /*group*/) {
+    // FIXME - actually change file ownership
+
+    return 0;
+}
+
 extern "C"
 int fchownat(int dirfd, const char* path, uid_t owner, gid_t group, int flags) {
     auto peb = NtCurrentTeb()->ProcessEnvironmentBlock;
@@ -1564,7 +1570,14 @@ int fchownat(int dirfd, const char* path, uid_t owner, gid_t group, int flags) {
 
     unique_handle f{h};
 
-    // FIXME - actually change file ownership
+    return do_fchown(f.get(), owner, group);
+}
 
-    return 0;
+extern "C"
+int fchown(int fd, uid_t owner, gid_t group) {
+    auto h = (HANDLE)_get_osfhandle(fd);
+    if (h == (HANDLE)-1)
+        return -1;
+
+    return do_fchown(h, owner, group);
 }

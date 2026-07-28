@@ -181,3 +181,4 @@ utimensat
 utimes
 localtime_r
 fchownat
+fchown
