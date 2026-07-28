@@ -179,3 +179,4 @@ stat
 fstat
 utimensat
 utimes
+localtime_r

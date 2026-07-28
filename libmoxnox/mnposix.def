@@ -179,6 +179,7 @@ stat
 fstat
 utimensat
 utimes
+localtime_r
 
 ; stubs
 fchown
@@ -221,7 +222,6 @@ confstr
 sigwait
 setrlimit
 socketpair
-localtime_r
 fstatat
 readv
 writev
