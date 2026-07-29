@@ -359,3 +359,4 @@ iswxdigit
 atoll
 fgetwc
 getwc = fgetwc
+ungetwc

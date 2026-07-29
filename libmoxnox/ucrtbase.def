@@ -335,6 +335,7 @@ iswxdigit
 atoll
 getwc
 fgetwc
+ungetwc
 
 ; stubs
 _beginthreadex
@@ -342,7 +343,6 @@ wcstod
 fputwc
 putwc
 strxfrm
-ungetwc
 wcscoll
 wcsftime
 wcsxfrm

@@ -50,6 +50,7 @@ struct _FILE {
     RTL_CRITICAL_SECTION cs;
     list_entry le;
     optional<unsigned char> ungetc_char;
+    optional<wchar_t> ungetwc_char;
     HANDLE proc = 0;
     bool error = false;
     bool eof = false;
@@ -690,6 +691,8 @@ int __fseeki64_nolock(FILE* file, int64_t offset, int whence) {
     }
 
     f.ungetc_char = nullopt;
+    f.ungetwc_char = nullopt;
+    f.getwc_surrogate = 0;
     f.eof = false;
 
     return 0;
@@ -2848,6 +2851,13 @@ wint_t fgetwc(FILE* file) {
     int i;
     uint8_t c;
 
+    if (f.ungetwc_char.has_value()) {
+        wint_t ret = f.ungetwc_char.value();
+        f.ungetwc_char = nullopt;
+
+        return ret;
+    }
+
     if (f.getwc_surrogate != 0) {
         wint_t ret = f.getwc_surrogate;
         f.getwc_surrogate = 0;
@@ -2968,4 +2978,20 @@ wint_t fgetwc(FILE* file) {
         f.error = true;
         return WEOF;
     }
+}
+
+extern "C"
+wint_t ungetwc(wint_t wc, FILE* file) {
+    auto& f = *reinterpret_cast<_FILE*>(file);
+
+    if (wc == WEOF)
+        return WEOF;
+
+    if (f.ungetwc_char.has_value())
+        return WEOF;
+
+    f.ungetwc_char = wc;
+    f.eof = false;
+
+    return wc;
 }
