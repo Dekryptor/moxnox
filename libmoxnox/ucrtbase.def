@@ -354,3 +354,4 @@ wcscat
 _crt_at_quick_exit
 quick_exit
 _timespec64_get
+wcstof

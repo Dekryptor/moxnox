@@ -21,5 +21,6 @@ do_stub "wcscat"
 do_stub "_crt_at_quick_exit"
 do_stub "quick_exit"
 do_stub "_timespec64_get"
+do_stub "wcstof"
 
 stubs_end
