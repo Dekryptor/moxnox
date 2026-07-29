@@ -3015,11 +3015,17 @@ wint_t ungetwc(wint_t wc, FILE* file) {
     if (wc == WEOF)
         return WEOF;
 
-    if (f.ungetwc_char.has_value())
+    __lock_file(file);
+
+    if (f.ungetwc_char.has_value()) {
+        __unlock_file(file);
         return WEOF;
+    }
 
     f.ungetwc_char = wc;
     f.eof = false;
+
+    __unlock_file(file);
 
     return wc;
 }
