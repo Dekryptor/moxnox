@@ -155,7 +155,6 @@ add_library(mingwex STATIC
     repo/mingw-w64-crt/misc/mingw_matherr.c
     repo/mingw-w64-crt/misc/mingw_mbwc_convert.c
     repo/mingw-w64-crt/misc/mingw_usleep.c
-    repo/mingw-w64-crt/misc/mingw_wcstod.c
     repo/mingw-w64-crt/misc/mkstemp.c
     repo/mingw-w64-crt/misc/mkdtemp.c
     repo/mingw-w64-crt/misc/sleep.c
