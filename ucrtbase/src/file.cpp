@@ -2851,10 +2851,13 @@ wint_t fgetwc(FILE* file) {
     int i;
     uint8_t c;
 
+    __lock_file(file);
+
     if (f.ungetwc_char.has_value()) {
         wint_t ret = f.ungetwc_char.value();
         f.ungetwc_char = nullopt;
 
+        __unlock_file(file);
         return ret;
     }
 
@@ -2862,22 +2865,28 @@ wint_t fgetwc(FILE* file) {
         wint_t ret = f.getwc_surrogate;
         f.getwc_surrogate = 0;
 
+        __unlock_file(file);
         return ret;
     }
 
-    i = _fgetc(file);
-    if (i == EOF)
+    i = __fgetc_nolock(file);
+    if (i == EOF) {
+        __unlock_file(file);
         return WEOF;
+    }
 
     c = (uint8_t)i;
-    if (c < 0x80)
+    if (c < 0x80) {
+        __unlock_file(file);
         return c;
+    }
 
     if ((c & 0xe0) == 0xc0) { // U+0080 to U+07ff
-        i = _fgetc(file);
+        i = __fgetc_nolock(file);
         if (i == EOF) {
             *__errno() = EILSEQ;
             f.error = true;
+            __unlock_file(file);
             return WEOF;
         }
 
@@ -2885,15 +2894,19 @@ wint_t fgetwc(FILE* file) {
         if ((c2 & 0xc0) != 0x80) {
             *__errno() = EILSEQ;
             f.error = true;
+            __unlock_file(file);
             return WEOF;
         }
+
+        __unlock_file(file);
 
         return ((c & 0x1f) << 6) | (c2 & 0x3f);
     } else if ((c & 0xf0) == 0xe0) { // U+0800 to U+ffff
-        i = _fgetc(file);
+        i = __fgetc_nolock(file);
         if (i == EOF) {
             *__errno() = EILSEQ;
             f.error = true;
+            __unlock_file(file);
             return WEOF;
         }
 
@@ -2901,13 +2914,15 @@ wint_t fgetwc(FILE* file) {
         if ((c2 & 0xc0) != 0x80) {
             *__errno() = EILSEQ;
             f.error = true;
+            __unlock_file(file);
             return WEOF;
         }
 
-        i = _fgetc(file);
+        i = __fgetc_nolock(file);
         if (i == EOF) {
             *__errno() = EILSEQ;
             f.error = true;
+            __unlock_file(file);
             return WEOF;
         }
 
@@ -2915,15 +2930,19 @@ wint_t fgetwc(FILE* file) {
         if ((c3 & 0xc0) != 0x80) {
             *__errno() = EILSEQ;
             f.error = true;
+            __unlock_file(file);
             return WEOF;
         }
+
+        __unlock_file(file);
 
         return ((c & 0x0f) << 12) | ((c2 & 0x3f) << 6) | (c3 & 0x3f);
     } else if ((c & 0xf8) == 0xf0) { // U+10000 to U+10ffff
-        i = _fgetc(file);
+        i = __fgetc_nolock(file);
         if (i == EOF) {
             *__errno() = EILSEQ;
             f.error = true;
+            __unlock_file(file);
             return WEOF;
         }
 
@@ -2931,13 +2950,15 @@ wint_t fgetwc(FILE* file) {
         if ((c2 & 0xc0) != 0x80) {
             *__errno() = EILSEQ;
             f.error = true;
+            __unlock_file(file);
             return WEOF;
         }
 
-        i = _fgetc(file);
+        i = __fgetc_nolock(file);
         if (i == EOF) {
             *__errno() = EILSEQ;
             f.error = true;
+            __unlock_file(file);
             return WEOF;
         }
 
@@ -2945,13 +2966,15 @@ wint_t fgetwc(FILE* file) {
         if ((c3 & 0xc0) != 0x80) {
             *__errno() = EILSEQ;
             f.error = true;
+            __unlock_file(file);
             return WEOF;
         }
 
-        i = _fgetc(file);
+        i = __fgetc_nolock(file);
         if (i == EOF) {
             *__errno() = EILSEQ;
             f.error = true;
+            __unlock_file(file);
             return WEOF;
         }
 
@@ -2959,6 +2982,7 @@ wint_t fgetwc(FILE* file) {
         if ((c4 & 0xc0) != 0x80) {
             *__errno() = EILSEQ;
             f.error = true;
+            __unlock_file(file);
             return WEOF;
         }
 
@@ -2967,15 +2991,19 @@ wint_t fgetwc(FILE* file) {
         if (cp >= 0x110000) {
             *__errno() = EILSEQ;
             f.error = true;
+            __unlock_file(file);
             return WEOF;
         }
 
         f.getwc_surrogate = 0xdc00 | ((cp - 0x10000) & 0x3ff);
 
+        __unlock_file(file);
+
         return (wint_t)(0xd800 | ((cp - 0x10000) >> 10));
     } else {
         *__errno() = EILSEQ;
         f.error = true;
+        __unlock_file(file);
         return WEOF;
     }
 }
