@@ -48,8 +48,6 @@ CloseHandle
 GetThreadId
 GetCurrentProcess
 TerminateProcess
-WideCharToMultiByte
-MultiByteToWideChar
 SleepConditionVariableSRW
 InitOnceExecuteOnce
 WaitForSingleObjectEx
