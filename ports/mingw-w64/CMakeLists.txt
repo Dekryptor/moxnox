@@ -156,7 +156,6 @@ add_library(mingwex STATIC
     repo/mingw-w64-crt/misc/mingw_mbwc_convert.c
     repo/mingw-w64-crt/misc/mingw_usleep.c
     repo/mingw-w64-crt/misc/mingw_wcstod.c
-    repo/mingw-w64-crt/misc/mingw_wcstof.c
     repo/mingw-w64-crt/misc/mingw_wcstold.c
     repo/mingw-w64-crt/misc/mkstemp.c
     repo/mingw-w64-crt/misc/mkdtemp.c
@@ -167,7 +166,6 @@ add_library(mingwex STATIC
     repo/mingw-w64-crt/misc/tfind.c
     repo/mingw-w64-crt/misc/tsearch.c
     repo/mingw-w64-crt/misc/twalk.c
-    repo/mingw-w64-crt/misc/wcstof.c
     repo/mingw-w64-crt/misc/wcstold.c
     repo/mingw-w64-crt/misc/wdirent.c
     repo/mingw-w64-crt/misc/winbs_uint64.c
