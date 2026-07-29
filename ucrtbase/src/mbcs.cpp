@@ -249,3 +249,44 @@ size_t _mbstowcs(wchar_t* pwcs, const char* s, size_t n) {
 
     return count;
 }
+
+extern "C"
+size_t mbsrtowcs(wchar_t* pwcs, const char** s, size_t n, mbstate_t* state) {
+    static mbstate_t static_state;
+    size_t count = 0;
+    auto st = state ? state : &static_state;
+    auto p = *s;
+
+    while (!pwcs || count < n) {
+        wchar_t wc;
+
+        auto res = _mbrtowc(pwcs ? &wc : nullptr, p, MB_CUR_MAX, st);
+
+        if (res == 0) {
+            if (pwcs) {
+                pwcs[count] = L'\0';
+                *s = nullptr;
+            }
+
+            return count;
+        }
+
+        if (res == (size_t)-1) {
+            if (pwcs)
+                *s = p;
+
+            return (size_t)-1;
+        }
+
+        if (pwcs)
+            pwcs[count] = wc;
+
+        p += res;
+
+        count++;
+    }
+
+    *s = p;
+
+    return count;
+}

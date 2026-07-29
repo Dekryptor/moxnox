@@ -338,6 +338,7 @@ fgetwc
 ungetwc
 putwc
 fputwc
+mbsrtowcs
 
 ; stubs
 _beginthreadex
@@ -349,7 +350,6 @@ wcsxfrm
 asctime
 fgetpos
 fsetpos
-mbsrtowcs
 wcscat
 _crt_at_quick_exit
 quick_exit
