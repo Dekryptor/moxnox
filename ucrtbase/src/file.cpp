@@ -55,6 +55,7 @@ struct _FILE {
     bool error = false;
     bool eof = false;
     wchar_t getwc_surrogate = 0;
+    wchar_t putwc_surrogate = 0;
 };
 
 struct fd {
@@ -693,6 +694,7 @@ int __fseeki64_nolock(FILE* file, int64_t offset, int whence) {
     f.ungetc_char = nullopt;
     f.ungetwc_char = nullopt;
     f.getwc_surrogate = 0;
+    f.putwc_surrogate = 0;
     f.eof = false;
 
     return 0;
@@ -3024,6 +3026,85 @@ wint_t ungetwc(wint_t wc, FILE* file) {
 
     f.ungetwc_char = wc;
     f.eof = false;
+
+    __unlock_file(file);
+
+    return wc;
+}
+
+extern "C"
+wint_t fputwc(wchar_t wc, FILE* file) {
+    auto& f = *reinterpret_cast<_FILE*>(file);
+
+    __lock_file(file);
+
+    if (f.putwc_surrogate != 0) {
+        if (wc < 0xdc00 || wc > 0xdfff) {
+            f.error = true;
+            __unlock_file(file);
+            *_errno() = EILSEQ;
+            return WEOF;
+        }
+
+        char32_t cp = 0x10000 + (((f.putwc_surrogate & 0x3ff) << 10) | (wc & 0x3ff));
+        char s[4];
+
+        s[0] = (char)(0xf0 | (cp >> 18));
+        s[1] = (char)(0x80 | ((cp >> 12) & 0x3f));
+        s[2] = (char)(0x80 | ((cp >> 6) & 0x3f));
+        s[3] = (char)(0x80 | (cp & 0x3f));
+
+        auto ret = __fwrite_nolock(s, 1, 4, file);
+        if (ret != 4) {
+            f.error = true;
+            __unlock_file(file);
+            return WEOF;
+        }
+
+        f.putwc_surrogate = 0;
+
+        __unlock_file(file);
+        return wc;
+    } else if (wc >= 0xdc00 && wc <= 0xdfff) {
+        f.error = true;
+        __unlock_file(file);
+        *_errno() = EILSEQ;
+        return WEOF;
+    }
+
+    if (wc < 0x80) {
+        if (__fputc_nolock((uint8_t)wc, file) == EOF) {
+            __unlock_file(file);
+            return WEOF;
+        }
+    } else if (wc < 0x800) {
+        char s[2];
+
+        s[0] = (char)(0xc0 | (wc >> 6));
+        s[1] = (char)(0x80 | (wc & 0x3f));
+
+        auto ret = __fwrite_nolock(s, 1, 2, file);
+        if (ret != 2) {
+            f.error = true;
+            __unlock_file(file);
+            return WEOF;
+        }
+    } else if (wc >= 0xd800 && wc <= 0xdbff)
+        f.putwc_surrogate = wc;
+    else {
+        char s[3];
+
+        s[0] = (char)(0xe0 | (wc >> 12));
+        s[1] = (char)(0x80 | ((wc >> 6) & 0x3f));
+        s[2] = (char)(0x80 | (wc & 0x3f));
+
+        auto ret = __fwrite_nolock(s, 1, 3, file);
+        if (ret != 3) {
+            f.error = true;
+            __unlock_file(file);
+            return WEOF;
+        }
+    }
 
     __unlock_file(file);
 

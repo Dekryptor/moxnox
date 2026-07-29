@@ -336,12 +336,12 @@ atoll
 getwc
 fgetwc
 ungetwc
+putwc
+fputwc
 
 ; stubs
 _beginthreadex
 wcstod
-fputwc
-putwc
 strxfrm
 wcscoll
 wcsftime

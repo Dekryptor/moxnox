@@ -360,3 +360,5 @@ atoll
 fgetwc
 getwc = fgetwc
 ungetwc
+fputwc
+putwc = fputwc
