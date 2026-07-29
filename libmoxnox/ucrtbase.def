@@ -335,7 +335,6 @@ iswxdigit
 atoll
 
 ; stubs
-___lc_codepage_func
 _beginthreadex
 wcstod
 fputwc
