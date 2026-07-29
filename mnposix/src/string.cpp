@@ -76,3 +76,54 @@ size_t mbsnrtowcs(wchar_t* pwcs, const char** s, size_t nms, size_t n,
 
     return count;
 }
+
+extern "C"
+size_t wcsnrtombs(char* dest, const wchar_t** src, size_t nwc, size_t dsize,
+                  mbstate_t* ps) {
+    static mbstate_t static_state;
+    size_t total = 0;
+    auto st = ps ? ps : &static_state;
+    auto p = *src;
+    size_t remaining = nwc;
+
+    while (remaining > 0) {
+        char buf[4];
+
+        size_t n = wcrtomb(buf, *p, st);
+
+        if (n == (size_t)-1) {
+            if (dest)
+                *src = p;
+
+            return (size_t)-1;
+        }
+
+        if (dest && total + n > dsize) {
+            *src = p;
+            return total;
+        }
+
+        if (*p == 0) {
+            if (dest) {
+                *dest = 0;
+                *src = nullptr;
+            }
+
+            return total;
+        }
+
+        if (dest) {
+            memcpy(dest, buf, n);
+            dest += n;
+        }
+
+        total += n;
+        remaining--;
+        p++;
+    }
+
+    if (dest)
+        *src = p;
+
+    return total;
+}
