@@ -5,6 +5,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
+#include <fcntl.h>
 #include <sys/times.h>
 #include <string_view>
 #include <span>
@@ -15,6 +16,7 @@ import print;
 import unique_handle;
 import exec;
 import list;
+import ucrtbase;
 
 #undef errno
 import errno;
@@ -436,9 +438,21 @@ int posix_spawn_file_actions_adddup2(posix_spawn_file_actions_t* file_actions,
         return -1;
     }
 
-    e->ei.type = exec_info_type::dup2;
-    e->ei.dup2.fd = fd;
-    e->ei.dup2.newfd = newfd;
+    if (fcntl(fd, F_GETFD) & FD_CLOEXEC) {
+        auto h = (HANDLE)_get_osfhandle(fd);
+        if (h == (HANDLE)-1) {
+            delete e;
+            return -1;
+        }
+
+        e->ei.type = exec_info_type::dup2_cloexec;
+        e->ei.dup2_cloexec.newfd = newfd;
+        e->ei.dup2_cloexec.h = h;
+    } else {
+        e->ei.type = exec_info_type::dup2;
+        e->ei.dup2.fd = fd;
+        e->ei.dup2.newfd = newfd;
+    }
 
     insert_tail_list(fa.list, e->le);
 

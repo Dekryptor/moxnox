@@ -1889,6 +1889,38 @@ int __dup2(int oldfd, int newfd) {
     return newfd;
 }
 
+static int dup2_from_handle(HANDLE h, int newfd, bool cloexec) {
+    auto& peb = *NtCurrentTeb()->ProcessEnvironmentBlock;
+
+    if (newfd < 0 || (size_t)newfd >= fds.size()) {
+        *__errno() = EBADF;
+        return -1;
+    }
+
+    RtlEnterCriticalSection(&fds_lock);
+
+    if (fds[(size_t)newfd].h != 0)
+        NtClose(fds[(size_t)newfd].h);
+
+    fds[(size_t)newfd].h = h;
+    fds[(size_t)newfd].cloexec = cloexec;
+
+    RtlLeaveCriticalSection(&fds_lock);
+
+    if (newfd == 0) {
+        peb.ProcessParameters->StandardInput = h;
+        reinterpret_cast<_FILE*>(&_stdin)->h = h;
+    } else if (newfd == 1) {
+        peb.ProcessParameters->StandardOutput = h;
+        reinterpret_cast<_FILE*>(&_stdout)->h = h;
+    } else if (newfd == 2) {
+        peb.ProcessParameters->StandardError = h;
+        reinterpret_cast<_FILE*>(&_stderr)->h = h;
+    }
+
+    return newfd;
+}
+
 extern "C"
 int __dup(int oldfd) {
     if (oldfd < 0 || (size_t)oldfd >= fds.size()) {
@@ -2623,6 +2655,18 @@ static void handle_exec_info(exec_info* info) {
             if (ret == -1) {
                 print_stderr("_dup2({}, {}) failed (errno {})\n",
                              info->dup2.fd, info->dup2.newfd,
+                             errno_to_string_view(*__errno()));
+                _exit(127);
+            }
+
+            break;
+        }
+
+        case dup2_cloexec: {
+            auto ret = dup2_from_handle(info->dup2_cloexec.h, info->dup2_cloexec.newfd,
+                                        false);
+            if (ret == -1) {
+                print_stderr("dup2_from_handle failed (errno {})\n",
                              errno_to_string_view(*__errno()));
                 _exit(127);
             }

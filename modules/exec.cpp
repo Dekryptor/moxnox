@@ -29,6 +29,7 @@ export enum class exec_info_type {
     dup2,
     chdir,
     fchdir,
+    dup2_cloexec,
 };
 
 export struct exec_info {
@@ -52,6 +53,10 @@ export struct exec_info {
             int fd;
             int newfd;
         } dup2;
+        struct {
+            int newfd;
+            HANDLE h;
+        } dup2_cloexec;
         struct {
             char* path;
         } chdir;
@@ -439,18 +444,41 @@ export int do_exec(const char* path, char* const* argv, char* const* envp,
 
                 memcpy(p, &eil.ei, sizeof(exec_info));
 
-                if (eil.ei.type == exec_info_type::open) {
-                    auto len = strlen(eil.ei.open.path);
+                switch (eil.ei.type) {
+                    case exec_info_type::open: {
+                        auto len = strlen(eil.ei.open.path);
 
-                    memcpy(extra, eil.ei.open.path, len + 1);
-                    p->open.path = extra;
-                    extra += len + 1;
-                } else if (eil.ei.type == exec_info_type::chdir) {
-                    auto len = strlen(eil.ei.chdir.path);
+                        memcpy(extra, eil.ei.open.path, len + 1);
+                        p->open.path = extra;
+                        extra += len + 1;
+                        break;
+                    }
 
-                    memcpy(extra, eil.ei.chdir.path, len + 1);
-                    p->chdir.path = extra;
-                    extra += len + 1;
+                    case exec_info_type::chdir: {
+                        auto len = strlen(eil.ei.chdir.path);
+
+                        memcpy(extra, eil.ei.chdir.path, len + 1);
+                        p->chdir.path = extra;
+                        extra += len + 1;
+                        break;
+                    }
+
+                    case exec_info_type::dup2_cloexec: {
+                        HANDLE h;
+
+                        status = NtDuplicateObject(NtCurrentProcess(), eil.ei.dup2_cloexec.h,
+                                                   proc.get(), &h, 0, 0,
+                                                   DUPLICATE_SAME_ACCESS | DUPLICATE_SAME_ATTRIBUTES);
+                        if (!success(status))
+                            return nt_status_to_errno(status);
+
+                        p->dup2_cloexec.h = h;
+
+                        break;
+                    }
+
+                    default:
+                        break;
                 }
 
                 p++;
