@@ -42,208 +42,58 @@ target_compile_options(ucrtbase_static PRIVATE -Wno-include-next-absolute-path)
 ###
 
 add_library(mingwex STATIC
-    repo/mingw-w64-crt/crt/loadcfg.S
-    repo/mingw-w64-crt/cfguard/mingw_cfguard_support.c
     repo/mingw-w64-crt/misc/dllmain.c
-    repo/mingw-w64-crt/complex/_cabs.c
-    repo/mingw-w64-crt/complex/cabs.c
-    repo/mingw-w64-crt/complex/cabsf.c
-    repo/mingw-w64-crt/complex/cabsl.c
-    repo/mingw-w64-crt/complex/cacos.c
-    repo/mingw-w64-crt/complex/cacosf.c
-    repo/mingw-w64-crt/complex/cacosl.c
-    repo/mingw-w64-crt/complex/carg.c
-    repo/mingw-w64-crt/complex/cargf.c
-    repo/mingw-w64-crt/complex/cargl.c
-    repo/mingw-w64-crt/complex/casin.c
-    repo/mingw-w64-crt/complex/casinf.c
-    repo/mingw-w64-crt/complex/casinl.c
-    repo/mingw-w64-crt/complex/catan.c
-    repo/mingw-w64-crt/complex/catanf.c
-    repo/mingw-w64-crt/complex/catanl.c
-    repo/mingw-w64-crt/complex/ccos.c
-    repo/mingw-w64-crt/complex/ccosf.c
-    repo/mingw-w64-crt/complex/ccosl.c
-    repo/mingw-w64-crt/complex/cexp.c
-    repo/mingw-w64-crt/complex/cexpf.c
-    repo/mingw-w64-crt/complex/cexpl.c
-    repo/mingw-w64-crt/complex/cimag.c
-    repo/mingw-w64-crt/complex/cimagf.c
-    repo/mingw-w64-crt/complex/cimagl.c
-    repo/mingw-w64-crt/complex/clog.c
-    repo/mingw-w64-crt/complex/clogf.c
-    repo/mingw-w64-crt/complex/clogl.c
-    repo/mingw-w64-crt/complex/clog10.c
-    repo/mingw-w64-crt/complex/clog10f.c
-    repo/mingw-w64-crt/complex/clog10l.c
-    repo/mingw-w64-crt/complex/conj.c
-    repo/mingw-w64-crt/complex/conjf.c
-    repo/mingw-w64-crt/complex/conjl.c
-    repo/mingw-w64-crt/complex/cpow.c
-    repo/mingw-w64-crt/complex/cpowf.c
-    repo/mingw-w64-crt/complex/cpowl.c
-    repo/mingw-w64-crt/complex/cproj.c
-    repo/mingw-w64-crt/complex/cprojf.c
-    repo/mingw-w64-crt/complex/cprojl.c
-    repo/mingw-w64-crt/complex/creal.c
-    repo/mingw-w64-crt/complex/crealf.c
-    repo/mingw-w64-crt/complex/creall.c
-    repo/mingw-w64-crt/complex/csin.c
-    repo/mingw-w64-crt/complex/csinf.c
-    repo/mingw-w64-crt/complex/csinl.c
-    repo/mingw-w64-crt/complex/csqrt.c
-    repo/mingw-w64-crt/complex/csqrtf.c
-    repo/mingw-w64-crt/complex/csqrtl.c
-    repo/mingw-w64-crt/complex/ctan.c
-    repo/mingw-w64-crt/complex/ctanf.c
-    repo/mingw-w64-crt/complex/ctanl.c
-    repo/mingw-w64-crt/gdtoa/arithchk.c
     repo/mingw-w64-crt/gdtoa/dmisc.c
-    repo/mingw-w64-crt/gdtoa/dtoa.c
-    repo/mingw-w64-crt/gdtoa/g_dfmt.c
     repo/mingw-w64-crt/gdtoa/gdtoa.c
     repo/mingw-w64-crt/gdtoa/gethex.c
-    repo/mingw-w64-crt/gdtoa/g_ffmt.c
-    repo/mingw-w64-crt/gdtoa/g__fmt.c
     repo/mingw-w64-crt/gdtoa/gmisc.c
-    repo/mingw-w64-crt/gdtoa/g_xfmt.c
     repo/mingw-w64-crt/gdtoa/hd_init.c
     repo/mingw-w64-crt/gdtoa/hexnan.c
     repo/mingw-w64-crt/gdtoa/misc.c
-    repo/mingw-w64-crt/gdtoa/qnan.c
     repo/mingw-w64-crt/gdtoa/smisc.c
     repo/mingw-w64-crt/gdtoa/strtodg.c
     repo/mingw-w64-crt/gdtoa/strtodnrp.c
     repo/mingw-w64-crt/gdtoa/strtof.c
     repo/mingw-w64-crt/gdtoa/strtopx.c
     repo/mingw-w64-crt/gdtoa/sum.c
-    repo/mingw-w64-crt/gdtoa/ulp.c
     repo/mingw-w64-crt/math/fpclassify.c
     repo/mingw-w64-crt/math/fpclassifyl.c
     repo/mingw-w64-crt/math/isnan.c
     repo/mingw-w64-crt/math/isnanl.c
-    # repo/mingw-w64-crt/misc/_assert.c
-    repo/mingw-w64-crt/misc/mingw_longjmp.S
-    repo/mingw-w64-crt/misc/mingw_getsp.S
     repo/mingw-w64-crt/misc/alarm.c
-    repo/mingw-w64-crt/misc/delay-f.c
-    repo/mingw-w64-crt/misc/delay-n.c
-    repo/mingw-w64-crt/misc/delayimp.c
     repo/mingw-w64-crt/misc/feclearexcept.c
     repo/mingw-w64-crt/misc/fegetenv.c
-    repo/mingw-w64-crt/misc/fegetexceptflag.c
     repo/mingw-w64-crt/misc/fegetround.c
-    repo/mingw-w64-crt/misc/feholdexcept.c
     repo/mingw-w64-crt/misc/feraiseexcept.c
     repo/mingw-w64-crt/misc/fesetenv.c
-    repo/mingw-w64-crt/misc/fesetexceptflag.c
-    repo/mingw-w64-crt/misc/fesetround.c
     repo/mingw-w64-crt/misc/fetestexcept.c
-    repo/mingw-w64-crt/misc/feenableexcept.c
-    repo/mingw-w64-crt/misc/fedisableexcept.c
-    repo/mingw-w64-crt/misc/fegetexcept.c
     repo/mingw-w64-crt/misc/mingw_controlfp.c
     repo/mingw-w64-crt/misc/mingw_setfp.c
-    repo/mingw-w64-crt/misc/feupdateenv.c
-    repo/mingw-w64-crt/misc/fwide.c
     repo/mingw-w64-crt/misc/getopt.c
-    repo/mingw-w64-crt/misc/__mingw_has_sse.c
-    repo/mingw-w64-crt/misc/ftime32.c
-    # repo/mingw-w64-crt/misc/ftime64.c
-    repo/mingw-w64-crt/misc/memalignment.c
-    repo/mingw-w64-crt/misc/mingw-aligned-malloc.c
     repo/mingw-w64-crt/misc/mingw_matherr.c
-    repo/mingw-w64-crt/misc/mingw_mbwc_convert.c
-    repo/mingw-w64-crt/misc/mingw_usleep.c
     repo/mingw-w64-crt/misc/mkstemp.c
-    repo/mingw-w64-crt/misc/mkdtemp.c
     repo/mingw-w64-crt/misc/sleep.c
-    repo/mingw-w64-crt/misc/strsafe.c
-    repo/mingw-w64-crt/misc/tdelete.c
-    repo/mingw-w64-crt/misc/tdestroy.c
-    repo/mingw-w64-crt/misc/tfind.c
-    repo/mingw-w64-crt/misc/tsearch.c
-    repo/mingw-w64-crt/misc/twalk.c
-    repo/mingw-w64-crt/misc/wdirent.c
-    repo/mingw-w64-crt/misc/winbs_uint64.c
-    repo/mingw-w64-crt/misc/winbs_ulong.c
-    repo/mingw-w64-crt/misc/winbs_ushort.c
-    repo/mingw-w64-crt/misc/btowc.c
-    repo/mingw-w64-crt/misc/wctob.c
     repo/mingw-w64-crt/misc/wmemchr.c
     repo/mingw-w64-crt/misc/wmemcmp.c
     repo/mingw-w64-crt/misc/wmemcpy.c
     repo/mingw-w64-crt/misc/wmemmove.c
     repo/mingw-w64-crt/misc/wmemset.c
-    repo/mingw-w64-crt/misc/mingw-access.c
-    repo/mingw-w64-crt/misc/ftw32.c
-    repo/mingw-w64-crt/misc/ftw32i64.c
-    repo/mingw-w64-crt/misc/ftw64.c
-    # repo/mingw-w64-crt/misc/ftw64i32.c
-    repo/mingw-w64-crt/misc/__mingw_filename_cp.c
-    repo/mingw-w64-crt/ssp/chk_fail.c
-    # repo/mingw-w64-crt/ssp/gets_chk.c
-    repo/mingw-w64-crt/ssp/memcpy_chk.c
-    repo/mingw-w64-crt/ssp/memmove_chk.c
-    repo/mingw-w64-crt/ssp/mempcpy_chk.c
-    repo/mingw-w64-crt/ssp/memset_chk.c
     stack_chk_fail.cpp
     stack_chk_guard.cpp
-    repo/mingw-w64-crt/ssp/strcat_chk.c
-    repo/mingw-w64-crt/ssp/stpcpy_chk.c
-    repo/mingw-w64-crt/ssp/strcpy_chk.c
-    repo/mingw-w64-crt/ssp/strncat_chk.c
-    repo/mingw-w64-crt/ssp/strncpy_chk.c
     repo/mingw-w64-crt/stdio/strtok_r.c
     repo/mingw-w64-crt/stdio/_Exit.c
     repo/mingw-w64-crt/stdio/asprintf.c
-    repo/mingw-w64-crt/stdio/lltoa.c
-    repo/mingw-w64-crt/stdio/lltow.c
-    repo/mingw-w64-crt/stdio/__mingw_fix_stat_finish.c
-    repo/mingw-w64-crt/stdio/__mingw_fix_fstat_finish.c
-    repo/mingw-w64-crt/stdio/__mingw_fix_stat_path.c
-    repo/mingw-w64-crt/stdio/__mingw_fix_wstat_path.c
-    repo/mingw-w64-crt/stdio/mingw_fprintf.c
-    repo/mingw-w64-crt/stdio/mingw_fwprintf.c
-    repo/mingw-w64-crt/stdio/mingw_fscanf.c
-    repo/mingw-w64-crt/stdio/mingw_fwscanf.c
     repo/mingw-w64-crt/stdio/mingw_pformat.c
     repo/mingw-w64-crt/stdio/mingw_wpformat.c
-    repo/mingw-w64-crt/stdio/mingw_printf.c
-    repo/mingw-w64-crt/stdio/mingw_wprintf.c
-    repo/mingw-w64-crt/stdio/mingw_scanf.c
-    repo/mingw-w64-crt/stdio/mingw_snprintf.c
-    repo/mingw-w64-crt/stdio/mingw_swprintf.c
-    repo/mingw-w64-crt/stdio/mingw_snwprintf.c
-    repo/mingw-w64-crt/stdio/mingw_sprintf.c
-    repo/mingw-w64-crt/stdio/mingw_sscanf.c
-    repo/mingw-w64-crt/stdio/mingw_swscanf.c
     repo/mingw-w64-crt/stdio/mingw_vfprintf.c
     repo/mingw-w64-crt/stdio/mingw_vfwprintf.c
     repo/mingw-w64-crt/stdio/mingw_vfscanf.c
-    repo/mingw-w64-crt/stdio/mingw_vprintf.c
-    repo/mingw-w64-crt/stdio/mingw_vwprintf.c
     repo/mingw-w64-crt/stdio/mingw_vsnprintf.c
     repo/mingw-w64-crt/stdio/mingw_vswprintf.c
-    repo/mingw-w64-crt/stdio/mingw_vsnwprintf.c
     repo/mingw-w64-crt/stdio/mingw_vsprintf.c
-    repo/mingw-w64-crt/stdio/mingw_wscanf.c
-    repo/mingw-w64-crt/stdio/mingw_vfwscanf.c
-    repo/mingw-w64-crt/stdio/mingw_vswscanf.c
     repo/mingw-w64-crt/stdio/mingw_vsscanf.c
     repo/mingw-w64-crt/stdio/mingw_sformat.c
-    repo/mingw-w64-crt/stdio/mingw_swformat.c
-    repo/mingw-w64-crt/stdio/snprintf.c
-    repo/mingw-w64-crt/stdio/snwprintf.c
-    repo/mingw-w64-crt/stdio/truncate64.c
-    repo/mingw-w64-crt/stdio/ulltoa.c
-    repo/mingw-w64-crt/stdio/ulltow.c
     repo/mingw-w64-crt/stdio/vasprintf.c
-    repo/mingw-w64-crt/stdio/vsnprintf.c
-    repo/mingw-w64-crt/stdio/vsnwprintf.c
-    repo/mingw-w64-crt/stdio/wtoll.c
-    repo/mingw-w64-crt/stdio/mingw_asprintf.c
-    repo/mingw-w64-crt/stdio/mingw_vasprintf.c
 )
 
 if(CMAKE_SYSTEM_PROCESSOR STREQUAL "amd64")
