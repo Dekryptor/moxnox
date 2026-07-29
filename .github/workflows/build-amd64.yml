@@ -4,6 +4,7 @@ on:
     paths-ignore:
       - 'docker/**'
       - 'ports/**'
+      - '.gitmodules'
 concurrency:
   group: build-amd64
 jobs:

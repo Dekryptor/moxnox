@@ -4,6 +4,7 @@ on:
     paths-ignore:
       - 'docker/**'
       - 'ports/**'
+      - '.gitmodules'
 jobs:
   aarch64 Clang:
     runs-on: moxnox-ci-aarch64
