@@ -175,16 +175,26 @@ int ____mb_cur_max_func() {
 extern "C"
 size_t _wcsrtombs(char* dest, const wchar_t** src, size_t dsize, mbstate_t* ps) {
     size_t total = 0;
+    auto p = *src;
 
     while (true) {
         char buf[4];
 
-        size_t n = _wcrtomb(buf, **src, ps);
+        size_t n = _wcrtomb(buf, *p, ps);
 
-        if (n == (size_t)-1)
+        if (n == (size_t)-1) {
+            if (dest)
+                *src = p;
+
             return (size_t)-1;
+        }
 
-        if (**src == 0) {
+        if (dest && n > dsize) {
+            *src = p;
+            return total;
+        }
+
+        if (*p == 0) {
             if (dest) {
                 *dest = 0;
                 *src = nullptr;
@@ -194,16 +204,13 @@ size_t _wcsrtombs(char* dest, const wchar_t** src, size_t dsize, mbstate_t* ps) 
         }
 
         if (dest) {
-            if (n > dsize)
-                return total;
-
             memcpy(dest, buf, n);
             dest += n;
             dsize -= n;
         }
 
         total += n;
-        (*src)++;
+        p++;
     }
 }
 
