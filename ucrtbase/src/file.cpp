@@ -53,6 +53,7 @@ struct _FILE {
     HANDLE proc = 0;
     bool error = false;
     bool eof = false;
+    wchar_t getwc_surrogate = 0;
 };
 
 struct fd {
@@ -2839,4 +2840,132 @@ char* __mktemp(char* templ) {
     }
 
     return templ;
+}
+
+extern "C"
+wint_t fgetwc(FILE* file) {
+    auto& f = *reinterpret_cast<_FILE*>(file);
+    int i;
+    uint8_t c;
+
+    if (f.getwc_surrogate != 0) {
+        wint_t ret = f.getwc_surrogate;
+        f.getwc_surrogate = 0;
+
+        return ret;
+    }
+
+    i = _fgetc(file);
+    if (i == EOF)
+        return WEOF;
+
+    c = (uint8_t)i;
+    if (c < 0x80)
+        return c;
+
+    if ((c & 0xe0) == 0xc0) { // U+0080 to U+07ff
+        i = _fgetc(file);
+        if (i == EOF) {
+            *__errno() = EILSEQ;
+            f.error = true;
+            return WEOF;
+        }
+
+        auto c2 = (uint8_t)i;
+        if ((c2 & 0xc0) != 0x80) {
+            *__errno() = EILSEQ;
+            f.error = true;
+            return WEOF;
+        }
+
+        return ((c & 0x1f) << 6) | (c2 & 0x3f);
+    } else if ((c & 0xf0) == 0xe0) { // U+0800 to U+ffff
+        i = _fgetc(file);
+        if (i == EOF) {
+            *__errno() = EILSEQ;
+            f.error = true;
+            return WEOF;
+        }
+
+        auto c2 = (uint8_t)i;
+        if ((c2 & 0xc0) != 0x80) {
+            *__errno() = EILSEQ;
+            f.error = true;
+            return WEOF;
+        }
+
+        i = _fgetc(file);
+        if (i == EOF) {
+            *__errno() = EILSEQ;
+            f.error = true;
+            return WEOF;
+        }
+
+        auto c3 = (uint8_t)i;
+        if ((c3 & 0xc0) != 0x80) {
+            *__errno() = EILSEQ;
+            f.error = true;
+            return WEOF;
+        }
+
+        return ((c & 0x0f) << 12) | ((c2 & 0x3f) << 6) | (c3 & 0x3f);
+    } else if ((c & 0xf8) == 0xf0) { // U+10000 to U+10ffff
+        i = _fgetc(file);
+        if (i == EOF) {
+            *__errno() = EILSEQ;
+            f.error = true;
+            return WEOF;
+        }
+
+        auto c2 = (uint8_t)i;
+        if ((c2 & 0xc0) != 0x80) {
+            *__errno() = EILSEQ;
+            f.error = true;
+            return WEOF;
+        }
+
+        i = _fgetc(file);
+        if (i == EOF) {
+            *__errno() = EILSEQ;
+            f.error = true;
+            return WEOF;
+        }
+
+        auto c3 = (uint8_t)i;
+        if ((c3 & 0xc0) != 0x80) {
+            *__errno() = EILSEQ;
+            f.error = true;
+            return WEOF;
+        }
+
+        i = _fgetc(file);
+        if (i == EOF) {
+            *__errno() = EILSEQ;
+            f.error = true;
+            return WEOF;
+        }
+
+        auto c4 = (uint8_t)i;
+        if ((c4 & 0xc0) != 0x80) {
+            *__errno() = EILSEQ;
+            f.error = true;
+            return WEOF;
+        }
+
+        char32_t cp = ((c & 0x07) << 18) | ((c2 & 0x3f) << 12) | ((c3 & 0x3f) << 6) | (c4 & 0x3f);
+
+        if (cp >= 0x110000) {
+            *__errno() = EILSEQ;
+            f.error = true;
+            return WEOF;
+        }
+
+        f.getwc_surrogate = 0xdc00 | ((cp - 0x10000) & 0x3ff);
+
+        return (wint_t)(0xd800 | ((cp - 0x10000) >> 10));
+    } else {
+        *__errno() = EILSEQ;
+        f.error = true;
+        return WEOF;
+    }
 }

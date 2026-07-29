@@ -357,3 +357,5 @@ iswupper
 iswdigit
 iswxdigit
 atoll
+fgetwc
+getwc = fgetwc

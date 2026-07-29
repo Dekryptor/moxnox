@@ -333,12 +333,13 @@ iswpunct
 iswupper
 iswxdigit
 atoll
+getwc
+fgetwc
 
 ; stubs
 _beginthreadex
 wcstod
 fputwc
-getwc
 putwc
 strxfrm
 ungetwc
