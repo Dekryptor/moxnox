@@ -27,6 +27,7 @@ jobs:
           cmake -DCMAKE_TOOLCHAIN_FILE=clang-aarch64-native.cmake \
             -GNinja \
             -DCMAKE_BUILD_TYPE=Debug \
+            -DCMAKE_COLOR_DIAGNOSTICS=ON \
             -DCMAKE_INSTALL_PREFIX=${PWD}/install/debug \
             -DUSE_COMPILER_RT=ON \
             -S ${SHORT_SHA} -B debug-work
@@ -42,6 +43,7 @@ jobs:
           cmake -DCMAKE_TOOLCHAIN_FILE=clang-aarch64-native.cmake \
             -GNinja \
             -DCMAKE_BUILD_TYPE=RelWithDebInfo \
+            -DCMAKE_COLOR_DIAGNOSTICS=ON \
             -DCMAKE_INSTALL_PREFIX=${PWD}/install/release \
             -DUSE_COMPILER_RT=ON \
             -S ${SHORT_SHA} -B release-work

@@ -57,6 +57,7 @@ jobs:
             -GNinja \
             -DCMAKE_BUILD_TYPE=RelWithDebInfo \
             -DCMAKE_INSTALL_PREFIX= \
+            -DCMAKE_COLOR_DIAGNOSTICS=ON \
             -DUSE_COMPILER_RT=ON \
             -S ${SHORT_SHA} -B work
 
