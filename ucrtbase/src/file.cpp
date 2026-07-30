@@ -7,6 +7,7 @@ module;
 #include <optional>
 #include <atomic>
 #include <mutex>
+#include <algorithm>
 #include <stdint.h>
 #include <stdlib.h>
 #include <string.h>
@@ -43,6 +44,7 @@ using namespace std;
 
 struct _FILE {
     _FILE(HANDLE h, int fd);
+    _FILE(char** bufp, size_t* sizep);
     ~_FILE();
 
     HANDLE h;
@@ -56,6 +58,16 @@ struct _FILE {
     bool eof = false;
     wchar_t getwc_surrogate = 0;
     wchar_t putwc_surrogate = 0;
+    bool memstream = false;
+
+    struct {
+        char** bufp;
+        size_t* sizep;
+        char* buffer;
+        size_t position;
+        size_t length;
+        size_t capacity;
+    } mem;
 };
 
 struct fd {
@@ -180,12 +192,29 @@ _FILE::_FILE(HANDLE h, int fd) : h(h), fd(fd) {
     RtlInitializeCriticalSection(&cs);
 }
 
+_FILE::_FILE(char** bufp, size_t* sizep) {
+    h = 0;
+    fd = 0;
+    memstream = true;
+
+    mem.bufp = bufp;
+    mem.sizep = sizep;
+    mem.buffer = nullptr;
+    mem.position = 0;
+    mem.length = 0;
+    mem.capacity = 0;
+
+    RtlInitializeCriticalSection(&cs);
+}
+
 _FILE::~_FILE() {
     RtlDeleteCriticalSection(&cs);
 
-    RtlEnterCriticalSection(&fds_lock);
-    fds[(size_t)fd].h = 0;
-    RtlLeaveCriticalSection(&fds_lock);
+    if (!memstream) {
+        RtlEnterCriticalSection(&fds_lock);
+        fds[(size_t)fd].h = 0;
+        RtlLeaveCriticalSection(&fds_lock);
+    }
 }
 
 export void init_files() {
@@ -415,6 +444,11 @@ size_t __fread_nolock(void* ptr, size_t size, size_t n, FILE* file) {
 
     // FIXME - buffering
 
+    if (f.memstream) {
+        *_errno() = EBADF;
+        return 0;
+    }
+
     if (bytes == 0)
         return 0;
 
@@ -455,18 +489,45 @@ size_t _fread(void* ptr, size_t size, size_t n, FILE* file) {
 extern "C"
 size_t __fwrite_nolock(const void* ptr, size_t size, size_t n, FILE* file) {
     auto& f = *reinterpret_cast<_FILE*>(file);
-    IO_STATUS_BLOCK iosb;
+    auto bytes = size * n;
 
-    // FIXME - buffering
+    if (f.memstream) {
+        if (f.mem.capacity < f.mem.position + bytes + 1) {
+            size_t newcapacity = max(2 * f.mem.capacity, f.mem.position + bytes + 1);
 
-    auto status = NtWriteFile(f.h, 0, nullptr, nullptr, &iosb, ptr,
-                              (uint32_t)(size * n), nullptr, nullptr);
-    if (!success(status)) {
-        f.error = true;
-        return 0;
+            auto newbuf = (char*)realloc(f.mem.buffer, newcapacity);
+            if (!newbuf) {
+                *__errno() = ENOMEM;
+                f.error = true;
+                return 0;
+            }
+
+            f.mem.buffer = newbuf;
+            f.mem.capacity = newcapacity;
+        }
+
+        if (f.mem.length < f.mem.position)
+            memset(f.mem.buffer + f.mem.length, 0, f.mem.position - f.mem.length);
+
+        memcpy(f.mem.buffer + f.mem.position, ptr, bytes);
+        f.mem.position += bytes;
+        f.mem.length = max(f.mem.length, f.mem.position);
+
+        return bytes;
+    } else {
+        IO_STATUS_BLOCK iosb;
+
+        // FIXME - buffering
+
+        auto status = NtWriteFile(f.h, 0, nullptr, nullptr, &iosb, ptr,
+                                  (uint32_t)bytes, nullptr, nullptr);
+        if (!success(status)) {
+            f.error = true;
+            return 0;
+        }
+
+        return iosb.Information;
     }
-
-    return iosb.Information;
 }
 
 extern "C"
@@ -478,9 +539,70 @@ size_t _fwrite(const void* ptr, size_t size, size_t n, FILE* file) {
     return ret;
 }
 
+export extern "C"
+int _fflush(FILE* file) {
+    if (!file) {
+        int ret = 0;
+
+        RtlEnterCriticalSection(&files_lock);
+
+        for (auto le = files_list.next; le != &files_list; le = le->next) {
+            auto& f = containing_record<_FILE>(le);
+
+            if (auto ret2 = _fflush(reinterpret_cast<FILE*>(&f)); ret2 != 0)
+                ret = ret2;
+        }
+
+        RtlLeaveCriticalSection(&files_lock);
+
+        return ret;
+    }
+
+    auto& f = *reinterpret_cast<_FILE*>(file);
+
+    if (f.memstream) {
+        __lock_file(file);
+
+        if (f.mem.capacity < f.mem.position + 1) {
+            size_t newcapacity = max(2 * f.mem.capacity, f.mem.position + 1);
+            auto newbuf = (char*)realloc(f.mem.buffer, newcapacity);
+
+            if (!newbuf) {
+                f.error = true;
+                __unlock_file(file);
+
+                *__errno() = ENOMEM;
+                return EOF;
+            }
+
+            f.mem.buffer = newbuf;
+            f.mem.capacity = newcapacity;
+        }
+
+        if (f.mem.position > f.mem.length) {
+            memset(f.mem.buffer + f.mem.length, 0, f.mem.position - f.mem.length);
+            f.mem.length = f.mem.position;
+        }
+
+        f.mem.buffer[f.mem.position] = 0;
+
+        *f.mem.bufp = f.mem.buffer;
+        *f.mem.sizep = f.mem.position;
+
+        __unlock_file(file);
+
+        return 0;
+    } else {
+        // FIXME - flush
+    }
+
+    return 0;
+}
+
 extern "C"
 int _fclose(FILE* file) {
     auto& f = *reinterpret_cast<_FILE*>(file);
+    int ret = 0;
 
     {
         RtlEnterCriticalSection(&files_lock);
@@ -488,12 +610,16 @@ int _fclose(FILE* file) {
         RtlLeaveCriticalSection(&files_lock);
     }
 
-    NtClose(f.h);
+    if (_fflush(file) != 0)
+        ret = EOF;
+
+    if (!f.memstream)
+        NtClose(f.h);
 
     if (file != (FILE*)_stdin && file != (FILE*)_stdout && file != (FILE*)_stderr)
         delete &f;
 
-    return 0;
+    return ret;
 }
 
 extern "C"
@@ -619,15 +745,20 @@ int64_t __ftelli64_nolock(FILE* file) {
     auto& f = *reinterpret_cast<_FILE*>(file);
     FILE_POSITION_INFORMATION fpi;
     IO_STATUS_BLOCK iosb;
+    int64_t ret;
 
-    auto status = NtQueryInformationFile(f.h, &iosb, &fpi, sizeof(fpi),
-                                         FILE_INFORMATION_CLASS::PositionInformation);
-    if (!success(status)) {
-        *__errno() = nt_status_to_errno(status);
-        return -1;
+    if (f.memstream)
+        ret = f.mem.position;
+    else {
+        auto status = NtQueryInformationFile(f.h, &iosb, &fpi, sizeof(fpi),
+                                             FILE_INFORMATION_CLASS::PositionInformation);
+        if (!success(status)) {
+            *__errno() = nt_status_to_errno(status);
+            return -1;
+        }
+
+        ret = fpi.CurrentByteOffset.QuadPart;
     }
-
-    auto ret = fpi.CurrentByteOffset.QuadPart;
 
     if (f.ungetc_char.has_value())
         ret--;
@@ -679,16 +810,21 @@ int __fseeki64_nolock(FILE* file, int64_t offset, int whence) {
             break;
 
         case SEEK_END: {
-            FILE_STANDARD_INFORMATION fsi;
+            if (f.memstream)
+                start = f.mem.length;
+            else {
+                FILE_STANDARD_INFORMATION fsi;
 
-            status = NtQueryInformationFile(f.h, &iosb, &fsi, sizeof(fsi),
-                                            FILE_INFORMATION_CLASS::StandardInformation);
-            if (!success(status)) {
-                *__errno() = nt_status_to_errno(status);
-                return -1;
+                status = NtQueryInformationFile(f.h, &iosb, &fsi, sizeof(fsi),
+                                                FILE_INFORMATION_CLASS::StandardInformation);
+                if (!success(status)) {
+                    *__errno() = nt_status_to_errno(status);
+                    return -1;
+                }
+
+                start = fsi.EndOfFile.QuadPart;
             }
 
-            start = fsi.EndOfFile.QuadPart;
             break;
         }
 
@@ -697,13 +833,22 @@ int __fseeki64_nolock(FILE* file, int64_t offset, int whence) {
             return -1;
     }
 
-    fpi.CurrentByteOffset.QuadPart = start + offset;
+    if (f.memstream) {
+        if (start + offset < 0) {
+            *__errno() = EINVAL;
+            return -1;
+        }
 
-    status = NtSetInformationFile(f.h, &iosb, &fpi, sizeof(fpi),
-                                  FILE_INFORMATION_CLASS::PositionInformation);
-    if (!success(status)) {
-        *__errno() = nt_status_to_errno(status);
-        return -1;
+        f.mem.position = start + offset;
+    } else {
+        fpi.CurrentByteOffset.QuadPart = start + offset;
+
+        status = NtSetInformationFile(f.h, &iosb, &fpi, sizeof(fpi),
+                                      FILE_INFORMATION_CLASS::PositionInformation);
+        if (!success(status)) {
+            *__errno() = nt_status_to_errno(status);
+            return -1;
+        }
     }
 
     f.ungetc_char = nullopt;
@@ -793,30 +938,6 @@ int _remove(const char* pathname) {
     }
 
     NtClose(h);
-
-    return 0;
-}
-
-export extern "C"
-int _fflush(FILE* file) {
-    if (!file) {
-        int ret = 0;
-
-        RtlEnterCriticalSection(&files_lock);
-
-        for (auto le = files_list.next; le != &files_list; le = le->next) {
-            auto& f = containing_record<_FILE>(le);
-
-            if (auto ret2 = _fflush(reinterpret_cast<FILE*>(&f)); ret2 != 0)
-                ret = ret2;
-        }
-
-        RtlLeaveCriticalSection(&files_lock);
-
-        return ret;
-    }
-
-    // FIXME - flush
 
     return 0;
 }
@@ -3127,8 +3248,18 @@ wint_t fputwc(wchar_t wc, FILE* file) {
 }
 
 extern "C"
-FILE* mn_open_memstream(char** /*bufp*/, size_t* /*sizep*/) {
-    // FIXME
+FILE* mn_open_memstream(char** bufp, size_t* sizep) {
+    auto f = new _FILE(bufp, sizep);
+    if (!f) {
+        *__errno() = ENOMEM;
+        return nullptr;
+    }
 
-    return nullptr;
+    {
+        RtlEnterCriticalSection(&files_lock);
+        insert_tail_list(files_list, f->le);
+        RtlLeaveCriticalSection(&files_lock);
+    }
+
+    return reinterpret_cast<FILE*>(f);
 }
