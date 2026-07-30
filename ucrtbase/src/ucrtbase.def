@@ -366,3 +366,4 @@ mbsrtowcs
 wcscoll
 strxfrm
 wcsxfrm
+wcstof

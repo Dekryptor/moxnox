@@ -1,13 +1,19 @@
 #include <stddef.h>
 #include <stdint.h>
+#include <stdlib.h>
 #include <string.h>
 #include <errno.h>
 #include <concepts>
 #include <algorithm>
 #include <limits>
+#include <memory>
+#include <span>
+#include <string_view>
 #include <wchar.h>
 
 using namespace std;
+
+import unicode;
 
 extern "C" int* __errno();
 
@@ -354,4 +360,41 @@ size_t wcsxfrm(wchar_t* dest, const wchar_t* src, size_t size) {
         memcpy(dest, src, min(len + 1, size) * sizeof(wchar_t));
 
     return len;
+}
+
+extern "C"
+float wcstof(const wchar_t* str, wchar_t** str_end) {
+    auto u16sv = u16string_view((char16_t*)str);
+    auto len = utf16_to_utf8_len(u16sv);
+    char* end;
+
+    // FIXME - clamp to first non-ASCII unit (utf16_to_utf8_len returns 0 if any lone surrogate found)
+
+    if (len == 0) {
+        if (str_end)
+            *str_end = (wchar_t*)str;
+
+        *__errno() = EINVAL;
+        return 0.0f;
+    }
+
+    unique_ptr<char[]> buf;
+
+    buf.reset(new char[len + 1]);
+    if (!buf) {
+        *__errno() = ENOMEM;
+        return 0.0f;
+    }
+
+    auto sp = span(buf.get(), len);
+
+    utf16_to_utf8(sp, u16sv);
+    buf[len] = 0;
+
+    auto ret = strtof(buf.get(), &end);
+
+    if (str_end)
+        *str_end = (wchar_t*)str + utf8_to_utf16_len(string_view(buf.get(), (size_t)(end - buf.get())));
+
+    return ret;
 }
