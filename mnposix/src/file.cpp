@@ -1751,3 +1751,24 @@ long pathconf(const char* /*path*/, int name) {
             return -1;
     }
 }
+
+extern "C"
+size_t confstr(int name, char* buf, size_t len) {
+    static const string_view path = "/bin";
+
+    switch (name) {
+        case _CS_PATH:
+            if (buf && len > 0) {
+                size_t n = min(len, path.size() + 1);
+
+                memcpy(buf, path.data(), n - 1);
+                buf[n - 1] = 0;
+            }
+
+            return path.size() + 1;
+
+        default:
+            *_errno() = EINVAL;
+            return 0;
+    }
+}

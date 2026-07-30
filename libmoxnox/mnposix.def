@@ -201,6 +201,7 @@ posix_madvise
 posix_fadvise
 setrlimit
 pathconf
+confstr
 
 ; stubs
 mbsinit
@@ -229,7 +230,6 @@ memmem
 getgroups
 getlogin
 getlogin_r
-confstr
 sigwait
 socketpair
 readv

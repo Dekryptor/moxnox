@@ -201,3 +201,4 @@ posix_madvise
 posix_fadvise
 setrlimit
 pathconf
+confstr
