@@ -73,6 +73,7 @@ int creat(const char* path, mode_t mode);
 int fcntl(int fd, int cmd, ...);
 int openat(int fd, const char* path, int oflag, ...);
 int posix_fadvise(int fd, off_t offset, off_t len, int advice);
+int mkfifoat(int fd, const char* path, mode_t mode);
 
 #ifdef __cplusplus
 }
