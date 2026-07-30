@@ -3125,3 +3125,10 @@ wint_t fputwc(wchar_t wc, FILE* file) {
 
     return wc;
 }
+
+extern "C"
+FILE* mn_open_memstream(char** /*bufp*/, size_t* /*sizep*/) {
+    // FIXME
+
+    return nullptr;
+}

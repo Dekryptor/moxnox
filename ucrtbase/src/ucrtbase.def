@@ -374,3 +374,4 @@ asctime
 _timespec64_get
 _crt_at_quick_exit
 quick_exit
+mn_open_memstream

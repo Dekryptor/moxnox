@@ -1772,3 +1772,8 @@ size_t confstr(int name, char* buf, size_t len) {
             return 0;
     }
 }
+
+extern "C"
+FILE* open_memstream(char** bufp, size_t* sizep) {
+    return mn_open_memstream(bufp, sizep);
+}

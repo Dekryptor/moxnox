@@ -208,3 +208,4 @@ getlogin_r
 openlog
 syslog
 closelog
+open_memstream

@@ -208,6 +208,7 @@ getlogin_r
 openlog
 syslog
 closelog
+open_memstream
 
 ; stubs
 mbsinit
@@ -237,4 +238,3 @@ writev
 mkfifo
 mlock
 munlock
-open_memstream

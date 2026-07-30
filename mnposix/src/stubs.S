@@ -29,6 +29,5 @@ do_stub "writev"
 do_stub "mkfifo"
 do_stub "mlock"
 do_stub "munlock"
-do_stub "open_memstream"
 
 stubs_end
