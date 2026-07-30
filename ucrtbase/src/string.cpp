@@ -221,6 +221,13 @@ int _strcoll(const char* s1, const char* s2) {
     return strcmp(s1, s2);
 }
 
+extern "C"
+int wcscoll(const wchar_t* s1, const wchar_t* s2) {
+    // FIXME - potentially different if locale not default
+
+    return wcscmp(s1, s2);
+}
+
 template<integral T>
 static T strto(const char* nptr, char** endptr, int base) {
     while (isspace(*nptr)) {

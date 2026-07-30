@@ -339,12 +339,12 @@ ungetwc
 putwc
 fputwc
 mbsrtowcs
+wcscoll
 
 ; stubs
 _beginthreadex
 wcstod
 strxfrm
-wcscoll
 wcsftime
 wcsxfrm
 asctime

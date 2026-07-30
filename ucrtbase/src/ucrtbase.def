@@ -363,3 +363,4 @@ ungetwc
 fputwc
 putwc = fputwc
 mbsrtowcs
+wcscoll
