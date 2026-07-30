@@ -197,3 +197,4 @@ posix_spawnattr_setpgroup
 pthread_mutex_timedlock
 mbsnrtowcs
 wcsnrtombs
+posix_madvise

@@ -197,6 +197,7 @@ posix_spawnattr_setpgroup
 pthread_mutex_timedlock
 mbsnrtowcs
 wcsnrtombs
+posix_madvise
 
 ; stubs
 mbsinit
@@ -233,7 +234,6 @@ socketpair
 readv
 writev
 mkfifo
-posix_madvise
 mlock
 munlock
 open_memstream

@@ -235,3 +235,22 @@ int mprotect(void* addr, size_t size, int prot) {
 
     return 0;
 }
+
+extern "C"
+int posix_madvise(void* addr, size_t len, int advice) {
+    if ((uintptr_t)addr & (PAGE_SIZE - 1) || len == 0)
+        return EINVAL;
+
+    switch (advice) {
+        case POSIX_MADV_NORMAL:
+        case POSIX_MADV_SEQUENTIAL:
+        case POSIX_MADV_RANDOM:
+        case POSIX_MADV_WILLNEED:
+        case POSIX_MADV_DONTNEED:
+            // FIXME - actually do something
+            return 0;
+
+        default:
+            return EINVAL;
+    }
+}
