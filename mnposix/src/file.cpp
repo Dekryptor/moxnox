@@ -1777,3 +1777,90 @@ extern "C"
 FILE* open_memstream(char** bufp, size_t* sizep) {
     return mn_open_memstream(bufp, sizep);
 }
+
+extern "C"
+int mkfifoat(int fd, const char* path, mode_t /*mode*/) {
+    auto peb = NtCurrentTeb()->ProcessEnvironmentBlock;
+    nt_status status;
+    OBJECT_ATTRIBUTES oa;
+    UNICODE_STRING us;
+    IO_STATUS_BLOCK iosb;
+    HANDLE h, dirh;
+    unique_handle f;
+    REPARSE_DATA_BUFFER rdb;
+
+    // FIXME - mode
+
+    if (fd == AT_FDCWD)
+        dirh = peb->ProcessParameters->CurrentDirectory.Handle;
+    else {
+        dirh = (HANDLE)_get_osfhandle(fd);
+        if (dirh == (HANDLE)-1)
+            return -1;
+    }
+
+    if (!path || !path[0]) {
+        *_errno() = EINVAL;
+        return -1;
+    }
+
+    auto pathsv = string_view(path);
+
+    auto u16len = utf8_to_utf16_len(pathsv);
+    auto u16 = (char16_t*)malloc(u16len * sizeof(char16_t));
+    if (!u16) {
+        *_errno() = ENOMEM;
+        return -1;
+    }
+
+    utf8_to_utf16(span(u16, u16len), pathsv);
+
+    us.Length = us.MaximumLength = (uint16_t)(u16len * sizeof(char16_t));
+    us.Buffer = u16;
+
+    memset(&oa, 0, sizeof(oa));
+    oa.Length = sizeof(OBJECT_ATTRIBUTES);
+    oa.ObjectName = &us;
+    oa.RootDirectory = dirh;
+
+    status = NtCreateFile(&h, FILE_READ_ATTRIBUTES | DELETE, &oa, &iosb, nullptr,
+                          0, 0, FILE_CREATE, FILE_NON_DIRECTORY_FILE, nullptr, 0);
+
+    free(u16);
+
+    if (status == nt_status::OBJECT_NAME_COLLISION) {
+        *_errno() = EEXIST;
+        return -1;
+    } else if (!success(status)) {
+        *_errno() = nt_status_to_errno(status);
+        return -1;
+    } else
+        f.reset(h);
+
+    rdb.ReparseTag = IO_REPARSE_TAG_LX_FIFO;
+    rdb.ReparseDataLength = 0;
+    rdb.Reserved = 0;
+
+    status = NtFsControlFile(f.get(), 0, nullptr, nullptr, &iosb,
+                             FSCTL_SET_REPARSE_POINT, &rdb,
+                             offsetof(REPARSE_DATA_BUFFER, GenericReparseBuffer.DataBuffer),
+                             nullptr, 0);
+    if (!success(status)) {
+        FILE_DISPOSITION_INFORMATION fdi;
+
+        fdi.DeleteFile = true;
+
+        NtSetInformationFile(f.get(), &iosb, &fdi, sizeof(fdi),
+                             FILE_INFORMATION_CLASS::DispositionInformation);
+
+        *_errno() = nt_status_to_errno(status);
+        return -1;
+    }
+
+    return 0;
+}
+
+extern "C"
+int mkfifo(const char* path, mode_t mode) {
+    return mkfifoat(AT_FDCWD, path, mode);
+}

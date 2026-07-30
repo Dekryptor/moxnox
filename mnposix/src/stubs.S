@@ -25,7 +25,6 @@ do_stub "memmem"
 do_stub "getgroups"
 do_stub "readv"
 do_stub "writev"
-do_stub "mkfifo"
 do_stub "mlock"
 do_stub "munlock"
 

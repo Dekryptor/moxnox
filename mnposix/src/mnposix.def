@@ -210,3 +210,5 @@ syslog
 closelog
 open_memstream
 sigwait
+mkfifo
+mkfifoat

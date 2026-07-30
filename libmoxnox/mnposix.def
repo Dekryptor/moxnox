@@ -210,6 +210,8 @@ syslog
 closelog
 open_memstream
 sigwait
+mkfifo
+mkfifoat
 
 ; stubs
 mbsinit
@@ -235,6 +237,5 @@ memmem
 getgroups
 readv
 writev
-mkfifo
 mlock
 munlock
