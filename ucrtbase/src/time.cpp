@@ -146,8 +146,8 @@ struct tm* __gmtime64(const __time64_t* t) {
     return &tm;
 }
 
-template<size_t N>
-bool strftime_index(span<char>& sp, int num, const array<string_view, N>& str) {
+template<typename T, size_t N>
+bool strftime_index(span<T>& sp, int num, const array<basic_string_view<T>, N>& str) {
     if (num < 0 || (size_t)num >= str.size()) {
         if (sp.empty())
             return false;
@@ -163,38 +163,119 @@ bool strftime_index(span<char>& sp, int num, const array<string_view, N>& str) {
     if (sp.size() < s.size())
         return false;
 
-    memcpy(sp.data(), s.data(), s.size());
+    memcpy(sp.data(), s.data(), s.size() * sizeof(T));
     sp = span(sp.data() + s.size(), sp.size() - s.size());
 
     return true;
 }
 
-static bool strftime_abbrev_weekday(span<char>& sp, int wday) {
+template<typename T>
+bool strftime_abbrev_weekday(span<T>& sp, int wday);
+
+template<>
+bool strftime_abbrev_weekday<char>(span<char>& sp, int wday) {
     static const array<string_view, 7> str = { "Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat" };
 
     return strftime_index(sp, wday, str);
 }
 
-static bool strftime_weekday(span<char>& sp, int wday) {
+template<>
+bool strftime_abbrev_weekday<wchar_t>(span<wchar_t>& sp, int wday) {
+    static const array<wstring_view, 7> str = { L"Sun", L"Mon", L"Tue", L"Wed", L"Thu", L"Fri", L"Sat" };
+
+    return strftime_index(sp, wday, str);
+}
+
+template<typename T>
+bool strftime_weekday(span<T>& sp, int wday);
+
+template<>
+bool strftime_weekday(span<char>& sp, int wday) {
     static const array<string_view, 7> str = { "Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday" };
 
     return strftime_index(sp, wday, str);
 }
 
-static bool strftime_abbrev_month_name(span<char>& sp, int mon) {
+template<>
+bool strftime_weekday(span<wchar_t>& sp, int wday) {
+    static const array<wstring_view, 7> str = { L"Sunday", L"Monday", L"Tuesday", L"Wednesday", L"Thursday", L"Friday", L"Saturday" };
+
+    return strftime_index(sp, wday, str);
+}
+
+template<typename T>
+bool strftime_abbrev_month_name(span<T>& sp, int mon);
+
+template<>
+bool strftime_abbrev_month_name<char>(span<char>& sp, int mon) {
     static const array<string_view, 12> str = { "Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec" };
 
     return strftime_index(sp, mon, str);
 }
 
-static bool strftime_month_name(span<char>& sp, int mon) {
+template<>
+bool strftime_abbrev_month_name<wchar_t>(span<wchar_t>& sp, int mon) {
+    static const array<wstring_view, 12> str = { L"Jan", L"Feb", L"Mar", L"Apr", L"May", L"Jun", L"Jul", L"Aug", L"Sep", L"Oct", L"Nov", L"Dec" };
+
+    return strftime_index(sp, mon, str);
+}
+
+template<typename T>
+bool strftime_month_name(span<T>& sp, int mon);
+
+template<>
+bool strftime_month_name<char>(span<char>& sp, int mon) {
     static const array<string_view, 12> str = { "January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December" };
 
     return strftime_index(sp, mon, str);
 }
 
-template<unsigned int N>
-bool strftime_number(span<char>& sp, int num) {
+template<>
+bool strftime_month_name<wchar_t>(span<wchar_t>& sp, int mon) {
+    static const array<wstring_view, 12> str = { L"January", L"February", L"March", L"April", L"May", L"June", L"July", L"August", L"September", L"October", L"November", L"December" };
+
+    return strftime_index(sp, mon, str);
+}
+
+template<typename T>
+span<T> sp_itoa(span<T> dest, uint64_t num) {
+    bool first = true;
+
+    if (dest.empty())
+        return dest;
+
+    if (num == 0) {
+        dest[0] = '0';
+        return span(dest.data() + 1, dest.size() - 1);
+    } else {
+        uint64_t place = 10000000000000000000ull;
+
+        for (unsigned int i = 0; i < 20; i++) {
+            if (!first || num >= place) {
+                uint64_t digit = num / place;
+
+                dest[0] = (T)(digit + '0');
+
+                if (first && digit != 0)
+                    first = false;
+
+                dest = span(dest.data() + 1, dest.size() - 1);
+
+                if (dest.empty())
+                    return dest;
+
+                num %= place;
+            }
+
+            place /= 10;
+        }
+    }
+
+    return dest;
+}
+
+template<typename T, unsigned int N>
+bool strftime_number(span<T>& sp, int num) {
     if (num < 0) { // FIXME - can have negative years?
         if (sp.empty())
             return false;
@@ -238,19 +319,16 @@ bool strftime_number(span<char>& sp, int num) {
         }
     }
 
-    auto tcr = to_chars(sp.data(), sp.data() + sp.size(), num);
-
-    if (tcr.ec != errc{})
-        return false;
-
-    auto written = (size_t)(tcr.ptr - sp.data());
-
-    sp = span(sp.data() + written, sp.size() - written);
+    sp = sp_itoa<T>(sp, num);
 
     return true;
 }
 
-static bool strftime_ampm(span<char>& sp, int hour) {
+template<typename T>
+bool strftime_ampm(span<T>& sp, int hour);
+
+template<>
+bool strftime_ampm<char>(span<char>& sp, int hour) {
     static const string_view AM = "am";
     static const string_view PM = "pm";
 
@@ -273,6 +351,30 @@ static bool strftime_ampm(span<char>& sp, int hour) {
     }
 }
 
+template<>
+bool strftime_ampm<wchar_t>(span<wchar_t>& sp, int hour) {
+    static const wstring_view AM = L"am";
+    static const wstring_view PM = L"pm";
+
+    if (hour < 12) {
+        if (sp.size() < AM.size())
+            return false;
+
+        memcpy(sp.data(), AM.data(), AM.size() * sizeof(wchar_t));
+        sp = span(sp.data() + AM.size(), sp.size() - AM.size());
+
+        return true;
+    } else {
+        if (sp.size() < PM.size())
+            return false;
+
+        memcpy(sp.data(), PM.data(), PM.size() * sizeof(wchar_t));
+        sp = span(sp.data() + PM.size(), sp.size() - PM.size());
+
+        return true;
+    }
+}
+
 static constexpr unsigned int days_in_year(int year) {
     if (year % 4)
         return 365;
@@ -284,60 +386,65 @@ static constexpr unsigned int days_in_year(int year) {
         return 366;
 }
 
-extern "C"
-size_t _strftime(char* s, size_t max, const char* format, const struct tm* tm) {
-    auto fmt = string_view(format);
+template<typename T>
+static size_t do_strftime(T* s, size_t max, const T* format, const struct ::tm* tm) {
+    auto fmt = basic_string_view<T>(format);
     auto sp = span(s, max);
 
     while (true) {
         auto pc = fmt.find('%');
 
-        if (pc == string_view::npos)
+        if (pc == basic_string_view<T>::npos)
             pc = fmt.size();
 
         if (pc > 0) {
             if (sp.size() < pc)
                 return 0;
 
-            memcpy(sp.data(), fmt.data(), pc);
+            memcpy(sp.data(), fmt.data(), pc * sizeof(T));
 
             sp = span(sp.data() + pc, sp.size() - pc);
-            fmt = string_view(fmt.data() + pc, fmt.size() - pc);
+            fmt = basic_string_view<T>(fmt.data() + pc, fmt.size() - pc);
 
             if (fmt.empty())
                 break;
         }
 
         // skip %
-        fmt = string_view(fmt.data() + 1, fmt.size() - 1);
+        fmt = basic_string_view<T>(fmt.data() + 1, fmt.size() - 1);
 
         if (fmt.empty())
             break;
 
         switch (fmt[0]) {
             case 'a': // abbreviated weekday
-                if (!strftime_abbrev_weekday(sp, tm->tm_wday))
+                if (!strftime_abbrev_weekday<T>(sp, tm->tm_wday))
                     return 0;
             break;
 
             case 'A': // weekday
-                if (!strftime_weekday(sp, tm->tm_wday))
+                if (!strftime_weekday<T>(sp, tm->tm_wday))
                     return 0;
             break;
 
             case 'b': // abbreviated month name
             case 'h':
-                if (!strftime_abbrev_month_name(sp, tm->tm_mon))
+                if (!strftime_abbrev_month_name<T>(sp, tm->tm_mon))
                     return 0;
             break;
 
             case 'B': // month name
-                if (!strftime_month_name(sp, tm->tm_mon))
+                if (!strftime_month_name<T>(sp, tm->tm_mon))
                     return 0;
             break;
 
             case 'c': { // "locale's appropriate date and time representation"
-                auto ret = _strftime(sp.data(), sp.size(), "%a %b %e %H:%M:%S %Y", tm);
+                size_t ret;
+
+                if constexpr (is_same_v<T, char>)
+                    ret = do_strftime<T>(sp.data(), sp.size(), "%a %b %e %H:%M:%S %Y", tm);
+                else
+                    ret = do_strftime<T>(sp.data(), sp.size(), L"%a %b %e %H:%M:%S %Y", tm);
 
                 if (ret == 0)
                     return 0;
@@ -348,17 +455,17 @@ size_t _strftime(char* s, size_t max, const char* format, const struct tm* tm) {
             }
 
             case 'C': // year / 100
-                if (!strftime_number<2>(sp, (tm->tm_year + 1900) / 100))
+                if (!strftime_number<T, 2>(sp, (tm->tm_year + 1900) / 100))
                     return 0;
             break;
 
             case 'd': // day of month as decimal number
-                if (!strftime_number<2>(sp, tm->tm_mday))
+                if (!strftime_number<T, 2>(sp, tm->tm_mday))
                     return 0;
             break;
 
             case 'D': // %m/%d/%y
-                if (!strftime_number<2>(sp, tm->tm_mon + 1))
+                if (!strftime_number<T, 2>(sp, tm->tm_mon + 1))
                     return 0;
 
                 if (sp.empty())
@@ -367,7 +474,7 @@ size_t _strftime(char* s, size_t max, const char* format, const struct tm* tm) {
                 sp[0] = '/';
                 sp = span(sp.data() + 1, sp.size() - 1);
 
-                if (!strftime_number<2>(sp, tm->tm_mday))
+                if (!strftime_number<T, 2>(sp, tm->tm_mday))
                     return 0;
 
                 if (sp.empty())
@@ -376,7 +483,7 @@ size_t _strftime(char* s, size_t max, const char* format, const struct tm* tm) {
                 sp[0] = '/';
                 sp = span(sp.data() + 1, sp.size() - 1);
 
-                if (!strftime_number<2>(sp, tm->tm_year % 100))
+                if (!strftime_number<T, 2>(sp, tm->tm_year % 100))
                     return 0;
             break;
 
@@ -389,12 +496,12 @@ size_t _strftime(char* s, size_t max, const char* format, const struct tm* tm) {
                     sp = span(sp.data() + 1, sp.size() - 1);
                 }
 
-                if (!strftime_number<1>(sp, tm->tm_mday))
+                if (!strftime_number<T, 1>(sp, tm->tm_mday))
                     return 0;
             break;
 
             case 'F': // %Y-%m-%d
-                if (!strftime_number<4>(sp, tm->tm_year + 1900))
+                if (!strftime_number<T, 4>(sp, tm->tm_year + 1900))
                     return 0;
 
                 if (sp.empty())
@@ -403,7 +510,7 @@ size_t _strftime(char* s, size_t max, const char* format, const struct tm* tm) {
                 sp[0] = '-';
                 sp = span(sp.data() + 1, sp.size() - 1);
 
-                if (!strftime_number<2>(sp, tm->tm_mon + 1))
+                if (!strftime_number<T, 2>(sp, tm->tm_mon + 1))
                     return 0;
 
                 if (sp.empty())
@@ -412,7 +519,7 @@ size_t _strftime(char* s, size_t max, const char* format, const struct tm* tm) {
                 sp[0] = '-';
                 sp = span(sp.data() + 1, sp.size() - 1);
 
-                if (!strftime_number<2>(sp, tm->tm_mday))
+                if (!strftime_number<T, 2>(sp, tm->tm_mday))
                     return 0;
             break;
 
@@ -428,7 +535,7 @@ size_t _strftime(char* s, size_t max, const char* format, const struct tm* tm) {
                 else
                     year = tm->tm_year;
 
-                if (!strftime_number<2>(sp, year % 100))
+                if (!strftime_number<T, 2>(sp, year % 100))
                     return 0;
 
                 break;
@@ -446,34 +553,34 @@ size_t _strftime(char* s, size_t max, const char* format, const struct tm* tm) {
                 else
                     year = tm->tm_year;
 
-                if (!strftime_number<4>(sp, year + 1900))
+                if (!strftime_number<T, 4>(sp, year + 1900))
                     return 0;
 
                 break;
             }
 
             case 'H': // hour in 24-hour clock
-                if (!strftime_number<2>(sp, tm->tm_hour))
+                if (!strftime_number<T, 2>(sp, tm->tm_hour))
                     return 0;
             break;
 
             case 'I': // hour in 12-hour clock
-                if (!strftime_number<2>(sp, ((tm->tm_hour + 11) % 12) + 1))
+                if (!strftime_number<T, 2>(sp, ((tm->tm_hour + 11) % 12) + 1))
                     return 0;
             break;
 
             case 'j': // day of year as decimal number
-                if (!strftime_number<3>(sp, tm->tm_yday + 1))
+                if (!strftime_number<T, 3>(sp, tm->tm_yday + 1))
                     return 0;
             break;
 
             case 'm': // month as decimal number
-                if (!strftime_number<2>(sp, tm->tm_mon + 1))
+                if (!strftime_number<T, 2>(sp, tm->tm_mon + 1))
                     return 0;
             break;
 
             case 'M': // minute as decimal number
-                if (!strftime_number<2>(sp, tm->tm_min))
+                if (!strftime_number<T, 2>(sp, tm->tm_min))
                     return 0;
             break;
 
@@ -486,12 +593,12 @@ size_t _strftime(char* s, size_t max, const char* format, const struct tm* tm) {
             break;
 
             case 'p': // am or pm
-                if (!strftime_ampm(sp, tm->tm_hour))
+                if (!strftime_ampm<T>(sp, tm->tm_hour))
                     return 0;
             break;
 
             case 'r': // %I:%M:%S %p
-                if (!strftime_number<2>(sp, ((tm->tm_hour + 11) % 12) + 1))
+                if (!strftime_number<T, 2>(sp, ((tm->tm_hour + 11) % 12) + 1))
                     return 0;
 
                 if (sp.empty())
@@ -500,7 +607,7 @@ size_t _strftime(char* s, size_t max, const char* format, const struct tm* tm) {
                 sp[0] = ':';
                 sp = span(sp.data() + 1, sp.size() - 1);
 
-                if (!strftime_number<2>(sp, tm->tm_min))
+                if (!strftime_number<T, 2>(sp, tm->tm_min))
                     return 0;
 
                 if (sp.empty())
@@ -509,7 +616,7 @@ size_t _strftime(char* s, size_t max, const char* format, const struct tm* tm) {
                 sp[0] = ':';
                 sp = span(sp.data() + 1, sp.size() - 1);
 
-                if (!strftime_number<2>(sp, tm->tm_sec))
+                if (!strftime_number<T, 2>(sp, tm->tm_sec))
                     return 0;
 
                 if (sp.empty())
@@ -518,12 +625,12 @@ size_t _strftime(char* s, size_t max, const char* format, const struct tm* tm) {
                 sp[0] = ' ';
                 sp = span(sp.data() + 1, sp.size() - 1);
 
-                if (!strftime_ampm(sp, tm->tm_hour))
+                if (!strftime_ampm<T>(sp, tm->tm_hour))
                     return 0;
             break;
 
             case 'R': // %H:%M
-                if (!strftime_number<2>(sp, tm->tm_hour))
+                if (!strftime_number<T, 2>(sp, tm->tm_hour))
                     return 0;
 
                 if (sp.empty())
@@ -532,12 +639,12 @@ size_t _strftime(char* s, size_t max, const char* format, const struct tm* tm) {
                 sp[0] = ':';
                 sp = span(sp.data() + 1, sp.size() - 1);
 
-                if (!strftime_number<2>(sp, tm->tm_min))
+                if (!strftime_number<T, 2>(sp, tm->tm_min))
                     return 0;
             break;
 
             case 'S': // second as decimal number
-                if (!strftime_number<2>(sp, tm->tm_sec))
+                if (!strftime_number<T, 2>(sp, tm->tm_sec))
                     return 0;
             break;
 
@@ -550,7 +657,7 @@ size_t _strftime(char* s, size_t max, const char* format, const struct tm* tm) {
             break;
 
             case 'T': // %H:%M:%S
-                if (!strftime_number<2>(sp, tm->tm_hour))
+                if (!strftime_number<T, 2>(sp, tm->tm_hour))
                     return 0;
 
                 if (sp.empty())
@@ -559,7 +666,7 @@ size_t _strftime(char* s, size_t max, const char* format, const struct tm* tm) {
                 sp[0] = ':';
                 sp = span(sp.data() + 1, sp.size() - 1);
 
-                if (!strftime_number<2>(sp, tm->tm_min))
+                if (!strftime_number<T, 2>(sp, tm->tm_min))
                     return 0;
 
                 if (sp.empty())
@@ -568,17 +675,17 @@ size_t _strftime(char* s, size_t max, const char* format, const struct tm* tm) {
                 sp[0] = ':';
                 sp = span(sp.data() + 1, sp.size() - 1);
 
-                if (!strftime_number<2>(sp, tm->tm_sec))
+                if (!strftime_number<T, 2>(sp, tm->tm_sec))
                     return 0;
             break;
 
             case 'u': // weekday as decimal number, 1 = Monday, 7 = Sunday
-                if (!strftime_number<1>(sp, tm->tm_wday == 0 ? 7 : tm->tm_wday))
+                if (!strftime_number<T, 1>(sp, tm->tm_wday == 0 ? 7 : tm->tm_wday))
                     return 0;
             break;
 
             case 'U': // week number of year as decimal number, Sunday start
-                if (!strftime_number<2>(sp, (tm->tm_yday + 7 - tm->tm_wday) / 7))
+                if (!strftime_number<T, 2>(sp, (tm->tm_yday + 7 - tm->tm_wday) / 7))
                     return 0;
             break;
 
@@ -594,24 +701,29 @@ size_t _strftime(char* s, size_t max, const char* format, const struct tm* tm) {
                 else
                     week = (thu_yday / 7) + 1;
 
-                if (!strftime_number<2>(sp, week))
+                if (!strftime_number<T, 2>(sp, week))
                     return 0;
 
                 break;
             }
 
             case 'w': // weekday as decimal number, 0 = Sunday, 6 = Saturday
-                if (!strftime_number<1>(sp, tm->tm_wday))
+                if (!strftime_number<T, 1>(sp, tm->tm_wday))
                     return 0;
             break;
 
             case 'W': // week number of year as decimal number, Monday start
-                if (!strftime_number<2>(sp, (tm->tm_yday + 7 - (tm->tm_wday + 6) % 7) / 7))
+                if (!strftime_number<T, 2>(sp, (tm->tm_yday + 7 - (tm->tm_wday + 6) % 7) / 7))
                     return 0;
             break;
 
             case 'x': { // "locale's appropriate date representation"
-                auto ret = _strftime(sp.data(), sp.size(), "%d/%m/%Y", tm);
+                size_t ret;
+
+                if constexpr (is_same_v<T, char>)
+                    ret = do_strftime<T>(sp.data(), sp.size(), "%d/%m/%Y", tm);
+                else if constexpr (is_same_v<T, wchar_t>)
+                    ret = do_strftime<T>(sp.data(), sp.size(), L"%d/%m/%Y", tm);
 
                 if (ret == 0)
                     return 0;
@@ -622,7 +734,12 @@ size_t _strftime(char* s, size_t max, const char* format, const struct tm* tm) {
             }
 
             case 'X': { // "locale's appropriate time representation"
-                auto ret = _strftime(sp.data(), sp.size(), "%H:%M:%S", tm);
+                size_t ret;
+
+                if constexpr (is_same_v<T, char>)
+                    ret = do_strftime<T>(sp.data(), sp.size(), "%H:%M:%S", tm);
+                else if constexpr (is_same_v<T, wchar_t>)
+                    ret = do_strftime<T>(sp.data(), sp.size(), L"%H:%M:%S", tm);
 
                 if (ret == 0)
                     return 0;
@@ -633,39 +750,59 @@ size_t _strftime(char* s, size_t max, const char* format, const struct tm* tm) {
             }
 
             case 'y': // year % 100
-                if (!strftime_number<2>(sp, tm->tm_year % 100))
+                if (!strftime_number<T, 2>(sp, tm->tm_year % 100))
                     return 0;
             break;
 
             case 'Y': // year
-                if (!strftime_number<4>(sp, tm->tm_year + 1900))
+                if (!strftime_number<T, 4>(sp, tm->tm_year + 1900))
                     return 0;
             break;
 
             case 'z': { // timezone offset
-                static const string_view TZOFF = "+0000";
-
                 // FIXME - get from extended struct tm
 
-                if (sp.size() < TZOFF.size())
-                    return 0;
+                if constexpr (is_same_v<T, char>) {
+                    static const string_view TZOFF = "+0000";
 
-                memcpy(sp.data(), TZOFF.data(), TZOFF.size());
-                sp = span(sp.data() + TZOFF.size(), sp.size() - TZOFF.size());
+                    if (sp.size() < TZOFF.size())
+                        return 0;
+
+                    memcpy(sp.data(), TZOFF.data(), TZOFF.size());
+                    sp = span(sp.data() + TZOFF.size(), sp.size() - TZOFF.size());
+                } else {
+                    static const wstring_view TZOFF = L"+0000";
+
+                    if (sp.size() < TZOFF.size())
+                        return 0;
+
+                    memcpy(sp.data(), TZOFF.data(), TZOFF.size() * sizeof(wchar_t));
+                    sp = span(sp.data() + TZOFF.size(), sp.size() - TZOFF.size());
+                }
 
                 break;
             }
 
             case 'Z': { // timezone name
-                static const string_view TZNAME = "UTC";
-
                 // FIXME - get from extended struct tm
 
-                if (sp.size() < TZNAME.size())
-                    return 0;
+                if constexpr (is_same_v<T, char>) {
+                    static const string_view TZNAME = "UTC";
 
-                memcpy(sp.data(), TZNAME.data(), TZNAME.size());
-                sp = span(sp.data() + TZNAME.size(), sp.size() - TZNAME.size());
+                    if (sp.size() < TZNAME.size())
+                        return 0;
+
+                    memcpy(sp.data(), TZNAME.data(), TZNAME.size());
+                    sp = span(sp.data() + TZNAME.size(), sp.size() - TZNAME.size());
+                } else {
+                    static const wstring_view TZNAME = L"UTC";
+
+                    if (sp.size() < TZNAME.size())
+                        return 0;
+
+                    memcpy(sp.data(), TZNAME.data(), TZNAME.size() * sizeof(wchar_t));
+                    sp = span(sp.data() + TZNAME.size(), sp.size() - TZNAME.size());
+                }
 
                 break;
             }
@@ -679,7 +816,7 @@ size_t _strftime(char* s, size_t max, const char* format, const struct tm* tm) {
             break;
         }
 
-        fmt = string_view(fmt.data() + 1, fmt.size() - 1);
+        fmt = basic_string_view<T>(fmt.data() + 1, fmt.size() - 1);
 
         if (fmt.empty())
             break;
@@ -694,6 +831,16 @@ size_t _strftime(char* s, size_t max, const char* format, const struct tm* tm) {
     sp[0] = 0;
 
     return (size_t)(sp.data() - s);
+}
+
+extern "C"
+size_t _strftime(char* s, size_t max, const char* format, const struct tm* tm) {
+    return do_strftime<char>(s, max, format, tm);
+}
+
+extern "C"
+size_t wcsftime(wchar_t* s, size_t max, const wchar_t* format, const struct tm* tm) {
+    return do_strftime<wchar_t>(s, max, format, tm);
 }
 
 extern "C"

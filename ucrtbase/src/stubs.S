@@ -3,7 +3,6 @@
 stubs_start
 
 do_stub "_beginthreadex"
-do_stub "wcsftime"
 do_stub "asctime"
 do_stub "fgetpos"
 do_stub "fsetpos"

@@ -345,10 +345,10 @@ wcsxfrm
 wcstof
 wcstod
 wcstold
+wcsftime
 
 ; stubs
 _beginthreadex
-wcsftime
 asctime
 fgetpos
 fsetpos
