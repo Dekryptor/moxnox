@@ -3,6 +3,7 @@ module;
 #include <optional>
 #include <mutex>
 #include <new>
+#include <bit>
 #include <signal.h>
 #include "timer-asm.h"
 
@@ -30,6 +31,7 @@ import aarch64;
 
 using std::lock_guard;
 using std::nullopt;
+using std::countr_zero;
 
 #ifdef __x86_64__
 static const uint16_t kernel_CS = 0x8;
@@ -737,6 +739,9 @@ nt_status thread::set_information(THREAD_INFORMATION_CLASS info_class,
         case MoxnoxSignalsMask:
             return set_signals_mask(buffer);
 
+        case MoxnoxWaitForSignal:
+            return wait_for_signal(buffer);
+
         default:
             return nt_status::NOT_IMPLEMENTED;
     }
@@ -864,6 +869,85 @@ nt_status thread::set_signals_mask(span<const uint8_t> buffer) {
     }
 
     return nt_status::SUCCESS;
+}
+
+nt_status thread::wait_for_signal(span<const uint8_t> buffer) {
+    sig_waiter sw;
+
+    if (buffer.size() != sizeof(sigset_t))
+        return nt_status::INVALID_PARAMETER;
+
+    auto set = *(sigset_t*)buffer.data();
+
+    disable_interrupts();
+    acquire_sync_lock();
+
+    proc->signals_lock.lock();
+
+    if (pending_signals & set) {
+        auto u = pending_signals & set;
+        auto sig = countr_zero(u) + 1;
+
+        pending_signals &= ~((sigset_t)1 << (sig - 1));
+
+        proc->signals_lock.unlock();
+        release_sync_lock();
+        enable_interrupts();
+
+        return (nt_status)sig;
+    }
+
+    if (proc->pending_signals & set) {
+        auto u = proc->pending_signals & set;
+        auto sig = countr_zero(u) + 1;
+
+        proc->pending_signals &= ~((sigset_t)1 << (sig - 1));
+
+        proc->signals_lock.unlock();
+        release_sync_lock();
+        enable_interrupts();
+
+        return (nt_status)sig;
+    }
+
+    auto& t = *get_cpu_block()->current_thread;
+
+    sw.set = set;
+    sw.t = &t;
+    sw.sig = 0;
+    insert_tail_list(proc->sig_waiters, sw.le);
+
+    proc->signals_lock.unlock();
+
+    set_current_thread_waiting(true);
+
+    // after wait - sync_lock released and interrupts re-enabled
+
+    {
+        lock_guard lock(proc->signals_lock);
+
+        if (sw.sig == 0) // woken up because interrupted, entry still on list
+            remove_entry_list(sw.le);
+    }
+
+    if (t.status == thread_status::dying)
+        return nt_status::THREAD_IS_TERMINATING;
+
+    if (sw.sig != 0)
+        return (nt_status)sw.sig;
+
+    if (t.suspend_count.load() != 0)
+        return nt_status::ALERTED;
+
+    {
+        lock_guard lock(t.apc_lock);
+
+        if (!is_list_empty(t.pending_apcs))
+            return nt_status::USER_APC;
+    }
+
+    // should be unreachable
+    return nt_status::INTERNAL_ERROR;
 }
 
 extern "C"

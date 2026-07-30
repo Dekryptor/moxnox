@@ -4,6 +4,7 @@ module;
 #include <span>
 #include <atomic>
 #include <optional>
+#include <signal.h>
 #include "context_offsets.h"
 
 export module process;
@@ -70,6 +71,13 @@ public:
 
 private:
     atomic<unsigned int> refcount = 1;
+};
+
+export struct sig_waiter {
+    list_entry le;
+    sigset_t set;
+    int sig;
+    void* t;
 };
 
 export class process : public sync_object {
@@ -181,6 +189,7 @@ public:
     object_ref unreaped_children_event;
     list_entry wait_child_waiters = { &wait_child_waiters, &wait_child_waiters };
     bool is_init = false;
+    list_entry sig_waiters = { &sig_waiters, &sig_waiters };
 
     spinlock vm_sect_lock;
     object_ref vm_sect;

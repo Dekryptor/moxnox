@@ -4965,10 +4965,32 @@ static nt_status set_pending_signal2(process& proc, int sig) {
     }
 
     {
-        lock_guard lock(proc.signals_lock);
+        sync_lock sl;
+        lock_guard lock1(sl);
+        lock_guard lock2(proc.signals_lock);
+
+        for (auto le = proc.sig_waiters.next; le != &proc.sig_waiters; le = le->next) {
+            auto& sw = containing_record<sig_waiter>(le);
+
+            if (sw.set & mask) {
+                auto& t = *(::thread*)sw.t;
+
+                sw.sig = sig;
+                remove_entry_list(sw.le);
+
+                if (t.status == thread_status::waiting) {
+                    if (t.wait_timeout != 0)
+                        remove_entry_list(t.timeout_le);
+
+                    t.status = thread_status::runnable;
+                }
+
+                return nt_status::SUCCESS;
+            }
+        }
 
         {
-            lock_guard lock2(proc.threads_lock);
+            lock_guard lock3(proc.threads_lock);
 
             for (auto le = proc.threads.next; le != &proc.threads; le = le->next) {
                 auto& t = *(::thread*)((uint8_t*)le - offsetof(::thread, process_le));

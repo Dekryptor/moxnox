@@ -99,6 +99,7 @@ public:
     nt_status query_signals_mask(span<uint8_t> buffer, uint32_t& return_length);
     nt_status queue_apc(PS_APC_ROUTINE apc_routine, void* apc_arg1,
                         void* apc_arg2, void* apc_arg3);
+    nt_status wait_for_signal(span<const uint8_t> buffer);
 
     list_entry le;
     CONTEXT context;
