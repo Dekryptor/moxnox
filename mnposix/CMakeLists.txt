@@ -63,6 +63,7 @@ add_library(mnposix SHARED
     src/sched.cpp
     src/string.cpp
     src/socket.cpp
+    src/syslog.cpp
 )
 
 target_compile_options(mnposix PRIVATE -fno-exceptions ${USERSPACE_CFLAGS})

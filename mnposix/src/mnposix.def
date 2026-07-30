@@ -205,3 +205,6 @@ confstr
 socketpair
 getlogin
 getlogin_r
+openlog
+syslog
+closelog

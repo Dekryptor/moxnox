@@ -205,6 +205,9 @@ confstr
 socketpair
 getlogin
 getlogin_r
+openlog
+syslog
+closelog
 
 ; stubs
 mbsinit
@@ -215,9 +218,6 @@ __fpurge
 __fseterr
 getprogname
 sigsuspend
-openlog
-syslog
-closelog
 getlocalename_l
 getpriority
 gethostid
