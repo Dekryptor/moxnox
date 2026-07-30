@@ -367,3 +367,13 @@ char* strncat(char* dest, const char* src, size_t n) {
 
     return orig_dest;
 }
+
+extern "C"
+size_t strxfrm(char* dest, const char* src, size_t size) {
+    auto len = strlen(src);
+
+    if (size > 0)
+        memcpy(dest, src, min(len + 1, size));
+
+    return len;
+}

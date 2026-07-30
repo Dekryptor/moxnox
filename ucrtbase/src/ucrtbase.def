@@ -364,3 +364,4 @@ fputwc
 putwc = fputwc
 mbsrtowcs
 wcscoll
+strxfrm

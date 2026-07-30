@@ -4,7 +4,6 @@ stubs_start
 
 do_stub "_beginthreadex"
 do_stub "wcstod"
-do_stub "strxfrm"
 do_stub "wcsftime"
 do_stub "wcsxfrm"
 do_stub "asctime"
