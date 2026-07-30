@@ -198,6 +198,7 @@ pthread_mutex_timedlock
 mbsnrtowcs
 wcsnrtombs
 posix_madvise
+posix_fadvise
 
 ; stubs
 mbsinit
@@ -237,4 +238,3 @@ mkfifo
 mlock
 munlock
 open_memstream
-posix_fadvise

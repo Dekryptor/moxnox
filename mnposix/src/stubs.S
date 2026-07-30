@@ -39,6 +39,5 @@ do_stub "mkfifo"
 do_stub "mlock"
 do_stub "munlock"
 do_stub "open_memstream"
-do_stub "posix_fadvise"
 
 stubs_end

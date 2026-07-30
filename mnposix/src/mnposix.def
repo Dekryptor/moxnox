@@ -198,3 +198,4 @@ pthread_mutex_timedlock
 mbsnrtowcs
 wcsnrtombs
 posix_madvise
+posix_fadvise

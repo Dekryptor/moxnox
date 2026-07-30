@@ -1713,3 +1713,27 @@ int faccessat(int dirfd, const char* path, int /*mode*/, int flags) {
 
     return 0;
 }
+
+extern "C"
+int posix_fadvise(int fd, off_t /*offset*/, off_t len, int advice) {
+    if (len < 0)
+        return EINVAL;
+
+    auto h = (HANDLE)_get_osfhandle(fd);
+    if (h == (HANDLE)-1)
+        return EBADF;
+
+    switch (advice) {
+        case POSIX_FADV_NORMAL:
+        case POSIX_FADV_SEQUENTIAL:
+        case POSIX_FADV_RANDOM:
+        case POSIX_FADV_WILLNEED:
+        case POSIX_FADV_DONTNEED:
+        case POSIX_FADV_NOREUSE:
+            // FIXME - actually do something
+            return 0;
+
+        default:
+            return EINVAL;
+    }
+}
