@@ -93,12 +93,27 @@ void* operator new(size_t count) {
 }
 
 extern "C++"
+void* operator new[](size_t count) {
+    return malloc(count);
+}
+
+extern "C++"
 void operator delete(void* ptr) noexcept {
     free(ptr);
 }
 
 extern "C++"
+void operator delete[](void* ptr) noexcept {
+    free(ptr);
+}
+
+extern "C++"
 void operator delete(void* ptr, size_t) noexcept {
+    free(ptr);
+}
+
+extern "C++"
+void operator delete[](void* ptr, size_t) noexcept {
     free(ptr);
 }
 
