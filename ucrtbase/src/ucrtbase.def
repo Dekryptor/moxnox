@@ -371,3 +371,4 @@ wcstod
 wcstold = wcstod
 wcsftime
 asctime
+_timespec64_get

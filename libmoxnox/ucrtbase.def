@@ -347,6 +347,7 @@ wcstod
 wcstold
 wcsftime
 asctime
+_timespec64_get
 
 ; stubs
 _beginthreadex
@@ -355,4 +356,3 @@ fsetpos
 wcscat
 _crt_at_quick_exit
 quick_exit
-_timespec64_get

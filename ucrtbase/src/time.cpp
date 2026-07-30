@@ -978,3 +978,31 @@ char* asctime(const struct tm* tm) {
 
     return buf;
 }
+
+static int timespec_get_utc(timespec& tp) {
+    LARGE_INTEGER li;
+
+    auto status = NtQuerySystemTime(&li);
+    if (!success(status))
+        return 0;
+
+    auto t = (uint64_t)li.QuadPart; // units of 100ns
+
+    t -= 116444736000000000; // change from NT to Unix epoch
+
+    tp.tv_sec = t / 10000000;
+    tp.tv_nsec = (long)((t % 10000000) * 100);
+
+    return TIME_UTC;
+}
+
+extern "C"
+int _timespec64_get(timespec* tp, int base) {
+    switch (base) {
+        case TIME_UTC:
+            return timespec_get_utc(*tp);
+
+        default:
+            return 0;
+    }
+}
