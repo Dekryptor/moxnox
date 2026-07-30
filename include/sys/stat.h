@@ -123,9 +123,11 @@ struct _stat64 {
     time_t st_ctime;
 };
 
+#define S_IFIFO 0010000
 #define S_IFLNK 0120000
 #define S_IFSOCK 0140000
 
+#define S_ISFIFO(m) (((m) & 0170000) == S_IFIFO)
 #define S_ISLNK(m) (((m) & 0170000) == S_IFLNK)
 #define S_ISSOCK(m) (((m) & 0170000) == S_IFSOCK)
 
