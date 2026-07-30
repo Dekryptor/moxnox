@@ -6,6 +6,7 @@
 #include <string.h>
 #include <sys/statvfs.h>
 #include <fcntl.h>
+#include <unistd.h>
 #include <string_view>
 #include <span>
 #include <memory>
@@ -443,8 +444,8 @@ ssize_t readlinkat(int dirfd, const char* path, char* buf, size_t bufsiz) {
 }
 
 extern "C"
-ssize_t readlink(const char* path, char* buf, size_t bufsiz) {
-    return readlinkat(AT_FDCWD, path, buf, bufsiz);
+int readlink(const char* path, char* buf, size_t bufsiz) {
+    return (int)readlinkat(AT_FDCWD, path, buf, bufsiz);
 }
 
 extern "C"
