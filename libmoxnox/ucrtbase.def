@@ -346,10 +346,10 @@ wcstof
 wcstod
 wcstold
 wcsftime
+asctime
 
 ; stubs
 _beginthreadex
-asctime
 fgetpos
 fsetpos
 wcscat

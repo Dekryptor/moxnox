@@ -968,3 +968,13 @@ extern "C"
 long* ____timezone() {
     return &_timezone;
 }
+
+extern "C"
+char* asctime(const struct tm* tm) {
+    static char buf[26];
+
+    if (_strftime(buf, sizeof(buf), "%a %b %e %H:%M:%S %Y\n", tm) == 0)
+        return nullptr;
+
+    return buf;
+}

@@ -370,3 +370,4 @@ wcstof
 wcstod
 wcstold = wcstod
 wcsftime
+asctime
