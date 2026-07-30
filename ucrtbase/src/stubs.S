@@ -3,7 +3,6 @@
 stubs_start
 
 do_stub "_beginthreadex"
-do_stub "wcstod"
 do_stub "wcsftime"
 do_stub "asctime"
 do_stub "fgetpos"
@@ -12,6 +11,5 @@ do_stub "wcscat"
 do_stub "_crt_at_quick_exit"
 do_stub "quick_exit"
 do_stub "_timespec64_get"
-do_stub "wcstold"
 
 stubs_end

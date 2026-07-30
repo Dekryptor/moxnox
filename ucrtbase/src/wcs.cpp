@@ -398,3 +398,40 @@ float wcstof(const wchar_t* str, wchar_t** str_end) {
 
     return ret;
 }
+
+extern "C"
+double wcstod(const wchar_t* str, wchar_t** str_end) {
+    auto u16sv = u16string_view((char16_t*)str);
+    auto len = utf16_to_utf8_len(u16sv);
+    char* end;
+
+    // FIXME - clamp to first non-ASCII unit (utf16_to_utf8_len returns 0 if any lone surrogate found)
+
+    if (len == 0) {
+        if (str_end)
+            *str_end = (wchar_t*)str;
+
+        *__errno() = EINVAL;
+        return 0.0;
+    }
+
+    unique_ptr<char[]> buf;
+
+    buf.reset(new char[len + 1]);
+    if (!buf) {
+        *__errno() = ENOMEM;
+        return 0.0;
+    }
+
+    auto sp = span(buf.get(), len);
+
+    utf16_to_utf8(sp, u16sv);
+    buf[len] = 0;
+
+    auto ret = strtod(buf.get(), &end);
+
+    if (str_end)
+        *str_end = (wchar_t*)str + utf8_to_utf16_len(string_view(buf.get(), (size_t)(end - buf.get())));
+
+    return ret;
+}

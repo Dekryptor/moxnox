@@ -367,3 +367,5 @@ wcscoll
 strxfrm
 wcsxfrm
 wcstof
+wcstod
+wcstold = wcstod
