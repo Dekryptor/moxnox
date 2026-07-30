@@ -664,6 +664,20 @@ install(TARGETS pthread-test DESTINATION ${CMAKE_INSTALL_PREFIX}/bin COMPONENT c
 
 ###
 
+add_executable(fifo-test src/fifo-test.cpp)
+
+target_compile_options(fifo-test PRIVATE -fno-exceptions ${USERSPACE_CFLAGS})
+
+if (CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
+    target_link_options(fifo-test PUBLIC -mcrtdll=ucrtbase)
+endif()
+
+target_link_libraries(fifo-test moxnox print unicode)
+
+install(TARGETS fifo-test DESTINATION ${CMAKE_INSTALL_PREFIX}/bin COMPONENT core)
+
+###
+
 add_executable(ntqo-test src/ntqo-test.cpp)
 
 target_compile_options(ntqo-test PRIVATE -fno-exceptions ${USERSPACE_CFLAGS})
