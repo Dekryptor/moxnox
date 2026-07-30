@@ -14,6 +14,7 @@ import rangelock;
 import rbtree;
 import spinlock;
 import nt;
+import vec;
 
 using namespace std;
 
@@ -52,6 +53,8 @@ public:
                           span<uint8_t> data, uint64_t offset);
     void copy_into_buffer_and_unpin(uint64_t first_page, uint64_t num_pages,
                                     span<uint8_t> data, uint64_t offset);
+    void copy_into_vec_and_unpin(uint64_t first_page, uint64_t num_pages,
+                                 span<const span<uint8_t>> v, uint64_t offset);
     void unpin(uint64_t first_page, uint64_t num_pages);
     bool write_pages_and_unpin(uint64_t first_page, uint64_t num_pages,
                                span<const uint8_t> data);
@@ -85,6 +88,11 @@ public:
         base.copy_into_buffer_and_unpin(first_page, num_pages, data, offset);
     }
 
+    void copy_into_vec_and_unpin(uint64_t first_page, uint64_t num_pages,
+                                 span<const span<uint8_t>> v, uint64_t offset) {
+        base.copy_into_vec_and_unpin(first_page, num_pages, v, offset);
+    }
+
     bool find_dirty_range(page_cache_entry*& range_start,
                           uint64_t& range_length);
 
@@ -104,6 +112,7 @@ public:
     nt_status read_into_cache_and_pin(uint64_t first_page, uint64_t num_pages,
                                       uint64_t& read_pages);
     nt_status read(span<uint8_t> data, uint64_t offset);
+    nt_status read_vec(span<const span<uint8_t>> v, uint64_t offset);
 
     page_cache_entry* next_page_cache_entry(const page_cache_entry& ent) {
         return base.next_page_cache_entry(ent);
@@ -527,22 +536,29 @@ nt_status page_cache<T>::read_into_cache_and_pin(uint64_t first_page, uint64_t n
 }
 
 template<typename T>
-nt_status page_cache<T>::read(span<uint8_t> data, uint64_t offset) {
-    if (data.empty())
+nt_status page_cache<T>::read_vec(span<const span<uint8_t>> v, uint64_t offset) {
+    size_t vec_size = get_vec_size(v);
+
+    if (vec_size == 0)
         return nt_status::SUCCESS;
 
-    auto status = read_and_pin(*this, offset, data.size());
+    auto status = read_and_pin(*this, offset, vec_size);
     if (!success(status))
         return status;
 
     uint64_t first_page = offset >> PAGE_SHIFT;
-    uint64_t num_pages = ((offset + data.size() - 1) >> PAGE_SHIFT) - first_page + 1;
+    uint64_t num_pages = ((offset + vec_size - 1) >> PAGE_SHIFT) - first_page + 1;
 
-    copy_into_buffer_and_unpin(first_page, num_pages, data, offset);
+    copy_into_vec_and_unpin(first_page, num_pages, v, offset);
 
     // FIXME - LRU
 
     return nt_status::SUCCESS;
+}
+
+template<typename T>
+nt_status page_cache<T>::read(span<uint8_t> data, uint64_t offset) {
+    return read_vec(span(&data, 1), offset);
 }
 
 template<typename T>

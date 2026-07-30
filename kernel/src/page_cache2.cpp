@@ -152,11 +152,15 @@ void page_cache_base::copy_into_buffer(uint64_t first_page, uint64_t num_pages,
     }
 }
 
-void page_cache_base::copy_into_buffer_and_unpin(uint64_t first_page, uint64_t num_pages,
-                                                 span<uint8_t> data, uint64_t offset) {
+void page_cache_base::copy_into_vec_and_unpin(uint64_t first_page,
+                                              uint64_t num_pages,
+                                              span<const span<uint8_t>> v,
+                                              uint64_t offset) {
     lock_guard lg(cache_lock);
 
     page_cache_entry* ent;
+    size_t vec_size = get_vec_size(v);
+    span<uint8_t> top = v.empty() ? span<uint8_t>() : v.front();
 
     for (uint64_t i = 0; i < num_pages; i++) {
         if (i == 0)
@@ -173,16 +177,22 @@ void page_cache_base::copy_into_buffer_and_unpin(uint64_t first_page, uint64_t n
         if (i == 0 && offset & (PAGE_SIZE - 1)) {
             size_t off = offset & (PAGE_SIZE - 1);
 
-            memcpy(data.data(), (uint8_t*)ent_va + off,
-                   min(data.size(), (size_t)PAGE_SIZE - off));
-            data = data.subspan(min(data.size(), (size_t)PAGE_SIZE - off));
+            memcpy_vec(v, top, (uint8_t*)ent_va + off,
+                       min(vec_size, (size_t)PAGE_SIZE - off));
+            vec_size -= min(vec_size, (size_t)PAGE_SIZE - off);
         } else {
-            memcpy(data.data(), ent_va, min(data.size(), (size_t)PAGE_SIZE));
-            data = data.subspan(min(data.size(), (size_t)PAGE_SIZE));
+            memcpy_vec(v, top, (uint8_t*)ent_va, min(vec_size, (size_t)PAGE_SIZE));
+            vec_size -= min(vec_size, (size_t)PAGE_SIZE);
         }
 
         ent->refcount--;
     }
+}
+
+void page_cache_base::copy_into_buffer_and_unpin(uint64_t first_page, uint64_t num_pages,
+                                                 span<uint8_t> data, uint64_t offset) {
+    return copy_into_vec_and_unpin(first_page, num_pages, span(&data, 1),
+                                   offset);
 }
 
 void page_cache_base::unpin(uint64_t first_page, uint64_t num_pages) {

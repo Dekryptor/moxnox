@@ -45,6 +45,8 @@ public:
                                 bool fua = false) = 0;
 
     nt_status read(span<uint8_t> s, uint64_t offset, uint64_t& read_bytes);
+    nt_status read_vec(span<const span<uint8_t>> v, uint64_t offset,
+                       uint64_t& read_bytes);
     nt_status read_into_cache(uint64_t page_num, uint64_t num_pages,
                               uint64_t& read_pages);
     nt_status flush_cache(uint64_t page_num, uint64_t num_pages);
@@ -91,5 +93,3 @@ public:
     uint64_t length_pages;
     list_entry part_le;
 };
-
-static_assert(is_readable_object_with_offset<diskpart>);
