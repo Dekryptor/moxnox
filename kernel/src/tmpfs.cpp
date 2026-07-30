@@ -80,6 +80,8 @@ public:
 private:
     nt_status get_reparse_point(span<uint8_t> outbuf, uint32_t& retlen);
     nt_status set_reparse_point(span<const uint8_t> inbuf);
+    nt_status set_reparse_point_symlink(span<const uint8_t> inbuf);
+    nt_status set_reparse_point_fifo();
 };
 
 struct tmpfs_dentry {
@@ -912,16 +914,13 @@ nt_status tmpfs_inode::get_reparse_point(span<uint8_t> outbuf, uint32_t& retlen)
     return nt_status::SUCCESS;
 }
 
-nt_status tmpfs_inode::set_reparse_point(span<const uint8_t> inbuf) {
+nt_status tmpfs_inode::set_reparse_point_symlink(span<const uint8_t> inbuf) {
     unique_ptr<char[]> u8;
 
     if (inbuf.size() < offsetof(REPARSE_DATA_BUFFER, SymbolicLinkReparseBuffer.PathBuffer))
         return nt_status::BUFFER_TOO_SMALL;
 
     auto& rdb = *(REPARSE_DATA_BUFFER*)inbuf.data();
-
-    if (rdb.ReparseTag != IO_REPARSE_TAG_SYMLINK)
-        return nt_status::INVALID_PARAMETER;
 
     size_t buflen = inbuf.size() - offsetof(REPARSE_DATA_BUFFER, SymbolicLinkReparseBuffer.PathBuffer);
 
@@ -960,6 +959,43 @@ nt_status tmpfs_inode::set_reparse_point(span<const uint8_t> inbuf) {
     }
 
     return nt_status::SUCCESS;
+}
+
+nt_status tmpfs_inode::set_reparse_point_fifo() {
+    {
+        lock_guard lock(inode_lock);
+
+        if (file_size != 0)
+            return nt_status::INVALID_PARAMETER;
+
+        if (nlink != 1)
+            return nt_status::INVALID_PARAMETER;
+
+        if (inode_type != inode_type::file)
+            return nt_status::INVALID_PARAMETER;
+
+        inode_type = inode_type::fifo;
+    }
+
+    return nt_status::SUCCESS;
+}
+
+nt_status tmpfs_inode::set_reparse_point(span<const uint8_t> inbuf) {
+    if (inbuf.size() < offsetof(REPARSE_DATA_BUFFER, GenericReparseBuffer.DataBuffer))
+        return nt_status::BUFFER_TOO_SMALL;
+
+    auto& rdb = *(REPARSE_DATA_BUFFER*)inbuf.data();
+
+    switch (rdb.ReparseTag) {
+        case IO_REPARSE_TAG_SYMLINK:
+           return set_reparse_point_symlink(inbuf);
+
+        case IO_REPARSE_TAG_LX_FIFO:
+            return set_reparse_point_fifo();
+
+        default:
+            return nt_status::INVALID_PARAMETER;
+    }
 }
 
 nt_status tmpfs_inode::hardlink(::dentry& dentry, ::dentry& dest_dir,
