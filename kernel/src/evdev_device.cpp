@@ -28,6 +28,7 @@ import rwsem;
 import kernel_time_page;
 import config;
 import disable_interrupts;
+import vec;
 
 #ifdef __aarch64__
 import aarch64;
@@ -44,6 +45,10 @@ public:
     }
 
     nt_status read(span<uint8_t>, uint64_t&) override {
+        return nt_status::NOT_SUPPORTED;
+    }
+
+    nt_status read_vec(span<const span<uint8_t>>, uint64_t&) override {
         return nt_status::NOT_SUPPORTED;
     }
 
@@ -111,6 +116,7 @@ public:
     }
 
     nt_status read(span<uint8_t> s, uint64_t& read_bytes) override;
+    nt_status read_vec(span<const span<uint8_t>> v, uint64_t& read_bytes) override;
 
     nt_status write(span<const uint8_t> s, uint64_t& written_bytes) override {
         return p.write(s, written_bytes);
@@ -143,6 +149,10 @@ public:
     evdev_device() : chardev() { }
 
     nt_status read(span<uint8_t>, uint64_t&) override {
+        return nt_status::NOT_SUPPORTED;
+    }
+
+    nt_status read_vec(span<const span<uint8_t>>, uint64_t&) override {
         return nt_status::NOT_SUPPORTED;
     }
 
@@ -200,6 +210,7 @@ public:
     }
 
     nt_status read(span<uint8_t> s, uint64_t& read_bytes) override;
+    nt_status read_vec(span<const span<uint8_t>> v, uint64_t& read_bytes) override;
 
     nt_status write(span<const uint8_t> s, uint64_t& written_bytes) override {
         return p.write(s, written_bytes);
@@ -410,9 +421,14 @@ nt_status evdev_multiplexer::userspace_open(object_ref& objref) {
     return nt_status::SUCCESS;
 }
 
-nt_status evdev_multiplexer_client::read(span<uint8_t> s, uint64_t& read_bytes) {
-    if (s.size() < sizeof(input_event_with_id))
+nt_status evdev_multiplexer_client::read_vec(span<const span<uint8_t>> v,
+                                             uint64_t& read_bytes) {
+    size_t vec_size = get_vec_size(v);
+
+    if (vec_size < sizeof(input_event_with_id))
         return nt_status::BUFFER_TOO_SMALL;
+
+    span<uint8_t> top = v.front();
 
     read_bytes = 0;
 
@@ -427,7 +443,7 @@ nt_status evdev_multiplexer_client::read(span<uint8_t> s, uint64_t& read_bytes) 
             {
                 lock_guard lock(items_lock);
 
-                if (!is_list_empty(items) && s.size() >= sizeof(input_event_with_id)) {
+                if (!is_list_empty(items) && vec_size >= sizeof(input_event_with_id)) {
                     auto& it2 = containing_record<input_event_with_id_item>(items.next);
 
                     remove_entry_list(it2.le);
@@ -452,14 +468,18 @@ nt_status evdev_multiplexer_client::read(span<uint8_t> s, uint64_t& read_bytes) 
                     signalled = false;
             }
 
-            memcpy(s.data(), &it->ev, sizeof(input_event_with_id));
-            s = s.subspan(sizeof(input_event_with_id));
+            memcpy_vec(v, top, (uint8_t*)&it->ev, sizeof(input_event_with_id));
+            vec_size -= sizeof(input_event_with_id);
 
             delete it;
 
             read_bytes += sizeof(input_event_with_id);
         }
     }
+}
+
+nt_status evdev_multiplexer_client::read(span<uint8_t> s, uint64_t& read_bytes) {
+    return read_vec(span(&s, 1), read_bytes);
 }
 
 void evdev_multiplexer::post_event(const input_event& ev, uint32_t id) {
@@ -592,9 +612,14 @@ nt_status evdev_multiplexer::write(span<const uint8_t> s, uint64_t& written_byte
     return status;
 }
 
-nt_status evdev_device_client::read(span<uint8_t> s, uint64_t& read_bytes) {
-    if (s.size() < sizeof(input_event))
+nt_status evdev_device_client::read_vec(span<const span<uint8_t>> v,
+                                        uint64_t& read_bytes) {
+    size_t vec_size = get_vec_size(v);
+
+    if (vec_size < sizeof(input_event))
         return nt_status::BUFFER_TOO_SMALL;
+
+    span<uint8_t> top = v.front();
 
     read_bytes = 0;
 
@@ -609,7 +634,7 @@ nt_status evdev_device_client::read(span<uint8_t> s, uint64_t& read_bytes) {
             {
                 lock_guard lock(items_lock);
 
-                if (!is_list_empty(items) && s.size() >= sizeof(input_event)) {
+                if (!is_list_empty(items) && vec_size >= sizeof(input_event)) {
                     auto& it2 = containing_record<input_event_item>(items.next);
 
                     remove_entry_list(it2.le);
@@ -634,14 +659,18 @@ nt_status evdev_device_client::read(span<uint8_t> s, uint64_t& read_bytes) {
                     signalled = false;
             }
 
-            memcpy(s.data(), &it->ev, sizeof(input_event));
-            s = s.subspan(sizeof(input_event));
+            memcpy_vec(v, top, (uint8_t*)&it->ev, sizeof(input_event));
+            vec_size -= sizeof(input_event);
 
             delete it;
 
             read_bytes += sizeof(input_event);
         }
     }
+}
+
+nt_status evdev_device_client::read(span<uint8_t> s, uint64_t& read_bytes) {
+    return read_vec(span(&s, 1), read_bytes);
 }
 
 void evdev_device_client::post_event(const input_event& ev) {

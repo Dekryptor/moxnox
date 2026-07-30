@@ -29,6 +29,7 @@ import rwsem;
 import process;
 import list;
 import vfs;
+import vec;
 
 using namespace std;
 
@@ -37,6 +38,10 @@ public:
     ptyctl() { }
 
     nt_status read(span<uint8_t>, uint64_t&) override {
+        return nt_status::NOT_SUPPORTED;
+    }
+
+    nt_status read_vec(span<const span<uint8_t>>, uint64_t&) override {
         return nt_status::NOT_SUPPORTED;
     }
 
@@ -53,6 +58,7 @@ public:
     pty_client(pipe& recv_pipe, pipe& send_pipe, uint16_t cols, uint16_t rows);
     ~pty_client();
     nt_status read(span<uint8_t> s, uint64_t& read_bytes) override;
+    nt_status read_vec(span<const span<uint8_t>> v, uint64_t& read_bytes) override;
     nt_status write(span<const uint8_t> s, uint64_t& written_bytes) override;
     sync_object& get_sync_object() override;
     nt_status ioctl(uint32_t code, span<const uint8_t> inbuf,
@@ -99,6 +105,7 @@ public:
     pty_server(pty_client& client);
     ~pty_server();
     nt_status read(span<uint8_t> s, uint64_t& read_bytes) override;
+    nt_status read_vec(span<const span<uint8_t>> v, uint64_t& read_bytes) override;
     nt_status write(span<const uint8_t> s, uint64_t& written_bytes) override;
     sync_object& get_sync_object() override;
     void last_handle_closed() override;
@@ -132,6 +139,7 @@ public:
     }
 
     nt_status read(span<uint8_t> s, uint64_t& read_bytes) override;
+    nt_status read_vec(span<const span<uint8_t>> v, uint64_t& read_bytes) override;
 
     nt_status write(span<const unsigned char>, uint64_t&) override {
         return nt_status::NOT_SUPPORTED;
@@ -320,8 +328,8 @@ pty_client::~pty_client() {
         fg_pg->release();
 }
 
-nt_status pty_client::read(span<uint8_t> s, uint64_t& read_bytes) {
-    auto ret = recv_pipe.read(s, read_bytes);
+nt_status pty_client::read_vec(span<const span<uint8_t>> v, uint64_t& read_bytes) {
+    auto ret = recv_pipe.read_vec(v, read_bytes);
 
     if (disconnected && read_bytes == 0) {
         lock_guard l(recv_pipe.lock);
@@ -331,6 +339,10 @@ nt_status pty_client::read(span<uint8_t> s, uint64_t& read_bytes) {
     }
 
     return ret;
+}
+
+nt_status pty_client::read(span<uint8_t> s, uint64_t& read_bytes) {
+    return read_vec(span(&s, 1), read_bytes);
 }
 
 static size_t find_newline(span<const uint8_t> s) {
@@ -479,8 +491,13 @@ pty_server::~pty_server() {
     client.release();
 }
 
+nt_status pty_server::read_vec(span<const span<uint8_t>> v,
+                               uint64_t& read_bytes) {
+    return client.send_pipe.read_vec(v, read_bytes);
+}
+
 nt_status pty_server::read(span<uint8_t> s, uint64_t& read_bytes) {
-    return client.send_pipe.read(s, read_bytes);
+    return read_vec(span(&s, 1), read_bytes);
 }
 
 size_t pty_client::process_canonical_input(span<const uint8_t> new_data,
@@ -1083,11 +1100,14 @@ void pty_info::post_info_event(pty_info_type type) {
     }
 }
 
-nt_status pty_info::read(span<uint8_t> s, uint64_t& read_bytes) {
+nt_status pty_info::read_vec(span<const span<uint8_t>> v, uint64_t& read_bytes) {
     nt_status status;
+    size_t vec_size = get_vec_size(v);
 
-    if (s.size() < sizeof(pty_info_event))
+    if (vec_size < sizeof(pty_info_event))
         return nt_status::BUFFER_TOO_SMALL;
+
+    span<uint8_t> top = v.front();
 
     while (true) {
         status = wait_for_object(*this, true);
@@ -1113,9 +1133,13 @@ nt_status pty_info::read(span<uint8_t> s, uint64_t& read_bytes) {
                 signalled = false;
         }
 
-        memcpy(s.data(), &ev->ev, sizeof(pty_info_event));
+        memcpy_vec(v, top, (uint8_t*)&ev->ev, sizeof(pty_info_event));
         read_bytes = sizeof(pty_info_event);
 
         return nt_status::SUCCESS;
     }
+}
+
+nt_status pty_info::read(span<uint8_t> s, uint64_t& read_bytes) {
+    return read_vec(span(&s, 1), read_bytes);
 }

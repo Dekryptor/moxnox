@@ -24,6 +24,7 @@ import handle;
 import object_ref;
 import scheduler;
 import vfs;
+import vec;
 
 using namespace std;
 
@@ -33,6 +34,7 @@ public:
     virtual ~pipe();
 
     NTSTATUS read(span<uint8_t> s, uint64_t& read_bytes) override;
+    NTSTATUS read_vec(span<const span<uint8_t>> v, uint64_t& read_bytes) override;
 
     NTSTATUS write(span<const uint8_t> s, uint64_t& written_bytes) override;
 
@@ -75,6 +77,19 @@ public:
 
     nt_status read(span<uint8_t> s, uint64_t& read_bytes) override {
         auto ret = recv_pipe.read(s, read_bytes);
+
+        if (disconnected && read_bytes == 0) {
+            lock_guard l(recv_pipe.lock);
+
+            if (recv_pipe.buf_unread == 0)
+                return nt_status::PIPE_DISCONNECTED;
+        }
+
+        return ret;
+    }
+
+    nt_status read_vec(span<const span<uint8_t>> v, uint64_t& read_bytes) override {
+        auto ret = recv_pipe.read_vec(v, read_bytes);
 
         if (disconnected && read_bytes == 0) {
             lock_guard l(recv_pipe.lock);
@@ -139,6 +154,10 @@ public:
 
     nt_status read(span<uint8_t> s, uint64_t& read_bytes) override {
         return client.send_pipe.read(s, read_bytes);
+    }
+
+    nt_status read_vec(span<const span<uint8_t>> v, uint64_t& read_bytes) override {
+        return client.send_pipe.read_vec(v, read_bytes);
     }
 
     nt_status write(span<const uint8_t> s, uint64_t& written_bytes) override {
@@ -362,14 +381,16 @@ void pipe::set_eof_pending() {
     }
 }
 
-NTSTATUS pipe::read(span<uint8_t> s, uint64_t& read_bytes) {
+NTSTATUS pipe::read_vec(span<const span<uint8_t>> v, uint64_t& read_bytes) {
     size_t copied = 0;
+    size_t vec_size = get_vec_size(v);
 
-    if (s.empty()) {
+    if (vec_size == 0) {
         read_bytes = 0;
         return nt_status::SUCCESS;
     }
 
+    span<uint8_t> top = v.front();
     optional<uint64_t> timeout;
 
     acquire();
@@ -411,21 +432,20 @@ NTSTATUS pipe::read(span<uint8_t> s, uint64_t& read_bytes) {
             buf_read_pos -= buf_pages << PAGE_SHIFT;
         }
 
-        size_t to_copy = min(s.size(), buf_unread);
+        size_t to_copy = min(vec_size, buf_unread);
 
         if (buf_read_pos + to_copy > buf_pages << PAGE_SHIFT) {
             auto first_bit = (buf_pages << PAGE_SHIFT) - buf_read_pos;
 
-            memcpy(s.data(), &buf[buf_read_pos], first_bit);
+            memcpy_vec(v, top, &buf[buf_read_pos], first_bit);
 
             buf_read_pos = 0;
             buf_unread -= first_bit;
             to_copy -= first_bit;
-            s = s.subspan(first_bit);
             copied = first_bit;
         }
 
-        memcpy(s.data(), &buf[buf_read_pos], to_copy);
+        memcpy_vec(v, top, &buf[buf_read_pos], to_copy);
         buf_unread -= to_copy;
         copied += to_copy;
 
@@ -438,6 +458,10 @@ NTSTATUS pipe::read(span<uint8_t> s, uint64_t& read_bytes) {
 
     read_bytes = copied;
     return nt_status::SUCCESS;
+}
+
+NTSTATUS pipe::read(span<uint8_t> s, uint64_t& read_bytes) {
+    return read_vec(span(&s, 1), read_bytes);
 }
 
 void pipe::clear() {

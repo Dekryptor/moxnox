@@ -222,6 +222,10 @@ public:
         return nt_status::NOT_IMPLEMENTED;
     }
 
+    nt_status read_vec(span<const span<uint8_t>>, uint64_t&) override {
+        return nt_status::NOT_IMPLEMENTED;
+    }
+
     nt_status write(span<const uint8_t>, uint64_t&) override {
         return nt_status::NOT_IMPLEMENTED;
     }

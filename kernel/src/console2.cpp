@@ -36,6 +36,7 @@ import objects;
 import freetype;
 import section;
 import smbios_parser;
+import vec;
 
 using namespace std;
 
@@ -133,6 +134,7 @@ public:
     }
 
     nt_status read(span<uint8_t> s, uint64_t& read_bytes) override;
+    nt_status read_vec(span<const span<uint8_t>> v, uint64_t& read_bytes) override;
     nt_status write(span<const uint8_t> s, uint64_t& written_bytes) override;
 
     spinlock lock;
@@ -1697,8 +1699,16 @@ nt_status console::flush(bool go_readonly) {
     return nt_status::SUCCESS;
 }
 
-nt_status kmsg_buf::read(span<uint8_t> s, uint64_t& read_bytes) {
+nt_status kmsg_buf::read_vec(span<const span<uint8_t>> v, uint64_t& read_bytes) {
     list_entry del_list = { &del_list, &del_list };
+    size_t vec_size = get_vec_size(v);
+
+    if (vec_size == 0) {
+        read_bytes = 0;
+        return nt_status::SUCCESS;
+    }
+
+    span<uint8_t> top = v.front();
 
     {
         sync_lock sl;
@@ -1707,20 +1717,20 @@ nt_status kmsg_buf::read(span<uint8_t> s, uint64_t& read_bytes) {
 
         read_bytes = 0;
 
-        while (!s.empty() && !is_list_empty(pages)) {
+        while (vec_size > 0 && !is_list_empty(pages)) {
             auto& p = containing_record<kmsg_buf_page>(pages.next);
             auto page = (uint8_t*)phys_address(p.pa);
-            auto to_copy = min(s.size(), (size_t)(p.write_pos - p.read_pos));
+            auto to_copy = min(vec_size, (size_t)(p.write_pos - p.read_pos));
 
             if (to_copy == 0)
                 break;
 
-            memcpy(s.data(), page + p.read_pos, to_copy);
+            memcpy_vec(v, top, page + p.read_pos, to_copy);
 
             p.read_pos += (uint16_t)to_copy;
             read_bytes += to_copy;
 
-            s = span(s.data() + to_copy, s.size() - to_copy);
+            vec_size -= to_copy;
 
             if (p.read_pos < PAGE_SIZE)
                 break;
@@ -1747,6 +1757,10 @@ nt_status kmsg_buf::read(span<uint8_t> s, uint64_t& read_bytes) {
     }
 
     return nt_status::SUCCESS;
+}
+
+nt_status kmsg_buf::read(span<uint8_t> s, uint64_t& read_bytes) {
+    return read_vec(span(&s, 1), read_bytes);
 }
 
 nt_status kmsg_buf::write(span<const uint8_t> s, uint64_t& written_bytes) {

@@ -133,7 +133,6 @@ concept is_writable_object_without_offset = requires(T t, span<const uint8_t> s,
     { t.write(s, written_bytes) } -> convertible_to<NTSTATUS>;
 };
 
-// FIXME - version of this specifying offset
 // FIXME - async reads and writes (specifying event)
 export
 template<typename T>
@@ -145,6 +144,18 @@ export
 template<typename T>
 concept is_readable_object_without_offset = requires(T t, span<uint8_t> s, uint64_t& read_bytes) {
     { t.read(s, read_bytes) } -> convertible_to<NTSTATUS>;
+};
+
+export
+template<typename T>
+concept is_readable_vec_object_with_offset = requires(T t, span<const span<uint8_t>> v, uint64_t offset, uint64_t& read_bytes) {
+    { t.read_vec(v, offset, read_bytes) } -> convertible_to<NTSTATUS>;
+};
+
+export
+template<typename T>
+concept is_readable_vec_object_without_offset = requires(T t, span<const span<uint8_t>> v, uint64_t& read_bytes) {
+    { t.read_vec(v, read_bytes) } -> convertible_to<NTSTATUS>;
 };
 
 export
