@@ -200,6 +200,7 @@ wcsnrtombs
 posix_madvise
 posix_fadvise
 setrlimit
+pathconf
 
 ; stubs
 mbsinit
@@ -226,7 +227,6 @@ setpriority
 setresgid
 memmem
 getgroups
-pathconf
 getlogin
 getlogin_r
 confstr

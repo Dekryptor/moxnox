@@ -6,6 +6,7 @@
 #include <string.h>
 #include <sys/statvfs.h>
 #include <fcntl.h>
+#include <limits.h>
 #include <unistd.h>
 #include <string_view>
 #include <span>
@@ -1736,5 +1737,17 @@ int posix_fadvise(int fd, off_t /*offset*/, off_t len, int advice) {
 
         default:
             return EINVAL;
+    }
+}
+
+extern "C"
+long pathconf(const char* /*path*/, int name) {
+    switch (name) {
+        case _PC_PATH_MAX:
+            return PATH_MAX;
+
+        default:
+            *_errno() = EINVAL;
+            return -1;
     }
 }
