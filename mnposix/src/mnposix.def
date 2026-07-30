@@ -209,3 +209,4 @@ openlog
 syslog
 closelog
 open_memstream
+sigwait

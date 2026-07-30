@@ -209,6 +209,7 @@ openlog
 syslog
 closelog
 open_memstream
+sigwait
 
 ; stubs
 mbsinit
@@ -232,7 +233,6 @@ setpriority
 setresgid
 memmem
 getgroups
-sigwait
 readv
 writev
 mkfifo

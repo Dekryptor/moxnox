@@ -350,3 +350,23 @@ char* strsignal(int sig) {
 
     return signal_string;
 }
+
+extern "C"
+int sigwait(const sigset_t* set, int* sig) {
+    while (true) {
+        auto status = NtSetInformationThread(NtCurrentThread(),
+                                             THREAD_INFORMATION_CLASS::MoxnoxWaitForSignal,
+                                             set, sizeof(sigset_t));
+        if (!success(status))
+            return nt_status_to_errno(status);
+
+        if (status == nt_status::ALERTED || status == nt_status::USER_APC)
+            continue;
+
+        *sig = (int)status;
+
+        break;
+    }
+
+    return 0;
+}
