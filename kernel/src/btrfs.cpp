@@ -40,6 +40,7 @@ using namespace std;
 
 static const size_t MAX_INLINE = 2048; // FIXME - should be mount option
 
+static const uint32_t S_IFIFO = 0010000;
 static const uint32_t S_IFREG = 0100000;
 static const uint32_t S_IFLNK = 0120000;
 static const uint32_t S_IFDIR = 0040000;
@@ -192,6 +193,9 @@ private:
     nt_status remove_orphan(bool no_orphan_item);
     nt_status get_reparse_point(span<uint8_t> outbuf, uint32_t& retlen);
     nt_status set_reparse_point(span<const uint8_t> inbuf, dentry& dentry);
+    nt_status set_reparse_point_symlink(span<const uint8_t> inbuf,
+                                        dentry& dentry);
+    nt_status set_reparse_point_fifo(dentry& dentry);
 };
 
 class btrfs_filesystem : public ::filesystem {
@@ -6932,19 +6936,16 @@ static nt_status change_dir_index_type(btrfs_filesystem& fs, btrfs_path& p, root
     return nt_status::SUCCESS;
 }
 
-nt_status btrfs_inode::set_reparse_point(span<const uint8_t> inbuf,
-                                         dentry& dentry) {
+nt_status btrfs_inode::set_reparse_point_symlink(span<const uint8_t> inbuf,
+                                                 dentry& dentry) {
     auto& sb = *fs.sb;
-    nt_status status;
     unique_ptr<char[]> u8;
+    nt_status status;
 
     if (inbuf.size() < offsetof(REPARSE_DATA_BUFFER, SymbolicLinkReparseBuffer.PathBuffer))
         return nt_status::BUFFER_TOO_SMALL;
 
     auto& rdb = *(REPARSE_DATA_BUFFER*)inbuf.data();
-
-    if (rdb.ReparseTag != IO_REPARSE_TAG_SYMLINK)
-        return nt_status::INVALID_PARAMETER;
 
     size_t buflen = inbuf.size() - offsetof(REPARSE_DATA_BUFFER, SymbolicLinkReparseBuffer.PathBuffer);
 
@@ -7035,6 +7036,79 @@ nt_status btrfs_inode::set_reparse_point(span<const uint8_t> inbuf,
     }
 
     return nt_status::SUCCESS;
+}
+
+nt_status btrfs_inode::set_reparse_point_fifo(dentry& dentry) {
+    auto& sb = *fs.sb;
+    nt_status status;
+
+    {
+        lock_guard lock(fs.trans_lock);
+        btrfs_path p(sb.nodesize);
+
+        // FIXME - rollback if this fails halfway through
+
+        {
+            lock_guard lock2(inode_lock);
+
+            if (inode_type != inode_type::file)
+                return nt_status::INVALID_PARAMETER;
+
+            if (file_size != 0)
+                return nt_status::INVALID_PARAMETER;
+
+            if (ii.nlink != 1)
+                return nt_status::INVALID_PARAMETER;
+
+            inode_type = inode_type::fifo;
+
+            ii.mode &= ~S_IFREG;
+            ii.mode |= S_IFIFO;
+        }
+
+        status = flush_inode_item(p);
+        if (!success(status)) {
+            print("btrfs_inode::flush_inode_item returned {}\n", status);
+            return status;
+        }
+
+        auto& parent = static_cast<btrfs_inode&>(*dentry.parent->inode);
+
+        status = change_dir_item_type(fs, p, *r, parent, string_view(dentry.name, dentry.name_len),
+                                      btrfs_inode_type::fifo);
+        if (!success(status)) {
+            print("change_dir_item_type returned {}\n", status);
+            return status;
+        }
+
+        status = change_dir_index_type(fs, p, *r, parent, string_view(dentry.name, dentry.name_len),
+                                       inode, btrfs_inode_type::fifo);
+        if (!success(status)) {
+            print("change_dir_index returned {}\n", status);
+            return status;
+        }
+    }
+
+    return nt_status::SUCCESS;
+}
+
+nt_status btrfs_inode::set_reparse_point(span<const uint8_t> inbuf,
+                                         dentry& dentry) {
+    if (inbuf.size() < offsetof(REPARSE_DATA_BUFFER, GenericReparseBuffer.DataBuffer))
+        return nt_status::BUFFER_TOO_SMALL;
+
+    auto& rdb = *(REPARSE_DATA_BUFFER*)inbuf.data();
+
+    switch (rdb.ReparseTag) {
+        case IO_REPARSE_TAG_SYMLINK:
+            return set_reparse_point_symlink(inbuf, dentry);
+
+        case IO_REPARSE_TAG_LX_FIFO:
+            return set_reparse_point_fifo(dentry);
+
+        default:
+            return nt_status::INVALID_PARAMETER;
+    }
 }
 
 nt_status btrfs_filesystem::query_volume(FS_INFORMATION_CLASS fs_information_class,
