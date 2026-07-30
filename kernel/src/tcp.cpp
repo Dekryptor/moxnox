@@ -19,6 +19,7 @@ import kernel_time_page;
 import list;
 import config;
 import vfs;
+import vec;
 
 using namespace std;
 
@@ -137,7 +138,11 @@ public:
     nt_status accept(HANDLE& sock, void* addr, int& addrlen) override;
 
     nt_status read(span<uint8_t> s, uint64_t& read_bytes) override {
-        return do_read<false>(s, read_bytes);
+        return do_read_vec<false>(span(&s, 1), read_bytes);
+    }
+
+    nt_status read_vec(span<const span<uint8_t>> v, uint64_t& read_bytes) override {
+        return do_read_vec<false>(v, read_bytes);
     }
 
     nt_status write(span<const uint8_t> s, uint64_t& written_bytes) override;
@@ -145,7 +150,7 @@ public:
     nt_status getpeername(span<uint8_t> buf, size_t& len) override;
 
     nt_status read_nonblock(span<uint8_t> s, uint64_t& read_bytes) override {
-        return do_read<true>(s, read_bytes);
+        return do_read_vec<true>(span(&s, 1), read_bytes);
     }
 
     nt_status recvfrom_nonblock(char* buf, size_t len, int flags,
@@ -210,7 +215,7 @@ private:
     nt_status send_syn_ack(const mac_address& mac);
 
     template<bool NONBLOCK>
-    nt_status do_read(span<uint8_t> s, uint64_t& read_bytes);
+    nt_status do_read_vec(span<const span<uint8_t>> v, uint64_t& read_bytes);
 
     template<bool NONBLOCK>
     nt_status do_recvfrom(char* buf, size_t len, int flags, sockaddr* from,
@@ -2174,10 +2179,19 @@ void ipv6_tcp_socket::received_listen_packet(packet& pack, netif& ni,
 }
 
 template<bool NONBLOCK>
-nt_status ipv6_tcp_socket::do_read(span<uint8_t> s, uint64_t& read_bytes) {
+nt_status ipv6_tcp_socket::do_read_vec(span<const span<uint8_t>> v,
+                                       uint64_t& read_bytes) {
+    nt_status status;
+    size_t vec_size = get_vec_size(v);
+
     // FIXME - merge into recvfrom once NtReadFile is zero-copy
 
-    nt_status status;
+    if (vec_size == 0) {
+        read_bytes = 0;
+        return nt_status::SUCCESS;
+    }
+
+    span<uint8_t> top = v.front();
 
     read_bytes = 0;
 
@@ -2232,11 +2246,10 @@ nt_status ipv6_tcp_socket::do_read(span<uint8_t> s, uint64_t& read_bytes) {
             auto& tcp = *(tcp_header*)(r->pack.data + sizeof(ipv6_header));
 
             size_t header_length = tcp.header_length * sizeof(uint32_t);
-            auto to_copy = (uint32_t)min(r->pack.size - sizeof(ipv6_header) - header_length - us_read_offset, s.size());
+            auto to_copy = (uint32_t)min(r->pack.size - sizeof(ipv6_header) - header_length - us_read_offset, vec_size);
 
-            memcpy(s.data(), r->pack.data + sizeof(ipv6_header) + header_length + us_read_offset,
-                   to_copy);
-
+            memcpy_vec(v, top, r->pack.data + sizeof(ipv6_header) + header_length + us_read_offset,
+                       to_copy);
             read_bytes += to_copy;
 
             if (sizeof(ipv6_header) + header_length + us_read_offset + to_copy < r->pack.size) {
@@ -2249,13 +2262,13 @@ nt_status ipv6_tcp_socket::do_read(span<uint8_t> s, uint64_t& read_bytes) {
                 remove_entry_list(r->le);
             }
 
-            s = span(s.data() + to_copy, s.size() - to_copy);
+            vec_size -= to_copy;
             us_read_offset = 0;
             removed_bytes += r->pack.size - sizeof(ipv6_header) - header_length;
 
             delete r;
 
-            if (s.size() == 0)
+            if (vec_size == 0)
                 break;
         }
 
