@@ -203,3 +203,5 @@ setrlimit
 pathconf
 confstr
 socketpair
+getlogin
+getlogin_r

@@ -1,6 +1,7 @@
 #include <pwd.h>
 #include <grp.h>
 #include <string.h>
+#include <unistd.h>
 
 #undef errno
 import errno;
@@ -135,4 +136,35 @@ struct group* getgrnam(const char* name) {
         return nullptr;
 
     return result;
+}
+
+extern "C"
+int getlogin_r(char* name, size_t namesize) {
+    char buf[256];
+    passwd pwd;
+    passwd* res;
+
+    auto ret = getpwuid_r(getuid(), &pwd, buf, sizeof(buf), &res);
+    if (ret != 0)
+        return ret;
+
+    if (!res)
+        return ENXIO;
+
+    if (strlen(res->pw_name) >= namesize)
+        return ERANGE;
+
+    strcpy(name, res->pw_name);
+
+    return 0;
+}
+
+extern "C"
+char* getlogin(void) {
+    static char buf[256];
+
+    if (getlogin_r(buf, sizeof(buf)) != 0)
+        return nullptr;
+
+    return buf;
 }

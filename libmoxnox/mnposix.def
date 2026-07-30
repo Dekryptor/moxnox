@@ -203,6 +203,8 @@ setrlimit
 pathconf
 confstr
 socketpair
+getlogin
+getlogin_r
 
 ; stubs
 mbsinit
@@ -229,8 +231,6 @@ setpriority
 setresgid
 memmem
 getgroups
-getlogin
-getlogin_r
 sigwait
 readv
 writev
