@@ -199,3 +199,4 @@ mbsnrtowcs
 wcsnrtombs
 posix_madvise
 posix_fadvise
+setrlimit

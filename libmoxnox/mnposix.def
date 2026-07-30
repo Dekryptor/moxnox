@@ -199,6 +199,7 @@ mbsnrtowcs
 wcsnrtombs
 posix_madvise
 posix_fadvise
+setrlimit
 
 ; stubs
 mbsinit
@@ -230,7 +231,6 @@ getlogin
 getlogin_r
 confstr
 sigwait
-setrlimit
 socketpair
 readv
 writev

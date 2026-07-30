@@ -9,13 +9,15 @@ import pe;
 #undef errno
 import errno;
 
+// from ucrtbase's fd table
+static constexpr size_t MAX_FDS_NUM = 2048;
+
 extern "C"
 int getrlimit(int resource, struct rlimit* rlp) {
     switch (resource) {
         case RLIMIT_NOFILE:
-            // from ucrtbase's fd table
-            rlp->rlim_cur = 2048;
-            rlp->rlim_max = 2048;
+            rlp->rlim_cur = MAX_FDS_NUM;
+            rlp->rlim_max = MAX_FDS_NUM;
             break;
 
         case RLIMIT_DATA:
@@ -44,6 +46,57 @@ int getrlimit(int resource, struct rlimit* rlp) {
                 rlp->rlim_cur = (rlim_t)nt_header.OptionalHeader32.SizeOfStackReserve;
 
             rlp->rlim_max = rlp->rlim_cur;
+            break;
+        }
+
+        default:
+            *_errno() = EINVAL;
+            return -1;
+    }
+
+    return 0;
+}
+
+extern "C"
+int setrlimit(int resource, const rlimit* rlp) {
+    if (rlp->rlim_cur > rlp->rlim_max) {
+        *_errno() = EINVAL;
+        return -1;
+    }
+
+    switch (resource) {
+        case RLIMIT_NOFILE:
+            if (rlp->rlim_max > MAX_FDS_NUM) {
+                *_errno() = EPERM;
+                return -1;
+            }
+            break;
+
+        case RLIMIT_DATA:
+        case RLIMIT_CPU:
+        case RLIMIT_FSIZE:
+        case RLIMIT_AS:
+            // ignore
+            break;
+
+        case RLIMIT_CORE:
+            if (rlp->rlim_max > 0) {
+                *_errno() = EPERM;
+                return -1;
+            }
+            break;
+
+        case RLIMIT_STACK: {
+            rlimit r;
+
+            if (getrlimit(resource, &r))
+                return -1;
+
+            if (rlp->rlim_max > r.rlim_max) {
+                *_errno() = EPERM;
+                return -1;
+            }
+
             break;
         }
 
