@@ -348,11 +348,11 @@ wcstold
 wcsftime
 asctime
 _timespec64_get
+_crt_at_quick_exit
+quick_exit
 
 ; stubs
 _beginthreadex
 fgetpos
 fsetpos
 wcscat
-_crt_at_quick_exit
-quick_exit

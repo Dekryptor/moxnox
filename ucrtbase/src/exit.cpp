@@ -13,6 +13,8 @@ using namespace std;
 
 static array<_PVFV, 64> atexit_funcs;
 static size_t num_atexit_funcs = 0;
+static array<_PVFV, 32> quick_exit_funcs;
+static size_t num_quick_exit_funcs = 0;
 static _tls_callback_type tls_atexit_callback;
 
 extern "C"
@@ -57,4 +59,27 @@ void _exit(int code) {
 extern "C"
 void _register_thread_local_exe_atexit_callback(_tls_callback_type callback) {
     tls_atexit_callback = callback;
+}
+
+extern "C"
+int _crt_at_quick_exit(_PVFV function) {
+    // FIXME - do we need a lock, or is this only ever called from first thread?
+
+    if (num_quick_exit_funcs == quick_exit_funcs.size())
+        return -1;
+
+    quick_exit_funcs[num_quick_exit_funcs] = function;
+    num_quick_exit_funcs++;
+
+    return 0;
+}
+
+extern "C"
+__attribute__((noreturn)) void quick_exit(int code) {
+    for (size_t i = 0; i < num_quick_exit_funcs; i++) {
+        quick_exit_funcs[num_quick_exit_funcs - i - 1]();
+    }
+
+    RtlExitUserProcess((uint32_t)code);
+    unreachable();
 }

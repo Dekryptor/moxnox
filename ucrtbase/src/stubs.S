@@ -6,7 +6,5 @@ do_stub "_beginthreadex"
 do_stub "fgetpos"
 do_stub "fsetpos"
 do_stub "wcscat"
-do_stub "_crt_at_quick_exit"
-do_stub "quick_exit"
 
 stubs_end
