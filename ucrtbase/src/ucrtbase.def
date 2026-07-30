@@ -365,3 +365,4 @@ putwc = fputwc
 mbsrtowcs
 wcscoll
 strxfrm
+wcsxfrm

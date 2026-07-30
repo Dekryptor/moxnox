@@ -341,12 +341,12 @@ fputwc
 mbsrtowcs
 wcscoll
 strxfrm
+wcsxfrm
 
 ; stubs
 _beginthreadex
 wcstod
 wcsftime
-wcsxfrm
 asctime
 fgetpos
 fsetpos

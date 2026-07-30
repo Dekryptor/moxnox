@@ -1,5 +1,6 @@
 #include <stddef.h>
 #include <stdint.h>
+#include <string.h>
 #include <errno.h>
 #include <concepts>
 #include <algorithm>
@@ -343,4 +344,14 @@ int wcsncmp(const wchar_t* s1, const wchar_t* s2, size_t n) {
     }
 
     return 0;
+}
+
+extern "C"
+size_t wcsxfrm(wchar_t* dest, const wchar_t* src, size_t size) {
+    auto len = wcslen(src);
+
+    if (size > 0)
+        memcpy(dest, src, min(len + 1, size) * sizeof(wchar_t));
+
+    return len;
 }
