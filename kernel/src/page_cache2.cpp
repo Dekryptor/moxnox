@@ -194,12 +194,6 @@ void page_cache_base::copy_into_vec_and_unpin(uint64_t first_page,
     }
 }
 
-void page_cache_base::copy_into_buffer_and_unpin(uint64_t first_page, uint64_t num_pages,
-                                                 span<uint8_t> data, uint64_t offset) {
-    return copy_into_vec_and_unpin(first_page, num_pages, span(&data, 1),
-                                   offset, nullopt);
-}
-
 void page_cache_base::unpin(uint64_t first_page, uint64_t num_pages) {
     lock_guard lg(cache_lock);
 

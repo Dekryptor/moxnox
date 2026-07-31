@@ -164,8 +164,10 @@ static span<char> get_section_name(const IMAGE_SECTION_HEADER& s, const IMAGE_FI
         return format(buf, "{}", name);
     }
 
-    f.cache.copy_into_buffer_and_unpin(page_start, pinned_pages, span((uint8_t*)buf.data(), buf.size()),
-                                       copy_start % PAGE_SIZE);
+    auto sp = span((uint8_t*)buf.data(), buf.size());
+
+    f.cache.copy_into_vec_and_unpin(page_start, pinned_pages, span(&sp, 1),
+                                    copy_start % PAGE_SIZE);
 
     size_t end = buf.size();
     for (unsigned int i = 0; i < end; i++) {

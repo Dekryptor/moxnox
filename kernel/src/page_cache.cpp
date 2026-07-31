@@ -52,8 +52,6 @@ public:
     page_cache_entry* next_page_cache_entry(const page_cache_entry& ent);
     void copy_into_buffer(uint64_t first_page, uint64_t num_pages,
                           span<uint8_t> data, uint64_t offset);
-    void copy_into_buffer_and_unpin(uint64_t first_page, uint64_t num_pages,
-                                    span<uint8_t> data, uint64_t offset);
     void copy_into_vec_and_unpin(uint64_t first_page, uint64_t num_pages,
                                  span<const span<uint8_t>> v, uint64_t offset,
                                  optional<uint64_t> size);
@@ -85,14 +83,9 @@ public:
         base.copy_into_buffer(first_page, num_pages, data, offset);
     }
 
-    void copy_into_buffer_and_unpin(uint64_t first_page, uint64_t num_pages,
-                                    span<uint8_t> data, uint64_t offset) {
-        base.copy_into_buffer_and_unpin(first_page, num_pages, data, offset);
-    }
-
     void copy_into_vec_and_unpin(uint64_t first_page, uint64_t num_pages,
                                  span<const span<uint8_t>> v, uint64_t offset,
-                                 optional<uint64_t> size) {
+                                 optional<uint64_t> size = nullopt) {
         base.copy_into_vec_and_unpin(first_page, num_pages, v, offset, size);
     }
 
