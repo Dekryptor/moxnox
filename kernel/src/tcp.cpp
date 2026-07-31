@@ -142,6 +142,8 @@ public:
     }
 
     nt_status write(span<const uint8_t> s, uint64_t& written_bytes) override;
+    nt_status write_vec(span<const span<const uint8_t>> v,
+                        uint64_t& written_bytes) override;
     nt_status getsockname(span<uint8_t>, size_t&) override;
     nt_status getpeername(span<uint8_t> buf, size_t& len) override;
 
@@ -2313,7 +2315,8 @@ nt_status ipv6_tcp_socket::do_read(span<const span<uint8_t>> v,
     return nt_status::SUCCESS;
 }
 
-nt_status ipv6_tcp_socket::write(span<const uint8_t> s, uint64_t& written_bytes) {
+nt_status ipv6_tcp_socket::write_vec(span<const span<const uint8_t>> v,
+                                     uint64_t& written_bytes) {
     // FIXME - merge into sendto once NtWriteFile is zero-copy
 
     nt_status status = nt_status::SUCCESS;
@@ -2332,12 +2335,19 @@ nt_status ipv6_tcp_socket::write(span<const uint8_t> s, uint64_t& written_bytes)
     // FIXME - Nagle's algorithm (batching of outgoing data)
 
     size_t done = 0;
+    size_t vec_size = get_vec_size(v);
+
+    if (vec_size == 0) {
+        written_bytes = 0;
+        return nt_status::SUCCESS;
+    }
 
     auto& ni = *pni;
+    span<const uint8_t> top = v.front();
 
     ni.acquire();
 
-    while (s.size() > 0) {
+    while (vec_size > 0) {
         size_t size;
 
         status = wait_for_object(send_window_open_event.get(), true);
@@ -2352,7 +2362,7 @@ nt_status ipv6_tcp_socket::write(span<const uint8_t> s, uint64_t& written_bytes)
         {
             lock_guard lock(io_mutex);
 
-            size = min(s.size(), mss);
+            size = min(vec_size, mss);
 
             auto usable = allowed_send_bytes();
 
@@ -2419,8 +2429,8 @@ nt_status ipv6_tcp_socket::write(span<const uint8_t> s, uint64_t& written_bytes)
 
             send_next += (uint32_t)size;
 
-            memcpy(r->pack.data + sizeof(ipv6_header) + (tcp.header_length * sizeof(uint32_t)),
-                   s.data(), size);
+            memcpy_vec(r->pack.data + sizeof(ipv6_header) + (tcp.header_length * sizeof(uint32_t)),
+                       v, top, size);
 
             if (!ni.tx_tcpv6_csum_offload) {
                 tcp.checksum = calc_ipv6_checksum(ip, span((uint8_t*)&tcp, pack->size - sizeof(ipv6_header)),
@@ -2447,7 +2457,7 @@ nt_status ipv6_tcp_socket::write(span<const uint8_t> s, uint64_t& written_bytes)
         }
 
         done += size;
-        s = span(s.data() + size, s.size() - size);
+        vec_size -= size;
     }
 
     ni.release();
@@ -2455,6 +2465,10 @@ nt_status ipv6_tcp_socket::write(span<const uint8_t> s, uint64_t& written_bytes)
     written_bytes = done;
 
     return status;
+}
+
+nt_status ipv6_tcp_socket::write(span<const uint8_t> s, uint64_t& written_bytes) {
+    return write_vec(span(&s, 1), written_bytes);
 }
 
 nt_status ipv6_tcp_socket::getsockname(span<uint8_t> buf, size_t& len) {

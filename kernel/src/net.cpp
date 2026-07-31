@@ -175,6 +175,8 @@ public:
     virtual nt_status read(span<const span<uint8_t>> v,
                            uint64_t& read_bytes) = 0;
     virtual nt_status write(span<const uint8_t> s, uint64_t& written_bytes) = 0;
+    virtual nt_status write_vec(span<const span<const uint8_t>> v,
+                                uint64_t& written_bytes) = 0;
     virtual nt_status getsockname(span<uint8_t> addr, size_t& len) = 0;
     virtual nt_status getpeername(span<uint8_t> addr, size_t& len) = 0;
     virtual nt_status read_nonblock(span<const span<uint8_t>> v,
@@ -214,6 +216,7 @@ static_assert(is_sync_object<class socket>);
 static_assert(has_last_handle_closed<class socket>);
 static_assert(is_readable_object_without_offset<class socket>);
 static_assert(is_writable_object_without_offset<class socket>);
+static_assert(is_writable_vec_object_without_offset<class socket>);
 static_assert(is_nonblocking_readable_vec_object<class socket>);
 
 class netctl : public chardev {
