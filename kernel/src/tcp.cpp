@@ -141,7 +141,6 @@ public:
         return do_read<false>(v, read_bytes);
     }
 
-    nt_status write(span<const uint8_t> s, uint64_t& written_bytes) override;
     nt_status write_vec(span<const span<const uint8_t>> v,
                         uint64_t& written_bytes) override;
     nt_status getsockname(span<uint8_t>, size_t&) override;
@@ -2465,10 +2464,6 @@ nt_status ipv6_tcp_socket::write_vec(span<const span<const uint8_t>> v,
     written_bytes = done;
 
     return status;
-}
-
-nt_status ipv6_tcp_socket::write(span<const uint8_t> s, uint64_t& written_bytes) {
-    return write_vec(span(&s, 1), written_bytes);
 }
 
 nt_status ipv6_tcp_socket::getsockname(span<uint8_t> buf, size_t& len) {
