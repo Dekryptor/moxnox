@@ -298,200 +298,203 @@ bool mapping::copy_to(uint32_t offset, const void* ks_addr, uint32_t size) {
     uint64_t num_pages = ((offset + size + PAGE_SIZE - 1) >> PAGE_SHIFT) - page_num;
     uint64_t page_offset = offset & (PAGE_SIZE - 1);
 
-    // FIXME - get process range lock
+    {
+        rangelock_req rlr(proc.rl, (address >> PAGE_SHIFT) + page_num,
+                          num_pages, rangelock_mode::exclusive);
 
-    for (uint64_t i = 0; i < num_pages; i++) {
-        auto& pte = *find_pte(proc, address + ((page_num + i) << PAGE_SHIFT));
+        for (uint64_t i = 0; i < num_pages; i++) {
+            auto& pte = *find_pte(proc, address + ((page_num + i) << PAGE_SHIFT));
 
-        auto to_copy = min((uint32_t)(PAGE_SIZE - page_offset), size);
+            auto to_copy = min((uint32_t)(PAGE_SIZE - page_offset), size);
 
-        if (!pte.allow_write)
-            return false;
+            if (!pte.allow_write)
+                return false;
 
 #ifdef __aarch64__
-        bool pte_valid = pte.valid;
-        bool pte_writable = pte.AP == ARM64_PTE_AP_EL0RW;
+            bool pte_valid = pte.valid;
+            bool pte_writable = pte.AP == ARM64_PTE_AP_EL0RW;
 #elifdef __x86_64__
-        bool pte_valid = pte.p;
-        bool pte_writable = pte.w;
+            bool pte_valid = pte.p;
+            bool pte_writable = pte.w;
 #endif
 
-        if (pte_valid && pte_writable) {
-            memcpy((uint8_t*)phys_address(pte.pfn << PAGE_SHIFT) + page_offset,
-                   ks_addr, to_copy);
-        } else if (pte.cow) {
-            auto pa = allocate_folio(0);
-            if (!pa) {
-                print("allocate_folio failed\n");
-                return false;
-            }
+            if (pte_valid && pte_writable) {
+                memcpy((uint8_t*)phys_address(pte.pfn << PAGE_SHIFT) + page_offset,
+                       ks_addr, to_copy);
+            } else if (pte.cow) {
+                auto pa = allocate_folio(0);
+                if (!pa) {
+                    print("allocate_folio failed\n");
+                    return false;
+                }
 
-            if (!pte_valid) {
-                if (to_copy < PAGE_SIZE) {
-                    page_cache_entry* p;
-                    uint64_t sect_page_num = page_num + i + (this->offset >> PAGE_SHIFT);
+                if (!pte_valid) {
+                    if (to_copy < PAGE_SIZE) {
+                        page_cache_entry* p;
+                        uint64_t sect_page_num = page_num + i + (this->offset >> PAGE_SHIFT);
 
-                    auto b = visit([&](auto* ptr) {
+                        auto b = visit([&](auto* ptr) {
+                            uint64_t read_pages;
+                            auto& cache = *ptr;
+
+                            auto status = cache.read_into_cache_and_pin(sect_page_num, 1,
+                                                                        read_pages);
+                            if (!success(status)) {
+                                print("page_cache::read_into_cache_and_pin returned {}\n",
+                                    status);
+                                free_folio(pa);
+                                return false;
+                            }
+
+                            {
+                                lock_guard lg(cache.base.cache_lock);
+                                p = cache.find_page_cache_entry(sect_page_num);
+                            }
+
+                            {
+                                rangelock_req rlr(cache.base.rl, sect_page_num, 1, rangelock_mode::exclusive);
+
+                                memcpy(phys_address(pa), get_phys_address(*p),
+                                       PAGE_SIZE);
+                            }
+
+                            cache.unpin(sect_page_num, 1);
+
+                            return true;
+                        }, sect.get_cache());
+
+                        if (!b)
+                            return false;
+                    }
+                } else {
+                    memcpy(phys_address(pa), phys_address(pte.pfn << PAGE_SHIFT),
+                           PAGE_SIZE);
+                }
+
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wconversion"
+                pte.pfn = pa >> PAGE_SHIFT;
+#pragma GCC diagnostic pop
+
+                memcpy((uint8_t*)phys_address(pte.pfn << PAGE_SHIFT) + page_offset,
+                       ks_addr, to_copy);
+
+#ifdef __aarch64__
+                pte.AP = ARM64_PTE_AP_EL0RW;
+
+                if (!pte.valid) {
+                    pte.table_entry = 1;
+                    pte.AttrIndex = attr_index_normal;
+                    pte.SH = 3; // inner shareable
+                    pte.AF = 1;
+                    pte.valid = 1;
+                }
+#elifdef __x86_64__
+                pte.w = 1;
+
+                if (!pte.p)
+                    pte.p = 1;
+#endif
+
+                // FIXME - invlpg / tlbi here?
+            } else {
+                uint64_t sect_page_num = page_num + i + (this->offset >> PAGE_SHIFT);
+                page_cache_entry* p;
+
+                auto b = visit([&](auto* ptr) {
+                    auto& cache = *ptr;
+
+                    if (to_copy < PAGE_SIZE) {
                         uint64_t read_pages;
-                        auto& cache = *ptr;
 
                         auto status = cache.read_into_cache_and_pin(sect_page_num, 1,
                                                                     read_pages);
                         if (!success(status)) {
                             print("page_cache::read_into_cache_and_pin returned {}\n",
-                                  status);
-                            free_folio(pa);
+                                status);
                             return false;
                         }
+                    } else
+                        cache.pin(sect_page_num, 1, nullptr);
 
-                        {
-                            lock_guard lg(cache.base.cache_lock);
-                            p = cache.find_page_cache_entry(sect_page_num);
-                        }
-
-                        {
-                            rangelock_req rlr(cache.base.rl, sect_page_num, 1, rangelock_mode::exclusive);
-
-                            memcpy(phys_address(pa), get_phys_address(*p),
-                                PAGE_SIZE);
-                        }
-
-                        cache.unpin(sect_page_num, 1);
-
-                        return true;
-                    }, sect.get_cache());
-
-                    if (!b)
-                        return false;
-                }
-            } else {
-                memcpy(phys_address(pa), phys_address(pte.pfn << PAGE_SHIFT),
-                       PAGE_SIZE);
-            }
-
-#pragma GCC diagnostic push
-#pragma GCC diagnostic ignored "-Wconversion"
-            pte.pfn = pa >> PAGE_SHIFT;
-#pragma GCC diagnostic pop
-
-            memcpy((uint8_t*)phys_address(pte.pfn << PAGE_SHIFT) + page_offset,
-                   ks_addr, to_copy);
-
-#ifdef __aarch64__
-            pte.AP = ARM64_PTE_AP_EL0RW;
-
-            if (!pte.valid) {
-                pte.table_entry = 1;
-                pte.AttrIndex = attr_index_normal;
-                pte.SH = 3; // inner shareable
-                pte.AF = 1;
-                pte.valid = 1;
-            }
-#elifdef __x86_64__
-            pte.w = 1;
-
-            if (!pte.p)
-                pte.p = 1;
-#endif
-
-            // FIXME - invlpg / tlbi here?
-        } else {
-            uint64_t sect_page_num = page_num + i + (this->offset >> PAGE_SHIFT);
-            page_cache_entry* p;
-
-            auto b = visit([&](auto* ptr) {
-                auto& cache = *ptr;
-
-                if (to_copy < PAGE_SIZE) {
-                    uint64_t read_pages;
-
-                    auto status = cache.read_into_cache_and_pin(sect_page_num, 1,
-                                                                read_pages);
-                    if (!success(status)) {
-                        print("page_cache::read_into_cache_and_pin returned {}\n",
-                              status);
-                        return false;
+                    {
+                        lock_guard lg(cache.base.cache_lock);
+                        p = cache.find_page_cache_entry(sect_page_num);
                     }
-                } else
-                    cache.pin(sect_page_num, 1, nullptr);
 
-                {
-                    lock_guard lg(cache.base.cache_lock);
-                    p = cache.find_page_cache_entry(sect_page_num);
-                }
+                    bool send_ipi = false;
 
-                bool send_ipi = false;
+                    {
+                        rangelock_req rlr(cache.base.rl, sect_page_num, 1, rangelock_mode::exclusive);
 
-                {
-                    rangelock_req rlr(cache.base.rl, sect_page_num, 1, rangelock_mode::exclusive);
-
-                    if (p->pfn == 0) {
+                        if (p->pfn == 0) {
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wconversion"
-                        p->pfn = allocate_folio(0) >> PAGE_SHIFT;
+                            p->pfn = allocate_folio(0) >> PAGE_SHIFT;
 #pragma GCC diagnostic pop
 
-                        if (!p->pfn) {
-                            print("allocate_folio failed\n");
-                            cache.unpin(sect_page_num, 1);
-                            return false;
-                        }
-                    } else if (!p->dirty) {
-                        auto pfn = cow_folio(p->pfn << PAGE_SHIFT) >> PAGE_SHIFT;
-                        if (pfn == 0) {
-                            print("cow_folio failed\n");
-                            cache.unpin(sect_page_num, 1);
-                            return false;
-                        }
+                            if (!p->pfn) {
+                                print("allocate_folio failed\n");
+                                cache.unpin(sect_page_num, 1);
+                                return false;
+                            }
+                        } else if (!p->dirty) {
+                            auto pfn = cow_folio(p->pfn << PAGE_SHIFT) >> PAGE_SHIFT;
+                            if (pfn == 0) {
+                                print("cow_folio failed\n");
+                                cache.unpin(sect_page_num, 1);
+                                return false;
+                            }
 
-                        send_ipi = p->pfn != pfn;
+                            send_ipi = p->pfn != pfn;
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wconversion"
-                        p->pfn = pfn;
+                            p->pfn = pfn;
+#pragma GCC diagnostic pop
+                        }
+
+                        p->dirty = 1;
+                        cache.mark_dirty();
+
+                        memcpy((uint8_t*)get_phys_address(*p) + page_offset,
+                               ks_addr, to_copy);
+
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wconversion"
+                        pte.pfn = p->pfn;
 #pragma GCC diagnostic pop
                     }
 
-                    p->dirty = 1;
-                    cache.mark_dirty();
-
-                    memcpy((uint8_t*)get_phys_address(*p) + page_offset,
-                        ks_addr, to_copy);
-
-#pragma GCC diagnostic push
-#pragma GCC diagnostic ignored "-Wconversion"
-                    pte.pfn = p->pfn;
-#pragma GCC diagnostic pop
-                }
-
 #ifdef __aarch64__
-                pte.table_entry = 1;
-                pte.AttrIndex = attr_index_normal;
-                pte.AP = ARM64_PTE_AP_EL0RW;
-                pte.SH = 3; // inner shareable
-                pte.AF = 1;
-                pte.valid = 1;
+                    pte.table_entry = 1;
+                    pte.AttrIndex = attr_index_normal;
+                    pte.AP = ARM64_PTE_AP_EL0RW;
+                    pte.SH = 3; // inner shareable
+                    pte.AF = 1;
+                    pte.valid = 1;
 #elifdef __x86_64__
-                pte.w = 1;
-                pte.p = 1;
+                    pte.w = 1;
+                    pte.p = 1;
 #endif
 
-                // FIXME - invlpg / tlbi here?
+                    // FIXME - invlpg / tlbi here?
 
-                if (send_ipi)
-                    send_page_tlb_ipi(proc, address, 1);
+                    if (send_ipi)
+                        send_page_tlb_ipi(proc, address, 1);
 
-                cache.unpin(sect_page_num, 1);
+                    cache.unpin(sect_page_num, 1);
 
-                return true;
-            }, sect.get_cache());
+                    return true;
+                }, sect.get_cache());
 
-            if (!b)
-                return false;
+                if (!b)
+                    return false;
+            }
+
+            ks_addr = (uint8_t*)ks_addr + to_copy;
+            size -= to_copy;
+            page_offset = 0;
         }
-
-        ks_addr = (uint8_t*)ks_addr + to_copy;
-        size -= to_copy;
-        page_offset = 0;
     }
 
     return true;
