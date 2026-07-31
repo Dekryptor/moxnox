@@ -480,7 +480,7 @@ bool mapping::copy_to(uint32_t offset, const void* ks_addr, uint32_t size) {
                     // FIXME - invlpg / tlbi here?
 
                     if (send_ipi)
-                        send_page_tlb_ipi(proc, address, 1);
+                        send_page_tlb_ipi(proc, address + ((page_num + i) << PAGE_SHIFT), 1);
 
                     cache.unpin(sect_page_num, 1);
 
