@@ -165,13 +165,13 @@ nt_status object_ioctl(object& obj, uint32_t control_code, span<const uint8_t> i
     return ret;
 }
 
-nt_status object_read_vec_with_offset(object& obj, span<const span<uint8_t>> v,
-                                      uint64_t offset, uint64_t& read_bytes) {
+nt_status object_read_with_offset(object& obj, span<const span<uint8_t>> v,
+                                  uint64_t offset, uint64_t& read_bytes) {
     nt_status status;
 
     visit_obj(obj, [&](auto&& o) {
-        if constexpr (is_readable_vec_object_with_offset<remove_reference_t<decltype(o)>>)
-            status = o.read_vec(v, offset, read_bytes);
+        if constexpr (is_readable_object_with_offset<remove_reference_t<decltype(o)>>)
+            status = o.read(v, offset, read_bytes);
         else
             status = nt_status::NOT_SUPPORTED;
     });
@@ -179,13 +179,13 @@ nt_status object_read_vec_with_offset(object& obj, span<const span<uint8_t>> v,
     return status;
 }
 
-nt_status object_read_vec_without_offset(object& obj, span<const span<uint8_t>> v,
-                                         uint64_t& read_bytes) {
+nt_status object_read_without_offset(object& obj, span<const span<uint8_t>> v,
+                                     uint64_t& read_bytes) {
     nt_status status;
 
     visit_obj(obj, [&](auto&& o) {
-        if constexpr (is_readable_vec_object_without_offset<remove_reference_t<decltype(o)>>)
-            status = o.read_vec(v, read_bytes);
+        if constexpr (is_readable_object_without_offset<remove_reference_t<decltype(o)>>)
+            status = o.read(v, read_bytes);
         else
             status = nt_status::NOT_SUPPORTED;
     });
@@ -193,13 +193,13 @@ nt_status object_read_vec_without_offset(object& obj, span<const span<uint8_t>> 
     return status;
 }
 
-nt_status object_read_vec_nonblock(object& obj, span<const span<uint8_t>> v,
-                                   uint64_t& read_bytes) {
+nt_status object_read_nonblock(object& obj, span<const span<uint8_t>> v,
+                               uint64_t& read_bytes) {
     nt_status status;
 
     visit_obj(obj, [&](auto&& o) {
         if constexpr (is_nonblocking_readable_vec_object<remove_reference_t<decltype(o)>>)
-            status = o.read_nonblock_vec(v, read_bytes);
+            status = o.read_nonblock(v, read_bytes);
         else
             status = nt_status::NOT_SUPPORTED;
     });

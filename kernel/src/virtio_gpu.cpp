@@ -276,7 +276,7 @@ public:
         delete &dev;
     }
 
-    nt_status read_vec(span<const span<uint8_t>>, uint64_t&) override {
+    nt_status read(span<const span<uint8_t>>, uint64_t&) override {
         return nt_status::NOT_SUPPORTED;
     }
 

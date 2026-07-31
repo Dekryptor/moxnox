@@ -133,7 +133,7 @@ public:
         signalled = false;
     }
 
-    nt_status read_vec(span<const span<uint8_t>> v, uint64_t& read_bytes) override;
+    nt_status read(span<const span<uint8_t>> v, uint64_t& read_bytes) override;
     nt_status write(span<const uint8_t> s, uint64_t& written_bytes) override;
 
     spinlock lock;
@@ -1268,7 +1268,7 @@ static void console_event_recv() {
         wait_for_object(console_chardev.get(), false);
 
         auto sp = span(buf, buf_size);
-        auto status = static_cast<class console&>(console_chardev.get()).read_vec(span(&sp, 1), read_bytes);
+        auto status = static_cast<class console&>(console_chardev.get()).read(span(&sp, 1), read_bytes);
 
         // FIXME - watch out for partial UTF-8 characters, partial escape sequences, etc.
 
@@ -1699,7 +1699,7 @@ nt_status console::flush(bool go_readonly) {
     return nt_status::SUCCESS;
 }
 
-nt_status kmsg_buf::read_vec(span<const span<uint8_t>> v, uint64_t& read_bytes) {
+nt_status kmsg_buf::read(span<const span<uint8_t>> v, uint64_t& read_bytes) {
     list_entry del_list = { &del_list, &del_list };
     size_t vec_size = get_vec_size(v);
 

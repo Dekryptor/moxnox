@@ -27,7 +27,7 @@ import vec;
 
 using namespace std;
 
-static_assert(is_readable_vec_object_with_offset<volume>);
+static_assert(is_readable_object_with_offset<volume>);
 
 void volume::probe() {
     if (part_num == 0)
@@ -63,7 +63,7 @@ bool volume::check_for_partitions() {
     uint64_t read_bytes;
     auto sp = span(first_sects, sector_size * 2);
 
-    auto status = read_vec(span(&sp, 1), 0, read_bytes);
+    auto status = read(span(&sp, 1), 0, read_bytes);
 
     if (!success(status)) {
         print("volume::read returned {}\n", status);
@@ -148,7 +148,7 @@ bool volume::check_for_partitions() {
 
     auto sp2 = span(buf, table_end - table_start);
 
-    status = read_vec(span(&sp2, 1), table_start, read_bytes);
+    status = read(span(&sp2, 1), table_start, read_bytes);
 
     if (!success(status)) {
         print("volume::read returned {}\n", status);
@@ -275,14 +275,14 @@ bool volume::check_for_partitions() {
     return true;
 }
 
-nt_status volume::read_vec(span<const span<uint8_t>> v, uint64_t offset,
-                           uint64_t& read_bytes) {
+nt_status volume::read(span<const span<uint8_t>> v, uint64_t offset,
+                       uint64_t& read_bytes) {
     // FIXME - clear page cache in destructor
 
     // FIXME - return error if offset past end of device
     // FIXME - truncate data buffer if we would read past end of device
 
-    auto status = cache.read_vec(v, offset);
+    auto status = cache.read(v, offset);
     if (!success(status))
         return status;
 

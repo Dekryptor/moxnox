@@ -137,14 +137,14 @@ concept is_writable_object_without_offset = requires(T t, span<const uint8_t> s,
 
 export
 template<typename T>
-concept is_readable_vec_object_with_offset = requires(T t, span<const span<uint8_t>> v, uint64_t offset, uint64_t& read_bytes) {
-    { t.read_vec(v, offset, read_bytes) } -> convertible_to<NTSTATUS>;
+concept is_readable_object_with_offset = requires(T t, span<const span<uint8_t>> v, uint64_t offset, uint64_t& read_bytes) {
+    { t.read(v, offset, read_bytes) } -> convertible_to<NTSTATUS>;
 };
 
 export
 template<typename T>
-concept is_readable_vec_object_without_offset = requires(T t, span<const span<uint8_t>> v, uint64_t& read_bytes) {
-    { t.read_vec(v, read_bytes) } -> convertible_to<NTSTATUS>;
+concept is_readable_object_without_offset = requires(T t, span<const span<uint8_t>> v, uint64_t& read_bytes) {
+    { t.read(v, read_bytes) } -> convertible_to<NTSTATUS>;
 };
 
 export
@@ -172,5 +172,5 @@ concept has_last_handle_closed = requires(T t) {
 export
 template<typename T>
 concept is_nonblocking_readable_vec_object = requires(T t, span<const span<uint8_t>> v, uint64_t& read_bytes) {
-    { t.read_nonblock_vec(v, read_bytes) } -> convertible_to<NTSTATUS>;
+    { t.read_nonblock(v, read_bytes) } -> convertible_to<NTSTATUS>;
 };

@@ -44,7 +44,7 @@ public:
         exclusive = false;
     }
 
-    nt_status read_vec(span<const span<uint8_t>>, uint64_t&) override {
+    nt_status read(span<const span<uint8_t>>, uint64_t&) override {
         return nt_status::NOT_SUPPORTED;
     }
 
@@ -111,7 +111,7 @@ public:
         p.release();
     }
 
-    nt_status read_vec(span<const span<uint8_t>> v, uint64_t& read_bytes) override;
+    nt_status read(span<const span<uint8_t>> v, uint64_t& read_bytes) override;
 
     nt_status write(span<const uint8_t> s, uint64_t& written_bytes) override {
         return p.write(s, written_bytes);
@@ -143,7 +143,7 @@ public:
     // FIXME - empty ctor to work round GCC bug
     evdev_device() : chardev() { }
 
-    nt_status read_vec(span<const span<uint8_t>>, uint64_t&) override {
+    nt_status read(span<const span<uint8_t>>, uint64_t&) override {
         return nt_status::NOT_SUPPORTED;
     }
 
@@ -200,7 +200,7 @@ public:
         p.release();
     }
 
-    nt_status read_vec(span<const span<uint8_t>> v, uint64_t& read_bytes) override;
+    nt_status read(span<const span<uint8_t>> v, uint64_t& read_bytes) override;
 
     nt_status write(span<const uint8_t> s, uint64_t& written_bytes) override {
         return p.write(s, written_bytes);
@@ -320,7 +320,7 @@ void evdev_context::listen_thread() {
         while (true) {
             uint64_t read_bytes;
 
-            status = p.read_vec(span(&sp, 1), read_bytes);
+            status = p.read(span(&sp, 1), read_bytes);
             if (dead || !success(status))
                 break;
 
@@ -411,8 +411,8 @@ nt_status evdev_multiplexer::userspace_open(object_ref& objref) {
     return nt_status::SUCCESS;
 }
 
-nt_status evdev_multiplexer_client::read_vec(span<const span<uint8_t>> v,
-                                             uint64_t& read_bytes) {
+nt_status evdev_multiplexer_client::read(span<const span<uint8_t>> v,
+                                         uint64_t& read_bytes) {
     size_t vec_size = get_vec_size(v);
 
     if (vec_size < sizeof(input_event_with_id))
@@ -598,8 +598,8 @@ nt_status evdev_multiplexer::write(span<const uint8_t> s, uint64_t& written_byte
     return status;
 }
 
-nt_status evdev_device_client::read_vec(span<const span<uint8_t>> v,
-                                        uint64_t& read_bytes) {
+nt_status evdev_device_client::read(span<const span<uint8_t>> v,
+                                    uint64_t& read_bytes) {
     size_t vec_size = get_vec_size(v);
 
     if (vec_size < sizeof(input_event))

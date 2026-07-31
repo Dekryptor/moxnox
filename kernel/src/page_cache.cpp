@@ -114,9 +114,8 @@ public:
     size_t write(span<const uint8_t> data, uint64_t offset);
     nt_status read_into_cache_and_pin(uint64_t first_page, uint64_t num_pages,
                                       uint64_t& read_pages);
-    nt_status read(span<uint8_t> data, uint64_t offset);
-    nt_status read_vec(span<const span<uint8_t>> v, uint64_t offset,
-                       optional<uint64_t> size = nullopt);
+    nt_status read(span<const span<uint8_t>> v, uint64_t offset,
+                   optional<uint64_t> size = nullopt);
 
     page_cache_entry* next_page_cache_entry(const page_cache_entry& ent) {
         return base.next_page_cache_entry(ent);
@@ -540,8 +539,8 @@ nt_status page_cache<T>::read_into_cache_and_pin(uint64_t first_page, uint64_t n
 }
 
 template<typename T>
-nt_status page_cache<T>::read_vec(span<const span<uint8_t>> v, uint64_t offset,
-                                  optional<uint64_t> size) {
+nt_status page_cache<T>::read(span<const span<uint8_t>> v, uint64_t offset,
+                              optional<uint64_t> size) {
     size_t vec_size = get_vec_size(v);
 
     if (size.has_value())
@@ -562,11 +561,6 @@ nt_status page_cache<T>::read_vec(span<const span<uint8_t>> v, uint64_t offset,
     // FIXME - LRU
 
     return nt_status::SUCCESS;
-}
-
-template<typename T>
-nt_status page_cache<T>::read(span<uint8_t> data, uint64_t offset) {
-    return read_vec(span(&data, 1), offset);
 }
 
 template<typename T>

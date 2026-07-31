@@ -33,7 +33,7 @@ public:
     pipe(unsigned int buffer_pages);
     virtual ~pipe();
 
-    NTSTATUS read_vec(span<const span<uint8_t>> v, uint64_t& read_bytes) override;
+    NTSTATUS read(span<const span<uint8_t>> v, uint64_t& read_bytes) override;
 
     NTSTATUS write(span<const uint8_t> s, uint64_t& written_bytes) override;
 
@@ -74,8 +74,8 @@ public:
         send_pipe.release();
     }
 
-    nt_status read_vec(span<const span<uint8_t>> v, uint64_t& read_bytes) override {
-        auto ret = recv_pipe.read_vec(v, read_bytes);
+    nt_status read(span<const span<uint8_t>> v, uint64_t& read_bytes) override {
+        auto ret = recv_pipe.read(v, read_bytes);
 
         if (disconnected && read_bytes == 0) {
             lock_guard l(recv_pipe.lock);
@@ -138,8 +138,8 @@ public:
         client.release();
     }
 
-    nt_status read_vec(span<const span<uint8_t>> v, uint64_t& read_bytes) override {
-        return client.send_pipe.read_vec(v, read_bytes);
+    nt_status read(span<const span<uint8_t>> v, uint64_t& read_bytes) override {
+        return client.send_pipe.read(v, read_bytes);
     }
 
     nt_status write(span<const uint8_t> s, uint64_t& written_bytes) override {
@@ -363,7 +363,7 @@ void pipe::set_eof_pending() {
     }
 }
 
-NTSTATUS pipe::read_vec(span<const span<uint8_t>> v, uint64_t& read_bytes) {
+NTSTATUS pipe::read(span<const span<uint8_t>> v, uint64_t& read_bytes) {
     size_t copied = 0;
     size_t vec_size = get_vec_size(v);
 

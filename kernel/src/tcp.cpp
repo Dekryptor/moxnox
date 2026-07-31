@@ -137,16 +137,16 @@ public:
     nt_status listen(int backlog) override;
     nt_status accept(HANDLE& sock, void* addr, int& addrlen) override;
 
-    nt_status read_vec(span<const span<uint8_t>> v, uint64_t& read_bytes) override {
-        return do_read_vec<false>(v, read_bytes);
+    nt_status read(span<const span<uint8_t>> v, uint64_t& read_bytes) override {
+        return do_read<false>(v, read_bytes);
     }
 
     nt_status write(span<const uint8_t> s, uint64_t& written_bytes) override;
     nt_status getsockname(span<uint8_t>, size_t&) override;
     nt_status getpeername(span<uint8_t> buf, size_t& len) override;
 
-    nt_status read_nonblock_vec(span<const span<uint8_t>> v, uint64_t& read_bytes) override {
-        return do_read_vec<true>(v, read_bytes);
+    nt_status read_nonblock(span<const span<uint8_t>> v, uint64_t& read_bytes) override {
+        return do_read<true>(v, read_bytes);
     }
 
     nt_status recvfrom_nonblock(char* buf, size_t len, int flags,
@@ -211,7 +211,7 @@ private:
     nt_status send_syn_ack(const mac_address& mac);
 
     template<bool NONBLOCK>
-    nt_status do_read_vec(span<const span<uint8_t>> v, uint64_t& read_bytes);
+    nt_status do_read(span<const span<uint8_t>> v, uint64_t& read_bytes);
 
     template<bool NONBLOCK>
     nt_status do_recvfrom(char* buf, size_t len, int flags, sockaddr* from,
@@ -2175,8 +2175,8 @@ void ipv6_tcp_socket::received_listen_packet(packet& pack, netif& ni,
 }
 
 template<bool NONBLOCK>
-nt_status ipv6_tcp_socket::do_read_vec(span<const span<uint8_t>> v,
-                                       uint64_t& read_bytes) {
+nt_status ipv6_tcp_socket::do_read(span<const span<uint8_t>> v,
+                                   uint64_t& read_bytes) {
     nt_status status;
     size_t vec_size = get_vec_size(v);
 

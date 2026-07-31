@@ -166,7 +166,7 @@ static void keywait() {
             uint64_t read_bytes;
             auto sp = span(&c, 1);
 
-            status = p.read_vec(span(&sp, 1), read_bytes);
+            status = p.read(span(&sp, 1), read_bytes);
             if (!success(status))
                 print("pipe::read returned {}\n", status);
 
@@ -177,7 +177,7 @@ static void keywait() {
             uint64_t read_bytes;
             auto sp = span((uint8_t*)&ev, sizeof(ev));
 
-            status = p.read_vec(span(&sp, 1), read_bytes);
+            status = p.read(span(&sp, 1), read_bytes);
             if (!success(status)) {
                 print("keyboard_pipe::read returned {}\n", status);
                 break;

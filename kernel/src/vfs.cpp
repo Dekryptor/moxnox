@@ -106,8 +106,8 @@ public:
 
     virtual void release() = 0;
 
-    nt_status read_vec(span<const span<uint8_t>> v, uint64_t offset,
-                       uint64_t& read_bytes);
+    nt_status read(span<const span<uint8_t>> v, uint64_t offset,
+                   uint64_t& read_bytes);
     nt_status write(span<const uint8_t> s, uint64_t offset,
                     uint64_t& written_bytes);
 
@@ -144,7 +144,7 @@ public:
     list_entry writeback_le;
 };
 
-static_assert(is_readable_vec_object_with_offset<inode>);
+static_assert(is_readable_object_with_offset<inode>);
 static_assert(is_writable_object_with_offset<inode>);
 static_assert(cacheable_flushable<inode>);
 static_assert(cache_supports_writeback<inode>);
@@ -224,9 +224,9 @@ public:
     uint32_t create_options;
     atomic<bool> nonblock = false;
 
-    NTSTATUS read_vec(span<const span<uint8_t>> v, uint64_t& read_bytes);
-    NTSTATUS read_vec(span<const span<uint8_t>> v, uint64_t offset,
-                      uint64_t& read_bytes);
+    NTSTATUS read(span<const span<uint8_t>> v, uint64_t& read_bytes);
+    NTSTATUS read(span<const span<uint8_t>> v, uint64_t offset,
+                  uint64_t& read_bytes);
     NTSTATUS write(span<const uint8_t> s, uint64_t& written_bytes);
     NTSTATUS write(span<const uint8_t> s, uint64_t offset,
                    uint64_t& written_bytes);
@@ -253,8 +253,8 @@ private:
     nt_status set_non_block(span<const uint8_t> buffer);
 };
 
-static_assert(is_readable_vec_object_without_offset<file>);
-static_assert(is_readable_vec_object_with_offset<file>);
+static_assert(is_readable_object_without_offset<file>);
+static_assert(is_readable_object_with_offset<file>);
 static_assert(is_writable_object_without_offset<file>);
 static_assert(is_writable_object_with_offset<file>);
 static_assert(has_last_handle_closed<file>);

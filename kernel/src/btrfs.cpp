@@ -669,7 +669,7 @@ static nt_status btrfs_probe(volume& vol) {
 nt_status btrfs_filesystem::read_metadata(uint64_t addr, span<uint8_t> data) {
     assert(data.size() == sb->nodesize);
 
-    auto status = cache.read(data, addr);
+    auto status = cache.read(span(&data, 1), addr);
     if (!success(status)) {
         print("btrfs_filesystem::read_metadata: page_cache::read returned {}\n",
               status);
@@ -6751,7 +6751,8 @@ nt_status btrfs_inode::get_reparse_point(span<uint8_t> outbuf, uint32_t& retlen)
             return nt_status::INSUFFICIENT_RESOURCES;
         }
 
-        auto status = cache.read(span((uint8_t*)data.get(), file_size), 0);
+        auto sp = span((uint8_t*)data.get(), file_size);
+        auto status = cache.read(span(&sp, 1), 0);
         if (!success(status))
             return status;
 

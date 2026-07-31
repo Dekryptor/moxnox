@@ -35,7 +35,7 @@ class vfsctl : public chardev {
 public:
     vfsctl() { }
 
-    nt_status read_vec(span<const span<uint8_t>>, uint64_t&) override {
+    nt_status read(span<const span<uint8_t>>, uint64_t&) override {
         return nt_status::NOT_IMPLEMENTED;
     }
 
@@ -835,11 +835,11 @@ NTSTATUS NtReadFile(HANDLE file_handle, HANDLE, PIO_APC_ROUTINE, void*,
     size_t read;
 
     if (byte_offset) {
-        status = object_read_vec_with_offset(obj, span(&buf, 1),
-                                             (uint64_t)byte_offset->QuadPart,
-                                             read);
+        status = object_read_with_offset(obj, span(&buf, 1),
+                                         (uint64_t)byte_offset->QuadPart,
+                                         read);
     } else
-        status = object_read_vec_without_offset(obj, span(&buf, 1), read);
+        status = object_read_without_offset(obj, span(&buf, 1), read);
 
     if (!success(status)) {
         io_status_block->Status = status;
@@ -1134,8 +1134,8 @@ nt_status flush_filesystems(bool make_readonly) {
     return nt_status::SUCCESS;
 }
 
-nt_status inode::read_vec(span<const span<uint8_t>> v, uint64_t offset,
-                          uint64_t& read_bytes) {
+nt_status inode::read(span<const span<uint8_t>> v, uint64_t offset,
+                      uint64_t& read_bytes) {
     uint64_t size;
     size_t vec_size = get_vec_size(v);
 
@@ -1155,7 +1155,7 @@ nt_status inode::read_vec(span<const span<uint8_t>> v, uint64_t offset,
         return nt_status::SUCCESS;
     }
 
-    auto status = cache.read_vec(v, offset, size - offset);
+    auto status = cache.read(v, offset, size - offset);
     if (!success(status))
         return status;
 
@@ -1197,20 +1197,20 @@ file::~file() {
         dentry->release();
 }
 
-NTSTATUS file::read_vec(span<const span<uint8_t>> v, uint64_t& read_bytes) {
+NTSTATUS file::read(span<const span<uint8_t>> v, uint64_t& read_bytes) {
     NTSTATUS status;
 
     if (nonblock) {
-        status = object_read_vec_nonblock(ino, v, read_bytes);
+        status = object_read_nonblock(ino, v, read_bytes);
         if (status != nt_status::NOT_SUPPORTED)
             return status;
     }
 
-    status = object_read_vec_without_offset(ino, v, read_bytes);
+    status = object_read_without_offset(ino, v, read_bytes);
     if (status != nt_status::NOT_SUPPORTED)
         return status;
 
-    status = object_read_vec_with_offset(ino, v, file_offset, read_bytes);
+    status = object_read_with_offset(ino, v, file_offset, read_bytes);
 
     if (success(status)) {
         lock_guard l(lock);
@@ -1220,9 +1220,9 @@ NTSTATUS file::read_vec(span<const span<uint8_t>> v, uint64_t& read_bytes) {
     return status;
 }
 
-NTSTATUS file::read_vec(span<const span<uint8_t>> v, uint64_t offset,
-                        uint64_t& read_bytes) {
-    auto status = object_read_vec_with_offset(ino, v, offset, read_bytes);
+NTSTATUS file::read(span<const span<uint8_t>> v, uint64_t offset,
+                    uint64_t& read_bytes) {
+    auto status = object_read_with_offset(ino, v, offset, read_bytes);
 
     if (success(status)) {
         lock_guard l(lock);
