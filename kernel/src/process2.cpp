@@ -175,26 +175,6 @@ static void create_dos_path(span<char16_t> buf, string_view s) {
     }
 }
 
-static mapping* find_mapping(process& proc, uint64_t address) {
-    lock_guard lock(proc.mappings_lock);
-
-    address &= ~(PAGE_SIZE - 1);
-
-    for (auto le = proc.mappings.next; le != &proc.mappings; le = le->next) {
-        auto& m = containing_record<mapping>(le);
-
-        if (m.address <= address && m.address + m.size > address) {
-            if (!m.try_acquire())
-                continue;
-
-            return &m;
-        } else if (m.address > address)
-            break;
-    }
-
-    return nullptr;
-}
-
 static bool allocate_proc_params(process& proc, HANDLE stdinh, HANDLE stdouth,
                                  HANDLE stderrh, HANDLE curdirh,
                                  string_view curdir, string_view fn,

@@ -46,3 +46,4 @@ private:
 };
 
 export void unmap_proc_pages(process& proc, uint64_t va, uint64_t num_pages);
+export mapping* find_mapping(process& proc, uint64_t address);
