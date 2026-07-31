@@ -61,7 +61,7 @@ public:
                                    span<const uint8_t>& top);
     bool write_page_vec_and_unpin(uint64_t first_page, uint64_t inpage_offset,
                                   span<const span<const uint8_t>>& v,
-                                  span<const uint8_t>& top);
+                                  span<const uint8_t>& top, size_t vec_size);
 
     spinlock cache_lock;
     rbtree_node<uint64_t>* root = nullptr;
@@ -366,8 +366,10 @@ size_t page_cache<T>::write_vec(span<const span<const uint8_t>> v,
         if (!success(status) || read_pages == 0)
             return 0; // FIXME - return error
 
-        if (!base.write_page_vec_and_unpin(first_page, inpage_offset, v, top))
+        if (!base.write_page_vec_and_unpin(first_page, inpage_offset, v, top,
+                                           vec_size)) {
             return 0;
+        }
 
         written = min(vec_size, PAGE_SIZE - inpage_offset);
 
@@ -400,7 +402,7 @@ size_t page_cache<T>::write_vec(span<const span<const uint8_t>> v,
     if (!success(status) || read_pages == 0)
         return written;
 
-    if (!base.write_page_vec_and_unpin(first_page, 0, v, top))
+    if (!base.write_page_vec_and_unpin(first_page, 0, v, top, vec_size))
         return written;
 
     written += vec_size;

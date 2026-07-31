@@ -254,7 +254,8 @@ bool page_cache_base::write_pages_vec_and_unpin(uint64_t first_page, uint64_t nu
 bool page_cache_base::write_page_vec_and_unpin(uint64_t first_page,
                                                uint64_t inpage_offset,
                                                span<const span<const uint8_t>>& v,
-                                               span<const uint8_t>& top) {
+                                               span<const uint8_t>& top,
+                                               size_t vec_size) {
     rangelock_req rlr(rl, first_page, 1);
 
     page_cache_entry* ent;
@@ -277,7 +278,7 @@ bool page_cache_base::write_page_vec_and_unpin(uint64_t first_page,
     auto ent_va = get_phys_address(*ent);
 
     memcpy_vec((uint8_t*)ent_va + inpage_offset, v, top,
-               min(get_vec_size(v), PAGE_SIZE - inpage_offset));
+               min(vec_size, PAGE_SIZE - inpage_offset));
 
     ent->dirty = 1;
     ent->refcount--; // unpin
