@@ -23,6 +23,7 @@ import console;
 import handle;
 import object_ref;
 import acpica;
+import vec;
 
 using namespace std;
 
@@ -51,6 +52,8 @@ class serial_out_pipe : public pipe {
 public:
     serial_out_pipe(unsigned int buffer_pages, uint16_t port) : pipe(buffer_pages), port(port) { }
     nt_status write(span<const uint8_t> s, uint64_t& written_bytes) override;
+    nt_status write_vec(span<const span<const uint8_t>> v,
+                        uint64_t& written_bytes) override;
     nt_status flush(bool go_readonly) override;
 
     bool ready = true;
@@ -235,68 +238,73 @@ static bool init_serial(uint16_t port, uint32_t irq, string_view uid) {
     return true;
 }
 
-nt_status serial_out_pipe::write(span<const uint8_t> s, uint64_t& written_bytes) {
-    auto orig_s = s;
+nt_status serial_out_pipe::write_vec(span<const span<const uint8_t>> v,
+                                     uint64_t& written_bytes) {
+    written_bytes = 0;
 
-    if (s.empty()) {
-        written_bytes = 0;
-        return nt_status::SUCCESS;
-    }
+    for (auto sv : v) {
+        auto s = sv;
 
-    do {
-        size_t to_copy;
+        while (!s.empty()) {
+            size_t to_copy;
 
-        {
-            lock_guard l(lock);
+            {
+                lock_guard l(lock);
 
-            if (ready) {
-                // send first character
-                outb(port, s[0]);
+                if (ready) {
+                    // send first character
+                    outb(port, s[0]);
 
-                ready = false;
-                s = s.subspan(1);
+                    ready = false;
+                    s = s.subspan(1);
+                    written_bytes++;
 
-                if (s.empty())
-                    break;
-            }
-
-            size_t buf_left = (buf_pages << PAGE_SHIFT) - buf_unread;
-
-            to_copy = min(s.size(), buf_left);
-
-            if (to_copy > 0) {
-                if (buf_write_pos + to_copy > buf_pages << PAGE_SHIFT) {
-                    auto first_bit = (buf_pages << PAGE_SHIFT) - buf_write_pos;
-
-                    memcpy(&buf[buf_write_pos], s.data(), first_bit);
-
-                    buf_write_pos = 0;
-                    buf_unread += first_bit;
-                    to_copy -= first_bit;
-                    s = s.subspan(first_bit);
+                    if (s.empty())
+                        break;
                 }
 
-                memcpy(&buf[buf_write_pos], s.data(), to_copy);
-                buf_write_pos += to_copy;
-                buf_unread += to_copy;
-                s = s.subspan(to_copy);
+                size_t buf_left = (buf_pages << PAGE_SHIFT) - buf_unread;
+
+                to_copy = min(s.size(), buf_left);
+
+                if (to_copy > 0) {
+                    if (buf_write_pos + to_copy > buf_pages << PAGE_SHIFT) {
+                        auto first_bit = (buf_pages << PAGE_SHIFT) - buf_write_pos;
+
+                        memcpy(&buf[buf_write_pos], s.data(), first_bit);
+
+                        buf_write_pos = 0;
+                        buf_unread += first_bit;
+                        to_copy -= first_bit;
+                        s = s.subspan(first_bit);
+                        written_bytes += first_bit;
+                    }
+
+                    memcpy(&buf[buf_write_pos], s.data(), to_copy);
+                    buf_write_pos += to_copy;
+                    buf_unread += to_copy;
+                    s = s.subspan(to_copy);
+                    written_bytes += to_copy;
+                }
             }
+
+            if (s.empty())
+                break;
+
+            // block while we wait for space to become available
+
+            auto status = wait_for_object(not_full_event, true);
+
+            if (!success(status))
+                return status;
         }
-
-        if (s.empty())
-            break;
-
-        // block while we wait for space to become available
-
-        auto status = wait_for_object(not_full_event, true);
-
-        if (!success(status))
-            return status;
-    } while (true);
-
-    written_bytes = (uint64_t)(s.data() - orig_s.data());
+    }
 
     return nt_status::SUCCESS;
+}
+
+nt_status serial_out_pipe::write(span<const uint8_t> s, uint64_t& written_bytes) {
+    return write_vec(span(&s, 1), written_bytes);
 }
 
 bool serial_duplex_pipe::isr_func() {
