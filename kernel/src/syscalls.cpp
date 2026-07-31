@@ -24,6 +24,7 @@ import list;
 import bsod;
 import scheduler;
 import trace;
+import vfs;
 
 using namespace std;
 
@@ -161,8 +162,11 @@ NTSTATUS user_NtWriteFile(HANDLE file_handle, HANDLE event, PIO_APC_ROUTINE apc_
         }
     }
 
-    auto ret = NtWriteFile(file_handle, event, apc_routine, apc_context, &iosb, buf, length,
-                           us_byte_offset ? &byte_offset : nullptr, us_key ? &key : nullptr);
+    auto sp = span((const uint8_t*)buf, length);
+
+    auto ret = vec_NtWriteFile(file_handle, event, apc_routine, apc_context, &iosb,
+                               span(&sp, 1), us_byte_offset ? &byte_offset : nullptr,
+                               us_key ? &key : nullptr);
 
     if (length > PAGE_SIZE)
         vfree(buf, length);
