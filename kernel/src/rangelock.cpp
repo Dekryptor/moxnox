@@ -11,11 +11,14 @@ export struct rangelock {
     list_entry waiting = { &waiting, &waiting };
 };
 
-export struct rangelock_req {
-    rangelock_req(rangelock& rl, uint64_t start, uint64_t length) : rl(rl) {
-        this->start = start;
-        this->length = length;
+export enum class rangelock_mode {
+    shared,
+    exclusive
+};
 
+export struct rangelock_req {
+    rangelock_req(rangelock& rl, uint64_t start, uint64_t length, rangelock_mode mode) : rl(rl), start(start), length(length) {
+        exclusive = mode == rangelock_mode::exclusive;
         this->lock();
     }
 
@@ -30,5 +33,6 @@ export struct rangelock_req {
     rangelock& rl;
     uint64_t start;
     uint64_t length;
+    bool exclusive;
     uintptr_t t; // thread*
 };

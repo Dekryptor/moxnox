@@ -1430,7 +1430,7 @@ void send_page_tlb_ipi(process& proc, uint64_t va, uint64_t num_pages) {
 }
 
 static bool handle_page_fault2(process& p, uintptr_t address) {
-    rangelock_req rlr(p.rl, address >> PAGE_SHIFT, 1);
+    rangelock_req rlr(p.rl, address >> PAGE_SHIFT, 1, rangelock_mode::exclusive);
 
     auto pte = find_pte(p, address);
 
@@ -1507,7 +1507,7 @@ static bool handle_page_fault2(process& p, uintptr_t address) {
                 return false;
             }
 
-            rangelock_req rlr(cache.base.rl, sect_page_num, 1);
+            rangelock_req rlr(cache.base.rl, sect_page_num, 1, rangelock_mode::exclusive);
 
             page_cache_entry* p;
 
@@ -2661,7 +2661,7 @@ static nt_status protect_vm(process& proc, void** base_address, size_t* region_s
     bool first = true;
 
     {
-        rangelock_req rlr(proc.rl, addr >> PAGE_SHIFT, pages);
+        rangelock_req rlr(proc.rl, addr >> PAGE_SHIFT, pages, rangelock_mode::exclusive);
 
         while (true) {
             auto m = find_mapping(proc, addr);
@@ -4822,7 +4822,7 @@ nt_status process::memory_unmap(span<const uint8_t> buf) {
         return nt_status::INVALID_PARAMETER;
 
     {
-        rangelock_req rlr(rl, addr >> PAGE_SHIFT, length >> PAGE_SHIFT);
+        rangelock_req rlr(rl, addr >> PAGE_SHIFT, length >> PAGE_SHIFT, rangelock_mode::exclusive);
 
         while (true) {
             mapping* m2 = nullptr;

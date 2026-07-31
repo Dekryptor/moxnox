@@ -214,7 +214,7 @@ void page_cache_base::unpin(uint64_t first_page, uint64_t num_pages) {
 bool page_cache_base::write_pages_vec_and_unpin(uint64_t first_page, uint64_t num_pages,
                                                 span<const span<const uint8_t>>& v,
                                                 span<const uint8_t>& top) {
-    rangelock_req rlr(rl, first_page, num_pages);
+    rangelock_req rlr(rl, first_page, num_pages, rangelock_mode::exclusive);
 
     page_cache_entry* ent;
 
@@ -256,7 +256,7 @@ bool page_cache_base::write_page_vec_and_unpin(uint64_t first_page,
                                                span<const span<const uint8_t>>& v,
                                                span<const uint8_t>& top,
                                                size_t vec_size) {
-    rangelock_req rlr(rl, first_page, 1);
+    rangelock_req rlr(rl, first_page, 1, rangelock_mode::exclusive);
 
     page_cache_entry* ent;
 

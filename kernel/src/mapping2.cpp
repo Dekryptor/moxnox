@@ -196,7 +196,7 @@ bool mapping::map(uint32_t mapping_offset, uint64_t va) {
 
         {
             page_cache_entry* p;
-            rangelock_req rlr(cache.base.rl, sect_page_num, 1);
+            rangelock_req rlr(cache.base.rl, sect_page_num, 1, rangelock_mode::exclusive);
 
             {
                 lock_guard lg(cache.base.cache_lock);
@@ -267,7 +267,7 @@ bool mapping::copy_from(uint32_t offset, void* ks_addr, uint32_t size) {
                 }
 
                 {
-                    rangelock_req rlr(cache.base.rl, sect_page_num, 1);
+                    rangelock_req rlr(cache.base.rl, sect_page_num, 1, rangelock_mode::exclusive);
 
                     memcpy(ks_addr, (uint8_t*)get_phys_address(*p) + page_offset,
                         to_copy);
@@ -347,7 +347,7 @@ bool mapping::copy_to(uint32_t offset, const void* ks_addr, uint32_t size) {
                         }
 
                         {
-                            rangelock_req rlr(cache.base.rl, sect_page_num, 1);
+                            rangelock_req rlr(cache.base.rl, sect_page_num, 1, rangelock_mode::exclusive);
 
                             memcpy(phys_address(pa), get_phys_address(*p),
                                 PAGE_SIZE);
@@ -420,7 +420,7 @@ bool mapping::copy_to(uint32_t offset, const void* ks_addr, uint32_t size) {
                 bool send_ipi = false;
 
                 {
-                    rangelock_req rlr(cache.base.rl, sect_page_num, 1);
+                    rangelock_req rlr(cache.base.rl, sect_page_num, 1, rangelock_mode::exclusive);
 
                     if (p->pfn == 0) {
 #pragma GCC diagnostic push

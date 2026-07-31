@@ -65,9 +65,24 @@ void rangelock_req::lock() {
     for (auto le = rl.active.next; le != &rl.active; le = le->next) {
         auto& rlr = containing_record<rangelock_req>(le);
 
-        if (rlr_overlap(rlr, *this)) {
+        if (rlr_overlap(rlr, *this) && (exclusive || rlr.exclusive)) {
             overlaps = true;
             break;
+        }
+    }
+
+    // also wait if overlaps with any pending exclusive waiters
+    if (!overlaps && !exclusive) {
+        for (auto le = rl.waiting.next; le != &rl.waiting; le = le->next) {
+            auto& rlr = containing_record<rangelock_req>(le);
+
+            if (!rlr.exclusive)
+                continue;
+
+            if (rlr_overlap(rlr, *this)) {
+                overlaps = true;
+                break;
+            }
         }
     }
 
@@ -105,37 +120,58 @@ void rangelock_req::unlock() {
             continue;
         }
 
-        bool still_blocked = false;
+        bool okay = true;
+
+        // check no conflict with anything still in the active list
 
         for (auto le2 = rl.active.next; le2 != &rl.active; le2 = le2->next) {
             auto& rlr2 = containing_record<rangelock_req>(le2);
 
-            if (rlr_overlap(rlr, rlr2)) {
-                still_blocked = true;
-                break;
-            }
-        }
-
-        if (still_blocked) {
-            le = next;
-            continue;
-        }
-
-        bool okay = true;
-
-        for (auto le2 = waking.next; le2 != &waking; le2 = le2->next) {
-            auto& rlr2 = containing_record<rangelock_req>(le2);
-
-            if (rlr_overlap(rlr, rlr2)) {
+            if (rlr_overlap(rlr, rlr2) && (rlr.exclusive || rlr2.exclusive)) {
                 okay = false;
                 break;
             }
         }
 
-        if (okay) {
-            remove_entry_list(rlr.le);
-            insert_tail_list(waking, rlr.le);
+        if (!okay) {
+            le = next;
+            continue;
         }
+
+        // check no conflict with anything already moved to the waking list
+
+        for (auto le2 = waking.next; le2 != &waking; le2 = le2->next) {
+            auto& rlr2 = containing_record<rangelock_req>(le2);
+
+            if (rlr_overlap(rlr, rlr2) && (rlr.exclusive || rlr2.exclusive)) {
+                okay = false;
+                break;
+            }
+        }
+
+        if (!okay) {
+            le = next;
+            continue;
+        }
+
+        // check no conflict with any entry still ahead of it in the waiting list
+
+        for (auto le2 = rl.waiting.next; le2 != le; le2 = le2->next) {
+            auto& rlr2 = containing_record<rangelock_req>(le2);
+
+            if (rlr_overlap(rlr, rlr2) && (rlr.exclusive || rlr2.exclusive)) {
+                okay = false;
+                break;
+            }
+        }
+
+        if (!okay) {
+            le = next;
+            continue;
+        }
+
+        remove_entry_list(rlr.le);
+        insert_tail_list(waking, rlr.le);
 
         le = next;
     }
