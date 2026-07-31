@@ -153,6 +153,10 @@ public:
         return do_read_vec<true>(span(&s, 1), read_bytes);
     }
 
+    nt_status read_nonblock_vec(span<const span<uint8_t>> v, uint64_t& read_bytes) override {
+        return do_read_vec<true>(v, read_bytes);
+    }
+
     nt_status recvfrom_nonblock(char* buf, size_t len, int flags,
                                 sockaddr* from, int* fromlen, size_t& recv_bytes) override {
         return do_recvfrom<true>(buf, len, flags, from, fromlen, recv_bytes);

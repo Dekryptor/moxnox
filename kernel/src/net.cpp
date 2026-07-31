@@ -179,6 +179,8 @@ public:
     virtual nt_status getsockname(span<uint8_t> addr, size_t& len) = 0;
     virtual nt_status getpeername(span<uint8_t> addr, size_t& len) = 0;
     virtual nt_status read_nonblock(span<uint8_t> s, uint64_t& read_bytes) = 0;
+    virtual nt_status read_nonblock_vec(span<const span<uint8_t>> v,
+                                        uint64_t& read_bytes) = 0;
     virtual nt_status recvfrom_nonblock(char* buf, size_t len, int flags,
                                         sockaddr* from, int* fromlen,
                                         size_t& recv_bytes) = 0;

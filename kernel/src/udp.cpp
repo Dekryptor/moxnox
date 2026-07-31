@@ -63,6 +63,10 @@ public:
         return nt_status::NOT_SUPPORTED;
     }
 
+    nt_status read_nonblock_vec(span<const span<uint8_t>>, uint64_t&) override {
+        return nt_status::NOT_SUPPORTED;
+    }
+
     nt_status recvfrom_nonblock(char* buf, size_t len, int flags,
                                 sockaddr* from, int* fromlen,
                                 size_t& recv_bytes) override {
