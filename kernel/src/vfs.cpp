@@ -110,6 +110,8 @@ public:
                    uint64_t& read_bytes);
     nt_status write(span<const uint8_t> s, uint64_t offset,
                     uint64_t& written_bytes);
+    nt_status write_vec(span<const span<const uint8_t>> v, uint64_t offset,
+                        uint64_t& written_bytes);
 
     virtual nt_status open_child(string_view name, object_ref& obj) = 0;
     virtual nt_status create_child(string_view name, uint32_t create_options,
@@ -146,6 +148,7 @@ public:
 
 static_assert(is_readable_object_with_offset<inode>);
 static_assert(is_writable_object_with_offset<inode>);
+static_assert(is_writable_vec_object_with_offset<inode>);
 static_assert(cacheable_flushable<inode>);
 static_assert(cache_supports_writeback<inode>);
 

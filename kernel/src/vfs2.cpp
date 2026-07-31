@@ -1167,10 +1167,13 @@ nt_status inode::read(span<const span<uint8_t>> v, uint64_t offset,
     return nt_status::SUCCESS;
 }
 
-nt_status inode::write(span<const uint8_t> s, uint64_t offset, uint64_t& written_bytes) {
+nt_status inode::write_vec(span<const span<const uint8_t>> v, uint64_t offset,
+                           uint64_t& written_bytes) {
     // FIXME - don't allow if FS readonly
 
-    if (s.empty()) {
+    size_t vec_size = get_vec_size(v);
+
+    if (vec_size == 0) {
         written_bytes = 0;
         return nt_status::SUCCESS;
     }
@@ -1181,13 +1184,17 @@ nt_status inode::write(span<const uint8_t> s, uint64_t offset, uint64_t& written
         if (inode_type != inode_type::file)
             return nt_status::INVALID_PARAMETER;
 
-        if (file_size < offset + s.size())
-            file_size = offset + s.size();
+        if (file_size < offset + vec_size)
+            file_size = offset + vec_size;
     }
 
-    written_bytes = cache.write(s, offset);
+    written_bytes = cache.write_vec(v, offset);
 
     return nt_status::SUCCESS;
+}
+
+nt_status inode::write(span<const uint8_t> s, uint64_t offset, uint64_t& written_bytes) {
+    return write_vec(span(&s, 1), offset, written_bytes);
 }
 
 file::file(object& ino, uint32_t create_options) : object(object_type::file), ino(ino), create_options(create_options) {

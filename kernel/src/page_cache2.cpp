@@ -211,8 +211,9 @@ void page_cache_base::unpin(uint64_t first_page, uint64_t num_pages) {
     }
 }
 
-bool page_cache_base::write_pages_and_unpin(uint64_t first_page, uint64_t num_pages,
-                                            span<const uint8_t> data) {
+bool page_cache_base::write_pages_vec_and_unpin(uint64_t first_page, uint64_t num_pages,
+                                                span<const span<const uint8_t>>& v,
+                                                span<const uint8_t>& top) {
     rangelock_req rlr(rl, first_page, num_pages);
 
     page_cache_entry* ent;
@@ -241,7 +242,7 @@ bool page_cache_base::write_pages_and_unpin(uint64_t first_page, uint64_t num_pa
 
         auto ent_va = get_phys_address(*ent);
 
-        memcpy(ent_va, data.data() + (i << PAGE_SHIFT), PAGE_SIZE);
+        memcpy_vec((uint8_t*)ent_va, v, top, PAGE_SIZE);
 
         ent->dirty = 1;
         ent->refcount--;
@@ -250,8 +251,10 @@ bool page_cache_base::write_pages_and_unpin(uint64_t first_page, uint64_t num_pa
     return true;
 }
 
-bool page_cache_base::write_page(uint64_t first_page, uint64_t inpage_offset,
-                                 span<const uint8_t> data) {
+bool page_cache_base::write_page_vec_and_unpin(uint64_t first_page,
+                                               uint64_t inpage_offset,
+                                               span<const span<const uint8_t>>& v,
+                                               span<const uint8_t>& top) {
     rangelock_req rlr(rl, first_page, 1);
 
     page_cache_entry* ent;
@@ -273,8 +276,8 @@ bool page_cache_base::write_page(uint64_t first_page, uint64_t inpage_offset,
 
     auto ent_va = get_phys_address(*ent);
 
-    memcpy((uint8_t*)ent_va + inpage_offset, data.data(),
-           min(data.size(), PAGE_SIZE - inpage_offset));
+    memcpy_vec((uint8_t*)ent_va + inpage_offset, v, top,
+               min(get_vec_size(v), PAGE_SIZE - inpage_offset));
 
     ent->dirty = 1;
     ent->refcount--; // unpin

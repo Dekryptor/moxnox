@@ -56,10 +56,12 @@ public:
                                  span<const span<uint8_t>> v, uint64_t offset,
                                  optional<uint64_t> size);
     void unpin(uint64_t first_page, uint64_t num_pages);
-    bool write_pages_and_unpin(uint64_t first_page, uint64_t num_pages,
-                               span<const uint8_t> data);
-    bool write_page(uint64_t first_page, uint64_t inpage_offset,
-                    span<const uint8_t> data);
+    bool write_pages_vec_and_unpin(uint64_t first_page, uint64_t num_pages,
+                                   span<const span<const uint8_t>>& v,
+                                   span<const uint8_t>& top);
+    bool write_page_vec_and_unpin(uint64_t first_page, uint64_t inpage_offset,
+                                  span<const span<const uint8_t>>& v,
+                                  span<const uint8_t>& top);
 
     spinlock cache_lock;
     rbtree_node<uint64_t>* root = nullptr;
@@ -96,8 +98,9 @@ public:
         base.unpin(first_page, num_pages);
     }
 
-    bool write_pages(uint64_t first_page, uint64_t num_pages,
-                     span<const uint8_t> data);
+    bool write_pages_vec(uint64_t first_page, uint64_t num_pages,
+                         span<const span<const uint8_t>>& v,
+                         span<const uint8_t>& top);
 
     page_cache_entry* find_page_cache_entry(uint64_t page_num) {
         return base.find_page_cache_entry(page_num);
@@ -105,6 +108,7 @@ public:
 
     page_cache_entry* find_page_cache_entry_or_earlier(uint64_t page_num);
     size_t write(span<const uint8_t> data, uint64_t offset);
+    size_t write_vec(span<const span<const uint8_t>> v, uint64_t offset);
     nt_status read_into_cache_and_pin(uint64_t first_page, uint64_t num_pages,
                                       uint64_t& read_pages);
     nt_status read(span<const span<uint8_t>> v, uint64_t offset,
@@ -321,8 +325,9 @@ bool find_unread_range(page_cache<T>& cache, page_cache_entry*& range_start,
 }
 
 template<typename T>
-bool page_cache<T>::write_pages(uint64_t first_page, uint64_t num_pages,
-                                span<const uint8_t> data) {
+bool page_cache<T>::write_pages_vec(uint64_t first_page, uint64_t num_pages,
+                                    span<const span<const uint8_t>>& v,
+                                    span<const uint8_t>& top) {
     // FIXME - add page cache to list of things that need to be flushed
 
     auto status = pin(first_page, num_pages, nullptr);
@@ -331,7 +336,7 @@ bool page_cache<T>::write_pages(uint64_t first_page, uint64_t num_pages,
 
     // copy pages and set as dirty
 
-    if (!base.write_pages_and_unpin(first_page, num_pages, data))
+    if (!base.write_pages_vec_and_unpin(first_page, num_pages, v, top))
         return false;
 
     mark_dirty();
@@ -340,16 +345,19 @@ bool page_cache<T>::write_pages(uint64_t first_page, uint64_t num_pages,
 }
 
 template<typename T>
-size_t page_cache<T>::write(span<const uint8_t> data, uint64_t offset) {
+size_t page_cache<T>::write_vec(span<const span<const uint8_t>> v,
+                                uint64_t offset) {
     uint64_t read_pages;
     uint64_t written = 0;
+    size_t vec_size = get_vec_size(v);
 
-    if (data.empty())
+    if (vec_size == 0)
         return 0;
 
     mark_dirty();
 
     uint64_t first_page = offset >> PAGE_SHIFT;
+    span<const uint8_t> top = v.front();
 
     if (offset & (PAGE_SIZE - 1)) {
         auto inpage_offset = offset & (PAGE_SIZE - 1);
@@ -358,30 +366,29 @@ size_t page_cache<T>::write(span<const uint8_t> data, uint64_t offset) {
         if (!success(status) || read_pages == 0)
             return 0; // FIXME - return error
 
-        if (!base.write_page(first_page, inpage_offset, data))
+        if (!base.write_page_vec_and_unpin(first_page, inpage_offset, v, top))
             return 0;
 
-        written = min(data.size(), PAGE_SIZE - inpage_offset);
+        written = min(vec_size, PAGE_SIZE - inpage_offset);
 
-        if (written == data.size())
+        if (written == vec_size)
             return written;
 
         offset += written;
         first_page = offset >> PAGE_SHIFT;
-
-        data = data.subspan(written);
+        vec_size -= written;
     }
 
-    if (data.size() >= PAGE_SIZE) {
-        uint64_t num_pages = data.size() >> PAGE_SHIFT;
+    if (vec_size >= PAGE_SIZE) {
+        uint64_t num_pages = vec_size >> PAGE_SHIFT;
 
-        if (!write_pages(first_page, num_pages, data))
+        if (!write_pages_vec(first_page, num_pages, v, top))
             return written;
 
         written += num_pages << PAGE_SHIFT;
-        data = data.subspan(num_pages << PAGE_SHIFT);
+        vec_size -= num_pages << PAGE_SHIFT;
 
-        if (data.empty())
+        if (vec_size == 0)
             return written;
 
         offset += num_pages << PAGE_SHIFT;
@@ -393,12 +400,17 @@ size_t page_cache<T>::write(span<const uint8_t> data, uint64_t offset) {
     if (!success(status) || read_pages == 0)
         return written;
 
-    if (!base.write_page(first_page, 0, data))
+    if (!base.write_page_vec_and_unpin(first_page, 0, v, top))
         return written;
 
-    written += data.size();
+    written += vec_size;
 
     return written;
+}
+
+template<typename T>
+size_t page_cache<T>::write(span<const uint8_t> data, uint64_t offset) {
+    return write_vec(span(&data, 1), offset);
 }
 
 template<typename T>
