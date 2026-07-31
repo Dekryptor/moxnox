@@ -1101,9 +1101,9 @@ NTSTATUS NtWriteFile(HANDLE file_handle, HANDLE, PIO_APC_ROUTINE, void*,
             }
         }
     } else if (offset.has_value())
-        status = object_write_with_offset(obj, buf, *offset, written);
+        status = object_write_vec_with_offset(obj, span(&buf, 1), *offset, written);
     else
-        status = object_write_without_offset(obj, buf, written);
+        status = object_write_vec_without_offset(obj, span(&buf, 1), written);
 
     if (!success(status)) {
         io_status_block->Status = status;
