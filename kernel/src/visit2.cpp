@@ -193,6 +193,34 @@ nt_status object_read_without_offset(object& obj, span<uint8_t> s,
     return status;
 }
 
+nt_status object_read_vec_with_offset(object& obj, span<const span<uint8_t>> v,
+                                      uint64_t offset, uint64_t& read_bytes) {
+    nt_status status;
+
+    visit_obj(obj, [&](auto&& o) {
+        if constexpr (is_readable_vec_object_with_offset<remove_reference_t<decltype(o)>>)
+            status = o.read_vec(v, offset, read_bytes);
+        else
+            status = nt_status::NOT_SUPPORTED;
+    });
+
+    return status;
+}
+
+nt_status object_read_vec_without_offset(object& obj, span<const span<uint8_t>> v,
+                                         uint64_t& read_bytes) {
+    nt_status status;
+
+    visit_obj(obj, [&](auto&& o) {
+        if constexpr (is_readable_vec_object_without_offset<remove_reference_t<decltype(o)>>)
+            status = o.read_vec(v, read_bytes);
+        else
+            status = nt_status::NOT_SUPPORTED;
+    });
+
+    return status;
+}
+
 nt_status object_read_nonblock(object& obj, span<uint8_t> s,
                                uint64_t& read_bytes) {
     nt_status status;
@@ -200,6 +228,20 @@ nt_status object_read_nonblock(object& obj, span<uint8_t> s,
     visit_obj(obj, [&](auto&& o) {
         if constexpr (is_nonblocking_readable_object<remove_reference_t<decltype(o)>>)
             status = o.read_nonblock(s, read_bytes);
+        else
+            status = nt_status::NOT_SUPPORTED;
+    });
+
+    return status;
+}
+
+nt_status object_read_vec_nonblock(object& obj, span<const span<uint8_t>> v,
+                                   uint64_t& read_bytes) {
+    nt_status status;
+
+    visit_obj(obj, [&](auto&& o) {
+        if constexpr (is_nonblocking_readable_vec_object<remove_reference_t<decltype(o)>>)
+            status = o.read_nonblock_vec(v, read_bytes);
         else
             status = nt_status::NOT_SUPPORTED;
     });

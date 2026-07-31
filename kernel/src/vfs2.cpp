@@ -1204,20 +1204,20 @@ file::~file() {
         dentry->release();
 }
 
-NTSTATUS file::read(span<uint8_t> s, uint64_t& read_bytes) {
+NTSTATUS file::read_vec(span<const span<uint8_t>> v, uint64_t& read_bytes) {
     NTSTATUS status;
 
     if (nonblock) {
-        status = object_read_nonblock(ino, s, read_bytes);
+        status = object_read_vec_nonblock(ino, v, read_bytes);
         if (status != nt_status::NOT_SUPPORTED)
             return status;
     }
 
-    status = object_read_without_offset(ino, s, read_bytes);
+    status = object_read_vec_without_offset(ino, v, read_bytes);
     if (status != nt_status::NOT_SUPPORTED)
         return status;
 
-    status = object_read_with_offset(ino, s, file_offset, read_bytes);
+    status = object_read_vec_with_offset(ino, v, file_offset, read_bytes);
 
     if (success(status)) {
         lock_guard l(lock);
@@ -1227,8 +1227,13 @@ NTSTATUS file::read(span<uint8_t> s, uint64_t& read_bytes) {
     return status;
 }
 
-NTSTATUS file::read(span<uint8_t> s, uint64_t offset, uint64_t& read_bytes) {
-    auto status = object_read_with_offset(ino, s, offset, read_bytes);
+NTSTATUS file::read(span<uint8_t> s, uint64_t& read_bytes) {
+    return read_vec(span(&s, 1), read_bytes);
+}
+
+NTSTATUS file::read_vec(span<const span<uint8_t>> v, uint64_t offset,
+                        uint64_t& read_bytes) {
+    auto status = object_read_vec_with_offset(ino, v, offset, read_bytes);
 
     if (success(status)) {
         lock_guard l(lock);
@@ -1236,6 +1241,10 @@ NTSTATUS file::read(span<uint8_t> s, uint64_t offset, uint64_t& read_bytes) {
     }
 
     return status;
+}
+
+NTSTATUS file::read(span<uint8_t> s, uint64_t offset, uint64_t& read_bytes) {
+    return read_vec(span(&s, 1), offset, read_bytes);
 }
 
 NTSTATUS file::write(span<const uint8_t> s, uint64_t& written_bytes) {

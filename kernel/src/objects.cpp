@@ -185,3 +185,9 @@ template<typename T>
 concept is_nonblocking_readable_object = requires(T t, span<uint8_t> s, uint64_t& read_bytes) {
     { t.read_nonblock(s, read_bytes) } -> convertible_to<NTSTATUS>;
 };
+
+export
+template<typename T>
+concept is_nonblocking_readable_vec_object = requires(T t, span<const span<uint8_t>> v, uint64_t& read_bytes) {
+    { t.read_nonblock_vec(v, read_bytes) } -> convertible_to<NTSTATUS>;
+};
