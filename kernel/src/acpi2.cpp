@@ -31,6 +31,7 @@ import gnu_efi;
 import evdev_device;
 import evdev;
 import handle;
+import vec;
 
 using namespace std;
 
@@ -52,12 +53,17 @@ public:
         return nt_status::NOT_SUPPORTED;
     }
 
-    nt_status write(span<const uint8_t> s, uint64_t& written_bytes) override {
+    nt_status write_vec(span<const span<const uint8_t>> v,
+                        uint64_t& written_bytes) override {
         // silently ignore
 
-        written_bytes = s.size();
+        written_bytes = get_vec_size(v);
 
         return nt_status::SUCCESS;
+    }
+
+    nt_status write(span<const uint8_t> s, uint64_t& written_bytes) override {
+        return write_vec(span(&s, 1), written_bytes);
     }
 };
 

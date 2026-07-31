@@ -25,6 +25,7 @@ import moxnox_ioctls;
 import pipe;
 import evdev;
 import rwsem;
+import vec;
 
 using namespace std;
 
@@ -136,11 +137,17 @@ static bool ps2_isr_func(void*);
 class ps2_keyboard : public evdev_device {
 public:
     nt_status write(span<const uint8_t> s, uint64_t& written_bytes) override;
+    nt_status write_vec(span<const span<const uint8_t>> v,
+                        uint64_t& written_bytes) override;
 };
 
 class ps2_mouse : public evdev_device {
 public:
     nt_status write(span<const uint8_t>, uint64_t&) override {
+        return nt_status::NOT_SUPPORTED;
+    }
+
+    nt_status write_vec(span<const span<const uint8_t>>, uint64_t&) override {
         return nt_status::NOT_SUPPORTED;
     }
 };
@@ -302,11 +309,15 @@ static void keyboard_event_recv() {
     } while (true);
 }
 
-nt_status ps2_keyboard::write(span<const uint8_t> s, uint64_t& written_bytes) {
-    if (s.size() < sizeof(input_event))
+nt_status ps2_keyboard::write_vec(span<const span<const uint8_t>> v,
+                                  uint64_t& written_bytes) {
+    if (get_vec_size(v) < sizeof(input_event))
         return nt_status::INVALID_PARAMETER;
 
-    auto& ev = *(input_event*)s.data();
+    input_event ev;
+    span<const uint8_t> top = v.front();
+
+    memcpy_vec((uint8_t*)&ev, v, top, sizeof(input_event));
 
     if (ev.type != evdev_type::EV_LED)
         return nt_status::NOT_SUPPORTED;
@@ -366,6 +377,10 @@ nt_status ps2_keyboard::write(span<const uint8_t> s, uint64_t& written_bytes) {
     written_bytes = sizeof(input_event);
 
     return nt_status::SUCCESS;
+}
+
+nt_status ps2_keyboard::write(span<const uint8_t> s, uint64_t& written_bytes) {
+    return write_vec(span(&s, 1), written_bytes);
 }
 
 static bool add_keyboard_evdev_pipe() {

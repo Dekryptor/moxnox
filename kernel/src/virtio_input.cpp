@@ -21,6 +21,7 @@ import evdev_device;
 import dma;
 import evdev;
 import moxnox_ioctls;
+import vec;
 
 using namespace std;
 
@@ -115,6 +116,8 @@ public:
     }
 
     nt_status write(span<const uint8_t> s, uint64_t& written_bytes) override;
+    nt_status write_vec(span<const span<const uint8_t>> v,
+                        uint64_t& written_bytes) override;
     nt_status ioctl(uint32_t code, span<const uint8_t> inbuf,
                     span<uint8_t> outbuf, uintptr_t& written) override;
 
@@ -298,11 +301,15 @@ void virtio_input<T>::recv_thread() {
 }
 
 template<virtio_device T>
-nt_status virtio_input<T>::write(span<const uint8_t> s, uint64_t& written_bytes) {
-    if (s.size() < sizeof(input_event))
+nt_status virtio_input<T>::write_vec(span<const span<const uint8_t>> v,
+                                     uint64_t& written_bytes) {
+    if (get_vec_size(v) < sizeof(input_event))
         return nt_status::INVALID_PARAMETER;
 
-    auto& ev = *(input_event*)s.data();
+    input_event ev;
+    span<const uint8_t> top = v.front();
+
+    memcpy_vec((uint8_t*)&ev, v, top, sizeof(input_event));
 
     virtio_input_event vie;
 
@@ -318,6 +325,11 @@ nt_status virtio_input<T>::write(span<const uint8_t> s, uint64_t& written_bytes)
     written_bytes = sizeof(input_event);
 
     return nt_status::SUCCESS;
+}
+
+template<virtio_device T>
+nt_status virtio_input<T>::write(span<const uint8_t> s, uint64_t& written_bytes) {
+    return write_vec(span(&s, 1), written_bytes);
 }
 
 template<virtio_device T>
