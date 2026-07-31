@@ -211,7 +211,7 @@ static nt_status extract_initrd_file(string_view path, uint64_t mode,
         uint64_t offset = 0, written;
 
         while (!contents.empty()) {
-            status = ino.write(contents, offset, written);
+            status = ino.write_vec(span(&contents, 1), offset, written);
             if (!success(status))
                 return status;
 
@@ -1187,10 +1187,6 @@ nt_status inode::write_vec(span<const span<const uint8_t>> v, uint64_t offset,
     written_bytes = cache.write_vec(v, offset);
 
     return nt_status::SUCCESS;
-}
-
-nt_status inode::write(span<const uint8_t> s, uint64_t offset, uint64_t& written_bytes) {
-    return write_vec(span(&s, 1), offset, written_bytes);
 }
 
 file::file(object& ino, uint32_t create_options) : object(object_type::file), ino(ino), create_options(create_options) {
