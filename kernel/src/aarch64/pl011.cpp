@@ -65,6 +65,8 @@ class pl011_out_pipe : public pipe {
 public:
     pl011_out_pipe(unsigned int buffer_pages) : pipe(buffer_pages) { }
     nt_status write(span<const uint8_t> s, uint64_t& written_bytes) override;
+    nt_status write_vec(span<const span<const uint8_t>> v,
+                        uint64_t& written_bytes) override;
     nt_status flush(bool go_readonly) override;
 
     bool ready = true;
@@ -168,78 +170,83 @@ pl011_pipe::pl011_pipe(pipe& recv_pipe, pl011_out_pipe& send_pipe, uint64_t pa,
     init = true;
 }
 
-nt_status pl011_out_pipe::write(span<const uint8_t> s, uint64_t& written_bytes) {
-    auto orig_s = s;
-
+nt_status pl011_out_pipe::write_vec(span<const span<const uint8_t>> v,
+                                    uint64_t& written_bytes) {
     written_bytes = 0;
-
-    if (s.empty())
-        return nt_status::SUCCESS;
 
     auto& UARTDR = *(volatile uint32_t*)base_address;
 
-    do {
-        size_t to_copy;
+    for (auto sv : v) {
+        auto s = sv;
 
-        {
-            lock_guard l(lock);
+        while (!s.empty()) {
+            size_t to_copy;
 
-            if (ready) {
-                // send first character
+            {
+                lock_guard l(lock);
 
-                if (s[0] == '\n' && !sent_cr) {
-                    UARTDR = '\r';
-                    ready = false;
-                    sent_cr = true;
-                } else {
-                    UARTDR = (uint32_t)s[0];
-                    sent_cr = s[0] == '\r';
+                if (ready) {
+                    // send first character
 
-                    ready = false;
-                    s = s.subspan(1);
+                    if (s[0] == '\n' && !sent_cr) {
+                        UARTDR = '\r';
+                        ready = false;
+                        sent_cr = true;
+                    } else {
+                        UARTDR = (uint32_t)s[0];
+                        sent_cr = s[0] == '\r';
 
-                    if (s.empty())
-                        break;
+                        ready = false;
+                        s = s.subspan(1);
+                        written_bytes++;
+
+                        if (s.empty())
+                            break;
+                    }
+                }
+
+                size_t buf_left = (buf_pages << PAGE_SHIFT) - buf_unread;
+
+                to_copy = min(s.size(), buf_left);
+
+                if (to_copy > 0) {
+                    if (buf_write_pos + to_copy > buf_pages << PAGE_SHIFT) {
+                        auto first_bit = (buf_pages << PAGE_SHIFT) - buf_write_pos;
+
+                        memcpy(&buf[buf_write_pos], s.data(), first_bit);
+
+                        buf_write_pos = 0;
+                        buf_unread += first_bit;
+                        to_copy -= first_bit;
+                        s = s.subspan(first_bit);
+                        written_bytes += first_bit;
+                    }
+
+                    memcpy(&buf[buf_write_pos], s.data(), to_copy);
+                    buf_write_pos += to_copy;
+                    buf_unread += to_copy;
+                    s = s.subspan(to_copy);
+                    written_bytes += to_copy;
                 }
             }
 
-            size_t buf_left = (buf_pages << PAGE_SHIFT) - buf_unread;
+            if (s.empty())
+                break;
 
-            to_copy = min(s.size(), buf_left);
+            // block while we wait for space to become available
 
-            if (to_copy > 0) {
-                if (buf_write_pos + to_copy > buf_pages << PAGE_SHIFT) {
-                    auto first_bit = (buf_pages << PAGE_SHIFT) - buf_write_pos;
+            auto status = wait_for_object(not_full_event, true);
 
-                    memcpy(&buf[buf_write_pos], s.data(), first_bit);
-
-                    buf_write_pos = 0;
-                    buf_unread += first_bit;
-                    to_copy -= first_bit;
-                    s = s.subspan(first_bit);
-                }
-
-                memcpy(&buf[buf_write_pos], s.data(), to_copy);
-                buf_write_pos += to_copy;
-                buf_unread += to_copy;
-                s = s.subspan(to_copy);
-            }
+            if (!success(status))
+                return status;
         }
-
-        if (s.empty())
-            break;
-
-        // block while we wait for space to become available
-
-        auto status = wait_for_object(not_full_event, true);
-
-        if (!success(status))
-            return status;
-    } while (true);
-
-    written_bytes = (uint64_t)(s.data() - orig_s.data());
+    }
 
     return nt_status::SUCCESS;
+}
+
+nt_status pl011_out_pipe::write(span<const uint8_t> s, uint64_t& written_bytes) {
+    return write_vec(span(&s, 1), written_bytes);
 }
 
 nt_status pl011_out_pipe::flush(bool go_readonly) {
