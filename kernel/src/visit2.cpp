@@ -137,6 +137,36 @@ nt_status object_write_with_offset(object& obj, span<const uint8_t> s,
     return status;
 }
 
+nt_status object_write_vec_without_offset(object& obj, span<const span<const uint8_t>> v,
+                                          uint64_t& written) {
+    nt_status status;
+
+    visit_obj(obj, [&](auto&& o) {
+        if constexpr (is_writable_vec_object_without_offset<remove_reference_t<decltype(o)>>)
+            status = o.write_vec(v, written);
+        else {
+            status = nt_status::NOT_SUPPORTED;
+            written = 0;
+        }
+    });
+
+    return status;
+}
+
+nt_status object_write_vec_with_offset(object& obj, span<const span<const uint8_t>> v,
+                                       uint64_t offset, uint64_t& written_bytes) {
+    nt_status status;
+
+    visit_obj(obj, [&](auto&& o) {
+        if constexpr (is_writable_vec_object_with_offset<remove_reference_t<decltype(o)>>)
+            status = o.write_vec(v, offset, written_bytes);
+        else
+            status = nt_status::NOT_SUPPORTED;
+    });
+
+    return status;
+}
+
 nt_status object_ioctl(object& obj, uint32_t control_code, span<const uint8_t> inbuf,
                        span<uint8_t> outbuf, IO_STATUS_BLOCK& iosb) {
     nt_status ret;

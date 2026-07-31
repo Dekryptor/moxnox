@@ -1243,16 +1243,16 @@ NTSTATUS file::read(span<const span<uint8_t>> v, uint64_t offset,
     return status;
 }
 
-NTSTATUS file::write(span<const uint8_t> s, uint64_t& written_bytes) {
+NTSTATUS file::write_vec(span<const span<const uint8_t>> v, uint64_t& written_bytes) {
     NTSTATUS status;
 
     // FIXME - update file position if FILE_SYNCHRONOUS_IO_ALERT or FILE_SYNCHRONOUS_IO_NONALERT set
 
-    status = object_write_without_offset(ino, s, written_bytes);
+    status = object_write_vec_without_offset(ino, v, written_bytes);
     if (status != nt_status::NOT_SUPPORTED)
         return status;
 
-    status = object_write_with_offset(ino, s, file_offset, written_bytes);
+    status = object_write_vec_with_offset(ino, v, file_offset, written_bytes);
 
     if (success(status) && written_bytes > 0) {
         lock_guard l(lock);
@@ -1262,10 +1262,15 @@ NTSTATUS file::write(span<const uint8_t> s, uint64_t& written_bytes) {
     return status;
 }
 
-NTSTATUS file::write(span<const uint8_t> s, uint64_t offset, uint64_t& written_bytes) {
+NTSTATUS file::write(span<const uint8_t> s, uint64_t& written_bytes) {
+    return write_vec(span(&s, 1), written_bytes);
+}
+
+NTSTATUS file::write_vec(span<const span<const uint8_t>> v, uint64_t offset,
+                         uint64_t& written_bytes) {
     // FIXME - if FILE_SYNCHRONOUS_IO_ALERT or FILE_SYNCHRONOUS_IO_NONALERT set, set file_offset to offset first
 
-    auto status = object_write_with_offset(ino, s, offset, written_bytes);
+    auto status = object_write_vec_with_offset(ino, v, offset, written_bytes);
 
     if (success(status) && written_bytes > 0) {
         lock_guard l(lock);
@@ -1273,6 +1278,10 @@ NTSTATUS file::write(span<const uint8_t> s, uint64_t offset, uint64_t& written_b
     }
 
     return status;
+}
+
+NTSTATUS file::write(span<const uint8_t> s, uint64_t offset, uint64_t& written_bytes) {
+    return write_vec(span(&s, 1), offset, written_bytes);
 }
 
 extern "C"

@@ -233,6 +233,9 @@ public:
     NTSTATUS write(span<const uint8_t> s, uint64_t& written_bytes);
     NTSTATUS write(span<const uint8_t> s, uint64_t offset,
                    uint64_t& written_bytes);
+    NTSTATUS write_vec(span<const span<const uint8_t>> v, uint64_t& written_bytes);
+    NTSTATUS write_vec(span<const span<const uint8_t>> v, uint64_t offset,
+                       uint64_t& written_bytes);
     NTSTATUS query_directory(HANDLE event, PIO_APC_ROUTINE apc_routine,
                              void* apc_context, IO_STATUS_BLOCK& io_status_block,
                              void* file_information, uint32_t length,
@@ -260,6 +263,8 @@ static_assert(is_readable_object_without_offset<file>);
 static_assert(is_readable_object_with_offset<file>);
 static_assert(is_writable_object_without_offset<file>);
 static_assert(is_writable_object_with_offset<file>);
+static_assert(is_writable_vec_object_without_offset<file>);
+static_assert(is_writable_vec_object_with_offset<file>);
 static_assert(has_last_handle_closed<file>);
 
 export list_entry filesystem_types = { &filesystem_types, &filesystem_types };
