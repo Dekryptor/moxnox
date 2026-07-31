@@ -115,8 +115,8 @@ public:
         delete &dev;
     }
 
-    nt_status write_vec(span<const span<const uint8_t>> v,
-                        uint64_t& written_bytes) override;
+    nt_status write(span<const span<const uint8_t>> v,
+                    uint64_t& written_bytes) override;
     nt_status ioctl(uint32_t code, span<const uint8_t> inbuf,
                     span<uint8_t> outbuf, uintptr_t& written) override;
 
@@ -300,8 +300,8 @@ void virtio_input<T>::recv_thread() {
 }
 
 template<virtio_device T>
-nt_status virtio_input<T>::write_vec(span<const span<const uint8_t>> v,
-                                     uint64_t& written_bytes) {
+nt_status virtio_input<T>::write(span<const span<const uint8_t>> v,
+                                 uint64_t& written_bytes) {
     if (get_vec_size(v) < sizeof(input_event))
         return nt_status::INVALID_PARAMETER;
 

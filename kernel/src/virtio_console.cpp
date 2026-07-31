@@ -79,8 +79,8 @@ public:
         return recv_pipe.read(v, read_bytes);
     }
 
-    nt_status write_vec(span<const span<const uint8_t>> v,
-                        uint64_t& written_bytes) override;
+    nt_status write(span<const span<const uint8_t>> v,
+                    uint64_t& written_bytes) override;
 
     sync_object& get_sync_object() override {
         return recv_pipe;
@@ -166,7 +166,7 @@ void virtio_console<T>::recv_thread() {
         auto read_buf = span((const uint8_t*)buf, buf_read_bytes);
 
         while (true) {
-            status = recv_pipe.write_vec(span(&read_buf, 1), written_bytes);
+            status = recv_pipe.write(span(&read_buf, 1), written_bytes);
             if (!success(status)) {
                 print("recv_pipe.write returned {}\n", status);
                 break;
@@ -182,8 +182,8 @@ void virtio_console<T>::recv_thread() {
 }
 
 template<virtio_device T>
-nt_status virtio_console<T>::write_vec(span<const span<const uint8_t>> v,
-                                       uint64_t& written_bytes) {
+nt_status virtio_console<T>::write(span<const span<const uint8_t>> v,
+                                   uint64_t& written_bytes) {
     if (shutting_down_cpu.load(memory_order::acquire) != 0xffffffff)
         return nt_status::SYSTEM_SHUTDOWN;
 

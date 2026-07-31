@@ -34,8 +34,8 @@ public:
     virtual ~pipe();
 
     NTSTATUS read(span<const span<uint8_t>> v, uint64_t& read_bytes) override;
-    NTSTATUS write_vec(span<const span<const uint8_t>> v,
-                       uint64_t& written_bytes) override;
+    NTSTATUS write(span<const span<const uint8_t>> v,
+                   uint64_t& written_bytes) override;
     NTSTATUS write_nonblock(span<const uint8_t> s, uint64_t& written_bytes);
 
     NTSTATUS write_nonblock(string_view sv, uint64_t& written_bytes) {
@@ -82,12 +82,12 @@ public:
         return ret;
     }
 
-    nt_status write_vec(span<const span<const uint8_t>> v,
-                        uint64_t& written_bytes) override {
+    nt_status write(span<const span<const uint8_t>> v,
+                    uint64_t& written_bytes) override {
         if (disconnected)
             return nt_status::PIPE_DISCONNECTED;
 
-        auto ret = send_pipe.write_vec(v, written_bytes);
+        auto ret = send_pipe.write(v, written_bytes);
 
         if (disconnected)
             return nt_status::PIPE_DISCONNECTED;
@@ -138,9 +138,9 @@ public:
         return client.send_pipe.read(v, read_bytes);
     }
 
-    nt_status write_vec(span<const span<const uint8_t>> v,
-                        uint64_t& written_bytes) override {
-        return client.recv_pipe.write_vec(v, written_bytes);
+    nt_status write(span<const span<const uint8_t>> v,
+                    uint64_t& written_bytes) override {
+        return client.recv_pipe.write(v, written_bytes);
     }
 
     sync_object& get_sync_object() override {
@@ -185,8 +185,8 @@ pipe::~pipe() {
     vfree(buf, buf_pages << PAGE_SHIFT);
 }
 
-nt_status pipe::write_vec(span<const span<const uint8_t>> v,
-                          uint64_t& written_bytes) {
+nt_status pipe::write(span<const span<const uint8_t>> v,
+                      uint64_t& written_bytes) {
     size_t vec_size = get_vec_size(v);
 
     if (readonly) {

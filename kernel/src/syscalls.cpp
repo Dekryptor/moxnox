@@ -368,9 +368,9 @@ void unimplemented_syscall(const char* name) {
             auto sp2 = span((const uint8_t*)s, (size_t)(sp.data() - s));
 
             // FIXME - handle short writes
-            auto status = object_write_vec_without_offset(objrw_stderr.get(),
-                                                          span(&sp2, 1),
-                                                          written_bytes);
+            auto status = object_write_without_offset(objrw_stderr.get(),
+                                                      span(&sp2, 1),
+                                                      written_bytes);
             if (success(status))
                 written = true;
         }

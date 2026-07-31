@@ -141,8 +141,8 @@ public:
         return do_read<false>(v, read_bytes);
     }
 
-    nt_status write_vec(span<const span<const uint8_t>> v,
-                        uint64_t& written_bytes) override;
+    nt_status write(span<const span<const uint8_t>> v,
+                    uint64_t& written_bytes) override;
     nt_status getsockname(span<uint8_t>, size_t&) override;
     nt_status getpeername(span<uint8_t> buf, size_t& len) override;
 
@@ -2314,8 +2314,8 @@ nt_status ipv6_tcp_socket::do_read(span<const span<uint8_t>> v,
     return nt_status::SUCCESS;
 }
 
-nt_status ipv6_tcp_socket::write_vec(span<const span<const uint8_t>> v,
-                                     uint64_t& written_bytes) {
+nt_status ipv6_tcp_socket::write(span<const span<const uint8_t>> v,
+                                 uint64_t& written_bytes) {
     // FIXME - merge into sendto once NtWriteFile is zero-copy
 
     nt_status status = nt_status::SUCCESS;

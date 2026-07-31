@@ -88,7 +88,7 @@ public:
         return nt_status::NOT_SUPPORTED;
     }
 
-    nt_status write_vec(span<const span<const uint8_t>>, uint64_t&) override {
+    nt_status write(span<const span<const uint8_t>>, uint64_t&) override {
         return nt_status::NOT_SUPPORTED;
     }
 

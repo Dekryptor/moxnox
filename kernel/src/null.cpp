@@ -24,8 +24,8 @@ public:
     }
 
     nt_status read(span<const span<uint8_t>> v, uint64_t& read_bytes) override;
-    nt_status write_vec(span<const span<const uint8_t>> v,
-                        uint64_t& written_bytes) override;
+    nt_status write(span<const span<const uint8_t>> v,
+                    uint64_t& written_bytes) override;
 };
 
 export bool create_dev_null() {
@@ -52,8 +52,8 @@ nt_status null_chardev::read(span<const span<uint8_t>>, uint64_t& read_bytes) {
     return nt_status::SUCCESS;
 }
 
-nt_status null_chardev::write_vec(span<const span<const uint8_t>> v,
-                                  uint64_t& written_bytes) {
+nt_status null_chardev::write(span<const span<const uint8_t>> v,
+                              uint64_t& written_bytes) {
     written_bytes = get_vec_size(v);
 
     return nt_status::SUCCESS;

@@ -136,13 +136,13 @@ static bool ps2_isr_func(void*);
 
 class ps2_keyboard : public evdev_device {
 public:
-    nt_status write_vec(span<const span<const uint8_t>> v,
-                        uint64_t& written_bytes) override;
+    nt_status write(span<const span<const uint8_t>> v,
+                    uint64_t& written_bytes) override;
 };
 
 class ps2_mouse : public evdev_device {
 public:
-    nt_status write_vec(span<const span<const uint8_t>>, uint64_t&) override {
+    nt_status write(span<const span<const uint8_t>>, uint64_t&) override {
         return nt_status::NOT_SUPPORTED;
     }
 };
@@ -304,8 +304,8 @@ static void keyboard_event_recv() {
     } while (true);
 }
 
-nt_status ps2_keyboard::write_vec(span<const span<const uint8_t>> v,
-                                  uint64_t& written_bytes) {
+nt_status ps2_keyboard::write(span<const span<const uint8_t>> v,
+                              uint64_t& written_bytes) {
     if (get_vec_size(v) < sizeof(input_event))
         return nt_status::INVALID_PARAMETER;
 

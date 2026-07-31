@@ -53,8 +53,8 @@ public:
         return nt_status::NOT_SUPPORTED;
     }
 
-    nt_status write_vec(span<const span<const uint8_t>> v,
-                        uint64_t& written_bytes) override {
+    nt_status write(span<const span<const uint8_t>> v,
+                    uint64_t& written_bytes) override {
         // silently ignore
 
         written_bytes = get_vec_size(v);

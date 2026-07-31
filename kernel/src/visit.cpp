@@ -14,10 +14,10 @@ using namespace std;
 export void object_release(object& obj);
 export bool object_is_sync_object(object& obj);
 export void object_on_wake(object& obj);
-export nt_status object_write_vec_without_offset(object& obj,
-                                                 span<const span<const uint8_t>> v,
-                                                 uint64_t& written);
-export nt_status object_write_vec_with_offset(object& obj, span<const span<const uint8_t>> v,
+export nt_status object_write_without_offset(object& obj,
+                                             span<const span<const uint8_t>> v,
+                                             uint64_t& written);
+export nt_status object_write_with_offset(object& obj, span<const span<const uint8_t>> v,
                                               uint64_t offset, uint64_t& written_bytes);
 export nt_status object_ioctl(object& obj, uint32_t control_code, span<const uint8_t> inbuf,
                               span<uint8_t> outbuf, IO_STATUS_BLOCK& iosb);

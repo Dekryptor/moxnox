@@ -98,8 +98,8 @@ public:
                        bool on);
     void recv_thread();
 
-    nt_status write_vec(span<const span<const uint8_t>> v,
-                        uint64_t& written_bytes) override;
+    nt_status write(span<const span<const uint8_t>> v,
+                    uint64_t& written_bytes) override;
     nt_status ioctl(uint32_t code, span<const uint8_t> inbuf,
                     span<uint8_t> outbuf, uintptr_t& written) override;
 
@@ -2663,8 +2663,8 @@ static bool set_protocol(usb_device& d, uint16_t wValue, uint16_t wIndex) {
     return true;
 }
 
-nt_status usb_hid_device::write_vec(span<const span<const uint8_t>> v,
-                                    uint64_t& written_bytes) {
+nt_status usb_hid_device::write(span<const span<const uint8_t>> v,
+                                uint64_t& written_bytes) {
     if (get_vec_size(v) < sizeof(input_event))
         return nt_status::INVALID_PARAMETER;
 

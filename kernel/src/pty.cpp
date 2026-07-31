@@ -41,7 +41,7 @@ public:
         return nt_status::NOT_SUPPORTED;
     }
 
-    nt_status write_vec(span<const span<const uint8_t>>, uint64_t&) override {
+    nt_status write(span<const span<const uint8_t>>, uint64_t&) override {
         return nt_status::NOT_SUPPORTED;
     }
 
@@ -54,8 +54,8 @@ public:
     pty_client(pipe& recv_pipe, pipe& send_pipe, uint16_t cols, uint16_t rows);
     ~pty_client();
     nt_status read(span<const span<uint8_t>> v, uint64_t& read_bytes) override;
-    nt_status write_vec(span<const span<const uint8_t>> v,
-                        uint64_t& written_bytes) override;
+    nt_status write(span<const span<const uint8_t>> v,
+                    uint64_t& written_bytes) override;
     sync_object& get_sync_object() override;
     nt_status ioctl(uint32_t code, span<const uint8_t> inbuf,
                     span<uint8_t> outbuf, uintptr_t& written) override;
@@ -101,8 +101,8 @@ public:
     pty_server(pty_client& client);
     ~pty_server();
     nt_status read(span<const span<uint8_t>> v, uint64_t& read_bytes) override;
-    nt_status write_vec(span<const span<const uint8_t>> v,
-                        uint64_t& written_bytes) override;
+    nt_status write(span<const span<const uint8_t>> v,
+                    uint64_t& written_bytes) override;
     sync_object& get_sync_object() override;
     void last_handle_closed() override;
 
@@ -137,7 +137,7 @@ public:
 
     nt_status read(span<const span<uint8_t>> v, uint64_t& read_bytes) override;
 
-    nt_status write_vec(span<const span<const uint8_t>>, uint64_t&) override {
+    nt_status write(span<const span<const uint8_t>>, uint64_t&) override {
         return nt_status::NOT_SUPPORTED;
     }
 
@@ -346,8 +346,8 @@ static size_t find_newline(span<const uint8_t> s) {
     return string_view::npos;
 }
 
-nt_status pty_client::write_vec(span<const span<const uint8_t>> v,
-                                uint64_t& written_bytes) {
+nt_status pty_client::write(span<const span<const uint8_t>> v,
+                            uint64_t& written_bytes) {
     nt_status status;
 
     if (disconnected)
@@ -370,7 +370,7 @@ nt_status pty_client::write_vec(span<const span<const uint8_t>> v,
                 if (nl == string_view::npos) {
                     uint64_t sent;
 
-                    status = send_pipe.write_vec(span(&s, 1), sent);
+                    status = send_pipe.write(span(&s, 1), sent);
 
                     if (disconnected)
                         return nt_status::PIPE_DISCONNECTED;
@@ -385,7 +385,7 @@ nt_status pty_client::write_vec(span<const span<const uint8_t>> v,
                         uint64_t sent;
                         auto sp = span(s.data(), nl);
 
-                        status = send_pipe.write_vec(span(&sp, 1), sent);
+                        status = send_pipe.write(span(&sp, 1), sent);
 
                         if (disconnected)
                             return nt_status::PIPE_DISCONNECTED;
@@ -411,7 +411,7 @@ nt_status pty_client::write_vec(span<const span<const uint8_t>> v,
                         uint64_t sent;
                         auto sp = span(crlf.data(), crlf.size());
 
-                        status = send_pipe.write_vec(span(&sp, 1), sent);
+                        status = send_pipe.write(span(&sp, 1), sent);
 
                         if (disconnected)
                             return nt_status::PIPE_DISCONNECTED;
@@ -426,7 +426,7 @@ nt_status pty_client::write_vec(span<const span<const uint8_t>> v,
 
                         if (sent == 1) { // only sent CR
                             sp = span(crlf.data() + 1, 1);
-                            status = send_pipe.write_vec(span(&sp, 1), sent);
+                            status = send_pipe.write(span(&sp, 1), sent);
 
                             if (disconnected)
                                 return nt_status::PIPE_DISCONNECTED;
@@ -450,7 +450,7 @@ nt_status pty_client::write_vec(span<const span<const uint8_t>> v,
         written_bytes = w;
         return nt_status::SUCCESS;
     } else {
-        status = send_pipe.write_vec(v, written_bytes);
+        status = send_pipe.write(v, written_bytes);
 
         if (disconnected)
             return nt_status::PIPE_DISCONNECTED;
@@ -609,7 +609,7 @@ nt_status pty_client::canonical_write(span<const uint8_t> s, uint64_t& written_b
             }
 
             while (true) {
-                status = recv_pipe.write_vec(span(&sp, 1), bytes);
+                status = recv_pipe.write(span(&sp, 1), bytes);
                 if (!success(status))
                     return status;
 
@@ -700,7 +700,7 @@ nt_status pty_server::write2(span<const span<const uint8_t>> v,
 
         return nt_status::SUCCESS;
     } else
-        return client.recv_pipe.write_vec(v, written_bytes);
+        return client.recv_pipe.write(v, written_bytes);
 }
 
 void pty_client::post_info_event(pty_info_type type) {
@@ -747,8 +747,8 @@ void pty_client::post_info_event(pty_info_type type) {
     }
 }
 
-nt_status pty_server::write_vec(span<const span<const uint8_t>> v,
-                                uint64_t& written_bytes) {
+nt_status pty_server::write(span<const span<const uint8_t>> v,
+                            uint64_t& written_bytes) {
     nt_status status;
     uint64_t bytes;
     bool noflsh = client.settings.c_lflag & NOFLSH;

@@ -48,8 +48,8 @@ public:
         return nt_status::NOT_SUPPORTED;
     }
 
-    nt_status write_vec(span<const span<const uint8_t>> v,
-                        uint64_t& written_bytes) override;
+    nt_status write(span<const span<const uint8_t>> v,
+                    uint64_t& written_bytes) override;
     nt_status ioctl(uint32_t code, span<const uint8_t> inbuf,
                     span<uint8_t> outbuf, uintptr_t& written) override;
     nt_status userspace_open(object_ref& objref) override;
@@ -114,9 +114,9 @@ public:
 
     nt_status read(span<const span<uint8_t>> v, uint64_t& read_bytes) override;
 
-    nt_status write_vec(span<const span<const uint8_t>> v,
-                        uint64_t& written_bytes) override {
-        return p.write_vec(v, written_bytes);
+    nt_status write(span<const span<const uint8_t>> v,
+                    uint64_t& written_bytes) override {
+        return p.write(v, written_bytes);
     }
 
     nt_status ioctl(uint32_t code, span<const uint8_t> inbuf,
@@ -149,7 +149,7 @@ public:
         return nt_status::NOT_SUPPORTED;
     }
 
-    nt_status write_vec(span<const span<const uint8_t>>, uint64_t&) override {
+    nt_status write(span<const span<const uint8_t>>, uint64_t&) override {
         return nt_status::NOT_SUPPORTED;
     }
 
@@ -204,9 +204,9 @@ public:
 
     nt_status read(span<const span<uint8_t>> v, uint64_t& read_bytes) override;
 
-    nt_status write_vec(span<const span<const uint8_t>> v,
-                        uint64_t& written_bytes) override {
-        return p.write_vec(v, written_bytes);
+    nt_status write(span<const span<const uint8_t>> v,
+                    uint64_t& written_bytes) override {
+        return p.write(v, written_bytes);
     }
 
     nt_status ioctl(uint32_t code, span<const uint8_t> inbuf,
@@ -261,7 +261,7 @@ public:
         uint64_t written_bytes;
         auto sp = span((const uint8_t*)&ev, sizeof(input_event));
 
-        return p.write_vec(span(&sp, 1), written_bytes);
+        return p.write(span(&sp, 1), written_bytes);
     }
 
     void listen_thread();
@@ -567,8 +567,8 @@ void evdev_multiplexer_client::post_event(const input_event& ev, uint32_t id) {
     }
 }
 
-nt_status evdev_multiplexer::write_vec(span<const span<const uint8_t>> v,
-                                       uint64_t& written_bytes) {
+nt_status evdev_multiplexer::write(span<const span<const uint8_t>> v,
+                                   uint64_t& written_bytes) {
     if (get_vec_size(v) < sizeof(input_event_with_id))
         return nt_status::INVALID_PARAMETER;
 

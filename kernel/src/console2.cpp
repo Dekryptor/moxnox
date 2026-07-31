@@ -134,8 +134,8 @@ public:
     }
 
     nt_status read(span<const span<uint8_t>> v, uint64_t& read_bytes) override;
-    nt_status write_vec(span<const span<const uint8_t>> v,
-                        uint64_t& written_bytes) override;
+    nt_status write(span<const span<const uint8_t>> v,
+                    uint64_t& written_bytes) override;
 
     spinlock lock;
     list_entry pages = { &pages, &pages };
@@ -1247,15 +1247,15 @@ void safe_print(string_view s) {
 
     // FIXME - how can we print errors if write fails?
 
-    object_write_vec_without_offset(console_chardev.get(), span(&buf, 1),
-                                    written_bytes);
+    object_write_without_offset(console_chardev.get(), span(&buf, 1),
+                                written_bytes);
 
-    object_write_vec_without_offset(kmsg.get(), span(&buf, 1), written_bytes);
+    object_write_without_offset(kmsg.get(), span(&buf, 1), written_bytes);
 
     // FIXME - this should be hidden behind a cmdline option
     if (console_type != console_type::other && com1_pipe_handle) {
-        object_write_vec_without_offset(com1_pipe_handle.get(), span(&buf, 1),
-                                        written_bytes);
+        object_write_without_offset(com1_pipe_handle.get(), span(&buf, 1),
+                                    written_bytes);
     }
 }
 
@@ -1763,8 +1763,8 @@ nt_status kmsg_buf::read(span<const span<uint8_t>> v, uint64_t& read_bytes) {
     return nt_status::SUCCESS;
 }
 
-nt_status kmsg_buf::write_vec(span<const span<const uint8_t>> v,
-                              uint64_t& written_bytes) {
+nt_status kmsg_buf::write(span<const span<const uint8_t>> v,
+                          uint64_t& written_bytes) {
     size_t vec_size = get_vec_size(v);
 
     if (vec_size == 0) {

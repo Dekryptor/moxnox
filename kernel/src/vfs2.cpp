@@ -39,7 +39,7 @@ public:
         return nt_status::NOT_IMPLEMENTED;
     }
 
-    nt_status write_vec(span<const span<const uint8_t>>, uint64_t&) override {
+    nt_status write(span<const span<const uint8_t>>, uint64_t&) override {
         return nt_status::NOT_IMPLEMENTED;
     }
 
@@ -211,7 +211,7 @@ static nt_status extract_initrd_file(string_view path, uint64_t mode,
         uint64_t offset = 0, written;
 
         while (!contents.empty()) {
-            status = ino.write_vec(span(&contents, 1), offset, written);
+            status = ino.write(span(&contents, 1), offset, written);
             if (!success(status))
                 return status;
 
@@ -1093,13 +1093,13 @@ NTSTATUS NtWriteFile(HANDLE file_handle, HANDLE, PIO_APC_ROUTINE, void*,
                     offset = ino.file_size;
                 }
 
-                status = f.write_vec(span(&buf, 1), *offset, written);
+                status = f.write(span(&buf, 1), *offset, written);
             }
         }
     } else if (offset.has_value())
-        status = object_write_vec_with_offset(obj, span(&buf, 1), *offset, written);
+        status = object_write_with_offset(obj, span(&buf, 1), *offset, written);
     else
-        status = object_write_vec_without_offset(obj, span(&buf, 1), written);
+        status = object_write_without_offset(obj, span(&buf, 1), written);
 
     if (!success(status)) {
         io_status_block->Status = status;
@@ -1163,8 +1163,8 @@ nt_status inode::read(span<const span<uint8_t>> v, uint64_t offset,
     return nt_status::SUCCESS;
 }
 
-nt_status inode::write_vec(span<const span<const uint8_t>> v, uint64_t offset,
-                           uint64_t& written_bytes) {
+nt_status inode::write(span<const span<const uint8_t>> v, uint64_t offset,
+                       uint64_t& written_bytes) {
     // FIXME - don't allow if FS readonly
 
     size_t vec_size = get_vec_size(v);
@@ -1235,16 +1235,16 @@ NTSTATUS file::read(span<const span<uint8_t>> v, uint64_t offset,
     return status;
 }
 
-NTSTATUS file::write_vec(span<const span<const uint8_t>> v, uint64_t& written_bytes) {
+NTSTATUS file::write(span<const span<const uint8_t>> v, uint64_t& written_bytes) {
     NTSTATUS status;
 
     // FIXME - update file position if FILE_SYNCHRONOUS_IO_ALERT or FILE_SYNCHRONOUS_IO_NONALERT set
 
-    status = object_write_vec_without_offset(ino, v, written_bytes);
+    status = object_write_without_offset(ino, v, written_bytes);
     if (status != nt_status::NOT_SUPPORTED)
         return status;
 
-    status = object_write_vec_with_offset(ino, v, file_offset, written_bytes);
+    status = object_write_with_offset(ino, v, file_offset, written_bytes);
 
     if (success(status) && written_bytes > 0) {
         lock_guard l(lock);
@@ -1254,11 +1254,11 @@ NTSTATUS file::write_vec(span<const span<const uint8_t>> v, uint64_t& written_by
     return status;
 }
 
-NTSTATUS file::write_vec(span<const span<const uint8_t>> v, uint64_t offset,
-                         uint64_t& written_bytes) {
+NTSTATUS file::write(span<const span<const uint8_t>> v, uint64_t offset,
+                     uint64_t& written_bytes) {
     // FIXME - if FILE_SYNCHRONOUS_IO_ALERT or FILE_SYNCHRONOUS_IO_NONALERT set, set file_offset to offset first
 
-    auto status = object_write_vec_with_offset(ino, v, offset, written_bytes);
+    auto status = object_write_with_offset(ino, v, offset, written_bytes);
 
     if (success(status) && written_bytes > 0) {
         lock_guard l(lock);
