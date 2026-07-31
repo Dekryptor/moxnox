@@ -119,9 +119,17 @@ NTSTATUS user_NtWriteFile(HANDLE file_handle, HANDLE event, PIO_APC_ROUTINE apc_
     if (!us_iosb)
         return nt_status::INVALID_PARAMETER;
 
-    void* buf = nullptr;
+    if (us_byte_offset) {
+        if (!copy_from_process(&byte_offset, us_byte_offset, sizeof(LARGE_INTEGER)))
+            return nt_status::ACCESS_VIOLATION;
+    }
 
-    // FIXME - can we map buffer directly rather than copying?
+    if (us_key) {
+        if (!copy_from_process(&key, us_key, sizeof(uint32_t)))
+            return nt_status::ACCESS_VIOLATION;
+    }
+
+    void* buf = nullptr;
 
     if (us_buf && length > 0) {
         if (length > PAGE_SIZE)
@@ -136,28 +144,6 @@ NTSTATUS user_NtWriteFile(HANDLE file_handle, HANDLE event, PIO_APC_ROUTINE apc_
                 vfree(buf, length);
             else
                 free(buf);
-            return nt_status::ACCESS_VIOLATION;
-        }
-    }
-
-    if (us_byte_offset) {
-        if (!copy_from_process(&byte_offset, us_byte_offset, sizeof(LARGE_INTEGER))) {
-            if (length > PAGE_SIZE)
-                vfree(buf, length);
-            else if (buf)
-                free(buf);
-
-            return nt_status::ACCESS_VIOLATION;
-        }
-    }
-
-    if (us_key) {
-        if (!copy_from_process(&key, us_key, sizeof(uint32_t))) {
-            if (length > PAGE_SIZE)
-                vfree(buf, length);
-            else if (buf)
-                free(buf);
-
             return nt_status::ACCESS_VIOLATION;
         }
     }
