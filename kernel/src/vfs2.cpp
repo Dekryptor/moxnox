@@ -1093,7 +1093,7 @@ NTSTATUS NtWriteFile(HANDLE file_handle, HANDLE, PIO_APC_ROUTINE, void*,
                     offset = ino.file_size;
                 }
 
-                status = f.write(buf, *offset, written);
+                status = f.write_vec(span(&buf, 1), *offset, written);
             }
         }
     } else if (offset.has_value())
@@ -1254,10 +1254,6 @@ NTSTATUS file::write_vec(span<const span<const uint8_t>> v, uint64_t& written_by
     return status;
 }
 
-NTSTATUS file::write(span<const uint8_t> s, uint64_t& written_bytes) {
-    return write_vec(span(&s, 1), written_bytes);
-}
-
 NTSTATUS file::write_vec(span<const span<const uint8_t>> v, uint64_t offset,
                          uint64_t& written_bytes) {
     // FIXME - if FILE_SYNCHRONOUS_IO_ALERT or FILE_SYNCHRONOUS_IO_NONALERT set, set file_offset to offset first
@@ -1270,10 +1266,6 @@ NTSTATUS file::write_vec(span<const span<const uint8_t>> v, uint64_t offset,
     }
 
     return status;
-}
-
-NTSTATUS file::write(span<const uint8_t> s, uint64_t offset, uint64_t& written_bytes) {
-    return write_vec(span(&s, 1), offset, written_bytes);
 }
 
 extern "C"

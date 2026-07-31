@@ -123,18 +123,6 @@ concept object_has_on_wake = requires(T t) {
 
 export
 template<typename T>
-concept is_writable_object_with_offset = requires(T t, span<const uint8_t> s, uint64_t offset, uint64_t& written_bytes) {
-    { t.write(s, offset, written_bytes) } -> convertible_to<NTSTATUS>;
-};
-
-export
-template<typename T>
-concept is_writable_object_without_offset = requires(T t, span<const uint8_t> s, uint64_t& written_bytes) {
-    { t.write(s, written_bytes) } -> convertible_to<NTSTATUS>;
-};
-
-export
-template<typename T>
 concept is_writable_vec_object_with_offset = requires(T t, span<const span<const uint8_t>> v, uint64_t offset, uint64_t& written_bytes) {
     { t.write_vec(v, offset, written_bytes) } -> convertible_to<NTSTATUS>;
 };
