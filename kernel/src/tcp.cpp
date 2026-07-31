@@ -149,10 +149,6 @@ public:
     nt_status getsockname(span<uint8_t>, size_t&) override;
     nt_status getpeername(span<uint8_t> buf, size_t& len) override;
 
-    nt_status read_nonblock(span<uint8_t> s, uint64_t& read_bytes) override {
-        return do_read_vec<true>(span(&s, 1), read_bytes);
-    }
-
     nt_status read_nonblock_vec(span<const span<uint8_t>> v, uint64_t& read_bytes) override {
         return do_read_vec<true>(v, read_bytes);
     }
