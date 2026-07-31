@@ -35,10 +35,6 @@ class vfsctl : public chardev {
 public:
     vfsctl() { }
 
-    nt_status read(span<uint8_t>, uint64_t&) override {
-        return nt_status::NOT_IMPLEMENTED;
-    }
-
     nt_status read_vec(span<const span<uint8_t>>, uint64_t&) override {
         return nt_status::NOT_IMPLEMENTED;
     }
@@ -839,10 +835,11 @@ NTSTATUS NtReadFile(HANDLE file_handle, HANDLE, PIO_APC_ROUTINE, void*,
     size_t read;
 
     if (byte_offset) {
-        status = object_read_with_offset(obj, buf, (uint64_t)byte_offset->QuadPart,
-                                         read);
+        status = object_read_vec_with_offset(obj, span(&buf, 1),
+                                             (uint64_t)byte_offset->QuadPart,
+                                             read);
     } else
-        status = object_read_without_offset(obj, buf, read);
+        status = object_read_vec_without_offset(obj, span(&buf, 1), read);
 
     if (!success(status)) {
         io_status_block->Status = status;
@@ -1166,10 +1163,6 @@ nt_status inode::read_vec(span<const span<uint8_t>> v, uint64_t offset,
     return nt_status::SUCCESS;
 }
 
-nt_status inode::read(span<uint8_t> s, uint64_t offset, uint64_t& read_bytes) {
-    return read_vec(span(&s, 1), offset, read_bytes);
-}
-
 nt_status inode::write(span<const uint8_t> s, uint64_t offset, uint64_t& written_bytes) {
     // FIXME - don't allow if FS readonly
 
@@ -1227,10 +1220,6 @@ NTSTATUS file::read_vec(span<const span<uint8_t>> v, uint64_t& read_bytes) {
     return status;
 }
 
-NTSTATUS file::read(span<uint8_t> s, uint64_t& read_bytes) {
-    return read_vec(span(&s, 1), read_bytes);
-}
-
 NTSTATUS file::read_vec(span<const span<uint8_t>> v, uint64_t offset,
                         uint64_t& read_bytes) {
     auto status = object_read_vec_with_offset(ino, v, offset, read_bytes);
@@ -1241,10 +1230,6 @@ NTSTATUS file::read_vec(span<const span<uint8_t>> v, uint64_t offset,
     }
 
     return status;
-}
-
-NTSTATUS file::read(span<uint8_t> s, uint64_t offset, uint64_t& read_bytes) {
-    return read_vec(span(&s, 1), offset, read_bytes);
 }
 
 NTSTATUS file::write(span<const uint8_t> s, uint64_t& written_bytes) {

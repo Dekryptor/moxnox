@@ -69,10 +69,6 @@ public:
         send_pipe.release();
     }
 
-    NTSTATUS read(span<uint8_t> s, uint64_t& read_bytes) override {
-        return recv_pipe.read(s, read_bytes);
-    }
-
     NTSTATUS read_vec(span<const span<uint8_t>> v, uint64_t& read_bytes) override {
         return recv_pipe.read_vec(v, read_bytes);
     }

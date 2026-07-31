@@ -133,7 +133,6 @@ public:
         signalled = false;
     }
 
-    nt_status read(span<uint8_t> s, uint64_t& read_bytes) override;
     nt_status read_vec(span<const span<uint8_t>> v, uint64_t& read_bytes) override;
     nt_status write(span<const uint8_t> s, uint64_t& written_bytes) override;
 
@@ -1268,7 +1267,8 @@ static void console_event_recv() {
 
         wait_for_object(console_chardev.get(), false);
 
-        auto status = static_cast<class console&>(console_chardev.get()).read(span(buf, buf_size), read_bytes);
+        auto sp = span(buf, buf_size);
+        auto status = static_cast<class console&>(console_chardev.get()).read_vec(span(&sp, 1), read_bytes);
 
         // FIXME - watch out for partial UTF-8 characters, partial escape sequences, etc.
 
@@ -1757,10 +1757,6 @@ nt_status kmsg_buf::read_vec(span<const span<uint8_t>> v, uint64_t& read_bytes) 
     }
 
     return nt_status::SUCCESS;
-}
-
-nt_status kmsg_buf::read(span<uint8_t> s, uint64_t& read_bytes) {
-    return read_vec(span(&s, 1), read_bytes);
 }
 
 nt_status kmsg_buf::write(span<const uint8_t> s, uint64_t& written_bytes) {

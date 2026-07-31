@@ -28,11 +28,12 @@ static void debug_thread() {
 
     while (true) {
         uint64_t read_bytes;
+        auto sp2 = span(buf, sizeof(buf));
 
-        auto status = object_read_without_offset(debug_chardev.get(), span(buf),
-                                                 read_bytes);
+        auto status = object_read_vec_without_offset(debug_chardev.get(), span(&sp2, 1),
+                                                     read_bytes);
         if (!success(status)) {
-            print("debug_thread: object_read_without_offset returned {}\n", status);
+            print("debug_thread: object_read_vec_without_offset returned {}\n", status);
             break;
         }
 

@@ -33,7 +33,6 @@ public:
     pipe(unsigned int buffer_pages);
     virtual ~pipe();
 
-    NTSTATUS read(span<uint8_t> s, uint64_t& read_bytes) override;
     NTSTATUS read_vec(span<const span<uint8_t>> v, uint64_t& read_bytes) override;
 
     NTSTATUS write(span<const uint8_t> s, uint64_t& written_bytes) override;
@@ -73,19 +72,6 @@ public:
     ~named_duplex_pipe_client() {
         recv_pipe.release();
         send_pipe.release();
-    }
-
-    nt_status read(span<uint8_t> s, uint64_t& read_bytes) override {
-        auto ret = recv_pipe.read(s, read_bytes);
-
-        if (disconnected && read_bytes == 0) {
-            lock_guard l(recv_pipe.lock);
-
-            if (recv_pipe.buf_unread == 0)
-                return nt_status::PIPE_DISCONNECTED;
-        }
-
-        return ret;
     }
 
     nt_status read_vec(span<const span<uint8_t>> v, uint64_t& read_bytes) override {
@@ -150,10 +136,6 @@ public:
 
     ~named_duplex_pipe_server() {
         client.release();
-    }
-
-    nt_status read(span<uint8_t> s, uint64_t& read_bytes) override {
-        return client.send_pipe.read(s, read_bytes);
     }
 
     nt_status read_vec(span<const span<uint8_t>> v, uint64_t& read_bytes) override {
@@ -458,10 +440,6 @@ NTSTATUS pipe::read_vec(span<const span<uint8_t>> v, uint64_t& read_bytes) {
 
     read_bytes = copied;
     return nt_status::SUCCESS;
-}
-
-NTSTATUS pipe::read(span<uint8_t> s, uint64_t& read_bytes) {
-    return read_vec(span(&s, 1), read_bytes);
 }
 
 void pipe::clear() {

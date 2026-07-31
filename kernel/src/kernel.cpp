@@ -164,8 +164,9 @@ static void keywait() {
         if (console_type == console_type::other) {
             uint8_t c;
             uint64_t read_bytes;
+            auto sp = span(&c, 1);
 
-            status = p.read(span(&c, 1), read_bytes);
+            status = p.read_vec(span(&sp, 1), read_bytes);
             if (!success(status))
                 print("pipe::read returned {}\n", status);
 
@@ -174,8 +175,9 @@ static void keywait() {
         } else {
             input_event_with_id ev;
             uint64_t read_bytes;
+            auto sp = span((uint8_t*)&ev, sizeof(ev));
 
-            status = p.read(span((uint8_t*)&ev, sizeof(ev)), read_bytes);
+            status = p.read_vec(span(&sp, 1), read_bytes);
             if (!success(status)) {
                 print("keyboard_pipe::read returned {}\n", status);
                 break;

@@ -137,10 +137,6 @@ public:
     nt_status listen(int backlog) override;
     nt_status accept(HANDLE& sock, void* addr, int& addrlen) override;
 
-    nt_status read(span<uint8_t> s, uint64_t& read_bytes) override {
-        return do_read_vec<false>(span(&s, 1), read_bytes);
-    }
-
     nt_status read_vec(span<const span<uint8_t>> v, uint64_t& read_bytes) override {
         return do_read_vec<false>(v, read_bytes);
     }

@@ -48,10 +48,6 @@ struct acpi_irq_num {
 
 class acpi_button : public evdev_device {
 public:
-    nt_status read(span<uint8_t>, uint64_t&) override {
-        return nt_status::NOT_SUPPORTED;
-    }
-
     nt_status read_vec(span<const span<uint8_t>>, uint64_t&) override {
         return nt_status::NOT_SUPPORTED;
     }

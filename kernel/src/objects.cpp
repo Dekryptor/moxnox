@@ -134,17 +134,6 @@ concept is_writable_object_without_offset = requires(T t, span<const uint8_t> s,
 };
 
 // FIXME - async reads and writes (specifying event)
-export
-template<typename T>
-concept is_readable_object_with_offset = requires(T t, span<uint8_t> s, uint64_t offset, uint64_t& read_bytes) {
-    { t.read(s, offset, read_bytes) } -> convertible_to<NTSTATUS>;
-};
-
-export
-template<typename T>
-concept is_readable_object_without_offset = requires(T t, span<uint8_t> s, uint64_t& read_bytes) {
-    { t.read(s, read_bytes) } -> convertible_to<NTSTATUS>;
-};
 
 export
 template<typename T>

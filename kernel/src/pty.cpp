@@ -37,10 +37,6 @@ class ptyctl : public chardev {
 public:
     ptyctl() { }
 
-    nt_status read(span<uint8_t>, uint64_t&) override {
-        return nt_status::NOT_SUPPORTED;
-    }
-
     nt_status read_vec(span<const span<uint8_t>>, uint64_t&) override {
         return nt_status::NOT_SUPPORTED;
     }
@@ -57,7 +53,6 @@ export class pty_client : public chardev {
 public:
     pty_client(pipe& recv_pipe, pipe& send_pipe, uint16_t cols, uint16_t rows);
     ~pty_client();
-    nt_status read(span<uint8_t> s, uint64_t& read_bytes) override;
     nt_status read_vec(span<const span<uint8_t>> v, uint64_t& read_bytes) override;
     nt_status write(span<const uint8_t> s, uint64_t& written_bytes) override;
     sync_object& get_sync_object() override;
@@ -104,7 +99,6 @@ class pty_server : public chardev {
 public:
     pty_server(pty_client& client);
     ~pty_server();
-    nt_status read(span<uint8_t> s, uint64_t& read_bytes) override;
     nt_status read_vec(span<const span<uint8_t>> v, uint64_t& read_bytes) override;
     nt_status write(span<const uint8_t> s, uint64_t& written_bytes) override;
     sync_object& get_sync_object() override;
@@ -138,7 +132,6 @@ public:
         parent.release();
     }
 
-    nt_status read(span<uint8_t> s, uint64_t& read_bytes) override;
     nt_status read_vec(span<const span<uint8_t>> v, uint64_t& read_bytes) override;
 
     nt_status write(span<const unsigned char>, uint64_t&) override {
@@ -341,10 +334,6 @@ nt_status pty_client::read_vec(span<const span<uint8_t>> v, uint64_t& read_bytes
     return ret;
 }
 
-nt_status pty_client::read(span<uint8_t> s, uint64_t& read_bytes) {
-    return read_vec(span(&s, 1), read_bytes);
-}
-
 static size_t find_newline(span<const uint8_t> s) {
     for (size_t i = 0; i < s.size(); i++) {
         if (s[i] == '\n')
@@ -494,10 +483,6 @@ pty_server::~pty_server() {
 nt_status pty_server::read_vec(span<const span<uint8_t>> v,
                                uint64_t& read_bytes) {
     return client.send_pipe.read_vec(v, read_bytes);
-}
-
-nt_status pty_server::read(span<uint8_t> s, uint64_t& read_bytes) {
-    return read_vec(span(&s, 1), read_bytes);
 }
 
 size_t pty_client::process_canonical_input(span<const uint8_t> new_data,
@@ -1138,8 +1123,4 @@ nt_status pty_info::read_vec(span<const span<uint8_t>> v, uint64_t& read_bytes) 
 
         return nt_status::SUCCESS;
     }
-}
-
-nt_status pty_info::read(span<uint8_t> s, uint64_t& read_bytes) {
-    return read_vec(span(&s, 1), read_bytes);
 }

@@ -135,19 +135,11 @@ static bool ps2_isr_func(void*);
 
 class ps2_keyboard : public evdev_device {
 public:
-    nt_status read(span<uint8_t>, uint64_t&) override {
-        return nt_status::NOT_SUPPORTED;
-    }
-
     nt_status write(span<const uint8_t> s, uint64_t& written_bytes) override;
 };
 
 class ps2_mouse : public evdev_device {
 public:
-    nt_status read(span<uint8_t>, uint64_t&) override {
-        return nt_status::NOT_SUPPORTED;
-    }
-
     nt_status write(span<const uint8_t>, uint64_t&) override {
         return nt_status::NOT_SUPPORTED;
     }

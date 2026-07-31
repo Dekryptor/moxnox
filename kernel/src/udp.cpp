@@ -41,11 +41,6 @@ public:
         return nt_status::INVALID_PARAMETER;
     }
 
-    nt_status read(span<uint8_t>, uint64_t&) override {
-        // FIXME - should it be? It wouldn't be very useful
-        return nt_status::NOT_SUPPORTED;
-    }
-
     nt_status read_vec(span<const span<uint8_t>>, uint64_t&) override {
         // FIXME - should it be? It wouldn't be very useful
         return nt_status::NOT_SUPPORTED;

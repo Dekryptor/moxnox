@@ -17,7 +17,6 @@ public:
     chardev() : sync_object(object_type::chardev, true) { }
     virtual ~chardev() { }
 
-    virtual NTSTATUS read(span<uint8_t> s, uint64_t& read_bytes) = 0;
     virtual NTSTATUS read_vec(span<const span<uint8_t>> v, uint64_t& read_bytes) = 0;
 
     virtual NTSTATUS write(span<const uint8_t> s, uint64_t& written_bytes) = 0;
@@ -61,7 +60,6 @@ public:
 };
 
 static_assert(is_sync_object<chardev>);
-static_assert(is_readable_object_without_offset<chardev>);
 static_assert(is_readable_vec_object_without_offset<chardev>);
 static_assert(is_writable_object_without_offset<chardev>);
 static_assert(has_ioctls<chardev>);

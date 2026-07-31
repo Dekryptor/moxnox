@@ -165,34 +165,6 @@ nt_status object_ioctl(object& obj, uint32_t control_code, span<const uint8_t> i
     return ret;
 }
 
-nt_status object_read_with_offset(object& obj, span<uint8_t> s,
-                                  uint64_t offset, uint64_t& read_bytes) {
-    nt_status status;
-
-    visit_obj(obj, [&](auto&& o) {
-        if constexpr (is_readable_object_with_offset<remove_reference_t<decltype(o)>>)
-            status = o.read(s, offset, read_bytes);
-        else
-            status = nt_status::NOT_SUPPORTED;
-    });
-
-    return status;
-}
-
-nt_status object_read_without_offset(object& obj, span<uint8_t> s,
-                                     uint64_t& read_bytes) {
-    nt_status status;
-
-    visit_obj(obj, [&](auto&& o) {
-        if constexpr (is_readable_object_without_offset<remove_reference_t<decltype(o)>>)
-            status = o.read(s, read_bytes);
-        else
-            status = nt_status::NOT_SUPPORTED;
-    });
-
-    return status;
-}
-
 nt_status object_read_vec_with_offset(object& obj, span<const span<uint8_t>> v,
                                       uint64_t offset, uint64_t& read_bytes) {
     nt_status status;

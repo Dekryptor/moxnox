@@ -61,7 +61,9 @@ bool volume::check_for_partitions() {
     }
 
     uint64_t read_bytes;
-    auto status = read(span(first_sects, sector_size * 2), 0, read_bytes);
+    auto sp = span(first_sects, sector_size * 2);
+
+    auto status = read_vec(span(&sp, 1), 0, read_bytes);
 
     if (!success(status)) {
         print("volume::read returned {}\n", status);
@@ -144,7 +146,9 @@ bool volume::check_for_partitions() {
         return false;
     }
 
-    status = read(span(buf, table_end - table_start), table_start, read_bytes);
+    auto sp2 = span(buf, table_end - table_start);
+
+    status = read_vec(span(&sp2, 1), table_start, read_bytes);
 
     if (!success(status)) {
         print("volume::read returned {}\n", status);
@@ -284,10 +288,6 @@ nt_status volume::read_vec(span<const span<uint8_t>> v, uint64_t offset,
 
     read_bytes = get_vec_size(v);
     return nt_status::SUCCESS;
-}
-
-nt_status volume::read(span<uint8_t> data, uint64_t offset, uint64_t& read_bytes) {
-    return read_vec(span(&data, 1), offset, read_bytes);
 }
 
 diskpart::diskpart(volume& parent, unsigned int part_num, uint64_t disk_offset, uint64_t size, const guid& partition_guid, const guid& type_guid) : parent(parent) {

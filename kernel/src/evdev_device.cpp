@@ -44,10 +44,6 @@ public:
         exclusive = false;
     }
 
-    nt_status read(span<uint8_t>, uint64_t&) override {
-        return nt_status::NOT_SUPPORTED;
-    }
-
     nt_status read_vec(span<const span<uint8_t>>, uint64_t&) override {
         return nt_status::NOT_SUPPORTED;
     }
@@ -115,7 +111,6 @@ public:
         p.release();
     }
 
-    nt_status read(span<uint8_t> s, uint64_t& read_bytes) override;
     nt_status read_vec(span<const span<uint8_t>> v, uint64_t& read_bytes) override;
 
     nt_status write(span<const uint8_t> s, uint64_t& written_bytes) override {
@@ -147,10 +142,6 @@ export class evdev_device : public chardev {
 public:
     // FIXME - empty ctor to work round GCC bug
     evdev_device() : chardev() { }
-
-    nt_status read(span<uint8_t>, uint64_t&) override {
-        return nt_status::NOT_SUPPORTED;
-    }
 
     nt_status read_vec(span<const span<uint8_t>>, uint64_t&) override {
         return nt_status::NOT_SUPPORTED;
@@ -209,7 +200,6 @@ public:
         p.release();
     }
 
-    nt_status read(span<uint8_t> s, uint64_t& read_bytes) override;
     nt_status read_vec(span<const span<uint8_t>> v, uint64_t& read_bytes) override;
 
     nt_status write(span<const uint8_t> s, uint64_t& written_bytes) override {
@@ -330,7 +320,7 @@ void evdev_context::listen_thread() {
         while (true) {
             uint64_t read_bytes;
 
-            status = p.read(sp, read_bytes);
+            status = p.read_vec(span(&sp, 1), read_bytes);
             if (dead || !success(status))
                 break;
 
@@ -476,10 +466,6 @@ nt_status evdev_multiplexer_client::read_vec(span<const span<uint8_t>> v,
             read_bytes += sizeof(input_event_with_id);
         }
     }
-}
-
-nt_status evdev_multiplexer_client::read(span<uint8_t> s, uint64_t& read_bytes) {
-    return read_vec(span(&s, 1), read_bytes);
 }
 
 void evdev_multiplexer::post_event(const input_event& ev, uint32_t id) {
@@ -667,10 +653,6 @@ nt_status evdev_device_client::read_vec(span<const span<uint8_t>> v,
             read_bytes += sizeof(input_event);
         }
     }
-}
-
-nt_status evdev_device_client::read(span<uint8_t> s, uint64_t& read_bytes) {
-    return read_vec(span(&s, 1), read_bytes);
 }
 
 void evdev_device_client::post_event(const input_event& ev) {
