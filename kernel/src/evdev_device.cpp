@@ -49,6 +49,8 @@ public:
     }
 
     nt_status write(span<const uint8_t> s, uint64_t& written_bytes) override;
+    nt_status write_vec(span<const span<const uint8_t>> v,
+                        uint64_t& written_bytes) override;
     nt_status ioctl(uint32_t code, span<const uint8_t> inbuf,
                     span<uint8_t> outbuf, uintptr_t& written) override;
     nt_status userspace_open(object_ref& objref) override;
@@ -117,6 +119,11 @@ public:
         return p.write(s, written_bytes);
     }
 
+    nt_status write_vec(span<const span<const uint8_t>> v,
+                        uint64_t& written_bytes) override {
+        return p.write_vec(v, written_bytes);
+    }
+
     nt_status ioctl(uint32_t code, span<const uint8_t> inbuf,
                     span<uint8_t> outbuf, uintptr_t& written) override {
         return p.ioctl(code, inbuf, outbuf, written);
@@ -148,6 +155,10 @@ public:
     }
 
     nt_status write(span<const uint8_t>, uint64_t&) override {
+        return nt_status::NOT_SUPPORTED;
+    }
+
+    nt_status write_vec(span<const span<const uint8_t>>, uint64_t&) override {
         return nt_status::NOT_SUPPORTED;
     }
 
@@ -204,6 +215,11 @@ public:
 
     nt_status write(span<const uint8_t> s, uint64_t& written_bytes) override {
         return p.write(s, written_bytes);
+    }
+
+    nt_status write_vec(span<const span<const uint8_t>> v,
+                        uint64_t& written_bytes) override {
+        return p.write_vec(v, written_bytes);
     }
 
     nt_status ioctl(uint32_t code, span<const uint8_t> inbuf,
@@ -563,11 +579,15 @@ void evdev_multiplexer_client::post_event(const input_event& ev, uint32_t id) {
     }
 }
 
-nt_status evdev_multiplexer::write(span<const uint8_t> s, uint64_t& written_bytes) {
-    if (s.size() < sizeof(input_event_with_id))
+nt_status evdev_multiplexer::write_vec(span<const span<const uint8_t>> v,
+                                       uint64_t& written_bytes) {
+    if (get_vec_size(v) < sizeof(input_event_with_id))
         return nt_status::INVALID_PARAMETER;
 
-    auto& ev = *(input_event_with_id*)s.data();
+    input_event_with_id ev;
+    span<const uint8_t> top = v.front();
+
+    memcpy_vec((uint8_t*)&ev, v, top, sizeof(input_event_with_id));
 
     evdev_context* ctx = nullptr;
 
@@ -596,6 +616,10 @@ nt_status evdev_multiplexer::write(span<const uint8_t> s, uint64_t& written_byte
     ctx->release();
 
     return status;
+}
+
+nt_status evdev_multiplexer::write(span<const uint8_t> s, uint64_t& written_bytes) {
+    return write_vec(span(&s, 1), written_bytes);
 }
 
 nt_status evdev_device_client::read(span<const span<uint8_t>> v,

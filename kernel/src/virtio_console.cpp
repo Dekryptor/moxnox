@@ -19,6 +19,7 @@ import thread;
 import console;
 import handle;
 import object_ref;
+import vec;
 
 using namespace std;
 
@@ -79,6 +80,8 @@ public:
     }
 
     nt_status write(span<const uint8_t> s, uint64_t& written_bytes) override;
+    nt_status write_vec(span<const span<const uint8_t>> v,
+                        uint64_t& written_bytes) override;
 
     sync_object& get_sync_object() override {
         return recv_pipe;
@@ -180,7 +183,8 @@ void virtio_console<T>::recv_thread() {
 }
 
 template<virtio_device T>
-nt_status virtio_console<T>::write(span<const uint8_t> s, uint64_t& written_bytes) {
+nt_status virtio_console<T>::write_vec(span<const span<const uint8_t>> v,
+                                       uint64_t& written_bytes) {
     if (shutting_down_cpu.load(memory_order::acquire) != 0xffffffff)
         return nt_status::SYSTEM_SHUTDOWN;
 
@@ -188,32 +192,59 @@ nt_status virtio_console<T>::write(span<const uint8_t> s, uint64_t& written_byte
         if (!(dev.negotiated_features & VIRTIO_CONSOLE_F_EMERG_WRITE))
             return nt_status::SYSTEM_SHUTDOWN;
 
-        volatile virtio_console_config* v;
+        volatile virtio_console_config* vc;
 
         if constexpr (is_same_v<T, virtio_pci_device>)
-            v = (volatile virtio_console_config*)(dev.dev.bar[dev.device_cfg->bar].data() + dev.device_cfg->offset);
+            vc = (volatile virtio_console_config*)(dev.dev.bar[dev.device_cfg->bar].data() + dev.device_cfg->offset);
         else
-            v = (volatile virtio_console_config*)dev.config;
+            vc = (volatile virtio_console_config*)dev.config;
 
-        for (auto c : s) {
-            v->emerg_wr = c;
+        for (auto s : v) {
+            for (auto c : s) {
+                vc->emerg_wr = c;
+            }
         }
 
-        written_bytes = s.size();
+        written_bytes = get_vec_size(v);
 
         return nt_status::SUCCESS;
     }
 
-    // FIXME - only so we don't do an overly large malloc (should be able to do this without copying)
-    if (s.size() > PAGE_SIZE)
-        s = span(s.data(), PAGE_SIZE);
+    written_bytes = 0;
 
-    auto status = send_queue->write(s);
+    for (auto s : v) {
+        bool clipped = false;
 
-    if (success(status))
-        written_bytes = s.size();
+        if (s.empty())
+            continue;
 
-    return status;
+        // FIXME - only so we don't do an overly large malloc (should be able to do this without copying)
+        if (s.size() > PAGE_SIZE) {
+            s = span(s.data(), PAGE_SIZE);
+            clipped = true;
+        }
+
+        auto status = send_queue->write(s);
+
+        if (!success(status)) {
+            if (written_bytes > 0)
+                return nt_status::SUCCESS;
+            else
+                return status;
+        }
+
+        written_bytes += s.size();
+
+        if (clipped)
+            break;
+    }
+
+    return nt_status::SUCCESS;
+}
+
+template<virtio_device T>
+nt_status virtio_console<T>::write(span<const uint8_t> s, uint64_t& written_bytes) {
+    return write_vec(span(&s, 1), written_bytes);
 }
 
 static object_ref create_virtio_console_in_pipe(unsigned int buffer_pages) {

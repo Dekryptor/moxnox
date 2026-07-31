@@ -36,6 +36,8 @@ public:
     NTSTATUS read(span<const span<uint8_t>> v, uint64_t& read_bytes) override;
 
     NTSTATUS write(span<const uint8_t> s, uint64_t& written_bytes) override;
+    NTSTATUS write_vec(span<const span<const uint8_t>> v,
+                       uint64_t& written_bytes) override;
 
     NTSTATUS write(string_view sv, uint64_t& written_bytes) {
         return write(span((uint8_t*)sv.data(), sv.length()), written_bytes);
@@ -99,6 +101,19 @@ public:
         return ret;
     }
 
+    nt_status write_vec(span<const span<const uint8_t>> v,
+                        uint64_t& written_bytes) override {
+        if (disconnected)
+            return nt_status::PIPE_DISCONNECTED;
+
+        auto ret = send_pipe.write_vec(v, written_bytes);
+
+        if (disconnected)
+            return nt_status::PIPE_DISCONNECTED;
+
+        return ret;
+    }
+
     sync_object& get_sync_object() override {
         return recv_pipe;
     }
@@ -146,6 +161,11 @@ public:
         return client.recv_pipe.write(s, written_bytes);
     }
 
+    nt_status write_vec(span<const span<const uint8_t>> v,
+                        uint64_t& written_bytes) override {
+        return client.recv_pipe.write_vec(v, written_bytes);
+    }
+
     sync_object& get_sync_object() override {
         return client.send_pipe;
     }
@@ -188,8 +208,9 @@ pipe::~pipe() {
     vfree(buf, buf_pages << PAGE_SHIFT);
 }
 
-nt_status pipe::write(span<const uint8_t> s, uint64_t& written_bytes) {
-    auto orig_s = s;
+nt_status pipe::write_vec(span<const span<const uint8_t>> v,
+                          uint64_t& written_bytes) {
+    size_t vec_size = get_vec_size(v);
 
     if (readonly) {
         written_bytes = 0;
@@ -201,10 +222,14 @@ nt_status pipe::write(span<const uint8_t> s, uint64_t& written_bytes) {
         return nt_status::PIPE_DISCONNECTED;
     }
 
-    if (s.empty()) {
+    if (vec_size == 0) {
         written_bytes = 0;
         return nt_status::SUCCESS;
     }
+
+    span<const uint8_t> top = v.front();
+
+    written_bytes = 0;
 
     do {
         size_t to_copy;
@@ -214,24 +239,27 @@ nt_status pipe::write(span<const uint8_t> s, uint64_t& written_bytes) {
 
             size_t buf_left = (buf_pages << PAGE_SHIFT) - buf_unread;
 
-            to_copy = min(s.size(), buf_left);
+            to_copy = min(vec_size, buf_left);
 
             if (to_copy > 0) {
                 if (buf_write_pos + to_copy > buf_pages << PAGE_SHIFT) {
                     auto first_bit = (buf_pages << PAGE_SHIFT) - buf_write_pos;
 
-                    memcpy(&buf[buf_write_pos], s.data(), first_bit);
+                    memcpy_vec(&buf[buf_write_pos], v, top, first_bit);
 
                     buf_write_pos = 0;
                     buf_unread += first_bit;
                     to_copy -= first_bit;
-                    s = s.subspan(first_bit);
+                    vec_size -= first_bit;
+                    written_bytes += first_bit;
                 }
 
-                memcpy(&buf[buf_write_pos], s.data(), to_copy);
+                memcpy_vec(&buf[buf_write_pos], v, top, to_copy);
+
                 buf_write_pos += to_copy;
                 buf_unread += to_copy;
-                s = s.subspan(to_copy);
+                vec_size -= to_copy;
+                written_bytes += to_copy;
             }
         }
 
@@ -255,7 +283,7 @@ nt_status pipe::write(span<const uint8_t> s, uint64_t& written_bytes) {
             }
         }
 
-        if (s.empty())
+        if (vec_size == 0)
             break;
 
         // block while we wait for space to become available
@@ -270,9 +298,11 @@ nt_status pipe::write(span<const uint8_t> s, uint64_t& written_bytes) {
             break;
     } while (true);
 
-    written_bytes = (uint64_t)(s.data() - orig_s.data());
-
     return nt_status::SUCCESS;
+}
+
+nt_status pipe::write(span<const uint8_t> s, uint64_t& written_bytes) {
+    return write_vec(span(&s, 1), written_bytes);
 }
 
 nt_status pipe::write_nonblock(span<const uint8_t> s, uint64_t& written_bytes) {

@@ -19,6 +19,16 @@ export size_t get_vec_size(span<const span<uint8_t>> v) {
     return ret;
 }
 
+export size_t get_vec_size(span<const span<const uint8_t>> v) {
+    size_t ret = 0;
+
+    for (auto s : v) {
+        ret += s.size();
+    }
+
+    return ret;
+}
+
 export void memcpy_vec(span<const span<uint8_t>>& v, span<uint8_t>& top,
                        const uint8_t* src, size_t len) {
     while (len > 0) {
@@ -38,6 +48,29 @@ export void memcpy_vec(span<const span<uint8_t>>& v, span<uint8_t>& top,
         top = top.subspan(to_copy);
 
         src += to_copy;
+        len -= to_copy;
+    }
+}
+
+export void memcpy_vec(uint8_t* dest, span<const span<const uint8_t>>& v,
+                       span<const uint8_t>& top, size_t len) {
+    while (len > 0) {
+        if (top.empty()) {
+            if (v.size() <= 1)
+                return;
+
+            v = v.subspan(1);
+            top = v.front();
+            continue;
+        }
+
+        size_t to_copy = min(top.size(), len);
+
+        memcpy(dest, top.data(), to_copy);
+
+        top = top.subspan(to_copy);
+
+        dest += to_copy;
         len -= to_copy;
     }
 }

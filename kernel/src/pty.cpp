@@ -45,6 +45,10 @@ public:
         return nt_status::NOT_SUPPORTED;
     }
 
+    nt_status write_vec(span<const span<const uint8_t>>, uint64_t&) override {
+        return nt_status::NOT_SUPPORTED;
+    }
+
     nt_status ioctl(uint32_t code, span<const uint8_t> inbuf,
                     span<uint8_t> outbuf, uintptr_t& written) override;
 };
@@ -55,6 +59,8 @@ public:
     ~pty_client();
     nt_status read(span<const span<uint8_t>> v, uint64_t& read_bytes) override;
     nt_status write(span<const uint8_t> s, uint64_t& written_bytes) override;
+    nt_status write_vec(span<const span<const uint8_t>> v,
+                        uint64_t& written_bytes) override;
     sync_object& get_sync_object() override;
     nt_status ioctl(uint32_t code, span<const uint8_t> inbuf,
                     span<uint8_t> outbuf, uintptr_t& written) override;
@@ -101,13 +107,16 @@ public:
     ~pty_server();
     nt_status read(span<const span<uint8_t>> v, uint64_t& read_bytes) override;
     nt_status write(span<const uint8_t> s, uint64_t& written_bytes) override;
+    nt_status write_vec(span<const span<const uint8_t>> v,
+                        uint64_t& written_bytes) override;
     sync_object& get_sync_object() override;
     void last_handle_closed() override;
 
     pty_client& client;
 
 private:
-    nt_status write2(span<const uint8_t> s, uint64_t& written_bytes);
+    nt_status write2(span<const span<const uint8_t>> v,
+                     uint64_t& written_bytes);
 };
 
 struct pty_info_event2 {
@@ -135,6 +144,10 @@ public:
     nt_status read(span<const span<uint8_t>> v, uint64_t& read_bytes) override;
 
     nt_status write(span<const unsigned char>, uint64_t&) override {
+        return nt_status::NOT_SUPPORTED;
+    }
+
+    nt_status write_vec(span<const span<const uint8_t>>, uint64_t&) override {
         return nt_status::NOT_SUPPORTED;
     }
 
@@ -343,7 +356,8 @@ static size_t find_newline(span<const uint8_t> s) {
     return string_view::npos;
 }
 
-nt_status pty_client::write(span<const uint8_t> s, uint64_t& written_bytes) {
+nt_status pty_client::write_vec(span<const span<const uint8_t>> v,
+                                uint64_t& written_bytes) {
     nt_status status;
 
     if (disconnected)
@@ -356,98 +370,107 @@ nt_status pty_client::write(span<const uint8_t> s, uint64_t& written_bytes) {
 
         static const array<uint8_t, 2> crlf = { '\r', '\n' };
 
-        while (true) {
-            auto nl = find_newline(s);
+        for (auto s : v) {
+            if (s.empty())
+                continue;
 
-            if (nl == string_view::npos) {
-                uint64_t sent;
+            while (true) {
+                auto nl = find_newline(s);
 
-                status = send_pipe.write(s, sent);
+                if (nl == string_view::npos) {
+                    uint64_t sent;
 
-                if (disconnected)
-                    return nt_status::PIPE_DISCONNECTED;
-
-                if (!success(status))
-                    return status;
-
-                w += sent;
-                written_bytes = w;
-                return nt_status::SUCCESS;
-            }
-
-            if (nl != 0) {
-                uint64_t sent;
-
-                status = send_pipe.write(span(s.data(), nl), sent);
-
-                if (disconnected)
-                    return nt_status::PIPE_DISCONNECTED;
-
-                if (!success(status)) {
-                    if (w == 0)
-                        return status;
-
-                    written_bytes = w;
-                    return nt_status::SUCCESS;
-                }
-
-                w += sent;
-                s = span(s.data() + sent, s.size() - sent);
-
-                if (sent < nl)
-                    continue;
-            }
-
-            if (s.empty()) {
-                written_bytes = w;
-                return nt_status::SUCCESS;
-            }
-
-            // send CRLF
-
-            {
-                uint64_t sent;
-
-                status = send_pipe.write(crlf, sent);
-
-                if (disconnected)
-                    return nt_status::PIPE_DISCONNECTED;
-
-                if (!success(status)) {
-                    if (w == 0)
-                        return status;
-
-                    written_bytes = w;
-                    return nt_status::SUCCESS;
-                }
-
-                if (sent == 1) { // only sent CR
-                    status = send_pipe.write(span(crlf.data() + 1, 1), sent);
+                    status = send_pipe.write_vec(span(&s, 1), sent);
 
                     if (disconnected)
                         return nt_status::PIPE_DISCONNECTED;
 
-                    if (!success(status)) {
-                        if (w == 0)
-                            return status;
+                    if (!success(status))
+                        return status;
 
-                        written_bytes = w;
-                        return nt_status::SUCCESS;
+                    w += sent;
+                    break;
+                } else {
+                    if (nl != 0) {
+                        uint64_t sent;
+                        auto sp = span(s.data(), nl);
+
+                        status = send_pipe.write_vec(span(&sp, 1), sent);
+
+                        if (disconnected)
+                            return nt_status::PIPE_DISCONNECTED;
+
+                        if (!success(status)) {
+                            if (w == 0)
+                                return status;
+
+                            written_bytes = w;
+                            return nt_status::SUCCESS;
+                        }
+
+                        w += sent;
+                        s = span(s.data() + sent, s.size() - sent);
+
+                        if (sent < nl)
+                            continue;
                     }
+
+                    // send CRLF
+
+                    {
+                        uint64_t sent;
+                        auto sp = span(crlf.data(), crlf.size());
+
+                        status = send_pipe.write_vec(span(&sp, 1), sent);
+
+                        if (disconnected)
+                            return nt_status::PIPE_DISCONNECTED;
+
+                        if (!success(status)) {
+                            if (w == 0)
+                                return status;
+
+                            written_bytes = w;
+                            return nt_status::SUCCESS;
+                        }
+
+                        if (sent == 1) { // only sent CR
+                            sp = span(crlf.data() + 1, 1);
+                            status = send_pipe.write_vec(span(&sp, 1), sent);
+
+                            if (disconnected)
+                                return nt_status::PIPE_DISCONNECTED;
+
+                            if (!success(status)) {
+                                if (w == 0)
+                                    return status;
+
+                                written_bytes = w;
+                                return nt_status::SUCCESS;
+                            }
+                        }
+                    }
+
+                    s = span(s.data() + 1, s.size() - 1);
+                    w++;
                 }
             }
-
-            s = span(s.data() + 1, s.size() - 1);
-            w++;
         }
+
+        written_bytes = w;
+        return nt_status::SUCCESS;
     } else {
-        status = send_pipe.write(s, written_bytes);
+        status = send_pipe.write_vec(v, written_bytes);
 
         if (disconnected)
             return nt_status::PIPE_DISCONNECTED;
 
         return status;
     }
+}
+
+nt_status pty_client::write(span<const uint8_t> s, uint64_t& written_bytes) {
+    return write_vec(span(&s, 1), written_bytes);
 }
 
 sync_object& pty_client::get_sync_object() {
@@ -668,16 +691,30 @@ nt_status pty_client::canonical_write(span<const uint8_t> s, uint64_t& written_b
         }
     }
 
-    written_bytes = orig_size; // discard excess data rather than doing a partial write
+    written_bytes += orig_size; // discard excess data rather than doing a partial write
 
     return nt_status::SUCCESS;
 }
 
-nt_status pty_server::write2(span<const uint8_t> s, uint64_t& written_bytes) {
-    if (client.settings.c_lflag & ICANON) // FIXME - do we need a spinlock for this?
-        return client.canonical_write(s, written_bytes);
-    else
-        return client.recv_pipe.write(s, written_bytes);
+nt_status pty_server::write2(span<const span<const uint8_t>> v,
+                             uint64_t& written_bytes) {
+    if (client.settings.c_lflag & ICANON) { // FIXME - do we need a spinlock for this?
+        // FIXME - should canonical_write itself be doing this?
+
+        written_bytes = 0;
+
+        for (auto s : v) {
+            if (s.empty())
+                continue;
+
+            auto status = client.canonical_write(s, written_bytes);
+            if (!success(status))
+                return status;
+        }
+
+        return nt_status::SUCCESS;
+    } else
+        return client.recv_pipe.write_vec(v, written_bytes);
 }
 
 void pty_client::post_info_event(pty_info_type type) {
@@ -724,94 +761,109 @@ void pty_client::post_info_event(pty_info_type type) {
     }
 }
 
-nt_status pty_server::write(span<const uint8_t> s, uint64_t& written_bytes) {
+nt_status pty_server::write_vec(span<const span<const uint8_t>> v,
+                                uint64_t& written_bytes) {
     nt_status status;
     uint64_t bytes;
     bool noflsh = client.settings.c_lflag & NOFLSH;
 
     if (!(client.settings.c_lflag & ISIG))
-        return write2(s, written_bytes);
+        return write2(v, written_bytes);
 
     // FIXME - VSUSP
 
     written_bytes = 0;
 
-    while (!s.empty()) {
-        bool again = false;
+    for (size_t j = 0; j < v.size(); j++) {
+        auto s = v[j];
 
-        for (size_t i = 0; i < s.size(); i++) {
-            if (s[i] == client.settings.c_cc[VINTR] ||
-                s[i] == client.settings.c_cc[VSUSP]) {
-                if (i != 0) {
-                    status = write2(span(s.data(), i), bytes);
-                    if (!success(status)) {
-                        if (written_bytes > 0)
-                            return nt_status::SUCCESS;
-                        else
-                            return status;
+        while (!s.empty()) {
+            bool again = false;
+
+            for (size_t i = 0; i < s.size(); i++) {
+                if (s[i] == client.settings.c_cc[VINTR] ||
+                    s[i] == client.settings.c_cc[VSUSP]) {
+                    if (i != 0) {
+                        auto sp = span(s.data(), i);
+                        status = write2(span(&sp, 1), bytes);
+                        if (!success(status)) {
+                            if (written_bytes > 0)
+                                return nt_status::SUCCESS;
+                            else
+                                return status;
+                        }
+
+                        written_bytes += bytes;
                     }
 
-                    written_bytes += bytes;
-                }
+                    process_group* pg = nullptr;
 
-                process_group* pg = nullptr;
+                    {
+                        lock_guard lock(client.fg_pg_lock);
 
-                {
-                    lock_guard lock(client.fg_pg_lock);
-
-                    if (client.fg_pg) {
-                        pg = client.fg_pg;
-                        pg->acquire();
-                    }
-                }
-
-                if (pg) {
-                    if (s[i] == client.settings.c_cc[VINTR]) {
-                        status = send_signal_to_process_group(*pg, SIGINT);
-                        if (!success(status))
-                            print("send_signal_to_process_group returned {}\n", status);
-                    } else if (s[i] == client.settings.c_cc[VSUSP]) {
-                        status = send_signal_to_process_group(*pg, SIGTSTP);
-                        if (!success(status))
-                            print("send_signal_to_process_group returned {}\n", status);
-
-                        client.post_info_event(pty_info_type::suspend); // FIXME - include pid or something?
+                        if (client.fg_pg) {
+                            pg = client.fg_pg;
+                            pg->acquire();
+                        }
                     }
 
-                    pg->release();
+                    if (pg) {
+                        if (s[i] == client.settings.c_cc[VINTR]) {
+                            status = send_signal_to_process_group(*pg, SIGINT);
+                            if (!success(status))
+                                print("send_signal_to_process_group returned {}\n", status);
+                        } else if (s[i] == client.settings.c_cc[VSUSP]) {
+                            status = send_signal_to_process_group(*pg, SIGTSTP);
+                            if (!success(status))
+                                print("send_signal_to_process_group returned {}\n", status);
+
+                            client.post_info_event(pty_info_type::suspend); // FIXME - include pid or something?
+                        }
+
+                        pg->release();
+                    }
+
+                    written_bytes++;
+                    s = span(s.data() + i + 1, s.size() - i - 1);
+
+                    if (!noflsh) {
+                        client.recv_pipe.clear();
+                        client.send_pipe.clear();
+                        written_bytes += s.size();
+
+                        for (size_t k = j + 1; k < v.size(); k++) {
+                            written_bytes += v[k].size();
+                        }
+
+                        return nt_status::SUCCESS;
+                    }
+
+                    again = true;
+                    break;
                 }
-
-                written_bytes++;
-                s = span(s.data() + i + 1, s.size() - i - 1);
-
-                if (!noflsh) {
-                    client.recv_pipe.clear();
-                    client.send_pipe.clear();
-                    written_bytes += s.size();
-                    return nt_status::SUCCESS;
-                }
-
-                again = true;
-                break;
             }
+
+            if (again)
+                continue;
+
+            status = write2(span(&s, 1), bytes);
+            if (!success(status)) {
+                if (written_bytes > 0)
+                    return nt_status::SUCCESS;
+                else
+                    return status;
+            }
+
+            written_bytes += bytes;
+            break;
         }
-
-        if (again)
-            continue;
-
-        status = write2(s, bytes);
-        if (!success(status)) {
-            if (written_bytes > 0)
-                return nt_status::SUCCESS;
-            else
-                return status;
-        }
-
-        written_bytes += bytes;
-        break;
     }
 
     return nt_status::SUCCESS;
+}
+
+nt_status pty_server::write(span<const uint8_t> s, uint64_t& written_bytes) {
+    return write_vec(span(&s, 1), written_bytes);
 }
 
 sync_object& pty_server::get_sync_object() {

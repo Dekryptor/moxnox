@@ -135,6 +135,8 @@ public:
 
     nt_status read(span<const span<uint8_t>> v, uint64_t& read_bytes) override;
     nt_status write(span<const uint8_t> s, uint64_t& written_bytes) override;
+    nt_status write_vec(span<const span<const uint8_t>> v,
+                        uint64_t& written_bytes) override;
 
     spinlock lock;
     list_entry pages = { &pages, &pages };
@@ -1759,7 +1761,17 @@ nt_status kmsg_buf::read(span<const span<uint8_t>> v, uint64_t& read_bytes) {
     return nt_status::SUCCESS;
 }
 
-nt_status kmsg_buf::write(span<const uint8_t> s, uint64_t& written_bytes) {
+nt_status kmsg_buf::write_vec(span<const span<const uint8_t>> v,
+                              uint64_t& written_bytes) {
+    size_t vec_size = get_vec_size(v);
+
+    if (vec_size == 0) {
+        written_bytes = 0;
+        return nt_status::SUCCESS;
+    }
+
+    span<const uint8_t> top = v.front();
+
     {
         lock_guard lg(lock);
 
@@ -1768,17 +1780,16 @@ nt_status kmsg_buf::write(span<const uint8_t> s, uint64_t& written_bytes) {
         if (!is_list_empty(pages) && containing_record<kmsg_buf_page>(pages.prev).write_pos < PAGE_SIZE) {
             auto& p = containing_record<kmsg_buf_page>(pages.prev);
             auto page = (uint8_t*)phys_address(p.pa);
-            size_t to_copy = min(s.size(), PAGE_SIZE - p.write_pos);
+            size_t to_copy = min(vec_size, PAGE_SIZE - p.write_pos);
 
-            memcpy(page + p.write_pos, s.data(), to_copy);
+            memcpy_vec(page + p.write_pos, v, top, to_copy);
+
             p.write_pos += (uint16_t)to_copy;
-
-            written_bytes = s.size();
-
-            s = span(s.data() + to_copy, s.size() - to_copy);
+            written_bytes = to_copy;
+            vec_size -= to_copy;
         }
 
-        while (!s.empty()) {
+        while (vec_size > 0) {
             auto p = new kmsg_buf_page;
             if (!p) {
                 print("new failed\n");
@@ -1795,14 +1806,13 @@ nt_status kmsg_buf::write(span<const uint8_t> s, uint64_t& written_bytes) {
             insert_tail_list(pages, p->le);
 
             auto page = (uint8_t*)phys_address(p->pa);
-            size_t to_copy = min(s.size(), PAGE_SIZE);
+            size_t to_copy = min(vec_size, PAGE_SIZE);
 
-            memcpy(page, s.data(), to_copy);
+            memcpy_vec(page, v, top, to_copy);
+
             p->write_pos += (uint16_t)to_copy;
-
-            written_bytes += s.size();
-
-            s = span(s.data() + to_copy, s.size() - to_copy);
+            written_bytes += to_copy;
+            vec_size -= to_copy;
         }
     }
 
@@ -1818,4 +1828,8 @@ nt_status kmsg_buf::write(span<const uint8_t> s, uint64_t& written_bytes) {
     }
 
     return nt_status::SUCCESS;
+}
+
+nt_status kmsg_buf::write(span<const uint8_t> s, uint64_t& written_bytes) {
+    return write_vec(span(&s, 1), written_bytes);
 }
