@@ -4,6 +4,7 @@ module;
 #include <mutex>
 #include <algorithm>
 #include <atomic>
+#include <optional>
 
 export module page_cache;
 
@@ -54,7 +55,8 @@ public:
     void copy_into_buffer_and_unpin(uint64_t first_page, uint64_t num_pages,
                                     span<uint8_t> data, uint64_t offset);
     void copy_into_vec_and_unpin(uint64_t first_page, uint64_t num_pages,
-                                 span<const span<uint8_t>> v, uint64_t offset);
+                                 span<const span<uint8_t>> v, uint64_t offset,
+                                 optional<uint64_t> size);
     void unpin(uint64_t first_page, uint64_t num_pages);
     bool write_pages_and_unpin(uint64_t first_page, uint64_t num_pages,
                                span<const uint8_t> data);
@@ -89,8 +91,9 @@ public:
     }
 
     void copy_into_vec_and_unpin(uint64_t first_page, uint64_t num_pages,
-                                 span<const span<uint8_t>> v, uint64_t offset) {
-        base.copy_into_vec_and_unpin(first_page, num_pages, v, offset);
+                                 span<const span<uint8_t>> v, uint64_t offset,
+                                 optional<uint64_t> size) {
+        base.copy_into_vec_and_unpin(first_page, num_pages, v, offset, size);
     }
 
     bool find_dirty_range(page_cache_entry*& range_start,
@@ -112,7 +115,8 @@ public:
     nt_status read_into_cache_and_pin(uint64_t first_page, uint64_t num_pages,
                                       uint64_t& read_pages);
     nt_status read(span<uint8_t> data, uint64_t offset);
-    nt_status read_vec(span<const span<uint8_t>> v, uint64_t offset);
+    nt_status read_vec(span<const span<uint8_t>> v, uint64_t offset,
+                       optional<uint64_t> size = nullopt);
 
     page_cache_entry* next_page_cache_entry(const page_cache_entry& ent) {
         return base.next_page_cache_entry(ent);
@@ -536,8 +540,12 @@ nt_status page_cache<T>::read_into_cache_and_pin(uint64_t first_page, uint64_t n
 }
 
 template<typename T>
-nt_status page_cache<T>::read_vec(span<const span<uint8_t>> v, uint64_t offset) {
+nt_status page_cache<T>::read_vec(span<const span<uint8_t>> v, uint64_t offset,
+                                  optional<uint64_t> size) {
     size_t vec_size = get_vec_size(v);
+
+    if (size.has_value())
+        vec_size = min(vec_size, *size);
 
     if (vec_size == 0)
         return nt_status::SUCCESS;
@@ -549,7 +557,7 @@ nt_status page_cache<T>::read_vec(span<const span<uint8_t>> v, uint64_t offset) 
     uint64_t first_page = offset >> PAGE_SHIFT;
     uint64_t num_pages = ((offset + vec_size - 1) >> PAGE_SHIFT) - first_page + 1;
 
-    copy_into_vec_and_unpin(first_page, num_pages, v, offset);
+    copy_into_vec_and_unpin(first_page, num_pages, v, offset, size);
 
     // FIXME - LRU
 

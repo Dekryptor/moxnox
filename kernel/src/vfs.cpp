@@ -107,6 +107,8 @@ public:
     virtual void release() = 0;
 
     nt_status read(span<uint8_t> s, uint64_t offset, uint64_t& read_bytes);
+    nt_status read_vec(span<const span<uint8_t>> v, uint64_t offset,
+                       uint64_t& read_bytes);
     nt_status write(span<const uint8_t> s, uint64_t offset,
                     uint64_t& written_bytes);
 
@@ -144,6 +146,7 @@ public:
 };
 
 static_assert(is_readable_object_with_offset<inode>);
+static_assert(is_readable_vec_object_with_offset<inode>);
 static_assert(is_writable_object_with_offset<inode>);
 static_assert(cacheable_flushable<inode>);
 static_assert(cache_supports_writeback<inode>);

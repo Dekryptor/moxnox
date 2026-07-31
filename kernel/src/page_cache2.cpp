@@ -3,6 +3,7 @@ module;
 #include <mutex>
 #include <span>
 #include <algorithm>
+#include <optional>
 #include <stddef.h>
 #include <string.h>
 #include "assert.h"
@@ -155,12 +156,16 @@ void page_cache_base::copy_into_buffer(uint64_t first_page, uint64_t num_pages,
 void page_cache_base::copy_into_vec_and_unpin(uint64_t first_page,
                                               uint64_t num_pages,
                                               span<const span<uint8_t>> v,
-                                              uint64_t offset) {
+                                              uint64_t offset,
+                                              optional<uint64_t> size) {
     lock_guard lg(cache_lock);
 
     page_cache_entry* ent;
     size_t vec_size = get_vec_size(v);
     span<uint8_t> top = v.empty() ? span<uint8_t>() : v.front();
+
+    if (size.has_value())
+        vec_size = min(vec_size, *size);
 
     for (uint64_t i = 0; i < num_pages; i++) {
         if (i == 0)
@@ -192,7 +197,7 @@ void page_cache_base::copy_into_vec_and_unpin(uint64_t first_page,
 void page_cache_base::copy_into_buffer_and_unpin(uint64_t first_page, uint64_t num_pages,
                                                  span<uint8_t> data, uint64_t offset) {
     return copy_into_vec_and_unpin(first_page, num_pages, span(&data, 1),
-                                   offset);
+                                   offset, nullopt);
 }
 
 void page_cache_base::unpin(uint64_t first_page, uint64_t num_pages) {

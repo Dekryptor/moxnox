@@ -27,6 +27,7 @@ import handle;
 import crt;
 import chardev;
 import moxnox_ioctls;
+import vec;
 
 using namespace std;
 
@@ -1136,8 +1137,10 @@ nt_status flush_filesystems(bool make_readonly) {
     return nt_status::SUCCESS;
 }
 
-nt_status inode::read(span<uint8_t> s, uint64_t offset, uint64_t& read_bytes) {
+nt_status inode::read_vec(span<const span<uint8_t>> v, uint64_t offset,
+                          uint64_t& read_bytes) {
     uint64_t size;
+    size_t vec_size = get_vec_size(v);
 
     {
         shared_lock lock(inode_lock);
@@ -1150,20 +1153,21 @@ nt_status inode::read(span<uint8_t> s, uint64_t offset, uint64_t& read_bytes) {
     if (offset >= size)
         return nt_status::END_OF_FILE;
 
-    if (s.empty()) {
+    if (vec_size == 0) {
         read_bytes = 0;
         return nt_status::SUCCESS;
     }
 
-    if (offset + s.size() > size)
-        s = s.subspan(0, size - offset);
-
-    auto status = cache.read(s, offset);
+    auto status = cache.read_vec(v, offset, size - offset);
     if (!success(status))
         return status;
 
-    read_bytes = s.size();
+    read_bytes = min((uint64_t)vec_size, size - offset);
     return nt_status::SUCCESS;
+}
+
+nt_status inode::read(span<uint8_t> s, uint64_t offset, uint64_t& read_bytes) {
+    return read_vec(span(&s, 1), offset, read_bytes);
 }
 
 nt_status inode::write(span<const uint8_t> s, uint64_t offset, uint64_t& written_bytes) {
