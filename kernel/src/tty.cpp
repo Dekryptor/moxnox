@@ -26,10 +26,6 @@ public:
         return nt_status::INVALID_PARAMETER;
     }
 
-    nt_status write(span<const uint8_t>, uint64_t&) override {
-        return nt_status::INVALID_PARAMETER;
-    }
-
     nt_status write_vec(span<const span<const uint8_t>>, uint64_t&) override {
         return nt_status::INVALID_PARAMETER;
     }

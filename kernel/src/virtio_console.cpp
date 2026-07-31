@@ -79,7 +79,6 @@ public:
         return recv_pipe.read(v, read_bytes);
     }
 
-    nt_status write(span<const uint8_t> s, uint64_t& written_bytes) override;
     nt_status write_vec(span<const span<const uint8_t>> v,
                         uint64_t& written_bytes) override;
 
@@ -164,10 +163,10 @@ void virtio_console<T>::recv_thread() {
         if (buf_read_bytes == 0)
             continue;
 
-        auto read_buf = span(buf, buf_read_bytes);
+        auto read_buf = span((const uint8_t*)buf, buf_read_bytes);
 
         while (true) {
-            status = recv_pipe.write(read_buf, written_bytes);
+            status = recv_pipe.write_vec(span(&read_buf, 1), written_bytes);
             if (!success(status)) {
                 print("recv_pipe.write returned {}\n", status);
                 break;
@@ -240,11 +239,6 @@ nt_status virtio_console<T>::write_vec(span<const span<const uint8_t>> v,
     }
 
     return nt_status::SUCCESS;
-}
-
-template<virtio_device T>
-nt_status virtio_console<T>::write(span<const uint8_t> s, uint64_t& written_bytes) {
-    return write_vec(span(&s, 1), written_bytes);
 }
 
 static object_ref create_virtio_console_in_pipe(unsigned int buffer_pages) {

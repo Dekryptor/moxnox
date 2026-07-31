@@ -115,7 +115,6 @@ public:
         delete &dev;
     }
 
-    nt_status write(span<const uint8_t> s, uint64_t& written_bytes) override;
     nt_status write_vec(span<const span<const uint8_t>> v,
                         uint64_t& written_bytes) override;
     nt_status ioctl(uint32_t code, span<const uint8_t> inbuf,
@@ -325,11 +324,6 @@ nt_status virtio_input<T>::write_vec(span<const span<const uint8_t>> v,
     written_bytes = sizeof(input_event);
 
     return nt_status::SUCCESS;
-}
-
-template<virtio_device T>
-nt_status virtio_input<T>::write(span<const uint8_t> s, uint64_t& written_bytes) {
-    return write_vec(span(&s, 1), written_bytes);
 }
 
 template<virtio_device T>

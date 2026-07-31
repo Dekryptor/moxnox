@@ -61,10 +61,6 @@ public:
 
         return nt_status::SUCCESS;
     }
-
-    nt_status write(span<const uint8_t> s, uint64_t& written_bytes) override {
-        return write_vec(span(&s, 1), written_bytes);
-    }
 };
 
 static rwsem irq_handlers_lock;

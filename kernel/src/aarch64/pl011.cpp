@@ -64,7 +64,6 @@ static const uint32_t PL011_UARTICR_RXIC = 1 << 4;
 class pl011_out_pipe : public pipe {
 public:
     pl011_out_pipe(unsigned int buffer_pages) : pipe(buffer_pages) { }
-    nt_status write(span<const uint8_t> s, uint64_t& written_bytes) override;
     nt_status write_vec(span<const span<const uint8_t>> v,
                         uint64_t& written_bytes) override;
     nt_status flush(bool go_readonly) override;
@@ -86,10 +85,6 @@ public:
 
     nt_status read(span<const span<uint8_t>> v, uint64_t& read_bytes) override {
         return recv_pipe.read(v, read_bytes);
-    }
-
-    nt_status write(span<const uint8_t> s, uint64_t& written_bytes) override {
-        return send_pipe.write(s, written_bytes);
     }
 
     nt_status write_vec(span<const span<const uint8_t>> v,
@@ -237,10 +232,6 @@ nt_status pl011_out_pipe::write_vec(span<const span<const uint8_t>> v,
     return nt_status::SUCCESS;
 }
 
-nt_status pl011_out_pipe::write(span<const uint8_t> s, uint64_t& written_bytes) {
-    return write_vec(span(&s, 1), written_bytes);
-}
-
 nt_status pl011_out_pipe::flush(bool go_readonly) {
     if (go_readonly)
         readonly = true;
@@ -311,8 +302,10 @@ void pl011_pipe::irq() {
 
         auto c = (uint8_t)UARTDR;
 
+        auto sp = span((const uint8_t*)&c, 1);
+
         // FIXME - don't sleep here!
-        recv_pipe.write(span(&c, 1), written_bytes);
+        recv_pipe.write_vec(span(&sp, 1), written_bytes);
     }
 }
 

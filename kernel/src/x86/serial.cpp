@@ -51,7 +51,6 @@ static module_init module_init_serial(init_acpi_hids);
 class serial_out_pipe : public pipe {
 public:
     serial_out_pipe(unsigned int buffer_pages, uint16_t port) : pipe(buffer_pages), port(port) { }
-    nt_status write(span<const uint8_t> s, uint64_t& written_bytes) override;
     nt_status write_vec(span<const span<const uint8_t>> v,
                         uint64_t& written_bytes) override;
     nt_status flush(bool go_readonly) override;
@@ -74,10 +73,6 @@ public:
 
     NTSTATUS read(span<const span<uint8_t>> v, uint64_t& read_bytes) override {
         return recv_pipe.read(v, read_bytes);
-    }
-
-    nt_status write(span<const uint8_t> s, uint64_t& written_bytes) override {
-        return send_pipe.write(s, written_bytes);
     }
 
     nt_status write_vec(span<const span<const uint8_t>> v,
@@ -303,10 +298,6 @@ nt_status serial_out_pipe::write_vec(span<const span<const uint8_t>> v,
     return nt_status::SUCCESS;
 }
 
-nt_status serial_out_pipe::write(span<const uint8_t> s, uint64_t& written_bytes) {
-    return write_vec(span(&s, 1), written_bytes);
-}
-
 bool serial_duplex_pipe::isr_func() {
     auto iir = inb(port + 2); // interrupt identification register
 
@@ -317,8 +308,9 @@ bool serial_duplex_pipe::isr_func() {
         uint64_t written_bytes;
 
         auto c = inb(port);
+        auto sp = span((const uint8_t*)&c, 1);
 
-        recv_pipe.write(span(&c, 1), written_bytes);
+        recv_pipe.write_vec(span(&sp, 1), written_bytes);
     }
 
     if (iir & 0x8 || (iir & 0x6) == 0x2) { // timeout, or transmitter holding register empty

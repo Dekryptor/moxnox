@@ -41,10 +41,6 @@ public:
         return nt_status::NOT_SUPPORTED;
     }
 
-    nt_status write(span<const uint8_t>, uint64_t&) override {
-        return nt_status::NOT_SUPPORTED;
-    }
-
     nt_status write_vec(span<const span<const uint8_t>>, uint64_t&) override {
         return nt_status::NOT_SUPPORTED;
     }
@@ -58,7 +54,6 @@ public:
     pty_client(pipe& recv_pipe, pipe& send_pipe, uint16_t cols, uint16_t rows);
     ~pty_client();
     nt_status read(span<const span<uint8_t>> v, uint64_t& read_bytes) override;
-    nt_status write(span<const uint8_t> s, uint64_t& written_bytes) override;
     nt_status write_vec(span<const span<const uint8_t>> v,
                         uint64_t& written_bytes) override;
     sync_object& get_sync_object() override;
@@ -106,7 +101,6 @@ public:
     pty_server(pty_client& client);
     ~pty_server();
     nt_status read(span<const span<uint8_t>> v, uint64_t& read_bytes) override;
-    nt_status write(span<const uint8_t> s, uint64_t& written_bytes) override;
     nt_status write_vec(span<const span<const uint8_t>> v,
                         uint64_t& written_bytes) override;
     sync_object& get_sync_object() override;
@@ -142,10 +136,6 @@ public:
     }
 
     nt_status read(span<const span<uint8_t>> v, uint64_t& read_bytes) override;
-
-    nt_status write(span<const unsigned char>, uint64_t&) override {
-        return nt_status::NOT_SUPPORTED;
-    }
 
     nt_status write_vec(span<const span<const uint8_t>>, uint64_t&) override {
         return nt_status::NOT_SUPPORTED;
@@ -469,10 +459,6 @@ nt_status pty_client::write_vec(span<const span<const uint8_t>> v,
     }
 }
 
-nt_status pty_client::write(span<const uint8_t> s, uint64_t& written_bytes) {
-    return write_vec(span(&s, 1), written_bytes);
-}
-
 sync_object& pty_client::get_sync_object() {
     return recv_pipe;
 }
@@ -623,7 +609,7 @@ nt_status pty_client::canonical_write(span<const uint8_t> s, uint64_t& written_b
             }
 
             while (true) {
-                status = recv_pipe.write(sp, bytes);
+                status = recv_pipe.write_vec(span(&sp, 1), bytes);
                 if (!success(status))
                     return status;
 
@@ -860,10 +846,6 @@ nt_status pty_server::write_vec(span<const span<const uint8_t>> v,
     }
 
     return nt_status::SUCCESS;
-}
-
-nt_status pty_server::write(span<const uint8_t> s, uint64_t& written_bytes) {
-    return write_vec(span(&s, 1), written_bytes);
 }
 
 sync_object& pty_server::get_sync_object() {

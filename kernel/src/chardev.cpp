@@ -18,13 +18,13 @@ public:
     virtual ~chardev() { }
 
     virtual NTSTATUS read(span<const span<uint8_t>> v, uint64_t& read_bytes) = 0;
-
-    virtual NTSTATUS write(span<const uint8_t> s, uint64_t& written_bytes) = 0;
     virtual NTSTATUS write_vec(span<const span<const uint8_t>> v,
                                uint64_t& written_bytes) = 0;
 
     NTSTATUS write(string_view sv, uint64_t& written_bytes) {
-        return write(span((uint8_t*)sv.data(), sv.length()), written_bytes);
+        auto sp = span((const uint8_t*)sv.data(), sv.length());
+
+        return write_vec(span(&sp, 1), written_bytes);
     }
 
     virtual nt_status ioctl(uint32_t, span<const uint8_t>, span<uint8_t>, uintptr_t&) {
@@ -63,7 +63,6 @@ public:
 
 static_assert(is_sync_object<chardev>);
 static_assert(is_readable_object_without_offset<chardev>);
-static_assert(is_writable_object_without_offset<chardev>);
 static_assert(is_writable_vec_object_without_offset<chardev>);
 static_assert(has_ioctls<chardev>);
 static_assert(has_exclusive_field<chardev>);

@@ -48,7 +48,6 @@ public:
         return nt_status::NOT_SUPPORTED;
     }
 
-    nt_status write(span<const uint8_t> s, uint64_t& written_bytes) override;
     nt_status write_vec(span<const span<const uint8_t>> v,
                         uint64_t& written_bytes) override;
     nt_status ioctl(uint32_t code, span<const uint8_t> inbuf,
@@ -115,10 +114,6 @@ public:
 
     nt_status read(span<const span<uint8_t>> v, uint64_t& read_bytes) override;
 
-    nt_status write(span<const uint8_t> s, uint64_t& written_bytes) override {
-        return p.write(s, written_bytes);
-    }
-
     nt_status write_vec(span<const span<const uint8_t>> v,
                         uint64_t& written_bytes) override {
         return p.write_vec(v, written_bytes);
@@ -151,10 +146,6 @@ public:
     evdev_device() : chardev() { }
 
     nt_status read(span<const span<uint8_t>>, uint64_t&) override {
-        return nt_status::NOT_SUPPORTED;
-    }
-
-    nt_status write(span<const uint8_t>, uint64_t&) override {
         return nt_status::NOT_SUPPORTED;
     }
 
@@ -213,10 +204,6 @@ public:
 
     nt_status read(span<const span<uint8_t>> v, uint64_t& read_bytes) override;
 
-    nt_status write(span<const uint8_t> s, uint64_t& written_bytes) override {
-        return p.write(s, written_bytes);
-    }
-
     nt_status write_vec(span<const span<const uint8_t>> v,
                         uint64_t& written_bytes) override {
         return p.write_vec(v, written_bytes);
@@ -272,8 +259,9 @@ public:
 
     nt_status write(const input_event& ev) {
         uint64_t written_bytes;
+        auto sp = span((const uint8_t*)&ev, sizeof(input_event));
 
-        return p.write(span((const uint8_t*)&ev, sizeof(input_event)), written_bytes);
+        return p.write_vec(span(&sp, 1), written_bytes);
     }
 
     void listen_thread();
@@ -616,10 +604,6 @@ nt_status evdev_multiplexer::write_vec(span<const span<const uint8_t>> v,
     ctx->release();
 
     return status;
-}
-
-nt_status evdev_multiplexer::write(span<const uint8_t> s, uint64_t& written_bytes) {
-    return write_vec(span(&s, 1), written_bytes);
 }
 
 nt_status evdev_device_client::read(span<const span<uint8_t>> v,
