@@ -3148,21 +3148,26 @@ NTSTATUS process::read_vm(const void* base_address, void* buffer,
 }
 
 extern "C"
-NTSTATUS NtReadVirtualMemory(HANDLE process_handle, void* base_address, void* buffer, uint32_t buffer_size,
+NTSTATUS NtReadVirtualMemory(HANDLE process_handle, void* base_address,
+                             void* us_buffer, uint32_t buffer_size,
                              uint32_t* number_of_bytes_read) {
+    auto& t = *get_current_thread();
     object_ref objrw;
-    process* p;
+    process* src_proc;
+    process* dest_proc = t.proc;
+    nt_status status;
+
+    if (!dest_proc)
+        return nt_status::INVALID_PARAMETER;
+
+    if (buffer_size == 0)
+        return nt_status::INVALID_PARAMETER;
 
     if (process_handle == NtCurrentProcess()) {
-        auto t = get_current_thread();
+        src_proc = t.proc;
+        src_proc->acquire();
 
-        if (!t->proc)
-            return nt_status::INVALID_PARAMETER;
-
-        p = t->proc;
-        p->acquire();
-
-        objrw = object_ref{*p};
+        objrw = object_ref{*src_proc};
     } else {
         objrw = deref_handle(process_handle);
         if (!objrw)
@@ -3175,10 +3180,95 @@ NTSTATUS NtReadVirtualMemory(HANDLE process_handle, void* base_address, void* bu
 
         // FIXME - check access rights
 
-        p = static_cast<process*>(&obj);
+        src_proc = static_cast<process*>(&obj);
     }
 
-    return p->read_vm(base_address, buffer, buffer_size, number_of_bytes_read);
+    span<const uint8_t>* src_spans = nullptr;
+    span<uint8_t>* dest_spans = nullptr;
+    size_t num_src_spans = 0, num_dest_spans = 0;
+
+    auto free_src_spans = [&]() {
+        auto src_spans_size = sizeof(span<const uint8_t>) * num_src_spans;
+        if (src_spans_size > PAGE_SIZE)
+            vfree(src_spans, src_spans_size);
+        else if (src_spans_size > 0)
+            free(src_spans);
+    };
+
+    auto free_dest_spans = [&]() {
+        auto dest_spans_size = sizeof(span<uint8_t>) * num_dest_spans;
+        if (dest_spans_size > PAGE_SIZE)
+            vfree(dest_spans, dest_spans_size);
+        else if (dest_spans_size > 0)
+            free(dest_spans);
+    };
+
+    if (src_proc == dest_proc) {
+        optional<rangelock_req> rlr;
+
+        status = pin_userspace_buffers_for_read_and_write(*src_proc,
+                                                          span((uint8_t*)base_address, buffer_size),
+                                                          span((uint8_t*)us_buffer, buffer_size),
+                                                          rlr, src_spans,
+                                                          num_src_spans,
+                                                          dest_spans,
+                                                          num_dest_spans);
+        if (!success(status))
+            return status;
+
+        memcpy_vec(span(dest_spans, num_dest_spans), span(src_spans, num_src_spans));
+
+        rlr.reset();
+    } else {
+        optional<rangelock_req> src_rlr, dest_rlr;
+
+        auto do_dest = [&]() {
+            return pin_userspace_buffer_for_writing(*dest_proc,
+                                                    span((uint8_t*)us_buffer, buffer_size),
+                                                    dest_rlr, dest_spans,
+                                                    num_dest_spans);
+        };
+
+        if ((uintptr_t)dest_proc < (uintptr_t)src_proc) {
+            status = do_dest();
+            if (!success(status))
+                return status;
+        }
+
+        status = pin_userspace_buffer_for_reading(*src_proc,
+                                                  span((uint8_t*)base_address, buffer_size),
+                                                  src_rlr, src_spans,
+                                                  num_src_spans);
+        if (!success(status)) {
+            if ((uintptr_t)dest_proc < (uintptr_t)src_proc)
+                free_dest_spans();
+
+            return status;
+        }
+
+        if ((uintptr_t)dest_proc > (uintptr_t)src_proc) {
+            status = do_dest();
+            if (!success(status)) {
+                free_src_spans();
+                return status;
+            }
+        }
+
+        memcpy_vec(span(dest_spans, num_dest_spans), span(src_spans, num_src_spans));
+
+        src_rlr.reset();
+        dest_rlr.reset();
+    }
+
+    free_src_spans();
+    free_dest_spans();
+
+    // FIXME - should we be allowing short reads?
+
+    if (number_of_bytes_read)
+        *number_of_bytes_read = buffer_size;
+
+    return nt_status::SUCCESS;
 }
 
 NTSTATUS process::write_vm(void* base_address, const void* buffer,

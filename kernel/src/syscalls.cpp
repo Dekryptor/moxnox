@@ -801,35 +801,20 @@ NTSTATUS user_NtReadVirtualMemory(HANDLE process_handle, void* base_address,
                                   void* buffer, uint32_t buffer_size,
                                   uint32_t* number_of_bytes_read) {
     NTSTATUS status;
-    void* buf;
     uint32_t read;
 
     if (!buffer)
         return nt_status::INVALID_PARAMETER;
 
-    if (buffer_size > 0) {
-        buf = vmalloc(buffer_size);
-        if (!buf)
-            return nt_status::INSUFFICIENT_RESOURCES;
-    }
-
-    status = NtReadVirtualMemory(process_handle, base_address, buffer_size > 0 ? buf : nullptr, buffer_size,
+    status = NtReadVirtualMemory(process_handle, base_address, buffer, buffer_size,
                                  number_of_bytes_read ? &read : nullptr);
 
     if (success(status)) {
-        if (buffer_size > 0) {
-            if (!copy_to_process(buffer, buf, buffer_size))
-                status = nt_status::ACCESS_VIOLATION;
-        }
-
         if (number_of_bytes_read) {
             if (!copy_to_process(number_of_bytes_read, &read, sizeof(uint32_t)))
                 status = nt_status::ACCESS_VIOLATION;
         }
     }
-
-    if (buffer_size > 0)
-        vfree(buf, buffer_size);
 
     return status;
 }
