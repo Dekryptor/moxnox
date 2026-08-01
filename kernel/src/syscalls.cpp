@@ -284,10 +284,6 @@ static nt_status pin_userspace_buffer_for_reading(process& proc, span<const uint
     return nt_status::SUCCESS;
 }
 
-static constexpr bool is_userspace_address(uintptr_t va) {
-    return !(va & 0xffff800000000000);
-}
-
 extern "C"
 NTSTATUS user_NtWriteFile(HANDLE file_handle, HANDLE event, PIO_APC_ROUTINE apc_routine,
                           void* apc_context, IO_STATUS_BLOCK* us_iosb, void* us_buf,
