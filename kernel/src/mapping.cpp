@@ -9,6 +9,12 @@ import list;
 import process;
 import section;
 
+#ifdef __aarch64__
+import aarch64;
+#elifdef __x86_64__
+import x86;
+#endif
+
 using namespace std;
 
 export class mapping {
@@ -45,5 +51,13 @@ private:
     atomic<unsigned int> refcount = 1;
 };
 
+#ifdef __aarch64__
+using pte_type = ARM64_HARDWARE_PTE;
+#elifdef __x86_64__
+using pte_type = HARDWARE_PTE;
+#endif
+
 export void unmap_proc_pages(process& proc, uint64_t va, uint64_t num_pages);
 export mapping* find_mapping(process& proc, uint64_t address);
+export bool make_pte_writable(uintptr_t address, mapping& m, pte_type& pte,
+                              bool& send_ipi);
