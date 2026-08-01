@@ -27,6 +27,9 @@ import kernel_time_page;
 import timer;
 import format;
 import vfs;
+import rangelock;
+import process;
+import vec;
 
 using namespace std;
 
@@ -63,9 +66,10 @@ public:
     ~raw_socket() override;
     void last_handle_closed() override;
 
-    nt_status recvfrom(char* buf, size_t len, int flags, sockaddr* from,
-                       int* fromlen, size_t& recv_bytes) override {
-        return do_recvfrom<false>(buf, len, flags, from, fromlen, recv_bytes);
+    nt_status recvfrom(span<const span<uint8_t>> v, int flags,
+                       sockaddr_storage& from, int* fromlen,
+                       size_t& recv_bytes) override {
+        return do_recvfrom<false>(v, flags, from, fromlen, recv_bytes);
     }
 
     nt_status sendto(const char* buf, size_t len, int flags, sockaddr* to,
@@ -102,9 +106,10 @@ public:
         return nt_status::NOT_SUPPORTED;
     }
 
-    nt_status recvfrom_nonblock(char* buf, size_t len, int flags,
-                                sockaddr* from, int* fromlen, size_t& recv_bytes) override {
-        return do_recvfrom<true>(buf, len, flags, from, fromlen, recv_bytes);
+    nt_status recvfrom_nonblock(span<const span<uint8_t>> v, int flags,
+                                sockaddr_storage& from, int* fromlen,
+                                size_t& recv_bytes) override {
+        return do_recvfrom<true>(v, flags, from, fromlen, recv_bytes);
     }
 
     nt_status shutdown(int) override {
@@ -125,8 +130,9 @@ public:
 
 private:
     template<bool NONBLOCK>
-    nt_status do_recvfrom(char* buf, size_t len, int flags, sockaddr* from,
-                          int* fromlen, size_t& recv_bytes);
+    nt_status do_recvfrom(span<const span<uint8_t>> v, int flags,
+                          sockaddr_storage& from, int* fromlen,
+                          size_t& recv_bytes);
 };
 
 enum class neighbour_cache_status {
@@ -2716,9 +2722,9 @@ nt_status socket::do_recvfrom(span<const uint8_t> inbuf, bool nonblock) {
 
     auto& params = *(MOXNOX_SOCKET_RECVFROM*)inbuf.data();
     size_t recv_bytes;
-    int fromlen = 0;
+    int fromlen = 0, orig_fromlen = 0;
 
-    if (!params.buf || params.len <= 0 || !params.recv_bytes)
+    if (params.len < 0 || !params.recv_bytes)
         return nt_status::INVALID_PARAMETER;
 
     if (params.fromlen) {
@@ -2734,22 +2740,53 @@ nt_status socket::do_recvfrom(span<const uint8_t> inbuf, bool nonblock) {
 
         if (fromlen < 0)
             return nt_status::INVALID_PARAMETER;
+
+        orig_fromlen = fromlen;
+    }
+
+    if (params.len > 0 && (!is_userspace_address((uintptr_t)params.buf) || !is_userspace_address((uintptr_t)params.buf + params.len - 1)))
+        return nt_status::ACCESS_VIOLATION;
+
+    optional<rangelock_req> rlr;
+    span<uint8_t>* spans = nullptr;
+    size_t num_spans = 0;
+    sockaddr_storage from;
+
+    if (params.len > 0) {
+        status = pin_userspace_buffer_for_writing(*t.proc, span((uint8_t*)params.buf, params.len),
+                                                  rlr, spans, num_spans);
+        if (!success(status))
+            return status;
     }
 
     if (nonblock) {
-        status = this->recvfrom_nonblock(params.buf, (size_t)params.len,
-                                         params.flags, (sockaddr*)params.from,
+        status = this->recvfrom_nonblock(span(spans, num_spans),
+                                         params.flags, from,
                                          fromlen != 0 ? &fromlen : nullptr,
                                          recv_bytes);
     } else {
-        status = this->recvfrom(params.buf, (size_t)params.len, params.flags,
-                                (sockaddr*)params.from,
-                                fromlen != 0 ? &fromlen : nullptr,
+        status = this->recvfrom(span(spans, num_spans), params.flags,
+                                from, fromlen != 0 ? &fromlen : nullptr,
                                 recv_bytes);
     }
 
+    rlr.reset();
+
+    auto spans_size = sizeof(span<const uint8_t>) * num_spans;
+    if (spans_size > PAGE_SIZE)
+        vfree(spans, spans_size);
+    else if (spans_size > 0)
+        free(spans);
+
     if (!success(status))
         return status;
+
+    if (params.from && fromlen != 0) {
+        status = t.proc->write_vm(params.from, &from,
+                                  (uint32_t)min(orig_fromlen, fromlen), nullptr);
+        if (!success(status))
+            return status;
+    }
 
     if (params.fromlen) {
         status = t.proc->write_vm(params.fromlen, &fromlen,
@@ -2758,8 +2795,8 @@ nt_status socket::do_recvfrom(span<const uint8_t> inbuf, bool nonblock) {
             return status;
     }
 
-    status = t.proc->write_vm(params.recv_bytes, &recv_bytes,
-                                sizeof(size_t), nullptr);
+    status = t.proc->write_vm(params.recv_bytes, &recv_bytes, sizeof(size_t),
+                              nullptr);
     if (!success(status))
         return status;
 
@@ -3176,14 +3213,15 @@ nt_status socket::ioctl(uint32_t code, span<const uint8_t> inbuf,
 
 template<socket_family FAMILY>
 template<bool NONBLOCK>
-nt_status raw_socket<FAMILY>::do_recvfrom(char* us_buf, size_t len, int flags,
-                                          sockaddr* us_from, int* fromlen,
+nt_status raw_socket<FAMILY>::do_recvfrom(span<const span<uint8_t>> v, int flags,
+                                          sockaddr_storage& from, int* fromlen,
                                           size_t& recv_bytes) {
     // FIXME - MSG_TRUNC
     if (flags != 0)
         return nt_status::INVALID_PARAMETER;
 
-    auto& t = *get_current_thread();
+    auto vec_size = get_vec_size(v);
+    span<uint8_t> top = vec_size == 0 ? span<uint8_t>() : v.front();
 
     acquire();
 
@@ -3254,22 +3292,15 @@ nt_status raw_socket<FAMILY>::do_recvfrom(char* us_buf, size_t len, int flags,
         else
             header_len = 0;
 
-        auto to_copy = (uint32_t)min(sp->pack.size - header_len, len);
+        auto to_copy = (uint32_t)min(sp->pack.size - header_len, vec_size);
 
-        status = t.proc->write_vm(us_buf, sp->pack.data + header_len,
-                                  to_copy, nullptr);
-        if (!success(status)) {
-            delete sp;
-            release();
-            return status;
-        }
+        memcpy_vec(v, top, sp->pack.data + header_len, to_copy);
 
         recv_bytes = to_copy;
 
-        if (us_from && fromlen && *fromlen > 0) {
+        if (fromlen && *fromlen > 0) {
             if constexpr (is_same_v<FAMILY, ipv4>) {
-                sockaddr_in addr;
-
+                auto& addr = *(sockaddr_in*)&from;
                 auto& ip = *(ipv4_header*)sp->pack.data;
 
                 memset(&addr, 0, sizeof(addr));
@@ -3278,19 +3309,9 @@ nt_status raw_socket<FAMILY>::do_recvfrom(char* us_buf, size_t len, int flags,
                 addr.sin_port = 0;
                 memcpy(&addr.sin_addr, ip.src.v.data(), sizeof(ipv4_address));
 
-                status = t.proc->write_vm(us_from, &addr,
-                                          (uint32_t)min((size_t)*fromlen, sizeof(addr)),
-                                          nullptr);
-                if (!success(status)) {
-                    delete sp;
-                    release();
-                    return status;
-                }
-
                 *fromlen = sizeof(addr);
             } else if constexpr (is_same_v<FAMILY, ipv6>) {
-                sockaddr_in6 addr;
-
+                auto& addr = *(sockaddr_in6*)&from;
                 auto& ip = *(ipv6_header*)sp->pack.data;
 
                 memset(&addr, 0, sizeof(addr));
@@ -3300,15 +3321,6 @@ nt_status raw_socket<FAMILY>::do_recvfrom(char* us_buf, size_t len, int flags,
                 addr.sin6_flowinfo = 0; // FIXME? Allowed by RFC3493, but not necessarily what Linux does
                 memcpy(&addr.sin6_addr, ip.src.v.data(), sizeof(ipv6_address));
                 addr.sin6_scope_id = sp->scope_id;
-
-                status = t.proc->write_vm(us_from, &addr,
-                                          (uint32_t)min((size_t)*fromlen, sizeof(addr)),
-                                          nullptr);
-                if (!success(status)) {
-                    delete sp;
-                    release();
-                    return status;
-                }
 
                 *fromlen = sizeof(addr);
             }

@@ -164,8 +164,9 @@ public:
                     bool nonblock = false);
     virtual void last_handle_closed() = 0;
 
-    virtual nt_status recvfrom(char* buf, size_t len, int flags, sockaddr* from,
-                               int* fromlen, size_t& recv_bytes) = 0;
+    virtual nt_status recvfrom(span<const span<uint8_t>> v, int flags,
+                               sockaddr_storage& from, int* fromlen,
+                               size_t& recv_bytes) = 0;
     virtual nt_status sendto(const char* buf, size_t len, int flags,
                              sockaddr* to, int tolen, size_t& sent_bytes) = 0;
     virtual nt_status bind(const sockaddr* addr, size_t addrlen) = 0;
@@ -180,8 +181,8 @@ public:
     virtual nt_status getpeername(span<uint8_t> addr, size_t& len) = 0;
     virtual nt_status read_nonblock(span<const span<uint8_t>> v,
                                     uint64_t& read_bytes) = 0;
-    virtual nt_status recvfrom_nonblock(char* buf, size_t len, int flags,
-                                        sockaddr* from, int* fromlen,
+    virtual nt_status recvfrom_nonblock(span<const span<uint8_t>> v, int flags,
+                                        sockaddr_storage& from, int* fromlen,
                                         size_t& recv_bytes) = 0;
     virtual nt_status shutdown(int how) = 0;
 

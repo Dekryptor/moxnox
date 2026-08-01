@@ -15,6 +15,7 @@ import thread;
 import scheduler;
 import kernel_time_page;
 import config;
+import vec;
 
 using namespace std;
 
@@ -23,9 +24,10 @@ public:
     ~ipv6_udp_socket() override;
     void last_handle_closed() override;
 
-    nt_status recvfrom(char* buf, size_t len, int flags, sockaddr* from,
-                       int* fromlen, size_t& recv_bytes) override {
-        return do_recvfrom<false>(buf, len, flags, from, fromlen, recv_bytes);
+    nt_status recvfrom(span<const span<uint8_t>> v, int flags,
+                       sockaddr_storage& from, int* fromlen,
+                       size_t& recv_bytes) override {
+        return do_recvfrom<false>(v, flags, from, fromlen, recv_bytes);
     }
 
     nt_status sendto(const char* buf, size_t len, int flags, sockaddr* to,
@@ -58,10 +60,10 @@ public:
         return nt_status::NOT_SUPPORTED;
     }
 
-    nt_status recvfrom_nonblock(char* buf, size_t len, int flags,
-                                sockaddr* from, int* fromlen,
+    nt_status recvfrom_nonblock(span<const span<uint8_t>> v, int flags,
+                                sockaddr_storage& from, int* fromlen,
                                 size_t& recv_bytes) override {
-        return do_recvfrom<true>(buf, len, flags, from, fromlen, recv_bytes);
+        return do_recvfrom<true>(v, flags, from, fromlen, recv_bytes);
     }
 
     nt_status shutdown(int how) override;
@@ -79,8 +81,9 @@ public:
 
 private:
     template<bool NONBLOCK>
-    nt_status do_recvfrom(char* buf, size_t len, int flags, sockaddr* from,
-                          int* fromlen, size_t& recv_bytes);
+    nt_status do_recvfrom(span<const span<uint8_t>> v, int flags,
+                          sockaddr_storage& from, int* fromlen,
+                          size_t& recv_bytes);
 };
 
 static spinlock udp_ports_lock;
@@ -265,16 +268,17 @@ ipv6_udp_socket::~ipv6_udp_socket() {
 }
 
 template<bool NONBLOCK>
-nt_status ipv6_udp_socket::do_recvfrom(char* us_buf, size_t len, int flags,
-                                       sockaddr* us_from, int* fromlen,
+nt_status ipv6_udp_socket::do_recvfrom(span<const span<uint8_t>> v, int flags,
+                                       sockaddr_storage& from, int* fromlen,
                                        size_t& recv_bytes) {
     // FIXME - MSG_TRUNC
     if (flags != 0)
         return nt_status::INVALID_PARAMETER;
 
-    auto& t = *get_current_thread();
-
     recv_bytes = 0;
+
+    auto vec_size = get_vec_size(v);
+    span<uint8_t> top = vec_size == 0 ? span<uint8_t>() : v.front();
 
     acquire();
 
@@ -340,21 +344,14 @@ nt_status ipv6_udp_socket::do_recvfrom(char* us_buf, size_t len, int flags,
 
         size_t overhead = sizeof(ipv6_header) + sizeof(udp_header);
 
-        auto to_copy = (uint32_t)min(sp->pack.size - overhead, len);
+        auto to_copy = (uint32_t)min(sp->pack.size - overhead, vec_size);
 
-        status = t.proc->write_vm(us_buf, sp->pack.data + overhead, to_copy,
-                                  nullptr);
-        if (!success(status)) {
-            delete sp;
-            release();
-            return status;
-        }
+        memcpy_vec(v, top, sp->pack.data + overhead, to_copy);
 
         recv_bytes = to_copy;
 
-        if (us_from && fromlen && *fromlen > 0) {
-            sockaddr_in6 addr;
-
+        if (fromlen && *fromlen > 0) {
+            auto& addr = *(sockaddr_in6*)&from;
             auto& ip = *(ipv6_header*)sp->pack.data;
             auto& udp = *(udp_header*)(sp->pack.data + sizeof(ipv6_header));
 
@@ -365,15 +362,6 @@ nt_status ipv6_udp_socket::do_recvfrom(char* us_buf, size_t len, int flags,
             addr.sin6_flowinfo = 0; // FIXME? Allowed by RFC3493, but not necessarily what Linux does
             memcpy(&addr.sin6_addr, ip.src.v.data(), sizeof(ipv6_address));
             addr.sin6_scope_id = sp->scope_id;
-
-            status = t.proc->write_vm(us_from, &addr,
-                                      (uint32_t)min((size_t)*fromlen, sizeof(addr)),
-                                      nullptr);
-            if (!success(status)) {
-                delete sp;
-                release();
-                return status;
-            }
 
             *fromlen = sizeof(addr);
         }
