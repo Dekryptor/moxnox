@@ -240,3 +240,9 @@ export ARM64_HARDWARE_PTE* find_pte(process& proc, uintptr_t va);
 #elifdef __x86_64__
 export HARDWARE_PTE* find_pte(process& proc, uintptr_t va);
 #endif
+
+export nt_status pin_userspace_buffer_for_writing(process& proc,
+                                                  span<uint8_t> us_buf,
+                                                  optional<rangelock_req>& rlr,
+                                                  span<uint8_t>*& spans,
+                                                  size_t& num_spans);
