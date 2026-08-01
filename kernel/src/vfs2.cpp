@@ -813,12 +813,10 @@ nt_status open_inode(string_view fn, dentry& root_dir,
     return nt_status::REPARSE_POINT_NOT_RESOLVED;
 }
 
-extern "C"
-NTSTATUS NtReadFile(HANDLE file_handle, HANDLE, PIO_APC_ROUTINE, void*,
-                    IO_STATUS_BLOCK* io_status_block, void* buffer,
-                    uint32_t length, const LARGE_INTEGER* byte_offset, const uint32_t*) {
-    auto buf = span((uint8_t*)buffer, length);
-
+nt_status vec_NtReadFile(HANDLE file_handle, HANDLE, PIO_APC_ROUTINE, void*,
+                         IO_STATUS_BLOCK* io_status_block,
+                         span<const span<uint8_t>> v,
+                         const LARGE_INTEGER* byte_offset, const uint32_t*) {
     if (byte_offset && byte_offset->QuadPart < 0)
         return nt_status::INVALID_PARAMETER;
 
@@ -835,11 +833,10 @@ NTSTATUS NtReadFile(HANDLE file_handle, HANDLE, PIO_APC_ROUTINE, void*,
     size_t read;
 
     if (byte_offset) {
-        status = object_read_with_offset(obj, span(&buf, 1),
-                                         (uint64_t)byte_offset->QuadPart,
+        status = object_read_with_offset(obj, v, (uint64_t)byte_offset->QuadPart,
                                          read);
     } else
-        status = object_read_without_offset(obj, span(&buf, 1), read);
+        status = object_read_without_offset(obj, v, read);
 
     if (!success(status)) {
         io_status_block->Status = status;
@@ -847,7 +844,7 @@ NTSTATUS NtReadFile(HANDLE file_handle, HANDLE, PIO_APC_ROUTINE, void*,
         return status;
     }
 
-    assert(read <= length);
+    assert(read <= get_vec_size(v));
 
     io_status_block->Status = nt_status::SUCCESS;
     io_status_block->Information = read;

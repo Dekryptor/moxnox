@@ -416,6 +416,7 @@ NTSTATUS user_NtReadFile(HANDLE file_handle, HANDLE event, PIO_APC_ROUTINE apc_r
     IO_STATUS_BLOCK iosb;
     LARGE_INTEGER byte_offset;
     uint32_t key;
+    nt_status status;
 
     if (!us_iosb)
         return nt_status::INVALID_PARAMETER;
@@ -444,17 +445,20 @@ NTSTATUS user_NtReadFile(HANDLE file_handle, HANDLE event, PIO_APC_ROUTINE apc_r
             return nt_status::INSUFFICIENT_RESOURCES;
     }
 
-    auto ret = NtReadFile(file_handle, event, apc_routine, apc_context, &iosb, buf, length,
-                          us_byte_offset ? &byte_offset : nullptr, us_key ? &key : nullptr);
+    auto sp = span((uint8_t*)buf, length);
 
-    if (success(ret)) {
+    status = vec_NtReadFile(file_handle, event, apc_routine, apc_context, &iosb,
+                            span(&sp, 1),  us_byte_offset ? &byte_offset : nullptr,
+                            us_key ? &key : nullptr);
+
+    if (success(status)) {
         if (iosb.Information > 0) {
             if (!copy_to_process(us_buf, buf, iosb.Information))
-                ret = nt_status::ACCESS_VIOLATION;
+                status = nt_status::ACCESS_VIOLATION;
         }
 
         if (!copy_to_process(us_iosb, &iosb, sizeof(IO_STATUS_BLOCK)))
-            ret = nt_status::ACCESS_VIOLATION;
+            status = nt_status::ACCESS_VIOLATION;
     }
 
     if (length > PAGE_SIZE)
@@ -462,7 +466,7 @@ NTSTATUS user_NtReadFile(HANDLE file_handle, HANDLE event, PIO_APC_ROUTINE apc_r
     else if (buf)
         free(buf);
 
-    return ret;
+    return status;
 }
 
 extern "C"

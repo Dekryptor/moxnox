@@ -280,3 +280,8 @@ export nt_status vec_NtWriteFile(HANDLE file_handle, HANDLE, PIO_APC_ROUTINE, vo
                                  span<const span<const uint8_t>> v,
                                  const LARGE_INTEGER* byte_offset,
                                  const uint32_t*);
+export nt_status vec_NtReadFile(HANDLE file_handle, HANDLE, PIO_APC_ROUTINE, void*,
+                                IO_STATUS_BLOCK* io_status_block,
+                                span<const span<uint8_t>> v,
+                                const LARGE_INTEGER* byte_offset,
+                                const uint32_t*);
