@@ -839,24 +839,12 @@ NTSTATUS user_NtWriteVirtualMemory(HANDLE process_handle, void* base_address,
                                    const void* buffer, uint32_t buffer_size,
                                    uint32_t* number_of_bytes_written) {
     NTSTATUS status;
-    void* buf;
     uint32_t written;
 
     if (!buffer)
         return nt_status::INVALID_PARAMETER;
 
-    if (buffer_size > 0) {
-        buf = malloc(buffer_size);
-        if (!buf)
-            return nt_status::INSUFFICIENT_RESOURCES;
-
-        if (!copy_from_process(buf, buffer, buffer_size)) {
-            free(buf);
-            return nt_status::ACCESS_VIOLATION;
-        }
-    }
-
-    status = NtWriteVirtualMemory(process_handle, base_address, buffer_size > 0 ? buf : nullptr, buffer_size,
+    status = NtWriteVirtualMemory(process_handle, base_address, buffer, buffer_size,
                                   number_of_bytes_written ? &written : nullptr);
 
     if (success(status)) {
@@ -865,9 +853,6 @@ NTSTATUS user_NtWriteVirtualMemory(HANDLE process_handle, void* base_address,
                 status = nt_status::ACCESS_VIOLATION;
         }
     }
-
-    if (buffer_size > 0)
-        free(buf);
 
     return status;
 }

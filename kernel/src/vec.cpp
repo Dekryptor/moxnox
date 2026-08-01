@@ -74,3 +74,41 @@ export void memcpy_vec(uint8_t* dest, span<const span<const uint8_t>>& v,
         len -= to_copy;
     }
 }
+
+export void memcpy_vec(span<const span<uint8_t>> dest,
+                       span<const span<const uint8_t>> src) {
+    if (dest.empty() || src.empty())
+        return;
+
+    auto dest_top = dest.front();
+    auto src_top = src.front();
+
+    while (true) {
+        if (dest_top.empty()) {
+            dest = dest.subspan(1);
+
+            if (dest.empty())
+                break;
+
+            dest_top = dest.front();
+            continue;
+        }
+
+        if (src_top.empty()) {
+            src = src.subspan(1);
+
+            if (src.empty())
+                break;
+
+            src_top = src.front();
+            continue;
+        }
+
+        auto to_copy = min(dest_top.size(), src_top.size());
+
+        memcpy(dest_top.data(), src_top.data(), to_copy);
+
+        dest_top = dest_top.subspan(to_copy);
+        src_top = src_top.subspan(to_copy);
+    }
+}
