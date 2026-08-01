@@ -122,6 +122,15 @@ using pte_type = ARM64_HARDWARE_PTE;
 using pte_type = HARDWARE_PTE;
 #endif
 
+static nt_status pin_userspace_buffers_for_read_and_write(process& proc,
+                                                          span<const uint8_t> src_us_buf,
+                                                          span<uint8_t> dest_us_buf,
+                                                          optional<rangelock_req>& rlr,
+                                                          span<const uint8_t>*& src_spans,
+                                                          size_t& num_src_spans,
+                                                          span<uint8_t>*& dest_spans,
+                                                          size_t& num_dest_spans);
+
 class time_page_cache : public custom_section_cache {
 public:
     NTSTATUS read_into_cache(uint64_t page_num, uint64_t num_pages,
@@ -3245,39 +3254,50 @@ NTSTATUS NtWriteVirtualMemory(HANDLE process_handle, void* base_address,
         dest_proc = static_cast<process*>(&obj);
     }
 
+    span<const uint8_t>* src_spans = nullptr;
+    span<uint8_t>* dest_spans = nullptr;
+    size_t num_src_spans = 0, num_dest_spans = 0;
+
+    auto free_src_spans = [&]() {
+        auto src_spans_size = sizeof(span<const uint8_t>) * num_src_spans;
+        if (src_spans_size > PAGE_SIZE)
+            vfree(src_spans, src_spans_size);
+        else if (src_spans_size > 0)
+            free(src_spans);
+    };
+
+    auto free_dest_spans = [&]() {
+        auto dest_spans_size = sizeof(span<uint8_t>) * num_dest_spans;
+        if (dest_spans_size > PAGE_SIZE)
+            vfree(dest_spans, dest_spans_size);
+        else if (dest_spans_size > 0)
+            free(dest_spans);
+    };
+
     if (src_proc == dest_proc) {
-        print("FIXME - NtWriteVirtualMemory to same process\n");
+        optional<rangelock_req> rlr;
 
-        // FIXME
+        status = pin_userspace_buffers_for_read_and_write(*src_proc,
+                                                          span((uint8_t*)us_buffer, buffer_size),
+                                                          span((uint8_t*)base_address, buffer_size),
+                                                          rlr, src_spans,
+                                                          num_src_spans,
+                                                          dest_spans,
+                                                          num_dest_spans);
+        if (!success(status))
+            return status;
 
-        return nt_status::NOT_SUPPORTED;
+        memcpy_vec(span(dest_spans, num_dest_spans), span(src_spans, num_src_spans));
+
+        rlr.reset();
     } else {
         optional<rangelock_req> src_rlr, dest_rlr;
-        span<const uint8_t>* src_spans = nullptr;
-        span<uint8_t>* dest_spans = nullptr;
-        size_t num_src_spans = 0, num_dest_spans = 0;
 
         auto do_dest = [&]() {
             return pin_userspace_buffer_for_writing(*dest_proc,
                                                     span((uint8_t*)base_address, buffer_size),
                                                     dest_rlr, dest_spans,
                                                     num_dest_spans);
-        };
-
-        auto free_src_spans = [&]() {
-            auto src_spans_size = sizeof(span<const uint8_t>) * num_src_spans;
-            if (src_spans_size > PAGE_SIZE)
-                vfree(src_spans, src_spans_size);
-            else if (src_spans_size > 0)
-                free(src_spans);
-        };
-
-        auto free_dest_spans = [&]() {
-            auto dest_spans_size = sizeof(span<uint8_t>) * num_dest_spans;
-            if (dest_spans_size > PAGE_SIZE)
-                vfree(dest_spans, dest_spans_size);
-            else if (dest_spans_size > 0)
-                free(dest_spans);
         };
 
         if ((uintptr_t)dest_proc < (uintptr_t)src_proc) {
@@ -3309,15 +3329,15 @@ NTSTATUS NtWriteVirtualMemory(HANDLE process_handle, void* base_address,
 
         src_rlr.reset();
         dest_rlr.reset();
-
-        free_src_spans();
-        free_dest_spans();
-
-        // FIXME - should we be allowing short writes?
-
-        if (number_of_bytes_written)
-            *number_of_bytes_written = buffer_size;
     }
+
+    free_src_spans();
+    free_dest_spans();
+
+    // FIXME - should we be allowing short writes?
+
+    if (number_of_bytes_written)
+        *number_of_bytes_written = buffer_size;
 
     return nt_status::SUCCESS;
 }
@@ -5684,9 +5704,9 @@ nt_status pin_userspace_buffer_for_writing(process& proc, span<uint8_t> us_buf,
 
             // shouldn't have changed as we're holding the range lock
 #ifdef __aarch64__
-            assert(pte && pte->valid);
+            assert(pte && pte->valid && pte->AP == ARM64_PTE_AP_EL0RW);
 #elifdef __x86_64__
-            assert(pte && pte->p);
+            assert(pte && pte->p && pte->w);
 #endif
 
             if (i != 0 && pte->pfn == last_pfn + 1)
@@ -5887,6 +5907,259 @@ nt_status pin_userspace_buffer_for_reading(process& proc, span<const uint8_t> us
 
     spans[0] = span(spans[0].data() + shift_start, spans[0].size() - shift_start);
     spans[num_spans - 1] = span(spans[num_spans - 1].data(), spans[num_spans - 1].size() - shift_end);
+
+    // still holding range lock shared
+
+    return nt_status::SUCCESS;
+}
+
+static nt_status pin_userspace_buffers_for_read_and_write(process& proc,
+                                                          span<const uint8_t> src_us_buf,
+                                                          span<uint8_t> dest_us_buf,
+                                                          optional<rangelock_req>& rlr,
+                                                          span<const uint8_t>*& src_spans,
+                                                          size_t& num_src_spans,
+                                                          span<uint8_t>*& dest_spans,
+                                                          size_t& num_dest_spans) {
+    nt_status status;
+    auto orig_src_addr = (uintptr_t)src_us_buf.data() & ~(PAGE_SIZE - 1);
+    auto orig_src_size = (((uintptr_t)src_us_buf.data() + src_us_buf.size() + PAGE_SIZE - 1) & ~(PAGE_SIZE - 1)) - orig_src_addr;
+    auto orig_dest_addr = (uintptr_t)dest_us_buf.data() & ~(PAGE_SIZE - 1);
+    auto orig_dest_size = (((uintptr_t)dest_us_buf.data() + dest_us_buf.size() + PAGE_SIZE - 1) & ~(PAGE_SIZE - 1)) - orig_dest_addr;
+
+    status = make_userspace_range_readable(proc, orig_src_addr, orig_src_size);
+    if (!success(status))
+        return status;
+
+    status = make_userspace_range_writable(proc, orig_dest_addr, orig_dest_size);
+    if (!success(status))
+        return status;
+
+    // FIXME - this is hackish, we should be teaching the range lock to accept pairs of ranges
+
+    uint64_t first_page = min(orig_src_addr, orig_dest_addr) >> PAGE_SHIFT;
+    uint64_t num_pages = (max(orig_src_addr + orig_src_size, orig_dest_addr + orig_dest_size) >> PAGE_SHIFT) - first_page;
+
+    while (true) {
+        rlr.emplace(proc.rl, first_page, num_pages, rangelock_mode::shared);
+
+        bool again = false;
+        uintptr_t last_src_pfn, last_dest_pfn;
+
+        num_src_spans = 0;
+        num_dest_spans = 0;
+
+        for (size_t i = 0; i < orig_src_size >> PAGE_SHIFT; i++) {
+            auto va = orig_src_addr + (i << PAGE_SHIFT);
+            auto pte = find_pte(proc, va);
+
+            if (!pte) // shouldn't happen
+                return nt_status::NO_MEMORY;
+
+            if (pte->reserved)
+                return nt_status::ACCESS_VIOLATION;
+
+#ifdef __aarch64__
+            bool pte_valid = pte->valid;
+#elifdef __x86_64__
+            bool pte_valid = pte->p;
+#endif
+
+            if (!pte_valid) { // page was faulted back out while we weren't holding the lock
+                rlr.reset();
+
+                auto m = find_mapping(proc, va);
+                if (!m)
+                    return nt_status::NO_MEMORY;
+
+                {
+                    rangelock_req rlr2(proc.rl, va >> PAGE_SHIFT, 1,
+                                       rangelock_mode::exclusive);
+
+                    if (!m->map((uint32_t)(va - m->address), va)) {
+                        m->release();
+                        return nt_status::ACCESS_VIOLATION;
+                    }
+                }
+
+                m->release();
+
+                again = true;
+                break;
+            }
+
+            if (num_src_spans == 0 || pte->pfn != last_src_pfn + 1)
+                num_src_spans++;
+
+            last_src_pfn = pte->pfn;
+        }
+
+        if (again)
+            continue;
+
+        for (size_t i = 0; i < orig_dest_size >> PAGE_SHIFT; i++) {
+            auto va = orig_dest_addr + (i << PAGE_SHIFT);
+            auto pte = find_pte(proc, va);
+
+            if (!pte) // shouldn't happen
+                return nt_status::NO_MEMORY;
+
+            if (pte->reserved)
+                return nt_status::ACCESS_VIOLATION;
+
+#ifdef __aarch64__
+            bool pte_valid = pte->valid;
+            bool pte_writable = pte->AP == ARM64_PTE_AP_EL0RW;
+#elifdef __x86_64__
+            bool pte_valid = pte->p;
+            bool pte_writable = pte->w == 1;
+#endif
+
+            // page was faulted back out while we weren't holding the lock
+            if (!pte_valid || !pte_writable) {
+                rlr.reset();
+
+                auto m = find_mapping(proc, va);
+                if (!m)
+                    return nt_status::NO_MEMORY;
+
+                {
+                    rangelock_req rlr2(proc.rl, va >> PAGE_SHIFT, 1,
+                                       rangelock_mode::exclusive);
+
+                    if (!pte_valid) {
+                        if (!m->map((uint32_t)(va - m->address), va)) {
+                            m->release();
+                            return nt_status::ACCESS_VIOLATION;
+                        }
+
+#ifdef __aarch64__
+                        pte_writable = pte->AP == ARM64_PTE_AP_EL0RW;
+#elifdef __x86_64__
+                        pte_writable = pte->w == 1;
+#endif
+                    }
+
+                    if (!pte_writable) {
+                        bool send_ipi = false;
+
+                        if (!make_pte_writable(va, *m, *pte, send_ipi)) {
+                            m->release();
+                            return nt_status::ACCESS_VIOLATION;
+                        }
+
+                        if (send_ipi)
+                            send_page_tlb_ipi(proc, va, 1);
+                    }
+                }
+
+                m->release();
+
+                again = true;
+                break;
+            }
+
+            if (num_dest_spans == 0 || pte->pfn != last_dest_pfn + 1)
+                num_dest_spans++;
+
+            last_dest_pfn = pte->pfn;
+        }
+
+        if (again)
+            continue;
+
+        size_t src_size_needed = num_src_spans * sizeof(span<const uint8_t>);
+
+        if (src_size_needed > PAGE_SIZE)
+            src_spans = (span<const uint8_t>*)vmalloc(src_size_needed);
+        else
+            src_spans = (span<const uint8_t>*)malloc(src_size_needed);
+
+        if (!src_spans) {
+            print("malloc failed\n");
+            return nt_status::INSUFFICIENT_RESOURCES;
+        }
+
+        size_t dest_size_needed = num_dest_spans * sizeof(span<uint8_t>);
+
+        if (dest_size_needed > PAGE_SIZE)
+            dest_spans = (span<uint8_t>*)vmalloc(dest_size_needed);
+        else
+            dest_spans = (span<uint8_t>*)malloc(dest_size_needed);
+
+        if (!dest_spans) {
+            print("malloc failed\n");
+
+            if (src_size_needed > PAGE_SIZE)
+                vfree(src_spans, src_size_needed);
+            else
+                free(src_spans);
+
+            return nt_status::INSUFFICIENT_RESOURCES;
+        }
+
+        size_t src_idx = 0;
+        for (size_t i = 0; i < orig_src_size >> PAGE_SHIFT; i++) {
+            auto pte = find_pte(proc, orig_src_addr + (i << PAGE_SHIFT));
+
+            // shouldn't have changed as we're holding the range lock
+#ifdef __aarch64__
+            assert(pte && pte->valid);
+#elifdef __x86_64__
+            assert(pte && pte->p);
+#endif
+
+            if (i != 0 && pte->pfn == last_src_pfn + 1)
+                src_spans[src_idx - 1] = span(src_spans[src_idx - 1].data(), src_spans[src_idx - 1].size() + PAGE_SIZE);
+            else {
+                src_spans[src_idx] = span((uint8_t*)phys_address(pte->pfn << PAGE_SHIFT), PAGE_SIZE);
+                src_idx++;
+            }
+
+            last_src_pfn = pte->pfn;
+        }
+
+        size_t dest_idx = 0;
+        for (size_t i = 0; i < orig_dest_size >> PAGE_SHIFT; i++) {
+            auto pte = find_pte(proc, orig_dest_addr + (i << PAGE_SHIFT));
+
+            // shouldn't have changed as we're holding the range lock
+#ifdef __aarch64__
+            assert(pte && pte->valid && pte->AP == ARM64_PTE_AP_EL0RW);
+#elifdef __x86_64__
+            assert(pte && pte->p && pte->w);
+#endif
+
+            if (i != 0 && pte->pfn == last_dest_pfn + 1)
+                dest_spans[dest_idx - 1] = span(dest_spans[dest_idx - 1].data(), dest_spans[dest_idx - 1].size() + PAGE_SIZE);
+            else {
+                dest_spans[dest_idx] = span((uint8_t*)phys_address(pte->pfn << PAGE_SHIFT), PAGE_SIZE);
+                dest_idx++;
+            }
+
+            last_dest_pfn = pte->pfn;
+        }
+
+        break;
+    }
+
+    // adjust start and end
+
+    if (num_src_spans > 0) {
+        size_t shift_start = (uintptr_t)src_us_buf.data() & (PAGE_SIZE - 1);
+        size_t shift_end = (PAGE_SIZE - (((uintptr_t)src_us_buf.data() + src_us_buf.size()) & (PAGE_SIZE - 1))) & (PAGE_SIZE - 1);
+
+        src_spans[0] = span(src_spans[0].data() + shift_start, src_spans[0].size() - shift_start);
+        src_spans[num_src_spans - 1] = span(src_spans[num_src_spans - 1].data(), src_spans[num_src_spans - 1].size() - shift_end);
+    }
+
+    if (num_dest_spans > 0) {
+        size_t shift_start = (uintptr_t)dest_us_buf.data() & (PAGE_SIZE - 1);
+        size_t shift_end = (PAGE_SIZE - (((uintptr_t)dest_us_buf.data() + dest_us_buf.size()) & (PAGE_SIZE - 1))) & (PAGE_SIZE - 1);
+
+        dest_spans[0] = span(dest_spans[0].data() + shift_start, dest_spans[0].size() - shift_start);
+        dest_spans[num_dest_spans - 1] = span(dest_spans[num_dest_spans - 1].data(), dest_spans[num_dest_spans - 1].size() - shift_end);
+    }
 
     // still holding range lock shared
 
