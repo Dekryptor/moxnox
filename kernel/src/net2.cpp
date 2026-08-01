@@ -67,7 +67,7 @@ public:
     void last_handle_closed() override;
 
     nt_status recvfrom(span<const span<uint8_t>> v, int flags,
-                       sockaddr_storage& from, int* fromlen,
+                       sockaddr_storage* from, int* fromlen,
                        uint64_t& recv_bytes) override {
         return do_recvfrom<false>(v, flags, from, fromlen, recv_bytes);
     }
@@ -103,7 +103,7 @@ public:
     }
 
     nt_status recvfrom_nonblock(span<const span<uint8_t>> v, int flags,
-                                sockaddr_storage& from, int* fromlen,
+                                sockaddr_storage* from, int* fromlen,
                                 uint64_t& recv_bytes) override {
         return do_recvfrom<true>(v, flags, from, fromlen, recv_bytes);
     }
@@ -127,7 +127,7 @@ public:
 private:
     template<bool NONBLOCK>
     nt_status do_recvfrom(span<const span<uint8_t>> v, int flags,
-                          sockaddr_storage& from, int* fromlen,
+                          sockaddr_storage* from, int* fromlen,
                           uint64_t& recv_bytes);
 };
 
@@ -2757,12 +2757,12 @@ nt_status socket::do_recvfrom(span<const uint8_t> inbuf, bool nonblock) {
 
     if (nonblock) {
         status = this->recvfrom_nonblock(span(spans, num_spans),
-                                         params.flags, from,
+                                         params.flags, &from,
                                          fromlen != 0 ? &fromlen : nullptr,
                                          recv_bytes);
     } else {
         status = this->recvfrom(span(spans, num_spans), params.flags,
-                                from, fromlen != 0 ? &fromlen : nullptr,
+                                &from, fromlen != 0 ? &fromlen : nullptr,
                                 recv_bytes);
     }
 
@@ -3217,7 +3217,7 @@ nt_status socket::ioctl(uint32_t code, span<const uint8_t> inbuf,
 template<socket_family FAMILY>
 template<bool NONBLOCK>
 nt_status raw_socket<FAMILY>::do_recvfrom(span<const span<uint8_t>> v, int flags,
-                                          sockaddr_storage& from, int* fromlen,
+                                          sockaddr_storage* from, int* fromlen,
                                           uint64_t& recv_bytes) {
     // FIXME - MSG_TRUNC
     if (flags != 0)
@@ -3301,9 +3301,9 @@ nt_status raw_socket<FAMILY>::do_recvfrom(span<const span<uint8_t>> v, int flags
 
         recv_bytes = to_copy;
 
-        if (fromlen && *fromlen > 0) {
+        if (from && fromlen && *fromlen > 0) {
             if constexpr (is_same_v<FAMILY, ipv4>) {
-                auto& addr = *(sockaddr_in*)&from;
+                auto& addr = *(sockaddr_in*)from;
                 auto& ip = *(ipv4_header*)sp->pack.data;
 
                 memset(&addr, 0, sizeof(addr));
@@ -3314,7 +3314,7 @@ nt_status raw_socket<FAMILY>::do_recvfrom(span<const span<uint8_t>> v, int flags
 
                 *fromlen = sizeof(addr);
             } else if constexpr (is_same_v<FAMILY, ipv6>) {
-                auto& addr = *(sockaddr_in6*)&from;
+                auto& addr = *(sockaddr_in6*)from;
                 auto& ip = *(ipv6_header*)sp->pack.data;
 
                 memset(&addr, 0, sizeof(addr));
