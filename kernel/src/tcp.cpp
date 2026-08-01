@@ -127,7 +127,7 @@ public:
 
     nt_status recvfrom(span<const span<uint8_t>> v, int flags,
                        sockaddr_storage& from, int* fromlen,
-                       size_t& recv_bytes) override {
+                       uint64_t& recv_bytes) override {
         return do_recvfrom<false>(v, flags, from, fromlen, recv_bytes);
     }
 
@@ -151,7 +151,7 @@ public:
 
     nt_status recvfrom_nonblock(span<const span<uint8_t>> v, int flags,
                                 sockaddr_storage& from, int* fromlen,
-                                size_t& recv_bytes) override {
+                                uint64_t& recv_bytes) override {
         return do_recvfrom<true>(v, flags, from, fromlen, recv_bytes);
     }
 
@@ -217,7 +217,7 @@ private:
     template<bool NONBLOCK>
     nt_status do_recvfrom(span<const span<uint8_t>> v, int flags,
                           sockaddr_storage& from, int* fromlen,
-                          size_t& recv_bytes);
+                          uint64_t& recv_bytes);
 };
 
 static spinlock tcp_ports_lock;
@@ -1586,7 +1586,7 @@ void ipv6_tcp_socket::do_retransmissions() {
 template<bool NONBLOCK>
 nt_status ipv6_tcp_socket::do_recvfrom(span<const span<uint8_t>> v, int flags,
                                        sockaddr_storage& from, int* fromlen,
-                                       size_t& recv_bytes) {
+                                       uint64_t& recv_bytes) {
     nt_status status;
 
     if (flags != 0)

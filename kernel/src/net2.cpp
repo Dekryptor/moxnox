@@ -68,7 +68,7 @@ public:
 
     nt_status recvfrom(span<const span<uint8_t>> v, int flags,
                        sockaddr_storage& from, int* fromlen,
-                       size_t& recv_bytes) override {
+                       uint64_t& recv_bytes) override {
         return do_recvfrom<false>(v, flags, from, fromlen, recv_bytes);
     }
 
@@ -104,7 +104,7 @@ public:
 
     nt_status recvfrom_nonblock(span<const span<uint8_t>> v, int flags,
                                 sockaddr_storage& from, int* fromlen,
-                                size_t& recv_bytes) override {
+                                uint64_t& recv_bytes) override {
         return do_recvfrom<true>(v, flags, from, fromlen, recv_bytes);
     }
 
@@ -128,7 +128,7 @@ private:
     template<bool NONBLOCK>
     nt_status do_recvfrom(span<const span<uint8_t>> v, int flags,
                           sockaddr_storage& from, int* fromlen,
-                          size_t& recv_bytes);
+                          uint64_t& recv_bytes);
 };
 
 enum class neighbour_cache_status {
@@ -3218,7 +3218,7 @@ template<socket_family FAMILY>
 template<bool NONBLOCK>
 nt_status raw_socket<FAMILY>::do_recvfrom(span<const span<uint8_t>> v, int flags,
                                           sockaddr_storage& from, int* fromlen,
-                                          size_t& recv_bytes) {
+                                          uint64_t& recv_bytes) {
     // FIXME - MSG_TRUNC
     if (flags != 0)
         return nt_status::INVALID_PARAMETER;

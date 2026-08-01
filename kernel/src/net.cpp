@@ -166,7 +166,7 @@ public:
 
     virtual nt_status recvfrom(span<const span<uint8_t>> v, int flags,
                                sockaddr_storage& from, int* fromlen,
-                               size_t& recv_bytes) = 0;
+                               uint64_t& recv_bytes) = 0;
     virtual nt_status sendto(span<const span<const uint8_t>> v, int flags,
                              sockaddr* to, int tolen, uint64_t& sent_bytes) = 0;
     virtual nt_status bind(const sockaddr* addr, size_t addrlen) = 0;
