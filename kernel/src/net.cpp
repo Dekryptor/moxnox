@@ -173,8 +173,11 @@ public:
     virtual nt_status connect(const sockaddr* addr, size_t addrlen) = 0;
     virtual nt_status listen(int backlog) = 0;
     virtual nt_status accept(HANDLE& sock, void* addr, int& addrlen) = 0;
-    virtual nt_status read(span<const span<uint8_t>> v,
-                           uint64_t& read_bytes) = 0;
+
+    nt_status read(span<const span<uint8_t>> v,
+                   uint64_t& read_bytes) {
+        return recvfrom(v, 0, nullptr, nullptr, read_bytes);
+    }
 
     nt_status write(span<const span<const uint8_t>> v,
                     uint64_t& written_bytes) {
@@ -183,8 +186,12 @@ public:
 
     virtual nt_status getsockname(span<uint8_t> addr, size_t& len) = 0;
     virtual nt_status getpeername(span<uint8_t> addr, size_t& len) = 0;
-    virtual nt_status read_nonblock(span<const span<uint8_t>> v,
-                                    uint64_t& read_bytes) = 0;
+
+    nt_status read_nonblock(span<const span<uint8_t>> v,
+                            uint64_t& read_bytes) {
+        return recvfrom_nonblock(v, 0, nullptr, nullptr, read_bytes);
+    }
+
     virtual nt_status recvfrom_nonblock(span<const span<uint8_t>> v, int flags,
                                         sockaddr_storage* from, int* fromlen,
                                         size_t& recv_bytes) = 0;

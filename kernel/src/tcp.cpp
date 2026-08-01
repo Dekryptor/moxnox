@@ -137,18 +137,8 @@ public:
     nt_status connect(const sockaddr* addr, size_t addrlen) override;
     nt_status listen(int backlog) override;
     nt_status accept(HANDLE& sock, void* addr, int& addrlen) override;
-
-    nt_status read(span<const span<uint8_t>> v, uint64_t& read_bytes) override {
-        return recvfrom(v, 0, nullptr, 0, read_bytes);
-
-    }
-
     nt_status getsockname(span<uint8_t>, size_t&) override;
     nt_status getpeername(span<uint8_t> buf, size_t& len) override;
-
-    nt_status read_nonblock(span<const span<uint8_t>> v, uint64_t& read_bytes) override {
-        return recvfrom_nonblock(v, 0, nullptr, 0, read_bytes);
-    }
 
     nt_status recvfrom_nonblock(span<const span<uint8_t>> v, int flags,
                                 sockaddr_storage* from, int* fromlen,

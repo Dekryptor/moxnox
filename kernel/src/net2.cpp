@@ -88,18 +88,10 @@ public:
         return nt_status::INVALID_PARAMETER;
     }
 
-    nt_status read(span<const span<uint8_t>>, uint64_t&) override {
-        return nt_status::NOT_SUPPORTED;
-    }
-
     nt_status getsockname(span<uint8_t> buf, size_t& len) override;
 
     nt_status getpeername(span<uint8_t>, size_t&) override {
         return nt_status::CONNECTION_DISCONNECTED;
-    }
-
-    nt_status read_nonblock(span<const span<uint8_t>>, uint64_t&) override {
-        return nt_status::NOT_SUPPORTED;
     }
 
     nt_status recvfrom_nonblock(span<const span<uint8_t>> v, int flags,
