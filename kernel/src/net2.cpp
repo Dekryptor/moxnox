@@ -73,7 +73,7 @@ public:
     }
 
     nt_status sendto(span<const span<const uint8_t>> v, int flags, sockaddr* to,
-                     int tolen, size_t& sent_bytes) override;
+                     int tolen, uint64_t& sent_bytes) override;
     nt_status bind(const sockaddr* addr, size_t addrlen) override;
 
     nt_status connect(const sockaddr*, size_t) override {
@@ -3946,7 +3946,7 @@ nt_status dispatch_packet(netif& ni, packet& pack, const mac_address& dst_mac) {
 
 template<socket_family FAMILY>
 nt_status raw_socket<FAMILY>::sendto(span<const span<const uint8_t>> v, int flags,
-                                     sockaddr* to, int tolen, size_t& sent_bytes) {
+                                     sockaddr* to, int tolen, uint64_t& sent_bytes) {
     nt_status status;
     ipv6_address src;
     auto vec_size = get_vec_size(v);

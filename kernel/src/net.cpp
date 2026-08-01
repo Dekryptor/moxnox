@@ -168,7 +168,7 @@ public:
                                sockaddr_storage& from, int* fromlen,
                                size_t& recv_bytes) = 0;
     virtual nt_status sendto(span<const span<const uint8_t>> v, int flags,
-                             sockaddr* to, int tolen, size_t& sent_bytes) = 0;
+                             sockaddr* to, int tolen, uint64_t& sent_bytes) = 0;
     virtual nt_status bind(const sockaddr* addr, size_t addrlen) = 0;
     virtual nt_status connect(const sockaddr* addr, size_t addrlen) = 0;
     virtual nt_status listen(int backlog) = 0;
