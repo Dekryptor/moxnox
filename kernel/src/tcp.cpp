@@ -131,7 +131,7 @@ public:
         return do_recvfrom<false>(v, flags, from, fromlen, recv_bytes);
     }
 
-    nt_status sendto(const char* buf, size_t len, int flags, sockaddr* to,
+    nt_status sendto(span<const span<const uint8_t>> v, int flags, sockaddr* to,
                      int tolen, size_t& sent_bytes) override;
     nt_status bind(const sockaddr* addr, size_t addrlen) override;
     nt_status connect(const sockaddr* addr, size_t addrlen) override;
@@ -1250,15 +1250,11 @@ uint16_t ipv6_tcp_socket::allowed_send_bytes() {
     return (uint16_t)raw;
 }
 
-nt_status ipv6_tcp_socket::sendto(const char* buf, size_t len, int flags,
+nt_status ipv6_tcp_socket::sendto(span<const span<const uint8_t>> v, int flags,
                                   sockaddr*, int, size_t& sent_bytes) {
     nt_status status;
 
     // sockaddr is ignored
-
-    auto& t = *get_current_thread();
-    if (!t.proc)
-        return nt_status::INTERNAL_ERROR;
 
     if (flags != 0)
         return nt_status::INVALID_PARAMETER;
@@ -1273,12 +1269,14 @@ nt_status ipv6_tcp_socket::sendto(const char* buf, size_t len, int flags,
     // FIXME - Nagle's algorithm (batching of outgoing data)
 
     size_t done = 0;
+    auto vec_size = get_vec_size(v);
+    span<const uint8_t> top = vec_size == 0 ? span<const uint8_t>() : v.front();
 
     auto& ni = *pni;
 
     ni.acquire();
 
-    while (len > 0) {
+    while (vec_size > 0) {
         size_t size;
 
         status = wait_for_object(send_window_open_event.get(), true);
@@ -1293,7 +1291,7 @@ nt_status ipv6_tcp_socket::sendto(const char* buf, size_t len, int flags,
         {
             lock_guard lock(io_mutex);
 
-            size = min(len, mss);
+            size = min(vec_size, mss);
 
             auto usable = allowed_send_bytes();
 
@@ -1345,30 +1343,8 @@ nt_status ipv6_tcp_socket::sendto(const char* buf, size_t len, int flags,
             ip.src = bound_address;
             ip.dst = connected_address;
 
-            uint32_t read_bytes;
-
-            status = t.proc->read_vm(buf, pack->data + sizeof(ipv6_header) + sizeof(tcp_header),
-                                    (uint32_t)size, &read_bytes);
-
-            if (success(status) && read_bytes < size) {
-                status = nt_status::NO_MEMORY;
-                print("process::read_vm returned {} bytes, expected {}\n",
-                    read_bytes, size);
-            } else if (!success(status))
-                print("process::read_vm returned {}\n", status);
-
-            if (!success(status)) {
-                pack->release();
-                delete r;
-                ni.release();
-
-                if (done == 0)
-                    return status;
-                else {
-                    sent_bytes = done;
-                    return nt_status::SUCCESS;
-                }
-            }
+            memcpy_vec(pack->data + sizeof(ipv6_header) + sizeof(tcp_header),
+                       v, top, size);
 
             auto& tcp = *(tcp_header*)(pack->data + sizeof(ipv6_header));
 
@@ -1410,8 +1386,7 @@ nt_status ipv6_tcp_socket::sendto(const char* buf, size_t len, int flags,
         }
 
         done += size;
-        buf += size;
-        len -= size;
+        vec_size -= size;
     }
 
     ni.release();

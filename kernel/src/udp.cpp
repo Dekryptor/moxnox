@@ -30,7 +30,7 @@ public:
         return do_recvfrom<false>(v, flags, from, fromlen, recv_bytes);
     }
 
-    nt_status sendto(const char* buf, size_t len, int flags, sockaddr* to,
+    nt_status sendto(span<const span<const uint8_t>> v, int flags, sockaddr* to,
                      int tolen, size_t& sent_bytes) override;
     nt_status bind(const sockaddr* addr, size_t addrlen) override;
     nt_status connect(const sockaddr* addr, size_t addrlen) override;
@@ -395,14 +395,15 @@ static uint16_t find_ephemeral_udp_port() {
     }
 }
 
-nt_status ipv6_udp_socket::sendto(const char* buf, size_t len, int flags,
+nt_status ipv6_udp_socket::sendto(span<const span<const uint8_t>> v, int flags,
                                   sockaddr* to, int tolen, size_t& sent_bytes) {
     nt_status status;
-    uint32_t read_bytes;
     ipv6_address src;
     uint16_t srcport;
     bool connected;
     sockaddr_in6 dest;
+    auto vec_size = get_vec_size(v);
+    span<const uint8_t> top = vec_size == 0 ? span<const uint8_t>() : v.front();
 
     {
         lock_guard lock(bind_lock);
@@ -414,8 +415,6 @@ nt_status ipv6_udp_socket::sendto(const char* buf, size_t len, int flags,
             dest.sin6_scope_id = connected_scope;
         }
     }
-
-    auto us_buf = span(buf, len);
 
     // if connected, sendto destination is ignored
     auto& to6 = connected ? dest : *(sockaddr_in6*)to;
@@ -481,10 +480,6 @@ nt_status ipv6_udp_socket::sendto(const char* buf, size_t len, int flags,
         src = bound_address;
     }
 
-    auto& t = *get_current_thread();
-    if (!t.proc)
-        return nt_status::INTERNAL_ERROR;
-
     auto& dst = *(ipv6_address*)&to6.sin6_addr;
 
     netif* pni;
@@ -495,7 +490,7 @@ nt_status ipv6_udp_socket::sendto(const char* buf, size_t len, int flags,
 
     auto& ni = *pni;
 
-    if (us_buf.size() + sizeof(ipv6_header) + sizeof(udp_header) > ni.mtu) {
+    if (vec_size + sizeof(ipv6_header) + sizeof(udp_header) > ni.mtu) {
         ni.release();
         return nt_status::INVALID_BUFFER_SIZE;
     }
@@ -513,7 +508,7 @@ nt_status ipv6_udp_socket::sendto(const char* buf, size_t len, int flags,
         return nt_status::INSUFFICIENT_RESOURCES;
     }
 
-    pack->size = sizeof(ipv6_header) + sizeof(udp_header) + us_buf.size();
+    pack->size = sizeof(ipv6_header) + sizeof(udp_header) + vec_size;
 
     auto& ip = *(ipv6_header*)pack->data;
     ip.traffic_class1 = 0;
@@ -522,7 +517,7 @@ nt_status ipv6_udp_socket::sendto(const char* buf, size_t len, int flags,
     ip.flow_label_high = 0;
     ip.flow_label_medium = 0;
     ip.flow_label_low = 0;
-    ip.payload_length = byteswap((uint16_t)(sizeof(udp_header) + us_buf.size()));
+    ip.payload_length = byteswap((uint16_t)(sizeof(udp_header) + vec_size));
     ip.next_header = IPPROTO_UDP;
     ip.hop_limit = DEFAULT_HOP_LIMIT;
     ip.src = src;
@@ -534,20 +529,8 @@ nt_status ipv6_udp_socket::sendto(const char* buf, size_t len, int flags,
     udp.length = ip.payload_length;
     udp.checksum = 0;
 
-    if (us_buf.size() > 0) {
-        status = t.proc->read_vm(us_buf.data(),
-                                pack->data + sizeof(ipv6_header) + sizeof(udp_header),
-                                (uint32_t)us_buf.size(), &read_bytes);
-
-        if (success(status) && read_bytes < us_buf.size())
-            status = nt_status::NO_MEMORY;
-
-        if (!success(status)) {
-            pack->release();
-            ni.release();
-            return status;
-        }
-    }
+    memcpy_vec(pack->data + sizeof(ipv6_header) + sizeof(udp_header),
+               v, top, vec_size);
 
     if (!ni.tx_udpv6_csum_offload)
         udp.checksum = calc_ipv6_checksum(ip, span((uint8_t*)&udp, pack->size - sizeof(ipv6_header)),
@@ -574,7 +557,7 @@ nt_status ipv6_udp_socket::sendto(const char* buf, size_t len, int flags,
     pack->release();
     ni.release();
 
-    sent_bytes = us_buf.size();
+    sent_bytes = vec_size;
 
     return status;
 }

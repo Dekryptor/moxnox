@@ -72,7 +72,7 @@ public:
         return do_recvfrom<false>(v, flags, from, fromlen, recv_bytes);
     }
 
-    nt_status sendto(const char* buf, size_t len, int flags, sockaddr* to,
+    nt_status sendto(span<const span<const uint8_t>> v, int flags, sockaddr* to,
                      int tolen, size_t& sent_bytes) override;
     nt_status bind(const sockaddr* addr, size_t addrlen) override;
 
@@ -2772,7 +2772,7 @@ nt_status socket::do_recvfrom(span<const uint8_t> inbuf, bool nonblock) {
 
     rlr.reset();
 
-    auto spans_size = sizeof(span<const uint8_t>) * num_spans;
+    auto spans_size = sizeof(span<uint8_t>) * num_spans;
     if (spans_size > PAGE_SIZE)
         vfree(spans, spans_size);
     else if (spans_size > 0)
@@ -2841,9 +2841,32 @@ nt_status socket::do_sendto(span<const uint8_t> inbuf) {
             return nt_status::NO_MEMORY;
     }
 
-    status = this->sendto(params.buf, (size_t)params.len, params.flags,
+    if (params.len > 0 && (!is_userspace_address((uintptr_t)params.buf) || !is_userspace_address((uintptr_t)params.buf + params.len - 1)))
+        return nt_status::ACCESS_VIOLATION;
+
+    optional<rangelock_req> rlr;
+    span<const uint8_t>* spans = nullptr;
+    size_t num_spans = 0;
+
+    if (params.len > 0) {
+        status = pin_userspace_buffer_for_reading(*t.proc, span((uint8_t*)params.buf, params.len),
+                                                  rlr, spans, num_spans);
+        if (!success(status))
+            return status;
+    }
+
+    status = this->sendto(span(spans, num_spans), params.flags,
                           params.to ? (sockaddr*)&to : nullptr, params.tolen,
                           sent_bytes);
+
+    rlr.reset();
+
+    auto spans_size = sizeof(span<const uint8_t>) * num_spans;
+    if (spans_size > PAGE_SIZE)
+        vfree(spans, spans_size);
+    else if (spans_size > 0)
+        free(spans);
+
     if (!success(status))
         return status;
 
@@ -3922,11 +3945,12 @@ nt_status dispatch_packet(netif& ni, packet& pack, const mac_address& dst_mac) {
 }
 
 template<socket_family FAMILY>
-nt_status raw_socket<FAMILY>::sendto(const char* buf, size_t len, int flags,
+nt_status raw_socket<FAMILY>::sendto(span<const span<const uint8_t>> v, int flags,
                                      sockaddr* to, int tolen, size_t& sent_bytes) {
     nt_status status;
-    uint32_t read_bytes;
     ipv6_address src;
+    auto vec_size = get_vec_size(v);
+    span<const uint8_t> top = vec_size == 0 ? span<const uint8_t>() : v.front();
 
     // FIXME - IPv4
 
@@ -3936,12 +3960,7 @@ nt_status raw_socket<FAMILY>::sendto(const char* buf, size_t len, int flags,
     if (flags != 0)
         return nt_status::INVALID_PARAMETER;
 
-    auto us_buf = span(buf, len);
     auto& to6 = *(sockaddr_in6*)to;
-
-    auto& t = *get_current_thread();
-    if (!t.proc)
-        return nt_status::INTERNAL_ERROR;
 
     {
         lock_guard lock(bind_lock);
@@ -3962,7 +3981,7 @@ nt_status raw_socket<FAMILY>::sendto(const char* buf, size_t len, int flags,
 
     auto& ni = *pni;
 
-    if (us_buf.size() + sizeof(ipv6_header) > ni.mtu) {
+    if (vec_size + sizeof(ipv6_header) > ni.mtu) {
         ni.release();
         return nt_status::INVALID_BUFFER_SIZE;
     }
@@ -3980,7 +3999,7 @@ nt_status raw_socket<FAMILY>::sendto(const char* buf, size_t len, int flags,
         return nt_status::INSUFFICIENT_RESOURCES;
     }
 
-    pack->size = sizeof(ipv6_header) + us_buf.size();
+    pack->size = sizeof(ipv6_header) + vec_size;
 
     auto& ip = *(ipv6_header*)pack->data;
     ip.traffic_class1 = 0;
@@ -3989,30 +4008,20 @@ nt_status raw_socket<FAMILY>::sendto(const char* buf, size_t len, int flags,
     ip.flow_label_high = 0;
     ip.flow_label_medium = 0;
     ip.flow_label_low = 0;
-    ip.payload_length = byteswap((uint16_t)us_buf.size());
+    ip.payload_length = byteswap((uint16_t)vec_size);
     ip.next_header = (uint8_t)protocol;
     ip.hop_limit = DEFAULT_HOP_LIMIT;
     ip.src = src;
     ip.dst = dst;
 
-    status = t.proc->read_vm(us_buf.data(), pack->data + sizeof(ipv6_header),
-                             (uint32_t)us_buf.size(), &read_bytes);
-
-    if (success(status) && read_bytes < us_buf.size())
-        status = nt_status::NO_MEMORY;
-
-    if (!success(status)) {
-        pack->release();
-        ni.release();
-        return status;
-    }
+    memcpy_vec(pack->data + sizeof(ipv6_header), v, top, vec_size);
 
     // FIXME - should only be if IPV6_CHECKSUM sockopt set
-    if (protocol == IPPROTO_ICMPV6 && us_buf.size() >= sizeof(icmpv6_header)) {
+    if (protocol == IPPROTO_ICMPV6 && vec_size >= sizeof(icmpv6_header)) {
         auto& icmp = *(icmpv6_header*)(pack->data + sizeof(ipv6_header));
 
         icmp.checksum = 0;
-        icmp.checksum = calc_ipv6_checksum(ip, span((uint8_t*)&icmp, us_buf.size()), IPPROTO_ICMPV6);
+        icmp.checksum = calc_ipv6_checksum(ip, span((uint8_t*)&icmp, vec_size), IPPROTO_ICMPV6);
     }
 
     if (mac == NULL_MAC_ADDRESS) {
@@ -4032,7 +4041,7 @@ nt_status raw_socket<FAMILY>::sendto(const char* buf, size_t len, int flags,
     pack->release();
     ni.release();
 
-    sent_bytes = us_buf.size();
+    sent_bytes = vec_size;
 
     return status;
 }
