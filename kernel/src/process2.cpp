@@ -5496,90 +5496,95 @@ void wait_for_processes_to_finish(uint64_t timeout) {
         wait_for_object(process_shutdown_event.get(), false, timeout);
 }
 
+static nt_status make_userspace_range_writable(process& proc, uintptr_t addr,
+                                               uintptr_t size) {
+    while (true) {
+        auto m = find_mapping(proc, addr);
+        if (!m)
+            return nt_status::NO_MEMORY;
+
+        auto len = min(size, m->address + m->size - addr);
+        auto num_pages = (len + PAGE_SIZE - 1) >> PAGE_SHIFT;
+
+        for (size_t i = 0; i < num_pages; i++) {
+            auto va = addr + (i << PAGE_SHIFT);
+            auto pte = find_pte(proc, va);
+
+            if (!pte) { // shouldn't happen
+                m->release();
+                return nt_status::NO_MEMORY;
+            }
+
+            if (pte->reserved) {
+                m->release();
+                return nt_status::ACCESS_VIOLATION;
+            }
+
+#ifdef __aarch64__
+            bool pte_valid = pte->valid;
+            bool pte_writable = pte->AP == ARM64_PTE_AP_EL0RW;
+#elifdef __x86_64__
+            bool pte_valid = pte->p;
+            bool pte_writable = pte->w == 1;
+#endif
+
+            if (pte_valid && pte_writable)
+                continue;
+
+            {
+                rangelock_req rlr2(proc.rl, va >> PAGE_SHIFT, 1,
+                                    rangelock_mode::exclusive);
+
+                if (!pte_valid) {
+                    if (!m->map((uint32_t)(va - m->address), va)) {
+                        m->release();
+                        return nt_status::ACCESS_VIOLATION;
+                    }
+
+#ifdef __aarch64__
+                    pte_writable = pte->AP == ARM64_PTE_AP_EL0RW;
+#elifdef __x86_64__
+                    pte_writable = pte->w == 1;
+#endif
+                }
+
+                if (!pte_writable) {
+                    bool send_ipi = false;
+
+                    if (!make_pte_writable(va, *m, *pte, send_ipi)) {
+                        m->release();
+                        return nt_status::ACCESS_VIOLATION;
+                    }
+
+                    if (send_ipi)
+                        send_page_tlb_ipi(proc, va, 1);
+                }
+            }
+        }
+
+        m->release();
+
+        if (size == len)
+            break;
+
+        addr += len;
+        size -= len;
+    }
+
+    return nt_status::SUCCESS;
+}
+
 nt_status pin_userspace_buffer_for_writing(process& proc, span<uint8_t> us_buf,
                                            optional<rangelock_req>& rlr,
                                            span<uint8_t>*& spans,
                                            size_t& num_spans) {
+    nt_status status;
     auto orig_addr = (uintptr_t)us_buf.data() & ~(PAGE_SIZE - 1);
     auto orig_size = (((uintptr_t)us_buf.data() + us_buf.size() + PAGE_SIZE - 1) & ~(PAGE_SIZE - 1)) - orig_addr;
 
-    {
-        auto addr = orig_addr;
-        auto size = orig_size;
-
-        while (true) {
-            auto m = find_mapping(proc, addr);
-            if (!m)
-                return nt_status::NO_MEMORY;
-
-            auto len = min(size, m->address + m->size - addr);
-            auto num_pages = (len + PAGE_SIZE - 1) >> PAGE_SHIFT;
-
-            for (size_t i = 0; i < num_pages; i++) {
-                auto va = addr + (i << PAGE_SHIFT);
-                auto pte = find_pte(proc, va);
-
-                if (!pte) { // shouldn't happen
-                    m->release();
-                    return nt_status::NO_MEMORY;
-                }
-
-                if (pte->reserved) {
-                    m->release();
-                    return nt_status::ACCESS_VIOLATION;
-                }
-
-#ifdef __aarch64__
-                bool pte_valid = pte->valid;
-                bool pte_writable = pte->AP == ARM64_PTE_AP_EL0RW;
-#elifdef __x86_64__
-                bool pte_valid = pte->p;
-                bool pte_writable = pte->w == 1;
-#endif
-
-                if (pte_valid && pte_writable)
-                    continue;
-
-                {
-                    rangelock_req rlr2(proc.rl, va >> PAGE_SHIFT, 1,
-                                       rangelock_mode::exclusive);
-
-                    if (!pte_valid) {
-                        if (!m->map((uint32_t)(va - m->address), va)) {
-                            m->release();
-                            return nt_status::ACCESS_VIOLATION;
-                        }
-
-#ifdef __aarch64__
-                        pte_writable = pte->AP == ARM64_PTE_AP_EL0RW;
-#elifdef __x86_64__
-                        pte_writable = pte->w == 1;
-#endif
-                    }
-
-                    if (!pte_writable) {
-                        bool send_ipi = false;
-
-                        if (!make_pte_writable(va, *m, *pte, send_ipi)) {
-                            m->release();
-                            return nt_status::ACCESS_VIOLATION;
-                        }
-
-                        if (send_ipi)
-                            send_page_tlb_ipi(proc, va, 1);
-                    }
-                }
-            }
-
-            m->release();
-
-            if (size == len)
-                break;
-
-            addr += len;
-            size -= len;
-        }
-    }
+    status = make_userspace_range_writable(proc, orig_addr, orig_size);
+    if (!success(status))
+        return status;
 
     while (true) {
         rlr.emplace(proc.rl, orig_addr >> PAGE_SHIFT, orig_size >> PAGE_SHIFT,
@@ -5713,65 +5718,71 @@ nt_status pin_userspace_buffer_for_writing(process& proc, span<uint8_t> us_buf,
     return nt_status::SUCCESS;
 }
 
+static nt_status make_userspace_range_readable(process& proc, uintptr_t addr,
+                                               uintptr_t size) {
+    while (true) {
+        auto m = find_mapping(proc, addr);
+        if (!m)
+            return nt_status::NO_MEMORY;
+
+        auto len = min(size, m->address + m->size - addr);
+        auto num_pages = (len + PAGE_SIZE - 1) >> PAGE_SHIFT;
+
+        for (size_t i = 0; i < num_pages; i++) {
+            auto va = addr + (i << PAGE_SHIFT);
+            auto pte = find_pte(proc, va);
+
+            if (!pte) { // shouldn't happen
+                m->release();
+                return nt_status::NO_MEMORY;
+            }
+
+            if (pte->reserved) {
+                m->release();
+                return nt_status::ACCESS_VIOLATION;
+            }
+
+#ifdef __aarch64__
+            bool pte_valid = pte->valid;
+#elifdef __x86_64__
+            bool pte_valid = pte->p;
+#endif
+
+            if (!pte_valid) {
+                rangelock_req rlr2(proc.rl, va >> PAGE_SHIFT, 1,
+                                    rangelock_mode::exclusive);
+
+                if (!m->map((uint32_t)(va - m->address), va)) {
+                    m->release();
+                    return nt_status::ACCESS_VIOLATION;
+                }
+            }
+        }
+
+        m->release();
+
+        if (size == len)
+            break;
+
+        addr += len;
+        size -= len;
+    }
+
+    return nt_status::SUCCESS;
+}
+
 nt_status pin_userspace_buffer_for_reading(process& proc, span<const uint8_t> us_buf,
                                            optional<rangelock_req>& rlr,
                                            span<const uint8_t>*& spans,
                                            size_t& num_spans) {
+    nt_status status;
     auto orig_addr = (uintptr_t)us_buf.data() & ~(PAGE_SIZE - 1);
     auto orig_size = (((uintptr_t)us_buf.data() + us_buf.size() + PAGE_SIZE - 1) & ~(PAGE_SIZE - 1)) - orig_addr;
 
-    {
-        auto addr = orig_addr;
-        auto size = orig_size;
 
-        while (true) {
-            auto m = find_mapping(proc, addr);
-            if (!m)
-                return nt_status::NO_MEMORY;
-
-            auto len = min(size, m->address + m->size - addr);
-            auto num_pages = (len + PAGE_SIZE - 1) >> PAGE_SHIFT;
-
-            for (size_t i = 0; i < num_pages; i++) {
-                auto va = addr + (i << PAGE_SHIFT);
-                auto pte = find_pte(proc, va);
-
-                if (!pte) { // shouldn't happen
-                    m->release();
-                    return nt_status::NO_MEMORY;
-                }
-
-                if (pte->reserved) {
-                    m->release();
-                    return nt_status::ACCESS_VIOLATION;
-                }
-
-#ifdef __aarch64__
-                bool pte_valid = pte->valid;
-#elifdef __x86_64__
-                bool pte_valid = pte->p;
-#endif
-
-                if (!pte_valid) {
-                    rangelock_req rlr2(proc.rl, va >> PAGE_SHIFT, 1,
-                                       rangelock_mode::exclusive);
-
-                    if (!m->map((uint32_t)(va - m->address), va)) {
-                        m->release();
-                        return nt_status::ACCESS_VIOLATION;
-                    }
-                }
-            }
-
-            m->release();
-
-            if (size == len)
-                break;
-
-            addr += len;
-            size -= len;
-        }
-    }
+    status = make_userspace_range_readable(proc, orig_addr, orig_size);
+    if (!success(status))
+        return status;
 
     while (true) {
         rlr.emplace(proc.rl, orig_addr >> PAGE_SHIFT, orig_size >> PAGE_SHIFT,
