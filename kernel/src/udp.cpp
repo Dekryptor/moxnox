@@ -48,11 +48,6 @@ public:
         return nt_status::NOT_SUPPORTED;
     }
 
-    nt_status write(span<const span<const uint8_t>>, uint64_t&) override {
-        // FIXME - should it be? It wouldn't be very useful
-        return nt_status::NOT_SUPPORTED;
-    }
-
     nt_status getsockname(span<uint8_t> buf, size_t& len) override;
     nt_status getpeername(span<uint8_t> buf, size_t& len) override;
 
@@ -416,11 +411,11 @@ nt_status ipv6_udp_socket::sendto(span<const span<const uint8_t>> v, int flags,
         }
     }
 
-    // if connected, sendto destination is ignored
-    auto& to6 = connected ? dest : *(sockaddr_in6*)to;
-
     if (!connected && (!to || tolen < 0 || (size_t)tolen < sizeof(sockaddr_in6)))
         return nt_status::INVALID_PARAMETER;
+
+    // if connected, sendto destination is ignored
+    auto& to6 = connected ? dest : *(sockaddr_in6*)to;
 
     if (shutdown_write)
         return nt_status::CONNECTION_ABORTED;

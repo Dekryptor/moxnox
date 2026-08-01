@@ -142,11 +142,6 @@ public:
         return do_read<false>(v, read_bytes);
     }
 
-    nt_status write(span<const span<const uint8_t>> v,
-                    uint64_t& written_bytes) override {
-        return sendto(v, 0, nullptr, 0, written_bytes);
-    }
-
     nt_status getsockname(span<uint8_t>, size_t&) override;
     nt_status getpeername(span<uint8_t> buf, size_t& len) override;
 

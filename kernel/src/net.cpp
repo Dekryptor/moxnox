@@ -175,8 +175,12 @@ public:
     virtual nt_status accept(HANDLE& sock, void* addr, int& addrlen) = 0;
     virtual nt_status read(span<const span<uint8_t>> v,
                            uint64_t& read_bytes) = 0;
-    virtual nt_status write(span<const span<const uint8_t>> v,
-                            uint64_t& written_bytes) = 0;
+
+    nt_status write(span<const span<const uint8_t>> v,
+                    uint64_t& written_bytes) {
+        return sendto(v, 0, nullptr, 0, written_bytes);
+    }
+
     virtual nt_status getsockname(span<uint8_t> addr, size_t& len) = 0;
     virtual nt_status getpeername(span<uint8_t> addr, size_t& len) = 0;
     virtual nt_status read_nonblock(span<const span<uint8_t>> v,
