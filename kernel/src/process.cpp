@@ -246,3 +246,8 @@ export nt_status pin_userspace_buffer_for_writing(process& proc,
                                                   optional<rangelock_req>& rlr,
                                                   span<uint8_t>*& spans,
                                                   size_t& num_spans);
+export nt_status pin_userspace_buffer_for_reading(process& proc,
+                                                  span<const uint8_t> us_buf,
+                                                  optional<rangelock_req>& rlr,
+                                                  span<const uint8_t>*& spans,
+                                                  size_t& num_spans);

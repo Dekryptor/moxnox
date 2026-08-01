@@ -5632,3 +5632,172 @@ nt_status pin_userspace_buffer_for_writing(process& proc, span<uint8_t> us_buf,
 
     return nt_status::SUCCESS;
 }
+
+nt_status pin_userspace_buffer_for_reading(process& proc, span<const uint8_t> us_buf,
+                                           optional<rangelock_req>& rlr,
+                                           span<const uint8_t>*& spans,
+                                           size_t& num_spans) {
+    auto orig_addr = (uintptr_t)us_buf.data() & ~(PAGE_SIZE - 1);
+    auto orig_size = (((uintptr_t)us_buf.data() + us_buf.size() + PAGE_SIZE - 1) & ~(PAGE_SIZE - 1)) - orig_addr;
+
+    {
+        auto addr = orig_addr;
+        auto size = orig_size;
+
+        while (true) {
+            auto m = find_mapping(proc, addr);
+            if (!m)
+                return nt_status::NO_MEMORY;
+
+            auto len = min(size, m->address + m->size - addr);
+            auto num_pages = (len + PAGE_SIZE - 1) >> PAGE_SHIFT;
+
+            for (size_t i = 0; i < num_pages; i++) {
+                auto va = addr + (i << PAGE_SHIFT);
+                auto pte = find_pte(proc, va);
+
+                if (!pte) { // shouldn't happen
+                    m->release();
+                    return nt_status::NO_MEMORY;
+                }
+
+                if (pte->reserved) {
+                    m->release();
+                    return nt_status::ACCESS_VIOLATION;
+                }
+
+#ifdef __aarch64__
+                bool pte_valid = pte->valid;
+#elifdef __x86_64__
+                bool pte_valid = pte->p;
+#endif
+
+                if (!pte_valid) {
+                    rangelock_req rlr2(proc.rl, va >> PAGE_SHIFT, 1,
+                                       rangelock_mode::exclusive);
+
+                    if (!m->map((uint32_t)(va - m->address), va)) {
+                        m->release();
+                        return nt_status::ACCESS_VIOLATION;
+                    }
+                }
+            }
+
+            m->release();
+
+            if (size == len)
+                break;
+
+            addr += len;
+            size -= len;
+        }
+    }
+
+    while (true) {
+        rlr.emplace(proc.rl, orig_addr >> PAGE_SHIFT, orig_size >> PAGE_SHIFT,
+                    rangelock_mode::shared);
+
+        bool again = false;
+        uintptr_t last_pfn;
+
+        num_spans = 0;
+
+        for (size_t i = 0; i < orig_size >> PAGE_SHIFT; i++) {
+            auto va = orig_addr + (i << PAGE_SHIFT);
+            auto pte = find_pte(proc, va);
+
+            if (!pte) // shouldn't happen
+                return nt_status::NO_MEMORY;
+
+            if (pte->reserved)
+                return nt_status::ACCESS_VIOLATION;
+
+#ifdef __aarch64__
+            bool pte_valid = pte->valid;
+#elifdef __x86_64__
+            bool pte_valid = pte->p;
+#endif
+
+            if (!pte_valid) { // page was faulted back out while we weren't holding the lock
+                rlr.reset();
+
+                auto m = find_mapping(proc, va);
+                if (!m)
+                    return nt_status::NO_MEMORY;
+
+                {
+                    rangelock_req rlr2(proc.rl, va >> PAGE_SHIFT, 1,
+                                       rangelock_mode::exclusive);
+
+                    if (!m->map((uint32_t)(va - m->address), va)) {
+                        m->release();
+                        return nt_status::ACCESS_VIOLATION;
+                    }
+                }
+
+                m->release();
+
+                again = true;
+                break;
+            }
+
+            if (num_spans == 0 || pte->pfn != last_pfn + 1)
+                num_spans++;
+
+            last_pfn = pte->pfn;
+        }
+
+        if (again)
+            continue;
+
+        size_t size_needed = num_spans * sizeof(span<const uint8_t>);
+
+        if (size_needed > PAGE_SIZE)
+            spans = (span<const uint8_t>*)vmalloc(size_needed);
+        else
+            spans = (span<const uint8_t>*)malloc(size_needed);
+
+        if (!spans) {
+            print("malloc failed\n");
+            return nt_status::INSUFFICIENT_RESOURCES;
+        }
+
+        size_t idx = 0;
+        for (size_t i = 0; i < orig_size >> PAGE_SHIFT; i++) {
+            auto pte = find_pte(proc, orig_addr + (i << PAGE_SHIFT));
+
+            // shouldn't have changed as we're holding the range lock
+#ifdef __aarch64__
+            assert(pte && pte->valid);
+#elifdef __x86_64__
+            assert(pte && pte->p);
+#endif
+
+            if (i != 0 && pte->pfn == last_pfn + 1)
+                spans[idx - 1] = span(spans[idx - 1].data(), spans[idx - 1].size() + PAGE_SIZE);
+            else {
+                spans[idx] = span((const uint8_t*)phys_address(pte->pfn << PAGE_SHIFT), PAGE_SIZE);
+                idx++;
+            }
+
+            last_pfn = pte->pfn;
+        }
+
+        break;
+    }
+
+    if (num_spans == 0)
+        return nt_status::SUCCESS;
+
+    // adjust start and end
+
+    size_t shift_start = (uintptr_t)us_buf.data() & (PAGE_SIZE - 1);
+    size_t shift_end = (PAGE_SIZE - (((uintptr_t)us_buf.data() + us_buf.size()) & (PAGE_SIZE - 1))) & (PAGE_SIZE - 1);
+
+    spans[0] = span(spans[0].data() + shift_start, spans[0].size() - shift_start);
+    spans[num_spans - 1] = span(spans[num_spans - 1].data(), spans[num_spans - 1].size() - shift_end);
+
+    // still holding range lock shared
+
+    return nt_status::SUCCESS;
+}
