@@ -1410,8 +1410,6 @@ void send_page_tlb_ipi(process& proc, uint64_t va, uint64_t num_pages) {
 }
 
 static bool handle_page_fault2(process& p, uintptr_t address) {
-    rangelock_req rlr(p.rl, address >> PAGE_SHIFT, 1, rangelock_mode::exclusive);
-
     auto pte = find_pte(p, address);
 
     if (!pte)
@@ -1576,24 +1574,30 @@ bool process::handle_page_fault(uintptr_t address, uint64_t esr_value) {
     if (address >= 0x800000000000) // not userspace
         return false;
 
-    if ((esr.ISS & 0x3c) == 0x0c) { // permission fault - page is present
-        // FIXME - NX violations
+    bool ret;
 
-        return handle_page_fault2(*this, address);
+    {
+        rangelock_req rlr(rl, address >> PAGE_SHIFT, 1, rangelock_mode::exclusive);
+
+        if ((esr.ISS & 0x3c) == 0x0c) { // permission fault - page is present
+            // FIXME - NX violations
+
+            return handle_page_fault2(*this, address);
+        }
+
+        auto pte = find_pte(*this, address);
+
+        if (pte && pte->reserved)
+            return false;
+
+        auto m = find_mapping(*this, address);
+        if (!m)
+            return false;
+
+        ret = m->map((uint32_t)(address - m->address), address);
+
+        m->release();
     }
-
-    auto pte = find_pte(*this, address);
-
-    if (pte && pte->reserved)
-        return false;
-
-    auto m = find_mapping(*this, address);
-    if (!m)
-        return false;
-
-    auto ret = m->map((uint32_t)(address - m->address), address);
-
-    m->release();
 
     return ret;
 }
@@ -1608,25 +1612,31 @@ bool process::handle_page_fault(uintptr_t address, uint64_t error_code) {
     if (address >= 0x800000000000) // not userspace
         return false;
 
-    if (ec.present) {
-        if (ec.instruction_fetch) // NX violation
+    bool ret;
+
+    {
+        rangelock_req rlr(rl, address >> PAGE_SHIFT, 1, rangelock_mode::exclusive);
+
+        if (ec.present) {
+            if (ec.instruction_fetch) // NX violation
+                return false;
+
+            return handle_page_fault2(*this, address);
+        }
+
+        auto pte = find_pte(*this, address);
+
+        if (pte && pte->reserved)
             return false;
 
-        return handle_page_fault2(*this, address);
+        auto m = find_mapping(*this, address);
+        if (!m)
+            return false;
+
+        ret = m->map((uint32_t)(address - m->address), address);
+
+        m->release();
     }
-
-    auto pte = find_pte(*this, address);
-
-    if (pte && pte->reserved)
-        return false;
-
-    auto m = find_mapping(*this, address);
-    if (!m)
-        return false;
-
-    auto ret = m->map((uint32_t)(address - m->address), address);
-
-    m->release();
 
     return ret;
 }
