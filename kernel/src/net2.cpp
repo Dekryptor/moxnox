@@ -2814,7 +2814,7 @@ nt_status socket::do_sendto(span<const uint8_t> inbuf) {
         return nt_status::INTERNAL_ERROR;
 
     auto& params = *(MOXNOX_SOCKET_SENDTO*)inbuf.data();
-    sockaddr* to = nullptr;
+    sockaddr_storage to;
     size_t sent_bytes;
 
     if ((!params.buf && params.len > 0) || params.len < 0 || !params.sent_bytes)
@@ -2829,39 +2829,23 @@ nt_status socket::do_sendto(span<const uint8_t> inbuf) {
     if (params.to) {
         uint32_t read_bytes;
 
-        if ((size_t)params.tolen > PAGE_SIZE)
-            params.tolen = PAGE_SIZE;
+        if ((size_t)params.tolen > sizeof(sockaddr_storage))
+            return nt_status::INVALID_PARAMETER;
 
-        to = (sockaddr*)malloc((size_t)params.tolen);
-        if (!to) {
-            print("malloc failed\n");
-            return nt_status::INSUFFICIENT_RESOURCES;
-        }
-
-        status = t.proc->read_vm(params.to, to, (uint32_t)params.tolen,
+        status = t.proc->read_vm(params.to, &to, (uint32_t)params.tolen,
                                  &read_bytes);
-        if (!success(status)) {
-            free(to);
+        if (!success(status))
             return status;
-        }
 
-        if (read_bytes < (uint32_t)params.tolen) {
-            free(to);
+        if (read_bytes < (uint32_t)params.tolen)
             return nt_status::NO_MEMORY;
-        }
     }
 
     status = this->sendto(params.buf, (size_t)params.len, params.flags,
-                          to, params.tolen, sent_bytes);
-    if (!success(status)) {
-        if (to)
-            free(to);
-
+                          params.to ? (sockaddr*)&to : nullptr, params.tolen,
+                          sent_bytes);
+    if (!success(status))
         return status;
-    }
-
-    if (to)
-        free(to);
 
     status = t.proc->write_vm(params.sent_bytes, &sent_bytes, sizeof(size_t),
                               nullptr);
