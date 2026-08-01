@@ -204,6 +204,7 @@ bool mapping::map(uint32_t mapping_offset, uint64_t va) {
 #elifdef __x86_64__
             pte->pfn = p->pfn & 0x7ffffffffffff;
             pte->p = 1;
+            pte->w = 0;
 #endif
         }
 
