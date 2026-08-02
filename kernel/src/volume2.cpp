@@ -277,16 +277,23 @@ bool volume::check_for_partitions() {
 
 nt_status volume::read(span<const span<uint8_t>> v, uint64_t offset,
                        uint64_t& read_bytes) {
+    size_t vec_size = get_vec_size(v);
+
     // FIXME - clear page cache in destructor
 
-    // FIXME - return error if offset past end of device
-    // FIXME - truncate data buffer if we would read past end of device
+    if (offset >= size)
+        return nt_status::END_OF_FILE;
 
-    auto status = cache.read(v, offset);
+    if (vec_size == 0) {
+        read_bytes = 0;
+        return nt_status::SUCCESS;
+    }
+
+    auto status = cache.read(v, offset, size - offset);
     if (!success(status))
         return status;
 
-    read_bytes = get_vec_size(v);
+    read_bytes = min((uint64_t)vec_size, size - offset);
     return nt_status::SUCCESS;
 }
 
