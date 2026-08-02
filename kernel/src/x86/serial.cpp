@@ -299,40 +299,46 @@ nt_status serial_out_pipe::write(span<const span<const uint8_t>> v,
 }
 
 bool serial_duplex_pipe::isr_func() {
-    auto iir = inb(port + 2); // interrupt identification register
+    bool done = false;
 
-    if (iir & 1) // not us
-        return false;
+    while (true) {
+        auto iir = inb(port + 2); // interrupt identification register
 
-    if (iir & 0x8 || ((iir & 0x6) == 0x4)) { // timeout, or data available
-        uint64_t written_bytes;
+        if (iir & 1) // not us
+            break;
 
-        auto c = inb(port);
-        auto sp = span((const uint8_t*)&c, 1);
+        if (iir & 0x8 || ((iir & 0x6) == 0x4)) { // timeout, or data available
+            uint64_t written_bytes;
 
-        recv_pipe.write(span(&sp, 1), written_bytes);
-    }
+            auto c = inb(port);
+            auto sp = span((const uint8_t*)&c, 1);
 
-    if (iir & 0x8 || (iir & 0x6) == 0x2) { // timeout, or transmitter holding register empty
-        sync_lock sl;
-        lock_guard l(sl);
-        lock_guard l2(send_pipe.lock);
-
-        if (send_pipe.buf_unread == 0)
-            send_pipe.ready = true;
-        else {
-            size_t buf_read_pos = send_pipe.buf_write_pos + (send_pipe.buf_pages << PAGE_SHIFT) - send_pipe.buf_unread;
-
-            while (buf_read_pos >= send_pipe.buf_pages << PAGE_SHIFT) {
-                buf_read_pos -= send_pipe.buf_pages << PAGE_SHIFT;
-            }
-
-            outb(send_pipe.port, send_pipe.buf[buf_read_pos]);
-            send_pipe.buf_unread--;
+            recv_pipe.write(span(&sp, 1), written_bytes);
         }
+
+        if (iir & 0x8 || (iir & 0x6) == 0x2) { // timeout, or transmitter holding register empty
+            sync_lock sl;
+            lock_guard l(sl);
+            lock_guard l2(send_pipe.lock);
+
+            if (send_pipe.buf_unread == 0)
+                send_pipe.ready = true;
+            else {
+                size_t buf_read_pos = send_pipe.buf_write_pos + (send_pipe.buf_pages << PAGE_SHIFT) - send_pipe.buf_unread;
+
+                while (buf_read_pos >= send_pipe.buf_pages << PAGE_SHIFT) {
+                    buf_read_pos -= send_pipe.buf_pages << PAGE_SHIFT;
+                }
+
+                outb(send_pipe.port, send_pipe.buf[buf_read_pos]);
+                send_pipe.buf_unread--;
+            }
+        }
+
+        done = true;
     }
 
-    return true;
+    return done;
 }
 
 static bool serial_isr_func(void* ctx) {
