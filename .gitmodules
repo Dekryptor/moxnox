@@ -160,3 +160,6 @@
 [submodule "ports/librhash/repo"]
 	path = ports/librhash/repo
 	url = https://git.burntcomma.com/moxnox/rhash
+[submodule "ports/libuv/repo"]
+	path = ports/libuv/repo
+	url = https://git.burntcomma.com/moxnox/libuv

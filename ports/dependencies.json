@@ -16,6 +16,7 @@
     "libiconv": [],
     "libpng": ["zlib"],
     "librhash": [],
+    "libuv": [],
     "llvm": [],
     "make": ["gnulib"],
     "mesa": ["zlib"],
