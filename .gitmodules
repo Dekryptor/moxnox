@@ -157,3 +157,6 @@
 [submodule "ports/jsoncpp/repo"]
 	path = ports/jsoncpp/repo
 	url = https://git.burntcomma.com/moxnox/jsoncpp
+[submodule "ports/librhash/repo"]
+	path = ports/librhash/repo
+	url = https://git.burntcomma.com/moxnox/rhash

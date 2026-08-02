@@ -15,6 +15,7 @@
     "libarchive": ["bzip2", "xz", "zlib", "zstd"],
     "libiconv": [],
     "libpng": ["zlib"],
+    "librhash": [],
     "llvm": [],
     "make": ["gnulib"],
     "mesa": ["zlib"],
