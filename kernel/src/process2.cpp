@@ -131,6 +131,7 @@ static nt_status pin_userspace_buffers_for_read_and_write(process& proc,
                                                           size_t& num_src_spans,
                                                           span<uint8_t>*& dest_spans,
                                                           size_t& num_dest_spans);
+static nt_status set_pending_signal2(process& proc, int sig);
 
 class time_page_cache : public custom_section_cache {
 public:
@@ -1831,6 +1832,28 @@ void process::terminate() {
                 }
             }
         }
+    }
+
+    // send SIGCHLD to parent
+
+    process* sigchld_proc = nullptr;
+
+    {
+        lock_guard lock(process_list_lock);
+
+        if (parent_process) {
+            lock_guard lock2(parent_process->children_lock);
+
+            if (marked_as_child) {
+                sigchld_proc = parent_process;
+                sigchld_proc->acquire();
+            }
+        }
+    }
+
+    if (sigchld_proc) {
+        set_pending_signal2(*sigchld_proc, SIGCHLD);
+        sigchld_proc->release();
     }
 
     // close open handles
