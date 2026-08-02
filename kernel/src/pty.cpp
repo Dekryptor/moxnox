@@ -588,7 +588,7 @@ nt_status pty_client::canonical_write(span<const uint8_t> s, uint64_t& written_b
         size_t bytes;
 
         if (!sp.empty()) {
-            auto status = send_pipe.write_nonblock(sp, bytes);
+            auto status = send_pipe.write_nonblock(span(&sp, 1), bytes);
             if (!success(status))
                 return status;
         }

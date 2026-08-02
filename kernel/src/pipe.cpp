@@ -36,10 +36,13 @@ public:
     NTSTATUS read(span<const span<uint8_t>> v, uint64_t& read_bytes) override;
     NTSTATUS write(span<const span<const uint8_t>> v,
                    uint64_t& written_bytes) override;
-    NTSTATUS write_nonblock(span<const uint8_t> s, uint64_t& written_bytes);
+    NTSTATUS write_nonblock(span<const span<const uint8_t>> v,
+                            uint64_t& written_bytes);
 
     NTSTATUS write_nonblock(string_view sv, uint64_t& written_bytes) {
-        return write_nonblock(span((uint8_t*)sv.data(), sv.length()), written_bytes);
+        span sp = span((const uint8_t*)sv.data(), sv.length());
+
+        return write_nonblock(span(&sp, 1), written_bytes);
     }
 
     void clear() override;
@@ -278,8 +281,9 @@ nt_status pipe::write(span<const span<const uint8_t>> v,
     return nt_status::SUCCESS;
 }
 
-nt_status pipe::write_nonblock(span<const uint8_t> s, uint64_t& written_bytes) {
-    auto orig_s = s;
+nt_status pipe::write_nonblock(span<const span<const uint8_t>> v,
+                               uint64_t& written_bytes) {
+    size_t vec_size = get_vec_size(v);
 
     if (readonly) {
         written_bytes = 0;
@@ -291,10 +295,14 @@ nt_status pipe::write_nonblock(span<const uint8_t> s, uint64_t& written_bytes) {
         return nt_status::PIPE_DISCONNECTED;
     }
 
-    if (s.empty()) {
+    if (vec_size == 0) {
         written_bytes = 0;
         return nt_status::SUCCESS;
     }
+
+    span<const uint8_t> top = v.front();
+
+    written_bytes = 0;
 
     size_t to_copy;
 
@@ -303,24 +311,27 @@ nt_status pipe::write_nonblock(span<const uint8_t> s, uint64_t& written_bytes) {
 
         size_t buf_left = (buf_pages << PAGE_SHIFT) - buf_unread;
 
-        to_copy = min(s.size(), buf_left);
+        to_copy = min(vec_size, buf_left);
 
         if (to_copy > 0) {
             if (buf_write_pos + to_copy > buf_pages << PAGE_SHIFT) {
                 auto first_bit = (buf_pages << PAGE_SHIFT) - buf_write_pos;
 
-                memcpy(&buf[buf_write_pos], s.data(), first_bit);
+                memcpy_vec(&buf[buf_write_pos], v, top, first_bit);
 
                 buf_write_pos = 0;
                 buf_unread += first_bit;
                 to_copy -= first_bit;
-                s = s.subspan(first_bit);
+                vec_size -= first_bit;
+                written_bytes += first_bit;
             }
 
-            memcpy(&buf[buf_write_pos], s.data(), to_copy);
+            memcpy_vec(&buf[buf_write_pos], v, top, to_copy);
+
             buf_write_pos += to_copy;
             buf_unread += to_copy;
-            s = s.subspan(to_copy);
+            vec_size -= to_copy;
+            written_bytes += to_copy;
         }
     }
 
@@ -343,8 +354,6 @@ nt_status pipe::write_nonblock(span<const uint8_t> s, uint64_t& written_bytes) {
                 not_full_event.signalled = false;
         }
     }
-
-    written_bytes = (uint64_t)(s.data() - orig_s.data());
 
     return nt_status::SUCCESS;
 }
