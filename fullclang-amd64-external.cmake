@@ -14,7 +14,8 @@ set(CMAKE_C_COMPILER_TARGET x86_64-pc-moxnox)
 set(CMAKE_CXX_COMPILER_TARGET x86_64-pc-moxnox)
 set(CMAKE_ASM_COMPILER_TARGET x86_64-pc-moxnox)
 
-set(CMAKE_CXX_FLAGS_INIT "-stdlib=libc++")
+set(CMAKE_C_FLAGS_INIT "-isystem ${CMAKE_CURRENT_LIST_DIR}/include")
+set(CMAKE_CXX_FLAGS_INIT "-stdlib=libc++ -nostdinc++ -isystem /usr/x86_64-pc-moxnox/usr/include/c++/v1 -isystem ${CMAKE_CURRENT_LIST_DIR}/include")
 
 set(USE_COMPILER_RT ON CACHE BOOL "" FORCE)
 

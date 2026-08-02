@@ -10,7 +10,8 @@ set(AR llvm-ar)
 
 set(CLANG_TARGET_TRIPLE aarch64-pc-moxnox)
 
-set(CMAKE_CXX_FLAGS_INIT "-stdlib=libc++")
+set(CMAKE_C_FLAGS_INIT "-isystem ${CMAKE_CURRENT_LIST_DIR}/include")
+set(CMAKE_CXX_FLAGS_INIT "-stdlib=libc++ -nostdinc++ -isystem /usr/aarch64-pc-moxnox/usr/include/c++/v1 -isystem ${CMAKE_CURRENT_LIST_DIR}/include")
 
 set(USE_COMPILER_RT ON CACHE BOOL "" FORCE)
 
