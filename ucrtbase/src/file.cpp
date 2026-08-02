@@ -2781,7 +2781,7 @@ static void handle_exec_info(exec_info* info) {
             // FIXME - if stdin, stdout, or stderr, also update PEB
 
             auto ret = __close(info->close.fd);
-            if (ret == -1) {
+            if (ret == -1 && *__errno() != EBADF) {
                 print_stderr("_close({}) failed (errno {})\n",
                              info->close.fd, errno_to_string_view(*__errno()));
                 _exit(127);
