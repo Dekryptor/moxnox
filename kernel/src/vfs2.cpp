@@ -28,6 +28,7 @@ import crt;
 import chardev;
 import moxnox_ioctls;
 import vec;
+import net;
 
 using namespace std;
 
@@ -1262,6 +1263,20 @@ NTSTATUS file::write(span<const span<const uint8_t>> v, uint64_t offset,
     }
 
     return status;
+}
+
+nt_status file::ioctl(uint32_t code, span<const uint8_t> inbuf,
+                      span<uint8_t> outbuf, uintptr_t& written) {
+    nt_status ret;
+
+    if (nonblock && ino.type == object_type::socket) {
+        auto& s = static_cast<socket&>(ino);
+
+        ret = s.ioctl(code, inbuf, outbuf, written, true);
+    } else
+        ret = object_ioctl(ino, code, inbuf, outbuf, written);
+
+    return ret;
 }
 
 extern "C"

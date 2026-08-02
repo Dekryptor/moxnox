@@ -1051,7 +1051,7 @@ NTSTATUS NtDeviceIoControlFile(HANDLE file_handle, HANDLE /*event*/, PIO_APC_ROU
 
     return object_ioctl(objrw.get(), control_code, span((uint8_t*)input_buffer, input_buffer_len),
                         span((uint8_t*)output_buffer, output_buffer_len),
-                        *iosb);
+                        iosb->Information);
 }
 
 extern "C"

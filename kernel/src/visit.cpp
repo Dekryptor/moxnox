@@ -20,7 +20,7 @@ export nt_status object_write_without_offset(object& obj,
 export nt_status object_write_with_offset(object& obj, span<const span<const uint8_t>> v,
                                               uint64_t offset, uint64_t& written_bytes);
 export nt_status object_ioctl(object& obj, uint32_t control_code, span<const uint8_t> inbuf,
-                              span<uint8_t> outbuf, IO_STATUS_BLOCK& iosb);
+                              span<uint8_t> outbuf, uintptr_t& written);
 export nt_status object_read_with_offset(object& obj, span<const span<uint8_t>> v,
                                              uint64_t offset, uint64_t& read_bytes);
 export nt_status object_read_without_offset(object& obj, span<const span<uint8_t>> v,
