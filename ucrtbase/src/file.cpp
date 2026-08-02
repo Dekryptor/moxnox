@@ -1750,7 +1750,7 @@ int __close(int fd) {
     RtlLeaveCriticalSection(&fds_lock);
 
     if (h == 0) {
-        *__errno() = EINVAL;
+        *__errno() = EBADF;
         return -1;
     }
 
