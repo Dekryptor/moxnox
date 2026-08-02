@@ -5,6 +5,7 @@
 #include <sys/stat.h>
 #include <string.h>
 #include <sys/statvfs.h>
+#include <sys/uio.h>
 #include <fcntl.h>
 #include <limits.h>
 #include <unistd.h>
@@ -19,6 +20,7 @@ import unicode;
 import unique_handle;
 import print;
 import ucrtbase;
+import moxnox_ioctls;
 
 #undef errno
 import errno;
@@ -1863,4 +1865,30 @@ int mkfifoat(int fd, const char* path, mode_t /*mode*/) {
 extern "C"
 int mkfifo(const char* path, mode_t mode) {
     return mkfifoat(AT_FDCWD, path, mode);
+}
+
+extern "C"
+ssize_t readv(int fd, const iovec* iov, int iovcnt) {
+    IO_STATUS_BLOCK iosb;
+    uint64_t bytes;
+
+    if (iovcnt <= 0) {
+        *_errno() = EINVAL;
+        return -1;
+    }
+
+    auto h = (HANDLE)_get_osfhandle(fd);
+    if (h == (HANDLE)-1)
+        return -1;
+
+    auto status = NtDeviceIoControlFile(h, 0, nullptr, nullptr, &iosb,
+                                        IOCTL_MOXNOX_FILE_READV, iov,
+                                        (uint32_t)sizeof(iovec) * iovcnt, &bytes,
+                                        sizeof(bytes));
+    if (!success(status)) {
+        *_errno() = nt_status_to_errno(status);
+        return -1;
+    }
+
+    return (ssize_t)bytes;
 }

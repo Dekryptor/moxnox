@@ -212,3 +212,4 @@ open_memstream
 sigwait
 mkfifo
 mkfifoat
+readv

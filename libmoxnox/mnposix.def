@@ -212,6 +212,7 @@ open_memstream
 sigwait
 mkfifo
 mkfifoat
+readv
 
 ; stubs
 mbsinit
@@ -235,7 +236,6 @@ setpriority
 setresgid
 memmem
 getgroups
-readv
 writev
 mlock
 munlock
