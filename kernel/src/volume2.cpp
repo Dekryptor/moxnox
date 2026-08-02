@@ -28,6 +28,7 @@ import vec;
 using namespace std;
 
 static_assert(is_readable_object_with_offset<volume>);
+static_assert(is_writable_object_with_offset<volume>);
 
 void volume::probe() {
     if (part_num == 0)
@@ -294,6 +295,28 @@ nt_status volume::read(span<const span<uint8_t>> v, uint64_t offset,
         return status;
 
     read_bytes = min((uint64_t)vec_size, size - offset);
+    return nt_status::SUCCESS;
+}
+
+nt_status volume::write(span<const span<const uint8_t>> v, uint64_t offset,
+                       uint64_t& written_bytes) {
+    size_t vec_size = get_vec_size(v);
+
+    // FIXME - don't allow if readonly
+
+    if (offset >= size)
+        return nt_status::END_OF_FILE;
+
+    if (vec_size == 0) {
+        written_bytes = 0;
+        return nt_status::SUCCESS;
+    }
+
+    if (offset + vec_size > size)
+        return nt_status::INVALID_PARAMETER;
+
+    written_bytes = cache.write_vec(v, offset);
+
     return nt_status::SUCCESS;
 }
 

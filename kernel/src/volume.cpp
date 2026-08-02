@@ -46,6 +46,8 @@ public:
 
     nt_status read(span<const span<uint8_t>> v, uint64_t offset,
                    uint64_t& read_bytes);
+    nt_status write(span<const span<const uint8_t>> v, uint64_t offset,
+                    uint64_t& written_bytes);
     nt_status read_into_cache(uint64_t page_num, uint64_t num_pages,
                               uint64_t& read_pages);
     nt_status flush_cache(uint64_t page_num, uint64_t num_pages);
