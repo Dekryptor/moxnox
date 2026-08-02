@@ -2,6 +2,7 @@
     "binutils": ["zlib"],
     "bzip2": [],
     "cairo": ["freetype", "libpng", "pixman", "zlib"],
+    "cmake": ["curl", "expat", "jsoncpp", "libarchive", "librhash", "libuv", "zlib"],
     "curl": ["openssl", "zlib", "zstd"],
     "expat": [],
     "freetype": ["libpng"],

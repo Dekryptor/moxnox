@@ -163,3 +163,6 @@
 [submodule "ports/libuv/repo"]
 	path = ports/libuv/repo
 	url = https://git.burntcomma.com/moxnox/libuv
+[submodule "ports/cmake/repo"]
+	path = ports/cmake/repo
+	url = https://git.burntcomma.com/moxnox/cmake
