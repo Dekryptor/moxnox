@@ -3,8 +3,8 @@
 #include <sys/types.h>
 
 struct iovec {
-    size_t iov_len;
     void* iov_base;
+    size_t iov_len;
 };
 
 #ifdef __cplusplus
