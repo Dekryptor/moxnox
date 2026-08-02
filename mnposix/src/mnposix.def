@@ -213,3 +213,4 @@ sigwait
 mkfifo
 mkfifoat
 readv
+writev

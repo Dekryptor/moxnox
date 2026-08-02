@@ -213,6 +213,7 @@ sigwait
 mkfifo
 mkfifoat
 readv
+writev
 
 ; stubs
 mbsinit
@@ -236,6 +237,5 @@ setpriority
 setresgid
 memmem
 getgroups
-writev
 mlock
 munlock

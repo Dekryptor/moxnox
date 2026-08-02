@@ -1892,3 +1892,29 @@ ssize_t readv(int fd, const iovec* iov, int iovcnt) {
 
     return (ssize_t)bytes;
 }
+
+extern "C"
+ssize_t writev(int fd, const iovec* iov, int iovcnt) {
+    IO_STATUS_BLOCK iosb;
+    uint64_t bytes;
+
+    if (iovcnt <= 0) {
+        *_errno() = EINVAL;
+        return -1;
+    }
+
+    auto h = (HANDLE)_get_osfhandle(fd);
+    if (h == (HANDLE)-1)
+        return -1;
+
+    auto status = NtDeviceIoControlFile(h, 0, nullptr, nullptr, &iosb,
+                                        IOCTL_MOXNOX_FILE_WRITEV, iov,
+                                        (uint32_t)sizeof(iovec) * iovcnt, &bytes,
+                                        sizeof(bytes));
+    if (!success(status)) {
+        *_errno() = nt_status_to_errno(status);
+        return -1;
+    }
+
+    return (ssize_t)bytes;
+}
