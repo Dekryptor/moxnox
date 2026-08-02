@@ -154,3 +154,6 @@
 [submodule "ports/expat/repo"]
 	path = ports/expat/repo
 	url = https://git.burntcomma.com/moxnox/libexpat
+[submodule "ports/jsoncpp/repo"]
+	path = ports/jsoncpp/repo
+	url = https://git.burntcomma.com/moxnox/jsoncpp

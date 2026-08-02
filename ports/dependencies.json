@@ -10,6 +10,7 @@
     "gnulib": [],
     "harfbuzz": ["freetype"],
     "hexyl": [],
+    "jsoncpp": [],
     "less": ["ncurses"],
     "libarchive": ["bzip2", "xz", "zlib", "zstd"],
     "libiconv": [],
