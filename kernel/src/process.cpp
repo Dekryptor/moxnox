@@ -5,6 +5,7 @@ module;
 #include <atomic>
 #include <optional>
 #include <signal.h>
+#include <sys/uio.h>
 #include "context_offsets.h"
 
 export module process;
@@ -251,3 +252,8 @@ export nt_status pin_userspace_buffer_for_reading(process& proc,
                                                   optional<rangelock_req>& rlr,
                                                   span<const uint8_t>*& spans,
                                                   size_t& num_spans);
+export nt_status pin_iovecs_for_writing(process& proc,
+                                        span<const iovec> vecs,
+                                        optional<rangelock_req>& rlr,
+                                        span<uint8_t>*& spans,
+                                        size_t& num_spans);

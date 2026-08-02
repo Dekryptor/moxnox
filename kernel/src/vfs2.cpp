@@ -10,6 +10,7 @@ module;
 #include <memory>
 #include <stddef.h>
 #include <stdint.h>
+#include <sys/uio.h>
 #include "assert.h"
 
 module vfs;
@@ -29,6 +30,7 @@ import chardev;
 import moxnox_ioctls;
 import vec;
 import net;
+import rangelock;
 
 using namespace std;
 
@@ -1265,9 +1267,62 @@ NTSTATUS file::write(span<const span<const uint8_t>> v, uint64_t offset,
     return status;
 }
 
+static nt_status file_readv(file& f, span<const uint8_t> inbuf,
+                            span<uint8_t> outbuf, uintptr_t& written) {
+    nt_status status;
+    auto& t = *get_current_thread();
+
+    if (inbuf.size() < sizeof(iovec))
+        return nt_status::INVALID_PARAMETER;
+
+    if (outbuf.size() < sizeof(uint64_t))
+        return nt_status::INVALID_PARAMETER;
+
+    auto vec = span((iovec*)inbuf.data(), inbuf.size() / sizeof(iovec));
+    auto& read_bytes = *(uint64_t*)outbuf.data();
+
+    optional<rangelock_req> rlr;
+    span<uint8_t>* spans = nullptr;
+    size_t num_spans = 0;
+
+    for (auto& v : vec) {
+        if (v.iov_len > 0 && (!is_userspace_address((uintptr_t)v.iov_base) || !is_userspace_address((uintptr_t)v.iov_base + v.iov_len - 1)))
+            return nt_status::ACCESS_VIOLATION;
+    }
+
+    status = pin_iovecs_for_writing(*t.proc, vec, rlr, spans, num_spans);
+    if (!success(status))
+        return status;
+
+    status = f.read(span(spans, num_spans), read_bytes);
+
+    rlr.reset();
+
+    auto spans_size = sizeof(span<uint8_t>) * num_spans;
+    if (spans_size > PAGE_SIZE)
+        vfree(spans, spans_size);
+    else if (spans_size > 0)
+        free(spans);
+
+    if (!success(status))
+        return status;
+
+    written = sizeof(uint64_t);
+
+    return nt_status::SUCCESS;
+}
+
 nt_status file::ioctl(uint32_t code, span<const uint8_t> inbuf,
                       span<uint8_t> outbuf, uintptr_t& written) {
     nt_status ret;
+
+    switch (code) {
+        case IOCTL_MOXNOX_FILE_READV:
+            return file_readv(*this, inbuf, outbuf, written);
+
+        default:
+            break;
+    }
 
     if (nonblock && ino.type == object_type::socket) {
         auto& s = static_cast<socket&>(ino);
