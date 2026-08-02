@@ -6453,3 +6453,178 @@ nt_status pin_iovecs_for_writing(process& proc, span<const iovec> vecs,
 
     return nt_status::SUCCESS;
 }
+
+nt_status pin_iovecs_for_reading(process& proc, span<const iovec> vecs,
+                                 optional<rangelock_req>& rlr,
+                                 span<const uint8_t>*& spans, size_t& num_spans) {
+    nt_status status;
+    uintptr_t vec_start = 0xffffffffffffffff, vec_end = 0;
+    bool empty = true;
+
+    for (auto& v : vecs) {
+        if (v.iov_len == 0)
+            continue;
+
+        auto addr = (uintptr_t)v.iov_base & ~(PAGE_SIZE - 1);
+        auto size = (((uintptr_t)v.iov_base + v.iov_len + PAGE_SIZE - 1) & ~(PAGE_SIZE - 1)) - addr;
+
+        status = make_userspace_range_readable(proc, addr, size);
+        if (!success(status))
+            return status;
+
+        vec_start = min(vec_start, (uintptr_t)v.iov_base);
+        vec_end = max(vec_end, (uintptr_t)v.iov_base + v.iov_len);
+        empty = false;
+    }
+
+    if (empty)
+        return nt_status::SUCCESS;
+
+    // FIXME - this is hackish, teach range lock to work with vectors instead?
+
+    auto range_start = (uintptr_t)vec_start & ~(PAGE_SIZE - 1);
+    auto range_size = (((uintptr_t)vec_end + PAGE_SIZE - 1) & ~(PAGE_SIZE - 1)) - range_start;
+
+    while (true) {
+        rlr.emplace(proc.rl, range_start >> PAGE_SHIFT, range_size >> PAGE_SHIFT,
+                    rangelock_mode::shared);
+
+        bool again = false;
+        uint8_t* last_end;
+
+        num_spans = 0;
+
+        for (auto& v : vecs) {
+            if (v.iov_len == 0)
+                continue;
+
+            auto addr = (uintptr_t)v.iov_base & ~(PAGE_SIZE - 1);
+            auto size = (((uintptr_t)v.iov_base + v.iov_len + PAGE_SIZE - 1) & ~(PAGE_SIZE - 1)) - addr;
+
+            size_t shift_start = (uintptr_t)v.iov_base & (PAGE_SIZE - 1);
+            size_t shift_end = (PAGE_SIZE - (((uintptr_t)v.iov_base + v.iov_len) & (PAGE_SIZE - 1))) & (PAGE_SIZE - 1);
+
+            for (size_t i = 0; i < size >> PAGE_SHIFT; i++) {
+                auto va = addr + (i << PAGE_SHIFT);
+                auto pte = find_pte(proc, va);
+
+                if (!pte) // shouldn't happen
+                    return nt_status::NO_MEMORY;
+
+                if (pte->reserved)
+                    return nt_status::ACCESS_VIOLATION;
+
+#ifdef __aarch64__
+                bool pte_valid = pte->valid;
+#elifdef __x86_64__
+                bool pte_valid = pte->p;
+#endif
+
+                // page was faulted back out while we weren't holding the lock
+                if (!pte_valid) {
+                    rlr.reset();
+
+                    auto m = find_mapping(proc, va);
+                    if (!m)
+                        return nt_status::NO_MEMORY;
+
+                    {
+                        rangelock_req rlr2(proc.rl, va >> PAGE_SHIFT, 1,
+                                           rangelock_mode::exclusive);
+
+                        if (!m->map((uint32_t)(va - m->address), va)) {
+                            m->release();
+                            return nt_status::ACCESS_VIOLATION;
+                        }
+                    }
+
+                    m->release();
+
+                    again = true;
+                    break;
+                }
+
+                auto phys_start = (uint8_t*)phys_address(pte->pfn << PAGE_SHIFT);
+                size_t len = PAGE_SIZE;
+
+                if (i == 0) {
+                    phys_start += shift_start;
+                    len -= shift_start;
+                }
+
+                if (i == (size >> PAGE_SHIFT) - 1)
+                    len -= shift_end;
+
+                if (num_spans == 0 || phys_start != last_end)
+                    num_spans++;
+
+                last_end = phys_start + len;
+            }
+
+            if (again)
+                break;
+        }
+
+        if (again)
+            continue;
+
+        size_t size_needed = num_spans * sizeof(span<const uint8_t>);
+
+        if (size_needed > PAGE_SIZE)
+            spans = (span<const uint8_t>*)vmalloc(size_needed);
+        else
+            spans = (span<const uint8_t>*)malloc(size_needed);
+
+        if (!spans) {
+            print("malloc failed\n");
+            return nt_status::INSUFFICIENT_RESOURCES;
+        }
+
+        size_t idx = 0;
+        for (auto& v : vecs) {
+            if (v.iov_len == 0)
+                continue;
+
+            auto addr = (uintptr_t)v.iov_base & ~(PAGE_SIZE - 1);
+            auto size = (((uintptr_t)v.iov_base + v.iov_len + PAGE_SIZE - 1) & ~(PAGE_SIZE - 1)) - addr;
+
+            size_t shift_start = (uintptr_t)v.iov_base & (PAGE_SIZE - 1);
+            size_t shift_end = (PAGE_SIZE - (((uintptr_t)v.iov_base + v.iov_len) & (PAGE_SIZE - 1))) & (PAGE_SIZE - 1);
+
+            for (size_t i = 0; i < size >> PAGE_SHIFT; i++) {
+                auto pte = find_pte(proc, addr + (i << PAGE_SHIFT));
+
+                // shouldn't have changed as we're holding the range lock
+#ifdef __aarch64__
+                assert(pte && pte->valid);
+#elifdef __x86_64__
+                assert(pte && pte->p);
+#endif
+
+                auto phys_start = (uint8_t*)phys_address(pte->pfn << PAGE_SHIFT);
+                size_t len = PAGE_SIZE;
+
+                if (i == 0) {
+                    phys_start += shift_start;
+                    len -= shift_start;
+                }
+
+                if (i == (size >> PAGE_SHIFT) - 1)
+                    len -= shift_end;
+
+                if (idx != 0 && phys_start == spans[idx - 1].data() + spans[idx - 1].size())
+                    spans[idx - 1] = span(spans[idx - 1].data(), spans[idx - 1].size() + len);
+                else {
+                    spans[idx] = span(phys_start, len);
+                    idx++;
+                }
+            }
+        }
+
+        break;
+    }
+
+    // still holding range lock shared
+
+    return nt_status::SUCCESS;
+}
