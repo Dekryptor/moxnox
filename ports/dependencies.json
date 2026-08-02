@@ -3,6 +3,7 @@
     "bzip2": [],
     "cairo": ["freetype", "libpng", "pixman", "zlib"],
     "curl": ["openssl", "zlib", "zstd"],
+    "expat": [],
     "freetype": ["libpng"],
     "gcc": ["gmp", "libiconv", "mpc", "mpfr"],
     "git": ["curl", "zlib"],
