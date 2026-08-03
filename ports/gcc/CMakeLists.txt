@@ -45,10 +45,10 @@ add_custom_command(
     COMMAND ${CMAKE_COMMAND} -E make_directory ${GCC_STAGE}/usr/include ${GCC_STAGE}/usr/lib
     COMMAND ${CMAKE_COMMAND} -E copy ${CMAKE_BINARY_DIR}/ports/libiconv/gen/include/iconv.h
         ${GCC_STAGE}/usr/include/iconv.h
-    COMMAND ${CMAKE_COMMAND} -E copy $<TARGET_LINKER_FILE:iconv>
+    COMMAND ${CMAKE_COMMAND} -E copy $<TARGET_LINKER_FILE:libiconv>
         ${GCC_STAGE}/usr/lib/libiconv.dll.a
     COMMAND ${CMAKE_COMMAND} -E touch ${CMAKE_CURRENT_BINARY_DIR}/libiconv.stamp
-    DEPENDS iconv
+    DEPENDS libiconv
     COMMENT "Staging libiconv for GCC (${GCC_HOST_TRIPLE})"
     VERBATIM
 )

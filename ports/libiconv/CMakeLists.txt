@@ -48,7 +48,7 @@ add_custom_command(
     VERBATIM
 )
 
-add_library(iconv SHARED
+add_library(libiconv SHARED
     repo/lib/iconv.c
     repo/libcharset/lib/localcharset.c
     ${GEN}/lib/aliases.h
@@ -61,11 +61,11 @@ add_library(iconv SHARED
     ${GEN}/include/localcharset.h
 )
 
-set_target_properties(iconv PROPERTIES OUTPUT_NAME "iconv-2" PREFIX "lib")
+set_target_properties(libiconv PROPERTIES OUTPUT_NAME "iconv-2" PREFIX "lib")
 
-target_compile_options(iconv PRIVATE ${USERSPACE_CFLAGS} -fvisibility=default -std=gnu17)
+target_compile_options(libiconv PRIVATE ${USERSPACE_CFLAGS} -fvisibility=default -std=gnu17)
 
-target_compile_options(iconv PRIVATE
+target_compile_options(libiconv PRIVATE
     -Wno-sign-conversion
     -Wno-conversion
     -Wno-implicit-fallthrough
@@ -78,8 +78,8 @@ target_compile_options(iconv PRIVATE
     -Wno-deprecated-non-prototype
 )
 
-target_compile_definitions(iconv PRIVATE -DHAVE_CONFIG_H -DBUILDING_LIBICONV -DBUILDING_LIBCHARSET)
-target_include_directories(iconv PRIVATE
+target_compile_definitions(libiconv PRIVATE -DHAVE_CONFIG_H -DBUILDING_LIBICONV -DBUILDING_LIBCHARSET)
+target_include_directories(libiconv PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}
     ${GEN}/include
     ${GEN}/lib
@@ -87,6 +87,6 @@ target_include_directories(iconv PRIVATE
     repo/libcharset/include
 )
 
-install(TARGETS iconv DESTINATION ${CMAKE_INSTALL_PREFIX}/lib
+install(TARGETS libiconv DESTINATION ${CMAKE_INSTALL_PREFIX}/lib
     ARCHIVE EXCLUDE_FROM_ALL
 )
