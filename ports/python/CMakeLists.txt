@@ -547,3 +547,42 @@ set_source_files_properties(${PYTHON_DECIMAL_SOURCES} PROPERTIES
     COMPILE_OPTIONS "-I${CMAKE_CURRENT_SOURCE_DIR}/repo/Modules/_decimal/libmpdec")
 
 add_python_module(_decimal ${PYTHON_DECIMAL_SOURCES})
+
+add_custom_target(python)
+add_dependencies(python
+    libpython
+    python_exe
+    python_array
+    python_binascii
+    python__bisect
+    python_cmath
+    python__contextvars
+    python__csv
+    python__datetime
+    python__heapq
+    python__json
+    python_math
+    python_mmap
+    python__pickle
+    python__queue
+    python__random
+    python__statistics
+    python__zoneinfo
+    python_zlib
+    python_readline
+    python__multibytecodec
+    python__codecs_cn
+    python__codecs_hk
+    python__codecs_iso2022
+    python__codecs_jp
+    python__codecs_kr
+    python__codecs_tw
+    python__md5
+    python__sha1
+    python__sha2
+    python__sha3
+    python__elementtree
+    python_pyexpat
+    python__blake2
+    python__decimal
+)
