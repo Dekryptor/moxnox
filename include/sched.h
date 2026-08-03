@@ -13,6 +13,8 @@ extern "C" {
 #endif
 
 int sched_yield(void);
+int sched_get_priority_min(int policy);
+int sched_get_priority_max(int policy);
 
 #ifdef __cplusplus
 }
