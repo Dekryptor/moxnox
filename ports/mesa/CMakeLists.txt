@@ -1989,3 +1989,10 @@ if (CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
 endif()
 
 install(TARGETS mesa-test DESTINATION ${CMAKE_INSTALL_PREFIX}/bin)
+
+add_custom_target(mesa)
+add_dependencies(mesa
+    libgallium
+    libEGL
+    mesa-test
+)
