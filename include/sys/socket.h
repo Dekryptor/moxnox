@@ -1,6 +1,9 @@
 #pragma once
 
 #include <stdint.h>
+#include <stddef.h>
+#include <sys/types.h>
+#include <sys/uio.h>
 
 typedef uint16_t sa_family_t;
 typedef int socklen_t;
@@ -19,6 +22,38 @@ struct linger {
    int l_onoff;
    int l_linger;
 };
+
+struct msghdr {
+    void* msg_name;
+    socklen_t msg_namelen;
+    struct iovec* msg_iov;
+    int msg_iovlen;
+    void* msg_control;
+    socklen_t msg_controllen;
+    int msg_flags;
+};
+
+struct cmsghdr {
+    socklen_t cmsg_len;
+    int cmsg_level;
+    int cmsg_type;
+    int __cmsg_pad;
+};
+
+#define SCM_RIGHTS 1
+
+#define __CMSG_ALIGN(len) (((len) + sizeof(size_t) - 1) & ~(sizeof(size_t) - 1))
+#define CMSG_DATA(cmsg) ((unsigned char*)((struct cmsghdr*)(cmsg) + 1))
+#define CMSG_LEN(len) (sizeof(struct cmsghdr) + (len))
+#define CMSG_SPACE(len) (sizeof(struct cmsghdr) + __CMSG_ALIGN(len))
+#define CMSG_FIRSTHDR(mhdr) \
+    ((size_t)(mhdr)->msg_controllen >= sizeof(struct cmsghdr) \
+        ? (struct cmsghdr*)(mhdr)->msg_control : (struct cmsghdr*)NULL)
+#define CMSG_NXTHDR(mhdr, cmsg) \
+    (((char*)(cmsg) + __CMSG_ALIGN((cmsg)->cmsg_len) + sizeof(struct cmsghdr) > \
+      (char*)(mhdr)->msg_control + (mhdr)->msg_controllen) \
+        ? (struct cmsghdr*)NULL \
+        : (struct cmsghdr*)((char*)(cmsg) + __CMSG_ALIGN((cmsg)->cmsg_len)))
 
 #define AF_UNSPEC 0
 #define AF_UNIX 1
@@ -128,6 +163,8 @@ int setsockopt(int s, int level, int optname, const void* optval,
 int socket(int af, int type, int protocol);
 int shutdown(int s, int how);
 int socketpair(int domain, int type, int protocol, int* socket_vector);
+ssize_t recvmsg(int s, struct msghdr* msg, int flags);
+ssize_t sendmsg(int s, const struct msghdr* msg, int flags);
 
 #ifdef __cplusplus
 }
