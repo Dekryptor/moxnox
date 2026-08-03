@@ -25,6 +25,7 @@
     "ripgrep": [],
     "rust": [],
     "vim": ["ncurses"],
+    "xz": [],
     "zlib": [],
     "zstd": []
 }

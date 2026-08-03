@@ -148,3 +148,6 @@
 [submodule "ports/bzip2/repo"]
 	path = ports/bzip2/repo
 	url = https://git.burntcomma.com/moxnox/bzip2
+[submodule "ports/xz/repo"]
+	path = ports/xz/repo
+	url = https://git.burntcomma.com/moxnox/xz
