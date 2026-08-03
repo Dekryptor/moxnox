@@ -10,7 +10,7 @@
     "harfbuzz": ["freetype"],
     "hexyl": [],
     "less": ["ncurses"],
-    "libarchive": ["zlib", "zstd"],
+    "libarchive": ["bzip2", "zlib", "zstd"],
     "libiconv": [],
     "libpng": ["zlib"],
     "llvm": [],

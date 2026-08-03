@@ -27,7 +27,6 @@ add_custom_command(
     OUTPUT ${GEN}/cpio/cpio.c
     COMMAND ${CMAKE_COMMAND} -E copy ${CMAKE_CURRENT_SOURCE_DIR}/repo/cpio/cpio.c ${GEN}/cpio/cpio.c
     COMMAND sed -i
-        -e [[s@archive_write_add_filter_bzip2(cpio->archive)@(ARCHIVE_FATAL)@g]]
         -e [[s@archive_write_add_filter_lz4(cpio->archive)@(ARCHIVE_FATAL)@g]]
         -e [[s@archive_write_add_filter_lzop(cpio->archive)@(ARCHIVE_FATAL)@g]]
         -e [[s@archive_write_add_filter_lrzip(cpio->archive)@(ARCHIVE_FATAL)@g]]
@@ -45,7 +44,6 @@ add_custom_command(
             ${CMAKE_CURRENT_SOURCE_DIR}/repo/libarchive/archive_read_support_filter_all.c
             ${GEN}/libarchive/archive_read_support_filter_all.c
     COMMAND sed -i
-            -e [[/archive_read_support_filter_bzip2(a);/d]]
             -e [[/archive_read_support_filter_lzma(a);/d]]
             -e [[/archive_read_support_filter_xz(a);/d]]
             -e [[/archive_read_support_filter_lzip(a);/d]]
@@ -64,7 +62,6 @@ add_custom_command(
             ${CMAKE_CURRENT_SOURCE_DIR}/repo/libarchive/archive_read_support_filter_by_code.c
             ${GEN}/libarchive/archive_read_support_filter_by_code.c
     COMMAND sed -i
-            -e [[/case ARCHIVE_FILTER_BZIP2:/,+1d]]
             -e [[/case ARCHIVE_FILTER_LZMA:/,+1d]]
             -e [[/case ARCHIVE_FILTER_XZ:/,+1d]]
             -e [[/case ARCHIVE_FILTER_LZIP:/,+1d]]
@@ -103,7 +100,6 @@ foreach(reg archive_write_add_filter.c archive_write_add_filter_by_name.c
         COMMAND ${CMAKE_COMMAND} -E copy
                 ${CMAKE_CURRENT_SOURCE_DIR}/repo/libarchive/${reg} ${GEN}/libarchive/${reg}
         COMMAND sed -i
-                -e [[/archive_write_add_filter_bzip2/d]]
                 -e [[/archive_write_add_filter_lz4/d]]
                 -e [[/archive_write_add_filter_lzop/d]]
                 -e [[/archive_write_add_filter_lrzip/d]]
@@ -167,6 +163,7 @@ add_library(archive SHARED
     repo/libarchive/archive_read_set_options.c
     ${GEN}/libarchive/archive_read_support_filter_all.c
     ${GEN}/libarchive/archive_read_support_filter_by_code.c
+    repo/libarchive/archive_read_support_filter_bzip2.c
     repo/libarchive/archive_read_support_filter_compress.c
     repo/libarchive/archive_read_support_filter_gzip.c
     repo/libarchive/archive_read_support_filter_none.c
@@ -199,6 +196,7 @@ add_library(archive SHARED
     repo/libarchive/archive_write_add_filter_b64encode.c
     ${GEN}/libarchive/archive_write_add_filter_by_name.c
     ${GEN}/libarchive/archive_write_add_filter.c
+    repo/libarchive/archive_write_add_filter_bzip2.c
     repo/libarchive/archive_write_add_filter_compress.c
     repo/libarchive/archive_write_add_filter_gzip.c
     repo/libarchive/archive_write_add_filter_none.c
@@ -257,7 +255,7 @@ target_compile_options(archive PRIVATE
     "SHELL:-include ${GEN}/libarchive/archive_entry.h"
 )
 
-target_link_libraries(archive PRIVATE zlib zstd)
+target_link_libraries(archive PRIVATE bzip2 zlib zstd)
 
 install(TARGETS archive DESTINATION ${CMAKE_INSTALL_PREFIX}/lib
     ARCHIVE EXCLUDE_FROM_ALL
