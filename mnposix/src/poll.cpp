@@ -29,7 +29,10 @@ int poll(struct pollfd* fds, nfds_t nfds, int timeout) {
             li.QuadPart = -(int64_t)timeout * 10000; // convert ms to units of 100ns
 
         status = NtDelayExecution(true, &li);
-        if (!success(status)) {
+        if (status == nt_status::USER_APC) {
+            *_errno() = EINTR;
+            return -1;
+        } else if (!success(status)) {
             *_errno() = nt_status_to_errno(status);
             return -1;
         }
@@ -62,7 +65,11 @@ int poll(struct pollfd* fds, nfds_t nfds, int timeout) {
         li.QuadPart = -(int64_t)timeout * 10000; // convert ms to units of 100ns
 
     status = mn_poll(entries, nfds, timeout >= 0 ? &li : nullptr);
-    if (!success(status)) {
+    if (status == nt_status::USER_APC) {
+        *_errno() = EINTR;
+        free(entries);
+        return -1;
+    } else if (!success(status)) {
         *_errno() = nt_status_to_errno(status);
         free(entries);
         return -1;
