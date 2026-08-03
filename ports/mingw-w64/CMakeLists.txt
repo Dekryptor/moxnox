@@ -31,6 +31,7 @@ add_library(ucrtbase_static STATIC
     repo/mingw-w64-crt/stdio/ucrt___local_stdio_printf_options.c
     repo/mingw-w64-crt/stdio/ucrt___local_stdio_scanf_options.c
     repo/mingw-w64-crt/stdio/ucrt_printf.c
+    in6addr.cpp
     redirects.S
 )
 target_include_directories(ucrtbase_static PRIVATE ${CMAKE_CURRENT_BINARY_DIR} repo/mingw-w64-headers/crt repo/mingw-w64-crt/include repo/mingw-w64-headers/include)

@@ -88,3 +88,14 @@ struct ip_mreq {
     struct in_addr imr_multiaddr;
     struct in_addr imr_interface;
 };
+
+#ifdef __cplusplus
+extern "C" {
+#endif
+
+extern const struct in6_addr in6addr_any;
+extern const struct in6_addr in6addr_loopback;
+
+#ifdef __cplusplus
+}
+#endif
