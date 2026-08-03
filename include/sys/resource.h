@@ -1,6 +1,7 @@
 #pragma once
 
 #include <sys/types.h>
+#include <sys/time.h>
 
 typedef unsigned int rlim_t;
 
@@ -8,6 +9,14 @@ struct rlimit {
     rlim_t rlim_cur;
     rlim_t rlim_max;
 };
+
+struct rusage {
+    struct timeval ru_utime;
+    struct timeval ru_stime;
+};
+
+#define RUSAGE_SELF     0
+#define RUSAGE_CHILDREN (-1)
 
 #define RLIMIT_NOFILE 1
 #define RLIMIT_DATA   2
@@ -32,6 +41,7 @@ int getrlimit(int resource, struct rlimit* rlp);
 int setrlimit(int resource, const struct rlimit* rlp);
 int getpriority(int which, id_t who);
 int setpriority(int which, id_t who, int value);
+int getrusage(int who, struct rusage* r_usage);
 
 #ifdef __cplusplus
 }
