@@ -3,6 +3,10 @@ add_library(zlib SHARED
     repo/compress.c
     repo/crc32.c
     repo/deflate.c
+    repo/gzclose.c
+    repo/gzlib.c
+    repo/gzread.c
+    repo/gzwrite.c
     repo/inffast.c
     repo/inflate.c
     repo/inftrees.c
