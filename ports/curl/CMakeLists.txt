@@ -296,3 +296,6 @@ add_custom_target(curl_gen_headers DEPENDS
     ${CURL_GEN}/include/curl/curl.h)
 add_dependencies(libcurl curl_gen_headers)
 add_dependencies(curl_exe curl_gen_headers)
+
+add_custom_target(curl)
+add_dependencies(curl libcurl curl_exe)
