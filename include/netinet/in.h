@@ -77,7 +77,7 @@ struct ipv6_mreq {
     unsigned int ipv6mr_interface;
 };
 
-#define IP_TT               4
+#define IP_TTL              4
 #define IP_MULTICAST_IF     9
 #define IP_MULTICAST_TTL    10
 #define IP_MULTICAST_LOOP   11
