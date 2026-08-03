@@ -65,6 +65,7 @@ struct sockaddr_in6 {
     uint32_t sin6_scope_id;
 };
 
+#define IPV6_UNICAST_HOPS   4
 #define IPV6_MULTICAST_IF   9
 #define IPV6_MULTICAST_HOPS 10
 #define IPV6_MULTICAST_LOOP 11
