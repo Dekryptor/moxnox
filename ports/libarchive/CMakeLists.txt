@@ -44,9 +44,6 @@ add_custom_command(
             ${CMAKE_CURRENT_SOURCE_DIR}/repo/libarchive/archive_read_support_filter_all.c
             ${GEN}/libarchive/archive_read_support_filter_all.c
     COMMAND sed -i
-            -e [[/archive_read_support_filter_lzma(a);/d]]
-            -e [[/archive_read_support_filter_xz(a);/d]]
-            -e [[/archive_read_support_filter_lzip(a);/d]]
             -e [[/archive_read_support_filter_lz4(a);/d]]
             -e [[/archive_read_support_filter_lzop(a);/d]]
             -e [[/archive_read_support_filter_lrzip(a);/d]]
@@ -62,9 +59,6 @@ add_custom_command(
             ${CMAKE_CURRENT_SOURCE_DIR}/repo/libarchive/archive_read_support_filter_by_code.c
             ${GEN}/libarchive/archive_read_support_filter_by_code.c
     COMMAND sed -i
-            -e [[/case ARCHIVE_FILTER_LZMA:/,+1d]]
-            -e [[/case ARCHIVE_FILTER_XZ:/,+1d]]
-            -e [[/case ARCHIVE_FILTER_LZIP:/,+1d]]
             -e [[/case ARCHIVE_FILTER_LZ4:/,+1d]]
             -e [[/case ARCHIVE_FILTER_LZOP:/,+1d]]
             -e [[/case ARCHIVE_FILTER_LRZIP:/,+1d]]
@@ -169,6 +163,7 @@ add_library(archive SHARED
     repo/libarchive/archive_read_support_filter_none.c
     repo/libarchive/archive_read_support_filter_rpm.c
     repo/libarchive/archive_read_support_filter_uu.c
+    repo/libarchive/archive_read_support_filter_xz.c
     repo/libarchive/archive_read_support_filter_zstd.c
     repo/libarchive/archive_read_support_format_7zip.c
     repo/libarchive/archive_read_support_format_all.c
@@ -255,7 +250,7 @@ target_compile_options(archive PRIVATE
     "SHELL:-include ${GEN}/libarchive/archive_entry.h"
 )
 
-target_link_libraries(archive PRIVATE bzip2 zlib zstd)
+target_link_libraries(archive PRIVATE bzip2 liblzma zlib zstd)
 
 install(TARGETS archive DESTINATION ${CMAKE_INSTALL_PREFIX}/lib
     ARCHIVE EXCLUDE_FROM_ALL
