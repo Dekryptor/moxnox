@@ -380,3 +380,12 @@ target_compile_options(bsdunzip PRIVATE
 target_link_libraries(bsdunzip PRIVATE archive moxnox)
 
 install(TARGETS bsdunzip DESTINATION ${CMAKE_INSTALL_PREFIX}/bin)
+
+add_custom_target(libarchive)
+add_dependencies(libarchive
+    archive
+    bsdtar
+    bsdcat
+    bsdcpio
+    bsdunzip
+)
