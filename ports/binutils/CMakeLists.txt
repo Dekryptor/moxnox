@@ -793,3 +793,24 @@ add_executable(cxxfilt
 )
 add_binutils_exe(cxxfilt)
 target_compile_definitions(cxxfilt PRIVATE HAVE_CONFIG_H TARGET_PREPENDS_UNDERSCORE=0)
+
+add_custom_target(binutils)
+add_dependencies(binutils
+    addr2line
+    ar
+    as
+    cxxfilt
+    dlltool
+    dllwrap
+    ld
+    nm
+    objcopy
+    objdump
+    ranlib
+    readelf
+    size
+    strings
+    strip
+    windmc
+    windres
+)
