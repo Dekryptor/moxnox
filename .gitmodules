@@ -145,3 +145,6 @@
 [submodule "ports/hexyl/terminal_size"]
 	path = ports/hexyl/terminal_size
 	url = https://git.burntcomma.com/moxnox/terminal-size
+[submodule "ports/bzip2/repo"]
+	path = ports/bzip2/repo
+	url = https://git.burntcomma.com/moxnox/bzip2
