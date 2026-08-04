@@ -8,7 +8,7 @@
 #define EXIT_SUCCESS 0
 #define EXIT_FAILURE 1
 
-#define RAND_MAX 0x7fff
+#define RAND_MAX 0x7fffffff
 
 #define _MAX_PATH 260
 #define _MAX_FNAME 256
