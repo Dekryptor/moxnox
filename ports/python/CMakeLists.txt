@@ -491,26 +491,9 @@ add_python_module(_sha2 repo/Modules/sha2module.c repo/Modules/_hacl/Hacl_Hash_S
 add_python_module(_sha3 repo/Modules/sha3module.c repo/Modules/_hacl/Hacl_Hash_SHA3.c)
 add_python_module(_elementtree repo/Modules/_elementtree.c)
 
-python_patch(Modules/expat/xmlparse.c
-    -e [[s|#ifdef _WIN32\n#  define getpid GetCurrentProcessId|#if defined(_WIN32) \&\& !defined(MOXNOX)\n#  define getpid GetCurrentProcessId|g]]
-)
-
-add_python_module(pyexpat
-    repo/Modules/pyexpat.c
-    ${GEN}/Modules/expat/xmlparse.c
-    repo/Modules/expat/xmlrole.c
-    repo/Modules/expat/xmltok.c
-)
-
-set_source_files_properties(
-    repo/Modules/pyexpat.c
-    repo/Modules/_elementtree.c
-    ${GEN}/Modules/expat/xmlparse.c
-    repo/Modules/expat/xmlrole.c
-    repo/Modules/expat/xmltok.c
-    PROPERTIES
-    COMPILE_DEFINITIONS "XML_STATIC"
-    COMPILE_OPTIONS "-I${CMAKE_CURRENT_SOURCE_DIR}/repo/Modules/expat")
+add_python_module(pyexpat repo/Modules/pyexpat.c)
+target_link_libraries(python_pyexpat PRIVATE expat)
+target_link_libraries(python__elementtree PRIVATE expat)
 
 add_python_module(_blake2
     repo/Modules/_blake2/blake2module.c

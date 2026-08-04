@@ -21,7 +21,7 @@
     "ncurses": [],
     "openssl": [],
     "pixman": [],
-    "python": ["ncurses", "openssl", "readline", "zlib"],
+    "python": ["expat", "ncurses", "openssl", "readline", "zlib"],
     "readline": ["ncurses"],
     "ripgrep": [],
     "rust": [],
