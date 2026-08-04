@@ -216,6 +216,7 @@ readv
 writev
 mkstemp
 mkostemp
+mkdtemp
 
 ; stubs
 mbsinit
@@ -248,7 +249,6 @@ scandir
 alphasort
 ptsname
 nl_langinfo
-mkdtemp
 pthread_rwlock_tryrdlock
 pthread_rwlock_trywrlock
 pthread_atfork

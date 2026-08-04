@@ -1985,3 +1985,56 @@ extern "C"
 int mkstemp(char* tmpl) {
     return mkostemp(tmpl, 0);
 }
+
+extern "C"
+char* mkdtemp(char* tmpl) {
+    auto len = strlen(tmpl);
+
+    if (len < 6) {
+        *_errno() = EINVAL;
+        return nullptr;
+    }
+
+    auto sp = span(tmpl + len - 6, 6);
+
+    for (auto c : sp) {
+        if (c != 'X') {
+            *_errno() = EINVAL;
+            return nullptr;
+        }
+    }
+
+    while (true) {
+        int old_errno;
+
+        auto r = rand();
+
+        sp[0] = mktemp_char((unsigned int)(r % 36));
+        r /= 36;
+        sp[1] = mktemp_char((unsigned int)(r % 36));
+        r /= 36;
+        sp[2] = mktemp_char((unsigned int)(r % 36));
+        r /= 36;
+        sp[3] = mktemp_char((unsigned int)(r % 36));
+        r /= 36;
+        sp[4] = mktemp_char((unsigned int)(r % 36));
+        r /= 36;
+        sp[5] = mktemp_char((unsigned int)(r % 36));
+
+        old_errno = *_errno();
+        *_errno() = 0;
+
+        auto ret = mkdir(tmpl, S_IRWXU);
+        if (ret == -1) {
+            if (*_errno() == EEXIST) {
+                *_errno() = old_errno;
+                continue;
+            } else
+                return nullptr;
+        }
+
+        *_errno() = old_errno;
+
+        return tmpl;
+    }
+}

@@ -216,3 +216,4 @@ readv
 writev
 mkstemp
 mkostemp
+mkdtemp
