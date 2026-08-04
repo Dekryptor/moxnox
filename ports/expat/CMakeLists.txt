@@ -6,6 +6,7 @@ set(EXPAT_BUILD_TESTS OFF)
 set(EXPAT_BUILD_DOCS OFF)
 set(EXPAT_BUILD_PKGCONFIG OFF)
 
+set(CMAKE_MESSAGE_LOG_LEVEL NOTICE) # expat is very chatty
 add_subdirectory(repo/expat)
 
 target_compile_options(expat PRIVATE ${USERSPACE_CFLAGS})
