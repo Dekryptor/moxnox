@@ -72,7 +72,6 @@ add_library(mingwex STATIC
     repo/mingw-w64-crt/misc/mingw_setfp.c
     repo/mingw-w64-crt/misc/getopt.c
     repo/mingw-w64-crt/misc/mingw_matherr.c
-    repo/mingw-w64-crt/misc/mkstemp.c
     repo/mingw-w64-crt/misc/sleep.c
     repo/mingw-w64-crt/misc/wmemchr.c
     repo/mingw-w64-crt/misc/wmemcmp.c
