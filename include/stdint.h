@@ -86,9 +86,17 @@ typedef unsigned long long uintmax_t;
 #if __SIZEOF_POINTER__ == 8
 #define UINTPTR_MAX UINT64_MAX
 #define SIZE_MAX UINT64_MAX
+#define INTPTR_MIN INT64_MIN
+#define INTPTR_MAX INT64_MAX
+#define PTRDIFF_MIN INT64_MIN
+#define PTRDIFF_MAX INT64_MAX
 #else
 #define UINTPTR_MAX UINT32_MAX
 #define SIZE_MAX UINT32_MAX
+#define INTPTR_MIN INT32_MIN
+#define INTPTR_MAX INT32_MAX
+#define PTRDIFF_MIN INT32_MIN
+#define PTRDIFF_MAX INT32_MAX
 #endif
 
 #define INTMAX_MIN INT64_MIN
@@ -97,6 +105,12 @@ typedef unsigned long long uintmax_t;
 
 #define WCHAR_MIN 0
 #define WCHAR_MAX 0xffff
+
+#define WINT_MIN 0
+#define WINT_MAX 0xffff
+
+#define SIG_ATOMIC_MIN INT32_MIN
+#define SIG_ATOMIC_MAX INT32_MAX
 
 #define INT8_C(val) (val)
 #define INT16_C(val) (val)
