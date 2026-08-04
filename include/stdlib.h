@@ -143,6 +143,7 @@ void* aligned_alloc(size_t alignment, size_t size);
 __attribute__((noreturn)) void quick_exit(int status);
 int at_quick_exit(void (*func)(void));
 int putenv(char* string);
+int mkostemp(char* tmpl, int flag);
 
 #ifdef __cplusplus
 }
