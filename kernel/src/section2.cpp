@@ -180,12 +180,184 @@ static span<char> get_section_name(const IMAGE_SECTION_HEADER& s, const IMAGE_FI
     return buf.subspan(end);
 }
 
+static nt_status load_image2(section& s, inode& f, IMAGE_DOS_HEADER& dos_header) {
+    uint32_t section_alignment;
+
+    if (dos_header.e_magic != IMAGE_DOS_SIGNATURE)
+        return nt_status::INVALID_IMAGE_FORMAT;
+
+    // FIXME - make sure we don't read past end of page
+
+    if (dos_header.e_lfanew < sizeof(IMAGE_DOS_HEADER) || dos_header.e_lfanew > PAGE_SIZE - sizeof(IMAGE_NT_HEADERS))
+        return nt_status::INVALID_IMAGE_FORMAT;
+
+    auto& nt_header = *(IMAGE_NT_HEADERS*)((uint8_t*)&dos_header + dos_header.e_lfanew);
+
+    if (nt_header.Signature != IMAGE_NT_SIGNATURE)
+        return nt_status::INVALID_IMAGE_FORMAT;
+
+    s.characteristics = nt_header.FileHeader.Characteristics;
+    s.machine = nt_header.FileHeader.Machine;
+
+    if (nt_header.OptionalHeader32.Magic != IMAGE_NT_OPTIONAL_HDR32_MAGIC &&
+        nt_header.OptionalHeader32.Magic != IMAGE_NT_OPTIONAL_HDR64_MAGIC) {
+        return nt_status::INVALID_IMAGE_FORMAT;
+    }
+
+    // FIXME - check checksum
+
+    // FIXME - check Characteristics & IMAGE_FILE_EXECUTABLE_IMAGE
+
+    if (nt_header.OptionalHeader32.Magic == IMAGE_NT_OPTIONAL_HDR64_MAGIC) {
+        if (nt_header.FileHeader.SizeOfOptionalHeader < sizeof(IMAGE_OPTIONAL_HEADER64))
+            return nt_status::INVALID_IMAGE_FORMAT;
+
+        s.size = nt_header.OptionalHeader64.SizeOfImage;
+        s.size_of_headers = nt_header.OptionalHeader64.SizeOfHeaders;
+        s.preferred_base = nt_header.OptionalHeader64.ImageBase;
+        s.stack_size = nt_header.OptionalHeader64.SizeOfStackReserve;
+        s.entry_point = nt_header.OptionalHeader64.AddressOfEntryPoint;
+        section_alignment = nt_header.OptionalHeader64.SectionAlignment;
+    } else {
+        if (nt_header.FileHeader.SizeOfOptionalHeader < sizeof(IMAGE_OPTIONAL_HEADER32))
+            return nt_status::INVALID_IMAGE_FORMAT;
+
+        s.size = nt_header.OptionalHeader32.SizeOfImage;
+        s.size_of_headers = nt_header.OptionalHeader32.SizeOfHeaders;
+        s.preferred_base = nt_header.OptionalHeader32.ImageBase;
+        s.stack_size = nt_header.OptionalHeader32.SizeOfStackReserve;
+        s.entry_point = nt_header.OptionalHeader32.AddressOfEntryPoint;
+        section_alignment = nt_header.OptionalHeader32.SectionAlignment;
+    }
+
+    if (s.size == 0)
+        return nt_status::INVALID_IMAGE_FORMAT;
+
+    if (s.size_of_headers > s.size)
+        return nt_status::INVALID_IMAGE_FORMAT;
+
+    if (nt_header.FileHeader.NumberOfSections == 0) {
+        print("NumberOfSections was 0\n");
+        return nt_status::INVALID_IMAGE_FORMAT;
+    }
+
+    // FIXME - does this happen in the real world?
+    if (section_alignment % PAGE_SIZE)
+        return nt_status::INVALID_IMAGE_FORMAT;
+
+    s.num_pages = bytes_to_pages(s.size);
+    s.size = s.num_pages << PAGE_SHIFT;
+
+    auto& cache = s.image_cache->cache;
+
+    auto status = cache.pin(0, s.num_pages, nullptr);
+    if (!success(status))
+        return status;
+
+    span<IMAGE_SECTION_HEADER> sections;
+
+    if (nt_header.OptionalHeader32.Magic == IMAGE_NT_OPTIONAL_HDR64_MAGIC)
+        sections = span((IMAGE_SECTION_HEADER*)((uint8_t*)&nt_header.OptionalHeader64 + nt_header.FileHeader.SizeOfOptionalHeader), nt_header.FileHeader.NumberOfSections);
+    else
+        sections = span((IMAGE_SECTION_HEADER*)((uint8_t*)&nt_header.OptionalHeader32 + nt_header.FileHeader.SizeOfOptionalHeader), nt_header.FileHeader.NumberOfSections);
+
+    memset(&s.dwinfo, 0, sizeof(s.dwinfo));
+
+    for (unsigned int i = 0; i < sections.size(); i++) {
+        auto& sect = sections[i];
+        auto section_size = max(sect.VirtualSize, sect.SizeOfRawData);
+        char buf[50];
+        string_view name;
+
+        auto sp = span(buf, sizeof(buf));
+        sp = get_section_name(sect, nt_header.FileHeader, f, sp);
+
+        name = string_view(buf, (size_t)(sp.data() - buf));
+
+        if (name == ".debug_info") {
+            s.dwinfo.debug_info.offset = sect.VirtualAddress;
+            s.dwinfo.debug_info.size = sect.VirtualSize;
+        } else if (name == ".debug_abbrev") {
+            s.dwinfo.debug_abbrev.offset = sect.VirtualAddress;
+            s.dwinfo.debug_abbrev.size = sect.VirtualSize;
+        } else if (name == ".debug_rnglists") {
+            s.dwinfo.debug_rnglists.offset = sect.VirtualAddress;
+            s.dwinfo.debug_rnglists.size = sect.VirtualSize;
+        } else if (name == ".debug_str") {
+            s.dwinfo.debug_str.offset = sect.VirtualAddress;
+            s.dwinfo.debug_str.size = sect.VirtualSize;
+        } else if (name == ".debug_addr") {
+            s.dwinfo.debug_addr.offset = sect.VirtualAddress;
+            s.dwinfo.debug_addr.size = sect.VirtualSize;
+        } else if (name == ".debug_str_offsets") {
+            s.dwinfo.debug_str_offsets.offset = sect.VirtualAddress;
+            s.dwinfo.debug_str_offsets.size = sect.VirtualSize;
+        } else if (name == ".debug_line") {
+            s.dwinfo.debug_line.offset = sect.VirtualAddress;
+            s.dwinfo.debug_line.size = sect.VirtualSize;
+        } else if (name == ".debug_line_str") {
+            s.dwinfo.debug_line_str.offset = sect.VirtualAddress;
+            s.dwinfo.debug_line_str.size = sect.VirtualSize;
+        }
+
+        if (sect.VirtualAddress % section_alignment) {
+            cache.unpin(0, s.num_pages);
+            return nt_status::INVALID_IMAGE_FORMAT;
+        }
+
+        // check for section overlap
+        if (i != 0 && sections[i].VirtualAddress < sections[i - 1].VirtualAddress + sections[i - 1].VirtualSize) {
+            cache.unpin(0, s.num_pages);
+            return nt_status::INVALID_IMAGE_FORMAT;
+        }
+
+        // check for sections out of order (FIXME - is this an issue?)
+        if (i != 0 && sections[i].VirtualAddress < sections[i - 1].VirtualAddress) {
+            cache.unpin(0, s.num_pages);
+            return nt_status::INVALID_IMAGE_FORMAT;
+        }
+
+        // check for section overflow
+        if (sect.VirtualAddress + section_size > s.size) {
+            cache.unpin(0, s.num_pages);
+            return nt_status::INVALID_IMAGE_FORMAT;
+        }
+
+        // check section not out of bounds of file
+        if (sect.SizeOfRawData != 0) {
+            if (sect.PointerToRawData >= f.file_size ||
+                sect.PointerToRawData + sect.SizeOfRawData > f.file_size) {
+                cache.unpin(0, s.num_pages);
+                return nt_status::INVALID_IMAGE_FORMAT;
+            }
+        }
+    }
+
+    s.num_pe_sections = nt_header.FileHeader.NumberOfSections;
+
+    // don't confuse malloc by allowing too many sections
+    if (sizeof(IMAGE_SECTION_HEADER) * s.num_pe_sections > PAGE_SIZE) {
+        cache.unpin(0, s.num_pages);
+        return nt_status::INVALID_IMAGE_FORMAT;
+    }
+
+    s.pe_sections = (IMAGE_SECTION_HEADER*)malloc(sizeof(IMAGE_SECTION_HEADER) * s.num_pe_sections);
+    if (!s.pe_sections) {
+        print("malloc failed\n");
+        cache.unpin(0, s.num_pages);
+        return nt_status::INSUFFICIENT_RESOURCES;
+    }
+
+    memcpy(s.pe_sections, sections.data(), s.num_pe_sections * sizeof(IMAGE_SECTION_HEADER));
+
+    return nt_status::SUCCESS;
+}
+
 nt_status section::load_image() {
     if (!file)
         return nt_status::INVALID_PARAMETER;
 
     auto& f = static_cast<inode&>(file->get().ino);
-    uint32_t section_alignment;
     page_cache_entry* src_p;
     uint64_t read_pages;
 
@@ -203,197 +375,11 @@ nt_status section::load_image() {
         return nt_status::INTERNAL_ERROR;
     }
 
-    auto& dos_header = *(IMAGE_DOS_HEADER*)get_phys_address(*src_p);
-
-    if (dos_header.e_magic != IMAGE_DOS_SIGNATURE) {
-        f.cache.unpin(0, 1);
-        return nt_status::INVALID_IMAGE_FORMAT;
-    }
-
-    // FIXME - make sure we don't read past end of pagae
-
-    if (dos_header.e_lfanew < sizeof(IMAGE_DOS_HEADER) || dos_header.e_lfanew > PAGE_SIZE - sizeof(IMAGE_NT_HEADERS)) {
-        f.cache.unpin(0, 1);
-        return nt_status::INVALID_IMAGE_FORMAT;
-    }
-
-    auto& nt_header = *(IMAGE_NT_HEADERS*)((uint8_t*)get_phys_address(*src_p) + dos_header.e_lfanew);
-
-    if (nt_header.Signature != IMAGE_NT_SIGNATURE) {
-        f.cache.unpin(0, 1);
-        return nt_status::INVALID_IMAGE_FORMAT;
-    }
-
-    characteristics = nt_header.FileHeader.Characteristics;
-    machine = nt_header.FileHeader.Machine;
-
-    if (nt_header.OptionalHeader32.Magic != IMAGE_NT_OPTIONAL_HDR32_MAGIC &&
-        nt_header.OptionalHeader32.Magic != IMAGE_NT_OPTIONAL_HDR64_MAGIC) {
-        f.cache.unpin(0, 1);
-        return nt_status::INVALID_IMAGE_FORMAT;
-    }
-
-    // FIXME - check checksum
-
-    // FIXME - check Characteristics & IMAGE_FILE_EXECUTABLE_IMAGE
-
-    if (nt_header.OptionalHeader32.Magic == IMAGE_NT_OPTIONAL_HDR64_MAGIC) {
-        if (nt_header.FileHeader.SizeOfOptionalHeader < sizeof(IMAGE_OPTIONAL_HEADER64)) {
-            f.cache.unpin(0, 1);
-            return nt_status::INVALID_IMAGE_FORMAT;
-        }
-
-        size = nt_header.OptionalHeader64.SizeOfImage;
-        size_of_headers = nt_header.OptionalHeader64.SizeOfHeaders;
-        preferred_base = nt_header.OptionalHeader64.ImageBase;
-        stack_size = nt_header.OptionalHeader64.SizeOfStackReserve;
-        entry_point = nt_header.OptionalHeader64.AddressOfEntryPoint;
-        section_alignment = nt_header.OptionalHeader64.SectionAlignment;
-    } else {
-        if (nt_header.FileHeader.SizeOfOptionalHeader < sizeof(IMAGE_OPTIONAL_HEADER32)) {
-            f.cache.unpin(0, 1);
-            return nt_status::INVALID_IMAGE_FORMAT;
-        }
-
-        size = nt_header.OptionalHeader32.SizeOfImage;
-        size_of_headers = nt_header.OptionalHeader32.SizeOfHeaders;
-        preferred_base = nt_header.OptionalHeader32.ImageBase;
-        stack_size = nt_header.OptionalHeader32.SizeOfStackReserve;
-        entry_point = nt_header.OptionalHeader32.AddressOfEntryPoint;
-        section_alignment = nt_header.OptionalHeader32.SectionAlignment;
-    }
-
-    if (size == 0) {
-        f.cache.unpin(0, 1);
-        return nt_status::INVALID_IMAGE_FORMAT;
-    }
-
-    if (size_of_headers > size) {
-        f.cache.unpin(0, 1);
-        return nt_status::INVALID_IMAGE_FORMAT;
-    }
-
-    if (nt_header.FileHeader.NumberOfSections == 0) {
-        print("NumberOfSections was 0\n");
-        f.cache.unpin(0, 1);
-        return nt_status::INVALID_IMAGE_FORMAT;
-    }
-
-    // FIXME - does this happen in the real world?
-    if (section_alignment % PAGE_SIZE) {
-        f.cache.unpin(0, 1);
-        return nt_status::INVALID_IMAGE_FORMAT;
-    }
-
-    num_pages = bytes_to_pages(size);
-    size = num_pages << PAGE_SHIFT;
-
-    auto& cache = image_cache->cache;
-
-    status = cache.pin(0, num_pages, nullptr);
-    if (!success(status)) {
-        f.cache.unpin(0, 1);
-        return status;
-    }
+    auto ret = load_image2(*this, f, *(IMAGE_DOS_HEADER*)get_phys_address(*src_p));
 
     f.cache.unpin(0, 1);
 
-    span<IMAGE_SECTION_HEADER> sections;
-
-    if (nt_header.OptionalHeader32.Magic == IMAGE_NT_OPTIONAL_HDR64_MAGIC)
-        sections = span((IMAGE_SECTION_HEADER*)((uint8_t*)&nt_header.OptionalHeader64 + nt_header.FileHeader.SizeOfOptionalHeader), nt_header.FileHeader.NumberOfSections);
-    else
-        sections = span((IMAGE_SECTION_HEADER*)((uint8_t*)&nt_header.OptionalHeader32 + nt_header.FileHeader.SizeOfOptionalHeader), nt_header.FileHeader.NumberOfSections);
-
-    memset(&dwinfo, 0, sizeof(dwinfo));
-
-    for (unsigned int i = 0; i < sections.size(); i++) {
-        auto& sect = sections[i];
-        auto section_size = max(sect.VirtualSize, sect.SizeOfRawData);
-        char buf[50];
-        string_view name;
-
-        auto sp = span(buf, sizeof(buf));
-        sp = get_section_name(sect, nt_header.FileHeader, f, sp);
-
-        name = string_view(buf, (size_t)(sp.data() - buf));
-
-        if (name == ".debug_info") {
-            dwinfo.debug_info.offset = sect.VirtualAddress;
-            dwinfo.debug_info.size = sect.VirtualSize;
-        } else if (name == ".debug_abbrev") {
-            dwinfo.debug_abbrev.offset = sect.VirtualAddress;
-            dwinfo.debug_abbrev.size = sect.VirtualSize;
-        } else if (name == ".debug_rnglists") {
-            dwinfo.debug_rnglists.offset = sect.VirtualAddress;
-            dwinfo.debug_rnglists.size = sect.VirtualSize;
-        } else if (name == ".debug_str") {
-            dwinfo.debug_str.offset = sect.VirtualAddress;
-            dwinfo.debug_str.size = sect.VirtualSize;
-        } else if (name == ".debug_addr") {
-            dwinfo.debug_addr.offset = sect.VirtualAddress;
-            dwinfo.debug_addr.size = sect.VirtualSize;
-        } else if (name == ".debug_str_offsets") {
-            dwinfo.debug_str_offsets.offset = sect.VirtualAddress;
-            dwinfo.debug_str_offsets.size = sect.VirtualSize;
-        } else if (name == ".debug_line") {
-            dwinfo.debug_line.offset = sect.VirtualAddress;
-            dwinfo.debug_line.size = sect.VirtualSize;
-        } else if (name == ".debug_line_str") {
-            dwinfo.debug_line_str.offset = sect.VirtualAddress;
-            dwinfo.debug_line_str.size = sect.VirtualSize;
-        }
-
-        if (sect.VirtualAddress % section_alignment) {
-            cache.unpin(0, num_pages);
-            return nt_status::INVALID_IMAGE_FORMAT;
-        }
-
-        // check for section overlap
-        if (i != 0 && sections[i].VirtualAddress < sections[i - 1].VirtualAddress + sections[i - 1].VirtualSize) {
-            cache.unpin(0, num_pages);
-            return nt_status::INVALID_IMAGE_FORMAT;
-        }
-
-        // check for sections out of order (FIXME - is this an issue?)
-        if (i != 0 && sections[i].VirtualAddress < sections[i - 1].VirtualAddress) {
-            cache.unpin(0, num_pages);
-            return nt_status::INVALID_IMAGE_FORMAT;
-        }
-
-        // check for section overflow
-        if (sect.VirtualAddress + section_size > size) {
-            cache.unpin(0, num_pages);
-            return nt_status::INVALID_IMAGE_FORMAT;
-        }
-
-        // check section not out of bounds of file
-        if (sect.SizeOfRawData != 0) {
-            if (sect.PointerToRawData >= f.file_size ||
-                sect.PointerToRawData + sect.SizeOfRawData > f.file_size) {
-                cache.unpin(0, num_pages);
-                return nt_status::INVALID_IMAGE_FORMAT;
-            }
-        }
-    }
-
-    // don't confuse malloc by allowing too many sections
-    if (sizeof(IMAGE_SECTION_HEADER) * num_pe_sections > PAGE_SIZE) {
-        cache.unpin(0, num_pages);
-        return nt_status::INVALID_IMAGE_FORMAT;
-    }
-
-    num_pe_sections = nt_header.FileHeader.NumberOfSections;
-    pe_sections = (IMAGE_SECTION_HEADER*)malloc(sizeof(IMAGE_SECTION_HEADER) * num_pe_sections);
-    if (!pe_sections) {
-        print("malloc failed\n");
-        cache.unpin(0, num_pages);
-        return nt_status::INSUFFICIENT_RESOURCES;
-    }
-
-    memcpy(pe_sections, sections.data(), num_pe_sections * sizeof(IMAGE_SECTION_HEADER));
-
-    return nt_status::SUCCESS;
+    return ret;
 }
 
 static uint64_t search_exports(span<uint8_t> dir, uint64_t offset, string_view name) {
