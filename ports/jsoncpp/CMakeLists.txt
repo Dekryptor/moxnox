@@ -9,6 +9,7 @@ set(BUILD_OBJECT_LIBS OFF)
 # work round broken jsoncpp check
 set(ITK_BINARY_DIR "unused")
 
+set(CMAKE_MESSAGE_LOG_LEVEL NOTICE) # jsoncpp is chatty
 add_subdirectory(repo)
 
 add_custom_target(jsoncpp)
