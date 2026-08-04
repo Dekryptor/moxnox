@@ -248,12 +248,6 @@ static nt_status load_image2(section& s, inode& f, IMAGE_DOS_HEADER& dos_header)
     s.num_pages = bytes_to_pages(s.size);
     s.size = s.num_pages << PAGE_SHIFT;
 
-    auto& cache = s.image_cache->cache;
-
-    auto status = cache.pin(0, s.num_pages, nullptr);
-    if (!success(status))
-        return status;
-
     span<IMAGE_SECTION_HEADER> sections;
 
     if (nt_header.OptionalHeader32.Magic == IMAGE_NT_OPTIONAL_HDR64_MAGIC)
@@ -300,34 +294,25 @@ static nt_status load_image2(section& s, inode& f, IMAGE_DOS_HEADER& dos_header)
             s.dwinfo.debug_line_str.size = sect.VirtualSize;
         }
 
-        if (sect.VirtualAddress % section_alignment) {
-            cache.unpin(0, s.num_pages);
+        if (sect.VirtualAddress % section_alignment)
             return nt_status::INVALID_IMAGE_FORMAT;
-        }
 
         // check for section overlap
-        if (i != 0 && sections[i].VirtualAddress < sections[i - 1].VirtualAddress + sections[i - 1].VirtualSize) {
-            cache.unpin(0, s.num_pages);
+        if (i != 0 && sections[i].VirtualAddress < sections[i - 1].VirtualAddress + sections[i - 1].VirtualSize)
             return nt_status::INVALID_IMAGE_FORMAT;
-        }
 
         // check for sections out of order (FIXME - is this an issue?)
-        if (i != 0 && sections[i].VirtualAddress < sections[i - 1].VirtualAddress) {
-            cache.unpin(0, s.num_pages);
+        if (i != 0 && sections[i].VirtualAddress < sections[i - 1].VirtualAddress)
             return nt_status::INVALID_IMAGE_FORMAT;
-        }
 
         // check for section overflow
-        if (sect.VirtualAddress + section_size > s.size) {
-            cache.unpin(0, s.num_pages);
+        if (sect.VirtualAddress + section_size > s.size)
             return nt_status::INVALID_IMAGE_FORMAT;
-        }
 
         // check section not out of bounds of file
         if (sect.SizeOfRawData != 0) {
             if (sect.PointerToRawData >= f.file_size ||
                 sect.PointerToRawData + sect.SizeOfRawData > f.file_size) {
-                cache.unpin(0, s.num_pages);
                 return nt_status::INVALID_IMAGE_FORMAT;
             }
         }
@@ -337,14 +322,12 @@ static nt_status load_image2(section& s, inode& f, IMAGE_DOS_HEADER& dos_header)
 
     // don't confuse malloc by allowing too many sections
     if (sizeof(IMAGE_SECTION_HEADER) * s.num_pe_sections > PAGE_SIZE) {
-        cache.unpin(0, s.num_pages);
         return nt_status::INVALID_IMAGE_FORMAT;
     }
 
     s.pe_sections = (IMAGE_SECTION_HEADER*)malloc(sizeof(IMAGE_SECTION_HEADER) * s.num_pe_sections);
     if (!s.pe_sections) {
         print("malloc failed\n");
-        cache.unpin(0, s.num_pages);
         return nt_status::INSUFFICIENT_RESOURCES;
     }
 
