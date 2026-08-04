@@ -1918,3 +1918,70 @@ ssize_t writev(int fd, const iovec* iov, int iovcnt) {
 
     return (ssize_t)bytes;
 }
+
+static char mktemp_char(unsigned int i) {
+    if (i < 10)
+        return (char)('0' + i);
+    else
+        return (char)('a' + i - 10);
+}
+
+extern "C"
+int mkostemp(char* tmpl, int flag) {
+    auto len = strlen(tmpl);
+
+    if (len < 6) {
+        *_errno() = EINVAL;
+        return -1;
+    }
+
+    auto sp = span(tmpl + len - 6, 6);
+
+    for (auto c : sp) {
+        if (c != 'X') {
+            *_errno() = EINVAL;
+            return -1;
+        }
+    }
+
+    while (true) {
+        int old_errno;
+
+        auto r = rand();
+
+        sp[0] = mktemp_char((unsigned int)(r % 36));
+        r /= 36;
+        sp[1] = mktemp_char((unsigned int)(r % 36));
+        r /= 36;
+        sp[2] = mktemp_char((unsigned int)(r % 36));
+        r /= 36;
+        sp[3] = mktemp_char((unsigned int)(r % 36));
+        r /= 36;
+        sp[4] = mktemp_char((unsigned int)(r % 36));
+        r /= 36;
+        sp[5] = mktemp_char((unsigned int)(r % 36));
+
+        old_errno = *_errno();
+        *_errno() = 0;
+
+        auto fd = open(tmpl, O_RDWR | O_CREAT | O_EXCL | flag,
+                       S_IRUSR | S_IWUSR);
+
+        if (fd == -1) {
+            if (*_errno() == EEXIST) {
+                *_errno() = old_errno;
+                continue;
+            } else
+                return -1;
+        }
+
+        *_errno() = old_errno;
+
+        return fd;
+    }
+}
+
+extern "C"
+int mkstemp(char* tmpl) {
+    return mkostemp(tmpl, 0);
+}

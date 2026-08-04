@@ -41,6 +41,5 @@ do_stub "pthread_getschedparam"
 do_stub "pthread_setschedparam"
 do_stub "sched_get_priority_min"
 do_stub "sched_get_priority_max"
-do_stub "mkstemp"
 
 stubs_end
