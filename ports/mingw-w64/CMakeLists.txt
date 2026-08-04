@@ -168,7 +168,7 @@ set(gcrt2_src repo/mingw-w64-crt/profile/gcrt0.c)
 set(crtbegin_src repo/mingw-w64-crt/crt/crtbegin.c)
 set(crtend_src repo/mingw-w64-crt/crt/crtend.c)
 
-foreach(crtobj crt2 dllcrt2 gcrt2 crtbegin crtend)
+foreach(crtobj crt2 gcrt2 crtbegin crtend)
     add_library(${crtobj}_obj OBJECT ${${crtobj}_src})
 
     target_compile_definitions(${crtobj}_obj PRIVATE -D_CRTIMP= -D_UCRT -D_CRTBLD -D_WIN32 -D_WIN64 -D__MINGW32__)
@@ -184,6 +184,58 @@ foreach(crtobj crt2 dllcrt2 gcrt2 crtbegin crtend)
 
     add_custom_target(${crtobj} ALL DEPENDS ${CMAKE_CURRENT_BINARY_DIR}/${crtobj}.o)
 endforeach()
+
+###
+
+add_library(dllcrt2_obj OBJECT ${dllcrt2_src})
+
+target_compile_definitions(dllcrt2_obj PRIVATE -D_CRTIMP= -D_UCRT -D_CRTBLD -D_WIN32 -D_WIN64 -D__MINGW32__)
+target_include_directories(dllcrt2_obj PRIVATE ${CMAKE_CURRENT_BINARY_DIR} repo/mingw-w64-headers/crt repo/mingw-w64-crt/include repo/mingw-w64-headers/include)
+target_compile_options(dllcrt2_obj PRIVATE -fno-stack-protector)
+
+if(NOT CMAKE_NM)
+    message(FATAL_ERROR "CMAKE_NM is not set; needed to generate the exclude-symbols list")
+endif()
+
+if(CMAKE_C_COMPILER_ID STREQUAL "GNU")
+    execute_process(
+        COMMAND ${CMAKE_C_COMPILER} -print-file-name=libgcc.a
+        OUTPUT_VARIABLE EXCLUDE_SYMBOLS_LIBGCC
+        OUTPUT_STRIP_TRAILING_WHITESPACE
+    )
+    execute_process(
+        COMMAND ${CMAKE_C_COMPILER} -print-file-name=libgcc_eh.a
+        OUTPUT_VARIABLE EXCLUDE_SYMBOLS_LIBGCC_EH
+        OUTPUT_STRIP_TRAILING_WHITESPACE
+    )
+    set(EXCLUDE_SYMBOLS_COMPILER_LIBS ${EXCLUDE_SYMBOLS_LIBGCC} ${EXCLUDE_SYMBOLS_LIBGCC_EH})
+else()
+    set(EXCLUDE_SYMBOLS_COMPILER_LIBS "")
+endif()
+list(JOIN EXCLUDE_SYMBOLS_COMPILER_LIBS " " EXCLUDE_SYMBOLS_COMPILER_LIBS_STR)
+
+add_custom_command(
+    OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/exclude-symbols.s
+    COMMAND sh -c "{ printf '.section .drectve\\n' && ${CMAKE_NM} -g --defined-only $<TARGET_FILE:mingw32> $<TARGET_FILE:mingwex> $<TARGET_FILE:ucrtbase_static> ${EXCLUDE_SYMBOLS_COMPILER_LIBS_STR} | awk 'NF==3 { print $3 }' | sort -u | awk '{ printf \" .ascii \\\" -exclude-symbols:%s\\\"\\n\", $1 }' ; } > ${CMAKE_CURRENT_BINARY_DIR}/exclude-symbols.s"
+    DEPENDS mingw32 mingwex ucrtbase_static $<TARGET_FILE:mingw32> $<TARGET_FILE:mingwex> $<TARGET_FILE:ucrtbase_static> ${EXCLUDE_SYMBOLS_COMPILER_LIBS}
+    VERBATIM
+)
+
+add_library(exclude_symbols_obj OBJECT ${CMAKE_CURRENT_BINARY_DIR}/exclude-symbols.s)
+
+add_custom_command(
+    OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/dllcrt2.o
+    COMMAND ${CMAKE_COMMAND} -E copy $<TARGET_OBJECTS:dllcrt2_obj> ${CMAKE_CURRENT_BINARY_DIR}/dllcrt2.o
+    COMMAND sh -c ": > ${CMAKE_CURRENT_BINARY_DIR}/dllcrt2-drectve.bin ; ${CMAKE_OBJCOPY} --dump-section .drectve=${CMAKE_CURRENT_BINARY_DIR}/dllcrt2-drectve.bin $<TARGET_OBJECTS:dllcrt2_obj> ${CMAKE_CURRENT_BINARY_DIR}/dllcrt2-scratch.o 2>/dev/null || true"
+    COMMAND ${CMAKE_OBJCOPY} --dump-section .drectve=${CMAKE_CURRENT_BINARY_DIR}/exclude-symbols.bin $<TARGET_OBJECTS:exclude_symbols_obj> ${CMAKE_CURRENT_BINARY_DIR}/exclude-symbols-scratch.o
+    COMMAND sh -c "cat ${CMAKE_CURRENT_BINARY_DIR}/dllcrt2-drectve.bin ${CMAKE_CURRENT_BINARY_DIR}/exclude-symbols.bin > ${CMAKE_CURRENT_BINARY_DIR}/dllcrt2-drectve-combined.bin"
+    COMMAND ${CMAKE_OBJCOPY} --remove-section .drectve ${CMAKE_CURRENT_BINARY_DIR}/dllcrt2.o
+    COMMAND ${CMAKE_OBJCOPY} --add-section .drectve=${CMAKE_CURRENT_BINARY_DIR}/dllcrt2-drectve-combined.bin ${CMAKE_CURRENT_BINARY_DIR}/dllcrt2.o
+    DEPENDS dllcrt2_obj $<TARGET_OBJECTS:dllcrt2_obj> exclude_symbols_obj $<TARGET_OBJECTS:exclude_symbols_obj>
+    VERBATIM
+)
+
+add_custom_target(dllcrt2 ALL DEPENDS ${CMAKE_CURRENT_BINARY_DIR}/dllcrt2.o)
 
 ###
 
