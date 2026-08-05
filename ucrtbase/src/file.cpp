@@ -86,6 +86,7 @@ struct fd {
 extern "C" void (*mn_handle_exec_info)(exec_info* info) __declspec(dllimport);
 
 static void handle_exec_info(exec_info* info);
+extern "C" size_t __fwrite_nolock(const void* ptr, size_t size, size_t n, FILE* file);
 
 static array<fd, 2048> fds;
 
@@ -169,21 +170,14 @@ void __unlock_file(FILE* file) {
 
 extern "C"
 int __fputc_nolock(int c, FILE* file) {
-    auto& f = *reinterpret_cast<_FILE*>(file);
+    auto v = (uint8_t)c;
 
-    IO_STATUS_BLOCK iosb;
-    char s[1];
+    auto ret = __fwrite_nolock(&v, 1, 1, file);
 
-    // FIXME - buffering
-
-    s[0] = (char)c;
-
-    auto status = NtWriteFile(f.h, 0, nullptr, nullptr, &iosb, s, 1,
-                              nullptr, nullptr);
-    if (!success(status))
+    if (ret == 0)
         return EOF;
 
-    return (int)s[0];
+    return (int)v;
 }
 
 extern "C"
