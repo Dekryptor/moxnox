@@ -909,6 +909,10 @@ int __fseeki64_nolock(FILE* file, int64_t offset, int whence) {
     IO_STATUS_BLOCK iosb;
     nt_status status;
 
+    auto ret = _fflush_nolock(file);
+    if (ret == EOF)
+        return -1;
+
     switch (whence) {
         case SEEK_SET:
             start = 0;
