@@ -262,3 +262,4 @@ export nt_status pin_iovecs_for_reading(process& proc,
                                         optional<rangelock_req>& rlr,
                                         span<const uint8_t>*& spans,
                                         size_t& num_spans);
+export void send_tracepoint_ipi();

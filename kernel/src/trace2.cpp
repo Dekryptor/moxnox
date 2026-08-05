@@ -1,8 +1,10 @@
 module;
 
 #include <stdint.h>
+#include <string.h>
 #include <span>
 #include <string_view>
+#include <mutex>
 
 module trace;
 
@@ -12,8 +14,28 @@ import print;
 import handle;
 import object_ref;
 import moxnox_ioctls;
+import kernel_images;
+import list;
+import rwsem;
+import mem;
+import config;
+import process;
 
 using namespace std;
+
+struct image_trace_point {
+    uint32_t rva_name;
+    uint32_t rva_args;
+    uint32_t rva_addr;
+};
+
+struct active_trace_point {
+    active_trace_point(kernel_image& img, image_trace_point& tp) : img(img), tp(tp) { }
+
+    list_entry le;
+    kernel_image& img;
+    image_trace_point& tp;
+};
 
 class tracectl : public chardev {
 public:
@@ -33,6 +55,9 @@ public:
                     span<uint8_t> outbuf, uintptr_t& written) override;
 };
 
+static rwsem trace_point_lock;
+static list_entry active_trace_points = { &active_trace_points, &active_trace_points };
+
 bool create_dev_tracectl() {
     auto pptr = new tracectl;
     if (!pptr) {
@@ -51,13 +76,82 @@ bool create_dev_tracectl() {
     return true;
 }
 
+static nt_status do_enable_tracepoint(kernel_image& img, image_trace_point& tp) {
+    auto atp = new active_trace_point(img, tp);
+    if (!atp) {
+        print("new failed\n");
+        return nt_status::INSUFFICIENT_RESOURCES;
+    }
+
+    bool already_done = false;
+
+    {
+        lock_guard lock(trace_point_lock);
+
+        for (auto le = active_trace_points.next; le != &active_trace_points; le = le->next) {
+            auto& atp2 = containing_record<active_trace_point>(le);
+
+            if (&atp2.tp == &tp) {
+                already_done = true;
+                break;
+            }
+        }
+
+        if (!already_done) {
+            insert_tail_list(active_trace_points, atp->le);
+
+            auto addr = (uintptr_t)((uint8_t*)img.base_address + tp.rva_addr);
+            auto pa = va_to_pa_lookup(addr & ~(PAGE_SIZE - 1)) | (addr & (PAGE_SIZE - 1));
+
+#ifdef __x86_64__
+            *(uint8_t*)phys_address(pa) = 0xcc; // int 3
+            send_tracepoint_ipi();
+            // FIXME - change bytes 1 to 4 to RVA
+            // FIXME - change byte 0 to e9
+#endif
+        }
+    }
+
+    if (already_done) {
+        delete atp;
+        return nt_status::SUCCESS;
+    }
+
+    return nt_status::SUCCESS;
+}
+
+static nt_status image_enable_tracepoint(kernel_image& img, string_view name) {
+
+    if (img.trace.empty())
+        return nt_status::NOT_FOUND;
+
+    auto tps = span((image_trace_point*)img.trace.data(), img.trace.size() / sizeof(image_trace_point));
+
+    for (auto& tp : tps) {
+        auto* tp_name = (char*)img.base_address + tp.rva_name;
+
+        if (!memcmp(tp_name, name.data(), name.size()) && tp_name[name.size()] == 0)
+            return do_enable_tracepoint(img, tp);
+    }
+
+    return nt_status::NOT_FOUND;
+}
+
 static nt_status enable_tracepoint(string_view name) {
+    nt_status status;
+
     if (name.empty())
         return nt_status::INVALID_PARAMETER;
 
-    print("FIXME - enable tracepoint \"{}\"\n", name);
+    for (auto le = kernel_images.next; le != &kernel_images; le = le->next) {
+        auto& img = containing_record<kernel_image>(le);
 
-    return nt_status::SUCCESS;
+        status = image_enable_tracepoint(img, name);
+        if (status != nt_status::NOT_FOUND)
+            return status;
+    }
+
+    return nt_status::NOT_FOUND;
 }
 
 nt_status tracectl::ioctl(uint32_t code, span<const uint8_t> inbuf,

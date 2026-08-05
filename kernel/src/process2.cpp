@@ -6651,3 +6651,35 @@ nt_status pin_iovecs_for_reading(process& proc, span<const iovec> vecs,
 
     return nt_status::SUCCESS;
 }
+
+void send_tracepoint_ipi() {
+    lock_guard lock(ipi_lock);
+
+    disable_preempt();
+
+    auto& cb = *get_cpu_block();
+
+    tlb_va = 0;
+    tlb_num_pages = 0;
+
+    tlb_cpus_left = 1;
+
+    for (uint8_t i = 0; i < num_cpus; i++) {
+        if (i == cb.cpu_no)
+            continue;
+
+        send_tlb_ipi(i);
+    }
+
+    tlb_cpus_left--;
+
+    while (tlb_cpus_left.load(memory_order_acquire) > 0) {
+#ifdef __x86_64__
+        __asm("pause");
+#elifdef __aarch64__
+        __asm("yield");
+#endif
+    }
+
+    enable_preempt();
+}

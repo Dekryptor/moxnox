@@ -1541,6 +1541,8 @@ void breakpoint_kernel() {
     auto& cb = *get_cpu_block();
     auto current_thread = cb.current_thread;
 
+    // FIXME - check if breakpoint
+
     char s[1024];
     auto sp = span(s, sizeof(s));
 
