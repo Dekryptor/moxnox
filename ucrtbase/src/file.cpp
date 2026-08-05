@@ -74,6 +74,9 @@ struct _FILE {
     struct {
         uint8_t* data = nullptr;
         size_t filled = 0;
+        size_t consumed = 0;
+        size_t read_bytes = 0;
+        bool reading = true;
     } buffer;
 };
 
@@ -87,6 +90,7 @@ extern "C" void (*mn_handle_exec_info)(exec_info* info) __declspec(dllimport);
 
 static void handle_exec_info(exec_info* info);
 extern "C" size_t __fwrite_nolock(const void* ptr, size_t size, size_t n, FILE* file);
+extern "C" int _fflush_nolock(FILE* file);
 
 static array<fd, 2048> fds;
 
@@ -444,9 +448,11 @@ extern "C"
 size_t __fread_nolock(void* ptr, size_t size, size_t n, FILE* file) {
     auto& f = *reinterpret_cast<_FILE*>(file);
     IO_STATUS_BLOCK iosb;
-    size_t bytes = size * n, ungetc_bytes = 0;
+    size_t bytes = size * n, read = 0;
+    nt_status status;
 
-    // FIXME - buffering
+    if (size == 0 || n == 0)
+        return 0;
 
     if (f.memstream) {
         *_errno() = EBADF;
@@ -462,23 +468,82 @@ size_t __fread_nolock(void* ptr, size_t size, size_t n, FILE* file) {
 
         ptr = (uint8_t*)ptr + 1;
         bytes--;
-        ungetc_bytes = 1;
+        read = 1;
     }
 
-    auto status = NtReadFile(f.h, 0, nullptr, nullptr, &iosb, ptr,
-                             (uint32_t)bytes, nullptr, nullptr);
-    if (status == nt_status::END_OF_FILE) {
+    if (!f.buffer.reading) {
+        _fflush_nolock(file);
+        f.buffer.reading = true;
+    }
+
+    if (f.buffer.consumed < f.buffer.read_bytes) {
+        auto to_copy = min(f.buffer.read_bytes - f.buffer.consumed, bytes);
+
+        memcpy(ptr, f.buffer.data + f.buffer.consumed, to_copy);
+        f.buffer.consumed += to_copy;
+        ptr = (uint8_t*)ptr + to_copy;
+        bytes -= to_copy;
+        read += to_copy;
+    }
+
+    if (f.buffer.consumed == f.buffer.read_bytes && bytes > 0) {
+        if (!f.buffer.data) {
+            f.buffer.data = (uint8_t*)malloc(BUFFER_SIZE);
+            if (!f.buffer.data) {
+                *__errno() = ENOMEM;
+                f.error = true;
+                return 0;
+            }
+        }
+
+        auto sp = span(f.buffer.data, BUFFER_SIZE);
+        size_t read_bytes = 0;
+
+        status = NtReadFile(f.h, 0, nullptr, nullptr, &iosb, sp.data(),
+                            (uint32_t)sp.size(), nullptr, nullptr);
+        if (status != nt_status::END_OF_FILE && !success(status)) {
+            if (read == 0) {
+                *__errno() = nt_status_to_errno(status);
+                f.error = true;
+            }
+
+            return read / size;
+        } else if (status != nt_status::END_OF_FILE)
+            read_bytes = iosb.Information;
+
+        f.buffer.read_bytes = read_bytes;
+        f.buffer.consumed = 0;
+
+        auto to_copy = min(read_bytes, bytes);
+
+        memcpy(ptr, f.buffer.data + f.buffer.consumed, to_copy);
+        f.buffer.consumed += to_copy;
+        ptr = (uint8_t*)ptr + to_copy;
+        bytes -= to_copy;
+        read += to_copy;
+    }
+
+    if (bytes == 0)
+        return read / size;
+
+    status = NtReadFile(f.h, 0, nullptr, nullptr, &iosb, ptr, (uint32_t)bytes,
+                        nullptr, nullptr);
+    if (status == nt_status::END_OF_FILE)
         f.eof = true;
-        return ungetc_bytes;
-    } else if (!success(status)) {
+    else if (!success(status) && read == 0) {
+        *__errno() = nt_status_to_errno(status);
         f.error = true;
-        return ungetc_bytes;
+        return 0;
     }
 
-    if (iosb.Information < bytes)
-        f.eof = true;
+    if (success(status)) {
+        read += iosb.Information;
 
-    return iosb.Information + ungetc_bytes;
+        if (iosb.Information < bytes)
+            f.eof = true;
+    }
+
+    return read / size;
 }
 
 extern "C"
@@ -528,6 +593,12 @@ size_t __fwrite_nolock(const void* ptr, size_t size, size_t n, FILE* file) {
 
         // FIXME - _IONBF
         // FIXME - _IOLBF
+
+        if (f.buffer.reading) {
+            f.buffer.consumed = 0;
+            f.buffer.read_bytes = 0;
+            f.buffer.reading = false;
+        }
 
         if (f.buffer.filled < BUFFER_SIZE) {
             if (!f.buffer.data) {
@@ -643,7 +714,10 @@ int _fflush_nolock(FILE* file) {
 
         return 0;
     } else {
-        if (f.buffer.filled > 0) {
+        if (f.buffer.reading && f.buffer.read_bytes > 0) {
+            f.buffer.consumed = 0;
+            f.buffer.read_bytes = 0;
+        } else if (!f.buffer.reading && f.buffer.filled > 0) {
             size_t buffer_written = 0;
             auto sp = span(f.buffer.data, f.buffer.filled);
 
@@ -780,8 +854,6 @@ int __fgetc_nolock(FILE* file) {
         return (int)c;
     }
 
-    // FIXME - buffering
-
     auto ret = __fread_nolock(&c, 1, 1, file);
     if (ret == 0)
         return EOF;
@@ -873,7 +945,10 @@ int64_t __ftelli64_nolock(FILE* file) {
     if (f.ungetc_char.has_value())
         ret--;
 
-    ret += f.buffer.filled;
+    if (f.buffer.reading)
+        ret -= f.buffer.read_bytes - f.buffer.consumed;
+    else
+        ret += f.buffer.filled;
 
     return ret;
 }
