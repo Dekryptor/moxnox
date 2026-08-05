@@ -714,9 +714,29 @@ int _fflush_nolock(FILE* file) {
 
         return 0;
     } else {
-        if (f.buffer.reading && f.buffer.read_bytes > 0) {
+        if (f.buffer.reading && (f.buffer.read_bytes > f.buffer.consumed || f.ungetc_char.has_value())) {
+            FILE_POSITION_INFORMATION fpi;
+            IO_STATUS_BLOCK iosb;
+
+            auto status = NtQueryInformationFile(f.h, &iosb, &fpi, sizeof(fpi),
+                                                 FILE_INFORMATION_CLASS::PositionInformation);
+            if (!success(status))
+                return 0;
+
+            fpi.CurrentByteOffset.QuadPart -= f.buffer.read_bytes - f.buffer.consumed;
+
+            if (f.ungetc_char.has_value())
+                fpi.CurrentByteOffset.QuadPart--;
+
+            status = NtSetInformationFile(f.h, &iosb, &fpi, sizeof(fpi),
+                                          FILE_INFORMATION_CLASS::PositionInformation);
+            if (!success(status))
+                return 0;
+
             f.buffer.consumed = 0;
             f.buffer.read_bytes = 0;
+            f.ungetc_char = nullopt;
+            f.ungetwc_char = nullopt;
         } else if (!f.buffer.reading && f.buffer.filled > 0) {
             size_t buffer_written = 0;
             auto sp = span(f.buffer.data, f.buffer.filled);
