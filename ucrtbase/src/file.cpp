@@ -73,10 +73,13 @@ struct _FILE {
 
     struct {
         uint8_t* data = nullptr;
+        size_t size = BUFFER_SIZE;
         size_t filled = 0;
         size_t consumed = 0;
         size_t read_bytes = 0;
         bool reading = true;
+        bool user_allocated = false;
+        int mode = _IOFBF;
     } buffer;
 };
 
@@ -221,7 +224,7 @@ _FILE::~_FILE() {
         RtlLeaveCriticalSection(&fds_lock);
     }
 
-    if (buffer.data)
+    if (buffer.data && !buffer.user_allocated)
         free(buffer.data);
 }
 
@@ -488,7 +491,7 @@ size_t __fread_nolock(void* ptr, size_t size, size_t n, FILE* file) {
 
     if (f.buffer.consumed == f.buffer.read_bytes && bytes > 0) {
         if (!f.buffer.data) {
-            f.buffer.data = (uint8_t*)malloc(BUFFER_SIZE);
+            f.buffer.data = (uint8_t*)malloc(f.buffer.size);
             if (!f.buffer.data) {
                 *__errno() = ENOMEM;
                 f.error = true;
@@ -496,7 +499,7 @@ size_t __fread_nolock(void* ptr, size_t size, size_t n, FILE* file) {
             }
         }
 
-        auto sp = span(f.buffer.data, BUFFER_SIZE);
+        auto sp = span(f.buffer.data, f.buffer.size);
         size_t read_bytes = 0;
 
         status = NtReadFile(f.h, 0, nullptr, nullptr, &iosb, sp.data(),
@@ -600,9 +603,9 @@ size_t __fwrite_nolock(const void* ptr, size_t size, size_t n, FILE* file) {
             f.buffer.reading = false;
         }
 
-        if (f.buffer.filled < BUFFER_SIZE) {
+        if (f.buffer.filled < f.buffer.size) {
             if (!f.buffer.data) {
-                f.buffer.data = (uint8_t*)malloc(BUFFER_SIZE);
+                f.buffer.data = (uint8_t*)malloc(f.buffer.size);
                 if (!f.buffer.data) {
                     *__errno() = ENOMEM;
                     f.error = true;
@@ -610,7 +613,7 @@ size_t __fwrite_nolock(const void* ptr, size_t size, size_t n, FILE* file) {
                 }
             }
 
-            auto to_copy = min(BUFFER_SIZE - f.buffer.filled, bytes);
+            auto to_copy = min(f.buffer.size - f.buffer.filled, bytes);
 
             memcpy(f.buffer.data + f.buffer.filled, ptr, to_copy);
             f.buffer.filled += to_copy;
@@ -619,9 +622,9 @@ size_t __fwrite_nolock(const void* ptr, size_t size, size_t n, FILE* file) {
             written += to_copy;
         }
 
-        if (f.buffer.filled == BUFFER_SIZE) {
+        if (f.buffer.filled == f.buffer.size) {
             size_t buffer_written = 0;
-            auto sp = span(f.buffer.data, BUFFER_SIZE);
+            auto sp = span(f.buffer.data, f.buffer.size);
 
             while (!sp.empty()) {
                 status = NtWriteFile(f.h, 0, nullptr, nullptr, &iosb,
@@ -635,7 +638,7 @@ size_t __fwrite_nolock(const void* ptr, size_t size, size_t n, FILE* file) {
 
                     if (buffer_written > 0) {
                         memmove(f.buffer.data, f.buffer.data + buffer_written,
-                                BUFFER_SIZE - buffer_written);
+                                f.buffer.size - buffer_written);
                         f.buffer.filled -= buffer_written;
                     }
 
@@ -1194,8 +1197,32 @@ int __stdio_common_vfwprintf(uint64_t /*options*/, FILE* file,
 }
 
 extern "C"
-int setvbuf(FILE* /*stream*/, char* /*buffer*/, int /*mode*/, size_t /*size*/) {
-    // FIXME - change buffering mode of stream?
+int setvbuf(FILE* file, char* buffer, int mode, size_t size) {
+    auto& f = *reinterpret_cast<_FILE*>(file);
+
+    if (mode != _IOFBF && mode != _IOLBF && mode != _IONBF) {
+        *__errno() = EINVAL;
+        return -1;
+    }
+
+    __lock_file(file);
+
+    if (f.buffer.data) {
+        __unlock_file(file);
+        *__errno() = EINVAL;
+        return -1;
+    }
+
+    if (buffer) {
+        f.buffer.data = (uint8_t*)buffer;
+        f.buffer.size = size;
+        f.buffer.user_allocated = true;
+    } else if (size != 0)
+        f.buffer.size = size;
+
+    f.buffer.mode = mode;
+
+    __unlock_file(file);
 
     return 0;
 }
