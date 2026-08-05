@@ -2556,6 +2556,8 @@ FILE* freopen(const char* path, const char* mode, FILE* file) {
 
     __lock_file(file);
 
+    _fflush_nolock(file);
+
     RtlEnterCriticalSection(&fds_lock);
     fds[(size_t)f.fd].h = 0;
     RtlLeaveCriticalSection(&fds_lock);
@@ -2565,8 +2567,14 @@ FILE* freopen(const char* path, const char* mode, FILE* file) {
     f.h = h;
     f.fd = fd;
     f.ungetc_char.reset();
+    f.ungetwc_char.reset();
     f.error = false;
     f.eof = false;
+    f.getwc_surrogate = 0;
+    f.putwc_surrogate = 0;
+    f.buffer.filled = 0;
+    f.buffer.consumed = 0;
+    f.buffer.read_bytes = 0;
 
     __unlock_file(file);
 
