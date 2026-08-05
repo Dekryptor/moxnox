@@ -8,6 +8,7 @@ import nt;
 import ucrtbase;
 import ntdll;
 import print;
+import file;
 
 using namespace std;
 
@@ -40,6 +41,8 @@ void _cexit() {
     for (size_t i = 0; i < num_atexit_funcs; i++) {
         atexit_funcs[num_atexit_funcs - i - 1]();
     }
+
+    _fflush(nullptr);
 }
 
 extern "C"
