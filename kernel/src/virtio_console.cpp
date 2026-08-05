@@ -209,36 +209,64 @@ nt_status virtio_console<T>::write(span<const span<const uint8_t>> v,
         return nt_status::SUCCESS;
     }
 
-    written_bytes = 0;
+    size_t vec_count = 0;
+    uint64_t read_bytes;
+
+    // FIXME - this should be capped at queue size
+    static const size_t MAX_VEC_COUNT = PAGE_SIZE / sizeof(virtq_desc);
 
     for (auto s : v) {
-        bool clipped = false;
-
         if (s.empty())
             continue;
 
-        // FIXME - only so we don't do an overly large malloc (should be able to do this without copying)
-        if (s.size() > PAGE_SIZE) {
-            s = span(s.data(), PAGE_SIZE);
-            clipped = true;
-        }
+        vec_count++;
 
-        auto status = send_queue->write(s);
-
-        if (!success(status)) {
-            if (written_bytes > 0)
-                return nt_status::SUCCESS;
-            else
-                return status;
-        }
-
-        written_bytes += s.size();
-
-        if (clipped)
+        if (vec_count == MAX_VEC_COUNT)
             break;
     }
 
-    return nt_status::SUCCESS;
+    written_bytes = 0;
+
+    if (vec_count == 0)
+        return nt_status::SUCCESS;
+
+    auto descs = (virtq_desc*)malloc(vec_count * sizeof(virtq_desc));
+    if (!descs) {
+        print("malloc failed\n");
+        return nt_status::INSUFFICIENT_RESOURCES;
+    }
+
+    size_t idx = 0;
+    for (auto s : v) {
+        if (s.empty())
+            continue;
+
+        auto& d = descs[idx];
+
+        if (idx != 0) {
+            descs[idx - 1].flags |= VIRTQ_DESC_F_NEXT;
+            descs[idx - 1].next = (uint16_t)idx;
+        }
+
+        d.addr = va_to_pa_phys(s.data());
+        d.len = (uint32_t)s.size();
+        d.flags = 0;
+
+        flush_cache(span((uint8_t*)phys_address(d.addr), d.len), false);
+
+        written_bytes += d.len;
+
+        idx++;
+
+        if (idx == vec_count)
+            break;
+    }
+
+    auto status = send_queue->indirect(span(descs, vec_count), read_bytes);
+
+    free(descs);
+
+    return status;
 }
 
 static object_ref create_virtio_console_in_pipe(unsigned int buffer_pages) {
