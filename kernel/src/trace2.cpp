@@ -27,6 +27,7 @@ struct image_trace_point {
     uint32_t rva_name;
     uint32_t rva_args;
     uint32_t rva_addr;
+    uint32_t rva_handler;
 };
 
 struct active_trace_point {
@@ -101,13 +102,36 @@ static nt_status do_enable_tracepoint(kernel_image& img, image_trace_point& tp) 
             insert_tail_list(active_trace_points, atp->le);
 
             auto addr = (uintptr_t)((uint8_t*)img.base_address + tp.rva_addr);
-            auto pa = va_to_pa_lookup(addr & ~(PAGE_SIZE - 1)) | (addr & (PAGE_SIZE - 1));
+
+            auto write_byte = [](uintptr_t addr, uint8_t byte) {
+                auto pa = va_to_pa_lookup(addr & ~(PAGE_SIZE - 1)) | (addr & (PAGE_SIZE - 1));
+
+                *(uint8_t*)phys_address(pa) = byte;
+            };
+
+            int32_t delta = tp.rva_handler - tp.rva_addr - 5;
 
 #ifdef __x86_64__
-            *(uint8_t*)phys_address(pa) = 0xcc; // int 3
+            write_byte(addr, 0xcc); // int 3
             send_tracepoint_ipi();
-            // FIXME - change bytes 1 to 4 to RVA
-            // FIXME - change byte 0 to e9
+
+            write_byte(addr + 1, (uint8_t)(delta & 0xff));
+            write_byte(addr + 2, (uint8_t)((delta >> 8) & 0xff));
+            write_byte(addr + 3, (uint8_t)((delta >> 16) & 0xff));
+            write_byte(addr + 4, (uint8_t)((delta >> 24) & 0xff));
+            send_tracepoint_ipi();
+
+            write_byte(addr, 0xe9); // jmp
+
+            uint32_t eax;
+
+            // serialize
+            __asm__ __volatile__ (
+                "cpuid\n\t"
+                : "=a" (eax)
+                : "a" (0)
+                : "ebx", "ecx", "edx"
+            );
 #endif
         }
     }

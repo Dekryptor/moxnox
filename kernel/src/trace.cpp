@@ -102,6 +102,7 @@ consteval auto trace_asm() {
     asm_line<".rva .Ltp_name%=">(s);
     asm_line<".rva .Ltp_args%=">(s);
     asm_line<".rva .Ltp_addr%=">(s);
+    asm_line<".rva .Ltp_handler%=">(s);
     asm_line<".text">(s);
     asm_line<".Ltp_addr%=:">(s);
 
@@ -110,6 +111,16 @@ consteval auto trace_asm() {
 #elifdef __aarch64__
     asm_line<"nop">(s);
 #endif
+
+    asm_line<".section .text$zzz,\"rx\"">(s);
+    asm_line<".Ltp_handler%=:">(s);
+#ifdef __x86_64__
+    asm_line<"ud2">(s); // FIXME
+#elifdef __aarch64__
+    // FIXME
+#endif
+
+    asm_line<".text">(s);
 
     return arr;
 }
