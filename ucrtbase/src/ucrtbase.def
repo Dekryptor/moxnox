@@ -153,7 +153,7 @@ _access = __access
 _getcwd
 isblank = _isblank
 toupper = __toupper
-putc
+putc = _fputc
 isalpha = _isalpha
 isupper = _isupper
 isalnum = _isalnum

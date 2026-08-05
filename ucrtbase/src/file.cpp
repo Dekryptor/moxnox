@@ -1819,22 +1819,8 @@ int __access(const char* path, int /*mode*/) {
 }
 
 extern "C"
-int putc(int c, FILE* file) {
-    auto c2 = (char)c;
-
-    __lock_file(file);
-    auto ret = __fwrite_nolock(&c2, 1, 1, file);
-    __unlock_file(file);
-
-    if (ret != 1)
-        return EOF;
-    else
-        return 0;
-}
-
-extern "C"
 int putchar(int c) {
-    return putc(c, reinterpret_cast<FILE*>(_stdout));
+    return _fputc(c, reinterpret_cast<FILE*>(_stdout));
 }
 
 extern "C"
