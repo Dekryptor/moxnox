@@ -4,6 +4,7 @@ module;
 #include <string.h>
 #include <mutex>
 #include <span>
+#include <algorithm>
 
 module console;
 
@@ -1284,7 +1285,28 @@ static void console_event_recv() {
 }
 
 static void flush_early_print() {
-    safe_print(string_view(early_print_buf, early_print_buf_size));
+    if (early_print_buf_size == 0)
+        return;
+
+    auto sp = span(early_print_buf, early_print_buf_size);
+    auto page = allocate_folio(0);
+    if (!page)
+        bsod("allocate_folio failed in flush_early_print");
+
+    while (!sp.empty()) {
+        auto to_print = min(PAGE_SIZE, sp.size());
+
+        memcpy(phys_address(page), sp.data(), to_print);
+
+        safe_print(string_view((char*)phys_address(page), to_print));
+
+        if (to_print == sp.size())
+            break;
+
+        sp = span(sp.data() + to_print, sp.size() - to_print);
+    }
+
+    free_folio(page);
 }
 
 static bool create_kmsg() {
