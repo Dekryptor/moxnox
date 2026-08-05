@@ -609,6 +609,78 @@ size_t _fwrite(const void* ptr, size_t size, size_t n, FILE* file) {
     return ret;
 }
 
+extern "C"
+int _fflush_nolock(FILE* file) {
+    if (!file)
+        return 0;
+
+    auto& f = *reinterpret_cast<_FILE*>(file);
+
+    if (f.memstream) {
+        if (f.mem.capacity < f.mem.position + 1) {
+            size_t newcapacity = max(2 * f.mem.capacity, f.mem.position + 1);
+            auto newbuf = (char*)realloc(f.mem.buffer, newcapacity);
+
+            if (!newbuf) {
+                f.error = true;
+                *__errno() = ENOMEM;
+                return EOF;
+            }
+
+            f.mem.buffer = newbuf;
+            f.mem.capacity = newcapacity;
+        }
+
+        if (f.mem.position > f.mem.length) {
+            memset(f.mem.buffer + f.mem.length, 0, f.mem.position - f.mem.length);
+            f.mem.length = f.mem.position;
+        }
+
+        f.mem.buffer[f.mem.position] = 0;
+
+        *f.mem.bufp = f.mem.buffer;
+        *f.mem.sizep = f.mem.position;
+
+        return 0;
+    } else {
+        if (f.buffer.filled > 0) {
+            size_t buffer_written = 0;
+            auto sp = span(f.buffer.data, f.buffer.filled);
+
+            while (!sp.empty()) {
+                IO_STATUS_BLOCK iosb;
+
+                auto status = NtWriteFile(f.h, 0, nullptr, nullptr, &iosb,
+                                          sp.data(), (uint32_t)sp.size(),
+                                          nullptr, nullptr);
+                if (!success(status)) {
+                    *__errno() = nt_status_to_errno(status);
+                    f.error = true;
+
+                    if (buffer_written > 0) {
+                        memmove(f.buffer.data, f.buffer.data + buffer_written,
+                                f.buffer.filled - buffer_written);
+                        f.buffer.filled -= buffer_written;
+                    }
+
+                    return EOF;
+                }
+
+                if (iosb.Information == sp.size())
+                    break;
+
+                buffer_written += iosb.Information;
+                sp = span(sp.data() + iosb.Information,
+                          sp.size() - iosb.Information);
+            }
+
+            f.buffer.filled = 0;
+        }
+    }
+
+    return 0;
+}
+
 export extern "C"
 int _fflush(FILE* file) {
     if (!file) {
@@ -630,83 +702,11 @@ int _fflush(FILE* file) {
         return ret;
     }
 
-    auto& f = *reinterpret_cast<_FILE*>(file);
+    __lock_file(file);
+    auto ret = _fflush_nolock(file);
+    __unlock_file(file);
 
-    if (f.memstream) {
-        __lock_file(file);
-
-        if (f.mem.capacity < f.mem.position + 1) {
-            size_t newcapacity = max(2 * f.mem.capacity, f.mem.position + 1);
-            auto newbuf = (char*)realloc(f.mem.buffer, newcapacity);
-
-            if (!newbuf) {
-                f.error = true;
-                __unlock_file(file);
-
-                *__errno() = ENOMEM;
-                return EOF;
-            }
-
-            f.mem.buffer = newbuf;
-            f.mem.capacity = newcapacity;
-        }
-
-        if (f.mem.position > f.mem.length) {
-            memset(f.mem.buffer + f.mem.length, 0, f.mem.position - f.mem.length);
-            f.mem.length = f.mem.position;
-        }
-
-        f.mem.buffer[f.mem.position] = 0;
-
-        *f.mem.bufp = f.mem.buffer;
-        *f.mem.sizep = f.mem.position;
-
-        __unlock_file(file);
-
-        return 0;
-    } else {
-        __lock_file(file);
-
-        if (f.buffer.filled > 0) {
-            size_t buffer_written = 0;
-            auto sp = span(f.buffer.data, f.buffer.filled);
-
-            while (!sp.empty()) {
-                IO_STATUS_BLOCK iosb;
-
-                auto status = NtWriteFile(f.h, 0, nullptr, nullptr, &iosb,
-                                          sp.data(), (uint32_t)sp.size(),
-                                          nullptr, nullptr);
-                if (!success(status)) {
-                    *__errno() = nt_status_to_errno(status);
-                    f.error = true;
-
-                    if (buffer_written > 0) {
-                        memmove(f.buffer.data, f.buffer.data + buffer_written,
-                                f.buffer.filled - buffer_written);
-                        f.buffer.filled -= buffer_written;
-                    }
-
-                    __unlock_file(file);
-
-                    return EOF;
-                }
-
-                if (iosb.Information == sp.size())
-                    break;
-
-                buffer_written += iosb.Information;
-                sp = span(sp.data() + iosb.Information,
-                          sp.size() - iosb.Information);
-            }
-
-            f.buffer.filled = 0;
-        }
-
-        __unlock_file(file);
-    }
-
-    return 0;
+    return ret;
 }
 
 extern "C"
