@@ -94,6 +94,7 @@ extern "C" void (*mn_handle_exec_info)(exec_info* info) __declspec(dllimport);
 static void handle_exec_info(exec_info* info);
 extern "C" size_t __fwrite_nolock(const void* ptr, size_t size, size_t n, FILE* file);
 extern "C" int _fflush_nolock(FILE* file);
+extern "C" int __isatty(int fd);
 
 static array<fd, 2048> fds;
 
@@ -248,6 +249,11 @@ export void init_files() {
     fds[1].cloexec = false;
     fds[2].h = peb->ProcessParameters->StandardError;
     fds[2].cloexec = false;
+
+    if (__isatty(1))
+        reinterpret_cast<_FILE*>(&_stdout)->buffer.mode = _IOLBF;
+
+    reinterpret_cast<_FILE*>(&_stderr)->buffer.mode = _IONBF;
 
     mn_handle_exec_info = handle_exec_info;
 }
