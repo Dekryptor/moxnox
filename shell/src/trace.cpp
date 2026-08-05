@@ -43,7 +43,10 @@ static int enable_tracepoint(unique_handle& tracectl, string_view name) {
     status = NtDeviceIoControlFile(tracectl.get(), 0, nullptr, nullptr, &iosb,
                                    IOCTL_MOXNOX_TRACECTL_ENABLE, name.data(),
                                    (uint32_t)name.size(), nullptr, 0);
-    if (!success(status)) {
+    if (status == nt_status::NOT_FOUND) {
+        print_stderr("tracepoint {} not found\n", name);
+        return 1;
+    } else if (!success(status)) {
         print_stderr("NtDeviceIoControlFile returned {}\n", status);
         return 1;
     }
@@ -53,6 +56,8 @@ static int enable_tracepoint(unique_handle& tracectl, string_view name) {
 
 int main(int argc, char** argv) {
     bool enable = false, disable = false;
+
+    // FIXME - listing tracepoints
 
     static const option options[] = {
         { "enable", no_argument, nullptr, 'e' },
