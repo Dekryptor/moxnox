@@ -21,6 +21,7 @@ export struct kernel_image {
     span<const uint8_t> debug_str_offsets;
     span<const uint8_t> debug_line;
     span<const uint8_t> debug_line_str;
+    span<const uint8_t> trace;
     char name[0];
 };
 

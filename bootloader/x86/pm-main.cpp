@@ -76,10 +76,10 @@ static map_entry mem_entries[MAX_MAP_ENTRIES];
 static uint32_t mem_entries_count;
 static uint64_t debug_info_ptr, debug_abbrev_ptr, debug_rnglists_ptr,
                 debug_str_ptr, debug_addr_ptr, debug_str_offsets_ptr,
-                debug_line_ptr, debug_line_str_ptr;
+                debug_line_ptr, debug_line_str_ptr, trace_ptr;
 static uint32_t debug_info_size, debug_abbrev_size, debug_rnglists_size,
                 debug_str_size, debug_addr_size, debug_str_offsets_size,
-                debug_line_size, debug_line_str_size;
+                debug_line_size, debug_line_str_size, trace_size;
 
 static const uint64_t img_addr = 0xfffff80000000000;
 
@@ -808,6 +808,9 @@ static bool load_payload() {
         } else if (name == ".debug_line_str") {
             debug_line_str_ptr = img_addr + s.VirtualAddress;
             debug_line_str_size = s.VirtualSize;
+        } else if (name == ".trace") {
+            trace_ptr = img_addr + s.VirtualAddress;
+            trace_size = s.VirtualSize;
         }
 
         section_size = s.VirtualSize;
@@ -1114,6 +1117,8 @@ void protected_mode_main() {
     lb.debug_line_size = debug_line_size;
     lb.debug_line_str_ptr = debug_line_str_ptr;
     lb.debug_line_str_size = debug_line_str_size;
+    lb.trace_ptr = trace_ptr;
+    lb.trace_size = trace_size;
 
     memcpy(&lb.version, ver.data(), ver.size());
     lb.version[ver.size()] = 0;

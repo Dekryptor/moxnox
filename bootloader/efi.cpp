@@ -41,6 +41,7 @@ static uint64_t debug_addr_ptr __attribute__((section (".data")));
 static uint64_t debug_str_offsets_ptr __attribute__((section (".data")));
 static uint64_t debug_line_ptr __attribute__((section (".data")));
 static uint64_t debug_line_str_ptr __attribute__((section (".data")));
+static uint64_t trace_ptr __attribute__((section (".data")));
 static uint32_t debug_info_size __attribute__((section (".data")));
 static uint32_t debug_abbrev_size __attribute__((section (".data")));
 static uint32_t debug_rnglists_size __attribute__((section (".data")));
@@ -49,6 +50,7 @@ static uint32_t debug_addr_size __attribute__((section (".data")));
 static uint32_t debug_str_offsets_size __attribute__((section (".data")));
 static uint32_t debug_line_size __attribute__((section (".data")));
 static uint32_t debug_line_str_size __attribute__((section (".data")));
+static uint32_t trace_size __attribute__((section (".data")));
 
 static loader_block lb __attribute__((section (".data")));
 
@@ -550,6 +552,9 @@ EFI_STATUS load_pe(span<const uint8_t> payload, uint64_t va, uint64_t& entry_poi
         } else if (name == ".debug_line_str") {
             debug_line_str_ptr = KERNEL_ADDR + s.VirtualAddress;
             debug_line_str_size = s.VirtualSize;
+        } else if (name == ".trace") {
+            trace_ptr = KERNEL_ADDR + s.VirtualAddress;
+            trace_size = s.VirtualSize;
         }
 
         section_size = s.VirtualSize;
@@ -1816,6 +1821,8 @@ static EFI_STATUS finish_setting_up(EFI_HANDLE image_handle, uint64_t rsdp_pa,
     lb.debug_line_size = debug_line_size;
     lb.debug_line_str_ptr = debug_line_str_ptr;
     lb.debug_line_str_size = debug_line_str_size;
+    lb.trace_ptr = trace_ptr;
+    lb.trace_size = trace_size;
     lb.GetTime = (decltype(lb.GetTime))systable->RuntimeServices->GetTime;
     lb.SetVirtualAddressMap = (decltype(lb.SetVirtualAddressMap))systable->RuntimeServices->SetVirtualAddressMap;
     lb.ResetSystem = (decltype(lb.ResetSystem))systable->RuntimeServices->ResetSystem;

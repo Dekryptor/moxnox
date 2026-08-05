@@ -125,6 +125,8 @@ struct loader_block {
     uint64_t debug_line_size;
     uint64_t debug_line_str_ptr;
     uint64_t debug_line_str_size;
+    uint64_t trace_ptr;
+    uint64_t trace_size;
     char version[32];
 #ifdef __i386__ // avoid bringing in gnu-efi
     uint64_t GetTime;

@@ -25,7 +25,8 @@ export void init_images_list(span<const uint8_t> debug_info,
                              span<const uint8_t> debug_addr,
                              span<const uint8_t> debug_str_offsets,
                              span<const uint8_t> debug_line,
-                             span<const uint8_t> debug_line_str) {
+                             span<const uint8_t> debug_line_str,
+                             span<const uint8_t> trace) {
     const char kernel_name[] = "kernel.exe";
 
     uint64_t kernel_size = get_image_size(__image_base__);
@@ -46,6 +47,7 @@ export void init_images_list(span<const uint8_t> debug_info,
     img->debug_str_offsets = debug_str_offsets;
     img->debug_line = debug_line;
     img->debug_line_str = debug_line_str;
+    img->trace = trace;
     memcpy(img->name, kernel_name, sizeof(kernel_name));
 
     insert_tail_list(kernel_images, img->le);
