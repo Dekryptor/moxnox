@@ -2085,6 +2085,11 @@ int __dup2(int oldfd, int newfd) {
         return -1;
     }
 
+    if (newfd == 1)
+        _fflush((FILE*)&_stdout);
+    else if (newfd == 2)
+        _fflush((FILE*)&_stderr);
+
     RtlEnterCriticalSection(&fds_lock);
 
     auto oldh = fds[(size_t)oldfd].h;
@@ -2140,6 +2145,11 @@ static int dup2_from_handle(HANDLE h, int newfd, bool cloexec) {
         *__errno() = EBADF;
         return -1;
     }
+
+    if (newfd == 1)
+        _fflush((FILE*)&_stdout);
+    else if (newfd == 2)
+        _fflush((FILE*)&_stderr);
 
     RtlEnterCriticalSection(&fds_lock);
 
