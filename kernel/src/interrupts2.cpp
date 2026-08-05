@@ -32,6 +32,7 @@ import spinlock;
 import loaderblock;
 import cmdline;
 import acpica;
+import trace;
 
 using namespace std;
 
@@ -1541,7 +1542,10 @@ void breakpoint_kernel() {
     auto& cb = *get_cpu_block();
     auto current_thread = cb.current_thread;
 
-    // FIXME - check if breakpoint
+    if (is_trace_point(cb.thread_context.Rip - 1)) {
+        cb.thread_context.Rip--; // move back to before cc
+        return;
+    }
 
     char s[1024];
     auto sp = span(s, sizeof(s));

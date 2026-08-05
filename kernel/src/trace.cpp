@@ -1,6 +1,7 @@
 module;
 
 #include <stddef.h>
+#include <stdint.h>
 #include <span>
 #include <array>
 #include <algorithm>
@@ -114,3 +115,4 @@ consteval auto trace_asm() {
 }
 
 export bool create_dev_tracectl();
+export bool is_trace_point(uintptr_t addr);

@@ -121,7 +121,6 @@ static nt_status do_enable_tracepoint(kernel_image& img, image_trace_point& tp) 
 }
 
 static nt_status image_enable_tracepoint(kernel_image& img, string_view name) {
-
     if (img.trace.empty())
         return nt_status::NOT_FOUND;
 
@@ -163,4 +162,26 @@ nt_status tracectl::ioctl(uint32_t code, span<const uint8_t> inbuf,
         default:
             return nt_status::NOT_SUPPORTED;
     }
+}
+
+bool is_trace_point(uintptr_t addr) {
+    auto pimg = get_kernel_image_from_address(addr);
+    if (!pimg)
+        return false;
+
+    auto& img = *pimg;
+
+    if (img.trace.empty())
+        return false;
+
+    auto rva = (uint32_t)(addr - (uintptr_t)img.base_address);
+
+    auto tps = span((image_trace_point*)img.trace.data(), img.trace.size() / sizeof(image_trace_point));
+
+    for (auto& tp : tps) {
+        if (tp.rva_addr == rva)
+            return true;
+    }
+
+    return false;
 }
