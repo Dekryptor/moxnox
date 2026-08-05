@@ -2,6 +2,7 @@ module;
 
 #include <stdint.h>
 #include <span>
+#include <string_view>
 
 module trace;
 
@@ -10,6 +11,7 @@ import chardev;
 import print;
 import handle;
 import object_ref;
+import moxnox_ioctls;
 
 using namespace std;
 
@@ -26,6 +28,9 @@ public:
     nt_status write(span<const span<const uint8_t>>, uint64_t&) override {
         return nt_status::NOT_SUPPORTED;
     }
+
+    nt_status ioctl(uint32_t code, span<const uint8_t> inbuf,
+                    span<uint8_t> outbuf, uintptr_t& written) override;
 };
 
 bool create_dev_tracectl() {
@@ -44,4 +49,24 @@ bool create_dev_tracectl() {
     }
 
     return true;
+}
+
+static nt_status enable_tracepoint(string_view name) {
+    if (name.empty())
+        return nt_status::INVALID_PARAMETER;
+
+    print("FIXME - enable tracepoint \"{}\"\n", name);
+
+    return nt_status::SUCCESS;
+}
+
+nt_status tracectl::ioctl(uint32_t code, span<const uint8_t> inbuf,
+                          span<uint8_t> /*outbuf*/, uintptr_t& /*written*/) {
+    switch (code) {
+        case IOCTL_MOXNOX_TRACECTL_ENABLE:
+            return enable_tracepoint(string_view((char*)inbuf.data(), inbuf.size()));
+
+        default:
+            return nt_status::NOT_SUPPORTED;
+    }
 }
