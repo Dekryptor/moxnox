@@ -34,6 +34,8 @@ static uint32_t do_serial(void*) {
     static const char16_t dev[] = u"\\dev\\ttyS0";
 #endif
 
+    static const char16_t dev2[] = u"\\dev\\hvc0";
+
     us.Length = us.MaximumLength = (uint16_t)(sizeof(dev) - sizeof(char16_t));
     us.Buffer = (char16_t*)dev;
 
@@ -43,6 +45,14 @@ static uint32_t do_serial(void*) {
 
     status = NtCreateFile(&h, FILE_READ_DATA | FILE_WRITE_DATA, &oa, &iosb, nullptr,
                           0, 0, FILE_OPEN, 0, nullptr, 0);
+
+    if (status == nt_status::OBJECT_NAME_NOT_FOUND) {
+        us.Length = us.MaximumLength = (uint16_t)(sizeof(dev2) - sizeof(char16_t));
+        us.Buffer = (char16_t*)dev2;
+
+        status = NtCreateFile(&h, FILE_READ_DATA | FILE_WRITE_DATA, &oa, &iosb,
+                              nullptr, 0, 0, FILE_OPEN, 0, nullptr, 0);
+    }
 
     if (status == nt_status::OBJECT_NAME_NOT_FOUND ||
         status == nt_status::SHARING_VIOLATION) {
