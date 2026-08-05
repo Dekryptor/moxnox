@@ -620,6 +620,8 @@ int _fflush(FILE* file) {
     if (!file) {
         int ret = 0;
 
+        // FIXME - can we avoid doing NtWriteFile calls while holding files_lock?
+
         RtlEnterCriticalSection(&files_lock);
 
         for (auto le = files_list.next; le != &files_list; le = le->next) {
@@ -669,7 +671,45 @@ int _fflush(FILE* file) {
 
         return 0;
     } else {
-        // FIXME - flush
+        __lock_file(file);
+
+        if (f.buffer.filled > 0) {
+            size_t buffer_written = 0;
+            auto sp = span(f.buffer.data, f.buffer.filled);
+
+            while (!sp.empty()) {
+                IO_STATUS_BLOCK iosb;
+
+                auto status = NtWriteFile(f.h, 0, nullptr, nullptr, &iosb,
+                                          sp.data(), (uint32_t)sp.size(),
+                                          nullptr, nullptr);
+                if (!success(status)) {
+                    *__errno() = nt_status_to_errno(status);
+                    f.error = true;
+
+                    if (buffer_written > 0) {
+                        memmove(f.buffer.data, f.buffer.data + buffer_written,
+                                f.buffer.filled - buffer_written);
+                        f.buffer.filled -= buffer_written;
+                    }
+
+                    __unlock_file(file);
+
+                    return EOF;
+                }
+
+                if (iosb.Information == sp.size())
+                    break;
+
+                buffer_written += iosb.Information;
+                sp = span(sp.data() + iosb.Information,
+                          sp.size() - iosb.Information);
+            }
+
+            f.buffer.filled = 0;
+        }
+
+        __unlock_file(file);
     }
 
     return 0;
