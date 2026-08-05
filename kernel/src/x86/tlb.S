@@ -12,9 +12,9 @@ invalidate_tlb_isr:
     mov rax, QWORD PTR [rip+tlb_va]
     mov rcx, QWORD PTR [rip+tlb_num_pages]
 0:
-    invlpg [rax]
     cmp rcx, 0
     je 1f
+    invlpg [rax]
     add rax, PAGE_SIZE
     dec rcx
     jmp 0b
