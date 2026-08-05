@@ -33,6 +33,7 @@
     "mpfr": ["gmp"],
     "nano": ["gnulib", "ncurses"],
     "ncurses": [],
+    "ninja": [],
     "openssl": [],
     "patch": ["gnulib"],
     "pixman": [],
