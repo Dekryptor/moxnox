@@ -594,70 +594,86 @@ size_t __fwrite_nolock(const void* ptr, size_t size, size_t n, FILE* file) {
         nt_status status;
         size_t written = 0;
 
-        // FIXME - _IONBF
-        // FIXME - _IOLBF
-
         if (f.buffer.reading) {
             f.buffer.consumed = 0;
             f.buffer.read_bytes = 0;
             f.buffer.reading = false;
         }
 
-        if (f.buffer.filled < f.buffer.size) {
-            if (!f.buffer.data) {
-                f.buffer.data = (uint8_t*)malloc(f.buffer.size);
+        if (f.buffer.mode != _IONBF) {
+            size_t to_flush = 0;
+
+            if (f.buffer.filled < f.buffer.size) {
                 if (!f.buffer.data) {
-                    *__errno() = ENOMEM;
-                    f.error = true;
-                    return 0;
-                }
-            }
-
-            auto to_copy = min(f.buffer.size - f.buffer.filled, bytes);
-
-            memcpy(f.buffer.data + f.buffer.filled, ptr, to_copy);
-            f.buffer.filled += to_copy;
-            ptr = (uint8_t*)ptr + to_copy;
-            bytes -= to_copy;
-            written += to_copy;
-        }
-
-        if (f.buffer.filled == f.buffer.size) {
-            size_t buffer_written = 0;
-            auto sp = span(f.buffer.data, f.buffer.size);
-
-            while (!sp.empty()) {
-                status = NtWriteFile(f.h, 0, nullptr, nullptr, &iosb,
-                                     sp.data(), (uint32_t)sp.size(), nullptr,
-                                     nullptr);
-                if (!success(status)) {
-                    if (written == 0) {
-                        *__errno() = nt_status_to_errno(status);
+                    f.buffer.data = (uint8_t*)malloc(f.buffer.size);
+                    if (!f.buffer.data) {
+                        *__errno() = ENOMEM;
                         f.error = true;
+                        return 0;
                     }
-
-                    if (buffer_written > 0) {
-                        memmove(f.buffer.data, f.buffer.data + buffer_written,
-                                f.buffer.size - buffer_written);
-                        f.buffer.filled -= buffer_written;
-                    }
-
-                    return written / size;
                 }
 
-                if (iosb.Information == sp.size())
-                    break;
+                auto to_copy = min(f.buffer.size - f.buffer.filled, bytes);
 
-                buffer_written += iosb.Information;
-                sp = span(sp.data() + iosb.Information,
-                          sp.size() - iosb.Information);
+                memcpy(f.buffer.data + f.buffer.filled, ptr, to_copy);
+                f.buffer.filled += to_copy;
+                ptr = (uint8_t*)ptr + to_copy;
+                bytes -= to_copy;
+                written += to_copy;
             }
 
-            f.buffer.filled = 0;
-        }
+            if (f.buffer.filled == f.buffer.size)
+                to_flush = f.buffer.size;
+            else if (f.buffer.mode == _IOLBF) {
+                auto nl = string_view((char*)f.buffer.data, f.buffer.filled).rfind('\n');
 
-        if (bytes == 0)
-            return written / size;
+                if (nl != string_view::npos)
+                    to_flush = nl + 1;
+            }
+
+            if (to_flush != 0) {
+                size_t buffer_written = 0;
+                auto sp = span(f.buffer.data, to_flush);
+
+                while (!sp.empty()) {
+                    status = NtWriteFile(f.h, 0, nullptr, nullptr, &iosb,
+                                         sp.data(), (uint32_t)sp.size(), nullptr,
+                                         nullptr);
+                    if (!success(status)) {
+                        if (written == 0) {
+                            *__errno() = nt_status_to_errno(status);
+                            f.error = true;
+                        }
+
+                        if (buffer_written > 0) {
+                            memmove(f.buffer.data, f.buffer.data + buffer_written,
+                                    f.buffer.filled - buffer_written);
+                            f.buffer.filled -= buffer_written;
+                        }
+
+                        return written / size;
+                    }
+
+                    if (iosb.Information == sp.size())
+                        break;
+
+                    buffer_written += iosb.Information;
+                    sp = span(sp.data() + iosb.Information,
+                              sp.size() - iosb.Information);
+                }
+
+                if (to_flush == f.buffer.size)
+                    f.buffer.filled = 0;
+                else {
+                    memmove(f.buffer.data, f.buffer.data + to_flush,
+                            f.buffer.filled - to_flush);
+                    f.buffer.filled -= to_flush;
+                }
+            }
+
+            if (bytes == 0)
+                return written / size;
+        }
 
         status = NtWriteFile(f.h, 0, nullptr, nullptr, &iosb, ptr,
                              (uint32_t)bytes, nullptr, nullptr);
