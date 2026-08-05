@@ -489,7 +489,7 @@ size_t __fread_nolock(void* ptr, size_t size, size_t n, FILE* file) {
         read += to_copy;
     }
 
-    if (f.buffer.consumed == f.buffer.read_bytes && bytes > 0) {
+    if (f.buffer.consumed == f.buffer.read_bytes && bytes > 0 && f.buffer.mode != _IONBF) {
         if (!f.buffer.data) {
             f.buffer.data = (uint8_t*)malloc(f.buffer.size);
             if (!f.buffer.data) {
