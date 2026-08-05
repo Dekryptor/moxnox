@@ -2180,7 +2180,16 @@ int __dup2(int oldfd, int newfd) {
         return -1;
     }
 
-    if (newfd == 1)
+    if (newfd == 0) {
+        auto& f = *reinterpret_cast<_FILE*>(&_stdin);
+
+        _fflush((FILE*)&_stdin);
+
+        f.buffer.consumed = 0;
+        f.buffer.read_bytes = 0;
+        f.ungetc_char = nullopt;
+        f.ungetwc_char = nullopt;
+    } else if (newfd == 1)
         _fflush((FILE*)&_stdout);
     else if (newfd == 2)
         _fflush((FILE*)&_stderr);
@@ -2241,7 +2250,16 @@ static int dup2_from_handle(HANDLE h, int newfd, bool cloexec) {
         return -1;
     }
 
-    if (newfd == 1)
+    if (newfd == 0) {
+        auto& f = *reinterpret_cast<_FILE*>(&_stdin);
+
+        _fflush((FILE*)&_stdin);
+
+        f.buffer.consumed = 0;
+        f.buffer.read_bytes = 0;
+        f.ungetc_char = nullopt;
+        f.ungetwc_char = nullopt;
+    } else if (newfd == 1)
         _fflush((FILE*)&_stdout);
     else if (newfd == 2)
         _fflush((FILE*)&_stderr);
