@@ -2718,6 +2718,8 @@ int __pclose(FILE* file) {
         return -1;
     }
 
+    _fflush(file);
+
     // close stream
 
     NtClose(f.h);
