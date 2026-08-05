@@ -89,7 +89,7 @@ constexpr void asm_line(span<char, N>& s) {
 
 export
 template<fixed_string name, size_t N>
-constexpr auto trace_asm() {
+consteval auto trace_asm() {
     array<char, 1024> arr{};
     span<char> s(arr);
 
