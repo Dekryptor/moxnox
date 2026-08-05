@@ -501,6 +501,9 @@ size_t __fwrite_nolock(const void* ptr, size_t size, size_t n, FILE* file) {
     auto& f = *reinterpret_cast<_FILE*>(file);
     auto bytes = size * n;
 
+    if (size == 0 || n == 0)
+        return 0;
+
     if (f.memstream) {
         if (f.mem.capacity < f.mem.position + bytes + 1) {
             size_t newcapacity = max(2 * f.mem.capacity, f.mem.position + bytes + 1);
@@ -523,7 +526,7 @@ size_t __fwrite_nolock(const void* ptr, size_t size, size_t n, FILE* file) {
         f.mem.position += bytes;
         f.mem.length = max(f.mem.length, f.mem.position);
 
-        return bytes;
+        return n;
     } else {
         IO_STATUS_BLOCK iosb;
         nt_status status;
@@ -571,7 +574,7 @@ size_t __fwrite_nolock(const void* ptr, size_t size, size_t n, FILE* file) {
                         f.buffer.filled -= buffer_written;
                     }
 
-                    return written;
+                    return written / size;
                 }
 
                 if (iosb.Information == sp.size())
@@ -586,7 +589,7 @@ size_t __fwrite_nolock(const void* ptr, size_t size, size_t n, FILE* file) {
         }
 
         if (bytes == 0)
-            return written;
+            return written / size;
 
         status = NtWriteFile(f.h, 0, nullptr, nullptr, &iosb, ptr,
                              (uint32_t)bytes, nullptr, nullptr);
@@ -599,7 +602,7 @@ size_t __fwrite_nolock(const void* ptr, size_t size, size_t n, FILE* file) {
         if (success(status))
             written += iosb.Information;
 
-        return written;
+        return written / size;
     }
 }
 
