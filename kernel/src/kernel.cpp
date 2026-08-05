@@ -52,6 +52,7 @@ import evdev;
 import kernel_time_page;
 import smbios_parser;
 import pty;
+import trace;
 
 using namespace std;
 
@@ -282,6 +283,9 @@ void main_thread(void* ctx) {
 
     if (!create_dev_ptyctl())
         print("create_dev_ptyctl failed\n");
+
+    if (!create_dev_tracectl())
+        print("create_dev_tracectl failed\n");
 
     if (!init_net())
         bsod("init_net failed\n");
