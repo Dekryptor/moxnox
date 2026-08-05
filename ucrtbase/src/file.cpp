@@ -873,6 +873,8 @@ int64_t __ftelli64_nolock(FILE* file) {
     if (f.ungetc_char.has_value())
         ret--;
 
+    ret += f.buffer.filled;
+
     return ret;
 }
 
