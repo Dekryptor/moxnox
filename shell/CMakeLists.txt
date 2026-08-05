@@ -730,3 +730,16 @@ target_link_libraries(df format crt unique_handle unicode)
 target_link_libraries(df moxnox)
 
 install(TARGETS df DESTINATION ${CMAKE_INSTALL_PREFIX}/bin COMPONENT core)
+
+###
+
+add_executable(trace src/trace.cpp)
+
+target_compile_options(trace PRIVATE -fno-exceptions ${USERSPACE_CFLAGS})
+target_link_libraries(trace moxnox print unique_handle)
+
+if (CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
+    target_link_options(trace PUBLIC -mcrtdll=ucrtbase)
+endif()
+
+install(TARGETS trace DESTINATION ${CMAKE_INSTALL_PREFIX}/bin COMPONENT core)
