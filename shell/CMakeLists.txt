@@ -33,6 +33,9 @@ install(TARGETS shell DESTINATION ${CMAKE_INSTALL_PREFIX}/bin
     CXX_MODULES_BMI EXCLUDE_FROM_ALL
 )
 
+install(CODE "file(MAKE_DIRECTORY \"\$ENV{DESTDIR}${CMAKE_INSTALL_PREFIX}/bin\")")
+install(CODE "file(CREATE_LINK shell.exe \"\$ENV{DESTDIR}${CMAKE_INSTALL_PREFIX}/bin/sh\" SYMBOLIC)")
+
 ###
 
 add_executable(echo src/echo.cpp)
