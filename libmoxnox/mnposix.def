@@ -258,3 +258,4 @@ pthread_setschedparam
 sched_get_priority_min
 sched_get_priority_max
 ppoll
+sigpending
