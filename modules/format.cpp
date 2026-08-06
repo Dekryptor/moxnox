@@ -1399,3 +1399,15 @@ template<>
 consteval bool format_spec_valid<OBJECT_ATTRIBUTES>(string_view fmt) {
     return fmt.empty();
 }
+
+export span<char> do_format_arg(span<char> sp, string_view, const OBJECT_ATTRIBUTES* oa) {
+    if (!oa)
+        return sp_strcpy(sp, "NULL");
+    else
+        return do_format_arg(sp, "", *oa);
+}
+
+template<>
+consteval bool format_spec_valid<OBJECT_ATTRIBUTES*>(string_view fmt) {
+    return fmt.empty();
+}
