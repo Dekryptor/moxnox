@@ -179,7 +179,7 @@ consteval auto trace_asm() {
     asm_line<"nop">(s);
 #endif
 
-    asm_line<".section .text$zzz,\"rx\"">(s);
+    asm_line<".section .text$zzz,\"x\"">(s);
     asm_line<".Ltp_handler%=:">(s);
 #ifdef __x86_64__
     asm_line<"push rax">(s);
