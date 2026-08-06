@@ -1447,7 +1447,14 @@ nt_status wait_no_object(bool interruptible, optional<uint64_t> timeout) {
 }
 
 extern "C"
+void trace_NtYieldExecution() {
+    print("NtYieldExecution\n");
+}
+
+extern "C"
 NTSTATUS NtYieldExecution() {
+    TRACE0("NtYieldExecution");
+
     disable_interrupts();
     acquire_sync_lock();
 

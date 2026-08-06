@@ -1,3 +1,4 @@
+#define TRACE0(name) asm((trace_asm<name, 0>()) ::);
 #define TRACE1(name, val1) asm((trace_asm<name, 1>()) :: "r" ((uintptr_t)(val1)));
 #define TRACE2(name, val1, val2) asm((trace_asm<name, 2>()) :: "r" ((uintptr_t)(val1)), "r" ((uintptr_t)(val2)));
 #define TRACE3(name, val1, val2, val3) asm((trace_asm<name, 3>()) :: "r" ((uintptr_t)(val1)), "r" ((uintptr_t)(val2)), "r" ((uintptr_t)(val3)));

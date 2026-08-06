@@ -137,6 +137,9 @@ constexpr void asm_push_param(span<char, N>& s, unsigned int num) {
 
 template<size_t N>
 constexpr void asm_add_rsp(span<char, N>& s, unsigned int size) {
+    if (size == 0)
+        return;
+
     s[0] = 'a';
     s[1] = 'd';
     s[2] = 'd';
