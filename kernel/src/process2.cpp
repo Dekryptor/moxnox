@@ -4770,12 +4770,27 @@ NTSTATUS NtGetNextThread(HANDLE process_handle, HANDLE thread_handle,
 }
 
 extern "C"
+void trace_NtGetNextProcess(uintptr_t* args) {
+    auto process_handle = (HANDLE)args[0];
+
+    start_deferred_print();
+
+    print("NtGetNextProcess: process_handle = ");
+    print_handle(process_handle);
+    print("\n");
+
+    end_deferred_print();
+}
+
+extern "C"
 NTSTATUS NtGetNextProcess(HANDLE process_handle, ACCESS_MASK /*desired_access*/,
                           ULONG /*handle_attributes*/, ULONG /*flags*/,
                           HANDLE* new_process_handle) {
     auto& t = *get_current_thread();
     object_ref old_proc;
     process* new_proc;
+
+    TRACE1("NtGetNextProcess", process_handle);
 
     // FIXME - desired_access, handle_attributes, flags
 
