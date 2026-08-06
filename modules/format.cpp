@@ -1797,3 +1797,46 @@ template<>
 consteval bool format_spec_valid<const LARGE_INTEGER*>(string_view fmt) {
     return fmt.empty();
 }
+
+export span<char> do_format_arg(span<char> sp, string_view,
+                                FS_INFORMATION_CLASS arg) {
+    switch (arg) {
+        using enum FS_INFORMATION_CLASS;
+
+        case VolumeInformation:
+            return sp_strcpy(sp, "VolumeInformation");
+        case LabelInformation:
+            return sp_strcpy(sp, "LabelInformation");
+        case SizeInformation:
+            return sp_strcpy(sp, "SizeInformation");
+        case DeviceInformation:
+            return sp_strcpy(sp, "DeviceInformation");
+        case AttributeInformation:
+            return sp_strcpy(sp, "AttributeInformation");
+        case ControlInformation:
+            return sp_strcpy(sp, "ControlInformation");
+        case FullSizeInformation:
+            return sp_strcpy(sp, "FullSizeInformation");
+        case ObjectIdInformation:
+            return sp_strcpy(sp, "ObjectIdInformation");
+        case DriverPathInformation:
+            return sp_strcpy(sp, "DriverPathInformation");
+        case VolumeFlagsInformation:
+            return sp_strcpy(sp, "VolumeFlagsInformation");
+        case SectorSizeInformation:
+            return sp_strcpy(sp, "SectorSizeInformation");
+        case DataCopyInformation:
+            return sp_strcpy(sp, "DataCopyInformation");
+        case MetadataSizeInformation:
+            return sp_strcpy(sp, "MetadataSizeInformation");
+        case FullSizeInformationEx:
+            return sp_strcpy(sp, "FullSizeInformationEx");
+        default:
+            return do_format_arg(sp, "", (unsigned int)arg);
+    }
+}
+
+template<>
+consteval bool format_spec_valid<FS_INFORMATION_CLASS>(string_view fmt) {
+    return fmt.empty();
+}
