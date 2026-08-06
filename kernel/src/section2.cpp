@@ -856,7 +856,23 @@ NTSTATUS NtMapViewOfSection(HANDLE section_handle, HANDLE process_handle, void**
 }
 
 extern "C"
+void trace_NtUnmapViewOfSection(uintptr_t* args) {
+    auto process_handle = (HANDLE)args[0];
+    auto base_address = (void*)args[1];
+
+    start_deferred_print();
+
+    print("NtUnmapViewOfSection: process_handle = ");
+    print_handle(process_handle);
+    print(", base_address = {:x}\n", (uintptr_t)base_address);
+
+    end_deferred_print();
+}
+
+extern "C"
 NTSTATUS NtUnmapViewOfSection(HANDLE process_handle, void* base_address) {
+    TRACE2("NtUnmapViewOfSection", process_handle, base_address);
+
     if (process_handle == NtCurrentProcess()) {
         auto t = get_current_thread();
 
