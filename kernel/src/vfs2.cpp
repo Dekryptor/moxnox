@@ -819,10 +819,29 @@ nt_status open_inode(string_view fn, dentry& root_dir,
     return nt_status::REPARSE_POINT_NOT_RESOLVED;
 }
 
+extern "C"
+void trace_NtReadFile(uintptr_t* args) {
+    auto file_handle = (HANDLE)args[0];
+    auto vec_size = (size_t)args[1];
+    auto byte_offset = (const LARGE_INTEGER*)args[2];
+
+    start_deferred_print();
+
+    print("NtReadFile: file_handle = ");
+    print_handle(file_handle);
+    print(", length = {}, byte_offset = {}\n", vec_size, byte_offset);
+
+    end_deferred_print();
+}
+
 nt_status vec_NtReadFile(HANDLE file_handle, HANDLE, PIO_APC_ROUTINE, void*,
                          IO_STATUS_BLOCK* io_status_block,
                          span<const span<uint8_t>> v,
                          const LARGE_INTEGER* byte_offset, const uint32_t*) {
+    auto vec_size = get_vec_size(v);
+
+    TRACE3("NtReadFile", file_handle, vec_size, byte_offset);
+
     if (byte_offset && byte_offset->QuadPart < 0)
         return nt_status::INVALID_PARAMETER;
 
@@ -850,7 +869,7 @@ nt_status vec_NtReadFile(HANDLE file_handle, HANDLE, PIO_APC_ROUTINE, void*,
         return status;
     }
 
-    assert(read <= get_vec_size(v));
+    assert(read <= vec_size);
 
     io_status_block->Status = nt_status::SUCCESS;
     io_status_block->Information = read;
