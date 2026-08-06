@@ -8,6 +8,7 @@ module;
 #include <poll.h>
 #include "assert.h"
 #include "timer-asm.h"
+#include "trace.h"
 
 #ifdef __x86_64__
 #include <x86intrin.h>
@@ -28,6 +29,7 @@ import power;
 import interrupts;
 import vfs;
 import object_ref;
+import trace;
 
 #ifdef __aarch64__
 import aarch64;
@@ -714,8 +716,26 @@ nt_status setup_user_apc(uint64_t return_value) {
     return nt_status::USER_APC;
 }
 
+extern "C"
+void trace_NtWaitForSingleObject(uintptr_t* args) {
+    auto object_handle = (HANDLE)args[0];
+    auto alertable = (bool)args[1];
+    auto timeout = (const LARGE_INTEGER*)args[2];
+
+    start_deferred_print();
+
+    print("NtWaitForSingleObject: object_handle = ");
+    print_handle(object_handle);
+    print(", alertable = {}, timeout = {}\n", alertable ? "true" : "false",
+          timeout);
+
+    end_deferred_print();
+}
+
 extern "C" NTSTATUS NtWaitForSingleObject(HANDLE object_handle, bool alertable,
                                const LARGE_INTEGER* timeout) {
+    TRACE3("NtWaitForSingleObject", object_handle, alertable, timeout);
+
     auto objrw = deref_handle(object_handle);
     if (!objrw)
         return nt_status::INVALID_HANDLE;
