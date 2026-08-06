@@ -295,7 +295,7 @@ NTSTATUS NtTerminateThread(HANDLE thread_handle, NTSTATUS exit_status) {
     return nt_status::SUCCESS;
 }
 
-static void print_access_mask(ACCESS_MASK access_mask) {
+void print_thread_access_mask(ACCESS_MASK access_mask) {
     static constexpr pair<ACCESS_MASK, string_view> values[] = {
         { THREAD_ALL_ACCESS, "THREAD_ALL_ACCESS" },
         { THREAD_TERMINATE, "THREAD_TERMINATE" },
@@ -363,7 +363,7 @@ void trace_NtCreateThread(uintptr_t* args) {
     start_deferred_print();
 
     print("NtCreateThread: desired_access = ");
-    print_access_mask(desired_access);
+    print_thread_access_mask(desired_access);
     print(", object_attributes = {}, process_handle = ", object_attributes);
     print_handle(process_handle);
     print(", thread_context = {:x}, create_suspended = {}\n",

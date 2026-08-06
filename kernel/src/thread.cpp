@@ -229,6 +229,8 @@ export object_ref add_kernel_thread(void (*func)()) {
     return add_kernel_thread((void(*)(void*, void*))func, nullptr, nullptr);
 }
 
+export void print_thread_access_mask(ACCESS_MASK access_mask);
+
 export class waiter_object_multiple : public waiter_object {
 public:
     waiter_object_multiple() : waiter_object(waiter_object_type::multiple) { }

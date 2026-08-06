@@ -4683,10 +4683,31 @@ nt_status process::get_next_thread(void* pthreadptr, ACCESS_MASK /*desired_acces
 }
 
 extern "C"
+void trace_NtGetNextThread(uintptr_t* args) {
+    auto process_handle = (HANDLE)args[0];
+    auto thread_handle = (HANDLE)args[1];
+    auto desired_access = (ACCESS_MASK)args[2];
+
+    start_deferred_print();
+
+    print("NtGetNextThread: process_handle = ");
+    print_handle(process_handle);
+    print(", thread_handle = ");
+    print_handle(thread_handle);
+    print(", desired_access = ");
+    print_thread_access_mask(desired_access);
+    print("\n");
+
+    end_deferred_print();
+}
+
+extern "C"
 NTSTATUS NtGetNextThread(HANDLE process_handle, HANDLE thread_handle,
                          ACCESS_MASK desired_access, uint32_t handle_attributes,
                          uint32_t flags, HANDLE* new_thread_handle) {
     object_ref proc, threadobj;
+
+    TRACE3("NtGetNextThread", process_handle, thread_handle, desired_access);
 
     // FIXME - check access mask in process handle
 
