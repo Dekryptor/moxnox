@@ -639,9 +639,24 @@ object_ref add_kernel_thread(void (*func)(void*, void*), void* param1, void* par
 }
 
 extern "C"
+void trace_NtSuspendThread(uintptr_t* args) {
+    auto thread_handle = (HANDLE)args[0];
+
+    start_deferred_print();
+
+    print("NtSuspendThread: thread_handle = ");
+    print_handle(thread_handle);
+    print("\n");
+
+    end_deferred_print();
+}
+
+extern "C"
 NTSTATUS NtSuspendThread(HANDLE thread_handle, uint32_t* previous_suspend_count) {
     object_ref objrw;
     thread* t;
+
+    TRACE1("NtSuspendThread", thread_handle);
 
     if (thread_handle == NtCurrentThread()) {
         t = get_current_thread();
