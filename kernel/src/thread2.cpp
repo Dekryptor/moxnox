@@ -462,11 +462,31 @@ NTSTATUS NtResumeThread(HANDLE thread_handle, uint32_t* suspend_count) {
 }
 
 extern "C"
+void trace_NtQueryInformationThread(uintptr_t* args) {
+    auto thread_handle = (HANDLE)args[0];
+    auto info_class = (THREAD_INFORMATION_CLASS)args[1];
+    auto buffer = (void*)args[2];
+    auto buffer_size = (uint32_t)args[3];
+
+    start_deferred_print();
+
+    print("NtQueryInformationThread: thread_handle = ");
+    print_handle(thread_handle);
+    print(", info_class = {}, buffer = {:x}, buffer_size = {}\n",
+          info_class, (uintptr_t)buffer, buffer_size);
+
+    end_deferred_print();
+}
+
+extern "C"
 NTSTATUS NtQueryInformationThread(HANDLE thread_handle,
                                   THREAD_INFORMATION_CLASS info_class,
                                   void* buffer, uint32_t buffer_size,
                                   uint32_t* return_length) {
     object_ref obj;
+
+    TRACE4("NtQueryInformationThread", thread_handle, info_class, buffer,
+           buffer_size);
 
     if (thread_handle == NtCurrentThread()) {
         auto* t = get_current_thread();
