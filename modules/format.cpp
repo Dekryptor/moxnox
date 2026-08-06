@@ -1774,3 +1774,26 @@ template<>
 consteval bool format_spec_valid<MEMORY_INFORMATION_CLASS>(string_view fmt) {
     return fmt.empty();
 }
+
+export span<char> do_format_arg(span<char> sp, string_view,
+                                const LARGE_INTEGER& arg) {
+    return do_format_arg(sp, "", arg.QuadPart);
+}
+
+template<>
+consteval bool format_spec_valid<const LARGE_INTEGER>(string_view fmt) {
+    return fmt.empty();
+}
+
+export span<char> do_format_arg(span<char> sp, string_view,
+                                const LARGE_INTEGER* arg) {
+    if (!arg)
+        return sp_strcpy(sp, "NULL");
+    else
+        return do_format_arg(sp, "", *arg);
+}
+
+template<>
+consteval bool format_spec_valid<const LARGE_INTEGER*>(string_view fmt) {
+    return fmt.empty();
+}
