@@ -1538,3 +1538,200 @@ template<>
 consteval bool format_spec_valid<THREAD_INFORMATION_CLASS>(string_view fmt) {
     return fmt.empty();
 }
+
+export span<char> do_format_arg(span<char> sp, string_view,
+                                PROCESS_INFORMATION_CLASS arg) {
+    switch (arg) {
+        using enum PROCESS_INFORMATION_CLASS;
+
+        case BasicInformation:
+            return sp_strcpy(sp, "BasicInformation");
+        case QuotaLimits:
+            return sp_strcpy(sp, "QuotaLimits");
+        case IoCounters:
+            return sp_strcpy(sp, "IoCounters");
+        case VmCounters:
+            return sp_strcpy(sp, "VmCounters");
+        case Times:
+            return sp_strcpy(sp, "Times");
+        case BasePriority:
+            return sp_strcpy(sp, "BasePriority");
+        case RaisePriority:
+            return sp_strcpy(sp, "RaisePriority");
+        case DebugPort:
+            return sp_strcpy(sp, "DebugPort");
+        case ExceptionPort:
+            return sp_strcpy(sp, "ExceptionPort");
+        case AccessToken:
+            return sp_strcpy(sp, "AccessToken");
+        case LdtInformation:
+            return sp_strcpy(sp, "LdtInformation");
+        case LdtSize:
+            return sp_strcpy(sp, "LdtSize");
+        case DefaultHardErrorMode:
+            return sp_strcpy(sp, "DefaultHardErrorMode");
+        case IoPortHandlers:
+            return sp_strcpy(sp, "IoPortHandlers");
+        case PooledUsageAndLimits:
+            return sp_strcpy(sp, "PooledUsageAndLimits");
+        case WorkingSetWatch:
+            return sp_strcpy(sp, "WorkingSetWatch");
+        case UserModeIOPL:
+            return sp_strcpy(sp, "UserModeIOPL");
+        case EnableAlignmentFaultFixup:
+            return sp_strcpy(sp, "EnableAlignmentFaultFixup");
+        case PriorityClass:
+            return sp_strcpy(sp, "PriorityClass");
+        case Wx86Information:
+            return sp_strcpy(sp, "Wx86Information");
+        case HandleCount:
+            return sp_strcpy(sp, "HandleCount");
+        case AffinityMask:
+            return sp_strcpy(sp, "AffinityMask");
+        case PriorityBoost:
+            return sp_strcpy(sp, "PriorityBoost");
+        case DeviceMap:
+            return sp_strcpy(sp, "DeviceMap");
+        case SessionInformation:
+            return sp_strcpy(sp, "SessionInformation");
+        case ForegroundInformation:
+            return sp_strcpy(sp, "ForegroundInformation");
+        case Wow64Information:
+            return sp_strcpy(sp, "Wow64Information");
+        case ImageFileName:
+            return sp_strcpy(sp, "ImageFileName");
+        case LUIDDeviceMapsEnabled:
+            return sp_strcpy(sp, "LUIDDeviceMapsEnabled");
+        case BreakOnTermination:
+            return sp_strcpy(sp, "BreakOnTermination");
+        case DebugObjectHandle:
+            return sp_strcpy(sp, "DebugObjectHandle");
+        case DebugFlags:
+            return sp_strcpy(sp, "DebugFlags");
+        case HandleTracing:
+            return sp_strcpy(sp, "HandleTracing");
+        case IoPriority:
+            return sp_strcpy(sp, "IoPriority");
+        case ExecuteFlags:
+            return sp_strcpy(sp, "ExecuteFlags");
+        case TlsInformation:
+            return sp_strcpy(sp, "TlsInformation");
+        case Cookie:
+            return sp_strcpy(sp, "Cookie");
+        case ImageInformation:
+            return sp_strcpy(sp, "ImageInformation");
+        case CycleTime:
+            return sp_strcpy(sp, "CycleTime");
+        case PagePriority:
+            return sp_strcpy(sp, "PagePriority");
+        case InstrumentationCallback:
+            return sp_strcpy(sp, "InstrumentationCallback");
+        case ThreadStackAllocation:
+            return sp_strcpy(sp, "ThreadStackAllocation");
+        case WorkingSetWatchEx:
+            return sp_strcpy(sp, "WorkingSetWatchEx");
+        case ImageFileNameWin32:
+            return sp_strcpy(sp, "ImageFileNameWin32");
+        case ImageFileMapping:
+            return sp_strcpy(sp, "ImageFileMapping");
+        case AffinityUpdateMode:
+            return sp_strcpy(sp, "AffinityUpdateMode");
+        case MemoryAllocationMode:
+            return sp_strcpy(sp, "MemoryAllocationMode");
+        case GroupInformation:
+            return sp_strcpy(sp, "GroupInformation");
+        case TokenVirtualizationEnabled:
+            return sp_strcpy(sp, "TokenVirtualizationEnabled");
+        case OwnerInformation:
+            return sp_strcpy(sp, "OwnerInformation");
+        case WindowInformation:
+            return sp_strcpy(sp, "WindowInformation");
+        case HandleInformation:
+            return sp_strcpy(sp, "HandleInformation");
+        case MitigationPolicy:
+            return sp_strcpy(sp, "MitigationPolicy");
+        case DynamicFunctionTableInformation:
+            return sp_strcpy(sp, "DynamicFunctionTableInformation");
+        case HandleCheckingMode:
+            return sp_strcpy(sp, "HandleCheckingMode");
+        case KeepAliveCount:
+            return sp_strcpy(sp, "KeepAliveCount");
+        case RevokeFileHandles:
+            return sp_strcpy(sp, "RevokeFileHandles");
+        case WorkingSetControl:
+            return sp_strcpy(sp, "WorkingSetControl");
+        case HandleTable:
+            return sp_strcpy(sp, "HandleTable");
+        case CheckStackExtentsMode:
+            return sp_strcpy(sp, "CheckStackExtentsMode");
+        case CommandLineInformation:
+            return sp_strcpy(sp, "CommandLineInformation");
+        case ProtectionInformation:
+            return sp_strcpy(sp, "ProtectionInformation");
+        case MemoryExhaustion:
+            return sp_strcpy(sp, "MemoryExhaustion");
+        case FaultInformation:
+            return sp_strcpy(sp, "FaultInformation");
+        case TelemetryIdInformation:
+            return sp_strcpy(sp, "TelemetryIdInformation");
+        case CommitReleaseInformation:
+            return sp_strcpy(sp, "CommitReleaseInformation");
+        case Reserved1Information:
+            return sp_strcpy(sp, "Reserved1Information");
+        case Reserved2Information:
+            return sp_strcpy(sp, "Reserved2Information");
+        case SubsystemProcess:
+            return sp_strcpy(sp, "SubsystemProcess");
+        case InPrivate:
+            return sp_strcpy(sp, "InPrivate");
+        case RaiseUMExceptionOnInvalidHandleClose:
+            return sp_strcpy(sp, "RaiseUMExceptionOnInvalidHandleClose");
+        case SubsystemInformation:
+            return sp_strcpy(sp, "SubsystemInformation");
+        case Win32kSyscallFilterInformation:
+            return sp_strcpy(sp, "Win32kSyscallFilterInformation");
+        case EnergyTrackingState:
+            return sp_strcpy(sp, "EnergyTrackingState");
+        case MoxnoxSetPendingSignal:
+            return sp_strcpy(sp, "MoxnoxSetPendingSignal");
+        case MoxnoxExec:
+            return sp_strcpy(sp, "MoxnoxExec");
+        case MoxnoxReapZombie:
+            return sp_strcpy(sp, "MoxnoxReapZombie");
+        case MoxnoxFindNtdll:
+            return sp_strcpy(sp, "MoxnoxFindNtdll");
+        case MoxnoxWaitForChild:
+            return sp_strcpy(sp, "MoxnoxWaitForChild");
+        case MoxnoxWaitForChildNoHang:
+            return sp_strcpy(sp, "MoxnoxWaitForChildNoHang");
+        case MoxnoxIsOurChild:
+            return sp_strcpy(sp, "MoxnoxIsOurChild");
+        case MoxnoxChildrenTimes:
+            return sp_strcpy(sp, "MoxnoxChildrenTimes");
+        case MoxnoxGetSessionId:
+            return sp_strcpy(sp, "MoxnoxGetSessionId");
+        case MoxnoxNewSession:
+            return sp_strcpy(sp, "MoxnoxNewSession");
+        case MoxnoxSetControllingTerminal:
+            return sp_strcpy(sp, "MoxnoxSetControllingTerminal");
+        case MoxnoxGetProcessGroup:
+            return sp_strcpy(sp, "MoxnoxGetProcessGroup");
+        case MoxnoxSetProcessGroup:
+            return sp_strcpy(sp, "MoxnoxSetProcessGroup");
+        case MoxnoxSetPendingSignalProcessGroup:
+            return sp_strcpy(sp, "MoxnoxSetPendingSignalProcessGroup");
+        case MoxnoxWaitForChildProcessGroup:
+            return sp_strcpy(sp, "MoxnoxWaitForChildProcessGroup");
+        case MoxnoxMarkAsChild:
+            return sp_strcpy(sp, "MoxnoxMarkAsChild");
+        case MoxnoxMemoryUnmap:
+            return sp_strcpy(sp, "MoxnoxMemoryUnmap");
+        default:
+            return do_format_arg(sp, "", (unsigned int)arg);
+    }
+}
+
+template<>
+consteval bool format_spec_valid<PROCESS_INFORMATION_CLASS>(string_view fmt) {
+    return fmt.empty();
+}
