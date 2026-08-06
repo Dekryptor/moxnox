@@ -2116,9 +2116,24 @@ NTSTATUS NtResumeProcess(HANDLE proc_handle) {
 }
 
 extern "C"
+void trace_NtSuspendProcess(uintptr_t* args) {
+    auto process_handle = (HANDLE)args[0];
+
+    start_deferred_print();
+
+    print("NtSuspendProcess: process_handle = ");
+    print_handle(process_handle);
+    print("\n");
+
+    end_deferred_print();
+}
+
+extern "C"
 NTSTATUS NtSuspendProcess(HANDLE proc_handle) {
     object_ref objrw;
     process* p;
+
+    TRACE1("NtSuspendProcess", proc_handle);
 
     if (proc_handle == NtCurrentProcess()) {
         auto t = get_current_thread();
