@@ -2096,9 +2096,29 @@ NTSTATUS file::set_information(void* buffer, uint32_t buffer_size,
 }
 
 extern "C"
+void trace_NtQueryInformationFile(uintptr_t* args) {
+    auto file_handle = (HANDLE)args[0];
+    auto buffer = (void*)args[1];
+    auto buffer_size = (uint32_t)args[2];
+    auto file_information_class = (FILE_INFORMATION_CLASS)args[3];
+
+    start_deferred_print();
+
+    print("NtQueryInformationFile: file_handle = ");
+    print_handle(file_handle);
+    print(", buffer = {:x}, buffer_size = {}, file_information_class = {}\n",
+          (uintptr_t)buffer, buffer_size, file_information_class);
+
+    end_deferred_print();
+}
+
+extern "C"
 NTSTATUS NtQueryInformationFile(HANDLE file_handle, IO_STATUS_BLOCK* iosb, void* buffer,
                                 uint32_t buffer_size, FILE_INFORMATION_CLASS file_information_class) {
     uint64_t retlen;
+
+    TRACE4("NtQueryInformationFile", file_handle, buffer, buffer_size,
+           file_information_class);
 
     auto objrw = deref_handle(file_handle);
     if (!objrw)
