@@ -3253,10 +3253,30 @@ nt_status file::query_volume(FS_INFORMATION_CLASS fs_information_class,
 }
 
 extern "C"
+void trace_NtQueryVolumeInformationFile(uintptr_t* args) {
+    auto file_handle = (HANDLE)args[0];
+    auto fs_information = (void*)args[1];
+    auto length = (uint32_t)args[2];
+    auto fs_information_class = (FS_INFORMATION_CLASS)args[3];
+
+    start_deferred_print();
+
+    print("NtQueryVolumeInformationFile: file_handle = ");
+    print_handle(file_handle);
+    print(", fs_information = {:x}, length = {}, fs_information_class = {}\n",
+          (uintptr_t)fs_information, length, fs_information_class);
+
+    end_deferred_print();
+}
+
+extern "C"
 NTSTATUS NtQueryVolumeInformationFile(HANDLE file_handle, IO_STATUS_BLOCK* iosb,
                                       void* fs_information, uint32_t length,
                                       FS_INFORMATION_CLASS fs_information_class) {
     uint32_t retlen = 0;
+
+    TRACE4("NtQueryVolumeInformationFile", file_handle, fs_information, length,
+           fs_information_class);
 
     auto objrw = deref_handle(file_handle);
     if (!objrw)
