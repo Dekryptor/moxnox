@@ -691,7 +691,22 @@ NTSTATUS NtSuspendThread(HANDLE thread_handle, uint32_t* previous_suspend_count)
 }
 
 extern "C"
+void trace_NtGetContextThread(uintptr_t* args) {
+    auto thread_handle = (HANDLE)args[0];
+
+    start_deferred_print();
+
+    print("NtGetContextThread: thread_handle = ");
+    print_handle(thread_handle);
+    print("\n");
+
+    end_deferred_print();
+}
+
+extern "C"
 NTSTATUS NtGetContextThread(HANDLE thread_handle, CONTEXT* context) {
+    TRACE1("NtGetContextThread", thread_handle);
+
 #ifdef __aarch64__ // FIXME
     (void)thread_handle;
     (void)context;
