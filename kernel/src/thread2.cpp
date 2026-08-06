@@ -873,9 +873,31 @@ nt_status thread::queue_apc(PS_APC_ROUTINE apc_routine, void* apc_arg1,
 }
 
 extern "C"
+void trace_NtQueueApcThread(uintptr_t* args) {
+    auto thread_handle = (HANDLE)args[0];
+    auto apc_routine = (PS_APC_ROUTINE)args[1];
+    auto apc_arg1 = (void*)args[2];
+    auto apc_arg2 = (void*)args[3];
+    auto apc_arg3 = (void*)args[4];
+
+    start_deferred_print();
+
+    print("NtQueueApcThread: thread_handle = ");
+    print_handle(thread_handle);
+    print(", apc_routine = {:x}, apc_arg1 = {:x}, apc_arg2 = {:x}, apc_arg3 = {:x}\n",
+          (uintptr_t)apc_routine, (uintptr_t)apc_arg1, (uintptr_t)apc_arg2,
+          (uintptr_t)apc_arg3);
+
+    end_deferred_print();
+}
+
+extern "C"
 NTSTATUS NtQueueApcThread(HANDLE thread_handle, PS_APC_ROUTINE apc_routine,
                           void* apc_arg1, void* apc_arg2, void* apc_arg3) {
     object_ref obj;
+
+    TRACE5("NtQueueApcThread", thread_handle, apc_routine, apc_arg1, apc_arg2,
+           apc_arg3);
 
     if (thread_handle == NtCurrentThread()) {
         auto* t = get_current_thread();
