@@ -3,6 +3,7 @@ module;
 #include <optional>
 #include <mutex>
 #include "timer-asm.h"
+#include "trace.h"
 
 #ifdef __x86_64__
 #include <x86intrin.h>
@@ -18,6 +19,7 @@ import spinlock;
 import handle;
 import scheduler;
 import acpica;
+import trace;
 
 #ifdef __x86_64__
 import inout;
@@ -253,10 +255,19 @@ timer::~timer() {
 }
 
 extern "C"
+void trace_NtCreateTimer(uintptr_t* args) {
+    auto timer_type = (TIMER_TYPE)args[0];
+
+    print("NtCreateTimer: timer_type = {}\n", timer_type);
+}
+
+extern "C"
 NTSTATUS NtCreateTimer(HANDLE* timer_handle, ACCESS_MASK, const OBJECT_ATTRIBUTES*,
                        TIMER_TYPE timer_type) {
     auto t = get_current_thread();
     auto p = t->proc;
+
+    TRACE1("NtCreateTimer", timer_type);
 
     // FIXME - desired_access
     // FIXME - object_attributes
