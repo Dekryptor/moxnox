@@ -1379,3 +1379,23 @@ template<typename... Args>
 span<char> format(span<char> sp, type_identity_t<checker<type_identity_t<Args>...>> fmt, Args&&... args) {
     return format_to(sp, fmt.sv, forward_as_tuple(std::forward<Args>(args)...));
 }
+
+export span<char> do_format_arg(span<char> sp, string_view, const OBJECT_ATTRIBUTES& oa) {
+    sp = sp_strcpy(sp, "(");
+    sp = do_format_arg(sp, "", oa.RootDirectory);
+    sp = sp_strcpy(sp, ", ");
+
+    if (oa.ObjectName)
+        sp = do_format_arg(sp, "", *oa.ObjectName);
+    else
+        sp = sp_strcpy(sp, "NULL");
+
+    sp = sp_strcpy(sp, ")");
+
+    return sp;
+}
+
+template<>
+consteval bool format_spec_valid<OBJECT_ATTRIBUTES>(string_view fmt) {
+    return fmt.empty();
+}
