@@ -4587,10 +4587,28 @@ nt_status process::flush_vm(void** base_address, size_t* region_size) {
 }
 
 extern "C"
+void trace_NtFlushVirtualMemory(uintptr_t* args) {
+    auto process_handle = (HANDLE)args[0];
+    auto base_address = (void**)args[1];
+    auto region_size = (size_t*)args[2];
+
+    start_deferred_print();
+
+    print("NtFlushVirtualMemory: process_handle = ");
+    print_handle(process_handle);
+    print(", base_address = {:x}, region_size = {:x}\n",
+          (uintptr_t)*base_address, *region_size);
+
+    end_deferred_print();
+}
+
+extern "C"
 NTSTATUS NtFlushVirtualMemory(HANDLE proc_handle, void** base_address,
                               size_t* region_size, IO_STATUS_BLOCK* iosb) {
     object_ref objrw;
     process* p;
+
+    TRACE3("NtFlushVirtualMemory", proc_handle, base_address, region_size);
 
     if (proc_handle == NtCurrentProcess()) {
         auto t = get_current_thread();
