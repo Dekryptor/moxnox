@@ -1878,3 +1878,32 @@ template<>
 consteval bool format_spec_valid<EVENT_TYPE>(string_view fmt) {
     return fmt.empty();
 }
+
+export span<char> do_format_arg(span<char> sp, string_view,
+                                SECTION_INFORMATION_CLASS arg) {
+    switch (arg) {
+        using enum SECTION_INFORMATION_CLASS;
+
+        case BasicInformation:
+            return sp_strcpy(sp, "BasicInformation");
+        case ImageInformation:
+            return sp_strcpy(sp, "ImageInformation");
+        case RelocationInformation:
+            return sp_strcpy(sp, "RelocationInformation");
+        case OriginalBaseInformation:
+            return sp_strcpy(sp, "OriginalBaseInformation");
+        case InternalImageInformation:
+            return sp_strcpy(sp, "InternalImageInformation");
+        case MoxnoxFramebufferInformation:
+            return sp_strcpy(sp, "MoxnoxFramebufferInformation");
+        case MoxnoxTextConsoleInformation:
+            return sp_strcpy(sp, "MoxnoxTextConsoleInformation");
+        default:
+            return do_format_arg(sp, "", (unsigned int)arg);
+    }
+}
+
+template<>
+consteval bool format_spec_valid<SECTION_INFORMATION_CLASS>(string_view fmt) {
+    return fmt.empty();
+}
