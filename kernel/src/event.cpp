@@ -5,6 +5,7 @@ module;
 #include <atomic>
 #include <optional>
 #include <mutex>
+#include <string_view>
 #include "trace.h"
 
 export module event;
@@ -96,6 +97,65 @@ void event::on_wake() {
         signalled = false;
 }
 
+static void print_access_mask(ACCESS_MASK access_mask) {
+    static constexpr pair<ACCESS_MASK, string_view> values[] = {
+        { EVENT_ALL_ACCESS, "EVENT_ALL_ACCESS" },
+        { EVENT_QUERY_STATE, "EVENT_QUERY_STATE" },
+        { EVENT_MODIFY_STATE, "EVENT_MODIFY_STATE" },
+        { DELETE, "DELETE" },
+        { READ_CONTROL, "READ_CONTROL" },
+        { WRITE_DAC, "WRITE_DAC" },
+        { WRITE_OWNER, "WRITE_OWNER" },
+        { SYNCHRONIZE, "SYNCHRONIZE" },
+        { ACCESS_SYSTEM_SECURITY, "ACCESS_SYSTEM_SECURITY" },
+        { MAXIMUM_ALLOWED, "MAXIMUM_ALLOWED" },
+        { GENERIC_ALL, "GENERIC_ALL" },
+        { GENERIC_EXECUTE, "GENERIC_EXECUTE" },
+        { GENERIC_WRITE, "GENERIC_WRITE" },
+        { GENERIC_READ, "GENERIC_READ" },
+    };
+
+    bool first = true;
+
+    for (auto& v : values) {
+        if ((access_mask & v.first) == v.first) {
+            access_mask &= ~v.first;
+
+            if (!first)
+                print(" | ");
+
+            print("{}", v.second);
+            first = false;
+        }
+    }
+
+    if (access_mask != 0) {
+        if (!first)
+            print(" | ");
+
+        print("{:x}", access_mask);
+    }
+
+    if (first && access_mask == 0)
+        print("0");
+}
+
+extern "C"
+void trace_NtCreateEvent(uintptr_t* args) {
+    auto desired_access = (ACCESS_MASK)args[0];
+    auto event_type = (EVENT_TYPE)args[1];
+    auto initial_state = (bool)args[2];
+
+    start_deferred_print();
+
+    print("NtCreateEvent: desired_access = ");
+    print_access_mask(desired_access);
+    print(", event_type = {}, initial_state = {}\n", event_type,
+          initial_state ? "true" : "false");
+
+    end_deferred_print();
+}
+
 extern "C"
 NTSTATUS NtCreateEvent(HANDLE* event_handle, ACCESS_MASK desired_access,
                        const OBJECT_ATTRIBUTES* /*object_attributes*/,
@@ -103,6 +163,8 @@ NTSTATUS NtCreateEvent(HANDLE* event_handle, ACCESS_MASK desired_access,
     bool autoreset;
     auto& t = *get_current_thread();
     handle_t h;
+
+    TRACE3("NtCreateEvent", desired_access, event_type, initial_state);
 
     // FIXME - object_attributes
 
