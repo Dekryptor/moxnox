@@ -1907,3 +1907,28 @@ template<>
 consteval bool format_spec_valid<SECTION_INFORMATION_CLASS>(string_view fmt) {
     return fmt.empty();
 }
+
+export span<char> do_format_arg(span<char> sp, string_view,
+                                OBJECT_INFORMATION_CLASS arg) {
+    switch (arg) {
+        using enum OBJECT_INFORMATION_CLASS;
+
+        case BasicInformation:
+            return sp_strcpy(sp, "BasicInformation");
+        case NameInformation:
+            return sp_strcpy(sp, "NameInformation");
+        case TypeInformation:
+            return sp_strcpy(sp, "TypeInformation");
+        case TypesInformation:
+            return sp_strcpy(sp, "TypesInformation");
+        case DataInformation:
+            return sp_strcpy(sp, "DataInformation");
+        default:
+            return do_format_arg(sp, "", (unsigned int)arg);
+    }
+}
+
+template<>
+consteval bool format_spec_valid<OBJECT_INFORMATION_CLASS>(string_view fmt) {
+    return fmt.empty();
+}
