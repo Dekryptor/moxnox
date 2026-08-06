@@ -12,6 +12,7 @@ module;
 #include <stdint.h>
 #include <sys/uio.h>
 #include "assert.h"
+#include "trace.h"
 
 module vfs;
 
@@ -31,6 +32,8 @@ import moxnox_ioctls;
 import vec;
 import net;
 import rangelock;
+import trace;
+import disable_interrupts;
 
 using namespace std;
 
@@ -855,6 +858,163 @@ nt_status vec_NtReadFile(HANDLE file_handle, HANDLE, PIO_APC_ROUTINE, void*,
     return nt_status::SUCCESS;
 }
 
+static void print_access_mask(ACCESS_MASK access_mask) {
+    static constexpr pair<ACCESS_MASK, string_view> values[] = {
+        { FILE_READ_DATA, "FILE_READ_DATA" },
+        { FILE_LIST_DIRECTORY, "FILE_LIST_DIRECTORY" },
+        { FILE_WRITE_DATA, "FILE_WRITE_DATA" },
+        { FILE_ADD_FILE, "FILE_ADD_FILE" },
+        { FILE_APPEND_DATA, "FILE_APPEND_DATA" },
+        { FILE_ADD_SUBDIRECTORY, "FILE_ADD_SUBDIRECTORY" },
+        { FILE_CREATE_PIPE_INSTANCE, "FILE_CREATE_PIPE_INSTANCE" },
+        { FILE_READ_EA, "FILE_READ_EA" },
+        { FILE_WRITE_EA, "FILE_WRITE_EA" },
+        { FILE_EXECUTE, "FILE_EXECUTE" },
+        { FILE_TRAVERSE, "FILE_TRAVERSE" },
+        { FILE_DELETE_CHILD, "FILE_DELETE_CHILD" },
+        { FILE_READ_ATTRIBUTES, "FILE_READ_ATTRIBUTES" },
+        { FILE_WRITE_ATTRIBUTES, "FILE_WRITE_ATTRIBUTES" },
+        { DELETE, "DELETE" },
+        { READ_CONTROL, "READ_CONTROL" },
+        { WRITE_DAC, "WRITE_DAC" },
+        { WRITE_OWNER, "WRITE_OWNER" },
+        { SYNCHRONIZE, "SYNCHRONIZE" },
+        { ACCESS_SYSTEM_SECURITY, "ACCESS_SYSTEM_SECURITY" },
+        { MAXIMUM_ALLOWED, "MAXIMUM_ALLOWED" },
+        { GENERIC_ALL, "GENERIC_ALL" },
+        { GENERIC_EXECUTE, "GENERIC_EXECUTE" },
+        { GENERIC_WRITE, "GENERIC_WRITE" },
+        { GENERIC_READ, "GENERIC_READ" },
+    };
+
+    bool first = true;
+
+    for (auto& v : values) {
+        if (access_mask & v.first) {
+            access_mask &= ~v.first;
+
+            if (!first)
+                print(" | ");
+
+            print("{}", v.second);
+            first = false;
+        }
+    }
+
+    if (access_mask != 0) {
+        if (!first)
+            print(" | ");
+
+        print("{:x}", access_mask);
+    }
+
+    if (first && access_mask == 0)
+        print("0");
+}
+
+static void print_create_options(uint32_t create_options) {
+    static constexpr pair<uint32_t, string_view> values[] = {
+        { FILE_DIRECTORY_FILE, "FILE_DIRECTORY_FILE" },
+        { FILE_WRITE_THROUGH, "FILE_WRITE_THROUGH" },
+        { FILE_SEQUENTIAL_ONLY, "FILE_SEQUENTIAL_ONLY" },
+        { FILE_NO_INTERMEDIATE_BUFFERING, "FILE_NO_INTERMEDIATE_BUFFERING" },
+        { FILE_SYNCHRONOUS_IO_ALERT, "FILE_SYNCHRONOUS_IO_ALERT" },
+        { FILE_SYNCHRONOUS_IO_NONALERT, "FILE_SYNCHRONOUS_IO_NONALERT" },
+        { FILE_NON_DIRECTORY_FILE, "FILE_NON_DIRECTORY_FILE" },
+        { FILE_CREATE_TREE_CONNECTION, "FILE_CREATE_TREE_CONNECTION" },
+        { FILE_COMPLETE_IF_OPLOCKED, "FILE_COMPLETE_IF_OPLOCKED" },
+        { FILE_NO_EA_KNOWLEDGE, "FILE_NO_EA_KNOWLEDGE" },
+        { FILE_OPEN_REMOTE_INSTANCE, "FILE_OPEN_REMOTE_INSTANCE" },
+        { FILE_RANDOM_ACCESS, "FILE_RANDOM_ACCESS" },
+        { FILE_DELETE_ON_CLOSE, "FILE_DELETE_ON_CLOSE" },
+        { FILE_OPEN_BY_FILE_ID, "FILE_OPEN_BY_FILE_ID" },
+        { FILE_OPEN_FOR_BACKUP_INTENT, "FILE_OPEN_FOR_BACKUP_INTENT" },
+        { FILE_NO_COMPRESSION, "FILE_NO_COMPRESSION" },
+        { FILE_OPEN_REQUIRING_OPLOCK, "FILE_OPEN_REQUIRING_OPLOCK" },
+        { FILE_DISALLOW_EXCLUSIVE, "FILE_DISALLOW_EXCLUSIVE" },
+        { FILE_RESERVE_OPFILTER, "FILE_RESERVE_OPFILTER" },
+        { FILE_OPEN_REPARSE_POINT, "FILE_OPEN_REPARSE_POINT" },
+        { FILE_OPEN_NO_RECALL, "FILE_OPEN_NO_RECALL" },
+        { FILE_OPEN_FOR_FREE_SPACE_QUERY, "FILE_OPEN_FOR_FREE_SPACE_QUERY" },
+    };
+
+    bool first = true;
+
+    for (auto& v : values) {
+        if (create_options & v.first) {
+            create_options &= ~v.first;
+
+            if (!first)
+                print(" | ");
+
+            print("{}", v.second);
+            first = false;
+        }
+    }
+
+    if (create_options != 0) {
+        if (!first)
+            print(" | ");
+
+        print("{:x}", create_options);
+    }
+
+    if (first && create_options == 0)
+        print("0");
+}
+
+extern "C"
+void trace_NtCreateFile(uintptr_t* args) {
+    auto access_mask = (ACCESS_MASK)args[0];
+    auto& object_attributes = *(const OBJECT_ATTRIBUTES*)args[1];
+    auto create_disposition = (uint32_t)args[2];
+    auto create_options = (uint32_t)args[3];
+
+    // FIXME - only flush at end?
+
+    disable_preempt();
+
+    print("NtCreateFile: access_mask = ");
+    print_access_mask(access_mask);
+    print(", object_attributes = {}, create_disposition = ", object_attributes);
+
+    switch (create_disposition) {
+        case FILE_SUPERSEDE:
+            print("FILE_SUPERSEDE");
+            break;
+
+        case FILE_CREATE:
+            print("FILE_CREATE");
+            break;
+
+        case FILE_OPEN:
+            print("FILE_OPEN");
+            break;
+
+        case FILE_OPEN_IF:
+            print("FILE_OPEN_IF");
+            break;
+
+        case FILE_OVERWRITE:
+            print("FILE_OVERWRITE");
+            break;
+
+        case FILE_OVERWRITE_IF:
+            print("FILE_OVERWRITE_IF");
+            break;
+
+        default:
+            print("{:x}", create_disposition);
+            break;
+    }
+
+    print(", create_options = ");
+    print_create_options(create_options);
+    print("\n");
+
+    enable_preempt();
+}
+
 extern "C"
 NTSTATUS NtCreateFile(HANDLE* file_handle, ACCESS_MASK access_mask,
                       const OBJECT_ATTRIBUTES* object_attributes, IO_STATUS_BLOCK* io_status_block,
@@ -865,6 +1025,9 @@ NTSTATUS NtCreateFile(HANDLE* file_handle, ACCESS_MASK access_mask,
     auto p = t->proc;
     optional<reference_wrapper<dentry>> root_dir;
     bool shared_okay = true;
+
+    TRACE4("NtCreateFile", access_mask, object_attributes,
+           create_disposition, create_options);
 
     if (!p)
         return nt_status::INVALID_PARAMETER;
