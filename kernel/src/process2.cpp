@@ -4862,12 +4862,91 @@ NTSTATUS NtGetNextProcess(HANDLE process_handle, ACCESS_MASK /*desired_access*/,
     return nt_status::SUCCESS;
 }
 
+void print_process_access_mask(ACCESS_MASK access_mask) {
+    static constexpr pair<ACCESS_MASK, string_view> values[] = {
+        { PROCESS_TERMINATE, "PROCESS_TERMINATE" },
+        { PROCESS_CREATE_THREAD, "PROCESS_CREATE_THREAD" },
+        { PROCESS_SET_SESSIONID, "PROCESS_SET_SESSIONID" },
+        { PROCESS_VM_OPERATION, "PROCESS_VM_OPERATION" },
+        { PROCESS_VM_READ, "PROCESS_VM_READ" },
+        { PROCESS_VM_WRITE, "PROCESS_VM_WRITE" },
+        { PROCESS_DUP_HANDLE, "PROCESS_DUP_HANDLE" },
+        { PROCESS_CREATE_PROCESS, "PROCESS_CREATE_PROCESS" },
+        { PROCESS_SET_QUOTA, "PROCESS_SET_QUOTA" },
+        { PROCESS_SET_INFORMATION, "PROCESS_SET_INFORMATION" },
+        { PROCESS_QUERY_INFORMATION, "PROCESS_QUERY_INFORMATION" },
+        { PROCESS_SUSPEND_RESUME, "PROCESS_SUSPEND_RESUME" },
+        { PROCESS_QUERY_LIMITED_INFORMATION, "PROCESS_QUERY_LIMITED_INFORMATION" },
+        { PROCESS_SET_LIMITED_INFORMATION, "PROCESS_SET_LIMITED_INFORMATION" },
+        { PROCESS_RESERVED1, "PROCESS_RESERVED1" },
+        { PROCESS_RESERVED2, "PROCESS_RESERVED2" },
+        { DELETE, "DELETE" },
+        { READ_CONTROL, "READ_CONTROL" },
+        { WRITE_DAC, "WRITE_DAC" },
+        { WRITE_OWNER, "WRITE_OWNER" },
+        { SYNCHRONIZE, "SYNCHRONIZE" },
+        { ACCESS_SYSTEM_SECURITY, "ACCESS_SYSTEM_SECURITY" },
+        { MAXIMUM_ALLOWED, "MAXIMUM_ALLOWED" },
+        { GENERIC_ALL, "GENERIC_ALL" },
+        { GENERIC_EXECUTE, "GENERIC_EXECUTE" },
+        { GENERIC_WRITE, "GENERIC_WRITE" },
+        { GENERIC_READ, "GENERIC_READ" },
+    };
+
+    bool first = true;
+
+    for (auto& v : values) {
+        if ((access_mask & v.first) == v.first) {
+            access_mask &= ~v.first;
+
+            if (!first)
+                print(" | ");
+
+            print("{}", v.second);
+            first = false;
+        }
+    }
+
+    if (access_mask != 0) {
+        if (!first)
+            print(" | ");
+
+        print("{:x}", access_mask);
+    }
+
+    if (first && access_mask == 0)
+        print("0");
+}
+
+extern "C"
+void trace_NtOpenProcess(uintptr_t* args) {
+    auto desired_access = (ACCESS_MASK)args[0];
+    auto client_id = (const CLIENT_ID*)args[1];
+
+    start_deferred_print();
+
+    print("NtOpenProcess: desired_access = ");
+    print_process_access_mask(desired_access);
+    print(", ");
+
+    if (client_id)
+        print("client_id->UniqueProcess = {}", client_id->UniqueProcess);
+    else
+        print("client_id = NULL");
+
+    print("\n");
+
+    end_deferred_print();
+}
+
 extern "C"
 NTSTATUS NtOpenProcess(HANDLE* process_handle, ACCESS_MASK desired_access,
                        const OBJECT_ATTRIBUTES* /*object_attributes*/,
                        const CLIENT_ID* client_id) {
     auto& t = *get_current_thread();
     object_ref proc;
+
+    TRACE2("NtOpenProcess", desired_access, client_id);
 
     if (!client_id)
         return nt_status::INVALID_PARAMETER;
