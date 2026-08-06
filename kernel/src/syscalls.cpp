@@ -412,6 +412,11 @@ static void free_object_attributes(OBJECT_ATTRIBUTES& oa) {
 }
 
 extern "C"
+void trace_user_NtCreateFile() {
+    print("hello from trace_user_NtCreateFile\n");
+}
+
+extern "C"
 NTSTATUS user_NtCreateFile(HANDLE* file_handle, ACCESS_MASK desired_access,
                            const OBJECT_ATTRIBUTES* object_attributes,
                            IO_STATUS_BLOCK* io_status_block,
