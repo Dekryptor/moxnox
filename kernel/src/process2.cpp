@@ -3014,10 +3014,28 @@ NTSTATUS process::unmap_view_of_section(void* base_address) {
 }
 
 extern "C"
+void trace_NtCreateProcess(uintptr_t* args) {
+    auto parent_process = (HANDLE)args[0];
+    auto section_handle = (HANDLE)args[1];
+
+    start_deferred_print();
+
+    print("NtCreateProcess: parent_process = ");
+    print_handle(parent_process);
+    print(", section_handle = ");
+    print_handle(section_handle);
+    print("\n");
+
+    end_deferred_print();
+}
+
+extern "C"
 NTSTATUS NtCreateProcess(HANDLE* process_handle, ACCESS_MASK, const OBJECT_ATTRIBUTES*,
                          HANDLE parent_process, bool, HANDLE section_handle,
                          HANDLE, HANDLE) {
     object_ref parent;
+
+    TRACE2("NtCreateProcess", parent_process, section_handle);
 
 #ifdef __aarch64__
     static const uint16_t this_arch = IMAGE_FILE_MACHINE_ARM64;
