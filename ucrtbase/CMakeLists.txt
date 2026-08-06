@@ -143,6 +143,43 @@ target_include_directories(musl PRIVATE musl_compat ../ports/musl/repo/src/inclu
 target_compile_options(musl PRIVATE -include ${CMAKE_CURRENT_SOURCE_DIR}/../ports/musl/repo/src/include/features.h)
 target_compile_options(musl PRIVATE -Wno-attributes)
 
+add_library(mingwex2 STATIC
+    ../ports/mingw-w64/repo/mingw-w64-crt/gdtoa/dmisc.c
+    ../ports/mingw-w64/repo/mingw-w64-crt/gdtoa/gdtoa.c
+    ../ports/mingw-w64/repo/mingw-w64-crt/gdtoa/gethex.c
+    ../ports/mingw-w64/repo/mingw-w64-crt/gdtoa/gmisc.c
+    ../ports/mingw-w64/repo/mingw-w64-crt/gdtoa/hd_init.c
+    ../ports/mingw-w64/repo/mingw-w64-crt/gdtoa/hexnan.c
+    ../ports/mingw-w64/repo/mingw-w64-crt/gdtoa/misc.c
+    ../ports/mingw-w64/repo/mingw-w64-crt/gdtoa/smisc.c
+    ../ports/mingw-w64/repo/mingw-w64-crt/gdtoa/strtodg.c
+    ../ports/mingw-w64/repo/mingw-w64-crt/gdtoa/strtodnrp.c
+    ../ports/mingw-w64/repo/mingw-w64-crt/gdtoa/strtof.c
+    ../ports/mingw-w64/repo/mingw-w64-crt/gdtoa/strtopx.c
+    ../ports/mingw-w64/repo/mingw-w64-crt/gdtoa/sum.c
+    ../ports/mingw-w64/repo/mingw-w64-crt/stdio/mingw_pformat.c
+    ../ports/mingw-w64/repo/mingw-w64-crt/stdio/mingw_wpformat.c
+    ../ports/mingw-w64/repo/mingw-w64-crt/stdio/mingw_vfprintf.c
+    ../ports/mingw-w64/repo/mingw-w64-crt/stdio/mingw_vfwprintf.c
+    ../ports/mingw-w64/repo/mingw-w64-crt/stdio/mingw_vfscanf.c
+    ../ports/mingw-w64/repo/mingw-w64-crt/stdio/mingw_vsnprintf.c
+    ../ports/mingw-w64/repo/mingw-w64-crt/stdio/mingw_vswprintf.c
+    ../ports/mingw-w64/repo/mingw-w64-crt/stdio/mingw_vsprintf.c
+    ../ports/mingw-w64/repo/mingw-w64-crt/stdio/mingw_vsscanf.c
+    ../ports/mingw-w64/repo/mingw-w64-crt/stdio/mingw_sformat.c
+)
+
+set(DEFAULT_MSVCRT_VERSION 0x600)
+set(DEFAULT_WIN32_WINNT 0xa00)
+configure_file(../ports/mingw-w64/repo/mingw-w64-headers/crt/_mingw.h.in ${CMAKE_CURRENT_BINARY_DIR}/_mingw.h)
+unset(DEFAULT_WIN32_WINNT)
+unset(DEFAULT_MSVCRT_VERSION)
+
+target_include_directories(mingwex2 PRIVATE ${CMAKE_CURRENT_BINARY_DIR} ../ports/mingw-w64/repo/mingw-w64-headers/crt ../ports/mingw-w64/repo/mingw-w64-crt/include ../ports/mingw-w64/repo/mingw-w64-headers/include)
+target_compile_definitions(mingwex2 PRIVATE -D_CRTIMP= -D_UCRT -D_CRTBLD -D_WIN32 -D_WIN64 -D__MINGW32__)
+target_compile_options(mingwex2 PRIVATE ${USERSPACE_CFLAGS} $<$<COMPILE_LANGUAGE:CXX>:-fno-rtti -fno-exceptions> -mno-stack-arg-probe -fno-stack-protector $<$<CXX_COMPILER_ID:Clang>:-Wno-pragma-pack -Wno-include-next-absolute-path>)
+target_compile_options(mingwex2 PRIVATE -Wno-shorten-64-to-32 -Wno-missing-declarations -Wno-sign-conversion -Wno-implicit-int-conversion -Wno-unused-variable -Wno-gnu-pointer-arith -Wno-implicit-float-conversion -Wno-float-conversion -Wno-conversion -Wno-pointer-arith $<$<CXX_COMPILER_ID:GNU>:-Wno-use-after-free -Wno-missing-attributes>)
+
 set(SRC_FILES src/ucrtbase.cpp
     src/stubs.S
     src/ucrtbase.def
@@ -195,6 +232,7 @@ target_link_options(ucrtbase PRIVATE -nostartfiles -nostdlib)
 target_link_libraries(ucrtbase PRIVATE format print unicode list errno unique_handle moxnox_ioctls exec)
 target_link_libraries(ucrtbase PRIVATE ntdll_mod ucrtbase_mod kernelbase_mod)
 target_link_libraries(ucrtbase PRIVATE -Wl,--whole-archive musl -Wl,--no-whole-archive)
+target_link_libraries(ucrtbase PRIVATE -Wl,--whole-archive mingwex2 -Wl,--no-whole-archive)
 
 add_custom_command(TARGET ucrtbase POST_BUILD
     COMMAND sh -c "! \"${CMAKE_OBJDUMP}\" -p \"$1\" | grep -q 'DLL Name: ucrtbase' || { echo 'Error: ucrtbase.dll imports itself' >&2; exit 1; }" -- "$<TARGET_FILE:ucrtbase>"

@@ -44,19 +44,6 @@ target_compile_options(ucrtbase_static PRIVATE -Wno-include-next-absolute-path)
 
 add_library(mingwex STATIC
     repo/mingw-w64-crt/misc/dllmain.c
-    repo/mingw-w64-crt/gdtoa/dmisc.c
-    repo/mingw-w64-crt/gdtoa/gdtoa.c
-    repo/mingw-w64-crt/gdtoa/gethex.c
-    repo/mingw-w64-crt/gdtoa/gmisc.c
-    repo/mingw-w64-crt/gdtoa/hd_init.c
-    repo/mingw-w64-crt/gdtoa/hexnan.c
-    repo/mingw-w64-crt/gdtoa/misc.c
-    repo/mingw-w64-crt/gdtoa/smisc.c
-    repo/mingw-w64-crt/gdtoa/strtodg.c
-    repo/mingw-w64-crt/gdtoa/strtodnrp.c
-    repo/mingw-w64-crt/gdtoa/strtof.c
-    repo/mingw-w64-crt/gdtoa/strtopx.c
-    repo/mingw-w64-crt/gdtoa/sum.c
     repo/mingw-w64-crt/math/fpclassify.c
     repo/mingw-w64-crt/math/fpclassifyl.c
     repo/mingw-w64-crt/math/isnan.c
@@ -83,16 +70,6 @@ add_library(mingwex STATIC
     repo/mingw-w64-crt/stdio/strtok_r.c
     repo/mingw-w64-crt/stdio/_Exit.c
     repo/mingw-w64-crt/stdio/asprintf.c
-    repo/mingw-w64-crt/stdio/mingw_pformat.c
-    repo/mingw-w64-crt/stdio/mingw_wpformat.c
-    repo/mingw-w64-crt/stdio/mingw_vfprintf.c
-    repo/mingw-w64-crt/stdio/mingw_vfwprintf.c
-    repo/mingw-w64-crt/stdio/mingw_vfscanf.c
-    repo/mingw-w64-crt/stdio/mingw_vsnprintf.c
-    repo/mingw-w64-crt/stdio/mingw_vswprintf.c
-    repo/mingw-w64-crt/stdio/mingw_vsprintf.c
-    repo/mingw-w64-crt/stdio/mingw_vsscanf.c
-    repo/mingw-w64-crt/stdio/mingw_sformat.c
     repo/mingw-w64-crt/stdio/vasprintf.c
 )
 
