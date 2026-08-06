@@ -412,10 +412,19 @@ NTSTATUS NtCreateThread(HANDLE* thread_handle, ACCESS_MASK desired_access,
 }
 
 extern "C"
+void trace_NtResumeThread(uintptr_t* args) {
+    auto thread_handle = (HANDLE)args[0];
+
+    print("NtResumeThread: thread_handle = {}\n", thread_handle);
+}
+
+extern "C"
 NTSTATUS NtResumeThread(HANDLE thread_handle, uint32_t* suspend_count) {
     object_ref objrw;
     thread* t;
     uint32_t count;
+
+    TRACE1("NtResumeThread", thread_handle);
 
     if (thread_handle == NtCurrentThread()) {
         t = get_current_thread();
