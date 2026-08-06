@@ -5,6 +5,7 @@ module;
 #include <string_view>
 #include <span>
 #include <string.h>
+#include "trace.h"
 
 module handle;
 
@@ -14,6 +15,7 @@ import mem;
 import kernel_time_page;
 import thread;
 import unicode;
+import trace;
 
 using namespace std;
 
@@ -204,10 +206,29 @@ static nt_status query_object_basic_info(ACCESS_MASK access_mask,
 }
 
 extern "C"
+void trace_NtQueryObject(uintptr_t* args) {
+    auto handle = (HANDLE)args[0];
+    auto info_class = (OBJECT_INFORMATION_CLASS)args[1];
+    auto buffer = (void*)args[2];
+    auto buffer_size = (uint32_t)args[3];
+
+    start_deferred_print();
+
+    print("NtQueryObject: handle = ");
+    print_handle(handle);
+    print(", info_class = {}, buffer = {:x}, buffer_size = {}\n",
+          info_class, (uintptr_t)buffer, buffer_size);
+
+    end_deferred_print();
+}
+
+extern "C"
 nt_status NtQueryObject(HANDLE handle, OBJECT_INFORMATION_CLASS info_class,
                         void* buffer, uint32_t buffer_size,
                         uint32_t* return_length) {
     ACCESS_MASK access_mask;
+
+    TRACE4("NtQueryObject", handle, info_class, buffer, buffer_size);
 
     auto objrw = deref_handle(handle, access_mask);
     if (!objrw)
