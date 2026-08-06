@@ -25,7 +25,6 @@ using namespace std;
 
 struct image_trace_point {
     uint32_t rva_name;
-    uint32_t rva_args;
     uint32_t rva_addr;
     uint32_t rva_handler;
 };

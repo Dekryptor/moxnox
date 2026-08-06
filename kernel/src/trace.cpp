@@ -164,32 +164,10 @@ consteval auto trace_asm() {
     asm_line<".section .rdata,\"dr\"">(s);
     asm_line<".Ltp_name%=:">(s);
     asm_string<name>(s);
-    asm_line<".Ltp_args%=:">(s);
-
-    asm_string_start(s);
-    for (size_t i = 0; i < N; i++) {
-        if (i > 0) {
-            s[0] = ',';
-            s = s.last(s.size() - 1);
-        }
-
-        s[0] = '%';
-
-        if (i < 10) {
-            s[1] = (char)(i + '0');
-            s = s.last(s.size() - 2);
-        } else {
-            s[1] = (char)((i / 10) + '0');
-            s[2] = (char)((i % 10) + '0');
-            s = s.last(s.size() - 3);
-        }
-    }
-    asm_string_end(s);
 
     asm_line<".section .trace,\"dr\"">(s);
     asm_line<"992:">(s);
     asm_line<".rva .Ltp_name%=">(s);
-    asm_line<".rva .Ltp_args%=">(s);
     asm_line<".rva .Ltp_addr%=">(s);
     asm_line<".rva .Ltp_handler%=">(s);
     asm_line<".text">(s);
