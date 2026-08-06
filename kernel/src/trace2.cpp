@@ -176,11 +176,75 @@ static nt_status enable_tracepoint(string_view name) {
     return nt_status::NOT_FOUND;
 }
 
+static nt_status disable_tracepoint(string_view name) {
+    if (name.empty())
+        return nt_status::INVALID_PARAMETER;
+
+    active_trace_point* atp = nullptr;
+
+    {
+        lock_guard lock(trace_point_lock);
+
+        for (auto le = active_trace_points.next; le != &active_trace_points; le = le->next) {
+            auto& atp2 = containing_record<active_trace_point>(le);
+
+            auto* tp_name = (char*)atp2.img.base_address + atp2.tp.rva_name;
+
+            if (!memcmp(tp_name, name.data(), name.size()) && tp_name[name.size()] == 0) {
+                remove_entry_list(atp2.le);
+                atp = &atp2;
+                break;
+            }
+        }
+
+        if (!atp)
+            return nt_status::NOT_FOUND;
+
+        auto addr = (uintptr_t)((uint8_t*)atp->img.base_address + atp->tp.rva_addr);
+
+        auto write_byte = [](uintptr_t addr, uint8_t byte) {
+            auto pa = va_to_pa_lookup(addr & ~(PAGE_SIZE - 1)) | (addr & (PAGE_SIZE - 1));
+
+            *(uint8_t*)phys_address(pa) = byte;
+        };
+
+#ifdef __x86_64__
+        write_byte(addr, 0xcc); // int 3
+        send_tracepoint_ipi();
+
+        write_byte(addr + 1, 0x1f);
+        write_byte(addr + 2, 0x44);
+        write_byte(addr + 3, 0x00);
+        write_byte(addr + 4, 0x00);
+        send_tracepoint_ipi();
+
+        write_byte(addr, 0x0f);
+
+        uint32_t eax;
+
+        // serialize
+        __asm__ __volatile__ (
+            "cpuid\n\t"
+            : "=a" (eax)
+            : "a" (0)
+            : "ebx", "ecx", "edx"
+        );
+#endif
+    }
+
+    delete atp;
+
+    return nt_status::SUCCESS;
+}
+
 nt_status tracectl::ioctl(uint32_t code, span<const uint8_t> inbuf,
                           span<uint8_t> /*outbuf*/, uintptr_t& /*written*/) {
     switch (code) {
         case IOCTL_MOXNOX_TRACECTL_ENABLE:
             return enable_tracepoint(string_view((char*)inbuf.data(), inbuf.size()));
+
+        case IOCTL_MOXNOX_TRACECTL_DISABLE:
+            return disable_tracepoint(string_view((char*)inbuf.data(), inbuf.size()));
 
         default:
             return nt_status::NOT_SUPPORTED;
