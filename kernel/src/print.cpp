@@ -6,6 +6,7 @@ module;
 
 export module print;
 
+import nt;
 import format;
 import config;
 import disable_interrupts;
@@ -67,4 +68,13 @@ export void end_deferred_print() {
     }
 
     enable_preempt();
+}
+
+export void print_handle(HANDLE h) {
+    if (h == NtCurrentProcess())
+        print("NtCurrentProcess()");
+    else if (h == NtCurrentThread())
+        print("NtCurrentThread()");
+    else
+        print("{}", h);
 }

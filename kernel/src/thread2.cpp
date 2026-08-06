@@ -364,9 +364,10 @@ void trace_NtCreateThread(uintptr_t* args) {
 
     print("NtCreateThread: desired_access = ");
     print_access_mask(desired_access);
-    print(", object_attributes = {}, process_handle = {}, thread_context = {:x}, create_suspended = {}\n",
-          object_attributes, process_handle, (uintptr_t)&thread_context,
-          create_suspended ? "true" : "false");
+    print(", object_attributes = {}, process_handle = ", object_attributes);
+    print_handle(process_handle);
+    print(", thread_context = {:x}, create_suspended = {}\n",
+          (uintptr_t)&thread_context, create_suspended ? "true" : "false");
 
     end_deferred_print();
 }
@@ -415,7 +416,13 @@ extern "C"
 void trace_NtResumeThread(uintptr_t* args) {
     auto thread_handle = (HANDLE)args[0];
 
-    print("NtResumeThread: thread_handle = {}\n", thread_handle);
+    start_deferred_print();
+
+    print("NtResumeThread: thread_handle = ");
+    print_handle(thread_handle);
+    print("\n");
+
+    end_deferred_print();
 }
 
 extern "C"
