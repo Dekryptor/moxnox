@@ -9,6 +9,7 @@ module;
 #include <string_view>
 #include <stddef.h>
 #include <stdint.h>
+#include "trace.h"
 
 module section;
 
@@ -22,6 +23,7 @@ import thread;
 import crt;
 import process;
 import handle;
+import trace;
 
 using namespace std;
 
@@ -548,6 +550,64 @@ uint64_t section::find_export(string_view name) {
     return ret;
 }
 
+static void print_allocation_attributes(uint32_t allocation_attributes) {
+    static constexpr pair<uint32_t, string_view> values[] = {
+        { SEC_PARTITION_OWNER_HANDLE, "SEC_PARTITION_OWNER_HANDLE" },
+        { SEC_64K_PAGES, "SEC_64K_PAGES" },
+        { SEC_FILE, "SEC_FILE" },
+        { SEC_IMAGE, "SEC_IMAGE" },
+        { SEC_PROTECTED_IMAGE, "SEC_PROTECTED_IMAGE" },
+        { SEC_RESERVE, "SEC_RESERVE" },
+        { SEC_COMMIT, "SEC_COMMIT" },
+        { SEC_NOCACHE, "SEC_NOCACHE" },
+        { SEC_WRITECOMBINE, "SEC_WRITECOMBINE" },
+        { SEC_LARGE_PAGES, "SEC_LARGE_PAGES" },
+    };
+
+    bool first = true;
+
+    for (auto& v : values) {
+        if ((allocation_attributes & v.first) == v.first) {
+            allocation_attributes &= ~v.first;
+
+            if (!first)
+                print(" | ");
+
+            print("{}", v.second);
+            first = false;
+        }
+    }
+
+    if (allocation_attributes != 0) {
+        if (!first)
+            print(" | ");
+
+        print("{:x}", allocation_attributes);
+    }
+
+    if (first && allocation_attributes == 0)
+        print("0");
+}
+
+extern "C"
+void trace_NtCreateSection(uintptr_t* args) {
+    auto maximum_size = (const LARGE_INTEGER*)args[0];
+    auto section_page_protection = (uint32_t)args[1];
+    auto allocation_attributes = (uint32_t)args[2];
+    auto file_handle = (HANDLE)args[3];
+
+    start_deferred_print();
+
+    print("NtCreateSection: maximum_size = {}, section_page_protection = ",
+          maximum_size);
+    print_protect(section_page_protection);
+    print(", allocation_attributes = ");
+    print_allocation_attributes(allocation_attributes);
+    print(", file_handle = {}\n", file_handle);
+
+    end_deferred_print();
+}
+
 extern "C"
 NTSTATUS NtCreateSection(HANDLE* section_handle, ACCESS_MASK, const OBJECT_ATTRIBUTES*,
                          const LARGE_INTEGER* maximum_size, uint32_t section_page_protection,
@@ -557,6 +617,9 @@ NTSTATUS NtCreateSection(HANDLE* section_handle, ACCESS_MASK, const OBJECT_ATTRI
     uint64_t size;
     optional<reference_wrapper<file>> f;
     uint32_t needed_access;
+
+    TRACE4("NtCreateSection", maximum_size, section_page_protection,
+           allocation_attributes, file_handle);
 
     // FIXME - desired_access
     // FIXME - object_attributes

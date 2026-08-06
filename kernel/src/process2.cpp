@@ -2407,7 +2407,7 @@ static void print_allocation_type(uint32_t allocation_type) {
         print("0");
 }
 
-static void print_protect(uint32_t protect) {
+void print_protect(uint32_t protect) {
     static constexpr pair<uint32_t, string_view> values[] = {
         { PAGE_NOACCESS, "PAGE_NOACCESS" },
         { PAGE_READONLY, "PAGE_READONLY" },
