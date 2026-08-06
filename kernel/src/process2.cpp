@@ -3618,6 +3618,23 @@ NTSTATUS process::write_vm(void* base_address, const void* buffer,
 }
 
 extern "C"
+void trace_NtWriteVirtualMemory(uintptr_t* args) {
+    auto process_handle = (HANDLE)args[0];
+    auto base_address = (void*)args[1];
+    auto us_buffer = (const void*)args[2];
+    auto buffer_size = (uint32_t)args[3];
+
+    start_deferred_print();
+
+    print("NtWriteVirtualMemory: process_handle = ");
+    print_handle(process_handle);
+    print(", base_address = {:x}, us_buffer = {:x}, buffer_size = {}\n",
+          (uintptr_t)base_address, (uintptr_t)us_buffer, buffer_size);
+
+    end_deferred_print();
+}
+
+extern "C"
 NTSTATUS NtWriteVirtualMemory(HANDLE process_handle, void* base_address,
                               const void* us_buffer, uint32_t buffer_size,
                               uint32_t* number_of_bytes_written) {
@@ -3626,6 +3643,9 @@ NTSTATUS NtWriteVirtualMemory(HANDLE process_handle, void* base_address,
     process* src_proc = t.proc;
     process* dest_proc;
     nt_status status;
+
+    TRACE4("NtWriteVirtualMemory", process_handle, base_address, us_buffer,
+           buffer_size);
 
     if (!src_proc)
         return nt_status::INVALID_PARAMETER;
