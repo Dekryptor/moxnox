@@ -1932,3 +1932,46 @@ template<>
 consteval bool format_spec_valid<OBJECT_INFORMATION_CLASS>(string_view fmt) {
     return fmt.empty();
 }
+
+export span<char> do_format_arg(span<char> sp, string_view,
+                                SYSTEM_INFORMATION_CLASS arg) {
+    switch (arg) {
+        using enum SYSTEM_INFORMATION_CLASS;
+
+        case BasicInformation:
+            return sp_strcpy(sp, "BasicInformation");
+        case ProcessorInformation:
+            return sp_strcpy(sp, "ProcessorInformation");
+        case PerformanceInformation:
+            return sp_strcpy(sp, "PerformanceInformation");
+        case TimeOfDayInformation:
+            return sp_strcpy(sp, "TimeOfDayInformation");
+        case ProcessInformation:
+            return sp_strcpy(sp, "ProcessInformation");
+        case ProcessorPerformanceInformation:
+            return sp_strcpy(sp, "ProcessorPerformanceInformation");
+        case HandleInformation:
+            return sp_strcpy(sp, "HandleInformation");
+        case PagefileInformation:
+            return sp_strcpy(sp, "PagefileInformation");
+        case InterruptInformation:
+            return sp_strcpy(sp, "InterruptInformation");
+        case ExceptionInformation:
+            return sp_strcpy(sp, "ExceptionInformation");
+        case RegistryQuotaInformation:
+            return sp_strcpy(sp, "RegistryQuotaInformation");
+        case LookasideInformation:
+            return sp_strcpy(sp, "LookasideInformation");
+        case CodeIntegrityInformation:
+            return sp_strcpy(sp, "CodeIntegrityInformation");
+        case PolicyInformation:
+            return sp_strcpy(sp, "PolicyInformation");
+        default:
+            return do_format_arg(sp, "", (unsigned int)arg);
+    }
+}
+
+template<>
+consteval bool format_spec_valid<SYSTEM_INFORMATION_CLASS>(string_view fmt) {
+    return fmt.empty();
+}
