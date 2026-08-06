@@ -3171,6 +3171,44 @@ nt_status file::fs_control(uint32_t code, span<const uint8_t> inbuf,
     return i.fs_control(code, inbuf, outbuf, retlen, dentry);
 }
 
+static void print_fsctl_code(uint32_t code) {
+    switch (code) {
+        case FSCTL_SET_REPARSE_POINT:
+            print("FSCTL_SET_REPARSE_POINT");
+            break;
+
+        case FSCTL_GET_REPARSE_POINT:
+            print("FSCTL_GET_REPARSE_POINT");
+            break;
+
+        default:
+            print("{:x}", code);
+            break;
+    }
+}
+
+extern "C"
+void trace_NtFsControlFile(uintptr_t* args) {
+    auto file_handle = (HANDLE)args[0];
+    auto code = (uint32_t)args[1];
+    auto input_buffer = (void*)args[2];
+    auto input_buffer_length = (uint32_t)args[3];
+    auto output_buffer = (void*)args[4];
+    auto output_buffer_length = (uint32_t)args[5];
+
+    start_deferred_print();
+
+    print("NtFsControlFile: file_handle = ");
+    print_handle(file_handle);
+    print(", code = ");
+    print_fsctl_code(code);
+    print(", input_buffer = {:x}, input_buffer_length = {}, output_buffer = {:x}, output_buffer_length = {}\n",
+          (uintptr_t)input_buffer, input_buffer_length,
+          (uintptr_t)output_buffer, output_buffer_length);
+
+    end_deferred_print();
+}
+
 extern "C"
 NTSTATUS NtFsControlFile(HANDLE file_handle, HANDLE /*event*/,
                          PIO_APC_ROUTINE /*apc_routine*/, void* /*apc_context*/,
@@ -3178,6 +3216,9 @@ NTSTATUS NtFsControlFile(HANDLE file_handle, HANDLE /*event*/,
                          void* input_buffer, uint32_t input_buffer_length,
                          void* output_buffer, uint32_t output_buffer_length) {
     uint32_t retlen = 0;
+
+    TRACE6("NtFsControlFile", file_handle, code, input_buffer, input_buffer_length,
+           output_buffer, output_buffer_length);
 
     auto objrw = deref_handle(file_handle);
     if (!objrw)
