@@ -4230,11 +4230,31 @@ NTSTATUS process::query_info(enum PROCESS_INFORMATION_CLASS process_information_
 }
 
 extern "C"
+void trace_NtQueryInformationProcess(uintptr_t* args) {
+    auto process_handle = (HANDLE)args[0];
+    auto info_class = (PROCESS_INFORMATION_CLASS)args[1];
+    auto buffer = (void*)args[2];
+    auto length = (uint32_t)args[3];
+
+    start_deferred_print();
+
+    print("NtQueryInformationProcess: process_handle = ");
+    print_handle(process_handle);
+    print(", info_class = {}, buffer = {:x}, length = {}\n", info_class,
+          (uintptr_t)buffer, length);
+
+    end_deferred_print();
+}
+
+extern "C"
 NTSTATUS NtQueryInformationProcess(HANDLE process_handle, enum PROCESS_INFORMATION_CLASS process_information_class,
                                    void* process_information, uint32_t process_information_length,
                                    uint32_t* return_length) {
     object_ref objrw;
     process* p;
+
+    TRACE4("NtQueryInformationProcess", process_handle, process_information_class,
+           process_information, process_information_length);
 
     if (process_handle == NtCurrentProcess()) {
         auto t = get_current_thread();
