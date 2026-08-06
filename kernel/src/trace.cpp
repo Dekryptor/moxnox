@@ -218,7 +218,7 @@ consteval auto trace_asm() {
 
     asm_jump<".Ltp_addr%= + 5">(s);
 #elifdef __aarch64__
-    // FIXME
+    asm_line<"brk #0">(s); // FIXME
 #endif
 
     asm_line<".text">(s);

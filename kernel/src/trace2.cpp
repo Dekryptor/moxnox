@@ -102,6 +102,7 @@ static nt_status do_enable_tracepoint(kernel_image& img, image_trace_point& tp) 
 
             auto addr = (uintptr_t)((uint8_t*)img.base_address + tp.rva_addr);
 
+#ifdef __x86_64__
             auto write_byte = [](uintptr_t addr, uint8_t byte) {
                 auto pa = va_to_pa_lookup(addr & ~(PAGE_SIZE - 1)) | (addr & (PAGE_SIZE - 1));
 
@@ -110,7 +111,6 @@ static nt_status do_enable_tracepoint(kernel_image& img, image_trace_point& tp) 
 
             int32_t delta = tp.rva_handler - tp.rva_addr - 5;
 
-#ifdef __x86_64__
             write_byte(addr, 0xcc); // int 3
             send_tracepoint_ipi();
 
@@ -131,6 +131,22 @@ static nt_status do_enable_tracepoint(kernel_image& img, image_trace_point& tp) 
                 : "a" (0)
                 : "ebx", "ecx", "edx"
             );
+#elifdef __aarch64__
+            auto pa = va_to_pa_lookup(addr & ~(PAGE_SIZE - 1)) | (addr & (PAGE_SIZE - 1));
+            auto delta = (int32_t)tp.rva_handler - (int32_t)tp.rva_addr;
+            *(uint32_t*)phys_address(pa) = 0x14000000 | (((int32_t)delta >> 2) & 0x03ffffff); // b handler
+
+            __asm __volatile (
+                "dc cvau, %x[addr]\n\t"
+                "dsb ish\n\t"
+                "ic ivau, %x[addr]\n\t"
+                "dsb ish\n\t"
+                "isb\n\t"
+                :
+                : [addr] "r" (addr)
+            );
+
+            send_tracepoint_ipi();
 #endif
         }
     }
