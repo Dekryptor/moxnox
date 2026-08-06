@@ -1840,3 +1840,22 @@ template<>
 consteval bool format_spec_valid<FS_INFORMATION_CLASS>(string_view fmt) {
     return fmt.empty();
 }
+
+export span<char> do_format_arg(span<char> sp, string_view,
+                                TIMER_TYPE arg) {
+    switch (arg) {
+        using enum TIMER_TYPE;
+
+        case NotificationTimer:
+            return sp_strcpy(sp, "NotificationTimer");
+        case SynchronizationTimer:
+            return sp_strcpy(sp, "SynchronizationTimer");
+        default:
+            return do_format_arg(sp, "", (unsigned int)arg);
+    }
+}
+
+template<>
+consteval bool format_spec_valid<TIMER_TYPE>(string_view fmt) {
+    return fmt.empty();
+}
