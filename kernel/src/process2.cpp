@@ -14,6 +14,7 @@ module;
 #include <sys/uio.h>
 #include "assert.h"
 #include "timer-asm.h"
+#include "trace.h"
 
 module process;
 
@@ -50,6 +51,7 @@ import event;
 import moxnox_ioctls;
 import pty;
 import vec;
+import trace;
 
 #ifdef __x86_64__
 import apic;
@@ -1987,8 +1989,24 @@ static void do_terminate(process& p, nt_status exit_status) {
 }
 
 extern "C"
+void trace_NtTerminateProcess(uintptr_t* args) {
+    auto process_handle = (HANDLE)args[0];
+    auto exit_status = (NTSTATUS)args[1];
+
+    start_deferred_print();
+
+    print("NtTerminateProcess: process_handle = ");
+    print_handle(process_handle);
+    print(", exit_status = {}\n", exit_status);
+
+    end_deferred_print();
+}
+
+extern "C"
 NTSTATUS NtTerminateProcess(HANDLE process_handle, NTSTATUS exit_status) {
     object_ref obj;
+
+    TRACE2("NtTerminateProcess", process_handle, exit_status);
 
     // if process_handle == 0, this instead means kill all other threads
     if (process_handle == 0)
