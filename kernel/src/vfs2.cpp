@@ -877,7 +877,7 @@ nt_status vec_NtReadFile(HANDLE file_handle, HANDLE, PIO_APC_ROUTINE, void*,
     return nt_status::SUCCESS;
 }
 
-static void print_access_mask(ACCESS_MASK access_mask) {
+void print_file_access_mask(ACCESS_MASK access_mask) {
     static constexpr pair<ACCESS_MASK, string_view> values[] = {
         { FILE_READ_DATA, "FILE_READ_DATA" },
         { FILE_LIST_DIRECTORY, "FILE_LIST_DIRECTORY" },
@@ -982,19 +982,7 @@ static void print_create_options(uint32_t create_options) {
         print("0");
 }
 
-extern "C"
-void trace_NtCreateFile(uintptr_t* args) {
-    auto access_mask = (ACCESS_MASK)args[0];
-    auto& object_attributes = *(const OBJECT_ATTRIBUTES*)args[1];
-    auto create_disposition = (uint32_t)args[2];
-    auto create_options = (uint32_t)args[3];
-
-    start_deferred_print();
-
-    print("NtCreateFile: access_mask = ");
-    print_access_mask(access_mask);
-    print(", object_attributes = {}, create_disposition = ", object_attributes);
-
+void print_create_disposition(uint32_t create_disposition) {
     switch (create_disposition) {
         case FILE_SUPERSEDE:
             print("FILE_SUPERSEDE");
@@ -1024,7 +1012,21 @@ void trace_NtCreateFile(uintptr_t* args) {
             print("{:x}", create_disposition);
             break;
     }
+}
 
+extern "C"
+void trace_NtCreateFile(uintptr_t* args) {
+    auto access_mask = (ACCESS_MASK)args[0];
+    auto& object_attributes = *(const OBJECT_ATTRIBUTES*)args[1];
+    auto create_disposition = (uint32_t)args[2];
+    auto create_options = (uint32_t)args[3];
+
+    start_deferred_print();
+
+    print("NtCreateFile: access_mask = ");
+    print_file_access_mask(access_mask);
+    print(", object_attributes = {}, create_disposition = ", object_attributes);
+    print_create_disposition(create_disposition);
     print(", create_options = ");
     print_create_options(create_options);
     print("\n");

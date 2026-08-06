@@ -6,6 +6,7 @@ module;
 #include <atomic>
 #include <string_view>
 #include <mutex>
+#include "trace.h"
 
 export module pipe;
 
@@ -25,6 +26,7 @@ import object_ref;
 import scheduler;
 import vfs;
 import vec;
+import trace;
 
 using namespace std;
 
@@ -494,6 +496,23 @@ export void shutdown_pipes() {
 }
 
 extern "C"
+void trace_NtCreateNamedPipeFile(uintptr_t* args) {
+    auto desired_access = (ACCESS_MASK)args[0];
+    auto* object_attributes = (OBJECT_ATTRIBUTES*)args[1];
+    auto create_disposition = (uint32_t)args[2];
+
+    start_deferred_print();
+
+    print("NtCreateNamedPipeFile: desired_access = ");
+    print_file_access_mask(desired_access);
+    print(", object_attributes = {}, create_disposition = ", object_attributes);
+    print_create_disposition(create_disposition);
+    print("\n");
+
+    end_deferred_print();
+}
+
+extern "C"
 NTSTATUS NtCreateNamedPipeFile(HANDLE* file_handle, ACCESS_MASK desired_access,
                                const OBJECT_ATTRIBUTES* object_attributes,
                                IO_STATUS_BLOCK* iosb, uint32_t /*share_access*/,
@@ -504,6 +523,9 @@ NTSTATUS NtCreateNamedPipeFile(HANDLE* file_handle, ACCESS_MASK desired_access,
                                const LARGE_INTEGER* /*default_timeout*/) {
     nt_status status;
     auto t = get_current_thread();
+
+    TRACE3("NtCreateNamedPipeFile", desired_access, object_attributes,
+           create_disposition);
 
     // FIXME - share_access
     // FIXME - create_options

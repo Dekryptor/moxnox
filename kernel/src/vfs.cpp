@@ -277,7 +277,6 @@ export void search_dentry_cache(dentry& dir, string_view name,
 export bool init_vfsctl();
 export void surprise_removal(volume& v);
 export void remove_partitions(volume& v);
-
 export nt_status vec_NtWriteFile(HANDLE file_handle, HANDLE, PIO_APC_ROUTINE, void*,
                                  IO_STATUS_BLOCK* io_status_block,
                                  span<const span<const uint8_t>> v,
@@ -288,3 +287,5 @@ export nt_status vec_NtReadFile(HANDLE file_handle, HANDLE, PIO_APC_ROUTINE, voi
                                 span<const span<uint8_t>> v,
                                 const LARGE_INTEGER* byte_offset,
                                 const uint32_t*);
+export void print_file_access_mask(ACCESS_MASK access_mask);
+export void print_create_disposition(uint32_t create_disposition);
