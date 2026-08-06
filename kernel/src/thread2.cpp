@@ -753,7 +753,23 @@ NTSTATUS NtGetContextThread(HANDLE thread_handle, CONTEXT* context) {
 }
 
 extern "C"
+void trace_NtSetContextThread(uintptr_t* args) {
+    auto thread_handle = (HANDLE)args[0];
+    auto& context = *(CONTEXT*)args[1];
+
+    start_deferred_print();
+
+    print("NtSetContextThread: thread_handle = ");
+    print_handle(thread_handle);
+    print(", context = {:x}\n", (uintptr_t)&context);
+
+    end_deferred_print();
+}
+
+extern "C"
 NTSTATUS NtSetContextThread(HANDLE thread_handle, const CONTEXT* context) {
+    TRACE2("NtSetContextThread", thread_handle, context);
+
 #ifdef __aarch64__ // FIXME
     (void)thread_handle;
     (void)context;
