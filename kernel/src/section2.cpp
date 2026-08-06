@@ -701,12 +701,38 @@ NTSTATUS NtCreateSection(HANDLE* section_handle, ACCESS_MASK, const OBJECT_ATTRI
 }
 
 extern "C"
+void trace_NtMapViewOfSection(uintptr_t* args) {
+    auto section_handle = (HANDLE)args[0];
+    auto process_handle = (HANDLE)args[1];
+    auto base_address = (void**)args[2];
+    auto section_offset = (const LARGE_INTEGER*)args[3];
+    auto view_size = (size_t*)args[4];
+    auto win32_protect = (uint32_t)args[5];
+
+    start_deferred_print();
+
+    print("NtMapViewOfSection: section_handle = ");
+    print_handle(section_handle);
+    print(", process_handle = ");
+    print_handle(process_handle);
+    print(", base_address = {:x}, section_offset = {}, view_size = {}, win32_protect = ",
+          (uintptr_t)*base_address, section_offset, *view_size);
+    print_protect(win32_protect);
+    print("\n");
+
+    end_deferred_print();
+}
+
+extern "C"
 NTSTATUS NtMapViewOfSection(HANDLE section_handle, HANDLE process_handle, void** base_address,
                             uintptr_t zero_bits, size_t commit_size, LARGE_INTEGER* section_offset,
                             size_t* view_size, enum SECTION_INHERIT inherit_disposition,
                             uint32_t allocation_type, uint32_t win32_protect) {
     object_ref proc;
     process* p;
+
+    TRACE6("NtMapViewOfSection", section_handle, process_handle, base_address,
+           section_offset, view_size, win32_protect);
 
     if (process_handle == NtCurrentProcess()) {
         auto t = get_current_thread();
