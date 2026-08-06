@@ -1150,9 +1150,29 @@ nt_status thread::wait_for_signal(span<const uint8_t> buffer) {
 }
 
 extern "C"
+void trace_NtSetInformationThread(uintptr_t* args) {
+    auto thread_handle = (HANDLE)args[0];
+    auto info_class = (THREAD_INFORMATION_CLASS)args[1];
+    auto buffer = (void*)args[2];
+    auto buffer_size = (uint32_t)args[3];
+
+    start_deferred_print();
+
+    print("NtSetInformationThread: thread_handle = ");
+    print_handle(thread_handle);
+    print(", info_class = {}, buffer = {:x}, buffer_size = {}\n",
+          info_class, (uintptr_t)buffer, buffer_size);
+
+    end_deferred_print();
+}
+
+extern "C"
 NTSTATUS NtSetInformationThread(HANDLE thread_handle, THREAD_INFORMATION_CLASS info_class,
                                 const void* buffer, uint32_t buffer_size) {
     object_ref obj;
+
+    TRACE4("NtSetInformationThread", thread_handle, info_class, buffer,
+           buffer_size);
 
     if (thread_handle == NtCurrentThread()) {
         auto* t = get_current_thread();
