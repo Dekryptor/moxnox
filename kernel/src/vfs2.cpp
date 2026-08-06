@@ -970,9 +970,7 @@ void trace_NtCreateFile(uintptr_t* args) {
     auto create_disposition = (uint32_t)args[2];
     auto create_options = (uint32_t)args[3];
 
-    // FIXME - only flush at end?
-
-    disable_preempt();
+    start_deferred_print();
 
     print("NtCreateFile: access_mask = ");
     print_access_mask(access_mask);
@@ -1012,7 +1010,7 @@ void trace_NtCreateFile(uintptr_t* args) {
     print_create_options(create_options);
     print("\n");
 
-    enable_preempt();
+    end_deferred_print();
 }
 
 extern "C"

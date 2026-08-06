@@ -35,6 +35,8 @@ export struct cpu_block {
     uint64_t syscall_rax;
 #endif
     char* printk_scratch;
+    size_t deferred_print_size;
+    unsigned int deferred_print = 0;
 #ifdef __x86_64__
     xsave_area xsave;
 #endif
