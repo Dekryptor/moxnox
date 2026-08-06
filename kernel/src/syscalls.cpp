@@ -412,8 +412,24 @@ static void free_object_attributes(OBJECT_ATTRIBUTES& oa) {
 }
 
 extern "C"
-void trace_user_NtCreateFile() {
-    print("hello from trace_user_NtCreateFile\n");
+void trace_user_NtCreateFile(uintptr_t* args) {
+    auto file_handle = (HANDLE*)args[0];
+    auto desired_access = (ACCESS_MASK)args[1];
+    auto object_attributes = (const OBJECT_ATTRIBUTES*)args[2];
+    auto io_status_block = (IO_STATUS_BLOCK*)args[3];
+    auto allocation_size = (const LARGE_INTEGER*)args[4];
+    auto file_attributes = (uint32_t)args[5];
+    auto share_access = (uint32_t)args[6];
+    auto create_disposition = (uint32_t)args[7];
+    auto create_options = (uint32_t)args[8];
+    auto ea_buffer = (void*)args[9];
+    auto ea_length = (uint32_t)args[10];
+
+    print("user_NtCreateFile: file_handle = {:x}, desired_access = {:x}, object_attributes = {:x}, io_status_block = {:x}, allocation_size = {:x}, file_attributes = {:x}, share_access = {:x}, create_disposition = {:x}, create_options = {:x}, ea_buffer = {:x}, ea_length = {}\n",
+          (uintptr_t)file_handle, desired_access, (uintptr_t)object_attributes,
+          (uintptr_t)io_status_block, (uintptr_t)allocation_size,
+          file_attributes, share_access, create_disposition, create_options,
+          (uintptr_t)ea_buffer, ea_length);
 }
 
 extern "C"

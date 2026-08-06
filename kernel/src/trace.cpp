@@ -105,6 +105,54 @@ constexpr void asm_jump(span<char, N>& s) {
 
     s = s.last(s.size() - str.length - 5);
 }
+
+template<size_t N>
+constexpr void asm_push_param(span<char, N>& s, unsigned int num) {
+    s[0] = 'p';
+    s[1] = 'u';
+    s[2] = 's';
+    s[3] = 'h';
+    s[4] = ' ';
+    s[5] = '%';
+    s[6] = 'q';
+
+    if (num < 10) {
+        s[7] = (char)(num + '0');
+        s[8] = '\n';
+        s = s.last(s.size() - 9);
+    } else {
+        s[7] = (char)((num / 10) + '0');
+        s[8] = (char)((num % 10) + '0');
+        s[9] = '\n';
+        s = s.last(s.size() - 10);
+    }
+}
+
+constexpr char hex_digit(unsigned int num) {
+    if (num < 10)
+        return (char)('0' + num);
+    else
+        return (char)('a' + num - 10);
+}
+
+template<size_t N>
+constexpr void asm_add_rsp(span<char, N>& s, unsigned int size) {
+    s[0] = 'a';
+    s[1] = 'd';
+    s[2] = 'd';
+    s[3] = ' ';
+    s[4] = 'r';
+    s[5] = 's';
+    s[6] = 'p';
+    s[7] = ',';
+    s[8] = '0';
+    s[9] = 'x';
+    s[10] = hex_digit((size >> 4) & 0xf);
+    s[11] = hex_digit(size & 0xf);
+    s[12] = '\n';
+
+    s = s.last(s.size() - 13);
+}
 #endif
 
 export
@@ -165,7 +213,9 @@ consteval auto trace_asm() {
     asm_line<"push r11">(s);
     asm_line<"pushfq">(s);
 
-    // FIXME - args
+    for (unsigned int i = 0; i < N; i++) {
+        asm_push_param(s, N - i - 1);
+    }
 
     // align stack
     asm_line<"push rbp">(s);
@@ -173,9 +223,11 @@ consteval auto trace_asm() {
     asm_line<"and rsp, 0xfffffffffffffff0">(s);
     asm_line<"sub rsp, 0x20">(s);
 
+    asm_line<"lea rcx, [rbp + 8]">(s);
     asm_call_trace<name>(s);
     asm_line<"mov rsp, rbp">(s);
     asm_line<"pop rbp">(s);
+    asm_add_rsp(s, 8 * N);
 
     asm_line<"popfq">(s);
     asm_line<"pop r11">(s);
