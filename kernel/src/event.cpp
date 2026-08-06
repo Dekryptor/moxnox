@@ -5,6 +5,7 @@ module;
 #include <atomic>
 #include <optional>
 #include <mutex>
+#include "trace.h"
 
 export module event;
 
@@ -19,6 +20,7 @@ import handle;
 import objects;
 import process;
 import scheduler;
+import trace;
 
 using namespace std;
 
@@ -134,8 +136,23 @@ NTSTATUS NtCreateEvent(HANDLE* event_handle, ACCESS_MASK desired_access,
 }
 
 extern "C"
+void trace_NtSetEvent(uintptr_t* args) {
+    auto event_handle = (HANDLE)args[0];
+
+    start_deferred_print();
+
+    print("NtSetEvent: event_handle = ");
+    print_handle(event_handle);
+    print("\n");
+
+    end_deferred_print();
+}
+
+extern "C"
 NTSTATUS NtSetEvent(HANDLE event_handle, int32_t* /*previous_state*/) {
     // FIXME - previous_state
+
+    TRACE1("NtSetEvent", event_handle);
 
     auto objrw = deref_handle(event_handle);
     if (!objrw)
