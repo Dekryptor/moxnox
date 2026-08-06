@@ -416,8 +416,19 @@ NTSTATUS NtCancelTimer(HANDLE timer_handle, bool* current_state) {
 }
 
 extern "C"
+void trace_NtDelayExecution(uintptr_t* args) {
+    auto alertable = (bool)args[0];
+    auto delay_interval = (const LARGE_INTEGER*)args[1];
+
+    print("NtDelayExecution: alertable = {}, delay_interval = {}\n",
+          alertable ? "true" : "false", delay_interval);
+}
+
+extern "C"
 NTSTATUS NtDelayExecution(bool alertable, const LARGE_INTEGER* delay_interval) {
     optional<uint64_t> tm;
+
+    TRACE2("NtDelayExecution", alertable, delay_interval);
 
     if (delay_interval) {
         if (delay_interval->QuadPart > 0) {
