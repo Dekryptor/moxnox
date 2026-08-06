@@ -2571,10 +2571,32 @@ NTSTATUS process::free_vm(void** base_address, size_t* region_size, uint32_t fre
 }
 
 extern "C"
+void trace_NtFreeVirtualMemory(uintptr_t* args) {
+    auto process_handle = (HANDLE)args[0];
+    auto base_address = (void**)args[1];
+    auto region_size = (size_t*)args[2];
+    auto free_type = (uint32_t)args[3];
+
+    start_deferred_print();
+
+    print("NtFreeVirtualMemory: process_handle = ");
+    print_handle(process_handle);
+    print(", base_address = {:x}, region_size = {:x}, free_type = ",
+          (uintptr_t)*base_address, *region_size, free_type);
+    print_allocation_type(free_type);
+    print("\n");
+
+    end_deferred_print();
+}
+
+extern "C"
 NTSTATUS NtFreeVirtualMemory(HANDLE proc_handle, void** base_address, size_t* region_size,
                              uint32_t free_type) {
     object_ref objrw;
     process* p;
+
+    TRACE4("NtFreeVirtualMemory", proc_handle, base_address, region_size,
+           free_type);
 
     if (proc_handle == NtCurrentProcess()) {
         auto t = get_current_thread();
