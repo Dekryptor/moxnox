@@ -54,6 +54,24 @@ static int enable_tracepoint(unique_handle& tracectl, string_view name) {
     return 0;
 }
 
+static int disable_tracepoint(unique_handle& tracectl, string_view name) {
+    nt_status status;
+    IO_STATUS_BLOCK iosb;
+
+    status = NtDeviceIoControlFile(tracectl.get(), 0, nullptr, nullptr, &iosb,
+                                   IOCTL_MOXNOX_TRACECTL_DISABLE, name.data(),
+                                   (uint32_t)name.size(), nullptr, 0);
+    if (status == nt_status::NOT_FOUND) {
+        print_stderr("tracepoint {} not found\n", name);
+        return 1;
+    } else if (!success(status)) {
+        print_stderr("NtDeviceIoControlFile returned {}\n", status);
+        return 1;
+    }
+
+    return 0;
+}
+
 int main(int argc, char** argv) {
     bool enable = false, disable = false;
 
@@ -108,8 +126,6 @@ int main(int argc, char** argv) {
 
     if (enable)
         return enable_tracepoint(tracectl, name);
-    else if (disable) {
-        print_stderr("FIXME - disabling tracepoints\n");
-        return 1;
-    }
+    else if (disable)
+        return disable_tracepoint(tracectl, name);
 }
