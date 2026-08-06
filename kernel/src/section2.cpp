@@ -948,8 +948,28 @@ NTSTATUS section::query_info(enum SECTION_INFORMATION_CLASS section_information_
 }
 
 extern "C"
+void trace_NtQuerySection(uintptr_t* args) {
+    auto section_handle = (HANDLE)args[0];
+    auto info_class = (SECTION_INFORMATION_CLASS)args[1];
+    auto buffer = (void*)args[2];
+    auto length = (size_t)args[3];
+
+    start_deferred_print();
+
+    print("NtQuerySection: section_handle = ");
+    print_handle(section_handle);
+    print(", info_class = {}, buffer = {:x}, length = {}\n", info_class,
+          (uintptr_t)buffer, length);
+
+    end_deferred_print();
+}
+
+extern "C"
 NTSTATUS NtQuerySection(HANDLE section_handle, enum SECTION_INFORMATION_CLASS section_information_class,
                         void* section_information, size_t section_information_length, size_t* return_length) {
+    TRACE4("NtQuerySection", section_handle, section_information_class,
+           section_information, section_information_length);
+
     auto objrw = deref_handle(section_handle);
     if (!objrw)
         return nt_status::INVALID_HANDLE;
