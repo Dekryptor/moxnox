@@ -2348,12 +2348,122 @@ NTSTATUS process::allocate_vm(void** base_address, uintptr_t, size_t* region_siz
     return nt_status::SUCCESS;
 }
 
+static void print_allocation_type(uint32_t allocation_type) {
+    static constexpr pair<uint32_t, string_view> values[] = {
+        { MEM_COMMIT, "MEM_COMMIT" },
+        { MEM_RESERVE, "MEM_RESERVE" },
+        { MEM_DECOMMIT, "MEM_DECOMMIT" },
+        { MEM_RELEASE, "MEM_RELEASE" },
+        { MEM_FREE, "MEM_FREE" },
+        { MEM_PRIVATE, "MEM_PRIVATE" },
+        { MEM_MAPPED, "MEM_MAPPED" },
+        { MEM_RESET, "MEM_RESET" },
+        { MEM_TOP_DOWN, "MEM_TOP_DOWN" },
+        { MEM_WRITE_WATCH, "MEM_WRITE_WATCH" },
+        { MEM_PHYSICAL, "MEM_PHYSICAL" },
+        { MEM_RESET_UNDO, "MEM_RESET_UNDO" },
+        { MEM_IMAGE, "MEM_IMAGE" },
+        { MEM_LARGE_PAGES, "MEM_LARGE_PAGES" },
+        { MEM_4MB_PAGES, "MEM_4MB_PAGES" },
+    };
+
+    bool first = true;
+
+    for (auto& v : values) {
+        if ((allocation_type & v.first) == v.first) {
+            allocation_type &= ~v.first;
+
+            if (!first)
+                print(" | ");
+
+            print("{}", v.second);
+            first = false;
+        }
+    }
+
+    if (allocation_type != 0) {
+        if (!first)
+            print(" | ");
+
+        print("{:x}", allocation_type);
+    }
+
+    if (first && allocation_type == 0)
+        print("0");
+}
+
+static void print_protect(uint32_t protect) {
+    static constexpr pair<uint32_t, string_view> values[] = {
+        { PAGE_NOACCESS, "PAGE_NOACCESS" },
+        { PAGE_READONLY, "PAGE_READONLY" },
+        { PAGE_READWRITE, "PAGE_READWRITE" },
+        { PAGE_WRITECOPY, "PAGE_WRITECOPY" },
+        { PAGE_EXECUTE, "PAGE_EXECUTE" },
+        { PAGE_EXECUTE_READ, "PAGE_EXECUTE_READ" },
+        { PAGE_EXECUTE_READWRITE, "PAGE_EXECUTE_READWRITE" },
+        { PAGE_EXECUTE_WRITECOPY, "PAGE_EXECUTE_WRITECOPY" },
+        { PAGE_GUARD, "PAGE_GUARD" },
+        { PAGE_NOCACHE, "PAGE_NOCACHE" },
+        { PAGE_WRITECOMBINE, "PAGE_WRITECOMBINE" },
+    };
+
+    bool first = true;
+
+    for (auto& v : values) {
+        if ((protect & v.first) == v.first) {
+            protect &= ~v.first;
+
+            if (!first)
+                print(" | ");
+
+            print("{}", v.second);
+            first = false;
+        }
+    }
+
+    if (protect != 0) {
+        if (!first)
+            print(" | ");
+
+        print("{:x}", protect);
+    }
+
+    if (first && protect == 0)
+        print("0");
+}
+
+extern "C"
+void trace_NtAllocateVirtualMemory(uintptr_t* args) {
+    auto process_handle = (HANDLE)args[0];
+    auto base_address = (void**)args[1];
+    auto zero_bits = (uintptr_t)args[2];
+    auto region_size = (size_t*)args[3];
+    auto allocation_type = (uint32_t)args[4];
+    auto protect = (uint32_t)args[5];
+
+    start_deferred_print();
+
+    print("NtAllocateVirtualMemory: process_handle = ");
+    print_handle(process_handle);
+    print(", base_address = {:x}, zero_bits = {}, region_size = {:x}, allocation_type = ",
+          (uintptr_t)*base_address, zero_bits, *region_size);
+    print_allocation_type(allocation_type);
+    print(", protect = ");
+    print_protect(protect);
+    print("\n");
+
+    end_deferred_print();
+}
+
 extern "C"
 NTSTATUS NtAllocateVirtualMemory(HANDLE proc_handle, void** base_address, uintptr_t zero_bits,
                                  size_t* region_size, uint32_t allocation_type, uint32_t protect) {
     object_ref objrw;
     process* p;
     enum mapping_type prot;
+
+    TRACE6("NtAllocateVirtualMemory", proc_handle, base_address, zero_bits,
+           region_size, allocation_type, protect);
 
     switch (protect) {
         case PAGE_NOACCESS:
