@@ -3236,6 +3236,63 @@ NTSTATUS NtCreateProcess(HANDLE* process_handle, ACCESS_MASK, const OBJECT_ATTRI
     return nt_status::SUCCESS;
 }
 
+static void print_duplicate_object_options(uint32_t options) {
+    static constexpr pair<uint32_t, string_view> values[] = {
+        { DUPLICATE_CLOSE_SOURCE, "DUPLICATE_CLOSE_SOURCE" },
+        { DUPLICATE_SAME_ACCESS, "DUPLICATE_SAME_ACCESS" },
+        { DUPLICATE_SAME_ATTRIBUTES, "DUPLICATE_SAME_ATTRIBUTES" },
+    };
+
+    bool first = true;
+
+    for (auto& v : values) {
+        if ((options & v.first) == v.first) {
+            options &= ~v.first;
+
+            if (!first)
+                print(" | ");
+
+            print("{}", v.second);
+            first = false;
+        }
+    }
+
+    if (options != 0) {
+        if (!first)
+            print(" | ");
+
+        print("{:x}", options);
+    }
+
+    if (first && options == 0)
+        print("0");
+}
+
+extern "C"
+void trace_NtDuplicateObject(uintptr_t* args) {
+    auto source_process_handle = (HANDLE)args[0];
+    auto source_handle = (HANDLE)args[1];
+    auto target_process_handle = (HANDLE)args[2];
+    auto desired_access = (uint32_t)args[3];
+    auto options = (uint32_t)args[4];
+
+    // FIXME - we could print access mask nicely if we dereferenced HANDLE to find out its type
+
+    start_deferred_print();
+
+    print("NtDuplicateObject: source_process_handle = ");
+    print_handle(source_process_handle);
+    print(", source_handle = ");
+    print_handle(source_handle);
+    print(", target_process_handle = ");
+    print_handle(target_process_handle);
+    print(", desired_access = {:x}, options = ", desired_access);
+    print_duplicate_object_options(options);
+    print("\n");
+
+    end_deferred_print();
+}
+
 extern "C"
 NTSTATUS NtDuplicateObject(HANDLE source_process_handle, HANDLE source_handle, HANDLE target_process_handle,
                            HANDLE* target_handle, ACCESS_MASK desired_access, uint32_t, uint32_t options) {
@@ -3244,6 +3301,9 @@ NTSTATUS NtDuplicateObject(HANDLE source_process_handle, HANDLE source_handle, H
     process* destproc;
     ACCESS_MASK current_access;
     object_ref objrw;
+
+    TRACE5("NtDuplicateObject", source_process_handle, source_handle,
+           target_process_handle, desired_access, options);
 
     // FIXME - handle_attributes
     // FIXME - options (DUPLICATE_SAME_ATTRIBUTES, DUPLICATE_CLOSE_SOURCE)
