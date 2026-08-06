@@ -4,6 +4,7 @@ module;
 #include <mutex>
 #include <new>
 #include <bit>
+#include <string_view>
 #include <signal.h>
 #include "timer-asm.h"
 #include "trace.h"
@@ -34,6 +35,8 @@ import aarch64;
 using std::lock_guard;
 using std::nullopt;
 using std::countr_zero;
+using std::string_view;
+using std::pair;
 
 #ifdef __x86_64__
 static const uint16_t kernel_CS = 0x8;
@@ -292,6 +295,82 @@ NTSTATUS NtTerminateThread(HANDLE thread_handle, NTSTATUS exit_status) {
     return nt_status::SUCCESS;
 }
 
+static void print_access_mask(ACCESS_MASK access_mask) {
+    static constexpr pair<ACCESS_MASK, string_view> values[] = {
+        { THREAD_ALL_ACCESS, "THREAD_ALL_ACCESS" },
+        { THREAD_TERMINATE, "THREAD_TERMINATE" },
+        { THREAD_SUSPEND_RESUME, "THREAD_SUSPEND_RESUME" },
+        { THREAD_ALERT, "THREAD_ALERT" },
+        { THREAD_GET_CONTEXT, "THREAD_GET_CONTEXT" },
+        { THREAD_SET_CONTEXT, "THREAD_SET_CONTEXT" },
+        { THREAD_SET_INFORMATION, "THREAD_SET_INFORMATION" },
+        { THREAD_QUERY_INFORMATION, "THREAD_QUERY_INFORMATION" },
+        { THREAD_SET_THREAD_TOKEN, "THREAD_SET_THREAD_TOKEN" },
+        { THREAD_IMPERSONATE, "THREAD_IMPERSONATE" },
+        { THREAD_DIRECT_IMPERSONATION, "THREAD_DIRECT_IMPERSONATION" },
+        { THREAD_SET_LIMITED_INFORMATION, "THREAD_SET_LIMITED_INFORMATION" },
+        { THREAD_QUERY_LIMITED_INFORMATION, "THREAD_QUERY_LIMITED_INFORMATION" },
+        { THREAD_RESUME, "THREAD_RESUME" },
+        { THREAD_RESERVED1, "THREAD_RESERVED1" },
+        { THREAD_RESERVED2, "THREAD_RESERVED2" },
+        { THREAD_RESERVED3, "THREAD_RESERVED3" },
+        { DELETE, "DELETE" },
+        { READ_CONTROL, "READ_CONTROL" },
+        { WRITE_DAC, "WRITE_DAC" },
+        { WRITE_OWNER, "WRITE_OWNER" },
+        { SYNCHRONIZE, "SYNCHRONIZE" },
+        { ACCESS_SYSTEM_SECURITY, "ACCESS_SYSTEM_SECURITY" },
+        { MAXIMUM_ALLOWED, "MAXIMUM_ALLOWED" },
+        { GENERIC_ALL, "GENERIC_ALL" },
+        { GENERIC_EXECUTE, "GENERIC_EXECUTE" },
+        { GENERIC_WRITE, "GENERIC_WRITE" },
+        { GENERIC_READ, "GENERIC_READ" },
+    };
+
+    bool first = true;
+
+    for (auto& v : values) {
+        if ((access_mask & v.first) == v.first) {
+            access_mask &= ~v.first;
+
+            if (!first)
+                print(" | ");
+
+            print("{}", v.second);
+            first = false;
+        }
+    }
+
+    if (access_mask != 0) {
+        if (!first)
+            print(" | ");
+
+        print("{:x}", access_mask);
+    }
+
+    if (first && access_mask == 0)
+        print("0");
+}
+
+extern "C"
+void trace_NtCreateThread(uintptr_t* args) {
+    auto desired_access = (ACCESS_MASK)args[0];
+    auto* object_attributes = (OBJECT_ATTRIBUTES*)args[1];
+    auto process_handle = (HANDLE)args[2];
+    auto& thread_context = *(CONTEXT*)args[3];
+    auto create_suspended = (bool)args[4];
+
+    start_deferred_print();
+
+    print("NtCreateThread: desired_access = ");
+    print_access_mask(desired_access);
+    print(", object_attributes = {}, process_handle = {}, thread_context = {:x}, create_suspended = {}\n",
+          object_attributes, process_handle, (uintptr_t)&thread_context,
+          create_suspended ? "true" : "false");
+
+    end_deferred_print();
+}
+
 extern "C"
 NTSTATUS NtCreateThread(HANDLE* thread_handle, ACCESS_MASK desired_access,
                         const OBJECT_ATTRIBUTES* object_attributes, HANDLE process_handle,
@@ -299,6 +378,9 @@ NTSTATUS NtCreateThread(HANDLE* thread_handle, ACCESS_MASK desired_access,
                         const INITIAL_TEB* initial_teb, bool create_suspended) {
     object_ref objrw;
     process* p;
+
+    TRACE5("NtCreateThread", desired_access, object_attributes, process_handle,
+           thread_context, create_suspended);
 
     if (process_handle == NtCurrentProcess()) {
         auto t = get_current_thread();
