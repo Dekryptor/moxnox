@@ -218,13 +218,13 @@ static nt_status disable_tracepoint(string_view name) {
 
         auto addr = (uintptr_t)((uint8_t*)atp->img.base_address + atp->tp.rva_addr);
 
+#ifdef __x86_64__
         auto write_byte = [](uintptr_t addr, uint8_t byte) {
             auto pa = va_to_pa_lookup(addr & ~(PAGE_SIZE - 1)) | (addr & (PAGE_SIZE - 1));
 
             *(uint8_t*)phys_address(pa) = byte;
         };
 
-#ifdef __x86_64__
         write_byte(addr, 0xcc); // int 3
         send_tracepoint_ipi();
 
@@ -245,6 +245,21 @@ static nt_status disable_tracepoint(string_view name) {
             : "a" (0)
             : "ebx", "ecx", "edx"
         );
+#elifdef __aarch64__
+        auto pa = va_to_pa_lookup(addr & ~(PAGE_SIZE - 1)) | (addr & (PAGE_SIZE - 1));
+        *(uint32_t*)phys_address(pa) = 0xd503201f; // nop
+
+        __asm __volatile (
+            "dc cvau, %x[addr]\n\t"
+            "dsb ish\n\t"
+            "ic ivau, %x[addr]\n\t"
+            "dsb ish\n\t"
+            "isb\n\t"
+            :
+            : [addr] "r" (addr)
+        );
+
+        send_tracepoint_ipi();
 #endif
     }
 
