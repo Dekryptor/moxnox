@@ -4985,9 +4985,24 @@ NTSTATUS NtOpenProcess(HANDLE* process_handle, ACCESS_MASK desired_access,
 }
 
 extern "C"
+void trace_NtClose(uintptr_t* args) {
+    auto handle = (HANDLE)args[0];
+
+    start_deferred_print();
+
+    print("NtClose: handle = ");
+    print_handle(handle);
+    print("\n");
+
+    end_deferred_print();
+}
+
+extern "C"
 NTSTATUS NtClose(HANDLE handle) {
     auto t = get_current_thread();
     auto p = t->proc;
+
+    TRACE1("NtClose", handle);
 
     if (!p)
         return nt_status::INVALID_PARAMETER;
