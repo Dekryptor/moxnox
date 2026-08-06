@@ -385,7 +385,22 @@ NTSTATUS NtSetTimer(HANDLE timer_handle, const LARGE_INTEGER* due_time,
 }
 
 extern "C"
+void trace_NtCancelTimer(uintptr_t* args) {
+    auto timer_handle = (HANDLE)args[0];
+
+    start_deferred_print();
+
+    print("NtCancelTimer: timer_handle = ");
+    print_handle(timer_handle);
+    print("\n");
+
+    end_deferred_print();
+}
+
+extern "C"
 NTSTATUS NtCancelTimer(HANDLE timer_handle, bool* current_state) {
+    TRACE1("NtCancelTimer", timer_handle);
+
     auto objrw = deref_handle(timer_handle);
     if (!objrw)
         return nt_status::INVALID_HANDLE;
