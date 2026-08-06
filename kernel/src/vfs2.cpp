@@ -1544,11 +1544,33 @@ nt_status file::ioctl(uint32_t code, span<const uint8_t> inbuf,
 }
 
 extern "C"
+void trace_NtQueryDirectoryFile(uintptr_t* args) {
+    auto file_handle = (HANDLE)args[0];
+    auto file_information = (void*)args[1];
+    auto length = (uint32_t)args[2];
+    auto file_information_class = (FILE_INFORMATION_CLASS)args[3];
+    auto restart_scan = (bool)args[4];
+
+    start_deferred_print();
+
+    print("NtQueryDirectoryFile: file_handle = ");
+    print_handle(file_handle);
+    print(", file_information = {:x}, length = {}, file_information_class = {}, restart_scan = {}\n",
+          (uintptr_t)file_information, length, file_information_class,
+          restart_scan ? "true" : "false");
+
+    end_deferred_print();
+}
+
+extern "C"
 NTSTATUS NtQueryDirectoryFile(HANDLE file_handle, HANDLE event, PIO_APC_ROUTINE apc_routine,
                               void* apc_context, IO_STATUS_BLOCK* io_status_block,
                               void* file_information, uint32_t length,
                               FILE_INFORMATION_CLASS file_information_class, bool return_single_entry,
                               const UNICODE_STRING* file_name, bool restart_scan) {
+    TRACE5("NtQueryDirectoryFile", file_handle, file_information, length,
+           file_information_class, restart_scan);
+
     auto objrw = deref_handle(file_handle);
     if (!objrw)
         return nt_status::INVALID_HANDLE;
