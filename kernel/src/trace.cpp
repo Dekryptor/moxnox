@@ -66,6 +66,13 @@ constexpr void asm_line(span<char, N>& s) {
     s = s.last(s.size() - str.length - 1);
 }
 
+constexpr char hex_digit(unsigned int num) {
+    if (num < 10)
+        return (char)('0' + num);
+    else
+        return (char)('a' + num - 10);
+}
+
 #ifdef __x86_64__
 template<fixed_string str, size_t N>
 constexpr void asm_call_trace(span<char, N>& s) {
@@ -128,13 +135,6 @@ constexpr void asm_push_param(span<char, N>& s, unsigned int num) {
     }
 }
 
-constexpr char hex_digit(unsigned int num) {
-    if (num < 10)
-        return (char)('0' + num);
-    else
-        return (char)('a' + num - 10);
-}
-
 template<size_t N>
 constexpr void asm_add_rsp(span<char, N>& s, unsigned int size) {
     s[0] = 'a';
@@ -189,6 +189,141 @@ constexpr void asm_jump(span<char, N>& s) {
     s[2 + str.length] = '\n';
 
     s = s.last(s.size() - str.length - 3);
+}
+
+template<size_t N>
+constexpr void asm_change_sp(span<char, N>& s, int32_t delta) {
+    if (delta < 0) {
+        s[0] = 's';
+        s[1] = 'u';
+        s[2] = 'b';
+    } else {
+        s[0] = 'a';
+        s[1] = 'd';
+        s[2] = 'd';
+    }
+    s[3] = ' ';
+    s[4] = 's';
+    s[5] = 'p';
+    s[6] = ',';
+    s[7] = ' ';
+    s[8] = 's';
+    s[9] = 'p';
+    s[10] = ',';
+    s[11] = ' ';
+    s[12] = '#';
+    s[13] = '0';
+    s[14] = 'x';
+
+    uint32_t abs = delta < 0 ? (uint32_t)-delta : (uint32_t)delta;
+
+    s[15] = hex_digit((abs >> 8) & 0xf);
+    s[16] = hex_digit((abs >> 4) & 0xf);
+    s[17] = hex_digit(abs & 0xf);
+    s[18] = '\n';
+
+    s = s.last(s.size() - 19);
+}
+
+template<size_t N>
+constexpr void asm_str_param_sp(span<char, N>& s, unsigned int arg, size_t off) {
+    s[0] = 's';
+    s[1] = 't';
+    s[2] = 'r';
+    s[3] = ' ';
+    s[4] = '%';
+
+    if (arg < 10) {
+        s[5] = (char)(arg + '0');
+        s = s.last(s.size() - 6);
+    } else {
+        s[5] = (char)((arg / 10) + '0');
+        s[6] = (char)((arg % 10) + '0');
+        s = s.last(s.size() - 7);
+    }
+
+    s[0] = ',';
+    s[1] = ' ';
+    s[2] = '[';
+    s[3] = 's';
+    s[4] = 'p';
+    s[5] = ',';
+    s[6] = ' ';
+    s[7] = '#';
+    s[8] = '0';
+    s[9] = 'x';
+
+    s[10] = hex_digit((off >> 8) & 0xf);
+    s[11] = hex_digit((off >> 4) & 0xf);
+    s[12] = hex_digit(off & 0xf);
+    s[13] = ']';
+    s[14] = '\n';
+
+    s = s.last(s.size() - 15);
+}
+
+template<size_t N>
+constexpr void asm_stp_x0_x1(span<char, N>& s, size_t off) {
+    s[0] = 's';
+    s[1] = 't';
+    s[2] = 'p';
+    s[3] = ' ';
+    s[4] = 'x';
+    s[5] = '0';
+    s[6] = ',';
+    s[7] = ' ';
+    s[8] = 'x';
+    s[9] = '1';
+    s[10] = ',';
+    s[11] = ' ';
+    s[12] = '[';
+    s[13] = 's';
+    s[14] = 'p';
+    s[15] = ',';
+    s[16] = ' ';
+    s[17] = '#';
+    s[18] = '0';
+    s[19] = 'x';
+
+    s[20] = hex_digit((off >> 8) & 0xf);
+    s[21] = hex_digit((off >> 4) & 0xf);
+    s[22] = hex_digit(off & 0xf);
+    s[23] = ']';
+    s[24] = '\n';
+
+    s = s.last(s.size() - 25);
+}
+
+template<size_t N>
+constexpr void asm_ldp_x0_x1(span<char, N>& s, size_t off) {
+    s[0] = 'l';
+    s[1] = 'd';
+    s[2] = 'p';
+    s[3] = ' ';
+    s[4] = 'x';
+    s[5] = '0';
+    s[6] = ',';
+    s[7] = ' ';
+    s[8] = 'x';
+    s[9] = '1';
+    s[10] = ',';
+    s[11] = ' ';
+    s[12] = '[';
+    s[13] = 's';
+    s[14] = 'p';
+    s[15] = ',';
+    s[16] = ' ';
+    s[17] = '#';
+    s[18] = '0';
+    s[19] = 'x';
+
+    s[20] = hex_digit((off >> 8) & 0xf);
+    s[21] = hex_digit((off >> 4) & 0xf);
+    s[22] = hex_digit(off & 0xf);
+    s[23] = ']';
+    s[24] = '\n';
+
+    s = s.last(s.size() - 25);
 }
 
 #endif
@@ -258,7 +393,7 @@ consteval auto trace_asm() {
 
     asm_jump<"Ltp_ret%=">(s);
 #elifdef __aarch64__
-    asm_line<"sub sp, sp, #0x200">(s);
+    asm_change_sp(s, -0x200);
     asm_line<"stp q0, q1, [sp]">(s);
     asm_line<"stp q2, q3, [sp, #0x20]">(s);
     asm_line<"stp q4, q5, [sp, #0x40]">(s);
@@ -276,7 +411,12 @@ consteval auto trace_asm() {
     asm_line<"stp q28, q29, [sp, #0x1c0]">(s);
     asm_line<"stp q30, q31, [sp, #0x1e0]">(s);
 
-    asm_line<"sub sp, sp, #0xa0">(s);
+    size_t param_bytes = N * 8;
+
+    if (N % 2)
+        param_bytes += 8;
+
+    asm_change_sp(s, - (int32_t)(0xa0 + param_bytes));
     asm_line<"stp x0, x1, [sp]">(s);
     asm_line<"stp x2, x3, [sp, #0x10]">(s);
     asm_line<"stp x4, x5, [sp, #0x20]">(s);
@@ -287,16 +427,18 @@ consteval auto trace_asm() {
     asm_line<"stp x14, x15, [sp, #0x70]">(s);
     asm_line<"stp x16, x17, [sp, #0x80]">(s);
 
+    for (unsigned int i = 0; i < N; i++) {
+        asm_str_param_sp(s, i, 0x90 + (i * 8));
+    }
+
     asm_line<"mov x0, lr">(s);
     asm_line<"mrs x1, nzcv">(s);
-    asm_line<"stp x0, x1, [sp, #0x90]">(s);
+    asm_stp_x0_x1(s, 0x90 + param_bytes);
 
-    // FIXME - args (and align)
-
-    // FIXME - put args pointer in x0
+    asm_line<"add x0, sp, #0x90">(s);
     asm_call_trace<name>(s);
 
-    asm_line<"ldp x0, x1, [sp, #0x90]">(s);
+    asm_ldp_x0_x1(s, 0x90 + param_bytes);
     asm_line<"mov lr, x0">(s);
     asm_line<"msr nzcv, x1">(s);
 
@@ -309,7 +451,7 @@ consteval auto trace_asm() {
     asm_line<"ldp x4, x5, [sp, #0x20]">(s);
     asm_line<"ldp x2, x3, [sp, #0x10]">(s);
     asm_line<"ldp x0, x1, [sp]">(s);
-    asm_line<"add sp, sp, #0xa0">(s);
+    asm_change_sp(s, 0xa0 + param_bytes);
 
     asm_line<"ldp q30, q31, [sp, #0x1e0]">(s);
     asm_line<"ldp q28, q29, [sp, #0x1c0]">(s);
@@ -327,7 +469,7 @@ consteval auto trace_asm() {
     asm_line<"ldp q4, q5, [sp, #0x40]">(s);
     asm_line<"ldp q2, q3, [sp, #0x20]">(s);
     asm_line<"ldp q0, q1, [sp]">(s);
-    asm_line<"add sp, sp, #0x200">(s);
+    asm_change_sp(s, 0x200);
 
     asm_jump<"Ltp_ret%=">(s);
 #endif
