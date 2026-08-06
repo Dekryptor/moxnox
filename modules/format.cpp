@@ -1859,3 +1859,22 @@ template<>
 consteval bool format_spec_valid<TIMER_TYPE>(string_view fmt) {
     return fmt.empty();
 }
+
+export span<char> do_format_arg(span<char> sp, string_view,
+                                EVENT_TYPE arg) {
+    switch (arg) {
+        using enum EVENT_TYPE;
+
+        case NotificationEvent:
+            return sp_strcpy(sp, "NotificationEvent");
+        case SynchronizationEvent:
+            return sp_strcpy(sp, "SynchronizationEvent");
+        default:
+            return do_format_arg(sp, "", (unsigned int)arg);
+    }
+}
+
+template<>
+consteval bool format_spec_valid<EVENT_TYPE>(string_view fmt) {
+    return fmt.empty();
+}
