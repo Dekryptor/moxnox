@@ -226,6 +226,7 @@ __stdio_common_vswprintf
 __stdio_common_vfwprintf
 strtof
 strtod
+strtold
 atof
 _ctime64
 freopen
