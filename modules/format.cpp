@@ -1411,3 +1411,130 @@ template<>
 consteval bool format_spec_valid<OBJECT_ATTRIBUTES*>(string_view fmt) {
     return fmt.empty();
 }
+
+export span<char> do_format_arg(span<char> sp, string_view,
+                                THREAD_INFORMATION_CLASS arg) {
+    switch (arg) {
+        using enum THREAD_INFORMATION_CLASS;
+
+        case BasicInformation:
+            return sp_strcpy(sp, "BasicInformation");
+        case Times:
+            return sp_strcpy(sp, "Times");
+        case Priority:
+            return sp_strcpy(sp, "Priority");
+        case BasePriority:
+            return sp_strcpy(sp, "BasePriority");
+        case AffinityMask:
+            return sp_strcpy(sp, "AffinityMask");
+        case ImpersonationToken:
+            return sp_strcpy(sp, "ImpersonationToken");
+        case DescriptorTableEntry:
+            return sp_strcpy(sp, "DescriptorTableEntry");
+        case EnableAlignmentFaultFixup:
+            return sp_strcpy(sp, "EnableAlignmentFaultFixup");
+        case EventPair_Reusable:
+            return sp_strcpy(sp, "EventPair_Reusable");
+        case QuerySetWin32StartAddress:
+            return sp_strcpy(sp, "QuerySetWin32StartAddress");
+        case ZeroTlsCell:
+            return sp_strcpy(sp, "ZeroTlsCell");
+        case PerformanceCount:
+            return sp_strcpy(sp, "PerformanceCount");
+        case AmILastThread:
+            return sp_strcpy(sp, "AmILastThread");
+        case IdealProcessor:
+            return sp_strcpy(sp, "IdealProcessor");
+        case PriorityBoost:
+            return sp_strcpy(sp, "PriorityBoost");
+        case SetTlsArrayAddress:
+            return sp_strcpy(sp, "SetTlsArrayAddress");
+        case IsIoPending:
+            return sp_strcpy(sp, "IsIoPending");
+        case HideFromDebugger:
+            return sp_strcpy(sp, "HideFromDebugger");
+        case BreakOnTermination:
+            return sp_strcpy(sp, "BreakOnTermination");
+        case SwitchLegacyState:
+            return sp_strcpy(sp, "SwitchLegacyState");
+        case IsTerminated:
+            return sp_strcpy(sp, "IsTerminated");
+        case LastSystemCall:
+            return sp_strcpy(sp, "LastSystemCall");
+        case IoPriority:
+            return sp_strcpy(sp, "IoPriority");
+        case CycleTime:
+            return sp_strcpy(sp, "CycleTime");
+        case PagePriority:
+            return sp_strcpy(sp, "PagePriority");
+        case ActualBasePriority:
+            return sp_strcpy(sp, "ActualBasePriority");
+        case TebInformation:
+            return sp_strcpy(sp, "TebInformation");
+        case CSwitchMon:
+            return sp_strcpy(sp, "CSwitchMon");
+        case CSwitchPmu:
+            return sp_strcpy(sp, "CSwitchPmu");
+        case Wow64Context:
+            return sp_strcpy(sp, "Wow64Context");
+        case GroupInformation:
+            return sp_strcpy(sp, "GroupInformation");
+        case UmsInformation:
+            return sp_strcpy(sp, "UmsInformation");
+        case CounterProfiling:
+            return sp_strcpy(sp, "CounterProfiling");
+        case IdealProcessorEx:
+            return sp_strcpy(sp, "IdealProcessorEx");
+        case CpuAccountingInformation:
+            return sp_strcpy(sp, "CpuAccountingInformation");
+        case SuspendCount:
+            return sp_strcpy(sp, "SuspendCount");
+        case HeterogeneousCpuPolicy:
+            return sp_strcpy(sp, "HeterogeneousCpuPolicy");
+        case ContainerId:
+            return sp_strcpy(sp, "ContainerId");
+        case NameInformation:
+            return sp_strcpy(sp, "NameInformation");
+        case SelectedCpuSets:
+            return sp_strcpy(sp, "SelectedCpuSets");
+        case SystemThreadInformation:
+            return sp_strcpy(sp, "SystemThreadInformation");
+        case ActualGroupAffinity:
+            return sp_strcpy(sp, "ActualGroupAffinity");
+        case DynamicCodePolicyInfo:
+            return sp_strcpy(sp, "DynamicCodePolicyInfo");
+        case ExplicitCaseSensitivity:
+            return sp_strcpy(sp, "ExplicitCaseSensitivity");
+        case WorkOnBehalfTicket:
+            return sp_strcpy(sp, "WorkOnBehalfTicket");
+        case SubsystemInformation:
+            return sp_strcpy(sp, "SubsystemInformation");
+        case DbgkWerReportActive:
+            return sp_strcpy(sp, "DbgkWerReportActive");
+        case AttachContainer:
+            return sp_strcpy(sp, "AttachContainer");
+        case ManageWritesToExecutableMemory:
+            return sp_strcpy(sp, "ManageWritesToExecutableMemory");
+        case PowerThrottlingState:
+            return sp_strcpy(sp, "PowerThrottlingState");
+        case WorkloadClass:
+            return sp_strcpy(sp, "WorkloadClass");
+        case MoxnoxSetPendingSignal:
+            return sp_strcpy(sp, "MoxnoxSetPendingSignal");
+        case MoxnoxBlockSignals:
+            return sp_strcpy(sp, "MoxnoxBlockSignals");
+        case MoxnoxUnblockSignals:
+            return sp_strcpy(sp, "MoxnoxUnblockSignals");
+        case MoxnoxSignalsMask:
+            return sp_strcpy(sp, "MoxnoxSignalsMask");
+        case MoxnoxWaitForSignal:
+            return sp_strcpy(sp, "MoxnoxWaitForSignal");
+        default:
+            return do_format_arg(sp, "", (unsigned int)arg);
+    }
+}
+
+template<>
+consteval bool format_spec_valid<THREAD_INFORMATION_CLASS>(string_view fmt) {
+    return fmt.empty();
+}
