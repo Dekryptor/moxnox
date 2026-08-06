@@ -28,6 +28,7 @@ import trace;
 import vfs;
 import mapping;
 import rangelock;
+import moxnox_ioctls;
 
 #ifdef __aarch64__
 import aarch64;
@@ -1059,10 +1060,175 @@ NTSTATUS user_NtShutdownSystem(enum SHUTDOWN_ACTION action) {
     return NtShutdownSystem(action);
 }
 
+static void print_ioctl_code(uint32_t code) {
+    switch (code) {
+        case IOCTL_MOXNOX_CONSOLE_SET_CURSOR:
+            print("IOCTL_MOXNOX_CONSOLE_SET_CURSOR");
+            break;
+        case IOCTL_MOXNOX_VFSCTL_MOUNT:
+            print("IOCTL_MOXNOX_VFSCTL_MOUNT");
+            break;
+        case IOCTL_MOXNOX_VFSCTL_LIST_MOUNTS:
+            print("IOCTL_MOXNOX_VFSCTL_LIST_MOUNTS");
+            break;
+        case IOCTL_MOXNOX_VFSCTL_GET_MOUNT_INFO:
+            print("IOCTL_MOXNOX_VFSCTL_GET_MOUNT_INFO");
+            break;
+        case IOCTL_MOXNOX_VFSCTL_UNMOUNT:
+            print("IOCTL_MOXNOX_VFSCTL_UNMOUNT");
+            break;
+        case IOCTL_MOXNOX_NETCTL_SOCKET:
+            print("IOCTL_MOXNOX_NETCTL_SOCKET");
+            break;
+        case IOCTL_MOXNOX_SOCKET_RECVFROM:
+            print("IOCTL_MOXNOX_SOCKET_RECVFROM");
+            break;
+        case IOCTL_MOXNOX_SOCKET_SENDTO:
+            print("IOCTL_MOXNOX_SOCKET_SENDTO");
+            break;
+        case IOCTL_MOXNOX_NETCTL_GET_NETIF_COUNT:
+            print("IOCTL_MOXNOX_NETCTL_GET_NETIF_COUNT");
+            break;
+        case IOCTL_MOXNOX_NETCTL_GET_NETIF_IDS:
+            print("IOCTL_MOXNOX_NETCTL_GET_NETIF_IDS");
+            break;
+        case IOCTL_MOXNOX_NETCTL_GET_NETIF_INFO:
+            print("IOCTL_MOXNOX_NETCTL_GET_NETIF_INFO");
+            break;
+        case IOCTL_MOXNOX_NETCTL_GET_NETIF_BY_NAME:
+            print("IOCTL_MOXNOX_NETCTL_GET_NETIF_BY_NAME");
+            break;
+        case IOCTL_MOXNOX_NETCTL_GET_NETIF_IP_COUNT:
+            print("IOCTL_MOXNOX_NETCTL_GET_NETIF_IP_COUNT");
+            break;
+        case IOCTL_MOXNOX_NETCTL_GET_NETIF_IPS:
+            print("IOCTL_MOXNOX_NETCTL_GET_NETIF_IPS");
+            break;
+        case IOCTL_MOXNOX_SOCKET_BIND:
+            print("IOCTL_MOXNOX_SOCKET_BIND");
+            break;
+        case IOCTL_MOXNOX_SOCKET_CONNECT:
+            print("IOCTL_MOXNOX_SOCKET_CONNECT");
+            break;
+        case IOCTL_MOXNOX_SOCKET_LISTEN:
+            print("IOCTL_MOXNOX_SOCKET_LISTEN");
+            break;
+        case IOCTL_MOXNOX_SOCKET_ACCEPT:
+            print("IOCTL_MOXNOX_SOCKET_ACCEPT");
+            break;
+        case IOCTL_MOXNOX_EVDEV_GET_ABSINFO:
+            print("IOCTL_MOXNOX_EVDEV_GET_ABSINFO");
+            break;
+        case IOCTL_MOXNOX_FB_SET_CURSOR:
+            print("IOCTL_MOXNOX_FB_SET_CURSOR");
+            break;
+        case IOCTL_MOXNOX_FB_MOVE_CURSOR:
+            print("IOCTL_MOXNOX_FB_MOVE_CURSOR");
+            break;
+        case IOCTL_MOXNOX_PTYCTL_CREATE_PTY:
+            print("IOCTL_MOXNOX_PTYCTL_CREATE_PTY");
+            break;
+        case IOCTL_MOXNOX_PTY_ISATTY:
+            print("IOCTL_MOXNOX_PTY_ISATTY");
+            break;
+        case IOCTL_MOXNOX_PTY_TCGETATTR:
+            print("IOCTL_MOXNOX_PTY_TCGETATTR");
+            break;
+        case IOCTL_MOXNOX_PTY_TCSETATTR:
+            print("IOCTL_MOXNOX_PTY_TCSETATTR");
+            break;
+        case IOCTL_MOXNOX_PTY_TCSETATTR_FLUSH:
+            print("IOCTL_MOXNOX_PTY_TCSETATTR_FLUSH");
+            break;
+        case IOCTL_MOXNOX_PTY_TCFLUSH:
+            print("IOCTL_MOXNOX_PTY_TCFLUSH");
+            break;
+        case IOCTL_MOXNOX_PTY_SET_FOREGROUND_PROCESS_GROUP:
+            print("IOCTL_MOXNOX_PTY_SET_FOREGROUND_PROCESS_GROUP");
+            break;
+        case IOCTL_MOXNOX_PTY_GET_INFO_STREAM:
+            print("IOCTL_MOXNOX_PTY_GET_INFO_STREAM");
+            break;
+        case IOCTL_MOXNOX_PTY_GET_SIZE:
+            print("IOCTL_MOXNOX_PTY_GET_SIZE");
+            break;
+        case IOCTL_MOXNOX_PTY_SET_SIZE:
+            print("IOCTL_MOXNOX_PTY_SET_SIZE");
+            break;
+        case IOCTL_MOXNOX_SOCKET_GETSOCKNAME:
+            print("IOCTL_MOXNOX_SOCKET_GETSOCKNAME");
+            break;
+        case IOCTL_MOXNOX_SOCKET_GETPEERNAME:
+            print("IOCTL_MOXNOX_SOCKET_GETPEERNAME");
+            break;
+        case IOCTL_MOXNOX_SOCKET_GETSOCKOPT:
+            print("IOCTL_MOXNOX_SOCKET_GETSOCKOPT");
+            break;
+        case IOCTL_MOXNOX_SOCKET_SETSOCKOPT:
+            print("IOCTL_MOXNOX_SOCKET_SETSOCKOPT");
+            break;
+        case IOCTL_MOXNOX_NETCTL_GET_DNS_SERVERS:
+            print("IOCTL_MOXNOX_NETCTL_GET_DNS_SERVERS");
+            break;
+        case IOCTL_MOXNOX_SOCKET_SHUTDOWN:
+            print("IOCTL_MOXNOX_SOCKET_SHUTDOWN");
+            break;
+        case IOCTL_MOXNOX_PTY_GET_FOREGROUND_PROCESS_GROUP:
+            print("IOCTL_MOXNOX_PTY_GET_FOREGROUND_PROCESS_GROUP");
+            break;
+        case IOCTL_MOXNOX_FB_CREATE_FRAMEBUFFER:
+            print("IOCTL_MOXNOX_FB_CREATE_FRAMEBUFFER");
+            break;
+        case IOCTL_MOXNOX_FB_SET_ACTIVE:
+            print("IOCTL_MOXNOX_FB_SET_ACTIVE");
+            break;
+        case IOCTL_MOXNOX_FILE_READV:
+            print("IOCTL_MOXNOX_FILE_READV");
+            break;
+        case IOCTL_MOXNOX_FILE_WRITEV:
+            print("IOCTL_MOXNOX_FILE_WRITEV");
+            break;
+        case IOCTL_MOXNOX_TRACECTL_ENABLE:
+            print("IOCTL_MOXNOX_TRACECTL_ENABLE");
+            break;
+        case IOCTL_MOXNOX_TRACECTL_DISABLE:
+            print("IOCTL_MOXNOX_TRACECTL_DISABLE");
+            break;
+        default:
+            print("{:x}", code);
+            break;
+    }
+}
+
+extern "C"
+void trace_NtDeviceIoControlFile(uintptr_t* args) {
+    auto file_handle = (HANDLE)args[0];
+    auto control_code = (uint32_t)args[1];
+    auto input_buffer = (const void*)args[2];
+    auto input_buffer_len = (uint32_t)args[3];
+    auto output_buffer = (void*)args[4];
+    auto output_buffer_len = (uint32_t)args[5];
+
+    start_deferred_print();
+
+    print("NtDeviceIoControlFile: file_handle = ");
+    print_handle(file_handle);
+    print(", control_code = ");
+    print_ioctl_code(control_code);
+    print(", input_buffer = {:x}, input_buffer_len = {}, output_buffer = {:x}, output_buffer_len = {}\n",
+          (uintptr_t)input_buffer, input_buffer_len, (uintptr_t)output_buffer,
+          output_buffer_len);
+
+    end_deferred_print();
+}
+
 extern "C"
 NTSTATUS NtDeviceIoControlFile(HANDLE file_handle, HANDLE /*event*/, PIO_APC_ROUTINE /*apc_routine*/, void* /*apc_context*/,
                                IO_STATUS_BLOCK* iosb, uint32_t control_code, const void* input_buffer,
                                uint32_t input_buffer_len, void* output_buffer, uint32_t output_buffer_len) {
+    TRACE6("NtDeviceIoControlFile", file_handle, control_code, input_buffer,
+           input_buffer_len, output_buffer, output_buffer_len);
+
     if (!file_handle)
         return nt_status::INVALID_PARAMETER;
 
