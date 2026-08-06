@@ -5894,10 +5894,31 @@ nt_status process::reap_zombie() {
 }
 
 extern "C"
+void trace_NtQueryVirtualMemory(uintptr_t* args) {
+    auto process_handle = (HANDLE)args[0];
+    auto base_address = (const void*)args[1];
+    auto info_class = (MEMORY_INFORMATION_CLASS)args[2];
+    auto buffer = (void*)args[3];
+    auto buffer_size = (size_t)args[4];
+
+    start_deferred_print();
+
+    print("NtQueryVirtualMemory: process_handle = ");
+    print_handle(process_handle);
+    print(", base_address = {:x}, info_class = {}, buffer = {:x}, buffer_size = {}\n",
+          (uintptr_t)base_address, info_class, (uintptr_t)buffer, buffer_size);
+
+    end_deferred_print();
+}
+
+extern "C"
 nt_status NtQueryVirtualMemory(HANDLE process_handle, const void* base_address,
                                MEMORY_INFORMATION_CLASS info_class, void* buffer,
                                size_t buffer_size, size_t* return_length) {
     object_ref obj;
+
+    TRACE5("NtQueryVirtualMemory", process_handle, base_address, info_class,
+           buffer, buffer_size);
 
     if (process_handle == NtCurrentProcess()) {
         auto* p = get_current_thread()->proc;
