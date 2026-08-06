@@ -1225,12 +1225,30 @@ NTSTATUS NtOpenFile(HANDLE* file_handle, ACCESS_MASK desired_access,
                         nullptr, 0);
 }
 
+extern "C"
+void trace_NtWriteFile(uintptr_t* args) {
+    auto file_handle = (HANDLE)args[0];
+    auto vec_size = (size_t)args[1];
+    auto byte_offset = (const LARGE_INTEGER*)args[2];
+
+    start_deferred_print();
+
+    print("NtWriteFile: file_handle = ");
+    print_handle(file_handle);
+    print(", length = {}, byte_offset = {}\n", vec_size, byte_offset);
+
+    end_deferred_print();
+}
+
 nt_status vec_NtWriteFile(HANDLE file_handle, HANDLE, PIO_APC_ROUTINE, void*,
                           IO_STATUS_BLOCK* io_status_block,
                           span<const span<const uint8_t>> v,
                           const LARGE_INTEGER* byte_offset,
                           const uint32_t*) {
     ACCESS_MASK access_mask;
+    auto vec_size = get_vec_size(v);
+
+    TRACE3("NtWriteFile", file_handle, vec_size, byte_offset);
 
     static const uint64_t WRITE_TO_END_OF_FILE = 0xffffffffffffffff;
 
@@ -1286,7 +1304,7 @@ nt_status vec_NtWriteFile(HANDLE file_handle, HANDLE, PIO_APC_ROUTINE, void*,
         return status;
     }
 
-    assert(written <= get_vec_size(v));
+    assert(written <= vec_size);
 
     io_status_block->Status = nt_status::SUCCESS;
     io_status_block->Information = written;
