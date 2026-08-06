@@ -965,11 +965,40 @@ nt_status wait_for_objects(span<object*> objects, bool wait_any,
     return (enum nt_status)((unsigned int)nt_status::SUCCESS + index);
 }
 
+extern "C"
+void trace_NtWaitForMultipleObjects(uintptr_t* args) {
+    auto object_count = (uint32_t)args[0];
+    auto objects_array = (HANDLE*)args[1];
+    auto wait_any = (bool)args[2];
+    auto alertable = (bool)args[3];
+    auto timeout = (const LARGE_INTEGER*)args[4];
+
+    start_deferred_print();
+
+    print("NtWaitForMultipleObjects: objects_array = [");
+
+    for (uint32_t i = 0; i < object_count; i++) {
+        if (i != 0)
+            print(",");
+
+        print_handle(objects_array[i]);
+    }
+
+    print("], wait_any = {}, alertable = {}, timeout = {}\n",
+          wait_any ? "true" : "false", alertable ? "true" : "false",
+          timeout);
+
+    end_deferred_print();
+}
+
 extern "C" NTSTATUS NtWaitForMultipleObjects(uint32_t object_count, HANDLE* objects_array,
                                   bool wait_any, bool alertable,
                                   const LARGE_INTEGER* timeout) {
     if (object_count == 1)
         return NtWaitForSingleObject(objects_array[0], alertable, timeout);
+
+    TRACE5("NtWaitForMultipleObjects", object_count, objects_array, wait_any,
+           alertable, timeout);
 
     optional<uint64_t> t;
 
