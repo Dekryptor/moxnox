@@ -2846,12 +2846,34 @@ static nt_status protect_vm(process& proc, void** base_address, size_t* region_s
 }
 
 extern "C"
+void trace_NtProtectVirtualMemory(uintptr_t* args) {
+    auto process_handle = (HANDLE)args[0];
+    auto base_address = (void**)args[1];
+    auto region_size = (size_t*)args[2];
+    auto new_prot = (uint32_t)args[3];
+
+    start_deferred_print();
+
+    print("NtProtectVirtualMemory: process_handle = ");
+    print_handle(process_handle);
+    print(", base_address = {:x}, region_size = {:x}, new_prot = ",
+          (uintptr_t)*base_address, *region_size);
+    print_protect(new_prot);
+    print("\n");
+
+    end_deferred_print();
+}
+
+extern "C"
 NTSTATUS NtProtectVirtualMemory(HANDLE proc_handle, void** base_address, size_t* region_size,
                                 uint32_t new_prot, uint32_t* old_prot) {
     enum mapping_type prot;
     object_ref objrw;
     bool cow;
     process* p;
+
+    TRACE4("NtProtectVirtualMemory", proc_handle, base_address, region_size,
+           new_prot);
 
     switch (new_prot) {
         case PAGE_NOACCESS:
