@@ -6,6 +6,7 @@ module;
 #include <bit>
 #include <signal.h>
 #include "timer-asm.h"
+#include "trace.h"
 
 #ifdef __x86_64__
 #include <x86intrin.h>
@@ -24,6 +25,7 @@ import crt;
 import process;
 import scheduler;
 import interrupts;
+import trace;
 
 #ifdef __aarch64__
 import aarch64;
@@ -251,8 +253,19 @@ object_ref deref_handle(handle_t h, ACCESS_MASK& access_mask) {
 }
 
 extern "C"
+void trace_NtTerminateThread(uintptr_t* args) {
+    auto thread_handle = (HANDLE)args[0];
+    auto exit_status = (NTSTATUS)args[1];
+
+    print("NtTerminateThread: thread_handle = {}, exit_status = {}\n",
+          thread_handle, exit_status);
+}
+
+extern "C"
 NTSTATUS NtTerminateThread(HANDLE thread_handle, NTSTATUS exit_status) {
     object_ref obj;
+
+    TRACE2("NtTerminateThread", thread_handle, exit_status);
 
     if (thread_handle == NtCurrentThread()) {
         auto* t = get_current_thread();
