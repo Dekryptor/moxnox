@@ -1735,3 +1735,42 @@ template<>
 consteval bool format_spec_valid<PROCESS_INFORMATION_CLASS>(string_view fmt) {
     return fmt.empty();
 }
+
+export span<char> do_format_arg(span<char> sp, string_view,
+                                MEMORY_INFORMATION_CLASS arg) {
+    switch (arg) {
+        using enum MEMORY_INFORMATION_CLASS;
+
+        case BasicInformation:
+            return sp_strcpy(sp, "BasicInformation");
+        case WorkingSetInformation:
+            return sp_strcpy(sp, "WorkingSetInformation");
+        case MappedFilenameInformation:
+            return sp_strcpy(sp, "MappedFilenameInformation");
+        case RegionInformation:
+            return sp_strcpy(sp, "RegionInformation");
+        case WorkingSetExInformation:
+            return sp_strcpy(sp, "WorkingSetExInformation");
+        case SharedCommitInformation:
+            return sp_strcpy(sp, "SharedCommitInformation");
+        case ImageInformation:
+            return sp_strcpy(sp, "ImageInformation");
+        case RegionInformationEx:
+            return sp_strcpy(sp, "RegionInformationEx");
+        case PrivilegedBasicInformation:
+            return sp_strcpy(sp, "PrivilegedBasicInformation");
+        case EnclaveImageInformation:
+            return sp_strcpy(sp, "EnclaveImageInformation");
+        case BasicInformationCapped:
+            return sp_strcpy(sp, "BasicInformationCapped");
+        case PhysicalContiguityInformation:
+            return sp_strcpy(sp, "PhysicalContiguityInformation");
+        default:
+            return do_format_arg(sp, "", (unsigned int)arg);
+    }
+}
+
+template<>
+consteval bool format_spec_valid<MEMORY_INFORMATION_CLASS>(string_view fmt) {
+    return fmt.empty();
+}
