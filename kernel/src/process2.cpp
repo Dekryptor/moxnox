@@ -3437,6 +3437,23 @@ NTSTATUS process::read_vm(const void* base_address, void* buffer,
 }
 
 extern "C"
+void trace_NtReadVirtualMemory(uintptr_t* args) {
+    auto process_handle = (HANDLE)args[0];
+    auto base_address = (void*)args[1];
+    auto us_buffer = (void*)args[2];
+    auto buffer_size = (uint32_t)args[3];
+
+    start_deferred_print();
+
+    print("NtReadVirtualMemory: process_handle = ");
+    print_handle(process_handle);
+    print(", base_address = {:x}, us_buffer = {:x}, buffer_size = {}\n",
+          (uintptr_t)base_address, (uintptr_t)us_buffer, buffer_size);
+
+    end_deferred_print();
+}
+
+extern "C"
 NTSTATUS NtReadVirtualMemory(HANDLE process_handle, void* base_address,
                              void* us_buffer, uint32_t buffer_size,
                              uint32_t* number_of_bytes_read) {
@@ -3445,6 +3462,9 @@ NTSTATUS NtReadVirtualMemory(HANDLE process_handle, void* base_address,
     process* src_proc;
     process* dest_proc = t.proc;
     nt_status status;
+
+    TRACE4("NtReadVirtualMemory", process_handle, base_address, us_buffer,
+           buffer_size);
 
     if (!dest_proc)
         return nt_status::INVALID_PARAMETER;
