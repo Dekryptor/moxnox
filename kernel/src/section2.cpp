@@ -1278,12 +1278,75 @@ nt_status section::flush(uint64_t page_num, uint64_t num_pages) {
     }, get_cache());
 }
 
+static void print_access_mask(ACCESS_MASK access_mask) {
+    static constexpr pair<ACCESS_MASK, string_view> values[] = {
+        { SECTION_ALL_ACCESS, "SECTION_ALL_ACCESS" },
+        { SECTION_QUERY, "SECTION_QUERY" },
+        { SECTION_MAP_WRITE, "SECTION_MAP_WRITE" },
+        { SECTION_MAP_READ, "SECTION_MAP_READ" },
+        { SECTION_MAP_EXECUTE, "SECTION_MAP_EXECUTE" },
+        { SECTION_EXTEND_SIZE, "SECTION_EXTEND_SIZE" },
+        { SECTION_MAP_EXECUTE_EXPLICIT, "SECTION_MAP_EXECUTE_EXPLICIT" },
+        { DELETE, "DELETE" },
+        { READ_CONTROL, "READ_CONTROL" },
+        { WRITE_DAC, "WRITE_DAC" },
+        { WRITE_OWNER, "WRITE_OWNER" },
+        { SYNCHRONIZE, "SYNCHRONIZE" },
+        { ACCESS_SYSTEM_SECURITY, "ACCESS_SYSTEM_SECURITY" },
+        { MAXIMUM_ALLOWED, "MAXIMUM_ALLOWED" },
+        { GENERIC_ALL, "GENERIC_ALL" },
+        { GENERIC_EXECUTE, "GENERIC_EXECUTE" },
+        { GENERIC_WRITE, "GENERIC_WRITE" },
+        { GENERIC_READ, "GENERIC_READ" },
+    };
+
+    bool first = true;
+
+    for (auto& v : values) {
+        if ((access_mask & v.first) == v.first) {
+            access_mask &= ~v.first;
+
+            if (!first)
+                print(" | ");
+
+            print("{}", v.second);
+            first = false;
+        }
+    }
+
+    if (access_mask != 0) {
+        if (!first)
+            print(" | ");
+
+        print("{:x}", access_mask);
+    }
+
+    if (first && access_mask == 0)
+        print("0");
+}
+
+extern "C"
+void trace_NtOpenSection(uintptr_t* args) {
+    auto desired_access = (ACCESS_MASK)args[0];
+    auto object_attributes = (OBJECT_ATTRIBUTES*)args[1];
+
+    start_deferred_print();
+
+    print("NtOpenSection: desired_access = ");
+    print_access_mask(desired_access);
+    print(", object_attributes = {}\n", object_attributes);
+
+    end_deferred_print();
+}
+
 extern "C"
 NTSTATUS NtOpenSection(HANDLE* section_handle, ACCESS_MASK desired_access,
                        const OBJECT_ATTRIBUTES* object_attributes) {
     auto t = get_current_thread();
     auto p = t->proc;
     nt_status status;
+
+    TRACE2("NtOpenSection", desired_access, object_attributes);
 
     if (!p)
         return nt_status::INVALID_PARAMETER;
