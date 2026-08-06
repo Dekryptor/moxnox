@@ -5118,9 +5118,29 @@ object_ref create_init_process() {
 }
 
 extern "C"
+void trace_NtSetInformationProcess(uintptr_t* args) {
+    auto process_handle = (HANDLE)args[0];
+    auto info_class = (PROCESS_INFORMATION_CLASS)args[1];
+    auto buffer = (const void*)args[2];
+    auto length = (uint32_t)args[3];
+
+    start_deferred_print();
+
+    print("NtSetInformationProcess: process_handle = ");
+    print_handle(process_handle);
+    print(", info_class = {}, buffer = {:x}, length = {}\n", info_class,
+          (uintptr_t)buffer, length);
+
+    end_deferred_print();
+}
+
+extern "C"
 NTSTATUS NtSetInformationProcess(HANDLE process_handle, PROCESS_INFORMATION_CLASS info_class,
                                  const void* buffer, uint32_t buffer_size) {
     object_ref obj;
+
+    TRACE4("NtSetInformationProcess", process_handle, info_class, buffer,
+           buffer_size);
 
     if (process_handle == NtCurrentProcess()) {
         auto* p = get_current_thread()->proc;
