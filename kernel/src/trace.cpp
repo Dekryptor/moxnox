@@ -153,12 +153,50 @@ constexpr void asm_add_rsp(span<char, N>& s, unsigned int size) {
 
     s = s.last(s.size() - 13);
 }
+
+#elifdef __aarch64__
+
+template<fixed_string str, size_t N>
+constexpr void asm_call_trace(span<char, N>& s) {
+    s[0] = 'b';
+    s[1] = 'l';
+    s[2] = ' ';
+    s[3] = 't';
+    s[4] = 'r';
+    s[5] = 'a';
+    s[6] = 'c';
+    s[7] = 'e';
+    s[8] = '_';
+
+    for (size_t i = 0; i < str.length; i++) {
+        s[9 + i] = str.data[i];
+    }
+
+    s[9 + str.length] = '\n';
+
+    s = s.last(s.size() - str.length - 10);
+}
+
+template<fixed_string str, size_t N>
+constexpr void asm_jump(span<char, N>& s) {
+    s[0] = 'b';
+    s[1] = ' ';
+
+    for (size_t i = 0; i < str.length; i++) {
+        s[2 + i] = str.data[i];
+    }
+
+    s[2 + str.length] = '\n';
+
+    s = s.last(s.size() - str.length - 3);
+}
+
 #endif
 
 export
 template<fixed_string name, size_t N>
 consteval auto trace_asm() {
-    array<char, 1024> arr{};
+    array<char, 4096> arr{};
     span<char> s(arr);
 
     asm_line<".section .rdata,\"dr\"">(s);
@@ -178,6 +216,8 @@ consteval auto trace_asm() {
 #elifdef __aarch64__
     asm_line<"nop">(s);
 #endif
+
+    asm_line<"Ltp_ret%=:">(s);
 
     asm_line<".section .text$zzz,\"x\"">(s);
     asm_line<".Ltp_handler%=:">(s);
@@ -216,9 +256,80 @@ consteval auto trace_asm() {
     asm_line<"pop rcx">(s);
     asm_line<"pop rax">(s);
 
-    asm_jump<".Ltp_addr%= + 5">(s);
+    asm_jump<"Ltp_ret%=">(s);
 #elifdef __aarch64__
-    asm_line<"brk #0">(s); // FIXME
+    asm_line<"sub sp, sp, #0x200">(s);
+    asm_line<"stp q0, q1, [sp]">(s);
+    asm_line<"stp q2, q3, [sp, #0x20]">(s);
+    asm_line<"stp q4, q5, [sp, #0x40]">(s);
+    asm_line<"stp q6, q7, [sp, #0x60]">(s);
+    asm_line<"stp q8, q9, [sp, #0x80]">(s);
+    asm_line<"stp q10, q11, [sp, #0xa0]">(s);
+    asm_line<"stp q12, q13, [sp, #0xc0]">(s);
+    asm_line<"stp q14, q15, [sp, #0xe0]">(s);
+    asm_line<"stp q16, q17, [sp, #0x100]">(s);
+    asm_line<"stp q18, q19, [sp, #0x120]">(s);
+    asm_line<"stp q20, q21, [sp, #0x140]">(s);
+    asm_line<"stp q22, q23, [sp, #0x160]">(s);
+    asm_line<"stp q24, q25, [sp, #0x180]">(s);
+    asm_line<"stp q26, q27, [sp, #0x1a0]">(s);
+    asm_line<"stp q28, q29, [sp, #0x1c0]">(s);
+    asm_line<"stp q30, q31, [sp, #0x1e0]">(s);
+
+    asm_line<"sub sp, sp, #0xa0">(s);
+    asm_line<"stp x0, x1, [sp]">(s);
+    asm_line<"stp x2, x3, [sp, #0x10]">(s);
+    asm_line<"stp x4, x5, [sp, #0x20]">(s);
+    asm_line<"stp x6, x7, [sp, #0x30]">(s);
+    asm_line<"stp x8, x9, [sp, #0x40]">(s);
+    asm_line<"stp x10, x11, [sp, #0x50]">(s);
+    asm_line<"stp x12, x13, [sp, #0x60]">(s);
+    asm_line<"stp x14, x15, [sp, #0x70]">(s);
+    asm_line<"stp x16, x17, [sp, #0x80]">(s);
+
+    asm_line<"mov x0, lr">(s);
+    asm_line<"mrs x1, nzcv">(s);
+    asm_line<"stp x0, x1, [sp, #0x90]">(s);
+
+    // FIXME - args (and align)
+
+    // FIXME - put args pointer in x0
+    asm_call_trace<name>(s);
+
+    asm_line<"ldp x0, x1, [sp, #0x90]">(s);
+    asm_line<"mov lr, x0">(s);
+    asm_line<"msr nzcv, x1">(s);
+
+    asm_line<"ldp x16, x17, [sp, #0x80]">(s);
+    asm_line<"ldp x14, x15, [sp, #0x70]">(s);
+    asm_line<"ldp x12, x13, [sp, #0x60]">(s);
+    asm_line<"ldp x10, x11, [sp, #0x50]">(s);
+    asm_line<"ldp x8, x9, [sp, #0x40]">(s);
+    asm_line<"ldp x6, x7, [sp, #0x30]">(s);
+    asm_line<"ldp x4, x5, [sp, #0x20]">(s);
+    asm_line<"ldp x2, x3, [sp, #0x10]">(s);
+    asm_line<"ldp x0, x1, [sp]">(s);
+    asm_line<"add sp, sp, #0xa0">(s);
+
+    asm_line<"ldp q30, q31, [sp, #0x1e0]">(s);
+    asm_line<"ldp q28, q29, [sp, #0x1c0]">(s);
+    asm_line<"ldp q26, q27, [sp, #0x1a0]">(s);
+    asm_line<"ldp q24, q25, [sp, #0x180]">(s);
+    asm_line<"ldp q22, q23, [sp, #0x160]">(s);
+    asm_line<"ldp q20, q21, [sp, #0x140]">(s);
+    asm_line<"ldp q18, q19, [sp, #0x120]">(s);
+    asm_line<"ldp q16, q17, [sp, #0x100]">(s);
+    asm_line<"ldp q14, q15, [sp, #0xe0]">(s);
+    asm_line<"ldp q12, q13, [sp, #0xc0]">(s);
+    asm_line<"ldp q10, q11, [sp, #0xa0]">(s);
+    asm_line<"ldp q8, q9, [sp, #0x80]">(s);
+    asm_line<"ldp q6, q7, [sp, #0x60]">(s);
+    asm_line<"ldp q4, q5, [sp, #0x40]">(s);
+    asm_line<"ldp q2, q3, [sp, #0x20]">(s);
+    asm_line<"ldp q0, q1, [sp]">(s);
+    asm_line<"add sp, sp, #0x200">(s);
+
+    asm_jump<"Ltp_ret%=">(s);
 #endif
 
     asm_line<".text">(s);
