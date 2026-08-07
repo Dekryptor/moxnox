@@ -103,6 +103,7 @@ int getlogin_r(char* name, size_t namesize);
 size_t confstr(int name, char* buf, size_t len);
 ssize_t pread(int fd, void* buf, size_t nbyte, off_t offset);
 ssize_t pwrite(int fd, const void* buf, size_t nbyte, off_t offset);
+pid_t fork(void);
 
 #ifdef __cplusplus
 }
