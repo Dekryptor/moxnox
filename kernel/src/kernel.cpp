@@ -295,6 +295,7 @@ void main_thread(void* ctx) {
 
     load_ntdll();
     create_time_page();
+    create_zero_section();
 
     auto init = create_init_process();
 

@@ -192,9 +192,6 @@ public:
     bool is_init = false;
     list_entry sig_waiters = { &sig_waiters, &sig_waiters };
 
-    spinlock vm_sect_lock;
-    object_ref vm_sect;
-
     spinlock pg_lock;
     process_group* pg;
     list_entry pg_le;
@@ -228,6 +225,7 @@ export object_ref create_process(string_view fn, string_view curdir,
                                  object_ref& stdoutobj, object_ref& stderrobj);
 export void load_ntdll();
 export void create_time_page();
+export void create_zero_section();
 export void send_page_tlb_ipi(process& proc, uint64_t va, uint64_t num_pages);
 export object_ref create_init_process();
 export process_group* get_process_group(uintptr_t pgid);

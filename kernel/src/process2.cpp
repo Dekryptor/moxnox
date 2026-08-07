@@ -72,6 +72,7 @@ static const uint64_t MAX_USERSPACE_ADDRESS = 0xffffffffffff;
 extern "C++" {
     section* ntdll = nullptr;
     section* time_page = nullptr;
+    section* zero_section = nullptr;
 }
 
 static uintptr_t mn_start_thread;
@@ -147,6 +148,27 @@ public:
 
     NTSTATUS query_info(enum SECTION_INFORMATION_CLASS, span<uint8_t>,
                         size_t*) override {
+        return nt_status::INVALID_INFO_CLASS;
+    }
+
+    nt_status ioctl(uint32_t, span<const uint8_t>, span<uint8_t>,
+                    uintptr_t&) override {
+        return nt_status::NOT_SUPPORTED;
+    }
+};
+
+class zero_cache : public custom_section_cache {
+public:
+    nt_status read_into_cache(uint64_t page_num, uint64_t num_pages,
+                              uint64_t& read_pages) override;
+
+    nt_status flush_cache(uint64_t, uint64_t) override {
+        // shouldn't happen
+        return nt_status::INTERNAL_ERROR;
+    }
+
+    nt_status query_info(enum SECTION_INFORMATION_CLASS, span<uint8_t>,
+                         size_t*) override {
         return nt_status::INVALID_INFO_CLASS;
     }
 
@@ -696,26 +718,6 @@ process::process(process_group& pg) : sync_object(object_type::process, false) {
         lock_guard lock(pg.procs_lock);
         insert_tail_list(pg.procs, this->pg_le);
     }
-
-    auto s = new section;
-    if (!s) {
-        print("new failed\n");
-        return;
-    }
-
-    s->type = section_type::anonymous;
-    s->num_pages = 0;
-    s->size = 0;
-    s->page_protection = PAGE_EXECUTE_READWRITE;
-
-    s->anon_cache = new anon_section_cache;
-    if (!s->anon_cache) {
-        print("new failed\n");
-        s->release();
-        return;
-    }
-
-    vm_sect = *s;
 
     unreaped_children_event = create_event(false);
     if (!unreaped_children_event) {
@@ -1751,6 +1753,45 @@ nt_status time_page_cache::read_into_cache(uint64_t page_num, uint64_t num_pages
     return nt_status::SUCCESS;
 }
 
+nt_status zero_cache::read_into_cache(uint64_t page_num, uint64_t num_pages,
+                                      uint64_t& read_pages) {
+    // FIXME - we really shouldn't be maintaining page_cache_entries for this
+
+    auto status = cache.pin(page_num, num_pages, nullptr);
+    if (!success(status)) {
+        print("page_cache::pin returned {}\n", status);
+        return status;
+    }
+
+    page_cache_entry* p;
+
+    for (uint64_t i = 0; i < num_pages; i++) {
+        {
+            lock_guard lg(cache.base.cache_lock);
+
+            if (i == 0)
+                p = cache.find_page_cache_entry(page_num);
+            else
+                p = cache.next_page_cache_entry(*p);
+        }
+
+        if (p->pfn)
+            continue;
+
+        increase_page_refcount(zero_pfn);
+
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wconversion"
+        p->pfn = zero_pfn;
+#pragma GCC diagnostic pop
+    }
+
+    cache.unpin(page_num, num_pages);
+
+    read_pages = num_pages;
+    return nt_status::SUCCESS;
+}
+
 void create_time_page() {
     assert(version.size() < sizeof(kernel_time_page.os_version));
 
@@ -1777,6 +1818,21 @@ void create_time_page() {
     time_page->custom_cache = new time_page_cache;
     if (!time_page->custom_cache)
         bsod("create_time_page: new failed");
+}
+
+void create_zero_section() {
+    zero_section = new section;
+    if (!zero_section)
+        bsod("create_zero_section: new failed");
+
+    zero_section->type = section_type::anonymous;
+    zero_section->size = PAGE_SIZE; // FIXME
+    zero_section->num_pages = 0xffffffff; // FIXME - should be 1 << (47 - PAGE_SHIFT)
+    zero_section->page_protection = PAGE_READONLY;
+
+    zero_section->custom_cache = new zero_cache;
+    if (!zero_section->custom_cache)
+        bsod("create_zero_section: new failed");
 }
 
 static void free_handle(rbtree_node<handle_t>* tree) {
@@ -1903,13 +1959,6 @@ void process::terminate() {
         img->get().release();
 
     free_page_tables(*this);
-
-    object_ref vm_sect_obj;
-
-    {
-        lock_guard lock(vm_sect_lock);
-        swap(vm_sect_obj, vm_sect);
-    }
 
     if (removed_from_list)
         release();
@@ -2254,7 +2303,7 @@ NTSTATUS process::allocate_vm(void** base_address, uintptr_t, size_t* region_siz
             auto to_commit = min(size, m->address + m->size - addr);
 
             if (!set_page_protection(*this, addr, (uint32_t)(to_commit >> PAGE_SHIFT), protect,
-                                     false, false)) {
+                                     true, false)) {
                 m->release();
                 return nt_status::INSUFFICIENT_RESOURCES;
             }
@@ -2273,21 +2322,7 @@ NTSTATUS process::allocate_vm(void** base_address, uintptr_t, size_t* region_siz
         return nt_status::NO_MEMORY;
     }
 
-    object_ref vm_sect_obj;
-
-    {
-        lock_guard lock(vm_sect_lock);
-
-        if (!vm_sect)
-            return nt_status::PROCESS_IS_TERMINATING;
-
-        vm_sect_obj = object_ref{vm_sect.get()};
-        vm_sect_obj.get().acquire();
-    }
-
-    auto& sect = static_cast<section&>(vm_sect_obj.get());
-
-    auto m = new mapping(*this, sect);
+    auto m = new mapping(*this, *zero_section);
     if (!m) {
         print("new failed\n");
         return nt_status::INSUFFICIENT_RESOURCES;
@@ -2344,7 +2379,7 @@ NTSTATUS process::allocate_vm(void** base_address, uintptr_t, size_t* region_siz
         m->address = addr;
     }
 
-    if (!set_page_protection(*this, addr, num_pages, protect, false,
+    if (!set_page_protection(*this, addr, num_pages, protect, true,
                              !(allocation_type & MEM_COMMIT))) {
         print("set_page_protection failed\n");
         {
@@ -2830,8 +2865,8 @@ static nt_status protect_vm(process& proc, void** base_address, size_t* region_s
 
             bool cow2 = cow;
 
-            // force COW on for images
-            if (m->sect.type == section_type::image)
+            // force COW on for images or zero section
+            if (m->sect.type == section_type::image || &m->sect == zero_section)
                 cow2 = true;
 
             if (!set_page_protection(proc, addr, num_pages, prot, cow2, false)) {
