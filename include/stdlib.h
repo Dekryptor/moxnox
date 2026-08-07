@@ -81,7 +81,6 @@ void free(void* ptr);
 __attribute__((noreturn)) void abort(void) __moxnox_noexcept;
 int atexit(void (*func)(void)) __moxnox_noexcept;
 __attribute__((noreturn)) void exit(int status) __moxnox_noexcept;
-__attribute__((noreturn)) void _exit(int status) __moxnox_noexcept;
 __attribute__((noreturn)) void _Exit(int status) __moxnox_noexcept;
 
 typedef int (*_onexit_t)(void);

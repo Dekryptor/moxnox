@@ -30,6 +30,14 @@
 
 #define _CS_PATH 0
 
+#if defined(__cplusplus) && __cplusplus >= 201103L
+#define __moxnox_noexcept noexcept
+#elif defined(__cplusplus)
+#define __moxnox_noexcept throw()
+#else
+#define __moxnox_noexcept
+#endif
+
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -104,6 +112,7 @@ size_t confstr(int name, char* buf, size_t len);
 ssize_t pread(int fd, void* buf, size_t nbyte, off_t offset);
 ssize_t pwrite(int fd, const void* buf, size_t nbyte, off_t offset);
 pid_t fork(void);
+__attribute__((noreturn)) void _exit(int status) __moxnox_noexcept;
 
 #ifdef __cplusplus
 }
