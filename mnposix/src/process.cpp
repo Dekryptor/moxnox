@@ -289,3 +289,20 @@ void* dlsym(void* handle, const char* symbol) {
 
     return addr;
 }
+
+extern "C"
+pid_t fork() {
+    nt_status status;
+    uintptr_t pid = 0;
+    void* ptr = &pid;
+
+    status = NtSetInformationProcess(NtCurrentProcess(),
+                                     PROCESS_INFORMATION_CLASS::MoxnoxFork,
+                                     &ptr, sizeof(ptr));
+    if (!success(status)) {
+        *_errno() = nt_status_to_errno(status);
+        return -1;
+    }
+
+    return (pid_t)pid;
+}

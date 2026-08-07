@@ -42,6 +42,5 @@ do_stub "sched_get_priority_min"
 do_stub "sched_get_priority_max"
 do_stub "ppoll"
 do_stub "sigpending"
-do_stub "fork"
 
 stubs_end

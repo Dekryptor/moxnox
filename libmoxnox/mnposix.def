@@ -217,6 +217,7 @@ writev
 mkstemp
 mkostemp
 mkdtemp
+fork
 
 ; stubs
 mbsinit
@@ -259,4 +260,3 @@ sched_get_priority_min
 sched_get_priority_max
 ppoll
 sigpending
-fork
