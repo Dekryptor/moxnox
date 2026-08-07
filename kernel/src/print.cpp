@@ -33,7 +33,7 @@ void print(type_identity_t<checker<type_identity_t<Args>...>> fmt, Args&&... arg
     sp = format_to(sp, fmt.sv, forward_as_tuple(std::forward<Args>(args)...));
 
     if (cb.deferred_print > 0)
-        cb.deferred_print_size = sp.data() - cb.printk_scratch;
+        cb.deferred_print_size = (size_t)(sp.data() - cb.printk_scratch);
     else
         _printk(string_view(cb.printk_scratch, (size_t)(sp.data() - cb.printk_scratch)));
 
