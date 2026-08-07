@@ -913,7 +913,7 @@ static bool set_page_protection(process& proc, uint64_t va, uint32_t num_pages,
 
         auto& pte = pt[0][index[0]];
 
-        if (pte.valid && pte.AP == ARM64_PTE_AP_EL0RW && pte.cow) {
+        if (pte.valid && pte.owned && pte.cow) {
             // don't clear COW flag if already COWed
 
             // FIXME - should be able to make COWed page readonly?
@@ -1040,7 +1040,7 @@ static bool set_page_protection(process& proc, uint64_t va, uint32_t num_pages,
 
         auto& pte = pt[0][index[0]];
 
-        if (pte.p && pte.w && pte.cow) {
+        if (pte.p && pte.owned && pte.cow) {
             // don't clear COW flag if already COWed
 
             // FIXME - should be able to make COWed page readonly?

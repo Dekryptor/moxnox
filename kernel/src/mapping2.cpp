@@ -83,7 +83,7 @@ void unmap_proc_pages(process& proc, uint64_t va, uint64_t num_pages) {
         auto& pte = pt[0][index[0]];
 
         // free COWed folios
-        if (pte.p && pte.w && pte.cow)
+        if (pte.p && pte.owned && pte.cow)
             free_folio(pte.pfn << PAGE_SHIFT);
 
         pte.p = 0;
@@ -138,7 +138,7 @@ void unmap_proc_pages(process& proc, uint64_t va, uint64_t num_pages) {
         auto& pte = pt[0][index[0]];
 
         // free COWed folios
-        if (pte.valid && pte.AP == ARM64_PTE_AP_EL0RW && pte.cow)
+        if (pte.valid && pte.owned && pte.cow)
             free_folio(pte.pfn << PAGE_SHIFT);
 
         pte.valid = 0;
@@ -372,6 +372,7 @@ bool mapping::copy_to(uint32_t offset, const void* ks_addr, uint32_t size) {
 
 #ifdef __aarch64__
                 pte.AP = ARM64_PTE_AP_EL0RW;
+                pte.owned = 1;
 
                 if (!pte.valid) {
                     pte.table_entry = 1;
@@ -382,6 +383,7 @@ bool mapping::copy_to(uint32_t offset, const void* ks_addr, uint32_t size) {
                 }
 #elifdef __x86_64__
                 pte.w = 1;
+                pte.owned = 1;
 
                 if (!pte.p)
                     pte.p = 1;
@@ -627,6 +629,8 @@ bool make_pte_writable(uintptr_t address, mapping& m, pte_type& pte,
 #pragma GCC diagnostic ignored "-Wconversion"
         pte.pfn = pfn;
 #pragma GCC diagnostic pop
+
+        pte.owned = 1;
     } else {
         auto ret = visit([&](auto* ptr) {
             auto& cache = *ptr;
