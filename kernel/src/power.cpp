@@ -4,6 +4,7 @@ module;
 #include <atomic>
 #include <bit>
 #include "ints.h"
+#include "trace.h"
 
 export module power;
 
@@ -19,6 +20,7 @@ import scheduler;
 import cpu_block;
 import process;
 import config;
+import trace;
 
 using namespace std;
 
@@ -45,7 +47,16 @@ static void halt() {
 }
 
 extern "C"
+void trace_NtShutdownSystem(uintptr_t* args) {
+    auto action = (SHUTDOWN_ACTION)args[0];
+
+    print("NtShutdownSystem: action = {}\n", action);
+}
+
+extern "C"
 NTSTATUS NtShutdownSystem(enum SHUTDOWN_ACTION action) {
+    TRACE1("NtShutdownSystem", action);
+
     if (action == SHUTDOWN_ACTION::ShutdownNoReboot) {
         // FIXME
         return nt_status::NOT_IMPLEMENTED;
