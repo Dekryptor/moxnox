@@ -1,4 +1,5 @@
 {
+    "bash": ["libiconv", "readline"],
     "binutils": ["zlib"],
     "bzip2": [],
     "cairo": ["freetype", "libpng", "pixman", "zlib"],

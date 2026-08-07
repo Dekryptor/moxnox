@@ -193,3 +193,6 @@
 [submodule "ports/coreutils/repo"]
 	path = ports/coreutils/repo
 	url = https://git.burntcomma.com/moxnox/coreutils
+[submodule "ports/bash/repo"]
+	path = ports/bash/repo
+	url = https://git.burntcomma.com/moxnox/bash
