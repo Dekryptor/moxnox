@@ -323,13 +323,15 @@ bool mapping::copy_to(uint32_t offset, const void* ks_addr, uint32_t size) {
                 memcpy((uint8_t*)phys_address(pte.pfn << PAGE_SHIFT) + page_offset,
                        ks_addr, to_copy);
             } else if (pte.cow) {
-                auto pa = allocate_folio(0);
-                if (!pa) {
-                    print("allocate_folio failed\n");
-                    return false;
-                }
+                uint64_t pa;
 
                 if (!pte_valid) {
+                    pa = allocate_folio(0);
+                    if (!pa) {
+                        print("allocate_folio failed\n");
+                        return false;
+                    }
+
                     if (to_copy < PAGE_SIZE) {
                         page_cache_entry* p;
                         uint64_t sect_page_num = page_num + i + (this->offset >> PAGE_SHIFT);
@@ -368,8 +370,22 @@ bool mapping::copy_to(uint32_t offset, const void* ks_addr, uint32_t size) {
                             return false;
                     }
                 } else {
-                    memcpy(phys_address(pa), phys_address(pte.pfn << PAGE_SHIFT),
-                           PAGE_SIZE);
+                    if (pte.owned) {
+                        pa = cow_folio(pte.pfn << PAGE_SHIFT);
+                        if (!pa) {
+                            print("cow_folio failed\n");
+                            return false;
+                        }
+                    } else {
+                        pa = allocate_folio(0);
+                        if (!pa) {
+                            print("allocate_folio failed\n");
+                            return false;
+                        }
+
+                        memcpy(phys_address(pa), phys_address(pte.pfn << PAGE_SHIFT),
+                               PAGE_SIZE);
+                    }
                 }
 
 #pragma GCC diagnostic push
