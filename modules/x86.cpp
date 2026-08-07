@@ -42,7 +42,10 @@ export struct HARDWARE_PTE {
     uint64_t allow_write : 1; // custom
     uint64_t cow : 1; // custom
     uint64_t reserved : 1; // custom
-    uint64_t pfn : 51;
+    uint64_t pfn : 40;
+    uint64_t : 6;
+    uint64_t owned : 1; // custom
+    uint64_t protection_key : 4;
     uint64_t xd : 1;
 };
 

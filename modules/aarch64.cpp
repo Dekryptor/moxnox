@@ -124,7 +124,7 @@ export struct ARM64_HARDWARE_PTE {
     uint64_t allow_write : 1; // custom
     uint64_t cow : 1; // custom
     uint64_t reserved : 1; // custom
-    uint64_t software : 1;
+    uint64_t owned : 1; // custom
     uint64_t imp_def : 4;
     uint64_t : 1;
 } __attribute((packed));
@@ -569,8 +569,8 @@ export span<char> do_format_arg(span<char> sp, string_view, const ARM64_HARDWARE
     sp = do_format_arg(sp, "", p.cow);
     sp = do_format_arg(sp, "", ", reserved=");
     sp = do_format_arg(sp, "", p.reserved);
-    sp = do_format_arg(sp, "", ", software=");
-    sp = do_format_arg(sp, "", p.software);
+    sp = do_format_arg(sp, "", ", owned=");
+    sp = do_format_arg(sp, "", p.owned);
     sp = do_format_arg(sp, "", ", imp_def=");
     sp = do_format_arg(sp, "", p.imp_def);
 

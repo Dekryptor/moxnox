@@ -590,7 +590,7 @@ bool map_page(uint64_t pa, uint64_t va, enum mapping_type type) {
         if (page == 0)
             return false;
 
-        pml4_entry.pfn = (page >> PAGE_SHIFT) & 0x3ffffffffffff;
+        pml4_entry.pfn = (page >> PAGE_SHIFT) & PFN_MASK;
         pml4_entry.p = 1;
         pml4_entry.w = 1;
         pml4_entry.u = va & 0x8000000000000000 ? 0 : 1;
@@ -610,7 +610,7 @@ bool map_page(uint64_t pa, uint64_t va, enum mapping_type type) {
         if (page == 0)
             return false;
 
-        pdpt_entry.pfn = (page >> PAGE_SHIFT) & 0x3ffffffffffff;
+        pdpt_entry.pfn = (page >> PAGE_SHIFT) & PFN_MASK;
         pdpt_entry.p = 1;
         pdpt_entry.w = 1;
         pdpt_entry.u = va & 0x8000000000000000 ? 0 : 1;
@@ -630,7 +630,7 @@ bool map_page(uint64_t pa, uint64_t va, enum mapping_type type) {
         if (page == 0)
             return false;
 
-        pdt_entry.pfn = (page >> PAGE_SHIFT) & 0x3ffffffffffff;
+        pdt_entry.pfn = (page >> PAGE_SHIFT) & PFN_MASK;
         pdt_entry.p = 1;
         pdt_entry.w = 1;
         pdt_entry.u = va & 0x8000000000000000 ? 0 : 1;
@@ -647,7 +647,7 @@ bool map_page(uint64_t pa, uint64_t va, enum mapping_type type) {
 
     memset(&pt_entry, 0, sizeof(pt_entry));
 
-    pt_entry.pfn = (pa >> PAGE_SHIFT) & 0x3ffffffffffff;
+    pt_entry.pfn = (pa >> PAGE_SHIFT) & PFN_MASK;
     pt_entry.p = 1;
 
     switch (type) {

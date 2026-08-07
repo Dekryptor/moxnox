@@ -294,3 +294,7 @@ export void inline __attribute((always_inline)) flush_cache(span<const uint8_t>,
 export constexpr bool is_userspace_address(uintptr_t va) {
     return !(va & 0xffff800000000000);
 }
+
+#ifdef __x86_64__
+export constexpr uint64_t PFN_MASK = ((uint64_t)1 << 40) - 1;
+#endif
