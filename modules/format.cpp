@@ -1975,3 +1975,24 @@ template<>
 consteval bool format_spec_valid<SYSTEM_INFORMATION_CLASS>(string_view fmt) {
     return fmt.empty();
 }
+
+export span<char> do_format_arg(span<char> sp, string_view,
+                                SHUTDOWN_ACTION arg) {
+    switch (arg) {
+        using enum SHUTDOWN_ACTION;
+
+        case ShutdownNoReboot:
+            return sp_strcpy(sp, "ShutdownNoReboot");
+        case ShutdownReboot:
+            return sp_strcpy(sp, "ShutdownReboot");
+        case ShutdownPowerOff:
+            return sp_strcpy(sp, "ShutdownPowerOff");
+        default:
+            return do_format_arg(sp, "", (unsigned int)arg);
+    }
+}
+
+template<>
+consteval bool format_spec_valid<SHUTDOWN_ACTION>(string_view fmt) {
+    return fmt.empty();
+}
