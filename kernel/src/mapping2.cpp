@@ -617,14 +617,25 @@ bool make_pte_writable(uintptr_t address, mapping& m, pte_type& pte,
     uint64_t sect_page_num = page_num + (m.offset >> PAGE_SHIFT);
 
     if (pte.cow) {
-        auto pfn = allocate_folio(0) >> PAGE_SHIFT;
-        if (pfn == 0) {
-            print("allocate_folio failed\n");
-            return false;
+        uint64_t pfn;
+
+        if (pte.owned) {
+            pfn = cow_folio(pte.pfn << PAGE_SHIFT) >> PAGE_SHIFT;
+            if (pfn == 0) {
+                print("cow_folio failed\n");
+                return false;
+            }
+        } else {
+            pfn = allocate_folio(0) >> PAGE_SHIFT;
+            if (pfn == 0) {
+                print("allocate_folio failed\n");
+                return false;
+            }
+
+            memcpy(phys_address(pfn << PAGE_SHIFT),
+                   phys_address(pte.pfn << PAGE_SHIFT), PAGE_SIZE);
         }
 
-        memcpy(phys_address(pfn << PAGE_SHIFT),
-               phys_address(pte.pfn << PAGE_SHIFT), PAGE_SIZE);
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wconversion"
         pte.pfn = pfn;
