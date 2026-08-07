@@ -743,3 +743,16 @@ if (CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
 endif()
 
 install(TARGETS trace DESTINATION ${CMAKE_INSTALL_PREFIX}/bin COMPONENT core)
+
+###
+
+add_executable(fork-test src/fork-test.cpp)
+
+target_compile_options(fork-test PRIVATE -fno-exceptions ${USERSPACE_CFLAGS})
+target_link_libraries(fork-test moxnox print)
+
+if (CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
+    target_link_options(fork-test PUBLIC -mcrtdll=ucrtbase)
+endif()
+
+install(TARGETS fork-test DESTINATION ${CMAKE_INSTALL_PREFIX}/bin COMPONENT core)
