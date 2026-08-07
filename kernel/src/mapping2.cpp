@@ -224,7 +224,12 @@ bool mapping::copy_from(uint32_t offset, void* ks_addr, uint32_t size) {
                           num_pages, rangelock_mode::shared);
 
         for (uint64_t i = 0; i < num_pages; i++) {
-            auto& pte = *find_pte(proc, address + ((page_num + i) << PAGE_SHIFT));
+            auto* ppte = find_pte(proc, address + ((page_num + i) << PAGE_SHIFT));
+
+            if (!ppte)
+                return false;
+
+            auto& pte = *ppte;
 
             auto to_copy = min((uint32_t)(PAGE_SIZE - page_offset), size);
 
