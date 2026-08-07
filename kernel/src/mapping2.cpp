@@ -625,6 +625,8 @@ bool make_pte_writable(uintptr_t address, mapping& m, pte_type& pte,
                 print("cow_folio failed\n");
                 return false;
             }
+
+            send_ipi = pfn != pte.pfn;
         } else {
             pfn = allocate_folio(0) >> PAGE_SHIFT;
             if (pfn == 0) {
@@ -634,6 +636,8 @@ bool make_pte_writable(uintptr_t address, mapping& m, pte_type& pte,
 
             memcpy(phys_address(pfn << PAGE_SHIFT),
                    phys_address(pte.pfn << PAGE_SHIFT), PAGE_SIZE);
+
+            send_ipi = true;
         }
 
 #pragma GCC diagnostic push
