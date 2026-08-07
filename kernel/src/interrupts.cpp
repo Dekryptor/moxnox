@@ -14,6 +14,7 @@ using namespace std;
 export extern "C++" {
     uint64_t tlb_va, tlb_num_pages;
     atomic<uint32_t> tlb_cpus_left;
+    atomic<uint32_t> all_tlb_cpus_left;
 }
 
 export uintptr_t mn_signal, mn_handle_apc, mn_posix_signal;
@@ -31,6 +32,7 @@ export bool init_interrupts();
 
 export const uint8_t HALT_SGI = 0;
 export const uint8_t TLB_SGI = 1;
+export const uint8_t ALL_TLB_SGI = 2;
 
 export const uint64_t MPIDR_MASK = 0xff00ffffff;
 export uint64_t gicd, gicr;
@@ -53,6 +55,7 @@ using isr_func_type = bool (*)(void*);
 
 export const uint8_t halt_interrupt = 0x60;
 export const uint8_t invalidate_tlb_interrupt = 0x21;
+export const uint8_t invalidate_all_tlb_interrupt = 0x22;
 export const uint8_t spurious_interrupt = 0xff;
 
 export uint8_t add_isr(isr_func_type isr_func, void* ctx);

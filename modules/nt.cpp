@@ -1151,6 +1151,7 @@ enum class PROCESS_INFORMATION_CLASS {
     MoxnoxWaitForChildProcessGroup,
     MoxnoxMarkAsChild,
     MoxnoxMemoryUnmap,
+    MoxnoxFork,
 };
 
 struct PROCESS_BASIC_INFORMATION {

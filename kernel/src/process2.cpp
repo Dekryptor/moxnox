@@ -1338,6 +1338,20 @@ static void send_tlb_ipi(uint8_t cpu_no) {
 
     while (*icr1 & (1 << 12)) { } // wait to clear
 }
+
+static void send_all_tlb_ipi(uint8_t cpu_no) {
+    all_tlb_cpus_left++;
+
+    auto icr2 = (volatile uint32_t*)&local_apic[0x310];
+
+    *icr2 = (*icr2 & 0x00ffffff) | ((uint32_t)cpu_no << 24);
+
+    auto icr1 = (volatile uint32_t*)&local_apic[0x300];
+
+    *icr1 = invalidate_all_tlb_interrupt;
+
+    while (*icr1 & (1 << 12)) { } // wait to clear
+}
 #elifdef __aarch64__
 static void send_tlb_ipi(uint8_t cpu_no) {
     auto& cb = *get_cpu_block();
@@ -1365,6 +1379,45 @@ static void send_tlb_ipi(uint8_t cpu_no) {
         sgir.value = 0;
         sgir.IRM = 0; // only specified CPU
         sgir.INTID = TLB_SGI;
+        sgir.Aff3 = mpidr.Aff3;
+        sgir.Aff2 = mpidr.Aff2;
+        sgir.Aff1 = mpidr.Aff1;
+        sgir.TargetList = 1 << mpidr.Aff0;
+
+        __asm __volatile (
+            "msr icc_sgi1r_el1, %x[res]"
+            :
+            : [res] "r" (sgir.value)
+        );
+    }
+}
+
+static void send_all_tlb_ipi(uint8_t cpu_no) {
+    auto& cb = *get_cpu_block();
+
+    // FIXME - sending to multiple CPUs at once?
+
+    all_tlb_cpus_left++;
+
+    if (cb.gicc) { // GICv2
+        auto& GICD_SGIR = *(volatile uint32_t*)(gicd + 0xf00);
+        ARM64_GICD_SGIR sgir;
+
+        sgir.value = 0;
+        sgir.TargetListFilter = 0; // send IPI to specified CPU
+        sgir.CPUTargetList = 1 << cpu_ids[cpu_no];
+        sgir.SGIINTID = ALL_TLB_SGI;
+
+        GICD_SGIR = sgir.value;
+    } else {
+        ARM64_ICC_SGI1R sgir;
+        ARM64_MPIDR mpidr;
+
+        mpidr.value = cpu_ids[cpu_no];
+
+        sgir.value = 0;
+        sgir.IRM = 0; // only specified CPU
+        sgir.INTID = ALL_TLB_SGI;
         sgir.Aff3 = mpidr.Aff3;
         sgir.Aff2 = mpidr.Aff2;
         sgir.Aff1 = mpidr.Aff1;
@@ -1416,6 +1469,49 @@ void send_page_tlb_ipi(process& proc, uint64_t va, uint64_t num_pages) {
         tlb_cpus_left--;
 
         while (tlb_cpus_left.load(memory_order_acquire) > 0) {
+#ifdef __aarch64__
+            __asm("yield");
+#endif
+        }
+
+        enable_preempt();
+    }
+}
+
+static void send_proc_all_tlb_ipi(process& proc) {
+    disable_preempt();
+
+    auto cpus = proc.running_cpus.load();
+
+    if ((cpus & ~((uint64_t)1 << get_cpu_block()->cpu_no)) == 0) {
+        enable_preempt();
+        return;
+    }
+
+    enable_preempt();
+
+    {
+        lock_guard lock(ipi_lock);
+
+        disable_preempt();
+
+        auto& cb = *get_cpu_block();
+
+        all_tlb_cpus_left = 1;
+
+        for (uint8_t i = 0; i < num_cpus; i++) {
+            if (i == cb.cpu_no)
+                continue;
+
+            if (!(cpus & 1 << i))
+                continue;
+
+            send_all_tlb_ipi(i);
+        }
+
+        all_tlb_cpus_left--;
+
+        while (all_tlb_cpus_left.load(memory_order_acquire) > 0) {
 #ifdef __aarch64__
             __asm("yield");
 #endif
@@ -5617,6 +5713,9 @@ nt_status process::set_information(PROCESS_INFORMATION_CLASS info_class,
         case MoxnoxMemoryUnmap:
             return memory_unmap(buffer);
 
+        case MoxnoxFork:
+            return do_fork(buffer);
+
         default:
             return nt_status::NOT_IMPLEMENTED;
     }
@@ -7246,4 +7345,422 @@ void send_tracepoint_ipi() {
     }
 
     enable_preempt();
+}
+
+static nt_status create_forked_thread(process& proc, ::thread& orig_thread,
+                                      object_ref& objrw) {
+    auto tptr = new ::thread;
+    if (!tptr) {
+        print("new failed\n");
+        return nt_status::INSUFFICIENT_RESOURCES;
+    }
+
+    auto& t = *tptr;
+
+    t.tid = next_tid.fetch_add(1);
+
+    t.teb = orig_thread.teb;
+
+    memcpy(&t.context, &orig_thread.syscall_context, sizeof(CONTEXT));
+#ifdef __x86_64__
+    memcpy(&t.xsave, &orig_thread.xsave, XSAVE_SIZE);
+#endif
+
+#ifdef __x86_64__
+    t.context.Rax = (uint64_t)nt_status::SUCCESS;
+#elifdef __aarch64__
+    t.context.X0 = (uint64_t)nt_status::SUCCESS;
+#endif
+
+    t.kernel_mode = false;
+
+    t.suspend_count = 1;
+    t.status = thread_status::runnable;
+
+    t.kernel_stack = allocate_stack();
+    if (!t.kernel_stack) {
+        delete &t;
+        return nt_status::INSUFFICIENT_RESOURCES;
+    }
+
+    t.syscall_stack = (uint8_t*)t.kernel_stack + ((KERNEL_STACK_PAGES + KERNEL_GUARD_PAGES) << PAGE_SHIFT);
+
+#ifdef __aarch64__
+    t.syscall_stack = (uint8_t*)t.syscall_stack - 0x10;
+#elifdef __x86_64__
+    t.syscall_stack = (uint8_t*)t.syscall_stack - 0x20; // 0x20 bytes for MS ABI
+#endif
+
+#ifdef __aarch64__
+    t.user_stack = orig_thread.syscall_context.Sp;
+#endif
+
+    t.blocked_signals = orig_thread.blocked_signals;
+
+    t.proc = &proc;
+    proc.acquire();
+
+    bool proc_dying = false;
+
+    {
+        lock_guard lock(proc.threads_lock);
+
+        if (proc.dying)
+            proc_dying = true;
+        else
+            insert_tail_list(proc.threads, t.process_le);
+    }
+
+    if (proc_dying) {
+        delete &t;
+        return nt_status::PROCESS_IS_TERMINATING;
+    }
+
+    objrw = object_ref{t};
+
+    {
+        sync_lock sl;
+        lock_guard lock(sl);
+        insert_tail_list(thread_list, t.le);
+    }
+
+    t.acquire();
+
+    return nt_status::SUCCESS;
+}
+
+#ifdef __x86_64__
+static nt_status prepare_forked_ptes2(unsigned int level,
+                                      span<HARDWARE_PTE, 512> parent_sp,
+                                      span<HARDWARE_PTE, 512> child_sp) {
+    nt_status status;
+
+    // FIXME - large pages
+
+    for (size_t i = 0; i < parent_sp.size(); i++) {
+        auto& parent_pte = parent_sp[i];
+        auto& child_pte = child_sp[i];
+
+        if (level > 1 && !parent_pte.p)
+            continue;
+
+        child_pte = parent_pte;
+
+        if (level > 1) {
+            auto pa = allocate_folio(0);
+            if (!pa) {
+                print("allocate_folio failed\n");
+                return nt_status::INSUFFICIENT_RESOURCES;
+            }
+
+            memset(phys_address(pa), 0, PAGE_SIZE);
+
+            child_pte.pfn = (pa >> PAGE_SHIFT) & PFN_MASK;
+        }
+
+        auto parent_sp2 = span<HARDWARE_PTE, 512>((HARDWARE_PTE*)phys_address(parent_pte.pfn << PAGE_SHIFT), 512);
+        auto child_sp2 = span<HARDWARE_PTE, 512>((HARDWARE_PTE*)phys_address(child_pte.pfn << PAGE_SHIFT), 512);
+
+        if (level > 1) {
+            status = prepare_forked_ptes2(level - 1, parent_sp2, child_sp2);
+            if (!success(status))
+                return status;
+        } else {
+            if (parent_pte.cow && parent_pte.w) {
+                parent_pte.w = 0;
+                child_pte.w = 0;
+            }
+
+            if (parent_pte.p && parent_pte.owned)
+                increase_page_refcount(parent_pte.pfn);
+        }
+    }
+
+    return nt_status::SUCCESS;
+}
+
+static nt_status prepare_forked_ptes(process& parent, process& child) {
+    nt_status status;
+    auto parent_sp = span((HARDWARE_PTE*)phys_address(parent.cr3), 256);
+    auto child_sp = span((HARDWARE_PTE*)phys_address(child.cr3), 256);
+
+    for (size_t i = 0; i < parent_sp.size(); i++) {
+        auto& parent_pte = parent_sp[i];
+        auto& child_pte = child_sp[i];
+
+        if (!parent_pte.p)
+            continue;
+
+        auto pa = allocate_folio(0);
+        if (!pa) {
+            print("allocate_folio failed\n");
+            return nt_status::INSUFFICIENT_RESOURCES;
+        }
+
+        memset(phys_address(pa), 0, PAGE_SIZE);
+
+        child_pte = parent_pte;
+        child_pte.pfn = (pa >> PAGE_SHIFT) & PFN_MASK;
+
+        auto parent_sp2 = span<HARDWARE_PTE, 512>((HARDWARE_PTE*)phys_address(parent_pte.pfn << PAGE_SHIFT), 512);
+        auto child_sp2 = span<HARDWARE_PTE, 512>((HARDWARE_PTE*)phys_address(child_pte.pfn << PAGE_SHIFT), 512);
+
+        status = prepare_forked_ptes2(3, parent_sp2, child_sp2);
+        if (!success(status))
+            return status;
+    }
+
+    return nt_status::SUCCESS;
+}
+#elifdef __aarch64__
+static nt_status prepare_forked_ptes2(unsigned int level,
+                                      span<ARM64_HARDWARE_PTE, 512> parent_sp,
+                                      span<ARM64_HARDWARE_PTE, 512> child_sp) {
+    nt_status status;
+
+    // FIXME - large pages
+
+    for (size_t i = 0; i < parent_sp.size(); i++) {
+        auto& parent_pte = parent_sp[i];
+        auto& child_pte = child_sp[i];
+
+        if (level > 1 && !parent_pte.valid)
+            continue;
+
+        child_pte = parent_pte;
+
+        if (level > 1) {
+            auto pa = allocate_folio(0);
+            if (!pa) {
+                print("allocate_folio failed\n");
+                return nt_status::INSUFFICIENT_RESOURCES;
+            }
+
+            memset(phys_address(pa), 0, PAGE_SIZE);
+
+            child_pte.pfn = pa >> PAGE_SHIFT;
+        }
+
+        auto parent_sp2 = span<ARM64_HARDWARE_PTE, 512>((ARM64_HARDWARE_PTE*)phys_address(parent_pte.pfn << PAGE_SHIFT), 512);
+        auto child_sp2 = span<ARM64_HARDWARE_PTE, 512>((ARM64_HARDWARE_PTE*)phys_address(child_pte.pfn << PAGE_SHIFT), 512);
+
+        if (level > 1) {
+            status = prepare_forked_ptes2(level - 1, parent_sp2, child_sp2);
+            if (!success(status))
+                return status;
+        } else {
+            if (parent_pte.cow && parent_pte.AP == ARM64_PTE_AP_EL0RW) {
+                parent_pte.AP = ARM64_PTE_AP_EL0RO;
+                child_pte.AP = ARM64_PTE_AP_EL0RO;
+            }
+
+            if (parent_pte.valid && parent_pte.owned)
+                increase_page_refcount(parent_pte.pfn);
+        }
+    }
+
+    return nt_status::SUCCESS;
+}
+
+static nt_status prepare_forked_ptes(process& parent, process& child) {
+    nt_status status;
+    auto parent_sp = span((ARM64_HARDWARE_PTE*)phys_address(parent.ttbr0), 512);
+    auto child_sp = span((ARM64_HARDWARE_PTE*)phys_address(child.ttbr0), 512);
+
+    for (size_t i = 0; i < parent_sp.size(); i++) {
+        auto& parent_pte = parent_sp[i];
+        auto& child_pte = child_sp[i];
+
+        if (!parent_pte.valid)
+            continue;
+
+        auto pa = allocate_folio(0);
+        if (!pa) {
+            print("allocate_folio failed\n");
+            return nt_status::INSUFFICIENT_RESOURCES;
+        }
+
+        memset(phys_address(pa), 0, PAGE_SIZE);
+
+        child_pte = parent_pte;
+        child_pte.pfn = pa >> PAGE_SHIFT;
+
+        auto parent_sp2 = span<ARM64_HARDWARE_PTE, 512>((ARM64_HARDWARE_PTE*)phys_address(parent_pte.pfn << PAGE_SHIFT), 512);
+        auto child_sp2 = span<ARM64_HARDWARE_PTE, 512>((ARM64_HARDWARE_PTE*)phys_address(child_pte.pfn << PAGE_SHIFT), 512);
+
+        status = prepare_forked_ptes2(3, parent_sp2, child_sp2);
+        if (!success(status))
+            return status;
+    }
+
+    return nt_status::SUCCESS;
+}
+#endif
+
+nt_status process::do_fork(span<const uint8_t> buf) {
+    auto& t = *get_current_thread();
+    object_ref thread_ref;
+    nt_status status;
+
+    if (buf.size() != sizeof(uintptr_t))
+        return nt_status::INVALID_PARAMETER;
+
+    if (t.proc != this)
+        return nt_status::INVALID_PARAMETER;
+
+    if (disallow_new_processes)
+        return nt_status::SYSTEM_SHUTDOWN;
+
+    // create process
+
+    auto pptr = new process(*this->pg);
+    if (!pptr) {
+        print("new failed\n");
+        return nt_status::INSUFFICIENT_RESOURCES;
+    }
+
+    if (!pptr->initialized) {
+        print("process::process failed\n");
+        delete pptr;
+        return nt_status::INTERNAL_ERROR;
+    }
+
+    auto& p = *pptr;
+
+    object_ref objrw{p};
+
+    p.tree.key = next_pid.fetch_add(1);
+
+    p.img = this->img;
+    p.img->get().acquire();
+
+#ifdef __aarch64__
+    if (!p.allocate_ttbr0()) {
+        print("process::allocate_ttbr0 failed\n");
+        return nt_status::INTERNAL_ERROR;
+    }
+#elifdef __x86_64__
+    if (!p.allocate_cr3()) {
+        print("process::allocate_cr3 failed\n");
+        return nt_status::INTERNAL_ERROR;
+    }
+#endif
+
+    p.suspend_count = 0;
+
+    // duplicate handles into new process
+
+    {
+        lock_guard lock(handle_lock);
+
+        auto n = get_tree_minimum(handles);
+
+        while (n) {
+            auto& ho = rbtree_containing_record<handle_obj>(n);
+            auto& obj = *ho.obj;
+
+            auto ho2 = (handle_obj*)malloc(sizeof(handle_obj));
+            if (!ho2) {
+                print("malloc failed\n");
+                return nt_status::INSUFFICIENT_RESOURCES;
+            }
+
+            obj.acquire();
+
+            ho2->tree.key = ho.tree.key;
+            ho2->obj = &obj;
+            ho2->access_mask = ho.access_mask;
+
+            insert_into_rbtree(p.handles, ho2->tree);
+
+            n = next_rbtree_node(*n);
+        }
+
+        p.last_handle = last_handle;
+    }
+
+    // add to process list
+
+    {
+        lock_guard lock(process_list_lock);
+        insert_into_rbtree(process_tree, p.tree);
+    }
+
+    p.added_to_tree = true;
+
+    {
+        lock_guard lock(process_list_lock);
+        p.parent_process = this;
+    }
+
+    p.acquire(); // for children list
+
+    {
+        lock_guard lock(this->children_lock);
+        insert_tail_list(this->children, p.child_le);
+    }
+
+    // copy mappings
+
+    {
+        rangelock_req rlr(rl, 0, 0xffffffffffffffff, rangelock_mode::exclusive);
+
+        {
+            lock_guard lock(mappings_lock);
+
+            for (auto le = mappings.next; le != &mappings; le = le->next) {
+                auto& m = containing_record<mapping>(le);
+
+                auto m2 = new mapping(p, m.sect);
+                if (!m2) {
+                    print("new failed\n");
+                    return nt_status::INSUFFICIENT_RESOURCES;
+                }
+
+                m2->address = m.address;
+                m2->size = m.size;
+                m2->offset = m.offset;
+                m2->in_address_space = true;
+
+                insert_tail_list(p.mappings, m2->le);
+            }
+        }
+
+        status = prepare_forked_ptes(*this, p);
+        if (!success(status))
+            return status;
+    }
+
+    send_proc_all_tlb_ipi(*this);
+
+    // create new thread
+
+    status = create_forked_thread(p, t, thread_ref);
+    if (!success(status))
+        return status;
+
+    auto& new_thread = static_cast<::thread&>(thread_ref.get());
+
+    // return pid
+
+    uintptr_t pid = p.tree.key;
+    auto pidptr = *(uintptr_t**)buf.data();
+
+    if (!copy_to(pidptr, &pid, sizeof(pid))) {
+        terminate_thread(new_thread, true);
+        return nt_status::ACCESS_VIOLATION;
+    }
+
+    // resume new thread
+    new_thread.suspend_count.fetch_sub(1);
+
+#ifdef __aarch64__
+    __asm __volatile (
+        "tlbi vmalle1\n"
+        "dsb ish\n"
+        "isb\n"
+    );
+#endif
+
+    return nt_status::SUCCESS;
 }

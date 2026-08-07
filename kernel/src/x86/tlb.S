@@ -30,3 +30,17 @@ invalidate_tlb_isr:
     iretq
 invalidate_tlb_isr_end:
 
+.global invalidate_all_tlb_isr
+invalidate_all_tlb_isr:
+    push rax
+    mov rax, cr3
+    mov cr3, rax
+
+    lock dec DWORD PTR [rip+all_tlb_cpus_left]
+
+    xor rax, rax
+    mov DWORD PTR [APIC_BASE+APIC_EOI], eax
+
+    pop rax
+    iretq
+invalidate_all_tlb_isr_end:

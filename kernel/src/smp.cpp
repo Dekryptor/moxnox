@@ -248,6 +248,7 @@ static void __attribute__((noreturn)) ap_startup() {
 
         enable_irq(HALT_SGI);
         enable_irq(TLB_SGI);
+        enable_irq(ALL_TLB_SGI);
 
         // enable group 1 interrupts
         __asm __volatile (
