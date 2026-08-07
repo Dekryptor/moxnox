@@ -294,7 +294,8 @@ bool mapping::copy_to(uint32_t offset, const void* ks_addr, uint32_t size) {
                           num_pages, rangelock_mode::exclusive);
 
         for (uint64_t i = 0; i < num_pages; i++) {
-            auto& pte = *find_pte(proc, address + ((page_num + i) << PAGE_SHIFT));
+            uint64_t va = address + ((page_num + i) << PAGE_SHIFT);
+            auto& pte = *find_pte(proc, va);
 
             auto to_copy = min((uint32_t)(PAGE_SIZE - page_offset), size);
 
@@ -381,15 +382,32 @@ bool mapping::copy_to(uint32_t offset, const void* ks_addr, uint32_t size) {
                     pte.AF = 1;
                     pte.valid = 1;
                 }
+
+                __asm __volatile (
+                    "tlbi vae1, %x[res]\n"
+                    "dsb ish\n"
+                    "isb\n"
+                    :
+                    : [res] "r" (va >> PAGE_SHIFT)
+                    : "memory"
+                );
 #elifdef __x86_64__
                 pte.w = 1;
                 pte.owned = 1;
 
                 if (!pte.p)
                     pte.p = 1;
+
+                __asm __volatile (
+                    "invlpg [%0]\n"
+                    :
+                    : "r" (va)
+                    : "memory"
+                );
 #endif
 
-                // FIXME - invlpg / tlbi here?
+                if (pte_valid)
+                    send_page_tlb_ipi(proc, va, 1);
             } else {
                 uint64_t sect_page_num = page_num + i + (this->offset >> PAGE_SHIFT);
                 page_cache_entry* p;
@@ -465,15 +483,29 @@ bool mapping::copy_to(uint32_t offset, const void* ks_addr, uint32_t size) {
                     pte.SH = 3; // inner shareable
                     pte.AF = 1;
                     pte.valid = 1;
+
+                    __asm __volatile (
+                        "tlbi vae1, %x[res]\n"
+                        "dsb ish\n"
+                        "isb\n"
+                        :
+                        : [res] "r" (va >> PAGE_SHIFT)
+                        : "memory"
+                    );
 #elifdef __x86_64__
                     pte.w = 1;
                     pte.p = 1;
+
+                    __asm __volatile (
+                        "invlpg [%0]\n"
+                        :
+                        : "r" (va)
+                        : "memory"
+                    );
 #endif
 
-                    // FIXME - invlpg / tlbi here?
-
                     if (send_ipi)
-                        send_page_tlb_ipi(proc, address + ((page_num + i) << PAGE_SHIFT), 1);
+                        send_page_tlb_ipi(proc, va, 1);
 
                     cache.unpin(sect_page_num, 1);
 
