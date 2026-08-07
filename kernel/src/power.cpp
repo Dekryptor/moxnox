@@ -44,8 +44,8 @@ static void halt() {
         ResetSystem(EfiResetShutdown, (EFI_STATUS)0, 0, nullptr);
 }
 
-// work round ICE on GCC 15
-static NTSTATUS _NtShutdownSystem(enum SHUTDOWN_ACTION action) {
+extern "C"
+NTSTATUS NtShutdownSystem(enum SHUTDOWN_ACTION action) {
     if (action == SHUTDOWN_ACTION::ShutdownNoReboot) {
         // FIXME
         return nt_status::NOT_IMPLEMENTED;
@@ -100,9 +100,4 @@ static NTSTATUS _NtShutdownSystem(enum SHUTDOWN_ACTION action) {
     enable_preempt();
 
     return nt_status::INTERNAL_ERROR;
-}
-
-extern "C"
-NTSTATUS NtShutdownSystem(enum SHUTDOWN_ACTION action) {
-    return _NtShutdownSystem(action);
 }
