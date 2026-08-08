@@ -199,3 +199,6 @@
 [submodule "ports/ninja/repo"]
 	path = ports/ninja/repo
 	url = https://git.burntcomma.com/moxnox/ninja
+[submodule "ports/wget/repo"]
+	path = ports/wget/repo
+	url = https://git.burntcomma.com/moxnox/wget

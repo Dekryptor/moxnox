@@ -397,6 +397,8 @@ endif()
 find_program(HOST_SED sed REQUIRED)
 find_program(HOST_PATCH patch REQUIRED)
 find_program(HOST_MAKE make REQUIRED)
+find_program(HOST_FLEX flex REQUIRED)
+find_program(HOST_GPERF gperf REQUIRED)
 
 file(GLOB port_cmake_files ${CMAKE_CURRENT_SOURCE_DIR}/ports/*/CMakeLists.txt)
 foreach(cmake_file ${port_cmake_files})

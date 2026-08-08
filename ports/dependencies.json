@@ -43,6 +43,7 @@
     "rust": [],
     "sed": ["gnulib", "libiconv"],
     "vim": ["ncurses"],
+    "wget": ["gnulib", "libiconv", "openssl", "zlib"],
     "xz": [],
     "zlib": [],
     "zstd": []
