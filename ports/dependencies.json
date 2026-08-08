@@ -9,6 +9,7 @@
     "freetype": ["libpng"],
     "gcc": ["gmp", "libiconv", "mpc", "mpfr"],
     "git": ["curl", "zlib"],
+    "gmp": [],
     "gnulib": [],
     "grep": ["gnulib", "libiconv"],
     "harfbuzz": ["freetype"],
