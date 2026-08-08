@@ -178,3 +178,6 @@
 [submodule "ports/patch/repo"]
 	path = ports/patch/repo
 	url = https://git.burntcomma.com/moxnox/patch
+[submodule "ports/gawk/repo"]
+	path = ports/gawk/repo
+	url = https://git.burntcomma.com/moxnox/gawk
