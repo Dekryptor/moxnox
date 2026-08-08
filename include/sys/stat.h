@@ -160,6 +160,7 @@ int utimensat(int fd, const char* path, const struct timespec* times,
 int fchmodat(int fd, const char* path, mode_t mode, int flag);
 int fstatat(int fd, const char* path, struct stat* buf, int flag);
 int mkfifo(const char* path, mode_t mode);
+int mkfifoat(int fd, const char* path, mode_t mode);
 
 #ifdef __cplusplus
 }
