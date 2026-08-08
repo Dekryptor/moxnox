@@ -3,6 +3,7 @@
     "bzip2": [],
     "cairo": ["freetype", "libpng", "pixman", "zlib"],
     "cmake": ["curl", "expat", "jsoncpp", "libarchive", "librhash", "libuv", "zlib"],
+    "coreutils": ["gmp", "libiconv", "openssl"],
     "curl": ["openssl", "zlib", "zstd"],
     "diffutils": ["gnulib", "libiconv"],
     "expat": [],

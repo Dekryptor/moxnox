@@ -21,6 +21,5 @@ function(gnulib_header template output)
     string(REPLACE "/* The definition of _Noreturn is copied here.  */"
         "/* The definition of _Noreturn is copied here.  */\n${GNULIB_SNIPPET_NORETURN}"
         content "${content}")
-    string(CONFIGURE "${content}" content @ONLY)
-    file(WRITE ${output} "${content}")
+    file(CONFIGURE OUTPUT ${output} CONTENT "${content}" @ONLY)
 endfunction()
