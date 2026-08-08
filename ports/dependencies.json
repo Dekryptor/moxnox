@@ -4,6 +4,7 @@
     "cairo": ["freetype", "libpng", "pixman", "zlib"],
     "cmake": ["curl", "expat", "jsoncpp", "libarchive", "librhash", "libuv", "zlib"],
     "curl": ["openssl", "zlib", "zstd"],
+    "diffutils": ["gnulib", "libiconv"],
     "expat": [],
     "freetype": ["libpng"],
     "gcc": ["gmp", "libiconv", "mpc", "mpfr"],

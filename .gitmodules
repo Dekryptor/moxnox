@@ -172,3 +172,6 @@
 [submodule "ports/sed/repo"]
 	path = ports/sed/repo
 	url = https://git.burntcomma.com/moxnox/sed
+[submodule "ports/diffutils/repo"]
+	path = ports/diffutils/repo
+	url = https://git.burntcomma.com/moxnox/diffutils
