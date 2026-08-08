@@ -359,3 +359,4 @@ _beginthreadex
 fgetpos
 fsetpos
 wcscat
+mblen
