@@ -90,6 +90,7 @@ extern "C" {
 #endif
 
 int kill(pid_t pid, int sig);
+int killpg(pid_t pgrp, int sig);
 int sigaction(int sig, const struct sigaction *act, struct sigaction *oldact);
 int sigemptyset(sigset_t* set);
 int sigfillset(sigset_t* set);
