@@ -95,6 +95,8 @@ int chown(const char* path, uid_t owner, gid_t group);
 long gethostid(void);
 int setresuid(uid_t ruid, uid_t euid, uid_t suid);
 int setresgid(gid_t rgid, gid_t egid, gid_t sgid);
+int getresuid(uid_t* ruid, uid_t* euid, uid_t* suid);
+int getresgid(gid_t* rgid, gid_t* egid, gid_t* sgid);
 int setgid(gid_t gid);
 int setuid(uid_t uid);
 int lchown(const char* path, uid_t owner, gid_t group);
