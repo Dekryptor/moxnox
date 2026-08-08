@@ -181,3 +181,6 @@
 [submodule "ports/gawk/repo"]
 	path = ports/gawk/repo
 	url = https://git.burntcomma.com/moxnox/gawk
+[submodule "ports/gzip/repo"]
+	path = ports/gzip/repo
+	url = https://git.burntcomma.com/moxnox/gzip

@@ -13,6 +13,7 @@
     "gmp": [],
     "gnulib": [],
     "grep": ["gnulib", "libiconv"],
+    "gzip": [],
     "harfbuzz": ["freetype"],
     "hexyl": [],
     "jsoncpp": [],
