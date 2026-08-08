@@ -30,6 +30,7 @@
     "readline": ["ncurses"],
     "ripgrep": [],
     "rust": [],
+    "sed": ["gnulib", "libiconv"],
     "vim": ["ncurses"],
     "xz": [],
     "zlib": [],

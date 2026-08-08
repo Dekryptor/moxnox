@@ -169,3 +169,6 @@
 [submodule "ports/grep/repo"]
 	path = ports/grep/repo
 	url = https://git.burntcomma.com/moxnox/grep
+[submodule "ports/sed/repo"]
+	path = ports/sed/repo
+	url = https://git.burntcomma.com/moxnox/sed
