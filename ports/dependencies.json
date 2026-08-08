@@ -6,6 +6,7 @@
     "curl": ["openssl", "zlib", "zstd"],
     "diffutils": ["gnulib", "libiconv"],
     "expat": [],
+    "findutils": [],
     "freetype": ["libpng"],
     "gawk": ["mpfr"],
     "gcc": ["gmp", "libiconv", "mpc", "mpfr"],

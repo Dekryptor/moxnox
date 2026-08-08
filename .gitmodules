@@ -184,3 +184,6 @@
 [submodule "ports/gzip/repo"]
 	path = ports/gzip/repo
 	url = https://git.burntcomma.com/moxnox/gzip
+[submodule "ports/findutils/repo"]
+	path = ports/findutils/repo
+	url = https://git.burntcomma.com/moxnox/findutils
