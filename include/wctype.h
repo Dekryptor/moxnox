@@ -1,5 +1,7 @@
 #pragma once
 
+#include <stddef.h>
+
 #ifndef _WCTYPE_T_DEFINED
 #define _WCTYPE_T_DEFINED
 typedef unsigned short wint_t;
