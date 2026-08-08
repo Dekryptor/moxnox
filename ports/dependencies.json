@@ -24,6 +24,7 @@
     "llvm": [],
     "make": ["gnulib"],
     "mesa": ["zlib"],
+    "mpfr": ["gmp"],
     "nano": ["gnulib", "ncurses"],
     "ncurses": [],
     "openssl": [],
