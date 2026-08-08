@@ -9,6 +9,7 @@
     "gcc": ["gmp", "libiconv", "mpc", "mpfr"],
     "git": ["curl", "zlib"],
     "gnulib": [],
+    "grep": ["gnulib", "libiconv"],
     "harfbuzz": ["freetype"],
     "hexyl": [],
     "jsoncpp": [],

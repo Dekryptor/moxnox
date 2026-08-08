@@ -166,3 +166,6 @@
 [submodule "ports/cmake/repo"]
 	path = ports/cmake/repo
 	url = https://git.burntcomma.com/moxnox/cmake
+[submodule "ports/grep/repo"]
+	path = ports/grep/repo
+	url = https://git.burntcomma.com/moxnox/grep
