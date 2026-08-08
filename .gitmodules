@@ -175,3 +175,6 @@
 [submodule "ports/diffutils/repo"]
 	path = ports/diffutils/repo
 	url = https://git.burntcomma.com/moxnox/diffutils
+[submodule "ports/patch/repo"]
+	path = ports/patch/repo
+	url = https://git.burntcomma.com/moxnox/patch

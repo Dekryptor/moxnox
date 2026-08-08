@@ -26,6 +26,7 @@
     "nano": ["gnulib", "ncurses"],
     "ncurses": [],
     "openssl": [],
+    "patch": ["gnulib"],
     "pixman": [],
     "python": ["expat", "ncurses", "openssl", "readline", "zlib"],
     "readline": ["ncurses"],
