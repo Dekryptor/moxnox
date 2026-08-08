@@ -187,3 +187,6 @@
 [submodule "ports/findutils/repo"]
 	path = ports/findutils/repo
 	url = https://git.burntcomma.com/moxnox/findutils
+[submodule "ports/file/repo"]
+	path = ports/file/repo
+	url = https://git.burntcomma.com/moxnox/file
