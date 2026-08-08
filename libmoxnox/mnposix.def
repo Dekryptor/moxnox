@@ -260,3 +260,15 @@ sched_get_priority_min
 sched_get_priority_max
 ppoll
 sigpending
+getresuid
+getresgid
+killpg
+wcswidth
+grantpt
+unlockpt
+seteuid
+setegid
+getpwent
+setpwent
+endpwent
+crypt
