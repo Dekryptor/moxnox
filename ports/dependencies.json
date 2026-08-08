@@ -42,6 +42,7 @@
     "ripgrep": [],
     "rust": [],
     "sed": ["gnulib", "libiconv"],
+    "tar": ["gnulib", "libiconv"],
     "vim": ["ncurses"],
     "wget": ["gnulib", "libiconv", "openssl", "zlib"],
     "xz": [],
