@@ -28,6 +28,8 @@
 #define PATH_MAX 260
 #define NAME_MAX 255
 
+#define _POSIX_OPEN_MAX 20
+
 #define _POSIX_ARG_MAX 4096
 
 #define SSIZE_MAX LLONG_MAX
