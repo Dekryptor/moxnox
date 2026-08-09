@@ -21,6 +21,9 @@ int getpwuid_r(uid_t uid, struct passwd* pwd, char* buf, size_t size,
                struct passwd** result);
 struct passwd* getpwuid(uid_t uid);
 struct passwd* getpwnam(const char* name);
+struct passwd* getpwent(void);
+void setpwent(void);
+void endpwent(void);
 
 #ifdef __cplusplus
 }
