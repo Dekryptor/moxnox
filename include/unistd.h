@@ -116,6 +116,9 @@ ssize_t pread(int fd, void* buf, size_t nbyte, off_t offset);
 ssize_t pwrite(int fd, const void* buf, size_t nbyte, off_t offset);
 pid_t fork(void);
 __attribute__((noreturn)) void _exit(int status) __moxnox_noexcept;
+char* crypt(const char* key, const char* salt);
+int seteuid(uid_t uid);
+int setegid(gid_t gid);
 
 #ifdef __cplusplus
 }
