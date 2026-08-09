@@ -218,3 +218,4 @@ mkstemp
 mkostemp
 mkdtemp
 fork
+mbsinit

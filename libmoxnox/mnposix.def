@@ -218,9 +218,9 @@ mkstemp
 mkostemp
 mkdtemp
 fork
+mbsinit
 
 ; stubs
-mbsinit
 __freading
 __fwriting
 __fpending

@@ -127,3 +127,8 @@ size_t wcsnrtombs(char* dest, const wchar_t** src, size_t nwc, size_t dsize,
 
     return total;
 }
+
+extern "C"
+int mbsinit(const mbstate_t* ps) {
+    return (!ps || *(int*)ps == 0) ? 1 : 0;
+}
