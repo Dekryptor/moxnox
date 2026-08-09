@@ -29,6 +29,8 @@ size_t _mbrtowc(wchar_t* pwc, const char* s, size_t n, mbstate_t* ps) {
     if (!s) {
         if (st.left > 0) {
             st.left = 0;
+            st.codepoint = 0;
+            st.total = 0;
             *__errno() = EILSEQ;
             return (size_t)-1;
         }
@@ -89,6 +91,8 @@ size_t _mbrtowc(wchar_t* pwc, const char* s, size_t n, mbstate_t* ps) {
 
         if (c < 0x80 || c > 0xbf) {
             st.left = 0;
+            st.codepoint = 0;
+            st.total = 0;
             *__errno() = EILSEQ;
             return (size_t)-1;
         }
@@ -99,11 +103,15 @@ size_t _mbrtowc(wchar_t* pwc, const char* s, size_t n, mbstate_t* ps) {
 
     if ((total == 2 && cp < 0x800) || (cp >= 0xd800 && cp <= 0xdfff)) {
         st.left = 0;
+        st.codepoint = 0;
+        st.total = 0;
         *__errno() = EILSEQ;
         return (size_t)-1;
     }
 
     st.left = 0;
+    st.codepoint = 0;
+    st.total = 0;
 
     if (pwc)
         *pwc = (wchar_t)cp;
