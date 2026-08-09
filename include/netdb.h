@@ -74,6 +74,7 @@ int getaddrinfo(const char* node, const char* service,
                 const struct addrinfo* hints, struct addrinfo** res);
 int getnameinfo(const struct sockaddr* addr, socklen_t addrlen, char* host,
                 socklen_t hostlen, char* serv, socklen_t servlen, int flags);
+struct servent* getservbyname(const char* name, const char* proto);
 
 #ifdef __cplusplus
 }
