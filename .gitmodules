@@ -214,3 +214,6 @@
 [submodule "ports/flex/repo"]
 	path = ports/flex/repo
 	url = https://git.burntcomma.com/moxnox/flex
+[submodule "ports/openssh/repo"]
+	path = ports/openssh/repo
+	url = https://git.burntcomma.com/moxnox/openssh-portable

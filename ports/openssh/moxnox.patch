@@ -1,0 +1,752 @@
+diff -ru a/auth.c b/auth.c
+--- a/auth.c	2026-05-13 06:12:38.000000000 +0100
++++ b/auth.c	2026-09-08 07:11:21.361703120 +0100
+@@ -126,8 +126,12 @@
+ 			free(shell);
+ 			return 0;
+ 		}
++#ifdef __moxnox__
++		if (S_ISREG(st.st_mode) == 0) {
++#else
+ 		if (S_ISREG(st.st_mode) == 0 ||
+ 		    (st.st_mode & (S_IXOTH|S_IXUSR|S_IXGRP)) == 0) {
++#endif
+ 			logit("User %.100s not allowed because shell %.100s "
+ 			    "is not executable", pw->pw_name, shell);
+ 			free(shell);
+@@ -638,10 +643,15 @@
+ 
+ 	memset(&fake, 0, sizeof(fake));
+ 	fake.pw_name = "NOUSER";
++#ifdef HAVE_STRUCT_PASSWD_PW_PASSWD
+ 	fake.pw_passwd = xstrdup("$2a$10$"
+ 	    "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx");
+ 	for (cp = fake.pw_passwd + 7; *cp != '\0'; cp++)
+ 		*cp = hashchars[arc4random_uniform(sizeof(hashchars) - 1)];
++#else
++	(void)hashchars;
++	(void)cp;
++#endif
+ #ifdef HAVE_STRUCT_PASSWD_PW_GECOS
+ 	fake.pw_gecos = "NOUSER";
+ #endif
+diff -ru a/authfile.c b/authfile.c
+--- a/authfile.c	2026-05-13 06:12:38.000000000 +0100
++++ b/authfile.c	2026-09-08 06:53:20.718163100 +0100
+@@ -93,6 +93,7 @@
+ #ifdef HAVE_CYGWIN
+ 	if (check_ntsec(filename))
+ #endif
++#ifndef __moxnox__
+ 	if ((st.st_uid == getuid()) && (st.st_mode & 077) != 0) {
+ 		error("@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@");
+ 		error("@         WARNING: UNPROTECTED PRIVATE KEY FILE!          @");
+@@ -103,6 +104,7 @@
+ 		error("This private key will be ignored.");
+ 		return SSH_ERR_KEY_BAD_PERMISSIONS;
+ 	}
++#endif
+ 	return 0;
+ }
+ 
+diff -ru a/auth-passwd.c b/auth-passwd.c
+--- a/auth-passwd.c	2026-05-13 06:12:38.000000000 +0100
++++ b/auth-passwd.c	2026-09-08 06:44:47.912066748 +0100
+@@ -196,7 +196,11 @@
+ 	char *encrypted_password, *salt = NULL;
+ 
+ 	/* Just use the supplied fake password if authctxt is invalid */
++#ifdef HAVE_STRUCT_PASSWD_PW_PASSWD
+ 	char *pw_password = authctxt->valid ? shadow_pw(pw) : pw->pw_passwd;
++#else
++	char *pw_password = authctxt->valid ? shadow_pw(pw) : "*";
++#endif
+ 
+ 	if (pw_password == NULL)
+ 		return 0;
+diff -ru a/channels.c b/channels.c
+--- a/channels.c	2026-05-13 06:12:38.000000000 +0100
++++ b/channels.c	2026-09-08 06:44:47.919331834 +0100
+@@ -4990,13 +4990,13 @@
+ 		if (sc->channels[i] == NULL || !sc->channels[i]->client_tty ||
+ 		    sc->channels[i]->type != SSH_CHANNEL_OPEN)
+ 			continue;
+-		if (ioctl(sc->channels[i]->rfd, TIOCGWINSZ, &ws) == -1)
++		if (tcgetwinsize(sc->channels[i]->rfd, &ws) == -1)
+ 			continue;
+ 		channel_request_start(ssh, i, "window-change", 0);
+ 		if ((r = sshpkt_put_u32(ssh, (u_int)ws.ws_col)) != 0 ||
+ 		    (r = sshpkt_put_u32(ssh, (u_int)ws.ws_row)) != 0 ||
+-		    (r = sshpkt_put_u32(ssh, (u_int)ws.ws_xpixel)) != 0 ||
+-		    (r = sshpkt_put_u32(ssh, (u_int)ws.ws_ypixel)) != 0 ||
++		    (r = sshpkt_put_u32(ssh, 0)) != 0 ||
++		    (r = sshpkt_put_u32(ssh, 0)) != 0 ||
+ 		    (r = sshpkt_send(ssh)) != 0)
+ 			fatal_fr(r, "channel %u; send window-change", i);
+ 	}
+diff -ru a/clientloop.c b/clientloop.c
+--- a/clientloop.c	2026-05-13 06:12:38.000000000 +0100
++++ b/clientloop.c	2026-09-08 06:44:47.920109057 +0100
+@@ -2723,7 +2723,7 @@
+ 		struct winsize ws;
+ 
+ 		/* Store window size in the packet. */
+-		if (ioctl(in_fd, TIOCGWINSZ, &ws) == -1)
++		if (tcgetwinsize(in_fd, &ws) == -1)
+ 			memset(&ws, 0, sizeof(ws));
+ 
+ 		channel_request_start(ssh, id, "pty-req", 1);
+@@ -2732,8 +2732,8 @@
+ 		    != 0 ||
+ 		    (r = sshpkt_put_u32(ssh, (u_int)ws.ws_col)) != 0 ||
+ 		    (r = sshpkt_put_u32(ssh, (u_int)ws.ws_row)) != 0 ||
+-		    (r = sshpkt_put_u32(ssh, (u_int)ws.ws_xpixel)) != 0 ||
+-		    (r = sshpkt_put_u32(ssh, (u_int)ws.ws_ypixel)) != 0)
++		    (r = sshpkt_put_u32(ssh, 0)) != 0 ||
++		    (r = sshpkt_put_u32(ssh, 0)) != 0)
+ 			fatal_fr(r, "build pty-req");
+ 		if (tiop == NULL)
+ 			tiop = get_saved_tio();
+diff -ru a/misc-agent.c b/misc-agent.c
+--- a/misc-agent.c	2026-05-13 06:12:38.000000000 +0100
++++ b/misc-agent.c	2026-09-08 06:44:47.913658302 +0100
+@@ -120,7 +120,7 @@
+ 			break;
+ 		}
+ 
+-		if ((sock = socket(PF_UNIX, SOCK_STREAM, 0)) == -1) {
++		if ((sock = socket(AF_UNIX, SOCK_STREAM, 0)) == -1) {
+ 			error_f("socket: %.100s", strerror(errno));
+ 			break;
+ 		}
+@@ -237,7 +237,7 @@
+ 		debug_f("path for \"%s\" too long for sockaddr_un", path);
+ 		return 0;
+ 	}
+-	if ((fd = socket(PF_UNIX, SOCK_STREAM, 0)) == -1) {
++	if ((fd = socket(AF_UNIX, SOCK_STREAM, 0)) == -1) {
+ 		error_f("socket: %s", strerror(errno));
+ 		return 0;
+ 	}
+diff -ru a/misc.c b/misc.c
+--- a/misc.c	2026-05-13 06:12:38.000000000 +0100
++++ b/misc.c	2026-09-08 07:11:21.361932139 +0100
+@@ -531,7 +531,9 @@
+ 	struct passwd *copy = xcalloc(1, sizeof(*copy));
+ 
+ 	copy->pw_name = xstrdup(pw->pw_name);
++#ifdef HAVE_STRUCT_PASSWD_PW_PASSWD
+ 	copy->pw_passwd = xstrdup(pw->pw_passwd == NULL ? "*" : pw->pw_passwd);
++#endif
+ #ifdef HAVE_STRUCT_PASSWD_PW_GECOS
+ 	copy->pw_gecos = xstrdup(pw->pw_gecos == NULL ? "" : pw->pw_gecos);
+ #endif
+@@ -557,8 +559,10 @@
+ 	if (pw == NULL)
+ 		return;
+ 	free(pw->pw_name);
++#ifdef HAVE_STRUCT_PASSWD_PW_PASSWD
+ 	freezero(pw->pw_passwd,
+ 	    pw->pw_passwd == NULL ? 0 : strlen(pw->pw_passwd));
++#endif
+ #ifdef HAVE_STRUCT_PASSWD_PW_GECOS
+ 	free(pw->pw_gecos);
+ #endif
+@@ -1555,7 +1559,7 @@
+ 
+ 	/* Bring interface up if it is not already */
+ 	snprintf(ifr.ifr_name, sizeof(ifr.ifr_name), "%s%d", tunbase, tun);
+-	if ((sock = socket(PF_UNIX, SOCK_STREAM, 0)) == -1)
++	if ((sock = socket(AF_UNIX, SOCK_STREAM, 0)) == -1)
+ 		goto failed;
+ 
+ 	if (ioctl(sock, SIOCGIFFLAGS, &ifr) == -1) {
+@@ -2012,7 +2016,7 @@
+ 		return -1;
+ 	}
+ 
+-	sock = socket(PF_UNIX, SOCK_STREAM, 0);
++	sock = socket(AF_UNIX, SOCK_STREAM, 0);
+ 	if (sock == -1) {
+ 		saved_errno = errno;
+ 		error_f("socket: %.100s", strerror(errno));
+@@ -2336,8 +2340,12 @@
+ 		snprintf(err, errlen, "%s is not a regular file", buf);
+ 		return -1;
+ 	}
++#ifdef __moxnox__
++	if (!platform_sys_dir_uid(stp->st_uid) && stp->st_uid != uid) {
++#else
+ 	if ((!platform_sys_dir_uid(stp->st_uid) && stp->st_uid != uid) ||
+ 	    (stp->st_mode & 022) != 0) {
++#endif
+ 		snprintf(err, errlen, "bad ownership or modes for file %s",
+ 		    buf);
+ 		return -1;
+@@ -2356,9 +2365,14 @@
+ 		}
+ 		strlcpy(buf, cp, sizeof(buf));
+ 
++#ifdef __moxnox__
++		if (stat(buf, &st) == -1 ||
++		    (!platform_sys_dir_uid(st.st_uid) && st.st_uid != uid)) {
++#else
+ 		if (stat(buf, &st) == -1 ||
+ 		    (!platform_sys_dir_uid(st.st_uid) && st.st_uid != uid) ||
+ 		    (st.st_mode & 022) != 0) {
++#endif
+ 			snprintf(err, errlen,
+ 			    "bad ownership or modes for directory %s", buf);
+ 			return -1;
+@@ -2939,12 +2953,14 @@
+ 		}
+ 		closefrom(STDERR_FILENO + 1);
+ 
++#ifndef __moxnox__
+ 		if (geteuid() == 0 &&
+ 		    initgroups(pw->pw_name, pw->pw_gid) == -1) {
+ 			error("%s: initgroups(%s, %u): %s", tag,
+ 			    pw->pw_name, (u_int)pw->pw_gid, strerror(errno));
+ 			_exit(1);
+ 		}
++#endif
+ 		if (setresgid(pw->pw_gid, pw->pw_gid, pw->pw_gid) == -1) {
+ 			error("%s: setresgid %u: %s", tag, (u_int)pw->pw_gid,
+ 			    strerror(errno));
+diff -ru a/monitor_fdpass.c b/monitor_fdpass.c
+--- a/monitor_fdpass.c	2026-05-13 06:12:38.000000000 +0100
++++ b/monitor_fdpass.c	2026-09-08 06:44:47.913990485 +0100
+@@ -58,11 +58,11 @@
+ 
+ 	memset(&msg, 0, sizeof(msg));
+ #ifdef HAVE_ACCRIGHTS_IN_MSGHDR
+-	msg.msg_accrights = (caddr_t)&fd;
++	msg.msg_accrights = (void *)&fd;
+ 	msg.msg_accrightslen = sizeof(fd);
+ #else
+ 	memset(&cmsgbuf, 0, sizeof(cmsgbuf));
+-	msg.msg_control = (caddr_t)&cmsgbuf.buf;
++	msg.msg_control = (void *)&cmsgbuf.buf;
+ 	msg.msg_controllen = sizeof(cmsgbuf.buf);
+ 	cmsg = CMSG_FIRSTHDR(&msg);
+ 	cmsg->cmsg_len = CMSG_LEN(sizeof(int));
+@@ -123,7 +123,7 @@
+ 	msg.msg_iov = &vec;
+ 	msg.msg_iovlen = 1;
+ #ifdef HAVE_ACCRIGHTS_IN_MSGHDR
+-	msg.msg_accrights = (caddr_t)&fd;
++	msg.msg_accrights = (void *)&fd;
+ 	msg.msg_accrightslen = sizeof(fd);
+ #else
+ 	memset(&cmsgbuf, 0, sizeof(cmsgbuf));
+diff -ru a/monitor_wrap.c b/monitor_wrap.c
+--- a/monitor_wrap.c	2026-05-13 06:12:38.000000000 +0100
++++ b/monitor_wrap.c	2026-09-08 06:44:47.914118425 +0100
+@@ -402,7 +402,11 @@
+ 	GETPW(m, pw_expire);
+ #endif
+ 	if ((r = sshbuf_get_cstring(m, &pw->pw_name, NULL)) != 0 ||
++#ifdef HAVE_STRUCT_PASSWD_PW_PASSWD
+ 	    (r = sshbuf_get_cstring(m, &pw->pw_passwd, NULL)) != 0 ||
++#else
++	    (r = sshbuf_get_cstring(m, NULL, NULL)) != 0 ||
++#endif
+ #ifdef HAVE_STRUCT_PASSWD_PW_GECOS
+ 	    (r = sshbuf_get_cstring(m, &pw->pw_gecos, NULL)) != 0 ||
+ #endif
+diff -ru a/mux.c b/mux.c
+--- a/mux.c	2026-05-13 06:12:38.000000000 +0100
++++ b/mux.c	2026-09-08 06:44:47.914312459 +0100
+@@ -2398,7 +2398,7 @@
+ 		fatal("ControlPath too long ('%s' >= %u bytes)", path,
+ 		    (unsigned int)sizeof(addr.sun_path));
+ 
+-	if ((sock = socket(PF_UNIX, SOCK_STREAM, 0)) == -1)
++	if ((sock = socket(AF_UNIX, SOCK_STREAM, 0)) == -1)
+ 		fatal_f("socket(): %s", strerror(errno));
+ 
+ 	if (connect(sock, (struct sockaddr *)&addr, sizeof(addr)) == -1) {
+diff -ru a/openbsd-compat/bsd-openpty.c b/openbsd-compat/bsd-openpty.c
+--- a/openbsd-compat/bsd-openpty.c	2026-05-13 06:12:38.000000000 +0100
++++ b/openbsd-compat/bsd-openpty.c	2026-09-08 06:44:47.914537501 +0100
+@@ -69,7 +69,7 @@
+ #define O_NOCTTY 0
+ #endif
+ 
+-#if defined(HAVE_DEV_PTMX) && !defined(HAVE__GETPTY)
++#if (defined(HAVE_DEV_PTMX) || defined(HAVE_POSIX_OPENPT)) && !defined(HAVE__GETPTY)
+ static int
+ openpty_streams(int *amaster, int *aslave)
+ {
+@@ -81,7 +81,11 @@
+ 	char *pts;
+ 	sshsig_t old_signal;
+ 
++#ifdef HAVE_POSIX_OPENPT
++	if ((ptm = posix_openpt(O_RDWR | O_NOCTTY)) == -1)
++#else
+ 	if ((ptm = open("/dev/ptmx", O_RDWR | O_NOCTTY)) == -1)
++#endif
+ 		return (-1);
+ 
+ 	/* XXX: need to close ptm on error? */
+@@ -116,11 +120,13 @@
+ 	 * Try to push the appropriate streams modules, as described
+ 	 * in Solaris pts(7).
+ 	 */
++# ifdef I_PUSH
+ 	ioctl(*aslave, I_PUSH, "ptem");
+ 	ioctl(*aslave, I_PUSH, "ldterm");
+-# ifndef __hpux
++#  ifndef __hpux
+ 	ioctl(*aslave, I_PUSH, "ttcompat");
+-# endif /* __hpux */
++#  endif /* __hpux */
++# endif /* I_PUSH */
+ 	return (0);
+ }
+ #endif
+@@ -146,7 +152,7 @@
+ 	}
+ 	return (0);
+ 
+-#elif defined(HAVE_DEV_PTMX)
++#elif defined(HAVE_DEV_PTMX) || defined(HAVE_POSIX_OPENPT)
+ 
+ #ifdef SSHD_ACQUIRES_CTTY
+ 	/*
+diff -ru a/openbsd-compat/getrrsetbyname.c b/openbsd-compat/getrrsetbyname.c
+--- a/openbsd-compat/getrrsetbyname.c	2026-05-13 06:12:38.000000000 +0100
++++ b/openbsd-compat/getrrsetbyname.c	2026-09-08 06:44:47.914629173 +0100
+@@ -57,6 +57,22 @@
+ 
+ #include "getrrsetbyname.h"
+ 
++#ifdef __moxnox__
++int
++getrrsetbyname(const char *hostname, unsigned int rdclass,
++    unsigned int rdtype, unsigned int flags,
++    struct rrsetinfo **res)
++{
++	return ERRSET_FAIL;
++}
++
++void
++freerrset(struct rrsetinfo *rrset)
++{
++}
++
++#else
++
+ #if defined(HAVE_DECL_H_ERRNO) && !HAVE_DECL_H_ERRNO
+ extern int h_errno;
+ #endif
+@@ -645,4 +663,6 @@
+ 	return (n);
+ }
+ 
++#endif
++
+ #endif /*  !defined (HAVE_GETRRSETBYNAME) && !defined (HAVE_LDNS) */
+diff -ru a/openbsd-compat/readpassphrase.c b/openbsd-compat/readpassphrase.c
+--- a/openbsd-compat/readpassphrase.c	2026-05-13 06:12:38.000000000 +0100
++++ b/openbsd-compat/readpassphrase.c	2026-09-08 06:44:47.914966185 +0100
+@@ -31,7 +31,7 @@
+ #include <signal.h>
+ #include <ctype.h>
+ #include <fcntl.h>
+-#include <readpassphrase.h>
++#include "readpassphrase.h"
+ #include <errno.h>
+ #include <string.h>
+ #include <unistd.h>
+diff -ru a/openbsd-compat/setproctitle.c b/openbsd-compat/setproctitle.c
+--- a/openbsd-compat/setproctitle.c	2026-05-13 06:12:38.000000000 +0100
++++ b/openbsd-compat/setproctitle.c	2026-09-08 06:44:47.915041746 +0100
+@@ -44,7 +44,7 @@
+ #endif
+ #include <string.h>
+ 
+-#include <vis.h>
++#include "vis.h"
+ 
+ #define SPT_NONE	0	/* don't use it at all */
+ #define SPT_PSTAT	1	/* use pstat(PSTAT_SETCMD, ...) */
+diff -ru a/openbsd-compat/xcrypt.c b/openbsd-compat/xcrypt.c
+--- a/openbsd-compat/xcrypt.c	2026-05-13 06:12:38.000000000 +0100
++++ b/openbsd-compat/xcrypt.c	2026-09-08 06:44:47.915120734 +0100
+@@ -128,7 +128,11 @@
+ char *
+ shadow_pw(struct passwd *pw)
+ {
++#ifdef HAVE_STRUCT_PASSWD_PW_PASSWD
+ 	char *pw_password = pw->pw_passwd;
++#else
++	char *pw_password = "*";
++#endif
+ 
+ # if defined(HAVE_SHADOW_H) && !defined(DISABLE_SHADOW)
+ 	struct spwd *spw = getspnam(pw->pw_name);
+diff -ru a/platform.c b/platform.c
+--- a/platform.c	2026-05-13 06:12:38.000000000 +0100
++++ b/platform.c	2026-09-08 06:44:47.915210122 +0100
+@@ -159,7 +159,11 @@
+ platform_locked_account(struct passwd *pw)
+ {
+ 	int locked = 0;
++#ifdef HAVE_STRUCT_PASSWD_PW_PASSWD
+ 	char *passwd = pw->pw_passwd;
++#else
++	char *passwd = "*";
++#endif
+ #ifdef USE_SHADOW
+ 	struct spwd *spw = NULL;
+ #ifdef USE_LIBIAF
+diff -ru a/progressmeter.c b/progressmeter.c
+--- a/progressmeter.c	2026-05-13 06:12:38.000000000 +0100
++++ b/progressmeter.c	2026-09-08 06:44:47.920549684 +0100
+@@ -291,7 +291,7 @@
+ {
+ 	struct winsize winsize;
+ 
+-	if (ioctl(STDOUT_FILENO, TIOCGWINSZ, &winsize) != -1 &&
++	if (tcgetwinsize(STDOUT_FILENO, &winsize) != -1 &&
+ 	    winsize.ws_col != 0) {
+ 		if (winsize.ws_col > MAX_WINSIZE)
+ 			win_size = MAX_WINSIZE;
+diff -ru a/session.c b/session.c
+--- a/session.c	2026-05-13 06:12:38.000000000 +0100
++++ b/session.c	2026-09-08 06:44:47.916120118 +0100
+@@ -1304,8 +1304,12 @@
+ 	if (chdir(path) == -1)
+ 		fatal("Unable to chdir to chroot path \"%s\": "
+ 		    "%s", path, strerror(errno));
++#ifndef __moxnox__
+ 	if (chroot(path) == -1)
+ 		fatal("chroot(\"%s\"): %s", path, strerror(errno));
++#else
++	fatal("chroot(\"%s\"): unsupported on this platform", path);
++#endif
+ 	if (chdir("/") == -1)
+ 		fatal_f("chdir(/) after chroot: %s", strerror(errno));
+ 	verbose("Changed root directory to \"%s\"", path);
+@@ -1334,10 +1338,12 @@
+ 			exit(1);
+ 		}
+ 		/* Initialize the group list. */
++#ifndef __moxnox__
+ 		if (initgroups(pw->pw_name, pw->pw_gid) < 0) {
+ 			perror("initgroups");
+ 			exit(1);
+ 		}
++#endif
+ 		endgrent();
+ #endif
+ 
+diff -ru a/sftp.c b/sftp.c
+--- a/sftp.c	2026-05-13 06:12:38.000000000 +0100
++++ b/sftp.c	2026-09-08 06:44:47.920958730 +0100
+@@ -868,7 +868,7 @@
+ 		m += strlen(tmp);
+ 		free(tmp);
+ 
+-		if (ioctl(fileno(stdin), TIOCGWINSZ, &ws) != -1)
++		if (tcgetwinsize(fileno(stdin), &ws) != -1)
+ 			width = ws.ws_col;
+ 
+ 		columns = width / (m + 2);
+@@ -1003,7 +1003,7 @@
+ 		return err;
+ 	}
+ 
+-	if (ioctl(fileno(stdin), TIOCGWINSZ, &ws) != -1)
++	if (tcgetwinsize(fileno(stdin), &ws) != -1)
+ 		width = ws.ws_col;
+ 
+ 	if (!(lflag & LS_SHORT_VIEW)) {
+@@ -1835,7 +1835,7 @@
+ 	for (y = 0; list[y]; y++)
+ 		m = MAXIMUM(m, strlen(list[y]));
+ 
+-	if (ioctl(fileno(stdin), TIOCGWINSZ, &ws) != -1)
++	if (tcgetwinsize(fileno(stdin), &ws) != -1)
+ 		width = ws.ws_col;
+ 
+ 	m = m > len ? m - len : 0;
+diff -ru a/sshd-auth.c b/sshd-auth.c
+--- a/sshd-auth.c	2026-05-13 06:12:38.000000000 +0100
++++ b/sshd-auth.c	2026-09-08 06:53:20.718465827 +0100
+@@ -187,9 +187,14 @@
+ 	/* Demote the child */
+ 	if (privsep_chroot) {
+ 		/* Change our root directory */
++#ifndef __moxnox__
+ 		if (chroot(_PATH_PRIVSEP_CHROOT_DIR) == -1)
+ 			fatal("chroot(\"%s\"): %s", _PATH_PRIVSEP_CHROOT_DIR,
+ 			    strerror(errno));
++#else
++		fatal("chroot(\"%s\"): unsupported on this platform",
++		    _PATH_PRIVSEP_CHROOT_DIR);
++#endif
+ 		if (chdir("/") == -1)
+ 			fatal("chdir(\"/\"): %s", strerror(errno));
+ 
+@@ -200,8 +205,10 @@
+ 		debug3("privsep user:group %u:%u", (u_int)privsep_pw->pw_uid,
+ 		    (u_int)privsep_pw->pw_gid);
+ 		gidset[0] = privsep_pw->pw_gid;
++#ifdef HAVE_SETGROUPS
+ 		if (setgroups(1, gidset) == -1)
+ 			fatal("setgroups: %.100s", strerror(errno));
++#endif
+ 		permanently_set_uid(privsep_pw);
+ 	}
+ 
+@@ -652,15 +659,21 @@
+ 	debug("sshd-auth version %s, %s", SSH_VERSION, SSH_OPENSSL_VERSION);
+ 
+ 	/* Store privilege separation user for later use if required. */
++#ifdef __moxnox__
++	privsep_chroot = 0;
++#else
+ 	privsep_chroot = (getuid() == 0 || geteuid() == 0);
++#endif
+ 	if ((privsep_pw = getpwnam(SSH_PRIVSEP_USER)) == NULL) {
+ 		if (privsep_chroot || options.kerberos_authentication)
+ 			fatal("Privilege separation user %s does not exist",
+ 			    SSH_PRIVSEP_USER);
+ 	} else {
+ 		privsep_pw = pwcopy(privsep_pw);
++#ifdef HAVE_STRUCT_PASSWD_PW_PASSWD
+ 		freezero(privsep_pw->pw_passwd, strlen(privsep_pw->pw_passwd));
+ 		privsep_pw->pw_passwd = xstrdup("*");
++#endif
+ 	}
+ 	endpwent();
+ 
+diff -ru a/sshd.c b/sshd.c
+--- a/sshd.c	2026-05-13 06:12:38.000000000 +0100
++++ b/sshd.c	2026-09-08 07:11:21.361621036 +0100
+@@ -1327,8 +1327,10 @@
+ 	av = saved_argv;
+ #endif
+ 
++#ifdef HAVE_SETGROUPS
+ 	if (geteuid() == 0 && setgroups(0, NULL) == -1)
+ 		debug("setgroups(): %.200s", strerror(errno));
++#endif
+ 
+ 	/* Ensure that fds 0, 1 and 2 are open or directed to /dev/null */
+ 	sanitise_stdfd();
+@@ -1716,8 +1718,12 @@
+ 	}
+ 
+ 	/* Ensure privsep directory is correctly configured. */
++#ifdef __moxnox__
++	need_chroot = 0;
++#else
+ 	need_chroot = ((getuid() == 0 || geteuid() == 0) ||
+ 	    options.kerberos_authentication);
++#endif
+ 	if ((getpwnam(SSH_PRIVSEP_USER)) == NULL && need_chroot) {
+ 		fatal("Privilege separation user %s does not exist",
+ 		    SSH_PRIVSEP_USER);
+@@ -1760,8 +1767,10 @@
+ 	 * to create a file, and we can't control the code in every
+ 	 * module which might be used).
+ 	 */
++#ifdef HAVE_SETGROUPS
+ 	if (setgroups(0, NULL) < 0)
+ 		debug("setgroups() failed: %.200s", strerror(errno));
++#endif
+ 
+ 	/* Prepare arguments for sshd-session */
+ 	if (rexec_argc < 0)
+@@ -1775,13 +1784,21 @@
+ 	}
+ 	rexec_argv[rexec_argc++] = "-R";
+ 	rexec_argv[rexec_argc] = NULL;
++#ifdef __moxnox__
++	if (stat(rexec_argv[0], &sb) != 0)
++#else
+ 	if (stat(rexec_argv[0], &sb) != 0 || !(sb.st_mode & (S_IXOTH|S_IXUSR)))
++#endif
+ 		fatal("%s does not exist or is not executable", rexec_argv[0]);
+ 	debug3("using %s for re-exec", rexec_argv[0]);
+ 
+ 	/* Ensure that the privsep binary exists now too. */
++#ifdef __moxnox__
++	if (stat(options.sshd_auth_path, &sb) != 0) {
++#else
+ 	if (stat(options.sshd_auth_path, &sb) != 0 ||
+ 	    !(sb.st_mode & (S_IXOTH|S_IXUSR))) {
++#endif
+ 		fatal("%s does not exist or is not executable",
+ 		    options.sshd_auth_path);
+ 	}
+diff -ru a/sshd-session.c b/sshd-session.c
+--- a/sshd-session.c	2026-05-13 06:12:38.000000000 +0100
++++ b/sshd-session.c	2026-09-08 06:53:20.718411836 +0100
+@@ -796,7 +796,6 @@
+ 	struct connection_info *connection_info = NULL;
+ 	sigset_t sigmask;
+ 	uint64_t timing_secret = 0;
+-	struct itimerval itv;
+ 
+ 	sigemptyset(&sigmask);
+ 	sigprocmask(SIG_SETMASK, &sigmask, NULL);
+@@ -1000,15 +999,21 @@
+ 	debug("sshd-session version %s, %s", SSH_VERSION, SSH_OPENSSL_VERSION);
+ 
+ 	/* Store privilege separation user for later use if required. */
++#ifdef __moxnox__
++	privsep_chroot = 0;
++#else
+ 	privsep_chroot = (getuid() == 0 || geteuid() == 0);
++#endif
+ 	if ((privsep_pw = getpwnam(SSH_PRIVSEP_USER)) == NULL) {
+ 		if (privsep_chroot || options.kerberos_authentication)
+ 			fatal("Privilege separation user %s does not exist",
+ 			    SSH_PRIVSEP_USER);
+ 	} else {
+ 		privsep_pw = pwcopy(privsep_pw);
++#ifdef HAVE_STRUCT_PASSWD_PW_PASSWD
+ 		freezero(privsep_pw->pw_passwd, strlen(privsep_pw->pw_passwd));
+ 		privsep_pw->pw_passwd = xstrdup("*");
++#endif
+ 	}
+ 	endpwent();
+ 
+@@ -1209,15 +1215,7 @@
+ 	 */
+ 	ssh_signal(SIGALRM, grace_alarm_handler);
+ 	if (!debug_flag && options.login_grace_time > 0) {
+-		int ujitter = arc4random_uniform(4 * 1000000);
+-
+-		timerclear(&itv.it_interval);
+-		itv.it_value.tv_sec = options.login_grace_time;
+-		itv.it_value.tv_sec += ujitter / 1000000;
+-		itv.it_value.tv_usec = ujitter % 1000000; 
+-
+-		if (setitimer(ITIMER_REAL, &itv, NULL) == -1)
+-			fatal("login grace time setitimer failed");
++		alarm(options.login_grace_time + arc4random_uniform(5));
+ 	}
+ 
+ 	ssh_packet_set_nonblocking(ssh);
+@@ -1247,10 +1246,7 @@
+ 	 * Cancel the alarm we set to limit the time taken for
+ 	 * authentication.
+ 	 */
+-	timerclear(&itv.it_interval);
+-	timerclear(&itv.it_value);
+-	if (setitimer(ITIMER_REAL, &itv, NULL) == -1)
+-		fatal("login grace time clear failed");
++	alarm(0);
+ 	ssh_signal(SIGALRM, SIG_DFL);
+ 	authctxt->authenticated = 1;
+ 	if (startup_pipe != -1) {
+diff -ru a/ssherr-libcrypto.c b/ssherr-libcrypto.c
+--- a/ssherr-libcrypto.c	2026-05-13 06:12:38.000000000 +0100
++++ b/ssherr-libcrypto.c	2026-09-08 06:44:47.916960764 +0100
+@@ -36,8 +36,12 @@
+ 	const char *reason = NULL, *file, *data;
+ 	int ln, fl;
+ 
++#if OPENSSL_VERSION_NUMBER >= 0x30000000L
++	while ((e = ERR_get_error_all(&file, &ln, NULL, &data, &fl)) != 0) {
++#else
+ 	ERR_load_crypto_strings();
+ 	while ((e = ERR_get_error_line_data(&file, &ln, &data, &fl)) != 0) {
++#endif
+ 		ERR_error_string_n(e, buf, sizeof(buf));
+ 		snprintf(msg, sizeof(msg), "%s:%s:%d:%s", buf, file, ln,
+ 		    (fl & ERR_TXT_STRING) ? data : "");
+diff -ru a/sshpty.c b/sshpty.c
+--- a/sshpty.c	2026-09-11 06:53:40.837719692 +0100
++++ b/sshpty.c	2026-09-11 06:53:40.851773880 +0100
+@@ -35,6 +35,14 @@
+ #include "log.h"
+ #include "misc.h"
+ 
++#ifdef __moxnox__
++#include <stdint.h>
++
++#define MoxnoxSetControllingTerminal 0x1008
++int NtSetInformationProcess(void *proc, int cls, void *info, unsigned int len);
++intptr_t _get_osfhandle(int fd);
++#endif
++
+ #ifdef HAVE_PTY_H
+ # include <pty.h>
+ #endif
+@@ -123,6 +136,19 @@
+ 	if (ioctl(*ttyfd, TIOCSCTTY, NULL) < 0)
+ 		error("ioctl(TIOCSCTTY): %.100s", strerror(errno));
+ #endif /* TIOCSCTTY */
++#ifdef __moxnox__
++	{
++		void *h = (void *)_get_osfhandle(*ttyfd);
++		int status;
++
++		debug("Setting controlling tty using MoxnoxSetControllingTerminal.");
++		status = NtSetInformationProcess((void *)(intptr_t)-1,
++		    MoxnoxSetControllingTerminal, &h, sizeof(h));
++		if (status < 0)
++			error("NtSetInformationProcess(MoxnoxSetControllingTerminal): "
++			    "0x%x", (unsigned int)status);
++	}
++#endif /* __moxnox__ */
+ #ifdef NEED_SETPGRP
+ 	if (setpgrp(0,0) < 0)
+ 		error("SETPGRP %s",strerror(errno));
+@@ -153,9 +179,9 @@
+ 	/* may truncate u_int -> u_short */
+ 	w.ws_row = row;
+ 	w.ws_col = col;
+-	w.ws_xpixel = xpixel;
+-	w.ws_ypixel = ypixel;
+-	(void) ioctl(ptyfd, TIOCSWINSZ, &w);
++	(void)xpixel;
++	(void)ypixel;
++	(void) tcsetwinsize(ptyfd, &w);
+ }
+ 
+ void
+diff -ru a/uidswap.c b/uidswap.c
+--- a/uidswap.c	2026-05-13 06:12:38.000000000 +0100
++++ b/uidswap.c	2026-09-08 06:44:47.917448048 +0100
+@@ -97,9 +97,11 @@
+ 
+ 	/* set and save the user's groups */
+ 	if (user_groupslen == -1 || user_groups_uid != pw->pw_uid) {
++#ifndef __moxnox__
+ 		if (initgroups(pw->pw_name, pw->pw_gid) == -1)
+ 			fatal("initgroups: %s: %.100s", pw->pw_name,
+ 			    strerror(errno));
++#endif /* __moxnox__ */
+ 
+ 		user_groupslen = getgroups(0, NULL);
+ 		if (user_groupslen == -1)
+@@ -116,8 +118,10 @@
+ 		user_groups_uid = pw->pw_uid;
+ 	}
+ 	/* Set the effective uid to the given (unprivileged) uid. */
++#ifdef HAVE_SETGROUPS
+ 	if (setgroups(user_groupslen, user_groups) == -1)
+ 		fatal("setgroups: %.100s", strerror(errno));
++#endif
+ #ifndef SAVED_IDS_WORK_WITH_SETEUID
+ 	/* Propagate the privileged gid to all of our gids. */
+ 	if (setgid(getegid()) == -1)
+@@ -167,8 +171,10 @@
+ 		fatal_f("setgid failed: %s", strerror(errno));
+ #endif /* SAVED_IDS_WORK_WITH_SETEUID */
+ 
++#ifdef HAVE_SETGROUPS
+ 	if (setgroups(saved_egroupslen, saved_egroups) == -1)
+ 		fatal("setgroups: %.100s", strerror(errno));
++#endif
+ 	temporarily_use_uid_effective = 0;
+ }
+ 

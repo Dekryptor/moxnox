@@ -37,6 +37,7 @@
     "nano": ["gnulib", "ncurses"],
     "ncurses": [],
     "ninja": [],
+    "openssh": ["openssl", "zlib"],
     "openssl": [],
     "patch": ["gnulib"],
     "pixman": [],
