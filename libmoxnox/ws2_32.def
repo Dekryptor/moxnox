@@ -26,3 +26,4 @@ getpeername
 shutdown
 inet_ntop
 inet_addr
+getservbyname
