@@ -143,6 +143,8 @@ __attribute__((noreturn)) void quick_exit(int status);
 int at_quick_exit(void (*func)(void));
 int putenv(char* string);
 int mkostemp(char* tmpl, int flag);
+int grantpt(int fd);
+int unlockpt(int fd);
 
 #ifdef __cplusplus
 }
