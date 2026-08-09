@@ -220,3 +220,6 @@
 [submodule "ports/netcat/repo"]
 	path = ports/netcat/repo
 	url = https://git.burntcomma.com/moxnox/netcat-openbsd
+[submodule "ports/perl/repo"]
+	path = ports/perl/repo
+	url = https://git.burntcomma.com/moxnox/perl5

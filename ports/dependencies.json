@@ -42,6 +42,7 @@
     "openssh": ["openssl", "zlib"],
     "openssl": [],
     "patch": ["gnulib"],
+    "perl": ["bzip2", "zlib"],
     "pixman": [],
     "python": ["expat", "ncurses", "openssl", "readline", "zlib"],
     "readline": ["ncurses"],
