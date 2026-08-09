@@ -11,6 +11,12 @@
 #define STDOUT_FILENO 1
 #define STDERR_FILENO 2
 
+#ifndef SEEK_SET
+#define SEEK_SET 0
+#define SEEK_CUR 1
+#define SEEK_END 2
+#endif
+
 #define F_OK 1
 #define R_OK 2
 #define W_OK 4

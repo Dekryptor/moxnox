@@ -16,9 +16,11 @@ typedef long long fpos_t;
 
 #define P_tmpdir "/tmp"
 
+#ifndef SEEK_SET
 #define SEEK_SET 0
 #define SEEK_CUR 1
 #define SEEK_END 2
+#endif
 
 #define _IOFBF 0x0000
 #define _IOLBF 0x0040

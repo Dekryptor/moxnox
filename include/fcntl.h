@@ -56,6 +56,12 @@
 #define POSIX_FADV_DONTNEED   4
 #define POSIX_FADV_NOREUSE    5
 
+#ifndef SEEK_SET
+#define SEEK_SET 0
+#define SEEK_CUR 1
+#define SEEK_END 2
+#endif
+
 struct flock {
     short l_type;
     short l_whence;
