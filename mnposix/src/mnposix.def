@@ -219,3 +219,4 @@ mkostemp
 mkdtemp
 fork
 mbsinit
+nl_langinfo

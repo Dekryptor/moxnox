@@ -219,6 +219,7 @@ mkostemp
 mkdtemp
 fork
 mbsinit
+nl_langinfo
 
 ; stubs
 __freading
@@ -249,7 +250,6 @@ getrusage
 scandir
 alphasort
 ptsname
-nl_langinfo
 pthread_rwlock_tryrdlock
 pthread_rwlock_trywrlock
 pthread_atfork
