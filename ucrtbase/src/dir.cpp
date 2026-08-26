@@ -28,6 +28,11 @@ char* _getcwd(char* buffer, int maxlen) {
     const auto& peb = *teb.ProcessEnvironmentBlock;
     const auto& params = *peb.ProcessParameters;
 
+    if (buffer && maxlen == 0) {
+        *__errno() = EINVAL;
+        return nullptr;
+    }
+
     if (maxlen < 0) {
         *__errno() = ERANGE;
         return nullptr;
@@ -62,10 +67,22 @@ char* _getcwd(char* buffer, int maxlen) {
 
     auto u8len = utf16_to_utf8_len(sv);
 
+    if (!buffer && maxlen == 0)
+        maxlen = (int)(u8len + 1);
+
     if ((size_t)maxlen < u8len + 1) {
         free(fni2);
         *__errno() = ERANGE;
         return nullptr;
+    }
+
+    if (!buffer) {
+        buffer = (char*)malloc(maxlen);
+        if (!buffer) {
+            free(fni2);
+            *__errno() = ENOMEM;
+            return nullptr;
+        }
     }
 
     utf16_to_utf8(span(buffer, (size_t)maxlen), sv);
