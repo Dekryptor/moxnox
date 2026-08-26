@@ -2,7 +2,6 @@
 
 stubs_start
 
-do_stub "__fseterr"
 do_stub "getprogname"
 do_stub "sigsuspend"
 do_stub "getlocalename_l"

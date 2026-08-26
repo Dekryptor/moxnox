@@ -357,6 +357,7 @@ mn_fpending
 mn_freading
 mn_fwriting
 mn_fpurge
+mn_fseterr
 
 ; stubs
 _beginthreadex

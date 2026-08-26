@@ -3668,3 +3668,10 @@ void mn_fpurge(FILE* file) {
 
     __unlock_file(file);
 }
+
+extern "C"
+void mn_fseterr(FILE* file) {
+    auto& f = *reinterpret_cast<_FILE*>(file);
+
+    f.error = true;
+}

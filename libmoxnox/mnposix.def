@@ -224,9 +224,9 @@ __fpending
 __freading
 __fwriting
 __fpurge
+__fseterr
 
 ; stubs
-__fseterr
 getprogname
 sigsuspend
 getlocalename_l

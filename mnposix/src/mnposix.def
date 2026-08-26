@@ -224,3 +224,4 @@ __fpending = ucrtbase.mn_fpending
 __freading = ucrtbase.mn_freading
 __fwriting = ucrtbase.mn_fwriting
 __fpurge = ucrtbase.mn_fpurge
+__fseterr = ucrtbase.mn_fseterr
