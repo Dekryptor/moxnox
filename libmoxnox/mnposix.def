@@ -225,9 +225,9 @@ __freading
 __fwriting
 __fpurge
 __fseterr
+getprogname
 
 ; stubs
-getprogname
 sigsuspend
 getlocalename_l
 getpriority

@@ -20,6 +20,8 @@ using namespace std;
 static thread_local char dl_error_string[255];
 static thread_local bool dl_error_pending;
 
+static thread_local char prog_name[100];
+
 extern "C"
 pid_t getsid(pid_t pid) {
     nt_status status;
@@ -305,4 +307,38 @@ pid_t fork() {
     }
 
     return (pid_t)pid;
+}
+
+extern "C"
+const char* getprogname() {
+    auto& peb = *NtCurrentTeb()->ProcessEnvironmentBlock;
+    auto& params = *peb.ProcessParameters;
+
+    if (prog_name[0] != 0)
+        return prog_name;
+
+    auto u16sv = u16string_view(params.ImagePathName.Buffer, params.ImagePathName.Length / sizeof(char16_t));
+
+    if (auto slash = u16sv.rfind(u'/'); slash != u16string::npos)
+        u16sv = u16string_view(u16sv.data() + slash + 1, u16sv.size() - slash - 1);
+
+    // strip .exe
+    if (u16sv.size() >= 4 &&
+        u16sv[u16sv.size() - 4] == u'.' &&
+        (u16sv[u16sv.size() - 3] == u'e' || u16sv[u16sv.size() - 3] == u'E') &&
+        (u16sv[u16sv.size() - 2] == u'x' || u16sv[u16sv.size() - 2] == u'X') &&
+        (u16sv[u16sv.size() - 1] == u'e' || u16sv[u16sv.size() - 1] == u'E')) {
+        u16sv = u16string_view(u16sv.data(), u16sv.size() - 4);
+    }
+
+    auto len = utf16_to_utf8_len(u16sv);
+
+    utf16_to_utf8(span(prog_name, sizeof(prog_name) - 1), u16sv);
+
+    if (len >= sizeof(prog_name))
+        prog_name[sizeof(prog_name) - 1] = 0;
+    else
+        prog_name[len] = 0;
+
+    return prog_name;
 }
