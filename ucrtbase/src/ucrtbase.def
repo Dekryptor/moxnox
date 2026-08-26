@@ -379,3 +379,4 @@ mn_open_memstream
 _fflush_nolock
 mn_fpending
 mn_freading
+mn_fwriting

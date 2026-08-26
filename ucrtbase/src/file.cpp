@@ -3637,3 +3637,17 @@ int mn_freading(FILE* file) {
 
     return ret;
 }
+
+extern "C"
+int mn_fwriting(FILE* file) {
+    auto& f = *reinterpret_cast<_FILE*>(file);
+    int ret;
+
+    __lock_file(file);
+
+    ret = !f.readable || !f.buffer.reading ? 1 : 0;
+
+    __unlock_file(file);
+
+    return ret;
+}

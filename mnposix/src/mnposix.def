@@ -222,3 +222,4 @@ mbsinit
 nl_langinfo
 __fpending = ucrtbase.mn_fpending
 __freading = ucrtbase.mn_freading
+__fwriting = ucrtbase.mn_fwriting

@@ -2,7 +2,6 @@
 
 stubs_start
 
-do_stub "__fwriting"
 do_stub "__fpurge"
 do_stub "__fseterr"
 do_stub "getprogname"

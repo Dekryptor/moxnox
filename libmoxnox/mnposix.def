@@ -222,9 +222,9 @@ mbsinit
 nl_langinfo
 __fpending
 __freading
+__fwriting
 
 ; stubs
-__fwriting
 __fpurge
 __fseterr
 getprogname
