@@ -46,11 +46,11 @@ export size_t utf16_to_utf8_len(u16string_view u16sv) {
 }
 
 export void utf16_to_utf8(span<char> buf, u16string_view u16sv) {
-    if (buf.empty())
-        return;
-
     for (unsigned int i = 0; i < u16sv.size(); i++) {
         uint32_t cp;
+
+        if (buf.empty())
+            return;
 
         if (u16sv[i] < 0xd800 || u16sv[i] > 0xdfff)
             cp = u16sv[i];
