@@ -3534,3 +3534,17 @@ FILE* mn_open_memstream(char** bufp, size_t* sizep) {
 
     return reinterpret_cast<FILE*>(f);
 }
+
+extern "C"
+size_t mn_fpending(FILE* file) {
+    auto& f = *reinterpret_cast<_FILE*>(file);
+    size_t ret;
+
+    __lock_file(file);
+
+    ret = f.buffer.reading ? 0 : f.buffer.filled;
+
+    __unlock_file(file);
+
+    return ret;
+}

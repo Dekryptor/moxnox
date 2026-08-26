@@ -220,11 +220,11 @@ mkdtemp
 fork
 mbsinit
 nl_langinfo
+__fpending
 
 ; stubs
 __freading
 __fwriting
-__fpending
 __fpurge
 __fseterr
 getprogname

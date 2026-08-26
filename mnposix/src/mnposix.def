@@ -220,3 +220,4 @@ mkdtemp
 fork
 mbsinit
 nl_langinfo
+__fpending = ucrtbase.mn_fpending
