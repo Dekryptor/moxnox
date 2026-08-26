@@ -226,3 +226,4 @@ __fwriting = ucrtbase.mn_fwriting
 __fpurge = ucrtbase.mn_fpurge
 __fseterr = ucrtbase.mn_fseterr
 getprogname
+getresuid

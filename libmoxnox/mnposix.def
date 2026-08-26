@@ -226,6 +226,7 @@ __fwriting
 __fpurge
 __fseterr
 getprogname
+getresuid
 
 ; stubs
 sigsuspend
@@ -260,7 +261,6 @@ sched_get_priority_min
 sched_get_priority_max
 ppoll
 sigpending
-getresuid
 getresgid
 killpg
 wcswidth

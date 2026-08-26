@@ -27,3 +27,14 @@ gid_t getegid() {
 
     return 0;
 }
+
+extern "C"
+int getresuid(uid_t* ruid, uid_t* euid, uid_t* suid) {
+    // FIXME
+
+    *ruid = 0;
+    *euid = 0;
+    *suid = 0;
+
+    return 0;
+}
