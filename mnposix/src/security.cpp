@@ -38,3 +38,14 @@ int getresuid(uid_t* ruid, uid_t* euid, uid_t* suid) {
 
     return 0;
 }
+
+extern "C"
+int getresgid(gid_t* rgid, gid_t* egid, gid_t* sgid) {
+    // FIXME
+
+    *rgid = 0;
+    *egid = 0;
+    *sgid = 0;
+
+    return 0;
+}
