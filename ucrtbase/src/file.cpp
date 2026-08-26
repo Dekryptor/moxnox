@@ -8,6 +8,7 @@ module;
 #include <atomic>
 #include <mutex>
 #include <algorithm>
+#include <utility>
 #include <stdint.h>
 #include <stdlib.h>
 #include <string.h>
@@ -44,8 +45,18 @@ using namespace std;
 
 static const size_t BUFFER_SIZE = 65536;
 
+enum class mode_type {
+    invalid,
+    r,
+    rplus,
+    w,
+    wplus,
+    a,
+    aplus,
+};
+
 struct _FILE {
-    _FILE(HANDLE h, int fd);
+    _FILE(HANDLE h, int fd, bool readable, bool writable);
     _FILE(char** bufp, size_t* sizep);
     ~_FILE();
 
@@ -61,6 +72,8 @@ struct _FILE {
     wchar_t getwc_surrogate = 0;
     wchar_t putwc_surrogate = 0;
     bool memstream = false;
+    bool readable;
+    bool writable;
 
     struct {
         char** bufp;
@@ -77,7 +90,7 @@ struct _FILE {
         size_t filled = 0;
         size_t consumed = 0;
         size_t read_bytes = 0;
-        bool reading = true;
+        bool reading;
         bool user_allocated = false;
         int mode = _IOFBF;
     } buffer;
@@ -197,14 +210,18 @@ int _fputc(int c, FILE* file) {
     return ret;
 }
 
-_FILE::_FILE(HANDLE h, int fd) : h(h), fd(fd) {
+_FILE::_FILE(HANDLE h, int fd, bool readable, bool writable) : h(h), fd(fd), readable(readable), writable(writable) {
     RtlInitializeCriticalSection(&cs);
+
+    buffer.reading = !writable;
 }
 
 _FILE::_FILE(char** bufp, size_t* sizep) {
     h = 0;
     fd = 0;
     memstream = true;
+    readable = true;
+    writable = true;
 
     mem.bufp = bufp;
     mem.sizep = sizep;
@@ -212,6 +229,8 @@ _FILE::_FILE(char** bufp, size_t* sizep) {
     mem.position = 0;
     mem.length = 0;
     mem.capacity = 0;
+
+    buffer.reading = false;
 
     RtlInitializeCriticalSection(&cs);
 }
@@ -235,9 +254,12 @@ export void init_files() {
     RtlInitializeCriticalSection(&files_lock);
     RtlInitializeCriticalSection(&fds_lock);
 
-    auto f1 = new (_stdin) _FILE(peb->ProcessParameters->StandardInput, 0);
-    auto f2 = new (_stdout) _FILE(peb->ProcessParameters->StandardOutput, 1);
-    auto f3 = new (_stderr) _FILE(peb->ProcessParameters->StandardError, 2);
+    auto f1 = new (_stdin) _FILE(peb->ProcessParameters->StandardInput, 0,
+                                 true, false);
+    auto f2 = new (_stdout) _FILE(peb->ProcessParameters->StandardOutput, 1,
+                                  false, true);
+    auto f3 = new (_stderr) _FILE(peb->ProcessParameters->StandardError, 2,
+                                  false, true);
 
     insert_tail_list(files_list, f1->le);
     insert_tail_list(files_list, f2->le);
@@ -258,29 +280,8 @@ export void init_files() {
     mn_handle_exec_info = handle_exec_info;
 }
 
-static bool do_open(const char* pathname, const char* mode, HANDLE& h, int& fd,
-                    bool for_delete, bool cloexec) {
-    enum class mode_type {
-        r,
-        rplus,
-        w,
-        wplus,
-        a,
-        aplus,
-    };
-
-    auto peb = NtCurrentTeb()->ProcessEnvironmentBlock;
-    enum mode_type type;
-    ACCESS_MASK perms;
-    unsigned int create_options;
-    OBJECT_ATTRIBUTES oa;
-    UNICODE_STRING us;
-    IO_STATUS_BLOCK iosb;
-
-    if (!mode || !pathname || pathname[0] == 0) {
-        *__errno() = EINVAL;
-        return false;
-    }
+static mode_type parse_mode(const char* mode) {
+    mode_type type;
 
     switch (mode[0]) {
         case 'r':
@@ -314,19 +315,41 @@ static bool do_open(const char* pathname, const char* mode, HANDLE& h, int& fd,
             break;
 
         default:
-            *__errno() = EINVAL;
-            return false;
+            return mode_type::invalid;
     }
 
     // FIXME - implement MS' extensions?
     // FIXME - is "rb+" etc. valid?
     while (*mode != 0) {
-        if (*mode != 't' && *mode != 'b') {
-            *__errno() = EINVAL;
-            return false;
-        }
+        if (*mode != 't' && *mode != 'b')
+            return mode_type::invalid;
 
         mode++;
+    }
+
+    return type;
+}
+
+static bool do_open(const char* pathname, const char* mode, HANDLE& h, int& fd,
+                    bool for_delete, bool cloexec, bool& readable,
+                    bool& writable) {
+    auto peb = NtCurrentTeb()->ProcessEnvironmentBlock;
+    ACCESS_MASK perms;
+    unsigned int create_options;
+    OBJECT_ATTRIBUTES oa;
+    UNICODE_STRING us;
+    IO_STATUS_BLOCK iosb;
+
+    if (!mode || !pathname || pathname[0] == 0) {
+        *__errno() = EINVAL;
+        return false;
+    }
+
+    auto type = parse_mode(mode);
+
+    if (type == mode_type::invalid) {
+        *__errno() = EINVAL;
+        return false;
     }
 
     switch (type) {
@@ -335,32 +358,47 @@ static bool do_open(const char* pathname, const char* mode, HANDLE& h, int& fd,
         case r:
             perms = FILE_READ_DATA;
             create_options = FILE_OPEN;
+            readable = true;
+            writable = false;
             break;
 
         case rplus:
             perms = FILE_READ_DATA | FILE_WRITE_DATA;
             create_options = FILE_OPEN;
+            readable = true;
+            writable = true;
             break;
 
         case w:
             perms = FILE_WRITE_DATA;
             create_options = FILE_OVERWRITE_IF;
+            readable = false;
+            writable = true;
             break;
 
         case wplus:
             perms = FILE_READ_DATA | FILE_WRITE_DATA;
             create_options = FILE_OVERWRITE_IF;
+            readable = true;
+            writable = true;
             break;
 
         case a:
             perms = FILE_APPEND_DATA;
             create_options = FILE_OPEN_IF;
+            readable = false;
+            writable = true;
             break;
 
         case aplus:
             perms = FILE_READ_DATA | FILE_APPEND_DATA;
             create_options = FILE_OPEN_IF;
+            readable = true;
+            writable = true;
             break;
+
+        default:
+            unreachable();
     }
 
     if (for_delete)
@@ -426,13 +464,14 @@ extern "C"
 FILE* _fopen(const char* pathname, const char* mode) {
     HANDLE h;
     int fd;
+    bool readable, writable;
 
     // FIXME - cloexec if "e" is in mode
 
-    if (!do_open(pathname, mode, h, fd, false, false))
+    if (!do_open(pathname, mode, h, fd, false, false, readable, writable))
         return nullptr;
 
-    auto f = new _FILE(h, fd);
+    auto f = new _FILE(h, fd, readable, writable);
     if (!f) {
         RtlEnterCriticalSection(&fds_lock);
         fds[(size_t)fd].h = 0;
@@ -1740,14 +1779,46 @@ int __sopen(const char* path, int oflags, int shflags, ...) {
 }
 
 extern "C"
-FILE* __fdopen(int fd, const char* /*mode*/) {
+FILE* __fdopen(int fd, const char* mode) {
     HANDLE h;
+    bool readable, writable;
 
-    // FIXME - do something or other with mode (read, write, append?)
-
-    if (fd < 0 || (size_t)fd >= fds.size()) {
+    if (!mode || fd < 0 || (size_t)fd >= fds.size()) {
         *__errno() = EINVAL;
         return nullptr;
+    }
+
+    auto type = parse_mode(mode);
+
+    if (type == mode_type::invalid) {
+        *__errno() = EINVAL;
+        return nullptr;
+    }
+
+    switch (type) {
+        using enum mode_type;
+
+        case r:
+            readable = true;
+            writable = false;
+            break;
+
+        case w:
+        case a:
+            readable = false;
+            writable = true;
+            break;
+
+        case rplus:
+        case wplus:
+        case aplus:
+            readable = true;
+            writable = true;
+            break;
+
+        case invalid:
+            *__errno() = EINVAL;
+            return nullptr;
     }
 
     RtlEnterCriticalSection(&fds_lock);
@@ -1759,7 +1830,7 @@ FILE* __fdopen(int fd, const char* /*mode*/) {
         return nullptr;
     }
 
-    auto f = new _FILE(h, fd);
+    auto f = new _FILE(h, fd, readable, writable);
     if (!f) {
         *__errno() = ENOMEM;
         return nullptr;
@@ -2546,12 +2617,13 @@ FILE* freopen(const char* path, const char* mode, FILE* file) {
     auto& f = *reinterpret_cast<_FILE*>(file);
     HANDLE h;
     int fd;
+    bool readable, writable;
 
     if (!path)
         return file; // FIXME - should also be changing mode
 
     // FIXME - cloexec if "e" flag set
-    if (!do_open(path, mode, h, fd, false, false))
+    if (!do_open(path, mode, h, fd, false, false, readable, writable))
         return nullptr;
 
     __lock_file(file);
@@ -2575,6 +2647,8 @@ FILE* freopen(const char* path, const char* mode, FILE* file) {
     f.buffer.filled = 0;
     f.buffer.consumed = 0;
     f.buffer.read_bytes = 0;
+    f.readable = readable;
+    f.writable = writable;
 
     __unlock_file(file);
 
@@ -2591,13 +2665,14 @@ FILE* tmpfile() {
     span sp(path, sizeof(path));
     HANDLE h;
     int fd;
+    bool readable, writable;
 
     // create file
 
     sp = format(sp, "/tmp/tmpfile_{}_{}", _getpid(), counter.fetch_add(1));
     sp[0] = 0;
 
-    if (!do_open(path, "w+", h, fd, true, false))
+    if (!do_open(path, "w+", h, fd, true, false, readable, writable))
         return nullptr;
 
     // unlink file
@@ -2620,7 +2695,7 @@ FILE* tmpfile() {
 
     // create FILE
 
-    auto f = new _FILE(h, fd);
+    auto f = new _FILE(h, fd, readable, writable);
     if (!f) {
         RtlEnterCriticalSection(&fds_lock);
         fds[(size_t)fd].h = 0;
@@ -2857,7 +2932,7 @@ FILE* __popen(const char* command, const char* type) {
 
     auto fd = write_mode ? pipefds[1] : pipefds[0];
 
-    auto f = new _FILE((HANDLE)__get_osfhandle(fd), fd);
+    auto f = new _FILE((HANDLE)__get_osfhandle(fd), fd, !write_mode, write_mode);
     if (!f) {
         __close(fd);
         NtClose(pi.hProcess);
@@ -3543,6 +3618,20 @@ size_t mn_fpending(FILE* file) {
     __lock_file(file);
 
     ret = f.buffer.reading ? 0 : f.buffer.filled;
+
+    __unlock_file(file);
+
+    return ret;
+}
+
+extern "C"
+int mn_freading(FILE* file) {
+    auto& f = *reinterpret_cast<_FILE*>(file);
+    int ret;
+
+    __lock_file(file);
+
+    ret = !f.writable || f.buffer.reading ? 1 : 0;
 
     __unlock_file(file);
 

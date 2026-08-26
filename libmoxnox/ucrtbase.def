@@ -354,6 +354,7 @@ quick_exit
 mn_open_memstream
 _fflush_nolock
 mn_fpending
+mn_freading
 
 ; stubs
 _beginthreadex

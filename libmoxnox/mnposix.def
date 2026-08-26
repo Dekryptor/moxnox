@@ -221,9 +221,9 @@ fork
 mbsinit
 nl_langinfo
 __fpending
+__freading
 
 ; stubs
-__freading
 __fwriting
 __fpurge
 __fseterr
