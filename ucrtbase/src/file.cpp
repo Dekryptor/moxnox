@@ -3651,3 +3651,20 @@ int mn_fwriting(FILE* file) {
 
     return ret;
 }
+
+extern "C"
+void mn_fpurge(FILE* file) {
+    auto& f = *reinterpret_cast<_FILE*>(file);
+
+    __lock_file(file);
+
+    f.buffer.consumed = 0;
+    f.buffer.filled = 0;
+    f.buffer.read_bytes = 0;
+    f.ungetc_char = nullopt;
+    f.ungetwc_char = nullopt;
+    f.getwc_surrogate = 0;
+    f.putwc_surrogate = 0;
+
+    __unlock_file(file);
+}

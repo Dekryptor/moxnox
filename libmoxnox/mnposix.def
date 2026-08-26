@@ -223,9 +223,9 @@ nl_langinfo
 __fpending
 __freading
 __fwriting
+__fpurge
 
 ; stubs
-__fpurge
 __fseterr
 getprogname
 sigsuspend

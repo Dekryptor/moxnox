@@ -356,6 +356,7 @@ _fflush_nolock
 mn_fpending
 mn_freading
 mn_fwriting
+mn_fpurge
 
 ; stubs
 _beginthreadex
