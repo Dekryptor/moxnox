@@ -305,3 +305,15 @@ size_t mbsrtowcs(wchar_t* pwcs, const char** s, size_t n, mbstate_t* state) {
 
     return count;
 }
+
+extern "C"
+int mblen(const char* s, size_t n) {
+    mbstate_t state{};
+
+    auto ret = _mbrtowc(nullptr, s, n, &state);
+
+    if ((ssize_t)ret < 0)
+        return -1;
+
+    return (int)ret;
+}

@@ -358,10 +358,10 @@ mn_freading
 mn_fwriting
 mn_fpurge
 mn_fseterr
+mblen
 
 ; stubs
 _beginthreadex
 fgetpos
 fsetpos
 wcscat
-mblen
