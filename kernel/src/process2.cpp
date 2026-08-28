@@ -5599,9 +5599,6 @@ nt_status process::set_information(PROCESS_INFORMATION_CLASS info_class,
         case MoxnoxExec:
             return do_exec(buffer);
 
-        case MoxnoxReapZombie:
-            return reap_zombie();
-
         case MoxnoxNewSession:
             return new_session();
 
@@ -5885,69 +5882,6 @@ nt_status process::do_exec(span<const uint8_t> buffer) {
     newthread.suspend_count.fetch_sub(1);
 
     do_terminate(*t.proc, nt_status::SUCCESS);
-
-    return nt_status::SUCCESS;
-}
-
-nt_status process::reap_zombie() {
-    bool clear_event = false;
-
-    // check actually dead
-
-    {
-        sync_lock sl;
-        lock_guard lock(sl);
-
-        if (!signalled)
-            return nt_status::INVALID_PARAMETER;
-
-        {
-            lock_guard lock2(process_list_lock);
-
-            if (!parent_process)
-                return nt_status::SUCCESS; // already done
-
-            // we can only reap our own children
-            if (parent_process != get_current_thread()->proc)
-                return nt_status::INVALID_PARAMETER;
-
-            {
-                lock_guard lock(parent_process->children_lock);
-                remove_entry_list(child_le);
-
-                clear_event = true;
-
-                for (auto le = parent_process->children.next; le != &parent_process->children; le = le->next) {
-                    auto& c = *(process*)((uint8_t*)le - offsetof(process, child_le));
-
-                    if (c.signalled) {
-                        clear_event = false;
-                        break;
-                    }
-                }
-            }
-
-            if (clear_event) {
-                auto& e = static_cast<event&>(parent_process->unreaped_children_event.get());
-
-                e.signalled = false;
-            }
-
-            parent_process = nullptr;
-            marked_as_child = false;
-        }
-    }
-
-    {
-        auto& p = *get_current_thread()->proc;
-
-        lock_guard lock(p.threads_lock);
-
-        p.children_time_running += dead_threads_time_running + children_time_running;
-        p.children_time_running_in_userspace += dead_threads_time_running_in_userspace + children_time_running_in_userspace;
-    }
-
-    release();
 
     return nt_status::SUCCESS;
 }

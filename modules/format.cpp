@@ -1696,8 +1696,6 @@ export span<char> do_format_arg(span<char> sp, string_view,
             return sp_strcpy(sp, "MoxnoxSetPendingSignal");
         case MoxnoxExec:
             return sp_strcpy(sp, "MoxnoxExec");
-        case MoxnoxReapZombie:
-            return sp_strcpy(sp, "MoxnoxReapZombie");
         case MoxnoxFindNtdll:
             return sp_strcpy(sp, "MoxnoxFindNtdll");
         case MoxnoxWaitPid:

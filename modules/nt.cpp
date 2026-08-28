@@ -1136,7 +1136,6 @@ enum class PROCESS_INFORMATION_CLASS {
     EnergyTrackingState = 82,
     MoxnoxSetPendingSignal = 0x1000,
     MoxnoxExec,
-    MoxnoxReapZombie,
     MoxnoxFindNtdll,
     MoxnoxWaitPid,
     MoxnoxIsOurChild,

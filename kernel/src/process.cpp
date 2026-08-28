@@ -140,7 +140,6 @@ public:
     nt_status set_pending_signal(span<const uint8_t> buffer);
     nt_status set_pending_signal_process_group(span<const uint8_t> buffer);
     nt_status do_exec(span<const uint8_t> buffer);
-    nt_status reap_zombie();
     nt_status new_session();
     nt_status set_controlling_terminal(span<const uint8_t> buffer);
     nt_status set_process_group(span<const uint8_t> buffer);
