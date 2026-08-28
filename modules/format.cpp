@@ -1704,6 +1704,8 @@ export span<char> do_format_arg(span<char> sp, string_view,
             return sp_strcpy(sp, "MoxnoxWaitForChild");
         case MoxnoxWaitForChildNoHang:
             return sp_strcpy(sp, "MoxnoxWaitForChildNoHang");
+        case MoxnoxWaitPid:
+            return sp_strcpy(sp, "MoxnoxWaitPid");
         case MoxnoxIsOurChild:
             return sp_strcpy(sp, "MoxnoxIsOurChild");
         case MoxnoxChildrenTimes:

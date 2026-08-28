@@ -1140,6 +1140,7 @@ enum class PROCESS_INFORMATION_CLASS {
     MoxnoxFindNtdll,
     MoxnoxWaitForChild,
     MoxnoxWaitForChildNoHang,
+    MoxnoxWaitPid,
     MoxnoxIsOurChild,
     MoxnoxChildrenTimes,
     MoxnoxGetSessionId,
@@ -1178,6 +1179,14 @@ struct MN_PENDING_SIGNAL_PROCESS_GROUP {
 struct MN_WAIT_FOR_CHILD_PROCESS_GROUP {
     uintptr_t pgid;
     bool no_hang;
+    HANDLE* h;
+};
+
+struct MN_WAITPID {
+    intptr_t pid;
+    bool no_hang;
+    bool suspended;
+    bool continued;
     HANDLE* h;
 };
 
