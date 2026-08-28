@@ -138,51 +138,9 @@ static int exit_code_to_status(uint32_t exit_code) {
         return (uint8_t)exit_code << 8;
 }
 
-static pid_t wait_for_any_child(int* wstatus, int options) {
-    nt_status status;
-    HANDLE h;
-    uint32_t retlen;
-    PROCESS_INFORMATION_CLASS pic;
-    PROCESS_BASIC_INFORMATION pbi;
-    unique_handle proc;
-
-    if (options & WNOHANG)
-        pic = PROCESS_INFORMATION_CLASS::MoxnoxWaitForChildNoHang;
-    else
-        pic = PROCESS_INFORMATION_CLASS::MoxnoxWaitForChild;
-
-    while (true) {
-        status = NtQueryInformationProcess(NtCurrentProcess(), pic, &h,
-                                           sizeof(HANDLE), &retlen);
-        if (status == nt_status::USER_APC)
-            continue;
-
-        break;
-    }
-
-    if (status == nt_status::NOT_FOUND) {
-        *_errno() = ECHILD;
-        return -1;
-    } else if (status == nt_status::TIMEOUT)
-        return 0;
-
-    proc.reset(h);
-
-    status = NtQueryInformationProcess(proc.get(), PROCESS_INFORMATION_CLASS::BasicInformation,
-                                        &pbi, sizeof(pbi), nullptr);
-    if (!success(status)) {
-        *_errno() = nt_status_to_errno(status);
-        return -1;
-    }
-
-    if (wstatus)
-        *wstatus = exit_code_to_status((uint32_t)pbi.ExitStatus);
-
-    return (pid_t)pbi.UniqueProcessId;
-}
-
-static pid_t wait_for_child_process_group(pid_t pid, int* wstatus, int options) {
-    MN_WAIT_FOR_CHILD_PROCESS_GROUP params;
+extern "C"
+pid_t waitpid(pid_t pid, int* wstatus, int options) {
+    MN_WAITPID params;
     PROCESS_BASIC_INFORMATION pbi;
     HANDLE h;
     unique_handle proc;
@@ -194,17 +152,24 @@ static pid_t wait_for_child_process_group(pid_t pid, int* wstatus, int options) 
         if (pgid == -1)
             return -1;
 
-        params.pgid = (uintptr_t)pgid;
+        params.pid = -(intptr_t)pgid;
     } else
-        params.pgid = (uintptr_t)-pid;
+        params.pid = (intptr_t)pid;
+
+    if (options & ~(WNOHANG | WUNTRACED | WCONTINUED)) {
+        *_errno() = EINVAL;
+        return -1;
+    }
 
     params.h = &h;
     params.no_hang = !!(options & WNOHANG);
+    params.suspended = !!(options & WUNTRACED);
+    params.continued = !!(options & WCONTINUED);
 
     while (true) {
         status = NtSetInformationProcess(NtCurrentProcess(),
-                                        PROCESS_INFORMATION_CLASS::MoxnoxWaitForChildProcessGroup,
-                                        &params, sizeof(params));
+                                         PROCESS_INFORMATION_CLASS::MoxnoxWaitPid,
+                                         &params, sizeof(params));
         if (status == nt_status::USER_APC)
             continue;
 
@@ -234,105 +199,6 @@ static pid_t wait_for_child_process_group(pid_t pid, int* wstatus, int options) 
         *wstatus = exit_code_to_status((uint32_t)pbi.ExitStatus);
 
     return (pid_t)pbi.UniqueProcessId;
-}
-
-extern "C"
-pid_t waitpid(pid_t pid, int* wstatus, int options) {
-    nt_status status;
-    HANDLE h;
-    OBJECT_ATTRIBUTES oa;
-    CLIENT_ID client_id;
-    LARGE_INTEGER timeout;
-    PROCESS_BASIC_INFORMATION pbi;
-    unique_handle proc;
-
-    if (options & WCONTINUED) {
-        print("FIXME - waitpid with WCONTINUED\n");
-        *_errno() = EINVAL;
-        return -1;
-    }
-
-    if (options & WUNTRACED) {
-        print("FIXME - waitpid with WUNTRACED\n");
-        *_errno() = EINVAL;
-        return -1;
-    }
-
-    if (pid == -1)
-        return wait_for_any_child(wstatus, options);
-    else if (pid <= 0)
-        return wait_for_child_process_group(pid, wstatus, options);
-
-    memset(&oa, 0, sizeof(oa));
-    oa.Length = sizeof(OBJECT_ATTRIBUTES);
-
-    client_id.UniqueProcess = (HANDLE)pid;
-    client_id.UniqueThread = 0;
-
-    while (true) {
-        bool pid_changed = false;
-
-        status = NtOpenProcess(&h, SYNCHRONIZE, &oa, &client_id);
-        if (status == nt_status::INVALID_CID) {
-            *_errno() = ECHILD;
-            return -1;
-        } else if (!success(status)) {
-            *_errno() = nt_status_to_errno(status);
-            return -1;
-        }
-
-        proc.reset(h);
-
-        status = NtQueryInformationProcess(proc.get(), PROCESS_INFORMATION_CLASS::MoxnoxIsOurChild,
-                                           nullptr, 0, nullptr);
-        if (status == nt_status::NOT_FOUND) {
-            *_errno() = ECHILD;
-            return -1;
-        }
-
-        timeout.QuadPart = 0;
-
-        while (true) {
-            status = NtWaitForSingleObject(proc.get(), true,
-                                           options & WNOHANG ? &timeout : nullptr);
-            if (status == nt_status::USER_APC)
-                continue;
-
-            auto status2 = NtQueryInformationProcess(proc.get(), PROCESS_INFORMATION_CLASS::BasicInformation,
-                                                     &pbi, sizeof(pbi), nullptr);
-            if (!success(status2)) {
-                *_errno() = nt_status_to_errno(status2);
-                return -1;
-            }
-
-            // pid changed because of exec - do the whole thing again
-            if ((pid_t)pbi.UniqueProcessId != pid) {
-                pid_changed = true;
-                break;
-            }
-
-            if (status == nt_status::TIMEOUT)
-                return 0;
-
-            if (!success(status)) {
-                *_errno() = nt_status_to_errno(status);
-                return -1;
-            }
-
-            break;
-        }
-
-        if (!pid_changed)
-            break;
-    }
-
-    if (wstatus)
-        *wstatus = exit_code_to_status((uint32_t)pbi.ExitStatus);
-
-    NtSetInformationProcess(proc.get(), PROCESS_INFORMATION_CLASS::MoxnoxReapZombie,
-                            nullptr, 0);
-
-    return pid;
 }
 
 extern "C"
