@@ -1700,10 +1700,6 @@ export span<char> do_format_arg(span<char> sp, string_view,
             return sp_strcpy(sp, "MoxnoxReapZombie");
         case MoxnoxFindNtdll:
             return sp_strcpy(sp, "MoxnoxFindNtdll");
-        case MoxnoxWaitForChild:
-            return sp_strcpy(sp, "MoxnoxWaitForChild");
-        case MoxnoxWaitForChildNoHang:
-            return sp_strcpy(sp, "MoxnoxWaitForChildNoHang");
         case MoxnoxWaitPid:
             return sp_strcpy(sp, "MoxnoxWaitPid");
         case MoxnoxIsOurChild:
@@ -1722,8 +1718,6 @@ export span<char> do_format_arg(span<char> sp, string_view,
             return sp_strcpy(sp, "MoxnoxSetProcessGroup");
         case MoxnoxSetPendingSignalProcessGroup:
             return sp_strcpy(sp, "MoxnoxSetPendingSignalProcessGroup");
-        case MoxnoxWaitForChildProcessGroup:
-            return sp_strcpy(sp, "MoxnoxWaitForChildProcessGroup");
         case MoxnoxMarkAsChild:
             return sp_strcpy(sp, "MoxnoxMarkAsChild");
         case MoxnoxMemoryUnmap:

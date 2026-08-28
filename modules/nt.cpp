@@ -1138,8 +1138,6 @@ enum class PROCESS_INFORMATION_CLASS {
     MoxnoxExec,
     MoxnoxReapZombie,
     MoxnoxFindNtdll,
-    MoxnoxWaitForChild,
-    MoxnoxWaitForChildNoHang,
     MoxnoxWaitPid,
     MoxnoxIsOurChild,
     MoxnoxChildrenTimes,
@@ -1149,7 +1147,6 @@ enum class PROCESS_INFORMATION_CLASS {
     MoxnoxGetProcessGroup,
     MoxnoxSetProcessGroup,
     MoxnoxSetPendingSignalProcessGroup,
-    MoxnoxWaitForChildProcessGroup,
     MoxnoxMarkAsChild,
     MoxnoxMemoryUnmap,
     MoxnoxFork,
@@ -1174,12 +1171,6 @@ struct KERNEL_USER_TIMES {
 struct MN_PENDING_SIGNAL_PROCESS_GROUP {
     int sig;
     uintptr_t pgid;
-};
-
-struct MN_WAIT_FOR_CHILD_PROCESS_GROUP {
-    uintptr_t pgid;
-    bool no_hang;
-    HANDLE* h;
 };
 
 struct MN_WAITPID {
