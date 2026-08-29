@@ -394,6 +394,8 @@ elseif(CMAKE_SYSTEM_PROCESSOR STREQUAL "amd64")
     add_subdirectory(bootloader/x86)
 endif()
 
+find_program(HOST_MAKE make REQUIRED)
+
 file(GLOB port_cmake_files ${CMAKE_CURRENT_SOURCE_DIR}/ports/*/CMakeLists.txt)
 foreach(cmake_file ${port_cmake_files})
     get_filename_component(port_dir ${cmake_file} DIRECTORY)

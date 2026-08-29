@@ -83,7 +83,7 @@ set(OPENSSL_GENERATED_FILES
 
 add_custom_command(
     OUTPUT ${OPENSSL_GENERATED_FILES}
-    COMMAND make -C ${GEN} build_all_generated libcrypto.def libssl.def
+    COMMAND ${HOST_MAKE} -C ${GEN} build_all_generated libcrypto.def libssl.def
     COMMAND sed -i [[s|^LIBRARY .*|LIBRARY         "libcrypto"|]] ${GEN}/libcrypto.def
     COMMAND sed -i [[s|^LIBRARY .*|LIBRARY         "libssl"|]] ${GEN}/libssl.def
     COMMAND sed -z -i [[s|#if defined(OPENSSL_THREADS) && !defined(CRYPTO_TDEBUG)\n#if defined(_WIN32)|#if defined(OPENSSL_THREADS) \&\& !defined(CRYPTO_TDEBUG)\n#if defined(_WIN32) \&\& !defined(MOXNOX)|g]] ${GEN}/include/openssl/crypto.h
