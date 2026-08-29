@@ -31,7 +31,7 @@ add_custom_target(git_generate DEPENDS
 add_custom_command(
     OUTPUT ${GEN}/run-command.c
     COMMAND ${CMAKE_COMMAND} -E copy ${CMAKE_CURRENT_SOURCE_DIR}/repo/run-command.c ${GEN}/run-command.c
-    COMMAND patch ${GEN}/run-command.c
+    COMMAND ${HOST_PATCH} ${GEN}/run-command.c
             ${CMAKE_CURRENT_SOURCE_DIR}/patches/run-command-posix-spawn.patch
     DEPENDS repo/run-command.c
             ${CMAKE_CURRENT_SOURCE_DIR}/patches/run-command-posix-spawn.patch
