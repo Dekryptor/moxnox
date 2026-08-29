@@ -310,7 +310,7 @@ nt_status devfs_inode::query_information(span<uint8_t> buffer,
 
         default:
             print("devfs_inode::query_information: unhandled file information class {}\n",
-                 (unsigned int)file_information_class);
+                  file_information_class);
             return nt_status::NOT_IMPLEMENTED;
     }
 }
