@@ -50,7 +50,7 @@ jobs:
         working-directory: ${{ env.SHORT_SHA }}
         run: |
           for port in $(echo '${{ needs.compute-ports.outputs.checkout }}' | jq -r '.[]'); do
-            git submodule update --init --depth 1 ports/$port/repo
+            git submodule update --init --depth 1 --recursive ports/$port/repo
           done
 
       - name: Configure
