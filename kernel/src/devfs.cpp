@@ -64,6 +64,7 @@ public:
     nt_status flush_cache(uint64_t page_num, uint64_t num_pages) override;
     nt_status query_basic_information(span<uint8_t> buffer, uint64_t& retlen);
     nt_status query_standard_information(span<uint8_t> buffer, uint64_t& retlen);
+    nt_status query_internal_information(span<uint8_t> buffer, uint64_t& retlen);
     void last_handle_closed() override { }
 
     nt_status fs_control(uint32_t, span<const uint8_t>, span<uint8_t>,
@@ -298,15 +299,34 @@ nt_status devfs_inode::query_standard_information(span<uint8_t> buffer,
     return nt_status::SUCCESS;
 }
 
+nt_status devfs_inode::query_internal_information(span<uint8_t> buffer,
+                                                  uint64_t& retlen) {
+    if (buffer.size() < sizeof(FILE_INTERNAL_INFORMATION))
+        return nt_status::BUFFER_TOO_SMALL;
+
+    auto& fii = *(FILE_INTERNAL_INFORMATION*)buffer.data();
+
+    fii.IndexNumber.QuadPart = 0; // FIXME?
+
+    retlen = sizeof(fii);
+
+    return nt_status::SUCCESS;
+}
+
 nt_status devfs_inode::query_information(span<uint8_t> buffer,
                                          FILE_INFORMATION_CLASS file_information_class,
                                          uint64_t& retlen) {
     switch (file_information_class) {
-        case FILE_INFORMATION_CLASS::BasicInformation:
+        using enum FILE_INFORMATION_CLASS;
+
+        case BasicInformation:
             return query_basic_information(buffer, retlen);
 
-        case FILE_INFORMATION_CLASS::StandardInformation:
+        case StandardInformation:
             return query_standard_information(buffer, retlen);
+
+        case InternalInformation:
+            return query_internal_information(buffer, retlen);
 
         default:
             print("devfs_inode::query_information: unhandled file information class {}\n",
