@@ -84,9 +84,9 @@ set(OPENSSL_GENERATED_FILES
 add_custom_command(
     OUTPUT ${OPENSSL_GENERATED_FILES}
     COMMAND ${HOST_MAKE} -C ${GEN} build_all_generated libcrypto.def libssl.def
-    COMMAND sed -i [[s|^LIBRARY .*|LIBRARY         "libcrypto"|]] ${GEN}/libcrypto.def
-    COMMAND sed -i [[s|^LIBRARY .*|LIBRARY         "libssl"|]] ${GEN}/libssl.def
-    COMMAND sed -z -i [[s|#if defined(OPENSSL_THREADS) && !defined(CRYPTO_TDEBUG)\n#if defined(_WIN32)|#if defined(OPENSSL_THREADS) \&\& !defined(CRYPTO_TDEBUG)\n#if defined(_WIN32) \&\& !defined(MOXNOX)|g]] ${GEN}/include/openssl/crypto.h
+    COMMAND ${HOST_SED} -i [[s|^LIBRARY .*|LIBRARY         "libcrypto"|]] ${GEN}/libcrypto.def
+    COMMAND ${HOST_SED} -i [[s|^LIBRARY .*|LIBRARY         "libssl"|]] ${GEN}/libssl.def
+    COMMAND ${HOST_SED} -z -i [[s|#if defined(OPENSSL_THREADS) && !defined(CRYPTO_TDEBUG)\n#if defined(_WIN32)|#if defined(OPENSSL_THREADS) \&\& !defined(CRYPTO_TDEBUG)\n#if defined(_WIN32) \&\& !defined(MOXNOX)|g]] ${GEN}/include/openssl/crypto.h
     DEPENDS ${GEN}/configdata.pm
     VERBATIM
 )
@@ -98,7 +98,7 @@ function(openssl_patch relpath)
         OUTPUT ${GEN}/${relpath}
         COMMAND ${CMAKE_COMMAND} -E copy
                 ${CMAKE_CURRENT_SOURCE_DIR}/repo/${relpath} ${GEN}/${relpath}
-        COMMAND sed -z -i ${ARGN} ${GEN}/${relpath}
+        COMMAND ${HOST_SED} -z -i ${ARGN} ${GEN}/${relpath}
         DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/repo/${relpath}
         VERBATIM
     )

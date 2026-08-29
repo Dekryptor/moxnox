@@ -5,7 +5,7 @@ function(python_patch relpath)
         OUTPUT ${GEN}/${relpath}
         COMMAND ${CMAKE_COMMAND} -E copy
                 ${CMAKE_CURRENT_SOURCE_DIR}/repo/${relpath} ${GEN}/${relpath}
-        COMMAND sed -z -i ${ARGN} ${GEN}/${relpath}
+        COMMAND ${HOST_SED} -z -i ${ARGN} ${GEN}/${relpath}
         DEPENDS repo/${relpath}
         VERBATIM
     )

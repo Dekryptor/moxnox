@@ -7,7 +7,7 @@ function(git_patch relpath)
         OUTPUT ${GEN}/${relpath}
         COMMAND ${CMAKE_COMMAND} -E copy
                 ${CMAKE_CURRENT_SOURCE_DIR}/repo/${relpath} ${GEN}/${relpath}
-        COMMAND sed -z -i ${ARGN} ${GEN}/${relpath}
+        COMMAND ${HOST_SED} -z -i ${ARGN} ${GEN}/${relpath}
         DEPENDS repo/${relpath}
         VERBATIM
     )
@@ -571,7 +571,7 @@ foreach(t ${GIT_TEMPLATE_FILES})
         OUTPUT ${GEN}/templates/${t}
         COMMAND ${CMAKE_COMMAND} -E make_directory ${GEN}/templates/${_tdir}
         COMMAND ${CMAKE_COMMAND} -E copy ${CMAKE_CURRENT_SOURCE_DIR}/repo/templates/${t} ${GEN}/templates/${t}
-        COMMAND sed -i -e [[1s|#!.*/sh|#!/bin/sh|]] -e [[s|@SHELL_PATH@|/bin/sh|g]] -e [[s|@PERL_PATH@|perl|g]] ${GEN}/templates/${t}
+        COMMAND ${HOST_SED} -i -e [[1s|#!.*/sh|#!/bin/sh|]] -e [[s|@SHELL_PATH@|/bin/sh|g]] -e [[s|@PERL_PATH@|perl|g]] ${GEN}/templates/${t}
         DEPENDS repo/templates/${t}
         VERBATIM
     )

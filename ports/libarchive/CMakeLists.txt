@@ -4,7 +4,7 @@ file(MAKE_DIRECTORY ${GEN}/libarchive ${GEN}/tar ${GEN}/libarchive_fe ${GEN}/cpi
 add_custom_command(
     OUTPUT ${GEN}/libarchive/archive.h
     COMMAND ${CMAKE_COMMAND} -E copy ${CMAKE_CURRENT_SOURCE_DIR}/repo/libarchive/archive.h ${GEN}/libarchive/archive.h
-    COMMAND sed -i
+    COMMAND ${HOST_SED} -i
         -e [[s@#if ((defined __WIN32__) || (defined _WIN32) || defined(__CYGWIN__)) && (!defined LIBARCHIVE_STATIC)@#if ((defined __WIN32__) || (defined _WIN32) || defined(__CYGWIN__) || defined(__moxnox__)) \&\& (!defined LIBARCHIVE_STATIC)@g]]
         ${GEN}/libarchive/archive.h
     DEPENDS repo/libarchive/archive.h
@@ -15,7 +15,7 @@ list(APPEND LA_GEN_OUTPUTS ${GEN}/libarchive/archive.h)
 add_custom_command(
     OUTPUT ${GEN}/libarchive/archive_entry.h
     COMMAND ${CMAKE_COMMAND} -E copy ${CMAKE_CURRENT_SOURCE_DIR}/repo/libarchive/archive_entry.h ${GEN}/libarchive/archive_entry.h
-    COMMAND sed -i
+    COMMAND ${HOST_SED} -i
         -e [[s@#if ((defined __WIN32__) || (defined _WIN32) || defined(__CYGWIN__)) && (!defined LIBARCHIVE_STATIC)@#if ((defined __WIN32__) || (defined _WIN32) || defined(__CYGWIN__) || defined(__moxnox__)) \&\& (!defined LIBARCHIVE_STATIC)@g]]
         ${GEN}/libarchive/archive_entry.h
     DEPENDS repo/libarchive/archive_entry.h
@@ -26,7 +26,7 @@ list(APPEND LA_GEN_OUTPUTS ${GEN}/libarchive/archive_entry.h)
 add_custom_command(
     OUTPUT ${GEN}/cpio/cpio.c
     COMMAND ${CMAKE_COMMAND} -E copy ${CMAKE_CURRENT_SOURCE_DIR}/repo/cpio/cpio.c ${GEN}/cpio/cpio.c
-    COMMAND sed -i
+    COMMAND ${HOST_SED} -i
         -e [[s@archive_write_add_filter_lz4(cpio->archive)@(ARCHIVE_FATAL)@g]]
         -e [[s@archive_write_add_filter_lzop(cpio->archive)@(ARCHIVE_FATAL)@g]]
         -e [[s@archive_write_add_filter_lrzip(cpio->archive)@(ARCHIVE_FATAL)@g]]
@@ -43,7 +43,7 @@ add_custom_command(
     COMMAND ${CMAKE_COMMAND} -E copy
             ${CMAKE_CURRENT_SOURCE_DIR}/repo/libarchive/archive_read_support_filter_all.c
             ${GEN}/libarchive/archive_read_support_filter_all.c
-    COMMAND sed -i
+    COMMAND ${HOST_SED} -i
             -e [[/archive_read_support_filter_lz4(a);/d]]
             -e [[/archive_read_support_filter_lzop(a);/d]]
             -e [[/archive_read_support_filter_lrzip(a);/d]]
@@ -58,7 +58,7 @@ add_custom_command(
     COMMAND ${CMAKE_COMMAND} -E copy
             ${CMAKE_CURRENT_SOURCE_DIR}/repo/libarchive/archive_read_support_filter_by_code.c
             ${GEN}/libarchive/archive_read_support_filter_by_code.c
-    COMMAND sed -i
+    COMMAND ${HOST_SED} -i
             -e [[/case ARCHIVE_FILTER_LZ4:/,+1d]]
             -e [[/case ARCHIVE_FILTER_LZOP:/,+1d]]
             -e [[/case ARCHIVE_FILTER_LRZIP:/,+1d]]
@@ -71,7 +71,7 @@ add_custom_command(
 add_custom_command(
     OUTPUT ${GEN}/tar/cmdline.c
     COMMAND ${CMAKE_COMMAND} -E copy ${CMAKE_CURRENT_SOURCE_DIR}/repo/tar/cmdline.c ${GEN}/tar/cmdline.c
-    COMMAND sed -i -e [[/use-compress-program/d]] ${GEN}/tar/cmdline.c
+    COMMAND ${HOST_SED} -i -e [[/use-compress-program/d]] ${GEN}/tar/cmdline.c
     DEPENDS repo/tar/cmdline.c
     VERBATIM
 )
@@ -79,7 +79,7 @@ add_custom_command(
 add_custom_command(
     OUTPUT ${GEN}/tar/creation_set.c
     COMMAND ${CMAKE_COMMAND} -E copy ${CMAKE_CURRENT_SOURCE_DIR}/repo/tar/creation_set.c ${GEN}/tar/creation_set.c
-    COMMAND sed -i
+    COMMAND ${HOST_SED} -i
             -e [[/archive_read_support_filter_program(a,/,+1d]]
             -e [[/if (cset->filters\[i\].program)$/,+3d]]
             ${GEN}/tar/creation_set.c
@@ -93,7 +93,7 @@ foreach(reg archive_write_add_filter.c archive_write_add_filter_by_name.c
         OUTPUT ${GEN}/libarchive/${reg}
         COMMAND ${CMAKE_COMMAND} -E copy
                 ${CMAKE_CURRENT_SOURCE_DIR}/repo/libarchive/${reg} ${GEN}/libarchive/${reg}
-        COMMAND sed -i
+        COMMAND ${HOST_SED} -i
                 -e [[/archive_write_add_filter_lz4/d]]
                 -e [[/archive_write_add_filter_lzop/d]]
                 -e [[/archive_write_add_filter_lrzip/d]]
