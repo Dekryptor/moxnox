@@ -1,0 +1,26 @@
+file(READ ${CMAKE_CURRENT_SOURCE_DIR}/repo/gnulib/lib/arg-nonnull.h GNULIB_SNIPPET_ARG_NONNULL)
+file(READ ${CMAKE_CURRENT_SOURCE_DIR}/repo/gnulib/lib/c++defs.h GNULIB_SNIPPET_CXXDEFS)
+file(READ ${CMAKE_CURRENT_SOURCE_DIR}/repo/gnulib/lib/warn-on-use.h GNULIB_SNIPPET_WARN_ON_USE)
+file(READ ${CMAKE_CURRENT_SOURCE_DIR}/repo/gnulib/lib/_Noreturn.h GNULIB_SNIPPET_NORETURN)
+
+function(gnulib_header template output)
+    if(NOT IS_ABSOLUTE ${template})
+        set(template ${CMAKE_CURRENT_SOURCE_DIR}/${template})
+    endif()
+    set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS ${template})
+    file(READ ${template} content)
+    string(REPLACE "/* The definition of _GL_ARG_NONNULL is copied here.  */"
+        "/* The definition of _GL_ARG_NONNULL is copied here.  */\n${GNULIB_SNIPPET_ARG_NONNULL}"
+        content "${content}")
+    string(REPLACE "/* The definitions of _GL_FUNCDECL_RPL etc. are copied here.  */"
+        "/* The definitions of _GL_FUNCDECL_RPL etc. are copied here.  */\n${GNULIB_SNIPPET_CXXDEFS}"
+        content "${content}")
+    string(REPLACE "/* The definition of _GL_WARN_ON_USE is copied here.  */"
+        "/* The definition of _GL_WARN_ON_USE is copied here.  */\n${GNULIB_SNIPPET_WARN_ON_USE}"
+        content "${content}")
+    string(REPLACE "/* The definition of _Noreturn is copied here.  */"
+        "/* The definition of _Noreturn is copied here.  */\n${GNULIB_SNIPPET_NORETURN}"
+        content "${content}")
+    string(CONFIGURE "${content}" content @ONLY)
+    file(WRITE ${output} "${content}")
+endfunction()
