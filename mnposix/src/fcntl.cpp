@@ -135,6 +135,22 @@ int fcntl(int fd, int op, ...) {
             return setfl(fd, arg);
         }
 
+        case F_GETLK:
+            print("FIXME - fcntl with F_GETLK\n");
+        break;
+
+        case F_SETLK:
+            print("FIXME - fcntl with F_SETLK\n");
+        break;
+
+        case F_SETLKW:
+            print("FIXME - fcntl with F_SETLKW\n");
+        break;
+
+        case F_DUPFD_CLOEXEC:
+            print("FIXME - fcntl with F_DUPFD_CLOEXEC\n");
+        break;
+
         default:
             print("FIXME - fcntl with unknown op {}\n", op);
         break;
