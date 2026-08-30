@@ -132,3 +132,22 @@ extern "C"
 int mbsinit(const mbstate_t* ps) {
     return (!ps || *(int*)ps == 0) ? 1 : 0;
 }
+
+extern "C"
+void* memmem(const void* haystack, size_t haystacklen, const void* needle,
+             size_t needlelen) {
+    if (needlelen == 0)
+        return (void*)haystack;
+
+    if (haystacklen < needlelen)
+        return nullptr;
+
+    for (size_t i = 0; i < haystacklen - needlelen + 1; i++) {
+        if (!memcmp(haystack, needle, needlelen))
+            return (void*)haystack;
+
+        haystack = (uint8_t*)haystack + 1;
+    }
+
+    return nullptr;
+}

@@ -228,3 +228,4 @@ __fseterr = ucrtbase.mn_fseterr
 getprogname
 getresuid
 getresgid
+memmem

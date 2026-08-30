@@ -228,6 +228,7 @@ __fseterr
 getprogname
 getresuid
 getresgid
+memmem
 
 ; stubs
 sigsuspend
@@ -242,7 +243,6 @@ getgrent
 setgrent
 setpriority
 setresgid
-memmem
 getgroups
 mlock
 munlock
