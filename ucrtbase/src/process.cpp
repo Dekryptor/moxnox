@@ -143,20 +143,26 @@ int _execve(const char* path, char* const* argv, char* const* envp) {
 
     // Linux allows argv and envp to be NULL here, against the spec
 
-    if (!path || path[0] == 0 || !argv || !envp)
-        return EINVAL;
+    if (!path || path[0] == 0 || !argv || !envp) {
+        *__errno() = EINVAL;
+        return -1;
+    }
 
     auto ret = do_exec(path, argv, envp, proc, thread, client_id, nullptr);
-    if (ret)
-        return ret;
+    if (ret) {
+        *__errno() = ret;
+        return -1;
+    }
 
     h = thread.get();
 
     status = NtSetInformationProcess(NtCurrentProcess(),
                                      PROCESS_INFORMATION_CLASS::MoxnoxExec,
                                      &h, sizeof(h));
-    if (!success(status))
-        return nt_status_to_errno(status);
+    if (!success(status)) {
+        *__errno() = nt_status_to_errno(status);
+        return -1;
+    }
 
     unreachable();
 }
