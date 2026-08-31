@@ -232,3 +232,6 @@ memmem
 endgrent
 getgrent
 setgrent
+endpwent
+getpwent
+setpwent

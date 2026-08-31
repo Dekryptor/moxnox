@@ -232,6 +232,9 @@ memmem
 endgrent
 getgrent
 setgrent
+endpwent
+getpwent
+setpwent
 
 ; stubs
 sigsuspend
@@ -268,7 +271,4 @@ grantpt
 unlockpt
 seteuid
 setegid
-getpwent
-setpwent
-endpwent
 crypt

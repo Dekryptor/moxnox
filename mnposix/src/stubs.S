@@ -36,9 +36,6 @@ do_stub "grantpt"
 do_stub "unlockpt"
 do_stub "seteuid"
 do_stub "setegid"
-do_stub "getpwent"
-do_stub "setpwent"
-do_stub "endpwent"
 do_stub "crypt"
 
 stubs_end

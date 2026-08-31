@@ -2,12 +2,17 @@
 #include <grp.h>
 #include <string.h>
 #include <unistd.h>
+#include <errno.h>
 
 #undef errno
 import errno;
 
 static char static_buf[1024];
 static char static_buf2[1024];
+
+static size_t user_index = 0;
+static struct passwd pwent;
+static char pwent_buf[1024];
 
 extern "C"
 int getpwuid_r(uid_t uid, struct passwd* pwd, char* buf, size_t size,
@@ -167,4 +172,36 @@ char* getlogin(void) {
         return nullptr;
 
     return buf;
+}
+
+extern "C"
+void endpwent() {
+    // nop
+
+    user_index = 0;
+}
+
+extern "C"
+struct passwd* getpwent(void) {
+    struct passwd* res;
+
+    // FIXME
+
+    if (user_index > 0)
+        return nullptr;
+
+    auto ret = getpwuid_r(0, &pwent, pwent_buf, sizeof(pwent_buf), &res);
+    if (ret) {
+        *_errno() = ret;
+        return nullptr;
+    }
+
+    user_index++;
+
+    return res;
+}
+
+extern "C"
+void setpwent() {
+    user_index = 0;
 }
