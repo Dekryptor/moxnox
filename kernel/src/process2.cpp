@@ -5864,6 +5864,9 @@ nt_status process::do_exec(span<const uint8_t> buffer) {
 
                 c.parent_process = newthread.proc;
             }
+
+            newthread.proc->marked_as_child = t.proc->marked_as_child;
+            t.proc->marked_as_child = false;
         }
     }
 
