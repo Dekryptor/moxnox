@@ -7537,6 +7537,8 @@ nt_status process::do_fork(span<const uint8_t> buf) {
     {
         lock_guard lock(this->children_lock);
         insert_tail_list(this->children, p.child_le);
+
+        p.marked_as_child = true;
     }
 
     // copy mappings
