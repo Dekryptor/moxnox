@@ -46,6 +46,8 @@ static const char32_t SKIN_TONE_6 = 0x1f3ff;
 static const char32_t FLAG_LETTER_A = 0x1f1e6;
 static const char32_t FLAG_LETTER_Z = 0x1f1ff;
 
+static const char PS1[] = "\\[\\e[01;31m\\]\\h\\[\\e[01;34m\\] \\w \\$\\[\\e[00m\\] ";
+
 extern uint64_t __CTOR_LIST__;
 
 struct glyph_info {
@@ -2395,6 +2397,7 @@ static int do_console(const char16_t* shell) {
     bool no_framebuffer = false;
 
     setenv("TERM", "xterm-16color", 1);
+    setenv("PS1", PS1, 1); // FIXME - this shouldn't be here
 
     framebuffer = init_framebuffer(no_framebuffer);
 #ifdef __x86_64__
@@ -2522,6 +2525,7 @@ static int do_serial_console(const char16_t* exe) {
     static const u16string_view ptyctl_fn = u"\\dev\\ptyctl";
 
     setenv("TERM", "xterm-16color", 1);
+    setenv("PS1", PS1, 1); // FIXME - this shouldn't be here
 
     // open ptyctl
 
