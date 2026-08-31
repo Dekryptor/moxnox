@@ -235,12 +235,12 @@ setgrent
 endpwent
 getpwent
 setpwent
+gethostid
 
 ; stubs
 sigsuspend
 getlocalename_l
 getpriority
-gethostid
 setresuid
 setgid
 setuid

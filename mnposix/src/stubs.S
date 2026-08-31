@@ -5,7 +5,6 @@ stubs_start
 do_stub "sigsuspend"
 do_stub "getlocalename_l"
 do_stub "getpriority"
-do_stub "gethostid"
 do_stub "setresuid"
 do_stub "setgid"
 do_stub "setuid"

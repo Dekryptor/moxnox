@@ -235,3 +235,4 @@ setgrent
 endpwent
 getpwent
 setpwent
+gethostid
