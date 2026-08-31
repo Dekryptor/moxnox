@@ -125,7 +125,7 @@ public:
                            CLIENT_ID& client_id, const CONTEXT& thread_context, const INITIAL_TEB& initial_teb,
                            bool create_suspended);
     NTSTATUS query_info(enum PROCESS_INFORMATION_CLASS process_information_class, span<uint8_t> buf,
-                        uint32_t* return_length);
+                        uint32_t& return_length);
     NTSTATUS read_vm(const void* base_address, void* buffer, uint32_t buffer_size,
                      uint32_t* number_of_bytes_read);
     NTSTATUS write_vm(void* base_address, const void* buffer, uint32_t buffer_size,
@@ -196,14 +196,14 @@ public:
     list_entry pg_le;
 
 private:
-    nt_status query_basic_info(span<uint8_t> buf, uint32_t* return_length);
-    nt_status query_image_file_name(span<uint8_t> buf, uint32_t* return_length);
-    nt_status query_times(span<uint8_t> buf, uint32_t* return_length);
-    nt_status query_children_times(span<uint8_t> buf, uint32_t* return_length);
-    nt_status query_session_id(span<uint8_t> buf, uint32_t* return_length);
-    nt_status query_find_ntdll(span<uint8_t> buf, uint32_t* return_length);
-    nt_status query_is_our_child(uint32_t* return_length);
-    nt_status query_process_group(span<uint8_t> buf, uint32_t* return_length);
+    nt_status query_basic_info(span<uint8_t> buf, uint32_t& return_length);
+    nt_status query_image_file_name(span<uint8_t> buf, uint32_t& return_length);
+    nt_status query_times(span<uint8_t> buf, uint32_t& return_length);
+    nt_status query_children_times(span<uint8_t> buf, uint32_t& return_length);
+    nt_status query_session_id(span<uint8_t> buf, uint32_t& return_length);
+    nt_status query_find_ntdll(span<uint8_t> buf, uint32_t& return_length);
+    nt_status query_is_our_child(uint32_t& return_length);
+    nt_status query_process_group(span<uint8_t> buf, uint32_t& return_length);
     nt_status set_wait_pid(span<const uint8_t> buf);
     nt_status mark_as_child();
     nt_status memory_unmap(span<const uint8_t> buf);

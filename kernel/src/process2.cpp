@@ -3907,7 +3907,7 @@ NTSTATUS NtWriteVirtualMemory(HANDLE process_handle, void* base_address,
     return nt_status::SUCCESS;
 }
 
-nt_status process::query_basic_info(span<uint8_t> buf, uint32_t* return_length) {
+nt_status process::query_basic_info(span<uint8_t> buf, uint32_t& return_length) {
     if (buf.size() < sizeof(PROCESS_BASIC_INFORMATION))
         return nt_status::INFO_LENGTH_MISMATCH;
 
@@ -3928,13 +3928,12 @@ nt_status process::query_basic_info(span<uint8_t> buf, uint32_t* return_length) 
             pbi.InheritedFromUniqueProcessId = 0;
     }
 
-    if (return_length)
-        *return_length = sizeof(PROCESS_BASIC_INFORMATION);
+    return_length = sizeof(PROCESS_BASIC_INFORMATION);
 
     return nt_status::SUCCESS;
 }
 
-nt_status process::query_image_file_name(span<uint8_t> buf, uint32_t* return_length) {
+nt_status process::query_image_file_name(span<uint8_t> buf, uint32_t& return_length) {
     RTL_USER_PROCESS_PARAMETERS* params;
     UNICODE_STRING path_name;
 
@@ -3950,8 +3949,7 @@ nt_status process::query_image_file_name(span<uint8_t> buf, uint32_t* return_len
     auto len = (uint32_t)(sizeof(UNICODE_STRING) + path_name.Length + sizeof(char16_t));
 
     if (buf.size() < len) {
-        if (return_length)
-            *return_length = len;
+        return_length = len;
 
         return nt_status::INFO_LENGTH_MISMATCH;
     }
@@ -3969,13 +3967,12 @@ nt_status process::query_image_file_name(span<uint8_t> buf, uint32_t* return_len
 
     us.Buffer[us.Length / sizeof(char16_t)] = 0;
 
-    if (return_length)
-        *return_length = len;
+    return_length = len;
 
     return nt_status::SUCCESS;
 }
 
-nt_status process::query_times(span<uint8_t> buf, uint32_t* return_length) {
+nt_status process::query_times(span<uint8_t> buf, uint32_t& return_length) {
     uint64_t time_running = 0, time_running_in_userspace = 0;
 
     if (buf.size() < sizeof(KERNEL_USER_TIMES))
@@ -4006,13 +4003,12 @@ nt_status process::query_times(span<uint8_t> buf, uint32_t* return_length) {
     kut.UserTime.QuadPart = (int64_t)((unsigned __int128)time_running_in_userspace * 10000000 / freq);
     kut.KernelTime.QuadPart = (int64_t)((unsigned __int128)(time_running - time_running_in_userspace) * 10000000 / freq);
 
-    if (return_length)
-        *return_length = sizeof(KERNEL_USER_TIMES);
+    return_length = sizeof(KERNEL_USER_TIMES);
 
     return nt_status::SUCCESS;
 }
 
-nt_status process::query_children_times(span<uint8_t> buf, uint32_t* return_length) {
+nt_status process::query_children_times(span<uint8_t> buf, uint32_t& return_length) {
     uint64_t time_running = 0, time_running_in_userspace = 0;
 
     if (buf.size() < sizeof(KERNEL_USER_TIMES))
@@ -4036,20 +4032,18 @@ nt_status process::query_children_times(span<uint8_t> buf, uint32_t* return_leng
     kut.UserTime.QuadPart = (int64_t)((unsigned __int128)time_running_in_userspace * 10000000 / freq);
     kut.KernelTime.QuadPart = (int64_t)((unsigned __int128)(time_running - time_running_in_userspace) * 10000000 / freq);
 
-    if (return_length)
-        *return_length = sizeof(KERNEL_USER_TIMES);
+    return_length = sizeof(KERNEL_USER_TIMES);
 
     return nt_status::SUCCESS;
 }
 
-nt_status process::query_find_ntdll(span<uint8_t> buf, uint32_t* return_length) {
+nt_status process::query_find_ntdll(span<uint8_t> buf, uint32_t& return_length) {
     if (buf.size() < sizeof(uintptr_t))
         return nt_status::BUFFER_TOO_SMALL;
 
     *(uintptr_t*)buf.data() = ntdll_addr;
 
-    if (return_length)
-        *return_length = sizeof(uintptr_t);
+    return_length = sizeof(uintptr_t);
 
     return nt_status::SUCCESS;
 }
@@ -4195,7 +4189,7 @@ nt_status process::set_wait_pid(span<const uint8_t> buf) {
     } while (true);
 }
 
-nt_status process::query_is_our_child(uint32_t* return_length) {
+nt_status process::query_is_our_child(uint32_t& return_length) {
     auto& t = *get_current_thread();
 
     {
@@ -4205,9 +4199,7 @@ nt_status process::query_is_our_child(uint32_t* return_length) {
             auto& c = *(process*)((uint8_t*)le - offsetof(process, child_le));
 
             if (&c == this) {
-                if (return_length)
-                    *return_length = 0;
-
+                return_length = 0;
                 return nt_status::SUCCESS;
             }
         }
@@ -4216,7 +4208,7 @@ nt_status process::query_is_our_child(uint32_t* return_length) {
     return nt_status::NOT_FOUND;
 }
 
-nt_status process::query_session_id(span<uint8_t> buf, uint32_t* return_length) {
+nt_status process::query_session_id(span<uint8_t> buf, uint32_t& return_length) {
     if (buf.size() < sizeof(uintptr_t))
         return nt_status::BUFFER_TOO_SMALL;
 
@@ -4226,14 +4218,13 @@ nt_status process::query_session_id(span<uint8_t> buf, uint32_t* return_length) 
         *(uintptr_t*)buf.data() = pg->sess.pid;
     }
 
-    if (return_length)
-        *return_length = sizeof(uintptr_t);
+    return_length = sizeof(uintptr_t);
 
     return nt_status::SUCCESS;
 }
 
 nt_status process::query_process_group(span<uint8_t> buf,
-                                       uint32_t* return_length) {
+                                       uint32_t& return_length) {
     if (buf.size() < sizeof(uintptr_t))
         return nt_status::BUFFER_TOO_SMALL;
 
@@ -4243,14 +4234,13 @@ nt_status process::query_process_group(span<uint8_t> buf,
         *(uintptr_t*)buf.data() = pg->tree.key;
     }
 
-    if (return_length)
-        *return_length = sizeof(uintptr_t);
+    return_length = sizeof(uintptr_t);
 
     return nt_status::SUCCESS;
 }
 
 NTSTATUS process::query_info(enum PROCESS_INFORMATION_CLASS process_information_class, span<uint8_t> buf,
-                             uint32_t* return_length) {
+                             uint32_t& return_length) {
     switch (process_information_class) {
         using enum PROCESS_INFORMATION_CLASS;
 
@@ -4338,7 +4328,7 @@ NTSTATUS NtQueryInformationProcess(HANDLE process_handle, enum PROCESS_INFORMATI
     }
 
     return p->query_info(process_information_class, span((uint8_t*)process_information, process_information_length),
-                         return_length);
+                         *return_length);
 }
 
 object_ref process::get_stderr() {
