@@ -328,6 +328,7 @@ export int do_exec(const char* path, char* const* argv, char* const* envp,
     memset(&oa, 0, sizeof(oa));
     oa.Length = sizeof(OBJECT_ATTRIBUTES);
     oa.ObjectName = &us;
+    oa.RootDirectory = peb.ProcessParameters->CurrentDirectory.Handle;
 
     us.Length = us.MaximumLength = (uint16_t)(u16pathsv.size() * sizeof(char16_t));
     us.Buffer = (char16_t*)u16pathsv.data();
