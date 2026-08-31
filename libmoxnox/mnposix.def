@@ -229,6 +229,9 @@ getprogname
 getresuid
 getresgid
 memmem
+endgrent
+getgrent
+setgrent
 
 ; stubs
 sigsuspend
@@ -238,9 +241,6 @@ gethostid
 setresuid
 setgid
 setuid
-endgrent
-getgrent
-setgrent
 setpriority
 setresgid
 getgroups

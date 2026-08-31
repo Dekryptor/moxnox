@@ -229,3 +229,6 @@ getprogname
 getresuid
 getresgid
 memmem
+endgrent
+getgrent
+setgrent

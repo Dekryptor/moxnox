@@ -1,4 +1,9 @@
 #include <unistd.h>
+#include <grp.h>
+
+static size_t group_index = 0;
+static struct group grent;
+static const char* grent_mem[] = { "root", nullptr };
 
 extern "C"
 uid_t getuid() {
@@ -48,4 +53,32 @@ int getresgid(gid_t* rgid, gid_t* egid, gid_t* sgid) {
     *sgid = 0;
 
     return 0;
+}
+
+extern "C"
+void endgrent() {
+    // nop
+
+    group_index = 0;
+}
+
+extern "C"
+struct group* getgrent() {
+    // FIXME
+
+    if (group_index > 0)
+        return nullptr;
+
+    grent.gr_name = (char*)"root";
+    grent.gr_gid = 0;
+    grent.gr_mem = (char**)grent_mem;
+
+    group_index++;
+
+    return &grent;
+}
+
+extern "C"
+void setgrent() {
+    group_index = 0;
 }
