@@ -7465,6 +7465,11 @@ nt_status process::do_fork(span<const uint8_t> buf) {
 
     p.tree.key = next_pid.fetch_add(1);
 
+    p.ntdll_addr = this->ntdll_addr;
+    p.img_addr = this->img_addr;
+    p.peb = this->peb;
+    p.proc_params = this->proc_params;
+
     p.img = this->img;
     p.img->get().acquire();
 
