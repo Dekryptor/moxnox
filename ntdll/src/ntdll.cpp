@@ -48,8 +48,18 @@ void do_print(string_view s) {
     auto peb = teb->ProcessEnvironmentBlock;
     IO_STATUS_BLOCK iosb;
 
-    NtWriteFile(peb->ProcessParameters->StandardError, 0, nullptr, nullptr, &iosb, s.data(),
-                (uint32_t)s.size(), nullptr, nullptr);
+    while (true) {
+        auto status = NtWriteFile(peb->ProcessParameters->StandardError, 0,
+                                  nullptr, nullptr, &iosb, s.data(),
+                                  (uint32_t)s.size(), nullptr, nullptr);
+
+        if (status == nt_status::USER_APC)
+            continue;
+        else if (!success(status) || iosb.Information == s.size())
+            return;
+
+        s = string_view(s.data() + iosb.Information, s.size() - iosb.Information);
+    }
 }
 
 void call_tls_callbacks(const LDR_DATA_TABLE_ENTRY& ent, uint32_t reason) {
