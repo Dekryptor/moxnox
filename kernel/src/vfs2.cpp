@@ -1300,7 +1300,7 @@ nt_status vec_NtWriteFile(HANDLE file_handle, HANDLE, PIO_APC_ROUTINE, void*,
     else
         status = object_write_without_offset(obj, v, written);
 
-    if (!success(status)) {
+    if (!success(status) || status == nt_status::USER_APC) {
         io_status_block->Status = status;
         io_status_block->Information = 0;
         return status;
