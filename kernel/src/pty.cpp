@@ -699,7 +699,7 @@ nt_status pty_server::write2(span<const span<const uint8_t>> v,
                 continue;
 
             auto status = client.canonical_write(s, written_bytes);
-            if (!success(status))
+            if (!success(status) || status == nt_status::USER_APC)
                 return status;
         }
 
@@ -777,7 +777,7 @@ nt_status pty_server::write(span<const span<const uint8_t>> v,
                     if (i != 0) {
                         auto sp = span(s.data(), i);
                         status = write2(span(&sp, 1), bytes);
-                        if (!success(status)) {
+                        if (!success(status) || status == nt_status::USER_APC) {
                             if (written_bytes > 0)
                                 return nt_status::SUCCESS;
                             else
@@ -838,7 +838,7 @@ nt_status pty_server::write(span<const span<const uint8_t>> v,
                 continue;
 
             status = write2(span(&s, 1), bytes);
-            if (!success(status)) {
+            if (!success(status) || status == nt_status::USER_APC) {
                 if (written_bytes > 0)
                     return nt_status::SUCCESS;
                 else
