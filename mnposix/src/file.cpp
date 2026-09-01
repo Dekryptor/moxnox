@@ -1249,11 +1249,19 @@ ssize_t pwrite(int fd, const void* buf, size_t count, off_t offset) {
 
     off.QuadPart = offset;
 
-    auto status = NtWriteFile(h, 0, nullptr, nullptr, &iosb, buf,
-                              (uint32_t)count, &off, nullptr);
-    if (!success(status)) {
-        *_errno() = nt_status_to_errno(status);
-        return -1;
+    while (true) {
+        auto status = NtWriteFile(h, 0, nullptr, nullptr, &iosb, buf,
+                                  (uint32_t)count, &off, nullptr);
+
+        if (status == nt_status::USER_APC)
+            continue;
+
+        if (!success(status)) {
+            *_errno() = nt_status_to_errno(status);
+            return -1;
+        }
+
+        break;
     }
 
     return (int)iosb.Information;
