@@ -547,8 +547,15 @@ size_t __fread_nolock(void* ptr, size_t size, size_t n, FILE* file) {
         auto sp = span(f.buffer.data, f.buffer.size);
         size_t read_bytes = 0;
 
-        status = NtReadFile(f.h, 0, nullptr, nullptr, &iosb, sp.data(),
-                            (uint32_t)sp.size(), nullptr, nullptr);
+        while (true) {
+            status = NtReadFile(f.h, 0, nullptr, nullptr, &iosb, sp.data(),
+                                (uint32_t)sp.size(), nullptr, nullptr);
+            if (status == nt_status::USER_APC)
+                continue;
+
+            break;
+        }
+
         if (status != nt_status::END_OF_FILE && !success(status)) {
             if (read == 0) {
                 *__errno() = nt_status_to_errno(status);
@@ -574,8 +581,15 @@ size_t __fread_nolock(void* ptr, size_t size, size_t n, FILE* file) {
     if (bytes == 0)
         return read / size;
 
-    status = NtReadFile(f.h, 0, nullptr, nullptr, &iosb, ptr, (uint32_t)bytes,
-                        nullptr, nullptr);
+    while (true) {
+        status = NtReadFile(f.h, 0, nullptr, nullptr, &iosb, ptr, (uint32_t)bytes,
+                            nullptr, nullptr);
+        if (status == nt_status::USER_APC)
+            continue;
+
+        break;
+    }
+
     if (status == nt_status::END_OF_FILE)
         f.eof = true;
     else if (!success(status) && read == 0) {
