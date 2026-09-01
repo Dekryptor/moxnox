@@ -270,7 +270,13 @@ nt_status pipe::write(span<const span<const uint8_t>> v,
 
         // block while we wait for space to become available
         auto status = wait_for_object(not_full_event, true);
-        if (!success(status))
+
+        if (status == nt_status::USER_APC) {
+            if (written_bytes == 0)
+                return nt_status::USER_APC;
+            else
+                break;
+        } else if (!success(status))
             return status;
 
         if (server_closed)
