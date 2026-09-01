@@ -2117,7 +2117,7 @@ NTSTATUS file::set_information(void* buffer, uint32_t buffer_size,
 
         case PositionInformation: {
             if (ino.type != object_type::inode)
-                return nt_status::INVALID_PARAMETER;
+                return nt_status::INVALID_DEVICE_REQUEST;
 
             if (buffer_size < sizeof(FILE_POSITION_INFORMATION))
                 return nt_status::BUFFER_TOO_SMALL;
