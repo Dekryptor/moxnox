@@ -2553,7 +2553,10 @@ int64_t _lseeki64(int fd, int64_t offset, int whence) {
 
     status = NtSetInformationFile(h, &iosb, &fpi, sizeof(fpi),
                                   FILE_INFORMATION_CLASS::PositionInformation);
-    if (!success(status)) {
+    if (status == nt_status::INVALID_DEVICE_REQUEST) {
+        *__errno() = ESPIPE;
+        return -1;
+    } else if (!success(status)) {
         *__errno() = nt_status_to_errno(status);
         return -1;
     }
