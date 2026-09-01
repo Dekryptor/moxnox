@@ -1930,13 +1930,20 @@ ssize_t writev(int fd, const iovec* iov, int iovcnt) {
     if (h == (HANDLE)-1)
         return -1;
 
-    auto status = NtDeviceIoControlFile(h, 0, nullptr, nullptr, &iosb,
-                                        IOCTL_MOXNOX_FILE_WRITEV, iov,
-                                        (uint32_t)sizeof(iovec) * iovcnt, &bytes,
-                                        sizeof(bytes));
-    if (!success(status)) {
-        *_errno() = nt_status_to_errno(status);
-        return -1;
+    while (true) {
+        auto status = NtDeviceIoControlFile(h, 0, nullptr, nullptr, &iosb,
+                                            IOCTL_MOXNOX_FILE_WRITEV, iov,
+                                            (uint32_t)sizeof(iovec) * iovcnt, &bytes,
+                                            sizeof(bytes));
+        if (status == nt_status::USER_APC)
+            continue;
+
+        if (!success(status)) {
+            *_errno() = nt_status_to_errno(status);
+            return -1;
+        }
+
+        break;
     }
 
     return (ssize_t)bytes;
