@@ -1979,13 +1979,20 @@ int __read(int fd, void* buffer, size_t count) {
     if ((intptr_t)h < 0)
         return -1;
 
-    auto status = NtReadFile(h, 0, nullptr, nullptr, &iosb, buffer,
-                             (uint32_t)count, nullptr, nullptr);
-    if (status == nt_status::END_OF_FILE || status == nt_status::PIPE_DISCONNECTED)
-        return 0;
-    else if (!success(status)) {
-        *__errno() = nt_status_to_errno(status);
-        return -1;
+    while (true) {
+        auto status = NtReadFile(h, 0, nullptr, nullptr, &iosb, buffer,
+                                (uint32_t)count, nullptr, nullptr);
+        if (status == nt_status::USER_APC)
+            continue;
+
+        if (status == nt_status::END_OF_FILE || status == nt_status::PIPE_DISCONNECTED)
+            return 0;
+        else if (!success(status)) {
+            *__errno() = nt_status_to_errno(status);
+            return -1;
+        }
+
+        break;
     }
 
     return (int)iosb.Information;
