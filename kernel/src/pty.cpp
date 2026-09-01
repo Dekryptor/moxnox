@@ -375,8 +375,13 @@ nt_status pty_client::write(span<const span<const uint8_t>> v,
                     if (disconnected)
                         return nt_status::PIPE_DISCONNECTED;
 
-                    if (!success(status))
-                        return status;
+                    if (!success(status) || status == nt_status::USER_APC) {
+                        if (w == 0)
+                            return status;
+
+                        written_bytes = w;
+                        return nt_status::SUCCESS;
+                    }
 
                     w += sent;
                     break;
@@ -390,7 +395,7 @@ nt_status pty_client::write(span<const span<const uint8_t>> v,
                         if (disconnected)
                             return nt_status::PIPE_DISCONNECTED;
 
-                        if (!success(status)) {
+                        if (!success(status) || status == nt_status::USER_APC) {
                             if (w == 0)
                                 return status;
 
@@ -416,7 +421,7 @@ nt_status pty_client::write(span<const span<const uint8_t>> v,
                         if (disconnected)
                             return nt_status::PIPE_DISCONNECTED;
 
-                        if (!success(status)) {
+                        if (!success(status) || status == nt_status::USER_APC) {
                             if (w == 0)
                                 return status;
 
@@ -431,7 +436,7 @@ nt_status pty_client::write(span<const span<const uint8_t>> v,
                             if (disconnected)
                                 return nt_status::PIPE_DISCONNECTED;
 
-                            if (!success(status)) {
+                            if (!success(status) || status == nt_status::USER_APC) {
                                 if (w == 0)
                                     return status;
 
