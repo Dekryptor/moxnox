@@ -1549,7 +1549,7 @@ static nt_status file_writev(file& f, span<const uint8_t> inbuf,
     else if (spans_size > 0)
         free(spans);
 
-    if (!success(status))
+    if (!success(status) || status == nt_status::USER_APC)
         return status;
 
     written = sizeof(uint64_t);
