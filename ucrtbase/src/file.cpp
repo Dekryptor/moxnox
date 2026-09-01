@@ -1975,11 +1975,18 @@ int __write(int fd, const void* buffer, unsigned int count) {
     if ((intptr_t)h < 0)
         return -1;
 
-    auto status = NtWriteFile(h, 0, nullptr, nullptr, &iosb, buffer,
-                              count, nullptr, nullptr);
-    if (!success(status)) {
-        *__errno() = nt_status_to_errno(status);
-        return -1;
+    while (true) {
+        auto status = NtWriteFile(h, 0, nullptr, nullptr, &iosb, buffer,
+                                count, nullptr, nullptr);
+        if (status == nt_status::USER_APC)
+            continue;
+
+        if (!success(status)) {
+            *__errno() = nt_status_to_errno(status);
+            return -1;
+        }
+
+        break;
     }
 
     return (int)iosb.Information;
