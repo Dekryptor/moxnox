@@ -695,9 +695,16 @@ size_t __fwrite_nolock(const void* ptr, size_t size, size_t n, FILE* file) {
                 auto sp = span(f.buffer.data, to_flush);
 
                 while (!sp.empty()) {
-                    status = NtWriteFile(f.h, 0, nullptr, nullptr, &iosb,
-                                         sp.data(), (uint32_t)sp.size(), nullptr,
-                                         nullptr);
+                    while (true) {
+                        status = NtWriteFile(f.h, 0, nullptr, nullptr, &iosb,
+                                             sp.data(), (uint32_t)sp.size(),
+                                             nullptr, nullptr);
+                        if (status == nt_status::USER_APC)
+                            continue;
+
+                        break;
+                    }
+
                     if (!success(status)) {
                         if (written == 0) {
                             *__errno() = nt_status_to_errno(status);
@@ -734,8 +741,15 @@ size_t __fwrite_nolock(const void* ptr, size_t size, size_t n, FILE* file) {
                 return written / size;
         }
 
-        status = NtWriteFile(f.h, 0, nullptr, nullptr, &iosb, ptr,
-                             (uint32_t)bytes, nullptr, nullptr);
+        while (true) {
+            status = NtWriteFile(f.h, 0, nullptr, nullptr, &iosb, ptr,
+                                 (uint32_t)bytes, nullptr, nullptr);
+            if (status == nt_status::USER_APC)
+                continue;
+
+            break;
+        }
+
         if (!success(status) && written == 0) {
             *__errno() = nt_status_to_errno(status);
             f.error = true;
