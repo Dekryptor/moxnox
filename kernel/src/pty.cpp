@@ -614,8 +614,9 @@ nt_status pty_client::canonical_write(span<const uint8_t> s, uint64_t& written_b
             }
 
             while (true) {
+                // FIXME - mechanics of canonical writes mean that this should be an uninterruptible wait
                 status = recv_pipe.write(span(&sp, 1), bytes);
-                if (!success(status))
+                if (!success(status) || status == nt_status::USER_APC)
                     return status;
 
                 if (bytes == sp.size())
@@ -658,7 +659,7 @@ nt_status pty_client::canonical_write(span<const uint8_t> s, uint64_t& written_b
                 break;
 
             status = do_line(span((uint8_t*)input_buffer.data(), input_buffer_valid));
-            if (!success(status))
+            if (!success(status) || status == nt_status::USER_APC)
                 return status;
 
             input_buffer_valid = 0;
