@@ -7513,6 +7513,8 @@ nt_status process::do_fork(span<const uint8_t> buf) {
             ho2->obj = &obj;
             ho2->access_mask = ho.access_mask;
 
+            obj.handle_count++;
+
             insert_into_rbtree(p.handles, ho2->tree);
 
             n = next_rbtree_node(*n);
