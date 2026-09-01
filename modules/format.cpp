@@ -489,6 +489,8 @@ span<char> do_format_arg(span<char> sp, string_view, nt_status arg) {
             return sp_strcpy(sp, "INVALID_CID");
         case nt_status::INVALID_PARAMETER:
             return sp_strcpy(sp, "INVALID_PARAMETER");
+        case nt_status::INVALID_DEVICE_REQUEST:
+            return sp_strcpy(sp, "INVALID_DEVICE_REQUEST");
         case nt_status::END_OF_FILE:
             return sp_strcpy(sp, "END_OF_FILE");
         case nt_status::NO_MEMORY:

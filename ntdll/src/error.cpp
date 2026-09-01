@@ -53,6 +53,8 @@ uint32_t RtlNtStatusToDosErrorNoTeb(nt_status status) {
             return ERROR_INVALID_PARAMETER;
         case INVALID_PARAMETER:
             return ERROR_INVALID_PARAMETER;
+        case INVALID_DEVICE_REQUEST:
+            return ERROR_INVALID_FUNCTION;
         case END_OF_FILE:
             return ERROR_HANDLE_EOF;
         case NO_MEMORY:
