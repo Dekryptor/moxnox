@@ -4,7 +4,6 @@ stubs_start
 
 do_stub "sigsuspend"
 do_stub "getlocalename_l"
-do_stub "getpriority"
 do_stub "setpriority"
 do_stub "getgroups"
 do_stub "mlock"

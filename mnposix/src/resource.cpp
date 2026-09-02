@@ -107,3 +107,15 @@ int setrlimit(int resource, const rlimit* rlp) {
 
     return 0;
 }
+
+extern "C"
+int getpriority(int which, id_t /*who*/) {
+    if (which != PRIO_PROCESS && which != PRIO_PGRP && which != PRIO_USER) {
+        *_errno() = EINVAL;
+        return -1;
+    }
+
+    // FIXME
+
+    return 0;
+}

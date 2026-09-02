@@ -244,3 +244,4 @@ seteuid
 setegid
 setresuid
 setresgid
+getpriority
