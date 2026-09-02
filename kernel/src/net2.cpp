@@ -2699,99 +2699,6 @@ raw_socket<FAMILY>::~raw_socket() {
     }
 }
 
-nt_status socket::do_recvfrom(span<const uint8_t> inbuf, bool nonblock) {
-    nt_status status;
-
-    if (inbuf.size() < sizeof(MOXNOX_SOCKET_RECVFROM))
-        return nt_status::BUFFER_TOO_SMALL;
-
-    auto& t = *get_current_thread();
-    if (!t.proc)
-        return nt_status::INTERNAL_ERROR;
-
-    auto& params = *(MOXNOX_SOCKET_RECVFROM*)inbuf.data();
-    size_t recv_bytes;
-    int fromlen = 0, orig_fromlen = 0;
-
-    if (params.len < 0 || !params.recv_bytes)
-        return nt_status::INVALID_PARAMETER;
-
-    if (params.fromlen) {
-        uint32_t read_bytes;
-
-        status = t.proc->read_vm(params.fromlen, &fromlen, sizeof(fromlen),
-                                 &read_bytes);
-        if (!success(status))
-            return status;
-
-        if (read_bytes < sizeof(fromlen))
-            return nt_status::NO_MEMORY;
-
-        if (fromlen < 0)
-            return nt_status::INVALID_PARAMETER;
-
-        orig_fromlen = fromlen;
-    }
-
-    if (params.len > 0 && (!is_userspace_address((uintptr_t)params.buf) || !is_userspace_address((uintptr_t)params.buf + params.len - 1)))
-        return nt_status::ACCESS_VIOLATION;
-
-    optional<rangelock_req> rlr;
-    span<uint8_t>* spans = nullptr;
-    size_t num_spans = 0;
-    sockaddr_storage from;
-
-    if (params.len > 0) {
-        status = pin_userspace_buffer_for_writing(*t.proc, span((uint8_t*)params.buf, params.len),
-                                                  rlr, spans, num_spans);
-        if (!success(status))
-            return status;
-    }
-
-    if (nonblock) {
-        status = this->recvfrom_nonblock(span(spans, num_spans),
-                                         params.flags, &from,
-                                         fromlen != 0 ? &fromlen : nullptr,
-                                         recv_bytes);
-    } else {
-        status = this->recvfrom(span(spans, num_spans), params.flags,
-                                &from, fromlen != 0 ? &fromlen : nullptr,
-                                recv_bytes);
-    }
-
-    rlr.reset();
-
-    auto spans_size = sizeof(span<uint8_t>) * num_spans;
-    if (spans_size > PAGE_SIZE)
-        vfree(spans, spans_size);
-    else if (spans_size > 0)
-        free(spans);
-
-    if (!success(status))
-        return status;
-
-    if (params.from && fromlen != 0) {
-        status = t.proc->write_vm(params.from, &from,
-                                  (uint32_t)min(orig_fromlen, fromlen), nullptr);
-        if (!success(status))
-            return status;
-    }
-
-    if (params.fromlen) {
-        status = t.proc->write_vm(params.fromlen, &fromlen,
-                                    (uint32_t)sizeof(fromlen), nullptr);
-        if (!success(status))
-            return status;
-    }
-
-    status = t.proc->write_vm(params.recv_bytes, &recv_bytes, sizeof(size_t),
-                              nullptr);
-    if (!success(status))
-        return status;
-
-    return nt_status::SUCCESS;
-}
-
 nt_status socket::do_recvmsg(span<const uint8_t> inbuf, bool nonblock) {
     nt_status status;
     uint32_t read_bytes;
@@ -3329,9 +3236,6 @@ nt_status socket::ioctl(uint32_t code, span<const uint8_t> inbuf,
                         span<uint8_t> outbuf, uintptr_t& written_bytes,
                         bool nonblock) {
     switch (code) {
-        case IOCTL_MOXNOX_SOCKET_RECVFROM:
-            return do_recvfrom(inbuf, nonblock);
-
         case IOCTL_MOXNOX_SOCKET_RECVMSG:
             return do_recvmsg(inbuf, nonblock);
 

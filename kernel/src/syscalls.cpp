@@ -1055,9 +1055,6 @@ static void print_ioctl_code(uint32_t code) {
         case IOCTL_MOXNOX_NETCTL_SOCKET:
             print("IOCTL_MOXNOX_NETCTL_SOCKET");
             break;
-        case IOCTL_MOXNOX_SOCKET_RECVFROM:
-            print("IOCTL_MOXNOX_SOCKET_RECVFROM");
-            break;
         case IOCTL_MOXNOX_NETCTL_GET_NETIF_COUNT:
             print("IOCTL_MOXNOX_NETCTL_GET_NETIF_COUNT");
             break;
