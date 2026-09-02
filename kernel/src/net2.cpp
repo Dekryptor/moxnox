@@ -2792,6 +2792,135 @@ nt_status socket::do_recvfrom(span<const uint8_t> inbuf, bool nonblock) {
     return nt_status::SUCCESS;
 }
 
+nt_status socket::do_recvmsg(span<const uint8_t> inbuf, bool nonblock) {
+    nt_status status;
+    uint32_t read_bytes;
+
+    if (inbuf.size() < sizeof(MOXNOX_SOCKET_RECVMSG))
+        return nt_status::BUFFER_TOO_SMALL;
+
+    auto& t = *get_current_thread();
+    if (!t.proc)
+        return nt_status::INTERNAL_ERROR;
+
+    auto& params = *(MOXNOX_SOCKET_RECVMSG*)inbuf.data();
+    size_t recv_bytes;
+    int fromlen = 0, orig_fromlen = 0;
+
+    if (!params.recv_bytes)
+        return nt_status::INVALID_PARAMETER;
+
+    if (params.vec_count > PAGE_SIZE / sizeof(iovec))
+        return nt_status::INVALID_PARAMETER;
+
+    if (params.fromlen) {
+        status = t.proc->read_vm(params.fromlen, &fromlen, sizeof(fromlen),
+                                 &read_bytes);
+        if (!success(status))
+            return status;
+
+        if (read_bytes < sizeof(fromlen))
+            return nt_status::NO_MEMORY;
+
+        if (fromlen < 0)
+            return nt_status::INVALID_PARAMETER;
+
+        orig_fromlen = fromlen;
+    }
+
+    iovec* usvec = nullptr;
+
+    if (params.vec_count > 0) {
+        usvec = (iovec*)malloc(params.vec_count * sizeof(iovec));
+        if (!usvec) {
+            print("out of memory\n");
+            return nt_status::INSUFFICIENT_RESOURCES;
+        }
+
+        status = t.proc->read_vm(params.vec, usvec, (uint32_t)(params.vec_count * sizeof(iovec)),
+                                &read_bytes);
+        if (!success(status)) {
+            free(usvec);
+            return status;
+        }
+
+        if (read_bytes < (uint32_t)(params.vec_count * sizeof(iovec))) {
+            free(usvec);
+            return nt_status::NO_MEMORY;
+        }
+    }
+
+    optional<rangelock_req> rlr;
+    span<uint8_t>* spans = nullptr;
+    size_t num_spans = 0;
+    sockaddr_storage from;
+
+    for (size_t i = 0; i < params.vec_count; i++) {
+        auto& v = usvec[i];
+
+        if (v.iov_len > 0 && (!is_userspace_address((uintptr_t)v.iov_base) || !is_userspace_address((uintptr_t)v.iov_base + v.iov_len - 1))) {
+            free(usvec);
+            return nt_status::ACCESS_VIOLATION;
+        }
+    }
+
+    if (usvec) {
+        status = pin_iovecs_for_writing(*t.proc, span(usvec, params.vec_count),
+                                        rlr, spans, num_spans);
+        if (!success(status)) {
+            free(usvec);
+            return status;
+        }
+
+        free(usvec);
+    }
+
+    if (nonblock) {
+        status = this->recvfrom_nonblock(span(spans, num_spans),
+                                         params.flags, &from,
+                                         fromlen != 0 ? &fromlen : nullptr,
+                                         recv_bytes);
+    } else {
+        status = this->recvfrom(span(spans, num_spans), params.flags,
+                                &from, fromlen != 0 ? &fromlen : nullptr,
+                                recv_bytes);
+    }
+
+    rlr.reset();
+
+    auto spans_size = sizeof(span<uint8_t>) * num_spans;
+    if (spans_size > PAGE_SIZE)
+        vfree(spans, spans_size);
+    else if (spans_size > 0)
+        free(spans);
+
+    if (!success(status) || status == nt_status::USER_APC)
+        return status;
+
+    if (params.from && fromlen != 0) {
+        status = t.proc->write_vm(params.from, &from,
+                                  (uint32_t)min(orig_fromlen, fromlen), nullptr);
+        if (!success(status))
+            return status;
+    }
+
+    if (params.fromlen) {
+        size_t val = fromlen;
+
+        status = t.proc->write_vm(params.fromlen, &val, (uint32_t)sizeof(size_t),
+                                  nullptr);
+        if (!success(status))
+            return status;
+    }
+
+    status = t.proc->write_vm(params.recv_bytes, &recv_bytes, sizeof(size_t),
+                              nullptr);
+    if (!success(status))
+        return status;
+
+    return nt_status::SUCCESS;
+}
+
 nt_status socket::do_sendmsg(span<const uint8_t> inbuf) {
     nt_status status;
     uint32_t read_bytes;
@@ -3202,6 +3331,9 @@ nt_status socket::ioctl(uint32_t code, span<const uint8_t> inbuf,
     switch (code) {
         case IOCTL_MOXNOX_SOCKET_RECVFROM:
             return do_recvfrom(inbuf, nonblock);
+
+        case IOCTL_MOXNOX_SOCKET_RECVMSG:
+            return do_recvmsg(inbuf, nonblock);
 
         case IOCTL_MOXNOX_SOCKET_SENDMSG:
             return do_sendmsg(inbuf);

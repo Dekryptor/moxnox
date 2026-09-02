@@ -75,6 +75,7 @@ export const auto IOCTL_MOXNOX_FILE_WRITEV = CTL_CODE(FILE_DEVICE_MOXNOX, 42, IO
 export const auto IOCTL_MOXNOX_TRACECTL_ENABLE = CTL_CODE(FILE_DEVICE_MOXNOX, 43, IOCTL_METHOD::BUFFERED, IOCTL_ACCESS::ANY);
 export const auto IOCTL_MOXNOX_TRACECTL_DISABLE = CTL_CODE(FILE_DEVICE_MOXNOX, 44, IOCTL_METHOD::BUFFERED, IOCTL_ACCESS::ANY);
 export const auto IOCTL_MOXNOX_SOCKET_SENDMSG = CTL_CODE(FILE_DEVICE_MOXNOX, 45, IOCTL_METHOD::BUFFERED, IOCTL_ACCESS::ANY);
+export const auto IOCTL_MOXNOX_SOCKET_RECVMSG = CTL_CODE(FILE_DEVICE_MOXNOX, 46, IOCTL_METHOD::BUFFERED, IOCTL_ACCESS::ANY);
 
 export struct MOXNOX_SET_CURSOR {
     uint32_t x;
@@ -122,6 +123,15 @@ export struct MOXNOX_SOCKET_RECVFROM {
     int flags;
     void* from;
     int* fromlen;
+    size_t* recv_bytes;
+};
+
+export struct MOXNOX_SOCKET_RECVMSG {
+    const iovec* vec;
+    size_t vec_count;
+    int flags;
+    void* from;
+    size_t* fromlen;
     size_t* recv_bytes;
 };
 
