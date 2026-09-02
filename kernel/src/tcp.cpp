@@ -132,7 +132,7 @@ public:
     }
 
     nt_status sendto(span<const span<const uint8_t>> v, int flags, sockaddr* to,
-                     int tolen, uint64_t& sent_bytes) override;
+                     size_t tolen, uint64_t& sent_bytes) override;
     nt_status bind(const sockaddr* addr, size_t addrlen) override;
     nt_status connect(const sockaddr* addr, size_t addrlen) override;
     nt_status listen(int backlog) override;
@@ -1237,7 +1237,7 @@ uint16_t ipv6_tcp_socket::allowed_send_bytes() {
 }
 
 nt_status ipv6_tcp_socket::sendto(span<const span<const uint8_t>> v, int flags,
-                                  sockaddr*, int, uint64_t& sent_bytes) {
+                                  sockaddr*, size_t, uint64_t& sent_bytes) {
     nt_status status = nt_status::SUCCESS;
 
     // sockaddr is ignored

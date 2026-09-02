@@ -31,7 +31,7 @@ public:
     }
 
     nt_status sendto(span<const span<const uint8_t>> v, int flags, sockaddr* to,
-                     int tolen, uint64_t& sent_bytes) override;
+                     size_t tolen, uint64_t& sent_bytes) override;
     nt_status bind(const sockaddr* addr, size_t addrlen) override;
     nt_status connect(const sockaddr* addr, size_t addrlen) override;
 
@@ -382,7 +382,7 @@ static uint16_t find_ephemeral_udp_port() {
 }
 
 nt_status ipv6_udp_socket::sendto(span<const span<const uint8_t>> v, int flags,
-                                  sockaddr* to, int tolen, uint64_t& sent_bytes) {
+                                  sockaddr* to, size_t tolen, uint64_t& sent_bytes) {
     nt_status status;
     ipv6_address src;
     uint16_t srcport;
@@ -402,7 +402,7 @@ nt_status ipv6_udp_socket::sendto(span<const span<const uint8_t>> v, int flags,
         }
     }
 
-    if (!connected && (!to || tolen < 0 || (size_t)tolen < sizeof(sockaddr_in6)))
+    if (!connected && (!to || tolen < sizeof(sockaddr_in6)))
         return nt_status::INVALID_PARAMETER;
 
     // if connected, sendto destination is ignored
