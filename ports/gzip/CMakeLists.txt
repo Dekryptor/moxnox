@@ -15,11 +15,11 @@ foreach(script gunzip zcat zcmp zdiff zegrep zfgrep zforce zgrep zless zmore zne
     string(REPLACE "'gzip'" "gzip" SCRIPT_CONTENT "${SCRIPT_CONTENT}")
     string(REPLACE "'grep'" "grep" SCRIPT_CONTENT "${SCRIPT_CONTENT}")
     string(REPLACE "@GREP@" "grep" SCRIPT_CONTENT "${SCRIPT_CONTENT}")
-    file(WRITE ${GEN}/scripts/${script} "${SCRIPT_CONTENT}")
+    file(CONFIGURE OUTPUT ${GEN}/scripts/${script} CONTENT "${SCRIPT_CONTENT}" @ONLY)
 endforeach()
 
-file(WRITE ${GEN}/version.c "#include <config.h>\n#include \"version.h\"\nchar const *Version = \"1.14\";\n")
-file(WRITE ${GEN}/version.h "extern char const *Version;\n")
+file(CONFIGURE OUTPUT ${GEN}/version.c CONTENT "#include <config.h>\n#include \"version.h\"\nchar const *Version = \"1.14\";\n" @ONLY)
+file(CONFIGURE OUTPUT ${GEN}/version.h CONTENT "extern char const *Version;\n" @ONLY)
 
 add_executable(gzip
     repo/bits.c
