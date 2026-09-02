@@ -272,3 +272,5 @@ wcswidth
 grantpt
 unlockpt
 crypt
+alarm
+sleep

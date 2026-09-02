@@ -48,7 +48,6 @@ add_library(mingwex STATIC
     repo/mingw-w64-crt/math/fpclassifyl.c
     repo/mingw-w64-crt/math/isnan.c
     repo/mingw-w64-crt/math/isnanl.c
-    repo/mingw-w64-crt/misc/alarm.c
     repo/mingw-w64-crt/misc/feclearexcept.c
     repo/mingw-w64-crt/misc/fegetenv.c
     repo/mingw-w64-crt/misc/fegetround.c
@@ -59,7 +58,6 @@ add_library(mingwex STATIC
     repo/mingw-w64-crt/misc/mingw_setfp.c
     repo/mingw-w64-crt/misc/getopt.c
     repo/mingw-w64-crt/misc/mingw_matherr.c
-    repo/mingw-w64-crt/misc/sleep.c
     repo/mingw-w64-crt/misc/wmemchr.c
     repo/mingw-w64-crt/misc/wmemcmp.c
     repo/mingw-w64-crt/misc/wmemcpy.c

@@ -26,5 +26,7 @@ do_stub "wcswidth"
 do_stub "grantpt"
 do_stub "unlockpt"
 do_stub "crypt"
+do_stub "alarm"
+do_stub "sleep"
 
 stubs_end
