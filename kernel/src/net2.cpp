@@ -11,6 +11,7 @@ module;
 #include <string_view>
 #include <stddef.h>
 #include <stdint.h>
+#include <sys/uio.h>
 
 module net;
 
@@ -2866,6 +2867,112 @@ nt_status socket::do_sendto(span<const uint8_t> inbuf) {
     return nt_status::SUCCESS;
 }
 
+nt_status socket::do_sendmsg(span<const uint8_t> inbuf) {
+    nt_status status;
+    uint32_t read_bytes;
+
+    if (inbuf.size() < sizeof(MOXNOX_SOCKET_SENDMSG))
+        return nt_status::BUFFER_TOO_SMALL;
+
+    auto& t = *get_current_thread();
+    if (!t.proc)
+        return nt_status::INTERNAL_ERROR;
+
+    auto& params = *(MOXNOX_SOCKET_SENDMSG*)inbuf.data();
+    sockaddr_storage to;
+    size_t sent_bytes;
+
+    if ((params.tolen == 0 && params.to) || (params.tolen != 0 && !params.to))
+        return nt_status::INVALID_PARAMETER;
+
+    if (!params.sent_bytes)
+        return nt_status::INVALID_PARAMETER;
+
+    if (params.vec_count > PAGE_SIZE / sizeof(iovec))
+        return nt_status::INVALID_PARAMETER;
+
+    if (params.to) {
+        if ((size_t)params.tolen > sizeof(sockaddr_storage))
+            return nt_status::INVALID_PARAMETER;
+
+        status = t.proc->read_vm(params.to, &to, (uint32_t)params.tolen,
+                                 &read_bytes);
+        if (!success(status))
+            return status;
+
+        if (read_bytes < (uint32_t)params.tolen)
+            return nt_status::NO_MEMORY;
+    }
+
+    iovec* usvec = nullptr;
+
+    if (params.vec_count > 0) {
+        usvec = (iovec*)malloc(params.vec_count * sizeof(iovec));
+        if (!usvec) {
+            print("out of memory\n");
+            return nt_status::INSUFFICIENT_RESOURCES;
+        }
+
+        status = t.proc->read_vm(params.vec, usvec, (uint32_t)(params.vec_count * sizeof(iovec)),
+                                &read_bytes);
+        if (!success(status)) {
+            free(usvec);
+            return status;
+        }
+
+        if (read_bytes < (uint32_t)(params.vec_count * sizeof(iovec))) {
+            free(usvec);
+            return nt_status::NO_MEMORY;
+        }
+    }
+
+    optional<rangelock_req> rlr;
+    span<const uint8_t>* spans = nullptr;
+    size_t num_spans = 0;
+
+    for (size_t i = 0; i < params.vec_count; i++) {
+        auto& v = usvec[i];
+
+        if (v.iov_len > 0 && (!is_userspace_address((uintptr_t)v.iov_base) || !is_userspace_address((uintptr_t)v.iov_base + v.iov_len - 1))) {
+            free(usvec);
+            return nt_status::ACCESS_VIOLATION;
+        }
+    }
+
+    if (usvec) {
+        status = pin_iovecs_for_reading(*t.proc, span(usvec, params.vec_count), rlr,
+                                        spans, num_spans);
+        if (!success(status)) {
+            free(usvec);
+            return status;
+        }
+
+        free(usvec);
+    }
+
+    status = this->sendto(span(spans, num_spans), params.flags,
+                          params.to ? (sockaddr*)&to : nullptr, (int)params.tolen,
+                          sent_bytes);
+
+    rlr.reset();
+
+    auto spans_size = sizeof(span<const uint8_t>) * num_spans;
+    if (spans_size > PAGE_SIZE)
+        vfree(spans, spans_size);
+    else if (spans_size > 0)
+        free(spans);
+
+    if (!success(status) || status == nt_status::USER_APC)
+        return status;
+
+    status = t.proc->write_vm(params.sent_bytes, &sent_bytes, sizeof(size_t),
+                              nullptr);
+    if (!success(status))
+        return status;
+
+    return nt_status::SUCCESS;
+}
+
 nt_status socket::do_bind(span<const uint8_t> inbuf) {
     if (inbuf.size() < sizeof(sockaddr))
         return nt_status::BUFFER_TOO_SMALL;
@@ -3173,6 +3280,9 @@ nt_status socket::ioctl(uint32_t code, span<const uint8_t> inbuf,
 
         case IOCTL_MOXNOX_SOCKET_SENDTO:
             return do_sendto(inbuf);
+
+        case IOCTL_MOXNOX_SOCKET_SENDMSG:
+            return do_sendmsg(inbuf);
 
         case IOCTL_MOXNOX_SOCKET_BIND:
             return do_bind(inbuf);

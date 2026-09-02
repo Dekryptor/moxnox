@@ -1169,6 +1169,9 @@ static void print_ioctl_code(uint32_t code) {
         case IOCTL_MOXNOX_TRACECTL_DISABLE:
             print("IOCTL_MOXNOX_TRACECTL_DISABLE");
             break;
+        case IOCTL_MOXNOX_SOCKET_SENDMSG:
+            print("IOCTL_MOXNOX_SOCKET_SENDMSG");
+            break;
         default:
             print("{:x}", code);
             break;

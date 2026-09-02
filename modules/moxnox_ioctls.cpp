@@ -2,6 +2,7 @@ module;
 
 #include <stddef.h>
 #include <stdint.h>
+#include <sys/uio.h>
 
 export module moxnox_ioctls;
 
@@ -74,6 +75,7 @@ export const auto IOCTL_MOXNOX_FILE_READV = CTL_CODE(FILE_DEVICE_MOXNOX, 41, IOC
 export const auto IOCTL_MOXNOX_FILE_WRITEV = CTL_CODE(FILE_DEVICE_MOXNOX, 42, IOCTL_METHOD::BUFFERED, IOCTL_ACCESS::ANY);
 export const auto IOCTL_MOXNOX_TRACECTL_ENABLE = CTL_CODE(FILE_DEVICE_MOXNOX, 43, IOCTL_METHOD::BUFFERED, IOCTL_ACCESS::ANY);
 export const auto IOCTL_MOXNOX_TRACECTL_DISABLE = CTL_CODE(FILE_DEVICE_MOXNOX, 44, IOCTL_METHOD::BUFFERED, IOCTL_ACCESS::ANY);
+export const auto IOCTL_MOXNOX_SOCKET_SENDMSG = CTL_CODE(FILE_DEVICE_MOXNOX, 45, IOCTL_METHOD::BUFFERED, IOCTL_ACCESS::ANY);
 
 export struct MOXNOX_SET_CURSOR {
     uint32_t x;
@@ -130,6 +132,15 @@ export struct MOXNOX_SOCKET_SENDTO {
     int flags;
     const void* to;
     int tolen;
+    size_t* sent_bytes;
+};
+
+export struct MOXNOX_SOCKET_SENDMSG {
+    const iovec* vec;
+    size_t vec_count;
+    int flags;
+    const void* to;
+    size_t tolen;
     size_t* sent_bytes;
 };
 

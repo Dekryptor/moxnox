@@ -204,6 +204,7 @@ public:
 private:
     nt_status do_recvfrom(span<const uint8_t> inbuf, bool nonblock);
     nt_status do_sendto(span<const uint8_t> inbuf);
+    nt_status do_sendmsg(span<const uint8_t> inbuf);
     nt_status do_bind(span<const uint8_t> inbuf);
     nt_status do_connect(span<const uint8_t> inbuf);
     nt_status do_listen(span<const uint8_t> inbuf);
