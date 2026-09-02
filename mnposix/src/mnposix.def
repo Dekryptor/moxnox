@@ -236,3 +236,4 @@ endpwent
 getpwent
 setpwent
 gethostid
+sendmsg
