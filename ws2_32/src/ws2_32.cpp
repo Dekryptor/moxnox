@@ -73,30 +73,28 @@ SOCKET socket(int af, int type, int protocol) {
 extern "C"
 int recvfrom(SOCKET s, char* buf, int len, int flags, sockaddr* from,
              int* fromlen) {
-    IO_STATUS_BLOCK iosb;
-    MOXNOX_SOCKET_RECVFROM params;
-    size_t recv_bytes;
+    msghdr msg;
+    iovec iov;
 
-    params.buf = buf;
-    params.len = len;
-    params.flags = flags & ~MSG_NOSIGNAL;
-    params.from = from;
-    params.fromlen = fromlen;
-    params.recv_bytes = &recv_bytes;
+    iov.iov_base = (void*)buf;
+    iov.iov_len = len;
 
-    auto h = _get_osfhandle((int)s);
-    if (h == -1)
+    msg.msg_name = (void*)from;
+    msg.msg_namelen = fromlen ? *fromlen : 0;
+    msg.msg_iov = &iov;
+    msg.msg_iovlen = 1;
+    msg.msg_control = nullptr;
+    msg.msg_controllen = 0;
+    msg.msg_flags = 0;
+
+    auto ret = recvmsg(s, &msg, flags);
+    if (ret == -1)
         return SOCKET_ERROR;
 
-    auto status = NtDeviceIoControlFile((HANDLE)h, 0, nullptr, nullptr, &iosb,
-                                        IOCTL_MOXNOX_SOCKET_RECVFROM, &params,
-                                        (uint32_t)sizeof(params), nullptr, 0);
-    if (!success(status)) {
-        *_errno() = nt_status_to_errno(status);
-        return SOCKET_ERROR;
-    }
+    if (fromlen)
+        *fromlen = msg.msg_namelen;
 
-    return (int)recv_bytes;
+    return (int)ret;
 }
 
 extern "C"
