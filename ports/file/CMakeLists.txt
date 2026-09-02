@@ -6,7 +6,7 @@ file(MAKE_DIRECTORY ${GEN}/src)
 
 file(READ ${CMAKE_CURRENT_SOURCE_DIR}/repo/src/magic.h.in MAGIC_H)
 string(REPLACE "X.YY" "548" MAGIC_H "${MAGIC_H}")
-file(WRITE ${GEN}/magic.h "${MAGIC_H}")
+file(CONFIGURE OUTPUT ${GEN}/magic.h CONTENT "${MAGIC_H}" @ONLY)
 
 add_custom_command(
     OUTPUT ${GEN}/src/file.h
