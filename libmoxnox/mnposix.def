@@ -245,11 +245,11 @@ setegid
 setresuid
 setresgid
 getpriority
+setpriority
 
 ; stubs
 sigsuspend
 getlocalename_l
-setpriority
 getgroups
 mlock
 munlock
