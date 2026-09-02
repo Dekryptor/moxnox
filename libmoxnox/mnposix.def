@@ -242,12 +242,12 @@ setuid
 setgid
 seteuid
 setegid
+setresuid
 
 ; stubs
 sigsuspend
 getlocalename_l
 getpriority
-setresuid
 setpriority
 setresgid
 getgroups

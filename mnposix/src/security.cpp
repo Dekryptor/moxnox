@@ -135,3 +135,25 @@ int setegid(gid_t gid) {
 
     return 0;
 }
+
+extern "C"
+int setresuid(uid_t ruid, uid_t euid, uid_t suid) {
+    // FIXME
+
+    if (ruid != 0 && ruid != (uid_t)-1) {
+        *_errno() = EINVAL;
+        return -1;
+    }
+
+    if (euid != 0 && euid != (uid_t)-1) {
+        *_errno() = EINVAL;
+        return -1;
+    }
+
+    if (suid != 0 && suid != (uid_t)-1) {
+        *_errno() = EINVAL;
+        return -1;
+    }
+
+    return 0;
+}
