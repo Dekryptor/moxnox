@@ -6,9 +6,9 @@ include(${CMAKE_CURRENT_SOURCE_DIR}/../gnulib/gnulib.cmake)
 include(${CMAKE_CURRENT_SOURCE_DIR}/gnulib-vars.cmake)
 include(${CMAKE_CURRENT_SOURCE_DIR}/gnulib-headers.cmake)
 
-file(WRITE ${GEN}/paths.h "#define DEFAULT_DIFF_PROGRAM \"diff\"\n#define LOCALEDIR \"/share/locale\"\n")
-file(WRITE ${GEN}/version.h "extern char const *Version;\n")
-file(WRITE ${GEN}/version.c "#include <config.h>\nchar const *Version = \"3.12\";\n")
+file(CONFIGURE OUTPUT ${GEN}/paths.h CONTENT "#define DEFAULT_DIFF_PROGRAM \"diff\"\n#define LOCALEDIR \"/share/locale\"\n" @ONLY)
+file(CONFIGURE OUTPUT ${GEN}/version.h CONTENT "extern char const *Version;\n" @ONLY)
+file(CONFIGURE OUTPUT ${GEN}/version.c CONTENT "#include <config.h>\nchar const *Version = \"3.12\";\n" @ONLY)
 
 add_library(diffutils_gnulib STATIC
     repo/gnulib/lib/allocator.c
