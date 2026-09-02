@@ -11,13 +11,13 @@ file(READ ${CMAKE_CURRENT_SOURCE_DIR}/repo/gnulib/lib/obstack.in.h OBSTACK_H)
 string(REPLACE "defined __GL_GNULIB_HEADER" "1" OBSTACK_H "${OBSTACK_H}")
 string(REPLACE "defined __GL_REPLACE_OBSTACK__" "0" OBSTACK_H "${OBSTACK_H}")
 string(REPLACE "defined __GL_SMALL_PTRDIFF_T__" "0" OBSTACK_H "${OBSTACK_H}")
-file(WRITE ${GEN}/lib/obstack.h "${OBSTACK_H}")
+file(CONFIGURE OUTPUT ${GEN}/lib/obstack.h CONTENT "${OBSTACK_H}" @ONLY)
 
 file(READ ${CMAKE_CURRENT_SOURCE_DIR}/repo/gnulib/lib/malloc/scratch_buffer.h SCRATCH_H)
-file(WRITE ${GEN}/lib/malloc/scratch_buffer.gl.h "${SCRATCH_H}")
+file(CONFIGURE OUTPUT ${GEN}/lib/malloc/scratch_buffer.gl.h CONTENT "${SCRATCH_H}" @ONLY)
 
-file(WRITE ${GEN}/sed/version.c "#include <config.h>\nchar const *Version = \"4.10\";\n")
-file(WRITE ${GEN}/sed/version.h "extern char const *Version;\n")
+file(CONFIGURE OUTPUT ${GEN}/sed/version.c CONTENT "#include <config.h>\nchar const *Version = \"4.10\";\n" @ONLY)
+file(CONFIGURE OUTPUT ${GEN}/sed/version.h CONTENT "extern char const *Version;\n" @ONLY)
 
 add_executable(sed
     ${GEN}/sed/version.c
