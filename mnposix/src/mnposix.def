@@ -237,3 +237,4 @@ getpwent
 setpwent
 gethostid
 sendmsg
+recvmsg

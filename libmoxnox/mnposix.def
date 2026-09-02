@@ -237,6 +237,7 @@ getpwent
 setpwent
 gethostid
 sendmsg
+recvmsg
 
 ; stubs
 sigsuspend
@@ -250,7 +251,6 @@ setresgid
 getgroups
 mlock
 munlock
-recvmsg
 getrusage
 scandir
 alphasort
