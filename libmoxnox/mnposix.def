@@ -246,6 +246,7 @@ setresuid
 setresgid
 getpriority
 setpriority
+sleep
 
 ; stubs
 sigsuspend
@@ -273,4 +274,3 @@ grantpt
 unlockpt
 crypt
 alarm
-sleep

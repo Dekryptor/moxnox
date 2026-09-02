@@ -1,4 +1,5 @@
 #include <stdint.h>
+#include <unistd.h>
 #include <sys/types.h>
 #include <time.h>
 
@@ -36,4 +37,19 @@ int nanosleep(const timespec* duration, timespec* /*rem*/) {
     }
 
     return 0;
+}
+
+extern "C"
+unsigned int sleep(unsigned int seconds) {
+    timespec t, rem;
+
+    t.tv_sec = seconds;
+    t.tv_nsec = 0;
+
+    rem.tv_sec = 0;
+    rem.tv_nsec = 0;
+
+    nanosleep(&t, &rem);
+
+    return (unsigned int)rem.tv_sec;
 }

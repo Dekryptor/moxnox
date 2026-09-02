@@ -246,3 +246,4 @@ setresuid
 setresgid
 getpriority
 setpriority
+sleep
