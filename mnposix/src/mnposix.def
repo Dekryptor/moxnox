@@ -239,3 +239,4 @@ gethostid
 sendmsg
 recvmsg
 setuid
+setgid

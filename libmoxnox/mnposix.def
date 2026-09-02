@@ -239,13 +239,13 @@ gethostid
 sendmsg
 recvmsg
 setuid
+setgid
 
 ; stubs
 sigsuspend
 getlocalename_l
 getpriority
 setresuid
-setgid
 setpriority
 setresgid
 getgroups
