@@ -68,7 +68,7 @@ public:
     void last_handle_closed() override;
 
     nt_status recvfrom(span<const span<uint8_t>> v, int flags,
-                       sockaddr_storage* from, int* fromlen,
+                       sockaddr_storage* from, size_t* fromlen,
                        uint64_t& recv_bytes) override {
         return do_recvfrom<false>(v, flags, from, fromlen, recv_bytes);
     }
@@ -96,7 +96,7 @@ public:
     }
 
     nt_status recvfrom_nonblock(span<const span<uint8_t>> v, int flags,
-                                sockaddr_storage* from, int* fromlen,
+                                sockaddr_storage* from, size_t* fromlen,
                                 uint64_t& recv_bytes) override {
         return do_recvfrom<true>(v, flags, from, fromlen, recv_bytes);
     }
@@ -120,7 +120,7 @@ public:
 private:
     template<bool NONBLOCK>
     nt_status do_recvfrom(span<const span<uint8_t>> v, int flags,
-                          sockaddr_storage* from, int* fromlen,
+                          sockaddr_storage* from, size_t* fromlen,
                           uint64_t& recv_bytes);
 };
 
@@ -2712,7 +2712,7 @@ nt_status socket::do_recvmsg(span<const uint8_t> inbuf, bool nonblock) {
 
     auto& params = *(MOXNOX_SOCKET_RECVMSG*)inbuf.data();
     size_t recv_bytes;
-    int fromlen = 0, orig_fromlen = 0;
+    size_t fromlen = 0, orig_fromlen = 0;
 
     if (!params.recv_bytes)
         return nt_status::INVALID_PARAMETER;
@@ -2728,9 +2728,6 @@ nt_status socket::do_recvmsg(span<const uint8_t> inbuf, bool nonblock) {
 
         if (read_bytes < sizeof(fromlen))
             return nt_status::NO_MEMORY;
-
-        if (fromlen < 0)
-            return nt_status::INVALID_PARAMETER;
 
         orig_fromlen = fromlen;
     }
@@ -2812,9 +2809,7 @@ nt_status socket::do_recvmsg(span<const uint8_t> inbuf, bool nonblock) {
     }
 
     if (params.fromlen) {
-        size_t val = fromlen;
-
-        status = t.proc->write_vm(params.fromlen, &val, (uint32_t)sizeof(size_t),
+        status = t.proc->write_vm(params.fromlen, &fromlen, (uint32_t)sizeof(size_t),
                                   nullptr);
         if (!success(status))
             return status;
@@ -3277,7 +3272,7 @@ nt_status socket::ioctl(uint32_t code, span<const uint8_t> inbuf,
 template<socket_family FAMILY>
 template<bool NONBLOCK>
 nt_status raw_socket<FAMILY>::do_recvfrom(span<const span<uint8_t>> v, int flags,
-                                          sockaddr_storage* from, int* fromlen,
+                                          sockaddr_storage* from, size_t* fromlen,
                                           uint64_t& recv_bytes) {
     // FIXME - MSG_TRUNC
     if (flags != 0)

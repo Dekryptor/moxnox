@@ -165,7 +165,7 @@ public:
     virtual void last_handle_closed() = 0;
 
     virtual nt_status recvfrom(span<const span<uint8_t>> v, int flags,
-                               sockaddr_storage* from, int* fromlen,
+                               sockaddr_storage* from, size_t* fromlen,
                                uint64_t& recv_bytes) = 0;
     virtual nt_status sendto(span<const span<const uint8_t>> v, int flags,
                              sockaddr* to, size_t tolen, uint64_t& sent_bytes) = 0;
@@ -193,7 +193,7 @@ public:
     }
 
     virtual nt_status recvfrom_nonblock(span<const span<uint8_t>> v, int flags,
-                                        sockaddr_storage* from, int* fromlen,
+                                        sockaddr_storage* from, size_t* fromlen,
                                         size_t& recv_bytes) = 0;
     virtual nt_status shutdown(int how) = 0;
 

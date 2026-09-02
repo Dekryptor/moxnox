@@ -126,7 +126,7 @@ public:
     void last_handle_closed() override;
 
     nt_status recvfrom(span<const span<uint8_t>> v, int flags,
-                       sockaddr_storage* from, int* fromlen,
+                       sockaddr_storage* from, size_t* fromlen,
                        uint64_t& recv_bytes) override {
         return do_recvfrom<false>(v, flags, from, fromlen, recv_bytes);
     }
@@ -141,7 +141,7 @@ public:
     nt_status getpeername(span<uint8_t> buf, size_t& len) override;
 
     nt_status recvfrom_nonblock(span<const span<uint8_t>> v, int flags,
-                                sockaddr_storage* from, int* fromlen,
+                                sockaddr_storage* from, size_t* fromlen,
                                 uint64_t& recv_bytes) override {
         return do_recvfrom<true>(v, flags, from, fromlen, recv_bytes);
     }
@@ -204,7 +204,7 @@ private:
 
     template<bool NONBLOCK>
     nt_status do_recvfrom(span<const span<uint8_t>> v, int flags,
-                          sockaddr_storage* from, int* fromlen,
+                          sockaddr_storage* from, size_t* fromlen,
                           uint64_t& recv_bytes);
 };
 
@@ -1573,7 +1573,7 @@ void ipv6_tcp_socket::do_retransmissions() {
 
 template<bool NONBLOCK>
 nt_status ipv6_tcp_socket::do_recvfrom(span<const span<uint8_t>> v, int flags,
-                                       sockaddr_storage* from, int* fromlen,
+                                       sockaddr_storage* from, size_t* fromlen,
                                        uint64_t& recv_bytes) {
     nt_status status;
 
