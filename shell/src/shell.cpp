@@ -1186,6 +1186,18 @@ int main(int argc, char** argv) {
         set_pty_fg_proc(peb.ProcessParameters->StandardOutput, (uintptr_t)getpgid(0));
     }
 
+    status = NtCreateEvent(&h, 0, nullptr, EVENT_TYPE::NotificationEvent, false);
+    if (!success(status)) {
+        print_stderr("NtCreateEvent returned {}\n", status);
+
+        if (command)
+            free(command);
+
+        return 1;
+    }
+
+    sigterm_event.reset(h);
+
     if (command) {
         process_line(command);
         free(command);
@@ -1195,14 +1207,6 @@ int main(int argc, char** argv) {
 
     get_prompt();
     init_history();
-
-    status = NtCreateEvent(&h, 0, nullptr, EVENT_TYPE::NotificationEvent, false);
-    if (!success(status)) {
-        print_stderr("NtCreateEvent returned {}\n", status);
-        return 1;
-    }
-
-    sigterm_event.reset(h);
 
     memset(&act, 0, sizeof(act));
     act.sa_handler = sigint_handler;
