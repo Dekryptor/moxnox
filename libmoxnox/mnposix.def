@@ -243,13 +243,13 @@ setgid
 seteuid
 setegid
 setresuid
+setresgid
 
 ; stubs
 sigsuspend
 getlocalename_l
 getpriority
 setpriority
-setresgid
 getgroups
 mlock
 munlock

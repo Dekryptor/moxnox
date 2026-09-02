@@ -243,3 +243,4 @@ setgid
 seteuid
 setegid
 setresuid
+setresgid
