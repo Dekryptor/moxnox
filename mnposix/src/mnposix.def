@@ -240,3 +240,4 @@ sendmsg
 recvmsg
 setuid
 setgid
+seteuid

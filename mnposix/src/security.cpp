@@ -111,3 +111,15 @@ int setgid(gid_t gid) {
 
     return 0;
 }
+
+extern "C"
+int seteuid(uid_t uid) {
+    // FIXME
+
+    if (uid != 0) {
+        *_errno() = EINVAL;
+        return -1;
+    }
+
+    return 0;
+}
