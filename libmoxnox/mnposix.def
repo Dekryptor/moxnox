@@ -241,6 +241,7 @@ recvmsg
 setuid
 setgid
 seteuid
+setegid
 
 ; stubs
 sigsuspend
@@ -270,5 +271,4 @@ killpg
 wcswidth
 grantpt
 unlockpt
-setegid
 crypt

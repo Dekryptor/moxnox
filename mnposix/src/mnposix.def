@@ -241,3 +241,4 @@ recvmsg
 setuid
 setgid
 seteuid
+setegid

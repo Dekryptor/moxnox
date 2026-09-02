@@ -123,3 +123,15 @@ int seteuid(uid_t uid) {
 
     return 0;
 }
+
+extern "C"
+int setegid(gid_t gid) {
+    // FIXME
+
+    if (gid != 0) {
+        *_errno() = EINVAL;
+        return -1;
+    }
+
+    return 0;
+}

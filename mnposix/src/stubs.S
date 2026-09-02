@@ -29,7 +29,6 @@ do_stub "killpg"
 do_stub "wcswidth"
 do_stub "grantpt"
 do_stub "unlockpt"
-do_stub "setegid"
 do_stub "crypt"
 
 stubs_end
