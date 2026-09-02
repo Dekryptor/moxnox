@@ -11,9 +11,9 @@ file(READ ${CMAKE_CURRENT_SOURCE_DIR}/repo/src/egrep.sh EGREP_SH)
 string(REPLACE "@SHELL@" "/bin/sh" EGREP_SH "${EGREP_SH}")
 string(REPLACE "@grep@" "grep" EGREP_SH "${EGREP_SH}")
 string(REPLACE "@option@" "-E" EGREP_CONTENT "${EGREP_SH}")
-file(WRITE ${GEN}/src/egrep "${EGREP_CONTENT}")
+file(CONFIGURE OUTPUT ${GEN}/src/egrep CONTENT "${EGREP_CONTENT}" @ONLY)
 string(REPLACE "@option@" "-F" FGREP_CONTENT "${EGREP_SH}")
-file(WRITE ${GEN}/src/fgrep "${FGREP_CONTENT}")
+file(CONFIGURE OUTPUT ${GEN}/src/fgrep CONTENT "${FGREP_CONTENT}" @ONLY)
 
 add_executable(grep
     repo/src/dfasearch.c
