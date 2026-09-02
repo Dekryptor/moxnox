@@ -51,7 +51,7 @@ gmp_table(mpn/jacobitab.h gen-jacobitab "")
 # via a generated wrapper (upstream uses symlinks plus -DOPERATION_<name>)
 set(GMP_MPN_SOURCES)
 macro(gmp_mpn_operation name src)
-    file(WRITE ${GEN}/mpn/${name}.c "#define OPERATION_${name} 1\n#include \"${CMAKE_CURRENT_SOURCE_DIR}/repo/${src}\"\n")
+    file(CONFIGURE OUTPUT ${GEN}/mpn/${name}.c CONTENT "#define OPERATION_${name} 1\n#include \"${CMAKE_CURRENT_SOURCE_DIR}/repo/${src}\"\n" @ONLY)
     list(APPEND GMP_MPN_SOURCES ${GEN}/mpn/${name}.c)
 endmacro()
 
