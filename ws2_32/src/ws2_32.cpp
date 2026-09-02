@@ -1,5 +1,6 @@
 #include <stdint.h>
 #include <string.h>
+#include <sys/socket.h>
 #include <bit>
 #include <span>
 #include <string_view>
@@ -106,30 +107,25 @@ int recv(SOCKET s, char* buf, int len, int flags) {
 extern "C"
 int sendto(SOCKET s, const char* buf, int len, int flags, const sockaddr* to,
            int tolen) {
-    IO_STATUS_BLOCK iosb;
-    MOXNOX_SOCKET_SENDTO params;
-    size_t sent_bytes;
+    msghdr msg;
+    iovec iov;
 
-    params.buf = buf;
-    params.len = len;
-    params.flags = flags & ~MSG_NOSIGNAL;
-    params.to = to;
-    params.tolen = tolen;
-    params.sent_bytes = &sent_bytes;
+    iov.iov_base = (void*)buf;
+    iov.iov_len = len;
 
-    auto h = _get_osfhandle((int)s);
-    if (h == -1)
+    msg.msg_name = (void*)to;
+    msg.msg_namelen = tolen;
+    msg.msg_iov = &iov;
+    msg.msg_iovlen = 1;
+    msg.msg_control = nullptr;
+    msg.msg_controllen = 0;
+    msg.msg_flags = 0;
+
+    auto ret = sendmsg(s, &msg, flags);
+    if (ret == -1)
         return SOCKET_ERROR;
 
-    auto status = NtDeviceIoControlFile((HANDLE)h, 0, nullptr, nullptr, &iosb,
-                                        IOCTL_MOXNOX_SOCKET_SENDTO, &params,
-                                        (uint32_t)sizeof(params), nullptr, 0);
-    if (!success(status)) {
-        *_errno() = nt_status_to_errno(status);
-        return SOCKET_ERROR;
-    }
-
-    return (int)sent_bytes;
+    return (int)ret;
 }
 
 extern "C"
