@@ -238,6 +238,7 @@ setpwent
 gethostid
 sendmsg
 recvmsg
+setuid
 
 ; stubs
 sigsuspend
@@ -245,7 +246,6 @@ getlocalename_l
 getpriority
 setresuid
 setgid
-setuid
 setpriority
 setresgid
 getgroups

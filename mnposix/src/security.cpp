@@ -1,6 +1,11 @@
 #include <unistd.h>
 #include <grp.h>
 
+import ucrtbase;
+
+#undef errno
+import errno;
+
 static size_t group_index = 0;
 static struct group grent;
 static const char* grent_mem[] = { "root", nullptr };
@@ -81,4 +86,16 @@ struct group* getgrent() {
 extern "C"
 void setgrent() {
     group_index = 0;
+}
+
+extern "C"
+int setuid(uid_t uid) {
+    // FIXME
+
+    if (uid != 0) {
+        *_errno() = EINVAL;
+        return -1;
+    }
+
+    return 0;
 }
