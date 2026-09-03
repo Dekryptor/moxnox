@@ -352,20 +352,32 @@ NTSTATUS timer::set(int64_t due_time, PTIMER_APC_ROUTINE apc_routine,
 }
 
 NTSTATUS timer::cancel(bool* current_state) {
-    sync_lock sl;
-    lock_guard lock(sl);
+    ::thread* old_apc_thread = nullptr;
 
-    if (current_state)
-        *current_state = signalled;
+    {
+        sync_lock sl;
+        lock_guard lock(sl);
 
-    ticks_left = 0;
-    signalled = false;
-    periodic = false;
+        if (current_state)
+            *current_state = signalled;
 
-    if (active) {
-        remove_entry_list(le);
-        active = false;
+        ticks_left = 0;
+        signalled = false;
+        periodic = false;
+
+        if (active) {
+            remove_entry_list(le);
+            active = false;
+        }
+
+        old_apc_thread = apc_thread;
+
+        apc_thread = nullptr;
+        apc_routine = nullptr;
     }
+
+    if (old_apc_thread)
+        old_apc_thread->release();
 
     return nt_status::SUCCESS;
 }
