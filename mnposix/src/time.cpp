@@ -14,9 +14,6 @@ extern "C" {
     char* tzname[2];
 }
 
-static RTL_SRWLOCK alarm_lock;
-static HANDLE alarm_timer;
-
 extern "C"
 int _gettimeofday(struct timeval* tv, struct timezone* /*tz*/) {
     LARGE_INTEGER li;
@@ -177,72 +174,13 @@ struct tm* localtime_r(const time_t* t, struct tm* tm) {
 
 extern "C"
 unsigned int alarm(unsigned int seconds) {
-    nt_status status;
-    unsigned int time_left;
-    LARGE_INTEGER due_time;
+    uint64_t time, left;
 
-    RtlAcquireSRWLockExclusive(&alarm_lock);
+    time = (uint64_t)seconds * 10000000;
 
-    if (alarm_timer) {
-        TIMER_BASIC_INFORMATION tbi;
+    auto status = mn_alarm(time, &left);
+    if (!success(status))
+        return 0;
 
-        status = NtQueryTimer(alarm_timer, TIMER_INFORMATION_CLASS::BasicInformation,
-                              &tbi, sizeof(tbi), nullptr);
-        if (!success(status)) {
-            // we can't report errors
-            time_left = 0;
-        } else
-            time_left = (unsigned int)((tbi.RemainingTime.QuadPart + 9999999) / 10000000);
-
-        if (seconds == 0) {
-            NtCancelTimer(alarm_timer, nullptr);
-            RtlReleaseSRWLockExclusive(&alarm_lock);
-            return time_left;
-        }
-    } else {
-        time_left = 0;
-
-        if (seconds == 0) {
-            RtlReleaseSRWLockExclusive(&alarm_lock);
-            return 0;
-        }
-
-        status = NtCreateTimer(&alarm_timer, TIMER_QUERY_STATE | TIMER_MODIFY_STATE,
-                               nullptr, TIMER_TYPE::NotificationTimer);
-        if (!success(status)) {
-            // we can't report errors
-            RtlReleaseSRWLockExclusive(&alarm_lock);
-            return 0;
-        }
-
-        status = NtSetInformationProcess(NtCurrentProcess(), PROCESS_INFORMATION_CLASS::MoxnoxAlarmTimer,
-                                         &alarm_timer, sizeof(HANDLE));
-        if (!success(status)) {
-            // we can't report errors
-
-            NtClose(alarm_timer);
-            alarm_timer = 0;
-
-            RtlReleaseSRWLockExclusive(&alarm_lock);
-            return 0;
-        }
-    }
-
-    due_time.QuadPart = -((int64_t)seconds * 10000000);
-
-    // ignore return value, we can't report errors
-    NtSetTimer(alarm_timer, &due_time, nullptr, nullptr, false, 0, nullptr);
-
-    RtlReleaseSRWLockExclusive(&alarm_lock);
-
-    return time_left;
-}
-
-void clear_alarm_on_fork() {
-    // deliberately not taking alarm_lock
-
-    if (alarm_timer) {
-        NtClose(alarm_timer);
-        alarm_timer = 0;
-    }
+    return (unsigned int)((left + 9999999) / 10000000);
 }

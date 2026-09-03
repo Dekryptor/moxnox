@@ -133,3 +133,13 @@ nt_status mn_alarm(uint64_t time, uint64_t* left) {
 
     return nt_status::SUCCESS;
 }
+
+extern "C"
+void mn_clear_alarm_on_fork() {
+    // deliberately not taking alarm_lock
+
+    if (alarm_timer) {
+        NtClose(alarm_timer);
+        alarm_timer = 0;
+    }
+}

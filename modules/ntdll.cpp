@@ -482,6 +482,7 @@ void RtlAcquireSRWLockShared(RTL_SRWLOCK* lock);
 void RtlReleaseSRWLockShared(RTL_SRWLOCK* lock);
 bool RtlTryAcquireSRWLockShared(RTL_SRWLOCK* lock);
 nt_status mn_alarm(uint64_t time, uint64_t* left);
+void mn_clear_alarm_on_fork();
 
 }
 

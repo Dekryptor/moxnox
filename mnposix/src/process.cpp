@@ -310,7 +310,7 @@ pid_t fork() {
     }
 
     if (pid == 0)
-        clear_alarm_on_fork();
+        mn_clear_alarm_on_fork();
 
     return (pid_t)pid;
 }

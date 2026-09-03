@@ -82,3 +82,4 @@ RtlAcquireSRWLockShared
 RtlReleaseSRWLockShared
 RtlTryAcquireSRWLockShared
 mn_alarm
+mn_clear_alarm_on_fork
