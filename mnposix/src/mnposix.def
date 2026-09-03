@@ -247,3 +247,4 @@ setresgid
 getpriority
 setpriority
 sleep
+alarm

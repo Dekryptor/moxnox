@@ -247,6 +247,7 @@ setresgid
 getpriority
 setpriority
 sleep
+alarm
 
 ; stubs
 sigsuspend
@@ -273,4 +274,3 @@ wcswidth
 grantpt
 unlockpt
 crypt
-alarm
