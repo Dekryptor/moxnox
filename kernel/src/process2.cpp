@@ -5578,6 +5578,38 @@ nt_status process::memory_unmap(span<const uint8_t> buf) {
     return nt_status::SUCCESS;
 }
 
+nt_status process::set_alarm_timer(span<const uint8_t> buffer) {
+    if (buffer.size() != sizeof(HANDLE))
+        return nt_status::INVALID_PARAMETER;
+
+    auto& h = *(HANDLE*)buffer.data();
+
+    auto timerobj = deref_handle(h);
+    if (!timerobj)
+        return nt_status::INVALID_HANDLE;
+
+    if (timerobj.get().type != object_type::timer)
+        return nt_status::OBJECT_TYPE_MISMATCH;
+
+    auto& t = static_cast<timer&>(timerobj.get());
+    process* last_proc = nullptr;
+
+    acquire();
+
+    {
+        sync_lock sl;
+        lock_guard lock(sl);
+
+        last_proc = t.timer_proc;
+        t.timer_proc = this;
+    }
+
+    if (last_proc)
+        last_proc->release();
+
+    return nt_status::SUCCESS;
+}
+
 nt_status process::set_information(PROCESS_INFORMATION_CLASS info_class,
                                    span<const uint8_t> buffer) {
     switch (info_class) {
@@ -5612,6 +5644,9 @@ nt_status process::set_information(PROCESS_INFORMATION_CLASS info_class,
 
         case MoxnoxFork:
             return do_fork(buffer);
+
+        case MoxnoxAlarmTimer:
+            return set_alarm_timer(buffer);
 
         default:
             return nt_status::NOT_IMPLEMENTED;

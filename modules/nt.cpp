@@ -1150,6 +1150,7 @@ enum class PROCESS_INFORMATION_CLASS {
     MoxnoxMarkAsChild,
     MoxnoxMemoryUnmap,
     MoxnoxFork,
+    MoxnoxAlarmTimer,
 };
 
 struct PROCESS_BASIC_INFORMATION {

@@ -1724,6 +1724,8 @@ export span<char> do_format_arg(span<char> sp, string_view,
             return sp_strcpy(sp, "MoxnoxMemoryUnmap");
         case MoxnoxFork:
             return sp_strcpy(sp, "MoxnoxFork");
+        case MoxnoxAlarmTimer:
+            return sp_strcpy(sp, "MoxnoxAlarmTimer");
         default:
             return do_format_arg(sp, "", (unsigned int)arg);
     }

@@ -208,6 +208,7 @@ private:
     nt_status mark_as_child();
     nt_status memory_unmap(span<const uint8_t> buf);
     nt_status do_fork(span<const uint8_t> buf);
+    nt_status set_alarm_timer(span<const uint8_t> buf);
 };
 
 static_assert(is_sync_object<process>);

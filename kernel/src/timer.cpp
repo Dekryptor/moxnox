@@ -12,6 +12,7 @@ import objects;
 import object_ref;
 import config;
 import thread;
+import process;
 
 export extern "C++" {
     uint32_t timer_irq_no;
@@ -45,6 +46,7 @@ public:
     thread* apc_thread = nullptr;
     PTIMER_APC_ROUTINE apc_routine = nullptr;
     void* apc_context;
+    process* timer_proc = nullptr;
 };
 
 static_assert(is_sync_object<timer>);

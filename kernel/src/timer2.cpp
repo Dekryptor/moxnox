@@ -270,6 +270,9 @@ timer::~timer() {
     if (apc_thread)
         apc_thread->release();
 
+    if (timer_proc)
+        timer_proc->release();
+
     if (!active)
         return;
 
