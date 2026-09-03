@@ -1996,3 +1996,20 @@ template<>
 consteval bool format_spec_valid<SHUTDOWN_ACTION>(string_view fmt) {
     return fmt.empty();
 }
+
+export span<char> do_format_arg(span<char> sp, string_view,
+                                TIMER_INFORMATION_CLASS arg) {
+    switch (arg) {
+        using enum TIMER_INFORMATION_CLASS;
+
+        case BasicInformation:
+            return sp_strcpy(sp, "BasicInformation");
+        default:
+            return do_format_arg(sp, "", (unsigned int)arg);
+    }
+}
+
+template<>
+consteval bool format_spec_valid<TIMER_INFORMATION_CLASS>(string_view fmt) {
+    return fmt.empty();
+}

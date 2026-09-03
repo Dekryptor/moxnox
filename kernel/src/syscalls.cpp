@@ -2033,6 +2033,39 @@ NTSTATUS user_NtYieldExecution() {
 }
 
 extern "C"
+nt_status user_NtQueryTimer(HANDLE handle, TIMER_INFORMATION_CLASS info_class,
+                            void* us_buffer, uint32_t buffer_length,
+                            uint32_t* us_return_length) {
+    uint32_t return_length;
+
+    if (!us_buffer || buffer_length == 0 || buffer_length > PAGE_SIZE)
+        return nt_status::INVALID_PARAMETER;
+
+    auto buf = malloc(buffer_length);
+    if (!buf)
+        return nt_status::INSUFFICIENT_RESOURCES;
+
+    auto ret = NtQueryTimer(handle, info_class, buf, buffer_length,
+                            &return_length);
+
+    if (success(ret)) {
+        if (return_length > 0 && !copy_to_process(us_buffer, buf, return_length)) {
+            free(buf);
+            return nt_status::ACCESS_VIOLATION;
+        }
+    }
+
+    free(buf);
+
+    if (success(ret)) {
+        if (us_return_length && !copy_to_process(us_return_length, &return_length, sizeof(uint32_t)))
+            return nt_status::ACCESS_VIOLATION;
+    }
+
+    return ret;
+}
+
+extern "C"
 uint64_t maybe_yield_after_syscall(uint64_t syscall_ret) {
     // interrupts are disabled and sync_lock held
 

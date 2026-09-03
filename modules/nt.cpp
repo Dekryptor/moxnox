@@ -1609,6 +1609,15 @@ struct SYSTEM_BASIC_INFORMATION {
     uint8_t NumberOfProcessors;
 };
 
+enum class TIMER_INFORMATION_CLASS {
+    BasicInformation = 0
+};
+
+struct TIMER_BASIC_INFORMATION {
+    LARGE_INTEGER RemainingTime;
+    bool TimerState;
+};
+
 extern "C" {
 
 NTSTATUS NtDisplayString(const UNICODE_STRING* string);
@@ -1754,6 +1763,9 @@ NTSTATUS NtQuerySystemInformation(SYSTEM_INFORMATION_CLASS info_class,
                                   void* info, uint32_t info_length,
                                   uint32_t* return_length);
 NTSTATUS NtYieldExecution();
+NTSTATUS NtQueryTimer(HANDLE timer_handle, TIMER_INFORMATION_CLASS info_class,
+                      void* buffer, uint32_t buffer_length,
+                      uint32_t* return_length);
 
 };
 

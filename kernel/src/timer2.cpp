@@ -576,3 +576,72 @@ void udelay(uint64_t us) {
     }
 #endif
 }
+
+extern "C"
+void trace_NtQueryTimer(uintptr_t* args) {
+    auto handle = (HANDLE)args[0];
+    auto info_class = (TIMER_INFORMATION_CLASS)args[1];
+    auto buffer = (void*)args[2];
+    auto buffer_length = (uint32_t)args[3];
+
+    start_deferred_print();
+
+    print("NtQueryTimer: handle = ");
+    print_handle(handle);
+    print(", info_class = {}, buffer = {:x}, buffer_length = {}\n",
+          info_class, (uintptr_t)buffer, buffer_length);
+
+    end_deferred_print();
+}
+
+extern "C"
+nt_status NtQueryTimer(HANDLE handle, TIMER_INFORMATION_CLASS info_class,
+                       void* buffer, uint32_t buffer_length,
+                       uint32_t* return_length) {
+    object_ref obj;
+
+    TRACE4("NtQueryTimer", handle, info_class, buffer, buffer_length);
+
+    obj = deref_handle(handle);
+    if (!obj)
+        return nt_status::INVALID_HANDLE;
+
+    if (obj.get().type != object_type::timer)
+        return nt_status::OBJECT_TYPE_MISMATCH;
+
+    // FIXME - check access rights
+
+    auto& t = static_cast<timer&>(obj.get());
+
+    return t.query(info_class, span((uint8_t*)buffer, buffer_length),
+                   *return_length);
+}
+
+nt_status timer::query(TIMER_INFORMATION_CLASS info_class, span<uint8_t> buffer,
+                       uint32_t& return_length) {
+    switch (info_class) {
+        using enum TIMER_INFORMATION_CLASS;
+
+        case BasicInformation: {
+            if (buffer.size() < sizeof(TIMER_BASIC_INFORMATION))
+                return nt_status::BUFFER_TOO_SMALL;
+
+            auto& info = *(TIMER_BASIC_INFORMATION*)buffer.data();
+
+            {
+                sync_lock sl;
+                lock_guard lock(sl);
+
+                info.RemainingTime.QuadPart = ticks_left / (SYSTEM_TIME_RESOLUTION / TICK_RATE);
+                info.TimerState = signalled;
+            }
+
+            return_length = sizeof(TIMER_BASIC_INFORMATION);
+
+            return nt_status::SUCCESS;
+        }
+
+        default:
+            return nt_status::INVALID_INFO_CLASS;
+    }
+}

@@ -2,6 +2,7 @@ module;
 
 #include <stdint.h>
 #include <stddef.h>
+#include <span>
 #include "context_offsets.h"
 
 export module timer;
@@ -13,6 +14,8 @@ import object_ref;
 import config;
 import thread;
 import process;
+
+using namespace std;
 
 export extern "C++" {
     uint32_t timer_irq_no;
@@ -36,6 +39,8 @@ public:
                  void* timer_context, bool resume_timer, int32_t period,
                  bool* previous_state);
     NTSTATUS cancel(bool* current_state);
+    NTSTATUS query(TIMER_INFORMATION_CLASS info_class, span<uint8_t> buffer,
+                   uint32_t& return_length);
 
     bool active = false;
     list_entry le;
