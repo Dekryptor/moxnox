@@ -6,6 +6,7 @@
 #endif
 
 import nt;
+import ntdll;
 import timepage;
 
 #ifdef __aarch64__
@@ -13,6 +14,9 @@ import aarch64;
 #endif
 
 using namespace std;
+
+static RTL_SRWLOCK alarm_lock;
+static HANDLE alarm_timer;
 
 static const unsigned int SYSTEM_TIME_RESOLUTION = 10000000; // 100ns
 
@@ -62,4 +66,70 @@ bool RtlQueryPerformanceCounter(LARGE_INTEGER* count) {
 #endif
 
     return true;
+}
+
+extern "C"
+nt_status mn_alarm(uint64_t time, uint64_t* left) {
+    nt_status status;
+    LARGE_INTEGER due_time;
+
+    RtlAcquireSRWLockExclusive(&alarm_lock);
+
+    if (alarm_timer) {
+        TIMER_BASIC_INFORMATION tbi;
+
+        status = NtQueryTimer(alarm_timer, TIMER_INFORMATION_CLASS::BasicInformation,
+                              &tbi, sizeof(tbi), nullptr);
+        if (!success(status)) {
+            RtlReleaseSRWLockExclusive(&alarm_lock);
+            return status;
+        }
+
+        *left = (uint64_t)tbi.RemainingTime.QuadPart;
+
+        if (time == 0) {
+            NtCancelTimer(alarm_timer, nullptr);
+            RtlReleaseSRWLockExclusive(&alarm_lock);
+
+            return nt_status::SUCCESS;
+        }
+    } else {
+        *left = 0;
+
+        if (time == 0) {
+            RtlReleaseSRWLockExclusive(&alarm_lock);
+            return nt_status::SUCCESS;
+        }
+
+        status = NtCreateTimer(&alarm_timer, TIMER_QUERY_STATE | TIMER_MODIFY_STATE,
+                               nullptr, TIMER_TYPE::NotificationTimer);
+        if (!success(status)) {
+            RtlReleaseSRWLockExclusive(&alarm_lock);
+            return status;
+        }
+
+        status = NtSetInformationProcess(NtCurrentProcess(), PROCESS_INFORMATION_CLASS::MoxnoxAlarmTimer,
+                                         &alarm_timer, sizeof(HANDLE));
+        if (!success(status)) {
+            NtClose(alarm_timer);
+            alarm_timer = 0;
+
+            RtlReleaseSRWLockExclusive(&alarm_lock);
+
+            return status;
+        }
+    }
+
+    due_time.QuadPart = -(int64_t)time;
+
+    status = NtSetTimer(alarm_timer, &due_time, nullptr, nullptr, false, 0,
+                        nullptr);
+    if (!success(status)) {
+        RtlReleaseSRWLockExclusive(&alarm_lock);
+        return status;
+    }
+
+    RtlReleaseSRWLockExclusive(&alarm_lock);
+
+    return nt_status::SUCCESS;
 }

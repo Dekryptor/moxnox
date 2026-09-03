@@ -481,6 +481,7 @@ void* mn_allocate_aligned(void* heap_handle, size_t alignment, size_t size);
 void RtlAcquireSRWLockShared(RTL_SRWLOCK* lock);
 void RtlReleaseSRWLockShared(RTL_SRWLOCK* lock);
 bool RtlTryAcquireSRWLockShared(RTL_SRWLOCK* lock);
+nt_status mn_alarm(uint64_t time, uint64_t* left);
 
 }
 

@@ -477,6 +477,7 @@ mn_allocate_aligned
 RtlAcquireSRWLockShared
 RtlReleaseSRWLockShared
 RtlTryAcquireSRWLockShared
+mn_alarm
 
 ; stubs
 RtlTryEnterCriticalSection
