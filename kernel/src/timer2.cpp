@@ -352,13 +352,17 @@ extern "C"
 void trace_NtSetTimer(uintptr_t* args) {
     auto timer_handle = (HANDLE)args[0];
     auto due_time = (const LARGE_INTEGER*)args[1];
-    auto period = (int32_t)args[2];
+    auto timer_apc_routine = (PTIMER_APC_ROUTINE)args[2];
+    auto timer_context = (void*)args[3];
+    auto period = (int32_t)args[4];
 
     start_deferred_print();
 
     print("NtSetTimer: timer_handle = ");
     print_handle(timer_handle);
-    print(", due_time = {}, period = {}\n", due_time, period);
+    print(", due_time = {}, timer_apc_routine = {:x}, timer_context = {:x}, period = {}\n",
+          due_time, (uintptr_t)timer_apc_routine, (uintptr_t)timer_context,
+          period);
 
     end_deferred_print();
 }
@@ -367,7 +371,8 @@ extern "C"
 NTSTATUS NtSetTimer(HANDLE timer_handle, const LARGE_INTEGER* due_time,
                     PTIMER_APC_ROUTINE timer_apc_routine, void* timer_context,
                     bool resume_timer, int32_t period, bool* previous_state) {
-    TRACE3("NtSetTimer", timer_handle, due_time, period);
+    TRACE5("NtSetTimer", timer_handle, due_time, timer_apc_routine,
+           timer_context, period);
 
     auto objrw = deref_handle(timer_handle);
     if (!objrw)
