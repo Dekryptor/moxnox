@@ -143,3 +143,27 @@ void mn_clear_alarm_on_fork() {
         alarm_timer = 0;
     }
 }
+
+extern "C"
+uint64_t mn_get_alarm_left() {
+    uint64_t ret;
+
+    RtlAcquireSRWLockShared(&alarm_lock);
+
+    if (!alarm_timer)
+        ret = 0;
+    else {
+        TIMER_BASIC_INFORMATION tbi;
+
+        auto status = NtQueryTimer(alarm_timer, TIMER_INFORMATION_CLASS::BasicInformation,
+                                   &tbi, sizeof(tbi), nullptr);
+        if (!success(status))
+            ret = 0;
+        else
+            ret = (uint64_t)tbi.RemainingTime.QuadPart;
+    }
+
+    RtlReleaseSRWLockShared(&alarm_lock);
+
+    return ret;
+}

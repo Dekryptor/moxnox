@@ -44,7 +44,7 @@ int posix_spawn(pid_t* pid, const char* path,
         return EINVAL;
 
     auto ret = do_exec(path, argv, envp, proc, thread, client_id,
-                       (file_actions_list*)file_actions);
+                       (file_actions_list*)file_actions, 0);
     if (ret)
         return ret;
 

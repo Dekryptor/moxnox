@@ -7,6 +7,7 @@
 #include <span>
 
 import nt;
+import ntdll;
 import kernelbase;
 import unique_handle;
 import unicode;
@@ -148,7 +149,8 @@ int _execve(const char* path, char* const* argv, char* const* envp) {
         return -1;
     }
 
-    auto ret = do_exec(path, argv, envp, proc, thread, client_id, nullptr);
+    auto ret = do_exec(path, argv, envp, proc, thread, client_id, nullptr,
+                       mn_get_alarm_left());
     if (ret) {
         *__errno() = ret;
         return -1;

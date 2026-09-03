@@ -30,6 +30,7 @@ export enum class exec_info_type {
     chdir,
     fchdir,
     dup2_cloexec,
+    alarm,
 };
 
 export struct exec_info {
@@ -63,6 +64,9 @@ export struct exec_info {
         struct {
             int fd;
         } fchdir;
+        struct {
+            uint64_t left;
+        } alarm;
     };
 };
 
@@ -286,7 +290,8 @@ static void do_environ(span<char16_t> buf, char* const* envp) {
 
 export int do_exec(const char* path, char* const* argv, char* const* envp,
                    unique_handle& proc, unique_handle& thread,
-                   CLIENT_ID& client_id, file_actions_list* file_actions) {
+                   CLIENT_ID& client_id, file_actions_list* file_actions,
+                   uint64_t alarm_left) {
     auto& peb = *NtCurrentTeb()->ProcessEnvironmentBlock;
     OBJECT_ATTRIBUTES oa;
     UNICODE_STRING us;
@@ -417,6 +422,19 @@ export int do_exec(const char* path, char* const* argv, char* const* envp,
                                    &num_exec_block_entries);
     if (!success(status))
         return nt_status_to_errno(status);
+
+    if (alarm_left != 0) {
+        our_exec_block = (exec_info*)realloc(our_exec_block, ((num_exec_block_entries + 1) * sizeof(exec_info)));
+        if (!our_exec_block)
+            return ENOMEM;
+
+        auto& e = our_exec_block[num_exec_block_entries];
+
+        e.type = exec_info_type::alarm;
+        e.alarm.left = alarm_left;
+
+        num_exec_block_entries++;
+    }
 
     if (file_actions) {
         size_t new_entries = 0;

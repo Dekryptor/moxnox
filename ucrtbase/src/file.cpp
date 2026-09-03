@@ -3262,6 +3262,14 @@ static void handle_exec_info(exec_info* info) {
 
             break;
         }
+
+        case alarm: {
+            uint64_t left;
+
+            mn_alarm(info->alarm.left, &left);
+
+            break;
+        }
     }
 
 }
