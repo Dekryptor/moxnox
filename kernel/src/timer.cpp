@@ -11,6 +11,7 @@ import list;
 import objects;
 import object_ref;
 import config;
+import thread;
 
 export extern "C++" {
     uint32_t timer_irq_no;
@@ -41,6 +42,9 @@ public:
     uint64_t orig_ticks;
     bool periodic;
     bool autoreset;
+    thread* apc_thread = nullptr;
+    PTIMER_APC_ROUTINE apc_routine = nullptr;
+    void* apc_context;
 };
 
 static_assert(is_sync_object<timer>);

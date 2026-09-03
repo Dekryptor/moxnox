@@ -243,6 +243,9 @@ void timer::on_wake() {
 }
 
 timer::~timer() {
+    if (apc_thread)
+        apc_thread->release();
+
     if (!active)
         return;
 
@@ -291,11 +294,12 @@ NTSTATUS NtCreateTimer(HANDLE* timer_handle, ACCESS_MASK, const OBJECT_ATTRIBUTE
     return nt_status::SUCCESS;
 }
 
-NTSTATUS timer::set(int64_t due_time, PTIMER_APC_ROUTINE, void*, bool,
-                    int32_t period, bool* previous_state) {
+NTSTATUS timer::set(int64_t due_time, PTIMER_APC_ROUTINE apc_routine,
+                    void* apc_context, bool, int32_t period, bool* previous_state) {
+    auto& t = *get_current_thread();
     uint64_t ticks;
 
-    // FIXME - timer_apc_routine, timer_context, resume_timer
+    // FIXME - resume_timer
 
     if (due_time > 0) {
         // FIXME - handle positive due_time (system time)
@@ -305,6 +309,8 @@ NTSTATUS timer::set(int64_t due_time, PTIMER_APC_ROUTINE, void*, bool,
 
     if (ticks == 0)
         ticks = 1;
+
+    ::thread* old_apc_thread = nullptr;
 
     {
         sync_lock sl;
@@ -320,11 +326,27 @@ NTSTATUS timer::set(int64_t due_time, PTIMER_APC_ROUTINE, void*, bool,
         if (periodic)
             orig_ticks = (unsigned int)((uint32_t)period * TICK_RATE) / TIMER_PERIOD_RESOLUTION;
 
+        old_apc_thread = apc_thread;
+
+        if (t.proc && apc_routine) {
+            t.acquire();
+
+            this->apc_thread = &t;
+            this->apc_routine = apc_routine;
+            this->apc_context = apc_context;
+        } else {
+            this->apc_thread = nullptr;
+            this->apc_routine = nullptr;
+        }
+
         if (!active) {
             insert_tail_list(active_timer_list, le);
             active = true;
         }
     }
+
+    if (old_apc_thread)
+        old_apc_thread->release();
 
     return nt_status::SUCCESS;
 }
