@@ -2,6 +2,7 @@ module;
 
 #include <optional>
 #include <mutex>
+#include <signal.h>
 #include "timer-asm.h"
 #include "trace.h"
 
@@ -228,6 +229,33 @@ void timer_expired(timer* tptr) {
                 }
 
                 t.apc_thread->break_apc_waits();
+            }
+        }
+    }
+
+    if (t.timer_proc && !t.timer_proc->dying) {
+        object_ref victim;
+
+        set_pending_signal3(*t.timer_proc, SIGALRM, victim);
+
+        if (victim) {
+            auto& v = static_cast<::thread&>(victim.get());
+
+            auto p = new pending_apc;
+
+            if (p) { // if we OOM, just drop the signal
+                p->routine = (PS_APC_ROUTINE)(t.timer_proc->ntdll_addr + mn_posix_signal);
+                p->arg1 = (uintptr_t)SIGALRM;
+                p->arg2 = 0;
+                p->arg3 = 0;
+
+                {
+                    lock_guard lock(v.apc_lock);
+
+                    insert_tail_list(v.pending_apcs, p->le);
+                }
+
+                v.break_apc_waits();
             }
         }
     }

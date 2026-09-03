@@ -261,3 +261,4 @@ export nt_status pin_iovecs_for_reading(process& proc,
                                         size_t& num_spans);
 export void send_tracepoint_ipi();
 export void print_protect(uint32_t protect);
+export void set_pending_signal3(process& proc, int sig, object_ref& victim);
