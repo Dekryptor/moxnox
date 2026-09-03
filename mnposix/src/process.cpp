@@ -17,6 +17,9 @@ import errno;
 
 using namespace std;
 
+// time.cpp
+void clear_alarm_on_fork();
+
 static thread_local char dl_error_string[255];
 static thread_local bool dl_error_pending;
 
@@ -305,6 +308,9 @@ pid_t fork() {
         *_errno() = nt_status_to_errno(status);
         return -1;
     }
+
+    if (pid == 0)
+        clear_alarm_on_fork();
 
     return (pid_t)pid;
 }

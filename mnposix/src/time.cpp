@@ -237,3 +237,12 @@ unsigned int alarm(unsigned int seconds) {
 
     return time_left;
 }
+
+void clear_alarm_on_fork() {
+    // deliberately not taking alarm_lock
+
+    if (alarm_timer) {
+        NtClose(alarm_timer);
+        alarm_timer = 0;
+    }
+}
