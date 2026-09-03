@@ -819,6 +819,37 @@ NTSTATUS NtSetContextThread(HANDLE thread_handle, const CONTEXT* context) {
 #endif
 }
 
+void thread::break_apc_waits() {
+    // holding sync_lock
+
+    lock_guard lock(apc_lock);
+
+    if (is_list_empty(pending_apcs))
+        return;
+
+    if ((status == thread_status::waiting || status == thread_status::waiting_multiple || status == thread_status::waiting_no_object) && wait_interruptible) {
+        // break waits
+
+        if (wait_timeout != 0)
+            remove_entry_list(timeout_le);
+
+        if (status == thread_status::waiting)
+            remove_entry_list(wait_obj.wait_le);
+        else if (status == thread_status::waiting_multiple) {
+            auto& block = *multwait;
+
+            for (unsigned int i = 0; i < block.num_entries; i++) {
+                if (!block.entries[i].done)
+                    remove_entry_list(block.entries[i].wait_le);
+            }
+
+            multwait = nullptr;
+        }
+
+        status = thread_status::runnable;
+    }
+}
+
 nt_status thread::queue_apc(PS_APC_ROUTINE apc_routine, void* apc_arg1,
                             void* apc_arg2, void* apc_arg3) {
     auto p = new pending_apc;
@@ -841,32 +872,8 @@ nt_status thread::queue_apc(PS_APC_ROUTINE apc_routine, void* apc_arg1,
     {
         sync_lock sl;
         lock_guard lock1(sl);
-        lock_guard lock2(apc_lock);
 
-        if (is_list_empty(pending_apcs))
-            return nt_status::SUCCESS;
-
-        if ((status == thread_status::waiting || status == thread_status::waiting_multiple || status == thread_status::waiting_no_object) && wait_interruptible) {
-            // break waits
-
-            if (wait_timeout != 0)
-                remove_entry_list(timeout_le);
-
-            if (status == thread_status::waiting)
-                remove_entry_list(wait_obj.wait_le);
-            else if (status == thread_status::waiting_multiple) {
-                auto& block = *multwait;
-
-                for (unsigned int i = 0; i < block.num_entries; i++) {
-                    if (!block.entries[i].done)
-                        remove_entry_list(block.entries[i].wait_le);
-                }
-
-                multwait = nullptr;
-            }
-
-            status = thread_status::runnable;
-        }
+        break_apc_waits();
     }
 
     return nt_status::SUCCESS;

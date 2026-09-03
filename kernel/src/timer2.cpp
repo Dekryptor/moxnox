@@ -20,6 +20,7 @@ import handle;
 import scheduler;
 import acpica;
 import trace;
+import kernel_time_page;
 
 #ifdef __x86_64__
 import inout;
@@ -207,6 +208,29 @@ void timer_expired(timer* tptr) {
     // interrupts disabled and sync_lock held
 
     auto& t = *tptr;
+
+    if (t.apc_routine) {
+        if (t.apc_thread->status != thread_status::dead && t.apc_thread->status != thread_status::dying) {
+            auto p = new pending_apc;
+
+            if (p) { // if we OOM, just drop the wakeup
+                auto cur_time = (uint64_t)kernel_time_page.system_time + kernel_time_page.system_time_offset;
+
+                p->routine = (PS_APC_ROUTINE)(uintptr_t)t.apc_routine;
+                p->arg1 = (uintptr_t)t.apc_context;
+                p->arg2 = cur_time & 0xffffffff;
+                p->arg3 = cur_time >> 32;
+
+                {
+                    lock_guard lock(t.apc_thread->apc_lock);
+
+                    insert_tail_list(t.apc_thread->pending_apcs, p->le);
+                }
+
+                t.apc_thread->break_apc_waits();
+            }
+        }
+    }
 
     // signal waiting threads
 
