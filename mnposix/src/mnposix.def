@@ -252,3 +252,4 @@ sigsuspend
 sigpending
 killpg
 ppoll
+wcswidth

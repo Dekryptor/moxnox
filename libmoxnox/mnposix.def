@@ -252,6 +252,7 @@ sigsuspend
 sigpending
 killpg
 ppoll
+wcswidth
 
 ; stubs
 getlocalename_l
@@ -270,7 +271,6 @@ pthread_getschedparam
 pthread_setschedparam
 sched_get_priority_min
 sched_get_priority_max
-wcswidth
 grantpt
 unlockpt
 crypt
