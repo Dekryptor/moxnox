@@ -45,6 +45,7 @@ using std::pair;
 using std::swap;
 using std::memory_order;
 using std::numeric_limits;
+using std::optional;
 
 #ifdef __x86_64__
 static const uint16_t kernel_CS = 0x8;
@@ -968,7 +969,16 @@ nt_status thread::do_poll(span<const uint8_t> buffer) {
 
     auto& p = *(MN_POLL*)buffer.data();
 
-    if (!p.fds || p.nfds == 0 || p.nfds > PAGE_SIZE / sizeof(mn_poll_entry))
+    if (p.nfds == 0) {
+        optional<uint64_t> tm;
+
+        if (p.timeout != numeric_limits<uint64_t>::max())
+            tm = p.timeout;
+
+        return wait_no_object(true, tm);
+    }
+
+    if (!p.fds || p.nfds > PAGE_SIZE / sizeof(mn_poll_entry))
         return nt_status::INVALID_PARAMETER;
 
     auto entries = (mn_poll_entry*)malloc(sizeof(mn_poll_entry) * p.nfds);
