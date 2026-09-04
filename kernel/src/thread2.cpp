@@ -958,7 +958,7 @@ NTSTATUS NtQueueApcThread(HANDLE thread_handle, PS_APC_ROUTINE apc_routine,
     return t.queue_apc(apc_routine, apc_arg1, apc_arg2, apc_arg3);
 }
 
-nt_status thread::do_poll(span<const uint8_t> buffer) {
+static nt_status do_poll(span<const uint8_t> buffer) {
     nt_status status;
     uint32_t bytes_read, bytes_written;
 

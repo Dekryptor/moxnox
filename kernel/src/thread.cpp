@@ -101,7 +101,6 @@ public:
                         void* apc_arg2, void* apc_arg3);
     nt_status wait_for_signal(span<const uint8_t> buffer);
     nt_status query_signals_pending(span<uint8_t> buffer, uint32_t& return_length);
-    nt_status do_poll(span<const uint8_t> buffer);
     void break_apc_waits();
 
     list_entry le;
