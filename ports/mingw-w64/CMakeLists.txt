@@ -53,6 +53,7 @@ add_library(mingwex STATIC
     repo/mingw-w64-crt/misc/fegetround.c
     repo/mingw-w64-crt/misc/feraiseexcept.c
     repo/mingw-w64-crt/misc/fesetenv.c
+    repo/mingw-w64-crt/misc/fesetround.c
     repo/mingw-w64-crt/misc/fetestexcept.c
     repo/mingw-w64-crt/misc/mingw_controlfp.c
     repo/mingw-w64-crt/misc/mingw_setfp.c
