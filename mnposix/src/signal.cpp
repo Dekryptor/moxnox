@@ -2,6 +2,7 @@
 #include <string.h>
 #include <setjmp.h>
 #include <unistd.h>
+#include <poll.h>
 
 import nt;
 import print;
@@ -373,21 +374,22 @@ int sigwait(const sigset_t* set, int* sig) {
 
 extern "C"
 int sigsuspend(const sigset_t* mask) {
-    sigset_t oldset;
-    int ret;
+    while (true) {
+        auto count = mn_handled_signal_count();
 
-    ret = sigprocmask(SIG_SETMASK, mask, &oldset);
-    if (ret)
-        return ret;
+        auto ret = ppoll(nullptr, 0, nullptr, mask);
+        if (ret == 0)
+            continue;
 
-    pause();
+        if (*_errno() != EINTR)
+            return -1;
 
-    ret = sigprocmask(SIG_SETMASK, &oldset, nullptr);
-    if (ret)
-        return ret;
+        if (count == mn_handled_signal_count())
+            continue;
 
-    *_errno() = EINTR;
-    return -1;
+        *_errno() = EINTR;
+        return -1;
+    }
 }
 
 extern "C"
