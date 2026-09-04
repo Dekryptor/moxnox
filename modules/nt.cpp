@@ -1191,6 +1191,8 @@ struct mn_poll_entry {
 
 struct MN_POLL {
     uint64_t timeout;
+    sigset_t sigmask;
+    bool sigmask_set;
     nfds_t nfds;
     mn_poll_entry* fds;
 };

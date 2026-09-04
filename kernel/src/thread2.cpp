@@ -969,6 +969,36 @@ nt_status thread::do_poll(span<const uint8_t> buffer) {
 
     auto& p = *(MN_POLL*)buffer.data();
 
+    if (p.sigmask_set) {
+        p.sigmask &= ((sigset_t)1 << LAST_SIG) - 1;
+
+        sigset_t to_dispatch;
+
+        {
+            lock_guard lock(t.proc->signals_lock);
+
+            t.blocked_signals = p.sigmask;
+
+            to_dispatch = t.pending_signals & ~t.blocked_signals;
+            t.pending_signals &= ~to_dispatch;
+
+            auto from_proc = t.proc->pending_signals & ~t.blocked_signals;
+            to_dispatch |= from_proc;
+            t.proc->pending_signals &= ~from_proc;
+        }
+
+        if (to_dispatch != 0) {
+            for (int i = 1; i <= LAST_SIG; i++) {
+                if (to_dispatch & ((sigset_t)1 << (i - 1))) {
+                    status = t.queue_apc((PS_APC_ROUTINE)(t.proc->ntdll_addr + mn_posix_signal),
+                                         (void*)(uintptr_t)i, nullptr, nullptr);
+                    if (!success(status))
+                        return status;
+                }
+            }
+        }
+    }
+
     if (p.nfds == 0) {
         optional<uint64_t> tm;
 
