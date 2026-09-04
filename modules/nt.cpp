@@ -1301,6 +1301,7 @@ enum class THREAD_INFORMATION_CLASS {
     MoxnoxUnblockSignals,
     MoxnoxSignalsMask,
     MoxnoxWaitForSignal,
+    MoxnoxSignalsPending,
 };
 
 const ACCESS_MASK TIMER_QUERY_STATE = 0x0001;

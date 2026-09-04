@@ -1531,6 +1531,8 @@ export span<char> do_format_arg(span<char> sp, string_view,
             return sp_strcpy(sp, "MoxnoxSignalsMask");
         case MoxnoxWaitForSignal:
             return sp_strcpy(sp, "MoxnoxWaitForSignal");
+        case MoxnoxSignalsPending:
+            return sp_strcpy(sp, "MoxnoxSignalsPending");
         default:
             return do_format_arg(sp, "", (unsigned int)arg);
     }

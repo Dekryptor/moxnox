@@ -511,6 +511,24 @@ NTSTATUS NtQueryInformationThread(HANDLE thread_handle,
                                *return_length);
 }
 
+nt_status thread::query_signals_pending(span<uint8_t> buffer,
+                                        uint32_t& return_length) {
+    if (buffer.size() < sizeof(sigset_t))
+        return nt_status::BUFFER_TOO_SMALL;
+
+    auto& s = *(sigset_t*)buffer.data();
+
+    {
+        lock_guard lock(proc->signals_lock);
+
+        s = pending_signals | proc->pending_signals;
+    }
+
+    return_length = sizeof(sigset_t);
+
+    return nt_status::SUCCESS;
+}
+
 nt_status thread::query_information(THREAD_INFORMATION_CLASS info_class,
                                     span<uint8_t> buffer, uint32_t& return_length) {
     switch (info_class) {
@@ -518,6 +536,9 @@ nt_status thread::query_information(THREAD_INFORMATION_CLASS info_class,
 
         case MoxnoxSignalsMask:
             return query_signals_mask(buffer, return_length);
+
+        case MoxnoxSignalsPending:
+            return query_signals_pending(buffer, return_length);
 
         default:
             return nt_status::NOT_IMPLEMENTED;
