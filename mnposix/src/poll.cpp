@@ -16,10 +16,12 @@ using namespace std;
 
 extern "C"
 int poll(struct pollfd* fds, nfds_t nfds, int timeout) {
-    LARGE_INTEGER li;
     nt_status status;
+    MN_POLL p;
 
     if (nfds == 0) {
+        LARGE_INTEGER li;
+
         if (timeout == 0)
             return 0;
 
@@ -61,10 +63,17 @@ int poll(struct pollfd* fds, nfds_t nfds, int timeout) {
         entries[i].revents = 0;
     }
 
-    if (timeout >= 0)
-        li.QuadPart = -(int64_t)timeout * 10000; // convert ms to units of 100ns
+    if (timeout < 0)
+        p.timeout = numeric_limits<uint64_t>::max(); // wait forever
+    else
+        p.timeout = (uint64_t)timeout * 10000; // convert ms to units of 100ns;
 
-    status = mn_poll(entries, nfds, timeout >= 0 ? &li : nullptr);
+    p.nfds = nfds;
+    p.fds = entries;
+
+    status = NtSetInformationThread(NtCurrentThread(),
+                                    THREAD_INFORMATION_CLASS::MoxnoxPoll,
+                                    &p, sizeof(p));
     if (status == nt_status::USER_APC) {
         *_errno() = EINTR;
         free(entries);
