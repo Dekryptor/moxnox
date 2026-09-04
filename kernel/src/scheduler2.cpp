@@ -40,7 +40,6 @@ using namespace std;
 static const uint64_t time_slice = 50; // ticks
 
 extern "C" {
-    list_entry thread_list_timeout = { &thread_list_timeout, &thread_list_timeout };
     volatile uint64_t sync_lock_val = 0;
 }
 

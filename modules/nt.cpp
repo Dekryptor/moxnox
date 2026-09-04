@@ -2,6 +2,7 @@ module;
 
 #include <stdint.h>
 #include <stddef.h>
+#include <poll.h>
 
 export module nt;
 
@@ -1182,6 +1183,18 @@ struct MN_WAITPID {
     HANDLE* h;
 };
 
+struct mn_poll_entry {
+    HANDLE h;
+    uint16_t events;
+    uint16_t revents;
+};
+
+struct MN_POLL {
+    uint64_t timeout;
+    nfds_t nfds;
+    mn_poll_entry* fds;
+};
+
 struct MN_MEMORY_UNMAP {
     void* addr;
     size_t length;
@@ -1302,6 +1315,7 @@ enum class THREAD_INFORMATION_CLASS {
     MoxnoxSignalsMask,
     MoxnoxWaitForSignal,
     MoxnoxSignalsPending,
+    MoxnoxPoll,
 };
 
 const ACCESS_MASK TIMER_QUERY_STATE = 0x0001;
@@ -1469,12 +1483,6 @@ const uint32_t ENABLE_WRAP_AT_EOL_OUTPUT = 0x2;
 const uint32_t ENABLE_VIRTUAL_TERMINAL_PROCESSING = 0x4;
 const uint32_t DISABLE_NEWLINE_AUTO_RETURN = 0x8;
 const uint32_t ENABLE_LVB_GRID_WORLDWIDE = 0x10;
-
-struct mn_poll_entry {
-    HANDLE h;
-    uint16_t events;
-    uint16_t revents;
-};
 
 using PS_APC_ROUTINE = void (*)(void*, void*, void*);
 

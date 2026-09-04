@@ -5,7 +5,10 @@ module;
 #include <new>
 #include <bit>
 #include <string_view>
+#include <algorithm>
+#include <atomic>
 #include <signal.h>
+#include <poll.h>
 #include "timer-asm.h"
 #include "trace.h"
 
@@ -27,6 +30,8 @@ import process;
 import scheduler;
 import interrupts;
 import trace;
+import visit;
+import vfs;
 
 #ifdef __aarch64__
 import aarch64;
@@ -37,6 +42,9 @@ using std::nullopt;
 using std::countr_zero;
 using std::string_view;
 using std::pair;
+using std::swap;
+using std::memory_order;
+using std::numeric_limits;
 
 #ifdef __x86_64__
 static const uint16_t kernel_CS = 0x8;
@@ -949,6 +957,327 @@ NTSTATUS NtQueueApcThread(HANDLE thread_handle, PS_APC_ROUTINE apc_routine,
     return t.queue_apc(apc_routine, apc_arg1, apc_arg2, apc_arg3);
 }
 
+nt_status thread::do_poll(span<const uint8_t> buffer) {
+    nt_status status;
+    uint32_t bytes_read, bytes_written;
+
+    auto& t = *get_current_thread();
+
+    if (buffer.size() < sizeof(MN_POLL))
+        return nt_status::BUFFER_TOO_SMALL;
+
+    auto& p = *(MN_POLL*)buffer.data();
+
+    if (!p.fds || p.nfds == 0 || p.nfds > PAGE_SIZE / sizeof(mn_poll_entry))
+        return nt_status::INVALID_PARAMETER;
+
+    auto entries = (mn_poll_entry*)malloc(sizeof(mn_poll_entry) * p.nfds);
+    if (!entries) {
+        print("malloc failed\n");
+        return nt_status::INSUFFICIENT_RESOURCES;
+    }
+
+    status = t.proc->read_vm(p.fds, entries, (uint32_t)(sizeof(mn_poll_entry) * p.nfds),
+                             &bytes_read);
+    if (!success(status)) {
+        free(entries);
+        return status;
+    } else if (bytes_read != sizeof(mn_poll_entry) * p.nfds) {
+        free(entries);
+        return nt_status::NO_MEMORY;
+    }
+
+    auto objs = (object**)malloc(sizeof(object*) * p.nfds);
+    if (!objs) {
+        print("malloc failed\n");
+        free(entries);
+        return nt_status::INSUFFICIENT_RESOURCES;
+    }
+
+    size_t valid = 0;
+
+    for (size_t i = 0; i < p.nfds; i++) {
+        // FIXME - check handles have SYNCHRONIZE access
+
+        auto objrw = deref_handle(entries[i].h);
+        if (!objrw) {
+            entries[i].revents = POLLNVAL;
+            continue;
+        }
+
+        if (objrw.get().type == object_type::file) {
+            auto& f = static_cast<file&>(objrw.get());
+
+            f.ino.acquire();
+
+            object_ref objrw2{f.ino};
+
+            swap(objrw, objrw2);
+        }
+
+        objrw.get().acquire();
+        objs[valid] = &objrw.get();
+        valid++;
+    }
+
+    if (valid != p.nfds) {
+        for (size_t i = 0; i < valid; i++) {
+            object_release(*objs[i]);
+        }
+
+        free(objs);
+
+        status = t.proc->write_vm(p.fds, entries, (uint32_t)(sizeof(mn_poll_entry) * p.nfds),
+                                  &bytes_written);
+        if (!success(status)) {
+            free(entries);
+            return status;
+        } else if (bytes_written != sizeof(mn_poll_entry) * p.nfds) {
+            free(entries);
+            return nt_status::NO_MEMORY;
+        }
+
+        free(entries);
+
+        return nt_status::SUCCESS;
+    }
+
+    // FIXME - POLLOUT
+    // FIXME - POLLERR and POLLHUP
+
+    disable_interrupts();
+    acquire_sync_lock();
+
+    if (t.status == thread_status::dying) {
+        release_sync_lock();
+        enable_interrupts();
+
+        for (size_t i = 0; i < p.nfds; i++) {
+            object_release(*objs[i]);
+        }
+
+        free(objs);
+        free(entries);
+
+        return nt_status::THREAD_IS_TERMINATING;
+    }
+
+    {
+        bool has_apcs;
+
+        {
+            lock_guard lock(t.apc_lock);
+            has_apcs = !is_list_empty(t.pending_apcs);
+        }
+
+        if (has_apcs) {
+            release_sync_lock();
+            enable_interrupts();
+
+            for (size_t i = 0; i < p.nfds; i++) {
+                object_release(*objs[i]);
+            }
+
+            free(objs);
+            free(entries);
+
+            return nt_status::USER_APC;
+        }
+    }
+
+    // FIXME - handle multiple wakeups at once
+
+    for (size_t i = 0; i < p.nfds; i++) {
+        bool signalled;
+        uint16_t revents = 0;
+
+        auto& obj = *objs[i];
+
+        if (object_is_sync_object(obj)) {
+            auto& so = object_get_sync_object(obj);
+
+            signalled = so.signalled;
+        } else
+            signalled = true;
+
+        if (signalled && entries[i].events & POLLIN)
+            revents |= POLLIN;
+
+        if (entries[i].events & POLLOUT) // FIXME
+            revents |= POLLOUT;
+
+        if (revents != 0) {
+            object_on_wake(obj);
+            release_sync_lock();
+            enable_interrupts();
+
+            entries[i].revents = revents;
+
+            for (size_t j = 0; j < p.nfds; j++) {
+                object_release(*objs[j]);
+            }
+
+            free(objs);
+
+            status = t.proc->write_vm(&p.fds[i], &entries[i], (uint32_t)sizeof(mn_poll_entry),
+                                      &bytes_written);
+            if (!success(status)) {
+                free(entries);
+                return status;
+            } else if (bytes_written != sizeof(mn_poll_entry)) {
+                free(entries);
+                return nt_status::NO_MEMORY;
+            }
+
+            free(entries);
+
+            return nt_status::SUCCESS;
+        }
+    }
+
+    if (p.timeout == 0) {
+        release_sync_lock();
+        enable_interrupts();
+
+        for (size_t i = 0; i < p.nfds; i++) {
+            object_release(*objs[i]);
+        }
+
+        free(objs);
+        free(entries);
+
+        return nt_status::TIMEOUT;
+    }
+
+    // do actual waiting
+
+    size_t mwb_size = offsetof(multiple_wait_block, entries) + (p.nfds * sizeof(waiter_object_multiple));
+    auto mwb = (multiple_wait_block*)malloc(mwb_size);
+    if (!mwb) {
+        release_sync_lock();
+        enable_interrupts();
+
+        for (size_t i = 0; i < p.nfds; i++) {
+            object_release(*objs[i]);
+        }
+
+        free(objs);
+        free(entries);
+        return nt_status::INSUFFICIENT_RESOURCES;
+    }
+
+    mwb->t = &t;
+    mwb->left = 1;
+    mwb->num_entries = (unsigned int)p.nfds;
+
+    for (size_t i = 0; i < p.nfds; i++) {
+        auto& so = object_get_sync_object(*objs[i]);
+        auto ent = new (&mwb->entries[i]) waiter_object_multiple;
+
+        if (entries[i].events & POLLIN)
+            insert_tail_list(so.waiters, ent->wait_le);
+        else
+            ent->wait_le.next = ent->wait_le.prev = &ent->wait_le;
+
+        ent->block = mwb;
+    }
+
+    t.multwait = mwb;
+
+    auto& cb = *get_cpu_block();
+
+    if (t.status == thread_status::dying)
+        t.kill_on_wake = true;
+
+    t.status = thread_status::waiting_multiple;
+    t.current_cpu = 0xffffffff;
+    t.wait_interruptible = true;
+
+    if (t.proc)
+        t.proc->running_cpus &= ~((uint64_t)1 << cb.cpu_no);
+
+    active_cpus.fetch_and(~((uint64_t)1 << cb.cpu_no), memory_order::relaxed);
+
+    if (p.timeout == numeric_limits<uint64_t>::max())
+        t.wait_timeout = 0;
+    else {
+        t.wait_timeout = p.timeout / (SYSTEM_TIME_RESOLUTION / TICK_RATE);
+
+        if (p.timeout % (SYSTEM_TIME_RESOLUTION / TICK_RATE))
+            t.wait_timeout++;
+
+        insert_tail_list(thread_list_timeout, t.timeout_le);
+    }
+
+    yield(); // releases sync_lock
+
+    {
+        lock_guard lock(t.apc_lock);
+
+        if (!is_list_empty(t.pending_apcs)) {
+            free(mwb);
+
+            for (size_t i = 0; i < p.nfds; i++) {
+                object_release(*objs[i]);
+            }
+
+            free(objs);
+            free(entries);
+
+            return nt_status::USER_APC;
+        }
+    }
+
+    auto index = mwb->index;
+    free(mwb);
+
+    status = nt_status::SUCCESS;
+
+    if (t.kill_on_wake) {
+        t.kill_on_wake = false;
+        t.status = thread_status::dying;
+        status = nt_status::THREAD_IS_TERMINATING;
+    } else if (t.status == thread_status::dying)
+        status = nt_status::THREAD_IS_TERMINATING;
+    else if (t.suspend_count.load() != 0)
+        status = nt_status::ALERTED;
+    else if (p.timeout < numeric_limits<uint64_t>::max() && t.wait_timeout == 0)
+        status = nt_status::TIMEOUT;
+
+    if (status != nt_status::SUCCESS) {
+        for (size_t i = 0; i < p.nfds; i++) {
+            object_release(*objs[i]);
+        }
+
+        free(objs);
+        free(entries);
+
+        return status;
+    }
+
+    entries[index].revents = POLLIN;
+
+    for (size_t i = 0; i < p.nfds; i++) {
+        object_release(*objs[i]);
+    }
+
+    free(objs);
+
+    status = t.proc->write_vm(&p.fds[index], &entries[index],
+                              (uint32_t)sizeof(mn_poll_entry), &bytes_written);
+    if (!success(status)) {
+        free(entries);
+        return status;
+    } else if (bytes_written != sizeof(mn_poll_entry)) {
+        free(entries);
+        return nt_status::NO_MEMORY;
+    }
+
+    free(entries);
+
+    return nt_status::SUCCESS;
+}
+
 nt_status thread::set_information(THREAD_INFORMATION_CLASS info_class,
                                   span<const uint8_t> buffer) {
     switch (info_class) {
@@ -968,6 +1297,9 @@ nt_status thread::set_information(THREAD_INFORMATION_CLASS info_class,
 
         case MoxnoxWaitForSignal:
             return wait_for_signal(buffer);
+
+        case MoxnoxPoll:
+            return do_poll(buffer);
 
         default:
             return nt_status::NOT_IMPLEMENTED;
