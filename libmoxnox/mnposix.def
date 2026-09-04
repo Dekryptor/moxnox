@@ -248,9 +248,9 @@ getpriority
 setpriority
 sleep
 alarm
+sigsuspend
 
 ; stubs
-sigsuspend
 getlocalename_l
 getgroups
 mlock

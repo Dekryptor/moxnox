@@ -370,3 +370,22 @@ int sigwait(const sigset_t* set, int* sig) {
 
     return 0;
 }
+
+extern "C"
+int sigsuspend(const sigset_t* mask) {
+    sigset_t oldset;
+    int ret;
+
+    ret = sigprocmask(SIG_SETMASK, mask, &oldset);
+    if (ret)
+        return ret;
+
+    pause();
+
+    ret = sigprocmask(SIG_SETMASK, &oldset, nullptr);
+    if (ret)
+        return ret;
+
+    *_errno() = EINTR;
+    return -1;
+}
