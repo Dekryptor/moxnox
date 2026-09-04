@@ -15,10 +15,43 @@ import errno;
 using namespace std;
 
 extern "C"
-int poll(struct pollfd* fds, nfds_t nfds, int timeout) {
+int ppoll(pollfd* fds, nfds_t nfds, const timespec* timeout,
+          const sigset_t* sigmask) {
     nt_status status;
     MN_POLL p;
     mn_poll_entry* entries = nullptr;
+    sigset_t oldset;
+
+    if (sigmask) {
+        uint32_t retlen;
+
+        p.sigmask = *sigmask;
+        p.sigmask_set = true;
+
+        status = NtQueryInformationThread(NtCurrentThread(),
+                                          THREAD_INFORMATION_CLASS::MoxnoxSignalsMask,
+                                          &oldset, sizeof(oldset), &retlen);
+        if (!success(status)) {
+            *_errno() = nt_status_to_errno(status);
+            return -1;
+        }
+    } else
+        p.sigmask_set = false;
+
+    if (!timeout)
+        p.timeout = numeric_limits<uint64_t>::max(); // wait forever
+    else {
+        if (timeout->tv_sec < 0 || timeout->tv_nsec < 0 || timeout->tv_nsec >= 1000000000) {
+            *_errno() = EINVAL;
+            return -1;
+        }
+
+        // convert to units of 100ns
+        p.timeout = (timeout->tv_sec * 10000000) + (timeout->tv_nsec / 100);
+
+        if (timeout->tv_nsec % 100)
+            p.timeout++;
+    }
 
     if (nfds > 0) {
         entries = (mn_poll_entry*)malloc(sizeof(mn_poll_entry) * nfds);
@@ -43,17 +76,21 @@ int poll(struct pollfd* fds, nfds_t nfds, int timeout) {
         }
     }
 
-    if (timeout < 0)
-        p.timeout = numeric_limits<uint64_t>::max(); // wait forever
-    else
-        p.timeout = (uint64_t)timeout * 10000; // convert ms to units of 100ns;
-
     p.nfds = nfds;
     p.fds = entries;
 
     status = NtSetInformationThread(NtCurrentThread(),
                                     THREAD_INFORMATION_CLASS::MoxnoxPoll,
                                     &p, sizeof(p));
+
+    if (sigmask) {
+        auto status2 = NtSetInformationThread(NtCurrentThread(),
+                                              THREAD_INFORMATION_CLASS::MoxnoxSignalsMask,
+                                              &oldset, sizeof(oldset));
+        if (!success(status2) && success(status))
+            status = status2;
+    }
+
     if (status == nt_status::USER_APC) {
         *_errno() = EINTR;
 
@@ -82,6 +119,20 @@ int poll(struct pollfd* fds, nfds_t nfds, int timeout) {
         free(entries);
 
     return ret;
+}
+
+extern "C"
+int poll(pollfd* fds, nfds_t nfds, int timeout) {
+    if (timeout < 0)
+        return ppoll(fds, nfds, nullptr, nullptr);
+    else {
+        timespec tm;
+
+        tm.tv_sec = timeout / 1000;
+        tm.tv_nsec = (timeout % 1000) * 1000000;
+
+        return ppoll(fds, nfds, &tm, nullptr);
+    }
 }
 
 extern "C"
