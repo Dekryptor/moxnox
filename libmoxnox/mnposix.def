@@ -249,6 +249,7 @@ setpriority
 sleep
 alarm
 sigsuspend
+sigpending
 
 ; stubs
 getlocalename_l
@@ -268,7 +269,6 @@ pthread_setschedparam
 sched_get_priority_min
 sched_get_priority_max
 ppoll
-sigpending
 killpg
 wcswidth
 grantpt

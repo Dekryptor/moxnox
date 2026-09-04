@@ -249,3 +249,4 @@ setpriority
 sleep
 alarm
 sigsuspend
+sigpending

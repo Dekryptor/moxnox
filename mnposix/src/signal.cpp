@@ -389,3 +389,16 @@ int sigsuspend(const sigset_t* mask) {
     *_errno() = EINTR;
     return -1;
 }
+
+extern "C"
+int sigpending(sigset_t* set) {
+    auto status = NtQueryInformationThread(NtCurrentThread(),
+                                           THREAD_INFORMATION_CLASS::MoxnoxSignalsPending,
+                                           set, sizeof(*set), nullptr);
+    if (!success(status)) {
+        *_errno() = nt_status_to_errno(status);
+        return -1;
+    }
+
+    return 0;
+}
