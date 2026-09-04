@@ -402,4 +402,3 @@ syscall_stub "NtWaitForMultipleObjects32"
 syscall_stub "NtWaitForWorkViaWorkerFactory"
 syscall_stub "NtWorkerFactoryWorkerReady"
 syscall_func "NtContinue", 2
-syscall_func "mn_poll", 3

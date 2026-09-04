@@ -1701,47 +1701,6 @@ NTSTATUS user_NtContinue(const CONTEXT* thread_context, bool /*raise_alert*/) {
 }
 
 extern "C"
-NTSTATUS user_mn_poll(mn_poll_entry* us_entries, size_t num_entries,
-                      const LARGE_INTEGER* us_timeout) {
-    nt_status ret;
-    LARGE_INTEGER timeout;
-
-    if (num_entries == 0)
-        return nt_status::INVALID_PARAMETER;
-
-    // cap at what malloc supports (FIXME - use vmalloc if large?)
-    if (num_entries > 2 * PAGE_SIZE / sizeof(mn_poll_entry))
-        return nt_status::INVALID_PARAMETER;
-
-    auto entries = (mn_poll_entry*)malloc(num_entries * sizeof(mn_poll_entry));
-    if (!entries)
-        return nt_status::INSUFFICIENT_RESOURCES;
-
-    if (!copy_from_process(entries, us_entries, num_entries * sizeof(mn_poll_entry))) {
-        free(entries);
-        return nt_status::ACCESS_VIOLATION;
-    }
-
-    if (us_timeout) {
-        if (!copy_from_process(&timeout, us_timeout, sizeof(LARGE_INTEGER))) {
-            free(entries);
-            return nt_status::ACCESS_VIOLATION;
-        }
-    }
-
-    ret = mn_poll(entries, num_entries, us_timeout ? &timeout : nullptr);
-
-    if (success(ret)) {
-        if (!copy_to_process(us_entries, entries, num_entries * sizeof(mn_poll_entry)))
-            ret = nt_status::ACCESS_VIOLATION;
-    }
-
-    free(entries);
-
-    return ret;
-}
-
-extern "C"
 NTSTATUS user_NtSetInformationThread(HANDLE thread_handle, THREAD_INFORMATION_CLASS info_class,
                                      const void* us_buffer, uint32_t buffer_size) {
     void* buffer = nullptr;
