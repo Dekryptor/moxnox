@@ -250,3 +250,4 @@ sleep
 alarm
 sigsuspend
 sigpending
+killpg

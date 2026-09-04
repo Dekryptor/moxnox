@@ -402,3 +402,13 @@ int sigpending(sigset_t* set) {
 
     return 0;
 }
+
+extern "C"
+int killpg(pid_t pgrp, int sig) {
+    if (pgrp <= 1) {
+        *_errno() = EINVAL;
+        return -1;
+    }
+
+    return kill(-pgrp, sig);
+}
