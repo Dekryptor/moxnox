@@ -18,49 +18,29 @@ extern "C"
 int poll(struct pollfd* fds, nfds_t nfds, int timeout) {
     nt_status status;
     MN_POLL p;
+    mn_poll_entry* entries = nullptr;
 
-    if (nfds == 0) {
-        LARGE_INTEGER li;
-
-        if (timeout == 0)
-            return 0;
-
-        if (timeout < 0)
-            li.QuadPart = -numeric_limits<int64_t>::max(); // wait (effectively) forever
-        else
-            li.QuadPart = -(int64_t)timeout * 10000; // convert ms to units of 100ns
-
-        status = NtDelayExecution(true, &li);
-        if (status == nt_status::USER_APC) {
-            *_errno() = EINTR;
-            return -1;
-        } else if (!success(status)) {
-            *_errno() = nt_status_to_errno(status);
+    if (nfds > 0) {
+        entries = (mn_poll_entry*)malloc(sizeof(mn_poll_entry) * nfds);
+        if (!entries) {
+            *_errno() = ENOMEM;
             return -1;
         }
 
-        return 0;
-    }
+        for (size_t i = 0; i < nfds; i++) {
+            auto e = *_errno();
 
-    auto entries = (mn_poll_entry*)malloc(sizeof(mn_poll_entry) * nfds);
-    if (!entries) {
-        *_errno() = ENOMEM;
-        return -1;
-    }
+            auto h = (HANDLE)_get_osfhandle((int)fds[i].fd);
 
-    for (size_t i = 0; i < nfds; i++) {
-        auto e = *_errno();
+            if ((intptr_t)h == -1) {
+                entries[i].h = 0;
+                *_errno() = e;
+            } else
+                entries[i].h = h;
 
-        auto h = (HANDLE)_get_osfhandle((int)fds[i].fd);
-
-        if ((intptr_t)h == -1) {
-            entries[i].h = 0;
-            *_errno() = e;
-        } else
-            entries[i].h = h;
-
-        entries[i].events = (uint16_t)fds[i].events;
-        entries[i].revents = 0;
+            entries[i].events = (uint16_t)fds[i].events;
+            entries[i].revents = 0;
+        }
     }
 
     if (timeout < 0)
@@ -76,11 +56,17 @@ int poll(struct pollfd* fds, nfds_t nfds, int timeout) {
                                     &p, sizeof(p));
     if (status == nt_status::USER_APC) {
         *_errno() = EINTR;
-        free(entries);
+
+        if (entries)
+            free(entries);
+
         return -1;
     } else if (!success(status)) {
         *_errno() = nt_status_to_errno(status);
-        free(entries);
+
+        if (entries)
+            free(entries);
+
         return -1;
     }
 
@@ -92,7 +78,8 @@ int poll(struct pollfd* fds, nfds_t nfds, int timeout) {
             ret++;
     }
 
-    free(entries);
+    if (entries)
+        free(entries);
 
     return ret;
 }
