@@ -205,3 +205,6 @@
 [submodule "ports/tar/repo"]
 	path = ports/tar/repo
 	url = https://git.burntcomma.com/moxnox/tar
+[submodule "ports/m4/repo"]
+	path = ports/m4/repo
+	url = https://git.burntcomma.com/moxnox/m4
