@@ -1,5 +1,8 @@
+#include <string_view>
 #include <stdint.h>
 #include <termios.h>
+#include <string.h>
+#include <fcntl.h>
 
 import nt;
 import ucrtbase;
@@ -9,6 +12,8 @@ import moxnox_ioctls;
 
 #undef errno
 import errno;
+
+using namespace std;
 
 using speed_t = unsigned int;
 
@@ -232,4 +237,58 @@ int tcgetpgrp(int fd) {
     }
 
     return (int)pgid;
+}
+
+extern "C"
+int posix_openpt(int oflag) {
+    nt_status status;
+    OBJECT_ATTRIBUTES oa;
+    UNICODE_STRING us;
+    IO_STATUS_BLOCK iosb;
+    HANDLE ptyctl;
+    MOXNOX_IOCTL_PTYCTL_CREATE_PTY_IN ptyparams;
+    MOXNOX_IOCTL_PTYCTL_CREATE_PTY_OUT ptyinfo;
+    int flags = 0;
+
+    if (oflag & O_CLOEXEC)
+        flags |= O_CLOEXEC;
+
+    static const u16string_view ptyctl_fn = u"/dev/ptyctl";
+
+    us.Length = us.MaximumLength = (uint16_t)(ptyctl_fn.size() * sizeof(char16_t));
+    us.Buffer = (char16_t*)ptyctl_fn.data();
+
+    memset(&oa, 0, sizeof(oa));
+    oa.Length = sizeof(OBJECT_ATTRIBUTES);
+    oa.ObjectName = &us;
+
+    status = NtOpenFile(&ptyctl, FILE_READ_DATA | FILE_WRITE_DATA, &oa, &iosb, 0, 0);
+    if (!success(status)) {
+        *_errno() = nt_status_to_errno(status);
+        return -1;
+    }
+
+    ptyparams.cols = 80;
+    ptyparams.rows = 25;
+
+    status = NtDeviceIoControlFile(ptyctl, 0, nullptr, nullptr, &iosb,
+                                   IOCTL_MOXNOX_PTYCTL_CREATE_PTY, &ptyparams,
+                                   sizeof(ptyparams), &ptyinfo, sizeof(ptyinfo));
+    if (!success(status)) {
+        *_errno() = nt_status_to_errno(status);
+        NtClose(ptyctl);
+        return -1;
+    }
+
+    NtClose(ptyctl);
+    NtClose(ptyinfo.client_handle);
+
+    auto fd = _open_osfhandle(ptyinfo.server_handle, flags);
+
+    if (fd == -1) {
+        NtClose(ptyinfo.server_handle);
+        return -1;
+    }
+
+    return fd;
 }

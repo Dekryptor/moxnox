@@ -144,6 +144,7 @@ int at_quick_exit(void (*func)(void));
 int putenv(char* string);
 int mkostemp(char* tmpl, int flag);
 int grantpt(int fd);
+int posix_openpt(int oflag);
 int unlockpt(int fd);
 
 #ifdef __cplusplus

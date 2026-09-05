@@ -256,6 +256,7 @@ wcswidth
 fpathconf
 getgroups
 getrusage
+posix_openpt
 
 ; stubs
 getlocalename_l

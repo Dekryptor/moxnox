@@ -256,3 +256,4 @@ wcswidth
 fpathconf
 getgroups
 getrusage
+posix_openpt
