@@ -254,10 +254,10 @@ killpg
 ppoll
 wcswidth
 fpathconf
+getgroups
 
 ; stubs
 getlocalename_l
-getgroups
 mlock
 munlock
 getrusage

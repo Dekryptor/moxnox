@@ -179,3 +179,15 @@ int setresgid(gid_t rgid, gid_t egid, gid_t sgid) {
 
     return 0;
 }
+
+extern "C"
+int getgroups(int gidsetsize, gid_t* /*grouplist*/) {
+    if (gidsetsize < 0) {
+        *_errno() = EINVAL;
+        return -1;
+    }
+
+    // FIXME
+
+    return 0;
+}

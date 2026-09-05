@@ -3,7 +3,6 @@
 stubs_start
 
 do_stub "getlocalename_l"
-do_stub "getgroups"
 do_stub "mlock"
 do_stub "munlock"
 do_stub "getrusage"

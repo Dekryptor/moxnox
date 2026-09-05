@@ -254,3 +254,4 @@ killpg
 ppoll
 wcswidth
 fpathconf
+getgroups
