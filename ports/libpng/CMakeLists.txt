@@ -1,33 +1,42 @@
-add_library(libpng SHARED
-    repo/png.c
-    repo/pngerror.c
-    repo/pngget.c
-    repo/pngmem.c
-    repo/pngpread.c
-    repo/pngread.c
-    repo/pngrio.c
-    repo/pngrtran.c
-    repo/pngrutil.c
-    repo/pngset.c
-    repo/pngtrans.c
-    repo/pngwio.c
-    repo/pngwrite.c
-    repo/pngwtran.c
-    repo/pngwutil.c
+set(PNG_SHARED ON)
+set(PNG_STATIC OFF)
+set(PNG_TESTS OFF)
+set(PNG_TOOLS OFF)
+set(SKIP_INSTALL_ALL ON)
+
+set(ld-version-script OFF)
+
+set(ZLIB_LIBRARY ${CMAKE_BINARY_DIR}/ports/zlib/libzlib.dll.a)
+set(ZLIB_INCLUDE_DIR ${CMAKE_CURRENT_SOURCE_DIR}/../zlib/repo)
+
+set(CMAKE_MESSAGE_LOG_LEVEL NOTICE)
+add_subdirectory(repo)
+
+set_target_properties(png_shared PROPERTIES DEBUG_POSTFIX "")
+
+target_compile_options(png_shared PRIVATE
+    ${USERSPACE_CFLAGS}
+    -fvisibility=default
+    -Wno-sign-conversion
+    -Wno-conversion
 )
 
-if(CMAKE_SYSTEM_PROCESSOR STREQUAL "aarch64")
-    target_sources(libpng PRIVATE
-        repo/arm/arm_init.c
-        repo/arm/filter_neon_intrinsics.c
-        repo/arm/palette_neon_intrinsics.c
-    )
-endif()
+get_target_property(libs png_shared LINK_LIBRARIES)
+list(REMOVE_ITEM libs m)
+set_target_properties(png_shared PROPERTIES LINK_LIBRARIES "${libs}")
 
-target_include_directories(libpng PUBLIC repo ${CMAKE_CURRENT_SOURCE_DIR})
-target_compile_options(libpng PRIVATE ${USERSPACE_CFLAGS} -fvisibility=default $<$<COMPILE_LANGUAGE:CXX>:-fno-exceptions -fno-rtti> -Wno-sign-conversion)
-target_link_libraries(libpng PUBLIC zlib)
+get_target_property(libs png_shared INTERFACE_LINK_LIBRARIES)
+list(REMOVE_ITEM libs m)
+set_target_properties(png_shared PROPERTIES INTERFACE_LINK_LIBRARIES "${libs}")
 
-install(TARGETS libpng DESTINATION ${CMAKE_INSTALL_PREFIX}/lib
+cmake_language(DEFER DIRECTORY ${CMAKE_SOURCE_DIR}
+    CALL add_dependencies png_shared zlib)
+
+install(TARGETS png_shared DESTINATION ${CMAKE_INSTALL_PREFIX}/lib
     ARCHIVE EXCLUDE_FROM_ALL
+)
+
+add_custom_target(libpng)
+add_dependencies(libpng
+    png_shared
 )

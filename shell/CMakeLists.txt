@@ -149,7 +149,7 @@ target_compile_options(screenshot PRIVATE -fno-exceptions ${USERSPACE_CFLAGS})
 
 target_link_libraries(screenshot print format unicode)
 target_link_libraries(screenshot moxnox)
-target_link_libraries(screenshot libpng zlib)
+target_link_libraries(screenshot png_shared zlib)
 
 install(TARGETS screenshot DESTINATION ${CMAKE_INSTALL_PREFIX}/bin COMPONENT core)
 

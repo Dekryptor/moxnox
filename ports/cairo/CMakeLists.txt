@@ -139,7 +139,7 @@ target_include_directories(cairo PUBLIC repo/src)
 target_include_directories(cairo PUBLIC ${CMAKE_CURRENT_BINARY_DIR})
 target_include_directories(cairo PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
 
-target_link_libraries(cairo PRIVATE pixman freetype libpng zlib)
+target_link_libraries(cairo PRIVATE pixman freetype png_shared zlib)
 
 install(TARGETS cairo
     DESTINATION ${CMAKE_INSTALL_PREFIX}/lib

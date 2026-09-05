@@ -66,7 +66,7 @@ target_compile_options(freetype PRIVATE -mno-stack-arg-probe ${USERSPACE_CFLAGS}
 target_compile_options(freetype PRIVATE -Wno-unused-function -Wno-conversion -Wno-unused-variable -Wno-unused-but-set-variable -Wno-attributes)
 target_include_directories(freetype PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
 target_include_directories(freetype PUBLIC repo/include)
-target_link_libraries(freetype PRIVATE libpng)
+target_link_libraries(freetype PRIVATE png_shared)
 
 install(TARGETS freetype DESTINATION ${CMAKE_INSTALL_PREFIX}/lib
     ARCHIVE EXCLUDE_FROM_ALL
