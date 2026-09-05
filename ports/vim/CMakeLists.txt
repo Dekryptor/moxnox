@@ -217,3 +217,19 @@ install(CODE "file(CREATE_LINK vim.exe \"\$ENV{DESTDIR}${CMAKE_INSTALL_PREFIX}/b
 install(DIRECTORY repo/runtime/
     DESTINATION ${CMAKE_INSTALL_PREFIX}/share/vim/vim91
 )
+
+###
+
+add_executable(xxd repo/src/xxd/xxd.c)
+
+target_compile_definitions(xxd PRIVATE UNIX)
+
+target_compile_options(xxd PRIVATE
+    ${USERSPACE_CFLAGS}
+    -Wno-sign-compare
+    -Wno-conversion
+)
+
+target_link_libraries(xxd PRIVATE moxnox)
+
+install(TARGETS xxd DESTINATION ${CMAKE_INSTALL_PREFIX}/bin)
