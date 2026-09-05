@@ -1,52 +1,35 @@
-add_library(harfbuzz SHARED
-    repo/src/hb-aat-layout.cc
-    repo/src/hb-blob.cc
-    repo/src/hb-buffer.cc
-    repo/src/hb-common.cc
-    repo/src/hb-face-builder.cc
-    repo/src/hb-face.cc
-    repo/src/hb-fallback-shape.cc
-    repo/src/hb-font.cc
-    repo/src/hb-ft.cc
-    repo/src/hb-number.cc
-    repo/src/hb-ot-face.cc
-    repo/src/hb-ot-font.cc
-    repo/src/hb-ot-layout.cc
-    repo/src/hb-ot-map.cc
-    repo/src/hb-ot-metrics.cc
-    repo/src/hb-ot-shape.cc
-    repo/src/hb-ot-shape-fallback.cc
-    repo/src/hb-ot-shape-normalize.cc
-    repo/src/hb-ot-shaper-arabic.cc
-    repo/src/hb-ot-shaper-default.cc
-    repo/src/hb-ot-shaper-hangul.cc
-    repo/src/hb-ot-shaper-hebrew.cc
-    repo/src/hb-ot-shaper-indic.cc
-    repo/src/hb-ot-shaper-indic-table.cc
-    repo/src/hb-ot-shaper-khmer.cc
-    repo/src/hb-ot-shaper-myanmar.cc
-    repo/src/hb-ot-shaper-syllabic.cc
-    repo/src/hb-ot-shaper-thai.cc
-    repo/src/hb-ot-shaper-use.cc
-    repo/src/hb-ot-shaper-vowel-constraints.cc
-    repo/src/hb-ot-tag.cc
-    repo/src/hb-set.cc
-    repo/src/hb-shape.cc
-    repo/src/hb-shape-plan.cc
-    repo/src/hb-shaper.cc
-    repo/src/hb-static.cc
-    repo/src/hb-ucd.cc
-    repo/src/hb-unicode.cc
-)
+set(BUILD_SHARED_LIBS ON)
+set(HB_HAVE_FREETYPE ON)
+set(HB_BUILD_SUBSET OFF)
+set(HB_BUILD_UTILS OFF)
+set(SKIP_INSTALL_ALL ON)
+
+set(CMAKE_MESSAGE_LOG_LEVEL WARNING)
+add_subdirectory(repo)
+
 target_sources(harfbuzz PUBLIC FILE_SET CXX_MODULES FILES harfbuzz.cpp)
 
-target_compile_definitions(harfbuzz PRIVATE -DHAVE_FREETYPE -DHB_LEAN -DHB_NO_AAT -DHB_NO_MT)
-target_compile_options(harfbuzz PRIVATE -mno-stack-arg-probe -Wa,-mbig-obj -fno-exceptions -fno-rtti ${USERSPACE_CFLAGS})
-target_compile_options(harfbuzz PRIVATE -Wno-float-conversion -Wno-attributes)
-target_compile_options(harfbuzz PRIVATE -include ${CMAKE_CURRENT_SOURCE_DIR}/hbshim.h)
-target_include_directories(harfbuzz PRIVATE repo/src)
-target_link_libraries(harfbuzz PRIVATE freetype)
-target_link_libraries(harfbuzz PRIVATE ${LIBGCC})
+set_target_properties(harfbuzz PROPERTIES LINKER_LANGUAGE CXX)
+target_compile_features(harfbuzz PUBLIC cxx_std_${CMAKE_CXX_STANDARD})
+
+target_compile_definitions(harfbuzz PRIVATE HB_LEAN HB_NO_AAT HB_NO_MT)
+
+get_target_property(libs harfbuzz LINK_LIBRARIES)
+list(REMOVE_ITEM libs Threads::Threads)
+set_target_properties(harfbuzz PROPERTIES LINK_LIBRARIES "${libs}")
+
+get_target_property(libs harfbuzz INTERFACE_LINK_LIBRARIES)
+list(REMOVE_ITEM libs Threads::Threads)
+set_target_properties(harfbuzz PROPERTIES INTERFACE_LINK_LIBRARIES "${libs}")
+
+target_compile_options(harfbuzz PRIVATE
+    ${USERSPACE_CFLAGS}
+    -mno-stack-arg-probe
+    -Wno-float-conversion
+    -Wno-attributes
+    -include ${CMAKE_CURRENT_SOURCE_DIR}/hbshim.h
+    $<$<CXX_COMPILER_ID:GNU>:-Wa,-mbig-obj>
+)
 
 install(TARGETS harfbuzz DESTINATION ${CMAKE_INSTALL_PREFIX}/lib
     ARCHIVE EXCLUDE_FROM_ALL
