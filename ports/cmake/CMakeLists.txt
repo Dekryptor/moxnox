@@ -28,7 +28,7 @@ set(LibUV_LIBRARY ${CMAKE_BINARY_DIR}/ports/libuv/repo/libuv.dll.a)
 set(LibUV_INCLUDE_DIR ${CMAKE_SOURCE_DIR}/ports/libuv/repo/include)
 set(ZLIB_LIBRARY ${CMAKE_BINARY_DIR}/ports/zlib/libzlib.dll.a)
 set(ZLIB_INCLUDE_DIR ${CMAKE_SOURCE_DIR}/ports/zlib/repo)
-set(LibArchive_LIBRARY ${CMAKE_BINARY_DIR}/ports/libarchive/libarchive.dll.a)
+set(LibArchive_LIBRARY ${CMAKE_BINARY_DIR}/ports/libarchive/repo/libarchive/libarchive.dll.a)
 set(LibArchive_INCLUDE_DIR ${CMAKE_SOURCE_DIR}/ports/libarchive/repo/libarchive)
 
 set(CMAKE_MESSAGE_LOG_LEVEL NOTICE) # cmake is very chatty
