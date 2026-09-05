@@ -253,6 +253,7 @@ sigpending
 killpg
 ppoll
 wcswidth
+fpathconf
 
 ; stubs
 getlocalename_l
@@ -274,7 +275,6 @@ sched_get_priority_max
 grantpt
 unlockpt
 crypt
-fpathconf
 mknod
 mknodat
 endhostent

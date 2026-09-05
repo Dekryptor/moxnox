@@ -253,3 +253,4 @@ sigpending
 killpg
 ppoll
 wcswidth
+fpathconf

@@ -1759,7 +1759,7 @@ int posix_fadvise(int fd, off_t /*offset*/, off_t len, int advice) {
 }
 
 extern "C"
-long pathconf(const char* /*path*/, int name) {
+long fpathconf(int /*fd*/, int name) {
     switch (name) {
         case _PC_PATH_MAX:
             return PATH_MAX;
@@ -1768,6 +1768,13 @@ long pathconf(const char* /*path*/, int name) {
             *_errno() = EINVAL;
             return -1;
     }
+}
+
+extern "C"
+long pathconf(const char* /*path*/, int name) {
+    // FIXME
+
+    return fpathconf(0, name);
 }
 
 extern "C"
