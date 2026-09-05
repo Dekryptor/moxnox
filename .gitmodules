@@ -211,3 +211,6 @@
 [submodule "ports/bison/repo"]
 	path = ports/bison/repo
 	url = https://git.burntcomma.com/moxnox/bison
+[submodule "ports/flex/repo"]
+	path = ports/flex/repo
+	url = https://git.burntcomma.com/moxnox/flex

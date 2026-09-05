@@ -11,6 +11,7 @@
     "expat": [],
     "file": ["zlib"],
     "findutils": [],
+    "flex": [],
     "freetype": ["libpng"],
     "gawk": ["mpfr"],
     "gcc": ["gmp", "libiconv", "mpc", "mpfr"],
