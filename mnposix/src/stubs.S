@@ -5,7 +5,6 @@ stubs_start
 do_stub "getlocalename_l"
 do_stub "mlock"
 do_stub "munlock"
-do_stub "getrusage"
 do_stub "scandir"
 do_stub "alphasort"
 do_stub "ptsname"

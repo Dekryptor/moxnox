@@ -7,6 +7,7 @@
 #include <unistd.h>
 #include <fcntl.h>
 #include <sys/times.h>
+#include <sys/resource.h>
 #include <string_view>
 #include <span>
 
@@ -474,6 +475,43 @@ int posix_spawnattr_setpgroup(posix_spawnattr_t* attr, pid_t pgroup) {
     auto& a = *(_posix_spawnattr_t*)*attr;
 
     a.pgroup = pgroup;
+
+    return 0;
+}
+
+extern "C"
+int getrusage(int who, rusage* r_usage) {
+    nt_status status;
+    KERNEL_USER_TIMES kut;
+    uint32_t retlen;
+
+    switch (who) {
+        case RUSAGE_SELF:
+            status = NtQueryInformationProcess(NtCurrentProcess(),
+                                               PROCESS_INFORMATION_CLASS::Times,
+                                               &kut, sizeof(kut), &retlen);
+        break;
+
+        case RUSAGE_CHILDREN:
+            status = NtQueryInformationProcess(NtCurrentProcess(),
+                                               PROCESS_INFORMATION_CLASS::MoxnoxChildrenTimes,
+                                               &kut, sizeof(kut), &retlen);
+        break;
+
+        default:
+            *_errno() = EINVAL;
+            return -1;
+    }
+
+    if (!success(status)) {
+        *_errno() = nt_status_to_errno(status);
+        return -1;
+    }
+
+    r_usage->ru_utime.tv_sec = kut.UserTime.QuadPart / 10000000;
+    r_usage->ru_utime.tv_usec = (long)((kut.UserTime.QuadPart % 10000000) / 10);
+    r_usage->ru_stime.tv_sec = kut.KernelTime.QuadPart / 10000000;
+    r_usage->ru_stime.tv_usec = (long)((kut.KernelTime.QuadPart % 10000000) / 10);
 
     return 0;
 }

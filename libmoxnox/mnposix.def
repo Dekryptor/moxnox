@@ -255,12 +255,12 @@ ppoll
 wcswidth
 fpathconf
 getgroups
+getrusage
 
 ; stubs
 getlocalename_l
 mlock
 munlock
-getrusage
 scandir
 alphasort
 ptsname

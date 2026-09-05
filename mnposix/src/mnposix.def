@@ -255,3 +255,4 @@ ppoll
 wcswidth
 fpathconf
 getgroups
+getrusage
