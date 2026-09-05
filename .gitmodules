@@ -208,3 +208,6 @@
 [submodule "ports/m4/repo"]
 	path = ports/m4/repo
 	url = https://git.burntcomma.com/moxnox/m4
+[submodule "ports/bison/repo"]
+	path = ports/bison/repo
+	url = https://git.burntcomma.com/moxnox/bison

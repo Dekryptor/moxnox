@@ -1,6 +1,7 @@
 {
     "bash": ["libiconv", "readline"],
     "binutils": ["zlib"],
+    "bison": ["gnulib", "libiconv"],
     "bzip2": [],
     "cairo": ["freetype", "libpng", "pixman", "zlib"],
     "cmake": ["curl", "expat", "jsoncpp", "libarchive", "librhash", "libuv", "zlib"],
