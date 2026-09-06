@@ -38,23 +38,35 @@
 #define PRIuMAX PRIu64
 #define PRIXMAX PRIX64
 
+#define SCNd64 PRId64
+#define SCNi64 PRIi64
 #define SCNo64 PRIo64
 #define SCNu64 PRIu64
 #define SCNx64 PRIx64
 
+#define SCNd32 PRId32
+#define SCNi32 PRIi32
 #define SCNo32 PRIo32
 #define SCNu32 PRIu32
 #define SCNx32 PRIx32
 
+#define SCNd16 "hd"
+#define SCNi16 "hi"
 #define SCNo16 "ho"
 #define SCNu16 "hu"
 #define SCNx16 "hx"
 
+#define SCNd8 "hhd"
+#define SCNi8 "hhi"
 #define SCNo8 "hho"
 #define SCNu8 "hhu"
 #define SCNx8 "hhx"
 
+#define SCNdMAX PRId64
+#define SCNiMAX PRIi64
+#define SCNoMAX PRIo64
 #define SCNuMAX PRIu64
+#define SCNxMAX PRIx64
 
 #if __SIZEOF_POINTER__ == 8
 #define PRIxPTR PRIx64
@@ -63,6 +75,11 @@
 #define PRIoPTR PRIo64
 #define PRIuPTR PRIu64
 #define PRIXPTR PRIX64
+#define SCNdPTR PRId64
+#define SCNiPTR PRIi64
+#define SCNoPTR PRIo64
+#define SCNuPTR PRIu64
+#define SCNxPTR PRIx64
 #else
 #define PRIxPTR "x"
 #define PRIdPTR "d"
@@ -70,6 +87,11 @@
 #define PRIoPTR "o"
 #define PRIuPTR "u"
 #define PRIXPTR "X"
+#define SCNdPTR "d"
+#define SCNiPTR "i"
+#define SCNoPTR "o"
+#define SCNuPTR "u"
+#define SCNxPTR "x"
 #endif
 
 typedef struct {
