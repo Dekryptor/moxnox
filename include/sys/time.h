@@ -1,6 +1,7 @@
 #pragma once
 
 #include <time.h>
+#include <sys/select.h>
 
 #ifndef _TIMEZONE_DEFINED // FIXME
 #define _TIMEZONE_DEFINED
