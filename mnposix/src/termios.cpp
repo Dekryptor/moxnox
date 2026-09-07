@@ -358,3 +358,10 @@ int grantpt(int /*fd*/) {
 
     return 0;
 }
+
+extern "C"
+int unlockpt(int /*fd*/) {
+    // nop
+
+    return 0;
+}
