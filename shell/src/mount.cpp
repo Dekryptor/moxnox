@@ -9,7 +9,6 @@
 import nt;
 import ntdll;
 import print;
-import crt;
 import unique_handle;
 import unicode;
 import moxnox_ioctls;
