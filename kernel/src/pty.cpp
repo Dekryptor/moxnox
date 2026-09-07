@@ -103,6 +103,8 @@ public:
     nt_status read(span<const span<uint8_t>> v, uint64_t& read_bytes) override;
     nt_status write(span<const span<const uint8_t>> v,
                     uint64_t& written_bytes) override;
+    nt_status ioctl(uint32_t code, span<const uint8_t> inbuf,
+                    span<uint8_t> outbuf, uintptr_t& written) override;
     sync_object& get_sync_object() override;
     void last_handle_closed() override;
 
@@ -111,6 +113,7 @@ public:
 private:
     nt_status write2(span<const span<const uint8_t>> v,
                      uint64_t& written_bytes);
+    nt_status get_client(span<uint8_t> outbuf, uintptr_t& written);
 };
 
 struct pty_info_event2 {
@@ -1162,4 +1165,41 @@ nt_status pty_info::read(span<const span<uint8_t>> v, uint64_t& read_bytes) {
 
         return nt_status::SUCCESS;
     }
+}
+
+nt_status pty_server::ioctl(uint32_t code, span<const uint8_t> /*inbuf*/,
+                            span<uint8_t> outbuf, uintptr_t& written) {
+    switch (code) {
+        case IOCTL_MOXNOX_PTY_GET_CLIENT:
+            return get_client(outbuf, written);
+
+        default:
+            return nt_status::NOT_SUPPORTED;
+    }
+}
+
+nt_status pty_server::get_client(span<uint8_t> outbuf, uintptr_t& written) {
+    auto& t = *get_current_thread();
+
+    if (outbuf.size() < sizeof(HANDLE))
+        return nt_status::BUFFER_TOO_SMALL;
+
+    auto client_file = new file(client, 0);
+    if (!client_file) {
+        print("new failed\n");
+        return nt_status::INSUFFICIENT_RESOURCES;
+    }
+
+    auto obj = object_ref{*client_file};
+    handle_t client_handle;
+
+    auto status = t.proc->add_handle(obj.get(), FILE_READ_DATA | FILE_WRITE_DATA,
+                                     true, client_handle);
+    if (!success(status))
+        return status;
+
+    *(HANDLE*)outbuf.data() = client_handle;
+    written = sizeof(HANDLE);
+
+    return nt_status::SUCCESS;
 }
