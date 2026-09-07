@@ -46,6 +46,8 @@ jobs:
 
       - name: Checkout submodules
         working-directory: ${{ env.SHORT_SHA }}
+        env:
+          GIT_CONFIG_GLOBAL: ${{ github.workspace }}/${{ env.SHORT_SHA }}/.github/gitconfig
         run: |
           for port in $(echo '${{ needs.compute-ports.outputs.checkout }}' | jq -r '.[]'); do
             git submodule update --init --depth 1 --recursive ports/$port/repo
