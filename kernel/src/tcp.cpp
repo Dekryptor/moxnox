@@ -913,7 +913,9 @@ void ipv6_tcp_socket::received_packet(packet& pack, netif& ni,
 
         if (parent) {
             {
-                lock_guard lock(parent->list_lock);
+                sync_lock sl;
+                lock_guard lock1(sl);
+                lock_guard lock2(parent->list_lock);
 
                 remove_entry_list(le);
                 added_to_list = false;
@@ -921,8 +923,11 @@ void ipv6_tcp_socket::received_packet(packet& pack, netif& ni,
                 if (old_state == tcp_state::SYN_RECEIVED || (old_state == tcp_state::ESTABLISHED && !was_accepted))
                     parent->listen_backlog++;
 
-                if (is_list_empty(parent->accept_queue))
-                    reset_event(static_cast<event&>(parent->accept_queue_event.get()));
+                if (is_list_empty(parent->accept_queue)) {
+                    auto& e = static_cast<event&>(parent->accept_queue_event.get());
+                    e.signalled = false;
+                    parent->signalled = false;
+                }
             }
 
             if (on_accepted_list) {
@@ -1071,12 +1076,21 @@ void ipv6_tcp_socket::received_packet(packet& pack, netif& ni,
 
             set_event(static_cast<event&>(retransmission_thread_quit_event.get()));
         } else if (just_established) {
-            lock_guard lock(parent->list_lock);
+            sync_lock sl;
+            lock_guard lock1(sl);
+            lock_guard lock2(parent->list_lock);
 
             remove_entry_list(le);
             insert_tail_list(parent->accept_queue, le);
 
-            set_event(static_cast<event&>(parent->accept_queue_event.get()));
+            auto& e = static_cast<event&>(parent->accept_queue_event.get());
+
+            e.set_holding_sync_lock();
+
+            if (!parent->signalled) {
+                wake_up_waiters(parent->waiters);
+                parent->signalled = true;
+            }
         }
     }
 
@@ -1842,7 +1856,9 @@ nt_status ipv6_tcp_socket::accept(HANDLE& sock, void* us_addr, int& addrlen) {
             return nt_status::CONNECTION_DISCONNECTED;
 
         {
-            lock_guard lock(list_lock);
+            sync_lock sl;
+            lock_guard lock1(sl);
+            lock_guard lock2(list_lock);
 
             if (is_list_empty(accept_queue))
                 continue;
@@ -1854,8 +1870,11 @@ nt_status ipv6_tcp_socket::accept(HANDLE& sock, void* us_addr, int& addrlen) {
             remove_entry_list(s.le);
             s.accepted = true;
 
-            if (is_list_empty(accept_queue))
-                reset_event(static_cast<event&>(accept_queue_event.get()));
+            if (is_list_empty(accept_queue)) {
+                auto& e = static_cast<event&>(accept_queue_event.get());
+                e.signalled = false;
+                this->signalled = false;
+            }
 
             listen_backlog++;
 
