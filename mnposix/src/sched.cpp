@@ -1,3 +1,5 @@
+#include <sched.h>
+
 import nt;
 import ucrtbase;
 
@@ -13,4 +15,24 @@ int sched_yield() {
     }
 
     return 0;
+}
+
+extern "C"
+int sched_get_priority_min(int policy) {
+    if (policy == SCHED_OTHER)
+        return 0;
+    else {
+        *_errno() = EINVAL;
+        return -1;
+    }
+}
+
+extern "C"
+int sched_get_priority_max(int policy) {
+    if (policy == SCHED_OTHER)
+        return 0;
+    else {
+        *_errno() = EINVAL;
+        return -1;
+    }
 }

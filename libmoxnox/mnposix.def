@@ -266,6 +266,8 @@ pthread_rwlock_tryrdlock
 pthread_rwlock_trywrlock
 pthread_getschedparam
 pthread_setschedparam
+sched_get_priority_min
+sched_get_priority_max
 
 ; stubs
 getlocalename_l
@@ -274,8 +276,6 @@ munlock
 alphasort
 pthread_atfork
 pthread_cancel
-sched_get_priority_min
-sched_get_priority_max
 crypt
 mknod
 mknodat

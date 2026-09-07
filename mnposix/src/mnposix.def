@@ -266,3 +266,5 @@ pthread_rwlock_tryrdlock
 pthread_rwlock_trywrlock
 pthread_getschedparam
 pthread_setschedparam
+sched_get_priority_min
+sched_get_priority_max
