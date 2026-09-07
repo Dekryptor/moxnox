@@ -1891,6 +1891,24 @@ int mkfifo(const char* path, mode_t mode) {
 }
 
 extern "C"
+int mknodat(int fd, const char* path, mode_t mode, dev_t /*dev*/) {
+    if (S_ISFIFO(mode))
+        return mkfifoat(fd, path, mode & ~S_IFMT);
+    else if (S_ISCHR(mode) || S_ISBLK(mode) || S_ISDIR(mode) || S_ISREG(mode)) {
+        *_errno() = EPERM;
+        return -1;
+    } else {
+        *_errno() = EINVAL;
+        return -1;
+    }
+}
+
+extern "C"
+int mknod(const char* path, mode_t mode, dev_t dev) {
+    return mknodat(AT_FDCWD, path, mode, dev);
+}
+
+extern "C"
 ssize_t readv(int fd, const iovec* iov, int iovcnt) {
     IO_STATUS_BLOCK iosb;
     uint64_t bytes;
