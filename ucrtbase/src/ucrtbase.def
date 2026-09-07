@@ -386,3 +386,4 @@ strcat
 wcslen
 wcscat
 fgetpos
+fsetpos

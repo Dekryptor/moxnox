@@ -363,7 +363,7 @@ strcat
 wcslen
 wcscat
 fgetpos
+fsetpos
 
 ; stubs
 _beginthreadex
-fsetpos

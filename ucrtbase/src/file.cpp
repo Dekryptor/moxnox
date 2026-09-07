@@ -3747,3 +3747,8 @@ int fgetpos(FILE* file, fpos_t* pos) {
 
     return 0;
 }
+
+extern "C"
+int fsetpos(FILE* file, const fpos_t* pos) {
+    return __fseeki64(file, *pos, SEEK_SET);
+}
