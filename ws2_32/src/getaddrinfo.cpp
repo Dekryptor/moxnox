@@ -73,14 +73,6 @@ static const unsigned int DNS_TIMEOUT = 5; // secs
 
 static constexpr size_t REVERSE_IPV6_LEN = 74;
 
-static constexpr pair<uint16_t, string_view> services[] = {
-    { 21, "ftp" },
-    { 22, "ssh" },
-    { 53, "dns" },
-    { 80, "http" },
-    { 443, "https" },
-};
-
 static unique_handle open_netctl() {
     OBJECT_ATTRIBUTES oa;
     UNICODE_STRING us;
@@ -179,11 +171,6 @@ static optional<uint16_t> parse_service(string_view n) {
 
     if (numeric)
         return ret;
-
-    for (auto [port, serv] : services) {
-        if (serv == n)
-            return port;
-    }
 
     return nullopt;
 }
@@ -1196,37 +1183,18 @@ static int getnameinfo_ipv6(const sockaddr* addr, socklen_t addrlen,
     }
 
     if (serv) {
-        bool done = false;
+        char s[5];
+        span sp(s, sizeof(s));
 
-        if (!(flags & NI_NUMERICSERV)) {
-            for (auto [port, sv] : services) {
-                if (port == byteswap(a.sin6_port)) {
-                    if (sv.size() + 1 > (size_t)servlen)
-                        return EAI_OVERFLOW;
+        sp = format(sp, "{}", byteswap(a.sin6_port));
 
-                    memcpy(serv, sv.data(), sv.size());
-                    serv[sv.size()] = 0;
+        auto sv = string_view(s, (size_t)(sp.data() - s));
 
-                    done = true;
-                    break;
-                }
-            }
-        }
+        if (sv.size() + 1 > (size_t)servlen)
+            return EAI_OVERFLOW;
 
-        if (!done) {
-            char s[5];
-            span sp(s, sizeof(s));
-
-            sp = format(sp, "{}", byteswap(a.sin6_port));
-
-            auto sv = string_view(s, (size_t)(sp.data() - s));
-
-            if (sv.size() + 1 > (size_t)servlen)
-                return EAI_OVERFLOW;
-
-            memcpy(serv, sv.data(), sv.size());
-            serv[sv.size()] = 0;
-        }
+        memcpy(serv, sv.data(), sv.size());
+        serv[sv.size()] = 0;
     }
 
     return 0;
