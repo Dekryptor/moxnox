@@ -23,7 +23,6 @@ strchr
 memcpy
 strrchr
 wcscmp
-wcslen
 NtDisplayString
 NtTerminateThread
 NtTerminateProcess

@@ -360,6 +360,7 @@ mn_fpurge
 mn_fseterr
 mblen
 strcat
+wcslen
 
 ; stubs
 _beginthreadex

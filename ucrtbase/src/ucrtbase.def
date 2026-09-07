@@ -5,7 +5,6 @@ memcpy = ntdll.memcpy
 strlen = ntdll.strlen
 strncmp = ntdll.strncmp
 memset = ntdll.memset
-wcslen = ntdll.wcslen
 strtol
 strtoul
 fopen = _fopen
@@ -384,3 +383,4 @@ mn_fpurge
 mn_fseterr
 mblen
 strcat
+wcslen

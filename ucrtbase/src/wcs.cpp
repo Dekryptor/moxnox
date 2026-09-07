@@ -435,3 +435,14 @@ double wcstod(const wchar_t* str, wchar_t** str_end) {
 
     return ret;
 }
+
+extern "C"
+size_t wcslen(const wchar_t* s) {
+    size_t i = 0;
+
+    while (s[i] != 0) {
+        i++;
+    }
+
+    return i;
+}

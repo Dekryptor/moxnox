@@ -23,7 +23,6 @@ strncpy
 strchr
 strrchr
 wcscmp
-wcslen
 LdrGetProcedureAddress
 NtQuerySystemTime
 __C_specific_handler
