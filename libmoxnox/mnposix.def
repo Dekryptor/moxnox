@@ -259,6 +259,7 @@ getrusage
 posix_openpt
 ptsname
 ptsname_r
+grantpt
 
 ; stubs
 getlocalename_l
@@ -274,7 +275,6 @@ pthread_getschedparam
 pthread_setschedparam
 sched_get_priority_min
 sched_get_priority_max
-grantpt
 unlockpt
 crypt
 mknod

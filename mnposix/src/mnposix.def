@@ -259,3 +259,4 @@ getrusage
 posix_openpt
 ptsname
 ptsname_r
+grantpt

@@ -351,3 +351,10 @@ char* ptsname(int fd) {
 
     return buf;
 }
+
+extern "C"
+int grantpt(int /*fd*/) {
+    // nop
+
+    return 0;
+}
