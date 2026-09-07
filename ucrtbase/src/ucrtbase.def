@@ -384,3 +384,4 @@ mn_fseterr
 mblen
 strcat
 wcslen
+wcscat

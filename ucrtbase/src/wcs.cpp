@@ -446,3 +446,16 @@ size_t wcslen(const wchar_t* s) {
 
     return i;
 }
+
+extern "C"
+wchar_t* wcscat(wchar_t* dest, const wchar_t* src) {
+    auto orig_dest = dest;
+
+    while (dest[0] != 0) {
+        dest++;
+    }
+
+    memcpy(dest, src, (wcslen(src) + 1) * sizeof(wchar_t));
+
+    return orig_dest;
+}

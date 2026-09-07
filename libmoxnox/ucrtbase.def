@@ -361,9 +361,9 @@ mn_fseterr
 mblen
 strcat
 wcslen
+wcscat
 
 ; stubs
 _beginthreadex
 fgetpos
 fsetpos
-wcscat
