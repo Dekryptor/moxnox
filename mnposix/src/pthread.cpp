@@ -783,6 +783,16 @@ int pthread_rwlock_wrlock(pthread_rwlock_t* rwlock) {
 }
 
 extern "C"
+int pthread_rwlock_trywrlock(pthread_rwlock_t* rwlock) {
+    auto& lock = *reinterpret_cast<RTL_SRWLOCK*>(rwlock);
+
+    if (!RtlTryAcquireSRWLockExclusive(&lock))
+        return EBUSY;
+
+    return 0;
+}
+
+extern "C"
 int pthread_rwlock_unlock(pthread_rwlock_t* rwlock) {
     auto& lock = *reinterpret_cast<RTL_SRWLOCK*>(rwlock);
     atomic_ref<uintptr_t> l(*(uintptr_t*)&lock.Ptr);

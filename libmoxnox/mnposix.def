@@ -263,13 +263,13 @@ grantpt
 unlockpt
 scandir
 pthread_rwlock_tryrdlock
+pthread_rwlock_trywrlock
 
 ; stubs
 getlocalename_l
 mlock
 munlock
 alphasort
-pthread_rwlock_trywrlock
 pthread_atfork
 pthread_cancel
 pthread_getschedparam
