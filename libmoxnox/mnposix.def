@@ -264,6 +264,7 @@ unlockpt
 scandir
 pthread_rwlock_tryrdlock
 pthread_rwlock_trywrlock
+pthread_getschedparam
 
 ; stubs
 getlocalename_l
@@ -272,7 +273,6 @@ munlock
 alphasort
 pthread_atfork
 pthread_cancel
-pthread_getschedparam
 pthread_setschedparam
 sched_get_priority_min
 sched_get_priority_max

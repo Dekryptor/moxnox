@@ -970,4 +970,14 @@ int pthread_mutex_timedlock(pthread_mutex_t* mutex, const timespec* abstime) {
     return 0;
 }
 
+extern "C"
+int pthread_getschedparam(pthread_t /*thread*/, int* policy, sched_param* param) {
+    // FIXME
+
+    *policy = SCHED_OTHER;
+    param->sched_priority = 0;
+
+    return 0;
+}
+
 __attribute__((section (".CRT$XLD"), used)) void(*__xl_d2)() = run_dtors;
