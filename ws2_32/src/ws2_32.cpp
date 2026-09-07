@@ -476,6 +476,16 @@ in_addr_t inet_addr(const char* cp) {
 }
 
 extern "C"
+servent* getservbyname(const char* /*name*/, const char* /*proto*/) {
+    return nullptr;
+}
+
+extern "C"
+servent* getservbyport(int /*port*/, const char* /*proto*/) {
+    return nullptr;
+}
+
+extern "C"
 int DllMainCRTStartup(HANDLE /*hinstDLL*/, uint32_t /*dwReason*/,
                       void* /*lpvReserved*/) {
     return 1;

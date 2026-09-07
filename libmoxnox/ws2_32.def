@@ -26,9 +26,9 @@ getpeername
 shutdown
 inet_ntop
 inet_addr
-
-; stubs
 getservbyname
 getservbyport
+
+; stubs
 getprotobyname
 getprotobynumber
