@@ -764,6 +764,16 @@ int pthread_rwlock_rdlock(pthread_rwlock_t* rwlock) {
 }
 
 extern "C"
+int pthread_rwlock_tryrdlock(pthread_rwlock_t* rwlock) {
+    auto& lock = *reinterpret_cast<RTL_SRWLOCK*>(rwlock);
+
+    if (!RtlTryAcquireSRWLockShared(&lock))
+        return EBUSY;
+
+    return 0;
+}
+
+extern "C"
 int pthread_rwlock_wrlock(pthread_rwlock_t* rwlock) {
     auto& lock = *reinterpret_cast<RTL_SRWLOCK*>(rwlock);
 

@@ -262,3 +262,4 @@ ptsname_r
 grantpt
 unlockpt
 scandir
+pthread_rwlock_tryrdlock
