@@ -980,4 +980,14 @@ int pthread_getschedparam(pthread_t /*thread*/, int* policy, sched_param* param)
     return 0;
 }
 
+extern "C"
+int pthread_setschedparam(pthread_t /*thread*/, int policy, const sched_param* param) {
+    // FIXME
+
+    if (policy != SCHED_OTHER || param->sched_priority != 0)
+        return ENOTSUP;
+
+    return 0;
+}
+
 __attribute__((section (".CRT$XLD"), used)) void(*__xl_d2)() = run_dtors;
