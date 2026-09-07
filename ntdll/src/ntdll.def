@@ -21,7 +21,6 @@ strncmp
 strstr
 strncpy
 strchr
-strcat
 strrchr
 wcscmp
 wcslen

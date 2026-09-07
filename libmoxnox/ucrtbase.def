@@ -359,6 +359,7 @@ mn_fwriting
 mn_fpurge
 mn_fseterr
 mblen
+strcat
 
 ; stubs
 _beginthreadex

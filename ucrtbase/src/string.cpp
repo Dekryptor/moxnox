@@ -377,3 +377,16 @@ size_t strxfrm(char* dest, const char* src, size_t size) {
 
     return len;
 }
+
+extern "C"
+char* strcat(char* dest, const char* src) {
+    auto orig_dest = dest;
+
+    while (dest[0] != 0) {
+        dest++;
+    }
+
+    memcpy(dest, src, strlen(src) + 1);
+
+    return orig_dest;
+}
