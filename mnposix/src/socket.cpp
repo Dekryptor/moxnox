@@ -1,4 +1,5 @@
 #include <sys/socket.h>
+#include <netdb.h>
 
 import nt;
 import ucrtbase;
@@ -119,4 +120,19 @@ ssize_t recvmsg(int s, msghdr* msg, int flags) {
     msg->msg_flags = 0;
 
     return (ssize_t)recv_bytes;
+}
+
+extern "C"
+servent* getservent() {
+    return nullptr;
+}
+
+extern "C"
+void setservent(int /*stayopen*/) {
+    // nop
+}
+
+extern "C"
+void endservent() {
+    // nop
 }
