@@ -290,7 +290,6 @@ target_compile_options(bsdtar PRIVATE
 )
 
 install(CODE "file(MAKE_DIRECTORY \"\$ENV{DESTDIR}${CMAKE_INSTALL_PREFIX}/bin\")")
-install(CODE "file(CREATE_LINK bsdtar.exe \"\$ENV{DESTDIR}${CMAKE_INSTALL_PREFIX}/bin/tar.exe\" SYMBOLIC)")
 
 target_link_libraries(bsdtar PRIVATE archive moxnox)
 
