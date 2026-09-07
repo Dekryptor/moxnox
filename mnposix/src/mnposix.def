@@ -257,3 +257,5 @@ fpathconf
 getgroups
 getrusage
 posix_openpt
+ptsname
+ptsname_r

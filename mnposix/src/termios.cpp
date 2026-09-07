@@ -1,5 +1,7 @@
 #include <string_view>
+#include <span>
 #include <stdint.h>
+#include <stdlib.h>
 #include <termios.h>
 #include <string.h>
 #include <fcntl.h>
@@ -9,6 +11,7 @@ import ucrtbase;
 import print;
 import termios;
 import moxnox_ioctls;
+import unicode;
 
 #undef errno
 import errno;
@@ -291,4 +294,60 @@ int posix_openpt(int oflag) {
     }
 
     return fd;
+}
+
+extern "C"
+int ptsname_r(int fd, char* name, size_t namesize) {
+    alignas(OBJECT_NAME_INFORMATION) char buf[sizeof(OBJECT_NAME_INFORMATION) + (100 * sizeof(char16_t))];
+    uint32_t retlen;
+    nt_status status;
+    IO_STATUS_BLOCK iosb;
+    HANDLE server, client;
+
+    server = _get_osfhandle(fd);
+    if ((intptr_t)server < 0)
+        return *_errno();
+
+    status = NtDeviceIoControlFile(server, 0, nullptr, nullptr, &iosb,
+                                   IOCTL_MOXNOX_PTY_GET_CLIENT, nullptr, 0,
+                                   &client, sizeof(client));
+    if (!success(status))
+        return nt_status_to_errno(status);
+
+    status = NtQueryObject(client, OBJECT_INFORMATION_CLASS::NameInformation,
+                           buf, sizeof(buf), &retlen);
+    if (!success(status)) {
+        NtClose(client);
+        return nt_status_to_errno(status);
+    }
+
+    auto& oni = *(OBJECT_NAME_INFORMATION*)buf;
+    auto u16sv = u16string_view(oni.Name.Buffer, oni.Name.Length / sizeof(char16_t));
+
+    auto u8len = utf16_to_utf8_len(u16sv);
+
+    if (namesize < u8len + 1) {
+        NtClose(client);
+        return ERANGE;
+    }
+
+    utf16_to_utf8(span(name, namesize), u16sv);
+    name[u8len] = 0;
+
+    NtClose(client);
+
+    return 0;
+}
+
+extern "C"
+char* ptsname(int fd) {
+    static char buf[100];
+
+    auto ret = ptsname_r(fd, buf, sizeof(buf));
+    if (ret) {
+        *_errno() = ret;
+        return nullptr;
+    }
+
+    return buf;
 }

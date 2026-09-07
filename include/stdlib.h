@@ -135,6 +135,7 @@ int mkstemp(char* tmpl);
 int mkstemps(char* tmpl, int suffixlen);
 char* mktemp(char* tmpl);
 char* ptsname(int fd);
+int ptsname_r(int fd, char* name, size_t namesize);
 const char* getprogname(void);
 char* mkdtemp(char* templ);
 int posix_memalign(void** memptr, size_t alignment, size_t size);

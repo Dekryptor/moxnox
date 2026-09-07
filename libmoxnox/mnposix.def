@@ -257,6 +257,8 @@ fpathconf
 getgroups
 getrusage
 posix_openpt
+ptsname
+ptsname_r
 
 ; stubs
 getlocalename_l
@@ -264,7 +266,6 @@ mlock
 munlock
 scandir
 alphasort
-ptsname
 pthread_rwlock_tryrdlock
 pthread_rwlock_trywrlock
 pthread_atfork
