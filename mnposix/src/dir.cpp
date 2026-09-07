@@ -182,3 +182,152 @@ DIR* fdopendir(int fd) {
 
     return (DIR*)d;
 }
+
+extern "C"
+int scandir(const char* dir, dirent*** namelist, int (*sel)(const dirent*),
+            int (*compar)(const dirent**, const dirent**)) {
+    auto& peb = *NtCurrentTeb()->ProcessEnvironmentBlock;
+    UNICODE_STRING us;
+    OBJECT_ATTRIBUTES oa;
+    IO_STATUS_BLOCK iosb;
+    nt_status status;
+    HANDLE h;
+    char buf[4096];
+    size_t num_entries = 0;
+
+    if (!dir || dir[0] == 0) {
+        *_errno() = ENOENT;
+        return -1;
+    }
+
+    auto sv = string_view(dir);
+    auto u16len = utf8_to_utf16_len(sv);
+
+    auto u16pathname = (char16_t*)malloc(u16len * sizeof(char16_t));
+    if (!u16pathname) {
+        *_errno() = ENOMEM;
+        return -1;
+    }
+
+    utf8_to_utf16(span(u16pathname, u16len), sv);
+
+    us.Length = us.MaximumLength = (uint16_t)(u16len * sizeof(char16_t));
+    us.Buffer = u16pathname;
+
+    memset(&oa, 0, sizeof(oa));
+    oa.Length = sizeof(OBJECT_ATTRIBUTES);
+    oa.ObjectName = &us;
+    oa.RootDirectory = peb.ProcessParameters->CurrentDirectory.Handle;
+
+    status = NtCreateFile(&h, FILE_LIST_DIRECTORY | FILE_READ_ATTRIBUTES | FILE_TRAVERSE | SYNCHRONIZE,
+                          &oa, &iosb, nullptr, FILE_ATTRIBUTE_NORMAL,
+                          FILE_SHARE_READ | FILE_SHARE_WRITE,
+                          FILE_OPEN, FILE_DIRECTORY_FILE, nullptr, 0);
+    if (!success(status)) {
+        free(u16pathname);
+        *_errno() = nt_status_to_errno(status);
+        return -1;
+    }
+
+    free(u16pathname);
+
+    auto de = (dirent*)malloc(sizeof(dirent));
+    if (!de) {
+        *_errno() = ENOMEM;
+        NtClose(h);
+        return -1;
+    }
+
+    *namelist = nullptr;
+
+    while (true) {
+        // FIXME - get multiple entries at once and cache them?
+
+        status = NtQueryDirectoryFile(h, 0, nullptr, nullptr, &iosb, buf,
+                                      sizeof(buf), FILE_INFORMATION_CLASS::DirectoryInformation,
+                                      false, nullptr, false);
+        if (status == nt_status::NO_MORE_FILES)
+            break;
+        else if (!success(status)) {
+            *_errno() = nt_status_to_errno(status);
+            NtClose(h);
+
+            for (size_t i = 0; i < num_entries; i++) {
+                free((*namelist)[i]);
+            }
+
+            free(*namelist);
+            free(de);
+
+            return -1;
+        }
+
+        auto buf2 = buf;
+
+        while (true) {
+            auto& fdi = *(FILE_DIRECTORY_INFORMATION*)buf2;
+            auto u16sv = u16string_view(fdi.FileName, fdi.FileNameLength / sizeof(char16_t));
+            auto u16len = utf16_to_utf8_len(u16sv);
+
+            de->d_ino = 0; // FIXME!
+
+            if (fdi.FileAttributes & FILE_ATTRIBUTE_REPARSE_POINT)
+                de->d_type = DT_LNK;
+            else if (fdi.FileAttributes & FILE_ATTRIBUTE_DIRECTORY)
+                de->d_type = DT_DIR;
+            else
+                de->d_type = DT_REG;
+
+            utf16_to_utf8(span(de->d_name, sizeof(de->d_name) - 1), u16sv);
+
+            if (u16len < sizeof(de->d_name))
+                de->d_name[u16len] = 0;
+            else
+                de->d_name[sizeof(de->d_name) - 1] = 0;
+
+            if (!sel || sel(de)) {
+                num_entries++;
+
+                *namelist = (dirent**)realloc(*namelist, num_entries * sizeof(dirent*));
+                if (!*namelist) {
+                    *_errno() = ENOMEM;
+                    free(de);
+                    NtClose(h);
+                    return -1;
+                }
+
+                (*namelist)[num_entries - 1] = de;
+
+                de = (dirent*)malloc(sizeof(dirent));
+                if (!de) {
+                    *_errno() = ENOMEM;
+                    NtClose(h);
+
+                    for (size_t i = 0; i < num_entries; i++) {
+                        free((*namelist)[i]);
+                    }
+
+                    free(*namelist);
+
+                    return -1;
+                }
+            }
+
+            if (fdi.NextEntryOffset == 0)
+                break;
+
+            buf2 += fdi.NextEntryOffset;
+        }
+    }
+
+    free(de);
+
+    NtClose(h);
+
+    if (compar) {
+        qsort(*namelist, num_entries, sizeof(dirent*),
+              (int(*)(const void*, const void*))compar);
+    }
+
+    return (int)num_entries;
+}

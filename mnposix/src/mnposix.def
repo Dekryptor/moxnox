@@ -261,3 +261,4 @@ ptsname
 ptsname_r
 grantpt
 unlockpt
+scandir

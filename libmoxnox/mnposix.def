@@ -261,12 +261,12 @@ ptsname
 ptsname_r
 grantpt
 unlockpt
+scandir
 
 ; stubs
 getlocalename_l
 mlock
 munlock
-scandir
 alphasort
 pthread_rwlock_tryrdlock
 pthread_rwlock_trywrlock

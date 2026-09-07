@@ -5,7 +5,6 @@ stubs_start
 do_stub "getlocalename_l"
 do_stub "mlock"
 do_stub "munlock"
-do_stub "scandir"
 do_stub "alphasort"
 do_stub "pthread_rwlock_tryrdlock"
 do_stub "pthread_rwlock_trywrlock"
