@@ -3735,3 +3735,15 @@ void mn_fseterr(FILE* file) {
 
     f.error = true;
 }
+
+extern "C"
+int fgetpos(FILE* file, fpos_t* pos) {
+    auto p = __ftelli64(file);
+
+    if (p == -1)
+        return -1;
+
+    *pos = p;
+
+    return 0;
+}

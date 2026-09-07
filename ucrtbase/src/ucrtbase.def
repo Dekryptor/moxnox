@@ -385,3 +385,4 @@ mblen
 strcat
 wcslen
 wcscat
+fgetpos
