@@ -3168,6 +3168,14 @@ nt_status socket::setsockopt(int level, int optname, span<const uint8_t> buf) {
 
                 return nt_status::SUCCESS;
 
+            case REUSEADDR:
+                if (buf.size() < sizeof(int))
+                    return nt_status::INVALID_PARAMETER;
+
+                // FIXME - actually reusing addresses
+
+                return nt_status::SUCCESS;
+
             default:
                 print("FIXME - setsockopt(SOL_SOCKET, {}, {})\n", opt, buf.size());
                 return nt_status::NOT_SUPPORTED;
