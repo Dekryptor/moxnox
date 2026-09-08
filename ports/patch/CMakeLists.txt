@@ -8,7 +8,7 @@ include(${CMAKE_CURRENT_SOURCE_DIR}/gnulib-headers.cmake)
 
 add_custom_command(
     OUTPUT ${GEN}/lib/parse-datetime.c
-    COMMAND bison -o ${GEN}/lib/parse-datetime.c ${CMAKE_CURRENT_SOURCE_DIR}/repo/gnulib/lib/parse-datetime.y
+    COMMAND ${HOST_BISON} -o ${GEN}/lib/parse-datetime.c ${CMAKE_CURRENT_SOURCE_DIR}/repo/gnulib/lib/parse-datetime.y
     DEPENDS repo/gnulib/lib/parse-datetime.y
     VERBATIM
 )
