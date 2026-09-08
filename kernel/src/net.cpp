@@ -205,6 +205,11 @@ public:
         return nt_status::NOT_SUPPORTED;
     }
 
+    virtual nt_status getsockopt_tcp(sockopt_tcp, span<uint8_t>,
+                                     socklen_t&) {
+        return nt_status::NOT_SUPPORTED;
+    }
+
 private:
     nt_status do_recvmsg(span<const uint8_t> inbuf, bool nonblock);
     nt_status do_sendmsg(span<const uint8_t> inbuf);

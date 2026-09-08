@@ -3100,11 +3100,9 @@ nt_status socket::getsockopt(int level, int optname, span<uint8_t> buf,
                 print("FIXME - getsockopt(SOL_SOCKET, {})\n", opt);
                 return nt_status::NOT_SUPPORTED;
         }
-    } else if (level == IPPROTO_TCP) {
-        auto opt = (sockopt_tcp)optname;
-
-        print("FIXME - getsockopt(IPPROTO_TCP, {})\n", opt);
-    } else
+    } else if (level == IPPROTO_TCP)
+        return getsockopt_tcp((sockopt_tcp)optname, buf, retlen);
+    else
         print("FIXME - getsockopt({}, {})\n", level, optname);
 
     return nt_status::NOT_SUPPORTED;
