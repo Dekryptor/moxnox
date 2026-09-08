@@ -426,7 +426,7 @@ add_custom_command(OUTPUT ${GEN}/src/compiler/glsl/ir_expression_operation_strin
     DEPENDS repo/src/compiler/glsl/ir_expression_operation.py VERBATIM)
 
 add_custom_command(OUTPUT ${GEN}/src/compiler/glsl/glsl_parser.cpp ${GEN}/src/compiler/glsl/glsl_parser.h
-    COMMAND bison -o ${GEN}/src/compiler/glsl/glsl_parser.cpp -p _mesa_glsl_
+    COMMAND ${HOST_BISON} -o ${GEN}/src/compiler/glsl/glsl_parser.cpp -p _mesa_glsl_
             --defines=${GEN}/src/compiler/glsl/glsl_parser.h ${CMAKE_CURRENT_SOURCE_DIR}/repo/src/compiler/glsl/glsl_parser.yy
     DEPENDS repo/src/compiler/glsl/glsl_parser.yy VERBATIM)
 
@@ -452,7 +452,7 @@ foreach(xxd_gen IN ITEMS
 endforeach()
 
 add_custom_command(OUTPUT ${GEN}/src/compiler/glsl/glcpp/glcpp-parse.c ${GEN}/src/compiler/glsl/glcpp/glcpp-parse.h
-    COMMAND bison -o ${GEN}/src/compiler/glsl/glcpp/glcpp-parse.c -p glcpp_parser_
+    COMMAND ${HOST_BISON} -o ${GEN}/src/compiler/glsl/glcpp/glcpp-parse.c -p glcpp_parser_
             --defines=${GEN}/src/compiler/glsl/glcpp/glcpp-parse.h ${CMAKE_CURRENT_SOURCE_DIR}/repo/src/compiler/glsl/glcpp/glcpp-parse.y
     DEPENDS repo/src/compiler/glsl/glcpp/glcpp-parse.y VERBATIM)
 
@@ -506,7 +506,7 @@ add_custom_command(OUTPUT ${GEN}/src/mesa/program/lex.yy.c
     DEPENDS repo/src/mesa/program/program_lexer.l VERBATIM)
 
 add_custom_command(OUTPUT ${GEN}/src/mesa/program/program_parse.tab.c ${GEN}/src/mesa/program/program_parse.tab.h
-    COMMAND bison -o ${GEN}/src/mesa/program/program_parse.tab.c
+    COMMAND ${HOST_BISON} -o ${GEN}/src/mesa/program/program_parse.tab.c
             --defines=${GEN}/src/mesa/program/program_parse.tab.h ${CMAKE_CURRENT_SOURCE_DIR}/repo/src/mesa/program/program_parse.y
     DEPENDS repo/src/mesa/program/program_parse.y VERBATIM)
 
