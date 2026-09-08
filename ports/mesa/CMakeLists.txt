@@ -431,7 +431,7 @@ add_custom_command(OUTPUT ${GEN}/src/compiler/glsl/glsl_parser.cpp ${GEN}/src/co
     DEPENDS repo/src/compiler/glsl/glsl_parser.yy VERBATIM)
 
 add_custom_command(OUTPUT ${GEN}/src/compiler/glsl/glsl_lexer.cpp
-    COMMAND flex -o ${GEN}/src/compiler/glsl/glsl_lexer.cpp ${CMAKE_CURRENT_SOURCE_DIR}/repo/src/compiler/glsl/glsl_lexer.ll
+    COMMAND ${HOST_FLEX} -o ${GEN}/src/compiler/glsl/glsl_lexer.cpp ${CMAKE_CURRENT_SOURCE_DIR}/repo/src/compiler/glsl/glsl_lexer.ll
     DEPENDS repo/src/compiler/glsl/glsl_lexer.ll VERBATIM)
 
 foreach(xxd_gen IN ITEMS
@@ -457,7 +457,7 @@ add_custom_command(OUTPUT ${GEN}/src/compiler/glsl/glcpp/glcpp-parse.c ${GEN}/sr
     DEPENDS repo/src/compiler/glsl/glcpp/glcpp-parse.y VERBATIM)
 
 add_custom_command(OUTPUT ${GEN}/src/compiler/glsl/glcpp/glcpp-lex.c
-    COMMAND flex -o ${GEN}/src/compiler/glsl/glcpp/glcpp-lex.c ${CMAKE_CURRENT_SOURCE_DIR}/repo/src/compiler/glsl/glcpp/glcpp-lex.l
+    COMMAND ${HOST_FLEX} -o ${GEN}/src/compiler/glsl/glcpp/glcpp-lex.c ${CMAKE_CURRENT_SOURCE_DIR}/repo/src/compiler/glsl/glcpp/glcpp-lex.l
     DEPENDS repo/src/compiler/glsl/glcpp/glcpp-lex.l VERBATIM)
 
 add_custom_command(OUTPUT ${GEN}/src/compiler/spirv/vtn_gather_types.c
@@ -502,7 +502,7 @@ add_custom_command(OUTPUT ${GEN}/src/mesa/get_hash.h
     DEPENDS repo/src/mesa/main/get_hash_generator.py repo/src/mesa/main/get_hash_params.py ${GLAPI_GEN_DEPS} VERBATIM)
 
 add_custom_command(OUTPUT ${GEN}/src/mesa/program/lex.yy.c
-    COMMAND flex -o ${GEN}/src/mesa/program/lex.yy.c ${CMAKE_CURRENT_SOURCE_DIR}/repo/src/mesa/program/program_lexer.l
+    COMMAND ${HOST_FLEX} -o ${GEN}/src/mesa/program/lex.yy.c ${CMAKE_CURRENT_SOURCE_DIR}/repo/src/mesa/program/program_lexer.l
     DEPENDS repo/src/mesa/program/program_lexer.l VERBATIM)
 
 add_custom_command(OUTPUT ${GEN}/src/mesa/program/program_parse.tab.c ${GEN}/src/mesa/program/program_parse.tab.h
