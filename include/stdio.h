@@ -30,6 +30,8 @@ typedef long long fpos_t;
 
 typedef struct localeinfo_struct* _locale_t;
 
+#define L_ctermid 9
+
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -70,6 +72,7 @@ int remove(const char* filename);
 int rename(const char* oldname, const char* newname);
 int renameat(int fromfd, const char* from, int tofd, const char* to);
 FILE* tmpfile(void);
+char* ctermid(char* s);
 char* tmpnam(char* s);
 int printf(const char* format, ...);
 int fprintf(FILE* stream, const char* format, ...);
