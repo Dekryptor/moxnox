@@ -18,7 +18,7 @@ extern "C"
 int getpwuid_r(uid_t uid, struct passwd* pwd, char* buf, size_t size,
                struct passwd** result) {
     static const char NAME[] = "root";
-    static const char DIR[] = "/";
+    static const char DIR[] = "/root";
     static const char SHELL[] = "/bin/shell.exe";
 
     if (uid != 0) {
