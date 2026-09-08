@@ -2664,6 +2664,8 @@ int __creat(const char* path, int mode) {
 
 extern "C"
 FILE* freopen(const char* path, const char* mode, FILE* file) {
+    auto& peb = *NtCurrentTeb()->ProcessEnvironmentBlock;
+
     if (!file || !mode) {
         *__errno() = EINVAL;
         return nullptr;
@@ -2671,14 +2673,14 @@ FILE* freopen(const char* path, const char* mode, FILE* file) {
 
     auto& f = *reinterpret_cast<_FILE*>(file);
     HANDLE h;
-    int fd;
+    int new_fd;
     bool readable, writable;
 
     if (!path)
         return file; // FIXME - should also be changing mode
 
     // FIXME - cloexec if "e" flag set
-    if (!do_open(path, mode, h, fd, false, false, readable, writable))
+    if (!do_open(path, mode, h, new_fd, false, false, readable, writable))
         return nullptr;
 
     __lock_file(file);
@@ -2686,13 +2688,17 @@ FILE* freopen(const char* path, const char* mode, FILE* file) {
     _fflush_nolock(file);
 
     RtlEnterCriticalSection(&fds_lock);
-    fds[(size_t)f.fd].h = 0;
+
+    fds[(size_t)f.fd].h = h;  // keeping fd the same, and closing new_fd
+
+    if (new_fd != f.fd)
+        fds[(size_t)new_fd].h = 0;
+
     RtlLeaveCriticalSection(&fds_lock);
 
     NtClose(f.h);
 
     f.h = h;
-    f.fd = fd;
     f.ungetc_char.reset();
     f.ungetwc_char.reset();
     f.error = false;
@@ -2704,6 +2710,17 @@ FILE* freopen(const char* path, const char* mode, FILE* file) {
     f.buffer.read_bytes = 0;
     f.readable = readable;
     f.writable = writable;
+
+    if (f.fd == 0) {
+        peb.ProcessParameters->StandardInput = h;
+        reinterpret_cast<_FILE*>(&_stdin)->h = h;
+    } else if (f.fd == 1) {
+        peb.ProcessParameters->StandardOutput = h;
+        reinterpret_cast<_FILE*>(&_stdout)->h = h;
+    } else if (f.fd == 2) {
+        peb.ProcessParameters->StandardError = h;
+        reinterpret_cast<_FILE*>(&_stderr)->h = h;
+    }
 
     __unlock_file(file);
 
