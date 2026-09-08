@@ -366,7 +366,7 @@ nt_status wait_for_object(object& obj, bool interruptible,
             return nt_status::TIMEOUT;
         }
 
-        current_thread->wait_obj.reading = true;
+        current_thread->wait_obj.wait_type = WAIT_TYPE_READING;
 
         insert_tail_list(so.waiters, current_thread->wait_obj.wait_le);
 
@@ -433,7 +433,7 @@ nt_status wait_for_object(object& obj, bool interruptible,
     return nt_status::SUCCESS;
 }
 
-unsigned int wake_up_waiters(list_entry& waiters, bool reading) {
+unsigned int wake_up_waiters(list_entry& waiters, wait_type_t wait_type) {
     unsigned int ret = 0;
 
     auto le = waiters.next;
@@ -443,7 +443,7 @@ unsigned int wake_up_waiters(list_entry& waiters, bool reading) {
 
         le = le->next;
 
-        if (!reading || !wo.reading)
+        if (!(wait_type & wo.wait_type))
             continue;
 
         remove_entry_list(wo.wait_le);
@@ -894,7 +894,7 @@ nt_status wait_for_objects(span<object*> objects, bool wait_any,
         if (!so.signalled) {
             auto ent = new (&mwb->entries[j]) waiter_object_multiple;
 
-            ent->reading = true;
+            ent->wait_type = WAIT_TYPE_READING;
             insert_tail_list(so.waiters, ent->wait_le);
 
             ent->block = mwb;

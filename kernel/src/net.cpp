@@ -149,9 +149,9 @@ public:
     bool tx_tcpv6_csum_offload = false;
 };
 
-export class socket : public sync_object {
+export class socket : public rw_sync_object {
 public:
-    socket() : sync_object(object_type::socket, false) { }
+    socket() : rw_sync_object(object_type::socket, false, true) { }
     virtual ~socket() { }
 
     void release() {

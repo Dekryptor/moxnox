@@ -116,6 +116,19 @@ template<typename T>
 concept is_sync_object = derived_from<T, sync_object>;
 
 export
+extern "C++"
+class rw_sync_object : public sync_object {
+public:
+    rw_sync_object(object_type type, bool signalled, bool write_signalled) : sync_object(type, signalled), write_signalled(write_signalled) { }
+
+    bool write_signalled;
+};
+
+export
+template<typename T>
+concept is_rw_sync_object = derived_from<T, rw_sync_object>;
+
+export
 template<typename T>
 concept object_has_on_wake = requires(T t) {
     { t.on_wake() };

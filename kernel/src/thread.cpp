@@ -21,6 +21,7 @@ import objects;
 import list;
 import process;
 import spinlock;
+import scheduler;
 
 #ifdef __x86_64__
 import x86;
@@ -43,7 +44,7 @@ public:
 
     list_entry wait_le;
     enum waiter_object_type type;
-    bool reading;
+    wait_type_t wait_type;
 };
 
 export enum class thread_status {

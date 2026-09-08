@@ -68,7 +68,7 @@ void thread_died(thread& t, bool* last_thread, bool remove_from_proc) {
     t.status = thread_status::dead;
     t.signalled = true;
 
-    wake_up_waiters(t.waiters, true);
+    wake_up_waiters(t.waiters, WAIT_TYPE_READING);
 
     remove_entry_list(t.le);
 
@@ -1082,7 +1082,6 @@ static nt_status do_poll(span<const uint8_t> buffer) {
         return nt_status::SUCCESS;
     }
 
-    // FIXME - POLLOUT
     // FIXME - POLLERR and POLLHUP
 
     disable_interrupts();
@@ -1128,7 +1127,7 @@ static nt_status do_poll(span<const uint8_t> buffer) {
     // FIXME - handle multiple wakeups at once
 
     for (size_t i = 0; i < p.nfds; i++) {
-        bool signalled;
+        bool signalled, write_signalled;
         uint16_t revents = 0;
 
         auto& obj = *objs[i];
@@ -1140,10 +1139,17 @@ static nt_status do_poll(span<const uint8_t> buffer) {
         } else
             signalled = true;
 
+        if (object_is_rw_sync_object(obj)) {
+            auto& rwso = object_get_rw_sync_object(obj);
+
+            write_signalled = rwso.write_signalled;
+        } else
+            write_signalled = true;
+
         if (signalled && entries[i].events & POLLIN)
             revents |= POLLIN;
 
-        if (entries[i].events & POLLOUT) // FIXME
+        if (write_signalled && entries[i].events & POLLOUT)
             revents |= POLLOUT;
 
         if (revents != 0) {
@@ -1214,8 +1220,15 @@ static nt_status do_poll(span<const uint8_t> buffer) {
         auto& so = object_get_sync_object(*objs[i]);
         auto ent = new (&mwb->entries[i]) waiter_object_multiple;
 
-        if (entries[i].events & POLLIN) {
-            ent->reading = true;
+        if (entries[i].events & (POLLIN | POLLOUT)) {
+            ent->wait_type = 0;
+
+            if (entries[i].events & POLLIN)
+                ent->wait_type |= WAIT_TYPE_READING;
+
+            if (entries[i].events & POLLOUT)
+                ent->wait_type |= WAIT_TYPE_WRITING;
+
             insert_tail_list(so.waiters, ent->wait_le);
         } else
             ent->wait_le.next = ent->wait_le.prev = &ent->wait_le;

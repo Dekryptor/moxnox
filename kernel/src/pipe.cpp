@@ -120,7 +120,7 @@ public:
         if (!recv_pipe.signalled) {
             recv_pipe.signalled = true;
 
-            wake_up_waiters(recv_pipe.waiters, true);
+            wake_up_waiters(recv_pipe.waiters, WAIT_TYPE_READING);
         }
     }
 
@@ -254,7 +254,7 @@ nt_status pipe::write(span<const span<const uint8_t>> v,
             if (!signalled) {
                 signalled = true;
 
-                wake_up_waiters(waiters, true);
+                wake_up_waiters(waiters, WAIT_TYPE_READING);
             }
 
             {
@@ -352,7 +352,7 @@ nt_status pipe::write_nonblock(span<const span<const uint8_t>> v,
         if (!signalled) {
             signalled = true;
 
-            wake_up_waiters(waiters, true);
+            wake_up_waiters(waiters, WAIT_TYPE_READING);
         }
 
         {
@@ -379,7 +379,7 @@ void pipe::set_eof_pending() {
     if (!signalled) {
         signalled = true;
 
-        wake_up_waiters(waiters, true);
+        wake_up_waiters(waiters, WAIT_TYPE_READING);
     }
 }
 
@@ -475,7 +475,7 @@ void pipe::clear() {
 
     if (not_full_event.signalled) {
         not_full_event.signalled = false;
-        wake_up_waiters(not_full_event.waiters, true);
+        wake_up_waiters(not_full_event.waiters, WAIT_TYPE_READING);
     }
 }
 

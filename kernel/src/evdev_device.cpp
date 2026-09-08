@@ -562,7 +562,7 @@ void evdev_multiplexer_client::post_event(const input_event& ev, uint32_t id) {
 
         if (!is_list_empty(items) && !signalled) {
             signalled = true;
-            wake_up_waiters(waiters, true);
+            wake_up_waiters(waiters, WAIT_TYPE_READING);
         }
     }
 }
@@ -700,7 +700,7 @@ void evdev_device_client::post_event(const input_event& ev) {
 
         if (!is_list_empty(items) && !signalled) {
             signalled = true;
-            wake_up_waiters(waiters, true);
+            wake_up_waiters(waiters, WAIT_TYPE_READING);
         }
     }
 }

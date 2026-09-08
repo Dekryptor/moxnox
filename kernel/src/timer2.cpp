@@ -272,10 +272,10 @@ void timer_expired(timer* tptr) {
 
             remove_entry_list(*le);
             insert_tail_list(tmp, *le);
-            wake_up_waiters(tmp, true);
+            wake_up_waiters(tmp, WAIT_TYPE_READING);
         }
     } else {
-        wake_up_waiters(t.waiters, true);
+        wake_up_waiters(t.waiters, WAIT_TYPE_READING);
 
         t.signalled = true;
     }

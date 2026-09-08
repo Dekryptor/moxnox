@@ -234,7 +234,7 @@ void received_ipv6_udp_packet(netif& ni, packet& pack,
         }
 
         if (!sock->signalled) {
-            wake_up_waiters(sock->waiters, true);
+            wake_up_waiters(sock->waiters, WAIT_TYPE_READING);
             sock->signalled = true;
         }
     }
@@ -672,7 +672,7 @@ void ipv6_udp_socket::last_handle_closed() {
         lock_guard lock(sl);
 
         if (!signalled) {
-            wake_up_waiters(waiters, true);
+            wake_up_waiters(waiters, WAIT_TYPE_READING);
             signalled = true;
         }
     }
@@ -769,7 +769,7 @@ void handle_icmpv6_error_udp(packet& pack) {
             sock->pending_error = err;
 
             if (!sock->signalled) {
-                wake_up_waiters(sock->waiters, true);
+                wake_up_waiters(sock->waiters, WAIT_TYPE_READING);
                 sock->signalled = true;
             }
         }
@@ -860,7 +860,7 @@ nt_status ipv6_udp_socket::shutdown(int how) {
             lock_guard lock(sl);
 
             if (!signalled) {
-                wake_up_waiters(waiters, true);
+                wake_up_waiters(waiters, WAIT_TYPE_READING);
                 signalled = true;
             }
         }

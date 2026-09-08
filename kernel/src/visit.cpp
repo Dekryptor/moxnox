@@ -13,6 +13,7 @@ using namespace std;
 
 export void object_release(object& obj);
 export bool object_is_sync_object(object& obj);
+export bool object_is_rw_sync_object(object& obj);
 export void object_on_wake(object& obj);
 export nt_status object_write_without_offset(object& obj,
                                              span<const span<const uint8_t>> v,
@@ -31,5 +32,6 @@ export nt_status object_write_nonblock(object& obj, span<const span<const uint8_
                                        uint64_t& written_bytes);
 export bool object_is_exclusive(object& obj);
 export sync_object& object_get_sync_object(object& obj);
+export rw_sync_object& object_get_rw_sync_object(object& obj);
 export void object_last_handle_closed(object& obj);
 export nt_status object_userspace_open(object_ref& objref);
