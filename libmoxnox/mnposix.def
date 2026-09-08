@@ -294,3 +294,16 @@ getprotoent
 setnetent
 setprotoent
 ctermid
+setlogmask
+ftok
+shmat
+shmctl
+shmdt
+shmget
+semctl
+semget
+semop
+msgctl
+msgget
+msgrcv
+msgsnd
