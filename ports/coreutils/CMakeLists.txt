@@ -1165,17 +1165,17 @@ install(TARGETS logname DESTINATION ${CMAKE_INSTALL_PREFIX}/bin)
 
 ###
 
-add_executable(gls
+add_executable(ls
     ${GEN}/src/version.c
     repo/src/ls.c
     repo/src/ls-ls.c
     ${GEN}/src/dircolors.h
 )
-target_compile_definitions(gls PRIVATE HAVE_CONFIG_H)
-target_include_directories(gls PRIVATE ${COREUTILS_INCLUDES})
-target_compile_options(gls PRIVATE ${COREUTILS_CFLAGS})
-target_link_libraries(gls PRIVATE libcoreutils moxnox)
-install(TARGETS gls DESTINATION ${CMAKE_INSTALL_PREFIX}/bin)
+target_compile_definitions(ls PRIVATE HAVE_CONFIG_H)
+target_include_directories(ls PRIVATE ${COREUTILS_INCLUDES})
+target_compile_options(ls PRIVATE ${COREUTILS_CFLAGS})
+target_link_libraries(ls PRIVATE libcoreutils moxnox)
+install(TARGETS ls DESTINATION ${CMAKE_INSTALL_PREFIX}/bin)
 
 ###
 
@@ -1925,7 +1925,7 @@ add_dependencies(coreutils
     ginstall
     gkill
     gln
-    gls
+    ls
     gmkdir
     gmv
     gpwd

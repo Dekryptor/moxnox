@@ -49,15 +49,15 @@ install(TARGETS echo DESTINATION ${CMAKE_INSTALL_PREFIX}/bin COMPONENT core)
 
 ###
 
-add_executable(ls src/ls.cpp)
+add_executable(mnls src/ls.cpp)
 
-target_compile_options(ls PRIVATE -fno-exceptions ${USERSPACE_CFLAGS})
+target_compile_options(mnls PRIVATE -fno-exceptions ${USERSPACE_CFLAGS})
 
-target_link_libraries(ls print)
-target_link_libraries(ls format list unicode errno)
-target_link_libraries(ls moxnox)
+target_link_libraries(mnls print)
+target_link_libraries(mnls format list unicode errno)
+target_link_libraries(mnls moxnox)
 
-install(TARGETS ls DESTINATION ${CMAKE_INSTALL_PREFIX}/bin COMPONENT core)
+install(TARGETS mnls DESTINATION ${CMAKE_INSTALL_PREFIX}/bin COMPONENT core)
 
 ###
 
