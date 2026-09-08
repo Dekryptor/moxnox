@@ -22,6 +22,7 @@ typedef __time64_t time_t;
 
 typedef uint32_t uid_t;
 typedef uint32_t gid_t;
+typedef int key_t;
 typedef uint32_t id_t;
 typedef uintptr_t pthread_t;
 typedef struct { uintptr_t _x[4]; } pthread_mutex_t;
