@@ -697,15 +697,15 @@ install(TARGETS basenc DESTINATION ${CMAKE_INSTALL_PREFIX}/bin)
 
 ###
 
-add_executable(gcat
+add_executable(cat
     ${GEN}/src/version.c
     repo/src/cat.c
 )
-target_compile_definitions(gcat PRIVATE HAVE_CONFIG_H)
-target_include_directories(gcat PRIVATE ${COREUTILS_INCLUDES})
-target_compile_options(gcat PRIVATE ${COREUTILS_CFLAGS})
-target_link_libraries(gcat PRIVATE libcoreutils moxnox)
-install(TARGETS gcat DESTINATION ${CMAKE_INSTALL_PREFIX}/bin)
+target_compile_definitions(cat PRIVATE HAVE_CONFIG_H)
+target_include_directories(cat PRIVATE ${COREUTILS_INCLUDES})
+target_compile_options(cat PRIVATE ${COREUTILS_CFLAGS})
+target_link_libraries(cat PRIVATE libcoreutils moxnox)
+install(TARGETS cat DESTINATION ${CMAKE_INSTALL_PREFIX}/bin)
 
 ###
 
@@ -778,7 +778,7 @@ install(TARGETS comm DESTINATION ${CMAKE_INSTALL_PREFIX}/bin)
 
 ###
 
-add_executable(gcp
+add_executable(cp
     ${GEN}/src/version.c
     repo/src/cp.c
     repo/src/copy.c
@@ -787,11 +787,11 @@ add_executable(gcp
     repo/src/force-link.c
     repo/src/selinux.c
 )
-target_compile_definitions(gcp PRIVATE HAVE_CONFIG_H)
-target_include_directories(gcp PRIVATE ${COREUTILS_INCLUDES})
-target_compile_options(gcp PRIVATE ${COREUTILS_CFLAGS})
-target_link_libraries(gcp PRIVATE libcoreutils moxnox)
-install(TARGETS gcp DESTINATION ${CMAKE_INSTALL_PREFIX}/bin)
+target_compile_definitions(cp PRIVATE HAVE_CONFIG_H)
+target_include_directories(cp PRIVATE ${COREUTILS_INCLUDES})
+target_compile_options(cp PRIVATE ${COREUTILS_CFLAGS})
+target_link_libraries(cp PRIVATE libcoreutils moxnox)
+install(TARGETS cp DESTINATION ${CMAKE_INSTALL_PREFIX}/bin)
 
 ###
 
@@ -897,15 +897,15 @@ install(TARGETS du DESTINATION ${CMAKE_INSTALL_PREFIX}/bin)
 
 ###
 
-add_executable(gecho
+add_executable(echo
     ${GEN}/src/version.c
     repo/src/echo.c
 )
-target_compile_definitions(gecho PRIVATE HAVE_CONFIG_H)
-target_include_directories(gecho PRIVATE ${COREUTILS_INCLUDES})
-target_compile_options(gecho PRIVATE ${COREUTILS_CFLAGS})
-target_link_libraries(gecho PRIVATE libcoreutils moxnox)
-install(TARGETS gecho DESTINATION ${CMAKE_INSTALL_PREFIX}/bin)
+target_compile_definitions(echo PRIVATE HAVE_CONFIG_H)
+target_include_directories(echo PRIVATE ${COREUTILS_INCLUDES})
+target_compile_options(echo PRIVATE ${COREUTILS_CFLAGS})
+target_link_libraries(echo PRIVATE libcoreutils moxnox)
+install(TARGETS echo DESTINATION ${CMAKE_INSTALL_PREFIX}/bin)
 
 ###
 
@@ -959,16 +959,16 @@ install(TARGETS hostname DESTINATION ${CMAKE_INSTALL_PREFIX}/bin)
 
 ###
 
-add_executable(gkill
+add_executable(kill
     ${GEN}/src/version.c
     repo/src/kill.c
     repo/src/operand2sig.c
 )
-target_compile_definitions(gkill PRIVATE HAVE_CONFIG_H)
-target_include_directories(gkill PRIVATE ${COREUTILS_INCLUDES})
-target_compile_options(gkill PRIVATE ${COREUTILS_CFLAGS})
-target_link_libraries(gkill PRIVATE libcoreutils moxnox)
-install(TARGETS gkill DESTINATION ${CMAKE_INSTALL_PREFIX}/bin)
+target_compile_definitions(kill PRIVATE HAVE_CONFIG_H)
+target_include_directories(kill PRIVATE ${COREUTILS_INCLUDES})
+target_compile_options(kill PRIVATE ${COREUTILS_CFLAGS})
+target_link_libraries(kill PRIVATE libcoreutils moxnox)
+install(TARGETS kill DESTINATION ${CMAKE_INSTALL_PREFIX}/bin)
 
 ###
 
@@ -1139,17 +1139,17 @@ install(TARGETS link DESTINATION ${CMAKE_INSTALL_PREFIX}/bin)
 
 ###
 
-add_executable(gln
+add_executable(ln
     ${GEN}/src/version.c
     repo/src/ln.c
     repo/src/force-link.c
     repo/src/relpath.c
 )
-target_compile_definitions(gln PRIVATE HAVE_CONFIG_H)
-target_include_directories(gln PRIVATE ${COREUTILS_INCLUDES})
-target_compile_options(gln PRIVATE ${COREUTILS_CFLAGS})
-target_link_libraries(gln PRIVATE libcoreutils moxnox)
-install(TARGETS gln DESTINATION ${CMAKE_INSTALL_PREFIX}/bin)
+target_compile_definitions(ln PRIVATE HAVE_CONFIG_H)
+target_include_directories(ln PRIVATE ${COREUTILS_INCLUDES})
+target_compile_options(ln PRIVATE ${COREUTILS_CFLAGS})
+target_link_libraries(ln PRIVATE libcoreutils moxnox)
+install(TARGETS ln DESTINATION ${CMAKE_INSTALL_PREFIX}/bin)
 
 ###
 
@@ -1193,17 +1193,17 @@ install(TARGETS md5sum DESTINATION ${CMAKE_INSTALL_PREFIX}/bin)
 
 ###
 
-add_executable(gmkdir
+add_executable(mkdir
     ${GEN}/src/version.c
     repo/src/mkdir.c
     repo/src/prog-fprintf.c
     repo/src/selinux.c
 )
-target_compile_definitions(gmkdir PRIVATE HAVE_CONFIG_H)
-target_include_directories(gmkdir PRIVATE ${COREUTILS_INCLUDES})
-target_compile_options(gmkdir PRIVATE ${COREUTILS_CFLAGS})
-target_link_libraries(gmkdir PRIVATE libcoreutils moxnox)
-install(TARGETS gmkdir DESTINATION ${CMAKE_INSTALL_PREFIX}/bin)
+target_compile_definitions(mkdir PRIVATE HAVE_CONFIG_H)
+target_include_directories(mkdir PRIVATE ${COREUTILS_INCLUDES})
+target_compile_options(mkdir PRIVATE ${COREUTILS_CFLAGS})
+target_link_libraries(mkdir PRIVATE libcoreutils moxnox)
+install(TARGETS mkdir DESTINATION ${CMAKE_INSTALL_PREFIX}/bin)
 
 ###
 
@@ -1245,7 +1245,7 @@ install(TARGETS mktemp DESTINATION ${CMAKE_INSTALL_PREFIX}/bin)
 
 ###
 
-add_executable(gmv
+add_executable(mv
     ${GEN}/src/version.c
     repo/src/mv.c
     repo/src/remove.c
@@ -1255,11 +1255,11 @@ add_executable(gmv
     repo/src/force-link.c
     repo/src/selinux.c
 )
-target_compile_definitions(gmv PRIVATE HAVE_CONFIG_H)
-target_include_directories(gmv PRIVATE ${COREUTILS_INCLUDES})
-target_compile_options(gmv PRIVATE ${COREUTILS_CFLAGS})
-target_link_libraries(gmv PRIVATE libcoreutils moxnox)
-install(TARGETS gmv DESTINATION ${CMAKE_INSTALL_PREFIX}/bin)
+target_compile_definitions(mv PRIVATE HAVE_CONFIG_H)
+target_include_directories(mv PRIVATE ${COREUTILS_INCLUDES})
+target_compile_options(mv PRIVATE ${COREUTILS_CFLAGS})
+target_link_libraries(mv PRIVATE libcoreutils moxnox)
+install(TARGETS mv DESTINATION ${CMAKE_INSTALL_PREFIX}/bin)
 
 ###
 
@@ -1408,15 +1408,15 @@ install(TARGETS ptx DESTINATION ${CMAKE_INSTALL_PREFIX}/bin)
 
 ###
 
-add_executable(gpwd
+add_executable(pwd
     ${GEN}/src/version.c
     repo/src/pwd.c
 )
-target_compile_definitions(gpwd PRIVATE HAVE_CONFIG_H)
-target_include_directories(gpwd PRIVATE ${COREUTILS_INCLUDES})
-target_compile_options(gpwd PRIVATE ${COREUTILS_CFLAGS})
-target_link_libraries(gpwd PRIVATE libcoreutils moxnox)
-install(TARGETS gpwd DESTINATION ${CMAKE_INSTALL_PREFIX}/bin)
+target_compile_definitions(pwd PRIVATE HAVE_CONFIG_H)
+target_include_directories(pwd PRIVATE ${COREUTILS_INCLUDES})
+target_compile_options(pwd PRIVATE ${COREUTILS_CFLAGS})
+target_link_libraries(pwd PRIVATE libcoreutils moxnox)
+install(TARGETS pwd DESTINATION ${CMAKE_INSTALL_PREFIX}/bin)
 
 ###
 
@@ -1445,29 +1445,29 @@ install(TARGETS realpath DESTINATION ${CMAKE_INSTALL_PREFIX}/bin)
 
 ###
 
-add_executable(grmdir
+add_executable(rmdir
     ${GEN}/src/version.c
     repo/src/rmdir.c
     repo/src/prog-fprintf.c
 )
-target_compile_definitions(grmdir PRIVATE HAVE_CONFIG_H)
-target_include_directories(grmdir PRIVATE ${COREUTILS_INCLUDES})
-target_compile_options(grmdir PRIVATE ${COREUTILS_CFLAGS})
-target_link_libraries(grmdir PRIVATE libcoreutils moxnox)
-install(TARGETS grmdir DESTINATION ${CMAKE_INSTALL_PREFIX}/bin)
+target_compile_definitions(rmdir PRIVATE HAVE_CONFIG_H)
+target_include_directories(rmdir PRIVATE ${COREUTILS_INCLUDES})
+target_compile_options(rmdir PRIVATE ${COREUTILS_CFLAGS})
+target_link_libraries(rmdir PRIVATE libcoreutils moxnox)
+install(TARGETS rmdir DESTINATION ${CMAKE_INSTALL_PREFIX}/bin)
 
 ###
 
-add_executable(grm
+add_executable(rm
     ${GEN}/src/version.c
     repo/src/rm.c
     repo/src/remove.c
 )
-target_compile_definitions(grm PRIVATE HAVE_CONFIG_H)
-target_include_directories(grm PRIVATE ${COREUTILS_INCLUDES})
-target_compile_options(grm PRIVATE ${COREUTILS_CFLAGS})
-target_link_libraries(grm PRIVATE libcoreutils moxnox)
-install(TARGETS grm DESTINATION ${CMAKE_INSTALL_PREFIX}/bin)
+target_compile_definitions(rm PRIVATE HAVE_CONFIG_H)
+target_include_directories(rm PRIVATE ${COREUTILS_INCLUDES})
+target_compile_options(rm PRIVATE ${COREUTILS_CFLAGS})
+target_link_libraries(rm PRIVATE libcoreutils moxnox)
+install(TARGETS rm DESTINATION ${CMAKE_INSTALL_PREFIX}/bin)
 
 ###
 
@@ -1626,16 +1626,16 @@ install(TARGETS stty DESTINATION ${CMAKE_INSTALL_PREFIX}/bin)
 
 ###
 
-add_executable(gstat
+add_executable(stat
     ${GEN}/src/version.c
     ${GEN}/src/stat.c
     repo/src/find-mount-point.c
 )
-target_compile_definitions(gstat PRIVATE HAVE_CONFIG_H)
-target_include_directories(gstat PRIVATE ${COREUTILS_INCLUDES})
-target_compile_options(gstat PRIVATE ${COREUTILS_CFLAGS})
-target_link_libraries(gstat PRIVATE libcoreutils moxnox)
-install(TARGETS gstat DESTINATION ${CMAKE_INSTALL_PREFIX}/bin)
+target_compile_definitions(stat PRIVATE HAVE_CONFIG_H)
+target_include_directories(stat PRIVATE ${COREUTILS_INCLUDES})
+target_compile_options(stat PRIVATE ${COREUTILS_CFLAGS})
+target_link_libraries(stat PRIVATE libcoreutils moxnox)
+install(TARGETS stat DESTINATION ${CMAKE_INSTALL_PREFIX}/bin)
 
 ###
 
@@ -1717,15 +1717,15 @@ install(TARGETS test DESTINATION ${CMAKE_INSTALL_PREFIX}/bin)
 
 ###
 
-add_executable(gtouch
+add_executable(touch
     ${GEN}/src/version.c
     repo/src/touch.c
 )
-target_compile_definitions(gtouch PRIVATE HAVE_CONFIG_H)
-target_include_directories(gtouch PRIVATE ${COREUTILS_INCLUDES})
-target_compile_options(gtouch PRIVATE ${COREUTILS_CFLAGS})
-target_link_libraries(gtouch PRIVATE libcoreutils moxnox)
-install(TARGETS gtouch DESTINATION ${CMAKE_INSTALL_PREFIX}/bin)
+target_compile_definitions(touch PRIVATE HAVE_CONFIG_H)
+target_include_directories(touch PRIVATE ${COREUTILS_INCLUDES})
+target_compile_options(touch PRIVATE ${COREUTILS_CFLAGS})
+target_link_libraries(touch PRIVATE libcoreutils moxnox)
+install(TARGETS touch DESTINATION ${CMAKE_INSTALL_PREFIX}/bin)
 
 ###
 
@@ -1877,15 +1877,15 @@ install(TARGETS whoami DESTINATION ${CMAKE_INSTALL_PREFIX}/bin)
 
 ###
 
-add_executable(gyes
+add_executable(yes
     ${GEN}/src/version.c
     repo/src/yes.c
 )
-target_compile_definitions(gyes PRIVATE HAVE_CONFIG_H)
-target_include_directories(gyes PRIVATE ${COREUTILS_INCLUDES})
-target_compile_options(gyes PRIVATE ${COREUTILS_CFLAGS})
-target_link_libraries(gyes PRIVATE libcoreutils moxnox)
-install(TARGETS gyes DESTINATION ${CMAKE_INSTALL_PREFIX}/bin)
+target_compile_definitions(yes PRIVATE HAVE_CONFIG_H)
+target_include_directories(yes PRIVATE ${COREUTILS_INCLUDES})
+target_compile_options(yes PRIVATE ${COREUTILS_CFLAGS})
+target_link_libraries(yes PRIVATE libcoreutils moxnox)
+install(TARGETS yes DESTINATION ${CMAKE_INSTALL_PREFIX}/bin)
 
 ###
 
@@ -1918,23 +1918,23 @@ add_dependencies(coreutils
     false
     fmt
     fold
-    gcat
-    gcp
-    gecho
+    cat
+    cp
+    echo
     getlimits
     ginstall
-    gkill
-    gln
+    kill
+    ln
     ls
-    gmkdir
-    gmv
-    gpwd
-    grm
-    grmdir
+    mkdir
+    mv
+    pwd
+    rm
+    rmdir
     groups
-    gstat
-    gtouch
-    gyes
+    stat
+    touch
+    yes
     head
     hostid
     hostname

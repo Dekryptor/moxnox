@@ -38,14 +38,14 @@ install(CODE "file(CREATE_LINK shell.exe \"\$ENV{DESTDIR}${CMAKE_INSTALL_PREFIX}
 
 ###
 
-add_executable(echo src/echo.cpp)
+add_executable(mnecho src/echo.cpp)
 
-target_compile_options(echo PRIVATE -fno-exceptions ${USERSPACE_CFLAGS})
+target_compile_options(mnecho PRIVATE -fno-exceptions ${USERSPACE_CFLAGS})
 
-target_link_libraries(echo print unicode format)
-target_link_libraries(echo moxnox)
+target_link_libraries(mnecho print unicode format)
+target_link_libraries(mnecho moxnox)
 
-install(TARGETS echo DESTINATION ${CMAKE_INSTALL_PREFIX}/bin COMPONENT core)
+install(TARGETS mnecho DESTINATION ${CMAKE_INSTALL_PREFIX}/bin COMPONENT core)
 
 ###
 
@@ -61,85 +61,85 @@ install(TARGETS mnls DESTINATION ${CMAKE_INSTALL_PREFIX}/bin COMPONENT core)
 
 ###
 
-add_executable(cat src/cat.cpp)
+add_executable(mncat src/cat.cpp)
 
-target_compile_options(cat PRIVATE -fno-exceptions ${USERSPACE_CFLAGS})
+target_compile_options(mncat PRIVATE -fno-exceptions ${USERSPACE_CFLAGS})
 
-target_link_libraries(cat print)
-target_link_libraries(cat format unicode)
-target_link_libraries(cat moxnox)
+target_link_libraries(mncat print)
+target_link_libraries(mncat format unicode)
+target_link_libraries(mncat moxnox)
 
-install(TARGETS cat DESTINATION ${CMAKE_INSTALL_PREFIX}/bin COMPONENT core)
-
-###
-
-add_executable(pwd src/pwd.cpp)
-
-target_compile_options(pwd PRIVATE -fno-exceptions ${USERSPACE_CFLAGS})
-
-target_link_libraries(pwd print unicode format)
-target_link_libraries(pwd moxnox)
-
-install(TARGETS pwd DESTINATION ${CMAKE_INSTALL_PREFIX}/bin COMPONENT core)
+install(TARGETS mncat DESTINATION ${CMAKE_INSTALL_PREFIX}/bin COMPONENT core)
 
 ###
 
-add_executable(yes src/yes.cpp)
+add_executable(mnpwd src/pwd.cpp)
 
-target_compile_options(yes PRIVATE -fno-exceptions ${USERSPACE_CFLAGS})
+target_compile_options(mnpwd PRIVATE -fno-exceptions ${USERSPACE_CFLAGS})
 
-target_link_libraries(yes print format)
-target_link_libraries(yes moxnox)
+target_link_libraries(mnpwd print unicode format)
+target_link_libraries(mnpwd moxnox)
 
-install(TARGETS yes DESTINATION ${CMAKE_INSTALL_PREFIX}/bin COMPONENT core)
-
-###
-
-add_executable(mkdir src/mkdir.cpp)
-
-target_compile_options(mkdir PRIVATE -fno-exceptions ${USERSPACE_CFLAGS})
-
-target_link_libraries(mkdir print)
-target_link_libraries(mkdir format unicode)
-target_link_libraries(mkdir moxnox)
-
-install(TARGETS mkdir DESTINATION ${CMAKE_INSTALL_PREFIX}/bin COMPONENT core)
+install(TARGETS mnpwd DESTINATION ${CMAKE_INSTALL_PREFIX}/bin COMPONENT core)
 
 ###
 
-add_executable(touch src/touch.cpp)
+add_executable(mnyes src/yes.cpp)
 
-target_compile_options(touch PRIVATE -fno-exceptions ${USERSPACE_CFLAGS})
+target_compile_options(mnyes PRIVATE -fno-exceptions ${USERSPACE_CFLAGS})
 
-target_link_libraries(touch print)
-target_link_libraries(touch format unicode)
-target_link_libraries(touch moxnox)
+target_link_libraries(mnyes print format)
+target_link_libraries(mnyes moxnox)
 
-install(TARGETS touch DESTINATION ${CMAKE_INSTALL_PREFIX}/bin COMPONENT core)
-
-###
-
-add_executable(rm src/rm.cpp)
-
-target_compile_options(rm PRIVATE -fno-exceptions ${USERSPACE_CFLAGS})
-
-target_link_libraries(rm print)
-target_link_libraries(rm format unicode)
-target_link_libraries(rm moxnox)
-
-install(TARGETS rm DESTINATION ${CMAKE_INSTALL_PREFIX}/bin COMPONENT core)
+install(TARGETS mnyes DESTINATION ${CMAKE_INSTALL_PREFIX}/bin COMPONENT core)
 
 ###
 
-add_executable(rmdir src/rmdir.cpp)
+add_executable(mnmkdir src/mkdir.cpp)
 
-target_compile_options(rmdir PRIVATE -fno-exceptions ${USERSPACE_CFLAGS})
+target_compile_options(mnmkdir PRIVATE -fno-exceptions ${USERSPACE_CFLAGS})
 
-target_link_libraries(rmdir print)
-target_link_libraries(rmdir format unicode)
-target_link_libraries(rmdir moxnox)
+target_link_libraries(mnmkdir print)
+target_link_libraries(mnmkdir format unicode)
+target_link_libraries(mnmkdir moxnox)
 
-install(TARGETS rmdir DESTINATION ${CMAKE_INSTALL_PREFIX}/bin COMPONENT core)
+install(TARGETS mnmkdir DESTINATION ${CMAKE_INSTALL_PREFIX}/bin COMPONENT core)
+
+###
+
+add_executable(mntouch src/touch.cpp)
+
+target_compile_options(mntouch PRIVATE -fno-exceptions ${USERSPACE_CFLAGS})
+
+target_link_libraries(mntouch print)
+target_link_libraries(mntouch format unicode)
+target_link_libraries(mntouch moxnox)
+
+install(TARGETS mntouch DESTINATION ${CMAKE_INSTALL_PREFIX}/bin COMPONENT core)
+
+###
+
+add_executable(mnrm src/rm.cpp)
+
+target_compile_options(mnrm PRIVATE -fno-exceptions ${USERSPACE_CFLAGS})
+
+target_link_libraries(mnrm print)
+target_link_libraries(mnrm format unicode)
+target_link_libraries(mnrm moxnox)
+
+install(TARGETS mnrm DESTINATION ${CMAKE_INSTALL_PREFIX}/bin COMPONENT core)
+
+###
+
+add_executable(mnrmdir src/rmdir.cpp)
+
+target_compile_options(mnrmdir PRIVATE -fno-exceptions ${USERSPACE_CFLAGS})
+
+target_link_libraries(mnrmdir print)
+target_link_libraries(mnrmdir format unicode)
+target_link_libraries(mnrmdir moxnox)
+
+install(TARGETS mnrmdir DESTINATION ${CMAKE_INSTALL_PREFIX}/bin COMPONENT core)
 
 ###
 
@@ -241,13 +241,13 @@ install(TARGETS ps DESTINATION ${CMAKE_INSTALL_PREFIX}/bin COMPONENT core)
 
 ###
 
-add_executable(kill src/kill.cpp)
+add_executable(mnkill src/kill.cpp)
 
-target_compile_options(kill PRIVATE -fno-exceptions ${USERSPACE_CFLAGS})
+target_compile_options(mnkill PRIVATE -fno-exceptions ${USERSPACE_CFLAGS})
 
-target_link_libraries(kill moxnox print errno)
+target_link_libraries(mnkill moxnox print errno)
 
-install(TARGETS kill DESTINATION ${CMAKE_INSTALL_PREFIX}/bin COMPONENT core)
+install(TARGETS mnkill DESTINATION ${CMAKE_INSTALL_PREFIX}/bin COMPONENT core)
 
 ###
 
@@ -286,32 +286,32 @@ install(TARGETS halt DESTINATION ${CMAKE_INSTALL_PREFIX}/bin COMPONENT core)
 
 ###
 
-add_executable(mv src/mv.cpp)
-target_sources(mv PUBLIC FILE_SET CXX_MODULES FILES src/copy.cpp)
+add_executable(mnmv src/mv.cpp)
+target_sources(mnmv PUBLIC FILE_SET CXX_MODULES FILES src/copy.cpp)
 
-target_compile_options(mv PRIVATE -fno-exceptions ${USERSPACE_CFLAGS})
+target_compile_options(mnmv PRIVATE -fno-exceptions ${USERSPACE_CFLAGS})
 
-target_link_libraries(mv print)
-target_link_libraries(mv format unique_handle list unicode)
-target_link_libraries(mv moxnox)
+target_link_libraries(mnmv print)
+target_link_libraries(mnmv format unique_handle list unicode)
+target_link_libraries(mnmv moxnox)
 
-install(TARGETS mv DESTINATION ${CMAKE_INSTALL_PREFIX}/bin
+install(TARGETS mnmv DESTINATION ${CMAKE_INSTALL_PREFIX}/bin
     COMPONENT core
     CXX_MODULES_BMI EXCLUDE_FROM_ALL
 )
 
 ###
 
-add_executable(cp src/cp.cpp)
-target_sources(cp PUBLIC FILE_SET CXX_MODULES FILES src/copy.cpp)
+add_executable(mncp src/cp.cpp)
+target_sources(mncp PUBLIC FILE_SET CXX_MODULES FILES src/copy.cpp)
 
-target_compile_options(cp PRIVATE -fno-exceptions ${USERSPACE_CFLAGS})
+target_compile_options(mncp PRIVATE -fno-exceptions ${USERSPACE_CFLAGS})
 
-target_link_libraries(cp print)
-target_link_libraries(cp format unique_handle list unicode)
-target_link_libraries(cp moxnox)
+target_link_libraries(mncp print)
+target_link_libraries(mncp format unique_handle list unicode)
+target_link_libraries(mncp moxnox)
 
-install(TARGETS cp DESTINATION ${CMAKE_INSTALL_PREFIX}/bin
+install(TARGETS mncp DESTINATION ${CMAKE_INSTALL_PREFIX}/bin
     COMPONENT core
     CXX_MODULES_BMI EXCLUDE_FROM_ALL
 )
@@ -589,16 +589,16 @@ install(TARGETS mouse-test DESTINATION ${CMAKE_INSTALL_PREFIX}/bin COMPONENT cor
 
 ###
 
-add_executable(stat src/stat.cpp)
+add_executable(mnstat src/stat.cpp)
 
-target_compile_options(stat PRIVATE -fno-exceptions ${USERSPACE_CFLAGS})
-target_link_libraries(stat moxnox print errno)
+target_compile_options(mnstat PRIVATE -fno-exceptions ${USERSPACE_CFLAGS})
+target_link_libraries(mnstat moxnox print errno)
 
 if (CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
-    target_link_options(stat PUBLIC -mcrtdll=ucrtbase)
+    target_link_options(mnstat PUBLIC -mcrtdll=ucrtbase)
 endif()
 
-install(TARGETS stat DESTINATION ${CMAKE_INSTALL_PREFIX}/bin COMPONENT core)
+install(TARGETS mnstat DESTINATION ${CMAKE_INSTALL_PREFIX}/bin COMPONENT core)
 
 ###
 
@@ -694,14 +694,14 @@ install(TARGETS ntqo-test DESTINATION ${CMAKE_INSTALL_PREFIX}/bin COMPONENT core
 
 ###
 
-add_executable(ln src/ln.cpp)
+add_executable(mnln src/ln.cpp)
 
-target_compile_options(ln PRIVATE -fno-exceptions ${USERSPACE_CFLAGS})
+target_compile_options(mnln PRIVATE -fno-exceptions ${USERSPACE_CFLAGS})
 
-target_link_libraries(ln print unicode unique_handle)
-target_link_libraries(ln moxnox)
+target_link_libraries(mnln print unicode unique_handle)
+target_link_libraries(mnln moxnox)
 
-install(TARGETS ln DESTINATION ${CMAKE_INSTALL_PREFIX}/bin
+install(TARGETS mnln DESTINATION ${CMAKE_INSTALL_PREFIX}/bin
     COMPONENT core
     CXX_MODULES_BMI EXCLUDE_FROM_ALL
 )
