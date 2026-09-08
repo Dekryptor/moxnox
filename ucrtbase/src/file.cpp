@@ -556,15 +556,18 @@ size_t __fread_nolock(void* ptr, size_t size, size_t n, FILE* file) {
             break;
         }
 
-        if (status != nt_status::END_OF_FILE && !success(status)) {
-            if (read == 0) {
-                *__errno() = nt_status_to_errno(status);
-                f.error = true;
+        if (status != nt_status::END_OF_FILE && status != nt_status::PIPE_DISCONNECTED) {
+            if (!success(status)) {
+                if (read == 0) {
+                    *__errno() = nt_status_to_errno(status);
+                    f.error = true;
+                }
+
+                return read / size;
             }
 
-            return read / size;
-        } else if (status != nt_status::END_OF_FILE)
             read_bytes = iosb.Information;
+        }
 
         f.buffer.read_bytes = read_bytes;
         f.buffer.consumed = 0;
@@ -590,7 +593,7 @@ size_t __fread_nolock(void* ptr, size_t size, size_t n, FILE* file) {
         break;
     }
 
-    if (status == nt_status::END_OF_FILE)
+    if (status == nt_status::END_OF_FILE || status == nt_status::PIPE_DISCONNECTED)
         f.eof = true;
     else if (!success(status) && read == 0) {
         *__errno() = nt_status_to_errno(status);
