@@ -246,7 +246,6 @@ target_include_directories(wget PRIVATE
     ${GEN}/lib
     ${CMAKE_CURRENT_SOURCE_DIR}/repo/src
     ${CMAKE_CURRENT_SOURCE_DIR}/repo/gnulib/lib
-    ${CMAKE_BINARY_DIR}/ports/libiconv/gen/include
 )
 
 target_compile_options(wget PRIVATE

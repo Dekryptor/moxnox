@@ -222,7 +222,6 @@ target_include_directories(tar PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}/repo/lib
     ${CMAKE_CURRENT_SOURCE_DIR}/repo/paxutils/lib
     ${CMAKE_CURRENT_SOURCE_DIR}/repo/paxutils/paxlib
-    ${CMAKE_BINARY_DIR}/ports/libiconv/gen/include
     ${CMAKE_CURRENT_SOURCE_DIR}/repo/src
 )
 

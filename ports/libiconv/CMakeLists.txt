@@ -79,9 +79,9 @@ target_compile_options(libiconv PRIVATE
 )
 
 target_compile_definitions(libiconv PRIVATE -DHAVE_CONFIG_H -DBUILDING_LIBICONV -DBUILDING_LIBCHARSET)
+target_include_directories(libiconv PUBLIC ${GEN}/include)
 target_include_directories(libiconv PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}
-    ${GEN}/include
     ${GEN}/lib
     repo/lib
     repo/libcharset/include

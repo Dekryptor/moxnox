@@ -207,7 +207,6 @@ target_include_directories(m4 PRIVATE
     ${GEN}
     ${GEN}/gnu
     ${CMAKE_CURRENT_SOURCE_DIR}/repo/gnulib/lib
-    ${CMAKE_BINARY_DIR}/ports/libiconv/gen/include
 )
 
 target_compile_options(m4 PRIVATE ${USERSPACE_CFLAGS}

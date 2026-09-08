@@ -61,7 +61,6 @@ set(BISON_INCLUDES
     ${CMAKE_CURRENT_SOURCE_DIR}/repo/lib
     ${CMAKE_CURRENT_SOURCE_DIR}/repo/gnulib/lib
     ${CMAKE_CURRENT_SOURCE_DIR}/repo
-    ${CMAKE_BINARY_DIR}/ports/libiconv/gen/include
 )
 
 set(BISON_CFLAGS
@@ -273,7 +272,6 @@ target_include_directories(bison PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}/repo/lib
     ${CMAKE_CURRENT_SOURCE_DIR}/repo/gnulib/lib
     ${CMAKE_CURRENT_SOURCE_DIR}/repo
-    ${CMAKE_BINARY_DIR}/ports/libiconv/gen/include
 )
 
 target_compile_options(bison PRIVATE ${BISON_CFLAGS})

@@ -337,7 +337,6 @@ target_include_directories(bash PRIVATE
     repo/lib
     repo/lib/glob
     repo/builtins
-    ${CMAKE_BINARY_DIR}/ports/libiconv/gen/include
 )
 
 target_compile_options(bash PRIVATE

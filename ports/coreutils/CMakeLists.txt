@@ -539,7 +539,7 @@ add_library(libcoreutils STATIC
 set_target_properties(libcoreutils PROPERTIES OUTPUT_NAME coreutils PREFIX lib)
 
 target_compile_definitions(libcoreutils PRIVATE HAVE_CONFIG_H)
-target_link_libraries(libcoreutils PRIVATE libcrypto)
+target_link_libraries(libcoreutils PRIVATE libcrypto libiconv)
 
 set(COREUTILS_INCLUDES
     ${CMAKE_CURRENT_SOURCE_DIR}
@@ -548,7 +548,6 @@ set(COREUTILS_INCLUDES
     ${CMAKE_CURRENT_SOURCE_DIR}/repo/gnulib/lib
     ${GEN}/src
     ${CMAKE_CURRENT_SOURCE_DIR}/repo/src
-    ${CMAKE_BINARY_DIR}/ports/libiconv/gen/include
 )
 
 set(COREUTILS_CFLAGS
@@ -1379,7 +1378,7 @@ add_executable(printf
 target_compile_definitions(printf PRIVATE HAVE_CONFIG_H)
 target_include_directories(printf PRIVATE ${COREUTILS_INCLUDES})
 target_compile_options(printf PRIVATE ${COREUTILS_CFLAGS})
-target_link_libraries(printf PRIVATE libcoreutils moxnox libiconv)
+target_link_libraries(printf PRIVATE libcoreutils moxnox)
 install(TARGETS printf DESTINATION ${CMAKE_INSTALL_PREFIX}/bin)
 
 ###
