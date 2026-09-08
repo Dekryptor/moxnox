@@ -195,6 +195,8 @@ public:
     virtual nt_status recvfrom_nonblock(span<const span<uint8_t>> v, int flags,
                                         sockaddr_storage* from, size_t* fromlen,
                                         size_t& recv_bytes) = 0;
+    virtual nt_status sendto_nonblock(span<const span<const uint8_t>> v, int flags,
+                                      sockaddr* to, size_t tolen, uint64_t& sent_bytes) = 0;
     virtual nt_status shutdown(int how) = 0;
 
     virtual nt_status setsockopt_tcp(sockopt_tcp, span<const uint8_t>) {
@@ -212,7 +214,7 @@ public:
 
 private:
     nt_status do_recvmsg(span<const uint8_t> inbuf, bool nonblock);
-    nt_status do_sendmsg(span<const uint8_t> inbuf);
+    nt_status do_sendmsg(span<const uint8_t> inbuf, bool nonblock);
     nt_status do_bind(span<const uint8_t> inbuf);
     nt_status do_connect(span<const uint8_t> inbuf);
     nt_status do_listen(span<const uint8_t> inbuf);

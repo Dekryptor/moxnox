@@ -31,7 +31,10 @@ public:
     }
 
     nt_status sendto(span<const span<const uint8_t>> v, int flags, sockaddr* to,
-                     size_t tolen, uint64_t& sent_bytes) override;
+                     size_t tolen, uint64_t& sent_bytes) override {
+        return do_sendto<false>(v, flags, to, tolen, sent_bytes);
+    }
+
     nt_status bind(const sockaddr* addr, size_t addrlen) override;
     nt_status connect(const sockaddr* addr, size_t addrlen) override;
 
@@ -50,6 +53,12 @@ public:
                                 sockaddr_storage* from, size_t* fromlen,
                                 uint64_t& recv_bytes) override {
         return do_recvfrom<true>(v, flags, from, fromlen, recv_bytes);
+    }
+
+    nt_status sendto_nonblock(span<const span<const uint8_t>> v, int flags,
+                              sockaddr* to, size_t tolen,
+                              uint64_t& sent_bytes) override {
+        return do_sendto<true>(v, flags, to, tolen, sent_bytes);
     }
 
     nt_status shutdown(int how) override;
@@ -72,6 +81,10 @@ private:
     nt_status do_recvfrom(span<const span<uint8_t>> v, int flags,
                           sockaddr_storage* from, size_t* fromlen,
                           uint64_t& recv_bytes);
+
+    template<bool NONBLOCK>
+    nt_status do_sendto(span<const span<const uint8_t>> v, int flags,
+                        sockaddr* to, size_t tolen, uint64_t& sent_bytes);
 };
 
 static spinlock udp_ports_lock;
@@ -383,8 +396,10 @@ static uint16_t find_ephemeral_udp_port() {
     }
 }
 
-nt_status ipv6_udp_socket::sendto(span<const span<const uint8_t>> v, int flags,
-                                  sockaddr* to, size_t tolen, uint64_t& sent_bytes) {
+template<bool NONBLOCK>
+nt_status ipv6_udp_socket::do_sendto(span<const span<const uint8_t>> v,
+                                     int flags, sockaddr* to, size_t tolen,
+                                     uint64_t& sent_bytes) {
     nt_status status;
     ipv6_address src;
     uint16_t srcport;

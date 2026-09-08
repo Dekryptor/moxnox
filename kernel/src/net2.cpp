@@ -74,7 +74,10 @@ public:
     }
 
     nt_status sendto(span<const span<const uint8_t>> v, int flags, sockaddr* to,
-                     size_t tolen, uint64_t& sent_bytes) override;
+                     size_t tolen, uint64_t& sent_bytes) override {
+        return do_sendto<false>(v, flags, to, tolen, sent_bytes);
+    }
+
     nt_status bind(const sockaddr* addr, size_t addrlen) override;
 
     nt_status connect(const sockaddr*, size_t) override {
@@ -101,6 +104,12 @@ public:
         return do_recvfrom<true>(v, flags, from, fromlen, recv_bytes);
     }
 
+    nt_status sendto_nonblock(span<const span<const uint8_t>> v, int flags,
+                              sockaddr* to, size_t tolen,
+                              uint64_t& sent_bytes) override {
+        return do_sendto<true>(v, flags, to, tolen, sent_bytes);
+    }
+
     nt_status shutdown(int) override {
         return nt_status::NOT_SUPPORTED;
     }
@@ -122,6 +131,10 @@ private:
     nt_status do_recvfrom(span<const span<uint8_t>> v, int flags,
                           sockaddr_storage* from, size_t* fromlen,
                           uint64_t& recv_bytes);
+
+    template<bool NONBLOCK>
+    nt_status do_sendto(span<const span<const uint8_t>> v, int flags,
+                        sockaddr* to, size_t tolen, uint64_t& sent_bytes);
 };
 
 enum class neighbour_cache_status {
@@ -2823,7 +2836,7 @@ nt_status socket::do_recvmsg(span<const uint8_t> inbuf, bool nonblock) {
     return nt_status::SUCCESS;
 }
 
-nt_status socket::do_sendmsg(span<const uint8_t> inbuf) {
+nt_status socket::do_sendmsg(span<const uint8_t> inbuf, bool nonblock) {
     nt_status status;
     uint32_t read_bytes;
 
@@ -2906,9 +2919,15 @@ nt_status socket::do_sendmsg(span<const uint8_t> inbuf) {
         free(usvec);
     }
 
-    status = this->sendto(span(spans, num_spans), params.flags,
-                          params.to ? (sockaddr*)&to : nullptr, (int)params.tolen,
-                          sent_bytes);
+    if (nonblock) {
+        status = this->sendto_nonblock(span(spans, num_spans), params.flags,
+                                       params.to ? (sockaddr*)&to : nullptr,
+                                       (int)params.tolen, sent_bytes);
+    } else {
+        status = this->sendto(span(spans, num_spans), params.flags,
+                              params.to ? (sockaddr*)&to : nullptr, (int)params.tolen,
+                              sent_bytes);
+    }
 
     rlr.reset();
 
@@ -3243,7 +3262,7 @@ nt_status socket::ioctl(uint32_t code, span<const uint8_t> inbuf,
             return do_recvmsg(inbuf, nonblock);
 
         case IOCTL_MOXNOX_SOCKET_SENDMSG:
-            return do_sendmsg(inbuf);
+            return do_sendmsg(inbuf, nonblock);
 
         case IOCTL_MOXNOX_SOCKET_BIND:
             return do_bind(inbuf);
@@ -4004,8 +4023,10 @@ nt_status dispatch_packet(netif& ni, packet& pack, const mac_address& dst_mac) {
 }
 
 template<socket_family FAMILY>
-nt_status raw_socket<FAMILY>::sendto(span<const span<const uint8_t>> v, int flags,
-                                     sockaddr* to, size_t tolen, uint64_t& sent_bytes) {
+template<bool NONBLOCK>
+nt_status raw_socket<FAMILY>::do_sendto(span<const span<const uint8_t>> v,
+                                        int flags, sockaddr* to, size_t tolen,
+                                        uint64_t& sent_bytes) {
     nt_status status;
     ipv6_address src;
     auto vec_size = get_vec_size(v);

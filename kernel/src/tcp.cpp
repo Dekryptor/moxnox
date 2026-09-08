@@ -132,7 +132,9 @@ public:
     }
 
     nt_status sendto(span<const span<const uint8_t>> v, int flags, sockaddr* to,
-                     size_t tolen, uint64_t& sent_bytes) override;
+                     size_t tolen, uint64_t& sent_bytes) override {
+        return do_sendto<false>(v, flags, to, tolen, sent_bytes);
+    }
     nt_status bind(const sockaddr* addr, size_t addrlen) override;
     nt_status connect(const sockaddr* addr, size_t addrlen) override;
     nt_status listen(int backlog) override;
@@ -144,6 +146,12 @@ public:
                                 sockaddr_storage* from, size_t* fromlen,
                                 uint64_t& recv_bytes) override {
         return do_recvfrom<true>(v, flags, from, fromlen, recv_bytes);
+    }
+
+    nt_status sendto_nonblock(span<const span<const uint8_t>> v, int flags,
+                              sockaddr* to, size_t tolen,
+                              uint64_t& sent_bytes) override {
+        return do_sendto<true>(v, flags, to, tolen, sent_bytes);
     }
 
     nt_status setsockopt_tcp(sockopt_tcp opt, span<const uint8_t> buf) override;
@@ -209,6 +217,10 @@ private:
     nt_status do_recvfrom(span<const span<uint8_t>> v, int flags,
                           sockaddr_storage* from, size_t* fromlen,
                           uint64_t& recv_bytes);
+
+    template<bool NONBLOCK>
+    nt_status do_sendto(span<const span<const uint8_t>> v, int flags,
+                        sockaddr* to, size_t tolen, uint64_t& sent_bytes);
 };
 
 static spinlock tcp_ports_lock;
@@ -1253,8 +1265,10 @@ uint16_t ipv6_tcp_socket::allowed_send_bytes() {
     return (uint16_t)raw;
 }
 
-nt_status ipv6_tcp_socket::sendto(span<const span<const uint8_t>> v, int flags,
-                                  sockaddr*, size_t, uint64_t& sent_bytes) {
+template<bool NONBLOCK>
+nt_status ipv6_tcp_socket::do_sendto(span<const span<const uint8_t>> v,
+                                     int flags, sockaddr*, size_t,
+                                     uint64_t& sent_bytes) {
     nt_status status = nt_status::SUCCESS;
 
     // sockaddr is ignored
@@ -1283,9 +1297,37 @@ nt_status ipv6_tcp_socket::sendto(span<const span<const uint8_t>> v, int flags,
     while (vec_size > 0) {
         size_t size;
 
-        status = wait_for_object(send_window_open_event.get(), true);
-        if (!success(status) || status == nt_status::USER_APC)
-            break;
+        if constexpr (NONBLOCK) {
+            status = wait_for_object(send_window_open_event.get(), true, 0);
+            if (status == nt_status::TIMEOUT) {
+                ni.release();
+
+                sent_bytes = done;
+
+                return done == 0 ? nt_status::CANT_WAIT : nt_status::SUCCESS;
+            } else if (!success(status)) {
+                ni.release();
+                return status;
+            } else if (status == nt_status::USER_APC) {
+                ni.release();
+
+                sent_bytes = done;
+
+                return done == 0 ? nt_status::USER_APC : nt_status::SUCCESS;
+            }
+        } else {
+            status = wait_for_object(send_window_open_event.get(), true);
+            if (!success(status)) {
+                ni.release();
+                return status;
+            } else if (status == nt_status::USER_APC) {
+                ni.release();
+
+                sent_bytes = done;
+
+                return done == 0 ? nt_status::USER_APC : nt_status::SUCCESS;
+            }
+        }
 
         if (dead || shutdown_write) {
             status = nt_status::CONNECTION_ABORTED;
