@@ -44,6 +44,8 @@ struct protoent {
     int p_proto;
 };
 
+#define IPPORT_RESERVED 1024
+
 #define EAI_BADFLAGS -1
 #define EAI_NONAME -2
 #define EAI_AGAIN -3
@@ -102,6 +104,11 @@ void endprotoent(void);
 struct servent* getservent(void);
 void setservent(int stayopen);
 void endservent(void);
+struct netent* getnetbyaddr(uint32_t net, int type);
+struct netent* getnetbyname(const char* name);
+struct protoent* getprotobyname(const char* name);
+struct protoent* getprotobynumber(int proto);
+struct servent* getservbyport(int port, const char* proto);
 
 #ifdef __cplusplus
 }
