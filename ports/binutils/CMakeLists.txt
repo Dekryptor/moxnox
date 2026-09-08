@@ -269,7 +269,6 @@ target_include_directories(bfd PRIVATE
     ${BFD_GEN_DIR}
     ${REPO}/bfd
     ${REPO}/include
-    ${CMAKE_SOURCE_DIR}/ports/zlib/repo
 )
 target_include_directories(bfd PUBLIC
     ${BFD_GEN_DIR}
