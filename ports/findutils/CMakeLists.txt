@@ -36,7 +36,7 @@ findutils_patch(gnulib/lib/freadahead.c gl/lib/freadahead.c
 
 add_custom_command(
     OUTPUT ${GEN}/gl/lib/parse-datetime.c
-    COMMAND bison -o ${GEN}/gl/lib/parse-datetime.c ${CMAKE_CURRENT_SOURCE_DIR}/repo/gnulib/lib/parse-datetime.y
+    COMMAND ${HOST_BISON} -o ${GEN}/gl/lib/parse-datetime.c ${CMAKE_CURRENT_SOURCE_DIR}/repo/gnulib/lib/parse-datetime.y
     DEPENDS repo/gnulib/lib/parse-datetime.y
     VERBATIM
 )
