@@ -1,5 +1,7 @@
 #pragma once
 
+#include <stdint.h>
+
 #include <stddef.h>
 #include <sys/socket.h>
 
@@ -27,6 +29,19 @@ struct hostent {
     int h_addrtype;
     int h_length;
     char** h_addr_list;
+};
+
+struct netent {
+    char* n_name;
+    char** n_aliases;
+    int n_addrtype;
+    uint32_t n_net;
+};
+
+struct protoent {
+    char* p_name;
+    char** p_aliases;
+    int p_proto;
 };
 
 #define EAI_BADFLAGS -1
@@ -75,6 +90,18 @@ int getaddrinfo(const char* node, const char* service,
 int getnameinfo(const struct sockaddr* addr, socklen_t addrlen, char* host,
                 socklen_t hostlen, char* serv, socklen_t servlen, int flags);
 struct servent* getservbyname(const char* name, const char* proto);
+struct hostent* gethostent(void);
+void sethostent(int stayopen);
+void endhostent(void);
+struct netent* getnetent(void);
+void setnetent(int stayopen);
+void endnetent(void);
+struct protoent* getprotoent(void);
+void setprotoent(int stayopen);
+void endprotoent(void);
+struct servent* getservent(void);
+void setservent(int stayopen);
+void endservent(void);
 
 #ifdef __cplusplus
 }
