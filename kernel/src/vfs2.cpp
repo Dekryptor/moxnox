@@ -1439,6 +1439,12 @@ NTSTATUS file::write(span<const span<const uint8_t>> v, uint64_t& written_bytes)
 
     // FIXME - update file position if FILE_SYNCHRONOUS_IO_ALERT or FILE_SYNCHRONOUS_IO_NONALERT set
 
+    if (nonblock) {
+        status = object_write_nonblock(ino, v, written_bytes);
+        if (status != nt_status::NOT_SUPPORTED)
+            return status;
+    }
+
     status = object_write_without_offset(ino, v, written_bytes);
     if (status != nt_status::NOT_SUPPORTED)
         return status;

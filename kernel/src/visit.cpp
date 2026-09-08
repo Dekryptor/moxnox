@@ -26,7 +26,9 @@ export nt_status object_read_with_offset(object& obj, span<const span<uint8_t>> 
 export nt_status object_read_without_offset(object& obj, span<const span<uint8_t>> v,
                                                 uint64_t& read_bytes);
 export nt_status object_read_nonblock(object& obj, span<const span<uint8_t>> v,
-                                          uint64_t& read_bytes);
+                                      uint64_t& read_bytes);
+export nt_status object_write_nonblock(object& obj, span<const span<const uint8_t>> v,
+                                       uint64_t& written_bytes);
 export bool object_is_exclusive(object& obj);
 export sync_object& object_get_sync_object(object& obj);
 export void object_last_handle_closed(object& obj);

@@ -193,6 +193,20 @@ nt_status object_read_nonblock(object& obj, span<const span<uint8_t>> v,
     return status;
 }
 
+nt_status object_write_nonblock(object& obj, span<const span<const uint8_t>> v,
+                                uint64_t& written_bytes) {
+    nt_status status;
+
+    visit_obj(obj, [&](auto&& o) {
+        if constexpr (is_nonblocking_writable_vec_object<remove_reference_t<decltype(o)>>)
+            status = o.write_nonblock(v, written_bytes);
+        else
+            status = nt_status::NOT_SUPPORTED;
+    });
+
+    return status;
+}
+
 bool object_is_exclusive(object& obj) {
     bool ret;
 

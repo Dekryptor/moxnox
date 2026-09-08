@@ -192,6 +192,11 @@ public:
         return recvfrom_nonblock(v, 0, nullptr, nullptr, read_bytes);
     }
 
+    nt_status write_nonblock(span<const span<const uint8_t>> v,
+                             uint64_t& written_bytes) {
+        return sendto_nonblock(v, 0, nullptr, 0, written_bytes);
+    }
+
     virtual nt_status recvfrom_nonblock(span<const span<uint8_t>> v, int flags,
                                         sockaddr_storage* from, size_t* fromlen,
                                         size_t& recv_bytes) = 0;
@@ -239,6 +244,7 @@ static_assert(has_last_handle_closed<class socket>);
 static_assert(is_readable_object_without_offset<class socket>);
 static_assert(is_writable_object_without_offset<class socket>);
 static_assert(is_nonblocking_readable_vec_object<class socket>);
+static_assert(is_nonblocking_writable_vec_object<class socket>);
 
 class netctl : public chardev {
 public:
