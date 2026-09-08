@@ -728,9 +728,15 @@ void ipv6_tcp_socket::last_handle_closed() {
                 wake_up_waiters(s.waiters, WAIT_TYPE_READING);
                 s.signalled = true;
             }
-        }
 
-        set_event(static_cast<event&>(s.send_window_open_event.get()));
+            auto& e = static_cast<event&>(s.send_window_open_event.get());
+            e.set_holding_sync_lock();
+
+            if (!s.write_signalled) {
+                s.write_signalled = true;
+                wake_up_waiters(s.waiters, WAIT_TYPE_WRITING);
+            }
+        }
 
         if (s.accept_queue_event)
             set_event(static_cast<event&>(s.accept_queue_event.get()));
@@ -973,10 +979,24 @@ void ipv6_tcp_socket::received_packet(packet& pack, netif& ni,
 
             auto new_usable = allowed_send_bytes();
 
-            if (old_usable > 0 && new_usable == 0)
-                reset_event(static_cast<event&>(send_window_open_event.get()));
-            else if (old_usable == 0 && new_usable > 0)
-                set_event(static_cast<event&>(send_window_open_event.get()));
+            auto& e = static_cast<event&>(send_window_open_event.get());
+
+            {
+                sync_lock sl;
+                lock_guard lock2(sl);
+
+                if (old_usable > 0 && new_usable == 0) {
+                    e.signalled = false;
+                    write_signalled = false;
+                } else if (old_usable == 0 && new_usable > 0) {
+                    e.set_holding_sync_lock();
+
+                    if (!write_signalled) {
+                        write_signalled = true;
+                        wake_up_waiters(waiters, WAIT_TYPE_WRITING);
+                    }
+                }
+            }
         }
     }
 
@@ -1060,10 +1080,24 @@ void ipv6_tcp_socket::received_packet(packet& pack, netif& ni,
 
                 auto new_usable = allowed_send_bytes();
 
-                if (old_usable > 0 && new_usable == 0)
-                    reset_event(static_cast<event&>(send_window_open_event.get()));
-                else if (old_usable == 0 && new_usable > 0)
-                    set_event(static_cast<event&>(send_window_open_event.get()));
+                auto& e = static_cast<event&>(send_window_open_event.get());
+
+                {
+                    sync_lock sl;
+                    lock_guard lock2(sl);
+
+                    if (old_usable > 0 && new_usable == 0) {
+                        e.signalled = false;
+                        write_signalled = false;
+                    } else if (old_usable == 0 && new_usable > 0) {
+                        e.set_holding_sync_lock();
+
+                        if (!write_signalled) {
+                            write_signalled = true;
+                            wake_up_waiters(waiters, WAIT_TYPE_WRITING);
+                        }
+                    }
+                }
             }
         }
 
@@ -1427,8 +1461,15 @@ nt_status ipv6_tcp_socket::do_sendto(span<const span<const uint8_t>> v,
 
             pack->release();
 
-            if (allowed_send_bytes() == 0)
-                reset_event(static_cast<event&>(send_window_open_event.get()));
+            if (allowed_send_bytes() == 0) {
+                sync_lock sl;
+                lock_guard lock(sl);
+
+                auto& e = static_cast<event&>(send_window_open_event.get());
+
+                e.signalled = false;
+                write_signalled = false;
+            }
         }
 
         done += size;
@@ -2145,8 +2186,18 @@ void ipv6_tcp_socket::received_listen_packet(packet& pack, netif& ni,
     c->last_send_window_seq = tcp.seq;
     c->send_window = byteswap(tcp.window);
 
-    if (c->allowed_send_bytes() > 0)
-        set_event(static_cast<event&>(c->send_window_open_event.get()));
+    if (c->allowed_send_bytes() > 0) {
+        sync_lock sl;
+        lock_guard lock(sl);
+
+        auto& e = static_cast<event&>(c->send_window_open_event.get());
+        e.set_holding_sync_lock();
+
+        if (!c->write_signalled) {
+            c->write_signalled = true;
+            wake_up_waiters(c->waiters, WAIT_TYPE_WRITING);
+        }
+    }
 
     c->pni = &ni;
     ni.acquire();
@@ -2292,8 +2343,18 @@ nt_status ipv6_tcp_socket::shutdown(int how) {
     if (do_fin)
         send_fin();
 
-    if (how == SHUT_WR || how == SHUT_RDWR)
-        set_event(static_cast<event&>(send_window_open_event.get()));
+    if (how == SHUT_WR || how == SHUT_RDWR) {
+        sync_lock sl;
+        lock_guard lock(sl);
+
+        auto& e = static_cast<event&>(send_window_open_event.get());
+        e.set_holding_sync_lock();
+
+        if (!write_signalled) {
+            write_signalled = true;
+            wake_up_waiters(waiters, WAIT_TYPE_WRITING);
+        }
+    }
 
     if (how == SHUT_RD || how == SHUT_RDWR) {
         sync_lock sl;
