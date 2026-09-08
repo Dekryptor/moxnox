@@ -28,6 +28,7 @@ void rwsem::lock() { // exclusive
 
     auto& t = *get_cpu_block()->current_thread;
 
+    t.wait_obj.reading = true;
     insert_tail_list(wait_list_exclusive, t.wait_obj.wait_le);
 
     set_current_thread_waiting(false);
@@ -64,7 +65,7 @@ static void wake_up_exclusive_thread(rwsem& sem) {
 
     remove_entry_list(wo.wait_le);
     insert_tail_list(tmp, wo.wait_le);
-    wake_up_waiters(tmp);
+    wake_up_waiters(tmp, true);
 
     assert(is_list_empty(tmp));
 }
@@ -86,7 +87,7 @@ void rwsem::unlock() { // exclusive
 
     exclusive = false;
 
-    wake_up_waiters(wait_list_shared);
+    wake_up_waiters(wait_list_shared, true);
 
     release_sync_lock();
     enable_interrupts();
@@ -108,6 +109,7 @@ void rwsem::lock_shared() {
 
     auto& t = *get_cpu_block()->current_thread;
 
+    t.wait_obj.reading = true;
     insert_tail_list(wait_list_shared, t.wait_obj.wait_le);
 
     set_current_thread_waiting(false);

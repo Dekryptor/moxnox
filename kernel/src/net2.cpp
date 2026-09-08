@@ -1337,7 +1337,7 @@ static void send_to_raw_ipv6_sockets(uint32_t netif_num, packet& pack) {
             }
 
             if (!s.signalled) {
-                wake_up_waiters(s.waiters);
+                wake_up_waiters(s.waiters, true);
                 s.signalled = true;
             }
         }
@@ -1437,7 +1437,7 @@ static void send_to_raw_ipv4_sockets(uint32_t netif_num, packet& pack) {
             }
 
             if (!s.signalled) {
-                wake_up_waiters(s.waiters);
+                wake_up_waiters(s.waiters, true);
                 s.signalled = true;
             }
         }
@@ -4285,7 +4285,7 @@ void raw_socket<FAMILY>::last_handle_closed() {
         lock_guard lock(sl);
 
         if (!signalled) {
-            wake_up_waiters(waiters);
+            wake_up_waiters(waiters, true);
             signalled = true;
         }
     }

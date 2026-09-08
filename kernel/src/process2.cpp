@@ -1956,7 +1956,7 @@ void process::terminate() {
 
         signalled = true;
 
-        wake_up_waiters(waiters);
+        wake_up_waiters(waiters, true);
 
         {
             lock_guard lock2(process_list_lock);
@@ -1969,7 +1969,7 @@ void process::terminate() {
 
                     e.set_holding_sync_lock();
 
-                    wake_up_waiters(parent_process->wait_child_waiters);
+                    wake_up_waiters(parent_process->wait_child_waiters, true);
                 } else {
                     remove_entry_list(child_le);
                     removed_from_list = true;
@@ -4138,6 +4138,7 @@ nt_status process::set_wait_pid(span<const uint8_t> buf) {
                 if (not_found)
                     return nt_status::NOT_FOUND;
             } else {
+                t.wait_obj.reading = true;
                 insert_tail_list(wait_child_waiters, t.wait_obj.wait_le);
 
                 set_current_thread_waiting(true);

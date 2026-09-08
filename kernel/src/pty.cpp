@@ -485,7 +485,7 @@ void pty_client::server_disconnected() {
     if (!recv_pipe.signalled) {
         recv_pipe.signalled = true;
 
-        wake_up_waiters(recv_pipe.waiters);
+        wake_up_waiters(recv_pipe.waiters, true);
     }
 }
 
@@ -1111,7 +1111,7 @@ void pty_info::post_info_event(pty_info_type type) {
 
         if (queue_length == 0) {
             signalled = true;
-            wake_up_waiters(waiters);
+            wake_up_waiters(waiters, true);
         }
 
         if (queue_length < MAX_QUEUE_LENGTH) {

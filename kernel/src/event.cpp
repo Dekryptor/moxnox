@@ -69,10 +69,10 @@ void event::set_holding_sync_lock() {
 
             remove_entry_list(*le);
             insert_tail_list(tmp, *le);
-            wake_up_waiters(tmp);
+            wake_up_waiters(tmp, true);
         }
     } else {
-        wake_up_waiters(waiters);
+        wake_up_waiters(waiters, true);
 
         signalled = true;
     }

@@ -112,7 +112,7 @@ export void release_semaphore(semaphore& s) {
 
         s.current_count--;
 
-        auto waiter_count = wake_up_waiters(s.waiters);
+        auto waiter_count = wake_up_waiters(s.waiters, true);
 
         if (waiter_count == 0)
             s.signalled = true;

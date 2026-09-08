@@ -19,7 +19,7 @@ export atomic<uint64_t> active_cpus = 0;
 
 export nt_status wait_for_object(object& obj, bool interruptible,
                                  optional<uint64_t> timeout = nullopt);
-export unsigned int wake_up_waiters(list_entry& waiters);
+export unsigned int wake_up_waiters(list_entry& waiters, bool reading);
 export uintptr_t init_cpu_block(unsigned int cpu_no);
 export nt_status wait_for_objects(span<object*> objects, bool wait_any,
                                   bool interruptible,

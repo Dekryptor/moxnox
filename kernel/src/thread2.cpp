@@ -68,7 +68,7 @@ void thread_died(thread& t, bool* last_thread, bool remove_from_proc) {
     t.status = thread_status::dead;
     t.signalled = true;
 
-    wake_up_waiters(t.waiters);
+    wake_up_waiters(t.waiters, true);
 
     remove_entry_list(t.le);
 
@@ -1214,9 +1214,10 @@ static nt_status do_poll(span<const uint8_t> buffer) {
         auto& so = object_get_sync_object(*objs[i]);
         auto ent = new (&mwb->entries[i]) waiter_object_multiple;
 
-        if (entries[i].events & POLLIN)
+        if (entries[i].events & POLLIN) {
+            ent->reading = true;
             insert_tail_list(so.waiters, ent->wait_le);
-        else
+        } else
             ent->wait_le.next = ent->wait_le.prev = &ent->wait_le;
 
         ent->block = mwb;

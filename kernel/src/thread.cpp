@@ -43,6 +43,7 @@ public:
 
     list_entry wait_le;
     enum waiter_object_type type;
+    bool reading;
 };
 
 export enum class thread_status {

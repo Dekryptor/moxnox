@@ -1847,7 +1847,7 @@ nt_status kmsg_buf::write(span<const span<const uint8_t>> v,
         if (!signalled) {
             signalled = true;
 
-            wake_up_waiters(waiters);
+            wake_up_waiters(waiters, true);
         }
     }
 

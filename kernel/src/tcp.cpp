@@ -725,7 +725,7 @@ void ipv6_tcp_socket::last_handle_closed() {
             lock_guard lock(sl);
 
             if (!s.signalled) {
-                wake_up_waiters(s.waiters);
+                wake_up_waiters(s.waiters, true);
                 s.signalled = true;
             }
         }
@@ -1100,7 +1100,7 @@ void ipv6_tcp_socket::received_packet(packet& pack, netif& ni,
             e.set_holding_sync_lock();
 
             if (!parent->signalled) {
-                wake_up_waiters(parent->waiters);
+                wake_up_waiters(parent->waiters, true);
                 parent->signalled = true;
             }
         }
@@ -1246,7 +1246,7 @@ void ipv6_tcp_socket::received_packet(packet& pack, netif& ni,
 
                 if (!is_list_empty(buffer) || state != tcp_state::ESTABLISHED) {
                     if (!signalled) {
-                        wake_up_waiters(waiters);
+                        wake_up_waiters(waiters, true);
                         signalled = true;
                     }
                 } else
@@ -2300,7 +2300,7 @@ nt_status ipv6_tcp_socket::shutdown(int how) {
         lock_guard lock(sl);
 
         if (!signalled) {
-            wake_up_waiters(waiters);
+            wake_up_waiters(waiters, true);
             signalled = true;
         }
     }
