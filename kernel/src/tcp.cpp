@@ -147,6 +147,7 @@ public:
     }
 
     nt_status setsockopt_tcp(sockopt_tcp opt, span<const uint8_t> buf) override;
+    nt_status setsockopt_ipv6(sockopt_ipv6 opt, span<const uint8_t> buf) override;
     nt_status shutdown(int how) override;
 
     void received_packet(packet& pack, netif& ni, const mac_address& src_mac);
@@ -2242,4 +2243,25 @@ nt_status ipv6_tcp_socket::shutdown(int how) {
     }
 
     return nt_status::SUCCESS;
+}
+
+nt_status ipv6_tcp_socket::setsockopt_ipv6(sockopt_ipv6 opt, span<const uint8_t> buf) {
+    // FIXME - not if IPv4 socket
+
+    switch (opt) {
+        using enum sockopt_ipv6;
+
+        case V6ONLY: {
+            if (buf.size() != sizeof(int))
+                return nt_status::INVALID_PARAMETER;
+
+            // FIXME - do this properly
+
+            return nt_status::SUCCESS;
+        }
+
+        default:
+            print("FIXME - setsockopt(IPPROTO_IPV6, {}, {})\n", opt, buf.size());
+            return nt_status::NOT_SUPPORTED;
+    }
 }

@@ -3177,6 +3177,8 @@ nt_status socket::setsockopt(int level, int optname, span<const uint8_t> buf) {
 
     } else if (level == IPPROTO_TCP)
         return setsockopt_tcp((sockopt_tcp)optname, buf);
+    else if (level == IPPROTO_IPV6)
+        return setsockopt_ipv6((sockopt_ipv6)optname, buf);
     else
         print("FIXME - setsockopt({}, {}, {})\n", level, optname, buf.size());
 

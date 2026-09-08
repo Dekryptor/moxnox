@@ -687,6 +687,16 @@ enum class sockopt_tcp {
     TX_DELAY = TCP_TX_DELAY,
 };
 
+enum class sockopt_ipv6 {
+    UNICAST_HOPS = IPV6_UNICAST_HOPS,
+    MULTICAST_IF = IPV6_MULTICAST_IF,
+    MULTICAST_HOPS = IPV6_MULTICAST_HOPS,
+    MULTICAST_LOOP = IPV6_MULTICAST_LOOP,
+    JOIN_GROUP = IPV6_JOIN_GROUP,
+    LEAVE_GROUP = IPV6_LEAVE_GROUP,
+    V6ONLY = IPV6_V6ONLY,
+};
+
 template<>
 consteval bool format_spec_valid<sockopt_socket>(string_view fmt) {
     return fmt.empty();
@@ -820,6 +830,36 @@ span<char> do_format_arg(span<char> sp, string_view, sockopt_tcp o) {
             return do_format_arg(sp, "", "INQ");
         case TX_DELAY:
             return do_format_arg(sp, "", "TX_DELAY");
+        default:
+            return do_format_arg(sp, "", (unsigned int)o);
+    }
+
+    return sp;
+}
+
+template<>
+consteval bool format_spec_valid<sockopt_ipv6>(string_view fmt) {
+    return fmt.empty();
+}
+
+span<char> do_format_arg(span<char> sp, string_view, sockopt_ipv6 o) {
+    switch (o) {
+        using enum sockopt_ipv6;
+
+        case UNICAST_HOPS:
+            return do_format_arg(sp, "", "UNICAST_HOPS");
+        case MULTICAST_IF:
+            return do_format_arg(sp, "", "MULTICAST_IF");
+        case MULTICAST_HOPS:
+            return do_format_arg(sp, "", "MULTICAST_HOPS");
+        case MULTICAST_LOOP:
+            return do_format_arg(sp, "", "MULTICAST_LOOP");
+        case JOIN_GROUP:
+            return do_format_arg(sp, "", "JOIN_GROUP");
+        case LEAVE_GROUP:
+            return do_format_arg(sp, "", "LEAVE_GROUP");
+        case V6ONLY:
+            return do_format_arg(sp, "", "V6ONLY");
         default:
             return do_format_arg(sp, "", (unsigned int)o);
     }
