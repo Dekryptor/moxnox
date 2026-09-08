@@ -136,3 +136,18 @@ extern "C"
 void endservent() {
     // nop
 }
+
+extern "C"
+hostent* gethostent() {
+    return nullptr;
+}
+
+extern "C"
+void sethostent(int /*stayopen*/) {
+    // nop
+}
+
+extern "C"
+void endhostent() {
+    // nop
+}

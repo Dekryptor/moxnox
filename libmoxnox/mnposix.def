@@ -273,6 +273,9 @@ mknodat
 getservent
 setservent
 endservent
+gethostent
+sethostent
+endhostent
 
 ; stubs
 getlocalename_l
@@ -282,15 +285,12 @@ alphasort
 pthread_atfork
 pthread_cancel
 crypt
-endhostent
 endnetent
 endprotoent
-gethostent
 getnetbyaddr
 getnetbyname
 getnetent
 getprotoent
-sethostent
 setnetent
 setprotoent
 ctermid
