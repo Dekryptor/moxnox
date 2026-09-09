@@ -125,6 +125,7 @@ set(SRC_FILES src/kernel.cpp
     src/volume2.cpp
     src/sysinfo.cpp
     src/trace2.cpp
+    src/afunix.cpp
 )
 
 set(AMD64_SRC_FILES ${SRC_FILES}

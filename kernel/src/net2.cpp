@@ -2355,6 +2355,46 @@ static nt_status netctl_socket(span<const uint8_t> buf) {
             break;
         }
 
+        case AF_UNIX: {
+            object_ref ref;
+
+            switch (params.type) {
+                case SOCK_STREAM: {
+                    auto status = create_new_unix_socket(ref);
+                    if (!success(status))
+                        return status;
+
+                    break;
+                }
+
+                default:
+                    return nt_status::INVALID_PARAMETER;
+            }
+
+            HANDLE h;
+
+            auto f = new file(ref.get(), 0);
+            if (!f) {
+                print("new failed\n");
+                return nt_status::INSUFFICIENT_RESOURCES;
+            }
+
+            object_ref ref2{*f};
+
+            auto status = t->proc->add_handle(ref2.get(), FILE_READ_DATA | FILE_WRITE_DATA,
+                                              true, h);
+            if (!success(status))
+                return status;
+
+            status = t->proc->write_vm(params.h, &h, sizeof(h), nullptr);
+            if (!success(status)) {
+                // FIXME - close handle
+                return status;
+            }
+
+            break;
+        }
+
         default:
             return nt_status::INVALID_PARAMETER;
     }
