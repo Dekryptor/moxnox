@@ -797,8 +797,6 @@ void ipv6_tcp_socket::send_ack(bool first, tcp_seq ack) {
                                                       IPPROTO_TCP);
         }
 
-        dispatch_packet(ni, *pack, dst_mac);
-
         if (first) {
             pack->acquire();
             first_ack = pack;
@@ -807,6 +805,8 @@ void ipv6_tcp_socket::send_ack(bool first, tcp_seq ack) {
             first_ack = nullptr;
         }
     }
+
+    dispatch_packet(ni, *pack, dst_mac);
 
     pack->release();
     ni.release();
