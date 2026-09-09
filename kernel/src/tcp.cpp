@@ -1368,6 +1368,9 @@ nt_status ipv6_tcp_socket::do_sendto(span<const span<const uint8_t>> v,
             break;
         }
 
+        packet* pack;
+        ipv6_tcp_retransmission* r;
+
         {
             lock_guard lock(io_mutex);
 
@@ -1381,7 +1384,7 @@ nt_status ipv6_tcp_socket::do_sendto(span<const span<const uint8_t>> v,
             if (size == 0)
                 continue;
 
-            auto pack = new packet;
+            pack = new packet;
             if (!pack) {
                 print("new failed\n");
                 ni.release();
@@ -1394,7 +1397,7 @@ nt_status ipv6_tcp_socket::do_sendto(span<const span<const uint8_t>> v,
                 }
             }
 
-            auto r = new ipv6_tcp_retransmission(*pack);
+            r = new ipv6_tcp_retransmission(*pack);
             if (!r) {
                 print("new failed\n");
                 pack->release();
@@ -1449,8 +1452,6 @@ nt_status ipv6_tcp_socket::do_sendto(span<const span<const uint8_t>> v,
                                                           IPPROTO_TCP);
             }
 
-            dispatch_packet(ni, *pack, dst_mac);
-
             r->deadline = (uint64_t)kernel_time_page.system_time + (RETRANSMISSION_DELAY * SYSTEM_TIME_RESOLUTION);
 
             {
@@ -1458,8 +1459,14 @@ nt_status ipv6_tcp_socket::do_sendto(span<const span<const uint8_t>> v,
 
                 insert_tail_list(retransmission_list, r->le);
             }
+        }
 
-            pack->release();
+        dispatch_packet(ni, *pack, dst_mac);
+
+        pack->release();
+
+        {
+            lock_guard lock(io_mutex);
 
             if (allowed_send_bytes() == 0) {
                 sync_lock sl;
