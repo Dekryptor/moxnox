@@ -1,15 +1,10 @@
 #pragma once
 
+#include <unistd.h>
+
 #ifdef __cplusplus
 extern "C" {
 #endif
-
-extern int optind;
-extern int opterr;
-extern int optopt;
-extern char* optarg;
-
-int getopt(int argc, char* const argv[], const char* optstring);
 
 struct option {
     const char* name;

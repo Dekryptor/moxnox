@@ -50,6 +50,11 @@
 extern "C" {
 #endif
 
+extern int optind;
+extern int opterr;
+extern int optopt;
+extern char* optarg;
+
 char* ttyname(int fd);
 int ttyname_r(int fd, char* name, size_t namesize);
 uid_t getuid(void);
@@ -127,6 +132,7 @@ __attribute__((noreturn)) void _exit(int status) __moxnox_noexcept;
 char* crypt(const char* key, const char* salt);
 int seteuid(uid_t uid);
 int setegid(gid_t gid);
+int getopt(int argc, char* const argv[], const char* optstring);
 
 #ifdef __cplusplus
 }
