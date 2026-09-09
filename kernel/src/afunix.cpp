@@ -299,10 +299,24 @@ void unix_socket::last_handle_closed() {
             auto& first_lock = first ? lock : other_end->lock;
             auto& second_lock = first ? other_end->lock : lock;
 
-            lock_guard lg1(first_lock);
-            lock_guard lg2(second_lock);
+            sync_lock sl;
+            lock_guard lg1(sl);
+            lock_guard lg2(first_lock);
+            lock_guard lg3(second_lock);
 
             dead = true;
+
+            if (!other_end->signalled) {
+                other_end->signalled = true;
+                wake_up_waiters(other_end->waiters, WAIT_TYPE_READING);
+            }
+
+            if (!other_end->write_signalled) {
+                other_end->write_signalled = true;
+                wake_up_waiters(other_end->waiters, WAIT_TYPE_WRITING);
+            }
+
+            not_full_event.set_holding_sync_lock();
 
             other_end->other_end_dead = true;
             both_dead = other_end->dead;
