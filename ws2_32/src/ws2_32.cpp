@@ -51,7 +51,7 @@ SOCKET socket(int af, int type, int protocol) {
     }
 
     params.af = af;
-    params.type = type;
+    params.type = type & ~(SOCK_NONBLOCK | SOCK_CLOEXEC);
     params.protocol = protocol;
     params.h = &h;
 
@@ -62,6 +62,9 @@ SOCKET socket(int af, int type, int protocol) {
         *_errno() = EINVAL; // FIXME?
         return INVALID_SOCKET;
     }
+
+    // FIXME - SOCK_NONBLOCK
+    // FIXME - SOCK_CLOEXEC
 
     auto fd = _open_osfhandle((intptr_t)h, 0);
     if (fd == -1)
