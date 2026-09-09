@@ -2,16 +2,23 @@ module;
 
 #include <span>
 #include <mutex>
+#include <algorithm>
 #include <stdint.h>
 
 module net;
 
 import print;
+import config;
+import vec;
+import scheduler;
+import event;
 
 using namespace std;
 
 class unix_socket : public socket {
 public:
+    unix_socket();
+
     void last_handle_closed() override;
 
     nt_status recvfrom(span<const span<uint8_t>> v, int flags,
@@ -50,6 +57,11 @@ public:
     unix_socket* other_end = nullptr;
     bool dead = false;
     bool first;
+    event not_full_event;
+
+    uint8_t buf[PAGE_SIZE];
+    size_t buf_unread = 0;
+    size_t buf_write_pos = 0;
 
 private:
     template<bool NONBLOCK>
@@ -84,11 +96,117 @@ nt_status unix_socket::do_recvfrom(span<const span<uint8_t>> /*v*/, int /*flags*
 }
 
 template<bool NONBLOCK>
-nt_status unix_socket::do_sendto(span<const span<const uint8_t>> /*v*/, int /*flags*/,
-                                 sockaddr* /*to*/, size_t /*tolen*/, uint64_t& /*sent_bytes*/) {
-    print("FIXME - unix_socket::do_sendto\n");
+nt_status unix_socket::do_sendto(span<const span<const uint8_t>> v, int flags,
+                                 sockaddr*, size_t, uint64_t& sent_bytes) {
+    if (!other_end)
+        return nt_status::INVALID_PARAMETER;
 
-    return nt_status::NOT_IMPLEMENTED;
+    if (flags != 0)
+        return nt_status::INVALID_PARAMETER;
+
+    size_t vec_size = get_vec_size(v);
+
+    if (vec_size == 0) {
+        sent_bytes = 0;
+        return nt_status::SUCCESS;
+    }
+
+    span<const uint8_t> top = v.front();
+
+    sent_bytes = 0;
+
+    do {
+        size_t to_copy;
+
+        {
+            lock_guard l(other_end->lock);
+
+            size_t buf_left = sizeof(other_end->buf) - other_end->buf_unread;
+
+            if (other_end->dead) {
+                if (sent_bytes == 0)
+                    return nt_status::PIPE_DISCONNECTED;
+                else
+                    break;
+            }
+
+            to_copy = min(vec_size, buf_left);
+
+            if (to_copy > 0) {
+                if (other_end->buf_write_pos + to_copy > sizeof(other_end->buf)) {
+                    auto first_bit = sizeof(other_end->buf) - other_end->buf_write_pos;
+
+                    memcpy_vec(&other_end->buf[other_end->buf_write_pos], v, top,
+                               first_bit);
+
+                    other_end->buf_write_pos = 0;
+                    other_end->buf_unread += first_bit;
+                    to_copy -= first_bit;
+                    vec_size -= first_bit;
+                    sent_bytes += first_bit;
+                }
+
+                memcpy_vec(&other_end->buf[other_end->buf_write_pos], v, top,
+                           to_copy);
+
+                other_end->buf_write_pos += to_copy;
+                other_end->buf_unread += to_copy;
+                vec_size -= to_copy;
+                sent_bytes += to_copy;
+            }
+        }
+
+        if (to_copy > 0) {
+            // wake up waiting thread
+
+            sync_lock sl;
+            lock_guard l(sl);
+
+            if (!other_end->signalled) {
+                other_end->signalled = true;
+
+                wake_up_waiters(other_end->waiters, WAIT_TYPE_READING);
+            }
+
+            {
+                lock_guard l2(other_end->lock);
+
+                if (other_end->buf_unread == sizeof(other_end->buf) && !other_end->dead) {
+                    other_end->not_full_event.signalled = false;
+                    write_signalled = false;
+                }
+            }
+        }
+
+        if (vec_size == 0)
+            break;
+
+        if constexpr (NONBLOCK) {
+            if (sent_bytes == 0)
+                return nt_status::CANT_WAIT;
+            else
+                break;
+        } else {
+            // block while we wait for space to become available
+            auto status = wait_for_object(other_end->not_full_event, true);
+
+            if (status == nt_status::USER_APC) {
+                if (sent_bytes == 0)
+                    return nt_status::USER_APC;
+                else
+                    break;
+            } else if (!success(status))
+                return status;
+        }
+    } while (true);
+
+    return nt_status::SUCCESS;
+}
+
+unix_socket::unix_socket() {
+    signalled = false;
+    not_full_event.autoreset = false;
+    not_full_event.signalled = true;
 }
 
 void unix_socket::last_handle_closed() {
