@@ -36,6 +36,7 @@
     "mpfr": ["gmp"],
     "nano": ["gnulib", "ncurses"],
     "ncurses": [],
+    "netcat": ["openssh"],
     "ninja": [],
     "openssh": ["openssl", "zlib"],
     "openssl": [],

@@ -1,0 +1,144 @@
+--- a/netcat.c
++++ b/netcat.c
+@@ -36,12 +36,16 @@
+ 
+ #include <sys/types.h>
+ #include <sys/socket.h>
++#include <sys/select.h>
++#include <arpa/inet.h>
+ #include <sys/uio.h>
+ #include <sys/un.h>
+ 
+ #include <netinet/in.h>
+ #include <netinet/tcp.h>
++#if 0
+ #include <netinet/ip.h>
++#endif
+ #include <arpa/telnet.h>
+ #ifdef __linux__
+ # include <linux/in6.h>
+@@ -153,7 +157,9 @@
+ int	Iflag;					/* TCP receive buffer size */
+ int	Oflag;					/* TCP send buffer size */
+ int	Sflag;					/* TCP MD5 signature option */
++#if 0
+ int	Tflag = -1;				/* IP Type of Service */
++#endif
+ int	rtableid = -1;
+ 
+ #ifdef HAVE_TLS
+@@ -204,7 +210,9 @@
+ int	unix_connect(char *);
+ int	unix_listen(char *);
+ void	set_common_sockopts(int, int);
++#if 0
+ int	process_tos_opt(char *, int *);
++#endif
+ #ifdef HAVE_TLS
+ int	process_tls_opt(char *, int *);
+ void	save_peer_cert(struct tls *_tls_ctx, FILE *_fp);
+@@ -260,9 +268,9 @@
+ 
+ 	while ((ch = getopt(argc, argv,
+ #ifdef HAVE_TLS
+-	    "46C:cDde:FH:hI:i:K:klM:m:NnO:o:P:p:q:R:rSs:T:tUuV:vW:w:X:x:Z:z"))
++	    "46C:cDde:FH:hI:i:K:klM:m:NnO:o:P:p:q:R:rSs:tUuV:vW:w:X:x:Z:z"))
+ #else
+-	    "46CDdFhI:i:klM:m:NnO:P:p:q:rSs:T:tUuV:vW:w:X:x:z"))
++	    "46CDdFhI:i:klM:m:NnO:P:p:q:rSs:tUuV:vW:w:X:x:z"))
+ #endif
+ 	    != -1) {
+ 		switch (ch) {
+@@ -446,6 +454,7 @@
+ 			errx(1, "no TCP MD5 signature support available");
+ #endif
+ 			break;
++#if 0
+ 		case 'T':
+ 			errstr = NULL;
+ 			errno = 0;
+@@ -468,6 +477,7 @@
+ 				errx(1, "illegal tos value %s", optarg);
+ #endif
+ 			break;
++#endif
+ 		default:
+ 			usage(1);
+ 		}
+@@ -916,6 +926,8 @@
+ 		return -1;
+ 	}
+ 
++	unlink(path);
++
+ 	if (bind(s, (struct sockaddr *)&s_un, sizeof(s_un)) == -1) {
+ 		save_errno = errno;
+ 		close(s);
+@@ -1660,7 +1672,7 @@
+ 	memset(&cmsgbuf, 0, sizeof(cmsgbuf));
+ 	memset(&iov, 0, sizeof(iov));
+ 
+-	mh.msg_control = (caddr_t)&cmsgbuf.buf;
++	mh.msg_control = &cmsgbuf.buf;
+ 	mh.msg_controllen = sizeof(cmsgbuf.buf);
+ 	cmsg = CMSG_FIRSTHDR(&mh);
+ 	cmsg->cmsg_len = CMSG_LEN(sizeof(int));
+@@ -1839,6 +1851,7 @@
+ 		    &x, sizeof(x)) == -1)
+ 			err(1, NULL);
+ 	}
++#if 0
+ 	if (Tflag != -1) {
+ 		if (af == AF_INET && setsockopt(s, IPPROTO_IP,
+ 		    IP_TOS, &Tflag, sizeof(Tflag)) == -1)
+@@ -1853,6 +1866,7 @@
+ 			errx(1, "can't set IPv6 traffic class (unavailable)");
+ #endif
+ 	}
++#endif
+ 	if (Iflag) {
+ 		if (setsockopt(s, SOL_SOCKET, SO_RCVBUF,
+ 		    &Iflag, sizeof(Iflag)) == -1)
+@@ -1900,6 +1914,7 @@
+ 	}
+ }
+ 
++#if 0
+ int
+ process_tos_opt(char *s, int *val)
+ {
+@@ -1949,6 +1964,7 @@
+ 	return 0;
+ }
+ 
++#endif
+ #ifdef HAVE_TLS
+ int
+ process_tls_opt(char *s, int *flags)
+@@ -2127,7 +2143,6 @@
+ 	\t-r		Randomize remote ports\n\
+ 	\t-S		Enable the TCP MD5 signature option\n\
+ 	\t-s sourceaddr	Local source address\n\
+-	\t-T keyword	TOS value\n\
+ 	\t-t		Answer TELNET negotiation\n\
+ 	\t-U		Use UNIX domain socket\n\
+ 	\t-u		UDP mode\n\
+@@ -2148,7 +2163,7 @@
+ 	fprintf(stderr,
+ 	    "usage: nc [-46CDdFhklNnrStUuvz] [-I length] [-i interval] [-M ttl]\n"
+ 	    "\t  [-m minttl] [-O length] [-P proxy_username] [-p source_port]\n"
+-	    "\t  [-q seconds] [-s sourceaddr] [-T keyword] [-V rtable] [-W recvlimit]\n"
++	    "\t  [-q seconds] [-s sourceaddr] [-V rtable] [-W recvlimit]\n"
+ 	    "\t  [-w timeout] [-X proxy_protocol] [-x proxy_address[:port]]\n"
+ 	    "\t  [destination] [port]\n");
+ 	if (ret)
+--- a/socks.c
++++ b/socks.c
+@@ -36,6 +36,7 @@
+ #include <stdio.h>
+ #include <stdlib.h>
+ #include <string.h>
++#include <bsd/string.h>
+ #include <unistd.h>
+ #include <resolv.h>
+ #include <bsd/readpassphrase.h>
