@@ -308,3 +308,4 @@ msgget
 msgrcv
 msgsnd
 strlcpy
+accept4
