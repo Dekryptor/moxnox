@@ -1,6 +1,7 @@
 module;
 
 #include <span>
+#include <mutex>
 #include <stdint.h>
 
 module net;
@@ -45,6 +46,11 @@ public:
 
     nt_status shutdown(int how) override;
 
+    spinlock lock;
+    unix_socket* other_end = nullptr;
+    bool dead = false;
+    bool first;
+
 private:
     template<bool NONBLOCK>
     nt_status do_recvfrom(span<const span<uint8_t>> v, int flags,
@@ -86,7 +92,25 @@ nt_status unix_socket::do_sendto(span<const span<const uint8_t>> /*v*/, int /*fl
 }
 
 void unix_socket::last_handle_closed() {
-    print("FIXME - unix_socket::last_handle_closed\n");
+    if (other_end) {
+        bool both_dead;
+
+        {
+            auto& first_lock = first ? lock : other_end->lock;
+            auto& second_lock = first ? other_end->lock : lock;
+
+            lock_guard lg1(first_lock);
+            lock_guard lg2(second_lock);
+
+            dead = true;
+            both_dead = other_end->dead;
+        }
+
+        if (both_dead) {
+            other_end->release();
+            release();
+        }
+    }
 }
 
 nt_status unix_socket::bind(const sockaddr* /*addr*/, size_t /*addrlen*/) {
@@ -151,7 +175,14 @@ nt_status create_unix_socket_pair(int type, object_ref& ref1, object_ref& ref2) 
 
     ref2 = object_ref{*s2};
 
-    // FIXME - tie together
+    s1->other_end = s2;
+    s1->first = true;
+
+    s2->other_end = s1;
+    s2->first = false;
+
+    s1->acquire();
+    s2->acquire();
 
     return nt_status::SUCCESS;
 }
