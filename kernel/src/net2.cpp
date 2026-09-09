@@ -2680,6 +2680,52 @@ static nt_status netctl_get_dns_servers(span<uint8_t> outbuf, uintptr_t& written
     return nt_status::SUCCESS;
 }
 
+static nt_status netctl_socketpair(span<const uint8_t> inbuf,
+                                   span<uint8_t> outbuf, uintptr_t& written) {
+    auto& proc = *get_current_thread()->proc;
+    nt_status status;
+    object_ref ref1, ref2;
+    handle_t h1, h2;
+
+    if (inbuf.size() < sizeof(MOXNOX_SOCKETPAIR_IN))
+        return nt_status::INVALID_PARAMETER;
+
+    if (outbuf.size() < sizeof(MOXNOX_SOCKETPAIR_OUT))
+        return nt_status::INVALID_PARAMETER;
+
+    auto& params_in = *(MOXNOX_SOCKETPAIR_IN*)inbuf.data();
+    auto& params_out = *(MOXNOX_SOCKETPAIR_OUT*)outbuf.data();
+
+    if (params_in.domain != AF_UNIX)
+        return nt_status::INVALID_PARAMETER;
+
+    if (params_in.protocol != 0)
+        return nt_status::INVALID_PARAMETER;
+
+    status = create_unix_socket_pair(params_in.type, ref1, ref2);
+    if (!success(status))
+        return status;
+
+    status = proc.add_handle(ref1.get(), FILE_READ_DATA | FILE_WRITE_DATA,
+                             true, h1);
+    if (!success(status))
+        return status;
+
+    status = proc.add_handle(ref2.get(), FILE_READ_DATA | FILE_WRITE_DATA,
+                             true, h2);
+    if (!success(status)) {
+        // FIXME - close handle h1
+        return status;
+    }
+
+    params_out.h1 = h1;
+    params_out.h2 = h2;
+
+    written = sizeof(MOXNOX_SOCKETPAIR_OUT);
+
+    return nt_status::SUCCESS;
+}
+
 nt_status netctl::ioctl(uint32_t code, span<const uint8_t> inbuf,
                         span<uint8_t> outbuf, uintptr_t& written) {
     switch (code) {
@@ -2706,6 +2752,9 @@ nt_status netctl::ioctl(uint32_t code, span<const uint8_t> inbuf,
 
         case IOCTL_MOXNOX_NETCTL_GET_DNS_SERVERS:
             return netctl_get_dns_servers(outbuf, written);
+
+        case IOCTL_MOXNOX_NETCTL_SOCKETPAIR:
+            return netctl_socketpair(inbuf, outbuf, written);
 
         default:
             return nt_status::NOT_IMPLEMENTED;

@@ -130,3 +130,28 @@ nt_status unix_socket::shutdown(int /*how*/) {
 
     return nt_status::NOT_IMPLEMENTED;
 }
+
+nt_status create_unix_socket_pair(int type, object_ref& ref1, object_ref& ref2) {
+    if (type != SOCK_STREAM) // FIXME - support SOCK_DGRAM too
+        return nt_status::INVALID_PARAMETER;
+
+    auto s1 = new unix_socket;
+    if (!s1) {
+        print("new failed\n");
+        return nt_status::INSUFFICIENT_RESOURCES;
+    }
+
+    ref1 = object_ref{*s1};
+
+    auto s2 = new unix_socket;
+    if (!s2) {
+        print("new failed\n");
+        return nt_status::INSUFFICIENT_RESOURCES;
+    }
+
+    ref2 = object_ref{*s2};
+
+    // FIXME - tie together
+
+    return nt_status::SUCCESS;
+}
