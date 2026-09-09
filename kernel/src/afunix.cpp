@@ -55,7 +55,7 @@ public:
 
     spinlock lock;
     unix_socket* other_end = nullptr;
-    bool dead = false;
+    bool dead = false, other_end_dead = false;
     bool first;
     event not_full_event;
 
@@ -87,12 +87,94 @@ nt_status create_new_unix_socket(object_ref& ref) {
 }
 
 template<bool NONBLOCK>
-nt_status unix_socket::do_recvfrom(span<const span<uint8_t>> /*v*/, int /*flags*/,
-                                   sockaddr_storage* /*from*/, size_t* /*fromlen*/,
-                                   uint64_t& /*recv_bytes*/) {
-    print("FIXME - unix_socket::do_recvfrom\n");
+nt_status unix_socket::do_recvfrom(span<const span<uint8_t>> v, int flags,
+                                   sockaddr_storage*, size_t*,
+                                   uint64_t& recv_bytes) {
+    size_t copied = 0;
+    size_t vec_size = get_vec_size(v);
 
-    return nt_status::NOT_IMPLEMENTED;
+    if (!other_end)
+        return nt_status::INVALID_PARAMETER;
+
+    if (flags != 0)
+        return nt_status::INVALID_PARAMETER;
+
+    // FIXME - from and fromlen?
+
+    if (vec_size == 0) {
+        recv_bytes = 0;
+        return nt_status::SUCCESS;
+    }
+
+    span<uint8_t> top = v.front();
+
+    while (true) {
+        if constexpr (NONBLOCK) {
+            lock_guard lg(lock);
+
+            if (buf_unread == 0 && !other_end_dead)
+                return nt_status::CANT_WAIT;
+        } else {
+            auto status = wait_for_object(*this, true);
+
+            if (!success(status) || status == nt_status::USER_APC) {
+                recv_bytes = 0;
+                return status;
+            }
+        }
+
+        {
+            sync_lock sl;
+            lock_guard l(sl);
+            lock_guard l2(lock);
+
+            if (buf_unread == 0) {
+                if (other_end_dead)
+                    break;
+
+                continue;
+            }
+
+            size_t buf_read_pos = buf_write_pos + sizeof(buf) - buf_unread;
+
+            while (buf_read_pos >= sizeof(buf)) {
+                buf_read_pos -= sizeof(buf);
+            }
+
+            size_t to_copy = min(vec_size, buf_unread);
+
+            if (buf_read_pos + to_copy > sizeof(buf)) {
+                auto first_bit = sizeof(buf) - buf_read_pos;
+
+                memcpy_vec(v, top, &buf[buf_read_pos], first_bit);
+
+                buf_read_pos = 0;
+                buf_unread -= first_bit;
+                to_copy -= first_bit;
+                copied = first_bit;
+            }
+
+            memcpy_vec(v, top, &buf[buf_read_pos], to_copy);
+            buf_unread -= to_copy;
+            copied += to_copy;
+
+            if (buf_unread == 0)
+                signalled = false;
+
+            if (!not_full_event.signalled)
+                not_full_event.set_holding_sync_lock();
+
+            if (!other_end->write_signalled) {
+                other_end->write_signalled = true;
+                wake_up_waiters(other_end->waiters, WAIT_TYPE_WRITING);
+            }
+        }
+
+        break;
+    }
+
+    recv_bytes = copied;
+    return nt_status::SUCCESS;
 }
 
 template<bool NONBLOCK>
@@ -221,6 +303,8 @@ void unix_socket::last_handle_closed() {
             lock_guard lg2(second_lock);
 
             dead = true;
+
+            other_end->other_end_dead = true;
             both_dead = other_end->dead;
         }
 
