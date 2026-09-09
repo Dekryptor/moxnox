@@ -16,6 +16,7 @@ import kernel_time_page;
 import thread;
 import unicode;
 import trace;
+import vfs;
 
 using namespace std;
 
@@ -141,6 +142,12 @@ static nt_status query_object_name_info(object& obj, span<uint8_t> buffer,
     static const u16string_view prefix = u"/dev/";
 
     // FIXME - files should be name of block device followed by path
+
+    if (obj.type == object_type::file) {
+        auto& f = static_cast<file&>(obj);
+
+        return query_object_name_info(f.ino, buffer, written);
+    }
 
     if (buffer.size() < sizeof(OBJECT_NAME_INFORMATION))
         return nt_status::BUFFER_TOO_SMALL;
