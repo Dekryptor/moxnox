@@ -371,23 +371,23 @@ export int do_exec(const char* path, char* const* argv, char* const* envp,
 
     proc.reset(h);
 
-    // duplicate standard handles (FIXME - these should actually be our fd 0, 1, and 2?)
+    // duplicate standard handles
 
     status = NtDuplicateObject(NtCurrentProcess(), peb.ProcessParameters->StandardInput,
-                               proc.get(), &stdinh, FILE_READ_DATA, 0,
-                               DUPLICATE_SAME_ATTRIBUTES);
+                               proc.get(), &stdinh, 0, 0,
+                               DUPLICATE_SAME_ATTRIBUTES | DUPLICATE_SAME_ACCESS);
     if (!success(status))
         return nt_status_to_errno(status);
 
     status = NtDuplicateObject(NtCurrentProcess(), peb.ProcessParameters->StandardOutput,
-                               proc.get(), &stdouth, FILE_WRITE_DATA, 0,
-                               DUPLICATE_SAME_ATTRIBUTES);
+                               proc.get(), &stdouth, 0, 0,
+                               DUPLICATE_SAME_ATTRIBUTES | DUPLICATE_SAME_ACCESS);
     if (!success(status))
         return nt_status_to_errno(status);
 
     status = NtDuplicateObject(NtCurrentProcess(), peb.ProcessParameters->StandardError,
-                               proc.get(), &stderrh, FILE_WRITE_DATA, 0,
-                               DUPLICATE_SAME_ATTRIBUTES);
+                               proc.get(), &stderrh, 0, 0,
+                               DUPLICATE_SAME_ATTRIBUTES | DUPLICATE_SAME_ACCESS);
     if (!success(status))
         return nt_status_to_errno(status);
 
