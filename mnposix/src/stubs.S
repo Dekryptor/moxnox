@@ -31,5 +31,6 @@ do_stub "msgctl"
 do_stub "msgget"
 do_stub "msgrcv"
 do_stub "msgsnd"
+do_stub "strlcpy"
 
 stubs_end

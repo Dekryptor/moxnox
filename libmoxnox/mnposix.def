@@ -307,3 +307,4 @@ msgctl
 msgget
 msgrcv
 msgsnd
+strlcpy
