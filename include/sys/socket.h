@@ -103,6 +103,9 @@ struct cmsghdr {
 #define SOCK_RDM 4
 #define SOCK_SEQPACKET 5
 
+#define SOCK_CLOEXEC 8
+#define SOCK_NONBLOCK 16
+
 #define SOL_SOCKET 0xffff
 
 #define SO_DEBUG 0x0001
@@ -165,6 +168,7 @@ int shutdown(int s, int how);
 int socketpair(int domain, int type, int protocol, int* socket_vector);
 ssize_t recvmsg(int s, struct msghdr* msg, int flags);
 ssize_t sendmsg(int s, const struct msghdr* msg, int flags);
+int accept4(int s, struct sockaddr* addr, socklen_t* addrlen, int flag);
 
 #ifdef __cplusplus
 }
