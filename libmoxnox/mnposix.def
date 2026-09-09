@@ -276,6 +276,7 @@ endservent
 gethostent
 sethostent
 endhostent
+strlcpy
 
 ; stubs
 getlocalename_l
@@ -307,5 +308,4 @@ msgctl
 msgget
 msgrcv
 msgsnd
-strlcpy
 accept4

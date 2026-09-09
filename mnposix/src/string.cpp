@@ -151,3 +151,25 @@ void* memmem(const void* haystack, size_t haystacklen, const void* needle,
 
     return nullptr;
 }
+
+extern "C"
+size_t strlcpy(char* dst, const char* src, size_t size) {
+    auto orig_src = src;
+
+    if (size > 0) {
+        while (size > 1 && *src != 0) {
+            *dst = *src;
+            dst++;
+            src++;
+            size--;
+        }
+
+        *dst = 0;
+    }
+
+    while (*src != 0) {
+        src++;
+    }
+
+    return (size_t)(src - orig_src);
+}

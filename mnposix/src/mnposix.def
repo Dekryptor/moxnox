@@ -276,3 +276,4 @@ endservent
 gethostent
 sethostent
 endhostent
+strlcpy
