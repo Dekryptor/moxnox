@@ -64,7 +64,17 @@ SOCKET socket(int af, int type, int protocol) {
         return INVALID_SOCKET;
     }
 
-    // FIXME - SOCK_NONBLOCK
+    if (type & SOCK_NONBLOCK) {
+        bool nonblock = true;
+
+        auto status = NtSetInformationFile(h, &iosb, &nonblock, sizeof(nonblock),
+                                           FILE_INFORMATION_CLASS::MoxnoxPosixNonBlock);
+        if (!success(status)) {
+            *_errno() = nt_status_to_errno(status);
+            NtClose(h);
+            return -1;
+        }
+    }
 
     auto fd = _open_osfhandle((intptr_t)h, type & SOCK_CLOEXEC ? O_CLOEXEC : 0);
     if (fd == -1)
