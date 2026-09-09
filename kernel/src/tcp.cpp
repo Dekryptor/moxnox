@@ -188,7 +188,7 @@ public:
     list_entry ooo_buffer = { &ooo_buffer, &ooo_buffer };
     rwsem us_read_mutex;
     size_t us_read_offset = 0;
-    rwsem io_mutex;
+    spinlock io_lock;
     unsigned int listen_backlog;
     ipv6_tcp_socket* parent = nullptr;
     spinlock list_lock;
@@ -776,7 +776,7 @@ void ipv6_tcp_socket::send_ack(bool first, tcp_seq ack) {
     memset(&tcp, 0, sizeof(tcp));
 
     {
-        lock_guard lock(io_mutex);
+        lock_guard lock(io_lock);
 
         if (first)
             send_next++;
@@ -852,7 +852,7 @@ void ipv6_tcp_socket::send_fin() {
     memset(&tcp, 0, sizeof(tcp));
 
     {
-        lock_guard lock(io_mutex);
+        lock_guard lock(io_lock);
 
         tcp.src_port = bound_port;
         tcp.dst_port = connected_port;
@@ -968,7 +968,7 @@ void ipv6_tcp_socket::received_packet(packet& pack, netif& ni,
     }
 
     {
-        lock_guard lock(io_mutex);
+        lock_guard lock(io_lock);
 
         if ((cur_state == tcp_state::SYN_SENT && tcp.flags == TCP_SYN_ACK) || tcp.seq >= last_send_window_seq) {
             last_send_window_seq = tcp.seq;
@@ -1014,7 +1014,7 @@ void ipv6_tcp_socket::received_packet(packet& pack, netif& ni,
         }
 
         {
-            lock_guard lock(io_mutex);
+            lock_guard lock(io_lock);
             send_unacknowledged = tcp.ack;
         }
 
@@ -1072,7 +1072,7 @@ void ipv6_tcp_socket::received_packet(packet& pack, netif& ni,
             r->release();
 
             {
-                lock_guard lock(io_mutex);
+                lock_guard lock(io_lock);
 
                 auto old_usable = allowed_send_bytes();
 
@@ -1154,7 +1154,7 @@ void ipv6_tcp_socket::received_packet(packet& pack, netif& ni,
         bool clear_ooo = false;
 
         {
-            lock_guard lock(io_mutex);
+            lock_guard lock(io_lock);
             lock_guard lock2(state_lock);
 
             auto seq = tcp.seq;
@@ -1372,7 +1372,7 @@ nt_status ipv6_tcp_socket::do_sendto(span<const span<const uint8_t>> v,
         ipv6_tcp_retransmission* r;
 
         {
-            lock_guard lock(io_mutex);
+            lock_guard lock(io_lock);
 
             size = min(vec_size, mss);
 
@@ -1386,7 +1386,6 @@ nt_status ipv6_tcp_socket::do_sendto(span<const span<const uint8_t>> v,
 
             pack = new packet;
             if (!pack) {
-                print("new failed\n");
                 ni.release();
 
                 if (done == 0)
@@ -1399,7 +1398,6 @@ nt_status ipv6_tcp_socket::do_sendto(span<const span<const uint8_t>> v,
 
             r = new ipv6_tcp_retransmission(*pack);
             if (!r) {
-                print("new failed\n");
                 pack->release();
                 ni.release();
 
@@ -1466,7 +1464,7 @@ nt_status ipv6_tcp_socket::do_sendto(span<const span<const uint8_t>> v,
         pack->release();
 
         {
-            lock_guard lock(io_mutex);
+            lock_guard lock(io_lock);
 
             if (allowed_send_bytes() == 0) {
                 sync_lock sl;
@@ -1783,10 +1781,8 @@ nt_status ipv6_tcp_socket::do_recvfrom(span<const span<uint8_t>> v, int flags,
             bool opening = false;
             tcp_seq ack;
 
-            // FIXME - can we make io_mutex a spinlock?
-
             {
-                lock_guard lock(io_mutex);
+                lock_guard lock(io_lock);
 
                 if (recv_window == 0)
                     opening = true;
