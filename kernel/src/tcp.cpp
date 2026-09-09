@@ -879,9 +879,9 @@ void ipv6_tcp_socket::send_fin() {
             lock_guard lock(retransmission_list_lock);
             insert_tail_list(retransmission_list, r->le);
         }
-
-        dispatch_packet(ni, *pack, dst_mac);
     }
+
+    dispatch_packet(ni, *pack, dst_mac);
 
     pack->release();
     ni.release();
