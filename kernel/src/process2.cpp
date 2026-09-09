@@ -5331,6 +5331,14 @@ nt_status process::set_controlling_terminal(span<const uint8_t> buffer) {
         }
     }
 
+    uintptr_t pg_id = pg->tree.key;
+
+    status = c.ioctl(IOCTL_MOXNOX_PTY_SET_FOREGROUND_PROCESS_GROUP,
+                     span((uint8_t*)&pg_id, sizeof(uintptr_t)),
+                     span<uint8_t>(), written);
+    if (!success(status))
+        return status;
+
     // FIXME - check pty not another session's controlling terminal?
 
     return nt_status::SUCCESS;
