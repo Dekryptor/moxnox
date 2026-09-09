@@ -1,5 +1,6 @@
 #include <stdint.h>
 #include <string.h>
+#include <fcntl.h>
 #include <sys/socket.h>
 #include <bit>
 #include <span>
@@ -64,9 +65,8 @@ SOCKET socket(int af, int type, int protocol) {
     }
 
     // FIXME - SOCK_NONBLOCK
-    // FIXME - SOCK_CLOEXEC
 
-    auto fd = _open_osfhandle((intptr_t)h, 0);
+    auto fd = _open_osfhandle((intptr_t)h, type & SOCK_CLOEXEC ? O_CLOEXEC : 0);
     if (fd == -1)
         return INVALID_SOCKET;
 
