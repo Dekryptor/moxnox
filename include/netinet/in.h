@@ -2,6 +2,7 @@
 
 #include <stdint.h>
 
+typedef uint16_t in_port_t;
 typedef uint32_t in_addr_t;
 
 #define IPPROTO_IP 0
