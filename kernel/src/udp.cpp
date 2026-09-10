@@ -31,7 +31,11 @@ public:
     }
 
     nt_status sendto(span<const span<const uint8_t>> v, int flags, sockaddr* to,
-                     size_t tolen, uint64_t& sent_bytes) override {
+                     size_t tolen, uint64_t& sent_bytes,
+                     span<const HANDLE> handles) override {
+        if (!handles.empty())
+            return nt_status::NOT_SUPPORTED;
+
         return do_sendto<false>(v, flags, to, tolen, sent_bytes);
     }
 
@@ -57,7 +61,10 @@ public:
 
     nt_status sendto_nonblock(span<const span<const uint8_t>> v, int flags,
                               sockaddr* to, size_t tolen,
-                              uint64_t& sent_bytes) override {
+                              uint64_t& sent_bytes, span<const HANDLE> handles) override {
+        if (!handles.empty())
+            return nt_status::NOT_SUPPORTED;
+
         return do_sendto<true>(v, flags, to, tolen, sent_bytes);
     }
 

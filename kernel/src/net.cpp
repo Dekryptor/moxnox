@@ -168,7 +168,8 @@ public:
                                sockaddr_storage* from, size_t* fromlen,
                                uint64_t& recv_bytes) = 0;
     virtual nt_status sendto(span<const span<const uint8_t>> v, int flags,
-                             sockaddr* to, size_t tolen, uint64_t& sent_bytes) = 0;
+                             sockaddr* to, size_t tolen, uint64_t& sent_bytes,
+                             span<const HANDLE> handles) = 0;
     virtual nt_status bind(const sockaddr* addr, size_t addrlen) = 0;
     virtual nt_status connect(const sockaddr* addr, size_t addrlen) = 0;
     virtual nt_status listen(int backlog) = 0;
@@ -181,7 +182,7 @@ public:
 
     nt_status write(span<const span<const uint8_t>> v,
                     uint64_t& written_bytes) {
-        return sendto(v, 0, nullptr, 0, written_bytes);
+        return sendto(v, 0, nullptr, 0, written_bytes, span<HANDLE>());
     }
 
     virtual nt_status getsockname(span<uint8_t> addr, size_t& len) = 0;
@@ -194,14 +195,15 @@ public:
 
     nt_status write_nonblock(span<const span<const uint8_t>> v,
                              uint64_t& written_bytes) {
-        return sendto_nonblock(v, 0, nullptr, 0, written_bytes);
+        return sendto_nonblock(v, 0, nullptr, 0, written_bytes, span<HANDLE>());
     }
 
     virtual nt_status recvfrom_nonblock(span<const span<uint8_t>> v, int flags,
                                         sockaddr_storage* from, size_t* fromlen,
                                         size_t& recv_bytes) = 0;
     virtual nt_status sendto_nonblock(span<const span<const uint8_t>> v, int flags,
-                                      sockaddr* to, size_t tolen, uint64_t& sent_bytes) = 0;
+                                      sockaddr* to, size_t tolen, uint64_t& sent_bytes,
+                                      span<const HANDLE> handles) = 0;
     virtual nt_status shutdown(int how) = 0;
 
     virtual nt_status setsockopt_tcp(sockopt_tcp, span<const uint8_t>) {

@@ -12,12 +12,15 @@ import config;
 import vec;
 import scheduler;
 import event;
+import visit;
+import thread;
 
 using namespace std;
 
 class unix_socket : public socket {
 public:
     unix_socket();
+    ~unix_socket();
 
     void last_handle_closed() override;
 
@@ -28,8 +31,9 @@ public:
     }
 
     nt_status sendto(span<const span<const uint8_t>> v, int flags, sockaddr* to,
-                     size_t tolen, uint64_t& sent_bytes) override {
-        return do_sendto<false>(v, flags, to, tolen, sent_bytes);
+                     size_t tolen, uint64_t& sent_bytes,
+                     span<const HANDLE> handles) override {
+        return do_sendto<false>(v, flags, to, tolen, sent_bytes, handles);
     }
 
     nt_status bind(const sockaddr* addr, size_t addrlen) override;
@@ -47,8 +51,9 @@ public:
 
     nt_status sendto_nonblock(span<const span<const uint8_t>> v, int flags,
                               sockaddr* to, size_t tolen,
-                              uint64_t& sent_bytes) override {
-        return do_sendto<true>(v, flags, to, tolen, sent_bytes);
+                              uint64_t& sent_bytes,
+                              span<const HANDLE> handles) override {
+        return do_sendto<true>(v, flags, to, tolen, sent_bytes, handles);
     }
 
     nt_status shutdown(int how) override;
@@ -58,6 +63,7 @@ public:
     bool dead = false, other_end_dead = false;
     bool first;
     event not_full_event;
+    list_entry sent_fds = { &sent_fds, &sent_fds };
 
     uint8_t buf[PAGE_SIZE];
     size_t buf_unread = 0;
@@ -71,7 +77,23 @@ private:
 
     template<bool NONBLOCK>
     nt_status do_sendto(span<const span<const uint8_t>> v, int flags,
-                        sockaddr* to, size_t tolen, uint64_t& sent_bytes);
+                        sockaddr* to, size_t tolen, uint64_t& sent_bytes,
+                        span<const HANDLE> handles);
+};
+
+struct sent_fd {
+    sent_fd(object& obj) : obj(obj) {
+        obj.acquire();
+    }
+
+    ~sent_fd() {
+        object_release(obj);
+    }
+
+    list_entry le;
+    object& obj;
+    ACCESS_MASK access_mask;
+    size_t bytes_left;
 };
 
 nt_status create_new_unix_socket(object_ref& ref) {
@@ -179,7 +201,8 @@ nt_status unix_socket::do_recvfrom(span<const span<uint8_t>> v, int flags,
 
 template<bool NONBLOCK>
 nt_status unix_socket::do_sendto(span<const span<const uint8_t>> v, int flags,
-                                 sockaddr*, size_t, uint64_t& sent_bytes) {
+                                 sockaddr*, size_t, uint64_t& sent_bytes,
+                                 span<const HANDLE> handles) {
     if (!other_end)
         return nt_status::INVALID_PARAMETER;
 
@@ -190,7 +213,46 @@ nt_status unix_socket::do_sendto(span<const span<const uint8_t>> v, int flags,
 
     if (vec_size == 0) {
         sent_bytes = 0;
+
+        if (!handles.empty())
+            return nt_status::INVALID_PARAMETER;
+
         return nt_status::SUCCESS;
+    }
+
+    list_entry fds = { &fds, &fds };
+
+    for (auto h : handles) {
+        ACCESS_MASK access_mask;
+
+        auto obj = deref_handle(h, access_mask);
+
+        if (!obj) {
+            while (!is_list_empty(fds)) {
+                auto& f = containing_record<sent_fd>(fds.next);
+
+                remove_entry_list(f.le);
+                delete &f;
+            }
+
+            return nt_status::INVALID_HANDLE;
+        }
+
+        auto f = new sent_fd(obj.get());
+        if (!f) {
+            while (!is_list_empty(fds)) {
+                auto& f = containing_record<sent_fd>(fds.next);
+
+                remove_entry_list(f.le);
+                delete &f;
+            }
+
+            return nt_status::INSUFFICIENT_RESOURCES;
+        }
+
+        f->access_mask = access_mask;
+
+        insert_tail_list(fds, f->le);
     }
 
     span<const uint8_t> top = v.front();
@@ -206,6 +268,13 @@ nt_status unix_socket::do_sendto(span<const span<const uint8_t>> v, int flags,
             size_t buf_left = sizeof(other_end->buf) - other_end->buf_unread;
 
             if (other_end->dead) {
+                while (!is_list_empty(fds)) {
+                    auto& f = containing_record<sent_fd>(fds.next);
+
+                    remove_entry_list(f.le);
+                    delete &f;
+                }
+
                 if (sent_bytes == 0)
                     return nt_status::PIPE_DISCONNECTED;
                 else
@@ -215,6 +284,15 @@ nt_status unix_socket::do_sendto(span<const span<const uint8_t>> v, int flags,
             to_copy = min(vec_size, buf_left);
 
             if (to_copy > 0) {
+                while (!is_list_empty(fds)) {
+                    auto& f = containing_record<sent_fd>(fds.next);
+
+                    f.bytes_left = other_end->buf_unread;
+
+                    remove_entry_list(f.le);
+                    insert_tail_list(other_end->sent_fds, f.le);
+                }
+
                 if (other_end->buf_write_pos + to_copy > sizeof(other_end->buf)) {
                     auto first_bit = sizeof(other_end->buf) - other_end->buf_write_pos;
 
@@ -264,6 +342,13 @@ nt_status unix_socket::do_sendto(span<const span<const uint8_t>> v, int flags,
             break;
 
         if constexpr (NONBLOCK) {
+            while (!is_list_empty(fds)) {
+                auto& f = containing_record<sent_fd>(fds.next);
+
+                remove_entry_list(f.le);
+                delete &f;
+            }
+
             if (sent_bytes == 0)
                 return nt_status::CANT_WAIT;
             else
@@ -272,13 +357,22 @@ nt_status unix_socket::do_sendto(span<const span<const uint8_t>> v, int flags,
             // block while we wait for space to become available
             auto status = wait_for_object(other_end->not_full_event, true);
 
-            if (status == nt_status::USER_APC) {
-                if (sent_bytes == 0)
-                    return nt_status::USER_APC;
-                else
-                    break;
-            } else if (!success(status))
-                return status;
+            if (status == nt_status::USER_APC || !success(status)) {
+                while (!is_list_empty(fds)) {
+                    auto& f = containing_record<sent_fd>(fds.next);
+
+                    remove_entry_list(f.le);
+                    delete &f;
+                }
+
+                if (status == nt_status::USER_APC) {
+                    if (sent_bytes == 0)
+                        return nt_status::USER_APC;
+                    else
+                        break;
+                } else if (!success(status))
+                    return status;
+            }
         }
     } while (true);
 
@@ -289,6 +383,15 @@ unix_socket::unix_socket() {
     signalled = false;
     not_full_event.autoreset = false;
     not_full_event.signalled = true;
+}
+
+unix_socket::~unix_socket() {
+    while (!is_list_empty(sent_fds)) {
+        auto& f = containing_record<sent_fd>(sent_fds.next);
+
+        remove_entry_list(f.le);
+        delete &f;
+    }
 }
 
 void unix_socket::last_handle_closed() {

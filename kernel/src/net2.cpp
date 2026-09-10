@@ -74,7 +74,10 @@ public:
     }
 
     nt_status sendto(span<const span<const uint8_t>> v, int flags, sockaddr* to,
-                     size_t tolen, uint64_t& sent_bytes) override {
+                     size_t tolen, uint64_t& sent_bytes, span<const HANDLE> handles) override {
+        if (!handles.empty())
+            return nt_status::NOT_SUPPORTED;
+
         return do_sendto<false>(v, flags, to, tolen, sent_bytes);
     }
 
@@ -106,7 +109,10 @@ public:
 
     nt_status sendto_nonblock(span<const span<const uint8_t>> v, int flags,
                               sockaddr* to, size_t tolen,
-                              uint64_t& sent_bytes) override {
+                              uint64_t& sent_bytes, span<const HANDLE> handles) override {
+        if (!handles.empty())
+            return nt_status::NOT_SUPPORTED;
+
         return do_sendto<true>(v, flags, to, tolen, sent_bytes);
     }
 
@@ -2929,14 +2935,21 @@ nt_status socket::do_sendmsg(span<const uint8_t> inbuf, bool nonblock) {
     nt_status status;
     uint32_t read_bytes;
 
-    if (inbuf.size() < sizeof(MOXNOX_SOCKET_SENDMSG))
-        return nt_status::BUFFER_TOO_SMALL;
-
     auto& t = *get_current_thread();
     if (!t.proc)
         return nt_status::INTERNAL_ERROR;
 
+    if (inbuf.size() < offsetof(MOXNOX_SOCKET_SENDMSG, handles))
+        return nt_status::BUFFER_TOO_SMALL;
+
     auto& params = *(MOXNOX_SOCKET_SENDMSG*)inbuf.data();
+
+    if (params.num_handles > 256)
+        return nt_status::INVALID_PARAMETER;
+
+    if (inbuf.size() < offsetof(MOXNOX_SOCKET_SENDMSG, handles) + (sizeof(HANDLE) * params.num_handles))
+        return nt_status::INVALID_PARAMETER;
+
     sockaddr_storage to;
     size_t sent_bytes;
 
@@ -3011,11 +3024,12 @@ nt_status socket::do_sendmsg(span<const uint8_t> inbuf, bool nonblock) {
     if (nonblock) {
         status = this->sendto_nonblock(span(spans, num_spans), params.flags,
                                        params.to ? (sockaddr*)&to : nullptr,
-                                       (int)params.tolen, sent_bytes);
+                                       (int)params.tolen, sent_bytes,
+                                       span(params.handles, params.num_handles));
     } else {
         status = this->sendto(span(spans, num_spans), params.flags,
                               params.to ? (sockaddr*)&to : nullptr, (int)params.tolen,
-                              sent_bytes);
+                              sent_bytes, span(params.handles, params.num_handles));
     }
 
     rlr.reset();

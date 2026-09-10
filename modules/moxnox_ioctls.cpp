@@ -134,6 +134,8 @@ export struct MOXNOX_SOCKET_SENDMSG {
     const void* to;
     size_t tolen;
     size_t* sent_bytes;
+    size_t num_handles;
+    HANDLE handles[0];
 };
 
 export struct MOXNOX_SOCKET_ACCEPT_IN {
