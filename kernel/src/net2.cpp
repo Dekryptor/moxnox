@@ -69,7 +69,7 @@ public:
 
     nt_status recvfrom(span<const span<uint8_t>> v, int flags,
                        sockaddr_storage* from, size_t* fromlen,
-                       uint64_t& recv_bytes) override {
+                       uint64_t& recv_bytes, span<HANDLE>, size_t&) override {
         return do_recvfrom<false>(v, flags, from, fromlen, recv_bytes);
     }
 
@@ -103,7 +103,7 @@ public:
 
     nt_status recvfrom_nonblock(span<const span<uint8_t>> v, int flags,
                                 sockaddr_storage* from, size_t* fromlen,
-                                uint64_t& recv_bytes) override {
+                                uint64_t& recv_bytes, span<HANDLE>, size_t&) override {
         return do_recvfrom<true>(v, flags, from, fromlen, recv_bytes);
     }
 
@@ -2811,16 +2811,18 @@ nt_status socket::do_recvmsg(span<const uint8_t> inbuf, bool nonblock) {
     nt_status status;
     uint32_t read_bytes;
 
-    if (inbuf.size() < sizeof(MOXNOX_SOCKET_RECVMSG))
-        return nt_status::BUFFER_TOO_SMALL;
-
     auto& t = *get_current_thread();
     if (!t.proc)
         return nt_status::INTERNAL_ERROR;
 
+    if (inbuf.size() < sizeof(MOXNOX_SOCKET_RECVMSG))
+        return nt_status::BUFFER_TOO_SMALL;
+
     auto& params = *(MOXNOX_SOCKET_RECVMSG*)inbuf.data();
+
     size_t recv_bytes;
     size_t fromlen = 0, orig_fromlen = 0;
+    size_t num_handles = 0;
 
     if (!params.recv_bytes)
         return nt_status::INVALID_PARAMETER;
@@ -2838,6 +2840,19 @@ nt_status socket::do_recvmsg(span<const uint8_t> inbuf, bool nonblock) {
             return nt_status::NO_MEMORY;
 
         orig_fromlen = fromlen;
+    }
+
+    if (params.num_handles) {
+        status = t.proc->read_vm(params.num_handles, &num_handles, sizeof(num_handles),
+                                 &read_bytes);
+        if (!success(status))
+            return status;
+
+        if (read_bytes < sizeof(num_handles))
+            return nt_status::NO_MEMORY;
+
+        if (num_handles > 256)
+            return nt_status::INVALID_PARAMETER;
     }
 
     iovec* usvec = nullptr;
@@ -2866,6 +2881,9 @@ nt_status socket::do_recvmsg(span<const uint8_t> inbuf, bool nonblock) {
     span<uint8_t>* spans = nullptr;
     size_t num_spans = 0;
     sockaddr_storage from;
+    span<HANDLE> handles;
+    HANDLE* hbuf = nullptr;
+    size_t received_handles = 0;
 
     for (size_t i = 0; i < params.vec_count; i++) {
         auto& v = usvec[i];
@@ -2887,15 +2905,25 @@ nt_status socket::do_recvmsg(span<const uint8_t> inbuf, bool nonblock) {
         free(usvec);
     }
 
+    if (num_handles > 0) {
+        hbuf = (HANDLE*)malloc(sizeof(HANDLE) * num_handles);
+        if (!hbuf) {
+            print("malloc failed\n");
+            return nt_status::INSUFFICIENT_RESOURCES;
+        }
+
+        handles = span(hbuf, num_handles);
+    }
+
     if (nonblock) {
         status = this->recvfrom_nonblock(span(spans, num_spans),
                                          params.flags, &from,
                                          fromlen != 0 ? &fromlen : nullptr,
-                                         recv_bytes);
+                                         recv_bytes, handles, received_handles);
     } else {
         status = this->recvfrom(span(spans, num_spans), params.flags,
                                 &from, fromlen != 0 ? &fromlen : nullptr,
-                                recv_bytes);
+                                recv_bytes, handles, received_handles);
     }
 
     rlr.reset();
@@ -2906,8 +2934,32 @@ nt_status socket::do_recvmsg(span<const uint8_t> inbuf, bool nonblock) {
     else if (spans_size > 0)
         free(spans);
 
-    if (!success(status) || status == nt_status::USER_APC)
+    if (!success(status) || status == nt_status::USER_APC) {
+        if (hbuf)
+            free(hbuf);
+
         return status;
+    }
+
+    if (received_handles > 0) {
+        status = t.proc->write_vm(params.handles, hbuf,
+                                  (uint32_t)(min(num_handles, received_handles) * sizeof(HANDLE)),
+                                  nullptr);
+        if (!success(status)) {
+            free(hbuf);
+            return status;
+        }
+    }
+
+    if (hbuf)
+        free(hbuf);
+
+    if (params.num_handles) {
+        status = t.proc->write_vm(params.num_handles, &received_handles,
+                                  sizeof(received_handles), nullptr);
+        if (!success(status))
+            return status;
+    }
 
     if (params.from && fromlen != 0) {
         status = t.proc->write_vm(params.from, &from,

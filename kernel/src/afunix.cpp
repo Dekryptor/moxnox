@@ -14,6 +14,7 @@ import scheduler;
 import event;
 import visit;
 import thread;
+import handle;
 
 using namespace std;
 
@@ -26,8 +27,10 @@ public:
 
     nt_status recvfrom(span<const span<uint8_t>> v, int flags,
                        sockaddr_storage* from, size_t* fromlen,
-                       uint64_t& recv_bytes) override {
-        return do_recvfrom<false>(v, flags, from, fromlen, recv_bytes);
+                       uint64_t& recv_bytes, span<HANDLE> handles,
+                       size_t& num_handles) override {
+        return do_recvfrom<false>(v, flags, from, fromlen, recv_bytes,
+                                  handles, num_handles);
     }
 
     nt_status sendto(span<const span<const uint8_t>> v, int flags, sockaddr* to,
@@ -45,8 +48,10 @@ public:
 
     nt_status recvfrom_nonblock(span<const span<uint8_t>> v, int flags,
                                 sockaddr_storage* from, size_t* fromlen,
-                                uint64_t& recv_bytes) override {
-        return do_recvfrom<true>(v, flags, from, fromlen, recv_bytes);
+                                uint64_t& recv_bytes, span<HANDLE> handles,
+                                size_t& num_handles) override {
+        return do_recvfrom<true>(v, flags, from, fromlen, recv_bytes,
+                                 handles, num_handles);
     }
 
     nt_status sendto_nonblock(span<const span<const uint8_t>> v, int flags,
@@ -73,7 +78,8 @@ private:
     template<bool NONBLOCK>
     nt_status do_recvfrom(span<const span<uint8_t>> v, int flags,
                           sockaddr_storage* from, size_t* fromlen,
-                          uint64_t& recv_bytes);
+                          uint64_t& recv_bytes, span<HANDLE> handles,
+                          size_t& num_handles);
 
     template<bool NONBLOCK>
     nt_status do_sendto(span<const span<const uint8_t>> v, int flags,
@@ -111,7 +117,10 @@ nt_status create_new_unix_socket(object_ref& ref) {
 template<bool NONBLOCK>
 nt_status unix_socket::do_recvfrom(span<const span<uint8_t>> v, int flags,
                                    sockaddr_storage*, size_t*,
-                                   uint64_t& recv_bytes) {
+                                   uint64_t& recv_bytes, span<HANDLE> handles,
+                                   size_t& num_handles) {
+    nt_status status;
+    auto& t = *get_current_thread();
     size_t copied = 0;
     size_t vec_size = get_vec_size(v);
 
@@ -145,6 +154,8 @@ nt_status unix_socket::do_recvfrom(span<const span<uint8_t>> v, int flags,
             }
         }
 
+        list_entry fds = { &fds, &fds };
+
         {
             sync_lock sl;
             lock_guard l(sl);
@@ -164,6 +175,29 @@ nt_status unix_socket::do_recvfrom(span<const span<uint8_t>> v, int flags,
             }
 
             size_t to_copy = min(vec_size, buf_unread);
+
+            if (!is_list_empty(sent_fds)) {
+                auto& f = containing_record<sent_fd>(sent_fds.next);
+
+                if (f.bytes_left > 0)
+                    to_copy = min(to_copy, f.bytes_left);
+            }
+
+            while (!is_list_empty(sent_fds)) {
+                auto& f = containing_record<sent_fd>(sent_fds.next);
+
+                if (f.bytes_left < to_copy) {
+                    remove_entry_list(f.le);
+                    insert_tail_list(fds, f.le);
+                } else
+                    break;
+            }
+
+            for (auto le = sent_fds.next; le != &sent_fds; le = le->next) {
+                auto& f = containing_record<sent_fd>(le);
+
+                f.bytes_left -= to_copy;
+            }
 
             if (buf_read_pos + to_copy > sizeof(buf)) {
                 auto first_bit = sizeof(buf) - buf_read_pos;
@@ -190,6 +224,39 @@ nt_status unix_socket::do_recvfrom(span<const span<uint8_t>> v, int flags,
                 other_end->write_signalled = true;
                 wake_up_waiters(other_end->waiters, WAIT_TYPE_WRITING);
             }
+        }
+
+        num_handles = 0;
+
+        while (!is_list_empty(fds)) {
+            auto& f = containing_record<sent_fd>(fds.next);
+
+            remove_entry_list(f.le);
+
+            if (num_handles < handles.size()) {
+                handle_t h;
+
+                status = t.proc->add_handle(f.obj, f.access_mask, true, h);
+                if (!success(status)) {
+                    delete &f;
+
+                    // FIXME - close handles already done
+
+                    while (!is_list_empty(fds)) {
+                        auto& f2 = containing_record<sent_fd>(fds.next);
+
+                        remove_entry_list(f2.le);
+                        delete &f2;
+                    }
+
+                    return status;
+                }
+
+                handles[num_handles] = h;
+            }
+
+            num_handles++;
+            delete &f;
         }
 
         break;

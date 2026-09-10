@@ -127,7 +127,7 @@ public:
 
     nt_status recvfrom(span<const span<uint8_t>> v, int flags,
                        sockaddr_storage* from, size_t* fromlen,
-                       uint64_t& recv_bytes) override {
+                       uint64_t& recv_bytes, span<HANDLE>, size_t&) override {
         return do_recvfrom<false>(v, flags, from, fromlen, recv_bytes);
     }
 
@@ -147,7 +147,7 @@ public:
 
     nt_status recvfrom_nonblock(span<const span<uint8_t>> v, int flags,
                                 sockaddr_storage* from, size_t* fromlen,
-                                uint64_t& recv_bytes) override {
+                                uint64_t& recv_bytes, span<HANDLE>, size_t&) override {
         return do_recvfrom<true>(v, flags, from, fromlen, recv_bytes);
     }
 

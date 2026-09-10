@@ -166,7 +166,8 @@ public:
 
     virtual nt_status recvfrom(span<const span<uint8_t>> v, int flags,
                                sockaddr_storage* from, size_t* fromlen,
-                               uint64_t& recv_bytes) = 0;
+                               uint64_t& recv_bytes, span<HANDLE> handles,
+                               size_t& received_handles) = 0;
     virtual nt_status sendto(span<const span<const uint8_t>> v, int flags,
                              sockaddr* to, size_t tolen, uint64_t& sent_bytes,
                              span<const HANDLE> handles) = 0;
@@ -177,7 +178,10 @@ public:
 
     nt_status read(span<const span<uint8_t>> v,
                    uint64_t& read_bytes) {
-        return recvfrom(v, 0, nullptr, nullptr, read_bytes);
+        size_t received_handles;
+
+        return recvfrom(v, 0, nullptr, nullptr, read_bytes, span<HANDLE>(),
+                        received_handles);
     }
 
     nt_status write(span<const span<const uint8_t>> v,
@@ -190,7 +194,10 @@ public:
 
     nt_status read_nonblock(span<const span<uint8_t>> v,
                             uint64_t& read_bytes) {
-        return recvfrom_nonblock(v, 0, nullptr, nullptr, read_bytes);
+        size_t received_handles;
+
+        return recvfrom_nonblock(v, 0, nullptr, nullptr, read_bytes,
+                                 span<HANDLE>(), received_handles);
     }
 
     nt_status write_nonblock(span<const span<const uint8_t>> v,
@@ -200,7 +207,8 @@ public:
 
     virtual nt_status recvfrom_nonblock(span<const span<uint8_t>> v, int flags,
                                         sockaddr_storage* from, size_t* fromlen,
-                                        size_t& recv_bytes) = 0;
+                                        size_t& recv_bytes, span<HANDLE> handles,
+                                        size_t& received_handles) = 0;
     virtual nt_status sendto_nonblock(span<const span<const uint8_t>> v, int flags,
                                       sockaddr* to, size_t tolen, uint64_t& sent_bytes,
                                       span<const HANDLE> handles) = 0;

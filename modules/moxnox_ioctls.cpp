@@ -125,6 +125,8 @@ export struct MOXNOX_SOCKET_RECVMSG {
     void* from;
     size_t* fromlen;
     size_t* recv_bytes;
+    size_t* num_handles;
+    HANDLE* handles;
 };
 
 export struct MOXNOX_SOCKET_SENDMSG {
