@@ -4,6 +4,7 @@
 #include <netdb.h>
 #include <unistd.h>
 #include <span>
+#include <algorithm>
 
 import nt;
 import ucrtbase;
@@ -202,6 +203,8 @@ ssize_t recvmsg(int s, msghdr* msg, int flags) {
     IO_STATUS_BLOCK iosb;
     MOXNOX_SOCKET_RECVMSG params;
     size_t recv_bytes, fromlen;
+    size_t num_handles, orig_num_handles;
+    HANDLE* handles = nullptr;
 
     if (!msg) {
         *_errno() = EINVAL;
@@ -213,6 +216,23 @@ ssize_t recvmsg(int s, msghdr* msg, int flags) {
         return -1;
     }
 
+    if (msg->msg_controllen < (int)CMSG_LEN(0))
+        num_handles = 0;
+    else {
+        num_handles = (msg->msg_controllen - CMSG_LEN(0)) / sizeof(int);
+        num_handles = min(num_handles, (size_t)256);
+    }
+
+    if (num_handles > 0) {
+        handles = (HANDLE*)malloc(sizeof(HANDLE) * num_handles);
+        if (!handles) {
+            *_errno() = ENOMEM;
+            return -1;
+        }
+    }
+
+    orig_num_handles = num_handles;
+
     fromlen = msg->msg_namelen;
 
     params.vec = msg->msg_iov;
@@ -221,6 +241,8 @@ ssize_t recvmsg(int s, msghdr* msg, int flags) {
     params.from = msg->msg_name;
     params.fromlen = &fromlen;
     params.recv_bytes = &recv_bytes;
+    params.num_handles = &num_handles;
+    params.handles = handles;
 
     auto h = _get_osfhandle((int)s);
     if (h == -1)
@@ -235,15 +257,56 @@ ssize_t recvmsg(int s, msghdr* msg, int flags) {
 
         if (!success(status)) {
             *_errno() = nt_status_to_errno(status);
+
+            if (handles)
+                free(handles);
+
             return -1;
         }
 
         break;
     }
 
-    msg->msg_controllen = 0;
+    if (num_handles > 0 && orig_num_handles > 0) {
+        auto n = min(num_handles, orig_num_handles);
+        auto cmsg = CMSG_FIRSTHDR(msg);
+
+        cmsg->cmsg_len = (int)CMSG_LEN(n * sizeof(int));
+        cmsg->cmsg_level = SOL_SOCKET;
+        cmsg->cmsg_type = SCM_RIGHTS;
+
+        msg->msg_controllen = min((int)CMSG_SPACE(n * sizeof(int)), msg->msg_controllen);
+
+        auto fds = span((int*)CMSG_DATA(cmsg), n);
+
+        for (size_t i = 0; i < n; i++) {
+            fds[i] = _open_osfhandle(handles[i], 0);
+
+            if (fds[i] == (intptr_t)-1) {
+                for (size_t j = 0; j < i; j++) {
+                    close(fds[j]);
+                }
+
+                for (size_t j = i; j < n; j++) {
+                    NtClose(handles[j]);
+                }
+
+                free(handles);
+
+                return -1;
+            }
+        }
+    } else
+        msg->msg_controllen = 0;
+
+    if (handles)
+        free(handles);
+
     msg->msg_namelen = (int)fromlen;
     msg->msg_flags = 0;
+
+    if (num_handles > orig_num_handles)
+        msg->msg_flags |= MSG_CTRUNC;
 
     return (ssize_t)recv_bytes;
 }
