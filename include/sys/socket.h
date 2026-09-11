@@ -127,16 +127,10 @@ struct cmsghdr {
 #define SO_ERROR 0x1007
 #define SO_TYPE 0x1008
 
-#define MSG_OOB (1 << 0)
-#define MSG_PEEK (1 << 1)
-#define MSG_DONTROUTE (1 << 2)
-#define MSG_CTRUNC (1 << 3)
-#define MSG_TRUNC (1 << 4)
-#define MSG_EOR (1 << 5)
-#define MSG_WAITALL (1 << 6)
-#define MSG_NOSIGNAL (1 << 7)
-#define MSG_CMSG_CLOEXEC (1 << 8)
-#define MSG_CMSG_CLOFORK (1 << 9)
+#define MSG_PEEK (1 << 0)
+#define MSG_CTRUNC (1 << 1)
+#define MSG_TRUNC (1 << 2)
+#define MSG_NOSIGNAL (1 << 3)
 
 #define SHUT_RD 0
 #define SHUT_WR 1
