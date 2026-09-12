@@ -60,6 +60,8 @@ public:
     sync_object& get_sync_object() override;
     nt_status ioctl(uint32_t code, span<const uint8_t> inbuf,
                     span<uint8_t> outbuf, uintptr_t& written) override;
+    void last_handle_closed() override;
+    nt_status userspace_open(object_ref&) override;
 
     void server_disconnected();
     nt_status canonical_write(span<const uint8_t> s, uint64_t& written_bytes);
@@ -79,6 +81,7 @@ public:
     uint16_t rows;
     bool disconnected = false;
     termios settings;
+    bool no_open_handles = true;
 
     spinlock fg_pg_lock;
     process_group* fg_pg = nullptr;
@@ -1269,6 +1272,33 @@ nt_status pty_server::get_client(span<uint8_t> outbuf, uintptr_t& written) {
 
     *(HANDLE*)outbuf.data() = client_handle;
     written = sizeof(HANDLE);
+
+    return nt_status::SUCCESS;
+}
+
+void pty_client::last_handle_closed() {
+    sync_lock sl;
+    lock_guard lock(sl);
+
+    no_open_handles = true;
+
+    send_pipe.signalled = true;
+    wake_up_waiters(send_pipe.waiters, WAIT_TYPE_READING);
+}
+
+nt_status pty_client::userspace_open(object_ref&) {
+    sync_lock sl;
+    lock_guard lock(sl);
+
+    if (!no_open_handles)
+        return nt_status::SUCCESS;
+
+    no_open_handles = false;
+
+    {
+        lock_guard lock2(send_pipe.lock);
+        send_pipe.signalled = send_pipe.buf_unread > 0;
+    }
 
     return nt_status::SUCCESS;
 }
