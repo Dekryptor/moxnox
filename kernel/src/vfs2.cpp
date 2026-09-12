@@ -1390,9 +1390,12 @@ nt_status inode::write(span<const span<const uint8_t>> v, uint64_t offset,
 
 file::file(object& ino, uint32_t create_options) : object(object_type::file), ino(ino), create_options(create_options) {
     ino.acquire();
+    ino.handle_count++;
 }
 
 file::~file() {
+    handle_closed(ino);
+
     object_release(ino);
 
     if (dentry)
@@ -2470,22 +2473,8 @@ nt_status get_dentry_path(dentry& dr, char*& path, size_t& path_len) {
 }
 
 void file::last_handle_closed() {
-    if (!dentry) {
-        object_last_handle_closed(ino);
-        return;
-    }
-
-    {
-        lock_guard lg(dentry->lock);
-
-        if (--dentry->open_file_count != 0)
-            return;
-
-        if (dentry->status != dentry_status::invalid)
-            return;
-    }
-
-    dentry->inode->last_handle_closed();
+    if (dentry)
+        dentry->open_file_count--;
 }
 
 bool init_vfsctl() {
