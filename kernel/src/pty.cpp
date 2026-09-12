@@ -892,13 +892,40 @@ nt_status pty_client::set_size(span<const uint8_t> inbuf) {
 
     auto& in = *(MOXNOX_IOCTL_PTY_GET_SIZE*)inbuf.data();
 
-    // FIXME - send SIGWINCH if size is different
+    bool send_sigwinch = false;
 
     {
         lock_guard lock(size_lock);
 
+        if (cols != in.cols || rows != in.rows)
+            send_sigwinch = true;
+
         cols = in.cols;
         rows = in.rows;
+    }
+
+    if (send_sigwinch) {
+        process_group* pg = nullptr;
+
+        {
+            lock_guard lock(fg_pg_lock);
+
+            if (fg_pg) {
+                pg = fg_pg;
+                pg->acquire();
+            }
+        }
+
+        if (pg) {
+            auto status = send_signal_to_process_group(*pg, SIGWINCH);
+            if (!success(status)) {
+                print("send_signal_to_process_group returned {}\n", status);
+                pg->release();
+                return status;
+            }
+
+            pg->release();
+        }
     }
 
     return nt_status::SUCCESS;
