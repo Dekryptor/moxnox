@@ -64,6 +64,13 @@ public:
     nt_status canonical_write(span<const uint8_t> s, uint64_t& written_bytes);
     void post_info_event(pty_info_type type);
 
+    nt_status tcgetattr(span<uint8_t> outbuf, uintptr_t& written);
+    nt_status tcsetattr(span<const uint8_t> inbuf, bool flush);
+    nt_status tcflush(span<const uint8_t> inbuf);
+    nt_status set_size(span<const uint8_t> inbuf);
+    nt_status get_size(span<uint8_t> outbuf, uintptr_t& written);
+    nt_status get_fg_pg(span<uint8_t> outbuf, uintptr_t& written);
+
     pipe& recv_pipe;
     pipe& send_pipe;
     spinlock size_lock;
@@ -84,14 +91,8 @@ public:
     rwsem info_mutex;
 
 private:
-    nt_status tcgetattr(span<uint8_t> outbuf, uintptr_t& written);
-    nt_status tcsetattr(span<const uint8_t> inbuf, bool flush);
-    nt_status tcflush(span<const uint8_t> inbuf);
     nt_status set_fg_pg(span<const uint8_t> inbuf);
     nt_status get_info_stream(span<uint8_t> outbuf);
-    nt_status get_size(span<uint8_t> outbuf, uintptr_t& written);
-    nt_status set_size(span<const uint8_t> inbuf);
-    nt_status get_fg_pg(span<uint8_t> outbuf, uintptr_t& written);
     size_t process_canonical_input(span<const uint8_t> new_data, uint8_t* echo_buf,
                                    bool& found_eof);
 };
@@ -1167,11 +1168,36 @@ nt_status pty_info::read(span<const span<uint8_t>> v, uint64_t& read_bytes) {
     }
 }
 
-nt_status pty_server::ioctl(uint32_t code, span<const uint8_t> /*inbuf*/,
+nt_status pty_server::ioctl(uint32_t code, span<const uint8_t> inbuf,
                             span<uint8_t> outbuf, uintptr_t& written) {
     switch (code) {
         case IOCTL_MOXNOX_PTY_GET_CLIENT:
             return get_client(outbuf, written);
+
+        case IOCTL_MOXNOX_PTY_SET_SIZE:
+            return client.set_size(inbuf);
+
+        case IOCTL_MOXNOX_PTY_ISATTY:
+            written = 0;
+            return nt_status::SUCCESS;
+
+        case IOCTL_MOXNOX_PTY_TCGETATTR:
+            return client.tcgetattr(outbuf, written);
+
+        case IOCTL_MOXNOX_PTY_TCSETATTR:
+            return client.tcsetattr(inbuf, false);
+
+        case IOCTL_MOXNOX_PTY_TCSETATTR_FLUSH:
+            return client.tcsetattr(inbuf, true);
+
+        case IOCTL_MOXNOX_PTY_TCFLUSH:
+            return client.tcflush(inbuf);
+
+        case IOCTL_MOXNOX_PTY_GET_SIZE:
+            return client.get_size(outbuf, written);
+
+        case IOCTL_MOXNOX_PTY_GET_FOREGROUND_PROCESS_GROUP:
+            return client.get_fg_pg(outbuf, written);
 
         default:
             return nt_status::NOT_SUPPORTED;
