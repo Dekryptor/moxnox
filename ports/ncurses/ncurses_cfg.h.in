@@ -67,6 +67,7 @@
 #define NCURSES_XNAMES      1
 #define PURE_TERMINFO       1
 #define USE_DATABASE        1
+#define MIXEDCASE_FILENAMES 1
 #define HAVE_TPUTS_SP       1
 
 /* Types */

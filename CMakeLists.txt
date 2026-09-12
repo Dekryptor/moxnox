@@ -401,6 +401,7 @@ find_program(HOST_FLEX flex REQUIRED)
 find_program(HOST_GPERF gperf REQUIRED)
 find_program(HOST_BISON bison REQUIRED)
 find_program(HOST_M4 m4 REQUIRED)
+find_program(HOST_TIC tic REQUIRED)
 
 file(GLOB port_cmake_files ${CMAKE_CURRENT_SOURCE_DIR}/ports/*/CMakeLists.txt)
 foreach(cmake_file ${port_cmake_files})

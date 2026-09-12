@@ -50,7 +50,7 @@ set(NCURSES_SIZE_T "short")
 set(NCURSES_SP_FUNCS ${NCURSES_PATCH})
 set(NCURSES_TPARM_ARG "intptr_t")
 set(NCURSES_TPARM_VARARGS 1)
-set(NCURSES_USE_DATABASE 0)
+set(NCURSES_USE_DATABASE 1)
 set(NCURSES_USE_TERMCAP 0)
 set(NCURSES_WATTR_MACROS 1)
 set(NCURSES_WCHAR_T 0)
@@ -325,10 +325,21 @@ add_library(tinfo SHARED
     fallback.c
 )
 
-target_compile_definitions(tinfo PRIVATE BUILDING_TINFO WIN_PTHREADS_TIME_H)
+target_compile_definitions(tinfo PRIVATE BUILDING_TINFO WIN_PTHREADS_TIME_H TERMINFO=\"/share/terminfo\")
 target_compile_options(tinfo PRIVATE ${USERSPACE_CFLAGS} -Wno-pointer-sign -Wno-conversion -Wno-unused-parameter -Wno-unused-but-set-variable)
 target_include_directories(tinfo PUBLIC ${GEN})
 target_include_directories(tinfo PRIVATE repo/ncurses repo/include)
+
+add_custom_command(
+    OUTPUT ${GEN}/terminfo.stamp
+    COMMAND sh -c "rm -rf '${GEN}/terminfo' && '${HOST_TIC}' -x -o '${GEN}/terminfo' '${CMAKE_CURRENT_SOURCE_DIR}/repo/misc/terminfo.src' && touch '${GEN}/terminfo.stamp'"
+    DEPENDS repo/misc/terminfo.src
+    VERBATIM
+)
+
+add_custom_target(ncurses_terminfo ALL DEPENDS ${GEN}/terminfo.stamp)
+
+install(DIRECTORY ${GEN}/terminfo/ DESTINATION ${CMAKE_INSTALL_PREFIX}/share/terminfo)
 
 # ncurses shared library
 
