@@ -1239,22 +1239,31 @@ nt_status pty_server::ioctl(uint32_t code, span<const uint8_t> inbuf,
 }
 
 nt_status pty_server::get_client(span<uint8_t> outbuf, uintptr_t& written) {
+    nt_status status;
     auto& t = *get_current_thread();
 
     if (outbuf.size() < sizeof(HANDLE))
         return nt_status::BUFFER_TOO_SMALL;
 
-    auto client_file = new file(client, 0);
+    client.acquire();
+
+    auto obj1 = object_ref{client};
+
+    status = object_userspace_open(obj1);
+    if (!success(status))
+        return status;
+
+    auto client_file = new file(obj1.get(), 0);
     if (!client_file) {
         print("new failed\n");
         return nt_status::INSUFFICIENT_RESOURCES;
     }
 
-    auto obj = object_ref{*client_file};
+    auto obj2 = object_ref{*client_file};
     handle_t client_handle;
 
-    auto status = t.proc->add_handle(obj.get(), FILE_READ_DATA | FILE_WRITE_DATA,
-                                     true, client_handle);
+    status = t.proc->add_handle(obj2.get(), FILE_READ_DATA | FILE_WRITE_DATA,
+                                true, client_handle);
     if (!success(status))
         return status;
 
