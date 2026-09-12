@@ -30,6 +30,7 @@ import process;
 import list;
 import vfs;
 import vec;
+import visit;
 
 using namespace std;
 
@@ -277,7 +278,13 @@ static nt_status create_pty(span<const uint8_t> inbuf, span<uint8_t> outbuf,
     if (!success(status))
         return status;
 
-    auto client_file = new file(*pptr_client, 0);
+    status = object_userspace_open(obj3);
+    if (!success(status)) {
+        t.proc->close_handle(server_handle);
+        return status;
+    }
+
+    auto client_file = new file(obj3.get(), 0);
     if (!client_file) {
         print("new failed\n");
         t.proc->close_handle(server_handle);
