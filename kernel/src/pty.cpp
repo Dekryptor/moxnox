@@ -483,20 +483,43 @@ sync_object& pty_client::get_sync_object() {
 }
 
 void pty_client::server_disconnected() {
-    sync_lock sl;
-    lock_guard l(sl);
+    {
+        sync_lock sl;
+        lock_guard l(sl);
 
-    disconnected = true;
+        disconnected = true;
 
-    send_pipe.readonly = true;
+        send_pipe.readonly = true;
 
-    if (!send_pipe.not_full_event.signalled)
-        send_pipe.not_full_event.set_holding_sync_lock();
+        if (!send_pipe.not_full_event.signalled)
+            send_pipe.not_full_event.set_holding_sync_lock();
 
-    if (!recv_pipe.signalled) {
-        recv_pipe.signalled = true;
+        if (!recv_pipe.signalled) {
+            recv_pipe.signalled = true;
 
-        wake_up_waiters(recv_pipe.waiters, WAIT_TYPE_READING);
+            wake_up_waiters(recv_pipe.waiters, WAIT_TYPE_READING);
+        }
+    }
+
+    if (!(settings.c_cflag & CLOCAL)) {
+        process_group* pg = nullptr;
+
+        {
+            lock_guard lock(fg_pg_lock);
+
+            if (fg_pg) {
+                fg_pg->acquire();
+                pg = fg_pg;
+            }
+        }
+
+        if (pg) {
+            auto status = pg->sess.send_signal(SIGHUP);
+            if (!success(status))
+                print("session::send_signal returned {}\n", status);
+
+            pg->release();
+        }
     }
 }
 

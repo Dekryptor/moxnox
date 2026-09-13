@@ -7662,3 +7662,36 @@ nt_status process::do_fork(span<const uint8_t> buf) {
 
     return nt_status::SUCCESS;
 }
+
+nt_status session::send_signal(int sig) {
+    process* proc = nullptr;
+
+    {
+        lock_guard lock(process_list_lock);
+
+        auto n = find_rbtree_node(process_tree, pid);
+
+        if (n && n->key == pid) {
+            auto& p = rbtree_containing_record<process>(n);
+
+            if (!p.try_acquire())
+                return nt_status::SUCCESS;
+
+            proc = &p;
+        }
+    }
+
+    if (!proc)
+        return nt_status::SUCCESS;
+
+    auto status = set_pending_signal2(*proc, sig);
+
+    if (!success(status)) {
+        proc->release();
+        return status;
+    }
+
+    proc->release();
+
+    return nt_status::SUCCESS;
+}

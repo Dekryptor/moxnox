@@ -41,6 +41,8 @@ public:
             delete this;
     }
 
+    nt_status send_signal(int sig);
+
     uintptr_t pid;
     spinlock lock;
     object_ref terminal;
