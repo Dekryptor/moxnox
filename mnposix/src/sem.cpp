@@ -103,11 +103,31 @@ int sem_wait(sem_t* sem) {
         }
 
         while (true) {
+            auto sig_count = mn_handled_nonrestartable_signal_count();
+
             status = NtWaitForSingleObject(event_handle, false, nullptr);
 
-            if (status == nt_status::USER_APC)
+            if (status == nt_status::USER_APC) {
+                if (mn_handled_nonrestartable_signal_count() != sig_count) {
+                    *_errno() = EINTR;
+
+                    while (true) {
+                        v = r.load(memory_order_relaxed);
+                        newval = create_value(extract_count(v), extract_waiters(v) - 1);
+
+                        if (r.compare_exchange_weak(v, newval, memory_order_acquire,
+                                                    memory_order_relaxed)) {
+                            break;
+                        }
+                    }
+
+                    return -1;
+                }
+
                 continue;
-            else if (!success(status)) {
+            }
+
+            if (!success(status)) {
                 *_errno() = nt_status_to_errno(status);
 
                 while (true) {
