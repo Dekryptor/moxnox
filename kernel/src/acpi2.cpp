@@ -1040,8 +1040,8 @@ void AcpiOsWaitEventsComplete() {
 }
 
 extern "C"
-void AcpiOsSleep(UINT64 /*Milliseconds*/) {
-    print("FIXME - AcpiOsSleep\n");
+void AcpiOsSleep(UINT64 Milliseconds) {
+    msleep((unsigned int)Milliseconds);
 }
 
 extern "C"
