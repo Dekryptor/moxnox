@@ -1,3 +1,5 @@
+add_custom_target(gcc)
+
 if(NOT CMAKE_SYSTEM_PROCESSOR STREQUAL "amd64")
     # no aarch64-pc-moxnox GCC yet
     return()
@@ -105,9 +107,13 @@ add_custom_command(
     VERBATIM
 )
 
-add_custom_target(gcc
+add_custom_command(
+    OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/gcc-built
+    COMMAND ${CMAKE_COMMAND} -E touch ${CMAKE_CURRENT_BINARY_DIR}/gcc-built
     DEPENDS ${CMAKE_CURRENT_BINARY_DIR}/gcc.stamp
 )
+
+target_sources(gcc PRIVATE ${CMAKE_CURRENT_BINARY_DIR}/gcc-built)
 
 install(DIRECTORY ${GCC_DEST}/usr/ DESTINATION ${CMAKE_INSTALL_PREFIX}/
     USE_SOURCE_PERMISSIONS OPTIONAL
