@@ -262,11 +262,24 @@ ssize_t recvmsg(int s, msghdr* msg, int flags) {
         return -1;
 
     while (true) {
+        auto sig_count = mn_handled_nonrestartable_signal_count();
+
         auto status = NtDeviceIoControlFile((HANDLE)h, 0, nullptr, nullptr, &iosb,
                                             IOCTL_MOXNOX_SOCKET_RECVMSG, &params,
                                             (uint32_t)sizeof(params), nullptr, 0);
-        if (status == nt_status::USER_APC)
+
+        if (status == nt_status::USER_APC) {
+            if (mn_handled_nonrestartable_signal_count() != sig_count) {
+                *_errno() = EINTR;
+
+                if (handles)
+                    free(handles);
+
+                return -1;
+            }
+
             continue;
+        }
 
         if (!success(status)) {
             *_errno() = nt_status_to_errno(status);
