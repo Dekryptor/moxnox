@@ -1219,11 +1219,19 @@ ssize_t pread(int fd, void* buf, size_t count, off_t offset) {
     off.QuadPart = offset;
 
     while (true) {
+        auto sig_count = mn_handled_nonrestartable_signal_count();
+
         auto status = NtReadFile(h, 0, nullptr, nullptr, &iosb, buf,
                                 (uint32_t)count, &off, nullptr);
 
-        if (status == nt_status::USER_APC)
+        if (status == nt_status::USER_APC) {
+            if (mn_handled_nonrestartable_signal_count() != sig_count) {
+                *_errno() = EINTR;
+                return -1;
+            }
+
             continue;
+        }
 
         if (status == nt_status::END_OF_FILE || status == nt_status::PIPE_DISCONNECTED)
             return 0;
