@@ -12,8 +12,9 @@ import errno;
 
 extern "C"
 int nanosleep(const timespec* duration, timespec* rem) {
+    nt_status status;
     uint64_t dur_ns, units;
-    LARGE_INTEGER t, now;
+    LARGE_INTEGER t, start, freq;
 
     if (!duration || duration->tv_sec < 0 || duration->tv_nsec >= 1000000000) {
         *_errno() = EINVAL;
@@ -31,10 +32,35 @@ int nanosleep(const timespec* duration, timespec* rem) {
 
     t.QuadPart = -(int64_t)units;
 
-    if (rem)
-        RtlQueryPerformanceCounter(&now);
+    RtlQueryPerformanceCounter(&start);
+    RtlQueryPerformanceFrequency(&freq);
 
-    auto status = NtDelayExecution(true, &t);
+    while (true) {
+        auto sig_count = mn_handled_nonrestartable_signal_count();
+
+        status = NtDelayExecution(true, &t);
+
+        if (status == nt_status::USER_APC && mn_handled_nonrestartable_signal_count() == sig_count) {
+            LARGE_INTEGER now;
+
+            RtlQueryPerformanceCounter(&now);
+
+            auto elapsed_ticks = (uint64_t)(now.QuadPart - start.QuadPart);
+            auto f = (uint64_t)freq.QuadPart;
+
+            auto elapsed = ((elapsed_ticks / f) * 10000000) + (((elapsed_ticks % f) * 10000000) / f);
+
+            if (units <= elapsed)
+                return 0;
+
+            t.QuadPart = -(int64_t)(units - elapsed);
+
+            continue;
+        }
+
+        break;
+    }
+
     if (!success(status)) {
         *_errno() = nt_status_to_errno(status);
         return -1;
@@ -42,16 +68,15 @@ int nanosleep(const timespec* duration, timespec* rem) {
 
     if (status == nt_status::USER_APC) {
         if (rem) {
-            LARGE_INTEGER then, freq;
+            LARGE_INTEGER now;
             uint64_t dur_ticks, elapsed_ticks, left_ticks;
 
-            RtlQueryPerformanceCounter(&then);
-            RtlQueryPerformanceFrequency(&freq);
+            RtlQueryPerformanceCounter(&now);
 
             dur_ticks = duration->tv_sec * freq.QuadPart;
             dur_ticks += duration->tv_nsec * freq.QuadPart / 1000000000;
 
-            elapsed_ticks = then.QuadPart - now.QuadPart;
+            elapsed_ticks = now.QuadPart - start.QuadPart;
 
             left_ticks = elapsed_ticks < dur_ticks ? dur_ticks - elapsed_ticks : 0;
 
