@@ -168,11 +168,19 @@ pid_t waitpid(pid_t pid, int* wstatus, int options) {
     params.continued = !!(options & WCONTINUED);
 
     while (true) {
+        auto sig_count = mn_handled_nonrestartable_signal_count();
+
         status = NtSetInformationProcess(NtCurrentProcess(),
                                          PROCESS_INFORMATION_CLASS::MoxnoxWaitPid,
                                          &params, sizeof(params));
-        if (status == nt_status::USER_APC)
+        if (status == nt_status::USER_APC) {
+            if (mn_handled_nonrestartable_signal_count() != sig_count) {
+                *_errno() = EINTR;
+                return -1;
+            }
+
             continue;
+        }
 
         break;
     }
