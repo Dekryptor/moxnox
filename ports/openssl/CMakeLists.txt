@@ -86,7 +86,6 @@ add_custom_command(
     COMMAND ${HOST_MAKE} -C ${GEN} build_all_generated libcrypto.def libssl.def
     COMMAND ${HOST_SED} -i [[s|^LIBRARY .*|LIBRARY         "libcrypto"|]] ${GEN}/libcrypto.def
     COMMAND ${HOST_SED} -i [[s|^LIBRARY .*|LIBRARY         "libssl"|]] ${GEN}/libssl.def
-    COMMAND ${HOST_SED} -z -i [[s|#if defined(OPENSSL_THREADS) && !defined(CRYPTO_TDEBUG)\n#if defined(_WIN32)|#if defined(OPENSSL_THREADS) \&\& !defined(CRYPTO_TDEBUG)\n#if defined(_WIN32) \&\& !defined(MOXNOX)|g]] ${GEN}/include/openssl/crypto.h
     DEPENDS ${GEN}/configdata.pm
     VERBATIM
 )
@@ -130,16 +129,12 @@ openssl_patch(include/openssl/e_ostime.h
     -e [[s|#if defined(OPENSSL_SYS_WINDOWS)\n#if !defined(_WINSOCKAPI_)|#if defined(OPENSSL_SYS_WINDOWS) \&\& !defined(MOXNOX)\n#if !defined(_WINSOCKAPI_)|g]]
 )
 
-openssl_patch(crypto/bio/bio_local.h
-    -e [[s|#ifdef _WIN32\n#define UP_fileno _fileno|#if defined(_WIN32) \&\& !defined(MOXNOX)\n#define UP_fileno _fileno|g]]
-)
-
-# bss_fd.c: copied so that it picks up the patched bio_local.h
+# bio_local.h: copied unpatched so that the patched bio sources beside it find it
 add_custom_command(
-    OUTPUT ${GEN}/crypto/bio/bss_fd.c
+    OUTPUT ${GEN}/crypto/bio/bio_local.h
     COMMAND ${CMAKE_COMMAND} -E copy
-            ${CMAKE_CURRENT_SOURCE_DIR}/repo/crypto/bio/bss_fd.c ${GEN}/crypto/bio/bss_fd.c
-    DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/repo/crypto/bio/bss_fd.c
+            ${CMAKE_CURRENT_SOURCE_DIR}/repo/crypto/bio/bio_local.h ${GEN}/crypto/bio/bio_local.h
+    DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/repo/crypto/bio/bio_local.h
     VERBATIM
 )
 
@@ -150,7 +145,6 @@ openssl_patch(crypto/bio/bss_file.c
 )
 
 openssl_patch(crypto/bio/bio_sock.c
-    -e [[s|#elif defined _WIN32\n#include <winsock.h> /\* for type fd_set \*/|#elif defined _WIN32\n#ifdef MOXNOX\n#include <poll.h>\n#else\n#include <winsock.h> /* for type fd_set */\n#endif|g]]
     -e [[s|#ifdef OPENSSL_SYS_WINDOWS\n    static struct WSAData wsa_state\;|#if defined(OPENSSL_SYS_WINDOWS) \&\& !defined(MOXNOX)\n    static struct WSAData wsa_state\;|g]]
     -e [[s|#ifdef OPENSSL_SYS_WINDOWS\n    if (wsa_init_done) {|#if defined(OPENSSL_SYS_WINDOWS) \&\& !defined(MOXNOX)\n    if (wsa_init_done) {|g]]
     -e [[s@#if defined(OPENSSL_SYS_WINDOWS) || !defined(POLLIN)@#if (defined(OPENSSL_SYS_WINDOWS) \&\& !defined(MOXNOX)) || !defined(POLLIN)@g]]
@@ -163,27 +157,13 @@ openssl_patch(crypto/bio/bio_addr.c
     -e [[s|    err:\n        CRYPTO_THREAD_unlock(bio_lookup_lock)\;\n|    err:\n        CRYPTO_THREAD_unlock(bio_lookup_lock)\;\n#endif\n|g]]
 )
 
-openssl_patch(crypto/cryptlib.c
-    -e [[s|#if defined(_WIN32) && !defined(OPENSSL_SYS_UEFI)\n#include <tchar.h>|#if defined(_WIN32) \&\& !defined(OPENSSL_SYS_UEFI) \&\& !defined(MOXNOX)\n#include <tchar.h>|g]]
-    -e [[s@#if !defined(_WIN32) || defined(OPENSSL_SYS_UEFI)\n    abort()\;@#if !defined(_WIN32) || defined(OPENSSL_SYS_UEFI) || defined(MOXNOX)\n    abort()\;@g]]
-)
-
-openssl_patch(crypto/getenv.c
-    -e [[s|#if defined(_WIN32) && defined(CP_UTF8) && !defined(_WIN32_WCE)|#if defined(_WIN32) \&\& defined(CP_UTF8) \&\& !defined(_WIN32_WCE) \&\& !defined(MOXNOX)|g]]
-)
 
 openssl_patch(crypto/time.c
     -e [[s|#include "internal/e_os.h"|#include "internal/e_os.h"\n\n#ifdef MOXNOX\n#include <sys/time.h>\n#endif|g]]
-    -e [[s|#if defined(_WIN32) && !defined(OPENSSL_SYS_UEFI)\n    SYSTEMTIME st\;|#if defined(_WIN32) \&\& !defined(OPENSSL_SYS_UEFI) \&\& !defined(MOXNOX)\n    SYSTEMTIME st\;|g]]
 )
 
 openssl_patch(crypto/o_dir.c
     -e [[s@#if defined OPENSSL_SYS_UNIX || defined DJGPP@#if defined OPENSSL_SYS_UNIX || defined MOXNOX || defined DJGPP@g]]
-)
-
-# avoid _wfopen
-openssl_patch(crypto/o_fopen.c
-    -e [[s|#if defined(_WIN32) && defined(CP_UTF8)|#if defined(_WIN32) \&\& defined(CP_UTF8) \&\& !defined(MOXNOX)|g]]
 )
 
 openssl_patch(providers/implementations/rands/seeding/rand_win.c
@@ -200,7 +180,6 @@ openssl_patch(providers/implementations/rands/seeding/rand_unix.c
 
 # avoid WideCharToMultiByte
 openssl_patch(crypto/rand/randfile.c
-    -e [[s|#if defined(_WIN32) && defined(CP_UTF8) && !defined(_WIN32_WCE)|#if defined(_WIN32) \&\& defined(CP_UTF8) \&\& !defined(_WIN32_WCE) \&\& !defined(MOXNOX)|g]]
     -e [[s|#define fileno _fileno|//#define fileno _fileno|g]]
     -e [[s|#include <io.h>|#define NO_OLDNAMES\n#include <io.h>\n#undef NO_OLDNAMES|g]]
 )
@@ -218,10 +197,6 @@ openssl_patch(crypto/thread/arch/thread_win.c
 )
 openssl_patch(crypto/thread/arch/thread_posix.c
     -e [[s|#if defined(OPENSSL_THREADS_POSIX)|#if defined(OPENSSL_THREADS_POSIX) \|\| defined(MOXNOX)|g]]
-)
-
-openssl_patch(crypto/bn/bn_exp.c
-    -e [[s|#ifdef _WIN32|#if defined(_WIN32) \&\& !defined(MOXNOX)|g]]
 )
 
 add_library(libcrypto SHARED
@@ -331,7 +306,7 @@ add_library(libcrypto SHARED
     repo/crypto/bio/bss_core.c
     repo/crypto/bio/bss_dgram.c
     repo/crypto/bio/bss_dgram_pair.c
-    ${GEN}/crypto/bio/bss_fd.c
+    repo/crypto/bio/bss_fd.c
     ${GEN}/crypto/bio/bss_file.c
     repo/crypto/bio/bss_log.c
     repo/crypto/bio/bss_mem.c
@@ -347,7 +322,7 @@ add_library(libcrypto SHARED
     repo/crypto/bn/bn_dh.c
     repo/crypto/bn/bn_div.c
     repo/crypto/bn/bn_err.c
-    ${GEN}/crypto/bn/bn_exp.c
+    repo/crypto/bn/bn_exp.c
     repo/crypto/bn/bn_exp2.c
     repo/crypto/bn/bn_gcd.c
     repo/crypto/bn/bn_gf2m.c
@@ -441,7 +416,7 @@ add_library(libcrypto SHARED
     repo/crypto/crmf/crmf_err.c
     repo/crypto/crmf/crmf_lib.c
     repo/crypto/crmf/crmf_pbm.c
-    ${GEN}/crypto/cryptlib.c
+    repo/crypto/cryptlib.c
     repo/crypto/ct/ct_b64.c
     repo/crypto/ct/ct_err.c
     repo/crypto/ct/ct_log.c
@@ -657,7 +632,7 @@ add_library(libcrypto SHARED
     repo/crypto/ffc/ffc_params.c
     repo/crypto/ffc/ffc_params_generate.c
     repo/crypto/ffc/ffc_params_validate.c
-    ${GEN}/crypto/getenv.c
+    repo/crypto/getenv.c
     repo/crypto/hashtable/hashfunc.c
     repo/crypto/hashtable/hashtable.c
     repo/crypto/hmac/hmac.c
@@ -710,7 +685,7 @@ add_library(libcrypto SHARED
     repo/crypto/modes/xts128.c
     repo/crypto/modes/xts128gb.c
     ${GEN}/crypto/o_dir.c
-    ${GEN}/crypto/o_fopen.c
+    repo/crypto/o_fopen.c
     repo/crypto/o_init.c
     repo/crypto/o_str.c
     repo/crypto/o_time.c
@@ -1368,15 +1343,10 @@ openssl_patch(apps/cmp.c
 
 openssl_patch(apps/lib/apps.c
     -e [[s|#include <sys/stat.h>|#include <sys/stat.h>\nint _access(const char *, int)\;|g]]
-    -e [[s|#ifdef _WIN32\nstatic int WIN32_rename|#if defined(_WIN32) \&\& !defined(MOXNOX)\nstatic int WIN32_rename|g]]
     -e [[s@#if defined(OPENSSL_SYS_WINDOWS) || defined(OPENSSL_SYS_MSDOS)\n#include <conio.h>@#if (defined(OPENSSL_SYS_WINDOWS) || defined(OPENSSL_SYS_MSDOS)) \&\& !defined(MOXNOX)\n#include <conio.h>@g]]
-    -e [[s|#if defined(_WIN32)\n#ifdef fileno|#if defined(_WIN32) \&\& !defined(MOXNOX)\n#ifdef fileno|g]]
-    -e [[s|/\* app_tminterval section \*/\n#if defined(_WIN32)|/* app_tminterval section */\n#if defined(_WIN32) \&\& !defined(MOXNOX)|g]]
     -e [[s@#elif defined(OPENSSL_SYS_VXWORKS)\n#include <time.h>@#elif defined(OPENSSL_SYS_VXWORKS) || defined(MOXNOX)\n#include <time.h>@g]]
     -e [[s@#ifdef CLOCK_REALTIME@#if defined(CLOCK_REALTIME) || defined(MOXNOX)@g]]
     -e [[s|    clock_gettime(CLOCK_REALTIME, &now)\;|#ifdef MOXNOX\n    clock_gettime(CLOCK_MONOTONIC, \&now)\;\n#else\n    clock_gettime(CLOCK_REALTIME, \&now)\;\n#endif|g]]
-    -e [[s|#if defined(_WIN32) && defined(STD_INPUT_HANDLE)|#if defined(_WIN32) \&\& defined(STD_INPUT_HANDLE) \&\& !defined(MOXNOX)|g]]
-    -e [[s|#if defined(_WIN32) && defined(STD_OUTPUT_HANDLE)|#if defined(_WIN32) \&\& defined(STD_OUTPUT_HANDLE) \&\& !defined(MOXNOX)|g]]
     -e [[s|#if defined(OPENSSL_SYS_MSDOS)\nint has_stdin_waiting(void)|#if defined(OPENSSL_SYS_MSDOS) \&\& !defined(MOXNOX)\nint has_stdin_waiting(void)|g]]
 )
 
@@ -1394,12 +1364,7 @@ openssl_patch(apps/s_server.c
 )
 
 openssl_patch(apps/speed.c
-    -e [[s|#if defined(_WIN32)\n            (void)VirtualLock|#if defined(_WIN32) \&\& !defined(MOXNOX)\n            (void)VirtualLock|g]]
     -e [[s|#elif defined(OPENSSL_SYS_WINDOWS)\n            if (num_job_fds == 1|#elif defined(OPENSSL_SYS_WINDOWS) \&\& !defined(MOXNOX)\n            if (num_job_fds == 1|g]]
-)
-
-openssl_patch(apps/lib/opt.c
-    -e [[s|#ifdef _WIN32\n#include <windows.h>\nint opt_isdir|#if defined(_WIN32) \&\& !defined(MOXNOX)\n#include <windows.h>\nint opt_isdir|g]]
 )
 
 set(OPENSSL_APPS_SOURCES
@@ -1440,7 +1405,7 @@ set(OPENSSL_APPS_SOURCES
     repo/apps/lib/http_server.c
     repo/apps/lib/log.c
     repo/apps/lib/names.c
-    ${GEN}/apps/lib/opt.c
+    repo/apps/lib/opt.c
     repo/apps/lib/s_cb.c
     repo/apps/lib/s_socket.c
     repo/apps/lib/tlssrp_depr.c
