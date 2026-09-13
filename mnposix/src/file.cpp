@@ -1939,12 +1939,20 @@ ssize_t readv(int fd, const iovec* iov, int iovcnt) {
         return -1;
 
     while (true) {
+        auto sig_count = mn_handled_nonrestartable_signal_count();
+
         auto status = NtDeviceIoControlFile(h, 0, nullptr, nullptr, &iosb,
                                             IOCTL_MOXNOX_FILE_READV, iov,
                                             (uint32_t)sizeof(iovec) * iovcnt, &bytes,
                                             sizeof(bytes));
-        if (status == nt_status::USER_APC)
+        if (status == nt_status::USER_APC) {
+            if (mn_handled_nonrestartable_signal_count() != sig_count) {
+                *_errno() = EINTR;
+                return -1;
+            }
+
             continue;
+        }
 
         if (!success(status)) {
             *_errno() = nt_status_to_errno(status);
