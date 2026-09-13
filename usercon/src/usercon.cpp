@@ -2395,6 +2395,7 @@ static int do_console(const char16_t* shell) {
     bool no_framebuffer = false;
 
     setenv("TERM", "xterm-16color", 1);
+    setenv("LANG", "C.UTF-8", 1);
 
     framebuffer = init_framebuffer(no_framebuffer);
 #ifdef __x86_64__
@@ -2522,6 +2523,7 @@ static int do_serial_console(const char16_t* exe) {
     static const u16string_view ptyctl_fn = u"\\dev\\ptyctl";
 
     setenv("TERM", "xterm-16color", 1);
+    setenv("LANG", "C.UTF-8", 1);
 
     // open ptyctl
 
