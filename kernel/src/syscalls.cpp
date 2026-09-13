@@ -378,7 +378,8 @@ static NTSTATUS copy_object_attributes(OBJECT_ATTRIBUTES& oa, UNICODE_STRING& us
         if (!copy_from_process(&us, oa.ObjectName, sizeof(UNICODE_STRING)))
             return nt_status::ACCESS_VIOLATION;
 
-        // FIXME - make sure no denial of service if us.Length is ludicrous value (max value?)
+        if (us.Length > PAGE_SIZE)
+            return nt_status::INVALID_PARAMETER;
 
         if (us.Length == 0)
             us.Buffer = nullptr;
