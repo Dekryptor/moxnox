@@ -2000,10 +2000,19 @@ int __write(int fd, const void* buffer, unsigned int count) {
         return -1;
 
     while (true) {
+        auto sig_count = mn_handled_nonrestartable_signal_count();
+
         auto status = NtWriteFile(h, 0, nullptr, nullptr, &iosb, buffer,
                                 count, nullptr, nullptr);
-        if (status == nt_status::USER_APC)
+
+        if (status == nt_status::USER_APC) {
+            if (mn_handled_nonrestartable_signal_count() != sig_count) {
+                *__errno() = EINTR;
+                return -1;
+            }
+
             continue;
+        }
 
         if (!success(status)) {
             *__errno() = nt_status_to_errno(status);
