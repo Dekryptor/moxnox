@@ -173,12 +173,25 @@ ssize_t sendmsg(int s, const msghdr* msg, int flags) {
     p->sent_bytes = &sent_bytes;
 
     while (true) {
+        auto sig_count = mn_handled_nonrestartable_signal_count();
+
         auto status = NtDeviceIoControlFile((HANDLE)h, 0, nullptr, nullptr, &iosb,
                                             IOCTL_MOXNOX_SOCKET_SENDMSG, p,
                                             (uint32_t)(offsetof(MOXNOX_SOCKET_SENDMSG, handles) + (num_fds * sizeof(HANDLE))),
                                             nullptr, 0);
-        if (status == nt_status::USER_APC)
+
+        if (status == nt_status::USER_APC) {
+            if (mn_handled_nonrestartable_signal_count() != sig_count) {
+                *_errno() = EINTR;
+
+                if (num_fds > 0)
+                    free(p);
+
+                return -1;
+            }
+
             continue;
+        }
 
         if (!success(status)) {
             *_errno() = nt_status_to_errno(status);
