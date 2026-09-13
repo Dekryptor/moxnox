@@ -19,8 +19,12 @@ git_patch(compat/posix.h
     -e [[s|#include <sys/ioctl.h>|#ifndef __moxnox__\n#include <sys/ioctl.h>\n#endif|g]]
 )
 
-git_patch(git-compat-util.h
-    -e [[s|#if defined(__MINGW32__)|#if defined(__MINGW32__) \&\& !defined(MOXNOX)|g]]
+add_custom_command(
+    OUTPUT ${GEN}/git-compat-util.h
+    COMMAND ${CMAKE_COMMAND} -E copy
+            ${CMAKE_CURRENT_SOURCE_DIR}/repo/git-compat-util.h ${GEN}/git-compat-util.h
+    DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/repo/git-compat-util.h
+    VERBATIM
 )
 
 add_custom_target(git_generate DEPENDS
