@@ -11,10 +11,6 @@ function(python_patch relpath)
     )
 endfunction()
 
-python_patch(Include/pythread.h
-    -e [[s|#if (defined(__APPLE__) \|\| defined(__linux__) \|\| defined(_WIN32) \\|#if (defined(__APPLE__) \|\| defined(__linux__) \|\| (defined(_WIN32) \&\& !defined(MOXNOX)) \\|g]]
-)
-
 add_custom_command(
     OUTPUT ${GEN}/Include/Python.h
     COMMAND ${CMAKE_COMMAND} -E copy
@@ -55,7 +51,6 @@ python_patch(Python/dynload_shlib.c
 )
 
 add_custom_target(python_patched_headers DEPENDS
-    ${GEN}/Include/pythread.h
     ${GEN}/Include/Python.h
 )
 
