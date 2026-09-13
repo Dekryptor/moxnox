@@ -79,9 +79,18 @@ int ppoll(pollfd* fds, nfds_t nfds, const timespec* timeout,
     p.nfds = nfds;
     p.fds = entries;
 
-    status = NtSetInformationThread(NtCurrentThread(),
-                                    THREAD_INFORMATION_CLASS::MoxnoxPoll,
-                                    &p, sizeof(p));
+    while (true) {
+        auto sig_count = mn_handled_nonrestartable_signal_count();
+
+        status = NtSetInformationThread(NtCurrentThread(),
+                                        THREAD_INFORMATION_CLASS::MoxnoxPoll,
+                                        &p, sizeof(p));
+
+        if (status == nt_status::USER_APC && mn_handled_nonrestartable_signal_count() == sig_count)
+            continue;
+
+        break;
+    }
 
     if (sigmask) {
         auto status2 = NtSetInformationThread(NtCurrentThread(),
