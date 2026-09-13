@@ -109,9 +109,13 @@ int fcntl(int fd, int op, ...) {
     va_list ap;
 
     switch (op) {
-        case F_DUPFD:
-            print("FIXME - fcntl with F_DUPFD\n");
-        break;
+        case F_DUPFD: {
+            va_start(ap, op);
+            auto arg = va_arg(ap, int);
+            va_end(ap);
+
+            return mn_dupfd(fd, arg, false);
+        }
 
         case F_GETFD:
             return getfd(fd);
@@ -147,9 +151,13 @@ int fcntl(int fd, int op, ...) {
             print("FIXME - fcntl with F_SETLKW\n");
         break;
 
-        case F_DUPFD_CLOEXEC:
-            print("FIXME - fcntl with F_DUPFD_CLOEXEC\n");
-        break;
+        case F_DUPFD_CLOEXEC: {
+            va_start(ap, op);
+            auto arg = va_arg(ap, int);
+            va_end(ap);
+
+            return mn_dupfd(fd, arg, true);
+        }
 
         default:
             print("FIXME - fcntl with unknown op {}\n", op);

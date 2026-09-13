@@ -2479,9 +2479,16 @@ static int dup2_from_handle(HANDLE h, int newfd, bool cloexec) {
 }
 
 extern "C"
-int __dup(int oldfd) {
+int mn_dupfd(int oldfd, int minfd, bool cloexec) {
+    auto& peb = *NtCurrentTeb()->ProcessEnvironmentBlock;
+
     if (oldfd < 0 || (size_t)oldfd >= fds.size()) {
         *__errno() = EBADF;
+        return -1;
+    }
+
+    if (minfd < 0 || (size_t)minfd >= fds.size()) {
+        *__errno() = EINVAL;
         return -1;
     }
 
@@ -2506,11 +2513,23 @@ int __dup(int oldfd) {
         return -1;
     }
 
-    for (size_t i = 0; i < fds.size(); i++) {
+    for (size_t i = minfd; i < fds.size(); i++) {
         if (fds[i].h == 0) {
             fds[i].h = newh;
-            fds[i].cloexec = false;
+            fds[i].cloexec = cloexec;
             RtlLeaveCriticalSection(&fds_lock);
+
+            if (i == 0) {
+                peb.ProcessParameters->StandardInput = newh;
+                reinterpret_cast<_FILE*>(&_stdin)->h = newh;
+            } else if (i == 1) {
+                peb.ProcessParameters->StandardOutput = newh;
+                reinterpret_cast<_FILE*>(&_stdout)->h = newh;
+            } else if (i == 2) {
+                peb.ProcessParameters->StandardError = newh;
+                reinterpret_cast<_FILE*>(&_stderr)->h = newh;
+            }
+
             return (int)i;
         }
     }
@@ -2522,6 +2541,11 @@ int __dup(int oldfd) {
     *__errno() = EMFILE;
 
     return -1;
+}
+
+extern "C"
+int __dup(int oldfd) {
+    return mn_dupfd(oldfd, 0, false);
 }
 
 extern "C"

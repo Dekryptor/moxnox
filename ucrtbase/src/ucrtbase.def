@@ -388,3 +388,4 @@ wcscat
 fgetpos
 fsetpos
 mn_handled_nonrestartable_signal_count
+mn_dupfd

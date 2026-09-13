@@ -136,6 +136,7 @@ int _pipe(int* pfds, unsigned int size, int textmode);
 errno_t _gmtime64_s(struct tm* tm, const __time64_t* t);
 errno_t strerror_s(char* buffer, size_t size, int errnum);
 FILE* mn_open_memstream(char** bufp, size_t* sizep);
+int mn_dupfd(int oldfd, int minfd, bool cloexec);
 
 }
 
