@@ -1,0 +1,7 @@
+#define HAVE_LOCALECONV 1
+#define HAVE_SETLOCALE 1
+#define HAVE_STDINT_H 1
+#define HAVE_STDIO_H 1
+#define HAVE_STDLIB_H 1
+#define HAVE_INTTYPES_H 1
+#define HAVE_GETTIMEOFDAY 1

@@ -33,6 +33,7 @@
     "m4": ["gnulib", "libiconv"],
     "make": ["gnulib"],
     "mesa": ["zlib"],
+    "mpc": ["gmp", "mpfr"],
     "mpfr": ["gmp"],
     "nano": ["gnulib", "ncurses"],
     "ncurses": [],
