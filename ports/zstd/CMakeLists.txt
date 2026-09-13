@@ -38,30 +38,14 @@ install(TARGETS zstd DESTINATION ${CMAKE_INSTALL_PREFIX}/lib
 # FIXME - zlib dependency?
 
 set(ZSTD_PROG ${CMAKE_CURRENT_SOURCE_DIR}/repo/programs)
-set(ZSTD_GEN ${CMAKE_CURRENT_BINARY_DIR}/programs)
-file(MAKE_DIRECTORY ${ZSTD_GEN})
-
-add_custom_command(
-    OUTPUT ${ZSTD_GEN}/fileio.c
-    COMMAND sh -c "sed -e 's/#elif defined(_MSC_VER) || defined(_WIN32)/#elif (defined(_MSC_VER) || defined(_WIN32)) \\&\\& !defined(MOXNOX)/g' -e 's/#if defined(_WIN32)/#if defined(_WIN32) \\&\\& !defined(MOXNOX)/g' '${ZSTD_PROG}/fileio.c' > '${ZSTD_GEN}/fileio.c'"
-    DEPENDS ${ZSTD_PROG}/fileio.c
-    VERBATIM
-)
-
-add_custom_command(
-    OUTPUT ${ZSTD_GEN}/util.c
-    COMMAND sh -c "sed -e 's/#ifdef _WIN32/#if defined(_WIN32) \\&\\& !defined(MOXNOX)/g' -e 's/#if defined(_WIN32)$/#if defined(_WIN32) \\&\\& !defined(MOXNOX)/' -e 's/#if defined(_WIN32) || defined(WIN32)/#if (defined(_WIN32) || defined(WIN32)) \\&\\& !defined(MOXNOX)/g' -e 's/#if defined(_MSC_VER) || defined(__MINGW32__) || defined (__MSVCRT__)/#if (defined(_MSC_VER) || defined(__MINGW32__) || defined (__MSVCRT__)) \\&\\& !defined(MOXNOX)/g' -e '/include <sys.stat.h>.*utimensat/a #ifdef _WIN32\\n#undef st_mtime\\n#endif' '${ZSTD_PROG}/util.c' > '${ZSTD_GEN}/util.c'"
-    DEPENDS ${ZSTD_PROG}/util.c
-    VERBATIM
-)
 
 add_executable(zstdcli
     repo/lib/common/pool.c
     repo/programs/fileio_asyncio.c
     repo/programs/timefn.c
     repo/programs/zstdcli.c
-    ${ZSTD_GEN}/fileio.c
-    ${ZSTD_GEN}/util.c
+    repo/programs/fileio.c
+    repo/programs/util.c
 )
 
 set_target_properties(zstdcli PROPERTIES OUTPUT_NAME zstd)
