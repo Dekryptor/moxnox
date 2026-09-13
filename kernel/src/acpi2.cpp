@@ -32,6 +32,7 @@ import evdev_device;
 import evdev;
 import handle;
 import vec;
+import timer;
 
 using namespace std;
 
@@ -1044,8 +1045,8 @@ void AcpiOsSleep(UINT64 /*Milliseconds*/) {
 }
 
 extern "C"
-void AcpiOsStall(UINT32 /*Microseconds*/) {
-    print("FIXME - AcpiOsStall\n");
+void AcpiOsStall(UINT32 Microseconds) {
+    udelay(Microseconds);
 }
 
 #ifdef __x86_64__
