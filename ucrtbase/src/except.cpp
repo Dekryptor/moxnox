@@ -32,6 +32,7 @@ static RTL_CRITICAL_SECTION sig_handlers_lock;
 static array<struct ::sigaction, LAST_SIG> sig_handlers;
 
 static thread_local unsigned int handled_signal_count = 0;
+static thread_local unsigned int handled_nonrestartable_signal_count = 0;
 
 extern "C"
 int mn_sigaction(int sig, const struct sigaction* act,
@@ -218,6 +219,9 @@ static void signal_dispatch(int sig) {
     else {
         handled_signal_count++;
 
+        if (!(sa.sa_flags & SA_RESTART))
+            handled_nonrestartable_signal_count++;
+
         if (sa.sa_flags & SA_SIGINFO) {
             siginfo_t info;
 
@@ -270,4 +274,9 @@ export void init_signals() {
 extern "C"
 unsigned int mn_handled_signal_count() {
     return handled_signal_count;
+}
+
+extern "C"
+unsigned int mn_handled_nonrestartable_signal_count() {
+    return handled_nonrestartable_signal_count;
 }

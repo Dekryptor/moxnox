@@ -364,6 +364,7 @@ wcslen
 wcscat
 fgetpos
 fsetpos
+mn_handled_nonrestartable_signal_count
 
 ; stubs
 _beginthreadex
