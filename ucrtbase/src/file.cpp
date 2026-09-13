@@ -2034,10 +2034,19 @@ int __read(int fd, void* buffer, size_t count) {
         return -1;
 
     while (true) {
+        auto sig_count = mn_handled_nonrestartable_signal_count();
+
         auto status = NtReadFile(h, 0, nullptr, nullptr, &iosb, buffer,
                                 (uint32_t)count, nullptr, nullptr);
-        if (status == nt_status::USER_APC)
+
+        if (status == nt_status::USER_APC) {
+            if (mn_handled_nonrestartable_signal_count() != sig_count) {
+                *__errno() = EINTR;
+                return -1;
+            }
+
             continue;
+        }
 
         if (status == nt_status::END_OF_FILE || status == nt_status::PIPE_DISCONNECTED)
             return 0;
