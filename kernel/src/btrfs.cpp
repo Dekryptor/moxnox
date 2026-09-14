@@ -264,6 +264,7 @@ private:
     void free_root_list();
     void go_readonly();
     nt_status query_volume_size_info(span<uint8_t> buf, uint32_t& retlen);
+    nt_status query_volume_attribute_info(span<uint8_t> buf, uint32_t& retlen);
 };
 
 static_assert(cacheable_flushable<btrfs_filesystem>);
@@ -7120,6 +7121,9 @@ nt_status btrfs_filesystem::query_volume(FS_INFORMATION_CLASS fs_information_cla
         case SizeInformation:
             return query_volume_size_info(buf, retlen);
 
+        case AttributeInformation:
+            return query_volume_attribute_info(buf, retlen);
+
         default:
             return nt_status::NOT_SUPPORTED;
     }
@@ -7140,6 +7144,42 @@ nt_status btrfs_filesystem::query_volume_size_info(span<uint8_t> buf,
     info.BytesPerSector = sb->sectorsize;
 
     retlen = sizeof(FILE_FS_SIZE_INFORMATION);
+
+    return nt_status::SUCCESS;
+}
+
+nt_status btrfs_filesystem::query_volume_attribute_info(span<uint8_t> buf,
+                                                        uint32_t& retlen) {
+    static const u16string_view name = u"btrfs";
+
+    if (buf.size() < offsetof(FILE_FS_ATTRIBUTE_INFORMATION, FileSystemName))
+        return nt_status::INVALID_PARAMETER;
+
+    size_t name_len = min(name.size() * sizeof(char16_t),
+                          buf.size() - offsetof(FILE_FS_ATTRIBUTE_INFORMATION, FileSystemName));
+
+    auto& info = *(FILE_FS_ATTRIBUTE_INFORMATION*)buf.data();
+
+    info.FileSystemAttributes = FILE_CASE_PRESERVED_NAMES | FILE_CASE_SENSITIVE_SEARCH |
+                                FILE_UNICODE_ON_DISK | FILE_SUPPORTS_HARD_LINKS |
+                                FILE_SUPPORTS_REPARSE_POINTS | FILE_SUPPORTS_SPARSE_FILES |
+                                FILE_SUPPORTS_POSIX_UNLINK_RENAME;
+
+    // FIXME - FILE_SUPPORTS_OPEN_BY_FILE_ID, FILE_SUPPORTS_EXTENDED_ATTRIBUTES,
+    //         FILE_SUPPORTS_OBJECT_IDS, FILE_SUPPORTS_BLOCK_REFCOUNTING,
+    //         FILE_PERSISTENT_ACLS, FILE_NAMED_STREAMS
+
+    if (readonly)
+        info.FileSystemAttributes |= FILE_READ_ONLY_VOLUME;
+
+    info.MaximumComponentNameLength = 255;
+    info.FileSystemNameLength = (uint32_t)(name.size() * sizeof(char16_t));
+    memcpy(info.FileSystemName, name.data(), name_len);
+
+    retlen = (uint32_t)(offsetof(FILE_FS_ATTRIBUTE_INFORMATION, FileSystemName) + name_len);
+
+    if (name_len < name.size() * sizeof(char16_t))
+        return nt_status::BUFFER_OVERFLOW;
 
     return nt_status::SUCCESS;
 }
