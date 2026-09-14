@@ -1780,6 +1780,9 @@ long fpathconf(int /*fd*/, int name) {
         case _PC_PATH_MAX:
             return PATH_MAX;
 
+        case _PC_NAME_MAX:
+            return 255;
+
         default:
             *_errno() = EINVAL;
             return -1;
