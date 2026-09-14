@@ -59,6 +59,9 @@ long sysconf(int name) {
         case _SC_OPEN_MAX:
             return 2048; // hardcoded in ucrtbase
 
+        case _SC_HOST_NAME_MAX:
+            return 255; // minimum allowed by spec
+
         default:
             *_errno() = EINVAL;
             return -1;
