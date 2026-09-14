@@ -36,6 +36,7 @@ public:
 
 private:
     nt_status query_volume_size_info(span<uint8_t> buf, uint32_t& retlen);
+    nt_status query_volume_attribute_info(span<uint8_t> buf, uint32_t& retlen);
 };
 
 class devfs_inode : public inode {
@@ -364,6 +365,9 @@ nt_status devfs_filesystem::query_volume(FS_INFORMATION_CLASS fs_information_cla
         case SizeInformation:
             return query_volume_size_info(buf, retlen);
 
+        case AttributeInformation:
+            return query_volume_attribute_info(buf, retlen);
+
         default:
             return nt_status::NOT_SUPPORTED;
     }
@@ -382,6 +386,36 @@ nt_status devfs_filesystem::query_volume_size_info(span<uint8_t> buf,
     info.BytesPerSector = PAGE_SIZE;
 
     retlen = sizeof(FILE_FS_SIZE_INFORMATION);
+
+    return nt_status::SUCCESS;
+}
+
+nt_status devfs_filesystem::query_volume_attribute_info(span<uint8_t> buf,
+                                                        uint32_t& retlen) {
+    static const u16string_view name = u"devfs";
+
+    if (buf.size() < offsetof(FILE_FS_ATTRIBUTE_INFORMATION, FileSystemName))
+        return nt_status::INVALID_PARAMETER;
+
+    size_t name_len = min(name.size() * sizeof(char16_t),
+                          buf.size() - offsetof(FILE_FS_ATTRIBUTE_INFORMATION, FileSystemName));
+
+    auto& info = *(FILE_FS_ATTRIBUTE_INFORMATION*)buf.data();
+
+    info.FileSystemAttributes = FILE_CASE_PRESERVED_NAMES | FILE_CASE_SENSITIVE_SEARCH |
+                                FILE_UNICODE_ON_DISK;
+
+    // FIXME - FILE_PERSISTENT_ACLS, FILE_SUPPORTS_REPARSE_POINTS,
+    //         FILE_SUPPORTS_POSIX_UNLINK_RENAME
+
+    info.MaximumComponentNameLength = 255;
+    info.FileSystemNameLength = (uint32_t)(name.size() * sizeof(char16_t));
+    memcpy(info.FileSystemName, name.data(), name_len);
+
+    retlen = (uint32_t)(offsetof(FILE_FS_ATTRIBUTE_INFORMATION, FileSystemName) + name_len);
+
+    if (name_len < name.size() * sizeof(char16_t))
+        return nt_status::BUFFER_OVERFLOW;
 
     return nt_status::SUCCESS;
 }
