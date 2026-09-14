@@ -860,27 +860,56 @@ int link(const char* oldpath, const char* newpath) {
 
 static int do_statvfs(HANDLE h, struct statvfs& buf) {
     IO_STATUS_BLOCK iosb;
-    FILE_FS_SIZE_INFORMATION fsinfo;
+    FILE_FS_SIZE_INFORMATION size;
     nt_status status;
 
-    status = NtQueryVolumeInformationFile(h, &iosb, &fsinfo, sizeof(fsinfo),
+    struct {
+        FILE_FS_ATTRIBUTE_INFORMATION info;
+        char buf[48];
+    } __attribute((packed)) attr;
+
+    status = NtQueryVolumeInformationFile(h, &iosb, &size, sizeof(size),
                                           FS_INFORMATION_CLASS::SizeInformation);
     if (!success(status)) {
         *_errno() = nt_status_to_errno(status);
         return -1;
     }
 
-    buf.f_bsize = fsinfo.BytesPerSector * fsinfo.SectorsPerAllocationUnit;
+    status = NtQueryVolumeInformationFile(h, &iosb, &attr, sizeof(attr),
+                                          FS_INFORMATION_CLASS::AttributeInformation);
+    if (!success(status) && status != nt_status::BUFFER_OVERFLOW) {
+        *_errno() = nt_status_to_errno(status);
+        return -1;
+    }
+
+    auto name = u16string_view(attr.info.FileSystemName,
+                               (iosb.Information - offsetof(FILE_FS_ATTRIBUTE_INFORMATION, FileSystemName)) / sizeof(char16_t));
+
+    buf.f_bsize = size.BytesPerSector * size.SectorsPerAllocationUnit;
     buf.f_frsize = buf.f_bsize;
-    buf.f_blocks = (uint64_t)fsinfo.TotalAllocationUnits.QuadPart;
-    buf.f_bfree = (uint64_t)fsinfo.AvailableAllocationUnits.QuadPart;
+    buf.f_blocks = (uint64_t)size.TotalAllocationUnits.QuadPart;
+    buf.f_bfree = (uint64_t)size.AvailableAllocationUnits.QuadPart;
     buf.f_bavail = buf.f_bfree;
     buf.f_files = 0; // FIXME?
     buf.f_ffree = 0; // FIXME?
     buf.f_favail = 0; // FIXME?
     buf.f_fsid = 0; // FIXME?
-    buf.f_flag = 0; // FIXME - get readonly flag etc. from FS (ST_RDONLY)
-    buf.f_namemax = 255; // same as Linux
+    buf.f_flag = 0;
+
+    if (attr.info.FileSystemAttributes & FILE_READ_ONLY_VOLUME)
+        buf.f_flag |= ST_RDONLY;
+
+    // half-true, as this is UTF-16 characters
+    buf.f_namemax = attr.info.MaximumComponentNameLength;
+
+    auto len = utf16_to_utf8_len(name);
+
+    utf16_to_utf8(span(buf.f_basetype, sizeof(buf.f_basetype) - 1), name);
+
+    if (len >= sizeof(buf.f_basetype))
+        buf.f_basetype[sizeof(buf.f_basetype) - 1] = 0;
+    else
+        buf.f_basetype[len] = 0;
 
     return 0;
 }
