@@ -62,6 +62,9 @@ long sysconf(int name) {
         case _SC_HOST_NAME_MAX:
             return 255; // minimum allowed by spec
 
+        case _SC_GETPW_R_SIZE_MAX:
+            return 1024; // size of static_buf in mnposix/src/pwd.cpp
+
         default:
             *_errno() = EINVAL;
             return -1;
