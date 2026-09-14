@@ -56,6 +56,9 @@ long sysconf(int name) {
             return sbi.PageSize;
         }
 
+        case _SC_OPEN_MAX:
+            return 2048; // hardcoded in ucrtbase
+
         default:
             *_errno() = EINVAL;
             return -1;
