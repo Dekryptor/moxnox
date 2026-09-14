@@ -16,7 +16,7 @@ using namespace std;
 
 export using handle_t = uint64_t;
 
-export const size_t MAX_NAME_LEN = 256;
+export const size_t MAX_NAME_LEN = 255;
 
 export spinlock name_lock;
 export list_entry name_list = { &name_list, &name_list };
