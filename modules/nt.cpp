@@ -1455,6 +1455,32 @@ struct FILE_LINK_INFORMATION {
     char16_t FileName[1];
 };
 
+struct FILE_STAT_LX_INFORMATION {
+    LARGE_INTEGER FileId;
+    LARGE_INTEGER CreationTime;
+    LARGE_INTEGER LastAccessTime;
+    LARGE_INTEGER LastWriteTime;
+    LARGE_INTEGER ChangeTime;
+    LARGE_INTEGER AllocationSize;
+    LARGE_INTEGER EndOfFile;
+    uint32_t FileAttributes;
+    uint32_t ReparseTag;
+    uint32_t NumberOfLinks;
+    ACCESS_MASK EffectiveAccess;
+    uint32_t LxFlags;
+    uint32_t LxUid;
+    uint32_t LxGid;
+    uint32_t LxMode;
+    uint32_t LxDeviceIdMajor;
+    uint32_t LxDeviceIdMinor;
+};
+
+const uint32_t LX_FILE_METADATA_HAS_UID = 0x1;
+const uint32_t LX_FILE_METADATA_HAS_GID = 0x2;
+const uint32_t LX_FILE_METADATA_HAS_MODE = 0x4;
+const uint32_t LX_FILE_METADATA_HAS_DEVICE_ID = 0x8;
+const uint32_t LX_FILE_CASE_SENSITIVE_DIR = 0x10;
+
 struct FILE_FS_SIZE_INFORMATION {
     LARGE_INTEGER TotalAllocationUnits;
     LARGE_INTEGER AvailableAllocationUnits;
