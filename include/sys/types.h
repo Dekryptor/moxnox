@@ -8,7 +8,7 @@ typedef int64_t _off64_t;
 typedef _off64_t off64_t;
 typedef _off64_t off_t;
 
-typedef uint16_t ino_t; // FIXME
+typedef uint64_t ino_t;
 
 typedef uint32_t dev_t;
 
