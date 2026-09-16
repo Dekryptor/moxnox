@@ -75,7 +75,6 @@ _aligned_free
 __stdio_common_vsprintf
 _fseeki64
 _ftelli64
-_stat64
 getenv_s
 acos
 acosf
@@ -96,9 +95,6 @@ sincos
 sincosf
 trunc
 truncf
-_stat64i32
-_stat32i64
-_stat32
 ferror
 feof
 _open
@@ -106,10 +102,6 @@ strerror
 _fdopen
 _fileno
 clock
-_fstat64
-_fstat64i32
-_fstat32i64
-_fstat32
 _time32
 _time64
 _chmod

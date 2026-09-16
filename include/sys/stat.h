@@ -62,67 +62,6 @@ struct stat {
     blkcnt_t st_blocks;
 };
 
-#define _fstat _fstat64i32
-#define _fstati64 _fstat64
-#define _stat _stat64i32
-#define _stati64 _stat64
-
-struct _stat32 {
-    dev_t st_dev;
-    ino_t st_ino;
-    unsigned short st_mode;
-    short st_nlink;
-    short st_uid;
-    short st_gid;
-    dev_t st_rdev;
-    _off_t st_size;
-    __time32_t st_atime;
-    __time32_t st_mtime;
-    __time32_t st_ctime;
-};
-
-struct _stat32i64 {
-    dev_t st_dev;
-    ino_t st_ino;
-    unsigned short st_mode;
-    short st_nlink;
-    short st_uid;
-    short st_gid;
-    dev_t st_rdev;
-    long long st_size;
-    __time32_t st_atime;
-    __time32_t st_mtime;
-    __time32_t st_ctime;
-};
-
-struct _stat64i32 {
-    dev_t st_dev;
-    ino_t st_ino;
-    unsigned short st_mode;
-    short st_nlink;
-    short st_uid;
-    short st_gid;
-    dev_t st_rdev;
-    _off_t st_size;
-    time_t st_atime;
-    time_t st_mtime;
-    time_t st_ctime;
-};
-
-struct _stat64 {
-    dev_t st_dev;
-    ino_t st_ino;
-    unsigned short st_mode;
-    short st_nlink;
-    short st_uid;
-    short st_gid;
-    dev_t st_rdev;
-    long long st_size;
-    time_t st_atime;
-    time_t st_mtime;
-    time_t st_ctime;
-};
-
 #define S_IFIFO 0010000
 #define S_IFLNK 0120000
 #define S_IFSOCK 0140000
@@ -144,10 +83,6 @@ extern "C" {
 
 int stat(const char* path, struct stat* buf);
 int fstat(int fd, struct stat* buf);
-int _stat64i32(const char* path, struct _stat64i32* buf);
-int _fstat64i32(int fd, struct _stat64i32* buf);
-int _stat64(const char* path, struct _stat64* buf);
-int _fstat64(int fd, struct _stat64* buf);
 int lstat(const char* path, struct stat* buf);
 int futimens(int fd, const struct timespec times[2]);
 int mkdir(const char* path, mode_t mode);
