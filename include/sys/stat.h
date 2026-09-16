@@ -8,7 +8,7 @@
 #define _S_IFCHR 0x2000
 #define _S_IFIFO 0x1000
 #define _S_IFREG 0x8000
-#define _S_IFBLK 0x3000
+#define _S_IFBLK 0x6000 // the Linux value, 0x3000 on Windows
 #define _S_IREAD 0x0100
 #define _S_IWRITE 0x0080
 #define _S_IEXEC 0x0040
