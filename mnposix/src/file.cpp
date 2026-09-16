@@ -1474,56 +1474,35 @@ int renameat(int olddirfd, const char* oldpath, int newdirfd,
     return 0;
 }
 
-static int do_fstat(HANDLE h, struct stat* st) {
+static int do_fstat(HANDLE h, struct stat& st) {
     nt_status status;
     IO_STATUS_BLOCK iosb;
-    FILE_BASIC_INFORMATION fbi;
-    FILE_STANDARD_INFORMATION fsi;
-    FILE_INTERNAL_INFORMATION fii;
+    FILE_STAT_LX_INFORMATION fsli;
 
-    status = NtQueryInformationFile(h, &iosb, &fbi, sizeof(fbi),
-                                    FILE_INFORMATION_CLASS::BasicInformation);
+    status = NtQueryInformationFile(h, &iosb, &fsli, sizeof(fsli),
+                                    FILE_INFORMATION_CLASS::StatLxInformation);
     if (!success(status)) {
         *_errno() = nt_status_to_errno(status);
         return -1;
     }
 
-    status = NtQueryInformationFile(h, &iosb, &fsi, sizeof(fsi),
-                                    FILE_INFORMATION_CLASS::StandardInformation);
-    if (!success(status)) {
-        *_errno() = nt_status_to_errno(status);
-        return -1;
-    }
+    memset(&st, 0, sizeof(st));
 
-    status = NtQueryInformationFile(h, &iosb, &fii, sizeof(fii),
-                                    FILE_INFORMATION_CLASS::InternalInformation);
-    if (!success(status)) {
-        *_errno() = nt_status_to_errno(status);
-        return -1;
-    }
+    // FIXME - st.st_dev
+    st.st_ino = (ino_t)fsli.FileId.QuadPart;
+    st.st_mode = (mode_t)fsli.LxMode;
+    st.st_nlink = (short)fsli.NumberOfLinks;
+    st.st_uid = fsli.LxUid;
+    st.st_gid = fsli.LxGid;
+    // FIXME - st.st_rdev
 
-    memset(st, 0, sizeof(*st));
+    st.st_size = fsli.EndOfFile.QuadPart;
+    st.st_atime = win_to_unix_time(fsli.LastAccessTime.QuadPart);
+    st.st_mtime = win_to_unix_time(fsli.LastWriteTime.QuadPart);
+    st.st_ctime = win_to_unix_time(fsli.ChangeTime.QuadPart);
 
-    st->st_ino = (ino_t)fii.IndexNumber.QuadPart;
-
-    if (fbi.FileAttributes & FILE_ATTRIBUTE_DIRECTORY)
-        st->st_mode = S_IFDIR | 0777;
-    else if (fbi.FileAttributes & FILE_ATTRIBUTE_REPARSE_POINT)
-        st->st_mode = S_IFLNK | 0777;
-    else if (fbi.FileAttributes & FILE_ATTRIBUTE_DEVICE)
-        st->st_mode = S_IFCHR | 0666; // FIXME - better than nothing
-    else {
-        st->st_mode = S_IFREG | 0444;
-
-        if (!(fbi.FileAttributes & FILE_ATTRIBUTE_READONLY))
-            st->st_mode |= 0222;
-    }
-
-    st->st_nlink = (short)fsi.NumberOfLinks;
-    st->st_size = fsi.EndOfFile.QuadPart;
-    st->st_atime = win_to_unix_time(fbi.LastAccessTime.QuadPart);
-    st->st_mtime = win_to_unix_time(fbi.LastWriteTime.QuadPart);
-    st->st_ctime = win_to_unix_time(fbi.ChangeTime.QuadPart);
+    st.st_blksize = 0x1000; // FIXME
+    st.st_blocks = (fsli.AllocationSize.QuadPart + 511) / 512;
 
     return 0;
 }
@@ -1594,7 +1573,7 @@ int fstatat(int dirfd, const char* path, struct stat* st, int flags) {
 
     unique_handle f{h};
 
-    return do_fstat(f.get(), st);
+    return do_fstat(f.get(), *st);
 }
 
 extern "C"
@@ -1614,7 +1593,7 @@ int fstat(int fd, struct stat* st) {
     if (h == (HANDLE)-1)
         return -1;
 
-    return do_fstat(h, st);
+    return do_fstat(h, *st);
 }
 
 static int do_fchown(HANDLE /*h*/, uid_t /*owner*/, gid_t /*group*/) {
