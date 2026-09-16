@@ -163,6 +163,7 @@ public:
     nt_status query_basic_information(span<uint8_t> buffer, uint64_t& retlen);
     nt_status query_standard_information(span<uint8_t> buffer, uint64_t& retlen);
     nt_status query_internal_information(span<uint8_t> buffer, uint64_t& retlen);
+    nt_status query_lx_information(span<uint8_t> buffer, uint64_t& retlen);
     nt_status flush_inode_item(btrfs_path& p);
     nt_status get_last_dir_index(uint64_t& ret);
     void last_handle_closed() override;
@@ -6146,6 +6147,9 @@ NTSTATUS btrfs_inode::query_information(span<uint8_t> buffer,
         case InternalInformation:
             return query_internal_information(buffer, retlen);
 
+        case StatLxInformation:
+            return query_lx_information(buffer, retlen);
+
         default:
             print("btrfs_inode::query_information: unhandled file information class {}\n",
                   file_information_class);
@@ -7180,6 +7184,66 @@ nt_status btrfs_filesystem::query_volume_attribute_info(span<uint8_t> buf,
 
     if (name_len < name.size() * sizeof(char16_t))
         return nt_status::BUFFER_OVERFLOW;
+
+    return nt_status::SUCCESS;
+}
+
+nt_status btrfs_inode::query_lx_information(span<uint8_t> buffer, uint64_t& retlen) {
+    if (buffer.size() < sizeof(FILE_STAT_LX_INFORMATION))
+        return nt_status::BUFFER_TOO_SMALL;
+
+    auto& fsli = *(FILE_STAT_LX_INFORMATION*)buffer.data();
+
+    {
+        shared_lock lg(inode_lock);
+
+        fsli.FileId.QuadPart = (int64_t)inode;
+        fsli.CreationTime.QuadPart = unix_to_win_time(ii.otime);
+        fsli.LastAccessTime.QuadPart = unix_to_win_time(ii.atime);
+        fsli.LastWriteTime.QuadPart = unix_to_win_time(ii.mtime);
+        fsli.ChangeTime.QuadPart = unix_to_win_time(ii.ctime);
+        fsli.AllocationSize.QuadPart = (int64_t)ii.nbytes;
+        fsli.EndOfFile.QuadPart = (int64_t)file_size;
+        fsli.NumberOfLinks = ii.nlink;
+        fsli.EffectiveAccess = 0; // FIXME
+        fsli.LxFlags = LX_FILE_METADATA_HAS_UID | LX_FILE_METADATA_HAS_GID |
+                       LX_FILE_METADATA_HAS_MODE;
+        fsli.LxUid = ii.uid;
+        fsli.LxGid = ii.gid;
+        fsli.LxMode = ii.mode;
+
+        if (inode_type == inode_type::blockdev || inode_type == inode_type::chardev) {
+            fsli.LxDeviceIdMajor = (uint32_t)((ii.rdev & 0xfffffffffff00000) >> 20);
+            fsli.LxDeviceIdMinor = ii.rdev & 0xfffff;
+        } else {
+            fsli.LxDeviceIdMajor = 0;
+            fsli.LxDeviceIdMinor = 0;
+        }
+
+        switch (inode_type) {
+            case inode_type::directory:
+                fsli.FileAttributes = FILE_ATTRIBUTE_DIRECTORY;
+                fsli.ReparseTag = 0;
+                break;
+
+            case inode_type::symlink:
+                fsli.FileAttributes = FILE_ATTRIBUTE_REPARSE_POINT;
+                fsli.ReparseTag = IO_REPARSE_TAG_SYMLINK;
+                break;
+
+            case inode_type::fifo:
+                fsli.FileAttributes = FILE_ATTRIBUTE_REPARSE_POINT;
+                fsli.ReparseTag = IO_REPARSE_TAG_LX_FIFO;
+                break;
+
+            default:
+                fsli.FileAttributes = 0;
+                fsli.ReparseTag = 0;
+                break;
+        }
+    }
+
+    retlen = sizeof(fsli);
 
     return nt_status::SUCCESS;
 }
