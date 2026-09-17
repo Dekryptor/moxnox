@@ -49,6 +49,10 @@ public:
 
     void clear() override;
 
+    bool is_pipe() override {
+        return true;
+    }
+
     void set_eof_pending();
 
     uint8_t* buf;
@@ -124,6 +128,10 @@ public:
         }
     }
 
+    bool is_pipe() override {
+        return true;
+    }
+
     pipe& recv_pipe;
     pipe& send_pipe;
     bool disconnected = false;
@@ -156,6 +164,10 @@ public:
         client.server_disconnected();
 
         remove_object_name(client);
+    }
+
+    bool is_pipe() override {
+        return true;
     }
 
     named_duplex_pipe_client& client;

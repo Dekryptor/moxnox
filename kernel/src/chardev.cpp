@@ -57,6 +57,10 @@ public:
         return nt_status::SUCCESS;
     }
 
+    virtual bool is_pipe() {
+        return false;
+    }
+
     bool exclusive = true;
     bool readonly = false;
 };

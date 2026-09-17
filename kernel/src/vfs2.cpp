@@ -11,6 +11,7 @@ module;
 #include <stddef.h>
 #include <stdint.h>
 #include <sys/uio.h>
+#include <sys/stat.h>
 #include "assert.h"
 #include "trace.h"
 
@@ -153,23 +154,6 @@ static ::filesystem* do_mount_root(string_view cmdline_root,
     }
 
     return nullptr;
-}
-
-static const uint64_t __S_IFMT = 0170000;
-static const uint64_t __S_IFDIR = 0040000;
-static const uint64_t __S_IFREG = 0100000;
-static const uint64_t __S_IFLNK = 0120000;
-
-static constexpr bool S_ISDIR(uint64_t mode) {
-    return (mode & __S_IFMT) == __S_IFDIR;
-}
-
-static constexpr bool S_ISREG(uint64_t mode) {
-    return (mode & __S_IFMT) == __S_IFREG;
-}
-
-static constexpr bool S_ISLNK(uint64_t mode) {
-    return (mode & __S_IFMT) == __S_IFLNK;
 }
 
 static uint64_t unix_to_system_time(uint64_t t) {
@@ -2308,6 +2292,66 @@ static nt_status query_information_non_inode_internal(file& f, span<uint8_t> buf
     return nt_status::SUCCESS;
 }
 
+static nt_status query_information_non_inode_lx(file& f, span<uint8_t> buffer,
+                                                uint64_t& retlen) {
+    if (buffer.size() < sizeof(FILE_STAT_LX_INFORMATION))
+        return nt_status::BUFFER_TOO_SMALL;
+
+    auto& fsli = *(FILE_STAT_LX_INFORMATION*)buffer.data();
+
+    {
+        lock_guard lock(name_lock);
+
+        if (!f.ino.name)
+            fsli.FileId.QuadPart = 0;
+        else
+            fsli.FileId.QuadPart = f.ino.name->index;
+    }
+
+    fsli.CreationTime.QuadPart = 0; // FIXME - should populate with time that object was created?
+    fsli.LastAccessTime.QuadPart = 0;
+    fsli.LastWriteTime.QuadPart = 0;
+    fsli.ChangeTime.QuadPart = 0;
+    fsli.AllocationSize.QuadPart = 0;
+    fsli.EndOfFile.QuadPart = 0;
+    fsli.NumberOfLinks = 1;
+    fsli.EffectiveAccess = 0; // FIXME
+    fsli.LxFlags = LX_FILE_METADATA_HAS_UID | LX_FILE_METADATA_HAS_GID |
+                   LX_FILE_METADATA_HAS_MODE;
+    fsli.LxUid = 0;
+    fsli.LxGid = 0;
+
+    switch (f.ino.type) {
+        case object_type::chardev: {
+            auto& c = static_cast<chardev&>(f.ino);
+
+            fsli.LxMode = (c.is_pipe() ? S_IFIFO : S_IFCHR) | 0644;
+            break;
+        }
+
+        case object_type::volume:
+            fsli.LxMode = S_IFBLK | 0644;
+            break;
+
+        case object_type::socket:
+            fsli.LxMode = S_IFSOCK | 0777;
+            break;
+
+        default:
+            fsli.LxMode = S_IFREG | 0644;
+            break;
+    }
+
+    fsli.LxDeviceIdMajor = 0;
+    fsli.LxDeviceIdMinor = 0;
+    fsli.FileAttributes = FILE_ATTRIBUTE_DEVICE;
+    fsli.ReparseTag = 0;
+
+    retlen = sizeof(fsli);
+
+    return nt_status::SUCCESS;
+}
+
 static nt_status query_information_non_inode(file& f, span<uint8_t> buf,
                                              FILE_INFORMATION_CLASS file_information_class,
                                              uint64_t& retlen) {
@@ -2322,6 +2366,9 @@ static nt_status query_information_non_inode(file& f, span<uint8_t> buf,
 
         case InternalInformation:
             return query_information_non_inode_internal(f, buf, retlen);
+
+        case StatLxInformation:
+            return query_information_non_inode_lx(f, buf, retlen);
 
         default:
             return nt_status::NOT_SUPPORTED;
