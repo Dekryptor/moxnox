@@ -6,6 +6,7 @@
 #include <mutex>
 #include <memory>
 #include <atomic>
+#include <sys/stat.h>
 #include "assert.h"
 
 import nt;
@@ -34,7 +35,8 @@ class tmpfs_filesystem;
 
 class tmpfs_inode : public inode {
 public:
-    tmpfs_inode(tmpfs_filesystem& fs, enum inode_type inode_type);
+    tmpfs_inode(tmpfs_filesystem& fs, enum inode_type inode_type, uint32_t mode,
+                uint32_t uid, uint32_t gid);
     virtual ~tmpfs_inode() override;
     void release() override;
 
@@ -61,6 +63,7 @@ public:
     nt_status query_basic_information(span<uint8_t> buffer, uint64_t& retlen);
     nt_status query_standard_information(span<uint8_t> buffer, uint64_t& retlen);
     nt_status query_internal_information(span<uint8_t> buffer, uint64_t& retlen);
+    nt_status query_lx_information(span<uint8_t> buffer, uint64_t& retlen);
     void last_handle_closed() override { }
     nt_status set_disposition_information(span<const uint8_t> buffer,
                                           dentry& dentry);
@@ -76,6 +79,7 @@ public:
     unique_ptr<char[]> symlink;
     size_t symlink_len;
     uint64_t inode;
+    uint32_t mode, uid, gid;
 
 private:
     nt_status get_reparse_point(span<uint8_t> outbuf, uint32_t& retlen);
@@ -108,7 +112,8 @@ private:
 };
 
 tmpfs_filesystem::tmpfs_filesystem() : filesystem(nullptr) {
-    auto tmpfs_root_inode = new tmpfs_inode(*this, inode_type::directory);
+    auto tmpfs_root_inode = new tmpfs_inode(*this, inode_type::directory, S_IFDIR | 0755,
+                                            0, 0);
     if (!tmpfs_root_inode) {
         print("new failed\n");
         return;
@@ -177,7 +182,9 @@ nt_status tmpfs_inode::create_child(string_view name, uint32_t create_options,
     bool is_dir = create_options & FILE_DIRECTORY_FILE;
 
     auto new_ino = new tmpfs_inode(static_cast<tmpfs_filesystem&>(fs),
-                                   is_dir ? inode_type::directory : inode_type::file);
+                                   is_dir ? inode_type::directory : inode_type::file,
+                                   is_dir ? (S_IFDIR | 0755) : (S_IFREG | 0644),
+                                   0, 0);
     if (!new_ino)
         return nt_status::INSUFFICIENT_RESOURCES;
 
@@ -261,7 +268,8 @@ void tmpfs_inode::release() {
     delete this;
 }
 
-tmpfs_inode::tmpfs_inode(tmpfs_filesystem& fs, enum inode_type inode_type) : ::inode(fs), fs(fs) {
+tmpfs_inode::tmpfs_inode(tmpfs_filesystem& fs, enum inode_type inode_type, uint32_t mode,
+                         uint32_t uid, uint32_t gid) : ::inode(fs), fs(fs), mode(mode), uid(uid), gid(gid) {
     this->inode_type = inode_type;
     this->inode = last_inode_number.fetch_add(1) + 1;
 }
@@ -539,6 +547,9 @@ NTSTATUS tmpfs_inode::query_information(span<uint8_t> buffer,
 
         case InternalInformation:
             return query_internal_information(buffer, retlen);
+
+        case StatLxInformation:
+            return query_lx_information(buffer, retlen);
 
         default:
             print("tmpfs_inode::query_information: unhandled file information class {}\n",
@@ -1204,6 +1215,61 @@ nt_status tmpfs_filesystem::query_volume_attribute_info(span<uint8_t> buf,
 
     if (name_len < name.size() * sizeof(char16_t))
         return nt_status::BUFFER_OVERFLOW;
+
+    return nt_status::SUCCESS;
+}
+
+nt_status tmpfs_inode::query_lx_information(span<uint8_t> buffer, uint64_t& retlen) {
+    if (buffer.size() < sizeof(FILE_STAT_LX_INFORMATION))
+        return nt_status::BUFFER_TOO_SMALL;
+
+    auto& fsli = *(FILE_STAT_LX_INFORMATION*)buffer.data();
+
+    {
+        shared_lock lg(inode_lock);
+
+        fsli.FileId.QuadPart = (int64_t)inode;
+        fsli.CreationTime.QuadPart = (int64_t)otime;
+        fsli.LastAccessTime.QuadPart = (int64_t)atime;
+        fsli.LastWriteTime.QuadPart = (int64_t)mtime;
+        fsli.ChangeTime.QuadPart = (int64_t)ctime;
+        fsli.AllocationSize.QuadPart = 0; // FIXME
+        fsli.EndOfFile.QuadPart = (int64_t)file_size;
+        fsli.NumberOfLinks = nlink;
+        fsli.EffectiveAccess = 0; // FIXME
+        fsli.LxFlags = LX_FILE_METADATA_HAS_UID | LX_FILE_METADATA_HAS_GID |
+                       LX_FILE_METADATA_HAS_MODE;
+        fsli.LxUid = uid;
+        fsli.LxGid = gid;
+        fsli.LxMode = mode;
+
+        fsli.LxDeviceIdMajor = 0;
+        fsli.LxDeviceIdMinor = 0;
+
+        switch (inode_type) {
+            case inode_type::directory:
+                fsli.FileAttributes = FILE_ATTRIBUTE_DIRECTORY;
+                fsli.ReparseTag = 0;
+                break;
+
+            case inode_type::symlink:
+                fsli.FileAttributes = FILE_ATTRIBUTE_REPARSE_POINT;
+                fsli.ReparseTag = IO_REPARSE_TAG_SYMLINK;
+                break;
+
+            case inode_type::fifo:
+                fsli.FileAttributes = FILE_ATTRIBUTE_REPARSE_POINT;
+                fsli.ReparseTag = IO_REPARSE_TAG_LX_FIFO;
+                break;
+
+            default:
+                fsli.FileAttributes = 0;
+                fsli.ReparseTag = 0;
+                break;
+        }
+    }
+
+    retlen = sizeof(fsli);
 
     return nt_status::SUCCESS;
 }
