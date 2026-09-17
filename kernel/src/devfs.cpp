@@ -5,6 +5,7 @@
 #include <span>
 #include <mutex>
 #include <shared_mutex>
+#include <sys/stat.h>
 
 import nt;
 import vfs;
@@ -41,7 +42,8 @@ private:
 
 class devfs_inode : public inode {
 public:
-    devfs_inode(devfs_filesystem& fs, enum inode_type inode_type);
+    devfs_inode(devfs_filesystem& fs, enum inode_type inode_type,
+                uint32_t mode);
     void release() override;
 
     nt_status open_child(string_view name, object_ref& obj) override;
@@ -66,6 +68,7 @@ public:
     nt_status query_basic_information(span<uint8_t> buffer, uint64_t& retlen);
     nt_status query_standard_information(span<uint8_t> buffer, uint64_t& retlen);
     nt_status query_internal_information(span<uint8_t> buffer, uint64_t& retlen);
+    nt_status query_lx_information(span<uint8_t> buffer, uint64_t& retlen);
     void last_handle_closed() override { }
 
     nt_status fs_control(uint32_t, span<const uint8_t>, span<uint8_t>,
@@ -76,6 +79,8 @@ public:
     devfs_filesystem& fs; // FIXME - use reference in ::inode
     list_entry le;
     uint64_t mtime, ctime, otime, atime;
+    uint32_t mode;
+    uint32_t uid = 0, gid = 0;
 };
 
 static ::filesystem* create_devfs();
@@ -99,7 +104,7 @@ static ::filesystem* create_devfs() {
 }
 
 devfs_filesystem::devfs_filesystem() : filesystem(nullptr) {
-    auto devfs_root_inode = new devfs_inode(*this, inode_type::directory);
+    auto devfs_root_inode = new devfs_inode(*this, inode_type::directory, S_IFDIR | 0755);
     if (!devfs_root_inode) {
         print("new failed\n");
         return;
@@ -124,7 +129,7 @@ nt_status devfs_filesystem::flush(bool) {
     return nt_status::SUCCESS;
 }
 
-devfs_inode::devfs_inode(devfs_filesystem& fs, enum inode_type inode_type) : inode(fs), fs(fs) {
+devfs_inode::devfs_inode(devfs_filesystem& fs, enum inode_type inode_type, uint32_t mode) : inode(fs), fs(fs), mode(mode) {
     this->inode_type = inode_type;
 }
 
@@ -329,6 +334,9 @@ nt_status devfs_inode::query_information(span<uint8_t> buffer,
         case InternalInformation:
             return query_internal_information(buffer, retlen);
 
+        case StatLxInformation:
+            return query_lx_information(buffer, retlen);
+
         default:
             print("devfs_inode::query_information: unhandled file information class {}\n",
                   file_information_class);
@@ -416,6 +424,50 @@ nt_status devfs_filesystem::query_volume_attribute_info(span<uint8_t> buf,
 
     if (name_len < name.size() * sizeof(char16_t))
         return nt_status::BUFFER_OVERFLOW;
+
+    return nt_status::SUCCESS;
+}
+
+nt_status devfs_inode::query_lx_information(span<uint8_t> buffer, uint64_t& retlen) {
+    if (buffer.size() < sizeof(FILE_STAT_LX_INFORMATION))
+        return nt_status::BUFFER_TOO_SMALL;
+
+    auto& fsli = *(FILE_STAT_LX_INFORMATION*)buffer.data();
+
+    {
+        shared_lock lg(inode_lock);
+
+        fsli.FileId.QuadPart = 0; // FIXME
+        fsli.CreationTime.QuadPart = (int64_t)otime;
+        fsli.LastAccessTime.QuadPart = (int64_t)atime;
+        fsli.LastWriteTime.QuadPart = (int64_t)mtime;
+        fsli.ChangeTime.QuadPart = (int64_t)ctime;
+        fsli.AllocationSize.QuadPart = 0; // FIXME
+        fsli.EndOfFile.QuadPart = (int64_t)file_size;
+        fsli.NumberOfLinks = 1;
+        fsli.EffectiveAccess = 0; // FIXME
+        fsli.LxFlags = LX_FILE_METADATA_HAS_UID | LX_FILE_METADATA_HAS_GID |
+                       LX_FILE_METADATA_HAS_MODE;
+        fsli.LxUid = uid;
+        fsli.LxGid = gid;
+        fsli.LxMode = mode;
+
+        fsli.LxDeviceIdMajor = 0;
+        fsli.LxDeviceIdMinor = 0;
+        fsli.ReparseTag = 0;
+
+        switch (inode_type) {
+            case inode_type::directory:
+                fsli.FileAttributes = FILE_ATTRIBUTE_DIRECTORY;
+                break;
+
+            default:
+                fsli.FileAttributes = FILE_ATTRIBUTE_DEVICE;
+                break;
+        }
+    }
+
+    retlen = sizeof(fsli);
 
     return nt_status::SUCCESS;
 }
