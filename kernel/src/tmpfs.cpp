@@ -965,6 +965,7 @@ nt_status tmpfs_inode::set_reparse_point_symlink(span<const uint8_t> inbuf) {
             return nt_status::INVALID_PARAMETER;
 
         inode_type = inode_type::symlink;
+        mode = S_IFLNK | 0777;
 
         swap(symlink, u8);
         symlink_len = u8len;
@@ -987,6 +988,7 @@ nt_status tmpfs_inode::set_reparse_point_fifo() {
             return nt_status::INVALID_PARAMETER;
 
         inode_type = inode_type::fifo;
+        mode = (mode & ~S_IFREG) | S_IFIFO;
     }
 
     return nt_status::SUCCESS;
