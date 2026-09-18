@@ -1596,8 +1596,20 @@ int fstat(int fd, struct stat* st) {
     return do_fstat(h, *st);
 }
 
-static int do_fchown(HANDLE /*h*/, uid_t /*owner*/, gid_t /*group*/) {
-    // FIXME - actually change file ownership
+static int do_fchown(HANDLE h, uid_t owner, gid_t group) {
+    nt_status status;
+    MN_FCHOWN p;
+    IO_STATUS_BLOCK iosb;
+
+    p.uid = owner;
+    p.gid = group;
+
+    status = NtSetInformationFile(h, &iosb, &p, sizeof(p),
+                                  FILE_INFORMATION_CLASS::MoxnoxFchown);
+    if (!success(status)) {
+        *_errno() = nt_status_to_errno(status);
+        return -1;
+    }
 
     return 0;
 }
