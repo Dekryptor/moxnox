@@ -198,6 +198,7 @@ private:
                                         dentry& dentry);
     nt_status set_reparse_point_fifo(dentry& dentry);
     nt_status do_fchown(span<const uint8_t> inbuf);
+    nt_status do_fchmod(span<const uint8_t> inbuf);
 };
 
 class btrfs_filesystem : public ::filesystem {
@@ -5645,6 +5646,45 @@ nt_status btrfs_inode::do_fchown(span<const uint8_t> buffer) {
     return nt_status::SUCCESS;
 }
 
+nt_status btrfs_inode::do_fchmod(span<const uint8_t> buffer) {
+    nt_status status;
+
+    static const uint32_t MASK = 0xfff;
+
+    if (buffer.size() < sizeof(uint32_t))
+        return nt_status::BUFFER_TOO_SMALL;
+
+    auto v = *(uint32_t*)buffer.data();
+
+    v &= MASK;
+
+    {
+        btrfs_path p(fs.sb->nodesize);
+        lock_guard lock(fs.trans_lock);
+
+        {
+            lock_guard lock2(inode_lock);
+
+            if ((ii.mode & MASK) == v)
+                return nt_status::SUCCESS;
+
+            ii.mode &= ~MASK;
+            ii.mode |= v;
+
+            ii.transid = fs.sb->generation;
+            ii.sequence++;
+        }
+
+        status = flush_inode_item(p);
+        if (!success(status)) {
+            print("btrfs_inode::flush_inode_item returned {}\n", status);
+            return status;
+        }
+    }
+
+    return nt_status::SUCCESS;
+}
+
 NTSTATUS btrfs_inode::set_information(span<const uint8_t> buffer, dentry& dentry,
                                       FILE_INFORMATION_CLASS file_information_class) {
     if (fs.readonly)
@@ -5661,6 +5701,9 @@ NTSTATUS btrfs_inode::set_information(span<const uint8_t> buffer, dentry& dentry
 
         case MoxnoxFchown:
             return do_fchown(buffer);
+
+        case MoxnoxFchmod:
+            return do_fchmod(buffer);
 
         default:
             print("btrfs_inode::set_information: unhandled file information class {}\n",

@@ -787,6 +787,8 @@ span<char> do_format_arg(span<char> sp, string_view, FILE_INFORMATION_CLASS arg)
             return sp_strcpy(sp, "MoxnoxPosixNonBlock");
         case MoxnoxFchown:
             return sp_strcpy(sp, "MoxnoxFchown");
+        case MoxnoxFchmod:
+            return sp_strcpy(sp, "MoxnoxFchmod");
         default:
             return do_format_arg(sp, "", (unsigned int)arg);
     }

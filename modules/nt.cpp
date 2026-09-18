@@ -908,6 +908,7 @@ enum class FILE_INFORMATION_CLASS {
     CaseSensitiveInformationForceAccessCheck,
     MoxnoxPosixNonBlock = 0x1000,
     MoxnoxFchown,
+    MoxnoxFchmod,
 };
 
 struct MN_FCHOWN {
