@@ -783,6 +783,8 @@ span<char> do_format_arg(span<char> sp, string_view, FILE_INFORMATION_CLASS arg)
             return sp_strcpy(sp, "StorageReserveIdInformation");
         case CaseSensitiveInformationForceAccessCheck:
             return sp_strcpy(sp, "CaseSensitiveInformationForceAccessCheck");
+        case MoxnoxPosixNonBlock:
+            return sp_strcpy(sp, "MoxnoxPosixNonBlock");
         default:
             return do_format_arg(sp, "", (unsigned int)arg);
     }
