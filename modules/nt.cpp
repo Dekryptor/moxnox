@@ -907,6 +907,12 @@ enum class FILE_INFORMATION_CLASS {
     StorageReserveIdInformation,
     CaseSensitiveInformationForceAccessCheck,
     MoxnoxPosixNonBlock = 0x1000,
+    MoxnoxFchown,
+};
+
+struct MN_FCHOWN {
+    uint32_t uid;
+    uint32_t gid;
 };
 
 struct FILE_DIRECTORY_INFORMATION {

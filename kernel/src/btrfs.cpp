@@ -197,6 +197,7 @@ private:
     nt_status set_reparse_point_symlink(span<const uint8_t> inbuf,
                                         dentry& dentry);
     nt_status set_reparse_point_fifo(dentry& dentry);
+    nt_status do_fchown(span<const uint8_t> inbuf);
 };
 
 class btrfs_filesystem : public ::filesystem {
@@ -5606,17 +5607,60 @@ chunk::~chunk() {
     }
 }
 
+nt_status btrfs_inode::do_fchown(span<const uint8_t> buffer) {
+    nt_status status;
+
+    if (buffer.size() < sizeof(MN_FCHOWN))
+        return nt_status::BUFFER_TOO_SMALL;
+
+    auto& params = *(MN_FCHOWN*)buffer.data();
+
+    if (params.uid == 0xffffffff && params.gid == 0xffffffff)
+        return nt_status::SUCCESS;
+
+    {
+        btrfs_path p(fs.sb->nodesize);
+        lock_guard lock(fs.trans_lock);
+
+        {
+            lock_guard lock2(inode_lock);
+
+            if (params.uid != 0xffffffff)
+                ii.uid = params.uid;
+
+            if (params.gid != 0xffffffff)
+                ii.gid = params.gid;
+
+            ii.transid = fs.sb->generation;
+            ii.sequence++;
+        }
+
+        status = flush_inode_item(p);
+        if (!success(status)) {
+            print("btrfs_inode::flush_inode_item returned {}\n", status);
+            return status;
+        }
+    }
+
+    return nt_status::SUCCESS;
+}
+
 NTSTATUS btrfs_inode::set_information(span<const uint8_t> buffer, dentry& dentry,
                                       FILE_INFORMATION_CLASS file_information_class) {
     if (fs.readonly)
         return nt_status::MEDIA_WRITE_PROTECTED;
 
     switch (file_information_class) {
-        case FILE_INFORMATION_CLASS::BasicInformation:
+        using enum FILE_INFORMATION_CLASS;
+
+        case BasicInformation:
             return set_basic_information(buffer);
 
-        case FILE_INFORMATION_CLASS::DispositionInformation:
+        case DispositionInformation:
             return set_disposition_information(buffer, dentry);
+
+        case MoxnoxFchown:
+            return do_fchown(buffer);
 
         default:
             print("btrfs_inode::set_information: unhandled file information class {}\n",
