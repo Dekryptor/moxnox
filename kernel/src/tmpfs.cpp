@@ -87,6 +87,7 @@ private:
     nt_status set_reparse_point_symlink(span<const uint8_t> inbuf);
     nt_status set_reparse_point_fifo();
     nt_status do_fchown(span<const uint8_t> buffer);
+    nt_status do_fchmod(span<const uint8_t> buffer);
 };
 
 struct tmpfs_dentry {
@@ -440,6 +441,29 @@ nt_status tmpfs_inode::do_fchown(span<const uint8_t> buffer) {
     return nt_status::SUCCESS;
 }
 
+nt_status tmpfs_inode::do_fchmod(span<const uint8_t> buffer) {
+    static const uint32_t MASK = 0xfff;
+
+    if (buffer.size() < sizeof(uint32_t))
+        return nt_status::BUFFER_TOO_SMALL;
+
+    auto v = *(uint32_t*)buffer.data();
+
+    v &= MASK;
+
+    {
+        lock_guard lock(inode_lock);
+
+        if ((mode & MASK) == v)
+            return nt_status::SUCCESS;
+
+        mode &= ~MASK;
+        mode |= v;
+    }
+
+    return nt_status::SUCCESS;
+}
+
 NTSTATUS tmpfs_inode::set_information(span<const uint8_t> buffer, dentry& dentry,
                                       FILE_INFORMATION_CLASS file_information_class) {
     if (static_cast<tmpfs_filesystem&>(fs).readonly)
@@ -456,6 +480,9 @@ NTSTATUS tmpfs_inode::set_information(span<const uint8_t> buffer, dentry& dentry
 
         case MoxnoxFchown:
             return do_fchown(buffer);
+
+        case MoxnoxFchmod:
+            return do_fchmod(buffer);
 
         default:
             print("tmpfs_inode::set_information: unhandled file information class {}\n",
