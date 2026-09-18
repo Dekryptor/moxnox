@@ -86,6 +86,7 @@ private:
     nt_status set_reparse_point(span<const uint8_t> inbuf);
     nt_status set_reparse_point_symlink(span<const uint8_t> inbuf);
     nt_status set_reparse_point_fifo();
+    nt_status do_fchown(span<const uint8_t> buffer);
 };
 
 struct tmpfs_dentry {
@@ -417,17 +418,44 @@ nt_status tmpfs_inode::flush_cache(uint64_t, uint64_t) {
     return nt_status::SUCCESS;
 }
 
+nt_status tmpfs_inode::do_fchown(span<const uint8_t> buffer) {
+    if (buffer.size() < sizeof(MN_FCHOWN))
+        return nt_status::BUFFER_TOO_SMALL;
+
+    auto& params = *(MN_FCHOWN*)buffer.data();
+
+    if (params.uid == 0xffffffff && params.gid == 0xffffffff)
+        return nt_status::SUCCESS;
+
+    {
+        lock_guard lock(inode_lock);
+
+        if (params.uid != 0xffffffff)
+            uid = params.uid;
+
+        if (params.gid != 0xffffffff)
+            gid = params.gid;
+    }
+
+    return nt_status::SUCCESS;
+}
+
 NTSTATUS tmpfs_inode::set_information(span<const uint8_t> buffer, dentry& dentry,
                                       FILE_INFORMATION_CLASS file_information_class) {
     if (static_cast<tmpfs_filesystem&>(fs).readonly)
         return nt_status::MEDIA_WRITE_PROTECTED;
 
     switch (file_information_class) {
-        case FILE_INFORMATION_CLASS::BasicInformation:
+        using enum FILE_INFORMATION_CLASS;
+
+        case BasicInformation:
             return set_basic_information(buffer);
 
-        case FILE_INFORMATION_CLASS::DispositionInformation:
+        case DispositionInformation:
             return set_disposition_information(buffer, dentry);
+
+        case MoxnoxFchown:
+            return do_fchown(buffer);
 
         default:
             print("tmpfs_inode::set_information: unhandled file information class {}\n",
