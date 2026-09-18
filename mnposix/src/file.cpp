@@ -667,8 +667,17 @@ int fchdir(int fd) {
     return 0;
 }
 
-static int do_fchmod(HANDLE /*h*/, mode_t /*mode*/) {
-    // FIXME - actually do something
+static int do_fchmod(HANDLE h, mode_t mode) {
+    IO_STATUS_BLOCK iosb;
+
+    auto v = (uint32_t)mode;
+
+    auto status = NtSetInformationFile(h, &iosb, &v, sizeof(v),
+                                       FILE_INFORMATION_CLASS::MoxnoxFchmod);
+    if (!success(status)) {
+        *_errno() = nt_status_to_errno(status);
+        return -1;
+    }
 
     return 0;
 }
