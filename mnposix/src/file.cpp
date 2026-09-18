@@ -95,10 +95,6 @@ ssize_t getline(char** lineptr, size_t* pn, FILE* stream) {
     return (ssize_t)read;
 }
 
-__time64_t win_to_unix_time(int64_t t) {
-    return (__time64_t)((t - 116444736000000000) / 10000000);
-}
-
 extern "C"
 int futimens(int fd, const timespec* times) {
     FILE_BASIC_INFORMATION fbi;
@@ -1483,6 +1479,13 @@ int renameat(int olddirfd, const char* oldpath, int newdirfd,
     return 0;
 }
 
+static void win_to_unix_time(int64_t t, timespec& v) {
+    t -= 116444736000000000;
+
+    v.tv_sec = (__time64_t)(t / 10000000);
+    v.tv_nsec = (long)((t % 10000000) * 100);
+}
+
 static int do_fstat(HANDLE h, struct stat& st) {
     nt_status status;
     IO_STATUS_BLOCK iosb;
@@ -1506,9 +1509,9 @@ static int do_fstat(HANDLE h, struct stat& st) {
     // FIXME - st.st_rdev
 
     st.st_size = fsli.EndOfFile.QuadPart;
-    st.st_atime = win_to_unix_time(fsli.LastAccessTime.QuadPart);
-    st.st_mtime = win_to_unix_time(fsli.LastWriteTime.QuadPart);
-    st.st_ctime = win_to_unix_time(fsli.ChangeTime.QuadPart);
+    win_to_unix_time(fsli.LastAccessTime.QuadPart, st.st_atim);
+    win_to_unix_time(fsli.LastWriteTime.QuadPart, st.st_mtim);
+    win_to_unix_time(fsli.ChangeTime.QuadPart, st.st_ctim);
 
     st.st_blksize = 0x1000; // FIXME
     st.st_blocks = (fsli.AllocationSize.QuadPart + 511) / 512;
