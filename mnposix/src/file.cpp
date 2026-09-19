@@ -28,11 +28,6 @@ import errno;
 using namespace std;
 
 extern "C"
-int mkdir(const char* path, mode_t /*mode*/) {
-    return _mkdir(path);
-}
-
-extern "C"
 ssize_t getline(char** lineptr, size_t* pn, FILE* stream) {
     if (!lineptr || !pn) {
         *_errno() = EINVAL;
@@ -1384,6 +1379,11 @@ int mkdirat(int dirfd, const char* path, mode_t /*mode*/) {
     NtClose(file);
 
     return 0;
+}
+
+extern "C"
+int mkdir(const char* path, mode_t mode) {
+    return mkdirat(AT_FDCWD, path, mode);
 }
 
 extern "C"
