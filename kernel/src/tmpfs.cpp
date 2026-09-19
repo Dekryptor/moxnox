@@ -451,14 +451,15 @@ nt_status tmpfs_inode::do_fchmod(span<const uint8_t> buffer) {
 
     v &= MASK;
 
+    auto cur_time = (uint64_t)kernel_time_page.system_time + kernel_time_page.system_time_offset;
+
     {
         lock_guard lock(inode_lock);
 
-        if ((mode & MASK) == v)
-            return nt_status::SUCCESS;
-
         mode &= ~MASK;
         mode |= v;
+
+        ctime = cur_time;
     }
 
     return nt_status::SUCCESS;
