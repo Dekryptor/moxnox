@@ -5658,6 +5658,8 @@ nt_status btrfs_inode::do_fchmod(span<const uint8_t> buffer) {
 
     v &= MASK;
 
+    auto cur_time = get_btrfs_time();
+
     {
         btrfs_path p(fs.sb->nodesize);
         lock_guard lock(fs.trans_lock);
@@ -5665,12 +5667,10 @@ nt_status btrfs_inode::do_fchmod(span<const uint8_t> buffer) {
         {
             lock_guard lock2(inode_lock);
 
-            if ((ii.mode & MASK) == v)
-                return nt_status::SUCCESS;
-
             ii.mode &= ~MASK;
             ii.mode |= v;
 
+            ii.ctime = cur_time;
             ii.transid = fs.sb->generation;
             ii.sequence++;
         }
