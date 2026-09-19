@@ -3571,3 +3571,8 @@ extern "C"
 int fsetpos(FILE* file, const fpos_t* pos) {
     return __fseeki64(file, *pos, SEEK_SET);
 }
+
+extern "C"
+int mn_get_umask() {
+    return umask_value;
+}
