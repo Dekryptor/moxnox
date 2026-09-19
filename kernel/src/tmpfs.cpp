@@ -425,8 +425,7 @@ nt_status tmpfs_inode::do_fchown(span<const uint8_t> buffer) {
 
     auto& params = *(MN_FCHOWN*)buffer.data();
 
-    if (params.uid == 0xffffffff && params.gid == 0xffffffff)
-        return nt_status::SUCCESS;
+    auto cur_time = (uint64_t)kernel_time_page.system_time + kernel_time_page.system_time_offset;
 
     {
         lock_guard lock(inode_lock);
@@ -436,6 +435,8 @@ nt_status tmpfs_inode::do_fchown(span<const uint8_t> buffer) {
 
         if (params.gid != 0xffffffff)
             gid = params.gid;
+
+        ctime = cur_time;
     }
 
     return nt_status::SUCCESS;
