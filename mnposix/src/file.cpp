@@ -1893,7 +1893,7 @@ FILE* open_memstream(char** bufp, size_t* sizep) {
 }
 
 extern "C"
-int mkfifoat(int fd, const char* path, mode_t /*mode*/) {
+int mkfifoat(int fd, const char* path, mode_t mode) {
     auto peb = NtCurrentTeb()->ProcessEnvironmentBlock;
     nt_status status;
     OBJECT_ATTRIBUTES oa;
@@ -1902,8 +1902,6 @@ int mkfifoat(int fd, const char* path, mode_t /*mode*/) {
     HANDLE h, dirh;
     unique_handle f;
     REPARSE_DATA_BUFFER rdb;
-
-    // FIXME - mode
 
     if (fd == AT_FDCWD)
         dirh = peb->ProcessParameters->CurrentDirectory.Handle;
@@ -1959,6 +1957,24 @@ int mkfifoat(int fd, const char* path, mode_t /*mode*/) {
                              FSCTL_SET_REPARSE_POINT, &rdb,
                              offsetof(REPARSE_DATA_BUFFER, GenericReparseBuffer.DataBuffer),
                              nullptr, 0);
+    if (!success(status)) {
+        FILE_DISPOSITION_INFORMATION fdi;
+
+        fdi.DeleteFile = true;
+
+        NtSetInformationFile(f.get(), &iosb, &fdi, sizeof(fdi),
+                             FILE_INFORMATION_CLASS::DispositionInformation);
+
+        *_errno() = nt_status_to_errno(status);
+        return -1;
+    }
+
+    // FIXME - this should be atomic
+
+    auto m = (uint32_t)mode & ~mn_get_umask();
+
+    status = NtSetInformationFile(f.get(), &iosb, &m, sizeof(m),
+                                  FILE_INFORMATION_CLASS::MoxnoxFchmod);
     if (!success(status)) {
         FILE_DISPOSITION_INFORMATION fdi;
 
