@@ -5616,8 +5616,7 @@ nt_status btrfs_inode::do_fchown(span<const uint8_t> buffer) {
 
     auto& params = *(MN_FCHOWN*)buffer.data();
 
-    if (params.uid == 0xffffffff && params.gid == 0xffffffff)
-        return nt_status::SUCCESS;
+    auto cur_time = get_btrfs_time();
 
     {
         btrfs_path p(fs.sb->nodesize);
@@ -5632,6 +5631,7 @@ nt_status btrfs_inode::do_fchown(span<const uint8_t> buffer) {
             if (params.gid != 0xffffffff)
                 ii.gid = params.gid;
 
+            ii.ctime = cur_time;
             ii.transid = fs.sb->generation;
             ii.sequence++;
         }
