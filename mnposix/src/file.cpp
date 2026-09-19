@@ -1334,15 +1334,13 @@ ssize_t pwrite(int fd, const void* buf, size_t count, off_t offset) {
 }
 
 extern "C"
-int mkdirat(int dirfd, const char* path, mode_t /*mode*/) {
+int mkdirat(int dirfd, const char* path, mode_t mode) {
     OBJECT_ATTRIBUTES oa;
     UNICODE_STRING us;
     NTSTATUS status;
     HANDLE file, dirh;
     IO_STATUS_BLOCK iosb;
     auto peb = NtCurrentTeb()->ProcessEnvironmentBlock;
-
-    // FIXME - mode?
 
     if (dirfd == AT_FDCWD)
         dirh = peb->ProcessParameters->CurrentDirectory.Handle;
@@ -1393,6 +1391,25 @@ int mkdirat(int dirfd, const char* path, mode_t /*mode*/) {
         *_errno() = ENOENT;
         return -1;
     } else if (!success(status)) {
+        *_errno() = nt_status_to_errno(status);
+        return -1;
+    }
+
+    // FIXME - this should be atomic
+
+    auto m = (uint32_t)mode & ~mn_get_umask();
+
+    status = NtSetInformationFile(file, &iosb, &m, sizeof(m),
+                                  FILE_INFORMATION_CLASS::MoxnoxFchmod);
+    if (!success(status)) {
+        FILE_DISPOSITION_INFORMATION fdi;
+
+        fdi.DeleteFile = true;
+
+        NtSetInformationFile(file, &iosb, &fdi, sizeof(fdi),
+                             FILE_INFORMATION_CLASS::DispositionInformation);
+        NtClose(file);
+
         *_errno() = nt_status_to_errno(status);
         return -1;
     }
