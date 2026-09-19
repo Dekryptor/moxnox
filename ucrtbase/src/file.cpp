@@ -2882,7 +2882,7 @@ int __pclose(FILE* file) {
 extern "C"
 nt_status mn_prepare_exec_block(HANDLE proc, exec_info** exec_block,
                                 size_t* num_exec_block_entries) {
-    unsigned int num_entries = 0;
+    unsigned int num_entries = 1;
     nt_status status;
 
     RtlEnterCriticalSection(&fds_lock);
@@ -2897,13 +2897,6 @@ nt_status mn_prepare_exec_block(HANDLE proc, exec_info** exec_block,
         num_entries++;
     }
 
-    if (num_entries == 0) {
-        RtlLeaveCriticalSection(&fds_lock);
-        *exec_block = nullptr;
-        *num_exec_block_entries = 0;
-        return nt_status::SUCCESS;
-    }
-
     auto entries = (exec_info*)malloc(sizeof(exec_info) * num_entries);
     if (!entries) {
         print_stderr("malloc failed\n");
@@ -2912,6 +2905,12 @@ nt_status mn_prepare_exec_block(HANDLE proc, exec_info** exec_block,
     }
 
     auto e = entries;
+
+    {
+        e->type = exec_info_type::umask;
+        e->umask.value = umask_value;
+        e++;
+    }
 
     for (size_t i = STDERR_FILENO + 1; i < fds.size(); i++) {
         if (fds[i].h == 0)
@@ -3089,6 +3088,10 @@ static void handle_exec_info(exec_info* info) {
 
             break;
         }
+
+        case umask:
+            umask_value = info->umask.value;
+            break;
     }
 
 }

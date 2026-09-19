@@ -31,6 +31,7 @@ export enum class exec_info_type {
     fchdir,
     dup2_cloexec,
     alarm,
+    umask,
 };
 
 export struct exec_info {
@@ -67,6 +68,9 @@ export struct exec_info {
         struct {
             uint64_t left;
         } alarm;
+        struct {
+            uint32_t value;
+        } umask;
     };
 };
 
