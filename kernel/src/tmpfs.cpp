@@ -437,6 +437,13 @@ nt_status tmpfs_inode::do_fchown(span<const uint8_t> buffer) {
             gid = params.gid;
 
         ctime = cur_time;
+
+        if (!S_ISDIR(mode)) {
+            mode &= ~S_ISUID;
+
+            if (mode & S_IXGRP)
+                mode &= ~S_ISGID;
+        }
     }
 
     return nt_status::SUCCESS;
