@@ -1456,6 +1456,27 @@ static int open2(const char* path, int flags, int pmode) {
 
     free(u16pathname);
 
+    if (iosb.Information == FILE_CREATED) {
+        // FIXME - this should be atomic
+
+        auto mode = (uint32_t)pmode & ~umask_value;
+
+        status = NtSetInformationFile(h, &iosb, &mode, sizeof(mode),
+                                      FILE_INFORMATION_CLASS::MoxnoxFchmod);
+        if (!success(status)) {
+            FILE_DISPOSITION_INFORMATION fdi;
+
+            fdi.DeleteFile = true;
+
+            NtSetInformationFile(h, &iosb, &fdi, sizeof(fdi),
+                                 FILE_INFORMATION_CLASS::DispositionInformation);
+            NtClose(h);
+
+            *_errno() = nt_status_to_errno(status);
+            return -1;
+        }
+    }
+
     if (flags & O_NOFOLLOW) {
         // check if reparse point
 
