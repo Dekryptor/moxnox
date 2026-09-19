@@ -6,6 +6,7 @@
 #include <mutex>
 #include <memory>
 #include <algorithm>
+#include <sys/stat.h>
 #include "assert.h"
 #include "btrfs.h"
 
@@ -39,11 +40,6 @@ import handle;
 using namespace std;
 
 static const size_t MAX_INLINE = 2048; // FIXME - should be mount option
-
-static const uint32_t S_IFIFO = 0010000;
-static const uint32_t S_IFREG = 0100000;
-static const uint32_t S_IFLNK = 0120000;
-static const uint32_t S_IFDIR = 0040000;
 
 static const uint64_t superblock_addrs[] = { 0x10000, 0x4000000, 0x4000000000, 0x4000000000000 };
 
@@ -5634,6 +5630,13 @@ nt_status btrfs_inode::do_fchown(span<const uint8_t> buffer) {
             ii.ctime = cur_time;
             ii.transid = fs.sb->generation;
             ii.sequence++;
+
+            if (!S_ISDIR(ii.mode)) {
+                ii.mode &= ~S_ISUID;
+
+                if (ii.mode & S_IXGRP)
+                    ii.mode &= ~S_ISGID;
+            }
         }
 
         status = flush_inode_item(p);
