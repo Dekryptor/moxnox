@@ -285,3 +285,4 @@ getnetent
 setnetent
 endnetent
 getnetbyname
+getnetbyaddr

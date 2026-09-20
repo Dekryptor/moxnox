@@ -492,3 +492,8 @@ extern "C"
 netent* getnetbyname(const char* /*name*/) {
     return nullptr;
 }
+
+extern "C"
+netent* getnetbyaddr(uint32_t /*net*/, int /*type*/) {
+    return nullptr;
+}
