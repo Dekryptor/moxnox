@@ -289,12 +289,6 @@ getnetbyaddr
 setlogmask
 
 ; stubs
-getlocalename_l
-mlock
-munlock
-alphasort
-pthread_atfork
-pthread_cancel
 crypt
 ctermid
 ftok

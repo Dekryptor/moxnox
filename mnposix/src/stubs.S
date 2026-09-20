@@ -2,12 +2,6 @@
 
 stubs_start
 
-do_stub "getlocalename_l"
-do_stub "mlock"
-do_stub "munlock"
-do_stub "alphasort"
-do_stub "pthread_atfork"
-do_stub "pthread_cancel"
 do_stub "crypt"
 do_stub "ctermid"
 do_stub "ftok"
