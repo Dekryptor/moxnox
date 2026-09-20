@@ -28,7 +28,7 @@ inet_ntop
 inet_addr
 getservbyname
 getservbyport
+getprotobynumber
 
 ; stubs
 getprotobyname
-getprotobynumber

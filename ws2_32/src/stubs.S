@@ -3,6 +3,5 @@
 stubs_start
 
 do_stub "getprotobyname"
-do_stub "getprotobynumber"
 
 stubs_end

@@ -2,6 +2,7 @@
 #include <string.h>
 #include <fcntl.h>
 #include <sys/socket.h>
+#include <netdb.h>
 #include <bit>
 #include <span>
 #include <string_view>
@@ -496,6 +497,29 @@ servent* getservbyname(const char* /*name*/, const char* /*proto*/) {
 
 extern "C"
 servent* getservbyport(int /*port*/, const char* /*proto*/) {
+    return nullptr;
+}
+
+extern "C"
+struct protoent* getprotobynumber(int proto) {
+    static protoent ret;
+    static char* aliases[3];
+
+    for (const auto& p : protos) {
+        if (p.num != proto)
+            continue;
+
+        aliases[0] = (char*)p.alias1;
+        aliases[1] = (char*)p.alias2;
+        aliases[2] = nullptr;
+
+        ret.p_name = (char*)p.name;
+        ret.p_aliases = aliases;
+        ret.p_proto = p.num;
+
+        return &ret;
+    }
+
     return nullptr;
 }
 
