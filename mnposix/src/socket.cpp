@@ -1,4 +1,5 @@
 #include <sys/socket.h>
+#include <fcntl.h>
 #include <string.h>
 #include <stdlib.h>
 #include <netdb.h>
@@ -365,4 +366,73 @@ void sethostent(int /*stayopen*/) {
 extern "C"
 void endhostent() {
     // nop
+}
+
+extern "C"
+int accept4(int s, struct sockaddr* addr, socklen_t* addrlen, int flag) {
+    IO_STATUS_BLOCK iosb;
+    MOXNOX_SOCKET_ACCEPT_IN params_in;
+    MOXNOX_SOCKET_ACCEPT_OUT params_out;
+
+    if (flag & ~(SOCK_CLOEXEC | SOCK_NONBLOCK)) {
+        *_errno() = EINVAL;
+        return -1;
+    }
+
+    params_in.addr = addr;
+    params_in.addrlen = addrlen ? *addrlen : 0;
+
+    auto h = _get_osfhandle(s);
+    if (h == -1)
+        return -1;
+
+    while (true) {
+        auto sig_count = mn_handled_nonrestartable_signal_count();
+
+        auto status = NtDeviceIoControlFile((HANDLE)h, 0, nullptr, nullptr, &iosb,
+                                            IOCTL_MOXNOX_SOCKET_ACCEPT, &params_in,
+                                            (uint32_t)sizeof(params_in),
+                                            &params_out, (uint32_t)sizeof(params_out));
+
+        if (status == nt_status::USER_APC) {
+            if (mn_handled_nonrestartable_signal_count() != sig_count) {
+                *_errno() = EINTR;
+                return -1;
+            }
+
+            continue;
+        }
+
+        if (!success(status)) {
+            *_errno() = nt_status_to_errno(status);
+            return -1;
+        }
+
+        break;
+    }
+
+    if (addrlen)
+        *addrlen = params_out.addrlen;
+
+    if (flag & SOCK_NONBLOCK) {
+        bool nonblock = true;
+
+        auto status = NtSetInformationFile(params_out.sock, &iosb, &nonblock,
+                                           sizeof(nonblock), FILE_INFORMATION_CLASS::MoxnoxPosixNonBlock);
+        if (!success(status)) {
+            *_errno() = nt_status_to_errno(status);
+            NtClose(params_out.sock);
+            return -1;
+        }
+    }
+
+    auto cloexec = !!(flag & SOCK_CLOEXEC);
+
+    auto fd = _open_osfhandle((intptr_t)params_out.sock, cloexec ? O_CLOEXEC : 0);
+    if (fd == -1) {
+        NtClose(params_out.sock);
+        return -1;
+    }
+
+    return fd;
 }

@@ -277,3 +277,4 @@ gethostent
 sethostent
 endhostent
 strlcpy
+accept4
