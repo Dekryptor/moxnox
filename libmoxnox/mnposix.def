@@ -286,6 +286,7 @@ setnetent
 endnetent
 getnetbyname
 getnetbyaddr
+setlogmask
 
 ; stubs
 getlocalename_l
@@ -296,7 +297,6 @@ pthread_atfork
 pthread_cancel
 crypt
 ctermid
-setlogmask
 ftok
 shmat
 shmctl
