@@ -1923,7 +1923,7 @@ nt_status ipv6_tcp_socket::listen(int backlog) {
 nt_status ipv6_tcp_socket::accept(HANDLE& sock, void* us_addr, int& addrlen) {
     nt_status status;
 
-    if (addrlen < 0 || (size_t)addrlen < sizeof(sockaddr_in6))
+    if (addrlen < 0 || (us_addr && (size_t)addrlen < sizeof(sockaddr_in6)))
         return nt_status::INVALID_PARAMETER;
 
     auto& t = *get_current_thread();
@@ -1976,7 +1976,7 @@ nt_status ipv6_tcp_socket::accept(HANDLE& sock, void* us_addr, int& addrlen) {
         break;
     }
 
-    {
+    if (us_addr) {
         sockaddr_in6 addr;
 
         memset(&addr, 0, sizeof(addr));
