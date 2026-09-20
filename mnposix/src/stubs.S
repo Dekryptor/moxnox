@@ -3,10 +3,6 @@
 stubs_start
 
 do_stub "ctermid"
-do_stub "ftok"
-do_stub "semctl"
-do_stub "semget"
-do_stub "semop"
 do_stub "msgctl"
 do_stub "msgget"
 do_stub "msgrcv"

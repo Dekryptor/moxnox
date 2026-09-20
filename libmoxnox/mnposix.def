@@ -291,10 +291,6 @@ crypt
 
 ; stubs
 ctermid
-ftok
-semctl
-semget
-semop
 msgctl
 msgget
 msgrcv
