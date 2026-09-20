@@ -2,7 +2,6 @@
 
 stubs_start
 
-do_stub "crypt"
 do_stub "ctermid"
 do_stub "ftok"
 do_stub "shmat"

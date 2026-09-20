@@ -287,3 +287,4 @@ endnetent
 getnetbyname
 getnetbyaddr
 setlogmask
+crypt

@@ -287,9 +287,9 @@ endnetent
 getnetbyname
 getnetbyaddr
 setlogmask
+crypt
 
 ; stubs
-crypt
 ctermid
 ftok
 shmat
