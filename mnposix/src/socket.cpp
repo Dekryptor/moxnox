@@ -487,3 +487,8 @@ extern "C"
 void endnetent() {
     // nop
 }
+
+extern "C"
+netent* getnetbyname(const char* /*name*/) {
+    return nullptr;
+}

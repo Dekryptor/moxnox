@@ -284,3 +284,4 @@ endprotoent
 getnetent
 setnetent
 endnetent
+getnetbyname
