@@ -11,6 +11,7 @@ import nt;
 import ucrtbase;
 import moxnox_ioctls;
 import unique_handle;
+import ws2_32;
 
 #undef errno
 import errno;
@@ -18,6 +19,8 @@ import errno;
 using namespace std;
 
 static const char16_t netctl_path[] = u"/dev/netctl";
+
+static size_t proto_idx = 0;
 
 extern "C"
 int socketpair(int domain, int type, int protocol, int* socket_vector) {
@@ -435,4 +438,37 @@ int accept4(int s, struct sockaddr* addr, socklen_t* addrlen, int flag) {
     }
 
     return fd;
+}
+
+extern "C"
+protoent* getprotoent() {
+    static protoent ret;
+    static char* aliases[3];
+
+    if (proto_idx == sizeof(protos) / sizeof(*protos))
+        return nullptr;
+
+    auto& p = protos[proto_idx];
+
+    aliases[0] = (char*)p.alias1;
+    aliases[1] = (char*)p.alias2;
+    aliases[2] = nullptr;
+
+    ret.p_name = (char*)p.name;
+    ret.p_aliases = aliases;
+    ret.p_proto = p.num;
+
+    proto_idx++;
+
+    return &ret;
+}
+
+extern "C"
+void setprotoent(int /*stayopen*/) {
+    proto_idx = 0;
+}
+
+extern "C"
+void endprotoent() {
+    proto_idx = 0;
 }

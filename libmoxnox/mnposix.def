@@ -278,6 +278,9 @@ sethostent
 endhostent
 strlcpy
 accept4
+getprotoent
+setprotoent
+endprotoent
 
 ; stubs
 getlocalename_l
@@ -288,13 +291,10 @@ pthread_atfork
 pthread_cancel
 crypt
 endnetent
-endprotoent
 getnetbyaddr
 getnetbyname
 getnetent
-getprotoent
 setnetent
-setprotoent
 ctermid
 setlogmask
 ftok

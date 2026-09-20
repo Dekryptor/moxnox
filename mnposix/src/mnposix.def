@@ -278,3 +278,6 @@ sethostent
 endhostent
 strlcpy
 accept4
+getprotoent
+setprotoent
+endprotoent
