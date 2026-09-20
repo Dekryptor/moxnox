@@ -281,6 +281,9 @@ accept4
 getprotoent
 setprotoent
 endprotoent
+getnetent
+setnetent
+endnetent
 
 ; stubs
 getlocalename_l
@@ -290,11 +293,8 @@ alphasort
 pthread_atfork
 pthread_cancel
 crypt
-endnetent
 getnetbyaddr
 getnetbyname
-getnetent
-setnetent
 ctermid
 setlogmask
 ftok

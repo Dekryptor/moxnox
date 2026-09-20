@@ -281,3 +281,6 @@ accept4
 getprotoent
 setprotoent
 endprotoent
+getnetent
+setnetent
+endnetent

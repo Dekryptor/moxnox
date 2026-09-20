@@ -472,3 +472,18 @@ extern "C"
 void endprotoent() {
     proto_idx = 0;
 }
+
+extern "C"
+netent* getnetent() {
+    return nullptr;
+}
+
+extern "C"
+void setnetent(int /*stayopen*/) {
+    // nop
+}
+
+extern "C"
+void endnetent() {
+    // nop
+}
