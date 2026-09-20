@@ -29,6 +29,4 @@ inet_addr
 getservbyname
 getservbyport
 getprotobynumber
-
-; stubs
 getprotobyname

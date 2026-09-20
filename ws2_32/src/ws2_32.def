@@ -29,3 +29,4 @@ inet_addr
 getservbyname
 getservbyport
 getprotobynumber
+getprotobyname

@@ -524,6 +524,29 @@ struct protoent* getprotobynumber(int proto) {
 }
 
 extern "C"
+struct protoent* getprotobyname(const char* name) {
+    static protoent ret;
+    static char* aliases[3];
+
+    for (const auto& p : protos) {
+        if (strcmp(p.name, name) && (!p.alias1 || strcmp(p.alias1, name)) && (!p.alias2 || strcmp(p.alias2, name)))
+            continue;
+
+        aliases[0] = (char*)p.alias1;
+        aliases[1] = (char*)p.alias2;
+        aliases[2] = nullptr;
+
+        ret.p_name = (char*)p.name;
+        ret.p_aliases = aliases;
+        ret.p_proto = p.num;
+
+        return &ret;
+    }
+
+    return nullptr;
+}
+
+extern "C"
 int DllMainCRTStartup(HANDLE /*hinstDLL*/, uint32_t /*dwReason*/,
                       void* /*lpvReserved*/) {
     return 1;

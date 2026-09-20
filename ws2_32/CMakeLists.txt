@@ -8,7 +8,6 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 enable_language(ASM)
 
 set(SRC_FILES src/ws2_32.def
-    src/stubs.S
     src/ws2_32.cpp
     src/getaddrinfo.cpp
 )
