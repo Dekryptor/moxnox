@@ -292,10 +292,6 @@ crypt
 ; stubs
 ctermid
 ftok
-shmat
-shmctl
-shmdt
-shmget
 semctl
 semget
 semop
