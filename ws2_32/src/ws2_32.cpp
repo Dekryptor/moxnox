@@ -208,7 +208,7 @@ SOCKET accept(SOCKET s, sockaddr* addr, int* addrlen) {
     MOXNOX_SOCKET_ACCEPT_OUT params_out;
 
     params_in.addr = addr;
-    params_in.addrlen = *addrlen;
+    params_in.addrlen = addrlen ? *addrlen : 0;
 
     auto h = _get_osfhandle((int)s);
     if (h == -1)
@@ -230,7 +230,8 @@ SOCKET accept(SOCKET s, sockaddr* addr, int* addrlen) {
         break;
     }
 
-    *addrlen = params_out.addrlen;
+    if (addrlen)
+        *addrlen = params_out.addrlen;
 
     auto fd = _open_osfhandle((intptr_t)params_out.sock, 0);
     if (fd == -1) {
