@@ -19,9 +19,10 @@ import vec;
 
 using namespace std;
 
-class ipv6_udp_socket : public socket {
+template<socket_family FAMILY>
+class udp_socket : public socket {
 public:
-    ~ipv6_udp_socket() override;
+    ~udp_socket() override;
     void last_handle_closed() override;
 
     nt_status recvfrom(span<const span<uint8_t>> v, int flags,
@@ -95,7 +96,7 @@ private:
 };
 
 static spinlock udp_ports_lock;
-static ipv6_udp_socket* udp_ports[65536];
+static udp_socket<ipv6>* udp_ports[65536];
 
 struct udp_header {
     uint16_t srcport;
@@ -178,7 +179,7 @@ void received_ipv6_udp_packet(netif& ni, packet& pack,
           byteswap(udp.checksum));
 #endif
 
-    ipv6_udp_socket* sock = nullptr;
+    udp_socket<ipv6>* sock = nullptr;
 
     {
         lock_guard lock(udp_ports_lock);
@@ -252,7 +253,8 @@ void received_ipv6_udp_packet(netif& ni, packet& pack,
     sock->release();
 }
 
-ipv6_udp_socket::~ipv6_udp_socket() {
+template<socket_family FAMILY>
+udp_socket<FAMILY>::~udp_socket() {
     while (true) {
         socket_packet* pp = nullptr;
 
@@ -275,10 +277,11 @@ ipv6_udp_socket::~ipv6_udp_socket() {
     }
 }
 
+template<socket_family FAMILY>
 template<bool NONBLOCK>
-nt_status ipv6_udp_socket::do_recvfrom(span<const span<uint8_t>> v, int flags,
-                                       sockaddr_storage* from, size_t* fromlen,
-                                       uint64_t& recv_bytes) {
+nt_status udp_socket<FAMILY>::do_recvfrom(span<const span<uint8_t>> v, int flags,
+                                          sockaddr_storage* from, size_t* fromlen,
+                                          uint64_t& recv_bytes) {
     // FIXME - MSG_TRUNC
     if (flags != 0)
         return nt_status::INVALID_PARAMETER;
@@ -403,10 +406,11 @@ static uint16_t find_ephemeral_udp_port() {
     }
 }
 
+template<socket_family FAMILY>
 template<bool NONBLOCK>
-nt_status ipv6_udp_socket::do_sendto(span<const span<const uint8_t>> v,
-                                     int flags, sockaddr* to, size_t tolen,
-                                     uint64_t& sent_bytes) {
+nt_status udp_socket<FAMILY>::do_sendto(span<const span<const uint8_t>> v,
+                                        int flags, sockaddr* to, size_t tolen,
+                                        uint64_t& sent_bytes) {
     nt_status status;
     ipv6_address src;
     uint16_t srcport;
@@ -572,7 +576,8 @@ nt_status ipv6_udp_socket::do_sendto(span<const span<const uint8_t>> v,
     return status;
 }
 
-nt_status ipv6_udp_socket::bind(const sockaddr* addr, size_t addrlen) {
+template<socket_family FAMILY>
+nt_status udp_socket<FAMILY>::bind(const sockaddr* addr, size_t addrlen) {
     if (addr->sa_family != AF_INET6)
         return nt_status::INVALID_PARAMETER;
 
@@ -620,7 +625,8 @@ nt_status ipv6_udp_socket::bind(const sockaddr* addr, size_t addrlen) {
     return nt_status::SUCCESS;
 }
 
-nt_status ipv6_udp_socket::connect(const sockaddr* addr, size_t addrlen) {
+template<socket_family FAMILY>
+nt_status udp_socket<FAMILY>::connect(const sockaddr* addr, size_t addrlen) {
     if (addr->sa_family != AF_INET6)
         return nt_status::INVALID_PARAMETER;
 
@@ -661,7 +667,8 @@ nt_status ipv6_udp_socket::connect(const sockaddr* addr, size_t addrlen) {
     return nt_status::SUCCESS;
 }
 
-void ipv6_udp_socket::last_handle_closed() {
+template<socket_family FAMILY>
+void udp_socket<FAMILY>::last_handle_closed() {
     {
         lock_guard lock(udp_ports_lock);
         lock_guard lock2(bind_lock);
@@ -693,7 +700,7 @@ void handle_icmpv6_error_udp(packet& pack) {
 
     const auto& udp = *(udp_header*)(pack.data + sizeof(ipv6_header) + sizeof(icmpv6_error));
 
-    ipv6_udp_socket* sock;
+    udp_socket<ipv6>* sock;
 
     {
         lock_guard lock(udp_ports_lock);
@@ -786,7 +793,7 @@ void handle_icmpv6_error_udp(packet& pack) {
 }
 
 nt_status create_new_ipv6_udp_socket(object_ref& ref) {
-    auto s = new ipv6_udp_socket;
+    auto s = new udp_socket<ipv6>;
     if (!s) {
         print("new failed\n");
         return nt_status::INSUFFICIENT_RESOURCES;
@@ -797,7 +804,8 @@ nt_status create_new_ipv6_udp_socket(object_ref& ref) {
     return nt_status::SUCCESS;
 }
 
-nt_status ipv6_udp_socket::getsockname(span<uint8_t> buf, size_t& len) {
+template<socket_family FAMILY>
+nt_status udp_socket<FAMILY>::getsockname(span<uint8_t> buf, size_t& len) {
     if (buf.size() < sizeof(sockaddr_in6))
         return nt_status::BUFFER_TOO_SMALL;
 
@@ -822,7 +830,8 @@ nt_status ipv6_udp_socket::getsockname(span<uint8_t> buf, size_t& len) {
     return nt_status::SUCCESS;
 }
 
-nt_status ipv6_udp_socket::getpeername(span<uint8_t> buf, size_t& len) {
+template<socket_family FAMILY>
+nt_status udp_socket<FAMILY>::getpeername(span<uint8_t> buf, size_t& len) {
     if (buf.size() < sizeof(sockaddr_in6))
         return nt_status::BUFFER_TOO_SMALL;
 
@@ -848,7 +857,8 @@ nt_status ipv6_udp_socket::getpeername(span<uint8_t> buf, size_t& len) {
     return nt_status::SUCCESS;
 }
 
-nt_status ipv6_udp_socket::shutdown(int how) {
+template<socket_family FAMILY>
+nt_status udp_socket<FAMILY>::shutdown(int how) {
     if (how != SHUT_RD && how != SHUT_WR && how != SHUT_RDWR)
         return nt_status::INVALID_PARAMETER;
 
@@ -879,7 +889,8 @@ nt_status ipv6_udp_socket::shutdown(int how) {
     return nt_status::SUCCESS;
 }
 
-nt_status ipv6_udp_socket::setsockopt_ipv6(sockopt_ipv6 opt, span<const uint8_t> buf) {
+template<socket_family FAMILY>
+nt_status udp_socket<FAMILY>::setsockopt_ipv6(sockopt_ipv6 opt, span<const uint8_t> buf) {
     // FIXME - not if IPv4 socket
 
     switch (opt) {
