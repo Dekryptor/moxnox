@@ -186,6 +186,21 @@ struct neighbour_cache_entry {
     int64_t last_update_time;
 };
 
+struct ipv4_route {
+    ipv4_route(netif& ni, const ipv4_address& prefix, uint8_t prefix_length) : ni(ni), prefix(prefix), prefix_length(prefix_length) {
+        ni.acquire();
+    }
+
+    ~ipv4_route() {
+        ni.release();
+    }
+
+    list_entry le;
+    netif& ni;
+    ipv4_address prefix;
+    uint8_t prefix_length;
+};
+
 struct ipv6_route {
     ipv6_route(netif& ni, const ipv6_address& prefix, uint8_t prefix_length) : ni(ni), prefix(prefix), prefix_length(prefix_length) {
         ni.acquire();
@@ -316,6 +331,8 @@ public:
                           packet& pack) override;
 };
 
+static spinlock ipv4_routes_lock;
+static list_entry ipv4_routes = { &ipv4_routes, &ipv4_routes };
 static spinlock ipv6_routes_lock;
 static list_entry ipv6_routes = { &ipv6_routes, &ipv6_routes };
 static spinlock dns_servers_lock;
@@ -963,6 +980,27 @@ static void add_ipv6_prefix(netif& ni, const ipv6_address& prefix,
     }
 
     add_ipv6_route(ni, prefix, prefix_length);
+}
+
+static ipv4_address zero_right_bits(const ipv4_address& addr, uint8_t n) {
+    ipv4_address ret = addr;
+    unsigned int i = 3;
+
+    while (true) {
+        if (n >= 8) {
+            ret.v[i] = 0;
+            n -= 8;
+            i--;
+
+            if (n == 0)
+                break;
+        } else {
+            ret.v[i] = (uint8_t)(ret.v[i] & ~((1 << n) - 1));
+            break;
+        }
+    }
+
+    return ret;
 }
 
 static ipv6_address zero_right_bits(const ipv6_address& addr, uint8_t n) {
@@ -3607,6 +3645,13 @@ static bool is_link_local(const ipv6_address& addr) {
     return false;
 }
 
+static bool ipv4_prefix_match(const ipv4_address& addr, const ipv4_address& pref,
+                              uint8_t len) {
+    auto addr2 = zero_right_bits(addr, 32 - len);
+
+    return addr2 == pref;
+}
+
 static bool ipv6_prefix_match(const ipv6_address& addr, const ipv6_address& pref,
                               uint8_t len) {
     auto addr2 = zero_right_bits(addr, 128 - len);
@@ -3637,6 +3682,29 @@ static netif* lookup_route(const ipv6_address& dst) {
     return &best_match->ni;
 }
 
+static netif* lookup_route(const ipv4_address& dst) {
+    lock_guard lock(ipv4_routes_lock);
+
+    ipv4_route* best_match = nullptr;
+
+    for (auto le = ipv4_routes.next; le != &ipv4_routes; le = le->next) {
+        auto& r = containing_record<ipv4_route>(le);
+
+        if (!ipv4_prefix_match(dst, r.prefix, r.prefix_length))
+            continue;
+
+        if (!best_match || (r.prefix_length > best_match->prefix_length))
+            best_match = &r;
+    }
+
+    if (!best_match)
+        return nullptr;
+
+    best_match->ni.acquire();
+
+    return &best_match->ni;
+}
+
 static uint8_t ipv6_match_len(const ipv6_address& addr1, const ipv6_address& addr2) {
     uint8_t ret = 0;
 
@@ -3650,6 +3718,103 @@ static uint8_t ipv6_match_len(const ipv6_address& addr1, const ipv6_address& add
     }
 
     return ret;
+}
+
+nt_status ipv4_choose_interface(const ipv4_address& dst, netif*& ni,
+                                ipv4_address& src) {
+    // bind overrides everything
+    if (src != parse_ipv4_address("0.0.0.0")) {
+        lock_guard lg(netif_lock);
+
+        for (auto le = netif_list.next; le != &netif_list; le = le->next) {
+            auto& ni2 = containing_record<netif>(le);
+
+            {
+                lock_guard lock(ni2.addr_lock);
+
+                for (auto le2 = ni2.addrs.next; le2 != &ni2.addrs; le2 = le2->next) {
+                    auto& a = containing_record<ip_addr>(le2);
+
+                    auto* addr = get_if<ipv4_address>(&a.addr);
+
+                    if (!addr)
+                        continue;
+
+                    if (*addr == src) {
+                        ni2.acquire();
+
+                        ni = &ni2;
+                        return nt_status::SUCCESS;
+                    }
+                }
+            }
+        }
+
+        return nt_status::NETWORK_UNREACHABLE;
+    }
+
+    // prefer same address
+
+    {
+        lock_guard lg(netif_lock);
+
+        for (auto le = netif_list.next; le != &netif_list; le = le->next) {
+            auto& ni2 = containing_record<netif>(le);
+
+            {
+                lock_guard lock(ni2.addr_lock);
+
+                for (auto le2 = ni2.addrs.next; le2 != &ni2.addrs; le2 = le2->next) {
+                    auto& a = containing_record<ip_addr>(le2);
+
+                    auto* addr = get_if<ipv4_address>(&a.addr);
+
+                    if (!addr)
+                        continue;
+
+                    if (*addr == dst) {
+                        ni2.acquire();
+
+                        ni = &ni2;
+                        src = dst;
+                        return nt_status::SUCCESS;
+                    }
+                }
+            }
+        }
+    }
+
+    ni = lookup_route(dst);
+    if (!ni)
+        return nt_status::HOST_UNREACHABLE;
+
+    auto& n = *ni;
+
+    {
+        lock_guard lock(n.addr_lock);
+
+        ip_addr* best = nullptr;
+
+        for (auto le = n.addrs.next; le != &n.addrs; le = le->next) {
+            auto& a = containing_record<ip_addr>(le);
+
+            auto* addr = get_if<ipv4_address>(&a.addr);
+
+            if (!addr)
+                continue;
+
+            best = &a;
+            break;
+        }
+
+        if (!best) {
+            ni->release();
+            return nt_status::NETWORK_UNREACHABLE;
+        }
+
+        src = *get_if<ipv4_address>(&best->addr);
+        return nt_status::SUCCESS;
+    }
 }
 
 nt_status ipv6_choose_interface(const ipv6_address& dst, uint32_t scope_id,
@@ -4242,9 +4407,9 @@ nt_status raw_socket<FAMILY>::do_sendto(span<const span<const uint8_t>> v,
         dst = *(typename FAMILY::address*)&toin.sin6_addr;
 
     if constexpr (is_same_v<FAMILY, ipv4>) {
-        // FIXME - IPv4
-
-        return nt_status::INTERNAL_ERROR;
+        status = ipv4_choose_interface(dst, pni, src);
+        if (!success(status))
+            return status;
     } else if constexpr (is_same_v<FAMILY, ipv6>) {
         status = ipv6_choose_interface(dst, toin.sin6_scope_id, pni, src);
         if (!success(status))
