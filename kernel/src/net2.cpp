@@ -626,6 +626,10 @@ static void handle_neighbour_advertisement(netif& ni, packet& pack) {
     add_neighbour_cache_entry(ni, mac, na.target, na._override);
 }
 
+bool is_multicast_address(const ipv4_address& addr) {
+    return (addr.v[0] & 0xe0) == 0xe0;
+}
+
 bool is_multicast_address(const ipv6_address& addr) {
     static const auto multicast_range = parse_ipv6_address("ff00::");
 
@@ -1539,6 +1543,12 @@ static void send_to_ipv4_sockets(netif& ni, packet& pack,
     send_to_raw_ipv4_sockets(ni.num, pack);
 }
 
+static bool should_accept_multicast(const ipv4_address& dst) {
+    static const auto all_nodes = parse_ipv4_address("224.0.0.1");
+
+    return dst == all_nodes;
+}
+
 static bool should_accept_multicast(netif& ni, const ipv6_address& dst) {
     static const auto all_nodes = parse_ipv6_address("ff02::1");
     static const auto solicited_multicast = parse_ipv6_address("ff02::1:ff00:0");
@@ -1785,6 +1795,9 @@ static void handle_ipv4_packet(netif& ni, packet& pack, const mac_address& src_m
     if (ip.src == parse_ipv4_address("255.255.255.255"))
         return;
 
+    if (is_multicast_address(ip.dst) && !should_accept_multicast(ip.dst))
+        return;
+
     optional<ipv4_address> our_ip;
 
     {
@@ -1800,7 +1813,7 @@ static void handle_ipv4_packet(netif& ni, packet& pack, const mac_address& src_m
             if (!addr)
                 continue;
 
-            if (ip.dst == parse_ipv4_address("255.255.255.255")) {
+            if (ip.dst == parse_ipv4_address("255.255.255.255") || is_multicast_address(ip.dst)) {
                 if (!our_ip.has_value()) {
                     our_ip = *addr;
                     matching_prefix = calc_matching_prefix(*addr, ip.src);
