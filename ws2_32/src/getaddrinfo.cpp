@@ -12,6 +12,7 @@ import nt;
 import moxnox_ioctls;
 import unique_handle;
 import ws2_32;
+import ipv4;
 import ipv6;
 import print;
 import ucrtbase;
@@ -661,6 +662,36 @@ int getaddrinfo(const char* node, const char* service, const addrinfo* hints,
     } else
         port = 0;
 
+    auto return_ipv4 = [socktype, protocol, res, port](const ipv4_address& addr) -> int {
+        auto ret = (addrinfo*)malloc(sizeof(addrinfo));
+        if (!ret)
+            return EAI_MEMORY;
+
+        auto sock = (sockaddr_in*)malloc(sizeof(sockaddr_in));
+        if (!sock) {
+            free(ret);
+            return EAI_MEMORY;
+        }
+
+        sock->sin_family = AF_INET;
+        sock->sin_port = byteswap(port);
+        *(ipv4_address*)&sock->sin_addr = addr;
+        memset(sock->sin_zero, 0, sizeof(sock->sin_zero));
+
+        ret->ai_flags = 0;
+        ret->ai_family = AF_INET;
+        ret->ai_socktype = socktype;
+        ret->ai_protocol = protocol;
+        ret->ai_addrlen = sizeof(sockaddr_in);
+        ret->ai_addr = (sockaddr*)sock;
+        ret->ai_canonname = nullptr;
+        ret->ai_next = nullptr;
+
+        *res = ret;
+
+        return 0;
+    };
+
     auto return_ipv6 = [socktype, protocol, res, port](const ipv6_address& addr, uint32_t scope) -> int {
         auto ret = (addrinfo*)malloc(sizeof(addrinfo));
         if (!ret)
@@ -693,10 +724,17 @@ int getaddrinfo(const char* node, const char* service, const addrinfo* hints,
     };
 
     if (!node) {
-        if (flags & AI_PASSIVE)
-            return return_ipv6(parse_ipv6_address("::"), 0);
-        else
-            return return_ipv6(parse_ipv6_address("::1"), 0);
+        if (family == AF_INET) {
+            if (flags & AI_PASSIVE)
+                return return_ipv4(parse_ipv4_address("0.0.0.0"));
+            else
+                return return_ipv4(parse_ipv4_address("127.0.0.1"));
+        } else {
+            if (flags & AI_PASSIVE)
+                return return_ipv6(parse_ipv6_address("::"), 0);
+            else
+                return return_ipv6(parse_ipv6_address("::1"), 0);
+        }
     }
 
     string_view n = node;
@@ -722,6 +760,13 @@ int getaddrinfo(const char* node, const char* service, const addrinfo* hints,
 
         if (opt.has_value())
             return return_ipv6(*opt, scope_id);
+    }
+
+    if (family == AF_UNSPEC || family == AF_INET) {
+        auto opt = try_parse_ipv4_address(n);
+
+        if (opt.has_value())
+            return return_ipv4(*opt);
     }
 
     if (flags & AI_NUMERICHOST)
