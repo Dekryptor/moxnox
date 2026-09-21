@@ -4173,6 +4173,7 @@ static mac_address search_neighbour_cache(netif& ni, const ipv6_address& dst) {
     }
 
     nce->status = neighbour_cache_status::incomplete;
+    nce->last_update_time = kernel_time_page.system_time;
 
     {
         lock_guard lock(ni.neighbour_lock);
