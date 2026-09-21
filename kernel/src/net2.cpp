@@ -187,7 +187,8 @@ struct neighbour_cache_entry {
 };
 
 struct ipv4_route {
-    ipv4_route(netif& ni, const ipv4_address& prefix, uint8_t prefix_length) : ni(ni), prefix(prefix), prefix_length(prefix_length) {
+    ipv4_route(netif& ni, const ipv4_address& prefix, uint8_t prefix_length,
+               const ipv4_address& gateway) : ni(ni), prefix(prefix), prefix_length(prefix_length), gateway(gateway) {
         ni.acquire();
     }
 
@@ -199,6 +200,7 @@ struct ipv4_route {
     netif& ni;
     ipv4_address prefix;
     uint8_t prefix_length;
+    ipv4_address gateway;
 };
 
 struct ipv6_route {
@@ -707,6 +709,50 @@ static void handle_v6_echo_request(netif& ni, packet& pack,
     }
 
     pack2->release();
+}
+
+static void add_ipv4_route(netif& ni, const ipv4_address& prefix,
+                           uint8_t prefix_length, const ipv4_address& gateway) {
+    {
+        lock_guard lock(ipv4_routes_lock);
+
+        for (auto le = ipv4_routes.next; le != &ipv4_routes; le = le->next) {
+            auto& r = containing_record<ipv4_route>(le);
+
+            if (r.prefix == prefix && r.prefix_length == prefix_length &&
+                r.gateway == gateway && &r.ni == &ni) {
+                return;
+            }
+        }
+    }
+
+    auto r = new ipv4_route(ni, prefix, prefix_length, gateway);
+    if (!r) {
+        print("new failed\n");
+        return;
+    }
+
+    bool beaten_to_it = false;
+
+    {
+        lock_guard lock(ipv4_routes_lock);
+
+        for (auto le = ipv4_routes.next; le != &ipv4_routes; le = le->next) {
+            auto& r2 = containing_record<ipv4_route>(le);
+
+            if (r2.prefix == prefix && r2.prefix_length == prefix_length &&
+                r2.gateway == gateway && &r2.ni == &ni) {
+                beaten_to_it = true;
+                break;
+            }
+        }
+
+        if (!beaten_to_it)
+            insert_tail_list(ipv4_routes, r->le);
+    }
+
+    if (beaten_to_it)
+        delete r;
 }
 
 static void add_ipv6_route(netif& ni, const ipv6_address& prefix,
@@ -2261,6 +2307,8 @@ bool init_net() {
         lock_guard lg(netif_lock);
         insert_tail_list(netif_list, lo->le);
     }
+
+    add_ipv4_route(*lo, parse_ipv4_address("127.0.0.0"), 8, parse_ipv4_address("0.0.0.0"));
 
     add_kernel_thread(network_thread);
 
