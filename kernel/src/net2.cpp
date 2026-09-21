@@ -1867,6 +1867,10 @@ bool drop_packet(const mac_address& dst, const mac_address& us) {
     if (dst.v[0] == 0x33 && dst.v[1] == 0x33)
         return false;
 
+    // IPv4 multicast
+    if (dst.v[0] == 0x01 && dst.v[1] == 0x00 && dst.v[2] == 0x5e)
+        return false;
+
     // broadcast
     if (dst.v[0] == 0xff && dst.v[1] == 0xff && dst.v[2] == 0xff &&
         dst.v[3] == 0xff && dst.v[4] == 0xff && dst.v[5] == 0xff) {
