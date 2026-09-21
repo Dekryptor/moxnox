@@ -568,6 +568,7 @@ bool rtl8168_netif::init() {
     regs.rx_config.value = rx_config.value;
 
     add_multicast({0x33, 0x33, 0x00, 0x00, 0x00, 0x01}); // all nodes, ff02::1
+    add_multicast({0x01, 0x00, 0x5e, 0x00, 0x00, 0x01}); // all nodes, 224.0.0.1
 
     regs.rx_max_size = RX_BUF_SIZE;
     regs.tx_max_size = TX_BUF_SIZE / 128;
