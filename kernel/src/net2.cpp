@@ -48,10 +48,18 @@ static size_t num_ipv4_raw_sockets = 0;
 
 struct ipv4 {
     using header = ipv4_header;
+    using address = ipv4_address;
+    using sockaddr = sockaddr_in;
+
+    static constexpr int family = AF_INET;
 };
 
 struct ipv6 {
     using header = ipv6_header;
+    using address = ipv6_address;
+    using sockaddr = sockaddr_in6;
+
+    static constexpr int family = AF_INET6;
 };
 
 template<typename T>
@@ -128,7 +136,7 @@ public:
     size_t buffer_size = 0;
     spinlock bind_lock;
     bool bind_done = false;
-    ipv6_address bound_address;
+    typename FAMILY::address bound_address;
     nt_status pending_error = nt_status::SUCCESS;
     bool dead = false;
 
@@ -4182,103 +4190,107 @@ template<bool NONBLOCK>
 nt_status raw_socket<FAMILY>::do_sendto(span<const span<const uint8_t>> v,
                                         int flags, sockaddr* to, size_t tolen,
                                         uint64_t& sent_bytes) {
-    nt_status status;
-    ipv6_address src;
-    auto vec_size = get_vec_size(v);
-    span<const uint8_t> top = vec_size == 0 ? span<const uint8_t>() : v.front();
-
-    // FIXME - IPv4
-
-    if (!to || tolen < sizeof(sockaddr_in6))
+    if constexpr (is_same_v<FAMILY, ipv4>)
         return nt_status::INVALID_PARAMETER;
+    else if constexpr (is_same_v<FAMILY, ipv6>) {
+        nt_status status;
+        ipv6_address src;
+        auto vec_size = get_vec_size(v);
+        span<const uint8_t> top = vec_size == 0 ? span<const uint8_t>() : v.front();
 
-    if (flags != 0)
-        return nt_status::INVALID_PARAMETER;
+        // FIXME - IPv4
 
-    auto& to6 = *(sockaddr_in6*)to;
+        if (!to || tolen < sizeof(sockaddr_in6))
+            return nt_status::INVALID_PARAMETER;
 
-    {
-        lock_guard lock(bind_lock);
+        if (flags != 0)
+            return nt_status::INVALID_PARAMETER;
 
-        if (bind_done)
-            src = bound_address;
+        auto& to6 = *(sockaddr_in6*)to;
+
+        {
+            lock_guard lock(bind_lock);
+
+            if (bind_done)
+                src = bound_address;
+            else
+                src = parse_ipv6_address("::");
+        }
+
+        auto& dst = *(ipv6_address*)&to6.sin6_addr;
+
+        netif* pni;
+
+        status = ipv6_choose_interface(dst, to6.sin6_scope_id, pni, src);
+        if (!success(status))
+            return status;
+
+        auto& ni = *pni;
+
+        if (vec_size + sizeof(ipv6_header) > ni.mtu) {
+            ni.release();
+            return nt_status::INVALID_BUFFER_SIZE;
+        }
+
+        mac_address mac;
+
+        if (src == dst)
+            mac = ni.mac;
         else
-            src = parse_ipv6_address("::");
-    }
+            mac = find_mac_address(ni, dst);
 
-    auto& dst = *(ipv6_address*)&to6.sin6_addr;
+        auto pack = new packet;
+        if (!pack) {
+            print("new failed\n");
+            return nt_status::INSUFFICIENT_RESOURCES;
+        }
 
-    netif* pni;
+        pack->size = sizeof(ipv6_header) + vec_size;
 
-    status = ipv6_choose_interface(dst, to6.sin6_scope_id, pni, src);
-    if (!success(status))
-        return status;
+        auto& ip = *(ipv6_header*)pack->data;
+        ip.traffic_class1 = 0;
+        ip.version = 6;
+        ip.traffic_class2 = 0;
+        ip.flow_label_high = 0;
+        ip.flow_label_medium = 0;
+        ip.flow_label_low = 0;
+        ip.payload_length = byteswap((uint16_t)vec_size);
+        ip.next_header = (uint8_t)protocol;
+        ip.hop_limit = DEFAULT_HOP_LIMIT;
+        ip.src = src;
+        ip.dst = dst;
 
-    auto& ni = *pni;
+        memcpy_vec(pack->data + sizeof(ipv6_header), v, top, vec_size);
 
-    if (vec_size + sizeof(ipv6_header) > ni.mtu) {
-        ni.release();
-        return nt_status::INVALID_BUFFER_SIZE;
-    }
+        // FIXME - should only be if IPV6_CHECKSUM sockopt set
+        if (protocol == IPPROTO_ICMPV6 && vec_size >= sizeof(icmpv6_header)) {
+            auto& icmp = *(icmpv6_header*)(pack->data + sizeof(ipv6_header));
 
-    mac_address mac;
+            icmp.checksum = 0;
+            icmp.checksum = calc_ipv6_checksum(ip, span((uint8_t*)&icmp, vec_size), IPPROTO_ICMPV6);
+        }
 
-    if (src == dst)
-        mac = ni.mac;
-    else
-        mac = find_mac_address(ni, dst);
+        if (mac == NULL_MAC_ADDRESS) {
+            send_address_unreachable(ni, *pack, src);
+            pack->release();
+            ni.release();
+            return nt_status::HOST_UNREACHABLE;
+        }
 
-    auto pack = new packet;
-    if (!pack) {
-        print("new failed\n");
-        return nt_status::INSUFFICIENT_RESOURCES;
-    }
+        status = dispatch_packet(ni, *pack, mac);
+        if (!success(status)) {
+            pack->release();
+            ni.release();
+            return status;
+        }
 
-    pack->size = sizeof(ipv6_header) + vec_size;
-
-    auto& ip = *(ipv6_header*)pack->data;
-    ip.traffic_class1 = 0;
-    ip.version = 6;
-    ip.traffic_class2 = 0;
-    ip.flow_label_high = 0;
-    ip.flow_label_medium = 0;
-    ip.flow_label_low = 0;
-    ip.payload_length = byteswap((uint16_t)vec_size);
-    ip.next_header = (uint8_t)protocol;
-    ip.hop_limit = DEFAULT_HOP_LIMIT;
-    ip.src = src;
-    ip.dst = dst;
-
-    memcpy_vec(pack->data + sizeof(ipv6_header), v, top, vec_size);
-
-    // FIXME - should only be if IPV6_CHECKSUM sockopt set
-    if (protocol == IPPROTO_ICMPV6 && vec_size >= sizeof(icmpv6_header)) {
-        auto& icmp = *(icmpv6_header*)(pack->data + sizeof(ipv6_header));
-
-        icmp.checksum = 0;
-        icmp.checksum = calc_ipv6_checksum(ip, span((uint8_t*)&icmp, vec_size), IPPROTO_ICMPV6);
-    }
-
-    if (mac == NULL_MAC_ADDRESS) {
-        send_address_unreachable(ni, *pack, src);
         pack->release();
         ni.release();
-        return nt_status::HOST_UNREACHABLE;
-    }
 
-    status = dispatch_packet(ni, *pack, mac);
-    if (!success(status)) {
-        pack->release();
-        ni.release();
+        sent_bytes = vec_size;
+
         return status;
     }
-
-    pack->release();
-    ni.release();
-
-    sent_bytes = vec_size;
-
-    return status;
 }
 
 netif::~netif() {
@@ -4377,56 +4389,65 @@ template<socket_family FAMILY>
 nt_status raw_socket<FAMILY>::bind(const sockaddr* addr, size_t addrlen) {
     // FIXME - IPv4
 
-    if (addr->sa_family != AF_INET6)
+    if constexpr (is_same_v<FAMILY, ipv4>)
         return nt_status::INVALID_PARAMETER;
-
-    if (addrlen < sizeof(sockaddr_in6))
-        return nt_status::BUFFER_TOO_SMALL;
-
-    auto& b = *(sockaddr_in6*)addr;
-
-    auto ip = *(ipv6_address*)&b.sin6_addr;
-
-    if (ip != parse_ipv6_address("::")) {
-        if (!is_our_ip(ip))
-            return nt_status::INVALID_ADDRESS_COMPONENT;
-    }
-
-    {
-        lock_guard lock(bind_lock);
-
-        if (bind_done)
+    else if constexpr (is_same_v<FAMILY, ipv6>) {
+        if (addr->sa_family != AF_INET6)
             return nt_status::INVALID_PARAMETER;
 
-        bound_address = ip;
+        if (addrlen < sizeof(sockaddr_in6))
+            return nt_status::BUFFER_TOO_SMALL;
 
-        bind_done = true;
+        auto& b = *(sockaddr_in6*)addr;
+
+        auto ip = *(ipv6_address*)&b.sin6_addr;
+
+        if (ip != parse_ipv6_address("::")) {
+            if (!is_our_ip(ip))
+                return nt_status::INVALID_ADDRESS_COMPONENT;
+        }
+
+        {
+            lock_guard lock(bind_lock);
+
+            if (bind_done)
+                return nt_status::INVALID_PARAMETER;
+
+            bound_address = ip;
+
+            bind_done = true;
+        }
+
+        return nt_status::SUCCESS;
     }
-
-    return nt_status::SUCCESS;
 }
 
 template<socket_family FAMILY>
 nt_status raw_socket<FAMILY>::getsockname(span<uint8_t> buf, size_t& len) {
-    // FIXME - IPv4
-
-    if (buf.size() < sizeof(sockaddr_in6))
+    if (buf.size() < sizeof(typename FAMILY::sockaddr))
         return nt_status::BUFFER_TOO_SMALL;
 
-    auto& addr = *(sockaddr_in6*)buf.data();
+    auto& addr = *(typename FAMILY::sockaddr*)buf.data();
 
-    memset(&addr, 0, sizeof(sockaddr_in6));
+    memset(&addr, 0, sizeof(addr));
 
-    addr.sin6_family = AF_INET6;
+    if constexpr (is_same_v<FAMILY, ipv4>)
+        addr.sin_family = FAMILY::family;
+    else if constexpr (is_same_v<FAMILY, ipv6>)
+        addr.sin6_family = FAMILY::family;
 
     {
         lock_guard lock(bind_lock);
 
-        if (bind_done)
-            *(ipv6_address*)&addr.sin6_addr = bound_address;
+        if (bind_done) {
+            if constexpr (is_same_v<FAMILY, ipv4>)
+                *(typename FAMILY::address*)&addr.sin_addr = bound_address;
+            else if constexpr (is_same_v<FAMILY, ipv6>)
+                *(typename FAMILY::address*)&addr.sin6_addr = bound_address;
+        }
     }
 
-    len = sizeof(sockaddr_in6);
+    len = sizeof(typename FAMILY::sockaddr);
 
     return nt_status::SUCCESS;
 }
