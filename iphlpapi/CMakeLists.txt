@@ -7,16 +7,14 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 enable_language(ASM)
 
-set(SRC_FILES src/iphlpapi.cpp
-    src/stubs.S
-)
+set(SRC_FILES src/iphlpapi.cpp)
 
 add_library(iphlpapi SHARED ${SRC_FILES})
 
 target_compile_options(iphlpapi PRIVATE -fno-exceptions ${USERSPACE_CFLAGS})
 target_link_options(iphlpapi PRIVATE -nostartfiles -nostdlib)
 
-target_link_libraries(iphlpapi PRIVATE moxnox)
+target_link_libraries(iphlpapi PRIVATE moxnox unique_handle errno)
 
 install(TARGETS iphlpapi
     COMPONENT core
