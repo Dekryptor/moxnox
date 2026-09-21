@@ -1662,23 +1662,6 @@ static void handle_ipv6_packet(netif& ni, packet& pack, const mac_address& src_m
     }
 }
 
-uint16_t calc_ipv4_checksum(span<const uint8_t> data) {
-    uint32_t sum = 0;
-
-    for (auto s : span((uint16_t*)data.data(), data.size() / sizeof(uint16_t))) {
-        sum += byteswap(s);
-    }
-
-    if (data.size() & 1)
-        sum += (uint16_t)(data[data.size() - 1] << 8);
-
-    while (sum & 0xffff0000) {
-        sum = (sum >> 16) + (sum & 0xffff);
-    }
-
-    return byteswap((uint16_t)(~(uint16_t)sum));
-}
-
 static void handle_v4_echo_request(netif& ni, packet& pack, const mac_address& src_mac,
                                    const ipv4_address& our_ip, bool skip_checksum) {
     const auto& orig_ip = *(ipv4_header*)pack.data;
