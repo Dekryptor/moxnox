@@ -5034,6 +5034,101 @@ static void send_arp_reply(netif& ni, const ipv4_address& src_ip,
     pack->release();
 }
 
+static void add_arp_cache_entry(netif& ni, const mac_address& mac,
+                                const ipv4_address& addr, bool to_us) {
+    {
+        lock_guard lock(ni.arp_lock);
+
+        for (auto le = ni.arp_cache.next; le != &ni.arp_cache; le = le->next) {
+            auto& c = containing_record<neighbour_cache_entry<ipv4>>(le);
+
+            if (c.addr != addr)
+                continue;
+
+            c.mac = mac;
+
+            if (c.status == neighbour_cache_status::incomplete) {
+                c.status = neighbour_cache_status::reachable;
+                set_event(static_cast<event&>(c.event.get()));
+            }
+
+            c.last_update_time = kernel_time_page.system_time;
+
+            return;
+        }
+    }
+
+    if (!to_us)
+        return;
+
+    // add new entry
+
+    auto nce = new neighbour_cache_entry<ipv4>(ni);
+    if (!nce) {
+        print("new failed\n");
+        return;
+    }
+
+    nce->addr = addr;
+
+    nce->event = create_event(false);
+    if (!nce->event) {
+        print("create_event failed\n");
+        nce->release();
+        return;
+    }
+
+    set_event(static_cast<event&>(nce->event.get()));
+
+    nce->status = neighbour_cache_status::reachable;
+
+    bool beaten_to_it = false;
+
+    {
+        lock_guard lock(ni.arp_lock);
+
+        for (auto le = ni.arp_cache.next; le != &ni.arp_cache; le = le->next) {
+            auto& c = containing_record<neighbour_cache_entry<ipv4>>(le);
+
+            if (c.addr == addr) {
+                beaten_to_it = true;
+
+                c.mac = mac;
+
+                if (c.status == neighbour_cache_status::incomplete) {
+                    c.status = neighbour_cache_status::reachable;
+                    set_event(static_cast<event&>(c.event.get()));
+                }
+
+                c.last_update_time = kernel_time_page.system_time;
+
+                break;
+            }
+        }
+
+        if (!beaten_to_it) {
+            insert_tail_list(ni.arp_cache, nce->le);
+            nce->last_update_time = kernel_time_page.system_time;
+        }
+    }
+
+    if (beaten_to_it)
+        nce->release();
+}
+
+static void handle_arp_reply(netif& ni, packet& pack) {
+    if (pack.size < sizeof(arp_header)) {
+        print("handle_arp_reply: buffer length was {}, expected at least {}\n",
+              pack.size, sizeof(arp_header));
+        return;
+    }
+
+    auto& arp = *(arp_header*)pack.data;
+
+    add_arp_cache_entry(ni, *(mac_address*)&arp.sender_mac_address,
+                        arp.sender_ip_address, *(mac_address*)&arp.target_mac_address == ni.mac);
+}
+
 static void handle_arp_packet(netif& ni, packet& pack) {
     if (pack.size < sizeof(arp_header))
         return;
@@ -5056,31 +5151,41 @@ static void handle_arp_packet(netif& ni, packet& pack) {
           *(mac_address*)arp.target_mac_address, arp.target_ip_address);
 #endif
 
-    if ((arp_opcode)arp.opcode == arp_opcode::request) {
-        bool found = false;
+    switch ((arp_opcode)arp.opcode) {
+        using enum arp_opcode;
 
-        {
-            lock_guard lock(ni.addr_lock);
+        case request: {
+            bool found = false;
 
-            for (auto le = ni.addrs.next; le != &ni.addrs; le = le->next) {
-                auto& a = containing_record<ip_addr>(le);
+            {
+                lock_guard lock(ni.addr_lock);
 
-                auto* addr = get_if<ipv4_address>(&a.addr);
+                for (auto le = ni.addrs.next; le != &ni.addrs; le = le->next) {
+                    auto& a = containing_record<ip_addr>(le);
 
-                if (addr && *addr == arp.target_ip_address) {
-                    found = true;
-                    break;
+                    auto* addr = get_if<ipv4_address>(&a.addr);
+
+                    if (addr && *addr == arp.target_ip_address) {
+                        found = true;
+                        break;
+                    }
                 }
             }
+
+            if (!found)
+                return;
+
+            // FIXME - put sender in ARP cache?
+
+            send_arp_reply(ni, arp.target_ip_address, arp.sender_ip_address,
+                        *(mac_address*)arp.sender_mac_address);
+
+            break;
         }
 
-        if (!found)
-            return;
-
-        // FIXME - put sender in ARP cache?
-
-        send_arp_reply(ni, arp.target_ip_address, arp.sender_ip_address,
-                       *(mac_address*)arp.sender_mac_address);
+        case reply:
+            handle_arp_reply(ni, pack);
+            break;
     }
 }
 
