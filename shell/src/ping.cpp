@@ -10,6 +10,7 @@
 
 import nt;
 import print;
+import ipv4;
 import ipv6;
 import ws2_32;
 import ucrtbase;
@@ -21,8 +22,57 @@ using namespace std;
 
 static const unsigned int SYSTEM_TIME_RESOLUTION = 10000000; // 100ns
 
-static void handle_echo_reply(span<const char> data, int64_t sent_time,
-                              const sockaddr_in6& addr, uint16_t identifier) {
+static void handle_echo_reply_v4(span<const char> data, int64_t sent_time,
+                                 const sockaddr_in& addr, uint16_t identifier) {
+    char s[10]/*, host[NI_MAXHOST]*/;
+    nt_status status;
+    LARGE_INTEGER now;
+
+    if (data.size() < sizeof(icmpv4_echo))
+        return;
+
+    auto& resp = *(icmpv4_echo*)data.data();
+
+    if (resp.identifier != identifier) // not our ping
+        return;
+
+    status = NtQuerySystemTime(&now);
+    if (!success(status)) {
+        print_stderr("NtQuerySystemTime returned {}\n", status);
+        return;
+    }
+
+    // FIXME - include ttl (need recvmsg)
+    // FIXME - check payload
+
+    // FIXME - print if duplicate
+    // FIXME - count missing pings etc.
+
+    auto ticks = now.QuadPart - sent_time;
+    auto ms = (float)ticks * 1000.0f / (float)SYSTEM_TIME_RESOLUTION;
+
+    sprintf(s, "%.3g", ms);
+
+#if 0
+    auto ret = getnameinfo((sockaddr*)&addr, sizeof(sockaddr_in), host, sizeof(host),
+                           nullptr, 0, NI_NAMEREQD);
+
+    if (!ret) {
+        print("{} bytes from {} ({}): icmp_seq={} time={} ms\n", data.size(),
+              host, *(ipv4_address*)&addr.sin_addr, byteswap(resp.sequence),
+              string_view(s));
+    } else {
+#endif
+        print("{} bytes from {}: icmp_seq={} time={} ms\n", data.size(),
+              *(ipv4_address*)&addr.sin_addr, byteswap(resp.sequence),
+              string_view(s));
+#if 0
+    }
+#endif
+}
+
+static void handle_echo_reply_v6(span<const char> data, int64_t sent_time,
+                                 const sockaddr_in6& addr, uint16_t identifier) {
     char s[10], host[NI_MAXHOST];
     nt_status status;
     LARGE_INTEGER now;
@@ -201,7 +251,7 @@ static void handle_dest_unreachable(span<const char> data, const sockaddr_in6& a
                  message, reason);
 }
 
-static void do_ping(SOCKET sock, const addrinfo& ai, string_view arg) {
+static void do_ping_v6(SOCKET sock, const addrinfo& ai, string_view arg) {
     icmpv6_echo echo;
     PROCESS_BASIC_INFORMATION pbi;
 
@@ -293,8 +343,127 @@ static void do_ping(SOCKET sock, const addrinfo& ai, string_view arg) {
                 break;
 
                 case icmpv6_type::echo_reply:
-                    handle_echo_reply(span(buf, (size_t)len), sent_time.QuadPart,
-                                      addr, echo.identifier);
+                    handle_echo_reply_v6(span(buf, (size_t)len), sent_time.QuadPart,
+                                         addr, echo.identifier);
+                break;
+
+                default:
+                    break;
+            }
+        }
+
+        echo.sequence = byteswap((uint16_t)(byteswap(echo.sequence) + 1));
+    }
+
+    // FIXME - print summary before quitting
+}
+
+static void do_ping_v4(SOCKET sock, const addrinfo& ai, string_view arg) {
+    icmpv4_echo echo;
+    PROCESS_BASIC_INFORMATION pbi;
+
+    auto& sa = *(sockaddr_in*)ai.ai_addr;
+    auto& dest = *(ipv4_address*)&sa.sin_addr;
+
+    print("PING {} ({}) 0 data bytes\n", arg, dest);
+
+    auto status = NtQueryInformationProcess(NtCurrentProcess(),
+                                            PROCESS_INFORMATION_CLASS::BasicInformation,
+                                            &pbi, sizeof(pbi), nullptr);
+    if (!success(status)) {
+        print_stderr("NtQueryInformationProcess returned {}\n", status);
+        return;
+    }
+
+    echo.type = icmpv4_type::echo_request;
+    echo.code = 0;
+    echo.identifier = byteswap((uint16_t)pbi.UniqueProcessId);
+    echo.sequence = byteswap((uint16_t)1);
+
+    char buf[1500]; // FIXME - get MTU
+    sockaddr_in addr;
+
+    while (true) {
+        LARGE_INTEGER sent_time;
+        int64_t deadline;
+        nt_status status;
+        int ret;
+
+        echo.checksum = 0;
+        echo.checksum = calc_ipv4_checksum(span((uint8_t*)&echo, sizeof(echo)));
+
+        ret = sendto(sock, (char*)&echo, sizeof(echo), 0, ai.ai_addr,
+                     (int)ai.ai_addrlen);
+        if (ret < 0)
+            print_stderr("sendto failed (errno {})\n", errno_to_string_view(*_errno()));
+
+        status = NtQuerySystemTime(&sent_time);
+        if (!success(status)) {
+            print_stderr("NtQuerySystemTime returned {}\n", status);
+            return;
+        }
+
+        deadline = sent_time.QuadPart + SYSTEM_TIME_RESOLUTION; // add 1s
+
+        while (true) {
+            LARGE_INTEGER now;
+            pollfd pfd;
+
+            status = NtQuerySystemTime(&now);
+            if (!success(status)) {
+                print_stderr("NtQuerySystemTime returned {}\n", status);
+                return;
+            }
+
+            if (now.QuadPart >= deadline)
+                break;
+
+            pfd.fd = (int)sock;
+            pfd.events = POLLIN;
+
+            ret = poll(&pfd, 1, (int)((deadline - now.QuadPart) / 10000)); // convert units of 100ns to ms
+
+            if (ret == 0)
+                break;
+            else if (ret < 0) {
+                print_stderr("poll failed (errno {})\n", errno_to_string_view(*_errno()));
+                return;
+            }
+
+            auto addrlen = (int)sizeof(addr);
+            auto len = recvfrom(sock, buf, sizeof(buf), 0, (sockaddr*)&addr,
+                                &addrlen);
+            if (len < 0) {
+                print_stderr("recv failed (errno {})\n", errno_to_string_view(*_errno()));
+                continue;
+            }
+
+            auto sp = span(buf, len);
+
+            if (sp.size() < sizeof(ipv4_header))
+                continue;
+
+            auto& h = *(ipv4_header*)sp.data();
+
+            if (sp.size() < h.ihl * sizeof(uint32_t))
+                continue;
+
+            sp = sp.subspan(h.ihl * sizeof(uint32_t));
+
+            if (sp.size() < sizeof(icmpv4_header))
+                continue;
+
+            switch (((icmpv4_header*)sp.data())->type) {
+                using enum icmpv4_type;
+
+                // case destination_unreachable:
+                // case time_exceeded:
+                //     handle_dest_unreachable_v4(sp, addr, echo.identifier);
+                // break;
+
+                case echo_reply:
+                    handle_echo_reply_v4(sp, sent_time.QuadPart, addr,
+                                         echo.identifier);
                 break;
 
                 default:
@@ -331,19 +500,32 @@ int main(int argc, char** argv) {
 
     bool done = false;
     for (addrinfo* rp = ai; rp; rp = rp->ai_next) {
-        if (rp->ai_family != AF_INET6)
+        if (rp->ai_family != AF_INET6 && rp->ai_family != AF_INET)
             continue;
 
-        auto sock = socket(rp->ai_family, SOCK_RAW, IPPROTO_ICMPV6);
-        if (sock < 0) {
-            print_stderr("socket failed (errno {})\n", errno_to_string_view(*_errno()));
-            freeaddrinfo(ai);
-            return 1;
+        if (rp->ai_family == AF_INET6) {
+            auto sock = socket(rp->ai_family, SOCK_RAW, IPPROTO_ICMPV6);
+            if (sock < 0) {
+                print_stderr("socket failed (errno {})\n", errno_to_string_view(*_errno()));
+                freeaddrinfo(ai);
+                return 1;
+            }
+
+            do_ping_v6(sock, *rp, argv[1]);
+
+            closesocket(sock);
+        } else if (rp->ai_family == AF_INET) {
+            auto sock = socket(rp->ai_family, SOCK_RAW, IPPROTO_ICMP);
+            if (sock < 0) {
+                print_stderr("socket failed (errno {})\n", errno_to_string_view(*_errno()));
+                freeaddrinfo(ai);
+                return 1;
+            }
+
+            do_ping_v4(sock, *rp, argv[1]);
+
+            closesocket(sock);
         }
-
-        do_ping(sock, *rp, argv[1]);
-
-        closesocket(sock);
 
         done = true;
         break;
