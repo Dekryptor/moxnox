@@ -2195,6 +2195,14 @@ bool init_net() {
         return false;
     }
 
+    auto lo_addr2 = new ip_addr(parse_ipv4_address("127.0.0.1"));
+    if (!lo_addr2) {
+        print("new failed\n");
+        delete lo_addr;
+        delete lo;
+        return false;
+    }
+
     lo->num = next_netif_num.fetch_add(1);
 
     memcpy(lo->name, LOOPBACK_NAME.data(), LOOPBACK_NAME.size());
@@ -2208,6 +2216,7 @@ bool init_net() {
     {
         lock_guard lg(lo->addr_lock);
         insert_tail_list(lo->addrs, lo_addr->le);
+        insert_tail_list(lo->addrs, lo_addr2->le);
     }
 
     {
