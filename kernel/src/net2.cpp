@@ -1907,6 +1907,48 @@ static void reap_neighbour_cache() {
     }
 }
 
+static void reap_arp_cache() {
+    int64_t now = kernel_time_page.system_time;
+
+    static const unsigned int REAP_TIME = 300; // 5 minutes
+
+    {
+        lock_guard lock(netif_lock);
+
+        for (auto le = netif_list.next; le != &netif_list; le = le->next) {
+            list_entry reap_list = { &reap_list, &reap_list };
+
+            auto& ni = containing_record<netif>(le);
+
+            {
+                lock_guard lock2(ni.arp_lock);
+
+                for (auto le2 = ni.arp_cache.next; le2 != &ni.arp_cache; le2 = le2->next) {
+                    auto& c = containing_record<neighbour_cache_entry<ipv4>>(le2);
+
+                    if (now >= c.last_update_time + (REAP_TIME * SYSTEM_TIME_RESOLUTION)) {
+                        auto le_prev = le2->prev;
+
+                        remove_entry_list(c.le);
+                        insert_tail_list(reap_list, c.le);
+
+                        le2 = le_prev;
+                    }
+                }
+            }
+
+            while (!is_list_empty(reap_list)) {
+                auto& c = containing_record<neighbour_cache_entry<ipv4>>(reap_list.next);
+
+                set_event(static_cast<event&>(c.event.get()));
+
+                remove_entry_list(c.le);
+                c.release();
+            }
+        }
+    }
+}
+
 static void send_router_solicitation(netif& ni) {
     static const unsigned int MAX_TRIES = 3;
     static const mac_address dst_mac = { 0x33, 0x33, 0x00, 0x00, 0x00, 0x02 };
@@ -2176,6 +2218,7 @@ static void network_housekeeping() {
     send_router_solicitations();
     router_lifetime_tick();
     reap_neighbour_cache();
+    reap_arp_cache();
     reap_dns_servers();
 }
 
@@ -4367,6 +4410,7 @@ mac_address search_arp_cache(netif& ni, const ipv4_address& dst) {
     }
 
     nce->status = neighbour_cache_status::incomplete;
+    nce->last_update_time = kernel_time_page.system_time;
 
     {
         lock_guard lock(ni.arp_lock);
