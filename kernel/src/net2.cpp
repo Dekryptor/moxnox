@@ -4555,7 +4555,18 @@ mac_address find_mac_address(netif& ni, const ipv4_address& dst) {
     if (is_broadcast_address(ni, dst))
         return BROADCAST_MAC_ADDRESS;
 
-    // FIXME - multicast
+    if (is_multicast_address(dst)) {
+        mac_address ret;
+
+        ret.v[0] = 0x01;
+        ret.v[1] = 0x00;
+        ret.v[2] = 0x5e;
+        ret.v[3] = dst.v[1] & 0x7f;
+        ret.v[4] = dst.v[2];
+        ret.v[5] = dst.v[3];
+
+        return ret;
+    }
 
     return search_arp_cache(ni, dst);
 }
