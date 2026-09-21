@@ -3,7 +3,7 @@
 
 using namespace std;
 
-static int log_mask = 0;
+static int log_mask = 0xff;
 
 extern "C"
 void openlog(const char* /*ident*/, int /*logopt*/, int /*facility*/) {
@@ -22,6 +22,9 @@ void closelog() {
 
 extern "C"
 int setlogmask(int mask) {
+    if (mask == 0)
+        return log_mask;
+
     swap(log_mask, mask);
 
     return mask;
