@@ -404,6 +404,7 @@ void received_ipv6_tcp_packet(netif& ni, packet& pack,
                               const mac_address& src_mac, bool skip_checksum);
 void received_ipv6_udp_packet(netif& ni, packet& pack,
                               const mac_address& src_mac, bool skip_checksum);
+bool is_our_ip(const ipv4_address& ip);
 bool is_our_ip(const ipv6_address& ip);
 nt_status dispatch_packet(netif& ni, packet& pack, const mac_address& dst_mac);
 uint16_t calc_ipv6_checksum(const ipv6_header& ip, span<const uint8_t> data,

@@ -4359,6 +4359,32 @@ nt_status loopback_netif::send_packet(const mac_address&, ethertype, packet&) {
     return nt_status::SUCCESS;
 }
 
+bool is_our_ip(const ipv4_address& ip) {
+    lock_guard lock(netif_lock);
+
+    for (auto le = netif_list.next; le != &netif_list; le = le->next) {
+        auto& ni = containing_record<netif>(le);
+
+        {
+            lock_guard lock2(ni.addr_lock);
+
+            for (auto le2 = ni.addrs.next; le2 != &ni.addrs; le2 = le2->next) {
+                auto& a = containing_record<ip_addr>(le2);
+
+                auto* addr = get_if<ipv4_address>(&a.addr);
+
+                if (!addr)
+                    continue;
+
+                if (*addr == ip)
+                    return true;
+            }
+        }
+    }
+
+    return false;
+}
+
 bool is_our_ip(const ipv6_address& ip) {
     lock_guard lock(netif_lock);
 
@@ -4387,39 +4413,45 @@ bool is_our_ip(const ipv6_address& ip) {
 
 template<socket_family FAMILY>
 nt_status raw_socket<FAMILY>::bind(const sockaddr* addr, size_t addrlen) {
-    // FIXME - IPv4
+    if (addr->sa_family != FAMILY::family)
+        return nt_status::INVALID_PARAMETER;
+
+    if (addrlen < sizeof(typename FAMILY::sockaddr))
+        return nt_status::BUFFER_TOO_SMALL;
+
+    auto& b = *(typename FAMILY::sockaddr*)addr;
+
+    typename FAMILY::address ip;
 
     if constexpr (is_same_v<FAMILY, ipv4>)
-        return nt_status::INVALID_PARAMETER;
-    else if constexpr (is_same_v<FAMILY, ipv6>) {
-        if (addr->sa_family != AF_INET6)
-            return nt_status::INVALID_PARAMETER;
+        ip = *(typename FAMILY::address*)&b.sin_addr;
+    else if constexpr (is_same_v<FAMILY, ipv6>)
+        ip = *(typename FAMILY::address*)&b.sin6_addr;
 
-        if (addrlen < sizeof(sockaddr_in6))
-            return nt_status::BUFFER_TOO_SMALL;
-
-        auto& b = *(sockaddr_in6*)addr;
-
-        auto ip = *(ipv6_address*)&b.sin6_addr;
-
+    if constexpr (is_same_v<FAMILY, ipv4>) {
+        if (ip != parse_ipv4_address("0.0.0.0")) {
+            if (!is_our_ip(ip))
+                return nt_status::INVALID_ADDRESS_COMPONENT;
+        }
+    } else if constexpr (is_same_v<FAMILY, ipv6>) {
         if (ip != parse_ipv6_address("::")) {
             if (!is_our_ip(ip))
                 return nt_status::INVALID_ADDRESS_COMPONENT;
         }
-
-        {
-            lock_guard lock(bind_lock);
-
-            if (bind_done)
-                return nt_status::INVALID_PARAMETER;
-
-            bound_address = ip;
-
-            bind_done = true;
-        }
-
-        return nt_status::SUCCESS;
     }
+
+    {
+        lock_guard lock(bind_lock);
+
+        if (bind_done)
+            return nt_status::INVALID_PARAMETER;
+
+        bound_address = ip;
+
+        bind_done = true;
+    }
+
+    return nt_status::SUCCESS;
 }
 
 template<socket_family FAMILY>
