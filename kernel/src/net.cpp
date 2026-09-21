@@ -452,3 +452,5 @@ nt_status create_new_unix_socket(object_ref& ref);
 void maybe_add_to_neighbour_cache(netif& ni, const ipv6_address& dst,
                                   const mac_address& mac);
 nt_status create_unix_socket_pair(int type, object_ref& ref1, object_ref& ref2);
+export void add_ipv4_route(netif& ni, const ipv4_address& prefix,
+                           uint8_t prefix_length, const ipv4_address& gateway);

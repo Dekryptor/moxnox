@@ -172,7 +172,7 @@ static void test_ipv6_address_printing() {
 
 static void add_test_ipv4_address(netif& ni) {
     bool already_exists = false;
-    auto address = parse_ipv4_address("10.0.0.198");
+    auto address = parse_ipv4_address("10.0.2.15");
 
     auto a = new ip_addr(address);
     if (!a) {
@@ -205,6 +205,11 @@ static void add_test_ipv4_address(netif& ni) {
         delete a;
     else
         print("{}: added new IPv4 address {}\n", ni, address);
+
+    add_ipv4_route(ni, parse_ipv4_address("10.0.2.0"), 24,
+                   parse_ipv4_address("0.0.0.0"));
+    add_ipv4_route(ni, parse_ipv4_address("0.0.0.0"), 0,
+                   parse_ipv4_address("10.0.2.2"));
 }
 
 template<virtio_device T>

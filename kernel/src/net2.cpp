@@ -687,8 +687,8 @@ static void handle_v6_echo_request(netif& ni, packet& pack,
     pack2->release();
 }
 
-static void add_ipv4_route(netif& ni, const ipv4_address& prefix,
-                           uint8_t prefix_length, const ipv4_address& gateway) {
+void add_ipv4_route(netif& ni, const ipv4_address& prefix,
+                    uint8_t prefix_length, const ipv4_address& gateway) {
     {
         lock_guard lock(ipv4_routes_lock);
 
