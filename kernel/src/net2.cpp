@@ -4504,7 +4504,25 @@ mac_address search_arp_cache(netif& ni, const ipv4_address& dst) {
 }
 
 mac_address find_mac_address(netif& ni, const ipv4_address& dst) {
-    // FIXME - broadcast
+    if (dst == parse_ipv4_address("255.255.255.255"))
+        return BROADCAST_MAC_ADDRESS;
+
+    {
+        lock_guard lock(ni.addr_lock);
+
+        for (auto le = ni.addrs.next; le != &ni.addrs; le = le->next) {
+            auto& a = containing_record<ip_addr>(le);
+
+            auto* addr = get_if<ipv4_address>(&a.addr);
+
+            if (!addr)
+                continue;
+
+            if (dst == calculate_broadcast_address(*addr, a.prefix))
+                return BROADCAST_MAC_ADDRESS;
+        }
+    }
+
     // FIXME - multicast
 
     return search_arp_cache(ni, dst);
