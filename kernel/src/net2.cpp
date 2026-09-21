@@ -4511,9 +4511,9 @@ mac_address search_arp_cache(netif& ni, const ipv4_address& dst) {
     return ret;
 }
 
-mac_address find_mac_address(netif& ni, const ipv4_address& dst) {
+static bool is_broadcast_address(netif& ni, const ipv4_address& dst) {
     if (dst == parse_ipv4_address("255.255.255.255"))
-        return BROADCAST_MAC_ADDRESS;
+        return true;
 
     {
         lock_guard lock(ni.addr_lock);
@@ -4527,9 +4527,16 @@ mac_address find_mac_address(netif& ni, const ipv4_address& dst) {
                 continue;
 
             if (dst == calculate_broadcast_address(*addr, a.prefix))
-                return BROADCAST_MAC_ADDRESS;
+                return true;
         }
     }
+
+    return false;
+}
+
+mac_address find_mac_address(netif& ni, const ipv4_address& dst) {
+    if (is_broadcast_address(ni, dst))
+        return BROADCAST_MAC_ADDRESS;
 
     // FIXME - multicast
 
@@ -4673,6 +4680,9 @@ nt_status dispatch_packet(netif& ni, packet& pack, const mac_address& dst_mac) {
         if (ip.src == ip.dst)
             handle_ipv4_packet(ni, pack, ni.mac, true);
         else {
+            if (is_broadcast_address(ni, ip.dst))
+                handle_ipv4_packet(ni, pack, ni.mac, true); // send copy to ourselves
+
             // FIXME - multicast
 
             status = ni.send_packet(dst_mac, ethertype::ipv4, pack);
