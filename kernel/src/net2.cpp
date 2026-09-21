@@ -5175,7 +5175,8 @@ static void handle_arp_packet(netif& ni, packet& pack) {
             if (!found)
                 return;
 
-            // FIXME - put sender in ARP cache?
+            add_arp_cache_entry(ni, *(mac_address*)&arp.sender_mac_address,
+                                arp.sender_ip_address, true);
 
             send_arp_reply(ni, arp.target_ip_address, arp.sender_ip_address,
                         *(mac_address*)arp.sender_mac_address);
