@@ -4693,10 +4693,8 @@ nt_status dispatch_packet(netif& ni, packet& pack, const mac_address& dst_mac) {
         if (ip.src == ip.dst)
             handle_ipv4_packet(ni, pack, ni.mac, true);
         else {
-            if (is_broadcast_address(ni, ip.dst))
+            if (is_broadcast_address(ni, ip.dst) || (is_multicast_address(ip.dst) && should_accept_multicast(ip.dst)))
                 handle_ipv4_packet(ni, pack, ni.mac, true); // send copy to ourselves
-
-            // FIXME - multicast
 
             status = ni.send_packet(dst_mac, ethertype::ipv4, pack);
             if (!success(status)) {
