@@ -394,6 +394,30 @@ export list_entry netif_list = { &netif_list, &netif_list };
 export atomic<uint32_t> next_netif_num = 1;
 export atomic<uint32_t> next_eth_num = 0;
 
+export struct ipv4 {
+    using header = ipv4_header;
+    using address = ipv4_address;
+    using sockaddr = sockaddr_in;
+    using icmp_header = icmpv4_header;
+
+    static constexpr int family = AF_INET;
+};
+
+export struct ipv6 {
+    using header = ipv6_header;
+    using address = ipv6_address;
+    using sockaddr = sockaddr_in6;
+    using icmp_header = icmpv6_header;
+
+    static constexpr int family = AF_INET6;
+};
+
+template<typename T>
+concept socket_family = is_same_v<T, ipv4> || is_same_v<T, ipv6>;
+
+static_assert(socket_family<ipv4>);
+static_assert(socket_family<ipv6>);
+
 export void received_packet(netif& ni, packet& pack, const mac_address& src_mac,
                             ethertype type, bool skip_csumming);
 export bool drop_packet(const mac_address& dst, const mac_address& us);
@@ -406,7 +430,10 @@ void received_ipv6_udp_packet(netif& ni, packet& pack,
                               const mac_address& src_mac, bool skip_checksum);
 bool is_our_ip(const ipv4_address& ip);
 bool is_our_ip(const ipv6_address& ip);
+
+template<socket_family FAMILY>
 nt_status dispatch_packet(netif& ni, packet& pack, const mac_address& dst_mac);
+
 uint16_t calc_ipv6_checksum(const ipv6_header& ip, span<const uint8_t> data,
                             uint8_t next_header);
 uint16_t calc_ipv6_checksum_offload(const ipv6_header& ip, uint32_t length,

@@ -499,7 +499,7 @@ nt_status ipv6_tcp_socket::send_syn(const sockaddr_in6& c, ipv6_address& src) {
     auto& ev = static_cast<event&>(state_change_event.get());
 
     for (unsigned int i = 0; i < 3; i++) {
-        status = dispatch_packet(ni, *pack, dst_mac);
+        status = dispatch_packet<ipv6>(ni, *pack, dst_mac);
         if (!success(status)) {
             pack->release();
             ni.release();
@@ -812,7 +812,7 @@ void ipv6_tcp_socket::send_ack(bool first, tcp_seq ack) {
         }
     }
 
-    dispatch_packet(ni, *pack, dst_mac);
+    dispatch_packet<ipv6>(ni, *pack, dst_mac);
 
     pack->release();
     ni.release();
@@ -887,7 +887,7 @@ void ipv6_tcp_socket::send_fin() {
         }
     }
 
-    dispatch_packet(ni, *pack, dst_mac);
+    dispatch_packet<ipv6>(ni, *pack, dst_mac);
 
     pack->release();
     ni.release();
@@ -1035,7 +1035,7 @@ void ipv6_tcp_socket::received_packet(packet& pack, netif& ni,
     } else if (cur_state == tcp_state::ESTABLISHED && tcp.flags == TCP_SYN_ACK) {
         // first ACK must have been lost, retransmit
         if (first_ack)
-            dispatch_packet(*pni, *first_ack, dst_mac);
+            dispatch_packet<ipv6>(*pni, *first_ack, dst_mac);
     }
 
     if (tcp.ACK) {
@@ -1465,7 +1465,7 @@ nt_status ipv6_tcp_socket::do_sendto(span<const span<const uint8_t>> v,
             }
         }
 
-        dispatch_packet(ni, *pack, dst_mac);
+        dispatch_packet<ipv6>(ni, *pack, dst_mac);
 
         pack->release();
 
@@ -1669,7 +1669,7 @@ void ipv6_tcp_socket::do_retransmissions() {
     for (unsigned int i = 0; i < added; i++) {
         auto& r = *arr[i];
 
-        dispatch_packet(*pni, r.pack, dst_mac);
+        dispatch_packet<ipv6>(*pni, r.pack, dst_mac);
 
         // FIXME - delay increase should be exponential
 
@@ -2102,7 +2102,7 @@ nt_status ipv6_tcp_socket::send_syn_ack(const mac_address& mac) {
                                                   IPPROTO_TCP);
     }
 
-    status = dispatch_packet(ni, *pack, dst_mac);
+    status = dispatch_packet<ipv6>(ni, *pack, dst_mac);
     if (!success(status)) {
         pack->release();
         r->release();

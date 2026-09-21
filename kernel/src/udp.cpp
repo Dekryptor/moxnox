@@ -557,7 +557,7 @@ nt_status ipv6_udp_socket::do_sendto(span<const span<const uint8_t>> v,
         return nt_status::HOST_UNREACHABLE;
     }
 
-    status = dispatch_packet(ni, *pack, mac);
+    status = dispatch_packet<ipv6>(ni, *pack, mac);
     if (!success(status)) {
         pack->release();
         ni.release();

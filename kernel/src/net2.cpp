@@ -46,30 +46,6 @@ static spinlock ipv4_raw_sockets_lock;
 static list_entry ipv4_raw_sockets = { &ipv4_raw_sockets, &ipv4_raw_sockets };
 static size_t num_ipv4_raw_sockets = 0;
 
-struct ipv4 {
-    using header = ipv4_header;
-    using address = ipv4_address;
-    using sockaddr = sockaddr_in;
-    using icmp_header = icmpv4_header;
-
-    static constexpr int family = AF_INET;
-};
-
-struct ipv6 {
-    using header = ipv6_header;
-    using address = ipv6_address;
-    using sockaddr = sockaddr_in6;
-    using icmp_header = icmpv6_header;
-
-    static constexpr int family = AF_INET6;
-};
-
-template<typename T>
-concept socket_family = is_same_v<T, ipv4> || is_same_v<T, ipv6>;
-
-static_assert(socket_family<ipv4>);
-static_assert(socket_family<ipv6>);
-
 template<socket_family FAMILY>
 class raw_socket : public socket {
 public:
@@ -4377,21 +4353,36 @@ void send_address_unreachable(netif& ni, const packet& pack,
     pack2->release();
 }
 
+template<socket_family FAMILY>
 nt_status dispatch_packet(netif& ni, packet& pack, const mac_address& dst_mac) {
     nt_status status;
 
-    auto& ip = *(ipv6_header*)pack.data;
+    auto& ip = *(typename FAMILY::header*)pack.data;
 
-    if (ip.src == ip.dst)
-        handle_ipv6_packet(ni, pack, ni.mac, true);
-    else {
-        if (is_multicast_address(ip.dst) && should_accept_multicast(ni, ip.dst))
-            handle_ipv6_packet(ni, pack, ni.mac, true); // send copy to ourselves
+    if constexpr (is_same_v<FAMILY, ipv4>) {
+        if (ip.src == ip.dst)
+            handle_ipv4_packet(ni, pack, ni.mac, true);
+        else {
+            // FIXME - multicast
 
-        status = ni.send_packet(dst_mac, ethertype::ipv6, pack);
-        if (!success(status)) {
-            print("netif::send_packet returned {}\n", status);
-            return status;
+            status = ni.send_packet(dst_mac, ethertype::ipv4, pack);
+            if (!success(status)) {
+                print("netif::send_packet returned {}\n", status);
+                return status;
+            }
+        }
+    } else if constexpr (is_same_v<FAMILY, ipv6>) {
+        if (ip.src == ip.dst)
+            handle_ipv6_packet(ni, pack, ni.mac, true);
+        else {
+            if (is_multicast_address(ip.dst) && should_accept_multicast(ni, ip.dst))
+                handle_ipv6_packet(ni, pack, ni.mac, true); // send copy to ourselves
+
+            status = ni.send_packet(dst_mac, ethertype::ipv6, pack);
+            if (!success(status)) {
+                print("netif::send_packet returned {}\n", status);
+                return status;
+            }
         }
     }
 
@@ -4525,7 +4516,7 @@ nt_status raw_socket<FAMILY>::do_sendto(span<const span<const uint8_t>> v,
         return nt_status::HOST_UNREACHABLE;
     }
 
-    status = dispatch_packet(ni, *pack, mac);
+    status = dispatch_packet<FAMILY>(ni, *pack, mac);
     if (!success(status)) {
         pack->release();
         ni.release();
