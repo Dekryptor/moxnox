@@ -3813,6 +3813,11 @@ nt_status ipv4_choose_interface(const ipv4_address& dst, netif*& ni,
         if (ni) {
             bool found_gateway = false;
 
+            if (dst == parse_ipv4_address("255.255.255.255")) {
+                gateway = parse_ipv4_address("0.0.0.0");
+                return nt_status::SUCCESS;
+            }
+
             {
                 lock_guard lock(ipv4_routes_lock);
 
@@ -3884,6 +3889,9 @@ nt_status ipv4_choose_interface(const ipv4_address& dst, netif*& ni,
     ni = lookup_route(dst, gateway);
     if (!ni)
         return nt_status::HOST_UNREACHABLE;
+
+    if (dst == parse_ipv4_address("255.255.255.255"))
+        gateway = parse_ipv4_address("0.0.0.0");
 
     auto& n = *ni;
 
