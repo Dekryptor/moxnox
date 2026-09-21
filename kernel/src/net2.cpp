@@ -3689,7 +3689,7 @@ static netif* lookup_route(const ipv6_address& dst) {
     return &best_match->ni;
 }
 
-static netif* lookup_route(const ipv4_address& dst) {
+static netif* lookup_route(const ipv4_address& dst, ipv4_address& gateway) {
     lock_guard lock(ipv4_routes_lock);
 
     ipv4_route* best_match = nullptr;
@@ -3708,6 +3708,8 @@ static netif* lookup_route(const ipv4_address& dst) {
         return nullptr;
 
     best_match->ni.acquire();
+
+    gateway = best_match->gateway;
 
     return &best_match->ni;
 }
@@ -3728,33 +3730,75 @@ static uint8_t ipv6_match_len(const ipv6_address& addr1, const ipv6_address& add
 }
 
 nt_status ipv4_choose_interface(const ipv4_address& dst, netif*& ni,
-                                ipv4_address& src) {
+                                ipv4_address& src, ipv4_address& gateway) {
     // bind overrides everything
     if (src != parse_ipv4_address("0.0.0.0")) {
-        lock_guard lg(netif_lock);
+        ni = nullptr;
 
-        for (auto le = netif_list.next; le != &netif_list; le = le->next) {
-            auto& ni2 = containing_record<netif>(le);
+        {
+            lock_guard lg(netif_lock);
 
-            {
-                lock_guard lock(ni2.addr_lock);
+            for (auto le = netif_list.next; le != &netif_list; le = le->next) {
+                auto& ni2 = containing_record<netif>(le);
 
-                for (auto le2 = ni2.addrs.next; le2 != &ni2.addrs; le2 = le2->next) {
-                    auto& a = containing_record<ip_addr>(le2);
+                {
+                    lock_guard lock(ni2.addr_lock);
 
-                    auto* addr = get_if<ipv4_address>(&a.addr);
+                    for (auto le2 = ni2.addrs.next; le2 != &ni2.addrs; le2 = le2->next) {
+                        auto& a = containing_record<ip_addr>(le2);
 
-                    if (!addr)
-                        continue;
+                        auto* addr = get_if<ipv4_address>(&a.addr);
 
-                    if (*addr == src) {
-                        ni2.acquire();
+                        if (!addr)
+                            continue;
 
-                        ni = &ni2;
-                        return nt_status::SUCCESS;
+                        if (*addr == src) {
+                            ni2.acquire();
+
+                            ni = &ni2;
+                            break;
+                        }
                     }
                 }
+
+                if (ni)
+                    break;
             }
+        }
+
+        if (ni) {
+            bool found_gateway = false;
+
+            {
+                lock_guard lock(ipv4_routes_lock);
+
+                ipv4_route* best_match = nullptr;
+
+                for (auto le = ipv4_routes.next; le != &ipv4_routes; le = le->next) {
+                    auto& r = containing_record<ipv4_route>(le);
+
+                    if (&r.ni != ni)
+                        continue;
+
+                    if (!ipv4_prefix_match(dst, r.prefix, r.prefix_length))
+                        continue;
+
+                    if (!best_match || (r.prefix_length > best_match->prefix_length))
+                        best_match = &r;
+                }
+
+                if (best_match) {
+                    gateway = best_match->gateway;
+                    found_gateway = true;
+                }
+            }
+
+            if (!found_gateway) {
+                ni->release();
+                return nt_status::NETWORK_UNREACHABLE;
+            }
+
+            return nt_status::SUCCESS;
         }
 
         return nt_status::NETWORK_UNREACHABLE;
@@ -3784,6 +3828,8 @@ nt_status ipv4_choose_interface(const ipv4_address& dst, netif*& ni,
 
                         ni = &ni2;
                         src = dst;
+                        gateway = parse_ipv4_address("0.0.0.0");
+
                         return nt_status::SUCCESS;
                     }
                 }
@@ -3791,7 +3837,7 @@ nt_status ipv4_choose_interface(const ipv4_address& dst, netif*& ni,
         }
     }
 
-    ni = lookup_route(dst);
+    ni = lookup_route(dst, gateway);
     if (!ni)
         return nt_status::HOST_UNREACHABLE;
 
@@ -4420,7 +4466,7 @@ nt_status raw_socket<FAMILY>::do_sendto(span<const span<const uint8_t>> v,
         }
     }
 
-    typename FAMILY::address dst;
+    typename FAMILY::address dst, gateway;
     netif* pni;
 
     if constexpr (is_same_v<FAMILY, ipv4>)
@@ -4429,7 +4475,7 @@ nt_status raw_socket<FAMILY>::do_sendto(span<const span<const uint8_t>> v,
         dst = *(typename FAMILY::address*)&toin.sin6_addr;
 
     if constexpr (is_same_v<FAMILY, ipv4>) {
-        status = ipv4_choose_interface(dst, pni, src);
+        status = ipv4_choose_interface(dst, pni, src, gateway);
         if (!success(status))
             return status;
     } else if constexpr (is_same_v<FAMILY, ipv6>) {
