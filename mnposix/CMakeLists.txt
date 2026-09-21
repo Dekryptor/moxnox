@@ -49,7 +49,6 @@ target_compile_options(musl_crypt PRIVATE "SHELL:-include ${CMAKE_SOURCE_DIR}/mn
 
 add_library(mnposix SHARED
     src/mnposix.def
-    src/stubs.S
     src/termios.cpp
     src/sleep.cpp
     src/signal.cpp

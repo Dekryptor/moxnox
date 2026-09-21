@@ -365,3 +365,14 @@ int unlockpt(int /*fd*/) {
 
     return 0;
 }
+
+extern "C"
+char* ctermid(char* s) {
+    if (!s)
+        return (char*)"/dev/tty";
+    else {
+        strcpy(s, "/dev/tty");
+
+        return s;
+    }
+}

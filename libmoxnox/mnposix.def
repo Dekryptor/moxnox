@@ -288,6 +288,4 @@ getnetbyname
 getnetbyaddr
 setlogmask
 crypt
-
-; stubs
 ctermid
