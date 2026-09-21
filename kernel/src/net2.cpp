@@ -4472,7 +4472,24 @@ nt_status raw_socket<FAMILY>::do_sendto(span<const span<const uint8_t>> v,
     auto& ip = *(typename FAMILY::header*)pack->data;
 
     if constexpr (is_same_v<FAMILY, ipv4>) {
-        // FIXME
+        ip.ihl = sizeof(ipv4_header) / sizeof(uint32_t);
+        ip.version = 4;
+        ip.ecn = 0;
+        ip.dscp = 0;
+        ip.total_length = byteswap((uint16_t)(sizeof(ipv4_header) + vec_size));
+        ip.identification = 0;
+        ip.fragment_offset1 = 0;
+        ip.MF = 0;
+        ip.DF = 1;
+        ip.R = 0;
+        ip.fragment_offset2 = 0;
+        ip.ttl = DEFAULT_HOP_LIMIT;
+        ip.protocol = (uint8_t)protocol;
+        ip.header_checksum = 0;
+        ip.src = src;
+        ip.dst = dst;
+
+        ip.header_checksum = calc_ipv4_checksum(span(pack->data, sizeof(ipv4_header)));
     } else if constexpr (is_same_v<FAMILY, ipv6>) {
         ip.traffic_class1 = 0;
         ip.version = 6;

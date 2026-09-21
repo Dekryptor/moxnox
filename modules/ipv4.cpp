@@ -35,7 +35,9 @@ export struct ipv4_header {
     uint32_t total_length : 16;
     uint32_t identification : 16;
     uint32_t fragment_offset1 : 5;
-    uint32_t flags : 3;
+    uint32_t MF : 1;
+    uint32_t DF : 1;
+    uint32_t R : 1;
     uint32_t fragment_offset2 : 8;
     uint32_t ttl : 8;
     uint32_t protocol : 8;
