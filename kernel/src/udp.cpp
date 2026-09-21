@@ -96,7 +96,8 @@ private:
 };
 
 static spinlock udp_ports_lock;
-static udp_socket<ipv6>* udp_ports[65536];
+static udp_socket<ipv4>* udp_ports_v4[65536];
+static udp_socket<ipv6>* udp_ports_v6[65536];
 
 struct udp_header {
     uint16_t srcport;
@@ -184,8 +185,8 @@ void received_ipv6_udp_packet(netif& ni, packet& pack,
     {
         lock_guard lock(udp_ports_lock);
 
-        if (udp_ports[udp.dstport]) {
-            sock = udp_ports[udp.dstport];
+        if (udp_ports_v6[udp.dstport]) {
+            sock = udp_ports_v6[udp.dstport];
 
             {
                 lock_guard lock2(sock->bind_lock);
@@ -387,14 +388,20 @@ nt_status udp_socket<FAMILY>::do_recvfrom(span<const span<uint8_t>> v, int flags
     return nt_status::SUCCESS;
 }
 
-static uint16_t find_ephemeral_udp_port() {
+template<socket_family FAMILY>
+uint16_t find_ephemeral_udp_port() {
     auto rnd = kernel_time_page.system_time / (SYSTEM_TIME_RESOLUTION / TICK_RATE);
     uint16_t port = 49152 + (rnd & 0x3fff);
     uint16_t orig_port = port;
 
     while (true) {
-        if (!udp_ports[byteswap(port)])
-            return byteswap(port);
+        if constexpr (is_same_v<FAMILY, ipv4>) {
+            if (!udp_ports_v4[byteswap(port)])
+                return byteswap(port);
+        } else if constexpr (is_same_v<FAMILY, ipv6>) {
+            if (!udp_ports_v6[byteswap(port)])
+                return byteswap(port);
+        }
 
         if (port == 65535)
             port = 49152;
@@ -477,11 +484,15 @@ nt_status udp_socket<FAMILY>::do_sendto(span<const span<const uint8_t>> v,
         lock_guard lock2(bind_lock);
 
         if (!bind_done) {
-            srcport = find_ephemeral_udp_port();
+            srcport = find_ephemeral_udp_port<FAMILY>();
             if (srcport == 0) // no ephemeral ports left
                 return nt_status::ADDRESS_ALREADY_ASSOCIATED;
 
-            udp_ports[srcport] = this;
+            if constexpr (is_same_v<FAMILY, ipv4>)
+                udp_ports_v4[srcport] = this;
+            else if constexpr (is_same_v<FAMILY, ipv6>)
+                udp_ports_v6[srcport] = this;
+
             this->acquire();
 
             bound_port = srcport;
@@ -555,7 +566,9 @@ nt_status udp_socket<FAMILY>::do_sendto(span<const span<const uint8_t>> v,
     }
 
     if (mac == NULL_MAC_ADDRESS) {
-        send_address_unreachable(ni, *pack, src);
+        if constexpr (is_same_v<FAMILY, ipv6>)
+            send_address_unreachable(ni, *pack, src);
+
         pack->release();
         ni.release();
         return nt_status::HOST_UNREACHABLE;
@@ -602,18 +615,34 @@ nt_status udp_socket<FAMILY>::bind(const sockaddr* addr, size_t addrlen) {
         if (bind_done)
             return nt_status::INVALID_PARAMETER;
 
-        if (b.sin6_port == 0) {
-            port = find_ephemeral_udp_port();
-            if (port == 0) // no ephemeral ports left
-                return nt_status::ADDRESS_ALREADY_ASSOCIATED;
-        } else {
-            port = b.sin6_port;
+        if constexpr (is_same_v<FAMILY, ipv4>) {
+            if (b.sin6_port == 0) {
+                port = find_ephemeral_udp_port<FAMILY>();
+                if (port == 0) // no ephemeral ports left
+                    return nt_status::ADDRESS_ALREADY_ASSOCIATED;
+            } else {
+                port = b.sin6_port;
 
-            if (udp_ports[b.sin6_port])
-                return nt_status::ADDRESS_ALREADY_ASSOCIATED;
+                if (udp_ports_v4[b.sin6_port])
+                    return nt_status::ADDRESS_ALREADY_ASSOCIATED;
+            }
+
+            udp_ports_v4[b.sin6_port] = this;
+        } else if constexpr (is_same_v<FAMILY, ipv6>) {
+            if (b.sin6_port == 0) {
+                port = find_ephemeral_udp_port<FAMILY>();
+                if (port == 0) // no ephemeral ports left
+                    return nt_status::ADDRESS_ALREADY_ASSOCIATED;
+            } else {
+                port = b.sin6_port;
+
+                if (udp_ports_v6[b.sin6_port])
+                    return nt_status::ADDRESS_ALREADY_ASSOCIATED;
+            }
+
+            udp_ports_v6[b.sin6_port] = this;
         }
 
-        udp_ports[b.sin6_port] = this;
         this->acquire();
 
         bound_port = port;
@@ -642,11 +671,15 @@ nt_status udp_socket<FAMILY>::connect(const sockaddr* addr, size_t addrlen) {
         lock_guard lock2(bind_lock);
 
         if (!bind_done) { // implicit bind if not already done
-            port = find_ephemeral_udp_port();
+            port = find_ephemeral_udp_port<FAMILY>();
             if (port == 0) // no ephemeral ports left
                 return nt_status::ADDRESS_ALREADY_ASSOCIATED;
 
-            udp_ports[port] = this;
+            if constexpr (is_same_v<FAMILY, ipv4>)
+                udp_ports_v4[port] = this;
+            else if constexpr (is_same_v<FAMILY, ipv6>)
+                udp_ports_v6[port] = this;
+
             this->acquire();
 
             bound_port = port;
@@ -673,9 +706,16 @@ void udp_socket<FAMILY>::last_handle_closed() {
         lock_guard lock(udp_ports_lock);
         lock_guard lock2(bind_lock);
 
-        if (bind_done && udp_ports[bound_port] == this) {
-            udp_ports[bound_port] = nullptr;
-            this->release();
+        if constexpr (is_same_v<FAMILY, ipv4>) {
+            if (bind_done && udp_ports_v4[bound_port] == this) {
+                udp_ports_v4[bound_port] = nullptr;
+                this->release();
+            }
+        } else if constexpr (is_same_v<FAMILY, ipv6>) {
+            if (bind_done && udp_ports_v6[bound_port] == this) {
+                udp_ports_v6[bound_port] = nullptr;
+                this->release();
+            }
         }
     }
 
@@ -705,8 +745,8 @@ void handle_icmpv6_error_udp(packet& pack) {
     {
         lock_guard lock(udp_ports_lock);
 
-        if (udp_ports[udp.srcport]) {
-            sock = udp_ports[udp.srcport];
+        if (udp_ports_v6[udp.srcport]) {
+            sock = udp_ports_v6[udp.srcport];
             sock->acquire();
         } else
             return;
@@ -790,6 +830,18 @@ void handle_icmpv6_error_udp(packet& pack) {
     }
 
     sock->release();
+}
+
+nt_status create_new_ipv4_udp_socket(object_ref& ref) {
+    auto s = new udp_socket<ipv4>;
+    if (!s) {
+        print("new failed\n");
+        return nt_status::INSUFFICIENT_RESOURCES;
+    }
+
+    ref = object_ref{*s};
+
+    return nt_status::SUCCESS;
 }
 
 nt_status create_new_ipv6_udp_socket(object_ref& ref) {

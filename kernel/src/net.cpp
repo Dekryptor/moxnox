@@ -451,6 +451,7 @@ mac_address find_mac_address(netif& ni, const ipv4_address& dst);
 mac_address find_mac_address(netif& ni, const ipv6_address& dst);
 void handle_icmpv6_error_udp(packet& pack);
 nt_status create_new_ipv6_tcp_socket(object_ref& ref);
+nt_status create_new_ipv4_udp_socket(object_ref& ref);
 nt_status create_new_ipv6_udp_socket(object_ref& ref);
 nt_status create_new_unix_socket(object_ref& ref);
 void maybe_add_to_neighbour_cache(netif& ni, const ipv6_address& dst,

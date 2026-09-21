@@ -2368,7 +2368,17 @@ static nt_status netctl_socket(span<const uint8_t> buf) {
                     break;
                 }
 
-                // FIXME - SOCK_DGRAM
+                case SOCK_DGRAM: {
+                    if (params.protocol != 0 && params.protocol != IPPROTO_UDP)
+                        return nt_status::INVALID_PARAMETER;
+
+                    auto status = create_new_ipv4_udp_socket(ref);
+                    if (!success(status))
+                        return status;
+
+                    break;
+                }
+
                 // FIXME - SOCK_STREAM
 
                 default:
