@@ -134,6 +134,7 @@ enum class neighbour_cache_status {
     reachable
 };
 
+template<socket_family FAMILY>
 struct neighbour_cache_entry {
     neighbour_cache_entry(netif& ni) : ni(ni) {
         ni.acquire();
@@ -154,7 +155,7 @@ struct neighbour_cache_entry {
 
     list_entry le;
     netif& ni;
-    ipv6_address addr;
+    typename FAMILY::address addr;
     atomic<unsigned int> refcount = 1;
     object_ref event;
     mac_address mac;
@@ -501,7 +502,7 @@ static void add_neighbour_cache_entry(netif& ni, const mac_address& mac,
         lock_guard lock(ni.neighbour_lock);
 
         for (auto le = ni.neighbour_cache.next; le != &ni.neighbour_cache; le = le->next) {
-            auto& c = containing_record<neighbour_cache_entry>(le);
+            auto& c = containing_record<neighbour_cache_entry<ipv6>>(le);
 
             if (c.addr != addr)
                 continue;
@@ -523,7 +524,7 @@ static void add_neighbour_cache_entry(netif& ni, const mac_address& mac,
 
     // add new entry
 
-    auto nce = new neighbour_cache_entry(ni);
+    auto nce = new neighbour_cache_entry<ipv6>(ni);
     if (!nce) {
         print("new failed\n");
         return;
@@ -548,7 +549,7 @@ static void add_neighbour_cache_entry(netif& ni, const mac_address& mac,
         lock_guard lock(ni.neighbour_lock);
 
         for (auto le = ni.neighbour_cache.next; le != &ni.neighbour_cache; le = le->next) {
-            auto& c = containing_record<neighbour_cache_entry>(le);
+            auto& c = containing_record<neighbour_cache_entry<ipv6>>(le);
 
             if (c.addr == addr) {
                 beaten_to_it = true;
@@ -1626,7 +1627,7 @@ static void handle_ipv6_packet(netif& ni, packet& pack, const mac_address& src_m
         lock_guard lock(ni.neighbour_lock);
 
         for (auto le = ni.neighbour_cache.next; le != &ni.neighbour_cache; le = le->next) {
-            auto& c = containing_record<neighbour_cache_entry>(le);
+            auto& c = containing_record<neighbour_cache_entry<ipv6>>(le);
 
             if (c.addr == ip.src) {
                 if (c.status == neighbour_cache_status::reachable)
@@ -1881,7 +1882,7 @@ static void reap_neighbour_cache() {
                 lock_guard lock2(ni.neighbour_lock);
 
                 for (auto le2 = ni.neighbour_cache.next; le2 != &ni.neighbour_cache; le2 = le2->next) {
-                    auto& c = containing_record<neighbour_cache_entry>(le2);
+                    auto& c = containing_record<neighbour_cache_entry<ipv6>>(le2);
 
                     if (now >= c.last_update_time + (REAP_TIME * SYSTEM_TIME_RESOLUTION)) {
                         auto le_prev = le2->prev;
@@ -1895,7 +1896,7 @@ static void reap_neighbour_cache() {
             }
 
             while (!is_list_empty(reap_list)) {
-                auto& c = containing_record<neighbour_cache_entry>(reap_list.next);
+                auto& c = containing_record<neighbour_cache_entry<ipv6>>(reap_list.next);
 
                 set_event(static_cast<event&>(c.event.get()));
 
@@ -4080,13 +4081,13 @@ static void send_neighbour_solicitation(netif& ni, const ipv6_address& dst) {
 }
 
 static mac_address search_neighbour_cache(netif& ni, const ipv6_address& dst) {
-    neighbour_cache_entry* nce = nullptr;
+    neighbour_cache_entry<ipv6>* nce = nullptr;
 
     {
         lock_guard lock(ni.neighbour_lock);
 
         for (auto le = ni.neighbour_cache.next; le != &ni.neighbour_cache; le = le->next) {
-            auto& c = containing_record<neighbour_cache_entry>(le);
+            auto& c = containing_record<neighbour_cache_entry<ipv6>>(le);
 
             if (c.addr == dst) {
                 if (c.status == neighbour_cache_status::reachable)
@@ -4111,13 +4112,13 @@ static mac_address search_neighbour_cache(netif& ni, const ipv6_address& dst) {
             nce->release();
     }
 
-    nce = new neighbour_cache_entry(ni);
+    nce = new neighbour_cache_entry<ipv6>(ni);
     if (!nce) {
         print("new failed\n");
         return NULL_MAC_ADDRESS;
     }
 
-    neighbour_cache_entry* nce2 = nullptr;
+    neighbour_cache_entry<ipv6>* nce2 = nullptr;
 
     nce->addr = dst;
 
@@ -4134,7 +4135,7 @@ static mac_address search_neighbour_cache(netif& ni, const ipv6_address& dst) {
         lock_guard lock(ni.neighbour_lock);
 
         for (auto le = ni.neighbour_cache.next; le != &ni.neighbour_cache; le = le->next) {
-            auto& c = containing_record<neighbour_cache_entry>(le);
+            auto& c = containing_record<neighbour_cache_entry<ipv6>>(le);
 
             if (c.addr == dst) {
                 c.acquire();
@@ -4266,10 +4267,202 @@ mac_address find_mac_address(netif& ni, const ipv6_address& dst) {
     }
 }
 
-mac_address find_mac_address(netif& /*ni*/, const ipv4_address& /*dst*/) {
-    // FIXME
+static void send_arp_request(netif& ni, const ipv4_address& dst) {
+    optional<ipv4_address> src_ip;
 
-    return NULL_MAC_ADDRESS;
+    {
+        lock_guard lock(ni.addr_lock);
+
+        for (auto le = ni.addrs.next; le != &ni.addrs; le = le->next) {
+            auto& a = containing_record<ip_addr>(le);
+
+            auto* addr = get_if<ipv4_address>(&a.addr);
+
+            if (addr) {
+                src_ip = *addr;
+                break;
+            }
+        }
+    }
+
+    if (!src_ip.has_value())
+        return;
+
+    auto pack = new packet;
+    if (!pack) {
+        print("new failed\n");
+        return;
+    }
+
+    auto& arp = *(arp_header*)pack->data;
+    pack->size = sizeof(arp);
+
+    memset(&arp, 0, sizeof(arp));
+
+    arp.htype = byteswap((uint16_t)1); // Ethernet
+    arp.ptype = (uint16_t)ethertype::ipv4;
+    arp.hlen = sizeof(mac_address);
+    arp.plen = sizeof(ipv4_address);
+    arp.opcode = (uint16_t)arp_opcode::request;
+    *(mac_address*)arp.sender_mac_address = ni.mac;
+    arp.sender_ip_address = *src_ip;
+    arp.target_ip_address = dst;
+
+    auto dst_mac = BROADCAST_MAC_ADDRESS;
+
+    auto status = ni.send_packet(dst_mac, ethertype::arp, *pack);
+    if (!success(status))
+        print("send_packet returned {}\n", status);
+
+    pack->release();
+}
+
+mac_address search_arp_cache(netif& ni, const ipv4_address& dst) {
+    neighbour_cache_entry<ipv4>* nce = nullptr;
+
+    {
+        lock_guard lock(ni.arp_lock);
+
+        for (auto le = ni.arp_cache.next; le != &ni.arp_cache; le = le->next) {
+            auto& c = containing_record<neighbour_cache_entry<ipv4>>(le);
+
+            if (c.addr == dst) {
+                if (c.status == neighbour_cache_status::reachable)
+                    return c.mac;
+
+                c.acquire();
+                nce = &c;
+                break;
+            }
+        }
+    }
+
+    if (nce) { // found, but incomplete
+        wait_for_object(nce->event.get(), false);
+
+        if (nce->status == neighbour_cache_status::reachable) {
+            auto ret = nce->mac;
+
+            nce->release();
+            return ret;
+        } else
+            nce->release();
+    }
+
+    nce = new neighbour_cache_entry<ipv4>(ni);
+    if (!nce) {
+        print("new failed\n");
+        return NULL_MAC_ADDRESS;
+    }
+
+    neighbour_cache_entry<ipv4>* nce2 = nullptr;
+
+    nce->addr = dst;
+
+    nce->event = create_event(false);
+    if (!nce->event) {
+        print("create_event failed\n");
+        nce->release();
+        return NULL_MAC_ADDRESS;
+    }
+
+    nce->status = neighbour_cache_status::incomplete;
+
+    {
+        lock_guard lock(ni.arp_lock);
+
+        for (auto le = ni.arp_cache.next; le != &ni.arp_cache; le = le->next) {
+            auto& c = containing_record<neighbour_cache_entry<ipv4>>(le);
+
+            if (c.addr == dst) {
+                c.acquire();
+                nce2 = &c;
+                break;
+            }
+        }
+
+        if (!nce2) {
+            insert_tail_list(ni.arp_cache, nce->le);
+            nce->acquire();
+        }
+    }
+
+    if (nce2) { // race and we lost
+        nce->release();
+
+        wait_for_object(nce2->event.get(), false);
+
+        if (nce2->status == neighbour_cache_status::reachable) {
+            auto ret = nce2->mac;
+
+            nce2->release();
+            return ret;
+        } else {
+            nce2->release();
+            return NULL_MAC_ADDRESS;
+        }
+    }
+
+    for (unsigned int i = 0; i < 3; i++) {
+        uint64_t timeout = SYSTEM_TIME_RESOLUTION; // 1 second
+
+        send_arp_request(ni, dst);
+
+        auto status = wait_for_object(nce->event.get(), false, timeout);
+
+        if (status == nt_status::TIMEOUT)
+            continue;
+        else if (!success(status)) {
+            set_event(static_cast<event&>(nce->event.get()));
+
+            {
+                lock_guard lock(ni.arp_lock);
+
+                if (nce->status != neighbour_cache_status::reachable) {
+                    remove_entry_list(nce->le);
+                    nce->release();
+                }
+            }
+
+            nce->release();
+
+            print("wait_for_object returned {}\n", status);
+            return NULL_MAC_ADDRESS;
+        }
+
+        if (nce->status == neighbour_cache_status::reachable) {
+            auto ret = nce->mac;
+
+            nce->release();
+            return ret;
+        }
+    }
+
+    set_event(static_cast<event&>(nce->event.get()));
+
+    auto ret = NULL_MAC_ADDRESS;
+
+    {
+        lock_guard lock(ni.arp_lock);
+
+        if (nce->status == neighbour_cache_status::reachable)
+            ret = nce->mac;
+        else {
+            remove_entry_list(nce->le);
+            nce->release();
+        }
+    }
+
+    nce->release();
+
+    return ret;
+}
+
+mac_address find_mac_address(netif& ni, const ipv4_address& dst) {
+    // FIXME - broadcast
+    // FIXME - multicast
+
+    return search_arp_cache(ni, dst);
 }
 
 void maybe_add_to_neighbour_cache(netif& ni, const ipv6_address& dst,
@@ -4296,7 +4489,7 @@ void maybe_add_to_neighbour_cache(netif& ni, const ipv6_address& dst,
         lock_guard lock(ni.neighbour_lock);
 
         for (auto le = ni.neighbour_cache.next; le != &ni.neighbour_cache; le = le->next) {
-            auto& c = containing_record<neighbour_cache_entry>(le);
+            auto& c = containing_record<neighbour_cache_entry<ipv6>>(le);
 
             if (c.addr == dst) {
                 if (c.status != neighbour_cache_status::reachable) {
@@ -4308,7 +4501,7 @@ void maybe_add_to_neighbour_cache(netif& ni, const ipv6_address& dst,
         }
     }
 
-    auto nce = new neighbour_cache_entry(ni);
+    auto nce = new neighbour_cache_entry<ipv6>(ni);
     if (!nce) {
         print("new failed\n");
         return;
@@ -4334,7 +4527,7 @@ void maybe_add_to_neighbour_cache(netif& ni, const ipv6_address& dst,
         lock_guard lock(ni.neighbour_lock);
 
         for (auto le = ni.neighbour_cache.next; le != &ni.neighbour_cache; le = le->next) {
-            auto& c = containing_record<neighbour_cache_entry>(le);
+            auto& c = containing_record<neighbour_cache_entry<ipv6>>(le);
 
             if (c.addr == dst) {
                 if (c.status != neighbour_cache_status::reachable) {
@@ -4495,8 +4688,12 @@ nt_status raw_socket<FAMILY>::do_sendto(span<const span<const uint8_t>> v,
 
     if (src == dst)
         mac = ni.mac;
-    else
-        mac = find_mac_address(ni, dst);
+    else {
+        if constexpr (is_same_v<FAMILY, ipv4>)
+            mac = find_mac_address(ni, gateway == parse_ipv4_address("0.0.0.0") ? dst : gateway);
+        else
+            mac = find_mac_address(ni, dst);
+    }
 
     auto pack = new packet;
     if (!pack) {

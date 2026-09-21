@@ -43,6 +43,7 @@ export struct mac_address {
 };
 
 const mac_address NULL_MAC_ADDRESS = { 0, 0, 0, 0, 0, 0 };
+const mac_address BROADCAST_MAC_ADDRESS = { 0xff, 0xff, 0xff, 0xff, 0xff, 0xff };
 
 export enum class ethertype : uint16_t { // bytes flipped
     ipv4 = 0x0008,
@@ -139,6 +140,8 @@ public:
     uint32_t num;
     spinlock neighbour_lock;
     list_entry neighbour_cache = { &neighbour_cache, &neighbour_cache };
+    spinlock arp_lock;
+    list_entry arp_cache = { &arp_cache, &arp_cache };
     bool rs_needed = true, rs_visited = false;
     unsigned int rs_tries = 0, secs_since_last_rs = 0;
     spinlock prefix_lock;
