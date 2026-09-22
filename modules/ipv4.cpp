@@ -7,6 +7,7 @@ module;
 #include <string_view>
 #include <utility>
 #include <charconv>
+#include <bit>
 
 export module ipv4;
 
