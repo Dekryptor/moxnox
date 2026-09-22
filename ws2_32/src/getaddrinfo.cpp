@@ -1245,6 +1245,78 @@ static int getnameinfo_ipv6(const sockaddr* addr, socklen_t addrlen,
     return 0;
 }
 
+static int getnameinfo_ipv4(const sockaddr* addr, socklen_t addrlen,
+                            char* host, socklen_t hostlen,
+                            char* serv, socklen_t servlen, int flags) {
+    static const int understood_flags = NI_NUMERICHOST | NI_NUMERICSERV |
+                                        NI_NAMEREQD;
+
+    // FIXME - NI_NOFQDN, NI_NUMERICSCOPE, NI_DGRAM
+
+    if (flags & ~understood_flags)
+        return EAI_BADFLAGS;
+
+    if ((size_t)addrlen < sizeof(sockaddr_in))
+        return EAI_FAMILY;
+
+    if (!host && !serv)
+        return EAI_NONAME;
+
+    auto& a = *(sockaddr_in*)addr;
+
+    if (host) {
+        bool done = false;
+
+        if (hostlen < 0)
+            return EAI_OVERFLOW;
+
+        auto& ip = *(ipv4_address*)&a.sin_addr;
+
+#if 0
+        if (!(flags & NI_NUMERICHOST)) {
+            auto ret = reverse_dns_lookup(ip, span(host, (size_t)hostlen));
+
+            if (ret && (ret != EAI_NONAME || flags & NI_NAMEREQD))
+                return ret;
+
+            done = true;
+        }
+#endif
+
+        if (!done) {
+            char s[16];
+            span sp(s, sizeof(s));
+
+            sp = format(sp, "{}", ip);
+
+            auto sv = string_view(s, (size_t)(sp.data() - s));
+
+            if (sv.size() + 1 > (size_t)hostlen)
+                return EAI_OVERFLOW;
+
+            memcpy(host, sv.data(), sv.size());
+            host[sv.size()] = 0;
+        }
+    }
+
+    if (serv) {
+        char s[5];
+        span sp(s, sizeof(s));
+
+        sp = format(sp, "{}", byteswap(a.sin_port));
+
+        auto sv = string_view(s, (size_t)(sp.data() - s));
+
+        if (sv.size() + 1 > (size_t)servlen)
+            return EAI_OVERFLOW;
+
+        memcpy(serv, sv.data(), sv.size());
+        serv[sv.size()] = 0;
+    }
+
+    return 0;
+}
+
 extern "C"
 int getnameinfo(const sockaddr* addr, socklen_t addrlen, char* host,
                 socklen_t hostlen, char* serv, socklen_t servlen,
@@ -1252,10 +1324,16 @@ int getnameinfo(const sockaddr* addr, socklen_t addrlen, char* host,
     if ((size_t)addrlen < sizeof(sockaddr))
         return EAI_FAMILY;
 
-    // FIXME - IPv4
+    switch (addr->sa_family) {
+        case AF_INET:
+            return getnameinfo_ipv4(addr, addrlen, host, hostlen, serv,
+                                    servlen, flags);
 
-    if (addr->sa_family != AF_INET6)
-        return EAI_FAMILY;
+        case AF_INET6:
+            return getnameinfo_ipv6(addr, addrlen, host, hostlen, serv,
+                                    servlen, flags);
 
-    return getnameinfo_ipv6(addr, addrlen, host, hostlen, serv, servlen, flags);
+        default:
+            return EAI_FAMILY;
+    }
 }
