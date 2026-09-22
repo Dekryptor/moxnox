@@ -441,6 +441,8 @@ uint16_t calc_ipv6_checksum(const ipv6_header& ip, span<const uint8_t> data,
                             uint8_t next_header);
 uint16_t calc_ipv6_checksum_offload(const ipv6_header& ip, uint32_t length,
                                     uint8_t next_header);
+nt_status ipv4_choose_interface(const ipv4_address& dst, netif*& ni,
+                                ipv4_address& src, ipv4_address& gateway);
 nt_status ipv6_choose_interface(const ipv6_address& dst, uint32_t scope_id,
                                 netif*& ni, ipv6_address& src);
 bool is_multicast_address(const ipv4_address& addr);

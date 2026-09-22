@@ -80,7 +80,7 @@ public:
     bool bind_done = false, connect_done = false;
     uint16_t bound_port, connected_port;
     uint32_t connected_scope = 0;
-    ipv6_address bound_address, connected_address;
+    typename FAMILY::address bound_address, connected_address;
     nt_status pending_error = nt_status::SUCCESS;
     atomic<bool> dead = false, shutdown_read = false, shutdown_write = false;
 
@@ -419,10 +419,10 @@ nt_status udp_socket<FAMILY>::do_sendto(span<const span<const uint8_t>> v,
                                         int flags, sockaddr* to, size_t tolen,
                                         uint64_t& sent_bytes) {
     nt_status status;
-    ipv6_address src;
+    typename FAMILY::address src;
     uint16_t srcport;
     bool connected;
-    sockaddr_in6 dest;
+    typename FAMILY::sockaddr dest;
     auto vec_size = get_vec_size(v);
     span<const uint8_t> top = vec_size == 0 ? span<const uint8_t>() : v.front();
 
@@ -431,17 +431,22 @@ nt_status udp_socket<FAMILY>::do_sendto(span<const span<const uint8_t>> v,
         connected = this->connect_done;
 
         if (connected) {
-            *(ipv6_address*)&dest.sin6_addr = connected_address;
-            dest.sin6_port = connected_port;
-            dest.sin6_scope_id = connected_scope;
+            if constexpr (is_same_v<FAMILY, ipv4>) {
+                *(ipv4_address*)&dest.sin_addr = connected_address;
+                dest.sin_port = connected_port;
+            } else if constexpr (is_same_v<FAMILY, ipv6>) {
+                *(ipv6_address*)&dest.sin6_addr = connected_address;
+                dest.sin6_port = connected_port;
+                dest.sin6_scope_id = connected_scope;
+            }
         }
     }
 
-    if (!connected && (!to || tolen < sizeof(sockaddr_in6)))
+    if (!connected && (!to || tolen < sizeof(typename FAMILY::sockaddr)))
         return nt_status::INVALID_PARAMETER;
 
     // if connected, sendto destination is ignored
-    auto& to6 = connected ? dest : *(sockaddr_in6*)to;
+    auto& to6 = connected ? dest : *(typename FAMILY::sockaddr*)to;
 
     if (shutdown_write)
         return nt_status::CONNECTION_ABORTED;
@@ -496,7 +501,11 @@ nt_status udp_socket<FAMILY>::do_sendto(span<const span<const uint8_t>> v,
             this->acquire();
 
             bound_port = srcport;
-            bound_address = parse_ipv6_address("::");
+
+            if constexpr (is_same_v<FAMILY, ipv4>)
+                bound_address = parse_ipv4_address("0.0.0.0");
+            else if constexpr (is_same_v<FAMILY, ipv6>)
+                bound_address = parse_ipv6_address("::");
 
             bind_done = true;
         }
@@ -505,17 +514,26 @@ nt_status udp_socket<FAMILY>::do_sendto(span<const span<const uint8_t>> v,
         src = bound_address;
     }
 
-    auto& dst = *(ipv6_address*)&to6.sin6_addr;
+    typename FAMILY::address dst, gateway;
+
+    if constexpr (is_same_v<FAMILY, ipv4>)
+        dst = *(typename FAMILY::address*)&to6.sin_addr;
+    else if constexpr (is_same_v<FAMILY, ipv6>)
+        dst = *(typename FAMILY::address*)&to6.sin6_addr;
 
     netif* pni;
 
-    status = ipv6_choose_interface(dst, to6.sin6_scope_id, pni, src);
+    if constexpr (is_same_v<FAMILY, ipv4>)
+        status = ipv4_choose_interface(dst, pni, src, gateway);
+    else if constexpr (is_same_v<FAMILY, ipv6>)
+        status = ipv6_choose_interface(dst, to6.sin6_scope_id, pni, src);
+
     if (!success(status))
         return status;
 
     auto& ni = *pni;
 
-    if (vec_size + sizeof(ipv6_header) + sizeof(udp_header) > ni.mtu) {
+    if (vec_size + sizeof(typename FAMILY::header) + sizeof(udp_header) > ni.mtu) {
         ni.release();
         return nt_status::INVALID_BUFFER_SIZE;
     }
@@ -524,8 +542,12 @@ nt_status udp_socket<FAMILY>::do_sendto(span<const span<const uint8_t>> v,
 
     if (src == dst)
         mac = ni.mac;
-    else
-        mac = find_mac_address(ni, dst);
+    else {
+        if constexpr (is_same_v<FAMILY, ipv4>)
+            mac = find_mac_address(ni, gateway == parse_ipv4_address("0.0.0.0") ? dst : gateway);
+        else if constexpr (is_same_v<FAMILY, ipv6>)
+            mac = find_mac_address(ni, dst);
+    }
 
     auto pack = new packet;
     if (!pack) {
@@ -533,36 +555,64 @@ nt_status udp_socket<FAMILY>::do_sendto(span<const span<const uint8_t>> v,
         return nt_status::INSUFFICIENT_RESOURCES;
     }
 
-    pack->size = sizeof(ipv6_header) + sizeof(udp_header) + vec_size;
+    pack->size = sizeof(typename FAMILY::header) + sizeof(udp_header) + vec_size;
 
-    auto& ip = *(ipv6_header*)pack->data;
-    ip.traffic_class1 = 0;
-    ip.version = 6;
-    ip.traffic_class2 = 0;
-    ip.flow_label_high = 0;
-    ip.flow_label_medium = 0;
-    ip.flow_label_low = 0;
-    ip.payload_length = byteswap((uint16_t)(sizeof(udp_header) + vec_size));
-    ip.next_header = IPPROTO_UDP;
-    ip.hop_limit = DEFAULT_HOP_LIMIT;
-    ip.src = src;
-    ip.dst = dst;
-
-    auto& udp = *(udp_header*)(pack->data + sizeof(ipv6_header));
+    auto& udp = *(udp_header*)(pack->data + sizeof(typename FAMILY::header));
     udp.srcport = srcport;
-    udp.dstport = to6.sin6_port;
-    udp.length = ip.payload_length;
+
+    if constexpr (is_same_v<FAMILY, ipv4>)
+        udp.dstport = to6.sin_port;
+    else if constexpr (is_same_v<FAMILY, ipv6>)
+        udp.dstport = to6.sin6_port;
+
+    udp.length = byteswap((uint16_t)(sizeof(udp_header) + vec_size));
     udp.checksum = 0;
 
-    memcpy_vec(pack->data + sizeof(ipv6_header) + sizeof(udp_header),
+    memcpy_vec(pack->data + sizeof(typename FAMILY::header) + sizeof(udp_header),
                v, top, vec_size);
 
-    if (!ni.tx_udpv6_csum_offload)
-        udp.checksum = calc_ipv6_checksum(ip, span((uint8_t*)&udp, pack->size - sizeof(ipv6_header)),
-                                          IPPROTO_UDP);
-    else {
-        udp.checksum = calc_ipv6_checksum_offload(ip, (uint32_t)(pack->size - sizeof(ipv6_header)),
-                                                  IPPROTO_UDP);
+    if constexpr (is_same_v<FAMILY, ipv4>) {
+        auto& ip = *(ipv4_header*)pack->data;
+
+        ip.ihl = sizeof(ipv4_header) / sizeof(uint32_t);
+        ip.version = 4;
+        ip.ecn = 0;
+        ip.dscp = 0;
+        ip.total_length = byteswap((uint16_t)(sizeof(ipv4_header) + sizeof(udp_header) + vec_size));
+        ip.identification = 0;
+        ip.fragment_offset1 = 0;
+        ip.MF = 0;
+        ip.DF = 1;
+        ip.R = 0;
+        ip.fragment_offset2 = 0;
+        ip.ttl = DEFAULT_HOP_LIMIT;
+        ip.protocol = IPPROTO_UDP;
+        ip.header_checksum = 0;
+        ip.src = src;
+        ip.dst = dst;
+
+        ip.header_checksum = calc_ipv4_checksum(span(pack->data, sizeof(ipv4_header)));
+    } else if constexpr (is_same_v<FAMILY, ipv6>) {
+        auto& ip = *(ipv6_header*)pack->data;
+        ip.traffic_class1 = 0;
+        ip.version = 6;
+        ip.traffic_class2 = 0;
+        ip.flow_label_high = 0;
+        ip.flow_label_medium = 0;
+        ip.flow_label_low = 0;
+        ip.payload_length = byteswap((uint16_t)(sizeof(udp_header) + vec_size));
+        ip.next_header = IPPROTO_UDP;
+        ip.hop_limit = DEFAULT_HOP_LIMIT;
+        ip.src = src;
+        ip.dst = dst;
+
+        if (!ni.tx_udpv6_csum_offload)
+            udp.checksum = calc_ipv6_checksum(ip, span((uint8_t*)&udp, pack->size - sizeof(ipv6_header)),
+                                              IPPROTO_UDP);
+        else {
+            udp.checksum = calc_ipv6_checksum_offload(ip, (uint32_t)(pack->size - sizeof(ipv6_header)),
+                                                      IPPROTO_UDP);
+        }
     }
 
     if (mac == NULL_MAC_ADDRESS) {
@@ -574,7 +624,7 @@ nt_status udp_socket<FAMILY>::do_sendto(span<const span<const uint8_t>> v,
         return nt_status::HOST_UNREACHABLE;
     }
 
-    status = dispatch_packet<ipv6>(ni, *pack, mac);
+    status = dispatch_packet<FAMILY>(ni, *pack, mac);
     if (!success(status)) {
         pack->release();
         ni.release();
@@ -591,19 +641,29 @@ nt_status udp_socket<FAMILY>::do_sendto(span<const span<const uint8_t>> v,
 
 template<socket_family FAMILY>
 nt_status udp_socket<FAMILY>::bind(const sockaddr* addr, size_t addrlen) {
-    if (addr->sa_family != AF_INET6)
+    if (addr->sa_family != FAMILY::family)
         return nt_status::INVALID_PARAMETER;
 
-    if (addrlen < sizeof(sockaddr_in6))
+    if (addrlen < sizeof(typename FAMILY::sockaddr))
         return nt_status::BUFFER_TOO_SMALL;
 
-    auto& b = *(sockaddr_in6*)addr;
+    auto& b = *(typename FAMILY::sockaddr*)addr;
+    typename FAMILY::address ip;
 
-    auto ip = *(ipv6_address*)&b.sin6_addr;
+    if constexpr (is_same_v<FAMILY, ipv4>) {
+        ip = *(typename FAMILY::address*)&b.sin_addr;
 
-    if (ip != parse_ipv6_address("::")) {
-        if (!is_our_ip(ip))
-            return nt_status::INVALID_ADDRESS_COMPONENT;
+        if (ip != parse_ipv4_address("0.0.0.0")) {
+            if (!is_our_ip(ip))
+                return nt_status::INVALID_ADDRESS_COMPONENT;
+        }
+    } else if constexpr (is_same_v<FAMILY, ipv6>) {
+        ip = *(typename FAMILY::address*)&b.sin6_addr;
+
+        if (ip != parse_ipv6_address("::")) {
+            if (!is_our_ip(ip))
+                return nt_status::INVALID_ADDRESS_COMPONENT;
+        }
     }
 
     {
@@ -616,18 +676,18 @@ nt_status udp_socket<FAMILY>::bind(const sockaddr* addr, size_t addrlen) {
             return nt_status::INVALID_PARAMETER;
 
         if constexpr (is_same_v<FAMILY, ipv4>) {
-            if (b.sin6_port == 0) {
+            if (b.sin_port == 0) {
                 port = find_ephemeral_udp_port<FAMILY>();
                 if (port == 0) // no ephemeral ports left
                     return nt_status::ADDRESS_ALREADY_ASSOCIATED;
             } else {
-                port = b.sin6_port;
+                port = b.sin_port;
 
-                if (udp_ports_v4[b.sin6_port])
+                if (udp_ports_v4[b.sin_port])
                     return nt_status::ADDRESS_ALREADY_ASSOCIATED;
             }
 
-            udp_ports_v4[b.sin6_port] = this;
+            udp_ports_v4[b.sin_port] = this;
         } else if constexpr (is_same_v<FAMILY, ipv6>) {
             if (b.sin6_port == 0) {
                 port = find_ephemeral_udp_port<FAMILY>();
@@ -656,13 +716,13 @@ nt_status udp_socket<FAMILY>::bind(const sockaddr* addr, size_t addrlen) {
 
 template<socket_family FAMILY>
 nt_status udp_socket<FAMILY>::connect(const sockaddr* addr, size_t addrlen) {
-    if (addr->sa_family != AF_INET6)
+    if (addr->sa_family != FAMILY::family)
         return nt_status::INVALID_PARAMETER;
 
-    if (addrlen < sizeof(sockaddr_in6))
+    if (addrlen < sizeof(typename FAMILY::sockaddr))
         return nt_status::BUFFER_TOO_SMALL;
 
-    auto& c = *(sockaddr_in6*)addr;
+    auto& c = *(typename FAMILY::sockaddr*)addr;
 
     uint16_t port;
 
@@ -683,7 +743,11 @@ nt_status udp_socket<FAMILY>::connect(const sockaddr* addr, size_t addrlen) {
             this->acquire();
 
             bound_port = port;
-            bound_address = parse_ipv6_address("::");
+
+            if constexpr (is_same_v<FAMILY, ipv4>)
+                bound_address = parse_ipv4_address("0.0.0.0");
+            else if constexpr (is_same_v<FAMILY, ipv6>)
+                bound_address = parse_ipv6_address("::");
 
             bind_done = true;
         }
@@ -691,9 +755,15 @@ nt_status udp_socket<FAMILY>::connect(const sockaddr* addr, size_t addrlen) {
         if (connect_done)
             return nt_status::INVALID_PARAMETER;
 
-        connected_port = c.sin6_port;
-        connected_address = *(ipv6_address*)&c.sin6_addr;
-        connected_scope = c.sin6_scope_id;
+        if constexpr (is_same_v<FAMILY, ipv4>) {
+            connected_port = c.sin_port;
+            connected_address = *(ipv4_address*)&c.sin_addr;
+        } else {
+            connected_port = c.sin6_port;
+            connected_address = *(ipv6_address*)&c.sin6_addr;
+            connected_scope = c.sin6_scope_id;
+        }
+
         connect_done = true;
     }
 
@@ -858,40 +928,51 @@ nt_status create_new_ipv6_udp_socket(object_ref& ref) {
 
 template<socket_family FAMILY>
 nt_status udp_socket<FAMILY>::getsockname(span<uint8_t> buf, size_t& len) {
-    if (buf.size() < sizeof(sockaddr_in6))
+    if (buf.size() < sizeof(typename FAMILY::sockaddr))
         return nt_status::BUFFER_TOO_SMALL;
 
-    auto& addr = *(sockaddr_in6*)buf.data();
+    auto& addr = *(typename FAMILY::sockaddr*)buf.data();
 
-    memset(&addr, 0, sizeof(sockaddr_in6));
+    memset(&addr, 0, sizeof(typename FAMILY::sockaddr));
 
-    addr.sin6_family = AF_INET6;
+    if constexpr (is_same_v<FAMILY, ipv4>)
+        addr.sin_family = FAMILY::family;
+    else if constexpr (is_same_v<FAMILY, ipv6>)
+        addr.sin6_family = FAMILY::family;
 
     {
         lock_guard lock(bind_lock);
 
         if (bind_done) {
-            addr.sin6_port = bound_port;
-            *(ipv6_address*)&addr.sin6_addr = bound_address;
-            addr.sin6_scope_id = connected_scope;
+            if constexpr (is_same_v<FAMILY, ipv4>) {
+                addr.sin_port = bound_port;
+                *(ipv4_address*)&addr.sin_addr = bound_address;
+            } else if constexpr (is_same_v<FAMILY, ipv6>) {
+                addr.sin6_port = bound_port;
+                *(ipv6_address*)&addr.sin6_addr = bound_address;
+                addr.sin6_scope_id = connected_scope;
+            }
         }
     }
 
-    len = sizeof(sockaddr_in6);
+    len = sizeof(typename FAMILY::sockaddr);
 
     return nt_status::SUCCESS;
 }
 
 template<socket_family FAMILY>
 nt_status udp_socket<FAMILY>::getpeername(span<uint8_t> buf, size_t& len) {
-    if (buf.size() < sizeof(sockaddr_in6))
+    if (buf.size() < sizeof(typename FAMILY::sockaddr))
         return nt_status::BUFFER_TOO_SMALL;
 
-    auto& addr = *(sockaddr_in6*)buf.data();
+    auto& addr = *(typename FAMILY::sockaddr*)buf.data();
 
-    memset(&addr, 0, sizeof(sockaddr_in6));
+    memset(&addr, 0, sizeof(typename FAMILY::sockaddr));
 
-    addr.sin6_family = AF_INET6;
+    if constexpr (is_same_v<FAMILY, ipv4>)
+        addr.sin_family = FAMILY::family;
+    else if constexpr (is_same_v<FAMILY, ipv6>)
+        addr.sin6_family = FAMILY::family;
 
     {
         lock_guard lock(bind_lock);
@@ -899,12 +980,17 @@ nt_status udp_socket<FAMILY>::getpeername(span<uint8_t> buf, size_t& len) {
         if (!connect_done)
             return nt_status::CONNECTION_DISCONNECTED;
 
-        addr.sin6_port = connected_port;
-        *(ipv6_address*)&addr.sin6_addr = connected_address;
-        addr.sin6_scope_id = connected_scope;
+        if constexpr (is_same_v<FAMILY, ipv4>) {
+            addr.sin_port = connected_port;
+            *(ipv4_address*)&addr.sin_addr = connected_address;
+        } else if constexpr (is_same_v<FAMILY, ipv6>) {
+            addr.sin6_port = connected_port;
+            *(ipv6_address*)&addr.sin6_addr = connected_address;
+            addr.sin6_scope_id = connected_scope;
+        }
     }
 
-    len = sizeof(sockaddr_in6);
+    len = sizeof(typename FAMILY::sockaddr);
 
     return nt_status::SUCCESS;
 }
@@ -943,22 +1029,23 @@ nt_status udp_socket<FAMILY>::shutdown(int how) {
 
 template<socket_family FAMILY>
 nt_status udp_socket<FAMILY>::setsockopt_ipv6(sockopt_ipv6 opt, span<const uint8_t> buf) {
-    // FIXME - not if IPv4 socket
+    if constexpr (is_same_v<FAMILY, ipv6>) {
+        switch (opt) {
+            using enum sockopt_ipv6;
 
-    switch (opt) {
-        using enum sockopt_ipv6;
+            case V6ONLY: {
+                if (buf.size() != sizeof(int))
+                    return nt_status::INVALID_PARAMETER;
 
-        case V6ONLY: {
-            if (buf.size() != sizeof(int))
-                return nt_status::INVALID_PARAMETER;
+                // FIXME - do this properly
 
-            // FIXME - do this properly
+                return nt_status::SUCCESS;
+            }
 
-            return nt_status::SUCCESS;
+            default:
+                print("FIXME - setsockopt(IPPROTO_IPV6, {}, {})\n", opt, buf.size());
+                return nt_status::NOT_SUPPORTED;
         }
-
-        default:
-            print("FIXME - setsockopt(IPPROTO_IPV6, {}, {})\n", opt, buf.size());
-            return nt_status::NOT_SUPPORTED;
-    }
+    } else
+        return nt_status::NOT_SUPPORTED;
 }
