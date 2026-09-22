@@ -322,6 +322,44 @@ static void handle_ipv4_packet(netif& ni, packet& pack, const mac_address& src_m
 static void handle_ipv6_packet(netif& ni, packet& pack, const mac_address& src_mac,
                                bool skip_checksum);
 
+uint16_t calc_ipv4_checksum(const ipv4_header& ip, span<const uint8_t> data,
+                            uint8_t protocol) {
+    struct {
+        ipv4_address src;
+        ipv4_address dst;
+        uint8_t zero;
+        uint8_t protocol;
+        uint16_t length;
+    } __attribute__((packed)) pseudo;
+
+    uint32_t sum = 0;
+
+    pseudo.src = ip.src;
+    pseudo.dst = ip.dst;
+    pseudo.length = byteswap((uint16_t)data.size());
+    pseudo.protocol = protocol;
+    pseudo.zero = 0;
+
+    for (auto s : span((uint16_t*)&pseudo, sizeof(pseudo) / sizeof(uint16_t))) {
+        sum += byteswap(s);
+    }
+
+    for (auto s : span((uint16_t*)data.data(), data.size() / sizeof(uint16_t))) {
+        sum += byteswap(s);
+    }
+
+    if (data.size() & 1)
+        sum += (uint16_t)(data[data.size() - 1] << 8);
+
+    while (sum & 0xffff0000) {
+        sum = (sum >> 16) + (sum & 0xffff);
+    }
+
+    sum = byteswap((uint16_t)(~(uint16_t)sum));
+
+    return (uint16_t)sum;
+}
+
 uint16_t calc_ipv6_checksum(const ipv6_header& ip, span<const uint8_t> data,
                             uint8_t next_header) {
     struct {
@@ -1539,10 +1577,10 @@ static void send_to_ipv4_sockets(netif& ni, packet& pack,
                                  const mac_address& src_mac, bool skip_checksum) {
     auto& ip = *(ipv4_header*)pack.data;
 
-    // FIXME - TCP
-
     if (ip.protocol == IPPROTO_UDP)
         received_ipv4_udp_packet(ni, pack, src_mac, skip_checksum);
+    else if (ip.protocol == IPPROTO_TCP)
+        received_ipv4_tcp_packet(ni, pack, src_mac, skip_checksum);
 
     send_to_raw_ipv4_sockets(ni.num, pack);
 }
@@ -1788,6 +1826,11 @@ static void handle_ipv4_packet(netif& ni, packet& pack, const mac_address& src_m
               pack.size, ip_header_size);
         return;
     }
+
+    auto size = byteswap((uint16_t)ip.total_length);
+
+    if (size < sizeof(ipv4_header) || size > pack.size)
+        return;
 
 #if 0
     print("ipv4: version = {}, ihl = {}, dscp = {}, ecn = {}, total_length = {}, identification = {}, fragment_offset1 = {}, flags = {}, fragment_offset2 = {}, ttl = {}, protocol = {}, header_checksum = {:x}, src = {}, dst = {}\n",
@@ -2383,7 +2426,16 @@ static nt_status netctl_socket(span<const uint8_t> buf) {
                     break;
                 }
 
-                // FIXME - SOCK_STREAM
+                case SOCK_STREAM: {
+                    if (params.protocol != 0 && params.protocol != IPPROTO_TCP)
+                        return nt_status::INVALID_PARAMETER;
+
+                    auto status = create_new_ipv4_tcp_socket(ref);
+                    if (!success(status))
+                        return status;
+
+                    break;
+                }
 
                 default:
                     return nt_status::INVALID_PARAMETER;

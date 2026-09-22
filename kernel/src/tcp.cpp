@@ -26,12 +26,12 @@ using namespace std;
 static const uint64_t RETRANSMISSION_DELAY = 1; // seconds
 static const uint64_t TIME_WAIT_LENGTH = 60; // seconds
 
-struct ipv6_tcp_retransmission {
-    ipv6_tcp_retransmission(packet& pack) : pack(pack) {
+struct tcp_retransmission {
+    tcp_retransmission(packet& pack) : pack(pack) {
         pack.acquire();
     }
 
-    ~ipv6_tcp_retransmission() {
+    ~tcp_retransmission() {
         pack.release();
     }
 
@@ -118,10 +118,11 @@ enum class tcp_state {
     SYN_RECEIVED,
 };
 
-class ipv6_tcp_socket : public socket {
+template<socket_family FAMILY>
+class tcp_socket : public socket {
 public:
-    ipv6_tcp_socket();
-    ~ipv6_tcp_socket();
+    tcp_socket();
+    ~tcp_socket();
 
     void last_handle_closed() override;
 
@@ -174,7 +175,7 @@ public:
     bool bind_done = false;
     uint16_t bound_port, connected_port;
     uint32_t connected_scope = 0;
-    ipv6_address bound_address, connected_address;
+    typename FAMILY::address bound_address, connected_address;
     tcp_state state = tcp_state::CLOSED;
     netif* pni = nullptr;
     uint16_t recv_window = 0xffff;
@@ -183,7 +184,7 @@ public:
     tcp_seq last_send_window_seq;
     mac_address dst_mac;
     packet* first_ack = nullptr;
-    size_t mss = 1220; // FIXME - different for IPv4
+    size_t mss;
     spinlock retransmission_list_lock;
     list_entry retransmission_list = { &retransmission_list, &retransmission_list };
     object_ref retransmission_thread_obj;
@@ -196,7 +197,7 @@ public:
     size_t us_read_offset = 0;
     spinlock io_lock;
     unsigned int listen_backlog;
-    ipv6_tcp_socket* parent = nullptr;
+    tcp_socket<FAMILY>* parent = nullptr;
     spinlock list_lock;
     list_entry le;
     list_entry syn_queue = { &syn_queue, &syn_queue };
@@ -209,7 +210,7 @@ public:
     atomic<bool> dead = false, shutdown_write = false, shutdown_read = false;
 
 private:
-    nt_status send_syn(const sockaddr_in6& c, ipv6_address& src);
+    nt_status send_syn(const typename FAMILY::sockaddr& c, typename FAMILY::address& src);
     void send_ack(bool first, tcp_seq ack);
     void send_fin();
     void retransmission_thread();
@@ -230,8 +231,10 @@ private:
 };
 
 static spinlock tcp_ports_lock;
-static ipv6_tcp_socket* tcp_ports[65536];
-static list_entry accepted_sockets = { &accepted_sockets, &accepted_sockets };
+static tcp_socket<ipv4>* tcp_ports_v4[65536];
+static tcp_socket<ipv6>* tcp_ports_v6[65536];
+static list_entry accepted_sockets_v4 = { &accepted_sockets_v4, &accepted_sockets_v4 };
+static list_entry accepted_sockets_v6 = { &accepted_sockets_v6, &accepted_sockets_v6 };
 
 struct tcp_header {
     uint16_t src_port;
@@ -263,70 +266,151 @@ static_assert(sizeof(tcp_header) == 20);
 static const uint8_t TCP_SYN = 0x02;
 static const uint8_t TCP_SYN_ACK = 0x12;
 
+template<socket_family FAMILY>
 static void send_tcp_port_closed(packet& pack, netif& ni,
                                  const mac_address& mac) {
-    auto pack2 = new packet;
-    if (!pack2) {
-        print("new failed\n");
+    if constexpr (is_same_v<FAMILY, ipv4>) {
+        // FIXME
+    } else if constexpr (is_same_v<FAMILY, ipv6>) {
+        auto pack2 = new packet;
+        if (!pack2) {
+            print("new failed\n");
+            return;
+        }
+
+        auto& orig_ip = *(ipv6_header*)pack.data;
+        auto& orig_tcp = *(tcp_header*)(pack.data + sizeof(ipv6_header));
+
+        pack2->size = sizeof(ipv6_header) + sizeof(tcp_header);
+
+        auto& ip = *(ipv6_header*)pack2->data;
+        ip.traffic_class1 = 0;
+        ip.version = 6;
+        ip.traffic_class2 = 0;
+        ip.flow_label_high = 0;
+        ip.flow_label_medium = 0;
+        ip.flow_label_low = 0;
+        ip.payload_length = byteswap((uint16_t)sizeof(tcp_header));
+        ip.next_header = IPPROTO_TCP;
+        ip.hop_limit = DEFAULT_HOP_LIMIT;
+        ip.src = orig_ip.dst; // FIXME - make sure not multicast?
+        ip.dst = orig_ip.src;
+
+        auto& tcp = *(tcp_header*)(pack2->data + sizeof(ipv6_header));
+
+        memset(&tcp, 0, sizeof(tcp));
+
+        tcp.src_port = orig_tcp.dst_port;
+        tcp.dst_port = orig_tcp.src_port;
+
+        if (orig_tcp.ACK)
+            tcp.seq = orig_tcp.ack;
+        else {
+            auto len = (uint32_t)(pack.size - sizeof(ipv6_header) - (orig_tcp.header_length * sizeof(uint32_t)));
+
+            if (orig_tcp.SYN)
+                len++;
+
+            if (orig_tcp.FIN)
+                len++;
+
+            tcp.ack = orig_tcp.seq + len;
+            tcp.ACK = 1;
+        }
+
+        tcp.header_length = sizeof(tcp_header) / sizeof(uint32_t);
+        tcp.RST = 1;
+
+        if (!ni.tx_tcpv6_csum_offload) {
+            tcp.checksum = calc_ipv6_checksum(ip, span((uint8_t*)&tcp, pack2->size - sizeof(ipv6_header)),
+                                              IPPROTO_TCP);
+        } else {
+            tcp.checksum = calc_ipv6_checksum_offload(ip, (uint32_t)(pack2->size - sizeof(ipv6_header)),
+                                                      IPPROTO_TCP);
+        }
+
+        auto status = ni.send_packet(mac, ethertype::ipv6, *pack2);
+        if (!success(status))
+            print("netif::send_packet returned {}\n", status);
+
+        pack2->release();
+    }
+}
+
+void received_ipv4_tcp_packet(netif& ni, packet& pack,
+                              const mac_address& src_mac, bool skip_checksum) {
+    if (pack.size < sizeof(ipv4_header))
+        return;
+
+    auto& ip = *(ipv4_header*)pack.data;
+    auto ip_header_size = ip.ihl * sizeof(uint32_t);
+
+    if (ip_header_size < sizeof(ipv4_header))
+        return;
+
+    if (pack.size < ip_header_size + sizeof(tcp_header))
+        return;
+
+    if (is_multicast_address(ip.dst))
+        return;
+
+    auto& tcp = *(tcp_header*)(pack.data + ip_header_size);
+
+    if (tcp.header_length * sizeof(uint32_t) < sizeof(tcp_header))
+        return;
+
+    if (pack.size < ip_header_size + (tcp.header_length * sizeof(uint32_t)))
+        return;
+
+    if (!skip_checksum) {
+        if (calc_ipv4_checksum(ip, span((uint8_t*)&tcp, byteswap((uint16_t)ip.total_length) - ip_header_size), IPPROTO_TCP) != 0)
+            return;
+    }
+
+#if 0
+    print("received_tcp_packet (src {}, dst {}, {:04x})\n",
+          byteswap(tcp.src_port), byteswap(tcp.dst_port), byteswap(tcp.checksum));
+#endif
+
+    tcp_socket<ipv4>* sock = nullptr;
+
+    {
+        lock_guard lock(tcp_ports_lock);
+
+        for (auto le = accepted_sockets_v4.next; le != &accepted_sockets_v4; le = le->next) {
+            auto& c = *(tcp_socket<ipv4>*)((uint8_t*)le - offsetof(tcp_socket<ipv4>, accepted_le));
+
+            if (c.bound_address == ip.dst && c.bound_port == tcp.dst_port &&
+                c.connected_address == ip.src && c.connected_port == tcp.src_port) {
+                sock = &c;
+                sock->acquire();
+                break;
+            }
+        }
+
+        if (!sock && tcp_ports_v4[tcp.dst_port]) {
+            sock = tcp_ports_v4[tcp.dst_port];
+
+            {
+                lock_guard lock(sock->state_lock);
+
+                if (!sock->bind_done || (sock->bound_address != parse_ipv4_address("0.0.0.0") && sock->bound_address != ip.dst))
+                    sock = nullptr;
+                else
+                    sock->acquire();
+            }
+        }
+    }
+
+    if (!sock) {
+        if (!tcp.RST)
+            send_tcp_port_closed<ipv4>(pack, ni, src_mac);
         return;
     }
 
-    auto& orig_ip = *(ipv6_header*)pack.data;
-    auto& orig_tcp = *(tcp_header*)(pack.data + sizeof(ipv6_header));
+    sock->received_packet(pack, ni, src_mac);
 
-    pack2->size = sizeof(ipv6_header) + sizeof(tcp_header);
-
-    auto& ip = *(ipv6_header*)pack2->data;
-    ip.traffic_class1 = 0;
-    ip.version = 6;
-    ip.traffic_class2 = 0;
-    ip.flow_label_high = 0;
-    ip.flow_label_medium = 0;
-    ip.flow_label_low = 0;
-    ip.payload_length = byteswap((uint16_t)sizeof(tcp_header));
-    ip.next_header = IPPROTO_TCP;
-    ip.hop_limit = DEFAULT_HOP_LIMIT;
-    ip.src = orig_ip.dst; // FIXME - make sure not multicast?
-    ip.dst = orig_ip.src;
-
-    auto& tcp = *(tcp_header*)(pack2->data + sizeof(ipv6_header));
-
-    memset(&tcp, 0, sizeof(tcp));
-
-    tcp.src_port = orig_tcp.dst_port;
-    tcp.dst_port = orig_tcp.src_port;
-
-    if (orig_tcp.ACK)
-        tcp.seq = orig_tcp.ack;
-    else {
-        auto len = (uint32_t)(pack.size - sizeof(ipv6_header) - (orig_tcp.header_length * sizeof(uint32_t)));
-
-        if (orig_tcp.SYN)
-            len++;
-
-        if (orig_tcp.FIN)
-            len++;
-
-        tcp.ack = orig_tcp.seq + len;
-        tcp.ACK = 1;
-    }
-
-    tcp.header_length = sizeof(tcp_header) / sizeof(uint32_t);
-    tcp.RST = 1;
-
-    if (!ni.tx_tcpv6_csum_offload) {
-        tcp.checksum = calc_ipv6_checksum(ip, span((uint8_t*)&tcp, pack2->size - sizeof(ipv6_header)),
-                                          IPPROTO_TCP);
-    } else {
-        tcp.checksum = calc_ipv6_checksum_offload(ip, (uint32_t)(pack2->size - sizeof(ipv6_header)),
-                                                  IPPROTO_TCP);
-    }
-
-    auto status = ni.send_packet(mac, ethertype::ipv6, *pack2);
-    if (!success(status))
-        print("netif::send_packet returned {}\n", status);
-
-    pack2->release();
+    sock->release();
 }
 
 void received_ipv6_tcp_packet(netif& ni, packet& pack,
@@ -351,13 +435,13 @@ void received_ipv6_tcp_packet(netif& ni, packet& pack,
           byteswap(tcp.src_port), byteswap(tcp.dst_port), byteswap(tcp.checksum));
 #endif
 
-    ipv6_tcp_socket* sock = nullptr;
+    tcp_socket<ipv6>* sock = nullptr;
 
     {
         lock_guard lock(tcp_ports_lock);
 
-        for (auto le = accepted_sockets.next; le != &accepted_sockets; le = le->next) {
-            auto& c = *(ipv6_tcp_socket*)((uint8_t*)le - offsetof(ipv6_tcp_socket, accepted_le));
+        for (auto le = accepted_sockets_v6.next; le != &accepted_sockets_v6; le = le->next) {
+            auto& c = *(tcp_socket<ipv6>*)((uint8_t*)le - offsetof(tcp_socket<ipv6>, accepted_le));
 
             if (c.bound_address == ip.dst && c.bound_port == tcp.dst_port &&
                 c.connected_address == ip.src && c.connected_port == tcp.src_port) {
@@ -367,8 +451,8 @@ void received_ipv6_tcp_packet(netif& ni, packet& pack,
             }
         }
 
-        if (!sock && tcp_ports[tcp.dst_port]) {
-            sock = tcp_ports[tcp.dst_port];
+        if (!sock && tcp_ports_v6[tcp.dst_port]) {
+            sock = tcp_ports_v6[tcp.dst_port];
 
             {
                 lock_guard lock(sock->state_lock);
@@ -383,7 +467,7 @@ void received_ipv6_tcp_packet(netif& ni, packet& pack,
 
     if (!sock) {
         if (!tcp.RST)
-            send_tcp_port_closed(pack, ni, src_mac);
+            send_tcp_port_closed<ipv6>(pack, ni, src_mac);
         return;
     }
 
@@ -392,14 +476,20 @@ void received_ipv6_tcp_packet(netif& ni, packet& pack,
     sock->release();
 }
 
+template<socket_family FAMILY>
 static uint16_t find_ephemeral_tcp_port() {
     auto rnd = kernel_time_page.system_time / (SYSTEM_TIME_RESOLUTION / TICK_RATE);
     uint16_t port = 49152 + (rnd & 0x3fff);
     uint16_t orig_port = port;
 
     while (true) {
-        if (!tcp_ports[byteswap(port)])
-            return byteswap(port);
+        if constexpr (is_same_v<FAMILY, ipv4>) {
+            if (!tcp_ports_v4[byteswap(port)])
+                return byteswap(port);
+        } else if constexpr (is_same_v<FAMILY, ipv6>) {
+            if (!tcp_ports_v6[byteswap(port)])
+                return byteswap(port);
+        }
 
         if (port == 65535)
             port = 49152;
@@ -411,15 +501,26 @@ static uint16_t find_ephemeral_tcp_port() {
     }
 }
 
-nt_status ipv6_tcp_socket::send_syn(const sockaddr_in6& c, ipv6_address& src) {
+template<socket_family FAMILY>
+nt_status tcp_socket<FAMILY>::send_syn(const typename FAMILY::sockaddr& c,
+                                       typename FAMILY::address& src) {
     nt_status status;
 
-    auto& dst = *(ipv6_address*)&c.sin6_addr;
+    typename FAMILY::address dst, gateway;
+
+    if constexpr (is_same_v<FAMILY, ipv4>)
+        dst = *(typename FAMILY::address*)&c.sin_addr;
+    else if constexpr (is_same_v<FAMILY, ipv6>)
+        dst = *(typename FAMILY::address*)&c.sin6_addr;
 
     {
         netif* newni;
 
-        status = ipv6_choose_interface(dst, c.sin6_scope_id, newni, src);
+        if constexpr (is_same_v<FAMILY, ipv4>)
+            status = ipv4_choose_interface(dst, newni, src, gateway);
+        else if constexpr (is_same_v<FAMILY, ipv6>)
+            status = ipv6_choose_interface(dst, c.sin6_scope_id, newni, src);
+
         if (!success(status))
             return status;
 
@@ -436,16 +537,25 @@ nt_status ipv6_tcp_socket::send_syn(const sockaddr_in6& c, ipv6_address& src) {
     {
         lock_guard lock(state_lock);
 
-        if (bound_address == parse_ipv6_address("::"))
-            bound_address = src;
+        if constexpr (is_same_v<FAMILY, ipv4>) {
+            if (bound_address == parse_ipv4_address("0.0.0.0"))
+                bound_address = src;
+        } else if constexpr (is_same_v<FAMILY, ipv6>) {
+            if (bound_address == parse_ipv6_address("::"))
+                bound_address = src;
+        }
     }
 
     auto& ni = *pni;
 
     if (src == dst)
         dst_mac = ni.mac;
-    else
-        dst_mac = find_mac_address(ni, dst);
+    else {
+        if constexpr (is_same_v<FAMILY, ipv4>)
+            dst_mac = find_mac_address(ni, gateway == parse_ipv4_address("0.0.0.0") ? dst : gateway);
+        else if constexpr (is_same_v<FAMILY, ipv6>)
+            dst_mac = find_mac_address(ni, dst);
+    }
 
     ni.acquire();
 
@@ -455,22 +565,46 @@ nt_status ipv6_tcp_socket::send_syn(const sockaddr_in6& c, ipv6_address& src) {
         return nt_status::INSUFFICIENT_RESOURCES;
     }
 
-    pack->size = sizeof(ipv6_header) + sizeof(tcp_header);
+    pack->size = sizeof(typename FAMILY::header) + sizeof(tcp_header);
 
-    auto& ip = *(ipv6_header*)pack->data;
-    ip.traffic_class1 = 0;
-    ip.version = 6;
-    ip.traffic_class2 = 0;
-    ip.flow_label_high = 0;
-    ip.flow_label_medium = 0;
-    ip.flow_label_low = 0;
-    ip.payload_length = byteswap((uint16_t)sizeof(tcp_header));
-    ip.next_header = IPPROTO_TCP;
-    ip.hop_limit = DEFAULT_HOP_LIMIT;
-    ip.src = src;
-    ip.dst = dst;
+    if constexpr (is_same_v<FAMILY, ipv4>) {
+        auto& ip = *(ipv4_header*)pack->data;
 
-    auto& tcp = *(tcp_header*)(pack->data + sizeof(ipv6_header));
+        ip.ihl = sizeof(ipv4_header) / sizeof(uint32_t);
+        ip.version = 4;
+        ip.ecn = 0;
+        ip.dscp = 0;
+        ip.total_length = byteswap((uint16_t)(sizeof(ipv4_header) + sizeof(tcp_header)));
+        ip.identification = 0;
+        ip.fragment_offset1 = 0;
+        ip.MF = 0;
+        ip.DF = 1;
+        ip.R = 0;
+        ip.fragment_offset2 = 0;
+        ip.ttl = DEFAULT_HOP_LIMIT;
+        ip.protocol = IPPROTO_TCP;
+        ip.header_checksum = 0;
+        ip.src = src;
+        ip.dst = dst;
+
+        ip.header_checksum = calc_ipv4_checksum(span(pack->data, sizeof(ipv4_header)));
+    } else if constexpr (is_same_v<FAMILY, ipv6>) {
+        auto& ip = *(ipv6_header*)pack->data;
+
+        ip.traffic_class1 = 0;
+        ip.version = 6;
+        ip.traffic_class2 = 0;
+        ip.flow_label_high = 0;
+        ip.flow_label_medium = 0;
+        ip.flow_label_low = 0;
+        ip.payload_length = byteswap((uint16_t)sizeof(tcp_header));
+        ip.next_header = IPPROTO_TCP;
+        ip.hop_limit = DEFAULT_HOP_LIMIT;
+        ip.src = src;
+        ip.dst = dst;
+    }
+
+    auto& tcp = *(tcp_header*)(pack->data + sizeof(typename FAMILY::header));
 
     memset(&tcp, 0, sizeof(tcp));
 
@@ -481,16 +615,27 @@ nt_status ipv6_tcp_socket::send_syn(const sockaddr_in6& c, ipv6_address& src) {
     tcp.SYN = 1;
     tcp.window = byteswap(recv_window);
 
-    if (!ni.tx_tcpv6_csum_offload) {
-        tcp.checksum = calc_ipv6_checksum(ip, span((uint8_t*)&tcp, pack->size - sizeof(ipv6_header)),
+    if constexpr (is_same_v<FAMILY, ipv4>) {
+        auto& ip = *(ipv4_header*)pack->data;
+
+        tcp.checksum = calc_ipv4_checksum(ip, span((uint8_t*)&tcp, pack->size - sizeof(ipv4_header)),
                                           IPPROTO_TCP);
-    } else {
-        tcp.checksum = calc_ipv6_checksum_offload(ip, (uint32_t)(pack->size - sizeof(ipv6_header)),
-                                                  IPPROTO_TCP);
+    } else if constexpr (is_same_v<FAMILY, ipv6>) {
+        auto& ip = *(ipv6_header*)pack->data;
+
+        if (!ni.tx_tcpv6_csum_offload) {
+            tcp.checksum = calc_ipv6_checksum(ip, span((uint8_t*)&tcp, pack->size - sizeof(ipv6_header)),
+                                              IPPROTO_TCP);
+        } else {
+            tcp.checksum = calc_ipv6_checksum_offload(ip, (uint32_t)(pack->size - sizeof(ipv6_header)),
+                                                      IPPROTO_TCP);
+        }
     }
 
     if (dst_mac == NULL_MAC_ADDRESS) {
-        send_address_unreachable(ni, *pack, src);
+        if constexpr (is_same_v<FAMILY, ipv6>)
+            send_address_unreachable(ni, *pack, src);
+
         pack->release();
         ni.release();
         return nt_status::HOST_UNREACHABLE;
@@ -499,7 +644,7 @@ nt_status ipv6_tcp_socket::send_syn(const sockaddr_in6& c, ipv6_address& src) {
     auto& ev = static_cast<event&>(state_change_event.get());
 
     for (unsigned int i = 0; i < 3; i++) {
-        status = dispatch_packet<ipv6>(ni, *pack, dst_mac);
+        status = dispatch_packet<FAMILY>(ni, *pack, dst_mac);
         if (!success(status)) {
             pack->release();
             ni.release();
@@ -543,17 +688,18 @@ static tcp_seq rand_tcp_seq() {
     return tcp_seq{(uint32_t)(rnd >> 16)};
 }
 
-nt_status ipv6_tcp_socket::connect(const sockaddr* addr, size_t addrlen) {
+template<socket_family FAMILY>
+nt_status tcp_socket<FAMILY>::connect(const sockaddr* addr, size_t addrlen) {
     nt_status status;
 
-    if (addr->sa_family != AF_INET6)
+    if (addr->sa_family != FAMILY::family)
         return nt_status::INVALID_PARAMETER;
 
-    if (addrlen < sizeof(sockaddr_in6))
+    if (addrlen < sizeof(typename FAMILY::sockaddr))
         return nt_status::BUFFER_TOO_SMALL;
 
-    auto& c = *(sockaddr_in6*)addr;
-    ipv6_address src;
+    auto& c = *(typename FAMILY::sockaddr*)addr;
+    typename FAMILY::address src;
 
     status = nt_status::SUCCESS;
 
@@ -566,24 +712,37 @@ nt_status ipv6_tcp_socket::connect(const sockaddr* addr, size_t addrlen) {
             return nt_status::INVALID_PARAMETER;
 
         if (!bind_done) { // implicit bind if not already done
-            port = find_ephemeral_tcp_port();
+            port = find_ephemeral_tcp_port<FAMILY>();
             if (port == 0) // no ephemeral ports left
                 return nt_status::ADDRESS_ALREADY_ASSOCIATED;
 
-            tcp_ports[port] = this;
+            if constexpr (is_same_v<FAMILY, ipv4>)
+                tcp_ports_v4[port] = this;
+            else if constexpr (is_same_v<FAMILY, ipv6>)
+                tcp_ports_v6[port] = this;
+
             this->acquire();
 
             bound_port = port;
-            bound_address = parse_ipv6_address("::");
+
+            if constexpr (is_same_v<FAMILY, ipv4>)
+                bound_address = parse_ipv4_address("0.0.0.0");
+            else if constexpr (is_same_v<FAMILY, ipv6>)
+                bound_address = parse_ipv6_address("::");
 
             bind_done = true;
         }
 
         state = tcp_state::SYN_SENT;
 
-        connected_port = c.sin6_port;
-        connected_address = *(ipv6_address*)&c.sin6_addr;
-        connected_scope = c.sin6_scope_id;
+        if constexpr (is_same_v<FAMILY, ipv4>) {
+            connected_port = c.sin_port;
+            connected_address = *(ipv4_address*)&c.sin_addr;
+        } else if constexpr (is_same_v<FAMILY, ipv6>) {
+            connected_port = c.sin6_port;
+            connected_address = *(ipv6_address*)&c.sin6_addr;
+            connected_scope = c.sin6_scope_id;
+        }
 
         src = bound_address;
 
@@ -612,29 +771,54 @@ nt_status ipv6_tcp_socket::connect(const sockaddr* addr, size_t addrlen) {
     return nt_status::SUCCESS;
 }
 
-static void reset_child_socket(ipv6_tcp_socket& s) {
+template<socket_family FAMILY>
+static void reset_child_socket(tcp_socket<FAMILY>& s) {
     auto pack2 = new packet;
     if (!pack2) {
         print("new failed\n");
         return;
     }
 
-    pack2->size = sizeof(ipv6_header) + sizeof(tcp_header);
+    pack2->size = sizeof(typename FAMILY::header) + sizeof(tcp_header);
 
-    auto& ip = *(ipv6_header*)pack2->data;
-    ip.traffic_class1 = 0;
-    ip.version = 6;
-    ip.traffic_class2 = 0;
-    ip.flow_label_high = 0;
-    ip.flow_label_medium = 0;
-    ip.flow_label_low = 0;
-    ip.payload_length = byteswap((uint16_t)sizeof(tcp_header));
-    ip.next_header = IPPROTO_TCP;
-    ip.hop_limit = DEFAULT_HOP_LIMIT;
-    ip.src = s.bound_address; // FIXME - make sure not multicast?
-    ip.dst = s.connected_address;
+    if constexpr (is_same_v<FAMILY, ipv4>) {
+        auto& ip = *(ipv4_header*)pack2->data;
 
-    auto& tcp = *(tcp_header*)(pack2->data + sizeof(ipv6_header));
+        ip.ihl = sizeof(ipv4_header) / sizeof(uint32_t);
+        ip.version = 4;
+        ip.ecn = 0;
+        ip.dscp = 0;
+        ip.total_length = byteswap((uint16_t)(sizeof(ipv4_header) + sizeof(tcp_header)));
+        ip.identification = 0;
+        ip.fragment_offset1 = 0;
+        ip.MF = 0;
+        ip.DF = 1;
+        ip.R = 0;
+        ip.fragment_offset2 = 0;
+        ip.ttl = DEFAULT_HOP_LIMIT;
+        ip.protocol = IPPROTO_TCP;
+        ip.header_checksum = 0;
+        ip.src = s.bound_address;
+        ip.dst = s.connected_address;
+
+        ip.header_checksum = calc_ipv4_checksum(span(pack2->data, sizeof(ipv4_header)));
+    } else if constexpr (is_same_v<FAMILY, ipv6>) {
+        auto& ip = *(ipv6_header*)pack2->data;
+
+        ip.traffic_class1 = 0;
+        ip.version = 6;
+        ip.traffic_class2 = 0;
+        ip.flow_label_high = 0;
+        ip.flow_label_medium = 0;
+        ip.flow_label_low = 0;
+        ip.payload_length = byteswap((uint16_t)sizeof(tcp_header));
+        ip.next_header = IPPROTO_TCP;
+        ip.hop_limit = DEFAULT_HOP_LIMIT;
+        ip.src = s.bound_address; // FIXME - make sure not multicast?
+        ip.dst = s.connected_address;
+    }
+
+    auto& tcp = *(tcp_header*)(pack2->data + sizeof(typename FAMILY::header));
 
     memset(&tcp, 0, sizeof(tcp));
 
@@ -648,26 +832,36 @@ static void reset_child_socket(ipv6_tcp_socket& s) {
     tcp.RST = 1;
     tcp.ACK = 1;
 
-    if (!s.pni->tx_tcpv6_csum_offload) {
-        tcp.checksum = calc_ipv6_checksum(ip, span((uint8_t*)&tcp, pack2->size - sizeof(ipv6_header)),
+    if constexpr (is_same_v<FAMILY, ipv4>) {
+        auto& ip = *(ipv4_header*)pack2->data;
+
+        tcp.checksum = calc_ipv4_checksum(ip, span((uint8_t*)&tcp, pack2->size - sizeof(ipv4_header)),
                                           IPPROTO_TCP);
-    } else {
-        tcp.checksum = calc_ipv6_checksum_offload(ip, (uint32_t)(pack2->size - sizeof(ipv6_header)),
-                                                  IPPROTO_TCP);
+    } else if constexpr (is_same_v<FAMILY, ipv6>) {
+        auto& ip = *(ipv6_header*)pack2->data;
+
+        if (!s.pni->tx_tcpv6_csum_offload) {
+            tcp.checksum = calc_ipv6_checksum(ip, span((uint8_t*)&tcp, pack2->size - sizeof(ipv6_header)),
+                                              IPPROTO_TCP);
+        } else {
+            tcp.checksum = calc_ipv6_checksum_offload(ip, (uint32_t)(pack2->size - sizeof(ipv6_header)),
+                                                      IPPROTO_TCP);
+        }
     }
 
-    auto status = s.pni->send_packet(s.dst_mac, ethertype::ipv6, *pack2);
+    auto status = s.pni->send_packet(s.dst_mac, FAMILY::ethertype, *pack2);
     if (!success(status))
         print("netif::send_packet returned {}\n", status);
 
     pack2->release();
 }
 
-void ipv6_tcp_socket::last_handle_closed() {
+template<socket_family FAMILY>
+void tcp_socket<FAMILY>::last_handle_closed() {
     acquire();
 
     add_kernel_thread([](void* ctx) {
-        auto& s = *(ipv6_tcp_socket*)ctx;
+        auto& s = *(tcp_socket<FAMILY>*)ctx;
 
         bool do_fin = false;
 
@@ -687,16 +881,16 @@ void ipv6_tcp_socket::last_handle_closed() {
             s.send_fin();
 
         while (true) {
-            ipv6_tcp_socket* s2 = nullptr;
+            tcp_socket<FAMILY>* s2 = nullptr;
 
             {
                 lock_guard lock(s.list_lock);
 
                 if (!is_list_empty(s.syn_queue)) {
-                    s2 = &containing_record<ipv6_tcp_socket>(s.syn_queue.next);
+                    s2 = &containing_record<tcp_socket<FAMILY>>(s.syn_queue.next);
                     remove_entry_list(s2->le);
                 } else if (!is_list_empty(s.accept_queue)) {
-                    s2 = &containing_record<ipv6_tcp_socket>(s.accept_queue.next);
+                    s2 = &containing_record<tcp_socket<FAMILY>>(s.accept_queue.next);
                     remove_entry_list(s2->le);
                 }
             }
@@ -718,9 +912,16 @@ void ipv6_tcp_socket::last_handle_closed() {
             lock_guard lock(tcp_ports_lock);
             lock_guard lock2(s.state_lock);
 
-            if (s.bind_done && tcp_ports[s.bound_port] == &s) {
-                tcp_ports[s.bound_port] = nullptr;
-                s.release();
+            if constexpr (is_same_v<FAMILY, ipv4>) {
+                if (s.bind_done && tcp_ports_v4[s.bound_port] == &s) {
+                    tcp_ports_v4[s.bound_port] = nullptr;
+                    s.release();
+                }
+            } else if constexpr (is_same_v<FAMILY, ipv6>) {
+                if (s.bind_done && tcp_ports_v6[s.bound_port] == &s) {
+                    tcp_ports_v6[s.bound_port] = nullptr;
+                    s.release();
+                }
             }
         }
 
@@ -751,7 +952,8 @@ void ipv6_tcp_socket::last_handle_closed() {
     }, this);
 }
 
-void ipv6_tcp_socket::send_ack(bool first, tcp_seq ack) {
+template<socket_family FAMILY>
+void tcp_socket<FAMILY>::send_ack(bool first, tcp_seq ack) {
     auto pack = new packet;
     if (!pack) {
         print("new failed\n");
@@ -762,22 +964,46 @@ void ipv6_tcp_socket::send_ack(bool first, tcp_seq ack) {
 
     ni.acquire();
 
-    pack->size = sizeof(ipv6_header) + sizeof(tcp_header);
+    pack->size = sizeof(typename FAMILY::header) + sizeof(tcp_header);
 
-    auto& ip = *(ipv6_header*)pack->data;
-    ip.traffic_class1 = 0;
-    ip.version = 6;
-    ip.traffic_class2 = 0;
-    ip.flow_label_high = 0;
-    ip.flow_label_medium = 0;
-    ip.flow_label_low = 0;
-    ip.payload_length = byteswap((uint16_t)sizeof(tcp_header));
-    ip.next_header = IPPROTO_TCP;
-    ip.hop_limit = DEFAULT_HOP_LIMIT;
-    ip.src = bound_address;
-    ip.dst = connected_address;
+    if constexpr (is_same_v<FAMILY, ipv4>) {
+        auto& ip = *(ipv4_header*)pack->data;
 
-    auto& tcp = *(tcp_header*)(pack->data + sizeof(ipv6_header));
+        ip.ihl = sizeof(ipv4_header) / sizeof(uint32_t);
+        ip.version = 4;
+        ip.ecn = 0;
+        ip.dscp = 0;
+        ip.total_length = byteswap((uint16_t)(sizeof(ipv4_header) + sizeof(tcp_header)));
+        ip.identification = 0;
+        ip.fragment_offset1 = 0;
+        ip.MF = 0;
+        ip.DF = 1;
+        ip.R = 0;
+        ip.fragment_offset2 = 0;
+        ip.ttl = DEFAULT_HOP_LIMIT;
+        ip.protocol = IPPROTO_TCP;
+        ip.header_checksum = 0;
+        ip.src = bound_address;
+        ip.dst = connected_address;
+
+        ip.header_checksum = calc_ipv4_checksum(span(pack->data, sizeof(ipv4_header)));
+    } else if constexpr (is_same_v<FAMILY, ipv6>) {
+        auto& ip = *(ipv6_header*)pack->data;
+
+        ip.traffic_class1 = 0;
+        ip.version = 6;
+        ip.traffic_class2 = 0;
+        ip.flow_label_high = 0;
+        ip.flow_label_medium = 0;
+        ip.flow_label_low = 0;
+        ip.payload_length = byteswap((uint16_t)sizeof(tcp_header));
+        ip.next_header = IPPROTO_TCP;
+        ip.hop_limit = DEFAULT_HOP_LIMIT;
+        ip.src = bound_address;
+        ip.dst = connected_address;
+    }
+
+    auto& tcp = *(tcp_header*)(pack->data + sizeof(typename FAMILY::header));
 
     memset(&tcp, 0, sizeof(tcp));
 
@@ -795,12 +1021,21 @@ void ipv6_tcp_socket::send_ack(bool first, tcp_seq ack) {
         tcp.ACK = 1;
         tcp.window = byteswap(recv_window);
 
-        if (!ni.tx_tcpv6_csum_offload) {
-            tcp.checksum = calc_ipv6_checksum(ip, span((uint8_t*)&tcp, pack->size - sizeof(ipv6_header)),
+        if constexpr (is_same_v<FAMILY, ipv4>) {
+            auto& ip = *(ipv4_header*)pack->data;
+
+            tcp.checksum = calc_ipv4_checksum(ip, span((uint8_t*)&tcp, pack->size - sizeof(ipv4_header)),
                                               IPPROTO_TCP);
-        } else {
-            tcp.checksum = calc_ipv6_checksum_offload(ip, (uint32_t)(pack->size - sizeof(ipv6_header)),
-                                                      IPPROTO_TCP);
+        } else if constexpr (is_same_v<FAMILY, ipv6>) {
+            auto& ip = *(ipv6_header*)pack->data;
+
+            if (!ni.tx_tcpv6_csum_offload) {
+                tcp.checksum = calc_ipv6_checksum(ip, span((uint8_t*)&tcp, pack->size - sizeof(ipv6_header)),
+                                                  IPPROTO_TCP);
+            } else {
+                tcp.checksum = calc_ipv6_checksum_offload(ip, (uint32_t)(pack->size - sizeof(ipv6_header)),
+                                                          IPPROTO_TCP);
+            }
         }
 
         if (first) {
@@ -812,13 +1047,14 @@ void ipv6_tcp_socket::send_ack(bool first, tcp_seq ack) {
         }
     }
 
-    dispatch_packet<ipv6>(ni, *pack, dst_mac);
+    dispatch_packet<FAMILY>(ni, *pack, dst_mac);
 
     pack->release();
     ni.release();
 }
 
-void ipv6_tcp_socket::send_fin() {
+template<socket_family FAMILY>
+void tcp_socket<FAMILY>::send_fin() {
     // FIXME - send RST if new fails?
 
     auto pack = new packet;
@@ -827,7 +1063,7 @@ void ipv6_tcp_socket::send_fin() {
         return;
     }
 
-    auto r = new ipv6_tcp_retransmission(*pack);
+    auto r = new tcp_retransmission(*pack);
     if (!r) {
         print("new failed\n");
         pack->release();
@@ -838,22 +1074,46 @@ void ipv6_tcp_socket::send_fin() {
 
     ni.acquire();
 
-    pack->size = sizeof(ipv6_header) + sizeof(tcp_header);
+    pack->size = sizeof(typename FAMILY::header) + sizeof(tcp_header);
 
-    auto& ip = *(ipv6_header*)pack->data;
-    ip.traffic_class1 = 0;
-    ip.version = 6;
-    ip.traffic_class2 = 0;
-    ip.flow_label_high = 0;
-    ip.flow_label_medium = 0;
-    ip.flow_label_low = 0;
-    ip.payload_length = byteswap((uint16_t)sizeof(tcp_header));
-    ip.next_header = IPPROTO_TCP;
-    ip.hop_limit = DEFAULT_HOP_LIMIT;
-    ip.src = bound_address;
-    ip.dst = connected_address;
+    if constexpr (is_same_v<FAMILY, ipv4>) {
+        auto& ip = *(ipv4_header*)pack->data;
 
-    auto& tcp = *(tcp_header*)(pack->data + sizeof(ipv6_header));
+        ip.ihl = sizeof(ipv4_header) / sizeof(uint32_t);
+        ip.version = 4;
+        ip.ecn = 0;
+        ip.dscp = 0;
+        ip.total_length = byteswap((uint16_t)(sizeof(ipv4_header) + sizeof(tcp_header)));
+        ip.identification = 0;
+        ip.fragment_offset1 = 0;
+        ip.MF = 0;
+        ip.DF = 1;
+        ip.R = 0;
+        ip.fragment_offset2 = 0;
+        ip.ttl = DEFAULT_HOP_LIMIT;
+        ip.protocol = IPPROTO_TCP;
+        ip.header_checksum = 0;
+        ip.src = bound_address;
+        ip.dst = connected_address;
+
+        ip.header_checksum = calc_ipv4_checksum(span(pack->data, sizeof(ipv4_header)));
+    } else if constexpr (is_same_v<FAMILY, ipv6>) {
+        auto& ip = *(ipv6_header*)pack->data;
+
+        ip.traffic_class1 = 0;
+        ip.version = 6;
+        ip.traffic_class2 = 0;
+        ip.flow_label_high = 0;
+        ip.flow_label_medium = 0;
+        ip.flow_label_low = 0;
+        ip.payload_length = byteswap((uint16_t)sizeof(tcp_header));
+        ip.next_header = IPPROTO_TCP;
+        ip.hop_limit = DEFAULT_HOP_LIMIT;
+        ip.src = bound_address;
+        ip.dst = connected_address;
+    }
+
+    auto& tcp = *(tcp_header*)(pack->data + sizeof(typename FAMILY::header));
 
     memset(&tcp, 0, sizeof(tcp));
 
@@ -871,12 +1131,21 @@ void ipv6_tcp_socket::send_fin() {
 
         send_next++;
 
-        if (!ni.tx_tcpv6_csum_offload) {
-            tcp.checksum = calc_ipv6_checksum(ip, span((uint8_t*)&tcp, pack->size - sizeof(ipv6_header)),
+        if constexpr (is_same_v<FAMILY, ipv4>) {
+            auto& ip = *(ipv4_header*)pack->data;
+
+            tcp.checksum = calc_ipv4_checksum(ip, span((uint8_t*)&tcp, pack->size - sizeof(ipv4_header)),
                                               IPPROTO_TCP);
-        } else {
-            tcp.checksum = calc_ipv6_checksum_offload(ip, (uint32_t)(pack->size - sizeof(ipv6_header)),
-                                                      IPPROTO_TCP);
+        } else if constexpr (is_same_v<FAMILY, ipv6>) {
+            auto& ip = *(ipv6_header*)pack->data;
+
+            if (!ni.tx_tcpv6_csum_offload) {
+                tcp.checksum = calc_ipv6_checksum(ip, span((uint8_t*)&tcp, pack->size - sizeof(ipv6_header)),
+                                                  IPPROTO_TCP);
+            } else {
+                tcp.checksum = calc_ipv6_checksum_offload(ip, (uint32_t)(pack->size - sizeof(ipv6_header)),
+                                                          IPPROTO_TCP);
+            }
         }
 
         r->deadline = (uint64_t)kernel_time_page.system_time + (RETRANSMISSION_DELAY * SYSTEM_TIME_RESOLUTION);
@@ -887,22 +1156,37 @@ void ipv6_tcp_socket::send_fin() {
         }
     }
 
-    dispatch_packet<ipv6>(ni, *pack, dst_mac);
+    dispatch_packet<FAMILY>(ni, *pack, dst_mac);
 
     pack->release();
     ni.release();
 }
 
-void ipv6_tcp_socket::received_packet(packet& pack, netif& ni,
-                                      const mac_address& src_mac) {
-    auto& ip = *(ipv6_header*)pack.data;
-    auto& tcp = *(tcp_header*)(pack.data + sizeof(ipv6_header));
+template<socket_family FAMILY>
+void tcp_socket<FAMILY>::received_packet(packet& pack, netif& ni,
+                                         const mac_address& src_mac) {
+    auto& ip = *(typename FAMILY::header*)pack.data;
+    size_t ip_header_size;
+
+    if constexpr (is_same_v<FAMILY, ipv4>)
+        ip_header_size = ip.ihl * sizeof(uint32_t);
+    else if constexpr (is_same_v<FAMILY, ipv6>)
+        ip_header_size = sizeof(ipv6_header);
+
+    auto& tcp = *(tcp_header*)(pack.data + ip_header_size);
     size_t header_length = tcp.header_length * sizeof(uint32_t);
 
     if (header_length < sizeof(tcp_header))
         return;
 
-    if (pack.size < sizeof(ipv6_header) + header_length)
+    size_t size;
+
+    if constexpr (is_same_v<FAMILY, ipv4>)
+        size = byteswap((uint16_t)ip.total_length);
+    else if constexpr (is_same_v<FAMILY, ipv6>)
+        size = pack.size;
+
+    if (size < ip_header_size + header_length)
         return;
 
     tcp_state cur_state;
@@ -1035,7 +1319,7 @@ void ipv6_tcp_socket::received_packet(packet& pack, netif& ni,
     } else if (cur_state == tcp_state::ESTABLISHED && tcp.flags == TCP_SYN_ACK) {
         // first ACK must have been lost, retransmit
         if (first_ack)
-            dispatch_packet<ipv6>(*pni, *first_ack, dst_mac);
+            dispatch_packet<FAMILY>(*pni, *first_ack, dst_mac);
     }
 
     if (tcp.ACK) {
@@ -1043,7 +1327,7 @@ void ipv6_tcp_socket::received_packet(packet& pack, netif& ni,
         auto ack = tcp.ack;
 
         while (true) {
-            ipv6_tcp_retransmission* r = nullptr;
+            tcp_retransmission* r = nullptr;
 
             {
                 lock_guard lock(retransmission_list_lock);
@@ -1064,9 +1348,9 @@ void ipv6_tcp_socket::received_packet(packet& pack, netif& ni,
                     break;
                 }
 
-                auto& r2 = containing_record<ipv6_tcp_retransmission>(retransmission_list.next);
+                auto& r2 = containing_record<tcp_retransmission>(retransmission_list.next);
 
-                auto& rtcp = *(tcp_header*)(r2.pack.data + sizeof(ipv6_header));
+                auto& rtcp = *(tcp_header*)(r2.pack.data + sizeof(typename FAMILY::header));
 
                 if (ack <= rtcp.seq)
                     break;
@@ -1112,9 +1396,16 @@ void ipv6_tcp_socket::received_packet(packet& pack, netif& ni,
                 lock_guard lock(tcp_ports_lock);
                 lock_guard lock2(state_lock);
 
-                if (bind_done && tcp_ports[bound_port] == this) {
-                    tcp_ports[bound_port] = nullptr;
-                    release();
+                if constexpr (is_same_v<FAMILY, ipv4>) {
+                    if (bind_done && tcp_ports_v4[bound_port] == this) {
+                        tcp_ports_v4[bound_port] = nullptr;
+                        release();
+                    }
+                } else if constexpr (is_same_v<FAMILY, ipv6>) {
+                    if (bind_done && tcp_ports_v6[bound_port] == this) {
+                        tcp_ports_v6[bound_port] = nullptr;
+                        release();
+                    }
                 }
             } else if (on_accepted_list) {
                 {
@@ -1146,7 +1437,7 @@ void ipv6_tcp_socket::received_packet(packet& pack, netif& ni,
         }
     }
 
-    if (pack.size > header_length + sizeof(ipv6_header) || tcp.FIN) { // data or FIN
+    if (size > header_length + ip_header_size || tcp.FIN) { // data or FIN
         auto p = new socket_packet(pack);
         if (!p) {
             print("new failed\n");
@@ -1166,7 +1457,7 @@ void ipv6_tcp_socket::received_packet(packet& pack, netif& ni,
             auto seq = tcp.seq;
 
             if (seq > recv_next) {
-                auto data_len = (uint32_t)(pack.size - header_length - sizeof(ipv6_header));
+                auto data_len = (uint32_t)(size - header_length - ip_header_size);
 
                 if (data_len <= recv_window && !shutdown_read) {
                     recv_window -= (uint16_t)data_len;
@@ -1178,12 +1469,12 @@ void ipv6_tcp_socket::received_packet(packet& pack, netif& ni,
                 // send ACK for packet we've already received
                 ack = recv_next;
             } else {
-                if (pack.size > header_length + sizeof(ipv6_header) && !shutdown_read) {
+                if (size > header_length + ip_header_size && !shutdown_read) {
                     insert_tail_list(buffer, p->le);
                     added = true;
                 }
 
-                auto data_len = (uint32_t)(pack.size - header_length - sizeof(ipv6_header));
+                auto data_len = (uint32_t)(size - header_length - ip_header_size);
 
                 recv_next += data_len;
 
@@ -1203,15 +1494,29 @@ void ipv6_tcp_socket::received_packet(packet& pack, netif& ni,
                             break;
 
                         auto& p2 = containing_record<socket_packet>(ooo_buffer.next);
-                        auto& tcp2 = *(tcp_header*)(p2.pack.data + sizeof(ipv6_header));
+                        auto& ip2 = *(typename FAMILY::header*)p2.pack.data;
+                        size_t ip_header_size2;
+
+                        if constexpr (is_same_v<FAMILY, ipv4>)
+                            ip_header_size2 = ip2.ihl * sizeof(uint32_t);
+                        else if constexpr (is_same_v<FAMILY, ipv6>)
+                            ip_header_size2 = sizeof(ipv6_header);
+
+                        auto& tcp2 = *(tcp_header*)(p2.pack.data + ip_header_size2);
                         size_t header_length2 = tcp2.header_length * sizeof(uint32_t);
+                        size_t size2;
+
+                        if constexpr (is_same_v<FAMILY, ipv4>)
+                            size2 = byteswap((uint16_t)ip2.total_length);
+                        else if constexpr (is_same_v<FAMILY, ipv6>)
+                            size2 = p2.pack.size;
 
                         // FIXME - what if tcp2.seq < recv_next (i.e. packets overlap)?
 
                         if (tcp2.seq != recv_next)
                             break;
 
-                        recv_next += (uint32_t)(p2.pack.size - header_length2 - sizeof(ipv6_header));
+                        recv_next += (uint32_t)(size2 - header_length2 - ip_header_size2);
 
                         if (tcp2.FIN) {
                             recv_next++;
@@ -1296,7 +1601,8 @@ void ipv6_tcp_socket::received_packet(packet& pack, netif& ni,
     }
 }
 
-uint16_t ipv6_tcp_socket::allowed_send_bytes() {
+template<socket_family FAMILY>
+uint16_t tcp_socket<FAMILY>::allowed_send_bytes() {
     int32_t raw = (send_unacknowledged - send_next) + send_window;
 
     if (raw < 0)
@@ -1305,10 +1611,11 @@ uint16_t ipv6_tcp_socket::allowed_send_bytes() {
     return (uint16_t)raw;
 }
 
+template<socket_family FAMILY>
 template<bool NONBLOCK>
-nt_status ipv6_tcp_socket::do_sendto(span<const span<const uint8_t>> v,
-                                     int flags, sockaddr*, size_t,
-                                     uint64_t& sent_bytes) {
+nt_status tcp_socket<FAMILY>::do_sendto(span<const span<const uint8_t>> v,
+                                        int flags, sockaddr*, size_t,
+                                        uint64_t& sent_bytes) {
     nt_status status = nt_status::SUCCESS;
 
     // sockaddr is ignored
@@ -1375,7 +1682,7 @@ nt_status ipv6_tcp_socket::do_sendto(span<const span<const uint8_t>> v,
         }
 
         packet* pack;
-        ipv6_tcp_retransmission* r;
+        tcp_retransmission* r;
 
         {
             lock_guard lock(io_lock);
@@ -1402,7 +1709,7 @@ nt_status ipv6_tcp_socket::do_sendto(span<const span<const uint8_t>> v,
                 }
             }
 
-            r = new ipv6_tcp_retransmission(*pack);
+            r = new tcp_retransmission(*pack);
             if (!r) {
                 pack->release();
                 ni.release();
@@ -1415,22 +1722,9 @@ nt_status ipv6_tcp_socket::do_sendto(span<const span<const uint8_t>> v,
                 }
             }
 
-            pack->size = sizeof(ipv6_header) + sizeof(tcp_header) + size;
+            pack->size = sizeof(typename FAMILY::header) + sizeof(tcp_header) + size;
 
-            auto& ip = *(ipv6_header*)pack->data;
-            ip.traffic_class1 = 0;
-            ip.version = 6;
-            ip.traffic_class2 = 0;
-            ip.flow_label_high = 0;
-            ip.flow_label_medium = 0;
-            ip.flow_label_low = 0;
-            ip.payload_length = byteswap((uint16_t)(sizeof(tcp_header) + size));
-            ip.next_header = IPPROTO_TCP;
-            ip.hop_limit = DEFAULT_HOP_LIMIT;
-            ip.src = bound_address;
-            ip.dst = connected_address;
-
-            auto& tcp = *(tcp_header*)(pack->data + sizeof(ipv6_header));
+            auto& tcp = *(tcp_header*)(pack->data + sizeof(typename FAMILY::header));
 
             memset(&tcp, 0, sizeof(tcp));
 
@@ -1445,15 +1739,55 @@ nt_status ipv6_tcp_socket::do_sendto(span<const span<const uint8_t>> v,
 
             send_next += (uint32_t)size;
 
-            memcpy_vec(pack->data + sizeof(ipv6_header) + (tcp.header_length * sizeof(uint32_t)),
+            memcpy_vec(pack->data + sizeof(typename FAMILY::header) + (tcp.header_length * sizeof(uint32_t)),
                        v, top, size);
 
-            if (!ni.tx_tcpv6_csum_offload) {
-                tcp.checksum = calc_ipv6_checksum(ip, span((uint8_t*)&tcp, pack->size - sizeof(ipv6_header)),
+            if constexpr (is_same_v<FAMILY, ipv4>) {
+                auto& ip = *(ipv4_header*)pack->data;
+
+                ip.ihl = sizeof(ipv4_header) / sizeof(uint32_t);
+                ip.version = 4;
+                ip.ecn = 0;
+                ip.dscp = 0;
+                ip.total_length = byteswap((uint16_t)(sizeof(ipv4_header) + sizeof(tcp_header) + size));
+                ip.identification = 0;
+                ip.fragment_offset1 = 0;
+                ip.MF = 0;
+                ip.DF = 1;
+                ip.R = 0;
+                ip.fragment_offset2 = 0;
+                ip.ttl = DEFAULT_HOP_LIMIT;
+                ip.protocol = IPPROTO_TCP;
+                ip.header_checksum = 0;
+                ip.src = bound_address;
+                ip.dst = connected_address;
+
+                ip.header_checksum = calc_ipv4_checksum(span(pack->data, sizeof(ipv4_header)));
+
+                tcp.checksum = calc_ipv4_checksum(ip, span((uint8_t*)&tcp, pack->size - sizeof(ipv4_header)),
                                                   IPPROTO_TCP);
-            } else {
-                tcp.checksum = calc_ipv6_checksum_offload(ip, (uint32_t)(pack->size - sizeof(ipv6_header)),
-                                                          IPPROTO_TCP);
+            } else if constexpr (is_same_v<FAMILY, ipv6>) {
+                auto& ip = *(ipv6_header*)pack->data;
+
+                ip.traffic_class1 = 0;
+                ip.version = 6;
+                ip.traffic_class2 = 0;
+                ip.flow_label_high = 0;
+                ip.flow_label_medium = 0;
+                ip.flow_label_low = 0;
+                ip.payload_length = byteswap((uint16_t)(sizeof(tcp_header) + size));
+                ip.next_header = IPPROTO_TCP;
+                ip.hop_limit = DEFAULT_HOP_LIMIT;
+                ip.src = bound_address;
+                ip.dst = connected_address;
+
+                if (!ni.tx_tcpv6_csum_offload) {
+                    tcp.checksum = calc_ipv6_checksum(ip, span((uint8_t*)&tcp, pack->size - sizeof(ipv6_header)),
+                                                      IPPROTO_TCP);
+                } else {
+                    tcp.checksum = calc_ipv6_checksum_offload(ip, (uint32_t)(pack->size - sizeof(ipv6_header)),
+                                                              IPPROTO_TCP);
+                }
             }
 
             r->deadline = (uint64_t)kernel_time_page.system_time + (RETRANSMISSION_DELAY * SYSTEM_TIME_RESOLUTION);
@@ -1465,7 +1799,7 @@ nt_status ipv6_tcp_socket::do_sendto(span<const span<const uint8_t>> v,
             }
         }
 
-        dispatch_packet<ipv6>(ni, *pack, dst_mac);
+        dispatch_packet<FAMILY>(ni, *pack, dst_mac);
 
         pack->release();
 
@@ -1494,7 +1828,13 @@ nt_status ipv6_tcp_socket::do_sendto(span<const span<const uint8_t>> v,
     return status;
 }
 
-ipv6_tcp_socket::ipv6_tcp_socket() {
+template<socket_family FAMILY>
+tcp_socket<FAMILY>::tcp_socket() {
+    if constexpr (is_same_v<FAMILY, ipv4>)
+        mss = 536;
+    else if constexpr (is_same_v<FAMILY, ipv6>)
+        mss = 1220;
+
     state_change_event = create_event(true);
     if (!state_change_event) {
         print("create_event failed\n");
@@ -1516,7 +1856,7 @@ ipv6_tcp_socket::ipv6_tcp_socket() {
     this->acquire();
 
     retransmission_thread_obj = add_kernel_thread([](void* ctx) {
-        auto& s = *(ipv6_tcp_socket*)ctx;
+        auto& s = *(tcp_socket<FAMILY>*)ctx;
 
         s.retransmission_thread();
 
@@ -1526,9 +1866,10 @@ ipv6_tcp_socket::ipv6_tcp_socket() {
     init = true;
 }
 
-ipv6_tcp_socket::~ipv6_tcp_socket() {
+template<socket_family FAMILY>
+tcp_socket<FAMILY>::~tcp_socket() {
     while (true) {
-        ipv6_tcp_retransmission* r;
+        tcp_retransmission* r;
 
         {
             lock_guard lock(retransmission_list_lock);
@@ -1536,7 +1877,7 @@ ipv6_tcp_socket::~ipv6_tcp_socket() {
             if (is_list_empty(retransmission_list))
                 break;
 
-            r = &containing_record<ipv6_tcp_retransmission>(retransmission_list.next);
+            r = &containing_record<tcp_retransmission>(retransmission_list.next);
 
             remove_entry_list(r->le);
         }
@@ -1576,7 +1917,8 @@ ipv6_tcp_socket::~ipv6_tcp_socket() {
     }
 }
 
-void ipv6_tcp_socket::retransmission_thread() {
+template<socket_family FAMILY>
+void tcp_socket<FAMILY>::retransmission_thread() {
     unsigned int time_wait_count = 0;
 
     auto& ev = static_cast<event&>(retransmission_thread_quit_event.get());
@@ -1609,9 +1951,16 @@ void ipv6_tcp_socket::retransmission_thread() {
                 lock_guard lock(tcp_ports_lock);
                 lock_guard lock2(state_lock);
 
-                if (bind_done && tcp_ports[bound_port] == this) {
-                    tcp_ports[bound_port] = nullptr;
-                    release();
+                if constexpr (is_same_v<FAMILY, ipv4>) {
+                    if (bind_done && tcp_ports_v4[bound_port] == this) {
+                        tcp_ports_v4[bound_port] = nullptr;
+                        release();
+                    }
+                } else if constexpr (is_same_v<FAMILY, ipv6>) {
+                    if (bind_done && tcp_ports_v6[bound_port] == this) {
+                        tcp_ports_v6[bound_port] = nullptr;
+                        release();
+                    }
                 }
             }
 
@@ -1622,7 +1971,8 @@ void ipv6_tcp_socket::retransmission_thread() {
     }
 }
 
-void ipv6_tcp_socket::do_retransmissions() {
+template<socket_family FAMILY>
+void tcp_socket<FAMILY>::do_retransmissions() {
     unsigned int num = 0, added = 0;
     auto now = (uint64_t)kernel_time_page.system_time;
 
@@ -1630,7 +1980,7 @@ void ipv6_tcp_socket::do_retransmissions() {
         lock_guard lock(retransmission_list_lock);
 
         for (auto le = retransmission_list.next; le != &retransmission_list; le = le->next) {
-            auto& r = containing_record<ipv6_tcp_retransmission>(le);
+            auto& r = containing_record<tcp_retransmission>(le);
 
             if (now >= r.deadline)
                 num++;
@@ -1642,7 +1992,7 @@ void ipv6_tcp_socket::do_retransmissions() {
     if (num == 0)
         return;
 
-    auto arr = (ipv6_tcp_retransmission**)malloc(sizeof(ipv6_tcp_retransmission*) * num);
+    auto arr = (tcp_retransmission**)malloc(sizeof(tcp_retransmission*) * num);
     if (!arr) {
         print("malloc failed\n");
         return;
@@ -1652,7 +2002,7 @@ void ipv6_tcp_socket::do_retransmissions() {
         lock_guard lock(retransmission_list_lock);
 
         for (auto le = retransmission_list.next; le != &retransmission_list; le = le->next) {
-            auto& r = containing_record<ipv6_tcp_retransmission>(le);
+            auto& r = containing_record<tcp_retransmission>(le);
 
             if (now >= r.deadline) {
                 r.acquire();
@@ -1669,7 +2019,7 @@ void ipv6_tcp_socket::do_retransmissions() {
     for (unsigned int i = 0; i < added; i++) {
         auto& r = *arr[i];
 
-        dispatch_packet<ipv6>(*pni, r.pack, dst_mac);
+        dispatch_packet<FAMILY>(*pni, r.pack, dst_mac);
 
         // FIXME - delay increase should be exponential
 
@@ -1682,10 +2032,11 @@ void ipv6_tcp_socket::do_retransmissions() {
     free(arr);
 }
 
+template<socket_family FAMILY>
 template<bool NONBLOCK>
-nt_status ipv6_tcp_socket::do_recvfrom(span<const span<uint8_t>> v, int flags,
-                                       sockaddr_storage* from, size_t* fromlen,
-                                       uint64_t& recv_bytes) {
+nt_status tcp_socket<FAMILY>::do_recvfrom(span<const span<uint8_t>> v, int flags,
+                                          sockaddr_storage* from, size_t* fromlen,
+                                          uint64_t& recv_bytes) {
     nt_status status;
 
     if (flags != 0)
@@ -1744,17 +2095,28 @@ nt_status ipv6_tcp_socket::do_recvfrom(span<const span<uint8_t>> v, int flags,
                 r = &containing_record<socket_packet>(buffer.next);
             }
 
-            auto& tcp = *(tcp_header*)(r->pack.data + sizeof(ipv6_header));
+            auto& ip = *(typename FAMILY::header*)r->pack.data;
+            size_t ip_header_size, pack_size;
+
+            if constexpr (is_same_v<FAMILY, ipv4>) {
+                ip_header_size = ip.ihl * sizeof(uint32_t);
+                pack_size = byteswap((uint16_t)ip.total_length);
+            } else if constexpr (is_same_v<FAMILY, ipv6>) {
+                ip_header_size = sizeof(ipv6_header);
+                pack_size = r->pack.size;
+            }
+
+            auto& tcp = *(tcp_header*)(r->pack.data + ip_header_size);
 
             size_t header_length = tcp.header_length * sizeof(uint32_t);
-            auto to_copy = (uint32_t)min(r->pack.size - sizeof(ipv6_header) - header_length - us_read_offset, vec_size);
+            auto to_copy = (uint32_t)min(pack_size - ip_header_size - header_length - us_read_offset, vec_size);
 
-            memcpy_vec(v, top, r->pack.data + sizeof(ipv6_header) + header_length + us_read_offset,
+            memcpy_vec(v, top, r->pack.data + ip_header_size + header_length + us_read_offset,
                        to_copy);
 
             recv_bytes += to_copy;
 
-            if (sizeof(ipv6_header) + header_length + us_read_offset + to_copy < r->pack.size) {
+            if (ip_header_size + header_length + us_read_offset + to_copy < pack_size) {
                 us_read_offset += to_copy;
                 break;
             }
@@ -1766,7 +2128,7 @@ nt_status ipv6_tcp_socket::do_recvfrom(span<const span<uint8_t>> v, int flags,
 
             vec_size -= to_copy;
             us_read_offset = 0;
-            removed_bytes += r->pack.size - sizeof(ipv6_header) - header_length;
+            removed_bytes += pack_size - ip_header_size - header_length;
 
             delete r;
 
@@ -1807,15 +2169,21 @@ nt_status ipv6_tcp_socket::do_recvfrom(span<const span<uint8_t>> v, int flags,
         }
 
         if (from && fromlen && *fromlen > 0) {
-            auto& addr = *(sockaddr_in6*)from;
+            auto& addr = *(typename FAMILY::sockaddr*)from;
 
             memset(&addr, 0, sizeof(addr));
 
-            addr.sin6_family = AF_INET6;
-            addr.sin6_port = connected_port;
-            addr.sin6_flowinfo = 0; // FIXME? Allowed by RFC3493, but not necessarily what Linux does
-            *(ipv6_address*)&addr.sin6_addr = connected_address;
-            addr.sin6_scope_id = connected_scope;
+            if constexpr (is_same_v<FAMILY, ipv4>) {
+                addr.sin_family = AF_INET;
+                addr.sin_port = connected_port;
+                *(ipv4_address*)&addr.sin_addr = connected_address;
+            } else if constexpr (is_same_v<FAMILY, ipv6>) {
+                addr.sin6_family = AF_INET6;
+                addr.sin6_port = connected_port;
+                addr.sin6_flowinfo = 0; // FIXME? Allowed by RFC3493, but not necessarily what Linux does
+                *(ipv6_address*)&addr.sin6_addr = connected_address;
+                addr.sin6_scope_id = connected_scope;
+            }
 
             *fromlen = sizeof(addr);
         }
@@ -1831,20 +2199,31 @@ nt_status ipv6_tcp_socket::do_recvfrom(span<const span<uint8_t>> v, int flags,
     return nt_status::SUCCESS;
 }
 
-nt_status ipv6_tcp_socket::bind(const sockaddr* addr, size_t addrlen) {
-    if (addr->sa_family != AF_INET6)
+template<socket_family FAMILY>
+nt_status tcp_socket<FAMILY>::bind(const sockaddr* addr, size_t addrlen) {
+    if (addr->sa_family != FAMILY::family)
         return nt_status::INVALID_PARAMETER;
 
-    if (addrlen < sizeof(sockaddr_in6))
+    if (addrlen < sizeof(typename FAMILY::sockaddr))
         return nt_status::BUFFER_TOO_SMALL;
 
-    auto& b = *(sockaddr_in6*)addr;
+    auto& b = *(typename FAMILY::sockaddr*)addr;
+    typename FAMILY::address ip;
 
-    auto ip = *(ipv6_address*)&b.sin6_addr;
+    if constexpr (is_same_v<FAMILY, ipv4>) {
+        ip = *(ipv4_address*)&b.sin_addr;
 
-    if (ip != parse_ipv6_address("::")) {
-        if (!is_our_ip(ip))
-            return nt_status::INVALID_ADDRESS_COMPONENT;
+        if (ip != parse_ipv4_address("0.0.0.0")) {
+            if (!is_our_ip(ip))
+                return nt_status::INVALID_ADDRESS_COMPONENT;
+        }
+    } else if constexpr (is_same_v<FAMILY, ipv6>) {
+        ip = *(ipv6_address*)&b.sin6_addr;
+
+        if (ip != parse_ipv6_address("::")) {
+            if (!is_our_ip(ip))
+                return nt_status::INVALID_ADDRESS_COMPONENT;
+        }
     }
 
     {
@@ -1855,18 +2234,34 @@ nt_status ipv6_tcp_socket::bind(const sockaddr* addr, size_t addrlen) {
         if (bind_done)
             return nt_status::INVALID_PARAMETER;
 
-        if (b.sin6_port == 0) {
-            port = find_ephemeral_tcp_port();
-            if (port == 0) // no ephemeral ports left
-                return nt_status::ADDRESS_ALREADY_ASSOCIATED;
-        } else {
-            port = b.sin6_port;
+        if constexpr (is_same_v<FAMILY, ipv4>) {
+            if (b.sin_port == 0) {
+                port = find_ephemeral_tcp_port<FAMILY>();
+                if (port == 0) // no ephemeral ports left
+                    return nt_status::ADDRESS_ALREADY_ASSOCIATED;
+            } else {
+                port = b.sin_port;
 
-            if (tcp_ports[b.sin6_port])
-                return nt_status::ADDRESS_ALREADY_ASSOCIATED;
+                if (tcp_ports_v4[b.sin_port])
+                    return nt_status::ADDRESS_ALREADY_ASSOCIATED;
+            }
+
+            tcp_ports_v4[port] = this;
+        } else if constexpr (is_same_v<FAMILY, ipv6>) {
+            if (b.sin6_port == 0) {
+                port = find_ephemeral_tcp_port<FAMILY>();
+                if (port == 0) // no ephemeral ports left
+                    return nt_status::ADDRESS_ALREADY_ASSOCIATED;
+            } else {
+                port = b.sin6_port;
+
+                if (tcp_ports_v6[b.sin6_port])
+                    return nt_status::ADDRESS_ALREADY_ASSOCIATED;
+            }
+
+            tcp_ports_v6[port] = this;
         }
 
-        tcp_ports[port] = this;
         this->acquire();
 
         bound_port = port;
@@ -1878,8 +2273,8 @@ nt_status ipv6_tcp_socket::bind(const sockaddr* addr, size_t addrlen) {
     return nt_status::SUCCESS;
 }
 
-nt_status create_new_ipv6_tcp_socket(object_ref& ref) {
-    auto s = new ipv6_tcp_socket;
+nt_status create_new_ipv4_tcp_socket(object_ref& ref) {
+    auto s = new tcp_socket<ipv4>;
     if (!s) {
         print("new failed\n");
         return nt_status::INSUFFICIENT_RESOURCES;
@@ -1895,7 +2290,25 @@ nt_status create_new_ipv6_tcp_socket(object_ref& ref) {
     return nt_status::SUCCESS;
 }
 
-nt_status ipv6_tcp_socket::listen(int backlog) {
+nt_status create_new_ipv6_tcp_socket(object_ref& ref) {
+    auto s = new tcp_socket<ipv6>;
+    if (!s) {
+        print("new failed\n");
+        return nt_status::INSUFFICIENT_RESOURCES;
+    }
+
+    if (!s->init) {
+        s->release();
+        return nt_status::INTERNAL_ERROR;
+    }
+
+    ref = object_ref{*s};
+
+    return nt_status::SUCCESS;
+}
+
+template<socket_family FAMILY>
+nt_status tcp_socket<FAMILY>::listen(int backlog) {
     if (backlog < 0)
         return nt_status::INVALID_PARAMETER;
 
@@ -1920,10 +2333,11 @@ nt_status ipv6_tcp_socket::listen(int backlog) {
     }
 }
 
-nt_status ipv6_tcp_socket::accept(HANDLE& sock, void* us_addr, int& addrlen) {
+template<socket_family FAMILY>
+nt_status tcp_socket<FAMILY>::accept(HANDLE& sock, void* us_addr, int& addrlen) {
     nt_status status;
 
-    if (addrlen < 0 || (us_addr && (size_t)addrlen < sizeof(sockaddr_in6)))
+    if (addrlen < 0 || (us_addr && (size_t)addrlen < sizeof(typename FAMILY::sockaddr)))
         return nt_status::INVALID_PARAMETER;
 
     auto& t = *get_current_thread();
@@ -1937,7 +2351,7 @@ nt_status ipv6_tcp_socket::accept(HANDLE& sock, void* us_addr, int& addrlen) {
             return nt_status::INVALID_PARAMETER;
     }
 
-    ipv6_tcp_socket* c = nullptr;
+    tcp_socket<FAMILY>* c = nullptr;
 
     while (true) {
         status = wait_for_object(accept_queue_event.get(), true);
@@ -1955,7 +2369,7 @@ nt_status ipv6_tcp_socket::accept(HANDLE& sock, void* us_addr, int& addrlen) {
             if (is_list_empty(accept_queue))
                 continue;
 
-            auto& s = containing_record<ipv6_tcp_socket>(accept_queue.next);
+            auto& s = containing_record<tcp_socket<FAMILY>>(accept_queue.next);
 
             c = &s;
 
@@ -1977,15 +2391,21 @@ nt_status ipv6_tcp_socket::accept(HANDLE& sock, void* us_addr, int& addrlen) {
     }
 
     if (us_addr) {
-        sockaddr_in6 addr;
+        typename FAMILY::sockaddr addr;
 
         memset(&addr, 0, sizeof(addr));
 
-        addr.sin6_family = AF_INET6;
-        addr.sin6_port = c->connected_port;
-        addr.sin6_flowinfo = 0; // FIXME? Allowed by RFC3493, but not necessarily what Linux does
-        *(ipv6_address*)&addr.sin6_addr = c->connected_address;
-        addr.sin6_scope_id = c->connected_scope;
+        if constexpr (is_same_v<FAMILY, ipv4>) {
+            addr.sin_family = AF_INET;
+            addr.sin_port = c->connected_port;
+            *(ipv4_address*)&addr.sin_addr = c->connected_address;
+        } else if constexpr (is_same_v<FAMILY, ipv6>) {
+            addr.sin6_family = AF_INET6;
+            addr.sin6_port = c->connected_port;
+            addr.sin6_flowinfo = 0; // FIXME? Allowed by RFC3493, but not necessarily what Linux does
+            *(ipv6_address*)&addr.sin6_addr = c->connected_address;
+            addr.sin6_scope_id = c->connected_scope;
+        }
 
         status = t.proc->write_vm(us_addr, &addr, (uint32_t)sizeof(addr),
                                   nullptr);
@@ -1999,7 +2419,12 @@ nt_status ipv6_tcp_socket::accept(HANDLE& sock, void* us_addr, int& addrlen) {
 
     {
         lock_guard lock(tcp_ports_lock);
-        insert_tail_list(accepted_sockets, c->accepted_le);
+
+        if constexpr (is_same_v<FAMILY, ipv4>)
+            insert_tail_list(accepted_sockets_v4, c->accepted_le);
+        else if constexpr (is_same_v<FAMILY, ipv6>)
+            insert_tail_list(accepted_sockets_v6, c->accepted_le);
+
         c->on_accepted_list = true;
     }
 
@@ -2037,7 +2462,8 @@ nt_status ipv6_tcp_socket::accept(HANDLE& sock, void* us_addr, int& addrlen) {
     return nt_status::SUCCESS;
 }
 
-nt_status ipv6_tcp_socket::send_syn_ack(const mac_address& mac) {
+template<socket_family FAMILY>
+nt_status tcp_socket<FAMILY>::send_syn_ack(const mac_address& mac) {
     nt_status status;
 
     auto& ni = *pni;
@@ -2045,7 +2471,9 @@ nt_status ipv6_tcp_socket::send_syn_ack(const mac_address& mac) {
     if (connected_address == bound_address)
         dst_mac = ni.mac;
     else {
-        maybe_add_to_neighbour_cache(ni, connected_address, mac);
+        if constexpr (is_same_v<FAMILY, ipv6>)
+            maybe_add_to_neighbour_cache(ni, connected_address, mac);
+
         dst_mac = mac;
     }
 
@@ -2055,29 +2483,53 @@ nt_status ipv6_tcp_socket::send_syn_ack(const mac_address& mac) {
         return nt_status::INSUFFICIENT_RESOURCES;
     }
 
-    auto r = new ipv6_tcp_retransmission(*pack);
+    auto r = new tcp_retransmission(*pack);
     if (!r) {
         print("new failed\n");
         pack->release();
         return nt_status::INSUFFICIENT_RESOURCES;
     }
 
-    pack->size = sizeof(ipv6_header) + sizeof(tcp_header);
+    pack->size = sizeof(typename FAMILY::header) + sizeof(tcp_header);
 
-    auto& ip = *(ipv6_header*)pack->data;
-    ip.traffic_class1 = 0;
-    ip.version = 6;
-    ip.traffic_class2 = 0;
-    ip.flow_label_high = 0;
-    ip.flow_label_medium = 0;
-    ip.flow_label_low = 0;
-    ip.payload_length = byteswap((uint16_t)sizeof(tcp_header));
-    ip.next_header = IPPROTO_TCP;
-    ip.hop_limit = DEFAULT_HOP_LIMIT;
-    ip.src = bound_address;
-    ip.dst = connected_address;
+    if constexpr (is_same_v<FAMILY, ipv4>) {
+        auto& ip = *(ipv4_header*)pack->data;
 
-    auto& tcp = *(tcp_header*)(pack->data + sizeof(ipv6_header));
+        ip.ihl = sizeof(ipv4_header) / sizeof(uint32_t);
+        ip.version = 4;
+        ip.ecn = 0;
+        ip.dscp = 0;
+        ip.total_length = byteswap((uint16_t)(sizeof(ipv4_header) + sizeof(tcp_header)));
+        ip.identification = 0;
+        ip.fragment_offset1 = 0;
+        ip.MF = 0;
+        ip.DF = 1;
+        ip.R = 0;
+        ip.fragment_offset2 = 0;
+        ip.ttl = DEFAULT_HOP_LIMIT;
+        ip.protocol = IPPROTO_TCP;
+        ip.header_checksum = 0;
+        ip.src = bound_address;
+        ip.dst = connected_address;
+
+        ip.header_checksum = calc_ipv4_checksum(span(pack->data, sizeof(ipv4_header)));
+    } else if constexpr (is_same_v<FAMILY, ipv6>) {
+        auto& ip = *(ipv6_header*)pack->data;
+
+        ip.traffic_class1 = 0;
+        ip.version = 6;
+        ip.traffic_class2 = 0;
+        ip.flow_label_high = 0;
+        ip.flow_label_medium = 0;
+        ip.flow_label_low = 0;
+        ip.payload_length = byteswap((uint16_t)sizeof(tcp_header));
+        ip.next_header = IPPROTO_TCP;
+        ip.hop_limit = DEFAULT_HOP_LIMIT;
+        ip.src = bound_address;
+        ip.dst = connected_address;
+    }
+
+    auto& tcp = *(tcp_header*)(pack->data + sizeof(typename FAMILY::header));
 
     memset(&tcp, 0, sizeof(tcp));
 
@@ -2094,15 +2546,24 @@ nt_status ipv6_tcp_socket::send_syn_ack(const mac_address& mac) {
 
     send_next++;
 
-    if (!ni.tx_tcpv6_csum_offload) {
-        tcp.checksum = calc_ipv6_checksum(ip, span((uint8_t*)&tcp, pack->size - sizeof(ipv6_header)),
+    if constexpr (is_same_v<FAMILY, ipv4>) {
+        auto& ip = *(ipv4_header*)pack->data;
+
+        tcp.checksum = calc_ipv4_checksum(ip, span((uint8_t*)&tcp, pack->size - sizeof(ipv4_header)),
                                           IPPROTO_TCP);
-    } else {
-        tcp.checksum = calc_ipv6_checksum_offload(ip, (uint32_t)(pack->size - sizeof(ipv6_header)),
-                                                  IPPROTO_TCP);
+    } else if constexpr (is_same_v<FAMILY, ipv6>) {
+        auto& ip = *(ipv6_header*)pack->data;
+
+        if (!ni.tx_tcpv6_csum_offload) {
+            tcp.checksum = calc_ipv6_checksum(ip, span((uint8_t*)&tcp, pack->size - sizeof(ipv6_header)),
+                                              IPPROTO_TCP);
+        } else {
+            tcp.checksum = calc_ipv6_checksum_offload(ip, (uint32_t)(pack->size - sizeof(ipv6_header)),
+                                                      IPPROTO_TCP);
+        }
     }
 
-    status = dispatch_packet<ipv6>(ni, *pack, dst_mac);
+    status = dispatch_packet<FAMILY>(ni, *pack, dst_mac);
     if (!success(status)) {
         pack->release();
         r->release();
@@ -2121,18 +2582,19 @@ nt_status ipv6_tcp_socket::send_syn_ack(const mac_address& mac) {
     return nt_status::SUCCESS;
 }
 
-void ipv6_tcp_socket::received_listen_packet(packet& pack, netif& ni,
-                                             const mac_address& src_mac) {
-    auto& ip = *(ipv6_header*)pack.data;
-    auto& tcp = *(tcp_header*)(pack.data + sizeof(ipv6_header));
+template<socket_family FAMILY>
+void tcp_socket<FAMILY>::received_listen_packet(packet& pack, netif& ni,
+                                                const mac_address& src_mac) {
+    auto& ip = *(typename FAMILY::header*)pack.data;
+    auto& tcp = *(tcp_header*)(pack.data + sizeof(typename FAMILY::header));
 
-    ipv6_tcp_socket* found = nullptr;
+    tcp_socket<FAMILY>* found = nullptr;
 
     {
         lock_guard lock(list_lock);
 
         for (auto le = syn_queue.next; le != &syn_queue; le = le->next) {
-            auto& s = containing_record<ipv6_tcp_socket>(le);
+            auto& s = containing_record<tcp_socket<FAMILY>>(le);
 
             if (s.connected_address == ip.src && s.connected_port == tcp.src_port) {
                 found = &s;
@@ -2143,7 +2605,7 @@ void ipv6_tcp_socket::received_listen_packet(packet& pack, netif& ni,
 
         if (!found) {
             for (auto le = accept_queue.next; le != &accept_queue; le = le->next) {
-                auto& s = containing_record<ipv6_tcp_socket>(le);
+                auto& s = containing_record<tcp_socket<FAMILY>>(le);
 
                 if (s.connected_address == ip.src && s.connected_port == tcp.src_port) {
                     found = &s;
@@ -2164,18 +2626,18 @@ void ipv6_tcp_socket::received_listen_packet(packet& pack, netif& ni,
 
     // FIXME - also return RST if backlog exhausted
     if (tcp.flags != TCP_SYN) {
-        send_tcp_port_closed(pack, ni, src_mac);
+        send_tcp_port_closed<FAMILY>(pack, ni, src_mac);
         return;
     }
 
-    auto c = new ipv6_tcp_socket;
+    auto c = new tcp_socket<FAMILY>;
     if (!c) {
         print("new failed\n");
         return;
     }
 
     if (!c->init) {
-        print("ipv6_tcp_socket init failed\n");
+        print("tcp_socket init failed\n");
         delete c;
         return;
     }
@@ -2244,41 +2706,55 @@ void ipv6_tcp_socket::received_listen_packet(packet& pack, netif& ni,
     // FIXME - increase backlog value when child goes away
 }
 
-nt_status ipv6_tcp_socket::getsockname(span<uint8_t> buf, size_t& len) {
-    if (buf.size() < sizeof(sockaddr_in6))
+template<socket_family FAMILY>
+nt_status tcp_socket<FAMILY>::getsockname(span<uint8_t> buf, size_t& len) {
+    if (buf.size() < sizeof(typename FAMILY::sockaddr))
         return nt_status::BUFFER_TOO_SMALL;
 
-    auto& addr = *(sockaddr_in6*)buf.data();
+    auto& addr = *(typename FAMILY::sockaddr*)buf.data();
 
-    memset(&addr, 0, sizeof(sockaddr_in6));
+    memset(&addr, 0, sizeof(addr));
 
-    addr.sin6_family = AF_INET6;
+    if constexpr (is_same_v<FAMILY, ipv4>)
+        addr.sin_family = AF_INET;
+    else if constexpr (is_same_v<FAMILY, ipv6>)
+        addr.sin6_family = AF_INET6;
 
     {
         lock_guard lock(state_lock);
 
         if (bind_done) {
-            addr.sin6_port = bound_port;
-            *(ipv6_address*)&addr.sin6_addr = bound_address;
+            if constexpr (is_same_v<FAMILY, ipv4>) {
+                addr.sin_port = bound_port;
+                *(ipv4_address*)&addr.sin_addr = bound_address;
+            } else if constexpr (is_same_v<FAMILY, ipv6>) {
+                addr.sin6_port = bound_port;
+                *(ipv6_address*)&addr.sin6_addr = bound_address;
+            }
         }
 
-        addr.sin6_scope_id = connected_scope;
+        if constexpr (is_same_v<FAMILY, ipv6>)
+            addr.sin6_scope_id = connected_scope;
     }
 
-    len = sizeof(sockaddr_in6);
+    len = sizeof(addr);
 
     return nt_status::SUCCESS;
 }
 
-nt_status ipv6_tcp_socket::getpeername(span<uint8_t> buf, size_t& len) {
-    if (buf.size() < sizeof(sockaddr_in6))
+template<socket_family FAMILY>
+nt_status tcp_socket<FAMILY>::getpeername(span<uint8_t> buf, size_t& len) {
+    if (buf.size() < sizeof(typename FAMILY::sockaddr))
         return nt_status::BUFFER_TOO_SMALL;
 
-    auto& addr = *(sockaddr_in6*)buf.data();
+    auto& addr = *(typename FAMILY::sockaddr*)buf.data();
 
-    memset(&addr, 0, sizeof(sockaddr_in6));
+    memset(&addr, 0, sizeof(addr));
 
-    addr.sin6_family = AF_INET6;
+    if constexpr (is_same_v<FAMILY, ipv4>)
+        addr.sin_family = AF_INET;
+    else if constexpr (is_same_v<FAMILY, ipv4>)
+        addr.sin6_family = AF_INET6;
 
     {
         lock_guard lock(state_lock);
@@ -2286,17 +2762,23 @@ nt_status ipv6_tcp_socket::getpeername(span<uint8_t> buf, size_t& len) {
         if (state == tcp_state::CLOSED || state == tcp_state::LISTEN)
             return nt_status::CONNECTION_DISCONNECTED;
 
-        addr.sin6_port = connected_port;
-        *(ipv6_address*)&addr.sin6_addr = connected_address;
-        addr.sin6_scope_id = connected_scope;
+        if constexpr (is_same_v<FAMILY, ipv4>) {
+            addr.sin_port = connected_port;
+            *(ipv4_address*)&addr.sin_addr = connected_address;
+        } else if constexpr (is_same_v<FAMILY, ipv6>) {
+            addr.sin6_port = connected_port;
+            *(ipv6_address*)&addr.sin6_addr = connected_address;
+            addr.sin6_scope_id = connected_scope;
+        }
     }
 
-    len = sizeof(sockaddr_in6);
+    len = sizeof(addr);
 
     return nt_status::SUCCESS;
 }
 
-nt_status ipv6_tcp_socket::setsockopt_tcp(sockopt_tcp opt, span<const uint8_t> buf) {
+template<socket_family FAMILY>
+nt_status tcp_socket<FAMILY>::setsockopt_tcp(sockopt_tcp opt, span<const uint8_t> buf) {
     switch (opt) {
         using enum sockopt_tcp;
 
@@ -2324,7 +2806,8 @@ nt_status ipv6_tcp_socket::setsockopt_tcp(sockopt_tcp opt, span<const uint8_t> b
     }
 }
 
-nt_status ipv6_tcp_socket::shutdown(int how) {
+template<socket_family FAMILY>
+nt_status tcp_socket<FAMILY>::shutdown(int how) {
     bool do_fin = false;
 
     if (how != SHUT_RD && how != SHUT_WR && how != SHUT_RDWR)
@@ -2378,29 +2861,32 @@ nt_status ipv6_tcp_socket::shutdown(int how) {
     return nt_status::SUCCESS;
 }
 
-nt_status ipv6_tcp_socket::setsockopt_ipv6(sockopt_ipv6 opt, span<const uint8_t> buf) {
-    // FIXME - not if IPv4 socket
+template<socket_family FAMILY>
+nt_status tcp_socket<FAMILY>::setsockopt_ipv6(sockopt_ipv6 opt, span<const uint8_t> buf) {
+    if constexpr (is_same_v<FAMILY, ipv6>) {
+        switch (opt) {
+            using enum sockopt_ipv6;
 
-    switch (opt) {
-        using enum sockopt_ipv6;
+            case V6ONLY: {
+                if (buf.size() != sizeof(int))
+                    return nt_status::INVALID_PARAMETER;
 
-        case V6ONLY: {
-            if (buf.size() != sizeof(int))
-                return nt_status::INVALID_PARAMETER;
+                // FIXME - do this properly
 
-            // FIXME - do this properly
+                return nt_status::SUCCESS;
+            }
 
-            return nt_status::SUCCESS;
+            default:
+                print("FIXME - setsockopt(IPPROTO_IPV6, {}, {})\n", opt, buf.size());
+                return nt_status::NOT_SUPPORTED;
         }
-
-        default:
-            print("FIXME - setsockopt(IPPROTO_IPV6, {}, {})\n", opt, buf.size());
-            return nt_status::NOT_SUPPORTED;
-    }
+    } else
+        return nt_status::NOT_SUPPORTED;
 }
 
-nt_status ipv6_tcp_socket::getsockopt_tcp(sockopt_tcp opt, span<uint8_t> buf,
-                                          socklen_t& retlen) {
+template<socket_family FAMILY>
+nt_status tcp_socket<FAMILY>::getsockopt_tcp(sockopt_tcp opt, span<uint8_t> buf,
+                                             socklen_t& retlen) {
     switch (opt) {
         using enum sockopt_tcp;
 

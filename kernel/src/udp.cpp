@@ -157,47 +157,6 @@ static void send_port_unreachable(netif& ni, const packet& pack,
     pack2->release();
 }
 
-static uint16_t calc_ipv4_checksum(const ipv4_header& ip, span<const uint8_t> data,
-                                   uint8_t protocol) {
-    struct {
-        ipv4_address src;
-        ipv4_address dst;
-        uint8_t zero;
-        uint8_t protocol;
-        uint16_t length;
-    } __attribute__((packed)) pseudo;
-
-    uint32_t sum = 0;
-
-    pseudo.src = ip.src;
-    pseudo.dst = ip.dst;
-    pseudo.length = byteswap((uint16_t)data.size());
-    pseudo.protocol = protocol;
-    pseudo.zero = 0;
-
-    for (auto s : span((uint16_t*)&pseudo, sizeof(pseudo) / sizeof(uint16_t))) {
-        sum += byteswap(s);
-    }
-
-    for (auto s : span((uint16_t*)data.data(), data.size() / sizeof(uint16_t))) {
-        sum += byteswap(s);
-    }
-
-    if (data.size() & 1)
-        sum += (uint16_t)(data[data.size() - 1] << 8);
-
-    while (sum & 0xffff0000) {
-        sum = (sum >> 16) + (sum & 0xffff);
-    }
-
-    sum = byteswap((uint16_t)(~(uint16_t)sum));
-
-    if (sum == 0)
-        sum = 0xffff;
-
-    return (uint16_t)sum;
-}
-
 void received_ipv4_udp_packet(netif& ni, packet& pack,
                               const mac_address& /*src_mac*/, bool skip_checksum) {
     if (pack.size < sizeof(ipv4_header))
@@ -224,7 +183,9 @@ void received_ipv4_udp_packet(netif& ni, packet& pack,
         return;
 
     if (!skip_checksum && udp.checksum != 0) {
-        if (calc_ipv4_checksum(ip, span((uint8_t*)&udp, min((size_t)byteswap(udp.length), pack.size - ip_header_size)), IPPROTO_UDP) != 0xffff)
+        auto checksum = calc_ipv4_checksum(ip, span((uint8_t*)&udp, min((size_t)byteswap(udp.length), pack.size - ip_header_size)), IPPROTO_UDP);
+
+        if (checksum != 0 && checksum != 0xffff)
             return;
     }
 
@@ -771,6 +732,9 @@ nt_status udp_socket<FAMILY>::do_sendto(span<const span<const uint8_t>> v,
 
         udp.checksum = calc_ipv4_checksum(ip, span((uint8_t*)&udp, pack->size - sizeof(ipv4_header)),
                                           IPPROTO_UDP);
+
+        if (udp.checksum == 0)
+            udp.checksum = 0xffff;
     } else if constexpr (is_same_v<FAMILY, ipv6>) {
         auto& ip = *(ipv6_header*)pack->data;
         ip.traffic_class1 = 0;
