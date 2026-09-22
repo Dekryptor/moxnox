@@ -157,6 +157,158 @@ static void send_port_unreachable(netif& ni, const packet& pack,
     pack2->release();
 }
 
+static uint16_t calc_ipv4_checksum(const ipv4_header& ip, span<const uint8_t> data,
+                                   uint8_t protocol) {
+    struct {
+        ipv4_address src;
+        ipv4_address dst;
+        uint8_t zero;
+        uint8_t protocol;
+        uint16_t length;
+    } __attribute__((packed)) pseudo;
+
+    uint32_t sum = 0;
+
+    pseudo.src = ip.src;
+    pseudo.dst = ip.dst;
+    pseudo.length = byteswap((uint16_t)data.size());
+    pseudo.protocol = protocol;
+    pseudo.zero = 0;
+
+    for (auto s : span((uint16_t*)&pseudo, sizeof(pseudo) / sizeof(uint16_t))) {
+        sum += byteswap(s);
+    }
+
+    for (auto s : span((uint16_t*)data.data(), data.size() / sizeof(uint16_t))) {
+        sum += byteswap(s);
+    }
+
+    if (data.size() & 1)
+        sum += (uint16_t)(data[data.size() - 1] << 8);
+
+    while (sum & 0xffff0000) {
+        sum = (sum >> 16) + (sum & 0xffff);
+    }
+
+    sum = byteswap((uint16_t)(~(uint16_t)sum));
+
+    if (sum == 0)
+        sum = 0xffff;
+
+    return (uint16_t)sum;
+}
+
+void received_ipv4_udp_packet(netif& ni, packet& pack,
+                              const mac_address& /*src_mac*/, bool skip_checksum) {
+    if (pack.size < sizeof(ipv4_header))
+        return;
+
+    auto& ip = *(ipv4_header*)pack.data;
+    auto ip_header_size = ip.ihl * sizeof(uint32_t);
+
+    if (ip_header_size < sizeof(ipv4_header))
+        return;
+
+    if (pack.size < ip_header_size + sizeof(udp_header))
+        return;
+
+    if (is_multicast_address(ip.dst))
+        return;
+
+    auto& udp = *(udp_header*)(pack.data + ip_header_size);
+
+    if (byteswap(udp.length) < sizeof(udp_header))
+        return;
+
+    if (pack.size < ip_header_size + byteswap(udp.length))
+        return;
+
+    if (!skip_checksum && udp.checksum != 0) {
+        if (calc_ipv4_checksum(ip, span((uint8_t*)&udp, min((size_t)byteswap(udp.length), pack.size - ip_header_size)), IPPROTO_UDP) != 0xffff)
+            return;
+    }
+
+#if 0
+    print("received_udp_packet (src {}, dst {}, {}, {:04x})\n",
+          byteswap(udp.srcport), byteswap(udp.dstport), byteswap(udp.length),
+          byteswap(udp.checksum));
+#endif
+
+    udp_socket<ipv4>* sock = nullptr;
+
+    {
+        lock_guard lock(udp_ports_lock);
+
+        if (udp_ports_v4[udp.dstport]) {
+            sock = udp_ports_v4[udp.dstport];
+
+            {
+                lock_guard lock2(sock->bind_lock);
+
+                if (sock->bind_done && sock->bound_address != parse_ipv4_address("0.0.0.0") && sock->bound_address != ip.dst)
+                    sock = nullptr;
+                else
+                    sock->acquire();
+            }
+        }
+    }
+
+    if (!sock) {
+        // FIXME
+//         send_port_unreachable(ni, pack, src_mac);
+        return;
+    }
+
+    {
+        bool ignore = false;
+
+        {
+            lock_guard lock(sock->bind_lock);
+
+            if (sock->connect_done && (sock->connected_address != ip.src || sock->connected_port != udp.srcport))
+                ignore = true;
+        }
+
+        if (ignore) {
+            sock->release();
+            return;
+        }
+    }
+
+    auto p = new socket_packet(pack);
+    if (!p) {
+        print("new failed\n");
+        sock->release();
+        return;
+    }
+
+    p->scope_id = ni.num;
+
+    bool done = false;
+
+    {
+        sync_lock sl;
+        lock_guard lock(sl);
+        lock_guard lock2(sock->buffer_lock);
+
+        if (sock->buffer_size + pack.size <= MAX_BUFFER_SIZE) {
+            insert_tail_list(sock->buffer, p->le);
+            sock->buffer_size += pack.size;
+            done = true;
+        }
+
+        if (!sock->signalled) {
+            wake_up_waiters(sock->waiters, WAIT_TYPE_READING);
+            sock->signalled = true;
+        }
+    }
+
+    if (!done)
+        delete p;
+
+    sock->release();
+}
+
 void received_ipv6_udp_packet(netif& ni, packet& pack,
                               const mac_address& src_mac, bool skip_checksum) {
     if (pack.size < sizeof(ipv6_header) + sizeof(udp_header))
@@ -354,28 +506,52 @@ nt_status udp_socket<FAMILY>::do_recvfrom(span<const span<uint8_t>> v, int flags
         if (!sp)
             continue;
 
-        size_t overhead = sizeof(ipv6_header) + sizeof(udp_header);
+        size_t overhead;
+        uint32_t to_copy;
 
-        auto to_copy = (uint32_t)min(sp->pack.size - overhead, vec_size);
+        if constexpr (is_same_v<FAMILY, ipv4>) {
+            auto& ip = *(ipv4_header*)sp->pack.data;
+            auto& udp = *(udp_header*)(sp->pack.data + (ip.ihl * sizeof(uint32_t)));
+
+            overhead = (ip.ihl * sizeof(uint32_t)) + sizeof(udp_header);
+            to_copy = (uint32_t)min(byteswap(udp.length) - sizeof(udp_header), vec_size);
+        } else if constexpr (is_same_v<FAMILY, ipv6>) {
+            overhead = sizeof(typename FAMILY::header) + sizeof(udp_header);
+            to_copy = (uint32_t)min(sp->pack.size - overhead, vec_size);
+        }
 
         memcpy_vec(v, top, sp->pack.data + overhead, to_copy);
 
         recv_bytes = to_copy;
 
         if (from && fromlen && *fromlen > 0) {
-            auto& addr = *(sockaddr_in6*)from;
-            auto& ip = *(ipv6_header*)sp->pack.data;
-            auto& udp = *(udp_header*)(sp->pack.data + sizeof(ipv6_header));
+            if constexpr (is_same_v<FAMILY, ipv4>) {
+                auto& addr = *(sockaddr_in*)from;
+                auto& ip = *(ipv4_header*)sp->pack.data;
+                auto& udp = *(udp_header*)(sp->pack.data + (ip.ihl * sizeof(uint32_t)));
 
-            memset(&addr, 0, sizeof(addr));
+                memset(&addr, 0, sizeof(addr));
 
-            addr.sin6_family = AF_INET6;
-            addr.sin6_port = udp.srcport;
-            addr.sin6_flowinfo = 0; // FIXME? Allowed by RFC3493, but not necessarily what Linux does
-            memcpy(&addr.sin6_addr, ip.src.v.data(), sizeof(ipv6_address));
-            addr.sin6_scope_id = sp->scope_id;
+                addr.sin_family = AF_INET;
+                addr.sin_port = udp.srcport;
+                memcpy(&addr.sin_addr, ip.src.v.data(), sizeof(ipv4_address));
 
-            *fromlen = sizeof(addr);
+                *fromlen = sizeof(addr);
+            } else if constexpr (is_same_v<FAMILY, ipv6>) {
+                auto& addr = *(sockaddr_in6*)from;
+                auto& ip = *(ipv6_header*)sp->pack.data;
+                auto& udp = *(udp_header*)(sp->pack.data + sizeof(ipv6_header));
+
+                memset(&addr, 0, sizeof(addr));
+
+                addr.sin6_family = AF_INET6;
+                addr.sin6_port = udp.srcport;
+                addr.sin6_flowinfo = 0; // FIXME? Allowed by RFC3493, but not necessarily what Linux does
+                memcpy(&addr.sin6_addr, ip.src.v.data(), sizeof(ipv6_address));
+                addr.sin6_scope_id = sp->scope_id;
+
+                *fromlen = sizeof(addr);
+            }
         }
 
         delete sp;
@@ -411,47 +587,6 @@ uint16_t find_ephemeral_udp_port() {
         if (port == orig_port)
             return 0;
     }
-}
-
-static uint16_t calc_ipv4_checksum(const ipv4_header& ip, span<const uint8_t> data,
-                                   uint8_t protocol) {
-    struct {
-        ipv4_address src;
-        ipv4_address dst;
-        uint8_t zero;
-        uint8_t protocol;
-        uint16_t length;
-    } __attribute__((packed)) pseudo;
-
-    uint32_t sum = 0;
-
-    pseudo.src = ip.src;
-    pseudo.dst = ip.dst;
-    pseudo.length = byteswap((uint16_t)data.size());
-    pseudo.protocol = protocol;
-    pseudo.zero = 0;
-
-    for (auto s : span((uint16_t*)&pseudo, sizeof(pseudo) / sizeof(uint16_t))) {
-        sum += byteswap(s);
-    }
-
-    for (auto s : span((uint16_t*)data.data(), data.size() / sizeof(uint16_t))) {
-        sum += byteswap(s);
-    }
-
-    if (data.size() & 1)
-        sum += (uint16_t)(data[data.size() - 1] << 8);
-
-    while (sum & 0xffff0000) {
-        sum = (sum >> 16) + (sum & 0xffff);
-    }
-
-    sum = byteswap((uint16_t)(~(uint16_t)sum));
-
-    if (sum == 0)
-        sum = 0xffff;
-
-    return (uint16_t)sum;
 }
 
 template<socket_family FAMILY>

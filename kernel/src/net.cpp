@@ -429,6 +429,8 @@ export ipv6_address find_ll_address(const mac_address& m);
 
 void received_ipv6_tcp_packet(netif& ni, packet& pack,
                               const mac_address& src_mac, bool skip_checksum);
+void received_ipv4_udp_packet(netif& ni, packet& pack,
+                              const mac_address& src_mac, bool skip_checksum);
 void received_ipv6_udp_packet(netif& ni, packet& pack,
                               const mac_address& src_mac, bool skip_checksum);
 bool is_our_ip(const ipv4_address& ip);

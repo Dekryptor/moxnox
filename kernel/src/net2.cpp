@@ -1536,9 +1536,13 @@ static void send_to_raw_ipv4_sockets(uint32_t netif_num, packet& pack) {
 }
 
 static void send_to_ipv4_sockets(netif& ni, packet& pack,
-                                 const mac_address& /*src_mac*/, bool /*skip_checksum*/) {
-    // FIXME - UDP
+                                 const mac_address& src_mac, bool skip_checksum) {
+    auto& ip = *(ipv4_header*)pack.data;
+
     // FIXME - TCP
+
+    if (ip.protocol == IPPROTO_UDP)
+        received_ipv4_udp_packet(ni, pack, src_mac, skip_checksum);
 
     send_to_raw_ipv4_sockets(ni.num, pack);
 }
