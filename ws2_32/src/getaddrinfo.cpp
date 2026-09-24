@@ -75,6 +75,58 @@ static const unsigned int DNS_TIMEOUT = 5; // secs
 
 static constexpr size_t REVERSE_IPV6_LEN = 74;
 
+class unique_fd {
+public:
+    unique_fd() : fd(-1) {
+    }
+
+    explicit unique_fd(int fd) : fd(fd) {
+    }
+
+    unique_fd(unique_fd&& that) noexcept {
+        fd = that.fd;
+        that.fd = -1;
+    }
+
+    unique_fd(const unique_fd&) = delete;
+    unique_fd& operator=(const unique_fd&) = delete;
+
+    unique_fd& operator=(unique_fd&& that) noexcept {
+        if (fd >= 0)
+            _close(fd);
+
+        fd = that.fd;
+        that.fd = -1;
+
+        return *this;
+    }
+
+    ~unique_fd() {
+        if (fd < 0)
+            return;
+
+        _close(fd);
+    }
+
+    explicit operator bool() const noexcept {
+        return fd != -1;
+    }
+
+    void reset(int new_fd = -1) noexcept {
+        if (fd >= 0)
+            _close(fd);
+
+        fd = new_fd;
+    }
+
+    int get() const noexcept {
+        return fd;
+    }
+
+private:
+    int fd;
+};
+
 static unique_handle open_netctl() {
     OBJECT_ATTRIBUTES oa;
     UNICODE_STRING us;
@@ -678,34 +730,26 @@ static int dns_lookup(string_view name, addrinfo** res, int socktype,
     if (num_servers == 0)
         return EAI_AGAIN;
 
-    int sock4 = -1, sock6 = -1;
+    unique_fd sock4, sock6;
 
     bool all_eai_again = true;
 
     for (size_t i = 0; i < num_servers; i++) {
         if (is_actually_ipv4(dns_servers[i])) {
-            if (sock4 == -1) {
-                sock4 = socket(AF_INET, SOCK_DGRAM, 0);
-                if (sock4 < 0) {
-                    print_stderr("socket returned {} (errno {})\n", sock4, errno_to_string_view(*_errno()));
-
-                    if (sock6 != -1)
-                        closesocket(sock6);
-
+            if (!sock4) {
+                if (auto fd = socket(AF_INET, SOCK_DGRAM, 0); fd < 0) {
+                    print_stderr("socket returned {} (errno {})\n", fd, errno_to_string_view(*_errno()));
                     return EAI_SYSTEM;
-                }
+                } else
+                    sock4.reset(fd);
             }
         } else {
-            if (sock6 == -1) {
-                sock6 = socket(AF_INET6, SOCK_DGRAM, 0);
-                if (sock6 < 0) {
-                    print_stderr("socket returned {} (errno {})\n", sock6, errno_to_string_view(*_errno()));
-
-                    if (sock4 != -1)
-                        closesocket(sock4);
-
+            if (!sock6) {
+                if (auto fd = socket(AF_INET6, SOCK_DGRAM, 0); fd < 0) {
+                    print_stderr("socket returned {} (errno {})\n", fd, errno_to_string_view(*_errno()));
                     return EAI_SYSTEM;
-                }
+                } else
+                    sock6.reset(fd);
             }
         }
 
@@ -717,40 +761,28 @@ static int dns_lookup(string_view name, addrinfo** res, int socktype,
             addrinfo* last_entry;
             int ret1, ret2;
 
-            ret1 = dns_lookup2(is_actually_ipv4(dns_servers[i]) ? sock4 : sock6,
+            ret1 = dns_lookup2(is_actually_ipv4(dns_servers[i]) ? sock4.get() : sock6.get(),
                                dns_servers[i], name, &res1, socktype, protocol,
                                port, DNS_AAAA, &last_entry);
-            if (ret1 == EAI_MEMORY || ret1 == EAI_SYSTEM) {
-                if (sock4 != -1)
-                    closesocket(sock4);
-
-                if (sock6 != -1)
-                    closesocket(sock6);
-
+            if (ret1 == EAI_MEMORY || ret1 == EAI_SYSTEM)
                 return ret1;
-            } else if (ret1 != EAI_NONAME && ret1 != 0) {
+            else if (ret1 != EAI_NONAME && ret1 != 0) {
                 if (ret1 != EAI_AGAIN)
                     all_eai_again = false;
 
                 continue;
             }
 
-            ret2 = dns_lookup2(is_actually_ipv4(dns_servers[i]) ? sock4 : sock6,
+            ret2 = dns_lookup2(is_actually_ipv4(dns_servers[i]) ? sock4.get() : sock6.get(),
                                dns_servers[i], name, &res2, socktype, protocol,
                                port, DNS_A, nullptr);
 
             if (ret2 != EAI_NONAME && ret2 != 0)
                 freeaddrinfo(res1);
 
-            if (ret2 == EAI_MEMORY || ret2 == EAI_SYSTEM) {
-                if (sock4 != -1)
-                    closesocket(sock4);
-
-                if (sock6 != -1)
-                    closesocket(sock6);
-
+            if (ret2 == EAI_MEMORY || ret2 == EAI_SYSTEM)
                 return ret2;
-            } else if (ret2 != EAI_NONAME && ret2 != 0) {
+            else if (ret2 != EAI_NONAME && ret2 != 0) {
                 if (ret2 != EAI_AGAIN)
                     all_eai_again = false;
 
@@ -767,23 +799,17 @@ static int dns_lookup(string_view name, addrinfo** res, int socktype,
             } else if (ret2 == 0)
                 *res = res2;
 
-            if (sock4 != -1)
-                closesocket(sock4);
-
-            if (sock6 != -1)
-                closesocket(sock6);
-
             if (ret1 == EAI_NONAME && ret2 == EAI_NONAME)
                 return EAI_NONAME;
             else
                 return 0;
         } else {
             if (family == AF_INET) {
-                ret = dns_lookup2(is_actually_ipv4(dns_servers[i]) ? sock4 : sock6,
+                ret = dns_lookup2(is_actually_ipv4(dns_servers[i]) ? sock4.get() : sock6.get(),
                                 dns_servers[i], name, res, socktype, protocol, port,
                                 DNS_A, nullptr);
             } else if (family == AF_INET6) {
-                ret = dns_lookup2(is_actually_ipv4(dns_servers[i]) ? sock4 : sock6,
+                ret = dns_lookup2(is_actually_ipv4(dns_servers[i]) ? sock4.get() : sock6.get(),
                                 dns_servers[i], name, res, socktype, protocol, port,
                                 DNS_AAAA, nullptr);
             }
@@ -791,24 +817,11 @@ static int dns_lookup(string_view name, addrinfo** res, int socktype,
             if (ret != EAI_AGAIN)
                 all_eai_again = false;
 
-            if (ret == EAI_NONAME || ret == 0 || ret == EAI_MEMORY || ret == EAI_SYSTEM) {
-                if (sock4 != -1)
-                    closesocket(sock4);
-
-                if (sock6 != -1)
-                    closesocket(sock6);
-
+            if (ret == EAI_NONAME || ret == 0 || ret == EAI_MEMORY || ret == EAI_SYSTEM)
                 return ret;
-            }
         }
 
     }
-
-    if (sock4 != -1)
-        closesocket(sock4);
-
-    if (sock6 != -1)
-        closesocket(sock6);
 
     if (all_eai_again)
         return EAI_AGAIN;
