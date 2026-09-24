@@ -859,6 +859,8 @@ nt_status udp_socket<FAMILY>::bind(const sockaddr* addr, size_t addrlen) {
 
 template<socket_family FAMILY>
 nt_status udp_socket<FAMILY>::connect(const sockaddr* addr, size_t addrlen) {
+    nt_status status;
+
     if (addr->sa_family != FAMILY::family)
         return nt_status::INVALID_PARAMETER;
 
@@ -868,6 +870,46 @@ nt_status udp_socket<FAMILY>::connect(const sockaddr* addr, size_t addrlen) {
     auto& c = *(typename FAMILY::sockaddr*)addr;
 
     uint16_t port;
+    typename FAMILY::address src;
+
+    {
+        netif* pni = nullptr;
+
+        if constexpr (is_same_v<FAMILY, ipv4>) {
+            ipv4_address gateway;
+
+            src = parse_ipv4_address("0.0.0.0");
+
+            {
+                lock_guard lock(bind_lock);
+
+                if (bind_done)
+                    src = bound_address;
+            }
+
+            status = ipv4_choose_interface(*(ipv4_address*)&c.sin_addr, pni,
+                                        src, gateway);
+            if (!success(status))
+                return status;
+        } else if constexpr (is_same_v<FAMILY, ipv6>) {
+            src = parse_ipv6_address("::");
+
+            {
+                lock_guard lock(bind_lock);
+
+                if (bind_done)
+                    src = bound_address;
+            }
+
+            status = ipv6_choose_interface(*(ipv6_address*)&c.sin6_addr,
+                                           c.sin6_scope_id, pni, src);
+            if (!success(status))
+                return status;
+        }
+
+        if (pni)
+            pni->release();
+    }
 
     {
         lock_guard lock(udp_ports_lock);
@@ -886,11 +928,7 @@ nt_status udp_socket<FAMILY>::connect(const sockaddr* addr, size_t addrlen) {
             this->acquire();
 
             bound_port = port;
-
-            if constexpr (is_same_v<FAMILY, ipv4>)
-                bound_address = parse_ipv4_address("0.0.0.0");
-            else if constexpr (is_same_v<FAMILY, ipv6>)
-                bound_address = parse_ipv6_address("::");
+            bound_address = src;
 
             bind_done = true;
         }
