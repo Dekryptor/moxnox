@@ -77,7 +77,7 @@ public:
     list_entry buffer = { &buffer, &buffer };
     size_t buffer_size = 0;
     spinlock bind_lock;
-    bool bind_done = false, connect_done = false;
+    bool bind_done = false, connect_done = false, autobound = false;
     uint16_t bound_port, connected_port;
     uint32_t connected_scope = 0;
     typename FAMILY::address bound_address, connected_address;
@@ -645,6 +645,7 @@ nt_status udp_socket<FAMILY>::do_sendto(span<const span<const uint8_t>> v,
                 bound_address = parse_ipv6_address("::");
 
             bind_done = true;
+            autobound = true;
         }
 
         srcport = bound_port;
@@ -861,6 +862,27 @@ template<socket_family FAMILY>
 nt_status udp_socket<FAMILY>::connect(const sockaddr* addr, size_t addrlen) {
     nt_status status;
 
+    if (addr->sa_family == AF_UNSPEC) {
+        lock_guard lock(udp_ports_lock);
+        lock_guard lock2(bind_lock);
+
+        connect_done = false;
+
+        if (bind_done && autobound) {
+            if constexpr (is_same_v<FAMILY, ipv4>)
+                udp_ports_v4[bound_port] = nullptr;
+            else if constexpr (is_same_v<FAMILY, ipv6>)
+                udp_ports_v6[bound_port] = nullptr;
+
+            this->release();
+
+            bind_done = false;
+            autobound = false;
+        }
+
+        return nt_status::SUCCESS;
+    }
+
     if (addr->sa_family != FAMILY::family)
         return nt_status::INVALID_PARAMETER;
 
@@ -931,6 +953,7 @@ nt_status udp_socket<FAMILY>::connect(const sockaddr* addr, size_t addrlen) {
             bound_address = src;
 
             bind_done = true;
+            autobound = true;
         }
 
         if (connect_done)
