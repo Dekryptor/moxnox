@@ -1251,14 +1251,25 @@ static int reverse_dns_lookup2(int sock, const ipv6_address& server,
     LARGE_INTEGER sent_time;
     int64_t deadline;
     nt_status status;
-    struct sockaddr_in6 dest;
+    struct sockaddr_in dest4;
+    struct sockaddr_in6 dest6;
     int ret;
+    bool ipv4 = is_actually_ipv4(server);
 
-    memset(&dest, 0, sizeof(dest));
+    if (ipv4) {
+        memset(&dest4, 0, sizeof(dest4));
 
-    dest.sin6_family = AF_INET6;
-    dest.sin6_port = byteswap(DNS_PORT);
-    *(ipv6_address*)&dest.sin6_addr = server;
+        dest4.sin_family = AF_INET;
+        dest4.sin_port = byteswap(DNS_PORT);
+
+        memcpy(&dest4.sin_addr, server.v.data() + 12, sizeof(ipv4_address));
+    } else {
+        memset(&dest6, 0, sizeof(dest6));
+
+        dest6.sin6_family = AF_INET6;
+        dest6.sin6_port = byteswap(DNS_PORT);
+        *(ipv6_address*)&dest6.sin6_addr = server;
+    }
 
     size_t question_len = REVERSE_IPV6_LEN + sizeof(dns_question_suffix);
 
@@ -1284,10 +1295,18 @@ static int reverse_dns_lookup2(int sock, const ipv6_address& server,
     suf.type = DNS_PTR;
     suf.dns_class = DNS_IN;
 
-    // FIXME - connect, so we get ICMP errors? (Will need to implement connect with AF_UNSPEC to disconnect.)
+    // FIXME - connect, so we get ICMP errors?
 
-    auto sent = sendto(sock, pack, (int)packlen, 0, (struct sockaddr*)&dest,
-                        sizeof(dest));
+    ssize_t sent;
+
+    if (ipv4) {
+        sent = sendto(sock, pack, (int)packlen, 0, (struct sockaddr*)&dest4,
+                      sizeof(dest4));
+    } else {
+        sent = sendto(sock, pack, (int)packlen, 0, (struct sockaddr*)&dest6,
+                      sizeof(dest6));
+    }
+
     if (sent < 0) {
         print_stderr("sendto returned {} (errno {})\n", sent, errno_to_string_view(*_errno()));
         free(pack);
@@ -1310,7 +1329,8 @@ static int reverse_dns_lookup2(int sock, const ipv6_address& server,
         char resp[512]; // maximum size of DNS packet
         LARGE_INTEGER now;
         pollfd pfd;
-        sockaddr_in6 src;
+        sockaddr_in src4;
+        sockaddr_in6 src6;
         socklen_t srclen;
 
         status = NtQuerySystemTime(&now);
@@ -1342,10 +1362,15 @@ static int reverse_dns_lookup2(int sock, const ipv6_address& server,
             break;
         }
 
-        srclen = sizeof(src);
+        srclen = ipv4 ? sizeof(src4) : sizeof(src6);
 
-        auto bytes = recvfrom(sock, resp, sizeof(resp), 0, (sockaddr*)&src,
-                                &srclen);
+        ssize_t bytes;
+
+        if (ipv4)
+            bytes = recvfrom(sock, resp, sizeof(resp), 0, (sockaddr*)&src4, &srclen);
+        else
+            bytes = recvfrom(sock, resp, sizeof(resp), 0, (sockaddr*)&src6, &srclen);
+
         if (bytes < 0) {
             print_stderr("recvfrom returned {} (errno {})\n", bytes, errno_to_string_view(*_errno()));
             ret = EAI_SYSTEM;
@@ -1355,14 +1380,25 @@ static int reverse_dns_lookup2(int sock, const ipv6_address& server,
         // FIXME - handle case when reply comes through from previous server we tried?
         // FIXME - move duff servers to end of the list
 
-        if (src.sin6_family != AF_INET6)
-            continue;
+        if (ipv4) {
+            if (src4.sin_family != AF_INET)
+                continue;
 
-        if (*(ipv6_address*)&src.sin6_addr != *(ipv6_address*)&dest.sin6_addr)
-            continue;
+            if (*(ipv4_address*)&src4.sin_addr != *(ipv4_address*)&dest4.sin_addr)
+                continue;
 
-        if (src.sin6_port != dest.sin6_port)
-            continue;
+            if (src4.sin_port != dest4.sin_port)
+                continue;
+        } else {
+            if (src6.sin6_family != AF_INET6)
+                continue;
+
+            if (*(ipv6_address*)&src6.sin6_addr != *(ipv6_address*)&dest6.sin6_addr)
+                continue;
+
+            if (src6.sin6_port != dest6.sin6_port)
+                continue;
+        }
 
         if ((size_t)bytes < sizeof(dns_header))
             continue;
@@ -1451,28 +1487,41 @@ static int reverse_dns_lookup(const ipv6_address& addr, span<char> buf) {
     if (num_servers == 0)
         return EAI_AGAIN;
 
-    int sock = socket(AF_INET6, SOCK_DGRAM, 0);
-    if (sock < 0) {
-        print_stderr("socket returned {} (errno {})\n", sock, errno_to_string_view(*_errno()));
-        return EAI_SYSTEM;
-    }
+    unique_fd sock4, sock6;
 
     bool all_eai_again = true;
 
     for (size_t i = 0; i < num_servers; i++) {
-        auto ret = reverse_dns_lookup2(sock, dns_servers[i], addr, buf);
+        bool ipv4 = is_actually_ipv4(dns_servers[i]);
+
+        if (ipv4) {
+            if (!sock4) {
+                if (int fd = socket(AF_INET, SOCK_DGRAM, 0); fd < 0) {
+                    print_stderr("socket returned {} (errno {})\n", fd, errno_to_string_view(*_errno()));
+                    return EAI_SYSTEM;
+                } else
+                    sock4.reset(fd);
+            }
+        } else {
+            if (!sock6) {
+                if (int fd = socket(AF_INET6, SOCK_DGRAM, 0); fd < 0) {
+                    print_stderr("socket returned {} (errno {})\n", fd, errno_to_string_view(*_errno()));
+                    return EAI_SYSTEM;
+                } else
+                    sock6.reset(fd);
+            }
+        }
+
+        auto ret = reverse_dns_lookup2(ipv4 ? sock4.get() : sock6.get(),
+                                       dns_servers[i], addr, buf);
         if (ret != EAI_AGAIN)
             all_eai_again = false;
 
         if (ret != EAI_NONAME && ret != 0 && ret != EAI_MEMORY && ret != EAI_SYSTEM)
             continue;
 
-        closesocket(sock);
-
         return ret;
     }
-
-    _close(sock);
 
     if (all_eai_again)
         return EAI_AGAIN;
