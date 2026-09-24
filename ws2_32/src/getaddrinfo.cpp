@@ -57,6 +57,7 @@ static const char16_t netctl_path[] = u"/dev/netctl";
 
 static const uint16_t DNS_PORT = 53;
 
+static constexpr auto DNS_A = byteswap((uint16_t)1);
 static constexpr auto DNS_CNAME = byteswap((uint16_t)5);
 static constexpr auto DNS_PTR = byteswap((uint16_t)12);
 static constexpr auto DNS_AAAA = byteswap((uint16_t)28);
@@ -314,31 +315,60 @@ static int parse_dns_response(span<uint8_t> sp, span<uint8_t> resp,
             if (rr.type != type)
                 continue;
 
-            if (payload.size() != sizeof(ipv6_address))
+            if (type == DNS_A && payload.size() != sizeof(ipv4_address))
                 continue;
-
-            auto& addr = *(ipv6_address*)payload.data();
+            else if (type == DNS_AAAA && payload.size() != sizeof(ipv6_address))
+                continue;
 
             auto ai = (addrinfo*)malloc(sizeof(addrinfo));
             if (!ai)
                 return EAI_MEMORY;
 
-            auto sock = (sockaddr_in6*)malloc(sizeof(sockaddr_in6));
-            if (!sock) {
-                free(ai);
-                return EAI_MEMORY;
+            switch (type) {
+                case DNS_A: {
+                    auto& addr = *(ipv4_address*)payload.data();
+
+                    auto sock = (sockaddr_in*)malloc(sizeof(sockaddr_in));
+                    if (!sock) {
+                        free(ai);
+                        return EAI_MEMORY;
+                    }
+
+                    sock->sin_family = AF_INET;
+                    *(ipv4_address*)&sock->sin_addr = addr;
+                    sock->sin_port = 0;
+
+                    ai->ai_family = AF_INET;
+                    ai->ai_addrlen = sizeof(sockaddr_in);
+                    ai->ai_addr = (sockaddr*)sock;
+
+                    break;
+                }
+
+                case DNS_AAAA: {
+                    auto& addr = *(ipv6_address*)payload.data();
+
+                    auto sock = (sockaddr_in6*)malloc(sizeof(sockaddr_in6));
+                    if (!sock) {
+                        free(ai);
+                        return EAI_MEMORY;
+                    }
+
+                    sock->sin6_family = AF_INET6;
+                    sock->sin6_flowinfo = 0;
+                    *(ipv6_address*)&sock->sin6_addr = addr;
+                    sock->sin6_scope_id = 0;
+                    sock->sin6_port = 0;
+
+                    ai->ai_family = AF_INET6;
+                    ai->ai_addrlen = sizeof(sockaddr_in6);
+                    ai->ai_addr = (sockaddr*)sock;
+
+                    break;
+                }
             }
 
-            sock->sin6_family = AF_INET6;
-            sock->sin6_flowinfo = 0;
-            *(ipv6_address*)&sock->sin6_addr = addr;
-            sock->sin6_scope_id = 0;
-            sock->sin6_port = 0;
-
             ai->ai_flags = 0;
-            ai->ai_family = AF_INET6;
-            ai->ai_addrlen = sizeof(sockaddr_in6);
-            ai->ai_addr = (sockaddr*)sock;
             ai->ai_canonname = nullptr;
             ai->ai_next = nullptr;
 
@@ -369,7 +399,8 @@ static bool is_actually_ipv4(const ipv6_address& addr) {
 }
 
 static int dns_lookup2(int sock, const ipv6_address& server, string_view name,
-                       addrinfo** res, int socktype, int protocol, uint16_t port) {
+                       addrinfo** res, int socktype, int protocol, uint16_t port,
+                       uint16_t type) {
     LARGE_INTEGER sent_time;
     int64_t deadline;
     nt_status status;
@@ -417,7 +448,7 @@ static int dns_lookup2(int sock, const ipv6_address& server, string_view name,
     get_encoded_name(name, (uint8_t*)pack + sizeof(dns_header));
 
     auto& suf = *(dns_question_suffix*)(pack + sizeof(dns_header) + name_len);
-    suf.type = DNS_AAAA;
+    suf.type = type;
     suf.dns_class = DNS_IN;
 
     // FIXME - connect, so we get ICMP errors? (Will need to implement connect with AF_UNSPEC to disconnect.)
@@ -595,7 +626,11 @@ static int dns_lookup2(int sock, const ipv6_address& server, string_view name,
 
         if (*res) {
             for (auto* ai = *res; ai; ai = ai->ai_next) {
-                ((sockaddr_in6*)ai->ai_addr)->sin6_port = byteswap(port);
+                if (type == DNS_A)
+                    ((sockaddr_in*)ai->ai_addr)->sin_port = byteswap(port);
+                else if (type == DNS_AAAA)
+                    ((sockaddr_in6*)ai->ai_addr)->sin6_port = byteswap(port);
+
                 ai->ai_socktype = socktype;
                 ai->ai_protocol = protocol;
             }
@@ -611,7 +646,7 @@ static int dns_lookup2(int sock, const ipv6_address& server, string_view name,
 }
 
 static int dns_lookup(string_view name, addrinfo** res, int socktype,
-                      int protocol, uint16_t port) {
+                      int protocol, uint16_t port, int family) {
     nt_status status;
     array<ipv6_address, 8> dns_servers;
     IO_STATUS_BLOCK iosb;
@@ -668,8 +703,18 @@ static int dns_lookup(string_view name, addrinfo** res, int socktype,
             }
         }
 
-        auto ret = dns_lookup2(is_actually_ipv4(dns_servers[i]) ? sock4 : sock6,
-                               dns_servers[i], name, res, socktype, protocol, port);
+        int ret;
+
+        if (family == AF_INET) {
+            ret = dns_lookup2(is_actually_ipv4(dns_servers[i]) ? sock4 : sock6,
+                              dns_servers[i], name, res, socktype, protocol, port,
+                              DNS_A);
+        } else {
+            ret = dns_lookup2(is_actually_ipv4(dns_servers[i]) ? sock4 : sock6,
+                              dns_servers[i], name, res, socktype, protocol, port,
+                              DNS_AAAA);
+        }
+
         if (ret != EAI_AGAIN)
             all_eai_again = false;
 
@@ -724,6 +769,9 @@ int getaddrinfo(const char* node, const char* service, const addrinfo* hints,
         family = hints->ai_family;
         flags = hints->ai_flags;
     }
+
+    if (family != AF_UNSPEC && family != AF_INET && family != AF_INET6)
+        return EAI_FAMILY;
 
     if (flags & ~understood_flags)
         return EAI_BADFLAGS;
@@ -846,7 +894,7 @@ int getaddrinfo(const char* node, const char* service, const addrinfo* hints,
     if (flags & AI_NUMERICHOST)
         return EAI_NONAME;
 
-    return dns_lookup(n, res, socktype, protocol, port);
+    return dns_lookup(n, res, socktype, protocol, port, family);
 }
 
 extern "C"
