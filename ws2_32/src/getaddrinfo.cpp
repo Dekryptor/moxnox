@@ -1173,30 +1173,89 @@ static uint8_t hex_digit(uint8_t c) {
         return c + 'a' - 10;
 }
 
-static void ipv6_ptr_name(const ipv6_address& addr, uint8_t* buf) {
-    for (size_t i = 0; i < 16; i++) {
-        auto b = addr.v[16 - i - 1];
+template<socket_family FAMILY>
+static void ptr_name(const typename FAMILY::address& addr, uint8_t* buf) {
+    if constexpr (is_same_v<FAMILY, ipv4>) {
+        for (size_t i = 0; i < 4; i++) {
+            auto b = addr.v[4 - i - 1];
 
-        buf[0] = 1;
-        buf[1] = hex_digit(b & 0xf);
-        buf[2] = 1;
-        buf[3] = hex_digit((b & 0xf0) >> 4);
+            if (b >= 100) {
+                buf[0] = 3;
+                buf[1] = (b / 100) + '0';
+                buf[2] = ((b % 100) / 10) + '0';
+                buf[3] = (b % 10) + '0';
 
-        buf += 4;
+                buf += 4;
+            } else if (b >= 10) {
+                buf[0] = 2;
+                buf[1] = (b / 10) + '0';
+                buf[2] = (b % 10) + '0';
+
+                buf += 3;
+            } else {
+                buf[0] = 1;
+                buf[1] = b + '0';
+
+                buf += 2;
+            }
+        }
+
+        buf[0] = 7;
+        buf[1] = 'i';
+        buf[2] = 'n';
+        buf[3] = '-';
+        buf[4] = 'a';
+        buf[5] = 'd';
+        buf[6] = 'd';
+        buf[7] = 'r';
+
+        buf[8] = 4;
+        buf[9] = 'a';
+        buf[10] = 'r';
+        buf[11] = 'p';
+        buf[12] = 'a';
+
+        buf[13] = 0;
+    } else if constexpr (is_same_v<FAMILY, ipv6>) {
+        for (size_t i = 0; i < 16; i++) {
+            auto b = addr.v[16 - i - 1];
+
+            buf[0] = 1;
+            buf[1] = hex_digit(b & 0xf);
+            buf[2] = 1;
+            buf[3] = hex_digit((b & 0xf0) >> 4);
+
+            buf += 4;
+        }
+
+        buf[0] = 3;
+        buf[1] = 'i';
+        buf[2] = 'p';
+        buf[3] = '6';
+
+        buf[4] = 4;
+        buf[5] = 'a';
+        buf[6] = 'r';
+        buf[7] = 'p';
+        buf[8] = 'a';
+
+        buf[9] = 0;
+    }
+}
+
+static size_t ipv4_ptr_len(const ipv4_address& addr) {
+    size_t ret = 18;
+
+    for (auto b : addr.v) {
+        if (b >= 100)
+            ret += 3;
+        else if (b >= 10)
+            ret += 2;
+        else
+            ret++;
     }
 
-    buf[0] = 3;
-    buf[1] = 'i';
-    buf[2] = 'p';
-    buf[3] = '6';
-
-    buf[4] = 4;
-    buf[5] = 'a';
-    buf[6] = 'r';
-    buf[7] = 'p';
-    buf[8] = 'a';
-
-    buf[9] = 0;
+    return ret;
 }
 
 static int parse_dns_ptr_response(span<uint8_t> sp, span<uint8_t> resp,
@@ -1275,9 +1334,9 @@ static int parse_dns_ptr_response(span<uint8_t> sp, span<uint8_t> resp,
     return EAI_NONAME;
 }
 
-template<socket_family FAMILY>
+template<socket_family FAMILY, socket_family FAMILY2>
 static int reverse_dns_lookup2(int sock, const typename FAMILY::address& server,
-                               const ipv6_address& addr, span<char> buf) {
+                               const typename FAMILY2::address& addr, span<char> buf) {
     LARGE_INTEGER sent_time;
     int64_t deadline;
     nt_status status;
@@ -1296,7 +1355,14 @@ static int reverse_dns_lookup2(int sock, const typename FAMILY::address& server,
         *(ipv6_address*)&dest.sin6_addr = server;
     }
 
-    size_t question_len = REVERSE_IPV6_LEN + sizeof(dns_question_suffix);
+    size_t reverse_len;
+
+    if constexpr (is_same_v<FAMILY2, ipv4>)
+        reverse_len = ipv4_ptr_len(addr);
+    else if constexpr (is_same_v<FAMILY2, ipv6>)
+        reverse_len = REVERSE_IPV6_LEN;
+
+    size_t question_len = reverse_len + sizeof(dns_question_suffix);
 
     size_t packlen = sizeof(dns_header) + question_len;
     auto pack = (char*)malloc(packlen);
@@ -1314,9 +1380,9 @@ static int reverse_dns_lookup2(int sock, const typename FAMILY::address& server,
     h.response = 0;
     h.qdcount = byteswap((uint16_t)1);
 
-    ipv6_ptr_name(addr, (uint8_t*)pack + sizeof(dns_header));
+    ptr_name<FAMILY2>(addr, (uint8_t*)pack + sizeof(dns_header));
 
-    auto& suf = *(dns_question_suffix*)(pack + sizeof(dns_header) + REVERSE_IPV6_LEN);
+    auto& suf = *(dns_question_suffix*)(pack + sizeof(dns_header) + reverse_len);
     suf.type = DNS_PTR;
     suf.dns_class = DNS_IN;
 
@@ -1462,7 +1528,7 @@ static int reverse_dns_lookup2(int sock, const typename FAMILY::address& server,
 
         ret = parse_dns_ptr_response(sp, span((uint8_t*)resp, (size_t)bytes),
                                      num_answers,
-                                     span(pack + sizeof(dns_header), REVERSE_IPV6_LEN),
+                                     span(pack + sizeof(dns_header), reverse_len),
                                      buf);
         break;
     }
@@ -1472,7 +1538,8 @@ static int reverse_dns_lookup2(int sock, const typename FAMILY::address& server,
     return ret;
 }
 
-static int reverse_dns_lookup(const ipv6_address& addr, span<char> buf) {
+template<socket_family FAMILY>
+static int reverse_dns_lookup(const typename FAMILY::address& addr, span<char> buf) {
     nt_status status;
     array<ipv6_address, 8> dns_servers;
     IO_STATUS_BLOCK iosb;
@@ -1518,7 +1585,8 @@ static int reverse_dns_lookup(const ipv6_address& addr, span<char> buf) {
 
             memcpy(&serv4, dns_servers[i].v.data() + 12, sizeof(ipv4_address));
 
-            ret = reverse_dns_lookup2<ipv4>(sock4.get(), serv4, addr, buf);
+            ret = reverse_dns_lookup2<ipv4, FAMILY>(sock4.get(), serv4, addr,
+                                                    buf);
         } else {
             if (!sock6) {
                 if (int fd = socket(AF_INET6, SOCK_DGRAM, 0); fd < 0) {
@@ -1528,8 +1596,8 @@ static int reverse_dns_lookup(const ipv6_address& addr, span<char> buf) {
                     sock6.reset(fd);
             }
 
-            ret = reverse_dns_lookup2<ipv6>(sock6.get(), dns_servers[i], addr,
-                                            buf);
+            ret = reverse_dns_lookup2<ipv6, FAMILY>(sock6.get(), dns_servers[i],
+                                                    addr, buf);
         }
 
         if (ret != EAI_AGAIN)
@@ -1575,7 +1643,7 @@ static int getnameinfo_ipv6(const sockaddr* addr, socklen_t addrlen,
         auto& ip = *(ipv6_address*)&a.sin6_addr;
 
         if (!(flags & NI_NUMERICHOST)) {
-            auto ret = reverse_dns_lookup(ip, span(host, (size_t)hostlen));
+            auto ret = reverse_dns_lookup<ipv6>(ip, span(host, (size_t)hostlen));
 
             if (ret && (ret != EAI_NONAME || flags & NI_NAMEREQD))
                 return ret;
@@ -1644,16 +1712,14 @@ static int getnameinfo_ipv4(const sockaddr* addr, socklen_t addrlen,
 
         auto& ip = *(ipv4_address*)&a.sin_addr;
 
-#if 0
         if (!(flags & NI_NUMERICHOST)) {
-            auto ret = reverse_dns_lookup(ip, span(host, (size_t)hostlen));
+            auto ret = reverse_dns_lookup<ipv4>(ip, span(host, (size_t)hostlen));
 
             if (ret && (ret != EAI_NONAME || flags & NI_NAMEREQD))
                 return ret;
 
             done = true;
         }
-#endif
 
         if (!done) {
             char s[16];
