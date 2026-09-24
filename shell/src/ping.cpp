@@ -25,7 +25,7 @@ static const unsigned int SYSTEM_TIME_RESOLUTION = 10000000; // 100ns
 
 static void handle_echo_reply_v4(span<const char> data, int64_t sent_time,
                                  const sockaddr_in& addr, uint16_t identifier) {
-    char s[10]/*, host[NI_MAXHOST]*/;
+    char s[10], host[NI_MAXHOST];
     nt_status status;
     LARGE_INTEGER now;
 
@@ -54,22 +54,18 @@ static void handle_echo_reply_v4(span<const char> data, int64_t sent_time,
 
     sprintf(s, "%.3g", ms);
 
-#if 0
-    auto ret = getnameinfo((sockaddr*)&addr, sizeof(sockaddr_in), host, sizeof(host),
-                           nullptr, 0, NI_NAMEREQD);
+    auto ret = getnameinfo((sockaddr*)&addr, sizeof(sockaddr_in), host,
+                           sizeof(host), nullptr, 0, NI_NAMEREQD);
 
     if (!ret) {
         print("{} bytes from {} ({}): icmp_seq={} time={} ms\n", data.size(),
               host, *(ipv4_address*)&addr.sin_addr, byteswap(resp.sequence),
               string_view(s));
     } else {
-#endif
         print("{} bytes from {}: icmp_seq={} time={} ms\n", data.size(),
               *(ipv4_address*)&addr.sin_addr, byteswap(resp.sequence),
               string_view(s));
-#if 0
     }
-#endif
 }
 
 static void handle_echo_reply_v6(span<const char> data, int64_t sent_time,
