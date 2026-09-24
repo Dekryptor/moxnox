@@ -703,6 +703,99 @@ static int dns_lookup2(int sock, const ipv6_address& server, string_view name,
     return ret;
 }
 
+static int rearrange_list(addrinfo** res) {
+    unique_fd sock4, sock6;
+    addrinfo* first_good = nullptr;
+    addrinfo* last_good = nullptr;
+    addrinfo* first_bad = nullptr;
+    addrinfo* last_bad = nullptr;
+
+    while (*res) {
+        auto* ai = *res;
+        auto next = ai->ai_next;
+        int ret;
+
+        if (ai->ai_family == AF_INET) {
+            if (!sock4) {
+                if (auto fd = socket(AF_INET, SOCK_DGRAM, 0); fd < 0) {
+                    print_stderr("socket returned {} (errno {})\n", fd, errno_to_string_view(*_errno()));
+                    freeaddrinfo(first_good);
+                    freeaddrinfo(first_bad);
+                    freeaddrinfo(*res);
+                    return EAI_SYSTEM;
+                } else
+                    sock4.reset(fd);
+            } else {
+                sockaddr sa;
+
+                sa.sa_family = AF_UNSPEC;
+
+                connect(sock4.get(), &sa, sizeof(sa));
+            }
+
+            auto old_errno = *_errno();
+            ret = connect(sock4.get(), ai->ai_addr, sizeof(sockaddr_in));
+            *_errno() = old_errno;
+        } else if (ai->ai_family == AF_INET6) {
+            if (!sock6) {
+                if (auto fd = socket(AF_INET6, SOCK_DGRAM, 0); fd < 0) {
+                    print_stderr("socket returned {} (errno {})\n", fd, errno_to_string_view(*_errno()));
+                    freeaddrinfo(first_good);
+                    freeaddrinfo(first_bad);
+                    freeaddrinfo(*res);
+                    return EAI_SYSTEM;
+                } else
+                    sock6.reset(fd);
+            } else {
+                sockaddr sa;
+
+                sa.sa_family = AF_UNSPEC;
+
+                connect(sock6.get(), &sa, sizeof(sa));
+            }
+
+            auto old_errno = *_errno();
+            ret = connect(sock6.get(), ai->ai_addr, sizeof(sockaddr_in6));
+            *_errno() = old_errno;
+        }
+
+        ai->ai_next = nullptr;
+
+        if (!ret) {
+            if (last_good)
+                last_good->ai_next = ai;
+            else
+                first_good = ai;
+
+            last_good = ai;
+        } else {
+            if (last_bad)
+                last_bad->ai_next = ai;
+            else
+                first_bad = ai;
+
+            last_bad = ai;
+        }
+
+        *res = next;
+    }
+
+    if (!first_bad) {
+        *res = first_good;
+        return 0;
+    }
+
+    if (!first_good) {
+        *res = first_bad;
+        return 0;
+    }
+
+    last_good->ai_next = first_bad;
+    *res = first_good;
+
+    return 0;
+}
+
 static int dns_lookup(string_view name, addrinfo** res, int socktype,
                       int protocol, uint16_t port, int family) {
     nt_status status;
@@ -801,8 +894,8 @@ static int dns_lookup(string_view name, addrinfo** res, int socktype,
 
             if (ret1 == EAI_NONAME && ret2 == EAI_NONAME)
                 return EAI_NONAME;
-            else
-                return 0;
+
+            return rearrange_list(res);
         } else {
             if (family == AF_INET) {
                 ret = dns_lookup2(is_actually_ipv4(dns_servers[i]) ? sock4.get() : sock6.get(),
@@ -817,7 +910,10 @@ static int dns_lookup(string_view name, addrinfo** res, int socktype,
             if (ret != EAI_AGAIN)
                 all_eai_again = false;
 
-            if (ret == EAI_NONAME || ret == 0 || ret == EAI_MEMORY || ret == EAI_SYSTEM)
+            if (ret == 0)
+                return rearrange_list(res);
+
+            if (ret == EAI_NONAME || ret == EAI_MEMORY || ret == EAI_SYSTEM)
                 return ret;
         }
 
