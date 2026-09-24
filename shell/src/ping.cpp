@@ -2,6 +2,7 @@
 #include <stdio.h>
 #include <string.h>
 #include <stdlib.h>
+#include <getopt.h>
 #include <poll.h>
 #include <optional>
 #include <span>
@@ -478,23 +479,67 @@ static void do_ping_v4(SOCKET sock, const addrinfo& ai, string_view arg) {
 }
 
 int main(int argc, char** argv) {
-    // FIXME - cmdline options (getopt?)
+    bool ipv4 = false, ipv6 = false;
 
-    if (argc < 2) {
+    static const option options[] = {
+        { nullptr, 0, nullptr, 0 }
+    };
+
+    while (true) {
+        int index;
+        auto c = getopt_long(argc, argv, "46", options, &index);
+
+        if (c == -1)
+            break;
+
+        switch (c) {
+            case '4':
+                ipv4 = true;
+                break;
+
+            case '6':
+                ipv6 = true;
+                break;
+
+            case '?':
+                return 1;
+        }
+    }
+
+    if (ipv4 && ipv6) {
+        print_stderr("both -4 and -6 specified\n");
+        return 1;
+    }
+
+    if (optind == argc) {
         print_stderr("ping: usage error: Destination address required\n");
         return 1;
     }
 
-    if (argc > 2) {
+    if (argc > optind + 1) {
         // FIXME - Linux prints usage in this case
         print_stderr("ping: too many cmdline options\n");
         return 1;
     }
 
-    addrinfo* ai;
+    const char* dest = argv[optind];
 
-    if (auto res = getaddrinfo(argv[1], nullptr, nullptr, &ai); res != 0) {
-        print_stderr("ping: {}: {}\n", argv[1], gai_strerror(res));
+    addrinfo* ai;
+    addrinfo hints;
+
+    hints.ai_socktype = 0;
+    hints.ai_protocol = 0;
+    hints.ai_flags = AI_V4MAPPED | AI_ADDRCONFIG;
+
+    if (ipv4)
+        hints.ai_family = AF_INET;
+    else if (ipv6)
+        hints.ai_family = AF_INET6;
+    else
+        hints.ai_family = AF_UNSPEC;
+
+    if (auto res = getaddrinfo(dest, nullptr, &hints, &ai); res != 0) {
+        print_stderr("ping: {}: {}\n", dest, gai_strerror(res));
         return 1;
     }
 
@@ -511,7 +556,7 @@ int main(int argc, char** argv) {
                 return 1;
             }
 
-            do_ping_v6(sock, *rp, argv[1]);
+            do_ping_v6(sock, *rp, dest);
 
             closesocket(sock);
         } else if (rp->ai_family == AF_INET) {
@@ -522,7 +567,7 @@ int main(int argc, char** argv) {
                 return 1;
             }
 
-            do_ping_v4(sock, *rp, argv[1]);
+            do_ping_v4(sock, *rp, dest);
 
             closesocket(sock);
         }
@@ -532,7 +577,7 @@ int main(int argc, char** argv) {
     }
 
     if (!done)
-        print_stderr("ping: {}: no usable address returned\n", argv[1]);
+        print_stderr("ping: {}: no usable address returned\n", dest);
 
     freeaddrinfo(ai);
 
