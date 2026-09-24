@@ -273,6 +273,8 @@ static int parse_dns_response(span<uint8_t> sp, span<uint8_t> resp,
 
     static const int MAX_CNAME_COUNT = 10;
 
+    *res = nullptr;
+
     while (true) {
         bool found_cname = false;
 
@@ -389,6 +391,9 @@ static int parse_dns_response(span<uint8_t> sp, span<uint8_t> resp,
             break;
     }
 
+    if (!*res)
+        return EAI_NONAME;
+
     return 0;
 }
 
@@ -400,7 +405,7 @@ static bool is_actually_ipv4(const ipv6_address& addr) {
 
 static int dns_lookup2(int sock, const ipv6_address& server, string_view name,
                        addrinfo** res, int socktype, int protocol, uint16_t port,
-                       uint16_t type) {
+                       uint16_t type, addrinfo** last_entry) {
     LARGE_INTEGER sent_time;
     int64_t deadline;
     nt_status status;
@@ -606,8 +611,6 @@ static int dns_lookup2(int sock, const ipv6_address& server, string_view name,
 
         auto num_answers = byteswap(h2.ancount);
 
-        *res = nullptr;
-
         ret = parse_dns_response(sp, span((uint8_t*)resp, (size_t)bytes),
                                  num_answers, suf.type,
                                  span(pack + sizeof(dns_header), name_len),
@@ -633,6 +636,9 @@ static int dns_lookup2(int sock, const ipv6_address& server, string_view name,
 
                 ai->ai_socktype = socktype;
                 ai->ai_protocol = protocol;
+
+                if (last_entry)
+                    *last_entry = ai;
             }
 
             ret = 0;
@@ -705,29 +711,97 @@ static int dns_lookup(string_view name, addrinfo** res, int socktype,
 
         int ret;
 
-        if (family == AF_INET) {
-            ret = dns_lookup2(is_actually_ipv4(dns_servers[i]) ? sock4 : sock6,
-                              dns_servers[i], name, res, socktype, protocol, port,
-                              DNS_A);
+        if (family == AF_UNSPEC) {
+            addrinfo* res1 = nullptr;
+            addrinfo* res2 = nullptr;
+            addrinfo* last_entry;
+            int ret1, ret2;
+
+            ret1 = dns_lookup2(is_actually_ipv4(dns_servers[i]) ? sock4 : sock6,
+                               dns_servers[i], name, &res1, socktype, protocol,
+                               port, DNS_AAAA, &last_entry);
+            if (ret1 == EAI_MEMORY || ret1 == EAI_SYSTEM) {
+                if (sock4 != -1)
+                    closesocket(sock4);
+
+                if (sock6 != -1)
+                    closesocket(sock6);
+
+                return ret1;
+            } else if (ret1 != EAI_NONAME && ret1 != 0) {
+                if (ret1 != EAI_AGAIN)
+                    all_eai_again = false;
+
+                continue;
+            }
+
+            ret2 = dns_lookup2(is_actually_ipv4(dns_servers[i]) ? sock4 : sock6,
+                               dns_servers[i], name, &res2, socktype, protocol,
+                               port, DNS_A, nullptr);
+
+            if (ret2 != EAI_NONAME && ret2 != 0)
+                freeaddrinfo(res1);
+
+            if (ret2 == EAI_MEMORY || ret2 == EAI_SYSTEM) {
+                if (sock4 != -1)
+                    closesocket(sock4);
+
+                if (sock6 != -1)
+                    closesocket(sock6);
+
+                return ret2;
+            } else if (ret2 != EAI_NONAME && ret2 != 0) {
+                if (ret2 != EAI_AGAIN)
+                    all_eai_again = false;
+
+                continue;
+            }
+
+            // merge lists
+
+            if (ret1 == 0) {
+                *res = res1;
+
+                if (ret2 == 0)
+                    last_entry->ai_next = res2;
+            } else if (ret2 == 0)
+                *res = res2;
+
+            if (sock4 != -1)
+                closesocket(sock4);
+
+            if (sock6 != -1)
+                closesocket(sock6);
+
+            if (ret1 == EAI_NONAME && ret2 == EAI_NONAME)
+                return EAI_NONAME;
+            else
+                return 0;
         } else {
-            ret = dns_lookup2(is_actually_ipv4(dns_servers[i]) ? sock4 : sock6,
-                              dns_servers[i], name, res, socktype, protocol, port,
-                              DNS_AAAA);
+            if (family == AF_INET) {
+                ret = dns_lookup2(is_actually_ipv4(dns_servers[i]) ? sock4 : sock6,
+                                dns_servers[i], name, res, socktype, protocol, port,
+                                DNS_A, nullptr);
+            } else if (family == AF_INET6) {
+                ret = dns_lookup2(is_actually_ipv4(dns_servers[i]) ? sock4 : sock6,
+                                dns_servers[i], name, res, socktype, protocol, port,
+                                DNS_AAAA, nullptr);
+            }
+
+            if (ret != EAI_AGAIN)
+                all_eai_again = false;
+
+            if (ret == EAI_NONAME || ret == 0 || ret == EAI_MEMORY || ret == EAI_SYSTEM) {
+                if (sock4 != -1)
+                    closesocket(sock4);
+
+                if (sock6 != -1)
+                    closesocket(sock6);
+
+                return ret;
+            }
         }
 
-        if (ret != EAI_AGAIN)
-            all_eai_again = false;
-
-        if (ret != EAI_NONAME && ret != 0 && ret != EAI_MEMORY && ret != EAI_SYSTEM)
-            continue;
-
-        if (sock4 != -1)
-            closesocket(sock4);
-
-        if (sock6 != -1)
-            closesocket(sock6);
-
-        return ret;
     }
 
     if (sock4 != -1)
