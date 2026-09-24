@@ -956,9 +956,6 @@ nt_status udp_socket<FAMILY>::connect(const sockaddr* addr, size_t addrlen) {
             autobound = true;
         }
 
-        if (connect_done)
-            return nt_status::INVALID_PARAMETER;
-
         if constexpr (is_same_v<FAMILY, ipv4>) {
             connected_port = c.sin_port;
             connected_address = *(ipv4_address*)&c.sin_addr;
