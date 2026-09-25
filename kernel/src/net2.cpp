@@ -1873,6 +1873,7 @@ static void handle_ipv4_packet(netif& ni, packet& pack, const mac_address& src_m
         return;
 
     optional<ipv4_address> our_ip;
+    bool no_ipv4_addresses = true;
 
     {
         uint8_t matching_prefix;
@@ -1886,6 +1887,8 @@ static void handle_ipv4_packet(netif& ni, packet& pack, const mac_address& src_m
 
             if (!addr)
                 continue;
+
+            no_ipv4_addresses = false;
 
             if (ip.dst == parse_ipv4_address("255.255.255.255") || is_multicast_address(ip.dst)) {
                 if (!our_ip.has_value()) {
@@ -1913,8 +1916,12 @@ static void handle_ipv4_packet(netif& ni, packet& pack, const mac_address& src_m
         }
     }
 
-    if (!our_ip.has_value())
-        return;
+    if (!our_ip.has_value()) {
+        if (no_ipv4_addresses && (ip.dst == parse_ipv4_address("255.255.255.255") || is_multicast_address(ip.dst)))
+            our_ip = parse_ipv4_address("0.0.0.0");
+        else
+            return;
+    }
 
     if (!skip_checksum) {
         if (calc_ipv4_checksum(span(pack.data, ip_header_size)) != 0)
