@@ -1407,3 +1407,119 @@ nt_status udp_socket<FAMILY>::setsockopt_ipv6(sockopt_ipv6 opt, span<const uint8
     } else
         return nt_status::NOT_SUPPORTED;
 }
+
+static uint32_t get_dhcp_xid() {
+    auto rnd = (uint64_t)(kernel_time_page.system_time / (SYSTEM_TIME_RESOLUTION / TICK_RATE));
+
+    rnd = rnd * (uint64_t)1103515245 + 12345; // from Knuth
+
+    return (uint32_t)(rnd >> 16);
+}
+
+template<size_t N>
+struct dhcp_tlv2 : dhcp_tlv {
+    uint8_t value[N];
+} __attribute((packed));
+
+void send_dhcp_discover(netif& ni) {
+    nt_status status;
+
+    static const dhcp_option parameter_list[] = {
+        dhcp_option::subnet_mask,
+        dhcp_option::router,
+        dhcp_option::dns,
+        dhcp_option::lease_time,
+    };
+
+    struct _discover_msg {
+        ipv4_header ip;
+        udp_header udp;
+        dhcp_message dhcp;
+        dhcp_tlv2<1> option_53;
+        dhcp_tlv2<sizeof(parameter_list)> option_55;
+        dhcp_tlv2<2> option_57;
+        dhcp_tlv2<1 + sizeof(mac_address)> option_61;
+        dhcp_option option_255;
+    } __attribute((packed));
+
+    struct discover_msg : _discover_msg {
+        uint8_t padding[300 - sizeof(_discover_msg) + sizeof(ipv4_header) + sizeof(udp_header) ];
+    } __attribute((packed));
+
+    auto pack = new packet;
+    if (!pack) {
+        print("new failed\n");
+        return;
+    }
+
+    auto& msg = *(discover_msg*)pack->data;
+    pack->size = sizeof(discover_msg);
+
+    msg.ip.ihl = sizeof(ipv4_header) / sizeof(uint32_t);
+    msg.ip.version = 4;
+    msg.ip.ecn = 0;
+    msg.ip.dscp = 0;
+    msg.ip.total_length = byteswap((uint16_t)sizeof(discover_msg));
+    msg.ip.identification = 0;
+    msg.ip.fragment_offset1 = 0;
+    msg.ip.MF = 0;
+    msg.ip.DF = 1;
+    msg.ip.R = 0;
+    msg.ip.fragment_offset2 = 0;
+    msg.ip.ttl = DEFAULT_HOP_LIMIT;
+    msg.ip.protocol = IPPROTO_UDP;
+    msg.ip.header_checksum = 0;
+    msg.ip.src = parse_ipv4_address("0.0.0.0");
+    msg.ip.dst = parse_ipv4_address("255.255.255.255");
+
+    msg.ip.header_checksum = calc_ipv4_checksum(span((uint8_t*)&msg.ip, sizeof(ipv4_header)));
+
+    msg.udp.srcport = byteswap((uint16_t)68);
+    msg.udp.dstport = byteswap((uint16_t)67);
+    msg.udp.length = byteswap((uint16_t)(sizeof(discover_msg) - sizeof(ipv4_header)));
+    msg.udp.checksum = 0;
+
+    memset(&msg.dhcp, 0, sizeof(msg.dhcp));
+
+    msg.dhcp.op = dhcp_opcode::BOOTREQUEST;
+    msg.dhcp.htype = 1; // Ethernet
+    msg.dhcp.hlen = sizeof(mac_address);
+    msg.dhcp.xid = get_dhcp_xid();
+    memcpy(msg.dhcp.chaddr, ni.mac.v.data(), sizeof(mac_address));
+    msg.dhcp.cookie = DHCP_COOKIE;
+
+    msg.option_53.type = dhcp_option::dhcp_msg;
+    msg.option_53.length = 1;
+    msg.option_53.value[0] = 1;
+
+    msg.option_55.type = dhcp_option::parameter_list;
+    msg.option_55.length = sizeof(parameter_list);
+    memcpy(msg.option_55.value, parameter_list, sizeof(parameter_list));
+
+    msg.option_57.type = dhcp_option::dhcp_max_msg_size;
+    msg.option_57.length = 2;
+    *(uint16_t*)msg.option_57.value = byteswap((uint16_t)MTU);
+
+    msg.option_61.type = dhcp_option::client_id;
+    msg.option_61.length = 1 + sizeof(mac_address);
+    msg.option_61.value[0] = 1;
+    *(mac_address*)&msg.option_61.value[1] = ni.mac;
+
+    msg.option_255 = dhcp_option::end;
+
+    memset(&msg.padding, 0, sizeof(msg.padding));
+
+    msg.udp.checksum = calc_ipv4_checksum(msg.ip, span((uint8_t*)&msg.udp, pack->size - sizeof(ipv4_header)),
+                                          IPPROTO_UDP);
+
+    ni.dhcp_status = dhcp_status::sent_discover;
+
+    status = dispatch_packet<ipv4>(ni, *pack, { 0xff, 0xff, 0xff, 0xff, 0xff, 0xff });
+    if (!success(status)) {
+        ni.dhcp_status = dhcp_status::need_discover;
+        pack->release();
+        return;
+    }
+
+    pack->release();
+}

@@ -2136,6 +2136,49 @@ static void send_router_solicitations() {
     }
 }
 
+static void send_dhcp_messages() {
+    while (true) {
+        netif* ni = nullptr;
+
+        {
+            lock_guard lock(netif_lock);
+
+            for (auto le = netif_list.next; le != &netif_list; le = le->next) {
+                auto& ni2 = containing_record<netif>(le);
+
+                if (ni2.dhcp_visited || ni2.dhcp_status == dhcp_status::not_needed)
+                    continue;
+
+                ni2.dhcp_visited = true;
+
+                if (ni2.dhcp_status == dhcp_status::need_discover) {
+                    ni = &ni2;
+                    ni2.acquire();
+                    break;
+                }
+            }
+        }
+
+        if (!ni)
+            break;
+
+        if (ni->dhcp_status == dhcp_status::need_discover)
+            send_dhcp_discover(*ni);
+
+        ni->release();
+    }
+
+    {
+        lock_guard lock(netif_lock);
+
+        for (auto le = netif_list.next; le != &netif_list; le = le->next) {
+            auto& ni = containing_record<netif>(le);
+
+            ni.dhcp_visited = false;
+        }
+    }
+}
+
 static void netif_routers_tick(netif& ni) {
     while (true) {
         ipv6_router* dead_router = nullptr;
@@ -2307,6 +2350,7 @@ static void network_housekeeping() {
     // once a second
 
     send_router_solicitations();
+    send_dhcp_messages();
     router_lifetime_tick();
     reap_neighbour_cache();
     reap_arp_cache();
@@ -2403,6 +2447,8 @@ bool init_net() {
     }
 
     add_ipv4_route(*lo, parse_ipv4_address("127.0.0.0"), 8, parse_ipv4_address("0.0.0.0"));
+
+    lo->dhcp_status = dhcp_status::not_needed;
 
     add_kernel_thread(network_thread);
 

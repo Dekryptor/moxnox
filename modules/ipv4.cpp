@@ -125,6 +125,50 @@ export enum icmpv4_time_exceeded_code : uint8_t {
     fragmentation_time_exceeded = 1,
 };
 
+export enum dhcp_opcode : uint8_t {
+    BOOTREQUEST = 1,
+    BOOTREPLY = 2
+};
+
+export struct dhcp_message {
+    enum dhcp_opcode op;
+    uint8_t htype;
+    uint8_t hlen;
+    uint8_t hops;
+    uint32_t xid;
+    uint16_t secs;
+    uint16_t flags;
+    ipv4_address ciaddr;
+    ipv4_address yiaddr;
+    ipv4_address siaddr;
+    ipv4_address giaddr;
+    uint8_t chaddr[16];
+    uint8_t sname[64];
+    uint8_t file[128];
+    uint32_t cookie;
+} __attribute((packed));
+
+static_assert(sizeof(dhcp_message) == 240);
+
+export const uint32_t DHCP_COOKIE = 0x63538263;
+
+export enum dhcp_option : uint8_t {
+    subnet_mask = 1,
+    router = 3,
+    dns = 6,
+    lease_time = 51,
+    dhcp_msg = 53,
+    parameter_list = 55,
+    dhcp_max_msg_size = 57,
+    client_id = 61,
+    end = 255,
+};
+
+export struct dhcp_tlv {
+    enum dhcp_option type;
+    uint8_t length;
+} __attribute((packed));
+
 template<>
 consteval bool format_spec_valid<ipv4_address>(string_view fmt) {
     return fmt.empty();

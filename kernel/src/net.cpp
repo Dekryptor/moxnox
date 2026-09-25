@@ -110,6 +110,12 @@ struct socket_packet {
     packet& pack;
 };
 
+enum dhcp_status {
+    not_needed,
+    need_discover,
+    sent_discover,
+};
+
 export class netif {
 public:
     // FIXME - GCC 15 errors if no ctor or dtor here
@@ -150,6 +156,8 @@ public:
     list_entry routers = { &routers, &routers };
     bool tx_udpv6_csum_offload = false;
     bool tx_tcpv6_csum_offload = false;
+    bool dhcp_visited = false;
+    enum dhcp_status dhcp_status = dhcp_status::need_discover;
 };
 
 export class socket : public rw_sync_object {
@@ -474,3 +482,4 @@ void maybe_add_to_neighbour_cache(netif& ni, const ipv6_address& dst,
 nt_status create_unix_socket_pair(int type, object_ref& ref1, object_ref& ref2);
 export void add_ipv4_route(netif& ni, const ipv4_address& prefix,
                            uint8_t prefix_length, const ipv4_address& gateway);
+void send_dhcp_discover(netif& ni);
