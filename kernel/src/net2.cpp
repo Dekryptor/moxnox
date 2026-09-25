@@ -4621,7 +4621,7 @@ mac_address search_arp_cache(netif& ni, const ipv4_address& dst) {
     return ret;
 }
 
-static bool is_broadcast_address(netif& ni, const ipv4_address& dst) {
+bool is_broadcast_address(netif& ni, const ipv4_address& dst) {
     if (dst == parse_ipv4_address("255.255.255.255"))
         return true;
 

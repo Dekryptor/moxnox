@@ -455,6 +455,7 @@ nt_status ipv6_choose_interface(const ipv6_address& dst, uint32_t scope_id,
                                 netif*& ni, ipv6_address& src);
 bool is_multicast_address(const ipv4_address& addr);
 bool is_multicast_address(const ipv6_address& addr);
+bool is_broadcast_address(netif& ni, const ipv4_address& dst);
 void send_address_unreachable(netif& ni, const packet& pack,
                               const ipv4_address& addr);
 void send_address_unreachable(netif& ni, const packet& pack,

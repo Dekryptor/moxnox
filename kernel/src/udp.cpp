@@ -270,7 +270,9 @@ void received_ipv4_udp_packet(netif& ni, packet& pack,
     }
 
     if (!sock) {
-        send_port_unreachable_v4(ni, pack, src_mac);
+        if (!is_broadcast_address(ni, ip.dst))
+            send_port_unreachable_v4(ni, pack, src_mac);
+
         return;
     }
 
