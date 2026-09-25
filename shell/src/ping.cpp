@@ -116,8 +116,8 @@ static void handle_echo_reply_v6(span<const char> data, int64_t sent_time,
     }
 }
 
-static void handle_dest_unreachable(span<const char> data, const sockaddr_in6& addr,
-                                    uint16_t identifier) {
+static void handle_dest_unreachable_v6(span<const char> data, const sockaddr_in6& addr,
+                                       uint16_t identifier) {
     if (data.size() < sizeof(icmpv6_error))
         return;
 
@@ -335,8 +335,8 @@ static void do_ping_v6(SOCKET sock, const addrinfo& ai, string_view arg) {
                 case icmpv6_type::packet_too_big:
                 case icmpv6_type::time_exceeded:
                 case icmpv6_type::param_problem:
-                    handle_dest_unreachable(span(buf, (size_t)len), addr,
-                                            echo.identifier);
+                    handle_dest_unreachable_v6(span(buf, (size_t)len), addr,
+                                               echo.identifier);
                 break;
 
                 case icmpv6_type::echo_reply:
@@ -353,6 +353,146 @@ static void do_ping_v6(SOCKET sock, const addrinfo& ai, string_view arg) {
     }
 
     // FIXME - print summary before quitting
+}
+
+static void handle_dest_unreachable_v4(span<const char> data, const sockaddr_in& addr,
+                                       uint16_t identifier) {
+    if (data.size() < sizeof(icmpv4_error))
+        return;
+
+    auto& resp = *(icmpv4_error*)data.data();
+
+    if (resp.header.protocol != IPPROTO_ICMP)
+        return;
+
+    if (data.size() < sizeof(icmpv4_error))
+        return;
+
+    auto& payload = *(icmpv4_header*)(data.data() + sizeof(icmpv4_error));
+
+    if (payload.type != icmpv4_type::echo_request) // not a ping
+        return;
+
+    if (data.size() < sizeof(icmpv4_error) + sizeof(icmpv4_echo))
+        return;
+
+    auto& echo = *(icmpv4_echo*)(data.data() + sizeof(icmpv4_error));
+
+    if (echo.identifier != identifier) // not our ping
+        return;
+
+    string_view message, reason;
+
+    // FIXME - print codes if unknown
+
+    switch (resp.type) {
+        case icmpv4_type::dest_unreachable:
+            message = "Destination unreachable: ";
+
+            switch ((icmpv4_dest_unreachable_code)resp.code) {
+                using enum icmpv4_dest_unreachable_code;
+
+                case dest_net_unreachable:
+                    reason = "Destination Net Unreachable";
+                    break;
+
+                case dest_host_unreachable:
+                    reason = "Destination Host Unreachable";
+                    break;
+
+                case dest_proto_unreachable:
+                    reason = "Destination Protocol Unreachable";
+                    break;
+
+                case dest_port_unreachable:
+                    reason = "Destination Port Unreachable";
+                    break;
+
+                case fragmentation_required:
+                    reason = "Frag needed and DF set"; // FIXME - Linux includes MTU here
+                    break;
+
+                case src_route_failed:
+                    reason = "Source Route Failed";
+                    break;
+
+                case dest_net_unknown:
+                    reason = "Destination Net Unknown";
+                    break;
+
+                case dest_host_unknown:
+                    reason = "Destination Host Unknown";
+                    break;
+
+                case src_host_isolated:
+                    reason = "Source Host Isolated";
+                    break;
+
+                case net_administratively_prohibited:
+                    reason = "Destination Net Prohibited";
+                    break;
+
+                case host_administratively_prohibited:
+                    reason = "Destination Host Prohibited";
+                    break;
+
+                case net_unreachable_for_tos:
+                    reason = "Destination Net Unreachable for Type of Service";
+                    break;
+
+                case host_unreachable_for_tos:
+                    reason = "Destination Host Unreachable for Type of Service";
+                    break;
+
+                case communication_administratively_prohibited:
+                    reason = "Packet filtered";
+                    break;
+
+                case host_precedence_violation:
+                    reason = "Precedence Violation";
+                    break;
+
+                case precedence_cutoff_in_effect:
+                    reason = "Precedence Cutoff";
+                    break;
+
+                default:
+                    reason = "?";
+                    break;
+            }
+        break;
+
+        case icmpv4_type::time_exceeded:
+            message = "Time exceeded: ";
+
+            switch ((icmpv4_time_exceeded_code)resp.code) {
+                using enum icmpv4_time_exceeded_code;
+
+                case ttl_expired:
+                    reason = "Time to live exceeded";
+                    break;
+
+                case fragmentation_time_exceeded:
+                    reason = "Frag reassembly time exceeded";
+                    break;
+
+                default:
+                    reason = "?";
+                    break;
+            }
+        break;
+
+        case icmpv4_type::param_problem:
+            message = "Parameter problem";
+        break;
+
+        default:
+            break;
+    }
+
+    print_stderr("From {} icmp_seq={} {}{}\n",
+                 *(ipv4_address*)&addr.sin_addr, byteswap(echo.sequence),
+                 message, reason);
 }
 
 static void do_ping_v4(SOCKET sock, const addrinfo& ai, string_view arg) {
@@ -453,10 +593,10 @@ static void do_ping_v4(SOCKET sock, const addrinfo& ai, string_view arg) {
             switch (((icmpv4_header*)sp.data())->type) {
                 using enum icmpv4_type;
 
-                // case destination_unreachable:
-                // case time_exceeded:
-                //     handle_dest_unreachable_v4(sp, addr, echo.identifier);
-                // break;
+                case dest_unreachable:
+                case time_exceeded:
+                    handle_dest_unreachable_v4(sp, addr, echo.identifier);
+                break;
 
                 case echo_reply:
                     handle_echo_reply_v4(sp, sent_time.QuadPart, addr,

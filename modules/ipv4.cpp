@@ -120,6 +120,11 @@ export enum icmpv4_dest_unreachable_code : uint8_t {
     precedence_cutoff_in_effect = 15,
 };
 
+export enum icmpv4_time_exceeded_code : uint8_t {
+    ttl_expired = 0,
+    fragmentation_time_exceeded = 1,
+};
+
 template<>
 consteval bool format_spec_valid<ipv4_address>(string_view fmt) {
     return fmt.empty();
