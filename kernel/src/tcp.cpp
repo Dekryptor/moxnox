@@ -633,8 +633,7 @@ nt_status tcp_socket<FAMILY>::send_syn(const typename FAMILY::sockaddr& c,
     }
 
     if (dst_mac == NULL_MAC_ADDRESS) {
-        if constexpr (is_same_v<FAMILY, ipv6>)
-            send_address_unreachable(ni, *pack, src);
+        send_address_unreachable(ni, *pack, src);
 
         pack->release();
         ni.release();

@@ -760,8 +760,7 @@ nt_status udp_socket<FAMILY>::do_sendto(span<const span<const uint8_t>> v,
     }
 
     if (mac == NULL_MAC_ADDRESS) {
-        if constexpr (is_same_v<FAMILY, ipv6>)
-            send_address_unreachable(ni, *pack, src);
+        send_address_unreachable(ni, *pack, src);
 
         pack->release();
         ni.release();

@@ -4749,6 +4749,54 @@ void maybe_add_to_neighbour_cache(netif& ni, const ipv6_address& dst,
 }
 
 void send_address_unreachable(netif& ni, const packet& pack,
+                              const ipv4_address& addr) {
+    static const size_t MIN_MTU = 576;
+
+    auto pack2 = new packet;
+    if (!pack2) {
+        print("new failed\n");
+        return;
+    }
+
+    size_t payload_size = min(pack.size, MIN_MTU - sizeof(ipv4_header) - sizeof(icmpv4_error));
+
+    pack2->size = sizeof(ipv4_header) + offsetof(icmpv4_error, header) + payload_size;
+
+    auto& ip = *(ipv4_header*)pack2->data;
+    ip.ihl = sizeof(ipv4_header) / sizeof(uint32_t);
+    ip.version = 4;
+    ip.ecn = 0;
+    ip.dscp = 0;
+    ip.total_length = byteswap((uint16_t)(sizeof(ipv4_header) + offsetof(icmpv4_error, header) + payload_size));
+    ip.identification = 0;
+    ip.fragment_offset1 = 0;
+    ip.MF = 0;
+    ip.DF = 1;
+    ip.R = 0;
+    ip.fragment_offset2 = 0;
+    ip.ttl = DEFAULT_HOP_LIMIT;
+    ip.protocol = IPPROTO_ICMP;
+    ip.header_checksum = 0;
+    ip.src = addr;
+    ip.dst = addr;
+
+    auto& err = *(icmpv4_error*)(pack2->data + sizeof(ipv4_header));
+
+    err.type = icmpv4_type::dest_unreachable;
+    err.code = (uint8_t)icmpv4_dest_unreachable_code::dest_host_unreachable;
+    err.checksum = 0;
+    err.param = 0;
+
+    memcpy(&err.header, pack.data, payload_size);
+
+    err.checksum = calc_ipv4_checksum(span((uint8_t*)&err, offsetof(icmpv4_error, header) + payload_size));
+
+    handle_ipv4_packet(ni, *pack2, ni.mac, true);
+
+    pack2->release();
+}
+
+void send_address_unreachable(netif& ni, const packet& pack,
                               const ipv6_address& addr) {
     static const size_t MIN_MTU = 1280;
 
@@ -4951,8 +4999,7 @@ nt_status raw_socket<FAMILY>::do_sendto(span<const span<const uint8_t>> v,
     }
 
     if (mac == NULL_MAC_ADDRESS) {
-        if constexpr (is_same_v<FAMILY, ipv6>)
-            send_address_unreachable(ni, *pack, src);
+        send_address_unreachable(ni, *pack, src);
 
         pack->release();
         ni.release();
