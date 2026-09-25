@@ -170,48 +170,6 @@ static void test_ipv6_address_printing() {
 }
 #endif
 
-static void add_test_ipv4_address(netif& ni) {
-    bool already_exists = false;
-    auto address = parse_ipv4_address("10.0.2.15");
-
-    auto a = new ip_addr(address);
-    if (!a) {
-        print("new failed\n");
-        return;
-    }
-
-    a->slaac = false;
-    a->prefix = 24;
-
-    {
-        lock_guard lock(ni.addr_lock);
-
-        for (auto le = ni.addrs.next; le != &ni.addrs; le = le->next) {
-            auto& a2 = containing_record<ip_addr>(le);
-
-            if (auto* addr = get_if<ipv4_address>(&a2.addr)) {
-                if (*addr == address) {
-                    already_exists = true;
-                    break;
-                }
-            }
-        }
-
-        if (!already_exists)
-            insert_tail_list(ni.addrs, a->le);
-    }
-
-    if (already_exists)
-        delete a;
-    else
-        print("{}: added new IPv4 address {}\n", ni, address);
-
-    add_ipv4_route(ni, parse_ipv4_address("10.0.2.0"), 24,
-                   parse_ipv4_address("0.0.0.0"));
-    add_ipv4_route(ni, parse_ipv4_address("0.0.0.0"), 0,
-                   parse_ipv4_address("10.0.2.2"));
-}
-
 template<virtio_device T>
 void virtio_net<T>::init(const virtio_net_config& cfg) {
     memcpy(&mac, cfg.mac, sizeof(mac));
@@ -276,8 +234,6 @@ void virtio_net<T>::init(const virtio_net_config& cfg) {
         lock_guard lg(netif_lock);
         insert_tail_list(netif_list, this->le);
     }
-
-    add_test_ipv4_address(*this);
 
     this->acquire();
 
