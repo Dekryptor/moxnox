@@ -485,3 +485,4 @@ nt_status create_unix_socket_pair(int type, object_ref& ref1, object_ref& ref2);
 export void add_ipv4_route(netif& ni, const ipv4_address& prefix,
                            uint8_t prefix_length, const ipv4_address& gateway);
 void send_dhcp_discover(netif& ni);
+ipv4_address calculate_broadcast_address(const ipv4_address& addr, uint8_t prefix);

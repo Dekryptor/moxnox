@@ -1811,7 +1811,7 @@ static uint8_t calc_matching_prefix(const ipv4_address& a1, const ipv4_address& 
     return (uint8_t)countl_one(~(v1 ^ v2));
 }
 
-static ipv4_address calculate_broadcast_address(const ipv4_address& addr, uint8_t prefix) {
+ipv4_address calculate_broadcast_address(const ipv4_address& addr, uint8_t prefix) {
     uint32_t v = (uint32_t)(addr.v[0] << 24) | (uint32_t)(addr.v[1] << 16) | (uint32_t)(addr.v[2] << 8) | (uint32_t)addr.v[3];
     uint32_t mask;
     ipv4_address ret;

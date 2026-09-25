@@ -227,8 +227,12 @@ static void send_port_unreachable_v6(netif& ni, const packet& pack,
     pack2->release();
 }
 
+static uint32_t ipv4_address_to_num(const ipv4_address& a) {
+    return byteswap(*(uint32_t*)a.v.data());
+}
+
 static bool is_subnet_mask_sane(const ipv4_address& subnet_mask) {
-    auto v = byteswap(*(uint32_t*)subnet_mask.v.data());
+    auto v = ipv4_address_to_num(subnet_mask);
 
     if (subnet_mask == parse_ipv4_address("0.0.0.0"))
         return false;
@@ -247,7 +251,23 @@ static void received_dhcp_offer(netif& ni, const ipv4_address& offered_address,
     if (subnet_mask.has_value() && !is_subnet_mask_sane(*subnet_mask))
         return;
 
-    // FIXME - check offered_address is sane (not zero, not multicast, not limited broadcast)
+    if (offered_address == parse_ipv4_address("0.0.0.0") || offered_address == parse_ipv4_address("255.255.255.255"))
+        return;
+
+    if (is_multicast_address(offered_address))
+        return;
+
+    if (subnet_mask.has_value()) {
+        auto prefix = (uint8_t)countl_one(ipv4_address_to_num(*subnet_mask));
+
+        if (prefix != 31) {
+            if (offered_address == calculate_broadcast_address(offered_address, prefix))
+                return;
+
+            if ((ipv4_address_to_num(offered_address) & ipv4_address_to_num(*subnet_mask)) == ipv4_address_to_num(offered_address))
+                return;
+        }
+    }
 
     struct _request_msg {
         ipv4_header ip;
