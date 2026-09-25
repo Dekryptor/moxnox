@@ -1860,9 +1860,9 @@ static void handle_ipv4_packet(netif& ni, packet& pack, const mac_address& src_m
         return;
 
 #if 0
-    print("ipv4: version = {}, ihl = {}, dscp = {}, ecn = {}, total_length = {}, identification = {}, fragment_offset1 = {}, flags = {}, fragment_offset2 = {}, ttl = {}, protocol = {}, header_checksum = {:x}, src = {}, dst = {}\n",
+    print("ipv4: version = {}, ihl = {}, dscp = {}, ecn = {}, total_length = {}, identification = {}, fragment_offset1 = {}, MF = {}, DF = {}, fragment_offset2 = {}, ttl = {}, protocol = {}, header_checksum = {:x}, src = {}, dst = {}\n",
           ip.version, ip.ihl, ip.dscp, ip.ecn, byteswap((uint16_t)ip.total_length),
-          ip.identification, ip.fragment_offset1, ip.flags, ip.fragment_offset2,
+          ip.identification, ip.fragment_offset1, ip.MF, ip.DF, ip.fragment_offset2,
           ip.ttl, ip.protocol, byteswap((uint16_t)ip.header_checksum), ip.src, ip.dst);
 #endif
 
