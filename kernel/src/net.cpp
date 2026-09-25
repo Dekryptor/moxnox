@@ -158,6 +158,7 @@ public:
     bool tx_tcpv6_csum_offload = false;
     bool dhcp_visited = false;
     enum dhcp_status dhcp_status = dhcp_status::need_discover;
+    uint32_t dhcp_xid;
 };
 
 export class socket : public rw_sync_object {

@@ -158,6 +158,7 @@ export enum dhcp_option : uint8_t {
     dns = 6,
     lease_time = 51,
     dhcp_msg = 53,
+    dhcp_server_id = 54,
     parameter_list = 55,
     dhcp_max_msg_size = 57,
     client_id = 61,
@@ -168,6 +169,17 @@ export struct dhcp_tlv {
     enum dhcp_option type;
     uint8_t length;
 } __attribute((packed));
+
+export enum dhcp_message_type : uint8_t {
+     DHCPDISCOVER = 1,
+     DHCPOFFER = 2,
+     DHCPREQUEST = 3,
+     DHCPDECLINE = 4,
+     DHCPACK = 5,
+     DHCPNAK = 6,
+     DHCPRELEASE = 7,
+     DHCPINFORM = 8,
+};
 
 template<>
 consteval bool format_spec_valid<ipv4_address>(string_view fmt) {
@@ -294,4 +306,70 @@ export uint16_t calc_ipv4_checksum(span<const uint8_t> data) {
     }
 
     return byteswap((uint16_t)(~(uint16_t)sum));
+}
+
+template<>
+consteval bool format_spec_valid<dhcp_option>(string_view fmt) {
+    return fmt.empty();
+}
+
+export span<char> do_format_arg(span<char> sp, string_view,
+                                dhcp_option arg) {
+    switch (arg) {
+        using enum dhcp_option;
+
+        case subnet_mask:
+            return do_format_arg(sp, "", "subnet_mask");
+        case router:
+            return do_format_arg(sp, "", "router");
+        case dns:
+            return do_format_arg(sp, "", "dns");
+        case lease_time:
+            return do_format_arg(sp, "", "lease_time");
+        case dhcp_msg:
+            return do_format_arg(sp, "", "dhcp_msg");
+        case dhcp_server_id:
+            return do_format_arg(sp, "", "dhcp_server_id");
+        case parameter_list:
+            return do_format_arg(sp, "", "parameter_list");
+        case dhcp_max_msg_size:
+            return do_format_arg(sp, "", "dhcp_max_msg_size");
+        case client_id:
+            return do_format_arg(sp, "", "client_id");
+        case end:
+            return do_format_arg(sp, "", "end");
+        default:
+            return do_format_arg(sp, "", (uint8_t)arg);
+    }
+}
+
+template<>
+consteval bool format_spec_valid<dhcp_message_type>(string_view fmt) {
+    return fmt.empty();
+}
+
+export span<char> do_format_arg(span<char> sp, string_view,
+                                dhcp_message_type arg) {
+    switch (arg) {
+        using enum dhcp_message_type;
+
+        case DHCPDISCOVER:
+            return do_format_arg(sp, "", "DHCPDISCOVER");
+        case DHCPOFFER:
+            return do_format_arg(sp, "", "DHCPOFFER");
+        case DHCPREQUEST:
+            return do_format_arg(sp, "", "DHCPREQUEST");
+        case DHCPDECLINE:
+            return do_format_arg(sp, "", "DHCPDECLINE");
+        case DHCPACK:
+            return do_format_arg(sp, "", "DHCPACK");
+        case DHCPNAK:
+            return do_format_arg(sp, "", "DHCPNAK");
+        case DHCPRELEASE:
+            return do_format_arg(sp, "", "DHCPRELEASE");
+        case DHCPINFORM:
+            return do_format_arg(sp, "", "DHCPINFORM");
+        default:
+            return do_format_arg(sp, "", (uint8_t)arg);
+    }
 }
