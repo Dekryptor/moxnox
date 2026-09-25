@@ -456,6 +456,15 @@ static void received_dhcp_ack(netif& ni, const ipv4_address& offered_address,
     }
 }
 
+static void received_dhcp_nak(netif& ni, const ipv4_address& dhcp_server_id) {
+    if (dhcp_server_id != ni.dhcp_server_id)
+        return;
+
+    // FIXME - should be waiting 10 seconds before sending DISCOVER again
+
+    ni.dhcp_status = dhcp_status::need_discover;
+}
+
 static void received_dhcp_packet(netif& ni, packet& pack) {
     auto& ip = *(ipv4_header*)pack.data;
     auto ip_header_size = ip.ihl * sizeof(uint32_t);
@@ -585,7 +594,8 @@ static void received_dhcp_packet(netif& ni, packet& pack) {
             if (*dhcp_msg == dhcp_message_type::DHCPACK && dhcp_server_id.has_value()) {
                 received_dhcp_ack(ni, dhcp.yiaddr, *dhcp_server_id,
                                   subnet_mask, router, lease_time);
-            }
+            } else if (*dhcp_msg == dhcp_message_type::DHCPNAK && dhcp_server_id.has_value())
+                received_dhcp_nak(ni, *dhcp_server_id);
         break;
 
         default:
