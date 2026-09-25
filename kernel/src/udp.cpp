@@ -227,11 +227,26 @@ static void send_port_unreachable_v6(netif& ni, const packet& pack,
     pack2->release();
 }
 
+static bool is_subnet_mask_sane(const ipv4_address& subnet_mask) {
+    auto v = byteswap(*(uint32_t*)subnet_mask.v.data());
+
+    if (subnet_mask == parse_ipv4_address("0.0.0.0"))
+        return false;
+
+    if (subnet_mask == parse_ipv4_address("255.255.255.255"))
+        return false;
+
+    return countl_one(v) + countr_zero(v) == 32;
+}
+
 static void received_dhcp_offer(netif& ni, const ipv4_address& offered_address,
-                                const ipv4_address& dhcp_server_id) {
+                                const ipv4_address& dhcp_server_id,
+                                const optional<ipv4_address>& subnet_mask) {
     nt_status status;
 
-    // FIXME - check subnet_mask is sane
+    if (subnet_mask.has_value() && !is_subnet_mask_sane(*subnet_mask))
+        return;
+
     // FIXME - check offered_address is sane (not zero, not multicast, not limited broadcast)
 
     struct _request_msg {
@@ -450,7 +465,7 @@ static void received_dhcp_packet(netif& ni, packet& pack) {
         return;
 
     if (ni.dhcp_status == dhcp_status::sent_discover && *dhcp_msg == dhcp_message_type::DHCPOFFER && dhcp_server_id.has_value())
-        received_dhcp_offer(ni, dhcp.yiaddr, *dhcp_server_id);
+        received_dhcp_offer(ni, dhcp.yiaddr, *dhcp_server_id, subnet_mask);
 }
 
 void received_ipv4_udp_packet(netif& ni, packet& pack,
