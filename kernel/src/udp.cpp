@@ -374,7 +374,8 @@ static void received_dhcp_ack(netif& ni, const ipv4_address& offered_address,
                               const ipv4_address& dhcp_server_id,
                               const optional<ipv4_address>& subnet_mask,
                               const optional<ipv4_address>& router,
-                              const optional<uint32_t>& lease_time) {
+                              const optional<uint32_t>& lease_time,
+                              const optional<ipv4_address>& dns) {
     if (dhcp_server_id != ni.dhcp_server_id)
         return;
 
@@ -445,14 +446,20 @@ static void received_dhcp_ack(netif& ni, const ipv4_address& offered_address,
 
     print("{}: added new IPv4 address {}\n", ni, offered_address);
 
-    // FIXME - DNS
-
     add_ipv4_route(ni, zero_right_bits(offered_address, 32 - prefix), prefix,
                    parse_ipv4_address("0.0.0.0"));
 
     if (router.has_value()) {
         if (zero_right_bits(*router, 32 - prefix) == zero_right_bits(offered_address, 32 - prefix))
             add_ipv4_route(ni, parse_ipv4_address("0.0.0.0"), 0, *router);
+    }
+
+    if (dns.has_value()) {
+        auto addr = parse_ipv6_address("::ffff:0:0");
+
+        memcpy(addr.v.data() + 12, dns->v.data(), sizeof(ipv4_address));
+
+        add_dns_server(addr, ni.dhcp_lease_left);
     }
 }
 
@@ -593,7 +600,7 @@ static void received_dhcp_packet(netif& ni, packet& pack) {
         case sent_request:
             if (*dhcp_msg == dhcp_message_type::DHCPACK && dhcp_server_id.has_value()) {
                 received_dhcp_ack(ni, dhcp.yiaddr, *dhcp_server_id,
-                                  subnet_mask, router, lease_time);
+                                  subnet_mask, router, lease_time, dns);
             } else if (*dhcp_msg == dhcp_message_type::DHCPNAK && dhcp_server_id.has_value())
                 received_dhcp_nak(ni, *dhcp_server_id);
         break;

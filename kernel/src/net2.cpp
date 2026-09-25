@@ -1089,7 +1089,7 @@ static ipv6_address zero_right_bits(const ipv6_address& addr, uint8_t n) {
     return ret;
 }
 
-static void add_dns_server(const ipv6_address& address, uint32_t ttl) {
+void add_dns_server(const ipv6_address& address, uint32_t ttl) {
     {
         lock_guard lock(dns_servers_lock);
 

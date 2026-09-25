@@ -491,3 +491,4 @@ export void add_ipv4_route(netif& ni, const ipv4_address& prefix,
 void send_dhcp_discover(netif& ni);
 ipv4_address calculate_broadcast_address(const ipv4_address& addr, uint8_t prefix);
 ipv4_address zero_right_bits(const ipv4_address& addr, uint8_t n);
+void add_dns_server(const ipv6_address& address, uint32_t ttl);
