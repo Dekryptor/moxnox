@@ -115,6 +115,7 @@ enum dhcp_status {
     need_discover,
     sent_discover,
     sent_request,
+    done,
 };
 
 export class netif {
@@ -160,6 +161,9 @@ public:
     bool dhcp_visited = false;
     enum dhcp_status dhcp_status = dhcp_status::need_discover;
     uint32_t dhcp_xid;
+    ipv4_address dhcp_server_id;
+    ipv4_address dhcp_offered_address;
+    uint32_t dhcp_lease_left;
 };
 
 export class socket : public rw_sync_object {
@@ -486,3 +490,4 @@ export void add_ipv4_route(netif& ni, const ipv4_address& prefix,
                            uint8_t prefix_length, const ipv4_address& gateway);
 void send_dhcp_discover(netif& ni);
 ipv4_address calculate_broadcast_address(const ipv4_address& addr, uint8_t prefix);
+ipv4_address zero_right_bits(const ipv4_address& addr, uint8_t n);

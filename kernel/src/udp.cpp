@@ -6,6 +6,7 @@ module;
 #include <span>
 #include <bit>
 #include <atomic>
+#include <variant>
 
 module net;
 
@@ -356,6 +357,8 @@ static void received_dhcp_offer(netif& ni, const ipv4_address& offered_address,
                                           IPPROTO_UDP);
 
     ni.dhcp_status = dhcp_status::sent_request;
+    ni.dhcp_offered_address = offered_address;
+    ni.dhcp_server_id = dhcp_server_id;
 
     status = dispatch_packet<ipv4>(ni, *pack, { 0xff, 0xff, 0xff, 0xff, 0xff, 0xff });
     if (!success(status)) {
@@ -365,6 +368,92 @@ static void received_dhcp_offer(netif& ni, const ipv4_address& offered_address,
     }
 
     pack->release();
+}
+
+static void received_dhcp_ack(netif& ni, const ipv4_address& offered_address,
+                              const ipv4_address& dhcp_server_id,
+                              const optional<ipv4_address>& subnet_mask,
+                              const optional<ipv4_address>& router,
+                              const optional<uint32_t>& lease_time) {
+    if (dhcp_server_id != ni.dhcp_server_id)
+        return;
+
+    if (offered_address != ni.dhcp_offered_address)
+        return;
+
+    bool already_exists = false;
+    uint8_t prefix;
+
+    if (subnet_mask.has_value()) {
+        if (!is_subnet_mask_sane(*subnet_mask))
+            return;
+
+        prefix = (uint8_t)countl_one(ipv4_address_to_num(*subnet_mask));
+
+        if (prefix != 31) {
+            if (offered_address == calculate_broadcast_address(offered_address, prefix))
+                return;
+
+            if ((ipv4_address_to_num(offered_address) & ipv4_address_to_num(*subnet_mask)) == ipv4_address_to_num(offered_address))
+                return;
+        }
+    } else {
+        if (offered_address.v[0] < 128)
+            prefix = 8;
+        else if (offered_address.v[0] < 192)
+            prefix = 16;
+        else
+            prefix = 24;
+    }
+
+    auto a = new ip_addr(offered_address);
+    if (!a) {
+        print("new failed\n");
+        return;
+    }
+
+    a->slaac = false;
+    a->prefix = prefix;
+
+    {
+        lock_guard lock(ni.addr_lock);
+
+        for (auto le = ni.addrs.next; le != &ni.addrs; le = le->next) {
+            auto& a2 = containing_record<ip_addr>(le);
+
+            if (auto* addr = get_if<ipv4_address>(&a2.addr)) {
+                if (*addr == offered_address) {
+                    already_exists = true;
+                    break;
+                }
+            }
+        }
+
+        if (!already_exists)
+            insert_tail_list(ni.addrs, a->le);
+    }
+
+    if (already_exists)
+        delete a;
+
+    ni.dhcp_status = dhcp_status::done;
+
+    if (lease_time.has_value() && *lease_time != 0)
+        ni.dhcp_lease_left = *lease_time;
+    else
+        ni.dhcp_lease_left = 43200; // 12 hours
+
+    print("{}: added new IPv4 address {}\n", ni, offered_address);
+
+    // FIXME - DNS
+
+    add_ipv4_route(ni, zero_right_bits(offered_address, 32 - prefix), prefix,
+                   parse_ipv4_address("0.0.0.0"));
+
+    if (router.has_value()) {
+        if (zero_right_bits(*router, 32 - prefix) == zero_right_bits(offered_address, 32 - prefix))
+            add_ipv4_route(ni, parse_ipv4_address("0.0.0.0"), 0, *router);
+    }
 }
 
 static void received_dhcp_packet(netif& ni, packet& pack) {
@@ -484,8 +573,24 @@ static void received_dhcp_packet(netif& ni, packet& pack) {
     if (!dhcp_msg.has_value())
         return;
 
-    if (ni.dhcp_status == dhcp_status::sent_discover && *dhcp_msg == dhcp_message_type::DHCPOFFER && dhcp_server_id.has_value())
-        received_dhcp_offer(ni, dhcp.yiaddr, *dhcp_server_id, subnet_mask);
+    switch (ni.dhcp_status) {
+        using enum dhcp_status;
+
+        case sent_discover:
+            if (*dhcp_msg == dhcp_message_type::DHCPOFFER && dhcp_server_id.has_value())
+                received_dhcp_offer(ni, dhcp.yiaddr, *dhcp_server_id, subnet_mask);
+        break;
+
+        case sent_request:
+            if (*dhcp_msg == dhcp_message_type::DHCPACK && dhcp_server_id.has_value()) {
+                received_dhcp_ack(ni, dhcp.yiaddr, *dhcp_server_id,
+                                  subnet_mask, router, lease_time);
+            }
+        break;
+
+        default:
+            break;
+    }
 }
 
 void received_ipv4_udp_packet(netif& ni, packet& pack,

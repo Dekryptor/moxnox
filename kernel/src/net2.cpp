@@ -1047,7 +1047,7 @@ static void add_ipv6_prefix(netif& ni, const ipv6_address& prefix,
     add_ipv6_route(ni, prefix, prefix_length);
 }
 
-static ipv4_address zero_right_bits(const ipv4_address& addr, uint8_t n) {
+ipv4_address zero_right_bits(const ipv4_address& addr, uint8_t n) {
     ipv4_address ret = addr;
     unsigned int i = 3;
 
