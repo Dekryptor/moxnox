@@ -156,6 +156,7 @@ export enum class dhcp_option : uint8_t {
     subnet_mask = 1,
     router = 3,
     dns = 6,
+    address_request = 50,
     lease_time = 51,
     dhcp_msg = 53,
     dhcp_server_id = 54,
@@ -324,6 +325,8 @@ export span<char> do_format_arg(span<char> sp, string_view,
             return do_format_arg(sp, "", "router");
         case dns:
             return do_format_arg(sp, "", "dns");
+        case address_request:
+            return do_format_arg(sp, "", "address_request");
         case lease_time:
             return do_format_arg(sp, "", "lease_time");
         case dhcp_msg:

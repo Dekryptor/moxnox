@@ -108,6 +108,18 @@ struct udp_header {
 
 static_assert(sizeof(udp_header) == 8);
 
+template<size_t N>
+struct dhcp_tlv2 : dhcp_tlv {
+    uint8_t value[N];
+} __attribute((packed));
+
+static const dhcp_option dhcp_parameter_list[] = {
+    dhcp_option::subnet_mask,
+    dhcp_option::router,
+    dhcp_option::dns,
+    dhcp_option::lease_time,
+};
+
 static const size_t MAX_BUFFER_SIZE = 1048576;
 
 static constexpr auto DHCP_SERVER_PORT = byteswap((uint16_t)67);
@@ -215,6 +227,111 @@ static void send_port_unreachable_v6(netif& ni, const packet& pack,
     pack2->release();
 }
 
+static void received_dhcp_offer(netif& ni, const ipv4_address& offered_address,
+                                const ipv4_address& dhcp_server_id) {
+    nt_status status;
+
+    // FIXME - check subnet_mask is sane
+    // FIXME - check offered_address is sane (not zero, not multicast, not limited broadcast)
+
+    struct _request_msg {
+        ipv4_header ip;
+        udp_header udp;
+        dhcp_message dhcp;
+        dhcp_tlv2<sizeof(ipv4_address)> option_50;
+        dhcp_tlv2<1> option_53;
+        dhcp_tlv2<sizeof(ipv4_address)> option_54;
+        dhcp_tlv2<sizeof(dhcp_parameter_list)> option_55;
+        dhcp_tlv2<1 + sizeof(mac_address)> option_61;
+        dhcp_option option_255;
+    } __attribute((packed));
+
+    struct request_msg : _request_msg {
+        uint8_t padding[300 - sizeof(_request_msg) + sizeof(ipv4_header) + sizeof(udp_header)];
+    } __attribute((packed));
+
+    auto pack = new packet;
+    if (!pack) {
+        print("new failed\n");
+        return;
+    }
+
+    auto& msg = *(request_msg*)pack->data;
+    pack->size = sizeof(request_msg);
+
+    msg.ip.ihl = sizeof(ipv4_header) / sizeof(uint32_t);
+    msg.ip.version = 4;
+    msg.ip.ecn = 0;
+    msg.ip.dscp = 0;
+    msg.ip.total_length = byteswap((uint16_t)sizeof(request_msg));
+    msg.ip.identification = 0;
+    msg.ip.fragment_offset1 = 0;
+    msg.ip.MF = 0;
+    msg.ip.DF = 1;
+    msg.ip.R = 0;
+    msg.ip.fragment_offset2 = 0;
+    msg.ip.ttl = DEFAULT_HOP_LIMIT;
+    msg.ip.protocol = IPPROTO_UDP;
+    msg.ip.header_checksum = 0;
+    msg.ip.src = parse_ipv4_address("0.0.0.0");
+    msg.ip.dst = parse_ipv4_address("255.255.255.255");
+
+    msg.ip.header_checksum = calc_ipv4_checksum(span((uint8_t*)&msg.ip, sizeof(ipv4_header)));
+
+    msg.udp.srcport = DHCP_CLIENT_PORT;
+    msg.udp.dstport = DHCP_SERVER_PORT;
+    msg.udp.length = byteswap((uint16_t)(sizeof(request_msg) - sizeof(ipv4_header)));
+    msg.udp.checksum = 0;
+
+    memset(&msg.dhcp, 0, sizeof(msg.dhcp));
+
+    msg.dhcp.op = dhcp_opcode::BOOTREQUEST;
+    msg.dhcp.htype = 1; // Ethernet
+    msg.dhcp.hlen = sizeof(mac_address);
+    msg.dhcp.xid = ni.dhcp_xid;
+    memcpy(msg.dhcp.chaddr, ni.mac.v.data(), sizeof(mac_address));
+    msg.dhcp.cookie = DHCP_COOKIE;
+
+    msg.option_50.type = dhcp_option::address_request;
+    msg.option_50.length = sizeof(ipv4_address);
+    *(ipv4_address*)msg.option_50.value = offered_address;
+
+    msg.option_53.type = dhcp_option::dhcp_msg;
+    msg.option_53.length = 1;
+    msg.option_53.value[0] = (uint8_t)dhcp_message_type::DHCPREQUEST;
+
+    msg.option_54.type = dhcp_option::dhcp_server_id;
+    msg.option_54.length = sizeof(ipv4_address);
+    *(ipv4_address*)msg.option_54.value = dhcp_server_id;
+
+    msg.option_55.type = dhcp_option::parameter_list;
+    msg.option_55.length = sizeof(dhcp_parameter_list);
+    memcpy(msg.option_55.value, dhcp_parameter_list, sizeof(dhcp_parameter_list));
+
+    msg.option_61.type = dhcp_option::client_id;
+    msg.option_61.length = 1 + sizeof(mac_address);
+    msg.option_61.value[0] = 1;
+    *(mac_address*)&msg.option_61.value[1] = ni.mac;
+
+    msg.option_255 = dhcp_option::end;
+
+    memset(&msg.padding, 0, sizeof(msg.padding));
+
+    msg.udp.checksum = calc_ipv4_checksum(msg.ip, span((uint8_t*)&msg.udp, pack->size - sizeof(ipv4_header)),
+                                          IPPROTO_UDP);
+
+    ni.dhcp_status = dhcp_status::sent_request;
+
+    status = dispatch_packet<ipv4>(ni, *pack, { 0xff, 0xff, 0xff, 0xff, 0xff, 0xff });
+    if (!success(status)) {
+        ni.dhcp_status = dhcp_status::need_discover;
+        pack->release();
+        return;
+    }
+
+    pack->release();
+}
+
 static void received_dhcp_packet(netif& ni, packet& pack) {
     auto& ip = *(ipv4_header*)pack.data;
     auto ip_header_size = ip.ihl * sizeof(uint32_t);
@@ -231,6 +348,9 @@ static void received_dhcp_packet(netif& ni, packet& pack) {
     if (dhcp.xid != ni.dhcp_xid)
         return;
 
+    if (dhcp.op != dhcp_opcode::BOOTREPLY || dhcp.htype != 1 || dhcp.hlen != sizeof(mac_address))
+        return;
+
     auto opts = span((uint8_t*)&dhcp + sizeof(dhcp_message),
                      byteswap(udp.length) - sizeof(udp_header) - sizeof(dhcp_message));
 
@@ -239,11 +359,20 @@ static void received_dhcp_packet(netif& ni, packet& pack) {
           +dhcp.secs, +dhcp.flags, dhcp.ciaddr, dhcp.yiaddr, dhcp.siaddr,
           dhcp.giaddr, *(mac_address*)dhcp.chaddr);
 
+    optional<ipv4_address> subnet_mask, router, dns, dhcp_server_id;
+    optional<uint32_t> lease_time;
+    optional<dhcp_message_type> dhcp_msg;
+
     while (!opts.empty()) {
         auto opt = (dhcp_option)opts[0];
 
         if (opt == dhcp_option::end)
             break;
+
+        if ((uint8_t)opt == 0) {
+            opts = span(opts.data() + 1, opts.size() - 1);
+            continue;
+        }
 
         if (opts.size() < sizeof(dhcp_tlv))
             break;
@@ -260,47 +389,52 @@ static void received_dhcp_packet(netif& ni, packet& pack) {
         };
 
         switch (tlv.type) {
-            using enum dhcp_option;
-
-            case subnet_mask:
-                if (tlv.length >= sizeof(ipv4_address))
+            case dhcp_option::subnet_mask:
+                if (tlv.length >= sizeof(ipv4_address)) {
                     print("DHCP option {}: {}\n", tlv.type, *(ipv4_address*)opts.data());
-                else
+                    subnet_mask = *(ipv4_address*)opts.data();
+                } else
                     default_message();
                 break;
 
-            case router:
-                if (tlv.length >= sizeof(ipv4_address))
+            case dhcp_option::router:
+                if (tlv.length >= sizeof(ipv4_address)) {
                     print("DHCP option {}: {}\n", tlv.type, *(ipv4_address*)opts.data());
-                else
+                    router = *(ipv4_address*)opts.data();
+                } else
                     default_message();
                 break;
 
-            case dns:
-                if (tlv.length >= sizeof(ipv4_address))
+            case dhcp_option::dns:
+                // FIXME - can have multiple servers
+                if (tlv.length >= sizeof(ipv4_address)) {
                     print("DHCP option {}: {}\n", tlv.type, *(ipv4_address*)opts.data());
-                else
+                    dns = *(ipv4_address*)opts.data();
+                } else
                     default_message();
                 break;
 
-            case lease_time:
-                if (tlv.length >= sizeof(uint32_t))
+            case dhcp_option::lease_time:
+                if (tlv.length >= sizeof(uint32_t)) {
                     print("DHCP option {}: {}\n", tlv.type, byteswap(*(uint32_t*)opts.data()));
-                else
+                    lease_time = byteswap(*(uint32_t*)opts.data());
+                } else
                     default_message();
                 break;
 
-            case dhcp_msg:
-                if (tlv.length >= sizeof(dhcp_message_type))
+            case dhcp_option::dhcp_msg:
+                if (tlv.length >= sizeof(dhcp_message_type)) {
                     print("DHCP option {}: {}\n", tlv.type, *(dhcp_message_type*)opts.data());
-                else
+                    dhcp_msg = *(dhcp_message_type*)opts.data();
+                } else
                     default_message();
                 break;
 
-            case dhcp_server_id:
-                if (tlv.length >= sizeof(ipv4_address))
+            case dhcp_option::dhcp_server_id:
+                if (tlv.length >= sizeof(ipv4_address)) {
                     print("DHCP option {}: {}\n", tlv.type, *(ipv4_address*)opts.data());
-                else
+                    dhcp_server_id = *(ipv4_address*)opts.data();
+                } else
                     default_message();
                 break;
 
@@ -311,6 +445,12 @@ static void received_dhcp_packet(netif& ni, packet& pack) {
 
         opts = span(opts.data() + tlv.length, opts.size() - tlv.length);
     }
+
+    if (!dhcp_msg.has_value())
+        return;
+
+    if (ni.dhcp_status == dhcp_status::sent_discover && *dhcp_msg == dhcp_message_type::DHCPOFFER && dhcp_server_id.has_value())
+        received_dhcp_offer(ni, dhcp.yiaddr, *dhcp_server_id);
 }
 
 void received_ipv4_udp_packet(netif& ni, packet& pack,
@@ -1520,34 +1660,22 @@ static uint32_t get_dhcp_xid() {
     return (uint32_t)(rnd >> 16);
 }
 
-template<size_t N>
-struct dhcp_tlv2 : dhcp_tlv {
-    uint8_t value[N];
-} __attribute((packed));
-
 void send_dhcp_discover(netif& ni) {
     nt_status status;
-
-    static const dhcp_option parameter_list[] = {
-        dhcp_option::subnet_mask,
-        dhcp_option::router,
-        dhcp_option::dns,
-        dhcp_option::lease_time,
-    };
 
     struct _discover_msg {
         ipv4_header ip;
         udp_header udp;
         dhcp_message dhcp;
         dhcp_tlv2<1> option_53;
-        dhcp_tlv2<sizeof(parameter_list)> option_55;
+        dhcp_tlv2<sizeof(dhcp_parameter_list)> option_55;
         dhcp_tlv2<2> option_57;
         dhcp_tlv2<1 + sizeof(mac_address)> option_61;
         dhcp_option option_255;
     } __attribute((packed));
 
     struct discover_msg : _discover_msg {
-        uint8_t padding[300 - sizeof(_discover_msg) + sizeof(ipv4_header) + sizeof(udp_header) ];
+        uint8_t padding[300 - sizeof(_discover_msg) + sizeof(ipv4_header) + sizeof(udp_header)];
     } __attribute((packed));
 
     auto pack = new packet;
@@ -1599,8 +1727,8 @@ void send_dhcp_discover(netif& ni) {
     msg.option_53.value[0] = (uint8_t)dhcp_message_type::DHCPDISCOVER;
 
     msg.option_55.type = dhcp_option::parameter_list;
-    msg.option_55.length = sizeof(parameter_list);
-    memcpy(msg.option_55.value, parameter_list, sizeof(parameter_list));
+    msg.option_55.length = sizeof(dhcp_parameter_list);
+    memcpy(msg.option_55.value, dhcp_parameter_list, sizeof(dhcp_parameter_list));
 
     msg.option_57.type = dhcp_option::dhcp_max_msg_size;
     msg.option_57.length = 2;

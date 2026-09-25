@@ -114,6 +114,7 @@ enum dhcp_status {
     not_needed,
     need_discover,
     sent_discover,
+    sent_request,
 };
 
 export class netif {
