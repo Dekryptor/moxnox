@@ -1003,6 +1003,108 @@ void udp_socket<FAMILY>::last_handle_closed() {
     }
 }
 
+void handle_icmpv4_error_udp(packet& pack) {
+    const auto& orig_ip = *(ipv4_header*)pack.data;
+    size_t ip_header_size = orig_ip.ihl * sizeof(uint32_t);
+    const auto& icmp = *(icmpv4_error*)(pack.data + ip_header_size);
+
+    if (pack.size < ip_header_size + sizeof(icmpv4_error) + sizeof(udp_header))
+        return;
+
+    const auto& udp = *(udp_header*)(pack.data + ip_header_size + sizeof(icmpv4_error));
+
+    udp_socket<ipv4>* sock;
+
+    {
+        lock_guard lock(udp_ports_lock);
+
+        if (udp_ports_v4[udp.srcport]) {
+            sock = udp_ports_v4[udp.srcport];
+            sock->acquire();
+        } else
+            return;
+    }
+
+    bool drop = false;
+
+    {
+        lock_guard lock(sock->bind_lock);
+
+        if (sock->bound_address != parse_ipv4_address("0.0.0.0") && sock->bound_address != icmp.header.src)
+            drop = true;
+        else if (sock->connect_done && (sock->connected_address != icmp.header.dst || sock->connected_port != udp.dstport))
+            drop = true;
+    }
+
+    if (drop) {
+        sock->release();
+        return;
+    }
+
+    nt_status err;
+
+    switch (icmp.type) {
+        case icmpv4_type::dest_unreachable:
+            switch ((icmpv4_dest_unreachable_code)icmp.code) {
+                using enum icmpv4_dest_unreachable_code;
+
+                case dest_net_unreachable:
+                case dest_net_unknown:
+                    err = nt_status::NETWORK_UNREACHABLE;
+                    break;
+
+                case host_administratively_prohibited:
+                case net_administratively_prohibited:
+                case communication_administratively_prohibited:
+                    err = nt_status::ACCESS_DENIED;
+                    break;
+
+                case dest_host_unreachable:
+                case dest_host_unknown:
+                    err = nt_status::HOST_UNREACHABLE;
+                    break;
+
+                case dest_proto_unreachable:
+                case dest_port_unreachable:
+                    err = nt_status::CONNECTION_REFUSED;
+                    break;
+
+                default:
+                    err = nt_status::HOST_UNREACHABLE;
+                    break;
+            }
+            break;
+
+        case icmpv4_type::time_exceeded:
+            err = nt_status::HOST_UNREACHABLE;
+            break;
+
+        case icmpv4_type::param_problem:
+            err = nt_status::PROTOCOL_UNREACHABLE;
+            break;
+
+        default:
+            unreachable();
+    }
+
+    {
+        sync_lock sl;
+        lock_guard lock(sl);
+        lock_guard lock2(sock->buffer_lock);
+
+        if (success(sock->pending_error)) {
+            sock->pending_error = err;
+
+            if (!sock->signalled) {
+                wake_up_waiters(sock->waiters, WAIT_TYPE_READING);
+                sock->signalled = true;
+            }
+        }
+    }
+
+    sock->release();
+}
+
 void handle_icmpv6_error_udp(packet& pack) {
     const auto& icmp = *(icmpv6_error*)(pack.data + sizeof(ipv6_header));
 

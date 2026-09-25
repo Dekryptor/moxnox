@@ -65,14 +65,14 @@ static_assert(sizeof(arp_header) == 28);
 
 export enum class icmpv4_type : uint8_t {
     echo_reply = 0,
-    destination_unreachable = 3,
+    dest_unreachable = 3,
     source_quench = 4,
     redirect_message = 5,
     echo_request = 8,
     router_advertisement = 9,
     router_solicitation = 10,
     time_exceeded = 11,
-    bad_ip_header = 12,
+    param_problem = 12,
     timestamp = 13,
     timestamp_reply = 14,
     extended_echo_request = 42,
@@ -93,6 +93,32 @@ export struct icmpv4_echo : icmpv4_header {
 } __attribute((packed));
 
 static_assert(sizeof(icmpv4_echo) == 8);
+
+export struct icmpv4_error : icmpv4_header {
+    uint32_t param;
+    ipv4_header header;
+} __attribute((packed));
+
+static_assert(sizeof(icmpv4_error) == 28);
+
+export enum icmpv4_dest_unreachable_code : uint8_t {
+    dest_net_unreachable = 0,
+    dest_host_unreachable = 1,
+    dest_proto_unreachable = 2,
+    dest_port_unreachable = 3,
+    fragmentation_required = 4,
+    src_route_failed = 5,
+    dest_net_unknown = 6,
+    dest_host_unknown = 7,
+    src_host_isolated = 8,
+    net_administratively_prohibited = 9,
+    host_administratively_prohibited = 10,
+    net_unreachable_for_tos = 11,
+    host_unreachable_for_tos = 12,
+    communication_administratively_prohibited = 13,
+    host_precedence_violation = 14,
+    precedence_cutoff_in_effect = 15,
+};
 
 template<>
 consteval bool format_spec_valid<ipv4_address>(string_view fmt) {

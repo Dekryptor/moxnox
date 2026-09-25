@@ -1749,6 +1749,27 @@ static void handle_v4_echo_request(netif& ni, packet& pack, const mac_address& s
     pack2->release();
 }
 
+static void handle_icmpv4_error(packet& pack, bool skip_checksum) {
+    const auto& orig_ip = *(ipv4_header*)pack.data;
+    size_t ip_header_size = orig_ip.ihl * sizeof(uint32_t);
+
+    if (pack.size < sizeof(ipv4_header) + sizeof(icmpv4_error)) {
+        print("handle_icmpv4_error: buffer length was {}, expected at least {}\n",
+              pack.size, sizeof(ipv4_header) + sizeof(icmpv4_error));
+        return;
+    }
+
+    if (!skip_checksum) {
+        if (calc_ipv4_checksum(span(pack.data + ip_header_size, pack.size - ip_header_size)) != 0)
+            return;
+    }
+
+    const auto& icmp = *(icmpv4_error*)(pack.data + ip_header_size);
+
+    if (icmp.header.protocol == IPPROTO_UDP)
+        handle_icmpv4_error_udp(pack);
+}
+
 static void handle_icmpv4_packet(netif& ni, packet& pack, const mac_address& src_mac,
                                  const ipv4_address& our_ip, bool skip_checksum) {
     const auto& ip = *(ipv4_header*)pack.data;
@@ -1768,6 +1789,12 @@ static void handle_icmpv4_packet(netif& ni, packet& pack, const mac_address& src
 #endif
 
     switch (header.type) {
+        case icmpv4_type::dest_unreachable:
+        case icmpv4_type::time_exceeded:
+        case icmpv4_type::param_problem:
+            handle_icmpv4_error(pack, skip_checksum);
+            break;
+
         case icmpv4_type::echo_request:
             handle_v4_echo_request(ni, pack, src_mac, our_ip, skip_checksum);
             break;

@@ -459,6 +459,7 @@ void send_address_unreachable(netif& ni, const packet& pack,
                               const ipv6_address& addr);
 mac_address find_mac_address(netif& ni, const ipv4_address& dst);
 mac_address find_mac_address(netif& ni, const ipv6_address& dst);
+void handle_icmpv4_error_udp(packet& pack);
 void handle_icmpv6_error_udp(packet& pack);
 nt_status create_new_ipv4_tcp_socket(object_ref& ref);
 nt_status create_new_ipv6_tcp_socket(object_ref& ref);
