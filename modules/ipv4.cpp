@@ -101,7 +101,7 @@ export struct icmpv4_error : icmpv4_header {
 
 static_assert(sizeof(icmpv4_error) == 28);
 
-export enum icmpv4_dest_unreachable_code : uint8_t {
+export enum class icmpv4_dest_unreachable_code : uint8_t {
     dest_net_unreachable = 0,
     dest_host_unreachable = 1,
     dest_proto_unreachable = 2,
@@ -120,12 +120,12 @@ export enum icmpv4_dest_unreachable_code : uint8_t {
     precedence_cutoff_in_effect = 15,
 };
 
-export enum icmpv4_time_exceeded_code : uint8_t {
+export enum class icmpv4_time_exceeded_code : uint8_t {
     ttl_expired = 0,
     fragmentation_time_exceeded = 1,
 };
 
-export enum dhcp_opcode : uint8_t {
+export enum class dhcp_opcode : uint8_t {
     BOOTREQUEST = 1,
     BOOTREPLY = 2
 };
@@ -152,7 +152,7 @@ static_assert(sizeof(dhcp_message) == 240);
 
 export const uint32_t DHCP_COOKIE = 0x63538263;
 
-export enum dhcp_option : uint8_t {
+export enum class dhcp_option : uint8_t {
     subnet_mask = 1,
     router = 3,
     dns = 6,
@@ -170,7 +170,7 @@ export struct dhcp_tlv {
     uint8_t length;
 } __attribute((packed));
 
-export enum dhcp_message_type : uint8_t {
+export enum class dhcp_message_type : uint8_t {
      DHCPDISCOVER = 1,
      DHCPOFFER = 2,
      DHCPREQUEST = 3,
