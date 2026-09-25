@@ -665,7 +665,7 @@ static void handle_neighbour_advertisement(netif& ni, packet& pack) {
 }
 
 bool is_multicast_address(const ipv4_address& addr) {
-    return (addr.v[0] & 0xe0) == 0xe0;
+    return (addr.v[0] & 0xf0) == 0xe0;
 }
 
 bool is_multicast_address(const ipv6_address& addr) {
