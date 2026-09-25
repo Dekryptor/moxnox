@@ -110,8 +110,63 @@ static_assert(sizeof(udp_header) == 8);
 
 static const size_t MAX_BUFFER_SIZE = 1048576;
 
-static void send_port_unreachable(netif& ni, const packet& pack,
-                                  const mac_address& mac) {
+static void send_port_unreachable_v4(netif& ni, const packet& pack,
+                                     const mac_address& mac) {
+    static const size_t MIN_MTU = 576;
+
+    const auto& orig_ip = *(ipv4_header*)pack.data;
+
+    auto pack2 = new packet;
+    if (!pack2) {
+        print("new failed\n");
+        return;
+    }
+
+    size_t payload_size = min((size_t)byteswap((uint16_t)orig_ip.total_length),
+                              MIN_MTU - sizeof(ipv4_header) - sizeof(icmpv4_error));
+
+    pack2->size = sizeof(ipv4_header) + offsetof(icmpv4_error, header) + payload_size;
+
+    auto& ip = *(ipv4_header*)pack2->data;
+    ip.ihl = sizeof(ipv4_header) / sizeof(uint32_t);
+    ip.version = 4;
+    ip.ecn = 0;
+    ip.dscp = 0;
+    ip.total_length = byteswap((uint16_t)(sizeof(ipv4_header) + offsetof(icmpv4_error, header) + payload_size));
+    ip.identification = 0;
+    ip.fragment_offset1 = 0;
+    ip.MF = 0;
+    ip.DF = 1;
+    ip.R = 0;
+    ip.fragment_offset2 = 0;
+    ip.ttl = DEFAULT_HOP_LIMIT;
+    ip.protocol = IPPROTO_ICMP;
+    ip.header_checksum = 0;
+    ip.src = orig_ip.dst; // FIXME - make sure not multicast?
+    ip.dst = orig_ip.src;
+
+    ip.header_checksum = calc_ipv4_checksum(span(pack2->data, sizeof(ipv4_header)));
+
+    auto& err = *(icmpv4_error*)(pack2->data + sizeof(ipv4_header));
+
+    err.type = icmpv4_type::dest_unreachable;
+    err.code = (uint8_t)icmpv4_dest_unreachable_code::dest_port_unreachable;
+    err.checksum = 0;
+    err.param = 0;
+
+    memcpy(&err.header, pack.data, payload_size);
+
+    err.checksum = calc_ipv4_checksum(span((uint8_t*)&err, offsetof(icmpv4_error, header) + payload_size));
+
+    auto status = ni.send_packet(mac, ethertype::ipv4, *pack2);
+    if (!success(status))
+        print("netif::send_packet returned {}\n", status);
+
+    pack2->release();
+}
+
+static void send_port_unreachable_v6(netif& ni, const packet& pack,
+                                     const mac_address& mac) {
     static const size_t MIN_MTU = 1280;
 
     const auto& orig_ip = *(ipv6_header*)pack.data;
@@ -158,7 +213,7 @@ static void send_port_unreachable(netif& ni, const packet& pack,
 }
 
 void received_ipv4_udp_packet(netif& ni, packet& pack,
-                              const mac_address& /*src_mac*/, bool skip_checksum) {
+                              const mac_address& src_mac, bool skip_checksum) {
     if (pack.size < sizeof(ipv4_header))
         return;
 
@@ -215,8 +270,7 @@ void received_ipv4_udp_packet(netif& ni, packet& pack,
     }
 
     if (!sock) {
-        // FIXME
-//         send_port_unreachable(ni, pack, src_mac);
+        send_port_unreachable_v4(ni, pack, src_mac);
         return;
     }
 
@@ -313,7 +367,7 @@ void received_ipv6_udp_packet(netif& ni, packet& pack,
     }
 
     if (!sock) {
-        send_port_unreachable(ni, pack, src_mac);
+        send_port_unreachable_v6(ni, pack, src_mac);
         return;
     }
 
