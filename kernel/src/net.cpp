@@ -78,6 +78,7 @@ export struct ip_addr {
     list_entry le;
     variant<ipv4_address, ipv6_address> addr;
     bool slaac = false;
+    bool dhcp = false;
     uint8_t prefix;
 };
 
@@ -291,6 +292,24 @@ public:
                     span<uint8_t> outbuf, uintptr_t& written) override;
 };
 
+struct ipv4_route {
+    ipv4_route(netif& ni, const ipv4_address& prefix, uint8_t prefix_length,
+               const ipv4_address& gateway, bool dhcp) : ni(ni), prefix(prefix), prefix_length(prefix_length), gateway(gateway), dhcp(dhcp) {
+        ni.acquire();
+    }
+
+    ~ipv4_route() {
+        ni.release();
+    }
+
+    list_entry le;
+    netif& ni;
+    ipv4_address prefix;
+    uint8_t prefix_length;
+    ipv4_address gateway;
+    bool dhcp;
+};
+
 template<>
 consteval bool format_spec_valid<mac_address>(string_view fmt) {
     return fmt.empty();
@@ -445,6 +464,9 @@ export bool drop_packet(const mac_address& dst, const mac_address& us);
 export bool init_net();
 export ipv6_address find_ll_address(const mac_address& m);
 
+spinlock ipv4_routes_lock;
+list_entry ipv4_routes = { &ipv4_routes, &ipv4_routes };
+
 void received_ipv4_tcp_packet(netif& ni, packet& pack,
                               const mac_address& src_mac, bool skip_checksum);
 void received_ipv6_tcp_packet(netif& ni, packet& pack,
@@ -489,8 +511,10 @@ void maybe_add_to_neighbour_cache(netif& ni, const ipv6_address& dst,
                                   const mac_address& mac);
 nt_status create_unix_socket_pair(int type, object_ref& ref1, object_ref& ref2);
 export void add_ipv4_route(netif& ni, const ipv4_address& prefix,
-                           uint8_t prefix_length, const ipv4_address& gateway);
+                           uint8_t prefix_length, const ipv4_address& gateway,
+                           bool dhcp = false);
 void send_dhcp_discover(netif& ni);
 ipv4_address calculate_broadcast_address(const ipv4_address& addr, uint8_t prefix);
 ipv4_address zero_right_bits(const ipv4_address& addr, uint8_t n);
 void add_dns_server(const ipv6_address& address, uint32_t ttl);
+void handle_dhcp_expiry(netif& ni);

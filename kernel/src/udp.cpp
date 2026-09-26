@@ -428,7 +428,7 @@ static void received_dhcp_ack(netif& ni, const ipv4_address& offered_address,
         return;
     }
 
-    a->slaac = false;
+    a->dhcp = true;
     a->prefix = prefix;
 
     {
@@ -465,11 +465,11 @@ static void received_dhcp_ack(netif& ni, const ipv4_address& offered_address,
     print("{}: added new IPv4 address {}\n", ni, offered_address);
 
     add_ipv4_route(ni, zero_right_bits(offered_address, 32 - prefix), prefix,
-                   parse_ipv4_address("0.0.0.0"));
+                   parse_ipv4_address("0.0.0.0"), true);
 
     if (router.has_value()) {
         if (zero_right_bits(*router, 32 - prefix) == zero_right_bits(offered_address, 32 - prefix))
-            add_ipv4_route(ni, parse_ipv4_address("0.0.0.0"), 0, *router);
+            add_ipv4_route(ni, parse_ipv4_address("0.0.0.0"), 0, *router, true);
     }
 
     if (dns.has_value()) {
@@ -1963,4 +1963,59 @@ void send_dhcp_discover(netif& ni) {
     }
 
     pack->release();
+}
+
+void handle_dhcp_expiry(netif& ni) {
+    list_entry removing = { &removing, &removing };
+
+    {
+        lock_guard lock(ni.addr_lock);
+
+        for (auto le = ni.addrs.next; le != &ni.addrs; le = le->next) {
+            auto& a = containing_record<ip_addr>(le);
+
+            if (get_if<ipv4_address>(&a.addr)) {
+                if (a.dhcp) {
+                    le = le->prev;
+                    remove_entry_list(a.le);
+                    insert_tail_list(removing, a.le);
+                }
+            }
+        }
+    }
+
+    while (!is_list_empty(removing)) {
+        auto& a = containing_record<ip_addr>(removing.next);
+
+        remove_entry_list(a.le);
+        delete &a;
+    }
+
+    {
+        lock_guard lock(ipv4_routes_lock);
+
+        for (auto le = ipv4_routes.next; le != &ipv4_routes; le = le->next) {
+            auto& r = containing_record<ipv4_route>(le);
+
+            if (&r.ni == &ni && r.dhcp) {
+                le = le->prev;
+                remove_entry_list(r.le);
+                insert_tail_list(removing, r.le);
+            }
+        }
+    }
+
+    while (!is_list_empty(removing)) {
+        auto& r = containing_record<ipv4_route>(removing.next);
+
+        remove_entry_list(r.le);
+        delete &r;
+    }
+
+    {
+        lock_guard lock(ni.dhcp_lock);
+
+        if (ni.dhcp_status == dhcp_status::done)
+            ni.dhcp_status = dhcp_status::need_discover;
+    }
 }

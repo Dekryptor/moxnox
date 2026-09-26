@@ -163,23 +163,6 @@ struct neighbour_cache_entry {
     int64_t last_update_time;
 };
 
-struct ipv4_route {
-    ipv4_route(netif& ni, const ipv4_address& prefix, uint8_t prefix_length,
-               const ipv4_address& gateway) : ni(ni), prefix(prefix), prefix_length(prefix_length), gateway(gateway) {
-        ni.acquire();
-    }
-
-    ~ipv4_route() {
-        ni.release();
-    }
-
-    list_entry le;
-    netif& ni;
-    ipv4_address prefix;
-    uint8_t prefix_length;
-    ipv4_address gateway;
-};
-
 struct ipv6_route {
     ipv6_route(netif& ni, const ipv6_address& prefix, uint8_t prefix_length) : ni(ni), prefix(prefix), prefix_length(prefix_length) {
         ni.acquire();
@@ -310,8 +293,6 @@ public:
                           packet& pack) override;
 };
 
-static spinlock ipv4_routes_lock;
-static list_entry ipv4_routes = { &ipv4_routes, &ipv4_routes };
 static spinlock ipv6_routes_lock;
 static list_entry ipv6_routes = { &ipv6_routes, &ipv6_routes };
 static spinlock dns_servers_lock;
@@ -731,7 +712,8 @@ static void handle_v6_echo_request(netif& ni, packet& pack,
 }
 
 void add_ipv4_route(netif& ni, const ipv4_address& prefix,
-                    uint8_t prefix_length, const ipv4_address& gateway) {
+                    uint8_t prefix_length, const ipv4_address& gateway,
+                    bool dhcp) {
     {
         lock_guard lock(ipv4_routes_lock);
 
@@ -745,7 +727,7 @@ void add_ipv4_route(netif& ni, const ipv4_address& prefix,
         }
     }
 
-    auto r = new ipv4_route(ni, prefix, prefix_length, gateway);
+    auto r = new ipv4_route(ni, prefix, prefix_length, gateway, dhcp);
     if (!r) {
         print("new failed\n");
         return;
@@ -2146,6 +2128,7 @@ static void send_router_solicitations() {
 static void send_dhcp_messages() {
     while (true) {
         netif* ni = nullptr;
+        dhcp_status status;
 
         {
             lock_guard lock(netif_lock);
@@ -2162,9 +2145,19 @@ static void send_dhcp_messages() {
                     lock_guard lock(ni2.dhcp_lock);
 
                     if (ni2.dhcp_status == dhcp_status::need_discover) {
+                        status = ni2.dhcp_status;
                         ni = &ni2;
                         ni2.acquire();
                         break;
+                    } else if (ni2.dhcp_status == dhcp_status::done) {
+                        ni2.dhcp_lease_left--;
+
+                        if (ni2.dhcp_lease_left == 0) {
+                            status = ni2.dhcp_status;
+                            ni = &ni2;
+                            ni2.acquire();
+                            break;
+                        }
                     }
                 }
             }
@@ -2173,7 +2166,10 @@ static void send_dhcp_messages() {
         if (!ni)
             break;
 
-        send_dhcp_discover(*ni);
+        if (status == dhcp_status::need_discover)
+            send_dhcp_discover(*ni);
+        else if (status == dhcp_status::done)
+            handle_dhcp_expiry(*ni);
 
         ni->release();
     }
