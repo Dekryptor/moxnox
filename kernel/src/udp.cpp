@@ -357,13 +357,23 @@ static void received_dhcp_offer(netif& ni, const ipv4_address& offered_address,
     msg.udp.checksum = calc_ipv4_checksum(msg.ip, span((uint8_t*)&msg.udp, pack->size - sizeof(ipv4_header)),
                                           IPPROTO_UDP);
 
-    ni.dhcp_status = dhcp_status::sent_request;
-    ni.dhcp_offered_address = offered_address;
-    ni.dhcp_server_id = dhcp_server_id;
+    {
+        lock_guard lock(ni.dhcp_lock);
+
+        ni.dhcp_status = dhcp_status::sent_request;
+        ni.dhcp_offered_address = offered_address;
+        ni.dhcp_server_id = dhcp_server_id;
+    }
 
     status = dispatch_packet<ipv4>(ni, *pack, { 0xff, 0xff, 0xff, 0xff, 0xff, 0xff });
     if (!success(status)) {
-        ni.dhcp_status = dhcp_status::need_discover;
+        {
+            lock_guard lock(ni.dhcp_lock);
+
+            if (ni.dhcp_status == dhcp_status::sent_request)
+                ni.dhcp_status = dhcp_status::need_discover;
+        }
+
         pack->release();
         return;
     }
@@ -375,13 +385,17 @@ static void received_dhcp_ack(netif& ni, const ipv4_address& offered_address,
                               const ipv4_address& dhcp_server_id,
                               const optional<ipv4_address>& subnet_mask,
                               const optional<ipv4_address>& router,
-                              const optional<uint32_t>& lease_time,
+                              optional<uint32_t> lease_time,
                               const optional<ipv4_address>& dns) {
-    if (dhcp_server_id != ni.dhcp_server_id)
-        return;
+    {
+        lock_guard lock(ni.dhcp_lock);
 
-    if (offered_address != ni.dhcp_offered_address)
-        return;
+        if (dhcp_server_id != ni.dhcp_server_id)
+            return;
+
+        if (offered_address != ni.dhcp_offered_address)
+            return;
+    }
 
     bool already_exists = false;
     uint8_t prefix;
@@ -438,12 +452,15 @@ static void received_dhcp_ack(netif& ni, const ipv4_address& offered_address,
     if (already_exists)
         delete a;
 
-    ni.dhcp_status = dhcp_status::done;
+    if (!lease_time.has_value() || *lease_time == 0)
+        lease_time = 43200; // 12 hours
 
-    if (lease_time.has_value() && *lease_time != 0)
+    {
+        lock_guard lock(ni.dhcp_lock);
+
+        ni.dhcp_status = dhcp_status::done;
         ni.dhcp_lease_left = *lease_time;
-    else
-        ni.dhcp_lease_left = 43200; // 12 hours
+    }
 
     print("{}: added new IPv4 address {}\n", ni, offered_address);
 
@@ -460,11 +477,13 @@ static void received_dhcp_ack(netif& ni, const ipv4_address& offered_address,
 
         memcpy(addr.v.data() + 12, dns->v.data(), sizeof(ipv4_address));
 
-        add_dns_server(addr, ni.dhcp_lease_left);
+        add_dns_server(addr, *lease_time);
     }
 }
 
 static void received_dhcp_nak(netif& ni, const ipv4_address& dhcp_server_id) {
+    lock_guard lock(ni.dhcp_lock);
+
     if (dhcp_server_id != ni.dhcp_server_id)
         return;
 
@@ -486,8 +505,16 @@ static void received_dhcp_packet(netif& ni, packet& pack) {
     if (dhcp.cookie != DHCP_COOKIE)
         return;
 
-    if (dhcp.xid != ni.dhcp_xid)
-        return;
+    dhcp_status cur_status;
+
+    {
+        lock_guard lock(ni.dhcp_lock);
+
+        if (dhcp.xid != ni.dhcp_xid)
+            return;
+
+        cur_status = ni.dhcp_status;
+    }
 
     if (dhcp.op != dhcp_opcode::BOOTREPLY || dhcp.htype != 1 || dhcp.hlen != sizeof(mac_address))
         return;
@@ -590,7 +617,7 @@ static void received_dhcp_packet(netif& ni, packet& pack) {
     if (!dhcp_msg.has_value())
         return;
 
-    switch (ni.dhcp_status) {
+    switch (cur_status) {
         using enum dhcp_status;
 
         case sent_discover:
@@ -1871,12 +1898,12 @@ void send_dhcp_discover(netif& ni) {
 
     memset(&msg.dhcp, 0, sizeof(msg.dhcp));
 
-    ni.dhcp_xid = get_dhcp_xid();
+    auto xid = get_dhcp_xid();
 
     msg.dhcp.op = dhcp_opcode::BOOTREQUEST;
     msg.dhcp.htype = 1; // Ethernet
     msg.dhcp.hlen = sizeof(mac_address);
-    msg.dhcp.xid = ni.dhcp_xid;
+    msg.dhcp.xid = xid;
     memcpy(msg.dhcp.chaddr, ni.mac.v.data(), sizeof(mac_address));
     msg.dhcp.cookie = DHCP_COOKIE;
 
@@ -1904,11 +1931,33 @@ void send_dhcp_discover(netif& ni) {
     msg.udp.checksum = calc_ipv4_checksum(msg.ip, span((uint8_t*)&msg.udp, pack->size - sizeof(ipv4_header)),
                                           IPPROTO_UDP);
 
-    ni.dhcp_status = dhcp_status::sent_discover;
+    bool status_changed = false;
+
+    {
+        lock_guard lock(ni.dhcp_lock);
+
+        if (ni.dhcp_status != dhcp_status::need_discover)
+            status_changed = true;
+        else {
+            ni.dhcp_status = dhcp_status::sent_discover;
+            ni.dhcp_xid = xid;
+        }
+    }
+
+    if (status_changed) {
+        pack->release();
+        return;
+    }
 
     status = dispatch_packet<ipv4>(ni, *pack, { 0xff, 0xff, 0xff, 0xff, 0xff, 0xff });
     if (!success(status)) {
-        ni.dhcp_status = dhcp_status::need_discover;
+        {
+            lock_guard lock(ni.dhcp_lock);
+
+            if (ni.dhcp_status == dhcp_status::sent_discover)
+                ni.dhcp_status = dhcp_status::need_discover;
+        }
+
         pack->release();
         return;
     }

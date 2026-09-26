@@ -2158,10 +2158,14 @@ static void send_dhcp_messages() {
 
                 ni2.dhcp_visited = true;
 
-                if (ni2.dhcp_status == dhcp_status::need_discover) {
-                    ni = &ni2;
-                    ni2.acquire();
-                    break;
+                {
+                    lock_guard lock(ni2.dhcp_lock);
+
+                    if (ni2.dhcp_status == dhcp_status::need_discover) {
+                        ni = &ni2;
+                        ni2.acquire();
+                        break;
+                    }
                 }
             }
         }
@@ -2169,8 +2173,7 @@ static void send_dhcp_messages() {
         if (!ni)
             break;
 
-        if (ni->dhcp_status == dhcp_status::need_discover)
-            send_dhcp_discover(*ni);
+        send_dhcp_discover(*ni);
 
         ni->release();
     }

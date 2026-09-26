@@ -159,6 +159,8 @@ public:
     bool tx_udpv6_csum_offload = false;
     bool tx_tcpv6_csum_offload = false;
     bool dhcp_visited = false;
+
+    spinlock dhcp_lock;
     enum dhcp_status dhcp_status = dhcp_status::need_discover;
     uint32_t dhcp_xid;
     ipv4_address dhcp_server_id;
