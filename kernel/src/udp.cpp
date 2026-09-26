@@ -7,6 +7,7 @@ module;
 #include <bit>
 #include <atomic>
 #include <variant>
+#include <optional>
 
 module net;
 
