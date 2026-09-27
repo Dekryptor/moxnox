@@ -119,6 +119,18 @@ enum dhcp_status {
     done,
 };
 
+struct udp_header {
+    uint16_t srcport;
+    uint16_t dstport;
+    uint16_t length;
+    uint16_t checksum;
+} __attribute__((packed));
+
+static_assert(sizeof(udp_header) == 8);
+
+constexpr auto DHCP_SERVER_PORT = byteswap((uint16_t)67);
+constexpr auto DHCP_CLIENT_PORT = byteswap((uint16_t)68);
+
 export class netif {
 public:
     // FIXME - GCC 15 errors if no ctor or dtor here
@@ -519,3 +531,4 @@ ipv4_address zero_right_bits(const ipv4_address& addr, uint8_t n);
 void add_dns_server(const ipv6_address& address, uint32_t ttl);
 void handle_dhcp_expiry(netif& ni);
 void do_dhcp_renewal(netif& ni, bool broadcast);
+void received_dhcp_packet(netif& ni, packet& pack);
