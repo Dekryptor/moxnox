@@ -336,10 +336,12 @@ void received_dhcp_packet(netif& ni, packet& pack) {
     auto opts = span((uint8_t*)&dhcp + sizeof(dhcp_message),
                      byteswap(udp.length) - sizeof(udp_header) - sizeof(dhcp_message));
 
+#if 0
     print("DHCP message: op = {}, htype = {}, hlen = {}, hops = {}, xid = {}, secs = {}, flags = {}, ciaddr = {}, yiaddr = {}, siaddr = {}, giaddr = {}, chaddr = {}\n",
           (uint8_t)dhcp.op, dhcp.htype, dhcp.hlen, dhcp.hops, +dhcp.xid,
           +dhcp.secs, +dhcp.flags, dhcp.ciaddr, dhcp.yiaddr, dhcp.siaddr,
           dhcp.giaddr, *(mac_address*)dhcp.chaddr);
+#endif
 
     optional<ipv4_address> subnet_mask, router, dns, dhcp_server_id;
     optional<uint32_t> lease_time;
@@ -367,13 +369,17 @@ void received_dhcp_packet(netif& ni, packet& pack) {
             break;
 
         auto default_message = [&]() {
+#if 0
             print("DHCP option: type {}, length {}\n", tlv.type, tlv.length);
+#endif
         };
 
         switch (tlv.type) {
             case dhcp_option::subnet_mask:
                 if (tlv.length >= sizeof(ipv4_address)) {
+#if 0
                     print("DHCP option {}: {}\n", tlv.type, *(ipv4_address*)opts.data());
+#endif
                     subnet_mask = *(ipv4_address*)opts.data();
                 } else
                     default_message();
@@ -381,7 +387,9 @@ void received_dhcp_packet(netif& ni, packet& pack) {
 
             case dhcp_option::router:
                 if (tlv.length >= sizeof(ipv4_address)) {
+#if 0
                     print("DHCP option {}: {}\n", tlv.type, *(ipv4_address*)opts.data());
+#endif
                     router = *(ipv4_address*)opts.data();
                 } else
                     default_message();
@@ -390,7 +398,9 @@ void received_dhcp_packet(netif& ni, packet& pack) {
             case dhcp_option::dns:
                 // FIXME - can have multiple servers
                 if (tlv.length >= sizeof(ipv4_address)) {
+#if 0
                     print("DHCP option {}: {}\n", tlv.type, *(ipv4_address*)opts.data());
+#endif
                     dns = *(ipv4_address*)opts.data();
                 } else
                     default_message();
@@ -398,7 +408,9 @@ void received_dhcp_packet(netif& ni, packet& pack) {
 
             case dhcp_option::lease_time:
                 if (tlv.length >= sizeof(uint32_t)) {
+#if 0
                     print("DHCP option {}: {}\n", tlv.type, byteswap(*(uint32_t*)opts.data()));
+#endif
                     lease_time = byteswap(*(uint32_t*)opts.data());
                 } else
                     default_message();
@@ -406,7 +418,9 @@ void received_dhcp_packet(netif& ni, packet& pack) {
 
             case dhcp_option::dhcp_msg:
                 if (tlv.length >= sizeof(dhcp_message_type)) {
+#if 0
                     print("DHCP option {}: {}\n", tlv.type, *(dhcp_message_type*)opts.data());
+#endif
                     dhcp_msg = *(dhcp_message_type*)opts.data();
                 } else
                     default_message();
@@ -414,7 +428,9 @@ void received_dhcp_packet(netif& ni, packet& pack) {
 
             case dhcp_option::dhcp_server_id:
                 if (tlv.length >= sizeof(ipv4_address)) {
+#if 0
                     print("DHCP option {}: {}\n", tlv.type, *(ipv4_address*)opts.data());
+#endif
                     dhcp_server_id = *(ipv4_address*)opts.data();
                 } else
                     default_message();
