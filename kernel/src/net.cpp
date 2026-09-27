@@ -166,7 +166,7 @@ public:
     uint32_t dhcp_xid;
     ipv4_address dhcp_server_id;
     ipv4_address dhcp_offered_address;
-    uint32_t dhcp_lease_left;
+    uint32_t dhcp_lease_left, dhcp_renew_time;
 };
 
 export class socket : public rw_sync_object {
@@ -518,3 +518,4 @@ ipv4_address calculate_broadcast_address(const ipv4_address& addr, uint8_t prefi
 ipv4_address zero_right_bits(const ipv4_address& addr, uint8_t n);
 void add_dns_server(const ipv6_address& address, uint32_t ttl);
 void handle_dhcp_expiry(netif& ni);
+void do_dhcp_renewal(netif& ni);

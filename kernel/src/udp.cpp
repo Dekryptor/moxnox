@@ -455,11 +455,15 @@ static void received_dhcp_ack(netif& ni, const ipv4_address& offered_address,
     if (!lease_time.has_value() || *lease_time == 0)
         lease_time = 43200; // 12 hours
 
+    // FIXME - option for this
+    auto renew_time = max(*lease_time / 2, (uint32_t)1);
+
     {
         lock_guard lock(ni.dhcp_lock);
 
         ni.dhcp_status = dhcp_status::done;
         ni.dhcp_lease_left = *lease_time;
+        ni.dhcp_renew_time = renew_time;
     }
 
     print("{}: added new IPv4 address {}\n", ni, offered_address);
@@ -482,14 +486,18 @@ static void received_dhcp_ack(netif& ni, const ipv4_address& offered_address,
 }
 
 static void received_dhcp_nak(netif& ni, const ipv4_address& dhcp_server_id) {
-    lock_guard lock(ni.dhcp_lock);
+    {
+        lock_guard lock(ni.dhcp_lock);
 
-    if (dhcp_server_id != ni.dhcp_server_id)
-        return;
+        if (dhcp_server_id != ni.dhcp_server_id)
+            return;
 
-    // FIXME - should be waiting 10 seconds before sending DISCOVER again
+        // FIXME - should be waiting 10 seconds before sending DISCOVER again
 
-    ni.dhcp_status = dhcp_status::need_discover;
+        ni.dhcp_status = dhcp_status::need_discover;
+    }
+
+    handle_dhcp_expiry(ni);
 }
 
 static void received_dhcp_packet(netif& ni, packet& pack) {
@@ -626,6 +634,7 @@ static void received_dhcp_packet(netif& ni, packet& pack) {
         break;
 
         case sent_request:
+        case done:
             if (*dhcp_msg == dhcp_message_type::DHCPACK && dhcp_server_id.has_value()) {
                 received_dhcp_ack(ni, dhcp.yiaddr, *dhcp_server_id,
                                   subnet_mask, router, lease_time, dns);
@@ -2018,4 +2027,134 @@ void handle_dhcp_expiry(netif& ni) {
         if (ni.dhcp_status == dhcp_status::done)
             ni.dhcp_status = dhcp_status::need_discover;
     }
+}
+
+void do_dhcp_renewal(netif& ni) {
+    nt_status status;
+
+    struct _request_msg {
+        ipv4_header ip;
+        udp_header udp;
+        dhcp_message dhcp;
+        dhcp_tlv2<1> option_53;
+        dhcp_tlv2<sizeof(dhcp_parameter_list)> option_55;
+        dhcp_tlv2<1 + sizeof(mac_address)> option_61;
+        dhcp_option option_255;
+    } __attribute((packed));
+
+    struct request_msg : _request_msg {
+        uint8_t padding[300 - sizeof(_request_msg) + sizeof(ipv4_header) + sizeof(udp_header)];
+    } __attribute((packed));
+
+    ipv4_address source_address, dhcp_server_id, gateway;
+    auto xid = get_dhcp_xid();
+    netif* pni;
+
+    {
+        lock_guard lock(ni.dhcp_lock);
+
+        source_address = ni.dhcp_offered_address;
+        dhcp_server_id = ni.dhcp_server_id;
+    }
+
+    status = ipv4_choose_interface(dhcp_server_id, pni, source_address, gateway);
+    if (!success(status))
+        return;
+    else if (pni != &ni) {
+        pni->release();
+        return;
+    }
+
+    pni->release();
+
+    // FIXME - can block housekeeping thread for a few seconds
+    auto dst_mac = find_mac_address(ni, gateway == parse_ipv4_address("0.0.0.0") ? dhcp_server_id : gateway);
+
+    if (dst_mac == NULL_MAC_ADDRESS)
+        return;
+
+    auto pack = new packet;
+    if (!pack) {
+        print("new failed\n");
+        return;
+    }
+
+    auto& msg = *(request_msg*)pack->data;
+    pack->size = sizeof(request_msg);
+
+    msg.ip.ihl = sizeof(ipv4_header) / sizeof(uint32_t);
+    msg.ip.version = 4;
+    msg.ip.ecn = 0;
+    msg.ip.dscp = 0;
+    msg.ip.total_length = byteswap((uint16_t)sizeof(request_msg));
+    msg.ip.identification = 0;
+    msg.ip.fragment_offset1 = 0;
+    msg.ip.MF = 0;
+    msg.ip.DF = 1;
+    msg.ip.R = 0;
+    msg.ip.fragment_offset2 = 0;
+    msg.ip.ttl = DEFAULT_HOP_LIMIT;
+    msg.ip.protocol = IPPROTO_UDP;
+    msg.ip.header_checksum = 0;
+    msg.ip.src = source_address;
+    msg.ip.dst = dhcp_server_id;
+
+    msg.ip.header_checksum = calc_ipv4_checksum(span((uint8_t*)&msg.ip, sizeof(ipv4_header)));
+
+    msg.udp.srcport = DHCP_CLIENT_PORT;
+    msg.udp.dstport = DHCP_SERVER_PORT;
+    msg.udp.length = byteswap((uint16_t)(sizeof(request_msg) - sizeof(ipv4_header)));
+    msg.udp.checksum = 0;
+
+    memset(&msg.dhcp, 0, sizeof(msg.dhcp));
+
+    msg.dhcp.op = dhcp_opcode::BOOTREQUEST;
+    msg.dhcp.htype = 1; // Ethernet
+    msg.dhcp.hlen = sizeof(mac_address);
+    msg.dhcp.xid = xid;
+    msg.dhcp.ciaddr = source_address;
+    memcpy(msg.dhcp.chaddr, ni.mac.v.data(), sizeof(mac_address));
+    msg.dhcp.cookie = DHCP_COOKIE;
+
+    msg.option_53.type = dhcp_option::dhcp_msg;
+    msg.option_53.length = 1;
+    msg.option_53.value[0] = (uint8_t)dhcp_message_type::DHCPREQUEST;
+
+    msg.option_55.type = dhcp_option::parameter_list;
+    msg.option_55.length = sizeof(dhcp_parameter_list);
+    memcpy(msg.option_55.value, dhcp_parameter_list, sizeof(dhcp_parameter_list));
+
+    msg.option_61.type = dhcp_option::client_id;
+    msg.option_61.length = 1 + sizeof(mac_address);
+    msg.option_61.value[0] = 1;
+    *(mac_address*)&msg.option_61.value[1] = ni.mac;
+
+    msg.option_255 = dhcp_option::end;
+
+    memset(&msg.padding, 0, sizeof(msg.padding));
+
+    msg.udp.checksum = calc_ipv4_checksum(msg.ip, span((uint8_t*)&msg.udp, pack->size - sizeof(ipv4_header)),
+                                          IPPROTO_UDP);
+
+    {
+        lock_guard lock(ni.dhcp_lock);
+        ni.dhcp_xid = xid;
+    }
+
+    status = dispatch_packet<ipv4>(ni, *pack, dst_mac);
+    if (!success(status)) {
+        {
+            lock_guard lock(ni.dhcp_lock);
+
+            if (ni.dhcp_status == dhcp_status::done)
+                ni.dhcp_status = dhcp_status::need_discover;
+        }
+
+        handle_dhcp_expiry(ni);
+
+        pack->release();
+        return;
+    }
+
+    pack->release();
 }
