@@ -619,6 +619,9 @@ void handle_dhcp_expiry(netif& ni) {
     while (!is_list_empty(removing)) {
         auto& a = containing_record<ip_addr>(removing.next);
 
+        if (auto* addr = get_if<ipv4_address>(&a.addr); addr)
+            print("{}: removed IPv4 address {}\n", ni, *addr);
+
         remove_entry_list(a.le);
         delete &a;
     }
