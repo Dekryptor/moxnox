@@ -2129,7 +2129,7 @@ static void send_dhcp_messages() {
     while (true) {
         netif* ni = nullptr;
         dhcp_status status;
-        bool need_renewal = false;
+        bool need_renewal = false, need_rebind = false;
 
         {
             lock_guard lock(netif_lock);
@@ -2162,7 +2162,17 @@ static void send_dhcp_messages() {
                             }
                         }
 
-                        if (ni2.dhcp_lease_left == 0 || need_renewal) {
+                        if (ni2.dhcp_rebind_time > 0) {
+                            ni2.dhcp_rebind_time--;
+
+                            if (ni2.dhcp_rebind_time == 0) {
+                                need_rebind = true;
+                                ni2.dhcp_renew_time = 0;
+                                ni2.dhcp_rebind_time = max(ni2.dhcp_lease_left / 2, (uint32_t)60);
+                            }
+                        }
+
+                        if (ni2.dhcp_lease_left == 0 || need_renewal || need_rebind) {
                             status = ni2.dhcp_status;
                             ni = &ni2;
                             ni2.acquire();
@@ -2178,8 +2188,10 @@ static void send_dhcp_messages() {
 
         if (status == dhcp_status::need_discover)
             send_dhcp_discover(*ni);
+        else if (need_rebind)
+            do_dhcp_renewal(*ni, true);
         else if (need_renewal)
-            do_dhcp_renewal(*ni);
+            do_dhcp_renewal(*ni, false);
         else if (status == dhcp_status::done)
             handle_dhcp_expiry(*ni);
 

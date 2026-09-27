@@ -390,7 +390,7 @@ static void received_dhcp_ack(netif& ni, const ipv4_address& offered_address,
     {
         lock_guard lock(ni.dhcp_lock);
 
-        if (dhcp_server_id != ni.dhcp_server_id)
+        if (ni.dhcp_status != dhcp_status::done && dhcp_server_id != ni.dhcp_server_id)
             return;
 
         if (offered_address != ni.dhcp_offered_address)
@@ -458,12 +458,17 @@ static void received_dhcp_ack(netif& ni, const ipv4_address& offered_address,
     // FIXME - option for this
     auto renew_time = max(*lease_time / 2, (uint32_t)1);
 
+    // FIXME - option for this too
+    auto rebind_time = max(*lease_time - (*lease_time / 8), (uint32_t)1);
+
     {
         lock_guard lock(ni.dhcp_lock);
 
         ni.dhcp_status = dhcp_status::done;
         ni.dhcp_lease_left = *lease_time;
         ni.dhcp_renew_time = renew_time;
+        ni.dhcp_rebind_time = rebind_time;
+        ni.dhcp_server_id = dhcp_server_id;
     }
 
     print("{}: added new IPv4 address {}\n", ni, offered_address);
@@ -2029,7 +2034,7 @@ void handle_dhcp_expiry(netif& ni) {
     }
 }
 
-void do_dhcp_renewal(netif& ni) {
+void do_dhcp_renewal(netif& ni, bool broadcast) {
     nt_status status;
 
     struct _request_msg {
@@ -2048,7 +2053,7 @@ void do_dhcp_renewal(netif& ni) {
 
     ipv4_address source_address, dhcp_server_id, gateway;
     auto xid = get_dhcp_xid();
-    netif* pni;
+    mac_address dst_mac;
 
     {
         lock_guard lock(ni.dhcp_lock);
@@ -2057,21 +2062,27 @@ void do_dhcp_renewal(netif& ni) {
         dhcp_server_id = ni.dhcp_server_id;
     }
 
-    status = ipv4_choose_interface(dhcp_server_id, pni, source_address, gateway);
-    if (!success(status))
-        return;
-    else if (pni != &ni) {
+    if (broadcast)
+        dst_mac = { 0xff, 0xff, 0xff, 0xff, 0xff, 0xff };
+    else {
+        netif* pni;
+
+        status = ipv4_choose_interface(dhcp_server_id, pni, source_address, gateway);
+        if (!success(status))
+            return;
+        else if (pni != &ni) {
+            pni->release();
+            return;
+        }
+
         pni->release();
-        return;
+
+        // FIXME - can block housekeeping thread for a few seconds
+        dst_mac = find_mac_address(ni, gateway == parse_ipv4_address("0.0.0.0") ? dhcp_server_id : gateway);
+
+        if (dst_mac == NULL_MAC_ADDRESS)
+            return;
     }
-
-    pni->release();
-
-    // FIXME - can block housekeeping thread for a few seconds
-    auto dst_mac = find_mac_address(ni, gateway == parse_ipv4_address("0.0.0.0") ? dhcp_server_id : gateway);
-
-    if (dst_mac == NULL_MAC_ADDRESS)
-        return;
 
     auto pack = new packet;
     if (!pack) {
@@ -2097,7 +2108,7 @@ void do_dhcp_renewal(netif& ni) {
     msg.ip.protocol = IPPROTO_UDP;
     msg.ip.header_checksum = 0;
     msg.ip.src = source_address;
-    msg.ip.dst = dhcp_server_id;
+    msg.ip.dst = broadcast ? parse_ipv4_address("255.255.255.255") : dhcp_server_id;
 
     msg.ip.header_checksum = calc_ipv4_checksum(span((uint8_t*)&msg.ip, sizeof(ipv4_header)));
 
