@@ -218,6 +218,7 @@ public:
     bool on_accepted_list = false;
     atomic<bool> dead = false, shutdown_write = false, shutdown_read = false;
     bool ipv6_only = false;
+    bool present_as_ipv6 = false;
 
 private:
     nt_status send_syn(const typename FAMILY::sockaddr& c, typename FAMILY::address& src);
@@ -2789,6 +2790,39 @@ void tcp_socket<FAMILY>::received_listen_packet(packet& pack, netif& ni,
 
 template<socket_family FAMILY>
 nt_status tcp_socket<FAMILY>::getsockname(span<uint8_t> buf, size_t& len) {
+    if constexpr (is_same_v<FAMILY, ipv4>) {
+        if (present_as_ipv6) {
+            if (buf.size() < sizeof(sockaddr_in6))
+                return nt_status::BUFFER_TOO_SMALL;
+
+            auto& addr = *(sockaddr_in6*)buf.data();
+
+            memset(&addr, 0, sizeof(addr));
+            addr.sin6_family = AF_INET6;
+
+            {
+                lock_guard lock(state_lock);
+
+                if (bind_done) {
+                    static const auto MAPPED_ADDRESS = parse_ipv6_address("::ffff:0:0");
+
+                    addr.sin6_port = bound_port;
+
+                    auto& addr2 = *(ipv6_address*)&addr.sin6_addr;
+
+                    addr2 = MAPPED_ADDRESS;
+                    memcpy(addr2.v.data() + 12, bound_address.v.data(), sizeof(ipv4_address));
+                }
+
+                addr.sin6_scope_id = connected_scope;
+            }
+
+            len = sizeof(addr);
+
+            return nt_status::SUCCESS;
+        }
+    }
+
     if (buf.size() < sizeof(typename FAMILY::sockaddr))
         return nt_status::BUFFER_TOO_SMALL;
 
