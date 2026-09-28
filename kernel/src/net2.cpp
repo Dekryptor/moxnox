@@ -9,6 +9,7 @@ module;
 #include <utility>
 #include <variant>
 #include <string_view>
+#include <algorithm>
 #include <stddef.h>
 #include <stdint.h>
 #include <sys/uio.h>
