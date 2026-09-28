@@ -208,6 +208,7 @@ public:
     list_entry accepted_le;
     bool on_accepted_list = false;
     atomic<bool> dead = false, shutdown_write = false, shutdown_read = false;
+    bool ipv6_only = false;
 
 private:
     nt_status send_syn(const typename FAMILY::sockaddr& c, typename FAMILY::address& src);
@@ -2866,14 +2867,13 @@ nt_status tcp_socket<FAMILY>::setsockopt_ipv6(sockopt_ipv6 opt, span<const uint8
         switch (opt) {
             using enum sockopt_ipv6;
 
-            case V6ONLY: {
+            case V6ONLY:
                 if (buf.size() != sizeof(int))
                     return nt_status::INVALID_PARAMETER;
 
-                // FIXME - do this properly
+                ipv6_only = !!*(int*)buf.data();
 
                 return nt_status::SUCCESS;
-            }
 
             default:
                 print("FIXME - setsockopt(IPPROTO_IPV6, {}, {})\n", opt, buf.size());
