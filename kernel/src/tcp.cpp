@@ -208,7 +208,7 @@ public:
     size_t us_read_offset = 0;
     spinlock io_lock;
     unsigned int listen_backlog;
-    tcp_socket<FAMILY>* parent = nullptr;
+    _tcp_socket* parent = nullptr;
     spinlock list_lock;
     list_entry syn_queue = { &syn_queue, &syn_queue };
     list_entry accept_queue = { &accept_queue, &accept_queue };
@@ -247,11 +247,13 @@ struct socket_variant;
 template<>
 struct socket_variant<ipv4> {
     using type = variant<tcp_socket<ipv4>*>;
+    using parent_type = variant<tcp_socket<ipv4>*, tcp_socket<ipv6>*>;
 };
 
 template<>
 struct socket_variant<ipv6> {
     using type = variant<tcp_socket<ipv4>*, tcp_socket<ipv6>*>;
+    using parent_type = variant<tcp_socket<ipv6>*>;
 };
 
 static spinlock tcp_ports_lock;
@@ -1186,6 +1188,17 @@ void tcp_socket<FAMILY>::send_fin() {
 }
 
 template<socket_family FAMILY>
+typename socket_variant<FAMILY>::parent_type get_socket_parent(tcp_socket<FAMILY>& sock) {
+    if constexpr (is_same_v<FAMILY, ipv4>) {
+        if (sock.parent->is_ipv4)
+            return static_cast<tcp_socket<ipv4>*>(sock.parent);
+        else
+            return static_cast<tcp_socket<ipv6>*>(sock.parent);
+    } else if constexpr (is_same_v<FAMILY, ipv6>)
+        return static_cast<tcp_socket<ipv6>*>(sock.parent);
+}
+
+template<socket_family FAMILY>
 void tcp_socket<FAMILY>::received_packet(packet& pack, netif& ni,
                                          const mac_address& src_mac) {
     auto& ip = *(typename FAMILY::header*)pack.data;
@@ -1243,7 +1256,7 @@ void tcp_socket<FAMILY>::received_packet(packet& pack, netif& ni,
         }
 
         if (parent) {
-            {
+            visit([&](auto* parent) {
                 sync_lock sl;
                 lock_guard lock1(sl);
                 lock_guard lock2(parent->list_lock);
@@ -1259,7 +1272,7 @@ void tcp_socket<FAMILY>::received_packet(packet& pack, netif& ni,
                     e.signalled = false;
                     parent->signalled = false;
                 }
-            }
+            }, get_socket_parent(*this));
 
             if (on_accepted_list) {
                 {
@@ -1442,21 +1455,23 @@ void tcp_socket<FAMILY>::received_packet(packet& pack, netif& ni,
 
             set_event(static_cast<event&>(retransmission_thread_quit_event.get()));
         } else if (just_established) {
-            sync_lock sl;
-            lock_guard lock1(sl);
-            lock_guard lock2(parent->list_lock);
+            visit([&](auto* parent) {
+                sync_lock sl;
+                lock_guard lock1(sl);
+                lock_guard lock2(parent->list_lock);
 
-            remove_entry_list(le);
-            insert_tail_list(parent->accept_queue, le);
+                remove_entry_list(le);
+                insert_tail_list(parent->accept_queue, le);
 
-            auto& e = static_cast<event&>(parent->accept_queue_event.get());
+                auto& e = static_cast<event&>(parent->accept_queue_event.get());
 
-            e.set_holding_sync_lock();
+                e.set_holding_sync_lock();
 
-            if (!parent->signalled) {
-                wake_up_waiters(parent->waiters, WAIT_TYPE_READING);
-                parent->signalled = true;
-            }
+                if (!parent->signalled) {
+                    wake_up_waiters(parent->waiters, WAIT_TYPE_READING);
+                    parent->signalled = true;
+                }
+            }, get_socket_parent(*this));
         }
     }
 
@@ -1931,12 +1946,14 @@ tcp_socket<FAMILY>::~tcp_socket() {
         pni->release();
 
     if (parent) {
-        if (added_to_list) {
-            lock_guard lock(parent->list_lock);
-            remove_entry_list(le);
-        }
+        visit([&](auto* parent) {
+            if (added_to_list) {
+                lock_guard lock(parent->list_lock);
+                remove_entry_list(le);
+            }
 
-        parent->release();
+            parent->release();
+        }, get_socket_parent(*this));
     }
 }
 
