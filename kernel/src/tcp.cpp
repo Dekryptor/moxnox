@@ -212,7 +212,6 @@ public:
     spinlock list_lock;
     list_entry syn_queue = { &syn_queue, &syn_queue };
     list_entry accept_queue = { &accept_queue, &accept_queue };
-    list_entry children = { &children, &children };
     bool accepted = false;
     bool added_to_list = false;
     list_entry accepted_le;
@@ -1261,8 +1260,10 @@ void tcp_socket<FAMILY>::received_packet(packet& pack, netif& ni,
                 lock_guard lock1(sl);
                 lock_guard lock2(parent->list_lock);
 
-                remove_entry_list(le);
-                added_to_list = false;
+                if (added_to_list) {
+                    remove_entry_list(le);
+                    added_to_list = false;
+                }
 
                 if (old_state == tcp_state::SYN_RECEIVED || (old_state == tcp_state::ESTABLISHED && !was_accepted))
                     parent->listen_backlog++;
@@ -2411,26 +2412,29 @@ nt_status tcp_socket<FAMILY>::accept(HANDLE& sock, void* us_addr, int& addrlen) 
 
             auto& s = containing_record<_tcp_socket>(accept_queue.next);
 
+            remove_entry_list(s.le);
+
             if constexpr (is_same_v<FAMILY, ipv4>) {
                 auto& s2 = static_cast<tcp_socket<ipv4>&>(s);
 
                 s2.accepted = true;
+                s2.added_to_list = false;
                 c = &s2;
             } else {
                 if (s.is_ipv4) {
                     auto& s2 = static_cast<tcp_socket<ipv4>&>(s);
 
                     s2.accepted = true;
+                    s2.added_to_list = false;
                     c = &s2;
                 } else {
                     auto& s2 = static_cast<tcp_socket<ipv6>&>(s);
 
                     s2.accepted = true;
+                    s2.added_to_list = false;
                     c = &s2;
                 }
             }
-
-            remove_entry_list(s.le);
 
             if (is_list_empty(accept_queue)) {
                 auto& e = static_cast<event&>(accept_queue_event.get());
@@ -2439,8 +2443,6 @@ nt_status tcp_socket<FAMILY>::accept(HANDLE& sock, void* us_addr, int& addrlen) 
             }
 
             listen_backlog++;
-
-            insert_tail_list(children, s.le);
         }
 
         break;
