@@ -179,6 +179,9 @@ public:
                               socklen_t& retlen) override;
 
     void received_packet(packet& pack, netif& ni, const mac_address& src_mac);
+    void received_packet_ipv4(packet& pack, netif& ni, const mac_address& src_mac);
+    uint16_t allowed_send_bytes();
+    nt_status send_syn_ack(const mac_address& mac);
 
     bool init = false;
     spinlock state_lock;
@@ -226,10 +229,8 @@ private:
     void send_fin();
     void retransmission_thread();
     void do_retransmissions();
-    uint16_t allowed_send_bytes();
     void received_listen_packet(packet& pack, netif& ni,
                                 const mac_address& src_mac);
-    nt_status send_syn_ack(const mac_address& mac);
 
     template<bool NONBLOCK>
     nt_status do_recvfrom(span<const span<uint8_t>> v, int flags,
@@ -363,6 +364,17 @@ static void send_tcp_port_closed(packet& pack, netif& ni,
     }
 }
 
+static ipv6_address map_ipv4_address_to_ipv6(const ipv4_address& addr) {
+    ipv6_address ret;
+
+    static const auto MAPPED_ADDRESS = parse_ipv6_address("::ffff:0:0");
+
+    ret = MAPPED_ADDRESS;
+    memcpy(ret.v.data() + 12, addr.v.data(), sizeof(ipv4_address));
+
+    return ret;
+}
+
 void received_ipv4_tcp_packet(netif& ni, packet& pack,
                               const mac_address& src_mac, bool skip_checksum) {
     if (pack.size < sizeof(ipv4_header))
@@ -399,6 +411,7 @@ void received_ipv4_tcp_packet(netif& ni, packet& pack,
 #endif
 
     tcp_socket<ipv4>* sock = nullptr;
+    tcp_socket<ipv6>* sock6 = nullptr;
 
     {
         lock_guard lock(tcp_ports_lock);
@@ -426,17 +439,34 @@ void received_ipv4_tcp_packet(netif& ni, packet& pack,
                     sock->acquire();
             }
         }
+
+        if (!sock && tcp_ports_v6[tcp.dst_port] && !tcp_ports_v6[tcp.dst_port]->ipv6_only) {
+            sock6 = tcp_ports_v6[tcp.dst_port];
+
+            {
+                lock_guard lock(sock6->state_lock);
+
+                if (!sock6->bind_done || (sock6->bound_address != parse_ipv6_address("::") && sock6->bound_address != map_ipv4_address_to_ipv6(ip.dst)))
+                    sock6 = nullptr;
+                else
+                    sock6->acquire();
+            }
+        }
     }
 
-    if (!sock) {
+    if (!sock && !sock6) {
         if (!tcp.RST)
             send_tcp_port_closed<ipv4>(pack, ni, src_mac);
         return;
+    } else if (sock) {
+        sock->received_packet(pack, ni, src_mac);
+
+        sock->release();
+    } else if (sock6) {
+        sock6->received_packet_ipv4(pack, ni, src_mac);
+
+        sock6->release();
     }
-
-    sock->received_packet(pack, ni, src_mac);
-
-    sock->release();
 }
 
 void received_ipv6_tcp_packet(netif& ni, packet& pack,
@@ -1209,6 +1239,164 @@ typename socket_variant<FAMILY>::parent_type get_socket_parent(tcp_socket<FAMILY
             return static_cast<tcp_socket<ipv6>*>(sock.parent);
     } else if constexpr (is_same_v<FAMILY, ipv6>)
         return static_cast<tcp_socket<ipv6>*>(sock.parent);
+}
+
+template<socket_family FAMILY>
+void tcp_socket<FAMILY>::received_packet_ipv4(packet& pack, netif& ni,
+                                              const mac_address& src_mac) {
+    if constexpr (is_same_v<FAMILY, ipv4>)
+        return;
+
+    auto& ip = *(ipv4_header*)pack.data;
+    size_t ip_header_size = ip.ihl * sizeof(uint32_t);
+
+    auto& tcp = *(tcp_header*)(pack.data + ip_header_size);
+    size_t header_length = tcp.header_length * sizeof(uint32_t);
+
+    if (header_length < sizeof(tcp_header))
+        return;
+
+    size_t size = byteswap((uint16_t)ip.total_length);
+
+    if (size < ip_header_size + header_length)
+        return;
+
+    {
+        lock_guard lock(state_lock);
+
+        if (state != tcp_state::LISTEN)
+            return;
+    }
+
+    // FIXME - merge this code with received_listen_packet
+
+    tcp_socket<ipv4>* found = nullptr;
+
+    {
+        lock_guard lock(list_lock);
+
+        for (auto le = syn_queue.next; le != &syn_queue; le = le->next) {
+            auto& s = containing_record<_tcp_socket>(le);
+
+            if (!s.is_ipv4)
+                continue;
+
+            auto& s2 = *static_cast<tcp_socket<ipv4>*>(&s);
+
+            if (s2.connected_address == ip.src && s2.connected_port == tcp.src_port) {
+                found = &s2;
+                s2.acquire();
+                break;
+            }
+        }
+
+        if (!found) {
+            for (auto le = accept_queue.next; le != &accept_queue; le = le->next) {
+                auto& s = containing_record<_tcp_socket>(le);
+
+                if (!s.is_ipv4)
+                    continue;
+
+                auto& s2 = *static_cast<tcp_socket<ipv4>*>(&s);
+
+                if (s2.connected_address == ip.src && s2.connected_port == tcp.src_port) {
+                    found = &s2;
+                    s2.acquire();
+                    break;
+                }
+            }
+        }
+    }
+
+    if (found) {
+        found->received_packet(pack, ni, src_mac);
+        found->release();
+        return;
+    }
+
+    // FIXME - if receive SYN from something already on SYN queue, send SYN-ACK again (already handled by retransmissions?)
+
+    // FIXME - also return RST if backlog exhausted
+    if (tcp.flags != TCP_SYN) {
+        send_tcp_port_closed<ipv4>(pack, ni, src_mac);
+        return;
+    }
+
+    auto c = new tcp_socket<ipv4>;
+    if (!c) {
+        print("new failed\n");
+        return;
+    }
+
+    if (!c->init) {
+        print("tcp_socket init failed\n");
+        delete c;
+        return;
+    }
+
+    c->state = tcp_state::SYN_RECEIVED;
+    c->bind_done = true;
+    c->bound_address = ip.dst;
+    c->bound_port = bound_port;
+    c->connected_address = ip.src;
+    c->connected_port = tcp.src_port;
+    c->connected_scope = ni.num;
+    c->recv_next = tcp.seq;
+
+    c->send_next = rand_tcp_seq();
+    c->send_unacknowledged = c->send_next;
+
+    c->last_send_window_seq = tcp.seq;
+    c->send_window = byteswap(tcp.window);
+
+    if (c->allowed_send_bytes() > 0) {
+        sync_lock sl;
+        lock_guard lock(sl);
+
+        auto& e = static_cast<event&>(c->send_window_open_event.get());
+        e.set_holding_sync_lock();
+
+        if (!c->write_signalled) {
+            c->write_signalled = true;
+            wake_up_waiters(c->waiters, WAIT_TYPE_WRITING);
+        }
+    }
+
+    c->pni = &ni;
+    ni.acquire();
+
+    c->parent = this;
+    this->acquire();
+
+    bool done = false;
+
+    {
+        lock_guard lock(list_lock);
+
+        if (listen_backlog > 0) {
+            insert_tail_list(syn_queue, c->le);
+            listen_backlog--;
+            done = true;
+        }
+    }
+
+    if (!done) {
+        // syn_queue is full, drop
+        set_event(static_cast<event&>(c->retransmission_thread_quit_event.get()));
+        this->release();
+        c->release();
+        return;
+    }
+
+    c->added_to_list = true;
+    c->present_as_ipv6 = true;
+
+    c->send_syn_ack(src_mac);
+
+    // FIXME - decrease backlog value
+
+    // FIXME - free child socket if stays at SYN_RECEIVED too long
+    // FIXME - increase backlog value when child goes away
 }
 
 template<socket_family FAMILY>
@@ -2386,17 +2574,6 @@ nt_status tcp_socket<FAMILY>::listen(int backlog) {
 
         return nt_status::SUCCESS;
     }
-}
-
-static ipv6_address map_ipv4_address_to_ipv6(const ipv4_address& addr) {
-    ipv6_address ret;
-
-    static const auto MAPPED_ADDRESS = parse_ipv6_address("::ffff:0:0");
-
-    ret = MAPPED_ADDRESS;
-    memcpy(ret.v.data() + 12, addr.v.data(), sizeof(ipv4_address));
-
-    return ret;
 }
 
 template<socket_family FAMILY>
