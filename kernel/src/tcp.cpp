@@ -224,7 +224,6 @@ public:
     typename FAMILY::address bound_address, connected_address;
 
 private:
-    nt_status send_syn(const typename FAMILY::sockaddr& c, typename FAMILY::address& src);
     void send_ack(bool first, tcp_seq ack);
     void send_fin();
     void retransmission_thread();
@@ -558,8 +557,9 @@ static uint16_t find_ephemeral_tcp_port() {
 }
 
 template<socket_family FAMILY>
-nt_status tcp_socket<FAMILY>::send_syn(const typename FAMILY::sockaddr& c,
-                                       typename FAMILY::address& src) {
+static nt_status send_syn(base_tcp_socket& sock,
+                          const typename FAMILY::sockaddr& c,
+                          typename FAMILY::address& src) {
     nt_status status;
 
     typename FAMILY::address dst, gateway;
@@ -581,9 +581,9 @@ nt_status tcp_socket<FAMILY>::send_syn(const typename FAMILY::sockaddr& c,
             return status;
 
         {
-            lock_guard lock(state_lock);
+            lock_guard lock(sock.state_lock);
 
-            swap(pni, newni);
+            swap(sock.pni, newni);
         }
 
         if (newni)
@@ -591,26 +591,37 @@ nt_status tcp_socket<FAMILY>::send_syn(const typename FAMILY::sockaddr& c,
     }
 
     {
-        lock_guard lock(state_lock);
+        lock_guard lock(sock.state_lock);
 
         if constexpr (is_same_v<FAMILY, ipv4>) {
-            if (bound_address == parse_ipv4_address("0.0.0.0"))
-                bound_address = src;
+            if (!sock.is_ipv4) {
+                auto& s = static_cast<tcp_socket<ipv6>&>(sock);
+
+                if (s.bound_address == parse_ipv6_address("::") && src != parse_ipv4_address("0.0.0.0"))
+                    s.bound_address = map_ipv4_address_to_ipv6(src);
+            } else {
+                auto& s = static_cast<tcp_socket<ipv4>&>(sock);
+
+                if (s.bound_address == parse_ipv4_address("0.0.0.0"))
+                    s.bound_address = src;
+            }
         } else if constexpr (is_same_v<FAMILY, ipv6>) {
-            if (bound_address == parse_ipv6_address("::"))
-                bound_address = src;
+            auto& s = static_cast<tcp_socket<ipv6>&>(sock);
+
+            if (s.bound_address == parse_ipv6_address("::"))
+                s.bound_address = src;
         }
     }
 
-    auto& ni = *pni;
+    auto& ni = *sock.pni;
 
     if (src == dst)
-        dst_mac = ni.mac;
+        sock.dst_mac = ni.mac;
     else {
         if constexpr (is_same_v<FAMILY, ipv4>)
-            dst_mac = find_mac_address(ni, gateway == parse_ipv4_address("0.0.0.0") ? dst : gateway);
+            sock.dst_mac = find_mac_address(ni, gateway == parse_ipv4_address("0.0.0.0") ? dst : gateway);
         else if constexpr (is_same_v<FAMILY, ipv6>)
-            dst_mac = find_mac_address(ni, dst);
+            sock.dst_mac = find_mac_address(ni, dst);
     }
 
     ni.acquire();
@@ -664,12 +675,12 @@ nt_status tcp_socket<FAMILY>::send_syn(const typename FAMILY::sockaddr& c,
 
     memset(&tcp, 0, sizeof(tcp));
 
-    tcp.src_port = bound_port;
-    tcp.dst_port = connected_port;
-    tcp.seq = send_next;
+    tcp.src_port = sock.bound_port;
+    tcp.dst_port = sock.connected_port;
+    tcp.seq = sock.send_next;
     tcp.header_length = sizeof(tcp_header) / sizeof(uint32_t);
     tcp.SYN = 1;
-    tcp.window = byteswap(recv_window);
+    tcp.window = byteswap(sock.recv_window);
 
     if constexpr (is_same_v<FAMILY, ipv4>) {
         auto& ip = *(ipv4_header*)pack->data;
@@ -688,7 +699,7 @@ nt_status tcp_socket<FAMILY>::send_syn(const typename FAMILY::sockaddr& c,
         }
     }
 
-    if (dst_mac == NULL_MAC_ADDRESS) {
+    if (sock.dst_mac == NULL_MAC_ADDRESS) {
         send_address_unreachable(ni, *pack, src);
 
         pack->release();
@@ -696,10 +707,10 @@ nt_status tcp_socket<FAMILY>::send_syn(const typename FAMILY::sockaddr& c,
         return nt_status::HOST_UNREACHABLE;
     }
 
-    auto& ev = static_cast<event&>(state_change_event.get());
+    auto& ev = static_cast<event&>(sock.state_change_event.get());
 
     for (unsigned int i = 0; i < 3; i++) {
-        status = dispatch_packet<FAMILY>(ni, *pack, dst_mac);
+        status = dispatch_packet<FAMILY>(ni, *pack, sock.dst_mac);
         if (!success(status)) {
             pack->release();
             ni.release();
@@ -723,9 +734,9 @@ nt_status tcp_socket<FAMILY>::send_syn(const typename FAMILY::sockaddr& c,
     ni.release();
 
     {
-        lock_guard lock(state_lock);
+        lock_guard lock(sock.state_lock);
 
-        if (state == tcp_state::CLOSED)
+        if (sock.state == tcp_state::CLOSED)
             return nt_status::CONNECTION_REFUSED;
     }
 
@@ -805,7 +816,7 @@ nt_status tcp_socket<FAMILY>::connect(const sockaddr* addr, size_t addrlen) {
         send_unacknowledged = send_next;
     }
 
-    status = send_syn(c, src);
+    status = send_syn<FAMILY>(*this, c, src);
     if (!success(status)) {
         netif* oldni = nullptr;
 
