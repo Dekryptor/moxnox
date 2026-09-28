@@ -254,8 +254,11 @@ public:
         return nt_status::NOT_SUPPORTED;
     }
 
-    virtual nt_status getsockopt_tcp(sockopt_tcp, span<uint8_t>,
-                                     socklen_t&) {
+    virtual nt_status getsockopt_tcp(sockopt_tcp, span<uint8_t>, socklen_t&) {
+        return nt_status::NOT_SUPPORTED;
+    }
+
+    virtual nt_status getsockopt_ipv6(sockopt_ipv6, span<uint8_t>, socklen_t&) {
         return nt_status::NOT_SUPPORTED;
     }
 

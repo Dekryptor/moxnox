@@ -3570,6 +3570,8 @@ nt_status socket::getsockopt(int level, int optname, span<uint8_t> buf,
         }
     } else if (level == IPPROTO_TCP)
         return getsockopt_tcp((sockopt_tcp)optname, buf, retlen);
+    else if (level == IPPROTO_IPV6)
+        return getsockopt_ipv6((sockopt_ipv6)optname, buf, retlen);
     else
         print("FIXME - getsockopt({}, {})\n", level, optname);
 

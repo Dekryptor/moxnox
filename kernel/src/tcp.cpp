@@ -166,6 +166,8 @@ public:
     nt_status shutdown(int how) override;
     nt_status getsockopt_tcp(sockopt_tcp opt, span<uint8_t> buf,
                              socklen_t& retlen) override;
+    nt_status getsockopt_ipv6(sockopt_ipv6 opt, span<uint8_t> buf,
+                              socklen_t& retlen) override;
 
     void received_packet(packet& pack, netif& ni, const mac_address& src_mac);
 
@@ -2903,4 +2905,28 @@ nt_status tcp_socket<FAMILY>::getsockopt_tcp(sockopt_tcp opt, span<uint8_t> buf,
             print("FIXME - getsockopt(IPPROTO_TCP, {})\n", opt);
             return nt_status::NOT_SUPPORTED;
     }
+}
+
+template<socket_family FAMILY>
+nt_status tcp_socket<FAMILY>::getsockopt_ipv6(sockopt_ipv6 opt, span<uint8_t> buf,
+                                              socklen_t& retlen) {
+    if constexpr (is_same_v<FAMILY, ipv6>) {
+        switch (opt) {
+            using enum sockopt_ipv6;
+
+            case V6ONLY:
+                if (buf.size() != sizeof(int))
+                    return nt_status::INVALID_PARAMETER;
+
+                *(int*)buf.data() = ipv6_only ? 1 : 0;
+                retlen = sizeof(int);
+
+                return nt_status::SUCCESS;
+
+            default:
+                print("FIXME - getsockopt(IPPROTO_IPV6, {}, {})\n", opt, buf.size());
+                return nt_status::NOT_SUPPORTED;
+        }
+    } else
+        return nt_status::NOT_SUPPORTED;
 }
