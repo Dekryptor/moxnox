@@ -2859,6 +2859,40 @@ nt_status tcp_socket<FAMILY>::getsockname(span<uint8_t> buf, size_t& len) {
 
 template<socket_family FAMILY>
 nt_status tcp_socket<FAMILY>::getpeername(span<uint8_t> buf, size_t& len) {
+    if constexpr (is_same_v<FAMILY, ipv4>) {
+        if (present_as_ipv6) {
+            if (buf.size() < sizeof(sockaddr_in6))
+                return nt_status::BUFFER_TOO_SMALL;
+
+            auto& addr = *(sockaddr_in6*)buf.data();
+
+            memset(&addr, 0, sizeof(addr));
+
+            addr.sin6_family = AF_INET6;
+
+            {
+                lock_guard lock(state_lock);
+
+                if (state == tcp_state::CLOSED || state == tcp_state::LISTEN)
+                    return nt_status::CONNECTION_DISCONNECTED;
+
+                static const auto MAPPED_ADDRESS = parse_ipv6_address("::ffff:0:0");
+
+                addr.sin6_port = connected_port;
+                addr.sin6_scope_id = connected_scope;
+
+                auto& addr2 = *(ipv6_address*)&addr.sin6_addr;
+
+                addr2 = MAPPED_ADDRESS;
+                memcpy(addr2.v.data() + 12, connected_address.v.data(), sizeof(ipv4_address));
+            }
+
+            len = sizeof(addr);
+
+            return nt_status::SUCCESS;
+        }
+    }
+
     if (buf.size() < sizeof(typename FAMILY::sockaddr))
         return nt_status::BUFFER_TOO_SMALL;
 
