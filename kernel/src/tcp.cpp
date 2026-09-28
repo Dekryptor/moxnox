@@ -7,6 +7,7 @@ module;
 #include <bit>
 #include <algorithm>
 #include <type_traits>
+#include <variant>
 #include <stdlib.h>
 
 module net;
@@ -118,8 +119,16 @@ enum class tcp_state {
     SYN_RECEIVED,
 };
 
+class _tcp_socket : public socket {
+public:
+    _tcp_socket(bool is_ipv4) : is_ipv4(is_ipv4) { }
+
+    list_entry le;
+    bool is_ipv4;
+};
+
 template<socket_family FAMILY>
-class tcp_socket : public socket {
+class tcp_socket : public _tcp_socket {
 public:
     tcp_socket();
     ~tcp_socket();
@@ -201,7 +210,6 @@ public:
     unsigned int listen_backlog;
     tcp_socket<FAMILY>* parent = nullptr;
     spinlock list_lock;
-    list_entry le;
     list_entry syn_queue = { &syn_queue, &syn_queue };
     list_entry accept_queue = { &accept_queue, &accept_queue };
     list_entry children = { &children, &children };
@@ -231,6 +239,19 @@ private:
     template<bool NONBLOCK>
     nt_status do_sendto(span<const span<const uint8_t>> v, int flags,
                         sockaddr* to, size_t tolen, uint64_t& sent_bytes);
+};
+
+template<socket_family FAMILY>
+struct socket_variant;
+
+template<>
+struct socket_variant<ipv4> {
+    using type = variant<tcp_socket<ipv4>*>;
+};
+
+template<>
+struct socket_variant<ipv6> {
+    using type = variant<tcp_socket<ipv4>*, tcp_socket<ipv6>*>;
 };
 
 static spinlock tcp_ports_lock;
@@ -1831,7 +1852,7 @@ nt_status tcp_socket<FAMILY>::do_sendto(span<const span<const uint8_t>> v,
 }
 
 template<socket_family FAMILY>
-tcp_socket<FAMILY>::tcp_socket() {
+tcp_socket<FAMILY>::tcp_socket() : _tcp_socket(is_same_v<FAMILY, ipv4> ? true : false) {
     if constexpr (is_same_v<FAMILY, ipv4>)
         mss = 536;
     else if constexpr (is_same_v<FAMILY, ipv6>)
@@ -2353,7 +2374,7 @@ nt_status tcp_socket<FAMILY>::accept(HANDLE& sock, void* us_addr, int& addrlen) 
             return nt_status::INVALID_PARAMETER;
     }
 
-    tcp_socket<FAMILY>* c = nullptr;
+    typename socket_variant<FAMILY>::type c;
 
     while (true) {
         status = wait_for_object(accept_queue_event.get(), true);
@@ -2371,12 +2392,28 @@ nt_status tcp_socket<FAMILY>::accept(HANDLE& sock, void* us_addr, int& addrlen) 
             if (is_list_empty(accept_queue))
                 continue;
 
-            auto& s = containing_record<tcp_socket<FAMILY>>(accept_queue.next);
+            auto& s = containing_record<_tcp_socket>(accept_queue.next);
 
-            c = &s;
+            if constexpr (is_same_v<FAMILY, ipv4>) {
+                auto& s2 = static_cast<tcp_socket<ipv4>&>(s);
+
+                s2.accepted = true;
+                c = &s2;
+            } else {
+                if (s.is_ipv4) {
+                    auto& s2 = static_cast<tcp_socket<ipv4>&>(s);
+
+                    s2.accepted = true;
+                    c = &s2;
+                } else {
+                    auto& s2 = static_cast<tcp_socket<ipv6>&>(s);
+
+                    s2.accepted = true;
+                    c = &s2;
+                }
+            }
 
             remove_entry_list(s.le);
-            s.accepted = true;
 
             if (is_list_empty(accept_queue)) {
                 auto& e = static_cast<event&>(accept_queue_event.get());
@@ -2392,76 +2429,86 @@ nt_status tcp_socket<FAMILY>::accept(HANDLE& sock, void* us_addr, int& addrlen) 
         break;
     }
 
-    if (us_addr) {
-        typename FAMILY::sockaddr addr;
+    return visit([&](auto* c) {
+        if (us_addr) {
+            typename FAMILY::sockaddr addr;
 
-        memset(&addr, 0, sizeof(addr));
+            memset(&addr, 0, sizeof(addr));
 
-        if constexpr (is_same_v<FAMILY, ipv4>) {
-            addr.sin_family = AF_INET;
-            addr.sin_port = c->connected_port;
-            *(ipv4_address*)&addr.sin_addr = c->connected_address;
-        } else if constexpr (is_same_v<FAMILY, ipv6>) {
-            addr.sin6_family = AF_INET6;
-            addr.sin6_port = c->connected_port;
-            addr.sin6_flowinfo = 0; // FIXME? Allowed by RFC3493, but not necessarily what Linux does
-            *(ipv6_address*)&addr.sin6_addr = c->connected_address;
-            addr.sin6_scope_id = c->connected_scope;
+            if constexpr (is_same_v<FAMILY, ipv4>) {
+                addr.sin_family = AF_INET;
+                addr.sin_port = c->connected_port;
+                *(ipv4_address*)&addr.sin_addr = c->connected_address;
+            } else if constexpr (is_same_v<FAMILY, ipv6>) {
+                addr.sin6_family = AF_INET6;
+                addr.sin6_port = c->connected_port;
+                addr.sin6_flowinfo = 0; // FIXME? Allowed by RFC3493, but not necessarily what Linux does
+                addr.sin6_scope_id = c->connected_scope;
+
+                if constexpr (is_same_v<remove_cvref_t<decltype(*c)>, tcp_socket<ipv4>>) {
+                    static const auto MAPPED_ADDRESS = parse_ipv6_address("::ffff:0:0");
+                    auto& addr2 = *(ipv6_address*)&addr.sin6_addr;
+
+                    addr2 = MAPPED_ADDRESS;
+                    memcpy(addr2.v.data() + 12, c->connected_address.v.data(), sizeof(ipv4_address));
+                } else
+                    *(ipv6_address*)&addr.sin6_addr = c->connected_address;
+            }
+
+            status = t.proc->write_vm(us_addr, &addr, (uint32_t)sizeof(addr),
+                                    nullptr);
+            if (!success(status)) {
+                c->release();
+                return status;
+            }
+
+            addrlen = sizeof(addr);
         }
 
-        status = t.proc->write_vm(us_addr, &addr, (uint32_t)sizeof(addr),
-                                  nullptr);
-        if (!success(status)) {
+        {
+            lock_guard lock(tcp_ports_lock);
+
+            if constexpr (is_same_v<remove_cvref_t<decltype(*c)>, tcp_socket<ipv4>>)
+                insert_tail_list(accepted_sockets_v4, c->accepted_le);
+            else
+                insert_tail_list(accepted_sockets_v6, c->accepted_le);
+
+            c->on_accepted_list = true;
+        }
+
+        auto f = new file(*c, 0);
+        if (!f) {
+            print("new failed\n");
+
+            {
+                lock_guard lock(tcp_ports_lock);
+                remove_entry_list(c->accepted_le);
+                c->on_accepted_list = false;
+            }
+
             c->release();
+
+            return nt_status::INSUFFICIENT_RESOURCES;
+        }
+
+        object_ref ref{*f};
+
+        status = t.proc->add_handle(ref.get(), FILE_READ_DATA | FILE_WRITE_DATA,
+                                    true, sock);
+        if (!success(status)) {
+            {
+                lock_guard lock(tcp_ports_lock);
+                remove_entry_list(c->accepted_le);
+                c->on_accepted_list = false;
+            }
+
+            c->release();
+
             return status;
         }
 
-        addrlen = sizeof(addr);
-    }
-
-    {
-        lock_guard lock(tcp_ports_lock);
-
-        if constexpr (is_same_v<FAMILY, ipv4>)
-            insert_tail_list(accepted_sockets_v4, c->accepted_le);
-        else if constexpr (is_same_v<FAMILY, ipv6>)
-            insert_tail_list(accepted_sockets_v6, c->accepted_le);
-
-        c->on_accepted_list = true;
-    }
-
-    auto f = new file(*c, 0);
-    if (!f) {
-        print("new failed\n");
-
-        {
-            lock_guard lock(tcp_ports_lock);
-            remove_entry_list(c->accepted_le);
-            c->on_accepted_list = false;
-        }
-
-        c->release();
-
-        return nt_status::INSUFFICIENT_RESOURCES;
-    }
-
-    object_ref ref{*f};
-
-    status = t.proc->add_handle(ref.get(), FILE_READ_DATA | FILE_WRITE_DATA,
-                                true, sock);
-    if (!success(status)) {
-        {
-            lock_guard lock(tcp_ports_lock);
-            remove_entry_list(c->accepted_le);
-            c->on_accepted_list = false;
-        }
-
-        c->release();
-
-        return status;
-    }
-
-    return nt_status::SUCCESS;
+        return nt_status::SUCCESS;
+    }, c);
 }
 
 template<socket_family FAMILY>
