@@ -2860,22 +2860,32 @@ void tcp_socket<FAMILY>::received_listen_packet(packet& pack, netif& ni,
         lock_guard lock(list_lock);
 
         for (auto le = syn_queue.next; le != &syn_queue; le = le->next) {
-            auto& s = containing_record<tcp_socket<FAMILY>>(le);
+            auto& s = containing_record<_tcp_socket>(le);
 
-            if (s.connected_address == ip.src && s.connected_port == tcp.src_port) {
-                found = &s;
-                s.acquire();
+            if (!!is_same_v<FAMILY, ipv4> != !!s.is_ipv4)
+                continue;
+
+            auto& s2 = static_cast<tcp_socket<FAMILY>&>(s);
+
+            if (s2.connected_address == ip.src && s2.connected_port == tcp.src_port) {
+                found = &s2;
+                s2.acquire();
                 break;
             }
         }
 
         if (!found) {
             for (auto le = accept_queue.next; le != &accept_queue; le = le->next) {
-                auto& s = containing_record<tcp_socket<FAMILY>>(le);
+                auto& s = containing_record<_tcp_socket>(le);
 
-                if (s.connected_address == ip.src && s.connected_port == tcp.src_port) {
-                    found = &s;
-                    s.acquire();
+                if (!!is_same_v<FAMILY, ipv4> != !!s.is_ipv4)
+                    continue;
+
+                auto& s2 = static_cast<tcp_socket<FAMILY>&>(s);
+
+                if (s2.connected_address == ip.src && s2.connected_port == tcp.src_port) {
+                    found = &s2;
+                    s2.acquire();
                     break;
                 }
             }
