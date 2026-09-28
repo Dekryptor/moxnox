@@ -2388,6 +2388,17 @@ nt_status tcp_socket<FAMILY>::listen(int backlog) {
     }
 }
 
+static ipv6_address map_ipv4_address_to_ipv6(const ipv4_address& addr) {
+    ipv6_address ret;
+
+    static const auto MAPPED_ADDRESS = parse_ipv6_address("::ffff:0:0");
+
+    ret = MAPPED_ADDRESS;
+    memcpy(ret.v.data() + 12, addr.v.data(), sizeof(ipv4_address));
+
+    return ret;
+}
+
 template<socket_family FAMILY>
 nt_status tcp_socket<FAMILY>::accept(HANDLE& sock, void* us_addr, int& addrlen) {
     nt_status status;
@@ -2478,13 +2489,9 @@ nt_status tcp_socket<FAMILY>::accept(HANDLE& sock, void* us_addr, int& addrlen) 
                 addr.sin6_flowinfo = 0; // FIXME? Allowed by RFC3493, but not necessarily what Linux does
                 addr.sin6_scope_id = c->connected_scope;
 
-                if constexpr (is_same_v<remove_cvref_t<decltype(*c)>, tcp_socket<ipv4>>) {
-                    static const auto MAPPED_ADDRESS = parse_ipv6_address("::ffff:0:0");
-                    auto& addr2 = *(ipv6_address*)&addr.sin6_addr;
-
-                    addr2 = MAPPED_ADDRESS;
-                    memcpy(addr2.v.data() + 12, c->connected_address.v.data(), sizeof(ipv4_address));
-                } else
+                if constexpr (is_same_v<remove_cvref_t<decltype(*c)>, tcp_socket<ipv4>>)
+                    *(ipv6_address*)&addr.sin6_addr = map_ipv4_address_to_ipv6(c->connected_address);
+                else
                     *(ipv6_address*)&addr.sin6_addr = c->connected_address;
             }
 
@@ -2804,14 +2811,8 @@ nt_status tcp_socket<FAMILY>::getsockname(span<uint8_t> buf, size_t& len) {
                 lock_guard lock(state_lock);
 
                 if (bind_done) {
-                    static const auto MAPPED_ADDRESS = parse_ipv6_address("::ffff:0:0");
-
                     addr.sin6_port = bound_port;
-
-                    auto& addr2 = *(ipv6_address*)&addr.sin6_addr;
-
-                    addr2 = MAPPED_ADDRESS;
-                    memcpy(addr2.v.data() + 12, bound_address.v.data(), sizeof(ipv4_address));
+                    *(ipv6_address*)&addr.sin6_addr = map_ipv4_address_to_ipv6(bound_address);
                 }
 
                 addr.sin6_scope_id = connected_scope;
@@ -2876,15 +2877,10 @@ nt_status tcp_socket<FAMILY>::getpeername(span<uint8_t> buf, size_t& len) {
                 if (state == tcp_state::CLOSED || state == tcp_state::LISTEN)
                     return nt_status::CONNECTION_DISCONNECTED;
 
-                static const auto MAPPED_ADDRESS = parse_ipv6_address("::ffff:0:0");
-
                 addr.sin6_port = connected_port;
                 addr.sin6_scope_id = connected_scope;
 
-                auto& addr2 = *(ipv6_address*)&addr.sin6_addr;
-
-                addr2 = MAPPED_ADDRESS;
-                memcpy(addr2.v.data() + 12, connected_address.v.data(), sizeof(ipv4_address));
+                *(ipv6_address*)&addr.sin6_addr = map_ipv4_address_to_ipv6(connected_address);
             }
 
             len = sizeof(addr);
