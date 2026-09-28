@@ -905,16 +905,16 @@ void tcp_socket<FAMILY>::last_handle_closed() {
             s.send_fin();
 
         while (true) {
-            tcp_socket<FAMILY>* s2 = nullptr;
+            _tcp_socket* s2 = nullptr;
 
             {
                 lock_guard lock(s.list_lock);
 
                 if (!is_list_empty(s.syn_queue)) {
-                    s2 = &containing_record<tcp_socket<FAMILY>>(s.syn_queue.next);
+                    s2 = &containing_record<_tcp_socket>(s.syn_queue.next);
                     remove_entry_list(s2->le);
                 } else if (!is_list_empty(s.accept_queue)) {
-                    s2 = &containing_record<tcp_socket<FAMILY>>(s.accept_queue.next);
+                    s2 = &containing_record<_tcp_socket>(s.accept_queue.next);
                     remove_entry_list(s2->le);
                 }
             }
@@ -922,9 +922,22 @@ void tcp_socket<FAMILY>::last_handle_closed() {
             if (!s2)
                 break;
 
-            reset_child_socket(*s2);
+            typename socket_variant<FAMILY>::type v;
 
-            s2->release();
+            if constexpr (is_same_v<FAMILY, ipv4>)
+                v = static_cast<tcp_socket<ipv4>*>(s2);
+            else if constexpr (is_same_v<FAMILY, ipv6>) {
+                if (s2->is_ipv4)
+                    v = static_cast<tcp_socket<ipv4>*>(s2);
+                else
+                    v = static_cast<tcp_socket<ipv6>*>(s2);
+            }
+
+            visit([&](auto* s2) {
+                reset_child_socket(*s2);
+
+                s2->release();
+            }, v);
         }
 
         if (do_fin && !s.parent) {
