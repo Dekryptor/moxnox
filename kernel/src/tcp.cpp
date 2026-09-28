@@ -119,16 +119,54 @@ enum class tcp_state {
     SYN_RECEIVED,
 };
 
-class _tcp_socket : public socket {
+class base_tcp_socket : public socket {
 public:
-    _tcp_socket(bool is_ipv4) : is_ipv4(is_ipv4) { }
+    base_tcp_socket(bool is_ipv4) : is_ipv4(is_ipv4) { }
 
     list_entry le;
     bool is_ipv4;
+    bool init = false;
+    spinlock state_lock;
+    object_ref state_change_event;
+    bool bind_done = false;
+    uint16_t bound_port, connected_port;
+    uint32_t connected_scope = 0;
+    tcp_state state = tcp_state::CLOSED;
+    netif* pni = nullptr;
+    uint16_t recv_window = 0xffff;
+    tcp_seq send_next, send_unacknowledged, recv_next;
+    uint16_t send_window = 0;
+    tcp_seq last_send_window_seq;
+    mac_address dst_mac;
+    packet* first_ack = nullptr;
+    size_t mss;
+    spinlock retransmission_list_lock;
+    list_entry retransmission_list = { &retransmission_list, &retransmission_list };
+    object_ref retransmission_thread_obj;
+    object_ref retransmission_thread_quit_event;
+    object_ref send_window_open_event;
+    object_ref accept_queue_event;
+    list_entry buffer = { &buffer, &buffer };
+    list_entry ooo_buffer = { &ooo_buffer, &ooo_buffer };
+    rwsem us_read_mutex;
+    size_t us_read_offset = 0;
+    spinlock io_lock;
+    unsigned int listen_backlog;
+    base_tcp_socket* parent = nullptr;
+    spinlock list_lock;
+    list_entry syn_queue = { &syn_queue, &syn_queue };
+    list_entry accept_queue = { &accept_queue, &accept_queue };
+    bool accepted = false;
+    bool added_to_list = false;
+    list_entry accepted_le;
+    bool on_accepted_list = false;
+    atomic<bool> dead = false, shutdown_write = false, shutdown_read = false;
+    bool ipv6_only = false;
+    bool present_as_ipv6 = false;
 };
 
 template<socket_family FAMILY>
-class tcp_socket : public _tcp_socket {
+class tcp_socket : public base_tcp_socket {
 public:
     tcp_socket();
     ~tcp_socket();
@@ -183,45 +221,7 @@ public:
     uint16_t allowed_send_bytes();
     nt_status send_syn_ack(const mac_address& mac);
 
-    bool init = false;
-    spinlock state_lock;
-    object_ref state_change_event;
-    bool bind_done = false;
-    uint16_t bound_port, connected_port;
-    uint32_t connected_scope = 0;
     typename FAMILY::address bound_address, connected_address;
-    tcp_state state = tcp_state::CLOSED;
-    netif* pni = nullptr;
-    uint16_t recv_window = 0xffff;
-    tcp_seq send_next, send_unacknowledged, recv_next;
-    uint16_t send_window = 0;
-    tcp_seq last_send_window_seq;
-    mac_address dst_mac;
-    packet* first_ack = nullptr;
-    size_t mss;
-    spinlock retransmission_list_lock;
-    list_entry retransmission_list = { &retransmission_list, &retransmission_list };
-    object_ref retransmission_thread_obj;
-    object_ref retransmission_thread_quit_event;
-    object_ref send_window_open_event;
-    object_ref accept_queue_event;
-    list_entry buffer = { &buffer, &buffer };
-    list_entry ooo_buffer = { &ooo_buffer, &ooo_buffer };
-    rwsem us_read_mutex;
-    size_t us_read_offset = 0;
-    spinlock io_lock;
-    unsigned int listen_backlog;
-    _tcp_socket* parent = nullptr;
-    spinlock list_lock;
-    list_entry syn_queue = { &syn_queue, &syn_queue };
-    list_entry accept_queue = { &accept_queue, &accept_queue };
-    bool accepted = false;
-    bool added_to_list = false;
-    list_entry accepted_le;
-    bool on_accepted_list = false;
-    atomic<bool> dead = false, shutdown_write = false, shutdown_read = false;
-    bool ipv6_only = false;
-    bool present_as_ipv6 = false;
 
 private:
     nt_status send_syn(const typename FAMILY::sockaddr& c, typename FAMILY::address& src);
@@ -936,16 +936,16 @@ void tcp_socket<FAMILY>::last_handle_closed() {
             s.send_fin();
 
         while (true) {
-            _tcp_socket* s2 = nullptr;
+            base_tcp_socket* s2 = nullptr;
 
             {
                 lock_guard lock(s.list_lock);
 
                 if (!is_list_empty(s.syn_queue)) {
-                    s2 = &containing_record<_tcp_socket>(s.syn_queue.next);
+                    s2 = &containing_record<base_tcp_socket>(s.syn_queue.next);
                     remove_entry_list(s2->le);
                 } else if (!is_list_empty(s.accept_queue)) {
-                    s2 = &containing_record<_tcp_socket>(s.accept_queue.next);
+                    s2 = &containing_record<base_tcp_socket>(s.accept_queue.next);
                     remove_entry_list(s2->le);
                 }
             }
@@ -1276,7 +1276,7 @@ void tcp_socket<FAMILY>::received_packet_ipv4(packet& pack, netif& ni,
         lock_guard lock(list_lock);
 
         for (auto le = syn_queue.next; le != &syn_queue; le = le->next) {
-            auto& s = containing_record<_tcp_socket>(le);
+            auto& s = containing_record<base_tcp_socket>(le);
 
             if (!s.is_ipv4)
                 continue;
@@ -1292,7 +1292,7 @@ void tcp_socket<FAMILY>::received_packet_ipv4(packet& pack, netif& ni,
 
         if (!found) {
             for (auto le = accept_queue.next; le != &accept_queue; le = le->next) {
-                auto& s = containing_record<_tcp_socket>(le);
+                auto& s = containing_record<base_tcp_socket>(le);
 
                 if (!s.is_ipv4)
                     continue;
@@ -2070,7 +2070,7 @@ nt_status tcp_socket<FAMILY>::do_sendto(span<const span<const uint8_t>> v,
 }
 
 template<socket_family FAMILY>
-tcp_socket<FAMILY>::tcp_socket() : _tcp_socket(is_same_v<FAMILY, ipv4> ? true : false) {
+tcp_socket<FAMILY>::tcp_socket() : base_tcp_socket(is_same_v<FAMILY, ipv4> ? true : false) {
     if constexpr (is_same_v<FAMILY, ipv4>)
         mss = 536;
     else if constexpr (is_same_v<FAMILY, ipv6>)
@@ -2619,28 +2619,21 @@ nt_status tcp_socket<FAMILY>::accept(HANDLE& sock, void* us_addr, int& addrlen) 
             if (is_list_empty(accept_queue))
                 continue;
 
-            auto& s = containing_record<_tcp_socket>(accept_queue.next);
+            auto& s = containing_record<base_tcp_socket>(accept_queue.next);
 
             remove_entry_list(s.le);
+            s.accepted = true;
+            s.added_to_list = false;
 
             if constexpr (is_same_v<FAMILY, ipv4>) {
                 auto& s2 = static_cast<tcp_socket<ipv4>&>(s);
-
-                s2.accepted = true;
-                s2.added_to_list = false;
                 c = &s2;
             } else {
                 if (s.is_ipv4) {
                     auto& s2 = static_cast<tcp_socket<ipv4>&>(s);
-
-                    s2.accepted = true;
-                    s2.added_to_list = false;
                     c = &s2;
                 } else {
                     auto& s2 = static_cast<tcp_socket<ipv6>&>(s);
-
-                    s2.accepted = true;
-                    s2.added_to_list = false;
                     c = &s2;
                 }
             }
@@ -2867,7 +2860,7 @@ void tcp_socket<FAMILY>::received_listen_packet(packet& pack, netif& ni,
         lock_guard lock(list_lock);
 
         for (auto le = syn_queue.next; le != &syn_queue; le = le->next) {
-            auto& s = containing_record<_tcp_socket>(le);
+            auto& s = containing_record<base_tcp_socket>(le);
 
             if (!!is_same_v<FAMILY, ipv4> != !!s.is_ipv4)
                 continue;
@@ -2883,7 +2876,7 @@ void tcp_socket<FAMILY>::received_listen_packet(packet& pack, netif& ni,
 
         if (!found) {
             for (auto le = accept_queue.next; le != &accept_queue; le = le->next) {
-                auto& s = containing_record<_tcp_socket>(le);
+                auto& s = containing_record<base_tcp_socket>(le);
 
                 if (!!is_same_v<FAMILY, ipv4> != !!s.is_ipv4)
                     continue;
