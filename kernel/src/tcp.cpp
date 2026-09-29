@@ -3289,8 +3289,16 @@ nt_status tcp_socket<FAMILY>::shutdown(int how) {
             shutdown_read = true;
     }
 
-    if (do_fin)
-        send_fin<FAMILY>(*this);
+    if (do_fin) {
+        if constexpr (is_same_v<FAMILY, ipv4>)
+            send_fin<FAMILY>(*this);
+        else if constexpr (is_same_v<FAMILY, ipv6>) {
+            if (is_mapped_address(connected_address))
+                send_fin<ipv4>(*this);
+            else
+                send_fin<FAMILY>(*this);
+        }
+    }
 
     if (how == SHUT_WR || how == SHUT_RDWR) {
         sync_lock sl;
