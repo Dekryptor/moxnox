@@ -915,7 +915,7 @@ nt_status udp_socket<FAMILY>::bind(const sockaddr* addr, size_t addrlen) {
                     return nt_status::ADDRESS_ALREADY_ASSOCIATED;
             }
 
-            udp_ports_v4[b.sin_port] = this;
+            udp_ports_v4[port] = this;
         } else if constexpr (is_same_v<FAMILY, ipv6>) {
             dual_stack = ip == parse_ipv6_address("::") && !ipv6_only;
 
@@ -933,10 +933,10 @@ nt_status udp_socket<FAMILY>::bind(const sockaddr* addr, size_t addrlen) {
                     return nt_status::ADDRESS_ALREADY_ASSOCIATED;
             }
 
-            udp_ports_v6[b.sin6_port] = this;
+            udp_ports_v6[port] = this;
 
             if (dual_stack) {
-                udp_ports_v4[b.sin6_port] = this;
+                udp_ports_v4[port] = this;
                 this->acquire();
             }
         }
