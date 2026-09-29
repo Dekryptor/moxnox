@@ -2676,10 +2676,6 @@ nt_status tcp_socket<FAMILY>::bind(const sockaddr* addr, size_t addrlen) {
 
                 if (tcp_ports_v4[b.sin_port])
                     return nt_status::ADDRESS_ALREADY_ASSOCIATED;
-
-                // FIXME - should be getting other socket's state_lock to read its bound_address
-                if (tcp_ports_v6[b.sin_port] && tcp_ports_v6[b.sin_port]->bound_address == parse_ipv6_address("::") && !tcp_ports_v6[b.sin_port]->ipv6_only)
-                    return nt_status::ADDRESS_ALREADY_ASSOCIATED;
             }
 
             tcp_ports_v4[port] = this;
