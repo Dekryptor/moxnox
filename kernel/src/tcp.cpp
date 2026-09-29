@@ -547,18 +547,23 @@ void received_ipv6_tcp_packet(netif& ni, packet& pack,
 }
 
 template<socket_family FAMILY>
-static uint16_t find_ephemeral_tcp_port() {
+static uint16_t find_ephemeral_tcp_port(bool dual_stack) {
     auto rnd = kernel_time_page.system_time / (SYSTEM_TIME_RESOLUTION / TICK_RATE);
     uint16_t port = 49152 + (rnd & 0x3fff);
     uint16_t orig_port = port;
 
     while (true) {
-        if constexpr (is_same_v<FAMILY, ipv4>) {
-            if (!tcp_ports_v4[byteswap(port)])
+        if (dual_stack) {
+            if (!tcp_ports_v4[byteswap(port)] && !tcp_ports_v6[byteswap(port)])
                 return byteswap(port);
-        } else if constexpr (is_same_v<FAMILY, ipv6>) {
-            if (!tcp_ports_v6[byteswap(port)])
-                return byteswap(port);
+        } else {
+            if constexpr (is_same_v<FAMILY, ipv4>) {
+                if (!tcp_ports_v4[byteswap(port)])
+                    return byteswap(port);
+            } else if constexpr (is_same_v<FAMILY, ipv6>) {
+                if (!tcp_ports_v6[byteswap(port)])
+                    return byteswap(port);
+            }
         }
 
         if (port == 65535)
@@ -802,20 +807,20 @@ nt_status tcp_socket<FAMILY>::connect(const sockaddr* addr, size_t addrlen) {
 
         if (!bind_done) { // implicit bind if not already done
             if constexpr (is_same_v<FAMILY, ipv4>) {
-                port = find_ephemeral_tcp_port<FAMILY>();
+                port = find_ephemeral_tcp_port<FAMILY>(false);
                 if (port == 0) // no ephemeral ports left
                     return nt_status::ADDRESS_ALREADY_ASSOCIATED;
 
                 tcp_ports_v4[port] = this;
             } else if constexpr (is_same_v<FAMILY, ipv6>) {
                 if (mapped_address) {
-                    port = find_ephemeral_tcp_port<ipv4>();
+                    port = find_ephemeral_tcp_port<ipv4>(false);
                     if (port == 0) // no ephemeral ports left
                         return nt_status::ADDRESS_ALREADY_ASSOCIATED;
 
                     tcp_ports_v4[port] = this;
                 } else {
-                    port = find_ephemeral_tcp_port<FAMILY>();
+                    port = find_ephemeral_tcp_port<FAMILY>(false);
                     if (port == 0) // no ephemeral ports left
                         return nt_status::ADDRESS_ALREADY_ASSOCIATED;
 
@@ -2663,7 +2668,7 @@ nt_status tcp_socket<FAMILY>::bind(const sockaddr* addr, size_t addrlen) {
 
         if constexpr (is_same_v<FAMILY, ipv4>) {
             if (b.sin_port == 0) {
-                port = find_ephemeral_tcp_port<FAMILY>();
+                port = find_ephemeral_tcp_port<FAMILY>(false);
                 if (port == 0) // no ephemeral ports left
                     return nt_status::ADDRESS_ALREADY_ASSOCIATED;
             } else {
@@ -2680,7 +2685,7 @@ nt_status tcp_socket<FAMILY>::bind(const sockaddr* addr, size_t addrlen) {
             tcp_ports_v4[port] = this;
         } else if constexpr (is_same_v<FAMILY, ipv6>) {
             if (b.sin6_port == 0) {
-                port = find_ephemeral_tcp_port<FAMILY>();
+                port = find_ephemeral_tcp_port<FAMILY>(ip == parse_ipv6_address("::") && !ipv6_only);
                 if (port == 0) // no ephemeral ports left
                     return nt_status::ADDRESS_ALREADY_ASSOCIATED;
             } else {
