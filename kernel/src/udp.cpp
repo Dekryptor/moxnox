@@ -35,6 +35,7 @@ public:
     uint32_t connected_scope = 0;
     nt_status pending_error = nt_status::SUCCESS;
     atomic<bool> dead = false, shutdown_read = false, shutdown_write = false;
+    bool ipv6_only = false;
 };
 
 template<socket_family FAMILY>
@@ -91,6 +92,8 @@ public:
 
     nt_status shutdown(int how) override;
 
+    nt_status getsockopt_ipv6(sockopt_ipv6 opt, span<uint8_t> buf,
+                              socklen_t& retlen) override;
     nt_status setsockopt_ipv6(sockopt_ipv6 opt, span<const uint8_t> buf) override;
 
     typename FAMILY::address bound_address, connected_address;
@@ -1396,17 +1399,40 @@ nt_status udp_socket<FAMILY>::setsockopt_ipv6(sockopt_ipv6 opt, span<const uint8
         switch (opt) {
             using enum sockopt_ipv6;
 
-            case V6ONLY: {
+            case V6ONLY:
                 if (buf.size() != sizeof(int))
                     return nt_status::INVALID_PARAMETER;
 
-                // FIXME - do this properly
+                ipv6_only = !!*(int*)buf.data();
 
                 return nt_status::SUCCESS;
-            }
 
             default:
                 print("FIXME - setsockopt(IPPROTO_IPV6, {}, {})\n", opt, buf.size());
+                return nt_status::NOT_SUPPORTED;
+        }
+    } else
+        return nt_status::NOT_SUPPORTED;
+}
+
+template<socket_family FAMILY>
+nt_status udp_socket<FAMILY>::getsockopt_ipv6(sockopt_ipv6 opt, span<uint8_t> buf,
+                                              socklen_t& retlen) {
+    if constexpr (is_same_v<FAMILY, ipv6>) {
+        switch (opt) {
+            using enum sockopt_ipv6;
+
+            case V6ONLY:
+                if (buf.size() != sizeof(int))
+                    return nt_status::INVALID_PARAMETER;
+
+                *(int*)buf.data() = ipv6_only ? 1 : 0;
+                retlen = sizeof(int);
+
+                return nt_status::SUCCESS;
+
+            default:
+                print("FIXME - getsockopt(IPPROTO_IPV6, {}, {})\n", opt, buf.size());
                 return nt_status::NOT_SUPPORTED;
         }
     } else
