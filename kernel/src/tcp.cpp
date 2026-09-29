@@ -368,27 +368,6 @@ static void send_tcp_port_closed(packet& pack, netif& ni,
     }
 }
 
-static ipv6_address map_ipv4_address_to_ipv6(const ipv4_address& addr) {
-    ipv6_address ret;
-
-    static const auto MAPPED_ADDRESS = parse_ipv6_address("::ffff:0:0");
-
-    ret = MAPPED_ADDRESS;
-    memcpy(ret.v.data() + 12, addr.v.data(), sizeof(ipv4_address));
-
-    return ret;
-}
-
-static bool is_mapped_address(const ipv6_address& addr) {
-    static const auto MAPPED_ADDRESS = parse_ipv6_address("::ffff:0:0");
-
-    return !memcmp(addr.v.data(), MAPPED_ADDRESS.v.data(), 12);
-}
-
-static ipv4_address extract_mapped_address(const ipv6_address& addr) {
-    return *(ipv4_address*)(addr.v.data() + 12);
-}
-
 void received_ipv4_tcp_packet(netif& ni, packet& pack,
                               const mac_address& src_mac, bool skip_checksum) {
     if (pack.size < sizeof(ipv4_header))

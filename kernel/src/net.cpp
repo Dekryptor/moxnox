@@ -473,6 +473,27 @@ concept socket_family = is_same_v<T, ipv4> || is_same_v<T, ipv6>;
 static_assert(socket_family<ipv4>);
 static_assert(socket_family<ipv6>);
 
+ipv6_address map_ipv4_address_to_ipv6(const ipv4_address& addr) {
+    ipv6_address ret;
+
+    static const auto MAPPED_ADDRESS = parse_ipv6_address("::ffff:0:0");
+
+    ret = MAPPED_ADDRESS;
+    memcpy(ret.v.data() + 12, addr.v.data(), sizeof(ipv4_address));
+
+    return ret;
+}
+
+bool is_mapped_address(const ipv6_address& addr) {
+    static const auto MAPPED_ADDRESS = parse_ipv6_address("::ffff:0:0");
+
+    return !memcmp(addr.v.data(), MAPPED_ADDRESS.v.data(), 12);
+}
+
+ipv4_address extract_mapped_address(const ipv6_address& addr) {
+    return *(ipv4_address*)(addr.v.data() + 12);
+}
+
 export void received_packet(netif& ni, packet& pack, const mac_address& src_mac,
                             ethertype type, bool skip_csumming);
 export bool drop_packet(const mac_address& dst, const mac_address& us);

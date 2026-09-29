@@ -94,7 +94,7 @@ private:
 };
 
 static spinlock udp_ports_lock;
-static udp_socket<ipv4>* udp_ports_v4[65536];
+static base_udp_socket* udp_ports_v4[65536];
 static udp_socket<ipv6>* udp_ports_v6[65536];
 
 static const size_t MAX_BUFFER_SIZE = 1048576;
@@ -242,7 +242,7 @@ void received_ipv4_udp_packet(netif& ni, packet& pack,
           byteswap(udp.checksum));
 #endif
 
-    udp_socket<ipv4>* sock = nullptr;
+    base_udp_socket* sock = nullptr;
 
     {
         lock_guard lock(udp_ports_lock);
@@ -250,13 +250,28 @@ void received_ipv4_udp_packet(netif& ni, packet& pack,
         if (udp_ports_v4[udp.dstport]) {
             sock = udp_ports_v4[udp.dstport];
 
-            {
-                lock_guard lock2(sock->bind_lock);
+            if (sock->is_ipv4) {
+                auto& s2 = static_cast<udp_socket<ipv4>&>(*sock);
 
-                if (sock->bind_done && sock->bound_address != parse_ipv4_address("0.0.0.0") && sock->bound_address != ip.dst)
-                    sock = nullptr;
-                else
-                    sock->acquire();
+                {
+                    lock_guard lock(sock->bind_lock);
+
+                    if (sock->bind_done && s2.bound_address != parse_ipv4_address("0.0.0.0") && s2.bound_address != ip.dst)
+                        sock = nullptr;
+                    else
+                        sock->acquire();
+                }
+            } else {
+                auto& s2 = static_cast<udp_socket<ipv6>&>(*sock);
+
+                {
+                    lock_guard lock(sock->bind_lock);
+
+                    if (!sock->bind_done || (s2.bound_address != parse_ipv6_address("::") && s2.bound_address != map_ipv4_address_to_ipv6(ip.dst)))
+                        sock = nullptr;
+                    else
+                        sock->acquire();
+                }
             }
         }
     }
@@ -274,8 +289,19 @@ void received_ipv4_udp_packet(netif& ni, packet& pack,
         {
             lock_guard lock(sock->bind_lock);
 
-            if (sock->connect_done && (sock->connected_address != ip.src || sock->connected_port != udp.srcport))
-                ignore = true;
+            if (sock->connect_done) {
+                if (sock->is_ipv4) {
+                    auto& s2 = static_cast<udp_socket<ipv4>&>(*sock);
+
+                    if (s2.connected_address != ip.src || sock->connected_port != udp.srcport)
+                        ignore = true;
+                } else {
+                    auto& s2 = static_cast<udp_socket<ipv6>&>(*sock);
+
+                    if (s2.connected_address != map_ipv4_address_to_ipv6(ip.src) || sock->connected_port != udp.srcport)
+                        ignore = true;
+                }
+            }
         }
 
         if (ignore) {
@@ -1077,7 +1103,7 @@ void handle_icmpv4_error_udp(packet& pack) {
 
     const auto& udp = *(udp_header*)(pack.data + ip_header_size + sizeof(icmpv4_error));
 
-    udp_socket<ipv4>* sock;
+    base_udp_socket* sock;
 
     {
         lock_guard lock(udp_ports_lock);
@@ -1094,10 +1120,22 @@ void handle_icmpv4_error_udp(packet& pack) {
     {
         lock_guard lock(sock->bind_lock);
 
-        if (sock->bound_address != parse_ipv4_address("0.0.0.0") && sock->bound_address != icmp.header.src)
-            drop = true;
-        else if (sock->connect_done && (sock->connected_address != icmp.header.dst || sock->connected_port != udp.dstport))
-            drop = true;
+        if (sock->is_ipv4) {
+            auto& s2 = static_cast<udp_socket<ipv4>&>(*sock);
+
+            if (s2.bound_address != parse_ipv4_address("0.0.0.0") && s2.bound_address != icmp.header.src)
+                drop = true;
+            else if (sock->connect_done && (s2.connected_address != icmp.header.dst || sock->connected_port != udp.dstport))
+                drop = true;
+        } else {
+            auto& s2 = static_cast<udp_socket<ipv6>&>(*sock);
+
+            if (s2.bound_address != parse_ipv6_address("::") && s2.bound_address != map_ipv4_address_to_ipv6(icmp.header.src))
+                drop = true;
+            else if (sock->connect_done && (s2.connected_address != map_ipv4_address_to_ipv6(icmp.header.dst) || sock->connected_port != udp.dstport))
+                drop = true;
+        }
+
     }
 
     if (drop) {
