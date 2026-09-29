@@ -2495,10 +2495,17 @@ nt_status tcp_socket<FAMILY>::do_recvfrom(span<const span<uint8_t>> v, int flags
                 r = &containing_record<socket_packet>(buffer.next);
             }
 
-            auto& ip = *(typename FAMILY::header*)r->pack.data;
+            bool do_ipv4;
             size_t ip_header_size, pack_size;
 
-            if constexpr (is_same_v<FAMILY, ipv4>) {
+            if constexpr (is_same_v<FAMILY, ipv4>)
+                do_ipv4 = true;
+            else if constexpr (is_same_v<FAMILY, ipv6>)
+                do_ipv4 = is_mapped_address(connected_address);
+
+            if (do_ipv4) {
+                auto& ip = *(ipv4_header*)r->pack.data;
+
                 ip_header_size = ip.ihl * sizeof(uint32_t);
                 pack_size = byteswap((uint16_t)ip.total_length);
             } else if constexpr (is_same_v<FAMILY, ipv6>) {
@@ -2559,8 +2566,16 @@ nt_status tcp_socket<FAMILY>::do_recvfrom(span<const span<uint8_t>> v, int flags
                 ack = recv_next;
             }
 
-            if (opening)
-                send_ack<FAMILY>(*this, false, ack);
+            if (opening) {
+                if constexpr (is_same_v<FAMILY, ipv4>)
+                    send_ack<FAMILY>(*this, false, ack);
+                else if constexpr (is_same_v<FAMILY, ipv6>) {
+                    if (is_mapped_address(connected_address))
+                        send_ack<ipv4>(*this, false, ack);
+                    else
+                        send_ack<FAMILY>(*this, false, ack);
+                }
+            }
         }
 
         if (!success(status) && recv_bytes == 0) {
