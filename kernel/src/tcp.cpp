@@ -441,20 +441,33 @@ void received_ipv4_tcp_packet(netif& ni, packet& pack,
             }
         }
 
-        if (!sock && tcp_ports_v4[tcp.dst_port] && tcp_ports_v4[tcp.dst_port]->is_ipv4) {
-            sock = static_cast<tcp_socket<ipv4>*>(tcp_ports_v4[tcp.dst_port]);
+        if (!sock && tcp_ports_v4[tcp.dst_port]) {
+            if (tcp_ports_v4[tcp.dst_port]->is_ipv4) {
+                sock = static_cast<tcp_socket<ipv4>*>(tcp_ports_v4[tcp.dst_port]);
 
-            {
-                lock_guard lock(sock->state_lock);
+                {
+                    lock_guard lock(sock->state_lock);
 
-                if (!sock->bind_done || (sock->bound_address != parse_ipv4_address("0.0.0.0") && sock->bound_address != ip.dst))
-                    sock = nullptr;
-                else
-                    sock->acquire();
+                    if (!sock->bind_done || (sock->bound_address != parse_ipv4_address("0.0.0.0") && sock->bound_address != ip.dst))
+                        sock = nullptr;
+                    else
+                        sock->acquire();
+                }
+            } else {
+                sock6 = static_cast<tcp_socket<ipv6>*>(tcp_ports_v4[tcp.dst_port]);
+
+                {
+                    lock_guard lock(sock6->state_lock);
+
+                    if (!sock6->bind_done || (sock6->bound_address != parse_ipv6_address("::") && sock6->bound_address != map_ipv4_address_to_ipv6(ip.dst)))
+                        sock6 = nullptr;
+                    else
+                        sock6->acquire();
+                }
             }
         }
 
-        if (!sock && tcp_ports_v6[tcp.dst_port] && !tcp_ports_v6[tcp.dst_port]->ipv6_only) {
+        if (!sock && !sock6 && tcp_ports_v6[tcp.dst_port] && !tcp_ports_v6[tcp.dst_port]->ipv6_only) {
             sock6 = tcp_ports_v6[tcp.dst_port];
 
             {
