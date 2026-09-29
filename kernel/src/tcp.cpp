@@ -2057,6 +2057,7 @@ nt_status tcp_socket<FAMILY>::do_sendto(span<const span<const uint8_t>> v,
 
         packet* pack;
         tcp_retransmission* r;
+        bool send_ipv4;
 
         {
             lock_guard lock(io_lock);
@@ -2096,9 +2097,16 @@ nt_status tcp_socket<FAMILY>::do_sendto(span<const span<const uint8_t>> v,
                 }
             }
 
-            pack->size = sizeof(typename FAMILY::header) + sizeof(tcp_header) + size;
+            if constexpr (is_same_v<FAMILY, ipv4>)
+                send_ipv4 = true;
+            else if constexpr (is_same_v<FAMILY, ipv6>)
+                send_ipv4 = is_mapped_address(connected_address);
 
-            auto& tcp = *(tcp_header*)(pack->data + sizeof(typename FAMILY::header));
+            size_t ip_header = send_ipv4 ? sizeof(ipv4_header) : sizeof(ipv6_header);
+
+            pack->size = ip_header + sizeof(tcp_header) + size;
+
+            auto& tcp = *(tcp_header*)(pack->data + ip_header);
 
             memset(&tcp, 0, sizeof(tcp));
 
@@ -2113,10 +2121,10 @@ nt_status tcp_socket<FAMILY>::do_sendto(span<const span<const uint8_t>> v,
 
             send_next += (uint32_t)size;
 
-            memcpy_vec(pack->data + sizeof(typename FAMILY::header) + (tcp.header_length * sizeof(uint32_t)),
+            memcpy_vec(pack->data + ip_header + (tcp.header_length * sizeof(uint32_t)),
                        v, top, size);
 
-            if constexpr (is_same_v<FAMILY, ipv4>) {
+            if (send_ipv4) {
                 auto& ip = *(ipv4_header*)pack->data;
 
                 ip.ihl = sizeof(ipv4_header) / sizeof(uint32_t);
@@ -2133,8 +2141,14 @@ nt_status tcp_socket<FAMILY>::do_sendto(span<const span<const uint8_t>> v,
                 ip.ttl = DEFAULT_HOP_LIMIT;
                 ip.protocol = IPPROTO_TCP;
                 ip.header_checksum = 0;
-                ip.src = bound_address;
-                ip.dst = connected_address;
+
+                if constexpr (is_same_v<FAMILY, ipv6>) {
+                    ip.src = extract_mapped_address(bound_address);
+                    ip.dst = extract_mapped_address(connected_address);
+                } else if constexpr (is_same_v<FAMILY, ipv4>) {
+                    ip.src = bound_address;
+                    ip.dst = connected_address;
+                }
 
                 ip.header_checksum = calc_ipv4_checksum(span(pack->data, sizeof(ipv4_header)));
 
@@ -2173,7 +2187,10 @@ nt_status tcp_socket<FAMILY>::do_sendto(span<const span<const uint8_t>> v,
             }
         }
 
-        dispatch_packet<FAMILY>(ni, *pack, dst_mac);
+        if (send_ipv4)
+            dispatch_packet<ipv4>(ni, *pack, dst_mac);
+        else
+            dispatch_packet<ipv6>(ni, *pack, dst_mac);
 
         pack->release();
 
