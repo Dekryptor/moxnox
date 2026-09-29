@@ -600,18 +600,23 @@ nt_status udp_socket<FAMILY>::do_recvfrom(span<const span<uint8_t>> v, int flags
 }
 
 template<socket_family FAMILY>
-uint16_t find_ephemeral_udp_port() {
+uint16_t find_ephemeral_udp_port(bool dual_stack) {
     auto rnd = kernel_time_page.system_time / (SYSTEM_TIME_RESOLUTION / TICK_RATE);
     uint16_t port = 49152 + (rnd & 0x3fff);
     uint16_t orig_port = port;
 
     while (true) {
-        if constexpr (is_same_v<FAMILY, ipv4>) {
-            if (!udp_ports_v4[byteswap(port)])
+        if (dual_stack) {
+            if (!udp_ports_v4[byteswap(port)] && !udp_ports_v6[byteswap(port)])
                 return byteswap(port);
-        } else if constexpr (is_same_v<FAMILY, ipv6>) {
-            if (!udp_ports_v6[byteswap(port)])
-                return byteswap(port);
+        } else {
+            if constexpr (is_same_v<FAMILY, ipv4>) {
+                if (!udp_ports_v4[byteswap(port)])
+                    return byteswap(port);
+            } else if constexpr (is_same_v<FAMILY, ipv6>) {
+                if (!udp_ports_v6[byteswap(port)])
+                    return byteswap(port);
+            }
         }
 
         if (port == 65535)
@@ -627,50 +632,14 @@ uint16_t find_ephemeral_udp_port() {
 template<socket_family FAMILY>
 static nt_status do_sendto(base_udp_socket& sock,
                            span<const span<const uint8_t>> v,
-                           int flags, sockaddr* to, size_t tolen,
+                           int flags, const typename FAMILY::address& dst,
+                           uint16_t dstport, uint32_t dstscope,
                            uint64_t& sent_bytes) {
     nt_status status;
     typename FAMILY::address src;
     uint16_t srcport;
-    bool connected;
     auto vec_size = get_vec_size(v);
     span<const uint8_t> top = vec_size == 0 ? span<const uint8_t>() : v.front();
-    typename FAMILY::address dst;
-    uint16_t dstport;
-    uint32_t dstscope;
-
-    {
-        lock_guard lock(sock.bind_lock);
-        connected = sock.connect_done;
-
-        if (!connected && (!to || tolen < sizeof(typename FAMILY::sockaddr)))
-            return nt_status::INVALID_PARAMETER;
-
-        // if connected, sendto destination is ignored
-        if (connected) {
-            if constexpr (is_same_v<FAMILY, ipv4>) {
-                auto& s2 = static_cast<udp_socket<ipv4>&>(sock);
-
-                dst = s2.connected_address;
-                dstport = s2.connected_port;
-            } else if constexpr (is_same_v<FAMILY, ipv6>) {
-                auto& s2 = static_cast<udp_socket<ipv6>&>(sock);
-
-                dst = s2.connected_address;
-                dstport = s2.connected_port;
-                dstscope = s2.connected_scope;
-            }
-        } else {
-            if constexpr (is_same_v<FAMILY, ipv4>) {
-                dst = *(ipv4_address*)&((sockaddr_in*)to)->sin_addr;
-                dstport = ((sockaddr_in*)to)->sin_port;
-            } else if constexpr (is_same_v<FAMILY, ipv6>) {
-                dst = *(ipv6_address*)&((sockaddr_in6*)to)->sin6_addr;
-                dstport = ((sockaddr_in6*)to)->sin6_port;
-                dstscope = ((sockaddr_in6*)to)->sin6_scope_id;
-            }
-        }
-    }
 
     if (sock.shutdown_write)
         return nt_status::CONNECTION_ABORTED;
@@ -713,23 +682,41 @@ static nt_status do_sendto(base_udp_socket& sock,
         lock_guard lock2(sock.bind_lock);
 
         if (!sock.bind_done) {
-            srcport = find_ephemeral_udp_port<FAMILY>();
+            srcport = find_ephemeral_udp_port<FAMILY>(!sock.is_ipv4 && !sock.ipv6_only);
+
             if (srcport == 0) // no ephemeral ports left
                 return nt_status::ADDRESS_ALREADY_ASSOCIATED;
 
-            if constexpr (is_same_v<FAMILY, ipv4>)
-                udp_ports_v4[srcport] = &static_cast<udp_socket<ipv4>&>(sock);
-            else if constexpr (is_same_v<FAMILY, ipv6>)
+            if constexpr (is_same_v<FAMILY, ipv4>) {
+                udp_ports_v4[srcport] = &sock;
+
+                if (!sock.is_ipv4 && !sock.ipv6_only) {
+                    udp_ports_v6[srcport] = &static_cast<udp_socket<ipv6>&>(sock);
+                    sock.acquire();
+                }
+            } else if constexpr (is_same_v<FAMILY, ipv6>) {
                 udp_ports_v6[srcport] = &static_cast<udp_socket<ipv6>&>(sock);
+
+                if (!sock.ipv6_only) {
+                    udp_ports_v4[srcport] = &sock;
+                    sock.acquire();
+                }
+            }
 
             sock.acquire();
 
             sock.bound_port = srcport;
 
             if constexpr (is_same_v<FAMILY, ipv4>) {
-                auto& s2 = static_cast<udp_socket<ipv4>&>(sock);
+                if (sock.is_ipv4) {
+                    auto& s2 = static_cast<udp_socket<ipv4>&>(sock);
 
-                s2.bound_address = parse_ipv4_address("0.0.0.0");
+                    s2.bound_address = parse_ipv4_address("0.0.0.0");
+                } else {
+                    auto& s2 = static_cast<udp_socket<ipv6>&>(sock);
+
+                    s2.bound_address = parse_ipv6_address("::");
+                }
             } else if constexpr (is_same_v<FAMILY, ipv6>) {
                 auto& s2 = static_cast<udp_socket<ipv6>&>(sock);
 
@@ -743,9 +730,15 @@ static nt_status do_sendto(base_udp_socket& sock,
         srcport = sock.bound_port;
 
         if constexpr (is_same_v<FAMILY, ipv4>) {
-            auto& s2 = static_cast<udp_socket<ipv4>&>(sock);
+            if (sock.is_ipv4) {
+                auto& s2 = static_cast<udp_socket<ipv4>&>(sock);
 
-            src = s2.bound_address;
+                src = s2.bound_address;
+            } else {
+                auto& s2 = static_cast<udp_socket<ipv6>&>(sock);
+
+                src = extract_mapped_address(s2.bound_address);
+            }
         } else if constexpr (is_same_v<FAMILY, ipv6>) {
             auto& s2 = static_cast<udp_socket<ipv6>&>(sock);
 
@@ -911,7 +904,7 @@ nt_status udp_socket<FAMILY>::bind(const sockaddr* addr, size_t addrlen) {
 
         if constexpr (is_same_v<FAMILY, ipv4>) {
             if (b.sin_port == 0) {
-                port = find_ephemeral_udp_port<FAMILY>();
+                port = find_ephemeral_udp_port<FAMILY>(false);
                 if (port == 0) // no ephemeral ports left
                     return nt_status::ADDRESS_ALREADY_ASSOCIATED;
             } else {
@@ -924,7 +917,7 @@ nt_status udp_socket<FAMILY>::bind(const sockaddr* addr, size_t addrlen) {
             udp_ports_v4[b.sin_port] = this;
         } else if constexpr (is_same_v<FAMILY, ipv6>) {
             if (b.sin6_port == 0) {
-                port = find_ephemeral_udp_port<FAMILY>();
+                port = find_ephemeral_udp_port<FAMILY>(false);
                 if (port == 0) // no ephemeral ports left
                     return nt_status::ADDRESS_ALREADY_ASSOCIATED;
             } else {
@@ -1028,7 +1021,7 @@ nt_status udp_socket<FAMILY>::connect(const sockaddr* addr, size_t addrlen) {
         lock_guard lock2(bind_lock);
 
         if (!bind_done) { // implicit bind if not already done
-            port = find_ephemeral_udp_port<FAMILY>();
+            port = find_ephemeral_udp_port<FAMILY>(false);
             if (port == 0) // no ephemeral ports left
                 return nt_status::ADDRESS_ALREADY_ASSOCIATED;
 
@@ -1067,12 +1060,12 @@ void udp_socket<FAMILY>::last_handle_closed() {
         lock_guard lock(udp_ports_lock);
         lock_guard lock2(bind_lock);
 
-        if constexpr (is_same_v<FAMILY, ipv4>) {
-            if (bind_done && udp_ports_v4[bound_port] == this) {
-                udp_ports_v4[bound_port] = nullptr;
-                this->release();
-            }
-        } else if constexpr (is_same_v<FAMILY, ipv6>) {
+        if (bind_done && udp_ports_v4[bound_port] == this) {
+            udp_ports_v4[bound_port] = nullptr;
+            this->release();
+        }
+
+        if constexpr (is_same_v<FAMILY, ipv6>) {
             if (bind_done && udp_ports_v6[bound_port] == this) {
                 udp_ports_v6[bound_port] = nullptr;
                 this->release();
@@ -1483,10 +1476,67 @@ nt_status udp_socket<FAMILY>::sendto(span<const span<const uint8_t>> v,
                                      int flags, sockaddr* to,
                                      size_t tolen, uint64_t& sent_bytes,
                                      span<const HANDLE> handles) {
+    typename FAMILY::address dst;
+    uint16_t dstport;
+    uint32_t dstscope;
+
     if (!handles.empty())
         return nt_status::NOT_SUPPORTED;
 
-    return do_sendto<FAMILY>(*this, v, flags, to, tolen, sent_bytes);
+    {
+        lock_guard lock(bind_lock);
+
+        if (!connect_done && (!to || tolen < sizeof(typename FAMILY::sockaddr)))
+            return nt_status::INVALID_PARAMETER;
+
+        // if connected, sendto destination is ignored
+        if (connect_done) {
+            if constexpr (is_same_v<FAMILY, ipv4>) {
+                auto& s2 = static_cast<udp_socket<ipv4>&>(*this);
+
+                dst = s2.connected_address;
+                dstport = s2.connected_port;
+                dstscope = 0;
+            } else if constexpr (is_same_v<FAMILY, ipv6>) {
+                auto& s2 = static_cast<udp_socket<ipv6>&>(*this);
+
+                dst = s2.connected_address;
+                dstport = s2.connected_port;
+                dstscope = s2.connected_scope;
+            }
+        } else {
+            if constexpr (is_same_v<FAMILY, ipv4>) {
+                dst = *(ipv4_address*)&((sockaddr_in*)to)->sin_addr;
+                dstport = ((sockaddr_in*)to)->sin_port;
+                dstscope = 0;
+            } else if constexpr (is_same_v<FAMILY, ipv6>) {
+                dst = *(ipv6_address*)&((sockaddr_in6*)to)->sin6_addr;
+                dstport = ((sockaddr_in6*)to)->sin6_port;
+                dstscope = ((sockaddr_in6*)to)->sin6_scope_id;
+            }
+        }
+
+        if constexpr (is_same_v<FAMILY, ipv6>) {
+            if (bind_done && bound_address != parse_ipv6_address("::") && !!is_mapped_address(bound_address) != !!is_mapped_address(dst))
+                return nt_status::INVALID_PARAMETER;
+        }
+    }
+
+    if constexpr (is_same_v<FAMILY, ipv4>) {
+        return do_sendto<FAMILY>(*this, v, flags, dst, dstport, dstscope,
+                                sent_bytes);
+    } else if constexpr (is_same_v<FAMILY, ipv6>) {
+        if (is_mapped_address(dst)) {
+            if (ipv6_only)
+                return nt_status::INVALID_PARAMETER;
+
+            return do_sendto<ipv4>(*this, v, flags, extract_mapped_address(dst),
+                                   dstport, dstscope, sent_bytes);
+        } else
+            return do_sendto<FAMILY>(*this, v, flags, dst, dstport, dstscope,
+                                     sent_bytes);
+    }
+
 }
 
 template<socket_family FAMILY>
@@ -1494,8 +1544,5 @@ nt_status udp_socket<FAMILY>::sendto_nonblock(span<const span<const uint8_t>> v,
                                               int flags, sockaddr* to,
                                               size_t tolen, uint64_t& sent_bytes,
                                               span<const HANDLE> handles) {
-    if (!handles.empty())
-        return nt_status::NOT_SUPPORTED;
-
-    return do_sendto<FAMILY>(*this, v, flags, to, tolen, sent_bytes);
+    return sendto(v, flags, to, tolen, sent_bytes, handles);
 }
