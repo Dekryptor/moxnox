@@ -1067,12 +1067,12 @@ void tcp_socket<FAMILY>::last_handle_closed() {
             lock_guard lock(tcp_ports_lock);
             lock_guard lock2(s.state_lock);
 
-            if constexpr (is_same_v<FAMILY, ipv4>) {
-                if (s.bind_done && tcp_ports_v4[s.bound_port] == &s) {
-                    tcp_ports_v4[s.bound_port] = nullptr;
-                    s.release();
-                }
-            } else if constexpr (is_same_v<FAMILY, ipv6>) {
+            if (s.bind_done && tcp_ports_v4[s.bound_port] == &s) {
+                tcp_ports_v4[s.bound_port] = nullptr;
+                s.release();
+            }
+
+            if constexpr (is_same_v<FAMILY, ipv6>) {
                 if (s.bind_done && tcp_ports_v6[s.bound_port] == &s) {
                     tcp_ports_v6[s.bound_port] = nullptr;
                     s.release();
@@ -1783,23 +1783,14 @@ static void received_packet(base_tcp_socket& sock, packet& pack,
                 lock_guard lock(tcp_ports_lock);
                 lock_guard lock2(sock.state_lock);
 
-                if constexpr (is_same_v<FAMILY, ipv4>) {
-                    if (sock.is_ipv4) {
-                        if (sock.bind_done && tcp_ports_v4[sock.bound_port] == &sock) {
-                            tcp_ports_v4[sock.bound_port] = nullptr;
-                            sock.release();
-                        }
-                    } else {
-                        if (sock.bind_done && tcp_ports_v6[sock.bound_port] == &sock) {
-                            tcp_ports_v6[sock.bound_port] = nullptr;
-                            sock.release();
-                        }
-                    }
-                } else if constexpr (is_same_v<FAMILY, ipv6>) {
-                    if (sock.bind_done && tcp_ports_v6[sock.bound_port] == &sock) {
-                        tcp_ports_v6[sock.bound_port] = nullptr;
-                        sock.release();
-                    }
+                if (sock.bind_done && tcp_ports_v4[sock.bound_port] == &sock) {
+                    tcp_ports_v4[sock.bound_port] = nullptr;
+                    sock.release();
+                }
+
+                if (sock.bind_done && tcp_ports_v6[sock.bound_port] == &sock) {
+                    tcp_ports_v6[sock.bound_port] = nullptr;
+                    sock.release();
                 }
             } else if (sock.on_accepted_list) {
                 {
@@ -2365,12 +2356,12 @@ void tcp_socket<FAMILY>::retransmission_thread() {
                 lock_guard lock(tcp_ports_lock);
                 lock_guard lock2(state_lock);
 
-                if constexpr (is_same_v<FAMILY, ipv4>) {
-                    if (bind_done && tcp_ports_v4[bound_port] == this) {
-                        tcp_ports_v4[bound_port] = nullptr;
-                        release();
-                    }
-                } else if constexpr (is_same_v<FAMILY, ipv6>) {
+                if (bind_done && tcp_ports_v4[bound_port] == this) {
+                    tcp_ports_v4[bound_port] = nullptr;
+                    release();
+                }
+
+                if constexpr (is_same_v<FAMILY, ipv6>) {
                     if (bind_done && tcp_ports_v6[bound_port] == this) {
                         tcp_ports_v6[bound_port] = nullptr;
                         release();
