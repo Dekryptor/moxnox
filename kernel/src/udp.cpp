@@ -895,6 +895,7 @@ nt_status udp_socket<FAMILY>::bind(const sockaddr* addr, size_t addrlen) {
 
     {
         uint16_t port;
+        bool dual_stack = false;
 
         lock_guard lock(udp_ports_lock);
         lock_guard lock2(bind_lock);
@@ -916,8 +917,10 @@ nt_status udp_socket<FAMILY>::bind(const sockaddr* addr, size_t addrlen) {
 
             udp_ports_v4[b.sin_port] = this;
         } else if constexpr (is_same_v<FAMILY, ipv6>) {
+            dual_stack = ip == parse_ipv6_address("::") && !ipv6_only;
+
             if (b.sin6_port == 0) {
-                port = find_ephemeral_udp_port<FAMILY>(false);
+                port = find_ephemeral_udp_port<FAMILY>(dual_stack);
                 if (port == 0) // no ephemeral ports left
                     return nt_status::ADDRESS_ALREADY_ASSOCIATED;
             } else {
@@ -925,9 +928,17 @@ nt_status udp_socket<FAMILY>::bind(const sockaddr* addr, size_t addrlen) {
 
                 if (udp_ports_v6[b.sin6_port])
                     return nt_status::ADDRESS_ALREADY_ASSOCIATED;
+
+                if (dual_stack && udp_ports_v4[b.sin6_port])
+                    return nt_status::ADDRESS_ALREADY_ASSOCIATED;
             }
 
             udp_ports_v6[b.sin6_port] = this;
+
+            if (dual_stack) {
+                udp_ports_v4[b.sin6_port] = this;
+                this->acquire();
+            }
         }
 
         this->acquire();
