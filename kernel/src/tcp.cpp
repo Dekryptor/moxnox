@@ -374,6 +374,12 @@ static ipv6_address map_ipv4_address_to_ipv6(const ipv4_address& addr) {
     return ret;
 }
 
+static bool is_mapped_address(const ipv6_address& addr) {
+    static const auto MAPPED_ADDRESS = parse_ipv6_address("::ffff:0:0");
+
+    return !memcmp(addr.v.data(), MAPPED_ADDRESS.v.data(), 12);
+}
+
 void received_ipv4_tcp_packet(netif& ni, packet& pack,
                               const mac_address& src_mac, bool skip_checksum) {
     if (pack.size < sizeof(ipv4_header))
@@ -757,6 +763,7 @@ static tcp_seq rand_tcp_seq() {
 template<socket_family FAMILY>
 nt_status tcp_socket<FAMILY>::connect(const sockaddr* addr, size_t addrlen) {
     nt_status status;
+    bool mapped_address = false;
 
     if (addr->sa_family != FAMILY::family)
         return nt_status::INVALID_PARAMETER;
@@ -766,6 +773,13 @@ nt_status tcp_socket<FAMILY>::connect(const sockaddr* addr, size_t addrlen) {
 
     auto& c = *(typename FAMILY::sockaddr*)addr;
     typename FAMILY::address src;
+
+    if constexpr (is_same_v<FAMILY, ipv6>) {
+        mapped_address = is_mapped_address(*(ipv6_address*)&c.sin6_addr);
+
+        if (ipv6_only && mapped_address)
+            return nt_status::INVALID_PARAMETER;
+    }
 
     status = nt_status::SUCCESS;
 
@@ -797,6 +811,11 @@ nt_status tcp_socket<FAMILY>::connect(const sockaddr* addr, size_t addrlen) {
                 bound_address = parse_ipv6_address("::");
 
             bind_done = true;
+        } else {
+            if constexpr (is_same_v<FAMILY, ipv6>) {
+                if (mapped_address && !is_mapped_address(bound_address))
+                    return nt_status::INVALID_PARAMETER;
+            }
         }
 
         state = tcp_state::SYN_SENT;
@@ -816,7 +835,29 @@ nt_status tcp_socket<FAMILY>::connect(const sockaddr* addr, size_t addrlen) {
         send_unacknowledged = send_next;
     }
 
-    status = send_syn<FAMILY>(*this, c, src);
+    if constexpr (is_same_v<FAMILY, ipv4>)
+        status = send_syn<FAMILY>(*this, c, src);
+    else if constexpr (is_same_v<FAMILY, ipv6>) {
+        if (mapped_address) {
+            sockaddr_in c2;
+            ipv4_address src2;
+
+            if (src == parse_ipv6_address("::"))
+                src2 = parse_ipv4_address("0.0.0.0");
+            else
+                memcpy(src2.v.data(), src.v.data() + 12, sizeof(ipv4_address));
+
+            memset(&c2, 0, sizeof(c2));
+
+            c2.sin_family = AF_INET;
+            c2.sin_port = c.sin6_port;
+            memcpy(&c2.sin_addr, connected_address.v.data() + 12, sizeof(ipv4_address));
+
+            status = send_syn<ipv4>(*this, c2, src2);
+        } else
+            status = send_syn<FAMILY>(*this, c, src);
+    }
+
     if (!success(status)) {
         netif* oldni = nullptr;
 
