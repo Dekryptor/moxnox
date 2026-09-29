@@ -54,12 +54,7 @@ public:
 
     nt_status sendto(span<const span<const uint8_t>> v, int flags, sockaddr* to,
                      size_t tolen, uint64_t& sent_bytes,
-                     span<const HANDLE> handles) override {
-        if (!handles.empty())
-            return nt_status::NOT_SUPPORTED;
-
-        return do_sendto<false>(v, flags, to, tolen, sent_bytes);
-    }
+                     span<const HANDLE> handles) override;
 
     nt_status bind(const sockaddr* addr, size_t addrlen) override;
     nt_status connect(const sockaddr* addr, size_t addrlen) override;
@@ -83,15 +78,8 @@ public:
 
     nt_status sendto_nonblock(span<const span<const uint8_t>> v, int flags,
                               sockaddr* to, size_t tolen,
-                              uint64_t& sent_bytes, span<const HANDLE> handles) override {
-        if (!handles.empty())
-            return nt_status::NOT_SUPPORTED;
-
-        return do_sendto<true>(v, flags, to, tolen, sent_bytes);
-    }
-
+                              uint64_t& sent_bytes, span<const HANDLE> handles) override;
     nt_status shutdown(int how) override;
-
     nt_status getsockopt_ipv6(sockopt_ipv6 opt, span<uint8_t> buf,
                               socklen_t& retlen) override;
     nt_status setsockopt_ipv6(sockopt_ipv6 opt, span<const uint8_t> buf) override;
@@ -103,10 +91,6 @@ private:
     nt_status do_recvfrom(span<const span<uint8_t>> v, int flags,
                           sockaddr_storage* from, size_t* fromlen,
                           uint64_t& recv_bytes);
-
-    template<bool NONBLOCK>
-    nt_status do_sendto(span<const span<const uint8_t>> v, int flags,
-                        sockaddr* to, size_t tolen, uint64_t& sent_bytes);
 };
 
 static spinlock udp_ports_lock;
@@ -615,41 +599,54 @@ uint16_t find_ephemeral_udp_port() {
 }
 
 template<socket_family FAMILY>
-template<bool NONBLOCK>
-nt_status udp_socket<FAMILY>::do_sendto(span<const span<const uint8_t>> v,
-                                        int flags, sockaddr* to, size_t tolen,
-                                        uint64_t& sent_bytes) {
+static nt_status do_sendto(base_udp_socket& sock,
+                           span<const span<const uint8_t>> v,
+                           int flags, sockaddr* to, size_t tolen,
+                           uint64_t& sent_bytes) {
     nt_status status;
     typename FAMILY::address src;
     uint16_t srcport;
     bool connected;
-    typename FAMILY::sockaddr dest;
     auto vec_size = get_vec_size(v);
     span<const uint8_t> top = vec_size == 0 ? span<const uint8_t>() : v.front();
+    typename FAMILY::address dst;
+    uint16_t dstport;
+    uint32_t dstscope;
 
     {
-        lock_guard lock(bind_lock);
-        connected = this->connect_done;
+        lock_guard lock(sock.bind_lock);
+        connected = sock.connect_done;
 
+        if (!connected && (!to || tolen < sizeof(typename FAMILY::sockaddr)))
+            return nt_status::INVALID_PARAMETER;
+
+        // if connected, sendto destination is ignored
         if (connected) {
             if constexpr (is_same_v<FAMILY, ipv4>) {
-                *(ipv4_address*)&dest.sin_addr = connected_address;
-                dest.sin_port = connected_port;
+                auto& s2 = static_cast<udp_socket<ipv4>&>(sock);
+
+                dst = s2.connected_address;
+                dstport = s2.connected_port;
             } else if constexpr (is_same_v<FAMILY, ipv6>) {
-                *(ipv6_address*)&dest.sin6_addr = connected_address;
-                dest.sin6_port = connected_port;
-                dest.sin6_scope_id = connected_scope;
+                auto& s2 = static_cast<udp_socket<ipv6>&>(sock);
+
+                dst = s2.connected_address;
+                dstport = s2.connected_port;
+                dstscope = s2.connected_scope;
+            }
+        } else {
+            if constexpr (is_same_v<FAMILY, ipv4>) {
+                dst = *(ipv4_address*)&((sockaddr_in*)to)->sin_addr;
+                dstport = ((sockaddr_in*)to)->sin_port;
+            } else if constexpr (is_same_v<FAMILY, ipv6>) {
+                dst = *(ipv6_address*)&((sockaddr_in6*)to)->sin6_addr;
+                dstport = ((sockaddr_in6*)to)->sin6_port;
+                dstscope = ((sockaddr_in6*)to)->sin6_scope_id;
             }
         }
     }
 
-    if (!connected && (!to || tolen < sizeof(typename FAMILY::sockaddr)))
-        return nt_status::INVALID_PARAMETER;
-
-    // if connected, sendto destination is ignored
-    auto& to6 = connected ? dest : *(typename FAMILY::sockaddr*)to;
-
-    if (shutdown_write)
+    if (sock.shutdown_write)
         return nt_status::CONNECTION_ABORTED;
 
     if (flags != 0)
@@ -658,8 +655,8 @@ nt_status udp_socket<FAMILY>::do_sendto(span<const span<const uint8_t>> v,
     bool has_error = false;
 
     {
-        lock_guard lock(buffer_lock);
-        has_error = !success(pending_error);
+        lock_guard lock(sock.buffer_lock);
+        has_error = !success(sock.pending_error);
     }
 
     if (has_error) { // avoid getting sync_lock unless we have to
@@ -668,14 +665,14 @@ nt_status udp_socket<FAMILY>::do_sendto(span<const span<const uint8_t>> v,
         {
             sync_lock sl;
             lock_guard lock(sl);
-            lock_guard lock2(buffer_lock);
+            lock_guard lock2(sock.buffer_lock);
 
-            if (!success(pending_error)) {
-                err = pending_error;
-                pending_error = nt_status::SUCCESS;
+            if (!success(sock.pending_error)) {
+                err = sock.pending_error;
+                sock.pending_error = nt_status::SUCCESS;
 
-                if (is_list_empty(buffer))
-                    signalled = false;
+                if (is_list_empty(sock.buffer))
+                    sock.signalled = false;
             }
         }
 
@@ -687,48 +684,57 @@ nt_status udp_socket<FAMILY>::do_sendto(span<const span<const uint8_t>> v,
 
     {
         lock_guard lock(udp_ports_lock);
-        lock_guard lock2(bind_lock);
+        lock_guard lock2(sock.bind_lock);
 
-        if (!bind_done) {
+        if (!sock.bind_done) {
             srcport = find_ephemeral_udp_port<FAMILY>();
             if (srcport == 0) // no ephemeral ports left
                 return nt_status::ADDRESS_ALREADY_ASSOCIATED;
 
             if constexpr (is_same_v<FAMILY, ipv4>)
-                udp_ports_v4[srcport] = this;
+                udp_ports_v4[srcport] = &static_cast<udp_socket<ipv4>&>(sock);
             else if constexpr (is_same_v<FAMILY, ipv6>)
-                udp_ports_v6[srcport] = this;
+                udp_ports_v6[srcport] = &static_cast<udp_socket<ipv6>&>(sock);
 
-            this->acquire();
+            sock.acquire();
 
-            bound_port = srcport;
+            sock.bound_port = srcport;
 
-            if constexpr (is_same_v<FAMILY, ipv4>)
-                bound_address = parse_ipv4_address("0.0.0.0");
-            else if constexpr (is_same_v<FAMILY, ipv6>)
-                bound_address = parse_ipv6_address("::");
+            if constexpr (is_same_v<FAMILY, ipv4>) {
+                auto& s2 = static_cast<udp_socket<ipv4>&>(sock);
 
-            bind_done = true;
-            autobound = true;
+                s2.bound_address = parse_ipv4_address("0.0.0.0");
+            } else if constexpr (is_same_v<FAMILY, ipv6>) {
+                auto& s2 = static_cast<udp_socket<ipv6>&>(sock);
+
+                s2.bound_address = parse_ipv6_address("::");
+            }
+
+            sock.bind_done = true;
+            sock.autobound = true;
         }
 
-        srcport = bound_port;
-        src = bound_address;
+        srcport = sock.bound_port;
+
+        if constexpr (is_same_v<FAMILY, ipv4>) {
+            auto& s2 = static_cast<udp_socket<ipv4>&>(sock);
+
+            src = s2.bound_address;
+        } else if constexpr (is_same_v<FAMILY, ipv6>) {
+            auto& s2 = static_cast<udp_socket<ipv6>&>(sock);
+
+            src = s2.bound_address;
+        }
     }
 
-    typename FAMILY::address dst, gateway;
-
-    if constexpr (is_same_v<FAMILY, ipv4>)
-        dst = *(typename FAMILY::address*)&to6.sin_addr;
-    else if constexpr (is_same_v<FAMILY, ipv6>)
-        dst = *(typename FAMILY::address*)&to6.sin6_addr;
+    typename FAMILY::address gateway;
 
     netif* pni;
 
     if constexpr (is_same_v<FAMILY, ipv4>)
         status = ipv4_choose_interface(dst, pni, src, gateway);
     else if constexpr (is_same_v<FAMILY, ipv6>)
-        status = ipv6_choose_interface(dst, to6.sin6_scope_id, pni, src);
+        status = ipv6_choose_interface(dst, dstscope, pni, src);
 
     if (!success(status))
         return status;
@@ -761,12 +767,7 @@ nt_status udp_socket<FAMILY>::do_sendto(span<const span<const uint8_t>> v,
 
     auto& udp = *(udp_header*)(pack->data + sizeof(typename FAMILY::header));
     udp.srcport = srcport;
-
-    if constexpr (is_same_v<FAMILY, ipv4>)
-        udp.dstport = to6.sin_port;
-    else if constexpr (is_same_v<FAMILY, ipv6>)
-        udp.dstport = to6.sin6_port;
-
+    udp.dstport = dstport;
     udp.length = byteswap((uint16_t)(sizeof(udp_header) + vec_size));
     udp.checksum = 0;
 
@@ -1437,4 +1438,26 @@ nt_status udp_socket<FAMILY>::getsockopt_ipv6(sockopt_ipv6 opt, span<uint8_t> bu
         }
     } else
         return nt_status::NOT_SUPPORTED;
+}
+
+template<socket_family FAMILY>
+nt_status udp_socket<FAMILY>::sendto(span<const span<const uint8_t>> v,
+                                     int flags, sockaddr* to,
+                                     size_t tolen, uint64_t& sent_bytes,
+                                     span<const HANDLE> handles) {
+    if (!handles.empty())
+        return nt_status::NOT_SUPPORTED;
+
+    return do_sendto<FAMILY>(*this, v, flags, to, tolen, sent_bytes);
+}
+
+template<socket_family FAMILY>
+nt_status udp_socket<FAMILY>::sendto_nonblock(span<const span<const uint8_t>> v,
+                                              int flags, sockaddr* to,
+                                              size_t tolen, uint64_t& sent_bytes,
+                                              span<const HANDLE> handles) {
+    if (!handles.empty())
+        return nt_status::NOT_SUPPORTED;
+
+    return do_sendto<FAMILY>(*this, v, flags, to, tolen, sent_bytes);
 }
