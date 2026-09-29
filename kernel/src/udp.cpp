@@ -965,8 +965,14 @@ nt_status udp_socket<FAMILY>::connect(const sockaddr* addr, size_t addrlen) {
         if (bind_done && autobound) {
             if constexpr (is_same_v<FAMILY, ipv4>)
                 udp_ports_v4[bound_port] = nullptr;
-            else if constexpr (is_same_v<FAMILY, ipv6>)
+            else if constexpr (is_same_v<FAMILY, ipv6>) {
                 udp_ports_v6[bound_port] = nullptr;
+
+                if (udp_ports_v4[bound_port] == this) {
+                    udp_ports_v4[bound_port] = nullptr;
+                    this->release();
+                }
+            }
 
             this->release();
 
