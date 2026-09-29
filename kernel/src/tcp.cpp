@@ -27,6 +27,9 @@ using namespace std;
 static const uint64_t RETRANSMISSION_DELAY = 1; // seconds
 static const uint64_t TIME_WAIT_LENGTH = 60; // seconds
 
+static const uint16_t MSS_IPv4 = 536;
+static const uint16_t MSS_IPv6 = 1220;
+
 struct tcp_retransmission {
     tcp_retransmission(packet& pack) : pack(pack) {
         pack.acquire();
@@ -859,9 +862,14 @@ nt_status tcp_socket<FAMILY>::connect(const sockaddr* addr, size_t addrlen) {
             c2.sin_port = c.sin6_port;
             *(ipv4_address*)&c2.sin_addr = extract_mapped_address(connected_address);
 
+            mss = MSS_IPv4;
+
             status = send_syn<ipv4>(*this, c2, src2);
-        } else
+        } else {
+            mss = MSS_IPv6;
+
             status = send_syn<FAMILY>(*this, c, src);
+        }
     }
 
     if (!success(status)) {
@@ -2222,9 +2230,9 @@ nt_status tcp_socket<FAMILY>::do_sendto(span<const span<const uint8_t>> v,
 template<socket_family FAMILY>
 tcp_socket<FAMILY>::tcp_socket() : base_tcp_socket(is_same_v<FAMILY, ipv4> ? true : false) {
     if constexpr (is_same_v<FAMILY, ipv4>)
-        mss = 536;
+        mss = MSS_IPv4;
     else if constexpr (is_same_v<FAMILY, ipv6>)
-        mss = 1220;
+        mss = MSS_IPv6;
 
     state_change_event = create_event(true);
     if (!state_change_event) {
