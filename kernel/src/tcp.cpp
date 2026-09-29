@@ -990,8 +990,16 @@ void tcp_socket<FAMILY>::last_handle_closed() {
             }
         }
 
-        if (do_fin)
-            send_fin<FAMILY>(s);
+        if (do_fin) {
+            if constexpr (is_same_v<FAMILY, ipv4>)
+                send_fin<FAMILY>(s);
+            else if constexpr (is_same_v<FAMILY, ipv6>) {
+                if (is_mapped_address(s.connected_address))
+                    send_fin<ipv4>(s);
+                else
+                    send_fin<FAMILY>(s);
+            }
+        }
 
         while (true) {
             base_tcp_socket* s2 = nullptr;
