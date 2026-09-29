@@ -2412,7 +2412,14 @@ void tcp_socket<FAMILY>::do_retransmissions() {
     for (unsigned int i = 0; i < added; i++) {
         auto& r = *arr[i];
 
-        dispatch_packet<FAMILY>(*pni, r.pack, dst_mac);
+        if constexpr (is_same_v<FAMILY, ipv4>)
+            dispatch_packet<FAMILY>(*pni, r.pack, dst_mac);
+        else if constexpr (is_same_v<FAMILY, ipv6>) {
+            if (is_mapped_address(connected_address))
+                dispatch_packet<ipv4>(*pni, r.pack, dst_mac);
+            else
+                dispatch_packet<FAMILY>(*pni, r.pack, dst_mac);
+        }
 
         // FIXME - delay increase should be exponential
 
