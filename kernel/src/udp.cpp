@@ -1014,6 +1014,11 @@ nt_status udp_socket<FAMILY>::connect(const sockaddr* addr, size_t addrlen) {
             if (!success(status))
                 return status;
         } else if constexpr (is_same_v<FAMILY, ipv6>) {
+            auto& addr = *(ipv6_address*)&c.sin6_addr;
+
+            if (is_mapped_address(addr) && ipv6_only)
+                return nt_status::INVALID_PARAMETER;
+
             src = parse_ipv6_address("::");
 
             {
@@ -1023,10 +1028,28 @@ nt_status udp_socket<FAMILY>::connect(const sockaddr* addr, size_t addrlen) {
                     src = bound_address;
             }
 
-            status = ipv6_choose_interface(*(ipv6_address*)&c.sin6_addr,
-                                           c.sin6_scope_id, pni, src);
-            if (!success(status))
-                return status;
+            if (src != parse_ipv6_address("::") && !!is_mapped_address(addr) != !!is_mapped_address(src))
+                return nt_status::INVALID_PARAMETER;
+
+            if (is_mapped_address(addr)) {
+                ipv4_address gateway, src4;
+
+                if (src == parse_ipv6_address("::"))
+                    src4 = parse_ipv4_address("0.0.0.0");
+                else
+                    src4 = extract_mapped_address(src);
+
+                status = ipv4_choose_interface(extract_mapped_address(addr), pni,
+                                               src4, gateway);
+                if (!success(status))
+                    return status;
+
+                src = map_ipv4_address_to_ipv6(src4);
+            } else {
+                status = ipv6_choose_interface(addr, c.sin6_scope_id, pni, src);
+                if (!success(status))
+                    return status;
+            }
         }
 
         if (pni)
@@ -1038,14 +1061,24 @@ nt_status udp_socket<FAMILY>::connect(const sockaddr* addr, size_t addrlen) {
         lock_guard lock2(bind_lock);
 
         if (!bind_done) { // implicit bind if not already done
-            port = find_ephemeral_udp_port<FAMILY>(false);
-            if (port == 0) // no ephemeral ports left
-                return nt_status::ADDRESS_ALREADY_ASSOCIATED;
+            if constexpr (is_same_v<FAMILY, ipv4>) {
+                port = find_ephemeral_udp_port<FAMILY>(false);
+                if (port == 0) // no ephemeral ports left
+                    return nt_status::ADDRESS_ALREADY_ASSOCIATED;
 
-            if constexpr (is_same_v<FAMILY, ipv4>)
                 udp_ports_v4[port] = this;
-            else if constexpr (is_same_v<FAMILY, ipv6>)
+            } else if constexpr (is_same_v<FAMILY, ipv6>) {
+                port = find_ephemeral_udp_port<FAMILY>(!ipv6_only);
+                if (port == 0) // no ephemeral ports left
+                    return nt_status::ADDRESS_ALREADY_ASSOCIATED;
+
                 udp_ports_v6[port] = this;
+
+                if (!ipv6_only) {
+                    udp_ports_v4[port] = this;
+                    this->acquire();
+                }
+            }
 
             this->acquire();
 
