@@ -466,19 +466,6 @@ void received_ipv4_tcp_packet(netif& ni, packet& pack,
                 }
             }
         }
-
-        if (!sock && !sock6 && tcp_ports_v6[tcp.dst_port] && !tcp_ports_v6[tcp.dst_port]->ipv6_only) {
-            sock6 = tcp_ports_v6[tcp.dst_port];
-
-            {
-                lock_guard lock(sock6->state_lock);
-
-                if (!sock6->bind_done || (sock6->bound_address != parse_ipv6_address("::") && sock6->bound_address != map_ipv4_address_to_ipv6(ip.dst)))
-                    sock6 = nullptr;
-                else
-                    sock6->acquire();
-            }
-        }
     }
 
     if (!sock && !sock6) {
@@ -2707,6 +2694,11 @@ nt_status tcp_socket<FAMILY>::bind(const sockaddr* addr, size_t addrlen) {
             }
 
             tcp_ports_v6[port] = this;
+
+            if (ip == parse_ipv6_address("::") && !ipv6_only) {
+                tcp_ports_v4[port] = this;
+                this->acquire();
+            }
         }
 
         this->acquire();
