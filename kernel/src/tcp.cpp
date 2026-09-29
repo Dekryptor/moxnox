@@ -801,14 +801,27 @@ nt_status tcp_socket<FAMILY>::connect(const sockaddr* addr, size_t addrlen) {
             return nt_status::INVALID_PARAMETER;
 
         if (!bind_done) { // implicit bind if not already done
-            port = find_ephemeral_tcp_port<FAMILY>();
-            if (port == 0) // no ephemeral ports left
-                return nt_status::ADDRESS_ALREADY_ASSOCIATED;
+            if constexpr (is_same_v<FAMILY, ipv4>) {
+                port = find_ephemeral_tcp_port<FAMILY>();
+                if (port == 0) // no ephemeral ports left
+                    return nt_status::ADDRESS_ALREADY_ASSOCIATED;
 
-            if constexpr (is_same_v<FAMILY, ipv4>)
                 tcp_ports_v4[port] = this;
-            else if constexpr (is_same_v<FAMILY, ipv6>)
-                tcp_ports_v6[port] = this;
+            } else if constexpr (is_same_v<FAMILY, ipv6>) {
+                if (mapped_address) {
+                    port = find_ephemeral_tcp_port<ipv4>();
+                    if (port == 0) // no ephemeral ports left
+                        return nt_status::ADDRESS_ALREADY_ASSOCIATED;
+
+                    tcp_ports_v4[port] = this;
+                } else {
+                    port = find_ephemeral_tcp_port<FAMILY>();
+                    if (port == 0) // no ephemeral ports left
+                        return nt_status::ADDRESS_ALREADY_ASSOCIATED;
+
+                    tcp_ports_v6[port] = this;
+                }
+            }
 
             this->acquire();
 
