@@ -123,6 +123,8 @@ class base_tcp_socket : public socket {
 public:
     base_tcp_socket(bool is_ipv4) : is_ipv4(is_ipv4) { }
 
+    uint16_t allowed_send_bytes();
+
     list_entry le;
     bool is_ipv4;
     bool init = false;
@@ -216,10 +218,10 @@ public:
     nt_status getsockopt_ipv6(sockopt_ipv6 opt, span<uint8_t> buf,
                               socklen_t& retlen) override;
 
-    void received_packet(packet& pack, netif& ni, const mac_address& src_mac);
     void received_packet_ipv4(packet& pack, netif& ni, const mac_address& src_mac);
-    uint16_t allowed_send_bytes();
     nt_status send_syn_ack(const mac_address& mac);
+    void received_listen_packet(packet& pack, netif& ni,
+                                const mac_address& src_mac);
 
     typename FAMILY::address bound_address, connected_address;
 
@@ -227,8 +229,6 @@ private:
     void send_fin();
     void retransmission_thread();
     void do_retransmissions();
-    void received_listen_packet(packet& pack, netif& ni,
-                                const mac_address& src_mac);
 
     template<bool NONBLOCK>
     nt_status do_recvfrom(span<const span<uint8_t>> v, int flags,
@@ -256,7 +256,7 @@ struct socket_variant<ipv6> {
 };
 
 static spinlock tcp_ports_lock;
-static tcp_socket<ipv4>* tcp_ports_v4[65536];
+static base_tcp_socket* tcp_ports_v4[65536];
 static tcp_socket<ipv6>* tcp_ports_v6[65536];
 static list_entry accepted_sockets_v4 = { &accepted_sockets_v4, &accepted_sockets_v4 };
 static list_entry accepted_sockets_v6 = { &accepted_sockets_v6, &accepted_sockets_v6 };
@@ -290,6 +290,10 @@ static_assert(sizeof(tcp_header) == 20);
 
 static const uint8_t TCP_SYN = 0x02;
 static const uint8_t TCP_SYN_ACK = 0x12;
+
+template<socket_family FAMILY>
+static void received_packet(base_tcp_socket& sock, packet& pack,
+                            netif& ni, const mac_address& src_mac);
 
 template<socket_family FAMILY>
 static void send_tcp_port_closed(packet& pack, netif& ni,
@@ -435,8 +439,8 @@ void received_ipv4_tcp_packet(netif& ni, packet& pack,
             }
         }
 
-        if (!sock && tcp_ports_v4[tcp.dst_port]) {
-            sock = tcp_ports_v4[tcp.dst_port];
+        if (!sock && tcp_ports_v4[tcp.dst_port] && tcp_ports_v4[tcp.dst_port]->is_ipv4) {
+            sock = static_cast<tcp_socket<ipv4>*>(tcp_ports_v4[tcp.dst_port]);
 
             {
                 lock_guard lock(sock->state_lock);
@@ -467,11 +471,11 @@ void received_ipv4_tcp_packet(netif& ni, packet& pack,
             send_tcp_port_closed<ipv4>(pack, ni, src_mac);
         return;
     } else if (sock) {
-        sock->received_packet(pack, ni, src_mac);
+        received_packet<ipv4>(*sock, pack, ni, src_mac);
 
         sock->release();
     } else if (sock6) {
-        sock6->received_packet_ipv4(pack, ni, src_mac);
+        received_packet<ipv4>(*sock6, pack, ni, src_mac);
 
         sock6->release();
     }
@@ -535,7 +539,7 @@ void received_ipv6_tcp_packet(netif& ni, packet& pack,
         return;
     }
 
-    sock->received_packet(pack, ni, src_mac);
+    received_packet<ipv6>(*sock, pack, ni, src_mac);
 
     sock->release();
 }
@@ -1297,7 +1301,7 @@ void tcp_socket<FAMILY>::send_fin() {
 }
 
 template<socket_family FAMILY>
-typename socket_variant<FAMILY>::parent_type get_socket_parent(tcp_socket<FAMILY>& sock) {
+typename socket_variant<FAMILY>::parent_type get_socket_parent(base_tcp_socket& sock) {
     if constexpr (is_same_v<FAMILY, ipv4>) {
         if (sock.parent->is_ipv4)
             return static_cast<tcp_socket<ipv4>*>(sock.parent);
@@ -1375,7 +1379,7 @@ void tcp_socket<FAMILY>::received_packet_ipv4(packet& pack, netif& ni,
     }
 
     if (found) {
-        found->received_packet(pack, ni, src_mac);
+        received_packet<FAMILY>(*found, pack, ni, src_mac);
         found->release();
         return;
     }
@@ -1466,8 +1470,8 @@ void tcp_socket<FAMILY>::received_packet_ipv4(packet& pack, netif& ni,
 }
 
 template<socket_family FAMILY>
-void tcp_socket<FAMILY>::received_packet(packet& pack, netif& ni,
-                                         const mac_address& src_mac) {
+static void received_packet(base_tcp_socket& sock, packet& pack,
+                            netif& ni, const mac_address& src_mac) {
     auto& ip = *(typename FAMILY::header*)pack.data;
     size_t ip_header_size;
 
@@ -1495,19 +1499,58 @@ void tcp_socket<FAMILY>::received_packet(packet& pack, netif& ni,
     tcp_state cur_state;
 
     {
-        lock_guard lock(state_lock);
+        lock_guard lock(sock.state_lock);
 
-        if (state == tcp_state::CLOSED)
+        if (sock.state == tcp_state::CLOSED)
             return;
 
-        if (state != tcp_state::LISTEN && (connected_address != ip.src || connected_port != tcp.src_port))
-            return;
+        if (sock.state != tcp_state::LISTEN) {
+            if (sock.connected_port != tcp.src_port)
+                return;
 
-        cur_state = state;
+            if constexpr (is_same_v<FAMILY, ipv4>) {
+                if (sock.is_ipv4) {
+                    auto& s2 = static_cast<tcp_socket<ipv4>&>(sock);
+
+                    if (s2.connected_address != ip.src)
+                        return;
+                } else {
+                    auto& s2 = static_cast<tcp_socket<ipv6>&>(sock);
+
+                    if (sock.ipv6_only || !is_mapped_address(s2.connected_address))
+                        return;
+
+                    if (ip.src != extract_mapped_address(s2.connected_address))
+                        return;
+                }
+            } else if constexpr (is_same_v<FAMILY, ipv6>) {
+                auto& s2 = static_cast<tcp_socket<ipv6>&>(sock);
+
+                if (s2.connected_address != ip.src)
+                    return;
+            }
+        }
+
+        cur_state = sock.state;
     }
 
     if (cur_state == tcp_state::LISTEN) {
-        received_listen_packet(pack, ni, src_mac);
+        if constexpr (is_same_v<FAMILY, ipv4>) {
+            if (sock.is_ipv4) {
+                auto& s2 = static_cast<tcp_socket<ipv4>&>(sock);
+
+                s2.received_listen_packet(pack, ni, src_mac);
+            } else {
+                auto& s2 = static_cast<tcp_socket<ipv6>&>(sock);
+
+                s2.received_packet_ipv4(pack, ni, src_mac);
+            }
+        } else if constexpr (is_same_v<FAMILY, ipv6>) {
+            auto& s2 = static_cast<tcp_socket<ipv6>&>(sock);
+
+            s2.received_listen_packet(pack, ni, src_mac);
+        }
+
         return;
     }
 
@@ -1516,21 +1559,21 @@ void tcp_socket<FAMILY>::received_packet(packet& pack, netif& ni,
         bool was_accepted;
 
         {
-            lock_guard lock(state_lock);
-            old_state = state;
-            state = tcp_state::CLOSED;
-            was_accepted = accepted;
+            lock_guard lock(sock.state_lock);
+            old_state = sock.state;
+            sock.state = tcp_state::CLOSED;
+            was_accepted = sock.accepted;
         }
 
-        if (parent) {
+        if (sock.parent) {
             visit([&](auto* parent) {
                 sync_lock sl;
                 lock_guard lock1(sl);
                 lock_guard lock2(parent->list_lock);
 
-                if (added_to_list) {
-                    remove_entry_list(le);
-                    added_to_list = false;
+                if (sock.added_to_list) {
+                    remove_entry_list(sock.le);
+                    sock.added_to_list = false;
                 }
 
                 if (old_state == tcp_state::SYN_RECEIVED || (old_state == tcp_state::ESTABLISHED && !was_accepted))
@@ -1541,40 +1584,40 @@ void tcp_socket<FAMILY>::received_packet(packet& pack, netif& ni,
                     e.signalled = false;
                     parent->signalled = false;
                 }
-            }, get_socket_parent(*this));
+            }, get_socket_parent<FAMILY>(sock));
 
-            if (on_accepted_list) {
+            if (sock.on_accepted_list) {
                 {
                     lock_guard lock(tcp_ports_lock);
-                    remove_entry_list(accepted_le);
+                    remove_entry_list(sock.accepted_le);
                 }
 
-                on_accepted_list = false;
-                release();
+                sock.on_accepted_list = false;
+                sock.release();
             }
 
             if (old_state == tcp_state::SYN_RECEIVED || (old_state == tcp_state::ESTABLISHED && !was_accepted))
-                release();
+                sock.release();
         }
 
-        set_event(static_cast<event&>(state_change_event.get()));
-        set_event(static_cast<event&>(retransmission_thread_quit_event.get()));
+        set_event(static_cast<event&>(sock.state_change_event.get()));
+        set_event(static_cast<event&>(sock.retransmission_thread_quit_event.get()));
         return;
     }
 
     {
-        lock_guard lock(io_lock);
+        lock_guard lock(sock.io_lock);
 
-        if ((cur_state == tcp_state::SYN_SENT && tcp.flags == TCP_SYN_ACK) || tcp.seq >= last_send_window_seq) {
-            last_send_window_seq = tcp.seq;
+        if ((cur_state == tcp_state::SYN_SENT && tcp.flags == TCP_SYN_ACK) || tcp.seq >= sock.last_send_window_seq) {
+            sock.last_send_window_seq = tcp.seq;
 
-            auto old_usable = allowed_send_bytes();
+            auto old_usable = sock.allowed_send_bytes();
 
-            send_window = byteswap(tcp.window);
+            sock.send_window = byteswap(tcp.window);
 
-            auto new_usable = allowed_send_bytes();
+            auto new_usable = sock.allowed_send_bytes();
 
-            auto& e = static_cast<event&>(send_window_open_event.get());
+            auto& e = static_cast<event&>(sock.send_window_open_event.get());
 
             {
                 sync_lock sl;
@@ -1582,13 +1625,13 @@ void tcp_socket<FAMILY>::received_packet(packet& pack, netif& ni,
 
                 if (old_usable > 0 && new_usable == 0) {
                     e.signalled = false;
-                    write_signalled = false;
+                    sock.write_signalled = false;
                 } else if (old_usable == 0 && new_usable > 0) {
                     e.set_holding_sync_lock();
 
-                    if (!write_signalled) {
-                        write_signalled = true;
-                        wake_up_waiters(waiters, WAIT_TYPE_WRITING);
+                    if (!sock.write_signalled) {
+                        sock.write_signalled = true;
+                        wake_up_waiters(sock.waiters, WAIT_TYPE_WRITING);
                     }
                 }
             }
@@ -1601,30 +1644,30 @@ void tcp_socket<FAMILY>::received_packet(packet& pack, netif& ni,
         // FIXME - parse options
 
         {
-            lock_guard lock(state_lock);
+            lock_guard lock(sock.state_lock);
 
-            recv_next = tcp.seq + 1;
+            sock.recv_next = tcp.seq + 1;
 
-            ack = recv_next;
+            ack = sock.recv_next;
         }
 
         {
-            lock_guard lock(io_lock);
-            send_unacknowledged = tcp.ack;
+            lock_guard lock(sock.io_lock);
+            sock.send_unacknowledged = tcp.ack;
         }
 
-        send_ack<FAMILY>(*this, true, ack);
+        send_ack<FAMILY>(sock, true, ack);
 
         {
-            lock_guard lock(state_lock);
-            state = cur_state = tcp_state::ESTABLISHED;
+            lock_guard lock(sock.state_lock);
+            sock.state = cur_state = tcp_state::ESTABLISHED;
         }
 
-        set_event(static_cast<event&>(state_change_event.get()));
+        set_event(static_cast<event&>(sock.state_change_event.get()));
     } else if (cur_state == tcp_state::ESTABLISHED && tcp.flags == TCP_SYN_ACK) {
         // first ACK must have been lost, retransmit
-        if (first_ack)
-            dispatch_packet<FAMILY>(*pni, *first_ack, dst_mac);
+        if (sock.first_ack)
+            dispatch_packet<FAMILY>(*sock.pni, *sock.first_ack, sock.dst_mac);
     }
 
     if (tcp.ACK) {
@@ -1635,25 +1678,25 @@ void tcp_socket<FAMILY>::received_packet(packet& pack, netif& ni,
             tcp_retransmission* r = nullptr;
 
             {
-                lock_guard lock(retransmission_list_lock);
+                lock_guard lock(sock.retransmission_list_lock);
 
-                if (is_list_empty(retransmission_list)) {
+                if (is_list_empty(sock.retransmission_list)) {
                     {
-                        lock_guard lock(state_lock);
+                        lock_guard lock(sock.state_lock);
 
-                        if (state == tcp_state::FIN_WAIT_1)
-                            state = tcp_state::FIN_WAIT_2;
-                        else if (state == tcp_state::LAST_ACK)
+                        if (sock.state == tcp_state::FIN_WAIT_1)
+                            sock.state = tcp_state::FIN_WAIT_2;
+                        else if (sock.state == tcp_state::LAST_ACK)
                             do_cleanup = true;
-                        else if (state == tcp_state::SYN_RECEIVED) {
-                            state = tcp_state::ESTABLISHED;
+                        else if (sock.state == tcp_state::SYN_RECEIVED) {
+                            sock.state = tcp_state::ESTABLISHED;
                             just_established = true;
                         }
                     }
                     break;
                 }
 
-                auto& r2 = containing_record<tcp_retransmission>(retransmission_list.next);
+                auto& r2 = containing_record<tcp_retransmission>(sock.retransmission_list.next);
 
                 auto& rtcp = *(tcp_header*)(r2.pack.data + sizeof(typename FAMILY::header));
 
@@ -1667,15 +1710,15 @@ void tcp_socket<FAMILY>::received_packet(packet& pack, netif& ni,
             r->release();
 
             {
-                lock_guard lock(io_lock);
+                lock_guard lock(sock.io_lock);
 
-                auto old_usable = allowed_send_bytes();
+                auto old_usable = sock.allowed_send_bytes();
 
-                send_unacknowledged = ack;
+                sock.send_unacknowledged = ack;
 
-                auto new_usable = allowed_send_bytes();
+                auto new_usable = sock.allowed_send_bytes();
 
-                auto& e = static_cast<event&>(send_window_open_event.get());
+                auto& e = static_cast<event&>(sock.send_window_open_event.get());
 
                 {
                     sync_lock sl;
@@ -1683,13 +1726,13 @@ void tcp_socket<FAMILY>::received_packet(packet& pack, netif& ni,
 
                     if (old_usable > 0 && new_usable == 0) {
                         e.signalled = false;
-                        write_signalled = false;
+                        sock.write_signalled = false;
                     } else if (old_usable == 0 && new_usable > 0) {
                         e.set_holding_sync_lock();
 
-                        if (!write_signalled) {
-                            write_signalled = true;
-                            wake_up_waiters(waiters, WAIT_TYPE_WRITING);
+                        if (!sock.write_signalled) {
+                            sock.write_signalled = true;
+                            wake_up_waiters(sock.waiters, WAIT_TYPE_WRITING);
                         }
                     }
                 }
@@ -1697,40 +1740,47 @@ void tcp_socket<FAMILY>::received_packet(packet& pack, netif& ni,
         }
 
         if (do_cleanup) {
-            if (!parent) {
+            if (!sock.parent) {
                 lock_guard lock(tcp_ports_lock);
-                lock_guard lock2(state_lock);
+                lock_guard lock2(sock.state_lock);
 
                 if constexpr (is_same_v<FAMILY, ipv4>) {
-                    if (bind_done && tcp_ports_v4[bound_port] == this) {
-                        tcp_ports_v4[bound_port] = nullptr;
-                        release();
+                    if (sock.is_ipv4) {
+                        if (sock.bind_done && tcp_ports_v4[sock.bound_port] == &sock) {
+                            tcp_ports_v4[sock.bound_port] = nullptr;
+                            sock.release();
+                        }
+                    } else {
+                        if (sock.bind_done && tcp_ports_v6[sock.bound_port] == &sock) {
+                            tcp_ports_v6[sock.bound_port] = nullptr;
+                            sock.release();
+                        }
                     }
                 } else if constexpr (is_same_v<FAMILY, ipv6>) {
-                    if (bind_done && tcp_ports_v6[bound_port] == this) {
-                        tcp_ports_v6[bound_port] = nullptr;
-                        release();
+                    if (sock.bind_done && tcp_ports_v6[sock.bound_port] == &sock) {
+                        tcp_ports_v6[sock.bound_port] = nullptr;
+                        sock.release();
                     }
                 }
-            } else if (on_accepted_list) {
+            } else if (sock.on_accepted_list) {
                 {
                     lock_guard lock(tcp_ports_lock);
-                    remove_entry_list(accepted_le);
+                    remove_entry_list(sock.accepted_le);
                 }
 
-                on_accepted_list = false;
-                release();
+                sock.on_accepted_list = false;
+                sock.release();
             }
 
-            set_event(static_cast<event&>(retransmission_thread_quit_event.get()));
+            set_event(static_cast<event&>(sock.retransmission_thread_quit_event.get()));
         } else if (just_established) {
             visit([&](auto* parent) {
                 sync_lock sl;
                 lock_guard lock1(sl);
                 lock_guard lock2(parent->list_lock);
 
-                remove_entry_list(le);
-                insert_tail_list(parent->accept_queue, le);
+                remove_entry_list(sock.le);
+                insert_tail_list(parent->accept_queue, sock.le);
 
                 auto& e = static_cast<event&>(parent->accept_queue_event.get());
 
@@ -1740,7 +1790,7 @@ void tcp_socket<FAMILY>::received_packet(packet& pack, netif& ni,
                     wake_up_waiters(parent->waiters, WAIT_TYPE_READING);
                     parent->signalled = true;
                 }
-            }, get_socket_parent(*this));
+            }, get_socket_parent<FAMILY>(sock));
         }
     }
 
@@ -1751,56 +1801,56 @@ void tcp_socket<FAMILY>::received_packet(packet& pack, netif& ni,
             return;
         }
 
-        p->scope_id = connected_scope;
+        p->scope_id = sock.connected_scope;
 
         bool added = false;
         optional<tcp_seq> ack;
         bool clear_ooo = false;
 
         {
-            lock_guard lock(io_lock);
-            lock_guard lock2(state_lock);
+            lock_guard lock(sock.io_lock);
+            lock_guard lock2(sock.state_lock);
 
             auto seq = tcp.seq;
 
-            if (seq > recv_next) {
+            if (seq > sock.recv_next) {
                 auto data_len = (uint32_t)(size - header_length - ip_header_size);
 
-                if (data_len <= recv_window && !shutdown_read) {
-                    recv_window -= (uint16_t)data_len;
+                if (data_len <= sock.recv_window && !sock.shutdown_read) {
+                    sock.recv_window -= (uint16_t)data_len;
 
-                    insert_tail_list(ooo_buffer, p->le);
+                    insert_tail_list(sock.ooo_buffer, p->le);
                     added = true;
                 }
-            } else if (seq < recv_next) {
+            } else if (seq < sock.recv_next) {
                 // send ACK for packet we've already received
-                ack = recv_next;
+                ack = sock.recv_next;
             } else {
-                if (size > header_length + ip_header_size && !shutdown_read) {
-                    insert_tail_list(buffer, p->le);
+                if (size > header_length + ip_header_size && !sock.shutdown_read) {
+                    insert_tail_list(sock.buffer, p->le);
                     added = true;
                 }
 
                 auto data_len = (uint32_t)(size - header_length - ip_header_size);
 
-                recv_next += data_len;
+                sock.recv_next += data_len;
 
-                if (tcp.FIN && data_len <= recv_window) {
-                    recv_next++;
+                if (tcp.FIN && data_len <= sock.recv_window) {
+                    sock.recv_next++;
 
-                    if (state == tcp_state::ESTABLISHED)
-                        state = tcp_state::CLOSE_WAIT;
-                    else if (state == tcp_state::FIN_WAIT_2)
-                        state = tcp_state::TIME_WAIT;
+                    if (sock.state == tcp_state::ESTABLISHED)
+                        sock.state = tcp_state::CLOSE_WAIT;
+                    else if (sock.state == tcp_state::FIN_WAIT_2)
+                        sock.state = tcp_state::TIME_WAIT;
 
                     clear_ooo = true;
                 } else {
                     // check out-of-order list for anything now okay
                     while (true) {
-                        if (is_list_empty(ooo_buffer))
+                        if (is_list_empty(sock.ooo_buffer))
                             break;
 
-                        auto& p2 = containing_record<socket_packet>(ooo_buffer.next);
+                        auto& p2 = containing_record<socket_packet>(sock.ooo_buffer.next);
                         auto& ip2 = *(typename FAMILY::header*)p2.pack.data;
                         size_t ip_header_size2;
 
@@ -1820,51 +1870,51 @@ void tcp_socket<FAMILY>::received_packet(packet& pack, netif& ni,
 
                         // FIXME - what if tcp2.seq < recv_next (i.e. packets overlap)?
 
-                        if (tcp2.seq != recv_next)
+                        if (tcp2.seq != sock.recv_next)
                             break;
 
-                        recv_next += (uint32_t)(size2 - header_length2 - ip_header_size2);
+                        sock.recv_next += (uint32_t)(size2 - header_length2 - ip_header_size2);
 
                         if (tcp2.FIN) {
-                            recv_next++;
+                            sock.recv_next++;
 
-                            if (state == tcp_state::ESTABLISHED)
-                                state = tcp_state::CLOSE_WAIT;
-                            else if (state == tcp_state::FIN_WAIT_2)
-                                state = tcp_state::TIME_WAIT;
+                            if (sock.state == tcp_state::ESTABLISHED)
+                                sock.state = tcp_state::CLOSE_WAIT;
+                            else if (sock.state == tcp_state::FIN_WAIT_2)
+                                sock.state = tcp_state::TIME_WAIT;
 
                             clear_ooo = true;
                             break;
                         } else {
                             remove_entry_list(p2.le);
 
-                            if (!shutdown_read)
-                                insert_tail_list(buffer, p2.le);
+                            if (!sock.shutdown_read)
+                                insert_tail_list(sock.buffer, p2.le);
                             else
                                 delete &p2;
                         }
                     }
                 }
 
-                if (data_len > recv_window)
-                    data_len = recv_window;
+                if (data_len > sock.recv_window)
+                    data_len = sock.recv_window;
 
-                ack = recv_next;
+                ack = sock.recv_next;
 
-                if (!shutdown_read)
-                    recv_window -= (uint16_t)data_len;
+                if (!sock.shutdown_read)
+                    sock.recv_window -= (uint16_t)data_len;
             }
         }
 
-        if (clear_ooo || shutdown_read) {
+        if (clear_ooo || sock.shutdown_read) {
             while (true) {
                 socket_packet* p;
 
                 {
-                    lock_guard lock(state_lock);
+                    lock_guard lock(sock.state_lock);
 
-                    if (!is_list_empty(ooo_buffer))
-                        p = &containing_record<socket_packet>(ooo_buffer.next);
+                    if (!is_list_empty(sock.ooo_buffer))
+                        p = &containing_record<socket_packet>(sock.ooo_buffer.next);
                     else
                         break;
 
@@ -1874,14 +1924,14 @@ void tcp_socket<FAMILY>::received_packet(packet& pack, netif& ni,
                 delete p;
             }
 
-            if (on_accepted_list && state == tcp_state::TIME_WAIT) {
+            if (sock.on_accepted_list && sock.state == tcp_state::TIME_WAIT) {
                 {
                     lock_guard lock(tcp_ports_lock);
-                    remove_entry_list(accepted_le);
+                    remove_entry_list(sock.accepted_le);
                 }
 
-                on_accepted_list = false;
-                release();
+                sock.on_accepted_list = false;
+                sock.release();
             }
         }
 
@@ -1889,27 +1939,26 @@ void tcp_socket<FAMILY>::received_packet(packet& pack, netif& ni,
             delete p;
 
         if (ack.has_value()) {
-            send_ack<FAMILY>(*this, false, *ack);
+            send_ack<FAMILY>(sock, false, *ack);
 
             {
                 sync_lock sl;
                 lock_guard lock(sl);
-                lock_guard lock2(state_lock);
+                lock_guard lock2(sock.state_lock);
 
-                if (!is_list_empty(buffer) || state != tcp_state::ESTABLISHED) {
-                    if (!signalled) {
-                        wake_up_waiters(waiters, WAIT_TYPE_READING);
-                        signalled = true;
+                if (!is_list_empty(sock.buffer) || sock.state != tcp_state::ESTABLISHED) {
+                    if (!sock.signalled) {
+                        wake_up_waiters(sock.waiters, WAIT_TYPE_READING);
+                        sock.signalled = true;
                     }
                 } else
-                    signalled = false;
+                    sock.signalled = false;
             }
         }
     }
 }
 
-template<socket_family FAMILY>
-uint16_t tcp_socket<FAMILY>::allowed_send_bytes() {
+uint16_t base_tcp_socket::allowed_send_bytes() {
     int32_t raw = (send_unacknowledged - send_next) + send_window;
 
     if (raw < 0)
@@ -2222,7 +2271,7 @@ tcp_socket<FAMILY>::~tcp_socket() {
             }
 
             parent->release();
-        }, get_socket_parent(*this));
+        }, get_socket_parent<FAMILY>(*this));
     }
 }
 
@@ -2959,7 +3008,7 @@ void tcp_socket<FAMILY>::received_listen_packet(packet& pack, netif& ni,
     }
 
     if (found) {
-        found->received_packet(pack, ni, src_mac);
+        received_packet<FAMILY>(*found, pack, ni, src_mac);
         found->release();
         return;
     }
