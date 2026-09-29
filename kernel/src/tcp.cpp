@@ -224,7 +224,6 @@ public:
     typename FAMILY::address bound_address, connected_address;
 
 private:
-    void send_ack(bool first, tcp_seq ack);
     void send_fin();
     void retransmission_thread();
     void do_retransmissions();
@@ -378,6 +377,10 @@ static bool is_mapped_address(const ipv6_address& addr) {
     static const auto MAPPED_ADDRESS = parse_ipv6_address("::ffff:0:0");
 
     return !memcmp(addr.v.data(), MAPPED_ADDRESS.v.data(), 12);
+}
+
+static ipv4_address extract_mapped_address(const ipv6_address& addr) {
+    return *(ipv4_address*)(addr.v.data() + 12);
 }
 
 void received_ipv4_tcp_packet(netif& ni, packet& pack,
@@ -845,13 +848,13 @@ nt_status tcp_socket<FAMILY>::connect(const sockaddr* addr, size_t addrlen) {
             if (src == parse_ipv6_address("::"))
                 src2 = parse_ipv4_address("0.0.0.0");
             else
-                memcpy(src2.v.data(), src.v.data() + 12, sizeof(ipv4_address));
+                src2 = extract_mapped_address(src);
 
             memset(&c2, 0, sizeof(c2));
 
             c2.sin_family = AF_INET;
             c2.sin_port = c.sin6_port;
-            memcpy(&c2.sin_addr, connected_address.v.data() + 12, sizeof(ipv4_address));
+            *(ipv4_address*)&c2.sin_addr = extract_mapped_address(connected_address);
 
             status = send_syn<ipv4>(*this, c2, src2);
         } else
@@ -1073,14 +1076,14 @@ void tcp_socket<FAMILY>::last_handle_closed() {
 }
 
 template<socket_family FAMILY>
-void tcp_socket<FAMILY>::send_ack(bool first, tcp_seq ack) {
+static void send_ack(base_tcp_socket& sock, bool first, tcp_seq ack) {
     auto pack = new packet;
     if (!pack) {
         print("new failed\n");
         return;
     }
 
-    auto& ni = *pni;
+    auto& ni = *sock.pni;
 
     ni.acquire();
 
@@ -1103,12 +1106,23 @@ void tcp_socket<FAMILY>::send_ack(bool first, tcp_seq ack) {
         ip.ttl = DEFAULT_HOP_LIMIT;
         ip.protocol = IPPROTO_TCP;
         ip.header_checksum = 0;
-        ip.src = bound_address;
-        ip.dst = connected_address;
+
+        if (sock.is_ipv4) {
+            auto& s2 = static_cast<tcp_socket<ipv4>&>(sock);
+
+            ip.src = s2.bound_address;
+            ip.dst = s2.connected_address;
+        } else {
+            auto& s2 = static_cast<tcp_socket<ipv6>&>(sock);
+
+            ip.src = extract_mapped_address(s2.bound_address);
+            ip.dst = extract_mapped_address(s2.connected_address);
+        }
 
         ip.header_checksum = calc_ipv4_checksum(span(pack->data, sizeof(ipv4_header)));
     } else if constexpr (is_same_v<FAMILY, ipv6>) {
         auto& ip = *(ipv6_header*)pack->data;
+        auto& s2 = static_cast<tcp_socket<ipv6>&>(sock);
 
         ip.traffic_class1 = 0;
         ip.version = 6;
@@ -1119,8 +1133,8 @@ void tcp_socket<FAMILY>::send_ack(bool first, tcp_seq ack) {
         ip.payload_length = byteswap((uint16_t)sizeof(tcp_header));
         ip.next_header = IPPROTO_TCP;
         ip.hop_limit = DEFAULT_HOP_LIMIT;
-        ip.src = bound_address;
-        ip.dst = connected_address;
+        ip.src = s2.bound_address;
+        ip.dst = s2.connected_address;
     }
 
     auto& tcp = *(tcp_header*)(pack->data + sizeof(typename FAMILY::header));
@@ -1128,18 +1142,18 @@ void tcp_socket<FAMILY>::send_ack(bool first, tcp_seq ack) {
     memset(&tcp, 0, sizeof(tcp));
 
     {
-        lock_guard lock(io_lock);
+        lock_guard lock(sock.io_lock);
 
         if (first)
-            send_next++;
+            sock.send_next++;
 
-        tcp.src_port = bound_port;
-        tcp.dst_port = connected_port;
-        tcp.seq = send_next;
+        tcp.src_port = sock.bound_port;
+        tcp.dst_port = sock.connected_port;
+        tcp.seq = sock.send_next;
         tcp.ack = ack;
         tcp.header_length = sizeof(tcp_header) / sizeof(uint32_t);
         tcp.ACK = 1;
-        tcp.window = byteswap(recv_window);
+        tcp.window = byteswap(sock.recv_window);
 
         if constexpr (is_same_v<FAMILY, ipv4>) {
             auto& ip = *(ipv4_header*)pack->data;
@@ -1160,14 +1174,14 @@ void tcp_socket<FAMILY>::send_ack(bool first, tcp_seq ack) {
 
         if (first) {
             pack->acquire();
-            first_ack = pack;
-        } else if (first_ack) {
-            first_ack->release();
-            first_ack = nullptr;
+            sock.first_ack = pack;
+        } else if (sock.first_ack) {
+            sock.first_ack->release();
+            sock.first_ack = nullptr;
         }
     }
 
-    dispatch_packet<FAMILY>(ni, *pack, dst_mac);
+    dispatch_packet<FAMILY>(ni, *pack, sock.dst_mac);
 
     pack->release();
     ni.release();
@@ -1599,7 +1613,7 @@ void tcp_socket<FAMILY>::received_packet(packet& pack, netif& ni,
             send_unacknowledged = tcp.ack;
         }
 
-        send_ack(true, ack);
+        send_ack<FAMILY>(*this, true, ack);
 
         {
             lock_guard lock(state_lock);
@@ -1875,7 +1889,7 @@ void tcp_socket<FAMILY>::received_packet(packet& pack, netif& ni,
             delete p;
 
         if (ack.has_value()) {
-            send_ack(false, *ack);
+            send_ack<FAMILY>(*this, false, *ack);
 
             {
                 sync_lock sl;
@@ -2455,7 +2469,7 @@ nt_status tcp_socket<FAMILY>::do_recvfrom(span<const span<uint8_t>> v, int flags
             }
 
             if (opening)
-                send_ack(false, ack);
+                send_ack<FAMILY>(*this, false, ack);
         }
 
         if (!success(status) && recv_bytes == 0) {
