@@ -21,10 +21,28 @@ import vec;
 
 using namespace std;
 
-template<socket_family FAMILY>
-class udp_socket : public socket {
+class base_udp_socket : public socket {
 public:
+    base_udp_socket(bool is_ipv4) : is_ipv4(is_ipv4) { }
+
+    bool is_ipv4;
+    spinlock buffer_lock;
+    list_entry buffer = { &buffer, &buffer };
+    size_t buffer_size = 0;
+    spinlock bind_lock;
+    bool bind_done = false, connect_done = false, autobound = false;
+    uint16_t bound_port, connected_port;
+    uint32_t connected_scope = 0;
+    nt_status pending_error = nt_status::SUCCESS;
+    atomic<bool> dead = false, shutdown_read = false, shutdown_write = false;
+};
+
+template<socket_family FAMILY>
+class udp_socket : public base_udp_socket {
+public:
+    udp_socket() : base_udp_socket(is_same_v<FAMILY, ipv4> ? true : false) { }
     ~udp_socket() override;
+
     void last_handle_closed() override;
 
     nt_status recvfrom(span<const span<uint8_t>> v, int flags,
@@ -75,16 +93,7 @@ public:
 
     nt_status setsockopt_ipv6(sockopt_ipv6 opt, span<const uint8_t> buf) override;
 
-    spinlock buffer_lock;
-    list_entry buffer = { &buffer, &buffer };
-    size_t buffer_size = 0;
-    spinlock bind_lock;
-    bool bind_done = false, connect_done = false, autobound = false;
-    uint16_t bound_port, connected_port;
-    uint32_t connected_scope = 0;
     typename FAMILY::address bound_address, connected_address;
-    nt_status pending_error = nt_status::SUCCESS;
-    atomic<bool> dead = false, shutdown_read = false, shutdown_write = false;
 
 private:
     template<bool NONBLOCK>
