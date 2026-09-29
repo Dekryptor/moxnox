@@ -226,7 +226,6 @@ public:
     typename FAMILY::address bound_address, connected_address;
 
 private:
-    void send_fin();
     void retransmission_thread();
     void do_retransmissions();
 
@@ -992,7 +991,7 @@ void tcp_socket<FAMILY>::last_handle_closed() {
         }
 
         if (do_fin)
-            s.send_fin();
+            send_fin<FAMILY>(s);
 
         while (true) {
             base_tcp_socket* s2 = nullptr;
@@ -1192,7 +1191,7 @@ static void send_ack(base_tcp_socket& sock, bool first, tcp_seq ack) {
 }
 
 template<socket_family FAMILY>
-void tcp_socket<FAMILY>::send_fin() {
+static void send_fin(base_tcp_socket& sock) {
     // FIXME - send RST if new fails?
 
     auto pack = new packet;
@@ -1208,7 +1207,7 @@ void tcp_socket<FAMILY>::send_fin() {
         return;
     }
 
-    auto& ni = *pni;
+    auto& ni = *sock.pni;
 
     ni.acquire();
 
@@ -1231,11 +1230,22 @@ void tcp_socket<FAMILY>::send_fin() {
         ip.ttl = DEFAULT_HOP_LIMIT;
         ip.protocol = IPPROTO_TCP;
         ip.header_checksum = 0;
-        ip.src = bound_address;
-        ip.dst = connected_address;
+
+        if (sock.is_ipv4) {
+            auto& s2 = static_cast<tcp_socket<ipv4>&>(sock);
+
+            ip.src = s2.bound_address;
+            ip.dst = s2.connected_address;
+        } else {
+            auto& s2 = static_cast<tcp_socket<ipv6>&>(sock);
+
+            ip.src = extract_mapped_address(s2.bound_address);
+            ip.dst = extract_mapped_address(s2.connected_address);
+        }
 
         ip.header_checksum = calc_ipv4_checksum(span(pack->data, sizeof(ipv4_header)));
     } else if constexpr (is_same_v<FAMILY, ipv6>) {
+        auto& s2 = static_cast<tcp_socket<ipv6>&>(sock);
         auto& ip = *(ipv6_header*)pack->data;
 
         ip.traffic_class1 = 0;
@@ -1247,8 +1257,8 @@ void tcp_socket<FAMILY>::send_fin() {
         ip.payload_length = byteswap((uint16_t)sizeof(tcp_header));
         ip.next_header = IPPROTO_TCP;
         ip.hop_limit = DEFAULT_HOP_LIMIT;
-        ip.src = bound_address;
-        ip.dst = connected_address;
+        ip.src = s2.bound_address;
+        ip.dst = s2.connected_address;
     }
 
     auto& tcp = *(tcp_header*)(pack->data + sizeof(typename FAMILY::header));
@@ -1256,18 +1266,18 @@ void tcp_socket<FAMILY>::send_fin() {
     memset(&tcp, 0, sizeof(tcp));
 
     {
-        lock_guard lock(io_lock);
+        lock_guard lock(sock.io_lock);
 
-        tcp.src_port = bound_port;
-        tcp.dst_port = connected_port;
-        tcp.seq = send_next;
-        tcp.ack = recv_next;
+        tcp.src_port = sock.bound_port;
+        tcp.dst_port = sock.connected_port;
+        tcp.seq = sock.send_next;
+        tcp.ack = sock.recv_next;
         tcp.header_length = sizeof(tcp_header) / sizeof(uint32_t);
         tcp.FIN = 1;
         tcp.ACK = 1;
-        tcp.window = byteswap(recv_window);
+        tcp.window = byteswap(sock.recv_window);
 
-        send_next++;
+        sock.send_next++;
 
         if constexpr (is_same_v<FAMILY, ipv4>) {
             auto& ip = *(ipv4_header*)pack->data;
@@ -1289,12 +1299,12 @@ void tcp_socket<FAMILY>::send_fin() {
         r->deadline = (uint64_t)kernel_time_page.system_time + (RETRANSMISSION_DELAY * SYSTEM_TIME_RESOLUTION);
 
         {
-            lock_guard lock(retransmission_list_lock);
-            insert_tail_list(retransmission_list, r->le);
+            lock_guard lock(sock.retransmission_list_lock);
+            insert_tail_list(sock.retransmission_list, r->le);
         }
     }
 
-    dispatch_packet<FAMILY>(ni, *pack, dst_mac);
+    dispatch_packet<FAMILY>(ni, *pack, sock.dst_mac);
 
     pack->release();
     ni.release();
@@ -3280,7 +3290,7 @@ nt_status tcp_socket<FAMILY>::shutdown(int how) {
     }
 
     if (do_fin)
-        send_fin();
+        send_fin<FAMILY>(*this);
 
     if (how == SHUT_WR || how == SHUT_RDWR) {
         sync_lock sl;
