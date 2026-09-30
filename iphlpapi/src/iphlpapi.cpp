@@ -83,6 +83,42 @@ unsigned int if_nametoindex(const char* ifname) {
 }
 
 extern "C"
+char* if_indextoname(unsigned int ifindex, char* ifname) {
+    nt_status status;
+    unique_handle netctl;
+    MOXNOX_NETCTL_GET_NETIF_INFO info;
+    IO_STATUS_BLOCK iosb;
+    auto id = (uint32_t)ifindex;
+
+    if (!ifname) {
+        *_errno() = EINVAL;
+        return nullptr;
+    }
+
+    status = open_netctl(netctl);
+    if (!success(status)) {
+        *_errno() = nt_status_to_errno(status);
+        return nullptr;
+    }
+
+    status = NtDeviceIoControlFile(netctl.get(), 0, nullptr, nullptr, &iosb,
+                                   IOCTL_MOXNOX_NETCTL_GET_NETIF_INFO, &id,
+                                   sizeof(uint32_t), &info,
+                                   (uint32_t)sizeof(info));
+    if (status == nt_status::NOT_FOUND) {
+        *_errno() = ENXIO;
+        return nullptr;
+    } else if (!success(status)) {
+        *_errno() = nt_status_to_errno(status);
+        return nullptr;
+    }
+
+    strcpy(ifname, info.name);
+
+    return ifname;
+}
+
+extern "C"
 int DllMainCRTStartup(HANDLE /*hinstDLL*/, uint32_t /*dwReason*/,
                       void* /*lpvReserved*/) {
     return 1;
