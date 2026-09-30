@@ -7,7 +7,9 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 enable_language(ASM)
 
-set(SRC_FILES src/iphlpapi.cpp)
+set(SRC_FILES src/iphlpapi.cpp
+    src/iphlpapi.def
+)
 
 add_library(iphlpapi SHARED ${SRC_FILES})
 
