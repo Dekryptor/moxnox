@@ -24,21 +24,11 @@ import errno;
 using namespace std;
 
 struct ipv4 {
-    using header = ipv4_header;
     using address = ipv4_address;
-    using sockaddr = sockaddr_in;
-    using icmp_header = icmpv4_header;
-
-    static constexpr int family = AF_INET;
 };
 
 struct ipv6 {
-    using header = ipv6_header;
     using address = ipv6_address;
-    using sockaddr = sockaddr_in6;
-    using icmp_header = icmpv6_header;
-
-    static constexpr int family = AF_INET6;
 };
 
 template<typename T>
@@ -468,12 +458,6 @@ static int parse_dns_response(span<uint8_t> sp, span<uint8_t> resp,
         return EAI_NONAME;
 
     return 0;
-}
-
-static bool is_actually_ipv4(const ipv6_address& addr) {
-    static const auto mask = parse_ipv6_address("::ffff:0:0");
-
-    return !memcmp(addr.v.data(), mask.v.data(), 12);
 }
 
 static int dns_lookup2(int sock, const ipv6_address& server,
@@ -1273,32 +1257,26 @@ static int parse_dns_ptr_response(span<uint8_t> sp, span<uint8_t> resp,
     return EAI_NONAME;
 }
 
-template<socket_family FAMILY, socket_family FAMILY2>
-static int reverse_dns_lookup2(int sock, const typename FAMILY::address& server,
-                               const typename FAMILY2::address& addr, span<char> buf) {
+template<socket_family FAMILY>
+static int reverse_dns_lookup2(int sock, const ipv6_address& server,
+                               const typename FAMILY::address& addr, span<char> buf) {
     LARGE_INTEGER sent_time;
     int64_t deadline;
     nt_status status;
-    typename FAMILY::sockaddr dest;
+    sockaddr_in6 dest;
     int ret;
 
     memset(&dest, 0, sizeof(dest));
 
-    if constexpr (is_same_v<FAMILY, ipv4>) {
-        dest.sin_family = AF_INET;
-        dest.sin_port = byteswap(DNS_PORT);
-        *(ipv4_address*)&dest.sin_addr = server;
-    } else if constexpr (is_same_v<FAMILY, ipv6>) {
-        dest.sin6_family = AF_INET6;
-        dest.sin6_port = byteswap(DNS_PORT);
-        *(ipv6_address*)&dest.sin6_addr = server;
-    }
+    dest.sin6_family = AF_INET6;
+    dest.sin6_port = byteswap(DNS_PORT);
+    *(ipv6_address*)&dest.sin6_addr = server;
 
     size_t reverse_len;
 
-    if constexpr (is_same_v<FAMILY2, ipv4>)
+    if constexpr (is_same_v<FAMILY, ipv4>)
         reverse_len = ipv4_ptr_len(addr);
-    else if constexpr (is_same_v<FAMILY2, ipv6>)
+    else if constexpr (is_same_v<FAMILY, ipv6>)
         reverse_len = REVERSE_IPV6_LEN;
 
     size_t question_len = reverse_len + sizeof(dns_question_suffix);
@@ -1319,7 +1297,7 @@ static int reverse_dns_lookup2(int sock, const typename FAMILY::address& server,
     h.response = 0;
     h.qdcount = byteswap((uint16_t)1);
 
-    ptr_name<FAMILY2>(addr, (uint8_t*)pack + sizeof(dns_header));
+    ptr_name<FAMILY>(addr, (uint8_t*)pack + sizeof(dns_header));
 
     auto& suf = *(dns_question_suffix*)(pack + sizeof(dns_header) + reverse_len);
     suf.type = DNS_PTR;
@@ -1351,7 +1329,7 @@ static int reverse_dns_lookup2(int sock, const typename FAMILY::address& server,
         char resp[512]; // maximum size of DNS packet
         LARGE_INTEGER now;
         pollfd pfd;
-        typename FAMILY::sockaddr src;
+        sockaddr_in6 src;
         socklen_t srclen;
 
         status = NtQuerySystemTime(&now);
@@ -1396,25 +1374,14 @@ static int reverse_dns_lookup2(int sock, const typename FAMILY::address& server,
         // FIXME - handle case when reply comes through from previous server we tried?
         // FIXME - move duff servers to end of the list
 
-        if constexpr (is_same_v<FAMILY, ipv4>) {
-            if (src.sin_family != AF_INET)
-                continue;
+        if (src.sin6_family != AF_INET6)
+            continue;
 
-            if (*(ipv4_address*)&src.sin_addr != *(ipv4_address*)&dest.sin_addr)
-                continue;
+        if (*(ipv6_address*)&src.sin6_addr != *(ipv6_address*)&dest.sin6_addr)
+            continue;
 
-            if (src.sin_port != dest.sin_port)
-                continue;
-        } else if constexpr (is_same_v<FAMILY, ipv6>) {
-            if (src.sin6_family != AF_INET6)
-                continue;
-
-            if (*(ipv6_address*)&src.sin6_addr != *(ipv6_address*)&dest.sin6_addr)
-                continue;
-
-            if (src.sin6_port != dest.sin6_port)
-                continue;
-        }
+        if (src.sin6_port != dest.sin6_port)
+            continue;
 
         if ((size_t)bytes < sizeof(dns_header))
             continue;
@@ -1504,40 +1471,23 @@ static int reverse_dns_lookup(const typename FAMILY::address& addr, span<char> b
     if (num_servers == 0)
         return EAI_AGAIN;
 
-    unique_fd sock4, sock6;
+    unique_fd sock6;
 
     bool all_eai_again = true;
 
     for (size_t i = 0; i < num_servers; i++) {
         int ret;
 
-        if (is_actually_ipv4(dns_servers[i])) {
-            if (!sock4) {
-                if (int fd = socket(AF_INET, SOCK_DGRAM, 0); fd < 0) {
-                    print_stderr("socket returned {} (errno {})\n", fd, errno_to_string_view(*_errno()));
-                    return EAI_SYSTEM;
-                } else
-                    sock4.reset(fd);
-            }
-
-            ipv4_address serv4;
-
-            memcpy(&serv4, dns_servers[i].v.data() + 12, sizeof(ipv4_address));
-
-            ret = reverse_dns_lookup2<ipv4, FAMILY>(sock4.get(), serv4, addr,
-                                                    buf);
-        } else {
-            if (!sock6) {
-                if (int fd = socket(AF_INET6, SOCK_DGRAM, 0); fd < 0) {
-                    print_stderr("socket returned {} (errno {})\n", fd, errno_to_string_view(*_errno()));
-                    return EAI_SYSTEM;
-                } else
-                    sock6.reset(fd);
-            }
-
-            ret = reverse_dns_lookup2<ipv6, FAMILY>(sock6.get(), dns_servers[i],
-                                                    addr, buf);
+        if (!sock6) {
+            if (int fd = socket(AF_INET6, SOCK_DGRAM, 0); fd < 0) {
+                print_stderr("socket returned {} (errno {})\n", fd, errno_to_string_view(*_errno()));
+                return EAI_SYSTEM;
+            } else
+                sock6.reset(fd);
         }
+
+        ret = reverse_dns_lookup2<FAMILY>(sock6.get(), dns_servers[i], addr,
+                                          buf);
 
         if (ret != EAI_AGAIN)
             all_eai_again = false;
