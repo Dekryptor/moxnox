@@ -476,28 +476,21 @@ static bool is_actually_ipv4(const ipv6_address& addr) {
     return !memcmp(addr.v.data(), mask.v.data(), 12);
 }
 
-template<socket_family FAMILY>
-static int dns_lookup2(int sock, const typename FAMILY::address& server,
+static int dns_lookup2(int sock, const ipv6_address& server,
                        string_view name, addrinfo** res, int socktype,
                        int protocol, uint16_t port, uint16_t type,
                        addrinfo** last_entry) {
     LARGE_INTEGER sent_time;
     int64_t deadline;
     nt_status status;
-    typename FAMILY::sockaddr dest;
+    sockaddr_in6 dest;
     int ret;
 
     memset(&dest, 0, sizeof(dest));
 
-    if constexpr (is_same_v<FAMILY, ipv4>) {
-        dest.sin_family = AF_INET;
-        dest.sin_port = byteswap(DNS_PORT);
-        *(ipv4_address*)&dest.sin_addr = server;
-    } else if constexpr (is_same_v<FAMILY, ipv6>) {
-        dest.sin6_family = AF_INET6;
-        dest.sin6_port = byteswap(DNS_PORT);
-        *(ipv6_address*)&dest.sin6_addr = server;
-    }
+    dest.sin6_family = AF_INET6;
+    dest.sin6_port = byteswap(DNS_PORT);
+    *(ipv6_address*)&dest.sin6_addr = server;
 
     auto name_len = get_encoded_name_len(name);
     size_t question_len = name_len + sizeof(dns_question_suffix);
@@ -550,7 +543,7 @@ static int dns_lookup2(int sock, const typename FAMILY::address& server,
         char resp[512]; // maximum size of DNS packet
         LARGE_INTEGER now;
         pollfd pfd;
-        typename FAMILY::sockaddr src;
+        sockaddr_in6 src;
         socklen_t srclen;
 
         status = NtQuerySystemTime(&now);
@@ -593,25 +586,14 @@ static int dns_lookup2(int sock, const typename FAMILY::address& server,
 
         // FIXME - handle case when reply comes through from previous server we tried?
 
-        if constexpr (is_same_v<FAMILY, ipv4>) {
-            if (src.sin_family != AF_INET)
-                continue;
+        if (src.sin6_family != AF_INET6)
+            continue;
 
-            if (*(ipv4_address*)&src.sin_addr != *(ipv4_address*)&dest.sin_addr)
-                continue;
+        if (*(ipv6_address*)&src.sin6_addr != *(ipv6_address*)&dest.sin6_addr)
+            continue;
 
-            if (src.sin_port != dest.sin_port)
-                continue;
-        } else if constexpr (is_same_v<FAMILY, ipv6>) {
-            if (src.sin6_family != AF_INET6)
-                continue;
-
-            if (*(ipv6_address*)&src.sin6_addr != *(ipv6_address*)&dest.sin6_addr)
-                continue;
-
-            if (src.sin6_port != dest.sin6_port)
-                continue;
-        }
+        if (src.sin6_port != dest.sin6_port)
+            continue;
 
         if ((size_t)bytes < sizeof(dns_header))
             continue;
@@ -822,36 +804,20 @@ static int dns_lookup(string_view name, addrinfo** res, int socktype,
     if (num_servers == 0)
         return EAI_AGAIN;
 
-    unique_fd sock4, sock6;
+    unique_fd sock6;
 
     bool all_eai_again = true;
 
     for (size_t i = 0; i < num_servers; i++) {
-        if (is_actually_ipv4(dns_servers[i])) {
-            if (!sock4) {
-                if (auto fd = socket(AF_INET, SOCK_DGRAM, 0); fd < 0) {
-                    print_stderr("socket returned {} (errno {})\n", fd, errno_to_string_view(*_errno()));
-                    return EAI_SYSTEM;
-                } else
-                    sock4.reset(fd);
-            }
-        } else {
-            if (!sock6) {
-                if (auto fd = socket(AF_INET6, SOCK_DGRAM, 0); fd < 0) {
-                    print_stderr("socket returned {} (errno {})\n", fd, errno_to_string_view(*_errno()));
-                    return EAI_SYSTEM;
-                } else
-                    sock6.reset(fd);
-            }
+        if (!sock6) {
+            if (auto fd = socket(AF_INET6, SOCK_DGRAM, 0); fd < 0) {
+                print_stderr("socket returned {} (errno {})\n", fd, errno_to_string_view(*_errno()));
+                return EAI_SYSTEM;
+            } else
+                sock6.reset(fd);
         }
 
         int ret;
-
-        bool ipv4_server = is_actually_ipv4(dns_servers[i]);
-        ipv4_address serv4;
-
-        if (ipv4_server)
-            memcpy(&serv4, dns_servers[i].v.data() + 12, sizeof(ipv4_address));
 
         if (family == AF_UNSPEC) {
             addrinfo* res1 = nullptr;
@@ -859,15 +825,9 @@ static int dns_lookup(string_view name, addrinfo** res, int socktype,
             addrinfo* last_entry;
             int ret1, ret2;
 
-            if (ipv4_server) {
-                ret1 = dns_lookup2<ipv4>(sock4.get(), serv4, name, &res1,
-                                         socktype, protocol, port, DNS_AAAA,
-                                         &last_entry);
-            } else {
-                ret1 = dns_lookup2<ipv6>(sock6.get(), dns_servers[i], name,
-                                         &res1, socktype, protocol, port,
-                                         DNS_AAAA, &last_entry);
-            }
+            ret1 = dns_lookup2(sock6.get(), dns_servers[i], name, &res1,
+                               socktype, protocol, port, DNS_AAAA, &last_entry);
+
             if (ret1 == EAI_MEMORY || ret1 == EAI_SYSTEM)
                 return ret1;
             else if (ret1 != EAI_NONAME && ret1 != 0) {
@@ -877,15 +837,8 @@ static int dns_lookup(string_view name, addrinfo** res, int socktype,
                 continue;
             }
 
-            if (ipv4_server) {
-                ret2 = dns_lookup2<ipv4>(sock4.get(), serv4, name, &res2,
-                                         socktype, protocol, port, DNS_A,
-                                         nullptr);
-            } else {
-                ret2 = dns_lookup2<ipv6>(sock6.get(), dns_servers[i], name,
-                                         &res2, socktype, protocol, port, DNS_A,
-                                         nullptr);
-            }
+            ret2 = dns_lookup2(sock6.get(), dns_servers[i], name, &res2,
+                               socktype, protocol, port, DNS_A, nullptr);
 
             if (ret2 != EAI_NONAME && ret2 != 0)
                 freeaddrinfo(res1);
@@ -915,25 +868,11 @@ static int dns_lookup(string_view name, addrinfo** res, int socktype,
             return rearrange_list(res);
         } else {
             if (family == AF_INET) {
-                if (ipv4_server) {
-                    ret = dns_lookup2<ipv4>(sock4.get(), serv4, name, res,
-                                            socktype, protocol, port, DNS_A,
-                                            nullptr);
-                } else {
-                    ret = dns_lookup2<ipv6>(sock6.get(), dns_servers[i], name,
-                                            res, socktype, protocol, port, DNS_A,
-                                            nullptr);
-                }
+                ret = dns_lookup2(sock6.get(), dns_servers[i], name, res,
+                                  socktype, protocol, port, DNS_A, nullptr);
             } else if (family == AF_INET6) {
-                if (ipv4_server) {
-                    ret = dns_lookup2<ipv4>(sock4.get(), serv4, name, res,
-                                            socktype, protocol, port, DNS_AAAA,
-                                            nullptr);
-                } else {
-                    ret = dns_lookup2<ipv6>(sock6.get(), dns_servers[i], name,
-                                            res, socktype, protocol, port,
-                                            DNS_AAAA, nullptr);
-                }
+                ret = dns_lookup2(sock6.get(), dns_servers[i], name, res,
+                                  socktype, protocol, port, DNS_AAAA, nullptr);
             }
 
             if (ret != EAI_AGAIN)
