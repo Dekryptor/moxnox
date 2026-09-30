@@ -1902,6 +1902,8 @@ static void handle_ipv4_packet(netif& ni, packet& pack, const mac_address& src_m
     if (!our_ip.has_value()) {
         if (no_ipv4_addresses && (ip.dst == parse_ipv4_address("255.255.255.255") || is_multicast_address(ip.dst)))
             our_ip = parse_ipv4_address("0.0.0.0");
+        else if (no_ipv4_addresses && ip.protocol == IPPROTO_UDP) // let unicast DHCP packets through before configuration
+            our_ip = parse_ipv4_address("0.0.0.0");
         else
             return;
     }
