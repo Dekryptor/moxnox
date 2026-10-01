@@ -75,10 +75,7 @@ static void get_netif_info(unique_handle& netctl, uint32_t id) {
     if (auto n = name.find('\0'); n != string_view::npos)
         name = string_view(name.data(), n);
 
-    print("name = \"{}\"\n", name);
-
-    if (info.ll_addr != parse_ipv6_address("::"))
-        print("ll_addr = {}\n", info.ll_addr);
+    print("{}:\n", name);
 }
 
 static void get_netif_ips(unique_handle& netctl, uint32_t id) {
@@ -147,8 +144,6 @@ int main() {
     else
         count = *opt;
 
-    print("count = {}\n", count);
-
     if (count == 0)
         return 0;
 
@@ -174,7 +169,9 @@ int main() {
     }
 
     for (unsigned int i = 0; i < ids->count; i++) {
-        print("ID: {}\n", ids->id[i]);
+        if (i != 0)
+            print("\n");
+
         get_netif_info(netctl, ids->id[i]);
         get_netif_ips(netctl, ids->id[i]);
     }
