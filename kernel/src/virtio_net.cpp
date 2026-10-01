@@ -5,6 +5,7 @@
 #include <stdint.h>
 #include <mutex>
 #include <variant>
+#include <atomic>
 
 import nt;
 import print;
@@ -372,6 +373,11 @@ nt_status virtio_net<T>::send_packet(const mac_address& dst_mac, ethertype type,
 
     auto status = transmit_queue->indirect(descs, read_bytes);
 
+    if (success(status)) {
+        tx_packets.fetch_add(1, memory_order::relaxed);
+        tx_bytes.fetch_add(sizeof(ethernet_header) + pack.size, memory_order::relaxed);
+    }
+
     dma_finish_write(bounce1);
     dma_finish_write(bounce2);
 
@@ -455,6 +461,10 @@ void virtio_net<T>::recv_thread() {
         print("ethernet: dst_mac = {}, src_mac = {}, type = {}\n",
               header.eth.dst_mac, header.eth.src_mac, header.eth.type);
 #endif
+
+        rx_packets.fetch_add(1, memory_order::relaxed);
+        rx_bytes.fetch_add(recvd_bytes - sizeof(virtio_net_hdr),
+                           memory_order::relaxed);
 
         if (drop_packet(header.eth.dst_mac, mac)) {
             pack->release();

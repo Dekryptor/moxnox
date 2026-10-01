@@ -173,6 +173,8 @@ public:
     bool tx_tcpv6_csum_offload = false;
     bool dhcp_visited = false;
     bool loopback = false;
+    atomic<uint64_t> rx_packets = 0, tx_packets = 0;
+    atomic<uint64_t> rx_bytes = 0, tx_bytes = 0;
 
     spinlock dhcp_lock;
     enum dhcp_status dhcp_status = dhcp_status::need_discover;

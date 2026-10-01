@@ -4,6 +4,7 @@
 #include <string_view>
 #include <mutex>
 #include <bit>
+#include <atomic>
 
 import nt;
 import format;
@@ -793,6 +794,9 @@ void rtl8168_netif::handle_received_packet(span<const uint8_t> data,
     if (data.size() < sizeof(ethernet_header) + sizeof(uint32_t))
         return;
 
+    rx_packets.fetch_add(1, memory_order::relaxed);
+    rx_bytes.fetch_add(data.size() - sizeof(uint32_t), memory_order::relaxed);
+
     // FIXME - IPv4 checksums
     if (r.pid == 1) {
         if (r.tcp_checksum_failed)
@@ -851,6 +855,9 @@ void rtl8168_netif::receive_packets() {
 nt_status rtl8168_netif::send_packet(const mac_address& dst_mac, ethertype type,
                                      packet& pack) {
     wait_for_object(tx_semaphore.get(), false);
+
+    tx_packets.fetch_add(1, memory_order::relaxed);
+    tx_bytes.fetch_add(sizeof(ethernet_header) + pack.size, memory_order::relaxed);
 
     {
         lock_guard lock(tx_lock);
