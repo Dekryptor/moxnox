@@ -1,6 +1,7 @@
 module;
 
 #include <stdint.h>
+#include <string.h>
 #include <array>
 #include <atomic>
 
@@ -24,3 +25,31 @@ export struct __attribute__((aligned(PAGE_SIZE))) time_page_struct {
     atomic<uint32_t> dns_servers_seq_lock;
     array<ipv6_address, 16> dns_servers;
 };
+
+#ifndef KERNEL
+
+export decltype(time_page_struct::dns_servers) get_dns_servers() {
+    decltype(time_page_struct::dns_servers) ret;
+
+    auto& p = *(time_page_struct*)TIME_PAGE_BASE;
+
+    while (true) {
+        auto seq1 = p.dns_servers_seq_lock.load(memory_order_acquire);
+        if (seq1 & 1)
+            continue;
+
+        memcpy(ret.data(), p.dns_servers.data(), p.dns_servers.size() * sizeof(ipv6_address));
+
+        atomic_thread_fence(memory_order_acquire);
+
+        auto seq2 = p.dns_servers_seq_lock.load(memory_order_relaxed);
+        if (seq1 != seq2)
+            continue;
+
+        break;
+    }
+
+    return ret;
+}
+
+#endif
