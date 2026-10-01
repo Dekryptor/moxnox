@@ -11,6 +11,7 @@ import unique_handle;
 import moxnox_ioctls;
 import ipv4;
 import ipv6;
+import timepage;
 
 using namespace std;
 
@@ -179,4 +180,24 @@ int main() {
     }
 
     free(ids);
+
+    print("\nDNS servers:\n");
+
+    auto dns = get_dns_servers();
+
+    if (dns[0] == parse_ipv6_address("::"))
+        print("(none)\n");
+    else {
+        for (auto& d : dns) {
+            if (d == parse_ipv6_address("::"))
+                break;
+
+            static const auto MAPPED_ADDRESS = parse_ipv6_address("::ffff:0:0");
+
+            if (!memcmp(d.v.data(), MAPPED_ADDRESS.v.data(), 12))
+                print("{}\n", *(ipv4_address*)(d.v.data() + 12));
+            else
+                print("{}\n", d);
+        }
+    }
 }
