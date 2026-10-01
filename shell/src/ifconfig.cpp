@@ -7,6 +7,7 @@
 
 import nt;
 import print;
+import format;
 import unique_handle;
 import moxnox_ioctls;
 import ipv4;
@@ -76,6 +77,10 @@ static void get_netif_info(unique_handle& netctl, uint32_t id) {
         name = string_view(name.data(), n);
 
     print("{}:\n", name);
+    print("    RX packets {} bytes {} ({})\n", info.rx_packets, info.rx_bytes,
+          byte_size(info.rx_bytes));
+    print("    TX packets {} bytes {} ({})\n", info.tx_packets, info.tx_bytes,
+          byte_size(info.tx_bytes));
 }
 
 static void get_netif_ips(unique_handle& netctl, uint32_t id) {
@@ -123,9 +128,9 @@ static void get_netif_ips(unique_handle& netctl, uint32_t id) {
             addr.v[2] = ips->ip[i].v[14];
             addr.v[3] = ips->ip[i].v[15];
 
-            print("IPv4 address: {}\n", addr);
+            print("    IPv4 address: {}\n", addr);
         } else
-            print("IPv6 address: {}\n", ips->ip[i]);
+            print("    IPv6 address: {}\n", ips->ip[i]);
     }
 
     free(ips);
