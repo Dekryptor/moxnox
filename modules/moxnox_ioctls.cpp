@@ -161,6 +161,10 @@ export struct MOXNOX_NETCTL_GET_NETIF_IDS {
 export struct MOXNOX_NETCTL_GET_NETIF_INFO {
     char name[16];
     ipv6_address ll_addr;
+    uint64_t rx_packets;
+    uint64_t rx_bytes;
+    uint64_t tx_packets;
+    uint64_t tx_bytes;
 };
 
 export struct MOXNOX_NETCTL_GET_NETIF_BY_NAME {

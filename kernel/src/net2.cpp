@@ -2828,6 +2828,16 @@ static nt_status netctl_get_netif_info(span<const uint8_t> inbuf,
     memcpy(out.name, ni->name, sizeof(ni->name));
     out.ll_addr = ni->ll_addr;
 
+    if (ni->loopback) {
+        out.rx_packets = out.tx_packets = lo_packets.load(memory_order::relaxed);
+        out.rx_bytes = out.tx_bytes = lo_bytes.load(memory_order::relaxed);
+    } else {
+        out.rx_packets = ni->rx_packets.load(memory_order::relaxed);
+        out.rx_bytes = ni->rx_bytes.load(memory_order::relaxed);
+        out.tx_packets = ni->tx_packets.load(memory_order::relaxed);
+        out.tx_bytes = ni->tx_bytes.load(memory_order::relaxed);
+    }
+
     ni->release();
 
     written = sizeof(MOXNOX_NETCTL_GET_NETIF_INFO);
