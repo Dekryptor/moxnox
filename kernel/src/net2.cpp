@@ -47,6 +47,8 @@ static spinlock ipv4_raw_sockets_lock;
 static list_entry ipv4_raw_sockets = { &ipv4_raw_sockets, &ipv4_raw_sockets };
 static size_t num_ipv4_raw_sockets = 0;
 
+static atomic<uint64_t> lo_packets = 0, lo_bytes = 0;
+
 template<socket_family FAMILY>
 class raw_socket : public socket {
 public:
@@ -4931,11 +4933,18 @@ nt_status dispatch_packet(netif& ni, packet& pack, const mac_address& dst_mac) {
     auto& ip = *(typename FAMILY::header*)pack.data;
 
     if constexpr (is_same_v<FAMILY, ipv4>) {
-        if (ip.src == ip.dst)
+        if (ip.src == ip.dst) {
+            lo_packets.fetch_add(1, memory_order::relaxed);
+            lo_bytes.fetch_add(pack.size, memory_order::relaxed);
+
             handle_ipv4_packet(ni, pack, ni.mac, true);
-        else {
-            if (is_broadcast_address(ni, ip.dst) || (is_multicast_address(ip.dst) && should_accept_multicast(ip.dst)))
+        } else {
+            if (is_broadcast_address(ni, ip.dst) || (is_multicast_address(ip.dst) && should_accept_multicast(ip.dst))) {
+                lo_packets.fetch_add(1, memory_order::relaxed);
+                lo_bytes.fetch_add(pack.size, memory_order::relaxed);
+
                 handle_ipv4_packet(ni, pack, ni.mac, true); // send copy to ourselves
+            }
 
             status = ni.send_packet(dst_mac, ethertype::ipv4, pack);
             if (!success(status)) {
@@ -4944,11 +4953,18 @@ nt_status dispatch_packet(netif& ni, packet& pack, const mac_address& dst_mac) {
             }
         }
     } else if constexpr (is_same_v<FAMILY, ipv6>) {
-        if (ip.src == ip.dst)
+        if (ip.src == ip.dst) {
+            lo_packets.fetch_add(1, memory_order::relaxed);
+            lo_bytes.fetch_add(pack.size, memory_order::relaxed);
+
             handle_ipv6_packet(ni, pack, ni.mac, true);
-        else {
-            if (is_multicast_address(ip.dst) && should_accept_multicast(ni, ip.dst))
+        } else {
+            if (is_multicast_address(ip.dst) && should_accept_multicast(ni, ip.dst)) {
+                lo_packets.fetch_add(1, memory_order::relaxed);
+                lo_bytes.fetch_add(pack.size, memory_order::relaxed);
+
                 handle_ipv6_packet(ni, pack, ni.mac, true); // send copy to ourselves
+            }
 
             status = ni.send_packet(dst_mac, ethertype::ipv6, pack);
             if (!success(status)) {
