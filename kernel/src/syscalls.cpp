@@ -1137,9 +1137,6 @@ static void print_ioctl_code(uint32_t code) {
         case IOCTL_MOXNOX_SOCKET_SETSOCKOPT:
             print("IOCTL_MOXNOX_SOCKET_SETSOCKOPT");
             break;
-        case IOCTL_MOXNOX_NETCTL_GET_DNS_SERVERS:
-            print("IOCTL_MOXNOX_NETCTL_GET_DNS_SERVERS");
-            break;
         case IOCTL_MOXNOX_SOCKET_SHUTDOWN:
             print("IOCTL_MOXNOX_SOCKET_SHUTDOWN");
             break;

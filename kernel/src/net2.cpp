@@ -2988,36 +2988,6 @@ static nt_status netctl_get_netif_ips(span<const uint8_t> inbuf,
     return ret;
 }
 
-static nt_status netctl_get_dns_servers(span<uint8_t> outbuf, uintptr_t& written) {
-    size_t max_num = outbuf.size() / sizeof(ipv6_address);
-
-    if (max_num == 0) {
-        written = 0;
-        return nt_status::SUCCESS;
-    }
-
-    auto* arr = (ipv6_address*)outbuf.data();
-    size_t done = 0;
-
-    {
-        lock_guard lock(dns_servers_lock);
-
-        for (auto le = dns_servers.next; le != &dns_servers; le = le->next) {
-            auto& d = containing_record<dns_server>(le);
-
-            arr[done] = d.address;
-            done++;
-
-            if (done == max_num)
-                break;
-        }
-    }
-
-    written = sizeof(ipv6_address) * done;
-
-    return nt_status::SUCCESS;
-}
-
 static nt_status netctl_socketpair(span<const uint8_t> inbuf,
                                    span<uint8_t> outbuf, uintptr_t& written) {
     auto& proc = *get_current_thread()->proc;
@@ -3087,9 +3057,6 @@ nt_status netctl::ioctl(uint32_t code, span<const uint8_t> inbuf,
 
         case IOCTL_MOXNOX_NETCTL_GET_NETIF_IPS:
             return netctl_get_netif_ips(inbuf, outbuf, written);
-
-        case IOCTL_MOXNOX_NETCTL_GET_DNS_SERVERS:
-            return netctl_get_dns_servers(outbuf, written);
 
         case IOCTL_MOXNOX_NETCTL_SOCKETPAIR:
             return netctl_socketpair(inbuf, outbuf, written);
