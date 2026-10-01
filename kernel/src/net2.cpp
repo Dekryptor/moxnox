@@ -5071,7 +5071,7 @@ nt_status raw_socket<FAMILY>::do_sendto(span<const span<const uint8_t>> v,
 
     if constexpr (is_same_v<FAMILY, ipv6>) {
         // FIXME - should only be if IPV6_CHECKSUM sockopt set
-        if (protocol == IPPROTO_ICMPV6 && vec_size >= sizeof(typename FAMILY::header)) {
+        if (protocol == IPPROTO_ICMPV6 && vec_size >= sizeof(typename FAMILY::icmp_header)) {
             auto& icmp = *(typename FAMILY::icmp_header*)(pack->data + sizeof(typename FAMILY::header));
 
             icmp.checksum = 0;
