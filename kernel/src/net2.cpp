@@ -5366,6 +5366,9 @@ static void send_arp_reply(netif& ni, const ipv4_address& src_ip,
 
 static void add_arp_cache_entry(netif& ni, const mac_address& mac,
                                 const ipv4_address& addr, bool to_us) {
+    if (mac == NULL_MAC_ADDRESS)
+        return;
+
     {
         lock_guard lock(ni.arp_lock);
 
