@@ -1072,6 +1072,34 @@ static ipv6_address zero_right_bits(const ipv6_address& addr, uint8_t n) {
     return ret;
 }
 
+static void regen_time_page_dns_servers() {
+    // holding dns_servers_lock
+
+    size_t i = 0;
+    auto& seq = kernel_time_page.dns_servers_seq_lock;
+
+    seq.store(seq.load(memory_order_relaxed) + 1, memory_order_relaxed);
+    atomic_thread_fence(memory_order_release);
+
+    for (auto le = dns_servers.next; le != &dns_servers; le = le->next) {
+        auto& d = containing_record<dns_server>(le);
+
+        kernel_time_page.dns_servers[i] = d.address;
+        i++;
+
+        if (i == kernel_time_page.dns_servers.size())
+            break;
+    }
+
+    while (i < kernel_time_page.dns_servers.size()) {
+        kernel_time_page.dns_servers[i] = parse_ipv6_address("::");
+        i++;
+    }
+
+    atomic_thread_fence(memory_order_release);
+    seq.store(seq.load(memory_order_relaxed) + 1, memory_order_relaxed);
+}
+
 void add_dns_server(const ipv6_address& address, uint32_t ttl) {
     {
         lock_guard lock(dns_servers_lock);
@@ -1113,8 +1141,10 @@ void add_dns_server(const ipv6_address& address, uint32_t ttl) {
             }
         }
 
-        if (!already_done)
+        if (!already_done) {
             insert_tail_list(dns_servers, d2->le);
+            regen_time_page_dns_servers();
+        }
     }
 
     if (already_done)
@@ -2357,6 +2387,7 @@ static void reap_dns_servers() {
     list_entry free_list = { &free_list, &free_list };
 
     {
+        bool changed = false;
         lock_guard lock(dns_servers_lock);
 
         for (auto le = dns_servers.next; le != &dns_servers; le = le->next) {
@@ -2366,9 +2397,13 @@ static void reap_dns_servers() {
                 le = le->prev;
                 remove_entry_list(d.le);
                 insert_tail_list(free_list, d.le);
+                changed = true;
             } else
                 d.ttl--;
         }
+
+        if (changed)
+            regen_time_page_dns_servers();
     }
 
     while (!is_list_empty(free_list)) {
