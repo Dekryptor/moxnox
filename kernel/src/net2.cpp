@@ -2493,6 +2493,8 @@ bool init_net() {
         return false;
     }
 
+    lo->mac = NULL_MAC_ADDRESS;
+    lo->loopback = true;
     lo->num = next_netif_num.fetch_add(1);
 
     memcpy(lo->name, LOOPBACK_NAME.data(), LOOPBACK_NAME.size());
@@ -5081,7 +5083,7 @@ nt_status raw_socket<FAMILY>::do_sendto(span<const span<const uint8_t>> v,
         }
     }
 
-    if (mac == NULL_MAC_ADDRESS) {
+    if (mac == NULL_MAC_ADDRESS && !ni.loopback) {
         send_address_unreachable(ni, *pack, src);
 
         pack->release();

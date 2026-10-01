@@ -869,7 +869,7 @@ static nt_status do_sendto(base_udp_socket& sock,
         }
     }
 
-    if (mac == NULL_MAC_ADDRESS) {
+    if (mac == NULL_MAC_ADDRESS && !ni.loopback) {
         send_address_unreachable(ni, *pack, src);
 
         pack->release();

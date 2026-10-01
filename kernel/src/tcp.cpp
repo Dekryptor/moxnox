@@ -698,7 +698,7 @@ static nt_status send_syn(base_tcp_socket& sock,
         }
     }
 
-    if (sock.dst_mac == NULL_MAC_ADDRESS) {
+    if (sock.dst_mac == NULL_MAC_ADDRESS && !ni.loopback) {
         send_address_unreachable(ni, *pack, src);
 
         pack->release();
