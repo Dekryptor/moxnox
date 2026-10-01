@@ -17,6 +17,7 @@ import ipv6;
 import print;
 import ucrtbase;
 import format;
+import timepage;
 
 #undef errno
 import errno;
@@ -763,27 +764,15 @@ static int rearrange_list(addrinfo** res) {
 
 static int dns_lookup(string_view name, addrinfo** res, int socktype,
                       int protocol, uint16_t port, int family) {
-    nt_status status;
-    array<ipv6_address, 8> dns_servers;
-    IO_STATUS_BLOCK iosb;
+    auto dns_servers = get_dns_servers();
+    auto num_servers = dns_servers.size();
 
-    auto netctl = open_netctl();
-    if (!netctl) {
-        *_errno() = ENOENT;
-        return EAI_SYSTEM;
+    for (size_t i = 0; i < dns_servers.size(); i++) {
+        if (dns_servers[i] == parse_ipv6_address("::")) {
+            num_servers = i;
+            break;
+        }
     }
-
-    status = NtDeviceIoControlFile(netctl.get(), 0, nullptr, nullptr, &iosb,
-                                   IOCTL_MOXNOX_NETCTL_GET_DNS_SERVERS, nullptr,
-                                   0, dns_servers.data(),
-                                   (uint32_t)(dns_servers.size() * sizeof(ipv6_address)));
-    if (!success(status)) {
-        print_stderr("IOCTL_MOXNOX_NETCTL_GET_DNS_SERVERS returned {}\n", status);
-        *_errno() = nt_status_to_errno(status);
-        return EAI_SYSTEM;
-    }
-
-    size_t num_servers = iosb.Information / sizeof(ipv6_address);
 
     if (num_servers == 0)
         return EAI_AGAIN;
@@ -1446,27 +1435,15 @@ static int reverse_dns_lookup2(int sock, const ipv6_address& server,
 
 template<socket_family FAMILY>
 static int reverse_dns_lookup(const typename FAMILY::address& addr, span<char> buf) {
-    nt_status status;
-    array<ipv6_address, 8> dns_servers;
-    IO_STATUS_BLOCK iosb;
+    auto dns_servers = get_dns_servers();
+    auto num_servers = dns_servers.size();
 
-    auto netctl = open_netctl();
-    if (!netctl) {
-        *_errno() = ENOENT;
-        return EAI_SYSTEM;
+    for (size_t i = 0; i < dns_servers.size(); i++) {
+        if (dns_servers[i] == parse_ipv6_address("::")) {
+            num_servers = i;
+            break;
+        }
     }
-
-    status = NtDeviceIoControlFile(netctl.get(), 0, nullptr, nullptr, &iosb,
-                                   IOCTL_MOXNOX_NETCTL_GET_DNS_SERVERS, nullptr,
-                                   0, dns_servers.data(),
-                                   (uint32_t)(dns_servers.size() * sizeof(ipv6_address)));
-    if (!success(status)) {
-        print_stderr("IOCTL_MOXNOX_NETCTL_GET_DNS_SERVERS returned {}\n", status);
-        *_errno() = nt_status_to_errno(status);
-        return EAI_SYSTEM;
-    }
-
-    size_t num_servers = iosb.Information / sizeof(ipv6_address);
 
     if (num_servers == 0)
         return EAI_AGAIN;
