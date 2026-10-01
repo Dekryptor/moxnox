@@ -1753,7 +1753,7 @@ static void handle_v4_echo_request(netif& ni, packet& pack, const mac_address& s
     header.checksum = calc_ipv4_checksum(span(pack2->data + ip_header_size,
                                               pack2->size - ip_header_size));
 
-    if (ip.src == ip.dst) // pinging ourselves
+    if (ip.src == ip.dst || ni.loopback) // pinging ourselves
         handle_ipv4_packet(ni, *pack2, ni.mac, true);
     else {
         auto status = ni.send_packet(src_mac, ethertype::ipv4, *pack2);
@@ -1890,7 +1890,9 @@ static void handle_ipv4_packet(netif& ni, packet& pack, const mac_address& src_m
     optional<ipv4_address> our_ip;
     bool no_ipv4_addresses = true;
 
-    {
+    if (ni.loopback)
+        our_ip = ip.dst;
+    else {
         uint8_t matching_prefix;
 
         lock_guard lock(ni.addr_lock);
@@ -4943,7 +4945,7 @@ nt_status dispatch_packet(netif& ni, packet& pack, const mac_address& dst_mac) {
     auto& ip = *(typename FAMILY::header*)pack.data;
 
     if constexpr (is_same_v<FAMILY, ipv4>) {
-        if (ip.src == ip.dst) {
+        if (ip.src == ip.dst || ni.loopback) {
             lo_packets.fetch_add(1, memory_order::relaxed);
             lo_bytes.fetch_add(pack.size, memory_order::relaxed);
 
@@ -4963,7 +4965,7 @@ nt_status dispatch_packet(netif& ni, packet& pack, const mac_address& dst_mac) {
             }
         }
     } else if constexpr (is_same_v<FAMILY, ipv6>) {
-        if (ip.src == ip.dst) {
+        if (ip.src == ip.dst || ni.loopback) {
             lo_packets.fetch_add(1, memory_order::relaxed);
             lo_bytes.fetch_add(pack.size, memory_order::relaxed);
 
@@ -5048,10 +5050,14 @@ nt_status raw_socket<FAMILY>::do_sendto(span<const span<const uint8_t>> v,
     if (src == dst)
         mac = ni.mac;
     else {
-        if constexpr (is_same_v<FAMILY, ipv4>)
-            mac = find_mac_address(ni, gateway == parse_ipv4_address("0.0.0.0") ? dst : gateway);
-        else
-            mac = find_mac_address(ni, dst);
+        if (ni.loopback)
+            mac = NULL_MAC_ADDRESS;
+        else {
+            if constexpr (is_same_v<FAMILY, ipv4>)
+                mac = find_mac_address(ni, gateway == parse_ipv4_address("0.0.0.0") ? dst : gateway);
+            else
+                mac = find_mac_address(ni, dst);
+        }
     }
 
     auto pack = new packet;
