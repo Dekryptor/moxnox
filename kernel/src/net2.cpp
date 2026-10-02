@@ -50,6 +50,8 @@ static size_t num_ipv4_raw_sockets = 0;
 static atomic<uint64_t> lo_packets = 0, lo_bytes = 0;
 static netif* lo_netif = nullptr;
 
+static spinlock hostname_lock;
+
 template<socket_family FAMILY>
 class raw_socket : public socket {
 public:
@@ -2460,6 +2462,25 @@ static void network_thread() {
     }
 }
 
+static void update_hostname(string_view name) {
+    lock_guard lock(hostname_lock);
+
+    auto& seq = kernel_time_page.hostname_seq_lock;
+
+    seq.store(seq.load(memory_order_relaxed) + 1, memory_order_relaxed);
+    atomic_thread_fence(memory_order_release);
+
+    size_t len = min(name.size(), sizeof(kernel_time_page.hostname) - 1);
+
+    memcpy(kernel_time_page.hostname, name.data(), len);
+
+    memset(kernel_time_page.hostname + len, 0,
+           sizeof(kernel_time_page.hostname) - len);
+
+    atomic_thread_fence(memory_order_release);
+    seq.store(seq.load(memory_order_relaxed) + 1, memory_order_relaxed);
+}
+
 bool init_net() {
     static const string_view LOOPBACK_NAME = "lo";
 
@@ -2526,6 +2547,8 @@ bool init_net() {
     lo->dhcp_status = dhcp_status::not_needed;
 
     lo_netif = lo;
+
+    update_hostname("localhost");
 
     add_kernel_thread(network_thread);
 

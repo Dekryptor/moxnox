@@ -24,7 +24,11 @@ export struct __attribute__((aligned(PAGE_SIZE))) time_page_struct {
     char os_version[32];
     atomic<uint32_t> dns_servers_seq_lock;
     array<ipv6_address, 16> dns_servers;
+    atomic<uint32_t> hostname_seq_lock;
+    char hostname[256];
 };
+
+static_assert(sizeof(time_page_struct) <= PAGE_SIZE);
 
 #ifndef KERNEL
 
