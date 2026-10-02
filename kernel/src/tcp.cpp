@@ -617,10 +617,14 @@ static nt_status send_syn(base_tcp_socket& sock,
     if (src == dst)
         sock.dst_mac = ni.mac;
     else {
-        if constexpr (is_same_v<FAMILY, ipv4>)
-            sock.dst_mac = find_mac_address(ni, gateway == parse_ipv4_address("0.0.0.0") ? dst : gateway);
-        else if constexpr (is_same_v<FAMILY, ipv6>)
-            sock.dst_mac = find_mac_address(ni, dst);
+        if (ni.loopback)
+            sock.dst_mac = NULL_MAC_ADDRESS;
+        else {
+            if constexpr (is_same_v<FAMILY, ipv4>)
+                sock.dst_mac = find_mac_address(ni, gateway == parse_ipv4_address("0.0.0.0") ? dst : gateway);
+            else if constexpr (is_same_v<FAMILY, ipv6>)
+                sock.dst_mac = find_mac_address(ni, dst);
+        }
     }
 
     ni.acquire();
