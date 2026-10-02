@@ -49,6 +49,20 @@ diff -ru a/authfile.c b/authfile.c
  	return 0;
  }
  
+diff -ru a/auth2.c b/auth2.c
+--- a/auth2.c
++++ b/auth2.c
+@@ -80,8 +80,10 @@
+ #ifdef GSSAPI
+ 	&method_gssapi,
+ #endif
++#ifndef __moxnox__
+ 	&method_passwd,
+ 	&method_kbdint,
++#endif
+ 	&method_hostbased,
+ 	NULL
+ };
 diff -ru a/auth-passwd.c b/auth-passwd.c
 --- a/auth-passwd.c	2026-05-13 06:12:38.000000000 +0100
 +++ b/auth-passwd.c	2026-09-08 06:44:47.912066748 +0100

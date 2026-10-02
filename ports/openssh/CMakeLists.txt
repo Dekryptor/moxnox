@@ -3,10 +3,11 @@ set(GEN "${CMAKE_CURRENT_BINARY_DIR}/gen")
 set(REPO "${CMAKE_CURRENT_SOURCE_DIR}/repo")
 
 add_custom_command(
-    OUTPUT ${GEN}/auth-passwd.c ${GEN}/auth.c ${GEN}/authfile.c ${GEN}/channels.c ${GEN}/clientloop.c ${GEN}/misc-agent.c ${GEN}/misc.c ${GEN}/monitor_fdpass.c ${GEN}/monitor_wrap.c ${GEN}/mux.c ${GEN}/openbsd-compat/bsd-openpty.c ${GEN}/openbsd-compat/getrrsetbyname.c ${GEN}/openbsd-compat/readpassphrase.c ${GEN}/openbsd-compat/setproctitle.c ${GEN}/openbsd-compat/xcrypt.c ${GEN}/platform.c ${GEN}/progressmeter.c ${GEN}/session.c ${GEN}/sftp.c ${GEN}/sshd-auth.c ${GEN}/sshd-session.c ${GEN}/sshd.c ${GEN}/ssherr-libcrypto.c ${GEN}/sshpty.c ${GEN}/uidswap.c
-    COMMAND sh -c "mkdir -p '${GEN}/openbsd-compat' && cp '${REPO}/auth-passwd.c' '${REPO}/auth.c' '${REPO}/authfile.c' '${REPO}/channels.c' '${REPO}/clientloop.c' '${REPO}/misc-agent.c' '${REPO}/misc.c' '${REPO}/monitor_fdpass.c' '${REPO}/monitor_wrap.c' '${REPO}/mux.c' '${REPO}/platform.c' '${REPO}/progressmeter.c' '${REPO}/session.c' '${REPO}/sftp.c' '${REPO}/sshd-auth.c' '${REPO}/sshd-session.c' '${REPO}/sshd.c' '${REPO}/ssherr-libcrypto.c' '${REPO}/sshpty.c' '${REPO}/uidswap.c' '${GEN}/' && cp '${REPO}/openbsd-compat/bsd-openpty.c' '${REPO}/openbsd-compat/getrrsetbyname.c' '${REPO}/openbsd-compat/readpassphrase.c' '${REPO}/openbsd-compat/setproctitle.c' '${REPO}/openbsd-compat/xcrypt.c' '${GEN}/openbsd-compat/' && patch -p1 -s -d '${GEN}' < '${CMAKE_CURRENT_SOURCE_DIR}/moxnox.patch'"
+    OUTPUT ${GEN}/auth-passwd.c ${GEN}/auth.c ${GEN}/auth2.c ${GEN}/authfile.c ${GEN}/channels.c ${GEN}/clientloop.c ${GEN}/misc-agent.c ${GEN}/misc.c ${GEN}/monitor_fdpass.c ${GEN}/monitor_wrap.c ${GEN}/mux.c ${GEN}/openbsd-compat/bsd-openpty.c ${GEN}/openbsd-compat/getrrsetbyname.c ${GEN}/openbsd-compat/readpassphrase.c ${GEN}/openbsd-compat/setproctitle.c ${GEN}/openbsd-compat/xcrypt.c ${GEN}/platform.c ${GEN}/progressmeter.c ${GEN}/session.c ${GEN}/sftp.c ${GEN}/sshd-auth.c ${GEN}/sshd-session.c ${GEN}/sshd.c ${GEN}/ssherr-libcrypto.c ${GEN}/sshpty.c ${GEN}/uidswap.c
+    COMMAND sh -c "mkdir -p '${GEN}/openbsd-compat' && cp '${REPO}/auth-passwd.c' '${REPO}/auth.c' '${REPO}/auth2.c' '${REPO}/authfile.c' '${REPO}/channels.c' '${REPO}/clientloop.c' '${REPO}/misc-agent.c' '${REPO}/misc.c' '${REPO}/monitor_fdpass.c' '${REPO}/monitor_wrap.c' '${REPO}/mux.c' '${REPO}/platform.c' '${REPO}/progressmeter.c' '${REPO}/session.c' '${REPO}/sftp.c' '${REPO}/sshd-auth.c' '${REPO}/sshd-session.c' '${REPO}/sshd.c' '${REPO}/ssherr-libcrypto.c' '${REPO}/sshpty.c' '${REPO}/uidswap.c' '${GEN}/' && cp '${REPO}/openbsd-compat/bsd-openpty.c' '${REPO}/openbsd-compat/getrrsetbyname.c' '${REPO}/openbsd-compat/readpassphrase.c' '${REPO}/openbsd-compat/setproctitle.c' '${REPO}/openbsd-compat/xcrypt.c' '${GEN}/openbsd-compat/' && patch -p1 -s -d '${GEN}' < '${CMAKE_CURRENT_SOURCE_DIR}/moxnox.patch'"
     DEPENDS
         repo/auth-passwd.c
+        repo/auth2.c
         repo/auth.c
         repo/authfile.c
         repo/channels.c
@@ -232,7 +233,7 @@ add_executable(sshd-session
     repo/servconf.c
     repo/serverloop.c
     ${GEN}/auth.c
-    repo/auth2.c
+    ${GEN}/auth2.c
     repo/auth2-methods.c
     repo/auth-options.c
     ${GEN}/session.c
@@ -274,7 +275,7 @@ add_executable(sshd-auth
     repo/servconf.c
     repo/serverloop.c
     ${GEN}/auth.c
-    repo/auth2.c
+    ${GEN}/auth2.c
     repo/auth-options.c
     ${GEN}/session.c
     repo/auth2-chall.c
