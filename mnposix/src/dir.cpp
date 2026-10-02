@@ -92,7 +92,7 @@ dirent* readdir(DIR* dir) {
     // FIXME - get multiple entries at once and cache them?
 
     status = NtQueryDirectoryFile(d.h, 0, nullptr, nullptr, &iosb, buf, sizeof(buf),
-                                  FILE_INFORMATION_CLASS::DirectoryInformation,
+                                  FILE_INFORMATION_CLASS::IdFullDirectoryInformation,
                                   true, nullptr, d.first);
     if (status == nt_status::NO_MORE_FILES)
         return nullptr;
@@ -101,11 +101,11 @@ dirent* readdir(DIR* dir) {
         return nullptr;
     }
 
-    auto& fdi = *(FILE_DIRECTORY_INFORMATION*)buf;
+    auto& fdi = *(FILE_ID_FULL_DIR_INFORMATION*)buf;
     auto u16sv = u16string_view(fdi.FileName, fdi.FileNameLength / sizeof(char16_t));
     auto u16len = utf16_to_utf8_len(u16sv);
 
-    de.d_ino = 0; // FIXME!
+    de.d_ino = fdi.FileId.QuadPart;
 
     if (fdi.FileAttributes & FILE_ATTRIBUTE_REPARSE_POINT)
         de.d_type = DT_LNK;
