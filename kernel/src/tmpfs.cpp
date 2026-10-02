@@ -298,53 +298,70 @@ tmpfs_inode::~tmpfs_inode() {
 static nt_status query_directory_dirent(string_view name, tmpfs_inode& ino,
                                         span<uint8_t> buf,
                                         FILE_INFORMATION_CLASS file_information_class) {
-    switch (file_information_class) {
-        case FILE_INFORMATION_CLASS::DirectoryInformation: {
-            if (buf.size() < offsetof(FILE_DIRECTORY_INFORMATION, FileName))
-                return nt_status::BUFFER_TOO_SMALL;
+    auto func = []<typename T>(string_view name, tmpfs_inode& ino,
+                               span<uint8_t> buf) -> nt_status {
+        if (buf.size() < offsetof(T, FileName))
+            return nt_status::BUFFER_TOO_SMALL;
 
-            auto utf16len = utf8_to_utf16_len(name);
-            auto len = offsetof(FILE_DIRECTORY_INFORMATION, FileName) + (utf16len * sizeof(char16_t));
+        auto utf16len = utf8_to_utf16_len(name);
+        auto len = offsetof(T, FileName) + (utf16len * sizeof(char16_t));
 
-            if (buf.size() < len)
-                return nt_status::BUFFER_TOO_SMALL;
+        if (buf.size() < len)
+            return nt_status::BUFFER_TOO_SMALL;
 
-            auto& fdi = *(FILE_DIRECTORY_INFORMATION*)buf.data();
+        auto& fdi = *(T*)buf.data();
 
-            {
-                shared_lock lock(ino.inode_lock);
+        {
+            shared_lock lock(ino.inode_lock);
 
-                fdi.NextEntryOffset = 0;
-                fdi.FileIndex = 0;
-                fdi.CreationTime.QuadPart = (int64_t)ino.otime;
-                fdi.LastAccessTime.QuadPart = (int64_t)ino.atime;
-                fdi.LastWriteTime.QuadPart = (int64_t)ino.mtime;
-                fdi.ChangeTime.QuadPart = (int64_t)ino.ctime;
-                fdi.EndOfFile.QuadPart = (int64_t)ino.file_size;
-                fdi.AllocationSize.QuadPart = 0; // FIXME
+            fdi.NextEntryOffset = 0;
+            fdi.FileIndex = 0;
+            fdi.CreationTime.QuadPart = (int64_t)ino.otime;
+            fdi.LastAccessTime.QuadPart = (int64_t)ino.atime;
+            fdi.LastWriteTime.QuadPart = (int64_t)ino.mtime;
+            fdi.ChangeTime.QuadPart = (int64_t)ino.ctime;
+            fdi.EndOfFile.QuadPart = (int64_t)ino.file_size;
+            fdi.AllocationSize.QuadPart = 0; // FIXME
 
-                switch (ino.inode_type) {
-                    case inode_type::directory:
-                        fdi.FileAttributes = FILE_ATTRIBUTE_DIRECTORY;
-                        break;
+            switch (ino.inode_type) {
+                case inode_type::directory:
+                    fdi.FileAttributes = FILE_ATTRIBUTE_DIRECTORY;
+                    break;
 
-                    case inode_type::symlink:
-                        fdi.FileAttributes = FILE_ATTRIBUTE_REPARSE_POINT;
-                        break;
+                case inode_type::symlink:
+                    fdi.FileAttributes = FILE_ATTRIBUTE_REPARSE_POINT;
+                    break;
 
-                    default:
-                        fdi.FileAttributes = 0;
-                        break;
-                }
+                default:
+                    fdi.FileAttributes = 0;
+                    break;
             }
 
-            fdi.FileNameLength = (uint32_t)(utf16len * sizeof(char16_t));
-            utf8_to_utf16(span(fdi.FileName, utf16len), name);
-
-            buf = buf.subspan(0, len);
-
-            return nt_status::SUCCESS;
+            if constexpr (requires { T::FileId; })
+                fdi.FileId.QuadPart = ino.inode;
         }
+
+        // FIXME - EaSize should contain reparse tag code?
+
+        if constexpr (requires { T::EaSize; })
+            fdi.EaSize = 0;
+
+        fdi.FileNameLength = (uint32_t)(utf16len * sizeof(char16_t));
+        utf8_to_utf16(span(fdi.FileName, utf16len), name);
+
+        buf = buf.subspan(0, len);
+
+        return nt_status::SUCCESS;
+    };
+
+    switch (file_information_class) {
+        using enum FILE_INFORMATION_CLASS;
+
+        case DirectoryInformation:
+            return func.template operator()<FILE_DIRECTORY_INFORMATION>(name, ino, buf);
+
+        case IdFullDirectoryInformation:
+            return func.template operator()<FILE_ID_FULL_DIR_INFORMATION>(name, ino, buf);
 
         default:
             print("tmpfs query_directory_dirent: unhandled info class {}\n",
