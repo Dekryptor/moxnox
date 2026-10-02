@@ -1,6 +1,7 @@
 #include <sys/utsname.h>
 #include <string.h>
 #include <string_view>
+#include <algorithm>
 
 import timepage;
 
@@ -19,10 +20,22 @@ static string_view get_os_version() {
 
 extern "C"
 int uname(struct utsname* buf) {
+    char hostname[sizeof(time_page_struct::hostname)];
+
     auto version = get_os_version();
 
     strcpy(buf->sysname, "Moxnox");
-    strcpy(buf->nodename, "localhost"); // FIXME
+
+    read_host_name(hostname);
+
+    auto len = strlen(hostname);
+
+    memcpy(buf->nodename, hostname, min(len, sizeof(buf->nodename) - 1));
+
+    if (len < sizeof(buf->nodename))
+        buf->nodename[len] = 0;
+    else
+        buf->nodename[sizeof(buf->nodename) - 1] = 0;
 
     memcpy(buf->release, version.data(), version.size());
     buf->release[version.size()] = 0;
