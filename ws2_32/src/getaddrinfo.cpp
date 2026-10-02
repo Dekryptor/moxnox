@@ -3,6 +3,7 @@
 #include <bit>
 #include <span>
 #include <array>
+#include <utility>
 #include <stdlib.h>
 #include <stdint.h>
 #include <string.h>
@@ -762,8 +763,145 @@ static int rearrange_list(addrinfo** res) {
     return 0;
 }
 
+static int dns_lookup_static(string_view name, addrinfo** res, int socktype,
+                             int protocol, uint16_t port, int family) {
+    static const string_view localhost = "localhost";
+
+    if (name.size() != localhost.size() || strncasecmp(name.data(), localhost.data(), localhost.size()))
+        return EAI_NONAME;
+
+    switch (family) {
+        case AF_INET: {
+            auto ret = (addrinfo*)malloc(sizeof(addrinfo));
+            if (!ret)
+                return EAI_MEMORY;
+
+            auto sock = (sockaddr_in*)malloc(sizeof(sockaddr_in));
+            if (!sock) {
+                free(ret);
+                return EAI_MEMORY;
+            }
+
+            sock->sin_family = AF_INET;
+            sock->sin_port = byteswap(port);
+            *(ipv4_address*)&sock->sin_addr = parse_ipv4_address("127.0.0.1");
+            memset(sock->sin_zero, 0, sizeof(sock->sin_zero));
+
+            ret->ai_flags = 0;
+            ret->ai_family = AF_INET;
+            ret->ai_socktype = socktype;
+            ret->ai_protocol = protocol;
+            ret->ai_addrlen = sizeof(sockaddr_in);
+            ret->ai_addr = (sockaddr*)sock;
+            ret->ai_canonname = nullptr;
+            ret->ai_next = nullptr;
+
+            *res = ret;
+
+            return 0;
+        }
+
+        case AF_INET6: {
+            auto ret = (addrinfo*)malloc(sizeof(addrinfo));
+            if (!ret)
+                return EAI_MEMORY;
+
+            auto sock = (sockaddr_in6*)malloc(sizeof(sockaddr_in6));
+            if (!sock) {
+                free(ret);
+                return EAI_MEMORY;
+            }
+
+            sock->sin6_family = AF_INET6;
+            sock->sin6_port = byteswap(port);
+            sock->sin6_flowinfo = 0;
+            *(ipv6_address*)&sock->sin6_addr = parse_ipv6_address("::1");
+            sock->sin6_scope_id = 0;
+
+            ret->ai_flags = 0;
+            ret->ai_family = AF_INET6;
+            ret->ai_socktype = socktype;
+            ret->ai_protocol = protocol;
+            ret->ai_addrlen = sizeof(sockaddr_in6);
+            ret->ai_addr = (sockaddr*)sock;
+            ret->ai_canonname = nullptr;
+            ret->ai_next = nullptr;
+
+            *res = ret;
+
+            return 0;
+        }
+
+        case AF_UNSPEC: {
+            auto ret1 = (addrinfo*)malloc(sizeof(addrinfo));
+            if (!ret1)
+                return EAI_MEMORY;
+
+            auto sock1 = (sockaddr_in6*)malloc(sizeof(sockaddr_in6));
+            if (!sock1) {
+                free(ret1);
+                return EAI_MEMORY;
+            }
+
+            auto ret2 = (addrinfo*)malloc(sizeof(addrinfo));
+            if (!ret2) {
+                free(sock1);
+                free(ret1);
+                return EAI_MEMORY;
+            }
+
+            auto sock2 = (sockaddr_in*)malloc(sizeof(sockaddr_in));
+            if (!sock2) {
+                free(ret2);
+                free(sock1);
+                free(ret1);
+                return EAI_MEMORY;
+            }
+
+            sock1->sin6_family = AF_INET6;
+            sock1->sin6_port = byteswap(port);
+            sock1->sin6_flowinfo = 0;
+            *(ipv6_address*)&sock1->sin6_addr = parse_ipv6_address("::1");
+            sock1->sin6_scope_id = 0;
+
+            ret1->ai_flags = 0;
+            ret1->ai_family = AF_INET6;
+            ret1->ai_socktype = socktype;
+            ret1->ai_protocol = protocol;
+            ret1->ai_addrlen = sizeof(sockaddr_in6);
+            ret1->ai_addr = (sockaddr*)sock1;
+            ret1->ai_canonname = nullptr;
+            ret1->ai_next = ret2;
+
+            sock2->sin_family = AF_INET;
+            sock2->sin_port = byteswap(port);
+            *(ipv4_address*)&sock2->sin_addr = parse_ipv4_address("127.0.0.1");
+            memset(sock2->sin_zero, 0, sizeof(sock2->sin_zero));
+
+            ret2->ai_flags = 0;
+            ret2->ai_family = AF_INET;
+            ret2->ai_socktype = socktype;
+            ret2->ai_protocol = protocol;
+            ret2->ai_addrlen = sizeof(sockaddr_in);
+            ret2->ai_addr = (sockaddr*)sock2;
+            ret2->ai_canonname = nullptr;
+            ret2->ai_next = nullptr;
+
+            *res = ret1;
+
+            return 0;
+        }
+
+        default:
+            unreachable();
+    }
+}
+
 static int dns_lookup(string_view name, addrinfo** res, int socktype,
                       int protocol, uint16_t port, int family) {
+    if (auto ret = dns_lookup_static(name, res, socktype, protocol, port, family); ret != EAI_NONAME)
+        return ret;
+
     auto dns_servers = get_dns_servers();
     auto num_servers = dns_servers.size();
 
