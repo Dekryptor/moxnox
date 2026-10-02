@@ -244,7 +244,7 @@ int scandir(const char* dir, dirent*** namelist, int (*sel)(const dirent*),
         // FIXME - get multiple entries at once and cache them?
 
         status = NtQueryDirectoryFile(h, 0, nullptr, nullptr, &iosb, buf,
-                                      sizeof(buf), FILE_INFORMATION_CLASS::DirectoryInformation,
+                                      sizeof(buf), FILE_INFORMATION_CLASS::IdFullDirectoryInformation,
                                       false, nullptr, false);
         if (status == nt_status::NO_MORE_FILES)
             break;
@@ -265,11 +265,11 @@ int scandir(const char* dir, dirent*** namelist, int (*sel)(const dirent*),
         auto buf2 = buf;
 
         while (true) {
-            auto& fdi = *(FILE_DIRECTORY_INFORMATION*)buf2;
+            auto& fdi = *(FILE_ID_FULL_DIR_INFORMATION*)buf2;
             auto u16sv = u16string_view(fdi.FileName, fdi.FileNameLength / sizeof(char16_t));
             auto u16len = utf16_to_utf8_len(u16sv);
 
-            de->d_ino = 0; // FIXME!
+            de->d_ino = fdi.FileId.QuadPart;
 
             if (fdi.FileAttributes & FILE_ATTRIBUTE_REPARSE_POINT)
                 de->d_type = DT_LNK;
