@@ -56,4 +56,24 @@ export decltype(time_page_struct::dns_servers) get_dns_servers() {
     return ret;
 }
 
+export void read_host_name(char* s) {
+    auto& p = *(time_page_struct*)TIME_PAGE_BASE;
+
+    while (true) {
+        auto seq1 = p.hostname_seq_lock.load(memory_order_acquire);
+        if (seq1 & 1)
+            continue;
+
+        strcpy(s, p.hostname);
+
+        atomic_thread_fence(memory_order_acquire);
+
+        auto seq2 = p.hostname_seq_lock.load(memory_order_relaxed);
+        if (seq1 != seq2)
+            continue;
+
+        break;
+    }
+}
+
 #endif

@@ -18,6 +18,7 @@ import print;
 import format;
 import ipv4;
 import ipv6;
+import timepage;
 
 #undef errno
 import errno;
@@ -352,22 +353,21 @@ int closesocket(SOCKET s) {
 
 extern "C"
 int gethostname(char* name, int namelen) {
-    static const string_view HOSTNAME = "localhost";
-
-    // FIXME - do this properly
+    char buf[sizeof(time_page_struct::hostname)];
 
     if (namelen < 0) {
         *_errno() = EINVAL;
         return -1;
     }
 
-    if ((size_t)namelen < HOSTNAME.size() + 1) {
-        *_errno() = ENAMETOOLONG;
-        return -1;
-    }
+    read_host_name(buf);
 
-    memcpy(name, HOSTNAME.data(), HOSTNAME.size());
-    name[HOSTNAME.size()] = 0;
+    auto len = strlen(buf);
+
+    memcpy(name, buf, min(len, (size_t)namelen));
+
+    if (len < (size_t)namelen)
+        name[len] = 0;
 
     return 0;
 }
