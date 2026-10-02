@@ -12,6 +12,8 @@ import ucrtbase;
 import moxnox_ioctls;
 import unique_handle;
 import ws2_32;
+import ipv4;
+import ipv6;
 
 #undef errno
 import errno;
@@ -20,7 +22,7 @@ using namespace std;
 
 static const char16_t netctl_path[] = u"/dev/netctl";
 
-static size_t proto_idx = 0;
+static size_t proto_idx = 0, host_idx = 0;
 
 extern "C"
 int socketpair(int domain, int type, int protocol, int* socket_vector) {
@@ -358,17 +360,47 @@ void endservent() {
 
 extern "C"
 hostent* gethostent() {
-    return nullptr;
+    static hostent ret;
+    static const char* aliases = nullptr;
+    static char* addrs[2];
+    static const auto localhost6 = parse_ipv6_address("::1");
+    static const auto localhost4 = parse_ipv4_address("127.0.0.1");
+
+    if (host_idx > 1)
+        return nullptr;
+
+    ret.h_name = (char*)"localhost";
+    ret.h_aliases = (char**)&aliases;
+
+    if (host_idx == 0) {
+        addrs[0] = (char*)&localhost6;
+        addrs[1] = nullptr;
+
+        ret.h_addrtype = AF_INET6;
+        ret.h_length = sizeof(ipv6_address);
+        ret.h_addr_list = addrs;
+    } else if (host_idx == 1) {
+        addrs[0] = (char*)&localhost4;
+        addrs[1] = nullptr;
+
+        ret.h_addrtype = AF_INET;
+        ret.h_length = sizeof(ipv4_address);
+        ret.h_addr_list = addrs;
+    }
+
+    host_idx++;
+
+    return &ret;
 }
 
 extern "C"
 void sethostent(int /*stayopen*/) {
-    // nop
+    host_idx = 0;
 }
 
 extern "C"
 void endhostent() {
-    // nop
+    host_idx = 0;
 }
 
 extern "C"

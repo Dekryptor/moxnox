@@ -83,7 +83,7 @@ add_library(mnposix SHARED
 
 target_compile_options(mnposix PRIVATE -fno-exceptions ${USERSPACE_CFLAGS})
 
-target_link_libraries(mnposix PRIVATE print errno termios unicode unique_handle exec list ucrtbase_mod moxnox_ioctls timepage pe)
+target_link_libraries(mnposix PRIVATE print errno termios unicode unique_handle exec list ucrtbase_mod moxnox_ioctls timepage pe ipv4 ipv6)
 
 target_link_libraries(mnposix PRIVATE -Wl,--whole-archive musl_glob -Wl,--no-whole-archive)
 target_link_libraries(mnposix PRIVATE -Wl,--whole-archive tre -Wl,--no-whole-archive)
