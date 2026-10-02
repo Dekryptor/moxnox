@@ -5205,6 +5205,9 @@ nt_status loopback_netif::send_packet(const mac_address&, ethertype, packet&) {
 }
 
 bool is_our_ip(const ipv4_address& ip) {
+    if (ip.v[0] == 127) // 127.0.0.0/8 loopback
+        return true;
+
     lock_guard lock(netif_lock);
 
     for (auto le = netif_list.next; le != &netif_list; le = le->next) {
