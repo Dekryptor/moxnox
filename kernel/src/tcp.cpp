@@ -2435,7 +2435,7 @@ nt_status tcp_socket<FAMILY>::do_recvfrom(span<const span<uint8_t>> v, int flags
                                           uint64_t& recv_bytes) {
     nt_status status;
 
-    if (flags != 0)
+    if (flags & ~MSG_PEEK)
         return nt_status::INVALID_PARAMETER;
 
     recv_bytes = 0;
@@ -2479,18 +2479,7 @@ nt_status tcp_socket<FAMILY>::do_recvfrom(span<const span<uint8_t>> v, int flags
 
         size_t removed_bytes = 0;
 
-        while (true) {
-            socket_packet* r;
-
-            {
-                lock_guard lock(state_lock);
-
-                if (is_list_empty(buffer))
-                    break;
-
-                r = &containing_record<socket_packet>(buffer.next);
-            }
-
+        auto tcp_read = [&](socket_packet& r, size_t& off, bool peek) -> bool {
             bool do_ipv4;
             size_t ip_header_size, pack_size;
 
@@ -2500,43 +2489,77 @@ nt_status tcp_socket<FAMILY>::do_recvfrom(span<const span<uint8_t>> v, int flags
                 do_ipv4 = is_mapped_address(connected_address);
 
             if (do_ipv4) {
-                auto& ip = *(ipv4_header*)r->pack.data;
+                auto& ip = *(ipv4_header*)r.pack.data;
 
                 ip_header_size = ip.ihl * sizeof(uint32_t);
                 pack_size = byteswap((uint16_t)ip.total_length);
             } else if constexpr (is_same_v<FAMILY, ipv6>) {
                 ip_header_size = sizeof(ipv6_header);
-                pack_size = r->pack.size;
+                pack_size = r.pack.size;
             }
 
-            auto& tcp = *(tcp_header*)(r->pack.data + ip_header_size);
+            auto& tcp = *(tcp_header*)(r.pack.data + ip_header_size);
 
             size_t header_length = tcp.header_length * sizeof(uint32_t);
-            auto to_copy = (uint32_t)min(pack_size - ip_header_size - header_length - us_read_offset, vec_size);
+            auto to_copy = (uint32_t)min(pack_size - ip_header_size - header_length - off, vec_size);
 
-            memcpy_vec(v, top, r->pack.data + ip_header_size + header_length + us_read_offset,
+            memcpy_vec(v, top, r.pack.data + ip_header_size + header_length + off,
                        to_copy);
 
             recv_bytes += to_copy;
 
-            if (ip_header_size + header_length + us_read_offset + to_copy < pack_size) {
-                us_read_offset += to_copy;
-                break;
+            if (ip_header_size + header_length + off + to_copy < pack_size) {
+                off += to_copy;
+                return true;
             }
 
-            {
+            if (!peek) {
                 lock_guard lock(state_lock);
-                remove_entry_list(r->le);
+                remove_entry_list(r.le);
             }
 
             vec_size -= to_copy;
-            us_read_offset = 0;
-            removed_bytes += pack_size - ip_header_size - header_length;
+            off = 0;
 
-            delete r;
+            if (!peek) {
+                removed_bytes += pack_size - ip_header_size - header_length;
+
+                delete &r;
+            }
 
             if (vec_size == 0)
-                break;
+                return true;
+
+            return false;
+        };
+
+        if (flags & MSG_PEEK) {
+            lock_guard lock(state_lock);
+
+            auto off = us_read_offset;
+
+            for (auto le = buffer.next; le != &buffer; le = le->next) {
+                auto& r = containing_record<socket_packet>(le);
+
+                if (tcp_read(r, off, true))
+                    break;
+            }
+        } else {
+            while (true) {
+                socket_packet* r;
+
+                {
+                    lock_guard lock(state_lock);
+
+                    if (is_list_empty(buffer))
+                        break;
+
+                    r = &containing_record<socket_packet>(buffer.next);
+                }
+
+                if (tcp_read(*r, us_read_offset, false))
+                    break;
+            }
         }
 
         if (removed_bytes != 0) {
