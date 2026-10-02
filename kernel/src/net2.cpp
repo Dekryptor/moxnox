@@ -48,6 +48,7 @@ static list_entry ipv4_raw_sockets = { &ipv4_raw_sockets, &ipv4_raw_sockets };
 static size_t num_ipv4_raw_sockets = 0;
 
 static atomic<uint64_t> lo_packets = 0, lo_bytes = 0;
+static netif* lo_netif = nullptr;
 
 template<socket_family FAMILY>
 class raw_socket : public socket {
@@ -2524,6 +2525,8 @@ bool init_net() {
 
     lo->dhcp_status = dhcp_status::not_needed;
 
+    lo_netif = lo;
+
     add_kernel_thread(network_thread);
 
     return true;
@@ -3988,7 +3991,10 @@ nt_status ipv4_choose_interface(const ipv4_address& dst, netif*& ni,
     if (src != parse_ipv4_address("0.0.0.0")) {
         ni = nullptr;
 
-        {
+        if (src.v[0] == 127) { // 127.0.0.0/8 loopback
+            lo_netif->acquire();
+            ni = lo_netif;
+        } else {
             lock_guard lg(netif_lock);
 
             for (auto le = netif_list.next; le != &netif_list; le = le->next) {
