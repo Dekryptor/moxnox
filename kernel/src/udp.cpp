@@ -825,10 +825,14 @@ static nt_status do_sendto(base_udp_socket& sock,
     if (src == dst)
         mac = ni.mac;
     else {
-        if constexpr (is_same_v<FAMILY, ipv4>)
-            mac = find_mac_address(ni, gateway == parse_ipv4_address("0.0.0.0") ? dst : gateway);
-        else if constexpr (is_same_v<FAMILY, ipv6>)
-            mac = find_mac_address(ni, dst);
+        if (ni.loopback)
+            mac = NULL_MAC_ADDRESS;
+        else {
+            if constexpr (is_same_v<FAMILY, ipv4>)
+                mac = find_mac_address(ni, gateway == parse_ipv4_address("0.0.0.0") ? dst : gateway);
+            else if constexpr (is_same_v<FAMILY, ipv6>)
+                mac = find_mac_address(ni, dst);
+        }
     }
 
     auto pack = new packet;
