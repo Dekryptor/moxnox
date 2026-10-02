@@ -1572,7 +1572,31 @@ static int reverse_dns_lookup2(int sock, const ipv6_address& server,
 }
 
 template<socket_family FAMILY>
+static int reverse_dns_lookup_static(const typename FAMILY::address& addr, span<char> buf) {
+    static const string_view localhost = "localhost";
+
+    if constexpr (is_same_v<FAMILY, ipv4>) {
+        if (addr != parse_ipv4_address("127.0.0.1"))
+            return EAI_NONAME;
+    } else if constexpr (is_same_v<FAMILY, ipv6>) {
+        if (addr != parse_ipv6_address("::1"))
+            return EAI_NONAME;
+    }
+
+    if (buf.size() < localhost.size() + 1)
+        return EAI_OVERFLOW;
+
+    memcpy(buf.data(), localhost.data(), localhost.size());
+    buf[localhost.size()] = 0;
+
+    return 0;
+}
+
+template<socket_family FAMILY>
 static int reverse_dns_lookup(const typename FAMILY::address& addr, span<char> buf) {
+    if (auto ret = reverse_dns_lookup_static<FAMILY>(addr, buf); ret != EAI_NONAME)
+        return ret;
+
     auto dns_servers = get_dns_servers();
     auto num_servers = dns_servers.size();
 
