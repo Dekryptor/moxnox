@@ -471,7 +471,8 @@ nt_status udp_socket<FAMILY>::do_recvfrom(span<const span<uint8_t>> v, int flags
                                           sockaddr_storage* from, size_t* fromlen,
                                           uint64_t& recv_bytes) {
     // FIXME - MSG_TRUNC
-    if (flags != 0)
+
+    if (flags & ~MSG_PEEK)
         return nt_status::INVALID_PARAMETER;
 
     recv_bytes = 0;
@@ -508,116 +509,144 @@ nt_status udp_socket<FAMILY>::do_recvfrom(span<const span<uint8_t>> v, int flags
         } else if (shutdown_read)
             break;
 
-        socket_packet* sp = nullptr;
+        auto udp_read = [&](socket_packet& sp) {
+            size_t overhead;
+            uint32_t to_copy;
+            bool ipv4_packet;
+
+            if constexpr (is_same_v<FAMILY, ipv4>)
+                ipv4_packet = true;
+            else if constexpr (is_same_v<FAMILY, ipv6>) {
+                struct ip_common {
+                    uint32_t : 4;
+                    uint32_t version : 4;
+                    uint32_t : 24;
+                };
+
+                auto& c = *(ip_common*)sp.pack.data;
+
+                ipv4_packet = c.version == 4;
+            }
+
+            if (ipv4_packet) {
+                auto& ip = *(ipv4_header*)sp.pack.data;
+                auto& udp = *(udp_header*)(sp.pack.data + (ip.ihl * sizeof(uint32_t)));
+
+                overhead = (ip.ihl * sizeof(uint32_t)) + sizeof(udp_header);
+                to_copy = (uint32_t)min(byteswap(udp.length) - sizeof(udp_header), vec_size);
+            } else {
+                overhead = sizeof(typename FAMILY::header) + sizeof(udp_header);
+                to_copy = (uint32_t)min(sp.pack.size - overhead, vec_size);
+            }
+
+            memcpy_vec(v, top, sp.pack.data + overhead, to_copy);
+
+            recv_bytes = to_copy;
+
+            if (from && fromlen && *fromlen > 0) {
+                if constexpr (is_same_v<FAMILY, ipv4>) {
+                    auto& addr = *(sockaddr_in*)from;
+                    auto& ip = *(ipv4_header*)sp.pack.data;
+                    auto& udp = *(udp_header*)(sp.pack.data + (ip.ihl * sizeof(uint32_t)));
+
+                    memset(&addr, 0, sizeof(addr));
+
+                    addr.sin_family = AF_INET;
+                    addr.sin_port = udp.srcport;
+                    memcpy(&addr.sin_addr, ip.src.v.data(), sizeof(ipv4_address));
+
+                    *fromlen = sizeof(addr);
+                } else if constexpr (is_same_v<FAMILY, ipv6>) {
+                    auto& addr = *(sockaddr_in6*)from;
+
+                    memset(&addr, 0, sizeof(addr));
+
+                    addr.sin6_family = AF_INET6;
+                    addr.sin6_flowinfo = 0; // FIXME? Allowed by RFC3493, but not necessarily what Linux does
+
+                    if (ipv4_packet) {
+                        auto& ip = *(ipv4_header*)sp.pack.data;
+                        auto& udp = *(udp_header*)(sp.pack.data + (ip.ihl * sizeof(uint32_t)));
+
+                        addr.sin6_port = udp.srcport;
+                        *(ipv6_address*)&addr.sin6_addr = map_ipv4_address_to_ipv6(ip.src);
+                    } else {
+                        auto& ip = *(ipv6_header*)sp.pack.data;
+                        auto& udp = *(udp_header*)(sp.pack.data + sizeof(ipv6_header));
+
+                        addr.sin6_port = udp.srcport;
+                        memcpy(&addr.sin6_addr, ip.src.v.data(), sizeof(ipv6_address));
+                    }
+
+                    addr.sin6_scope_id = sp.scope_id;
+
+                    *fromlen = sizeof(addr);
+                }
+            }
+        };
+
         nt_status error = nt_status::SUCCESS;
 
-        {
-            sync_lock sl;
-            lock_guard lock(sl);
-            lock_guard lock2(buffer_lock);
+        if (flags & MSG_PEEK) {
+            {
+                lock_guard lock(buffer_lock);
 
-            if (!success(pending_error)) {
-                error = pending_error;
-                pending_error = nt_status::SUCCESS;
+                if (!success(pending_error))
+                    error = pending_error;
 
                 if (is_list_empty(buffer))
-                    signalled = false;
+                    continue;
+
+                if (success(error)) {
+                    auto& sp = containing_record<socket_packet>(buffer.next);
+
+                    udp_read(sp);
+                    break;
+                }
             }
 
-            if (!is_list_empty(buffer)) {
-                sp = &containing_record<socket_packet>(buffer.next);
-                remove_entry_list(sp->le);
-
-                if (is_list_empty(buffer))
-                    signalled = false;
-            }
-        }
-
-        if (!success(error)) {
             release();
+
             return error;
-        }
-
-        if (!sp)
-            continue;
-
-        size_t overhead;
-        uint32_t to_copy;
-        bool ipv4_packet;
-
-        if constexpr (is_same_v<FAMILY, ipv4>)
-            ipv4_packet = true;
-        else if constexpr (is_same_v<FAMILY, ipv6>) {
-            struct ip_common {
-                uint32_t : 4;
-                uint32_t version : 4;
-                uint32_t : 24;
-            };
-
-            auto& c = *(ip_common*)sp->pack.data;
-
-            ipv4_packet = c.version == 4;
-        }
-
-        if (ipv4_packet) {
-            auto& ip = *(ipv4_header*)sp->pack.data;
-            auto& udp = *(udp_header*)(sp->pack.data + (ip.ihl * sizeof(uint32_t)));
-
-            overhead = (ip.ihl * sizeof(uint32_t)) + sizeof(udp_header);
-            to_copy = (uint32_t)min(byteswap(udp.length) - sizeof(udp_header), vec_size);
         } else {
-            overhead = sizeof(typename FAMILY::header) + sizeof(udp_header);
-            to_copy = (uint32_t)min(sp->pack.size - overhead, vec_size);
-        }
+            socket_packet* sp = nullptr;
 
-        memcpy_vec(v, top, sp->pack.data + overhead, to_copy);
+            {
+                sync_lock sl;
+                lock_guard lock(sl);
+                lock_guard lock2(buffer_lock);
 
-        recv_bytes = to_copy;
+                if (!success(pending_error)) {
+                    error = pending_error;
+                    pending_error = nt_status::SUCCESS;
 
-        if (from && fromlen && *fromlen > 0) {
-            if constexpr (is_same_v<FAMILY, ipv4>) {
-                auto& addr = *(sockaddr_in*)from;
-                auto& ip = *(ipv4_header*)sp->pack.data;
-                auto& udp = *(udp_header*)(sp->pack.data + (ip.ihl * sizeof(uint32_t)));
-
-                memset(&addr, 0, sizeof(addr));
-
-                addr.sin_family = AF_INET;
-                addr.sin_port = udp.srcport;
-                memcpy(&addr.sin_addr, ip.src.v.data(), sizeof(ipv4_address));
-
-                *fromlen = sizeof(addr);
-            } else if constexpr (is_same_v<FAMILY, ipv6>) {
-                auto& addr = *(sockaddr_in6*)from;
-
-                memset(&addr, 0, sizeof(addr));
-
-                addr.sin6_family = AF_INET6;
-                addr.sin6_flowinfo = 0; // FIXME? Allowed by RFC3493, but not necessarily what Linux does
-
-                if (ipv4_packet) {
-                    auto& ip = *(ipv4_header*)sp->pack.data;
-                    auto& udp = *(udp_header*)(sp->pack.data + (ip.ihl * sizeof(uint32_t)));
-
-                    addr.sin6_port = udp.srcport;
-                    *(ipv6_address*)&addr.sin6_addr = map_ipv4_address_to_ipv6(ip.src);
-                } else {
-                    auto& ip = *(ipv6_header*)sp->pack.data;
-                    auto& udp = *(udp_header*)(sp->pack.data + sizeof(ipv6_header));
-
-                    addr.sin6_port = udp.srcport;
-                    memcpy(&addr.sin6_addr, ip.src.v.data(), sizeof(ipv6_address));
+                    if (is_list_empty(buffer))
+                        signalled = false;
                 }
 
-                addr.sin6_scope_id = sp->scope_id;
+                if (!is_list_empty(buffer)) {
+                    sp = &containing_record<socket_packet>(buffer.next);
+                    remove_entry_list(sp->le);
 
-                *fromlen = sizeof(addr);
+                    if (is_list_empty(buffer))
+                        signalled = false;
+                }
             }
+
+            if (!success(error)) {
+                release();
+                return error;
+            }
+
+            if (!sp)
+                continue;
+
+            udp_read(*sp);
+
+            delete sp;
+
+            break;
         }
-
-        delete sp;
-
-        break;
     }
 
     release();
