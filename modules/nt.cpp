@@ -930,6 +930,22 @@ struct FILE_DIRECTORY_INFORMATION {
     char16_t FileName[1];
 };
 
+struct FILE_ID_FULL_DIR_INFORMATION {
+    uint32_t NextEntryOffset;
+    uint32_t FileIndex;
+    LARGE_INTEGER CreationTime;
+    LARGE_INTEGER LastAccessTime;
+    LARGE_INTEGER LastWriteTime;
+    LARGE_INTEGER ChangeTime;
+    LARGE_INTEGER EndOfFile;
+    LARGE_INTEGER AllocationSize;
+    uint32_t FileAttributes;
+    uint32_t FileNameLength;
+    uint32_t EaSize;
+    LARGE_INTEGER FileId;
+    char16_t FileName[1];
+};
+
 struct INITIAL_TEB {
     void* OldStackBase;
     void* OldStackLimit;
