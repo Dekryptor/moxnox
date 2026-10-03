@@ -169,37 +169,55 @@ nt_status devfs_inode::create_child(string_view /*name*/, uint32_t /*create_opti
 
 static nt_status query_directory_dirent(string_view name, bool is_dir,
                                         uint64_t time, span<uint8_t> buf,
-                                        FILE_INFORMATION_CLASS file_information_class) {
+                                        FILE_INFORMATION_CLASS file_information_class,
+                                        uint64_t inode) {
+    auto func = []<typename T>(string_view name, bool is_dir, uint64_t time,
+                               span<uint8_t> buf, uint64_t inode) -> nt_status {
+        if (buf.size() < offsetof(T, FileName))
+            return nt_status::BUFFER_TOO_SMALL;
+
+        auto utf16len = utf8_to_utf16_len(name);
+        auto len = offsetof(T, FileName) + (utf16len * sizeof(char16_t));
+
+        if (buf.size() < len)
+            return nt_status::BUFFER_TOO_SMALL;
+
+        auto& fdi = *(T*)buf.data();
+
+        fdi.NextEntryOffset = 0;
+        fdi.FileIndex = 0;
+        fdi.CreationTime.QuadPart = (int64_t)time;
+        fdi.LastAccessTime.QuadPart = (int64_t)time;
+        fdi.LastWriteTime.QuadPart = (int64_t)time;
+        fdi.ChangeTime.QuadPart = (int64_t)time;
+        fdi.EndOfFile.QuadPart = 0;
+        fdi.AllocationSize.QuadPart = 0;
+        fdi.FileAttributes = is_dir ? FILE_ATTRIBUTE_DIRECTORY : FILE_ATTRIBUTE_DEVICE;
+
+        if constexpr (requires { T::FileId; })
+            fdi.FileId.QuadPart = inode;
+
+        if constexpr (requires { T::EaSize; })
+            fdi.EaSize = 0;
+
+        fdi.FileNameLength = (uint32_t)(utf16len * sizeof(char16_t));
+        utf8_to_utf16(span(fdi.FileName, utf16len), name);
+
+        buf = buf.subspan(0, len);
+
+        return nt_status::SUCCESS;
+    };
+
     switch (file_information_class) {
-        case FILE_INFORMATION_CLASS::DirectoryInformation: {
-            if (buf.size() < offsetof(FILE_DIRECTORY_INFORMATION, FileName))
-                return nt_status::BUFFER_TOO_SMALL;
+        using enum FILE_INFORMATION_CLASS;
 
-            auto utf16len = utf8_to_utf16_len(name);
-            auto len = offsetof(FILE_DIRECTORY_INFORMATION, FileName) + (utf16len * sizeof(char16_t));
+        case DirectoryInformation:
+            return func.operator()<FILE_DIRECTORY_INFORMATION>(name, is_dir,
+                                                               time, buf, inode);
 
-            if (buf.size() < len)
-                return nt_status::BUFFER_TOO_SMALL;
-
-            auto& fdi = *(FILE_DIRECTORY_INFORMATION*)buf.data();
-
-            fdi.NextEntryOffset = 0;
-            fdi.FileIndex = 0;
-            fdi.CreationTime.QuadPart = (int64_t)time;
-            fdi.LastAccessTime.QuadPart = (int64_t)time;
-            fdi.LastWriteTime.QuadPart = (int64_t)time;
-            fdi.ChangeTime.QuadPart = (int64_t)time;
-            fdi.EndOfFile.QuadPart = 0;
-            fdi.AllocationSize.QuadPart = 0;
-            fdi.FileAttributes = is_dir ? FILE_ATTRIBUTE_DIRECTORY : FILE_ATTRIBUTE_DEVICE;
-
-            fdi.FileNameLength = (uint32_t)(utf16len * sizeof(char16_t));
-            utf8_to_utf16(span(fdi.FileName, utf16len), name);
-
-            buf = buf.subspan(0, len);
-
-            return nt_status::SUCCESS;
-        }
+        case IdFullDirectoryInformation:
+            return func.operator()<FILE_ID_FULL_DIR_INFORMATION>(name, is_dir,
+                                                                 time, buf, inode);
 
         default:
             print("devfs query_directory_dirent: unhandled info class {}\n",
@@ -218,6 +236,7 @@ nt_status devfs_inode::query_directory(span<uint8_t> buf,
     uint64_t time;
     char name_buf[MAX_NAME_LEN];
     string_view name;
+    uint64_t inode;
 
     {
         lock_guard lock(name_lock);
@@ -229,7 +248,7 @@ nt_status devfs_inode::query_directory(span<uint8_t> buf,
                 continue;
 
             time = ne.creation_time;
-            index = ne.index + 1;
+            inode = ne.index;
             memcpy(name_buf, ne.name, ne.name_len);
             name = string_view(name_buf, ne.name_len);
 
@@ -240,15 +259,23 @@ nt_status devfs_inode::query_directory(span<uint8_t> buf,
     if (name.empty())
         return nt_status::NO_MORE_FILES;
 
-    return query_directory_dirent(name, false, time, buf, file_information_class);
+    auto status = query_directory_dirent(name, false, time, buf, file_information_class,
+                                         inode);
+    if (!success(status))
+        return status;
+
+    index = inode + 1;
+
+    return nt_status::SUCCESS;
 }
 
 nt_status devfs_inode::query_directory_inode(string_view name, span<uint8_t> buf,
                                              FILE_INFORMATION_CLASS file_information_class) {
     // FIXME - store creation time and size for directories
 
+    // FIXME - provide index number in same namespace as in name_entry
     return query_directory_dirent(name, inode_type == inode_type::directory,
-                                  0, buf, file_information_class);
+                                  0, buf, file_information_class, 0);
 }
 
 nt_status devfs_inode::set_information(span<const uint8_t> /*buffer*/,
