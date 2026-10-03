@@ -3,7 +3,6 @@
 #include <stddef.h>
 #include <stdint.h>
 
-typedef long _off_t; // FIXME
 typedef int64_t _off64_t;
 typedef _off64_t off64_t;
 typedef _off64_t off_t;
