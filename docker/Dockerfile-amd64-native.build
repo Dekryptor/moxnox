@@ -5,7 +5,8 @@ RUN mkdir -p /etc/portage/patches/sys-devel/crossdev && cd /etc/portage/patches/
 RUN mkdir -p /etc/portage/patches/cross-x86_64-pc-moxnox/binutils && cd /etc/portage/patches/cross-x86_64-pc-moxnox/binutils && wget https://moxnox.dev/binutils-moxnox.patch
 RUN mkdir -p /etc/portage/patches/cross-x86_64-pc-moxnox/gcc && cd /etc/portage/patches/cross-x86_64-pc-moxnox/gcc && wget https://moxnox.dev/gcc-moxnox.tar.gz && tar -xzf gcc-moxnox.tar.gz && rm gcc-moxnox.tar.gz
 RUN mkdir -p /etc/portage/patches/sys-devel/gnuconfig && cd /etc/portage/patches/sys-devel/gnuconfig && wget https://moxnox.dev/gnuconfig-moxnox.patch
-RUN emerge app-eselect/eselect-repository sys-devel/crossdev sys-devel/gnuconfig dev-vcs/git
+RUN mkdir -p /etc/portage/patches/dev-build/cmake && cd /etc/portage/patches/dev-build/cmake && wget https://moxnox.dev/cmake-moxnox.patch
+RUN emerge app-eselect/eselect-repository sys-devel/crossdev sys-devel/gnuconfig dev-vcs/git dev-build/cmake
 RUN eselect repository create crossdev
 RUN printf '[moxnox]\nlocation = /var/db/repos/moxnox\nsync-type = git\nsync-uri = https://git.burntcomma.com/moxnox/portage\nauto-sync = yes\n' > /etc/portage/repos.conf/moxnox.conf
 RUN emerge --sync moxnox
