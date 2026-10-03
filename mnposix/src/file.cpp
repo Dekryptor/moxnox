@@ -1541,7 +1541,7 @@ static int do_fstat(HANDLE h, struct stat& st) {
     // FIXME - st.st_dev
     st.st_ino = (ino_t)fsli.FileId.QuadPart;
     st.st_mode = (mode_t)fsli.LxMode;
-    st.st_nlink = (short)fsli.NumberOfLinks;
+    st.st_nlink = (nlink_t)fsli.NumberOfLinks;
     st.st_uid = fsli.LxUid;
     st.st_gid = fsli.LxGid;
     // FIXME - st.st_rdev
