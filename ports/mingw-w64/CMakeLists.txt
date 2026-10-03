@@ -219,6 +219,7 @@ set(MINGW_COMPAT_CRT
     corecrt.h
     crtdefs.h
     excpt.h
+    malloc.h
     _mingw_mac.h
     _mingw_secapi.h
     _mingw_unicode.h
@@ -279,6 +280,8 @@ set(MINGW_COMPAT_INCLUDE
     namespaceapi.h
     nb30.h
     ncrypt.h
+    ntstatus.h
+    ntverp.h
     oaidl.h
     objbase.h
     objidlbase.h
