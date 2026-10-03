@@ -62,7 +62,7 @@ RUN emerge app-arch/cpio app-misc/jq dev-util/xxd net-libs/nodejs
 RUN mkdir -p /etc/portage/patches/dev-lang/rust && cd /etc/portage/patches/dev-lang/rust && wget https://moxnox.dev/rust-moxnox.tar.gz && tar -xzf rust-moxnox.tar.gz && rm rust-moxnox.tar.gz
 RUN mkdir -p /etc/portage/env/dev-lang && printf "I_KNOW_WHAT_I_AM_DOING_CROSS=1\nRUST_CROSS_TARGETS=(\n\tAArch64:aarch64-pc-moxnox:aarch64-pc-moxnox\n)\n" > /etc/portage/env/dev-lang/rust
 RUN echo "dev-lang/rust::moxnox **" >> /etc/portage/package.accept_keywords/moxnox
-RUN emerge dev-lang/rust
+RUN emerge =dev-lang/rust-1.95.0
 
 RUN printf 'if [[ ${CATEGORY}/${PN} == llvm-core/llvm ]]; then\n\tcheck_distribution_components() { :; }\n\tmultilib_prepare_wrappers() { :; }\n\tmultilib_install_wrappers() { :; }\nfi\n' >> /usr/aarch64-pc-moxnox/etc/portage/bashrc
 RUN printf 'USE_EXPAND_VALUES_KERNEL="Darwin Hurd linux SunOS Winnt Moxnox"\nUSE_EXPAND_VALUES_ELIBC="bionic Darwin glibc mingw musl SunOS moxnox"\n' >> /usr/aarch64-pc-moxnox/etc/portage/profile/make.defaults
