@@ -2,3 +2,111 @@
 	insteadOf = git://git.sv.gnu.org/paxutils.git
 [url "https://git.burntcomma.com/moxnox/autoconf"]
 	insteadOf = git://git.sv.gnu.org/autoconf.git
+[url "https://git.burntcomma.com/moxnox/gnu-efi"]
+	insteadOf = https://github.com/ncroxon/gnu-efi
+[url "https://git.burntcomma.com/moxnox/freetype"]
+	insteadOf = https://gitlab.freedesktop.org/freetype/freetype
+[url "https://git.burntcomma.com/moxnox/acpica"]
+	insteadOf = https://github.com/acpica/acpica
+[url "https://git.burntcomma.com/moxnox/libpng"]
+	insteadOf = https://github.com/pnggroup/libpng
+[url "https://git.burntcomma.com/moxnox/zlib"]
+	insteadOf = https://github.com/madler/zlib
+[url "https://git.burntcomma.com/moxnox/harfbuzz"]
+	insteadOf = https://github.com/harfbuzz/harfbuzz
+[url "https://git.burntcomma.com/moxnox/pixman"]
+	insteadOf = https://gitlab.freedesktop.org/pixman/pixman
+[url "https://git.burntcomma.com/moxnox/mingw-w64"]
+	insteadOf = https://git.code.sf.net/p/mingw-w64/mingw-w64
+[url "https://git.burntcomma.com/moxnox/zstd"]
+	insteadOf = https://github.com/facebook/zstd
+[url "https://git.burntcomma.com/moxnox/cairo"]
+	insteadOf = https://gitlab.freedesktop.org/cairo/cairo
+[url "https://git.burntcomma.com/moxnox/ncurses"]
+	insteadOf = https://github.com/ThomasDickey/ncurses-snapshots
+[url "https://git.burntcomma.com/moxnox/nano"]
+	insteadOf = git://git.sv.gnu.org/nano.git
+[url "https://git.burntcomma.com/moxnox/readline"]
+	insteadOf = https://git.savannah.gnu.org/git/readline.git/
+[url "https://git.burntcomma.com/moxnox/tre"]
+	insteadOf = https://github.com/laurikari/tre/
+[url "https://git.burntcomma.com/moxnox/vim"]
+	insteadOf = https://github.com/vim/vim
+[url "https://git.burntcomma.com/moxnox/less"]
+	insteadOf = https://github.com/gwsw/less
+[url "https://git.burntcomma.com/moxnox/openssl"]
+	insteadOf = https://github.com/openssl/openssl
+[url "https://git.burntcomma.com/moxnox/libarchive"]
+	insteadOf = https://github.com/libarchive/libarchive
+[url "https://git.burntcomma.com/moxnox/cpython"]
+	insteadOf = https://github.com/python/cpython
+[url "https://git.burntcomma.com/moxnox/git"]
+	insteadOf = https://github.com/git/git
+[url "https://git.burntcomma.com/moxnox/mesa"]
+	insteadOf = https://gitlab.freedesktop.org/mesa/mesa.git
+[url "https://git.burntcomma.com/moxnox/mpfr"]
+	insteadOf = https://gitlab.inria.fr/mpfr/mpfr
+[url "https://git.burntcomma.com/moxnox/mpc"]
+	insteadOf = https://gitlab.inria.fr/mpc/mpc
+[url "https://git.burntcomma.com/moxnox/gmp"]
+	insteadOf = https://github.com/gmp-mirror/gmp
+[url "https://git.burntcomma.com/moxnox/libiconv"]
+	insteadOf = https://https.git.savannah.gnu.org/git/libiconv.git/
+[url "https://git.burntcomma.com/moxnox/make"]
+	insteadOf = git://git.savannah.gnu.org/make
+[url "https://git.burntcomma.com/moxnox/bzip2"]
+	insteadOf = git://sourceware.org/git/bzip2.git
+[url "https://git.burntcomma.com/moxnox/xz"]
+	insteadOf = https://github.com/tukaani-project/xz
+[url "https://git.burntcomma.com/moxnox/libexpat"]
+	insteadOf = https://github.com/libexpat/libexpat
+[url "https://git.burntcomma.com/moxnox/jsoncpp"]
+	insteadOf = https://github.com/open-source-parsers/jsoncpp
+[url "https://git.burntcomma.com/moxnox/rhash"]
+	insteadOf = https://github.com/rhash/RHash
+[url "https://git.burntcomma.com/moxnox/diffutils"]
+	insteadOf = https://git.savannah.gnu.org/git/diffutils.git
+[url "https://git.burntcomma.com/moxnox/patch"]
+	insteadOf = https://https.git.savannah.gnu.org/git/patch.git/
+[url "https://git.burntcomma.com/moxnox/gawk"]
+	insteadOf = https://git.savannah.gnu.org/git/gawk.git
+[url "https://git.burntcomma.com/moxnox/gzip"]
+	insteadOf = https://https.git.savannah.gnu.org/git/gzip.git
+[url "https://git.burntcomma.com/moxnox/findutils"]
+	insteadOf = https://git.savannah.gnu.org/git/findutils.git
+[url "https://git.burntcomma.com/moxnox/file"]
+	insteadOf = https://github.com/file/file
+[url "https://git.burntcomma.com/moxnox/coreutils"]
+	insteadOf = git://git.savannah.gnu.org/coreutils.git
+[url "https://git.burntcomma.com/moxnox/bash"]
+	insteadOf = git://git.git.savannah.gnu.org/bash.git
+[url "https://git.burntcomma.com/moxnox/ninja"]
+	insteadOf = https://github.com/ninja-build/ninja
+[url "https://git.burntcomma.com/moxnox/wget"]
+	insteadOf = git://git.git.savannah.gnu.org/wget.git
+[url "https://git.burntcomma.com/moxnox/tar"]
+	insteadOf = https://https.git.savannah.gnu.org/git/tar.git/
+[url "https://git.burntcomma.com/moxnox/m4"]
+	insteadOf = https://https.git.savannah.gnu.org/git/m4.git/
+[url "https://git.burntcomma.com/moxnox/flex"]
+	insteadOf = https://github.com/westes/flex
+[url "https://git.burntcomma.com/moxnox/openssh-portable"]
+	insteadOf = https://github.com/openssh/openssh-portable
+[url "https://git.burntcomma.com/moxnox/netcat-openbsd"]
+	insteadOf = https://salsa.debian.org/debian/netcat-openbsd.git
+[url "https://git.burntcomma.com/moxnox/perl5"]
+	insteadOf = https://github.com/Perl/perl5
+[url "https://git.burntcomma.com/moxnox/grep"]
+	insteadOf = git://git.git.savannah.gnu.org/grep.git
+[url "https://git.burntcomma.com/moxnox/sed"]
+	insteadOf = git://git.git.savannah.gnu.org/sed.git
+[url "https://git.burntcomma.com/moxnox/bison"]
+	insteadOf = https://https.git.savannah.gnu.org/git/bison.git
+[url "https://git.burntcomma.com/moxnox/musl"]
+	insteadOf = git://git.musl-libc.org/musl
+[url "https://git.burntcomma.com/moxnox/gnulib"]
+	insteadOf = https://https.git.savannah.gnu.org/git/gnulib.git/
+[url "https://git.burntcomma.com/moxnox/curl"]
+	insteadOf = https://github.com/curl/curl
+[url "https://git.burntcomma.com/moxnox/binutils-cc"]
+	insteadOf = git://sourceware.org/git/binutils-gdb.git

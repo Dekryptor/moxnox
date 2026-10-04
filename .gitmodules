@@ -1,90 +1,90 @@
 [submodule "efi/code"]
 	path = ports/gnu-efi/repo
-	url = https://git.burntcomma.com/moxnox/gnu-efi
+	url = https://github.com/ncroxon/gnu-efi
 [submodule "freetype"]
 	path = ports/freetype/repo
-	url = https://git.burntcomma.com/moxnox/freetype
+	url = https://gitlab.freedesktop.org/freetype/freetype
 [submodule "acpica"]
 	path = ports/acpica/repo
-	url = https://git.burntcomma.com/moxnox/acpica
+	url = https://github.com/acpica/acpica
 [submodule "libpng"]
 	path = ports/libpng/repo
-	url = https://git.burntcomma.com/moxnox/libpng
+	url = https://github.com/pnggroup/libpng
 [submodule "zlib"]
 	path = ports/zlib/repo
-	url = https://git.burntcomma.com/moxnox/zlib
+	url = https://github.com/madler/zlib
 [submodule "harfbuzz"]
 	path = ports/harfbuzz/repo
-	url = https://git.burntcomma.com/moxnox/harfbuzz
+	url = https://github.com/harfbuzz/harfbuzz
 [submodule "pixman"]
 	path = ports/pixman/repo
-	url = https://git.burntcomma.com/moxnox/pixman
+	url = https://gitlab.freedesktop.org/pixman/pixman
 [submodule "mingw-w64"]
 	path = ports/mingw-w64/repo
-	url = https://git.burntcomma.com/moxnox/mingw-w64
+	url = https://git.code.sf.net/p/mingw-w64/mingw-w64
 [submodule "ports/zstd/zstd"]
 	path = ports/zstd/repo
-	url = https://git.burntcomma.com/moxnox/zstd
+	url = https://github.com/facebook/zstd
 [submodule "ports/musl/repo"]
 	path = ports/musl/repo
-	url = https://git.burntcomma.com/moxnox/musl
+	url = git://git.musl-libc.org/musl
 [submodule "ports/cairo/cairo"]
 	path = ports/cairo/repo
-	url = https://git.burntcomma.com/moxnox/cairo
+	url = https://gitlab.freedesktop.org/cairo/cairo
 [submodule "ncurses"]
 	path = ports/ncurses/repo
-	url = https://git.burntcomma.com/moxnox/ncurses
+	url = https://github.com/ThomasDickey/ncurses-snapshots
 [submodule "ports/nano/repo"]
 	path = ports/nano/repo
-	url = https://git.burntcomma.com/moxnox/nano
+	url = git://git.sv.gnu.org/nano.git
 [submodule "ports/curl/repo"]
 	path = ports/curl/repo
-	url = https://git.burntcomma.com/moxnox/curl
+	url = https://github.com/curl/curl
 [submodule "ports/readline/repo"]
 	path = ports/readline/repo
-	url = https://git.burntcomma.com/moxnox/readline
+	url = https://git.savannah.gnu.org/git/readline.git/
 [submodule "ports/tre/repo"]
 	path = ports/tre/repo
-	url = https://git.burntcomma.com/moxnox/tre
+	url = https://github.com/laurikari/tre/
 [submodule "ports/gnulib/repo"]
 	path = ports/gnulib/repo
-	url = https://git.burntcomma.com/moxnox/gnulib
+	url = https://https.git.savannah.gnu.org/git/gnulib.git/
 [submodule "ports/vim/repo"]
 	path = ports/vim/repo
-	url = https://git.burntcomma.com/moxnox/vim
+	url = https://github.com/vim/vim
 [submodule "ports/less/repo"]
 	path = ports/less/repo
-	url = https://git.burntcomma.com/moxnox/less
+	url = https://github.com/gwsw/less
 [submodule "ports/openssl/repo"]
 	path = ports/openssl/repo
-	url = https://git.burntcomma.com/moxnox/openssl
+	url = https://github.com/openssl/openssl
 [submodule "ports/libarchive/repo"]
 	path = ports/libarchive/repo
-	url = https://git.burntcomma.com/moxnox/libarchive
+	url = https://github.com/libarchive/libarchive
 [submodule "ports/python/repo"]
 	path = ports/python/repo
-	url = https://git.burntcomma.com/moxnox/cpython
+	url = https://github.com/python/cpython
 [submodule "ports/binutils/repo"]
 	path = ports/binutils/repo
-	url = https://git.burntcomma.com/moxnox/binutils-cc
+	url = git://sourceware.org/git/binutils-gdb.git
 [submodule "ports/git/repo"]
 	path = ports/git/repo
-	url = https://git.burntcomma.com/moxnox/git
+	url = https://github.com/git/git
 [submodule "ports/mesa/repo"]
 	path = ports/mesa/repo
-	url = https://git.burntcomma.com/moxnox/mesa
+	url = https://gitlab.freedesktop.org/mesa/mesa.git
 [submodule "ports/mpfr/repo"]
 	path = ports/mpfr/repo
-	url = https://git.burntcomma.com/moxnox/mpfr
+	url = https://gitlab.inria.fr/mpfr/mpfr
 [submodule "ports/mpc/repo"]
 	path = ports/mpc/repo
-	url = https://git.burntcomma.com/moxnox/mpc
+	url = https://gitlab.inria.fr/mpc/mpc
 [submodule "ports/gmp/repo"]
 	path = ports/gmp/repo
-	url = https://git.burntcomma.com/moxnox/gmp
+	url = https://github.com/gmp-mirror/gmp
 [submodule "ports/libiconv/repo"]
 	path = ports/libiconv/repo
-	url = https://git.burntcomma.com/moxnox/libiconv
+	url = https://https.git.savannah.gnu.org/git/libiconv.git/
 [submodule "ports/gcc/repo"]
 	path = ports/gcc/repo
 	url = https://git.burntcomma.com/moxnox/gcc-cc
@@ -93,7 +93,7 @@
 	url = https://git.burntcomma.com/moxnox/llvm-cc
 [submodule "ports/make/repo"]
 	path = ports/make/repo
-	url = https://git.burntcomma.com/moxnox/make
+	url = git://git.savannah.gnu.org/make
 [submodule "ports/rust/repo"]
 	path = ports/rust/repo
 	url = https://git.burntcomma.com/moxnox/rust-cc
@@ -147,19 +147,19 @@
 	url = https://git.burntcomma.com/moxnox/terminal-size
 [submodule "ports/bzip2/repo"]
 	path = ports/bzip2/repo
-	url = https://git.burntcomma.com/moxnox/bzip2
+	url = git://sourceware.org/git/bzip2.git
 [submodule "ports/xz/repo"]
 	path = ports/xz/repo
-	url = https://git.burntcomma.com/moxnox/xz
+	url = https://github.com/tukaani-project/xz
 [submodule "ports/expat/repo"]
 	path = ports/expat/repo
-	url = https://git.burntcomma.com/moxnox/libexpat
+	url = https://github.com/libexpat/libexpat
 [submodule "ports/jsoncpp/repo"]
 	path = ports/jsoncpp/repo
-	url = https://git.burntcomma.com/moxnox/jsoncpp
+	url = https://github.com/open-source-parsers/jsoncpp
 [submodule "ports/librhash/repo"]
 	path = ports/librhash/repo
-	url = https://git.burntcomma.com/moxnox/rhash
+	url = https://github.com/rhash/RHash
 [submodule "ports/libuv/repo"]
 	path = ports/libuv/repo
 	url = https://git.burntcomma.com/moxnox/libuv
@@ -168,58 +168,58 @@
 	url = https://git.burntcomma.com/moxnox/cmake
 [submodule "ports/grep/repo"]
 	path = ports/grep/repo
-	url = https://git.burntcomma.com/moxnox/grep
+	url = git://git.git.savannah.gnu.org/grep.git
 [submodule "ports/sed/repo"]
 	path = ports/sed/repo
-	url = https://git.burntcomma.com/moxnox/sed
+	url = git://git.git.savannah.gnu.org/sed.git
 [submodule "ports/diffutils/repo"]
 	path = ports/diffutils/repo
-	url = https://git.burntcomma.com/moxnox/diffutils
+	url = https://git.savannah.gnu.org/git/diffutils.git
 [submodule "ports/patch/repo"]
 	path = ports/patch/repo
-	url = https://git.burntcomma.com/moxnox/patch
+	url = https://https.git.savannah.gnu.org/git/patch.git/
 [submodule "ports/gawk/repo"]
 	path = ports/gawk/repo
-	url = https://git.burntcomma.com/moxnox/gawk
+	url = https://git.savannah.gnu.org/git/gawk.git
 [submodule "ports/gzip/repo"]
 	path = ports/gzip/repo
-	url = https://git.burntcomma.com/moxnox/gzip
+	url = https://https.git.savannah.gnu.org/git/gzip.git
 [submodule "ports/findutils/repo"]
 	path = ports/findutils/repo
-	url = https://git.burntcomma.com/moxnox/findutils
+	url = https://git.savannah.gnu.org/git/findutils.git
 [submodule "ports/file/repo"]
 	path = ports/file/repo
-	url = https://git.burntcomma.com/moxnox/file
+	url = https://github.com/file/file
 [submodule "ports/coreutils/repo"]
 	path = ports/coreutils/repo
-	url = https://git.burntcomma.com/moxnox/coreutils
+	url = git://git.savannah.gnu.org/coreutils.git
 [submodule "ports/bash/repo"]
 	path = ports/bash/repo
-	url = https://git.burntcomma.com/moxnox/bash
+	url = git://git.git.savannah.gnu.org/bash.git
 [submodule "ports/ninja/repo"]
 	path = ports/ninja/repo
-	url = https://git.burntcomma.com/moxnox/ninja
+	url = https://github.com/ninja-build/ninja
 [submodule "ports/wget/repo"]
 	path = ports/wget/repo
-	url = https://git.burntcomma.com/moxnox/wget
+	url = git://git.git.savannah.gnu.org/wget.git
 [submodule "ports/tar/repo"]
 	path = ports/tar/repo
-	url = https://git.burntcomma.com/moxnox/tar
+	url = https://https.git.savannah.gnu.org/git/tar.git/
 [submodule "ports/m4/repo"]
 	path = ports/m4/repo
-	url = https://git.burntcomma.com/moxnox/m4
+	url = https://https.git.savannah.gnu.org/git/m4.git/
 [submodule "ports/bison/repo"]
 	path = ports/bison/repo
-	url = https://git.burntcomma.com/moxnox/bison
+	url = https://https.git.savannah.gnu.org/git/bison.git
 [submodule "ports/flex/repo"]
 	path = ports/flex/repo
-	url = https://git.burntcomma.com/moxnox/flex
+	url = https://github.com/westes/flex
 [submodule "ports/openssh/repo"]
 	path = ports/openssh/repo
-	url = https://git.burntcomma.com/moxnox/openssh-portable
+	url = https://github.com/openssh/openssh-portable
 [submodule "ports/netcat/repo"]
 	path = ports/netcat/repo
-	url = https://git.burntcomma.com/moxnox/netcat-openbsd
+	url = https://salsa.debian.org/debian/netcat-openbsd.git
 [submodule "ports/perl/repo"]
 	path = ports/perl/repo
-	url = https://git.burntcomma.com/moxnox/perl5
+	url = https://github.com/Perl/perl5

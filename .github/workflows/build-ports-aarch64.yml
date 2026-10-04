@@ -39,6 +39,8 @@ jobs:
 
       - name: Checkout mingw, musl, and tre
         working-directory: ${{ env.SHORT_SHA }}
+        env:
+          GIT_CONFIG_GLOBAL: ${{ github.workspace }}/${{ env.SHORT_SHA }}/.github/gitconfig
         run: |
           git submodule update --init --depth 1 ports/mingw-w64/repo
           git submodule update --init --depth 1 ports/musl/repo
