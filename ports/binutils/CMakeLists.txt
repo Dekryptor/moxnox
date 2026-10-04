@@ -391,7 +391,7 @@ function(add_binutils_exe name)
     target_compile_definitions(${name} PRIVATE
         _CRTIMP=
         HAVE_CONFIG_H
-        "TARGET=\"x86_64-w64-mingw32\""
+        "TARGET=\"x86_64-pc-moxnox\""
     )
     target_link_libraries(${name} PRIVATE bfd libiberty)
 
@@ -488,7 +488,7 @@ target_compile_options(readelf PRIVATE ${GENERAL_CFLAGS}
 target_compile_definitions(readelf PRIVATE
     _CRTIMP=
     HAVE_CONFIG_H
-    "TARGET=\"x86_64-w64-mingw32\""
+    "TARGET=\"x86_64-pc-moxnox\""
 )
 target_include_directories(readelf PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}
@@ -600,7 +600,7 @@ add_custom_command(
     OUTPUT ${LD_GEN_DIR}/ei386pep.c
     COMMAND sh ${REPO}/ld/genscripts.sh
         ${REPO}/ld /usr/lib /usr /usr
-        x86_64-linux-gnu x86_64-w64-mingw32 x86_64-w64-mingw32
+        x86_64-pc-moxnox x86_64-pc-moxnox x86_64-pc-moxnox
         "" "" "i386pep i386pe" "" no "" i386pep ""
     WORKING_DIRECTORY ${LD_GEN_DIR}
     VERBATIM
@@ -615,7 +615,7 @@ add_custom_command(
     OUTPUT ${LD_GEN_DIR}/ei386pe.c
     COMMAND sh ${REPO}/ld/genscripts.sh
         ${REPO}/ld /usr/lib /usr /usr
-        x86_64-linux-gnu x86_64-w64-mingw32 x86_64-w64-mingw32
+        x86_64-pc-moxnox x86_64-pc-moxnox x86_64-pc-moxnox
         "" "" "i386pep i386pe" "" no "" i386pe ""
     WORKING_DIRECTORY ${LD_GEN_DIR}
     VERBATIM
@@ -664,9 +664,9 @@ target_compile_definitions(ld PRIVATE
     "DEFAULT_EMULATION=\"i386pep\""
     "EMULATION_LIBPATH=\"i386pep i386pe\""
     "SCRIPTDIR=\"/lib/ldscripts\""
-    "BINDIR=\"/usr/bin\""
-    "TOOLBINDIR=\"/usr/x86_64-w64-mingw32/bin\""
-    "TARGET=\"x86_64-w64-mingw32\""
+    "BINDIR=\"/bin\""
+    "TOOLBINDIR=\"/usr/x86_64-pc-moxnox/bin\""
+    "TARGET=\"x86_64-pc-moxnox\""
 )
 target_include_directories(ld PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}
@@ -780,7 +780,7 @@ target_compile_options(dllwrap PRIVATE ${GENERAL_CFLAGS}
 target_compile_definitions(dllwrap PRIVATE
     _CRTIMP=
     HAVE_CONFIG_H
-    "TARGET=\"x86_64-w64-mingw32\""
+    "TARGET=\"x86_64-w64-mingw32\"" # FIXME - change to x86_64-pc-moxnox (will need to patch as well)
 )
 target_include_directories(dllwrap PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}

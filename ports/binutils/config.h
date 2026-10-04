@@ -123,11 +123,11 @@
 #ifndef DEFAULT_EMULATION
 #define DEFAULT_EMULATION                 ""
 #endif
-#define TARGET_ALIAS                      "x86_64-w64-mingw32"
+#define TARGET_ALIAS                      "x86_64-pc-moxnox"
 #define TARGET_CPU                        "x86_64"
-#define TARGET_CANONICAL                  "x86_64-w64-mingw32"
-#define TARGET_OS                         "mingw32"
-#define TARGET_VENDOR                     "w64"
+#define TARGET_CANONICAL                  "x86_64-pc-moxnox"
+#define TARGET_OS                         "moxnox"
+#define TARGET_VENDOR                     "pc"
 #define HAVE_WINDOWS_H                    1
 #define VERSION                           "2.44"
 #define ENABLE_LEAK_CHECK                 0
