@@ -80,3 +80,14 @@
  # endif
  
  # ifndef errno
+--- a/lib/findprog-in.c
++++ b/lib/findprog-in.c
+@@ -63,6 +63,8 @@ static const char * const suffixes[] =
+     "", ".exe", ".com"
+     #elif defined __EMX__
+     "", ".exe"
++    #elif defined __moxnox__
++    "", ".exe"
+     #elif defined __DJGPP__
+     "", ".com", ".exe", ".bat"
+     #else /* Unix */

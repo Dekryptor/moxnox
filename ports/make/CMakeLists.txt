@@ -16,8 +16,8 @@ configure_file(config.h.in ${GEN}/config.h @ONLY)
 add_custom_command(
     OUTPUT ${GEN}/src/main.c ${GEN}/src/commands.c ${GEN}/src/getopt.c
         ${GEN}/src/getopt1.c ${GEN}/src/getopt.h ${GEN}/lib/fnmatch.c
-        ${GEN}/lib/fnmatch.h ${GEN}/lib/glob.h ${GEN}/lib/alloca.h
-    COMMAND sh -c "cp '${CMAKE_CURRENT_SOURCE_DIR}/repo/src/main.c' '${CMAKE_CURRENT_SOURCE_DIR}/repo/src/commands.c' '${CMAKE_CURRENT_SOURCE_DIR}/repo/src/getopt.c' '${CMAKE_CURRENT_SOURCE_DIR}/repo/src/getopt1.c' '${CMAKE_CURRENT_SOURCE_DIR}/repo/src/getopt.h' '${GEN}/src/' && cp '${CMAKE_CURRENT_SOURCE_DIR}/repo/gl/lib/fnmatch.c' '${GEN}/lib/' && cp '${CMAKE_CURRENT_SOURCE_DIR}/repo/gl/lib/fnmatch.in.h' '${GEN}/lib/fnmatch.h' && cp '${CMAKE_CURRENT_SOURCE_DIR}/repo/gl/lib/glob.in.h' '${GEN}/lib/glob.h' && sed 's|@HAVE_ALLOCA_H@|1|g' '${CMAKE_CURRENT_SOURCE_DIR}/../gnulib/repo/lib/alloca.in.h' > '${GEN}/lib/alloca.h' && patch -p1 -d '${GEN}' < '${CMAKE_CURRENT_SOURCE_DIR}/moxnox.patch'"
+        ${GEN}/lib/fnmatch.h ${GEN}/lib/glob.h ${GEN}/lib/alloca.h ${GEN}/lib/findprog-in.c
+    COMMAND sh -c "cp '${CMAKE_CURRENT_SOURCE_DIR}/repo/src/main.c' '${CMAKE_CURRENT_SOURCE_DIR}/repo/src/commands.c' '${CMAKE_CURRENT_SOURCE_DIR}/repo/src/getopt.c' '${CMAKE_CURRENT_SOURCE_DIR}/repo/src/getopt1.c' '${CMAKE_CURRENT_SOURCE_DIR}/repo/src/getopt.h' '${GEN}/src/' && cp '${CMAKE_CURRENT_SOURCE_DIR}/repo/gl/lib/fnmatch.c' '${GEN}/lib/' && cp '${CMAKE_CURRENT_SOURCE_DIR}/repo/gl/lib/fnmatch.in.h' '${GEN}/lib/fnmatch.h' && cp '${CMAKE_CURRENT_SOURCE_DIR}/repo/gl/lib/glob.in.h' '${GEN}/lib/glob.h' && sed 's|@HAVE_ALLOCA_H@|1|g' '${CMAKE_CURRENT_SOURCE_DIR}/../gnulib/repo/lib/alloca.in.h' > '${GEN}/lib/alloca.h' && cp '${CMAKE_CURRENT_SOURCE_DIR}/../gnulib/repo/lib/findprog-in.c' '${GEN}/lib/' && patch -p1 -d '${GEN}' < '${CMAKE_CURRENT_SOURCE_DIR}/moxnox.patch'"
     DEPENDS
         repo/src/main.c
         repo/src/commands.c
@@ -28,13 +28,14 @@ add_custom_command(
         repo/gl/lib/fnmatch.in.h
         repo/gl/lib/glob.in.h
         ../gnulib/repo/lib/alloca.in.h
+        ../gnulib/repo/lib/findprog-in.c
         ${CMAKE_CURRENT_SOURCE_DIR}/moxnox.patch
     VERBATIM
 )
 
 add_executable(make
     ../gnulib/repo/lib/concat-filename.c
-    ../gnulib/repo/lib/findprog-in.c
+    ${GEN}/lib/findprog-in.c
     ../gnulib/repo/lib/getloadavg.c
     ${GEN}/lib/fnmatch.c
     repo/gl/lib/glob.c
@@ -72,7 +73,7 @@ add_executable(make
 
 set_source_files_properties(
     ../gnulib/repo/lib/concat-filename.c
-    ../gnulib/repo/lib/findprog-in.c
+    ${GEN}/lib/findprog-in.c
     PROPERTIES COMPILE_OPTIONS "-D_GL_CONFIG_H_INCLUDED=1;-Dstreq(a,b)=(strcmp(a,b)==0)"
 )
 
