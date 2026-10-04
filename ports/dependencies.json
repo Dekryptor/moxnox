@@ -24,7 +24,7 @@
     "hexyl": [],
     "jsoncpp": [],
     "less": ["ncurses"],
-    "libarchive": ["bzip2", "xz", "zlib", "zstd"],
+    "libarchive": ["bzip2", "libiconv", "xz", "zlib", "zstd"],
     "libiconv": [],
     "libpng": ["zlib"],
     "librhash": [],
