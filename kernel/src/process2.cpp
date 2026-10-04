@@ -1136,7 +1136,7 @@ uintptr_t process::map_section(section& sect, uintptr_t address,
     m->offset = section_offset.has_value() ? (uint64_t)*section_offset : 0;
     m->size = bytes_to_pages(sect.size - m->offset) << PAGE_SHIFT;
 
-    uintptr_t last_addr = 1 << PAGE_SHIFT; // don't allocate VM address 0
+    uintptr_t last_addr = 0x100000; // don't place images below 1 MB unless explicitly requested
     bool inserted = false;
 
     {
@@ -1155,7 +1155,7 @@ uintptr_t process::map_section(section& sect, uintptr_t address,
                     break;
                 }
 
-                last_addr = m2.address + m2.size;
+                last_addr = max(last_addr, m2.address + m2.size);
             } else {
                 if (m2.address > address + m->size) { // insert before
                     m->address = address;
