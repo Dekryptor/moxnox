@@ -2436,16 +2436,16 @@ NTSTATUS process::allocate_vm(void** base_address, uintptr_t, size_t* region_siz
             auto& m2 = containing_record<mapping>(le);
 
             if (addr == 0) {
-                if (m2.address > last_addr + m->size) { // insert before
+                if (m2.address >= last_addr + m->size) { // insert before
                     insert_head_list(*le->prev, m->le);
                     addr = last_addr;
                     inserted = true;
                     break;
                 }
 
-                last_addr = m2.address + m2.size;
+                last_addr = max(last_addr, m2.address + m2.size);
             } else {
-                if (m2.address > addr + m->size) { // insert before
+                if (m2.address >= addr + m->size) { // insert before
                     insert_head_list(*le->prev, m->le);
                     inserted = true;
                     break;
