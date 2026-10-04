@@ -170,10 +170,17 @@ add_custom_command(
 )
 
 add_custom_command(
-    OUTPUT ${BFD_GEN_DIR}/targmatch.h
-    COMMAND sh -c "sed -f '${REPO}/bfd/targmatch.sed' '${REPO}/bfd/config.bfd' > '${BFD_GEN_DIR}/targmatch.h'"
+    OUTPUT ${BFD_GEN_DIR}/config.bfd
+    COMMAND sh -c "cp '${REPO}/bfd/config.bfd' '${BFD_GEN_DIR}/config.bfd' && patch '${BFD_GEN_DIR}/config.bfd' < '${CMAKE_CURRENT_SOURCE_DIR}/config.bfd.patch'"
     VERBATIM
-    DEPENDS ${REPO}/bfd/config.bfd ${REPO}/bfd/targmatch.sed
+    DEPENDS ${REPO}/bfd/config.bfd ${CMAKE_CURRENT_SOURCE_DIR}/config.bfd.patch
+)
+
+add_custom_command(
+    OUTPUT ${BFD_GEN_DIR}/targmatch.h
+    COMMAND sh -c "sed -f '${REPO}/bfd/targmatch.sed' '${BFD_GEN_DIR}/config.bfd' > '${BFD_GEN_DIR}/targmatch.h'"
+    VERBATIM
+    DEPENDS ${BFD_GEN_DIR}/config.bfd ${REPO}/bfd/targmatch.sed
 )
 
 add_custom_target(bfd_gen_headers DEPENDS
