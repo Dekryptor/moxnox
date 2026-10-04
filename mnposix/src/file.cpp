@@ -729,6 +729,9 @@ int fchmodat(int dirfd, const char* path, mode_t mode, int flags) {
 
     status = NtCreateFile(&h, FILE_WRITE_ATTRIBUTES, &oa, &iosb, nullptr,
                           0, 0, FILE_OPEN, options, nullptr, 0);
+
+    free(u16pathname);
+
     if (!success(status)) {
         *_errno() = nt_status_to_errno(status);
         return -1;
