@@ -289,3 +289,7 @@ getnetbyaddr
 setlogmask
 crypt
 ctermid
+
+; stubs
+mlock
+munlock
