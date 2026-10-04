@@ -1147,7 +1147,7 @@ uintptr_t process::map_section(section& sect, uintptr_t address,
             auto& m2 = containing_record<mapping>(le);
 
             if (address == 0) {
-                if (m2.address > last_addr + m->size) { // insert before
+                if (m2.address >= last_addr + m->size) { // insert before
                     address = last_addr;
                     m->address = address;
                     insert_head_list(*le->prev, m->le);
@@ -1157,7 +1157,7 @@ uintptr_t process::map_section(section& sect, uintptr_t address,
 
                 last_addr = max(last_addr, m2.address + m2.size);
             } else {
-                if (m2.address > address + m->size) { // insert before
+                if (m2.address >= address + m->size) { // insert before
                     m->address = address;
                     insert_head_list(*le->prev, m->le);
                     inserted = true;
