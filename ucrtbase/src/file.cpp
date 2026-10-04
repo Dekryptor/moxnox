@@ -1653,8 +1653,60 @@ int __fileno(FILE* file) {
 }
 
 extern "C"
-int __chmod(const char* /*path*/, int /*flags*/) {
-    // FIXME - do something (at least check path is valid)
+int __chmod(const char* path, mode_t mode) {
+    auto peb = NtCurrentTeb()->ProcessEnvironmentBlock;
+    nt_status status;
+    OBJECT_ATTRIBUTES oa;
+    UNICODE_STRING us;
+    IO_STATUS_BLOCK iosb;
+    HANDLE h;
+    unique_handle f;
+
+    if (!path || path[0] == 0) {
+        *_errno() = EINVAL;
+        return -1;
+    }
+
+    auto sv = string_view(path);
+
+    auto u16len = utf8_to_utf16_len(sv);
+
+    auto u16pathname = (char16_t*)malloc(u16len * sizeof(char16_t));
+    if (!u16pathname) {
+        *_errno() = ENOMEM;
+        return -1;
+    }
+
+    utf8_to_utf16(span(u16pathname, u16len), sv);
+
+    us.Length = us.MaximumLength = (uint16_t)(u16len * sizeof(char16_t));
+    us.Buffer = u16pathname;
+
+    memset(&oa, 0, sizeof(oa));
+    oa.Length = sizeof(OBJECT_ATTRIBUTES);
+    oa.ObjectName = &us;
+    oa.RootDirectory = peb->ProcessParameters->CurrentDirectory.Handle;
+
+    status = NtCreateFile(&h, FILE_WRITE_ATTRIBUTES, &oa, &iosb, nullptr,
+                          0, 0, FILE_OPEN, 0, nullptr, 0);
+    if (!success(status)) {
+        free(u16pathname);
+        *_errno() = nt_status_to_errno(status);
+        return -1;
+    }
+
+    free(u16pathname);
+
+    f.reset(h);
+
+    auto v = (uint32_t)mode;
+
+    status = NtSetInformationFile(h, &iosb, &v, sizeof(v),
+                                  FILE_INFORMATION_CLASS::MoxnoxFchmod);
+    if (!success(status)) {
+        *_errno() = nt_status_to_errno(status);
+        return -1;
+    }
 
     return 0;
 }
