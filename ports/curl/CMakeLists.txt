@@ -1,5 +1,41 @@
 set(CMAKE_TRY_COMPILE_TARGET_TYPE EXECUTABLE)
 
+set(GEN ${CMAKE_CURRENT_BINARY_DIR}/gen)
+file(MAKE_DIRECTORY ${GEN}/include/curl)
+
+function(curl_read var path)
+    file(READ ${path} _out)
+    set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS ${path})
+    set(${var} "${_out}" PARENT_SCOPE)
+endfunction()
+
+function(curl_patch var old new)
+    string(FIND "${${var}}" "${old}" _pos)
+    if(_pos EQUAL -1)
+        message(FATAL_ERROR "curl patch anchor not found: ${old}")
+    endif()
+    string(REPLACE "${old}" "${new}" _out "${${var}}")
+    set(${var} "${_out}" PARENT_SCOPE)
+endfunction()
+
+curl_read(_curl_h repo/include/curl/curl.h)
+curl_patch(_curl_h [=[    defined(__sun__) || defined(__serenity__) || defined(__vxworks__)
+#include <sys/select.h>]=] [=[    defined(__sun__) || defined(__serenity__) || defined(__vxworks__) || \
+    defined(__moxnox__)
+#include <sys/select.h>]=])
+curl_patch(_curl_h [=[#elif defined(_WIN32) || \
+     (CURL_HAS_DECLSPEC_ATTRIBUTE(dllexport) && \]=] [=[#elif defined(_WIN32) || defined(__moxnox__) || \
+     (CURL_HAS_DECLSPEC_ATTRIBUTE(dllexport) && \]=])
+file(CONFIGURE OUTPUT ${GEN}/include/curl/curl.h CONTENT "${_curl_h}" @ONLY)
+
+foreach(_h curlver.h easy.h header.h mprintf.h multi.h options.h stdcheaders.h
+        system.h typecheck-gcc.h urlapi.h websockets.h)
+    configure_file(repo/include/curl/${_h} ${GEN}/include/curl/${_h} COPYONLY)
+endforeach()
+
+include_directories(BEFORE ${GEN}/include)
+list(APPEND CMAKE_REQUIRED_INCLUDES ${GEN}/include)
+
 set(BUILD_SHARED_LIBS ON)
 set(BUILD_STATIC_LIBS OFF)
 set(BUILD_CURL_EXE ON)
@@ -59,6 +95,11 @@ set(CMAKE_MESSAGE_LOG_LEVEL NOTICE)
 add_subdirectory(repo)
 
 target_include_directories(libcurl_shared SYSTEM PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/../openssl/repo/include)
+
+target_include_directories(libcurl_shared BEFORE INTERFACE $<BUILD_INTERFACE:${GEN}/include>)
+install(DIRECTORY ${GEN}/include/curl
+    DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}
+    FILES_MATCHING PATTERN "*.h")
 
 target_compile_options(libcurl_shared PRIVATE
     ${USERSPACE_CFLAGS}

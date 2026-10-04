@@ -17,7 +17,7 @@ set(CMAKE_USE_SYSTEM_LIBRARY_LIBARCHIVE ON)
 
 set(CURL_LIBRARY ${CMAKE_BINARY_DIR}/ports/curl/repo/lib/libcurl.dll.a)
 set(CURL_LIBRARY_RELEASE ${CMAKE_BINARY_DIR}/ports/curl/repo/lib/libcurl.dll.a)
-set(CURL_INCLUDE_DIR ${CMAKE_SOURCE_DIR}/ports/curl/repo/include)
+set(CURL_INCLUDE_DIR ${CMAKE_BINARY_DIR}/ports/curl/gen/include)
 set(EXPAT_LIBRARY ${CMAKE_BINARY_DIR}/ports/expat/repo/expat/libexpat.dll.a)
 set(EXPAT_INCLUDE_DIR ${CMAKE_SOURCE_DIR}/ports/expat/repo/expat/lib)
 set(JsonCpp_LIBRARY ${CMAKE_BINARY_DIR}/ports/jsoncpp/repo/src/lib_json/libjsoncpp.dll.a)
