@@ -18,7 +18,7 @@ RUN sed -i 's|masters = gentoo|masters = gentoo moxnox|g' /var/db/repos/crossdev
 RUN echo ACCEPT_LICENSE="\"*\"" >> /etc/portage/make.conf
 RUN echo LLVM_TARGETS="\"AArch64 X86\"" >> /etc/portage/make.conf
 
-RUN printf 'llvm-core/*\nllvm-runtimes/*\ncross_llvm-aarch64-pc-moxnox/clang-crossdev-wrappers:22 **\n' >> /etc/portage/package.accept_keywords/moxnox
+RUN printf 'llvm-core/*:22\nllvm-runtimes/*:22\ncross_llvm-aarch64-pc-moxnox/clang-crossdev-wrappers:22 **\n' >> /etc/portage/package.accept_keywords/moxnox
 RUN printf 'llvm-core/clang-linker-config default-lld\n' >> /etc/portage/package.use/moxnox
 RUN printf 'llvm-core/clang-common default-compiler-rt default-libcxx default-lld llvm-libunwind\n' >> /etc/portage/package.use/moxnox
 RUN printf 'llvm-runtimes/libunwind static-libs\n' >> /etc/portage/package.use/moxnox
@@ -35,6 +35,7 @@ RUN mkdir -p /etc/portage/env && printf "MYCMAKEARGS=\"-DCOMPILER_RT_BUILD_CRT=O
 
 RUN printf 'cross_llvm-aarch64-pc-moxnox/libunwind moxnox-libunwind.conf\n' >> /etc/portage/package.env/moxnox
 RUN printf "MYCMAKEARGS=\"\${MYCMAKEARGS} -DCMAKE_TOOLCHAIN_FILE=/etc/moxnox-aarch64-toolchain.cmake -DLIBUNWIND_ENABLE_SHARED=OFF -DLIBUNWIND_HIDE_SYMBOLS=ON\"\nCC=aarch64-pc-moxnox-clang\nCXX=aarch64-pc-moxnox-clang++\nCFLAGS=\"\${CFLAGS} -D_WIN32 -D_WIN64 -D__MINGW32__ -D__MINGW64__ -D__MSVCRT__ -D__STRALIGN_H_ -idirafter/usr/aarch64-pc-moxnox/mingw-compat/include\"\nCXXFLAGS=\"\${CXXFLAGS} -D_WIN32 -D_WIN64 -D__MINGW32__ -D__MINGW64__ -D__MSVCRT__ -D__STRALIGN_H_ -idirafter/usr/aarch64-pc-moxnox/mingw-compat/include\"\nLIBDIR_amd64=\"lib\"\nFEATURES=\"\${FEATURES} nostrip\"\n" >> /etc/portage/env/moxnox-libunwind.conf
+RUN printf 'cross_llvm-aarch64-pc-moxnox/libunwind -cet\n' >> /etc/portage/package.use/moxnox
 
 RUN printf 'cross_llvm-aarch64-pc-moxnox/libcxxabi moxnox-libcxxabi.conf\n' >> /etc/portage/package.env/moxnox
 RUN printf "MYCMAKEARGS=\"\${MYCMAKEARGS} -DCMAKE_TOOLCHAIN_FILE=/etc/moxnox-aarch64-toolchain.cmake -DLIBCXXABI_HERMETIC_STATIC_LIBRARY=ON -DCMAKE_BUILD_WITH_INSTALL_RPATH=ON\"\nLDFLAGS=\"\${LDFLAGS} -nostdlib++\"\nCC=aarch64-pc-moxnox-clang\nCXX=aarch64-pc-moxnox-clang++\nLIBDIR_amd64=\"lib\"\nFEATURES=\"\${FEATURES} nostrip\"\n" > /etc/portage/env/moxnox-libcxxabi.conf
@@ -68,7 +69,7 @@ RUN mkdir -p /usr/aarch64-pc-moxnox/etc/portage/package.env && printf 'llvm-core
 RUN mkdir -p /usr/aarch64-pc-moxnox/etc/portage/env && printf 'MYCMAKEARGS="${MYCMAKEARGS} -DLLVM_BUILD_LLVM_DYLIB=OFF -DLLVM_LINK_LLVM_DYLIB=OFF -DLLVM_ENABLE_ZLIB=OFF -DCMAKE_BUILD_TYPE=Release -DHAVE_LIBPTHREAD=0 -DHAVE_LIBRT=0 -DHAVE_LIBDL=0 -DLLVM_DISTRIBUTION_COMPONENTS=\\\"llvm-libraries;llvm-headers;cmake-exports;llvm-config\\\""\nFEATURES=\"${FEATURES} nostrip\"\n' >> /usr/aarch64-pc-moxnox/etc/portage/env/moxnox-llvm
 RUN mkdir -p /usr/aarch64-pc-moxnox/etc/portage/patches/llvm-core/llvm && cd /usr/aarch64-pc-moxnox/etc/portage/patches/llvm-core/llvm && wget https://moxnox.dev/llvm-moxnox.tar.gz && tar -xzf llvm-moxnox.tar.gz && rm llvm-moxnox.tar.gz
 RUN emerge dev-python/mako dev-python/pyaml
-RUN aarch64-pc-moxnox-emerge --nodeps llvm-core/llvm # --nodeps because Gentoo pulls in zlib despite the fact we've disabled it
+RUN aarch64-pc-moxnox-emerge --nodeps llvm-core/llvm:22 # --nodeps because Gentoo pulls in zlib despite the fact we've disabled it
 
 RUN rm -rf /var/cache/distfiles
 RUN env-update
