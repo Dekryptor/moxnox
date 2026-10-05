@@ -15,4 +15,5 @@ target_compile_options(uv PRIVATE
     -Wno-unused-function
     -Wno-sign-compare
     -Wno-strict-prototypes
+    -Wno-discarded-qualifiers
 )
