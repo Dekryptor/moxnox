@@ -165,7 +165,7 @@
 	url = https://git.burntcomma.com/moxnox/libuv
 [submodule "ports/cmake/repo"]
 	path = ports/cmake/repo
-	url = https://git.burntcomma.com/moxnox/cmake
+	url = https://gitlab.kitware.com/cmake/cmake
 [submodule "ports/grep/repo"]
 	path = ports/grep/repo
 	url = git://git.git.savannah.gnu.org/grep.git

@@ -31,8 +31,73 @@ set(ZLIB_INCLUDE_DIR ${CMAKE_SOURCE_DIR}/ports/zlib/repo)
 set(LibArchive_LIBRARY ${CMAKE_BINARY_DIR}/ports/libarchive/repo/libarchive/libarchive.dll.a)
 set(LibArchive_INCLUDE_DIR ${CMAKE_SOURCE_DIR}/ports/libarchive/repo/libarchive)
 
+set(GEN ${CMAKE_CURRENT_BINARY_DIR}/gen)
+set(REPO ${CMAKE_CURRENT_SOURCE_DIR}/repo)
+file(MAKE_DIRECTORY ${GEN}/Source/kwsys)
+
+add_custom_command(
+    OUTPUT ${GEN}/Source/kwsys/ProcessUNIX.c
+        ${GEN}/Source/kwsys/SystemInformation.cxx
+        ${GEN}/Source/kwsys/SystemTools.cxx
+        ${GEN}/Source/cmFindProgramCommand.cxx
+        ${GEN}/Source/cmInstallCommand.cxx
+    COMMAND sh -c "cp '${REPO}/Source/kwsys/ProcessUNIX.c' '${REPO}/Source/kwsys/SystemInformation.cxx' '${REPO}/Source/kwsys/SystemTools.cxx' '${GEN}/Source/kwsys/' && cp '${REPO}/Source/cmFindProgramCommand.cxx' '${REPO}/Source/cmInstallCommand.cxx' '${GEN}/Source/' && patch -p1 -d '${GEN}' < '${CMAKE_CURRENT_SOURCE_DIR}/moxnox.patch'"
+    DEPENDS
+        ${REPO}/Source/kwsys/ProcessUNIX.c
+        ${REPO}/Source/kwsys/SystemInformation.cxx
+        ${REPO}/Source/kwsys/SystemTools.cxx
+        ${REPO}/Source/cmFindProgramCommand.cxx
+        ${REPO}/Source/cmInstallCommand.cxx
+        ${CMAKE_CURRENT_SOURCE_DIR}/moxnox.patch
+    VERBATIM
+)
+
+add_custom_target(cmake_patched DEPENDS
+    ${GEN}/Source/kwsys/ProcessUNIX.c
+    ${GEN}/Source/kwsys/SystemInformation.cxx
+    ${GEN}/Source/kwsys/SystemTools.cxx
+    ${GEN}/Source/cmFindProgramCommand.cxx
+    ${GEN}/Source/cmInstallCommand.cxx
+)
+
 set(CMAKE_MESSAGE_LOG_LEVEL NOTICE) # cmake is very chatty
 add_subdirectory(repo)
+
+function(cmake_port_swap_source target name_regex patched)
+    get_target_property(_sources ${target} SOURCES)
+    list(TRANSFORM _sources REPLACE "^(.*/)?${name_regex}$" "${patched}")
+    set_target_properties(${target} PROPERTIES SOURCES "${_sources}")
+    set_source_files_properties(${patched} TARGET_DIRECTORY ${target}
+        PROPERTIES GENERATED TRUE)
+    add_dependencies(${target} cmake_patched)
+endfunction()
+
+cmake_port_swap_source(cmsys_c "ProcessUNIX\\.c" ${GEN}/Source/kwsys/ProcessUNIX.c)
+cmake_port_swap_source(cmsys "ProcessUNIX\\.c" ${GEN}/Source/kwsys/ProcessUNIX.c)
+cmake_port_swap_source(cmsys "SystemInformation\\.cxx" ${GEN}/Source/kwsys/SystemInformation.cxx)
+cmake_port_swap_source(cmsys "SystemTools\\.cxx" ${GEN}/Source/kwsys/SystemTools.cxx)
+cmake_port_swap_source(CMakeLib "cmFindProgramCommand\\.cxx" ${GEN}/Source/cmFindProgramCommand.cxx)
+cmake_port_swap_source(CMakeLib "cmInstallCommand\\.cxx" ${GEN}/Source/cmInstallCommand.cxx)
+
+get_property(_process_flags SOURCE ${REPO}/Source/kwsys/ProcessUNIX.c DIRECTORY ${REPO}/Source/kwsys PROPERTY COMPILE_FLAGS)
+set_property(SOURCE ${GEN}/Source/kwsys/ProcessUNIX.c DIRECTORY ${REPO}/Source/kwsys PROPERTY COMPILE_FLAGS "${_process_flags}")
+get_property(_systemtools_defs SOURCE ${REPO}/Source/kwsys/SystemTools.cxx DIRECTORY ${REPO}/Source/kwsys PROPERTY COMPILE_DEFINITIONS)
+set_property(SOURCE ${GEN}/Source/kwsys/SystemTools.cxx DIRECTORY ${REPO}/Source/kwsys PROPERTY COMPILE_DEFINITIONS "${_systemtools_defs}")
+
+target_include_directories(cmsys PRIVATE ${REPO}/Source/kwsys)
+target_include_directories(cmsys_c PRIVATE ${REPO}/Source/kwsys)
+
+get_directory_property(CMAKE_PORT_DATA_DIR DIRECTORY ${REPO} DEFINITION CMAKE_DATA_DIR)
+install(FILES
+    Modules/Platform/Moxnox.cmake
+    Modules/Platform/Moxnox-Clang-ASM.cmake
+    Modules/Platform/Moxnox-Clang-C.cmake
+    Modules/Platform/Moxnox-Clang-CXX.cmake
+    Modules/Platform/Moxnox-GNU.cmake
+    Modules/Platform/Moxnox-GNU-ASM.cmake
+    Modules/Platform/Moxnox-GNU-C.cmake
+    Modules/Platform/Moxnox-GNU-CXX.cmake
+    DESTINATION ${CMAKE_PORT_DATA_DIR}/Modules/Platform)
 
 cmake_language(DEFER DIRECTORY ${CMAKE_SOURCE_DIR}
     CALL add_dependencies CMakeLib libcurl_shared expat jsoncpp_lib librhash uv zlib archive)
