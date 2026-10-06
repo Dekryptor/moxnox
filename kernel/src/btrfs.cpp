@@ -255,6 +255,7 @@ public:
     uint8_t node_folio_order;
     page_cache<btrfs_filesystem> cache{*this};
     object_ref readonly_event;
+    btrfs_uuid chunk_uuid;
 
 private:
     bool load_chunks();
@@ -692,6 +693,12 @@ bool btrfs_filesystem::load_chunks() {
         return false;
 
     bool fail = false;
+
+    {
+        auto& th = *(btrfs_header*)p.data[0];
+
+        chunk_uuid = th.chunk_tree_uuid;
+    }
 
     do {
         auto& th = *(btrfs_header*)p.data[0];
