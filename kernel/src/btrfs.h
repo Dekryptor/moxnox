@@ -74,6 +74,8 @@ static constexpr uint64_t BTRFS_INODE_DIRSYNC = 1 << 10;
 static constexpr uint64_t BTRFS_INODE_COMPRESS = 1 << 11;
 static constexpr uint64_t BTRFS_INODE_ROOT_ITEM_INIT = (uint64_t)1 << 31;
 
+static constexpr uint64_t BTRFS_STRIPE_LEN = 0x10000;
+
 static const uint64_t SUBVOL_ROOT_INODE = 0x100;
 
 struct btrfs_dev_item {
@@ -486,3 +488,13 @@ struct btrfs_block_group_item {
 static_assert(sizeof(btrfs_block_group_item) == 24);
 
 static const unsigned int BTRFS_MAX_LEVEL = 8;
+
+struct btrfs_dev_extent {
+    uint64_t chunk_tree;
+    uint64_t chunk_objectid;
+    uint64_t chunk_offset;
+    uint64_t length;
+    btrfs_uuid chunk_tree_uuid;
+} __attribute__((packed));
+
+static_assert(sizeof(btrfs_dev_extent) == 48);
