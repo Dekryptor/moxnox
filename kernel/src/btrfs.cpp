@@ -2017,88 +2017,40 @@ static nt_status next_leaf(btrfs_filesystem& fs, btrfs_path& p) {
     return nt_status::SUCCESS;
 }
 
-static nt_status find_hole_for_chunk(btrfs_filesystem& fs, btrfs_dev_item& di,
-                                     uint64_t& addr, uint64_t& hole_size) {
-    nt_status status;
-    btrfs_path p(fs.sb->nodesize);
-
-    static const uint64_t LOWEST_ALLOCATION = 0x100000; // 1MB
-
+static nt_status find_hole_for_chunk(btrfs_filesystem& fs, uint64_t& addr,
+                                     uint64_t& hole_size) {
     // FIXME - allocating on other devices
     // FIXME - DUP allocations
     // FIXME - RAID allocations
 
     // FIXME - allow short allocations
 
-    status = fs.find_item(*fs.dev_root, {di.devid, key_type::DEV_EXTENT, 0},
-                          p, false);
-    if (!success(status))
-        return status;
-
-    uint64_t last_end = LOWEST_ALLOCATION;
     uint64_t desired_size = 0x40000000; // 1 GB (FIXME - should be 32 MB for SYSTEM) (FIXME - Linux caps at 10% of volume)
-    bool have_items = true;
 
-    if (p.slots[0] >= leaf_nritems(p)) {
-        status = next_leaf(fs, p);
-        if (status == nt_status::NOT_FOUND)
-            have_items = false;
-        else if (!success(status))
-            return status;
-    }
+    for (auto le = fs.dev_space_list.next; le != &fs.dev_space_list; le = le->next) {
+        auto& s = containing_record<chunk_space>(le);
 
-    if (have_items) {
-        do {
-            auto& th = *(btrfs_header*)p.data[0];
-            auto items = span((btrfs_item*)((uint8_t*)&th + sizeof(btrfs_header)), th.nritems);
+        if (s.length < desired_size)
+            continue;
 
-            const auto& it = items[p.slots[0]];
-            const auto& found_key = it.key;
+        if (s.length == desired_size) {
+            addr = s.offset;
+            hole_size = desired_size;
 
-            if (found_key.objectid > di.devid)
-                break;
+            remove_entry_list(s.le);
+            free(&s);
+        } else {
+            addr = s.offset;
+            hole_size = desired_size;
 
-            if (found_key.type == key_type::DEV_EXTENT) {
-                if (found_key.offset - last_end >= desired_size) {
-                    addr = last_end;
-                    hole_size = desired_size;
-                    return nt_status::SUCCESS;
-                }
+            s.offset += hole_size;
+            s.length -= hole_size;
+        }
 
-                auto data = span((const uint8_t*)&th + sizeof(btrfs_header) + it.offset,
-                                it.size);
-
-                if (data.size() < sizeof(btrfs_dev_extent))
-                    return nt_status::DISK_CORRUPT_ERROR;
-
-                auto& de = *(btrfs_dev_extent*)data.data();
-
-                last_end = found_key.offset + de.length;
-
-                if (last_end > di.total_bytes)
-                    return nt_status::DISK_CORRUPT_ERROR;
-
-                if (last_end == di.total_bytes)
-                    break;
-            }
-
-            p.slots[0]++;
-            if (p.slots[0] >= leaf_nritems(p)) {
-                status = next_leaf(fs, p);
-                if (status == nt_status::NOT_FOUND)
-                    break;
-                else if (!success(status))
-                    return status;
-            }
-        } while (true);
-    }
-
-    if (di.total_bytes - last_end >= desired_size) {
-        addr = last_end;
-        hole_size = desired_size;
         return nt_status::SUCCESS;
-    } else
-        return nt_status::DISK_FULL;
+    }
+
+    return nt_status::DISK_FULL;
 }
 
 static uint64_t get_next_chunk_offset(btrfs_filesystem& fs) {
@@ -2154,7 +2106,7 @@ static nt_status allocate_new_chunk(btrfs_filesystem& fs, chunk*& c,
 
     // FIXME - DUP chunks
 
-    status = find_hole_for_chunk(fs, di, phys_addr, chunk_size);
+    status = find_hole_for_chunk(fs, phys_addr, chunk_size);
     if (!success(status))
         return status;
 
@@ -2163,6 +2115,7 @@ static nt_status allocate_new_chunk(btrfs_filesystem& fs, chunk*& c,
     c = (chunk*)malloc(offsetof(chunk, ci) + sizeof(btrfs_chunk));
     if (!c) {
         print("malloc failed\n");
+        // FIXME - put hole back
         return nt_status::INSUFFICIENT_RESOURCES;
     }
 
@@ -2192,6 +2145,7 @@ static nt_status allocate_new_chunk(btrfs_filesystem& fs, chunk*& c,
     auto s = (chunk_space*)malloc(sizeof(chunk_space));
     if (!s) {
         print("malloc failed\n");
+        // FIXME - put hole back
         remove_entry_list(c->le);
         c->chunk::~chunk();
         free(c);
