@@ -106,6 +106,7 @@ struct chunk {
     bool changed = false;
     list_entry changed_le;
     list_entry space_pending_le;
+    list_entry new_le;
     int64_t delta;
     uint64_t last_allocation_end = 0;
     btrfs_chunk ci; // must be last item
@@ -256,6 +257,7 @@ public:
     page_cache<btrfs_filesystem> cache{*this};
     object_ref readonly_event;
     btrfs_uuid chunk_uuid;
+    list_entry new_chunks = { &new_chunks, &new_chunks };
 
 private:
     bool load_chunks();
@@ -2032,10 +2034,6 @@ static nt_status allocate_new_chunk(btrfs_filesystem& fs, chunk*& c,
     nt_status status;
     uint64_t phys_addr, chunk_size;
     auto& di = fs.sb->dev_item;
-    btrfs_dev_extent de;
-    btrfs_free_space_info fsi;
-    btrfs_block_group_item bgi;
-    btrfs_path p(fs.sb->nodesize);
 
     // FIXME - SYSTEM
 
@@ -2090,103 +2088,7 @@ static nt_status allocate_new_chunk(btrfs_filesystem& fs, chunk*& c,
     insert_tail_list(c->space_list, s->le);
     c->space_loaded = true;
 
-    // insert dev extent
-
-    de.chunk_tree = fs.chunk_root->id;
-    de.chunk_objectid = BTRFS_FIRST_FREE_OBJECTID;
-    de.chunk_offset = c->offset;
-    de.length = c->ci.length;
-    de.chunk_tree_uuid = fs.chunk_uuid;
-
-    status = insert_item(fs, *fs.dev_root, { di.devid, key_type::DEV_EXTENT, phys_addr },
-                         span((uint8_t*)&de, sizeof(de)));
-    if (!success(status)) {
-        remove_entry_list(c->le);
-        c->chunk::~chunk();
-        free(c);
-        return status;
-    }
-
-    // insert CHUNK_ITEM
-
-    status = insert_item(fs, *fs.chunk_root, { de.chunk_objectid, key_type::CHUNK_ITEM, c->offset },
-                         span((uint8_t*)&c->ci, offsetof(btrfs_chunk, stripe) + (c->ci.num_stripes * sizeof(btrfs_stripe))));
-    if (!success(status)) {
-        // FIXME - remove added DEV_EXTENT
-
-        remove_entry_list(c->le);
-        c->chunk::~chunk();
-        free(c);
-        return status;
-    }
-
-    // insert FREE_SPACE_INFO
-
-    fsi.extent_count = 1;
-    fsi.flags = 0;
-
-    status = insert_item(fs, *fs.free_space_root, { c->offset, key_type::FREE_SPACE_INFO, c->ci.length },
-                         span((uint8_t*)&fsi, sizeof(fsi)));
-    if (!success(status)) {
-        // FIXME - remove added CHUNK_ITEM
-        // FIXME - remove added DEV_EXTENT
-
-        remove_entry_list(c->le);
-        c->chunk::~chunk();
-        free(c);
-        return status;
-    }
-
-    // insert FREE_SPACE_EXTENT
-
-    status = insert_item(fs, *fs.free_space_root, { c->offset, key_type::FREE_SPACE_EXTENT, c->ci.length },
-                         span((uint8_t*)nullptr, 0));
-    if (!success(status)) {
-        // FIXME - remove added FREE_SPACE_INFO
-        // FIXME - remove added CHUNK_ITEM
-        // FIXME - remove added DEV_EXTENT
-
-        remove_entry_list(c->le);
-        c->chunk::~chunk();
-        free(c);
-        return status;
-    }
-
-    // insert BLOCK_GROUP_ITEM
-
-    bgi.used = 0;
-    bgi.chunk_objectid = de.chunk_objectid;
-    bgi.flags = type;
-
-    status = insert_item(fs, *fs.block_group_root, { c->offset, key_type::BLOCK_GROUP_ITEM, c->ci.length },
-                         span((uint8_t*)&bgi, sizeof(bgi)));
-    if (!success(status)) {
-        // FIXME - remove added FREE_SPACE_EXTENT
-        // FIXME - remove added FREE_SPACE_INFO
-        // FIXME - remove added CHUNK_ITEM
-        // FIXME - remove added DEV_EXTENT
-
-        remove_entry_list(c->le);
-        c->chunk::~chunk();
-        free(c);
-        return status;
-    }
-
-    // update DEV_ITEM's bytes_used
-
-    status = update_dev_item_bytes_used(fs, di.devid, chunk_size);
-    if (!success(status)) {
-        // FIXME - remove added BLOCK_GROUP_ITEM
-        // FIXME - remove added FREE_SPACE_EXTENT
-        // FIXME - remove added FREE_SPACE_INFO
-        // FIXME - remove added CHUNK_ITEM
-        // FIXME - remove added DEV_EXTENT
-
-        remove_entry_list(c->le);
-        c->chunk::~chunk();
-        free(c);
-        return status;
-    }
+    insert_tail_list(fs.new_chunks, c->new_le);
 
     // FIXME - this should be done by flush thread when multi-device support is in place
     fs.sb->dev_item.bytes_used += chunk_size;
@@ -5594,9 +5496,93 @@ void free_ref_change(rbtree_node<uint64_t>* tree) {
     free(&r);
 }
 
+static nt_status flush_new_chunk(btrfs_filesystem& fs, chunk& c) {
+    nt_status status;
+    btrfs_dev_extent de;
+    btrfs_free_space_info fsi;
+    btrfs_block_group_item bgi;
+    btrfs_path p(fs.sb->nodesize);
+
+    // insert DEV_EXTENT
+
+    for (uint16_t i = 0; i < c.ci.num_stripes; i++) {
+        auto& s = c.ci.stripe[i];
+
+        de.chunk_tree = fs.chunk_root->id;
+        de.chunk_objectid = BTRFS_FIRST_FREE_OBJECTID;
+        de.chunk_offset = c.offset;
+        de.length = c.ci.length;
+        de.chunk_tree_uuid = fs.chunk_uuid;
+
+        status = insert_item(fs, *fs.dev_root, { s.devid, key_type::DEV_EXTENT, s.offset },
+                            span((uint8_t*)&de, sizeof(de)));
+        if (!success(status))
+            return status;
+    }
+
+    // insert CHUNK_ITEM
+
+    status = insert_item(fs, *fs.chunk_root, { de.chunk_objectid, key_type::CHUNK_ITEM, c.offset },
+                         span((uint8_t*)&c.ci, offsetof(btrfs_chunk, stripe) + (c.ci.num_stripes * sizeof(btrfs_stripe))));
+    if (!success(status))
+        return status;
+
+    // insert FREE_SPACE_INFO
+
+    fsi.extent_count = 1;
+    fsi.flags = 0;
+
+    status = insert_item(fs, *fs.free_space_root, { c.offset, key_type::FREE_SPACE_INFO, c.ci.length },
+                         span((uint8_t*)&fsi, sizeof(fsi)));
+    if (!success(status))
+        return status;
+
+    // insert FREE_SPACE_EXTENT
+
+    status = insert_item(fs, *fs.free_space_root, { c.offset, key_type::FREE_SPACE_EXTENT, c.ci.length },
+                         span((uint8_t*)nullptr, 0));
+    if (!success(status))
+        return status;
+
+    // insert BLOCK_GROUP_ITEM
+
+    bgi.used = 0;
+    bgi.chunk_objectid = de.chunk_objectid;
+    bgi.flags = c.ci.type;
+
+    status = insert_item(fs, *fs.block_group_root, { c.offset, key_type::BLOCK_GROUP_ITEM, c.ci.length },
+                         span((uint8_t*)&bgi, sizeof(bgi)));
+    if (!success(status))
+        return status;
+
+    // update DEV_ITEM's bytes_used
+
+    for (uint16_t i = 0; i < c.ci.num_stripes; i++) {
+        auto& s = c.ci.stripe[i];
+
+        status = update_dev_item_bytes_used(fs, s.devid, c.ci.length);
+        if (!success(status))
+            return status;
+    }
+
+    return nt_status::SUCCESS;
+}
+
 static nt_status do_ref_changes(btrfs_filesystem& fs) {
     list_entry changed_chunks = { &changed_chunks, &changed_chunks };
     rbtree_node<uint64_t>* changes;
+
+    while (!is_list_empty(fs.new_chunks)) {
+        auto& c = *(chunk*)((uint8_t*)fs.new_chunks.next - offsetof(chunk, new_le));
+
+        auto status = flush_new_chunk(fs, c);
+        if (!success(status)) {
+            print("flush_new_chunk returned {}\n", status);
+            return status;
+        }
+
+        remove_entry_list(c.new_le);
+    }
 
     {
         lock_guard lock(fs.ref_changes_lock);
@@ -5841,7 +5827,7 @@ nt_status btrfs_filesystem::flush(bool make_readonly) {
             go_readonly();
             return status;
         }
-    } while (ref_changes);
+    } while (ref_changes || !is_list_empty(new_chunks));
 
     // loop through cache, and call flush_cache for dirty ranges
 
