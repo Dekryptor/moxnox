@@ -1174,7 +1174,7 @@ nt_status btrfs_filesystem::flush_cache(uint64_t page_num, uint64_t num_pages) {
         if (page_num % pages_per_tree || num_pages % pages_per_tree) // not aligned to tree
             return nt_status::INVALID_PARAMETER;
 
-        while (addr < c.ci.length) {
+        while (addr < c.offset + c.ci.length) {
             if (!flush_tree(c, addr)) // FIXME - should return nt_status
                 return nt_status::INTERNAL_ERROR;
 
