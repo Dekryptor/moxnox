@@ -260,6 +260,7 @@ public:
     btrfs_uuid chunk_uuid;
     list_entry new_chunks = { &new_chunks, &new_chunks };
     list_entry dev_space_list = { &dev_space_list, &dev_space_list };
+    uint64_t data_profile, metadata_profile, system_profile;
 
 private:
     bool load_chunks();
@@ -713,6 +714,10 @@ bool btrfs_filesystem::load_chunks() {
         chunk_uuid = th.chunk_tree_uuid;
     }
 
+    data_profile = 0;
+    metadata_profile = 0;
+    system_profile = 0;
+
     do {
         auto& th = *(btrfs_header*)p.data[0];
         auto items = span((btrfs_item*)((uint8_t*)&th + sizeof(btrfs_header)), th.nritems);
@@ -766,6 +771,15 @@ bool btrfs_filesystem::load_chunks() {
         c.offset = k.offset;
         memcpy(&c.ci, data.data(), chunk_size);
         insert_tail_list(new_chunk_list, c.le);
+
+        if (data_profile == 0 && ci.type & BTRFS_BLOCK_GROUP_DATA)
+            data_profile = ci.type;
+
+        if (metadata_profile == 0 && ci.type & BTRFS_BLOCK_GROUP_METADATA)
+            metadata_profile = ci.type;
+
+        if (system_profile == 0 && ci.type & BTRFS_BLOCK_GROUP_SYSTEM)
+            system_profile = ci.type;
 
         if (!move_path_forward(p))
             break;
@@ -2031,12 +2045,8 @@ static nt_status next_leaf(btrfs_filesystem& fs, btrfs_path& p) {
     return nt_status::SUCCESS;
 }
 
-static nt_status find_hole_for_chunk(btrfs_filesystem& fs, uint64_t type,
-                                     uint64_t& addr, uint64_t& hole_size) {
-    // FIXME - allocating on other devices
-    // FIXME - DUP allocations
-    // FIXME - RAID allocations
-
+static nt_status find_single_hole_for_chunk(btrfs_filesystem& fs, uint64_t type,
+                                            uint64_t& addr, uint64_t& hole_size) {
     // FIXME - allow short allocations
 
     uint64_t desired_size;
@@ -2062,6 +2072,86 @@ static nt_status find_hole_for_chunk(btrfs_filesystem& fs, uint64_t type,
             addr = s.offset;
             hole_size = desired_size;
 
+            s.offset += hole_size;
+            s.length -= hole_size;
+        }
+
+        return nt_status::SUCCESS;
+    }
+
+    return nt_status::DISK_FULL;
+}
+
+static nt_status find_dup_holes_for_chunk(btrfs_filesystem& fs, uint64_t type,
+                                          uint64_t& addr1, uint64_t& addr2,
+                                          uint64_t& hole_size) {
+    // FIXME - allow short allocations
+
+    uint64_t desired_size;
+
+    if (type & BTRFS_BLOCK_GROUP_SYSTEM)
+        desired_size = 0x2000000; // 32 MB
+    else
+        desired_size = 0x40000000; // 1 GB (FIXME - Linux caps at 10% of volume)
+
+    // find one big hole
+
+    for (auto le = fs.dev_space_list.next; le != &fs.dev_space_list; le = le->next) {
+        auto& s = containing_record<chunk_space>(le);
+
+        if (s.length < 2 * desired_size)
+            continue;
+
+        if (s.length == 2 * desired_size) {
+            addr1 = s.offset;
+            addr2 = s.offset + desired_size;
+            hole_size = desired_size;
+
+            remove_entry_list(s.le);
+            free(&s);
+        } else {
+            addr1 = s.offset;
+            addr2 = s.offset + desired_size;
+            hole_size = desired_size;
+
+            s.offset += 2 * hole_size;
+            s.length -= 2 * hole_size;
+        }
+
+        return nt_status::SUCCESS;
+    }
+
+    // find two separate holes
+
+    chunk_space* s1 = nullptr;
+
+    for (auto le = fs.dev_space_list.next; le != &fs.dev_space_list; le = le->next) {
+        auto& s = containing_record<chunk_space>(le);
+
+        if (s.length < desired_size)
+            continue;
+
+        if (!s1) {
+            s1 = &s;
+            continue;
+        }
+
+        addr1 = s1->offset;
+        addr2 = s.offset;
+        hole_size = desired_size;
+
+        if (s1->length == desired_size) {
+            remove_entry_list(s1->le);
+            free(s1);
+        } else {
+            s1->offset += hole_size;
+            s1->length -= hole_size;
+        }
+
+        if (s.length == desired_size) {
+            remove_entry_list(s.le);
+            free(&s);
+        } else {
             s.offset += hole_size;
             s.length -= hole_size;
         }
@@ -2118,21 +2208,31 @@ static nt_status update_dev_item_bytes_used(btrfs_filesystem& fs, uint64_t devid
 static nt_status allocate_new_chunk(btrfs_filesystem& fs, chunk*& c,
                                     uint64_t type) {
     nt_status status;
-    uint64_t phys_addr, chunk_size;
+    uint64_t phys_addr1, phys_addr2, chunk_size;
     auto& di = fs.sb->dev_item;
 
-    // FIXME - DUP chunks
+    if (type & (BTRFS_BLOCK_GROUP_RAID0 | BTRFS_BLOCK_GROUP_RAID10 | BTRFS_BLOCK_GROUP_RAID5 | BTRFS_BLOCK_GROUP_RAID6))
+        return nt_status::DISK_FULL;
 
-    status = find_hole_for_chunk(fs, type, phys_addr, chunk_size);
-    if (!success(status))
-        return status;
+    if (type & BTRFS_BLOCK_GROUP_DUP) {
+        status = find_dup_holes_for_chunk(fs, type, phys_addr1, phys_addr2,
+                                          chunk_size);
+        if (!success(status))
+            return status;
+    } else {
+        status = find_single_hole_for_chunk(fs, type, phys_addr1, chunk_size);
+        if (!success(status))
+            return status;
+    }
 
     // add new chunk
 
-    c = (chunk*)malloc(offsetof(chunk, ci) + sizeof(btrfs_chunk));
+    uint16_t num_stripes = type & BTRFS_BLOCK_GROUP_DUP ? 2 : 1;
+
+    c = (chunk*)malloc(offsetof(chunk, ci) + offsetof(btrfs_chunk, stripe) + (num_stripes * sizeof(btrfs_stripe)));
     if (!c) {
         print("malloc failed\n");
-        // FIXME - put hole back
+        // FIXME - put holes back
         return nt_status::INSUFFICIENT_RESOURCES;
     }
 
@@ -2150,19 +2250,25 @@ static nt_status allocate_new_chunk(btrfs_filesystem& fs, chunk*& c,
     c->ci.io_align = (uint32_t)c->ci.stripe_len;
     c->ci.io_width = (uint32_t)c->ci.stripe_len;
     c->ci.sector_size = fs.sb->sectorsize;
-    c->ci.num_stripes = 1;
+    c->ci.num_stripes = num_stripes;
     c->ci.sub_stripes = 1;
 
     c->ci.stripe[0].devid = di.devid;
-    c->ci.stripe[0].offset = phys_addr;
+    c->ci.stripe[0].offset = phys_addr1;
     c->ci.stripe[0].dev_uuid = di.uuid;
+
+    if (type & BTRFS_BLOCK_GROUP_DUP) {
+        c->ci.stripe[1].devid = di.devid;
+        c->ci.stripe[1].offset = phys_addr2;
+        c->ci.stripe[1].dev_uuid = di.uuid;
+    }
 
     // populate space list for chunk
 
     auto s = (chunk_space*)malloc(sizeof(chunk_space));
     if (!s) {
         print("malloc failed\n");
-        // FIXME - put hole back
+        // FIXME - put holes back
         remove_entry_list(c->le);
         c->chunk::~chunk();
         free(c);
@@ -2176,7 +2282,7 @@ static nt_status allocate_new_chunk(btrfs_filesystem& fs, chunk*& c,
 
     status = protect_superblocks(*c);
     if (!success(status)) {
-        // FIXME - put hole back
+        // FIXME - put holes back
         remove_entry_list(c->le);
         c->chunk::~chunk();
         free(c);
@@ -2186,7 +2292,7 @@ static nt_status allocate_new_chunk(btrfs_filesystem& fs, chunk*& c,
     insert_tail_list(fs.new_chunks, c->new_le);
 
     // FIXME - this should be done by flush thread when multi-device support is in place
-    fs.sb->dev_item.bytes_used += chunk_size;
+    fs.sb->dev_item.bytes_used += num_stripes * chunk_size;
 
     return nt_status::SUCCESS;
 }
@@ -2194,14 +2300,14 @@ static nt_status allocate_new_chunk(btrfs_filesystem& fs, chunk*& c,
 static nt_status allocate_metadata(btrfs_filesystem& fs, uint64_t root,
                                    uint64_t& addr) {
     nt_status status;
-    uint64_t type = root == BTRFS_CHUNK_TREE_OBJECTID ? BTRFS_BLOCK_GROUP_SYSTEM : BTRFS_BLOCK_GROUP_METADATA;
+    bool system = root == BTRFS_CHUNK_TREE_OBJECTID;
 
     for (auto le = fs.chunk_list.next; le != &fs.chunk_list; le = le->next) {
         auto& c = containing_record<chunk>(le);
 
         // FIXME - skip if chunk is readonly
 
-        if (!(c.ci.type & type))
+        if (!(c.ci.type & (system ? BTRFS_BLOCK_GROUP_SYSTEM : BTRFS_BLOCK_GROUP_METADATA)))
             continue;
 
         // skip unsupported RAID types
@@ -2215,7 +2321,7 @@ static nt_status allocate_metadata(btrfs_filesystem& fs, uint64_t root,
 
     chunk* c;
 
-    status = allocate_new_chunk(fs, c, type);
+    status = allocate_new_chunk(fs, c, system ? fs.system_profile : fs.metadata_profile);
     if (!success(status))
         return status;
 
@@ -4009,7 +4115,7 @@ static nt_status allocate_data(btrfs_filesystem& fs, uint64_t size,
 
     chunk* c;
 
-    status = allocate_new_chunk(fs, c, BTRFS_BLOCK_GROUP_DATA);
+    status = allocate_new_chunk(fs, c, fs.data_profile);
     if (!success(status))
         return status;
 
