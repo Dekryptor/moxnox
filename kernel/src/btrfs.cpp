@@ -2017,15 +2017,20 @@ static nt_status next_leaf(btrfs_filesystem& fs, btrfs_path& p) {
     return nt_status::SUCCESS;
 }
 
-static nt_status find_hole_for_chunk(btrfs_filesystem& fs, uint64_t& addr,
-                                     uint64_t& hole_size) {
+static nt_status find_hole_for_chunk(btrfs_filesystem& fs, uint64_t type,
+                                     uint64_t& addr, uint64_t& hole_size) {
     // FIXME - allocating on other devices
     // FIXME - DUP allocations
     // FIXME - RAID allocations
 
     // FIXME - allow short allocations
 
-    uint64_t desired_size = 0x40000000; // 1 GB (FIXME - should be 32 MB for SYSTEM) (FIXME - Linux caps at 10% of volume)
+    uint64_t desired_size;
+
+    if (type & BTRFS_BLOCK_GROUP_SYSTEM)
+        desired_size = 0x2000000; // 32 MB
+    else
+        desired_size = 0x40000000; // 1 GB (FIXME - Linux caps at 10% of volume)
 
     for (auto le = fs.dev_space_list.next; le != &fs.dev_space_list; le = le->next) {
         auto& s = containing_record<chunk_space>(le);
@@ -2102,11 +2107,9 @@ static nt_status allocate_new_chunk(btrfs_filesystem& fs, chunk*& c,
     uint64_t phys_addr, chunk_size;
     auto& di = fs.sb->dev_item;
 
-    // FIXME - SYSTEM
-
     // FIXME - DUP chunks
 
-    status = find_hole_for_chunk(fs, phys_addr, chunk_size);
+    status = find_hole_for_chunk(fs, type, phys_addr, chunk_size);
     if (!success(status))
         return status;
 
@@ -5632,6 +5635,72 @@ static nt_status flush_new_chunk(btrfs_filesystem& fs, chunk& c) {
         status = update_dev_item_bytes_used(fs, s.devid, c.ci.length);
         if (!success(status))
             return status;
+    }
+
+    if (c.ci.type & BTRFS_BLOCK_GROUP_SYSTEM) {
+        auto new_k = btrfs_key{BTRFS_FIRST_FREE_OBJECTID, key_type::CHUNK_ITEM, c.offset};
+
+        size_t new_chunk_size = offsetof(btrfs_chunk, stripe) + (c.ci.num_stripes * sizeof(btrfs_stripe));
+
+        if (fs.sb->sys_chunk_array.size() - fs.sb->sys_chunk_array_size < sizeof(btrfs_key) + new_chunk_size) {
+            print("not enough room in superblock for new SYSTEM chunk\n");
+            return nt_status::INTERNAL_ERROR;
+        }
+
+        auto chunk_array = span(fs.sb->sys_chunk_array.data(), fs.sb->sys_chunk_array_size);
+        bool done = false;
+
+        while (!chunk_array.empty()) {
+            if (chunk_array.size() < sizeof(btrfs_key)) {
+                print("Chunk array truncated\n");
+                return nt_status::DISK_CORRUPT_ERROR;
+            }
+
+            auto& k = *(btrfs_key*)chunk_array.data();
+
+            if (k > new_k) {
+                memmove(chunk_array.data() + sizeof(btrfs_key) + new_chunk_size,
+                        chunk_array.data(), chunk_array.size());
+
+                k = new_k;
+                memcpy(chunk_array.data() + sizeof(btrfs_key), &c.ci,
+                       new_chunk_size);
+
+                done = true;
+                break;
+            }
+
+            if (k.type != key_type::CHUNK_ITEM) {
+                print("Unexpected item in chunk array\n");
+                return nt_status::DISK_CORRUPT_ERROR;
+            }
+
+            chunk_array = chunk_array.subspan(sizeof(btrfs_key));
+
+            if (chunk_array.size() < offsetof(btrfs_chunk, stripe)) {
+                print("Chunk array truncated\n");
+                return nt_status::DISK_CORRUPT_ERROR;
+            }
+
+            auto& ci = *(btrfs_chunk*)chunk_array.data();
+            size_t chunk_size = offsetof(btrfs_chunk, stripe) + (sizeof(btrfs_stripe) * ci.num_stripes);
+
+            if (chunk_array.size() < chunk_size) {
+                print("Chunk array truncated\n");
+                return nt_status::DISK_CORRUPT_ERROR;
+            }
+
+            chunk_array = chunk_array.subspan(chunk_size);
+        }
+
+        if (!done) {
+            auto& k = *(btrfs_key*)(fs.sb->sys_chunk_array.data() + fs.sb->sys_chunk_array_size);
+
+            k = new_k;
+            memcpy((uint8_t*)&k + sizeof(btrfs_key), &c.ci, new_chunk_size);
+        }
+
+        fs.sb->sys_chunk_array_size += (uint32_t)(sizeof(btrfs_key) + new_chunk_size);
     }
 
     return nt_status::SUCCESS;
