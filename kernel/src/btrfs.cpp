@@ -1858,6 +1858,10 @@ static nt_status load_space(btrfs_filesystem& fs, chunk& c) {
         switch (k.type) {
             case key_type::FREE_SPACE_EXTENT: {
                 auto s = (chunk_space*)malloc(sizeof(chunk_space));
+                if (!s) {
+                    print("malloc failed\n");
+                    return nt_status::INSUFFICIENT_RESOURCES;
+                }
 
                 // FIXME - these should be in some sort of tree rather than a linked list
 
