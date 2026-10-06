@@ -99,16 +99,16 @@ install(FILES
     Modules/Platform/Moxnox-GNU-CXX.cmake
     DESTINATION ${CMAKE_PORT_DATA_DIR}/Modules/Platform)
 
-target_compile_options(cmake PRIVATE ${USERSPACE_CFLAGS} $<$<COMPILE_LANGUAGE:CXX>:-frtti>)
-target_compile_options(CMakeLib PRIVATE ${USERSPACE_CFLAGS} $<$<COMPILE_LANGUAGE:CXX>:-frtti>)
-target_compile_options(cmllpkgc PRIVATE ${USERSPACE_CFLAGS} $<$<COMPILE_LANGUAGE:CXX>:-frtti>)
-target_compile_options(cmstd PRIVATE ${USERSPACE_CFLAGS} $<$<COMPILE_LANGUAGE:CXX>:-frtti>)
-target_compile_options(cmsys PRIVATE ${USERSPACE_CFLAGS} $<$<COMPILE_LANGUAGE:CXX>:-frtti>)
-target_compile_options(cmsys_c PRIVATE ${USERSPACE_CFLAGS} $<$<COMPILE_LANGUAGE:CXX>:-frtti>)
-target_compile_options(cpack PRIVATE ${USERSPACE_CFLAGS} $<$<COMPILE_LANGUAGE:CXX>:-frtti>)
-target_compile_options(CPackLib PRIVATE ${USERSPACE_CFLAGS} $<$<COMPILE_LANGUAGE:CXX>:-frtti>)
-target_compile_options(ctest PRIVATE ${USERSPACE_CFLAGS} $<$<COMPILE_LANGUAGE:CXX>:-frtti>)
-target_compile_options(CTestLib PRIVATE ${USERSPACE_CFLAGS} $<$<COMPILE_LANGUAGE:CXX>:-frtti>)
+target_compile_options(cmake PRIVATE ${USERSPACE_CFLAGS} -Wno-sign-conversion -Wno-implicit-int-conversion $<$<COMPILE_LANGUAGE:CXX>:-frtti>)
+target_compile_options(CMakeLib PRIVATE ${USERSPACE_CFLAGS} -Wno-sign-conversion -Wno-implicit-int-conversion -Wno-float-conversion -Wno-implicit-int-float-conversion -Wno-conversion $<$<COMPILE_LANGUAGE:CXX>:-frtti>)
+target_compile_options(cmllpkgc PRIVATE ${USERSPACE_CFLAGS} -Wno-sign-conversion $<$<COMPILE_LANGUAGE:CXX>:-frtti>)
+target_compile_options(cmstd PRIVATE ${USERSPACE_CFLAGS} -Wno-sign-conversion $<$<COMPILE_LANGUAGE:CXX>:-frtti>)
+target_compile_options(cmsys PRIVATE ${USERSPACE_CFLAGS} -Wno-sign-conversion -Wno-conversion -Wno-shorten-64-to-32 $<$<COMPILE_LANGUAGE:CXX>:-frtti>)
+target_compile_options(cmsys_c PRIVATE ${USERSPACE_CFLAGS} -Wno-sign-conversion $<$<COMPILE_LANGUAGE:CXX>:-frtti>)
+target_compile_options(cpack PRIVATE ${USERSPACE_CFLAGS} -Wno-sign-conversion $<$<COMPILE_LANGUAGE:CXX>:-frtti>)
+target_compile_options(CPackLib PRIVATE ${USERSPACE_CFLAGS} -Wno-sign-conversion $<$<COMPILE_LANGUAGE:CXX>:-frtti>)
+target_compile_options(ctest PRIVATE ${USERSPACE_CFLAGS} -Wno-sign-conversion $<$<COMPILE_LANGUAGE:CXX>:-frtti>)
+target_compile_options(CTestLib PRIVATE ${USERSPACE_CFLAGS} -Wno-sign-conversion -Wno-float-conversion $<$<COMPILE_LANGUAGE:CXX>:-frtti>)
 
 cmake_language(DEFER DIRECTORY ${CMAKE_SOURCE_DIR}
     CALL add_dependencies CMakeLib libcurl_shared expat jsoncpp_lib librhash uv zlib archive)
