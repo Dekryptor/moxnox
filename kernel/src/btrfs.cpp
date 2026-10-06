@@ -1789,6 +1789,27 @@ static nt_status remove_from_space_list(chunk& c, uint64_t addr, uint64_t size) 
     return nt_status::SUCCESS;
 }
 
+static nt_status protect_superblocks(chunk& c) {
+    nt_status status;
+
+    for (auto addr : superblock_addrs) {
+        for (uint16_t i = 0; i < c.ci.num_stripes; i++) {
+            auto& s = c.ci.stripe[i];
+
+            if (s.offset <= addr + 0x10000 && s.offset + c.ci.length >= addr) {
+                uint64_t start = max(addr, s.offset) - s.offset + c.offset;
+                uint64_t end = min(addr + 0x10000, s.offset + c.ci.length) - s.offset + c.offset;
+
+                status = remove_from_space_list(c, start, end - start);
+                if (!success(status))
+                    return status;
+            }
+        }
+    }
+
+    return nt_status::SUCCESS;
+}
+
 static nt_status load_space(btrfs_filesystem& fs, chunk& c) {
     lock_guard lock(c.space_loading_lock);
 
@@ -1857,20 +1878,9 @@ static nt_status load_space(btrfs_filesystem& fs, chunk& c) {
         }
     } while (true);
 
-    for (auto addr : superblock_addrs) {
-        for (uint16_t i = 0; i < c.ci.num_stripes; i++) {
-            auto& s = c.ci.stripe[i];
-
-            if (s.offset <= addr + 0x10000 && s.offset + c.ci.length >= addr) {
-                uint64_t start = max(addr, s.offset) - s.offset + c.offset;
-                uint64_t end = min(addr + 0x10000, s.offset + c.ci.length) - s.offset + c.offset;
-
-                status = remove_from_space_list(c, start, end - start);
-                if (!success(status))
-                    return status;
-            }
-        }
-    }
+    status = protect_superblocks(c);
+    if (!success(status))
+        return status;
 
     c.space_loaded = true;
 
@@ -2160,12 +2170,19 @@ static nt_status allocate_new_chunk(btrfs_filesystem& fs, chunk*& c,
     insert_tail_list(c->space_list, s->le);
     c->space_loaded = true;
 
+    status = protect_superblocks(*c);
+    if (!success(status)) {
+        // FIXME - put hole back
+        remove_entry_list(c->le);
+        c->chunk::~chunk();
+        free(c);
+        return status;
+    }
+
     insert_tail_list(fs.new_chunks, c->new_le);
 
     // FIXME - this should be done by flush thread when multi-device support is in place
     fs.sb->dev_item.bytes_used += chunk_size;
-
-    // FIXME - cut out superblocks
 
     return nt_status::SUCCESS;
 }
