@@ -1175,7 +1175,7 @@ nt_status btrfs_filesystem::flush_cache(uint64_t page_num, uint64_t num_pages) {
 
     auto& c = *pc;
 
-    if (c.ci.type & BTRFS_BLOCK_GROUP_METADATA) {
+    if (c.ci.type & (BTRFS_BLOCK_GROUP_METADATA | BTRFS_BLOCK_GROUP_SYSTEM)) {
         uint64_t pages_written = 0;
 
         if (page_num % pages_per_tree || num_pages % pages_per_tree) // not aligned to tree
