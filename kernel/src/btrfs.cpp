@@ -205,6 +205,7 @@ public:
     ~btrfs_filesystem() override {
         free_chunk_list();
         free_root_list();
+        free_dev_space_list();
         vol->release();
 
         if (sb)
@@ -258,12 +259,15 @@ public:
     object_ref readonly_event;
     btrfs_uuid chunk_uuid;
     list_entry new_chunks = { &new_chunks, &new_chunks };
+    list_entry dev_space_list = { &dev_space_list, &dev_space_list };
 
 private:
     bool load_chunks();
     bool load_roots();
+    bool load_dev_space();
     void free_chunk_list();
     void free_root_list();
+    void free_dev_space_list();
     void go_readonly();
     nt_status query_volume_size_info(span<uint8_t> buf, uint32_t& retlen);
     nt_status query_volume_attribute_info(span<uint8_t> buf, uint32_t& retlen);
@@ -605,6 +609,13 @@ btrfs_filesystem::btrfs_filesystem(volume& vol) : filesystem(&vol) {
         return;
     }
 
+    // FIXME - set readonly if underlying disk is RO
+
+    if (!readonly && !load_dev_space()) {
+        print("load_dev_space failed\n");
+        return;
+    }
+
     // FIXME - default subvol
 
     auto btrfs_root_inode = new btrfs_inode(*this, BTRFS_FS_TREE_OBJECTID, SUBVOL_ROOT_INODE,
@@ -636,8 +647,6 @@ btrfs_filesystem::btrfs_filesystem(volume& vol) : filesystem(&vol) {
     }
 
     valid = true;
-
-    // FIXME - set readonly if underlying disk is RO
 
     if (!readonly) {
         acquire();
@@ -771,6 +780,103 @@ bool btrfs_filesystem::load_chunks() {
 
     free_chunk_list();
     swap_lists(chunk_list, new_chunk_list);
+
+    return true;
+}
+
+bool btrfs_filesystem::load_dev_space() {
+    btrfs_path p(sb->nodesize);
+    uint64_t devid = sb->dev_item.devid;
+
+    auto status = find_item(*dev_root, {devid - 1, key_type::DEV_EXTENT, 0xffffffffffffffff}, p, false);
+    if (!success(status))
+        return false;
+
+    bool fail = false;
+    uint64_t last_end = 0x100000; // 1 MB
+    bool have_items = true;
+
+    {
+        auto& th = *(btrfs_header*)p.data[0];
+
+        if (p.slots[0] == th.nritems) {
+            if (!move_path_forward(p))
+                have_items = false;
+        }
+    }
+
+    if (have_items) {
+        do {
+            auto& th = *(btrfs_header*)p.data[0];
+            auto items = span((btrfs_item*)((uint8_t*)&th + sizeof(btrfs_header)), th.nritems);
+
+            if (p.slots[0] >= th.nritems)
+                break;
+
+            const auto& it = items[p.slots[0]];
+            const auto& k = it.key;
+
+            if (k.objectid > devid)
+                break;
+
+            if (k.type != key_type::DEV_EXTENT || k.objectid != devid) {
+                if (!move_path_forward(p))
+                    break;
+
+                continue;
+            }
+
+            auto data = span((const uint8_t*)&th + sizeof(btrfs_header) + it.offset, it.size);
+
+            if (data.size() < sizeof(btrfs_dev_extent)) {
+                fail = true;
+                break;
+            }
+
+            auto& de = *(btrfs_dev_extent*)data.data();
+
+            if (last_end < k.offset) {
+                auto s = (chunk_space*)malloc(sizeof(chunk_space));
+                if (!s) {
+                    print("malloc failed\n");
+                    fail = true;
+                    break;
+                }
+
+                s->offset = last_end;
+                s->length = k.offset - last_end;
+                insert_tail_list(dev_space_list, s->le);
+            }
+
+            last_end = k.offset + de.length;
+
+            if (!move_path_forward(p))
+                break;
+        } while (true);
+    }
+
+    if (last_end < sb->dev_item.total_bytes) {
+        auto s = (chunk_space*)malloc(sizeof(chunk_space));
+        if (!s) {
+            print("malloc failed\n");
+            fail = true;
+        } else {
+            s->offset = last_end;
+            s->length = sb->dev_item.total_bytes - last_end;
+            insert_tail_list(dev_space_list, s->le);
+        }
+    }
+
+    if (fail) {
+        while (!is_list_empty(dev_space_list)) {
+            auto& s = containing_record<chunk_space>(dev_space_list.next);
+
+            remove_entry_list(s.le);
+            free(&s);
+        }
+
+        return false;
+    }
 
     return true;
 }
@@ -1234,6 +1340,15 @@ void btrfs_filesystem::free_root_list() {
 
         remove_entry_list(r.le);
         free(&r);
+    }
+}
+
+void btrfs_filesystem::free_dev_space_list() {
+    while (!is_list_empty(dev_space_list)) {
+        auto& s = containing_record<chunk_space>(dev_space_list.next);
+
+        remove_entry_list(s.le);
+        free(&s);
     }
 }
 
