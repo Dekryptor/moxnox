@@ -72,8 +72,6 @@ static void get_mount_info(HANDLE vfsctl, uint64_t num, mount_info& mi,
     if (source.empty())
         source = type;
 
-    // FIXME - Filesystem, 1K-blocks, Used, Available, Use%, Mounted on
-
     auto u16len = utf8_to_utf16_len(directory);
     u16.reset(new char16_t[u16len]);
     if (!u16) {
@@ -208,9 +206,9 @@ static int list_all(bool human_readable) {
     }
 
     info[0].source = "Filesystem";
-    info[0].total = "1K-blocks";
+    info[0].total = human_readable ? "Size" : "1K-blocks";
     info[0].used = "Used";
-    info[0].available = "Available";
+    info[0].available = human_readable ? "Avail" : "Available";
     info[0].usedpc = "Use%";
     info[0].directory = "Mounted on";
 
