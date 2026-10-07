@@ -470,7 +470,7 @@ bool mapping::copy_to(uint32_t offset, const void* ks_addr, uint32_t size) {
                                 return false;
                             }
                         } else if (!p->dirty) {
-                            auto pfn = cow_folio(p->pfn << PAGE_SHIFT) >> PAGE_SHIFT;
+                            auto pfn = cow_folio(p->pfn << PAGE_SHIFT, page_state::cache) >> PAGE_SHIFT;
                             if (pfn == 0) {
                                 print("cow_folio failed\n");
                                 cache.unpin(sect_page_num, 1);
@@ -721,7 +721,7 @@ bool make_pte_writable(uintptr_t address, mapping& m, pte_type& pte,
             if (!p->dirty) {
                 assert(p->pfn != 0);
 
-                auto new_pfn = cow_folio(p->pfn << PAGE_SHIFT) >> PAGE_SHIFT;
+                auto new_pfn = cow_folio(p->pfn << PAGE_SHIFT, page_state::cache) >> PAGE_SHIFT;
                 if (new_pfn == 0) {
                     print("out of memory\n");
                     cache.unpin(sect_page_num, 1);

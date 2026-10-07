@@ -266,7 +266,7 @@ bool page_cache_base::write_page_vec_and_unpin(uint64_t first_page,
 
     assert(ent->tree.key == first_page);
 
-    auto pfn = cow_folio(ent->pfn << PAGE_SHIFT) >> PAGE_SHIFT;
+    auto pfn = cow_folio(ent->pfn << PAGE_SHIFT, page_state::cache) >> PAGE_SHIFT;
     if (!pfn) {
         ent->refcount--; // unpin
         return false;

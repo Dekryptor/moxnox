@@ -168,7 +168,7 @@ export bool init_memory(const loader_block& lb);
 export void free_no_lock(void* ptr);
 export void free_folio(uint64_t pa);
 export void free_bootloader_memory();
-export uint64_t cow_folio(uint64_t pa);
+export uint64_t cow_folio(uint64_t pa, enum page_state state = page_state::used);
 export void unmap_page(uint64_t va);
 export void protect_page(uint64_t va, enum mapping_type type);
 export bool init_vablock();

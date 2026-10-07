@@ -1804,7 +1804,7 @@ void free_bootloader_memory() {
     }
 }
 
-uint64_t cow_folio(uint64_t pa) {
+uint64_t cow_folio(uint64_t pa, enum page_state state) {
     uint64_t pfn = pa >> PAGE_SHIFT;
     auto& p = pages[pfn];
 
@@ -1819,7 +1819,7 @@ uint64_t cow_folio(uint64_t pa) {
             return pa;
     }
 
-    auto new_pa = allocate_folio(p.order);
+    auto new_pa = allocate_folio(p.order, state);
     if (!new_pa)
         return 0;
 
