@@ -420,10 +420,8 @@ btrfs_filesystem::btrfs_filesystem(volume& vol) : filesystem(&vol) {
     vol.acquire();
 
     auto sb_pa = allocate_folio(bytes_to_folio_order(sizeof(btrfs_super_block)));
-    if (!sb_pa) {
-        print("allocate_folio failed\n");
+    if (!sb_pa)
         return;
-    }
 
     sb = (btrfs_super_block*)phys_address(sb_pa);
 
@@ -3876,8 +3874,6 @@ nt_status btrfs_inode::read_inline_extent_into_cache(uint64_t page_num,
             if (dest_p->pfn == 0) {
                 auto pa = allocate_folio(0);
                 if (!pa) {
-                    print("allocate_folio failed\n");
-
                     if (i == 0)
                         return nt_status::INSUFFICIENT_RESOURCES;
                     else {

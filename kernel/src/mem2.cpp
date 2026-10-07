@@ -426,6 +426,8 @@ inline __attribute((always_inline)) uint64_t allocate_folio_no_lock(uint8_t orde
         return pfn << PAGE_SHIFT;
     }
 
+    print("allocate_folio failed\n");
+
     return 0;
 }
 
@@ -987,10 +989,8 @@ static bool map_physical_memory(uint64_t num_pages) {
             auto& p0 = pte0[((PHYS_MEMORY & 0xff8000000000) >> 39) + (i / PTES_PER_PAGE)];
 
             auto pa = allocate_folio<true>(0, page_state::used);
-            if (!pa) {
-                print("allocate_folio failed\n");
+            if (!pa)
                 return false;
-            }
 
             p0.valid = 1;
             p0.table_entry = 1;
@@ -1034,10 +1034,8 @@ static bool map_physical_memory(uint64_t num_pages) {
     auto pdpt = span((HARDWARE_PTE*)(SELFMAP_PDPT | (((PHYS_MEMORY & 0xff8000000000) >> 39) << PAGE_SHIFT)), 512);
 
     auto pa = allocate_page();
-    if (!pa) {
-        print("allocate_page failed\n");
+    if (!pa)
         return false;
-    }
 
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wconversion"
@@ -1993,10 +1991,8 @@ bool init_vablock() {
 
     for (unsigned int i = 0; i < num_pages; i++) {
         auto pa = allocate_folio<true>(0, page_state::used);
-        if (!pa) {
-            print("allocate_folio failed\n");
+        if (!pa)
             return false;
-        }
 
 #ifdef __aarch64__
         if (!map_page<true>(pa, va, mapping_type::read_write)) {
@@ -2607,8 +2603,6 @@ void* allocate_stack() {
 
         auto pa = try_allocate_folio<no_lock>(max_order);
         if (!pa) {
-            print("allocate_folio failed\n");
-
             va = orig_va + (KERNEL_GUARD_PAGES << PAGE_SHIFT);
             while (pages_left < KERNEL_STACK_PAGES) {
                 auto pa = va_to_pa_lookup(va);

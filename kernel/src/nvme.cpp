@@ -206,14 +206,11 @@ nvme_controller::nvme_controller(const pci_device& dev) {
     doorbell_stride = 1 << (((cap & 0xf00000000) >> 32) + 2);
 
     auto admin_sq_phys = allocate_page();
-    if (!admin_sq_phys) {
-        print("allocate_page failed\n");
+    if (!admin_sq_phys)
         return;
-    }
 
     auto admin_cq_phys = allocate_page();
     if (!admin_cq_phys) {
-        print("allocate_page failed\n");
         free_folio(admin_sq_phys);
         return;
     }
@@ -374,10 +371,8 @@ void nvme_queue::submit(nvme_request& req) {
 
 bool nvme_controller::identify_controller(nvme_queue& queue) {
     auto p = allocate_folio(bytes_to_folio_order(sizeof(nvme_identify_controller_data)));
-    if (!p) {
-        print("allocate_folio failed\n");
+    if (!p)
         return false;
-    }
 
     nvme_request req;
 
@@ -444,10 +439,8 @@ bool nvme_controller::identify_namespaces(nvme_queue& queue) {
     static const size_t p_size = MAX_NAMESPACES * sizeof(uint32_t);
 
     auto p = allocate_folio(bytes_to_folio_order(p_size));
-    if (!p) {
-        print("allocate_folio failed\n");
+    if (!p)
         return false;
-    }
 
     nvme_request req;
 
@@ -497,7 +490,6 @@ bool nvme_controller::identify_namespaces(nvme_queue& queue) {
 
         req2->p = allocate_folio(bytes_to_folio_order(sizeof(nvme_identify_namespace_data)));
         if (!req2->p) {
-            print("allocate_folio failed\n");
             delete req2;
             return false;
         }
@@ -776,10 +768,8 @@ bool nvme_controller::create_io_queues(const pci_device& dev, nvme_queue& queue)
     // create completion queue
 
     auto cq = allocate_folio(bytes_to_folio_order((1 << controller_info->mincqes) * QUEUE_SIZE));
-    if (!cq) {
-        print("allocate_folio failed\n");
+    if (!cq)
         return false;
-    }
 
     memset(phys_address(cq), 0, (1 << controller_info->mincqes) * QUEUE_SIZE);
 
@@ -819,7 +809,6 @@ bool nvme_controller::create_io_queues(const pci_device& dev, nvme_queue& queue)
 
     auto sq = allocate_folio(bytes_to_folio_order((1 << controller_info->minsqes) * QUEUE_SIZE));
     if (!sq) {
-        print("allocate_folio failed\n");
         // FIXME - delete CQ and free its buffer
         return false;
     }
@@ -925,10 +914,8 @@ nt_status nvme_namespace::dio_read(uint64_t page_num, uint64_t num_pages,
             prp2 = 0;
     } else {
         prp2 = allocate_folio(0);
-        if (!prp2) {
-            print("allocate_folio failed\n");
+        if (!prp2)
             return nt_status::INSUFFICIENT_RESOURCES;
-        }
 
         auto ptr = (uint64_t*)phys_address(prp2);
 
@@ -1039,10 +1026,8 @@ nt_status nvme_namespace::dio_write(uint64_t page_num, uint64_t num_pages,
             prp2 = 0;
     } else {
         prp2 = allocate_folio(0);
-        if (!prp2) {
-            print("allocate_folio failed\n");
+        if (!prp2)
             return nt_status::INSUFFICIENT_RESOURCES;
-        }
 
         auto ptr = (uint64_t*)phys_address(prp2);
 

@@ -688,10 +688,8 @@ static bool setup_idt() {
 
 task_state_segment* init_tss() {
     auto pa = allocate_page();
-    if (!pa) {
-        print("allocate_page failed\n");
+    if (!pa)
         return nullptr;
-    }
 
     auto& tss = *(task_state_segment*)phys_address(pa);
     memset(&tss, 0, sizeof(tss));

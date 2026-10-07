@@ -1338,10 +1338,8 @@ nt_status sd_volume::dio_read(uint64_t page_num, uint64_t num_pages,
     // prepare ADMA2 data structure
 
     auto adma_page = allocate_folio(0);
-    if (!adma_page) {
-        print("allocate_folio failed\n");
+    if (!adma_page)
         return nt_status::INSUFFICIENT_RESOURCES;
-    }
 
     auto descs = span((adma2_descriptor64*)phys_address(adma_page),
                       PAGE_SIZE / sizeof(adma2_descriptor64));
@@ -1476,10 +1474,8 @@ nt_status sd_volume::dio_write(uint64_t page_num, uint64_t num_pages,
     // prepare ADMA2 data structure
 
     auto adma_page = allocate_folio(0);
-    if (!adma_page) {
-        print("allocate_folio failed\n");
+    if (!adma_page)
         return nt_status::INSUFFICIENT_RESOURCES;
-    }
 
     auto descs = span((adma2_descriptor64*)phys_address(adma_page),
                       PAGE_SIZE / sizeof(adma2_descriptor64));

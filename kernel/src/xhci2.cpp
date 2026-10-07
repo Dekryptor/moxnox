@@ -487,8 +487,6 @@ bool xhci::init_scratchpad() {
     for (unsigned int i = 0; i < max_scratchpad_buffers; i++) {
         auto buf = allocate_folio(scratchpad_order);
         if (!buf) {
-            print("allocate_folio failed\n");
-
             for (unsigned int j = 0; j < i; j++) {
                 free_folio(scratchpad_array[j]);
             }
@@ -2540,7 +2538,6 @@ void usb_hub::device_found(uint8_t slot, uint8_t port, enum usb_speed_class spee
         } else {
             auto f = allocate_folio(conf_order);
             if (!f) {
-                print("allocate_folio failed\n");
                 d->release();
                 free(buf);
                 return;

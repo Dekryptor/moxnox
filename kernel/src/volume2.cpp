@@ -370,10 +370,8 @@ nt_status volume::read_into_cache(uint64_t page_num, uint64_t num_pages,
 
         if (p->pfn == 0) {
             auto pa = allocate_folio(0);
-            if (!pa) {
-                print("allocate_folio failed\n");
+            if (!pa)
                 return nt_status::INSUFFICIENT_RESOURCES;
-            }
 
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wconversion"

@@ -362,7 +362,6 @@ static bool allocate_peb(process& proc, HANDLE stdinh, HANDLE stdouth,
 
     auto pa = allocate_folio(0);
     if (!pa) {
-        print("allocate_folio failed\n");
         m.release();
         return false;
     }
@@ -1245,7 +1244,6 @@ static bool populate_teb(process& proc, ::thread& t) {
 
     auto pa = allocate_folio(0);
     if (!pa) {
-        print("allocate_folio failed\n");
         m.release();
         return false;
     }
@@ -1680,10 +1678,8 @@ bool process::handle_page_fault(uintptr_t address, uint64_t error_code) {
 #ifdef __aarch64__
 bool process::allocate_ttbr0() {
     ttbr0 = allocate_folio(0);
-    if (!ttbr0) {
-        print("allocate_folio failed\n");
+    if (!ttbr0)
         return false;
-    }
 
     memset(phys_address(ttbr0), 0, PAGE_SIZE);
 
@@ -1694,10 +1690,8 @@ bool process::allocate_cr3() {
     auto kernel_cr3 = get_cpu_block()->kernel_cr3;
 
     cr3 = allocate_folio(0);
-    if (!cr3) {
-        print("allocate_folio failed\n");
+    if (!cr3)
         return false;
-    }
 
     auto va = phys_address(cr3);
 
@@ -7337,10 +7331,8 @@ static nt_status prepare_forked_ptes2(unsigned int level,
 
         if (level > 1) {
             auto pa = allocate_folio(0);
-            if (!pa) {
-                print("allocate_folio failed\n");
+            if (!pa)
                 return nt_status::INSUFFICIENT_RESOURCES;
-            }
 
             memset(phys_address(pa), 0, PAGE_SIZE);
 
@@ -7381,10 +7373,8 @@ static nt_status prepare_forked_ptes(process& parent, process& child) {
             continue;
 
         auto pa = allocate_folio(0);
-        if (!pa) {
-            print("allocate_folio failed\n");
+        if (!pa)
             return nt_status::INSUFFICIENT_RESOURCES;
-        }
 
         memset(phys_address(pa), 0, PAGE_SIZE);
 
@@ -7420,10 +7410,8 @@ static nt_status prepare_forked_ptes2(unsigned int level,
 
         if (level > 1) {
             auto pa = allocate_folio(0);
-            if (!pa) {
-                print("allocate_folio failed\n");
+            if (!pa)
                 return nt_status::INSUFFICIENT_RESOURCES;
-            }
 
             memset(phys_address(pa), 0, PAGE_SIZE);
 
@@ -7464,10 +7452,8 @@ static nt_status prepare_forked_ptes(process& parent, process& child) {
             continue;
 
         auto pa = allocate_folio(0);
-        if (!pa) {
-            print("allocate_folio failed\n");
+        if (!pa)
             return nt_status::INSUFFICIENT_RESOURCES;
-        }
 
         memset(phys_address(pa), 0, PAGE_SIZE);
 

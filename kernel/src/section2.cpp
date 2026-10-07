@@ -1088,8 +1088,6 @@ nt_status image_section_cache::read_into_cache(uint64_t page_num, uint64_t num_p
                 dest_p->pfn = allocate_folio(0) >> PAGE_SHIFT;
 #pragma GCC diagnostic pop
                 if (!dest_p->pfn) {
-                    print("allocate_folio failed\n");
-
                     f.cache.unpin(page_num, cache_read_pages);
 
                     return nt_status::INSUFFICIENT_RESOURCES;
@@ -1207,7 +1205,6 @@ nt_status image_section_cache::read_into_cache(uint64_t page_num, uint64_t num_p
                 dest_p->pfn = allocate_folio(0) >> PAGE_SHIFT;
 #pragma GCC diagnostic pop
                 if (!dest_p->pfn) {
-                    print("allocate_folio failed\n");
                     f.cache.unpin(file_start_page, num_file_pages);
                     return nt_status::INSUFFICIENT_RESOURCES;
                 }

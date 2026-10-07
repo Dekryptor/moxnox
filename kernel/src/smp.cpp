@@ -146,10 +146,8 @@ static void setup_ap_gdt(task_state_segment* tss) {
     // FIXME - BSOD if any of this fails
 
     auto pa = allocate_page();
-    if (!pa) {
-        print("allocate_page failed\n");
+    if (!pa)
         return;
-    }
 
     auto va = allocate_va(1);
     if (!va) {
@@ -373,10 +371,8 @@ static void start_cpu(uint64_t mpidr, uint64_t entry_point_phys,
 static uint64_t setup_identity_map(uintptr_t ap_trampoline_phys, uintptr_t stack) {
     // allocate four pages
     auto pa = allocate_folio(2);
-    if (!pa) {
-        print("allocate_folio failed\n");
+    if (!pa)
         return 0;
-    }
 
     auto pte0 = span((ARM64_HARDWARE_PTE*)phys_address(pa), PAGE_SIZE / sizeof(ARM64_HARDWARE_PTE));
     auto pte1 = span((ARM64_HARDWARE_PTE*)phys_address(pa + PAGE_SIZE), PAGE_SIZE / sizeof(ARM64_HARDWARE_PTE));
@@ -633,7 +629,6 @@ export bool init_smp() {
 
                     boot_info[i].stack_pa = allocate_page();
                     if (!boot_info[i].stack_pa) {
-                        print("allocate_page failed\n");
                         // FIXME - deallocate what's already been allocated (or BSOD)
                         free(boot_info);
                         return false;

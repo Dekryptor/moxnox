@@ -544,10 +544,8 @@ uintptr_t init_cpu_block(unsigned int cpu_no) {
     for (unsigned int i = 0; i < pages; i++) {
         if (cpu_no == 0) {
             auto pa = allocate_folio<true>(0, page_state::used);
-            if (!pa) {
-                print("allocate_folio failed\n");
+            if (!pa)
                 return 0;
-            }
 
             if (!map_page<true>(pa, va, mapping_type::read_write)) {
                 print("map_page failed\n");
@@ -555,10 +553,8 @@ uintptr_t init_cpu_block(unsigned int cpu_no) {
             }
         } else {
             auto pa = allocate_page();
-            if (!pa) {
-                print("allocate_page failed\n");
+            if (!pa)
                 return 0;
-            }
 
             if (!map_page(pa, va, mapping_type::read_write)) {
                 print("map_page failed\n");
@@ -571,19 +567,13 @@ uintptr_t init_cpu_block(unsigned int cpu_no) {
 
     uint64_t printk_scratch_pa;
 
-    if (cpu_no == 0) {
+    if (cpu_no == 0)
         printk_scratch_pa = allocate_folio<true>(0, page_state::used);
-        if (!printk_scratch_pa) {
-            print("allocate_folio failed\n");
-            return 0;
-        }
-    } else {
+    else
         printk_scratch_pa = allocate_page();
-        if (!printk_scratch_pa) {
-            print("allocate_page failed\n");
-            return 0;
-        }
-    }
+
+    if (!printk_scratch_pa)
+        return 0;
 
     memset((void*)&cb, 0, sizeof(cb)); // avoid GCC warning
 

@@ -327,10 +327,8 @@ bool mapping::copy_to(uint32_t offset, const void* ks_addr, uint32_t size) {
 
                 if (!pte_valid) {
                     pa = allocate_folio(0);
-                    if (!pa) {
-                        print("allocate_folio failed\n");
+                    if (!pa)
                         return false;
-                    }
 
                     if (to_copy < PAGE_SIZE) {
                         page_cache_entry* p;
@@ -378,10 +376,8 @@ bool mapping::copy_to(uint32_t offset, const void* ks_addr, uint32_t size) {
                         }
                     } else {
                         pa = allocate_folio(0);
-                        if (!pa) {
-                            print("allocate_folio failed\n");
+                        if (!pa)
                             return false;
-                        }
 
                         memcpy(phys_address(pa), phys_address(pte.pfn << PAGE_SHIFT),
                                PAGE_SIZE);
@@ -470,7 +466,6 @@ bool mapping::copy_to(uint32_t offset, const void* ks_addr, uint32_t size) {
 #pragma GCC diagnostic pop
 
                             if (!p->pfn) {
-                                print("allocate_folio failed\n");
                                 cache.unpin(sect_page_num, 1);
                                 return false;
                             }
@@ -686,10 +681,8 @@ bool make_pte_writable(uintptr_t address, mapping& m, pte_type& pte,
             send_ipi = pfn != pte.pfn;
         } else {
             pfn = allocate_folio(0) >> PAGE_SHIFT;
-            if (pfn == 0) {
-                print("allocate_folio failed\n");
+            if (pfn == 0)
                 return false;
-            }
 
             memcpy(phys_address(pfn << PAGE_SHIFT),
                    phys_address(pte.pfn << PAGE_SHIFT), PAGE_SIZE);

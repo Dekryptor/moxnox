@@ -1822,7 +1822,6 @@ nt_status kmsg_buf::write(span<const span<const uint8_t>> v,
 
             p->pa = allocate_folio(0);
             if (!p->pa) {
-                print("allocate_folio failed\n");
                 delete p;
                 return nt_status::INSUFFICIENT_RESOURCES;
             }

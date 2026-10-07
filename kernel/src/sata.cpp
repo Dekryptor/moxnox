@@ -263,14 +263,11 @@ bool sata_device::identify() {
 
 sata_device::sata_device(volatile HBA_PORT& port) : port(port) {
     auto clb_pa = allocate_page();
-    if (!clb_pa) {
-        print("allocate_page failed\n");
+    if (!clb_pa)
         return;
-    }
 
     auto fb_pa = allocate_page();
     if (!fb_pa) {
-        print("allocate_page failed\n");
         free_folio(clb_pa);
         return;
     }
@@ -340,8 +337,6 @@ sata_device::sata_device(volatile HBA_PORT& port) : port(port) {
     for (unsigned int i = 0; i < cmdtbl_pages; i++) {
         auto pa = allocate_page();
         if (!pa) {
-            print("allocate_page failed\n");
-
             for (unsigned int j = 0; j < i; j++) {
                 auto pa = va_to_pa_lookup(va3 + (j << PAGE_SHIFT));
 

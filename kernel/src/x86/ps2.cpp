@@ -425,10 +425,8 @@ static void init_keyboard(uint16_t port1, uint16_t port2, uint32_t irq) {
         return;
 
     auto pa = allocate_page();
-    if (!pa) {
-        print("allocate_page failed\n");
+    if (!pa)
         return;
-    }
 
     keyboard_buffer = (uint8_t*)phys_address(pa);
 
