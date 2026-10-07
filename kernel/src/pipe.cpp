@@ -465,7 +465,7 @@ NTSTATUS pipe::read(span<const span<uint8_t>> v, uint64_t& read_bytes) {
         buf_unread -= to_copy;
         copied += to_copy;
 
-        if (buf_unread == 0)
+        if (buf_unread == 0 && !eof_pending && !server_closed)
             signalled = false;
 
         if (!not_full_event.signalled)
