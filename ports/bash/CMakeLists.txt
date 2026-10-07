@@ -366,3 +366,6 @@ target_compile_options(bash PRIVATE
 target_link_libraries(bash PRIVATE moxnox readline libiconv)
 
 install(TARGETS bash DESTINATION ${CMAKE_INSTALL_PREFIX}/bin)
+
+install(CODE "file(MAKE_DIRECTORY \"\$ENV{DESTDIR}${CMAKE_INSTALL_PREFIX}/bin\")")
+install(CODE "file(CREATE_LINK bash.exe \"\$ENV{DESTDIR}${CMAKE_INSTALL_PREFIX}/bin/sh\" SYMBOLIC)")
