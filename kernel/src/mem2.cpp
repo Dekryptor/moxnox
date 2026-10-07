@@ -62,7 +62,7 @@ list_entry folio_free_lists[MAX_FOLIO_ORDER + 1];
 uint64_t free_folios[MAX_FOLIO_ORDER + 1];
 
 static uint64_t slab_pages_used = 0, cache_pages_used = 0, used_pages = 0;
-static uint64_t pte_pages_used = 0;
+static uint64_t pte_pages_used = 0, process_memory_pages_used = 0;
 
 list_entry boot_pages = { &boot_pages, &boot_pages };
 
@@ -399,6 +399,20 @@ static void check_free_folios() {
 }
 #endif
 
+static bool page_state_is_refcounted(enum page_state state) {
+    switch (state) {
+        using enum page_state;
+
+        case used:
+        case cache:
+        case process_memory:
+            return true;
+
+        default:
+            return false;
+    }
+}
+
 inline __attribute((always_inline)) uint64_t allocate_folio_no_lock(uint8_t order, enum page_state state) {
     for (unsigned int i = order; i <= MAX_FOLIO_ORDER; i++) {
         if (is_list_empty(folio_free_lists[i]))
@@ -422,7 +436,7 @@ inline __attribute((always_inline)) uint64_t allocate_folio_no_lock(uint8_t orde
         remove_entry_list(pages[pfn].free.le);
         pages[pfn].state = state;
 
-        if (state == page_state::used || state == page_state::cache)
+        if (page_state_is_refcounted(state))
             pages[pfn].used.refcount = 1;
 
         free_folios[order]--;
@@ -451,6 +465,11 @@ inline __attribute((always_inline)) uint64_t allocate_folio_no_lock(uint8_t orde
 
             case used:
                 used_pages += 1 << order;
+                break;
+
+            case process_memory:
+                process_memory_pages_used += 1 << order;
+                break;
 
             default:
                 break;
@@ -463,7 +482,8 @@ inline __attribute((always_inline)) uint64_t allocate_folio_no_lock(uint8_t orde
 }
 
 static void print_allocator_failure_message() {
-    uint64_t free_pages = 0, slab_used, cache_used, local_used_pages, pte_used;
+    uint64_t free_pages = 0, slab_used, cache_used, local_used_pages, pte_used,
+             process_memory_used;
 
     {
         lock_guard lock(pa_spinlock);
@@ -476,10 +496,12 @@ static void print_allocator_failure_message() {
         cache_used = cache_pages_used;
         local_used_pages = used_pages;
         pte_used = pte_pages_used;
+        process_memory_used = process_memory_pages_used;
     }
 
-    print("allocate_folio failed (free_pages = {}, slab_used = {}, cache_used = {}, used_pages = {}, pte_used = {})\n",
-          free_pages, slab_used, cache_used, local_used_pages, pte_used);
+    print("allocate_folio failed (free_pages = {}, slab_used = {}, cache_used = {}, used_pages = {}, pte_used = {}, process_memory_used = {})\n",
+          free_pages, slab_used, cache_used, local_used_pages, pte_used,
+          process_memory_used);
 }
 
 template<bool no_lock>
@@ -1774,7 +1796,7 @@ void free_folio_no_lock(uint64_t pa) {
         bsod_format("free_folio called for PFN {:x} with state folio_following", pfn);
 #endif
 
-    if (pages[pfn].state == page_state::used || pages[pfn].state == page_state::cache) {
+    if (page_state_is_refcounted(pages[pfn].state)) {
         pages[pfn].used.refcount--;
 
         if (pages[pfn].used.refcount != 0)
@@ -1810,6 +1832,10 @@ void free_folio_no_lock(uint64_t pa) {
 
         case pte:
             pte_pages_used -= 1 << pages[pfn].order;
+            break;
+
+        case process_memory:
+            process_memory_pages_used -= 1 << pages[pfn].order;
             break;
 
         default:
@@ -1853,7 +1879,7 @@ uint64_t cow_folio(uint64_t pa, enum page_state state) {
     {
         lock_guard lock(pa_spinlock);
 
-        assert(p.state == page_state::used || p.state == page_state::cache);
+        assert(page_state_is_refcounted(p.state));
 
         if (p.used.refcount == 1) // no COW necessary
             return pa;
@@ -2561,7 +2587,7 @@ uint64_t try_allocate_folio(uint8_t order, enum page_state state = page_state::u
             remove_entry_list(p.free.le);
             p.state = state;
 
-            if (state == page_state::used || state == page_state::cache)
+            if (page_state_is_refcounted(state))
                 p.used.refcount = 1;
 
             free_folios[order]--;
@@ -2689,7 +2715,7 @@ void increase_page_refcount(uint64_t pfn) {
     {
         lock_guard lock(pa_spinlock);
 
-        assert(p.state == page_state::used || p.state == page_state::cache);
+        assert(page_state_is_refcounted(p.state));
 
         p.used.refcount++;
     }

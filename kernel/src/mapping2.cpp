@@ -326,7 +326,7 @@ bool mapping::copy_to(uint32_t offset, const void* ks_addr, uint32_t size) {
                 uint64_t pa;
 
                 if (!pte_valid) {
-                    pa = allocate_folio(0);
+                    pa = allocate_folio(0, page_state::process_memory);
                     if (!pa)
                         return false;
 
@@ -369,13 +369,14 @@ bool mapping::copy_to(uint32_t offset, const void* ks_addr, uint32_t size) {
                     }
                 } else {
                     if (pte.owned) {
-                        pa = cow_folio(pte.pfn << PAGE_SHIFT);
+                        pa = cow_folio(pte.pfn << PAGE_SHIFT,
+                                       page_state::process_memory);
                         if (!pa) {
                             print("cow_folio failed\n");
                             return false;
                         }
                     } else {
-                        pa = allocate_folio(0);
+                        pa = allocate_folio(0, page_state::process_memory);
                         if (!pa)
                             return false;
 
@@ -672,7 +673,7 @@ bool make_pte_writable(uintptr_t address, mapping& m, pte_type& pte,
         uint64_t pfn;
 
         if (pte.owned) {
-            pfn = cow_folio(pte.pfn << PAGE_SHIFT) >> PAGE_SHIFT;
+            pfn = cow_folio(pte.pfn << PAGE_SHIFT, page_state::process_memory) >> PAGE_SHIFT;
             if (pfn == 0) {
                 print("cow_folio failed\n");
                 return false;
@@ -680,7 +681,7 @@ bool make_pte_writable(uintptr_t address, mapping& m, pte_type& pte,
 
             send_ipi = pfn != pte.pfn;
         } else {
-            pfn = allocate_folio(0) >> PAGE_SHIFT;
+            pfn = allocate_folio(0, page_state::process_memory) >> PAGE_SHIFT;
             if (pfn == 0)
                 return false;
 
