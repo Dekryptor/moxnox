@@ -857,7 +857,7 @@ static bool set_page_protection(process& proc, uint64_t va, uint32_t num_pages,
 
     auto redo_level = [&](uint8_t level) -> bool {
         if (!pt[level][index[level]].valid) {
-            uint64_t pa = allocate_page();
+            uint64_t pa = allocate_folio(0, page_state::pte);
             if (pa == 0)
                 return false;
 
@@ -986,7 +986,7 @@ static bool set_page_protection(process& proc, uint64_t va, uint32_t num_pages,
 
     auto redo_level = [&](uint8_t level) -> bool {
         if (!pt[level][index[level]].p) {
-            uint64_t pa = allocate_page();
+            uint64_t pa = allocate_folio(0, page_state::pte);
             if (pa == 0)
                 return false;
 
@@ -1677,7 +1677,7 @@ bool process::handle_page_fault(uintptr_t address, uint64_t error_code) {
 
 #ifdef __aarch64__
 bool process::allocate_ttbr0() {
-    ttbr0 = allocate_folio(0);
+    ttbr0 = allocate_folio(0, page_state::pte);
     if (!ttbr0)
         return false;
 
@@ -1689,7 +1689,7 @@ bool process::allocate_ttbr0() {
 bool process::allocate_cr3() {
     auto kernel_cr3 = get_cpu_block()->kernel_cr3;
 
-    cr3 = allocate_folio(0);
+    cr3 = allocate_folio(0, page_state::pte);
     if (!cr3)
         return false;
 
@@ -7330,7 +7330,7 @@ static nt_status prepare_forked_ptes2(unsigned int level,
         child_pte = parent_pte;
 
         if (level > 1) {
-            auto pa = allocate_folio(0);
+            auto pa = allocate_folio(0, page_state::pte);
             if (!pa)
                 return nt_status::INSUFFICIENT_RESOURCES;
 
@@ -7372,7 +7372,7 @@ static nt_status prepare_forked_ptes(process& parent, process& child) {
         if (!parent_pte.p)
             continue;
 
-        auto pa = allocate_folio(0);
+        auto pa = allocate_folio(0, page_state::pte);
         if (!pa)
             return nt_status::INSUFFICIENT_RESOURCES;
 
@@ -7409,7 +7409,7 @@ static nt_status prepare_forked_ptes2(unsigned int level,
         child_pte = parent_pte;
 
         if (level > 1) {
-            auto pa = allocate_folio(0);
+            auto pa = allocate_folio(0, page_state::pte);
             if (!pa)
                 return nt_status::INSUFFICIENT_RESOURCES;
 
@@ -7451,7 +7451,7 @@ static nt_status prepare_forked_ptes(process& parent, process& child) {
         if (!parent_pte.valid)
             continue;
 
-        auto pa = allocate_folio(0);
+        auto pa = allocate_folio(0, page_state::pte);
         if (!pa)
             return nt_status::INSUFFICIENT_RESOURCES;
 

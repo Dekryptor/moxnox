@@ -61,6 +61,7 @@ list_entry folio_free_lists[MAX_FOLIO_ORDER + 1];
 uint64_t free_folios[MAX_FOLIO_ORDER + 1];
 
 static uint64_t slab_pages_used = 0, cache_pages_used = 0, used_pages = 0;
+static uint64_t pte_pages_used = 0;
 
 list_entry boot_pages = { &boot_pages, &boot_pages };
 
@@ -443,6 +444,10 @@ inline __attribute((always_inline)) uint64_t allocate_folio_no_lock(uint8_t orde
                 cache_pages_used += 1 << order;
                 break;
 
+            case pte:
+                pte_pages_used += 1 << order;
+                break;
+
             case used:
                 used_pages += 1 << order;
 
@@ -461,7 +466,7 @@ uint64_t allocate_folio(uint8_t order, enum page_state state) {
     if constexpr (no_lock)
         return allocate_folio_no_lock(order, state);
     else {
-        uint64_t free_pages = 0, slab_used, cache_used, local_used_pages;
+        uint64_t free_pages = 0, slab_used, cache_used, local_used_pages, pte_used;
 
         {
             lock_guard lock(pa_spinlock);
@@ -477,10 +482,11 @@ uint64_t allocate_folio(uint8_t order, enum page_state state) {
             slab_used = slab_pages_used;
             cache_used = cache_pages_used;
             local_used_pages = used_pages;
+            pte_used = pte_pages_used;
         }
 
-        print("allocate_folio failed (free_pages = {}, slab_used = {}, cache_used = {}, used_pages = {})\n",
-              free_pages, slab_used, cache_used, local_used_pages);
+        print("allocate_folio failed (free_pages = {}, slab_used = {}, cache_used = {}, used_pages = {}, pte_used = {})\n",
+              free_pages, slab_used, cache_used, local_used_pages, pte_used);
 
         return 0;
     }
@@ -1770,6 +1776,10 @@ void free_folio_no_lock(uint64_t pa) {
 
         case used:
             used_pages -= 1 << pages[pfn].order;
+            break;
+
+        case pte:
+            pte_pages_used -= 1 << pages[pfn].order;
             break;
 
         default:

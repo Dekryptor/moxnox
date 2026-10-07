@@ -44,7 +44,8 @@ export enum class page_state : uint8_t {
     allocator_128,
     allocator_64,
     boot,
-    cache
+    cache,
+    pte
 };
 
 export _spinlock<6> pa_spinlock;
