@@ -499,9 +499,10 @@ static void print_allocator_failure_message() {
         process_memory_used = process_memory_pages_used;
     }
 
-    print("allocate_folio failed (free_pages = {}, slab_used = {}, cache_used = {}, used_pages = {}, pte_used = {}, process_memory_used = {})\n",
-          free_pages, slab_used, cache_used, local_used_pages, pte_used,
-          process_memory_used);
+    print("allocate_folio failed (free {}, SLAB {}, cache {}, used {}, PTEs {}, process memory {})\n",
+          byte_size(free_pages << PAGE_SHIFT), byte_size(slab_used << PAGE_SHIFT),
+          byte_size(cache_used << PAGE_SHIFT), byte_size(local_used_pages << PAGE_SHIFT),
+          byte_size(pte_used << PAGE_SHIFT), byte_size(process_memory_used << PAGE_SHIFT));
 }
 
 template<bool no_lock>
