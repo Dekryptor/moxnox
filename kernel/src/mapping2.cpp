@@ -462,7 +462,7 @@ bool mapping::copy_to(uint32_t offset, const void* ks_addr, uint32_t size) {
                         if (p->pfn == 0) {
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wconversion"
-                            p->pfn = allocate_folio(0) >> PAGE_SHIFT;
+                            p->pfn = allocate_folio(0, page_state::cache) >> PAGE_SHIFT;
 #pragma GCC diagnostic pop
 
                             if (!p->pfn) {

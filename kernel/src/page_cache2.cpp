@@ -233,7 +233,7 @@ bool page_cache_base::write_pages_vec_and_unpin(uint64_t first_page, uint64_t nu
         if (ent->pfn)
             free_folio(ent->pfn << PAGE_SHIFT);
 
-        ent->pfn = (allocate_folio(0) >> PAGE_SHIFT) & 0xfffffffffffff;
+        ent->pfn = (allocate_folio(0, page_state::cache) >> PAGE_SHIFT) & 0xfffffffffffff;
         if (!ent->pfn) {
             ent->refcount--;
             return false;

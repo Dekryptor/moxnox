@@ -3872,7 +3872,7 @@ nt_status btrfs_inode::read_inline_extent_into_cache(uint64_t page_num,
                 dest_p = cache.next_page_cache_entry(*dest_p);
 
             if (dest_p->pfn == 0) {
-                auto pa = allocate_folio(0);
+                auto pa = allocate_folio(0, page_state::cache);
                 if (!pa) {
                     if (i == 0)
                         return nt_status::INSUFFICIENT_RESOURCES;

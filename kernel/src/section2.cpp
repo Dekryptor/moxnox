@@ -1085,7 +1085,7 @@ nt_status image_section_cache::read_into_cache(uint64_t page_num, uint64_t num_p
             } else {
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wconversion"
-                dest_p->pfn = allocate_folio(0) >> PAGE_SHIFT;
+                dest_p->pfn = allocate_folio(0, page_state::cache) >> PAGE_SHIFT;
 #pragma GCC diagnostic pop
                 if (!dest_p->pfn) {
                     f.cache.unpin(page_num, cache_read_pages);
@@ -1202,7 +1202,7 @@ nt_status image_section_cache::read_into_cache(uint64_t page_num, uint64_t num_p
 
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wconversion"
-                dest_p->pfn = allocate_folio(0) >> PAGE_SHIFT;
+                dest_p->pfn = allocate_folio(0, page_state::cache) >> PAGE_SHIFT;
 #pragma GCC diagnostic pop
                 if (!dest_p->pfn) {
                     f.cache.unpin(file_start_page, num_file_pages);

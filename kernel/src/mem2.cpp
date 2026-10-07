@@ -418,7 +418,7 @@ inline __attribute((always_inline)) uint64_t allocate_folio_no_lock(uint8_t orde
         remove_entry_list(pages[pfn].free.le);
         pages[pfn].state = state;
 
-        if (state == page_state::used)
+        if (state == page_state::used || state == page_state::cache)
             pages[pfn].used.refcount = 1;
 
         free_folios[order]--;
@@ -1694,7 +1694,7 @@ void free_folio_no_lock(uint64_t pa) {
         bsod_format("free_folio called for PFN {:x} with state folio_following", pfn);
 #endif
 
-    if (pages[pfn].state == page_state::used) {
+    if (pages[pfn].state == page_state::used || pages[pfn].state == page_state::cache) {
         pages[pfn].used.refcount--;
 
         if (pages[pfn].used.refcount != 0)
@@ -1743,7 +1743,7 @@ uint64_t cow_folio(uint64_t pa) {
     {
         lock_guard lock(pa_spinlock);
 
-        assert(p.state == page_state::used);
+        assert(p.state == page_state::used || p.state == page_state::cache);
 
         if (p.used.refcount == 1) // no COW necessary
             return pa;
@@ -2451,7 +2451,7 @@ uint64_t try_allocate_folio(uint8_t order, enum page_state state = page_state::u
             remove_entry_list(p.free.le);
             p.state = state;
 
-            if (state == page_state::used)
+            if (state == page_state::used || state == page_state::cache)
                 p.used.refcount = 1;
 
             free_folios[order]--;
@@ -2579,7 +2579,7 @@ void increase_page_refcount(uint64_t pfn) {
     {
         lock_guard lock(pa_spinlock);
 
-        assert(p.state == page_state::used);
+        assert(p.state == page_state::used || p.state == page_state::cache);
 
         p.used.refcount++;
     }

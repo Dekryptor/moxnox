@@ -369,7 +369,7 @@ nt_status volume::read_into_cache(uint64_t page_num, uint64_t num_pages,
             p = cache.next_page_cache_entry(*p);
 
         if (p->pfn == 0) {
-            auto pa = allocate_folio(0);
+            auto pa = allocate_folio(0, page_state::cache);
             if (!pa)
                 return nt_status::INSUFFICIENT_RESOURCES;
 
