@@ -173,6 +173,9 @@ export int nt_status_to_errno(nt_status status) {
         case nt_status::FILE_IS_A_DIRECTORY:
             return EISDIR;
 
+        case nt_status::DIRECTORY_NOT_EMPTY:
+            return ENOTEMPTY;
+
         default:
             return EINVAL;
     }
