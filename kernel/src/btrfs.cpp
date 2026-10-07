@@ -4079,7 +4079,7 @@ nt_status btrfs_inode::read_into_cache(uint64_t page_num, uint64_t num_pages,
                                               read_pages);
 
             case btrfs_extent_type::prealloc: {
-                auto pages_to_zero = min(num_pages, ie.ed.ram_bytes >> PAGE_SHIFT);
+                auto pages_to_zero = min(num_pages, ((ie.offset + ie.ed.num_bytes) >> PAGE_SHIFT) - page_num);
                 return read_zeroes_into_cache(page_num, pages_to_zero,
                                               read_pages);
             }
