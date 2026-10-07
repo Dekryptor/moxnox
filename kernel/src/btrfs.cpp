@@ -595,6 +595,7 @@ btrfs_filesystem::btrfs_filesystem(volume& vol) : filesystem(&vol) {
         r.id = BTRFS_CHUNK_TREE_OBJECTID;
         r.ri.bytenr = sb->chunk_root;
         r.ri.level = sb->chunk_root_level;
+        r.ri.generation = sb->chunk_root_generation;
 
         chunk_root = &r;
         insert_tail_list(root_list, r.le);
