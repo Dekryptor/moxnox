@@ -4061,8 +4061,13 @@ nt_status btrfs_inode::read_into_cache(uint64_t page_num, uint64_t num_pages,
     for (auto le = extents.next; le != &extents; le = le->next) {
         auto& ie = containing_record<inode_extent>(le);
 
-        if (ie.offset + ie.ed.num_bytes <= page_num << PAGE_SHIFT)
-            continue;
+        if (ie.ed.type == btrfs_extent_type::inline_extent) {
+            if (ie.offset + ie.ed.ram_bytes <= page_num << PAGE_SHIFT)
+                continue;
+        } else {
+            if (ie.offset + ie.ed.num_bytes <= page_num << PAGE_SHIFT)
+                continue;
+        }
 
         if (ie.offset > lastoff) {
             auto pages_to_zero = min(num_pages, (ie.offset - lastoff) >> PAGE_SHIFT);
