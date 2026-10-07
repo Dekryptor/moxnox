@@ -15,6 +15,7 @@ module mem;
 import print;
 import bsod;
 import pe;
+import thread;
 
 #ifdef __x86_64__
 import x86;
@@ -461,32 +462,41 @@ inline __attribute((always_inline)) uint64_t allocate_folio_no_lock(uint8_t orde
     return 0;
 }
 
+static void print_allocator_failure_message() {
+    uint64_t free_pages = 0, slab_used, cache_used, local_used_pages, pte_used;
+
+    {
+        lock_guard lock(pa_spinlock);
+
+        for (unsigned int i = 0; i <= MAX_FOLIO_ORDER; i++) {
+            free_pages += free_folios[i] << i;
+        }
+
+        slab_used = slab_pages_used;
+        cache_used = cache_pages_used;
+        local_used_pages = used_pages;
+        pte_used = pte_pages_used;
+    }
+
+    print("allocate_folio failed (free_pages = {}, slab_used = {}, cache_used = {}, used_pages = {}, pte_used = {})\n",
+          free_pages, slab_used, cache_used, local_used_pages, pte_used);
+}
+
 template<bool no_lock>
 uint64_t allocate_folio(uint8_t order, enum page_state state) {
     if constexpr (no_lock)
         return allocate_folio_no_lock(order, state);
     else {
-        uint64_t free_pages = 0, slab_used, cache_used, local_used_pages, pte_used;
-
         {
             lock_guard lock(pa_spinlock);
 
             auto ret = allocate_folio_no_lock(order, state);
             if (ret)
                 return ret;
-
-            for (unsigned int i = 0; i <= MAX_FOLIO_ORDER; i++) {
-                free_pages += free_folios[i] << i;
-            }
-
-            slab_used = slab_pages_used;
-            cache_used = cache_pages_used;
-            local_used_pages = used_pages;
-            pte_used = pte_pages_used;
         }
 
-        print("allocate_folio failed (free_pages = {}, slab_used = {}, cache_used = {}, used_pages = {}, pte_used = {})\n",
-              free_pages, slab_used, cache_used, local_used_pages, pte_used);
+        if (!get_current_thread()->in_allocator)
+            print_allocator_failure_message();
 
         return 0;
     }
@@ -1168,29 +1178,49 @@ void* malloc_aligned(size_t size, size_t align) {
     if (size == 0)
         return nullptr;
 
+    void* ret;
+    ::thread* t = nullptr;
+
+    if constexpr (!no_lock) {
+        t = get_current_thread();
+
+        if (t)
+            t->in_allocator++;
+    }
+
     if (size < align)
         size = align;
 
     if (size <= 64)
-        return alloc64.malloc<no_lock>();
+        ret = alloc64.malloc<no_lock>();
     else if (size <= 128)
-        return alloc128.malloc<no_lock>();
+        ret = alloc128.malloc<no_lock>();
     else if (size <= 256)
-        return alloc256.malloc<no_lock>();
+        ret = alloc256.malloc<no_lock>();
     else if (size <= 512)
-        return alloc512.malloc<no_lock>();
+        ret = alloc512.malloc<no_lock>();
     else if (size <= 1024)
-        return alloc1k.malloc<no_lock>();
+        ret = alloc1k.malloc<no_lock>();
     else if (size <= 2048)
-        return alloc2k.malloc<no_lock>();
+        ret = alloc2k.malloc<no_lock>();
     else if (size <= 4096)
-        return alloc4k.malloc<no_lock>();
+        ret = alloc4k.malloc<no_lock>();
     else if (size <= 8192)
-        return alloc8k.malloc<no_lock>();
+        ret = alloc8k.malloc<no_lock>();
     else {
         bsod_format("malloc asked to do over-large allocation ({:x} bytes)\n", size);
-        return nullptr;
+        ret = nullptr;
     }
+
+    if constexpr (!no_lock) {
+        if (t)
+            t->in_allocator--;
+
+        if (!ret)
+            print_allocator_failure_message();
+    }
+
+    return ret;
 }
 
 template void* malloc_aligned<true>(size_t size, size_t align);
