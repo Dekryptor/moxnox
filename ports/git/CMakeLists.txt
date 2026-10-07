@@ -545,9 +545,51 @@ add_executable(git-remote-http
     repo/http.c
     repo/http-walker.c
 )
-target_compile_definitions(git-remote-http PRIVATE NO_EXPAT)
 target_link_libraries(git-remote-http PRIVATE libgit)
 add_dependencies(git-remote-http git_generate)
+
+add_executable(git-sh-i18n--envsubst repo/sh-i18n--envsubst.c)
+target_link_libraries(git-sh-i18n--envsubst PRIVATE libgit)
+add_dependencies(git-sh-i18n--envsubst git_generate)
+
+add_executable(git-daemon repo/daemon.c)
+target_link_libraries(git-daemon PRIVATE libgit)
+add_dependencies(git-daemon git_generate)
+
+add_executable(git-http-backend repo/http-backend.c)
+target_link_libraries(git-http-backend PRIVATE libgit)
+add_dependencies(git-http-backend git_generate)
+
+add_executable(git-imap-send
+    repo/imap-send.c
+    repo/http.c
+)
+target_compile_definitions(git-imap-send PRIVATE USE_CURL_FOR_IMAP_SEND)
+target_link_libraries(git-imap-send PRIVATE libgit)
+add_dependencies(git-imap-send git_generate)
+
+add_executable(git-shell repo/shell.c)
+target_link_libraries(git-shell PRIVATE libgit)
+add_dependencies(git-shell git_generate)
+
+add_executable(git-http-fetch
+    repo/http-fetch.c
+    repo/http.c
+    repo/http-walker.c
+)
+target_link_libraries(git-http-fetch PRIVATE libgit)
+add_dependencies(git-http-fetch git_generate)
+
+add_executable(git-http-push
+    repo/http-push.c
+    repo/http.c
+)
+target_link_libraries(git-http-push PRIVATE libgit expat)
+add_dependencies(git-http-push git_generate)
+
+add_executable(scalar repo/scalar.c)
+target_link_libraries(scalar PRIVATE libgit)
+add_dependencies(scalar git_generate)
 
 set(GIT_TEMPLATE_FILES
     description
@@ -583,12 +625,210 @@ foreach(t ${GIT_TEMPLATE_FILES})
 endforeach()
 add_custom_target(git_templates DEPENDS ${GIT_TEMPLATE_OUTPUTS})
 
-add_dependencies(git git_generate git_templates)
+set(GIT_SCRIPT_SH
+    git-difftool--helper
+    git-filter-branch
+    git-instaweb
+    git-merge-octopus
+    git-merge-one-file
+    git-merge-resolve
+    git-mergetool
+    git-quiltimport
+    git-request-pull
+    git-submodule
+    git-web--browse
+)
+
+set(GIT_SCRIPT_LIB
+    git-mergetool--lib
+    git-sh-i18n
+    git-sh-setup
+)
+
+set(GIT_SCRIPT_PERL
+    git-archimport
+    git-cvsexportcommit
+    git-cvsimport
+    git-cvsserver
+    git-send-email
+    git-svn
+)
+
+set(GIT_SCRIPT_PYTHON
+    git-p4
+)
+
+set(GIT_PERL_LIBDIR /share/perl5)
+set(GIT_LIB_PERL
+    Git.pm
+    Git/I18N.pm
+    Git/IndexInfo.pm
+    Git/LoadCPAN.pm
+    Git/LoadCPAN/Error.pm
+    Git/LoadCPAN/Mail/Address.pm
+    Git/Packet.pm
+    Git/SVN.pm
+    Git/SVN/Editor.pm
+    Git/SVN/Fetcher.pm
+    Git/SVN/GlobSpec.pm
+    Git/SVN/Log.pm
+    Git/SVN/Memoize/YAML.pm
+    Git/SVN/Migration.pm
+    Git/SVN/Prompt.pm
+    Git/SVN/Ra.pm
+    Git/SVN/Utils.pm
+    FromCPAN/Error.pm
+    FromCPAN/Mail/Address.pm
+)
+
+set(GIT_SCRIPT_OUTPUTS)
+
+foreach(s ${GIT_SCRIPT_SH} ${GIT_SCRIPT_LIB})
+    add_custom_command(
+        OUTPUT ${GEN}/scripts/${s}
+        COMMAND ${CMAKE_COMMAND} -E make_directory ${GEN}/scripts
+        COMMAND ${CMAKE_COMMAND} -E copy ${CMAKE_CURRENT_SOURCE_DIR}/repo/${s}.sh ${GEN}/scripts/${s}
+        COMMAND ${HOST_SED} -i
+            -e [[1s|#!.*/sh|#!/bin/sh|]]
+            -e [[s|@SHELL_PATH@|/bin/sh|]]
+            -e [[s|@DIFF@|diff|]]
+            -e [[s|@LOCALEDIR@|/share/locale|g]]
+            -e [[s/@USE_GETTEXT_SCHEME@//g]]
+            -e [[/^# @BROKEN_PATH_FIX@$/d]]
+            -e [[s|@GITWEBDIR@|/share/gitweb|g]]
+            -e [[s|@PERL_PATH@|perl|g]]
+            -e [[s|@PAGER_ENV@|LESS=FRX LV=-c|g]]
+            ${GEN}/scripts/${s}
+        DEPENDS repo/${s}.sh
+        VERBATIM
+    )
+    list(APPEND GIT_SCRIPT_OUTPUTS ${GEN}/scripts/${s})
+endforeach()
+
+set(PATHSEP ":")
+set(INSTLIBDIR ${GIT_PERL_LIBDIR})
+configure_file(repo/perl/header_templates/fixed_prefix.template.pl ${GEN}/GIT-PERL-HEADER @ONLY)
+
+set(GIT_PERL_SED
+    -e [[1{]]
+    -e [[/^#!.*perl/!b]]
+    -e [[s|#!.*perl|#!/bin/perl|]]
+    -e "r ${GEN}/GIT-PERL-HEADER"
+    -e [[G]]
+    -e [[}]]
+    -e [[s|@GIT_VERSION@|2.53.0|g]]
+    -e [[s|@LOCALEDIR@|/share/locale|g]]
+    -e [[s|@NO_GETTEXT@|YesPlease|g]]
+    -e [[s|@NO_PERL_CPAN_FALLBACKS@||g]]
+)
+
+foreach(s ${GIT_SCRIPT_PERL})
+    add_custom_command(
+        OUTPUT ${GEN}/scripts/${s}
+        COMMAND ${CMAKE_COMMAND} -E make_directory ${GEN}/scripts
+        COMMAND ${CMAKE_COMMAND} -E copy ${CMAKE_CURRENT_SOURCE_DIR}/repo/${s}.perl ${GEN}/scripts/${s}
+        COMMAND ${HOST_SED} -i ${GIT_PERL_SED} ${GEN}/scripts/${s}
+        DEPENDS repo/${s}.perl ${GEN}/GIT-PERL-HEADER
+        VERBATIM
+    )
+    list(APPEND GIT_SCRIPT_OUTPUTS ${GEN}/scripts/${s})
+endforeach()
+
+foreach(m ${GIT_LIB_PERL})
+    get_filename_component(_mdir ${m} DIRECTORY)
+    add_custom_command(
+        OUTPUT ${GEN}/perl/${m}
+        COMMAND ${CMAKE_COMMAND} -E make_directory ${GEN}/perl/${_mdir}
+        COMMAND ${CMAKE_COMMAND} -E copy ${CMAKE_CURRENT_SOURCE_DIR}/repo/perl/${m} ${GEN}/perl/${m}
+        COMMAND ${HOST_SED} -i ${GIT_PERL_SED} ${GEN}/perl/${m}
+        DEPENDS repo/perl/${m} ${GEN}/GIT-PERL-HEADER
+        VERBATIM
+    )
+    list(APPEND GIT_SCRIPT_OUTPUTS ${GEN}/perl/${m})
+    install(FILES ${GEN}/perl/${m} DESTINATION ${CMAKE_INSTALL_PREFIX}${GIT_PERL_LIBDIR}/${_mdir})
+endforeach()
+
+foreach(s ${GIT_SCRIPT_PYTHON})
+    add_custom_command(
+        OUTPUT ${GEN}/scripts/${s}
+        COMMAND ${CMAKE_COMMAND} -E make_directory ${GEN}/scripts
+        COMMAND ${CMAKE_COMMAND} -E copy ${CMAKE_CURRENT_SOURCE_DIR}/repo/${s}.py ${GEN}/scripts/${s}
+        COMMAND ${HOST_SED} -i -e [[1s|#!.*python|#!/bin/python|]] ${GEN}/scripts/${s}
+        DEPENDS repo/${s}.py
+        VERBATIM
+    )
+    list(APPEND GIT_SCRIPT_OUTPUTS ${GEN}/scripts/${s})
+endforeach()
+
+add_custom_target(git_scripts DEPENDS ${GIT_SCRIPT_OUTPUTS})
+
+add_dependencies(git git_generate git_templates git_scripts)
 
 install(TARGETS git DESTINATION ${CMAKE_INSTALL_PREFIX}/bin)
 install(DIRECTORY ${GEN}/templates/
         DESTINATION ${CMAKE_INSTALL_PREFIX}/share/git-core/templates
         USE_SOURCE_PERMISSIONS)
 
-install(TARGETS git-remote-http DESTINATION ${CMAKE_INSTALL_PREFIX}/bin/git-core)
+install(TARGETS git-remote-http git-sh-i18n--envsubst git-daemon git-http-backend
+        git-imap-send git-http-fetch git-http-push
+        DESTINATION ${CMAKE_INSTALL_PREFIX}/bin/git-core)
 install(CODE "file(CREATE_LINK git-remote-http.exe \"\$ENV{DESTDIR}${CMAKE_INSTALL_PREFIX}/bin/git-core/git-remote-https.exe\" SYMBOLIC)")
+install(CODE "file(CREATE_LINK git-remote-http.exe \"\$ENV{DESTDIR}${CMAKE_INSTALL_PREFIX}/bin/git-core/git-remote-ftp.exe\" SYMBOLIC)")
+install(CODE "file(CREATE_LINK git-remote-http.exe \"\$ENV{DESTDIR}${CMAKE_INSTALL_PREFIX}/bin/git-core/git-remote-ftps.exe\" SYMBOLIC)")
+
+foreach(s ${GIT_SCRIPT_SH} ${GIT_SCRIPT_PERL} ${GIT_SCRIPT_PYTHON})
+    install(PROGRAMS ${GEN}/scripts/${s} DESTINATION ${CMAKE_INSTALL_PREFIX}/bin/git-core)
+endforeach()
+
+foreach(s ${GIT_SCRIPT_LIB})
+    install(FILES ${GEN}/scripts/${s} DESTINATION ${CMAKE_INSTALL_PREFIX}/bin/git-core)
+endforeach()
+
+set(GIT_MERGETOOLS
+    araxis bc codecompare deltawalker diffmerge diffuse ecmerge emerge
+    examdiff guiffy gvimdiff kdiff3 kompare meld nvimdiff opendiff p4merge
+    smerge tkdiff tortoisemerge vimdiff vscode winmerge xxdiff
+)
+foreach(m ${GIT_MERGETOOLS})
+    install(FILES repo/mergetools/${m} DESTINATION ${CMAKE_INSTALL_PREFIX}/bin/git-core/mergetools)
+endforeach()
+
+install(FILES repo/contrib/completion/git-completion.bash
+    DESTINATION ${CMAKE_INSTALL_PREFIX}/share/bash-completion/completions
+    RENAME git)
+
+install(TARGETS git-shell scalar DESTINATION ${CMAKE_INSTALL_PREFIX}/bin)
+install(PROGRAMS ${GEN}/scripts/git-cvsserver DESTINATION ${CMAKE_INSTALL_PREFIX}/bin)
+foreach(p git-receive-pack git-upload-archive git-upload-pack)
+    install(CODE "file(CREATE_LINK git.exe \"\$ENV{DESTDIR}${CMAKE_INSTALL_PREFIX}/bin/${p}.exe\" SYMBOLIC)")
+endforeach()
+foreach(p git git-shell scalar git-receive-pack git-upload-archive git-upload-pack)
+    install(CODE "file(CREATE_LINK ../${p}.exe \"\$ENV{DESTDIR}${CMAKE_INSTALL_PREFIX}/bin/git-core/${p}.exe\" SYMBOLIC)")
+endforeach()
+
+set(GIT_BUILT_INS
+    add am annotate apply archive backfill bisect blame branch bugreport
+    bundle cat-file check-attr check-ignore check-mailmap check-ref-format
+    checkout--worker checkout-index checkout clean clone column commit-graph
+    commit-tree commit config count-objects credential-cache--daemon
+    credential-cache credential-store credential describe diagnose diff-files
+    diff-index diff-pairs diff-tree diff difftool fast-export fast-import
+    fetch-pack fetch fmt-merge-msg for-each-ref for-each-repo fsck
+    fsmonitor--daemon gc get-tar-commit-id grep hash-object help hook
+    index-pack init-db interpret-trailers last-modified log ls-files
+    ls-remote ls-tree mailinfo mailsplit merge-base merge-file merge-index
+    merge-ours merge-recursive merge-tree merge mktag mktree multi-pack-index
+    mv name-rev notes pack-objects pack-redundant pack-refs patch-id
+    prune-packed prune pull push range-diff read-tree rebase reflog refs
+    remote-ext remote-fd remote repack replace replay repo rerere reset
+    rev-list rev-parse revert rm send-pack shortlog show-branch show-index
+    show-ref sparse-checkout stash stripspace submodule--helper symbolic-ref
+    tag unpack-file unpack-objects update-index update-ref
+    update-server-info var verify-commit verify-pack verify-tag worktree
+    write-tree
+    cherry cherry-pick format-patch fsck-objects init maintenance
+    merge-subtree restore show stage status switch version whatchanged
+)
+foreach(p ${GIT_BUILT_INS})
+    install(CODE "file(CREATE_LINK ../git.exe \"\$ENV{DESTDIR}${CMAKE_INSTALL_PREFIX}/bin/git-core/git-${p}.exe\" SYMBOLIC)")
+endforeach()

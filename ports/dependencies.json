@@ -15,7 +15,7 @@
     "freetype": ["libpng"],
     "gawk": ["mpfr"],
     "gcc": ["gmp", "libiconv", "mpc", "mpfr"],
-    "git": ["curl", "zlib"],
+    "git": ["curl", "expat", "zlib"],
     "gmp": [],
     "gnulib": [],
     "grep": ["gnulib"],
