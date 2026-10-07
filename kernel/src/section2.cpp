@@ -41,7 +41,6 @@ nt_status create_section(const optional<reference_wrapper<file>>& file, bool ima
 
     if (file) {
         if (file->get().ino.type != object_type::inode) {
-            print("file pointed to object other than inode\n");
             s.release();
             return nt_status::INVALID_PARAMETER;
         }
@@ -62,7 +61,6 @@ nt_status create_section(const optional<reference_wrapper<file>>& file, bool ima
 
             auto status = s.load_image();
             if (!success(status)) {
-                print("load_image returned {}\n", status);
                 s.release();
                 return status;
             }
@@ -79,7 +77,6 @@ nt_status create_section(const optional<reference_wrapper<file>>& file, bool ima
             s.size = s.num_pages << PAGE_SHIFT;
 
             if (s.num_pages == 0) {
-                print("create_section: file was empty\n");
                 s.release();
                 return nt_status::INVALID_PARAMETER;
             }
@@ -89,7 +86,6 @@ nt_status create_section(const optional<reference_wrapper<file>>& file, bool ima
         s.num_pages = bytes_to_pages(size);
 
         if (s.num_pages == 0) {
-            print("anonymous section must specify a size\n");
             s.release();
             return nt_status::INVALID_PARAMETER;
         }
