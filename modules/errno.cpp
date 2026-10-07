@@ -176,6 +176,9 @@ export int nt_status_to_errno(nt_status status) {
         case nt_status::DIRECTORY_NOT_EMPTY:
             return ENOTEMPTY;
 
+        case nt_status::INVALID_IMAGE_FORMAT:
+            return ENOEXEC;
+
         default:
             return EINVAL;
     }
