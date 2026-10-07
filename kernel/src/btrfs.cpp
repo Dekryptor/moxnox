@@ -5018,7 +5018,8 @@ static nt_status adjust_free_space_info(btrfs_filesystem& fs, uint64_t address,
         return nt_status::INTERNAL_ERROR;
     }
 
-    status = fs.find_item(r, {c->offset, key_type::FREE_SPACE_INFO, 0}, p, true);
+    status = fs.find_item(r, {c->offset, key_type::FREE_SPACE_INFO, c->ci.length},
+                          p, true);
     if (!success(status))
         return status;
 
