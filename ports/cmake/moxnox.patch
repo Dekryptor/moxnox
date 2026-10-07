@@ -1,0 +1,288 @@
+diff --git a/Source/cmFindProgramCommand.cxx b/Source/cmFindProgramCommand.cxx
+--- a/Source/cmFindProgramCommand.cxx
++++ b/Source/cmFindProgramCommand.cxx
+@@ -38,6 +38,8 @@ struct cmFindProgramHelper
+     // Consider platform-specific extensions.
+     this->Extensions.push_back(".com");
+     this->Extensions.push_back(".exe");
++#elif defined(__moxnox__)
++    this->Extensions.push_back(".exe");
+ #endif
+     // Consider original name with no extensions.
+     this->Extensions.emplace_back();
+diff --git a/Source/cmInstallCommand.cxx b/Source/cmInstallCommand.cxx
+--- a/Source/cmInstallCommand.cxx
++++ b/Source/cmInstallCommand.cxx
+@@ -840,16 +840,23 @@ bool HandleTargetsMode(std::vector<std::string> const& args,
+           }
+ 
+           // This is a DLL platform.
++          // On platforms where DLLs are installed alongside the shared
++          // libraries rather than the executables, the DLL uses the
++          // LIBRARY properties instead of the RUNTIME ones.
++          bool dllAsLibrary =
++            helper.Makefile->IsOn("CMAKE_DLL_INSTALL_AS_LIBRARY");
++          cmInstallCommandArguments const& dllArgs =
++            dllAsLibrary ? libraryArgs : runtimeArgs;
+           if (!archiveArgs.GetDestination().empty()) {
+             // The import library uses the ARCHIVE properties.
+             archiveGenerator = CreateInstallTargetGenerator(
+               target, archiveArgs, true, helper.Makefile->GetBacktrace());
+             artifactsSpecified = true;
+           }
+-          if (!runtimeArgs.GetDestination().empty()) {
+-            // The DLL uses the RUNTIME properties.
++          if (!dllArgs.GetDestination().empty()) {
++            // The DLL uses the RUNTIME (or LIBRARY) properties.
+             runtimeGenerator = CreateInstallTargetGenerator(
+-              target, runtimeArgs, false, helper.Makefile->GetBacktrace());
++              target, dllArgs, false, helper.Makefile->GetBacktrace());
+             artifactsSpecified = true;
+           }
+           if (!archiveGenerator && !runtimeGenerator) {
+@@ -857,8 +864,9 @@ bool HandleTargetsMode(std::vector<std::string> const& args,
+               target, archiveArgs, true, helper.Makefile->GetBacktrace(),
+               helper.GetArchiveDestination(nullptr));
+             runtimeGenerator = CreateInstallTargetGenerator(
+-              target, runtimeArgs, false, helper.Makefile->GetBacktrace(),
+-              helper.GetRuntimeDestination(nullptr));
++              target, dllArgs, false, helper.Makefile->GetBacktrace(),
++              dllAsLibrary ? helper.GetLibraryDestination(nullptr)
++                           : helper.GetRuntimeDestination(nullptr));
+           }
+           if (runtimeDependencySet && runtimeGenerator) {
+             runtimeDependencySet->AddLibrary(runtimeGenerator.get());
+@@ -1440,8 +1448,14 @@ bool HandleImportedRuntimeArtifactsMode(std::vector<std::string> const& args,
+     switch (target.GetType()) {
+       case cmStateEnums::SHARED_LIBRARY:
+         if (target.IsDLLPlatform()) {
+-          runtimeGenerator = createInstallGenerator(
+-            target, runtimeArgs, helper.GetRuntimeDestination(&runtimeArgs));
++          if (helper.Makefile->IsOn("CMAKE_DLL_INSTALL_AS_LIBRARY")) {
++            runtimeGenerator = createInstallGenerator(
++              target, libraryArgs,
++              helper.GetLibraryDestination(&libraryArgs));
++          } else {
++            runtimeGenerator = createInstallGenerator(
++              target, runtimeArgs, helper.GetRuntimeDestination(&runtimeArgs));
++          }
+           if (runtimeDependencySet) {
+             runtimeDependencySet->AddLibrary(runtimeGenerator.get());
+           }
+diff --git a/Source/kwsys/ProcessUNIX.c b/Source/kwsys/ProcessUNIX.c
+--- a/Source/kwsys/ProcessUNIX.c
++++ b/Source/kwsys/ProcessUNIX.c
+@@ -62,6 +62,7 @@ do.
+ #include <stdio.h>     /* snprintf */
+ #include <stdlib.h>    /* malloc, free */
+ #include <string.h>    /* strdup, strerror, memset */
++#include <sys/select.h> /* fd_set, select */
+ #include <sys/stat.h>  /* open mode */
+ #include <sys/time.h>  /* struct timeval */
+ #include <sys/types.h> /* pid_t, fd_set */
+@@ -69,6 +70,10 @@ do.
+ #include <time.h>      /* gettimeofday */
+ #include <unistd.h>    /* pipe, close, fork, execvp, select, _exit */
+ 
++#if defined(__moxnox__)
++#  include <spawn.h> /* posix_spawnp; there is no fork on Moxnox */
++#endif
++
+ #if defined(__VMS)
+ #  define KWSYSPE_VMS_NONBLOCK , O_NONBLOCK
+ #else
+@@ -184,8 +189,10 @@ static void kwsysProcessSetExitExceptionByIndex(kwsysProcess* cp, int sig,
+                                                 int idx);
+ static void kwsysProcessChildErrorExit(int errorPipe);
+ static void kwsysProcessRestoreDefaultSignalHandlers(void);
++#if !defined(__moxnox__)
+ static pid_t kwsysProcessFork(kwsysProcess* cp,
+                               kwsysProcessCreateInformation* si);
++#endif
+ static void kwsysProcessKill(pid_t process_id);
+ #if defined(__VMS)
+ static int kwsysProcessSetVMSFeature(char const* name, int value);
+@@ -1760,6 +1767,67 @@ static int kwsysProcessCreate(kwsysProcess* cp, int prIndex,
+      parent!  TODO: OptionDetach.  Also
+      TODO:  CreateProcessGroup.  */
+   cp->ForkPIDs[prIndex] = vfork();
++#elif defined(__moxnox__)
++  /* There is no fork; create the child with posix_spawn, expressing the
++     child-side setup below as spawn attributes and file actions.  The
++     error and pgid pipe write ends are close-on-exec, so the parent's
++     handshake reads below get EOF once the child is running, and spawn
++     failure is reported synchronously here rather than via the pipe.  */
++  {
++    extern char** environ;
++    posix_spawn_file_actions_t fa;
++    posix_spawnattr_t attr;
++    sigset_t sigdefault;
++    short flags = POSIX_SPAWN_SETSIGDEF | POSIX_SPAWN_SETSIGMASK;
++    pid_t pid;
++    int err;
++
++    posix_spawn_file_actions_init(&fa);
++    posix_spawnattr_init(&attr);
++
++    /* The child does not need the pipe read ends.  */
++    posix_spawn_file_actions_addclose(&fa, si->ErrorPipe[0]);
++    posix_spawn_file_actions_addclose(&fa, pgidPipe[0]);
++
++    /* Setup the stdin, stdout, and stderr pipes.  */
++    if (si->StdIn > 0) {
++      posix_spawn_file_actions_adddup2(&fa, si->StdIn, 0);
++    } else if (si->StdIn < 0) {
++      posix_spawn_file_actions_addclose(&fa, 0);
++    }
++    if (si->StdOut != 1) {
++      posix_spawn_file_actions_adddup2(&fa, si->StdOut, 1);
++    }
++    if (si->StdErr != 2) {
++      posix_spawn_file_actions_adddup2(&fa, si->StdErr, 2);
++    }
++
++    /* Restore all default signal handlers, and restore the pre-block
++       signal mask in the child.  */
++    sigfillset(&sigdefault);
++    posix_spawnattr_setsigdefault(&attr, &sigdefault);
++    posix_spawnattr_setsigmask(&attr, &old_mask);
++
++    /* setsid covers both the process-group creation of the fork flow and
++       detached children (no intermediate process is needed, as unwaited
++       processes are not zombies on Moxnox).  */
++    if (cp->CreateProcessGroup || cp->OptionDetach) {
++      flags |= POSIX_SPAWN_SETSID;
++    }
++    posix_spawnattr_setflags(&attr, flags);
++
++    err = posix_spawnp(&pid, cp->Commands[prIndex][0], &fa, &attr,
++                       cp->Commands[prIndex], environ);
++
++    posix_spawn_file_actions_destroy(&fa);
++    posix_spawnattr_destroy(&attr);
++
++    if (err != 0) {
++      errno = err;
++      pid = -1;
++    }
++    cp->ForkPIDs[prIndex] = pid;
++  }
+ #else
+   cp->ForkPIDs[prIndex] = kwsysProcessFork(cp, si);
+ #endif
+@@ -2444,12 +2512,14 @@ static void kwsysProcessRestoreDefaultSignalHandlers(void)
+ #endif
+ }
+ 
++#if !defined(__moxnox__)
+ static void kwsysProcessExit(void)
+ {
+   _exit(0);
+ }
++#endif
+ 
+-#if !defined(__VMS)
++#if !defined(__VMS) && !defined(__moxnox__)
+ static pid_t kwsysProcessFork(kwsysProcess* cp,
+                               kwsysProcessCreateInformation* si)
+ {
+diff --git a/Source/kwsys/SystemInformation.cxx b/Source/kwsys/SystemInformation.cxx
+--- a/Source/kwsys/SystemInformation.cxx
++++ b/Source/kwsys/SystemInformation.cxx
+@@ -170,7 +170,9 @@ using ResourceLimitType = struct rlimit;
+ #include <cstdio>
+ #include <cstdlib>
+ #include <cstring>
+-#include <memory.h>
++#ifndef __moxnox__
++#  include <memory.h>
++#endif
+ 
+ #if defined(_MSC_VER) && (_MSC_VER >= 1300) && !defined(_WIN64) &&            \
+   !defined(__clang__)
+diff --git a/Source/kwsys/SystemTools.cxx b/Source/kwsys/SystemTools.cxx
+--- a/Source/kwsys/SystemTools.cxx
++++ b/Source/kwsys/SystemTools.cxx
+@@ -78,13 +78,17 @@
+ #ifndef _WIN32
+ #  include <climits>
+ #  include <pwd.h>
+-#  include <sys/ioctl.h>
++#  ifndef __moxnox__
++#    include <sys/ioctl.h>
++#  endif
+ #  include <sys/time.h>
+ #  include <sys/wait.h>
+ #  include <unistd.h>
+ #  include <utime.h>
+-#  ifndef __VMS
++#  if !defined(__VMS) && !defined(__moxnox__)
+ #    include <sys/param.h>
++#  endif
++#  ifndef __VMS
+ #    include <termios.h>
+ #  endif
+ #  include <csignal> /* sigprocmask */
+@@ -898,7 +902,8 @@ bool SystemTools::UnPutEnv(std::string const& env)
+ 
+ char const* SystemTools::GetExecutableExtension()
+ {
+-#if defined(_WIN32) || defined(__CYGWIN__) || defined(__VMS)
++#if defined(_WIN32) || defined(__CYGWIN__) || defined(__VMS) ||               \
++  defined(__moxnox__)
+   return ".exe";
+ #else
+   return "";
+@@ -2952,13 +2957,16 @@ std::string SystemTools::FindProgram(std::string const& name,
+                                      std::vector<std::string> const& userPaths,
+                                      bool no_system_path)
+ {
+-#if defined(_WIN32) || defined(__CYGWIN__) || defined(__MINGW32__)
++#if defined(_WIN32) || defined(__CYGWIN__) || defined(__MINGW32__) ||         \
++  defined(__moxnox__)
+   std::vector<std::string> extensions;
+   // check to see if the name already has a .xxx at
+   // the end of it
+   // on windows try .com then .exe
+   if (name.size() <= 3 || name[name.size() - 4] != '.') {
++#  if !defined(__moxnox__)
+     extensions.emplace_back(".com");
++#  endif
+     extensions.emplace_back(".exe");
+ 
+     // first try with extensions if the os supports them
+@@ -2997,7 +3005,8 @@ std::string SystemTools::FindProgram(std::string const& name,
+     // Remove double quotes from the path on windows
+     SystemTools::ReplaceString(p, "\"", "");
+ #endif
+-#if defined(_WIN32) || defined(__CYGWIN__) || defined(__MINGW32__)
++#if defined(_WIN32) || defined(__CYGWIN__) || defined(__MINGW32__) ||         \
++  defined(__moxnox__)
+     // first try with extensions
+     for (std::string const& ext : extensions) {
+       std::string tryPath = p;
+@@ -4191,7 +4200,11 @@ int SystemTools::GetTerminalWidth()
+ #ifdef HAVE_TTY_INFO
+   struct winsize ws;
+   std::string columns; /* Unix98 environment variable */
++#  ifdef __moxnox__
++  if (tcgetwinsize(1, &ws) == 0 && ws.ws_col > 0 && ws.ws_row > 0) {
++#  else
+   if (ioctl(1, TIOCGWINSZ, &ws) != -1 && ws.ws_col > 0 && ws.ws_row > 0) {
++#  endif
+     width = ws.ws_col;
+   }
+   if (!isatty(STDOUT_FILENO)) {
+@@ -4319,6 +4332,12 @@ void SystemTools::Delay(unsigned int msec)
+ {
+ #ifdef _WIN32
+   Sleep(msec);
++#elif defined(__moxnox__)
++  // usleep was removed from POSIX 2008; nanosleep is the replacement.
++  struct timespec ts;
++  ts.tv_sec = msec / 1000;
++  ts.tv_nsec = (long)(msec % 1000) * 1000000;
++  nanosleep(&ts, nullptr);
+ #else
+   // The sleep function gives 1 second resolution and the usleep
+   // function gives 1e-6 second resolution but on some platforms has a
