@@ -60,6 +60,8 @@ static spinlock protect_page_spinlock;
 list_entry folio_free_lists[MAX_FOLIO_ORDER + 1];
 uint64_t free_folios[MAX_FOLIO_ORDER + 1];
 
+static uint64_t slab_pages_used = 0, cache_pages_used = 0, used_pages = 0;
+
 list_entry boot_pages = { &boot_pages, &boot_pages };
 
 #ifdef __aarch64__
@@ -423,10 +425,33 @@ inline __attribute((always_inline)) uint64_t allocate_folio_no_lock(uint8_t orde
 
         free_folios[order]--;
 
+        switch (state) {
+            using enum page_state;
+
+            case allocator_8k:
+            case allocator_4k:
+            case allocator_2k:
+            case allocator_1k:
+            case allocator_512:
+            case allocator_256:
+            case allocator_128:
+            case allocator_64:
+                slab_pages_used += 1 << order;
+                break;
+
+            case cache:
+                cache_pages_used += 1 << order;
+                break;
+
+            case used:
+                used_pages += 1 << order;
+
+            default:
+                break;
+        }
+
         return pfn << PAGE_SHIFT;
     }
-
-    print("allocate_folio failed\n");
 
     return 0;
 }
@@ -436,9 +461,28 @@ uint64_t allocate_folio(uint8_t order, enum page_state state) {
     if constexpr (no_lock)
         return allocate_folio_no_lock(order, state);
     else {
-        lock_guard lock(pa_spinlock);
+        uint64_t free_pages = 0, slab_used, cache_used, local_used_pages;
 
-        return allocate_folio_no_lock(order, state);
+        {
+            lock_guard lock(pa_spinlock);
+
+            auto ret = allocate_folio_no_lock(order, state);
+            if (ret)
+                return ret;
+
+            for (unsigned int i = 0; i <= MAX_FOLIO_ORDER; i++) {
+                free_pages += free_folios[i] << i;
+            }
+
+            slab_used = slab_pages_used;
+            cache_used = cache_pages_used;
+            local_used_pages = used_pages;
+        }
+
+        print("allocate_folio failed (free_pages = {}, slab_used = {}, cache_used = {}, used_pages = {})\n",
+              free_pages, slab_used, cache_used, local_used_pages);
+
+        return 0;
     }
 }
 
@@ -1705,6 +1749,32 @@ void free_folio_no_lock(uint64_t pa) {
     if (pfn == zero_pfn)
         bsod("trying to free zero page");
 #endif
+
+    switch (pages[pfn].state) {
+        using enum page_state;
+
+        case allocator_8k:
+        case allocator_4k:
+        case allocator_2k:
+        case allocator_1k:
+        case allocator_512:
+        case allocator_256:
+        case allocator_128:
+        case allocator_64:
+            slab_pages_used -= 1 << pages[pfn].order;
+            break;
+
+        case cache:
+            cache_pages_used -= 1 << pages[pfn].order;
+            break;
+
+        case used:
+            used_pages -= 1 << pages[pfn].order;
+            break;
+
+        default:
+            break;
+    }
 
     insert_tail_list(folio_free_lists[pages[pfn].order], pages[pfn].free.le);
     pages[pfn].state = page_state::free;
