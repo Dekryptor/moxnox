@@ -6064,8 +6064,6 @@ nt_status btrfs_filesystem::flush(bool make_readonly) {
         return nt_status::SUCCESS;
     }
 
-    update_superblock_backup(*this);
-
     status = do_ref_changes(*this);
     if (!success(status)) {
         print("do_ref_changes returned {}, going readonly\n", status);
@@ -6129,6 +6127,8 @@ nt_status btrfs_filesystem::flush(bool make_readonly) {
     sb->chunk_root = chunk_root->ri.bytenr;
     sb->chunk_root_generation = chunk_root->ri.generation;
     sb->chunk_root_level = chunk_root->ri.level;
+
+    update_superblock_backup(*this);
 
     write_superblocks(*this);
 
