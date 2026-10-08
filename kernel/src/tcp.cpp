@@ -138,7 +138,7 @@ public:
     uint32_t connected_scope = 0;
     tcp_state state = tcp_state::CLOSED;
     netif* pni = nullptr;
-    uint16_t recv_window = 0xffff;
+    int32_t recv_window = 0xffff;
     tcp_seq send_next, send_unacknowledged, recv_next;
     uint16_t send_window = 0;
     tcp_seq last_send_window_seq;
@@ -555,6 +555,13 @@ static uint16_t find_ephemeral_tcp_port(bool dual_stack) {
     }
 }
 
+static uint16_t tcp_window(base_tcp_socket& sock) {
+    if (sock.recv_window < 0)
+        return 0;
+    else
+        return byteswap((uint16_t)sock.recv_window);
+}
+
 template<socket_family FAMILY>
 static nt_status send_syn(base_tcp_socket& sock,
                           const typename FAMILY::sockaddr& c,
@@ -683,7 +690,7 @@ static nt_status send_syn(base_tcp_socket& sock,
     tcp.seq = sock.send_next;
     tcp.header_length = sizeof(tcp_header) / sizeof(uint32_t);
     tcp.SYN = 1;
-    tcp.window = byteswap(sock.recv_window);
+    tcp.window = tcp_window(sock);
 
     if constexpr (is_same_v<FAMILY, ipv4>) {
         auto& ip = *(ipv4_header*)pack->data;
@@ -1173,7 +1180,7 @@ static void send_ack(base_tcp_socket& sock, bool first, tcp_seq ack) {
         tcp.ack = ack;
         tcp.header_length = sizeof(tcp_header) / sizeof(uint32_t);
         tcp.ACK = 1;
-        tcp.window = byteswap(sock.recv_window);
+        tcp.window = tcp_window(sock);
 
         if constexpr (is_same_v<FAMILY, ipv4>) {
             auto& ip = *(ipv4_header*)pack->data;
@@ -1292,7 +1299,7 @@ static void send_fin(base_tcp_socket& sock) {
         tcp.header_length = sizeof(tcp_header) / sizeof(uint32_t);
         tcp.FIN = 1;
         tcp.ACK = 1;
-        tcp.window = byteswap(sock.recv_window);
+        tcp.window = tcp_window(sock);
 
         sock.send_next++;
 
@@ -1834,8 +1841,8 @@ static void received_packet(base_tcp_socket& sock, packet& pack,
             if (seq > sock.recv_next) {
                 auto data_len = (uint32_t)(size - header_length - ip_header_size);
 
-                if (data_len <= sock.recv_window && !sock.shutdown_read) {
-                    sock.recv_window -= (uint16_t)data_len;
+                if ((int32_t)data_len <= sock.recv_window && !sock.shutdown_read) {
+                    sock.recv_window -= (int32_t)data_len;
 
                     bool drop = false;
                     for (auto le = sock.ooo_buffer.next; le != &sock.ooo_buffer; le = le->next) {
@@ -1854,7 +1861,7 @@ static void received_packet(base_tcp_socket& sock, packet& pack,
 
                         if (seq2 == seq) { // duplicate, drop
                             drop = true;
-                            sock.recv_window += (uint16_t)data_len;
+                            sock.recv_window += (int32_t)data_len;
                             break;
                         }
 
@@ -1886,7 +1893,7 @@ static void received_packet(base_tcp_socket& sock, packet& pack,
 
                 sock.recv_next += data_len;
 
-                if (tcp.FIN && data_len <= sock.recv_window) {
+                if (tcp.FIN && (int32_t)data_len <= sock.recv_window) {
                     sock.recv_next++;
 
                     if (sock.state == tcp_state::ESTABLISHED)
@@ -1947,13 +1954,11 @@ static void received_packet(base_tcp_socket& sock, packet& pack,
                     }
                 }
 
-                if (data_len > sock.recv_window)
-                    data_len = sock.recv_window;
-
                 ack = sock.recv_next;
 
+                // may go negative
                 if (!sock.shutdown_read)
-                    sock.recv_window -= (uint16_t)data_len;
+                    sock.recv_window -= (int32_t)data_len;
             }
         }
 
@@ -2150,7 +2155,7 @@ nt_status tcp_socket<FAMILY>::do_sendto(span<const span<const uint8_t>> v,
             tcp.header_length = sizeof(tcp_header) / sizeof(uint32_t);
             tcp.PSH = 1;
             tcp.ACK = 1;
-            tcp.window = byteswap(recv_window);
+            tcp.window = tcp_window(*this);
 
             send_next += (uint32_t)size;
 
@@ -2615,10 +2620,10 @@ nt_status tcp_socket<FAMILY>::do_recvfrom(span<const span<uint8_t>> v, int flags
             {
                 lock_guard lock(io_lock);
 
-                if (recv_window == 0)
+                if (recv_window <= 0)
                     opening = true;
 
-                recv_window += (uint16_t)removed_bytes;
+                recv_window += (int32_t)removed_bytes;
                 ack = recv_next;
             }
 
@@ -3037,7 +3042,7 @@ nt_status tcp_socket<FAMILY>::send_syn_ack(const mac_address& mac) {
     tcp.header_length = sizeof(tcp_header) / sizeof(uint32_t);
     tcp.SYN = 1;
     tcp.ACK = 1;
-    tcp.window = byteswap(recv_window);
+    tcp.window = tcp_window(*this);
 
     send_next++;
 
