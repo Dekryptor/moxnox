@@ -1837,6 +1837,7 @@ static void received_packet(base_tcp_socket& sock, packet& pack,
                 if (data_len <= sock.recv_window && !sock.shutdown_read) {
                     sock.recv_window -= (uint16_t)data_len;
 
+                    bool drop = false;
                     for (auto le = sock.ooo_buffer.next; le != &sock.ooo_buffer; le = le->next) {
                         auto& p2 = containing_record<socket_packet>(le);
 
@@ -1851,6 +1852,12 @@ static void received_packet(base_tcp_socket& sock, packet& pack,
                         auto& tcp2 = *(tcp_header*)(p2.pack.data + ip_header_size);
                         tcp_seq seq2 = tcp2.seq;
 
+                        if (seq2 == seq) { // duplicate, drop
+                            drop = true;
+                            sock.recv_window += (uint16_t)data_len;
+                            break;
+                        }
+
                         if (seq2 > seq) {
                             insert_tail_list(*le, p->le);
                             added = true;
@@ -1858,7 +1865,7 @@ static void received_packet(base_tcp_socket& sock, packet& pack,
                         }
                     }
 
-                    if (!added) {
+                    if (!added && !drop) {
                         insert_tail_list(sock.ooo_buffer, p->le);
                         added = true;
                     }
