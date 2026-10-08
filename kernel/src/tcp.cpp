@@ -1839,6 +1839,7 @@ static void received_packet(base_tcp_socket& sock, packet& pack,
         bool added = false;
         optional<tcp_seq> ack;
         bool clear_ooo = false;
+        auto data_len = (uint32_t)(size > header_length + ip_header_size ? (size - header_length - ip_header_size) : 0);
 
         {
             lock_guard lock(sock.io_lock);
@@ -1847,8 +1848,6 @@ static void received_packet(base_tcp_socket& sock, packet& pack,
             auto seq = tcp.seq;
 
             if (seq > sock.recv_next) {
-                auto data_len = (uint32_t)(size - header_length - ip_header_size);
-
                 if ((int32_t)data_len <= sock.recv_window && !sock.shutdown_read) {
                     sock.recv_window -= (int32_t)data_len;
 
@@ -1888,18 +1887,21 @@ static void received_packet(base_tcp_socket& sock, packet& pack,
 
                 // send ACK for where we're up to so far
                 ack = sock.recv_next;
-            } else if (seq < sock.recv_next) {
+            } else if (seq + data_len + (tcp.FIN ? 1 : 0) <= sock.recv_next) {
                 // send ACK for packet we've already received
                 ack = sock.recv_next;
             } else {
-                if (size > header_length + ip_header_size && !sock.shutdown_read) {
+                if (seq < sock.recv_next) {
+                    p->skip += sock.recv_next - seq;
+                    data_len -= sock.recv_next - seq;
+                }
+
+                sock.recv_next += data_len;
+
+                if (data_len > 0 && !sock.shutdown_read) {
                     insert_tail_list(sock.buffer, p->le);
                     added = true;
                 }
-
-                auto data_len = (uint32_t)(size - header_length - ip_header_size);
-
-                sock.recv_next += data_len;
 
                 if (tcp.FIN && (int32_t)data_len <= sock.recv_window) {
                     sock.recv_next++;
