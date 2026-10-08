@@ -1870,6 +1870,9 @@ static void received_packet(base_tcp_socket& sock, packet& pack,
                         added = true;
                     }
                 }
+
+                // send ACK for where we're up to so far
+                ack = sock.recv_next;
             } else if (seq < sock.recv_next) {
                 // send ACK for packet we've already received
                 ack = sock.recv_next;
