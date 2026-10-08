@@ -2530,7 +2530,7 @@ nt_status tcp_socket<FAMILY>::do_recvfrom(span<const span<uint8_t>> v, int flags
 
                 ip_header_size = ip.ihl * sizeof(uint32_t);
                 pack_size = byteswap((uint16_t)ip.total_length);
-            } else if constexpr (is_same_v<FAMILY, ipv6>) {
+            } else {
                 ip_header_size = sizeof(ipv6_header);
                 pack_size = r.pack.size;
             }
