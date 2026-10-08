@@ -1846,6 +1846,7 @@ static void received_packet(base_tcp_socket& sock, packet& pack,
             lock_guard lock2(sock.state_lock);
 
             auto seq = tcp.seq;
+            tcp_seq end = seq + data_len;
 
             if (seq > sock.recv_next) {
                 if ((int32_t)data_len <= sock.recv_window && !sock.shutdown_read) {
@@ -1856,26 +1857,50 @@ static void received_packet(base_tcp_socket& sock, packet& pack,
                         auto& p2 = containing_record<tcp_socket_packet>(le);
 
                         auto& ip2 = *(typename FAMILY::header*)p2.pack.data;
-                        size_t ip_header_size;
+                        size_t ip_header_size2, size2;
 
-                        if constexpr (is_same_v<FAMILY, ipv4>)
-                            ip_header_size = ip2.ihl * sizeof(uint32_t);
-                        else if constexpr (is_same_v<FAMILY, ipv6>)
-                            ip_header_size = sizeof(ipv6_header);
-
-                        auto& tcp2 = *(tcp_header*)(p2.pack.data + ip_header_size);
-                        tcp_seq seq2 = tcp2.seq;
-
-                        if (seq2 == seq) { // duplicate, drop
-                            drop = true;
-                            sock.recv_window += (int32_t)data_len;
-                            break;
+                        if constexpr (is_same_v<FAMILY, ipv4>) {
+                            ip_header_size2 = ip2.ihl * sizeof(uint32_t);
+                            size2 = byteswap((uint16_t)ip2.total_length);
+                        } else if constexpr (is_same_v<FAMILY, ipv6>) {
+                            ip_header_size2 = sizeof(ipv6_header);
+                            size2 = p2.pack.size;
                         }
 
-                        if (seq2 > seq) {
+                        auto& tcp2 = *(tcp_header*)(p2.pack.data + ip_header_size2);
+                        tcp_seq seq2 = tcp2.seq + (uint32_t)(p2.skip - ip_header_size2 - (tcp2.header_length * sizeof(uint32_t)));
+                        tcp_seq end2 = seq2 + (uint32_t)(size2 - p2.skip);
+
+                        if (end2 <= seq)
+                            continue;
+
+                        if (seq2 >= end) {
                             insert_tail_list(*le, p->le);
                             added = true;
                             break;
+                        } else if (seq2 <= seq) {
+                            p->skip += min(end2, end) - seq;
+                            data_len -= min(end2, end) - seq;
+                            sock.recv_window += (int32_t)(min(end2, end) - seq);
+                            seq = end2;
+
+                            if (data_len == 0) {
+                                drop = true;
+                                break;
+                            }
+                        } else {
+                            sock.recv_window += (int32_t)min(size2 - p2.skip, (size_t)(end - seq2));
+                            p2.skip += min(size2 - p2.skip, (size_t)(end - seq2));
+
+                            if (p2.skip == size2) {
+                                le = le->prev;
+                                remove_entry_list(p2.le);
+                                delete &p2;
+                            } else {
+                                insert_tail_list(*le, p->le);
+                                added = true;
+                                break;
+                            }
                         }
                     }
 
@@ -1936,12 +1961,42 @@ static void received_packet(base_tcp_socket& sock, packet& pack,
                         else if constexpr (is_same_v<FAMILY, ipv6>)
                             size2 = p2.pack.size;
 
-                        // FIXME - what if tcp2.seq < recv_next (i.e. packets overlap)?
+                        tcp_seq seq2 = tcp2.seq + (uint32_t)(p2.skip - ip_header_size2 - header_length2);
+                        tcp_seq end2 = seq2 + (uint32_t)(size2 - p2.skip);
 
-                        if (tcp2.seq != sock.recv_next)
+                        if (end2 <= sock.recv_next) {
+                            remove_entry_list(p2.le);
+                            sock.recv_window += (int32_t)(size2 - p2.skip);
+
+                            if (tcp2.FIN) {
+                                sock.recv_next++;
+
+                                if (sock.state == tcp_state::ESTABLISHED)
+                                    sock.state = tcp_state::CLOSE_WAIT;
+                                else if (sock.state == tcp_state::FIN_WAIT_2)
+                                    sock.state = tcp_state::TIME_WAIT;
+
+                                clear_ooo = true;
+                                delete &p2;
+
+                                break;
+                            }
+
+                            delete &p2;
+                            continue;
+                        }
+
+                        if (seq2 > sock.recv_next)
                             break;
 
-                        sock.recv_next += (uint32_t)(size2 - header_length2 - ip_header_size2);
+                        if (seq2 < sock.recv_next) {
+                            p2.skip += sock.recv_next - seq2;
+                            sock.recv_window += (int32_t)(sock.recv_next - seq2);
+
+                            sock.recv_next = seq2;
+                        }
+
+                        sock.recv_next = end2;
 
                         if (tcp2.FIN) {
                             sock.recv_next++;
