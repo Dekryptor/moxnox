@@ -1837,8 +1837,31 @@ static void received_packet(base_tcp_socket& sock, packet& pack,
                 if (data_len <= sock.recv_window && !sock.shutdown_read) {
                     sock.recv_window -= (uint16_t)data_len;
 
-                    insert_tail_list(sock.ooo_buffer, p->le);
-                    added = true;
+                    for (auto le = sock.ooo_buffer.next; le != &sock.ooo_buffer; le = le->next) {
+                        auto& p2 = containing_record<socket_packet>(le);
+
+                        auto& ip2 = *(typename FAMILY::header*)p2.pack.data;
+                        size_t ip_header_size;
+
+                        if constexpr (is_same_v<FAMILY, ipv4>)
+                            ip_header_size = ip2.ihl * sizeof(uint32_t);
+                        else if constexpr (is_same_v<FAMILY, ipv6>)
+                            ip_header_size = sizeof(ipv6_header);
+
+                        auto& tcp2 = *(tcp_header*)(p2.pack.data + ip_header_size);
+                        tcp_seq seq2 = tcp2.seq;
+
+                        if (seq2 > seq) {
+                            insert_tail_list(*le, p->le);
+                            added = true;
+                            break;
+                        }
+                    }
+
+                    if (!added) {
+                        insert_tail_list(sock.ooo_buffer, p->le);
+                        added = true;
+                    }
                 }
             } else if (seq < sock.recv_next) {
                 // send ACK for packet we've already received
