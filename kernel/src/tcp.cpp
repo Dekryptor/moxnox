@@ -242,6 +242,13 @@ private:
                         sockaddr* to, size_t tolen, uint64_t& sent_bytes);
 };
 
+class tcp_socket_packet : public socket_packet {
+public:
+    tcp_socket_packet(packet& pack) : socket_packet(pack) { }
+
+    size_t skip;
+};
+
 template<socket_family FAMILY>
 struct socket_variant;
 
@@ -1820,13 +1827,14 @@ static void received_packet(base_tcp_socket& sock, packet& pack,
     }
 
     if (size > header_length + ip_header_size || tcp.FIN) { // data or FIN
-        auto p = new socket_packet(pack);
+        auto p = new tcp_socket_packet(pack);
         if (!p) {
             print("new failed\n");
             return;
         }
 
         p->scope_id = sock.connected_scope;
+        p->skip = ip_header_size + header_length;
 
         bool added = false;
         optional<tcp_seq> ack;
@@ -1846,7 +1854,7 @@ static void received_packet(base_tcp_socket& sock, packet& pack,
 
                     bool drop = false;
                     for (auto le = sock.ooo_buffer.next; le != &sock.ooo_buffer; le = le->next) {
-                        auto& p2 = containing_record<socket_packet>(le);
+                        auto& p2 = containing_record<tcp_socket_packet>(le);
 
                         auto& ip2 = *(typename FAMILY::header*)p2.pack.data;
                         size_t ip_header_size;
@@ -1908,7 +1916,7 @@ static void received_packet(base_tcp_socket& sock, packet& pack,
                         if (is_list_empty(sock.ooo_buffer))
                             break;
 
-                        auto& p2 = containing_record<socket_packet>(sock.ooo_buffer.next);
+                        auto& p2 = containing_record<tcp_socket_packet>(sock.ooo_buffer.next);
                         auto& ip2 = *(typename FAMILY::header*)p2.pack.data;
                         size_t ip_header_size2;
 
@@ -1964,13 +1972,13 @@ static void received_packet(base_tcp_socket& sock, packet& pack,
 
         if (clear_ooo || sock.shutdown_read) {
             while (true) {
-                socket_packet* p;
+                tcp_socket_packet* p;
 
                 {
                     lock_guard lock(sock.state_lock);
 
                     if (!is_list_empty(sock.ooo_buffer))
-                        p = &containing_record<socket_packet>(sock.ooo_buffer.next);
+                        p = &containing_record<tcp_socket_packet>(sock.ooo_buffer.next);
                     else
                         break;
 
@@ -2315,15 +2323,15 @@ tcp_socket<FAMILY>::~tcp_socket() {
     }
 
     while (true) {
-        socket_packet* p;
+        tcp_socket_packet* p;
 
         {
             lock_guard lock(state_lock);
 
             if (!is_list_empty(buffer))
-                p = &containing_record<socket_packet>(buffer.next);
+                p = &containing_record<tcp_socket_packet>(buffer.next);
             else if (!is_list_empty(ooo_buffer))
-                p = &containing_record<socket_packet>(ooo_buffer.next);
+                p = &containing_record<tcp_socket_packet>(ooo_buffer.next);
             else
                 break;
 
@@ -2521,9 +2529,9 @@ nt_status tcp_socket<FAMILY>::do_recvfrom(span<const span<uint8_t>> v, int flags
 
         size_t removed_bytes = 0;
 
-        auto tcp_read = [&](socket_packet& r, size_t& off, bool peek) -> bool {
+        auto tcp_read = [&](tcp_socket_packet& r, size_t& off, bool peek) -> bool {
             bool do_ipv4;
-            size_t ip_header_size, pack_size;
+            size_t pack_size;
 
             if constexpr (is_same_v<FAMILY, ipv4>)
                 do_ipv4 = true;
@@ -2533,24 +2541,17 @@ nt_status tcp_socket<FAMILY>::do_recvfrom(span<const span<uint8_t>> v, int flags
             if (do_ipv4) {
                 auto& ip = *(ipv4_header*)r.pack.data;
 
-                ip_header_size = ip.ihl * sizeof(uint32_t);
                 pack_size = byteswap((uint16_t)ip.total_length);
-            } else {
-                ip_header_size = sizeof(ipv6_header);
+            } else
                 pack_size = r.pack.size;
-            }
 
-            auto& tcp = *(tcp_header*)(r.pack.data + ip_header_size);
+            auto to_copy = (uint32_t)min(pack_size - r.skip - off, vec_size);
 
-            size_t header_length = tcp.header_length * sizeof(uint32_t);
-            auto to_copy = (uint32_t)min(pack_size - ip_header_size - header_length - off, vec_size);
-
-            memcpy_vec(v, top, r.pack.data + ip_header_size + header_length + off,
-                       to_copy);
+            memcpy_vec(v, top, r.pack.data + r.skip + off, to_copy);
 
             recv_bytes += to_copy;
 
-            if (ip_header_size + header_length + off + to_copy < pack_size) {
+            if (r.skip + off + to_copy < pack_size) {
                 off += to_copy;
                 return true;
             }
@@ -2564,7 +2565,7 @@ nt_status tcp_socket<FAMILY>::do_recvfrom(span<const span<uint8_t>> v, int flags
             off = 0;
 
             if (!peek) {
-                removed_bytes += pack_size - ip_header_size - header_length;
+                removed_bytes += pack_size - r.skip;
 
                 delete &r;
             }
@@ -2581,14 +2582,14 @@ nt_status tcp_socket<FAMILY>::do_recvfrom(span<const span<uint8_t>> v, int flags
             auto off = us_read_offset;
 
             for (auto le = buffer.next; le != &buffer; le = le->next) {
-                auto& r = containing_record<socket_packet>(le);
+                auto& r = containing_record<tcp_socket_packet>(le);
 
                 if (tcp_read(r, off, true))
                     break;
             }
         } else {
             while (true) {
-                socket_packet* r;
+                tcp_socket_packet* r;
 
                 {
                     lock_guard lock(state_lock);
@@ -2596,7 +2597,7 @@ nt_status tcp_socket<FAMILY>::do_recvfrom(span<const span<uint8_t>> v, int flags
                     if (is_list_empty(buffer))
                         break;
 
-                    r = &containing_record<socket_packet>(buffer.next);
+                    r = &containing_record<tcp_socket_packet>(buffer.next);
                 }
 
                 if (tcp_read(*r, us_read_offset, false))
