@@ -68,7 +68,7 @@ export uint64_t dma_setup(span<const uint8_t> buf, bool write, uint8_t*& bounce)
         if (is_phys_memory(buf.data()))
             return va_to_pa_phys(buf.data());
         else
-            return va_to_pa_lookup((uintptr_t)buf.data());
+            return va_to_pa_lookup((uintptr_t)buf.data()) + ((uintptr_t)buf.data() & (PAGE_SIZE - 1));
     }
 }
 
@@ -80,7 +80,7 @@ export uint64_t dma_setup_no_bounce(span<const uint8_t> buf) {
     if (is_phys_memory(buf.data()))
         return va_to_pa_phys(buf.data());
     else
-        return va_to_pa_lookup((uintptr_t)buf.data());
+        return va_to_pa_lookup((uintptr_t)buf.data()) + ((uintptr_t)buf.data() & (PAGE_SIZE - 1));
 }
 
 export void dma_finish_read(span<uint8_t> buf, uint8_t* bounce) {
