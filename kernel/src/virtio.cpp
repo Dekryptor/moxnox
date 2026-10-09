@@ -799,14 +799,14 @@ bool virt_queue::isr() {
 
     lock_guard lock(submit_lock);
 
-    auto idx = queue->used.idx % QUEUE_SIZE;
+    auto idx = queue->used.idx;
 
     while (old_used_idx != idx) {
-        lengths[queue->used.ring[old_used_idx].id] = queue->used.ring[old_used_idx].len;
+        lengths[queue->used.ring[old_used_idx % QUEUE_SIZE].id] = queue->used.ring[old_used_idx % QUEUE_SIZE].len;
 
         handled = true;
 
-        auto& e = static_cast<event&>(events[queue->used.ring[old_used_idx].id].get());
+        auto& e = static_cast<event&>(events[queue->used.ring[old_used_idx % QUEUE_SIZE].id].get());
 
         if (holding_sync_lock)
             e.set_holding_sync_lock();
@@ -814,8 +814,6 @@ bool virt_queue::isr() {
             set_event(e);
 
         old_used_idx++;
-        if (old_used_idx == QUEUE_SIZE)
-            old_used_idx = 0;
     }
 
     return handled;
