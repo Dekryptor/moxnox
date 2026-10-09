@@ -331,13 +331,14 @@ template<virtio_device T>
 nt_status virtio_net<T>::send_packet(const mac_address& dst_mac, ethertype type,
                                      packet& pack) {
     uint8_t* bounce1 = nullptr;
-    uint8_t* bounce2 = nullptr;
     virtq_desc descs[2];
 
-    struct {
+    struct alignas(CACHE_LINE) {
         virtio_net_hdr hdr;
         ethernet_header eth;
     } __attribute((packed)) header;
+
+    static_assert(sizeof(header) % CACHE_LINE == 0);
 
     header.hdr.flags = 0;
     header.hdr.gso_type = VIRTIO_NET_HDR_GSO_NONE;
@@ -351,16 +352,11 @@ nt_status virtio_net<T>::send_packet(const mac_address& dst_mac, ethertype type,
     header.eth.dst_mac = dst_mac;
     header.eth.type = type;
 
-    auto pa1 = dma_setup(span((uint8_t*)&header, sizeof(header)), true, bounce1);
-    if (!pa1) {
-        print("dma_setup failed\n");
-        return nt_status::INSUFFICIENT_RESOURCES;
-    }
-
+    auto pa1 = dma_setup_no_bounce(span((uint8_t*)&header, sizeof(header)));
     auto pa2 = dma_setup_no_bounce(span(pack.data, PACKET_DATA_SIZE_PLUS_PADDING));
 
     descs[0].addr = pa1;
-    descs[0].len = sizeof(header);
+    descs[0].len = sizeof(virtio_net_hdr) + sizeof(ethernet_header);
     descs[0].flags = VIRTQ_DESC_F_NEXT;
     descs[0].next = 1;
 
@@ -370,17 +366,14 @@ nt_status virtio_net<T>::send_packet(const mac_address& dst_mac, ethertype type,
     descs[1].next = 0;
 
     auto pa3 = dma_setup(span((uint8_t*)descs, sizeof(virtq_desc) * 2),
-                         true, bounce2);
-    if (!pa3) {
-        dma_finish_write(bounce1);
+                         true, bounce1);
+    if (!pa3)
         return nt_status::INSUFFICIENT_RESOURCES;
-    }
 
     auto slot = transmit_queue->async_indirect(pa3, sizeof(virtq_desc) * 2);
 
     transmit_queue->wait_read(slot);
 
-    dma_finish_write(bounce2);
     dma_finish_write(bounce1);
 
     tx_packets.fetch_add(1, memory_order::relaxed);
