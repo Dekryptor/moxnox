@@ -135,6 +135,22 @@ static void init_virtio_pci() {
 
 static module_init module_init_virtio_net(init_virtio_pci);
 
+struct alignas(CACHE_LINE) virtio_net_send_entry {
+    virtio_net_hdr hdr;
+    ethernet_header eth;
+    uint8_t padding[CACHE_LINE - sizeof(virtio_net_hdr) - sizeof(ethernet_header)];
+    virtq_desc desc1;
+    virtq_desc desc2;
+};
+
+static constexpr size_t SEND_ENTRY_HEADER_SIZE_PLUS_PADDING = offsetof(virtio_net_send_entry, desc1);
+static constexpr size_t SEND_ENTRY_DESCS_SIZE_PLUS_PADDING = sizeof(virtio_net_send_entry) - offsetof(virtio_net_send_entry, desc1);
+
+static_assert(offsetof(virtio_net_send_entry, hdr) % CACHE_LINE == 0);
+static_assert(SEND_ENTRY_HEADER_SIZE_PLUS_PADDING % CACHE_LINE == 0);
+static_assert(offsetof(virtio_net_send_entry, desc1) % CACHE_LINE == 0);
+static_assert(SEND_ENTRY_DESCS_SIZE_PLUS_PADDING % CACHE_LINE == 0);
+
 template<virtio_device T>
 class virtio_net : public netif {
 public:
@@ -150,6 +166,7 @@ public:
                           packet& pack) override;
 
     T& dev;
+    virtio_net_send_entry send_entries[VIRTIO_QUEUE_SIZE];
 
 private:
     virt_queue* receive_queue = nullptr;
@@ -330,53 +347,43 @@ static bool found_virtio_mmio_net(virtio_mmio_device& dev) {
 template<virtio_device T>
 nt_status virtio_net<T>::send_packet(const mac_address& dst_mac, ethertype type,
                                      packet& pack) {
-    struct alignas(CACHE_LINE) {
-        virtio_net_hdr hdr;
-        ethernet_header eth;
-    } __attribute((packed)) header;
+    auto slot = transmit_queue->get_slot();
 
-    static_assert(sizeof(header) % CACHE_LINE == 0);
+    auto& s = send_entries[slot];
 
-    struct alignas(CACHE_LINE) {
-        virtq_desc desc1;
-        virtq_desc desc2;
-    } descs;
+    s.hdr.flags = 0;
+    s.hdr.gso_type = VIRTIO_NET_HDR_GSO_NONE;
+    s.hdr.hdr_len = 0;
+    s.hdr.gso_size = 0;
+    s.hdr.csum_start = 0;
+    s.hdr.csum_offset = 0;
+    s.hdr.num_buffers = 0;
 
-    static_assert(sizeof(descs) % CACHE_LINE == 0);
+    s.eth.src_mac = mac;
+    s.eth.dst_mac = dst_mac;
+    s.eth.type = type;
 
-    header.hdr.flags = 0;
-    header.hdr.gso_type = VIRTIO_NET_HDR_GSO_NONE;
-    header.hdr.hdr_len = 0;
-    header.hdr.gso_size = 0;
-    header.hdr.csum_start = 0;
-    header.hdr.csum_offset = 0;
-    header.hdr.num_buffers = 0;
-
-    header.eth.src_mac = mac;
-    header.eth.dst_mac = dst_mac;
-    header.eth.type = type;
-
-    auto pa1 = dma_setup_no_bounce(span((uint8_t*)&header, sizeof(header)));
+    auto pa1 = dma_setup_no_bounce(span((uint8_t*)&s.hdr, SEND_ENTRY_HEADER_SIZE_PLUS_PADDING));
     auto pa2 = dma_setup_no_bounce(span(pack.data, PACKET_DATA_SIZE_PLUS_PADDING));
 
-    descs.desc1.addr = pa1;
-    descs.desc1.len = sizeof(virtio_net_hdr) + sizeof(ethernet_header);
-    descs.desc1.flags = VIRTQ_DESC_F_NEXT;
-    descs.desc1.next = 1;
+    s.desc1.addr = pa1;
+    s.desc1.len = sizeof(virtio_net_hdr) + sizeof(ethernet_header);
+    s.desc1.flags = VIRTQ_DESC_F_NEXT;
+    s.desc1.next = 1;
 
-    descs.desc2.addr = pa2;
-    descs.desc2.len = (uint32_t)pack.size;
-    descs.desc2.flags = 0;
-    descs.desc2.next = 0;
+    s.desc2.addr = pa2;
+    s.desc2.len = (uint32_t)pack.size;
+    s.desc2.flags = 0;
+    s.desc2.next = 0;
 
-    auto pa3 = dma_setup_no_bounce(span((uint8_t*)&descs, sizeof(descs)));
+    auto pa3 = dma_setup_no_bounce(span((uint8_t*)&s.desc1, SEND_ENTRY_DESCS_SIZE_PLUS_PADDING));
 
-    auto slot = transmit_queue->async_indirect(pa3, sizeof(virtq_desc) * 2);
-
-    transmit_queue->wait_read(slot);
+    transmit_queue->async_indirect_with_slot(slot, pa3, sizeof(virtq_desc) * 2);
 
     tx_packets.fetch_add(1, memory_order::relaxed);
     tx_bytes.fetch_add(sizeof(ethernet_header) + pack.size, memory_order::relaxed);
+
+    transmit_queue->wait_read(slot);
 
     return nt_status::SUCCESS;
 }
@@ -391,13 +398,13 @@ struct alignas(CACHE_LINE) virtio_net_recv_entry {
     uint8_t slot;
 };
 
-static constexpr size_t ENTRY_HEADER_SIZE_PLUS_PADDING = offsetof(virtio_net_recv_entry, descs);
-static constexpr size_t ENTRY_DESCS_SIZE_PLUS_PADDING = offsetof(virtio_net_recv_entry, pack);
+static constexpr size_t RECV_ENTRY_HEADER_SIZE_PLUS_PADDING = offsetof(virtio_net_recv_entry, descs);
+static constexpr size_t RECV_ENTRY_DESCS_SIZE_PLUS_PADDING = offsetof(virtio_net_recv_entry, pack) - offsetof(virtio_net_recv_entry, descs);
 
 static_assert(offsetof(virtio_net_recv_entry, hdr) % CACHE_LINE == 0);
-static_assert(ENTRY_HEADER_SIZE_PLUS_PADDING % CACHE_LINE == 0);
+static_assert(RECV_ENTRY_HEADER_SIZE_PLUS_PADDING % CACHE_LINE == 0);
 static_assert(offsetof(virtio_net_recv_entry, descs) % CACHE_LINE == 0);
-static_assert(ENTRY_DESCS_SIZE_PLUS_PADDING % CACHE_LINE == 0);
+static_assert(RECV_ENTRY_DESCS_SIZE_PLUS_PADDING % CACHE_LINE == 0);
 
 template<virtio_device T>
 void virtio_net<T>::recv_thread() {
@@ -414,7 +421,7 @@ void virtio_net<T>::recv_thread() {
             return false;
         }
 
-        auto pa1 = dma_setup_no_bounce(span((uint8_t*)&e.hdr, ENTRY_HEADER_SIZE_PLUS_PADDING));
+        auto pa1 = dma_setup_no_bounce(span((uint8_t*)&e.hdr, RECV_ENTRY_HEADER_SIZE_PLUS_PADDING));
         auto pa2 = dma_setup_no_bounce(span((uint8_t*)&e.pack->data, PACKET_DATA_SIZE_PLUS_PADDING));
 
         e.descs[0].addr = pa1;
@@ -427,7 +434,7 @@ void virtio_net<T>::recv_thread() {
         e.descs[1].flags = VIRTQ_DESC_F_WRITE;
         e.descs[1].next = 0;
 
-        auto pa3 = dma_setup_no_bounce(span((uint8_t*)e.descs, ENTRY_DESCS_SIZE_PLUS_PADDING));
+        auto pa3 = dma_setup_no_bounce(span((uint8_t*)e.descs, RECV_ENTRY_DESCS_SIZE_PLUS_PADDING));
 
         e.slot = receive_queue->async_indirect(pa3, sizeof(virtq_desc) * 2);
 
@@ -444,7 +451,7 @@ void virtio_net<T>::recv_thread() {
 
         auto recvd_bytes = receive_queue->wait_read(e.slot);
 
-        dma_finish_read_no_bounce(span((uint8_t*)&e.hdr, ENTRY_HEADER_SIZE_PLUS_PADDING));
+        dma_finish_read_no_bounce(span((uint8_t*)&e.hdr, RECV_ENTRY_HEADER_SIZE_PLUS_PADDING));
         dma_finish_read_no_bounce(span((uint8_t*)&e.pack->data, PACKET_DATA_SIZE_PLUS_PADDING));
 
         if (recvd_bytes < sizeof(virtio_net_hdr) + sizeof(ethernet_header)) {

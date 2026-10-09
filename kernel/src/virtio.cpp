@@ -34,7 +34,7 @@ import acpica;
 using namespace std;
 
 // FIXME - allow dynamic queue size (maximum supported by device?)
-const size_t QUEUE_SIZE = 16;
+export const size_t VIRTIO_QUEUE_SIZE = 16;
 
 export const uint8_t VIRTQ_DESC_F_NEXT = 1;
 export const uint8_t VIRTQ_DESC_F_WRITE = 2;
@@ -81,9 +81,11 @@ public:
     nt_status indirect(span<virtq_desc> descs, uint64_t& read_bytes);
     nt_status indirect_no_sleep(span<virtq_desc> descs, uint64_t& read_bytes);
     uint8_t async_indirect(uintptr_t pa, size_t len);
+    void async_indirect_with_slot(uint8_t slot, uintptr_t pa, size_t len);
     bool isr();
+    uint8_t get_slot();
 
-    virtq<QUEUE_SIZE>* queue;
+    virtq<VIRTIO_QUEUE_SIZE>* queue;
     uint64_t queue_pa;
     list_entry le;
     uint16_t num;
@@ -91,7 +93,6 @@ public:
     bool init = false;
 
 private:
-    uint8_t get_slot();
     optional<uint8_t> try_get_slot();
     void release_slot(uint8_t slot);
 
@@ -99,8 +100,8 @@ private:
     uint16_t old_used_idx = 0;
     spinlock slot_lock, submit_lock;
     object_ref sem;
-    object_ref events[QUEUE_SIZE];
-    uint32_t lengths[QUEUE_SIZE];
+    object_ref events[VIRTIO_QUEUE_SIZE];
+    uint32_t lengths[VIRTIO_QUEUE_SIZE];
 };
 
 export class virtio_pci_device {
@@ -247,15 +248,15 @@ static bool virtio_pci_isr_func(void* ctx) {
 bool virtio_pci_device::add_virtqueue(uint16_t num) {
     common->queue_select = num;
 
-    if (common->queue_size < QUEUE_SIZE) {
+    if (common->queue_size < VIRTIO_QUEUE_SIZE) {
         print("virtio_pci_device::add_virtqueue: size for queue {} was {}, wanted at least {}\n",
-              +common->queue_select, +common->queue_size, QUEUE_SIZE);
+              +common->queue_select, +common->queue_size, VIRTIO_QUEUE_SIZE);
         return false;
     }
 
-    common->queue_size = QUEUE_SIZE;
+    common->queue_size = VIRTIO_QUEUE_SIZE;
 
-    auto order = bytes_to_folio_order(sizeof(virtq<QUEUE_SIZE>));
+    auto order = bytes_to_folio_order(sizeof(virtq<VIRTIO_QUEUE_SIZE>));
     auto pa = allocate_folio(order);
     if (!pa) {
         print("allocate folio failed\n");
@@ -303,7 +304,7 @@ bool virtio_pci_device::add_virtqueue(uint16_t num) {
         return false;
     }
 
-    auto& queue = *(virtq<QUEUE_SIZE>*)va;
+    auto& queue = *(virtq<VIRTIO_QUEUE_SIZE>*)va;
 
     memset(&queue, 0, sizeof(queue));
 
@@ -410,7 +411,7 @@ uint8_t virt_queue::async_read(uintptr_t pa, size_t len) {
     {
         lock_guard lock(submit_lock);
 
-        queue->available.ring[queue->available.idx % QUEUE_SIZE] = slot;
+        queue->available.ring[queue->available.idx % VIRTIO_QUEUE_SIZE] = slot;
 
         barrier();
 #ifdef __x86_64__
@@ -487,7 +488,7 @@ nt_status virt_queue::indirect_no_sleep(span<virtq_desc> descs,
     {
         lock_guard lock(submit_lock);
 
-        queue->available.ring[queue->available.idx % QUEUE_SIZE] = slot;
+        queue->available.ring[queue->available.idx % VIRTIO_QUEUE_SIZE] = slot;
 
         barrier();
 #ifdef __x86_64__
@@ -518,9 +519,8 @@ nt_status virt_queue::indirect_no_sleep(span<virtq_desc> descs,
     return nt_status::SUCCESS;
 }
 
-uint8_t virt_queue::async_indirect(uintptr_t pa, size_t len) {
-    auto slot = get_slot();
-
+void virt_queue::async_indirect_with_slot(uint8_t slot, uintptr_t pa,
+                                             size_t len) {
     // descs needs to be in phys memory range
 
     queue->buffers[slot].addr = pa;
@@ -530,7 +530,7 @@ uint8_t virt_queue::async_indirect(uintptr_t pa, size_t len) {
     {
         lock_guard lock(submit_lock);
 
-        queue->available.ring[queue->available.idx % QUEUE_SIZE] = slot;
+        queue->available.ring[queue->available.idx % VIRTIO_QUEUE_SIZE] = slot;
 
         barrier();
 #ifdef __x86_64__
@@ -541,6 +541,12 @@ uint8_t virt_queue::async_indirect(uintptr_t pa, size_t len) {
     }
 
     *notification_addr = num;
+}
+
+uint8_t virt_queue::async_indirect(uintptr_t pa, size_t len) {
+    auto slot = get_slot();
+
+    async_indirect_with_slot(slot, pa, len);
 
     return slot;
 }
@@ -583,7 +589,7 @@ nt_status virt_queue::write(span<const uint8_t> msg) {
     {
         lock_guard lock(submit_lock);
 
-        queue->available.ring[queue->available.idx % QUEUE_SIZE] = slot;
+        queue->available.ring[queue->available.idx % VIRTIO_QUEUE_SIZE] = slot;
 
         barrier();
 #ifdef __x86_64__
@@ -754,13 +760,13 @@ virtio_pci_device::virtio_pci_device(pci_device& dev, uint64_t supported_feature
 }
 
 virt_queue::virt_queue() {
-    sem = create_semaphore(QUEUE_SIZE);
+    sem = create_semaphore(VIRTIO_QUEUE_SIZE);
     if (!sem) {
         print("create_semaphore failed\n");
         return;
     }
 
-    for (unsigned int i = 0; i < QUEUE_SIZE; i++) {
+    for (unsigned int i = 0; i < VIRTIO_QUEUE_SIZE; i++) {
         events[i] = create_event(true);
         if (!events[i]) {
             print("create_event failed\n");
@@ -772,9 +778,9 @@ virt_queue::virt_queue() {
 }
 
 virt_queue::~virt_queue() {
-    static const size_t NUM_PAGES = bytes_to_pages(sizeof(virtq<QUEUE_SIZE>));
+    static const size_t NUM_PAGES = bytes_to_pages(sizeof(virtq<VIRTIO_QUEUE_SIZE>));
 
-    queue->~virtq<QUEUE_SIZE>();
+    queue->~virtq<VIRTIO_QUEUE_SIZE>();
 
     auto va = (uintptr_t)queue;
 
@@ -802,11 +808,11 @@ bool virt_queue::isr() {
     auto idx = queue->used.idx;
 
     while (old_used_idx != idx) {
-        lengths[queue->used.ring[old_used_idx % QUEUE_SIZE].id] = queue->used.ring[old_used_idx % QUEUE_SIZE].len;
+        lengths[queue->used.ring[old_used_idx % VIRTIO_QUEUE_SIZE].id] = queue->used.ring[old_used_idx % VIRTIO_QUEUE_SIZE].len;
 
         handled = true;
 
-        auto& e = static_cast<event&>(events[queue->used.ring[old_used_idx % QUEUE_SIZE].id].get());
+        auto& e = static_cast<event&>(events[queue->used.ring[old_used_idx % VIRTIO_QUEUE_SIZE].id].get());
 
         if (holding_sync_lock)
             e.set_holding_sync_lock();
@@ -941,13 +947,13 @@ bool virtio_mmio_device::add_virtqueue(uint16_t num) {
 
         regs.QueueSel = num;
 
-        if (regs.QueueSizeMax < QUEUE_SIZE) {
+        if (regs.QueueSizeMax < VIRTIO_QUEUE_SIZE) {
             print("virtio_mmio_device::add_virtqueue: max size for queue {} was {}, wanted at least {}\n",
-                  +regs.QueueSel, +regs.QueueSizeMax, QUEUE_SIZE);
+                  +regs.QueueSel, +regs.QueueSizeMax, VIRTIO_QUEUE_SIZE);
             return false;
         }
 
-        regs.QueueSize = QUEUE_SIZE;
+        regs.QueueSize = VIRTIO_QUEUE_SIZE;
     } else {
         volatile auto& regs = **get_if<volatile virtio_mmio_regs_v1*>(&var_regs);
 
@@ -959,16 +965,16 @@ bool virtio_mmio_device::add_virtqueue(uint16_t num) {
             return false;
         }
 
-        if (regs.QueueSizeMax < QUEUE_SIZE) {
+        if (regs.QueueSizeMax < VIRTIO_QUEUE_SIZE) {
             print("virtio_mmio_device::add_virtqueue: max size for queue {} was {}, wanted at least {}\n",
-                  +regs.QueueSel, +regs.QueueSizeMax, QUEUE_SIZE);
+                  +regs.QueueSel, +regs.QueueSizeMax, VIRTIO_QUEUE_SIZE);
             return false;
         }
 
-        regs.QueueSize = QUEUE_SIZE;
+        regs.QueueSize = VIRTIO_QUEUE_SIZE;
     }
 
-    static const auto order = bytes_to_folio_order(sizeof(virtq<QUEUE_SIZE>));
+    static const auto order = bytes_to_folio_order(sizeof(virtq<VIRTIO_QUEUE_SIZE>));
 
     auto pa = allocate_folio(order);
     if (!pa) {
@@ -1019,7 +1025,7 @@ bool virtio_mmio_device::add_virtqueue(uint16_t num) {
         return false;
     }
 
-    auto& queue = *(virtq<QUEUE_SIZE>*)va;
+    auto& queue = *(virtq<VIRTIO_QUEUE_SIZE>*)va;
 
     memset(&queue, 0, sizeof(queue));
 
