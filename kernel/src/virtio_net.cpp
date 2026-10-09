@@ -24,7 +24,6 @@ import dma;
 import crt;
 import ipv4;
 import ipv6;
-import bsod;
 
 using namespace std;
 
@@ -424,12 +423,14 @@ void virtio_net<T>::recv_thread() {
 
     virtio_net_recv_entry entries[BUFFER_LENGTH];
 
-    auto init_entry = [this](virtio_net_recv_entry& e) -> bool {
-        e.pack = new packet;
-        if (!e.pack) {
-            print("new failed\n");
-            return false;
-        }
+    auto init_entry = [this](virtio_net_recv_entry& e) {
+        do {
+            e.pack = new packet;
+            if (e.pack)
+                break;
+
+            NtYieldExecution();
+        } while (true);
 
         auto pa1 = dma_setup_no_bounce(span((uint8_t*)&e.hdr, RECV_ENTRY_HEADER_SIZE_PLUS_PADDING));
         auto pa2 = dma_setup_no_bounce(span((uint8_t*)&e.pack->data, PACKET_DATA_SIZE_PLUS_PADDING));
@@ -447,13 +448,10 @@ void virtio_net<T>::recv_thread() {
         auto pa3 = dma_setup_no_bounce(span((uint8_t*)e.descs, RECV_ENTRY_DESCS_SIZE_PLUS_PADDING));
 
         e.slot = receive_queue->async_indirect(pa3, sizeof(virtq_desc) * 2);
-
-        return true;
     };
 
     for (size_t i = 0; i < BUFFER_LENGTH; i++) {
-        if (!init_entry(entries[i]))
-            bsod("failed to initialize virtio_net buffer entry");
+        init_entry(entries[i]);
     }
 
     for (size_t idx = 0; ; idx = (idx + 1) % BUFFER_LENGTH) {
@@ -469,8 +467,7 @@ void virtio_net<T>::recv_thread() {
                   recvd_bytes, sizeof(virtio_net_hdr) + sizeof(ethernet_header));
             e.pack->release();
 
-            if (!init_entry(e))
-                bsod("failed to initialize virtio_net buffer entry");
+            init_entry(e);
 
             continue;
         }
@@ -492,8 +489,7 @@ void virtio_net<T>::recv_thread() {
         if (drop_packet(e.eth.dst_mac, mac)) {
             e.pack->release();
 
-            if (!init_entry(e))
-                bsod("failed to initialize virtio_net buffer entry");
+            init_entry(e);
 
             continue;
         }
@@ -504,7 +500,6 @@ void virtio_net<T>::recv_thread() {
 
         e.pack->release();
 
-        if (!init_entry(e))
-            bsod("failed to initialize virtio_net buffer entry");
+        init_entry(e);
     }
 }
