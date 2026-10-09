@@ -329,7 +329,6 @@ nt_status virtio_net<T>::send_packet(const mac_address& dst_mac, ethertype type,
                                      packet& pack) {
     uint8_t* bounce1 = nullptr;
     uint8_t* bounce2 = nullptr;
-    uint8_t* bounce3 = nullptr;
     virtq_desc descs[2];
 
     struct {
@@ -355,12 +354,7 @@ nt_status virtio_net<T>::send_packet(const mac_address& dst_mac, ethertype type,
         return nt_status::INSUFFICIENT_RESOURCES;
     }
 
-    auto pa2 = dma_setup(pack.data, true, bounce2);
-    if (!pa2) {
-        print("dma_setup failed\n");
-        dma_finish_write(bounce1);
-        return nt_status::INSUFFICIENT_RESOURCES;
-    }
+    auto pa2 = dma_setup_no_bounce(span(pack.data, PACKET_DATA_SIZE_PLUS_PADDING));
 
     descs[0].addr = pa1;
     descs[0].len = sizeof(header);
@@ -373,9 +367,8 @@ nt_status virtio_net<T>::send_packet(const mac_address& dst_mac, ethertype type,
     descs[1].next = 0;
 
     auto pa3 = dma_setup(span((uint8_t*)descs, sizeof(virtq_desc) * 2),
-                         true, bounce3);
+                         true, bounce2);
     if (!pa3) {
-        dma_finish_write(bounce2);
         dma_finish_write(bounce1);
         return nt_status::INSUFFICIENT_RESOURCES;
     }
@@ -384,7 +377,6 @@ nt_status virtio_net<T>::send_packet(const mac_address& dst_mac, ethertype type,
 
     transmit_queue->wait_read(slot);
 
-    dma_finish_write(bounce3);
     dma_finish_write(bounce2);
     dma_finish_write(bounce1);
 
@@ -407,7 +399,6 @@ void virtio_net<T>::recv_thread() {
         header h;
         uint8_t* bounce1;
         uint8_t* bounce2;
-        uint8_t* bounce3;
         virtq_desc descs[2];
         packet* pack;
         uint8_t slot;
@@ -420,7 +411,6 @@ void virtio_net<T>::recv_thread() {
     auto init_entry = [this](entry& e) -> bool {
         e.bounce1 = nullptr;
         e.bounce2 = nullptr;
-        e.bounce3 = nullptr;
 
         e.pack = new packet;
         if (!e.pack) {
@@ -435,13 +425,7 @@ void virtio_net<T>::recv_thread() {
             return false;
         }
 
-        auto pa2 = dma_setup(span((uint8_t*)&e.pack->data, sizeof(e.pack->data)), false, e.bounce2);
-        if (!pa2) {
-            print("dma_setup failed\n");
-            dma_finish_read(span((uint8_t*)&e.h, sizeof(e.h)), e.bounce1);
-            e.pack->release();
-            return false;
-        }
+        auto pa2 = dma_setup_no_bounce(span((uint8_t*)&e.pack->data, PACKET_DATA_SIZE_PLUS_PADDING));
 
         e.descs[0].addr = pa1;
         e.descs[0].len = sizeof(e.h);
@@ -453,10 +437,10 @@ void virtio_net<T>::recv_thread() {
         e.descs[1].flags = VIRTQ_DESC_F_WRITE;
         e.descs[1].next = 0;
 
-        auto pa3 = dma_setup(span((uint8_t*)e.descs, sizeof(virtq_desc) * 2), true, e.bounce3);
+        auto pa3 = dma_setup(span((uint8_t*)e.descs, sizeof(virtq_desc) * 2), true, e.bounce2);
         if (!pa3) {
             print("dma_setup failed\n");
-            dma_finish_read(span((uint8_t*)&e.pack->data, sizeof(e.pack->data)), e.bounce2);
+            dma_finish_read_no_bounce(span((uint8_t*)&e.pack->data, PACKET_DATA_SIZE_PLUS_PADDING));
             dma_finish_read(span((uint8_t*)&e.h, sizeof(e.h)), e.bounce1);
             e.pack->release();
             return false;
@@ -477,10 +461,10 @@ void virtio_net<T>::recv_thread() {
 
         auto recvd_bytes = receive_queue->wait_read(e.slot);
 
-        dma_finish_write(e.bounce3);
+        dma_finish_write(e.bounce2);
 
         dma_finish_read(span((uint8_t*)&e.h, sizeof(e.h)), e.bounce1);
-        dma_finish_read(span((uint8_t*)&e.pack->data, sizeof(e.pack->data)), e.bounce2);
+        dma_finish_read_no_bounce(span((uint8_t*)&e.pack->data, PACKET_DATA_SIZE_PLUS_PADDING));
 
         if (recvd_bytes < sizeof(e.h)) {
             print("virtio_net::recv_thread: received {} bytes, expected at least {}\n",

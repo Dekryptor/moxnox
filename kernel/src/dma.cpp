@@ -3,6 +3,7 @@ module;
 #include <stddef.h>
 #include <stdint.h>
 #include <span>
+#include "assert.h"
 
 export module dma;
 
@@ -10,6 +11,7 @@ import mem;
 import crt;
 import print;
 import config;
+import bsod;
 
 using namespace std;
 
@@ -70,6 +72,17 @@ export uint64_t dma_setup(span<const uint8_t> buf, bool write, uint8_t*& bounce)
     }
 }
 
+export uint64_t dma_setup_no_bounce(span<const uint8_t> buf) {
+    assert(!need_bounce(buf));
+
+    flush_cache(span(buf.data(), buf.size()), false);
+
+    if (is_phys_memory(buf.data()))
+        return va_to_pa_phys(buf.data());
+    else
+        return va_to_pa_lookup((uintptr_t)buf.data());
+}
+
 export void dma_finish_read(span<uint8_t> buf, uint8_t* bounce) {
     if (bounce) {
         flush_cache(span(bounce, buf.size()), true);
@@ -78,6 +91,12 @@ export void dma_finish_read(span<uint8_t> buf, uint8_t* bounce) {
         free(bounce);
     } else
         flush_cache(buf, true);
+}
+
+export void dma_finish_read_no_bounce(span<uint8_t> buf) {
+    assert(!need_bounce(buf));
+
+    flush_cache(buf, true);
 }
 
 export void dma_finish_write(uint8_t* bounce) {

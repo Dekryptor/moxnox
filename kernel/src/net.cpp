@@ -23,6 +23,7 @@ import ipv4;
 import ipv6;
 import object_ref;
 import rwsem;
+import mem;
 
 using namespace std;
 
@@ -82,7 +83,10 @@ export struct ip_addr {
     uint8_t prefix;
 };
 
-export struct packet {
+// FIXME - 128 on some Apple chips
+static constexpr size_t CACHE_LINE = 64;
+
+export struct alignas(CACHE_LINE) packet {
     void acquire() {
         refcount++;
     }
@@ -92,10 +96,16 @@ export struct packet {
             delete this;
     }
 
+    uint8_t data[MTU];
+    uint8_t padding[MTU % CACHE_LINE ? (CACHE_LINE - (MTU % CACHE_LINE)) : 0];
     atomic<unsigned int> refcount = 1;
     size_t size;
-    uint8_t data[MTU];
 };
+
+export constexpr size_t PACKET_DATA_SIZE_PLUS_PADDING = offsetof(packet, refcount);
+
+static_assert(offsetof(packet, data) % CACHE_LINE == 0);
+static_assert(PACKET_DATA_SIZE_PLUS_PADDING % CACHE_LINE == 0);
 
 struct socket_packet {
     socket_packet(packet& pack) : pack(pack) {
