@@ -24,6 +24,7 @@ import dma;
 import crt;
 import ipv4;
 import ipv6;
+import bsod;
 
 using namespace std;
 
@@ -386,96 +387,133 @@ nt_status virtio_net<T>::send_packet(const mac_address& dst_mac, ethertype type,
 
 template<virtio_device T>
 void virtio_net<T>::recv_thread() {
-    // FIXME - better to have pool of read buffers? And do more work in interrupt handler?
-
     // FIXME - die gracefully if device ever goes away
 
-    auto buf_size = sizeof(virtio_net_hdr) + sizeof(ethernet_header) + mtu;
-
-    struct {
+    struct header {
         virtio_net_hdr hdr;
         ethernet_header eth;
-    } __attribute((packed)) header;
+    } __attribute((packed));
 
-    while (true) {
-        uint8_t* bounce1 = nullptr;
-        uint8_t* bounce2 = nullptr;
+    struct entry {
+        header h;
+        uint8_t* bounce1;
+        uint8_t* bounce2;
+        uint8_t* bounce3;
         virtq_desc descs[2];
-        uint64_t recvd_bytes;
+        packet* pack;
+        uint8_t slot;
+    };
 
-        auto pack = new packet;
-        if (!pack) {
+    static const size_t BUFFER_LENGTH = 16;
+
+    entry entries[BUFFER_LENGTH];
+
+    auto init_entry = [this](entry& e) -> bool {
+        e.bounce1 = nullptr;
+        e.bounce2 = nullptr;
+        e.bounce3 = nullptr;
+
+        e.pack = new packet;
+        if (!e.pack) {
             print("new failed\n");
-            continue;
+            return false;
         }
 
-        auto pa1 = dma_setup(span((uint8_t*)&header, sizeof(header)), false, bounce1);
+        auto pa1 = dma_setup(span((uint8_t*)&e.h, sizeof(e.h)), false, e.bounce1);
         if (!pa1) {
             print("dma_setup failed\n");
-            pack->release();
-            continue;
+            e.pack->release();
+            return false;
         }
 
-        auto pa2 = dma_setup(span((uint8_t*)&pack->data, sizeof(pack->data)), false, bounce2);
+        auto pa2 = dma_setup(span((uint8_t*)&e.pack->data, sizeof(e.pack->data)), false, e.bounce2);
         if (!pa2) {
             print("dma_setup failed\n");
-            dma_finish_read(span((uint8_t*)&header, sizeof(header)), bounce1);
-            pack->release();
-            continue;
+            dma_finish_read(span((uint8_t*)&e.h, sizeof(e.h)), e.bounce1);
+            e.pack->release();
+            return false;
         }
 
-        descs[0].addr = pa1;
-        descs[0].len = sizeof(header);
-        descs[0].flags = VIRTQ_DESC_F_WRITE | VIRTQ_DESC_F_NEXT;
-        descs[0].next = 1;
+        e.descs[0].addr = pa1;
+        e.descs[0].len = sizeof(e.h);
+        e.descs[0].flags = VIRTQ_DESC_F_WRITE | VIRTQ_DESC_F_NEXT;
+        e.descs[0].next = 1;
 
-        descs[1].addr = pa2;
-        descs[1].len = (uint32_t)buf_size;
-        descs[1].flags = VIRTQ_DESC_F_WRITE;
-        descs[1].next = 0;
+        e.descs[1].addr = pa2;
+        e.descs[1].len = (uint32_t)(sizeof(virtio_net_hdr) + sizeof(ethernet_header) + mtu);
+        e.descs[1].flags = VIRTQ_DESC_F_WRITE;
+        e.descs[1].next = 0;
 
-        auto status = receive_queue->indirect(descs, recvd_bytes);
-
-        dma_finish_read(span((uint8_t*)&header, sizeof(header)), bounce1);
-        dma_finish_read(span((uint8_t*)&pack->data, sizeof(pack->data)), bounce2);
-
-        if (!success(status)) {
-            print("receive_queue->indirect returned {}\n", status);
-            pack->release();
-            continue;
+        auto pa3 = dma_setup(span((uint8_t*)e.descs, sizeof(virtq_desc) * 2), true, e.bounce3);
+        if (!pa3) {
+            print("dma_setup failed\n");
+            dma_finish_read(span((uint8_t*)&e.pack->data, sizeof(e.pack->data)), e.bounce2);
+            dma_finish_read(span((uint8_t*)&e.h, sizeof(e.h)), e.bounce1);
+            e.pack->release();
+            return false;
         }
 
-        if (recvd_bytes < sizeof(header)) {
+        e.slot = receive_queue->async_indirect(pa3, sizeof(virtq_desc) * 2);
+
+        return true;
+    };
+
+    for (size_t i = 0; i < BUFFER_LENGTH; i++) {
+        if (!init_entry(entries[i]))
+            bsod("failed to initialize virtio_net buffer entry");
+    }
+
+    for (size_t idx = 0; ; idx = (idx + 1) % BUFFER_LENGTH) {
+        auto& e = entries[idx];
+
+        auto recvd_bytes = receive_queue->wait_read(e.slot);
+
+        dma_finish_write(e.bounce3);
+
+        dma_finish_read(span((uint8_t*)&e.h, sizeof(e.h)), e.bounce1);
+        dma_finish_read(span((uint8_t*)&e.pack->data, sizeof(e.pack->data)), e.bounce2);
+
+        if (recvd_bytes < sizeof(e.h)) {
             print("virtio_net::recv_thread: received {} bytes, expected at least {}\n",
-                  recvd_bytes, sizeof(header));
-            pack->release();
+                  recvd_bytes, sizeof(e.h));
+            e.pack->release();
+
+            if (!init_entry(e))
+                bsod("failed to initialize virtio_net buffer entry");
+
             continue;
         }
 
 #if 0
         print("recvd_bytes = {}\n", recvd_bytes);
         print("hdr: flags = {}, gso_type = {}, hdr_len = {}, gso_size = {}, csum_start = {}, csum_offset = {}, num_buffers = {}\n",
-              header.hdr.flags, header.hdr.gso_type, header.hdr.hdr_len,
-              header.hdr.gso_size, header.hdr.csum_start, header.hdr.csum_offset,
-              header.hdr.num_buffers);
+              e.h.hdr.flags, e.h.hdr.gso_type, +e.h.hdr.hdr_len,
+              +e.h.hdr.gso_size, +e.h.hdr.csum_start, +e.h.hdr.csum_offset,
+              +e.h.hdr.num_buffers);
         print("ethernet: dst_mac = {}, src_mac = {}, type = {}\n",
-              header.eth.dst_mac, header.eth.src_mac, header.eth.type);
+              e.h.eth.dst_mac, e.h.eth.src_mac, *&e.h.eth.type);
 #endif
 
         rx_packets.fetch_add(1, memory_order::relaxed);
         rx_bytes.fetch_add(recvd_bytes - sizeof(virtio_net_hdr),
                            memory_order::relaxed);
 
-        if (drop_packet(header.eth.dst_mac, mac)) {
-            pack->release();
+        if (drop_packet(e.h.eth.dst_mac, mac)) {
+            e.pack->release();
+
+            if (!init_entry(e))
+                bsod("failed to initialize virtio_net buffer entry");
+
             continue;
         }
 
-        pack->size = recvd_bytes - sizeof(header);
+        e.pack->size = recvd_bytes - sizeof(e.h);
 
-        received_packet(*this, *pack, header.eth.src_mac, header.eth.type,
-                        false);
+        received_packet(*this, *e.pack, e.h.eth.src_mac, e.h.eth.type, false);
 
-        pack->release();
+        e.pack->release();
+
+        if (!init_entry(e))
+            bsod("failed to initialize virtio_net buffer entry");
     }
 }
