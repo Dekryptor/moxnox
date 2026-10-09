@@ -330,15 +330,19 @@ static bool found_virtio_mmio_net(virtio_mmio_device& dev) {
 template<virtio_device T>
 nt_status virtio_net<T>::send_packet(const mac_address& dst_mac, ethertype type,
                                      packet& pack) {
-    uint8_t* bounce1 = nullptr;
-    virtq_desc descs[2];
-
     struct alignas(CACHE_LINE) {
         virtio_net_hdr hdr;
         ethernet_header eth;
     } __attribute((packed)) header;
 
     static_assert(sizeof(header) % CACHE_LINE == 0);
+
+    struct alignas(CACHE_LINE) {
+        virtq_desc desc1;
+        virtq_desc desc2;
+    } descs;
+
+    static_assert(sizeof(descs) % CACHE_LINE == 0);
 
     header.hdr.flags = 0;
     header.hdr.gso_type = VIRTIO_NET_HDR_GSO_NONE;
@@ -355,26 +359,21 @@ nt_status virtio_net<T>::send_packet(const mac_address& dst_mac, ethertype type,
     auto pa1 = dma_setup_no_bounce(span((uint8_t*)&header, sizeof(header)));
     auto pa2 = dma_setup_no_bounce(span(pack.data, PACKET_DATA_SIZE_PLUS_PADDING));
 
-    descs[0].addr = pa1;
-    descs[0].len = sizeof(virtio_net_hdr) + sizeof(ethernet_header);
-    descs[0].flags = VIRTQ_DESC_F_NEXT;
-    descs[0].next = 1;
+    descs.desc1.addr = pa1;
+    descs.desc1.len = sizeof(virtio_net_hdr) + sizeof(ethernet_header);
+    descs.desc1.flags = VIRTQ_DESC_F_NEXT;
+    descs.desc1.next = 1;
 
-    descs[1].addr = pa2;
-    descs[1].len = (uint32_t)pack.size;
-    descs[1].flags = 0;
-    descs[1].next = 0;
+    descs.desc2.addr = pa2;
+    descs.desc2.len = (uint32_t)pack.size;
+    descs.desc2.flags = 0;
+    descs.desc2.next = 0;
 
-    auto pa3 = dma_setup(span((uint8_t*)descs, sizeof(virtq_desc) * 2),
-                         true, bounce1);
-    if (!pa3)
-        return nt_status::INSUFFICIENT_RESOURCES;
+    auto pa3 = dma_setup_no_bounce(span((uint8_t*)&descs, sizeof(descs)));
 
     auto slot = transmit_queue->async_indirect(pa3, sizeof(virtq_desc) * 2);
 
     transmit_queue->wait_read(slot);
-
-    dma_finish_write(bounce1);
 
     tx_packets.fetch_add(1, memory_order::relaxed);
     tx_bytes.fetch_add(sizeof(ethernet_header) + pack.size, memory_order::relaxed);
