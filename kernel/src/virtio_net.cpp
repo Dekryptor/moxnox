@@ -28,6 +28,9 @@ import bsod;
 
 using namespace std;
 
+// FIXME - keep in sync with one in net
+static constexpr size_t CACHE_LINE = 64;
+
 static const uint64_t VIRTIO_NET_F_CSUM = 1 << 0;
 static const uint64_t VIRTIO_NET_F_GUEST_CSUM = 1 << 1;
 static const uint64_t VIRTIO_NET_F_CTRL_GUEST_OFFLOADS = 1 << 2;
@@ -386,31 +389,31 @@ nt_status virtio_net<T>::send_packet(const mac_address& dst_mac, ethertype type,
     return nt_status::SUCCESS;
 }
 
+struct alignas(CACHE_LINE) virtio_net_recv_entry {
+    virtio_net_hdr hdr;
+    ethernet_header eth;
+    uint8_t padding[CACHE_LINE - sizeof(virtio_net_hdr) - sizeof(ethernet_header)];
+    uint8_t* bounce1;
+    virtq_desc descs[2];
+    packet* pack;
+    uint8_t slot;
+};
+
+static constexpr size_t ENTRY_HEADER_SIZE_PLUS_PADDING = offsetof(virtio_net_recv_entry, bounce1);
+
+static_assert(offsetof(virtio_net_recv_entry, hdr) % CACHE_LINE == 0);
+static_assert(ENTRY_HEADER_SIZE_PLUS_PADDING % CACHE_LINE == 0);
+
 template<virtio_device T>
 void virtio_net<T>::recv_thread() {
     // FIXME - die gracefully if device ever goes away
 
-    struct header {
-        virtio_net_hdr hdr;
-        ethernet_header eth;
-    } __attribute((packed));
-
-    struct entry {
-        header h;
-        uint8_t* bounce1;
-        uint8_t* bounce2;
-        virtq_desc descs[2];
-        packet* pack;
-        uint8_t slot;
-    };
-
     static const size_t BUFFER_LENGTH = 16;
 
-    entry entries[BUFFER_LENGTH];
+    virtio_net_recv_entry entries[BUFFER_LENGTH];
 
-    auto init_entry = [this](entry& e) -> bool {
+    auto init_entry = [this](virtio_net_recv_entry& e) -> bool {
         e.bounce1 = nullptr;
-        e.bounce2 = nullptr;
 
         e.pack = new packet;
         if (!e.pack) {
@@ -418,30 +421,24 @@ void virtio_net<T>::recv_thread() {
             return false;
         }
 
-        auto pa1 = dma_setup(span((uint8_t*)&e.h, sizeof(e.h)), false, e.bounce1);
-        if (!pa1) {
-            print("dma_setup failed\n");
-            e.pack->release();
-            return false;
-        }
-
+        auto pa1 = dma_setup_no_bounce(span((uint8_t*)&e.hdr, ENTRY_HEADER_SIZE_PLUS_PADDING));
         auto pa2 = dma_setup_no_bounce(span((uint8_t*)&e.pack->data, PACKET_DATA_SIZE_PLUS_PADDING));
 
         e.descs[0].addr = pa1;
-        e.descs[0].len = sizeof(e.h);
+        e.descs[0].len = sizeof(virtio_net_hdr) + sizeof(ethernet_header);
         e.descs[0].flags = VIRTQ_DESC_F_WRITE | VIRTQ_DESC_F_NEXT;
         e.descs[0].next = 1;
 
         e.descs[1].addr = pa2;
-        e.descs[1].len = (uint32_t)(sizeof(virtio_net_hdr) + sizeof(ethernet_header) + mtu);
+        e.descs[1].len = (uint32_t)mtu;
         e.descs[1].flags = VIRTQ_DESC_F_WRITE;
         e.descs[1].next = 0;
 
-        auto pa3 = dma_setup(span((uint8_t*)e.descs, sizeof(virtq_desc) * 2), true, e.bounce2);
+        auto pa3 = dma_setup(span((uint8_t*)e.descs, sizeof(virtq_desc) * 2), true, e.bounce1);
         if (!pa3) {
             print("dma_setup failed\n");
             dma_finish_read_no_bounce(span((uint8_t*)&e.pack->data, PACKET_DATA_SIZE_PLUS_PADDING));
-            dma_finish_read(span((uint8_t*)&e.h, sizeof(e.h)), e.bounce1);
+            dma_finish_read_no_bounce(span((uint8_t*)&e.hdr, ENTRY_HEADER_SIZE_PLUS_PADDING));
             e.pack->release();
             return false;
         }
@@ -461,14 +458,14 @@ void virtio_net<T>::recv_thread() {
 
         auto recvd_bytes = receive_queue->wait_read(e.slot);
 
-        dma_finish_write(e.bounce2);
+        dma_finish_write(e.bounce1);
 
-        dma_finish_read(span((uint8_t*)&e.h, sizeof(e.h)), e.bounce1);
+        dma_finish_read_no_bounce(span((uint8_t*)&e.hdr, ENTRY_HEADER_SIZE_PLUS_PADDING));
         dma_finish_read_no_bounce(span((uint8_t*)&e.pack->data, PACKET_DATA_SIZE_PLUS_PADDING));
 
-        if (recvd_bytes < sizeof(e.h)) {
+        if (recvd_bytes < sizeof(virtio_net_hdr) + sizeof(ethernet_header)) {
             print("virtio_net::recv_thread: received {} bytes, expected at least {}\n",
-                  recvd_bytes, sizeof(e.h));
+                  recvd_bytes, sizeof(virtio_net_hdr) + sizeof(ethernet_header));
             e.pack->release();
 
             if (!init_entry(e))
@@ -480,18 +477,18 @@ void virtio_net<T>::recv_thread() {
 #if 0
         print("recvd_bytes = {}\n", recvd_bytes);
         print("hdr: flags = {}, gso_type = {}, hdr_len = {}, gso_size = {}, csum_start = {}, csum_offset = {}, num_buffers = {}\n",
-              e.h.hdr.flags, e.h.hdr.gso_type, +e.h.hdr.hdr_len,
-              +e.h.hdr.gso_size, +e.h.hdr.csum_start, +e.h.hdr.csum_offset,
-              +e.h.hdr.num_buffers);
+              e.hdr.flags, e.hdr.gso_type, +e.hdr.hdr_len,
+              +e.hdr.gso_size, +e.hdr.csum_start, +e.hdr.csum_offset,
+              +e.hdr.num_buffers);
         print("ethernet: dst_mac = {}, src_mac = {}, type = {}\n",
-              e.h.eth.dst_mac, e.h.eth.src_mac, *&e.h.eth.type);
+              e.eth.dst_mac, e.eth.src_mac, *&e.eth.type);
 #endif
 
         rx_packets.fetch_add(1, memory_order::relaxed);
         rx_bytes.fetch_add(recvd_bytes - sizeof(virtio_net_hdr),
                            memory_order::relaxed);
 
-        if (drop_packet(e.h.eth.dst_mac, mac)) {
+        if (drop_packet(e.eth.dst_mac, mac)) {
             e.pack->release();
 
             if (!init_entry(e))
@@ -500,9 +497,9 @@ void virtio_net<T>::recv_thread() {
             continue;
         }
 
-        e.pack->size = recvd_bytes - sizeof(e.h);
+        e.pack->size = recvd_bytes - sizeof(virtio_net_hdr) - sizeof(ethernet_header);
 
-        received_packet(*this, *e.pack, e.h.eth.src_mac, e.h.eth.type, false);
+        received_packet(*this, *e.pack, e.eth.src_mac, e.eth.type, false);
 
         e.pack->release();
 
