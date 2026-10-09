@@ -392,17 +392,20 @@ nt_status virtio_net<T>::send_packet(const mac_address& dst_mac, ethertype type,
 struct alignas(CACHE_LINE) virtio_net_recv_entry {
     virtio_net_hdr hdr;
     ethernet_header eth;
-    uint8_t padding[CACHE_LINE - sizeof(virtio_net_hdr) - sizeof(ethernet_header)];
-    uint8_t* bounce1;
+    uint8_t padding1[CACHE_LINE - sizeof(virtio_net_hdr) - sizeof(ethernet_header)];
     virtq_desc descs[2];
+    uint8_t padding2[CACHE_LINE - (sizeof(virtq_desc) * 2)];
     packet* pack;
     uint8_t slot;
 };
 
-static constexpr size_t ENTRY_HEADER_SIZE_PLUS_PADDING = offsetof(virtio_net_recv_entry, bounce1);
+static constexpr size_t ENTRY_HEADER_SIZE_PLUS_PADDING = offsetof(virtio_net_recv_entry, descs);
+static constexpr size_t ENTRY_DESCS_SIZE_PLUS_PADDING = offsetof(virtio_net_recv_entry, pack);
 
 static_assert(offsetof(virtio_net_recv_entry, hdr) % CACHE_LINE == 0);
 static_assert(ENTRY_HEADER_SIZE_PLUS_PADDING % CACHE_LINE == 0);
+static_assert(offsetof(virtio_net_recv_entry, descs) % CACHE_LINE == 0);
+static_assert(ENTRY_DESCS_SIZE_PLUS_PADDING % CACHE_LINE == 0);
 
 template<virtio_device T>
 void virtio_net<T>::recv_thread() {
@@ -413,8 +416,6 @@ void virtio_net<T>::recv_thread() {
     virtio_net_recv_entry entries[BUFFER_LENGTH];
 
     auto init_entry = [this](virtio_net_recv_entry& e) -> bool {
-        e.bounce1 = nullptr;
-
         e.pack = new packet;
         if (!e.pack) {
             print("new failed\n");
@@ -434,14 +435,7 @@ void virtio_net<T>::recv_thread() {
         e.descs[1].flags = VIRTQ_DESC_F_WRITE;
         e.descs[1].next = 0;
 
-        auto pa3 = dma_setup(span((uint8_t*)e.descs, sizeof(virtq_desc) * 2), true, e.bounce1);
-        if (!pa3) {
-            print("dma_setup failed\n");
-            dma_finish_read_no_bounce(span((uint8_t*)&e.pack->data, PACKET_DATA_SIZE_PLUS_PADDING));
-            dma_finish_read_no_bounce(span((uint8_t*)&e.hdr, ENTRY_HEADER_SIZE_PLUS_PADDING));
-            e.pack->release();
-            return false;
-        }
+        auto pa3 = dma_setup_no_bounce(span((uint8_t*)e.descs, ENTRY_DESCS_SIZE_PLUS_PADDING));
 
         e.slot = receive_queue->async_indirect(pa3, sizeof(virtq_desc) * 2);
 
@@ -457,8 +451,6 @@ void virtio_net<T>::recv_thread() {
         auto& e = entries[idx];
 
         auto recvd_bytes = receive_queue->wait_read(e.slot);
-
-        dma_finish_write(e.bounce1);
 
         dma_finish_read_no_bounce(span((uint8_t*)&e.hdr, ENTRY_HEADER_SIZE_PLUS_PADDING));
         dma_finish_read_no_bounce(span((uint8_t*)&e.pack->data, PACKET_DATA_SIZE_PLUS_PADDING));
