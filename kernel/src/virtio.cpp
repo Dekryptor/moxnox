@@ -80,6 +80,7 @@ public:
     nt_status write(span<const uint8_t> msg);
     nt_status indirect(span<virtq_desc> descs, uint64_t& read_bytes);
     nt_status indirect_no_sleep(span<virtq_desc> descs, uint64_t& read_bytes);
+    uint8_t async_indirect(uintptr_t pa, size_t len);
     bool isr();
 
     virtq<QUEUE_SIZE>* queue;
@@ -517,25 +518,13 @@ nt_status virt_queue::indirect_no_sleep(span<virtq_desc> descs,
     return nt_status::SUCCESS;
 }
 
-nt_status virt_queue::indirect(span<virtq_desc> descs, uint64_t& read_bytes) {
-    uint8_t* bounce = nullptr;
-
-    if (descs.empty()) {
-        read_bytes = 0;
-        return nt_status::SUCCESS;
-    }
-
-    auto pa = dma_setup(span((uint8_t*)descs.data(), descs.size_bytes()),
-                        true, bounce);
-    if (!pa)
-        return nt_status::INSUFFICIENT_RESOURCES;
-
+uint8_t virt_queue::async_indirect(uintptr_t pa, size_t len) {
     auto slot = get_slot();
 
     // descs needs to be in phys memory range
 
     queue->buffers[slot].addr = pa;
-    queue->buffers[slot].len = (uint32_t)descs.size_bytes();
+    queue->buffers[slot].len = (uint32_t)len;
     queue->buffers[slot].flags = VIRTQ_DESC_F_INDIRECT;
 
     {
@@ -553,11 +542,25 @@ nt_status virt_queue::indirect(span<virtq_desc> descs, uint64_t& read_bytes) {
 
     *notification_addr = num;
 
-    wait_for_object(events[slot].get(), false);
+    return slot;
+}
 
-    read_bytes = lengths[slot];
+nt_status virt_queue::indirect(span<virtq_desc> descs, uint64_t& read_bytes) {
+    uint8_t* bounce = nullptr;
 
-    release_slot(slot);
+    if (descs.empty()) {
+        read_bytes = 0;
+        return nt_status::SUCCESS;
+    }
+
+    auto pa = dma_setup(span((uint8_t*)descs.data(), descs.size_bytes()),
+                        true, bounce);
+    if (!pa)
+        return nt_status::INSUFFICIENT_RESOURCES;
+
+    auto slot = async_indirect(pa, descs.size_bytes());
+
+    read_bytes = wait_read(slot);
 
     dma_finish_write(bounce);
 
