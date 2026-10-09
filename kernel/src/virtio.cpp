@@ -91,6 +91,7 @@ public:
     uint16_t num;
     volatile uint32_t* notification_addr;
     bool init = false;
+    bool release_slot_in_isr = false;
 
 private:
     optional<uint8_t> try_get_slot();
@@ -392,6 +393,8 @@ optional<uint8_t> virt_queue::try_get_slot() {
 void virt_queue::release_slot(uint8_t slot) {
     {
         lock_guard l(slot_lock);
+
+        assert(allocated_slots & (uint32_t)1 << slot);
 
         allocated_slots &= ~((uint32_t)1 << slot);
     }
@@ -808,16 +811,22 @@ bool virt_queue::isr() {
     auto idx = queue->used.idx;
 
     while (old_used_idx != idx) {
-        lengths[queue->used.ring[old_used_idx % VIRTIO_QUEUE_SIZE].id] = queue->used.ring[old_used_idx % VIRTIO_QUEUE_SIZE].len;
+        auto slot = (uint8_t)queue->used.ring[old_used_idx % VIRTIO_QUEUE_SIZE].id;
+
+        lengths[slot] = queue->used.ring[old_used_idx % VIRTIO_QUEUE_SIZE].len;
 
         handled = true;
 
-        auto& e = static_cast<event&>(events[queue->used.ring[old_used_idx % VIRTIO_QUEUE_SIZE].id].get());
+        if (release_slot_in_isr)
+            release_slot(slot);
+        else {
+            auto& e = static_cast<event&>(events[slot].get());
 
-        if (holding_sync_lock)
-            e.set_holding_sync_lock();
-        else
-            set_event(e);
+            if (holding_sync_lock)
+                e.set_holding_sync_lock();
+            else
+                set_event(e);
+        }
 
         old_used_idx++;
     }

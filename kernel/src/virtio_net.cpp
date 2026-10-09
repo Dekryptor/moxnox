@@ -232,8 +232,10 @@ void virtio_net<T>::init(const virtio_net_config& cfg) {
 
         if (vq.num == 0)
             receive_queue = &vq;
-        else if (vq.num == 1)
+        else if (vq.num == 1) {
             transmit_queue = &vq;
+            transmit_queue->release_slot_in_isr = true;
+        }
     }
 
     this->num = next_netif_num.fetch_add(1);
@@ -382,8 +384,6 @@ nt_status virtio_net<T>::send_packet(const mac_address& dst_mac, ethertype type,
 
     tx_packets.fetch_add(1, memory_order::relaxed);
     tx_bytes.fetch_add(sizeof(ethernet_header) + pack.size, memory_order::relaxed);
-
-    transmit_queue->wait_read(slot);
 
     return nt_status::SUCCESS;
 }
