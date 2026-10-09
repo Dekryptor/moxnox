@@ -167,6 +167,7 @@ public:
 
     T& dev;
     virtio_net_send_entry send_entries[VIRTIO_QUEUE_SIZE];
+    packet* sent_packets[VIRTIO_QUEUE_SIZE];
 
 private:
     virt_queue* receive_queue = nullptr;
@@ -253,6 +254,8 @@ void virtio_net<T>::init(const virtio_net_config& cfg) {
         memcpy(this->name, sv.data(), sv.size());
         memset(this->name + sv.size(), 0, sizeof(this->name) - sv.size());
     }
+
+    memset(sent_packets, 0, sizeof(sent_packets));
 
     {
         lock_guard lg(netif_lock);
@@ -379,6 +382,13 @@ nt_status virtio_net<T>::send_packet(const mac_address& dst_mac, ethertype type,
     s.desc2.next = 0;
 
     auto pa3 = dma_setup_no_bounce(span((uint8_t*)&s.desc1, SEND_ENTRY_DESCS_SIZE_PLUS_PADDING));
+
+    pack.acquire();
+
+    if (sent_packets[slot])
+        sent_packets[slot]->release();
+
+    sent_packets[slot] = &pack;
 
     transmit_queue->async_indirect_with_slot(slot, pa3, sizeof(virtq_desc) * 2);
 
