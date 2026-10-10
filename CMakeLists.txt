@@ -37,6 +37,12 @@ add_compile_options(-U_FORTIFY_SOURCE)
 enable_language(ASM)
 
 if(CMAKE_SYSTEM_PROCESSOR STREQUAL "aarch64")
+    string(APPEND CMAKE_ASM_FLAGS " -I${CMAKE_SOURCE_DIR}/modules/aarch64")
+elseif(CMAKE_SYSTEM_PROCESSOR STREQUAL "x86_64")
+    string(APPEND CMAKE_ASM_FLAGS " -I${CMAKE_SOURCE_DIR}/modules/amd64")
+endif()
+
+if(CMAKE_SYSTEM_PROCESSOR STREQUAL "aarch64")
     set(GENERAL_CFLAGS -gdwarf-5 -march=armv8.1-a -fomit-frame-pointer -fno-strict-aliasing)
     set(USERSPACE_CFLAGS -Wall -Wextra -Wno-address-of-packed-member -Wconversion -Wno-unknown-pragmas -Werror=pointer-arith -Werror=return-type -fno-rtti -fcheck-new -Wno-invalid-offsetof -mno-stack-arg-probe -fno-threadsafe-statics -fvisibility=hidden ${GENERAL_CFLAGS})
     set(KERNEL_CFLAGS -Wall -Wextra -Wno-address-of-packed-member -Wconversion -Wno-unknown-pragmas -Werror=pointer-arith -Werror=return-type $<$<COMPILE_LANGUAGE:CXX>:-fno-exceptions -fno-rtti -Wno-invalid-offsetof -fno-threadsafe-statics> -fcheck-new -mno-stack-arg-probe -fvisibility=hidden -fno-stack-protector ${GENERAL_CFLAGS})
