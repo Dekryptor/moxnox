@@ -16,6 +16,7 @@ import rbtree;
 import spinlock;
 import nt;
 import vec;
+import kernel_time_page;
 
 using namespace std;
 
@@ -627,7 +628,10 @@ void page_cache<T>::mark_dirty() {
             if (dirty)
                 return;
 
+            auto now = (uint64_t)kernel_time_page.system_time + kernel_time_page.system_time_offset;
+
             dirty = true;
+            dev.mtime = dev.ctime = now;
 
             dev.acquire();
             insert_tail_list(dev.fs.writeback_list, dev.writeback_le);
