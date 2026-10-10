@@ -87,6 +87,10 @@ void rwsem::unlock() { // exclusive
 
     exclusive = false;
 
+    for (auto le = wait_list_shared.next; le != &wait_list_shared; le = le->next) {
+        shared_count++;
+    }
+
     wake_up_waiters(wait_list_shared, WAIT_TYPE_READING);
 
     release_sync_lock();
@@ -99,9 +103,8 @@ void rwsem::lock_shared() {
 
     assert(shared_count >= 0);
 
-    shared_count++;
-
     if (!exclusive && is_list_empty(wait_list_exclusive)) {
+        shared_count++;
         release_sync_lock();
         enable_interrupts();
         return;
