@@ -110,12 +110,18 @@ export void release_semaphore(semaphore& s) {
 
         // wake up one thread
 
-        s.current_count--;
-
-        auto waiter_count = wake_up_waiters(s.waiters, WAIT_TYPE_READING);
-
-        if (waiter_count == 0)
+        if (is_list_empty(s.waiters)) {
+            s.current_count--;
             s.signalled = true;
+        } else {
+            list_entry tmp = { &tmp, &tmp };
+
+            auto le = s.waiters.next;
+
+            remove_entry_list(*le);
+            insert_tail_list(tmp, *le);
+            wake_up_waiters(tmp, WAIT_TYPE_READING);
+        }
     };
 
     // FIXME - what if not held by current thread?
