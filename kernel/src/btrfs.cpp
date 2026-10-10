@@ -2936,7 +2936,7 @@ static nt_status split_tree(btrfs_filesystem& fs, btrfs_path& p, root& r,
 
     auto num_items = ((btrfs_header*)p.data[0])->nritems;
 
-    if (num_items != 0 && p.slots[0] < num_items - 1) {
+    if (num_items != 0 && p.slots[0] < num_items) {
         if (auto status = split_tree_at(fs, p, r, p.slots[0]); !success(status))
             return status;
     }
