@@ -2903,7 +2903,7 @@ static nt_status split_tree(btrfs_filesystem& fs, btrfs_path& p, root& r,
     if (fs.sb->nodesize - sizeof(btrfs_header) - sum < space_needed) {
         if (p.slots[0] < split_point) {
             while (split_point > 0) {
-                sum += sizeof(btrfs_item) + items[split_point - 1].size;
+                sum -= sizeof(btrfs_item) + items[split_point - 1].size;
                 split_point--;
 
                 if (fs.sb->nodesize - sizeof(btrfs_header) - sum >= space_needed)
@@ -2914,7 +2914,7 @@ static nt_status split_tree(btrfs_filesystem& fs, btrfs_path& p, root& r,
                 need_double_split = true;
         } else {
             while (split_point < th.nritems) {
-                sum += sizeof(btrfs_item) + items[split_point].size;
+                sum -= sizeof(btrfs_item) + items[split_point].size;
                 split_point++;
 
                 if (fs.sb->nodesize - sizeof(btrfs_header) - sum >= space_needed)
