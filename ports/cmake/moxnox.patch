@@ -286,3 +286,15 @@ diff --git a/Source/kwsys/SystemTools.cxx b/Source/kwsys/SystemTools.cxx
  #else
    // The sleep function gives 1 second resolution and the usleep
    // function gives 1e-6 second resolution but on some platforms has a
+diff --git a/Modules/CMakeDetermineSystem.cmake b/Modules/CMakeDetermineSystem.cmake
+--- a/Modules/CMakeDetermineSystem.cmake
++++ b/Modules/CMakeDetermineSystem.cmake
+@@ -51,7 +51,7 @@
+         OUTPUT_STRIP_TRAILING_WHITESPACE
+         ERROR_QUIET)
+     endif()
+-    if(CMAKE_HOST_SYSTEM_NAME MATCHES "Linux|CYGWIN.*|MSYS.*|^GNU$|Android")
++    if(CMAKE_HOST_SYSTEM_NAME MATCHES "Linux|CYGWIN.*|MSYS.*|^GNU$|Android|Moxnox")
+       execute_process(COMMAND ${CMAKE_UNAME} -m
+         OUTPUT_VARIABLE CMAKE_HOST_SYSTEM_PROCESSOR
+         RESULT_VARIABLE val

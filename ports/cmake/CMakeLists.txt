@@ -33,7 +33,7 @@ set(LibArchive_INCLUDE_DIR ${CMAKE_SOURCE_DIR}/ports/libarchive/repo/libarchive)
 
 set(GEN ${CMAKE_CURRENT_BINARY_DIR}/gen)
 set(REPO ${CMAKE_CURRENT_SOURCE_DIR}/repo)
-file(MAKE_DIRECTORY ${GEN}/Source/kwsys)
+file(MAKE_DIRECTORY ${GEN}/Source/kwsys ${GEN}/Modules)
 
 add_custom_command(
     OUTPUT ${GEN}/Source/kwsys/ProcessUNIX.c
@@ -41,13 +41,15 @@ add_custom_command(
         ${GEN}/Source/kwsys/SystemTools.cxx
         ${GEN}/Source/cmFindProgramCommand.cxx
         ${GEN}/Source/cmInstallCommand.cxx
-    COMMAND sh -c "cp '${REPO}/Source/kwsys/ProcessUNIX.c' '${REPO}/Source/kwsys/SystemInformation.cxx' '${REPO}/Source/kwsys/SystemTools.cxx' '${GEN}/Source/kwsys/' && cp '${REPO}/Source/cmFindProgramCommand.cxx' '${REPO}/Source/cmInstallCommand.cxx' '${GEN}/Source/' && patch -p1 -d '${GEN}' < '${CMAKE_CURRENT_SOURCE_DIR}/moxnox.patch'"
+        ${GEN}/Modules/CMakeDetermineSystem.cmake
+    COMMAND sh -c "cp '${REPO}/Source/kwsys/ProcessUNIX.c' '${REPO}/Source/kwsys/SystemInformation.cxx' '${REPO}/Source/kwsys/SystemTools.cxx' '${GEN}/Source/kwsys/' && cp '${REPO}/Source/cmFindProgramCommand.cxx' '${REPO}/Source/cmInstallCommand.cxx' '${GEN}/Source/' && cp '${REPO}/Modules/CMakeDetermineSystem.cmake' '${GEN}/Modules/' && patch -p1 -d '${GEN}' < '${CMAKE_CURRENT_SOURCE_DIR}/moxnox.patch'"
     DEPENDS
         ${REPO}/Source/kwsys/ProcessUNIX.c
         ${REPO}/Source/kwsys/SystemInformation.cxx
         ${REPO}/Source/kwsys/SystemTools.cxx
         ${REPO}/Source/cmFindProgramCommand.cxx
         ${REPO}/Source/cmInstallCommand.cxx
+        ${REPO}/Modules/CMakeDetermineSystem.cmake
         ${CMAKE_CURRENT_SOURCE_DIR}/moxnox.patch
     VERBATIM
 )
@@ -58,6 +60,7 @@ add_custom_target(cmake_patched DEPENDS
     ${GEN}/Source/kwsys/SystemTools.cxx
     ${GEN}/Source/cmFindProgramCommand.cxx
     ${GEN}/Source/cmInstallCommand.cxx
+    ${GEN}/Modules/CMakeDetermineSystem.cmake
 )
 
 set(CMAKE_MESSAGE_LOG_LEVEL NOTICE) # cmake is very chatty
@@ -98,6 +101,10 @@ install(FILES
     Modules/Platform/Moxnox-GNU-C.cmake
     Modules/Platform/Moxnox-GNU-CXX.cmake
     DESTINATION ${CMAKE_PORT_DATA_DIR}/Modules/Platform)
+
+# overrides the copy installed by the upstream install(DIRECTORY Modules)
+install(FILES ${GEN}/Modules/CMakeDetermineSystem.cmake
+    DESTINATION ${CMAKE_PORT_DATA_DIR}/Modules)
 
 target_compile_options(cmake PRIVATE ${USERSPACE_CFLAGS} -Wno-sign-conversion -Wno-implicit-int-conversion $<$<COMPILE_LANGUAGE:CXX>:-frtti>)
 target_compile_options(CMakeLib PRIVATE ${USERSPACE_CFLAGS} -Wno-sign-conversion -Wno-implicit-int-conversion -Wno-float-conversion -Wno-implicit-int-float-conversion -Wno-conversion $<$<COMPILE_LANGUAGE:CXX>:-frtti>)
