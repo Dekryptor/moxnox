@@ -1557,6 +1557,28 @@ btrfs_inode::btrfs_inode(btrfs_filesystem& fs, uint64_t subvol, uint64_t inode, 
     }
 }
 
+static uint64_t btrfs_time_to_system_time(const btrfs_timespec& t) {
+    uint64_t ret;
+
+    ret = t.sec;
+    ret += 11644473600;
+    ret *= 10000000;
+    ret += (uint64_t)t.nsec / 100;
+
+    return ret;
+}
+
+static btrfs_timespec system_time_to_btrfs_time(uint64_t t) {
+    btrfs_timespec ret;
+
+    ret.nsec = (uint32_t)((t % 10000000) * 100);
+    t /= 10000000;
+
+    ret.sec = t - 11644473600;
+
+    return ret;
+}
+
 bool btrfs_inode::load_inode() {
     nt_status status;
     bool found_inode_item = false;
@@ -1664,6 +1686,8 @@ bool btrfs_inode::load_inode() {
     }
 
     file_size = ii.size;
+    mtime = btrfs_time_to_system_time(ii.mtime);
+    ctime = btrfs_time_to_system_time(ii.ctime);
 
     if (this->inode_type == inode_type::unknown) {
         switch ((ii.mode & 0xf000) >> 12) {
@@ -3371,18 +3395,6 @@ nt_status btrfs_inode::get_last_dir_index(uint64_t& ret) {
     return nt_status::SUCCESS;
 }
 
-static btrfs_timespec get_btrfs_time() {
-    auto now = (uint64_t)kernel_time_page.system_time + kernel_time_page.system_time_offset;
-    btrfs_timespec ret;
-
-    ret.nsec = (uint32_t)((now % SYSTEM_TIME_RESOLUTION) * (1000000000 / SYSTEM_TIME_RESOLUTION));
-    now /= SYSTEM_TIME_RESOLUTION;
-
-    ret.sec = now - 11644473600;
-
-    return ret;
-}
-
 static bool validate_name(string_view name) {
     if (name.empty())
         return false;
@@ -3571,7 +3583,7 @@ nt_status btrfs_inode::create_child(string_view name, uint32_t create_options,
     if (!validate_name(name))
         return nt_status::OBJECT_NAME_INVALID;
 
-    auto cur_time = get_btrfs_time();
+    auto now = (uint64_t)kernel_time_page.system_time + kernel_time_page.system_time_offset;
 
     // FIXME - make sure this can't race with rename's directory empty check
 
@@ -3605,9 +3617,7 @@ nt_status btrfs_inode::create_child(string_view name, uint32_t create_options,
             child_ii.mode = S_IFREG | 0644;
 
         child_ii.sequence = 0; // FIXME?
-        child_ii.ctime = cur_time;
-        child_ii.mtime = cur_time;
-        child_ii.otime = cur_time;
+        child_ii.ctime = child_ii.mtime = child_ii.otime = system_time_to_btrfs_time(now);
 
         status = insert_item(fs, *r, {new_inode, key_type::INODE_ITEM, 0},
                              span((uint8_t*)&child_ii, sizeof(child_ii)));
@@ -3645,8 +3655,8 @@ nt_status btrfs_inode::create_child(string_view name, uint32_t create_options,
             ii.transid = fs.sb->generation;
             ii.size += name.size() * 2;
             ii.sequence++;
-            ii.ctime = cur_time;
-            ii.mtime = cur_time;
+            ctime = now;
+            mtime = now;
         }
 
         status = flush_inode_item(p);
@@ -3657,7 +3667,7 @@ nt_status btrfs_inode::create_child(string_view name, uint32_t create_options,
 
         // adjust root_item
 
-        r->ri.ctime = cur_time;
+        r->ri.ctime = system_time_to_btrfs_time(now);
         r->ri.ctransid = fs.sb->generation;
 
         // create btrfs_inode object and return
@@ -3671,6 +3681,7 @@ nt_status btrfs_inode::create_child(string_view name, uint32_t create_options,
 
         memcpy(&bi->ii, &child_ii, sizeof(btrfs_inode_item));
         bi->file_size = 0;
+        bi->mtime = bi->ctime = now;
 
         {
             lock_guard lock(fs.inode_lock);
@@ -4214,6 +4225,9 @@ nt_status btrfs_inode::flush_inode_item(btrfs_path& p) {
 
     memcpy(&dest_ii, &ii, sizeof(btrfs_inode_item));
 
+    dest_ii.mtime = system_time_to_btrfs_time(mtime);
+    dest_ii.ctime = system_time_to_btrfs_time(ctime);
+
     if (!fs.cache.write(span(p.data[0], fs.sb->nodesize), th.bytenr)) // FIXME - return status
         return nt_status::INTERNAL_ERROR;
 
@@ -4668,11 +4682,7 @@ nt_status btrfs_inode::flush_cache(uint64_t page_num, uint64_t num_pages) {
         }
     }
 
-    auto cur_time = get_btrfs_time();
-
     ii.sequence++;
-    ii.ctime = cur_time;
-    ii.mtime = cur_time;
 
     status = flush_inode_item(p);
     if (!success(status)) {
@@ -4739,8 +4749,8 @@ static NTSTATUS query_directory_dirent(btrfs_filesystem& fs, root& r, const btrf
         if (ino) {
             fdi.CreationTime.QuadPart = unix_to_win_time(ino->ii.otime);
             fdi.LastAccessTime.QuadPart = unix_to_win_time(ino->ii.atime);
-            fdi.LastWriteTime.QuadPart = unix_to_win_time(ino->ii.mtime);
-            fdi.ChangeTime.QuadPart = unix_to_win_time(ino->ii.ctime);
+            fdi.LastWriteTime.QuadPart = ino->mtime;
+            fdi.ChangeTime.QuadPart = ino->ctime;
             fdi.EndOfFile.QuadPart = (int64_t)ino->file_size;
 
             ino->release();
@@ -6213,7 +6223,7 @@ nt_status btrfs_inode::do_fchown(span<const uint8_t> buffer) {
 
     auto& params = *(MN_FCHOWN*)buffer.data();
 
-    auto cur_time = get_btrfs_time();
+    auto now = (uint64_t)kernel_time_page.system_time + kernel_time_page.system_time_offset;
 
     {
         btrfs_path p(fs.sb->nodesize);
@@ -6228,7 +6238,7 @@ nt_status btrfs_inode::do_fchown(span<const uint8_t> buffer) {
             if (params.gid != 0xffffffff)
                 ii.gid = params.gid;
 
-            ii.ctime = cur_time;
+            ctime = now;
             ii.transid = fs.sb->generation;
             ii.sequence++;
 
@@ -6262,7 +6272,7 @@ nt_status btrfs_inode::do_fchmod(span<const uint8_t> buffer) {
 
     v &= MASK;
 
-    auto cur_time = get_btrfs_time();
+    auto now = (uint64_t)kernel_time_page.system_time + kernel_time_page.system_time_offset;
 
     {
         btrfs_path p(fs.sb->nodesize);
@@ -6274,7 +6284,7 @@ nt_status btrfs_inode::do_fchmod(span<const uint8_t> buffer) {
             ii.mode &= ~MASK;
             ii.mode |= v;
 
-            ii.ctime = cur_time;
+            ctime = now;
             ii.transid = fs.sb->generation;
             ii.sequence++;
         }
@@ -6361,11 +6371,15 @@ nt_status btrfs_inode::set_basic_information(span<const uint8_t> buffer) {
         if (fbi.LastAccessTime.QuadPart != 0)
             ii.atime = win_to_unix_time(fbi.LastAccessTime.QuadPart);
 
-        if (fbi.LastWriteTime.QuadPart != 0)
-            ii.mtime = win_to_unix_time(fbi.LastWriteTime.QuadPart);
+        if (fbi.LastWriteTime.QuadPart != 0) {
+            mtime = fbi.LastWriteTime.QuadPart;
+            ii.mtime = system_time_to_btrfs_time(mtime);
+        }
 
-        if (fbi.ChangeTime.QuadPart != 0)
-            ii.ctime = win_to_unix_time(fbi.ChangeTime.QuadPart);
+        if (fbi.ChangeTime.QuadPart != 0) {
+            ctime = fbi.ChangeTime.QuadPart;
+            ii.ctime = system_time_to_btrfs_time(ctime);
+        }
 
         // copy tree back into page cache and mark dirty
 
@@ -6649,7 +6663,7 @@ nt_status btrfs_inode::set_disposition_information(span<const uint8_t> buffer,
 
     auto name = string_view(name_buf, name_len);
 
-    auto cur_time = get_btrfs_time();
+    auto now = (uint64_t)kernel_time_page.system_time + kernel_time_page.system_time_offset;
 
     {
         btrfs_path p(fs.sb->nodesize);
@@ -6688,8 +6702,8 @@ nt_status btrfs_inode::set_disposition_information(span<const uint8_t> buffer,
 
             parent.ii.size -= name.size() * 2;
             parent.ii.sequence++;
-            parent.ii.ctime = cur_time;
-            parent.ii.mtime = cur_time;
+            parent.ctime = now;
+            parent.mtime = now;
         }
 
         status = parent.flush_inode_item(p);
@@ -6708,7 +6722,7 @@ nt_status btrfs_inode::set_disposition_information(span<const uint8_t> buffer,
             ii.nlink--;
             ii.transid = fs.sb->generation;
             ii.sequence++;
-            ii.ctime = cur_time;
+            ctime = now;
 
             orphaned = ii.nlink == 0;
         }
@@ -6732,7 +6746,7 @@ nt_status btrfs_inode::set_disposition_information(span<const uint8_t> buffer,
 
         // adjust root_item
 
-        r->ri.ctime = cur_time;
+        r->ri.ctime = system_time_to_btrfs_time(now);
         r->ri.ctransid = fs.sb->generation;
     }
 
@@ -6766,8 +6780,8 @@ nt_status btrfs_inode::query_basic_information(span<uint8_t> buffer, uint64_t& r
 
         fbi.CreationTime.QuadPart = unix_to_win_time(ii.otime);
         fbi.LastAccessTime.QuadPart = unix_to_win_time(ii.atime);
-        fbi.LastWriteTime.QuadPart = unix_to_win_time(ii.mtime);
-        fbi.ChangeTime.QuadPart = unix_to_win_time(ii.ctime);
+        fbi.LastWriteTime.QuadPart = mtime;
+        fbi.ChangeTime.QuadPart = ctime;
 
         switch (inode_type) {
             case inode_type::directory:
@@ -7006,7 +7020,7 @@ nt_status btrfs_inode::rename(::dentry& dentry, ::dentry& dest_dir,
     uint64_t index;
     btrfs_key dir_item_key;
     bool done_overwrite = false;
-    auto cur_time = get_btrfs_time();
+    auto now = (uint64_t)kernel_time_page.system_time + kernel_time_page.system_time_offset;
 
     // FIXME - moving file between subvols
     if (src_parent_ino.r != dst_parent_ino.r)
@@ -7058,7 +7072,7 @@ nt_status btrfs_inode::rename(::dentry& dentry, ::dentry& dest_dir,
                 victim_ino.ii.transid = fs.sb->generation;
                 victim_ino.ii.nlink--;
                 victim_ino.ii.sequence++;
-                victim_ino.ii.ctime = cur_time;
+                victim_ino.ctime = now;
 
                 orphaned = victim_ino.ii.nlink == 0;
             }
@@ -7139,7 +7153,7 @@ nt_status btrfs_inode::rename(::dentry& dentry, ::dentry& dest_dir,
 
             ii.transid = fs.sb->generation;
             ii.sequence++;
-            ii.ctime = cur_time;
+            ctime = now;
         }
 
         status = flush_inode_item(p);
@@ -7162,8 +7176,8 @@ nt_status btrfs_inode::rename(::dentry& dentry, ::dentry& dest_dir,
 
             src_parent_ino.ii.size -= cur_name.size() * 2;
             src_parent_ino.ii.sequence++;
-            src_parent_ino.ii.ctime = cur_time;
-            src_parent_ino.ii.mtime = cur_time;
+            src_parent_ino.ctime = now;
+            src_parent_ino.mtime = now;
         }
 
         if (&src_parent_ino != &dst_parent_ino) {
@@ -7175,8 +7189,8 @@ nt_status btrfs_inode::rename(::dentry& dentry, ::dentry& dest_dir,
                 dst_parent_ino.ii.size += name.size() * 2;
 
             dst_parent_ino.ii.sequence++;
-            dst_parent_ino.ii.ctime = cur_time;
-            dst_parent_ino.ii.mtime = cur_time;
+            dst_parent_ino.ctime = now;
+            dst_parent_ino.mtime = now;
         }
 
         status = src_parent_ino.flush_inode_item(p);
@@ -7195,7 +7209,7 @@ nt_status btrfs_inode::rename(::dentry& dentry, ::dentry& dest_dir,
 
         // adjust root_item
 
-        r->ri.ctime = cur_time;
+        r->ri.ctime = system_time_to_btrfs_time(now);
         r->ri.ctransid = fs.sb->generation;
     }
 
@@ -7233,7 +7247,7 @@ nt_status btrfs_inode::hardlink(::dentry& dentry, ::dentry& dest_dir,
     uint64_t index;
     btrfs_key dir_item_key;
     bool done_overwrite = false;
-    auto cur_time = get_btrfs_time();
+    auto now = (uint64_t)kernel_time_page.system_time + kernel_time_page.system_time_offset;
     auto type = inode_type_to_btrfs_inode_type(inode_type);
 
     if (src_parent_ino.r != dst_parent_ino.r)
@@ -7279,7 +7293,7 @@ nt_status btrfs_inode::hardlink(::dentry& dentry, ::dentry& dest_dir,
                 victim_ino.ii.transid = fs.sb->generation;
                 victim_ino.ii.nlink--;
                 victim_ino.ii.sequence++;
-                victim_ino.ii.ctime = cur_time;
+                victim_ino.ctime = now;
 
                 orphaned = victim_ino.ii.nlink == 0;
             }
@@ -7354,7 +7368,7 @@ nt_status btrfs_inode::hardlink(::dentry& dentry, ::dentry& dest_dir,
 
             ii.transid = fs.sb->generation;
             ii.sequence++;
-            ii.ctime = cur_time;
+            ctime = now;
 
             if (ii.nlink == 0)
                 orphaned = true;
@@ -7387,8 +7401,8 @@ nt_status btrfs_inode::hardlink(::dentry& dentry, ::dentry& dest_dir,
                 dst_parent_ino.ii.size += name.size() * 2;
 
             dst_parent_ino.ii.sequence++;
-            dst_parent_ino.ii.ctime = cur_time;
-            dst_parent_ino.ii.mtime = cur_time;
+            dst_parent_ino.ctime = now;
+            dst_parent_ino.mtime = now;
         }
 
         status = dst_parent_ino.flush_inode_item(p);
@@ -7399,7 +7413,7 @@ nt_status btrfs_inode::hardlink(::dentry& dentry, ::dentry& dest_dir,
 
         // adjust root_item
 
-        r->ri.ctime = cur_time;
+        r->ri.ctime = system_time_to_btrfs_time(now);
         r->ri.ctransid = fs.sb->generation;
     }
 
@@ -7891,8 +7905,8 @@ nt_status btrfs_inode::query_lx_information(span<uint8_t> buffer, uint64_t& retl
         fsli.FileId.QuadPart = (int64_t)inode;
         fsli.CreationTime.QuadPart = unix_to_win_time(ii.otime);
         fsli.LastAccessTime.QuadPart = unix_to_win_time(ii.atime);
-        fsli.LastWriteTime.QuadPart = unix_to_win_time(ii.mtime);
-        fsli.ChangeTime.QuadPart = unix_to_win_time(ii.ctime);
+        fsli.LastWriteTime.QuadPart = mtime;
+        fsli.ChangeTime.QuadPart = ctime;
         fsli.AllocationSize.QuadPart = (int64_t)ii.nbytes;
         fsli.EndOfFile.QuadPart = (int64_t)file_size;
         fsli.NumberOfLinks = ii.nlink;

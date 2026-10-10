@@ -72,7 +72,7 @@ public:
                          dentry* dentry) override;
 
     tmpfs_filesystem& fs; // FIXME - use reference in ::inode
-    uint64_t mtime, ctime, otime, atime;
+    uint64_t otime, atime;
     unsigned int nlink = 1;
     spinlock child_lock;
     list_entry children = { &children, &children };

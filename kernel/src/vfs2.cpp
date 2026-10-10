@@ -35,6 +35,7 @@ import net;
 import rangelock;
 import trace;
 import disable_interrupts;
+import kernel_time_page;
 
 using namespace std;
 
@@ -1357,6 +1358,8 @@ nt_status inode::write(span<const span<const uint8_t>> v, uint64_t offset,
         return nt_status::SUCCESS;
     }
 
+    auto now = (uint64_t)kernel_time_page.system_time + kernel_time_page.system_time_offset;
+
     {
         lock_guard lock(inode_lock);
 
@@ -1365,6 +1368,9 @@ nt_status inode::write(span<const span<const uint8_t>> v, uint64_t offset,
 
         if (file_size < offset + vec_size)
             file_size = offset + vec_size;
+
+        mtime = now;
+        ctime = now;
     }
 
     written_bytes = cache.write_vec(v, offset);

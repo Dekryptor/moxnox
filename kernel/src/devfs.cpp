@@ -78,7 +78,7 @@ public:
 
     devfs_filesystem& fs; // FIXME - use reference in ::inode
     list_entry le;
-    uint64_t mtime, ctime, otime, atime;
+    uint64_t otime, atime;
     uint32_t mode;
     uint32_t uid = 0, gid = 0;
 };

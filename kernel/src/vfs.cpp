@@ -139,6 +139,7 @@ public:
     filesystem& fs;
     rwsem inode_lock;
     uint64_t file_size;
+    uint64_t mtime, ctime;
     enum inode_type inode_type;
     page_cache<inode> cache{*this};
     list_entry writeback_le;
