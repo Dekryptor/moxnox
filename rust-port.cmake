@@ -26,7 +26,7 @@ endfunction()
 function(add_rust_port name binary)
     cmake_parse_arguments(ARG "" "" "PATCHED_CRATES" ${ARGN})
 
-    if(CMAKE_SYSTEM_PROCESSOR STREQUAL "amd64")
+    if(CMAKE_SYSTEM_PROCESSOR STREQUAL "x86_64")
         set(RUST_TARGET x86_64-pc-moxnox)
     elseif(CMAKE_SYSTEM_PROCESSOR STREQUAL "aarch64")
         set(RUST_TARGET aarch64-pc-moxnox)

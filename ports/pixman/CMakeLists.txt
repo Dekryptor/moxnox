@@ -50,7 +50,7 @@ configure_file(
     "${CMAKE_CURRENT_BINARY_DIR}/pixman-version.h"
 )
 
-if(CMAKE_SYSTEM_PROCESSOR STREQUAL "amd64")
+if(CMAKE_SYSTEM_PROCESSOR STREQUAL "x86_64")
     cmake_push_check_state()
     set(CMAKE_REQUIRED_FLAGS "${USERSPACE_CFLAGS}")
     set(CMAKE_TRY_COMPILE_TARGET_TYPE STATIC_LIBRARY)

@@ -20,7 +20,7 @@ target_sources(shell PUBLIC FILE_SET CXX_MODULES FILES
 
 target_compile_options(shell PRIVATE -fno-exceptions ${USERSPACE_CFLAGS})
 
-if(CMAKE_SYSTEM_PROCESSOR STREQUAL "amd64")
+if(CMAKE_SYSTEM_PROCESSOR STREQUAL "x86_64")
     target_compile_options(shell PRIVATE -masm=intel)
 endif()
 

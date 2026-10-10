@@ -1,5 +1,5 @@
 set(CMAKE_SYSTEM_NAME Moxnox)
-set(CMAKE_SYSTEM_PROCESSOR amd64)
+set(CMAKE_SYSTEM_PROCESSOR x86_64)
 set(CMAKE_SYSROOT "/usr/x86_64-pc-moxnox")
 
 set(CMAKE_C_COMPILER clang)

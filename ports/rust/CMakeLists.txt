@@ -15,7 +15,7 @@ init_rust_crate_submodules(
     ports/rust/termize
 )
 
-if(CMAKE_SYSTEM_PROCESSOR STREQUAL "amd64")
+if(CMAKE_SYSTEM_PROCESSOR STREQUAL "x86_64")
     set(RUST_TARGET x86_64-pc-moxnox)
 elseif(CMAKE_SYSTEM_PROCESSOR STREQUAL "aarch64")
     set(RUST_TARGET aarch64-pc-moxnox)

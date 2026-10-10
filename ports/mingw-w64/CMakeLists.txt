@@ -72,7 +72,7 @@ add_library(mingwex STATIC
     repo/mingw-w64-crt/stdio/vasprintf.c
 )
 
-if(CMAKE_SYSTEM_PROCESSOR STREQUAL "amd64")
+if(CMAKE_SYSTEM_PROCESSOR STREQUAL "x86_64")
     target_sources(mingwex PRIVATE repo/mingw-w64-crt/cfguard/guard_dispatch.S)
 endif()
 

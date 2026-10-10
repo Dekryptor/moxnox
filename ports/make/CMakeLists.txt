@@ -1,6 +1,6 @@
 project(make VERSION 4.4.1)
 
-if(CMAKE_SYSTEM_PROCESSOR STREQUAL "amd64")
+if(CMAKE_SYSTEM_PROCESSOR STREQUAL "x86_64")
     set(MAKE_HOST_TRIPLE x86_64-pc-moxnox)
 else()
     set(MAKE_HOST_TRIPLE aarch64-pc-moxnox)

@@ -23,7 +23,7 @@ add_library(zstd SHARED
     repo/lib/decompress/zstd_decompress_block.c
 )
 
-if(CMAKE_SYSTEM_PROCESSOR STREQUAL "amd64")
+if(CMAKE_SYSTEM_PROCESSOR STREQUAL "x86_64")
     target_sources(zstd PRIVATE repo/lib/decompress/huf_decompress_amd64.S)
 endif()
 

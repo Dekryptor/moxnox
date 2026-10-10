@@ -1,6 +1,6 @@
 add_custom_target(gcc)
 
-if(NOT CMAKE_SYSTEM_PROCESSOR STREQUAL "amd64")
+if(NOT CMAKE_SYSTEM_PROCESSOR STREQUAL "x86_64")
     # no aarch64-pc-moxnox GCC yet
     return()
 endif()

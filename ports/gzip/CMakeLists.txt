@@ -83,7 +83,7 @@ add_executable(gzip
     repo/gnulib/lib/yesno.c
 )
 
-if(CMAKE_SYSTEM_PROCESSOR STREQUAL "amd64")
+if(CMAKE_SYSTEM_PROCESSOR STREQUAL "x86_64")
     target_sources(gzip PRIVATE repo/gnulib/lib/crc-x86_64-pclmul.c)
 endif()
 

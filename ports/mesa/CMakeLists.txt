@@ -1523,7 +1523,7 @@ set(MESA_EXTRA_SOURCES
     repo/src/gallium/targets/dri/dri_target.c
 )
 
-if(CMAKE_SYSTEM_PROCESSOR STREQUAL "amd64")
+if(CMAKE_SYSTEM_PROCESSOR STREQUAL "x86_64")
     list(APPEND MESA_EXTRA_SOURCES repo/src/util/cache_ops_x86.c)
     set(MESA_BLAKE3_DEFINES BLAKE3_NO_SSE2 BLAKE3_NO_SSE41 BLAKE3_NO_AVX2 BLAKE3_NO_AVX512)
 else()
@@ -1549,7 +1549,7 @@ else()
     set(MESA_LLVM_DIR ${CMAKE_BINARY_DIR}/ports/llvm/dest/usr/lib/cmake/llvm)
 endif()
 
-if(CMAKE_SYSTEM_PROCESSOR STREQUAL "amd64" AND
+if(CMAKE_SYSTEM_PROCESSOR STREQUAL "x86_64" AND
    NOT MESA_LLVM_DIR STREQUAL "${CMAKE_BINARY_DIR}/ports/llvm/dest/usr/lib/cmake/llvm")
     set(MESA_LLVM_LIBCXX OFF)
 else()

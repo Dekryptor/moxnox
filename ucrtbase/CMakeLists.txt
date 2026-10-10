@@ -202,7 +202,7 @@ set(SRC_FILES src/ucrtbase.cpp
     src/scanf.cpp
 )
 
-if(CMAKE_SYSTEM_PROCESSOR STREQUAL amd64)
+if(CMAKE_SYSTEM_PROCESSOR STREQUAL x86_64)
     list(APPEND SRC_FILES src/x86/setjmp.S)
 elseif(CMAKE_SYSTEM_PROCESSOR STREQUAL aarch64)
     list(APPEND SRC_FILES src/aarch64/setjmp.S)
@@ -248,7 +248,7 @@ install(TARGETS ucrtbase
 
 if(CMAKE_SYSTEM_PROCESSOR STREQUAL aarch64)
     set(ARCH arm64)
-elseif(CMAKE_SYSTEM_PROCESSOR STREQUAL "amd64")
+elseif(CMAKE_SYSTEM_PROCESSOR STREQUAL "x86_64")
     set(ARCH "i386:x86-64")
 endif()
 

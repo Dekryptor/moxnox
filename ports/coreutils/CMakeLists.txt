@@ -570,11 +570,11 @@ set(COREUTILS_CFLAGS
 target_include_directories(libcoreutils PRIVATE ${COREUTILS_INCLUDES})
 target_compile_options(libcoreutils PRIVATE ${COREUTILS_CFLAGS})
 
-if(CMAKE_SYSTEM_PROCESSOR STREQUAL "amd64")
+if(CMAKE_SYSTEM_PROCESSOR STREQUAL "x86_64")
     target_sources(libcoreutils PRIVATE repo/gnulib/lib/crc-x86_64-pclmul.c)
 endif()
 
-if(CMAKE_SYSTEM_PROCESSOR STREQUAL "amd64")
+if(CMAKE_SYSTEM_PROCESSOR STREQUAL "x86_64")
     add_library(cu_cksum_simd STATIC
         repo/src/cksum_pclmul.c
         repo/src/cksum_avx2.c
