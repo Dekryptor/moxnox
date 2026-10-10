@@ -71,3 +71,5 @@ target_compile_options(gawk PRIVATE ${USERSPACE_CFLAGS}
 target_link_libraries(gawk PRIVATE mpfr moxnox)
 
 install(TARGETS gawk DESTINATION ${CMAKE_INSTALL_PREFIX}/bin)
+
+install(CODE "file(CREATE_LINK gawk.exe \"\$ENV{DESTDIR}${CMAKE_INSTALL_PREFIX}/bin/awk.exe\" SYMBOLIC)")
