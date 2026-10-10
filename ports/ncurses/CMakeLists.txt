@@ -87,6 +87,16 @@ add_custom_command(
 )
 
 add_custom_command(
+    OUTPUT ${GEN}/termsort.h
+    COMMAND sh -c "sh '${CMAKE_CURRENT_SOURCE_DIR}/repo/progs/MKtermsort.sh' awk '${CMAKE_CURRENT_SOURCE_DIR}/repo/include/Caps' > '${GEN}/termsort.h'"
+    WORKING_DIRECTORY ${GEN}
+    DEPENDS
+        repo/progs/MKtermsort.sh
+        repo/include/Caps
+    VERBATIM
+)
+
+add_custom_command(
     OUTPUT ${GEN}/ncurses_def.h
     COMMAND sh -c "sh '${CMAKE_CURRENT_SOURCE_DIR}/repo/include/MKncurses_def.sh' '${CMAKE_CURRENT_SOURCE_DIR}/repo/include/ncurses_defs' > '${GEN}/ncurses_def.h'"
     DEPENDS
@@ -456,6 +466,7 @@ add_custom_target(ncurses_generated_headers
         ${GEN}/curses.priv.h
         ${GEN}/term.priv.h
         ${GEN}/ncurses_dll.h
+        ${GEN}/termsort.h
 )
 add_dependencies(ncurses ncurses_generated_headers)
 add_dependencies(tinfo ncurses_generated_headers)
@@ -618,6 +629,105 @@ endif()
 install(TARGETS tset DESTINATION ${CMAKE_INSTALL_PREFIX}/bin)
 
 install(CODE "file(CREATE_LINK tset.exe \"\$ENV{DESTDIR}${CMAKE_INSTALL_PREFIX}/bin/reset.exe\" SYMBOLIC)")
+
+# tic / captoinfo / infotocap
+
+add_executable(tic
+    repo/progs/tic.c
+    repo/progs/dump_entry.c
+    repo/progs/tparm_type.c
+    repo/progs/transform.c
+)
+
+target_compile_options(tic PRIVATE ${USERSPACE_CFLAGS})
+target_compile_definitions(tic PRIVATE WIN_PTHREADS_TIME_H _UCRT)
+target_include_directories(tic PRIVATE ${GEN} repo/include repo/ncurses repo/progs ${CMAKE_CURRENT_SOURCE_DIR})
+target_link_libraries(tic PRIVATE moxnox ncurses)
+add_dependencies(tic ncurses_generated_headers)
+
+if (CMAKE_C_COMPILER_ID STREQUAL "GNU")
+    target_link_options(tic PUBLIC -mcrtdll=ucrtbase)
+endif()
+
+install(TARGETS tic DESTINATION ${CMAKE_INSTALL_PREFIX}/bin)
+install(CODE "file(CREATE_LINK tic.exe \"\$ENV{DESTDIR}${CMAKE_INSTALL_PREFIX}/bin/captoinfo.exe\" SYMBOLIC)")
+install(CODE "file(CREATE_LINK tic.exe \"\$ENV{DESTDIR}${CMAKE_INSTALL_PREFIX}/bin/infotocap.exe\" SYMBOLIC)")
+
+# infocmp
+
+add_executable(infocmp
+    repo/progs/infocmp.c
+    repo/progs/dump_entry.c
+)
+
+target_compile_options(infocmp PRIVATE ${USERSPACE_CFLAGS})
+target_compile_definitions(infocmp PRIVATE WIN_PTHREADS_TIME_H _UCRT)
+target_include_directories(infocmp PRIVATE ${GEN} repo/include repo/ncurses repo/progs ${CMAKE_CURRENT_SOURCE_DIR})
+target_link_libraries(infocmp PRIVATE moxnox ncurses)
+add_dependencies(infocmp ncurses_generated_headers)
+
+if (CMAKE_C_COMPILER_ID STREQUAL "GNU")
+    target_link_options(infocmp PUBLIC -mcrtdll=ucrtbase)
+endif()
+
+install(TARGETS infocmp DESTINATION ${CMAKE_INSTALL_PREFIX}/bin)
+
+# toe
+
+add_executable(toe
+    repo/progs/toe.c
+)
+
+target_compile_options(toe PRIVATE ${USERSPACE_CFLAGS})
+target_compile_definitions(toe PRIVATE WIN_PTHREADS_TIME_H _UCRT)
+target_include_directories(toe PRIVATE ${GEN} repo/include repo/ncurses repo/progs ${CMAKE_CURRENT_SOURCE_DIR})
+target_link_libraries(toe PRIVATE moxnox ncurses)
+
+if (CMAKE_C_COMPILER_ID STREQUAL "GNU")
+    target_link_options(toe PUBLIC -mcrtdll=ucrtbase)
+endif()
+
+install(TARGETS toe DESTINATION ${CMAKE_INSTALL_PREFIX}/bin)
+
+# tput
+
+add_executable(tput
+    repo/progs/tput.c
+    repo/progs/clear_cmd.c
+    ${GEN}/reset_cmd.c
+    repo/progs/tparm_type.c
+    repo/progs/transform.c
+    repo/progs/tty_settings.c
+)
+
+target_compile_options(tput PRIVATE ${USERSPACE_CFLAGS})
+target_compile_definitions(tput PRIVATE WIN_PTHREADS_TIME_H _UCRT)
+target_include_directories(tput PRIVATE ${GEN} repo/include repo/ncurses repo/progs ${CMAKE_CURRENT_SOURCE_DIR})
+target_link_libraries(tput PRIVATE moxnox ncurses)
+
+if (CMAKE_C_COMPILER_ID STREQUAL "GNU")
+    target_link_options(tput PUBLIC -mcrtdll=ucrtbase)
+endif()
+
+install(TARGETS tput DESTINATION ${CMAKE_INSTALL_PREFIX}/bin)
+
+# tabs
+
+add_executable(tabs
+    repo/progs/tabs.c
+    repo/progs/tty_settings.c
+)
+
+target_compile_options(tabs PRIVATE ${USERSPACE_CFLAGS})
+target_compile_definitions(tabs PRIVATE WIN_PTHREADS_TIME_H _UCRT)
+target_include_directories(tabs PRIVATE ${GEN} repo/include repo/ncurses repo/progs ${CMAKE_CURRENT_SOURCE_DIR})
+target_link_libraries(tabs PRIVATE moxnox ncurses)
+
+if (CMAKE_C_COMPILER_ID STREQUAL "GNU")
+    target_link_options(tabs PUBLIC -mcrtdll=ucrtbase)
+endif()
+
+install(TARGETS tabs DESTINATION ${CMAKE_INSTALL_PREFIX}/bin)
 
 ####
 
