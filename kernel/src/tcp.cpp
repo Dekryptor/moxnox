@@ -2672,20 +2672,21 @@ nt_status tcp_socket<FAMILY>::do_recvfrom(span<const span<uint8_t>> v, int flags
                     signalled = false;
             }
 
-            bool opening = false;
+            bool do_send_ack = false;
             tcp_seq ack;
 
             {
                 lock_guard lock(io_lock);
 
-                if (recv_window <= 0)
-                    opening = true;
+                // FIXME - should actually be other side's MSS
+                if (recv_window < (int32_t)mss)
+                    do_send_ack = true;
 
                 recv_window += (int32_t)removed_bytes;
                 ack = recv_next;
             }
 
-            if (opening) {
+            if (do_send_ack) {
                 if constexpr (is_same_v<FAMILY, ipv4>)
                     send_ack<FAMILY>(*this, false, ack);
                 else if constexpr (is_same_v<FAMILY, ipv6>) {
