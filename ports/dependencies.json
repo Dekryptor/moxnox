@@ -18,6 +18,7 @@
     "git": ["curl", "expat", "zlib"],
     "gmp": [],
     "gnulib": [],
+    "gperf": ["gnulib"],
     "grep": ["gnulib"],
     "gzip": [],
     "harfbuzz": ["freetype"],

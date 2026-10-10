@@ -223,3 +223,6 @@
 [submodule "ports/perl/repo"]
 	path = ports/perl/repo
 	url = https://github.com/Perl/perl5
+[submodule "ports/gperf/repo"]
+	path = ports/gperf/repo
+	url = git://git.git.savannah.gnu.org/gperf.git

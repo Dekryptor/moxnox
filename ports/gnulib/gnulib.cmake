@@ -1,7 +1,11 @@
-file(READ ${CMAKE_CURRENT_SOURCE_DIR}/repo/gnulib/lib/arg-nonnull.h GNULIB_SNIPPET_ARG_NONNULL)
-file(READ ${CMAKE_CURRENT_SOURCE_DIR}/repo/gnulib/lib/c++defs.h GNULIB_SNIPPET_CXXDEFS)
-file(READ ${CMAKE_CURRENT_SOURCE_DIR}/repo/gnulib/lib/warn-on-use.h GNULIB_SNIPPET_WARN_ON_USE)
-file(READ ${CMAKE_CURRENT_SOURCE_DIR}/repo/gnulib/lib/_Noreturn.h GNULIB_SNIPPET_NORETURN)
+if(NOT DEFINED GNULIB_LIB_DIR)
+    set(GNULIB_LIB_DIR ${CMAKE_CURRENT_SOURCE_DIR}/repo/gnulib/lib)
+endif()
+
+file(READ ${GNULIB_LIB_DIR}/arg-nonnull.h GNULIB_SNIPPET_ARG_NONNULL)
+file(READ ${GNULIB_LIB_DIR}/c++defs.h GNULIB_SNIPPET_CXXDEFS)
+file(READ ${GNULIB_LIB_DIR}/warn-on-use.h GNULIB_SNIPPET_WARN_ON_USE)
+file(READ ${GNULIB_LIB_DIR}/_Noreturn.h GNULIB_SNIPPET_NORETURN)
 
 function(gnulib_header template output)
     if(NOT IS_ABSOLUTE ${template})

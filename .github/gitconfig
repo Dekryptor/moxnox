@@ -112,3 +112,5 @@
 	insteadOf = git://sourceware.org/git/binutils-gdb.git
 [url "https://git.burntcomma.com/moxnox/cmake"]
 	insteadOf = https://gitlab.kitware.com/cmake/cmake
+[url "https://git.burntcomma.com/moxnox/gperf"]
+	insteadOf = git://git.git.savannah.gnu.org/gperf.git
