@@ -230,6 +230,8 @@ int wcscoll(const wchar_t* s1, const wchar_t* s2) {
 
 template<integral T>
 static T strto(const char* nptr, char** endptr, int base) {
+    auto orig_nptr = nptr;
+
     while (isspace(*nptr)) {
         nptr++;
     }
@@ -249,6 +251,13 @@ static T strto(const char* nptr, char** endptr, int base) {
         base = 10;
 
     auto fcr = from_chars(nptr, nptr + strlen(nptr), ret, base);
+
+    if (fcr.ec == errc::invalid_argument) {
+        if (endptr)
+            *endptr = (char*)orig_nptr;
+
+        return 0;
+    }
 
     if (endptr)
         *endptr = (char*)fcr.ptr;
