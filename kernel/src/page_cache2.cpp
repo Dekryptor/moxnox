@@ -36,6 +36,9 @@ nt_status flush_mappings(list_entry& mappings, spinlock& mappings_lock, uint64_t
         for (auto le = mappings.next; le != &mappings; le = le->next) {
             auto& m = *(mapping*)((uint8_t*)le - offsetof(mapping, cache_le));
 
+            if (!m.in_address_space)
+                continue;
+
             auto mapping_first_page = m.offset >> PAGE_SHIFT;
             auto mapping_last_page = mapping_first_page + (m.size >> PAGE_SHIFT) - 1;
 

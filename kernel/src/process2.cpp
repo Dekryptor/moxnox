@@ -1183,6 +1183,7 @@ uintptr_t process::map_section(section& sect, uintptr_t address,
         }
 
         m->tree.key = address;
+        m->in_address_space = true;
         insert_into_rbtree(mappings, m->tree);
 
         if (view_size)
@@ -1223,8 +1224,6 @@ uintptr_t process::map_section(section& sect, uintptr_t address,
         if (!set_page_protection(*this, address, sect.num_pages, protect, cow, false))
             return 0; // FIXME - return nt_status::INSUFFICIENT_RESOURCES
     }
-
-    m->in_address_space = true;
 
     return address;
 }
@@ -2471,6 +2470,7 @@ NTSTATUS process::allocate_vm(void** base_address, uintptr_t, size_t* region_siz
 
         m->offset = addr;
         m->tree.key = addr;
+        m->in_address_space = true;
         insert_into_rbtree(mappings, m->tree);
     }
 
@@ -2484,8 +2484,6 @@ NTSTATUS process::allocate_vm(void** base_address, uintptr_t, size_t* region_siz
         }
         return nt_status::INSUFFICIENT_RESOURCES;
     }
-
-    m->in_address_space = true;
 
     *base_address = (void*)addr;
     *region_size = size;
@@ -5572,9 +5570,8 @@ nt_status process::memory_unmap(span<const uint8_t> buf) {
                 {
                     lock_guard lock(mappings_lock);
                     insert_into_rbtree(mappings, m->tree);
+                    m->in_address_space = true;
                 }
-
-                m->in_address_space = true;
 
                 unmap_proc_pages(*this, addr, length >> PAGE_SHIFT);
 
