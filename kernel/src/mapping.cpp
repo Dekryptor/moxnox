@@ -8,6 +8,7 @@ import nt;
 import list;
 import process;
 import section;
+import rbtree;
 
 #ifdef __aarch64__
 import aarch64;
@@ -38,9 +39,8 @@ public:
     nt_status flush(uint64_t offset, uint64_t size);
     void clear_write_bit(uint64_t page_num, uint64_t num_pages);
 
-    list_entry le;
+    rbtree_node<uint64_t> tree;
     list_entry cache_le;
-    uint64_t address = 0;
     uint32_t size = 0;
     uint64_t offset = 0;
     bool in_address_space = false;

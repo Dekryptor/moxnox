@@ -128,6 +128,30 @@ const rbtree_node<KeyType>* get_tree_minimum(const rbtree_node<KeyType>* root) {
     return ret;
 }
 
+export
+template<typename KeyType>
+rbtree_node<KeyType>* get_tree_maximum(rbtree_node<KeyType>* root) {
+    rbtree_node<KeyType>* ret = root;
+
+    while (ret && ret->right) {
+        ret = ret->right;
+    }
+
+    return ret;
+}
+
+export
+template<typename KeyType>
+const rbtree_node<KeyType>* get_tree_maximum(const rbtree_node<KeyType>* root) {
+    const rbtree_node<KeyType>* ret = root;
+
+    while (ret && ret->right) {
+        ret = ret->right;
+    }
+
+    return ret;
+}
+
 template<typename KeyType>
 void left_rotate(rbtree_node<KeyType>*& root, rbtree_node<KeyType>* x) {
     if (!x || !x->right)

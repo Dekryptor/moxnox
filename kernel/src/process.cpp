@@ -21,6 +21,7 @@ import objects;
 import rangelock;
 import rwsem;
 import section;
+import rbtree;
 
 #ifdef __aarch64__
 import aarch64;
@@ -151,8 +152,10 @@ public:
                                   size_t& return_length);
 
     optional<reference_wrapper<section>> img;
+
     spinlock mappings_lock;
-    list_entry mappings = { &mappings, &mappings };
+    rbtree_node<uint64_t>* mappings = nullptr;
+
 #ifdef __aarch64__
     uint64_t ttbr0 = 0;
 #elifdef __x86_64__

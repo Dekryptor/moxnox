@@ -279,7 +279,7 @@ static bool allocate_proc_params(process& proc, HANDLE stdinh, HANDLE stdouth,
 
     create_dos_path(span(dos_path, ks_proc_params->CurrentDirectory.DosPath.MaximumLength / sizeof(char16_t)), curdir);
 
-    if (!m.copy_to((uint32_t)((uintptr_t)ks_proc_params->CurrentDirectory.DosPath.Buffer - m.address),
+    if (!m.copy_to((uint32_t)((uintptr_t)ks_proc_params->CurrentDirectory.DosPath.Buffer - m.tree.key),
                    dos_path, ks_proc_params->CurrentDirectory.DosPath.Length)) {
         print("mapping::copy_to failed\n");
         m.release();
@@ -300,7 +300,7 @@ static bool allocate_proc_params(process& proc, HANDLE stdinh, HANDLE stdouth,
 
     utf8_to_utf16(span(fn_path, ks_proc_params->ImagePathName.MaximumLength / sizeof(char16_t)), fn);
 
-    if (!m.copy_to((uint32_t)((uintptr_t)ks_proc_params->ImagePathName.Buffer - m.address),
+    if (!m.copy_to((uint32_t)((uintptr_t)ks_proc_params->ImagePathName.Buffer - m.tree.key),
                    fn_path, ks_proc_params->ImagePathName.Length)) {
         print("mapping::copy_to failed\n");
         m.release();
@@ -311,7 +311,7 @@ static bool allocate_proc_params(process& proc, HANDLE stdinh, HANDLE stdouth,
 
     free(fn_path);
 
-    if (!m.copy_to((uint32_t)((uintptr_t)ks_proc_params->CommandLine.Buffer - m.address),
+    if (!m.copy_to((uint32_t)((uintptr_t)ks_proc_params->CommandLine.Buffer - m.tree.key),
                    cmdline.data(), ks_proc_params->CommandLine.Length)) {
         print("mapping::copy_to failed\n");
         m.release();
@@ -319,7 +319,7 @@ static bool allocate_proc_params(process& proc, HANDLE stdinh, HANDLE stdouth,
         return false;
     }
 
-    if (!m.copy_to((uint32_t)((uintptr_t)proc.proc_params - m.address),
+    if (!m.copy_to((uint32_t)((uintptr_t)proc.proc_params - m.tree.key),
                    ks_proc_params, sizeof(RTL_USER_PROCESS_PARAMETERS))) {
         print("mapping::copy_to failed\n");
         m.release();
@@ -373,7 +373,7 @@ static bool allocate_peb(process& proc, HANDLE stdinh, HANDLE stdouth,
     ks_peb.ImageBaseAddress = (void*)proc.img_addr;
     ks_peb.ProcessParameters = proc.proc_params;
 
-    if (!m.copy_to((uint32_t)((uintptr_t)proc.peb - m.address), &ks_peb,
+    if (!m.copy_to((uint32_t)((uintptr_t)proc.peb - m.tree.key), &ks_peb,
                    sizeof(PEB))) {
         print("mapping::copy_to failed\n");
         m.release();
@@ -1131,59 +1131,59 @@ uintptr_t process::map_section(section& sect, uintptr_t address,
         return 0;
     }
 
-    m->address = address;
+    m->tree.key = address;
     m->offset = section_offset.has_value() ? (uint64_t)*section_offset : 0;
     m->size = bytes_to_pages(sect.size - m->offset) << PAGE_SHIFT;
-
-    uintptr_t last_addr = 0x100000; // don't place images below 1 MB unless explicitly requested
-    bool inserted = false;
 
     {
         lock_guard lock(mappings_lock);
 
-        auto le = mappings.next;
-        while (le != &mappings) {
-            auto& m2 = containing_record<mapping>(le);
+        if (address == 0) {
+            // FIXME - can be be frustrated if malicious userspace deliberately places something at very high address
 
-            if (address == 0) {
-                if (m2.address >= last_addr + m->size) { // insert before
-                    address = last_addr;
-                    m->address = address;
-                    insert_head_list(*le->prev, m->le);
-                    inserted = true;
-                    break;
-                }
+            auto n1 = get_tree_maximum(mappings);
 
-                last_addr = max(last_addr, m2.address + m2.size);
-            } else {
-                if (m2.address >= address + m->size) { // insert before
-                    m->address = address;
-                    insert_head_list(*le->prev, m->le);
-                    inserted = true;
-                    break;
-                }
+            if (!n1)
+                address = 0x100000; // don't place images below 1 MB unless explicitly requested
+            else {
+                auto& m1 = rbtree_containing_record<mapping>(n1);
 
-                if (address < m2.address + m2.size && address + m->size > m2.address) { // collision
-                    print("collision\n");
+                if (m1.tree.key + m1.size + m->size >= MAX_USERSPACE_ADDRESS) {
                     delete m;
                     return 0;
                 }
+
+                address = m1.tree.key + m1.size;
             }
+        } else {
+            auto n1 = find_rbtree_node_or_less(mappings, address);
 
-            le = le->next;
+            if (!n1)
+                n1 = get_tree_minimum(mappings);
+
+            if (n1) {
+                auto& m1 = rbtree_containing_record<mapping>(n1);
+
+                if (address < m1.tree.key + m1.size && address + m->size > m1.tree.key) { // collision
+                    delete m;
+                    return 0;
+                }
+
+                auto n2 = next_rbtree_node(m1.tree);
+
+                if (n2) {
+                    auto& m2 = rbtree_containing_record<mapping>(n2);
+
+                    if (address < m2.tree.key + m2.size && address + m->size > m2.tree.key) { // collision
+                        delete m;
+                        return 0;
+                    }
+                }
+            }
         }
 
-        if (address == 0) {
-            if (last_addr >= MAX_USERSPACE_ADDRESS - m->size)
-                return 0;
-
-            address = last_addr;
-        }
-
-        m->address = address;
-
-        if (!inserted)
-            insert_tail_list(mappings, m->le);
+        m->tree.key = address;
+        insert_into_rbtree(mappings, m->tree);
 
         if (view_size)
             *view_size = m->size;
@@ -1259,7 +1259,7 @@ static bool populate_teb(process& proc, ::thread& t) {
     teb.ClientId.UniqueThread = t.tid;
     teb.ProcessEnvironmentBlock = proc.peb;
 
-    if (!m.copy_to((uint32_t)((uintptr_t)t.teb - m.address), &teb,
+    if (!m.copy_to((uint32_t)((uintptr_t)t.teb - m.tree.key), &teb,
                    PAGE_SIZE)) {
         print("mapping::copy_to failed\n");
         m.release();
@@ -1627,7 +1627,7 @@ bool process::handle_page_fault(uintptr_t address, uint64_t esr_value) {
         if (!m)
             return false;
 
-        ret = m->map((uint32_t)(address - m->address), address);
+        ret = m->map((uint32_t)(address - m->tree.key), address);
 
         m->release();
     }
@@ -1666,7 +1666,7 @@ bool process::handle_page_fault(uintptr_t address, uint64_t error_code) {
         if (!m)
             return false;
 
-        ret = m->map((uint32_t)(address - m->address), address);
+        ret = m->map((uint32_t)(address - m->tree.key), address);
 
         m->release();
     }
@@ -1712,9 +1712,9 @@ bool process::copy_from(void* ks_addr, const void* us_addr, size_t size) {
         if (!m)
             return false;
 
-        auto to_copy = min(size, m->address + m->size - (uintptr_t)us_addr);
+        auto to_copy = min(size, m->tree.key + m->size - (uintptr_t)us_addr);
 
-        if (!m->copy_from((uint32_t)((uintptr_t)us_addr - m->address), ks_addr, (uint32_t)to_copy)) {
+        if (!m->copy_from((uint32_t)((uintptr_t)us_addr - m->tree.key), ks_addr, (uint32_t)to_copy)) {
             m->release();
             return false;
         }
@@ -1738,9 +1738,9 @@ bool process::copy_to(void* us_addr, const void* ks_addr, size_t size) {
         if (!m)
             return false;
 
-        auto to_copy = min(size, m->address + m->size - (uintptr_t)us_addr);
+        auto to_copy = min(size, m->tree.key + m->size - (uintptr_t)us_addr);
 
-        if (!m->copy_to((uint32_t)((uintptr_t)us_addr - m->address), ks_addr, (uint32_t)to_copy)) {
+        if (!m->copy_to((uint32_t)((uintptr_t)us_addr - m->tree.key), ks_addr, (uint32_t)to_copy)) {
             m->release();
             return false;
         }
@@ -2034,12 +2034,14 @@ void process::terminate() {
         {
             lock_guard lock(mappings_lock);
 
-            if (is_list_empty(mappings))
+            auto n = get_tree_minimum(mappings);
+
+            if (!n)
                 break;
 
-            m = &containing_record<mapping>(mappings.next);
+            m = &rbtree_containing_record<mapping>(n);
 
-            remove_entry_list(m->le);
+            remove_from_rbtree(mappings, m->tree);
         }
 
         m->release();
@@ -2390,7 +2392,7 @@ NTSTATUS process::allocate_vm(void** base_address, uintptr_t, size_t* region_siz
             if (!m)
                 return nt_status::NO_MEMORY;
 
-            auto to_commit = min(size, m->address + m->size - addr);
+            auto to_commit = min(size, m->tree.key + m->size - addr);
 
             if (!set_page_protection(*this, addr, (uint32_t)(to_commit >> PAGE_SHIFT), protect,
                                      true, false)) {
@@ -2420,53 +2422,56 @@ NTSTATUS process::allocate_vm(void** base_address, uintptr_t, size_t* region_siz
 
     m->size = (uint32_t)size;
 
-    uintptr_t last_addr = 0x100000; // don't allocate in first megabyte
-    bool inserted = false;
-
     {
         lock_guard lock(mappings_lock);
 
-        for (auto le = mappings.next; le != &mappings; le = le->next) {
-            auto& m2 = containing_record<mapping>(le);
+        if (addr == 0) {
+            // FIXME - can be be frustrated if malicious userspace deliberately places something at very high address
 
-            if (addr == 0) {
-                if (m2.address >= last_addr + m->size) { // insert before
-                    insert_head_list(*le->prev, m->le);
-                    addr = last_addr;
-                    inserted = true;
-                    break;
-                }
+            auto n1 = get_tree_maximum(mappings);
 
-                last_addr = max(last_addr, m2.address + m2.size);
-            } else {
-                if (m2.address >= addr + m->size) { // insert before
-                    insert_head_list(*le->prev, m->le);
-                    inserted = true;
-                    break;
-                }
+            if (!n1)
+                addr = 0x100000; // don't allocate in first megabyte unless explicitly requested
+            else {
+                auto& m1 = rbtree_containing_record<mapping>(n1);
 
-                if (addr < m2.address + m2.size && addr + m->size > m2.address) { // collision
-                    print("collision\n");
+                if (m1.tree.key + m1.size + m->size >= MAX_USERSPACE_ADDRESS) {
                     m->release();
                     return nt_status::NO_MEMORY;
                 }
+
+                addr = m1.tree.key + m1.size;
+            }
+        } else {
+            auto n1 = find_rbtree_node_or_less(mappings, addr);
+
+            if (!n1)
+                n1 = get_tree_minimum(mappings);
+
+            if (n1) {
+                auto& m1 = rbtree_containing_record<mapping>(n1);
+
+                if (addr < m1.tree.key + m1.size && addr + m->size > m1.tree.key) { // collision
+                    m->release();
+                    return nt_status::NO_MEMORY;
+                }
+
+                auto n2 = next_rbtree_node(m1.tree);
+
+                if (n2) {
+                    auto& m2 = rbtree_containing_record<mapping>(n2);
+
+                    if (addr < m2.tree.key + m2.size && addr + m->size > m2.tree.key) { // collision
+                        m->release();
+                        return nt_status::NO_MEMORY;
+                    }
+                }
             }
         }
-
-        if (addr == 0) {
-            if (last_addr >= MAX_USERSPACE_ADDRESS - m->size) {
-                m->release();
-                return nt_status::NO_MEMORY;
-            }
-
-            addr = last_addr;
-        }
-
-        if (!inserted)
-            insert_tail_list(mappings, m->le);
 
         m->offset = addr;
-        m->address = addr;
+        m->tree.key = addr;
+        insert_into_rbtree(mappings, m->tree);
     }
 
     if (!set_page_protection(*this, addr, num_pages, protect, true,
@@ -2474,7 +2479,7 @@ NTSTATUS process::allocate_vm(void** base_address, uintptr_t, size_t* region_siz
         print("set_page_protection failed\n");
         {
             lock_guard lock(mappings_lock);
-            remove_entry_list(m->le);
+            remove_from_rbtree(mappings, m->tree);
             m->release();
         }
         return nt_status::INSUFFICIENT_RESOURCES;
@@ -2679,30 +2684,26 @@ NTSTATUS process::free_vm(void** base_address, size_t* region_size, uint32_t fre
     {
         lock_guard lock(mappings_lock);
 
-        for (auto le = mappings.next; le != &mappings; le = le->next) {
-            auto& m2 = containing_record<mapping>(le);
+        auto n = find_rbtree_node(mappings, (uintptr_t)*base_address);
 
-            if (m2.address > (uintptr_t)*base_address)
-                break;
-            else if (m2.address < (uintptr_t)*base_address)
-                continue;
+        if (!n)
+            return nt_status::INVALID_PARAMETER;
 
-            // FIXME - MEM_RELEASE with reserved memory block
+        auto& m2 = rbtree_containing_record<mapping>(n);
 
-            remove_entry_list(m2.le);
-            pm = &m2;
-            break;
-        }
+        if (m2.tree.key != (uintptr_t)*base_address)
+            return nt_status::INVALID_PARAMETER;
+
+        remove_from_rbtree(mappings, m2.tree);
+
+        pm = &m2;
     }
-
-    if (!pm)
-        return nt_status::INVALID_PARAMETER;
 
     auto& m = *pm;
 
     // FIXME - if current process running on other cores and mapping changed, send IPI to clear TLB
 
-    *base_address = (void*)m.address;
+    *base_address = (void*)m.tree.key;
     *region_size = m.size;
 
     m.release();
@@ -2920,7 +2921,7 @@ static nt_status protect_vm(process& proc, void** base_address, size_t* region_s
             if (!m)
                 break;
 
-            auto num_pages = min(pages, (uint32_t)((m->address + m->size - addr) >> PAGE_SHIFT));
+            auto num_pages = min(pages, (uint32_t)((m->tree.key + m->size - addr) >> PAGE_SHIFT));
 
             if (first)
                 old_type = get_page_protection(proc, addr);
@@ -3144,7 +3145,7 @@ NTSTATUS process::unmap_view_of_section(void* base_address) {
 
     {
         lock_guard lock(mappings_lock);
-        remove_entry_list(m->le);
+        remove_from_rbtree(mappings, m->tree);
     }
 
     m->release(); // because we're removing from the list
@@ -3548,9 +3549,9 @@ NTSTATUS process::read_vm(const void* base_address, void* buffer,
         if (!m)
             break;
 
-        auto to_copy = min(buffer_size, (uint32_t)(m->address + m->size - (uintptr_t)base_address));
+        auto to_copy = min(buffer_size, (uint32_t)(m->tree.key + m->size - (uintptr_t)base_address));
 
-        if (!m->copy_from((uint32_t)((uintptr_t)base_address - m->address), buffer, (uint32_t)to_copy)) {
+        if (!m->copy_from((uint32_t)((uintptr_t)base_address - m->tree.key), buffer, (uint32_t)to_copy)) {
             m->release();
             return nt_status::INTERNAL_ERROR;
         }
@@ -3729,9 +3730,9 @@ NTSTATUS process::write_vm(void* base_address, const void* buffer,
         if (!m)
             break;
 
-        auto to_copy = min(buffer_size, (uint32_t)(m->address + m->size - (uintptr_t)base_address));
+        auto to_copy = min(buffer_size, (uint32_t)(m->tree.key + m->size - (uintptr_t)base_address));
 
-        if (!m->copy_to((uint32_t)((uintptr_t)base_address - m->address), buffer, (uint32_t)to_copy)) {
+        if (!m->copy_to((uint32_t)((uintptr_t)base_address - m->tree.key), buffer, (uint32_t)to_copy)) {
             m->release();
             return nt_status::INTERNAL_ERROR;
         }
@@ -4610,10 +4611,10 @@ nt_status process::flush_vm(void** base_address, size_t* region_size) {
     if (size & (PAGE_SIZE - 1))
         size = (size & ~(PAGE_SIZE - 1)) + PAGE_SIZE;
 
-    if (size == 0 || size > m->address + m->size - addr)
-        size = m->address + m->size - addr;
+    if (size == 0 || size > m->tree.key + m->size - addr)
+        size = m->tree.key + m->size - addr;
 
-    auto ret = m->flush(addr - m->address, size);
+    auto ret = m->flush(addr - m->tree.key, size);
     if (!success(ret)) {
         m->release();
         return ret;
@@ -5499,45 +5500,57 @@ nt_status process::memory_unmap(span<const uint8_t> buf) {
             {
                 lock_guard lock(mappings_lock);
 
-                for (auto le = mappings.next; le != &mappings; le = le->next) {
-                    auto& m = containing_record<mapping>(le);
+                auto n = find_rbtree_node_or_less(mappings, addr);
 
-                    if (m.address + m.size <= addr)
-                        continue;
+                if (!n)
+                    n = get_tree_minimum(mappings);
 
-                    if (m.address >= addr + length)
-                        break;
+                if (!n)
+                    break;
 
+                auto& m = rbtree_containing_record<mapping>(n);
+
+                if (m.tree.key < addr + length && addr < m.tree.key + m.size) {
                     m2 = &m;
                     m.acquire();
-                    break;
+                } else {
+                    auto n2 = next_rbtree_node(*n);
+
+                    if (n2) {
+                        auto& m3 = rbtree_containing_record<mapping>(n2);
+
+                        if (m3.tree.key < addr + length && addr < m3.tree.key + m3.size) {
+                            m2 = &m3;
+                            m3.acquire();
+                        }
+                    }
                 }
             }
 
             if (!m2)
                 break;
 
-            auto orig_address = m2->address;
+            auto orig_address = m2->tree.key;
             auto orig_size = m2->size;
 
-            if (addr <= m2->address && addr + length >= m2->address + m2->size) { // remove whole thing
+            if (addr <= m2->tree.key && addr + length >= m2->tree.key + m2->size) { // remove whole thing
                 {
                     lock_guard lock(mappings_lock);
-                    remove_entry_list(m2->le);
+                    remove_from_rbtree(mappings, m2->tree);
                 }
 
                 m2->release();
-            } else if (addr <= m2->address) { // remove start
-                m2->size = (uint32_t)(m2->address + m2->size - addr - length);
-                m2->address = addr + length;
-                m2->offset += m2->address - orig_address;
+            } else if (addr <= m2->tree.key) { // remove start
+                m2->size = (uint32_t)(m2->tree.key + m2->size - addr - length);
+                m2->tree.key = addr + length;
+                m2->offset += m2->tree.key - orig_address;
 
                 unmap_proc_pages(*this, orig_address, (addr + length - orig_address) >> PAGE_SHIFT);
 
                 m2->release();
                 break;
-            } else if (addr + length >= m2->address + m2->size) { // remove end
-                m2->size = (uint32_t)(addr - m2->address);
+            } else if (addr + length >= m2->tree.key + m2->size) { // remove end
+                m2->size = (uint32_t)(addr - m2->tree.key);
 
                 unmap_proc_pages(*this, addr, (orig_address + orig_size - addr) >> PAGE_SHIFT);
 
@@ -5550,13 +5563,17 @@ nt_status process::memory_unmap(span<const uint8_t> buf) {
                     return nt_status::INSUFFICIENT_RESOURCES;
                 }
 
-                m->address = addr + length;
-                m->size = (uint32_t)(m2->address + m2->size - addr - length);
-                m->offset = m->address - m2->address + m2->offset;
+                m->tree.key = addr + length;
+                m->size = (uint32_t)(m2->tree.key + m2->size - addr - length);
+                m->offset = m->tree.key - m2->tree.key + m2->offset;
 
-                m2->size = (uint32_t)(addr - m2->address);
+                m2->size = (uint32_t)(addr - m2->tree.key);
 
-                insert_head_list(m2->le, m->le);
+                {
+                    lock_guard lock(mappings_lock);
+                    insert_into_rbtree(mappings, m->tree);
+                }
+
                 m->in_address_space = true;
 
                 unmap_proc_pages(*this, addr, length >> PAGE_SHIFT);
@@ -5992,14 +6009,14 @@ static nt_status query_mapping_basic_info(uint64_t va, process& proc, mapping& m
                                           MEMORY_BASIC_INFORMATION& mbi) {
     va &= ~(PAGE_SIZE - 1);
 
-    mbi.AllocationBase = (void*)m.address;
+    mbi.AllocationBase = (void*)m.tree.key;
     mbi.AllocationProtect = 0; // FIXME - return original protection
     mbi.PartitionId = 0;
     mbi.Protect = get_page_protection(proc, va);
 
     uint64_t base_address = va;
 
-    while (base_address > m.address && get_page_protection(proc, base_address - PAGE_SIZE) == mbi.Protect) {
+    while (base_address > m.tree.key && get_page_protection(proc, base_address - PAGE_SIZE) == mbi.Protect) {
         base_address -= PAGE_SIZE;
     }
 
@@ -6007,7 +6024,7 @@ static nt_status query_mapping_basic_info(uint64_t va, process& proc, mapping& m
 
     uint64_t end_region = va;
 
-    while (end_region + PAGE_SIZE < m.address + m.size && get_page_protection(proc, end_region + PAGE_SIZE) == mbi.Protect) {
+    while (end_region + PAGE_SIZE < m.tree.key + m.size && get_page_protection(proc, end_region + PAGE_SIZE) == mbi.Protect) {
         end_region += PAGE_SIZE;
     }
 
@@ -6183,7 +6200,7 @@ static nt_status make_userspace_range_writable(process& proc, uintptr_t addr,
         if (!m)
             return nt_status::NO_MEMORY;
 
-        auto len = min(size, m->address + m->size - addr);
+        auto len = min(size, m->tree.key + m->size - addr);
         auto num_pages = (len + PAGE_SIZE - 1) >> PAGE_SHIFT;
 
         for (size_t i = 0; i < num_pages; i++) {
@@ -6216,7 +6233,7 @@ static nt_status make_userspace_range_writable(process& proc, uintptr_t addr,
                                     rangelock_mode::exclusive);
 
                 if (!pte_valid) {
-                    if (!m->map((uint32_t)(va - m->address), va)) {
+                    if (!m->map((uint32_t)(va - m->tree.key), va)) {
                         m->release();
                         return nt_status::ACCESS_VIOLATION;
                     }
@@ -6306,7 +6323,7 @@ nt_status pin_userspace_buffer_for_writing(process& proc, span<uint8_t> us_buf,
                                        rangelock_mode::exclusive);
 
                     if (!pte_valid) {
-                        if (!m->map((uint32_t)(va - m->address), va)) {
+                        if (!m->map((uint32_t)(va - m->tree.key), va)) {
                             m->release();
                             return nt_status::ACCESS_VIOLATION;
                         }
@@ -6405,7 +6422,7 @@ static nt_status make_userspace_range_readable(process& proc, uintptr_t addr,
         if (!m)
             return nt_status::NO_MEMORY;
 
-        auto len = min(size, m->address + m->size - addr);
+        auto len = min(size, m->tree.key + m->size - addr);
         auto num_pages = (len + PAGE_SIZE - 1) >> PAGE_SHIFT;
 
         for (size_t i = 0; i < num_pages; i++) {
@@ -6432,7 +6449,7 @@ static nt_status make_userspace_range_readable(process& proc, uintptr_t addr,
                 rangelock_req rlr2(proc.rl, va >> PAGE_SHIFT, 1,
                                     rangelock_mode::exclusive);
 
-                if (!m->map((uint32_t)(va - m->address), va)) {
+                if (!m->map((uint32_t)(va - m->tree.key), va)) {
                     m->release();
                     return nt_status::ACCESS_VIOLATION;
                 }
@@ -6500,7 +6517,7 @@ nt_status pin_userspace_buffer_for_reading(process& proc, span<const uint8_t> us
                     rangelock_req rlr2(proc.rl, va >> PAGE_SHIFT, 1,
                                        rangelock_mode::exclusive);
 
-                    if (!m->map((uint32_t)(va - m->address), va)) {
+                    if (!m->map((uint32_t)(va - m->tree.key), va)) {
                         m->release();
                         return nt_status::ACCESS_VIOLATION;
                     }
@@ -6636,7 +6653,7 @@ static nt_status pin_userspace_buffers_for_read_and_write(process& proc,
                     rangelock_req rlr2(proc.rl, va >> PAGE_SHIFT, 1,
                                        rangelock_mode::exclusive);
 
-                    if (!m->map((uint32_t)(va - m->address), va)) {
+                    if (!m->map((uint32_t)(va - m->tree.key), va)) {
                         m->release();
                         return nt_status::ACCESS_VIOLATION;
                     }
@@ -6688,7 +6705,7 @@ static nt_status pin_userspace_buffers_for_read_and_write(process& proc,
                                        rangelock_mode::exclusive);
 
                     if (!pte_valid) {
-                        if (!m->map((uint32_t)(va - m->address), va)) {
+                        if (!m->map((uint32_t)(va - m->tree.key), va)) {
                             m->release();
                             return nt_status::ACCESS_VIOLATION;
                         }
@@ -6907,7 +6924,7 @@ nt_status pin_iovecs_for_writing(process& proc, span<const iovec> vecs,
                                            rangelock_mode::exclusive);
 
                         if (!pte_valid) {
-                            if (!m->map((uint32_t)(va - m->address), va)) {
+                            if (!m->map((uint32_t)(va - m->tree.key), va)) {
                                 m->release();
                                 return nt_status::ACCESS_VIOLATION;
                             }
@@ -7101,7 +7118,7 @@ nt_status pin_iovecs_for_reading(process& proc, span<const iovec> vecs,
                         rangelock_req rlr2(proc.rl, va >> PAGE_SHIFT, 1,
                                            rangelock_mode::exclusive);
 
-                        if (!m->map((uint32_t)(va - m->address), va)) {
+                        if (!m->map((uint32_t)(va - m->tree.key), va)) {
                             m->release();
                             return nt_status::ACCESS_VIOLATION;
                         }
@@ -7592,8 +7609,10 @@ nt_status process::do_fork(span<const uint8_t> buf) {
         {
             lock_guard lock(mappings_lock);
 
-            for (auto le = mappings.next; le != &mappings; le = le->next) {
-                auto& m = containing_record<mapping>(le);
+            auto n = get_tree_minimum(mappings);
+
+            while (n) {
+                auto& m = rbtree_containing_record<mapping>(n);
 
                 auto m2 = new mapping(p, m.sect);
                 if (!m2) {
@@ -7601,12 +7620,14 @@ nt_status process::do_fork(span<const uint8_t> buf) {
                     return nt_status::INSUFFICIENT_RESOURCES;
                 }
 
-                m2->address = m.address;
+                m2->tree.key = m.tree.key;
                 m2->size = m.size;
                 m2->offset = m.offset;
                 m2->in_address_space = true;
 
-                insert_tail_list(p.mappings, m2->le);
+                insert_into_rbtree(p.mappings, m2->tree);
+
+                n = next_rbtree_node(*n);
             }
         }
 

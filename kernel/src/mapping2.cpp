@@ -150,7 +150,7 @@ mapping::~mapping() {
     // FIXME - send IPI to unmap on other CPUs by clearing TLB
 
     if (in_address_space)
-        unmap_proc_pages(proc, address, size >> PAGE_SHIFT);
+        unmap_proc_pages(proc, tree.key, size >> PAGE_SHIFT);
 
     visit([&](auto* ptr) {
         auto& cache = *ptr;
@@ -220,11 +220,11 @@ bool mapping::copy_from(uint32_t offset, void* ks_addr, uint32_t size) {
     uint64_t page_offset = offset & (PAGE_SIZE - 1);
 
     {
-        rangelock_req rlr(proc.rl, (address >> PAGE_SHIFT) + page_num,
+        rangelock_req rlr(proc.rl, (tree.key >> PAGE_SHIFT) + page_num,
                           num_pages, rangelock_mode::shared);
 
         for (uint64_t i = 0; i < num_pages; i++) {
-            auto* ppte = find_pte(proc, address + ((page_num + i) << PAGE_SHIFT));
+            auto* ppte = find_pte(proc, tree.key + ((page_num + i) << PAGE_SHIFT));
 
             if (!ppte)
                 return false;
@@ -295,11 +295,11 @@ bool mapping::copy_to(uint32_t offset, const void* ks_addr, uint32_t size) {
     uint64_t page_offset = offset & (PAGE_SIZE - 1);
 
     {
-        rangelock_req rlr(proc.rl, (address >> PAGE_SHIFT) + page_num,
+        rangelock_req rlr(proc.rl, (tree.key >> PAGE_SHIFT) + page_num,
                           num_pages, rangelock_mode::exclusive);
 
         for (uint64_t i = 0; i < num_pages; i++) {
-            uint64_t va = address + ((page_num + i) << PAGE_SHIFT);
+            uint64_t va = tree.key + ((page_num + i) << PAGE_SHIFT);
             auto* ppte = find_pte(proc, va);
 
             if (!ppte)
@@ -552,7 +552,7 @@ nt_status mapping::flush(uint64_t offset, uint64_t size) {
 
 void mapping::clear_write_bit(uint64_t page_num, uint64_t num_pages) {
     span<pte_type> pt[4];
-    uint64_t va = address + (page_num << PAGE_SHIFT);
+    uint64_t va = tree.key + (page_num << PAGE_SHIFT);
     uint16_t index[4];
 
     index[0] = (va & 0x1ff000) >> 12;
@@ -645,20 +645,22 @@ bool mapping::try_acquire() {
 }
 
 mapping* find_mapping(process& proc, uint64_t address) {
-    lock_guard lock(proc.mappings_lock);
-
     address &= ~(PAGE_SIZE - 1);
 
-    for (auto le = proc.mappings.next; le != &proc.mappings; le = le->next) {
-        auto& m = containing_record<mapping>(le);
+    lock_guard lock(proc.mappings_lock);
 
-        if (m.address <= address && m.address + m.size > address) {
-            if (!m.try_acquire())
-                continue;
+    auto n = find_rbtree_node_or_less(proc.mappings, address);
 
-            return &m;
-        } else if (m.address > address)
-            break;
+    if (!n)
+        return nullptr;
+
+    auto& m = rbtree_containing_record<mapping>(n);
+
+    if (m.tree.key <= address && m.tree.key + m.size > address) {
+        if (!m.try_acquire())
+            return nullptr;
+
+        return &m;
     }
 
     return nullptr;
@@ -666,7 +668,7 @@ mapping* find_mapping(process& proc, uint64_t address) {
 
 bool make_pte_writable(uintptr_t address, mapping& m, pte_type& pte,
                        bool& send_ipi) {
-    uint64_t page_num = (address - m.address) >> PAGE_SHIFT;
+    uint64_t page_num = (address - m.tree.key) >> PAGE_SHIFT;
     uint64_t sect_page_num = page_num + (m.offset >> PAGE_SHIFT);
 
     if (pte.cow) {

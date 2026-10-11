@@ -35,7 +35,7 @@
 #define TIMER_LE 0x38
 #define TIMER_TICKS_LEFT 0x48
 
-#define PROCESS_TTBR0 0x60
+#define PROCESS_TTBR0 0x58
 
 #elif defined(__x86_64__)
 
@@ -97,7 +97,7 @@
 
 #define ENUM_THREAD_STATUS_DEAD 5
 
-#define PROCESS_CR3 0x60
+#define PROCESS_CR3 0x58
 
 #define APIC_BASE 0xfffffab000000000
 #define APIC_EOI 0xb0
