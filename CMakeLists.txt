@@ -25,6 +25,7 @@ option(USE_COMPILER_RT OFF)
 find_program(DLLTOOL NAMES dlltool llvm-dlltool REQUIRED)
 find_program(AR NAMES ar llvm-ar REQUIRED)
 
+add_compile_definitions(MOXNOX)
 add_compile_definitions(_GLIBCXX_NO_ASSERTIONS)
 add_compile_definitions(-D_LIBCPP_VERBOSE_ABORT=)
 

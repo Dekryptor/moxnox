@@ -28,7 +28,5 @@ set(CMAKE_USER_MAKE_RULES_OVERRIDE "${CMAKE_CURRENT_LIST_DIR}/toolchain.cmake" C
 
 set(CMAKE_TRY_COMPILE_TARGET_TYPE STATIC_LIBRARY)
 
-add_compile_options(-DMOXNOX)
-
 add_compile_options(--sysroot=/usr/aarch64-pc-moxnox -rtlib=compiler-rt)
 add_link_options(--sysroot=/usr/aarch64-pc-moxnox -fuse-ld=lld)
