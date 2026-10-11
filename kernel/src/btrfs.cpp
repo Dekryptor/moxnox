@@ -1847,6 +1847,77 @@ static nt_status protect_superblocks(chunk& c) {
     return nt_status::SUCCESS;
 }
 
+static nt_status load_space_bitmap(btrfs_filesystem& fs, chunk& c,
+                                   uint64_t start, span<const uint8_t> data) {
+    bool in_run = false;
+    size_t run_start, run_length;
+
+    if (!is_list_empty(c.space_list)) {
+        auto& s = containing_record<chunk_space>(c.space_list.prev);
+
+        if (s.offset + s.length == start && !data.empty() && data[0] & 1) {
+            in_run = true;
+            run_start = s.offset;
+            run_length = s.length / fs.sb->sectorsize;
+
+            remove_entry_list(s.le);
+            free(&s);
+        }
+    }
+
+    for (size_t i = 0; i < data.size(); i++) {
+        if (!in_run && data[i] == 0)
+            continue;
+        else if (in_run && data[i] == 0xff) {
+            run_length += 8;
+            continue;
+        }
+
+        auto v = data[i];
+        for (unsigned int j = 0; j < 8; j++) {
+            if (in_run) {
+                if (v & 1)
+                    run_length++;
+                else {
+                    auto s = (chunk_space*)malloc(sizeof(chunk_space));
+                    if (!s) {
+                        print("malloc failed\n");
+                        return nt_status::INSUFFICIENT_RESOURCES;
+                    }
+
+                    s->offset = run_start;
+                    s->length = run_length * fs.sb->sectorsize;
+                    insert_tail_list(c.space_list, s->le);
+
+                    in_run = false;
+                }
+            } else {
+                if (v & 1) {
+                    in_run = true;
+                    run_start = start + (((i * 8) + j) * fs.sb->sectorsize);
+                    run_length = 1;
+                }
+            }
+
+            v >>= 1;
+        }
+    }
+
+    if (in_run) {
+        auto s = (chunk_space*)malloc(sizeof(chunk_space));
+        if (!s) {
+            print("malloc failed\n");
+            return nt_status::INSUFFICIENT_RESOURCES;
+        }
+
+        s->offset = run_start;
+        s->length = run_length * fs.sb->sectorsize;
+        insert_tail_list(c.space_list, s->le);
+    }
+
+    return nt_status::SUCCESS;
+}
+
 static nt_status load_space(btrfs_filesystem& fs, chunk& c) {
     lock_guard lock(c.space_loading_lock);
 
@@ -1894,25 +1965,43 @@ static nt_status load_space(btrfs_filesystem& fs, chunk& c) {
 
         switch (k.type) {
             case key_type::FREE_SPACE_EXTENT: {
-                auto s = (chunk_space*)malloc(sizeof(chunk_space));
-                if (!s) {
-                    print("malloc failed\n");
-                    return nt_status::INSUFFICIENT_RESOURCES;
+                bool done = false;
+
+                if (!is_list_empty(c.space_list)) {
+                    auto& s = containing_record<chunk_space>(c.space_list.prev);
+
+                    if (s.offset + s.length == k.objectid) {
+                        s.length += k.offset;
+                        done = true;
+                    }
                 }
 
-                // FIXME - these should be in some sort of tree rather than a linked list
+                if (!done) {
+                    auto s = (chunk_space*)malloc(sizeof(chunk_space));
+                    if (!s) {
+                        print("malloc failed\n");
+                        return nt_status::INSUFFICIENT_RESOURCES;
+                    }
 
-                s->offset = k.objectid;
-                s->length = k.offset;
-                insert_tail_list(c.space_list, s->le);
+                    // FIXME - these should be in some sort of tree rather than a linked list
+
+                    s->offset = k.objectid;
+                    s->length = k.offset;
+                    insert_tail_list(c.space_list, s->le);
+                }
 
                 break;
             }
 
-            case key_type::FREE_SPACE_BITMAP:
-                print("FIXME - support free space bitmaps\n"); // FIXME
-                return nt_status::INTERNAL_ERROR;
-            break;
+            case key_type::FREE_SPACE_BITMAP: {
+                auto data = span((const uint8_t*)&th + sizeof(btrfs_header) + it.offset, it.size);
+
+                status = load_space_bitmap(fs, c, k.objectid, data);
+                if (!success(status))
+                    return status;
+
+                break;
+            }
 
             default:
                 break;
