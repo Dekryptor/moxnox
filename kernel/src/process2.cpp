@@ -1139,21 +1139,37 @@ uintptr_t process::map_section(section& sect, uintptr_t address,
         lock_guard lock(mappings_lock);
 
         if (address == 0) {
-            // FIXME - can be be frustrated if malicious userspace deliberately places something at very high address
+            uintptr_t last_addr = 0x100000; // don't place images below 1 MB unless explicitly requested
 
-            auto n1 = get_tree_maximum(mappings);
+            auto n1 = get_tree_minimum(mappings);
 
-            if (!n1)
-                address = 0x100000; // don't place images below 1 MB unless explicitly requested
-            else {
+            while (n1) {
                 auto& m1 = rbtree_containing_record<mapping>(n1);
 
-                if (m1.tree.key + m1.size + m->size >= MAX_USERSPACE_ADDRESS) {
-                    delete m;
-                    return 0;
+                if (m1.tree.key >= last_addr + m->size) {
+                    address = last_addr;
+                    break;
                 }
 
-                address = m1.tree.key + m1.size;
+                n1 = next_rbtree_node(*n1);
+                last_addr = max(last_addr, m1.tree.key + m1.size);
+            }
+
+            if (address == 0) {
+                auto n1 = get_tree_maximum(mappings);
+
+                if (!n1)
+                    address = 0x100000;
+                else {
+                    auto& m1 = rbtree_containing_record<mapping>(n1);
+
+                    if (m1.tree.key + m1.size + m->size >= MAX_USERSPACE_ADDRESS) {
+                        delete m;
+                        return 0;
+                    }
+
+                    address = m1.tree.key + m1.size;
+                }
             }
         } else {
             auto n1 = find_rbtree_node_or_less(mappings, address);
