@@ -2425,21 +2425,37 @@ NTSTATUS process::allocate_vm(void** base_address, uintptr_t, size_t* region_siz
         lock_guard lock(mappings_lock);
 
         if (addr == 0) {
-            // FIXME - can be be frustrated if malicious userspace deliberately places something at very high address
+            uintptr_t last_addr = 0x100000; // don't allocate in first megabyte
 
-            auto n1 = get_tree_maximum(mappings);
+            auto n1 = get_tree_minimum(mappings);
 
-            if (!n1)
-                addr = 0x100000; // don't allocate in first megabyte unless explicitly requested
-            else {
+            while (n1) {
                 auto& m1 = rbtree_containing_record<mapping>(n1);
 
-                if (m1.tree.key + m1.size + m->size >= MAX_USERSPACE_ADDRESS) {
-                    m->release();
-                    return nt_status::NO_MEMORY;
+                if (m1.tree.key >= last_addr + m->size) {
+                    addr = last_addr;
+                    break;
                 }
 
-                addr = m1.tree.key + m1.size;
+                n1 = next_rbtree_node(*n1);
+                last_addr = max(last_addr, m1.tree.key + m1.size);
+            }
+
+            if (addr == 0) {
+                auto n1 = get_tree_maximum(mappings);
+
+                if (!n1)
+                    addr = 0x100000;
+                else {
+                    auto& m1 = rbtree_containing_record<mapping>(n1);
+
+                    if (m1.tree.key + m1.size + m->size >= MAX_USERSPACE_ADDRESS) {
+                        m->release();
+                        return nt_status::NO_MEMORY;
+                    }
+
+                    addr = m1.tree.key + m1.size;
+                }
             }
         } else {
             auto n1 = find_rbtree_node_or_less(mappings, addr);
