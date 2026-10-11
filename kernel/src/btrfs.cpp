@@ -103,6 +103,7 @@ struct chunk {
     list_entry pending_space_list = { &pending_space_list, &pending_space_list };
     rwsem space_loading_lock;
     bool space_loaded = false;
+    bool using_fst_bitmaps;
     bool changed = false;
     list_entry changed_le;
     list_entry space_pending_le;
@@ -1847,13 +1848,13 @@ static nt_status protect_superblocks(chunk& c) {
     return nt_status::SUCCESS;
 }
 
-static nt_status load_space_bitmap(btrfs_filesystem& fs, chunk& c,
-                                   uint64_t start, span<const uint8_t> data) {
+static nt_status load_space_bitmap(btrfs_filesystem& fs, uint64_t start,
+                                   span<const uint8_t> data, list_entry& list) {
     bool in_run = false;
     size_t run_start, run_length;
 
-    if (!is_list_empty(c.space_list)) {
-        auto& s = containing_record<chunk_space>(c.space_list.prev);
+    if (!is_list_empty(list)) {
+        auto& s = containing_record<chunk_space>(list.prev);
 
         if (s.offset + s.length == start && !data.empty() && data[0] & 1) {
             in_run = true;
@@ -1887,7 +1888,7 @@ static nt_status load_space_bitmap(btrfs_filesystem& fs, chunk& c,
 
                     s->offset = run_start;
                     s->length = run_length * fs.sb->sectorsize;
-                    insert_tail_list(c.space_list, s->le);
+                    insert_tail_list(list, s->le);
 
                     in_run = false;
                 }
@@ -1912,7 +1913,7 @@ static nt_status load_space_bitmap(btrfs_filesystem& fs, chunk& c,
 
         s->offset = run_start;
         s->length = run_length * fs.sb->sectorsize;
-        insert_tail_list(c.space_list, s->le);
+        insert_tail_list(list, s->le);
     }
 
     return nt_status::SUCCESS;
@@ -1948,6 +1949,11 @@ static nt_status load_space(btrfs_filesystem& fs, chunk& c) {
             print("Could not find free_space_info for chunk {:x}.\n", c.offset);
             return nt_status::DISK_CORRUPT_ERROR;
         }
+
+        auto data = span((const uint8_t*)&th + sizeof(btrfs_header) + it.offset, it.size);
+        auto& fsi = *(btrfs_free_space_info*)data.data();
+
+        c.using_fst_bitmaps = !!(fsi.flags & BTRFS_FREE_SPACE_USING_BITMAPS);
     }
 
     do {
@@ -1996,7 +2002,7 @@ static nt_status load_space(btrfs_filesystem& fs, chunk& c) {
             case key_type::FREE_SPACE_BITMAP: {
                 auto data = span((const uint8_t*)&th + sizeof(btrfs_header) + it.offset, it.size);
 
-                status = load_space_bitmap(fs, c, k.objectid, data);
+                status = load_space_bitmap(fs, k.objectid, data, c.space_list);
                 if (!success(status))
                     return status;
 
@@ -2391,6 +2397,7 @@ static nt_status allocate_new_chunk(btrfs_filesystem& fs, chunk*& c,
     s->length = chunk_size;
     insert_tail_list(c->space_list, s->le);
     c->space_loaded = true;
+    c->using_fst_bitmaps = false;
 
     status = protect_superblocks(*c);
     if (!success(status)) {
@@ -5147,17 +5154,162 @@ static nt_status adjust_free_space_info(btrfs_filesystem& fs, uint64_t address,
     return nt_status::SUCCESS;
 }
 
-static nt_status remove_free_space(btrfs_filesystem& fs, uint64_t address,
-                                   uint64_t length) {
+static nt_status clear_free_space_info_bitmap_flag(btrfs_filesystem& fs,
+                                                   chunk& c) {
     auto& r = *fs.free_space_root;
+    nt_status status;
     btrfs_path p(fs.sb->nodesize);
 
-    auto status = fs.find_item(r, {address, key_type::FREE_SPACE_EXTENT, 0xffffffffffffffff},
-                               p, true);
+    status = fs.find_item(r, {c.offset, key_type::FREE_SPACE_INFO, c.ci.length},
+                          p, true);
     if (!success(status))
         return status;
 
-    // FIXME - if bitmap, convert into normal extents
+    auto& th = *(btrfs_header*)p.data[0];
+    auto items = span((btrfs_item*)((uint8_t*)&th + sizeof(btrfs_header)), th.nritems);
+
+    auto& it = items[p.slots[0]];
+    const auto& found_key = it.key;
+
+    if (found_key.objectid != c.offset || found_key.type != key_type::FREE_SPACE_INFO)
+        return nt_status::INTERNAL_ERROR;
+
+    auto data = span((const uint8_t*)&th + sizeof(btrfs_header) + it.offset, it.size);
+
+    if (it.size < sizeof(btrfs_free_space_info))
+        return nt_status::DISK_CORRUPT_ERROR;
+
+    auto& fsi = *(btrfs_free_space_info*)data.data();
+
+    fsi.flags &= ~BTRFS_FREE_SPACE_USING_BITMAPS;
+
+    // copy tree back into page cache and mark dirty
+
+    if (!fs.cache.write(span(p.data[0], fs.sb->nodesize), th.bytenr)) // FIXME - return status
+        return nt_status::INTERNAL_ERROR;
+
+    return nt_status::SUCCESS;
+}
+
+static nt_status convert_fst_bitmaps_to_extents(btrfs_filesystem& fs, chunk& c,
+                                                btrfs_path& p) {
+    auto& r = *fs.free_space_root;
+    nt_status status;
+    list_entry list = { &list, &list };
+
+    // remove bitmaps
+
+    btrfs_key search_key = { c.offset, key_type::FREE_SPACE_BITMAP, 0 };
+
+    status = fs.find_item(r, search_key, p, true);
+    if (!success(status))
+        return status;
+
+    while (true) {
+        auto& th = *(btrfs_header*)p.data[0];
+        auto items = span((btrfs_item*)((uint8_t*)&th + sizeof(btrfs_header)), th.nritems);
+
+        if (p.slots[0] == leaf_nritems(p)) {
+            status = next_leaf(fs, p);
+            if (status == nt_status::NOT_FOUND)
+                break;
+            else if (!success(status)) {
+                while (!is_list_empty(list)) {
+                    auto& s = containing_record<chunk_space>(list.next);
+
+                    remove_entry_list(s.le);
+                    free(&s);
+                }
+
+                return status;
+            }
+        }
+
+        const auto& it = items[p.slots[0]];
+        const auto& k = it.key;
+
+        if (k.objectid >= c.offset + c.ci.length)
+            break;
+
+        if (k.objectid >= c.offset && k.type == key_type::FREE_SPACE_BITMAP) {
+            auto data = span((const uint8_t*)&th + sizeof(btrfs_header) + it.offset, it.size);
+
+            status = load_space_bitmap(fs, k.objectid, data, list);
+            if (!success(status)) {
+                while (!is_list_empty(list)) {
+                    auto& s = containing_record<chunk_space>(list.next);
+
+                    remove_entry_list(s.le);
+                    free(&s);
+                }
+
+                return status;
+            }
+
+            status = fs.remove_item2(p);
+            if (!success(status)) {
+                while (!is_list_empty(list)) {
+                    auto& s = containing_record<chunk_space>(list.next);
+
+                    remove_entry_list(s.le);
+                    free(&s);
+                }
+
+                return status;
+            }
+        } else
+            p.slots[0]++;
+    }
+
+    // insert extents
+
+    while (!is_list_empty(list)) {
+        auto& s = containing_record<chunk_space>(list.next);
+
+        status = insert_item(fs, r, {s.offset, key_type::FREE_SPACE_EXTENT, s.length},
+                             span<const uint8_t>());
+        if (!success(status)) {
+            while (!is_list_empty(list)) {
+                auto& s2 = containing_record<chunk_space>(list.next);
+
+                remove_entry_list(s2.le);
+                free(&s2);
+            }
+
+            return status;
+        }
+
+        remove_entry_list(s.le);
+        free(&s);
+    }
+
+    // clear flag
+
+    status = clear_free_space_info_bitmap_flag(fs, c);
+    if (!success(status))
+        return status;
+
+    c.using_fst_bitmaps = false;
+
+    return nt_status::SUCCESS;
+}
+
+static nt_status remove_free_space(btrfs_filesystem& fs, chunk& c,
+                                   uint64_t address, uint64_t length) {
+    auto& r = *fs.free_space_root;
+    nt_status status;
+    btrfs_path p(fs.sb->nodesize);
+
+    if (c.using_fst_bitmaps) {
+        status = convert_fst_bitmaps_to_extents(fs, c, p);
+        if (!success(status))
+            return status;
+    }
+
+    status = fs.find_item(r, {address, key_type::FREE_SPACE_EXTENT, 0xffffffffffffffff},
+                          p, true);
+    if (!success(status))
+        return status;
 
     while (true) {
         auto& th = *(btrfs_header*)p.data[0];
@@ -5229,17 +5381,22 @@ static nt_status remove_free_space(btrfs_filesystem& fs, uint64_t address,
     return nt_status::SUCCESS;
 }
 
-static nt_status add_free_space(btrfs_filesystem& fs, uint64_t address,
+static nt_status add_free_space(btrfs_filesystem& fs, chunk& c, uint64_t address,
                                 uint64_t length) {
     auto& r = *fs.free_space_root;
+    nt_status status;
     btrfs_path p(fs.sb->nodesize);
 
-    auto status = fs.find_item(r, {address, key_type::FREE_SPACE_EXTENT, 0xffffffffffffffff},
-                               p, true);
+    if (c.using_fst_bitmaps) {
+        status = convert_fst_bitmaps_to_extents(fs, c, p);
+        if (!success(status))
+            return status;
+    }
+
+    status = fs.find_item(r, {address, key_type::FREE_SPACE_EXTENT, 0xffffffffffffffff},
+                          p, true);
     if (!success(status))
         return status;
-
-    // FIXME - if bitmap, convert into normal extents
 
     auto& th = *(btrfs_header*)p.data[0];
     auto items = span((btrfs_item*)((uint8_t*)&th + sizeof(btrfs_header)), th.nritems);
@@ -5362,7 +5519,7 @@ static nt_status do_ref_change_metadata(btrfs_filesystem& fs, const ref_change& 
             return status;
         }
 
-        status = add_free_space(fs, rc.tree.key, fs.sb->nodesize);
+        status = add_free_space(fs, c, rc.tree.key, fs.sb->nodesize);
         if (!success(status)) {
             print("add_free_space returned {}\n", status);
             return status;
@@ -5396,7 +5553,7 @@ static nt_status do_ref_change_metadata(btrfs_filesystem& fs, const ref_change& 
             return status;
         }
 
-        status = remove_free_space(fs, rc.tree.key, fs.sb->nodesize);
+        status = remove_free_space(fs, c, rc.tree.key, fs.sb->nodesize);
         if (!success(status)) {
             print("remove_free_space returned {}\n", status);
             return status;
@@ -5588,7 +5745,7 @@ static nt_status do_ref_change_data(btrfs_filesystem& fs, const ref_change& rc,
                 return status;
             }
 
-            status = remove_free_space(fs, rc.tree.key, rc.data.extent_length);
+            status = remove_free_space(fs, c, rc.tree.key, rc.data.extent_length);
             if (!success(status)) {
                 print("remove_free_space returned {}\n", status);
                 return status;
@@ -5717,7 +5874,7 @@ static nt_status do_ref_change_data(btrfs_filesystem& fs, const ref_change& rc,
                 }
 
                 if (-rcd.count == (int32_t)ei.refs) {
-                    status = add_free_space(fs, rc.tree.key, rc.data.extent_length);
+                    status = add_free_space(fs, c, rc.tree.key, rc.data.extent_length);
                     if (!success(status)) {
                         print("add_free_space returned {}\n", status);
                         return status;

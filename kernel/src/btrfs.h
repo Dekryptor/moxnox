@@ -78,6 +78,8 @@ static constexpr uint64_t BTRFS_STRIPE_LEN = 0x10000;
 
 static const uint64_t SUBVOL_ROOT_INODE = 0x100;
 
+static constexpr uint32_t BTRFS_FREE_SPACE_USING_BITMAPS = 1;
+
 struct btrfs_dev_item {
     uint64_t devid;
     uint64_t total_bytes;
