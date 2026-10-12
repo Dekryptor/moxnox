@@ -1,0 +1,87 @@
+diff --git a/src/advice.rs b/src/advice.rs
+index 8b7e1e6..b5e0dff 100644
+--- a/src/advice.rs
++++ b/src/advice.rs
+@@ -1,3 +1,13 @@
++// moxnox provides the POSIX advisory interface rather than BSD madvise.
++#[cfg(target_os = "moxnox")]
++use libc::{
++    POSIX_MADV_DONTNEED as MADV_DONTNEED, POSIX_MADV_NORMAL as MADV_NORMAL,
++    POSIX_MADV_RANDOM as MADV_RANDOM, POSIX_MADV_SEQUENTIAL as MADV_SEQUENTIAL,
++    POSIX_MADV_WILLNEED as MADV_WILLNEED,
++};
++#[cfg(not(target_os = "moxnox"))]
++use libc::{MADV_DONTNEED, MADV_NORMAL, MADV_RANDOM, MADV_SEQUENTIAL, MADV_WILLNEED};
++
+ /// Values supported by [`Mmap::advise`][crate::Mmap::advise] and [`MmapMut::advise`][crate::MmapMut::advise] functions.
+ ///
+ /// See [madvise()](https://man7.org/linux/man-pages/man2/madvise.2.html) map page.
+@@ -7,26 +17,26 @@ pub enum Advice {
+     /// **MADV_NORMAL**
+     ///
+     /// No special treatment.  This is the default.
+-    Normal = libc::MADV_NORMAL,
++    Normal = MADV_NORMAL,
+ 
+     /// **MADV_RANDOM**
+     ///
+     /// Expect page references in random order.  (Hence, read
+     /// ahead may be less useful than normally.)
+-    Random = libc::MADV_RANDOM,
++    Random = MADV_RANDOM,
+ 
+     /// **MADV_SEQUENTIAL**
+     ///
+     /// Expect page references in sequential order.  (Hence, pages
+     /// in the given range can be aggressively read ahead, and may
+     /// be freed soon after they are accessed.)
+-    Sequential = libc::MADV_SEQUENTIAL,
++    Sequential = MADV_SEQUENTIAL,
+ 
+     /// **MADV_WILLNEED**
+     ///
+     /// Expect access in the near future.  (Hence, it might be a
+     /// good idea to read some pages ahead.)
+-    WillNeed = libc::MADV_WILLNEED,
++    WillNeed = MADV_WILLNEED,
+ 
+     /// **MADV_DONTFORK** - Linux only (since Linux 2.6.16)
+     ///
+@@ -285,7 +295,7 @@ pub enum UncheckedAdvice {
+     /// Using the returned value with conceptually write to the
+     /// mapped pages, i.e. borrowing the mapping when the pages
+     /// are freed results in undefined behaviour.
+-    DontNeed = libc::MADV_DONTNEED,
++    DontNeed = MADV_DONTNEED,
+ 
+     //
+     // The rest are Linux-specific
+diff --git a/src/unix.rs b/src/unix.rs
+index d944e77..9d15a03 100644
+--- a/src/unix.rs
++++ b/src/unix.rs
+@@ -426,10 +426,21 @@ impl MmapInner {
+         let offset = offset as isize - alignment as isize;
+         let len = len + alignment;
+         unsafe {
+-            if libc::madvise(self.ptr.offset(offset), len, advice) != 0 {
+-                Err(io::Error::last_os_error())
++            #[cfg(not(target_os = "moxnox"))]
++            let err = if libc::madvise(self.ptr.offset(offset), len, advice) != 0 {
++                Some(io::Error::last_os_error())
+             } else {
+-                Ok(())
++                None
++            };
++            // posix_madvise returns the error number rather than setting errno
++            #[cfg(target_os = "moxnox")]
++            let err = match libc::posix_madvise(self.ptr.offset(offset), len, advice) {
++                0 => None,
++                e => Some(io::Error::from_raw_os_error(e)),
++            };
++            match err {
++                Some(e) => Err(e),
++                None => Ok(()),
+             }
+         }
+     }

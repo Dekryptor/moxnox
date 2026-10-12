@@ -138,7 +138,7 @@
 	url = https://git.burntcomma.com/moxnox/ripgrep
 [submodule "ports/ripgrep/memmap2"]
 	path = ports/ripgrep/memmap2
-	url = https://git.burntcomma.com/moxnox/memmap2-rs
+	url = https://github.com/RazrFalcon/memmap2-rs
 [submodule "ports/hexyl/repo"]
 	path = ports/hexyl/repo
 	url = https://git.burntcomma.com/moxnox/hexyl
