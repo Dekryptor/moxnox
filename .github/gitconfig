@@ -114,3 +114,5 @@
 	insteadOf = https://gitlab.kitware.com/cmake/cmake
 [url "https://git.burntcomma.com/moxnox/gperf"]
 	insteadOf = git://git.git.savannah.gnu.org/gperf.git
+[url "https://git.burntcomma.com/moxnox/gcc"]
+	insteadOf = git://gcc.gnu.org/git/gcc.git

@@ -87,7 +87,7 @@
 	url = https://https.git.savannah.gnu.org/git/libiconv.git/
 [submodule "ports/gcc/repo"]
 	path = ports/gcc/repo
-	url = https://git.burntcomma.com/moxnox/gcc-cc
+	url = git://gcc.gnu.org/git/gcc.git
 [submodule "ports/llvm/repo"]
 	path = ports/llvm/repo
 	url = https://git.burntcomma.com/moxnox/llvm-cc

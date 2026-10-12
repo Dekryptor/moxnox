@@ -111,9 +111,12 @@ list(JOIN gcc_configure_args " " gcc_configure_str)
 add_custom_command(
     OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/gcc.stamp
     COMMAND ${CMAKE_COMMAND} -E make_directory ${CMAKE_CURRENT_BINARY_DIR}/gcc-build
+    COMMAND sh -c "cd '${CMAKE_CURRENT_SOURCE_DIR}/repo' && if git apply --check -R '${CMAKE_CURRENT_SOURCE_DIR}/moxnox.patch' 2>/dev/null; then :; elif git status --porcelain | grep -q .; then echo 'ports/gcc/repo has local changes or leftover files, not applying moxnox.patch:' >&2; git status --porcelain >&2; exit 1; else git apply '${CMAKE_CURRENT_SOURCE_DIR}/moxnox.patch'; fi"
     COMMAND sh -c "export CONFIG_SITE=/usr/${GCC_HOST_TRIPLE}/etc/portage/config.site && cd '${CMAKE_CURRENT_BINARY_DIR}/gcc-build' && '${CMAKE_CURRENT_SOURCE_DIR}/repo/configure' ${gcc_configure_str} && make -j${GCC_BUILD_JOBS} && make -j${GCC_BUILD_JOBS} install-strip DESTDIR='${GCC_DEST}'"
+    COMMAND sh -c "cd '${CMAKE_CURRENT_SOURCE_DIR}/repo' && git apply -R '${CMAKE_CURRENT_SOURCE_DIR}/moxnox.patch'"
     COMMAND ${CMAKE_COMMAND} -E touch ${CMAKE_CURRENT_BINARY_DIR}/gcc.stamp
     DEPENDS ${CMAKE_CURRENT_BINARY_DIR}/mpc.stamp ${CMAKE_CURRENT_BINARY_DIR}/libiconv.stamp
+        ${CMAKE_CURRENT_SOURCE_DIR}/moxnox.patch
     USES_TERMINAL
     COMMENT "Building native GCC (${GCC_HOST_TRIPLE} hosted)"
     VERBATIM

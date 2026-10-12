@@ -1,0 +1,2030 @@
+diff --git a/config.sub b/config.sub
+index 38f3d037a78..857112f9181 100755
+--- a/config.sub
++++ b/config.sub
+@@ -1738,7 +1738,7 @@ case $os in
+ 	     | chorusrdb* | cegcc* | glidix* | serenity* \
+ 	     | cygwin* | msys* | pe* | moss* | proelf* | rtems* \
+ 	     | midipix* | mingw32* | mingw64* | mint* \
+-	     | uxpv* | beos* | mpeix* | udk* | moxiebox* \
++	     | uxpv* | beos* | mpeix* | udk* | moxiebox* | moxnox* \
+ 	     | interix* | uwin* | mks* | rhapsody* | darwin* \
+ 	     | openstep* | oskit* | conix* | pw32* | nonstopux* \
+ 	     | storm-chaos* | tops10* | tenex* | tops20* | its* \
+diff --git a/config/lthostflags.m4 b/config/lthostflags.m4
+index 4a389a75ea8..5aa4a76d0ca 100644
+--- a/config/lthostflags.m4
++++ b/config/lthostflags.m4
+@@ -13,7 +13,7 @@ AC_DEFUN([ACX_LT_HOST_FLAGS], [
+ AC_REQUIRE([AC_CANONICAL_HOST])
+ 
+ case $host in
+-  *-cygwin* | *-mingw*)
++  *-cygwin* | *-mingw* | *-moxnox*)
+     # 'host' will be top-level target in the case of a target lib,
+     # we must compare to with_cross_host to decide if this is a native
+     # or cross-compiler and select where to install dlls appropriately.
+diff --git a/fixincludes/mkfixinc.sh b/fixincludes/mkfixinc.sh
+index 7112f4dcd64..01ec361388b 100755
+--- a/fixincludes/mkfixinc.sh
++++ b/fixincludes/mkfixinc.sh
+@@ -13,6 +13,7 @@ target=fixinc.sh
+ case $machine in
+     i?86-*-cygwin* | \
+     *-mingw32* | \
++    *-moxnox* | \
+     powerpc-*-eabisim* | \
+     powerpc-*-eabi*    | \
+     powerpc-*-rtems*   | \
+diff --git a/gcc/config.gcc b/gcc/config.gcc
+index 8fe99616f82..2c2380f9b22 100644
+--- a/gcc/config.gcc
++++ b/gcc/config.gcc
+@@ -2373,6 +2373,36 @@ i[34567]86-*-mingw* | x86_64-*-mingw*)
+ 			;;
+ 	esac
+ 	;;
++x86_64-*-moxnox*)
++	tm_file="${tm_file} i386/unix.h i386/bsd.h i386/gas.h i386/cygming.h"
++	c_target_objs="${c_target_objs} winnt-c.o msformat-c.o"
++	cxx_target_objs="${cxx_target_objs} winnt-c.o winnt-cxx.o msformat-c.o"
++	d_target_objs="${d_target_objs} winnt-d.o"
++	target_has_targetcm="yes"
++	target_has_targetdm="yes"
++	rust_target_objs="${rust_target_objs} winnt-rust.o"
++	target_has_targetrustm="yes"
++	need_64bit_isa=yes
++	if test x$enable_threads = xposix ; then
++		tm_file="${tm_file} i386/mingw-pthread.h"
++	fi
++	tm_file="${tm_file} mingw/mingw32.h i386/mingw-w64.h mingw/mingw-stdint.h mingw/winnt.h mingw/winnt-dll.h mingw/moxnox.h"
++	tmake_file="${tmake_file} t-winnt mingw/t-cygming t-slibgcc"
++	native_system_header_dir=/usr/include
++	target_gtfiles="$target_gtfiles \$(srcdir)/config/mingw/winnt.cc"
++	target_gtfiles="$target_gtfiles \$(srcdir)/config/mingw/winnt-dll.cc"
++	extra_options="${extra_options} mingw/cygming.opt mingw/mingw.opt"
++	extra_objs="${extra_objs} winnt.o winnt-stubs.o winnt-dll.o"
++	gas=yes
++	gnu_ld=yes
++	default_use_cxa_atexit=yes
++	use_gcc_stdint=wrap
++	case ${enable_threads} in
++	  "" | yes | posix)
++	    thread_file='posix'
++	    ;;
++	esac
++	;;
+ x86_64-*-fuchsia*)
+ 	tmake_file="${tmake_file} i386/t-x86_64-elf"
+ 	tm_file="${tm_file} i386/unix.h i386/att.h elfos.h newlib-stdint.h i386/i386elf.h i386/x86-64.h fuchsia.h"
+diff --git a/gcc/config.host b/gcc/config.host
+index 8b809a8d5dd..a6479ae541d 100644
+--- a/gcc/config.host
++++ b/gcc/config.host
+@@ -213,6 +213,11 @@ case ${host} in
+     out_host_hook_obj=host-solaris.o
+     host_xmake_file="${host_xmake_file} x-solaris"
+     ;;
++  i[34567]86-*-moxnox* | x86_64-*-moxnox*)
++    # PE host: executables carry the .exe suffix, as on mingw.
++    host_exeext=.exe
++    host_xm_file=i386/xm-moxnox.h
++    ;;
+   i[34567]86-pc-msdosdjgpp*)
+     host_xm_file=i386/xm-djgpp.h
+     host_exeext=.exe
+diff --git a/gcc/config/i386/xm-moxnox.h b/gcc/config/i386/xm-moxnox.h
+new file mode 100644
+index 00000000000..81c13391494
+--- /dev/null
++++ b/gcc/config/i386/xm-moxnox.h
+@@ -0,0 +1,23 @@
++/* Configuration for GCC for hosting on Moxnox.
++   Copyright (C) 2026 Free Software Foundation, Inc.
++
++This file is part of GCC.
++
++GCC is free software; you can redistribute it and/or modify
++it under the terms of the GNU General Public License as published by
++the Free Software Foundation; either version 3, or (at your option)
++any later version.
++
++GCC is distributed in the hope that it will be useful,
++but WITHOUT ANY WARRANTY; without even the implied warranty of
++MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
++GNU General Public License for more details.
++
++You should have received a copy of the GNU General Public License
++along with GCC; see the file COPYING3.  If not see
++<http://www.gnu.org/licenses/>.  */
++
++/* PE host: executables carry the .exe suffix.  The driver needs to know
++   this when probing for its subprograms, not just the build system when
++   naming them.  */
++#define HOST_EXECUTABLE_SUFFIX ".exe"
+diff --git a/gcc/config/mingw/moxnox.h b/gcc/config/mingw/moxnox.h
+new file mode 100644
+index 00000000000..6244e0598ee
+--- /dev/null
++++ b/gcc/config/mingw/moxnox.h
+@@ -0,0 +1,122 @@
++/* Operating system specific defines to be used when targeting GCC for
++   Moxnox (x86_64-pc-moxnox).  Layered after the cygming/mingw headers:
++   the PE/COFF object format, SEH unwinding, MS ABI and PE dllimport
++   machinery are all inherited unchanged; what changes is the source-level
++   identity (no _WIN32, no __MINGW32__) and the platform ABI decisions
++   that differ from mingw.
++   Copyright (C) 2026 Free Software Foundation, Inc.
++
++This file is part of GCC.
++
++GCC is free software; you can redistribute it and/or modify
++it under the terms of the GNU General Public License as published by
++the Free Software Foundation; either version 3, or (at your option)
++any later version.
++
++GCC is distributed in the hope that it will be useful,
++but WITHOUT ANY WARRANTY; without even the implied warranty of
++MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
++GNU General Public License for more details.
++
++You should have received a copy of the GNU General Public License
++along with GCC; see the file COPYING3.  If not see
++<http://www.gnu.org/licenses/>.  */
++
++/* Moxnox identity only: no _WIN32, WIN32, WINNT, __MINGW32__ or
++   __MSVCRT__.  _UCRT is a platform invariant (the system CRT is
++   ucrtbase); _INTEGRAL_MAX_BITS is kept for CRT header compatibility.
++   MOXNOX itself remains a build-system define, not a predefine, so that
++   strict -std= modes are unaffected.  */
++#undef EXTRA_OS_CPP_BUILTINS
++#define EXTRA_OS_CPP_BUILTINS()					\
++  do								\
++    {								\
++      builtin_define ("__moxnox__");				\
++      builtin_define ("_UCRT");					\
++      builtin_define_with_int_value ("_INTEGRAL_MAX_BITS",	\
++				     TYPE_PRECISION (intmax_type_node));\
++      DEFINE_THREAD_MODEL					\
++    }								\
++  while (0)
++
++/* Differences from the mingw default set:
++   - no MASK_STACK_PROBE: Moxnox does not require ordered guard-page
++     touches, so no ___chkstk_ms probes are emitted for large frames;
++   - MASK_LONG_DOUBLE_64: long double is 64-bit, matching the UCRT,
++     rather than mingw's 80-bit x87 format.
++   MS bitfield layout and double alignment stay, they are ABI.  */
++#undef TARGET_SUBTARGET_DEFAULT
++#define TARGET_SUBTARGET_DEFAULT \
++	(MASK_80387 | MASK_IEEE_FP | MASK_FLOAT_RETURNS \
++	 | MASK_ALIGN_DOUBLE | MASK_MS_BITFIELD_LAYOUT \
++	 | MASK_LONG_DOUBLE_64)
++
++/* The CRT is fixed on Moxnox: no -mcrtdll selection.  */
++#undef CPP_SPEC
++#define CPP_SPEC "%{posix:-D_POSIX_SOURCE} " \
++		 "%{" SPEC_PTHREAD1 ":-D_REENTRANT} " \
++		 "%{" SPEC_PTHREAD2 ":-U_REENTRANT} "
++
++/* Default libraries: the Moxnox CRT and the NT layer.  pthreads live in
++   mnposix.  No kernel32/user32/advapi32.  */
++#undef LIB_SPEC
++#define LIB_SPEC "%{pg:-lgmon} %{" SPEC_PTHREAD1 ":-lmnposix} " \
++		 "%{" SPEC_PTHREAD2 ": } " \
++		 "-lmoxnox -lmingwex -lmingw32 -lucrtbase_static -lmoxnox"
++
++/* The gcc runtime is always linked statically on Moxnox: SEH unwinding
++   is OS-mediated, so cross-DLL exception propagation does not need a
++   shared unwinder, and libgcc_s_seh-1.dll exists only as a runtime for
++   libc++.dll.  Deliberately unconditional: ENABLE_SHARED_LIBGCC cannot
++   be trusted here, because with --enable-shared=libgcc the libtool
++   option handler in gcc/configure reprocesses the list against its own
++   package name and concludes enable_shared=no.  This also neutralises
++   g++'s implicit -shared-libgcc.  */
++#undef SHARED_LIBGCC_SPEC
++#define SHARED_LIBGCC_SPEC " -lgcc -lgcc_eh "
++
++#undef REAL_LIBGCC_SPEC
++#define REAL_LIBGCC_SPEC \
++  " " SHARED_LIBGCC_SPEC " -lmoxnox -lmingwex -lmingw32 -lucrtbase_static -lmoxnox "
++
++/* IO is POSIX-shaped on Moxnox: two-argument mkdir, fcntl file
++   locking.  */
++#define TARGET_POSIX_IO
++
++/* Moxnox's CRT is UCRT-based and C99-conformant: printf/scanf understand
++   %td, %zu, %ll, %j and friends.  Unlike mingw, do not remap the default
++   printf/scanf/strftime attributes to the MSVCRT ms_* archetypes, which
++   reject those length modifiers and would flood C99 code with bogus
++   -Wformat warnings.  The ms_* archetypes stay registered (via
++   TARGET_FORMAT_TYPES), so code that requests format(ms_printf,...)
++   explicitly still works.  */
++#undef TARGET_OVERRIDES_FORMAT_ATTRIBUTES_COUNT
++#define TARGET_OVERRIDES_FORMAT_ATTRIBUTES_COUNT 0
++
++/* Use native PE/COFF TLS for __thread instead of libgcc's emulated TLS.
++   The i386 back end already selects the Windows mechanism here (mingw32.h
++   sets TARGET_WIN32_TLS: the _tls_index + TEB thread pointer with SECREL32
++   offsets, see legitimize_tls_address), which our assembler (.tls,
++   SECREL32) and loader both support.  GCC only enables __thread codegen at
++   all when HAVE_AS_TLS is set, but that is driven by a configure probe
++   written in ELF TLS syntax (@tlsgd/@tpoff) that no COFF assembler accepts
++   -- so it stays off for mingw too, leaving __thread on emutls.  Emulated
++   TLS would drag pthread (mnposix) into ucrtbase, so force the gate on;
++   TARGET_WIN32_TLS guarantees the emitted relocs are PE, not ELF.  */
++#undef HAVE_AS_TLS
++#define HAVE_AS_TLS 1
++
++#undef SUPPORTS_WEAK
++#define SUPPORTS_WEAK 0
++
++/* Flat root layout: headers in /include, startfiles in /lib.  */
++#undef NATIVE_SYSTEM_HEADER_COMPONENT
++#define NATIVE_SYSTEM_HEADER_COMPONENT "MOXNOX"
++
++#undef NATIVE_SYSTEM_HEADER_DIR
++#define NATIVE_SYSTEM_HEADER_DIR "/include"
++
++#undef STANDARD_STARTFILE_PREFIX_1
++#define STANDARD_STARTFILE_PREFIX_1 "/lib/"
++#undef STANDARD_STARTFILE_PREFIX_2
++#define STANDARD_STARTFILE_PREFIX_2 ""
+diff --git a/gcc/configure b/gcc/configure
+index ef780a23c2f..2b7959b53a9 100755
+--- a/gcc/configure
++++ b/gcc/configure
+@@ -32056,7 +32056,7 @@ fi
+ 
+ 
+  case $target_os in
+-   win32 | pe | cygwin* | mingw32*)
++   win32 | pe | cygwin* | mingw32* | moxnox*)
+      section_flags=\"dr\"
+      function_type=".def foo; .scl 2; .type 32; .endef"
+      function_size="";;
+diff --git a/gcc/configure.ac b/gcc/configure.ac
+index cdf2997cb5f..9298b0049f1 100644
+--- a/gcc/configure.ac
++++ b/gcc/configure.ac
+@@ -5708,7 +5708,7 @@ if test x"$insn" != x; then
+ [Define if your assembler supports the --gdwarf-5 option.])])
+ 
+  case $target_os in
+-   win32 | pe | cygwin* | mingw32*)
++   win32 | pe | cygwin* | mingw32* | moxnox*)
+      section_flags=\"dr\"
+      function_type=".def foo; .scl 2; .type 32; .endef"
+      function_size="";;
+diff --git a/gcc/cp/decl.cc b/gcc/cp/decl.cc
+index 679a8007ca6..1795584a892 100644
+--- a/gcc/cp/decl.cc
++++ b/gcc/cp/decl.cc
+@@ -5771,7 +5771,7 @@ cxx_init_decl_processing (void)
+   abort_fndecl
+     = build_library_fn_ptr ("__cxa_pure_virtual", void_ftype,
+ 			    ECF_NORETURN | ECF_NOTHROW | ECF_COLD);
+-  if (flag_weak)
++  if (flag_weak && TARGET_SUPPORTS_WEAK)
+     /* If no definition is available, resolve references to NULL.  */
+     declare_weak (abort_fndecl);
+ 
+diff --git a/gcc/cp/module.cc b/gcc/cp/module.cc
+index a7245aae46a..2f54a0df977 100644
+--- a/gcc/cp/module.cc
++++ b/gcc/cp/module.cc
+@@ -1698,8 +1698,10 @@ elf_in::defrost (const char *name)
+ 	      set_error (errno);
+ 	  else
+ 	    {
++#if HAVE_MADVISE
+ 	      if (madvise (mapping, hdr.pos, MADV_RANDOM))
+ 		goto fail;
++#endif
+ 
+ 	      /* These buffers are never NULL in this case.  */
+ 	      strtab.buffer = mapping + strtab.pos;
+@@ -1809,8 +1811,10 @@ elf_in::begin (location_t loc)
+     }
+   /* We'll be hopping over this randomly.  Some systems declare the
+      first parm as char *, and other declare it as void *.  */
++#if HAVE_MADVISE
+   if (madvise (reinterpret_cast <char *> (mapping), size, MADV_RANDOM))
+     goto fail;
++#endif
+ 
+   hdr.buffer = (char *)mapping;
+ #else
+diff --git a/libatomic/configure b/libatomic/configure
+index 2ab04c889a7..29370886d3f 100755
+--- a/libatomic/configure
++++ b/libatomic/configure
+@@ -5997,7 +5997,7 @@ cygwin*)
+   lt_cv_file_magic_cmd='func_win32_libid'
+   ;;
+ 
+-mingw* | pw32*)
++mingw* | pw32* | moxnox*)
+   # Base MSYS/MinGW do not provide the 'file' command needed by
+   # func_win32_libid shell function, so use a weaker test based on 'objdump',
+   # unless we find 'file', for example because we are cross-compiling.
+@@ -7119,7 +7119,7 @@ case $host_os in
+ aix*)
+   symcode='[BCDT]'
+   ;;
+-cygwin* | mingw* | pw32* | cegcc*)
++cygwin* | mingw* | pw32* | cegcc* | moxnox*)
+   symcode='[ABCDGISTW]'
+   ;;
+ hpux*)
+@@ -8880,7 +8880,7 @@ $as_echo_n "checking for $compiler option to produce PIC... " >&6; }
+       # PIC is the default for these OSes.
+       ;;
+ 
+-    mingw* | cygwin* | pw32* | os2* | cegcc*)
++    mingw* | cygwin* | pw32* | os2* | cegcc* | moxnox*)
+       # This hack is so that the source file can tell whether it is being
+       # built for inclusion in a dll (and should export symbols for example).
+       # Although the cygwin gcc ignores -fPIC, still need this for old-style
+@@ -8962,7 +8962,7 @@ $as_echo_n "checking for $compiler option to produce PIC... " >&6; }
+       fi
+       ;;
+ 
+-    mingw* | cygwin* | pw32* | os2* | cegcc*)
++    mingw* | cygwin* | pw32* | os2* | cegcc* | moxnox*)
+       # This hack is so that the source file can tell whether it is being
+       # built for inclusion in a dll (and should export symbols for example).
+       lt_prog_compiler_pic='-DDLL_EXPORT'
+@@ -9424,7 +9424,7 @@ $as_echo_n "checking whether the $compiler linker ($LD) supports shared librarie
+   extract_expsyms_cmds=
+ 
+   case $host_os in
+-  cygwin* | mingw* | pw32* | cegcc*)
++  cygwin* | mingw* | pw32* | cegcc* | moxnox*)
+     # FIXME: the MSVC++ port hasn't been tested in a loooong time
+     # When not using gcc, we currently assume that we are using
+     # Microsoft Visual C++.
+@@ -9539,7 +9539,7 @@ _LT_EOF
+       fi
+       ;;
+ 
+-    cygwin* | mingw* | pw32* | cegcc*)
++    cygwin* | mingw* | pw32* | cegcc* | moxnox*)
+       # _LT_TAGVAR(hardcode_libdir_flag_spec, ) is actually meaningless,
+       # as there is no search path for DLLs.
+       hardcode_libdir_flag_spec='-L$libdir'
+@@ -10918,14 +10918,14 @@ bsdi[45]*)
+   # libtool to hard-code these into programs
+   ;;
+ 
+-cygwin* | mingw* | pw32* | cegcc*)
++cygwin* | mingw* | pw32* | cegcc* | moxnox*)
+   version_type=windows
+   shrext_cmds=".dll"
+   need_version=no
+   need_lib_prefix=no
+ 
+   case $GCC,$host_os in
+-  yes,cygwin* | yes,mingw* | yes,pw32* | yes,cegcc*)
++  yes,cygwin* | yes,mingw* | yes,pw32* | yes,cegcc* | yes,moxnox*)
+     library_names_spec='$libname.dll.a'
+     # DLL is installed to $(libdir)/../bin by postinstall_cmds
+     postinstall_cmds='base_file=`basename \${file}`~
+@@ -10949,7 +10949,7 @@ cygwin* | mingw* | pw32* | cegcc*)
+ 
+       sys_lib_search_path_spec="$sys_lib_search_path_spec /usr/lib/w32api"
+       ;;
+-    mingw* | cegcc*)
++    mingw* | cegcc* | moxnox*)
+       # MinGW DLLs use traditional 'lib' prefix
+       soname_spec='${libname}`echo ${release} | $SED -e 's/[.]/-/g'`${versuffix}${shared_ext}'
+       ;;
+@@ -11594,7 +11594,7 @@ else
+     lt_cv_dlopen_self=yes
+     ;;
+ 
+-  mingw* | pw32* | cegcc*)
++  mingw* | pw32* | cegcc* | moxnox*)
+     lt_cv_dlopen="LoadLibrary"
+     lt_cv_dlopen_libs=
+     ;;
+@@ -12213,7 +12213,7 @@ CC="$lt_save_CC"
+ 
+ 
+ case $host in
+-  *-cygwin* | *-mingw*)
++  *-cygwin* | *-mingw* | *-moxnox*)
+     # 'host' will be top-level target in the case of a target lib,
+     # we must compare to with_cross_host to decide if this is a native
+     # or cross-compiler and select where to install dlls appropriately.
+diff --git a/libgcc/config.host b/libgcc/config.host
+index ac10ccc4340..616395d852c 100644
+--- a/libgcc/config.host
++++ b/libgcc/config.host
+@@ -377,7 +377,7 @@ case ${host} in
+   *-*-solaris2*)
+   enable_execute_stack=enable-execute-stack-mprotect.c
+   ;;
+-i[34567]86-*-mingw* | x86_64-*-mingw*)
++i[34567]86-*-mingw* | x86_64-*-mingw* | x86_64-*-moxnox*)
+   enable_execute_stack=config/i386/enable-execute-stack-mingw32.c
+   ;;
+ i[34567]86-*-cygwin* | x86_64-*-cygwin*)
+@@ -946,6 +946,18 @@ x86_64-*-mingw*)
+ 		extra_parts="$extra_parts vtv_start.o vtv_end.o vtv_start_preinit.o vtv_end_preinit.o"
+ 	fi
+ 	;;
++x86_64-*-moxnox*)
++	# posix threads (mnposix) only; SEH exception handling.
++	tmake_thr_file="mingw/t-moxnox-pthread"
++	tmake_eh_file="mingw/t-seh-eh"
++	if test x${build} = x${host} ; then
++		tmake_dlldir_file="i386/t-dlldir"
++	else
++		tmake_dlldir_file="i386/t-dlldir-x"
++	fi
++	tmake_file="${tmake_file} ${tmake_eh_file} ${tmake_thr_file} ${tmake_dlldir_file} i386/t-slibgcc-cygming i386/t-slibgcc-mingw mingw/t-moxnox t-dfprules t-crtfm i386/t-chkstk"
++	extra_parts="$extra_parts crtbegin.o crtend.o crtfastmath.o"
++	;;
+ ia64*-*-elf*)
+ 	extra_parts="$extra_parts crtbeginS.o crtendS.o crtfastmath.o"
+ 	tmake_file="ia64/t-ia64 ia64/t-ia64-elf ia64/t-eh-ia64 t-crtfm t-softfp-tf ia64/t-softfp t-softfp ia64/t-softfp-compat"
+diff --git a/libgcc/config/mingw/t-moxnox b/libgcc/config/mingw/t-moxnox
+new file mode 100644
+index 00000000000..4a084a594fb
+--- /dev/null
++++ b/libgcc/config/mingw/t-moxnox
+@@ -0,0 +1,47 @@
++# Moxnox parts of libgcc. Replaces i386/t-cygming and i386/t-mingw32.
++
++# The crtstuff sources include windows.h, which is Win32-tier by
++# nature: the Windows headers (staged at <sysroot>/mingw-compat)
++# require the identity macros. Only the crt rules below use these;
++# the rest of libgcc builds against the self-contained Moxnox
++# headers with no compatibility flags.
++MOXNOX_MINGW_COMPAT = -D_WIN32 -D_WIN64 -D__MINGW32__ -D__MINGW64__ \
++	-D__MSVCRT__ -D__USE_MINGW_ANSI_STDIO=0 \
++	-idirafter =/mingw-compat/include -include wchar.h
++
++# Libraries for the shared libgcc link.  The link rule passes
++# -nodefaultlibs, so this must be the full closure, matching the
++# LIB_SPEC in gcc/config/mingw/moxnox.h.
++SHLIB_LC = -lmoxnox -lmingwex -lmingw32 -lucrtbase_static -lmoxnox
++
++# long double defaults to 64-bit on Moxnox, which disables XFmode for
++# scalars. The XF (80-bit x87) conversion helpers keep the same ABI as
++# mingw regardless of the long double default, so compile just these
++# with XFmode available.
++CFLAGS-extendhfxf2.c += -mlong-double-80
++CFLAGS-extendxftf2.c += -mlong-double-80
++CFLAGS-truncxfhf2.c += -mlong-double-80
++CFLAGS-trunctfxf2.c += -mlong-double-80
++CFLAGS-truncxfbf2.c += -mlong-double-80
++CFLAGS-fixxfbitint.c += -mlong-double-80
++CFLAGS-floatbitintxf.c += -mlong-double-80
++
++# Also Win32-tier: execute-stack drives VirtualProtect via windows.h,
++# and the SEH unwinder is Windows mechanics through and through.
++CFLAGS-enable-execute-stack.c += $(MOXNOX_MINGW_COMPAT)
++CFLAGS-unwind-seh.c += $(MOXNOX_MINGW_COMPAT)
++CFLAGS-unwind-sjlj.c += $(MOXNOX_MINGW_COMPAT)
++CFLAGS-unwind-c.c += $(MOXNOX_MINGW_COMPAT)
++
++CUSTOM_CRTSTUFF = yes
++
++crtbegin.o: $(srcdir)/config/i386/cygming-crtbegin.c
++	$(crt_compile) $(MOXNOX_MINGW_COMPAT) -fno-omit-frame-pointer -c $<
++
++crtbeginS.o: $(srcdir)/config/i386/cygming-crtbegin.c
++	$(crt_compile) $(MOXNOX_MINGW_COMPAT) -fno-omit-frame-pointer -c $< -DCRTSTUFFS_O
++
++# We intentionally use a implementation-reserved init priority of 0,
++# so allow the warning.
++crtend.o: $(srcdir)/config/i386/cygming-crtend.c
++	$(crt_compile) $(MOXNOX_MINGW_COMPAT) -fno-omit-frame-pointer -Wno-error -c $<
+diff --git a/libgcc/config/mingw/t-moxnox-pthread b/libgcc/config/mingw/t-moxnox-pthread
+new file mode 100644
+index 00000000000..4285d68d1ef
+--- /dev/null
++++ b/libgcc/config/mingw/t-moxnox-pthread
+@@ -0,0 +1,6 @@
++SHLIB_PTHREAD_CFLAG = -pthread
++# Unlike mingw, no -Wl,-lpthread here: that flag bypasses the driver
++# specs and asks for a library which does not exist on Moxnox.  The
++# pthread functions live in mnposix.dll, which SHLIB_LC pulls in via
++# the libmoxnox umbrella.
++SHLIB_PTHREAD_LDFLAG =
+diff --git a/libgcc/gthr.h b/libgcc/gthr.h
+index 8cd29834228..cffc9563769 100644
+--- a/libgcc/gthr.h
++++ b/libgcc/gthr.h
+@@ -135,8 +135,11 @@ see the files COPYING3 and COPYING.RUNTIME respectively.  If not, see
+ #if SUPPORTS_WEAK
+ /* The pe-coff weak support isn't fully compatible to ELF's weak.
+    For static libraries it might would work, but as we need to deal
+-   with shared versions too, we disable it for mingw-targets.  */
+-#ifdef __MINGW32__
++   with shared versions too, we disable it for mingw-targets.  Moxnox is
++   PE/COFF like mingw but does not define __MINGW32__, so include it
++   explicitly -- otherwise it falls through to the ELF-style weak default
++   and libstdc++'s pthread references never bind to mnposix.  */
++#if defined(__MINGW32__) || defined(__moxnox__)
+ #undef GTHREAD_USE_WEAK
+ #define GTHREAD_USE_WEAK 0
+ #endif
+diff --git a/libgcc/unwind-generic.h b/libgcc/unwind-generic.h
+index ee74f59e5aa..e8a2f4dfb0c 100644
+--- a/libgcc/unwind-generic.h
++++ b/libgcc/unwind-generic.h
+@@ -30,8 +30,20 @@
+ 
+ #if defined (__SEH__) && !defined (__USING_SJLJ_EXCEPTIONS__)
+ /* Only for _GCC_specific_handler.  */
++#ifdef _WIN32
+ #define WIN32_LEAN_AND_MEAN
+ #include <windows.h>
++#else
++/* The signature uses pointer types only, so forward declarations
++   suffice for consumers built without the Windows headers.  */
++struct _EXCEPTION_RECORD;
++struct _CONTEXT;
++struct _DISPATCHER_CONTEXT;
++typedef struct _EXCEPTION_RECORD *PEXCEPTION_RECORD;
++typedef struct _CONTEXT *PCONTEXT;
++typedef struct _DISPATCHER_CONTEXT *PDISPATCHER_CONTEXT;
++typedef int EXCEPTION_DISPOSITION;
++#endif
+ #endif
+ 
+ #ifndef HIDE_EXPORTS
+diff --git a/libquadmath/configure b/libquadmath/configure
+index a696c62deac..7d764ed7bf6 100755
+--- a/libquadmath/configure
++++ b/libquadmath/configure
+@@ -5677,7 +5677,7 @@ cygwin*)
+   lt_cv_file_magic_cmd='func_win32_libid'
+   ;;
+ 
+-mingw* | pw32*)
++mingw* | pw32* | moxnox*)
+   # Base MSYS/MinGW do not provide the 'file' command needed by
+   # func_win32_libid shell function, so use a weaker test based on 'objdump',
+   # unless we find 'file', for example because we are cross-compiling.
+@@ -6660,7 +6660,7 @@ case $host_os in
+ aix*)
+   symcode='[BCDT]'
+   ;;
+-cygwin* | mingw* | pw32* | cegcc*)
++cygwin* | mingw* | pw32* | cegcc* | moxnox*)
+   symcode='[ABCDGISTW]'
+   ;;
+ hpux*)
+@@ -8298,7 +8298,7 @@ $as_echo_n "checking for $compiler option to produce PIC... " >&6; }
+       # PIC is the default for these OSes.
+       ;;
+ 
+-    mingw* | cygwin* | pw32* | os2* | cegcc*)
++    mingw* | cygwin* | pw32* | os2* | cegcc* | moxnox*)
+       # This hack is so that the source file can tell whether it is being
+       # built for inclusion in a dll (and should export symbols for example).
+       # Although the cygwin gcc ignores -fPIC, still need this for old-style
+@@ -8380,7 +8380,7 @@ $as_echo_n "checking for $compiler option to produce PIC... " >&6; }
+       fi
+       ;;
+ 
+-    mingw* | cygwin* | pw32* | os2* | cegcc*)
++    mingw* | cygwin* | pw32* | os2* | cegcc* | moxnox*)
+       # This hack is so that the source file can tell whether it is being
+       # built for inclusion in a dll (and should export symbols for example).
+       lt_prog_compiler_pic='-DDLL_EXPORT'
+@@ -8842,7 +8842,7 @@ $as_echo_n "checking whether the $compiler linker ($LD) supports shared librarie
+   extract_expsyms_cmds=
+ 
+   case $host_os in
+-  cygwin* | mingw* | pw32* | cegcc*)
++  cygwin* | mingw* | pw32* | cegcc* | moxnox*)
+     # FIXME: the MSVC++ port hasn't been tested in a loooong time
+     # When not using gcc, we currently assume that we are using
+     # Microsoft Visual C++.
+@@ -8957,7 +8957,7 @@ _LT_EOF
+       fi
+       ;;
+ 
+-    cygwin* | mingw* | pw32* | cegcc*)
++    cygwin* | mingw* | pw32* | cegcc* | moxnox*)
+       # _LT_TAGVAR(hardcode_libdir_flag_spec, ) is actually meaningless,
+       # as there is no search path for DLLs.
+       hardcode_libdir_flag_spec='-L$libdir'
+@@ -10345,14 +10345,14 @@ bsdi[45]*)
+   # libtool to hard-code these into programs
+   ;;
+ 
+-cygwin* | mingw* | pw32* | cegcc*)
++cygwin* | mingw* | pw32* | cegcc* | moxnox*)
+   version_type=windows
+   shrext_cmds=".dll"
+   need_version=no
+   need_lib_prefix=no
+ 
+   case $GCC,$host_os in
+-  yes,cygwin* | yes,mingw* | yes,pw32* | yes,cegcc*)
++  yes,cygwin* | yes,mingw* | yes,pw32* | yes,cegcc* | yes,moxnox*)
+     library_names_spec='$libname.dll.a'
+     # DLL is installed to $(libdir)/../bin by postinstall_cmds
+     postinstall_cmds='base_file=`basename \${file}`~
+@@ -10376,7 +10376,7 @@ cygwin* | mingw* | pw32* | cegcc*)
+ 
+       sys_lib_search_path_spec="$sys_lib_search_path_spec /usr/lib/w32api"
+       ;;
+-    mingw* | cegcc*)
++    mingw* | cegcc* | moxnox*)
+       # MinGW DLLs use traditional 'lib' prefix
+       soname_spec='${libname}`echo ${release} | $SED -e 's/[.]/-/g'`${versuffix}${shared_ext}'
+       ;;
+@@ -11024,7 +11024,7 @@ else
+     lt_cv_dlopen_self=yes
+     ;;
+ 
+-  mingw* | pw32* | cegcc*)
++  mingw* | pw32* | cegcc* | moxnox*)
+     lt_cv_dlopen="LoadLibrary"
+     lt_cv_dlopen_libs=
+     ;;
+@@ -11658,7 +11658,7 @@ CC="$lt_save_CC"
+ 
+ 
+ case $host in
+-  *-cygwin* | *-mingw*)
++  *-cygwin* | *-mingw* | *-moxnox*)
+     # 'host' will be top-level target in the case of a target lib,
+     # we must compare to with_cross_host to decide if this is a native
+     # or cross-compiler and select where to install dlls appropriately.
+diff --git a/libstdc++-v3/acinclude.m4 b/libstdc++-v3/acinclude.m4
+index 8dc9e17b214..64f93b93839 100644
+--- a/libstdc++-v3/acinclude.m4
++++ b/libstdc++-v3/acinclude.m4
+@@ -1768,6 +1768,12 @@ AC_DEFUN([GLIBCXX_ENABLE_LIBSTDCXX_TIME], [
+   ac_has_nanosleep=no
+   ac_has_sched_yield=no
+ 
++  # Moxnox cross builds cannot run link tests, and the answers are
++  # known; use the table below whatever was requested.
++  case "${target_os}" in
++    moxnox*) enable_libstdcxx_time=auto ;;
++  esac
++
+   if test x"$enable_libstdcxx_time" = x"auto"; then
+ 
+     case "${target_os}" in
+@@ -1800,6 +1806,12 @@ AC_DEFUN([GLIBCXX_ENABLE_LIBSTDCXX_TIME], [
+         ac_has_nanosleep=yes
+         ac_has_sched_yield=yes
+         ;;
++      moxnox*)
++        ac_has_clock_monotonic=yes
++        ac_has_clock_realtime=yes
++        ac_has_nanosleep=yes
++        ac_has_sched_yield=yes
++        ;;
+       freebsd*|netbsd*|dragonfly*|rtems*)
+         ac_has_clock_monotonic=yes
+         ac_has_clock_realtime=yes
+diff --git a/libstdc++-v3/config/abi/pre/gnu.ver b/libstdc++-v3/config/abi/pre/gnu.ver
+index bd4da641829..b44f9ce4bbb 100644
+--- a/libstdc++-v3/config/abi/pre/gnu.ver
++++ b/libstdc++-v3/config/abi/pre/gnu.ver
+@@ -580,7 +580,7 @@ GLIBCXX_3.4 {
+     # std::codecvt_byname
+     _ZNSt14codecvt_bynameI[cw]c11__mbstate_tEC[12]EPKc[jmy];
+     _ZNSt14codecvt_bynameI[cw]c11__mbstate_tED*;
+-#if defined (_WIN32) && !defined (__CYGWIN__)
++#if (defined (_WIN32) && !defined (__CYGWIN__)) || defined (__moxnox__)
+     _ZNSt14codecvt_bynameI[cw]ciE[CD]*;
+ #endif
+ 
+@@ -2612,7 +2612,7 @@ GLIBCXX_3.4.35 {
+     # __format::__do_vformat_to<wchar_t, 1>(_Sink_iter<wchar_t>, wstring_view, format_context&);
+     _ZNSt8__format15__do_vformat_toI[cw]Lj1EEENS_10_Sink_iterIT_EES3_St17basic_string_viewIS2_St11char_traitsIS2_EERSt20basic_format_contextIS3_S2_E;
+ 
+-#if defined (_WIN32) && !defined (__CYGWIN__)
++#if (defined (_WIN32) && !defined (__CYGWIN__)) || defined (__moxnox__)
+     _ZSt19__get_once_callablev;
+     _ZSt15__get_once_callv;
+ #endif
+diff --git a/libstdc++-v3/config/os/moxnox/ctype_base.h b/libstdc++-v3/config/os/moxnox/ctype_base.h
+new file mode 100644
+index 00000000000..e5e02115738
+--- /dev/null
++++ b/libstdc++-v3/config/os/moxnox/ctype_base.h
+@@ -0,0 +1,67 @@
++// Locale support -*- C++ -*-
++
++// Copyright (C) 1997-2026 Free Software Foundation, Inc.
++//
++// This file is part of the GNU ISO C++ Library.  This library is free
++// software; you can redistribute it and/or modify it under the
++// terms of the GNU General Public License as published by the
++// Free Software Foundation; either version 3, or (at your option)
++// any later version.
++
++// This library is distributed in the hope that it will be useful,
++// but WITHOUT ANY WARRANTY; without even the implied warranty of
++// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
++// GNU General Public License for more details.
++
++// Under Section 7 of GPL version 3, you are granted additional
++// permissions described in the GCC Runtime Library Exception, version
++// 3.1, as published by the Free Software Foundation.
++
++// You should have received a copy of the GNU General Public License and
++// a copy of the GCC Runtime Library Exception along with this program;
++// see the files COPYING3 and COPYING.RUNTIME respectively.  If not, see
++// <http://www.gnu.org/licenses/>.
++
++//
++// ISO C++ 14882: 22.1  Locales
++//
++
++//  We don't use the C-locale masks defined in mingw/include/ctype.h
++//  because those masks do not conform to the requirements of 22.2.1.
++//  In particular, a separate 'print' bitmask does not exist (isprint(c)
++//  relies on a combination of flags) and the  '_ALPHA' mask is also a
++//  combination of simple bitmasks.  Thus, we define libstdc++-specific
++//  masks here, based on the generic masks, and the corresponding
++//  classic_table in ctype_noninline.h.
++
++namespace std _GLIBCXX_VISIBILITY(default)
++{
++_GLIBCXX_BEGIN_NAMESPACE_VERSION
++
++  /// @brief  Base class for ctype.
++  struct ctype_base
++  {
++    // Non-standard typedefs.
++    typedef const int* 		__to_type;
++
++    // NB: Offsets into ctype<char>::_M_table force a particular size
++    // on the mask type. Because of this, we don't use an enum.
++    typedef unsigned short 	mask;
++    static const mask upper	= 1 << 0;
++    static const mask lower	= 1 << 1;
++    static const mask alpha	= 1 << 2;
++    static const mask digit	= 1 << 3;
++    static const mask xdigit	= 1 << 4;
++    static const mask space	= 1 << 5;
++    static const mask print	= 1 << 6;
++    static const mask graph	= (1 << 2) | (1 << 3) | (1 << 9);  // alnum|punct
++    static const mask cntrl	= 1 << 8;
++    static const mask punct 	= 1 << 9;
++    static const mask alnum	= (1 << 2) | (1 << 3);  // alpha|digit
++#if __cplusplus >= 201103L
++    static const mask blank	= 1 << 10;
++#endif
++  };
++
++_GLIBCXX_END_NAMESPACE_VERSION
++} // namespace
+diff --git a/libstdc++-v3/config/os/moxnox/ctype_configure_char.cc b/libstdc++-v3/config/os/moxnox/ctype_configure_char.cc
+new file mode 100644
+index 00000000000..852f49359bb
+--- /dev/null
++++ b/libstdc++-v3/config/os/moxnox/ctype_configure_char.cc
+@@ -0,0 +1,243 @@
++// Locale support -*- C++ -*-
++
++// Copyright (C) 2011-2026 Free Software Foundation, Inc.
++//
++// This file is part of the GNU ISO C++ Library.  This library is free
++// software; you can redistribute it and/or modify it under the
++// terms of the GNU General Public License as published by the
++// Free Software Foundation; either version 3, or (at your option)
++// any later version.
++
++// This library is distributed in the hope that it will be useful,
++// but WITHOUT ANY WARRANTY; without even the implied warranty of
++// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
++// GNU General Public License for more details.
++
++// Under Section 7 of GPL version 3, you are granted additional
++// permissions described in the GCC Runtime Library Exception, version
++// 3.1, as published by the Free Software Foundation.
++
++// You should have received a copy of the GNU General Public License and
++// a copy of the GCC Runtime Library Exception along with this program;
++// see the files COPYING3 and COPYING.RUNTIME respectively.  If not, see
++// <http://www.gnu.org/licenses/>.
++
++/** @file ctype_configure_char.cc */
++
++//
++// ISO C++ 14882: 22.1  Locales
++//
++
++#include <locale>
++#include <cstdlib>
++#include <cstring>
++
++namespace std _GLIBCXX_VISIBILITY(default)
++{
++_GLIBCXX_BEGIN_NAMESPACE_VERSION
++
++  // The classic table used in libstdc++ is *not* the C _ctype table
++  // used by mscvrt, but is based on the ctype masks defined for libstdc++
++  // in ctype_base.h.
++
++  const ctype_base::mask*
++  ctype<char>::classic_table() throw()
++  {
++    static const ctype_base::mask _S_classic_table[256] =
++    {
++      cntrl /* null */,
++      cntrl /* ^A */,
++      cntrl /* ^B */,
++      cntrl /* ^C */,
++      cntrl /* ^D */,
++      cntrl /* ^E */,
++      cntrl /* ^F */,
++      cntrl /* ^G */,
++      cntrl /* ^H */,
++      ctype_base::mask(space | cntrl | blank) /* tab */,
++      ctype_base::mask(space | cntrl) /* LF */,
++      ctype_base::mask(space | cntrl) /* ^K */,
++      ctype_base::mask(space | cntrl) /* FF */,
++      ctype_base::mask(space | cntrl) /* ^M */,
++      cntrl /* ^N */,
++      cntrl /* ^O */,
++      cntrl /* ^P */,
++      cntrl /* ^Q */,
++      cntrl /* ^R */,
++      cntrl /* ^S */,
++      cntrl /* ^T */,
++      cntrl /* ^U */,
++      cntrl /* ^V */,
++      cntrl /* ^W */,
++      cntrl /* ^X */,
++      cntrl /* ^Y */,
++      cntrl /* ^Z */,
++      cntrl /* esc */,
++      cntrl /* ^\ */,
++      cntrl /* ^] */,
++      cntrl /* ^^ */,
++      cntrl /* ^_ */,
++      ctype_base::mask(space | print | blank) /*   */,
++      ctype_base::mask(punct | print) /* ! */,
++      ctype_base::mask(punct | print) /* " */,
++      ctype_base::mask(punct | print) /* # */,
++      ctype_base::mask(punct | print) /* $ */,
++      ctype_base::mask(punct | print) /* % */,
++      ctype_base::mask(punct | print) /* & */,
++      ctype_base::mask(punct | print) /* ' */,
++      ctype_base::mask(punct | print) /* ( */,
++      ctype_base::mask(punct | print) /* ) */,
++      ctype_base::mask(punct | print) /* * */,
++      ctype_base::mask(punct | print) /* + */,
++      ctype_base::mask(punct | print) /* , */,
++      ctype_base::mask(punct | print) /* - */,
++      ctype_base::mask(punct | print) /* . */,
++      ctype_base::mask(punct | print) /* / */,
++      ctype_base::mask(digit | xdigit | print) /* 0 */,
++      ctype_base::mask(digit | xdigit | print) /* 1 */,
++      ctype_base::mask(digit | xdigit | print) /* 2 */,
++      ctype_base::mask(digit | xdigit | print) /* 3 */,
++      ctype_base::mask(digit | xdigit | print) /* 4 */,
++      ctype_base::mask(digit | xdigit | print) /* 5 */,
++      ctype_base::mask(digit | xdigit | print) /* 6 */,
++      ctype_base::mask(digit | xdigit | print) /* 7 */,
++      ctype_base::mask(digit | xdigit | print) /* 8 */,
++      ctype_base::mask(digit | xdigit | print) /* 9 */,
++      ctype_base::mask(punct | print) /* : */,
++      ctype_base::mask(punct | print) /* ; */,
++      ctype_base::mask(punct | print) /* < */,
++      ctype_base::mask(punct | print) /* = */,
++      ctype_base::mask(punct | print) /* > */,
++      ctype_base::mask(punct | print) /* ? */,
++      ctype_base::mask(punct | print) /* ! */,
++      ctype_base::mask(alpha | upper | xdigit | print) /* A */,
++      ctype_base::mask(alpha | upper | xdigit | print) /* B */,
++      ctype_base::mask(alpha | upper | xdigit | print) /* C */,
++      ctype_base::mask(alpha | upper | xdigit | print) /* D */,
++      ctype_base::mask(alpha | upper | xdigit | print) /* E */,
++      ctype_base::mask(alpha | upper | xdigit | print) /* F */,
++      ctype_base::mask(alpha | upper | print) /* G */,
++      ctype_base::mask(alpha | upper | print) /* H */,
++      ctype_base::mask(alpha | upper | print) /* I */,
++      ctype_base::mask(alpha | upper | print) /* J */,
++      ctype_base::mask(alpha | upper | print) /* K */,
++      ctype_base::mask(alpha | upper | print) /* L */,
++      ctype_base::mask(alpha | upper | print) /* M */,
++      ctype_base::mask(alpha | upper | print) /* N */,
++      ctype_base::mask(alpha | upper | print) /* O */,
++      ctype_base::mask(alpha | upper | print) /* P */,
++      ctype_base::mask(alpha | upper | print) /* Q */,
++      ctype_base::mask(alpha | upper | print) /* R */,
++      ctype_base::mask(alpha | upper | print) /* S */,
++      ctype_base::mask(alpha | upper | print) /* T */,
++      ctype_base::mask(alpha | upper | print) /* U */,
++      ctype_base::mask(alpha | upper | print) /* V */,
++      ctype_base::mask(alpha | upper | print) /* W */,
++      ctype_base::mask(alpha | upper | print) /* X */,
++      ctype_base::mask(alpha | upper | print) /* Y */,
++      ctype_base::mask(alpha | upper | print) /* Z */,
++      ctype_base::mask(punct | print) /* [ */,
++      ctype_base::mask(punct | print) /* \ */,
++      ctype_base::mask(punct | print) /* ] */,
++      ctype_base::mask(punct | print) /* ^ */,
++      ctype_base::mask(punct | print) /* _ */,
++      ctype_base::mask(punct | print) /* ` */,
++      ctype_base::mask(alpha | lower | xdigit | print) /* a */,
++      ctype_base::mask(alpha | lower | xdigit | print) /* b */,
++      ctype_base::mask(alpha | lower | xdigit | print) /* c */,
++      ctype_base::mask(alpha | lower | xdigit | print) /* d */,
++      ctype_base::mask(alpha | lower | xdigit | print) /* e */,
++      ctype_base::mask(alpha | lower | xdigit | print) /* f */,
++      ctype_base::mask(alpha | lower | print) /* g */,
++      ctype_base::mask(alpha | lower | print) /* h */,
++      ctype_base::mask(alpha | lower | print) /* i */,
++      ctype_base::mask(alpha | lower | print) /* j */,
++      ctype_base::mask(alpha | lower | print) /* k */,
++      ctype_base::mask(alpha | lower | print) /* l */,
++      ctype_base::mask(alpha | lower | print) /* m */,
++      ctype_base::mask(alpha | lower | print) /* n */,
++      ctype_base::mask(alpha | lower | print) /* o */,
++      ctype_base::mask(alpha | lower | print) /* p */,
++      ctype_base::mask(alpha | lower | print) /* q */,
++      ctype_base::mask(alpha | lower | print) /* r */,
++      ctype_base::mask(alpha | lower | print) /* s */,
++      ctype_base::mask(alpha | lower | print) /* t */,
++      ctype_base::mask(alpha | lower | print) /* u */,
++      ctype_base::mask(alpha | lower | print) /* v */,
++      ctype_base::mask(alpha | lower | print) /* w */,
++      ctype_base::mask(alpha | lower | print) /* x */,
++      ctype_base::mask(alpha | lower | print) /* y */,
++      ctype_base::mask(alpha | lower | print) /* x */,
++      ctype_base::mask(punct | print) /* { */,
++      ctype_base::mask(punct | print) /* | */,
++      ctype_base::mask(punct | print) /* } */,
++      ctype_base::mask(punct | print) /* ~ */,
++      cntrl /* del (0x7f)*/,
++      /* The next 128 entries are all 0.   */
++      0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
++      0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
++      0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
++      0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
++      0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
++      0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
++      0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
++      0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0
++    };
++    return _S_classic_table;
++  }
++
++  ctype<char>::ctype(__c_locale, const mask* __table, bool __del,
++		     size_t __refs)
++  : facet(__refs), _M_del(__table != 0 && __del),
++  _M_toupper(NULL), _M_tolower(NULL),
++  _M_table(__table ? __table : classic_table())
++  {
++    memset(_M_widen, 0, sizeof(_M_widen));
++    _M_widen_ok = 0;
++    memset(_M_narrow, 0, sizeof(_M_narrow));
++    _M_narrow_ok = 0;
++  }
++
++  ctype<char>::ctype(const mask* __table, bool __del, size_t __refs)
++  : facet(__refs), _M_del(__table != 0 && __del),
++  _M_toupper(NULL), _M_tolower(NULL),
++  _M_table(__table ? __table : classic_table())
++  {
++    memset(_M_widen, 0, sizeof(_M_widen));
++    _M_widen_ok = 0;
++    memset(_M_narrow, 0, sizeof(_M_narrow));
++    _M_narrow_ok = 0;
++  }
++
++  char
++  ctype<char>::do_toupper(char __c) const
++  { return (this->is(ctype_base::lower, __c) ? (__c - 'a' + 'A') : __c); }
++
++  const char*
++  ctype<char>::do_toupper(char* __low, const char* __high) const
++  {
++    while (__low < __high)
++      {
++	*__low = this->do_toupper(*__low);
++	++__low;
++      }
++    return __high;
++  }
++
++  char
++  ctype<char>::do_tolower(char __c) const
++  { return (this->is(ctype_base::upper, __c) ? (__c - 'A' + 'a') : __c); }
++
++  const char*
++  ctype<char>::do_tolower(char* __low, const char* __high) const
++  {
++    while (__low < __high)
++      {
++	*__low = this->do_tolower(*__low);
++	++__low;
++      }
++    return __high;
++  }
++
++_GLIBCXX_END_NAMESPACE_VERSION
++} // namespace
+diff --git a/libstdc++-v3/config/os/moxnox/ctype_inline.h b/libstdc++-v3/config/os/moxnox/ctype_inline.h
+new file mode 100644
+index 00000000000..61fef546a1a
+--- /dev/null
++++ b/libstdc++-v3/config/os/moxnox/ctype_inline.h
+@@ -0,0 +1,75 @@
++// Locale support -*- C++ -*-
++
++// Copyright (C) 2000-2026 Free Software Foundation, Inc.
++//
++// This file is part of the GNU ISO C++ Library.  This library is free
++// software; you can redistribute it and/or modify it under the
++// terms of the GNU General Public License as published by the
++// Free Software Foundation; either version 3, or (at your option)
++// any later version.
++
++// This library is distributed in the hope that it will be useful,
++// but WITHOUT ANY WARRANTY; without even the implied warranty of
++// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
++// GNU General Public License for more details.
++
++// Under Section 7 of GPL version 3, you are granted additional
++// permissions described in the GCC Runtime Library Exception, version
++// 3.1, as published by the Free Software Foundation.
++
++// You should have received a copy of the GNU General Public License and
++// a copy of the GCC Runtime Library Exception along with this program;
++// see the files COPYING3 and COPYING.RUNTIME respectively.  If not, see
++// <http://www.gnu.org/licenses/>.
++
++/** @file bits/ctype_inline.h
++ *  This is an internal header file, included by other library headers.
++ *  Do not attempt to use it directly. @headername{locale}
++ */
++
++//
++// ISO C++ 14882: 22.1  Locales
++//
++
++// ctype bits to be inlined go here. Non-inlinable (ie virtual do_*)
++// functions go in ctype.cc
++
++namespace std _GLIBCXX_VISIBILITY(default)
++{
++_GLIBCXX_BEGIN_NAMESPACE_VERSION
++
++  bool
++  ctype<char>::
++  is(mask __m, char __c) const
++  { return (_M_table[static_cast<unsigned char>(__c) ] & __m); }
++
++
++  const char*
++  ctype<char>::
++  is(const char* __low, const char* __high, mask* __vec) const
++  {
++    while (__low < __high)
++      *__vec++ = _M_table[static_cast<unsigned char>(*__low++)];
++    return __high;
++  }
++
++  const char*
++  ctype<char>::
++  scan_is(mask __m, const char* __low, const char* __high) const
++  {
++    while (__low < __high && !this->is(__m, *__low))
++      ++__low;
++    return __low;
++  }
++
++  const char*
++  ctype<char>::
++  scan_not(mask __m, const char* __low, const char* __high) const
++  {
++    while (__low < __high && this->is(__m, *__low) != 0)
++      ++__low;
++    return __low;
++  }
++
++_GLIBCXX_END_NAMESPACE_VERSION
++} // namespace
+diff --git a/libstdc++-v3/config/os/moxnox/error_constants.h b/libstdc++-v3/config/os/moxnox/error_constants.h
+new file mode 100644
+index 00000000000..a6e68457fe8
+--- /dev/null
++++ b/libstdc++-v3/config/os/moxnox/error_constants.h
+@@ -0,0 +1,163 @@
++// Specific definitions for mingw32 platform  -*- C++ -*-
++
++// Copyright (C) 2007-2026 Free Software Foundation, Inc.
++//
++// This file is part of the GNU ISO C++ Library.  This library is free
++// software; you can redistribute it and/or modify it under the
++// terms of the GNU General Public License as published by the
++// Free Software Foundation; either version 3, or (at your option)
++// any later version.
++
++// This library is distributed in the hope that it will be useful,
++// but WITHOUT ANY WARRANTY; without even the implied warranty of
++// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
++// GNU General Public License for more details.
++
++// Under Section 7 of GPL version 3, you are granted additional
++// permissions described in the GCC Runtime Library Exception, version
++// 3.1, as published by the Free Software Foundation.
++
++// You should have received a copy of the GNU General Public License and
++// a copy of the GCC Runtime Library Exception along with this program;
++// see the files COPYING3 and COPYING.RUNTIME respectively.  If not, see
++// <http://www.gnu.org/licenses/>.
++
++/** @file bits/error_constants.h
++ *  This is an internal header file, included by other library headers.
++ *  Do not attempt to use it directly. @headername{system_error}
++ */
++
++#ifndef _GLIBCXX_ERROR_CONSTANTS
++#  define _GLIBCXX_ERROR_CONSTANTS
++
++#include <bits/c++config.h>
++#include <cerrno>
++
++namespace std _GLIBCXX_VISIBILITY(default)
++{
++_GLIBCXX_BEGIN_NAMESPACE_VERSION
++
++// Most of the commented-out error codes are socket-related and could be
++// replaced by Winsock WSA-prefixed equivalents.
++  enum class errc
++    {
++      address_family_not_supported = 		EAFNOSUPPORT,
++      address_in_use = 				EADDRINUSE,
++      address_not_available = 			EADDRNOTAVAIL,
++      already_connected = 			EISCONN,
++      argument_list_too_long = 			E2BIG,
++      argument_out_of_domain = 			EDOM,
++      bad_address = 				EFAULT,
++      bad_file_descriptor = 			EBADF,
++#ifdef EBADMSG
++      bad_message = 				EBADMSG,
++#endif
++      broken_pipe = 				EPIPE,
++      connection_aborted = 			ECONNABORTED,
++      connection_already_in_progress = 		EALREADY,
++      connection_refused = 			ECONNREFUSED,
++      connection_reset = 			ECONNRESET,
++      cross_device_link = 			EXDEV,
++      destination_address_required = 		EDESTADDRREQ,
++      device_or_resource_busy = 		EBUSY,
++      directory_not_empty = 			ENOTEMPTY,
++      executable_format_error = 		ENOEXEC,
++      file_exists = 	       			EEXIST,
++      file_too_large = 				EFBIG,
++      filename_too_long = 			ENAMETOOLONG,
++      function_not_supported = 			ENOSYS,
++      host_unreachable = 			EHOSTUNREACH,
++#ifdef EIDRM
++      identifier_removed = 			EIDRM,
++#endif
++      illegal_byte_sequence = 			EILSEQ,
++      inappropriate_io_control_operation = 	ENOTTY,
++      interrupted = 				EINTR,
++      invalid_argument = 			EINVAL,
++      invalid_seek = 				ESPIPE,
++      io_error = 				EIO,
++      is_a_directory = 				EISDIR,
++      message_size = 				EMSGSIZE,
++      network_down = 				ENETDOWN,
++      network_reset = 				ENETRESET,
++      network_unreachable = 			ENETUNREACH,
++      no_buffer_space = 			ENOBUFS,
++#ifdef ECHILD
++      no_child_process = 			ECHILD,
++#endif
++#ifdef ENOLINK
++      no_link = 				ENOLINK,
++#endif
++      no_lock_available = 			ENOLCK,
++#ifdef ENODATA
++      no_message_available = 			ENODATA,
++#endif
++#ifdef ENOMSG
++      no_message = 				ENOMSG,
++#endif
++      no_protocol_option = 			ENOPROTOOPT,
++#ifdef ENOSPC
++      no_space_on_device = 			ENOSPC,
++#endif
++#ifdef ENOSR
++      no_stream_resources = 			ENOSR,
++#endif
++      no_such_device_or_address = 		ENXIO,
++      no_such_device = 				ENODEV,
++      no_such_file_or_directory = 		ENOENT,
++      no_such_process = 			ESRCH,
++      not_a_directory = 			ENOTDIR,
++      not_a_socket = 				ENOTSOCK,
++#ifdef ENOSTR
++      not_a_stream = 				ENOSTR,
++#endif
++      not_connected = 				ENOTCONN,
++      not_enough_memory = 			ENOMEM,
++#ifdef ENOTSUP
++      not_supported = 				ENOTSUP,
++#endif
++      operation_canceled = 			ECANCELED,
++      operation_in_progress = 			EINPROGRESS,
++#ifdef EPERM
++      operation_not_permitted = 		EPERM,
++#endif
++      operation_not_supported = 		EOPNOTSUPP,
++#ifdef EWOULDBLOCK
++      operation_would_block = 			EWOULDBLOCK,
++#endif
++#ifdef EOWNERDEAD
++      owner_dead = 				EOWNERDEAD,
++#endif
++      permission_denied = 			EACCES,
++      protocol_error = 				EPROTO,
++      protocol_not_supported = 			EPROTONOSUPPORT,
++      read_only_file_system = 			EROFS,
++      resource_deadlock_would_occur = 		EDEADLK,
++      resource_unavailable_try_again = 		EAGAIN,
++      result_out_of_range = 			ERANGE,
++#ifdef ENOTRECOVERABLE
++      state_not_recoverable = 			ENOTRECOVERABLE,
++#endif
++#ifdef ETIME
++      stream_timeout = 				ETIME,
++#endif
++#ifdef ETXTBSY
++      text_file_busy = 				ETXTBSY,
++#endif
++#ifdef ETIMEDOUT
++      timed_out = 				ETIMEDOUT,
++#endif
++      too_many_files_open_in_system = 		ENFILE,
++      too_many_files_open = 			EMFILE,
++      too_many_links = 				EMLINK,
++      too_many_symbolic_link_levels = 		ELOOP,
++#ifdef EOVERFLOW
++      value_too_large = 			EOVERFLOW,
++#endif
++      wrong_protocol_type = 			EPROTOTYPE
++   };
++
++_GLIBCXX_END_NAMESPACE_VERSION
++} // namespace
++
++#endif
+diff --git a/libstdc++-v3/config/os/moxnox/os_defines.h b/libstdc++-v3/config/os/moxnox/os_defines.h
+new file mode 100644
+index 00000000000..5d6dbc2541e
+--- /dev/null
++++ b/libstdc++-v3/config/os/moxnox/os_defines.h
+@@ -0,0 +1,104 @@
++// Specific definitions for generic platforms  -*- C++ -*-
++
++// Copyright (C) 2000-2026 Free Software Foundation, Inc.
++//
++// This file is part of the GNU ISO C++ Library.  This library is free
++// software; you can redistribute it and/or modify it under the
++// terms of the GNU General Public License as published by the
++// Free Software Foundation; either version 3, or (at your option)
++// any later version.
++
++// This library is distributed in the hope that it will be useful,
++// but WITHOUT ANY WARRANTY; without even the implied warranty of
++// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
++// GNU General Public License for more details.
++
++// Under Section 7 of GPL version 3, you are granted additional
++// permissions described in the GCC Runtime Library Exception, version
++// 3.1, as published by the Free Software Foundation.
++
++// You should have received a copy of the GNU General Public License and
++// a copy of the GCC Runtime Library Exception along with this program;
++// see the files COPYING3 and COPYING.RUNTIME respectively.  If not, see
++// <http://www.gnu.org/licenses/>.
++
++/** @file bits/os_defines.h
++ *  This is an internal header file, included by other library headers.
++ *  Do not attempt to use it directly. @headername{iosfwd}
++ */
++
++#ifndef _GLIBCXX_OS_DEFINES
++#  define _GLIBCXX_OS_DEFINES
++
++// System-specific #define, typedefs, corrections, etc, go here.  This
++// file will come before all others.
++
++//  Define as 0, if you want, to enable inlining of gthread functions.
++//  By default, don't pollute libstdc++ with win32api names.
++#if !defined (__GTHREAD_HIDE_WIN32API)
++# define __GTHREAD_HIDE_WIN32API 1
++#endif
++
++// Don't let win32api windef.h define min and max as macros
++// if included after c++config.h.
++#undef NOMINMAX
++#define NOMINMAX 1
++
++// Make sure that POSIX printf/scanf functions are activated.  As
++// libstdc++ depends on POSIX-definitions of those functions, we define
++// it unconditionally.
++/* The UCRT stdio is C99-conformant; the mingw ANSI stdio shim is
++   neither wanted nor present on Moxnox. */
++
++#if defined (_GLIBCXX_DLL)
++#define _GLIBCXX_PSEUDO_VISIBILITY_default __attribute__ ((__dllimport__))
++#else
++#define _GLIBCXX_PSEUDO_VISIBILITY_default
++#endif
++#define _GLIBCXX_PSEUDO_VISIBILITY_hidden
++
++#define _GLIBCXX_PSEUDO_VISIBILITY(V) _GLIBCXX_PSEUDO_VISIBILITY_ ## V
++
++// See libstdc++/20806.
++/* Moxnox paths are POSIX; no DOS drive-letter handling. */
++
++// See libstdc++/43738
++// On native windows targets there is no ioctl function. And the existing
++// ioctlsocket function doesn't work for normal file-descriptors.
++#define _GLIBCXX_NO_IOCTL 1
++
++// See libstdc++/51135
++// Class constructors/destructors have __thiscall calling-convention on
++// IA 32-bit
++#if defined (__i386__)
++#define _GLIBCXX_CDTOR_CALLABI __thiscall
++#endif
++
++#ifdef __x86_64__
++#define _GLIBCXX_LLP64 1
++// See libstdc++/69506
++#define _GLIBCXX_USE_WEAK_REF 0
++#endif
++
++// Enable use of GetModuleHandleEx (requires Windows XP/2003) in
++// __cxa_thread_atexit to prevent modules from being unloaded before
++// their dtors are called
++/* Thread-local destructors go through the generic gthr path. */
++
++// Enable use of GetSystemInfo to implement get_nprocs
++/* hardware_concurrency via sysconf, not GetSystemInfo. */
++#define _GLIBCXX_USE_SC_NPROCESSORS_ONLN 1
++
++// See libstdc++/59807
++#define _GTHREAD_USE_MUTEX_INIT_FUNC 1
++
++#define _GLIBCXX_USE_CRT_RAND_S 1
++
++// See libstdc++/94268
++#define _GLIBCXX_BUFSIZ 4096
++
++// Use functions to access thread-local variables from a different module.
++// Windows does not support exporting thread-local data.
++#define _GLIBCXX_NO_EXTERN_THREAD_LOCAL 1
++
++#endif
+diff --git a/libstdc++-v3/configure b/libstdc++-v3/configure
+index 6713e4504b1..ff7b76ca3d5 100755
+--- a/libstdc++-v3/configure
++++ b/libstdc++-v3/configure
+@@ -6917,7 +6917,7 @@ cygwin*)
+   lt_cv_file_magic_cmd='func_win32_libid'
+   ;;
+ 
+-mingw* | pw32*)
++mingw* | pw32* | moxnox*)
+   # Base MSYS/MinGW do not provide the 'file' command needed by
+   # func_win32_libid shell function, so use a weaker test based on 'objdump',
+   # unless we find 'file', for example because we are cross-compiling.
+@@ -7900,7 +7900,7 @@ case $host_os in
+ aix*)
+   symcode='[BCDT]'
+   ;;
+-cygwin* | mingw* | pw32* | cegcc*)
++cygwin* | mingw* | pw32* | cegcc* | moxnox*)
+   symcode='[ABCDGISTW]'
+   ;;
+ hpux*)
+@@ -9666,7 +9666,7 @@ $as_echo_n "checking for $compiler option to produce PIC... " >&6; }
+       # PIC is the default for these OSes.
+       ;;
+ 
+-    mingw* | cygwin* | pw32* | os2* | cegcc*)
++    mingw* | cygwin* | pw32* | os2* | cegcc* | moxnox*)
+       # This hack is so that the source file can tell whether it is being
+       # built for inclusion in a dll (and should export symbols for example).
+       # Although the cygwin gcc ignores -fPIC, still need this for old-style
+@@ -9748,7 +9748,7 @@ $as_echo_n "checking for $compiler option to produce PIC... " >&6; }
+       fi
+       ;;
+ 
+-    mingw* | cygwin* | pw32* | os2* | cegcc*)
++    mingw* | cygwin* | pw32* | os2* | cegcc* | moxnox*)
+       # This hack is so that the source file can tell whether it is being
+       # built for inclusion in a dll (and should export symbols for example).
+       lt_prog_compiler_pic='-DDLL_EXPORT'
+@@ -10210,7 +10210,7 @@ $as_echo_n "checking whether the $compiler linker ($LD) supports shared librarie
+   extract_expsyms_cmds=
+ 
+   case $host_os in
+-  cygwin* | mingw* | pw32* | cegcc*)
++  cygwin* | mingw* | pw32* | cegcc* | moxnox*)
+     # FIXME: the MSVC++ port hasn't been tested in a loooong time
+     # When not using gcc, we currently assume that we are using
+     # Microsoft Visual C++.
+@@ -10325,7 +10325,7 @@ _LT_EOF
+       fi
+       ;;
+ 
+-    cygwin* | mingw* | pw32* | cegcc*)
++    cygwin* | mingw* | pw32* | cegcc* | moxnox*)
+       # _LT_TAGVAR(hardcode_libdir_flag_spec, ) is actually meaningless,
+       # as there is no search path for DLLs.
+       hardcode_libdir_flag_spec='-L$libdir'
+@@ -11713,14 +11713,14 @@ bsdi[45]*)
+   # libtool to hard-code these into programs
+   ;;
+ 
+-cygwin* | mingw* | pw32* | cegcc*)
++cygwin* | mingw* | pw32* | cegcc* | moxnox*)
+   version_type=windows
+   shrext_cmds=".dll"
+   need_version=no
+   need_lib_prefix=no
+ 
+   case $GCC,$host_os in
+-  yes,cygwin* | yes,mingw* | yes,pw32* | yes,cegcc*)
++  yes,cygwin* | yes,mingw* | yes,pw32* | yes,cegcc* | yes,moxnox*)
+     library_names_spec='$libname.dll.a'
+     # DLL is installed to $(libdir)/../bin by postinstall_cmds
+     postinstall_cmds='base_file=`basename \${file}`~
+@@ -11744,7 +11744,7 @@ cygwin* | mingw* | pw32* | cegcc*)
+ 
+       sys_lib_search_path_spec="$sys_lib_search_path_spec /usr/lib/w32api"
+       ;;
+-    mingw* | cegcc*)
++    mingw* | cegcc* | moxnox*)
+       # MinGW DLLs use traditional 'lib' prefix
+       soname_spec='${libname}`echo ${release} | $SED -e 's/[.]/-/g'`${versuffix}${shared_ext}'
+       ;;
+@@ -12392,7 +12392,7 @@ else
+     lt_cv_dlopen_self=yes
+     ;;
+ 
+-  mingw* | pw32* | cegcc*)
++  mingw* | pw32* | cegcc* | moxnox*)
+     lt_cv_dlopen="LoadLibrary"
+     lt_cv_dlopen_libs=
+     ;;
+@@ -13640,7 +13640,7 @@ if test -z "$aix_libpath"; then aix_libpath="/usr/lib:/lib"; fi
+         esac
+         ;;
+ 
+-      cygwin* | mingw* | pw32* | cegcc*)
++      cygwin* | mingw* | pw32* | cegcc* | moxnox*)
+         # _LT_TAGVAR(hardcode_libdir_flag_spec, CXX) is actually meaningless,
+         # as there is no search path for DLLs.
+         hardcode_libdir_flag_spec_CXX='-L$libdir'
+@@ -14661,7 +14661,7 @@ $as_echo_n "checking for $compiler option to produce PIC... " >&6; }
+     beos* | irix5* | irix6* | nonstopux* | osf3* | osf4* | osf5*)
+       # PIC is the default for these OSes.
+       ;;
+-    mingw* | cygwin* | os2* | pw32* | cegcc*)
++    mingw* | cygwin* | os2* | pw32* | cegcc* | moxnox*)
+       # This hack is so that the source file can tell whether it is being
+       # built for inclusion in a dll (and should export symbols for example).
+       # Although the cygwin gcc ignores -fPIC, still need this for old-style
+@@ -15201,7 +15201,7 @@ $as_echo_n "checking whether the $compiler linker ($LD) supports shared librarie
+   pw32*)
+     export_symbols_cmds_CXX="$ltdll_cmds"
+   ;;
+-  cygwin* | mingw* | cegcc*)
++  cygwin* | mingw* | cegcc* | moxnox*)
+     export_symbols_cmds_CXX='$NM $libobjs $convenience | $global_symbol_pipe | $SED -e '\''/^[BCDGRS][ ]/s/.*[ ]\([^ ]*\)/\1 DATA/;/^.*[ ]__nm__/s/^.*[ ]__nm__\([^ ]*\)[ ][^ ]*/\1 DATA/;/^I[ ]/d;/^[AITW][ ]/s/.* //'\'' | sort | uniq > $export_symbols'
+   ;;
+   *)
+@@ -15465,14 +15465,14 @@ bsdi[45]*)
+   # libtool to hard-code these into programs
+   ;;
+ 
+-cygwin* | mingw* | pw32* | cegcc*)
++cygwin* | mingw* | pw32* | cegcc* | moxnox*)
+   version_type=windows
+   shrext_cmds=".dll"
+   need_version=no
+   need_lib_prefix=no
+ 
+   case $GCC,$host_os in
+-  yes,cygwin* | yes,mingw* | yes,pw32* | yes,cegcc*)
++  yes,cygwin* | yes,mingw* | yes,pw32* | yes,cegcc* | yes,moxnox*)
+     library_names_spec='$libname.dll.a'
+     # DLL is installed to $(libdir)/../bin by postinstall_cmds
+     postinstall_cmds='base_file=`basename \${file}`~
+@@ -15495,7 +15495,7 @@ cygwin* | mingw* | pw32* | cegcc*)
+       soname_spec='`echo ${libname} | sed -e 's/^lib/cyg/'``echo ${release} | $SED -e 's/[.]/-/g'`${versuffix}${shared_ext}'
+ 
+       ;;
+-    mingw* | cegcc*)
++    mingw* | cegcc* | moxnox*)
+       # MinGW DLLs use traditional 'lib' prefix
+       soname_spec='${libname}`echo ${release} | $SED -e 's/[.]/-/g'`${versuffix}${shared_ext}'
+       ;;
+@@ -16117,7 +16117,7 @@ ac_compiler_gnu=$ac_cv_c_compiler_gnu
+ 
+ 
+ case $host in
+-  *-cygwin* | *-mingw*)
++  *-cygwin* | *-mingw* | *-moxnox*)
+     # 'host' will be top-level target in the case of a target lib,
+     # we must compare to with_cross_host to decide if this is a native
+     # or cross-compiler and select where to install dlls appropriately.
+@@ -21456,6 +21456,12 @@ ac_compiler_gnu=$ac_cv_cxx_compiler_gnu
+   ac_has_nanosleep=no
+   ac_has_sched_yield=no
+ 
++  # Moxnox cross builds cannot run link tests, and the answers are
++  # known; use the table below whatever was requested.
++  case "${target_os}" in
++    moxnox*) enable_libstdcxx_time=auto ;;
++  esac
++
+   if test x"$enable_libstdcxx_time" = x"auto"; then
+ 
+     case "${target_os}" in
+@@ -21546,6 +21552,12 @@ fi
+         ac_has_nanosleep=yes
+         ac_has_sched_yield=yes
+         ;;
++      moxnox*)
++        ac_has_clock_monotonic=yes
++        ac_has_clock_realtime=yes
++        ac_has_nanosleep=yes
++        ac_has_sched_yield=yes
++        ;;
+       freebsd*|netbsd*|dragonfly*|rtems*)
+         ac_has_clock_monotonic=yes
+         ac_has_clock_realtime=yes
+@@ -42692,6 +42704,72 @@ fi
+ done
+ 
+ 
++    ;;
++  *-moxnox*)
++                    $as_echo "#define HAVE_SETENV 1" >>confdefs.h
++
++    $as_echo "#define HAVE_HYPOT 1" >>confdefs.h
++
++    $as_echo "#define HAVE_HYPOTF 1" >>confdefs.h
++
++    $as_echo "#define HAVE_ISINF 1" >>confdefs.h
++
++    $as_echo "#define HAVE_ISNAN 1" >>confdefs.h
++
++    $as_echo "#define HAVE_ISNANF 1" >>confdefs.h
++
++    $as_echo "#define HAVE_ACOSF 1" >>confdefs.h
++
++    $as_echo "#define HAVE_ASINF 1" >>confdefs.h
++
++    $as_echo "#define HAVE_ATAN2F 1" >>confdefs.h
++
++    $as_echo "#define HAVE_ATANF 1" >>confdefs.h
++
++    $as_echo "#define HAVE_CEILF 1" >>confdefs.h
++
++    $as_echo "#define HAVE_COSF 1" >>confdefs.h
++
++    $as_echo "#define HAVE_COSHF 1" >>confdefs.h
++
++    $as_echo "#define HAVE_EXPF 1" >>confdefs.h
++
++    $as_echo "#define HAVE_FABSF 1" >>confdefs.h
++
++    $as_echo "#define HAVE_FLOORF 1" >>confdefs.h
++
++    $as_echo "#define HAVE_FMODF 1" >>confdefs.h
++
++    $as_echo "#define HAVE_FREXPF 1" >>confdefs.h
++
++    $as_echo "#define HAVE_LDEXPF 1" >>confdefs.h
++
++    $as_echo "#define HAVE_LOG10F 1" >>confdefs.h
++
++    $as_echo "#define HAVE_LOGF 1" >>confdefs.h
++
++    $as_echo "#define HAVE_MODFF 1" >>confdefs.h
++
++    $as_echo "#define HAVE_POWF 1" >>confdefs.h
++
++    $as_echo "#define HAVE_SINF 1" >>confdefs.h
++
++    $as_echo "#define HAVE_SINHF 1" >>confdefs.h
++
++    $as_echo "#define HAVE_SQRTF 1" >>confdefs.h
++
++    $as_echo "#define HAVE_TANF 1" >>confdefs.h
++
++    $as_echo "#define HAVE_TANHF 1" >>confdefs.h
++
++    $as_echo "#define HAVE_STRTOF 1" >>confdefs.h
++
++    $as_echo "#define HAVE_STRTOLD 1" >>confdefs.h
++
++    $as_echo "#define HAVE_ALIGNED_ALLOC 1" >>confdefs.h
++
++    $as_echo "#define HAVE_TLS 1" >>confdefs.h
++
+     ;;
+   *-mingw32*)
+ 
+diff --git a/libstdc++-v3/configure.host b/libstdc++-v3/configure.host
+index ff97216167d..d4b4d6fa911 100644
+--- a/libstdc++-v3/configure.host
++++ b/libstdc++-v3/configure.host
+@@ -280,6 +280,11 @@ case "${host_os}" in
+   hpux*)
+     os_include_dir="os/hpux"
+     ;;
++  moxnox*)
++    os_include_dir="os/moxnox"
++    error_constants_dir="os/moxnox"
++    OPT_LDFLAGS="${OPT_LDFLAGS} \$(lt_host_flags)"
++    ;;
+   mingw32*)
+     case "$host" in
+       *-w64-*)
+diff --git a/libstdc++-v3/crossconfig.m4 b/libstdc++-v3/crossconfig.m4
+index b3269cb88e0..4ce92ad45ce 100644
+--- a/libstdc++-v3/crossconfig.m4
++++ b/libstdc++-v3/crossconfig.m4
+@@ -190,6 +190,44 @@ case "${host}" in
+     AC_CHECK_FUNCS(secure_getenv)
+     AM_ICONV
+     ;;
++  *-moxnox*)
++    dnl Pure declaration list: link tests cannot run because the
++    dnl default specs cannot link until the vendored crt exists.
++    dnl Everything here is verified against the Moxnox headers and
++    dnl the ucrtbase/mnposix export lists.
++    AC_DEFINE(HAVE_SETENV)
++    AC_DEFINE(HAVE_HYPOT)
++    AC_DEFINE(HAVE_HYPOTF)
++    AC_DEFINE(HAVE_ISINF)
++    AC_DEFINE(HAVE_ISNAN)
++    AC_DEFINE(HAVE_ISNANF)
++    AC_DEFINE(HAVE_ACOSF)
++    AC_DEFINE(HAVE_ASINF)
++    AC_DEFINE(HAVE_ATAN2F)
++    AC_DEFINE(HAVE_ATANF)
++    AC_DEFINE(HAVE_CEILF)
++    AC_DEFINE(HAVE_COSF)
++    AC_DEFINE(HAVE_COSHF)
++    AC_DEFINE(HAVE_EXPF)
++    AC_DEFINE(HAVE_FABSF)
++    AC_DEFINE(HAVE_FLOORF)
++    AC_DEFINE(HAVE_FMODF)
++    AC_DEFINE(HAVE_FREXPF)
++    AC_DEFINE(HAVE_LDEXPF)
++    AC_DEFINE(HAVE_LOG10F)
++    AC_DEFINE(HAVE_LOGF)
++    AC_DEFINE(HAVE_MODFF)
++    AC_DEFINE(HAVE_POWF)
++    AC_DEFINE(HAVE_SINF)
++    AC_DEFINE(HAVE_SINHF)
++    AC_DEFINE(HAVE_SQRTF)
++    AC_DEFINE(HAVE_TANF)
++    AC_DEFINE(HAVE_TANHF)
++    AC_DEFINE(HAVE_STRTOF)
++    AC_DEFINE(HAVE_STRTOLD)
++    AC_DEFINE(HAVE_ALIGNED_ALLOC)
++    AC_DEFINE(HAVE_TLS)
++    ;;
+   *-mingw32*)
+     GLIBCXX_CHECK_LINKER_FEATURES
+     GLIBCXX_CHECK_MATH_SUPPORT
+diff --git a/libstdc++-v3/include/Makefile.am b/libstdc++-v3/include/Makefile.am
+index e9e46139da2..481f1ffdd87 100644
+--- a/libstdc++-v3/include/Makefile.am
++++ b/libstdc++-v3/include/Makefile.am
+@@ -1466,6 +1466,7 @@ ${host_builddir}/gthr.h: ${toplevel_srcdir}/libgcc/gthr.h stamp-${host_alias}
+ 	    -e '/^#/s/\(${uppercase}${uppercase}*\)/_GLIBCXX_\1/g' \
+ 	    -e 's/_GLIBCXX_SUPPORTS_WEAK/__GXX_WEAK__/g' \
+ 	    -e 's/_GLIBCXX___MINGW32_GLIBCXX___/__MINGW32__/g' \
++	    -e 's/_GLIBCXX___moxnox_GLIBCXX___/__moxnox__/g' \
+ 	    -e 's,^#include "\(.*\)",#include <bits/\1>,g' \
+ 	    < $< > $@
+ 
+diff --git a/libstdc++-v3/include/Makefile.in b/libstdc++-v3/include/Makefile.in
+index f3d2f58dbe4..064ca5d9567 100644
+--- a/libstdc++-v3/include/Makefile.in
++++ b/libstdc++-v3/include/Makefile.in
+@@ -1943,6 +1943,7 @@ ${host_builddir}/gthr.h: ${toplevel_srcdir}/libgcc/gthr.h stamp-${host_alias}
+ 	    -e '/^#/s/\(${uppercase}${uppercase}*\)/_GLIBCXX_\1/g' \
+ 	    -e 's/_GLIBCXX_SUPPORTS_WEAK/__GXX_WEAK__/g' \
+ 	    -e 's/_GLIBCXX___MINGW32_GLIBCXX___/__MINGW32__/g' \
++	    -e 's/_GLIBCXX___moxnox_GLIBCXX___/__moxnox__/g' \
+ 	    -e 's,^#include "\(.*\)",#include <bits/\1>,g' \
+ 	    < $< > $@
+ 
+diff --git a/libstdc++-v3/src/c++20/tzdb.cc b/libstdc++-v3/src/c++20/tzdb.cc
+index b0fbfc46a6d..db4aa5fe0bf 100644
+--- a/libstdc++-v3/src/c++20/tzdb.cc
++++ b/libstdc++-v3/src/c++20/tzdb.cc
+@@ -79,8 +79,8 @@
+ 
+ namespace __gnu_cxx
+ {
+-#ifdef _AIX
+-  // Cannot override weak symbols on AIX.
++#if defined(_AIX) || defined(__moxnox__)
++  // Cannot override weak symbols on AIX, and Moxnox has no weak symbols at all.
+   const char* (*zoneinfo_dir_override)() = nullptr;
+ #else
+   [[gnu::weak]] const char* zoneinfo_dir_override();
+diff --git a/libtool.m4 b/libtool.m4
+index 5d70652c435..ae541ea6968 100644
+--- a/libtool.m4
++++ b/libtool.m4
+@@ -1823,7 +1823,7 @@ else
+     lt_cv_dlopen_self=yes
+     ;;
+ 
+-  mingw* | pw32* | cegcc*)
++  mingw* | pw32* | cegcc* | moxnox*)
+     lt_cv_dlopen="LoadLibrary"
+     lt_cv_dlopen_libs=
+     ;;
+@@ -2299,14 +2299,14 @@ bsdi[[45]]*)
+   # libtool to hard-code these into programs
+   ;;
+ 
+-cygwin* | mingw* | pw32* | cegcc*)
++cygwin* | mingw* | pw32* | cegcc* | moxnox*)
+   version_type=windows
+   shrext_cmds=".dll"
+   need_version=no
+   need_lib_prefix=no
+ 
+   case $GCC,$host_os in
+-  yes,cygwin* | yes,mingw* | yes,pw32* | yes,cegcc*)
++  yes,cygwin* | yes,mingw* | yes,pw32* | yes,cegcc* | yes,moxnox*)
+     library_names_spec='$libname.dll.a'
+     # DLL is installed to $(libdir)/../bin by postinstall_cmds
+     postinstall_cmds='base_file=`basename \${file}`~
+@@ -2330,7 +2330,7 @@ cygwin* | mingw* | pw32* | cegcc*)
+ m4_if([$1], [],[
+       sys_lib_search_path_spec="$sys_lib_search_path_spec /usr/lib/w32api"])
+       ;;
+-    mingw* | cegcc*)
++    mingw* | cegcc* | moxnox*)
+       # MinGW DLLs use traditional 'lib' prefix
+       soname_spec='${libname}`echo ${release} | $SED -e 's/[[.]]/-/g'`${versuffix}${shared_ext}'
+       ;;
+@@ -3116,7 +3116,7 @@ cygwin*)
+   lt_cv_file_magic_cmd='func_win32_libid'
+   ;;
+ 
+-mingw* | pw32*)
++mingw* | pw32* | moxnox*)
+   # Base MSYS/MinGW do not provide the 'file' command needed by
+   # func_win32_libid shell function, so use a weaker test based on 'objdump',
+   # unless we find 'file', for example because we are cross-compiling.
+@@ -3482,7 +3482,7 @@ case $host_os in
+ aix*)
+   symcode='[[BCDT]]'
+   ;;
+-cygwin* | mingw* | pw32* | cegcc*)
++cygwin* | mingw* | pw32* | cegcc* | moxnox*)
+   symcode='[[ABCDGISTW]]'
+   ;;
+ hpux*)
+@@ -3729,7 +3729,7 @@ m4_if([$1], [CXX], [
+     beos* | irix5* | irix6* | nonstopux* | osf3* | osf4* | osf5*)
+       # PIC is the default for these OSes.
+       ;;
+-    mingw* | cygwin* | os2* | pw32* | cegcc*)
++    mingw* | cygwin* | os2* | pw32* | cegcc* | moxnox*)
+       # This hack is so that the source file can tell whether it is being
+       # built for inclusion in a dll (and should export symbols for example).
+       # Although the cygwin gcc ignores -fPIC, still need this for old-style
+@@ -4042,7 +4042,7 @@ m4_if([$1], [CXX], [
+       # PIC is the default for these OSes.
+       ;;
+ 
+-    mingw* | cygwin* | pw32* | os2* | cegcc*)
++    mingw* | cygwin* | pw32* | os2* | cegcc* | moxnox*)
+       # This hack is so that the source file can tell whether it is being
+       # built for inclusion in a dll (and should export symbols for example).
+       # Although the cygwin gcc ignores -fPIC, still need this for old-style
+@@ -4125,7 +4125,7 @@ m4_if([$1], [CXX], [
+       fi
+       ;;
+ 
+-    mingw* | cygwin* | pw32* | os2* | cegcc*)
++    mingw* | cygwin* | pw32* | os2* | cegcc* | moxnox*)
+       # This hack is so that the source file can tell whether it is being
+       # built for inclusion in a dll (and should export symbols for example).
+       m4_if([$1], [GCJ], [],
+@@ -4358,7 +4358,7 @@ m4_if([$1], [CXX], [
+   pw32*)
+     _LT_TAGVAR(export_symbols_cmds, $1)="$ltdll_cmds"
+   ;;
+-  cygwin* | mingw* | cegcc*)
++  cygwin* | mingw* | cegcc* | moxnox*)
+     _LT_TAGVAR(export_symbols_cmds, $1)='$NM $libobjs $convenience | $global_symbol_pipe | $SED -e '\''/^[[BCDGRS]][[ ]]/s/.*[[ ]]\([[^ ]]*\)/\1 DATA/;/^.*[[ ]]__nm__/s/^.*[[ ]]__nm__\([[^ ]]*\)[[ ]][[^ ]]*/\1 DATA/;/^I[[ ]]/d;/^[[AITW]][[ ]]/s/.* //'\'' | sort | uniq > $export_symbols'
+   ;;
+   *)
+@@ -4410,7 +4410,7 @@ dnl Note also adjust exclude_expsyms for C++ above.
+   extract_expsyms_cmds=
+ 
+   case $host_os in
+-  cygwin* | mingw* | pw32* | cegcc*)
++  cygwin* | mingw* | pw32* | cegcc* | moxnox*)
+     # FIXME: the MSVC++ port hasn't been tested in a loooong time
+     # When not using gcc, we currently assume that we are using
+     # Microsoft Visual C++.
+@@ -4525,7 +4525,7 @@ _LT_EOF
+       fi
+       ;;
+ 
+-    cygwin* | mingw* | pw32* | cegcc*)
++    cygwin* | mingw* | pw32* | cegcc* | moxnox*)
+       # _LT_TAGVAR(hardcode_libdir_flag_spec, $1) is actually meaningless,
+       # as there is no search path for DLLs.
+       _LT_TAGVAR(hardcode_libdir_flag_spec, $1)='-L$libdir'
+@@ -5842,7 +5842,7 @@ if test "$_lt_caught_CXX_error" != yes; then
+         esac
+         ;;
+ 
+-      cygwin* | mingw* | pw32* | cegcc*)
++      cygwin* | mingw* | pw32* | cegcc* | moxnox*)
+         # _LT_TAGVAR(hardcode_libdir_flag_spec, $1) is actually meaningless,
+         # as there is no search path for DLLs.
+         _LT_TAGVAR(hardcode_libdir_flag_spec, $1)='-L$libdir'
+diff --git a/ltmain.sh b/ltmain.sh
+index 1a710177fb2..692ffb8b648 100644
+--- a/ltmain.sh
++++ b/ltmain.sh
+@@ -976,7 +976,7 @@ func_enable_tag ()
+ 
+ 
+   case $host in
+-    *cygwin* | *mingw* | *pw32* | *cegcc* | *solaris2* )
++    *cygwin* | *mingw* | *pw32* | *cegcc* | *solaris2* | *moxnox* )
+       # don't eliminate duplications in $postdeps and $predeps
+       opt_duplicate_compiler_generated_deps=:
+       ;;
+@@ -1453,7 +1453,7 @@ func_mode_compile ()
+ 
+     # On Cygwin there's no "real" PIC flag so we must build both object types
+     case $host_os in
+-    cygwin* | mingw* | pw32* | os2* | cegcc*)
++    cygwin* | mingw* | pw32* | os2* | cegcc* | moxnox*)
+       pic_mode=default
+       ;;
+     esac
+@@ -2279,7 +2279,7 @@ func_mode_install ()
+ 	      'exit $?'
+ 	  tstripme="$stripme"
+ 	  case $host_os in
+-	  cygwin* | mingw* | pw32* | cegcc*)
++	  cygwin* | mingw* | pw32* | cegcc* | moxnox*)
+ 	    case $realname in
+ 	    *.dll.a)
+ 	      tstripme=""
+@@ -2595,7 +2595,7 @@ extern \"C\" {
+ 	      $RM $export_symbols
+ 	      ${SED} -n -e '/^: @PROGRAM@ $/d' -e 's/^.* \(.*\)$/\1/p' < "$nlist" > "$export_symbols"
+ 	      case $host in
+-	      *cygwin* | *mingw* | *cegcc* )
++	      *cygwin* | *mingw* | *cegcc* | *moxnox* )
+                 echo EXPORTS > "$output_objdir/$outputname.def"
+                 cat "$export_symbols" >> "$output_objdir/$outputname.def"
+ 	        ;;
+@@ -2607,7 +2607,7 @@ extern \"C\" {
+ 	      $GREP -f "$output_objdir/$outputname.exp" < "$nlist" > "$nlist"T
+ 	      $MV "$nlist"T "$nlist"
+ 	      case $host in
+-	        *cygwin* | *mingw* | *cegcc* )
++	        *cygwin* | *mingw* | *cegcc* | *moxnox* )
+ 	          echo EXPORTS > "$output_objdir/$outputname.def"
+ 	          cat "$nlist" >> "$output_objdir/$outputname.def"
+ 	          ;;
+@@ -2663,7 +2663,7 @@ typedef struct {
+ } lt_dlsymlist;
+ "
+ 	  case $host in
+-	  *cygwin* | *mingw* | *cegcc* )
++	  *cygwin* | *mingw* | *cegcc* | *moxnox* )
+ 	    echo >> "$output_objdir/$my_dlsyms" "\
+ /* DATA imports from DLLs on WIN32 con't be const, because
+    runtime relocations are performed -- see ld's documentation
+@@ -2749,7 +2749,7 @@ static const void *lt_preloaded_setup() {
+ 	# Transform the symbol file into the correct name.
+ 	symfileobj="$output_objdir/${my_outputname}S.$objext"
+ 	case $host in
+-	*cygwin* | *mingw* | *cegcc* )
++	*cygwin* | *mingw* | *cegcc* | *moxnox* )
+ 	  if test -f "$output_objdir/$my_outputname.def"; then
+ 	    compile_command=`$ECHO "$compile_command" | $SED "s%@SYMFILE@%$output_objdir/$my_outputname.def $symfileobj%"`
+ 	    finalize_command=`$ECHO "$finalize_command" | $SED "s%@SYMFILE@%$output_objdir/$my_outputname.def $symfileobj%"`
+@@ -4233,7 +4233,7 @@ func_mode_link ()
+ {
+     $opt_debug
+     case $host in
+-    *-*-cygwin* | *-*-mingw* | *-*-pw32* | *-*-os2* | *-cegcc*)
++    *-*-cygwin* | *-*-mingw* | *-*-pw32* | *-*-os2* | *-cegcc* | *-*-moxnox*)
+       # It is impossible to link a dll without this setting, and
+       # we shouldn't force the makefile maintainer to figure out
+       # which system we are compiling for in order to pass an extra
+@@ -4713,7 +4713,7 @@ func_mode_link ()
+ 	  ;;
+ 	esac
+ 	case $host in
+-	*-*-cygwin* | *-*-mingw* | *-*-pw32* | *-*-os2* | *-cegcc*)
++	*-*-cygwin* | *-*-mingw* | *-*-pw32* | *-*-os2* | *-cegcc* | *-*-moxnox*)
+ 	  testbindir=`$ECHO "$dir" | $SED 's*/lib$*/bin*'`
+ 	  case :$dllsearchpath: in
+ 	  *":$dir:"*) ;;
+@@ -4733,7 +4733,7 @@ func_mode_link ()
+       -l*)
+ 	if test "X$arg" = "X-lc" || test "X$arg" = "X-lm"; then
+ 	  case $host in
+-	  *-*-cygwin* | *-*-mingw* | *-*-pw32* | *-*-beos* | *-cegcc* | *-*-haiku*)
++	  *-*-cygwin* | *-*-mingw* | *-*-pw32* | *-*-beos* | *-cegcc* | *-*-haiku* | *-*-moxnox*)
+ 	    # These systems don't actually have a C or math library (as such)
+ 	    continue
+ 	    ;;
+@@ -4813,7 +4813,7 @@ func_mode_link ()
+ 
+       -no-install)
+ 	case $host in
+-	*-*-cygwin* | *-*-mingw* | *-*-pw32* | *-*-os2* | *-*-darwin* | *-cegcc*)
++	*-*-cygwin* | *-*-mingw* | *-*-pw32* | *-*-os2* | *-*-darwin* | *-cegcc* | *-*-moxnox*)
+ 	  # The PATH hackery in wrapper scripts is required on Windows
+ 	  # and Darwin in order for the loader to find any dlls it needs.
+ 	  func_warning "\`-no-install' is ignored for $host"
+@@ -5794,7 +5794,7 @@ func_mode_link ()
+ 	if test -n "$library_names" &&
+ 	   { test "$use_static_libs" = no || test -z "$old_library"; }; then
+ 	  case $host in
+-	  *cygwin* | *mingw* | *cegcc*)
++	  *cygwin* | *mingw* | *cegcc* | *moxnox*)
+ 	      # No point in relinking DLLs because paths are not encoded
+ 	      notinst_deplibs="$notinst_deplibs $lib"
+ 	      need_relink=no
+@@ -5864,7 +5864,7 @@ func_mode_link ()
+ 	    elif test -n "$soname_spec"; then
+ 	      # bleh windows
+ 	      case $host in
+-	      *cygwin* | mingw* | *cegcc*)
++	      *cygwin* | mingw* | *cegcc* | *moxnox*)
+ 	        func_arith $current - $age
+ 		major=$func_arith_result
+ 		versuffix="-$major"
+@@ -6715,7 +6715,7 @@ func_mode_link ()
+       if test "$build_libtool_libs" = yes; then
+ 	if test -n "$rpath"; then
+ 	  case $host in
+-	  *-*-cygwin* | *-*-mingw* | *-*-pw32* | *-*-os2* | *-*-beos* | *-cegcc* | *-*-haiku*)
++	  *-*-cygwin* | *-*-mingw* | *-*-pw32* | *-*-os2* | *-*-beos* | *-cegcc* | *-*-haiku* | *-*-moxnox*)
+ 	    # these systems don't actually have a c library (as such)!
+ 	    ;;
+ 	  *-*-rhapsody* | *-*-darwin1.[012])
+@@ -7216,7 +7216,7 @@ EOF
+ 
+ 	orig_export_symbols=
+ 	case $host_os in
+-	cygwin* | mingw* | cegcc*)
++	cygwin* | mingw* | cegcc* | moxnox*)
+ 	  if test -n "$export_symbols" && test -z "$export_symbols_regex"; then
+ 	    # exporting using user supplied symfile
+ 	    if test "x`$SED 1q $export_symbols`" != xEXPORTS; then
+@@ -7845,7 +7845,7 @@ EOF
+ 	  esac
+ 	fi
+ 	case $host in
+-	*-*-cygwin* | *-*-mingw* | *-*-pw32* | *-*-os2* | *-cegcc*)
++	*-*-cygwin* | *-*-mingw* | *-*-pw32* | *-*-os2* | *-cegcc* | *-*-moxnox*)
+ 	  testbindir=`${ECHO} "$libdir" | ${SED} -e 's*/lib$*/bin*'`
+ 	  case :$dllsearchpath: in
+ 	  *":$libdir:"*) ;;
+@@ -8365,7 +8365,7 @@ EOF
+ 	  # tests/bindir.at for full details.
+ 	  tdlname=$dlname
+ 	  case $host,$output,$installed,$module,$dlname in
+-	    *cygwin*,*lai,yes,no,*.dll | *mingw*,*lai,yes,no,*.dll | *cegcc*,*lai,yes,no,*.dll)
++	    *cygwin*,*lai,yes,no,*.dll | *mingw*,*lai,yes,no,*.dll | *cegcc*,*lai,yes,no,*.dll | *moxnox*,*lai,yes,no,*.dll)
+ 	      # If a -bindir argument was supplied, place the dll there.
+ 	      if test "x$bindir" != x ;
+ 	      then
