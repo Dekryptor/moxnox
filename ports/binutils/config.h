@@ -135,6 +135,17 @@
 /* ld-specific */
 #define DEFAULT_LD_TEXTREL_CHECK          textrel_check_none
 #define DEFAULT_LD_TEXTREL_CHECK_WARNING  0
+#define DEFAULT_LD_Z_RELRO                0
+#define DEFAULT_LD_Z_SEPARATE_CODE        0
+#define DEFAULT_LD_ROSEGMENT              0
+#define DEFAULT_LD_Z_MEMORY_SEAL          0
+#define DEFAULT_LD_GNU2_TLS_TAG           2
+#define DEFAULT_LD_GNU_TLS_TAG            2
+#define DEFAULT_LD_WARN_EXECSTACK         2
+#define DEFAULT_LD_ERROR_EXECSTACK        0
+#define DEFAULT_LD_WARN_RWX_SEGMENTS      1
+#define DEFAULT_LD_ERROR_RWX_SEGMENTS     0
+#define DEFAULT_LD_EXECSTACK              1
 #define DEFAULT_EMIT_SYSV_HASH            false
 #define DEFAULT_EMIT_GNU_HASH             false
 #define ELF_LIST_OPTIONS                  false

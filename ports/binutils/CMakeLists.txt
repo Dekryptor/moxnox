@@ -601,7 +601,7 @@ add_custom_command(
     COMMAND sh ${REPO}/ld/genscripts.sh
         ${REPO}/ld /usr/lib /usr /usr
         x86_64-pc-moxnox x86_64-pc-moxnox x86_64-pc-moxnox
-        "" "" "i386pep i386pe" "" no "" i386pep ""
+        "" "" "i386pep i386pe elf_i386" "" no "" i386pep ""
     WORKING_DIRECTORY ${LD_GEN_DIR}
     VERBATIM
     DEPENDS
@@ -616,7 +616,7 @@ add_custom_command(
     COMMAND sh ${REPO}/ld/genscripts.sh
         ${REPO}/ld /usr/lib /usr /usr
         x86_64-pc-moxnox x86_64-pc-moxnox x86_64-pc-moxnox
-        "" "" "i386pep i386pe" "" no "" i386pe ""
+        "" "" "i386pep i386pe elf_i386" "" no "" i386pe ""
     WORKING_DIRECTORY ${LD_GEN_DIR}
     VERBATIM
     DEPENDS
@@ -624,6 +624,22 @@ add_custom_command(
         ${REPO}/ld/emulparams/i386pe.sh
         ${REPO}/ld/emultempl/pe.em
         ${REPO}/ld/scripttempl/pe.sc
+)
+
+add_custom_command(
+    OUTPUT ${LD_GEN_DIR}/eelf_i386.c
+    COMMAND sh ${REPO}/ld/genscripts.sh
+        ${REPO}/ld /usr/lib /usr /usr
+        x86_64-pc-moxnox x86_64-pc-moxnox x86_64-pc-moxnox
+        "" "" "i386pep i386pe elf_i386" "" no "" elf_i386 ""
+    WORKING_DIRECTORY ${LD_GEN_DIR}
+    VERBATIM
+    DEPENDS
+        ${REPO}/ld/genscripts.sh
+        ${REPO}/ld/emulparams/elf_i386.sh
+        ${REPO}/ld/emultempl/elf.em
+        ${REPO}/ld/emultempl/elf-i386-glibc.em
+        ${REPO}/ld/scripttempl/elf.sc
 )
 
 add_executable(ld
@@ -648,6 +664,7 @@ add_executable(ld
     ${REPO}/ld/ldelfgen.c
     ${LD_GEN_DIR}/ei386pep.c
     ${LD_GEN_DIR}/ei386pe.c
+    ${LD_GEN_DIR}/eelf_i386.c
     ${BISON_deffilep_OUTPUTS}
     ${REPO}/ld/pdb.c
     ${REPO}/ld/pep-dll.c
@@ -662,7 +679,7 @@ target_compile_definitions(ld PRIVATE
     HAVE_CONFIG_H
     HAVE_DLFCN_H=1
     "DEFAULT_EMULATION=\"i386pep\""
-    "EMULATION_LIBPATH=\"i386pep i386pe\""
+    "EMULATION_LIBPATH=\"i386pep i386pe elf_i386\""
     "SCRIPTDIR=\"/lib/ldscripts\""
     "BINDIR=\"/bin\""
     "TOOLBINDIR=\"/usr/x86_64-pc-moxnox/bin\""
