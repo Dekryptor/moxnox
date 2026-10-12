@@ -236,19 +236,37 @@ static T strto(const char* nptr, char** endptr, int base) {
         nptr++;
     }
 
+    bool neg = false;
+
     if (*nptr == '+') {
         nptr++;
 
         if (*nptr == '-') {
+            if (endptr)
+                *endptr = (char*)orig_nptr;
+
             *__errno() = EINVAL;
             return 0;
         }
+    } else if (*nptr == '-') {
+        neg = true;
+        nptr++;
     }
 
     T ret;
 
-    if (base == 0)
-        base = 10;
+    if (base == 0) {
+        if (nptr[0] == '0' && (nptr[1] == 'x' || nptr[1] == 'X') && isxdigit(nptr[2])) {
+            base = 16;
+            nptr += 2;
+        } else if (nptr[0] == '0')
+            base = 8;
+        else
+            base = 10;
+    } else if (base == 16) {
+        if (nptr[0] == '0' && (nptr[1] == 'x' || nptr[1] == 'X') && isxdigit(nptr[2]))
+            nptr += 2;
+    }
 
     auto fcr = from_chars(nptr, nptr + strlen(nptr), ret, base);
 
@@ -266,12 +284,15 @@ static T strto(const char* nptr, char** endptr, int base) {
         *__errno() = ERANGE;
 
         if constexpr (is_signed_v<T>) {
-            if (*nptr == '-')
+            if (neg)
                 return numeric_limits<T>::min();
         }
 
         return numeric_limits<T>::max();
     }
+
+    if (neg)
+        ret = -ret;
 
     return ret;
 }
