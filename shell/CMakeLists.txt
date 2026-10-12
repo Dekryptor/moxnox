@@ -11,27 +11,27 @@ add_compile_definitions(_GLIBCXX_NO_ASSERTIONS)
 
 ###
 
-set(SRC_FILES src/shell.cpp)
-
-add_executable(shell ${SRC_FILES})
-target_sources(shell PUBLIC FILE_SET CXX_MODULES FILES
-    src/cd.cpp
-)
-
-target_compile_options(shell PRIVATE -fno-exceptions ${USERSPACE_CFLAGS})
-
-if(CMAKE_SYSTEM_PROCESSOR STREQUAL "x86_64")
-    target_compile_options(shell PRIVATE -masm=intel)
-endif()
-
-target_link_libraries(shell moxnox print unicode unique_handle list pagesize termios errno win32error)
-target_link_libraries(shell format)
-target_link_libraries(shell readline)
-
-install(TARGETS shell DESTINATION ${CMAKE_INSTALL_PREFIX}/bin
-    COMPONENT core
-    CXX_MODULES_BMI EXCLUDE_FROM_ALL
-)
+# set(SRC_FILES src/shell.cpp)
+#
+# add_executable(shell ${SRC_FILES})
+# target_sources(shell PUBLIC FILE_SET CXX_MODULES FILES
+#     src/cd.cpp
+# )
+#
+# target_compile_options(shell PRIVATE -fno-exceptions ${USERSPACE_CFLAGS})
+#
+# if(CMAKE_SYSTEM_PROCESSOR STREQUAL "x86_64")
+#     target_compile_options(shell PRIVATE -masm=intel)
+# endif()
+#
+# target_link_libraries(shell moxnox print unicode unique_handle list pagesize termios errno win32error)
+# target_link_libraries(shell format)
+# target_link_libraries(shell readline)
+#
+# install(TARGETS shell DESTINATION ${CMAKE_INSTALL_PREFIX}/bin
+#     COMPONENT core
+#     CXX_MODULES_BMI EXCLUDE_FROM_ALL
+# )
 
 ###
 
@@ -599,16 +599,16 @@ install(TARGETS mnstat DESTINATION ${CMAKE_INSTALL_PREFIX}/bin COMPONENT core)
 
 ###
 
-add_executable(readline-test src/readline-test.cpp)
-
-target_compile_options(readline-test PRIVATE -fno-exceptions ${USERSPACE_CFLAGS})
-target_link_libraries(readline-test moxnox readline)
-
-if (CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
-    target_link_options(readline-test PUBLIC -mcrtdll=ucrtbase)
-endif()
-
-install(TARGETS readline-test DESTINATION ${CMAKE_INSTALL_PREFIX}/bin COMPONENT core)
+# add_executable(readline-test src/readline-test.cpp)
+#
+# target_compile_options(readline-test PRIVATE -fno-exceptions ${USERSPACE_CFLAGS})
+# target_link_libraries(readline-test moxnox readline)
+#
+# if (CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
+#     target_link_options(readline-test PUBLIC -mcrtdll=ucrtbase)
+# endif()
+#
+# install(TARGETS readline-test DESTINATION ${CMAKE_INSTALL_PREFIX}/bin COMPONENT core)
 
 ###
 
