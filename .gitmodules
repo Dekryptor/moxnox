@@ -117,7 +117,7 @@
 	url = https://github.com/JohnTitor/termize
 [submodule "ports/rust/rand"]
 	path = ports/rust/rand
-	url = https://git.burntcomma.com/moxnox/rand
+	url = https://github.com/rust-random/rand
 [submodule "ports/rust/libloading"]
 	path = ports/rust/libloading
 	url = https://git.burntcomma.com/moxnox/rust_libloading

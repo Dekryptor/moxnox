@@ -47,6 +47,7 @@ rust_export_crate(nix ${CMAKE_CURRENT_SOURCE_DIR}/nix ${CMAKE_CURRENT_SOURCE_DIR
 rust_export_crate(errno ${CMAKE_CURRENT_SOURCE_DIR}/errno ${CMAKE_CURRENT_SOURCE_DIR}/errno.patch)
 rust_export_crate(jobserver ${CMAKE_CURRENT_SOURCE_DIR}/jobserver ${CMAKE_CURRENT_SOURCE_DIR}/jobserver.patch)
 rust_export_crate(termize ${CMAKE_CURRENT_SOURCE_DIR}/termize ${CMAKE_CURRENT_SOURCE_DIR}/termize.patch)
+rust_export_crate(rand ${CMAKE_CURRENT_SOURCE_DIR}/rand ${CMAKE_CURRENT_SOURCE_DIR}/rand.patch)
 
 set(rust_patched_trees
     repo:moxnox.patch
@@ -56,6 +57,7 @@ set(rust_patched_trees
     errno:errno.patch
     jobserver:jobserver.patch
     termize:termize.patch
+    rand:rand.patch
 )
 
 set(rust_apply_commands)
