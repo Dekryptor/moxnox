@@ -43,11 +43,13 @@ set(rustc_main ${RUSTC_BUILD_DIR}/${RUST_BUILD_TRIPLE}/stage1-rustc/${RUST_TARGE
 
 rust_export_crate(libc ${CMAKE_CURRENT_SOURCE_DIR}/libc ${CMAKE_CURRENT_SOURCE_DIR}/libc.patch)
 rust_export_crate(rustix ${CMAKE_CURRENT_SOURCE_DIR}/rustix ${CMAKE_CURRENT_SOURCE_DIR}/rustix.patch)
+rust_export_crate(nix ${CMAKE_CURRENT_SOURCE_DIR}/nix ${CMAKE_CURRENT_SOURCE_DIR}/nix.patch)
 
 set(rust_patched_trees
     repo:moxnox.patch
     libc:libc.patch
     rustix:rustix.patch
+    nix:nix.patch
 )
 
 set(rust_apply_commands)

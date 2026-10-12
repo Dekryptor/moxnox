@@ -105,7 +105,7 @@
 	url = https://github.com/bytecodealliance/rustix
 [submodule "ports/rust/nix"]
 	path = ports/rust/nix
-	url = https://git.burntcomma.com/moxnox/nix
+	url = https://github.com/nix-rust/nix
 [submodule "ports/rust/errno"]
 	path = ports/rust/errno
 	url = https://git.burntcomma.com/moxnox/rust-errno

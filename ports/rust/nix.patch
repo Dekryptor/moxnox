@@ -1,0 +1,460 @@
+diff --git a/src/errno.rs b/src/errno.rs
+index 497e33db..06817cdc 100644
+--- a/src/errno.rs
++++ b/src/errno.rs
+@@ -48,6 +48,9 @@ cfg_if! {
+     } else if #[cfg(any(target_os = "aix"))] {
+         unsafe fn errno_location() -> *mut c_int {
+             unsafe { libc::_Errno() }
++        }    } else if #[cfg(target_os = "moxnox")] {
++        unsafe fn errno_location() -> *mut c_int {
++            unsafe { libc::_errno() }
+         }
+     }
+ }
+@@ -210,10 +213,12 @@ fn desc(errno: Errno) -> &'static str {
+         EBADF => "Bad file number",
+         ECHILD => "No child processes",
+         EAGAIN => "Try again",
++        #[cfg(target_os = "moxnox")]
++        EWOULDBLOCK => "Operation would block",
+         ENOMEM => "Out of memory",
+         EACCES => "Permission denied",
+         EFAULT => "Bad address",
+-        #[cfg(not(target_os = "haiku"))]
++        #[cfg(not(any(target_os = "moxnox", target_os = "haiku")))]
+         ENOTBLK => "Block device required",
+         EBUSY => "Device or resource busy",
+         EEXIST => "File exists",
+@@ -250,9 +255,9 @@ fn desc(errno: Errno) -> &'static str {
+         EPROTOTYPE => "Protocol wrong type for socket",
+         ENOPROTOOPT => "Protocol not available",
+         EPROTONOSUPPORT => "Protocol not supported",
+-        #[cfg(not(target_os = "haiku"))]
++        #[cfg(not(any(target_os = "moxnox", target_os = "haiku")))]
+         ESOCKTNOSUPPORT => "Socket type not supported",
+-        #[cfg(not(target_os = "haiku"))]
++        #[cfg(not(any(target_os = "moxnox", target_os = "haiku")))]
+         EPFNOSUPPORT => "Protocol family not supported",
+         #[cfg(not(target_os = "haiku"))]
+         EAFNOSUPPORT => "Address family not supported by protocol",
+@@ -266,11 +271,13 @@ fn desc(errno: Errno) -> &'static str {
+         ENOBUFS => "No buffer space available",
+         EISCONN => "Transport endpoint is already connected",
+         ENOTCONN => "Transport endpoint is not connected",
++        #[cfg(not(target_os = "moxnox"))]
+         ESHUTDOWN => "Cannot send after transport endpoint shutdown",
+-        #[cfg(not(target_os = "haiku"))]
++        #[cfg(not(any(target_os = "moxnox", target_os = "haiku")))]
+         ETOOMANYREFS => "Too many references: cannot splice",
+         ETIMEDOUT => "Connection timed out",
+         ECONNREFUSED => "Connection refused",
++        #[cfg(not(target_os = "moxnox"))]
+         EHOSTDOWN => "Host is down",
+         EHOSTUNREACH => "No route to host",
+ 
+@@ -486,6 +493,7 @@ fn desc(errno: Errno) -> &'static str {
+         EREMOTE => "Object is remote",
+ 
+         #[cfg(any(
++            target_os = "moxnox",
+             linux_android,
+             solarish,
+             target_os = "aix",
+@@ -522,6 +530,7 @@ fn desc(errno: Errno) -> &'static str {
+         ECOMM => "Communication error on send",
+ 
+         #[cfg(any(
++            target_os = "moxnox",
+             linux_android,
+             solarish,
+             target_os = "aix",
+@@ -549,6 +558,7 @@ fn desc(errno: Errno) -> &'static str {
+         EDOTDOT => "RFS specific error",
+ 
+         #[cfg(any(
++            target_os = "moxnox",
+             linux_android,
+             target_os = "aix",
+             target_os = "fuchsia",
+@@ -561,6 +571,7 @@ fn desc(errno: Errno) -> &'static str {
+         EBADMSG => "Trying to read unreadable message",
+ 
+         #[cfg(any(
++            target_os = "moxnox",
+             linux_android,
+             target_os = "aix",
+             target_os = "fuchsia",
+@@ -645,6 +656,7 @@ fn desc(errno: Errno) -> &'static str {
+         ELIBEXEC => "Cannot exec a shared library directly",
+ 
+         #[cfg(any(
++            target_os = "moxnox",
+             linux_android,
+             solarish,
+             target_os = "aix",
+@@ -683,6 +695,7 @@ fn desc(errno: Errno) -> &'static str {
+         EUSERS => "Too many users",
+ 
+         #[cfg(any(
++            target_os = "moxnox",
+             linux_android,
+             target_os = "fuchsia",
+             target_os = "netbsd",
+@@ -693,6 +706,7 @@ fn desc(errno: Errno) -> &'static str {
+         EOPNOTSUPP => "Operation not supported on transport endpoint",
+ 
+         #[cfg(any(
++            target_os = "moxnox",
+             linux_android,
+             target_os = "fuchsia",
+             target_os = "hurd",
+@@ -737,6 +751,7 @@ fn desc(errno: Errno) -> &'static str {
+         EREMOTEIO => "Remote I/O error",
+ 
+         #[cfg(any(
++            target_os = "moxnox",
+             linux_android,
+             target_os = "fuchsia",
+             target_os = "emscripten",
+@@ -763,6 +778,7 @@ fn desc(errno: Errno) -> &'static str {
+         EMEDIUMTYPE => "Wrong medium type",
+ 
+         #[cfg(any(
++            target_os = "moxnox",
+             linux_android,
+             solarish,
+             target_os = "fuchsia",
+@@ -801,6 +817,7 @@ fn desc(errno: Errno) -> &'static str {
+         EKEYREJECTED => "Key was rejected by service",
+ 
+         #[cfg(any(
++            target_os = "moxnox",
+             linux_android,
+             target_os = "aix",
+             target_os = "fuchsia",
+@@ -814,6 +831,7 @@ fn desc(errno: Errno) -> &'static str {
+         EOWNERDEAD => "Process died with lock",
+ 
+         #[cfg(any(
++            target_os = "moxnox",
+             linux_android,
+             target_os = "aix",
+             target_os = "fuchsia",
+@@ -911,6 +929,7 @@ fn desc(errno: Errno) -> &'static str {
+         EOWNERDEAD => "Previous owner died",
+ 
+         #[cfg(any(
++            target_os = "moxnox",
+             bsd,
+             target_os = "aix",
+             solarish,
+@@ -1621,6 +1640,180 @@ mod consts {
+     }
+ }
+ 
++#[cfg(target_os = "moxnox")]
++mod consts {
++    #[derive(Clone, Copy, Debug, Eq, PartialEq)]
++    #[repr(i32)]
++    #[non_exhaustive]
++    pub enum Errno {
++        UnknownErrno = 0,
++        EPERM = libc::EPERM,
++        ENOENT = libc::ENOENT,
++        ESRCH = libc::ESRCH,
++        EINTR = libc::EINTR,
++        EIO = libc::EIO,
++        ENXIO = libc::ENXIO,
++        E2BIG = libc::E2BIG,
++        ENOEXEC = libc::ENOEXEC,
++        EBADF = libc::EBADF,
++        ECHILD = libc::ECHILD,
++        EAGAIN = libc::EAGAIN,
++        ENOMEM = libc::ENOMEM,
++        EACCES = libc::EACCES,
++        EFAULT = libc::EFAULT,
++        EBUSY = libc::EBUSY,
++        EEXIST = libc::EEXIST,
++        EXDEV = libc::EXDEV,
++        ENODEV = libc::ENODEV,
++        ENOTDIR = libc::ENOTDIR,
++        EISDIR = libc::EISDIR,
++        EINVAL = libc::EINVAL,
++        ENFILE = libc::ENFILE,
++        EMFILE = libc::EMFILE,
++        ENOTTY = libc::ENOTTY,
++        EFBIG = libc::EFBIG,
++        ENOSPC = libc::ENOSPC,
++        ESPIPE = libc::ESPIPE,
++        EROFS = libc::EROFS,
++        EMLINK = libc::EMLINK,
++        EPIPE = libc::EPIPE,
++        EDOM = libc::EDOM,
++        ERANGE = libc::ERANGE,
++        EDEADLK = libc::EDEADLK,
++        ENAMETOOLONG = libc::ENAMETOOLONG,
++        ENOLCK = libc::ENOLCK,
++        ENOSYS = libc::ENOSYS,
++        ENOTEMPTY = libc::ENOTEMPTY,
++        EILSEQ = libc::EILSEQ,
++        EADDRINUSE = libc::EADDRINUSE,
++        EADDRNOTAVAIL = libc::EADDRNOTAVAIL,
++        EAFNOSUPPORT = libc::EAFNOSUPPORT,
++        EALREADY = libc::EALREADY,
++        EBADMSG = libc::EBADMSG,
++        ECANCELED = libc::ECANCELED,
++        ECONNABORTED = libc::ECONNABORTED,
++        ECONNREFUSED = libc::ECONNREFUSED,
++        ECONNRESET = libc::ECONNRESET,
++        EDESTADDRREQ = libc::EDESTADDRREQ,
++        EHOSTUNREACH = libc::EHOSTUNREACH,
++        EIDRM = libc::EIDRM,
++        EINPROGRESS = libc::EINPROGRESS,
++        EISCONN = libc::EISCONN,
++        ELOOP = libc::ELOOP,
++        EMSGSIZE = libc::EMSGSIZE,
++        ENETDOWN = libc::ENETDOWN,
++        ENETRESET = libc::ENETRESET,
++        ENETUNREACH = libc::ENETUNREACH,
++        ENOBUFS = libc::ENOBUFS,
++        ENOLINK = libc::ENOLINK,
++        ENOMSG = libc::ENOMSG,
++        ENOPROTOOPT = libc::ENOPROTOOPT,
++        ENOTCONN = libc::ENOTCONN,
++        ENOTRECOVERABLE = libc::ENOTRECOVERABLE,
++        ENOTSOCK = libc::ENOTSOCK,
++        ENOTSUP = libc::ENOTSUP,
++        EOPNOTSUPP = libc::EOPNOTSUPP,
++        EOVERFLOW = libc::EOVERFLOW,
++        EOWNERDEAD = libc::EOWNERDEAD,
++        EPROTO = libc::EPROTO,
++        EPROTONOSUPPORT = libc::EPROTONOSUPPORT,
++        EPROTOTYPE = libc::EPROTOTYPE,
++        ETIMEDOUT = libc::ETIMEDOUT,
++        ETXTBSY = libc::ETXTBSY,
++        EWOULDBLOCK = libc::EWOULDBLOCK,
++        ESTALE = libc::ESTALE,
++        EDQUOT = libc::EDQUOT,
++    }
++
++    #[deprecated(
++        since = "0.28.0",
++        note = "please use `Errno::from_raw()` instead"
++    )]
++    pub const fn from_i32(e: i32) -> Errno {
++        use self::Errno::*;
++
++        match e {
++            libc::EPERM => EPERM,
++            libc::ENOENT => ENOENT,
++            libc::ESRCH => ESRCH,
++            libc::EINTR => EINTR,
++            libc::EIO => EIO,
++            libc::ENXIO => ENXIO,
++            libc::E2BIG => E2BIG,
++            libc::ENOEXEC => ENOEXEC,
++            libc::EBADF => EBADF,
++            libc::ECHILD => ECHILD,
++            libc::EAGAIN => EAGAIN,
++            libc::ENOMEM => ENOMEM,
++            libc::EACCES => EACCES,
++            libc::EFAULT => EFAULT,
++            libc::EBUSY => EBUSY,
++            libc::EEXIST => EEXIST,
++            libc::EXDEV => EXDEV,
++            libc::ENODEV => ENODEV,
++            libc::ENOTDIR => ENOTDIR,
++            libc::EISDIR => EISDIR,
++            libc::EINVAL => EINVAL,
++            libc::ENFILE => ENFILE,
++            libc::EMFILE => EMFILE,
++            libc::ENOTTY => ENOTTY,
++            libc::EFBIG => EFBIG,
++            libc::ENOSPC => ENOSPC,
++            libc::ESPIPE => ESPIPE,
++            libc::EROFS => EROFS,
++            libc::EMLINK => EMLINK,
++            libc::EPIPE => EPIPE,
++            libc::EDOM => EDOM,
++            libc::ERANGE => ERANGE,
++            libc::EDEADLK => EDEADLK,
++            libc::ENAMETOOLONG => ENAMETOOLONG,
++            libc::ENOLCK => ENOLCK,
++            libc::ENOSYS => ENOSYS,
++            libc::ENOTEMPTY => ENOTEMPTY,
++            libc::EILSEQ => EILSEQ,
++            libc::EADDRINUSE => EADDRINUSE,
++            libc::EADDRNOTAVAIL => EADDRNOTAVAIL,
++            libc::EAFNOSUPPORT => EAFNOSUPPORT,
++            libc::EALREADY => EALREADY,
++            libc::EBADMSG => EBADMSG,
++            libc::ECANCELED => ECANCELED,
++            libc::ECONNABORTED => ECONNABORTED,
++            libc::ECONNREFUSED => ECONNREFUSED,
++            libc::ECONNRESET => ECONNRESET,
++            libc::EDESTADDRREQ => EDESTADDRREQ,
++            libc::EHOSTUNREACH => EHOSTUNREACH,
++            libc::EIDRM => EIDRM,
++            libc::EINPROGRESS => EINPROGRESS,
++            libc::EISCONN => EISCONN,
++            libc::ELOOP => ELOOP,
++            libc::EMSGSIZE => EMSGSIZE,
++            libc::ENETDOWN => ENETDOWN,
++            libc::ENETRESET => ENETRESET,
++            libc::ENETUNREACH => ENETUNREACH,
++            libc::ENOBUFS => ENOBUFS,
++            libc::ENOLINK => ENOLINK,
++            libc::ENOMSG => ENOMSG,
++            libc::ENOPROTOOPT => ENOPROTOOPT,
++            libc::ENOTCONN => ENOTCONN,
++            libc::ENOTRECOVERABLE => ENOTRECOVERABLE,
++            libc::ENOTSOCK => ENOTSOCK,
++            libc::ENOTSUP => ENOTSUP,
++            libc::EOPNOTSUPP => EOPNOTSUPP,
++            libc::EOVERFLOW => EOVERFLOW,
++            libc::EOWNERDEAD => EOWNERDEAD,
++            libc::EPROTO => EPROTO,
++            libc::EPROTONOSUPPORT => EPROTONOSUPPORT,
++            libc::EPROTOTYPE => EPROTOTYPE,
++            libc::ETIMEDOUT => ETIMEDOUT,
++            libc::ETXTBSY => ETXTBSY,
++            libc::EWOULDBLOCK => EWOULDBLOCK,
++            libc::ESTALE => ESTALE,
++            libc::EDQUOT => EDQUOT,
++            _ => UnknownErrno,
++        }
++    }
++}
++
+ #[cfg(target_os = "freebsd")]
+ mod consts {
+     #[derive(Clone, Copy, Debug, Eq, PartialEq)]
+diff --git a/src/sys/signal.rs b/src/sys/signal.rs
+index 2b0c779b..2af4563a 100644
+--- a/src/sys/signal.rs
++++ b/src/sys/signal.rs
+@@ -13,6 +13,7 @@ use std::str::FromStr;
+ #[cfg(not(any(
+     target_os = "fuchsia",
+     target_os = "hurd",
++    target_os = "moxnox",
+     target_os = "openbsd",
+     target_os = "redox"
+ )))]
+@@ -95,7 +96,7 @@ libc_enum! {
+         /// Window size changes
+         SIGWINCH,
+         /// Input/output possible signal
+-        #[cfg(not(target_os = "haiku"))]
++        #[cfg(not(any(target_os = "haiku", target_os = "moxnox")))]
+         SIGIO,
+         #[cfg(any(linux_android, target_os = "emscripten",
+                   target_os = "fuchsia", target_os = "aix"))]
+@@ -110,7 +111,8 @@ libc_enum! {
+         SIGEMT,
+         #[cfg(not(any(linux_android, target_os = "emscripten",
+                       target_os = "fuchsia", target_os = "redox",
+-                      target_os = "haiku", target_os = "aix",
++                      target_os = "haiku",
++                target_os = "moxnox", target_os = "moxnox", target_os = "aix",
+                       target_os = "solaris", target_os = "cygwin")))]
+         /// Information request
+         SIGINFO,
+@@ -166,7 +168,7 @@ impl FromStr for Signal {
+             "SIGVTALRM" => Signal::SIGVTALRM,
+             "SIGPROF" => Signal::SIGPROF,
+             "SIGWINCH" => Signal::SIGWINCH,
+-            #[cfg(not(target_os = "haiku"))]
++            #[cfg(not(any(target_os = "haiku", target_os = "moxnox")))]
+             "SIGIO" => Signal::SIGIO,
+             #[cfg(any(
+                 linux_android,
+@@ -190,6 +192,7 @@ impl FromStr for Signal {
+                 target_os = "redox",
+                 target_os = "aix",
+                 target_os = "haiku",
++                target_os = "moxnox",
+                 target_os = "solaris",
+                 target_os = "cygwin"
+             )))]
+@@ -251,7 +254,7 @@ impl Signal {
+             Signal::SIGVTALRM => "SIGVTALRM",
+             Signal::SIGPROF => "SIGPROF",
+             Signal::SIGWINCH => "SIGWINCH",
+-            #[cfg(not(target_os = "haiku"))]
++            #[cfg(not(any(target_os = "haiku", target_os = "moxnox")))]
+             Signal::SIGIO => "SIGIO",
+             #[cfg(any(
+                 linux_android,
+@@ -276,6 +279,7 @@ impl Signal {
+                 target_os = "redox",
+                 target_os = "aix",
+                 target_os = "haiku",
++                target_os = "moxnox",
+                 target_os = "solaris",
+                 target_os = "cygwin"
+             )))]
+@@ -361,6 +365,15 @@ const SIGNALS: [Signal; 30] = [
+     SIGURG, SIGPOLL, SIGIO, SIGSTOP, SIGTSTP, SIGCONT, SIGTTIN, SIGTTOU,
+     SIGVTALRM, SIGPROF, SIGXCPU, SIGXFSZ, SIGTRAP,
+ ];
++#[cfg(target_os = "moxnox")]
++#[cfg(feature = "signal")]
++const SIGNALS: [Signal; 29] = [
++    SIGHUP, SIGINT, SIGQUIT, SIGILL, SIGTRAP, SIGABRT, SIGBUS, SIGFPE, SIGKILL,
++    SIGUSR1, SIGSEGV, SIGUSR2, SIGPIPE, SIGALRM, SIGTERM, SIGCHLD, SIGCONT,
++    SIGSTOP, SIGTSTP, SIGTTIN, SIGTTOU, SIGURG, SIGXCPU, SIGXFSZ, SIGVTALRM,
++    SIGPROF, SIGWINCH, SIGSYS, SIGEMT,
++];
++
+ #[cfg(any(target_os = "solaris", target_os = "cygwin"))]
+ #[cfg(feature = "signal")]
+ const SIGNALS: [Signal; 30] = [
+@@ -374,6 +387,7 @@ const SIGNALS: [Signal; 30] = [
+     target_os = "fuchsia",
+     target_os = "emscripten",
+     target_os = "aix",
++    target_os = "moxnox",
+     target_os = "redox",
+     target_os = "haiku",
+     target_os = "solaris",
+@@ -420,7 +434,7 @@ impl Signal {
+ /// Alias for [`SIGABRT`]
+ pub const SIGIOT : Signal = SIGABRT;
+ /// Alias for [`SIGIO`]
+-#[cfg(not(target_os = "haiku"))]
++#[cfg(not(any(target_os = "haiku", target_os = "moxnox")))]
+ pub const SIGPOLL : Signal = SIGIO;
+ /// Alias for [`SIGSYS`]
+ pub const SIGUNUSED : Signal = SIGSYS;
+@@ -1156,6 +1170,7 @@ pub enum SigevNotify<'fd> {
+ #[cfg(not(any(
+     target_os = "fuchsia",
+     target_os = "hurd",
++    target_os = "moxnox",
+     target_os = "openbsd",
+     target_os = "redox"
+ )))]
+diff --git a/src/sys/wait.rs b/src/sys/wait.rs
+index 844e165c..a399e879 100644
+--- a/src/sys/wait.rs
++++ b/src/sys/wait.rs
+@@ -147,10 +147,17 @@ fn term_signal(status: i32) -> Result<Signal> {
+     Signal::try_from(libc::WTERMSIG(status))
+ }
+ 
++#[cfg(not(target_os = "moxnox"))]
+ fn dumped_core(status: i32) -> bool {
+     libc::WCOREDUMP(status)
+ }
+ 
++// Moxnox's wait status does not expose a core-dump flag
++#[cfg(target_os = "moxnox")]
++fn dumped_core(_status: i32) -> bool {
++    false
++}
++
+ fn stopped(status: i32) -> bool {
+     libc::WIFSTOPPED(status)
+ }
