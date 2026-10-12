@@ -146,3 +146,5 @@
 	insteadOf = https://github.com/RazrFalcon/memmap2-rs
 [url "https://git.burntcomma.com/moxnox/terminal-size"]
 	insteadOf = https://github.com/eminence/terminal-size
+[url "https://git.burntcomma.com/moxnox/ripgrep"]
+	insteadOf = https://github.com/BurntSushi/ripgrep

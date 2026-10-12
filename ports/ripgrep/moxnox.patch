@@ -1,0 +1,37 @@
+diff --git a/Cargo.lock b/Cargo.lock
+index 7f7ef84..4265b37 100644
+--- a/Cargo.lock
++++ b/Cargo.lock
+@@ -280,9 +280,7 @@ checksum = "9fa0e2a1fcbe2f6be6c42e342259976206b383122fc152e872795338b5a3f3a7"
+ 
+ [[package]]
+ name = "libc"
+-version = "0.2.177"
+-source = "registry+https://github.com/rust-lang/crates.io-index"
+-checksum = "2874a2af47a2325c2001a6e6fad9b16a53b802102b528163885171cf92b15976"
++version = "0.2.178"
+ 
+ [[package]]
+ name = "log"
+@@ -299,8 +297,6 @@ checksum = "f52b00d39961fc5b2736ea853c9cc86238e165017a493d1d5c8eac6bdc4cc273"
+ [[package]]
+ name = "memmap2"
+ version = "0.9.9"
+-source = "registry+https://github.com/rust-lang/crates.io-index"
+-checksum = "744133e4a0e0a658e1374cf3bf8e415c4052a15a111acd372764c55b4177d490"
+ dependencies = [
+  "libc",
+ ]
+diff --git a/crates/cli/src/hostname.rs b/crates/cli/src/hostname.rs
+index ef50747..e8c942f 100644
+--- a/crates/cli/src/hostname.rs
++++ b/crates/cli/src/hostname.rs
+@@ -57,7 +57,7 @@ fn gethostname() -> io::Result<OsString> {
+     // Vec. Similarly, `maxlen` is the length of our Vec, and is thus valid
+     // to write to.
+     let rc = unsafe {
+-        libc::gethostname(buf.as_mut_ptr().cast::<libc::c_char>(), maxlen)
++        libc::gethostname(buf.as_mut_ptr().cast::<libc::c_char>(), maxlen as _)
+     };
+     if rc == -1 {
+         return Err(io::Error::last_os_error());

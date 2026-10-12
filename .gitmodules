@@ -135,7 +135,7 @@
 	url = https://github.com/rust-lang/stacker
 [submodule "ports/ripgrep/repo"]
 	path = ports/ripgrep/repo
-	url = https://git.burntcomma.com/moxnox/ripgrep
+	url = https://github.com/BurntSushi/ripgrep
 [submodule "ports/ripgrep/memmap2"]
 	path = ports/ripgrep/memmap2
 	url = https://github.com/RazrFalcon/memmap2-rs
