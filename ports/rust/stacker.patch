@@ -1,0 +1,29 @@
+diff --git a/psm/build.rs b/psm/build.rs
+index 1747466..75b80ee 100644
+--- a/psm/build.rs
++++ b/psm/build.rs
+@@ -27,6 +27,11 @@ fn find_assembly(
+         ("x86_64", _, "cygwin", _) => {
+             Some(("src/arch/x86_64_windows_gnu.s", false))
+         }
++        // Moxnox is PE/COFF with the Microsoft x86-64 calling convention
++        ("x86_64", _, "moxnox", _) => {
++            Some(("src/arch/x86_64_windows_gnu.s", false))
++        }
++        ("aarch64", _, "moxnox", _) => Some(("src/arch/aarch_aapcs64.s", false)),
+         ("arm", _, "windows", "msvc") => Some(("src/arch/arm_armasm.asm", false)),
+         ("aarch64", _, "windows", _) => {
+             if masm {
+diff --git a/psm/src/arch/aarch_aapcs64.s b/psm/src/arch/aarch_aapcs64.s
+index d2851a9..6f14ece 100644
+--- a/psm/src/arch/aarch_aapcs64.s
++++ b/psm/src/arch/aarch_aapcs64.s
+@@ -9,7 +9,7 @@
+ #define FUNCTION(fnname) _##fnname
+ #define END_FUNCTION(fnname)
+ 
+-#elif CFG_TARGET_OS_windows
++#elif CFG_TARGET_OS_windows || CFG_TARGET_OS_moxnox
+ 
+ #define GLOBL(fnname) .globl fnname
+ #define TYPE(fnname)

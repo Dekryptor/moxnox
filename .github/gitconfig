@@ -140,3 +140,5 @@
 	insteadOf = https://github.com/nagisa/rust_libloading
 [url "https://git.burntcomma.com/moxnox/getrandom"]
 	insteadOf = https://github.com/rust-random/getrandom
+[url "https://git.burntcomma.com/moxnox/stacker"]
+	insteadOf = https://github.com/rust-lang/stacker
