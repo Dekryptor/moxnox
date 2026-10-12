@@ -126,10 +126,10 @@
 	url = https://github.com/nagisa/rust_libloading
 [submodule "ports/rust/getrandom"]
 	path = ports/rust/getrandom
-	url = https://git.burntcomma.com/moxnox/getrandom
+	url = https://github.com/rust-random/getrandom
 [submodule "ports/rust/getrandom-0.2"]
 	path = ports/rust/getrandom-0.2
-	url = https://git.burntcomma.com/moxnox/getrandom
+	url = https://github.com/rust-random/getrandom
 [submodule "ports/rust/stacker"]
 	path = ports/rust/stacker
 	url = https://git.burntcomma.com/moxnox/stacker
