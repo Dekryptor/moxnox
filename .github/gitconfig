@@ -118,3 +118,5 @@
 	insteadOf = git://gcc.gnu.org/git/gcc.git
 [url "https://git.burntcomma.com/moxnox/llvm-project"]
 	insteadOf = https://github.com/llvm/llvm-project
+[url "https://git.burntcomma.com/moxnox/libuv"]
+	insteadOf = https://github.com/libuv/libuv

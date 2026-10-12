@@ -106,6 +106,11 @@ install(FILES
 install(FILES ${GEN}/Modules/CMakeDetermineSystem.cmake
     DESTINATION ${CMAKE_PORT_DATA_DIR}/Modules)
 
+foreach(target cmake CMakeLib ctest CTestLib cpack CPackLib)
+    target_include_directories(${target} PRIVATE ${CMAKE_SOURCE_DIR}/ports/libuv)
+    target_compile_options(${target} PRIVATE "SHELL:-include ${CMAKE_SOURCE_DIR}/ports/libuv/repo/include/uv/posix.h")
+endforeach()
+
 target_compile_options(cmake PRIVATE ${USERSPACE_CFLAGS} -Wno-sign-conversion -Wno-implicit-int-conversion $<$<COMPILE_LANGUAGE:CXX>:-frtti>)
 target_compile_options(CMakeLib PRIVATE ${USERSPACE_CFLAGS} -Wno-sign-conversion -Wno-implicit-int-conversion -Wno-float-conversion -Wno-implicit-int-float-conversion -Wno-conversion $<$<COMPILE_LANGUAGE:CXX>:-frtti>)
 target_compile_options(cmllpkgc PRIVATE ${USERSPACE_CFLAGS} -Wno-sign-conversion $<$<COMPILE_LANGUAGE:CXX>:-frtti>)

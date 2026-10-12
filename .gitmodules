@@ -162,7 +162,7 @@
 	url = https://github.com/rhash/RHash
 [submodule "ports/libuv/repo"]
 	path = ports/libuv/repo
-	url = https://git.burntcomma.com/moxnox/libuv
+	url = https://github.com/libuv/libuv
 [submodule "ports/cmake/repo"]
 	path = ports/cmake/repo
 	url = https://gitlab.kitware.com/cmake/cmake
