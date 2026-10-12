@@ -1,0 +1,24 @@
+diff --git a/src/unix.rs b/src/unix.rs
+index 2758e31..61dedf2 100644
+--- a/src/unix.rs
++++ b/src/unix.rs
+@@ -339,12 +339,19 @@ impl Client {
+         }
+     }
+ 
++    #[cfg(not(target_os = "moxnox"))]
+     pub fn available(&self) -> io::Result<usize> {
+         let mut len = MaybeUninit::<c_int>::uninit();
+         cvt(unsafe { libc::ioctl(self.read.as_raw_fd(), libc::FIONREAD, len.as_mut_ptr()) })?;
+         Ok(unsafe { len.assume_init() } as usize)
+     }
+ 
++    // no ioctl on moxnox, so the queued-token count cannot be queried
++    #[cfg(target_os = "moxnox")]
++    pub fn available(&self) -> io::Result<usize> {
++        Err(io::Error::new(io::ErrorKind::Unsupported, "FIONREAD is not available on moxnox"))
++    }
++
+     pub fn configure(&self, cmd: &mut Command) {
+         if matches!(self.creation_arg, ClientCreationArg::Fifo { .. }) {
+             // We `File::open`ed it when inheriting from environment,

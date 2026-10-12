@@ -45,6 +45,7 @@ rust_export_crate(libc ${CMAKE_CURRENT_SOURCE_DIR}/libc ${CMAKE_CURRENT_SOURCE_D
 rust_export_crate(rustix ${CMAKE_CURRENT_SOURCE_DIR}/rustix ${CMAKE_CURRENT_SOURCE_DIR}/rustix.patch)
 rust_export_crate(nix ${CMAKE_CURRENT_SOURCE_DIR}/nix ${CMAKE_CURRENT_SOURCE_DIR}/nix.patch)
 rust_export_crate(errno ${CMAKE_CURRENT_SOURCE_DIR}/errno ${CMAKE_CURRENT_SOURCE_DIR}/errno.patch)
+rust_export_crate(jobserver ${CMAKE_CURRENT_SOURCE_DIR}/jobserver ${CMAKE_CURRENT_SOURCE_DIR}/jobserver.patch)
 
 set(rust_patched_trees
     repo:moxnox.patch
@@ -52,6 +53,7 @@ set(rust_patched_trees
     rustix:rustix.patch
     nix:nix.patch
     errno:errno.patch
+    jobserver:jobserver.patch
 )
 
 set(rust_apply_commands)

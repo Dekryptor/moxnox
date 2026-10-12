@@ -111,7 +111,7 @@
 	url = https://github.com/lambda-fairy/rust-errno
 [submodule "ports/rust/jobserver"]
 	path = ports/rust/jobserver
-	url = https://git.burntcomma.com/moxnox/jobserver-rs
+	url = https://github.com/rust-lang/jobserver-rs
 [submodule "ports/rust/termize"]
 	path = ports/rust/termize
 	url = https://git.burntcomma.com/moxnox/termize
