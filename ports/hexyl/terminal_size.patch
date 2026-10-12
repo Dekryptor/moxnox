@@ -1,0 +1,56 @@
+diff --git a/Cargo.toml b/Cargo.toml
+index d64fffa..49ea233 100644
+--- a/Cargo.toml
++++ b/Cargo.toml
+@@ -11,7 +11,10 @@ edition = "2021"
+ rust-version = "1.63"
+ 
+ 
+-[target.'cfg(not(windows))'.dependencies]
++[target.'cfg(target_os = "moxnox")'.dependencies]
++libc = "0.2"
++
++[target.'cfg(not(any(windows, target_os = "moxnox")))'.dependencies]
+ rustix = { version = "0.38.0", features = ["termios"] }
+ 
+ [target.'cfg(windows)'.dependencies.windows-sys]
+diff --git a/src/unix.rs b/src/unix.rs
+index a07b5e8..eefa480 100644
+--- a/src/unix.rs
++++ b/src/unix.rs
+@@ -21,6 +21,35 @@ pub fn terminal_size() -> Option<(Width, Height)> {
+ /// Returns the size of the terminal using the given file descriptor, if available.
+ ///
+ /// If the given file descriptor is not a tty, returns `None`
++///
++/// Moxnox provides the POSIX.1-2024 tcgetwinsize directly.
++#[cfg(target_os = "moxnox")]
++pub fn terminal_size_of<Fd: AsFd>(fd: Fd) -> Option<(Width, Height)> {
++    use std::os::unix::io::AsRawFd;
++
++    let fd = fd.as_fd().as_raw_fd();
++    unsafe {
++        if libc::isatty(fd) == 0 {
++            return None;
++        }
++
++        let mut winsize = libc::winsize { ws_row: 0, ws_col: 0 };
++        if libc::tcgetwinsize(fd, &mut winsize) != 0 {
++            return None;
++        }
++
++        if winsize.ws_row > 0 && winsize.ws_col > 0 {
++            Some((Width(winsize.ws_col), Height(winsize.ws_row)))
++        } else {
++            None
++        }
++    }
++}
++
++/// Returns the size of the terminal using the given file descriptor, if available.
++///
++/// If the given file descriptor is not a tty, returns `None`
++#[cfg(not(target_os = "moxnox"))]
+ pub fn terminal_size_of<Fd: AsFd>(fd: Fd) -> Option<(Width, Height)> {
+     use rustix::termios::{isatty, tcgetwinsize};
+ 

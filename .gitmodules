@@ -144,7 +144,7 @@
 	url = https://git.burntcomma.com/moxnox/hexyl
 [submodule "ports/hexyl/terminal_size"]
 	path = ports/hexyl/terminal_size
-	url = https://git.burntcomma.com/moxnox/terminal-size
+	url = https://github.com/eminence/terminal-size
 [submodule "ports/bzip2/repo"]
 	path = ports/bzip2/repo
 	url = git://sourceware.org/git/bzip2.git

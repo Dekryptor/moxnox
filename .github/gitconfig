@@ -144,3 +144,5 @@
 	insteadOf = https://github.com/rust-lang/stacker
 [url "https://git.burntcomma.com/moxnox/memmap2-rs"]
 	insteadOf = https://github.com/RazrFalcon/memmap2-rs
+[url "https://git.burntcomma.com/moxnox/terminal-size"]
+	insteadOf = https://github.com/eminence/terminal-size
