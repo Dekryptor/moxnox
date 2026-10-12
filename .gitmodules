@@ -90,7 +90,7 @@
 	url = git://gcc.gnu.org/git/gcc.git
 [submodule "ports/llvm/repo"]
 	path = ports/llvm/repo
-	url = https://git.burntcomma.com/moxnox/llvm-cc
+	url = https://github.com/llvm/llvm-project
 [submodule "ports/make/repo"]
 	path = ports/make/repo
 	url = git://git.savannah.gnu.org/make

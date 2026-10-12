@@ -92,12 +92,15 @@ set(llvm_args
 
 add_custom_command(
     OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/llvm.stamp
+    COMMAND sh -c "cd '${CMAKE_CURRENT_SOURCE_DIR}/repo' && if git apply --check -R '${CMAKE_CURRENT_SOURCE_DIR}/moxnox.patch' 2>/dev/null; then :; elif git status --porcelain | grep -q .; then echo 'ports/llvm/repo has local changes or leftover files, not applying moxnox.patch:' >&2; git status --porcelain >&2; exit 1; else git apply '${CMAKE_CURRENT_SOURCE_DIR}/moxnox.patch'; fi"
     COMMAND ${CMAKE_COMMAND} -S ${CMAKE_CURRENT_SOURCE_DIR}/repo/llvm
         -B ${LLVM_NATIVE_BUILD} ${llvm_args}
     COMMAND ${CMAKE_COMMAND} --build ${LLVM_NATIVE_BUILD}
     COMMAND ${CMAKE_COMMAND} -E env DESTDIR=${LLVM_NATIVE_DEST}
         ${CMAKE_COMMAND} --build ${LLVM_NATIVE_BUILD} --target install/strip
+    COMMAND sh -c "cd '${CMAKE_CURRENT_SOURCE_DIR}/repo' && git apply -R '${CMAKE_CURRENT_SOURCE_DIR}/moxnox.patch'"
     COMMAND ${CMAKE_COMMAND} -E touch ${CMAKE_CURRENT_BINARY_DIR}/llvm.stamp
+    DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/moxnox.patch
     USES_TERMINAL
     COMMENT "Building native LLVM (${LLVM_NATIVE_HOST_TRIPLE} hosted)"
     VERBATIM
@@ -151,12 +154,16 @@ if(CMAKE_SYSTEM_PROCESSOR STREQUAL "aarch64")
 
     add_custom_command(
         OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/llvm-runtimes.stamp
+        COMMAND sh -c "cd '${CMAKE_CURRENT_SOURCE_DIR}/repo' && if git apply --check -R '${CMAKE_CURRENT_SOURCE_DIR}/moxnox.patch' 2>/dev/null; then :; elif git status --porcelain | grep -q .; then echo 'ports/llvm/repo has local changes or leftover files, not applying moxnox.patch:' >&2; git status --porcelain >&2; exit 1; else git apply '${CMAKE_CURRENT_SOURCE_DIR}/moxnox.patch'; fi"
         COMMAND ${CMAKE_COMMAND} -S ${CMAKE_CURRENT_SOURCE_DIR}/repo/runtimes
             -B ${CMAKE_CURRENT_BINARY_DIR}/runtimes-build ${llvm_runtimes_args}
         COMMAND ${CMAKE_COMMAND} --build ${CMAKE_CURRENT_BINARY_DIR}/runtimes-build
         COMMAND ${CMAKE_COMMAND} -E env DESTDIR=${LLVM_NATIVE_DEST}
             ${CMAKE_COMMAND} --build ${CMAKE_CURRENT_BINARY_DIR}/runtimes-build --target install
+        COMMAND sh -c "cd '${CMAKE_CURRENT_SOURCE_DIR}/repo' && git apply -R '${CMAKE_CURRENT_SOURCE_DIR}/moxnox.patch'"
         COMMAND ${CMAKE_COMMAND} -E touch ${CMAKE_CURRENT_BINARY_DIR}/llvm-runtimes.stamp
+        # the two builds patch and unpatch the same submodule, so they must not overlap
+        DEPENDS ${CMAKE_CURRENT_BINARY_DIR}/llvm.stamp ${CMAKE_CURRENT_SOURCE_DIR}/moxnox.patch
         USES_TERMINAL
         COMMENT "Building LLVM runtimes (${LLVM_NATIVE_HOST_TRIPLE})"
         VERBATIM

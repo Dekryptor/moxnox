@@ -116,3 +116,5 @@
 	insteadOf = git://git.git.savannah.gnu.org/gperf.git
 [url "https://git.burntcomma.com/moxnox/gcc"]
 	insteadOf = git://gcc.gnu.org/git/gcc.git
+[url "https://git.burntcomma.com/moxnox/llvm-project"]
+	insteadOf = https://github.com/llvm/llvm-project
