@@ -132,3 +132,5 @@
 	insteadOf = https://github.com/lambda-fairy/rust-errno
 [url "https://git.burntcomma.com/moxnox/jobserver-rs"]
 	insteadOf = https://github.com/rust-lang/jobserver-rs
+[url "https://git.burntcomma.com/moxnox/termize"]
+	insteadOf = https://github.com/JohnTitor/termize

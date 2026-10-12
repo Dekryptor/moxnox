@@ -1,0 +1,79 @@
+diff --git a/src/platform/unix.rs b/src/platform/unix.rs
+index 3f7b829..a1b3642 100644
+--- a/src/platform/unix.rs
++++ b/src/platform/unix.rs
+@@ -1,29 +1,42 @@
+ // Suppress warnings for `TIOCGWINSZ.into()` since freebsd requires it.
+ #![allow(clippy::useless_conversion)]
+ 
+-use libc::{STDERR_FILENO, STDIN_FILENO, STDOUT_FILENO, TIOCGWINSZ, ioctl, winsize};
++use libc::{STDERR_FILENO, STDIN_FILENO, STDOUT_FILENO, winsize};
++#[cfg(not(target_os = "moxnox"))]
++use libc::{TIOCGWINSZ, ioctl};
+ use std::{fs::File, mem::zeroed, os::fd::AsRawFd};
+ 
++#[cfg(not(target_os = "moxnox"))]
++unsafe fn query(fd: libc::c_int, window: &mut winsize) -> libc::c_int {
++    unsafe { ioctl(fd, TIOCGWINSZ.into(), window) }
++}
++
++// Moxnox has no ioctl; tcgetwinsize is the POSIX 2024 equivalent
++#[cfg(target_os = "moxnox")]
++unsafe fn query(fd: libc::c_int, window: &mut winsize) -> libc::c_int {
++    unsafe { libc::tcgetwinsize(fd, window) }
++}
++
+ /// Runs the ioctl command. Returns (0, 0) if all of the streams are not to a terminal, or
+ /// there is an error. (0, 0) is an invalid size to have anyway, which is why
+ /// it can be used as a nil value.
+ /// If none of `stdout`, `stdin` and `stderr` is a terminal, `/dev/tty` will be queried.
+ unsafe fn get_dimensions_any() -> winsize {
+     let mut window: winsize = unsafe { zeroed() };
+-    let mut result = unsafe { ioctl(STDOUT_FILENO, TIOCGWINSZ.into(), &mut window) };
++    let mut result = unsafe { query(STDOUT_FILENO, &mut window) };
+ 
+     if result == -1 {
+         window = unsafe { zeroed() };
+-        result = unsafe { ioctl(STDIN_FILENO, TIOCGWINSZ.into(), &mut window) };
++        result = unsafe { query(STDIN_FILENO, &mut window) };
+         if result == -1 {
+             window = unsafe { zeroed() };
+-            result = unsafe { ioctl(STDERR_FILENO, TIOCGWINSZ.into(), &mut window) };
++            result = unsafe { query(STDERR_FILENO, &mut window) };
+             if result == -1 {
+                 window = unsafe { zeroed() };
+                 let Ok(tty) = File::options().read(true).open("/dev/tty") else {
+                     return unsafe { zeroed() };
+                 };
+-                result = unsafe { ioctl(tty.as_raw_fd(), TIOCGWINSZ.into(), &mut window) };
++                result = unsafe { query(tty.as_raw_fd(), &mut window) };
+                 if result == -1 {
+                     return unsafe { zeroed() };
+                 }
+@@ -38,7 +51,7 @@ unsafe fn get_dimensions_any() -> winsize {
+ /// it can be used as a nil value.
+ unsafe fn get_dimensions_out() -> winsize {
+     let mut window: winsize = unsafe { zeroed() };
+-    let result = unsafe { ioctl(STDOUT_FILENO, TIOCGWINSZ.into(), &mut window) };
++    let result = unsafe { query(STDOUT_FILENO, &mut window) };
+ 
+     if result != -1 {
+         return window;
+@@ -51,7 +64,7 @@ unsafe fn get_dimensions_out() -> winsize {
+ /// it can be used as a nil value.
+ unsafe fn get_dimensions_in() -> winsize {
+     let mut window: winsize = unsafe { zeroed() };
+-    let result = unsafe { ioctl(STDIN_FILENO, TIOCGWINSZ.into(), &mut window) };
++    let result = unsafe { query(STDIN_FILENO, &mut window) };
+ 
+     if result != -1 {
+         return window;
+@@ -64,7 +77,7 @@ unsafe fn get_dimensions_in() -> winsize {
+ /// it can be used as a nil value.
+ unsafe fn get_dimensions_err() -> winsize {
+     let mut window: winsize = unsafe { zeroed() };
+-    let result = unsafe { ioctl(STDERR_FILENO, TIOCGWINSZ.into(), &mut window) };
++    let result = unsafe { query(STDERR_FILENO, &mut window) };
+ 
+     if result != -1 {
+         return window;

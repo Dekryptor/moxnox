@@ -114,7 +114,7 @@
 	url = https://github.com/rust-lang/jobserver-rs
 [submodule "ports/rust/termize"]
 	path = ports/rust/termize
-	url = https://git.burntcomma.com/moxnox/termize
+	url = https://github.com/JohnTitor/termize
 [submodule "ports/rust/rand"]
 	path = ports/rust/rand
 	url = https://git.burntcomma.com/moxnox/rand
