@@ -1,0 +1,1490 @@
+diff --git a/Cargo.lock b/Cargo.lock
+index 9ff977e3d94..e4060c8297d 100644
+--- a/Cargo.lock
++++ b/Cargo.lock
+@@ -1212,7 +1212,7 @@ dependencies = [
+  "libc",
+  "option-ext",
+  "redox_users",
+- "windows-sys 0.61.2",
++ "windows-sys 0.59.0",
+ ]
+ 
+ [[package]]
+@@ -1323,11 +1323,9 @@ dependencies = [
+ [[package]]
+ name = "errno"
+ version = "0.3.14"
+-source = "registry+https://github.com/rust-lang/crates.io-index"
+-checksum = "39cab71617ae0d63f51a36d69f866391735b51691dbda63cf6f96d042b63efeb"
+ dependencies = [
+  "libc",
+- "windows-sys 0.61.2",
++ "windows-sys 0.59.0",
+ ]
+ 
+ [[package]]
+@@ -1540,8 +1538,6 @@ dependencies = [
+ [[package]]
+ name = "getrandom"
+ version = "0.2.16"
+-source = "registry+https://github.com/rust-lang/crates.io-index"
+-checksum = "335ff9f135e4384c8150d6f27c6daed433577f86b4750418338c01a1a2528592"
+ dependencies = [
+  "cfg-if",
+  "libc",
+@@ -1551,8 +1547,6 @@ dependencies = [
+ [[package]]
+ name = "getrandom"
+ version = "0.3.3"
+-source = "registry+https://github.com/rust-lang/crates.io-index"
+-checksum = "26145e563e54f2cadc477553f1ec5ee650b00862f0a58bcd12cbdc5f0ea2d2f4"
+ dependencies = [
+  "cfg-if",
+  "libc",
+@@ -2059,8 +2053,6 @@ dependencies = [
+ [[package]]
+ name = "jobserver"
+ version = "0.1.34"
+-source = "registry+https://github.com/rust-lang/crates.io-index"
+-checksum = "9afb3de4395d6b3e67a780b6de64b51c978ecf11cb9a462c66be7d4ca9039d33"
+ dependencies = [
+  "getrandom 0.3.3",
+  "libc",
+@@ -2146,9 +2138,7 @@ checksum = "9fa0e2a1fcbe2f6be6c42e342259976206b383122fc152e872795338b5a3f3a7"
+ 
+ [[package]]
+ name = "libc"
+-version = "0.2.177"
+-source = "registry+https://github.com/rust-lang/crates.io-index"
+-checksum = "2874a2af47a2325c2001a6e6fad9b16a53b802102b528163885171cf92b15976"
++version = "0.2.178"
+ 
+ [[package]]
+ name = "libdbus-sys"
+@@ -2195,8 +2185,6 @@ dependencies = [
+ [[package]]
+ name = "libloading"
+ version = "0.8.9"
+-source = "registry+https://github.com/rust-lang/crates.io-index"
+-checksum = "d7c4b02199fee7c5d21a5ae7d8cfa79a6ef5bb2fc834d6e9058e89c825efdc55"
+ dependencies = [
+  "cfg-if",
+  "windows-link 0.2.1",
+@@ -2205,8 +2193,6 @@ dependencies = [
+ [[package]]
+ name = "libloading"
+ version = "0.9.0"
+-source = "registry+https://github.com/rust-lang/crates.io-index"
+-checksum = "754ca22de805bb5744484a5b151a9e1a8e837d5dc232c2d7d8c2e3492edc8b60"
+ dependencies = [
+  "cfg-if",
+  "windows-link 0.2.1",
+@@ -2485,8 +2471,6 @@ checksum = "650eef8c711430f1a879fdd01d4745a7deea475becfb90269c06775983bbf086"
+ [[package]]
+ name = "nix"
+ version = "0.30.1"
+-source = "registry+https://github.com/rust-lang/crates.io-index"
+-checksum = "74523f3a35e05aba87a1d978330aef40f67b0304ac79c1c00b294c9830543db6"
+ dependencies = [
+  "bitflags",
+  "cfg-if",
+@@ -2519,7 +2503,7 @@ version = "0.50.3"
+ source = "registry+https://github.com/rust-lang/crates.io-index"
+ checksum = "7957b9740744892f114936ab4a57b3f487491bbeafaf8083688b16841a4240e5"
+ dependencies = [
+- "windows-sys 0.61.2",
++ "windows-sys 0.59.0",
+ ]
+ 
+ [[package]]
+@@ -3041,8 +3025,6 @@ dependencies = [
+ [[package]]
+ name = "psm"
+ version = "0.1.26"
+-source = "registry+https://github.com/rust-lang/crates.io-index"
+-checksum = "6e944464ec8536cd1beb0bbfd96987eb5e3b72f2ecdafdc5c769a37f1fa2ae1f"
+ dependencies = [
+  "cc",
+ ]
+@@ -3095,8 +3077,6 @@ checksum = "69cdb34c158ceb288df11e18b4bd39de994f6657d83847bdffdbd7f346754b0f"
+ [[package]]
+ name = "rand"
+ version = "0.8.5"
+-source = "registry+https://github.com/rust-lang/crates.io-index"
+-checksum = "34af8d1a0e25924bc5b7c43c079c942339d8f0a8b57c39049bef581b46327404"
+ dependencies = [
+  "libc",
+  "rand_chacha 0.3.1",
+@@ -3116,8 +3096,6 @@ dependencies = [
+ [[package]]
+ name = "rand_chacha"
+ version = "0.3.1"
+-source = "registry+https://github.com/rust-lang/crates.io-index"
+-checksum = "e6c10a63a0fa32252be49d21e7709d4d4baf8d231c2dbce1eaa8141b9b127d88"
+ dependencies = [
+  "ppv-lite86",
+  "rand_core 0.6.4",
+@@ -3136,8 +3114,6 @@ dependencies = [
+ [[package]]
+ name = "rand_core"
+ version = "0.6.4"
+-source = "registry+https://github.com/rust-lang/crates.io-index"
+-checksum = "ec0be4795e2f6a28069bec0b5ff3e2ac9bafc99e6a9a7dc3547996c5c816922c"
+ dependencies = [
+  "getrandom 0.2.16",
+ ]
+@@ -4861,14 +4837,12 @@ dependencies = [
+ [[package]]
+ name = "rustix"
+ version = "1.1.2"
+-source = "registry+https://github.com/rust-lang/crates.io-index"
+-checksum = "cd15f8a2c5551a84d56efdc1cd049089e409ac19a3072d5037a17fd70719ff3e"
+ dependencies = [
+  "bitflags",
+  "errno",
+  "libc",
+  "linux-raw-sys",
+- "windows-sys 0.61.2",
++ "windows-sys 0.59.0",
+ ]
+ 
+ [[package]]
+@@ -5354,7 +5328,7 @@ dependencies = [
+  "getrandom 0.3.3",
+  "once_cell",
+  "rustix",
+- "windows-sys 0.61.2",
++ "windows-sys 0.59.0",
+ ]
+ 
+ [[package]]
+@@ -5374,7 +5348,7 @@ version = "1.2.1"
+ source = "registry+https://github.com/rust-lang/crates.io-index"
+ checksum = "d8c27177b12a6399ffc08b98f76f7c9a1f4fe9fc967c784c5a071fa8d93cf7e1"
+ dependencies = [
+- "windows-sys 0.61.2",
++ "windows-sys 0.59.0",
+ ]
+ 
+ [[package]]
+@@ -5389,8 +5363,6 @@ dependencies = [
+ [[package]]
+ name = "termize"
+ version = "0.2.1"
+-source = "registry+https://github.com/rust-lang/crates.io-index"
+-checksum = "61946f539e9ff67cbc8df5b2e9823d84e0d58d74e342707c2dfb85405995827b"
+ dependencies = [
+  "libc",
+  "windows-sys 0.61.2",
+@@ -6253,7 +6225,7 @@ version = "0.1.11"
+ source = "registry+https://github.com/rust-lang/crates.io-index"
+ checksum = "c2a7b1c03c876122aa43f3020e6c3c3ee5c05081c9a00739faf7503aeba10d22"
+ dependencies = [
+- "windows-sys 0.61.2",
++ "windows-sys 0.59.0",
+ ]
+ 
+ [[package]]
+diff --git a/Cargo.toml b/Cargo.toml
+index 67c7a9d67ed..e7e57303496 100644
+--- a/Cargo.toml
++++ b/Cargo.toml
+@@ -91,5 +91,19 @@ codegen-units = 1
+ 
+ # If you want to use a crate with local modifications, you can set a path or git dependency here.
+ # For git dependencies, also add your source to ALLOWED_SOURCES in src/tools/tidy/src/extdeps.rs.
+-#[patch.crates-io]
++[patch.crates-io]
++# moxnox support lives in a libc fork until it can go upstream
++libc = { path = '../libc' }
++# vendored with moxnox arms: getentropy backend, windows_gnu stack assembly
++getrandom = { path = '../getrandom' }
++getrandom_02 = { path = '../getrandom-0.2', package = 'getrandom' }
++psm = { path = '../stacker/psm' }
++rustix = { path = '../rustix' }
++libloading = { path = '../libloading' }
++libloading_09 = { path = '../libloading-0.9', package = 'libloading' }
++termize = { path = '../termize' }
++jobserver = { path = '../jobserver' }
++nix = { path = '../nix' }
++rand = { path = '../rand' }
++errno = { path = '../errno' }
+ 
+diff --git a/compiler/rustc_llvm/build.rs b/compiler/rustc_llvm/build.rs
+index c58dd64cca5..e68bcf864c9 100644
+--- a/compiler/rustc_llvm/build.rs
++++ b/compiler/rustc_llvm/build.rs
+@@ -30,6 +30,13 @@
+     &["ipo", "bitreader", "bitwriter", "linker", "asmparser", "lto", "coverage", "instrumentation"];
+ 
+ fn detect_llvm_link() -> (&'static str, &'static str) {
++    // Moxnox LLVM is always static: a libLLVM dylib exceeds the PE 64k
++    // export table, so its packages only ship archives, and the global
++    // link-shared setting (for the build machine's LLVM) does not apply.
++    if std::env::var("TARGET").is_ok_and(|target| target.contains("moxnox")) {
++        return ("static", "--link-static");
++    }
++
+     // Force the link mode we want, preferring static by default, but
+     // possibly overridden by `configure --enable-llvm-link-shared`.
+     if tracked_env_var_os("LLVM_LINK_SHARED").is_some() {
+@@ -412,7 +419,23 @@ fn main() {
+     }
+ 
+     // C++ runtime library
+-    if !target.contains("msvc") {
++    if target.contains("moxnox") {
++        // Statically linked, like all C++ runtimes on Moxnox. The sysroot
++        // LLVM is built against libc++ on aarch64 and libstdc++ on x86_64;
++        // the target C++ driver knows where the archives live.
++        let (archive, libs): (&str, &[&str]) = if target.starts_with("aarch64") {
++            ("libc++.a", &["c++", "c++abi"])
++        } else {
++            ("libstdc++.a", &["stdc++"])
++        };
++        let mut cmd = cc::Build::new().cpp(true).get_compiler().to_command();
++        cmd.arg(format!("--print-file-name={archive}"));
++        let path = PathBuf::from(output(&mut cmd).trim());
++        println!("cargo:rustc-link-search=native={}", path.parent().unwrap().display());
++        for lib in libs {
++            println!("cargo:rustc-link-lib=static={lib}");
++        }
++    } else if !target.contains("msvc") {
+         if let Some(s) = llvm_static_stdcpp {
+             assert!(!cxxflags.contains("stdlib=libc++"));
+             let path = PathBuf::from(s);
+diff --git a/compiler/rustc_session/src/filesearch.rs b/compiler/rustc_session/src/filesearch.rs
+index 12b294e124c..809986098d9 100644
+--- a/compiler/rustc_session/src/filesearch.rs
++++ b/compiler/rustc_session/src/filesearch.rs
+@@ -70,7 +70,14 @@ fn current_dll_path() -> Result<PathBuf, String> {
+             use std::ffi::{CStr, OsStr};
+             use std::os::unix::prelude::*;
+ 
+-            #[cfg(not(target_os = "aix"))]
++            // Moxnox has no dladdr; librustc_driver.dll is installed next to
++            // rustc.exe, so the executable path anchors the sysroot equally.
++            #[cfg(target_os = "moxnox")]
++            {
++                return std::env::current_exe().map_err(|e| e.to_string());
++            }
++
++            #[cfg(not(any(target_os = "aix", target_os = "moxnox")))]
+             unsafe {
+                 let addr = current_dll_path as fn() -> Result<PathBuf, String> as *mut _;
+                 let mut info = std::mem::zeroed();
+diff --git a/compiler/rustc_target/src/spec/base/mod.rs b/compiler/rustc_target/src/spec/base/mod.rs
+index 9e7ff620fea..ad97b49b019 100644
+--- a/compiler/rustc_target/src/spec/base/mod.rs
++++ b/compiler/rustc_target/src/spec/base/mod.rs
+@@ -24,6 +24,7 @@
+ pub(crate) mod lynxos178;
+ pub(crate) mod managarm_mlibc;
+ pub(crate) mod motor;
++pub(crate) mod moxnox;
+ pub(crate) mod msvc;
+ pub(crate) mod netbsd;
+ pub(crate) mod nto_qnx;
+diff --git a/compiler/rustc_target/src/spec/base/moxnox.rs b/compiler/rustc_target/src/spec/base/moxnox.rs
+new file mode 100644
+index 00000000000..4d658b47226
+--- /dev/null
++++ b/compiler/rustc_target/src/spec/base/moxnox.rs
+@@ -0,0 +1,45 @@
++use std::borrow::Cow;
++
++use crate::spec::{
++    BinaryFormat, Cc, DebuginfoKind, LinkerFlavor, Lld, Os, SplitDebuginfo, TargetOptions, cvs,
++};
++
++pub(crate) fn opts() -> TargetOptions {
++    TargetOptions {
++        os: Os::Moxnox,
++        vendor: "pc".into(),
++        // The gcc runtime is linked statically everywhere on Moxnox; without
++        // this the driver's default -lgcc_s makes every dylib import
++        // libgcc_s_seh-1.dll.
++        pre_link_args: TargetOptions::link_args(
++            LinkerFlavor::Gnu(Cc::Yes, Lld::No),
++            &["-static-libgcc"],
++        ),
++        // FIXME(#13846) this should be enabled for moxnox
++        function_sections: false,
++        dynamic_linking: true,
++        dll_tls_export: false,
++        // Moxnox DLLs keep the lib prefix (libc++.dll etc.), unlike mingw.
++        dll_prefix: "lib".into(),
++        dll_suffix: ".dll".into(),
++        exe_suffix: ".exe".into(),
++        families: cvs!["unix"],
++        is_like_windows: true,
++        binary_format: BinaryFormat::Coff,
++        allows_weak_linkage: false,
++        // No late_link_args: the clang driver owns the CRT library ordering
++        // (the -lmoxnox/-lmingwex/-lmingw32/-lucrtbase_static sandwich).
++        abi_return_struct_as_int: true,
++        emit_debug_gdb_scripts: false,
++        requires_uwtable: true,
++        eh_frame_header: false,
++        no_default_libraries: false,
++        has_thread_local: true,
++        debuginfo_kind: DebuginfoKind::Dwarf,
++        // The platform's debugger and symbolization only speak DWARF 5,
++        // matching what clang emits; rustc's default is still 4.
++        default_dwarf_version: 5,
++        supported_split_debuginfo: Cow::Borrowed(&[SplitDebuginfo::Off]),
++        ..Default::default()
++    }
++}
+diff --git a/compiler/rustc_target/src/spec/mod.rs b/compiler/rustc_target/src/spec/mod.rs
+index d9c872c9b43..23a85c2ddc6 100644
+--- a/compiler/rustc_target/src/spec/mod.rs
++++ b/compiler/rustc_target/src/spec/mod.rs
+@@ -1814,6 +1814,9 @@ fn $module() {
+ 
+     ("x86_64-pc-cygwin", x86_64_pc_cygwin),
+ 
++    ("aarch64-pc-moxnox", aarch64_pc_moxnox),
++    ("x86_64-pc-moxnox", x86_64_pc_moxnox),
++
+     ("x86_64-unknown-linux-gnuasan", x86_64_unknown_linux_gnuasan),
+ }
+ 
+@@ -1983,6 +1986,7 @@ pub enum Os {
+         MacOs = "macos",
+         Managarm = "managarm",
+         Motor = "motor",
++        Moxnox = "moxnox",
+         NetBsd = "netbsd",
+         None = "none",
+         Nto = "nto",
+@@ -2931,8 +2935,8 @@ macro_rules! check_matches {
+         );
+         check_eq!(
+             self.is_like_windows,
+-            matches!(self.os, Os::Windows | Os::Uefi | Os::Cygwin),
+-            "`is_like_windows` must be set if and only if `os` is `windows`, `uefi` or `cygwin`"
++            matches!(self.os, Os::Windows | Os::Uefi | Os::Cygwin | Os::Moxnox),
++            "`is_like_windows` must be set if and only if `os` is `windows`, `uefi`, `cygwin` or `moxnox`"
+         );
+         check_eq!(
+             self.is_like_wasm,
+diff --git a/compiler/rustc_target/src/spec/targets/aarch64_pc_moxnox.rs b/compiler/rustc_target/src/spec/targets/aarch64_pc_moxnox.rs
+new file mode 100644
+index 00000000000..c6a831b4e21
+--- /dev/null
++++ b/compiler/rustc_target/src/spec/targets/aarch64_pc_moxnox.rs
+@@ -0,0 +1,28 @@
++use crate::spec::{Arch, FramePointer, Target, TargetMetadata, base};
++
++pub(crate) fn target() -> Target {
++    let mut base = base::moxnox::opts();
++    base.max_atomic_width = Some(128);
++    base.features = "+v8a,+neon".into();
++    base.linker = Some("aarch64-pc-moxnox-clang".into());
++
++    // The Windows ARM64 ABI, which moxnox follows, requires frame pointers
++    // for fast stack walking.
++    base.frame_pointer = FramePointer::NonLeaf;
++
++    Target {
++        llvm_target: "aarch64-pc-moxnox".into(),
++        metadata: TargetMetadata {
++            description: Some("ARM64 Moxnox".into()),
++            tier: Some(3),
++            host_tools: Some(false),
++            std: Some(true),
++        },
++        pointer_width: 64,
++        data_layout:
++            "e-m:w-p270:32:32-p271:32:32-p272:64:64-p:64:64-i32:32-i64:64-i128:128-n32:64-S128-Fn32"
++                .into(),
++        arch: Arch::AArch64,
++        options: base,
++    }
++}
+diff --git a/compiler/rustc_target/src/spec/targets/x86_64_pc_moxnox.rs b/compiler/rustc_target/src/spec/targets/x86_64_pc_moxnox.rs
+new file mode 100644
+index 00000000000..e6ff53c2cca
+--- /dev/null
++++ b/compiler/rustc_target/src/spec/targets/x86_64_pc_moxnox.rs
+@@ -0,0 +1,26 @@
++use crate::spec::{Arch, Cc, LinkerFlavor, Lld, Target, TargetMetadata, base};
++
++pub(crate) fn target() -> Target {
++    let mut base = base::moxnox::opts();
++    base.cpu = "x86-64".into();
++    base.features = "+cmpxchg16b,+sse3,+lahfsahf".into();
++    base.plt_by_default = false;
++    base.add_pre_link_args(LinkerFlavor::Gnu(Cc::Yes, Lld::No), &["-m64"]);
++    base.max_atomic_width = Some(128);
++    base.linker = Some("x86_64-pc-moxnox-clang".into());
++
++    Target {
++        llvm_target: "x86_64-pc-moxnox".into(),
++        metadata: TargetMetadata {
++            description: Some("64-bit Moxnox".into()),
++            tier: Some(3),
++            host_tools: Some(false),
++            std: Some(true),
++        },
++        pointer_width: 64,
++        data_layout:
++            "e-m:w-p270:32:32-p271:32:32-p272:64:64-i64:64-i128:128-f80:128-n8:16:32:64-S128".into(),
++        arch: Arch::X86_64,
++        options: base,
++    }
++}
+diff --git a/library/Cargo.lock b/library/Cargo.lock
+index 4801f92c63e..8e527a2827f 100644
+--- a/library/Cargo.lock
++++ b/library/Cargo.lock
+@@ -147,8 +147,6 @@ dependencies = [
+ [[package]]
+ name = "libc"
+ version = "0.2.178"
+-source = "registry+https://github.com/rust-lang/crates.io-index"
+-checksum = "37c93d8daa9d8a012fd8ab92f088405fb202ea0b6ab73ee2482ae66af4f42091"
+ dependencies = [
+  "rustc-std-workspace-core",
+ ]
+diff --git a/library/Cargo.toml b/library/Cargo.toml
+index 87df966bb6b..9e6bd30a5b5 100644
+--- a/library/Cargo.toml
++++ b/library/Cargo.toml
+@@ -81,6 +81,8 @@ rustflags = [
+ ]
+ 
+ [patch.crates-io]
++# moxnox support lives in a libc fork until it can go upstream
++libc = { path = '../../libc' }
+ # See comments in `library/rustc-std-workspace-core/README.md` for what's going on here
+ rustc-std-workspace-core = { path = 'rustc-std-workspace-core' }
+ rustc-std-workspace-alloc = { path = 'rustc-std-workspace-alloc' }
+diff --git a/library/core/src/ffi/primitives.rs b/library/core/src/ffi/primitives.rs
+index fa23cf33af4..b35bc9d23eb 100644
+--- a/library/core/src/ffi/primitives.rs
++++ b/library/core/src/ffi/primitives.rs
+@@ -107,6 +107,8 @@ mod c_char_definition {
+         //   https://github.com/rust-lang/rust/pull/132975#issuecomment-2484645240
+         all(
+             not(windows),
++            // moxnox follows the Windows ABI: char stays signed on aarch64
++            not(target_os = "moxnox"),
+             not(target_vendor = "apple"),
+             not(target_os = "vita"),
+             any(
+@@ -135,7 +137,8 @@ mod c_char_definition {
+ mod c_long_definition {
+     crate::cfg_select! {
+         any(
+-            all(target_pointer_width = "64", not(windows)),
++            // moxnox is LLP64 like Windows despite being target_family unix
++            all(target_pointer_width = "64", not(windows), not(target_os = "moxnox")),
+             // wasm32 Linux ABI uses 64-bit long
+             all(target_arch = "wasm32", target_os = "linux")
+         ) => {
+diff --git a/library/std/build.rs b/library/std/build.rs
+index c0a6e30b380..e908e5775a7 100644
+--- a/library/std/build.rs
++++ b/library/std/build.rs
+@@ -56,6 +56,7 @@ fn main() {
+         || target_os == "rtems"
+         || target_os == "nuttx"
+         || target_os == "cygwin"
++        || target_os == "moxnox"
+         || target_os == "vexos"
+ 
+         // See src/bootstrap/src/core/build_steps/synthetic_targets.rs
+diff --git a/library/std/src/os/mod.rs b/library/std/src/os/mod.rs
+index 76374402be4..27d8229cf56 100644
+--- a/library/std/src/os/mod.rs
++++ b/library/std/src/os/mod.rs
+@@ -157,6 +157,8 @@ pub mod windows {}
+ pub mod macos;
+ #[cfg(target_os = "motor")]
+ pub mod motor;
++#[cfg(target_os = "moxnox")]
++pub mod moxnox;
+ #[cfg(target_os = "netbsd")]
+ pub mod netbsd;
+ #[cfg(target_os = "nto")]
+diff --git a/library/std/src/os/moxnox/fs.rs b/library/std/src/os/moxnox/fs.rs
+new file mode 100644
+index 00000000000..09587bb9c87
+--- /dev/null
++++ b/library/std/src/os/moxnox/fs.rs
+@@ -0,0 +1,95 @@
++#![stable(feature = "metadata_ext", since = "1.1.0")]
++
++use crate::fs::Metadata;
++use crate::sys::AsInner;
++
++/// OS-specific extensions to [`fs::Metadata`].
++///
++/// [`fs::Metadata`]: crate::fs::Metadata
++#[stable(feature = "metadata_ext", since = "1.1.0")]
++pub trait MetadataExt {
++    #[stable(feature = "metadata_ext2", since = "1.8.0")]
++    fn st_dev(&self) -> u64;
++    #[stable(feature = "metadata_ext2", since = "1.8.0")]
++    fn st_ino(&self) -> u64;
++    #[stable(feature = "metadata_ext2", since = "1.8.0")]
++    fn st_mode(&self) -> u32;
++    #[stable(feature = "metadata_ext2", since = "1.8.0")]
++    fn st_nlink(&self) -> u64;
++    #[stable(feature = "metadata_ext2", since = "1.8.0")]
++    fn st_uid(&self) -> u32;
++    #[stable(feature = "metadata_ext2", since = "1.8.0")]
++    fn st_gid(&self) -> u32;
++    #[stable(feature = "metadata_ext2", since = "1.8.0")]
++    fn st_rdev(&self) -> u64;
++    #[stable(feature = "metadata_ext2", since = "1.8.0")]
++    fn st_size(&self) -> u64;
++    #[stable(feature = "metadata_ext2", since = "1.8.0")]
++    fn st_atime(&self) -> i64;
++    #[stable(feature = "metadata_ext2", since = "1.8.0")]
++    fn st_atime_nsec(&self) -> i64;
++    #[stable(feature = "metadata_ext2", since = "1.8.0")]
++    fn st_mtime(&self) -> i64;
++    #[stable(feature = "metadata_ext2", since = "1.8.0")]
++    fn st_mtime_nsec(&self) -> i64;
++    #[stable(feature = "metadata_ext2", since = "1.8.0")]
++    fn st_ctime(&self) -> i64;
++    #[stable(feature = "metadata_ext2", since = "1.8.0")]
++    fn st_ctime_nsec(&self) -> i64;
++    #[stable(feature = "metadata_ext2", since = "1.8.0")]
++    fn st_blksize(&self) -> u64;
++    #[stable(feature = "metadata_ext2", since = "1.8.0")]
++    fn st_blocks(&self) -> u64;
++}
++
++#[stable(feature = "metadata_ext", since = "1.1.0")]
++impl MetadataExt for Metadata {
++    fn st_dev(&self) -> u64 {
++        self.as_inner().as_inner().st_dev as u64
++    }
++    fn st_ino(&self) -> u64 {
++        self.as_inner().as_inner().st_ino as u64
++    }
++    fn st_mode(&self) -> u32 {
++        self.as_inner().as_inner().st_mode as u32
++    }
++    fn st_nlink(&self) -> u64 {
++        self.as_inner().as_inner().st_nlink as u64
++    }
++    fn st_uid(&self) -> u32 {
++        self.as_inner().as_inner().st_uid as u32
++    }
++    fn st_gid(&self) -> u32 {
++        self.as_inner().as_inner().st_gid as u32
++    }
++    fn st_rdev(&self) -> u64 {
++        self.as_inner().as_inner().st_rdev as u64
++    }
++    fn st_size(&self) -> u64 {
++        self.as_inner().as_inner().st_size as u64
++    }
++    fn st_atime(&self) -> i64 {
++        self.as_inner().as_inner().st_atim.tv_sec as i64
++    }
++    fn st_atime_nsec(&self) -> i64 {
++        self.as_inner().as_inner().st_atim.tv_nsec as i64
++    }
++    fn st_mtime(&self) -> i64 {
++        self.as_inner().as_inner().st_mtim.tv_sec as i64
++    }
++    fn st_mtime_nsec(&self) -> i64 {
++        self.as_inner().as_inner().st_mtim.tv_nsec as i64
++    }
++    fn st_ctime(&self) -> i64 {
++        self.as_inner().as_inner().st_ctim.tv_sec as i64
++    }
++    fn st_ctime_nsec(&self) -> i64 {
++        self.as_inner().as_inner().st_ctim.tv_nsec as i64
++    }
++    fn st_blksize(&self) -> u64 {
++        self.as_inner().as_inner().st_blksize as u64
++    }
++    fn st_blocks(&self) -> u64 {
++        self.as_inner().as_inner().st_blocks as u64
++    }
++}
+diff --git a/library/std/src/os/moxnox/mod.rs b/library/std/src/os/moxnox/mod.rs
+new file mode 100644
+index 00000000000..e998f687867
+--- /dev/null
++++ b/library/std/src/os/moxnox/mod.rs
+@@ -0,0 +1,4 @@
++//! Moxnox-specific definitions
++#![stable(feature = "raw_ext", since = "1.1.0")]
++pub mod fs;
++pub(crate) mod raw;
+diff --git a/library/std/src/os/moxnox/raw.rs b/library/std/src/os/moxnox/raw.rs
+new file mode 100644
+index 00000000000..d7065546826
+--- /dev/null
++++ b/library/std/src/os/moxnox/raw.rs
+@@ -0,0 +1,4 @@
++//! Moxnox-specific raw type definitions.
++
++#[stable(feature = "raw_ext", since = "1.1.0")]
++pub use libc::{blkcnt_t, blksize_t, dev_t, ino_t, mode_t, nlink_t, off_t, pthread_t, time_t};
+diff --git a/library/std/src/os/unix/mod.rs b/library/std/src/os/unix/mod.rs
+index 78c957270c4..3eb432c7e48 100644
+--- a/library/std/src/os/unix/mod.rs
++++ b/library/std/src/os/unix/mod.rs
+@@ -43,6 +43,8 @@ mod platform {
+     pub use crate::os::android::*;
+     #[cfg(target_os = "cygwin")]
+     pub use crate::os::cygwin::*;
++    #[cfg(target_os = "moxnox")]
++    pub use crate::os::moxnox::*;
+     #[cfg(target_vendor = "apple")]
+     pub use crate::os::darwin::*;
+     #[cfg(target_os = "dragonfly")]
+diff --git a/library/std/src/os/unix/net/datagram.rs b/library/std/src/os/unix/net/datagram.rs
+index beda370006f..a5131fa7ebe 100644
+--- a/library/std/src/os/unix/net/datagram.rs
++++ b/library/std/src/os/unix/net/datagram.rs
+@@ -329,7 +329,7 @@ fn recv_from_flags(
+             count = libc::recvfrom(
+                 self.as_raw_fd(),
+                 buf.as_mut_ptr() as *mut _,
+-                buf.len(),
++                buf.len() as _,
+                 flags,
+                 addr,
+                 len,
+@@ -525,7 +525,7 @@ pub fn send_to<P: AsRef<Path>>(&self, buf: &[u8], path: P) -> io::Result<usize>
+             let count = cvt(libc::sendto(
+                 self.as_raw_fd(),
+                 buf.as_ptr() as *const _,
+-                buf.len(),
++                buf.len() as _,
+                 MSG_NOSIGNAL,
+                 (&raw const addr) as *const _,
+                 len,
+@@ -560,7 +560,7 @@ pub fn send_to_addr(&self, buf: &[u8], socket_addr: &SocketAddr) -> io::Result<u
+             let count = cvt(libc::sendto(
+                 self.as_raw_fd(),
+                 buf.as_ptr() as *const _,
+-                buf.len(),
++                buf.len() as _,
+                 MSG_NOSIGNAL,
+                 (&raw const socket_addr.addr) as *const _,
+                 socket_addr.len,
+diff --git a/library/std/src/sys/alloc/unix.rs b/library/std/src/sys/alloc/unix.rs
+index 3d369b08abc..b468fc84477 100644
+--- a/library/std/src/sys/alloc/unix.rs
++++ b/library/std/src/sys/alloc/unix.rs
+@@ -67,6 +67,12 @@ unsafe fn aligned_malloc(layout: &Layout) -> *mut u8 {
+             unsafe { libc::memalign(layout.align(), layout.size()) as *mut u8 }
+         }
+     }
++    target_os = "moxnox" => {
++        #[inline]
++        unsafe fn aligned_malloc(layout: &Layout) -> *mut u8 {
++            unsafe { libc::aligned_alloc(layout.align(), layout.size()) as *mut u8 }
++        }
++    }
+     _ => {
+         #[inline]
+         #[cfg_attr(target_os = "vxworks", allow(unused_unsafe))]
+diff --git a/library/std/src/sys/args/unix.rs b/library/std/src/sys/args/unix.rs
+index 7a592c2b079..e0edf15a57e 100644
+--- a/library/std/src/sys/args/unix.rs
++++ b/library/std/src/sys/args/unix.rs
+@@ -69,6 +69,7 @@ pub fn args() -> Args {
+     target_os = "netbsd",
+     target_os = "openbsd",
+     target_os = "cygwin",
++    target_os = "moxnox",
+     target_os = "solaris",
+     target_os = "illumos",
+     target_os = "emscripten",
+diff --git a/library/std/src/sys/env/unix.rs b/library/std/src/sys/env/unix.rs
+index 66805ce3fa7..aad1adf414a 100644
+--- a/library/std/src/sys/env/unix.rs
++++ b/library/std/src/sys/env/unix.rs
+@@ -38,8 +38,14 @@ pub unsafe fn environ() -> *mut *const *const c_char {
+     unsafe { libc::_NSGetEnviron() as *mut *const *const c_char }
+ }
+ 
++// Moxnox exposes environ through ucrtbase's accessor.
++#[cfg(target_os = "moxnox")]
++pub unsafe fn environ() -> *mut *const *const c_char {
++    unsafe { libc::__p__environ() as *mut *const *const c_char }
++}
++
+ // Use the `environ` static which is part of POSIX.
+-#[cfg(not(target_vendor = "apple"))]
++#[cfg(not(any(target_vendor = "apple", target_os = "moxnox")))]
+ pub unsafe fn environ() -> *mut *const *const c_char {
+     unsafe extern "C" {
+         static mut environ: *const *const c_char;
+diff --git a/library/std/src/sys/env_consts.rs b/library/std/src/sys/env_consts.rs
+index 573f540483b..959c1b07542 100644
+--- a/library/std/src/sys/env_consts.rs
++++ b/library/std/src/sys/env_consts.rs
+@@ -202,6 +202,17 @@ pub mod os {
+     pub const EXE_EXTENSION: &str = "";
+ }
+ 
++#[cfg(target_os = "moxnox")]
++pub mod os {
++    pub const FAMILY: &str = "unix";
++    pub const OS: &str = "moxnox";
++    pub const DLL_PREFIX: &str = "lib";
++    pub const DLL_SUFFIX: &str = ".dll";
++    pub const DLL_EXTENSION: &str = "dll";
++    pub const EXE_SUFFIX: &str = ".exe";
++    pub const EXE_EXTENSION: &str = "exe";
++}
++
+ #[cfg(target_os = "netbsd")]
+ pub mod os {
+     pub const FAMILY: &str = "unix";
+diff --git a/library/std/src/sys/fd/unix.rs b/library/std/src/sys/fd/unix.rs
+index bb6c0ac9e18..34f98f69545 100644
+--- a/library/std/src/sys/fd/unix.rs
++++ b/library/std/src/sys/fd/unix.rs
+@@ -557,6 +557,7 @@ fn pwritev(
+         target_os = "l4re",
+         target_os = "linux",
+         target_os = "cygwin",
++        target_os = "moxnox",
+         target_os = "haiku",
+         target_os = "redox",
+         target_os = "vxworks",
+@@ -581,6 +582,7 @@ pub fn set_cloexec(&self) -> io::Result<()> {
+         target_os = "l4re",
+         target_os = "linux",
+         target_os = "cygwin",
++        target_os = "moxnox",
+         target_os = "haiku",
+         target_os = "redox",
+         target_os = "vxworks",
+diff --git a/library/std/src/sys/fs/unix.rs b/library/std/src/sys/fs/unix.rs
+index 7db474544f0..b943773aa75 100644
+--- a/library/std/src/sys/fs/unix.rs
++++ b/library/std/src/sys/fs/unix.rs
+@@ -32,6 +32,7 @@
+     target_os = "solaris",
+     target_os = "vita",
+     target_os = "wasi",
++    target_os = "moxnox",
+     all(target_os = "linux", target_env = "musl"),
+ ))]
+ use libc::readdir as readdir64;
+@@ -44,11 +45,13 @@
+     target_os = "illumos",
+     target_os = "l4re",
+     target_os = "linux",
++    target_os = "moxnox",
+     target_os = "nto",
+     target_os = "redox",
+     target_os = "solaris",
+     target_os = "vita",
+     target_os = "wasi",
++    target_os = "moxnox",
+ )))]
+ use libc::readdir_r as readdir64_r;
+ #[cfg(any(all(target_os = "linux", not(target_env = "musl")), target_os = "hurd"))]
+@@ -409,6 +412,7 @@ fn get_path(_fd: c_int) -> Option<PathBuf> {
+     target_os = "hurd",
+     target_os = "illumos",
+     target_os = "linux",
++    target_os = "moxnox",
+     target_os = "nto",
+     target_os = "redox",
+     target_os = "solaris",
+@@ -435,6 +439,7 @@ pub struct DirEntry {
+     target_os = "hurd",
+     target_os = "illumos",
+     target_os = "linux",
++    target_os = "moxnox",
+     target_os = "nto",
+     target_os = "redox",
+     target_os = "solaris",
+@@ -461,6 +466,7 @@ struct dirent64_min {
+     target_os = "hurd",
+     target_os = "illumos",
+     target_os = "linux",
++    target_os = "moxnox",
+     target_os = "nto",
+     target_os = "redox",
+     target_os = "solaris",
+@@ -621,6 +627,7 @@ impl FileAttr {
+         target_os = "hurd",
+         target_os = "rtems",
+         target_os = "nuttx",
++        target_os = "moxnox",
+     )))]
+     pub fn modified(&self) -> io::Result<SystemTime> {
+         #[cfg(target_pointer_width = "32")]
+@@ -643,7 +650,7 @@ pub fn modified(&self) -> io::Result<SystemTime> {
+         SystemTime::new(self.stat.st_mtime as i64, 0)
+     }
+ 
+-    #[cfg(any(target_os = "horizon", target_os = "hurd", target_os = "nuttx"))]
++    #[cfg(any(target_os = "horizon", target_os = "hurd", target_os = "nuttx", target_os = "moxnox"))]
+     pub fn modified(&self) -> io::Result<SystemTime> {
+         SystemTime::new(self.stat.st_mtim.tv_sec as i64, self.stat.st_mtim.tv_nsec as i64)
+     }
+@@ -656,6 +663,7 @@ pub fn modified(&self) -> io::Result<SystemTime> {
+         target_os = "hurd",
+         target_os = "rtems",
+         target_os = "nuttx",
++        target_os = "moxnox",
+     )))]
+     pub fn accessed(&self) -> io::Result<SystemTime> {
+         #[cfg(target_pointer_width = "32")]
+@@ -678,7 +686,7 @@ pub fn accessed(&self) -> io::Result<SystemTime> {
+         SystemTime::new(self.stat.st_atime as i64, 0)
+     }
+ 
+-    #[cfg(any(target_os = "horizon", target_os = "hurd", target_os = "nuttx"))]
++    #[cfg(any(target_os = "horizon", target_os = "hurd", target_os = "nuttx", target_os = "moxnox"))]
+     pub fn accessed(&self) -> io::Result<SystemTime> {
+         SystemTime::new(self.stat.st_atim.tv_sec as i64, self.stat.st_atim.tv_nsec as i64)
+     }
+@@ -843,6 +851,7 @@ impl Iterator for ReadDir {
+         target_os = "hurd",
+         target_os = "illumos",
+         target_os = "linux",
++        target_os = "moxnox",
+         target_os = "nto",
+         target_os = "redox",
+         target_os = "solaris",
+@@ -941,6 +950,7 @@ fn next(&mut self) -> Option<io::Result<DirEntry>> {
+         target_os = "hurd",
+         target_os = "illumos",
+         target_os = "linux",
++        target_os = "moxnox",
+         target_os = "nto",
+         target_os = "redox",
+         target_os = "solaris",
+@@ -1135,6 +1145,7 @@ pub fn file_type(&self) -> io::Result<FileType> {
+         target_os = "illumos",
+         target_os = "l4re",
+         target_os = "linux",
++        target_os = "moxnox",
+         target_os = "nto",
+         target_os = "redox",
+         target_os = "rtems",
+@@ -1189,6 +1200,7 @@ fn name_bytes(&self) -> &[u8] {
+         target_os = "android",
+         target_os = "freebsd",
+         target_os = "linux",
++        target_os = "moxnox",
+         target_os = "solaris",
+         target_os = "illumos",
+         target_os = "fuchsia",
+@@ -1206,6 +1218,7 @@ fn name_cstr(&self) -> &CStr {
+         target_os = "android",
+         target_os = "freebsd",
+         target_os = "linux",
++        target_os = "moxnox",
+         target_os = "solaris",
+         target_os = "illumos",
+         target_os = "fuchsia",
+@@ -2135,6 +2148,7 @@ pub fn link(original: &CStr, link: &CStr) -> io::Result<()> {
+             // Other misc platforms
+             target_os = "horizon",
+             target_os = "vita",
++            target_os = "moxnox",
+             target_env = "nto70",
+         ) => {
+             cvt(unsafe { libc::link(original.as_ptr(), link.as_ptr()) })?;
+@@ -2474,7 +2488,12 @@ pub fn lchown(path: &Path, uid: u32, gid: u32) -> io::Result<()> {
+     Err(io::const_error!(io::ErrorKind::Unsupported, "lchown not supported by vxworks"))
+ }
+ 
+-#[cfg(not(any(target_os = "fuchsia", target_os = "vxworks", target_os = "wasi")))]
++#[cfg(not(any(
++    target_os = "fuchsia",
++    target_os = "vxworks",
++    target_os = "wasi",
++    target_os = "moxnox"
++)))]
+ pub fn chroot(dir: &Path) -> io::Result<()> {
+     run_path_with_cstr(dir, &|dir| cvt(unsafe { libc::chroot(dir.as_ptr()) }).map(|_| ()))
+ }
+@@ -2485,6 +2504,12 @@ pub fn chroot(dir: &Path) -> io::Result<()> {
+     Err(io::const_error!(io::ErrorKind::Unsupported, "chroot not supported by vxworks"))
+ }
+ 
++#[cfg(target_os = "moxnox")]
++pub fn chroot(dir: &Path) -> io::Result<()> {
++    let _ = dir;
++    Err(io::const_error!(io::ErrorKind::Unsupported, "chroot not supported on moxnox"))
++}
++
+ #[cfg(not(target_os = "wasi"))]
+ pub fn mkfifo(path: &Path, mode: u32) -> io::Result<()> {
+     run_path_with_cstr(path, &|path| {
+diff --git a/library/std/src/sys/io/error/unix.rs b/library/std/src/sys/io/error/unix.rs
+index b10343b2752..67403b50ead 100644
+--- a/library/std/src/sys/io/error/unix.rs
++++ b/library/std/src/sys/io/error/unix.rs
+@@ -30,6 +30,7 @@
+     #[cfg_attr(any(target_os = "freebsd", target_vendor = "apple"), link_name = "__error")]
+     #[cfg_attr(target_os = "haiku", link_name = "_errnop")]
+     #[cfg_attr(target_os = "aix", link_name = "_Errno")]
++    #[cfg_attr(target_os = "moxnox", link_name = "_errno")]
+     // SAFETY: this will always return the same pointer on a given thread.
+     #[unsafe(ffi_const)]
+     pub safe fn errno_location() -> *mut c_int;
+diff --git a/library/std/src/sys/net/connection/socket/mod.rs b/library/std/src/sys/net/connection/socket/mod.rs
+index 256b99dfa98..6ad21854187 100644
+--- a/library/std/src/sys/net/connection/socket/mod.rs
++++ b/library/std/src/sys/net/connection/socket/mod.rs
+@@ -47,6 +47,7 @@
+         target_os = "l4re",
+         target_os = "nto",
+         target_os = "nuttx",
++        target_os = "moxnox",
+         target_vendor = "apple",
+     ) => {
+         use c::IPV6_JOIN_GROUP as IPV6_ADD_MEMBERSHIP;
+diff --git a/library/std/src/sys/net/connection/socket/unix.rs b/library/std/src/sys/net/connection/socket/unix.rs
+index 5e20c0ffdfa..e06b7426e13 100644
+--- a/library/std/src/sys/net/connection/socket/unix.rs
++++ b/library/std/src/sys/net/connection/socket/unix.rs
+@@ -1,4 +1,4 @@
+-use libc::{MSG_PEEK, c_int, c_void, size_t, sockaddr, socklen_t};
++use libc::{MSG_PEEK, c_int, c_void, sockaddr, socklen_t};
+ 
+ #[cfg(not(any(target_os = "espidf", target_os = "nuttx")))]
+ use crate::ffi::CStr;
+@@ -27,7 +27,12 @@
+ pub use crate::sys::{cvt, cvt_r};
+ 
+ #[expect(non_camel_case_types)]
+-pub type wrlen_t = size_t;
++#[cfg(not(target_os = "moxnox"))]
++pub type wrlen_t = libc::size_t;
++// The moxnox socket calls are winsock-shaped: int lengths and returns.
++#[expect(non_camel_case_types)]
++#[cfg(target_os = "moxnox")]
++pub type wrlen_t = libc::c_int;
+ 
+ pub struct Socket(FileDesc);
+ 
+@@ -289,7 +294,7 @@ fn recv_with_flags(&self, mut buf: BorrowedCursor<'_>, flags: c_int) -> io::Resu
+             libc::recv(
+                 self.as_raw_fd(),
+                 buf.as_mut().as_mut_ptr() as *mut c_void,
+-                buf.capacity(),
++                cmp::min(buf.capacity(), <wrlen_t>::MAX as usize) as wrlen_t,
+                 flags,
+             )
+         })?;
+@@ -339,7 +344,7 @@ fn recv_from_with_flags(
+             libc::recvfrom(
+                 self.as_raw_fd(),
+                 buf.as_mut_ptr() as *mut c_void,
+-                buf.len(),
++                cmp::min(buf.len(), <wrlen_t>::MAX as usize) as wrlen_t,
+                 flags,
+                 (&raw mut storage) as *mut _,
+                 &mut addrlen,
+@@ -579,7 +584,12 @@ pub fn local_creds_persistent(&self) -> io::Result<bool> {
+         Ok(local_creds_persistent != 0)
+     }
+ 
+-    #[cfg(not(any(target_os = "solaris", target_os = "illumos", target_os = "vita")))]
++    #[cfg(not(any(
++        target_os = "solaris",
++        target_os = "illumos",
++        target_os = "vita",
++        target_os = "moxnox"
++    )))]
+     pub fn set_nonblocking(&self, nonblocking: bool) -> io::Result<()> {
+         let mut nonblocking = nonblocking as libc::c_int;
+         cvt(unsafe { libc::ioctl(self.as_raw_fd(), libc::FIONBIO, &mut nonblocking) }).map(drop)
+@@ -591,7 +601,7 @@ pub fn set_nonblocking(&self, nonblocking: bool) -> io::Result<()> {
+         unsafe { setsockopt(self, libc::SOL_SOCKET, libc::SO_NONBLOCK, option) }
+     }
+ 
+-    #[cfg(any(target_os = "solaris", target_os = "illumos"))]
++    #[cfg(any(target_os = "solaris", target_os = "illumos", target_os = "moxnox"))]
+     pub fn set_nonblocking(&self, nonblocking: bool) -> io::Result<()> {
+         // FIONBIO is inadequate for sockets on illumos/Solaris, so use the
+         // fcntl(F_[GS]ETFL)-based method provided by FileDesc instead.
+diff --git a/library/std/src/sys/net/hostname/unix.rs b/library/std/src/sys/net/hostname/unix.rs
+index d444182f3fd..c2eb4b8e437 100644
+--- a/library/std/src/sys/net/hostname/unix.rs
++++ b/library/std/src/sys/net/hostname/unix.rs
+@@ -16,7 +16,7 @@ pub fn hostname() -> io::Result<OsString> {
+     let mut buf = Vec::<u8>::try_with_capacity(host_name_max + 1)?;
+     loop {
+         // SAFETY: `buf.capacity()` bytes of `buf` are writable.
+-        let r = unsafe { libc::gethostname(buf.as_mut_ptr().cast(), buf.capacity()) };
++        let r = unsafe { libc::gethostname(buf.as_mut_ptr().cast(), buf.capacity() as _) };
+         match (r != 0).then(errno) {
+             None => {
+                 // Unfortunately, the UNIX specification says that the name will
+diff --git a/library/std/src/sys/pal/unix/os.rs b/library/std/src/sys/pal/unix/os.rs
+index 494d94433db..3aa262d9cde 100644
+--- a/library/std/src/sys/pal/unix/os.rs
++++ b/library/std/src/sys/pal/unix/os.rs
+@@ -148,6 +148,106 @@ pub fn current_exe() -> io::Result<PathBuf> {
+     Err(io::const_error!(io::ErrorKind::NotFound, "an executable path was not found"))
+ }
+ 
++#[cfg(target_os = "moxnox")]
++pub fn current_exe() -> io::Result<PathBuf> {
++    use crate::arch::asm;
++    use crate::{io, slice};
++
++    // Minimal prefixes of the kernel's structures (modules/nt.cpp); only
++    // the fields up to the ones we read.
++    #[repr(C)]
++    struct UnicodeString {
++        length: u16,
++        maximum_length: u16,
++        buffer: *const u16,
++    }
++
++    #[repr(C)]
++    struct Curdir {
++        dos_path: UnicodeString,
++        handle: usize,
++    }
++
++    #[repr(C)]
++    struct ProcessParameters {
++        maximum_length: u32,
++        length: u32,
++        flags: u32,
++        debug_flags: u32,
++        console_handle: usize,
++        console_flags: u32,
++        standard_input: usize,
++        standard_output: usize,
++        standard_error: usize,
++        current_directory: Curdir,
++        dll_path: UnicodeString,
++        image_path_name: UnicodeString,
++    }
++
++    #[repr(C)]
++    struct Peb {
++        inherited_address_space: u8,
++        read_image_file_exec_options: u8,
++        being_debugged: u8,
++        bit_field: u8,
++        padding0: [u8; 4],
++        mutant: usize,
++        image_base_address: usize,
++        ldr: usize,
++        process_parameters: *const ProcessParameters,
++    }
++
++    #[repr(C)]
++    struct Teb {
++        nt_tib: [usize; 7],
++        environment_pointer: usize,
++        client_id: [usize; 2],
++        active_rpc_handle: usize,
++        thread_local_storage_pointer: usize,
++        process_environment_block: *const Peb,
++    }
++
++    unsafe fn teb() -> *const Teb {
++        let teb: *const Teb;
++        #[cfg(target_arch = "x86_64")]
++        unsafe {
++            // The gs base is the TEB; NtTib.Self at 0x30 points back to it.
++            asm!("mov {}, gs:[0x30]", out(reg) teb, options(nostack, preserves_flags));
++        }
++        #[cfg(target_arch = "aarch64")]
++        unsafe {
++            asm!("mov {}, x18", out(reg) teb, options(nomem, nostack, preserves_flags));
++        }
++        teb
++    }
++
++    unsafe {
++        let params = (*(*teb()).process_environment_block).process_parameters;
++        if params.is_null() {
++            return Err(io::const_error!(
++                io::ErrorKind::NotFound,
++                "an executable path was not found in the process parameters",
++            ));
++        }
++
++        let ips = &(*params).image_path_name;
++        if ips.buffer.is_null() || ips.length == 0 {
++            return Err(io::const_error!(
++                io::ErrorKind::NotFound,
++                "an executable path was not found in the process parameters",
++            ));
++        }
++
++        let units = slice::from_raw_parts(ips.buffer, usize::from(ips.length) / 2);
++        let s = String::from_utf16(units).map_err(|_| {
++            io::const_error!(io::ErrorKind::InvalidData, "the executable path is not valid UTF-16")
++        })?;
++
++        let path = PathBuf::from(s);
++        if path.is_absolute() { Ok(path) } else { getcwd().map(|cwd| cwd.join(path)) }
++    }
++}
++
+ #[cfg(any(target_os = "freebsd", target_os = "dragonfly"))]
+ pub fn current_exe() -> io::Result<PathBuf> {
+     unsafe {
+diff --git a/library/std/src/sys/personality/gcc.rs b/library/std/src/sys/personality/gcc.rs
+index 019d5629d6d..f3c9c50a696 100644
+--- a/library/std/src/sys/personality/gcc.rs
++++ b/library/std/src/sys/personality/gcc.rs
+@@ -252,6 +252,7 @@ fn __gnu_unwind_frame(
+             any(
+                 all(windows, any(target_arch = "aarch64", target_arch = "x86_64"), target_env = "gnu"),
+                 target_os = "cygwin",
++                target_os = "moxnox",
+             ) => {
+                 /// personality fn called by [Windows Structured Exception Handling][windows-eh]
+                 ///
+diff --git a/library/std/src/sys/process/unix/unix.rs b/library/std/src/sys/process/unix/unix.rs
+index 82ff94fb1e0..8d4a94cd296 100644
+--- a/library/std/src/sys/process/unix/unix.rs
++++ b/library/std/src/sys/process/unix/unix.rs
+@@ -8,6 +8,7 @@
+     target_os = "tvos",
+     target_os = "watchos",
+ )))]
++#[cfg(not(target_os = "moxnox"))]
+ use libc::{gid_t, uid_t};
+ 
+ use super::common::*;
+@@ -170,20 +171,20 @@ pub fn spawn(
+     // what `PROHIBITED` means here (e.g. if calls to these functions are
+     // allowed to exist in dead code), but it sounds bad, so we go out of our
+     // way to avoid that all-together.
+-    #[cfg(any(target_os = "tvos", target_os = "watchos"))]
++    #[cfg(any(target_os = "tvos", target_os = "watchos", target_os = "moxnox"))]
+     const ERR_APPLE_TV_WATCH_NO_FORK_EXEC: Error = io::const_error!(
+         ErrorKind::Unsupported,
+         "`fork`+`exec`-based process spawning is not supported on this target",
+     );
+ 
+-    #[cfg(any(target_os = "tvos", target_os = "watchos"))]
++    #[cfg(any(target_os = "tvos", target_os = "watchos", target_os = "moxnox"))]
+     unsafe fn do_fork(&mut self) -> Result<pid_t, io::Error> {
+         return Err(Self::ERR_APPLE_TV_WATCH_NO_FORK_EXEC);
+     }
+ 
+     // Attempts to fork the process. If successful, returns Ok((0, -1))
+     // in the child, and Ok((child_pid, -1)) in the parent.
+-    #[cfg(not(any(target_os = "watchos", target_os = "tvos", target_os = "nto")))]
++    #[cfg(not(any(target_os = "watchos", target_os = "tvos", target_os = "nto", target_os = "moxnox")))]
+     unsafe fn do_fork(&mut self) -> Result<pid_t, io::Error> {
+         cvt(libc::fork())
+     }
+@@ -274,7 +275,7 @@ pub fn exec(&mut self, default: Stdio) -> io::Error {
+     // allocation). Instead we just close it manually. This will never
+     // have the drop glue anyway because this code never returns (the
+     // child will either exec() or invoke libc::exit)
+-    #[cfg(not(any(target_os = "tvos", target_os = "watchos")))]
++    #[cfg(not(any(target_os = "tvos", target_os = "watchos", target_os = "moxnox")))]
+     unsafe fn do_exec(
+         &mut self,
+         stdio: ChildPipes,
+@@ -296,7 +297,7 @@ unsafe fn do_exec(
+         {
+             if let Some(_g) = self.get_groups() {
+                 //FIXME: Redox kernel does not support setgroups yet
+-                #[cfg(not(target_os = "redox"))]
++                #[cfg(not(any(target_os = "redox", target_os = "moxnox")))]
+                 cvt(libc::setgroups(_g.len().try_into().unwrap(), _g.as_ptr()))?;
+             }
+             if let Some(u) = self.get_gid() {
+@@ -310,7 +311,7 @@ unsafe fn do_exec(
+                 // uid has dropped, we may still have groups that enable us to
+                 // do super-user things.
+                 //FIXME: Redox kernel does not support setgroups yet
+-                #[cfg(not(target_os = "redox"))]
++                #[cfg(not(any(target_os = "redox", target_os = "moxnox")))]
+                 if self.get_groups().is_none() {
+                     let res = cvt(libc::setgroups(0, crate::ptr::null()));
+                     if let Err(e) = res {
+@@ -409,7 +410,7 @@ fn drop(&mut self) {
+         Err(io::Error::last_os_error())
+     }
+ 
+-    #[cfg(any(target_os = "tvos", target_os = "watchos"))]
++    #[cfg(any(target_os = "tvos", target_os = "watchos", target_os = "moxnox"))]
+     unsafe fn do_exec(
+         &mut self,
+         _stdio: ChildPipes,
+@@ -426,6 +427,7 @@ unsafe fn do_exec(
+         target_os = "nto",
+         target_vendor = "apple",
+         target_os = "cygwin",
++        target_os = "moxnox",
+     )))]
+     fn posix_spawn(
+         &mut self,
+@@ -445,7 +447,51 @@ fn posix_spawn(
+         target_os = "nto",
+         target_vendor = "apple",
+         target_os = "cygwin",
++        target_os = "moxnox",
+     ))]
++    /// There is no fork fallback on Moxnox, so the modified-PATH plus
++    /// relative-program case (which posix_spawnp's parent-PATH search
++    /// cannot honor) is handled by resolving the program against the
++    /// child's PATH before spawning.  The exec layer appends the .exe
++    /// suffix during its own searches; mirror that here.
++    #[cfg(target_os = "moxnox")]
++    fn resolve_program_from_child_path(
++        &self,
++        envp: Option<&CStringArray>,
++    ) -> Option<crate::ffi::CString> {
++        use crate::ffi::CString;
++
++        let program = self.get_program_cstr().to_bytes();
++
++        let path = envp?.iter().find_map(|e| e.to_bytes().strip_prefix(b"PATH="))?;
++
++        for dir in path.split(|b| *b == b':') {
++            let mut candidate = Vec::with_capacity(dir.len() + program.len() + 6);
++            if dir.is_empty() {
++                // An empty prefix means the current directory.
++                candidate.push(b'.');
++            } else {
++                candidate.extend_from_slice(dir);
++            }
++            candidate.push(b'/');
++            candidate.extend_from_slice(program);
++
++            for suffix in [&b".exe"[..], &b""[..]] {
++                let mut with_suffix = Vec::with_capacity(candidate.len() + suffix.len());
++                with_suffix.extend_from_slice(&candidate);
++                with_suffix.extend_from_slice(suffix);
++
++                let Ok(c) = CString::new(with_suffix) else { continue };
++
++                if unsafe { libc::access(c.as_ptr(), libc::X_OK) } == 0 {
++                    return Some(c);
++                }
++            }
++        }
++
++        None
++    }
++
+     fn posix_spawn(
+         &mut self,
+         stdio: &ChildPipes,
+@@ -459,7 +505,9 @@ fn posix_spawn(
+ 
+         if self.get_gid().is_some()
+             || self.get_uid().is_some()
+-            || (self.env_saw_path() && !self.program_is_path())
++            || (cfg!(not(target_os = "moxnox"))
++                && self.env_saw_path()
++                && !self.program_is_path())
+             || !self.get_closures().is_empty()
+             || self.get_groups().is_some()
+             || self.get_chroot().is_some()
+@@ -596,7 +644,11 @@ unsafe fn retrying_libc_posix_spawnp(
+         /// Some platforms can set a new working directory for a spawned process in the
+         /// `posix_spawn` path. This function looks up the function pointer for adding
+         /// such an action to a `posix_spawn_file_actions_t` struct.
+-        #[cfg(not(any(all(target_os = "linux", target_env = "musl"), target_os = "cygwin")))]
++        #[cfg(not(any(
++            all(target_os = "linux", target_env = "musl"),
++            target_os = "cygwin",
++            target_os = "moxnox"
++        )))]
+         fn get_posix_spawn_addchdir() -> Option<PosixSpawnAddChdirFn> {
+             use crate::sys::weak::weak;
+ 
+@@ -638,6 +690,12 @@ fn get_posix_spawn_addchdir() -> Option<PosixSpawnAddChdirFn> {
+             Some(libc::posix_spawn_file_actions_addchdir_np)
+         }
+ 
++        /// Moxnox provides the POSIX.1-2024 spelling; link it directly.
++        #[cfg(target_os = "moxnox")]
++        fn get_posix_spawn_addchdir() -> Option<PosixSpawnAddChdirFn> {
++            Some(libc::posix_spawn_file_actions_addchdir)
++        }
++
+         let addchdir = match self.get_cwd() {
+             Some(cwd) => {
+                 if cfg!(target_vendor = "apple") {
+@@ -759,6 +817,20 @@ fn drop(&mut self) {
+ 
+             cvt_nz(libc::posix_spawnattr_setflags(attrs.0.as_mut_ptr(), flags as _))?;
+ 
++            #[cfg(target_os = "moxnox")]
++            let resolved_program = if self.env_saw_path() && !self.program_is_path() {
++                self.resolve_program_from_child_path(envp)
++            } else {
++                None
++            };
++            #[cfg(target_os = "moxnox")]
++            let program_ptr = match &resolved_program {
++                Some(p) => p.as_ptr(),
++                None => self.get_program_cstr().as_ptr(),
++            };
++            #[cfg(not(target_os = "moxnox"))]
++            let program_ptr = self.get_program_cstr().as_ptr();
++
+             // Make sure we synchronize access to the global `environ` resource
+             let _env_lock = sys::env::env_read_lock();
+             let envp = envp.map(|c| c.as_ptr()).unwrap_or_else(|| *sys::env::environ() as *const _);
+@@ -815,7 +887,7 @@ fn drop(&mut self) {
+ 
+             let spawn_res = spawn_fn(
+                 &mut p.pid,
+-                self.get_program_cstr().as_ptr(),
++                program_ptr,
+                 file_actions.0.as_ptr(),
+                 attrs.0.as_ptr(),
+                 self.get_argv().as_ptr() as *const _,
+@@ -1098,10 +1170,16 @@ pub fn signal(&self) -> Option<i32> {
+         libc::WIFSIGNALED(self.0).then(|| libc::WTERMSIG(self.0))
+     }
+ 
++    #[cfg(not(target_os = "moxnox"))]
+     pub fn core_dumped(&self) -> bool {
+         libc::WIFSIGNALED(self.0) && libc::WCOREDUMP(self.0)
+     }
+ 
++    #[cfg(target_os = "moxnox")]
++    pub fn core_dumped(&self) -> bool {
++        false
++    }
++
+     pub fn stopped_signal(&self) -> Option<i32> {
+         libc::WIFSTOPPED(self.0).then(|| libc::WSTOPSIG(self.0))
+     }
+@@ -1172,9 +1250,9 @@ fn signal_string(signal: i32) -> &'static str {
+         libc::SIGPROF => " (SIGPROF)",
+         #[cfg(not(any(target_os = "l4re", target_os = "rtems")))]
+         libc::SIGWINCH => " (SIGWINCH)",
+-        #[cfg(not(any(target_os = "haiku", target_os = "l4re")))]
++        #[cfg(not(any(target_os = "haiku", target_os = "l4re", target_os = "moxnox")))]
+         libc::SIGIO => " (SIGIO)",
+-        #[cfg(target_os = "haiku")]
++        #[cfg(any(target_os = "haiku", target_os = "moxnox"))]
+         libc::SIGPOLL => " (SIGPOLL)",
+         #[cfg(not(target_os = "l4re"))]
+         libc::SIGSYS => " (SIGSYS)",
+diff --git a/library/std/src/sys/random/mod.rs b/library/std/src/sys/random/mod.rs
+index 91f72d07387..cbe4eabf7eb 100644
+--- a/library/std/src/sys/random/mod.rs
++++ b/library/std/src/sys/random/mod.rs
+@@ -28,7 +28,7 @@
+         mod arc4random;
+         pub use arc4random::fill_bytes;
+     }
+-    target_os = "emscripten" => {
++    any(target_os = "emscripten", target_os = "moxnox") => {
+         mod getentropy;
+         pub use getentropy::fill_bytes;
+     }
+diff --git a/library/std/src/sys/thread/mod.rs b/library/std/src/sys/thread/mod.rs
+index 9816981c7fc..d2f9bc3ab7e 100644
+--- a/library/std/src/sys/thread/mod.rs
++++ b/library/std/src/sys/thread/mod.rs
+@@ -59,6 +59,7 @@
+             target_os = "hurd",
+             target_os = "aix",
+             target_os = "wasi",
++            target_os = "moxnox",
+         )))]
+         pub use unix::set_name;
+         #[cfg(any(
+@@ -85,6 +86,7 @@
+             target_os = "hurd",
+             target_os = "aix",
+             target_os = "wasi",
++            target_os = "moxnox",
+         ))]
+         pub use unsupported::set_name;
+     }
+diff --git a/library/std/src/sys/thread/unix.rs b/library/std/src/sys/thread/unix.rs
+index 22f9bfef5a3..163aacdc01b 100644
+--- a/library/std/src/sys/thread/unix.rs
++++ b/library/std/src/sys/thread/unix.rs
+@@ -7,6 +7,7 @@
+     target_os = "aix",
+     target_os = "wasi",
+ )))]
++#[cfg(not(target_os = "moxnox"))]
+ use crate::ffi::CStr;
+ use crate::mem::{self, DropGuard, ManuallyDrop};
+ use crate::num::NonZero;
+diff --git a/library/unwind/src/libunwind.rs b/library/unwind/src/libunwind.rs
+index 091efa9c512..487f2f09769 100644
+--- a/library/unwind/src/libunwind.rs
++++ b/library/unwind/src/libunwind.rs
+@@ -27,10 +27,10 @@ pub enum _Unwind_Reason_Code {
+ #[cfg(target_arch = "x86")]
+ pub const unwinder_private_data_size: usize = 5;
+ 
+-#[cfg(all(target_arch = "x86_64", not(any(target_os = "windows", target_os = "cygwin"))))]
++#[cfg(all(target_arch = "x86_64", not(any(target_os = "windows", target_os = "cygwin", target_os = "moxnox"))))]
+ pub const unwinder_private_data_size: usize = 2;
+ 
+-#[cfg(all(target_arch = "x86_64", any(target_os = "windows", target_os = "cygwin")))]
++#[cfg(all(target_arch = "x86_64", any(target_os = "windows", target_os = "cygwin", target_os = "moxnox")))]
+ pub const unwinder_private_data_size: usize = 6;
+ 
+ #[cfg(all(target_arch = "arm", not(target_vendor = "apple")))]
+@@ -39,10 +39,10 @@ pub enum _Unwind_Reason_Code {
+ #[cfg(all(target_arch = "arm", target_vendor = "apple"))]
+ pub const unwinder_private_data_size: usize = 5;
+ 
+-#[cfg(all(target_arch = "aarch64", target_pointer_width = "64", not(target_os = "windows")))]
++#[cfg(all(target_arch = "aarch64", target_pointer_width = "64", not(any(target_os = "windows", target_os = "moxnox"))))]
+ pub const unwinder_private_data_size: usize = 2;
+ 
+-#[cfg(all(target_arch = "aarch64", target_pointer_width = "64", target_os = "windows"))]
++#[cfg(all(target_arch = "aarch64", target_pointer_width = "64", any(target_os = "windows", target_os = "moxnox")))]
+ pub const unwinder_private_data_size: usize = 6;
+ 
+ #[cfg(all(target_arch = "aarch64", target_pointer_width = "32"))]
+@@ -298,6 +298,7 @@ pub fn _Unwind_Backtrace(trace: _Unwind_Trace_Fn,
+     any(
+         all(windows, any(target_arch = "aarch64", target_arch = "x86_64"), target_env = "gnu"),
+         target_os = "cygwin",
++        target_os = "moxnox",
+     ) => {
+         // We declare these as opaque types. This is fine since you just need to
+         // pass them to _GCC_specific_handler and forget about them.
+diff --git a/src/bootstrap/src/core/builder/cargo.rs b/src/bootstrap/src/core/builder/cargo.rs
+index 16065cbdae1..fa3a8af1940 100644
+--- a/src/bootstrap/src/core/builder/cargo.rs
++++ b/src/bootstrap/src/core/builder/cargo.rs
+@@ -295,6 +295,7 @@ fn configure_linker(&mut self, builder: &Builder<'_>) -> &mut Cargo {
+                 Some(format!("-Wl,-rpath,@loader_path/../{libdir}"))
+             } else if !target.is_windows()
+                 && !target.contains("cygwin")
++                && !target.contains("moxnox")
+                 && !target.contains("aix")
+                 && !target.contains("xous")
+             {
+diff --git a/src/bootstrap/src/utils/shared_helpers.rs b/src/bootstrap/src/utils/shared_helpers.rs
+index d620cc4bbb6..921896df8c0 100644
+--- a/src/bootstrap/src/utils/shared_helpers.rs
++++ b/src/bootstrap/src/utils/shared_helpers.rs
+@@ -57,7 +57,9 @@ pub fn exe(name: &str, target: &str) -> String {
+     // returns the name *without* the .exe extension.  For comparisons against
+     // that to match, we therefore do not append .exe for Cygwin targets on
+     // a Cygwin host.
+-    if target.contains("windows") || (cfg!(not(target_os = "cygwin")) && target.contains("cygwin"))
++    if target.contains("windows")
++        || target.contains("moxnox")
++        || (cfg!(not(target_os = "cygwin")) && target.contains("cygwin"))
+     {
+         format!("{name}.exe")
+     } else if target.contains("uefi") {

@@ -120,3 +120,5 @@
 	insteadOf = https://github.com/llvm/llvm-project
 [url "https://git.burntcomma.com/moxnox/libuv"]
 	insteadOf = https://github.com/libuv/libuv
+[url "https://git.burntcomma.com/moxnox/rust"]
+	insteadOf = https://github.com/rust-lang/rust

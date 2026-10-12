@@ -42,21 +42,24 @@ set(RUSTC_STAGE1 ${RUSTC_BUILD_DIR}/${RUST_TARGET}/stage1)
 set(rustc_main ${RUSTC_BUILD_DIR}/${RUST_BUILD_TRIPLE}/stage1-rustc/${RUST_TARGET}/release/rustc-main.exe)
 
 add_custom_command(
-    OUTPUT ${rustc_main}
+    OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/rust.stamp
+    BYPRODUCTS ${rustc_main}
+    COMMAND sh -c "cd '${CMAKE_CURRENT_SOURCE_DIR}/repo' && if git apply --check -R '${CMAKE_CURRENT_SOURCE_DIR}/moxnox.patch' 2>/dev/null; then :; elif git status --porcelain | grep -q .; then echo 'ports/rust/repo has local changes or leftover files, not applying moxnox.patch:' >&2; git status --porcelain >&2; exit 1; else git apply '${CMAKE_CURRENT_SOURCE_DIR}/moxnox.patch'; fi"
     COMMAND ${RUST_PYTHON} ${CMAKE_CURRENT_SOURCE_DIR}/repo/x.py build
         --stage 1
         --config ${CMAKE_CURRENT_BINARY_DIR}/bootstrap.toml
     COMMAND ${CMAKE_COMMAND} -E copy_directory
         ${RUSTC_BUILD_DIR}/${RUST_BUILD_TRIPLE}/stage1/lib/rustlib/${RUST_TARGET}/lib
         ${RUSTC_STAGE1}/lib/rustlib/${RUST_TARGET}/lib
-    DEPENDS ${CMAKE_CURRENT_BINARY_DIR}/bootstrap.toml
-    DEPFILE ${RUSTC_BUILD_DIR}/${RUST_BUILD_TRIPLE}/stage1-rustc/${RUST_TARGET}/release/rustc-main.d
+    COMMAND sh -c "cd '${CMAKE_CURRENT_SOURCE_DIR}/repo' && git apply -R '${CMAKE_CURRENT_SOURCE_DIR}/moxnox.patch'"
+    COMMAND ${CMAKE_COMMAND} -E touch ${CMAKE_CURRENT_BINARY_DIR}/rust.stamp
+    DEPENDS ${CMAKE_CURRENT_BINARY_DIR}/bootstrap.toml ${CMAKE_CURRENT_SOURCE_DIR}/moxnox.patch
     JOB_POOL cargo_pool
     COMMENT "Building rustc (${RUST_TARGET})"
     VERBATIM
 )
 
-add_custom_target(rust DEPENDS ${rustc_main})
+add_custom_target(rust DEPENDS ${CMAKE_CURRENT_BINARY_DIR}/rust.stamp)
 
 install(PROGRAMS ${RUSTC_STAGE1}/bin/rustc.exe ${RUSTC_STAGE1}/bin/rustdoc.exe
     DESTINATION ${CMAKE_INSTALL_PREFIX}/bin OPTIONAL)
