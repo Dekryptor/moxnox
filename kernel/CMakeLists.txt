@@ -141,7 +141,25 @@ set(AARCH64_SRC_FILES ${SRC_FILES}
     src/aarch64/pl011.cpp
 )
 
-string(REPLACE "${LIBSTDCXX_EXE}" "${LIBSTDCXX}" CMAKE_CXX_LINK_EXECUTABLE "${CMAKE_CXX_LINK_EXECUTABLE}")
+set(CMAKE_CXX_LINK_EXECUTABLE "<CMAKE_CXX_COMPILER> <FLAGS> <CMAKE_CXX_LINK_FLAGS> <LINK_FLAGS> <OBJECTS> -o <TARGET> <LINK_LIBRARIES>")
+
+set(kernel_libgcc_query ${CMAKE_CXX_COMPILER})
+
+if(CMAKE_CXX_COMPILER_TARGET)
+    list(APPEND kernel_libgcc_query --target=${CMAKE_CXX_COMPILER_TARGET})
+elseif(USE_COMPILER_RT)
+    list(APPEND kernel_libgcc_query --rtlib=compiler-rt)
+endif()
+
+execute_process(COMMAND ${kernel_libgcc_query} --print-libgcc-file-name
+    OUTPUT_VARIABLE KERNEL_LIBGCC
+    OUTPUT_STRIP_TRAILING_WHITESPACE
+    COMMAND_ERROR_IS_FATAL ANY
+)
+
+if(NOT EXISTS ${KERNEL_LIBGCC})
+    message(FATAL_ERROR "compiler runtime library ${KERNEL_LIBGCC} not found")
+endif()
 
 if(CMAKE_SYSTEM_PROCESSOR STREQUAL aarch64)
     set(SRC_ASM_FILES src/aarch64/ints.S
@@ -182,6 +200,7 @@ target_compile_options(kernel PRIVATE $<$<AND:$<COMPILE_LANGUAGE:CXX>,$<CXX_COMP
 
 target_link_libraries(kernel acpica)
 target_link_libraries(kernel freetype_kernel)
+target_link_libraries(kernel ${KERNEL_LIBGCC})
 
 target_compile_definitions(kernel PUBLIC "$<$<CONFIG:DEBUG>:DEBUG>")
 
