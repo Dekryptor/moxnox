@@ -136,3 +136,5 @@
 	insteadOf = https://github.com/JohnTitor/termize
 [url "https://git.burntcomma.com/moxnox/rand"]
 	insteadOf = https://github.com/rust-random/rand
+[url "https://git.burntcomma.com/moxnox/rust_libloading"]
+	insteadOf = https://github.com/nagisa/rust_libloading
