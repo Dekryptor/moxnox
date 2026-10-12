@@ -12,9 +12,6 @@ set(CMAKE_C_COMPILER_TARGET aarch64-pc-moxnox)
 set(CMAKE_CXX_COMPILER_TARGET aarch64-pc-moxnox)
 set(CMAKE_ASM_COMPILER_TARGET aarch64-pc-moxnox)
 
-set(CMAKE_EXE_LINKER_FLAGS "-static -nodefaultlibs")
-set(CMAKE_SHARED_LINKER_FLAGS_INIT "-nodefaultlibs")
-
 set(USE_COMPILER_RT ON CACHE BOOL "" FORCE)
 
 set(CMAKE_INCDIRS_BEFORE_SYSROOT ON)
@@ -23,10 +20,6 @@ set(LIBCXX_HEADERS /usr/aarch64-pc-moxnox/usr/include/c++/v1)
 set(CMAKE_FIND_ROOT_PATH_MODE_PROGRAM NEVER)
 set(CMAKE_FIND_ROOT_PATH_MODE_LIBRARY ONLY)
 set(CMAKE_FIND_ROOT_PATH_MODE_INCLUDE ONLY)
-
-set(CMAKE_USER_MAKE_RULES_OVERRIDE "${CMAKE_CURRENT_LIST_DIR}/toolchain.cmake" CACHE STRING "" FORCE)
-
-set(CMAKE_TRY_COMPILE_TARGET_TYPE STATIC_LIBRARY)
 
 add_compile_options(--sysroot=/usr/aarch64-pc-moxnox -rtlib=compiler-rt)
 add_link_options(--sysroot=/usr/aarch64-pc-moxnox -fuse-ld=lld)
