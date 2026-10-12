@@ -65,13 +65,8 @@ function(add_rust_port name binary)
     set(cargo_args --config
         "patch.crates-io.libc.path=\"${RUST_CRATES_DIR}/libc\"")
     foreach(crate ${ARG_PATCHED_CRATES})
-        if(TARGET rust_crate_${crate})
-            list(APPEND cargo_args --config
-                "patch.crates-io.${crate}.path=\"${RUST_CRATES_DIR}/${crate}\"")
-        else()
-            list(APPEND cargo_args --config
-                "patch.crates-io.${crate}.path=\"${CMAKE_CURRENT_SOURCE_DIR}/${crate}\"")
-        endif()
+        list(APPEND cargo_args --config
+            "patch.crates-io.${crate}.path=\"${RUST_CRATES_DIR}/${crate}\"")
     endforeach()
 
     if(ARG_PATCH)
@@ -101,9 +96,7 @@ function(add_rust_port name binary)
 
     add_dependencies(${name} rust_crate_libc)
     foreach(crate ${ARG_PATCHED_CRATES})
-        if(TARGET rust_crate_${crate})
-            add_dependencies(${name} rust_crate_${crate})
-        endif()
+        add_dependencies(${name} rust_crate_${crate})
     endforeach()
     if(ARG_PATCH)
         add_dependencies(${name} ${name}_patched)
