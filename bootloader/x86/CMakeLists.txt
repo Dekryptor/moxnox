@@ -15,7 +15,7 @@ add_compile_definitions(_GLIBCXX_NO_ASSERTIONS)
 
 # ------------------
 
-set(CMAKE_C_LINK_EXECUTABLE "g++ <FLAGS> <CMAKE_CXX_LINK_FLAGS> <LINK_FLAGS> <OBJECTS> <LINK_LIBRARIES> -o <TARGET>") # HACK
+set(CMAKE_C_LINK_EXECUTABLE "ld <LINK_FLAGS> <OBJECTS> <LINK_LIBRARIES> -o <TARGET>") # HACK
 
 configure_file(${CMAKE_CURRENT_SOURCE_DIR}/payload.s.in ${CMAKE_CURRENT_BINARY_DIR}/payload.s)
 
@@ -49,9 +49,9 @@ add_dependencies(boot always_check_git)
 
 target_compile_options(boot PUBLIC -march=i386 -m32 -fno-ident -fno-pic -fno-exceptions -fno-rtti -masm=intel -fno-stack-protector)
 target_include_directories(boot PUBLIC ${CMAKE_BINARY_DIR}/git)
-target_link_options(boot PUBLIC -Wl,-T ${CMAKE_SOURCE_DIR}/bootloader/x86/boot.ld -nostartfiles -nostdlib ${CMAKE_CURRENT_BINARY_DIR}/efi.cpp.obj)
+target_link_options(boot PUBLIC -m elf_i386 -T ${CMAKE_SOURCE_DIR}/bootloader/x86/boot.ld ${CMAKE_CURRENT_BINARY_DIR}/efi.cpp.obj)
 target_link_libraries(boot pe_32bit loaderblock_32bit crt_32bit x86_32bit pagesize_32bit smbios_32bit)
-set(CMAKE_EXE_LINKER_FLAGS "-static") # use binutils rather than llvm for linking
+set(CMAKE_EXE_LINKER_FLAGS "")
 
 # Clang likes to generate .refptr stubs, stop it doing this
 target_compile_options(boot PUBLIC $<$<AND:$<COMPILE_LANGUAGE:CXX>,$<CXX_COMPILER_ID:Clang>>:-fno-auto-import>)
