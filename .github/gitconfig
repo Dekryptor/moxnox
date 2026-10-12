@@ -148,3 +148,5 @@
 	insteadOf = https://github.com/eminence/terminal-size
 [url "https://git.burntcomma.com/moxnox/ripgrep"]
 	insteadOf = https://github.com/BurntSushi/ripgrep
+[url "https://git.burntcomma.com/moxnox/hexyl"]
+	insteadOf = https://github.com/sharkdp/hexyl

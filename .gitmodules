@@ -141,7 +141,7 @@
 	url = https://github.com/RazrFalcon/memmap2-rs
 [submodule "ports/hexyl/repo"]
 	path = ports/hexyl/repo
-	url = https://git.burntcomma.com/moxnox/hexyl
+	url = https://github.com/sharkdp/hexyl
 [submodule "ports/hexyl/terminal_size"]
 	path = ports/hexyl/terminal_size
 	url = https://github.com/eminence/terminal-size
