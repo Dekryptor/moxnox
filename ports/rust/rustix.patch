@@ -1,0 +1,1143 @@
+diff --git a/src/backend/libc/fs/dir.rs b/src/backend/libc/fs/dir.rs
+index fca90733..e85ce33b 100644
+--- a/src/backend/libc/fs/dir.rs
++++ b/src/backend/libc/fs/dir.rs
+@@ -2,6 +2,7 @@
+     solarish,
+     target_os = "aix",
+     target_os = "haiku",
++    target_os = "moxnox",
+     target_os = "nto",
+     target_os = "vita"
+ )))]
+@@ -16,6 +17,7 @@ use crate::fs::{fstat, Stat};
+ #[cfg(not(any(
+     solarish,
+     target_os = "haiku",
++    target_os = "moxnox",
+     target_os = "horizon",
+     target_os = "netbsd",
+     target_os = "nto",
+@@ -137,7 +139,7 @@ impl Dir {
+     /// fit in a `c_long`.
+     ///
+     /// [`libc::seekdir`]: https://docs.rs/libc/*/arm-unknown-linux-gnueabihf/libc/fn.seekdir.html
+-    #[cfg(target_pointer_width = "64")]
++    #[cfg(all(target_pointer_width = "64", not(target_os = "moxnox")))]
+     #[cfg_attr(docsrs, doc(cfg(target_pointer_width = "64")))]
+     #[doc(alias = "seekdir")]
+     #[inline]
+@@ -182,6 +184,7 @@ impl Dir {
+                         solarish,
+                         target_os = "aix",
+                         target_os = "haiku",
++                        target_os = "moxnox",
+                         target_os = "nto",
+                         target_os = "vita"
+                     )))]
+@@ -222,6 +225,7 @@ impl Dir {
+     #[cfg(not(any(
+         solarish,
+         target_os = "haiku",
++        target_os = "moxnox",
+         target_os = "horizon",
+         target_os = "netbsd",
+         target_os = "nto",
+@@ -300,6 +304,7 @@ pub struct DirEntry {
+         solarish,
+         target_os = "aix",
+         target_os = "haiku",
++        target_os = "moxnox",
+         target_os = "nto",
+         target_os = "vita"
+     )))]
+@@ -352,6 +357,7 @@ impl DirEntry {
+         solarish,
+         target_os = "aix",
+         target_os = "haiku",
++        target_os = "moxnox",
+         target_os = "nto",
+         target_os = "vita"
+     )))]
+diff --git a/src/backend/libc/fs/makedev.rs b/src/backend/libc/fs/makedev.rs
+index a5521184..ffb10216 100644
+--- a/src/backend/libc/fs/makedev.rs
++++ b/src/backend/libc/fs/makedev.rs
+@@ -14,6 +14,7 @@ use crate::fs::Dev;
+     target_os = "aix",
+     target_os = "android",
+     target_os = "emscripten",
++    target_os = "moxnox",
+ )))]
+ #[inline]
+ pub(crate) fn makedev(maj: u32, min: u32) -> Dev {
+@@ -65,12 +66,33 @@ pub(crate) fn makedev(maj: u32, min: u32) -> Dev {
+     unsafe { c::makedev(maj, min) }
+ }
+ 
++// Moxnox has no makedev and no device-number layout yet; use the
++// traditional encoding so these three stay consistent with each other.
++#[cfg(target_os = "moxnox")]
++#[inline]
++pub(crate) fn makedev(maj: u32, min: u32) -> Dev {
++    (Dev::from(maj) << 8) | Dev::from(min & 0xff)
++}
++
++#[cfg(target_os = "moxnox")]
++#[inline]
++pub(crate) fn major(dev: Dev) -> u32 {
++    ((dev >> 8) & 0xffff_ffff) as u32
++}
++
++#[cfg(target_os = "moxnox")]
++#[inline]
++pub(crate) fn minor(dev: Dev) -> u32 {
++    (dev & 0xff) as u32
++}
++
+ #[cfg(not(any(
+     apple,
+     freebsdlike,
+     target_os = "android",
+     target_os = "emscripten",
+-    target_os = "netbsd"
++    target_os = "netbsd",
++    target_os = "moxnox"
+ )))]
+ #[inline]
+ pub(crate) fn major(dev: Dev) -> u32 {
+@@ -109,7 +131,8 @@ pub(crate) fn major(dev: Dev) -> u32 {
+     freebsdlike,
+     target_os = "android",
+     target_os = "emscripten",
+-    target_os = "netbsd"
++    target_os = "netbsd",
++    target_os = "moxnox"
+ )))]
+ #[inline]
+ pub(crate) fn minor(dev: Dev) -> u32 {
+diff --git a/src/backend/libc/fs/syscalls.rs b/src/backend/libc/fs/syscalls.rs
+index 8cbd3a2c..ccc8c826 100644
+--- a/src/backend/libc/fs/syscalls.rs
++++ b/src/backend/libc/fs/syscalls.rs
+@@ -42,6 +42,7 @@ use crate::fs::SealFlags;
+     target_os = "espidf",
+     target_os = "haiku",
+     target_os = "horizon",
++    target_os = "moxnox",
+     target_os = "netbsd",
+     target_os = "nto",
+     target_os = "redox",
+@@ -161,6 +162,7 @@ pub(crate) fn open(path: &CStr, oflags: OFlags, mode: Mode) -> io::Result<OwnedF
+     #[cfg(any(
+         apple,
+         freebsdlike,
++        target_os = "moxnox",
+         all(target_os = "android", target_pointer_width = "32")
+     ))]
+     let mode: c::c_uint = mode.bits().into();
+@@ -169,6 +171,7 @@ pub(crate) fn open(path: &CStr, oflags: OFlags, mode: Mode) -> io::Result<OwnedF
+     #[cfg(not(any(
+         apple,
+         freebsdlike,
++        target_os = "moxnox",
+         all(target_os = "android", target_pointer_width = "32")
+     )))]
+     let mode: c::mode_t = mode.bits() as _;
+@@ -229,6 +232,7 @@ pub(crate) fn openat(
+     #[cfg(any(
+         apple,
+         freebsdlike,
++        target_os = "moxnox",
+         all(target_os = "android", target_pointer_width = "32")
+     ))]
+     let mode: c::c_uint = mode.bits().into();
+@@ -237,6 +241,7 @@ pub(crate) fn openat(
+     #[cfg(not(any(
+         apple,
+         freebsdlike,
++        target_os = "moxnox",
+         all(target_os = "android", target_pointer_width = "32")
+     )))]
+     let mode: c::mode_t = mode.bits() as _;
+@@ -256,10 +261,12 @@ pub(crate) fn openat(
+     target_os = "espidf",
+     target_os = "haiku",
+     target_os = "horizon",
++    target_os = "moxnox",
+     target_os = "netbsd",
+     target_os = "nto",
+     target_os = "redox",
+     target_os = "vita",
++    target_os = "moxnox",
+     target_os = "wasi",
+ )))]
+ #[inline]
+@@ -1181,6 +1188,7 @@ pub(crate) fn chownat(
+     apple,
+     target_os = "espidf",
+     target_os = "horizon",
++    target_os = "moxnox",
+     target_os = "redox",
+     target_os = "vita",
+     target_os = "wasi"
+@@ -1476,6 +1484,7 @@ pub(crate) fn fchown(fd: BorrowedFd<'_>, owner: Option<Uid>, group: Option<Gid>)
+     target_os = "horizon",
+     target_os = "solaris",
+     target_os = "vita",
++    target_os = "moxnox",
+     target_os = "wasi"
+ )))]
+ pub(crate) fn flock(fd: BorrowedFd<'_>, operation: FlockOperation) -> io::Result<()> {
+@@ -1504,6 +1513,7 @@ pub(crate) fn syncfs(fd: BorrowedFd<'_>) -> io::Result<()> {
+     target_os = "horizon",
+     target_os = "redox",
+     target_os = "vita",
++    target_os = "moxnox",
+     target_os = "wasi"
+ )))]
+ pub(crate) fn sync() {
+@@ -1577,10 +1587,12 @@ fn fstat_old(fd: BorrowedFd<'_>) -> io::Result<Stat> {
+     target_os = "espidf",
+     target_os = "haiku",
+     target_os = "horizon",
++    target_os = "moxnox",
+     target_os = "netbsd",
+     target_os = "nto",
+     target_os = "redox",
+     target_os = "vita",
++    target_os = "moxnox",
+     target_os = "wasi",
+ )))]
+ pub(crate) fn fstatfs(fd: BorrowedFd<'_>) -> io::Result<StatFs> {
+@@ -1725,6 +1737,7 @@ fn futimens_old(fd: BorrowedFd<'_>, times: &Timestamps) -> io::Result<()> {
+     target_os = "horizon",
+     target_os = "nto",
+     target_os = "redox",
++    target_os = "moxnox",
+     target_os = "vita",
+ )))]
+ pub(crate) fn fallocate(
+@@ -1808,6 +1821,7 @@ pub(crate) fn fsync(fd: BorrowedFd<'_>) -> io::Result<()> {
+     target_os = "haiku",
+     target_os = "horizon",
+     target_os = "redox",
++    target_os = "moxnox",
+     target_os = "vita",
+ )))]
+ pub(crate) fn fdatasync(fd: BorrowedFd<'_>) -> io::Result<()> {
+diff --git a/src/backend/libc/fs/types.rs b/src/backend/libc/fs/types.rs
+index d570c5b2..d0da8a66 100644
+--- a/src/backend/libc/fs/types.rs
++++ b/src/backend/libc/fs/types.rs
+@@ -379,6 +379,7 @@ bitflags! {
+             target_os = "cygwin",
+             target_os = "espidf",
+             target_os = "haiku",
++            target_os = "moxnox",
+             target_os = "horizon",
+             target_os = "wasi",
+             target_os = "vita",
+@@ -603,6 +604,7 @@ impl FileType {
+         target_os = "aix",
+         target_os = "espidf",
+         target_os = "haiku",
++        target_os = "moxnox",
+         target_os = "nto",
+         target_os = "redox",
+         target_os = "vita"
+@@ -766,6 +768,7 @@ bitflags! {
+             solarish,
+             target_os = "aix",
+             target_os = "haiku",
++            target_os = "moxnox",
+             target_os = "hurd",
+             target_os = "wasi",
+         )))]
+@@ -776,6 +779,7 @@ bitflags! {
+             solarish,
+             target_os = "aix",
+             target_os = "haiku",
++            target_os = "moxnox",
+             target_os = "hurd",
+             target_os = "wasi",
+         )))]
+@@ -789,6 +793,7 @@ bitflags! {
+             target_os = "emscripten",
+             target_os = "fuchsia",
+             target_os = "haiku",
++            target_os = "moxnox",
+             target_os = "hurd",
+             target_os = "l4re",
+             target_os = "linux",
+@@ -801,6 +806,7 @@ bitflags! {
+             solarish,
+             target_os = "aix",
+             target_os = "haiku",
++            target_os = "moxnox",
+             target_os = "hurd",
+             target_os = "emscripten",
+             target_os = "wasi",
+@@ -812,6 +818,7 @@ bitflags! {
+             solarish,
+             target_os = "aix",
+             target_os = "haiku",
++            target_os = "moxnox",
+             target_os = "hurd",
+             target_os = "emscripten",
+             target_os = "wasi",
+@@ -823,6 +830,7 @@ bitflags! {
+             solarish,
+             target_os = "aix",
+             target_os = "haiku",
++            target_os = "moxnox",
+             target_os = "hurd",
+             target_os = "emscripten",
+             target_os = "wasi",
+@@ -834,6 +842,7 @@ bitflags! {
+             solarish,
+             target_os = "aix",
+             target_os = "haiku",
++            target_os = "moxnox",
+             target_os = "hurd",
+             target_os = "emscripten",
+             target_os = "wasi",
+@@ -877,11 +886,13 @@ bitflags! {
+         const NOEXEC = c::ST_NOEXEC as u64;
+ 
+         /// `ST_NOSUID`
+-        #[cfg(not(any(target_os = "espidf", target_os = "haiku", target_os = "horizon", target_os = "redox", target_os = "vita")))]
++        #[cfg(not(any(target_os = "espidf", target_os = "haiku",
++        target_os = "moxnox", target_os = "horizon", target_os = "redox", target_os = "vita")))]
+         const NOSUID = c::ST_NOSUID as u64;
+ 
+         /// `ST_RDONLY`
+-        #[cfg(not(any(target_os = "espidf", target_os = "haiku", target_os = "horizon", target_os = "redox", target_os = "vita")))]
++        #[cfg(not(any(target_os = "espidf", target_os = "haiku",
++        target_os = "moxnox", target_os = "horizon", target_os = "redox", target_os = "vita")))]
+         const RDONLY = c::ST_RDONLY as u64;
+ 
+         /// `ST_RELATIME`
+@@ -914,40 +925,40 @@ bitflags! {
+ #[repr(u32)]
+ pub enum FlockOperation {
+     /// `LOCK_SH`
+-    #[cfg(not(target_os = "solaris"))]
++    #[cfg(not(any(target_os = "solaris", target_os = "moxnox")))]
+     LockShared = bitcast!(c::LOCK_SH),
+     /// `LOCK_SH`
+-    #[cfg(target_os = "solaris")]
++    #[cfg(any(target_os = "solaris", target_os = "moxnox"))]
+     LockShared = bitcast!(1),
+     /// `LOCK_EX`
+-    #[cfg(not(target_os = "solaris"))]
++    #[cfg(not(any(target_os = "solaris", target_os = "moxnox")))]
+     LockExclusive = bitcast!(c::LOCK_EX),
+     /// `LOCK_EX`
+-    #[cfg(target_os = "solaris")]
++    #[cfg(any(target_os = "solaris", target_os = "moxnox"))]
+     LockExclusive = bitcast!(2),
+     /// `LOCK_UN`
+-    #[cfg(not(target_os = "solaris"))]
++    #[cfg(not(any(target_os = "solaris", target_os = "moxnox")))]
+     Unlock = bitcast!(c::LOCK_UN),
+     /// `LOCK_UN`
+-    #[cfg(target_os = "solaris")]
++    #[cfg(any(target_os = "solaris", target_os = "moxnox"))]
+     Unlock = bitcast!(8),
+     /// `LOCK_SH | LOCK_NB`
+-    #[cfg(not(target_os = "solaris"))]
++    #[cfg(not(any(target_os = "solaris", target_os = "moxnox")))]
+     NonBlockingLockShared = bitcast!(c::LOCK_SH | c::LOCK_NB),
+     /// `LOCK_SH | LOCK_NB`
+-    #[cfg(target_os = "solaris")]
++    #[cfg(any(target_os = "solaris", target_os = "moxnox"))]
+     NonBlockingLockShared = bitcast!(1 | 4),
+     /// `LOCK_EX | LOCK_NB`
+-    #[cfg(not(target_os = "solaris"))]
++    #[cfg(not(any(target_os = "solaris", target_os = "moxnox")))]
+     NonBlockingLockExclusive = bitcast!(c::LOCK_EX | c::LOCK_NB),
+     /// `LOCK_EX | LOCK_NB`
+-    #[cfg(target_os = "solaris")]
++    #[cfg(any(target_os = "solaris", target_os = "moxnox"))]
+     NonBlockingLockExclusive = bitcast!(2 | 4),
+     /// `LOCK_UN | LOCK_NB`
+-    #[cfg(not(target_os = "solaris"))]
++    #[cfg(not(any(target_os = "solaris", target_os = "moxnox")))]
+     NonBlockingUnlock = bitcast!(c::LOCK_UN | c::LOCK_NB),
+     /// `LOCK_UN | LOCK_NB`
+-    #[cfg(target_os = "solaris")]
++    #[cfg(any(target_os = "solaris", target_os = "moxnox"))]
+     NonBlockingUnlock = bitcast!(8 | 4),
+ }
+ 
+@@ -1042,6 +1053,7 @@ pub struct Stat {
+     solarish,
+     target_os = "espidf",
+     target_os = "haiku",
++    target_os = "moxnox",
+     target_os = "horizon",
+     target_os = "netbsd",
+     target_os = "nto",
+@@ -1065,6 +1077,7 @@ pub type StatFs = c::statfs64;
+     target_os = "cygwin",
+     target_os = "espidf",
+     target_os = "haiku",
++    target_os = "moxnox",
+     target_os = "horizon",
+     target_os = "nto",
+     target_os = "redox",
+diff --git a/src/backend/libc/io/errno.rs b/src/backend/libc/io/errno.rs
+index 81f0e489..07d83e5a 100644
+--- a/src/backend/libc/io/errno.rs
++++ b/src/backend/libc/io/errno.rs
+@@ -51,6 +51,7 @@ impl Errno {
+         target_os = "aix",
+         target_os = "espidf",
+         target_os = "haiku",
++        target_os = "moxnox",
+         target_os = "horizon",
+         target_os = "hurd",
+         target_os = "l4re",
+@@ -76,6 +77,7 @@ impl Errno {
+         target_os = "aix",
+         target_os = "espidf",
+         target_os = "haiku",
++        target_os = "moxnox",
+         target_os = "horizon",
+         target_os = "hurd",
+         target_os = "l4re",
+@@ -92,6 +94,7 @@ impl Errno {
+         target_os = "aix",
+         target_os = "espidf",
+         target_os = "haiku",
++        target_os = "moxnox",
+         target_os = "horizon",
+         target_os = "hurd",
+         target_os = "l4re",
+@@ -109,6 +112,7 @@ impl Errno {
+         target_os = "aix",
+         target_os = "espidf",
+         target_os = "haiku",
++        target_os = "moxnox",
+         target_os = "horizon",
+         target_os = "hurd",
+         target_os = "l4re",
+@@ -126,6 +130,7 @@ impl Errno {
+         target_os = "aix",
+         target_os = "espidf",
+         target_os = "haiku",
++        target_os = "moxnox",
+         target_os = "horizon",
+         target_os = "hurd",
+         target_os = "l4re",
+@@ -140,6 +145,7 @@ impl Errno {
+         target_os = "aix",
+         target_os = "espidf",
+         target_os = "haiku",
++        target_os = "moxnox",
+         target_os = "horizon",
+         target_os = "hurd",
+         target_os = "l4re",
+@@ -154,6 +160,7 @@ impl Errno {
+         target_os = "aix",
+         target_os = "espidf",
+         target_os = "haiku",
++        target_os = "moxnox",
+         target_os = "horizon",
+         target_os = "hurd",
+         target_os = "l4re",
+@@ -179,6 +186,7 @@ impl Errno {
+         windows,
+         target_os = "espidf",
+         target_os = "haiku",
++        target_os = "moxnox",
+         target_os = "horizon",
+         target_os = "hurd",
+         target_os = "l4re",
+@@ -193,6 +201,7 @@ impl Errno {
+         target_os = "aix",
+         target_os = "espidf",
+         target_os = "haiku",
++        target_os = "moxnox",
+         target_os = "horizon",
+         target_os = "hurd",
+         target_os = "l4re",
+@@ -217,6 +226,7 @@ impl Errno {
+         target_os = "android",
+         target_os = "espidf",
+         target_os = "haiku",
++        target_os = "moxnox",
+         target_os = "horizon",
+         target_os = "hurd",
+         target_os = "vita",
+@@ -243,6 +253,7 @@ impl Errno {
+         target_os = "aix",
+         target_os = "espidf",
+         target_os = "haiku",
++        target_os = "moxnox",
+         target_os = "horizon",
+         target_os = "hurd",
+         target_os = "l4re",
+@@ -265,7 +276,7 @@ impl Errno {
+     #[cfg(any(bsd, target_env = "newlib"))]
+     pub const FTYPE: Self = Self(c::EFTYPE);
+     /// `EHOSTDOWN`
+-    #[cfg(not(any(target_os = "l4re", target_os = "wasi")))]
++    #[cfg(not(any(target_os = "l4re", target_os = "moxnox", target_os = "wasi")))]
+     pub const HOSTDOWN: Self = Self(c::EHOSTDOWN);
+     /// `EHOSTUNREACH`
+     pub const HOSTUNREACH: Self = Self(c::EHOSTUNREACH);
+@@ -279,6 +290,7 @@ impl Errno {
+         target_os = "cygwin",
+         target_os = "espidf",
+         target_os = "haiku",
++        target_os = "moxnox",
+         target_os = "horizon",
+         target_os = "hurd",
+         target_os = "l4re",
+@@ -330,6 +342,7 @@ impl Errno {
+         target_os = "cygwin",
+         target_os = "espidf",
+         target_os = "haiku",
++        target_os = "moxnox",
+         target_os = "horizon",
+         target_os = "hurd",
+         target_os = "l4re",
+@@ -347,6 +360,7 @@ impl Errno {
+         target_os = "cygwin",
+         target_os = "espidf",
+         target_os = "haiku",
++        target_os = "moxnox",
+         target_os = "horizon",
+         target_os = "hurd",
+         target_os = "l4re",
+@@ -364,6 +378,7 @@ impl Errno {
+         target_os = "cygwin",
+         target_os = "espidf",
+         target_os = "haiku",
++        target_os = "moxnox",
+         target_os = "horizon",
+         target_os = "hurd",
+         target_os = "l4re",
+@@ -381,6 +396,7 @@ impl Errno {
+         target_os = "cygwin",
+         target_os = "espidf",
+         target_os = "haiku",
++        target_os = "moxnox",
+         target_os = "horizon",
+         target_os = "hurd",
+         target_os = "l4re",
+@@ -395,6 +411,7 @@ impl Errno {
+         windows,
+         target_os = "espidf",
+         target_os = "haiku",
++        target_os = "moxnox",
+         target_os = "horizon",
+         target_os = "hurd",
+         target_os = "l4re",
+@@ -408,6 +425,7 @@ impl Errno {
+         windows,
+         target_os = "espidf",
+         target_os = "haiku",
++        target_os = "moxnox",
+         target_os = "horizon",
+         target_os = "hurd",
+         target_os = "l4re",
+@@ -421,6 +439,7 @@ impl Errno {
+         windows,
+         target_os = "espidf",
+         target_os = "haiku",
++        target_os = "moxnox",
+         target_os = "horizon",
+         target_os = "hurd",
+         target_os = "l4re",
+@@ -434,6 +453,7 @@ impl Errno {
+         windows,
+         target_os = "espidf",
+         target_os = "haiku",
++        target_os = "moxnox",
+         target_os = "horizon",
+         target_os = "hurd",
+         target_os = "l4re",
+@@ -448,6 +468,7 @@ impl Errno {
+         target_os = "aix",
+         target_os = "espidf",
+         target_os = "haiku",
++        target_os = "moxnox",
+         target_os = "horizon",
+         target_os = "hurd",
+         target_os = "l4re",
+@@ -462,6 +483,7 @@ impl Errno {
+         target_os = "aix",
+         target_os = "espidf",
+         target_os = "haiku",
++        target_os = "moxnox",
+         target_os = "horizon",
+         target_os = "hurd",
+         target_os = "l4re",
+@@ -476,6 +498,7 @@ impl Errno {
+         target_os = "aix",
+         target_os = "espidf",
+         target_os = "haiku",
++        target_os = "moxnox",
+         target_os = "horizon",
+         target_os = "l4re",
+         target_os = "vita",
+@@ -489,6 +512,7 @@ impl Errno {
+         target_os = "aix",
+         target_os = "espidf",
+         target_os = "haiku",
++        target_os = "moxnox",
+         target_os = "horizon",
+         target_os = "hurd",
+         target_os = "l4re",
+@@ -503,6 +527,7 @@ impl Errno {
+         target_os = "aix",
+         target_os = "espidf",
+         target_os = "haiku",
++        target_os = "moxnox",
+         target_os = "horizon",
+         target_os = "hurd",
+         target_os = "l4re",
+@@ -516,6 +541,7 @@ impl Errno {
+         windows,
+         target_os = "espidf",
+         target_os = "haiku",
++        target_os = "moxnox",
+         target_os = "horizon",
+         target_os = "hurd",
+         target_os = "l4re",
+@@ -534,6 +560,7 @@ impl Errno {
+         target_os = "cygwin",
+         target_os = "espidf",
+         target_os = "haiku",
++        target_os = "moxnox",
+         target_os = "horizon",
+         target_os = "hurd",
+         target_os = "l4re",
+@@ -551,7 +578,7 @@ impl Errno {
+     #[cfg(not(target_os = "l4re"))]
+     pub const MSGSIZE: Self = Self(c::EMSGSIZE);
+     /// `EMULTIHOP`
+-    #[cfg(not(any(windows, target_os = "l4re", target_os = "openbsd")))]
++    #[cfg(not(any(windows, target_os = "l4re", target_os = "moxnox", target_os = "openbsd")))]
+     pub const MULTIHOP: Self = Self(c::EMULTIHOP);
+     /// `ENAMETOOLONG`
+     pub const NAMETOOLONG: Self = Self(c::ENAMETOOLONG);
+@@ -564,6 +591,7 @@ impl Errno {
+         target_os = "cygwin",
+         target_os = "espidf",
+         target_os = "haiku",
++        target_os = "moxnox",
+         target_os = "horizon",
+         target_os = "hurd",
+         target_os = "l4re",
+@@ -592,6 +620,7 @@ impl Errno {
+         target_os = "aix",
+         target_os = "espidf",
+         target_os = "haiku",
++        target_os = "moxnox",
+         target_os = "horizon",
+         target_os = "hurd",
+         target_os = "l4re",
+@@ -611,6 +640,7 @@ impl Errno {
+         windows,
+         target_os = "espidf",
+         target_os = "haiku",
++        target_os = "moxnox",
+         target_os = "horizon",
+         target_os = "hurd",
+         target_os = "l4re",
+@@ -623,6 +653,7 @@ impl Errno {
+         freebsdlike,
+         windows,
+         target_os = "haiku",
++        target_os = "moxnox",
+         target_os = "openbsd",
+         target_os = "wasi",
+     )))]
+@@ -645,6 +676,7 @@ impl Errno {
+         target_os = "cygwin",
+         target_os = "espidf",
+         target_os = "haiku",
++        target_os = "moxnox",
+         target_os = "horizon",
+         target_os = "hurd",
+         target_os = "l4re",
+@@ -657,7 +689,7 @@ impl Errno {
+     #[cfg(not(any(windows, target_os = "l4re")))]
+     pub const NOLCK: Self = Self(c::ENOLCK);
+     /// `ENOLINK`
+-    #[cfg(not(any(windows, target_os = "l4re", target_os = "openbsd")))]
++    #[cfg(not(any(windows, target_os = "l4re", target_os = "moxnox", target_os = "openbsd")))]
+     pub const NOLINK: Self = Self(c::ENOLINK);
+     /// `ENOMEDIUM`
+     #[cfg(not(any(
+@@ -667,6 +699,7 @@ impl Errno {
+         target_os = "aix",
+         target_os = "espidf",
+         target_os = "haiku",
++        target_os = "moxnox",
+         target_os = "horizon",
+         target_os = "hurd",
+         target_os = "l4re",
+@@ -691,6 +724,7 @@ impl Errno {
+         target_os = "aix",
+         target_os = "espidf",
+         target_os = "haiku",
++        target_os = "moxnox",
+         target_os = "horizon",
+         target_os = "hurd",
+         target_os = "l4re",
+@@ -705,6 +739,7 @@ impl Errno {
+         target_os = "aix",
+         target_os = "espidf",
+         target_os = "haiku",
++        target_os = "moxnox",
+         target_os = "horizon",
+         target_os = "hurd",
+         target_os = "l4re",
+@@ -723,6 +758,7 @@ impl Errno {
+         freebsdlike,
+         windows,
+         target_os = "haiku",
++        target_os = "moxnox",
+         target_os = "l4re",
+         target_os = "openbsd",
+         target_os = "wasi",
+@@ -733,6 +769,7 @@ impl Errno {
+         freebsdlike,
+         windows,
+         target_os = "haiku",
++        target_os = "moxnox",
+         target_os = "l4re",
+         target_os = "openbsd",
+         target_os = "wasi",
+@@ -746,6 +783,7 @@ impl Errno {
+         windows,
+         target_os = "espidf",
+         target_os = "haiku",
++        target_os = "moxnox",
+         target_os = "horizon",
+         target_os = "vita",
+         target_os = "wasi"
+@@ -770,6 +808,7 @@ impl Errno {
+         target_os = "cygwin",
+         target_os = "espidf",
+         target_os = "haiku",
++        target_os = "moxnox",
+         target_os = "horizon",
+         target_os = "hurd",
+         target_os = "l4re",
+@@ -784,6 +823,7 @@ impl Errno {
+         netbsdlike,
+         windows,
+         target_os = "haiku",
++        target_os = "moxnox",
+         target_os = "l4re"
+     )))]
+     pub const NOTRECOVERABLE: Self = Self(c::ENOTRECOVERABLE);
+@@ -803,6 +843,7 @@ impl Errno {
+         target_os = "aix",
+         target_os = "espidf",
+         target_os = "haiku",
++        target_os = "moxnox",
+         target_os = "horizon",
+         target_os = "hurd",
+         target_os = "l4re",
+@@ -824,6 +865,7 @@ impl Errno {
+         netbsdlike,
+         windows,
+         target_os = "haiku",
++        target_os = "moxnox",
+         target_os = "l4re"
+     )))]
+     pub const OWNERDEAD: Self = Self(c::EOWNERDEAD);
+@@ -831,7 +873,7 @@ impl Errno {
+     #[cfg(not(windows))]
+     pub const PERM: Self = Self(c::EPERM);
+     /// `EPFNOSUPPORT`
+-    #[cfg(not(any(target_os = "l4re", target_os = "wasi")))]
++    #[cfg(not(any(target_os = "l4re", target_os = "moxnox", target_os = "wasi")))]
+     pub const PFNOSUPPORT: Self = Self(c::EPFNOSUPPORT);
+     /// `EPIPE`
+     #[cfg(not(windows))]
+@@ -873,6 +915,7 @@ impl Errno {
+         target_os = "aix",
+         target_os = "espidf",
+         target_os = "haiku",
++        target_os = "moxnox",
+         target_os = "horizon",
+         target_os = "hurd",
+         target_os = "l4re",
+@@ -884,6 +927,7 @@ impl Errno {
+     #[cfg(not(any(
+         target_os = "espidf",
+         target_os = "haiku",
++        target_os = "moxnox",
+         target_os = "horizon",
+         target_os = "l4re",
+         target_os = "vita",
+@@ -899,6 +943,7 @@ impl Errno {
+         target_os = "cygwin",
+         target_os = "espidf",
+         target_os = "haiku",
++        target_os = "moxnox",
+         target_os = "horizon",
+         target_os = "hurd",
+         target_os = "l4re",
+@@ -914,6 +959,7 @@ impl Errno {
+         target_os = "cygwin",
+         target_os = "espidf",
+         target_os = "haiku",
++        target_os = "moxnox",
+         target_os = "horizon",
+         target_os = "hurd",
+         target_os = "l4re",
+@@ -931,6 +977,7 @@ impl Errno {
+         target_os = "cygwin",
+         target_os = "espidf",
+         target_os = "haiku",
++        target_os = "moxnox",
+         target_os = "horizon",
+         target_os = "hurd",
+         target_os = "l4re",
+@@ -951,6 +998,7 @@ impl Errno {
+         target_os = "espidf",
+         target_os = "horizon",
+         target_os = "l4re",
++        target_os = "moxnox",
+         target_os = "vita",
+         target_os = "wasi"
+     )))]
+@@ -959,6 +1007,7 @@ impl Errno {
+     #[cfg(not(any(
+         target_os = "espidf",
+         target_os = "haiku",
++        target_os = "moxnox",
+         target_os = "horizon",
+         target_os = "l4re",
+         target_os = "vita",
+@@ -978,6 +1027,7 @@ impl Errno {
+         target_os = "aix",
+         target_os = "espidf",
+         target_os = "haiku",
++        target_os = "moxnox",
+         target_os = "horizon",
+         target_os = "hurd",
+         target_os = "l4re",
+@@ -994,6 +1044,7 @@ impl Errno {
+         target_os = "aix",
+         target_os = "espidf",
+         target_os = "haiku",
++        target_os = "moxnox",
+         target_os = "horizon",
+         target_os = "hurd",
+         target_os = "l4re",
+@@ -1006,6 +1057,7 @@ impl Errno {
+         freebsdlike,
+         windows,
+         target_os = "l4re",
++        target_os = "moxnox",
+         target_os = "openbsd",
+         target_os = "wasi"
+     )))]
+@@ -1017,7 +1069,7 @@ impl Errno {
+     #[doc(alias = "2BIG")]
+     pub const TOOBIG: Self = Self(c::E2BIG);
+     /// `ETOOMANYREFS`
+-    #[cfg(not(any(target_os = "haiku", target_os = "l4re", target_os = "wasi")))]
++    #[cfg(not(any(target_os = "haiku", target_os = "l4re", target_os = "moxnox", target_os = "wasi")))]
+     pub const TOOMANYREFS: Self = Self(c::ETOOMANYREFS);
+     /// `ETXTBSY`
+     #[cfg(not(windows))]
+@@ -1031,6 +1083,7 @@ impl Errno {
+         target_os = "cygwin",
+         target_os = "espidf",
+         target_os = "haiku",
++        target_os = "moxnox",
+         target_os = "horizon",
+         target_os = "hurd",
+         target_os = "l4re",
+@@ -1045,6 +1098,7 @@ impl Errno {
+         windows,
+         target_os = "espidf",
+         target_os = "haiku",
++        target_os = "moxnox",
+         target_os = "horizon",
+         target_os = "hurd",
+         target_os = "l4re",
+@@ -1056,6 +1110,7 @@ impl Errno {
+     #[cfg(not(any(
+         target_os = "espidf",
+         target_os = "haiku",
++        target_os = "moxnox",
+         target_os = "horizon",
+         target_os = "l4re",
+         target_os = "vita",
+@@ -1074,6 +1129,7 @@ impl Errno {
+         target_os = "aix",
+         target_os = "espidf",
+         target_os = "haiku",
++        target_os = "moxnox",
+         target_os = "horizon",
+         target_os = "hurd",
+         target_os = "l4re",
+diff --git a/src/backend/libc/io/syscalls.rs b/src/backend/libc/io/syscalls.rs
+index d91e983c..5043db17 100644
+--- a/src/backend/libc/io/syscalls.rs
++++ b/src/backend/libc/io/syscalls.rs
+@@ -96,6 +96,7 @@ pub(crate) fn writev(fd: BorrowedFd<'_>, bufs: &[IoSlice<'_>]) -> io::Result<usi
+     target_os = "cygwin",
+     target_os = "espidf",
+     target_os = "haiku",
++    target_os = "moxnox",
+     target_os = "horizon",
+     target_os = "nto",
+     target_os = "redox",
+@@ -127,6 +128,7 @@ pub(crate) fn preadv(
+     target_os = "cygwin",
+     target_os = "espidf",
+     target_os = "haiku",
++    target_os = "moxnox",
+     target_os = "nto",
+     target_os = "horizon",
+     target_os = "redox",
+@@ -215,6 +217,7 @@ pub(crate) unsafe fn try_close(raw_fd: RawFd) -> io::Result<()> {
+     ret(c::close(raw_fd as c::c_int))
+ }
+ 
++#[cfg(not(target_os = "moxnox"))]
+ #[inline]
+ pub(crate) unsafe fn ioctl(
+     fd: BorrowedFd<'_>,
+@@ -224,6 +227,7 @@ pub(crate) unsafe fn ioctl(
+     ret_c_int(c::ioctl(borrowed_fd(fd), request, arg))
+ }
+ 
++#[cfg(not(target_os = "moxnox"))]
+ #[inline]
+ pub(crate) unsafe fn ioctl_readonly(
+     fd: BorrowedFd<'_>,
+@@ -271,6 +275,7 @@ pub(crate) fn dup2(fd: BorrowedFd<'_>, new: &mut OwnedFd) -> io::Result<()> {
+     target_os = "dragonfly",
+     target_os = "espidf",
+     target_os = "haiku",
++    target_os = "moxnox",
+     target_os = "horizon",
+     target_os = "nto",
+     target_os = "redox",
+@@ -292,6 +297,7 @@ pub(crate) fn dup3(fd: BorrowedFd<'_>, new: &mut OwnedFd, flags: DupFlags) -> io
+     target_os = "android",
+     target_os = "dragonfly",
+     target_os = "haiku",
++    target_os = "moxnox",
+     target_os = "redox",
+ ))]
+ pub(crate) fn dup3(fd: BorrowedFd<'_>, new: &mut OwnedFd, _flags: DupFlags) -> io::Result<()> {
+diff --git a/src/fs/abs.rs b/src/fs/abs.rs
+index 307698b5..a0f4178b 100644
+--- a/src/fs/abs.rs
++++ b/src/fs/abs.rs
+@@ -8,6 +8,7 @@ use crate::fs::Access;
+     target_os = "espidf",
+     target_os = "haiku",
+     target_os = "horizon",
++    target_os = "moxnox",
+     target_os = "netbsd",
+     target_os = "nto",
+     target_os = "redox",
+@@ -259,6 +260,7 @@ pub fn access<P: path::Arg>(path: P, access: Access) -> io::Result<()> {
+     target_os = "espidf",
+     target_os = "haiku",
+     target_os = "horizon",
++    target_os = "moxnox",
+     target_os = "netbsd",
+     target_os = "nto",
+     target_os = "redox",
+diff --git a/src/fs/at.rs b/src/fs/at.rs
+index bddb5347..f0cf420e 100644
+--- a/src/fs/at.rs
++++ b/src/fs/at.rs
+@@ -453,6 +453,7 @@ pub fn fclonefileat<Fd: AsFd, DstFd: AsFd, P: path::Arg>(
+     apple,
+     target_os = "espidf",
+     target_os = "horizon",
++    target_os = "moxnox",
+     target_os = "vita",
+     target_os = "wasi"
+ )))]
+@@ -479,6 +480,7 @@ pub fn mknodat<P: path::Arg, Fd: AsFd>(
+     apple,
+     target_os = "espidf",
+     target_os = "horizon",
++    target_os = "moxnox",
+     target_os = "vita",
+     target_os = "wasi"
+ )))]
+diff --git a/src/fs/fd.rs b/src/fs/fd.rs
+index 61cd3f47..c1df6fc7 100644
+--- a/src/fs/fd.rs
++++ b/src/fs/fd.rs
+@@ -33,6 +33,7 @@ use backend::fs::types::Stat;
+     target_os = "espidf",
+     target_os = "haiku",
+     target_os = "horizon",
++    target_os = "moxnox",
+     target_os = "netbsd",
+     target_os = "nto",
+     target_os = "redox",
+@@ -171,6 +172,7 @@ pub fn fstat<Fd: AsFd>(fd: Fd) -> io::Result<Stat> {
+     target_os = "espidf",
+     target_os = "haiku",
+     target_os = "horizon",
++    target_os = "moxnox",
+     target_os = "netbsd",
+     target_os = "nto",
+     target_os = "redox",
+@@ -239,6 +241,7 @@ pub fn futimens<Fd: AsFd>(fd: Fd, times: &Timestamps) -> io::Result<()> {
+     target_os = "nto",
+     target_os = "redox",
+     target_os = "vita",
++    target_os = "moxnox",
+ )))] // not implemented in libc for NetBSD yet
+ #[inline]
+ #[doc(alias = "posix_fallocate")]
+@@ -280,6 +283,7 @@ pub fn fsync<Fd: AsFd>(fd: Fd) -> io::Result<()> {
+     target_os = "haiku",
+     target_os = "horizon",
+     target_os = "redox",
++    target_os = "moxnox",
+     target_os = "vita",
+ )))]
+ #[inline]
+@@ -311,6 +315,7 @@ pub fn ftruncate<Fd: AsFd>(fd: Fd, length: u64) -> io::Result<()> {
+     target_os = "horizon",
+     target_os = "solaris",
+     target_os = "vita",
++    target_os = "moxnox",
+     target_os = "wasi"
+ )))]
+ #[inline]
+diff --git a/src/fs/mod.rs b/src/fs/mod.rs
+index 1807ada6..40cc03f7 100644
+--- a/src/fs/mod.rs
++++ b/src/fs/mod.rs
+@@ -126,6 +126,7 @@ pub use statx::*;
+     target_os = "horizon",
+     target_os = "redox",
+     target_os = "vita",
++    target_os = "moxnox",
+     target_os = "wasi"
+ )))]
+ pub use sync::sync;
+diff --git a/src/fs/sync.rs b/src/fs/sync.rs
+index cb5f0704..0502380e 100644
+--- a/src/fs/sync.rs
++++ b/src/fs/sync.rs
+@@ -8,6 +8,7 @@ use crate::backend;
+ ///
+ /// [POSIX]: https://pubs.opengroup.org/onlinepubs/9799919799/functions/sync.html
+ /// [Linux]: https://man7.org/linux/man-pages/man2/sync.2.html
++#[cfg(not(target_os = "moxnox"))]
+ #[inline]
+ pub fn sync() {
+     backend::fs::syscalls::sync();
+diff --git a/src/io/ioctl.rs b/src/io/ioctl.rs
+index 33bf07cf..823e4d70 100644
+--- a/src/io/ioctl.rs
++++ b/src/io/ioctl.rs
+@@ -59,6 +59,7 @@ pub fn ioctl_fionclex<Fd: AsFd>(fd: Fd) -> io::Result<()> {
+ /// [Winsock]: https://docs.microsoft.com/en-us/windows/win32/winsock/winsock-ioctls#unix-ioctl-codes
+ /// [NetBSD]: https://man.netbsd.org/ioctl.2#GENERIC%20IOCTLS
+ /// [OpenBSD]: https://man.openbsd.org/ioctl.2#GENERIC_IOCTLS
++#[cfg(not(target_os = "moxnox"))]
+ #[inline]
+ #[doc(alias = "FIONBIO")]
+ pub fn ioctl_fionbio<Fd: AsFd>(fd: Fd, value: bool) -> io::Result<()> {
+@@ -86,7 +87,13 @@ pub fn ioctl_fionbio<Fd: AsFd>(fd: Fd, value: bool) -> io::Result<()> {
+ /// [FreeBSD]: https://man.freebsd.org/cgi/man.cgi?query=ioctl&sektion=2#GENERIC%09IOCTLS
+ /// [NetBSD]: https://man.netbsd.org/ioctl.2#GENERIC%20IOCTLS
+ /// [OpenBSD]: https://man.openbsd.org/ioctl.2#GENERIC_IOCTLS
+-#[cfg(not(any(target_os = "espidf", target_os = "horizon", target_os = "vita")))]
++#[cfg(not(any(
++    target_os = "espidf",
++    target_os = "horizon",
++    target_os = "vita",
++    // no ioctl on moxnox (deliberately: XSI, not POSIX base)
++    target_os = "moxnox"
++)))]
+ #[inline]
+ #[doc(alias = "FIONREAD")]
+ pub fn ioctl_fionread<Fd: AsFd>(fd: Fd) -> io::Result<u64> {
+diff --git a/src/io/read_write.rs b/src/io/read_write.rs
+index 0e096910..e217137f 100644
+--- a/src/io/read_write.rs
++++ b/src/io/read_write.rs
+@@ -220,6 +220,7 @@ pub fn writev<Fd: AsFd>(fd: Fd, bufs: &[IoSlice<'_>]) -> io::Result<usize> {
+     target_os = "horizon",
+     target_os = "nto",
+     target_os = "redox",
++    target_os = "moxnox",
+     target_os = "solaris",
+     target_os = "vita",
+ )))]
+@@ -259,6 +260,7 @@ pub fn preadv<Fd: AsFd>(fd: Fd, bufs: &mut [IoSliceMut<'_>], offset: u64) -> io:
+     target_os = "horizon",
+     target_os = "nto",
+     target_os = "redox",
++    target_os = "moxnox",
+     target_os = "solaris",
+     target_os = "vita",
+ )))]
+diff --git a/src/ioctl/mod.rs b/src/ioctl/mod.rs
+index 4beed113..7840e343 100644
+--- a/src/ioctl/mod.rs
++++ b/src/ioctl/mod.rs
+@@ -88,6 +88,7 @@ use bsd as platform;
+ /// [Solaris]: https://docs.oracle.com/cd/E23824_01/html/821-1463/ioctl-2.html
+ /// [illumos]: https://illumos.org/man/2/ioctl
+ #[inline]
++#[cfg(not(target_os = "moxnox"))]
+ pub unsafe fn ioctl<F: AsFd, I: Ioctl>(fd: F, mut ioctl: I) -> Result<I::Output> {
+     let fd = fd.as_fd();
+     let request = ioctl.opcode();
+@@ -106,10 +107,12 @@ pub unsafe fn ioctl<F: AsFd, I: Ioctl>(fd: F, mut ioctl: I) -> Result<I::Output>
+     I::output_from_ptr(output, arg)
+ }
+ 
++#[cfg(not(target_os = "moxnox"))]
+ unsafe fn _ioctl(fd: BorrowedFd<'_>, request: Opcode, arg: *mut c::c_void) -> Result<IoctlOutput> {
+     crate::backend::io::syscalls::ioctl(fd, request, arg)
+ }
+ 
++#[cfg(not(target_os = "moxnox"))]
+ unsafe fn _ioctl_readonly(
+     fd: BorrowedFd<'_>,
+     request: Opcode,
+@@ -318,6 +321,7 @@ type _Opcode = c::c_int;
+     bsd,
+     target_os = "redox",
+     target_os = "haiku",
++    target_os = "moxnox",
+     target_os = "horizon",
+     target_os = "hurd",
+     target_os = "vita"
+diff --git a/src/lib.rs b/src/lib.rs
+index 77f8a215..9aee43ab 100644
+--- a/src/lib.rs
++++ b/src/lib.rs
+@@ -186,7 +186,11 @@ pub(crate) mod bitcast;
+ // versions of libc and not others.
+ #[cfg(any(
+     all(linux_raw, feature = "use-libc-auxv"),
+-    all(libc, not(any(windows, target_os = "espidf", target_os = "wasi")))
++    all(
++        libc,
++        // no dlsym pseudo-handles on moxnox, so symbol probing cannot work
++        not(any(windows, target_os = "espidf", target_os = "wasi", target_os = "moxnox"))
++    )
+ ))]
+ #[macro_use]
+ mod weak;

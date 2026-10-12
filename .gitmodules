@@ -102,7 +102,7 @@
 	url = https://github.com/rust-lang/libc
 [submodule "ports/rust/rustix"]
 	path = ports/rust/rustix
-	url = https://git.burntcomma.com/moxnox/rustix
+	url = https://github.com/bytecodealliance/rustix
 [submodule "ports/rust/nix"]
 	path = ports/rust/nix
 	url = https://git.burntcomma.com/moxnox/nix
