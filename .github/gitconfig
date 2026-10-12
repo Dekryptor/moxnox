@@ -128,3 +128,5 @@
 	insteadOf = https://github.com/bytecodealliance/rustix
 [url "https://git.burntcomma.com/moxnox/nix"]
 	insteadOf = https://github.com/nix-rust/nix
+[url "https://git.burntcomma.com/moxnox/rust-errno"]
+	insteadOf = https://github.com/lambda-fairy/rust-errno

@@ -1,0 +1,11 @@
+diff --git a/src/unix.rs b/src/unix.rs
+index 5536eef..6259057 100644
+--- a/src/unix.rs
++++ b/src/unix.rs
+@@ -100,5 +100,6 @@ extern "C" {
+     )]
+     #[cfg_attr(target_os = "aix", link_name = "_Errno")]
+     #[cfg_attr(target_os = "nto", link_name = "__get_errno_ptr")]
++    #[cfg_attr(target_os = "moxnox", link_name = "_errno")]
+     fn errno_location() -> *mut c_int;
+ }
