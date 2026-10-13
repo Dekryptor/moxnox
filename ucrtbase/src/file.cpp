@@ -709,10 +709,8 @@ size_t __fwrite_nolock(const void* ptr, size_t size, size_t n, FILE* file) {
                     }
 
                     if (!success(status)) {
-                        if (written == 0) {
-                            *__errno() = nt_status_to_errno(status);
-                            f.error = true;
-                        }
+                        *__errno() = nt_status_to_errno(status);
+                        f.error = true;
 
                         if (buffer_written > 0) {
                             memmove(f.buffer.data, f.buffer.data + buffer_written,
@@ -753,7 +751,7 @@ size_t __fwrite_nolock(const void* ptr, size_t size, size_t n, FILE* file) {
             break;
         }
 
-        if (!success(status) && written == 0) {
+        if (!success(status)) {
             *__errno() = nt_status_to_errno(status);
             f.error = true;
             return 0;
