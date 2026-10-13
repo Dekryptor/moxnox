@@ -128,6 +128,8 @@ public:
         }
     }
 
+    void last_handle_closed() override;
+
     bool is_pipe() override {
         return true;
     }
@@ -135,6 +137,7 @@ public:
     pipe& recv_pipe;
     pipe& send_pipe;
     bool disconnected = false;
+    object_ref server;
 };
 
 class named_duplex_pipe_server : public chardev {
@@ -153,7 +156,15 @@ public:
 
     nt_status write(span<const span<const uint8_t>> v,
                     uint64_t& written_bytes) override {
-        return client.recv_pipe.write(v, written_bytes);
+        if (disconnected)
+            return nt_status::PIPE_BROKEN;
+
+        auto ret = client.recv_pipe.write(v, written_bytes);
+
+        if (disconnected)
+            return nt_status::PIPE_BROKEN;
+
+        return ret;
     }
 
     sync_object& get_sync_object() override {
@@ -170,7 +181,28 @@ public:
         return true;
     }
 
+    void client_disconnected() {
+        sync_lock sl;
+        lock_guard l(sl);
+
+        disconnected = true;
+
+        client.recv_pipe.readonly = true;
+
+        if (!client.recv_pipe.not_full_event.signalled)
+            client.recv_pipe.not_full_event.set_holding_sync_lock();
+
+        client.send_pipe.server_closed = true;
+
+        if (!client.send_pipe.signalled) {
+            client.send_pipe.signalled = true;
+
+            wake_up_waiters(client.send_pipe.waiters, WAIT_TYPE_READING);
+        }
+    }
+
     named_duplex_pipe_client& client;
+    bool disconnected = false;
 };
 
 static spinlock flushable_pipes_lock;
@@ -670,6 +702,9 @@ NTSTATUS NtCreateNamedPipeFile(HANDLE* file_handle, ACCESS_MASK desired_access,
 
     free(name);
 
+    pptr_server->acquire();
+    pptr_client->server = *pptr_server;
+
     handle_t h;
 
     auto f = new file(*pptr_server, 0);
@@ -688,4 +723,14 @@ NTSTATUS NtCreateNamedPipeFile(HANDLE* file_handle, ACCESS_MASK desired_access,
     iosb->Information = FILE_CREATED;
 
     return nt_status::SUCCESS;
+}
+
+void named_duplex_pipe_client::last_handle_closed() {
+    if (!server)
+        return;
+
+    auto& s = static_cast<named_duplex_pipe_server&>(server.get());
+
+    s.client_disconnected();
+    server.reset();
 }
