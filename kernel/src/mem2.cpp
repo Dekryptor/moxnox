@@ -84,22 +84,7 @@ public:
 };
 
 template<unsigned N, unsigned P, enum page_state S>
-struct allocator_cb {
-    allocator_cb() {
-        memset(bitmap, 0, sizeof(bitmap));
-    }
-
-    template<bool no_lock> uint64_t malloc_pa();
-    template<bool no_lock> void free(uint64_t index);
-
-    static constexpr unsigned int NUM_PAGES = N;
-    static constexpr unsigned int PAGES_PER_BITMAP_BLOCK = P;
-    static constexpr enum page_state page_state_type = S;
-
-    list_entry le;
-    uint64_t bitmap[NUM_PAGES / PAGES_PER_BITMAP_BLOCK];
-    uint64_t pfns[NUM_PAGES];
-};
+struct allocator_cb;
 
 template<unsigned N, unsigned P, enum page_state S>
 class allocator {
@@ -111,16 +96,36 @@ public:
 
     _spinlock<6> lock;
     list_entry control_blocks = { &control_blocks, &control_blocks };
+    list_entry full_blocks = { &full_blocks, &full_blocks };
+};
+
+template<unsigned N, unsigned P, enum page_state S>
+struct allocator_cb {
+    allocator_cb() {
+        memset(bitmap, 0, sizeof(bitmap));
+    }
+
+    template<bool no_lock> uint64_t malloc_pa();
+    template<bool no_lock> void free(uint64_t index, ::allocator<N, P, S>& alloc);
+
+    static constexpr unsigned int NUM_PAGES = N;
+    static constexpr unsigned int PAGES_PER_BITMAP_BLOCK = P;
+    static constexpr enum page_state page_state_type = S;
+
+    list_entry le;
+    bool full = false;
+    uint64_t bitmap[NUM_PAGES / PAGES_PER_BITMAP_BLOCK];
+    uint64_t pfns[NUM_PAGES];
 };
 
 allocator_folio<1, page_state::allocator_8k> alloc8k;
 allocator_folio<0, page_state::allocator_4k> alloc4k;
 ::allocator<488, 32, page_state::allocator_2k> alloc2k;
-::allocator<480, 16, page_state::allocator_1k> alloc1k;
+::allocator<464, 16, page_state::allocator_1k> alloc1k;
 ::allocator<448, 8, page_state::allocator_512> alloc512;
-::allocator<408, 4, page_state::allocator_256> alloc256;
+::allocator<404, 4, page_state::allocator_256> alloc256;
 ::allocator<336, 2, page_state::allocator_128> alloc128;
-::allocator<255, 1, page_state::allocator_64> alloc64;
+::allocator<254, 1, page_state::allocator_64> alloc64;
 // FIXME - alloc32, alloc16, alloc8?
 
 static_assert(sizeof(decltype(alloc2k)::cb_type) <= PAGE_SIZE);
@@ -2459,12 +2464,14 @@ uint64_t allocator_cb<N, P, S>::malloc_pa() {
 
     free_folio(pfn << PAGE_SHIFT);
 
+    full = true;
+
     return 0;
 }
 
 template<unsigned N, unsigned P, enum page_state S>
 template<bool no_lock>
-void allocator_cb<N, P, S>::free(uint64_t index) {
+void allocator_cb<N, P, S>::free(uint64_t index, ::allocator<N, P, S>& alloc) {
     auto& b = bitmap[index / 64];
     unsigned int bit = 63 - (index & 63);
 
@@ -2476,6 +2483,12 @@ void allocator_cb<N, P, S>::free(uint64_t index) {
     static constexpr uint64_t MASK = BITMAP_BITS_PER_PAGE == 64 ? 0xffffffffffffffff : ((uint64_t)1 << BITMAP_BITS_PER_PAGE) - 1;
 
     auto b2 = b;
+
+    if (full) {
+        full = false;
+        remove_entry_list(le);
+        insert_tail_list(alloc.control_blocks, le);
+    }
 
     for (unsigned int i = 0; i < sizeof(uint64_t) * 8 / BITMAP_BITS_PER_PAGE; i++) {
         if ((bit < BITMAP_BITS_PER_PAGE) && b2 & MASK)
@@ -2507,8 +2520,17 @@ void* ::allocator<N, P, S>::malloc() {
             auto& cb = containing_record<cb_type>(le);
 
             auto pa = cb.template malloc_pa<no_lock>();
-            if (pa)
-                return phys_address(pa);
+            if (!pa) {
+                if (cb.full) {
+                    le = le->prev;
+                    remove_entry_list(cb.le);
+                    insert_tail_list(full_blocks, cb.le);
+                }
+
+                continue;
+            }
+
+            return phys_address(pa);
         }
 
         auto p = allocate_folio<no_lock>(0, page_state::used);
@@ -2559,10 +2581,10 @@ void ::allocator<N, P, S>::free(void* ptr) {
     }
 
     if constexpr (no_lock)
-        cb.template free<true>(index);
+        cb.template free<true>(index, *this);
     else {
         lock_guard l(lock);
-        cb.template free<false>(index);
+        cb.template free<false>(index, *this);
     }
 }
 
