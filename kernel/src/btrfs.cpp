@@ -6318,33 +6318,26 @@ nt_status btrfs_filesystem::flush(bool make_readonly) {
         return nt_status::SUCCESS;
     }
 
-    status = do_ref_changes(*this);
-    if (!success(status)) {
-        print("do_ref_changes returned {}, going readonly\n", status);
-        go_readonly();
-        return status;
-    }
-
-    while (!is_list_empty(dirty_root_list)) {
-        auto& r = *(root*)((uint8_t*)dirty_root_list.next - offsetof(root, dirty_le));
-
-        auto status = flush_root(*this, r);
-        if (!success(status)) {
-            print("flush_root returned {}, going readonly\n", status);
-            go_readonly();
-            return status;
-        }
-
-        remove_entry_list(r.dirty_le);
-        r.is_dirty = false;
-    }
-
     do {
         status = do_ref_changes(*this);
         if (!success(status)) {
             print("do_ref_changes returned {}, going readonly\n", status);
             go_readonly();
             return status;
+        }
+
+        while (!is_list_empty(dirty_root_list)) {
+            auto& r = *(root*)((uint8_t*)dirty_root_list.next - offsetof(root, dirty_le));
+
+            auto status = flush_root(*this, r);
+            if (!success(status)) {
+                print("flush_root returned {}, going readonly\n", status);
+                go_readonly();
+                return status;
+            }
+
+            remove_entry_list(r.dirty_le);
+            r.is_dirty = false;
         }
     } while (ref_changes || !is_list_empty(new_chunks));
 
