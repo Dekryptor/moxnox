@@ -225,11 +225,20 @@ target_sources(ucrtbase PUBLIC FILE_SET CXX_MODULES FILES
     src/except.cpp
 )
 
-target_compile_options(ucrtbase PRIVATE -fno-exceptions ${USERSPACE_CFLAGS})
+target_compile_options(ucrtbase PRIVATE -fno-exceptions -fno-builtin ${USERSPACE_CFLAGS})
 target_link_options(ucrtbase PRIVATE -nostartfiles -nostdlib)
 
-target_link_libraries(ucrtbase PRIVATE format print unicode list errno unique_handle moxnox_ioctls exec)
-target_link_libraries(ucrtbase PRIVATE ntdll_mod ucrtbase_mod kernelbase_mod)
+target_link_libraries(ucrtbase PRIVATE
+    format_nobuiltin
+    print_nobuiltin
+    unicode_nobuiltin
+    list_nobuiltin
+    errno_nobuiltin
+    unique_handle_nobuiltin
+    moxnox_ioctls_nobuiltin
+    exec_nobuiltin
+)
+target_link_libraries(ucrtbase PRIVATE nt_nobuiltin ucrtbase_mod_nobuiltin kernelbase_mod_nobuiltin)
 target_link_libraries(ucrtbase PRIVATE -Wl,--whole-archive musl -Wl,--no-whole-archive)
 target_link_libraries(ucrtbase PRIVATE -Wl,--whole-archive mingwex2 -Wl,--no-whole-archive)
 

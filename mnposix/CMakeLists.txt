@@ -82,9 +82,23 @@ add_library(mnposix SHARED
     src/hostid.cpp
 )
 
-target_compile_options(mnposix PRIVATE -fno-exceptions ${USERSPACE_CFLAGS})
+target_compile_options(mnposix PRIVATE -fno-exceptions -fno-builtin ${USERSPACE_CFLAGS})
 
-target_link_libraries(mnposix PRIVATE print errno termios unicode unique_handle exec list ucrtbase_mod moxnox_ioctls timepage pe ipv4 ipv6)
+target_link_libraries(mnposix PRIVATE
+    print_nobuiltin
+    errno_nobuiltin
+    termios_nobuiltin
+    unicode_nobuiltin
+    unique_handle_nobuiltin
+    exec_nobuiltin
+    list_nobuiltin
+    ucrtbase_mod_nobuiltin
+    moxnox_ioctls_nobuiltin
+    timepage_nobuiltin
+    pe_nobuiltin
+    ipv4_nobuiltin
+    ipv6_nobuiltin
+)
 
 target_link_libraries(mnposix PRIVATE -Wl,--whole-archive musl_glob -Wl,--no-whole-archive)
 target_link_libraries(mnposix PRIVATE -Wl,--whole-archive tre -Wl,--no-whole-archive)

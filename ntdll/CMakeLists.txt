@@ -36,9 +36,27 @@ target_sources(ntdll PUBLIC FILE_SET CXX_MODULES FILES
     src/loader.cpp
 )
 
-target_compile_options(ntdll PRIVATE -fno-exceptions ${USERSPACE_CFLAGS})
+target_compile_options(ntdll PRIVATE -fno-builtin -fno-exceptions ${USERSPACE_CFLAGS})
 target_link_options(ntdll PRIVATE -nostartfiles -nostdlib -Wl,--gc-sections)
-target_link_libraries(ntdll PRIVATE format dwarf list unicode nt ntdll_mod pe kernelbase_mod crt pagesize timepage unique_handle print termios exec moxnox_ioctls win32error)
+target_link_libraries(ntdll PRIVATE
+    format_nobuiltin
+    dwarf_nobuiltin
+    list_nobuiltin
+    unicode_nobuiltin
+    nt_nobuiltin
+    ntdll_mod_nobuiltin
+    pe_nobuiltin
+    kernelbase_mod_nobuiltin
+    crt
+    # pagesize
+    timepage_nobuiltin
+    unique_handle_nobuiltin
+    print_nobuiltin
+    termios_nobuiltin
+    exec_nobuiltin
+    moxnox_ioctls_nobuiltin
+    win32error_nobuiltin
+)
 
 if(CMAKE_SYSTEM_PROCESSOR STREQUAL "aarch64")
     target_link_libraries(ntdll PRIVATE aarch64)
