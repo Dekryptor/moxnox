@@ -96,7 +96,7 @@
 	url = git://git.savannah.gnu.org/make
 [submodule "ports/rust/repo"]
 	path = ports/rust/repo
-	url = https://github.com/rust-lang/rust
+	url = https://github.com/rust-lang/rust.git
 [submodule "ports/rust/libc"]
 	path = ports/rust/libc
 	url = https://github.com/rust-lang/libc

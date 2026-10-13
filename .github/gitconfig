@@ -121,7 +121,7 @@
 [url "https://git.burntcomma.com/moxnox/libuv"]
 	insteadOf = https://github.com/libuv/libuv
 [url "https://git.burntcomma.com/moxnox/rust"]
-	insteadOf = https://github.com/rust-lang/rust
+	insteadOf = https://github.com/rust-lang/rust.git
 [url "https://git.burntcomma.com/moxnox/rust-libc"]
 	insteadOf = https://github.com/rust-lang/libc
 [url "https://git.burntcomma.com/moxnox/rustix"]
