@@ -1,0 +1,1623 @@
+diff --git a/src/new/mod.rs b/src/new/mod.rs
+index dd451bb52..b64c134f4 100644
+--- a/src/new/mod.rs
++++ b/src/new/mod.rs
+@@ -53,6 +53,9 @@ cfg_if! {
+     } else if #[cfg(target_os = "cygwin")] {
+         mod cygwin;
+         pub(crate) use cygwin::*;
++    } else if #[cfg(target_os = "moxnox")] {
++        mod moxnox;
++        pub(crate) use moxnox::*;
+     } else if #[cfg(target_os = "dragonfly")] {
+         mod dragonfly;
+         pub(crate) use dragonfly::*;
+diff --git a/src/new/moxnox/mod.rs b/src/new/moxnox/mod.rs
+new file mode 100644
+index 000000000..58212e315
+--- /dev/null
++++ b/src/new/moxnox/mod.rs
+@@ -0,0 +1,3 @@
++//! Moxnox libc (mnposix/ucrtbase).
++
++pub(crate) mod unistd;
+diff --git a/src/new/moxnox/unistd.rs b/src/new/moxnox/unistd.rs
+new file mode 100644
+index 000000000..8d55ee582
+--- /dev/null
++++ b/src/new/moxnox/unistd.rs
+@@ -0,0 +1,7 @@
++//! Header: `unistd.h`
++
++pub use crate::new::common::posix::unistd::{
++    STDERR_FILENO,
++    STDIN_FILENO,
++    STDOUT_FILENO,
++};
+diff --git a/src/primitives.rs b/src/primitives.rs
+index 80a10af4c..6857645b7 100644
+--- a/src/primitives.rs
++++ b/src/primitives.rs
+@@ -20,6 +20,8 @@ pub type c_double = f64;
+ cfg_if! {
+     if #[cfg(all(
+         not(windows),
++        // moxnox follows the Windows ABI: char is signed on aarch64 too
++        not(target_os = "moxnox"),
+         not(target_vendor = "apple"),
+         not(target_os = "vita"),
+         any(
+@@ -54,7 +56,8 @@ cfg_if! {
+ }
+ 
+ cfg_if! {
+-    if #[cfg(all(target_pointer_width = "64", not(windows)))] {
++    // moxnox is LLP64 like Windows despite being target_family unix
++    if #[cfg(all(target_pointer_width = "64", not(windows), not(target_os = "moxnox")))] {
+         pub type c_long = i64;
+         pub type c_ulong = u64;
+     } else {
+diff --git a/src/unix/mod.rs b/src/unix/mod.rs
+index 62b2cdee6..20b642efb 100644
+--- a/src/unix/mod.rs
++++ b/src/unix/mod.rs
+@@ -45,6 +45,7 @@ extern_ty! {
+ pub type locale_t = *mut c_void;
+ 
+ s! {
++    #[cfg(not(target_os = "moxnox"))]
+     pub struct group {
+         pub gr_name: *mut c_char,
+         pub gr_passwd: *mut c_char,
+@@ -151,6 +152,7 @@ s! {
+         pub h_addr_list: *mut *mut c_char,
+     }
+ 
++    #[cfg(not(target_os = "moxnox"))]
+     pub struct iovec {
+         pub iov_base: *mut c_void,
+         pub iov_len: size_t,
+@@ -162,6 +164,7 @@ s! {
+         pub revents: c_short,
+     }
+ 
++    #[cfg(not(target_os = "moxnox"))]
+     pub struct winsize {
+         pub ws_row: c_ushort,
+         pub ws_col: c_ushort,
+@@ -194,6 +197,7 @@ s! {
+         pub tms_cstime: crate::clock_t,
+     }
+ 
++    #[cfg(not(target_os = "moxnox"))]
+     pub struct servent {
+         pub s_name: *mut c_char,
+         pub s_aliases: *mut *mut c_char,
+@@ -565,6 +569,10 @@ cfg_if! {
+         #[link(name = "bsd")]
+         #[link(name = "pthread")]
+         extern "C" {}
++    } else if #[cfg(target_os = "moxnox")] {
++        // The moxnox clang driver links the platform libraries itself
++        // (the -lmoxnox/-lmingwex/-lmingw32/-lucrtbase_static sandwich).
++        extern "C" {}
+     } else {
+         #[link(name = "c")]
+         #[link(name = "m")]
+@@ -847,6 +855,7 @@ extern "C" {
+         link_name = "__xnet_sendto"
+     )]
+     #[cfg_attr(target_os = "espidf", link_name = "lwip_sendto")]
++    #[cfg(not(target_os = "moxnox"))]
+     pub fn sendto(
+         socket: c_int,
+         buf: *const c_void,
+@@ -1480,6 +1489,7 @@ extern "C" {
+     )]
+     pub fn mknod(pathname: *const c_char, mode: mode_t, dev: crate::dev_t) -> c_int;
+     #[cfg(not(target_os = "espidf"))]
++    #[cfg(not(target_os = "moxnox"))]
+     pub fn gethostname(name: *mut c_char, len: size_t) -> c_int;
+     pub fn endservent();
+     pub fn getservbyname(name: *const c_char, proto: *const c_char) -> *mut servent;
+@@ -1502,12 +1512,14 @@ extern "C" {
+         link_name = "send$UNIX2003"
+     )]
+     #[cfg_attr(target_os = "espidf", link_name = "lwip_send")]
++    #[cfg(not(target_os = "moxnox"))]
+     pub fn send(socket: c_int, buf: *const c_void, len: size_t, flags: c_int) -> ssize_t;
+     #[cfg_attr(
+         all(target_os = "macos", target_arch = "x86"),
+         link_name = "recv$UNIX2003"
+     )]
+     #[cfg_attr(target_os = "espidf", link_name = "lwip_recv")]
++    #[cfg(not(target_os = "moxnox"))]
+     pub fn recv(socket: c_int, buf: *mut c_void, len: size_t, flags: c_int) -> ssize_t;
+     #[cfg_attr(
+         all(target_os = "macos", target_arch = "x86"),
+@@ -1704,7 +1716,7 @@ cfg_if! {
+ }
+ 
+ cfg_if! {
+-    if #[cfg(not(target_os = "aix"))] {
++    if #[cfg(not(any(target_os = "aix", target_os = "moxnox")))] {
+         extern "C" {
+             pub fn dladdr(addr: *const c_void, info: *mut Dl_info) -> c_int;
+         }
+@@ -1911,6 +1923,9 @@ cfg_if! {
+     } else if #[cfg(target_os = "cygwin")] {
+         mod cygwin;
+         pub use self::cygwin::*;
++    } else if #[cfg(target_os = "moxnox")] {
++        mod moxnox;
++        pub use self::moxnox::*;
+     } else if #[cfg(target_os = "nto")] {
+         mod nto;
+         pub use self::nto::*;
+diff --git a/src/unix/moxnox/mod.rs b/src/unix/moxnox/mod.rs
+new file mode 100644
+index 000000000..b2446e228
+--- /dev/null
++++ b/src/unix/moxnox/mod.rs
+@@ -0,0 +1,1461 @@
++//! Definitions for Moxnox: PE/COFF and the Windows ABI, but a POSIX 2024
++//! userland (mnposix/ucrtbase). Transcribed from the platform's include/
++//! headers, which are the source of truth. Note LLP64: c_long is 32-bit.
++
++use crate::prelude::*;
++
++pub type wchar_t = u16;
++
++pub type off_t = c_longlong;
++pub type ino_t = u64;
++pub type dev_t = u32;
++pub type mode_t = u16;
++pub type pid_t = c_int;
++pub type time_t = c_longlong;
++pub type clock_t = c_long;
++pub type clockid_t = c_int;
++pub type uid_t = u32;
++pub type gid_t = u32;
++pub type id_t = u32;
++pub type useconds_t = c_uint;
++pub type suseconds_t = c_long;
++pub type blkcnt_t = u64;
++pub type blksize_t = u64;
++pub type fsblkcnt_t = u64;
++pub type fsfilcnt_t = u64;
++pub type nlink_t = u32;
++pub type rlim_t = c_uint;
++pub type sa_family_t = u16;
++pub type socklen_t = c_int;
++pub type in_addr_t = u32;
++pub type sigset_t = u64;
++pub type sighandler_t = size_t;
++pub type nfds_t = size_t;
++pub type wint_t = c_ushort;
++pub type wctype_t = c_ushort;
++pub type wctrans_t = wchar_t;
++pub type mbstate_t = c_int;
++pub type nl_item = c_int;
++pub type regoff_t = c_int;
++
++pub type pthread_t = uintptr_t;
++pub type pthread_key_t = size_t;
++pub type pthread_condattr_t = uintptr_t;
++pub type pthread_mutexattr_t = uintptr_t;
++pub type pthread_attr_t = uintptr_t;
++pub type pthread_once_t = uintptr_t;
++pub type pthread_rwlock_t = uintptr_t;
++pub type pthread_rwlockattr_t = uintptr_t;
++pub type pthread_barrier_t = uintptr_t;
++
++pub type posix_spawnattr_t = *mut c_void;
++
++pub type tcflag_t = c_uint;
++pub type cc_t = c_uchar;
++pub type speed_t = c_uint;
++
++s! {
++    pub struct pthread_mutex_t {
++        __x: [uintptr_t; 4],
++    }
++
++    pub struct pthread_cond_t {
++        __x: [uintptr_t; 2],
++    }
++
++    pub struct stat {
++        pub st_dev: dev_t,
++        pub st_ino: ino_t,
++        pub st_mode: mode_t,
++        pub st_nlink: nlink_t,
++        pub st_uid: uid_t,
++        pub st_gid: gid_t,
++        pub st_rdev: dev_t,
++        pub st_size: off_t,
++        pub st_atim: crate::timespec,
++        pub st_mtim: crate::timespec,
++        pub st_ctim: crate::timespec,
++        pub st_blksize: blksize_t,
++        pub st_blocks: blkcnt_t,
++    }
++
++    pub struct dirent {
++        pub d_ino: ino_t,
++        pub d_type: c_uchar,
++        pub d_name: [c_char; 260],
++    }
++
++    pub struct flock {
++        pub l_type: c_short,
++        pub l_whence: c_short,
++        pub l_start: off_t,
++        pub l_len: off_t,
++        pub l_pid: pid_t,
++    }
++
++    pub struct msghdr {
++        pub msg_name: *mut c_void,
++        pub msg_namelen: socklen_t,
++        pub msg_iov: *mut crate::iovec,
++        pub msg_iovlen: c_int,
++        pub msg_control: *mut c_void,
++        pub msg_controllen: socklen_t,
++        pub msg_flags: c_int,
++    }
++
++    pub struct sched_param {
++        pub sched_priority: c_int,
++    }
++
++    pub struct netent {
++        pub n_name: *mut c_char,
++        pub n_aliases: *mut *mut c_char,
++        pub n_addrtype: c_int,
++        pub n_net: u32,
++    }
++
++    pub struct glob_t {
++        pub gl_pathc: size_t,
++        pub gl_pathv: *mut *mut c_char,
++        pub gl_offs: size_t,
++    }
++
++    pub struct regex_t {
++        pub re_nsub: size_t,
++        pub value: *mut c_void,
++    }
++
++    pub struct regmatch_t {
++        pub rm_so: regoff_t,
++        pub rm_eo: regoff_t,
++    }
++
++    pub struct div_t {
++        pub quot: c_int,
++        pub rem: c_int,
++    }
++
++    pub struct ldiv_t {
++        pub quot: c_long,
++        pub rem: c_long,
++    }
++
++    pub struct lldiv_t {
++        pub quot: c_longlong,
++        pub rem: c_longlong,
++    }
++
++    pub struct tm {
++        pub tm_sec: c_int,
++        pub tm_min: c_int,
++        pub tm_hour: c_int,
++        pub tm_mday: c_int,
++        pub tm_mon: c_int,
++        pub tm_year: c_int,
++        pub tm_wday: c_int,
++        pub tm_yday: c_int,
++        pub tm_isdst: c_int,
++    }
++
++    pub struct siginfo_t {
++        pub si_signo: c_int,
++        pub si_errno: c_int,
++        pub si_code: c_int,
++        pub si_pid: pid_t,
++        pub si_uid: uid_t,
++        pub si_status: c_int,
++        pub si_value: crate::sigval,
++        pub si_addr: *mut c_void,
++        pub si_band: c_long,
++    }
++
++    pub struct sigaction {
++        pub sa_sigaction: sighandler_t,
++        pub sa_mask: sigset_t,
++        pub sa_flags: c_int,
++    }
++
++    // WSABUF shape: length first, unlike the POSIX ordering.
++    pub struct iovec {
++        pub iov_len: size_t,
++        pub iov_base: *mut c_void,
++    }
++
++    pub struct sockaddr {
++        pub sa_family: sa_family_t,
++        pub sa_data: [c_char; 14],
++    }
++
++    #[repr(align(8))]
++    pub struct sockaddr_storage {
++        pub ss_family: sa_family_t,
++        __ss_pad: [u8; 126],
++    }
++
++    pub struct sockaddr_in {
++        pub sin_family: sa_family_t,
++        pub sin_port: u16,
++        pub sin_addr: crate::in_addr,
++        pub sin_zero: [c_char; 8],
++    }
++
++    pub struct sockaddr_in6 {
++        pub sin6_family: sa_family_t,
++        pub sin6_port: u16,
++        pub sin6_flowinfo: u32,
++        pub sin6_addr: crate::in6_addr,
++        pub sin6_scope_id: u32,
++    }
++
++    pub struct sockaddr_un {
++        pub sun_family: sa_family_t,
++        pub sun_path: [c_char; 108],
++    }
++
++    pub struct in_addr {
++        pub s_addr: in_addr_t,
++    }
++
++    pub struct ip_mreq {
++        pub imr_multiaddr: in_addr,
++        pub imr_interface: in_addr,
++    }
++
++    pub struct addrinfo {
++        pub ai_flags: c_int,
++        pub ai_family: c_int,
++        pub ai_socktype: c_int,
++        pub ai_protocol: c_int,
++        pub ai_addrlen: size_t,
++        pub ai_canonname: *mut c_char,
++        pub ai_addr: *mut sockaddr,
++        pub ai_next: *mut addrinfo,
++    }
++
++    // win64 ordering: s_proto before s_port.
++    pub struct servent {
++        pub s_name: *mut c_char,
++        pub s_aliases: *mut *mut c_char,
++        pub s_proto: *mut c_char,
++        pub s_port: c_int,
++    }
++
++    pub struct passwd {
++        pub pw_name: *mut c_char,
++        pub pw_uid: uid_t,
++        pub pw_gid: gid_t,
++        pub pw_dir: *mut c_char,
++        pub pw_shell: *mut c_char,
++    }
++
++    pub struct group {
++        pub gr_name: *mut c_char,
++        pub gr_gid: gid_t,
++        pub gr_mem: *mut *mut c_char,
++    }
++
++    pub struct fd_set {
++        pub fds_bits: [c_ulong; FD_SETSIZE as usize / (8 * 4)],
++    }
++
++    pub struct sem_t {
++        __x: [usize; 2],
++    }
++
++    pub struct statvfs {
++        pub f_bsize: c_ulong,
++        pub f_frsize: c_ulong,
++        pub f_blocks: fsblkcnt_t,
++        pub f_bfree: fsblkcnt_t,
++        pub f_bavail: fsblkcnt_t,
++        pub f_files: fsfilcnt_t,
++        pub f_ffree: fsfilcnt_t,
++        pub f_favail: fsfilcnt_t,
++        pub f_fsid: c_ulong,
++        pub f_flag: c_ulong,
++        pub f_namemax: c_ulong,
++        pub f_basetype: [c_char; 16],
++    }
++
++    pub struct utsname {
++        pub sysname: [c_char; 65],
++        pub nodename: [c_char; 65],
++        pub release: [c_char; 65],
++        pub version: [c_char; 65],
++        pub machine: [c_char; 65],
++    }
++
++    pub struct posix_spawn_file_actions_t {
++        _ptr1: *mut c_void,
++        _ptr2: *mut c_void,
++    }
++
++    pub struct termios {
++        pub c_iflag: tcflag_t,
++        pub c_oflag: tcflag_t,
++        pub c_cflag: tcflag_t,
++        pub c_lflag: tcflag_t,
++        pub c_line: cc_t,
++        pub c_cc: [cc_t; NCCS],
++        pub c_ispeed: speed_t,
++        pub c_ospeed: speed_t,
++    }
++
++    // POSIX shape: row/col only.
++    pub struct winsize {
++        pub ws_row: c_ushort,
++        pub ws_col: c_ushort,
++    }
++
++    // UCRT ordering: int_curr_symbol and the int_* fields come last.
++    pub struct lconv {
++        pub decimal_point: *mut c_char,
++        pub thousands_sep: *mut c_char,
++        pub grouping: *mut c_char,
++        pub mon_decimal_point: *mut c_char,
++        pub mon_thousands_sep: *mut c_char,
++        pub mon_grouping: *mut c_char,
++        pub positive_sign: *mut c_char,
++        pub negative_sign: *mut c_char,
++        pub currency_symbol: *mut c_char,
++        pub frac_digits: c_char,
++        pub p_cs_precedes: c_char,
++        pub n_cs_precedes: c_char,
++        pub p_sep_by_space: c_char,
++        pub n_sep_by_space: c_char,
++        pub p_sign_posn: c_char,
++        pub n_sign_posn: c_char,
++        pub int_curr_symbol: *mut c_char,
++        pub int_frac_digits: c_char,
++        pub int_p_cs_precedes: c_char,
++        pub int_n_cs_precedes: c_char,
++        pub int_p_sep_by_space: c_char,
++        pub int_n_sep_by_space: c_char,
++        pub int_p_sign_posn: c_char,
++        pub int_n_sign_posn: c_char,
++    }
++}
++
++// errno.h (UCRT values)
++pub const EPERM: c_int = 1;
++pub const ENOENT: c_int = 2;
++pub const ESRCH: c_int = 3;
++pub const EINTR: c_int = 4;
++pub const EIO: c_int = 5;
++pub const ENXIO: c_int = 6;
++pub const E2BIG: c_int = 7;
++pub const ENOEXEC: c_int = 8;
++pub const EBADF: c_int = 9;
++pub const ECHILD: c_int = 10;
++pub const EAGAIN: c_int = 11;
++pub const ENOMEM: c_int = 12;
++pub const EACCES: c_int = 13;
++pub const EFAULT: c_int = 14;
++pub const EBUSY: c_int = 16;
++pub const EEXIST: c_int = 17;
++pub const EXDEV: c_int = 18;
++pub const ENODEV: c_int = 19;
++pub const ENOTDIR: c_int = 20;
++pub const EISDIR: c_int = 21;
++pub const EINVAL: c_int = 22;
++pub const ENFILE: c_int = 23;
++pub const EMFILE: c_int = 24;
++pub const ENOTTY: c_int = 25;
++pub const EFBIG: c_int = 27;
++pub const ENOSPC: c_int = 28;
++pub const ESPIPE: c_int = 29;
++pub const EROFS: c_int = 30;
++pub const EMLINK: c_int = 31;
++pub const EPIPE: c_int = 32;
++pub const EDOM: c_int = 33;
++pub const ERANGE: c_int = 34;
++pub const EDEADLK: c_int = 36;
++pub const EDEADLOCK: c_int = EDEADLK;
++pub const ENAMETOOLONG: c_int = 38;
++pub const ENOLCK: c_int = 39;
++pub const ENOSYS: c_int = 40;
++pub const ENOTEMPTY: c_int = 41;
++pub const EILSEQ: c_int = 42;
++pub const EADDRINUSE: c_int = 100;
++pub const EADDRNOTAVAIL: c_int = 101;
++pub const EAFNOSUPPORT: c_int = 102;
++pub const EALREADY: c_int = 103;
++pub const EBADMSG: c_int = 104;
++pub const ECANCELED: c_int = 105;
++pub const ECONNABORTED: c_int = 106;
++pub const ECONNREFUSED: c_int = 107;
++pub const ECONNRESET: c_int = 108;
++pub const EDESTADDRREQ: c_int = 109;
++pub const EHOSTUNREACH: c_int = 110;
++pub const EIDRM: c_int = 111;
++pub const EINPROGRESS: c_int = 112;
++pub const EISCONN: c_int = 113;
++pub const ELOOP: c_int = 114;
++pub const EMSGSIZE: c_int = 115;
++pub const ENETDOWN: c_int = 116;
++pub const ENETRESET: c_int = 117;
++pub const ENETUNREACH: c_int = 118;
++pub const ENOBUFS: c_int = 119;
++pub const ENOLINK: c_int = 121;
++pub const ENOMSG: c_int = 122;
++pub const ENOPROTOOPT: c_int = 123;
++pub const ENOTCONN: c_int = 126;
++pub const ENOTRECOVERABLE: c_int = 127;
++pub const ENOTSOCK: c_int = 128;
++pub const ENOTSUP: c_int = 129;
++pub const EOPNOTSUPP: c_int = 130;
++pub const EOVERFLOW: c_int = 132;
++pub const EOWNERDEAD: c_int = 133;
++pub const EPROTO: c_int = 134;
++pub const EPROTONOSUPPORT: c_int = 135;
++pub const EPROTOTYPE: c_int = 136;
++pub const ETIMEDOUT: c_int = 138;
++pub const ETXTBSY: c_int = 139;
++pub const EWOULDBLOCK: c_int = 140;
++pub const ESTALE: c_int = 141;
++pub const EDQUOT: c_int = 142;
++
++// fcntl.h
++pub const O_RDONLY: c_int = 0x0000;
++pub const O_WRONLY: c_int = 0x0001;
++pub const O_RDWR: c_int = 0x0002;
++pub const O_ACCMODE: c_int = 0x0003;
++pub const O_APPEND: c_int = 0x0008;
++pub const O_CREAT: c_int = 0x0100;
++pub const O_TRUNC: c_int = 0x0200;
++pub const O_EXCL: c_int = 0x0400;
++pub const O_NONBLOCK: c_int = 0x0800;
++pub const O_NOFOLLOW: c_int = 0x1000;
++pub const O_CLOEXEC: c_int = 0x2000;
++pub const O_DSYNC: c_int = 0x200000;
++pub const O_SYNC: c_int = 0x400000 | O_DSYNC;
++pub const O_NOCTTY: c_int = 0x80000;
++pub const O_DIRECTORY: c_int = 0x100000;
++
++pub const POSIX_FADV_NORMAL: c_int = 0;
++pub const POSIX_FADV_RANDOM: c_int = 1;
++pub const POSIX_FADV_SEQUENTIAL: c_int = 2;
++pub const POSIX_FADV_WILLNEED: c_int = 3;
++pub const POSIX_FADV_DONTNEED: c_int = 4;
++pub const POSIX_FADV_NOREUSE: c_int = 5;
++
++// sys/statvfs.h
++pub const ST_RDONLY: c_ulong = 1;
++pub const ST_NOSUID: c_ulong = 2;
++
++pub const F_DUPFD: c_int = 0;
++pub const F_GETFD: c_int = 1;
++pub const F_SETFD: c_int = 2;
++pub const F_GETFL: c_int = 3;
++pub const F_SETFL: c_int = 4;
++pub const F_GETLK: c_int = 5;
++pub const F_SETLK: c_int = 6;
++pub const F_SETLKW: c_int = 7;
++pub const F_DUPFD_CLOEXEC: c_int = 8;
++
++pub const F_RDLCK: c_int = 0;
++pub const F_UNLCK: c_int = 1;
++pub const F_WRLCK: c_int = 2;
++
++pub const AT_FDCWD: c_int = -100;
++pub const AT_REMOVEDIR: c_int = 1;
++pub const AT_SYMLINK_NOFOLLOW: c_int = 2;
++pub const AT_EACCESS: c_int = 4;
++pub const AT_SYMLINK_FOLLOW: c_int = 8;
++
++// sys/stat.h
++pub const S_IFMT: mode_t = 0xf000;
++pub const S_IFDIR: mode_t = 0x4000;
++pub const S_IFCHR: mode_t = 0x2000;
++pub const S_IFIFO: mode_t = 0x1000;
++pub const S_IFREG: mode_t = 0x8000;
++pub const S_IFBLK: mode_t = 0x6000;
++pub const S_IFLNK: mode_t = 0o120000;
++pub const S_IFSOCK: mode_t = 0o140000;
++
++pub const S_IRUSR: mode_t = 0x0100;
++pub const S_IWUSR: mode_t = 0x0080;
++pub const S_IXUSR: mode_t = 0x0040;
++pub const S_IRWXU: mode_t = S_IRUSR | S_IWUSR | S_IXUSR;
++pub const S_IRGRP: mode_t = S_IRUSR >> 3;
++pub const S_IWGRP: mode_t = S_IWUSR >> 3;
++pub const S_IXGRP: mode_t = S_IXUSR >> 3;
++pub const S_IRWXG: mode_t = S_IRWXU >> 3;
++pub const S_IROTH: mode_t = S_IRGRP >> 3;
++pub const S_IWOTH: mode_t = S_IWGRP >> 3;
++pub const S_IXOTH: mode_t = S_IXGRP >> 3;
++pub const S_IRWXO: mode_t = S_IRWXG >> 3;
++
++pub const UTIME_NOW: c_long = (1 << 30) - 1;
++pub const UTIME_OMIT: c_long = (1 << 30) - 2;
++
++// unistd.h
++pub const F_OK: c_int = 1;
++pub const R_OK: c_int = 2;
++pub const W_OK: c_int = 4;
++pub const X_OK: c_int = 8;
++
++pub const _SC_CLK_TCK: c_int = 1;
++pub const _SC_NPROCESSORS_ONLN: c_int = 2;
++pub const _SC_PAGESIZE: c_int = 3;
++pub const _SC_PAGE_SIZE: c_int = _SC_PAGESIZE;
++pub const _SC_GETPW_R_SIZE_MAX: c_int = 4;
++pub const _SC_HOST_NAME_MAX: c_int = 5;
++pub const _SC_ARG_MAX: c_int = 6;
++pub const _SC_PHYS_PAGES: c_int = 7;
++pub const _SC_NPROCESSORS_CONF: c_int = 8;
++
++pub const _PC_PATH_MAX: c_int = 0;
++pub const _CS_PATH: c_int = 0;
++
++// limits.h
++pub const PATH_MAX: c_int = 260;
++pub const PTHREAD_STACK_MIN: size_t = 4096;
++
++// stdio.h
++pub const SEEK_SET: c_int = 0;
++pub const SEEK_CUR: c_int = 1;
++pub const SEEK_END: c_int = 2;
++pub const BUFSIZ: c_uint = 512;
++pub const EOF: c_int = -1;
++
++// signal.h
++pub const SIGHUP: c_int = 1;
++pub const SIGINT: c_int = 2;
++pub const SIGQUIT: c_int = 3;
++pub const SIGILL: c_int = 4;
++pub const SIGTRAP: c_int = 5;
++pub const SIGEMT: c_int = 7;
++pub const SIGFPE: c_int = 8;
++pub const SIGKILL: c_int = 9;
++pub const SIGBUS: c_int = 10;
++pub const SIGSEGV: c_int = 11;
++pub const SIGSYS: c_int = 12;
++pub const SIGPIPE: c_int = 13;
++pub const SIGALRM: c_int = 14;
++pub const SIGTERM: c_int = 15;
++pub const SIGPOLL: c_int = 16;
++pub const SIGCHLD: c_int = 17;
++pub const SIGCONT: c_int = 18;
++pub const SIGSTOP: c_int = 19;
++pub const SIGTSTP: c_int = 20;
++pub const SIGBREAK: c_int = 21;
++pub const SIGABRT: c_int = 22;
++pub const SIGURG: c_int = 23;
++pub const SIGXCPU: c_int = 24;
++pub const SIGXFSZ: c_int = 25;
++pub const SIGVTALRM: c_int = 26;
++pub const SIGPROF: c_int = 27;
++pub const SIGWINCH: c_int = 28;
++pub const SIGUSR1: c_int = 29;
++pub const SIGUSR2: c_int = 30;
++pub const SIGTTIN: c_int = 31;
++pub const SIGTTOU: c_int = 32;
++
++pub const NSIG: c_int = SIGTTOU + 1;
++
++pub const SA_NOCLDSTOP: c_int = 0x00000001;
++pub const SA_NOCLDWAIT: c_int = 0x00000002;
++pub const SA_SIGINFO: c_int = 0x00000004;
++pub const SA_ONSTACK: c_int = 0x08000000;
++pub const SA_RESTART: c_int = 0x10000000;
++pub const SA_NODEFER: c_int = 0x40000000;
++pub const SA_RESETHAND: c_int = 0x80000000u32 as c_int;
++
++pub const SIG_BLOCK: c_int = 0;
++pub const SIG_UNBLOCK: c_int = 1;
++pub const SIG_SETMASK: c_int = 2;
++
++pub const SIG_HOLD: sighandler_t = 2;
++
++// time.h
++pub const CLOCK_MONOTONIC: clockid_t = 1;
++pub const CLOCK_REALTIME: clockid_t = 2;
++pub const CLOCKS_PER_SEC: clock_t = 1000;
++pub const TIME_UTC: c_int = 1;
++
++// sys/select.h
++pub const FD_SETSIZE: c_int = 1024;
++
++// poll.h
++pub const POLLRDNORM: c_short = 0x0100;
++pub const POLLRDBAND: c_short = 0x0200;
++pub const POLLIN: c_short = POLLRDNORM | POLLRDBAND;
++pub const POLLPRI: c_short = 0x0400;
++pub const POLLWRNORM: c_short = 0x0010;
++pub const POLLOUT: c_short = POLLWRNORM;
++pub const POLLWRBAND: c_short = 0x0020;
++pub const POLLERR: c_short = 0x0001;
++pub const POLLHUP: c_short = 0x0002;
++pub const POLLNVAL: c_short = 0x0004;
++
++// sys/socket.h
++pub const AF_UNSPEC: c_int = 0;
++pub const AF_UNIX: c_int = 1;
++pub const AF_INET: c_int = 2;
++pub const AF_INET6: c_int = 23;
++
++pub const PF_UNSPEC: c_int = AF_UNSPEC;
++pub const PF_INET: c_int = AF_INET;
++pub const PF_INET6: c_int = AF_INET6;
++
++pub const SOCK_STREAM: c_int = 1;
++pub const SOCK_DGRAM: c_int = 2;
++pub const SOCK_RAW: c_int = 3;
++pub const SOCK_RDM: c_int = 4;
++pub const SOCK_SEQPACKET: c_int = 5;
++
++pub const SOL_SOCKET: c_int = 0xffff;
++
++pub const SO_DEBUG: c_int = 0x0001;
++pub const SO_ACCEPTCONN: c_int = 0x0002;
++pub const SO_REUSEADDR: c_int = 0x0004;
++pub const SO_KEEPALIVE: c_int = 0x0008;
++pub const SO_DONTROUTE: c_int = 0x0010;
++pub const SO_BROADCAST: c_int = 0x0020;
++pub const SO_USELOOPBACK: c_int = 0x0040;
++pub const SO_LINGER: c_int = 0x0080;
++pub const SO_OOBINLINE: c_int = 0x0100;
++pub const SO_SNDBUF: c_int = 0x1001;
++pub const SO_RCVBUF: c_int = 0x1002;
++pub const SO_SNDLOWAT: c_int = 0x1003;
++pub const SO_RCVLOWAT: c_int = 0x1004;
++pub const SO_SNDTIMEO: c_int = 0x1005;
++pub const SO_RCVTIMEO: c_int = 0x1006;
++pub const SO_ERROR: c_int = 0x1007;
++pub const SO_TYPE: c_int = 0x1008;
++
++pub const MSG_PEEK: c_int = 1 << 0;
++pub const MSG_CTRUNC: c_int = 1 << 1;
++pub const MSG_TRUNC: c_int = 1 << 2;
++pub const MSG_NOSIGNAL: c_int = 1 << 3;
++
++pub const LITTLE_ENDIAN: c_int = 1234;
++pub const BIG_ENDIAN: c_int = 4321;
++pub const BYTE_ORDER: c_int = LITTLE_ENDIAN;
++
++pub const HUGE_VAL: c_double = f64::INFINITY;
++pub const HUGE_VALF: c_float = f32::INFINITY;
++pub const HUGE_VALL: c_double = f64::INFINITY;
++
++pub const SHUT_RD: c_int = 0;
++pub const SHUT_WR: c_int = 1;
++pub const SHUT_RDWR: c_int = 2;
++
++pub const SOMAXCONN: c_int = 128;
++
++// netinet/tcp.h
++pub const TCP_NODELAY: c_int = 1;
++
++// netinet/in.h
++pub const INET_ADDRSTRLEN: c_int = 16;
++pub const INET6_ADDRSTRLEN: c_int = 46;
++
++pub const IP_TTL: c_int = 4;
++pub const IP_MULTICAST_IF: c_int = 9;
++pub const IP_MULTICAST_TTL: c_int = 10;
++pub const IP_MULTICAST_LOOP: c_int = 11;
++pub const IP_ADD_MEMBERSHIP: c_int = 12;
++pub const IP_DROP_MEMBERSHIP: c_int = 13;
++
++pub const IPV6_MULTICAST_IF: c_int = 9;
++pub const IPV6_MULTICAST_HOPS: c_int = 10;
++pub const IPV6_MULTICAST_LOOP: c_int = 11;
++pub const IPV6_JOIN_GROUP: c_int = 12;
++pub const IPV6_LEAVE_GROUP: c_int = 13;
++pub const IPV6_V6ONLY: c_int = 27;
++
++// sys/un.h
++pub const UNIX_PATH_MAX: usize = 108;
++
++// netdb.h
++pub const EAI_BADFLAGS: c_int = -1;
++pub const EAI_NONAME: c_int = -2;
++pub const EAI_AGAIN: c_int = -3;
++pub const EAI_FAIL: c_int = -4;
++pub const EAI_FAMILY: c_int = -6;
++pub const EAI_SOCKTYPE: c_int = -7;
++pub const EAI_SERVICE: c_int = -8;
++pub const EAI_MEMORY: c_int = -10;
++pub const EAI_SYSTEM: c_int = -11;
++pub const EAI_OVERFLOW: c_int = -12;
++
++pub const AI_PASSIVE: c_int = 0x00000001;
++pub const AI_CANONNAME: c_int = 0x00000002;
++pub const AI_NUMERICHOST: c_int = 0x00000004;
++pub const AI_NUMERICSERV: c_int = 0x00000008;
++pub const AI_ALL: c_int = 0x00000100;
++pub const AI_ADDRCONFIG: c_int = 0x00000400;
++pub const AI_V4MAPPED: c_int = 0x00000800;
++
++pub const NI_NOFQDN: c_int = 1 << 0;
++pub const NI_NUMERICHOST: c_int = 1 << 1;
++pub const NI_NAMEREQD: c_int = 1 << 2;
++pub const NI_NUMERICSERV: c_int = 1 << 3;
++pub const NI_NUMERICSCOPE: c_int = 1 << 4;
++pub const NI_DGRAM: c_int = 1 << 5;
++
++pub const NI_MAXHOST: socklen_t = 1025;
++pub const NI_MAXSERV: socklen_t = 32;
++
++// sys/mman.h
++pub const PROT_NONE: c_int = 0;
++pub const PROT_READ: c_int = 1;
++pub const PROT_WRITE: c_int = 2;
++pub const PROT_EXEC: c_int = 4;
++
++pub const MAP_FIXED: c_int = 1;
++pub const MAP_ANONYMOUS: c_int = 2;
++pub const MAP_ANON: c_int = MAP_ANONYMOUS;
++pub const MAP_PRIVATE: c_int = 4;
++pub const MAP_SHARED: c_int = 8;
++
++pub const MAP_FAILED: *mut c_void = !0 as *mut c_void;
++
++pub const MS_ASYNC: c_int = 1;
++pub const MS_INVALIDATE: c_int = 2;
++pub const MS_SYNC: c_int = 4;
++
++pub const POSIX_MADV_NORMAL: c_int = 0;
++pub const POSIX_MADV_RANDOM: c_int = 1;
++pub const POSIX_MADV_SEQUENTIAL: c_int = 2;
++pub const POSIX_MADV_WILLNEED: c_int = 3;
++pub const POSIX_MADV_DONTNEED: c_int = 4;
++
++// sys/resource.h
++pub const RLIMIT_NOFILE: c_int = 1;
++pub const RLIMIT_DATA: c_int = 2;
++pub const RLIMIT_CORE: c_int = 3;
++pub const RLIMIT_CPU: c_int = 4;
++pub const RLIMIT_FSIZE: c_int = 5;
++pub const RLIMIT_STACK: c_int = 6;
++pub const RLIMIT_AS: c_int = 7;
++
++pub const RLIM_INFINITY: rlim_t = !0;
++pub const RLIM_SAVED_MAX: rlim_t = RLIM_INFINITY;
++pub const RLIM_SAVED_CUR: rlim_t = RLIM_INFINITY;
++
++pub const PRIO_PROCESS: c_int = 0;
++
++// sys/wait.h
++pub const WCONTINUED: c_int = 1;
++pub const WNOHANG: c_int = 2;
++pub const WUNTRACED: c_int = 4;
++
++// pthread.h
++pub const PTHREAD_MUTEX_INITIALIZER: pthread_mutex_t = pthread_mutex_t { __x: [0; 4] };
++pub const PTHREAD_COND_INITIALIZER: pthread_cond_t = pthread_cond_t { __x: [0; 2] };
++pub const PTHREAD_ONCE_INIT: pthread_once_t = 0;
++
++pub const PTHREAD_MUTEX_NORMAL: c_int = 0;
++pub const PTHREAD_MUTEX_ERRORCHECK: c_int = 1;
++pub const PTHREAD_MUTEX_RECURSIVE: c_int = 2;
++pub const PTHREAD_MUTEX_DEFAULT: c_int = PTHREAD_MUTEX_NORMAL;
++
++pub const PTHREAD_CANCEL_ENABLE: c_int = 0;
++pub const PTHREAD_CANCEL_DISABLE: c_int = 1;
++
++pub const PTHREAD_CREATE_JOINABLE: c_int = 0;
++pub const PTHREAD_CREATE_DETACHED: c_int = 1;
++
++// termios.h
++pub const NCCS: usize = 32;
++
++pub const IGNBRK: tcflag_t = 0x0001;
++pub const BRKINT: tcflag_t = 0x0002;
++pub const IGNPAR: tcflag_t = 0x0004;
++pub const PARMRK: tcflag_t = 0x0008;
++pub const INPCK: tcflag_t = 0x0010;
++pub const ISTRIP: tcflag_t = 0x0020;
++pub const INLCR: tcflag_t = 0x0040;
++pub const IGNCR: tcflag_t = 0x0080;
++pub const ICRNL: tcflag_t = 0x0100;
++pub const IUCLC: tcflag_t = 0x0200;
++pub const IXON: tcflag_t = 0x0400;
++pub const IXANY: tcflag_t = 0x0800;
++pub const IXOFF: tcflag_t = 0x1000;
++pub const IMAXBEL: tcflag_t = 0x2000;
++pub const IUTF8: tcflag_t = 0x4000;
++
++pub const OPOST: tcflag_t = 0x0001;
++pub const OLCUC: tcflag_t = 0x0002;
++pub const ONLCR: tcflag_t = 0x0004;
++pub const OCRNL: tcflag_t = 0x0008;
++pub const ONOCR: tcflag_t = 0x0010;
++pub const ONLRET: tcflag_t = 0x0020;
++pub const OFILL: tcflag_t = 0x0040;
++pub const OFDEL: tcflag_t = 0x0080;
++pub const NLDLY: tcflag_t = 0x0100;
++pub const NL0: tcflag_t = 0x0000;
++pub const NL1: tcflag_t = 0x0100;
++pub const CRDLY: tcflag_t = 0x0600;
++pub const CR0: tcflag_t = 0x0000;
++pub const CR1: tcflag_t = 0x0200;
++pub const CR2: tcflag_t = 0x0400;
++pub const CR3: tcflag_t = 0x0600;
++pub const TABDLY: tcflag_t = 0x1800;
++pub const TAB0: tcflag_t = 0x0000;
++pub const TAB1: tcflag_t = 0x0800;
++pub const TAB2: tcflag_t = 0x1000;
++pub const TAB3: tcflag_t = 0x1800;
++pub const BSDLY: tcflag_t = 0x2000;
++pub const BS0: tcflag_t = 0x0000;
++pub const BS1: tcflag_t = 0x2000;
++pub const VTDLY: tcflag_t = 0x4000;
++pub const VT0: tcflag_t = 0x0000;
++pub const VT1: tcflag_t = 0x4000;
++pub const FFDLY: tcflag_t = 0x8000;
++pub const FF0: tcflag_t = 0x0000;
++pub const FF1: tcflag_t = 0x8000;
++
++pub const CSIZE: tcflag_t = 0x0030;
++pub const CS5: tcflag_t = 0x0000;
++pub const CS6: tcflag_t = 0x0010;
++pub const CS7: tcflag_t = 0x0020;
++pub const CS8: tcflag_t = 0x0030;
++pub const CSTOPB: tcflag_t = 0x0040;
++pub const CREAD: tcflag_t = 0x0080;
++pub const PARENB: tcflag_t = 0x0100;
++pub const PARODD: tcflag_t = 0x0200;
++pub const HUPCL: tcflag_t = 0x0400;
++pub const CLOCAL: tcflag_t = 0x0800;
++pub const CBAUD: tcflag_t = 0x100f;
++pub const CRTSCTS: tcflag_t = 0x80000000;
++
++pub const ISIG: tcflag_t = 0x0001;
++pub const ICANON: tcflag_t = 0x0002;
++pub const XCASE: tcflag_t = 0x0004;
++pub const ECHO: tcflag_t = 0x0008;
++pub const ECHOE: tcflag_t = 0x0010;
++pub const ECHOK: tcflag_t = 0x0020;
++pub const ECHONL: tcflag_t = 0x0040;
++pub const NOFLSH: tcflag_t = 0x0080;
++pub const TOSTOP: tcflag_t = 0x0100;
++pub const ECHOCTL: tcflag_t = 0x0200;
++pub const ECHOPRT: tcflag_t = 0x0400;
++pub const ECHOKE: tcflag_t = 0x0800;
++pub const FLUSHO: tcflag_t = 0x1000;
++pub const PENDIN: tcflag_t = 0x4000;
++pub const IEXTEN: tcflag_t = 0x8000;
++
++pub const VINTR: usize = 0;
++pub const VQUIT: usize = 1;
++pub const VERASE: usize = 2;
++pub const VKILL: usize = 3;
++pub const VEOF: usize = 4;
++pub const VTIME: usize = 5;
++pub const VMIN: usize = 6;
++pub const VSWTC: usize = 7;
++pub const VSTART: usize = 8;
++pub const VSTOP: usize = 9;
++pub const VSUSP: usize = 10;
++pub const VEOL: usize = 11;
++pub const VREPRINT: usize = 12;
++pub const VDISCARD: usize = 13;
++pub const VWERASE: usize = 14;
++pub const VLNEXT: usize = 15;
++pub const VEOL2: usize = 16;
++
++pub const TCSANOW: c_int = 0;
++pub const TCSADRAIN: c_int = 1;
++pub const TCSAFLUSH: c_int = 2;
++
++pub const TCIFLUSH: c_int = 0;
++pub const TCOFLUSH: c_int = 1;
++pub const TCIOFLUSH: c_int = 2;
++
++pub const TCOOFF: c_int = 0;
++pub const TCOON: c_int = 1;
++pub const TCIOFF: c_int = 2;
++pub const TCION: c_int = 3;
++
++pub const B0: speed_t = 0x00000000;
++pub const B50: speed_t = 0x00000001;
++pub const B75: speed_t = 0x00000002;
++pub const B110: speed_t = 0x00000003;
++pub const B134: speed_t = 0x00000004;
++pub const B150: speed_t = 0x00000005;
++pub const B200: speed_t = 0x00000006;
++pub const B300: speed_t = 0x00000007;
++pub const B600: speed_t = 0x00000008;
++pub const B1200: speed_t = 0x00000009;
++pub const B1800: speed_t = 0x0000000a;
++pub const B2400: speed_t = 0x0000000b;
++pub const B4800: speed_t = 0x0000000c;
++pub const B9600: speed_t = 0x0000000d;
++pub const B19200: speed_t = 0x0000000e;
++pub const B38400: speed_t = 0x0000000f;
++pub const B57600: speed_t = 0x00001001;
++pub const B115200: speed_t = 0x00001002;
++pub const B230400: speed_t = 0x00001003;
++pub const B460800: speed_t = 0x00001004;
++pub const B500000: speed_t = 0x00001005;
++pub const B576000: speed_t = 0x00001006;
++pub const B921600: speed_t = 0x00001007;
++pub const B1000000: speed_t = 0x00001008;
++pub const B1152000: speed_t = 0x00001009;
++pub const B1500000: speed_t = 0x0000100a;
++pub const B2000000: speed_t = 0x0000100b;
++pub const B2500000: speed_t = 0x0000100c;
++pub const B3000000: speed_t = 0x0000100d;
++pub const B3500000: speed_t = 0x0000100e;
++pub const B4000000: speed_t = 0x0000100f;
++
++// stdlib.h
++pub const EXIT_SUCCESS: c_int = 0;
++pub const EXIT_FAILURE: c_int = 1;
++
++// spawn.h
++pub const POSIX_SPAWN_RESETIDS: c_int = 0x01;
++pub const POSIX_SPAWN_SETPGROUP: c_int = 0x02;
++pub const POSIX_SPAWN_SETSIGDEF: c_int = 0x04;
++pub const POSIX_SPAWN_SETSIGMASK: c_int = 0x08;
++pub const POSIX_SPAWN_SETSCHEDPARAM: c_int = 0x10;
++pub const POSIX_SPAWN_SETSCHEDULER: c_int = 0x20;
++pub const POSIX_SPAWN_SETSID: c_int = 0x80;
++
++f! {
++    pub fn FD_CLR(fd: c_int, set: *mut fd_set) -> () {
++        let fd = fd as usize;
++        let size = size_of_val(&(*set).fds_bits[0]) * 8;
++        (*set).fds_bits[fd / size] &= !(1 << (fd % size));
++    }
++
++    pub fn FD_ISSET(fd: c_int, set: *const fd_set) -> bool {
++        let fd = fd as usize;
++        let size = size_of_val(&(*set).fds_bits[0]) * 8;
++        ((*set).fds_bits[fd / size] & (1 << (fd % size))) != 0
++    }
++
++    pub fn FD_SET(fd: c_int, set: *mut fd_set) -> () {
++        let fd = fd as usize;
++        let size = size_of_val(&(*set).fds_bits[0]) * 8;
++        (*set).fds_bits[fd / size] |= 1 << (fd % size);
++    }
++
++    pub fn FD_ZERO(set: *mut fd_set) -> () {
++        for slot in (*set).fds_bits.iter_mut() {
++            *slot = 0;
++        }
++    }
++}
++
++safe_f! {
++    pub const fn WIFEXITED(status: c_int) -> bool {
++        (status & 0x7f) == 0
++    }
++
++    pub const fn WIFSIGNALED(status: c_int) -> bool {
++        (status & 0x7f) != 0 && (status & 0x7f) != 0x7f
++    }
++
++    pub const fn WEXITSTATUS(status: c_int) -> c_int {
++        (status >> 8) & 0xff
++    }
++
++    pub const fn WTERMSIG(status: c_int) -> c_int {
++        status & 0x7f
++    }
++
++    pub const fn WIFSTOPPED(status: c_int) -> bool {
++        (status & 0xff) == 0x7f
++    }
++
++    pub const fn WSTOPSIG(status: c_int) -> c_int {
++        (status >> 8) & 0xff
++    }
++
++    pub const fn WIFCONTINUED(status: c_int) -> bool {
++        status == 0xffff
++    }
++}
++
++extern "C" {
++    pub fn _errno() -> *mut c_int;
++
++    // string.h
++    pub fn strerror_r(errnum: c_int, strerrbuf: *mut c_char, buflen: size_t) -> c_int;
++
++    // sys/resource.h
++    pub fn getrlimit(resource: c_int, rlp: *mut crate::rlimit) -> c_int;
++    pub fn setrlimit(resource: c_int, rlp: *const crate::rlimit) -> c_int;
++    pub fn __p__environ() -> *mut *mut *mut c_char;
++
++    // sys/socket.h: the data-transfer calls are winsock-shaped (int
++    // lengths, int returns); the common POSIX declarations would read an
++    // undefined upper half from the int return under the MS ABI.
++    pub fn recv(s: c_int, buf: *mut c_void, len: c_int, flags: c_int) -> c_int;
++    pub fn send(s: c_int, buf: *const c_void, len: c_int, flags: c_int) -> c_int;
++    pub fn recvfrom(
++        s: c_int,
++        buf: *mut c_void,
++        len: c_int,
++        flags: c_int,
++        from: *mut sockaddr,
++        fromlen: *mut socklen_t,
++    ) -> c_int;
++    pub fn sendto(
++        s: c_int,
++        buf: *const c_void,
++        len: c_int,
++        flags: c_int,
++        to: *const sockaddr,
++        tolen: socklen_t,
++    ) -> c_int;
++    pub fn gethostname(name: *mut c_char, namelen: c_int) -> c_int;
++
++    // time.h
++    pub fn clock_gettime(clock_id: clockid_t, tp: *mut crate::timespec) -> c_int;
++    pub fn clock_getres(clock_id: clockid_t, res: *mut crate::timespec) -> c_int;
++    pub fn timespec_get(ts: *mut crate::timespec, base: c_int) -> c_int;
++
++    // fcntl.h
++    pub fn posix_fadvise(fd: c_int, offset: off_t, len: off_t, advice: c_int) -> c_int;
++
++    // unistd.h
++    pub fn faccessat(fd: c_int, path: *const c_char, amode: c_int, flag: c_int) -> c_int;
++
++    // stdlib.h
++    pub fn quick_exit(status: c_int) -> !;
++    pub fn at_quick_exit(func: extern "C" fn()) -> c_int;
++
++    // pthread.h
++    pub fn pthread_create(
++        thread: *mut pthread_t,
++        attr: *const pthread_attr_t,
++        start_routine: extern "C" fn(*mut c_void) -> *mut c_void,
++        arg: *mut c_void,
++    ) -> c_int;
++    // The rest of the pthread surface is declared by the common unix
++    // module against our types; only the ones it lacks live here.
++    pub fn pthread_once(once_control: *mut pthread_once_t, init_routine: extern "C" fn()) -> c_int;
++    pub fn pthread_kill(thread: pthread_t, sig: c_int) -> c_int;
++    pub fn sigwait(set: *const sigset_t, sig: *mut c_int) -> c_int;
++
++    // semaphore.h
++    pub fn sem_init(sem: *mut sem_t, pshared: c_int, value: c_uint) -> c_int;
++    pub fn sem_destroy(sem: *mut sem_t) -> c_int;
++    pub fn pthread_cancel(thread: pthread_t) -> c_int;
++    pub fn pthread_setcancelstate(state: c_int, oldstate: *mut c_int) -> c_int;
++    pub fn pthread_sigmask(how: c_int, set: *const sigset_t, oset: *mut sigset_t) -> c_int;
++
++    // pwd.h / grp.h
++    pub fn getpwnam_r(
++        name: *const c_char,
++        pwd: *mut passwd,
++        buf: *mut c_char,
++        size: size_t,
++        result: *mut *mut passwd,
++    ) -> c_int;
++    pub fn getpwuid_r(
++        uid: uid_t,
++        pwd: *mut passwd,
++        buf: *mut c_char,
++        size: size_t,
++        result: *mut *mut passwd,
++    ) -> c_int;
++    pub fn getgrgid_r(
++        gid: gid_t,
++        grp: *mut group,
++        buf: *mut c_char,
++        size: size_t,
++        result: *mut *mut group,
++    ) -> c_int;
++    pub fn getgrnam_r(
++        name: *const c_char,
++        grp: *mut group,
++        buf: *mut c_char,
++        size: size_t,
++        result: *mut *mut group,
++    ) -> c_int;
++
++    // spawn.h
++    pub fn posix_spawn(
++        pid: *mut pid_t,
++        path: *const c_char,
++        file_actions: *const posix_spawn_file_actions_t,
++        attrp: *const posix_spawnattr_t,
++        argv: *const *mut c_char,
++        envp: *const *mut c_char,
++    ) -> c_int;
++    pub fn posix_spawnp(
++        pid: *mut pid_t,
++        file: *const c_char,
++        file_actions: *const posix_spawn_file_actions_t,
++        attrp: *const posix_spawnattr_t,
++        argv: *const *mut c_char,
++        envp: *const *mut c_char,
++    ) -> c_int;
++    pub fn posix_spawn_file_actions_init(file_actions: *mut posix_spawn_file_actions_t) -> c_int;
++    pub fn posix_spawn_file_actions_destroy(
++        file_actions: *mut posix_spawn_file_actions_t,
++    ) -> c_int;
++    pub fn posix_spawn_file_actions_addopen(
++        file_actions: *mut posix_spawn_file_actions_t,
++        fd: c_int,
++        path: *const c_char,
++        oflag: c_int,
++        mode: mode_t,
++    ) -> c_int;
++    pub fn posix_spawn_file_actions_addclose(
++        file_actions: *mut posix_spawn_file_actions_t,
++        fd: c_int,
++    ) -> c_int;
++    pub fn posix_spawn_file_actions_adddup2(
++        file_actions: *mut posix_spawn_file_actions_t,
++        fd: c_int,
++        newfd: c_int,
++    ) -> c_int;
++    pub fn posix_spawn_file_actions_addchdir(
++        file_actions: *mut posix_spawn_file_actions_t,
++        path: *const c_char,
++    ) -> c_int;
++    pub fn posix_spawn_file_actions_addfchdir(
++        file_actions: *mut posix_spawn_file_actions_t,
++        fd: c_int,
++    ) -> c_int;
++    pub fn posix_spawnattr_init(attr: *mut posix_spawnattr_t) -> c_int;
++    pub fn posix_spawnattr_destroy(attr: *mut posix_spawnattr_t) -> c_int;
++    pub fn posix_spawnattr_setflags(attr: *mut posix_spawnattr_t, flags: c_short) -> c_int;
++    pub fn posix_spawnattr_setpgroup(attr: *mut posix_spawnattr_t, pgroup: pid_t) -> c_int;
++    pub fn posix_spawnattr_setsigdefault(
++        attr: *mut posix_spawnattr_t,
++        sigdefault: *const sigset_t,
++    ) -> c_int;
++    pub fn posix_spawnattr_setsigmask(
++        attr: *mut posix_spawnattr_t,
++        sigmask: *const sigset_t,
++    ) -> c_int;
++
++    // sys/utsname.h
++    pub fn uname(name: *mut utsname) -> c_int;
++
++    // poll.h
++    pub fn ppoll(
++        fds: *mut crate::pollfd,
++        nfds: nfds_t,
++        timeout: *const crate::timespec,
++        sigmask: *const sigset_t,
++    ) -> c_int;
++
++    // unistd.h
++    pub fn getentropy(buf: *mut c_void, buflen: size_t) -> c_int;
++    pub fn getpagesize() -> c_int;
++
++    // sys/socket.h
++    pub fn bind(s: c_int, addr: *const sockaddr, addrlen: socklen_t) -> c_int;
++
++    // termios.h
++    pub fn tcgetwinsize(fd: c_int, winsize_p: *mut winsize) -> c_int;
++    pub fn tcsetwinsize(fd: c_int, winsize_p: *const winsize) -> c_int;
++
++    // sys/mman.h
++    pub fn mprotect(addr: *mut c_void, len: size_t, prot: c_int) -> c_int;
++    pub fn msync(addr: *mut c_void, len: size_t, flags: c_int) -> c_int;
++    pub fn posix_madvise(addr: *mut c_void, len: size_t, advice: c_int) -> c_int;
++
++    // sys/uio.h
++    pub fn readv(fd: c_int, iov: *const iovec, iovcnt: c_int) -> ssize_t;
++    pub fn writev(fd: c_int, iov: *const iovec, iovcnt: c_int) -> ssize_t;
++
++    // sys/stat.h
++    pub fn futimens(fd: c_int, times: *const crate::timespec) -> c_int;
++    pub fn utimensat(
++        fd: c_int,
++        path: *const c_char,
++        times: *const crate::timespec,
++        flag: c_int,
++    ) -> c_int;
++
++    // dirent.h
++    pub fn dirfd(dir: *mut crate::DIR) -> c_int;
++
++    // pthread.h
++    pub fn pthread_condattr_setclock(
++        attr: *mut pthread_condattr_t,
++        clock_id: clockid_t,
++    ) -> c_int;
++
++    // dirent.h
++    pub fn scandir(dir: *const c_char, namelist: *mut *mut *mut crate::dirent, sel: Option<unsafe extern "C" fn(*const crate::dirent) -> c_int>, compar: Option<unsafe extern "C" fn(*const *const crate::dirent, *const *const crate::dirent) -> c_int>) -> c_int;
++
++    // sys/resource.h
++    pub fn getpriority(which: c_int, who: id_t) -> c_int;
++    pub fn setpriority(which: c_int, who: id_t, value: c_int) -> c_int;
++
++    // arpa/inet.h
++    pub fn htonl(hostlong: u32) -> u32;
++    pub fn htons(hostshort: u16) -> u16;
++    pub fn inet_addr(cp: *const c_char) -> crate::in_addr_t;
++    pub fn inet_ntop(af: c_int, src: *const c_void, dst: *mut c_char, size: socklen_t) -> *const c_char;
++    pub fn ntohl(netlong: u32) -> u32;
++    pub fn ntohs(netshort: u16) -> u16;
++
++    // fcntl.h
++    pub fn mkfifoat(fd: c_int, path: *const c_char, mode: mode_t) -> c_int;
++
++    // glob.h
++    pub fn glob(pattern: *const c_char, flags: c_int, errfunc: Option<unsafe extern "C" fn(*const c_char, c_int) -> c_int>, pglob: *mut glob_t) -> c_int;
++    pub fn globfree(pglob: *mut glob_t);
++
++    // grp.h
++    pub fn endgrent();
++    pub fn getgrent() -> *mut crate::group;
++    pub fn getgrgid(gid: gid_t) -> *mut crate::group;
++    pub fn getgrnam(name: *const c_char) -> *mut crate::group;
++    pub fn setgrent();
++
++    // inttypes.h
++    pub fn strtoimax(nptr: *const c_char, endptr: *mut *mut c_char, base: c_int) -> crate::intmax_t;
++    pub fn strtoumax(nptr: *const c_char, endptr: *mut *mut c_char, base: c_int) -> crate::uintmax_t;
++
++    // langinfo.h
++    pub fn nl_langinfo(item: nl_item) -> *mut c_char;
++
++    // libgen.h
++    pub fn basename(path: *mut c_char) -> *mut c_char;
++    pub fn dirname(path: *mut c_char) -> *mut c_char;
++
++    // math.h
++    pub fn acos(x: c_double) -> c_double;
++    pub fn acosf(x: c_float) -> c_float;
++    pub fn acosh(x: c_double) -> c_double;
++    pub fn acoshf(x: c_float) -> c_float;
++    pub fn asin(x: c_double) -> c_double;
++    pub fn asinf(x: c_float) -> c_float;
++    pub fn asinh(x: c_double) -> c_double;
++    pub fn asinhf(x: c_float) -> c_float;
++    pub fn atan(x: c_double) -> c_double;
++    pub fn atan2(y: c_double, x: c_double) -> c_double;
++    pub fn atan2f(y: c_float, x: c_float) -> c_float;
++    pub fn atanf(x: c_float) -> c_float;
++    pub fn atanh(x: c_double) -> c_double;
++    pub fn atanhf(x: c_float) -> c_float;
++    pub fn cbrt(x: c_double) -> c_double;
++    pub fn cbrtf(x: c_float) -> c_float;
++    pub fn ceil(x: c_double) -> c_double;
++    pub fn ceilf(x: c_float) -> c_float;
++    pub fn copysign(x: c_double, y: c_double) -> c_double;
++    pub fn copysignf(x: c_float, y: c_float) -> c_float;
++    pub fn cos(x: c_double) -> c_double;
++    pub fn cosf(x: c_float) -> c_float;
++    pub fn cosh(x: c_double) -> c_double;
++    pub fn coshf(x: c_float) -> c_float;
++    pub fn erf(x: c_double) -> c_double;
++    pub fn erfc(x: c_double) -> c_double;
++    pub fn erfcf(x: c_float) -> c_float;
++    pub fn erff(x: c_float) -> c_float;
++    pub fn exp(x: c_double) -> c_double;
++    pub fn exp2(x: c_double) -> c_double;
++    pub fn exp2f(x: c_float) -> c_float;
++    pub fn expf(x: c_float) -> c_float;
++    pub fn expm1(x: c_double) -> c_double;
++    pub fn expm1f(x: c_float) -> c_float;
++    pub fn fabs(x: c_double) -> c_double;
++    pub fn fabsf(x: c_float) -> c_float;
++    pub fn floor(x: c_double) -> c_double;
++    pub fn floorf(x: c_float) -> c_float;
++    pub fn fma(x: c_double, y: c_double, z: c_double) -> c_double;
++    pub fn fmaf(x: c_float, y: c_float, z: c_float) -> c_float;
++    pub fn fmax(x: c_double, y: c_double) -> c_double;
++    pub fn fmaxf(x: c_float, y: c_float) -> c_float;
++    pub fn fmin(x: c_double, y: c_double) -> c_double;
++    pub fn fminf(x: c_float, y: c_float) -> c_float;
++    pub fn fmod(x: c_double, y: c_double) -> c_double;
++    pub fn fmodf(x: c_float, y: c_float) -> c_float;
++    pub fn frexp(value: c_double, exp: *mut c_int) -> c_double;
++    pub fn frexpf(value: c_float, exp: *mut c_int) -> c_float;
++    pub fn hypot(x: c_double, y: c_double) -> c_double;
++    pub fn ilogb(x: c_double) -> c_int;
++    pub fn ilogbf(x: c_float) -> c_int;
++    pub fn ldexp(x: c_double, exp: c_int) -> c_double;
++    pub fn ldexpf(x: c_float, exp: c_int) -> c_float;
++    pub fn llrint(x: c_double) -> c_longlong;
++    pub fn llrintf(x: c_float) -> c_longlong;
++    pub fn llround(x: c_double) -> c_longlong;
++    pub fn llroundf(x: c_float) -> c_longlong;
++    pub fn log(x: c_double) -> c_double;
++    pub fn log10(x: c_double) -> c_double;
++    pub fn log10f(x: c_float) -> c_float;
++    pub fn log1p(x: c_double) -> c_double;
++    pub fn log1pf(x: c_float) -> c_float;
++    pub fn log2(x: c_double) -> c_double;
++    pub fn log2f(x: c_float) -> c_float;
++    pub fn logb(x: c_double) -> c_double;
++    pub fn logbf(x: c_float) -> c_float;
++    pub fn logf(x: c_float) -> c_float;
++    pub fn lrint(x: c_double) -> c_long;
++    pub fn lrintf(x: c_float) -> c_long;
++    pub fn lround(x: c_double) -> c_long;
++    pub fn lroundf(x: c_float) -> c_long;
++    pub fn modf(value: c_double, iptr: *mut c_double) -> c_double;
++    pub fn modff(value: c_float, iptr: *mut c_float) -> c_float;
++    pub fn nextafter(x: c_double, y: c_double) -> c_double;
++    pub fn nextafterf(x: c_float, y: c_float) -> c_float;
++    pub fn pow(x: c_double, y: c_double) -> c_double;
++    pub fn powf(x: c_float, y: c_float) -> c_float;
++    pub fn rint(x: c_double) -> c_double;
++    pub fn rintf(x: c_float) -> c_float;
++    pub fn round(x: c_double) -> c_double;
++    pub fn roundf(x: c_float) -> c_float;
++    pub fn scalbln(x: c_double, n: c_long) -> c_double;
++    pub fn scalblnf(x: c_float, n: c_long) -> c_float;
++    pub fn scalbn(x: c_double, n: c_int) -> c_double;
++    pub fn scalbnf(x: c_float, n: c_int) -> c_float;
++    pub fn sin(x: c_double) -> c_double;
++    pub fn sinf(x: c_float) -> c_float;
++    pub fn sinh(x: c_double) -> c_double;
++    pub fn sinhf(x: c_float) -> c_float;
++    pub fn sqrt(x: c_double) -> c_double;
++    pub fn sqrtf(x: c_float) -> c_float;
++    pub fn tan(x: c_double) -> c_double;
++    pub fn tanf(x: c_float) -> c_float;
++    pub fn tanh(x: c_double) -> c_double;
++    pub fn tanhf(x: c_float) -> c_float;
++    pub fn trunc(x: c_double) -> c_double;
++    pub fn truncf(x: c_float) -> c_float;
++
++    // netdb.h
++    pub fn endhostent();
++    pub fn endnetent();
++    pub fn endprotoent();
++    pub fn gethostent() -> *mut crate::hostent;
++    pub fn getnameinfo(addr: *const crate::sockaddr, addrlen: socklen_t, host: *mut c_char, hostlen: socklen_t, serv: *mut c_char, servlen: socklen_t, flags: c_int) -> c_int;
++    pub fn getnetbyaddr(net: u32, type_: c_int) -> *mut netent;
++    pub fn getnetbyname(name: *const c_char) -> *mut netent;
++    pub fn getnetent() -> *mut netent;
++    pub fn getprotoent() -> *mut crate::protoent;
++    pub fn sethostent(stayopen: c_int);
++    pub fn setnetent(stayopen: c_int);
++    pub fn setprotoent(stayopen: c_int);
++
++    // pthread.h
++    pub fn pthread_getschedparam(thread: pthread_t, policy: *mut c_int, param: *mut sched_param) -> c_int;
++    pub fn pthread_mutex_timedlock(mutex: *mut pthread_mutex_t, abstime: *const crate::timespec) -> c_int;
++    pub fn pthread_setschedparam(thread: pthread_t, policy: c_int, param: *const sched_param) -> c_int;
++
++    // pwd.h
++    pub fn endpwent();
++    pub fn getpwent() -> *mut crate::passwd;
++    pub fn setpwent();
++
++    // regex.h
++    pub fn regcomp(preg: *mut regex_t, regex: *const c_char, cflags: c_int) -> c_int;
++    pub fn regerror(errcode: c_int, oreg: *const regex_t, errbuf: *mut c_char, errbuf_size: size_t) -> size_t;
++    pub fn regexec(preg: *const regex_t, string: *const c_char, nmatch: size_t, pmatch: *mut regmatch_t, eflags: c_int) -> c_int;
++    pub fn regfree(preg: *mut regex_t);
++
++    // sched.h
++    pub fn sched_get_priority_max(policy: c_int) -> c_int;
++    pub fn sched_get_priority_min(policy: c_int) -> c_int;
++
++    // signal.h
++    pub fn sigsuspend(mask: *const sigset_t) -> c_int;
++
++    // stdio.h
++    pub fn ctermid(s: *mut c_char) -> *mut c_char;
++    pub fn flockfile(f: *mut crate::FILE);
++    pub fn funlockfile(f: *mut crate::FILE);
++    pub fn getc(stream: *mut crate::FILE) -> c_int;
++    pub fn getc_unlocked(f: *mut crate::FILE) -> c_int;
++    pub fn putc(c: c_int, stream: *mut crate::FILE) -> c_int;
++
++    // stdlib.h
++    pub fn div(numer: c_int, denom: c_int) -> div_t;
++    pub fn getprogname() -> *const c_char;
++    pub fn ldiv(numer: c_long, denom: c_long) -> ldiv_t;
++    pub fn lldiv(numer: c_longlong, denom: c_longlong) -> lldiv_t;
++    pub fn mblen(s: *const c_char, n: size_t) -> c_int;
++    pub fn mbstowcs(dest: *mut wchar_t, src: *const c_char, n: size_t) -> size_t;
++    pub fn mbtowc(pwc: *mut wchar_t, s: *const c_char, n: size_t) -> c_int;
++    pub fn mkostemp(tmpl: *mut c_char, flag: c_int) -> c_int;
++    pub fn ptsname_r(fd: c_int, name: *mut c_char, namesize: size_t) -> c_int;
++    pub fn rand() -> c_int;
++    pub fn rand_s(value: *mut c_uint) -> c_int;
++    pub fn srand(seed: c_uint);
++
++    // string.h
++    pub fn memmem(haystack: *const c_void, haystacklen: size_t, needle: *const c_void, needlelen: size_t) -> *mut c_void;
++    pub fn strlcpy(dst: *mut c_char, src: *const c_char, dstsize: size_t) -> size_t;
++
++    // sys/socket.h
++    pub fn accept4(s: c_int, addr: *mut crate::sockaddr, addrlen: *mut socklen_t, flag: c_int) -> c_int;
++    pub fn recvmsg(s: c_int, msg: *mut msghdr, flags: c_int) -> ssize_t;
++    pub fn sendmsg(s: c_int, msg: *const msghdr, flags: c_int) -> ssize_t;
++
++    // sys/stat.h
++    pub fn mknodat(fd: c_int, path: *const c_char, mode: mode_t, dev: dev_t) -> c_int;
++
++    // sys/time.h
++    pub fn gettimeofday(tv: *mut crate::timeval, tz: *mut c_void) -> c_int;
++
++    // time.h
++    pub fn asctime(timeptr: *const crate::tm) -> *mut c_char;
++    pub fn clock() -> clock_t;
++    pub fn strftime(s: *mut c_char, maxsize: size_t, format: *const c_char, timeptr: *const crate::tm) -> size_t;
++
++    // unistd.h
++    pub fn crypt(key: *const c_char, salt: *const c_char) -> *mut c_char;
++    pub fn gethostid() -> c_long;
++    pub fn getlogin_r(name: *mut c_char, namesize: size_t) -> c_int;
++    pub fn getresgid(rgid: *mut gid_t, egid: *mut gid_t, sgid: *mut gid_t) -> c_int;
++    pub fn getresuid(ruid: *mut uid_t, euid: *mut uid_t, suid: *mut uid_t) -> c_int;
++    pub fn setresgid(rgid: gid_t, egid: gid_t, sgid: gid_t) -> c_int;
++    pub fn setresuid(ruid: uid_t, euid: uid_t, suid: uid_t) -> c_int;
++
++    // wchar.h
++    pub fn btowc(c: c_int) -> wint_t;
++    pub fn fgetwc(stream: *mut crate::FILE) -> wint_t;
++    pub fn fputwc(wc: wchar_t, stream: *mut crate::FILE) -> wint_t;
++    pub fn getwc(stream: *mut crate::FILE) -> wint_t;
++    pub fn mbrlen(s: *const c_char, n: size_t, ps: *mut mbstate_t) -> size_t;
++    pub fn mbrtowc(pwc: *mut wchar_t, s: *const c_char, n: size_t, ps: *mut mbstate_t) -> size_t;
++    pub fn mbsinit(ps: *const mbstate_t) -> c_int;
++    pub fn mbsnrtowcs(dst: *mut wchar_t, src: *const *mut c_char, nmc: size_t, len: size_t, ps: *mut mbstate_t) -> size_t;
++    pub fn mbsrtowcs(dest: *mut wchar_t, src: *const *mut c_char, len: size_t, ps: *mut mbstate_t) -> size_t;
++    pub fn putwc(wc: wchar_t, stream: *mut crate::FILE) -> wint_t;
++    pub fn ungetwc(wc: wint_t, stream: *mut crate::FILE) -> wint_t;
++    pub fn wcrtomb(s: *mut c_char, wc: wchar_t, ps: *mut mbstate_t) -> size_t;
++    pub fn wcscat(dest: *mut wchar_t, src: *const wchar_t) -> *mut wchar_t;
++    pub fn wcschr(s: *const wchar_t, c: wchar_t) -> *mut wchar_t;
++    pub fn wcscmp(s1: *const wchar_t, s2: *const wchar_t) -> c_int;
++    pub fn wcscoll(s1: *const wchar_t, s2: *const wchar_t) -> c_int;
++    pub fn wcscpy(dest: *mut wchar_t, src: *const wchar_t) -> *mut wchar_t;
++    pub fn wcsftime(s: *mut wchar_t, maxsize: size_t, format: *const wchar_t, timeptr: *const crate::tm) -> size_t;
++    pub fn wcsncmp(s1: *const wchar_t, s2: *const wchar_t, n: size_t) -> c_int;
++    pub fn wcsncpy(dest: *mut wchar_t, src: *const wchar_t, n: size_t) -> *mut wchar_t;
++    pub fn wcsnrtombs(dst: *mut c_char, src: *const *mut wchar_t, nwc: size_t, len: size_t, ps: *mut mbstate_t) -> size_t;
++    pub fn wcsrchr(s: *const wchar_t, c: wchar_t) -> *mut wchar_t;
++    pub fn wcsrtombs(dest: *mut c_char, src: *const *mut wchar_t, len: size_t, ps: *mut mbstate_t) -> size_t;
++    pub fn wcstod(nptr: *const wchar_t, endptr: *mut *mut wchar_t) -> c_double;
++    pub fn wcstof(nptr: *const wchar_t, endptr: *mut *mut wchar_t) -> c_float;
++    pub fn wcstok(str_: *mut wchar_t, delim: *const wchar_t, saveptr: *mut *mut wchar_t) -> *mut wchar_t;
++    pub fn wcstol(nptr: *const wchar_t, endptr: *mut *mut wchar_t, base: c_int) -> c_long;
++    pub fn wcstoll(nptr: *const wchar_t, endptr: *mut *mut wchar_t, base: c_int) -> c_longlong;
++    pub fn wcstoul(nptr: *const wchar_t, endptr: *mut *mut wchar_t, base: c_int) -> c_ulong;
++    pub fn wcstoull(nptr: *const wchar_t, endptr: *mut *mut wchar_t, base: c_int) -> c_ulonglong;
++    pub fn wcswidth(pwcs: *const wchar_t, n: size_t) -> c_int;
++    pub fn wcsxfrm(dest: *mut wchar_t, src: *const wchar_t, n: size_t) -> size_t;
++    pub fn wctob(c: wint_t) -> c_int;
++    pub fn wcwidth(wc: wchar_t) -> c_int;
++
++    // wctype.h
++    pub fn iswalnum(wc: wint_t) -> c_int;
++    pub fn iswalpha(wc: wint_t) -> c_int;
++    pub fn iswblank(wc: wint_t) -> c_int;
++    pub fn iswcntrl(wc: wint_t) -> c_int;
++    pub fn iswctype(wc: wint_t, desc: wctype_t) -> c_int;
++    pub fn iswdigit(wc: wint_t) -> c_int;
++    pub fn iswgraph(wc: wint_t) -> c_int;
++    pub fn iswlower(wc: wint_t) -> c_int;
++    pub fn iswprint(wc: wint_t) -> c_int;
++    pub fn iswpunct(wc: wint_t) -> c_int;
++    pub fn iswspace(wc: wint_t) -> c_int;
++    pub fn iswupper(wc: wint_t) -> c_int;
++    pub fn iswxdigit(wc: wint_t) -> c_int;
++    pub fn towlower(wc: wint_t) -> wint_t;
++    pub fn towupper(wc: wint_t) -> wint_t;
++    pub fn wctrans(property: *const c_char) -> wctrans_t;
++    pub fn wctype(property: *const c_char) -> wctype_t;
++
++}

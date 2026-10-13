@@ -2,6 +2,25 @@ include_guard(GLOBAL)
 
 set_property(GLOBAL APPEND PROPERTY JOB_POOLS cargo_pool=1)
 
+set(RUST_CRATES_DIR ${CMAKE_BINARY_DIR}/ports/rust/crates CACHE INTERNAL "")
+
+function(rust_export_tree target src dest patch)
+    add_custom_command(
+        OUTPUT ${dest}.stamp
+        COMMAND sh -c "rm -rf '${dest}' && mkdir -p '${dest}' && git -C '${src}' archive HEAD | tar -x -C '${dest}' && patch -p1 -d '${dest}' < '${patch}'"
+        COMMAND ${CMAKE_COMMAND} -E touch ${dest}.stamp
+        DEPENDS ${patch}
+        COMMENT "Exporting and patching ${src}"
+        VERBATIM
+    )
+
+    add_custom_target(${target} DEPENDS ${dest}.stamp)
+endfunction()
+
+function(rust_export_crate name src patch)
+    rust_export_tree(rust_crate_${name} ${src} ${RUST_CRATES_DIR}/${name} ${patch})
+endfunction()
+
 function(init_rust_crate_submodules)
     set(uninit "")
 
@@ -24,7 +43,7 @@ function(init_rust_crate_submodules)
 endfunction()
 
 function(add_rust_port name binary)
-    cmake_parse_arguments(ARG "" "" "PATCHED_CRATES" ${ARGN})
+    cmake_parse_arguments(ARG "" "PATCH" "PATCHED_CRATES" ${ARGN})
 
     if(CMAKE_SYSTEM_PROCESSOR STREQUAL "x86_64")
         set(RUST_TARGET x86_64-pc-moxnox)
@@ -44,11 +63,24 @@ function(add_rust_port name binary)
     init_rust_crate_submodules(${crate_paths})
 
     set(cargo_args --config
-        "patch.crates-io.libc.path=\"${CMAKE_SOURCE_DIR}/ports/rust/libc\"")
+        "patch.crates-io.libc.path=\"${RUST_CRATES_DIR}/libc\"")
     foreach(crate ${ARG_PATCHED_CRATES})
-        list(APPEND cargo_args --config
-            "patch.crates-io.${crate}.path=\"${CMAKE_CURRENT_SOURCE_DIR}/${crate}\"")
+        if(TARGET rust_crate_${crate})
+            list(APPEND cargo_args --config
+                "patch.crates-io.${crate}.path=\"${RUST_CRATES_DIR}/${crate}\"")
+        else()
+            list(APPEND cargo_args --config
+                "patch.crates-io.${crate}.path=\"${CMAKE_CURRENT_SOURCE_DIR}/${crate}\"")
+        endif()
     endforeach()
+
+    if(ARG_PATCH)
+        set(manifest_dir ${CMAKE_CURRENT_BINARY_DIR}/gen/repo)
+        rust_export_tree(${name}_patched ${CMAKE_CURRENT_SOURCE_DIR}/repo ${manifest_dir}
+            ${CMAKE_CURRENT_SOURCE_DIR}/${ARG_PATCH})
+    else()
+        set(manifest_dir ${CMAKE_CURRENT_SOURCE_DIR}/repo)
+    endif()
 
     set(cargo_target_dir ${CMAKE_CURRENT_BINARY_DIR}/cargo)
     set(exe ${cargo_target_dir}/${RUST_TARGET}/release/${binary})
@@ -58,7 +90,7 @@ function(add_rust_port name binary)
         OUTPUT ${exe}
         COMMAND ${CMAKE_COMMAND} -E env CARGO_TARGET_DIR=${cargo_target_dir}
             cargo build --release --target ${RUST_TARGET} ${cargo_args}
-            --manifest-path ${CMAKE_CURRENT_SOURCE_DIR}/repo/Cargo.toml
+            --manifest-path ${manifest_dir}/Cargo.toml
         DEPFILE ${cargo_target_dir}/${RUST_TARGET}/release/${base}.d
         JOB_POOL cargo_pool
         COMMENT "Building Rust port ${name} (${RUST_TARGET})"
@@ -66,6 +98,16 @@ function(add_rust_port name binary)
     )
 
     add_custom_target(${name} ALL DEPENDS ${exe})
+
+    add_dependencies(${name} rust_crate_libc)
+    foreach(crate ${ARG_PATCHED_CRATES})
+        if(TARGET rust_crate_${crate})
+            add_dependencies(${name} rust_crate_${crate})
+        endif()
+    endforeach()
+    if(ARG_PATCH)
+        add_dependencies(${name} ${name}_patched)
+    endif()
 
     install(PROGRAMS ${exe} DESTINATION ${CMAKE_INSTALL_PREFIX}/bin)
 endfunction()

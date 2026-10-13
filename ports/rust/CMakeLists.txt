@@ -41,19 +41,42 @@ configure_file(bootstrap.toml.in ${CMAKE_CURRENT_BINARY_DIR}/bootstrap.toml @ONL
 set(RUSTC_STAGE1 ${RUSTC_BUILD_DIR}/${RUST_TARGET}/stage1)
 set(rustc_main ${RUSTC_BUILD_DIR}/${RUST_BUILD_TRIPLE}/stage1-rustc/${RUST_TARGET}/release/rustc-main.exe)
 
+rust_export_crate(libc ${CMAKE_CURRENT_SOURCE_DIR}/libc ${CMAKE_CURRENT_SOURCE_DIR}/libc.patch)
+
+set(rust_patched_trees
+    repo:moxnox.patch
+    libc:libc.patch
+)
+
+set(rust_apply_commands)
+set(rust_revert_commands)
+set(rust_patch_files)
+
+foreach(entry ${rust_patched_trees})
+    string(REPLACE ":" ";" entry ${entry})
+    list(GET entry 0 dir)
+    list(GET entry 1 patch)
+    set(dir ${CMAKE_CURRENT_SOURCE_DIR}/${dir})
+    set(patch ${CMAKE_CURRENT_SOURCE_DIR}/${patch})
+
+    list(APPEND rust_apply_commands COMMAND sh -c "cd '${dir}' && ( git apply --check -R '${patch}' 2>/dev/null || ( ! git status --porcelain | grep -q . && git apply '${patch}' ) || ( echo '${dir}: cannot apply ${patch}, tree status:' >&2 && git status --porcelain >&2 && false ) )")
+    list(APPEND rust_revert_commands COMMAND sh -c "cd '${dir}' && git apply -R '${patch}'")
+    list(APPEND rust_patch_files ${patch})
+endforeach()
+
 add_custom_command(
     OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/rust.stamp
     BYPRODUCTS ${rustc_main}
-    COMMAND sh -c "cd '${CMAKE_CURRENT_SOURCE_DIR}/repo' && if git apply --check -R '${CMAKE_CURRENT_SOURCE_DIR}/moxnox.patch' 2>/dev/null; then :; elif git status --porcelain | grep -q .; then echo 'ports/rust/repo has local changes or leftover files, not applying moxnox.patch:' >&2; git status --porcelain >&2; exit 1; else git apply '${CMAKE_CURRENT_SOURCE_DIR}/moxnox.patch'; fi"
+    ${rust_apply_commands}
     COMMAND ${RUST_PYTHON} ${CMAKE_CURRENT_SOURCE_DIR}/repo/x.py build
         --stage 1
         --config ${CMAKE_CURRENT_BINARY_DIR}/bootstrap.toml
     COMMAND ${CMAKE_COMMAND} -E copy_directory
         ${RUSTC_BUILD_DIR}/${RUST_BUILD_TRIPLE}/stage1/lib/rustlib/${RUST_TARGET}/lib
         ${RUSTC_STAGE1}/lib/rustlib/${RUST_TARGET}/lib
-    COMMAND sh -c "cd '${CMAKE_CURRENT_SOURCE_DIR}/repo' && git apply -R '${CMAKE_CURRENT_SOURCE_DIR}/moxnox.patch'"
+    ${rust_revert_commands}
     COMMAND ${CMAKE_COMMAND} -E touch ${CMAKE_CURRENT_BINARY_DIR}/rust.stamp
-    DEPENDS ${CMAKE_CURRENT_BINARY_DIR}/bootstrap.toml ${CMAKE_CURRENT_SOURCE_DIR}/moxnox.patch
+    DEPENDS ${CMAKE_CURRENT_BINARY_DIR}/bootstrap.toml ${rust_patch_files}
     JOB_POOL cargo_pool
     COMMENT "Building rustc (${RUST_TARGET})"
     VERBATIM
