@@ -141,11 +141,9 @@ add_executable(bison
     repo/gnulib/lib/c-strcasecmp.c
     repo/gnulib/lib/canonicalize-lgpl.c
     repo/gnulib/lib/canonicalize.c
-    repo/gnulib/lib/chdir-long.c
     repo/gnulib/lib/close-stream.c
     repo/gnulib/lib/closeout.c
     repo/gnulib/lib/concat-filename.c
-    repo/gnulib/lib/dup-safer-flag.c
     repo/gnulib/lib/dup-safer.c
     repo/gnulib/lib/dup2.c
     repo/gnulib/lib/error.c
@@ -153,9 +151,7 @@ add_executable(bison
     repo/gnulib/lib/exitfail.c
     repo/gnulib/lib/fatal-signal.c
     repo/gnulib/lib/fcntl.c
-    repo/gnulib/lib/fd-safer-flag.c
     repo/gnulib/lib/fd-safer.c
-    repo/gnulib/lib/fdopendir.c
     repo/gnulib/lib/ffsl.c
     repo/gnulib/lib/file-set.c
     repo/gnulib/lib/findprog-in.c
@@ -163,9 +159,7 @@ add_executable(bison
     repo/gnulib/lib/fopen.c
     repo/gnulib/lib/fprintf.c
     repo/gnulib/lib/free.c
-    repo/gnulib/lib/frexp.c
     repo/gnulib/lib/frexpl.c
-    repo/gnulib/lib/fstatat.c
     repo/gnulib/lib/fstrcmp.c
     repo/gnulib/lib/getcwd.c
     repo/gnulib/lib/getdtablesize.c
@@ -194,14 +188,10 @@ add_executable(bison
     repo/gnulib/lib/malloc/scratch_buffer_grow_preserve.c
     repo/gnulib/lib/mbchar.c
     repo/gnulib/lib/mbfile.c
-    repo/gnulib/lib/mbrtowc.c
     repo/gnulib/lib/mbswidth.c
     repo/gnulib/lib/mempcpy.c
-    repo/gnulib/lib/memrchr.c
     repo/gnulib/lib/obstack.c
     repo/gnulib/lib/obstack_printf.c
-    repo/gnulib/lib/openat-die.c
-    repo/gnulib/lib/openat-proc.c
     repo/gnulib/lib/perror.c
     repo/gnulib/lib/pipe-safer.c
     repo/gnulib/lib/printf-args.c
@@ -216,7 +206,6 @@ add_executable(bison
     repo/gnulib/lib/reallocarray.c
     repo/gnulib/lib/rename.c
     repo/gnulib/lib/rmdir.c
-    repo/gnulib/lib/save-cwd.c
     repo/gnulib/lib/sig-handler.c
     repo/gnulib/lib/snprintf.c
     repo/gnulib/lib/spawn-pipe.c
@@ -237,7 +226,6 @@ add_executable(bison
     repo/gnulib/lib/stpcpy.c
     repo/gnulib/lib/stpncpy.c
     repo/gnulib/lib/strchrnul.c
-    repo/gnulib/lib/strerror-override.c
     repo/gnulib/lib/strerror_r.c
     repo/gnulib/lib/stripslash.c
     repo/gnulib/lib/strtod.c
@@ -245,14 +233,11 @@ add_executable(bison
     ${GEN}/gnu/timevar.c
     repo/gnulib/lib/unicodeio.c
     repo/gnulib/lib/unistr/u8-uctomb-aux.c
-    repo/gnulib/lib/uniwidth/width.c
     repo/gnulib/lib/unlink.c
     repo/gnulib/lib/vasnprintf.c
     repo/gnulib/lib/vasprintf.c
     repo/gnulib/lib/vfprintf.c
     repo/gnulib/lib/wait-process.c
-    repo/gnulib/lib/wctype-h.c
-    repo/gnulib/lib/wcwidth.c
     repo/gnulib/lib/xalloc-die.c
     repo/gnulib/lib/xconcat-filename.c
     repo/gnulib/lib/xhash.c
