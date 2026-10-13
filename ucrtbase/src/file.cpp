@@ -589,8 +589,20 @@ size_t __fread_nolock(void* ptr, size_t size, size_t n, FILE* file) {
                             nullptr, nullptr);
         if (status == nt_status::USER_APC)
             continue;
+        else if (!success(status))
+            break;
 
-        break;
+        read += iosb.Information;
+        ptr = (uint8_t*)ptr + iosb.Information;
+        bytes -= iosb.Information;
+
+        if (bytes == 0)
+            break;
+
+        if (iosb.Information == 0) {
+            f.eof = true;
+            break;
+        }
     }
 
     if (status == nt_status::END_OF_FILE || status == nt_status::PIPE_DISCONNECTED)
@@ -599,13 +611,6 @@ size_t __fread_nolock(void* ptr, size_t size, size_t n, FILE* file) {
         *__errno() = nt_status_to_errno(status);
         f.error = true;
         return 0;
-    }
-
-    if (success(status)) {
-        read += iosb.Information;
-
-        if (iosb.Information < bytes)
-            f.eof = true;
     }
 
     return read / size;
