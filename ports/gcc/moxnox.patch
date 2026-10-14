@@ -557,6 +557,25 @@ index ee74f59e5aa..e8a2f4dfb0c 100644
  #endif
  
  #ifndef HIDE_EXPORTS
+diff --git a/libiberty/make-relative-prefix.c b/libiberty/make-relative-prefix.c
+index 58cab574151..b8288b519d9 100644
+--- a/libiberty/make-relative-prefix.c
++++ b/libiberty/make-relative-prefix.c
+@@ -89,6 +89,14 @@ relative prefix can be found, return @code{NULL}.
+ #  define PATH_SEPARATOR ':'
+ #endif
+ 
++/* Moxnox is a POSIX host whose executables carry the .exe suffix, so the
++   PATH search below must probe for it as on Windows.  The DOS path rules
++   above do not apply.  */
++#ifdef __moxnox__
++#  define HAVE_HOST_EXECUTABLE_SUFFIX
++#  define HOST_EXECUTABLE_SUFFIX ".exe"
++#endif
++
+ #ifndef DIR_SEPARATOR_2
+ #  define IS_DIR_SEPARATOR(ch) ((ch) == DIR_SEPARATOR)
+ #else
 diff --git a/libquadmath/configure b/libquadmath/configure
 index a696c62deac..7d764ed7bf6 100755
 --- a/libquadmath/configure
