@@ -284,6 +284,7 @@ static nt_status insert_internal_node(btrfs_filesystem& fs, btrfs_path& p,
                                       uint64_t address);
 static nt_status insert_item(btrfs_filesystem& fs, root& r, const btrfs_key& k,
                              span<const uint8_t> data);
+static nt_status cow_tree(btrfs_filesystem& fs, root& r, btrfs_path& p);
 
 static bool check_checksum(const btrfs_super_block& sb) {
     auto csum = ~calc_crc32c(0xffffffff, span((const uint8_t*)&sb.fsid, sizeof(btrfs_super_block) - sizeof(sb.csum)));
@@ -2120,7 +2121,8 @@ static uint32_t leaf_nritems(const btrfs_path& p) {
     return th.nritems;
 }
 
-static nt_status next_leaf(btrfs_filesystem& fs, btrfs_path& p) {
+static nt_status next_leaf(btrfs_filesystem& fs, btrfs_path& p, root& r,
+                           bool cow) {
     nt_status status;
 
     uint8_t level = 1;
@@ -2158,6 +2160,12 @@ static nt_status next_leaf(btrfs_filesystem& fs, btrfs_path& p) {
 
         if (level == 0)
             break;
+    }
+
+    if (cow) {
+        status = cow_tree(fs, r, p);
+        if (!success(status))
+            return status;
     }
 
     return nt_status::SUCCESS;
@@ -4079,7 +4087,7 @@ static nt_status check_csums(btrfs_inode& ino, uint64_t page_num, uint64_t addr,
 
         p.slots[0]++;
         if (p.slots[0] >= leaf_nritems(p)) {
-            status = next_leaf(fs, p);
+            status = next_leaf(fs, p, *fs.csum_root, false);
             if (!success(status))
                 return status;
         }
@@ -4366,7 +4374,7 @@ static nt_status punch_hole(btrfs_inode& inode, uint64_t start, uint64_t length)
 
     while (true) {
         if (p.slots[0] == leaf_nritems(p)) {
-            status = next_leaf(fs, p);
+            status = next_leaf(fs, p, *inode.r, true);
             if (status == nt_status::NOT_FOUND)
                 break;
             else if (!success(status))
@@ -5212,7 +5220,7 @@ static nt_status convert_fst_bitmaps_to_extents(btrfs_filesystem& fs, chunk& c,
         auto items = span((btrfs_item*)((uint8_t*)&th + sizeof(btrfs_header)), th.nritems);
 
         if (p.slots[0] == leaf_nritems(p)) {
-            status = next_leaf(fs, p);
+            status = next_leaf(fs, p, r, true);
             if (status == nt_status::NOT_FOUND)
                 break;
             else if (!success(status)) {
@@ -5594,7 +5602,7 @@ static nt_status remove_csums(btrfs_filesystem& fs, uint64_t address,
 
     while (length > 0) {
         if (p.slots[0] == leaf_nritems(p)) {
-            status = next_leaf(fs, p);
+            status = next_leaf(fs, p, *fs.csum_root, true);
             if (!success(status)) {
                 print("next_leaf returned {}\n", status);
                 return status;
@@ -7177,7 +7185,7 @@ nt_status btrfs_inode::remove_orphan(bool no_orphan_item) {
         }
 
         if (p.slots[0] >= leaf_nritems(p)) {
-            status = next_leaf(fs, p);
+            status = next_leaf(fs, p, *r, true);
             if (status == nt_status::NOT_FOUND)
                 break;
             else if (!success(status)) {
