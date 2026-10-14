@@ -2334,6 +2334,9 @@ bool map_folio(uint64_t pa, uint64_t va, enum mapping_type type) {
     return true;
 }
 
+template bool map_folio<true>(uint64_t pa, uint64_t va, enum mapping_type type);
+template bool map_folio<false>(uint64_t pa, uint64_t va, enum mapping_type type);
+
 template<unsigned N, enum page_state S>
 template<bool no_lock>
 void* allocator_folio<N, S>::malloc() {
