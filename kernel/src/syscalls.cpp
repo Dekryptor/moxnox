@@ -2068,8 +2068,6 @@ uint64_t maybe_yield_after_syscall(uint64_t syscall_ret) {
     cb.thread_context.X0 = syscall_ret;
 #endif
 
-    t.kernel_mode = false;
-
     if (t.status == thread_status::dying) {
         bool terminate_proc = false;
 
@@ -2100,6 +2098,8 @@ uint64_t maybe_yield_after_syscall(uint64_t syscall_ret) {
 
         thread_died(t, nullptr, false);
     }
+
+    t.kernel_mode = false;
 
 #ifdef __aarch64__
     __asm __volatile ( // doesn't return, releases sync_lock
@@ -2137,8 +2137,6 @@ void maybe_yield_after_interrupt() {
     if (t.status != thread_status::dying && t.suspend_count == 0)
         return;
 
-    t.kernel_mode = false;
-
     if (t.status == thread_status::dying) {
         bool terminate_proc = false;
 
@@ -2169,6 +2167,8 @@ void maybe_yield_after_interrupt() {
 
         thread_died(t, nullptr, false);
     }
+
+    t.kernel_mode = false;
 
 #ifdef __aarch64__
     __asm __volatile ( // doesn't return, releases sync_lock
