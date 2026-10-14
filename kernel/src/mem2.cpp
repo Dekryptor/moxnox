@@ -1252,6 +1252,7 @@ void* malloc_aligned(size_t size, size_t align) {
 }
 
 template void* malloc_aligned<true>(size_t size, size_t align);
+template void* malloc_aligned<false>(size_t size, size_t align);
 
 bool copy_map_ptr(const loader_block& lb) {
     auto map = span((map_entry*)lb.map_ptr, lb.num_map_entries);
