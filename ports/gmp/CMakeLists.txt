@@ -23,7 +23,7 @@ configure_file(repo/mpn/generic/gmp-mparam.h ${GEN}/gmp-mparam.h COPYONLY)
 foreach(tool gen-fac gen-fib gen-bases gen-trialdivtab gen-psqr gen-jacobitab)
     add_custom_command(
         OUTPUT ${GEN}/tools/${tool}
-        COMMAND cc -O2 -std=gnu17 -o ${GEN}/tools/${tool} ${CMAKE_CURRENT_SOURCE_DIR}/repo/${tool}.c -lm
+        COMMAND cc -O2 -std=gnu17 -o ${GEN}/tools/${tool} ${CMAKE_CURRENT_SOURCE_DIR}/repo/${tool}.c
         DEPENDS repo/${tool}.c
         VERBATIM
     )
