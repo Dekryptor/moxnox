@@ -345,6 +345,24 @@ export int do_exec(const char* path, char* const* argv, char* const* envp,
     status = NtOpenFile(&h, FILE_READ_DATA, &oa, &iosb, 0,
                         FILE_NON_DIRECTORY_FILE);
 
+    if (status == nt_status::OBJECT_NAME_NOT_FOUND) {
+        static const u16string_view suffix = u".exe";
+
+        if (u16pathsv.size() < suffix.size() || u16string_view(u16pathsv.data() + u16pathsv.size() - suffix.size(), suffix.size()) != suffix) {
+            u16path = (char16_t*)realloc(u16path, (u16pathlen + suffix.size()) * sizeof(char16_t));
+            if (!u16path)
+                return ENOMEM;
+
+            memcpy(u16path + u16pathlen, suffix.data(), suffix.size() * sizeof(char16_t));
+
+            us.Length = us.MaximumLength = (uint16_t)((u16pathlen + suffix.size()) * sizeof(char16_t));
+            us.Buffer = (char16_t*)u16path;
+
+            status = NtOpenFile(&h, FILE_READ_DATA, &oa, &iosb, 0,
+                                FILE_NON_DIRECTORY_FILE);
+        }
+    }
+
     free(u16path);
 
     if (!success(status))
