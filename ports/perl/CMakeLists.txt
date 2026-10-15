@@ -66,9 +66,19 @@ ENDOFGIT
 ###
 
 add_custom_command(
+    OUTPUT ${GEN}/Configure
+    COMMAND ${CMAKE_COMMAND} -E copy ${REPO}/Configure ${GEN}/Configure
+    COMMAND ${HOST_SED} -z -i
+            -e [[s|elif test -d c:/. -o -n "\$is_os2" ; then\n: OS/2 or cygwin\n    _exe=".exe"\nfi\n|elif test -d c:/. -o -n "$is_os2" ; then\n: OS/2 or cygwin\n    _exe=".exe"\nelif uname -s 2>/dev/null \| grep -i moxnox >/dev/null; then\n: Moxnox\n    _exe=".exe"\nfi\n|]]
+            ${GEN}/Configure
+    DEPENDS repo/Configure
+    VERBATIM
+)
+
+add_custom_command(
     OUTPUT ${GEN}/host/miniperl ${GEN}/host/generate_uudmap
-    COMMAND sh -c "rm -rf '${GEN}/host' && mkdir -p '${GEN}/host' && cd '${GEN}/host' && sh '${REPO}/Configure' -des -Dmksymlinks -Dprefix=/nonexistent > configure.log 2>&1 && '${HOST_MAKE}' miniperl generate_uudmap > make.log 2>&1 || (cat configure.log make.log; exit 1)"
-    DEPENDS repo/Configure repo/Makefile.SH repo/miniperlmain.c
+    COMMAND sh -c "rm -rf '${GEN}/host' && mkdir -p '${GEN}/host' && cd '${GEN}/host' && sh '${GEN}/Configure' -des -Dmksymlinks -Dsrc='${REPO}' -Uusenm -Duse64bitint -Dprefix=/nonexistent > configure.log 2>&1 && '${HOST_MAKE}' miniperl generate_uudmap > make.log 2>&1 || (cat configure.log make.log; exit 1)"
+    DEPENDS ${GEN}/Configure repo/Makefile.SH repo/miniperlmain.c
     VERBATIM
 )
 
