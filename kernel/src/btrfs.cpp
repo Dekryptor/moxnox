@@ -7502,6 +7502,21 @@ nt_status btrfs_inode::hardlink(::dentry& dentry, ::dentry& dest_dir,
     if (src_parent_ino.r != dst_parent_ino.r)
         return nt_status::NOT_SAME_DEVICE;
 
+    optional<reference_wrapper<::dentry>> victim_dentry;
+    bool no_open_handles = true;
+
+    // FIXME - victim_dentry can go stale?
+
+    {
+        shared_lock lg(dest_dir.child_lock);
+        search_dentry_cache(dest_dir, name, victim_dentry);
+    }
+
+    if (victim_dentry) {
+        no_open_handles = victim_dentry->get().open_file_count == 0;
+        victim_dentry->get().release();
+    }
+
     {
         lock_guard lg(fs.trans_lock);
 
@@ -7531,7 +7546,7 @@ nt_status btrfs_inode::hardlink(::dentry& dentry, ::dentry& dest_dir,
             if (victim_ino.inode_type == inode_type::directory)
                 return nt_status::ACCESS_DENIED;
 
-            bool orphaned, no_open_handles;
+            bool orphaned;
 
             {
                 lock_guard lg2(victim_ino.inode_lock);
@@ -7545,21 +7560,6 @@ nt_status btrfs_inode::hardlink(::dentry& dentry, ::dentry& dest_dir,
                 victim_ino.ctime = now;
 
                 orphaned = victim_ino.ii.nlink == 0;
-            }
-
-            if (orphaned) {
-                optional<reference_wrapper<::dentry>> victim_dentry;
-
-                {
-                    shared_lock lg(dest_dir.child_lock);
-                    search_dentry_cache(dest_dir, name, victim_dentry);
-                }
-
-                if (victim_dentry) {
-                    no_open_handles = victim_dentry->get().open_file_count == 0;
-                    victim_dentry->get().release();
-                } else
-                    no_open_handles = true;
             }
 
             status = victim_ino.flush_inode_item(p);
