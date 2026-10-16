@@ -77,16 +77,16 @@ add_custom_command(
 )
 
 add_custom_command(
-    OUTPUT ${GEN}/tools/crc-generate-table
-    COMMAND cc -O2 -o ${GEN}/tools/crc-generate-table ${CMAKE_CURRENT_SOURCE_DIR}/repo/gnulib/lib/crc-generate-table.c
+    OUTPUT ${GEN}/tools/crc-generate-table${HOST_EXECUTABLE_SUFFIX}
+    COMMAND cc -O2 -o ${GEN}/tools/crc-generate-table${HOST_EXECUTABLE_SUFFIX} ${CMAKE_CURRENT_SOURCE_DIR}/repo/gnulib/lib/crc-generate-table.c
     DEPENDS repo/gnulib/lib/crc-generate-table.c
     VERBATIM
 )
 
 add_custom_command(
     OUTPUT ${GEN}/lib/crc-sliceby8.h
-    COMMAND ${GEN}/tools/crc-generate-table ${GEN}/lib/crc-sliceby8.h
-    DEPENDS ${GEN}/tools/crc-generate-table
+    COMMAND ${GEN}/tools/crc-generate-table${HOST_EXECUTABLE_SUFFIX} ${GEN}/lib/crc-sliceby8.h
+    DEPENDS ${GEN}/tools/crc-generate-table${HOST_EXECUTABLE_SUFFIX}
     VERBATIM
 )
 
@@ -100,30 +100,30 @@ add_custom_command(
 )
 
 add_custom_command(
-    OUTPUT ${GEN}/tools/make-prime-list
-    COMMAND cc -O2 -o ${GEN}/tools/make-prime-list ${CMAKE_CURRENT_SOURCE_DIR}/repo/src/make-prime-list.c
+    OUTPUT ${GEN}/tools/make-prime-list${HOST_EXECUTABLE_SUFFIX}
+    COMMAND cc -O2 -o ${GEN}/tools/make-prime-list${HOST_EXECUTABLE_SUFFIX} ${CMAKE_CURRENT_SOURCE_DIR}/repo/src/make-prime-list.c
     DEPENDS repo/src/make-prime-list.c
     VERBATIM
 )
 
 add_custom_command(
     OUTPUT ${GEN}/src/primes.h
-    COMMAND sh -c "'${GEN}/tools/make-prime-list' 5000 > '${GEN}/src/primes.h'"
-    DEPENDS ${GEN}/tools/make-prime-list
+    COMMAND sh -c "'${GEN}/tools/make-prime-list${HOST_EXECUTABLE_SUFFIX}' 5000 > '${GEN}/src/primes.h'"
+    DEPENDS ${GEN}/tools/make-prime-list${HOST_EXECUTABLE_SUFFIX}
     VERBATIM
 )
 
 add_custom_command(
-    OUTPUT ${GEN}/tools/crctab
-    COMMAND cc -O2 -DCRCTAB -o ${GEN}/tools/crctab ${CMAKE_CURRENT_SOURCE_DIR}/repo/src/cksum_crc.c
+    OUTPUT ${GEN}/tools/crctab${HOST_EXECUTABLE_SUFFIX}
+    COMMAND cc -O2 -DCRCTAB -o ${GEN}/tools/crctab${HOST_EXECUTABLE_SUFFIX} ${CMAKE_CURRENT_SOURCE_DIR}/repo/src/cksum_crc.c
     DEPENDS repo/src/cksum_crc.c
     VERBATIM
 )
 
 add_custom_command(
     OUTPUT ${GEN}/src/crctab.c
-    COMMAND sh -c "'${GEN}/tools/crctab' > '${GEN}/src/crctab.c'"
-    DEPENDS ${GEN}/tools/crctab
+    COMMAND sh -c "'${GEN}/tools/crctab${HOST_EXECUTABLE_SUFFIX}' > '${GEN}/src/crctab.c'"
+    DEPENDS ${GEN}/tools/crctab${HOST_EXECUTABLE_SUFFIX}
     VERBATIM
 )
 

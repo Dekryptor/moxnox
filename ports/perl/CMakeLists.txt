@@ -76,20 +76,20 @@ add_custom_command(
 )
 
 add_custom_command(
-    OUTPUT ${GEN}/host/miniperl ${GEN}/host/generate_uudmap
-    COMMAND sh -c "rm -rf '${GEN}/host' && mkdir -p '${GEN}/host' && cd '${GEN}/host' && sh '${GEN}/Configure' -des -Dmksymlinks -Dsrc='${REPO}' -Uusenm -Duse64bitint -Dprefix=/nonexistent > configure.log 2>&1 && '${HOST_MAKE}' miniperl generate_uudmap > make.log 2>&1 || (cat configure.log make.log; exit 1)"
+    OUTPUT ${GEN}/host/miniperl${HOST_EXECUTABLE_SUFFIX} ${GEN}/host/generate_uudmap${HOST_EXECUTABLE_SUFFIX}
+    COMMAND sh -c "rm -rf '${GEN}/host' && mkdir -p '${GEN}/host' && cd '${GEN}/host' && sh '${GEN}/Configure' -des -Dmksymlinks -Dsrc='${REPO}' -Uusenm -Duse64bitint -Dprefix=/nonexistent > configure.log 2>&1 && '${HOST_MAKE}' miniperl${HOST_EXECUTABLE_SUFFIX} generate_uudmap${HOST_EXECUTABLE_SUFFIX} > make.log 2>&1 || (cat configure.log make.log; exit 1)"
     DEPENDS ${GEN}/Configure repo/Makefile.SH repo/miniperlmain.c
     VERBATIM
 )
 
-set(HOST_MINIPERL ${GEN}/host/miniperl)
+set(HOST_MINIPERL ${GEN}/host/miniperl${HOST_EXECUTABLE_SUFFIX})
 set(MINIPERL ${HOST_MINIPERL} -I${GEN}/lib -I${REPO}/lib)
 
 add_custom_command(
     OUTPUT ${GEN}/uudmap.h ${GEN}/bitcount.h ${GEN}/mg_data.h
-    COMMAND ${GEN}/host/generate_uudmap uudmap.h bitcount.h mg_data.h
+    COMMAND ${GEN}/host/generate_uudmap${HOST_EXECUTABLE_SUFFIX} uudmap.h bitcount.h mg_data.h
     WORKING_DIRECTORY ${GEN}
-    DEPENDS ${GEN}/host/generate_uudmap
+    DEPENDS ${GEN}/host/generate_uudmap${HOST_EXECUTABLE_SUFFIX}
     VERBATIM
 )
 

@@ -87,8 +87,8 @@ add_custom_command(
 )
 
 add_custom_command(
-    OUTPUT ${GEN}/tools/mkbuiltins
-    COMMAND cc -O2 -DCROSS_COMPILING -I${CMAKE_CURRENT_SOURCE_DIR} -I${CMAKE_CURRENT_SOURCE_DIR}/repo -I${CMAKE_CURRENT_SOURCE_DIR}/repo/include -o ${GEN}/tools/mkbuiltins ${CMAKE_CURRENT_SOURCE_DIR}/repo/builtins/mkbuiltins.c
+    OUTPUT ${GEN}/tools/mkbuiltins${HOST_EXECUTABLE_SUFFIX}
+    COMMAND cc -O2 -DCROSS_COMPILING -I${CMAKE_CURRENT_SOURCE_DIR} -I${CMAKE_CURRENT_SOURCE_DIR}/repo -I${CMAKE_CURRENT_SOURCE_DIR}/repo/include -o ${GEN}/tools/mkbuiltins${HOST_EXECUTABLE_SUFFIX} ${CMAKE_CURRENT_SOURCE_DIR}/repo/builtins/mkbuiltins.c
     DEPENDS
         repo/builtins/mkbuiltins.c
         buildconf.h
@@ -96,8 +96,8 @@ add_custom_command(
 )
 
 add_custom_command(
-    OUTPUT ${GEN}/tools/mksyntax
-    COMMAND cc -O2 -DCROSS_COMPILING -I${CMAKE_CURRENT_SOURCE_DIR} -I${CMAKE_CURRENT_SOURCE_DIR}/repo -I${CMAKE_CURRENT_SOURCE_DIR}/repo/include -o ${GEN}/tools/mksyntax ${CMAKE_CURRENT_SOURCE_DIR}/repo/mksyntax.c
+    OUTPUT ${GEN}/tools/mksyntax${HOST_EXECUTABLE_SUFFIX}
+    COMMAND cc -O2 -DCROSS_COMPILING -I${CMAKE_CURRENT_SOURCE_DIR} -I${CMAKE_CURRENT_SOURCE_DIR}/repo -I${CMAKE_CURRENT_SOURCE_DIR}/repo/include -o ${GEN}/tools/mksyntax${HOST_EXECUTABLE_SUFFIX} ${CMAKE_CURRENT_SOURCE_DIR}/repo/mksyntax.c
     DEPENDS
         repo/mksyntax.c
         repo/syntax.h
@@ -108,8 +108,8 @@ add_custom_command(
 
 add_custom_command(
     OUTPUT ${GEN}/syntax.c
-    COMMAND ${GEN}/tools/mksyntax -o ${GEN}/syntax.c
-    DEPENDS ${GEN}/tools/mksyntax
+    COMMAND ${GEN}/tools/mksyntax${HOST_EXECUTABLE_SUFFIX} -o ${GEN}/syntax.c
+    DEPENDS ${GEN}/tools/mksyntax${HOST_EXECUTABLE_SUFFIX}
     VERBATIM
 )
 
@@ -162,10 +162,10 @@ set(BASH_BUILTIN_SRCS)
 foreach(def ${BASH_BUILTIN_DEFS})
     add_custom_command(
         OUTPUT ${GEN}/builtins/${def}.c
-        COMMAND ${GEN}/tools/mkbuiltins -D ${CMAKE_CURRENT_SOURCE_DIR}/repo/builtins ${CMAKE_CURRENT_SOURCE_DIR}/repo/builtins/${def}.def
+        COMMAND ${GEN}/tools/mkbuiltins${HOST_EXECUTABLE_SUFFIX} -D ${CMAKE_CURRENT_SOURCE_DIR}/repo/builtins ${CMAKE_CURRENT_SOURCE_DIR}/repo/builtins/${def}.def
         WORKING_DIRECTORY ${GEN}/builtins
         DEPENDS
-            ${GEN}/tools/mkbuiltins
+            ${GEN}/tools/mkbuiltins${HOST_EXECUTABLE_SUFFIX}
             repo/builtins/${def}.def
         VERBATIM
     )
@@ -183,9 +183,9 @@ endforeach()
 
 add_custom_command(
     OUTPUT ${GEN}/builtins/builtext.h ${GEN}/builtins/builtins.c
-    COMMAND ${GEN}/tools/mkbuiltins -externfile ${GEN}/builtins/builtext.h -includefile builtext.h -structfile ${GEN}/builtins/builtins.c -noproduction -D ${CMAKE_CURRENT_SOURCE_DIR}/repo/builtins ${BASH_ALL_DEF_FILES}
+    COMMAND ${GEN}/tools/mkbuiltins${HOST_EXECUTABLE_SUFFIX} -externfile ${GEN}/builtins/builtext.h -includefile builtext.h -structfile ${GEN}/builtins/builtins.c -noproduction -D ${CMAKE_CURRENT_SOURCE_DIR}/repo/builtins ${BASH_ALL_DEF_FILES}
     DEPENDS
-        ${GEN}/tools/mkbuiltins
+        ${GEN}/tools/mkbuiltins${HOST_EXECUTABLE_SUFFIX}
         ${BASH_ALL_DEF_FILES}
     VERBATIM
 )

@@ -508,6 +508,12 @@ find_program(HOST_BISON bison REQUIRED)
 find_program(HOST_M4 m4 REQUIRED)
 find_program(HOST_TIC tic REQUIRED)
 
+if(CMAKE_HOST_SYSTEM_NAME STREQUAL "Moxnox")
+    set(HOST_EXECUTABLE_SUFFIX .exe)
+else()
+    set(HOST_EXECUTABLE_SUFFIX "")
+endif()
+
 file(GLOB port_cmake_files ${CMAKE_CURRENT_SOURCE_DIR}/ports/*/CMakeLists.txt)
 foreach(cmake_file ${port_cmake_files})
     get_filename_component(port_dir ${cmake_file} DIRECTORY)
