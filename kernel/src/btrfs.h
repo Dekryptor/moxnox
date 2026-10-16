@@ -398,15 +398,6 @@ struct chunk_space {
     uint64_t length;
 };
 
-struct root {
-    list_entry le;
-    uint64_t id;
-    btrfs_root_item ri;
-    std::atomic<uint64_t> next_inode_number = 0;
-    bool is_dirty = false;
-    list_entry dirty_le;
-};
-
 struct inode_extent {
     list_entry le;
     uint64_t offset;

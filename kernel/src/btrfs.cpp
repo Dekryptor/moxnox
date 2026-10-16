@@ -129,6 +129,17 @@ struct btrfs_path {
 
 class btrfs_filesystem;
 
+struct root {
+    list_entry le;
+    uint64_t id;
+    btrfs_root_item ri;
+    atomic<uint64_t> next_inode_number = 0;
+    bool is_dirty = false;
+    list_entry dirty_le;
+    spinlock inode_lock;
+    list_entry inode_list = { &inode_list, &inode_list };
+};
+
 class btrfs_inode : public inode {
 public:
     btrfs_inode(btrfs_filesystem& fs, uint64_t subvol, uint64_t inode, enum btrfs_inode_type inode_type);
@@ -238,8 +249,6 @@ public:
     bool valid = false;
     list_entry chunk_list = { &chunk_list, &chunk_list };
     list_entry root_list = { &root_list, &root_list };
-    spinlock inode_lock;
-    list_entry inode_list = { &inode_list, &inode_list };
     rwsem trans_lock;
     root* root_root;
     root* chunk_root;
@@ -634,7 +643,7 @@ btrfs_filesystem::btrfs_filesystem(volume& vol) : filesystem(&vol) {
 
     root_inode = btrfs_root_inode;
 
-    insert_tail_list(inode_list, btrfs_root_inode->le);
+    insert_tail_list(btrfs_root_inode->r->inode_list, btrfs_root_inode->le);
 
     sb->generation++;
 
@@ -1740,7 +1749,7 @@ btrfs_inode::~btrfs_inode() {
 
 void btrfs_inode::release() {
     {
-        lock_guard lock(fs.inode_lock);
+        lock_guard lock(r->inode_lock);
 
         if (--refcount != 0)
             return;
@@ -3788,8 +3797,8 @@ nt_status btrfs_inode::create_child(string_view name, uint32_t create_options,
         bi->mtime = bi->ctime = now;
 
         {
-            lock_guard lock(fs.inode_lock);
-            insert_tail_list(fs.inode_list, bi->le);
+            lock_guard lock(r->inode_lock);
+            insert_tail_list(r->inode_list, bi->le);
         }
 
         obj = *bi;
@@ -3869,20 +3878,21 @@ nt_status btrfs_inode::open_child(string_view name, object_ref& obj) {
 
 nt_status btrfs_filesystem::open_inode(uint64_t subvol, uint64_t inode,
                                        object_ref& obj) {
-    {
-        lock_guard lock(inode_lock);
+    auto r = find_root(subvol);
+    if (!r)
+        return nt_status::INTERNAL_ERROR;
 
-        auto le = inode_list.next;
-        while (le != &inode_list) {
+    {
+        lock_guard lock(r->inode_lock);
+
+        for (auto le = r->inode_list.next; le != &r->inode_list; le = le->next) {
             auto& in = containing_record<btrfs_inode>(le);
 
-            if (in.r->id == subvol && in.inode == inode) {
+            if (in.inode == inode) {
                 in.acquire();
                 obj = in;
                 return nt_status::SUCCESS;
             }
-
-            le = le->next;
         }
     }
 
@@ -3899,13 +3909,12 @@ nt_status btrfs_filesystem::open_inode(uint64_t subvol, uint64_t inode,
     }
 
     {
-        optional<lock_guard<spinlock>> lock(inode_lock);
+        optional<lock_guard<spinlock>> lock(r->inode_lock);
 
-        auto le = inode_list.next;
-        while (le != &inode_list) {
+        for (auto le = r->inode_list.next; le != &r->inode_list; le = le->next) {
             auto& in = containing_record<btrfs_inode>(le);
 
-            if (in.r->id == subvol && in.inode == inode) {
+            if (in.inode == inode) {
                 in.acquire();
                 lock.reset();
 
@@ -3914,11 +3923,9 @@ nt_status btrfs_filesystem::open_inode(uint64_t subvol, uint64_t inode,
                 obj = in;
                 return nt_status::SUCCESS;
             }
-
-            le = le->next;
         }
 
-        insert_tail_list(inode_list, ino->le);
+        insert_tail_list(r->inode_list, ino->le);
     }
 
     obj = *ino;
@@ -4839,12 +4846,12 @@ static NTSTATUS query_directory_dirent(btrfs_filesystem& fs, root& r, const btrf
 
         // FIXME - also look for root of ROOT_ITEM in inode cache
         if (k.type == key_type::INODE_ITEM) {
-            lock_guard lock(fs.inode_lock);
+            lock_guard lock(r.inode_lock);
 
-            for (auto le = fs.inode_list.next; le != &fs.inode_list; le = le->next) {
+            for (auto le = r.inode_list.next; le != &r.inode_list; le = le->next) {
                 auto& ino2 = containing_record<btrfs_inode>(le);
 
-                if (ino2.r == &r && ino2.inode == k.objectid) {
+                if (ino2.inode == k.objectid) {
                     ino2.acquire();
                     ino = &ino2;
                     break;
