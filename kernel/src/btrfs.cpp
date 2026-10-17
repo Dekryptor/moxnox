@@ -5484,8 +5484,18 @@ static nt_status add_free_space(btrfs_filesystem& fs, chunk& c, uint64_t address
 
     if (p.slots[0] < th.nritems)
         next_k = items[p.slots[0]].key;
-    else
-        next_k = {0, (enum key_type)0, 0};
+    else {
+        status = fs.move_path_forward(p, r, false);
+        if (success(status)) {
+            auto& th = *(btrfs_header*)p.data[0];
+            auto items = span((btrfs_item*)((uint8_t*)&th + sizeof(btrfs_header)), th.nritems);
+
+            next_k = items[p.slots[0]].key;
+        } else if (status == nt_status::NOT_FOUND)
+            next_k = {0, (enum key_type)0, 0};
+        else
+            return status;
+    }
 
     status = fs.move_path_back(p, r, true);
 
