@@ -3262,6 +3262,21 @@ static nt_status remove_internal_node(btrfs_filesystem& fs, btrfs_path& p,
     // FIXME - do next level as well if necessary
     // FIXME - setting new top level
 
+    if (p.slots[level] == 0 && level < BTRFS_MAX_LEVEL - 1 && p.data[level + 1]) {
+        for (uint8_t i = level; i < BTRFS_MAX_LEVEL - 1; i++) {
+            if (p.slots[i] != 0 || !p.data[i + 1])
+                break;
+
+            auto& th2 = *(btrfs_header*)p.data[i + 1];
+            auto items2 = span((btrfs_key_ptr*)((uint8_t*)&th2 + sizeof(btrfs_header)), th2.nritems);
+
+            items2[p.slots[i + 1]].key = items[0].key;
+
+            if (!fs.cache.write(span(p.data[i + 1], fs.sb->nodesize), th2.bytenr)) // FIXME - return status
+                return nt_status::INTERNAL_ERROR;
+        }
+    }
+
     if (p.slots[level] > 0)
         p.slots[level]--;
 
