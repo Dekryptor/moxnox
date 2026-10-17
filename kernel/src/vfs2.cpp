@@ -560,6 +560,8 @@ static nt_status open_inode2(string_view& fn, dentry& root_dir,
                             dir.release();
                             return nt_status::INSUFFICIENT_RESOURCES;
                         }
+
+                        drw->get().acquire();
                     }
                 }
             }
@@ -594,6 +596,7 @@ static nt_status open_inode2(string_view& fn, dentry& root_dir,
                                                        FILE_INFORMATION_CLASS::DispositionInformation);
             if (!success(status)) {
                 print("inode::set_information returned {} for FileDispositionInformation\n", status);
+                drw->get().release();
                 dir.release();
                 return status;
             }
@@ -602,6 +605,8 @@ static nt_status open_inode2(string_view& fn, dentry& root_dir,
                 create_result = FILE_SUPERSEDED;
             else
                 create_result = FILE_OVERWRITTEN;
+
+            drw->get().release();
 
             status = dir.inode->create_child(name, create_options, inorw);
             if (!success(status)) {
@@ -619,6 +624,8 @@ static nt_status open_inode2(string_view& fn, dentry& root_dir,
                 dir.release();
                 return nt_status::INSUFFICIENT_RESOURCES;
             }
+
+            drw->get().acquire();
         }
 
         auto& d = drw->get();
