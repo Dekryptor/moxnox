@@ -2103,6 +2103,13 @@ nt_status file::set_non_block(span<const uint8_t> buffer) {
     return nt_status::SUCCESS;
 }
 
+static nt_status set_information_non_inode(file& /*f*/, span<uint8_t> /*buf*/,
+                                           FILE_INFORMATION_CLASS file_information_class) {
+    print("set_information_non_inode: unhandled file information class {}\n",
+          file_information_class);
+    return nt_status::NOT_IMPLEMENTED;
+}
+
 NTSTATUS file::set_information(void* buffer, uint32_t buffer_size,
                                FILE_INFORMATION_CLASS file_information_class) {
     switch (file_information_class) {
@@ -2144,12 +2151,14 @@ NTSTATUS file::set_information(void* buffer, uint32_t buffer_size,
             return set_non_block(span((uint8_t*)buffer, buffer_size));
 
         default:
-            if (ino.type != object_type::inode)
-                return nt_status::INVALID_PARAMETER;
-
-            return static_cast<inode&>(ino).set_information(span((uint8_t*)buffer, buffer_size),
-                                                            *dentry,
-                                                            file_information_class);
+            if (ino.type != object_type::inode) {
+                return set_information_non_inode(*this, span((uint8_t*)buffer, buffer_size),
+                                                 file_information_class);
+            } else {
+                return static_cast<inode&>(ino).set_information(span((uint8_t*)buffer, buffer_size),
+                                                                *dentry,
+                                                                file_information_class);
+            }
     }
 }
 
