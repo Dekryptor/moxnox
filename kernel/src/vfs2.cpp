@@ -2105,9 +2105,22 @@ nt_status file::set_non_block(span<const uint8_t> buffer) {
 
 static nt_status set_information_non_inode(file& /*f*/, span<uint8_t> /*buf*/,
                                            FILE_INFORMATION_CLASS file_information_class) {
-    print("set_information_non_inode: unhandled file information class {}\n",
-          file_information_class);
-    return nt_status::NOT_IMPLEMENTED;
+    switch (file_information_class) {
+        using enum FILE_INFORMATION_CLASS;
+
+        case MoxnoxFchown:
+            // FIXME
+            return nt_status::SUCCESS;
+
+        case MoxnoxFchmod:
+            // FIXME
+            return nt_status::SUCCESS;
+
+        default:
+            print("set_information_non_inode: unhandled file information class {}\n",
+                file_information_class);
+            return nt_status::NOT_IMPLEMENTED;
+    }
 }
 
 NTSTATUS file::set_information(void* buffer, uint32_t buffer_size,
