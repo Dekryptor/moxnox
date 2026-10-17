@@ -231,7 +231,7 @@ public:
     void shorten_item(btrfs_path& p, uint32_t delta);
     nt_status extend_item(btrfs_path& p, uint32_t delta);
     nt_status find_item(root& r, const btrfs_key& k, btrfs_path& p, bool cow);
-    bool move_path_back(btrfs_path& p);
+    bool move_path_back(btrfs_path& p, root& r, bool cow);
     bool move_path_forward(btrfs_path& p);
     root* find_root(uint64_t root_num);
     nt_status flush(bool make_readonly) override;
@@ -1402,7 +1402,7 @@ static nt_status find_last_inode_number(btrfs_filesystem& fs, root& r) {
             return nt_status::SUCCESS;
         }
 
-        if (!fs.move_path_back(p))
+        if (!fs.move_path_back(p, r, false))
             break;
     } while (true);
 
@@ -3414,7 +3414,7 @@ nt_status btrfs_filesystem::extend_item(btrfs_path& p, uint32_t delta) {
     return nt_status::SUCCESS;
 }
 
-bool btrfs_filesystem::move_path_back(btrfs_path& p) {
+bool btrfs_filesystem::move_path_back(btrfs_path& p, root& r, bool cow) {
     if (p.slots[0] != 0) {
         p.slots[0]--;
         return true;
@@ -3440,6 +3440,12 @@ bool btrfs_filesystem::move_path_back(btrfs_path& p) {
             const auto& th2 = *(btrfs_header*)p.data[j - 1];
 
             p.slots[j - 1] = th2.nritems - 1;
+        }
+
+        if (cow) {
+            auto status = cow_tree(*this, r, p);
+            if (!success(status))
+                return false;
         }
 
         return true;
@@ -3489,7 +3495,7 @@ nt_status btrfs_inode::get_last_dir_index(uint64_t& ret) {
     if (!success(status))
         return status;
 
-    if (!fs.move_path_back(p)) {
+    if (!fs.move_path_back(p, *r, false)) {
         ret = 1;
         return nt_status::SUCCESS;
     }
@@ -4041,7 +4047,7 @@ static nt_status check_csums(btrfs_inode& ino, uint64_t page_num, uint64_t addr,
         if (p.slots[0] == th.nritems) {
             p.slots[0]--;
         } else if (items[p.slots[0]].key != k) {
-            if (!fs.move_path_back(p))
+            if (!fs.move_path_back(p, *fs.csum_root, false))
                 return nt_status::NOT_FOUND;
         }
     }
@@ -5331,7 +5337,7 @@ static nt_status remove_free_space(btrfs_filesystem& fs, chunk& c,
         auto items = span((btrfs_item*)((uint8_t*)&th + sizeof(btrfs_header)), th.nritems);
 
         if (p.slots[0] >= th.nritems) {
-            if (!fs.move_path_back(p))
+            if (!fs.move_path_back(p, r, true))
                 return nt_status::NOT_FOUND;
             continue;
         }
@@ -5340,7 +5346,7 @@ static nt_status remove_free_space(btrfs_filesystem& fs, chunk& c,
         const auto& k = it.key;
 
         if (k.objectid > address) {
-            if (!fs.move_path_back(p))
+            if (!fs.move_path_back(p, r, true))
                 return nt_status::NOT_FOUND;
             continue;
         }
@@ -5424,7 +5430,7 @@ static nt_status add_free_space(btrfs_filesystem& fs, chunk& c, uint64_t address
     else
         next_k = {0, (enum key_type)0, 0};
 
-    if (fs.move_path_back(p)) {
+    if (fs.move_path_back(p, r, true)) {
         auto& th2 = *(btrfs_header*)p.data[0];
         auto items2 = span((btrfs_item*)((uint8_t*)&th2 + sizeof(btrfs_header)), th2.nritems);
 
