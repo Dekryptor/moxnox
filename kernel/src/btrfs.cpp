@@ -137,7 +137,7 @@ struct root {
     bool is_dirty = false;
     list_entry dirty_le;
     spinlock inode_lock;
-    list_entry inode_list = { &inode_list, &inode_list };
+    rbtree_node<uint64_t>* inodes = nullptr;
 };
 
 class btrfs_inode : public inode {
@@ -182,11 +182,10 @@ public:
 
     root* r;
     btrfs_filesystem& fs; // FIXME - use reference in ::inode
-    list_entry le;
-    uint64_t inode;
     btrfs_inode_item ii;
     list_entry extents = { &extents, &extents };
     bool dead = false;
+    rbtree_node<uint64_t> tree;
 
 private:
     nt_status read_zeroes_into_cache(uint64_t page_num, uint64_t num_pages,
@@ -643,7 +642,7 @@ btrfs_filesystem::btrfs_filesystem(volume& vol) : filesystem(&vol) {
 
     root_inode = btrfs_root_inode;
 
-    insert_tail_list(btrfs_root_inode->r->inode_list, btrfs_root_inode->le);
+    insert_into_rbtree(btrfs_root_inode->r->inodes, btrfs_root_inode->tree);
 
     sb->generation++;
 
@@ -1523,7 +1522,7 @@ bool btrfs_filesystem::load_roots() {
 }
 
 btrfs_inode::btrfs_inode(btrfs_filesystem& fs, uint64_t subvol, uint64_t inode, enum btrfs_inode_type inode_type) : ::inode(fs), fs(fs) {
-    this->inode = inode;
+    this->tree.key = inode;
 
     r = fs.find_root(subvol);
     if (!r)
@@ -1595,7 +1594,7 @@ bool btrfs_inode::load_inode() {
     bool found_inode_item = false;
     btrfs_path p(fs.sb->nodesize);
 
-    status = fs.find_item(*r, {inode, key_type::INODE_ITEM, 0}, p, false);
+    status = fs.find_item(*r, {tree.key, key_type::INODE_ITEM, 0}, p, false);
     if (!success(status)) // FIXME - return this somehow
         return false;
 
@@ -1609,7 +1608,7 @@ bool btrfs_inode::load_inode() {
         const auto& it = items[p.slots[0]];
         const auto& k = it.key;
 
-        if (k.objectid != inode)
+        if (k.objectid != tree.key)
             break;
 
         auto data = span((const uint8_t*)&th + sizeof(btrfs_header) + it.offset, it.size);
@@ -1692,7 +1691,7 @@ bool btrfs_inode::load_inode() {
     } while (true);
 
     if (!found_inode_item) {
-        print("INODE_ITEM for subvol {:x}, inode {:x} not found.\n", r->id, inode);
+        print("INODE_ITEM for subvol {:x}, inode {:x} not found.\n", r->id, tree.key);
         return false;
     }
 
@@ -1754,7 +1753,7 @@ void btrfs_inode::release() {
         if (--refcount != 0)
             return;
 
-        remove_entry_list(le);
+        remove_from_rbtree(r->inodes, tree);
     }
 
     delete this;
@@ -3485,7 +3484,7 @@ nt_status btrfs_inode::get_last_dir_index(uint64_t& ret) {
     nt_status status;
     btrfs_path p(fs.sb->nodesize);
 
-    status = fs.find_item(*r, {inode, key_type::DIR_INDEX, 0xffffffffffffffff},
+    status = fs.find_item(*r, {tree.key, key_type::DIR_INDEX, 0xffffffffffffffff},
                           p, false);
     if (!success(status))
         return status;
@@ -3498,7 +3497,7 @@ nt_status btrfs_inode::get_last_dir_index(uint64_t& ret) {
     auto& th = *(btrfs_header*)p.data[0];
     auto items = span((btrfs_item*)((uint8_t*)&th + sizeof(btrfs_header)), th.nritems);
 
-    if (items[p.slots[0]].key.objectid != inode || items[p.slots[0]].key.type != key_type::DIR_INDEX) {
+    if (items[p.slots[0]].key.objectid != tree.key || items[p.slots[0]].key.type != key_type::DIR_INDEX) {
         ret = 1;
         return nt_status::SUCCESS;
     }
@@ -3534,7 +3533,7 @@ static nt_status add_dir_item(btrfs_filesystem& fs, root& r, btrfs_inode& parent
 
     auto hash = calc_crc32c(0xfffffffe, name);
 
-    btrfs_key key{parent.inode, key_type::DIR_ITEM, hash};
+    btrfs_key key{parent.tree.key, key_type::DIR_ITEM, hash};
 
     // look for existing DIR_ITEM
 
@@ -3608,7 +3607,7 @@ static nt_status add_dir_item(btrfs_filesystem& fs, root& r, btrfs_inode& parent
 
     index++;
 
-    status = insert_item(fs, r, {parent.inode, key_type::DIR_INDEX, index},
+    status = insert_item(fs, r, {parent.tree.key, key_type::DIR_INDEX, index},
                          span((uint8_t*)di, di_size));
     if (!success(status)) {
         free(di);
@@ -3754,7 +3753,7 @@ nt_status btrfs_inode::create_child(string_view name, uint32_t create_options,
 
         // create INODE_REF
 
-        status = add_inode_ref(fs, *r, name, index, new_inode, inode);
+        status = add_inode_ref(fs, *r, name, index, new_inode, tree.key);
         if (!success(status)) {
             print("add_inode_ref returned {}\n", status);
             return status;
@@ -3798,7 +3797,7 @@ nt_status btrfs_inode::create_child(string_view name, uint32_t create_options,
 
         {
             lock_guard lock(r->inode_lock);
-            insert_tail_list(r->inode_list, bi->le);
+            insert_into_rbtree(r->inodes, bi->tree);
         }
 
         obj = *bi;
@@ -3865,7 +3864,7 @@ nt_status btrfs_inode::open_child(string_view name, object_ref& obj) {
     {
         shared_lock lg(fs.trans_lock);
 
-        auto status = search_dir_item(fs, *r, inode, hash, name, dir_item_key);
+        auto status = search_dir_item(fs, *r, tree.key, hash, name, dir_item_key);
         if (!success(status))
             return status;
     }
@@ -3885,14 +3884,14 @@ nt_status btrfs_filesystem::open_inode(uint64_t subvol, uint64_t inode,
     {
         lock_guard lock(r->inode_lock);
 
-        for (auto le = r->inode_list.next; le != &r->inode_list; le = le->next) {
-            auto& in = containing_record<btrfs_inode>(le);
+        auto* n = find_rbtree_node(r->inodes, inode);
 
-            if (in.inode == inode) {
-                in.acquire();
-                obj = in;
-                return nt_status::SUCCESS;
-            }
+        if (n && n->key == inode) {
+            auto& in = rbtree_containing_record<btrfs_inode>(n);
+
+            in.acquire();
+            obj = in;
+            return nt_status::SUCCESS;
         }
     }
 
@@ -3911,21 +3910,21 @@ nt_status btrfs_filesystem::open_inode(uint64_t subvol, uint64_t inode,
     {
         optional<lock_guard<spinlock>> lock(r->inode_lock);
 
-        for (auto le = r->inode_list.next; le != &r->inode_list; le = le->next) {
-            auto& in = containing_record<btrfs_inode>(le);
+        auto* n = find_rbtree_node(r->inodes, inode);
 
-            if (in.inode == inode) {
-                in.acquire();
-                lock.reset();
+        if (n && n->key == inode) {
+            auto& in = rbtree_containing_record<btrfs_inode>(n);
 
-                delete ino;
+            in.acquire();
+            lock.reset();
 
-                obj = in;
-                return nt_status::SUCCESS;
-            }
+            delete ino;
+
+            obj = in;
+            return nt_status::SUCCESS;
         }
 
-        insert_tail_list(r->inode_list, ino->le);
+        insert_into_rbtree(r->inodes, ino->tree);
     }
 
     obj = *ino;
@@ -4314,7 +4313,7 @@ static nt_status add_data_change(btrfs_filesystem& fs, uint64_t extent_address,
 nt_status btrfs_inode::flush_inode_item(btrfs_path& p) {
     nt_status status;
 
-    status = fs.find_item(*r, {inode, key_type::INODE_ITEM, 0}, p, true);
+    status = fs.find_item(*r, {tree.key, key_type::INODE_ITEM, 0}, p, true);
     if (!success(status))
         return status;
 
@@ -4324,7 +4323,7 @@ nt_status btrfs_inode::flush_inode_item(btrfs_path& p) {
     auto& it = items[p.slots[0]];
     const auto& found_key = it.key;
 
-    if (found_key.objectid != inode || found_key.type != key_type::INODE_ITEM)
+    if (found_key.objectid != tree.key || found_key.type != key_type::INODE_ITEM)
         return nt_status::DISK_CORRUPT_ERROR;
 
     auto data = span((const uint8_t*)&th + sizeof(btrfs_header) + it.offset, it.size);
@@ -4347,7 +4346,7 @@ nt_status btrfs_inode::flush_inode_item(btrfs_path& p) {
 
 static nt_status punch_hole(btrfs_inode& inode, uint64_t start, uint64_t length) {
     auto& fs = inode.fs;
-    btrfs_key search_key = { inode.inode, key_type::EXTENT_DATA, start };
+    btrfs_key search_key = { inode.tree.key, key_type::EXTENT_DATA, start };
     btrfs_path p(fs.sb->nodesize);
     nt_status status;
 
@@ -4368,7 +4367,7 @@ static nt_status punch_hole(btrfs_inode& inode, uint64_t start, uint64_t length)
     } else {
         const auto& k = items[p.slots[0]].key;
 
-        if (k.objectid > inode.inode || k.type > key_type::EXTENT_DATA ||
+        if (k.objectid > inode.tree.key || k.type > key_type::EXTENT_DATA ||
             k.offset > start) {
             if (p.slots[0] == 0)
                 return nt_status::SUCCESS;
@@ -4391,7 +4390,7 @@ static nt_status punch_hole(btrfs_inode& inode, uint64_t start, uint64_t length)
         const auto& it = items[p.slots[0]];
         const auto& k = it.key;
 
-        if (k.objectid != inode.inode || k.type != key_type::EXTENT_DATA ||
+        if (k.objectid != inode.tree.key || k.type != key_type::EXTENT_DATA ||
             k.offset >= start + length)
             break;
 
@@ -4450,7 +4449,7 @@ static nt_status punch_hole(btrfs_inode& inode, uint64_t start, uint64_t length)
             // remove entire file extent
 
             status = add_data_change(fs, ed.disk_bytenr, ed.disk_num_bytes,
-                                     inode.r->id, inode.inode,
+                                     inode.r->id, inode.tree.key,
                                      k.offset - ed.offset, -1);
             if (!success(status)) {
                 print("add_data_change returned {}\n", status);
@@ -4473,7 +4472,7 @@ static nt_status punch_hole(btrfs_inode& inode, uint64_t start, uint64_t length)
             // FIXME - handle explicit holes
 
             status = add_data_change(fs, ed.disk_bytenr, ed.disk_num_bytes,
-                                     inode.r->id, inode.inode,
+                                     inode.r->id, inode.tree.key,
                                      k.offset - ed.offset, 1);
             if (!success(status)) {
                 print("add_data_change returned {}\n", status);
@@ -4493,7 +4492,7 @@ static nt_status punch_hole(btrfs_inode& inode, uint64_t start, uint64_t length)
             new_ed.num_bytes -= start + length - k.offset;
 
             // add new file extent
-            status = insert_item(fs, *inode.r, {inode.inode, key_type::EXTENT_DATA, start + length},
+            status = insert_item(fs, *inode.r, {inode.tree.key, key_type::EXTENT_DATA, start + length},
                                  span((uint8_t*)&new_ed, sizeof(new_ed)));
             if (!success(status)) {
                 print("insert_item returned {}\n", status);
@@ -4568,14 +4567,14 @@ nt_status btrfs_inode::add_file_extent(uint64_t extent_address, uint64_t extent_
     fei.offset = extent_offset;
     fei.num_bytes = length;
 
-    status = insert_item(fs, *r, {inode, key_type::EXTENT_DATA, file_offset},
+    status = insert_item(fs, *r, {tree.key, key_type::EXTENT_DATA, file_offset},
                          span((uint8_t*)&fei, sizeof(fei)));
     if (!success(status)) {
         print("insert_item returned {}\n", status);
         return status;
     }
 
-    status = add_data_change(fs, extent_address, extent_length, r->id, inode,
+    status = add_data_change(fs, extent_address, extent_length, r->id, tree.key,
                              file_offset, 1);
     if (!success(status)) {
         print("add_data_change returned {}\n", status);
@@ -4658,7 +4657,7 @@ nt_status flush_inline_inode(btrfs_inode& ino) {
 
     btrfs_path p(fs.sb->nodesize);
 
-    auto status = insert_item2(fs, *ino.r, { ino.inode, key_type::EXTENT_DATA, 0 },
+    auto status = insert_item2(fs, *ino.r, { ino.tree.key, key_type::EXTENT_DATA, 0 },
                                size, p);
     if (!success(status))
         return status;
@@ -4848,14 +4847,13 @@ static NTSTATUS query_directory_dirent(btrfs_filesystem& fs, root& r, const btrf
         if (k.type == key_type::INODE_ITEM) {
             lock_guard lock(r.inode_lock);
 
-            for (auto le = r.inode_list.next; le != &r.inode_list; le = le->next) {
-                auto& ino2 = containing_record<btrfs_inode>(le);
+            auto* n = find_rbtree_node(r.inodes, k.objectid);
 
-                if (ino2.inode == k.objectid) {
-                    ino2.acquire();
-                    ino = &ino2;
-                    break;
-                }
+            if (n && n->key == k.objectid) {
+                auto& ino2 = rbtree_containing_record<btrfs_inode>(n);
+
+                ino2.acquire();
+                ino = &ino2;
             }
         }
 
@@ -4996,7 +4994,7 @@ nt_status btrfs_inode::query_directory_inode(string_view name, span<uint8_t> buf
             break;
     }
 
-    return query_directory_dirent(fs, *r, {inode, key_type::INODE_ITEM, 0 },
+    return query_directory_dirent(fs, *r, {tree.key, key_type::INODE_ITEM, 0 },
                                   name, di_type, buf, file_information_class);
 }
 
@@ -5010,7 +5008,7 @@ NTSTATUS btrfs_inode::query_directory(span<uint8_t> buf, FILE_INFORMATION_CLASS 
 
     shared_lock lg(fs.trans_lock);
 
-    auto k = btrfs_key{inode, key_type::DIR_INDEX, index};
+    auto k = btrfs_key{tree.key, key_type::DIR_INDEX, index};
     btrfs_path p(fs.sb->nodesize);
 
     auto status = fs.find_item(*r, k, p, false);
@@ -6596,7 +6594,7 @@ nt_status btrfs_inode::set_basic_information(span<const uint8_t> buffer) {
 
         lock_guard lock(fs.trans_lock);
 
-        status = fs.find_item(*r, {inode, key_type::INODE_ITEM, 0}, p, true);
+        status = fs.find_item(*r, {tree.key, key_type::INODE_ITEM, 0}, p, true);
         if (!success(status))
             return status;
 
@@ -6606,7 +6604,7 @@ nt_status btrfs_inode::set_basic_information(span<const uint8_t> buffer) {
         auto& it = items[p.slots[0]];
         const auto& found_key = it.key;
 
-        if (found_key.objectid != inode || found_key.type != key_type::INODE_ITEM)
+        if (found_key.objectid != tree.key || found_key.type != key_type::INODE_ITEM)
             return nt_status::DISK_CORRUPT_ERROR;
 
         auto data = span((const uint8_t*)&th + sizeof(btrfs_header) + it.offset, it.size);
@@ -6863,7 +6861,7 @@ nt_status btrfs_inode::set_disposition_information(span<const uint8_t> buffer,
 
     auto& bi = static_cast<btrfs_inode&>(*dentry.inode);
 
-    if (bi.inode == SUBVOL_ROOT_INODE) {
+    if (bi.tree.key == SUBVOL_ROOT_INODE) {
         // FIXME - removing subvols
         print("btrfs_inode::set_disposition_information: FIXME - removing subvols\n");
         return nt_status::NOT_SUPPORTED;
@@ -6908,7 +6906,7 @@ nt_status btrfs_inode::set_disposition_information(span<const uint8_t> buffer,
 
             auto& p = static_cast<btrfs_inode&>(*dentry.parent->inode);
 
-            parent_inode = p.inode;
+            parent_inode = p.tree.key;
         }
 
         if (done)
@@ -6943,7 +6941,7 @@ nt_status btrfs_inode::set_disposition_information(span<const uint8_t> buffer,
             dentry.status = dentry_status::going_away;
         }
 
-        status = remove_dir_item(fs, *r, inode, name, parent_inode);
+        status = remove_dir_item(fs, *r, tree.key, name, parent_inode);
         if (!success(status)) {
             free(name_buf);
             return status;
@@ -6992,7 +6990,7 @@ nt_status btrfs_inode::set_disposition_information(span<const uint8_t> buffer,
         // add orphan item if nlink now 0
         if (orphaned) {
             status = insert_item(fs, *r,
-                                 {BTRFS_ORPHAN_OBJECTID, key_type::ORPHAN_INODE, inode},
+                                 {BTRFS_ORPHAN_OBJECTID, key_type::ORPHAN_INODE, tree.key},
                                  span<const uint8_t>());
             if (!success(status)) {
                 free(name_buf);
@@ -7086,7 +7084,7 @@ nt_status btrfs_inode::query_internal_information(span<uint8_t> buffer, uint64_t
 
     auto& fii = *(FILE_INTERNAL_INFORMATION*)buffer.data();
 
-    fii.IndexNumber.QuadPart = (int64_t)inode;
+    fii.IndexNumber.QuadPart = (int64_t)tree.key;
 
     retlen = sizeof(fii);
 
@@ -7159,7 +7157,7 @@ nt_status btrfs_inode::remove_orphan(bool no_orphan_item) {
         return status;
     }
 
-    status = fs.find_item(*r, {inode, key_type::INODE_ITEM, 0}, p, true);
+    status = fs.find_item(*r, {tree.key, key_type::INODE_ITEM, 0}, p, true);
     if (!success(status)) {
         print("btrfs_inode::remove_orphan: find_item returned {}\n", status);
         return status;
@@ -7176,7 +7174,7 @@ nt_status btrfs_inode::remove_orphan(bool no_orphan_item) {
         const auto& it = items[p.slots[0]];
         const auto& k = it.key;
 
-        if (k.objectid > inode)
+        if (k.objectid > tree.key)
             break;
 
         assert(k.type != key_type::DIR_INDEX);
@@ -7204,7 +7202,7 @@ nt_status btrfs_inode::remove_orphan(bool no_orphan_item) {
     }
 
     if (!no_orphan_item) {
-        status = fs.remove_item(*r, {BTRFS_ORPHAN_OBJECTID, key_type::ORPHAN_INODE, inode});
+        status = fs.remove_item(*r, {BTRFS_ORPHAN_OBJECTID, key_type::ORPHAN_INODE, tree.key});
         if (!success(status)) {
             print("btrfs_inode::remove_orphan: remove_item returned {}\n", status);
             return status;
@@ -7300,7 +7298,7 @@ nt_status btrfs_inode::rename(::dentry& dentry, ::dentry& dest_dir,
     {
         lock_guard lg(fs.trans_lock);
 
-        status = search_dir_item(fs, *r, dst_parent_ino.inode, hash,
+        status = search_dir_item(fs, *r, dst_parent_ino.tree.key, hash,
                                  name, dir_item_key);
         if (!success(status) && status != nt_status::OBJECT_NAME_NOT_FOUND) {
             print("search_dir_item returned {}\n", status);
@@ -7355,7 +7353,7 @@ nt_status btrfs_inode::rename(::dentry& dentry, ::dentry& dest_dir,
             }
 
             status = remove_dir_item(fs, *r, dir_item_key.objectid,
-                                     name, dst_parent_ino.inode);
+                                     name, dst_parent_ino.tree.key);
             if (!success(status)) {
                 print("remove_dir_item returned {}\n", status);
                 return status;
@@ -7366,7 +7364,7 @@ nt_status btrfs_inode::rename(::dentry& dentry, ::dentry& dest_dir,
                     victim_ino.remove_orphan(true);
                 else {
                     status = insert_item(fs, *r,
-                                        {BTRFS_ORPHAN_OBJECTID, key_type::ORPHAN_INODE, victim_ino.inode},
+                                        {BTRFS_ORPHAN_OBJECTID, key_type::ORPHAN_INODE, victim_ino.tree.key},
                                         span<const uint8_t>());
                     if (!success(status)) {
                         print("insert_item returned {}\n", status);
@@ -7378,7 +7376,7 @@ nt_status btrfs_inode::rename(::dentry& dentry, ::dentry& dest_dir,
             done_overwrite = true;
         }
 
-        status = add_dir_item(fs, *r, dst_parent_ino, name, inode, type, index);
+        status = add_dir_item(fs, *r, dst_parent_ino, name, tree.key, type, index);
         if (!success(status)) {
             print("add_dir_item returned {}\n", status);
             return status;
@@ -7386,8 +7384,8 @@ nt_status btrfs_inode::rename(::dentry& dentry, ::dentry& dest_dir,
 
         // remove old DIR_ITEM, DIR_INDEX, and INODE_REF
 
-        status = remove_dir_item(fs, *r, inode, cur_name,
-                                 src_parent_ino.inode);
+        status = remove_dir_item(fs, *r, tree.key, cur_name,
+                                 src_parent_ino.tree.key);
         if (!success(status)) {
             print("remove_dir_item returned {}\n", status);
             return status;
@@ -7395,8 +7393,8 @@ nt_status btrfs_inode::rename(::dentry& dentry, ::dentry& dest_dir,
 
         // create INODE_REF
 
-        status = add_inode_ref(fs, *r, name, index, inode,
-                               dst_parent_ino.inode);
+        status = add_inode_ref(fs, *r, name, index, tree.key,
+                               dst_parent_ino.tree.key);
         if (!success(status)) {
             print("add_inode_ref returned {}\n", status);
             return status;
@@ -7527,7 +7525,7 @@ nt_status btrfs_inode::hardlink(::dentry& dentry, ::dentry& dest_dir,
     {
         lock_guard lg(fs.trans_lock);
 
-        status = search_dir_item(fs, *r, dst_parent_ino.inode, hash,
+        status = search_dir_item(fs, *r, dst_parent_ino.tree.key, hash,
                                  name, dir_item_key);
         if (!success(status) && status != nt_status::OBJECT_NAME_NOT_FOUND) {
             print("search_dir_item returned {}\n", status);
@@ -7576,7 +7574,7 @@ nt_status btrfs_inode::hardlink(::dentry& dentry, ::dentry& dest_dir,
             }
 
             status = remove_dir_item(fs, *r, dir_item_key.objectid,
-                                     name, dst_parent_ino.inode);
+                                     name, dst_parent_ino.tree.key);
             if (!success(status)) {
                 print("remove_dir_item returned {}\n", status);
                 return status;
@@ -7587,7 +7585,7 @@ nt_status btrfs_inode::hardlink(::dentry& dentry, ::dentry& dest_dir,
                     victim_ino.remove_orphan(true);
                 else {
                     status = insert_item(fs, *r,
-                                        {BTRFS_ORPHAN_OBJECTID, key_type::ORPHAN_INODE, victim_ino.inode},
+                                        {BTRFS_ORPHAN_OBJECTID, key_type::ORPHAN_INODE, victim_ino.tree.key},
                                         span<const uint8_t>());
                     if (!success(status)) {
                         print("insert_item returned {}\n", status);
@@ -7599,7 +7597,7 @@ nt_status btrfs_inode::hardlink(::dentry& dentry, ::dentry& dest_dir,
             done_overwrite = true;
         }
 
-        status = add_dir_item(fs, *r, dst_parent_ino, name, inode,
+        status = add_dir_item(fs, *r, dst_parent_ino, name, tree.key,
                               type, index);
         if (!success(status)) {
             print("add_dir_item returned {}\n", status);
@@ -7608,8 +7606,8 @@ nt_status btrfs_inode::hardlink(::dentry& dentry, ::dentry& dest_dir,
 
         // create INODE_REF
 
-        status = add_inode_ref(fs, *r, name, index, inode,
-                               dst_parent_ino.inode);
+        status = add_inode_ref(fs, *r, name, index, tree.key,
+                               dst_parent_ino.tree.key);
         if (!success(status)) {
             print("add_inode_ref returned {}\n", status);
             return status;
@@ -7633,7 +7631,7 @@ nt_status btrfs_inode::hardlink(::dentry& dentry, ::dentry& dest_dir,
         }
 
         if (orphaned) { // unorphan
-            status = fs.remove_item(*r, {BTRFS_ORPHAN_OBJECTID, key_type::ORPHAN_INODE, inode});
+            status = fs.remove_item(*r, {BTRFS_ORPHAN_OBJECTID, key_type::ORPHAN_INODE, tree.key});
             if (!success(status)) {
                 print("btrfs_inode::hardlink: remove_item returned {}\n", status);
                 return status;
@@ -7756,7 +7754,7 @@ static nt_status change_dir_item_type(btrfs_filesystem& fs, btrfs_path& p, root&
 
     auto hash = calc_crc32c(0xfffffffe, name);
 
-    btrfs_key key{parent.inode, key_type::DIR_ITEM, hash};
+    btrfs_key key{parent.tree.key, key_type::DIR_ITEM, hash};
 
     // look for DIR_ITEM
 
@@ -7811,7 +7809,7 @@ static nt_status change_dir_index_type(btrfs_filesystem& fs, btrfs_path& p, root
     // lookup INODE_REF to get the index
 
     {
-        auto k = btrfs_key{inode, key_type::INODE_REF, parent.inode};
+        auto k = btrfs_key{inode, key_type::INODE_REF, parent.tree.key};
 
         status = fs.find_item(r, k, p, false);
         if (!success(status))
@@ -7856,11 +7854,11 @@ static nt_status change_dir_index_type(btrfs_filesystem& fs, btrfs_path& p, root
 
     if (!index.has_value()) {
         print("change_dir_index_type: could not get index for {} in {:x}\n",
-              name, parent.inode);
+              name, parent.tree.key);
         return nt_status::DISK_CORRUPT_ERROR;
     }
 
-    btrfs_key key{parent.inode, key_type::DIR_INDEX, *index};
+    btrfs_key key{parent.tree.key, key_type::DIR_INDEX, *index};
 
     // look for DIR_INDEX
 
@@ -7987,7 +7985,7 @@ nt_status btrfs_inode::set_reparse_point_symlink(span<const uint8_t> inbuf,
         }
 
         status = change_dir_index_type(fs, p, *r, parent, string_view(dentry.name, dentry.name_len),
-                                       inode, btrfs_inode_type::symlink);
+                                       tree.key, btrfs_inode_type::symlink);
         if (!success(status)) {
             print("change_dir_index returned {}\n", status);
             return status;
@@ -8049,7 +8047,7 @@ nt_status btrfs_inode::set_reparse_point_fifo(dentry& dentry) {
         }
 
         status = change_dir_index_type(fs, p, *r, parent, string_view(dentry.name, dentry.name_len),
-                                       inode, btrfs_inode_type::fifo);
+                                       tree.key, btrfs_inode_type::fifo);
         if (!success(status)) {
             print("change_dir_index returned {}\n", status);
             return status;
@@ -8158,7 +8156,7 @@ nt_status btrfs_inode::query_lx_information(span<uint8_t> buffer, uint64_t& retl
     {
         shared_lock lg(inode_lock);
 
-        fsli.FileId.QuadPart = (int64_t)inode;
+        fsli.FileId.QuadPart = (int64_t)tree.key;
         fsli.CreationTime.QuadPart = unix_to_win_time(ii.otime);
         fsli.LastAccessTime.QuadPart = unix_to_win_time(ii.atime);
         fsli.LastWriteTime.QuadPart = mtime;
