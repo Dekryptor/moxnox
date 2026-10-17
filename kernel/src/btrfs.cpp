@@ -231,7 +231,7 @@ public:
     void shorten_item(btrfs_path& p, uint32_t delta);
     nt_status extend_item(btrfs_path& p, uint32_t delta);
     nt_status find_item(root& r, const btrfs_key& k, btrfs_path& p, bool cow);
-    bool move_path_back(btrfs_path& p, root& r, bool cow);
+    nt_status move_path_back(btrfs_path& p, root& r, bool cow);
     bool move_path_forward(btrfs_path& p, root& r, bool cow);
     root* find_root(uint64_t root_num);
     nt_status flush(bool make_readonly) override;
@@ -1402,8 +1402,11 @@ static nt_status find_last_inode_number(btrfs_filesystem& fs, root& r) {
             return nt_status::SUCCESS;
         }
 
-        if (!fs.move_path_back(p, r, false))
+        status = fs.move_path_back(p, r, false);
+        if (status == nt_status::NOT_FOUND)
             break;
+        else if (!success(status))
+            return status;
     } while (true);
 
     if (!done)
@@ -3414,15 +3417,15 @@ nt_status btrfs_filesystem::extend_item(btrfs_path& p, uint32_t delta) {
     return nt_status::SUCCESS;
 }
 
-bool btrfs_filesystem::move_path_back(btrfs_path& p, root& r, bool cow) {
+nt_status btrfs_filesystem::move_path_back(btrfs_path& p, root& r, bool cow) {
     if (p.slots[0] != 0) {
         p.slots[0]--;
-        return true;
+        return nt_status::SUCCESS;
     }
 
     for (uint8_t i = 1; i < BTRFS_MAX_LEVEL; i++) {
         if (!p.data[i])
-            return false;
+            return nt_status::NOT_FOUND;
 
         if (p.slots[i] == 0)
             continue;
@@ -3434,8 +3437,8 @@ bool btrfs_filesystem::move_path_back(btrfs_path& p, root& r, bool cow) {
             auto items = span((btrfs_key_ptr*)((uint8_t*)&th + sizeof(btrfs_header)), th.nritems);
 
             auto status = read_metadata(items[p.slots[j]].blockptr, span(p.data[j - 1], sb->nodesize));
-            if (!success(status)) // FIXME
-                return false;
+            if (!success(status))
+                return status;
 
             const auto& th2 = *(btrfs_header*)p.data[j - 1];
 
@@ -3445,13 +3448,13 @@ bool btrfs_filesystem::move_path_back(btrfs_path& p, root& r, bool cow) {
         if (cow) {
             auto status = cow_tree(*this, r, p);
             if (!success(status))
-                return false;
+                return status;
         }
 
-        return true;
+        return nt_status::SUCCESS;
     }
 
-    return false;
+    return nt_status::NOT_FOUND;
 }
 
 bool btrfs_filesystem::move_path_forward(btrfs_path& p, root& r, bool cow) {
@@ -3501,10 +3504,13 @@ nt_status btrfs_inode::get_last_dir_index(uint64_t& ret) {
     if (!success(status))
         return status;
 
-    if (!fs.move_path_back(p, *r, false)) {
+    status = fs.move_path_back(p, *r, false);
+
+    if (status == nt_status::NOT_FOUND) {
         ret = 1;
         return nt_status::SUCCESS;
-    }
+    } else if (!success(status))
+        return status;
 
     auto& th = *(btrfs_header*)p.data[0];
     auto items = span((btrfs_item*)((uint8_t*)&th + sizeof(btrfs_header)), th.nritems);
@@ -4053,8 +4059,9 @@ static nt_status check_csums(btrfs_inode& ino, uint64_t page_num, uint64_t addr,
         if (p.slots[0] == th.nritems) {
             p.slots[0]--;
         } else if (items[p.slots[0]].key != k) {
-            if (!fs.move_path_back(p, *fs.csum_root, false))
-                return nt_status::NOT_FOUND;
+            status = fs.move_path_back(p, *fs.csum_root, false);
+            if (!success(status))
+                return status;
         }
     }
 
@@ -5343,8 +5350,10 @@ static nt_status remove_free_space(btrfs_filesystem& fs, chunk& c,
         auto items = span((btrfs_item*)((uint8_t*)&th + sizeof(btrfs_header)), th.nritems);
 
         if (p.slots[0] >= th.nritems) {
-            if (!fs.move_path_back(p, r, true))
-                return nt_status::NOT_FOUND;
+            status = fs.move_path_back(p, r, true);
+            if (!success(status))
+                return status;
+
             continue;
         }
 
@@ -5352,8 +5361,10 @@ static nt_status remove_free_space(btrfs_filesystem& fs, chunk& c,
         const auto& k = it.key;
 
         if (k.objectid > address) {
-            if (!fs.move_path_back(p, r, true))
-                return nt_status::NOT_FOUND;
+            status = fs.move_path_back(p, r, true);
+            if (!success(status))
+                return status;
+
             continue;
         }
 
@@ -5436,13 +5447,16 @@ static nt_status add_free_space(btrfs_filesystem& fs, chunk& c, uint64_t address
     else
         next_k = {0, (enum key_type)0, 0};
 
-    if (fs.move_path_back(p, r, true)) {
+    status = fs.move_path_back(p, r, true);
+
+    if (success(status)) {
         auto& th2 = *(btrfs_header*)p.data[0];
         auto items2 = span((btrfs_item*)((uint8_t*)&th2 + sizeof(btrfs_header)), th2.nritems);
 
         if (items2[p.slots[0]].key.type == key_type::FREE_SPACE_EXTENT)
             prev_k = items2[p.slots[0]].key;
-    }
+    } else if (status != nt_status::NOT_FOUND)
+        return status;
 
     if (prev_k.type == key_type::FREE_SPACE_EXTENT &&
         next_k.type == key_type::FREE_SPACE_EXTENT &&
