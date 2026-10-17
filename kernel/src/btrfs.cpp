@@ -232,7 +232,7 @@ public:
     nt_status extend_item(btrfs_path& p, uint32_t delta);
     nt_status find_item(root& r, const btrfs_key& k, btrfs_path& p, bool cow);
     nt_status move_path_back(btrfs_path& p, root& r, bool cow);
-    bool move_path_forward(btrfs_path& p, root& r, bool cow);
+    nt_status move_path_forward(btrfs_path& p, root& r, bool cow);
     root* find_root(uint64_t root_num);
     nt_status flush(bool make_readonly) override;
     void flush_thread();
@@ -738,8 +738,11 @@ bool btrfs_filesystem::load_chunks() {
         const auto& k = it.key;
 
         if (k.type != key_type::CHUNK_ITEM) {
-            if (!move_path_forward(p, *chunk_root, false))
+            status = move_path_forward(p, *chunk_root, false);
+            if (status == nt_status::NOT_FOUND)
                 break;
+            else if (!success(status))
+                return false; // FIXME
 
             continue;
         }
@@ -790,8 +793,13 @@ bool btrfs_filesystem::load_chunks() {
         if (system_profile == 0 && ci.type & BTRFS_BLOCK_GROUP_SYSTEM)
             system_profile = ci.type;
 
-        if (!move_path_forward(p, *chunk_root, false))
+        status = move_path_forward(p, *chunk_root, false);
+        if (status == nt_status::NOT_FOUND)
             break;
+        else if (!success(status)) {
+            fail = true;
+            break;
+        }
     } while (true);
 
     if (fail) {
@@ -823,8 +831,12 @@ bool btrfs_filesystem::load_dev_space() {
         auto& th = *(btrfs_header*)p.data[0];
 
         if (p.slots[0] == th.nritems) {
-            if (!move_path_forward(p, *dev_root, false))
+            status = move_path_forward(p, *dev_root, false);
+
+            if (status == nt_status::NOT_FOUND)
                 have_items = false;
+            else if (!success(status))
+                return false; // FIXME
         }
     }
 
@@ -843,8 +855,14 @@ bool btrfs_filesystem::load_dev_space() {
                 break;
 
             if (k.type != key_type::DEV_EXTENT || k.objectid != devid) {
-                if (!move_path_forward(p, *dev_root, false))
+                status = move_path_forward(p, *dev_root, false);
+
+                if (status == nt_status::NOT_FOUND)
                     break;
+                else if (!success(status)) {
+                    fail = true;
+                    break;
+                }
 
                 continue;
             }
@@ -873,8 +891,13 @@ bool btrfs_filesystem::load_dev_space() {
 
             last_end = k.offset + de.length;
 
-            if (!move_path_forward(p, *dev_root, false))
+            status = move_path_forward(p, *dev_root, false);
+            if (status == nt_status::NOT_FOUND)
                 break;
+            else if (!success(status)) {
+                fail = true;
+                break;
+            }
         } while (true);
     }
 
@@ -1437,8 +1460,12 @@ bool btrfs_filesystem::load_roots() {
         const auto& k = it.key;
 
         if (k.type != key_type::ROOT_ITEM) {
-            if (!move_path_forward(p, *root_root, false))
+            status = move_path_forward(p, *root_root, false);
+
+            if (status == nt_status::NOT_FOUND)
                 break;
+            else if (!success(status))
+                return false; // FIXME
 
             continue;
         }
@@ -1479,8 +1506,14 @@ bool btrfs_filesystem::load_roots() {
             block_group_root = &r;
         }
 
-        if (!move_path_forward(p, *root_root, false))
+        status = move_path_forward(p, *root_root, false);
+
+        if (status == nt_status::NOT_FOUND)
             break;
+        else if (!success(status)) {
+            fail = true;
+            break;
+        }
     } while (true);
 
     if (!extent_root) {
@@ -1689,8 +1722,11 @@ bool btrfs_inode::load_inode() {
                 break;
         }
 
-        if (!fs.move_path_forward(p, *r, false))
+        status = fs.move_path_forward(p, *r, false);
+        if (status == nt_status::NOT_FOUND)
             break;
+        else if (!success(status))
+            return false; // FIXME
     } while (true);
 
     if (!found_inode_item) {
@@ -1969,8 +2005,12 @@ static nt_status load_space(btrfs_filesystem& fs, chunk& c) {
     }
 
     do {
-        if (!fs.move_path_forward(p, r, false))
+        status = fs.move_path_forward(p, r, false);
+
+        if (status == nt_status::NOT_FOUND)
             break;
+        else if (!success(status))
+            return status;
 
         auto& th = *(btrfs_header*)p.data[0];
         auto items = span((btrfs_item*)((uint8_t*)&th + sizeof(btrfs_header)), th.nritems);
@@ -3457,15 +3497,15 @@ nt_status btrfs_filesystem::move_path_back(btrfs_path& p, root& r, bool cow) {
     return nt_status::NOT_FOUND;
 }
 
-bool btrfs_filesystem::move_path_forward(btrfs_path& p, root& r, bool cow) {
+nt_status btrfs_filesystem::move_path_forward(btrfs_path& p, root& r, bool cow) {
     if (p.slots[0] < ((btrfs_header*)p.data[0])->nritems - 1) {
         p.slots[0]++;
-        return true;
+        return nt_status::SUCCESS;
     }
 
     for (uint8_t i = 1; i < BTRFS_MAX_LEVEL; i++) {
         if (!p.data[i])
-            return false;
+            return nt_status::NOT_FOUND;
 
         if (p.slots[i] == ((btrfs_header*)p.data[i])->nritems - 1)
             continue;
@@ -3477,8 +3517,8 @@ bool btrfs_filesystem::move_path_forward(btrfs_path& p, root& r, bool cow) {
             auto items = span((btrfs_key_ptr*)((uint8_t*)&th + sizeof(btrfs_header)), th.nritems);
 
             auto status = read_metadata(items[p.slots[j]].blockptr, span(p.data[j - 1], sb->nodesize));
-            if (!success(status)) // FIXME
-                return false;
+            if (!success(status))
+                return status;
 
             p.slots[j - 1] = 0;
         }
@@ -3486,13 +3526,13 @@ bool btrfs_filesystem::move_path_forward(btrfs_path& p, root& r, bool cow) {
         if (cow) {
             auto status = cow_tree(*this, r, p);
             if (!success(status))
-                return false;
+                return status;
         }
 
-        return true;
+        return nt_status::SUCCESS;
     }
 
-    return false;
+    return nt_status::NOT_FOUND;
 }
 
 nt_status btrfs_inode::get_last_dir_index(uint64_t& ret) {
@@ -5489,8 +5529,9 @@ static nt_status add_free_space(btrfs_filesystem& fs, chunk& c, uint64_t address
         next_k.objectid == address + length) {
         // extend next
 
-        if (!fs.move_path_forward(p, r, true))
-            return nt_status::INTERNAL_ERROR;
+        status = fs.move_path_forward(p, r, true);
+        if (!success(status))
+            return status;
 
         return fs.change_key(p, {address, key_type::FREE_SPACE_EXTENT, next_k.offset + length});
     }
