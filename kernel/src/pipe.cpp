@@ -449,7 +449,7 @@ NTSTATUS pipe::read(span<const span<uint8_t>> v, uint64_t& read_bytes) {
 
     if (status == nt_status::ALERTED) {
         read_bytes = 0;
-        return nt_status::SUCCESS;
+        return nt_status::SUCCESS; // FIXME - really should be ALERTED (but make sure userspace handles this properly)
     } else if (status == nt_status::TIMEOUT) {
         read_bytes = 0;
         return nt_status::PIPE_DISCONNECTED;
