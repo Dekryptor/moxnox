@@ -2,6 +2,7 @@ module;
 
 #include <string_view>
 #include <span>
+#include <algorithm>
 #include <stdint.h>
 #include <string.h>
 #include <stdlib.h>
@@ -657,7 +658,7 @@ export int do_exec(const char* path, char* const* argv, char* const* envp,
     memset(&initial_teb, 0, sizeof(initial_teb));
 
     void* stack = nullptr;
-    size_t stack_size = 0x100000; // FIXME - should come from PE header?
+    auto stack_size = max((size_t)0x100000, (size_t)sii.MaximumStackSize);
 
     status = NtAllocateVirtualMemory(proc.get(), &stack, 0, &stack_size,
                                      MEM_COMMIT | MEM_RESERVE, PAGE_READWRITE);
