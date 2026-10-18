@@ -2,12 +2,14 @@
 #include <string.h>
 #include <utility>
 #include <mutex>
+#include <algorithm>
 
 import nt;
 import ntdll;
 import kernelbase;
 import print;
 import win32error;
+import pe;
 
 using namespace std;
 
@@ -147,8 +149,18 @@ HANDLE CreateThread(SECURITY_ATTRIBUTES* sa, size_t stack_size,
 
     memset(&initial_teb, 0, sizeof(initial_teb));
 
-    if (stack_size == 0)
-        stack_size = 0x100000; // FIXME - should this come from PE header?
+    if (stack_size == 0) {
+        auto& peb = *NtCurrentTeb()->ProcessEnvironmentBlock;
+        auto& dos_header = *(IMAGE_DOS_HEADER*)peb.ImageBaseAddress;
+        auto& nt_header = *(IMAGE_NT_HEADERS*)((uint8_t*)&dos_header + dos_header.e_lfanew);
+
+        stack_size = 0x100000;
+
+        if (nt_header.OptionalHeader32.Magic == IMAGE_NT_OPTIONAL_HDR64_MAGIC)
+            stack_size = max(stack_size, (size_t)nt_header.OptionalHeader64.SizeOfStackReserve);
+        else
+            stack_size = max(stack_size, (size_t)nt_header.OptionalHeader32.SizeOfStackReserve);
+    }
 
     status = NtAllocateVirtualMemory(NtCurrentProcess(), &stack, 0, &stack_size,
                                      MEM_COMMIT | MEM_RESERVE, PAGE_READWRITE);
