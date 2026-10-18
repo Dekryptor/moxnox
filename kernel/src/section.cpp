@@ -101,6 +101,7 @@ public:
     uintptr_t preferred_base, entry_point;
     uint16_t characteristics, machine;
     uint64_t stack_size;
+    uint64_t stack_commit;
     spinlock alloc_lock;
     dwarf_info dwinfo;
     unsigned int num_pe_sections = 0;

@@ -215,6 +215,7 @@ static nt_status load_image2(section& s, inode& f, IMAGE_DOS_HEADER& dos_header)
         s.preferred_base = nt_header.OptionalHeader64.ImageBase;
         s.stack_size = nt_header.OptionalHeader64.SizeOfStackReserve;
         s.entry_point = nt_header.OptionalHeader64.AddressOfEntryPoint;
+        s.stack_commit = nt_header.OptionalHeader64.SizeOfStackCommit;
         section_alignment = nt_header.OptionalHeader64.SectionAlignment;
     } else {
         if (nt_header.FileHeader.SizeOfOptionalHeader < sizeof(IMAGE_OPTIONAL_HEADER32))
@@ -225,6 +226,7 @@ static nt_status load_image2(section& s, inode& f, IMAGE_DOS_HEADER& dos_header)
         s.preferred_base = nt_header.OptionalHeader32.ImageBase;
         s.stack_size = nt_header.OptionalHeader32.SizeOfStackReserve;
         s.entry_point = nt_header.OptionalHeader32.AddressOfEntryPoint;
+        s.stack_commit = nt_header.OptionalHeader32.SizeOfStackCommit;
         section_alignment = nt_header.OptionalHeader32.SectionAlignment;
     }
 
@@ -915,8 +917,8 @@ NTSTATUS section::query_info(enum SECTION_INFORMATION_CLASS section_information_
 
             sii.TransferAddress = (void*)(preferred_base + entry_point);
             sii.ZeroBits = 0; // FIXME
-            sii.MaximumStackSize = 0; // FIXME
-            sii.CommittedStackSize = 0; // FIXME
+            sii.MaximumStackSize = stack_size;
+            sii.CommittedStackSize = stack_commit;
             sii.SubSystemType = 0; // FIXME
             sii.SubSystemMinorVersion = 0; // FIXME
             sii.SubSystemMajorVersion = 0; // FIXME
