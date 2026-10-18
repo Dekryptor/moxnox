@@ -108,7 +108,7 @@
 	insteadOf = https://https.git.savannah.gnu.org/git/gnulib.git/
 [url "https://git.burntcomma.com/moxnox/curl"]
 	insteadOf = https://github.com/curl/curl
-[url "https://git.burntcomma.com/moxnox/binutils-cc"]
+[url "https://git.burntcomma.com/moxnox/binutils-gdb"]
 	insteadOf = git://sourceware.org/git/binutils-gdb.git
 [url "https://git.burntcomma.com/moxnox/cmake"]
 	insteadOf = https://gitlab.kitware.com/cmake/cmake
