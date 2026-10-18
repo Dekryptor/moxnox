@@ -4,6 +4,7 @@
 #include <string_view>
 #include <span>
 #include <mutex>
+#include <algorithm>
 
 import nt;
 import ntdll;
@@ -485,7 +486,7 @@ bool CreateProcessW(const char16_t* application_name, char16_t* command_line,
     memset(&initial_teb, 0, sizeof(initial_teb));
 
     void* stack = nullptr;
-    size_t stack_size = 0x100000; // FIXME - should come from PE header?
+    auto stack_size = max((size_t)0x100000, sii.MaximumStackSize);
 
     status = NtAllocateVirtualMemory(proc.get(), &stack, 0, &stack_size,
                                      MEM_COMMIT | MEM_RESERVE, PAGE_READWRITE);
