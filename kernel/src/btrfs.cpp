@@ -226,7 +226,7 @@ public:
     nt_status read_metadata(uint64_t addr, span<uint8_t> data);
     nt_status open_inode(uint64_t subvol, uint64_t inode, object_ref& obj);
     nt_status remove_item(root& r, const btrfs_key& k);
-    nt_status remove_item2(btrfs_path& p);
+    nt_status remove_item2(const btrfs_path& p);
     nt_status change_key(btrfs_path& p, const btrfs_key& k);
     void shorten_item(btrfs_path& p, uint32_t delta);
     nt_status extend_item(btrfs_path& p, uint32_t delta);
@@ -3236,7 +3236,7 @@ static nt_status insert_item(btrfs_filesystem& fs, root& r, const btrfs_key& k,
     return nt_status::SUCCESS;
 }
 
-static nt_status remove_internal_node(btrfs_filesystem& fs, btrfs_path& p,
+static nt_status remove_internal_node(btrfs_filesystem& fs, const btrfs_path& p,
                                       uint8_t level) {
     assert(p.data[level]);
 
@@ -3277,9 +3277,6 @@ static nt_status remove_internal_node(btrfs_filesystem& fs, btrfs_path& p,
         }
     }
 
-    if (p.slots[level] > 0)
-        p.slots[level]--;
-
     // copy tree back into page cache and mark dirty
 
     if (!fs.cache.write(span(p.data[level], fs.sb->nodesize), th.bytenr)) // FIXME - return status
@@ -3288,7 +3285,7 @@ static nt_status remove_internal_node(btrfs_filesystem& fs, btrfs_path& p,
     return nt_status::SUCCESS;
 }
 
-nt_status btrfs_filesystem::remove_item2(btrfs_path& p) {
+nt_status btrfs_filesystem::remove_item2(const btrfs_path& p) {
     auto& th = *(btrfs_header*)p.data[0];
     auto* items = (btrfs_item*)((uint8_t*)&th + sizeof(btrfs_header));
 
@@ -4430,23 +4427,25 @@ static nt_status punch_hole(btrfs_inode& inode, uint64_t start, uint64_t length)
     if (!success(status))
         return status;
 
-    auto& th = *(btrfs_header*)p.data[0];
-    auto items = span((btrfs_item*)((uint8_t*)&th + sizeof(btrfs_header)), th.nritems);
+    {
+        auto& th = *(btrfs_header*)p.data[0];
+        auto items = span((btrfs_item*)((uint8_t*)&th + sizeof(btrfs_header)), th.nritems);
 
-    if (p.slots[0] >= th.nritems) {
-        if (p.slots[0] == 0)
-            return nt_status::SUCCESS;
-
-        p.slots[0]--;
-    } else {
-        const auto& k = items[p.slots[0]].key;
-
-        if (k.objectid > inode.tree.key || k.type > key_type::EXTENT_DATA ||
-            k.offset > start) {
+        if (p.slots[0] >= th.nritems) {
             if (p.slots[0] == 0)
                 return nt_status::SUCCESS;
 
             p.slots[0]--;
+        } else {
+            const auto& k = items[p.slots[0]].key;
+
+            if (k.objectid > inode.tree.key || k.type > key_type::EXTENT_DATA ||
+                k.offset > start) {
+                if (p.slots[0] == 0)
+                    return nt_status::SUCCESS;
+
+                p.slots[0]--;
+            }
         }
     }
 
@@ -4461,8 +4460,11 @@ static nt_status punch_hole(btrfs_inode& inode, uint64_t start, uint64_t length)
                 return status;
         }
 
+        auto& th = *(btrfs_header*)p.data[0];
+        auto items = span((btrfs_item*)((uint8_t*)&th + sizeof(btrfs_header)), th.nritems);
+
         const auto& it = items[p.slots[0]];
-        const auto& k = it.key;
+        auto k = it.key;
 
         if (k.objectid != inode.tree.key || k.type != key_type::EXTENT_DATA ||
             k.offset >= start + length)
@@ -4518,6 +4520,14 @@ static nt_status punch_hole(btrfs_inode& inode, uint64_t start, uint64_t length)
                 return status;
             }
 
+            search_key.offset = k.offset;
+
+            status = fs.find_item(*inode.r, search_key, p, true);
+            if (status == nt_status::NOT_FOUND)
+                break;
+            else if (!success(status))
+                return status;
+
             continue;
         } else if (start <= k.offset && start + length >= k.offset + size) {
             // remove entire file extent
@@ -4535,6 +4545,14 @@ static nt_status punch_hole(btrfs_inode& inode, uint64_t start, uint64_t length)
                 print("btrfs_filesystem::remove_item2 returned {}\n", status);
                 return status;
             }
+
+            search_key.offset = k.offset;
+
+            status = fs.find_item(*inode.r, search_key, p, true);
+            if (status == nt_status::NOT_FOUND)
+                break;
+            else if (!success(status))
+                return status;
 
             inode.ii.nbytes -= size;
             changed_inode = true;
@@ -5327,7 +5345,7 @@ static nt_status convert_fst_bitmaps_to_extents(btrfs_filesystem& fs, chunk& c,
         }
 
         const auto& it = items[p.slots[0]];
-        const auto& k = it.key;
+        auto k = it.key;
 
         if (k.objectid >= c.offset + c.ci.length)
             break;
@@ -5358,6 +5376,15 @@ static nt_status convert_fst_bitmaps_to_extents(btrfs_filesystem& fs, chunk& c,
 
                 return status;
             }
+
+            search_key.objectid = k.objectid + k.offset;
+
+            if (search_key.objectid >= c.offset + c.ci.length)
+                break;
+
+            status = fs.find_item(r, search_key, p, true);
+            if (!success(status))
+                return status;
         } else
             p.slots[0]++;
     }
@@ -5698,16 +5725,18 @@ static nt_status remove_csums(btrfs_filesystem& fs, uint64_t address,
     if (!success(status))
         return status;
 
-    auto& th = *(btrfs_header*)p.data[0];
-    auto items = span((btrfs_item*)((uint8_t*)&th + sizeof(btrfs_header)), th.nritems);
+    {
+        auto& th = *(btrfs_header*)p.data[0];
+        auto items = span((btrfs_item*)((uint8_t*)&th + sizeof(btrfs_header)), th.nritems);
 
-    if (th.nritems == 0)
-        return nt_status::SUCCESS;
+        if (th.nritems == 0)
+            return nt_status::SUCCESS;
 
-    if (p.slots[0] == th.nritems)
-        p.slots[0]--;
-    else if (items[p.slots[0]].key.offset > address && p.slots[0] != 0)
-        p.slots[0]--;
+        if (p.slots[0] == th.nritems)
+            p.slots[0]--;
+        else if (items[p.slots[0]].key.offset > address && p.slots[0] != 0)
+            p.slots[0]--;
+    }
 
     while (length > 0) {
         if (p.slots[0] == leaf_nritems(p)) {
@@ -5717,6 +5746,9 @@ static nt_status remove_csums(btrfs_filesystem& fs, uint64_t address,
                 return status;
             }
         }
+
+        auto& th = *(btrfs_header*)p.data[0];
+        auto items = span((btrfs_item*)((uint8_t*)&th + sizeof(btrfs_header)), th.nritems);
 
         const auto& it = items[p.slots[0]];
         const auto& k = it.key;
@@ -5744,6 +5776,15 @@ static nt_status remove_csums(btrfs_filesystem& fs, uint64_t address,
 
             address += size;
             length -= size;
+
+            if (length > 0) {
+                search_key.offset = address;
+
+                status = fs.find_item(*fs.csum_root, search_key, p, true);
+                if (!success(status))
+                    return status;
+            }
+
             continue;
         } else if (address > k.offset && address + length < k.offset + size) {
             // remove middle of entry
@@ -7241,7 +7282,6 @@ nt_status btrfs_inode::remove_orphan(bool no_orphan_item) {
     nt_status status;
     uint64_t len;
     uint32_t sectorsize = fs.sb->sectorsize;
-    btrfs_path p(fs.sb->nodesize);
 
     // needs trans_lock held
 
@@ -7261,20 +7301,34 @@ nt_status btrfs_inode::remove_orphan(bool no_orphan_item) {
         return status;
     }
 
-    status = fs.find_item(*r, {tree.key, key_type::INODE_ITEM, 0}, p, true);
-    if (!success(status)) {
-        print("btrfs_inode::remove_orphan: find_item returned {}\n", status);
-        return status;
-    }
-
     while (true) {
+        btrfs_path p(fs.sb->nodesize);
+
+        status = fs.find_item(*r, {tree.key, key_type::INODE_ITEM, 0}, p, true);
+        if (status == nt_status::NOT_FOUND)
+            break;
+        else if (!success(status)) {
+            print("btrfs_inode::remove_orphan: find_item returned {}\n", status);
+            return status;
+        }
+
+        {
+            auto& th = *(btrfs_header*)p.data[0];
+
+            if (p.slots[0] >= th.nritems) {
+                status = next_leaf(fs, p, *r, true);
+                if (status == nt_status::NOT_FOUND)
+                    break;
+                else if (!success(status)) {
+                    print("btrfs_inode::remove_orphan: next_leaf returned {}\n", status);
+                    return status;
+                }
+            }
+        }
+
         auto& th = *(btrfs_header*)p.data[0];
         auto items = span((btrfs_item*)((uint8_t*)&th + sizeof(btrfs_header)),
-                            th.nritems);
-
-        if (p.slots[0] >= th.nritems)
-            break;
-
+                          th.nritems);
         const auto& it = items[p.slots[0]];
         const auto& k = it.key;
 
@@ -7289,19 +7343,8 @@ nt_status btrfs_inode::remove_orphan(bool no_orphan_item) {
         status = fs.remove_item2(p);
         if (!success(status)) {
             print("btrfs_inode::remove_orphan: remove_item2 returned {}\n",
-                    status);
+                  status);
             return status;
-        }
-
-        if (p.slots[0] >= leaf_nritems(p)) {
-            status = next_leaf(fs, p, *r, true);
-            if (status == nt_status::NOT_FOUND)
-                break;
-            else if (!success(status)) {
-                print("btrfs_inode::remove_orphan: next_leaf returned {}\n",
-                        status);
-                return status;
-            }
         }
     }
 
