@@ -120,7 +120,11 @@ struct btrfs_path {
         }
     }
 
-    ~btrfs_path();
+    ~btrfs_path() {
+        reset();
+    }
+
+    void reset();
 
     uint8_t* data[BTRFS_MAX_LEVEL];
     uint32_t slots[BTRFS_MAX_LEVEL];
@@ -2691,10 +2695,12 @@ static nt_status cow_tree(btrfs_filesystem& fs, root& r, btrfs_path& p) {
     return nt_status::SUCCESS;
 }
 
-btrfs_path::~btrfs_path() {
+void btrfs_path::reset() {
     for (unsigned int i = 0; i < BTRFS_MAX_LEVEL; i++) {
-        if (data[i])
+        if (data[i]) {
             free_folio(phys_memory_pfn(data[i]) << PAGE_SHIFT);
+            data[i] = nullptr;
+        }
     }
 }
 
@@ -2705,6 +2711,8 @@ nt_status btrfs_filesystem::find_item(root& r, const btrfs_key& k, btrfs_path& p
     nt_status status;
 
     // FIXME - error if level >= BTRFS_MAX_LEVEL
+
+    p.reset();
 
     for (unsigned int i = 0; i <= level; i++) {
         auto pa = allocate_folio(node_folio_order);
