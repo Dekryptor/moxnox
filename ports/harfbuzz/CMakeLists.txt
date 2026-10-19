@@ -24,6 +24,7 @@ set_target_properties(harfbuzz PROPERTIES INTERFACE_LINK_LIBRARIES "${libs}")
 
 target_compile_options(harfbuzz PRIVATE
     ${USERSPACE_CFLAGS}
+    -g0
     -mno-stack-arg-probe
     -Wno-float-conversion
     -Wno-attributes
