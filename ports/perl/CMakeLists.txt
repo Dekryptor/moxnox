@@ -77,8 +77,8 @@ add_custom_command(
 
 add_custom_command(
     OUTPUT ${GEN}/host/miniperl${HOST_EXECUTABLE_SUFFIX} ${GEN}/host/generate_uudmap${HOST_EXECUTABLE_SUFFIX}
-    COMMAND sh -c "rm -rf '${GEN}/host' && mkdir -p '${GEN}/host' && cd '${GEN}/host' && sh '${GEN}/Configure' -des -Dmksymlinks -Dsrc='${REPO}' -Uusenm -Duse64bitint -Dprefix=/nonexistent > configure.log 2>&1 && '${HOST_MAKE}' miniperl${HOST_EXECUTABLE_SUFFIX} generate_uudmap${HOST_EXECUTABLE_SUFFIX} > make.log 2>&1 || (cat configure.log make.log; exit 1)"
-    DEPENDS ${GEN}/Configure repo/Makefile.SH repo/miniperlmain.c
+    COMMAND sh -c "rm -rf '${GEN}/host' && mkdir -p '${GEN}/host' && cd '${GEN}/host' && sh '${GEN}/Configure' -des -Dmksymlinks -Dsrc='${REPO}' -Uusenm -Duse64bitint -Dprefix=/nonexistent > configure.log 2>&1 && rm -f unixish.h pp_sys.c && cp '${GEN}/unixish.h' '${GEN}/pp_sys.c' . && '${HOST_MAKE}' miniperl${HOST_EXECUTABLE_SUFFIX} generate_uudmap${HOST_EXECUTABLE_SUFFIX} > make.log 2>&1 || (cat configure.log make.log; exit 1)"
+    DEPENDS ${GEN}/Configure ${GEN}/unixish.h ${GEN}/pp_sys.c repo/Makefile.SH repo/miniperlmain.c
     VERBATIM
 )
 
