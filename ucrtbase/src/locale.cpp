@@ -2,6 +2,7 @@
 #include <limits.h>
 #include <wchar.h>
 #include <locale.h>
+#include <string.h>
 
 import ucrtbase;
 import print;
@@ -37,6 +38,8 @@ static lconv posix_lconv = {
     .int_p_sign_posn = CHAR_MAX,
     .int_n_sign_posn = CHAR_MAX
 };
+
+static char current_locale[10] = "C.UTF-8";
 
 extern "C"
 lconv* _localeconv() {
@@ -94,14 +97,20 @@ char* _setlocale(int /*category*/, const char* locale) {
     // FIXME - do this properly?
 
     if (!locale)
-        return (char*)"C.utf8";
+        return current_locale;
 
     auto localesv = string_view(locale);
 
-    if (localesv == "" || localesv == "C" || localesv == "C.utf8")
-        return (char*)"C.utf8";
+    if (localesv == "C" || localesv == "POSIX") {
+        strcpy(current_locale, "C");
 
-    return nullptr;
+        return current_locale;
+    } else if (localesv == "C.UTF-8" || localesv == "C.utf8" || localesv == "") {
+        strcpy(current_locale, "C.UTF-8");
+
+        return current_locale;
+    } else
+        return nullptr;
 }
 
 extern "C"
