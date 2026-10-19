@@ -170,6 +170,7 @@ public:
     nt_status read_into_cache(uint64_t page_num, uint64_t num_pages,
                               uint64_t& read_pages) override;
     nt_status flush_cache(uint64_t page_num, uint64_t num_pages) override;
+    nt_status flush_cache_holding_trans_lock(uint64_t page_num, uint64_t num_pages);
     nt_status set_basic_information(span<const uint8_t> buffer);
     nt_status set_disposition_information(span<const uint8_t> buffer,
                                           dentry& dentry);
@@ -4836,7 +4837,8 @@ nt_status flush_inline_inode(btrfs_inode& ino) {
     return nt_status::SUCCESS;
 }
 
-nt_status btrfs_inode::flush_cache(uint64_t page_num, uint64_t num_pages) {
+nt_status btrfs_inode::flush_cache_holding_trans_lock(uint64_t page_num,
+                                                      uint64_t num_pages) {
     nt_status status;
     btrfs_path p(fs.sb->nodesize);
     uint64_t addr;
@@ -4956,6 +4958,12 @@ nt_status btrfs_inode::flush_cache(uint64_t page_num, uint64_t num_pages) {
     }
 
     return nt_status::SUCCESS;
+}
+
+nt_status btrfs_inode::flush_cache(uint64_t page_num, uint64_t num_pages) {
+    lock_guard lock(fs.trans_lock);
+
+    return flush_cache_holding_trans_lock(page_num, num_pages);
 }
 
 static int64_t unix_to_win_time(const btrfs_timespec& t) {
@@ -6434,7 +6442,11 @@ static nt_status do_writeback_inode(btrfs_filesystem& fs, btrfs_inode& ino) {
     if (ino.dead)
         return nt_status::SUCCESS;
 
-    status = ino.cache.flush(0, 0xffffffffffffffff, true);
+    auto func = [&ino](uint64_t page_num, uint64_t num_pages) {
+        return ino.flush_cache_holding_trans_lock(page_num, num_pages);
+    };
+
+    status = ino.cache.base.flush(0, 0xffffffffffffffff, true, func);
     if (!success(status)) {
         print("page_cache::flush returned {}\n", status);
         return status;
@@ -8204,9 +8216,9 @@ nt_status btrfs_inode::set_reparse_point_symlink(span<const uint8_t> inbuf,
 
         cache.write(span((uint8_t*)u8sv.data(), u8sv.size()), 0);
 
-        status = flush_cache(0, bytes_to_pages(sb.sectorsize));
+        status = flush_cache_holding_trans_lock(0, bytes_to_pages(sb.sectorsize));
         if (!success(status)) {
-            print("flush_cache returned {}\n", status);
+            print("flush_cache_holding_trans_lock returned {}\n", status);
             return status;
         }
     }
