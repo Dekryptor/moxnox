@@ -8203,12 +8203,12 @@ nt_status btrfs_inode::set_reparse_point_symlink(span<const uint8_t> inbuf,
         }
 
         cache.write(span((uint8_t*)u8sv.data(), u8sv.size()), 0);
-    }
 
-    status = flush_cache(0, bytes_to_pages(sb.sectorsize));
-    if (!success(status)) {
-        print("flush_cache returned {}\n", status);
-        return status;
+        status = flush_cache(0, bytes_to_pages(sb.sectorsize));
+        if (!success(status)) {
+            print("flush_cache returned {}\n", status);
+            return status;
+        }
     }
 
     return nt_status::SUCCESS;
