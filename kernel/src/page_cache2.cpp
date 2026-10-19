@@ -328,3 +328,11 @@ bool find_unread_range(page_cache_base& cache, page_cache_entry*& range_start,
 
     return true;
 }
+
+page_cache_entry* page_cache_base::find_page_cache_entry_or_earlier(uint64_t page_num) {
+    auto tree = find_rbtree_node_or_less(root, page_num);
+    if (!tree)
+        return nullptr;
+
+    return &rbtree_containing_record<page_cache_entry>(tree);
+}

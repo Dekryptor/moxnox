@@ -63,6 +63,7 @@ public:
     bool write_page_vec_and_unpin(uint64_t first_page, uint64_t inpage_offset,
                                   span<const span<const uint8_t>>& v,
                                   span<const uint8_t>& top, size_t vec_size);
+    page_cache_entry* find_page_cache_entry_or_earlier(uint64_t page_num);
 
     spinlock cache_lock;
     rbtree_node<uint64_t>* root = nullptr;
@@ -107,7 +108,6 @@ public:
         return base.find_page_cache_entry(page_num);
     }
 
-    page_cache_entry* find_page_cache_entry_or_earlier(uint64_t page_num);
     size_t write(span<const uint8_t> data, uint64_t offset);
     size_t write_vec(span<const span<const uint8_t>> v, uint64_t offset);
     nt_status read_into_cache_and_pin(uint64_t first_page, uint64_t num_pages,
@@ -197,15 +197,6 @@ page_cache<T>::~page_cache() {
 
     if (base.root)
         free_cache_entry(base.root);
-}
-
-template<typename T>
-page_cache_entry* page_cache<T>::find_page_cache_entry_or_earlier(uint64_t page_num) {
-    auto tree = find_rbtree_node_or_less(base.root, page_num);
-    if (!tree)
-        return nullptr;
-
-    return &rbtree_containing_record<page_cache_entry>(tree);
 }
 
 page_cache_entry* create_new_page_cache_entry(uint64_t page_num) {
@@ -651,7 +642,7 @@ nt_status page_cache<T>::flush(uint64_t page_num, uint64_t num_pages,
             lock_guard lg(base.cache_lock);
 
             if (!p) {
-                p = find_page_cache_entry_or_earlier(page_num);
+                p = base.find_page_cache_entry_or_earlier(page_num);
                 if (!p || p->tree.key >= page_num + num_pages)
                     return nt_status::SUCCESS;
 
