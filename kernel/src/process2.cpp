@@ -4017,10 +4017,10 @@ nt_status process::query_times(span<uint8_t> buf, uint32_t& return_length) {
             time_running += t.time_running;
             time_running_in_userspace += t.time_running_in_userspace;
         }
-
-        time_running += dead_threads_time_running;
-        time_running_in_userspace += dead_threads_time_running_in_userspace;
     }
+
+    time_running += dead_threads_time_running;
+    time_running_in_userspace += dead_threads_time_running_in_userspace;
 
     auto freq = kernel_time_page.tsc_freq;
 

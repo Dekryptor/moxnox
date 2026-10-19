@@ -175,12 +175,8 @@ void terminate_thread(thread& t, bool remove_from_proc) {
         t.time_running += tsc - t.last_scheduled_tsc;
     }
 
-    {
-        lock_guard lock(t.proc->threads_lock);
-
-        t.proc->dead_threads_time_running += t.time_running;
-        t.proc->dead_threads_time_running_in_userspace += t.time_running_in_userspace;
-    }
+    t.proc->dead_threads_time_running += t.time_running;
+    t.proc->dead_threads_time_running_in_userspace += t.time_running_in_userspace;
 
     if (last_thread) {
         t.proc->exit_status = t.exit_status;

@@ -164,8 +164,8 @@ public:
 
     spinlock threads_lock;
     list_entry threads = { &threads, &threads };
-    uint64_t dead_threads_time_running = 0;
-    uint64_t dead_threads_time_running_in_userspace = 0;
+    atomic<uint64_t> dead_threads_time_running = 0;
+    atomic<uint64_t> dead_threads_time_running_in_userspace = 0;
     uint64_t children_time_running = 0;
     uint64_t children_time_running_in_userspace = 0;
 
