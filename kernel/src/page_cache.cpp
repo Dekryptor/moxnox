@@ -64,10 +64,15 @@ public:
                                   span<const span<const uint8_t>>& v,
                                   span<const uint8_t>& top, size_t vec_size);
     page_cache_entry* find_page_cache_entry_or_earlier(uint64_t page_num);
+    nt_status flush_range(uint64_t page_num, uint64_t num_pages,
+                          invocable<uint64_t, uint64_t> auto& func);
+    nt_status flush(uint64_t page_num, uint64_t num_pages,
+                    bool clear_dirty, invocable<uint64_t, uint64_t> auto& func);
 
     spinlock cache_lock;
     rbtree_node<uint64_t>* root = nullptr;
     rangelock rl;
+    bool dirty = false;
     spinlock mappings_lock;
     list_entry mappings = { &mappings, &mappings };
 };
@@ -126,11 +131,6 @@ public:
 
     T& dev;
     page_cache_base base;
-
-private:
-    nt_status flush_range(uint64_t page_num, uint64_t num_pages);
-
-    bool dirty = false;
 };
 
 export struct pfn_iterator {
@@ -571,20 +571,20 @@ bool page_cache<T>::find_dirty_range(page_cache_entry*& range_start,
 template<typename T>
 void page_cache<T>::mark_dirty() {
     if constexpr (!cache_supports_writeback<T>)
-        dirty = true;
+        base.dirty = true;
     else {
-        if (dirty)
+        if (base.dirty)
             return;
 
         {
             lock_guard lg(dev.fs.writeback_lock);
 
-            if (dirty)
+            if (base.dirty)
                 return;
 
             auto now = (uint64_t)kernel_time_page.system_time + kernel_time_page.system_time_offset;
 
-            dirty = true;
+            base.dirty = true;
             dev.mtime = dev.ctime = now;
 
             dev.acquire();
@@ -595,15 +595,15 @@ void page_cache<T>::mark_dirty() {
 
 nt_status flush_mappings(list_entry& mappings, spinlock& mappings_lock, uint64_t page_num, uint64_t num_pages);
 
-template<typename T>
-nt_status page_cache<T>::flush_range(uint64_t page_num, uint64_t num_pages) {
+nt_status page_cache_base::flush_range(uint64_t page_num, uint64_t num_pages,
+                                       invocable<uint64_t, uint64_t> auto& func) {
     nt_status status;
 
-    status = flush_mappings(base.mappings, base.mappings_lock, page_num, num_pages);
+    status = flush_mappings(mappings, mappings_lock, page_num, num_pages);
     if (!success(status))
         return status;
 
-    status = dev.flush_cache(page_num, num_pages);
+    status = func(page_num, num_pages);
     if (!success(status))
         return status;
 
@@ -613,12 +613,12 @@ nt_status page_cache<T>::flush_range(uint64_t page_num, uint64_t num_pages) {
 
     for (uint64_t i = 0; i < num_pages; i++) {
         {
-            lock_guard lg(base.cache_lock);
+            lock_guard lg(cache_lock);
 
             if (i == 0)
-                p = base.find_page_cache_entry(page_num);
+                p = find_page_cache_entry(page_num);
             else
-                p = base.next_page_cache_entry(*p);
+                p = next_page_cache_entry(*p);
         }
 
         p->dirty = 0;
@@ -627,32 +627,31 @@ nt_status page_cache<T>::flush_range(uint64_t page_num, uint64_t num_pages) {
     return nt_status::SUCCESS;
 }
 
-template<typename T>
-nt_status page_cache<T>::flush(uint64_t page_num, uint64_t num_pages,
-                               bool clear_dirty) {
+nt_status page_cache_base::flush(uint64_t page_num, uint64_t num_pages,
+                                 bool clear_dirty, invocable<uint64_t, uint64_t> auto& func) {
     static const uint64_t INVALID = 0xffffffffffffffff;
 
-    rangelock_req rlr(base.rl, page_num, num_pages, rangelock_mode::exclusive);
+    rangelock_req rlr(rl, page_num, num_pages, rangelock_mode::exclusive);
 
     page_cache_entry* p = nullptr;
     uint64_t range_start = INVALID, range_length = 0;
 
     while (true) {
         {
-            lock_guard lg(base.cache_lock);
+            lock_guard lg(cache_lock);
 
             if (!p) {
-                p = base.find_page_cache_entry_or_earlier(page_num);
+                p = find_page_cache_entry_or_earlier(page_num);
                 if (!p || p->tree.key >= page_num + num_pages)
                     return nt_status::SUCCESS;
 
                 while (p->tree.key < page_num) {
-                    p = base.next_page_cache_entry(*p);
+                    p = next_page_cache_entry(*p);
                     if (!p || p->tree.key >= page_num + num_pages)
                         return nt_status::SUCCESS;
                 }
             } else {
-                p = base.next_page_cache_entry(*p);
+                p = next_page_cache_entry(*p);
                 if (!p || p->tree.key >= page_num + num_pages)
                     break;
             }
@@ -666,7 +665,7 @@ nt_status page_cache<T>::flush(uint64_t page_num, uint64_t num_pages,
         }
 
         if (range_start != INVALID)
-            flush_range(range_start, range_length);
+            flush_range(range_start, range_length, func);
 
         if (p->dirty) {
             range_start = p->tree.key;
@@ -676,16 +675,26 @@ nt_status page_cache<T>::flush(uint64_t page_num, uint64_t num_pages,
 
 next:
         {
-            lock_guard lg(base.cache_lock);
+            lock_guard lg(cache_lock);
             p->refcount--;
         }
     }
 
     if (range_start != INVALID)
-        flush_range(range_start, range_length);
+        flush_range(range_start, range_length, func);
 
     if (clear_dirty)
         dirty = false;
 
     return nt_status::SUCCESS;
+}
+
+template<typename T>
+nt_status page_cache<T>::flush(uint64_t page_num, uint64_t num_pages,
+                               bool clear_dirty) {
+    auto func = [this](uint64_t page_num, uint64_t num_pages) {
+        return dev.flush_cache(page_num, num_pages);
+    };
+
+    return base.flush(page_num, num_pages, clear_dirty, func);
 }
