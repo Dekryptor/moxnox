@@ -74,9 +74,9 @@ execute_process(COMMAND cc -dumpmachine
     OUTPUT_VARIABLE PYTHON_BUILD_TRIPLE OUTPUT_STRIP_TRAILING_WHITESPACE)
 
 if(CMAKE_HOST_SYSTEM_NAME STREQUAL "Moxnox")
-    set(PYTHON_HOST_LIBM --with-libm=no)
+    set(PYTHON_HOST_CONFIGURE_ARGS --with-libm=no --with-mimalloc=no)
 else()
-    set(PYTHON_HOST_LIBM "")
+    set(PYTHON_HOST_CONFIGURE_ARGS "")
 endif()
 
 ExternalProject_Add(python_freeze_host
@@ -89,7 +89,7 @@ ExternalProject_Add(python_freeze_host
                           ac_executable_extensions=${HOST_EXECUTABLE_SUFFIX}
                           sh ${CMAKE_CURRENT_SOURCE_DIR}/repo/configure
                           --without-ensurepip --disable-test-modules
-                          --with-suffix=${HOST_EXECUTABLE_SUFFIX} ${PYTHON_HOST_LIBM}
+                          --with-suffix=${HOST_EXECUTABLE_SUFFIX} ${PYTHON_HOST_CONFIGURE_ARGS}
     BUILD_COMMAND     ${CMAKE_COMMAND} -E env
                           --unset=CFLAGS --unset=CPPFLAGS --unset=LDFLAGS
                           CC=cc CXX=c++
