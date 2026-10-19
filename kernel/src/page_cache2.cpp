@@ -315,7 +315,7 @@ bool find_unread_range(page_cache_base& cache, page_cache_entry*& range_start,
 
             ent = cache.next_page_cache_entry(*ent);
 
-            if (!ent || ent->pfn) {
+            if (!ent || ent->pfn || ent->tree.key != orig_ent->tree.key + 1) {
                 ent = orig_ent;
                 break;
             }
