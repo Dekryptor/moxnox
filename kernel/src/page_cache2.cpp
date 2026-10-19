@@ -299,7 +299,7 @@ bool find_unread_range(page_cache_base& cache, page_cache_entry*& range_start,
     while (ent->pfn) {
         ent = cache.next_page_cache_entry(*ent);
 
-        if (!ent)
+        if (!ent || ent->tree.key >= first_page + num_pages)
             return false;
     }
 
