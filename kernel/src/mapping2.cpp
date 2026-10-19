@@ -28,8 +28,8 @@ mapping::mapping(process& proc, section& sect) : proc(proc), sect(sect) {
         auto& cache = *ptr;
 
         {
-            lock_guard lg(cache.mappings_lock);
-            insert_tail_list(cache.mappings, cache_le);
+            lock_guard lg(cache.base.mappings_lock);
+            insert_tail_list(cache.base.mappings, cache_le);
         }
     }, sect.get_cache());
 }
@@ -156,7 +156,7 @@ mapping::~mapping() {
         auto& cache = *ptr;
 
         {
-            lock_guard lg(cache.mappings_lock);
+            lock_guard lg(cache.base.mappings_lock);
             remove_entry_list(cache_le);
         }
     }, sect.get_cache());

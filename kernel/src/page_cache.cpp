@@ -68,6 +68,8 @@ public:
     spinlock cache_lock;
     rbtree_node<uint64_t>* root = nullptr;
     rangelock rl;
+    spinlock mappings_lock;
+    list_entry mappings = { &mappings, &mappings };
 };
 
 export
@@ -123,8 +125,6 @@ public:
     nt_status flush(uint64_t page_num, uint64_t num_pages, bool clear_dirty);
 
     T& dev;
-    spinlock mappings_lock;
-    list_entry mappings = { &mappings, &mappings };
     page_cache_base base;
 
 private:
@@ -599,7 +599,7 @@ template<typename T>
 nt_status page_cache<T>::flush_range(uint64_t page_num, uint64_t num_pages) {
     nt_status status;
 
-    status = flush_mappings(mappings, mappings_lock, page_num, num_pages);
+    status = flush_mappings(base.mappings, base.mappings_lock, page_num, num_pages);
     if (!success(status))
         return status;
 
