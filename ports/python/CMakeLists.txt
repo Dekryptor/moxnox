@@ -72,7 +72,7 @@ ExternalProject_Add(python_freeze_host
     CONFIGURE_COMMAND ${CMAKE_COMMAND} -E env
                           --unset=CFLAGS --unset=CPPFLAGS --unset=LDFLAGS
                           CC=cc CXX=c++
-                          ${CMAKE_CURRENT_SOURCE_DIR}/repo/configure
+                          sh ${CMAKE_CURRENT_SOURCE_DIR}/repo/configure
                           --without-ensurepip --disable-test-modules
     BUILD_COMMAND     ${CMAKE_COMMAND} -E env
                           --unset=CFLAGS --unset=CPPFLAGS --unset=LDFLAGS
