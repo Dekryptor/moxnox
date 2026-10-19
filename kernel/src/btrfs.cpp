@@ -5163,11 +5163,22 @@ NTSTATUS btrfs_inode::query_directory(span<uint8_t> buf, FILE_INFORMATION_CLASS 
     if (!success(status))
         return status;
 
+    {
+        auto& th = *(btrfs_header*)p.data[0];
+
+        if (p.slots[0] >= th.nritems) {
+            status = next_leaf(fs, p, *r, false);
+            if (status == nt_status::NOT_FOUND)
+                return nt_status::NO_MORE_FILES;
+            else if (!success(status)) {
+                print("btrfs_inode::query_directory: next_leaf returned {}\n", status);
+                return status;
+            }
+        }
+    }
+
     auto& th = *(btrfs_header*)p.data[0];
     auto items = span((btrfs_item*)((uint8_t*)&th + sizeof(btrfs_header)), th.nritems);
-
-    if (p.slots[0] >= th.nritems)
-        return nt_status::NO_MORE_FILES;
 
     const auto& it = items[p.slots[0]];
     const auto& found_key = it.key;
