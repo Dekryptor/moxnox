@@ -7092,8 +7092,10 @@ nt_status btrfs_inode::set_disposition_information(span<const uint8_t> buffer,
         assert(name_len != 0);
 
         name_buf = (char*)malloc(name_len);
-        if (!name_buf)
+        if (!name_buf) {
+            print("malloc failed\n");
             return nt_status::INSUFFICIENT_RESOURCES;
+        }
 
         bool done = false;
 
@@ -7146,6 +7148,7 @@ nt_status btrfs_inode::set_disposition_information(span<const uint8_t> buffer,
 
         status = remove_dir_item(fs, *r, tree.key, name, parent_inode);
         if (!success(status)) {
+            print("btrfs_inode::set_disposition_information: remove_dir_item returned {}\n", status);
             free(name_buf);
             return status;
         }
@@ -7165,6 +7168,7 @@ nt_status btrfs_inode::set_disposition_information(span<const uint8_t> buffer,
 
         status = parent.flush_inode_item(p);
         if (!success(status)) {
+            print("btrfs_inode::set_disposition_information: flush_inode_item 1 returned {}\n", status);
             free(name_buf);
             return status;
         }
@@ -7186,6 +7190,7 @@ nt_status btrfs_inode::set_disposition_information(span<const uint8_t> buffer,
 
         status = flush_inode_item(p);
         if (!success(status)) {
+            print("btrfs_inode::set_disposition_information: flush_inode_item 2 returned {}\n", status);
             free(name_buf);
             return status;
         }
@@ -7196,6 +7201,7 @@ nt_status btrfs_inode::set_disposition_information(span<const uint8_t> buffer,
                                  {BTRFS_ORPHAN_OBJECTID, key_type::ORPHAN_INODE, tree.key},
                                  span<const uint8_t>());
             if (!success(status)) {
+                print("btrfs_inode::set_disposition_information: insert_item returned {}\n", status);
                 free(name_buf);
                 return status;
             }
