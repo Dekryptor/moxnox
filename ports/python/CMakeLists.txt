@@ -57,7 +57,7 @@ add_custom_target(python_patched_headers DEPENDS
 include(ExternalProject)
 
 set(PYTHON_FREEZE_HOST_DIR ${CMAKE_CURRENT_BINARY_DIR}/freeze-host)
-set(PYTHON_FREEZE_MODULE ${PYTHON_FREEZE_HOST_DIR}/Programs/_freeze_module)
+set(PYTHON_FREEZE_MODULE ${PYTHON_FREEZE_HOST_DIR}/Programs/_freeze_module${HOST_EXECUTABLE_SUFFIX})
 
 include(ProcessorCount)
 ProcessorCount(PYTHON_FREEZE_JOBS)
@@ -78,6 +78,7 @@ ExternalProject_Add(python_freeze_host
                           ac_executable_extensions=${HOST_EXECUTABLE_SUFFIX}
                           sh ${CMAKE_CURRENT_SOURCE_DIR}/repo/configure
                           --without-ensurepip --disable-test-modules
+                          --with-suffix=${HOST_EXECUTABLE_SUFFIX}
     BUILD_COMMAND     ${CMAKE_COMMAND} -E env
                           --unset=CFLAGS --unset=CPPFLAGS --unset=LDFLAGS
                           CC=cc CXX=c++
