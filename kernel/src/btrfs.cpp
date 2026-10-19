@@ -4427,8 +4427,9 @@ static nt_status add_data_change(btrfs_filesystem& fs, uint64_t extent_address,
 
 nt_status btrfs_inode::flush_inode_item(btrfs_path& p) {
     nt_status status;
+    btrfs_key search_key{tree.key, key_type::INODE_ITEM, 0};
 
-    status = fs.find_item(*r, {tree.key, key_type::INODE_ITEM, 0}, p, true);
+    status = fs.find_item(*r, search_key, p, true);
     if (!success(status))
         return status;
 
@@ -4438,8 +4439,10 @@ nt_status btrfs_inode::flush_inode_item(btrfs_path& p) {
     auto& it = items[p.slots[0]];
     const auto& found_key = it.key;
 
-    if (found_key.objectid != tree.key || found_key.type != key_type::INODE_ITEM)
+    if (found_key.objectid != tree.key || found_key.type != key_type::INODE_ITEM) {
+        print("btrfs_inode::flush_inode_item: could not find {}\n", search_key);
         return nt_status::DISK_CORRUPT_ERROR;
+    }
 
     auto data = span((const uint8_t*)&th + sizeof(btrfs_header) + it.offset, it.size);
 
