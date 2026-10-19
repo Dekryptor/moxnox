@@ -169,6 +169,11 @@ private:
     page_cache_entry* p;
 };
 
+bool find_unread_range(page_cache_base& cache, page_cache_entry*& range_start,
+                       page_cache_entry*& range_end,
+                       uint64_t& range_length, page_cache_entry*& ent,
+                       uint64_t first_page, uint64_t num_pages);
+
 void free_cache_entry(rbtree_node<uint64_t>* tree) {
     auto& r = rbtree_containing_record<page_cache_entry>(tree);
 
@@ -281,48 +286,6 @@ void clean_pages(page_cache<T>& cache, page_cache_entry* range_start,
         p->dirty = 0;
         p = cache.base.next_page_cache_entry(*p);
     }
-}
-
-template<typename T>
-bool find_unread_range(page_cache<T>& cache, page_cache_entry*& range_start,
-                       page_cache_entry*& range_end,
-                       uint64_t& range_length, page_cache_entry*& ent,
-                       uint64_t first_page, uint64_t num_pages) {
-    lock_guard lg(cache.base.cache_lock);
-
-    // find first contiguous unread range
-
-    while (ent->pfn) {
-        ent = cache.base.next_page_cache_entry(*ent);
-
-        if (!ent)
-            return false;
-    }
-
-    range_start = ent;
-
-    uint64_t range_left = first_page + num_pages - range_start->tree.key - 1;
-
-    range_length = 1;
-
-    if (range_left != 0) {
-        for (uint64_t i = 0; i < range_left; i++) {
-            auto orig_ent = ent;
-
-            ent = cache.base.next_page_cache_entry(*ent);
-
-            if (!ent || ent->pfn) {
-                ent = orig_ent;
-                break;
-            }
-
-            range_length++;
-        }
-    }
-
-    range_end = ent;
-
-    return true;
 }
 
 template<typename T>
@@ -443,8 +406,8 @@ nt_status read_and_pin(page_cache<T>& cache, uint64_t offset, uint64_t length) {
             page_cache_entry* range_end;
             uint64_t range_length;
 
-            if (!find_unread_range(cache, range_start, range_end, range_length, ent,
-                                   first_page, num_pages))
+            if (!find_unread_range(cache.base, range_start, range_end, range_length,
+                                   ent, first_page, num_pages))
                 break;
 
             // read data into pages
@@ -499,8 +462,8 @@ nt_status page_cache<T>::read_into_cache_and_pin(uint64_t first_page, uint64_t n
             page_cache_entry* range_end;
             uint64_t range_length;
 
-            if (!find_unread_range(*this, range_start, range_end, range_length, ent,
-                                   first_page, num_pages))
+            if (!find_unread_range(base, range_start, range_end, range_length,
+                                   ent, first_page, num_pages))
                 break;
 
             // read data into pages

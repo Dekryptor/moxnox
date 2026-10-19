@@ -287,3 +287,44 @@ bool page_cache_base::write_page_vec_and_unpin(uint64_t first_page,
 
     return true;
 }
+
+bool find_unread_range(page_cache_base& cache, page_cache_entry*& range_start,
+                       page_cache_entry*& range_end,
+                       uint64_t& range_length, page_cache_entry*& ent,
+                       uint64_t first_page, uint64_t num_pages) {
+    lock_guard lg(cache.cache_lock);
+
+    // find first contiguous unread range
+
+    while (ent->pfn) {
+        ent = cache.next_page_cache_entry(*ent);
+
+        if (!ent)
+            return false;
+    }
+
+    range_start = ent;
+
+    uint64_t range_left = first_page + num_pages - range_start->tree.key - 1;
+
+    range_length = 1;
+
+    if (range_left != 0) {
+        for (uint64_t i = 0; i < range_left; i++) {
+            auto orig_ent = ent;
+
+            ent = cache.next_page_cache_entry(*ent);
+
+            if (!ent || ent->pfn) {
+                ent = orig_ent;
+                break;
+            }
+
+            range_length++;
+        }
+    }
+
+    range_end = ent;
+
+    return true;
+}
