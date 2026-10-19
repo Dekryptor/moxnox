@@ -65,13 +65,16 @@ if(PYTHON_FREEZE_JOBS EQUAL 0)
     set(PYTHON_FREEZE_JOBS 1)
 endif()
 
+execute_process(COMMAND cc -dumpmachine
+    OUTPUT_VARIABLE PYTHON_BUILD_TRIPLE OUTPUT_STRIP_TRAILING_WHITESPACE)
+
 ExternalProject_Add(python_freeze_host
     SOURCE_DIR        ${CMAKE_CURRENT_SOURCE_DIR}/repo
     BINARY_DIR        ${PYTHON_FREEZE_HOST_DIR}
     BUILD_IN_SOURCE   OFF
     CONFIGURE_COMMAND ${CMAKE_COMMAND} -E env
                           --unset=CFLAGS --unset=CPPFLAGS --unset=LDFLAGS
-                          CC=cc CXX=c++
+                          CC=cc CXX=c++ ac_cv_build=${PYTHON_BUILD_TRIPLE}
                           sh ${CMAKE_CURRENT_SOURCE_DIR}/repo/configure
                           --without-ensurepip --disable-test-modules
     BUILD_COMMAND     ${CMAKE_COMMAND} -E env
