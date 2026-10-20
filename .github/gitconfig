@@ -154,3 +154,5 @@
 	insteadOf = https://github.com/pallets/markupsafe.git
 [url "https://git.burntcomma.com/moxnox/mako"]
 	insteadOf = https://github.com/sqlalchemy/mako.git
+[url "https://git.burntcomma.com/moxnox/pyyaml"]
+	insteadOf = https://github.com/yaml/pyyaml.git

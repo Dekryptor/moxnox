@@ -232,3 +232,6 @@
 [submodule "ports/mako/repo"]
 	path = ports/mako/repo
 	url = https://github.com/sqlalchemy/mako.git
+[submodule "ports/pyyaml/repo"]
+	path = ports/pyyaml/repo
+	url = https://github.com/yaml/pyyaml.git

@@ -48,6 +48,7 @@
     "perl": ["bzip2", "zlib"],
     "pixman": [],
     "python": ["expat", "ncurses", "openssl", "readline", "zlib"],
+    "pyyaml": [],
     "readline": ["ncurses"],
     "ripgrep": [],
     "rust": [],
