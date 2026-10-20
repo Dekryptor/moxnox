@@ -423,6 +423,8 @@ target_link_libraries(python_exe PRIVATE libpython moxnox)
 add_dependencies(python_exe python_patched_headers)
 
 install(TARGETS python_exe DESTINATION ${CMAKE_INSTALL_PREFIX}/bin)
+install(CODE "file(CREATE_LINK python.exe \"\$ENV{DESTDIR}${CMAKE_INSTALL_PREFIX}/bin/python3.exe\" SYMBOLIC)")
+install(CODE "file(CREATE_LINK python.exe \"\$ENV{DESTDIR}${CMAKE_INSTALL_PREFIX}/bin/python3.13.exe\" SYMBOLIC)")
 
 install(DIRECTORY repo/Lib/
     DESTINATION ${CMAKE_INSTALL_PREFIX}/lib/python3.13
