@@ -27,10 +27,12 @@ struct free_block : alloc_header {
     list_entry le;
 };
 
+static constexpr size_t NUM_BINS = 76;
+
 class subheap {
 public:
     subheap(size_t reserve_size, size_t commit_size,
-            array<list_entry, 65>& free_bins);
+            array<list_entry, NUM_BINS>& free_bins);
 
     list_entry le;
     size_t reserve_size;
@@ -51,17 +53,41 @@ public:
     list_entry subheaps = { &subheaps, &subheaps };
     RTL_CRITICAL_SECTION cs;
     size_t reserve_size, commit_size;
-    array<list_entry, 65> free_bins;
+    array<list_entry, NUM_BINS> free_bins;
 };
 
 static size_t get_bin_number(size_t size) {
-    if (size > 1024)
-        return 64;
+    if (size > 1024) {
+        if (size > 32768)
+            return 75;
+        else if (size > 16384)
+            return 74;
+        else if (size > 8192)
+            return 73;
+        else if (size > 4096)
+            return 72;
+        else if (size > 3584)
+            return 71;
+        else if (size > 3072)
+            return 70;
+        else if (size > 2560)
+            return 69;
+        else if (size > 2048)
+            return 68;
+        else if (size > 1792)
+            return 67;
+        else if (size > 1536)
+            return 66;
+        else if (size > 1280)
+            return 65;
+        else
+            return 64;
+    }
 
     return (size - 1) / 16;
 }
 
-subheap::subheap(size_t reserve_size, size_t commit_size, array<list_entry, 65>& free_bins) : reserve_size(reserve_size), commit_size(commit_size) {
+subheap::subheap(size_t reserve_size, size_t commit_size, array<list_entry, NUM_BINS>& free_bins) : reserve_size(reserve_size), commit_size(commit_size) {
     auto& fb = *(free_block*)data;
 
 #pragma GCC diagnostic push
@@ -129,7 +155,7 @@ heap::~heap() {
 }
 
 static void mark_block_allocated(free_block& fb, size_t size,
-                                 array<list_entry, 65>& free_bins) {
+                                 array<list_entry, NUM_BINS>& free_bins) {
     if (fb.size >= size + sizeof(free_block)) {
         auto& nh = *(free_block*)((uint8_t*)&fb + sizeof(alloc_header) + size);
 
