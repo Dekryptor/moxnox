@@ -68,7 +68,7 @@ RUN mkdir -p /usr/aarch64-pc-moxnox/etc/portage/package.use && printf 'llvm-core
 RUN mkdir -p /usr/aarch64-pc-moxnox/etc/portage/package.env && printf 'llvm-core/llvm moxnox-llvm\n' >> /usr/aarch64-pc-moxnox/etc/portage/package.env/llvm
 RUN mkdir -p /usr/aarch64-pc-moxnox/etc/portage/env && printf 'MYCMAKEARGS="${MYCMAKEARGS} -DLLVM_BUILD_LLVM_DYLIB=OFF -DLLVM_LINK_LLVM_DYLIB=OFF -DLLVM_ENABLE_ZLIB=OFF -DCMAKE_BUILD_TYPE=Release -DHAVE_LIBPTHREAD=0 -DHAVE_LIBRT=0 -DHAVE_LIBDL=0 -DLLVM_DISTRIBUTION_COMPONENTS=\\\"llvm-libraries;llvm-headers;cmake-exports;llvm-config\\\""\nFEATURES=\"${FEATURES} nostrip\"\n' >> /usr/aarch64-pc-moxnox/etc/portage/env/moxnox-llvm
 RUN mkdir -p /usr/aarch64-pc-moxnox/etc/portage/patches/llvm-core/llvm && cd /usr/aarch64-pc-moxnox/etc/portage/patches/llvm-core/llvm && wget https://moxnox.dev/llvm-moxnox.tar.gz && tar -xzf llvm-moxnox.tar.gz && rm llvm-moxnox.tar.gz
-RUN emerge dev-python/mako dev-python/pyaml
+RUN emerge dev-python/mako dev-python/pyyaml
 RUN aarch64-pc-moxnox-emerge --nodeps llvm-core/llvm:22 # --nodeps because Gentoo pulls in zlib despite the fact we've disabled it
 
 RUN rm -rf /var/cache/distfiles
