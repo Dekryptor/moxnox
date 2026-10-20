@@ -106,18 +106,36 @@ add_custom_command(
     VERBATIM
 )
 
-if(CMAKE_SYSTEM_PROCESSOR STREQUAL "aarch64")
-    set(LLVM_CROSS_SYSROOT /usr/${LLVM_NATIVE_HOST_TRIPLE})
+set(LLVM_CROSS_SYSROOT /usr/${LLVM_NATIVE_HOST_TRIPLE})
 
-    set(llvm_runtimes_args
-        -G Ninja
-        -DCMAKE_TOOLCHAIN_FILE=${LLVM_NATIVE_TOOLCHAIN}
-        -DCMAKE_BUILD_TYPE=Release
-        -DCMAKE_INSTALL_PREFIX=/usr
-        "-DCMAKE_CXX_FLAGS=-isystem ${CMAKE_SOURCE_DIR}/include"
-        -DCMAKE_C_COMPILER_TARGET=${LLVM_NATIVE_HOST_TRIPLE}
-        -DCMAKE_CXX_COMPILER_TARGET=${LLVM_NATIVE_HOST_TRIPLE}
-        -DCMAKE_ASM_COMPILER_TARGET=${LLVM_NATIVE_HOST_TRIPLE}
+set(llvm_runtimes_args
+    -G Ninja
+    -DCMAKE_TOOLCHAIN_FILE=${LLVM_NATIVE_TOOLCHAIN}
+    -DCMAKE_BUILD_TYPE=Release
+    -DCMAKE_INSTALL_PREFIX=/usr
+    "-DCMAKE_CXX_FLAGS=-isystem ${CMAKE_SOURCE_DIR}/include"
+    -DCMAKE_C_COMPILER_TARGET=${LLVM_NATIVE_HOST_TRIPLE}
+    -DCMAKE_CXX_COMPILER_TARGET=${LLVM_NATIVE_HOST_TRIPLE}
+    -DCMAKE_ASM_COMPILER_TARGET=${LLVM_NATIVE_HOST_TRIPLE}
+    -DLIBCXXABI_ENABLE_SHARED=OFF
+    -DLIBCXX_ENABLE_SHARED=OFF
+    -DLIBCXXABI_HAS_C_LIB=OFF
+    -DLIBCXXABI_HAS_PTHREAD_LIB=OFF
+    -DLIBCXXABI_HAS_GCC_LIB=OFF
+    -DLIBCXXABI_HAS_GCC_S_LIB=OFF
+    -DLIBCXXABI_HAS_DL_LIB=OFF
+    -DLIBCXX_HAS_PTHREAD_LIB=OFF
+    -DLIBCXX_HAS_ATOMIC_LIB=OFF
+    -DLIBCXX_HAS_RT_LIB=OFF
+    -DLIBCXXABI_HERMETIC_STATIC_LIBRARY=ON
+    -DLIBCXX_HERMETIC_STATIC_LIBRARY=ON
+    -DLIBCXX_CXX_ABI=libcxxabi
+    -DLIBCXX_ENABLE_ABI_LINKER_SCRIPT=OFF
+    -DCMAKE_SHARED_LINKER_FLAGS=-nostdlib++
+)
+
+if(CMAKE_SYSTEM_PROCESSOR STREQUAL "aarch64")
+    list(APPEND llvm_runtimes_args
         -DLLVM_ENABLE_RUNTIMES=compiler-rt$<SEMICOLON>libunwind$<SEMICOLON>libcxxabi$<SEMICOLON>libcxx
         -DCOMPILER_RT_BUILD_BUILTINS=ON
         -DCOMPILER_RT_BUILD_CRT=OFF
@@ -131,53 +149,39 @@ if(CMAKE_SYSTEM_PROCESSOR STREQUAL "aarch64")
         -DCOMPILER_RT_INSTALL_PATH=/usr/lib/clang/22
         -DLIBUNWIND_ENABLE_SHARED=OFF
         -DLIBUNWIND_HIDE_SYMBOLS=ON
-        -DLIBCXXABI_ENABLE_SHARED=OFF
-        -DLIBCXX_ENABLE_SHARED=OFF
         "-DLIBUNWIND_ADDITIONAL_COMPILE_FLAGS=-D_WIN32$<SEMICOLON>-D_WIN64$<SEMICOLON>-D__MINGW32__$<SEMICOLON>-D__MINGW64__$<SEMICOLON>-D__MSVCRT__$<SEMICOLON>-D__STRALIGN_H_$<SEMICOLON>-idirafter${LLVM_CROSS_SYSROOT}/mingw-compat/include"
         -DLIBUNWIND_HAS_C_LIB=OFF
         -DLIBUNWIND_HAS_PTHREAD_LIB=OFF
         -DLIBUNWIND_HAS_DL_LIB=OFF
-        -DLIBCXXABI_HAS_C_LIB=OFF
-        -DLIBCXXABI_HAS_PTHREAD_LIB=OFF
-        -DLIBCXXABI_HAS_GCC_LIB=OFF
-        -DLIBCXXABI_HAS_GCC_S_LIB=OFF
-        -DLIBCXXABI_HAS_DL_LIB=OFF
-        -DLIBCXX_HAS_PTHREAD_LIB=OFF
-        -DLIBCXX_HAS_ATOMIC_LIB=OFF
-        -DLIBCXX_HAS_RT_LIB=OFF
-        -DLIBCXXABI_HERMETIC_STATIC_LIBRARY=ON
-        -DLIBCXX_HERMETIC_STATIC_LIBRARY=ON
-        -DLIBCXX_CXX_ABI=libcxxabi
-        -DLIBCXX_ENABLE_ABI_LINKER_SCRIPT=OFF
-        -DCMAKE_SHARED_LINKER_FLAGS=-nostdlib++
-    )
-
-    add_custom_command(
-        OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/llvm-runtimes.stamp
-        COMMAND sh -c "cd '${CMAKE_CURRENT_SOURCE_DIR}/repo' && if git apply --check -R '${CMAKE_CURRENT_SOURCE_DIR}/moxnox.patch' 2>/dev/null; then :; elif git status --porcelain | grep -q .; then echo 'ports/llvm/repo has local changes or leftover files, not applying moxnox.patch:' >&2; git status --porcelain >&2; exit 1; else git apply '${CMAKE_CURRENT_SOURCE_DIR}/moxnox.patch'; fi"
-        COMMAND ${CMAKE_COMMAND} -S ${CMAKE_CURRENT_SOURCE_DIR}/repo/runtimes
-            -B ${CMAKE_CURRENT_BINARY_DIR}/runtimes-build ${llvm_runtimes_args}
-        COMMAND ${CMAKE_COMMAND} --build ${CMAKE_CURRENT_BINARY_DIR}/runtimes-build
-        COMMAND ${CMAKE_COMMAND} -E env DESTDIR=${LLVM_NATIVE_DEST}
-            ${CMAKE_COMMAND} --build ${CMAKE_CURRENT_BINARY_DIR}/runtimes-build --target install
-        COMMAND sh -c "cd '${CMAKE_CURRENT_SOURCE_DIR}/repo' && git apply -R '${CMAKE_CURRENT_SOURCE_DIR}/moxnox.patch'"
-        COMMAND ${CMAKE_COMMAND} -E touch ${CMAKE_CURRENT_BINARY_DIR}/llvm-runtimes.stamp
-        # the two builds patch and unpatch the same submodule, so they must not overlap
-        DEPENDS ${CMAKE_CURRENT_BINARY_DIR}/llvm.stamp ${CMAKE_CURRENT_SOURCE_DIR}/moxnox.patch
-        USES_TERMINAL
-        COMMENT "Building LLVM runtimes (${LLVM_NATIVE_HOST_TRIPLE})"
-        VERBATIM
-    )
-
-    add_custom_target(llvm
-        DEPENDS ${CMAKE_CURRENT_BINARY_DIR}/llvm.stamp
-            ${CMAKE_CURRENT_BINARY_DIR}/llvm-runtimes.stamp
     )
 else()
-    add_custom_target(llvm
-        DEPENDS ${CMAKE_CURRENT_BINARY_DIR}/llvm.stamp
+    list(APPEND llvm_runtimes_args
+        -DLLVM_ENABLE_RUNTIMES=libcxxabi$<SEMICOLON>libcxx
+        -DLIBCXXABI_USE_LLVM_UNWINDER=OFF
     )
 endif()
+
+add_custom_command(
+    OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/llvm-runtimes.stamp
+    COMMAND sh -c "cd '${CMAKE_CURRENT_SOURCE_DIR}/repo' && if git apply --check -R '${CMAKE_CURRENT_SOURCE_DIR}/moxnox.patch' 2>/dev/null; then :; elif git status --porcelain | grep -q .; then echo 'ports/llvm/repo has local changes or leftover files, not applying moxnox.patch:' >&2; git status --porcelain >&2; exit 1; else git apply '${CMAKE_CURRENT_SOURCE_DIR}/moxnox.patch'; fi"
+    COMMAND ${CMAKE_COMMAND} -S ${CMAKE_CURRENT_SOURCE_DIR}/repo/runtimes
+        -B ${CMAKE_CURRENT_BINARY_DIR}/runtimes-build ${llvm_runtimes_args}
+    COMMAND ${CMAKE_COMMAND} --build ${CMAKE_CURRENT_BINARY_DIR}/runtimes-build
+    COMMAND ${CMAKE_COMMAND} -E env DESTDIR=${LLVM_NATIVE_DEST}
+        ${CMAKE_COMMAND} --build ${CMAKE_CURRENT_BINARY_DIR}/runtimes-build --target install
+    COMMAND sh -c "cd '${CMAKE_CURRENT_SOURCE_DIR}/repo' && git apply -R '${CMAKE_CURRENT_SOURCE_DIR}/moxnox.patch'"
+    COMMAND ${CMAKE_COMMAND} -E touch ${CMAKE_CURRENT_BINARY_DIR}/llvm-runtimes.stamp
+    # the two builds patch and unpatch the same submodule, so they must not overlap
+    DEPENDS ${CMAKE_CURRENT_BINARY_DIR}/llvm.stamp ${CMAKE_CURRENT_SOURCE_DIR}/moxnox.patch
+    USES_TERMINAL
+    COMMENT "Building LLVM runtimes (${LLVM_NATIVE_HOST_TRIPLE})"
+    VERBATIM
+)
+
+add_custom_target(llvm
+    DEPENDS ${CMAKE_CURRENT_BINARY_DIR}/llvm.stamp
+        ${CMAKE_CURRENT_BINARY_DIR}/llvm-runtimes.stamp
+)
 
 install(DIRECTORY ${LLVM_NATIVE_DEST}/usr/ DESTINATION ${CMAKE_INSTALL_PREFIX}/
     USE_SOURCE_PERMISSIONS OPTIONAL
