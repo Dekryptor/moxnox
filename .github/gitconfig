@@ -150,3 +150,5 @@
 	insteadOf = https://github.com/BurntSushi/ripgrep
 [url "https://git.burntcomma.com/moxnox/hexyl"]
 	insteadOf = https://github.com/sharkdp/hexyl
+[url "https://git.burntcomma.com/moxnox/markupsafe"]
+	insteadOf = https://github.com/pallets/markupsafe.git

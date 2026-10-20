@@ -226,3 +226,6 @@
 [submodule "ports/gperf/repo"]
 	path = ports/gperf/repo
 	url = git://git.git.savannah.gnu.org/gperf.git
+[submodule "ports/markupsafe/repo"]
+	path = ports/markupsafe/repo
+	url = https://github.com/pallets/markupsafe.git
