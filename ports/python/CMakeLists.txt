@@ -92,7 +92,7 @@ ExternalProject_Add(python_freeze_host
                           --with-suffix=${HOST_EXECUTABLE_SUFFIX} ${PYTHON_HOST_CONFIGURE_ARGS}
     BUILD_COMMAND     ${CMAKE_COMMAND} -E env
                           --unset=CFLAGS --unset=CPPFLAGS --unset=LDFLAGS
-                          CC=cc CXX=c++
+                          CC=cc CXX=c++ CFLAGS=-g0
                           make -j${PYTHON_FREEZE_JOBS} Programs/_freeze_module
     BUILD_BYPRODUCTS  ${PYTHON_FREEZE_MODULE}
     INSTALL_COMMAND   ""
