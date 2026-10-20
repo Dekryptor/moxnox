@@ -2,6 +2,7 @@
 
 #include <sys/types.h>
 #include <signal.h>
+#include <sched.h>
 
 struct _posix_spawn_file_actions_t {
     void* _ptr1;
@@ -52,6 +53,9 @@ int posix_spawnattr_setsigdefault(posix_spawnattr_t* attr,
 int posix_spawnattr_setsigmask(posix_spawnattr_t* attr,
                                const sigset_t* sigmask);
 int posix_spawnattr_setpgroup(posix_spawnattr_t* attr, pid_t pgroup);
+int posix_spawnattr_setschedpolicy(posix_spawnattr_t* attr, int schedpolicy);
+int posix_spawnattr_setschedparam(posix_spawnattr_t* attr,
+                                  const struct sched_param* schedparam);
 
 #ifdef __cplusplus
 }
