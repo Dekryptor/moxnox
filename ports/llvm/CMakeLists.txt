@@ -9,10 +9,18 @@ endif()
 set(LLVM_NATIVE_BUILD ${CMAKE_CURRENT_BINARY_DIR}/llvm-build)
 set(LLVM_NATIVE_DEST ${CMAKE_CURRENT_BINARY_DIR}/dest)
 
+if(CMAKE_HOST_SYSTEM_NAME STREQUAL "Moxnox")
+    set(llvm_compiler_args -DCMAKE_C_COMPILER=clang -DCMAKE_CXX_COMPILER=clang++)
+    set(llvm_stdlib_args -DLLVM_ENABLE_LIBCXX=ON -DLLVM_STATIC_LINK_CXX_STDLIB=ON)
+else()
+    set(llvm_compiler_args -DCMAKE_TOOLCHAIN_FILE=${LLVM_NATIVE_TOOLCHAIN})
+    set(llvm_stdlib_args -DSTATIC_LIBCXX=ON)
+endif()
+
 set(llvm_args
     -G Ninja
-    -DCMAKE_TOOLCHAIN_FILE=${LLVM_NATIVE_TOOLCHAIN}
-    -DSTATIC_LIBCXX=ON
+    ${llvm_compiler_args}
+    ${llvm_stdlib_args}
     -DCMAKE_BUILD_TYPE=Release
     -DCMAKE_INSTALL_PREFIX=/usr
     -DCMAKE_STRIP=llvm-strip
@@ -110,7 +118,7 @@ set(LLVM_CROSS_SYSROOT /usr/${LLVM_NATIVE_HOST_TRIPLE})
 
 set(llvm_runtimes_args
     -G Ninja
-    -DCMAKE_TOOLCHAIN_FILE=${LLVM_NATIVE_TOOLCHAIN}
+    ${llvm_compiler_args}
     -DCMAKE_BUILD_TYPE=Release
     -DCMAKE_INSTALL_PREFIX=/usr
     "-DCMAKE_CXX_FLAGS=-isystem ${CMAKE_SOURCE_DIR}/include"
