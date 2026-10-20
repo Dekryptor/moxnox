@@ -1531,29 +1531,34 @@ else()
     set(MESA_BLAKE3_DEFINES BLAKE3_USE_NEON=0)
 endif()
 
-if(CMAKE_SYSROOT)
-    set(MESA_LLVM_SYSROOT ${CMAKE_SYSROOT})
-elseif(LIBCXX_HEADERS)
-    get_filename_component(MESA_LLVM_SYSROOT ${LIBCXX_HEADERS}/../../../..
-                           ABSOLUTE)
-else()
-    execute_process(COMMAND ${CMAKE_CXX_COMPILER} -print-sysroot
-        OUTPUT_VARIABLE MESA_LLVM_SYSROOT OUTPUT_STRIP_TRAILING_WHITESPACE)
-endif()
-
-if(EXISTS ${MESA_LLVM_SYSROOT}/usr/lib/llvm/22/lib/cmake/llvm/LLVMConfig.cmake)
-    set(MESA_LLVM_DIR ${MESA_LLVM_SYSROOT}/usr/lib/llvm/22/lib/cmake/llvm)
-elseif(EXISTS ${MESA_LLVM_SYSROOT}/usr/lib/cmake/llvm/LLVMConfig.cmake)
-    set(MESA_LLVM_DIR ${MESA_LLVM_SYSROOT}/usr/lib/cmake/llvm)
-else()
-    set(MESA_LLVM_DIR ${CMAKE_BINARY_DIR}/ports/llvm/dest/usr/lib/cmake/llvm)
-endif()
-
-if(CMAKE_SYSTEM_PROCESSOR STREQUAL "x86_64" AND
-   NOT MESA_LLVM_DIR STREQUAL "${CMAKE_BINARY_DIR}/ports/llvm/dest/usr/lib/cmake/llvm")
-    set(MESA_LLVM_LIBCXX OFF)
-else()
+if(CMAKE_HOST_SYSTEM_NAME STREQUAL "Moxnox")
+    set(MESA_LLVM_DIR /lib/cmake/llvm)
+    set(MESA_LLVM_PREFIX "")
     set(MESA_LLVM_LIBCXX ON)
+else()
+    if(CMAKE_SYSROOT)
+        set(MESA_LLVM_SYSROOT ${CMAKE_SYSROOT})
+    elseif(LIBCXX_HEADERS)
+        get_filename_component(MESA_LLVM_SYSROOT ${LIBCXX_HEADERS}/../../../..
+                               ABSOLUTE)
+    else()
+        execute_process(COMMAND ${CMAKE_CXX_COMPILER} -print-sysroot
+            OUTPUT_VARIABLE MESA_LLVM_SYSROOT OUTPUT_STRIP_TRAILING_WHITESPACE)
+    endif()
+
+    if(EXISTS ${MESA_LLVM_SYSROOT}/usr/lib/llvm/22/lib/cmake/llvm/LLVMConfig.cmake)
+        set(MESA_LLVM_DIR ${MESA_LLVM_SYSROOT}/usr/lib/llvm/22/lib/cmake/llvm)
+        set(MESA_LLVM_PREFIX ${MESA_LLVM_SYSROOT}/usr)
+    elseif(EXISTS ${MESA_LLVM_SYSROOT}/usr/lib/cmake/llvm/LLVMConfig.cmake)
+        set(MESA_LLVM_DIR ${MESA_LLVM_SYSROOT}/usr/lib/cmake/llvm)
+        set(MESA_LLVM_PREFIX ${MESA_LLVM_SYSROOT}/usr)
+    endif()
+
+    if(CMAKE_SYSTEM_PROCESSOR STREQUAL "x86_64")
+        set(MESA_LLVM_LIBCXX OFF)
+    else()
+        set(MESA_LLVM_LIBCXX ON)
+    endif()
 endif()
 
 if(EXISTS ${MESA_LLVM_DIR}/LLVMConfig.cmake)
@@ -1804,7 +1809,7 @@ if(MESA_LLVMPIPE)
         set(MESA_GALLIVM_CXX_OPTIONS "-frtti")
     elseif(CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
         set(MESA_GALLIVM_CXX_OPTIONS
-            "-nostdinc++;-I${MESA_LLVM_SYSROOT}/usr/include/c++/v1;-frtti")
+            "-nostdinc++;-I${MESA_LLVM_PREFIX}/include/c++/v1;-frtti")
     else()
         set(MESA_GALLIVM_CXX_OPTIONS "-stdlib=libc++;-frtti")
     endif()
@@ -1823,8 +1828,8 @@ if(MESA_LLVMPIPE)
         target_link_libraries(libgallium PRIVATE
             -Wl,--start-group
             ${MESA_LLVM_LIB_PATHS}
-            ${MESA_LLVM_SYSROOT}/usr/lib/libc++.a
-            ${MESA_LLVM_SYSROOT}/usr/lib/libc++abi.a
+            ${MESA_LLVM_PREFIX}/lib/libc++.a
+            ${MESA_LLVM_PREFIX}/lib/libc++abi.a
             -Wl,--end-group
         )
 
