@@ -2032,6 +2032,9 @@
 /* The CRT is always UTF-8, whatever the locale says. */
 #define _Py_FORCE_UTF8_LOCALE 1
 
+/* _bz2 is built against the bzip2 port, which configure cannot see. */
+#define HAVE_BZLIB_H 1
+
 /* _curses and _curses_panel are built against the ncurses port, which
  * configure cannot see without development paths. */
 #define HAVE_CURSES_H 1

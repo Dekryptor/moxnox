@@ -480,10 +480,22 @@ set_source_files_properties(repo/Modules/mmapmodule.c PROPERTIES
 
 
 add_python_module(_pickle repo/Modules/_pickle.c)
+add_python_module(_posixsubprocess repo/Modules/_posixsubprocess.c)
 add_python_module(_queue repo/Modules/_queuemodule.c)
 add_python_module(_random repo/Modules/_randommodule.c)
 add_python_module(_statistics repo/Modules/_statisticsmodule.c)
 add_python_module(_zoneinfo repo/Modules/_zoneinfo.c)
+add_python_module(_asyncio repo/Modules/_asynciomodule.c)
+add_python_module(_lsprof repo/Modules/_lsprof.c repo/Modules/rotatingtree.c)
+
+add_python_module(_bz2 repo/Modules/_bz2module.c)
+target_link_libraries(python__bz2 PRIVATE bzip2)
+
+add_python_module(_lzma repo/Modules/_lzmamodule.c)
+target_link_libraries(python__lzma PRIVATE liblzma)
+
+add_python_module(_curses_panel repo/Modules/_curses_panel.c)
+target_link_libraries(python__curses_panel PRIVATE panel ncurses)
 
 add_python_module(zlib repo/Modules/zlibmodule.c)
 target_link_libraries(python_zlib PRIVATE zlib)
@@ -560,10 +572,16 @@ add_dependencies(python
     python_math
     python_mmap
     python__pickle
+    python__posixsubprocess
     python__queue
     python__random
     python__statistics
     python__zoneinfo
+    python__asyncio
+    python__lsprof
+    python__bz2
+    python__lzma
+    python__curses_panel
     python_zlib
     python_readline
     python__multibytecodec
