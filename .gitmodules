@@ -229,3 +229,6 @@
 [submodule "ports/markupsafe/repo"]
 	path = ports/markupsafe/repo
 	url = https://github.com/pallets/markupsafe.git
+[submodule "ports/mako/repo"]
+	path = ports/mako/repo
+	url = https://github.com/sqlalchemy/mako.git
