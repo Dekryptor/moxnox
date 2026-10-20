@@ -18,10 +18,10 @@
 /* #undef AIX_GENUINE_CPLUSPLUS */
 
 /* The normal alignment of `long', in bytes. */
-#define ALIGNOF_LONG 8
+#define ALIGNOF_LONG 4
 
 /* The normal alignment of `max_align_t', in bytes. */
-#define ALIGNOF_MAX_ALIGN_T 16
+#define ALIGNOF_MAX_ALIGN_T 8
 
 /* The normal alignment of `size_t', in bytes. */
 #define ALIGNOF_SIZE_T 8
@@ -79,7 +79,7 @@
 #define HAVE_ASINH 1
 
 /* Define to 1 if you have the <asm/types.h> header file. */
-#define HAVE_ASM_TYPES_H 1
+/* #undef HAVE_ASM_TYPES_H */
 
 /* Define to 1 if you have the `atanh' function. */
 #define HAVE_ATANH 1
@@ -88,10 +88,10 @@
 #define HAVE_BIND 1
 
 /* Define to 1 if you have the `bind_textdomain_codeset' function. */
-/* #undef HAVE_BIND_TEXTDOMAIN_CODESET (moxnox) */
+/* #undef HAVE_BIND_TEXTDOMAIN_CODESET */
 
 /* Define to 1 if you have the <bluetooth/bluetooth.h> header file. */
-/* #undef HAVE_BLUETOOTH_BLUETOOTH_H (moxnox) */
+/* #undef HAVE_BLUETOOTH_BLUETOOTH_H */
 
 /* Define to 1 if you have the <bluetooth.h> header file. */
 /* #undef HAVE_BLUETOOTH_H */
@@ -116,16 +116,16 @@
 /* #undef HAVE_BROKEN_PTHREAD_SIGMASK */
 
 /* define to 1 if your sem_getvalue is broken. */
-/* #undef HAVE_BROKEN_SEM_GETVALUE */
+#define HAVE_BROKEN_SEM_GETVALUE 1
 
 /* Define if 'unsetenv' does not return an int. */
 /* #undef HAVE_BROKEN_UNSETENV */
 
 /* Has builtin __atomic_load_n() and __atomic_store_n() functions */
-/* #undef HAVE_BUILTIN_ATOMIC (moxnox) */
+#define HAVE_BUILTIN_ATOMIC 1
 
 /* Define to 1 if you have the <bzlib.h> header file. */
-#define HAVE_BZLIB_H 1
+/* #undef HAVE_BZLIB_H */
 
 /* Define to 1 if you have the 'chflags' function. */
 /* #undef HAVE_CHFLAGS */
@@ -134,43 +134,40 @@
 #define HAVE_CHMOD 1
 
 /* Define to 1 if you have the `chown' function. */
-/* #undef HAVE_CHOWN (moxnox) */
+#define HAVE_CHOWN 1
 
 /* Define if you have the 'chroot' function. */
-/* #undef HAVE_CHROOT (moxnox) */
+/* #undef HAVE_CHROOT */
 
 /* Define to 1 if you have the `clock' function. */
 #define HAVE_CLOCK 1
 
 /* Define to 1 if you have the `clock_getres' function. */
-/* #undef HAVE_CLOCK_GETRES (moxnox) */
+#define HAVE_CLOCK_GETRES 1
 
 /* Define to 1 if you have the `clock_gettime' function. */
 #define HAVE_CLOCK_GETTIME 1
 
-/* Use UTF-8 unconditionally, ignoring the locale (moxnox) */
-#define _Py_FORCE_UTF8_LOCALE 1
-
 /* Define to 1 if you have the `clock_nanosleep' function. */
-/* #undef HAVE_CLOCK_NANOSLEEP (moxnox) */
+/* #undef HAVE_CLOCK_NANOSLEEP */
 
 /* Define to 1 if you have the `clock_settime' function. */
-/* #undef HAVE_CLOCK_SETTIME (moxnox) */
+/* #undef HAVE_CLOCK_SETTIME */
 
 /* Define to 1 if the system has the type `clock_t'. */
 #define HAVE_CLOCK_T 1
 
 /* Define to 1 if you have the `closefrom' function. */
-/* #undef HAVE_CLOSEFROM (moxnox) */
+/* #undef HAVE_CLOSEFROM */
 
 /* Define to 1 if you have the `close_range' function. */
-/* #undef HAVE_CLOSE_RANGE (moxnox) */
+/* #undef HAVE_CLOSE_RANGE */
 
 /* Define if the C compiler supports computed gotos. */
 #define HAVE_COMPUTED_GOTOS 1
 
 /* Define to 1 if you have the `confstr' function. */
-/* #undef HAVE_CONFSTR (moxnox) */
+#define HAVE_CONFSTR 1
 
 /* Define to 1 if you have the <conio.h> header file. */
 /* #undef HAVE_CONIO_H */
@@ -179,56 +176,56 @@
 #define HAVE_CONNECT 1
 
 /* Define to 1 if you have the `copy_file_range' function. */
-/* #undef HAVE_COPY_FILE_RANGE (moxnox) */
+/* #undef HAVE_COPY_FILE_RANGE */
 
 /* Define to 1 if you have the `ctermid' function. */
-/* #undef HAVE_CTERMID (moxnox) */
+#define HAVE_CTERMID 1
 
 /* Define if you have the 'ctermid_r' function. */
 /* #undef HAVE_CTERMID_R */
 
 /* Define if you have the 'filter' function. */
-#define HAVE_CURSES_FILTER 1
+/* #undef HAVE_CURSES_FILTER */
 
 /* Define to 1 if you have the <curses.h> header file. */
-#define HAVE_CURSES_H 1
+/* #undef HAVE_CURSES_H */
 
 /* Define if you have the 'has_key' function. */
-#define HAVE_CURSES_HAS_KEY 1
+/* #undef HAVE_CURSES_HAS_KEY */
 
 /* Define if you have the 'immedok' function. */
-#define HAVE_CURSES_IMMEDOK 1
+/* #undef HAVE_CURSES_IMMEDOK */
 
 /* Define if you have the 'is_pad' function. */
-#define HAVE_CURSES_IS_PAD 1
+/* #undef HAVE_CURSES_IS_PAD */
 
 /* Define if you have the 'is_term_resized' function. */
-#define HAVE_CURSES_IS_TERM_RESIZED 1
+/* #undef HAVE_CURSES_IS_TERM_RESIZED */
 
 /* Define if you have the 'resizeterm' function. */
-#define HAVE_CURSES_RESIZETERM 1
+/* #undef HAVE_CURSES_RESIZETERM */
 
 /* Define if you have the 'resize_term' function. */
-#define HAVE_CURSES_RESIZE_TERM 1
+/* #undef HAVE_CURSES_RESIZE_TERM */
 
 /* Define if you have the 'syncok' function. */
-#define HAVE_CURSES_SYNCOK 1
+/* #undef HAVE_CURSES_SYNCOK */
 
 /* Define if you have the 'typeahead' function. */
-#define HAVE_CURSES_TYPEAHEAD 1
+/* #undef HAVE_CURSES_TYPEAHEAD */
 
 /* Define if you have the 'use_env' function. */
-#define HAVE_CURSES_USE_ENV 1
+/* #undef HAVE_CURSES_USE_ENV */
 
 /* Define if you have the 'wchgat' function. */
-#define HAVE_CURSES_WCHGAT 1
+/* #undef HAVE_CURSES_WCHGAT */
 
 /* Define to 1 if you have the <db.h> header file. */
 /* #undef HAVE_DB_H */
 
 /* Define to 1 if you have the declaration of `RTLD_DEEPBIND', and to 0 if you
    don't. */
-/* #undef HAVE_DECL_RTLD_DEEPBIND (moxnox) */
+#define HAVE_DECL_RTLD_DEEPBIND 0
 
 /* Define to 1 if you have the declaration of `RTLD_GLOBAL', and to 0 if you
    don't. */
@@ -244,15 +241,15 @@
 
 /* Define to 1 if you have the declaration of `RTLD_MEMBER', and to 0 if you
    don't. */
-/* #undef HAVE_DECL_RTLD_MEMBER (moxnox) */
+#define HAVE_DECL_RTLD_MEMBER 0
 
 /* Define to 1 if you have the declaration of `RTLD_NODELETE', and to 0 if you
    don't. */
-/* #undef HAVE_DECL_RTLD_NODELETE (moxnox) */
+#define HAVE_DECL_RTLD_NODELETE 0
 
 /* Define to 1 if you have the declaration of `RTLD_NOLOAD', and to 0 if you
    don't. */
-/* #undef HAVE_DECL_RTLD_NOLOAD (moxnox) */
+#define HAVE_DECL_RTLD_NOLOAD 0
 
 /* Define to 1 if you have the declaration of `RTLD_NOW', and to 0 if you
    don't. */
@@ -260,20 +257,20 @@
 
 /* Define to 1 if you have the declaration of `tzname', and to 0 if you don't.
    */
-/* #undef HAVE_DECL_TZNAME */
+#define HAVE_DECL_TZNAME 1
 
 /* Define to 1 if you have the declaration of `UT_NAMESIZE', and to 0 if you
    don't. */
-#define HAVE_DECL_UT_NAMESIZE 1
+#define HAVE_DECL_UT_NAMESIZE 0
 
 /* Define to 1 if you have the device macros. */
-/* #undef HAVE_DEVICE_MACROS (moxnox) */
+/* #undef HAVE_DEVICE_MACROS */
 
 /* Define to 1 if you have the /dev/ptc device file. */
 /* #undef HAVE_DEV_PTC */
 
 /* Define to 1 if you have the /dev/ptmx device file. */
-/* #undef HAVE_DEV_PTMX (moxnox) */
+/* #undef HAVE_DEV_PTMX */
 
 /* Define to 1 if you have the <direct.h> header file. */
 /* #undef HAVE_DIRECT_H */
@@ -286,7 +283,7 @@
 #define HAVE_DIRENT_H 1
 
 /* Define if you have the 'dirfd' function or macro. */
-/* #undef HAVE_DIRFD (moxnox) */
+#define HAVE_DIRFD 1
 
 /* Define to 1 if you have the <dlfcn.h> header file. */
 #define HAVE_DLFCN_H 1
@@ -301,7 +298,7 @@
 #define HAVE_DUP2 1
 
 /* Define to 1 if you have the `dup3' function. */
-/* #undef HAVE_DUP3 (moxnox) */
+/* #undef HAVE_DUP3 */
 
 /* Define if you have the '_dyld_shared_cache_contains_path' function. */
 /* #undef HAVE_DYLD_SHARED_CACHE_CONTAINS_PATH */
@@ -316,10 +313,10 @@
 #define HAVE_ENDIAN_H 1
 
 /* Define if you have the 'epoll_create' function. */
-/* #undef HAVE_EPOLL (moxnox) */
+/* #undef HAVE_EPOLL */
 
 /* Define if you have the 'epoll_create1' function. */
-/* #undef HAVE_EPOLL_CREATE1 (moxnox) */
+/* #undef HAVE_EPOLL_CREATE1 */
 
 /* Define to 1 if you have the `erf' function. */
 #define HAVE_ERF 1
@@ -331,13 +328,13 @@
 #define HAVE_ERRNO_H 1
 
 /* Define if you have the 'eventfd' function. */
-/* #undef HAVE_EVENTFD (moxnox) */
+/* #undef HAVE_EVENTFD */
 
 /* Define to 1 if you have the `execv' function. */
-/* #undef HAVE_EXECV (moxnox) */
+#define HAVE_EXECV 1
 
 /* Define to 1 if you have the `explicit_bzero' function. */
-/* #undef HAVE_EXPLICIT_BZERO (moxnox) */
+/* #undef HAVE_EXPLICIT_BZERO */
 
 /* Define to 1 if you have the `explicit_memset' function. */
 /* #undef HAVE_EXPLICIT_MEMSET */
@@ -346,49 +343,49 @@
 #define HAVE_EXPM1 1
 
 /* Define to 1 if you have the `faccessat' function. */
-/* #undef HAVE_FACCESSAT (moxnox) */
+#define HAVE_FACCESSAT 1
 
 /* Define if you have the 'fchdir' function. */
-/* #undef HAVE_FCHDIR (moxnox) */
+#define HAVE_FCHDIR 1
 
 /* Define to 1 if you have the `fchmod' function. */
-/* #undef HAVE_FCHMOD (moxnox) */
+#define HAVE_FCHMOD 1
 
 /* Define to 1 if you have the `fchmodat' function. */
-/* #undef HAVE_FCHMODAT (moxnox) */
+#define HAVE_FCHMODAT 1
 
 /* Define to 1 if you have the `fchown' function. */
-/* #undef HAVE_FCHOWN (moxnox) */
+#define HAVE_FCHOWN 1
 
 /* Define to 1 if you have the `fchownat' function. */
-/* #undef HAVE_FCHOWNAT (moxnox) */
+#define HAVE_FCHOWNAT 1
 
 /* Define to 1 if you have the <fcntl.h> header file. */
 #define HAVE_FCNTL_H 1
 
 /* Define if you have the 'fdatasync' function. */
-/* #undef HAVE_FDATASYNC (moxnox) */
+/* #undef HAVE_FDATASYNC */
 
 /* Define to 1 if you have the `fdopendir' function. */
-/* #undef HAVE_FDOPENDIR (moxnox) */
+#define HAVE_FDOPENDIR 1
 
 /* Define to 1 if you have the `fdwalk' function. */
 /* #undef HAVE_FDWALK */
 
 /* Define to 1 if you have the `fexecve' function. */
-/* #undef HAVE_FEXECVE (moxnox) */
+/* #undef HAVE_FEXECVE */
 
 /* Define if you have the 'ffi_closure_alloc' function. */
-#define HAVE_FFI_CLOSURE_ALLOC 1
+/* #undef HAVE_FFI_CLOSURE_ALLOC */
 
 /* Define if you have the 'ffi_prep_cif_var' function. */
-#define HAVE_FFI_PREP_CIF_VAR 1
+/* #undef HAVE_FFI_PREP_CIF_VAR */
 
 /* Define if you have the 'ffi_prep_closure_loc' function. */
-#define HAVE_FFI_PREP_CLOSURE_LOC 1
+/* #undef HAVE_FFI_PREP_CLOSURE_LOC */
 
 /* Define to 1 if you have the `flock' function. */
-/* #undef HAVE_FLOCK (moxnox) */
+/* #undef HAVE_FLOCK */
 
 /* Define to 1 if you have the `fork' function. */
 #define HAVE_FORK 1
@@ -397,22 +394,22 @@
 /* #undef HAVE_FORK1 */
 
 /* Define to 1 if you have the `forkpty' function. */
-/* #undef HAVE_FORKPTY (moxnox) */
+/* #undef HAVE_FORKPTY */
 
 /* Define to 1 if you have the `fpathconf' function. */
-/* #undef HAVE_FPATHCONF (moxnox) */
+#define HAVE_FPATHCONF 1
 
 /* Define to 1 if you have the `fseek64' function. */
 /* #undef HAVE_FSEEK64 */
 
 /* Define to 1 if you have the `fseeko' function. */
-/* #undef HAVE_FSEEKO (moxnox) */
+#define HAVE_FSEEKO 1
 
 /* Define to 1 if you have the `fstatat' function. */
-/* #undef HAVE_FSTATAT (moxnox) */
+#define HAVE_FSTATAT 1
 
 /* Define to 1 if you have the `fstatvfs' function. */
-/* #undef HAVE_FSTATVFS (moxnox) */
+#define HAVE_FSTATVFS 1
 
 /* Define if you have the 'fsync' function. */
 #define HAVE_FSYNC 1
@@ -421,22 +418,22 @@
 /* #undef HAVE_FTELL64 */
 
 /* Define to 1 if you have the `ftello' function. */
-/* #undef HAVE_FTELLO (moxnox) */
+#define HAVE_FTELLO 1
 
 /* Define to 1 if you have the `ftime' function. */
-/* #undef HAVE_FTIME (moxnox) */
+/* #undef HAVE_FTIME */
 
 /* Define to 1 if you have the `ftruncate' function. */
 #define HAVE_FTRUNCATE 1
 
 /* Define to 1 if you have the `futimens' function. */
-/* #undef HAVE_FUTIMENS (moxnox) */
+#define HAVE_FUTIMENS 1
 
 /* Define to 1 if you have the `futimes' function. */
-/* #undef HAVE_FUTIMES (moxnox) */
+/* #undef HAVE_FUTIMES */
 
 /* Define to 1 if you have the `futimesat' function. */
-/* #undef HAVE_FUTIMESAT (moxnox) */
+/* #undef HAVE_FUTIMESAT */
 
 /* Define to 1 if you have the `gai_strerror' function. */
 #define HAVE_GAI_STRERROR 1
@@ -445,15 +442,11 @@
 /* #undef HAVE_GCC_ASM_FOR_MC68881 */
 
 /* Define if we can use x64 gcc inline assembler */
-#ifdef __x86_64__
 #define HAVE_GCC_ASM_FOR_X64 1
-#endif
 
 /* Define if we can use gcc inline assembler to get and set x87 control word
    */
-#ifdef __x86_64__
 #define HAVE_GCC_ASM_FOR_X87 1
-#endif
 
 /* Define if your compiler provides __uint128_t */
 #define HAVE_GCC_UINT128_T 1
@@ -462,25 +455,25 @@
 /* #undef HAVE_GDBM_DASH_NDBM_H */
 
 /* Define to 1 if you have the <gdbm.h> header file. */
-/* #undef HAVE_GDBM_H (moxnox) */
+/* #undef HAVE_GDBM_H */
 
 /* Define to 1 if you have the <gdbm/ndbm.h> header file. */
-/* #undef HAVE_GDBM_NDBM_H (moxnox) */
+/* #undef HAVE_GDBM_NDBM_H */
 
 /* Define if you have the getaddrinfo function. */
 #define HAVE_GETADDRINFO 1
 
 /* Define this if you have flockfile(), getc_unlocked(), and funlockfile() */
-/* #undef HAVE_GETC_UNLOCKED (moxnox) */
+#define HAVE_GETC_UNLOCKED 1
 
 /* Define to 1 if you have the `getegid' function. */
-/* #undef HAVE_GETEGID (moxnox) */
+#define HAVE_GETEGID 1
 
 /* Define to 1 if you have the `getentropy' function. */
 #define HAVE_GETENTROPY 1
 
 /* Define to 1 if you have the `geteuid' function. */
-/* #undef HAVE_GETEUID (moxnox) */
+#define HAVE_GETEUID 1
 
 /* Define to 1 if you have the `getgid' function. */
 #define HAVE_GETGID 1
@@ -489,28 +482,28 @@
 #define HAVE_GETGRENT 1
 
 /* Define to 1 if you have the `getgrgid' function. */
-/* #undef HAVE_GETGRGID (moxnox) */
+#define HAVE_GETGRGID 1
 
 /* Define to 1 if you have the `getgrgid_r' function. */
-/* #undef HAVE_GETGRGID_R (moxnox) */
+#define HAVE_GETGRGID_R 1
 
 /* Define to 1 if you have the `getgrnam_r' function. */
-/* #undef HAVE_GETGRNAM_R (moxnox) */
+#define HAVE_GETGRNAM_R 1
 
 /* Define to 1 if you have the `getgrouplist' function. */
-/* #undef HAVE_GETGROUPLIST (moxnox) */
+/* #undef HAVE_GETGROUPLIST */
 
 /* Define to 1 if you have the `getgroups' function. */
-/* #undef HAVE_GETGROUPS (moxnox) */
+#define HAVE_GETGROUPS 1
 
 /* Define if you have the 'gethostbyaddr' function. */
-/* #undef HAVE_GETHOSTBYADDR (moxnox) */
+/* #undef HAVE_GETHOSTBYADDR */
 
 /* Define to 1 if you have the `gethostbyname' function. */
-/* #undef HAVE_GETHOSTBYNAME (moxnox: use getaddrinfo) */
+/* #undef HAVE_GETHOSTBYNAME */
 
 /* Define this if you have some version of gethostbyname_r() */
-/* #undef HAVE_GETHOSTBYNAME_R (moxnox) */
+/* #undef HAVE_GETHOSTBYNAME_R */
 
 /* Define this if you have the 3-arg version of gethostbyname_r(). */
 /* #undef HAVE_GETHOSTBYNAME_R_3_ARG */
@@ -519,19 +512,19 @@
 /* #undef HAVE_GETHOSTBYNAME_R_5_ARG */
 
 /* Define this if you have the 6-arg version of gethostbyname_r(). */
-/* #undef HAVE_GETHOSTBYNAME_R_6_ARG (moxnox) */
+/* #undef HAVE_GETHOSTBYNAME_R_6_ARG */
 
 /* Define to 1 if you have the `gethostname' function. */
 #define HAVE_GETHOSTNAME 1
 
 /* Define to 1 if you have the `getitimer' function. */
-/* #undef HAVE_GETITIMER (moxnox) */
+/* #undef HAVE_GETITIMER */
 
 /* Define to 1 if you have the `getloadavg' function. */
-/* #undef HAVE_GETLOADAVG (moxnox) */
+/* #undef HAVE_GETLOADAVG */
 
 /* Define to 1 if you have the `getlogin' function. */
-/* #undef HAVE_GETLOGIN (moxnox) */
+#define HAVE_GETLOGIN 1
 
 /* Define to 1 if you have the `getlogin_r' function. */
 #define HAVE_GETLOGIN_R 1
@@ -543,107 +536,107 @@
 #define HAVE_GETPAGESIZE 1
 
 /* Define if you have the 'getpeername' function. */
-/* #undef HAVE_GETPEERNAME (moxnox) */
+#define HAVE_GETPEERNAME 1
 
 /* Define to 1 if you have the `getpgid' function. */
-/* #undef HAVE_GETPGID (moxnox) */
+#define HAVE_GETPGID 1
 
 /* Define to 1 if you have the `getpgrp' function. */
-/* #undef HAVE_GETPGRP (moxnox) */
+#define HAVE_GETPGRP 1
 
 /* Define to 1 if you have the `getpid' function. */
 #define HAVE_GETPID 1
 
 /* Define to 1 if you have the `getppid' function. */
-/* #undef HAVE_GETPPID (moxnox) */
+#define HAVE_GETPPID 1
 
 /* Define to 1 if you have the `getpriority' function. */
-/* #undef HAVE_GETPRIORITY (moxnox) */
+#define HAVE_GETPRIORITY 1
 
 /* Define if you have the 'getprotobyname' function. */
-/* #undef HAVE_GETPROTOBYNAME (moxnox) */
+#define HAVE_GETPROTOBYNAME 1
 
 /* Define to 1 if you have the `getpwent' function. */
-/* #undef HAVE_GETPWENT (moxnox) */
+#define HAVE_GETPWENT 1
 
 /* Define to 1 if you have the `getpwnam_r' function. */
-/* #undef HAVE_GETPWNAM_R (moxnox) */
+#define HAVE_GETPWNAM_R 1
 
 /* Define to 1 if you have the `getpwuid' function. */
 #define HAVE_GETPWUID 1
 
 /* Define to 1 if you have the `getpwuid_r' function. */
-/* #undef HAVE_GETPWUID_R (moxnox) */
+#define HAVE_GETPWUID_R 1
 
 /* Define to 1 if the getrandom() function is available */
-/* #undef HAVE_GETRANDOM (moxnox) */
+/* #undef HAVE_GETRANDOM */
 
 /* Define to 1 if the Linux getrandom() syscall is available */
-/* #undef HAVE_GETRANDOM_SYSCALL (moxnox) */
+/* #undef HAVE_GETRANDOM_SYSCALL */
 
 /* Define to 1 if you have the `getresgid' function. */
-/* #undef HAVE_GETRESGID (moxnox) */
+#define HAVE_GETRESGID 1
 
 /* Define to 1 if you have the `getresuid' function. */
-/* #undef HAVE_GETRESUID (moxnox) */
+#define HAVE_GETRESUID 1
 
 /* Define to 1 if you have the `getrusage' function. */
 #define HAVE_GETRUSAGE 1
 
 /* Define if you have the 'getservbyname' function. */
-/* #undef HAVE_GETSERVBYNAME (moxnox: use getaddrinfo) */
+#define HAVE_GETSERVBYNAME 1
 
 /* Define if you have the 'getservbyport' function. */
-/* #undef HAVE_GETSERVBYPORT (moxnox: use getaddrinfo) */
+#define HAVE_GETSERVBYPORT 1
 
 /* Define to 1 if you have the `getsid' function. */
-/* #undef HAVE_GETSID (moxnox) */
+#define HAVE_GETSID 1
 
 /* Define if you have the 'getsockname' function. */
 #define HAVE_GETSOCKNAME 1
 
 /* Define to 1 if you have the `getspent' function. */
-/* #undef HAVE_GETSPENT (moxnox) */
+/* #undef HAVE_GETSPENT */
 
 /* Define to 1 if you have the `getspnam' function. */
-/* #undef HAVE_GETSPNAM (moxnox) */
+/* #undef HAVE_GETSPNAM */
 
 /* Define to 1 if you have the `getuid' function. */
 #define HAVE_GETUID 1
 
 /* Define to 1 if you have the `getwd' function. */
-/* #undef HAVE_GETWD (moxnox) */
+/* #undef HAVE_GETWD */
 
 /* Define if glibc has incorrect _FORTIFY_SOURCE wrappers for memmove and
    bcopy. */
 /* #undef HAVE_GLIBC_MEMMOVE_BUG */
 
 /* Define to 1 if you have the `grantpt' function. */
-/* #undef HAVE_GRANTPT (moxnox) */
+#define HAVE_GRANTPT 1
 
 /* Define to 1 if you have the <grp.h> header file. */
-/* #undef HAVE_GRP_H (moxnox) */
+#define HAVE_GRP_H 1
 
 /* Define if you have the 'hstrerror' function. */
-/* #undef HAVE_HSTRERROR (moxnox) */
+/* #undef HAVE_HSTRERROR */
 
 /* Define this if you have le64toh() */
-#define HAVE_HTOLE64 1
+/* #undef HAVE_HTOLE64 */
 
 /* Define to 1 if you have the `if_nameindex' function. */
-/* #undef HAVE_IF_NAMEINDEX (moxnox) */
+/* #undef HAVE_IF_NAMEINDEX */
 
 /* Define if you have the 'inet_aton' function. */
-/* #undef HAVE_INET_ATON (moxnox) */
+/* #undef HAVE_INET_ATON */
 
 /* Define if you have the 'inet_ntoa' function. */
-/* #undef HAVE_INET_NTOA (moxnox) */
+#define HAVE_INET_NTOA 1
 
 /* Define if you have the 'inet_pton' function. */
-/* #undef HAVE_INET_PTON (moxnox) */
+#define HAVE_INET_PTON 1
 
 /* Define to 1 if you have the `initgroups' function. */
-/* #undef HAVE_INITGROUPS (moxnox) */
+/* #undef HAVE_INITGROUPS */
 
 /* Define to 1 if you have the <inttypes.h> header file. */
 #define HAVE_INTTYPES_H 1
@@ -655,22 +648,22 @@
 /* #undef HAVE_IPA_PURE_CONST_BUG */
 
 /* Define to 1 if you have the `kill' function. */
-/* #undef HAVE_KILL (moxnox) */
+#define HAVE_KILL 1
 
 /* Define to 1 if you have the `killpg' function. */
-/* #undef HAVE_KILLPG (moxnox) */
+#define HAVE_KILLPG 1
 
 /* Define if you have the 'kqueue' function. */
 /* #undef HAVE_KQUEUE */
 
 /* Define to 1 if you have the <langinfo.h> header file. */
-/* #undef HAVE_LANGINFO_H (moxnox) */
+#define HAVE_LANGINFO_H 1
 
 /* Defined to enable large file support when an off_t is bigger than a long
    and long long is at least as big as an off_t. You may need to add some
    flags for configuration and compilation to enable this mode. (For Solaris
    and Linux, the necessary defines are already defined.) */
-/* #undef HAVE_LARGEFILE_SUPPORT */
+#define HAVE_LARGEFILE_SUPPORT 1
 
 /* Define to 1 if you have the 'lchflags' function. */
 /* #undef HAVE_LCHFLAGS */
@@ -679,16 +672,16 @@
 /* #undef HAVE_LCHMOD */
 
 /* Define to 1 if you have the `lchown' function. */
-/* #undef HAVE_LCHOWN (moxnox) */
+#define HAVE_LCHOWN 1
 
 /* Define to 1 if you want to build _blake2 module with libb2 */
-/* #undef HAVE_LIBB2 (moxnox: no libb2; _blake2 uses its vendored impl) */
+/* #undef HAVE_LIBB2 */
 
 /* Define to 1 if you have the `db' library (-ldb). */
 /* #undef HAVE_LIBDB */
 
 /* Define to 1 if you have the `dl' library (-ldl). */
-/* #undef HAVE_LIBDL (moxnox) */
+/* #undef HAVE_LIBDL */
 
 /* Define to 1 if you have the `dld' library (-ldld). */
 /* #undef HAVE_LIBDLD */
@@ -697,7 +690,7 @@
 /* #undef HAVE_LIBIEEE */
 
 /* Define to 1 if you have the <libintl.h> header file. */
-/* #undef HAVE_LIBINTL_H (moxnox) */
+/* #undef HAVE_LIBINTL_H */
 
 /* Define to 1 if you have the `resolv' library (-lresolv). */
 /* #undef HAVE_LIBRESOLV */
@@ -706,73 +699,73 @@
 /* #undef HAVE_LIBSENDFILE */
 
 /* Define to 1 if you have the `sqlite3' library (-lsqlite3). */
-/* #undef HAVE_LIBSQLITE3 (moxnox) */
+/* #undef HAVE_LIBSQLITE3 */
 
 /* Define to 1 if you have the <libutil.h> header file. */
 /* #undef HAVE_LIBUTIL_H */
 
 /* Define if you have the 'link' function. */
-/* #undef HAVE_LINK (moxnox) */
+#define HAVE_LINK 1
 
 /* Define to 1 if you have the `linkat' function. */
 #define HAVE_LINKAT 1
 
 /* Define to 1 if you have the <linux/auxvec.h> header file. */
-/* #undef HAVE_LINUX_AUXVEC_H (moxnox) */
+/* #undef HAVE_LINUX_AUXVEC_H */
 
 /* Define to 1 if you have the <linux/can/bcm.h> header file. */
-/* #undef HAVE_LINUX_CAN_BCM_H (moxnox) */
+/* #undef HAVE_LINUX_CAN_BCM_H */
 
 /* Define to 1 if you have the <linux/can.h> header file. */
-/* #undef HAVE_LINUX_CAN_H (moxnox) */
+/* #undef HAVE_LINUX_CAN_H */
 
 /* Define to 1 if you have the <linux/can/j1939.h> header file. */
-/* #undef HAVE_LINUX_CAN_J1939_H (moxnox) */
+/* #undef HAVE_LINUX_CAN_J1939_H */
 
 /* Define if compiling using Linux 3.6 or later. */
-/* #undef HAVE_LINUX_CAN_RAW_FD_FRAMES (moxnox) */
+/* #undef HAVE_LINUX_CAN_RAW_FD_FRAMES */
 
 /* Define to 1 if you have the <linux/can/raw.h> header file. */
-/* #undef HAVE_LINUX_CAN_RAW_H (moxnox) */
+/* #undef HAVE_LINUX_CAN_RAW_H */
 
 /* Define if compiling using Linux 4.1 or later. */
-/* #undef HAVE_LINUX_CAN_RAW_JOIN_FILTERS (moxnox) */
+/* #undef HAVE_LINUX_CAN_RAW_JOIN_FILTERS */
 
 /* Define to 1 if you have the <linux/fs.h> header file. */
-/* #undef HAVE_LINUX_FS_H (moxnox) */
+/* #undef HAVE_LINUX_FS_H */
 
 /* Define to 1 if you have the <linux/limits.h> header file. */
-/* #undef HAVE_LINUX_LIMITS_H (moxnox) */
+/* #undef HAVE_LINUX_LIMITS_H */
 
 /* Define to 1 if you have the <linux/memfd.h> header file. */
-/* #undef HAVE_LINUX_MEMFD_H (moxnox) */
+/* #undef HAVE_LINUX_MEMFD_H */
 
 /* Define to 1 if you have the <linux/netlink.h> header file. */
-/* #undef HAVE_LINUX_NETLINK_H (moxnox) */
+/* #undef HAVE_LINUX_NETLINK_H */
 
 /* Define to 1 if you have the <linux/qrtr.h> header file. */
-/* #undef HAVE_LINUX_QRTR_H (moxnox) */
+/* #undef HAVE_LINUX_QRTR_H */
 
 /* Define to 1 if you have the <linux/random.h> header file. */
-/* #undef HAVE_LINUX_RANDOM_H (moxnox) */
+/* #undef HAVE_LINUX_RANDOM_H */
 
 /* Define to 1 if you have the <linux/soundcard.h> header file. */
-#define HAVE_LINUX_SOUNDCARD_H 1
+/* #undef HAVE_LINUX_SOUNDCARD_H */
 
 /* Define to 1 if you have the <linux/tipc.h> header file. */
-/* #undef HAVE_LINUX_TIPC_H (moxnox) */
+/* #undef HAVE_LINUX_TIPC_H */
 
 /* Define to 1 if you have the <linux/vm_sockets.h> header file. */
-/* #undef HAVE_LINUX_VM_SOCKETS_H (moxnox) */
+/* #undef HAVE_LINUX_VM_SOCKETS_H */
 
 /* Define to 1 if you have the <linux/wait.h> header file. */
-/* #undef HAVE_LINUX_WAIT_H (moxnox) */
+/* #undef HAVE_LINUX_WAIT_H */
 
 /* Define if you have the 'listen' function. */
 #define HAVE_LISTEN 1
 
 /* Define to 1 if you have the `lockf' function. */
-/* #undef HAVE_LOCKF (moxnox) */
+/* #undef HAVE_LOCKF */
 
 /* Define to 1 if you have the `log1p' function. */
 #define HAVE_LOG1P 1
@@ -781,7 +774,7 @@
 #define HAVE_LOG2 1
 
 /* Define to 1 if you have the `login_tty' function. */
-/* #undef HAVE_LOGIN_TTY (moxnox) */
+/* #undef HAVE_LOGIN_TTY */
 
 /* Define to 1 if the system has the type `long double'. */
 #define HAVE_LONG_DOUBLE 1
@@ -790,16 +783,16 @@
 #define HAVE_LSTAT 1
 
 /* Define to 1 if you have the `lutimes' function. */
-/* #undef HAVE_LUTIMES (moxnox) */
+/* #undef HAVE_LUTIMES */
 
 /* Define to 1 if you have the <lzma.h> header file. */
-/* #undef HAVE_LZMA_H */
+#define HAVE_LZMA_H 1
 
 /* Define to 1 if you have the `madvise' function. */
-/* #undef HAVE_MADVISE (moxnox) */
+/* #undef HAVE_MADVISE */
 
 /* Define this if you have the makedev macro. */
-/* #undef HAVE_MAKEDEV (moxnox) */
+/* #undef HAVE_MAKEDEV */
 
 /* Define if you have the 'MAXLOGNAME' constant. */
 /* #undef HAVE_MAXLOGNAME */
@@ -808,28 +801,28 @@
 #define HAVE_MBRTOWC 1
 
 /* Define if you have the 'memfd_create' function. */
-/* #undef HAVE_MEMFD_CREATE (moxnox) */
+/* #undef HAVE_MEMFD_CREATE */
 
 /* Define to 1 if you have the `memrchr' function. */
-/* #undef HAVE_MEMRCHR (moxnox) */
+/* #undef HAVE_MEMRCHR */
 
 /* Define to 1 if you have the <minix/config.h> header file. */
 /* #undef HAVE_MINIX_CONFIG_H */
 
 /* Define to 1 if you have the `mkdirat' function. */
-/* #undef HAVE_MKDIRAT (moxnox) */
+#define HAVE_MKDIRAT 1
 
 /* Define to 1 if you have the `mkfifo' function. */
-/* #undef HAVE_MKFIFO (moxnox) */
+#define HAVE_MKFIFO 1
 
 /* Define to 1 if you have the `mkfifoat' function. */
-/* #undef HAVE_MKFIFOAT (moxnox) */
+#define HAVE_MKFIFOAT 1
 
 /* Define to 1 if you have the `mknod' function. */
-/* #undef HAVE_MKNOD (moxnox) */
+#define HAVE_MKNOD 1
 
 /* Define to 1 if you have the `mknodat' function. */
-/* #undef HAVE_MKNODAT (moxnox) */
+#define HAVE_MKNODAT 1
 
 /* Define to 1 if you have the `mktime' function. */
 #define HAVE_MKTIME 1
@@ -838,7 +831,7 @@
 #define HAVE_MMAP 1
 
 /* Define to 1 if you have the `mremap' function. */
-/* #undef HAVE_MREMAP (moxnox) */
+/* #undef HAVE_MREMAP */
 
 /* Define to 1 if you have the `nanosleep' function. */
 #define HAVE_NANOSLEEP 1
@@ -847,22 +840,22 @@
 /* #undef HAVE_NCURSES */
 
 /* Define if you have the 'ncursesw' library */
-/* #undef HAVE_NCURSESW (moxnox: the ncurses port is narrow, not wide) */
+/* #undef HAVE_NCURSESW */
 
 /* Define to 1 if you have the <ncursesw/curses.h> header file. */
-/* #undef HAVE_NCURSESW_CURSES_H (moxnox: use plain <curses.h>) */
+/* #undef HAVE_NCURSESW_CURSES_H */
 
 /* Define to 1 if you have the <ncursesw/ncurses.h> header file. */
-/* #undef HAVE_NCURSESW_NCURSES_H (moxnox: use plain <curses.h>) */
+/* #undef HAVE_NCURSESW_NCURSES_H */
 
 /* Define to 1 if you have the <ncursesw/panel.h> header file. */
-/* #undef HAVE_NCURSESW_PANEL_H (moxnox) */
+/* #undef HAVE_NCURSESW_PANEL_H */
 
 /* Define to 1 if you have the <ncurses/curses.h> header file. */
 /* #undef HAVE_NCURSES_CURSES_H */
 
 /* Define to 1 if you have the <ncurses.h> header file. */
-/* #undef HAVE_NCURSES_H (moxnox) */
+/* #undef HAVE_NCURSES_H */
 
 /* Define to 1 if you have the <ncurses/ncurses.h> header file. */
 /* #undef HAVE_NCURSES_NCURSES_H */
@@ -889,50 +882,50 @@
 /* #undef HAVE_NETLINK_NETLINK_H */
 
 /* Define to 1 if you have the <netpacket/packet.h> header file. */
-/* #undef HAVE_NETPACKET_PACKET_H (moxnox) */
+/* #undef HAVE_NETPACKET_PACKET_H */
 
 /* Define to 1 if you have the <net/ethernet.h> header file. */
-/* #undef HAVE_NET_ETHERNET_H (moxnox) */
+/* #undef HAVE_NET_ETHERNET_H */
 
 /* Define to 1 if you have the <net/if.h> header file. */
-/* #undef HAVE_NET_IF_H (moxnox) */
+#define HAVE_NET_IF_H 1
 
 /* Define to 1 if you have the `nice' function. */
-/* #undef HAVE_NICE (moxnox) */
+/* #undef HAVE_NICE */
 
 /* Define if the internal form of wchar_t in non-Unicode locales is not
    Unicode. */
 /* #undef HAVE_NON_UNICODE_WCHAR_T_REPRESENTATION */
 
 /* Define to 1 if you have the `openat' function. */
-/* #undef HAVE_OPENAT (moxnox) */
+#define HAVE_OPENAT 1
 
 /* Define to 1 if you have the `opendir' function. */
 #define HAVE_OPENDIR 1
 
 /* Define to 1 if you have the `openpty' function. */
-/* #undef HAVE_OPENPTY (moxnox) */
+/* #undef HAVE_OPENPTY */
 
 /* Define if you have the 'panel' library */
 /* #undef HAVE_PANEL */
 
 /* Define if you have the 'panelw' library */
-#define HAVE_PANELW 1
+/* #undef HAVE_PANELW */
 
 /* Define to 1 if you have the <panel.h> header file. */
-#define HAVE_PANEL_H 1
+/* #undef HAVE_PANEL_H */
 
 /* Define to 1 if you have the `pathconf' function. */
-/* #undef HAVE_PATHCONF (moxnox) */
+#define HAVE_PATHCONF 1
 
 /* Define to 1 if you have the `pause' function. */
-/* #undef HAVE_PAUSE (moxnox) */
+#define HAVE_PAUSE 1
 
 /* Define to 1 if you have the `pipe' function. */
 #define HAVE_PIPE 1
 
 /* Define to 1 if you have the `pipe2' function. */
-/* #undef HAVE_PIPE2 (moxnox) */
+/* #undef HAVE_PIPE2 */
 
 /* Define to 1 if you have the `plock' function. */
 /* #undef HAVE_PLOCK */
@@ -944,47 +937,47 @@
 #define HAVE_POLL_H 1
 
 /* Define to 1 if you have the `posix_fadvise' function. */
-/* #undef HAVE_POSIX_FADVISE (moxnox) */
+#define HAVE_POSIX_FADVISE 1
 
 /* Define to 1 if you have the `posix_fallocate' function. */
-/* #undef HAVE_POSIX_FALLOCATE (moxnox) */
+/* #undef HAVE_POSIX_FALLOCATE */
 
 /* Define to 1 if you have the `posix_openpt' function. */
-/* #undef HAVE_POSIX_OPENPT (moxnox) */
+#define HAVE_POSIX_OPENPT 1
 
 /* Define to 1 if you have the `posix_spawn' function. */
-/* #undef HAVE_POSIX_SPAWN (moxnox) */
+#define HAVE_POSIX_SPAWN 1
 
 /* Define to 1 if you have the `posix_spawnp' function. */
-/* #undef HAVE_POSIX_SPAWNP (moxnox) */
+#define HAVE_POSIX_SPAWNP 1
 
 /* Define to 1 if you have the `posix_spawn_file_actions_addclosefrom_np'
    function. */
-#define HAVE_POSIX_SPAWN_FILE_ACTIONS_ADDCLOSEFROM_NP 1
+/* #undef HAVE_POSIX_SPAWN_FILE_ACTIONS_ADDCLOSEFROM_NP */
 
 /* Define to 1 if you have the `pread' function. */
-/* #undef HAVE_PREAD (moxnox) */
+#define HAVE_PREAD 1
 
 /* Define to 1 if you have the `preadv' function. */
-/* #undef HAVE_PREADV (moxnox) */
+/* #undef HAVE_PREADV */
 
 /* Define to 1 if you have the `preadv2' function. */
-/* #undef HAVE_PREADV2 (moxnox) */
+/* #undef HAVE_PREADV2 */
 
 /* Define if you have the 'prlimit' function. */
-/* #undef HAVE_PRLIMIT (moxnox) */
+/* #undef HAVE_PRLIMIT */
 
 /* Define to 1 if you have the <process.h> header file. */
 /* #undef HAVE_PROCESS_H */
 
 /* Define to 1 if you have the `process_vm_readv' function. */
-/* #undef HAVE_PROCESS_VM_READV (moxnox) */
+/* #undef HAVE_PROCESS_VM_READV */
 
 /* Define if your compiler supports function prototype */
 #define HAVE_PROTOTYPES 1
 
 /* Define to 1 if you have the `pthread_condattr_setclock' function. */
-/* #undef HAVE_PTHREAD_CONDATTR_SETCLOCK (moxnox) */
+#define HAVE_PTHREAD_CONDATTR_SETCLOCK 1
 
 /* Define to 1 if you have the `pthread_cond_timedwait_relative_np' function.
    */
@@ -994,7 +987,7 @@
 /* #undef HAVE_PTHREAD_DESTRUCTOR */
 
 /* Define to 1 if you have the `pthread_getcpuclockid' function. */
-/* #undef HAVE_PTHREAD_GETCPUCLOCKID (moxnox) */
+/* #undef HAVE_PTHREAD_GETCPUCLOCKID */
 
 /* Define to 1 if you have the <pthread.h> header file. */
 #define HAVE_PTHREAD_H 1
@@ -1003,58 +996,58 @@
 /* #undef HAVE_PTHREAD_INIT */
 
 /* Define to 1 if you have the `pthread_kill' function. */
-/* #undef HAVE_PTHREAD_KILL (moxnox) */
+#define HAVE_PTHREAD_KILL 1
 
 /* Define to 1 if you have the `pthread_sigmask' function. */
-/* #undef HAVE_PTHREAD_SIGMASK (moxnox) */
+#define HAVE_PTHREAD_SIGMASK 1
 
 /* Define if platform requires stubbed pthreads support */
 /* #undef HAVE_PTHREAD_STUBS */
 
 /* Define to 1 if you have the `ptsname' function. */
-/* #undef HAVE_PTSNAME (moxnox) */
+#define HAVE_PTSNAME 1
 
 /* Define to 1 if you have the `ptsname_r' function. */
-/* #undef HAVE_PTSNAME_R (moxnox) */
+#define HAVE_PTSNAME_R 1
 
 /* Define to 1 if you have the <pty.h> header file. */
-/* #undef HAVE_PTY_H (moxnox) */
+/* #undef HAVE_PTY_H */
 
 /* Define to 1 if you have the `pwrite' function. */
-/* #undef HAVE_PWRITE (moxnox) */
+#define HAVE_PWRITE 1
 
 /* Define to 1 if you have the `pwritev' function. */
-/* #undef HAVE_PWRITEV (moxnox) */
+/* #undef HAVE_PWRITEV */
 
 /* Define to 1 if you have the `pwritev2' function. */
-/* #undef HAVE_PWRITEV2 (moxnox) */
+/* #undef HAVE_PWRITEV2 */
 
 /* Define to 1 if you have the <readline/readline.h> header file. */
-/* #undef HAVE_READLINE_READLINE_H */
+#define HAVE_READLINE_READLINE_H 1
 
 /* Define to 1 if you have the `readlink' function. */
-/* #undef HAVE_READLINK (moxnox) */
+#define HAVE_READLINK 1
 
 /* Define to 1 if you have the `readlinkat' function. */
-/* #undef HAVE_READLINKAT (moxnox) */
+#define HAVE_READLINKAT 1
 
 /* Define to 1 if you have the `readv' function. */
-/* #undef HAVE_READV (moxnox) */
+#define HAVE_READV 1
 
 /* Define to 1 if you have the `realpath' function. */
-/* #undef HAVE_REALPATH (moxnox) */
+#define HAVE_REALPATH 1
 
 /* Define if you have the 'recvfrom' function. */
 #define HAVE_RECVFROM 1
 
 /* Define to 1 if you have the `renameat' function. */
-/* #undef HAVE_RENAMEAT (moxnox) */
+#define HAVE_RENAMEAT 1
 
 /* Define if readline supports append_history */
-/* #undef HAVE_RL_APPEND_HISTORY (moxnox) */
+#define HAVE_RL_APPEND_HISTORY 1
 
 /* Define if you can turn off readline's signal handling. */
-/* #undef HAVE_RL_CATCH_SIGNAL (moxnox) */
+#define HAVE_RL_CATCH_SIGNAL 1
 
 /* Define to 1 if the system has the type `rl_compdisp_func_t'. */
 #define HAVE_RL_COMPDISP_FUNC_T 1
@@ -1081,112 +1074,112 @@
 /* #undef HAVE_RTPSPAWN */
 
 /* Define to 1 if you have the `sched_get_priority_max' function. */
-/* #undef HAVE_SCHED_GET_PRIORITY_MAX (moxnox) */
+#define HAVE_SCHED_GET_PRIORITY_MAX 1
 
 /* Define to 1 if you have the <sched.h> header file. */
-/* #undef HAVE_SCHED_H (moxnox) */
+#define HAVE_SCHED_H 1
 
 /* Define to 1 if you have the `sched_rr_get_interval' function. */
-/* #undef HAVE_SCHED_RR_GET_INTERVAL (moxnox) */
+/* #undef HAVE_SCHED_RR_GET_INTERVAL */
 
 /* Define to 1 if you have the `sched_setaffinity' function. */
-/* #undef HAVE_SCHED_SETAFFINITY (moxnox) */
+/* #undef HAVE_SCHED_SETAFFINITY */
 
 /* Define to 1 if you have the `sched_setparam' function. */
-/* #undef HAVE_SCHED_SETPARAM (moxnox) */
+/* #undef HAVE_SCHED_SETPARAM */
 
 /* Define to 1 if you have the `sched_setscheduler' function. */
-/* #undef HAVE_SCHED_SETSCHEDULER (moxnox) */
+/* #undef HAVE_SCHED_SETSCHEDULER */
 
 /* Define to 1 if you have the `sem_clockwait' function. */
-/* #undef HAVE_SEM_CLOCKWAIT (moxnox) */
+/* #undef HAVE_SEM_CLOCKWAIT */
 
 /* Define to 1 if you have the `sem_getvalue' function. */
-/* #undef HAVE_SEM_GETVALUE (moxnox) */
+/* #undef HAVE_SEM_GETVALUE */
 
 /* Define to 1 if you have the `sem_open' function. */
-/* #undef HAVE_SEM_OPEN (moxnox) */
+/* #undef HAVE_SEM_OPEN */
 
 /* Define to 1 if you have the `sem_timedwait' function. */
-/* #undef HAVE_SEM_TIMEDWAIT (moxnox) */
+/* #undef HAVE_SEM_TIMEDWAIT */
 
 /* Define to 1 if you have the `sem_unlink' function. */
-/* #undef HAVE_SEM_UNLINK (moxnox) */
+/* #undef HAVE_SEM_UNLINK */
 
 /* Define to 1 if you have the `sendfile' function. */
-/* #undef HAVE_SENDFILE (moxnox) */
+/* #undef HAVE_SENDFILE */
 
 /* Define if you have the 'sendto' function. */
 #define HAVE_SENDTO 1
 
 /* Define to 1 if you have the `setegid' function. */
-/* #undef HAVE_SETEGID (moxnox) */
+#define HAVE_SETEGID 1
 
 /* Define to 1 if you have the `seteuid' function. */
-/* #undef HAVE_SETEUID (moxnox) */
+#define HAVE_SETEUID 1
 
 /* Define to 1 if you have the `setgid' function. */
-/* #undef HAVE_SETGID (moxnox) */
+#define HAVE_SETGID 1
 
 /* Define if you have the 'setgroups' function. */
-/* #undef HAVE_SETGROUPS (moxnox) */
+/* #undef HAVE_SETGROUPS */
 
 /* Define to 1 if you have the `sethostname' function. */
-/* #undef HAVE_SETHOSTNAME (moxnox) */
+/* #undef HAVE_SETHOSTNAME */
 
 /* Define to 1 if you have the `setitimer' function. */
-/* #undef HAVE_SETITIMER (moxnox) */
+/* #undef HAVE_SETITIMER */
 
 /* Define to 1 if you have the <setjmp.h> header file. */
 #define HAVE_SETJMP_H 1
 
 /* Define to 1 if you have the `setlocale' function. */
-/* #undef HAVE_SETLOCALE (moxnox) */
+#define HAVE_SETLOCALE 1
 
 /* Define to 1 if you have the `setns' function. */
-/* #undef HAVE_SETNS (moxnox) */
+/* #undef HAVE_SETNS */
 
 /* Define to 1 if you have the `setpgid' function. */
-/* #undef HAVE_SETPGID (moxnox) */
+#define HAVE_SETPGID 1
 
 /* Define to 1 if you have the `setpgrp' function. */
-/* #undef HAVE_SETPGRP (moxnox) */
+/* #undef HAVE_SETPGRP */
 
 /* Define to 1 if you have the `setpriority' function. */
-/* #undef HAVE_SETPRIORITY (moxnox) */
+#define HAVE_SETPRIORITY 1
 
 /* Define to 1 if you have the `setregid' function. */
-/* #undef HAVE_SETREGID (moxnox) */
+/* #undef HAVE_SETREGID */
 
 /* Define to 1 if you have the `setresgid' function. */
-/* #undef HAVE_SETRESGID (moxnox) */
+#define HAVE_SETRESGID 1
 
 /* Define to 1 if you have the `setresuid' function. */
-/* #undef HAVE_SETRESUID (moxnox) */
+#define HAVE_SETRESUID 1
 
 /* Define to 1 if you have the `setreuid' function. */
-/* #undef HAVE_SETREUID (moxnox) */
+/* #undef HAVE_SETREUID */
 
 /* Define to 1 if you have the `setsid' function. */
-/* #undef HAVE_SETSID (moxnox) */
+#define HAVE_SETSID 1
 
 /* Define if you have the 'setsockopt' function. */
 #define HAVE_SETSOCKOPT 1
 
 /* Define to 1 if you have the `setuid' function. */
-/* #undef HAVE_SETUID (moxnox) */
+#define HAVE_SETUID 1
 
 /* Define to 1 if you have the `setvbuf' function. */
 #define HAVE_SETVBUF 1
 
 /* Define to 1 if you have the <shadow.h> header file. */
-#define HAVE_SHADOW_H 1
+/* #undef HAVE_SHADOW_H */
 
 /* Define to 1 if you have the `shm_open' function. */
-#define HAVE_SHM_OPEN 1
+/* #undef HAVE_SHM_OPEN */
 
 /* Define to 1 if you have the `shm_unlink' function. */
-#define HAVE_SHM_UNLINK 1
+/* #undef HAVE_SHM_UNLINK */
 
 /* Define to 1 if you have the `shutdown' function. */
 #define HAVE_SHUTDOWN 1
@@ -1195,40 +1188,40 @@
 #define HAVE_SIGACTION 1
 
 /* Define to 1 if you have the `sigaltstack' function. */
-/* #undef HAVE_SIGALTSTACK (moxnox) */
+/* #undef HAVE_SIGALTSTACK */
 
 /* Define to 1 if you have the `sigfillset' function. */
-/* #undef HAVE_SIGFILLSET (moxnox) */
+#define HAVE_SIGFILLSET 1
 
 /* Define to 1 if `si_band' is a member of `siginfo_t'. */
-/* #undef HAVE_SIGINFO_T_SI_BAND (moxnox) */
+#define HAVE_SIGINFO_T_SI_BAND 1
 
 /* Define to 1 if you have the `siginterrupt' function. */
-/* #undef HAVE_SIGINTERRUPT (moxnox) */
+/* #undef HAVE_SIGINTERRUPT */
 
 /* Define to 1 if you have the <signal.h> header file. */
 #define HAVE_SIGNAL_H 1
 
 /* Define to 1 if you have the `sigpending' function. */
-/* #undef HAVE_SIGPENDING (moxnox) */
+#define HAVE_SIGPENDING 1
 
 /* Define to 1 if you have the `sigrelse' function. */
-/* #undef HAVE_SIGRELSE (moxnox) */
+/* #undef HAVE_SIGRELSE */
 
 /* Define to 1 if you have the `sigtimedwait' function. */
-/* #undef HAVE_SIGTIMEDWAIT (moxnox) */
+/* #undef HAVE_SIGTIMEDWAIT */
 
 /* Define to 1 if you have the `sigwait' function. */
-/* #undef HAVE_SIGWAIT (moxnox) */
+#define HAVE_SIGWAIT 1
 
 /* Define to 1 if you have the `sigwaitinfo' function. */
-/* #undef HAVE_SIGWAITINFO (moxnox) */
+/* #undef HAVE_SIGWAITINFO */
 
 /* Define to 1 if you have the `snprintf' function. */
 #define HAVE_SNPRINTF 1
 
 /* struct sockaddr_alg (linux/if_alg.h) */
-/* #undef HAVE_SOCKADDR_ALG (moxnox) */
+/* #undef HAVE_SOCKADDR_ALG */
 
 /* Define if sockaddr has sa_len member */
 /* #undef HAVE_SOCKADDR_SA_LEN */
@@ -1240,7 +1233,7 @@
 #define HAVE_SOCKET 1
 
 /* Define if you have the 'socketpair' function. */
-/* #undef HAVE_SOCKETPAIR (moxnox) */
+#define HAVE_SOCKETPAIR 1
 
 /* Define to 1 if the system has the type `socklen_t'. */
 #define HAVE_SOCKLEN_T 1
@@ -1249,16 +1242,16 @@
 #define HAVE_SPAWN_H 1
 
 /* Define to 1 if you have the `splice' function. */
-/* #undef HAVE_SPLICE (moxnox) */
+/* #undef HAVE_SPLICE */
 
 /* Define to 1 if the system has the type `ssize_t'. */
 #define HAVE_SSIZE_T 1
 
 /* Define to 1 if you have the `statvfs' function. */
-/* #undef HAVE_STATVFS (moxnox) */
+#define HAVE_STATVFS 1
 
 /* Define if you have struct stat.st_mtim.tv_nsec */
-/* #undef HAVE_STAT_TV_NSEC (moxnox) */
+#define HAVE_STAT_TV_NSEC 1
 
 /* Define if you have struct stat.st_mtimensec */
 /* #undef HAVE_STAT_TV_NSEC2 */
@@ -1291,22 +1284,22 @@
 /* #undef HAVE_STROPTS_H */
 
 /* Define to 1 if you have the `strsignal' function. */
-/* #undef HAVE_STRSIGNAL (moxnox) */
+#define HAVE_STRSIGNAL 1
 
 /* Define to 1 if `pw_gecos' is a member of `struct passwd'. */
-/* #undef HAVE_STRUCT_PASSWD_PW_GECOS (moxnox) */
+/* #undef HAVE_STRUCT_PASSWD_PW_GECOS */
 
 /* Define to 1 if `pw_passwd' is a member of `struct passwd'. */
-/* #undef HAVE_STRUCT_PASSWD_PW_PASSWD (moxnox) */
+/* #undef HAVE_STRUCT_PASSWD_PW_PASSWD */
 
 /* Define to 1 if `st_birthtime' is a member of `struct stat'. */
 /* #undef HAVE_STRUCT_STAT_ST_BIRTHTIME */
 
 /* Define to 1 if `st_blksize' is a member of `struct stat'. */
-/* #undef HAVE_STRUCT_STAT_ST_BLKSIZE (moxnox) */
+#define HAVE_STRUCT_STAT_ST_BLKSIZE 1
 
 /* Define to 1 if `st_blocks' is a member of `struct stat'. */
-/* #undef HAVE_STRUCT_STAT_ST_BLOCKS (moxnox) */
+#define HAVE_STRUCT_STAT_ST_BLOCKS 1
 
 /* Define to 1 if `st_flags' is a member of `struct stat'. */
 /* #undef HAVE_STRUCT_STAT_ST_FLAGS */
@@ -1315,25 +1308,25 @@
 /* #undef HAVE_STRUCT_STAT_ST_GEN */
 
 /* Define to 1 if `st_rdev' is a member of `struct stat'. */
-/* #undef HAVE_STRUCT_STAT_ST_RDEV (moxnox) */
+#define HAVE_STRUCT_STAT_ST_RDEV 1
 
 /* Define to 1 if `tm_zone' is a member of `struct tm'. */
-/* #undef HAVE_STRUCT_TM_TM_ZONE (moxnox) */
+/* #undef HAVE_STRUCT_TM_TM_ZONE */
 
 /* Define if you have the 'symlink' function. */
-/* #undef HAVE_SYMLINK (moxnox) */
+#define HAVE_SYMLINK 1
 
 /* Define to 1 if you have the `symlinkat' function. */
-/* #undef HAVE_SYMLINKAT (moxnox) */
+#define HAVE_SYMLINKAT 1
 
 /* Define to 1 if you have the `sync' function. */
-/* #undef HAVE_SYNC (moxnox) */
+/* #undef HAVE_SYNC */
 
 /* Define to 1 if you have the `sysconf' function. */
 #define HAVE_SYSCONF 1
 
 /* Define to 1 if you have the <sysexits.h> header file. */
-/* #undef HAVE_SYSEXITS_H (moxnox) */
+/* #undef HAVE_SYSEXITS_H */
 
 /* Define to 1 if you have the <syslog.h> header file. */
 #define HAVE_SYSLOG_H 1
@@ -1345,7 +1338,7 @@
 /* #undef HAVE_SYS_AUDIOIO_H */
 
 /* Define to 1 if you have the <sys/auxv.h> header file. */
-#define HAVE_SYS_AUXV_H 1
+/* #undef HAVE_SYS_AUXV_H */
 
 /* Define to 1 if you have the <sys/bsdtty.h> header file. */
 /* #undef HAVE_SYS_BSDTTY_H */
@@ -1361,19 +1354,19 @@
 /* #undef HAVE_SYS_ENDIAN_H */
 
 /* Define to 1 if you have the <sys/epoll.h> header file. */
-/* #undef HAVE_SYS_EPOLL_H (moxnox) */
+/* #undef HAVE_SYS_EPOLL_H */
 
 /* Define to 1 if you have the <sys/eventfd.h> header file. */
-/* #undef HAVE_SYS_EVENTFD_H (moxnox) */
+/* #undef HAVE_SYS_EVENTFD_H */
 
 /* Define to 1 if you have the <sys/event.h> header file. */
 /* #undef HAVE_SYS_EVENT_H */
 
 /* Define to 1 if you have the <sys/file.h> header file. */
-/* #undef HAVE_SYS_FILE_H (moxnox) */
+/* #undef HAVE_SYS_FILE_H */
 
 /* Define to 1 if you have the <sys/ioctl.h> header file. */
-/* #undef HAVE_SYS_IOCTL_H (moxnox) */
+/* #undef HAVE_SYS_IOCTL_H */
 
 /* Define to 1 if you have the <sys/kern_control.h> header file. */
 /* #undef HAVE_SYS_KERN_CONTROL_H */
@@ -1404,40 +1397,40 @@
 /* #undef HAVE_SYS_PARAM_H */
 
 /* Define to 1 if you have the <sys/pidfd.h> header file. */
-/* #undef HAVE_SYS_PIDFD_H (moxnox) */
+/* #undef HAVE_SYS_PIDFD_H */
 
 /* Define to 1 if you have the <sys/poll.h> header file. */
-#define HAVE_SYS_POLL_H 1
+/* #undef HAVE_SYS_POLL_H */
 
 /* Define to 1 if you have the <sys/random.h> header file. */
-/* #undef HAVE_SYS_RANDOM_H (moxnox) */
+/* #undef HAVE_SYS_RANDOM_H */
 
 /* Define to 1 if you have the <sys/resource.h> header file. */
-/* #undef HAVE_SYS_RESOURCE_H (moxnox) */
+#define HAVE_SYS_RESOURCE_H 1
 
 /* Define to 1 if you have the <sys/select.h> header file. */
 #define HAVE_SYS_SELECT_H 1
 
 /* Define to 1 if you have the <sys/sendfile.h> header file. */
-/* #undef HAVE_SYS_SENDFILE_H (moxnox) */
+/* #undef HAVE_SYS_SENDFILE_H */
 
 /* Define to 1 if you have the <sys/socket.h> header file. */
 #define HAVE_SYS_SOCKET_H 1
 
 /* Define to 1 if you have the <sys/soundcard.h> header file. */
-#define HAVE_SYS_SOUNDCARD_H 1
+/* #undef HAVE_SYS_SOUNDCARD_H */
 
 /* Define to 1 if you have the <sys/statvfs.h> header file. */
-/* #undef HAVE_SYS_STATVFS_H (moxnox) */
+#define HAVE_SYS_STATVFS_H 1
 
 /* Define to 1 if you have the <sys/stat.h> header file. */
 #define HAVE_SYS_STAT_H 1
 
 /* Define to 1 if you have the <sys/syscall.h> header file. */
-/* #undef HAVE_SYS_SYSCALL_H (moxnox) */
+/* #undef HAVE_SYS_SYSCALL_H */
 
 /* Define to 1 if you have the <sys/sysmacros.h> header file. */
-/* #undef HAVE_SYS_SYSMACROS_H (moxnox) */
+/* #undef HAVE_SYS_SYSMACROS_H */
 
 /* Define to 1 if you have the <sys/sys_domain.h> header file. */
 /* #undef HAVE_SYS_SYS_DOMAIN_H */
@@ -1446,7 +1439,7 @@
 /* #undef HAVE_SYS_TERMIO_H */
 
 /* Define to 1 if you have the <sys/timerfd.h> header file. */
-/* #undef HAVE_SYS_TIMERFD_H (moxnox) */
+/* #undef HAVE_SYS_TIMERFD_H */
 
 /* Define to 1 if you have the <sys/times.h> header file. */
 #define HAVE_SYS_TIMES_H 1
@@ -1458,40 +1451,40 @@
 #define HAVE_SYS_TYPES_H 1
 
 /* Define to 1 if you have the <sys/uio.h> header file. */
-/* #undef HAVE_SYS_UIO_H (moxnox) */
+#define HAVE_SYS_UIO_H 1
 
 /* Define to 1 if you have the <sys/un.h> header file. */
-/* #undef HAVE_SYS_UN_H (moxnox) */
+#define HAVE_SYS_UN_H 1
 
 /* Define to 1 if you have the <sys/utsname.h> header file. */
-/* #undef HAVE_SYS_UTSNAME_H (moxnox) */
+#define HAVE_SYS_UTSNAME_H 1
 
 /* Define to 1 if you have the <sys/wait.h> header file. */
-/* #undef HAVE_SYS_WAIT_H (moxnox) */
+#define HAVE_SYS_WAIT_H 1
 
 /* Define to 1 if you have the <sys/xattr.h> header file. */
-/* #undef HAVE_SYS_XATTR_H (moxnox) */
+/* #undef HAVE_SYS_XATTR_H */
 
 /* Define to 1 if you have the `tcgetpgrp' function. */
-/* #undef HAVE_TCGETPGRP (moxnox) */
+#define HAVE_TCGETPGRP 1
 
 /* Define to 1 if you have the `tcsetpgrp' function. */
-/* #undef HAVE_TCSETPGRP (moxnox) */
+#define HAVE_TCSETPGRP 1
 
 /* Define to 1 if you have the `tempnam' function. */
-#define HAVE_TEMPNAM 1
+/* #undef HAVE_TEMPNAM */
 
 /* Define to 1 if you have the <termios.h> header file. */
 #define HAVE_TERMIOS_H 1
 
 /* Define to 1 if you have the <term.h> header file. */
-#define HAVE_TERM_H 1
+/* #undef HAVE_TERM_H */
 
 /* Define to 1 if you have the `timegm' function. */
-/* #undef HAVE_TIMEGM (moxnox) */
+/* #undef HAVE_TIMEGM */
 
 /* Define if you have the 'timerfd_create' function. */
-/* #undef HAVE_TIMERFD_CREATE (moxnox) */
+/* #undef HAVE_TIMERFD_CREATE */
 
 /* Define to 1 if you have the `times' function. */
 #define HAVE_TIMES 1
@@ -1500,47 +1493,47 @@
 #define HAVE_TMPFILE 1
 
 /* Define to 1 if you have the `tmpnam' function. */
-/* #undef HAVE_TMPNAM (moxnox) */
+/* #undef HAVE_TMPNAM */
 
 /* Define to 1 if you have the `tmpnam_r' function. */
-/* #undef HAVE_TMPNAM_R (moxnox) */
+/* #undef HAVE_TMPNAM_R */
 
 /* Define to 1 if your `struct tm' has `tm_zone'. Deprecated, use
    `HAVE_STRUCT_TM_TM_ZONE' instead. */
-/* #undef HAVE_TM_ZONE (moxnox) */
+/* #undef HAVE_TM_ZONE */
 
 /* Define to 1 if you have the `truncate' function. */
-/* #undef HAVE_TRUNCATE (moxnox) */
+#define HAVE_TRUNCATE 1
 
 /* Define to 1 if you have the `ttyname_r' function. */
-/* #undef HAVE_TTYNAME_R (moxnox) */
+#define HAVE_TTYNAME_R 1
 
 /* Define to 1 if you don't have `tm_zone' but do have the external array
    `tzname'. */
-/* #undef HAVE_TZNAME */
+#define HAVE_TZNAME 1
 
 /* Define to 1 if you have the `umask' function. */
 #define HAVE_UMASK 1
 
 /* Define to 1 if you have the `uname' function. */
-/* #undef HAVE_UNAME (moxnox) */
+#define HAVE_UNAME 1
 
 /* Define to 1 if you have the <unistd.h> header file. */
 #define HAVE_UNISTD_H 1
 
 /* Define to 1 if you have the `unlinkat' function. */
-/* #undef HAVE_UNLINKAT (moxnox) */
+#define HAVE_UNLINKAT 1
 
 /* Define to 1 if you have the `unlockpt' function. */
-/* #undef HAVE_UNLOCKPT (moxnox) */
+#define HAVE_UNLOCKPT 1
 
 /* Define to 1 if you have the `unshare' function. */
-/* #undef HAVE_UNSHARE (moxnox) */
+/* #undef HAVE_UNSHARE */
 
 /* Define if you have a useable wchar_t type defined in wchar.h; useable means
    wchar_t must be an unsigned type with at least 16 bits. (see
    Include/unicodeobject.h). */
-/* #undef HAVE_USABLE_WCHAR_T */
+#define HAVE_USABLE_WCHAR_T 1
 
 /* Define to 1 if you have the <util.h> header file. */
 /* #undef HAVE_UTIL_H */
@@ -1549,16 +1542,16 @@
 #define HAVE_UTIMENSAT 1
 
 /* Define to 1 if you have the `utimes' function. */
-/* #undef HAVE_UTIMES (moxnox) */
+#define HAVE_UTIMES 1
 
 /* Define to 1 if you have the <utime.h> header file. */
-/* #undef HAVE_UTIME_H */
+#define HAVE_UTIME_H 1
 
 /* Define to 1 if you have the <utmp.h> header file. */
-#define HAVE_UTMP_H 1
+/* #undef HAVE_UTMP_H */
 
 /* Define if you have the 'HAVE_UT_NAMESIZE' constant. */
-#define HAVE_UT_NAMESIZE 1
+/* #undef HAVE_UT_NAMESIZE */
 
 /* Define to 1 if you have the `uuid_create' function. */
 /* #undef HAVE_UUID_CREATE */
@@ -1567,59 +1560,59 @@
 /* #undef HAVE_UUID_ENC_BE */
 
 /* Define if uuid_generate_time_safe() exists. */
-#define HAVE_UUID_GENERATE_TIME_SAFE 1
+/* #undef HAVE_UUID_GENERATE_TIME_SAFE */
 
 /* Define if uuid_generate_time_safe() is able to deduce a MAC address. */
 /* #undef HAVE_UUID_GENERATE_TIME_SAFE_STABLE_MAC */
 
 /* Define to 1 if you have the <uuid.h> header file. */
-#define HAVE_UUID_H 1
+/* #undef HAVE_UUID_H */
 
 /* Define to 1 if you have the <uuid/uuid.h> header file. */
 /* #undef HAVE_UUID_UUID_H */
 
 /* Define to 1 if you have the `vfork' function. */
-/* #undef HAVE_VFORK (moxnox) */
+/* #undef HAVE_VFORK */
 
 /* Define to 1 if you have the `wait' function. */
-/* #undef HAVE_WAIT (moxnox) */
+#define HAVE_WAIT 1
 
 /* Define to 1 if you have the `wait3' function. */
-/* #undef HAVE_WAIT3 (moxnox) */
+/* #undef HAVE_WAIT3 */
 
 /* Define to 1 if you have the `wait4' function. */
-/* #undef HAVE_WAIT4 (moxnox) */
+/* #undef HAVE_WAIT4 */
 
 /* Define to 1 if you have the `waitid' function. */
-/* #undef HAVE_WAITID (moxnox) */
+/* #undef HAVE_WAITID */
 
 /* Define to 1 if you have the `waitpid' function. */
-/* #undef HAVE_WAITPID (moxnox) */
+#define HAVE_WAITPID 1
 
 /* Define if the compiler provides a wchar.h header file. */
 #define HAVE_WCHAR_H 1
 
 /* Define to 1 if you have the `wcscoll' function. */
-/* #undef HAVE_WCSCOLL (moxnox) */
+#define HAVE_WCSCOLL 1
 
 /* Define to 1 if you have the `wcsftime' function. */
-/* #undef HAVE_WCSFTIME (moxnox) */
+#define HAVE_WCSFTIME 1
 
 /* Define to 1 if you have the `wcsxfrm' function. */
-/* #undef HAVE_WCSXFRM (moxnox) */
+#define HAVE_WCSXFRM 1
 
 /* Define to 1 if you have the `wmemcmp' function. */
 #define HAVE_WMEMCMP 1
 
 /* Define if tzset() actually switches the local timezone in a meaningful way.
    */
-/* #undef HAVE_WORKING_TZSET (moxnox) */
+/* #undef HAVE_WORKING_TZSET */
 
 /* Define to 1 if you have the `writev' function. */
-/* #undef HAVE_WRITEV (moxnox) */
+#define HAVE_WRITEV 1
 
 /* Define if the zlib library has inflateCopy */
-/* #undef HAVE_ZLIB_COPY (moxnox) */
+/* #undef HAVE_ZLIB_COPY */
 
 /* Define to 1 if you have the <zlib.h> header file. */
 /* #undef HAVE_ZLIB_H */
@@ -1636,10 +1629,10 @@
 
 /* Define to 1 if `major', `minor', and `makedev' are declared in
    <sysmacros.h>. */
-/* #undef MAJOR_IN_SYSMACROS (moxnox) */
+/* #undef MAJOR_IN_SYSMACROS */
 
 /* Define if mvwdelch in curses.h is an expression. */
-#define MVWDELCH_IS_EXPRESSION 1
+/* #undef MVWDELCH_IS_EXPRESSION */
 
 /* Define to the address where bug reports for this package should be sent. */
 /* #undef PACKAGE_BUGREPORT */
@@ -1660,13 +1653,13 @@
 /* #undef PACKAGE_VERSION */
 
 /* Define if POSIX semaphores aren't enabled on your system */
-/* #undef POSIX_SEMAPHORES_NOT_ENABLED */
+#define POSIX_SEMAPHORES_NOT_ENABLED 1
 
 /* Define if pthread_key_t is compatible with int. */
-#define PTHREAD_KEY_T_IS_COMPATIBLE_WITH_INT 1
+/* #undef PTHREAD_KEY_T_IS_COMPATIBLE_WITH_INT */
 
 /* Defined if PTHREAD_SCOPE_SYSTEM supported. */
-/* #undef PTHREAD_SYSTEM_SCHED_SUPPORTED (moxnox) */
+/* #undef PTHREAD_SYSTEM_SCHED_SUPPORTED */
 
 /* Define as the preferred size in bits of long digits */
 /* #undef PYLONG_BITS_IN_DIGIT */
@@ -1678,13 +1671,13 @@
 #define PY_COERCE_C_LOCALE 1
 
 /* Define to 1 if you have the perf trampoline. */
-/* #undef PY_HAVE_PERF_TRAMPOLINE (moxnox) */
+/* #undef PY_HAVE_PERF_TRAMPOLINE */
 
 /* Define to 1 to build the sqlite module with loadable extensions support. */
 /* #undef PY_SQLITE_ENABLE_LOAD_EXTENSION */
 
 /* Define if SQLite was compiled with the serialize API */
-#define PY_SQLITE_HAVE_SERIALIZE 1
+/* #undef PY_SQLITE_HAVE_SERIALIZE */
 
 /* Default cipher suites list for ssl module. 1: Python's preferred selection,
    2: leave OpenSSL defaults untouched, 0: custom string */
@@ -1737,7 +1730,7 @@
 #define SIZEOF_FLOAT 4
 
 /* The size of `fpos_t', as computed by sizeof. */
-#define SIZEOF_FPOS_T 16
+#define SIZEOF_FPOS_T 8
 
 /* The size of `int', as computed by sizeof. */
 #define SIZEOF_INT 4
@@ -1746,19 +1739,19 @@
 #define SIZEOF_LONG 4
 
 /* The size of `long double', as computed by sizeof. */
-#define SIZEOF_LONG_DOUBLE 16
+#define SIZEOF_LONG_DOUBLE 8
 
 /* The size of `long long', as computed by sizeof. */
 #define SIZEOF_LONG_LONG 8
 
 /* The size of `off_t', as computed by sizeof. */
-#define SIZEOF_OFF_T 4
+#define SIZEOF_OFF_T 8
 
 /* The size of `pid_t', as computed by sizeof. */
 #define SIZEOF_PID_T 4
 
 /* The size of `pthread_key_t', as computed by sizeof. */
-#define SIZEOF_PTHREAD_KEY_T 4
+#define SIZEOF_PTHREAD_KEY_T 8
 
 /* The size of `pthread_t', as computed by sizeof. */
 #define SIZEOF_PTHREAD_T 8
@@ -2032,6 +2025,31 @@
 #if defined(__USLC__) && defined(__SCO_VERSION__)
 #define STRICT_SYSV_CURSES /* Don't use ncurses extensions */
 #endif
+
+
+/* --- Moxnox port additions ------------------------------------------- */
+
+/* The CRT is always UTF-8, whatever the locale says. */
+#define _Py_FORCE_UTF8_LOCALE 1
+
+/* _curses and _curses_panel are built against the ncurses port, which
+ * configure cannot see without development paths. */
+#define HAVE_CURSES_H 1
+#define HAVE_CURSES_FILTER 1
+#define HAVE_CURSES_HAS_KEY 1
+#define HAVE_CURSES_IMMEDOK 1
+#define HAVE_CURSES_IS_PAD 1
+#define HAVE_CURSES_IS_TERM_RESIZED 1
+#define HAVE_CURSES_RESIZETERM 1
+#define HAVE_CURSES_RESIZE_TERM 1
+#define HAVE_CURSES_SYNCOK 1
+#define HAVE_CURSES_TYPEAHEAD 1
+#define HAVE_CURSES_USE_ENV 1
+#define HAVE_CURSES_WCHGAT 1
+#define HAVE_PANEL_H 1
+#define HAVE_PANELW 1
+#define HAVE_TERM_H 1
+#define MVWDELCH_IS_EXPRESSION 1
 
 #endif /*Py_PYCONFIG_H*/
 
