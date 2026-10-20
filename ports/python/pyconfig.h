@@ -391,7 +391,7 @@
 /* #undef HAVE_FLOCK (moxnox) */
 
 /* Define to 1 if you have the `fork' function. */
-/* #undef HAVE_FORK (moxnox) */
+#define HAVE_FORK 1
 
 /* Define to 1 if you have the `fork1' function. */
 /* #undef HAVE_FORK1 */

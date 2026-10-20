@@ -526,6 +526,9 @@ PyODict_DelItem
 PyODict_New
 PyODict_SetItem
 PyOS_AfterFork
+PyOS_AfterFork_Child
+PyOS_AfterFork_Parent
+PyOS_BeforeFork
 PyOS_FSPath
 PyOS_InterruptOccurred
 PyOS_Readline
