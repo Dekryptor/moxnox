@@ -581,6 +581,7 @@ add_library(panel SHARED
 
 target_compile_definitions(panel PRIVATE BUILDING_NCURSES BUILDING_PANEL WIN_PTHREADS_TIME_H)
 target_compile_options(panel PRIVATE ${USERSPACE_CFLAGS})
+target_include_directories(panel PUBLIC repo/panel)
 target_include_directories(panel PRIVATE ${GEN} repo/ncurses repo/include)
 target_link_libraries(panel PRIVATE ncurses)
 
