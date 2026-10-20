@@ -32,6 +32,7 @@
 #define _SC_PHYS_PAGES 7
 #define _SC_NPROCESSORS_CONF 8
 #define _SC_OPEN_MAX 9
+#define _SC_TTY_NAME_MAX 10
 
 #define _PC_PATH_MAX 0
 #define _PC_NAME_MAX 1

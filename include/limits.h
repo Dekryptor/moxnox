@@ -39,3 +39,5 @@
 #define MB_LEN_MAX 5
 
 #define PTHREAD_STACK_MIN 4096
+
+#define TTY_NAME_MAX 100

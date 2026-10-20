@@ -1,5 +1,6 @@
 #include <unistd.h>
 #include <errno.h>
+#include <limits.h>
 
 import nt;
 
@@ -64,6 +65,9 @@ long sysconf(int name) {
 
         case _SC_GETPW_R_SIZE_MAX:
             return 1024; // size of static_buf in mnposix/src/pwd.cpp
+
+        case _SC_TTY_NAME_MAX:
+            return TTY_NAME_MAX;
 
         default:
             *_errno() = EINVAL;
