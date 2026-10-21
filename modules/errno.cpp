@@ -179,6 +179,9 @@ export int nt_status_to_errno(nt_status status) {
         case nt_status::INVALID_IMAGE_FORMAT:
             return ENOEXEC;
 
+        case nt_status::MEDIA_WRITE_PROTECTED:
+            return EROFS;
+
         default:
             return EINVAL;
     }
