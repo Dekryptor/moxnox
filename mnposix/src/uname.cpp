@@ -18,11 +18,18 @@ static string_view get_os_version() {
     return sv;
 }
 
+static string_view get_os_hash() {
+    const auto& time_page = *(time_page_struct*)TIME_PAGE_BASE;
+
+    return string_view(time_page.os_hash);
+}
+
 extern "C"
 int uname(struct utsname* buf) {
     char hostname[sizeof(time_page_struct::hostname)];
 
     auto version = get_os_version();
+    auto hash = get_os_hash();
 
     strcpy(buf->sysname, "Moxnox");
 
@@ -40,9 +47,8 @@ int uname(struct utsname* buf) {
     memcpy(buf->release, version.data(), version.size());
     buf->release[version.size()] = 0;
 
-    // FIXME? Linux puts the build date here
-    memcpy(buf->version, version.data(), version.size());
-    buf->version[version.size()] = 0;
+    memcpy(buf->version, hash.data(), hash.size());
+    buf->version[hash.size()] = 0;
 
 #ifdef __x86_64__
     strcpy(buf->machine, "x86_64");
