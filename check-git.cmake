@@ -17,6 +17,8 @@ function(check_git_version)
 
     if(NOT GIT_VERSION)
         set(GIT_VERSION "${PROJECT_VERSION}-g${GIT_HASH}")
+    elseif(NOT GIT_VERSION STREQUAL PROJECT_VERSION)
+        message(FATAL_ERROR "version mismatch between git (${GIT_VERSION}) and cmake (${PROJECT_VERSION})")
     endif()
 
     if (EXISTS ${CMAKE_BINARY_DIR}/git-state.txt)
