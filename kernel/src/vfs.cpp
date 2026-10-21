@@ -92,6 +92,7 @@ public:
     inode* root_inode = nullptr;
     spinlock writeback_lock;
     list_entry writeback_list = { &writeback_list, &writeback_list };
+    bool readonly = false;
 };
 
 export class inode : public object {

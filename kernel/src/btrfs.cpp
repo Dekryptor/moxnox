@@ -267,7 +267,6 @@ public:
     spinlock ref_changes_lock;
     rbtree_node<uint64_t>* ref_changes = nullptr;
     list_entry space_pending_chunks = { &space_pending_chunks, &space_pending_chunks };
-    bool readonly;
     object_ref flush_thread_obj;
     uint8_t node_folio_order;
     page_cache<btrfs_filesystem> cache{*this};
@@ -432,7 +431,9 @@ span<char> do_format_arg(span<char> sp, string_view, enum key_type t) {
     }
 }
 
-btrfs_filesystem::btrfs_filesystem(volume& vol, bool readonly) : filesystem(&vol), readonly(readonly) {
+btrfs_filesystem::btrfs_filesystem(volume& vol, bool readonly) : filesystem(&vol) {
+    this->readonly = readonly;
+
     vol.acquire();
 
     auto sb_pa = allocate_folio(bytes_to_folio_order(sizeof(btrfs_super_block)));

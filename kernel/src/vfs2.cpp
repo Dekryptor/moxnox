@@ -1182,6 +1182,13 @@ NTSTATUS NtCreateFile(HANDLE* file_handle, ACCESS_MASK access_mask,
             access_mask |= FILE_GENERIC_EXECUTE;
         }
 
+        if (ino.fs.readonly) {
+            if (access_mask & (FILE_WRITE_DATA | FILE_WRITE_ATTRIBUTES | FILE_WRITE_EA | FILE_APPEND_DATA | DELETE)) {
+                delete f;
+                return nt_status::MEDIA_WRITE_PROTECTED;
+            }
+        }
+
         status = p->add_handle(*f, access_mask, shared_okay, h);
         if (!success(status)) {
             delete f;
