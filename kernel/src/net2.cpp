@@ -556,6 +556,7 @@ static void add_neighbour_cache_entry(netif& ni, const mac_address& mac,
     }
 
     nce->addr = addr;
+    nce->mac = mac;
 
     nce->event = create_event(false);
     if (!nce->event) {
