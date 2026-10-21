@@ -7503,21 +7503,6 @@ nt_status btrfs_inode::rename(::dentry& dentry, ::dentry& dest_dir,
     if (src_parent_ino.r != dst_parent_ino.r)
         return nt_status::NOT_SAME_DEVICE;
 
-    optional<reference_wrapper<::dentry>> victim_dentry;
-    bool no_open_handles = true;
-
-    // FIXME - victim_dentry can go stale?
-
-    {
-        shared_lock lg(dest_dir.child_lock);
-        search_dentry_cache(dest_dir, name, victim_dentry);
-    }
-
-    if (victim_dentry) {
-        no_open_handles = victim_dentry->get().open_file_count == 0;
-        victim_dentry->get().release();
-    }
-
     {
         lock_guard lg(fs.trans_lock);
 
@@ -7583,7 +7568,7 @@ nt_status btrfs_inode::rename(::dentry& dentry, ::dentry& dest_dir,
             }
 
             if (orphaned) {
-                if (no_open_handles)
+                if (victim_ino.handle_count == 0)
                     victim_ino.remove_orphan(true);
                 else {
                     status = insert_item(fs, *r,
