@@ -11,7 +11,7 @@ import ucrtbase;
 extern "C" {
     int daylight;
     long timezone;
-    char* tzname[2];
+    char* tzname[] = { (char*)"UTC", (char*)"UTC" };
 }
 
 extern "C"
