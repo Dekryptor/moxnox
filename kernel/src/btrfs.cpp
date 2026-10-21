@@ -7077,6 +7077,9 @@ nt_status btrfs_inode::set_disposition_information(span<const uint8_t> buffer,
                                                    dentry& dentry) {
     nt_status status;
 
+    if (fs.readonly)
+        return nt_status::MEDIA_WRITE_PROTECTED;
+
     if (buffer.size() < sizeof(FILE_DISPOSITION_INFORMATION))
         return nt_status::INVALID_PARAMETER;
 
