@@ -146,6 +146,6 @@ image_size:
 
 .section ".efi_version"
 .ascii "Moxnox "
-.asciz GIT_HASH
+.asciz GIT_VERSION
 efi_hash:
 .asciz GIT_HASH

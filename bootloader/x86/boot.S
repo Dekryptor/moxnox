@@ -792,7 +792,7 @@ jmp     enter_protected_mode
 .global kernel_version
 kernel_version:
 .ascii	"Moxnox "
-.asciz	GIT_HASH
+.asciz	GIT_VERSION
 
 .global kernel_hash
 kernel_hash:
@@ -886,6 +886,6 @@ vbe_best_mode_mul:
 
 .section .efi_version
 .ascii	"Moxnox "
-.asciz	GIT_HASH
+.asciz	GIT_VERSION
 efi_hash:
 .asciz	GIT_HASH
