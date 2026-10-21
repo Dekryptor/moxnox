@@ -2591,6 +2591,9 @@ static nt_status vfsctl_mount(span<const uint8_t> inbuf) {
 
     auto& m = *(MOXNOX_VFSCTL_MOUNT*)inbuf.data();
 
+    if (m.options != 0)
+        return nt_status::INVALID_PARAMETER;
+
     // get mount_type
 
     if (m.mount_type >= inbuf.size())

@@ -262,6 +262,7 @@ static void mount_dev() {
     buf->mount_type = sizeof(MOXNOX_VFSCTL_MOUNT);
     buf->source = 0;
     buf->directory = dir.get();
+    buf->options = 0;
     memcpy((char*)buf + buf->mount_type, mount_type.data(), mount_type.size());
 
     status = NtDeviceIoControlFile(vfsctl.get(), 0, nullptr, nullptr, &iosb,

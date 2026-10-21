@@ -87,7 +87,8 @@ export struct MOXNOX_VFSCTL_MOUNT {
     uint32_t mount_type;
     HANDLE source;
     HANDLE directory;
-    // FIXME - options
+    uint32_t options;
+    // FIXME - miscellaneous options?
 };
 
 export struct MOXNOX_VFSCTL_LIST_MOUNTS {

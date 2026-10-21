@@ -126,6 +126,7 @@ static int mount(string_view source, string_view directory) {
 
     buf->source = src ? src.get() : 0;
     buf->directory = dir.get();
+    buf->options = 0;
 
     if (!type.empty())
         memcpy((char*)buf + buf->mount_type, type.data(), type.size());
