@@ -18,6 +18,7 @@ using namespace std;
 static const char16_t vfsctl_path[] = u"/dev/vfsctl";
 
 static char* mount_type = nullptr;
+static char* mount_options = nullptr;
 
 static int mount(string_view source, string_view directory) {
     NTSTATUS status;
@@ -27,6 +28,7 @@ static int mount(string_view source, string_view directory) {
     IO_STATUS_BLOCK iosb;
     unique_handle src, dir, vfsctl;
     auto peb = NtCurrentTeb()->ProcessEnvironmentBlock;
+    uint32_t options = 0;
 
     memset(&oa, 0, sizeof(oa));
     oa.Length = sizeof(OBJECT_ATTRIBUTES);
@@ -34,6 +36,33 @@ static int mount(string_view source, string_view directory) {
     oa.RootDirectory = peb->ProcessParameters->CurrentDirectory.Handle;
 
     // FIXME - if mount_type not given, try to guess (use libblkid?)
+
+    if (mount_options) {
+        auto sv = string_view(mount_options);
+
+        while (!sv.empty()) {
+            auto comma = sv.find(',');
+            string_view bit;
+
+            if (comma != string_view::npos) {
+                bit = sv.substr(0, comma);
+                sv = sv.substr(comma + 1);
+            } else {
+                bit = sv;
+                sv = "";
+            }
+
+            if (bit.empty())
+                continue;
+
+            if (bit == "ro")
+                options |= MOXNOX_VFSCTL_MOUNT_READONLY;
+            else {
+                print_stderr("Unrecognized mount option \"{}\"\n", bit);
+                return 1;
+            }
+        }
+    }
 
     // open source
 
@@ -126,7 +155,7 @@ static int mount(string_view source, string_view directory) {
 
     buf->source = src ? src.get() : 0;
     buf->directory = dir.get();
-    buf->options = 0;
+    buf->options = options;
 
     if (!type.empty())
         memcpy((char*)buf + buf->mount_type, type.data(), type.size());
@@ -244,12 +273,13 @@ int main(int argc, char** argv) {
 
     static const option options[] = {
         { "type", required_argument, nullptr, 't' }, // FIXME - on Linux is actually --types
+        { "options", required_argument, nullptr, 'o' },
         { nullptr, 0, nullptr, 0 }
     };
 
     while (true) {
         int index;
-        auto c = getopt_long(argc, argv, "t:", options, &index);
+        auto c = getopt_long(argc, argv, "o:t:", options, &index);
 
         if (c == -1)
             break;
@@ -258,6 +288,14 @@ int main(int argc, char** argv) {
             case 't':
                 mount_type = strdup(optarg);
                 if (!mount_type) {
+                    print_stderr("strdup failed\n");
+                    return 1;
+                }
+                break;
+
+            case 'o':
+                mount_options = strdup(optarg);
+                if (!mount_options) {
                     print_stderr("strdup failed\n");
                     return 1;
                 }
@@ -280,6 +318,9 @@ int main(int argc, char** argv) {
 
     if (mount_type)
         free(mount_type);
+
+    if (mount_options)
+        free(mount_options);
 
     return ret;
 }
