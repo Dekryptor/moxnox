@@ -2615,6 +2615,15 @@ static nt_status vfsctl_mount(span<const uint8_t> inbuf) {
 
         // FIXME - check access mask?
 
+        if (sourcerw.get().type == object_type::file) {
+            auto& f = static_cast<file&>(sourcerw.get());
+
+            f.ino.acquire();
+            object_ref tmp{f.ino};
+
+            sourcerw.swap(tmp);
+        }
+
         if (sourcerw.get().type != object_type::volume)
             return nt_status::OBJECT_TYPE_MISMATCH;
     }
