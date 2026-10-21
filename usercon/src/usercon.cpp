@@ -2187,6 +2187,8 @@ static void run_shell(const char16_t* exe, void (*recv_func)(string_view),
 
         if (!CreateProcessW(exe, nullptr, nullptr, nullptr, false, CREATE_SUSPENDED,
                             nullptr, u16home, &si, &pi)) {
+            print_stderr("CreateProcessW failed (error {})\n", GetLastError());
+
             if (u16home)
                 free(u16home);
 
@@ -2593,6 +2595,8 @@ static int do_serial_console(const char16_t* exe) {
 
         if (!CreateProcessW(exe, nullptr, nullptr, nullptr, false, CREATE_SUSPENDED,
                             nullptr, u16home, &si, &pi)) {
+            print_stderr("CreateProcessW failed (error {})\n", GetLastError());
+
             if (u16home)
                 free(u16home);
 
