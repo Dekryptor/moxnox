@@ -1903,6 +1903,9 @@ void create_time_page() {
     memcpy(kernel_time_page.os_version, version.data(), version.size());
     kernel_time_page.os_version[version.size()] = 0;
 
+    memcpy(kernel_time_page.os_hash, os_hash.data(), os_hash.size());
+    kernel_time_page.os_hash[os_hash.size()] = 0;
+
 #ifdef __x86_64__
     kernel_time_page.tsc_freq = tsc_freq;
 #elifdef __aarch64__

@@ -232,6 +232,9 @@ void main_thread(void* ctx) {
     memcpy(version_buf, lb.version, sizeof(lb.version));
     version = string_view(version_buf);
 
+    memcpy(os_hash_buf, lb.hash, sizeof(lb.hash));
+    os_hash = string_view(os_hash_buf);
+
     free_lower_half_mappings();
     free_bootloader_memory();
 

@@ -22,6 +22,7 @@ export struct __attribute__((aligned(PAGE_SIZE))) time_page_struct {
     uint64_t tsc_freq;
     uint64_t tick_rate;
     char os_version[32];
+    char os_hash[32];
     atomic<uint32_t> dns_servers_seq_lock;
     array<ipv6_address, 16> dns_servers;
     atomic<uint32_t> hostname_seq_lock;
