@@ -23,7 +23,7 @@ extern "C" {
     int _daylight;
     int _dstbias;
     long _timezone;
-    char* _tzname[2];
+    char* _tzname[] = { (char*)"UTC", (char*)"UTC" };
 }
 
 export void init_clock() {
