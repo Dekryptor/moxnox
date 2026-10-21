@@ -92,7 +92,9 @@ function(add_rust_port name binary)
         VERBATIM
     )
 
-    add_custom_target(${name} ALL DEPENDS ${exe})
+    # FIXME - make it so rust ports don't have to be specified by name in order
+    #         to be built, once cargo is ported
+    add_custom_target(${name} DEPENDS ${exe})
 
     add_dependencies(${name} rust_crate_libc)
     foreach(crate ${ARG_PATCHED_CRATES})
@@ -102,5 +104,5 @@ function(add_rust_port name binary)
         add_dependencies(${name} ${name}_patched)
     endif()
 
-    install(PROGRAMS ${exe} DESTINATION ${CMAKE_INSTALL_PREFIX}/bin)
+    install(PROGRAMS ${exe} DESTINATION ${CMAKE_INSTALL_PREFIX}/bin OPTIONAL)
 endfunction()
