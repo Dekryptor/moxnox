@@ -38,7 +38,6 @@ int _getpid() {
 
 extern "C"
 int system(const char* command) {
-    string_view cmd(command);
     STARTUPINFOW si;
     PROCESS_INFORMATION pi;
     PROCESS_BASIC_INFORMATION pbi;
@@ -60,6 +59,7 @@ int system(const char* command) {
         return -1;
     }
 
+    string_view cmd(command);
     auto u16cmdlen = utf8_to_utf16_len(cmd);
 
     auto cmdlinelen = u16shelllen + DASH_C.size() + u16cmdlen + 1;
