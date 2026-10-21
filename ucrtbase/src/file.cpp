@@ -2774,15 +2774,9 @@ FILE* __popen(const char* command, const char* type) {
         type++;
     }
 
-    auto shell = getenv("SHELL");
+    static const char16_t u16shell[] = u"/bin/sh";
+    static const size_t u16shelllen = (sizeof(u16shell) / sizeof(char16_t)) - 1;
 
-    if (!shell || !shell[0]) {
-        *__errno() = ENOENT;
-        return nullptr;
-    }
-
-    auto shellsv = string_view(shell);
-    auto u16shelllen = utf8_to_utf16_len(shellsv);
     auto u16cmdlen = utf8_to_utf16_len(cmd);
 
     auto cmdlinelen = u16shelllen + DASH_C.size() + u16cmdlen + 1;
@@ -2792,16 +2786,6 @@ FILE* __popen(const char* command, const char* type) {
         return nullptr;
     }
 
-    auto u16shell = (char16_t*)malloc((u16shelllen + 1) * sizeof(char16_t));
-    if (!u16shell) {
-        *__errno() = ENOMEM;
-        free(cmdline);
-        return nullptr;
-    }
-
-    utf8_to_utf16(span(u16shell, u16shelllen), shellsv);
-    u16shell[u16shelllen] = 0;
-
     memcpy(cmdline, u16shell, u16shelllen * sizeof(char16_t));
     memcpy(cmdline + u16shelllen, DASH_C.data(), DASH_C.size() * sizeof(char16_t));
     utf8_to_utf16(span(cmdline + u16shelllen + DASH_C.size(), u16cmdlen), cmd);
@@ -2810,7 +2794,6 @@ FILE* __popen(const char* command, const char* type) {
     // create pipe
 
     if (__pipe(pipefds, 0, 0)) {
-        free(u16shell);
         free(cmdline);
         return nullptr;
     }
@@ -2835,7 +2818,6 @@ FILE* __popen(const char* command, const char* type) {
 
     if (!CreateProcessW(u16shell, cmdline, nullptr, nullptr, false, 0, nullptr,
                         nullptr, &si, &pi)) {
-        free(u16shell);
         free(cmdline);
         __close(pipefds[0]);
         __close(pipefds[1]);
@@ -2849,7 +2831,6 @@ FILE* __popen(const char* command, const char* type) {
     else
         __close(pipefds[1]);
 
-    free(u16shell);
     free(cmdline);
 
     NtClose(pi.hThread);
