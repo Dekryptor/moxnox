@@ -46,20 +46,13 @@ int system(const char* command) {
 
     static const u16string_view DASH_C = u" -c ";
 
-    auto shell = getenv("SHELL");
+    static const char16_t u16shell[] = u"/bin/sh";
+    static const size_t u16shelllen = (sizeof(u16shell) / sizeof(char16_t)) - 1;
 
     if (!command) {
-        if (!shell || !shell[0])
-            return 0;
-
         // FIXME - should check whether shell actually exists?
 
         return 1;
-    }
-
-    if (!shell || !shell[0]) {
-        *__errno() = ENOENT;
-        return -1;
     }
 
     if (!command[0]) {
@@ -67,8 +60,6 @@ int system(const char* command) {
         return -1;
     }
 
-    auto shellsv = string_view(shell);
-    auto u16shelllen = utf8_to_utf16_len(shellsv);
     auto u16cmdlen = utf8_to_utf16_len(cmd);
 
     auto cmdlinelen = u16shelllen + DASH_C.size() + u16cmdlen + 1;
@@ -77,16 +68,6 @@ int system(const char* command) {
         *__errno() = ENOMEM;
         return -1;
     }
-
-    auto u16shell = (char16_t*)malloc((u16shelllen + 1) * sizeof(char16_t));
-    if (!u16shell) {
-        *__errno() = ENOMEM;
-        free(cmdline);
-        return -1;
-    }
-
-    utf8_to_utf16(span(u16shell, u16shelllen), shellsv);
-    u16shell[u16shelllen] = 0;
 
     memcpy(cmdline, u16shell, u16shelllen * sizeof(char16_t));
     memcpy(cmdline + u16shelllen, DASH_C.data(), DASH_C.size() * sizeof(char16_t));
@@ -99,7 +80,6 @@ int system(const char* command) {
 
     if (!CreateProcessW(u16shell, cmdline, nullptr, nullptr, false, 0, nullptr,
                         nullptr, &si, &pi)) {
-        free(u16shell);
         free(cmdline);
 
         // FIXME - errno?
@@ -107,7 +87,6 @@ int system(const char* command) {
         return -1;
     }
 
-    free(u16shell);
     free(cmdline);
 
     NtClose(pi.hThread);
