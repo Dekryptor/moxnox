@@ -257,6 +257,11 @@ static void find_version(uintptr_t image) {
 
     memcpy(&lb.version, ver.data(), ver.size());
     lb.version[ver.size()] = 0;
+
+    string_view hash(ver.data() + ver.size() + 1);
+
+    memcpy(&lb.hash, hash.data(), hash.size());
+    lb.hash[hash.size()] = 0;
 }
 
 static EFI_STATUS get_image_information(EFI_HANDLE image_handle,

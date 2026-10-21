@@ -104,6 +104,11 @@ enter_protected_mode:
     or eax, DWORD PTR [_ptr_kernel_version]
     mov DWORD PTR [_ptr_kernel_version], eax
 
+    mov eax, ebx
+    shl eax, 4
+    or eax, DWORD PTR [_ptr_kernel_hash]
+    mov DWORD PTR [_ptr_kernel_hash], eax
+
     mov ax, 0x10
     mov es, ax
     mov ss, ax
@@ -192,3 +197,7 @@ _ptr_vbe_edid:
 .global _ptr_kernel_version
 _ptr_kernel_version:
 .long kernel_version
+
+.global _ptr_kernel_hash
+_ptr_kernel_hash:
+.long kernel_hash

@@ -128,6 +128,7 @@ struct loader_block {
     uint64_t trace_ptr;
     uint64_t trace_size;
     char version[32];
+    char hash[32];
 #ifdef __i386__ // avoid bringing in gnu-efi
     uint64_t GetTime;
     uint64_t SetVirtualAddressMap;

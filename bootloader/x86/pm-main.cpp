@@ -66,6 +66,7 @@ extern uint32_t pm_vbe_selected_mode;
 extern void* ptr_vbe_edid;
 extern bool* ptr_vbe_edid_valid;
 extern "C" const char* ptr_kernel_version;
+extern "C" const char* ptr_kernel_hash;
 
 // pm.s
 extern "C" bool have_long_mode();
@@ -1051,6 +1052,7 @@ static void set_graphics_info() {
 extern "C"
 void protected_mode_main() {
     auto ver = string_view(ptr_kernel_version);
+    auto hash = string_view(ptr_kernel_hash);
 
     if (pm_vbe_selected_mode == 0xffff) {
         lb.text_mode = true;
@@ -1122,6 +1124,9 @@ void protected_mode_main() {
 
     memcpy(&lb.version, ver.data(), ver.size());
     lb.version[ver.size()] = 0;
+
+    memcpy(&lb.hash, hash.data(), hash.size());
+    lb.hash[hash.size()] = 0;
 
     // jump to entry point of image
 

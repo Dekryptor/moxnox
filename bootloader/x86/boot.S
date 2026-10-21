@@ -794,6 +794,10 @@ kernel_version:
 .ascii	"Moxnox "
 .asciz	GIT_HASH
 
+.global kernel_hash
+kernel_hash:
+.asciz	GIT_HASH
+
 gdt:
 # null descriptor
 .short 0
@@ -882,4 +886,6 @@ vbe_best_mode_mul:
 
 .section .efi_version
 .ascii	"Moxnox "
+.asciz	GIT_HASH
+efi_hash:
 .asciz	GIT_HASH
