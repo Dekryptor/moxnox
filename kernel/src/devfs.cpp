@@ -83,7 +83,7 @@ public:
     uint32_t uid = 0, gid = 0;
 };
 
-static ::filesystem* create_devfs();
+static ::filesystem* create_devfs(uint32_t options);
 
 static filesystem_recognizer mod_filesystem_type = {
     {}, "devfs", nullptr, create_devfs
@@ -95,7 +95,12 @@ static void init_devfs() {
 
 static module_init module_init_btrfs(init_devfs);
 
-static ::filesystem* create_devfs() {
+static ::filesystem* create_devfs(uint32_t options) {
+    if (options != 0) {
+        print("create_devfs: unrecognized options {}\n", options);
+        return nullptr;
+    }
+
     auto fs = new devfs_filesystem;
     if (!fs)
         return nullptr;

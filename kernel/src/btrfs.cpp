@@ -36,6 +36,7 @@ import objects;
 import crt;
 import kernel_time_page;
 import handle;
+import moxnox_ioctls;
 
 using namespace std;
 
@@ -57,7 +58,7 @@ static const uint64_t supported_compat_ro_flags = BTRFS_FEATURE_COMPAT_RO_FREE_S
                                                   BTRFS_FEATURE_COMPAT_RO_FREE_SPACE_TREE_VALID |
                                                   BTRFS_FEATURE_COMPAT_RO_BLOCK_GROUP_TREE;
 
-static nt_status btrfs_probe(volume& v);
+static nt_status btrfs_probe(volume& v, uint32_t options);
 
 static filesystem_recognizer mod_filesystem_type = {
     {}, "btrfs", btrfs_probe, nullptr
@@ -216,7 +217,7 @@ private:
 
 class btrfs_filesystem : public ::filesystem {
 public:
-    btrfs_filesystem(volume& vol);
+    btrfs_filesystem(volume& vol, bool readonly);
 
     ~btrfs_filesystem() override {
         free_chunk_list();
@@ -266,7 +267,7 @@ public:
     spinlock ref_changes_lock;
     rbtree_node<uint64_t>* ref_changes = nullptr;
     list_entry space_pending_chunks = { &space_pending_chunks, &space_pending_chunks };
-    bool readonly = false;
+    bool readonly;
     object_ref flush_thread_obj;
     uint8_t node_folio_order;
     page_cache<btrfs_filesystem> cache{*this};
@@ -431,7 +432,7 @@ span<char> do_format_arg(span<char> sp, string_view, enum key_type t) {
     }
 }
 
-btrfs_filesystem::btrfs_filesystem(volume& vol) : filesystem(&vol) {
+btrfs_filesystem::btrfs_filesystem(volume& vol, bool readonly) : filesystem(&vol), readonly(readonly) {
     vol.acquire();
 
     auto sb_pa = allocate_folio(bytes_to_folio_order(sizeof(btrfs_super_block)));
@@ -676,10 +677,17 @@ btrfs_filesystem::btrfs_filesystem(volume& vol) : filesystem(&vol) {
     }
 }
 
-static nt_status btrfs_probe(volume& vol) {
+static nt_status btrfs_probe(volume& vol, uint32_t options) {
+    static const uint32_t SUPPORTED_OPTIONS = MOXNOX_VFSCTL_MOUNT_READONLY;
+
     // FIXME - need quick is_btrfs function before we do allocations?
 
-    auto fs = new btrfs_filesystem(vol);
+    if (options & ~SUPPORTED_OPTIONS) {
+        print("btrfs_probe: unsupported mount options {}\n", options);
+        return nt_status::INVALID_PARAMETER;
+    }
+
+    auto fs = new btrfs_filesystem(vol, options & MOXNOX_VFSCTL_MOUNT_READONLY);
     if (!fs) {
         print("new failed\n");
         return nt_status::INSUFFICIENT_RESOURCES;

@@ -25,6 +25,7 @@ import page_cache;
 import spinlock;
 import kernel_time_page;
 import module_init;
+import moxnox_ioctls;
 
 using namespace std;
 
@@ -132,7 +133,7 @@ tmpfs_filesystem::tmpfs_filesystem() : filesystem(nullptr) {
     tmpfs_root_inode->otime = cur_time;
 }
 
-static ::filesystem* create_tmpfs();
+static ::filesystem* create_tmpfs(uint32_t options);
 
 static filesystem_recognizer mod_filesystem_type = {
     {}, "tmpfs", nullptr, create_tmpfs
@@ -144,7 +145,15 @@ static void init_tmpfs() {
 
 static module_init module_init_btrfs(init_tmpfs);
 
-static ::filesystem* create_tmpfs() {
+static ::filesystem* create_tmpfs(uint32_t options) {
+    if (options & MOXNOX_VFSCTL_MOUNT_READONLY) {
+        print("cannot create readonly tmpfs\n");
+        return nullptr;
+    } else if (options != 0) {
+        print("create_tmpfs: unknown option bits {}\n", options);
+        return nullptr;
+    }
+
     auto fs = new tmpfs_filesystem();
     if (!fs)
         return nullptr;

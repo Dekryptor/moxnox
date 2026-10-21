@@ -83,6 +83,8 @@ export struct MOXNOX_SET_CURSOR {
     bool enabled;
 };
 
+export constexpr uint32_t MOXNOX_VFSCTL_MOUNT_READONLY = 0x1;
+
 export struct MOXNOX_VFSCTL_MOUNT {
     uint32_t mount_type;
     HANDLE source;

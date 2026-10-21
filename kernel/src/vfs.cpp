@@ -199,8 +199,8 @@ export struct dentry {
 export struct filesystem_recognizer {
     list_entry le;
     string_view name;
-    nt_status (*try_mount_volume)(volume&);
-    filesystem* (*mount_without_volume)();
+    nt_status (*try_mount_volume)(volume& vol, uint32_t options);
+    filesystem* (*mount_without_volume)(uint32_t options);
 };
 
 export class file : public object {

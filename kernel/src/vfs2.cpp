@@ -127,7 +127,7 @@ static ::filesystem* do_mount_root(string_view cmdline_root,
                 if (!r.try_mount_volume)
                     continue;
 
-                auto status = r.try_mount_volume(vol);
+                auto status = r.try_mount_volume(vol, 0);
                 if (success(status)) {
                     type = &r;
                     break;
@@ -264,7 +264,7 @@ static bool extract_initrd() {
         return false;
     }
 
-    auto fs = tmpfs->mount_without_volume();
+    auto fs = tmpfs->mount_without_volume(0);
     if (!fs) {
         print("tmpfs->mount_without_volume failed\n");
         return false;
@@ -2591,9 +2591,6 @@ static nt_status vfsctl_mount(span<const uint8_t> inbuf) {
 
     auto& m = *(MOXNOX_VFSCTL_MOUNT*)inbuf.data();
 
-    if (m.options != 0)
-        return nt_status::INVALID_PARAMETER;
-
     // get mount_type
 
     if (m.mount_type >= inbuf.size())
@@ -2690,7 +2687,7 @@ static nt_status vfsctl_mount(span<const uint8_t> inbuf) {
                     return nt_status::UNRECOGNIZED_VOLUME;
                 }
 
-                status = r.try_mount_volume(source);
+                status = r.try_mount_volume(source, m.options);
                 if (!success(status)) {
                     mp->release();
                     return status;
@@ -2725,7 +2722,7 @@ static nt_status vfsctl_mount(span<const uint8_t> inbuf) {
                 return nt_status::UNRECOGNIZED_VOLUME;
             }
 
-            fs = r.mount_without_volume(); // FIXME - get returning error
+            fs = r.mount_without_volume(m.options); // FIXME - get returning error
             if (!fs) {
                 mp->release();
                 return nt_status::INTERNAL_ERROR;
