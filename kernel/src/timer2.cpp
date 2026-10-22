@@ -553,7 +553,7 @@ void msleep(unsigned int ms) {
         return;
     }
 
-    wait_for_object(tim, true);
+    wait_for_object(tim, false);
 }
 
 void udelay(uint64_t us) {
