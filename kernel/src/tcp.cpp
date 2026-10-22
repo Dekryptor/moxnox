@@ -739,7 +739,7 @@ static nt_status send_syn(base_tcp_socket& sock,
 
         if (status == nt_status::TIMEOUT)
             continue;
-        else if (success(status))
+        else if (success(status) && status != nt_status::USER_APC)
             break;
         else {
             pack->release();
