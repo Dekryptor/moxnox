@@ -35,4 +35,4 @@ llvm-config = "@CMAKE_CURRENT_SOURCE_DIR@/@RUST_TARGET@-llvm-config"
 # the target spec passes -static-libgcc too, but with local-rebuild the
 # stage0 compiler is the installed one, whose spec may predate that;
 # this keeps the gcc runtime static regardless of stage0's vintage
-rustflags = ["-Clink-arg=-static-libgcc"]
+rustflags = ["-Clink-arg=-static-libgcc", "-Clink-arg=-fuse-ld=lld"]
