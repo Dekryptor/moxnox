@@ -54,6 +54,7 @@ import kernel_time_page;
 import smbios_parser;
 import pty;
 import trace;
+import urandom;
 
 using namespace std;
 
@@ -281,6 +282,9 @@ void main_thread(void* ctx) {
 
     if (!create_dev_tty())
         print("create_dev_tty failed\n");
+
+    if (!create_dev_urandom())
+        print("create_dev_urandom failed\n");
 
     if (!init_vfsctl())
         bsod("init_vfsctl failed\n");
