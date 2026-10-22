@@ -19,8 +19,7 @@ RUN emerge dev-build/moxnox-cmake-platform
 RUN echo "sys-devel/binutils multitarget" >> /etc/portage/package.use/moxnox
 RUN emerge sys-devel/binutils
 
-RUN emerge net-misc/s3cmd
-RUN emerge app-arch/cpio app-misc/jq dev-util/xxd net-libs/nodejs
+RUN emerge app-arch/cpio app-misc/jq dev-util/xxd net-libs/nodejs net-misc/s3cmd net-misc/rclone
 
 RUN mkdir -p /etc/portage/patches/llvm-core/llvm && cd /etc/portage/patches/llvm-core/llvm && wget https://moxnox.dev/llvm-moxnox.tar.gz && tar -xzf llvm-moxnox.tar.gz && rm llvm-moxnox.tar.gz
 RUN mkdir -p /etc/portage/patches/llvm-core/clang && cd /etc/portage/patches/llvm-core/clang && wget https://moxnox.dev/clang-moxnox.tar.gz && tar -xzf clang-moxnox.tar.gz && rm clang-moxnox.tar.gz
