@@ -71,6 +71,8 @@ RUN mkdir -p /usr/aarch64-pc-moxnox/etc/portage/patches/llvm-core/llvm && cd /us
 RUN emerge dev-python/mako dev-python/pyyaml
 RUN aarch64-pc-moxnox-emerge --nodeps llvm-core/llvm:22 # --nodeps because Gentoo pulls in zlib despite the fact we've disabled it
 
+RUN eselect rust set rust-1.95.0
+
 RUN rm -rf /var/cache/distfiles
 RUN env-update
 
