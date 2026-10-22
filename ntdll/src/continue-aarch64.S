@@ -1,3 +1,4 @@
+/* SPDX-License-Identifier: LGPL-2.1-or-later */
 #include "../../kernel/src/context_offsets.h"
 #include "../../modules/exception_record_offsets.h"
 #include "../../modules/dwarf.S"

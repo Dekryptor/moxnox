@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: LGPL-2.1-or-later
 #include <string_view>
 #include <span>
 #include <stdint.h>

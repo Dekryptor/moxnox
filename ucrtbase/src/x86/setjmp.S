@@ -1,3 +1,4 @@
+/* SPDX-License-Identifier: LGPL-2.1-or-later */
 .intel_syntax noprefix
 
 #include "../setjmp_offsets.h"

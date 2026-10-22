@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: LGPL-2.1-or-later
 #include <spawn.h>
 #include <signal.h>
 #include <sys/wait.h>

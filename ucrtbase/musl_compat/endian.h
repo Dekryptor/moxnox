@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: LGPL-2.1-or-later
 #pragma once
 /* Minimal endian.h for compiling musl math sources with MinGW toolchain.
  * MinGW lacks endian.h; libm.h uses __BYTE_ORDER/__LITTLE_ENDIAN/__BIG_ENDIAN.

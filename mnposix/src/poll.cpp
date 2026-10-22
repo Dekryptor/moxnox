@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: LGPL-2.1-or-later
 #include <poll.h>
 #include <sys/select.h>
 #include <stddef.h>

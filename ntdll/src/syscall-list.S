@@ -1,3 +1,4 @@
+/* SPDX-License-Identifier: LGPL-2.1-or-later */
 do_syscall "NtDisplayString", 0x1000
 do_syscall "NtTerminateThread", 0x1001
 do_syscall "NtTerminateProcess", 0x1002
