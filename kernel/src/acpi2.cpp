@@ -823,7 +823,7 @@ ACPI_STATUS AcpiOsWaitSemaphore(ACPI_SEMAPHORE Handle, UINT32 Units,
     }
 
     sem.acquire();
-    wait_for_object(sem, true);
+    wait_for_object(sem, false);
     sem.release();
 
     return AE_OK;
