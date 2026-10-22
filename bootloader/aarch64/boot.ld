@@ -1,3 +1,4 @@
+/* SPDX-License-Identifier: GPL-2.0-only */
 OUTPUT_FORMAT("binary")
 OUTPUT_ARCH("aarch64")
 TARGET("pe-aarch64-little")

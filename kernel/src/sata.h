@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: GPL-2.0-only
 #pragma once
 
 static const unsigned int SATA_NUM_CMD_TABLES = 32;

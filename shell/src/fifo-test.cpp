@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: GPL-2.0-only
 /*
  * fifo-test - mkfifo and FIFO open/read/write semantics
  *

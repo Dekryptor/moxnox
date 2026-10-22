@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: GPL-2.0-only
 #pragma once
 
 static const uint8_t VIRTIO_DEVICE_STATUS_ACKNOWLEDGE = 0x01;

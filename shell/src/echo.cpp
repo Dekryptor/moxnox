@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: GPL-2.0-only
 import print;
 
 int main(int argc, char** argv) {

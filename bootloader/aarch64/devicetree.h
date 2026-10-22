@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: GPL-2.0-only
 #include <stdint.h>
 
 static const uint32_t DEVICE_TREE_MAGIC = 0xd00dfeed;

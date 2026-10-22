@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: GPL-2.0-only
 #include <shared_mutex>
 #include <span>
 #include <string_view>

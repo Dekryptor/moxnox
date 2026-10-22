@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: GPL-2.0-only
 #include <atomic>
 #include <string_view>
 #include <span>

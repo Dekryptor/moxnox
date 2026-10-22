@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: GPL-2.0-only
 export module mapping_type;
 
 export enum class mapping_type {

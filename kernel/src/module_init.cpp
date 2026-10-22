@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: GPL-2.0-only
 export module module_init;
 
 export class module_init {

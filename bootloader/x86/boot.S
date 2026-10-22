@@ -1,3 +1,4 @@
+/* SPDX-License-Identifier: GPL-2.0-only */
 #include "git_version.h"
 
 .intel_syntax noprefix

@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: GPL-2.0-only
 /*
  * spawn-test - process primitives: posix_spawn, waitpid, exec, fd inheritance.
  *

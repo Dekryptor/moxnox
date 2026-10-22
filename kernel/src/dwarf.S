@@ -1,3 +1,4 @@
+/* SPDX-License-Identifier: GPL-2.0-only */
 .equ DW_TAG_padding, 0x00
 .equ DW_TAG_array_type, 0x01
 .equ DW_TAG_class_type, 0x02

@@ -1,3 +1,4 @@
+/* SPDX-License-Identifier: GPL-2.0-only */
 .p2align 12 // start at page boundary
 
 .global ap_trampoline

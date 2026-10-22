@@ -1,3 +1,4 @@
+/* SPDX-License-Identifier: GPL-2.0-only */
 #include "../context_offsets.h"
 
 .macro save_context # clobbers rax and rdx

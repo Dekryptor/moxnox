@@ -1,3 +1,4 @@
+/* SPDX-License-Identifier: GPL-2.0-only */
 #include "../dwarf.S"
 
 .section .debug_abbrev, "dr"

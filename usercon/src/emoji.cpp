@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: GPL-2.0-only
 export module emoji;
 
 // see https://www.unicode.org/Public/17.0.0/ucd/emoji/emoji-data.txt

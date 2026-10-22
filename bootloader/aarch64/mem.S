@@ -1,3 +1,4 @@
+/* SPDX-License-Identifier: GPL-2.0-only */
 .equ SPSR_EL1_WITH_SP_EL1, 0x5
 
 .equ HCR_EL2_E2H, 1 << 34

@@ -1,3 +1,4 @@
+/* SPDX-License-Identifier: GPL-2.0-only */
 # FIXME - Clang forces the nice version to be a memory address (GAS is okay)
 # .equ NUM_SYSCALLS, (end_syscalls - syscalls) / 8
 .equ NUM_SYSCALLS, 0x191

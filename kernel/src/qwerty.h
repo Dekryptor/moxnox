@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: GPL-2.0-only
 #pragma once
 
 static const uint8_t CODE_EXTD = 0xe0;
