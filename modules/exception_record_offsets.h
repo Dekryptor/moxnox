@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: MIT
 #pragma once
 
 #define EXCEPTION_RECORD_EXCEPTION_CODE 0x0

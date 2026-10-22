@@ -1,3 +1,4 @@
+/* SPDX-License-Identifier: MIT */
 .intel_syntax noprefix
 
 #include "../kernel/src/dwarf.S"

@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: MIT
 module;
 
 #include <termios.h>

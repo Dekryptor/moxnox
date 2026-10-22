@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: MIT
 export module unique_handle;
 
 import nt;

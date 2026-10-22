@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: MIT
 module;
 
 #define _CRT_ERRNO_DEFINED

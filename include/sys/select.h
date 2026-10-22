@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: MIT
 #pragma once
 
 /* Prevent winsock2.h from defining its own array-based fd_set. */
