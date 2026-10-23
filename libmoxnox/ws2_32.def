@@ -30,7 +30,7 @@ getservbyname
 getservbyport
 getprotobynumber
 getprotobyname
+inet_pton
 
 ; stubs
-inet_pton
 inet_ntoa

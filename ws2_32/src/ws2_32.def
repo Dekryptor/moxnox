@@ -30,3 +30,4 @@ getservbyname
 getservbyport
 getprotobynumber
 getprotobyname
+inet_pton

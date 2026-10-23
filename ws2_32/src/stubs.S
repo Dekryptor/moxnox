@@ -2,7 +2,6 @@
 
 stubs_start
 
-do_stub "inet_pton"
 do_stub "inet_ntoa"
 
 stubs_end

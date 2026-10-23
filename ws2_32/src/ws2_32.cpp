@@ -481,6 +481,47 @@ const char* inet_ntop(int af, const void* src, char* dst, socklen_t size) {
     }
 }
 
+static int inet_pton_v4(const char* src, in_addr_t& dst) {
+    // FIXME - should only be accepting addresses of form x.x.x.x
+
+    auto ret = try_parse_ipv4_address(src);
+
+    if (!ret.has_value())
+        return 0;
+
+    dst = *(in_addr_t*)&*ret;
+
+    return 1;
+}
+
+static int inet_pton_v6(const char* src, ipv6_address& dst) {
+    // FIXME - should be accepting addresses of form x:x:x:x:x:x:d.d.d.d
+
+    auto ret = try_parse_ipv6_address(src);
+
+    if (!ret.has_value())
+        return 0;
+
+    dst = *ret;
+
+    return 1;
+}
+
+extern "C"
+int inet_pton(int af, const char* src, void* dst) {
+    switch (af) {
+        case AF_INET:
+            return inet_pton_v4(src, *(in_addr_t*)dst);
+
+        case AF_INET6:
+            return inet_pton_v6(src, *(ipv6_address*)dst);
+
+        default:
+            *_errno() = EAFNOSUPPORT;
+            return -1;
+    }
+}
+
 extern "C"
 in_addr_t inet_addr(const char* cp) {
     auto addr = try_parse_ipv4_address(cp);
