@@ -533,6 +533,20 @@ in_addr_t inet_addr(const char* cp) {
 }
 
 extern "C"
+char* inet_ntoa(in_addr in) {
+    auto addr = *(ipv4_address*)&in;
+
+    static char buf[16];
+
+    span sp(buf, sizeof(buf));
+
+    sp = format(sp, "{}", addr);
+    sp[0] = 0;
+
+    return buf;
+}
+
+extern "C"
 servent* getservbyname(const char* /*name*/, const char* /*proto*/) {
     return nullptr;
 }
