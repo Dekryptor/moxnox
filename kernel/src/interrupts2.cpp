@@ -11,6 +11,10 @@ module;
 #include "ints.h"
 #include <stdint.h>
 
+#ifdef __x86_64__
+#include <x86intrin.h>
+#endif
+
 module interrupts;
 
 #ifdef __aarch64__
@@ -34,6 +38,7 @@ import loaderblock;
 import cmdline;
 import acpica;
 import trace;
+import urandom;
 
 using namespace std;
 
@@ -516,6 +521,18 @@ void remove_irq_handler(uint32_t /*number*/, irq_func_type /*func*/, void* /*ctx
     // FIXME
 }
 
+static void add_entropy() {
+    uint64_t r;
+
+#ifdef __x86_64__
+    r = __rdtsc();
+#elifdef __aarch64__
+    r = cntvct_el0_load();
+#endif
+
+    add_randomness(span((uint8_t*)&r, sizeof(r)));
+}
+
 #ifdef __x86_64__
 
 bool init_apic() {
@@ -589,6 +606,8 @@ void handle_dynamic_isr(uint8_t int_num) {
 
     if (!func)
         return;
+
+    add_entropy();
 
     func(ctx);
 }
@@ -2145,8 +2164,10 @@ void handle_irq(uint32_t number) {
                 for (auto le2 = i.handlers.next; le2 != &i.handlers; le2 = le2->next) {
                     auto& h = containing_record<irq_handler_info>(le2);
 
-                    if (h.func(h.ctx))
+                    if (h.func(h.ctx)) {
+                        add_entropy();
                         break;
+                    }
                 }
 
                 break;

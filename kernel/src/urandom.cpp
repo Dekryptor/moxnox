@@ -129,3 +129,50 @@ nt_status random_chardev::read(span<const span<uint8_t>> v,
 
     return nt_status::SUCCESS;
 }
+
+export void add_randomness(span<const uint8_t> data) {
+    uint32_t in[16], out[16];
+
+    in[0] = 0x61707865;
+    in[1] = 0x3320646e;
+    in[2] = 0x79622d32;
+    in[3] = 0x6b206574;
+
+    in[12] = 0;
+    in[13] = 0;
+    in[14] = 0;
+    in[15] = 0;
+
+    {
+        lock_guard lock(urandom_lock);
+
+        while (!data.empty()) {
+            auto n = min(data.size(), sizeof(urandom_key));
+
+            in[4] = urandom_key[0];
+            in[5] = urandom_key[1];
+            in[6] = urandom_key[2];
+            in[7] = urandom_key[3];
+            in[8] = urandom_key[4];
+            in[9] = urandom_key[5];
+            in[10] = urandom_key[6];
+            in[11] = urandom_key[7];
+
+            // xor key with data
+            for (size_t i = 0; i < n; i++) {
+                *((uint8_t*)in + 16 + i) ^= data[i];
+            }
+
+            chacha_block(out, in);
+            memcpy(urandom_key, out, sizeof(urandom_key));
+
+            data = span(data.data() + n, data.size() - n);
+        }
+    }
+
+    // don't leave on stack
+    for (size_t i = 0; i < 16; i++) {
+        *(volatile uint32_t*)&in[i] = 0;
+        *(volatile uint32_t*)&out[i] = 0;
+    }
+}
