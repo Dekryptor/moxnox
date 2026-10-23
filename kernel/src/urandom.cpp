@@ -19,11 +19,15 @@ import kernel_time_page;
 import config;
 import chacha20;
 import spinlock;
+import event;
+import scheduler;
 
 using namespace std;
 
 static spinlock urandom_lock;
-static uint32_t urandom_key[8]; // FIXME - initialize
+static uint32_t urandom_key[8]; // FIXME - initialize from rdseed/rdrand if present (and not broken)?
+static object_ref urandom_event;
+static size_t urandom_bits_left = 256;
 
 class random_chardev : public chardev {
 public:
@@ -37,6 +41,12 @@ public:
 };
 
 export bool create_dev_urandom() {
+    urandom_event = create_event(false);
+    if (!urandom_event) {
+        print("create_event failed\n");
+        return false;
+    }
+
     auto pptr = new random_chardev;
     if (!pptr) {
         print("new failed\n");
@@ -64,12 +74,17 @@ nt_status random_chardev::write(span<const span<const uint8_t>> v,
 nt_status random_chardev::read(span<const span<uint8_t>> v,
                                uint64_t& read_bytes) {
     uint32_t in[16], out[16];
+    nt_status status;
     auto len = get_vec_size(v);
 
     read_bytes = len;
 
     if (read_bytes == 0)
         return nt_status::SUCCESS;
+
+    status = wait_for_object(urandom_event.get(), true);
+    if (!success(status) || status == nt_status::USER_APC)
+        return status;
 
     // see RFC 8439
 
@@ -143,6 +158,8 @@ export void add_randomness(span<const uint8_t> data) {
     in[14] = 0;
     in[15] = 0;
 
+    bool do_set_event = false;
+
     {
         lock_guard lock(urandom_lock);
 
@@ -168,7 +185,17 @@ export void add_randomness(span<const uint8_t> data) {
 
             data = span(data.data() + n, data.size() - n);
         }
+
+        if (urandom_bits_left > 0) {
+            urandom_bits_left--;
+
+            if (urandom_bits_left == 0)
+                do_set_event = true;
+        }
     }
+
+    if (do_set_event)
+        set_event(static_cast<event&>(urandom_event.get()));
 
     // don't leave on stack
     for (size_t i = 0; i < 16; i++) {
