@@ -3,7 +3,9 @@ module;
 
 #include <span>
 #include <algorithm>
+#include <mutex>
 #include <stdint.h>
+#include <string.h>
 
 export module urandom;
 
@@ -15,8 +17,13 @@ import object_ref;
 import vec;
 import kernel_time_page;
 import config;
+import chacha20;
+import spinlock;
 
 using namespace std;
+
+static spinlock urandom_lock;
+static uint32_t urandom_key[8]; // FIXME - initialize
 
 class random_chardev : public chardev {
 public:
@@ -56,6 +63,7 @@ nt_status random_chardev::write(span<const span<const uint8_t>> v,
 
 nt_status random_chardev::read(span<const span<uint8_t>> v,
                                uint64_t& read_bytes) {
+    uint32_t in[16], out[16];
     auto len = get_vec_size(v);
 
     read_bytes = len;
@@ -63,23 +71,60 @@ nt_status random_chardev::read(span<const span<uint8_t>> v,
     if (read_bytes == 0)
         return nt_status::SUCCESS;
 
-    // FIXME - do this properly
+    // see RFC 8439
 
-    auto rnd = (uint64_t)(kernel_time_page.system_time / (SYSTEM_TIME_RESOLUTION / TICK_RATE));
+    in[0] = 0x61707865;
+    in[1] = 0x3320646e;
+    in[2] = 0x79622d32;
+    in[3] = 0x6b206574;
 
     span<uint8_t> top = v.front();
 
-    while (true) {
-        rnd = rnd * (uint64_t)1103515245 + 12345; // from Knuth
+    while (len > 0) {
+        lock_guard lock(urandom_lock);
 
-        auto n = (uint32_t)rnd;
+        in[4] = urandom_key[0];
+        in[5] = urandom_key[1];
+        in[6] = urandom_key[2];
+        in[7] = urandom_key[3];
+        in[8] = urandom_key[4];
+        in[9] = urandom_key[5];
+        in[10] = urandom_key[6];
+        in[11] = urandom_key[7];
 
-        memcpy_vec(v, top, (uint8_t*)&n, min(len, sizeof(uint32_t)));
+        in[12] = 0; // block counter
 
-        if (len > sizeof(uint32_t))
-            len -= sizeof(uint32_t);
-        else
-            break;
+        in[13] = 0; // nonce
+        in[14] = 0;
+        in[15] = 0;
+
+        while (true) {
+            chacha_block(out, in);
+
+            memcpy_vec(v, top, (uint8_t*)out, min(len, sizeof(out)));
+
+            in[12]++;
+
+            if (len > sizeof(out))
+                len -= sizeof(out);
+            else {
+                len = 0;
+                break;
+            }
+
+            // don't hold the spinlock for more than 1MB at a time
+            if (in[12] == 16384)
+                break;
+        }
+
+        chacha_block(out, in);
+        memcpy(urandom_key, out, sizeof(urandom_key));
+    }
+
+    // don't leave on stack
+    for (size_t i = 0; i < 16; i++) {
+        *(volatile uint32_t*)&in[i] = 0;
+        *(volatile uint32_t*)&out[i] = 0;
     }
 
     return nt_status::SUCCESS;
