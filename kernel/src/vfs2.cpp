@@ -2672,8 +2672,7 @@ static nt_status vfsctl_mount(span<const uint8_t> inbuf) {
         {
             lock_guard lock(source.mount_lock);
 
-            if (source.filesystem) {
-                print("vfsctl_mount: volume already mounted\n");
+            if (source.filesystem) { // volume already mounted
                 mp->release();
                 return nt_status::DEVICE_NOT_READY;
             }
@@ -2706,7 +2705,6 @@ static nt_status vfsctl_mount(span<const uint8_t> inbuf) {
             }
 
             if (!found_fs_type) {
-                print("vfsctl: unrecognized filesystem type \"{}\"\n", mount_type);
                 mp->release();
                 return nt_status::UNRECOGNIZED_VOLUME;
             }
@@ -2743,7 +2741,6 @@ static nt_status vfsctl_mount(span<const uint8_t> inbuf) {
         }
 
         if (!found_fs_type) {
-            print("vfsctl: unrecognized filesystem type \"{}\"\n", mount_type);
             mp->release();
             return nt_status::UNRECOGNIZED_VOLUME;
         }
