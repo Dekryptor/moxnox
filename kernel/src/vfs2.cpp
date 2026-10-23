@@ -2683,8 +2683,12 @@ static nt_status vfsctl_mount(span<const uint8_t> inbuf) {
             for (auto le = filesystem_types.next; le != &filesystem_types; le = le->next) {
                 auto& r = containing_record<filesystem_recognizer>(le);
 
-                if (!r.try_mount_volume)
+                if (!r.try_mount_volume) {
+                    if (r.name == mount_type)
+                        return nt_status::INVALID_PARAMETER;
+
                     continue;
+                }
 
                 if (!mount_type.empty() && r.name != mount_type)
                     continue;
@@ -2706,7 +2710,7 @@ static nt_status vfsctl_mount(span<const uint8_t> inbuf) {
 
             if (!vol) {
                 mp->release();
-                return nt_status::UNRECOGNIZED_VOLUME;
+                return mount_type.empty() ? nt_status::UNRECOGNIZED_VOLUME : nt_status::FS_DRIVER_REQUIRED;
             }
 
             fs = &source.filesystem->get();
@@ -2725,7 +2729,7 @@ static nt_status vfsctl_mount(span<const uint8_t> inbuf) {
 
             if (!r.mount_without_volume) {
                 mp->release();
-                return nt_status::UNRECOGNIZED_VOLUME;
+                return nt_status::INVALID_PARAMETER;
             }
 
             fs = r.mount_without_volume(m.options); // FIXME - get returning error
@@ -2742,7 +2746,7 @@ static nt_status vfsctl_mount(span<const uint8_t> inbuf) {
 
         if (!found_fs_type) {
             mp->release();
-            return nt_status::UNRECOGNIZED_VOLUME;
+            return nt_status::FS_DRIVER_REQUIRED;
         }
     }
 
