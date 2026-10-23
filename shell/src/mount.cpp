@@ -164,8 +164,12 @@ static int mount(string_view source, string_view directory) {
     status = NtDeviceIoControlFile(vfsctl.get(), 0, nullptr, nullptr, &iosb,
                                    IOCTL_MOXNOX_VFSCTL_MOUNT, buf,
                                    (uint32_t)buflen, nullptr, 0);
-    if (!success(status))
-        print("IOCTL_MOXNOX_VFSCTL_MOUNT returned {}\n", status);
+    if (status == nt_status::UNRECOGNIZED_VOLUME)
+        print_stderr("mount: {}: unrecognized volume\n", source, status);
+    else if (status == nt_status::FS_DRIVER_REQUIRED)
+        print_stderr("mount: {}: unknown filesystem type {}\n", source, mount_type);
+    else if (!success(status))
+        print_stderr("mount: {}: IOCTL_MOXNOX_VFSCTL_MOUNT returned {}\n", source, status);
 
     free(buf);
 
