@@ -580,6 +580,8 @@ span<char> do_format_arg(span<char> sp, string_view, nt_status arg) {
             return sp_strcpy(sp, "UNRECOGNIZED_VOLUME");
         case nt_status::IO_DEVICE_ERROR:
             return sp_strcpy(sp, "IO_DEVICE_ERROR");
+        case nt_status::FS_DRIVER_REQUIRED:
+            return sp_strcpy(sp, "FS_DRIVER_REQUIRED");
         case nt_status::INVALID_BUFFER_SIZE:
             return sp_strcpy(sp, "INVALID_BUFFER_SIZE");
         case nt_status::INVALID_ADDRESS_COMPONENT:

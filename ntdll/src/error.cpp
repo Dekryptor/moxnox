@@ -144,6 +144,8 @@ uint32_t RtlNtStatusToDosErrorNoTeb(nt_status status) {
             return ERROR_UNRECOGNIZED_VOLUME;
         case IO_DEVICE_ERROR:
             return ERROR_IO_DEVICE;
+        case FS_DRIVER_REQUIRED:
+            return ERROR_FS_DRIVER_REQUIRED;
         case INVALID_BUFFER_SIZE:
             return ERROR_INVALID_USER_BUFFER;
         case INVALID_ADDRESS_COMPONENT:

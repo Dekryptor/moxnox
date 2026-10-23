@@ -48,6 +48,7 @@ export constexpr uint32_t ERROR_BAD_STACK = 543;
 export constexpr uint32_t ERROR_CANT_WAIT = 554;
 export constexpr uint32_t ERROR_CONTROL_C_EXIT = 572;
 export constexpr uint32_t ERROR_UNHANDLED_EXCEPTION = 574;
+export constexpr uint32_t ERROR_FS_DRIVER_REQUIRED = 588;
 export constexpr uint32_t ERROR_ILLEGAL_DLL_RELOCATION = 623;
 export constexpr uint32_t ERROR_FLOAT_MULTIPLE_FAULTS = 630;
 export constexpr uint32_t ERROR_FLOAT_MULTIPLE_TRAPS = 631;
