@@ -1570,7 +1570,8 @@ void xhci_queue::recover_ep0_after_timeout() {
 
 bool xhci_queue::control_transfer(span<uint8_t> buf, uint8_t bmRequestType,
                                   enum usb_request bRequest, uint16_t wValue,
-                                  uint16_t wIndex, uint64_t timeout) {
+                                  uint16_t wIndex, uint64_t timeout,
+                                  bool quiet) {
     xhci_request req_setup, req_data, req_status;
     uint8_t* bounce = nullptr;
     uint64_t pa;
@@ -1655,27 +1656,38 @@ bool xhci_queue::control_transfer(span<uint8_t> buf, uint8_t bmRequestType,
         return false;
 
     if (status == nt_status::TIMEOUT) {
-        print("xhci_queue::control_transfer: request timed out ({})\n", (enum TRB_CODE)req_setup.ev.completion_code);
+        if (!quiet)
+            print("xhci_queue::control_transfer: request timed out ({})\n", (enum TRB_CODE)req_setup.ev.completion_code);
+
         recover_ep0_after_timeout();
         return false;
     }
 
     if (status == nt_status::SUCCESS) { // SETUP failed
-        print("xhci_queue::control_transfer: controller returned error {} on SETUP\n", (enum TRB_CODE)req_setup.ev.completion_code);
+        if (!quiet)
+            print("xhci_queue::control_transfer: controller returned error {} on SETUP\n", (enum TRB_CODE)req_setup.ev.completion_code);
+
         if (dev && !dev->dead && (TRB_CODE)req_setup.ev.completion_code == TRB_CODE::STALL_ERROR)
             reset_ep0();
+
         return false;
     } else if (!buf.empty() && status == (nt_status)((uint32_t)nt_status::SUCCESS + 1)) { // DATA failed
-        print("xhci_queue::control_transfer: controller returned error {} on DATA\n", (enum TRB_CODE)req_data.ev.completion_code);
+        if (!quiet)
+            print("xhci_queue::control_transfer: controller returned error {} on DATA\n", (enum TRB_CODE)req_data.ev.completion_code);
+
         if (dev && !dev->dead && (TRB_CODE)req_data.ev.completion_code == TRB_CODE::STALL_ERROR)
             reset_ep0();
+
         return false;
     }
 
     if ((enum TRB_CODE)req_status.ev.completion_code != TRB_CODE::SUCCESS) {
-        print("xhci_queue::control_transfer: controller returned error {}\n", (enum TRB_CODE)req_status.ev.completion_code);
+        if (!quiet)
+            print("xhci_queue::control_transfer: controller returned error {}\n", (enum TRB_CODE)req_status.ev.completion_code);
+
         if (dev && !dev->dead && (TRB_CODE)req_status.ev.completion_code == TRB_CODE::STALL_ERROR)
             reset_ep0();
+
         return false;
     }
 

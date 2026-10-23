@@ -2652,11 +2652,11 @@ void usb_hid_device::recv_thread() {
     }
 }
 
-static bool set_protocol(usb_device& d, uint16_t wValue, uint16_t wIndex) {
-    return !d.ep0_queue.control_transfer(span<uint8_t>(),
+static void set_protocol(usb_device& d, uint16_t wValue, uint16_t wIndex) {
+    d.ep0_queue.control_transfer(span<uint8_t>(),
         USB_REQUEST_TYPE_HOST_TO_DEVICE | USB_REQUEST_TYPE_CLASS | USB_REQUEST_TYPE_RECIPIENT_INTERFACE,
         (enum usb_request)usb_hid_request::SET_PROTOCOL,
-        wValue, wIndex, SYSTEM_TIME_RESOLUTION / 2);
+        wValue, wIndex, SYSTEM_TIME_RESOLUTION / 2, true);
 }
 
 nt_status usb_hid_device::write(span<const span<const uint8_t>> v,
@@ -2852,8 +2852,9 @@ static bool found_usb_hid_device(usb_device& d, const usb_device_config& config,
 
     if (interface.desc.bInterfaceSubClass == 1) {
         // change to report protocol
-        if (!set_protocol(d, 1, interface.desc.bInterfaceNumber))
-            print("found_usb_hid_device: set_protocol failed, continuing\n");
+        set_protocol(d, 1, interface.desc.bInterfaceNumber);
+
+        // may fail on some devices, plough straight on
     }
 
     auto queue = d.configure_endpoint(ep_desc->desc);

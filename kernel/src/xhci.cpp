@@ -636,7 +636,8 @@ public:
 
     bool control_transfer(span<uint8_t> buf, uint8_t bmRequestType,
                           enum usb_request bRequest, uint16_t wValue,
-                          uint16_t wIndex, uint64_t timeout = USB_TIMEOUT);
+                          uint16_t wIndex, uint64_t timeout = USB_TIMEOUT,
+                          bool quiet = false);
     size_t normal_transfer(span<uint8_t> buf);
     size_t normal_transfer_dio(pfn_iterator& it, uint64_t num_pages);
     void isr_transfer_event(const xhci_trb_transfer_event& ev);
