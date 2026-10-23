@@ -30,6 +30,7 @@ import acpi;
 import bsod;
 import dma;
 import acpica;
+import objects;
 
 using namespace std;
 
@@ -1566,6 +1567,7 @@ bool xhci_queue::control_transfer(span<uint8_t> buf, uint8_t bmRequestType,
     xhci_request req_setup, req_data, req_status;
     uint8_t* bounce = nullptr;
     uint64_t pa;
+    nt_status status;
 
     if (!buf.empty()) {
         pa = dma_setup(buf, !(bmRequestType & USB_REQUEST_TYPE_DEVICE_TO_HOST),
@@ -1635,7 +1637,22 @@ bool xhci_queue::control_transfer(span<uint8_t> buf, uint8_t bmRequestType,
         submit_holding_lock(req_status, true);
     }
 
-    auto status = wait_for_object(req_status.event.get(), false, timeout);
+    if (!buf.empty()) {
+        array<object*, 3> objs;
+
+        objs[0] = &req_setup.event.get();
+        objs[1] = &req_status.event.get();
+        objs[2] = &req_data.event.get();
+
+        status = wait_for_objects(objs, true, false, timeout);
+    } else {
+        array<object*, 2> objs;
+
+        objs[0] = &req_setup.event.get();
+        objs[1] = &req_status.event.get();
+
+        status = wait_for_objects(objs, true, false, timeout);
+    }
 
     if (!buf.empty()) {
         if (bmRequestType & USB_REQUEST_TYPE_DEVICE_TO_HOST)
@@ -1650,6 +1667,18 @@ bool xhci_queue::control_transfer(span<uint8_t> buf, uint8_t bmRequestType,
     if (status == nt_status::TIMEOUT) {
         print("xhci_queue::control_transfer: request timed out ({})\n", (enum TRB_CODE)req_setup.ev.completion_code);
         recover_ep0_after_timeout();
+        return false;
+    }
+
+    if (status == nt_status::SUCCESS) { // SETUP failed
+        print("xhci_queue::control_transfer: controller returned error {} on SETUP\n", (enum TRB_CODE)req_setup.ev.completion_code);
+        if (dev && !dev->dead && (TRB_CODE)req_setup.ev.completion_code == TRB_CODE::STALL_ERROR)
+            reset_ep0();
+        return false;
+    } else if (status == (nt_status)((uint32_t)nt_status::SUCCESS + 2)) { // DATA failed
+        print("xhci_queue::control_transfer: controller returned error {} on DATA\n", (enum TRB_CODE)req_data.ev.completion_code);
+        if (dev && !dev->dead && (TRB_CODE)req_data.ev.completion_code == TRB_CODE::STALL_ERROR)
+            reset_ep0();
         return false;
     }
 
@@ -2934,8 +2963,7 @@ void xhci_queue::submit_holding_lock(xhci_request& req, bool ring_bell) {
     req.trb.cycle = cycle_bit ? 1 : 0;
     memcpy(&trb, &req.trb, sizeof(trb));
 
-    if (ring_bell)
-        reqs[index] = &req;
+    reqs[index] = &req;
 
     if (index == (unsigned int)(size - 1)) {
         auto& cmd_link = *reinterpret_cast<xhci_trb_link*>(&ring[size]);
