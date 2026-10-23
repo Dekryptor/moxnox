@@ -69,6 +69,7 @@ set(GLOBAL_MODULES src/cmdline.cpp
     src/trace.cpp
     src/vec.cpp
     src/urandom.cpp
+    src/chacha20.cpp
 )
 
 set(AMD64_MODULES ${GLOBAL_MODULES}
