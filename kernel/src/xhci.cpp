@@ -652,6 +652,7 @@ private:
     unsigned int submit_holding_lock(xhci_request& req, bool ring_bell);
     void recover_ep0_after_timeout();
     void reset_ep0();
+    TRB_CODE dequeue_pointer_ep0();
 
     spinlock submit_lock;
     unsigned int index = 0;
