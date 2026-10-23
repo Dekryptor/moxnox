@@ -2653,15 +2653,10 @@ void usb_hid_device::recv_thread() {
 }
 
 static bool set_protocol(usb_device& d, uint16_t wValue, uint16_t wIndex) {
-    if (!d.ep0_queue.control_transfer(span<uint8_t>(),
-            USB_REQUEST_TYPE_HOST_TO_DEVICE | USB_REQUEST_TYPE_CLASS | USB_REQUEST_TYPE_RECIPIENT_INTERFACE,
-            (enum usb_request)usb_hid_request::SET_PROTOCOL,
-            wValue, wIndex, SYSTEM_TIME_RESOLUTION / 2)) {
-        print("xhci_queue::control_transfer failed\n");
-        return false;
-    }
-
-    return true;
+    return !d.ep0_queue.control_transfer(span<uint8_t>(),
+        USB_REQUEST_TYPE_HOST_TO_DEVICE | USB_REQUEST_TYPE_CLASS | USB_REQUEST_TYPE_RECIPIENT_INTERFACE,
+        (enum usb_request)usb_hid_request::SET_PROTOCOL,
+        wValue, wIndex, SYSTEM_TIME_RESOLUTION / 2);
 }
 
 nt_status usb_hid_device::write(span<const span<const uint8_t>> v,
