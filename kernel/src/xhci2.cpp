@@ -1577,12 +1577,6 @@ bool xhci_queue::control_transfer(span<uint8_t> buf, uint8_t bmRequestType,
     } else
         pa = 0; // silence warning
 
-    req_setup.event = create_event(false);
-    req_status.event = create_event(false);
-
-    if (!buf.empty())
-        req_data.event = create_event(false);
-
     {
         auto& s = *bit_cast<xhci_trb_setup_stage*>(&req_setup.trb);
 
@@ -1626,32 +1620,21 @@ bool xhci_queue::control_transfer(span<uint8_t> buf, uint8_t bmRequestType,
         s.dir = (buf.empty() || !(bmRequestType & USB_REQUEST_TYPE_DEVICE_TO_HOST)) ? 1 : 0;
     }
 
-    {
-        lock_guard lock(submit_lock);
-
-        submit_holding_lock(req_setup, false);
-
-        if (!buf.empty())
-            submit_holding_lock(req_data, false);
-
-        submit_holding_lock(req_status, true);
-    }
-
     if (!buf.empty()) {
-        array<object*, 3> objs;
+        array<xhci_request*, 3> reqs;
 
-        objs[0] = &req_setup.event.get();
-        objs[1] = &req_status.event.get();
-        objs[2] = &req_data.event.get();
+        reqs[0] = &req_setup;
+        reqs[1] = &req_data;
+        reqs[2] = &req_status;
 
-        status = wait_for_objects(objs, true, false, timeout);
+        status = submit_multiple(reqs, timeout);
     } else {
-        array<object*, 2> objs;
+        array<xhci_request*, 2> reqs;
 
-        objs[0] = &req_setup.event.get();
-        objs[1] = &req_status.event.get();
+        reqs[0] = &req_setup;
+        reqs[1] = &req_status;
 
-        status = wait_for_objects(objs, true, false, timeout);
+        status = submit_multiple(reqs, timeout);
     }
 
     if (!buf.empty()) {
@@ -1675,7 +1658,7 @@ bool xhci_queue::control_transfer(span<uint8_t> buf, uint8_t bmRequestType,
         if (dev && !dev->dead && (TRB_CODE)req_setup.ev.completion_code == TRB_CODE::STALL_ERROR)
             reset_ep0();
         return false;
-    } else if (status == (nt_status)((uint32_t)nt_status::SUCCESS + 2)) { // DATA failed
+    } else if (!buf.empty() && status == (nt_status)((uint32_t)nt_status::SUCCESS + 1)) { // DATA failed
         print("xhci_queue::control_transfer: controller returned error {} on DATA\n", (enum TRB_CODE)req_data.ev.completion_code);
         if (dev && !dev->dead && (TRB_CODE)req_data.ev.completion_code == TRB_CODE::STALL_ERROR)
             reset_ep0();
@@ -2957,7 +2940,8 @@ bool xhci::isr() {
     return true;
 }
 
-void xhci_queue::submit_holding_lock(xhci_request& req, bool ring_bell) {
+unsigned int xhci_queue::submit_holding_lock(xhci_request& req, bool ring_bell) {
+    auto ret = index;
     auto& trb = ring[index];
 
     req.trb.cycle = cycle_bit ? 1 : 0;
@@ -2984,6 +2968,8 @@ void xhci_queue::submit_holding_lock(xhci_request& req, bool ring_bell) {
 
     if (index == size)
         index = 0;
+
+    return ret;
 }
 
 void xhci_queue::submit(xhci_request& req, bool ring_bell) {
@@ -2994,6 +2980,42 @@ void xhci_queue::submit(xhci_request& req, bool ring_bell) {
 
         submit_holding_lock(req, ring_bell);
     }
+}
+
+template<size_t N>
+nt_status xhci_queue::submit_multiple(array<xhci_request*, N>& req, uint64_t timeout) {
+    nt_status status;
+    array<unsigned int, N> indices;
+
+    for (auto r : req) {
+        r->event = create_event(false);
+    }
+
+    {
+        lock_guard lock(submit_lock);
+
+        for (size_t i = 0; i < req.size(); i++) {
+            indices[i] = submit_holding_lock(*req[i], i == req.size() - 1);
+        }
+    }
+
+    array<object*, N> objs;
+
+    for (size_t i = 0; i < N; i++) {
+        objs[i] = &req[i]->event.get();
+    }
+
+    status = wait_for_objects(objs, true, false, timeout);
+
+    {
+        lock_guard lock(submit_lock);
+
+        for (auto i : indices) {
+            reqs[i] = nullptr;
+        }
+    }
+
+    return status;
 }
 
 uint8_t xhci::enable_slot(uint8_t slot_type) {

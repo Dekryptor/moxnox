@@ -6,9 +6,11 @@ module;
 #include <stdlib.h>
 #include <string_view>
 #include <span>
+#include <array>
 
 export module xhci;
 
+import nt;
 import pci;
 import usb;
 import rwsem;
@@ -628,6 +630,10 @@ public:
     void initialize(uint16_t size, volatile uint32_t* doorbell,
                     uint32_t doorbell_val);
     void submit(xhci_request& req, bool ring_bell);
+
+    template<size_t N>
+    nt_status submit_multiple(array<xhci_request*, N>& req, uint64_t timeout);
+
     bool control_transfer(span<uint8_t> buf, uint8_t bmRequestType,
                           enum usb_request bRequest, uint16_t wValue,
                           uint16_t wIndex, uint64_t timeout = USB_TIMEOUT);
@@ -643,7 +649,7 @@ public:
     bool dir;
 
 private:
-    void submit_holding_lock(xhci_request& req, bool ring_bell);
+    unsigned int submit_holding_lock(xhci_request& req, bool ring_bell);
     void recover_ep0_after_timeout();
     void reset_ep0();
 
