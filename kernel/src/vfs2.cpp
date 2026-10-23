@@ -2664,7 +2664,7 @@ static nt_status vfsctl_mount(span<const uint8_t> inbuf) {
 
     ::filesystem* fs;
     filesystem_recognizer* type;
-    volume* vol;
+    volume* vol = nullptr;
 
     if (sourcerw) {
         auto& source = static_cast<volume&>(sourcerw.get());
@@ -2677,34 +2677,34 @@ static nt_status vfsctl_mount(span<const uint8_t> inbuf) {
                 return nt_status::DEVICE_NOT_READY;
             }
 
-            bool found_fs_type = false;
             nt_status status;
 
             // FIXME - spinlock for this (refcount recognizers once we have a module system?)
             for (auto le = filesystem_types.next; le != &filesystem_types; le = le->next) {
                 auto& r = containing_record<filesystem_recognizer>(le);
 
-                if (r.name != mount_type)
+                if (!r.try_mount_volume)
                     continue;
 
-                found_fs_type = true;
-
-                if (!r.try_mount_volume) {
-                    mp->release();
-                    return nt_status::UNRECOGNIZED_VOLUME;
-                }
+                if (!mount_type.empty() && r.name != mount_type)
+                    continue;
 
                 status = r.try_mount_volume(source, m.options);
-                if (!success(status)) {
+
+                if (status == nt_status::UNRECOGNIZED_VOLUME && mount_type.empty())
+                    continue;
+                else if (!success(status)) {
                     mp->release();
                     return status;
                 }
 
                 type = &r;
                 vol = &source;
+
+                break;
             }
 
-            if (!found_fs_type) {
+            if (!vol) {
                 mp->release();
                 return nt_status::UNRECOGNIZED_VOLUME;
             }
