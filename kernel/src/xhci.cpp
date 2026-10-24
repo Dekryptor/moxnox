@@ -687,14 +687,16 @@ public:
                       uint8_t port_speed);
     void device_removed(uint8_t port);
 
+    virtual bool is_port_disconnected(uint8_t port) = 0;
+
     unsigned int depth;
     usb_device* device;
     bool multi_tt = false;
     uint8_t num_ports;
     usb_device** children = nullptr;
+    xhci& controller;
 
 private:
-    xhci& controller;
     atomic<unsigned int> refcount = 1;
 };
 

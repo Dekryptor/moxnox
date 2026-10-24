@@ -68,6 +68,8 @@ static_assert(sizeof(xhci_psi) == 0x4);
 class usb_root_hub : public usb_hub {
 public:
     usb_root_hub(xhci& controller) : usb_hub(controller, nullptr, 0) { }
+
+    bool is_port_disconnected(uint8_t port) override;
 };
 
 class xhci {
@@ -88,6 +90,7 @@ public:
     uint64_t* dcbaa = nullptr;
     xhci_queue command_queue{nullptr};
     bool large_contexts;
+    volatile xhci_cap_regs* cap_regs_ptr;
 
 private:
     void isr_command_completion(xhci_trb_command_completion& comp);
@@ -113,7 +116,6 @@ private:
     list_entry port_status_change_list = { &port_status_change_list, &port_status_change_list };
     uint64_t* scratchpad_array = nullptr;
     size_t scratchpad_array_size;
-    volatile xhci_cap_regs* cap_regs_ptr;
     size_t cap_regs_max_size;
 };
 
@@ -1772,6 +1774,17 @@ bool usb_device::get_status(uint8_t bmRequestType, span<uint8_t> buf,
     return true;
 }
 
+bool usb_root_hub::is_port_disconnected(uint8_t port) {
+    xhci_portsc portsc;
+
+    volatile auto& cap_regs = *controller.cap_regs_ptr;
+    volatile auto& op_regs = *(xhci_op_regs*)((uint8_t*)&cap_regs + cap_regs.CAPLENGTH);
+
+    portsc.value = op_regs.ports[port - 1].PORTSC;
+
+    return !portsc.CCS;
+}
+
 size_t xhci_queue::normal_transfer(span<uint8_t> buf) {
     xhci_request req;
     uint8_t* bounce = nullptr;
@@ -1809,7 +1822,12 @@ size_t xhci_queue::normal_transfer(span<uint8_t> buf) {
     auto code = (enum TRB_CODE)req.ev.completion_code;
 
     if (code != TRB_CODE::SUCCESS && code != TRB_CODE::SHORT_PACKET) {
+        // don't print message if transaction error due to disconnect
+        if (code == TRB_CODE::USB_TRANSACTION_ERROR && dev && dev->parent.is_port_disconnected(dev->port))
+            return 0;
+
         print("xhci_queue::normal_transfer: controller returned error {}\n", code);
+
         return 0;
     }
 

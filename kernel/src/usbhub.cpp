@@ -96,6 +96,7 @@ public:
     ~usb_device_hub();
     void recv_thread();
     void kill_children();
+    bool is_port_disconnected(uint8_t port) override;
 
     bool initialized = false;
 
@@ -687,6 +688,21 @@ static bool set_hub_depth(usb_device& d, uint8_t depth) {
     }
 
     return true;
+}
+
+bool usb_device_hub::is_port_disconnected(uint8_t port) {
+    port_status status;
+
+    if (d.dead)
+        return true;
+
+    if (!get_port_status(port, status))
+        return false;
+
+    if (d.speed_class >= usb_speed_class::super_speed)
+        return !status.usb3.connection;
+    else
+        return !status.usb2.connection;
 }
 
 static bool found_usb_hub_interface(usb_device& d, const usb_device_config& config,
