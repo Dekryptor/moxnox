@@ -587,11 +587,8 @@ void usb_device_hub::recv_thread() {
     while (true) {
         auto recv_bytes = queue.normal_transfer(span(buf, msg_size));
 
-        if (recv_bytes == 0) {
-            if (!d.dead)
-                print("xhci_queue::normal_transfer failed\n");
+        if (recv_bytes == 0)
             break;
-        }
 
         if (recv_bytes != msg_size) {
             print("usb_device_hub::recv_thread: received {} bytes, expected {}\n",
