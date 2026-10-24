@@ -2474,11 +2474,8 @@ void usb_hid_device::recv_thread() {
     while (true) {
         auto recv_bytes = queue.normal_transfer(span(buf, packet_size));
 
-        if (recv_bytes == 0) {
-            if (!d.dead)
-                print("xhci_queue::normal_transfer failed\n");
+        if (recv_bytes == 0)
             break;
-        }
 
         memset(buf + recv_bytes, 0, packet_size - recv_bytes);
 
