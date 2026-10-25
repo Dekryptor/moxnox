@@ -65,60 +65,6 @@ struct xhci_psi {
 
 static_assert(sizeof(xhci_psi) == 0x4);
 
-class usb_root_hub : public usb_hub {
-public:
-    usb_root_hub(xhci& controller) : usb_hub(controller, nullptr, 0) { }
-
-    bool is_port_disconnected(uint8_t port) override;
-};
-
-class xhci {
-public:
-    xhci(const pci_device& dev);
-    xhci(span<volatile uint8_t> mmio, uint32_t irq, bool level_sensitive);
-    ~xhci();
-    bool init(span<volatile uint8_t> mmio);
-    void init_ports();
-    bool isr();
-    void port_status_change_thread();
-    uint8_t enable_slot(uint8_t slot_type);
-    bool disable_slot(uint8_t slot_id);
-    pair<uint32_t, uint16_t> get_speed(uint8_t port_id, uint8_t speed);
-    uint8_t get_speed_num(uint8_t port_id, uint32_t psi_num);
-
-    bool initialized = false;
-    uint64_t* dcbaa = nullptr;
-    xhci_queue command_queue{nullptr};
-    bool large_contexts;
-    volatile xhci_cap_regs* cap_regs_ptr;
-
-private:
-    void isr_command_completion(xhci_trb_command_completion& comp);
-    void isr_port_status_change(xhci_trb_port_status_change& psc);
-    void port_status_changed(uint8_t port_id);
-    uint8_t get_port_slot_type(uint8_t port_id);
-    bool reset_port(uint8_t port_id);
-    bool init_scratchpad();
-
-    friend usb_device;
-
-    spinlock devices_lock;
-    list_entry devices = { &devices, &devices };
-    usb_root_hub root_hub{*this};
-    uint8_t num_slots, num_ports;
-    xhci_trb_common* event_ring = nullptr;
-    unsigned int event_ring_offset = 0;
-    bool event_ring_cycle = true;
-    xhci_event_ring_segment* seg_table = nullptr;
-    object_ref port_status_change_event;
-    object_ref port_status_change_thread_obj;
-    spinlock port_status_change_lock;
-    list_entry port_status_change_list = { &port_status_change_list, &port_status_change_list };
-    uint64_t* scratchpad_array = nullptr;
-    size_t scratchpad_array_size;
-    size_t cap_regs_max_size;
-};
-
 struct device_endpoint {
     device_endpoint(usb_device& dev) : queue(&dev) { }
 
