@@ -134,7 +134,7 @@ void qsort(void* base, size_t nmemb, size_t size, qsort_func compar) {
         while (low < high) {
             ptrdiff_t m = low + (high - low) / 2;
 
-            if (compar(elem(low), elem(m)) > 0)
+            if (m != low && compar(elem(low), elem(m)) > 0)
                 swap_elems(low, m);
 
             if (compar(elem(low), elem(high)) > 0)
