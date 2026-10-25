@@ -79,9 +79,13 @@ jobs:
         if: github.ref == 'refs/heads/master'
         run: |
           for port in $(echo '${{ needs.compute-ports.outputs.ports }}' | jq -r '.[]'); do
-            s3cmd --host=minio.burntcomma.com:443 \
-              --host-bucket=minio.burntcomma.com:443 \
-              put $port.tar.gz s3://moxnox-packages/aarch64/
+            rclone copyto $port.tar.gz :s3,provider=Minio,env_auth=true:moxnox-packages/aarch64/$port.tar.gz \
+              --s3-endpoint=https://minio.burntcomma.com \
+              --s3-upload-concurrency 8 \
+              --s3-chunk-size 64M \
+              --s3-disable-checksum \
+              --s3-no-check-bucket \
+              --stats-log-level NOTICE --stats 1h --stats-one-line
           done
         env:
           AWS_ACCESS_KEY_ID: ${{secrets.S3_ACCESS_KEY}}
