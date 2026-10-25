@@ -156,3 +156,27 @@
 	insteadOf = https://github.com/sqlalchemy/mako.git
 [url "https://git.burntcomma.com/moxnox/pyyaml"]
 	insteadOf = https://github.com/yaml/pyyaml.git
+[url "https://git.burntcomma.com/moxnox/backtrace-rs"]
+	insteadOf = https://github.com/rust-lang/backtrace-rs.git
+[url "https://git.burntcomma.com/moxnox/rust-book"]
+	insteadOf = https://github.com/rust-lang/book.git
+[url "https://git.burntcomma.com/moxnox/rust-edition-guide"]
+	insteadOf = https://github.com/rust-lang/edition-guide.git
+[url "https://git.burntcomma.com/moxnox/rust-embedded-book"]
+	insteadOf = https://github.com/rust-embedded/book.git
+[url "https://git.burntcomma.com/moxnox/rust-nomicon"]
+	insteadOf = https://github.com/rust-lang/nomicon.git
+[url "https://git.burntcomma.com/moxnox/rust-reference"]
+	insteadOf = https://github.com/rust-lang/reference.git
+[url "https://git.burntcomma.com/moxnox/rust-by-example"]
+	insteadOf = https://github.com/rust-lang/rust-by-example.git
+[url "https://git.burntcomma.com/moxnox/rust-gcc"]
+	insteadOf = https://github.com/rust-lang/gcc.git
+[url "https://git.burntcomma.com/moxnox/rust-llvm-project"]
+	insteadOf = https://github.com/rust-lang/llvm-project.git
+[url "https://git.burntcomma.com/moxnox/cargo"]
+	insteadOf = https://github.com/rust-lang/cargo.git
+[url "https://git.burntcomma.com/moxnox/enzyme"]
+	insteadOf = https://github.com/rust-lang/enzyme.git
+[url "https://git.burntcomma.com/moxnox/rustc-perf"]
+	insteadOf = https://github.com/rust-lang/rustc-perf.git
