@@ -32,7 +32,7 @@ jobs:
 
       - name: Configure Debug
         run: |
-          cmake -DCMAKE_TOOLCHAIN_FILE=native-amd64.cmake \
+          cmake -DCMAKE_TOOLCHAIN_FILE=amd64.cmake \
             -GNinja \
             -DCMAKE_BUILD_TYPE=Debug \
             -DCMAKE_COLOR_DIAGNOSTICS=ON \
@@ -47,7 +47,7 @@ jobs:
 
       - name: Configure RelWithDebInfo
         run: |
-          cmake -DCMAKE_TOOLCHAIN_FILE=native-amd64.cmake \
+          cmake -DCMAKE_TOOLCHAIN_FILE=amd64.cmake \
             -GNinja \
             -DCMAKE_BUILD_TYPE=RelWithDebInfo \
             -DCMAKE_COLOR_DIAGNOSTICS=ON \

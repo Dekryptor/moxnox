@@ -59,7 +59,7 @@ jobs:
 
       - name: Configure
         run: |
-          cmake -DCMAKE_TOOLCHAIN_FILE=native-amd64.cmake \
+          cmake -DCMAKE_TOOLCHAIN_FILE=amd64.cmake \
             -GNinja \
             -DCMAKE_BUILD_TYPE=RelWithDebInfo \
             -DCMAKE_INSTALL_PREFIX= \
