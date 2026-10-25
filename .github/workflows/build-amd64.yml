@@ -67,19 +67,19 @@ jobs:
       #     path: |
       #       install
 
-      - name: Upload debug kernel
+      - name: Upload release kernel
         if: github.ref == 'refs/heads/master'
         run: |
           s3cmd --host=minio.burntcomma.com:443 \
             --host-bucket=minio.burntcomma.com:443 \
-            put ${PWD}/install/debug/boot s3://ipxe/
+            put ${PWD}/install/release/boot s3://ipxe/
         env:
           AWS_ACCESS_KEY_ID: ${{secrets.S3_ACCESS_KEY}}
           AWS_SECRET_ACCESS_KEY: ${{secrets.S3_SECRET_KEY}}
 
       - name: Cache userspace
         if: github.ref == 'refs/heads/master'
-        run: cp -av install/debug/. /cache/userspace-${GITHUB_RUN_ID}/
+        run: cp -av install/release/. /cache/userspace-${GITHUB_RUN_ID}/
 
   upload-initrd:
     needs: x86_64 GCC
