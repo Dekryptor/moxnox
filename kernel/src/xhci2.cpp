@@ -2603,6 +2603,8 @@ void xhci::port_status_changed(uint8_t port_id) {
         return;
     }
 
+    lock_guard lock(enum_mutex);
+
     volatile auto& cap_regs = *cap_regs_ptr;
     volatile auto& op_regs = *(xhci_op_regs*)((uint8_t*)&cap_regs + cap_regs.CAPLENGTH);
     volatile auto& p = op_regs.ports[port_id - 1];

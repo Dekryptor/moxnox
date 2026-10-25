@@ -726,6 +726,7 @@ public:
     xhci_queue command_queue{nullptr};
     bool large_contexts;
     volatile xhci_cap_regs* cap_regs_ptr;
+    rwsem enum_mutex;
 
 private:
     void isr_command_completion(xhci_trb_command_completion& comp);

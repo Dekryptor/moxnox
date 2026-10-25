@@ -2,6 +2,7 @@
 #include <string_view>
 #include <atomic>
 #include <span>
+#include <mutex>
 #include <stdlib.h>
 
 import nt;
@@ -16,10 +17,12 @@ import thread;
 import scheduler;
 import list;
 import crt;
+import event;
+import config;
 
 using namespace std;
 
-static const unsigned int PORT_RESET_DELAY = 800; // ms
+static const uint64_t PORT_RESET_DELAY = 800 * (SYSTEM_TIME_RESOLUTION / 1000); // 800ms
 
 union port_status {
     struct {
@@ -84,7 +87,7 @@ enum class usbhub_request : uint8_t {
 struct usb_hub_port {
     port_status status{};
     uint8_t slot = 0;
-    bool awaiting_reset = false;
+    event reset_event;
 };
 
 class usb_device_hub : public usb_hub {
@@ -103,6 +106,7 @@ public:
                             uint16_t index);
     bool clear_port_feature(enum usb3_port_feature_selector feature,
                             uint16_t index);
+    void device_connected(uint8_t port);
 
     bool initialized = false;
     usb_hub_port* ports = nullptr;
@@ -110,7 +114,6 @@ public:
 private:
     bool get_port_status(uint8_t port, port_status& status);
     void port_status_change(uint8_t port);
-    void device_connected(uint8_t port);
     bool get_hub_status(usb_hub_status& hub_status);
     void device_removed(uint8_t port);
     void hub_change();
@@ -207,6 +210,10 @@ usb_device_hub::usb_device_hub(usb_device& d, xhci_queue& queue, usb2_hub_descri
         return;
     }
 
+    for (uint8_t i = 0; i < num_ports; i++) {
+        ports[i].reset_event.autoreset = true;
+    }
+
     children = (usb_device**)malloc(sizeof(usb_device*) * num_ports);
     if (!children) {
         print("malloc failed\n");
@@ -223,13 +230,6 @@ usb_device_hub::usb_device_hub(usb_device& d, xhci_queue& queue, usb2_hub_descri
     for (uint8_t port = 1; port <= num_ports; port++) {
         if (!set_port_feature(usb2_port_feature_selector::PORT_POWER, port)) {
             print("usb_device_hub::set_port_feature failed\n");
-            return;
-        }
-    }
-
-    for (uint8_t port = 1; port <= num_ports; port++) {
-        if (!set_port_feature(usb2_port_feature_selector::PORT_RESET, port)) {
-            print("usb_device_hub::set_port_feature(PORT_RESET) failed\n");
             return;
         }
     }
@@ -252,6 +252,10 @@ usb_device_hub::usb_device_hub(usb_device& d, xhci_queue& queue, usb3_hub_descri
     if (!ports) {
         print("new failed\n");
         return;
+    }
+
+    for (uint8_t i = 0; i < num_ports; i++) {
+        ports[i].reset_event.autoreset = true;
     }
 
     children = (usb_device**)malloc(sizeof(usb_device*) * num_ports);
@@ -401,29 +405,55 @@ void usb_device_hub::device_removed(uint8_t port) {
 }
 
 static void usb3_device_connected_thread(usb_device_hub& hub, uint8_t port) {
-    hub.ports[port - 1].awaiting_reset = true;
+    lock_guard lock(hub.controller.enum_mutex);
 
     hub.clear_port_feature(usb3_port_feature_selector::C_PORT_RESET,
-                            port);
+                           port);
+
+    reset_event(hub.ports[port - 1].reset_event);
 
     if (!hub.set_port_feature(usb3_port_feature_selector::PORT_RESET, port)) {
         print("usb_device_hub::set_port_feature(PORT_RESET) failed\n");
-        hub.ports[port - 1].awaiting_reset = false;
+        hub.release();
+        return;
     }
+
+    auto status = wait_for_object(hub.ports[port - 1].reset_event, false,
+                                  PORT_RESET_DELAY);
+    if (status == nt_status::TIMEOUT) {
+        print("usb3_device_connected_thread: timed out waiting for reset\n");
+        hub.release();
+        return;
+    }
+
+    hub.device_connected(port);
 
     hub.release();
 }
 
 static void usb2_device_connected_thread(usb_device_hub& hub, uint8_t port) {
-    hub.ports[port - 1].awaiting_reset = true;
+    lock_guard lock(hub.controller.enum_mutex);
 
     hub.clear_port_feature(usb2_port_feature_selector::C_PORT_RESET,
                            port);
 
+    reset_event(hub.ports[port - 1].reset_event);
+
     if (!hub.set_port_feature(usb2_port_feature_selector::PORT_RESET, port)) {
         print("usb_device_hub::set_port_feature(PORT_RESET) failed\n");
-        hub.ports[port - 1].awaiting_reset = false;
+        hub.release();
+        return;
     }
+
+    auto status = wait_for_object(hub.ports[port - 1].reset_event, false,
+                                  PORT_RESET_DELAY);
+    if (status == nt_status::TIMEOUT) {
+        print("usb2_device_connected_thread: timed out waiting for reset\n");
+        hub.release();
+        return;
+    }
+
+    hub.device_connected(port);
 
     hub.release();
 }
@@ -444,17 +474,8 @@ void usb_device_hub::port_status_change(uint8_t port) {
 
             ports[port - 1].status = new_status;
 
-            if (new_status.usb3.reset_changed && ports[port - 1].awaiting_reset) {
-                acquire();
-
-                add_kernel_thread([](void* param1, void* param2) {
-                    auto hub = (usb_device_hub*)param1;
-                    auto port = (uint8_t)(uintptr_t)param2;
-
-                    hub->device_connected(port);
-                    hub->release();
-                }, this, (void*)(uintptr_t)port);
-            }
+            if (new_status.usb3.reset_changed)
+                set_event(ports[port - 1].reset_event);
 
             if (new_status.usb3.connection_changed &&
                 old_status.usb3.connection != new_status.usb3.connection) {
@@ -494,17 +515,8 @@ void usb_device_hub::port_status_change(uint8_t port) {
 
             ports[port - 1].status = new_status;
 
-            if (new_status.usb2.reset_changed && ports[port - 1].awaiting_reset) {
-                acquire();
-
-                add_kernel_thread([](void* param1, void* param2) {
-                    auto hub = (usb_device_hub*)param1;
-                    auto port = (uint8_t)(uintptr_t)param2;
-
-                    hub->device_connected(port);
-                    hub->release();
-                }, this, (void*)(uintptr_t)port);
-            }
+            if (new_status.usb2.reset_changed)
+                set_event(ports[port - 1].reset_event);
 
             if (new_status.usb2.connection_changed &&
                 old_status.usb2.connection != new_status.usb2.connection) {
