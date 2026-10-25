@@ -384,9 +384,10 @@ foreach(frag ${MAGIC_FRAGMENTS})
 endforeach()
 list(JOIN MAGIC_FRAGMENT_PATHS "' '" MAGIC_FRAGMENT_ARGS)
 
+# patch out entry which breaks our regcomp because of invalid UTF-8
 add_custom_command(
     OUTPUT ${GEN}/magic
-    COMMAND sh -c "cat '${MAGIC_FRAGMENT_ARGS}' > '${GEN}/magic'"
+    COMMAND sh -c "cat '${MAGIC_FRAGMENT_ARGS}' | ${HOST_SED} '/AppleWorks Word Processor$/,/inch left margin$/s/^/#/' > '${GEN}/magic'"
     DEPENDS ${MAGIC_FRAGMENT_PATHS}
     VERBATIM
 )
