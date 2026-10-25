@@ -26,7 +26,7 @@ using namespace std;
 
 static spinlock urandom_lock;
 static uint32_t urandom_key[8]; // FIXME - initialize from rdseed/rdrand if present (and not broken)?
-static object_ref urandom_event;
+static event urandom_event{false};
 static size_t urandom_bits_left = 256;
 
 class random_chardev : public chardev {
@@ -41,12 +41,6 @@ public:
 };
 
 export bool create_dev_urandom() {
-    urandom_event = create_event(false);
-    if (!urandom_event) {
-        print("create_event failed\n");
-        return false;
-    }
-
     auto pptr = new random_chardev;
     if (!pptr) {
         print("new failed\n");
@@ -82,7 +76,7 @@ nt_status random_chardev::read(span<const span<uint8_t>> v,
     if (read_bytes == 0)
         return nt_status::SUCCESS;
 
-    status = wait_for_object(urandom_event.get(), true);
+    status = wait_for_object(urandom_event, true);
     if (!success(status) || status == nt_status::USER_APC)
         return status;
 
@@ -195,7 +189,7 @@ export void add_randomness(span<const uint8_t> data) {
     }
 
     if (do_set_event)
-        set_event(static_cast<event&>(urandom_event.get()));
+        set_event(urandom_event);
 
     // don't leave on stack
     for (size_t i = 0; i < 16; i++) {
