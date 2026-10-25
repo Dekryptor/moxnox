@@ -87,7 +87,7 @@ enum class usbhub_request : uint8_t {
 struct usb_hub_port {
     port_status status{};
     uint8_t slot = 0;
-    event reset_event;
+    event reset_event{true};
 };
 
 class usb_device_hub : public usb_hub {
@@ -210,10 +210,6 @@ usb_device_hub::usb_device_hub(usb_device& d, xhci_queue& queue, usb2_hub_descri
         return;
     }
 
-    for (uint8_t i = 0; i < num_ports; i++) {
-        ports[i].reset_event.autoreset = true;
-    }
-
     children = (usb_device**)malloc(sizeof(usb_device*) * num_ports);
     if (!children) {
         print("malloc failed\n");
@@ -252,10 +248,6 @@ usb_device_hub::usb_device_hub(usb_device& d, xhci_queue& queue, usb3_hub_descri
     if (!ports) {
         print("new failed\n");
         return;
-    }
-
-    for (uint8_t i = 0; i < num_ports; i++) {
-        ports[i].reset_event.autoreset = true;
     }
 
     children = (usb_device**)malloc(sizeof(usb_device*) * num_ports);

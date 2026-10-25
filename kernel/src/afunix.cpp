@@ -68,7 +68,7 @@ public:
     unix_socket* other_end = nullptr;
     bool dead = false, other_end_dead = false;
     bool first;
-    event not_full_event;
+    event not_full_event{false};
     list_entry sent_fds = { &sent_fds, &sent_fds };
 
     uint8_t buf[PAGE_SIZE];
@@ -449,7 +449,6 @@ nt_status unix_socket::do_sendto(span<const span<const uint8_t>> v, int flags,
 
 unix_socket::unix_socket() {
     signalled = false;
-    not_full_event.autoreset = false;
     not_full_event.signalled = true;
 }
 

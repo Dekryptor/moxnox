@@ -28,7 +28,7 @@ using namespace std;
 
 export class event : public sync_object {
 public:
-    event() : sync_object(object_type::event, false) { }
+    event(bool autoreset) : sync_object(object_type::event, false), autoreset(autoreset) { }
 
     void release() {
         if (--refcount == 0)
@@ -45,14 +45,13 @@ static_assert(is_sync_object<event>);
 static_assert(object_has_on_wake<event>);
 
 export object_ref create_event(bool autoreset) {
-    auto eptr = new event;
+    auto eptr = new event(autoreset);
     if (!eptr) {
         print("new failed\n");
         return {};
     }
 
     auto& e = *eptr;
-    e.autoreset = autoreset;
 
     return e;
 }

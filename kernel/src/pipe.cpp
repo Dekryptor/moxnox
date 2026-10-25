@@ -62,7 +62,7 @@ public:
     size_t buf_write_pos = 0;
     bool server_closed = false;
     spinlock lock;
-    event not_full_event;
+    event not_full_event{false};
     list_entry flushable_le;
     bool eof_pending = false;
 };
@@ -211,7 +211,6 @@ static list_entry flushable_pipes = { &flushable_pipes, &flushable_pipes };
 
 pipe::pipe(unsigned int buffer_pages) : buf_pages(buffer_pages) {
     signalled = false;
-    not_full_event.autoreset = false;
     not_full_event.signalled = true;
 
     if (buffer_pages == 0) {
