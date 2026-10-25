@@ -97,16 +97,17 @@ public:
     void recv_thread();
     void kill_children();
     bool is_port_disconnected(uint8_t port) override;
-
-    bool initialized = false;
-
-private:
     bool set_port_feature(enum usb2_port_feature_selector feature, uint16_t index);
     bool set_port_feature(enum usb3_port_feature_selector feature, uint16_t index);
     bool clear_port_feature(enum usb2_port_feature_selector feature,
                             uint16_t index);
     bool clear_port_feature(enum usb3_port_feature_selector feature,
                             uint16_t index);
+
+    bool initialized = false;
+    usb_hub_port* ports = nullptr;
+
+private:
     bool get_port_status(uint8_t port, port_status& status);
     void port_status_change(uint8_t port);
     void device_connected(uint8_t port);
@@ -123,7 +124,6 @@ private:
         usb3_hub_descriptor usb3;
     } hub_desc;
 
-    usb_hub_port* ports = nullptr;
     usb_hub_status hub_status;
 };
 
@@ -404,6 +404,34 @@ void usb_device_hub::device_removed(uint8_t port) {
     children[port - 1]->device_removed();
 }
 
+static void usb3_device_connected_thread(usb_device_hub& hub, uint8_t port) {
+    hub.ports[port - 1].awaiting_reset = true;
+
+    hub.clear_port_feature(usb3_port_feature_selector::C_PORT_RESET,
+                            port);
+
+    if (!hub.set_port_feature(usb3_port_feature_selector::PORT_RESET, port)) {
+        print("usb_device_hub::set_port_feature(PORT_RESET) failed\n");
+        hub.ports[port - 1].awaiting_reset = false;
+    }
+
+    hub.release();
+}
+
+static void usb2_device_connected_thread(usb_device_hub& hub, uint8_t port) {
+    hub.ports[port - 1].awaiting_reset = true;
+
+    hub.clear_port_feature(usb2_port_feature_selector::C_PORT_RESET,
+                           port);
+
+    if (!hub.set_port_feature(usb2_port_feature_selector::PORT_RESET, port)) {
+        print("usb_device_hub::set_port_feature(PORT_RESET) failed\n");
+        hub.ports[port - 1].awaiting_reset = false;
+    }
+
+    hub.release();
+}
+
 void usb_device_hub::port_status_change(uint8_t port) {
     port_status new_status;
 
@@ -440,20 +468,8 @@ void usb_device_hub::port_status_change(uint8_t port) {
                     acquire();
 
                     add_kernel_thread([](void* param1, void* param2) {
-                        auto hub = (usb_device_hub*)param1;
-                        auto port = (uint8_t)(uintptr_t)param2;
-
-                        hub->ports[port - 1].awaiting_reset = true;
-
-                        hub->clear_port_feature(usb3_port_feature_selector::C_PORT_RESET,
-                                                port);
-
-                        if (!hub->set_port_feature(usb3_port_feature_selector::PORT_RESET, port)) {
-                            print("usb_device_hub::set_port_feature(PORT_RESET) failed\n");
-                            hub->ports[port - 1].awaiting_reset = false;
-                        }
-
-                        hub->release();
+                        usb3_device_connected_thread(*(usb_device_hub*)param1,
+                                                     (uint8_t)(uintptr_t)param2);
                     }, this, (void*)(uintptr_t)port);
                 } else
                     device_removed(port);
@@ -502,20 +518,8 @@ void usb_device_hub::port_status_change(uint8_t port) {
                     acquire();
 
                     add_kernel_thread([](void* param1, void* param2) {
-                        auto hub = (usb_device_hub*)param1;
-                        auto port = (uint8_t)(uintptr_t)param2;
-
-                        hub->ports[port - 1].awaiting_reset = true;
-
-                        hub->clear_port_feature(usb2_port_feature_selector::C_PORT_RESET,
-                                                port);
-
-                        if (!hub->set_port_feature(usb2_port_feature_selector::PORT_RESET, port)) {
-                            print("usb_device_hub::set_port_feature(PORT_RESET) failed\n");
-                            hub->ports[port - 1].awaiting_reset = false;
-                        }
-
-                        hub->release();
+                        usb2_device_connected_thread(*(usb_device_hub*)param1,
+                                                     (uint8_t)(uintptr_t)param2);
                     }, this, (void*)(uintptr_t)port);
                 } else
                     device_removed(port);
