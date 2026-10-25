@@ -35,7 +35,7 @@ import moxnox_ioctls;
 
 using namespace std;
 
-static const string_view welcome_message1 = "\r\nWelcome to \e[1mMoxnox\e[m \U0001f98a (";
+static const string_view welcome_message1 = "\r\nWelcome to \e[1mMoxnox\e[m \U0001f98a (version ";
 static const string_view welcome_message2 = ")\r\n\r\n";
 
 static const char32_t TEXT_PRESENTATION = 0xfe0e;
