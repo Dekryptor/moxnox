@@ -82,9 +82,9 @@ enum class usbhub_request : uint8_t {
 };
 
 struct usb_hub_port {
-    port_status status;
-    uint8_t slot;
-    bool awaiting_reset;
+    port_status status{};
+    uint8_t slot = 0;
+    bool awaiting_reset = false;
 };
 
 class usb_device_hub : public usb_hub {
@@ -201,13 +201,11 @@ usb_device_hub::usb_device_hub(usb_device& d, xhci_queue& queue, usb2_hub_descri
 
     d.acquire();
 
-    ports = (usb_hub_port*)malloc(sizeof(usb_hub_port) * num_ports);
+    ports = new usb_hub_port[num_ports];
     if (!ports) {
-        print("malloc failed\n");
+        print("new failed\n");
         return;
     }
-
-    memset(ports, 0, sizeof(usb_hub_port) * num_ports);
 
     children = (usb_device**)malloc(sizeof(usb_device*) * num_ports);
     if (!children) {
@@ -250,13 +248,11 @@ usb_device_hub::usb_device_hub(usb_device& d, xhci_queue& queue, usb3_hub_descri
 
     d.acquire();
 
-    ports = (usb_hub_port*)malloc(sizeof(usb_hub_port) * num_ports);
+    ports = new usb_hub_port[num_ports];
     if (!ports) {
-        print("malloc failed\n");
+        print("new failed\n");
         return;
     }
-
-    memset(ports, 0, sizeof(usb_hub_port) * num_ports);
 
     children = (usb_device**)malloc(sizeof(usb_device*) * num_ports);
     if (!children) {
@@ -285,7 +281,7 @@ usb_device_hub::~usb_device_hub() {
     d.release();
 
     if (ports)
-        free(ports);
+        delete[] ports;
 }
 
 void usb_device_hub::device_connected(uint8_t port) {
