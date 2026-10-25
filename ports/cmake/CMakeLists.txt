@@ -66,6 +66,9 @@ add_custom_target(cmake_patched DEPENDS
 )
 
 set(CMAKE_MESSAGE_LOG_LEVEL NOTICE) # cmake is very chatty
+
+set(CMAKE_DOC_DIR share/doc/cmake)
+
 add_subdirectory(repo)
 
 function(cmake_port_swap_source target name_regex patched)
