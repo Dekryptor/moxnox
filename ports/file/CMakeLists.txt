@@ -17,6 +17,15 @@ add_custom_command(
     VERBATIM
 )
 
+add_custom_command(
+    OUTPUT ${GEN}/src/apprentice.c
+    COMMAND ${CMAKE_COMMAND} -E copy
+            ${CMAKE_CURRENT_SOURCE_DIR}/repo/src/apprentice.c ${GEN}/src/apprentice.c
+    COMMAND ${HOST_SED} -z -i [[s|\t\t\tfile_magwarn1("Duplicate magic entry `%s'",\n\t\t\t    ma->mp->desc);\n#ifndef COMPILE_ONLY\n\t\t\tfile_mdump(ma->mp);\n\t\t\tfile_mdump(mb->mp);\n#endif\n|#if 0\n\t\t\tfile_magwarn1("Duplicate magic entry `%s'",\n\t\t\t    ma->mp->desc);\n#ifndef COMPILE_ONLY\n\t\t\tfile_mdump(ma->mp);\n\t\t\tfile_mdump(mb->mp);\n#endif\n#endif\n|]] ${GEN}/src/apprentice.c
+    DEPENDS repo/src/apprentice.c
+    VERBATIM
+)
+
 set(MAGIC_FRAGMENTS
     repo/magic/Header
     repo/magic/Localstuff
@@ -405,7 +414,7 @@ add_library(libmagic SHARED
     repo/src/strlcpy.c
     repo/src/buffer.c
     repo/src/magic.c
-    repo/src/apprentice.c
+    ${GEN}/src/apprentice.c
     repo/src/softmagic.c
     repo/src/ascmagic.c
     repo/src/encoding.c
@@ -438,7 +447,8 @@ set(FILE_CFLAGS
 )
 
 target_compile_definitions(libmagic PRIVATE HAVE_CONFIG_H MAGIC="/share/misc/magic")
-target_include_directories(libmagic PRIVATE ${CMAKE_CURRENT_SOURCE_DIR} ${GEN})
+target_include_directories(libmagic PRIVATE ${CMAKE_CURRENT_SOURCE_DIR} ${GEN}
+                           ${CMAKE_CURRENT_SOURCE_DIR}/repo/src)
 target_compile_options(libmagic PRIVATE ${FILE_CFLAGS})
 target_link_libraries(libmagic PRIVATE zlib moxnox)
 
