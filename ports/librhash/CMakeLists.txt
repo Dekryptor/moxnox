@@ -48,3 +48,5 @@ target_compile_definitions(librhash PRIVATE RHASH_XVERSION=${RHASH_XVERSION})
 install(TARGETS librhash DESTINATION ${CMAKE_INSTALL_PREFIX}/lib
     ARCHIVE EXCLUDE_FROM_ALL
 )
+
+install(FILES repo/librhash/rhash.h repo/librhash/rhash_torrent.h DESTINATION ${CMAKE_INSTALL_PREFIX}/include)
