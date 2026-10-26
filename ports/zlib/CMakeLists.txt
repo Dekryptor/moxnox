@@ -23,3 +23,5 @@ target_compile_definitions(zlib PRIVATE Z_HAVE_UNISTD_H)
 install(TARGETS zlib DESTINATION ${CMAKE_INSTALL_PREFIX}/lib
     ARCHIVE EXCLUDE_FROM_ALL
 )
+
+install(FILES repo/zlib.h repo/zconf.h DESTINATION ${CMAKE_INSTALL_PREFIX}/include)
