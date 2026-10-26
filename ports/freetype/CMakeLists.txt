@@ -71,3 +71,12 @@ target_link_libraries(freetype PRIVATE png_shared)
 install(TARGETS freetype DESTINATION ${CMAKE_INSTALL_PREFIX}/lib
     ARCHIVE EXCLUDE_FROM_ALL
 )
+
+install(FILES repo/include/ft2build.h DESTINATION ${CMAKE_INSTALL_PREFIX}/include/freetype2)
+install(DIRECTORY repo/include/freetype/ DESTINATION ${CMAKE_INSTALL_PREFIX}/include/freetype2/freetype
+    PATTERN "internal" EXCLUDE
+    PATTERN "ftmodule.h" EXCLUDE
+    PATTERN "ftoption.h" EXCLUDE
+    PATTERN "ftstdlib.h" EXCLUDE
+)
+install(FILES ftmodule.h ftoption.h ftstdlib.h DESTINATION ${CMAKE_INSTALL_PREFIX}/include/freetype2/freetype/config)
