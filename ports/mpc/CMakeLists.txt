@@ -120,3 +120,4 @@ target_link_libraries(mpc PUBLIC mpfr)
 target_link_libraries(mpc PRIVATE moxnox)
 
 install(TARGETS mpc DESTINATION ${CMAKE_INSTALL_PREFIX}/lib)
+install(FILES ${GEN}/mpc.h DESTINATION ${CMAKE_INSTALL_PREFIX}/include)
