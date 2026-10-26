@@ -590,6 +590,21 @@ install(TARGETS tinfo ncurses form menu panel
     ARCHIVE EXCLUDE_FROM_ALL
 )
 
+install(FILES
+    ${GEN}/curses.h
+    ${GEN}/ncurses_dll.h
+    ${GEN}/term.h
+    ${GEN}/termcap.h
+    ${GEN}/unctrl.h
+    repo/include/term_entry.h
+    repo/form/form.h
+    repo/menu/eti.h
+    repo/menu/menu.h
+    repo/panel/panel.h
+    DESTINATION ${CMAKE_INSTALL_PREFIX}/include
+)
+install(FILES ${GEN}/curses.h DESTINATION ${CMAKE_INSTALL_PREFIX}/include RENAME ncurses.h)
+
 # clear
 
 add_executable(clear
