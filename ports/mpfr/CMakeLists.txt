@@ -338,3 +338,4 @@ target_link_libraries(mpfr PUBLIC gmp)
 target_link_libraries(mpfr PRIVATE moxnox)
 
 install(TARGETS mpfr DESTINATION ${CMAKE_INSTALL_PREFIX}/lib)
+install(FILES ${GEN}/mpfr.h ${GEN}/mpf2mpfr.h DESTINATION ${CMAKE_INSTALL_PREFIX}/include)
