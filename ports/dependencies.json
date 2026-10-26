@@ -57,6 +57,7 @@
     "tar": ["gnulib", "libiconv"],
     "vim": ["ncurses"],
     "wget": ["gnulib", "libiconv", "openssl", "zlib"],
+    "xkeyboard-config": [],
     "xz": [],
     "zlib": [],
     "zstd": []

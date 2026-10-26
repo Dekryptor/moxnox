@@ -182,3 +182,5 @@
 	insteadOf = https://github.com/rust-lang/rustc-perf.git
 [url "https://git.burntcomma.com/moxnox/libxkbcommon"]
 	insteadOf = https://github.com/xkbcommon/libxkbcommon
+[url "https://git.burntcomma.com/moxnox/xkeyboard-config"]
+	insteadOf = https://gitlab.freedesktop.org/xkeyboard-config/xkeyboard-config

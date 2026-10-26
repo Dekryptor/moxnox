@@ -238,3 +238,6 @@
 [submodule "ports/libxkbcommon/repo"]
 	path = ports/libxkbcommon/repo
 	url = https://github.com/xkbcommon/libxkbcommon
+[submodule "ports/xkeyboard-config/repo"]
+	path = ports/xkeyboard-config/repo
+	url = https://gitlab.freedesktop.org/xkeyboard-config/xkeyboard-config
