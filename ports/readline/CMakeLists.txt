@@ -88,3 +88,15 @@ install(TARGETS readline
     DESTINATION ${CMAKE_INSTALL_PREFIX}/lib
     ARCHIVE EXCLUDE_FROM_ALL
 )
+
+install(FILES
+    repo/chardefs.h
+    repo/history.h
+    repo/keymaps.h
+    repo/readline.h
+    repo/rlconf.h
+    repo/rlstdc.h
+    repo/rltypedefs.h
+    repo/tilde.h
+    DESTINATION ${CMAKE_INSTALL_PREFIX}/include/readline
+)
