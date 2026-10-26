@@ -36,3 +36,39 @@ install(TARGETS harfbuzz DESTINATION ${CMAKE_INSTALL_PREFIX}/lib
     ARCHIVE EXCLUDE_FROM_ALL
     CXX_MODULES_BMI EXCLUDE_FROM_ALL
 )
+
+install(FILES
+    repo/src/hb-aat-layout.h
+    repo/src/hb-aat.h
+    repo/src/hb-blob.h
+    repo/src/hb-buffer.h
+    repo/src/hb-common.h
+    repo/src/hb-cplusplus.hh
+    repo/src/hb-deprecated.h
+    repo/src/hb-draw.h
+    repo/src/hb-paint.h
+    repo/src/hb-face.h
+    repo/src/hb-font.h
+    repo/src/hb-ft.h
+    repo/src/hb-map.h
+    repo/src/hb-ot-color.h
+    repo/src/hb-ot-deprecated.h
+    repo/src/hb-ot-font.h
+    repo/src/hb-ot-layout.h
+    repo/src/hb-ot-math.h
+    repo/src/hb-ot-meta.h
+    repo/src/hb-ot-metrics.h
+    repo/src/hb-ot-name.h
+    repo/src/hb-ot-shape.h
+    repo/src/hb-ot-var.h
+    repo/src/hb-ot.h
+    repo/src/hb-script-list.h
+    repo/src/hb-set.h
+    repo/src/hb-shape-plan.h
+    repo/src/hb-shape.h
+    repo/src/hb-style.h
+    repo/src/hb-unicode.h
+    repo/src/hb-version.h
+    repo/src/hb.h
+    DESTINATION ${CMAKE_INSTALL_PREFIX}/include/harfbuzz
+)
