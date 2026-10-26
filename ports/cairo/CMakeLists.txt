@@ -147,6 +147,20 @@ install(TARGETS cairo
     CXX_MODULES_BMI EXCLUDE_FROM_ALL
 )
 
+install(FILES
+    repo/src/cairo.h
+    repo/src/cairo-deprecated.h
+    repo/src/cairo-ft.h
+    repo/src/cairo-pdf.h
+    repo/src/cairo-ps.h
+    repo/src/cairo-script.h
+    repo/src/cairo-svg.h
+    repo/src/cairo-tee.h
+    repo/src/cairo-version.h
+    cairo-features.h
+    DESTINATION ${CMAKE_INSTALL_PREFIX}/include/cairo
+)
+
 add_executable(cairo-test cairo-test.cpp)
 
 target_compile_options(cairo-test PRIVATE -fno-exceptions ${USERSPACE_CFLAGS})
