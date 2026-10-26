@@ -35,6 +35,8 @@ install(TARGETS zstd DESTINATION ${CMAKE_INSTALL_PREFIX}/lib
     ARCHIVE EXCLUDE_FROM_ALL
 )
 
+install(FILES repo/lib/zstd.h repo/lib/zdict.h repo/lib/zstd_errors.h DESTINATION ${CMAKE_INSTALL_PREFIX}/include)
+
 # FIXME - zlib dependency?
 
 set(ZSTD_PROG ${CMAKE_CURRENT_SOURCE_DIR}/repo/programs)
