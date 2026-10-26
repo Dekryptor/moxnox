@@ -1333,6 +1333,15 @@ install(TARGETS libssl DESTINATION ${CMAKE_INSTALL_PREFIX}/lib
     ARCHIVE EXCLUDE_FROM_ALL
 )
 
+install(DIRECTORY repo/include/openssl/ DESTINATION ${CMAKE_INSTALL_PREFIX}/include/openssl
+    PATTERN "*.in" EXCLUDE
+    PATTERN "__DECC_INCLUDE_*" EXCLUDE
+)
+
+set(OPENSSL_GENERATED_HEADERS ${OPENSSL_GENERATED_FILES})
+list(FILTER OPENSSL_GENERATED_HEADERS INCLUDE REGEX "/include/openssl/")
+install(FILES ${OPENSSL_GENERATED_HEADERS} DESTINATION ${CMAKE_INSTALL_PREFIX}/include/openssl)
+
 openssl_patch(apps/openssl.c
     -e [[s|    win32_utf8argv(&argc, &argv)\;|#ifndef MOXNOX\n    win32_utf8argv(\&argc, \&argv)\;\n#endif|g]]
 )
