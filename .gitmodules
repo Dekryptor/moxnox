@@ -235,3 +235,6 @@
 [submodule "ports/pyyaml/repo"]
 	path = ports/pyyaml/repo
 	url = https://github.com/yaml/pyyaml.git
+[submodule "ports/libxkbcommon/repo"]
+	path = ports/libxkbcommon/repo
+	url = https://github.com/xkbcommon/libxkbcommon

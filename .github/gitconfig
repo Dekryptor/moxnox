@@ -180,3 +180,5 @@
 	insteadOf = https://github.com/rust-lang/enzyme.git
 [url "https://git.burntcomma.com/moxnox/rustc-perf"]
 	insteadOf = https://github.com/rust-lang/rustc-perf.git
+[url "https://git.burntcomma.com/moxnox/libxkbcommon"]
+	insteadOf = https://github.com/xkbcommon/libxkbcommon

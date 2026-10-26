@@ -30,6 +30,7 @@
     "libpng": ["zlib"],
     "librhash": [],
     "libuv": [],
+    "libxkbcommon": [],
     "llvm": [],
     "m4": ["gnulib", "libiconv"],
     "make": ["gnulib"],
