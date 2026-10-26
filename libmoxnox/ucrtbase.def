@@ -359,3 +359,6 @@ fsetpos
 mn_handled_nonrestartable_signal_count
 mn_dupfd
 mn_get_umask
+
+; stubs
+imaxabs

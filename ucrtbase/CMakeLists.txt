@@ -181,6 +181,7 @@ target_compile_options(mingwex2 PRIVATE ${USERSPACE_CFLAGS} $<$<COMPILE_LANGUAGE
 target_compile_options(mingwex2 PRIVATE -Wno-shorten-64-to-32 -Wno-missing-declarations -Wno-sign-conversion -Wno-implicit-int-conversion -Wno-unused-variable -Wno-gnu-pointer-arith -Wno-implicit-float-conversion -Wno-float-conversion -Wno-conversion -Wno-pointer-arith $<$<CXX_COMPILER_ID:GNU>:-Wno-use-after-free -Wno-missing-attributes>)
 
 set(SRC_FILES src/ucrtbase.cpp
+    src/stubs.S
     src/ucrtbase.def
     src/errno.cpp
     src/data.cpp
