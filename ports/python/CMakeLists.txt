@@ -408,6 +408,12 @@ target_link_libraries(libpython PRIVATE moxnox ncurses libssl libcrypto)
 
 install(TARGETS libpython DESTINATION ${CMAKE_INSTALL_PREFIX}/lib)
 
+install(DIRECTORY repo/Include/ DESTINATION ${CMAKE_INSTALL_PREFIX}/include/python3.13
+    PATTERN "README.rst" EXCLUDE
+    PATTERN "pydtrace.d" EXCLUDE
+)
+install(FILES pyconfig.h DESTINATION ${CMAKE_INSTALL_PREFIX}/include/python3.13)
+
 ###
 
 add_executable(python_exe repo/Programs/python.c)
