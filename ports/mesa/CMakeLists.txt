@@ -1981,6 +1981,22 @@ install(TARGETS libgallium libEGL
     ARCHIVE EXCLUDE_FROM_ALL
 )
 
+install(FILES ${PATCHED}/include/KHR/khrplatform.h DESTINATION ${CMAKE_INSTALL_PREFIX}/include/KHR)
+install(FILES
+    repo/include/GL/gl.h
+    repo/include/GL/glcorearb.h
+    repo/include/GL/glext.h
+    DESTINATION ${CMAKE_INSTALL_PREFIX}/include/GL
+)
+install(FILES
+    repo/include/EGL/egl.h
+    repo/include/EGL/eglext.h
+    repo/include/EGL/eglext_angle.h
+    repo/include/EGL/eglmesaext.h
+    ${PATCHED}/include/EGL/eglplatform.h
+    DESTINATION ${CMAKE_INSTALL_PREFIX}/include/EGL
+)
+
 # ---------------------------------------------------------------------------
 
 add_executable(mesa-test mesa-test.cpp)
