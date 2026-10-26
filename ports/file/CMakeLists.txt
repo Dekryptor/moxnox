@@ -464,5 +464,6 @@ target_link_libraries(file PRIVATE libmagic moxnox)
 
 install(TARGETS file DESTINATION ${CMAKE_INSTALL_PREFIX}/bin)
 install(TARGETS libmagic DESTINATION ${CMAKE_INSTALL_PREFIX}/lib)
+install(FILES ${GEN}/magic.h DESTINATION ${CMAKE_INSTALL_PREFIX}/include)
 
 install(FILES ${GEN}/magic DESTINATION ${CMAKE_INSTALL_PREFIX}/share/misc)
