@@ -608,3 +608,4 @@ target_compile_options(gmp PRIVATE
 target_link_libraries(gmp PRIVATE moxnox)
 
 install(TARGETS gmp DESTINATION ${CMAKE_INSTALL_PREFIX}/lib)
+install(FILES ${GEN}/gmp.h DESTINATION ${CMAKE_INSTALL_PREFIX}/include)
