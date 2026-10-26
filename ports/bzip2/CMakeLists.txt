@@ -22,6 +22,8 @@ install(TARGETS bzip2 DESTINATION ${CMAKE_INSTALL_PREFIX}/lib
     ARCHIVE EXCLUDE_FROM_ALL
 )
 
+install(FILES repo/bzlib.h DESTINATION ${CMAKE_INSTALL_PREFIX}/include)
+
 set_target_properties(bzip2 PROPERTIES OUTPUT_NAME bz2)
 
 add_executable(bzip2_exe repo/bzip2.c)
