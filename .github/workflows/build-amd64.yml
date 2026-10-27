@@ -28,7 +28,7 @@ jobs:
         env:
           GIT_CONFIG_GLOBAL: ${{ github.workspace }}/${{ env.SHORT_SHA }}/.github/gitconfig
         run: |
-          git submodule update --init --depth 1 ports/acpica/repo ports/freetype/repo ports/gnu-efi/repo ports/harfbuzz/repo ports/libpng/repo ports/mingw-w64/repo ports/zlib/repo ports/musl/repo ports/tre/repo
+          git submodule update --init --depth 1 ports/acpica/repo ports/freetype/repo ports/gnu-efi/repo ports/harfbuzz/repo ports/libpng/repo ports/mingw-w64/repo ports/zlib/repo ports/musl/repo ports/tre/repo ports/libxkbcommon/repo
 
       - name: Configure Debug
         run: |

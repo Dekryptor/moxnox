@@ -12,6 +12,7 @@
 #include <stdlib.h>
 #include <pwd.h>
 #include <cmath>
+#include <xkbcommon/xkbcommon.h>
 
 import nt;
 import ntdll;
@@ -2056,6 +2057,27 @@ static void run_shell(const char16_t* exe, void (*recv_func)(string_view),
         }
     };
 
+    unique_xkb_context xkb{xkb_context_new(XKB_CONTEXT_NO_FLAGS)};
+    if (!xkb) {
+        print_stderr("xkb_context_new failed\n");
+        return;
+    }
+
+    xkb_rule_names xkb_rules = {
+        .rules = "evdev",
+        .model = nullptr,
+        .layout = "gb", // FIXME - allow setting
+        .variant = nullptr,
+        .options = nullptr
+    };
+
+    unique_xkb_keymap keymap{xkb_keymap_new_from_names(xkb.get(), &xkb_rules,
+                                                       XKB_KEYMAP_COMPILE_NO_FLAGS)};
+    if (!keymap) {
+        print_stderr("xkb_keymap_new_from_names failed\n");
+        return;
+    }
+
     // open kmsg
 
     static const u16string_view kmsg_fn = u"\\dev\\kmsg";
@@ -2291,9 +2313,12 @@ static void run_shell(const char16_t* exe, void (*recv_func)(string_view),
                 }
 
                 span<const char8_t> sp;
+                char8_t k[64];
 
-                if (ev.ev.type == evdev_type::EV_KEY)
-                    sp = handle_keyboard_event(ev, keyboard_pipe.get(), cad, decckm);
+                if (ev.ev.type == evdev_type::EV_KEY) {
+                    sp = handle_keyboard_event(ev, keymap.get(), keyboard_pipe.get(),
+                                               cad, decckm, k);
+                }
 
                 if (cad)
                     handle_ctrl_alt_delete(client_handle.get());

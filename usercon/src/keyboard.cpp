@@ -6,6 +6,8 @@ module;
 #include <span>
 #include <utility>
 #include <string.h>
+#include <memory>
+#include <xkbcommon/xkbcommon.h>
 
 import nt;
 import evdev;
@@ -17,739 +19,269 @@ export module keyboard;
 
 using namespace std;
 
-// UK layout
-static const u8string_view codes[] = {
-    u8"", // KEY_RESERVED
-    u8"\x1b", // KEY_ESC
-    u8"1", // KEY_1
-    u8"2", // KEY_2
-    u8"3", // KEY_3
-    u8"4", // KEY_4
-    u8"5", // KEY_5
-    u8"6", // KEY_6
-    u8"7", // KEY_7
-    u8"8", // KEY_8
-    u8"9", // KEY_9
-    u8"0", // KEY_0
-    u8"-", // KEY_MINUS
-    u8"=", // KEY_EQUAL
-    u8"\x7f", // KEY_BACKSPACE
-    u8"\t", // KEY_TAB
-    u8"q", // KEY_Q
-    u8"w", // KEY_W
-    u8"e", // KEY_E
-    u8"r", // KEY_R
-    u8"t", // KEY_T
-    u8"y", // KEY_Y
-    u8"u", // KEY_U
-    u8"i", // KEY_I
-    u8"o", // KEY_O
-    u8"p", // KEY_P
-    u8"[", // KEY_LEFTBRACE
-    u8"]", // KEY_RIGHTBRACE
-    u8"\r", // KEY_ENTER
-    u8"", // KEY_LEFTCTRL
-    u8"a", // KEY_A
-    u8"s", // KEY_S
-    u8"d", // KEY_D
-    u8"f", // KEY_F
-    u8"g", // KEY_G
-    u8"h", // KEY_H
-    u8"j", // KEY_J
-    u8"k", // KEY_K
-    u8"l", // KEY_L
-    u8";", // KEY_SEMICOLON
-    u8"'", // KEY_APOSTROPHE
-    u8"`", // KEY_GRAVE
-    u8"", // KEY_LEFTSHIFT
-    u8"#", // KEY_BACKSLASH
-    u8"z", // KEY_Z
-    u8"x", // KEY_X
-    u8"c", // KEY_C
-    u8"v", // KEY_V
-    u8"b", // KEY_B
-    u8"n", // KEY_N
-    u8"m", // KEY_M
-    u8",", // KEY_COMMA
-    u8".", // KEY_DOT
-    u8"/", // KEY_SLASH
-    u8"", // KEY_RIGHTSHIFT
-    u8"*", // KEY_KPASTERISK
-    u8"", // KEY_LEFTALT
-    u8" ", // KEY_SPACE
-    u8"", // KEY_CAPSLOCK
-    u8"\x1bOP", // KEY_F1
-    u8"\x1bOQ", // KEY_F2
-    u8"\x1bOR", // KEY_F3
-    u8"\x1bOS", // KEY_F4
-    u8"\x1b[15~", // KEY_F5
-    u8"\x1b[17~", // KEY_F6
-    u8"\x1b[18~", // KEY_F7
-    u8"\x1b[19~", // KEY_F8
-    u8"\x1b[20~", // KEY_F9
-    u8"\x1b[21~", // KEY_F10
-    u8"", // KEY_NUMLOCK
-    u8"", // KEY_SCROLLLOCK
-    u8"7", // KEY_KP7
-    u8"8", // KEY_KP8
-    u8"9", // KEY_KP9
-    u8"-", // KEY_KPMINUS
-    u8"4", // KEY_KP4
-    u8"5", // KEY_KP5
-    u8"6", // KEY_KP6
-    u8"+", // KEY_KPPLUS
-    u8"1", // KEY_KP1
-    u8"2", // KEY_KP2
-    u8"3", // KEY_KP3
-    u8"0", // KEY_KP0
-    u8".", // KEY_KPDOT
-    u8"",
-    u8"", // KEY_ZENKAKUHANKAKU
-    u8"\\", // KEY_102ND
-    u8"\x1b[23~", // KEY_F11
-    u8"\x1b[24~", // KEY_F12
-    u8"", // KEY_RO
-    u8"", // KEY_KATAKANA
-    u8"", // KEY_HIRAGANA
-    u8"", // KEY_HENKAN
-    u8"", // KEY_KATAKANAHIRAGANA
-    u8"", // KEY_MUHENKAN
-    u8"", // KEY_KPJPCOMMA
-    u8"\n", // KEY_KPENTER
-    u8"", // KEY_RIGHTCTRL
-    u8"/", // KEY_KPSLASH
-    u8"", // KEY_SYSRQ
-    u8"", // KEY_RIGHTALT
-    u8"", // KEY_LINEFEED
-    u8"\x1b[H", // KEY_HOME
-    u8"\x1b[A", // KEY_UP
-    u8"\x1b[5~", // KEY_PAGEUP
-    u8"\x1b[D", // KEY_LEFT
-    u8"\x1b[C", // KEY_RIGHT
-    u8"\x1b[F", // KEY_END
-    u8"\x1b[B", // KEY_DOWN
-    u8"\x1b[6~", // KEY_PAGEDOWN
-    u8"\x1b[2~", // KEY_INSERT
-    u8"\x1b[3~", // KEY_DELETE
+static const unsigned int XKB_EVDEV_OFFSET = 8;
+
+class xkb_context_closer {
+public:
+    using pointer = xkb_context*;
+
+    void operator()(xkb_context* ctx) {
+        xkb_context_unref(ctx);
+    }
 };
 
-static const u8string_view codes_shift[] = {
-    u8"", // KEY_RESERVED
-    u8"\x1b", // KEY_ESC
-    u8"!", // KEY_1
-    u8"\"", // KEY_2
-    u8"£", // KEY_3
-    u8"$", // KEY_4
-    u8"%", // KEY_5
-    u8"^", // KEY_6
-    u8"&", // KEY_7
-    u8"*", // KEY_8
-    u8"(", // KEY_9
-    u8")", // KEY_0
-    u8"_", // KEY_MINUS
-    u8"+", // KEY_EQUAL
-    u8"\x7f", // KEY_BACKSPACE
-    u8"", // KEY_TAB
-    u8"Q", // KEY_Q
-    u8"W", // KEY_W
-    u8"E", // KEY_E
-    u8"R", // KEY_R
-    u8"T", // KEY_T
-    u8"Y", // KEY_Y
-    u8"U", // KEY_U
-    u8"I", // KEY_I
-    u8"O", // KEY_O
-    u8"P", // KEY_P
-    u8"{", // KEY_LEFTBRACE
-    u8"}", // KEY_RIGHTBRACE
-    u8"", // KEY_ENTER
-    u8"", // KEY_LEFTCTRL
-    u8"A", // KEY_A
-    u8"S", // KEY_S
-    u8"D", // KEY_D
-    u8"F", // KEY_F
-    u8"G", // KEY_G
-    u8"H", // KEY_H
-    u8"J", // KEY_J
-    u8"K", // KEY_K
-    u8"L", // KEY_L
-    u8":", // KEY_SEMICOLON
-    u8"@", // KEY_APOSTROPHE
-    u8"¬", // KEY_GRAVE
-    u8"", // KEY_LEFTSHIFT
-    u8"~", // KEY_BACKSLASH
-    u8"Z", // KEY_Z
-    u8"X", // KEY_X
-    u8"C", // KEY_C
-    u8"V", // KEY_V
-    u8"B", // KEY_B
-    u8"N", // KEY_N
-    u8"M", // KEY_M
-    u8"<", // KEY_COMMA
-    u8">", // KEY_DOT
-    u8"?", // KEY_SLASH
-    u8"", // KEY_RIGHTSHIFT
-    u8"*", // KEY_KPASTERISK
-    u8"", // KEY_LEFTALT
-    u8" ", // KEY_SPACE
-    u8"", // KEY_CAPSLOCK
-    u8"", // KEY_F1
-    u8"", // KEY_F2
-    u8"", // KEY_F3
-    u8"", // KEY_F4
-    u8"", // KEY_F5
-    u8"", // KEY_F6
-    u8"", // KEY_F7
-    u8"", // KEY_F8
-    u8"", // KEY_F9
-    u8"", // KEY_F10
-    u8"", // KEY_NUMLOCK
-    u8"", // KEY_SCROLLLOCK
-    u8"\x1b[H", // KEY_KP7 (home)
-    u8"\x1b[A", // KEY_KP8 (up)
-    u8"\x1b[5~", // KEY_KP9 (page up)
-    u8"-", // KEY_KPMINUS
-    u8"\x1b[D", // KEY_KP4 (left)
-    u8"", // KEY_KP5
-    u8"\x1b[C", // KEY_KP6 (right)
-    u8"+", // KEY_KPPLUS
-    u8"\x1b[F", // KEY_KP1 (end)
-    u8"\x1b[B", // KEY_KP2 (down)
-    u8"\x1b[6~", // KEY_KP3 (page down)
-    u8"\x1b[2~", // KEY_KP0 (insert)
-    u8"\x1b[3~", // KEY_KPDOT (delete)
-    u8"",
-    u8"", // KEY_ZENKAKUHANKAKU
-    u8"|", // KEY_102ND
-    u8"", // KEY_F11
-    u8"", // KEY_F12
-    u8"", // KEY_RO
-    u8"", // KEY_KATAKANA
-    u8"", // KEY_HIRAGANA
-    u8"", // KEY_HENKAN
-    u8"", // KEY_KATAKANAHIRAGANA
-    u8"", // KEY_MUHENKAN
-    u8"", // KEY_KPJPCOMMA
-    u8"\n", // KEY_KPENTER
-    u8"", // KEY_RIGHTCTRL
-    u8"/", // KEY_KPSLASH
-    u8"", // KEY_SYSRQ
-    u8"", // KEY_RIGHTALT
-    u8"", // KEY_LINEFEED
-    u8"\x1b[H", // KEY_HOME
-    u8"\x1b[A", // KEY_UP
-    u8"\x1b[5~", // KEY_PAGEUP
-    u8"\x1b[D", // KEY_LEFT
-    u8"\x1b[C", // KEY_RIGHT
-    u8"\x1b[F", // KEY_END
-    u8"\x1b[B", // KEY_DOWN
-    u8"\x1b[6~", // KEY_PAGEDOWN
-    u8"\x1b[2~", // KEY_INSERT
-    u8"\x1b[3~", // KEY_DELETE
+export using unique_xkb_context = unique_ptr<xkb_context*, xkb_context_closer>;
+
+class xkb_keymap_closer {
+public:
+    using pointer = xkb_keymap*;
+
+    void operator()(xkb_keymap* ctx) {
+        xkb_keymap_unref(ctx);
+    }
 };
 
-static const u8string_view codes_ctrl[] = {
-    u8"", // KEY_RESERVED
-    u8"\x1b", // KEY_ESC
-    u8"1", // KEY_1
-    u8"2", // KEY_2
-    u8"3", // KEY_3
-    u8"4", // KEY_4
-    u8"5", // KEY_5
-    u8"6", // KEY_6
-    u8"7", // KEY_7
-    u8"8", // KEY_8
-    u8"9", // KEY_9
-    u8"0", // KEY_0
-    u8"-", // KEY_MINUS
-    u8"=", // KEY_EQUAL
-    u8"\x7f", // KEY_BACKSPACE
-    u8"\t", // KEY_TAB
-    u8"\x11", // KEY_Q
-    u8"\x17", // KEY_W
-    u8"\x05", // KEY_E
-    u8"\x12", // KEY_R
-    u8"\x14", // KEY_T
-    u8"\x19", // KEY_Y
-    u8"\x15", // KEY_U
-    u8"\x09", // KEY_I
-    u8"\x0f", // KEY_O
-    u8"\x10", // KEY_P
-    u8"\x1b", // KEY_LEFTBRACE
-    u8"\x1d", // KEY_RIGHTBRACE
-    u8"\r", // KEY_ENTER
-    u8"", // KEY_LEFTCTRL
-    u8"\x01", // KEY_A
-    u8"\x13", // KEY_S
-    u8"\x04", // KEY_D
-    u8"\x06", // KEY_F
-    u8"\x07", // KEY_G
-    u8"\x08", // KEY_H
-    u8"\x0a", // KEY_J
-    u8"\x0b", // KEY_K
-    u8"\x0c", // KEY_L
-    u8";", // KEY_SEMICOLON
-    u8"'", // KEY_APOSTROPHE
-    u8"\x00", // KEY_GRAVE
-    u8"", // KEY_LEFTSHIFT
-    u8"#", // KEY_BACKSLASH
-    u8"\x1a", // KEY_Z
-    u8"\x18", // KEY_X
-    u8"\x03", // KEY_C
-    u8"\x16", // KEY_V
-    u8"\x02", // KEY_B
-    u8"\x0e", // KEY_N
-    u8"\x0d", // KEY_M
-    u8",", // KEY_COMMA
-    u8".", // KEY_DOT
-    u8"\x1f", // KEY_SLASH
-    u8"", // KEY_RIGHTSHIFT
-    u8"*", // KEY_KPASTERISK
-    u8"", // KEY_LEFTALT
-    u8"\x00", // KEY_SPACE
-    u8"", // KEY_CAPSLOCK
-    u8"\x1bOP", // KEY_F1
-    u8"\x1bOQ", // KEY_F2
-    u8"\x1bOR", // KEY_F3
-    u8"\x1bOS", // KEY_F4
-    u8"\x1b[15~", // KEY_F5
-    u8"\x1b[17~", // KEY_F6
-    u8"\x1b[18~", // KEY_F7
-    u8"\x1b[19~", // KEY_F8
-    u8"\x1b[20~", // KEY_F9
-    u8"\x1b[21~", // KEY_F10
-    u8"", // KEY_NUMLOCK
-    u8"", // KEY_SCROLLLOCK
-    u8"7", // KEY_KP7
-    u8"8", // KEY_KP8
-    u8"9", // KEY_KP9
-    u8"-", // KEY_KPMINUS
-    u8"4", // KEY_KP4
-    u8"5", // KEY_KP5
-    u8"6", // KEY_KP6
-    u8"+", // KEY_KPPLUS
-    u8"1", // KEY_KP1
-    u8"2", // KEY_KP2
-    u8"3", // KEY_KP3
-    u8"0", // KEY_KP0
-    u8".", // KEY_KPDOT
-    u8"",
-    u8"", // KEY_ZENKAKUHANKAKU
-    u8"\\", // KEY_102ND
-    u8"\x1b[23~", // KEY_F11
-    u8"\x1b[24~", // KEY_F12
-    u8"", // KEY_RO
-    u8"", // KEY_KATAKANA
-    u8"", // KEY_HIRAGANA
-    u8"", // KEY_HENKAN
-    u8"", // KEY_KATAKANAHIRAGANA
-    u8"", // KEY_MUHENKAN
-    u8"", // KEY_KPJPCOMMA
-    u8"\n", // KEY_KPENTER
-    u8"", // KEY_RIGHTCTRL
-    u8"/", // KEY_KPSLASH
-    u8"", // KEY_SYSRQ
-    u8"", // KEY_RIGHTALT
-    u8"", // KEY_LINEFEED
-    u8"\x1b[H", // KEY_HOME
-    u8"\x1b[1;5A", // KEY_UP
-    u8"\x1b[5~", // KEY_PAGEUP
-    u8"\x1b[1;5D", // KEY_LEFT
-    u8"\x1b[1;5C", // KEY_RIGHT
-    u8"\x1b[F", // KEY_END
-    u8"\x1b[1;5B", // KEY_DOWN
-    u8"\x1b[6~", // KEY_PAGEDOWN
-    u8"\x1b[2~", // KEY_INSERT
-    u8"\x1b[3~", // KEY_DELETE
+export using unique_xkb_keymap = unique_ptr<xkb_keymap*, xkb_keymap_closer>;
+
+class xkb_state_closer {
+public:
+    using pointer = xkb_state*;
+
+    void operator()(xkb_state* ctx) {
+        xkb_state_unref(ctx);
+    }
 };
 
-static const bool capslock_codes[] = {
-    false, // KEY_RESERVED
-    false, // KEY_ESC
-    false, // KEY_1
-    false, // KEY_2
-    false, // KEY_3
-    false, // KEY_4
-    false, // KEY_5
-    false, // KEY_6
-    false, // KEY_7
-    false, // KEY_8
-    false, // KEY_9
-    false, // KEY_0
-    false, // KEY_MINUS
-    false, // KEY_EQUAL
-    false, // KEY_BACKSPACE
-    false, // KEY_TAB
-    true, // KEY_Q
-    true, // KEY_W
-    true, // KEY_E
-    true, // KEY_R
-    true, // KEY_T
-    true, // KEY_Y
-    true, // KEY_U
-    true, // KEY_I
-    true, // KEY_O
-    true, // KEY_P
-    false, // KEY_LEFTBRACE
-    false, // KEY_RIGHTBRACE
-    false, // KEY_ENTER
-    false, // KEY_LEFTCTRL
-    true, // KEY_A
-    true, // KEY_S
-    true, // KEY_D
-    true, // KEY_F
-    true, // KEY_G
-    true, // KEY_H
-    true, // KEY_J
-    true, // KEY_K
-    true, // KEY_L
-    false, // KEY_SEMICOLON
-    false, // KEY_APOSTROPHE
-    false, // KEY_GRAVE
-    false, // KEY_LEFTSHIFT
-    false, // KEY_BACKSLASH
-    true, // KEY_Z
-    true, // KEY_X
-    true, // KEY_C
-    true, // KEY_V
-    true, // KEY_B
-    true, // KEY_N
-    true, // KEY_M
-    false, // KEY_COMMA
-    false, // KEY_DOT
-    false, // KEY_SLASH
-    false, // KEY_RIGHTSHIFT
-    false, // KEY_KPASTERISK
-    false, // KEY_LEFTALT
-    false, // KEY_SPACE
-    false, // KEY_CAPSLOCK
-    false, // KEY_F1
-    false, // KEY_F2
-    false, // KEY_F3
-    false, // KEY_F4
-    false, // KEY_F5
-    false, // KEY_F6
-    false, // KEY_F7
-    false, // KEY_F8
-    false, // KEY_F9
-    false, // KEY_F10
-    false, // KEY_NUMLOCK
-    false, // KEY_SCROLLLOCK
-    false, // KEY_KP7
-    false, // KEY_KP8
-    false, // KEY_KP9
-    false, // KEY_KPMINUS
-    false, // KEY_KP4
-    false, // KEY_KP5
-    false, // KEY_KP6
-    false, // KEY_KPPLUS
-    false, // KEY_KP1
-    false, // KEY_KP2
-    false, // KEY_KP3
-    false, // KEY_KP0
-    false, // KEY_KPDOT
-    false,
-    false, // KEY_ZENKAKUHANKAKU
-    false, // KEY_102ND
-    false, // KEY_F11
-    false, // KEY_F12
-    false, // KEY_RO
-    false, // KEY_KATAKANA
-    false, // KEY_HIRAGANA
-    false, // KEY_HENKAN
-    false, // KEY_KATAKANAHIRAGANA
-    false, // KEY_MUHENKAN
-    false, // KEY_KPJPCOMMA
-    false, // KEY_KPENTER
-    false, // KEY_RIGHTCTRL
-    false, // KEY_KPSLASH
-    false, // KEY_SYSRQ
-    false, // KEY_RIGHTALT
-    false, // KEY_LINEFEED
-    false, // KEY_HOME
-    false, // KEY_UP
-    false, // KEY_PAGEUP
-    false, // KEY_LEFT
-    false, // KEY_RIGHT
-    false, // KEY_END
-    false, // KEY_DOWN
-    false, // KEY_PAGEDOWN
-    false, // KEY_INSERT
-    false, // KEY_DELETE
-};
-
-static const bool numlock_codes[] = {
-    false, // KEY_RESERVED
-    false, // KEY_ESC
-    false, // KEY_1
-    false, // KEY_2
-    false, // KEY_3
-    false, // KEY_4
-    false, // KEY_5
-    false, // KEY_6
-    false, // KEY_7
-    false, // KEY_8
-    false, // KEY_9
-    false, // KEY_0
-    false, // KEY_MINUS
-    false, // KEY_EQUAL
-    false, // KEY_BACKSPACE
-    false, // KEY_TAB
-    false, // KEY_Q
-    false, // KEY_W
-    false, // KEY_E
-    false, // KEY_R
-    false, // KEY_T
-    false, // KEY_Y
-    false, // KEY_U
-    false, // KEY_I
-    false, // KEY_O
-    false, // KEY_P
-    false, // KEY_LEFTBRACE
-    false, // KEY_RIGHTBRACE
-    false, // KEY_ENTER
-    false, // KEY_LEFTCTRL
-    false, // KEY_A
-    false, // KEY_S
-    false, // KEY_D
-    false, // KEY_F
-    false, // KEY_G
-    false, // KEY_H
-    false, // KEY_J
-    false, // KEY_K
-    false, // KEY_L
-    false, // KEY_SEMICOLON
-    false, // KEY_APOSTROPHE
-    false, // KEY_GRAVE
-    false, // KEY_LEFTSHIFT
-    false, // KEY_BACKSLASH
-    false, // KEY_Z
-    false, // KEY_X
-    false, // KEY_C
-    false, // KEY_V
-    false, // KEY_B
-    false, // KEY_N
-    false, // KEY_M
-    false, // KEY_COMMA
-    false, // KEY_DOT
-    false, // KEY_SLASH
-    false, // KEY_RIGHTSHIFT
-    false, // KEY_KPASTERISK
-    false, // KEY_LEFTALT
-    false, // KEY_SPACE
-    false, // KEY_CAPSLOCK
-    false, // KEY_F1
-    false, // KEY_F2
-    false, // KEY_F3
-    false, // KEY_F4
-    false, // KEY_F5
-    false, // KEY_F6
-    false, // KEY_F7
-    false, // KEY_F8
-    false, // KEY_F9
-    false, // KEY_F10
-    false, // KEY_NUMLOCK
-    false, // KEY_SCROLLLOCK
-    true, // KEY_KP7
-    true, // KEY_KP8
-    true, // KEY_KP9
-    false, // KEY_KPMINUS
-    true, // KEY_KP4
-    true, // KEY_KP5
-    true, // KEY_KP6
-    false, // KEY_KPPLUS
-    true, // KEY_KP1
-    true, // KEY_KP2
-    true, // KEY_KP3
-    true, // KEY_KP0
-    true, // KEY_KPDOT
-    false,
-    false, // KEY_ZENKAKUHANKAKU
-    false, // KEY_102ND
-    false, // KEY_F11
-    false, // KEY_F12
-    false, // KEY_RO
-    false, // KEY_KATAKANA
-    false, // KEY_HIRAGANA
-    false, // KEY_HENKAN
-    false, // KEY_KATAKANAHIRAGANA
-    false, // KEY_MUHENKAN
-    false, // KEY_KPJPCOMMA
-    false, // KEY_KPENTER
-    false, // KEY_RIGHTCTRL
-    false, // KEY_KPSLASH
-    false, // KEY_SYSRQ
-    false, // KEY_RIGHTALT
-    false, // KEY_LINEFEED
-    false, // KEY_HOME
-    false, // KEY_UP
-    false, // KEY_PAGEUP
-    false, // KEY_LEFT
-    false, // KEY_RIGHT
-    false, // KEY_END
-    false, // KEY_DOWN
-    false, // KEY_PAGEDOWN
-    false, // KEY_INSERT
-    false, // KEY_DELETE
-};
+export using unique_xkb_state = unique_ptr<xkb_state*, xkb_state_closer>;
 
 class keyboard_context {
 public:
-    keyboard_context(uint32_t id) : id(id) { }
+    keyboard_context(uint32_t id, xkb_keymap* keymap);
 
     span<const char8_t> handle_keyboard_event(const input_event& ev, HANDLE pipe,
-                                              bool& cad, bool decckm);
+                                              bool& cad, bool decckm,
+                                              span<char8_t> k);
     void set_led(HANDLE pipe, evdev_led_code led, int32_t value);
 
     list_entry le;
     uint32_t id;
+    bool init = false;
 
 private:
-    bool left_shift = false, right_shift = false;
-    bool left_ctrl = false, right_ctrl = false;
-    bool left_alt = false, right_alt = false;
-    bool caps_lock = false, num_lock = false, scroll_lock = false;
+    unique_xkb_state state;
+    xkb_keymap* keymap;
 };
 
 static list_entry contexts = { &contexts, &contexts };
 
+keyboard_context::keyboard_context(uint32_t id, xkb_keymap* keymap) : id(id), keymap(keymap) {
+    state.reset(xkb_state_new(keymap));
+    if (!state) {
+        print_stderr("xkb_state_new failed\n");
+        return;
+    }
+
+    init = true;
+}
+
 span<const char8_t> keyboard_context::handle_keyboard_event(const input_event& ev,
                                                             HANDLE pipe, bool& cad,
-                                                            bool decckm) {
-    auto idx = (unsigned int)ev.code;
-    auto code = (evdev_key_code)ev.code;
+                                                            bool decckm,
+                                                            span<char8_t> k) {
+    auto code = ev.code + XKB_EVDEV_OFFSET;
 
-    if (code == evdev_key_code::KEY_LEFTSHIFT) {
-        if (ev.value == 1) // key down
-            left_shift = true;
-        else if (ev.value == 0) // key up
-            left_shift = false;
+    if (ev.value != 2) {
+        auto change = xkb_state_update_key(state.get(), code,
+                                           ev.value == 0 ? XKB_KEY_UP : XKB_KEY_DOWN);
 
-        return {};
-    } else if (code == evdev_key_code::KEY_RIGHTSHIFT) {
-        if (ev.value == 1) // key down
-            right_shift = true;
-        else if (ev.value == 0) // key up
-            right_shift = false;
+        if (change & XKB_STATE_LEDS) {
+            auto caps_lock_led = xkb_keymap_led_get_index(keymap, XKB_LED_NAME_CAPS);
 
-        return {};
-    } else if (code == evdev_key_code::KEY_LEFTCTRL) {
-        if (ev.value == 1) // key down
-            left_ctrl = true;
-        else if (ev.value == 0) // key up
-            left_ctrl = false;
+            if (caps_lock_led != XKB_LED_INVALID) {
+                set_led(pipe, evdev_led_code::LED_CAPSL,
+                        xkb_state_led_index_is_active(state.get(), caps_lock_led));
+            }
 
-        return {};
-    } else if (code == evdev_key_code::KEY_RIGHTCTRL) {
-        if (ev.value == 1) // key down
-            right_ctrl = true;
-        else if (ev.value == 0) // key up
-            right_ctrl = false;
+            auto num_lock_led = xkb_keymap_led_get_index(keymap, XKB_LED_NAME_NUM);
 
-        return {};
-    } else if (code == evdev_key_code::KEY_LEFTALT) {
-        if (ev.value == 1) // key down
-            left_alt = true;
-        else if (ev.value == 0) // key up
-            left_alt = false;
+            if (num_lock_led != XKB_LED_INVALID) {
+                set_led(pipe, evdev_led_code::LED_NUML,
+                        xkb_state_led_index_is_active(state.get(), num_lock_led));
+            }
 
-        return {};
-    } else if (code == evdev_key_code::KEY_RIGHTALT) {
-        if (ev.value == 1) // key down
-            right_alt = true;
-        else if (ev.value == 0) // key up
-            right_alt = false;
+            auto scroll_lock_led = xkb_keymap_led_get_index(keymap, XKB_LED_NAME_SCROLL);
 
-        return {};
+            if (scroll_lock_led != XKB_LED_INVALID) {
+                set_led(pipe, evdev_led_code::LED_SCROLLL,
+                        xkb_state_led_index_is_active(state.get(), scroll_lock_led));
+            }
+        }
     }
 
-    if (ev.value == 0) // ignore key-ups
+    if (ev.value == 0)
         return {};
 
-    if (code == evdev_key_code::KEY_DELETE && (left_ctrl || right_ctrl) && (left_alt || right_alt)) {
-        cad = true;
-        return {};
+    if (xkb_state_key_get_one_sym(state.get(), code) == XKB_KEY_Delete) {
+        bool ctrl = xkb_state_mod_name_is_active(state.get(), XKB_MOD_NAME_CTRL,
+                                                 XKB_STATE_MODS_EFFECTIVE);
+        bool alt = xkb_state_mod_name_is_active(state.get(), XKB_MOD_NAME_ALT,
+                                                XKB_STATE_MODS_EFFECTIVE);
+
+        if (ctrl && alt) {
+            cad = true;
+            return {};
+        }
     }
 
-    if (code == evdev_key_code::KEY_CAPSLOCK) {
-        caps_lock = !caps_lock;
-
-        set_led(pipe, evdev_led_code::LED_CAPSL, caps_lock ? 1 : 0);
+    auto sym = xkb_state_key_get_one_sym(state.get(), code);
+    if (sym == XKB_KEY_NoSymbol)
         return {};
-    } else if (code == evdev_key_code::KEY_NUMLOCK) {
-        num_lock = !num_lock;
 
-        set_led(pipe, evdev_led_code::LED_NUML, num_lock ? 1 : 0);
-        return {};
-    } else if (code == evdev_key_code::KEY_SCROLLLOCK) {
-        scroll_lock = !scroll_lock;
+    u8string_view sv;
+    span<const char8_t> val;
 
-        set_led(pipe, evdev_led_code::LED_SCROLLL, scroll_lock ? 1 : 0);
-        return {};
-    }
+    switch (sym) {
+        case XKB_KEY_Escape:
+            sv = u8"\x1b";
+            break;
 
-    bool holding_shift = left_shift || right_shift;
+        case XKB_KEY_F1:
+            sv = u8"\x1bOP";
+            break;
 
-    if (caps_lock && idx < sizeof(capslock_codes) / sizeof(*capslock_codes) && capslock_codes[idx])
-        holding_shift = !holding_shift;
+        case XKB_KEY_F2:
+            sv = u8"\x1bOQ";
+            break;
 
-    if (!num_lock && idx < sizeof(numlock_codes) / sizeof(*numlock_codes) && numlock_codes[idx])
-        holding_shift = true;
+        case XKB_KEY_F3:
+            sv = u8"\x1bOR";
+            break;
 
-    u8string_view val;
+        case XKB_KEY_F4:
+            sv = u8"\x1bOS";
+            break;
 
-    if (left_ctrl || right_ctrl) {
-        if (idx >= sizeof(codes_ctrl) / sizeof(*codes_ctrl))
-            return {};
+        case XKB_KEY_F5:
+            sv = u8"\x1b[15~";
+            break;
 
-        if (codes_ctrl[idx].empty())
-            return {};
+        case XKB_KEY_F6:
+            sv = u8"\x1b[17~";
+            break;
 
-        val = codes_ctrl[idx];
-    } else if (holding_shift) {
-        if (idx >= sizeof(codes_shift) / sizeof(*codes_shift))
-            return {};
+        case XKB_KEY_F7:
+            sv = u8"\x1b[18~";
+            break;
 
-        if (codes_shift[idx].empty())
-            return {};
+        case XKB_KEY_F8:
+            sv = u8"\x1b[19~";
+            break;
 
-        val = codes_shift[idx];
-    } else {
-        if (idx >= sizeof(codes) / sizeof(*codes))
-            return {};
+        case XKB_KEY_F9:
+            sv = u8"\x1b[20~";
+            break;
 
-        if (codes[idx].empty())
-            return {};
+        case XKB_KEY_F10:
+            sv = u8"\x1b[21~";
+            break;
 
-        val = codes[idx];
+        case XKB_KEY_F11:
+            sv = u8"\x1b[23~";
+            break;
+
+        case XKB_KEY_F12:
+            sv = u8"\x1b[24~";
+            break;
+
+        case XKB_KEY_Home:
+        case XKB_KEY_KP_Home:
+            sv = u8"\x1b[H";
+            break;
+
+        case XKB_KEY_Up:
+        case XKB_KEY_KP_Up:
+            sv = xkb_state_mod_name_is_active(state.get(), XKB_MOD_NAME_CTRL, XKB_STATE_MODS_EFFECTIVE) ? u8"\x1b[1;5A" : u8"\x1b[A";
+            break;
+
+        case XKB_KEY_Page_Up:
+        case XKB_KEY_KP_Page_Up:
+            sv = u8"\x1b[5~";
+            break;
+
+        case XKB_KEY_Left:
+        case XKB_KEY_KP_Left:
+            sv = xkb_state_mod_name_is_active(state.get(), XKB_MOD_NAME_CTRL, XKB_STATE_MODS_EFFECTIVE) ? u8"\x1b[1;5D" : u8"\x1b[D";
+            break;
+
+        case XKB_KEY_Right:
+        case XKB_KEY_KP_Right:
+            sv = xkb_state_mod_name_is_active(state.get(), XKB_MOD_NAME_CTRL, XKB_STATE_MODS_EFFECTIVE) ? u8"\x1b[1;5C" : u8"\x1b[C";
+            break;
+
+        case XKB_KEY_End:
+        case XKB_KEY_KP_End:
+            sv = u8"\x1b[F";
+            break;
+
+        case XKB_KEY_Down:
+        case XKB_KEY_KP_Down:
+            sv = xkb_state_mod_name_is_active(state.get(), XKB_MOD_NAME_CTRL, XKB_STATE_MODS_EFFECTIVE) ? u8"\x1b[1;5B" : u8"\x1b[B";
+            break;
+
+        case XKB_KEY_Page_Down:
+        case XKB_KEY_KP_Page_Down:
+            sv = u8"\x1b[6~";
+            break;
+
+        case XKB_KEY_Insert:
+        case XKB_KEY_KP_Insert:
+            sv = u8"\x1b[2~";
+            break;
+
+        case XKB_KEY_Delete:
+        case XKB_KEY_KP_Delete:
+            sv = u8"\x1b[3~";
+            break;
+
+        case XKB_KEY_BackSpace:
+            sv = u8"\x7f";
+            break;
+
+        default: {
+            auto len = xkb_state_key_get_utf8(state.get(), code, (char*)k.data(), k.size());
+
+            sv = u8string_view((const char8_t*)k.data(), (size_t)len);
+
+            break;
+        }
     }
 
     // return alternative forms for arrow keys, Home, and End in DECCKM mode
-    if (decckm && val.size() == 3 && val[0] == 0x1b && val[1] == '[' &&
-        ((val[2] >= 'A' && val[2] <= 'D') || val[2] == 'F' || val[2] == 'H')) {
-        switch (val[2]) {
+    if (decckm && sv.size() == 3 && sv[0] == 0x1b && sv[1] == '[' &&
+        ((sv[2] >= 'A' && sv[2] <= 'D') || sv[2] == 'F' || sv[2] == 'H')) {
+        switch (sv[2]) {
             case 'A':
-                val = u8"\x1bOA";
+                sv = u8"\x1bOA";
                 break;
 
             case 'B':
-                val = u8"\x1bOB";
+                sv = u8"\x1bOB";
                 break;
 
             case 'C':
-                val = u8"\x1bOC";
+                sv = u8"\x1bOC";
                 break;
 
             case 'D':
-                val = u8"\x1bOD";
+                sv = u8"\x1bOD";
                 break;
 
             case 'F':
-                val = u8"\x1bOF";
+                sv = u8"\x1bOF";
                 break;
 
             case 'H':
-                val = u8"\x1bOH";
+                sv = u8"\x1bOH";
                 break;
 
             default:
@@ -757,7 +289,9 @@ span<const char8_t> keyboard_context::handle_keyboard_event(const input_event& e
         }
     }
 
-    return span(val.data(), val.size());
+    val = sv;
+
+    return val;
 }
 
 void keyboard_context::set_led(HANDLE pipe, evdev_led_code led, int32_t value) {
@@ -778,16 +312,17 @@ void keyboard_context::set_led(HANDLE pipe, evdev_led_code led, int32_t value) {
 }
 
 export span<const char8_t> handle_keyboard_event(const input_event_with_id& ev,
-                                                 HANDLE pipe, bool& cad,
-                                                 bool decckm) {
+                                                 xkb_keymap* keymap, HANDLE pipe,
+                                                 bool& cad, bool decckm,
+                                                 span<char8_t> k) {
     for (auto le = contexts.next; le != &contexts; le = le->next) {
         auto& ctx = containing_record<keyboard_context>(le);
 
         if (ctx.id == ev.id)
-            return ctx.handle_keyboard_event(ev.ev, pipe, cad, decckm);
+            return ctx.handle_keyboard_event(ev.ev, pipe, cad, decckm, k);
     }
 
-    auto ctx = new keyboard_context(ev.id);
+    auto ctx = new keyboard_context(ev.id, keymap);
     if (!ctx) {
         print("new failed\n");
         return {};
@@ -799,5 +334,5 @@ export span<const char8_t> handle_keyboard_event(const input_event_with_id& ev,
     ctx->set_led(pipe, evdev_led_code::LED_NUML, 0);
     ctx->set_led(pipe, evdev_led_code::LED_SCROLLL, 0);
 
-    return ctx->handle_keyboard_event(ev.ev, pipe, cad, decckm);
+    return ctx->handle_keyboard_event(ev.ev, pipe, cad, decckm, k);
 }
